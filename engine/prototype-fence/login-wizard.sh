@@ -198,6 +198,21 @@ finish() {
 # the whole file before the first prompt, so an edit mid-run can't break it.
 # ──────────────────────────────────────────────────────────────────────────
 
+# ask_long_secret KEY "Prompt" reads a hidden value that may arrive as several
+# pasted lines (a long token wraps in the terminal). It ends at an empty line
+# and drops every space and line break.
+ask_long_secret() {
+  local key="$1" prompt="$2" line value=""
+  printf '  %s%s%s\n  ' "$BOLD" "$prompt" "$RESET"
+  while IFS= read -rs line; do
+    line="${line//$'\e[200~'/}"; line="${line//$'\e[201~'/}"
+    [[ -z "${line//[[:space:]]/}" ]] && break
+    value+="${line//[[:space:]]/}"
+  done
+  printf '\n'
+  printf -v "$key" '%s' "$value"
+}
+
 run_wizard() {
 
 TOTAL_STAGES=2
@@ -215,17 +230,18 @@ say "The agent runs inside a fence and cannot use your own Claude login."
 say "This step makes a separate token for it, tied to your Claude plan."
 step "A sign-in page opens in your browser. Approve it with your Claude account."
 step "Back here, the terminal prints a long token that starts with sk-ant-."
-step "Select the whole token and copy it."
+step "Select the whole token and copy it. It is long and wraps onto a second line: take both lines."
 pause "Press Enter to start the sign-in"
 if ! claude setup-token; then
   warn "claude setup-token did not finish. Sort that out, then run this wizard again."
   exit 1
 fi
-ask_secret CLAUDE_CODE_OAUTH_TOKEN "Paste the token (it stays hidden):"
-if [[ "$CLAUDE_CODE_OAUTH_TOKEN" != sk-ant-* ]]; then
-  warn "That does not look like a Claude token (it should start with sk-ant-)."
-  confirm "Save it anyway?" || exit 1
-fi
+while :; do
+  ask_long_secret CLAUDE_CODE_OAUTH_TOKEN "Paste the whole token, press Enter, then press Enter again on the empty line. It stays hidden."
+  if [[ "$CLAUDE_CODE_OAUTH_TOKEN" =~ ^sk-ant-[A-Za-z0-9_-]{80,}$ ]]; then break; fi
+  warn "That was ${#CLAUDE_CODE_OAUTH_TOKEN} characters. A full token is about 100, so it was probably cut off at a line break."
+  confirm "Paste it again?" || exit 1
+done
 write_env CLAUDE_CODE_OAUTH_TOKEN "$CLAUDE_CODE_OAUTH_TOKEN"
 note "Saved outside the project and outside the fence, readable only by you."
 pause
