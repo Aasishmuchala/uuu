@@ -20,6 +20,17 @@ A buildable spec for phase 1 of the engine: paperclip as the company plane, runn
 
 <!-- the index: one line per closed ticket, with a link to the ticket that holds the detail -->
 
+- [What paperclip needs to run on this Mac](issues/01-what-paperclip-needs-to-run.md): only a Node upgrade to 24.11 or later; no Docker or separate database; data under `~/.paperclip`.
+- [How paperclip keeps secrets and isolates agent runs on macOS](issues/02-how-paperclip-keeps-secrets-and-isolates-runs.md): secrets are encrypted at rest but reach agents as plain environment variables; on a Mac, agent runs are unsandboxed and skip permission prompts by default; its built-in confinement is Linux-only.
+- [How paperclip budgets work on subscription plans](issues/03-how-paperclip-budgets-work-on-subscription-plans.md): budgets are money-only and subscription runs record 0 cents, so budgets cannot limit them; plan quota running out reschedules the task and asks no one.
+- [Install Node 24 beside Node 22](issues/04-install-node-24-beside-node-22.md): Node 24.13 is already installed under nvm; the engine uses it by PATH and nothing else changes.
+- [The first agents and their jobs](issues/06-the-first-agents-and-their-jobs.md): Chief of staff and Builder on Claude Code, Checker on Codex; both report to the chief of staff, who reports to the owner.
+- [The real work for the two-week proof](issues/07-the-real-work-for-the-two-week-proof.md): prepare phase 2 (the books), ending in a written spec; nothing leaves the building.
+- [What needs approval](issues/08-what-needs-approval.md): free inside the task folder, everything else blocked, only finished work reaches the owner.
+- [Secrets and sandboxing in phase 1](issues/09-secrets-and-sandboxing-in-phase-1.md): each tool's own sandbox with skip-permissions off, sandbox-runtime as a fallback wrapper, no secrets for agents, proven by a failed read of the SSH keys.
+- [Each agent's budget](issues/10-each-agents-budget.md): one task at a time, a time limit per run, and agents run only while the engine is switched on.
+- [What proves phase 1 worked](issues/11-what-proves-phase-1-worked.md): 20 checked tasks, fence test passing at both ends, plan never exhausted, 15 minutes a day or less, phase 2 spec delivered.
+
 ## Not yet specified
 
 - How the company definition (org chart, agents, skills) is kept under version control in this repo. Waits on what paperclip can export.

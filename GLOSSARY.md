@@ -23,3 +23,25 @@ _Avoid_: Team, division, space
 **System of record**:
 The one place where a kind of data officially lives, such as the books or the CRM.
 _Avoid_: Backend, source of truth, database
+
+**Fence**:
+The limits on what an agent can reach: files, network and secrets.
+_Avoid_: Jail, guardrail, sandbox (that names the tool that builds a fence)
+
+## Roles
+
+**Owner**:
+The person the company belongs to; the top of the org chart.
+_Avoid_: Admin, boss, user
+
+**Chief of staff**:
+The agent that turns the owner's goals into tasks and assigns them.
+_Avoid_: CEO, manager, orchestrator
+
+**Builder**:
+The agent that does the work on a task.
+_Avoid_: Engineer, worker, implementer
+
+**Checker**:
+The agent that tests and reviews a builder's work before it reaches the owner.
+_Avoid_: Reviewer, QA, verifier
