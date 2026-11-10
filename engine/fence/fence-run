@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# Runs one command inside the fence (Anthropic's sandbox-runtime):
+#   files   - the task folder (the current folder) and the agent's own home are
+#             readable and writable; the rest of the owner's home cannot be read
+#   network - the tool's model hosts and the gate; nothing else, except the local
+#             services the agent's fence policy names
+# The rules come from engine/config.json and from the agent's policy file
+# (state/policy/<agent id>.json), never from environment variables. The fence
+# refuses to start in a folder that is not an agent task folder.
+#
+# Usage: fence-run [--tool claude|codex] [--agent-home DIR] [--read PATH]... [--write PATH]...
+#                  ( -c '<shell command>' | -- <command> [args...] )
+#        fence-run --self-check
+# --read and --write are for the wrappers' own computed paths. Exit 78 on a refusal.
+set -euo pipefail
+
+# 1. No fence rule ever comes from the environment.
+for _v in $(compgen -e); do
+  case "$_v" in FENCE_*|UUU_*) unset "$_v" ;; esac
+done
+unset ENGINE_CONFIG _v
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+refuse() { echo "fence: $1" >&2; exit 78; }
+
+# The home folder macOS has on record for this user, not $HOME: the config's "~"
+# and the fence's protected folder must not move with whatever HOME we were given.
+OWNER_HOME="$(/usr/bin/python3 -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" \
+  || refuse "could not find your home folder"
+_given_home="${HOME:-}"
+HOME="$OWNER_HOME"
+. "$HERE/../lib/config.sh" || refuse "the engine config could not be read. Check engine/config.json"
+HOME="$_given_home"; unset _given_home
+export HOME
+
+SRT="$CFG_ENGINE_DIR/node_modules/.bin/srt"
+GATE_URL="$CFG_GATE_URL"
+
+self_check() {
+  local missing=""
+  [[ -x "$SRT" ]] || missing="the sandbox tool (engine/node_modules/.bin/srt; run npm install in engine/)"
+  [[ -z "$missing" && -x "$HERE/bin/claude" ]] || missing="${missing:-the claude wrapper (engine/fence/bin/claude)}"
+  [[ -z "$missing" && -x "$HERE/bin/codex" ]] || missing="${missing:-the codex wrapper (engine/fence/bin/codex)}"
+  [[ -z "$missing" && -x "$CFG_REAL_CLAUDE" ]] || missing="${missing:-Claude Code itself ($CFG_REAL_CLAUDE)}"
+  [[ -z "$missing" && -x "$CFG_NODE24/bin/node" ]] || missing="${missing:-Node 24 ($CFG_NODE24)}"
+  if [[ -n "$missing" ]]; then echo "The fence is not ready: missing $missing." >&2; return 1; fi
+  local proof out
+  proof="$CFG_STATE/tasks/_proof"
+  mkdir -p "$proof" || { echo "The fence is not ready: could not make its proof folder." >&2; return 1; }
+  out="$(cd "$proof" && env -u PAPERCLIP_AGENT_ID "$HERE/fence-run" -c 'echo FENCE_UP' 2>&1)" || true
+  if [[ "$out" != *FENCE_UP* ]]; then
+    echo "The fence is not ready: a command could not start inside it (${out%%$'\n'*})." >&2
+    return 1
+  fi
+  echo "The fence is ready."
+}
+
+if [[ "${1:-}" == "--self-check" ]]; then
+  [[ $# -eq 1 ]] || refuse "--self-check takes nothing else"
+  self_check; exit $?
+fi
+
+# 2. Arguments.
+TOOL="claude"; AGENT_HOME="$CFG_STATE/claude-home"; MODE=""; SHELL_CMD=""
+EXTRA=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --tool) [[ $# -ge 2 ]] || refuse "--tool needs a value"; TOOL="$2"; shift 2 ;;
+    --agent-home) [[ $# -ge 2 ]] || refuse "--agent-home needs a value"; AGENT_HOME="$2"; shift 2 ;;
+    --read|--write) [[ $# -ge 2 ]] || refuse "$1 needs a value"; EXTRA+=("$1" "$2"); shift 2 ;;
+    -c) [[ $# -eq 2 ]] || refuse "-c takes exactly one shell command"; MODE="shell"; SHELL_CMD="$2"; shift 2 ;;
+    --) shift; [[ $# -ge 1 ]] || refuse "no command after --"; MODE="exec"; break ;;
+    *) refuse "unknown option $1 (usage: fence-run [--tool claude|codex] [--agent-home DIR] [--read PATH]... [--write PATH]... ( -c CMD | -- COMMAND ARGS... ))" ;;
+  esac
+done
+[[ -n "$MODE" ]] || refuse "no command given"
+case "$TOOL" in claude|codex) ;; *) refuse "unknown tool $TOOL" ;; esac
+[[ -x "$SRT" ]] || refuse "the sandbox tool is missing (engine/node_modules/.bin/srt)"
+
+TASK_FOLDER="$(pwd -P)" || refuse "could not read the working folder"
+mkdir -p "$AGENT_HOME" "$CFG_STATE/fences" "$CFG_LOGS"
+
+# Temp folder for the command: paperclip's per-run folder when it gave one (a
+# folder of ours named paperclip-run-* in the system temp area), else one inside
+# the agent's home. The planner checks it again.
+INNER_TMP="$AGENT_HOME/tmp"
+_tmp="${TMPDIR:-}"
+if [[ -n "$_tmp" && -d "$_tmp" && ! -L "${_tmp%/}" ]]; then
+  _tmp_real="$(cd "$_tmp" && pwd -P)"
+  case "$_tmp_real" in
+    /private/var/folders/*/paperclip-run-*|/private/tmp/paperclip-run-*)
+      case "$(basename "$_tmp_real")" in
+        paperclip-run-*) [[ -O "$_tmp_real" ]] && INNER_TMP="$_tmp_real" ;;
+      esac ;;
+  esac
+fi
+unset _tmp _tmp_real
+mkdir -p "$INNER_TMP"
+
+# 3. The planner's inputs, then the planner. The agent id is only a lookup key.
+AGENT_ID="${PAPERCLIP_AGENT_ID:-}"
+INPUTS="$(/usr/bin/python3 "$HERE/fence_inputs.py" --tool "$TOOL" --task-folder "$TASK_FOLDER" \
+  --agent-home "$AGENT_HOME" --inner-tmp "$INNER_TMP" --agent-id "$AGENT_ID" \
+  ${EXTRA[@]+"${EXTRA[@]}"})" || exit 78
+INPUTS_JSON="$(printf '%s\n' "$INPUTS" | sed -n 1p)"
+LESSONS_FILE="$(printf '%s\n' "$INPUTS" | sed -n 2p)"
+ENV_FILE="$(printf '%s\n' "$INPUTS" | sed -n 3p)"
+SETTINGS="$(printf '%s\n' "$INPUTS_JSON" | /usr/bin/python3 "$HERE/fence_plan.py")" || exit 78
+[[ -f "$SETTINGS" ]] || refuse "the planner wrote no settings"
+unset INPUTS INPUTS_JSON
+
+# 4. What the command gets inside the fence. Values from the env file are
+# exported, never put on a command line and never logged.
+if [[ -n "$ENV_FILE" && -e "$ENV_FILE" ]]; then
+  [[ -L "$ENV_FILE" ]] && refuse "the agent's key file is a link; the fence only trusts a plain file"
+  [[ -f "$ENV_FILE" && -O "$ENV_FILE" ]] || refuse "the agent's key file is not a plain file of yours"
+  _mode="$(stat -f '%Lp' "$ENV_FILE")" || refuse "could not check the agent's key file"
+  (( (8#$_mode & 8#022) == 0 )) || refuse "the agent's key file can be changed by others"
+  _n=0
+  while IFS= read -r _line || [[ -n "$_line" ]]; do
+    _n=$((_n + 1))
+    case "$_line" in ''|'#'*) continue ;; esac
+    _key="${_line%%=*}"
+    [[ "$_line" == *=* && "$_key" =~ ^UUU_[A-Z0-9_]+$ ]] \
+      || refuse "line $_n of the agent's key file is not UUU_NAME=value"
+    export "$_key=${_line#*=}"
+  done < "$ENV_FILE"
+  unset _line _key _n _mode
+fi
+export UUU_KNOWLEDGE_DIR="$CFG_STATE/knowledge/docs"
+if [[ -n "$LESSONS_FILE" ]]; then export UUU_LESSONS_FILE="$LESSONS_FILE"; fi
+export PAPERCLIP_API_URL="$GATE_URL" PAPERCLIP_RUNTIME_API_URL="$GATE_URL"
+unset PAPERCLIP_LISTEN_HOST PAPERCLIP_LISTEN_PORT OPENAI_API_KEY ANTHROPIC_API_KEY
+export PATH="$CFG_NODE24/bin:$PATH"
+
+# 6. One line per run: time, tool, working folder, agent id. Never arguments.
+printf '%s %s cwd=%s agent=%s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$TOOL" "$TASK_FOLDER" "${AGENT_ID:--}" \
+  >> "$CFG_LOGS/fence-calls.log" 2>/dev/null || true
+
+# sandbox-runtime puts its control socket under TMPDIR, and a socket path has a
+# hard length limit that paperclip's per-run temp folder overflows. So the tool
+# itself gets a short TMPDIR of ours, and the command inside gets its own back.
+SHORT_TMP="/tmp/uuu-fence-$(id -u)"
+if [[ -L "$SHORT_TMP" ]] || { [[ -e "$SHORT_TMP" ]] && [[ ! -d "$SHORT_TMP" || ! -O "$SHORT_TMP" ]]; }; then
+  refuse "$SHORT_TMP is not a folder of yours; remove it and try again"
+fi
+mkdir -p "$SHORT_TMP" && chmod 700 "$SHORT_TMP"
+
+# NO_PROXY is emptied inside, after the sandbox tool has set its own, so that
+# calls to 127.0.0.1 also go through the fence's proxy, which allows only the
+# listed local ports. `--` stops the tool from reading the command's flags
+# (such as --version) as its own.
+INNER_ENV=(env -u PAPERCLIP_LISTEN_HOST -u PAPERCLIP_LISTEN_PORT -u OPENAI_API_KEY -u ANTHROPIC_API_KEY
+  TMPDIR="$INNER_TMP" CLAUDE_CODE_TMPDIR="$INNER_TMP" NO_PROXY= no_proxy=
+  PAPERCLIP_API_URL="$GATE_URL" PAPERCLIP_RUNTIME_API_URL="$GATE_URL")
+if [[ "$MODE" == "shell" ]]; then
+  TMPDIR="$SHORT_TMP" exec "$SRT" -s "$SETTINGS" -- "${INNER_ENV[@]}" /bin/bash -c "$SHELL_CMD"
+fi
+TMPDIR="$SHORT_TMP" exec "$SRT" -s "$SETTINGS" -- "${INNER_ENV[@]}" "$@"

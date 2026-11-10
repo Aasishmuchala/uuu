@@ -1,0 +1,324 @@
+#!/usr/bin/env bash
+# The one command that runs the company engine.
+#   engine start | stop | status | prove | setup | test | help
+# Each part of the engine is a script in engine/parts/ (ENGINE_PARTS_DIR
+# replaces that folder for tests). Everything printed here is for the owner:
+# plain sentences, and what to do next.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: engine <command>
+
+  start    Turn the engine on: the books, the board, the gate, the home screen.
+  stop     Turn everything off.
+  status   Say what is on and what needs attention.
+  prove    Check that the fence around the agents holds.
+  setup    Apply the company file to the board and wire up the books.
+  test     Run every test.
+  help     Show this list.
+EOF
+}
+
+# Find engine/ from this script's own path, following links.
+self="${BASH_SOURCE[0]}"
+while [ -L "$self" ]; do
+  target="$(readlink "$self")"
+  case "$target" in
+    /*) self="$target" ;;
+    *) self="$(dirname "$self")/$target" ;;
+  esac
+done
+ENGINE_DIR="$(cd "$(dirname "$self")/.." && pwd -P)"
+REPO_DIR="$(dirname "$ENGINE_DIR")"
+
+cmd="${1:-}"
+case "$cmd" in
+  start|stop|status|prove|setup|test) ;;
+  help|-h|--help) usage; exit 0 ;;
+  *) usage >&2; exit 64 ;;
+esac
+
+# shellcheck source=../lib/config.sh
+if ! . "$ENGINE_DIR/lib/config.sh" 2>/dev/null; then
+  echo "The engine's settings file (engine/config.json) could not be read. Put it back from the repository, then try again." >&2
+  exit 1
+fi
+NODE="$CFG_NODE24/bin/node"
+PARTS_DIR="${ENGINE_PARTS_DIR:-$ENGINE_DIR/parts}"
+
+# ---- parts ---------------------------------------------------------------
+
+# Part scripts, in name order. A part is a file named NN-<id>.sh.
+PARTS=()
+for f in "$PARTS_DIR"/[0-9]*.sh; do
+  [ -f "$f" ] && PARTS+=("$f")
+done
+
+part_id() { local b; b="$(basename "$1" .sh)"; printf '%s\n' "${b#[0-9][0-9]-}"; }
+
+# The name shown, from the line `# part-name: <Name>` in the script.
+part_name() {
+  local n
+  n="$(sed -n 's/^# part-name: *//p' "$1" | head -1)"
+  if [ -z "$n" ]; then
+    n="$(part_id "$1")"
+    n="$(printf '%s' "${n:0:1}" | tr '[:lower:]' '[:upper:]')${n:1}"
+  fi
+  printf '%s\n' "$n"
+}
+lower() { printf '%s\n' "$1" | tr '[:upper:]' '[:lower:]'; }
+part_log() { printf '%s/%s.log\n' "$CFG_LOGS" "$(part_id "$1")"; }
+
+# Runs a part subcommand. Sets OUT (its stdout, trimmed) and CODE. Its errors
+# go to the part's log, never to the screen.
+run_part() {
+  local f="$1" sub="$2" log tmp
+  log="$(part_log "$f")"
+  mkdir -p "$CFG_LOGS"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/engine-part.XXXXXX")"
+  CODE=0
+  /bin/bash "$f" "$sub" >"$tmp" 2>>"$log" </dev/null || CODE=$?
+  OUT="$(grep -v '^[[:space:]]*$' "$tmp" || true)"
+  rm -f "$tmp"
+}
+
+# Is the part installed? Sets NOT_INSTALLED_SENTENCE when it is not.
+part_installed() {
+  run_part "$1" installed
+  if [ "$CODE" = 0 ]; then return 0; fi
+  NOT_INSTALLED_SENTENCE="$(printf '%s\n' "$OUT" | tail -1)"
+  [ -n "$NOT_INSTALLED_SENTENCE" ] || NOT_INSTALLED_SENTENCE="This part is not installed yet."
+  return 1
+}
+
+# Health: sets STATE (on, off, unhealthy) and SENTENCE.
+part_health() {
+  run_part "$1" health
+  SENTENCE="$(printf '%s\n' "$OUT" | tail -1)"
+  case "$CODE" in
+    0) STATE=on ;;
+    1) STATE=off ;;
+    *) STATE=unhealthy ;;
+  esac
+  [ -n "$SENTENCE" ] || SENTENCE="No answer from this part."
+}
+
+find_part() {
+  local f
+  for f in ${PARTS[@]+"${PARTS[@]}"}; do
+    if [ "$(part_id "$f")" = "$1" ]; then printf '%s\n' "$f"; return 0; fi
+  done
+  return 1
+}
+
+# ---- subcommands -----------------------------------------------------------
+
+do_start() {
+  local f name skipped=0 home_ok=0
+  for f in ${PARTS[@]+"${PARTS[@]}"}; do
+    name="$(part_name "$f")"
+    if ! part_installed "$f"; then
+      echo "$name: not installed, skipped"
+      skipped=1
+      continue
+    fi
+    part_health "$f"
+    if [ "$STATE" = on ]; then
+      echo "$name is already on."
+    else
+      echo "Starting $(lower "$name")..."
+      run_part "$f" start
+      local start_code="$CODE" start_out="$OUT"
+      part_health "$f"
+      if [ "$start_code" != 0 ] || [ "$STATE" != on ]; then
+        echo "$name did not come up: $SENTENCE"
+        if [ -n "$start_out" ] && [ "$start_out" != "$SENTENCE" ]; then
+          printf '%s\n' "$start_out"
+        fi
+        echo "Check $(part_log "$f"). Then run: engine start"
+        exit 1
+      fi
+    fi
+    [ "$(part_id "$f")" = home ] && home_ok=1
+  done
+  if [ "$skipped" = 0 ]; then
+    echo "Everything is on. Open $CFG_HOME_URL"
+  elif [ "$home_ok" = 1 ]; then
+    echo "Everything that is installed is on. Open $CFG_HOME_URL"
+  else
+    echo "Everything that is installed is on."
+  fi
+  exit 0
+}
+
+do_stop() {
+  local i f name was all_off=1
+  i=${#PARTS[@]}
+  while [ "$i" -gt 0 ]; do
+    i=$((i - 1))
+    f="${PARTS[$i]}"
+    name="$(part_name "$f")"
+    if ! part_installed "$f"; then
+      echo "$name: not installed, skipped"
+      continue
+    fi
+    part_health "$f"
+    was="$STATE"
+    run_part "$f" stop
+    local stop_code="$CODE" stop_out="$OUT"
+    part_health "$f"
+    if [ "$stop_code" = 0 ] && [ "$STATE" = off ]; then
+      if [ "$was" = off ]; then
+        echo "$name was not running."
+      else
+        echo "Stopped $(lower "$name")."
+      fi
+    else
+      all_off=0
+      echo "$name did not stop: ${stop_out:-$SENTENCE}"
+      echo "Check $(part_log "$f"). Then run: engine stop"
+    fi
+  done
+  [ "$all_off" = 1 ]
+}
+
+do_status() {
+  local f name attention=""
+  for f in ${PARTS[@]+"${PARTS[@]}"}; do
+    name="$(part_name "$f")"
+    if ! part_installed "$f"; then
+      printf '%-13s %-14s %s\n' "$name" "not installed" "$NOT_INSTALLED_SENTENCE"
+      continue
+    fi
+    part_health "$f"
+    printf '%-13s %-14s %s\n' "$name" "$STATE" "$SENTENCE"
+    if [ "$STATE" != on ]; then attention="${attention:+$attention, }$name"; fi
+  done
+  if [ -z "$attention" ]; then
+    echo "Everything is on."
+    exit 0
+  fi
+  echo "Needs attention: $attention."
+  exit 1
+}
+
+do_prove() {
+  local prove="$ENGINE_DIR/fence/prove.sh"
+  if [ ! -f "$prove" ]; then
+    echo "The fence proof is not installed yet, so the fence could not be checked."
+    exit 1
+  fi
+  local code=0
+  /bin/bash "$prove" || code=$?
+  exit "$code"
+}
+
+do_setup() {
+  local board ok=1 code books wire cad wizard lines
+  board="$(find_part board || true)"
+  if [ -z "$board" ]; then
+    echo "Start the engine first: engine start"
+    exit 1
+  fi
+  part_health "$board"
+  if [ "$STATE" != on ]; then
+    echo "Start the engine first: engine start"
+    exit 1
+  fi
+
+  # 1. the company file onto the board (never with PAPERCLIP_API_URL set)
+  if [ -f "$ENGINE_DIR/company/apply.mjs" ]; then
+    echo "Setting up the company on the board..."
+    code=0
+    (cd "$ENGINE_DIR" && env -u PAPERCLIP_API_URL "$NODE" company/apply.mjs) || code=$?
+    if [ "$code" != 0 ]; then
+      echo "The company could not be set up on the board. The lines above say why."
+      ok=0
+    fi
+  else
+    echo "The company setup is not installed yet, so the company was not set up."
+    ok=0
+  fi
+
+  # 2. the books: agent users, draft-only roles, keys
+  books="$(find_part books || true)"
+  wire="$ENGINE_DIR/books/wire.sh"
+  if [ -n "$books" ] && part_installed "$books"; then
+    if [ -f "$wire" ]; then
+      echo "Wiring the agents into the books..."
+      code=0
+      /bin/bash "$wire" || code=$?
+      if [ "$code" != 0 ]; then
+        echo "The agents could not be wired into the books. The lines above say why."
+        ok=0
+      fi
+    else
+      echo "Wiring the agents into the books is not installed yet, so it was skipped."
+    fi
+  else
+    echo "The books are not installed, so wiring them was skipped."
+  fi
+
+  # 3. the Drafter's tools (only says whether they are there)
+  cad="$ENGINE_DIR/cad/install.sh"
+  if [ -f "$cad" ]; then
+    /bin/bash "$cad" --check-only || true
+  fi
+
+  # 4. what only the owner can do
+  echo "Still for you to do:"
+  wizard="$ENGINE_DIR/fence/login-wizard.sh"
+  if [ -f "$wizard" ]; then
+    lines="$(/bin/bash "$wizard" --status 2>/dev/null | grep -v '^[[:space:]]*$' | grep -v ': done$' || true)"
+    if [ -n "$lines" ]; then
+      printf '%s\n' "$lines" | sed 's/^/  /'
+    else
+      echo "  Nothing: every login is done."
+    fi
+  else
+    echo "  The login check is not installed yet, so the logins could not be checked."
+  fi
+
+  [ "$ok" = 1 ] || exit 1
+  exit 0
+}
+
+do_test() {
+  local failed=0 files=() f d code
+  while IFS= read -r f; do
+    [ -n "$f" ] && files+=("$f")
+  done <<EOF
+$(cd "$REPO_DIR" && for d in engine/lib engine/gate engine/company engine/home engine/bin engine/test; do
+    [ -d "$d" ] && find "$d" -name '*.test.mjs' -not -path '*/node_modules/*'
+  done | sort)
+EOF
+  if [ "${#files[@]}" -gt 0 ]; then
+    echo "Running the JavaScript tests..."
+    code=0
+    (cd "$REPO_DIR" && "$NODE" --test "${files[@]}") || code=$?
+    [ "$code" = 0 ] || failed=1
+  fi
+  for d in engine/lib/tests engine/fence/tests engine/cad/tests; do
+    [ -d "$REPO_DIR/$d" ] || continue
+    echo "Running the Python tests in $d..."
+    code=0
+    (cd "$REPO_DIR" && /usr/bin/python3 -m unittest discover -s "$d" -p 'test_*.py') || code=$?
+    [ "$code" = 0 ] || failed=1
+  done
+  if [ "$failed" = 0 ]; then
+    echo "All tests passed."
+    exit 0
+  fi
+  echo "Some tests failed. The lines above say which."
+  exit 1
+}
+
+case "$cmd" in
+  start) do_start ;;
+  stop) do_stop ;;
+  status) do_status ;;
+  prove) do_prove ;;
+  setup) do_setup ;;
+  test) do_test ;;
+esac

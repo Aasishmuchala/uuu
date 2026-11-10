@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Codex inside the fence. Paperclip's codex_local adapter (runner legacy, engine
+# cli: the default engine launches a different program and would bypass this
+# wrapper) calls a file named `codex`, and this folder goes first on the board's
+# PATH. See codex_home.py for what paperclip does around a Codex run and what
+# the fence therefore allows.
+set -euo pipefail
+for _v in $(compgen -e); do
+  case "$_v" in FENCE_*|UUU_*) unset "$_v" ;; esac
+done
+unset ENGINE_CONFIG _v
+unset OPENAI_API_KEY ANTHROPIC_API_KEY
+
+FENCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+refuse() { echo "fence: $1" >&2; exit 78; }
+OWNER_HOME="$(/usr/bin/python3 -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" \
+  || refuse "could not find your home folder"
+_given_home="${HOME:-}"; HOME="$OWNER_HOME"
+. "$FENCE_DIR/../lib/config.sh" || refuse "the engine config could not be read. Check engine/config.json"
+HOME="$_given_home"; unset _given_home
+STATE_DIR="$CFG_STATE"
+ENGINE_DIR="$CFG_ENGINE_DIR"
+
+# Paperclip picks the Codex home. Only homes the engine or paperclip made for an
+# agent are accepted (codex_home.py checks), and the fence allows that one home.
+CODEX_HOME="${CODEX_HOME:-$STATE_DIR/codex-home}"
+PLAN="$(/usr/bin/python3 "$FENCE_DIR/codex_home.py" "$CODEX_HOME" "$STATE_DIR" "$CFG_INSTANCE_ROOT" \
+  "${PAPERCLIP_COMPANY_ID:-}" "${PAPERCLIP_AGENT_ID:-}")" || exit 78
+PATHS=()
+CODEX_HOME=""
+while IFS="$(printf '\t')" read -r kind path; do
+  case "$kind" in
+    home) CODEX_HOME="$path" ;;
+    read) PATHS+=(--read "$path") ;;
+    write) PATHS+=(--write "$path") ;;
+  esac
+done <<EOF
+$PLAN
+EOF
+[[ -n "$CODEX_HOME" ]] || refuse "no Codex home was worked out"
+mkdir -p "$CODEX_HOME"
+export CODEX_HOME
+# The native Codex program and the relay that gives it pipes of its own.
+PATHS+=(--read "$ENGINE_DIR/node_modules/@openai" --read "$FENCE_DIR/steady-pipes.py")
+
+# Inside the fence Codex cannot ask macOS for its trusted certificates, so every
+# HTTPS call fails ("error sending request") until it is pointed at the system bundle.
+export SSL_CERT_FILE="/etc/ssl/cert.pem" CODEX_CA_CERTIFICATE="/etc/ssl/cert.pem"
+
+# The proof tests the fence itself this way.
+if [[ "${1:-}" == "--fence-check" ]]; then
+  [[ $# -eq 2 ]] || refuse "--fence-check takes exactly one shell command"
+  exec "$FENCE_DIR/fence-run" --tool codex --agent-home "$CODEX_HOME" "${PATHS[@]}" -c "$2"
+fi
+
+# Paperclip's quota check starts `codex ... app-server` from the server's own
+# folder. Give that one an empty folder of its own instead of refusing it.
+for arg in "$@"; do
+  if [[ "$arg" == "app-server" ]]; then
+    mkdir -p "$STATE_DIR/tasks/_quota" && cd "$STATE_DIR/tasks/_quota"
+    break
+  fi
+done
+
+# Paperclip tells Codex to hand its shell tool only a fixed list of variables.
+# The fence's proxy settings are not on it, so every call from the shell tool to
+# the board was refused ("Operation not permitted"). Add them, and the engine's
+# UUU_* variables (fence-run exports them: the knowledge folder, the lessons
+# file, the agent's own keys), by pattern and by the names in use today.
+EXTRA_NAMES='"HTTP_PROXY","HTTPS_PROXY","ALL_PROXY","NO_PROXY","http_proxy","https_proxy","all_proxy","no_proxy","GIT_SSH_COMMAND","SANDBOX_RUNTIME","SSL_CERT_FILE","PAPERCLIP_RUNTIME_API_URL","UUU_*","UUU_KNOWLEDGE_DIR","UUU_LESSONS_FILE","UUU_BENCH_URL","UUU_BENCH_SITE","UUU_BENCH_API_KEY","UUU_BENCH_API_SECRET","UUU_CAD_PYTHON","UUU_CAD_EXPORT"'
+args=()
+for arg in "$@"; do
+  case "$arg" in
+    shell_environment_policy.include_only=\[\]) arg="shell_environment_policy.include_only=[$EXTRA_NAMES]" ;;
+    shell_environment_policy.include_only=\[*\]) arg="${arg%]},$EXTRA_NAMES]" ;;
+  esac
+  args+=("$arg")
+done
+
+# Run the native Codex program directly (what its Node launcher would do), through
+# the small relay that gives it output pipes of its own.
+export CODEX_MANAGED_PACKAGE_ROOT="$ENGINE_DIR/node_modules/@openai/codex" CODEX_MANAGED_BY_NPM=1
+CODEX_BIN="$ENGINE_DIR/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex"
+[[ -x "$CODEX_BIN" ]] || refuse "the Codex program is missing ($CODEX_BIN)"
+exec "$FENCE_DIR/fence-run" --tool codex --agent-home "$CODEX_HOME" "${PATHS[@]}" \
+  -- /usr/bin/python3 "$FENCE_DIR/steady-pipes.py" "$CODEX_BIN" ${args[@]+"${args[@]}"}

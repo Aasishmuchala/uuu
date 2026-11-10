@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Claude Code inside the fence. Paperclip only activates a claude_local agent
+# whose command is a file named `claude` (runner legacy, engine cli), so this
+# file is the wrapper under that name, and this folder goes first on the
+# board's PATH: every Claude agent is fenced by default.
+# The agent signs in with its own token (state/agent.env, made by
+# login-wizard.sh) and keeps its own config folder (state/claude-home).
+set -euo pipefail
+for _v in $(compgen -e); do
+  case "$_v" in FENCE_*|UUU_*) unset "$_v" ;; esac
+done
+unset ENGINE_CONFIG _v
+
+FENCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+refuse() { echo "fence: $1" >&2; exit 78; }
+OWNER_HOME="$(/usr/bin/python3 -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" \
+  || refuse "could not find your home folder"
+_given_home="${HOME:-}"; HOME="$OWNER_HOME"
+. "$FENCE_DIR/../lib/config.sh" || refuse "the engine config could not be read. Check engine/config.json"
+HOME="$_given_home"; unset _given_home
+STATE_DIR="$CFG_STATE"
+
+# The proof tests the fence itself this way; it needs no login.
+if [[ "${1:-}" == "--fence-check" ]]; then
+  [[ $# -eq 2 ]] || refuse "--fence-check takes exactly one shell command"
+  exec "$FENCE_DIR/fence-run" --tool claude --agent-home "$STATE_DIR/claude-home" -c "$2"
+fi
+
+ENV_FILE="$STATE_DIR/agent.env"
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "No agent login yet. Run: engine/fence/login-wizard.sh" >&2
+  exit 78
+fi
+# The file is sourced, so it must be a plain file of ours that nobody else can change.
+[[ ! -L "$ENV_FILE" && -O "$ENV_FILE" ]] || refuse "the agent login file is not a plain file of yours. Run: engine/fence/login-wizard.sh"
+_mode="$(stat -f '%Lp' "$ENV_FILE")" || refuse "could not check the agent login file"
+(( (8#$_mode & 8#022) == 0 )) || refuse "the agent login file can be changed by others. Run: chmod 600 on it"
+unset _mode
+set -a; . "$ENV_FILE"; set +a
+unset OPENAI_API_KEY ANTHROPIC_API_KEY
+export CLAUDE_CONFIG_DIR="$STATE_DIR/claude-home"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+
+# Paperclip hands Claude extra folders (its skills) with --add-dir, and files for
+# this run (instructions, tool config) by path. The fence may read those, and only
+# when they sit inside paperclip's own company or skills folders.
+INSTANCE_REAL="$(cd "$CFG_INSTANCE_ROOT" 2>/dev/null && pwd -P)" || refuse "paperclip's folder $CFG_INSTANCE_ROOT is missing"
+READS=()
+share() {
+  local path="$1" real=""
+  [[ -e "$path" ]] || return 0       # nothing there to read
+  if [[ -d "$path" ]]; then real="$(cd "$path" && pwd -P)"; else real="$(cd "$(dirname "$path")" && pwd -P)"; fi
+  case "$real" in
+    "$INSTANCE_REAL"/companies/*|"$INSTANCE_REAL"/skills/*) READS+=(--read "$real") ;;
+    *) refuse "paperclip asked to share $path with the agent, which is outside its own folders" ;;
+  esac
+}
+prev=""
+for arg in "$@"; do
+  case "$prev" in
+    --add-dir) share "$arg" ;;
+    --append-system-prompt-file|--mcp-config|--settings) if [[ -f "$arg" ]]; then share "$arg"; fi ;;
+  esac
+  case "$arg" in --add-dir=*) share "${arg#--add-dir=}" ;; esac
+  prev="$arg"
+done
+
+# Call the real Claude Code by its full path: this wrapper is itself a file named `claude`.
+exec "$FENCE_DIR/fence-run" --tool claude --agent-home "$STATE_DIR/claude-home" \
+  ${READS[@]+"${READS[@]}"} -- "$CFG_REAL_CLAUDE" "$@"
