@@ -14,16 +14,17 @@ Throwaway code that answers two questions for the phase 1 map:
 ## What is here
 
 - `fence-run`: runs any command inside the fence, using Anthropic's sandbox-runtime. Refuses to start in a folder that is not an agent task folder.
+- `fence-plan.py`: works out the fence's rules for one run. `fence-run` calls it.
 - `fenced-claude`, `fenced-codex`: each tool inside the fence, with its own home folder and login.
 - `bin/claude`, `bin/codex`: the same wrappers under the names paperclip looks for.
-- `blocking-exec.py`: puts the pipes back into blocking mode before Codex starts.
+- `steady-pipes.py`: gives Codex output pipes of its own, so it cannot crash on a pipe the programs above it share.
 - `prove-fence.sh`: the proof. `login-wizard.sh`: the one step only the owner can do.
 
 ## Verdict (11 November 2026)
 
 - **Claude Code: yes.** A fenced Builder finished a task under paperclip.
 - **Codex: yes.** A fenced Checker read the Builder's file (read-only), wrote PASS with the reason, posted it on the board and marked its task done.
-- **All three roles: THREE_ROLE_RESULT**
+- **All three roles together: yes, on the second try.** The owner gave the Chief of staff one goal. It created a task for the Builder, then one for the Checker, reported the three values and the verdict (PASS) to the owner, and closed the goal: 5 runs, under 8 minutes, all fenced. The first try failed for a reason worth keeping: see "One task folder per goal".
 - **One gap is open, and it is not in the fence: the board.** In paperclip's default local mode, a request with no login counts as the owner. An agent inside the fence can reach the board, so it could act as the owner there, and an owner can create an agent that runs any command. The proof shows this as its one FAIL per tool. See "The gap in the board" below.
 
 Proof today: 14 of 15 checks pass for each tool; the one failure is the board gap.
@@ -48,10 +49,17 @@ Proof today: 14 of 15 checks pass for each tool; the one failure is the board ga
 - **Skills are links pointing outside the home.** The wrapper allows reading what they point at.
 - **Paperclip's start-up check uses the server's own `CODEX_HOME`,** so `start-paperclip.sh` sets it to the engine's Codex home, never the owner's `~/.codex`.
 - **Engine `cli` is required.** The default engine launches a different program and would bypass the wrapper.
-- **Blocking pipes.** The Node programs above Codex leave the shared pipes in non-blocking mode. On a large write Codex crashed with "Resource temporarily unavailable (os error 35)". Fixed by `blocking-exec.py`, which also lets the wrapper start the native Codex program directly.
+- **Pipes of its own.** The Node programs above Codex share its output pipe and can switch it to non-blocking mode at any moment. On a large write Codex then crashed with "Resource temporarily unavailable (os error 35)". Resetting the mode at start-up was not enough (it crashed again), so `steady-pipes.py` gives Codex its own pipes and copies the output across. Tested against a deliberately slow reader: 5,000,000 of 5,000,000 bytes arrive through the relay, 65,536 without it. The wrapper also starts the native Codex program directly.
 - **Proxy settings for Codex's shell tool.** Paperclip tells Codex to hand its shell tool only a fixed list of variables. The fence's proxy settings are not on it, so every call from the shell tool to the board was refused. The wrapper adds them to the list.
-- **The Checker reads the Builder's folder through a `<task folder>.reads` file** that sits beside its task folder, where no agent can write. Read-only: a write there is refused.
+- **Outside a shared goal folder, the Checker can read the Builder's folder through a `<task folder>.reads` file** that sits beside its task folder, where no agent can write. Read-only: a write there is refused.
 - **Bundled Codex is 0.156.1.** Fine for the default model; paperclip notes its extra tracing wants 0.160.0.
+
+## One task folder per goal
+
+- Paperclip ties a folder to the task, not to the agent. A child task starts in its parent's folder, whichever agent runs it. So everyone working on one goal shares one folder: the Builder writes there and the Checker reads there.
+- The first three-role try told the Builder to write in "its own" folder by full path. The fence refused, correctly. The Builder then used its own board rights to move its task to a folder of its own, which paperclip keeps under `~/.paperclip/instances/default/isolated-workspaces/`. The fence did not know that tree and refused to start there, and the task ran out of retries.
+- Two changes fixed it. Task text now names no folder, only "your current working folder". And the fence accepts paperclip's two task-folder trees as well as the engine's own.
+- Still true: the fence refuses any folder outside those trees, so no board setting can turn the owner's home into a task folder.
 
 ## The gap in the board
 
@@ -70,7 +78,8 @@ Proof today: 14 of 15 checks pass for each tool; the one failure is the board ga
 
 - Install: 2.9 GB under `engine/node_modules`.
 - Memory: about 0.7 GB idle, about 1.2 GB at start-up.
-- A Checker task takes about 30 seconds end to end.
+- A Checker task takes about 30 seconds end to end. A goal through all three roles took 7 minutes 41 seconds and 5 runs.
+- Paperclip retries a crashed run by itself, and gives up after a small number of tries, marking the task blocked.
 - One dependency warns that it wants Node 24.15; this Mac has 24.13. Nothing failed.
 
 ## Not covered
