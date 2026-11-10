@@ -30,13 +30,15 @@ A buildable spec for phase 1 of the engine: paperclip as the company plane, runn
 - [Secrets and sandboxing in phase 1](issues/09-secrets-and-sandboxing-in-phase-1.md): each tool's own sandbox with skip-permissions off, sandbox-runtime as a fallback wrapper, no secrets for agents, proven by a failed read of the SSH keys.
 - [Each agent's budget](issues/10-each-agents-budget.md): one task at a time, a time limit per run, and agents run only while the engine is switched on.
 - [What proves phase 1 worked](issues/11-what-proves-phase-1-worked.md): 20 checked tasks, fence test passing at both ends, plan never exhausted, 15 minutes a day or less, phase 2 spec delivered.
+- [Trial run: paperclip with two agents on this Mac](issues/05-trial-run-paperclip-with-two-agents.md): yes for one agent; a fenced Builder finished a task under paperclip and the fence passes twelve of twelve checks. Prototype on branch `prototype/fence-trial`.
 
 ## Not yet specified
 
-- How the company definition (org chart, agents, skills) is kept under version control in this repo. Waits on what paperclip can export.
+- How the company definition (org chart, agents, skills) is kept under version control in this repo. Paperclip has `company export` to a portable markdown package; untried.
 - Which skills each agent loads, and how they are tested before use. Waits on the first agents being chosen.
 - What the check-before-done step looks like in practice. Waits on the trial run showing paperclip's review stages.
-- Backups of paperclip's data. Waits on knowing where it stores things.
+- Backups of paperclip's data. Paperclip backs its database up hourly and keeps 30 days under `~/.paperclip/instances/default/data/backups`; a copy off this Mac is undecided.
+- How to enforce one task at a time, the run time limit, and no right for the Builder to create agents. Paperclip's CLI rejected those updates in the trial.
 
 ## Out of scope
 
