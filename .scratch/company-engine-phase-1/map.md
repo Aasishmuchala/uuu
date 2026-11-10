@@ -27,18 +27,20 @@ A buildable spec for phase 1 of the engine: paperclip as the company plane, runn
 - [The first agents and their jobs](issues/06-the-first-agents-and-their-jobs.md): Chief of staff and Builder on Claude Code, Checker on Codex; both report to the chief of staff, who reports to the owner.
 - [The real work for the two-week proof](issues/07-the-real-work-for-the-two-week-proof.md): prepare phase 2 (the books), ending in a written spec; nothing leaves the building.
 - [What needs approval](issues/08-what-needs-approval.md): free inside the task folder, everything else blocked, only finished work reaches the owner.
-- [Secrets and sandboxing in phase 1](issues/09-secrets-and-sandboxing-in-phase-1.md): each tool's own sandbox with skip-permissions off, sandbox-runtime as a fallback wrapper, no secrets for agents, proven by a failed read of the SSH keys.
+- [Secrets and sandboxing in phase 1](issues/09-secrets-and-sandboxing-in-phase-1.md): changed by the trials. The outer fence (sandbox-runtime) is the real boundary for every agent; the tools' own prompts are off inside it; agents hold no secrets of the owner's, only their own model login.
 - [Each agent's budget](issues/10-each-agents-budget.md): one task at a time, a time limit per run, and agents run only while the engine is switched on.
 - [What proves phase 1 worked](issues/11-what-proves-phase-1-worked.md): 20 checked tasks, fence test passing at both ends, plan never exhausted, 15 minutes a day or less, phase 2 spec delivered.
 - [Trial run: paperclip with two agents on this Mac](issues/05-trial-run-paperclip-with-two-agents.md): yes for one agent; a fenced Builder finished a task under paperclip and the fence passes twelve of twelve checks. Prototype on branch `prototype/fence-trial`.
+- [The same fence around Codex](issues/12-the-same-fence-around-codex.md): yes. The Checker runs on Codex inside the fence, and one goal went through all three roles and back to the owner. One folder per goal, shared by the team. Rights and limits are set. The proof passes 14 of 15 per tool; the failure is the board, ticket 13.
 
 ## Not yet specified
 
 - How the company definition (org chart, agents, skills) is kept under version control in this repo. Paperclip has `company export` to a portable markdown package; untried.
 - Which skills each agent loads, and how they are tested before use. Waits on the first agents being chosen.
-- What the check-before-done step looks like in practice. Waits on the trial run showing paperclip's review stages.
+- What the check-before-done step looks like as a standing rule. In the trial the Chief of staff created a Checker task as a child of the goal because the task text told it to. Whether that lives in the Chief of staff's instructions or in one of paperclip's review stages is undecided.
+- The standing instructions for each role. The trial put the whole process in the task text.
+- Whether each goal gets a paperclip project with a folder of its own. In the trial the shared folder was simply the Chief of staff's default folder.
 - Backups of paperclip's data. Paperclip backs its database up hourly and keeps 30 days under `~/.paperclip/instances/default/data/backups`; a copy off this Mac is undecided.
-- How to enforce one task at a time, the run time limit, and no right for the Builder to create agents. Paperclip's CLI rejected those updates in the trial.
 
 ## Out of scope
 
