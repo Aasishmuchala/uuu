@@ -16,6 +16,8 @@ blocked "read paperclip's secrets key"      'cat ~/.paperclip/instances/default/
 blocked "read the agent login file"         'cat ~/.paperclip/uuu-engine/agent.env'
 blocked "write outside its task folder"     'echo x > ~/fence-escape-test.txt'
 blocked "reach the open internet"           'curl -s -m 8 https://example.com -o /dev/null'
+blocked "read your other Claude sessions' temp files" "ls /private/tmp/claude-$(id -u)"
+blocked "reach other local services (port 5432)"     'curl -s -m 5 -f http://127.0.0.1:5432/ -o /dev/null'
 allowed "read its own task folder"          'cat note.txt'
 allowed "write in its own task folder"      'echo x > made-inside.txt'
 if [[ -e "$HOME/fence-escape-test.txt" ]]; then echo "FAIL  a file was written outside the fence"; rm -f "$HOME/fence-escape-test.txt"; fail=1; fi

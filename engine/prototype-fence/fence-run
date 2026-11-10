@@ -11,20 +11,38 @@ AGENT_HOME="${UUU_AGENT_HOME:-$STATE_DIR/claude-home}"
 NODE_ROOT="${UUU_NODE_ROOT:-$HOME/.nvm/versions/node/v24.13.0}"
 WS="$(pwd -P)"
 mkdir -p "$AGENT_HOME" "$STATE_DIR/fences"
+# Temp folder for the command: paperclip's per-run folder when it gave one, else one inside the agent's home.
+case "$(basename "${TMPDIR:-x}")" in
+  paperclip-run-*) INNER_TMP="${TMPDIR%/}" ;;
+  *) INNER_TMP="$AGENT_HOME/tmp" ;;
+esac
+mkdir -p "$INNER_TMP"
 SETTINGS="$STATE_DIR/fences/$(printf '%s' "$WS" | shasum | cut -c1-16).json"
-python3 - "$SETTINGS" "$HOME" "$WS" "$AGENT_HOME" "$NODE_ROOT" "${FENCE_EXTRA_READ:-}" "${FENCE_EXTRA_DOMAINS:-}" <<'PY'
+python3 - "$SETTINGS" "$HOME" "$WS" "$AGENT_HOME" "$NODE_ROOT" "${FENCE_EXTRA_READ:-}" "${FENCE_EXTRA_DOMAINS:-}" "$INNER_TMP" <<'PY'
 import json, os, shutil, sys
-out, home, ws, agent_home, node_root, extra_read, extra_domains = sys.argv[1:8]
-read = [ws, agent_home, node_root, os.path.join(home, '.local', 'bin')]
-claude = shutil.which('claude')
+out, home, ws, agent_home, node_root, extra_read, extra_domains, inner_tmp = sys.argv[1:9]
+read = [ws, agent_home, inner_tmp, node_root, os.path.join(home, '.local', 'bin')]
+claude = os.environ.get('UUU_REAL_CLAUDE') or shutil.which('claude')
 if claude:
     read.append(os.path.dirname(os.path.realpath(claude)))
 read += [p for p in extra_read.split(':') if p]
 domains = ['api.anthropic.com', '127.0.0.1:3100', 'localhost:3100'] + [d for d in extra_domains.split(',') if d]
 json.dump({
-    'filesystem': {'denyRead': [home], 'allowRead': read, 'allowWrite': [ws, agent_home], 'denyWrite': []},
+    'filesystem': {'denyRead': [home, '/private/tmp/claude-%d' % os.getuid(), '/tmp/claude-%d' % os.getuid()], 'allowRead': read, 'allowWrite': [ws, agent_home, inner_tmp], 'denyWrite': []},
     'network': {'allowedDomains': domains, 'deniedDomains': []},
 }, open(out, 'w'), indent=1)
 PY
 export PATH="$NODE_ROOT/bin:$PATH"
-exec "$ENGINE_DIR/node_modules/.bin/srt" -s "$SETTINGS" "$@"
+# The sandbox tool opens a socket in TMPDIR, and macOS caps socket paths at 103
+# characters. Paperclip's per-run temp folder is too long, so the tool gets a
+# short one and the command gets its own temp folder back inside the fence.
+SHORT_TMP="/tmp/uuu-fence-$(id -u)"
+mkdir -p "$SHORT_TMP" && chmod 700 "$SHORT_TMP"
+# `--` stops the sandbox tool from reading the command's own flags (such as --version) as its own.
+if [[ "${1:-}" == "-c" ]]; then
+  TMPDIR="$SHORT_TMP" exec "$ENGINE_DIR/node_modules/.bin/srt" -s "$SETTINGS" -c "export TMPDIR='$INNER_TMP' CLAUDE_CODE_TMPDIR='$INNER_TMP' NO_PROXY= no_proxy=; $2"
+fi
+# NO_PROXY is emptied so that calls to paperclip on 127.0.0.1:3100 go through the
+# sandbox tool's proxy, which allows that one local port and no other.
+TMPDIR="$SHORT_TMP" exec "$ENGINE_DIR/node_modules/.bin/srt" -s "$SETTINGS" -- \
+  env TMPDIR="$INNER_TMP" CLAUDE_CODE_TMPDIR="$INNER_TMP" NO_PROXY= no_proxy= "$@"

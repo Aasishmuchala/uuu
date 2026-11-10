@@ -14,4 +14,21 @@ set -a; source "$ENV_FILE"; set +a
 unset OPENAI_API_KEY ANTHROPIC_API_KEY
 export CLAUDE_CONFIG_DIR="${UUU_AGENT_HOME:-$STATE_DIR/claude-home}"
 export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-exec "$HERE/fence-run" claude "$@"
+# Paperclip hands Claude extra folders (its skills) with --add-dir: let the fence read them.
+extra="${FENCE_EXTRA_READ:-}"
+prev=""
+for arg in "$@"; do
+  case "$prev" in
+    --add-dir) extra="${extra:+$extra:}$arg" ;;
+    # Files paperclip hands over for this run: its instructions and its tool config. Allow their folders.
+    --append-system-prompt-file|--mcp-config|--settings) [[ -f "$arg" ]] && extra="${extra:+$extra:}$(dirname "$arg")" ;;
+  esac
+  if [[ "$arg" == --add-dir=* ]]; then extra="${extra:+$extra:}${arg#--add-dir=}"; fi
+  prev="$arg"
+done
+export FENCE_EXTRA_READ="$extra"
+# PROTOTYPE: record how paperclip calls us, to learn what the fence must allow.
+{ printf '%s cwd=%s\n' "$(date '+%F %T')" "$PWD"; printf '  arg: %s\n' "$@" | cut -c1-300; } >> "$STATE_DIR/calls.log" 2>/dev/null || true
+# Call the real Claude Code by its full path: this wrapper may itself be reached as a file named `claude`.
+export UUU_REAL_CLAUDE="${UUU_REAL_CLAUDE:-$HOME/.local/bin/claude}"
+exec "$HERE/fence-run" "$UUU_REAL_CLAUDE" "$@"

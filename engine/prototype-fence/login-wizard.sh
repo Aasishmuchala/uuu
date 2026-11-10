@@ -210,6 +210,9 @@ ask_long_secret() {
     value+="${line//[[:space:]]/}"
   done
   printf '\n'
+  # A double paste repeats the token: keep the first copy.
+  local rest="${value#sk-ant-}"
+  if [[ "$rest" == *sk-ant-* ]]; then value="sk-ant-${rest%%sk-ant-*}"; fi
   printf -v "$key" '%s' "$value"
 }
 

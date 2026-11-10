@@ -14,6 +14,33 @@ Throwaway code that answers one question for the ticket "Trial run: paperclip wi
 - `prove-fence.sh`: the proof.
 - `login-wizard.sh`: the one step only the owner can do.
 
+## Verdict (11 November 2026)
+
+Yes. Paperclip ran a fenced agent on this Mac and one task went end to end: the Builder, inside the fence, wrote its file and marked the task done through paperclip's own tools. Twelve of twelve fence checks pass.
+
+## What the trial forced
+
+- **The wrapper must be a file named `claude`, first on paperclip's PATH.** Paperclip tests the `claude` on its own PATH and refuses to activate an agent whose command is anything else. Starting paperclip with `bin/` first on PATH also means every Claude agent is fenced by default.
+- **The real Claude Code is called by its full path** from inside the wrapper, so the wrapper never calls itself.
+- **Runner `legacy`, engine `cli`, command `claude`.** The default runner rejects a custom command.
+- **Model `sonnet`, the alias.** Paperclip wants Claude Code 2.1.284 or newer for the newest model names, and this Mac has 2.1.268.
+- **`--` before the command** when calling the sandbox tool, or it reads flags such as `--version` as its own.
+- **A short TMPDIR for the sandbox tool.** Paperclip's per-run temp path makes its socket path longer than macOS allows. The command gets its own temp folder back inside the fence, and Claude Code is pointed at it with `CLAUDE_CODE_TMPDIR`.
+- **`NO_PROXY` emptied inside the fence**, so calls to paperclip on `127.0.0.1:3100` go through the sandbox tool's proxy. That one local port is allowed; every other is refused.
+- **The agent needs its own login.** `claude setup-token`, saved outside the fence. The token wraps onto two lines and is easy to paste twice, so the wizard joins lines and drops repeats.
+
+## Measured
+
+- Install: 2.9 GB under `engine/node_modules`.
+- Memory: about 0.7 GB idle, about 1.2 GB at start-up.
+- One dependency warns that it wants Node 24.15; this Mac has 24.13. Nothing failed.
+
+## Not covered by this trial
+
+- A second agent. Codex for the checker is unproven behind the fence.
+- The run time limit (set to 15 minutes, never reached) and one-task-at-a-time (paperclip's CLI rejected that update).
+- The Builder can still create agents and skills in paperclip's permissions; that update was rejected too.
+
 ## Findings so far (11 November 2026)
 
 - Paperclip 2026.1106.0 installs and starts on this Mac with Node 24.13: health `ok`, local-only, about 1.2 GB of memory across the server and its database, with no agents.
