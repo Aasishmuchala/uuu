@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# PROTOTYPE (fence trial). Claude Code inside the fence, signed in with the
+# agent's own token and its own config folder. Paperclip's claude_local adapter
+# would call this as its `command`.
+set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATE_DIR="${UUU_ENGINE_STATE:-$HOME/.paperclip/uuu-engine}"
+ENV_FILE="$STATE_DIR/agent.env"
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "No agent login yet. Run engine/prototype-fence/login-wizard.sh first." >&2
+  exit 78
+fi
+set -a; source "$ENV_FILE"; set +a
+unset OPENAI_API_KEY ANTHROPIC_API_KEY
+export CLAUDE_CONFIG_DIR="${UUU_AGENT_HOME:-$STATE_DIR/claude-home}"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+exec "$HERE/fence-run" claude "$@"

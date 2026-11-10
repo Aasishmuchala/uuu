@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# PROTOTYPE (fence trial). Runs a command inside the fence:
+#   files   - the current folder and the agent's own home are readable and writable;
+#             the rest of the owner's home folder cannot even be read
+#   network - only the hosts on the allow-list
+# Usage: fence-run <command> [args...]   or   fence-run -c '<shell command>'
+set -euo pipefail
+ENGINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STATE_DIR="${UUU_ENGINE_STATE:-$HOME/.paperclip/uuu-engine}"
+AGENT_HOME="${UUU_AGENT_HOME:-$STATE_DIR/claude-home}"
+NODE_ROOT="${UUU_NODE_ROOT:-$HOME/.nvm/versions/node/v24.13.0}"
+WS="$(pwd -P)"
+mkdir -p "$AGENT_HOME" "$STATE_DIR/fences"
+SETTINGS="$STATE_DIR/fences/$(printf '%s' "$WS" | shasum | cut -c1-16).json"
+python3 - "$SETTINGS" "$HOME" "$WS" "$AGENT_HOME" "$NODE_ROOT" "${FENCE_EXTRA_READ:-}" "${FENCE_EXTRA_DOMAINS:-}" <<'PY'
+import json, os, shutil, sys
+out, home, ws, agent_home, node_root, extra_read, extra_domains = sys.argv[1:8]
+read = [ws, agent_home, node_root, os.path.join(home, '.local', 'bin')]
+claude = shutil.which('claude')
+if claude:
+    read.append(os.path.dirname(os.path.realpath(claude)))
+read += [p for p in extra_read.split(':') if p]
+domains = ['api.anthropic.com', '127.0.0.1:3100', 'localhost:3100'] + [d for d in extra_domains.split(',') if d]
+json.dump({
+    'filesystem': {'denyRead': [home], 'allowRead': read, 'allowWrite': [ws, agent_home], 'denyWrite': []},
+    'network': {'allowedDomains': domains, 'deniedDomains': []},
+}, open(out, 'w'), indent=1)
+PY
+export PATH="$NODE_ROOT/bin:$PATH"
+exec "$ENGINE_DIR/node_modules/.bin/srt" -s "$SETTINGS" "$@"

@@ -1,0 +1,10 @@
+{
+  "name": "uuu-engine",
+  "private": true,
+  "description": "Phase 1 of the company engine: paperclip plus a fence for its agents. Versions are pinned on purpose.",
+  "engines": { "node": ">=24.11.0" },
+  "dependencies": {
+    "@anthropic-ai/sandbox-runtime": "0.0.82",
+    "paperclipai": "2026.1106.0"
+  }
+}
