@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# PROTOTYPE (fence trial). Paperclip only activates a claude_local agent whose
+# command is a file named `claude`, so this is the fenced wrapper under that name.
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/fenced-claude" "$@"
