@@ -1,0 +1,111 @@
+{
+  "company": { "name": "Sthyra", "requireOwnerApprovalForNewAgents": true },
+  "project": { "name": "Company work", "folder": "{state}/tasks/company-work" },
+  "defaults": {
+    "limits": { "maxConcurrentRuns": 1, "runMinutes": 15, "maxTurns": 40 },
+    "rights": { "canAssignTasks": false, "canCreateAgents": false, "canCreateSkills": false },
+    "grants": ["tools:use", "inbox:manage", "tasks:assign_scope", "tasks:manage_active_checkouts"],
+    "fencePolicy": {
+      "localServices": [], "readFolders": ["{state}/knowledge/docs"],
+      "lessonsFile": "{state}/lessons/{slug}.md", "envFile": null, "taskFolder": "read-write"
+    }
+  },
+  "agents": [
+    {
+      "slug": "chief-of-staff", "name": "Chief of staff", "role": "Chief of staff",
+      "paperclipRole": "pm", "title": "Chief of staff",
+      "tool": "claude", "model": "opus", "reportsTo": null,
+      "capabilities": "Turns the owner's goals into tasks and hands each to the right agent.",
+      "instructions": "roles/chief-of-staff.md",
+      "rights": { "canAssignTasks": true },
+      "grants": ["tasks:assign", "tools:use", "inbox:manage", "tasks:assign_scope", "tasks:manage_active_checkouts"],
+      "bench": null
+    },
+    {
+      "slug": "builder", "name": "Builder", "role": "Builder",
+      "paperclipRole": "engineer", "title": "Builder",
+      "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
+      "capabilities": "Does the work on a task: writes documents, files, plans and code in the goal's folder.",
+      "instructions": "roles/builder.md",
+      "bench": null
+    },
+    {
+      "slug": "checker", "name": "Checker", "role": "Checker",
+      "paperclipRole": "qa", "title": "Checker",
+      "tool": "codex", "model": null, "reportsTo": "chief-of-staff",
+      "capabilities": "Reads finished work, checks it against what was asked and gives a verdict: pass or fail, with the reason.",
+      "instructions": "roles/checker.md",
+      "fencePolicy": { "taskFolder": "read-only" },
+      "bench": null
+    },
+    {
+      "slug": "bookkeeper", "name": "Bookkeeper", "role": "Bookkeeper",
+      "paperclipRole": "general", "title": "Bookkeeper",
+      "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
+      "capabilities": "Keeps the books: drafts invoices, bills, payments and journal entries with Indian GST, for the owner to approve.",
+      "instructions": "roles/bookkeeper.md",
+      "fencePolicy": {
+        "localServices": ["127.0.0.1:8120"],
+        "envFile": "{state}/secrets/agents/bookkeeper.env"
+      },
+      "bench": { "user": "bookkeeper@engine.localhost", "role": "Engine Bookkeeper" }
+    },
+    {
+      "slug": "sales", "name": "Sales", "role": "Sales",
+      "paperclipRole": "general", "title": "Sales",
+      "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
+      "capabilities": "Looks after customers in the CRM: records and qualifies leads, keeps deals, notes and follow-up tasks up to date.",
+      "instructions": "roles/sales.md",
+      "fencePolicy": {
+        "localServices": ["127.0.0.1:8120"],
+        "envFile": "{state}/secrets/agents/sales.env"
+      },
+      "bench": { "user": "sales@engine.localhost", "role": "Engine Sales" }
+    },
+    {
+      "slug": "support", "name": "Support", "role": "Support",
+      "paperclipRole": "general", "title": "Support",
+      "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
+      "capabilities": "Handles customer requests in the helpdesk: sorts them and drafts replies for the owner to approve.",
+      "instructions": "roles/support.md",
+      "fencePolicy": {
+        "localServices": ["127.0.0.1:8120"],
+        "envFile": "{state}/secrets/agents/support.env"
+      },
+      "bench": { "user": "support@engine.localhost", "role": "Engine Support" }
+    },
+    {
+      "slug": "people", "name": "People", "role": "People",
+      "paperclipRole": "general", "title": "People",
+      "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
+      "capabilities": "Keeps staff records and drafts leave requests and attendance for the owner to approve.",
+      "instructions": "roles/people.md",
+      "fencePolicy": {
+        "localServices": ["127.0.0.1:8120"],
+        "envFile": "{state}/secrets/agents/people.env"
+      },
+      "bench": { "user": "people@engine.localhost", "role": "Engine People" }
+    },
+    {
+      "slug": "marketer", "name": "Marketer", "role": "Marketer",
+      "paperclipRole": "general", "title": "Marketer",
+      "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
+      "capabilities": "Drafts posts and newsletters into the content calendar for the owner to approve. Never publishes.",
+      "instructions": "roles/marketer.md",
+      "bench": null
+    },
+    {
+      "slug": "drafter", "name": "Drafter", "role": "Drafter",
+      "paperclipRole": "designer", "title": "Drafter",
+      "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
+      "capabilities": "Designs parts: writes CadQuery scripts and returns STEP files with measured sizes in millimetres.",
+      "instructions": "roles/drafter.md",
+      "limits": { "maxTurns": 60 },
+      "fencePolicy": {
+        "readFolders": ["{state}/knowledge/docs", "{state}/cad"],
+        "envFile": "{state}/secrets/agents/drafter.env"
+      },
+      "bench": null
+    }
+  ]
+}

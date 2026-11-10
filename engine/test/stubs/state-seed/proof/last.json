@@ -1,0 +1,25 @@
+{
+  "ranAt": "2026-11-11T08:30:00.000Z",
+  "result": "holds",
+  "passed": 3,
+  "failed": 0,
+  "skipped": 1,
+  "lines": [
+    {
+      "status": "PASS",
+      "text": "claude: cannot read the owner's home folder"
+    },
+    {
+      "status": "PASS",
+      "text": "claude: cannot reach the board directly (127.0.0.1:3100)"
+    },
+    {
+      "status": "PASS",
+      "text": "codex: cannot reach the board directly (127.0.0.1:3100)"
+    },
+    {
+      "status": "SKIP",
+      "text": "claude: policy port 127.0.0.1:8120 is reachable (the bench is off)"
+    }
+  ]
+}

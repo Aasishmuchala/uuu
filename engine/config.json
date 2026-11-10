@@ -1,0 +1,19 @@
+{
+  "stateRoot": "~/.paperclip/uuu-engine",
+  "node24": "~/.nvm/versions/node/v24.13.0",
+  "ports": {
+    "board": 3100, "gate": 3110, "home": 3200,
+    "benchWeb": 8120, "benchSocketio": 9120,
+    "benchRedisQueue": 11120, "benchRedisCache": 13120, "benchDb": 3317
+  },
+  "bench": { "site": "engine.localhost", "company": "Sthyra", "abbr": "STH" },
+  "paperclip": { "instanceRoot": "~/.paperclip/instances/default", "companyName": "Sthyra" },
+  "fence": {
+    "realClaude": "~/.local/bin/claude",
+    "claudeHosts": ["api.anthropic.com"],
+    "codexHosts": ["chatgpt.com", "api.openai.com", "auth.openai.com"],
+    "policyPortsAllowed": [8120],
+    "readRootsAllowed": ["knowledge/docs", "lessons", "cad"]
+  },
+  "minFreeDiskGb": 8
+}

@@ -1,0 +1,444 @@
+// Stub of paperclip's board (port 3100) for tests. In memory, built-in modules only.
+// Shapes follow the real board 2026.1106.0 as read from the running instance.
+import http from "node:http";
+import { randomUUID, randomBytes } from "node:crypto";
+
+export const DEFAULT_GRANT_KEYS = [
+  "agents:configure", "agents:suggest-changes", "audit:view_agent_actions", "inbox:manage",
+  "skills:create", "skills:suggest-changes", "tasks:assign_scope", "tasks:manage_active_checkouts",
+  "tools:manage_connections", "tools:manage_profiles", "tools:manage_runtime", "tools:use", "tools:view_audit",
+];
+const DEFAULT_REVISION_TEXT = "You are an agent in a Paperclip company.\n";
+
+class HttpError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
+}
+
+const nowIso = () => new Date().toISOString();
+const clone = (v) => (v === undefined ? v : structuredClone(v));
+
+function emptyState() {
+  return {
+    companies: [], agents: [], projects: [], issues: [], comments: [], approvals: [], attention: [],
+    liveRuns: [], tokens: {}, instructions: {}, memberGrants: {},
+    wakes: [], interactions: [], keys: [], heartbeatRuns: [],
+  };
+}
+
+function loadState(seed) {
+  const state = emptyState();
+  if (seed) for (const [k, v] of Object.entries(clone(seed))) state[k] = v;
+  return state;
+}
+
+function pathToRegex(pattern) {
+  const names = [];
+  const src = pattern.replace(/:([a-zA-Z]+)/g, (_, n) => { names.push(n); return "([^/]+)"; });
+  return { re: new RegExp(`^${src}$`), names };
+}
+
+export async function startStubBoard({ port = 0, seed } = {}) {
+  const state = loadState(seed);
+  const requests = [];
+  const routes = [];
+  const route = (method, pattern, handler) => routes.push({ method, ...pathToRegex(pattern), handler });
+
+  // ---- helpers
+  const company = (id) => {
+    const c = state.companies.find((x) => x.id === id);
+    if (!c) throw new HttpError(404, "Company not found");
+    return c;
+  };
+  const agentById = (id) => {
+    const a = state.agents.find((x) => x.id === id);
+    if (!a) throw new HttpError(404, "Agent not found");
+    return a;
+  };
+  const issueById = (id) => {
+    const i = state.issues.find((x) => x.id === id || x.identifier === id);
+    if (!i) throw new HttpError(404, "Issue not found");
+    return i;
+  };
+  const needOwner = (actor) => { if (actor.kind !== "owner") throw new HttpError(403, "Board access required"); };
+  const needAgent = (actor) => { if (actor.kind !== "agent") throw new HttpError(401, "Agent authentication required"); };
+  const needBody = (b) => {
+    if (!b || typeof b !== "object" || Array.isArray(b)) throw new HttpError(400, "Invalid request body");
+    return b;
+  };
+  const publicAgent = (a) => { const { membershipId, ...rest } = a; return clone(rest); };
+  const grantsOf = (a) => state.memberGrants[a.membershipId] || [];
+  const withAccess = (a) => {
+    const out = publicAgent(a);
+    out.access = {
+      canAssignTasks: !!a.permissions?.canAssignTasks,
+      taskAssignSource: "simple_default",
+      membership: {
+        id: a.membershipId, companyId: a.companyId, principalType: "agent", principalId: a.id,
+        status: "active", membershipRole: "member", createdAt: a.createdAt, updatedAt: a.updatedAt,
+      },
+      grants: grantsOf(a).map((g) => ({
+        id: randomUUID(), companyId: a.companyId, principalType: "agent", principalId: a.id,
+        permissionKey: g.permissionKey, scope: g.scope ?? null,
+      })),
+    };
+    return out;
+  };
+  const addComment = (issue, body, actor) => {
+    const c = {
+      id: randomUUID(), issueId: issue.id, body: String(body),
+      authorAgentId: actor.kind === "agent" ? actor.agentId : null,
+      authorUserId: actor.kind === "owner" ? "local-board" : null,
+      createdAt: nowIso(),
+    };
+    state.comments.push(c);
+    return c;
+  };
+  const wake = (agentId, issueId, reason) => {
+    if (agentId) state.wakes.push({ agentId, issueId, reason, at: nowIso() });
+  };
+  const dropAttention = (pred) => { state.attention = state.attention.filter((i) => !pred(i)); };
+
+  // ---- health, companies
+  route("GET", "/api/health", () => ({ status: "ok", version: "stub", deploymentMode: "local_trusted" }));
+  route("GET", "/api/companies", () => clone(state.companies));
+  route("POST", "/api/companies", ({ body, actor }) => {
+    needOwner(actor); needBody(body);
+    if (!body.name) throw new HttpError(400, "name is required");
+    const c = {
+      id: randomUUID(), name: body.name, description: body.description ?? null, status: "active",
+      issuePrefix: String(body.name).replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() || "CMP",
+      issueCounter: 0, requireBoardApprovalForNewAgents: false, createdAt: nowIso(), updatedAt: nowIso(),
+    };
+    state.companies.push(c);
+    return [201, clone(c)];
+  });
+  route("GET", "/api/companies/:id", ({ params }) => clone(company(params.id)));
+  route("PATCH", "/api/companies/:id", ({ params, body, actor }) => {
+    needOwner(actor); needBody(body);
+    const c = company(params.id);
+    for (const k of ["name", "description", "requireBoardApprovalForNewAgents", "status"]) if (k in body) c[k] = body[k];
+    c.updatedAt = nowIso();
+    return clone(c);
+  });
+
+  // ---- agents
+  route("GET", "/api/companies/:id/agents", ({ params }) => {
+    company(params.id);
+    return state.agents.filter((a) => a.companyId === params.id).map(publicAgent);
+  });
+  route("POST", "/api/companies/:id/agents", ({ params, body }) => {
+    const c = company(params.id); needBody(body);
+    if (!body.name) throw new HttpError(400, "name is required");
+    const id = randomUUID();
+    const permissions = { canAssignTasks: false, canCreateAgents: false, canCreateSkills: false, ...(body.permissions || {}) };
+    const t = nowIso();
+    const agent = {
+      id, companyId: c.id, name: body.name, role: body.role ?? "general", title: body.title ?? null,
+      icon: null, status: c.requireBoardApprovalForNewAgents ? "pending_approval" : "idle",
+      reportsTo: body.reportsTo ?? null, capabilities: body.capabilities ?? null,
+      adapterType: body.adapterType ?? "claude_local", adapterConfig: clone(body.adapterConfig) ?? {},
+      runtimeConfig: clone(body.runtimeConfig) ?? {}, permissions, pauseReason: null, pausedAt: null,
+      lastHeartbeatAt: null, metadata: clone(body.metadata) ?? null,
+      urlKey: String(body.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+      createdAt: t, updatedAt: t, membershipId: randomUUID(),
+    };
+    state.agents.push(agent);
+    const grants = DEFAULT_GRANT_KEYS.map((permissionKey) => ({
+      permissionKey,
+      scope: permissionKey === "inbox:manage" ? { responsibleUserOnly: true }
+        : permissionKey === "tasks:assign_scope" ? { subtreeRootAgentId: id } : null,
+    }));
+    if (permissions.canAssignTasks) grants.push({ permissionKey: "tasks:assign", scope: null });
+    state.memberGrants[agent.membershipId] = grants;
+    state.instructions[id] = { "AGENTS.md": { content: DEFAULT_REVISION_TEXT, revisionId: randomUUID() } };
+    return [201, publicAgent(agent)];
+  });
+  route("GET", "/api/agents/me", ({ actor }) => {
+    needAgent(actor);
+    return withAccess(agentById(actor.agentId));
+  });
+  route("GET", "/api/agents/:id", ({ params }) => withAccess(agentById(params.id)));
+  route("PATCH", "/api/agents/:id", ({ params, body }) => {
+    const a = agentById(params.id); needBody(body);
+    for (const k of ["name", "role", "title", "reportsTo", "capabilities", "metadata", "adapterType"]) if (k in body) a[k] = clone(body[k]);
+    if (body.adapterConfig) a.adapterConfig = { ...a.adapterConfig, ...clone(body.adapterConfig) };
+    if (body.runtimeConfig) a.runtimeConfig = { ...a.runtimeConfig, ...clone(body.runtimeConfig) };
+    a.updatedAt = nowIso();
+    return publicAgent(a);
+  });
+  route("PATCH", "/api/agents/:id/permissions", ({ params, body }) => {
+    const a = agentById(params.id); needBody(body);
+    for (const k of ["canAssignTasks", "canCreateAgents", "canCreateSkills"]) if (k in body) a.permissions[k] = !!body[k];
+    a.updatedAt = nowIso();
+    return publicAgent(a);
+  });
+  route("PATCH", "/api/companies/:id/members/:memberId/permissions", ({ params, body, actor }) => {
+    needOwner(actor); needBody(body); company(params.id);
+    const a = state.agents.find((x) => x.membershipId === params.memberId);
+    if (!a) throw new HttpError(404, "Member not found");
+    if (!Array.isArray(body.grants)) throw new HttpError(400, "grants must be a list");
+    for (const g of body.grants) if (!g || typeof g.permissionKey !== "string") throw new HttpError(400, "each grant needs permissionKey");
+    state.memberGrants[a.membershipId] = body.grants.map((g) => ({ permissionKey: g.permissionKey, scope: g.scope ?? null }));
+    return { grants: clone(state.memberGrants[a.membershipId]) };
+  });
+  route("POST", "/api/agents/:id/pause", ({ params, body }) => {
+    const a = agentById(params.id);
+    a.status = "paused"; a.pauseReason = body?.reason ?? "manual"; a.pausedAt = nowIso(); a.updatedAt = nowIso();
+    return publicAgent(a);
+  });
+  route("POST", "/api/agents/:id/resume", ({ params }) => {
+    const a = agentById(params.id);
+    a.status = "idle"; a.pauseReason = null; a.pausedAt = null; a.updatedAt = nowIso();
+    return publicAgent(a);
+  });
+  route("POST", "/api/agents/:id/approve", ({ params, actor }) => {
+    needOwner(actor);
+    const a = agentById(params.id);
+    if (a.status !== "pending_approval") throw new HttpError(409, "Agent is not waiting for approval");
+    a.status = "idle"; a.updatedAt = nowIso();
+    return publicAgent(a);
+  });
+  route("POST", "/api/agents/:id/keys", ({ params, body, actor }) => {
+    needOwner(actor); agentById(params.id);
+    const id = randomUUID();
+    const token = "pcp_" + randomBytes(24).toString("hex");
+    state.tokens[token] = params.id;
+    state.keys.push({ id, agentId: params.id, name: body?.name ?? null, token });
+    return [201, { id, token, name: body?.name ?? null }];
+  });
+  route("DELETE", "/api/agents/:id/keys/:keyId", ({ params, actor }) => {
+    needOwner(actor);
+    const k = state.keys.find((x) => x.id === params.keyId && x.agentId === params.id);
+    if (!k) throw new HttpError(404, "Key not found");
+    delete state.tokens[k.token];
+    state.keys = state.keys.filter((x) => x !== k);
+    return { ok: true };
+  });
+
+  // ---- instructions bundle
+  const bundleFile = (agentId, file) => ({
+    path: "AGENTS.md", content: file.content, size: Buffer.byteLength(file.content),
+    revision: { agentId, id: file.revisionId, entryFile: "AGENTS.md", byteLength: Buffer.byteLength(file.content) },
+  });
+  route("GET", "/api/agents/:id/instructions-bundle/file", ({ params, query }) => {
+    agentById(params.id);
+    const file = state.instructions[params.id]?.[query.path];
+    if (!file) throw new HttpError(404, "File not found");
+    return bundleFile(params.id, file);
+  });
+  route("PUT", "/api/agents/:id/instructions-bundle/file", ({ params, query, body }) => {
+    agentById(params.id); needBody(body);
+    if (!query.path) throw new HttpError(400, "path is required");
+    if (typeof body.content !== "string") throw new HttpError(400, "content must be text");
+    const files = (state.instructions[params.id] ||= {});
+    const current = files[query.path];
+    const base = body.baseRevisionId ?? null;
+    if ((current ? current.revisionId : null) !== base) throw new HttpError(409, "baseRevisionId does not match the current revision");
+    files[query.path] = { content: body.content, revisionId: randomUUID() };
+    return bundleFile(params.id, files[query.path]);
+  });
+
+  // ---- projects
+  route("GET", "/api/companies/:id/projects", ({ params }) => state.projects.filter((p) => p.companyId === params.id).map(clone));
+  route("POST", "/api/companies/:id/projects", ({ params, body }) => {
+    company(params.id); needBody(body);
+    if (!body.name) throw new HttpError(400, "name is required");
+    const ws = body.workspace ? { id: randomUUID(), ...clone(body.workspace) } : null;
+    const p = {
+      id: randomUUID(), companyId: params.id, name: body.name, description: body.description ?? null,
+      status: "backlog", workspaces: ws ? [ws] : [], primaryWorkspace: ws, createdAt: nowIso(), updatedAt: nowIso(),
+    };
+    state.projects.push(p);
+    return [201, clone(p)];
+  });
+
+  // ---- issues
+  route("GET", "/api/companies/:id/issues", ({ params, query }) => {
+    company(params.id);
+    let list = state.issues.filter((i) => i.companyId === params.id);
+    if ("parentId" in query) list = list.filter((i) => i.parentId === query.parentId);
+    if (query.projectId) list = list.filter((i) => i.projectId === query.projectId);
+    if (query.status) { const s = query.status.split(","); list = list.filter((i) => s.includes(i.status)); }
+    if (query.assigneeAgentId) list = list.filter((i) => i.assigneeAgentId === query.assigneeAgentId);
+    list = [...list].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : b.issueNumber - a.issueNumber));
+    const limit = Number(query.limit);
+    if (limit > 0) list = list.slice(0, limit);
+    return list.map(clone);
+  });
+  route("POST", "/api/companies/:id/issues", ({ params, body, actor }) => {
+    const c = company(params.id); needBody(body);
+    if (!body.title) throw new HttpError(400, "title is required");
+    c.issueCounter += 1;
+    const t = nowIso();
+    const issue = {
+      id: randomUUID(), companyId: c.id, projectId: body.projectId ?? null, goalId: body.goalId ?? null,
+      parentId: body.parentId ?? null, title: body.title, description: body.description ?? null,
+      status: body.status ?? "todo", priority: body.priority ?? "medium",
+      assigneeAgentId: body.assigneeAgentId ?? null, assigneeUserId: body.assigneeUserId ?? null,
+      identifier: `${c.issuePrefix}-${c.issueCounter}`, issueNumber: c.issueCounter,
+      createdByUserId: actor.kind === "owner" ? "local-board" : null,
+      createdByAgentId: actor.kind === "agent" ? actor.agentId : null,
+      createdAt: t, updatedAt: t,
+    };
+    state.issues.push(issue);
+    wake(issue.assigneeAgentId, issue.id, "assigned");
+    return [201, clone(issue)];
+  });
+  route("GET", "/api/issues/:id", ({ params }) => clone(issueById(params.id)));
+  route("PATCH", "/api/issues/:id", ({ params, body, actor }) => {
+    const issue = issueById(params.id); needBody(body);
+    const before = issue.assigneeAgentId;
+    for (const k of ["title", "description", "status", "priority", "assigneeAgentId", "assigneeUserId", "projectId", "parentId"]) if (k in body) issue[k] = body[k];
+    if (typeof body.comment === "string" && body.comment) addComment(issue, body.comment, actor);
+    issue.updatedAt = nowIso();
+    if (issue.assigneeAgentId !== before) wake(issue.assigneeAgentId, issue.id, "assigned");
+    return clone(issue);
+  });
+  route("GET", "/api/issues/:id/comments", ({ params }) => {
+    const issue = issueById(params.id);
+    return state.comments.filter((c) => c.issueId === issue.id).map(clone);
+  });
+  route("POST", "/api/issues/:id/comments", ({ params, body, actor }) => {
+    const issue = issueById(params.id); needBody(body);
+    if (typeof body.body !== "string" || !body.body) throw new HttpError(400, "body is required");
+    const c = addComment(issue, body.body, actor);
+    issue.updatedAt = nowIso();
+    return [201, clone(c)];
+  });
+  route("POST", "/api/issues/:id/retry", ({ params, actor }) => {
+    needOwner(actor);
+    const issue = issueById(params.id);
+    issue.status = "todo"; issue.updatedAt = nowIso();
+    wake(issue.assigneeAgentId, issue.id, "retry");
+    dropAttention((i) => i.sourceKind === "failed_run" && i.relatedIssue?.id === issue.id);
+    return clone(issue);
+  });
+  route("POST", "/api/issues/:id/stalled-review-decision", ({ params, body, actor }) => {
+    needOwner(actor); needBody(body);
+    const issue = issueById(params.id);
+    const map = { approve: "done", request_changes: "in_progress", send_back: "todo" };
+    if (!map[body.action]) throw new HttpError(400, "action must be approve, request_changes or send_back");
+    issue.status = map[body.action]; issue.updatedAt = nowIso();
+    if (body.note) addComment(issue, body.note, actor);
+    dropAttention((i) => i.sourceKind === "review" && i.relatedIssue?.id === issue.id);
+    return clone(issue);
+  });
+  route("POST", "/api/issues/:id/interactions/:iid/:verb", ({ params, body, actor }) => {
+    needOwner(actor);
+    const issue = issueById(params.id);
+    if (!["accept", "reject", "respond"].includes(params.verb)) throw new HttpError(404, "Not found");
+    state.interactions.push({ issueId: issue.id, interactionId: params.iid, action: params.verb, body: clone(body) ?? null });
+    dropAttention((i) => i.subject?.metadata?.interactionId === params.iid || i.subject?.id === params.iid);
+    return { ok: true, interactionId: params.iid, action: params.verb };
+  });
+
+  // ---- attention, approvals, runs, badges
+  route("GET", "/api/companies/:id/attention", ({ params, actor }) => {
+    needOwner(actor); company(params.id);
+    const items = state.attention.map(clone);
+    const counts = {};
+    for (const k of ["approval", "decision", "issue_thread_interaction", "join_request", "recovery_action", "productivity_review", "blocker_attention", "review", "failed_run", "budget_alert", "agent_error_alert"]) counts[k] = 0;
+    for (const i of items) counts[i.sourceKind] = (counts[i.sourceKind] || 0) + 1;
+    return { companyId: params.id, generatedAt: nowIso(), totalCount: items.length, deskBadgeCount: items.length, nextCursor: null, countsBySourceKind: counts, items };
+  });
+  route("GET", "/api/companies/:id/approvals", ({ params, query }) => {
+    company(params.id);
+    let list = state.approvals.filter((a) => a.companyId === params.id);
+    if (query.status) list = list.filter((a) => a.status === query.status);
+    return list.map(clone);
+  });
+  route("POST", "/api/companies/:id/approvals", ({ params, body, actor }) => {
+    company(params.id); needBody(body);
+    const a = {
+      id: randomUUID(), companyId: params.id, type: body.type ?? "request", status: "pending",
+      requestedByAgentId: actor.kind === "agent" ? actor.agentId : null, payload: clone(body.payload) ?? {},
+      decisionNote: null, createdAt: nowIso(), updatedAt: nowIso(),
+    };
+    state.approvals.push(a);
+    return [201, clone(a)];
+  });
+  const decide = (verb, status) => route("POST", `/api/approvals/:id/${verb}`, ({ params, body, actor }) => {
+    needOwner(actor);
+    const a = state.approvals.find((x) => x.id === params.id);
+    if (!a) throw new HttpError(404, "Approval not found");
+    if (a.status !== "pending") throw new HttpError(409, "Approval was already decided");
+    a.status = status; a.decisionNote = body?.decisionNote ?? null; a.decidedAt = nowIso(); a.updatedAt = nowIso();
+    dropAttention((i) => i.sourceKind === "approval" && i.subject?.id === a.id);
+    return clone(a);
+  });
+  decide("approve", "approved"); decide("reject", "rejected"); decide("request-revision", "revision_requested");
+  route("GET", "/api/companies/:id/live-runs", ({ params }) => { company(params.id); return state.liveRuns.map(clone); });
+  route("GET", "/api/companies/:id/heartbeat-runs", ({ params, query }) => {
+    company(params.id);
+    let list = state.heartbeatRuns;
+    if (query.agentId) list = list.filter((r) => r.agentId === query.agentId);
+    const limit = Number(query.limit);
+    if (limit > 0) list = list.slice(0, limit);
+    return list.map(clone);
+  });
+  route("GET", "/api/companies/:id/sidebar-badges", ({ params }) => {
+    company(params.id);
+    return {
+      inbox: state.attention.length,
+      approvals: state.approvals.filter((a) => a.status === "pending").length,
+      failedRuns: state.attention.filter((i) => i.sourceKind === "failed_run").length,
+      joinRequests: 0,
+    };
+  });
+
+  // ---- server
+  async function readBody(req) {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    return Buffer.concat(chunks).toString("utf8");
+  }
+
+  const server = http.createServer(async (req, res) => {
+    const url = new URL(req.url, "http://stub");
+    const query = Object.fromEntries(url.searchParams);
+    const raw = await readBody(req);
+    let body = null;
+    if (raw) { try { body = JSON.parse(raw); } catch { body = raw; } }
+    const record = { method: req.method, path: url.pathname, query, headers: { ...req.headers }, body };
+    requests.push(record);
+    const send = (status, payload) => {
+      const text = JSON.stringify(payload);
+      res.writeHead(status, { "content-type": "application/json", "content-length": Buffer.byteLength(text) });
+      res.end(text);
+    };
+    try {
+      // who is asking
+      let actor = { kind: "owner" };
+      const auth = req.headers.authorization;
+      if (auth !== undefined) {
+        const m = /^Bearer +(\S+)$/i.exec(auth);
+        const agentId = m && Object.hasOwn(state.tokens, m[1]) ? state.tokens[m[1]] : null;
+        if (!agentId) return send(401, { error: "Unauthorized" });
+        actor = { kind: "agent", agentId };
+      }
+      for (const r of routes) {
+        if (r.method !== req.method) continue;
+        const m = r.re.exec(url.pathname);
+        if (!m) continue;
+        const params = {};
+        r.names.forEach((n, i) => { params[n] = decodeURIComponent(m[i + 1]); });
+        if (typeof body === "string" && req.method !== "GET") throw new HttpError(400, "Invalid JSON");
+        let out = await r.handler({ params, query, body, actor });
+        let status = 200;
+        if (Array.isArray(out) && out.length === 2 && typeof out[0] === "number") [status, out] = out;
+        return send(status, out);
+      }
+      return send(404, { error: "Not found" });
+    } catch (e) {
+      if (e instanceof HttpError) return send(e.status, { error: e.message });
+      return send(500, { error: "Stub failure: " + e.message });
+    }
+  });
+
+  await new Promise((resolve, reject) => { server.once("error", reject); server.listen(port, "127.0.0.1", resolve); });
+  const actualPort = server.address().port;
+  return {
+    url: `http://127.0.0.1:${actualPort}`, port: actualPort, state, requests,
+    close: () => new Promise((resolve) => { server.closeAllConnections?.(); server.close(() => resolve()); }),
+  };
+}

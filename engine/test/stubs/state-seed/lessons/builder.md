@@ -1,0 +1,2 @@
+- 2026-11-09: Keep each goal's files in a sub-folder named after the goal identifier.
+- 2026-11-10: Write the file first, then report it; the Checker reads the file, not the report.

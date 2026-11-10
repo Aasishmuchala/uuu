@@ -17,7 +17,7 @@ if bench_running; then
   say "bench already running (process group $(cat "$BENCH_PIDFILE"))"
 else
   rm -f "$BENCH_PIDFILE"
-  for p in $WEB_PORT $SOCKETIO_PORT $REDIS_QUEUE_PORT $REDIS_CACHE_PORT; do
+  for p in $WEB_PORT $REDIS_QUEUE_PORT $REDIS_CACHE_PORT; do
     if port_open "$p"; then die "port $p is taken by another program"; fi
   done
   say "starting bench processes; output goes to $BENCH_LOG"

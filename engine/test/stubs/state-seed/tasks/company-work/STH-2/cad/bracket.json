@@ -1,0 +1,12 @@
+{
+  "name": "bracket",
+  "units": "mm",
+  "bbox": {
+    "x": 60.0,
+    "y": 40.0,
+    "z": 5.0
+  },
+  "volume_mm3": 11717.26,
+  "script": "bracket.py",
+  "made_at": "2026-11-10T16:20:00.000Z"
+}

@@ -254,10 +254,16 @@ bench_in set-config -g redis_socketio "redis://127.0.0.1:$REDIS_CACHE_PORT" >/de
 bench_in setup redis >/dev/null
 rm -f "$BENCH_DIR/Procfile"
 bench_in setup procfile >/dev/null
-# No asset watcher (not needed), and one web process instead of a reloader pair.
-sed -i '' -e '/^watch:/d' -e 's/^web: bench serve .*$/web: bench serve --port '"$WEB_PORT"' --noreload/' \
-  "$BENCH_DIR/Procfile"
+# No asset watcher (not needed). The web server is started through
+# serve_local.py so that it listens on this Mac only; `bench serve` listens on
+# every network interface. No socket server either: it also listens on every
+# interface, and only the bench's own desk pages use it (for live refresh).
+cp "$HERE/serve_local.py" "$BENCH_DIR/serve_local.py"
+sed -i '' -e '/^watch:/d' -e '/^socketio:/d' \
+  -e 's|^web: .*$|web: env/bin/python serve_local.py '"$WEB_PORT"' '"$SITE"'|' "$BENCH_DIR/Procfile"
 grep -q '^watch:' "$BENCH_DIR/Procfile" && die "could not remove the watch line from the Procfile"
+grep -q '^socketio:' "$BENCH_DIR/Procfile" && die "could not remove the socketio line from the Procfile"
+grep -q '^web: env/bin/python serve_local.py ' "$BENCH_DIR/Procfile" || die "could not set the web line in the Procfile"
 say "bench config: web $WEB_PORT, socketio $SOCKETIO_PORT, redis queue $REDIS_QUEUE_PORT, redis cache $REDIS_CACHE_PORT"
 mkdir -p "$STATE_DIR"
 

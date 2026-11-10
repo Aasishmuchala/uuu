@@ -17,12 +17,9 @@ if db_alive; then show database on
 elif port_open "$DB_PORT" || pid_alive "$DB_PIDFILE"; then show database unhealthy
 else show database off; fi
 
-# web: the web server (answers ping) and the socket server for live updates
-web_ok=0; sock_ok=0
-if web_alive; then web_ok=1; fi
-if port_open "$SOCKETIO_PORT"; then sock_ok=1; fi
-if [ "$web_ok" = 1 ] && [ "$sock_ok" = 1 ]; then show web on
-elif [ "$sock_ok" = 1 ] || port_open "$WEB_PORT"; then show web unhealthy
+# web: the web server (answers ping). The socket server is not run: see install.sh.
+if web_alive; then show web on
+elif port_open "$WEB_PORT"; then show web unhealthy
 else show web off; fi
 
 # background workers: the job worker and the scheduler, plus the job queue

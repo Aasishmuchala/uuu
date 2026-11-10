@@ -1,0 +1,180 @@
+"""Loads engine/config.json. The JavaScript and bash loaders return the same values.
+
+Standard library only (runs on /usr/bin/python3, 3.9).
+  python3 config.py --shell   prints the bash lines that config.sh evals
+  python3 config.py --json    prints the full config as JSON
+"""
+import json
+import os
+import sys
+
+ENGINE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+PORT_KEYS = ["board", "gate", "home", "benchWeb", "benchSocketio",
+             "benchRedisQueue", "benchRedisCache", "benchDb"]
+
+
+class ConfigError(Exception):
+    pass
+
+
+def _fail(what):
+    raise ConfigError("engine config: " + what)
+
+
+def _expand(p):
+    home = os.path.expanduser("~")
+    if p == "~":
+        return home
+    if p.startswith("~/"):
+        return os.path.join(home, p[2:])
+    return p
+
+
+def _need(obj, dotted, kind):
+    v = obj
+    for part in dotted.split("."):
+        if not isinstance(v, dict) or part not in v:
+            _fail("missing key " + dotted)
+        v = v[part]
+    if kind == "array":
+        ok = isinstance(v, list)
+    elif kind == "number":
+        ok = isinstance(v, (int, float)) and not isinstance(v, bool)
+    else:
+        ok = isinstance(v, str)
+    if not ok:
+        _fail("key %s must be a %s" % (dotted, kind))
+    return v
+
+
+def load_config(path=None):
+    path = path or os.environ.get("ENGINE_CONFIG") or os.path.join(ENGINE_DIR, "config.json")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError:
+        _fail("cannot read " + path)
+    try:
+        cfg = json.loads(text)
+    except ValueError:
+        _fail(path + " is not valid JSON")
+    if not isinstance(cfg, dict):
+        _fail(path + " must hold an object")
+
+    _need(cfg, "stateRoot", "string")
+    _need(cfg, "node24", "string")
+    for k in PORT_KEYS:
+        _need(cfg, "ports." + k, "number")
+    _need(cfg, "bench.site", "string")
+    _need(cfg, "bench.company", "string")
+    _need(cfg, "bench.abbr", "string")
+    _need(cfg, "paperclip.instanceRoot", "string")
+    _need(cfg, "paperclip.companyName", "string")
+    _need(cfg, "fence.realClaude", "string")
+    for k in ["claudeHosts", "codexHosts", "policyPortsAllowed", "readRootsAllowed"]:
+        _need(cfg, "fence." + k, "array")
+    _need(cfg, "minFreeDiskGb", "number")
+
+    cfg["stateRoot"] = _expand(cfg["stateRoot"])
+    cfg["node24"] = _expand(cfg["node24"])
+    cfg["paperclip"]["instanceRoot"] = _expand(cfg["paperclip"]["instanceRoot"])
+    cfg["fence"]["realClaude"] = _expand(cfg["fence"]["realClaude"])
+
+    p = cfg["ports"]
+    host = "http://127.0.0.1"
+    cfg["engineDir"] = ENGINE_DIR
+    cfg["urls"] = {
+        "board": "%s:%d" % (host, p["board"]),
+        "gate": "%s:%d" % (host, p["gate"]),
+        "home": "%s:%d" % (host, p["home"]),
+        "bench": "%s:%d" % (host, p["benchWeb"]),
+    }
+    s = cfg["stateRoot"]
+    j = os.path.join
+    cfg["paths"] = {
+        "state": s,
+        "logs": j(s, "logs"),
+        "run": j(s, "run"),
+        "secrets": j(s, "secrets"),
+        "agentSecrets": j(s, "secrets", "agents"),
+        "policy": j(s, "policy"),
+        "ids": j(s, "ids.json"),
+        "tasks": j(s, "tasks"),
+        "projectFolder": j(s, "tasks", "company-work"),
+        "agentFolders": j(s, "tasks", "agents"),
+        "proofFolder": j(s, "tasks", "_proof"),
+        "quotaFolder": j(s, "tasks", "_quota"),
+        "knowledgeDocs": j(s, "knowledge", "docs"),
+        "lessons": j(s, "lessons"),
+        "contentDrafts": j(s, "content", "drafts"),
+        "homeData": j(s, "home"),
+        "cad": j(s, "cad"),
+        "cadPython": j(s, "cad", "venv", "bin", "python"),
+        "proofLast": j(s, "proof", "last.json"),
+        "fences": j(s, "fences"),
+        "claudeHome": j(s, "claude-home"),
+        "codexHome": j(s, "codex-home"),
+        "books": j(s, "books"),
+        "benchOwnerKey": j(s, "secrets", "bench-owner-api.txt"),
+    }
+    return cfg
+
+
+def _q(value):
+    return "'" + str(value).replace("'", "'\\''") + "'"
+
+
+def shell_lines(cfg):
+    p = cfg["ports"]
+    u = cfg["urls"]
+    pa = cfg["paths"]
+    pairs = [
+        ("CFG_ENGINE_DIR", cfg["engineDir"]),
+        ("CFG_STATE", cfg["stateRoot"]),
+        ("CFG_NODE24", cfg["node24"]),
+        ("CFG_PORT_BOARD", p["board"]),
+        ("CFG_PORT_GATE", p["gate"]),
+        ("CFG_PORT_HOME", p["home"]),
+        ("CFG_PORT_BENCH_WEB", p["benchWeb"]),
+        ("CFG_PORT_BENCH_SOCKETIO", p["benchSocketio"]),
+        ("CFG_PORT_BENCH_REDIS_QUEUE", p["benchRedisQueue"]),
+        ("CFG_PORT_BENCH_REDIS_CACHE", p["benchRedisCache"]),
+        ("CFG_PORT_BENCH_DB", p["benchDb"]),
+        ("CFG_BOARD_URL", u["board"]),
+        ("CFG_GATE_URL", u["gate"]),
+        ("CFG_HOME_URL", u["home"]),
+        ("CFG_BENCH_URL", u["bench"]),
+        ("CFG_BENCH_SITE", cfg["bench"]["site"]),
+        ("CFG_INSTANCE_ROOT", cfg["paperclip"]["instanceRoot"]),
+        ("CFG_REAL_CLAUDE", cfg["fence"]["realClaude"]),
+        ("CFG_MIN_FREE_GB", cfg["minFreeDiskGb"]),
+        ("CFG_LOGS", pa["logs"]),
+        ("CFG_RUN", pa["run"]),
+        ("CFG_SECRETS", pa["secrets"]),
+        ("CFG_POLICY", pa["policy"]),
+        ("CFG_TASKS", pa["tasks"]),
+        ("CFG_PROJECT_FOLDER", pa["projectFolder"]),
+    ]
+    return "\n".join("%s=%s" % (k, _q(v)) for k, v in pairs)
+
+
+def main(argv):
+    mode = argv[1] if len(argv) > 1 else "--json"
+    if mode not in ("--shell", "--json"):
+        sys.stderr.write("usage: config.py --shell | --json\n")
+        return 64
+    try:
+        cfg = load_config()
+    except ConfigError as e:
+        sys.stderr.write(str(e) + "\n")
+        return 1
+    if mode == "--shell":
+        print(shell_lines(cfg))
+    else:
+        print(json.dumps(cfg, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
