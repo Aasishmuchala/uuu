@@ -17,22 +17,112 @@ export const PROOF = [
   ["GET", "/api/companies/co/secrets", "secrets"],
   ["POST", "/api/companies/co/exports", "export-import"],
   ["POST", "/api/companies/co/adapters/claude_local/test-environment", "adapters"],
+  ["POST", "/mcp/runtime-tools", "tools-endpoint"],
+  ["GET", "/runtime-tools/connections/search", "tools-endpoint"],
+  ["POST", "/api/mcp/connections", "tools-endpoint"],
+  ["POST", "/api/companies/co/skills", "not-allowed"],
+  ["POST", "/api/companies/co/tools/connections", "not-allowed"],
 ];
 
-// What a normal heartbeat needs. The gate never refuses these.
-export const MUST_PASS = [
-  ["GET", "/api/agents/me"],
-  ["GET", "/api/agents/me/inbox-lite"],
+// One request for every row of the allow-list, in the same order as ALLOW in rules.mjs.
+export const ALLOWED = [
   ["POST", "/api/issues/i1/checkout"],
+  ["PUT", "/api/issues/i1/title"],
   ["POST", "/api/issues/i1/comments"],
   ["PATCH", "/api/issues/i1"],
   ["POST", "/api/companies/co/issues"],
-  ["GET", "/api/issues/i1/heartbeat-context"],
+  ["POST", "/api/issues/i1/release"],
   ["PUT", "/api/issues/i1/documents/plan"],
+  ["POST", "/api/issues/i1/work-products"],
+  ["POST", "/api/companies/co/issues/i1/attachments"],
   ["POST", "/api/issues/i1/interactions"],
+  ["POST", "/api/issues/i1/interactions/n1/accept"],
   ["POST", "/api/companies/co/approvals"],
-  ["POST", "/mcp/runtime-tools"],
-  ["POST", "/mcp/gateways/gw_0123456789abcdef0123456789abcdef"],
-  ["GET", "/runtime-tools/connections/search"],
-  ["POST", "/runtime-tools/connections/request"],
+  ["POST", "/api/approvals/a1/comments"],
+];
+
+// Every answer an agent may give to an interaction.
+export const INTERACTION_ANSWERS = ["accept", "reject", "respond", "verdicts", "resolve-from-comment", "withdraw"];
+
+// Reads a normal heartbeat makes. The gate never refuses these.
+export const READS = [
+  ["GET", "/api/agents/me"],
+  ["GET", "/api/agents/me/inbox-lite"],
+  ["GET", "/api/companies/co/issues"],
+  ["GET", "/api/issues/i1"],
+  ["GET", "/api/issues/i1/heartbeat-context"],
+  ["GET", "/api/issues/i1/comments"],
+  ["GET", "/api/issues/i1/documents/plan"],
+  ["GET", "/api/issues/i1/interactions"],
+  ["GET", "/api/approvals/a1"],
+  ["GET", "/api/approvals/a1/issues"],
+  ["HEAD", "/api/issues/i1"],
+  ["OPTIONS", "/api/issues/i1/comments"],
+];
+
+// What a normal heartbeat needs, reads and writes. The gate never refuses these.
+export const MUST_PASS = [...READS, ...ALLOWED];
+
+// Writes the routine does not need, each in several spellings (raw targets). All are
+// refused with `not-allowed`.
+export const NOT_NEEDED = [
+  ["POST", ["/api/companies/co/skills", "/API/Companies/CO/Skills/", "/api/companies/co//skills", "/api/companies/co/%73kills"]],
+  ["POST", ["/api/companies/co/skills/scan-projects", "/api/companies/co/skills/install-catalog"]],
+  ["POST", ["/api/companies/co/tools/connections", "/api/companies/co/Tools/Connections/", "/api//companies/co/tools/connections"]],
+  ["POST", ["/api/companies/co/email/connections", "/api/companies/co/ai-connections"]],
+  ["POST", ["/api/companies/co/routines", "/api/routines/r1/run", "/API/companies/co/routines/"]],
+  ["POST", ["/api/companies/co/goals", "/api/companies/co/Goals"]],
+  ["PATCH", ["/api/goals/g1", "/api/goals/g1/"]],
+  ["POST", ["/api/plugins/install", "/API/Plugins/Install/", "/api/plugins/%69nstall"]],
+  ["POST", ["/api/environment-custom-image-setup-sessions/s1/terminal-session-token"]],
+  ["PATCH", ["/api/companies/co/budgets", "/api/companies/co/budgets/"]],
+  ["POST", ["/api/companies/co/budgets/policies", "/api/companies/co/cost-events"]],
+  ["POST", ["/api/heartbeat-runs/r1/cancel", "/API/heartbeat-runs/R1/Cancel/"]],
+  ["POST", ["/api/no-such-thing", "/api/issues", "/nothing", "/", "/api"]],
+  ["DELETE", ["/api/issues/i1", "/api/issues/i1/comments/c1", "/api/issues/i1/documents/plan"]],
+  ["POST", ["/api/issues/i1/children", "/api/issues/i1/inbox-archive", "/api/issues/i1/monitor/check-now"]],
+  ["POST", ["/api/issues/i1/approvals", "/api/issues/i1/access-grants", "/api/issues/i1/admin/force-release"]],
+  ["POST", ["/api/issues/i1/documents/plan/lock", "/api/issues/i1/documents/plan/revisions/r1/restore"]],
+  ["POST", ["/api/issues/i1/interactions/n1/dismiss", "/api/issues/i1/interactions/n1/cancel", "/api/issues/i1/interactions/n1/skip"]],
+  ["POST", ["/api/approvals/a1/approve", "/api/approvals/a1/reject", "/api/approvals/a1/resubmit"]],
+  ["POST", ["/api/companies/co/agent-commentary", "/api/companies/co/decisions", "/api/companies/co/labels"]],
+  ["PATCH", ["/api/work-products/w1"]],
+];
+
+// Raw targets that look like an allowed write but are not the same route on the board, or
+// use an allowed shape with the wrong method. All are refused with `not-allowed`.
+export const HOSTILE = [
+  ["POST", "/api/issues/i1%2Fcomments"],          // one segment on the board: POST /issues/:id
+  ["POST", "/api/issues%2Fi1%2Fcomments"],
+  ["POST", "/api/issues/%691/comments"],          // any escape in an allowed write
+  ["POST", "/api/issues/i1/comment%73"],
+  ["PATCH", "/api/issues//i1"],                   // empty segment
+  ["POST", "/api//issues/i1/comments"],
+  ["POST", "/api/companies/co/issues/i1"],
+  ["POST", "/api/companies/co/issues/external-object-summaries"],
+  ["POST", "/api/issues/i1/comments/c1"],
+  ["PUT", "/api/issues/i1/documents"],
+  ["PUT", "/api/issues/i1/documents/plan/revisions"],
+  ["POST", "/api/issues/i1/interactions/n1/accept/x"],
+  ["POST", "/api/issues/i1/interactions/n1"],
+  ["POST", "/api/issues/i1/work-products/w1/review-document"],
+  ["PATCH", "/api/issues/i1/comments"],          // allowed path, wrong method
+  ["PUT", "/api/issues/i1"],
+  ["POST", "/api/issues/i1"],
+  ["DELETE", "/api/issues/i1/checkout"],
+  ["PATCH", "/api/companies/co/issues"],
+  ["PROPFIND", "/api/issues/i1/comments"],
+  ["POST", "/api/issues/i1/comments;x"],
+  ["POST", "/api/issues/i1/comments.json"],
+  ["POST", "/api/approvals/a1/comments/c1"],
+  ["POST", "/api/approvals/comments"],
+];
+
+// Spellings of allowed writes that the board routes to the same handler (letter case,
+// trailing slash, a query). These pass.
+export const SAME_ROUTE = [
+  ["POST", "/API/Issues/I1/Comments"],
+  ["POST", "/api/issues/i1/comments/"],
+  ["PATCH", "/api/issues/i1/?x=%2F"],
+  ["PUT", "/api/issues/i1/documents/Plan"],
 ];

@@ -224,7 +224,9 @@ fi
 
 # The gate, with a real agent token: a short-lived key for the Builder, made on
 # the owner's side and removed again on every exit. The key lives only in a
-# shell variable and a header file of mode 0600; it is never printed.
+# shell variable and a header file of mode 0600; it is never printed. Each
+# refused request is checked against the rule id the gate must give: the
+# refusal list, `tools-endpoint`, and `not-allowed` for writes off the allow-list.
 echo; echo "The gate (what an agent's own token can do)"
 gate_checks() {
   local ids="$STATE_DIR/ids.json" co builder resp code body
@@ -275,6 +277,12 @@ instance PATCH /api/instance/settings
 secrets GET /api/companies/<co>/secrets
 export-import POST /api/companies/<co>/exports
 adapters POST /api/companies/<co>/adapters/claude_local/test-environment
+tools-endpoint POST /mcp/runtime-tools
+tools-endpoint GET /runtime-tools/connections/search
+tools-endpoint POST /api/mcp/connections
+not-allowed POST /api/companies/<co>/skills
+not-allowed POST /api/companies/<co>/tools/connections
+not-allowed POST /api/companies/<co>/email/connections
 EOF
   code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -X DELETE "$BOARD/api/agents/$builder/keys/$KEY_ID")"
   rm -f "$HDR"; HDR=""

@@ -4,10 +4,13 @@
 //   agents come only through POST /companies/:id/agent-hires, which answers { agent, approval };
 // - PUT .../instructions-bundle/file needs `path` and `baseRevisionId` in the body (422 otherwise);
 // - PATCH /agents/:id with `permissions` is refused with 422.
-// `refuse` lists extra refusals for tests: [{ method, pattern: RegExp, status, error }].
+// `refuse` lists extra refusals for tests: [{ method, pattern: RegExp, status, error }]; the
+// list is read on every request, so a test may empty it between runs.
+// `after({ method, path, status })` runs once a forwarded request has been answered, so a test
+// can make the board misbehave afterwards.
 import http from "node:http";
 
-export async function startStrictBoard(stub, { refuse = [] } = {}) {
+export async function startStrictBoard(stub, { refuse = [], after = null } = {}) {
   const seen = [];
   const server = http.createServer(async (req, res) => {
     const chunks = [];
@@ -49,6 +52,7 @@ export async function startStrictBoard(stub, { refuse = [] } = {}) {
     delete headers["content-length"];
     const r = await fetch(stub.url + target, { method: req.method, headers, body: raw || undefined });
     const text = await r.text();
+    if (after) after({ method: req.method, path, status: r.status });
     if (wrapHire && r.status < 300) return send(201, { agent: JSON.parse(text), approval: null });
     res.writeHead(r.status, { "content-type": "application/json" });
     res.end(text);

@@ -8,9 +8,9 @@ export class FileProblem extends Error {}
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const RIGHT_KEYS = ["canAssignTasks", "canCreateAgents", "canCreateSkills"];
-// Grants no agent in this engine may hold: they let an agent change agents, skills,
-// tools, people or settings. The company file is refused if it asks for one.
-const FORBIDDEN_GRANT = /^(agents:|skills:|tools:manage|tools:admin|users:|joins:|environments:)/;
+// Paperclip gives every agent its default grants and does not let the owner remove an
+// agent's grants, so the file no longer lists any: the gate blocks what they would open.
+const NO_GRANTS = 'it still lists grants, and grants are not applied (paperclip does not let the owner trim them; the gate blocks what they would open), so remove the "grants" key from';
 const TOOLS = {
   claude: { adapterType: "claude_local", command: "claude" },
   codex: { adapterType: "codex_local", command: "codex" },
@@ -80,7 +80,8 @@ export function loadCompanyFile(file, config) {
     problem("the project folder must be a folder inside the engine's task folders");
   }
   const d = doc.defaults;
-  if (!obj(d) || !obj(d.limits) || !obj(d.rights) || !Array.isArray(d.grants) || !obj(d.fencePolicy)) problem("defaults need limits, rights, grants and fencePolicy");
+  if (!obj(d) || !obj(d.limits) || !obj(d.rights) || !obj(d.fencePolicy)) problem("defaults need limits, rights and fencePolicy");
+  if ("grants" in d) problem(`${NO_GRANTS} defaults`);
   if (!Array.isArray(doc.agents) || doc.agents.length === 0) problem("there are no agents");
 
   const seen = new Set();
@@ -90,6 +91,7 @@ export function loadCompanyFile(file, config) {
     if (!obj(a) || typeof a.slug !== "string" || !SLUG.test(a.slug)) problem(`an agent has a bad slug (${a && a.slug})`);
     const slug = a.slug;
     if (seen.has(slug)) problem(`the slug ${slug} is used twice`);
+    if ("grants" in a) problem(`${NO_GRANTS} agent ${slug}`);
     for (const k of ["name", "role", "paperclipRole", "title", "capabilities", "instructions"]) {
       if (typeof a[k] !== "string" || !a[k]) problem(`agent ${slug} needs ${k}`);
     }
@@ -106,10 +108,6 @@ export function loadCompanyFile(file, config) {
     const rights = { ...d.rights, ...(a.rights || {}) };
     for (const k of RIGHT_KEYS) if (typeof rights[k] !== "boolean") problem(`agent ${slug} needs true or false for ${k}`);
     if (rights.canCreateAgents || rights.canCreateSkills) problem(`agent ${slug} may not create agents or skills`);
-    const grants = a.grants || d.grants;
-    if (!Array.isArray(grants) || grants.some((g) => typeof g !== "string" || !g)) problem(`agent ${slug} has a bad grants list`);
-    for (const g of grants) if (FORBIDDEN_GRANT.test(g)) problem(`agent ${slug} asks for the grant ${g}, which no agent may hold`);
-    if (grants.includes("tasks:assign") !== rights.canAssignTasks) problem(`agent ${slug}: the grant tasks:assign must match canAssignTasks`);
 
     const policy = fill({ ...d.fencePolicy, ...(a.fencePolicy || {}) }, state, slug);
     for (const k of ["localServices", "readFolders", "lessonsFile", "envFile", "taskFolder"]) {
@@ -132,7 +130,7 @@ export function loadCompanyFile(file, config) {
       slug, name: a.name, role: a.paperclipRole, title: a.title, capabilities: a.capabilities,
       tool: a.tool, adapterType: tool.adapterType, command: tool.command, model: a.model,
       reportsTo: a.reportsTo, limits, rights: Object.fromEntries(RIGHT_KEYS.map((k) => [k, rights[k]])),
-      grants: [...new Set(grants)], policy, instructionsTemplate: instructions,
+      policy, instructionsTemplate: instructions,
       cwd: join(config.paths.agentFolders, slug),
     });
   }

@@ -4,7 +4,6 @@
   "defaults": {
     "limits": { "maxConcurrentRuns": 1, "runMinutes": 15, "maxTurns": 40 },
     "rights": { "canAssignTasks": false, "canCreateAgents": false, "canCreateSkills": false },
-    "grants": ["tools:use", "inbox:manage", "tasks:assign_scope", "tasks:manage_active_checkouts"],
     "fencePolicy": {
       "localServices": [], "readFolders": ["{state}/knowledge/docs"],
       "lessonsFile": "{state}/lessons/{slug}.md", "envFile": null, "taskFolder": "read-write"
@@ -18,7 +17,6 @@
       "capabilities": "Turns the owner's goals into tasks and hands each to the right agent.",
       "instructions": "roles/chief-of-staff.md",
       "rights": { "canAssignTasks": true },
-      "grants": ["tasks:assign", "tools:use", "inbox:manage", "tasks:assign_scope", "tasks:manage_active_checkouts"],
       "bench": null
     },
     {

@@ -13,6 +13,15 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ENGINE = join(HERE, "..", "..");
 const APPLY = join(HERE, "..", "apply.mjs");
 const FIXTURE = join(HERE, "fixtures", "company.json");
+const COMPANY = join(HERE, "..", "company.json");
+const DEFAULT_RIGHTS_LINE = "Default rights that paperclip gives every agent remain on the board and are blocked at the gate.";
+// The fourteen grants paperclip gives every new agent (server/dist/lib/agent-permissions.js).
+const FOURTEEN = [
+  "agents:configure", "agents:suggest-changes", "audit:view_agent_actions", "inbox:manage", "skills:create",
+  "skills:suggest-changes", "tasks:assign", "tasks:assign_scope", "tasks:manage_active_checkouts",
+  "tools:manage_connections", "tools:manage_profiles", "tools:manage_runtime", "tools:use", "tools:view_audit",
+];
+const WITHOUT_ASSIGN = FOURTEEN.filter((k) => k !== "tasks:assign");
 
 function makeEnv(boardPort) {
   const dir = mkdtempSync(join(tmpdir(), "apply-test-"));
@@ -60,7 +69,7 @@ async function withBoard(fn, { seed } = {}) {
   try { await fn(stub, env); } finally { await stub.close(); env.cleanup(); }
 }
 
-test("first run creates the company, project, agents, rights, grants, instructions and files", () => withBoard(async (stub, env) => {
+test("first run creates the company, project, agents, rights, instructions and files", () => withBoard(async (stub, env) => {
   const r = await runApply(env);
   assert.equal(r.code, 0, r.stderr);
   assert.match(r.lines.at(-1), /^Applied: \d+ created, \d+ updated, \d+ unchanged\.$/);
@@ -100,8 +109,13 @@ test("first run creates the company, project, agents, rights, grants, instructio
   assert.equal(creates.length, 3);
   for (const c of creates) assert.equal(c.body.runner, "legacy");
 
-  assert.deepEqual(grantKeys(stub, chief), ["inbox:manage", "tasks:assign", "tasks:assign_scope", "tasks:manage_active_checkouts", "tools:use"]);
-  assert.deepEqual(grantKeys(stub, checker), ["inbox:manage", "tasks:assign_scope", "tasks:manage_active_checkouts", "tools:use"]);
+  // The board's default grants stay; only tasks:assign follows canAssignTasks.
+  assert.deepEqual(grantKeys(stub, chief), FOURTEEN);
+  assert.deepEqual(grantKeys(stub, checker), WITHOUT_ASSIGN);
+  assert.deepEqual(grantKeys(stub, keeper), WITHOUT_ASSIGN);
+  assert.ok(!stub.requests.some((q) => q.path.includes("/members/")), "no member route is called");
+  const rightsCalls = stub.requests.filter((q) => q.method === "PATCH" && q.path.endsWith("/permissions"));
+  for (const q of rightsCalls) assert.deepEqual(Object.keys(q.body).sort(), ["canAssignTasks", "canCreateAgents", "canCreateSkills"]);
   const scope = stub.state.memberGrants[checker.membershipId].find((g) => g.permissionKey === "tasks:assign_scope").scope;
   assert.deepEqual(scope, { subtreeRootAgentId: checker.id });
 
@@ -163,9 +177,10 @@ test("each drift on the board causes exactly one update", () => withBoard(async 
   const cases = [
     ["model", () => { keeper().adapterConfig.model = "opus"; }, "PATCH", `/api/agents/${keeper().id}`, () => keeper().adapterConfig.model === "sonnet"],
     ["right", () => { checker().permissions.canAssignTasks = true; }, "PATCH", `/api/agents/${checker().id}/permissions`, () => checker().permissions.canAssignTasks === false],
-    ["grant", () => { stub.state.memberGrants[checker().membershipId].push({ permissionKey: "agents:configure", scope: null }); },
-      "PATCH", `/api/companies/${stub.state.companies[0].id}/members/${checker().membershipId}/permissions`,
-      () => !grantKeys(stub, checker()).includes("agents:configure")],
+    ["tasks:assign where it should not be", () => { stub.state.memberGrants[checker().membershipId].push({ permissionKey: "tasks:assign", scope: null }); },
+      "PATCH", `/api/agents/${checker().id}/permissions`, () => !grantKeys(stub, checker()).includes("tasks:assign")],
+    ["tasks:assign missing", () => { const m = chief().membershipId; stub.state.memberGrants[m] = stub.state.memberGrants[m].filter((g) => g.permissionKey !== "tasks:assign"); },
+      "PATCH", `/api/agents/${chief().id}/permissions`, () => grantKeys(stub, chief()).includes("tasks:assign")],
     ["instruction", () => { stub.state.instructions[keeper().id]["AGENTS.md"].content = "changed by hand\n"; },
       "PUT", `/api/agents/${keeper().id}/instructions-bundle/file`, () => stub.state.instructions[keeper().id]["AGENTS.md"].content.startsWith("You are the Bookkeeper")],
     ["reportsTo", () => { keeper().reportsTo = null; }, "PATCH", `/api/agents/${keeper().id}`, () => keeper().reportsTo === chief().id],
@@ -222,8 +237,7 @@ test("trial agents are adopted by name and corrected, not created again", () => 
   assert.equal(chief.adapterConfig.graceSec, 15, "settings apply does not own are kept");
   assert.equal(chief.capabilities, "Turns the owner's goals into tasks.");
   assert.ok(r.lines.some((l) => /^updated agent Chief of staff: .*default folder/.test(l)), r.stdout);
-  assert.ok(r.lines.some((l) => /^updated grants of Chief of staff: removed .*agents:configure/.test(l)), r.stdout);
-  assert.deepEqual(grantKeys(stub, chief), ["inbox:manage", "tasks:assign", "tasks:assign_scope", "tasks:manage_active_checkouts", "tools:use"]);
+  assert.deepEqual(grantKeys(stub, chief), FOURTEEN);
   assert.equal(stub.state.companies[0].requireBoardApprovalForNewAgents, true);
 }));
 
@@ -240,10 +254,17 @@ test("--check writes nothing and exits 3 when something differs, 0 when not", ()
   r = await runApply(env, ["--check"]);
   assert.equal(r.code, 0, r.stdout + r.stderr);
   assert.match(r.lines.at(-1), /^Nothing would change/);
+  assert.equal(r.lines.at(-2), DEFAULT_RIGHTS_LINE);
   assert.deepEqual(writesSince(stub, from), []);
+  assert.ok(grantKeys(stub, agentByName(stub, "Checker")).includes("agents:configure"), "default grants stay and do not fail the check");
+
+  // tasks:assign in the wrong place is something apply controls, so the check fails on it.
+  stub.state.memberGrants[agentByName(stub, "Checker").membershipId].push({ permissionKey: "tasks:assign", scope: null });
+  r = await runApply(env, ["--check"]);
+  assert.equal(r.code, 3);
+  assert.ok(r.lines.includes("would update rights of Checker: may not assign tasks"), r.stdout);
 
   agentByName(stub, "Checker").adapterConfig.cwd = "/elsewhere";
-  stub.state.memberGrants[agentByName(stub, "Checker").membershipId].push({ permissionKey: "skills:create", scope: null });
   rmSync(join(env.state, "policy", `${agentByName(stub, "Bookkeeper").id}.json`));
   before = snapshot(env.state);
   from = stub.requests.length;
@@ -287,7 +308,7 @@ test("against a board that takes new agents only as hires, apply hires and appro
 
 test("when the board refuses something, apply stops with one plain sentence", () => withBoard(async (stub) => {
   const strict = await startStrictBoard(stub, {
-    refuse: [{ method: "PATCH", pattern: /\/members\/[^/]+\/permissions$/, status: 403, error: "Forbidden; token pcp_abcdefgh1234 not allowed" }],
+    refuse: [{ method: "PATCH", pattern: /^\/api\/agents\/[^/]+\/permissions$/, status: 403, error: "Forbidden; token pcp_abcdefgh1234 not allowed" }],
   });
   const env = makeEnv(strict.port);
   try {
@@ -295,7 +316,7 @@ test("when the board refuses something, apply stops with one plain sentence", ()
     assert.equal(r.code, 1);
     const lines = r.stderr.trim().split("\n");
     assert.equal(lines.length, 1);
-    assert.match(lines[0], /^The board refused to set the grants of Chief of staff: Forbidden; token <hidden> not allowed\.$/);
+    assert.match(lines[0], /^The board refused to set the rights of Checker: Forbidden; token <hidden> not allowed\.$/);
     assert.ok(!r.stderr.includes("pcp_") && !r.stdout.includes("pcp_"));
     assert.equal(existsSync(join(env.state, "ids.json")), false);
     assert.deepEqual(readdirSync(join(env.state, "policy")), []);
@@ -310,7 +331,8 @@ test("a company file that breaks the fence rules is refused before the board is 
     [(d) => { d.agents[2].fencePolicy.envFile = "{state}/../.ssh/id"; }, /key file/],
     [(d) => { d.agents[1].fencePolicy.readFolders = ["{state}/secrets"]; }, /read folder outside/],
     [(d) => { d.agents[1].fencePolicy.lessonsFile = "{state}/secrets/x"; }, /lessons file/],
-    [(d) => { d.agents[1].grants = ["tools:use", "agents:configure"]; }, /agents:configure/],
+    [(d) => { d.agents[1].grants = ["tools:use"]; }, /grants are not applied \(paperclip does not let the owner trim them; the gate blocks what they would open\), so remove the "grants" key from agent checker\.\n$/],
+    [(d) => { d.defaults.grants = ["tools:use"]; }, /grants are not applied .*from defaults\.\n$/],
     [(d) => { d.agents[1].rights = { canCreateAgents: true }; }, /may not create agents/],
     [(d) => { d.agents[1].slug = "../x"; }, /bad slug/],
   ];
@@ -330,4 +352,102 @@ test("a company file that breaks the fence rules is refused before the board is 
   }
   assert.equal(stub.requests.length, 0);
   assert.equal(existsSync(env.state), false);
+}));
+
+test("if the board still lets an agent assign tasks after the right is switched off, apply stops with one sentence", () => withBoard(async (stub) => {
+  // A board that puts tasks:assign back on the Checker after every rights call.
+  const after = ({ method, path }) => {
+    const checker = agentByName(stub, "Checker");
+    if (method === "PATCH" && checker && path === `/api/agents/${checker.id}/permissions`) {
+      stub.state.memberGrants[checker.membershipId].push({ permissionKey: "tasks:assign", scope: null });
+    }
+  };
+  const strict = await startStrictBoard(stub, { after });
+  const env = makeEnv(strict.port);
+  try {
+    const r = await runApply(env);
+    assert.equal(r.code, 1, r.stdout);
+    assert.equal(r.stderr, "The board still lets Checker assign tasks after that right was switched off, so nothing more was changed; check the agent's role and rights on the board, then run this again.\n");
+    assert.equal(existsSync(join(env.state, "ids.json")), false);
+    assert.deepEqual(readdirSync(join(env.state, "policy")), []);
+  } finally { await strict.close(); env.cleanup(); }
+}));
+
+test("from the half-applied live state a run finishes the job without new agents, and the next run changes nothing", () => withBoard(async (stub) => {
+  // The trial's three agents, made before the switch-over, with old settings and old instructions.
+  const call = async (method, path, body) => (await fetch(stub.url + path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json();
+  const co = await call("POST", "/api/companies", { name: "Sthyra" });
+  const trial = {};
+  for (const [slug, name, role, adapterType] of [["chief-of-staff", "Chief of staff", "pm", "claude_local"], ["builder", "Builder", "engineer", "claude_local"], ["checker", "Checker", "qa", "codex_local"]]) {
+    const made = await call("POST", `/api/companies/${co.id}/agents`, {
+      name, role, title: name, capabilities: "Old words.", adapterType,
+      permissions: { canAssignTasks: slug === "chief-of-staff", canCreateAgents: false, canCreateSkills: false },
+      adapterConfig: { cwd: `/old/workspaces/${slug}`, engine: "cli", command: adapterType === "codex_local" ? "codex" : "claude", timeoutSec: 900 },
+      runtimeConfig: { heartbeat: { enabled: false, maxConcurrentRuns: 1 } },
+    });
+    const cur = await call("GET", `/api/agents/${made.id}/instructions-bundle/file?path=AGENTS.md`);
+    await call("PUT", `/api/agents/${made.id}/instructions-bundle/file?path=AGENTS.md`, { path: "AGENTS.md", content: "Trial instructions.\n", baseRevisionId: cur.revision.id });
+    trial[slug] = made.id;
+  }
+
+  // Run 1 stops where the live run stopped: after hiring and approving the six new agents,
+  // before instructions, bosses, the ids file and the policy files.
+  const refuse = [{ method: "PATCH", pattern: /^\/api\/agents\/[^/]+\/permissions$/, status: 403, error: "Only human company members can be removed." }];
+  const strict = await startStrictBoard(stub, { refuse });
+  const env = makeEnv(strict.port);
+  try {
+    let r = await runApply(env, ["--file", COMPANY]);
+    assert.equal(r.code, 1, r.stdout);
+    assert.equal(stub.state.agents.length, 9);
+    const fresh = stub.state.agents.filter((a) => !Object.values(trial).includes(a.id));
+    assert.equal(fresh.length, 6);
+    for (const a of fresh) {
+      assert.equal(a.status, "idle", a.name);
+      assert.deepEqual(grantKeys(stub, a), FOURTEEN, `${a.name} holds the default grants and tasks:assign`);
+      assert.equal(a.permissions.canAssignTasks, false);
+      assert.match(stub.state.instructions[a.id]["AGENTS.md"].content, /Paperclip company/);
+    }
+    for (const id of Object.values(trial)) assert.equal(stub.state.instructions[id]["AGENTS.md"].content, "Trial instructions.\n");
+    assert.equal(existsSync(join(env.state, "ids.json")), false);
+    assert.deepEqual(readdirSync(join(env.state, "policy")), []);
+
+    // Run 2 carries on from there.
+    refuse.length = 0;
+    let from = strict.seen.length;
+    r = await runApply(env, ["--file", COMPANY]);
+    assert.equal(r.code, 0, r.stderr);
+    assert.ok(!strict.seen.slice(from).some((q) => q.method === "POST" && /\/(agents|agent-hires)$/.test(q.path)), "no agent is made again");
+    assert.equal(stub.state.agents.length, 9);
+    assert.equal(new Set(stub.state.agents.map((a) => a.name)).size, 9);
+    const ids = JSON.parse(readFileSync(join(env.state, "ids.json"), "utf8"));
+    assert.equal(Object.keys(ids.agents).length, 9);
+    for (const [slug, id] of Object.entries(trial)) assert.equal(ids.agents[slug], id, `${slug} kept its id`);
+    const chief = ids.agents["chief-of-staff"];
+    for (const [slug, id] of Object.entries(ids.agents)) {
+      const a = stub.state.agents.find((x) => x.id === id);
+      assert.deepEqual(grantKeys(stub, a), slug === "chief-of-staff" ? FOURTEEN : WITHOUT_ASSIGN, slug);
+      assert.equal(a.reportsTo, slug === "chief-of-staff" ? null : chief, slug);
+      assert.equal(a.adapterConfig.cwd, join(env.state, "tasks", "agents", slug));
+      const text = stub.state.instructions[id]["AGENTS.md"].content;
+      const role = readFileSync(join(HERE, "..", "roles", `${slug}.md`), "utf8");
+      if (role.includes("{{TEAM}}")) assert.ok(text.includes("- Chief of staff: ") && !text.includes("{{TEAM}}"), slug);
+      else assert.equal(text, role, slug);
+      assert.equal(JSON.parse(readFileSync(join(env.state, "policy", `${id}.json`), "utf8")).slug, slug);
+      assert.ok(existsSync(join(env.state, "lessons", `${slug}.md`)));
+    }
+    assert.ok(!strict.seen.some((q) => q.path.includes("/members/")));
+
+    // Run 3 changes nothing, and the check passes with the one line about default rights.
+    const before = snapshot(env.state);
+    from = strict.seen.length;
+    r = await runApply(env, ["--file", COMPANY]);
+    assert.equal(r.code, 0, r.stderr);
+    assert.deepEqual(strict.seen.slice(from).filter((q) => q.method !== "GET"), []);
+    for (const l of r.lines.slice(0, -1)) assert.match(l, /^unchanged /);
+    assert.deepEqual(snapshot(env.state), before);
+    r = await runApply(env, ["--file", COMPANY, "--check"]);
+    assert.equal(r.code, 0, r.stdout);
+    assert.equal(r.lines.at(-2), DEFAULT_RIGHTS_LINE);
+    assert.match(r.lines.at(-1), /^Nothing would change/);
+  } finally { await strict.close(); env.cleanup(); }
 }));

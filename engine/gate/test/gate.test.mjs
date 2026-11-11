@@ -8,7 +8,8 @@ import { mkdtempSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createGate } from "../gate.mjs";
-import { PROOF, MUST_PASS } from "./vectors.mjs";
+import { normalisePath } from "../rules.mjs";
+import { PROOF, MUST_PASS, NOT_NEEDED, HOSTILE, SAME_ROUTE } from "./vectors.mjs";
 
 const TOKEN = "pcp_testtoken_abcdefghijklmnop";
 const AUTH = { Authorization: `Bearer ${TOKEN}` };
@@ -242,7 +243,7 @@ test("a streamed response flows unbuffered", async () => {
 
 test("must-pass requests are forwarded", async () => {
   for (const [m, p] of MUST_PASS) {
-    const r = await request(m, p, { headers: AUTH, body: m === "GET" ? undefined : "{}" });
+    const r = await request(m, p, { headers: AUTH, body: ["GET", "HEAD", "OPTIONS"].includes(m) ? undefined : "{}" });
     assert.equal(r.status, 200, `${m} ${p}`);
   }
   assert.equal(forwardedPaths().length, MUST_PASS.length);
@@ -309,6 +310,61 @@ test("hostile spellings of a refused path are still refused", async () => {
     if (want === 400) assert.deepEqual(r.json, { error: "The gate could not read this address.", code: "gate_bad_path" });
     if (want === 403) assert.equal(r.json.code, "gate_refused");
   }
+  assert.deepEqual(forwardedPaths(), []);
+});
+
+// ---- the allow-list -------------------------------------------------------------
+const REFUSED = { error: "The gate does not let agents do this.", code: "gate_refused", rule: "not-allowed" };
+
+test("writes the routine does not need → 403 not-allowed in every spelling, one log line, board never contacted", async () => {
+  for (const [m, raws] of NOT_NEEDED) {
+    for (const p of raws) {
+      rmSync(logFile, { force: true });
+      const before = boardSockets;
+      const r = await request(m, p, { headers: AUTH, body: '{"x":1}' });
+      assert.equal(r.status, 403, `${m} ${p}`);
+      assert.deepEqual(r.json, REFUSED, `${m} ${p}`);
+      const lines = logLines();
+      assert.equal(lines.length, 1, `${m} ${p}`);
+      assert.ok(lines[0].endsWith(` ${m} ${normalisePath(p)} not-allowed`), lines[0]);
+      assert.equal(boardSockets, before);
+    }
+  }
+  assert.deepEqual(forwardedPaths(), []);
+});
+
+test("hostile spellings of allowed writes → 403 not-allowed; same-route spellings are forwarded as sent", async () => {
+  for (const [m, p] of HOSTILE) {
+    const r = await request(m, p, { headers: AUTH, body: "{}" });
+    assert.equal(r.status, 403, `${m} ${p}`);
+    assert.deepEqual(r.json, REFUSED, `${m} ${p}`);
+  }
+  assert.deepEqual(forwardedPaths(), []);
+  for (const [m, p] of SAME_ROUTE) {
+    const r = await request(m, p, { headers: AUTH, body: "{}" });
+    assert.equal(r.status, 200, `${m} ${p}`);
+  }
+  assert.deepEqual(forwardedPaths(), SAME_ROUTE.map(([, p]) => p));
+});
+
+test("tools endpoints → 403 tools-endpoint for reads and writes", async () => {
+  for (const [m, p] of [["GET", "/runtime-tools/connections/search"], ["POST", "/runtime-tools/connections/request"],
+    ["POST", "/mcp/runtime-tools"], ["POST", "/mcp/gateways/gw_0123456789abcdef0123456789abcdef"], ["GET", "/MCP/"],
+    ["POST", "/api/mcp/connections"], ["POST", "/api/runtime-tools/connections/request"]]) {
+    const r = await request(m, p, { headers: AUTH, body: m === "GET" ? undefined : "{}" });
+    assert.equal(r.status, 403, `${m} ${p}`);
+    assert.equal(r.json.rule, "tools-endpoint");
+  }
+  assert.deepEqual(forwardedPaths(), []);
+});
+
+test("a method override cannot turn an allowed path into a write it does not allow", async () => {
+  const r = await request("GET", "/api/issues/1/comments", { headers: { ...AUTH, "X-HTTP-Method-Override": "DELETE" } });
+  assert.equal(r.status, 403);
+  assert.equal(r.json.rule, "not-allowed");
+  const r2 = await request("POST", "/api/issues/1/comments", { headers: { ...AUTH, "X-HTTP-Method-Override": "PATCH" }, body: "{}" });
+  assert.equal(r2.status, 403);
+  assert.equal(r2.json.rule, "not-allowed");
   assert.deepEqual(forwardedPaths(), []);
 });
 

@@ -29,7 +29,6 @@ function effective(agent) {
   return {
     limits: { ...d.limits, ...(agent.limits || {}) },
     rights: { ...d.rights, ...(agent.rights || {}) },
-    grants: agent.grants || d.grants,
     fencePolicy: { ...d.fencePolicy, ...(agent.fencePolicy || {}) },
   };
 }
@@ -63,8 +62,7 @@ test("overrides are as pinned and nothing else differs from the defaults", () =>
   const e = Object.fromEntries(file.agents.map((a) => [a.slug, effective(a)]));
   const base = effective({});
   const expected = {
-    "chief-of-staff": { ...base, rights: { ...base.rights, canAssignTasks: true },
-      grants: ["tasks:assign", "tools:use", "inbox:manage", "tasks:assign_scope", "tasks:manage_active_checkouts"] },
+    "chief-of-staff": { ...base, rights: { ...base.rights, canAssignTasks: true } },
     builder: base,
     checker: { ...base, fencePolicy: { ...base.fencePolicy, taskFolder: "read-only" } },
     marketer: base,
@@ -95,13 +93,9 @@ test("only the Chief of staff can assign tasks; nobody can create agents or skil
   }
 });
 
-test("no grant lets an agent change agents, skills or tools", () => {
-  const all = [file.defaults.grants, ...file.agents.map((a) => effective(a).grants)];
-  for (const grants of all) {
-    for (const g of grants) {
-      assert.ok(!/agents:|skills:|tools:manage/.test(g), `forbidden grant ${g}`);
-    }
-  }
+test("the file lists no grants: paperclip's grants are not applied, the gate blocks them", () => {
+  assert.equal("grants" in file.defaults, false);
+  for (const a of file.agents) assert.equal("grants" in a, false, a.slug);
 });
 
 test("every instructions file exists, is 60 to 120 lines and names no absolute path", () => {

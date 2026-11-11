@@ -4,6 +4,9 @@
 // Talks to the board with no Authorization header. Never deletes an agent, a project or a
 // company. A second run sends no write and rewrites no file. --check writes nothing and
 // exits 3 when something would change.
+// Paperclip's grants are not managed: the board gives every agent its default grants and
+// refuses to let the owner remove them, so the gate blocks what they would open. Apply sets
+// only the three rights, and checks the one grant they move, tasks:assign.
 import { existsSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,14 +35,9 @@ const PLAIN = {
   timeoutSec: "run time limit", maxTurnsPerRun: "turn limit", heartbeat: "runs at once", approve: "approved as the owner",
 };
 
-// Scopes the board gives these grants by default; kept when a grant is added back.
-function defaultScope(key, agentId) {
-  if (key === "inbox:manage") return { responsibleUserOnly: true };
-  if (key === "tasks:assign_scope") return { subtreeRootAgentId: agentId };
-  return null;
-}
-
-const sameSet = (a, b) => a.length === b.length && [...a].sort().join("\n") === [...b].sort().join("\n");
+// Whether the board lets an agent assign tasks, read from its grants: access.canAssignTasks
+// is true for every active member, so only the tasks:assign grant itself tells.
+const mayAssign = (detail) => (detail?.access?.grants || []).some((g) => g.permissionKey === "tasks:assign");
 
 async function apply({ check, file }) {
   const config = loadConfig();
@@ -166,36 +164,26 @@ async function apply({ check, file }) {
     if (!Object.values(ids).includes(x.id)) say("left alone", `agent ${x.name}`, "not in the company file");
   }
 
-  // Rights, then grants (whole-set replace through the member id).
+  // Rights, set through /permissions, then read back from the agent's own grants.
   const known = plan.agents.filter((a) => !fresh.has(a.slug) || !check);
   const details = {};
   for (const a of known) {
     let detail = await board.get(`/api/agents/${enc(ids[a.slug])}`, { what: `show the agent ${a.name}` });
     const perms = detail.permissions || {};
-    if (Object.keys(a.rights).some((k) => !!perms[k] !== a.rights[k])) {
-      if (!check) {
-        await board.patch(`/api/agents/${enc(ids[a.slug])}/permissions`, a.rights, { what: `set the rights of ${a.name}` });
-        detail = await board.get(`/api/agents/${enc(ids[a.slug])}`, { what: `show the agent ${a.name}` });
-      }
-      say("updated", `rights of ${a.name}`);
-    } else say("unchanged", `rights of ${a.name}`);
-    details[a.slug] = detail;
-  }
-  for (const a of known) {
-    const access = details[a.slug].access || {};
-    const current = (access.grants || []).map((g) => g.permissionKey);
-    if (sameSet(current, a.grants)) { say("unchanged", `grants of ${a.name}`); continue; }
-    const memberId = access.membership?.id;
-    if (!memberId) throw new Stop(`The board did not show the membership of ${a.name}, so its grants could not be set. Nothing more was changed.`);
+    const rightsDiffer = Object.keys(a.rights).some((k) => !!perms[k] !== a.rights[k]);
+    const assignDiffers = mayAssign(detail) !== a.rights.canAssignTasks;
+    if (!rightsDiffer && !assignDiffers) { say("unchanged", `rights of ${a.name}`); details[a.slug] = detail; continue; }
     if (!check) {
-      const scopes = Object.fromEntries((access.grants || []).map((g) => [g.permissionKey, g.scope ?? null]));
-      const grants = a.grants.map((k) => ({ permissionKey: k, scope: k in scopes ? scopes[k] : defaultScope(k, ids[a.slug]) }));
-      await board.patch(`/api/companies/${enc(company.id)}/members/${enc(memberId)}/permissions`, { grants },
-        { what: `set the grants of ${a.name}` });
+      await board.patch(`/api/agents/${enc(ids[a.slug])}/permissions`, a.rights, { what: `set the rights of ${a.name}` });
+      detail = await board.get(`/api/agents/${enc(ids[a.slug])}`, { what: `show the agent ${a.name}` });
+      if (mayAssign(detail) !== a.rights.canAssignTasks) {
+        throw new Stop(a.rights.canAssignTasks
+          ? `The board still does not let ${a.name} assign tasks after its rights were set, so nothing more was changed; check the agent on the board, then run this again.`
+          : `The board still lets ${a.name} assign tasks after that right was switched off, so nothing more was changed; check the agent's role and rights on the board, then run this again.`);
+      }
     }
-    const removed = current.filter((k) => !a.grants.includes(k));
-    const added = a.grants.filter((k) => !current.includes(k));
-    say("updated", `grants of ${a.name}`, [removed.length ? `removed ${removed.join(", ")}` : "", added.length ? `added ${added.join(", ")}` : ""].filter(Boolean).join("; "));
+    say("updated", `rights of ${a.name}`, assignDiffers ? (a.rights.canAssignTasks ? "may assign tasks" : "may not assign tasks") : "");
+    details[a.slug] = detail;
   }
 
   // Instructions (AGENTS.md), sent with the revision they replace.
@@ -242,6 +230,7 @@ async function apply({ check, file }) {
 
   const changes = counts.created + counts.updated;
   if (check) {
+    console.log("Default rights that paperclip gives every agent remain on the board and are blocked at the gate.");
     console.log(changes ? `Would change: ${counts.created} to create, ${counts.updated} to update, ${counts.unchanged} unchanged. Run: engine setup`
       : `Nothing would change: ${counts.unchanged} unchanged.`);
     return changes ? 3 : 0;

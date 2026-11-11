@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalisePath, refusal, RULES } from "../rules.mjs";
-import { PROOF, MUST_PASS } from "./vectors.mjs";
+import { normalisePath, refusal, isPlainPath, RULES, ALLOW } from "../rules.mjs";
+import { PROOF, MUST_PASS, ALLOWED, READS, INTERACTION_ANSWERS, NOT_NEEDED, HOSTILE, SAME_ROUTE } from "./vectors.mjs";
 
 test("normalisePath: matching form", () => {
   const cases = [
@@ -80,4 +80,77 @@ test("refusal: lower-case method and edge paths", () => {
   assert.equal(refusal("GET", "/board"), "board-chat");
   assert.equal(refusal("GET", "/api/companies/co/members"), "members");
   assert.equal(refusal("GET", "/api/companies/co/issues"), null);
+  assert.equal(refusal("post", "/api/issues/x/comments"), null);
+  assert.equal(refusal("Post", "/api/companies/co/skills"), "not-allowed");
+});
+
+// ---- the allow-list -----------------------------------------------------------
+test("allow-list: one vector per row, each passing with its own method only", () => {
+  assert.equal(ALLOWED.length, ALLOW.length);
+  for (let i = 0; i < ALLOW.length; i += 1) {
+    const [method, re] = ALLOW[i];
+    const [m, p] = ALLOWED[i];
+    assert.equal(m, method, `row ${i}`);
+    assert.ok(re.test(p), `row ${i}: ${p}`);
+    assert.equal(refusal(m, p), null, `${m} ${p}`);
+    assert.equal(refusal(m, p, p), null, `${m} ${p} (raw)`);
+    for (const other of [...W, "TRACE", "MERGE", "UNKNOWN"]) {
+      if (other === m) continue;
+      assert.equal(refusal(other, p), "not-allowed", `${other} ${p}`);
+    }
+  }
+});
+
+test("allow-list: every interaction answer passes, others do not", () => {
+  for (const a of INTERACTION_ANSWERS) assert.equal(refusal("POST", `/api/issues/i1/interactions/n1/${a}`), null, a);
+  for (const a of ["dismiss", "skip", "cancel", "acceptx", "accept-all", ""]) {
+    assert.equal(refusal("POST", `/api/issues/i1/interactions/n1/${a}`.replace(/\/$/, "")), "not-allowed", a);
+  }
+});
+
+test("allow-list: reads still pass, the refusal list still comes first", () => {
+  for (const [m, p] of READS) assert.equal(refusal(m, p), null, `${m} ${p}`);
+  // Allowed shapes that an older rule already refuses keep that rule's id.
+  assert.equal(refusal("PUT", "/api/issues/x/workspace"), "task-folder");
+  assert.equal(refusal("PUT", "/api/issues/x/documents/secrets"), "secrets");
+  assert.equal(refusal("POST", "/api/issues/x/comments", "/api/issues/x/comments?y=%2F"), null);
+  assert.equal(refusal("PATCH", "/api/agents/1", "/api/%61gents/1"), "agents-write");
+});
+
+test("tools endpoints are refused for every method", () => {
+  const paths = ["/mcp", "/mcp/runtime-tools", "/mcp/gateways/gw_abc", "/mcp/runner/files/upload",
+    "/runtime-tools/connections/search", "/runtime-tools/connections/request", "/runtime-tools/github/credentials",
+    "/api/mcp/setup", "/api/mcp/connections/x", "/api/runtime-tools/connections/request", "/api/mcp"];
+  for (const p of paths) for (const m of [...R, ...W]) assert.equal(refusal(m, p), "tools-endpoint", `${m} ${p}`);
+  assert.equal(refusal("POST", "/api/mcpx"), "not-allowed");
+  assert.equal(refusal("GET", "/api/mcpx"), null);
+});
+
+test("writes the routine does not need are refused in every spelling", () => {
+  let n = 0;
+  for (const [m, raws] of NOT_NEEDED) {
+    for (const raw of raws) {
+      const p = normalisePath(raw);
+      assert.notEqual(p, null, raw);
+      assert.equal(refusal(m, p, raw), "not-allowed", `${m} ${raw}`);
+      n += 1;
+    }
+  }
+  assert.ok(n >= 40);
+});
+
+test("hostile spellings of allowed writes that are not the same route are refused", () => {
+  for (const [m, raw] of HOSTILE) {
+    const p = normalisePath(raw);
+    assert.notEqual(p, null, raw);
+    assert.equal(refusal(m, p, raw), "not-allowed", `${m} ${raw}`);
+  }
+  for (const [m, raw] of SAME_ROUTE) assert.equal(refusal(m, normalisePath(raw), raw), null, `${m} ${raw}`);
+});
+
+test("isPlainPath: escapes and empty segments before the query", () => {
+  assert.equal(isPlainPath("/api/issues/x/comments"), true);
+  assert.equal(isPlainPath("/api/issues/x/comments?q=%2F//"), true);
+  assert.equal(isPlainPath("/api/issues/x%2Fcomments"), false);
+  assert.equal(isPlainPath("/api//issues/x"), false);
 });

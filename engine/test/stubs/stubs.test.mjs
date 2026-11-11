@@ -90,24 +90,95 @@ test("board: the instructions PUT checks the revision", async () => {
   } finally { await b.close(); }
 });
 
-test("board: grants are replaced as a whole set; new agents get the default grants", async () => {
+const FOURTEEN = [
+  "agents:configure", "agents:suggest-changes", "audit:view_agent_actions", "inbox:manage", "skills:create",
+  "skills:suggest-changes", "tasks:assign", "tasks:assign_scope", "tasks:manage_active_checkouts",
+  "tools:manage_connections", "tools:manage_profiles", "tools:manage_runtime", "tools:use", "tools:view_audit",
+];
+const keysOf = (agent) => agent.access.grants.map((g) => g.permissionKey).sort();
+
+test("board: a new agent gets the fourteen default grants, tasks:assign included, whatever it asked for", async () => {
   const b = await startStubBoard({ seed: boardSeed() });
   try {
     b.state.companies[0].requireBoardApprovalForNewAgents = false;
-    const made = await call(b.url, "POST", `/api/companies/${C}/agents`, { body: { name: "Lead", permissions: { canAssignTasks: true } } });
+    const made = await call(b.url, "POST", `/api/companies/${C}/agents`, { body: { name: "Worker", permissions: { canAssignTasks: false, canCreateAgents: false, canCreateSkills: false } } });
     assert.equal(made.status, 201);
     assert.equal(made.json.status, "idle");
     const full = (await call(b.url, "GET", `/api/agents/${made.json.id}`)).json;
-    const keys = full.access.grants.map((g) => g.permissionKey).sort();
-    assert.equal(keys.length, 14);
-    assert.ok(keys.includes("tasks:assign") && keys.includes("agents:configure") && keys.includes("tools:use"));
-    const memberId = full.access.membership.id;
-    const put = await call(b.url, "PATCH", `/api/companies/${C}/members/${memberId}/permissions`, { body: { grants: [{ permissionKey: "tools:use" }, { permissionKey: "tasks:assign", scope: null }] } });
-    assert.equal(put.status, 200);
-    const after = (await call(b.url, "GET", `/api/agents/${made.json.id}`)).json;
-    assert.deepEqual(after.access.grants.map((g) => g.permissionKey).sort(), ["tasks:assign", "tools:use"]);
+    assert.deepEqual(keysOf(full), FOURTEEN);
+    assert.deepEqual(full.permissions, { canAssignTasks: false, canCreateAgents: false, canCreateSkills: false });
+    const scopes = Object.fromEntries(full.access.grants.map((g) => [g.permissionKey, g.scope]));
+    assert.deepEqual(scopes["tasks:assign_scope"], { subtreeRootAgentId: made.json.id });
+    assert.deepEqual(scopes["inbox:manage"], { responsibleUserOnly: true });
+    assert.equal(scopes["tasks:assign"], null);
+    // Rights not given default to the create-time values of the real board.
+    const bare = (await call(b.url, "POST", `/api/companies/${C}/agents`, { body: { name: "Bare" } })).json;
+    assert.equal(bare.permissions.canCreateAgents, true);
+    assert.equal(bare.permissions.canCreateSkills, true);
+  } finally { await b.close(); }
+});
+
+test("board: a hire waiting for approval has no grants until the owner approves it", async () => {
+  const b = await startStubBoard({ seed: boardSeed() });
+  try {
+    const made = (await call(b.url, "POST", `/api/companies/${C}/agents`, { body: { name: "Waiter", permissions: { canAssignTasks: false, canCreateAgents: false } } })).json;
+    assert.equal(made.status, "pending_approval");
+    assert.deepEqual(keysOf((await call(b.url, "GET", `/api/agents/${made.id}`)).json), []);
+    const frozen = await call(b.url, "PATCH", `/api/agents/${made.id}/permissions`, { body: { canAssignTasks: false, canCreateAgents: false } });
+    assert.equal(frozen.status, 409);
+    assert.equal((await call(b.url, "POST", `/api/agents/${made.id}/approve`)).status, 200);
+    assert.deepEqual(keysOf((await call(b.url, "GET", `/api/agents/${made.id}`)).json), FOURTEEN);
+  } finally { await b.close(); }
+});
+
+test("board: the member-permission routes refuse an agent as the real board does", async () => {
+  const b = await startStubBoard({ seed: boardSeed() });
+  try {
+    const builder = (await call(b.url, "GET", `/api/agents/${IDS.agents.builder}`)).json;
+    const memberId = builder.access.membership.id;
+    const before = keysOf(builder);
+    for (const [method, suffix, body] of [
+      ["PATCH", "/permissions", { grants: [{ permissionKey: "tools:use" }] }],
+      ["PATCH", "/role-and-grants", { grants: [] }],
+      ["PATCH", "", { status: "active" }],
+      ["POST", "/archive", {}],
+    ]) {
+      const r = await call(b.url, method, `/api/companies/${C}/members/${memberId}${suffix}`, { body });
+      assert.equal(r.status, 403, `${method} ${suffix}`);
+      assert.deepEqual(r.json, { error: "Only human company members can be removed." });
+    }
+    assert.deepEqual(keysOf((await call(b.url, "GET", `/api/agents/${IDS.agents.builder}`)).json), before);
     assert.equal((await call(b.url, "PATCH", `/api/companies/${C}/members/nobody/permissions`, { body: { grants: [] } })).status, 404);
     assert.equal((await call(b.url, "PATCH", `/api/companies/${C}/members/${memberId}/permissions`, { body: { grants: "all" } })).status, 400);
+  } finally { await b.close(); }
+});
+
+test("board: PATCH /permissions adds or removes only tasks:assign and answers with the agent's access", async () => {
+  const b = await startStubBoard({ seed: boardSeed() });
+  try {
+    b.state.companies[0].requireBoardApprovalForNewAgents = false;
+    const id = (await call(b.url, "POST", `/api/companies/${C}/agents`, { body: { name: "Lead", permissions: { canAssignTasks: false, canCreateAgents: false, canCreateSkills: false } } })).json.id;
+    const url = `/api/agents/${id}/permissions`;
+    assert.equal((await call(b.url, "PATCH", url, { body: { canAssignTasks: false } })).status, 400, "canCreateAgents is required");
+    assert.equal((await call(b.url, "PATCH", url, { body: { canCreateAgents: false } })).status, 400, "canAssignTasks is required");
+    const off = await call(b.url, "PATCH", url, { body: { canAssignTasks: false, canCreateAgents: false, canCreateSkills: false } });
+    assert.equal(off.status, 200);
+    assert.deepEqual(off.json.permissions, { canAssignTasks: false, canCreateAgents: false, canCreateSkills: false });
+    assert.deepEqual(keysOf(off.json), FOURTEEN.filter((k) => k !== "tasks:assign"));
+    // Every active member counts as able to assign here; only the grant shows the right.
+    assert.equal(off.json.access.canAssignTasks, true);
+    assert.equal(off.json.access.taskAssignSource, "simple_default");
+    const on = await call(b.url, "PATCH", url, { body: { canAssignTasks: true, canCreateAgents: false } });
+    assert.deepEqual(keysOf(on.json), FOURTEEN);
+    assert.equal(on.json.access.taskAssignSource, "explicit_grant");
+    assert.equal(on.json.permissions.canAssignTasks, true);
+    // An agent allowed to create agents keeps tasks:assign whatever is asked.
+    const creator = await call(b.url, "PATCH", url, { body: { canAssignTasks: false, canCreateAgents: true } });
+    assert.ok(keysOf(creator.json).includes("tasks:assign"));
+    assert.equal(creator.json.access.taskAssignSource, "agent_creator");
+    // An agent that is not the CEO may not change rights.
+    const r = await call(b.url, "PATCH", url, { body: { canAssignTasks: true, canCreateAgents: false }, headers: bearer(IDS.tokens.builder) });
+    assert.equal(r.status, 403);
   } finally { await b.close(); }
 });
 
@@ -125,7 +196,7 @@ test("board: company switch makes new agents wait for approval; owner approves",
     const patched = await call(b.url, "PATCH", `/api/agents/${made.id}`, { body: { adapterConfig: { model: "opus" }, reportsTo: IDS.agents["chief-of-staff"] } });
     assert.equal(patched.json.adapterConfig.model, "opus");
     assert.equal(patched.json.reportsTo, IDS.agents["chief-of-staff"]);
-    const perm = await call(b.url, "PATCH", `/api/agents/${made.id}/permissions`, { body: { canAssignTasks: true } });
+    const perm = await call(b.url, "PATCH", `/api/agents/${made.id}/permissions`, { body: { canAssignTasks: true, canCreateAgents: false } });
     assert.equal(perm.json.permissions.canAssignTasks, true);
     const co = await call(b.url, "PATCH", `/api/companies/${C}`, { body: { requireBoardApprovalForNewAgents: false } });
     assert.equal(co.json.requireBoardApprovalForNewAgents, false);

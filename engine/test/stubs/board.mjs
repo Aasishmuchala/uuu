@@ -3,11 +3,20 @@
 import http from "node:http";
 import { randomUUID, randomBytes } from "node:crypto";
 
+// The grants a new agent receives when it becomes active (at creation, or at approval when
+// it was hired waiting for approval), as in server/dist/lib/agent-permissions.js
+// NEW_STANDARD_AGENT_DEFAULT_GRANT_KEYS. tasks:assign is among them for every agent.
 export const DEFAULT_GRANT_KEYS = [
-  "agents:configure", "agents:suggest-changes", "audit:view_agent_actions", "inbox:manage",
-  "skills:create", "skills:suggest-changes", "tasks:assign_scope", "tasks:manage_active_checkouts",
-  "tools:manage_connections", "tools:manage_profiles", "tools:manage_runtime", "tools:use", "tools:view_audit",
+  "agents:configure", "agents:suggest-changes", "skills:create", "skills:suggest-changes",
+  "tools:manage_connections", "tools:manage_profiles", "tools:view_audit", "audit:view_agent_actions",
+  "tools:use", "tools:manage_runtime", "inbox:manage", "tasks:assign", "tasks:assign_scope",
+  "tasks:manage_active_checkouts",
 ];
+const defaultGrantScope = (key, agentId) => (key === "tasks:assign_scope" ? { subtreeRootAgentId: agentId }
+  : key === "inbox:manage" ? { responsibleUserOnly: true } : null);
+// The refusal both member-permission routes give for a member that is not a person
+// (server/dist/routes/access.js getProtectedMemberReason): 403 through forbidden().
+export const AGENT_MEMBER_REFUSAL = "Only human company members can be removed.";
 const DEFAULT_REVISION_TEXT = "You are an agent in a Paperclip company.\n";
 
 class HttpError extends Error {
@@ -67,11 +76,22 @@ export async function startStubBoard({ port = 0, seed } = {}) {
   };
   const publicAgent = (a) => { const { membershipId, ...rest } = a; return clone(rest); };
   const grantsOf = (a) => state.memberGrants[a.membershipId] || [];
+  // Adds the default grants an agent lacks (the real board inserts them "on conflict do nothing").
+  const giveDefaultGrants = (a) => {
+    const list = (state.memberGrants[a.membershipId] ||= []);
+    for (const k of DEFAULT_GRANT_KEYS) {
+      if (!list.some((g) => g.permissionKey === k)) list.push({ permissionKey: k, scope: defaultGrantScope(k, a.id) });
+    }
+  };
+  // As routes/agents.js buildAgentAccessState: every active member may assign ("simple_default"),
+  // so access.canAssignTasks says little; only the tasks:assign grant itself shows the right.
+  const assignSource = (a) => (a.role === "ceo" ? "ceo_role" : a.permissions?.canCreateAgents ? "agent_creator"
+    : grantsOf(a).some((g) => g.permissionKey === "tasks:assign") ? "explicit_grant" : "simple_default");
   const withAccess = (a) => {
     const out = publicAgent(a);
     out.access = {
-      canAssignTasks: !!a.permissions?.canAssignTasks,
-      taskAssignSource: "simple_default",
+      canAssignTasks: true,
+      taskAssignSource: assignSource(a),
       membership: {
         id: a.membershipId, companyId: a.companyId, principalType: "agent", principalId: a.id,
         status: "active", membershipRole: "member", createdAt: a.createdAt, updatedAt: a.updatedAt,
@@ -130,7 +150,13 @@ export async function startStubBoard({ port = 0, seed } = {}) {
     const c = company(params.id); needBody(body);
     if (!body.name) throw new HttpError(400, "name is required");
     const id = randomUUID();
-    const permissions = { canAssignTasks: false, canCreateAgents: false, canCreateSkills: false, ...(body.permissions || {}) };
+    // As normalizeAgentPermissions(..., { context: "create" }): both default to true when not given.
+    const given = body.permissions && typeof body.permissions === "object" ? clone(body.permissions) : {};
+    const permissions = {
+      ...given,
+      canCreateAgents: typeof given.canCreateAgents === "boolean" ? given.canCreateAgents : true,
+      canCreateSkills: typeof given.canCreateSkills === "boolean" ? given.canCreateSkills : true,
+    };
     const t = nowIso();
     const agent = {
       id, companyId: c.id, name: body.name, role: body.role ?? "general", title: body.title ?? null,
@@ -143,13 +169,9 @@ export async function startStubBoard({ port = 0, seed } = {}) {
       createdAt: t, updatedAt: t, membershipId: randomUUID(),
     };
     state.agents.push(agent);
-    const grants = DEFAULT_GRANT_KEYS.map((permissionKey) => ({
-      permissionKey,
-      scope: permissionKey === "inbox:manage" ? { responsibleUserOnly: true }
-        : permissionKey === "tasks:assign_scope" ? { subtreeRootAgentId: id } : null,
-    }));
-    if (permissions.canAssignTasks) grants.push({ permissionKey: "tasks:assign", scope: null });
-    state.memberGrants[agent.membershipId] = grants;
+    // Grants come at activation: now, or at approval for an agent waiting for it.
+    state.memberGrants[agent.membershipId] = [];
+    if (agent.status !== "pending_approval") giveDefaultGrants(agent);
     state.instructions[id] = { "AGENTS.md": { content: DEFAULT_REVISION_TEXT, revisionId: randomUUID() } };
     return [201, publicAgent(agent)];
   });
@@ -166,21 +188,41 @@ export async function startStubBoard({ port = 0, seed } = {}) {
     a.updatedAt = nowIso();
     return publicAgent(a);
   });
-  route("PATCH", "/api/agents/:id/permissions", ({ params, body }) => {
-    const a = agentById(params.id); needBody(body);
-    for (const k of ["canAssignTasks", "canCreateAgents", "canCreateSkills"]) if (k in body) a.permissions[k] = !!body[k];
+  // As routes/agents.js PATCH /agents/:id/permissions: canCreateAgents and canAssignTasks are
+  // required, canCreateSkills optional (400 otherwise); an agent waiting for approval gets 409.
+  // Only the tasks:assign grant changes: added when the agent may assign, removed when not.
+  // The answer is the agent with `access`, as GET /agents/:id gives it.
+  route("PATCH", "/api/agents/:id/permissions", ({ params, body, actor }) => {
+    const bool = (v) => typeof v === "boolean";
+    if (!body || typeof body !== "object" || Array.isArray(body) || !bool(body.canCreateAgents) || !bool(body.canAssignTasks)
+      || ("canCreateSkills" in body && !bool(body.canCreateSkills))) throw new HttpError(400, "Validation error");
+    const a = agentById(params.id);
+    if (actor.kind === "agent" && agentById(actor.agentId).role !== "ceo") throw new HttpError(403, "Only CEO can manage permissions");
+    if (a.status === "pending_approval") throw new HttpError(409, "Pending approval agent permissions cannot be changed before board approval");
+    for (const k of ["canAssignTasks", "canCreateAgents", "canCreateSkills"]) if (k in body) a.permissions[k] = body[k];
+    const assign = a.role === "ceo" || a.permissions.canCreateAgents || body.canAssignTasks;
+    const list = (state.memberGrants[a.membershipId] ||= []);
+    const has = list.some((g) => g.permissionKey === "tasks:assign");
+    if (assign && !has) list.push({ permissionKey: "tasks:assign", scope: null });
+    if (!assign) state.memberGrants[a.membershipId] = list.filter((g) => g.permissionKey !== "tasks:assign");
     a.updatedAt = nowIso();
-    return publicAgent(a);
+    return withAccess(a);
   });
-  route("PATCH", "/api/companies/:id/members/:memberId/permissions", ({ params, body, actor }) => {
-    needOwner(actor); needBody(body); company(params.id);
-    const a = state.agents.find((x) => x.membershipId === params.memberId);
-    if (!a) throw new HttpError(404, "Member not found");
-    if (!Array.isArray(body.grants)) throw new HttpError(400, "grants must be a list");
-    for (const g of body.grants) if (!g || typeof g.permissionKey !== "string") throw new HttpError(400, "each grant needs permissionKey");
-    state.memberGrants[a.membershipId] = body.grants.map((g) => ({ permissionKey: g.permissionKey, scope: g.scope ?? null }));
-    return { grants: clone(state.memberGrants[a.membershipId]) };
+  // The member routes refuse every agent (all members in this stub are agents). Order as in
+  // routes/access.js: body check (400), then the member (404), then the refusal (403).
+  const memberRoute = (method, suffix, needsGrants) => route(method, `/api/companies/:id/members/:memberId${suffix}`, ({ params, body, actor }) => {
+    needOwner(actor);
+    if (needsGrants && (!body || !Array.isArray(body.grants) || body.grants.some((g) => !g || typeof g.permissionKey !== "string"))) {
+      throw new HttpError(400, "Validation error");
+    }
+    company(params.id);
+    if (!state.agents.some((x) => x.membershipId === params.memberId && x.companyId === params.id)) throw new HttpError(404, "Member not found");
+    throw new HttpError(403, AGENT_MEMBER_REFUSAL);
   });
+  memberRoute("PATCH", "/permissions", true);
+  memberRoute("PATCH", "/role-and-grants", false);
+  memberRoute("PATCH", "", false);
+  memberRoute("POST", "/archive", false);
   route("POST", "/api/agents/:id/pause", ({ params, body }) => {
     const a = agentById(params.id);
     a.status = "paused"; a.pauseReason = body?.reason ?? "manual"; a.pausedAt = nowIso(); a.updatedAt = nowIso();
@@ -196,6 +238,7 @@ export async function startStubBoard({ port = 0, seed } = {}) {
     const a = agentById(params.id);
     if (a.status !== "pending_approval") throw new HttpError(409, "Agent is not waiting for approval");
     a.status = "idle"; a.updatedAt = nowIso();
+    giveDefaultGrants(a);
     return publicAgent(a);
   });
   route("POST", "/api/agents/:id/keys", ({ params, body, actor }) => {

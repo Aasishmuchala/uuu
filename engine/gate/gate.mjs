@@ -1,6 +1,7 @@
 // The gate: the only door from fenced agents to the board (CONTRACTS section 6).
-// It forwards a request only when it carries exactly one bearer token and is not on the
-// refusal list. It never logs a header, a body or a query string.
+// It forwards a request only when it carries exactly one bearer token, is not on the
+// refusal list, and, for a write, is on the allow-list. It never logs a header, a body or
+// a query string.
 import http from "node:http";
 import { appendFileSync, mkdirSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -152,9 +153,9 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
       sendJson(res, 401, BODIES.noToken);
       return;
     }
-    // 4. Refusal list.
+    // 4. Refusal list, then the allow-list for writes.
     for (const m of methodsOf(req)) {
-      const rule = refusal(m, path);
+      const rule = refusal(m, path, req.url);
       if (rule) {
         logRefusal(req.method, path, rule);
         sendJson(res, 403, refusedBody(rule));
