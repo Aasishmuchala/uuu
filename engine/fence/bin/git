@@ -1,0 +1,21 @@
+#!/bin/bash
+# The board runs git inside the agents' task folders (to see whether a folder
+# has changes). An agent can write anything in its task folder, including the
+# files of a made-up git repository whose settings name a program for git to
+# run. Git would then run that program as the owner, outside the fence.
+#
+# This file sits first on the board's PATH, beside the fenced `claude` and
+# `codex`, so every git the board starts goes through it. It makes git:
+#   - refuse a repository that is laid out directly in the working folder
+#     (git calls it "bare"), which is the only kind an agent can make there,
+#     because the fence does not let it create a `.git` folder;
+#   - ignore the settings that would run a program (the file-watcher hook and
+#     the hooks folder).
+# Found by the final security review on 11 November 2026.
+for real in /opt/homebrew/bin/git /usr/local/bin/git /usr/bin/git; do
+  if [ -x "$real" ]; then
+    exec "$real" -c safe.bareRepository=explicit -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"
+  fi
+done
+echo "git: no git program found on this Mac" >&2
+exit 127
