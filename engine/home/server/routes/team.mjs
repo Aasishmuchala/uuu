@@ -2,12 +2,11 @@
 // routes/team-lessons.mjs. Everything an agent wrote (comments, lessons, file names) is untrusted text:
 // it is capped, never rendered as HTML and never followed.
 import { createHash } from "node:crypto";
-import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 import { HomeError } from "../lib/errors.mjs";
 import { descendants } from "../lib/goals.mjs";
 import { textOf } from "../lib/staged.mjs";
-import { fileEntry, listTaskFiles } from "../lib/taskfiles.mjs";
+import { fileEntry, listTaskFiles, readChecked } from "../lib/taskfiles.mjs";
 import { agentCards, loadRoles, profileOf } from "../lib/team.mjs";
 import { loadTaskContext, taskCard } from "../lib/tasks.mjs";
 
@@ -20,30 +19,17 @@ const MAX_TEXT = 4000;
 const MAX_TASKS_READ = 40;
 
 const WHO_YOU = { slug: "you", name: "You" };
+const AN_AGENT = { slug: "agent", name: "An agent" };
 const stamp = (s) => Date.parse(s) || 0;
 const who = (r) => ({ slug: r.slug, name: r.name });
 
-// state/lessons/<slug>.md, read with O_NOFOLLOW and capped; "" when missing, a link or unreadable.
+// state/lessons/<slug>.md, which the agent itself writes: read through readChecked (O_NOFOLLOW and
+// O_NONBLOCK, a regular file still at its place in the lessons folder) and capped; "" when missing, a
+// link, a FIFO or unreadable.
 function readLessonsFile(config, slug) {
-  let fd;
-  try {
-    fd = openSync(join(config.paths.lessons, `${slug}.md`), constants.O_RDONLY | constants.O_NOFOLLOW);
-    const st = fstatSync(fd);
-    if (!st.isFile()) return "";
-    const len = Math.min(st.size, MAX_LESSONS_BYTES);
-    const buf = Buffer.alloc(len);
-    let off = 0;
-    while (off < len) {
-      const n = readSync(fd, buf, off, len - off, off);
-      if (n <= 0) break;
-      off += n;
-    }
-    return buf.subarray(0, off).toString("utf8");
-  } catch {
-    return "";
-  } finally {
-    if (fd !== undefined) try { closeSync(fd); } catch { /* already closed */ }
-  }
+  const dir = config.paths.lessons;
+  const read = readChecked(join(dir, `${slug}.md`), dir, { maxBytes: MAX_LESSONS_BYTES });
+  return read ? read.bytes.toString("utf8") : "";
 }
 
 export function lessonsOf(config, slug) {
@@ -95,8 +81,12 @@ async function conversationOf(ctx, tctx, role, agentId) {
     if (!named && !mine.length) continue;
     if (read++ >= MAX_TASKS_READ) break;
     if (named) {
+      // The owner's words only when the owner made the task; a task an agent made is that agent's.
+      const maker = goal.createdByAgentId ? tctx.agents.get(goal.createdByAgentId) : null;
+      const asker = !goal.createdByAgentId ? WHO_YOU
+        : maker && maker.slug && maker.slug !== WHO_YOU.slug ? { slug: maker.slug, name: maker.name } : AN_AGENT;
       items.push({
-        who: WHO_YOU, kind: "ask", text: textOf(goal.description || "").text.slice(0, MAX_TEXT) || goal.title,
+        who: asker, kind: "ask", text: textOf(goal.description || "").text.slice(0, MAX_TEXT) || goal.title,
         at: goal.createdAt, taskId: goal.id, identifier: goal.identifier, files: [],
       });
     }

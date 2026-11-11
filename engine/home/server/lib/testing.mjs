@@ -37,3 +37,14 @@ export function call(base, method, path, { body, headers = {}, bare = false, raw
 export function writes(stub) {
   return stub.requests.filter((r) => r.method !== "GET").map((r) => `${r.method} ${r.path}`);
 }
+
+// POST /api/inbox/act as the decision card does (CONTRACTS 9.3a): with the `version` the inbox shows for
+// that item right now. A `version` given in the body (even null) is sent as it is.
+export async function actAsSeen(base, body) {
+  if (body && !("version" in body)) {
+    const list = await call(base, "GET", "/api/inbox");
+    const item = (list.json?.items || []).find((i) => i.id === body.id);
+    if (item && typeof item.version === "string") body = { ...body, version: item.version };
+  }
+  return call(base, "POST", "/api/inbox/act", { body });
+}

@@ -8,7 +8,7 @@ import { useApp } from "../lib/context.js";
 import { go } from "../lib/router.js";
 import {
   Avatar, Button, Chip, CheckList, Composer, Conversation, DecisionCard, DocView, Empty, ErrorNotice, Evidence,
-  FileCard, Loading, Menu, PageHeader, Section, Tabs, TextArea, Timeline, useInboxAct,
+  FileCard, Icon, Loading, Menu, PageHeader, Section, Tabs, TextArea, Timeline, changedText, isChangedSinceSeen, useInboxAct,
 } from "../kit/index.js";
 
 const BACK = { href: "#/tasks", label: "All tasks" };
@@ -85,27 +85,37 @@ const passedCount = (round) => list(round && round.checks).filter((c) => text(c 
 
 const STAGE_WORDS = { done: "Done", current: "Now", waiting: "Not started", skipped: "Skipped" };
 
+// The arguments of `act` for the delivery's own buttons: the item, the action, the note, and the version the
+// button was showing (CONTRACTS 9.3a). which is "accept" or "sendBack".
+export function actArgs(acceptance, which, note) {
+  const a = (acceptance && acceptance[which]) || {};
+  return [a.inboxId, a.action, note, a.version];
+}
+
 // --- The header's right side: Accept and Send back, or a word for the state ------------------------------------
 
-function AcceptBar({ acceptance, onDone }) {
-  const { act, busy, error } = useInboxAct();
+function AcceptBar({ acceptance, onDone, onChanged }) {
+  const { act, busy, error, changed } = useInboxAct();
   const [noting, setNoting] = useState(false);
   const [note, setNote] = useState("");
   const accept = acceptance && acceptance.accept;
   const sendBack = acceptance && acceptance.sendBack;
+
+  // The task changed after the owner looked: read it again once. Nothing is sent again.
+  useEffect(() => { if (changed && typeof onChanged === "function") onChanged(); }, [changed, error]);
 
   if (!accept) {
     return html`<p class="p-task__state" role="status">${stateWord(acceptance)}</p>`;
   }
 
   async function doAccept() {
-    const res = await act(accept.inboxId, accept.action);
+    const res = await act(...actArgs(acceptance, "accept"));
     if (res) onDone(text(res.message) || "Accepted.");
   }
   async function doSendBack(e) {
     if (e) e.preventDefault();
     if (!sendBack || !note.trim()) return;
-    const res = await act(sendBack.inboxId, sendBack.action, note.trim());
+    const res = await act(...actArgs(acceptance, "sendBack", note.trim()));
     if (res) { setNoting(false); setNote(""); onDone(text(res.message) || "Sent back with your note."); }
   }
   const cancel = () => { setNoting(false); setNote(""); };
@@ -127,8 +137,20 @@ function AcceptBar({ acceptance, onDone }) {
           ${sendBack ? html`<${Button} variant="plain" onClick=${() => setNoting(true)} disabled=${busy}>${text(sendBack.label) || "Send back"}<//>` : null}
           <${Button} variant="accept" size="lg" busy=${busy} onClick=${doAccept}>${text(accept.label) || "Accept"}<//>
         </div>`}
-      ${error ? html`<${ErrorNotice} error=${error} />` : null}
+      ${error ? html`<${Refused} error=${error} />` : null}
     </div>`;
+}
+
+// A refused or failed action, in place: the server's words and next step. Not the "could not be loaded" box.
+function Refused({ error }) {
+  const t = isChangedSinceSeen(error) ? changedText(error) : { message: text(error && error.message) || "That did not work.", next: text(error && error.next) };
+  return html`<div class="k-decision__changed" role="alert">
+    <${Icon} name="alert" />
+    <div class="k-decision__changed-text">
+      <p class="k-decision__changed-title">${text(t.message)}</p>
+      ${t.next ? html`<p class="k-decision__changed-next">${text(t.next)}</p>` : null}
+    </div>
+  </div>`;
 }
 
 // "Stop this task" in a menu; asks once, then POST /api/goals/<id>/stop.
@@ -271,7 +293,8 @@ export default function Page({ route }) {
     if (typeof app.openPanel === "function") app.openPanel(html`<${FilesPanel} files=${files} />`, { title: `Files (${files.length})` });
   };
 
-  // The work panel opens from the start with ?files=1, or on a wide window when there are files. Once per task.
+  // The work panel opens from the start with ?files=1, or on a window 1280 px or wider when there are files.
+  // Once per task.
   useEffect(() => {
     if (!d || opened.current === id) return;
     opened.current = id;
@@ -314,7 +337,7 @@ export default function Page({ route }) {
 
   const actions = html`
     <div class="p-task__head-actions">
-      <${AcceptBar} acceptance=${acceptance} onDone=${after} />
+      <${AcceptBar} acceptance=${acceptance} onDone=${after} onChanged=${res.refresh} />
       ${canStop && t.id ? html`<${StopTask} task=${t} onDone=${after} />` : null}
     </div>`;
 

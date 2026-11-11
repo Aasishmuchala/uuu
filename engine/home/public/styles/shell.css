@@ -155,9 +155,17 @@
   flex-direction: column;
   gap: var(--s-4);
   padding-top: var(--s-2);
+  /* When the list is taller than the room, its lower edge fades out, so nothing ends half-cut by the bottom
+     group; the padding lets the last row scroll clear of the fade. */
+  padding-bottom: var(--s-6);
+  -webkit-mask-image: linear-gradient(to bottom, var(--bg) calc(100% - var(--s-6)), transparent);
+  mask-image: linear-gradient(to bottom, var(--bg) calc(100% - var(--s-6)), transparent);
 }
 .s-sidebar--drawer .s-scroll {
   overflow: visible;
+  padding-bottom: 0;
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 .s-group {
   display: flex;

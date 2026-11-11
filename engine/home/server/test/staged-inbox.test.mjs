@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { boardSeedV2, IDS_V2 } from "../../../test/stubs/seed.mjs";
 import { readShape, sameShape } from "../lib/shape.mjs";
 import { forgetComments } from "../lib/tasks.mjs";
-import { call } from "../lib/testing.mjs";
+import { actAsSeen, call } from "../lib/testing.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -32,7 +32,8 @@ async function withHome(fn) {
 }
 
 const inbox = async (h) => (await call(h.url, "GET", "/api/inbox")).json;
-const actOn = (h, id, action, note) => call(h.url, "POST", "/api/inbox/act", { body: note === undefined ? { id, action } : { id, action, note } });
+// Acts with the version the inbox shows now, as the decision card does (CONTRACTS 9.3a).
+const actOn = (h, id, action, note) => actAsSeen(h.url, note === undefined ? { id, action } : { id, action, note });
 const writesSince = (h, n) => h.board.requests.slice(n).filter((r) => r.method !== "GET").map((r) => ({ call: `${r.method} ${r.path}`, body: r.body }));
 const doc = (h, key, name) => join(h.state, "tasks", "company-work", key, name);
 
@@ -180,6 +181,7 @@ test("stopped at the cap: STH-18 is high with Why and Rounds 5 of 5; stop cancel
     assert.deepEqual(Object.keys(det), ["Why", "Rounds"]);
     assert.match(det.Why, /^five check rounds did not pass/);
     assert.ok(!det.Why.includes("STOPPED:"));
+    assert.ok(det.Why.startsWith("five check rounds did not pass. The Bookkeeper and the Checker could not agree"));
     assert.equal(det.Rounds, "5 of 5");
     assert.deepEqual(item.actions.map((a) => [a.id, a.label, a.style, a.needsNote]),
       [["answer", "Try again with a note", "primary", true], ["stop", "Stop this task", "danger", false]]);

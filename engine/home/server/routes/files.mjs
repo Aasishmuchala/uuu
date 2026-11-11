@@ -1,9 +1,11 @@
 // CONTRACTS 9.4: GET /api/files/<token>, a file from tasks/company-work/ as a download.
 // The token is the base64url of a path relative to that folder. The real path (links resolved) must
-// stay inside the real folder, else 404.
-import { realpath, stat } from "node:fs/promises";
-import { basename, join, sep } from "node:path";
+// stay inside the real folder, else 404. Agents write these files: the file is opened once with
+// openChecked (no link as the file itself, O_NONBLOCK, a regular file, still the file at that place)
+// and streamed from that descriptor, never opened again by its path.
+import { basename, join } from "node:path";
 import { fileResponse } from "../lib/static.mjs";
+import { openChecked } from "../lib/taskfiles.mjs";
 
 function notFound(ctx) {
   return ctx.fail(404, "That file is not here any more.", "Go back to the goal and look at its files again.", "file_not_found");
@@ -17,18 +19,12 @@ export default function register(app) {
     if (!rel || rel.includes("\0") || rel.includes("\\") || rel.startsWith("/")) throw notFound(ctx);
     const segs = rel.split("/");
     if (segs.some((s) => !s || s === "." || s === "..")) throw notFound(ctx);
-    let root, real, st;
-    try {
-      root = await realpath(ctx.config.paths.projectFolder);
-      real = await realpath(join(root, ...segs));
-      st = await stat(real);
-    } catch {
-      throw notFound(ctx);
-    }
-    if (!real.startsWith(root + sep) || !st.isFile()) throw notFound(ctx);
-    const name = basename(real).replace(/[^A-Za-z0-9._ -]/g, "_");
+    const root = ctx.config.paths.projectFolder;
+    const opened = typeof root === "string" && root ? openChecked(join(root, ...segs), root) : null;
+    if (!opened) throw notFound(ctx);
+    const name = basename(opened.real).replace(/[^A-Za-z0-9._ -]/g, "_");
     return fileResponse(
-      { file: real, size: st.size, type: "application/octet-stream" },
+      { fd: opened.fd, file: opened.real, size: opened.st.size, type: "application/octet-stream" },
       { "content-disposition": `attachment; filename="${name}"` },
     );
   });

@@ -12,6 +12,6 @@ export default function register(app) {
   app.post("/api/inbox/act", async (ctx) => {
     actor ||= createActor(ctx.home.inboxSources);
     const b = ctx.body && typeof ctx.body === "object" ? ctx.body : {};
-    return actor(ctx, { id: b.id, action: b.action, note: b.note });
+    return actor(ctx, { id: b.id, action: b.action, note: b.note, version: b.version });
   });
 }

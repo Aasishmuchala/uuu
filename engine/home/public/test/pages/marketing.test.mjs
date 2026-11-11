@@ -43,3 +43,24 @@ test("draftIdOf and itemFor read the inbox id", () => {
   assert.equal(itemFor(row, { items: [item] }), item);
   assert.equal(itemFor(row, { items: [] }), null);
 });
+
+test("plannedLabel reads a planned day plainly", async () => {
+  const { plannedLabel } = await import("../../pages/marketing.js");
+  assert.equal(plannedLabel("2026-11-12"), "Thu 12 Nov");
+  assert.equal(plannedLabel("2026-11-09"), "Mon 9 Nov");
+  assert.equal(plannedLabel(""), "No date");
+  assert.equal(plannedLabel("2026-02-30"), "No date");
+});
+test("waitingDrafts keeps only rows whose decision is in the inbox, by date", async () => {
+  const { waitingDrafts } = await import("../../pages/marketing.js");
+  const a = { id: "content:aaaaaaaaaaaa" };
+  const b = { id: "content:bbbbbbbbbbbb" };
+  const rows = [
+    { planned: "2026-11-18", inboxId: b.id },
+    { planned: "2026-11-12", inboxId: a.id },
+    { planned: "2026-11-13", inboxId: "content:cccccccccccc" },
+    { planned: "2026-11-14" },
+  ];
+  assert.deepEqual(waitingDrafts(rows, { items: [a, b] }).map((x) => x.item.id), [a.id, b.id]);
+  assert.deepEqual(waitingDrafts(null, null), []);
+});

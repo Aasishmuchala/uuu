@@ -1,6 +1,7 @@
 // Marketing page (CONTRACTS 9.6) and one draft (9.8). Publishing is switched off and there is no route,
 // and no code, that turns it on: approving a draft only changes its status.
 import { storeOf } from "../content/context.mjs";
+import { indiaToday, plainRange } from "../content/plain-date.mjs";
 import { isDraftId } from "../content/store.mjs";
 import { descendants, isGoal, loadIssues, rootOf } from "../lib/goals.mjs";
 import { plainState } from "../lib/goals.mjs";
@@ -11,9 +12,9 @@ const PLAIN_AGENT = { free: "Free", working: "Working", paused: "Paused", proble
 
 const day = (d) => d.toISOString().slice(0, 10);
 
-// Monday to Sunday of the current week, as YYYY-MM-DD.
+// Monday to Sunday of the current week in India time, as YYYY-MM-DD.
 function thisWeek(now = new Date()) {
-  const base = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const base = new Date(`${indiaToday(now)}T00:00:00Z`);
   const back = (base.getUTCDay() + 6) % 7;
   const start = new Date(base.getTime() - back * 86400000);
   return [day(start), day(new Date(start.getTime() + 6 * 86400000))];
@@ -78,7 +79,7 @@ export default function register(app) {
       figures: [
         { id: "drafts", label: "Drafts waiting", value: String(drafts.filter((d) => d.status === "draft").length), hint: "Waiting for you in the inbox" },
         { id: "approved", label: "Approved", value: String(drafts.filter((d) => d.status === "approved").length), hint: "Approved, not published" },
-        { id: "this_week", label: "Planned this week", value: String(drafts.filter((d) => d.planned >= from && d.planned <= to).length), hint: `${from} to ${to}` },
+        { id: "this_week", label: "Planned this week", value: String(drafts.filter((d) => d.planned >= from && d.planned <= to).length), hint: plainRange(from, to) },
       ],
       sections, inFlight,
       switches: [{ id: "publishing", label: "Publish posts and newsletters", on: false, explain: "Connect an account to turn this on." }],

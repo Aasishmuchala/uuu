@@ -5,7 +5,11 @@
 // Everything read here (documents, comments) was written by an agent: it is parsed, capped and shown as
 // text only. What goes back to the board is the owner's note as typed (trimmed) and the two markers this
 // code adds, `ANSWER:` and `PLAN ACCEPTED`; nothing an agent wrote is ever sent back.
+// Every item carries `version` (CONTRACTS 9.3a): a question its questions' hash (the one in its id), a plan
+// a hash of the plan file and its PLAN READY comment, a stop a hash of the STOPPED comment. On an action
+// (`ctx.acting`) the comments are read again from the board, not from the 15-second cache.
 import { createHash } from "node:crypto";
+import { versionOf } from "../lib/inbox.mjs";
 import { MARKERS, parseBrief, parsePlan, roundsOf, ROUND_CAP, textOf } from "../lib/staged.mjs";
 import { readTaskText } from "../lib/taskfiles.mjs";
 import { forgetComments, loadTaskContext, treeComments } from "../lib/tasks.mjs";
@@ -56,10 +60,11 @@ function unclearItem(ctx, goal, rounds) {
   if (!doc || !doc.unclear.length) return null;
   const questions = doc.unclear.map((q) => cap(q, VALUE_MAX)).filter(Boolean);
   if (!questions.length) return null;
-  const id = `staged:unclear:${goal.id}:${hashOf(questions)}`;
+  const hash = hashOf(questions);
+  const id = `staged:unclear:${goal.id}:${hash}`;
   if (ctx.decisions.get(`answered:${id}`)) return null;
   return hidden(base(goal, {
-    id, kind: "question",
+    id, kind: "question", version: hash,
     title: `A question before work goes on: ${goal.title}`,
     when: iso(doc.at || Date.parse(goal.updatedAt) || 0),
     summary: questions.length === 1
@@ -92,6 +97,7 @@ function planItem(ctx, goal, own, planFirst) {
   const line = String(ready.body).trimStart().slice(MARKERS.planReady.length).split("\n")[0];
   return hidden(base(goal, {
     id: `staged:plan:${goal.id}`, kind: "approval",
+    version: versionOf(file ? file.text : "", file ? file.truncated : "", ready.id, ready.body),
     title: `Plan ready: ${goal.title}`,
     when: ready.createdAt || goal.updatedAt,
     summary: cap(line, SUMMARY_MAX) || "The brief and the plan are written and wait for you.",
@@ -110,9 +116,13 @@ function stoppedItem(goal, own, rounds, chiefId, tctx) {
   if (!newest || !String(newest.body || "").trimStart().startsWith(MARKERS.stopped)) return null;
   const lastOwner = own.filter(isOwner).at(-1);
   if (lastOwner && timeOf(lastOwner) >= timeOf(newest)) return null;
-  const why = cap(String(newest.body).trimStart().slice(MARKERS.stopped.length), VALUE_MAX);
+  // The first line is the short reason and the rest explains it: join them as two sentences.
+  const [reason, ...more] = String(newest.body).trimStart().slice(MARKERS.stopped.length).trim().split("\n");
+  const first = reason.trim().replace(/([^.!?:])$/, "$1.");
+  const why = cap([first, ...more].filter((x) => x.trim()).join(" "), VALUE_MAX);
   return hidden(base(goal, {
     id: `staged:stopped:${goal.id}`, kind: "problem", severity: "high",
+    version: versionOf(newest.id, newest.body),
     title: `Stopped: ${goal.title}`,
     when: newest.createdAt || goal.updatedAt,
     summary: "The Chief of staff stopped this task. Try again with a note, or stop it.",
@@ -128,6 +138,7 @@ function stoppedItem(goal, own, rounds, chiefId, tctx) {
 }
 
 async function list(ctx) {
+  if (ctx.acting) forgetComments();
   const tctx = await loadTaskContext(ctx, { withInbox: false });
   const chiefId = tctx.ids?.agents?.["chief-of-staff"] || null;
   const items = [];

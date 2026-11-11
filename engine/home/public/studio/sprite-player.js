@@ -293,10 +293,10 @@ export function SpritePlayer({ sheetUrl, frames, tags, palette, title, gif, init
       <${Button} variant="plain" onClick=${() => step(-1)} disabled=${!ready}>Previous frame</${Button}>
       <${Button} variant="primary" icon=${playing ? "pause" : "play"} onClick=${togglePlay} disabled=${!ready}>${playing ? "Pause" : "Play"}</${Button}>
       <${Button} variant="plain" onClick=${() => step(1)} disabled=${!ready}>Next frame</${Button}>
-      <button type="button" class=${`p-sprite-player__toggle${loop ? " is-on" : ""}`} aria-pressed=${loop ? "true" : "false"} onClick=${() => setLoop(!loop)}>
+      <button type="button" class=${`p-sprite-player__toggle p-sprite-player__toggle--md${loop ? " is-on" : ""}`} aria-pressed=${loop ? "true" : "false"} onClick=${() => setLoop(!loop)}>
         Loop ${loop ? "on" : "off"}
       </button>
-      <button type="button" class=${`p-sprite-player__toggle${onion ? " is-on" : ""}`} aria-pressed=${onion ? "true" : "false"} onClick=${() => setOnion(!onion)}>
+      <button type="button" class=${`p-sprite-player__toggle p-sprite-player__toggle--md${onion ? " is-on" : ""}`} aria-pressed=${onion ? "true" : "false"} onClick=${() => setOnion(!onion)}>
         Onion skin ${onion ? "on" : "off"}
       </button>
     </div>

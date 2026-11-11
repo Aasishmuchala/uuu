@@ -59,11 +59,12 @@ export function TaskCard({ task }) {
   if (!task) return null;
   const who = task.who || null;
   const date = task.updatedAt || task.createdAt;
-  const steps = Number(task.stepsTotal) > 0 ? `${Number(task.stepsDone) || 0} of ${Number(task.stepsTotal)} steps` : "";
+  const total = Number(task.stepsTotal) || 0;
+  const steps = total > 0 ? `${Number(task.stepsDone) || 0} of ${total} ${total === 1 ? "step" : "steps"}` : "";
   return html`<a class=${`k-task-card${task.waitingForYou ? " k-task-card--waiting" : ""}`} href=${taskHref(task)}>
     <div class="k-task-card__top">
       <${Mono}>${text(task.identifier)}<//>
-      ${task.live && html`<${Live} />`}
+      ${task.live && html`<span class="k-task-card__live"><${Live} /></span>`}
       ${who && html`<span class="k-task-card__who" title=${text(who.name)}>
         <span class="u-visually-hidden">${text(who.name)}</span><${Avatar} slug=${who.slug} name=${who.name} size=${20} />
       </span>`}
@@ -77,7 +78,7 @@ export function TaskCard({ task }) {
       <span>${text(task.stage.label)}</span>${Number(task.round) > 0 && html`<span> · Round ${Number(task.round)}</span>`}${steps && html`<span> · ${steps}</span>`}
     </div>`}
     <div class="k-task-card__bottom">
-      ${task.size && html`<${Chip}><span class="u-visually-hidden">Size </span>${text(task.size)}<//>`}
+      ${task.size && html`<${Chip}>Size ${text(task.size)}<//>`}
       ${task.schedule && html`<${Chip} icon="loop">${text(task.schedule.label)}<//>`}
       ${task.waitingForYou && html`<${Waiting} />`}
       ${date && html`<time class="k-task-card__date" datetime=${text(date)} title=${fullWhen(date)}>${when(date)}</time>`}

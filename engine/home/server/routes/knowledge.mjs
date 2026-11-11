@@ -1,7 +1,10 @@
 // CONTRACTS 9.7: the company knowledge folder (list, add, read, delete, search) and the lessons per role.
-import { lstatSync, readFileSync, readdirSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { run, storeFor } from "../knowledge/glue.mjs";
+import { readChecked } from "../lib/taskfiles.mjs";
+
+const MAX_LESSONS_BYTES = 1024 * 1024;
 
 const roleName = (slug) => {
   const s = slug.replace(/-/g, " ");
@@ -30,13 +33,10 @@ export default function register(app) {
     for (const file of names.sort()) {
       const m = /^([a-z0-9][a-z0-9-]{0,60})\.md$/.exec(file);
       if (!m) continue;
-      let text = "";
-      try {
-        const full = join(dir, file);
-        const st = lstatSync(full);
-        if (!st.isFile() || st.size > 1024 * 1024) continue;
-        text = readFileSync(full, "utf8");
-      } catch { continue; }
+      // Agents write these files: O_NOFOLLOW and O_NONBLOCK, a regular file, at most 1 MB (a larger file is left out).
+      const read = readChecked(join(dir, file), dir, { maxBytes: MAX_LESSONS_BYTES });
+      if (!read || read.truncated) continue;
+      const text = read.bytes.toString("utf8");
       const lessons = text.split(/\r?\n/).filter((l) => l.startsWith("- ")).map((l) => l.slice(2).trim()).filter(Boolean);
       roles.push({ slug: m[1], name: roleName(m[1]), lessons });
     }

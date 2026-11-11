@@ -82,7 +82,12 @@ test("STH-8 waits for you, and accepting through the inbox makes it accepted", a
     assert.equal(before.acceptance.sendBack.action, "reopen");
     assert.ok(before.needsYou.some((i) => i.id === `goal:${STH(8)}` && i.taskId === STH(8)));
     assert.ok(before.needsYou.every((i) => i.taskId === STH(8)));
-    const act = await call(h.url, "POST", "/api/inbox/act", { body: { id: before.acceptance.accept.inboxId, action: "acknowledge" } });
+    // The page sends back the version it showed (CONTRACTS 9.3a); without it nothing is done.
+    assert.equal(typeof before.acceptance.accept.version, "string");
+    const bare = await call(h.url, "POST", "/api/inbox/act", { body: { id: before.acceptance.accept.inboxId, action: "acknowledge" } });
+    assert.equal(bare.status, 409);
+    assert.equal(bare.json.error.code, "changed_since_seen");
+    const act = await call(h.url, "POST", "/api/inbox/act", { body: { id: before.acceptance.accept.inboxId, action: "acknowledge", version: before.acceptance.accept.version } });
     assert.equal(act.status, 200, act.text);
     assert.deepEqual(writes(h.board), []);
     const after = await task(h, "STH-8");

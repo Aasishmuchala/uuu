@@ -35,7 +35,7 @@ function AgentState({ agent }) {
   if (!agent) return null;
   if (agent.state === "working") return html`<${Live} />`;
   if (agent.state === "waiting_for_you") return html`<${Waiting} />`;
-  return html`<${StatusDot} tone=${agent.state === "problem" ? "bad" : agent.state === "paused" ? "off" : "ok"} label=${agent.plainState} />`;
+  return html`<${StatusDot} tone=${agent.state === "problem" ? "bad" : agent.state === "paused" ? "warn" : "off"} label=${agent.plainState} />`;
 }
 
 function PlainRow({ section, row }) {

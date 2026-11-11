@@ -11,7 +11,7 @@
 
 .p-task .p-task__head-actions {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--s-2);
 }
 
@@ -29,12 +29,14 @@
   width: min(360px, 100%);
 }
 
+/* A word, not a button: it must not look pressable. */
 .p-task .p-task__state {
   margin: 0;
-  padding: var(--s-2) var(--s-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-2);
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle);
   color: var(--text-2);
+  font-size: var(--fs-caption);
   font-weight: var(--fw-medium);
 }
 
@@ -85,6 +87,17 @@
   margin-top: 0;
 }
 
+/* In this column each check reads as: the mark and the evidence count, then the question and the reason. */
+.p-task .p-task__checks .k-checks__row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: var(--s-2);
+}
+
+.p-task .p-task__checks .k-checks__body {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
 .p-task .p-task__detail {
   min-width: 0;
 }
@@ -109,16 +122,14 @@
 }
 
 .p-task .p-task__evidence {
-  border: 1px solid var(--border);
-  border-radius: var(--r-3);
-  background: var(--bg-subtle);
-  padding: var(--s-3);
-  overflow: auto;
-  max-height: 70vh;
+  min-width: 0;
 }
 
-.p-task .p-task__evidence img {
-  max-width: 100%;
+/* The chosen evidence is shown large; small pixel art is scaled up crisply. */
+.p-task .p-task__evidence .k-evidence--image img {
+  width: 100%;
+  height: auto;
+  max-height: 60vh;
   image-rendering: pixelated;
 }
 

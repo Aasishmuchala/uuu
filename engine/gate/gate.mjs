@@ -1,12 +1,13 @@
 // The gate: the only door from fenced agents to the board (CONTRACTS section 6).
 // It forwards a request only when it carries exactly one bearer token, is not on the
-// refusal list, and, for a write, is on the allow-list. It never logs a header, a body or
-// a query string.
+// refusal list, and, for a write, is on the allow-list with a body that passes the row's
+// body rules (body.mjs). It never logs a header, a body or a query string.
 import http from "node:http";
 import { appendFileSync, mkdirSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { normalisePath, refusal } from "./rules.mjs";
+import { normalisePath, refusal, allowRow } from "./rules.mjs";
+import { BODY_LIMIT, bodyRefusal } from "./body.mjs";
 
 const BEARER = /^bearer +\S+$/i;
 const OVERRIDE_HEADERS = new Set(["x-http-method-override", "x-http-method", "x-method-override"]);
@@ -47,6 +48,42 @@ function methodsOf(req) {
     }
   }
   return methods;
+}
+
+// Reads the whole request body. Resolves to a Buffer; to "too-big" once the body (declared
+// or received) passes BODY_LIMIT, after which the rest is read and dropped (a sender that
+// keeps going is cut off at 16 times the limit); or to null when the client went away.
+function readBody(req) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    let size = 0;
+    let settled = false;
+    const settle = (value) => {
+      if (settled) return;
+      settled = true;
+      if (value === "too-big") {
+        let dropped = size;
+        req.removeAllListeners("data");
+        req.on("data", (c) => {
+          dropped += c.length;
+          if (dropped > 16 * BODY_LIMIT) req.socket.destroy();
+        });
+        req.resume();
+      }
+      resolve(value);
+    };
+    const declared = headerValues(req.rawHeaders, "content-length");
+    if (declared.length > 0 && !(Number(declared[0]) <= BODY_LIMIT)) return settle("too-big");
+    req.on("data", (c) => {
+      if (settled) return;
+      size += c.length;
+      if (size > BODY_LIMIT) return settle("too-big");
+      chunks.push(c);
+    });
+    req.on("end", () => settle(Buffer.concat(chunks)));
+    req.on("error", () => settle(null));
+    req.on("close", () => settle(null));
+  });
 }
 
 function sendJson(res, status, body) {
@@ -103,7 +140,8 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
     return req.method === "GET" && p === "/gate/health";
   }
 
-  function forward(req, res) {
+  // `body`, when given, is the whole body already read; it is sent as it was received.
+  function forward(req, res, body) {
     const upstream = http.request({
       host: boardHost,
       port: boardPort,
@@ -125,8 +163,17 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
     res.on("close", () => {
       if (!res.writableFinished) upstream.destroy();
     });
+    if (body) {
+      upstream.end(body);
+      return;
+    }
     req.on("error", () => upstream.destroy());
     req.pipe(upstream);
+  }
+
+  function refuse(req, res, path, rule) {
+    logRefusal(req.method, path, rule);
+    sendJson(res, 403, refusedBody(rule));
   }
 
   async function onRequest(req, res) {
@@ -154,16 +201,40 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
       return;
     }
     // 4. Refusal list, then the allow-list for writes.
-    for (const m of methodsOf(req)) {
+    const methods = methodsOf(req);
+    for (const m of methods) {
       const rule = refusal(m, path, req.url);
       if (rule) {
-        logRefusal(req.method, path, rule);
-        sendJson(res, 403, refusedBody(rule));
+        refuse(req, res, path, rule);
         return;
       }
     }
-    // 5. Forward.
-    forward(req, res);
+    // 5. Body rules, for every allow-list row with a JSON body that any of the methods
+    // matches. The file upload (body kind null) and reads are streamed as before.
+    const kinds = [];
+    for (const m of methods) {
+      const row = allowRow(m, path);
+      if (row && row[3] !== null && !kinds.includes(row[3])) kinds.push(row[3]);
+    }
+    if (kinds.length === 0) {
+      forward(req, res);
+      return;
+    }
+    const body = await readBody(req);
+    if (body === null) return;
+    if (body === "too-big") {
+      refuse(req, res, path, "bad-body");
+      return;
+    }
+    for (const kind of kinds) {
+      const rule = bodyRefusal(kind, path, req.rawHeaders, body);
+      if (rule) {
+        refuse(req, res, path, rule);
+        return;
+      }
+    }
+    // 6. Forward: the bytes read are the bytes sent.
+    forward(req, res, body);
   }
 
   const server = http.createServer(onRequest);

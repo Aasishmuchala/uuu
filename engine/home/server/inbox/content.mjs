@@ -1,8 +1,14 @@
 // Inbox source "content": drafts the Marketer made, waiting for the owner (CONTRACTS 9.3, "content draft").
 // Approving changes only the draft's status. Nothing is published, posted or sent.
+// Each item's `version` is a hash of the draft's text (CONTRACTS 9.3a): the core refuses an action on any
+// other version, and the action checks it again against the draft it re-reads.
 import { storeOf } from "../content/context.mjs";
+import { plainDay } from "../content/plain-date.mjs";
 import { isDraftId } from "../content/store.mjs";
 import { needIds } from "../lib/goals.mjs";
+import { versionOf } from "../lib/inbox.mjs";
+
+const draftVersion = (d) => versionOf(d.title, d.channel, d.planned, d.body);
 
 const KIND = { post: "post", newsletter: "newsletter" };
 
@@ -16,11 +22,12 @@ async function list(ctx) {
       title: `New ${KIND[d.channel]}: ${d.title}`,
       raisedBy: "Marketer",
       when: d.createdAt,
+      version: draftVersion(d),
       summary: text ? (text.length > 280 ? `${text.slice(0, 279)}…` : text) : "The draft has no text yet.",
       severity: "normal",
       details: [
         { label: "Kind", value: d.channel === "post" ? "Post" : "Newsletter" },
-        { label: "Planned for", value: d.planned },
+        { label: "Planned for", value: plainDay(d.planned) },
         { label: "Publishing", value: "Off. Approving does not publish anything." },
       ],
       actions: [
@@ -40,6 +47,9 @@ async function act(ctx, itemId, action, note) {
   const d = isDraftId(id) ? store.read(id) : null;
   if (!d) throw ctx.fail(404, "That draft is not there any more.", "Refresh the inbox.", "draft_not_found");
   if (d.status !== "draft") throw ctx.fail(409, "That draft was already handled.", "Refresh the inbox.", "already_handled");
+  if (draftVersion(d) !== ctx.item?.version) {
+    throw ctx.fail(409, "This changed after you looked at it. Nothing was done.", "Look at it again, then decide.", "changed_since_seen");
+  }
   if (action === "approve") {
     store.decide(id, "approved");
     return { message: "Approved. Nothing is published: publishing stays off until you connect an account." };

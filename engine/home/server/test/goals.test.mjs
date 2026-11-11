@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { boardSeed, IDS } from "../../../test/stubs/seed.mjs";
 import { call, writes } from "../lib/testing.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
+import { titleOf } from "../routes/goals.mjs";
 
 // The goal routes on the version 1 board seed (STH-1 to STH-6), so the counts pinned below stay as they were.
 async function withHome(fn, opts = {}) {
@@ -28,7 +29,7 @@ test("create: the pinned board call, no Authorization header, 201 with a summary
     assert.equal(posts.length, 1);
     assert.equal(posts[0].path, `/api/companies/${IDS.company}/issues`);
     assert.deepEqual(posts[0].body, {
-      title: long.slice(0, 80).trimEnd(), description: text, assigneeAgentId: IDS.agents["chief-of-staff"],
+      title: titleOf(long), description: text, assigneeAgentId: IDS.agents["chief-of-staff"],
       projectId: IDS.project, status: "todo", priority: "medium",
     });
     assert.ok(posts[0].body.title.length <= 80);
@@ -149,7 +150,7 @@ test("search: the goals source matches every word in title and description", asy
     const r = await call(h.url, "GET", "/api/search?q=price%20GST");
     assert.equal(r.status, 200);
     const g = r.json.groups.find((x) => x.source === "goals");
-    assert.equal(g.label, "Goals");
+    assert.equal(g.label, "Tasks");
     assert.deepEqual(g.results.map((x) => x.title), ["Write the price list"]);
     assert.deepEqual(g.results[0].link, { page: "goals", id: IDS.issues["STH-1"] });
     const none = await call(h.url, "GET", "/api/search?q=price%20banana");
@@ -242,4 +243,13 @@ test("create: a ready-made goal is recorded only, under template:<id>", async ()
     const again = JSON.parse(readFileSync(join(h.state, "home", "decisions.json"), "utf8"));
     assert.ok(!(`template:${odd.json.goal.id}` in again));
   });
+});
+
+test("a new task's title is cut at a word with an ellipsis, only when cut", () => {
+  const long = "Write a welcome letter for new customers that explains how delivery and returns work, in simple words";
+  const t = titleOf(long);
+  assert.equal(t, "Write a welcome letter for new customers that explains how delivery and returns…");
+  assert.ok(t.length <= 80);
+  assert.equal(titleOf("Short one\nsecond line"), "Short one");
+  assert.equal(titleOf("x".repeat(100)), `${"x".repeat(79)}…`);
 });

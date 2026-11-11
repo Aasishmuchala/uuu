@@ -9,6 +9,15 @@ import {
 
 const MAX_READ = 2 * 1024 * 1024;
 const MAX_SHOWN = 200000;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// A lesson line "2026-11-09: text" as { date: "9 Nov 2026", text }; a line with no date keeps its words as they are.
+export function splitLesson(line) {
+  const s = String(line ?? "");
+  const m = /^(\d{4})-(\d{2})-(\d{2}):\s*(.*)$/s.exec(s);
+  if (!m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > 31) return { date: "", text: s };
+  return { date: `${+m[3]} ${MONTHS[+m[2] - 1]} ${m[1]}`, text: m[4] };
+}
 
 // Keeps letters, digits, space, ".", "_" and "-"; adds ".md" when there is no ending.
 export function cleanName(name) {
@@ -38,7 +47,7 @@ function Search() {
           onInput=${(e) => setQ(e.currentTarget.value)} />
       <//>
       ${term.length >= 2 && res.loading && !res.data ? html`<${Loading} lines=${2} label="Searching" />` : null}
-      <${ErrorNotice} error=${res.error} onRetry=${res.reload} />
+      ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
       ${term.length >= 2 && res.data && !results.length ? html`<p class="u-muted">Nothing found for "${term}".</p>` : null}
       <ul class="p-docs__results">
         ${results.map((r, i) => html`
@@ -152,7 +161,7 @@ function DocRow({ doc, open, onToggle, onDeleted }) {
             </span>`
           : html`<${Button} variant="quiet" size="sm" onClick=${() => setAsking(true)}>Delete<//>`}
       </div>
-      <${ErrorNotice} error=${error} />
+      ${error ? html`<${ErrorNotice} error=${error} />` : null}
       ${open ? html`<div class="p-docs__open"><${DocBody} id=${doc.id} /></div>` : null}
     </li>`;
 }
@@ -163,7 +172,7 @@ function Lessons() {
   return html`
     <${Section} title="What agents have learned">
       ${res.loading && !res.data ? html`<${Loading} lines=${3} />` : null}
-      <${ErrorNotice} error=${res.error} onRetry=${res.reload} />
+      ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
       <div class="p-docs__lessons">
         ${roles.map((r) => {
           const lessons = (r.lessons || []).slice(0, 5);
@@ -174,7 +183,10 @@ function Lessons() {
                 <a href=${`#/team/${encodeURIComponent(r.slug)}?tab=lessons`}>Edit</a>
               </div>
               ${lessons.length
-                ? html`<ul class="p-docs__lesson-list">${lessons.map((l, i) => html`<li key=${i} class="u-wrap">${String(l).slice(0, 300)}</li>`)}</ul>`
+                ? html`<ul class="p-docs__lesson-list">${lessons.map((l, i) => {
+                    const { date, text } = splitLesson(String(l).slice(0, 300));
+                    return html`<li key=${i} class="u-wrap">${text}${date ? html` <span class="u-caption">${date}</span>` : null}</li>`;
+                  })}</ul>`
                 : html`<p class="u-muted">Nothing learned yet.</p>`}
             <//>`;
         })}
@@ -201,17 +213,17 @@ export default function Page({ route }) {
   return html`
     <div class="p-docs">
       <${PageHeader} title="Docs" lead="Company documents that agents read before they work." />
-      <${Search} />
-      <${AddDocument} onAdded=${() => { list.reload(); announce && announce("Document added."); }} />
       <${Section} title="Documents" count=${docs.length}>
         ${list.loading && !list.data ? html`<${Loading} lines=${3} />` : null}
-        <${ErrorNotice} error=${list.error} onRetry=${list.reload} />
-        ${list.data && !docs.length ? html`<${Empty} title="No documents yet. Add the first one above." />` : null}
+        ${list.error ? html`<${ErrorNotice} error=${list.error} onRetry=${list.reload} />` : null}
+        ${list.data && !docs.length ? html`<${Empty} title="No documents yet. Add the first one below." />` : null}
         <ul class="p-docs__list">
           ${docs.map((d) => html`<${DocRow} key=${d.id} doc=${d} open=${open === d.id} onToggle=${toggle}
             onDeleted=${() => { if (open === d.id) setOpen(""); list.reload(); announce && announce("Document deleted."); }} />`)}
         </ul>
       <//>
+      <${Search} />
+      <${AddDocument} onAdded=${() => { list.reload(); announce && announce("Document added."); }} />
       <${Lessons} />
     </div>`;
 }

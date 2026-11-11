@@ -42,7 +42,7 @@ function Proof({ fence, technical, onRun, running, runError }) {
           : p ? html`<${StatusDot} tone=${p.failed > 0 || (p.result && p.result !== "holds") ? "bad" : "ok"} label=${p.failed > 0 || (p.result && p.result !== "holds") ? "Did not hold" : "Held"} />`
             : html`<${StatusDot} tone="off" label="Not checked yet" />`}
       </div>
-      <p>${fence && fence.sentence}</p>
+      <p class="p-health__lead">${fence && fence.sentence}</p>
       <p class="p-health__sub">${proofLine(p)}</p>
       ${technical && p && Array.isArray(p.lines) && p.lines.length ? html`
         <ul class="p-health__tech">
@@ -102,7 +102,9 @@ export default function Page() {
               <li key=${p.id} class="p-health__row">
                 <div>
                   <h3 class="p-health__name">${p.name}</h3>
-                  <p class="p-health__sub">${p.sentence}</p>
+                  ${/\bRun:/.test(String(p.sentence || ""))
+                    ? html`<div class="p-health__sub"><${NextStep} text=${p.sentence} /></div>`
+                    : html`<p class="p-health__sub">${p.sentence}</p>`}
                   ${technical && p.technical ? html`<p class="p-health__tech"><${Mono}>${p.technical}<//></p>` : null}
                 </div>
                 <${StatusDot} tone=${s.tone} label=${s.word} />
@@ -132,7 +134,7 @@ export default function Page() {
       <${Section} title="Disk">
         <${Card}>
           <div class="p-health__head">
-            <p>${diskLine(d.disk)}</p>
+            <p class="p-health__disk">${diskLine(d.disk)}</p>
             <${StatusDot} tone=${d.disk && d.disk.ok ? "ok" : "warn"} label=${d.disk && d.disk.ok ? "Enough room" : "Nearly full"} />
           </div>
         <//>

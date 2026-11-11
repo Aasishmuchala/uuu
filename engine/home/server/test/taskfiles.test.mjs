@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { closeSync, fstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import registerFiles from "../routes/files.mjs";
@@ -182,6 +182,10 @@ test("fileToken round-trips through the rules of /api/files", async () => {
       const answer = await handler({ params: { token }, config, fail });
       const found = answer[Object.getOwnPropertySymbols(answer)[0]];
       assert.equal(found.file, realpathSync(join(goal, name)));
+      // The answer streams from the descriptor already opened and checked, never from the path again.
+      assert.equal(typeof found.fd, "number");
+      assert.equal(fstatSync(found.fd).ino, statSync(join(goal, name)).ino);
+      closeSync(found.fd);
     }
   });
 });

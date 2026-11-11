@@ -87,17 +87,26 @@ export function whoOptions(team, who) {
 
 const olderLine = (n) => (n > 0 ? html`<p class="p-tasks__older u-caption">and ${n} older</p>` : null);
 
+function Column({ c }) {
+  const slim = SLIM_WHEN_EMPTY.has(c.id) && c.count === 0;
+  const n = older(c);
+  const cards = c.tasks.map((t) => html`<${TaskCard} key=${text(t.id || t.identifier)} task=${t} />`);
+  const children = n > 0 ? [...cards, olderLine(n)] : cards;
+  return html`<div class=${`p-tasks__col p-tasks__col--${c.id}${slim ? " p-tasks__col--slim" : ""}`}>
+    <${BoardColumn} column=${c}>${children}<//>
+  </div>`;
+}
+
+// Failed and Canceled share the last place on the board, one above the other, so all six fit at 1280 px.
 function Board({ columns }) {
+  const main = columns.filter((c) => !SLIM_WHEN_EMPTY.has(c.id));
+  const last = columns.filter((c) => SLIM_WHEN_EMPTY.has(c.id));
+  const allSlim = last.every((c) => c.count === 0);
   return html`<div class="p-tasks__board">
-    ${columns.map((c) => {
-      const slim = SLIM_WHEN_EMPTY.has(c.id) && c.count === 0;
-      const n = older(c);
-      const cards = c.tasks.map((t) => html`<${TaskCard} key=${text(t.id || t.identifier)} task=${t} />`);
-      const children = n > 0 ? [...cards, olderLine(n)] : cards;
-      return html`<div key=${c.id} class=${`p-tasks__col p-tasks__col--${c.id}${slim ? " p-tasks__col--slim" : ""}`}>
-        <${BoardColumn} column=${c}>${children}<//>
-      </div>`;
-    })}
+    ${main.map((c) => html`<${Column} key=${c.id} c=${c} />`)}
+    ${last.length > 0 && html`<div class=${`p-tasks__stack${allSlim ? " p-tasks__stack--slim" : ""}`}>
+      ${last.map((c) => html`<${Column} key=${c.id} c=${c} />`)}
+    </div>`}
   </div>`;
 }
 
@@ -143,7 +152,7 @@ export default function Page({ route }) {
       <${Select} options=${options} value=${who} aria-label="Who"
         onChange=${(e) => goTo({ view, who: e.currentTarget.value })} />
     </label>
-    <${Button} variant="primary" icon="plus" onClick=${newTask}>New task<//>
+    <span class="p-tasks__new"><${Button} variant="primary" icon="plus" onClick=${newTask}>New task<//></span>
   </div>`;
 
   let body;

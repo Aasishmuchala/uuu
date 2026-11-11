@@ -4,7 +4,7 @@ import { goalsOf, loadIssues, needIds } from "../lib/goals.mjs";
 
 export default {
   id: "goals",
-  label: "Goals",
+  label: "Tasks",
   async search(ctx, q) {
     const ids = needIds(ctx);
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);

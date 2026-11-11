@@ -27,13 +27,16 @@ export function DataTable({ columns = [], rows = [], emptyText = "Nothing to sho
 }
 
 // figures: [{ id, label, value, hint }]. Values arrive already formatted.
+// A currency sign stays on the same line as its number ("₹ 1,18,000.00" never breaks after the sign).
+export const glueValue = (v) => text(v).replace(/(^|\s)([₹$€£]|Rs\.?)\s+(?=[-\d])/g, "$1$2\u00a0");
+
 export function Figures({ figures = [] }) {
   const list = Array.isArray(figures) ? figures : [];
   if (list.length === 0) return null;
   return html`<dl class="k-figures">
     ${list.map((f) => html`<div class="k-figures__item" key=${f.id}>
       <dt class="k-figures__label">${text(f.label)}</dt>
-      <dd class="k-figures__value">${text(f.value)}</dd>
+      <dd class="k-figures__value">${glueValue(f.value)}</dd>
       ${f.hint && html`<dd class="k-figures__hint">${text(f.hint)}</dd>`}
     </div>`)}
   </dl>`;

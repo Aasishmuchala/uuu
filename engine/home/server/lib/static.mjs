@@ -1,6 +1,6 @@
 // Static files from engine/home/public only. The real path of every file must stay inside the real
 // public folder (links are resolved), or the answer is 404.
-import { createReadStream } from "node:fs";
+import { closeSync, createReadStream } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
 import { extname, join, sep } from "node:path";
 
@@ -46,10 +46,18 @@ export function fileResponse(found, headers = {}) {
   return { [FILE_RESPONSE]: found, headers };
 }
 
+// `found` names a file by path, or carries the bytes already read (`bytes`), or a descriptor already
+// opened and checked (`fd`; closed here). A file an agent wrote is never opened again by its path.
 export function streamFile(res, found, headers, headOnly) {
-  res.writeHead(200, { ...headers, "content-type": found.type, "content-length": found.size });
-  if (headOnly) return res.end();
-  const s = createReadStream(found.file);
+  const size = found.bytes ? found.bytes.length : found.size;
+  res.writeHead(200, { ...headers, "content-type": found.type, "content-length": size });
+  if (headOnly || found.bytes) {
+    if (found.fd !== undefined) try { closeSync(found.fd); } catch { /* already closed */ }
+    return res.end(headOnly ? undefined : found.bytes);
+  }
+  const s = found.fd !== undefined
+    ? createReadStream(null, { fd: found.fd, start: 0, end: Math.max(0, size - 1), autoClose: true })
+    : createReadStream(found.file);
   s.on("error", () => res.destroy());
   s.pipe(res);
 }

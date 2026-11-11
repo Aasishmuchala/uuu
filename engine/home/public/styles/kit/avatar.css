@@ -21,6 +21,11 @@
 .k-avatar--48 { --k-avatar-size: calc(var(--s-12)); font-size: var(--fs-title); }
 .k-avatar--72 { --k-avatar-size: calc(var(--s-12) + var(--s-6)); font-size: var(--fs-heading); }
 
+/* A picture sits on a light disc, so a near-black character still shows on dark surfaces. */
+.k-avatar--picture {
+  background: var(--avatar-backing);
+}
+
 .k-avatar__img {
   width: 100%;
   height: 100%;

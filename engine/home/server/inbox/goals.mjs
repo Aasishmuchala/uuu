@@ -1,5 +1,8 @@
 // Inbox source "goals": finished goals the owner has not accepted yet (CONTRACTS 9.3, CONTRACTS-V2 17.4).
+// Each item's `version` (CONTRACTS 9.3a) is a hash of the newest result and the newest check, read from the
+// board on every list (never cached), so Accept acts only on the delivery the owner read.
 import { agentNames, commentsOf, descendants, goalsOf, loadIssues, needIds, pickResult } from "../lib/goals.mjs";
+import { versionOf } from "../lib/inbox.mjs";
 import { roundsOf } from "../lib/staged.mjs";
 import { listTaskFiles } from "../lib/taskfiles.mjs";
 
@@ -24,6 +27,8 @@ async function list(ctx) {
     const result = pickResult(own, names);
     const text = result?.text ? result.text.replace(/\s+/g, " ").trim() : "";
     const files = listTaskFiles(ctx.config, g.identifier).length;
+    const resultComment = [...own].reverse().find((x) => /^\s*RESULT:/.test(x.body || "")) || null;
+    const check = roundsOf(tree).at(-1)?.comment || null;
     const item = {
       id: `goal:${g.id}`,
       source: "goal",
@@ -31,6 +36,7 @@ async function list(ctx) {
       title: `Finished: ${g.title}`,
       raisedBy: "Chief of staff",
       when: g.updatedAt || g.createdAt,
+      version: versionOf(resultComment?.id, resultComment?.body, check?.id, check?.body),
       summary: text ? (text.length > 280 ? `${text.slice(0, 279)}…` : text) : "The Chief of staff says this task is finished.",
       severity: "normal",
       details: [

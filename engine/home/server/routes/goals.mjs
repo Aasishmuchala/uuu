@@ -1,13 +1,22 @@
 // CONTRACTS 9.4: give a goal, list goals, one goal's detail, a note, stop.
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
-import { firstLine } from "../lib/format.mjs";
 import { buildText } from "../lib/staged.mjs";
 import { loadRoles } from "../lib/team.mjs";
 import {
   agentNames, authorOf, commentsOf, descendants, goalsOf, isFinished, isGoal, loadIssues, needIds,
   pickResult, pickVerdict, plainState, summary,
 } from "../lib/goals.mjs";
+
+// The task's title: the first line of the owner's text, cut at a word boundary so that it, with "…", is at most
+// 80 characters. The "…" is added only when something was cut. The full text stays in the description.
+export function titleOf(text, max = 80) {
+  const line = String(text || "").trim().split("\n")[0].trim();
+  if (line.length <= max) return line;
+  const room = line.slice(0, max);
+  const at = room.search(/\s\S*$/);
+  return `${(at > 0 ? room.slice(0, at) : room.slice(0, max - 1)).trimEnd()}…`;
+}
 
 const MAX_TEXT = 4000;
 const MAX_FILES = 200;
@@ -76,7 +85,7 @@ export default function register(app) {
     const chief = ids.agents?.["chief-of-staff"];
     if (!chief) throw ctx.fail(409, "The Chief of staff is not set up yet.", "Run engine setup first.", "not_set_up");
     const created = await ctx.board.post(`/api/companies/${encodeURIComponent(ids.companyId)}/issues`, {
-      title: firstLine(text, 80), description: buildText({ text, to: toName, planFirst }), assigneeAgentId: chief,
+      title: titleOf(text), description: buildText({ text, to: toName, planFirst }), assigneeAgentId: chief,
       projectId: ids.projectId, status: "todo", priority: "medium",
     });
     if (template && created && typeof created.id === "string") ctx.decisions.set(`template:${created.id}`, template);

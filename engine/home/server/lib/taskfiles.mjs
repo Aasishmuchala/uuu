@@ -3,11 +3,15 @@
 // followed (no folder on the way and no file may be a link, and real paths must stay inside the goal's
 // folder), files are opened with O_NOFOLLOW and O_NONBLOCK (a FIFO cannot hang the server), sizes and
 // counts are capped, and what is read comes back as text, never as anything that runs.
+// After a file is opened, the file opened must still be the one at that place (device and inode), and
+// that place must still be inside the allowed folder, so a link swapped in between the checks and the
+// open is refused. `openChecked` and `readChecked` are the one way the home server reads any file an
+// agent can write (task folders, lessons) or the owner drops in by hand (knowledge).
 // Feature tasks import this module; they never edit it.
 import {
   closeSync, constants, fstatSync, lstatSync, opendirSync, openSync, readSync, realpathSync,
 } from "node:fs";
-import { join, sep } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 
 const IDENTIFIER = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_REL = 1024;                 // characters in a path inside the goal's folder
@@ -54,6 +58,65 @@ function partsOf(rel) {
   return parts;
 }
 
+const OPEN_FLAGS = constants.O_RDONLY | constants.O_NOFOLLOW | (constants.O_NONBLOCK || 0);
+
+// For tests only: called with the path just before and just after a checked open, so a test can swap a
+// link in (and back out) around the open.
+export const testHooks = { beforeOpen: null, afterOpen: null };
+
+const within = (p, root) => p === root || p.startsWith(root + sep);
+
+// Opens one file that must lie inside `root` (a folder; links in `root` itself are resolved once).
+// The file is opened with O_NOFOLLOW and O_NONBLOCK (a FIFO or a device cannot hang the server), must be
+// a regular file, and after the open: the path's real folder is unchanged and inside root, and the file
+// at that path is the very file opened (same device and inode).
+// -> { fd, st, real } (the caller reads from fd and closes it), or null with nothing left open.
+export function openChecked(file, root) {
+  if (typeof file !== "string" || typeof root !== "string" || !file || !root || file.includes("\0")) return null;
+  const name = basename(file);
+  if (!name || name === "." || name === "..") return null;
+  let realRoot;
+  let realParent;
+  try {
+    realRoot = realpathSync(root);
+    realParent = realpathSync(dirname(file));
+  } catch { return null; }
+  if (!within(realParent, realRoot)) return null;
+  const path = join(realParent, name);
+  if (typeof testHooks.beforeOpen === "function") testHooks.beforeOpen(path);
+  let fd;
+  try {
+    fd = openSync(path, OPEN_FLAGS);
+    if (typeof testHooks.afterOpen === "function") testHooks.afterOpen(path);
+    const st = fstatSync(fd);
+    if (!st.isFile()) throw new Error("not a regular file");
+    if (realpathSync(dirname(path)) !== realParent) throw new Error("the folder moved");
+    const now = lstatSync(path);
+    if (!now.isFile() || now.dev !== st.dev || now.ino !== st.ino) throw new Error("another file is there now");
+    return { fd, st, real: path };
+  } catch {
+    if (fd !== undefined) try { closeSync(fd); } catch { /* already closed */ }
+    return null;
+  }
+}
+
+// openChecked, then at most maxBytes read from the opened descriptor.
+// -> { bytes, size, mtimeMs, truncated, real, dev, ino } or null.
+export function readChecked(file, root, { maxBytes = 262144 } = {}) {
+  const cap = Number.isInteger(maxBytes) && maxBytes >= 0 ? Math.min(maxBytes, MAX_READ) : 262144;
+  const opened = openChecked(file, root);
+  if (!opened) return null;
+  const { fd, st, real } = opened;
+  try {
+    const bytes = readAll(fd, Math.min(st.size, cap));
+    return { bytes, size: st.size, mtimeMs: st.mtimeMs, truncated: st.size > cap, real, dev: st.dev, ino: st.ino };
+  } catch {
+    return null;
+  } finally {
+    try { closeSync(fd); } catch { /* already closed */ }
+  }
+}
+
 function readAll(fd, length) {
   const buf = Buffer.alloc(length);
   let got = 0;
@@ -77,23 +140,11 @@ export function readTaskText(config, identifier, rel, { maxBytes = 262144 } = {}
     const st = lstatOrNull(dir);
     if (!st || !st.isDirectory()) return null;          // a link or a file on the way is refused
   }
-  const file = join(dir, parts[parts.length - 1]);
-  let fd;
-  try {
-    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | (constants.O_NONBLOCK || 0));
-    const st = fstatSync(fd);
-    if (!st.isFile()) return null;
-    if (!realpathSync(file).startsWith(base + sep)) return null;
-    const truncated = st.size > cap;
-    const bytes = readAll(fd, Math.min(st.size, cap));
-    // Bytes that are not UTF-8 become U+FFFD; a character cut by the cap is dropped, not mangled.
-    const text = new TextDecoder("utf-8").decode(bytes, { stream: truncated });
-    return { text, size: st.size, mtimeMs: st.mtimeMs, truncated };
-  } catch {
-    return null;
-  } finally {
-    if (fd !== undefined) closeSync(fd);
-  }
+  const read = readChecked(join(dir, parts[parts.length - 1]), base, { maxBytes: cap });
+  if (!read) return null;
+  // Bytes that are not UTF-8 become U+FFFD; a character cut by the cap is dropped, not mangled.
+  const text = new TextDecoder("utf-8").decode(read.bytes, { stream: read.truncated });
+  return { text, size: read.size, mtimeMs: read.mtimeMs, truncated: read.truncated };
 }
 
 // Regular files of a goal's folder, at any depth: [{ name, size, mtimeMs }], sorted by name.

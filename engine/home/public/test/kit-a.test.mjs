@@ -278,6 +278,8 @@ test("every primitive renders with its documented props and with none, and retur
   installDom();
   for (const [name, Component, props] of cases("Plain words")) {
     const { returned } = await show(Component, props);
+    // ErrorNotice with no error draws nothing (V48: a page that places it without a check shows no false error).
+    if (name === "ErrorNotice" && !props.error) { assert.equal(returned, null, "ErrorNotice without an error draws nothing"); continue; }
     assert.ok(isVNode(returned), `${name}(${JSON.stringify(Object.keys(props))}) returns a virtual node`);
   }
 });
@@ -436,4 +438,116 @@ const compositesReady = COMPOSITES.every((m) => existsSync(join(KIT, `${m}.js`))
 test("kit/index.js loads and exposes every primitive name", { skip: compositesReady ? false : "the composites (V10) do not exist yet" }, async () => {
   const index = await import(pathToFileURL(join(KIT, "index.js")).href);
   for (const names of Object.values(PINNED)) for (const name of names) assert.ok(name in index, `index.js exports ${name}`);
+});
+
+// ---- DecisionCard, mounted (V48): the version the owner saw, "changed since you looked", and Esc. ----
+// It lives here because this file has the small DOM; the composite's other tests are in kit-b.test.mjs.
+
+const decision = await import(pathToFileURL(join(KIT, "decision.js")).href);
+
+function fire(el, type, extra = {}) {
+  const key = Object.keys(el.listeners).find((k) => k.toLowerCase() === type);
+  assert.ok(key, `${el.localName} listens for ${type}`);
+  const ev = { type: key, target: el, currentTarget: el, preventDefault() {}, stopPropagation() {}, ...extra };
+  for (const f of el.listeners[key]) f.call(el, ev);
+}
+const buttonNamed = (root, words) => elements(root).find((e) => e.localName === "button" && textOf(e).trim() === words);
+
+function stubFetch(answers) {
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts) => {
+    calls.push({ path, method: opts.method, body: opts.body ? JSON.parse(opts.body) : null });
+    const a = answers(path, opts.method, calls.length);
+    return { ok: a.status < 400, status: a.status, json: async () => a.body };
+  };
+  return { calls, restore: () => { globalThis.fetch = real; } };
+}
+
+const SEEN = {
+  id: "goal:1", version: "v1", kind: "result", title: "Price list is ready", raisedBy: "Chief of staff",
+  when: "2026-11-11T09:00:00.000Z", summary: "Three rows.", severity: "normal",
+  details: [{ label: "Amount", value: "₹ 1,000.00" }],
+  actions: [
+    { id: "acknowledge", label: "Accept", style: "primary", needsNote: false },
+    { id: "reopen", label: "Send back", style: "plain", needsNote: true },
+  ],
+};
+
+test("DecisionCard shows what is approved before its button, and sends the version the owner saw", async () => {
+  installDom();
+  const f = stubFetch(() => ({ status: 200, body: { ok: true, message: "Accepted." } }));
+  try {
+    const root = await showTree(decision.DecisionCard, { item: SEEN });
+    const all = elements(root);
+    const at = (pred) => all.findIndex(pred);
+    const button = at((e) => e.localName === "button" && textOf(e).trim() === "Accept");
+    for (const words of ["Price list is ready", "Chief of staff", "Amount", "₹ 1,000.00"]) {
+      const i = at((e) => e.childNodes.some((c) => c.nodeType === 3 && c.data.includes(words)));
+      assert.ok(i >= 0 && i < button, `"${words}" is shown before the button`);
+    }
+    fire(buttonNamed(root, "Accept"), "click");
+    await settle();
+    assert.deepEqual(f.calls.map((c) => [c.method, c.path, c.body]), [["POST", "/api/inbox/act", { id: "goal:1", action: "acknowledge", version: "v1" }]]);
+    assert.match(textOf(root), /Accepted\./);
+    render(null, root);
+  } finally {
+    f.restore();
+  }
+});
+
+test("DecisionCard on 409 changed_since_seen: says so, shows the item again, never retries, then acts on the new version", async () => {
+  installDom();
+  const f = stubFetch((path, method, n) => {
+    if (method === "GET") return { status: 200, body: { items: [{ ...SEEN, version: "v2", title: "Price list is ready, with Hindi" }] } };
+    if (n === 1) return { status: 409, body: { error: { message: "This changed after you looked at it. Nothing was done.", next: "Read it again, then decide.", code: "changed_since_seen" } } };
+    return { status: 200, body: { ok: true, message: "Accepted." } };
+  });
+  try {
+    const root = await showTree(decision.DecisionCard, { item: SEEN });
+    fire(buttonNamed(root, "Accept"), "click");
+    await settle();
+    await settle();
+    const t = textOf(root);
+    assert.match(t, /This changed after you looked at it\. Nothing was done\./);
+    assert.match(t, /Read it again, then decide\./);
+    assert.match(t, /Price list is ready, with Hindi/, "the new version is shown");
+    assert.deepEqual(f.calls.map((c) => `${c.method} ${c.path}`), ["POST /api/inbox/act", "GET /api/inbox"], "no second action by itself");
+    fire(buttonNamed(root, "Accept"), "click");
+    await settle();
+    assert.deepEqual(f.calls[2].body, { id: "goal:1", action: "acknowledge", version: "v2" });
+    assert.match(textOf(root), /Accepted\./);
+    render(null, root);
+  } finally {
+    f.restore();
+  }
+});
+
+test("DecisionCard: Esc in an open note or confirm cancels and sends nothing", async () => {
+  installDom();
+  const f = stubFetch(() => ({ status: 200, body: { ok: true, message: "Done." } }));
+  try {
+    let root = await showTree(decision.DecisionCard, { item: SEEN });
+    fire(buttonNamed(root, "Send back"), "click");
+    await settle();
+    assert.ok(elements(root).some((e) => e.localName === "textarea"), "the note field is open");
+    fire(elements(root).find((e) => e.localName === "article"), "keydown", { key: "Escape" });
+    await settle();
+    assert.ok(!elements(root).some((e) => e.localName === "textarea"), "Esc closed it");
+    assert.ok(buttonNamed(root, "Accept"), "the actions are back");
+    render(null, root);
+
+    const risky = { ...SEEN, actions: [{ id: "stop", label: "Stop", style: "danger", needsNote: false }] };
+    root = await showTree(decision.DecisionCard, { item: risky });
+    fire(buttonNamed(root, "Stop"), "click");
+    await settle();
+    assert.ok(buttonNamed(root, "Yes, stop"), "it asks once");
+    fire(elements(root).find((e) => e.localName === "article"), "keydown", { key: "Escape" });
+    await settle();
+    assert.ok(!buttonNamed(root, "Yes, stop"), "Esc cancelled the confirm");
+    assert.equal(f.calls.length, 0, "nothing was sent");
+    render(null, root);
+  } finally {
+    f.restore();
+  }
 });

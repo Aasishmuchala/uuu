@@ -28,25 +28,26 @@ export const RULES = [
   ["tools-endpoint", "all", [/^\/(api\/)?(mcp|runtime-tools)(\/.*)?$/]],
 ];
 
-// The writes the work routine needs: [method, pattern, routine step]. Nothing else that
-// changes state gets through (rule `not-allowed`). Sources: the `paperclip` skill's
+// The writes the work routine needs: [method, pattern, routine step, body kind]. Nothing
+// else that changes state gets through (rule `not-allowed`). Sources: the `paperclip` skill's
 // heartbeat procedure (SKILL.md, references/artifacts.md, scripts/paperclip-upload-artifact.sh)
-// and the routes in @paperclipai/server dist/routes/issues.js and approvals.js.
+// and the routes in @paperclipai/server dist/routes/issues.js and approvals.js. The body kind
+// names the body rules in body.mjs; `null` is the file upload, which is a form, not JSON.
 export const ALLOW = [
-  ["POST", /^\/api\/issues\/[^/]+\/checkout$/, "check out a task"],
-  ["PUT", /^\/api\/issues\/[^/]+\/title$/, "name a provisional task after checkout"],
-  ["POST", /^\/api\/issues\/[^/]+\/comments$/, "comment on a task"],
-  ["PATCH", /^\/api\/issues\/[^/]+$/, "update the task's status or fields"],
-  ["POST", /^\/api\/companies\/[^/]+\/issues$/, "create a child task"],
-  ["POST", /^\/api\/issues\/[^/]+\/release$/, "release a task"],
-  ["PUT", /^\/api\/issues\/[^/]+\/documents\/[^/]+$/, "write a task document"],
-  ["POST", /^\/api\/issues\/[^/]+\/work-products$/, "record a work product"],
-  ["POST", /^\/api\/companies\/[^/]+\/issues\/[^/]+\/attachments$/, "upload the file of a work product"],
-  ["POST", /^\/api\/issues\/[^/]+\/interactions$/, "raise an interaction on its task"],
+  ["POST", /^\/api\/issues\/[^/]+\/checkout$/, "check out a task", "checkout"],
+  ["PUT", /^\/api\/issues\/[^/]+\/title$/, "name a provisional task after checkout", "title"],
+  ["POST", /^\/api\/issues\/[^/]+\/comments$/, "comment on a task", "comment"],
+  ["PATCH", /^\/api\/issues\/[^/]+$/, "update the task's status or fields", "task-update"],
+  ["POST", /^\/api\/companies\/[^/]+\/issues$/, "create a child task", "task-create"],
+  ["POST", /^\/api\/issues\/[^/]+\/release$/, "release a task", "release"],
+  ["PUT", /^\/api\/issues\/[^/]+\/documents\/[^/]+$/, "write a task document", "document"],
+  ["POST", /^\/api\/issues\/[^/]+\/work-products$/, "record a work product", "work-product"],
+  ["POST", /^\/api\/companies\/[^/]+\/issues\/[^/]+\/attachments$/, "upload the file of a work product", null],
+  ["POST", /^\/api\/issues\/[^/]+\/interactions$/, "raise an interaction on its task", "interaction"],
   ["POST", /^\/api\/issues\/[^/]+\/interactions\/[^/]+\/(accept|reject|respond|verdicts|resolve-from-comment|withdraw)$/,
-    "answer an interaction (or withdraw its own)"],
-  ["POST", /^\/api\/companies\/[^/]+\/approvals$/, "request an approval"],
-  ["POST", /^\/api\/approvals\/[^/]+\/comments$/, "comment on an approval it raised"],
+    "answer an interaction (or withdraw its own)", "interaction-answer"],
+  ["POST", /^\/api\/companies\/[^/]+\/approvals$/, "request an approval", "approval"],
+  ["POST", /^\/api\/approvals\/[^/]+\/comments$/, "comment on an approval it raised", "approval-comment"],
 ];
 
 // Returns the normalised path, or null when the target cannot be read safely.
@@ -104,4 +105,10 @@ export function refusal(method, normalisedPath, rawUrl) {
   if (typeof rawUrl === "string" && !isPlainPath(rawUrl)) return "not-allowed";
   if (ALLOW.some(([am, re]) => am === m && re.test(normalisedPath))) return null;
   return "not-allowed";
+}
+
+// The allow-list row a write matches, or null. Used by the gate to pick the body rules.
+export function allowRow(method, normalisedPath) {
+  const m = String(method).toUpperCase();
+  return ALLOW.find(([am, re]) => am === m && re.test(normalisedPath)) ?? null;
 }

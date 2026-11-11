@@ -43,8 +43,9 @@ function assigneeOf(tctx, issue) {
   return a ? { slug: a.slug, name: a.name } : null;
 }
 
-// One line with its marker turned into plain words; null drops the line.
-function plainLine(line) {
+// One line with its marker turned into plain words; null drops the line. `byOwner` is true only for a
+// comment no agent wrote: an agent's own "PLAN ACCEPTED" line is never shown as the owner's acceptance.
+function plainLine(line, byOwner) {
   const t = line.trimStart();
   let m;
   if ((m = /^VERDICT:\s*(PASS|FAIL)\b\s*[-:]?\s*(.*)$/i.exec(t))) {
@@ -55,7 +56,7 @@ function plainLine(line) {
   if (/^Verdict:\s*(PASS|FAIL)\s*$/i.test(t)) return null;
   if ((m = /^SIZE:\s*(.*)$/.exec(t))) return m[1].trim() ? `Sized as ${m[1].trim()}` : null;
   if ((m = /^PLAN READY:\s*(.*)$/.exec(t))) return m[1].trim() ? `The plan is ready. ${m[1].trim()}` : "The plan is ready.";
-  if (t.startsWith(MARKERS.planAccepted)) return "You accepted the plan.";
+  if (t.startsWith(MARKERS.planAccepted)) return byOwner ? "You accepted the plan." : "It wrote that the plan was accepted.";
   if ((m = /^ANSWER:\s*(.*)$/.exec(t))) return m[1].trim() || null;
   if ((m = /^STOPPED:\s*(.*)$/.exec(t))) return m[1].trim() ? `Stopped because ${m[1].trim()}` : "Stopped.";
   if ((m = /^RESULT:\s*(.*)$/.exec(t))) return m[1].trim() || null;
@@ -71,8 +72,9 @@ function plainText(comment) {
   let body = bodyOf(comment).slice(0, MAX_TEXT * 4).replace(/\r\n?/g, "\n");
   if (isVerdict(comment)) body = body.trimStart().split("\n", 1)[0];
   const lines = [];
+  const byOwner = !comment?.authorAgentId;
   for (const line of body.split("\n")) {
-    const p = plainLine(line);
+    const p = plainLine(line, byOwner);
     if (p !== null) lines.push(p);
   }
   return cap(lines.join("\n").trim());
@@ -213,8 +215,10 @@ export default function register(app) {
       const inboxId = `goal:${goal.id}`;
       const item = needsYou.find((i) => i.id === inboxId);
       const label = (id, fallback) => item?.actions?.find((a) => a.id === id)?.label || fallback;
-      accept = { inboxId, action: "acknowledge", label: label("acknowledge", "Accept") };
-      sendBack = { inboxId, action: "reopen", label: label("reopen", "Send back") };
+      // `version` is the item's (CONTRACTS 9.3a): the page sends it back with the action.
+      const version = typeof item?.version === "string" ? item.version : null;
+      accept = { inboxId, action: "acknowledge", label: label("acknowledge", "Accept"), version };
+      sendBack = { inboxId, action: "reopen", label: label("reopen", "Send back"), version };
     }
 
     return {

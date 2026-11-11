@@ -1,6 +1,18 @@
 // The inbox merge (CONTRACTS 9.3): every inbox source is asked at once; a source that fails or is
 // not connected adds a `notConnected` entry and never fails the whole list.
+// Versions (CONTRACTS 9.3a): an item may carry `version`, a short string a source computes from what it
+// reads. An action re-reads every source (with `ctx.acting` set, so no source answers from a cache) and is
+// refused when the item has a version and the browser did not send that same version back: the owner
+// acts only on what the owner saw. No source keeps any memory of what was shown.
+import { createHash } from "node:crypto";
 import { HomeError } from "./errors.mjs";
+
+// A version from the texts an item shows: the first 16 hex characters of a SHA-256 over them.
+export function versionOf(...parts) {
+  const h = createHash("sha256");
+  for (const p of parts) h.update(String(p ?? "")).update("\u0000");
+  return h.digest("hex").slice(0, 16);
+}
 
 function plainReason(e) {
   if (e instanceof HomeError) return e.message;
@@ -36,14 +48,17 @@ export async function mergeInbox(ctx, sources) {
 export function createActor(sources) {
   const handled = new Map(); // item id -> time, so a second click says "already handled"
 
-  return async function act(ctx, { id, action, note }) {
+  return async function act(ctx, { id, action, note, version }) {
     if (typeof id !== "string" || !id || typeof action !== "string" || !action) {
       throw new HomeError(400, "The home screen did not say which item and which action.", "Refresh the page and try again.", "bad_request");
     }
     if (note !== undefined && note !== null && typeof note !== "string") {
       throw new HomeError(400, "The note must be text.", "Write the note again and send it.", "bad_request");
     }
-    const { items, owners } = await mergeInbox(ctx, sources);
+    if (version !== undefined && version !== null && typeof version !== "string") {
+      throw new HomeError(400, "The home screen sent a version it should not have.", "Refresh the page and try again.", "bad_request");
+    }
+    const { items, owners } = await mergeInbox({ ...ctx, acting: true }, sources);
     const item = items.find((i) => i.id === id);
     if (!item) {
       if (handled.has(id)) throw new HomeError(409, "This was already handled.", "Nothing more to do here.", "already_handled");
@@ -56,7 +71,10 @@ export function createActor(sources) {
       throw new HomeError(400, "This needs a short note.", "Write what should change, then send it.", "needs_note");
     }
     if (text.length > 4000) throw new HomeError(400, "The note is too long.", "Keep it under 4000 characters.", "note_too_long");
-    const out = await owners.get(id).act({ ...ctx, item }, id, action, text || null);
+    if (typeof item.version === "string" && item.version && version !== item.version) {
+      throw new HomeError(409, "This changed after you looked at it. Nothing was done.", "Look at it again, then decide.", "changed_since_seen");
+    }
+    const out = await owners.get(id).act({ ...ctx, acting: true, item }, id, action, text || null);
     handled.set(id, Date.now());
     if (handled.size > 500) handled.delete(handled.keys().next().value);
     return { ok: true, message: out?.message || "Done." };

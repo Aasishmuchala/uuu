@@ -5,6 +5,16 @@ import { HomeError } from "../lib/errors.mjs";
 import { isGoal, loadIssues, rootOf } from "../lib/goals.mjs";
 
 const APPROVAL = new Set(["approval"]);
+// The one approval type the home screen may approve: an agent asking for the owner's yes to something it
+// described. Every other type (paperclip 2026.1106.0: hire_agent, approve_ceo_strategy,
+// budget_override_required, and anything unknown or missing) changes the company itself; it is shown as a
+// high-severity item with Reject (and Hide) only.
+const PLAIN_APPROVAL = "request_board_approval";
+const APPROVAL_KINDS = {
+  hire_agent: "It asked to add a new agent.",
+  approve_ceo_strategy: "It asked you to approve a company strategy.",
+  budget_override_required: "It asked to spend over its budget.",
+};
 const REVIEW = new Set(["review"]);
 const QUESTION = new Set(["issue_thread_interaction", "decision"]);
 const PROBLEM = new Set(["failed_run", "recovery_action", "agent_error_alert", "blocker_attention"]);
@@ -14,6 +24,14 @@ const act = (id, label, style, needsNote = false) => ({ id, label, style, needsN
 function who(item) {
   return item.originAgentName ? `The ${item.originAgentName}` : "An agent";
 }
+
+// The approval's type, as the board reports it on the attention item.
+function approvalTypeOf(item) {
+  const t = item?.subject?.metadata?.type ?? item?.detail?.approvalType;
+  return typeof t === "string" ? t : null;
+}
+
+const isPlainApproval = (item) => approvalTypeOf(item) === PLAIN_APPROVAL;
 
 function issueIdOf(item) {
   return item.relatedIssue?.id || item.subject?.metadata?.issueId || null;
@@ -38,6 +56,26 @@ function mapItem(item, link) {
   const k = item.sourceKind;
   let kind = "problem";
   let actions;
+  if (APPROVAL.has(k) && !isPlainApproval(item)) {
+    actions = [act("reject", "Reject", "danger")];
+    if (item.dismissalKey) actions.push(act("dismiss", "Hide", "plain"));
+    const details = [{ label: "What it asked", value: APPROVAL_KINDS[approvalTypeOf(item)] || "It asked for a change the home screen does not approve." }];
+    if (item.subject?.title) details.push({ label: "Its title", value: String(item.subject.title).slice(0, 200) });
+    if (item.relatedIssue?.title) details.push({ label: "Task", value: item.relatedIssue.title });
+    return {
+      id: `board:${item.id}`,
+      source: "board",
+      kind: "approval",
+      title: "An agent asked for something the home screen will not approve",
+      raisedBy: item.originAgentName || "The board",
+      when: item.activityAt || item.updatedAt || item.createdAt || null,
+      summary: `${who(item)} asked for something the home screen will not approve. ${APPROVAL_KINDS[approvalTypeOf(item)] || "It is not a plain request for your approval."} Reject it unless you expected it.`,
+      severity: "high",
+      details,
+      actions,
+      link,
+    };
+  }
   if (APPROVAL.has(k)) {
     kind = "approval";
     actions = [act("approve", "Approve", "primary"), act("send_back", "Send back", "plain", true), act("reject", "Reject", "danger")];
@@ -106,6 +144,10 @@ async function actOn(ctx, itemId, action, note) {
   if (APPROVAL.has(k)) {
     const path = `/api/approvals/${enc(raw.subject.id)}`;
     const body = note ? { decisionNote: note } : {};
+    // Only a plain request for approval is ever approved or sent back from here; anything else may only be rejected.
+    if (action !== "reject" && !isPlainApproval(raw)) {
+      throw new HomeError(400, "The home screen will not approve this kind of request.", "Reject it, or deal with it on the board yourself.", "not_approvable");
+    }
     if (action === "approve") { await ctx.board.post(`${path}/approve`, body); return { message: "Approved." }; }
     if (action === "send_back") { await ctx.board.post(`${path}/request-revision`, { decisionNote: note }); return { message: "Sent back with your note." }; }
     if (action === "reject") { await ctx.board.post(`${path}/reject`, body); return { message: "Rejected." }; }

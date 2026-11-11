@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { boardSeedV2, IDS_V2 } from "../../../test/stubs/seed.mjs";
-import { call } from "../lib/testing.mjs";
+import { actAsSeen, call } from "../lib/testing.mjs";
 import { readShape, sameShape } from "../lib/shape.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 
@@ -99,7 +99,7 @@ test("done holds the newest 20 while count is the full number", async () => {
   await withHome(async (h) => {
     const before = col((await get(h)).json, "done").count;
     for (let n = 0; n < 25; n++) {
-      const a = await call(h.url, "POST", "/api/inbox/act", { body: { id: `goal:ee000000-0000-4000-8000-${String(n + 1).padStart(12, "0")}`, action: "acknowledge" } });
+      const a = await actAsSeen(h.url, { id: `goal:ee000000-0000-4000-8000-${String(n + 1).padStart(12, "0")}`, action: "acknowledge" });
       assert.equal(a.status, 200, a.text);
     }
     const c = col((await get(h)).json, "done");

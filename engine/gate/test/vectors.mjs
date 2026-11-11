@@ -41,6 +41,36 @@ export const ALLOWED = [
   ["POST", "/api/approvals/a1/comments"],
 ];
 
+// A body the routine really sends, for every row of ALLOWED, in the same order:
+// [Content-Type or null, body text]. The release sends no body; the upload is a form.
+const ID = "11111111-2222-4333-8444-555555555555";
+const JSON_TYPE = "application/json";
+export const BOUNDARY = "----gateTestBoundary";
+export const GOOD_BODIES = [
+  [JSON_TYPE, JSON.stringify({ agentId: ID, expectedStatuses: ["todo", "backlog", "blocked", "in_review"] })],
+  [JSON_TYPE, JSON.stringify({ title: "Price list for the kitchen ranges", onlyIfProvisional: true })],
+  [JSON_TYPE, JSON.stringify({ body: "Done.\n\n- Wrote the price list\n- Checked every price", attachmentIds: [ID] })],
+  ["application/json; charset=utf-8", JSON.stringify({ status: "done", comment: "What was done and why." })],
+  [JSON_TYPE, JSON.stringify({ title: "Write the price list", description: "Put your files in the sub-folder `STH-12` of your current working folder.",
+    assigneeAgentId: ID, parentId: ID, goalId: ID, status: "todo", priority: "medium", blockedByIssueIds: [] })],
+  [null, ""],
+  [JSON_TYPE, JSON.stringify({ title: "Task report", format: "markdown", body: "# Task report\n\nThe requested findings.", baseRevisionId: null })],
+  [JSON_TYPE, JSON.stringify({ type: "artifact", provider: "paperclip", title: "Walkthrough render", status: "ready_for_review",
+    reviewState: "none", isPrimary: true, healthStatus: "unknown", summary: null, createdByRunId: ID,
+    metadata: { attachmentId: ID, contentType: "text/markdown", byteSize: 12, contentPath: `/api/attachments/${ID}/content`,
+      openPath: `/api/attachments/${ID}/content`, downloadPath: `/api/attachments/${ID}/content?download=1`, originalFilename: "a.md" } })],
+  [`multipart/form-data; boundary=${BOUNDARY}`, `--${BOUNDARY}\r\nContent-Disposition: form-data; name="file"; filename="a.md"\r\n` +
+    `Content-Type: text/markdown\r\n\r\n# A file\r\n--${BOUNDARY}--\r\n`],
+  [JSON_TYPE, JSON.stringify({ kind: "ask_user_questions", idempotencyKey: `question:${ID}:detail:v1`, resolverPolicy: "human_only",
+    continuationPolicy: "wake_assignee", payload: { version: 1, questionSet: { schema: "paperclip.question_set.v1",
+      questions: [{ id: "detail", prompt: "What should I know?", answerMode: "text", required: true }] } } })],
+  [JSON_TYPE, JSON.stringify({ selectedOptionIds: ["draft-report-march"] })],
+  [JSON_TYPE, JSON.stringify({ type: "request_board_approval", requestedByAgentId: ID, issueIds: [ID],
+    payload: { title: "Approve monthly hosting spend", summary: "Estimated cost is $42/month for provider X.",
+      recommendedAction: "Approve provider X and continue setup.", risks: ["Costs may increase with usage."] } })],
+  [JSON_TYPE, JSON.stringify({ body: "Thanks, here is the detail you asked for." })],
+];
+
 // Every answer an agent may give to an interaction.
 export const INTERACTION_ANSWERS = ["accept", "reject", "respond", "verdicts", "resolve-from-comment", "withdraw"];
 

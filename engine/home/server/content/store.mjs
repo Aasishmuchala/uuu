@@ -3,8 +3,9 @@
 // by agents are untrusted: they are read only from tasks/company-work/<goal>/content/, never through a
 // link, with a size cap, and their text is kept as text. Nothing here publishes, posts or sends.
 import { createHash } from "node:crypto";
-import { closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { join, sep } from "node:path";
+import { readChecked } from "../lib/taskfiles.mjs";
 
 export const MAX_FILE_BYTES = 100 * 1024;
 const MAX_FILES = 500;
@@ -42,16 +43,12 @@ export function parseDraft(text) {
 
 const idOf = (sourcePath) => createHash("sha256").update(sourcePath).digest("hex").slice(0, 12);
 
-function readCapped(file) {
-  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
-  try {
-    const st = fstatSync(fd);
-    if (!st.isFile()) return { problem: "It is not a plain file." };
-    if (st.size > MAX_FILE_BYTES) return { problem: "The file is larger than 100 KB." };
-    return { buffer: readFileSync(fd) };
-  } finally {
-    closeSync(fd);
-  }
+// O_NOFOLLOW and O_NONBLOCK, a regular file still at its place inside `dir`, read from the descriptor.
+function readCapped(file, dir) {
+  const r = readChecked(file, dir, { maxBytes: MAX_FILE_BYTES });
+  if (!r) return { problem: "It is not a plain file." };
+  if (r.truncated) return { problem: "The file is larger than 100 KB." };
+  return { buffer: r.bytes };
 }
 
 function realDir(dir) {
@@ -85,7 +82,7 @@ function scan(root) {
       const file = join(contentDir, name);
       try {
         if (!lstatSync(file).isFile()) continue;
-        const r = readCapped(file);
+        const r = readCapped(file, real);
         if (r.problem) { found.push({ sourcePath, problem: r.problem }); continue; }
         found.push({ sourcePath, buffer: r.buffer });
       } catch {

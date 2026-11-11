@@ -75,6 +75,38 @@ test("splitActions: the first primary is primary; note actions and the rest are 
   assert.equal(splitActions(item.actions).primary.label, "Accept");
 });
 
+test("actBody: the version the owner saw goes with every action on an item that has one", async () => {
+  const { actBody, isChangedSinceSeen, changedText, CHANGED_TEXT } = await load("decision");
+  assert.deepEqual(actBody("goal:1", "acknowledge"), { id: "goal:1", action: "acknowledge" });
+  assert.deepEqual(actBody("goal:1", "reopen", "More", "v7"), { id: "goal:1", action: "reopen", note: "More", version: "v7" });
+  assert.deepEqual(actBody("goal:1", "acknowledge", "", "v7"), { id: "goal:1", action: "acknowledge", version: "v7" });
+  assert.deepEqual(actBody("goal:1", "acknowledge", undefined, ""), { id: "goal:1", action: "acknowledge" });
+  assert.deepEqual(actBody("goal:1", "acknowledge", undefined, null), { id: "goal:1", action: "acknowledge" });
+  assert.equal(isChangedSinceSeen({ code: "changed_since_seen" }), true);
+  assert.equal(isChangedSinceSeen({ code: "conflict" }), false);
+  assert.equal(isChangedSinceSeen(null), false);
+  assert.deepEqual(changedText({ message: "", next: "" }), CHANGED_TEXT);
+  assert.equal(CHANGED_TEXT.message, "This changed after you looked at it. Nothing was done.");
+  assert.deepEqual(changedText({ message: "Changed.", next: "Look again." }), { message: "Changed.", next: "Look again." });
+});
+
+test("reloadInboxItem reads GET /api/inbox and finds the item, or null when it is gone", async () => {
+  const { reloadInboxItem } = await load("decision");
+  const real = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (path, opts) => {
+    calls.push({ path, method: opts.method });
+    return { ok: true, status: 200, json: async () => ({ items: [{ id: "goal:1", version: "v8", title: "New" }] }) };
+  };
+  try {
+    assert.deepEqual(await reloadInboxItem("goal:1"), { id: "goal:1", version: "v8", title: "New" });
+    assert.equal(await reloadInboxItem("goal:2"), null);
+    assert.deepEqual(calls.map((c) => `${c.method} ${c.path}`), ["GET /api/inbox", "GET /api/inbox"]);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
 test("trigger: '/' at the start of a line and '@' at the start of a word", async () => {
   const { trigger } = await load("composer");
   assert.deepEqual(trigger("/inv", 4), { kind: "/", query: "inv" });
@@ -214,11 +246,16 @@ test("agents' words are rendered as text, never as HTML", async () => {
   }
 });
 
-test("DecisionCard calls only POST /api/inbox/act, through lib/api.js; no module touches the page at load", async () => {
+test("DecisionCard acts only through POST /api/inbox/act, through lib/api.js; no module touches the page at load", async () => {
   const src = readFileSync(join(KIT, "decision.js"), "utf8");
   const paths = [...src.matchAll(/["'`](\/api\/[^"'`]*)["'`]/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(paths)], ["/api/inbox/act"]);
+  // The one write is POST /api/inbox/act; the one read is GET /api/inbox, to show an item again after the server
+  // said it changed since the owner looked (CONTRACTS 9.3a).
+  assert.deepEqual([...new Set(paths)].sort(), ["/api/inbox", "/api/inbox/act"]);
   assert.ok(/api\.post\(\s*"\/api\/inbox\/act"/.test(src));
+  assert.equal([...src.matchAll(/api\.post\(/g)].length, 1, "one place sends an action");
+  assert.ok(/api\.get\(\s*"\/api\/inbox"\s*\)/.test(src));
+  assert.ok(!/api\.(del|post)\(\s*"\/api\/inbox"\s*[,)]/.test(src));
   for (const name of MODULES) {
     const code = readFileSync(join(KIT, `${name}.js`), "utf8");
     assert.ok(!code.includes("fetch("), `${name}.js uses lib/api.js`);

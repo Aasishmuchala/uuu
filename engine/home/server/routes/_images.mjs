@@ -2,11 +2,12 @@
 // routes/studio-art.mjs. The first three are pure functions on a Buffer: they never throw, never read
 // past the end, and answer null for anything they do not recognise. readGoalBytes is the one function
 // here that touches the disk: it reads a file of a goal's folder as bytes, with the rules of
-// lib/taskfiles.mjs (no link on the way, O_NOFOLLOW, a regular file, real path inside the goal's folder).
+// lib/taskfiles.mjs (no link on the way, then openChecked: O_NOFOLLOW and O_NONBLOCK, a regular file, and
+// the file opened is the one at that place inside the goal's folder).
 // A helper, not a feature: the default export registers nothing.
-import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, realpathSync } from "node:fs";
-import { join, sep } from "node:path";
-import { goalFolder } from "../lib/taskfiles.mjs";
+import { closeSync, lstatSync, readSync } from "node:fs";
+import { join } from "node:path";
+import { goalFolder, openChecked } from "../lib/taskfiles.mjs";
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const MAX_GIF_FRAMES = 100000;
@@ -98,14 +99,10 @@ export function readGoalBytes(config, identifier, rel, { maxBytes, readOver = fa
     const st = lstatOrNull(dir);
     if (!st || !st.isDirectory()) return null;          // a link or a file on the way is refused
   }
-  const file = join(dir, parts[parts.length - 1]);
-  let fd;
+  const opened = openChecked(join(dir, parts[parts.length - 1]), base);
+  if (!opened) return null;
+  const { fd, st, real } = opened;
   try {
-    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | (constants.O_NONBLOCK || 0));
-    const st = fstatSync(fd);
-    if (!st.isFile()) return null;
-    const real = realpathSync(file);
-    if (!real.startsWith(base + sep)) return null;
     if (st.size > maxBytes && !readOver) return { tooLarge: true, size: st.size };
     const want = Math.min(st.size, maxBytes);
     const bytes = Buffer.alloc(want);
@@ -119,7 +116,7 @@ export function readGoalBytes(config, identifier, rel, { maxBytes, readOver = fa
   } catch {
     return null;
   } finally {
-    if (fd !== undefined) closeSync(fd);
+    closeSync(fd);
   }
 }
 

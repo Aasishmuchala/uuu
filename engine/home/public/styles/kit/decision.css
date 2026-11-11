@@ -38,11 +38,7 @@
   font-size: var(--fs-title);
   font-weight: var(--fw-bold);
   line-height: var(--lh-tight);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
+  /* Never cut: the title is what is being approved, so it wraps in full. */
   overflow-wrap: anywhere;
 }
 
@@ -88,10 +84,11 @@
   display: grid;
   grid-template-columns: minmax(80px, max-content) minmax(0, 1fr);
   gap: var(--s-3);
-  font-size: var(--fs-caption);
+  align-items: baseline;
 }
 
 .k-decision__detail dt {
+  font-size: var(--fs-caption);
   color: var(--text-2);
 }
 
@@ -102,7 +99,9 @@
   white-space: pre-line;
 }
 
+/* The buttons come after what is being approved: at the right, level with the last line of it. */
 .k-decision__actions {
+  align-self: end;
   display: flex;
   align-items: center;
   gap: var(--s-2);
@@ -116,6 +115,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
+}
+
+.k-decision__confirm:focus {
+  outline: none;
 }
 
 .k-decision__confirm {
@@ -152,6 +155,38 @@
   align-items: center;
   gap: var(--s-1);
   color: var(--bad-text);
+  font-size: var(--fs-caption);
+}
+
+/* The item changed after the owner looked: nothing was done; the card shows it as it is now. */
+.k-decision__changed {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-3);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.k-decision__changed .k-icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.k-decision__changed-text {
+  min-width: 0;
+}
+
+.k-decision__changed-title {
+  margin: 0;
+  font-weight: var(--fw-medium);
+}
+
+.k-decision__changed-next {
+  margin: 0;
   font-size: var(--fs-caption);
 }
 

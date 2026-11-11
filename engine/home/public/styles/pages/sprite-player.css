@@ -16,13 +16,15 @@
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: var(--r-3);
-  background-color: var(--bg-subtle);
-  /* A quiet checkerboard, so clear pixels read as clear. */
+  /* A mid-grey checkerboard in both themes, so clear pixels read as clear and dark or light pixels stay visible. */
+  --p-sprite-player-a: color-mix(in srgb, var(--text) 20%, var(--bg));
+  --p-sprite-player-b: color-mix(in srgb, var(--text) 30%, var(--bg));
+  background-color: var(--p-sprite-player-a);
   background-image:
-    linear-gradient(45deg, var(--border) 25%, transparent 25%),
-    linear-gradient(-45deg, var(--border) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, var(--border) 75%),
-    linear-gradient(-45deg, transparent 75%, var(--border) 75%);
+    linear-gradient(45deg, var(--p-sprite-player-b) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--p-sprite-player-b) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--p-sprite-player-b) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--p-sprite-player-b) 75%);
   background-size: 16px 16px;
   background-position: 0 0, 0 8px, 8px -8px, -8px 0;
 }
@@ -40,8 +42,8 @@
 
 .p-sprite-player .p-sprite-player__canvas {
   display: block;
-  image-rendering: pixelated;
   image-rendering: crisp-edges;
+  image-rendering: pixelated;
 }
 
 .p-sprite-player .p-sprite-player__where {
@@ -92,6 +94,14 @@
   font-size: var(--fs-caption);
   cursor: pointer;
   transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+/* Loop and onion skin sit beside the playback buttons, so they take the same height and type size. */
+.p-sprite-player .p-sprite-player__toggle--md {
+  height: var(--h-md);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-3);
+  font-size: var(--fs-body);
 }
 
 .p-sprite-player .p-sprite-player__toggle:hover:not(:disabled) {
@@ -167,8 +177,8 @@
 }
 
 .p-sprite-player .p-sprite-player__thumb.is-current {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--text);
+  box-shadow: 0 0 0 1px var(--text);
 }
 
 .p-sprite-player .p-sprite-player__thumb-canvas {
@@ -176,9 +186,9 @@
   width: 48px;
   height: 48px;
   object-fit: contain;
-  image-rendering: pixelated;
   image-rendering: crisp-edges;
-  background: var(--bg-subtle);
+  image-rendering: pixelated;
+  background: color-mix(in srgb, var(--text) 20%, var(--bg));
 }
 
 .p-sprite-player .p-sprite-player__thumb-number {

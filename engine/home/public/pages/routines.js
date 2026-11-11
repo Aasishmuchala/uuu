@@ -45,7 +45,7 @@ function RunLink({ run }) {
   return href ? html`<a href=${href}>${label}</a>` : null;
 }
 
-function RoutineCard({ r, onChanged }) {
+function RoutineCard({ r, onChanged, detail }) {
   const { announce } = useApp();
   const [busy, setBusy] = useState("");
   const [error, setError] = useState(null);
@@ -76,7 +76,9 @@ function RoutineCard({ r, onChanged }) {
   return html`<${Card} padding="md">
     <div class="p-routines__card">
       <div class="p-routines__head">
-        <h3 class="p-routines__title"><a href=${`#/routines/${encodeURIComponent(r.id)}`}>${cap(r.title, 200)}</a></h3>
+        ${detail
+          ? html`<h2 class="p-routines__title">Schedule</h2>`
+          : html`<h3 class="p-routines__title"><a href=${`#/routines/${encodeURIComponent(r.id)}`}>${cap(r.title, 200)}</a></h3>`}
         <${StatusDot} tone=${STATE_TONE[r.state] || "off"} label=${cap(r.plainState) || cap(r.state)} />
       </div>
       <div class="p-routines__meta">
@@ -92,7 +94,7 @@ function RoutineCard({ r, onChanged }) {
             <${Button} variant="plain" busy=${busy === "run"} disabled=${!!busy} onClick=${() => call("run")}>Run now<//>
           </div>`}
       ${message && html`<p class="p-routines__message" role="status">${message}</p>`}
-      <${ErrorNotice} error=${error} />
+      ${error && html`<${ErrorNotice} error=${error} />`}
     </div>
   <//>`;
 }
@@ -142,9 +144,9 @@ function One({ id }) {
   const produces = Array.isArray(r.produces) ? r.produces : [];
   return html`
     <${PageHeader} title=${cap(r.title, 200)} back=${back} lead=${cap(r.when && r.when.plain, 120)} />
-    <${RoutineCard} r=${r} onChanged=${res.refresh} />
+    <div class="p-routines__one"><${RoutineCard} r=${r} onChanged=${res.refresh} detail /></div>
     <${Section} title="What it is asked to do"><p class="p-routines__ask">${cap(r.ask, 2000)}</p><//>
-    ${produces.length > 0 && html`<${Section} title="What it must produce"><ul>${produces.slice(0, 20).map((f, i) => html`<li key=${i}>${cap(f, 200)}</li>`)}</ul><//>`}
+    ${produces.length > 0 && html`<${Section} title="What it must produce"><ul class="p-routines__produces">${produces.slice(0, 20).map((f, i) => html`<li key=${i}>${cap(f, 200)}</li>`)}</ul><//>`}
     ${limit && html`<${Section} title="Time limit"><p>${limit}</p><//>`}
     <${Section} title="Runs"><${Runs} runs=${Array.isArray(d.runs) ? d.runs : []} /><//>
   `;

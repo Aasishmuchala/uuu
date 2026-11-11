@@ -7,10 +7,11 @@
 // text, links are never followed (no folder or file that is a link is listed, and real paths must stay
 // inside the project folder), JSON is read only up to a size cap with O_NOFOLLOW, and only its numbers
 // are used.
-import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, realpathSync } from "node:fs";
 import { join, sep } from "node:path";
 import { HomeError } from "../lib/errors.mjs";
 import { descendants, loadIssues, plainState } from "../lib/goals.mjs";
+import { readChecked } from "../lib/taskfiles.mjs";
 
 const MAX_GOALS = 1000;
 const MAX_ROWS = 200;
@@ -60,26 +61,16 @@ function entries(dir) {
   }
 }
 
-// Reads a small JSON file without following a link; null on anything odd.
-function readSmallJson(p) {
-  let fd;
+// Reads a small JSON file in `dir` through readChecked (O_NOFOLLOW and O_NONBLOCK, a regular file still at
+// its place inside dir); null on anything odd.
+function readSmallJson(p, dir) {
+  const read = readChecked(p, dir, { maxBytes: MAX_JSON });
+  if (!read || read.truncated) return null;
   try {
-    fd = openSync(p, constants.O_RDONLY | constants.O_NOFOLLOW | (constants.O_NONBLOCK || 0));
-    const st = fstatSync(fd);
-    if (!st.isFile() || st.size > MAX_JSON) return null;
-    const buf = Buffer.alloc(st.size);
-    let got = 0;
-    while (got < st.size) {
-      const n = readSync(fd, buf, got, st.size - got, got);
-      if (n <= 0) break;
-      got += n;
-    }
-    const data = JSON.parse(buf.subarray(0, got).toString("utf8"));
+    const data = JSON.parse(read.bytes.toString("utf8"));
     return data && typeof data === "object" && !Array.isArray(data) ? data : null;
   } catch {
     return null;
-  } finally {
-    if (fd !== undefined) closeSync(fd);
   }
 }
 
@@ -88,7 +79,7 @@ const measure = (v) => (typeof v === "number" && Number.isFinite(v) && v >= 0 &&
 function cadRow(goal, dir, name) {
   const step = lstatOrNull(join(dir, `${name}.step`));
   if (!step || !step.isFile()) return null;        // a JSON without its STEP file is left out
-  const rec = readSmallJson(join(dir, `${name}.json`));
+  const rec = readSmallJson(join(dir, `${name}.json`), dir);
   if (!rec || !rec.bbox || typeof rec.bbox !== "object") return null;
   const [x, y, z, volume] = [measure(rec.bbox.x), measure(rec.bbox.y), measure(rec.bbox.z), measure(rec.volume_mm3)];
   if (x === null || y === null || z === null || volume === null) return null;

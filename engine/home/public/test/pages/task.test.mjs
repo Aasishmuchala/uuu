@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 const mod = await import("../../pages/task.js");
-const { roundsLine, pickRound, pickCheck, stateWord, otherNeeds, address } = mod;
+const { actArgs, roundsLine, pickRound, pickCheck, stateWord, otherNeeds, address } = mod;
 
 const rounds = [
   { n: 1, outcome: "fail", label: "Round 1 · Repairing", wellFormed: true, checks: [] },
@@ -70,4 +70,20 @@ test("task: address keeps the page state in the address", () => {
   assert.equal(address("STH-8", q, { round: 2, check: null }), "#/tasks/STH-8?round=2&files=1");
   assert.equal(address("STH-8", null, {}), "#/tasks/STH-8");
   assert.equal(address("a b", new URLSearchParams(), { check: 3 }), "#/tasks/a%20b?check=3");
+});
+
+test("task: Accept and Send back send the version they were showing", () => {
+  const acceptance = {
+    accept: { inboxId: "goal:7", action: "accept", version: "v-a1" },
+    sendBack: { inboxId: "goal:7", action: "send_back", version: "v-s2" },
+  };
+  assert.deepEqual(actArgs(acceptance, "accept"), ["goal:7", "accept", undefined, "v-a1"]);
+  assert.deepEqual(actArgs(acceptance, "sendBack", "Fix the total"), ["goal:7", "send_back", "Fix the total", "v-s2"]);
+});
+
+test("task: a refused action says what the server said, in place", async () => {
+  const { changedText, isChangedSinceSeen } = await import("../../kit/decision.js");
+  const err = { code: "changed_since_seen", message: "This changed after you looked at it. Nothing was done.", next: "Look at it again, then decide." };
+  assert.equal(isChangedSinceSeen(err), true);
+  assert.deepEqual(changedText(err), { message: err.message, next: err.next });
 });

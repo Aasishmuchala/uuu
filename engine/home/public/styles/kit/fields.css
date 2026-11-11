@@ -184,16 +184,15 @@
   cursor: default;
 }
 
-.k-switch--disabled .k-switch__label,
-.k-switch--disabled .k-switch__state {
-  color: var(--text-3);
-}
+/* Switched off: only the track is greyed; the title keeps its weight and colour. */
 
 .k-switch--disabled .k-switch__track {
   opacity: 0.5;
 }
 
+/* The note sits just under the label: the control is taller than its line, so it is pulled up. */
 .k-switch__explain {
+  margin-top: calc(var(--s-2) * -1);
   font-size: var(--fs-caption);
   color: var(--text-3);
 }
@@ -207,5 +206,9 @@
 
   .k-textarea {
     min-height: calc(var(--h-lg) + var(--s-1));
+  }
+
+  .k-switch__explain {
+    margin-top: calc(var(--s-3) * -1);
   }
 }

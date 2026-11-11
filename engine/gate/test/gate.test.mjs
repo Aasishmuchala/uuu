@@ -9,10 +9,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createGate } from "../gate.mjs";
 import { normalisePath } from "../rules.mjs";
-import { PROOF, MUST_PASS, NOT_NEEDED, HOSTILE, SAME_ROUTE } from "./vectors.mjs";
+import { PROOF, READS, ALLOWED, GOOD_BODIES, NOT_NEEDED, HOSTILE, SAME_ROUTE } from "./vectors.mjs";
 
 const TOKEN = "pcp_testtoken_abcdefghijklmnop";
 const AUTH = { Authorization: `Bearer ${TOKEN}` };
+const JSON_AUTH = { ...AUTH, "Content-Type": "application/json" };
 
 // ---- the echo board ------------------------------------------------------
 let board;
@@ -195,10 +196,11 @@ test("raw path and query bytes are forwarded as sent", async () => {
 });
 
 test("a 1 MB body is forwarded byte-identical", async () => {
-  const body = randomBytes(1024 * 1024);
+  const body = Buffer.from(JSON.stringify({ body: randomBytes(768 * 1024).toString("base64").slice(0, 1024 * 1024 - 11) }));
+  assert.equal(body.length, 1024 * 1024);
   const sha = createHash("sha256").update(body).digest("hex");
   const r = await request("POST", "/api/issues/1/comments", {
-    headers: { ...AUTH, "Content-Type": "application/octet-stream", "Content-Length": body.length },
+    headers: { ...JSON_AUTH, "Content-Length": body.length },
     body,
   });
   assert.equal(r.status, 200);
@@ -207,11 +209,11 @@ test("a 1 MB body is forwarded byte-identical", async () => {
 });
 
 test("a chunked body is forwarded byte-identical", async () => {
-  const body = randomBytes(300 * 1024);
+  const body = Buffer.from(JSON.stringify({ format: "markdown", body: randomBytes(225 * 1024).toString("base64") }));
   const sha = createHash("sha256").update(body).digest("hex");
   const r = await new Promise((resolve, reject) => {
     const req = http.request({ host: "127.0.0.1", port: gatePort, method: "PUT", path: "/api/issues/1/documents/plan",
-      headers: AUTH, agent: false }, (res) => {
+      headers: JSON_AUTH, agent: false }, (res) => {
       const c = [];
       res.on("data", (d) => c.push(d));
       res.on("end", () => resolve(JSON.parse(Buffer.concat(c).toString())));
@@ -242,18 +244,24 @@ test("a streamed response flows unbuffered", async () => {
 });
 
 test("must-pass requests are forwarded", async () => {
-  for (const [m, p] of MUST_PASS) {
-    const r = await request(m, p, { headers: AUTH, body: ["GET", "HEAD", "OPTIONS"].includes(m) ? undefined : "{}" });
+  for (const [m, p] of READS) {
+    const r = await request(m, p, { headers: AUTH });
     assert.equal(r.status, 200, `${m} ${p}`);
   }
-  assert.equal(forwardedPaths().length, MUST_PASS.length);
+  for (let i = 0; i < ALLOWED.length; i += 1) {
+    const [m, p] = ALLOWED[i];
+    const [type, body] = GOOD_BODIES[i];
+    const r = await request(m, p, { headers: type ? { ...AUTH, "Content-Type": type } : AUTH, body: body || undefined });
+    assert.equal(r.status, 200, `${m} ${p}`);
+  }
+  assert.equal(forwardedPaths().length, READS.length + ALLOWED.length);
   assert.deepEqual(logLines(), []);
 });
 
 test("a query is never matched", async () => {
   const r = await request("GET", "/api/agents/me?x=/secrets", { headers: AUTH });
   assert.equal(r.status, 200);
-  const r2 = await request("PATCH", "/api/issues/1?path=/api/agents/1", { headers: AUTH, body: "{}" });
+  const r2 = await request("PATCH", "/api/issues/1?path=/api/agents/1", { headers: JSON_AUTH, body: "{}" });
   assert.equal(r2.status, 200);
 });
 
@@ -341,7 +349,7 @@ test("hostile spellings of allowed writes → 403 not-allowed; same-route spelli
   }
   assert.deepEqual(forwardedPaths(), []);
   for (const [m, p] of SAME_ROUTE) {
-    const r = await request(m, p, { headers: AUTH, body: "{}" });
+    const r = await request(m, p, { headers: JSON_AUTH, body: "{}" });
     assert.equal(r.status, 200, `${m} ${p}`);
   }
   assert.deepEqual(forwardedPaths(), SAME_ROUTE.map(([, p]) => p));
@@ -379,7 +387,7 @@ test("a method override header cannot turn a refused write into a read", async (
     assert.equal(r.status, 403, name);
     assert.equal(r.json.rule, "agents-write");
   }
-  const r2 = await request("POST", "/api/issues/1/comments", { headers: { ...AUTH, "X-HTTP-Method-Override": "GET" }, body: "{}" });
+  const r2 = await request("POST", "/api/issues/1/comments", { headers: { ...JSON_AUTH, "X-HTTP-Method-Override": "GET" }, body: "{}" });
   assert.equal(r2.status, 200);
   assert.deepEqual(forwardedPaths(), ["/api/issues/1/comments"]);
 });

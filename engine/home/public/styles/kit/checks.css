@@ -118,7 +118,10 @@ button.k-checks__row:hover {
   min-width: 128px;
   margin: 0 auto;
   padding: var(--s-4);
-  background: var(--bg-subtle);
+  /* A grey checkerboard in both themes, so dark outlines and transparent parts both show. */
+  background-color: var(--checker-a);
+  background-image: conic-gradient(var(--checker-b) 25%, transparent 0 50%, var(--checker-b) 0 75%, transparent 0);
+  background-size: var(--s-4) var(--s-4);
   border: 1px solid var(--border);
   border-radius: var(--r-4);
   object-fit: contain;

@@ -21,7 +21,9 @@ export function Notice({ tone = "info", title, children }) {
 const message = (error) =>
   typeof error === "string" ? error : error && error.message ? String(error.message) : "Something went wrong.";
 
+// Draws nothing when there is no error, so a page may always place it.
 export function ErrorNotice({ error, onRetry }) {
+  if (error === null || error === undefined || error === false || error === "") return null;
   return html`<div class="k-notice k-notice--bad" role="alert">
     <${Icon} name="alert" size=${16} class="k-notice__icon" />
     <div class="k-notice__body">

@@ -76,8 +76,28 @@
   font-size: var(--fs-caption);
 }
 
+/* "Working" gives way before the avatar: it shrinks to an ellipsis, never touching it. */
+.k-task-card__live {
+  min-width: 0;
+  display: inline-flex;
+  overflow: hidden;
+  font-size: var(--fs-caption);
+}
+
+.k-task-card__live .k-dot {
+  min-width: 0;
+}
+
+.k-task-card__live .k-dot__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .k-task-card__who {
+  flex: none;
   margin-left: auto;
+  padding-left: var(--s-2);
   display: inline-flex;
 }
 

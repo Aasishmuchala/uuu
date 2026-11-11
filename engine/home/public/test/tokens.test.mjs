@@ -42,6 +42,17 @@ const THEMED = {
   "--bad-text": ["#991b1b", "#fca5a5"],
   "--live": ["#16a34a", "#4ade80"],
   "--shadow-pop": ["0 8px 24px rgba(0,0,0,.12)", "0 8px 24px rgba(0,0,0,.5)"],
+  // Added by V48 (additions to section 12; nothing pinned changed): each accent by name, the checkerboard pair,
+  // and the backing behind avatar pictures.
+  "--accent-graphite": ["#18181b", "#fafafa"],
+  "--accent-blue": ["#2563eb", "#60a5fa"],
+  "--accent-green": ["#15803d", "#4ade80"],
+  "--accent-violet": ["#7c3aed", "#a78bfa"],
+  "--accent-orange": ["#c2410c", "#fb923c"],
+  "--accent-rose": ["#be123c", "#fb7185"],
+  "--checker-a": ["#f4f4f5", "#d4d4d8"],
+  "--checker-b": ["#e4e4e7", "#b4b4bc"],
+  "--avatar-backing": ["#f4f4f5", "#b4b4bc"],
 };
 
 // Accents: { name: [[accent, accent-text] light, [accent, accent-text] dark] }.

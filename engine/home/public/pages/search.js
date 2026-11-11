@@ -11,6 +11,10 @@ export function groupCount(groups) {
   return groups.reduce((n, g) => n + (g && Array.isArray(g.results) ? g.results.length : 0), 0);
 }
 
+// The owner's words for a group, where the server's label is an older one.
+const GROUP_WORDS = { goals: "Tasks", knowledge: "Docs" };
+export const groupLabel = (g) => GROUP_WORDS[g && g.source] || (g && g.label) || "";
+
 export default function Page({ route }) {
   const fromAddress = ((route && route.query && route.query.get("q")) || "").trim();
   const [text, setText] = useState(fromAddress);
@@ -39,7 +43,7 @@ export default function Page({ route }) {
       ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
       ${ok && res.data && !total ? html`<${Empty} title=${`Nothing found for "${q}".`} />` : null}
       ${groups.map((g) => html`
-        <${Section} key=${g.source} title=${g.label} count=${g.results.length}>
+        <${Section} key=${g.source} title=${groupLabel(g)} count=${g.results.length}>
           <ul class="p-search__list">
             ${g.results.map((r, i) => {
               const href = linkHref(r.link);

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { benchSeed, IDS } from "../../../test/stubs/seed.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
-import { call } from "../lib/testing.mjs";
+import { actAsSeen, call } from "../lib/testing.mjs";
 
 async function withHome(fn, opts = {}) {
   const h = await startStubsHome({ port: 0, ...opts });
@@ -11,7 +11,10 @@ async function withHome(fn, opts = {}) {
 }
 const inbox = async (h) => (await call(h.url, "GET", "/api/inbox")).json;
 const benchItems = async (h) => (await inbox(h)).items.filter((i) => ["books", "people", "support"].includes(i.source));
-const actOn = (h, id, action, note) => call(h.url, "POST", "/api/inbox/act", { body: note === undefined ? { id, action } : { id, action, note } });
+// Acts with the version the inbox shows now, as the decision card does (CONTRACTS 9.3a).
+const actOn = (h, id, action, note) => actAsSeen(h.url, note === undefined ? { id, action } : { id, action, note });
+// Acts with exactly the version given (undefined: none at all).
+const actWith = (h, id, action, version) => call(h.url, "POST", "/api/inbox/act", { body: version === undefined ? { id, action } : { id, action, version } });
 const SINV = "bench:Sales Invoice:ACC-SINV-2026-00001";
 const LEAVE = "bench:Leave Application:HR-LAP-2026-00001";
 const REPLY = "bench:HD Ticket Comment:HD-COMMENT-00001";
@@ -65,32 +68,68 @@ test("approve submits with the owner's key, the document just read", async () =>
   });
 });
 
-test("approve is refused when nobody has been shown the draft", async () => {
+test("every draft carries its modified stamp as its version", async () => {
   await withHome(async (h) => {
-    // The action re-reads the list itself, but that never counts as the owner having looked.
-    const r = await actOn(h, SINV, "approve");
-    assert.equal(r.status, 409);
-    assert.equal(r.json.error.code, "changed");
+    const items = await benchItems(h);
+    assert.ok(items.length > 0);
+    for (const i of items) assert.equal(typeof i.version, "string");
+    assert.equal(items.find((i) => i.id === SINV).version, doc(h, "Sales Invoice", "ACC-SINV-2026-00001").modified);
+  });
+});
+
+test("approve with no version is refused and nothing is submitted, however often the inbox was read", async () => {
+  await withHome(async (h) => {
+    // Reads of the inbox and of the pages that poll never count as the owner having seen anything.
+    await inbox(h);
+    for (const path of ["/api/shell", "/api/home", "/api/state", "/api/tasks"]) await call(h.url, "GET", path);
+    for (const version of [undefined, null, "", "2020-01-01 00:00:00"]) {
+      const r = await actWith(h, SINV, "approve", version);
+      assert.equal(r.status, 409, String(version));
+      assert.equal(r.json.error.code, "changed_since_seen");
+      assert.equal(r.json.error.message, "This changed after you looked at it. Nothing was done.");
+      assert.equal(r.json.error.next, "Look at it again, then decide.");
+    }
     assert.equal(benchWrites(h).length, 0);
     assert.equal(doc(h, "Sales Invoice", "ACC-SINV-2026-00001").docstatus, 0);
   });
 });
 
-test("approve is refused when the draft changed after it was listed, and works after a fresh look", async () => {
+test("a stale version is refused even after background polls saw the new one; the version shown now submits", async () => {
   await withHome(async (h) => {
-    await inbox(h);
+    const seen = (await benchItems(h)).find((i) => i.id === SINV);
+    // The agent changes the invoice after the owner read it ...
     const d = doc(h, "Sales Invoice", "ACC-SINV-2026-00001");
     d.grand_total = 999999; d.modified = "2030-01-01 00:00:00.000000";
-    const r = await actOn(h, SINV, "approve");
+    // ... and the screen keeps polling in the background, which used to count as "shown".
+    for (const path of ["/api/inbox", "/api/shell", "/api/home", "/api/state", "/api/tasks"]) await call(h.url, "GET", path);
+    const r = await actWith(h, SINV, "approve", seen.version);
     assert.equal(r.status, 409);
-    assert.equal(r.json.error.code, "changed");
-    assert.match(r.json.error.message, /changed/);
-    assert.equal(benchWrites(h).length, 0);
+    assert.equal(r.json.error.code, "changed_since_seen");
+    assert.equal(benchWrites(h).length, 0, "nothing reached the books");
     assert.equal(d.docstatus, 0);
-    const item = (await benchItems(h)).find((i) => i.id === SINV);
-    assert.ok(item.details.some((x) => x.value === "₹ 9,99,999.00"));
-    assert.equal((await actOn(h, SINV, "approve")).status, 200);
+    // A fresh look shows the new amount and its version; approving that version submits it.
+    const now = (await benchItems(h)).find((i) => i.id === SINV);
+    assert.ok(now.details.some((x) => x.value === "₹ 9,99,999.00"));
+    assert.notEqual(now.version, seen.version);
+    const ok = await actWith(h, SINV, "approve", now.version);
+    assert.equal(ok.status, 200);
+    const w = benchWrites(h);
+    assert.equal(w.length, 1);
+    assert.equal(w[0].path, "/api/method/frappe.client.submit");
+    assert.equal(w[0].body.doc.grand_total, 999999);
     assert.equal(d.docstatus, 1);
+  });
+});
+
+test("send back is bound to the version too", async () => {
+  await withHome(async (h) => {
+    const seen = (await benchItems(h)).find((i) => i.id === SINV);
+    doc(h, "Sales Invoice", "ACC-SINV-2026-00001").modified = "2030-01-01 00:00:00.000000";
+    const r = await call(h.url, "POST", "/api/inbox/act", { body: { id: SINV, action: "send_back", note: "Fix it.", version: seen.version } });
+    assert.equal(r.status, 409);
+    assert.equal(r.json.error.code, "changed_since_seen");
+    assert.equal(benchWrites(h).length, 0);
+    assert.ok(h.board.requests.every((q) => q.method === "GET"));
   });
 });
 

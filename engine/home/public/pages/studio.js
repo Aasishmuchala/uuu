@@ -114,8 +114,8 @@ export default function Page({ route }) {
         <${AgentChip} agent=${{ slug: "artist", name: "Artist" }} />
       <//>
       ${(art.loading && !a) || (dept.loading && !d) ? html`<${Loading} lines=${4} label="Loading the Studio" />` : null}
-      <${ErrorNotice} error=${art.error} onRetry=${art.reload} />
-      <${ErrorNotice} error=${dept.error} onRetry=${dept.reload} />
+      ${art.error && !a ? html`<${ErrorNotice} error=${art.error} onRetry=${art.reload} />` : null}
+      ${dept.error && !d ? html`<${ErrorNotice} error=${dept.error} onRetry=${dept.reload} />` : null}
       ${a?.notConnected ? html`<${NotConnected} reason=${a.notConnected.reason} next=${a.notConnected.next} />` : null}
       ${d?.notConnected ? html`<${NotConnected} reason=${d.notConnected.reason} next=${d.notConnected.next} />` : null}
       ${a ? html`
@@ -135,7 +135,7 @@ export default function Page({ route }) {
                   <p class="p-studio__image-title">${im.title || im.name}</p>
                   <${FileCard} file=${im.file} />
                 </li>`)}
-            </ul>` : html`<${Empty} title="No images yet." />`}
+            </ul>` : html`<${Empty} title="No images yet." text="Badges, icons and other drawings the Artist makes show here." />`}
         <//>` : null}
       ${d ? html`<${FilesTable} section=${cad} /><${FilesTable} section=${files} />` : null}
       ${problems.length ? html`

@@ -2,6 +2,7 @@
 import { html, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
+import { currentAccent, currentTheme } from "../lib/theme.js";
 import { Button, Card, ErrorNotice, Loading, PageHeader, Section, Switch } from "../kit/index.js";
 
 export const THEMES = [
@@ -9,6 +10,25 @@ export const THEMES = [
   { id: "light", label: "Light" },
   { id: "dark", label: "Dark" },
 ];
+
+// Each accent's colour in the light and the dark theme (CONTRACTS-V2 12), for the swatches only. The tokens
+// hold just the current accent, so the swatches need their own copy of the six.
+export const SWATCHES = {
+  graphite: ["#18181b", "#fafafa"],
+  blue: ["#2563eb", "#60a5fa"],
+  green: ["#15803d", "#4ade80"],
+  violet: ["#7c3aed", "#a78bfa"],
+  orange: ["#c2410c", "#fb923c"],
+  rose: ["#be123c", "#fb7185"],
+};
+
+// True when the page is drawn dark: chosen, or "auto" on a Mac set to dark.
+function drawnDark() {
+  if (typeof document === "undefined") return false;
+  const t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark" || t === "light") return t === "dark";
+  return typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
+}
 
 export default function Page() {
   const { saveSettings } = useApp();
@@ -26,8 +46,10 @@ export default function Page() {
       </div>`;
   }
 
-  const theme = chosen.theme || (d.appearance && d.appearance.theme) || "auto";
-  const accent = chosen.accent || (d.appearance && d.appearance.accent) || "graphite";
+  // What is on screen wins over what the server keeps: "?theme=" and "?accent=" hold for this visit.
+  const theme = chosen.theme || currentTheme() || (d.appearance && d.appearance.theme) || "auto";
+  const accent = chosen.accent || currentAccent() || (d.appearance && d.appearance.accent) || "graphite";
+  const dark = drawnDark();
   function change(patch) {
     setChosen({ ...chosen, ...patch });
     saveSettings({ theme, accent, ...patch });
@@ -53,7 +75,7 @@ export default function Page() {
               ${(d.accents || []).map((a) => html`
                 <label key=${a.id} class="p-settings__swatch">
                   <input type="radio" name="accent" value=${a.id} checked=${accent === a.id} onChange=${() => change({ accent: a.id })} />
-                  <span class=${`p-settings__dot p-settings__dot--${String(a.id).replace(/[^a-z]/g, "")}`} aria-hidden="true"></span>
+                  <span class="p-settings__dot" style=${SWATCHES[a.id] ? `background:${SWATCHES[a.id][dark ? 1 : 0]}` : ""} aria-hidden="true"></span>
                   <span>${a.label}</span>
                 </label>`)}
             </div>

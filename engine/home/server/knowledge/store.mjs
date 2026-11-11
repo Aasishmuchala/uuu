@@ -4,9 +4,10 @@
 // knowledge folder. The index (node:sqlite, FTS5) lives in the server's own data folder and is only a
 // cache: it is rebuilt whenever a file's size or modified time differs from what it recorded.
 import { DatabaseSync } from "node:sqlite";
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { snippet } from "../lib/format.mjs";
+import { readChecked } from "../lib/taskfiles.mjs";
 
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 export const MAX_NAME = 100;
@@ -97,6 +98,14 @@ export function createKnowledge(config) {
     }
   }
 
+  // One document's text, or null. The owner may drop files in by hand: O_NOFOLLOW and O_NONBLOCK (a FIFO
+  // cannot hang the server), a regular file still at its place in the folder, at most MAX_TEXT_BYTES.
+  function readText(name) {
+    const read = readChecked(join(dir, name), dir, { maxBytes: MAX_TEXT_BYTES });
+    if (!read || read.truncated) return null;
+    return read.bytes.toString("utf8");
+  }
+
   // Regular files directly inside the folder with a valid name. Links and odd names are ignored.
   function scan() {
     const out = [];
@@ -120,8 +129,8 @@ export function createKnowledge(config) {
         seen.add(f.name);
         const row = rows.get(f.name);
         if (row && row.size === f.size && row.mtime === f.mtime) continue;
-        let text;
-        try { text = readFileSync(join(dir, f.name), "utf8"); } catch { continue; }
+        const text = readText(f.name);
+        if (text === null) continue;
         if (row) {
           db.prepare("DELETE FROM docs_fts WHERE rowid = ?").run(row.id);
           db.prepare("DELETE FROM docs_meta WHERE id = ?").run(row.id);
@@ -187,7 +196,9 @@ export function createKnowledge(config) {
       return withDb((db) => {
         const f = sync(db).find((x) => x.name === id);
         if (!f) throw notFound();
-        return { doc: toDoc(f), text: readFileSync(join(dir, id), "utf8") };
+        const text = readText(id);
+        if (text === null) throw notFound();
+        return { doc: toDoc(f), text };
       });
     },
 

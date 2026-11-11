@@ -227,7 +227,11 @@ fi
 # the owner's side and removed again on every exit. The key lives only in a
 # shell variable and a header file of mode 0600; it is never printed. Each
 # refused request is checked against the rule id the gate must give: the
-# refusal list, `tools-endpoint`, and `not-allowed` for writes off the allow-list.
+# refusal list, `tools-endpoint`, `not-allowed` for writes off the allow-list, and
+# the body rules of allowed writes (`task-launch-settings`, `approval-type`). A line
+# may end with the JSON body to send; without one a write sends '{}'. Each body is
+# also one the board itself rejects (no such task, a status or payload it refuses), so
+# an older gate that lets it through still changes nothing.
 echo; echo "The gate (what an agent's own token can do)"
 gate_checks() {
   local ids="$STATE_DIR/ids.json" co builder resp code body
@@ -252,11 +256,13 @@ gate_checks() {
   code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer not-a-real-token' "$GATE/api/agents/me")"
   if [[ "$code" == 401 ]]; then say PASS "a made-up token is turned away (401)"
   else say FAIL "a made-up token was not turned away (got $code)"; fi
-  local rule method path data
-  while read -r rule method path; do
+  local rule method path payload data
+  while read -r rule method path payload; do
     [[ -n "$rule" ]] || continue
     path="${path//<co>/$co}"; path="${path//<builder>/$builder}"
-    data=(); if [[ "$method" != GET ]]; then data=(--data '{}'); fi
+    data=()
+    if [[ -n "$payload" ]]; then data=(--data "$payload")
+    elif [[ "$method" != GET ]]; then data=(--data '{}'); fi
     body="$(curl -s -m 10 -w '\n%{http_code}' -X "$method" -H @"$HDR" -H 'Content-Type: application/json' \
       ${data[@]+"${data[@]}"} "$GATE$path")"
     code="${body##*$'\n'}"; body="${body%$'\n'*}"
@@ -284,6 +290,9 @@ tools-endpoint POST /api/mcp/connections
 not-allowed POST /api/companies/<co>/skills
 not-allowed POST /api/companies/<co>/tools/connections
 not-allowed POST /api/companies/<co>/email/connections
+task-launch-settings PATCH /api/issues/x {"status":"proof-refused","assigneeAdapterOverrides":{"adapterConfig":{"command":"/bin/sh","cwd":"/"}}}
+task-launch-settings POST /api/companies/<co>/issues {"title":"proof","status":"proof-refused","executionWorkspaceSettings":{"mode":"agent_default"}}
+approval-type POST /api/companies/<co>/approvals {"type":"hire_agent","payload":"proof-refused"}
 EOF
   code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -X DELETE "$BOARD/api/agents/$builder/keys/$KEY_ID")"
   rm -f "$HDR"; HDR=""

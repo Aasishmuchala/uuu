@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { boardSeed, IDS } from "../../../test/stubs/seed.mjs";
 import { SERVER_DIR } from "../lib/app.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
-import { call, writes } from "../lib/testing.mjs";
+import { actAsSeen, call, writes } from "../lib/testing.mjs";
 
 // A module folder holding only the core's own modules (symlinked), so a test does not change when feature
 // modules are added to routes/, inbox/ or search/. Remove it with rmSync when done.
@@ -38,13 +38,22 @@ function extraItem(sourceKind, id, { issueKey = "STH-1", severity = "normal", mi
   };
 }
 
+// The stub seed's approval has the type "request_approval", which paperclip does not have; the one type
+// the home screen approves is "request_board_approval" (inbox/board.mjs), so the seed is given that type.
+function plainApprovalSeed(s = boardSeed()) {
+  for (const a of s.approvals) if (a.id === IDS.approval) a.type = "request_board_approval";
+  for (const i of s.attention) if (i.sourceKind === "approval" && i.subject?.metadata) i.subject.metadata.type = "request_board_approval";
+  return s;
+}
+
 async function withHome(fn, { seed, ...opts } = {}) {
-  const h = await startStubsHome({ port: 0, boardSeed: seed, ...opts });
+  const h = await startStubsHome({ port: 0, boardSeed: seed || plainApprovalSeed(), ...opts });
   try { return await fn(h); } finally { await h.close(); }
 }
 
 const inbox = async (h) => (await call(h.url, "GET", "/api/inbox")).json;
-const actOn = (h, id, action, note) => call(h.url, "POST", "/api/inbox/act", { body: note === undefined ? { id, action } : { id, action, note } });
+// Acts with the version the inbox shows now, as the decision card does (CONTRACTS 9.3a).
+const actOn = (h, id, action, note) => actAsSeen(h.url, note === undefined ? { id, action } : { id, action, note });
 const lastWrite = (h) => h.board.requests.filter((r) => r.method !== "GET").at(-1);
 
 const APPROVAL_ID = `board:approval:${IDS.approval}`;
@@ -113,7 +122,7 @@ test("board approval: approve, send back (needs a note), reject", async () => {
 });
 
 test("board review: approve and send back go to stalled-review-decision", async () => {
-  const seed = () => { const s = boardSeed(); s.attention.push(extraItem("review", "rv-1")); return s; };
+  const seed = () => { const s = plainApprovalSeed(); s.attention.push(extraItem("review", "rv-1")); return s; };
   await withHome(async (h) => {
     const item = (await inbox(h)).items.find((i) => i.id === "board:review:rv-1");
     assert.equal(item.kind, "approval");
@@ -151,7 +160,7 @@ test("board question: accept, reject, answer", async () => {
     });
   }
   // a "decision" item is a question too
-  const s = boardSeed();
+  const s = plainApprovalSeed();
   s.attention.push(extraItem("decision", "dc-1", { subject: { metadata: { interactionId: "dc-1", issueId: IDS.issues["STH-1"] } } }));
   await withHome(async (h) => {
     const item = (await inbox(h)).items.find((i) => i.id === "board:decision:dc-1");
@@ -178,7 +187,7 @@ test("board problems: retry, answer, dismiss; high when severity is high or crit
     assert.equal(`${w.method} ${w.path}`, `POST /api/issues/${IDS.issues["STH-3"]}/comments`);
     assert.deepEqual(w.body, { body: "The statement is in the knowledge folder." });
   });
-  const s = boardSeed();
+  const s = plainApprovalSeed();
   s.attention.push(extraItem("recovery_action", "ra-1", { severity: "critical" }));
   s.attention.push(extraItem("agent_error_alert", "ae-1", { severity: "low" }));
   s.attention.push(extraItem("blocker_attention", "bl-1", { severity: "high" }));

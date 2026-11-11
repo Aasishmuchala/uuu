@@ -30,7 +30,7 @@ export function Avatar({ slug, name, size = 24, state }) {
   const s = SIZES.includes(Number(size)) ? Number(size) : 24;
   const you = slug === "you";
   const picture = !you && typeof slug === "string" && SLUG.test(slug) && failed !== slug;
-  return html`<span class=${cx("k-avatar", `k-avatar--${s}`, !picture && (you ? "k-avatar--you" : `k-avatar--tint-${tint(slug || name)}`))}>
+  return html`<span class=${cx("k-avatar", `k-avatar--${s}`, picture ? "k-avatar--picture" : you ? "k-avatar--you" : `k-avatar--tint-${tint(slug || name)}`)}>
     ${picture
       ? html`<img
           class="k-avatar__img"

@@ -1,5 +1,5 @@
 // A row of tabs. Arrow keys (and Home, End) move between them; Enter or Space picks one.
-import { html } from "../vendor/preact-htm.js";
+import { html, useEffect, useRef } from "../vendor/preact-htm.js";
 import { StatusDot } from "./status.js";
 import { cx } from "./util.js";
 
@@ -18,10 +18,24 @@ function move(event) {
   all[next].focus();
 }
 
+// Scrolls the row sideways (never the page) so the current tab is in view on a narrow screen.
+function revealCurrent(row) {
+  if (!row || typeof row.querySelector !== "function") return;
+  const tab = row.querySelector(".k-tabs__tab--on");
+  if (!tab || typeof tab.getBoundingClientRect !== "function" || !(row.scrollWidth > row.clientWidth)) return;
+  const r = row.getBoundingClientRect();
+  const t = tab.getBoundingClientRect();
+  const pad = 16;
+  if (t.left < r.left) row.scrollLeft -= r.left - t.left + pad;
+  else if (t.right > r.right) row.scrollLeft += t.right - r.right + pad;
+}
+
 export function Tabs({ tabs, current, onChange, label }) {
   const list = Array.isArray(tabs) ? tabs.filter((t) => t && t.id != null) : [];
   const picked = list.some((t) => t.id === current) ? current : list[0]?.id;
-  return html`<div class="k-tabs" role="tablist" aria-label=${label || undefined} onKeyDown=${move}>
+  const rowRef = useRef(null);
+  useEffect(() => { revealCurrent(rowRef.current); }, [picked, list.length]);
+  return html`<div class="k-tabs" ref=${rowRef} role="tablist" aria-label=${label || undefined} onKeyDown=${move}>
     ${list.map((t) => {
       const on = t.id === picked;
       return html`<button

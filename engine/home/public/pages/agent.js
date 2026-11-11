@@ -165,7 +165,7 @@ function TalkTab({ data, onSent }) {
     <div class="p-agent__convo">
       ${messages.length
         ? html`<${Conversation} messages=${messages} />`
-        : html`<${Empty} title="Nothing said yet" text=${`Tasks handed to ${text(a.name)}, and what it said about them, show here.`} />`}
+        : html`<${Empty} title="Nothing said yet" text=${`Tasks you hand to ${a.slug === CHIEF ? "the Chief of staff" : text(a.name)}, and what it says about them, show here.`} />`}
     </div>
     <div class="p-agent__compose">
       ${given && html`<p class="p-agent__given" role="status">Given to the Chief of staff.${given.id
@@ -174,11 +174,13 @@ function TalkTab({ data, onSent }) {
       <${Composer}
         placeholder=${composerPlaceholder(a.name)}
         to=${a.slug === CHIEF ? undefined : a.slug}
-        agents=${[]}
+        agents=${a.slug === CHIEF ? [] : [{ slug: a.slug, name: text(a.name) || a.slug }]}
         templates=${goalsFor(gallery.data, a)}
         busy=${busy}
         onSend=${send} />
-      <p class="p-agent__caption">It goes through the Chief of staff, so the Checker still checks it.</p>
+      <p class="p-agent__caption">${a.slug === CHIEF
+        ? "The Chief of staff hands it to the right agent, and the Checker checks the work."
+        : "It goes through the Chief of staff, so the Checker still checks it."}</p>
     </div>
   </div>`;
 }
@@ -360,7 +362,9 @@ function LessonsTab({ data, onChanged }) {
 }
 
 export default function Page({ route }) {
-  const slug = text(route && route.parts && route.parts[0]);
+  // The address is `#/team/<slug>`, so the slug is the second part.
+  const parts = (route && route.parts) || [];
+  const slug = text(parts[0] === "team" ? parts[1] : parts[0]);
   const tab = pickTab(route && route.query);
   const res = useResource(slug ? `/api/team/${encodeURIComponent(slug)}` : null, { every: 10000 });
   const d = res.data;

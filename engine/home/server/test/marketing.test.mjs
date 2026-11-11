@@ -5,7 +5,8 @@ import { mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from
 import { join } from "node:path";
 import { IDS } from "../../../test/stubs/seed.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
-import { call, writes } from "../lib/testing.mjs";
+import { plainDay, plainRange, indiaToday } from "../content/plain-date.mjs";
+import { actAsSeen, call, writes } from "../lib/testing.mjs";
 
 async function withHome(fn) {
   const h = await startStubsHome({ port: 0 });
@@ -29,6 +30,21 @@ test("two drafts appear, the bad file is under problems", async () => {
     assert.equal(readdirSync(draftsDir(h)).length, 2);
     assert.equal(p.figures.find((f) => f.id === "drafts").value, "2");
     assert.equal((await inboxContent(h)).length, 2);
+  });
+});
+
+test("dates are plain words in India time: the week hint and the Planned for detail", async () => {
+  assert.equal(plainRange("2026-11-09", "2026-11-15"), "9 to 15 November");
+  assert.equal(plainRange("2026-11-30", "2026-12-06"), "30 November to 6 December");
+  assert.equal(plainDay("2026-11-12"), "Thursday 12 November");
+  assert.equal(indiaToday(new Date("2026-11-08T19:00:00Z")), "2026-11-09");
+  await withHome(async (h) => {
+    const hint = (await page(h)).figures.find((f) => f.id === "this_week").hint;
+    assert.match(hint, /^\d{1,2}( [A-Z][a-z]+)? to \d{1,2} [A-Z][a-z]+$/);
+    for (const i of await inboxContent(h)) {
+      const v = i.details.find((x) => x.label === "Planned for").value;
+      assert.match(v, /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) \d{1,2} [A-Z][a-z]+$/);
+    }
   });
 });
 
@@ -60,7 +76,7 @@ test("editing a draft file updates the body; a new file is a new draft", async (
 test("approve changes only the status; later edits change nothing; nothing goes to the board", async () => {
   await withHome(async (h) => {
     const item = (await inboxContent(h)).find((i) => i.title.includes("kitchen"));
-    const r = await call(h.url, "POST", "/api/inbox/act", { body: { id: item.id, action: "approve" } });
+    const r = await actAsSeen(h.url, { id: item.id, action: "approve" });
     assert.equal(r.status, 200);
     assert.match(r.json.message, /Nothing is published/);
     assert.equal(writes(h.board).length, 0);
@@ -70,7 +86,7 @@ test("approve changes only the status; later edits change nothing; nothing goes 
     assert.equal(d.status, "approved");
     assert.equal(d.title, "Our kitchen range is here");
     assert.equal((await inboxContent(h)).length, 1);
-    const again = await call(h.url, "POST", "/api/inbox/act", { body: { id: item.id, action: "approve" } });
+    const again = await actAsSeen(h.url, { id: item.id, action: "approve" });
     assert.ok([404, 409].includes(again.status));
     assert.equal(rows(await page(h)).find((x) => x.title === "Our kitchen range is here").status, "Approved");
   });
@@ -79,9 +95,9 @@ test("approve changes only the status; later edits change nothing; nothing goes 
 test("send back: note stored, one board task for the Marketer, item leaves; an edit brings it back", async () => {
   await withHome(async (h) => {
     const item = (await inboxContent(h)).find((i) => i.title.includes("kitchen"));
-    const noNote = await call(h.url, "POST", "/api/inbox/act", { body: { id: item.id, action: "send_back" } });
+    const noNote = await actAsSeen(h.url, { id: item.id, action: "send_back" });
     assert.equal(noNote.status, 400);
-    const r = await call(h.url, "POST", "/api/inbox/act", { body: { id: item.id, action: "send_back", note: "Shorter, please." } });
+    const r = await actAsSeen(h.url, { id: item.id, action: "send_back", note: "Shorter, please." });
     assert.equal(r.status, 200);
     const w = h.board.requests.filter((x) => x.method === "POST");
     assert.equal(w.length, 1);
@@ -104,7 +120,7 @@ test("send back with the board off leaves the draft as it was", async () => {
   await withHome(async (h) => {
     const item = (await inboxContent(h)).find((i) => i.title.includes("kitchen"));
     await h.board.close();
-    const r = await call(h.url, "POST", "/api/inbox/act", { body: { id: item.id, action: "send_back", note: "x" } });
+    const r = await actAsSeen(h.url, { id: item.id, action: "send_back", note: "x" });
     assert.equal(r.status, 502);
     assert.equal((await call(h.url, "GET", `/api/content/${item.id.slice(8)}`)).json.draft.status, "draft");
   });

@@ -7,7 +7,7 @@
 //   - text only as JSON; nothing is ever answered as HTML; every other file is "not viewable".
 import { fileResponse } from "../lib/static.mjs";
 import { readTaskText } from "../lib/taskfiles.mjs";
-import { readGoalBytes, sameFile, sniff } from "./_images.mjs";
+import { readGoalBytes, sniff } from "./_images.mjs";
 
 const MAX_IMAGE = 20 * 1024 * 1024;
 const MAX_SVG = 1024 * 1024;
@@ -56,9 +56,10 @@ function extensionOf(name) {
 // A file name safe inside a header: plain characters only.
 const headerName = (name) => name.replace(/[^A-Za-z0-9._ -]/g, "_").slice(0, 120) || "file";
 
+// The bytes already read and checked are what is sent: the file is never opened again by its path.
 function imageAnswer(found, type, name) {
   return fileResponse(
-    { file: found.real, size: found.size, type },
+    { bytes: found.bytes, size: found.bytes.length, type },
     { "content-disposition": `inline; filename="${headerName(name)}"`, "content-security-policy": SANDBOX },
   );
 }
@@ -74,7 +75,6 @@ export default function register(app) {
       if (!found) throw notFound(ctx);
       if (found.tooLarge) throw tooLarge(ctx);
       if (sniff(found.bytes) !== IMAGES[ext].sniff) throw notViewable(ctx);
-      if (!sameFile(found)) throw notFound(ctx);
       return imageAnswer(found, IMAGES[ext].type, t.base);
     }
 
@@ -85,7 +85,6 @@ export default function register(app) {
       if (sniff(found.bytes) !== null) throw notViewable(ctx);
       const text = found.bytes.toString("utf8");
       if (!/<svg[\s>/]/i.test(text)) throw notViewable(ctx);
-      if (!sameFile(found)) throw notFound(ctx);
       return imageAnswer(found, "image/svg+xml", t.base);
     }
 

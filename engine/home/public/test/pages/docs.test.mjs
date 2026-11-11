@@ -23,3 +23,9 @@ test("docs: canRead accepts .txt and .md under 2 MB only", () => {
 test("docs: the page is a component", () => {
   assert.equal(typeof mod.default, "function");
 });
+
+test("splitLesson: a dated lesson line reads as words and a plain date", () => {
+  assert.deepEqual(mod.splitLesson("2026-11-09: Keep files in the goal folder."), { date: "9 Nov 2026", text: "Keep files in the goal folder." });
+  assert.deepEqual(mod.splitLesson("No date here"), { date: "", text: "No date here" });
+  assert.deepEqual(mod.splitLesson("2026-13-01: odd"), { date: "", text: "2026-13-01: odd" });
+});

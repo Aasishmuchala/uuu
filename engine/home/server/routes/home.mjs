@@ -1,11 +1,11 @@
 // CONTRACTS-V2 17.2: GET /api/home. What needs the owner, what is running, today's brief.
 // Read only. The brief file and the lessons were written by agents: read through the safe reader, cut to size.
-import { closeSync, constants, fstatSync, lstatSync, openSync, opendirSync, readSync } from "node:fs";
+import { opendirSync } from "node:fs";
 import { join } from "node:path";
 import { HomeError } from "../lib/errors.mjs";
 import { descendants } from "../lib/goals.mjs";
 import { mergeInbox } from "../lib/inbox.mjs";
-import { readTaskText } from "../lib/taskfiles.mjs";
+import { readChecked, readTaskText } from "../lib/taskfiles.mjs";
 import { decorateInbox, findTask, loadTaskContext, taskCard } from "../lib/tasks.mjs";
 import { agentCards, DEPARTMENTS, loadRoles } from "../lib/team.mjs";
 import { computeBrief, MAX_ITEMS, parseBrief } from "./_brief.mjs";
@@ -100,11 +100,16 @@ function listFolders(dir, max) {
   return out;
 }
 
+// The brief file is written by an agent, so its `by:` line is the agent's claim: it may name a role, but it
+// can never make an item the owner's ("by: you" or "by: owner" is shown as an agent's).
+const OWNER_WORDS = new Set(["you", "owner", "the-owner", "me", "board"]);
 function whoOf(by, roles) {
   const want = by.trim().toLowerCase();
-  const role = roles.find((r) => r.name.toLowerCase() === want || r.slug === want);
+  const role = roles.find((r) => r.slug !== "you" && (r.name.toLowerCase() === want || r.slug === want));
   if (role) return { slug: role.slug, name: role.name };
-  return { slug: want.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "agent", name: by };
+  const slug = want.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  if (!slug || OWNER_WORDS.has(slug)) return { slug: "agent", name: "An agent" };
+  return { slug, name: by };
 }
 
 function aboutOf(about, tctx) {
@@ -151,7 +156,7 @@ function readLessons(config, roles) {
   for (const file of listFolders(dir, 100)) {
     const m = /^([a-z0-9-]{1,64})\.md$/.exec(file);
     if (!m) continue;
-    const text = readCapped(join(dir, file), 262144);
+    const text = readCapped(join(dir, file), 262144, dir);
     if (text === null) continue;
     const role = roles.find((r) => r.slug === m[1]);
     const name = role?.name || m[1];
@@ -163,16 +168,8 @@ function readLessons(config, roles) {
   return out;
 }
 
-function readCapped(path, max) {
-  let fd = null;
-  try {
-    if (!lstatSync(path).isFile()) return null;
-    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-    if (!fstatSync(fd).isFile()) return null;
-    const buf = Buffer.alloc(max);
-    const n = readSync(fd, buf, 0, max, 0);
-    return buf.subarray(0, n).toString("utf8");
-  } catch { return null; } finally {
-    if (fd !== null) try { closeSync(fd); } catch { /* ignore */ }
-  }
+// Agents write their lessons files: O_NOFOLLOW and O_NONBLOCK, a regular file still at its place, capped.
+function readCapped(path, max, dir) {
+  const read = readChecked(path, dir, { maxBytes: max });
+  return read ? read.bytes.toString("utf8") : null;
 }

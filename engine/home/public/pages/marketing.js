@@ -60,6 +60,25 @@ export const draftIdOf = (row) => {
 
 export const itemFor = (row, inbox) => (row?.inboxId ? (inbox?.items || []).find((i) => i.id === row.inboxId) || null : null);
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// A planned day ("2026-11-12") as the owner reads it: "Thu 12 Nov". Read from the text, so no time zone shifts it.
+export function plannedLabel(iso) {
+  const n = dayNumber(iso);
+  if (n === null) return "No date";
+  const m = ISO.exec(String(iso));
+  return `${WEEKDAYS[(n + 3) % 7]} ${+m[3]} ${MONTHS[+m[2] - 1]}`;
+}
+
+// The calendar rows whose decision is waiting in the inbox, each with its item, in date order.
+export function waitingDrafts(rows, inbox) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({ row, item: itemFor(row, inbox) }))
+    .filter((x) => x.item)
+    .sort((a, b) => String(a.row.planned ?? "").localeCompare(String(b.row.planned ?? "")));
+}
+
 const STATUS_TONE = { "Waiting for you": "warn", Approved: "ok", "Sent back": "neutral" };
 
 function DraftBody({ id, item, onDone }) {
@@ -84,7 +103,7 @@ function CalendarRow({ row, inbox, onDone }) {
   return html`
     <li class="p-marketing__row">
       <button type="button" class="p-marketing__head" aria-expanded=${open ? "true" : "false"} aria-controls=${panel} onClick=${() => setOpen(!open)}>
-        <span class="p-marketing__date">${row.planned || "No date"}</span>
+        <span class="p-marketing__date">${plannedLabel(row.planned)}</span>
         <span class="p-marketing__title">${row.title || "Untitled"}</span>
         <span class="p-marketing__meta"><${Chip}>${row.kind || "Draft"}<//></span>
         <${Tag} tone=${STATUS_TONE[row.status] || "neutral"}>${row.status || ""}<//>
@@ -124,6 +143,7 @@ export default function Page({ route }) {
   const onDone = () => { res.refresh(); inbox.refresh(); };
   const groups = groupByWeek(calendar?.rows || [], new Date()).filter((g) => g.rows.length);
   const strip = (gallery.data?.departments || []).find((x) => x.id === "marketing");
+  const waiting = waitingDrafts(calendar?.rows, inbox.data);
   const publishing = (d?.switches || []).find((s) => s.id === "publishing");
   return html`
     <div class="p-marketing">
@@ -131,10 +151,16 @@ export default function Page({ route }) {
         ${d?.agent ? html`<${AgentChip} agent=${{ slug: "marketer", name: d.agent.name, state: d.agent.state, plainState: d.agent.plainState }} />` : null}
       <//>
       ${res.loading && !d ? html`<${Loading} lines=${4} label="Loading Marketing" />` : null}
-      <${ErrorNotice} error=${res.error} onRetry=${res.reload} />
-      <${Notice} tone="info" title="Publishing is off.">${publishing?.explain || "Connect an account to turn this on."}<//>
+      ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
       ${d ? html`
-        <${Figures} figures=${d.figures} />
+        <${Notice} tone="info" title="Publishing is off.">${publishing?.explain || "Connect an account to turn this on."}<//>
+        <${Figures} figures=${d.figures || []} />
+        ${waiting.length ? html`
+          <${Section} title="Drafts waiting for you" count=${waiting.length}>
+            <ul class="p-marketing__waiting">
+              ${waiting.map(({ row, item }) => html`<li key=${item.id}><${DecisionCard} item=${item} compact onDone=${onDone} /></li>`)}
+            </ul>
+          <//>` : null}
         <${Section} title=${calendar?.title || "Content calendar"}>
           ${groups.length ? groups.map((g) => html`
             <div key=${g.id} class="p-marketing__group">

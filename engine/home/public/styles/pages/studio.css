@@ -3,7 +3,7 @@
 .p-studio .p-studio__sprites, .p-studio .p-studio__images, .p-studio .p-studio__problems { list-style: none; margin: 0; padding: 0; }
 .p-studio .p-studio__sprites { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); }
 .p-studio .p-studio__sprite { border: 1px solid var(--border); border-radius: var(--r-3); background: var(--bg-card); }
-.p-studio .p-studio__sprite--chosen { border-color: var(--accent); }
+.p-studio .p-studio__sprite--chosen { border-color: var(--text); }
 .p-studio .p-studio__sprite-button {
   display: flex; gap: var(--s-3); width: 100%; padding: var(--s-3); background: none; border: 0; color: inherit; text-align: left; cursor: pointer;
 }
@@ -23,3 +23,6 @@
 .p-studio .p-studio__strip { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
 .p-studio .p-studio__goal-title { margin: 0; font-weight: var(--fw-bold); }
 .p-studio .p-studio__goal-text { margin: var(--s-1) 0 0; color: var(--text-2); }
+/* A goal card in the strip is stretched to the row's height; keep its text at the top. */
+.p-studio .p-studio__strip > .k-card { display: flex; flex-direction: column; justify-content: flex-start; }
+.p-studio .p-studio__sprite-button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-3); }
