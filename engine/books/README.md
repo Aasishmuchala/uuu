@@ -14,6 +14,26 @@ These scripts install it, start it, stop it and say whether it is healthy.
 `lib.sh` holds the shared settings; `books_setup.py` does the first-run setup
 and makes the owner's API key (run by `install.sh` with the bench's Python).
 
+## Set-up wizard
+
+`setup-wizard.sh` asks the owner for the three entries only they know, and
+writes them into the books (`--dry-run`: the books check everything, then it
+is undone; `--status`: what the books hold now). Its helper `wizard_books.py`
+runs in the bench and saves in one transaction, so a refusal saves nothing:
+
+- GST: `Company.gstin` and `gst_category`, as India Compliance's own set-up
+  wizard does (`india_compliance/setup_wizard.py`, `update_company_info`).
+- Address: the company's own Address (linked to the Company), with `gstin`
+  and `gst_category`. Invoices take the company's GST number from it.
+- Holidays: one Holiday List, `<company> holidays <year>-<year+1>`, from 1
+  January of this year to 31 December of next year; `Company.default_holiday_list`;
+  and one submitted Holiday List Assignment for the company, which is where
+  HRMS 16 looks for a person's holiday list.
+
+Running it again updates the same Address and list: public holidays already
+there stay. It refuses if India Compliance's online look-ups are switched on,
+so no GST number leaves this Mac. Tests: `tests/test_wizard_books.py`.
+
 ## What is where
 
 - Bench: `~/.paperclip/uuu-engine/books/bench` (site `engine.localhost`)

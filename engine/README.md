@@ -89,7 +89,7 @@ Each is an off switch or an account step. Nothing is done for you.
 
 - **The Checker's own Codex login.** Run `engine/fence/login-wizard.sh codex` and follow the steps. Until then the Checker uses your own Codex login through a link, and the proof shows one note. `engine/fence/login-wizard.sh --status` shows where each login stands. The Claude agents' login is `engine/fence/login-wizard.sh`.
 - **Connecting accounts.** Before anything can be published or sent, you connect the account it goes through.
-- **The books, before real use.** In the books' own screens (open them from the Books page), enter the company's GST number and address; until then invoices say "Nil-Rated" even where tax is charged. Add a holiday list; until then leave can be drafted but not made final.
+- **The books, before real use.** Run `engine/books/setup-wizard.sh`. It asks whether the company is registered for GST (and its GST number and scheme), the company's address, and the weekly days off and public holidays, then shows it all and saves it in one go. Until then invoices say "Nil-Rated" even where tax is charged, and leave can be drafted but not made final. `--dry-run` checks your answers without saving; `--status` shows what the books hold.
 
 Also optional: the board can be switched to its own sign-in. Today, other programs on this Mac can still reach the board and the home screen as you. The gate closes this gap for agents only.
 

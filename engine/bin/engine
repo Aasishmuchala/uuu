@@ -304,7 +304,7 @@ EOF
     (cd "$REPO_DIR" && "$NODE" --test "${files[@]}") || code=$?
     [ "$code" = 0 ] || failed=1
   fi
-  for d in engine/lib/tests engine/fence/tests engine/cad/tests engine/art/tests; do
+  for d in engine/lib/tests engine/fence/tests engine/cad/tests engine/art/tests engine/books/tests; do
     [ -d "$REPO_DIR/$d" ] || continue
     echo "Running the Python tests in $d..."
     code=0
