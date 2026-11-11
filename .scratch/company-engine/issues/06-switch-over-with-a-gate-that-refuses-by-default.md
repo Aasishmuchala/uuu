@@ -8,10 +8,10 @@
 
 **Plan tasks:** P1a, P1b, T16b (plan revision R1 in the first plan)
 
-- [ ] An agent's request that changes anything is refused unless it is on the gate's short list
-- [ ] Creating or changing agents, skills, tool connections, projects, settings and routines is refused for every agent
-- [ ] The apply command no longer tries to change an agent's grants, and says plainly that the gate blocks them
-- [ ] The stand-in board behaves like the real one about grants, so tests cannot pass by accident
-- [ ] The proof shows each refusal with a real agent test key
+- [x] An agent's request that changes anything is refused unless it is on the gate's short list
+- [x] Creating or changing agents, skills, tool connections, projects, settings and routines is refused for every agent
+- [x] The apply command no longer tries to change an agent's grants, and says plainly that the gate blocks them
+- [x] The stand-in board behaves like the real one about grants, so tests cannot pass by accident
+- [x] The proof shows each refusal with a real agent test key
 - [ ] One command starts everything; a real goal finishes and reaches the owner
 - [ ] The trial code is deleted

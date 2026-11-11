@@ -8,14 +8,14 @@
 
 **Plan tasks:** T6, T7
 
-- [ ] One file lists every agent with its job, tool, model, limits, rights and who it reports to
-- [ ] Each agent has its own instructions in plain language
-- [ ] Every agent's instructions say: work only in the current working folder, never change workspace settings, work in the system of record only as drafts, report plainly, never send anything outside
-- [ ] The Chief of staff knows its team and each member's job, and hands out one step at a time
-- [ ] Only the Chief of staff may assign tasks; no agent may create agents or skills
+- [x] One file lists every agent with its job, tool, model, limits, rights and who it reports to
+- [x] Each agent has its own instructions in plain language
+- [x] Every agent's instructions say: work only in the current working folder, never change workspace settings, work in the system of record only as drafts, report plainly, never send anything outside
+- [x] The Chief of staff knows its team and each member's job, and hands out one step at a time
+- [x] Only the Chief of staff may assign tasks; no agent may create agents or skills
 - [ ] The extra rights paperclip gives every agent by default are removed
-- [ ] Each agent runs one task at a time with a time limit per run
-- [ ] There is one project with one folder, and every goal's work goes into it
-- [ ] New agents need the owner's approval
-- [ ] The command writes each agent's fence rules
-- [ ] A second run changes nothing; an agent that is not in the file is left alone, never deleted
+- [x] Each agent runs one task at a time with a time limit per run
+- [x] There is one project with one folder, and every goal's work goes into it
+- [x] New agents need the owner's approval
+- [x] The command writes each agent's fence rules
+- [x] A second run changes nothing; an agent that is not in the file is left alone, never deleted

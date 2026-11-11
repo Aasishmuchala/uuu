@@ -8,12 +8,12 @@
 
 **Plan tasks:** T5
 
-- [ ] Start brings up the books, the board, the gate and the home screen in that order, checking each before the next
-- [ ] Start stops at the first part that fails, names it, and says where to look
-- [ ] Start refuses to bring up the board when the fence is not in place
-- [ ] Running start twice never starts a second copy of anything
-- [ ] Stop brings everything down in reverse order and leaves no agent running
-- [ ] Status prints one line per part: on, off, unhealthy or not installed, with one plain sentence
-- [ ] A part that is not installed is skipped and said so, not treated as a failure
-- [ ] Nothing is set to start by itself when the Mac starts
-- [ ] Logs and process records live in the engine's own folder, outside the repo
+- [x] Start brings up the books, the board, the gate and the home screen in that order, checking each before the next
+- [x] Start stops at the first part that fails, names it, and says where to look
+- [x] Start refuses to bring up the board when the fence is not in place
+- [x] Running start twice never starts a second copy of anything
+- [x] Stop brings everything down in reverse order and leaves no agent running
+- [x] Status prints one line per part: on, off, unhealthy or not installed, with one plain sentence
+- [x] A part that is not installed is skipped and said so, not treated as a failure
+- [x] Nothing is set to start by itself when the Mac starts
+- [x] Logs and process records live in the engine's own folder, outside the repo

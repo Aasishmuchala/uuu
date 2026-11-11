@@ -2,7 +2,7 @@
 
 Label: wayfinder:grilling
 Type: grilling
-Status: open
+Status: resolved
 Blocked by: 12
 
 ## Question
@@ -22,3 +22,11 @@ In paperclip's default local mode, any request that carries no login counts as t
 2. **A small gate in front of the board.** Keep the no-login mode for the owner. Agents reach the board only through a gate that refuses requests without a token. Cost: custom security code to keep correct across paperclip updates. No login for the owner.
 
 Either way the proof's failing line must turn to PASS before agents do real work.
+
+## Answer
+
+Option 2: a small gate in front of the board (`engine/gate/`). Agents can reach the board only through it, and the fence closes the board's port. The gate turns away a request with no agent token (401) and closes a live connection with none. The owner keeps using the board and the home screen with no sign-in. See `docs/adr/0001-the-gate-in-front-of-the-board.md`.
+
+The proof's old failing line is gone. Its lines now read: "a Claude agent can reach the gate, which turns it away without a token (401)" and "a Claude agent cannot reach the board directly (port 3100)", the same for the Codex agent, and "an agent token passes the gate". The last proof on the live engine held, 101 passed and 0 failed.
+
+What is left open: other programs on this Mac can still reach the board as the owner. Switching the board to its own sign-in mode (option 1) would close that and stays an owner's option.

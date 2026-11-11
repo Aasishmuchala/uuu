@@ -32,6 +32,8 @@ A buildable spec for phase 1 of the engine: paperclip as the company plane, runn
 - [What proves phase 1 worked](issues/11-what-proves-phase-1-worked.md): 20 checked tasks, fence test passing at both ends, plan never exhausted, 15 minutes a day or less, phase 2 spec delivered.
 - [Trial run: paperclip with two agents on this Mac](issues/05-trial-run-paperclip-with-two-agents.md): yes for one agent; a fenced Builder finished a task under paperclip and the fence passes twelve of twelve checks. Prototype on branch `prototype/fence-trial`.
 - [The same fence around Codex](issues/12-the-same-fence-around-codex.md): yes. The Checker runs on Codex inside the fence, and one goal went through all three roles and back to the owner. One folder per goal, shared by the team. Rights and limits are set. The proof passes 14 of 15 per tool; the failure is the board, ticket 13.
+- [Who counts as the owner on the board](issues/13-who-counts-as-the-owner-on-the-board.md): a gate in front of the board; a request with no agent token never reaches it.
+- [What an agent's own board rights still allow](issues/15-what-an-agents-own-board-rights-still-allow.md): the grants cannot be trimmed, so the gate refuses every change except a short list the work needs, and reads request bodies.
 
 ## Not yet specified
 

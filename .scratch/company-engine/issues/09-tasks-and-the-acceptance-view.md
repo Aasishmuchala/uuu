@@ -4,16 +4,16 @@
 
 **Blocked by:** 07
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Plan tasks:** V3, V8, V13, V14, V24, V25
 
-- [ ] The board shows each task as a card with its identifier, title, who has it, its size, and a schedule chip when it came from a routine
-- [ ] A finished task waits under Pending review until the owner accepts it
-- [ ] The task page shows how many verification rounds there were and one Accept button when the work is waiting
-- [ ] Each check shows pass or fail, its reason and its evidence; an image is shown large
-- [ ] Each round has its own tab, labelled Repairing, Passed or Failed
-- [ ] The timeline shows each step with who did it and how long it took
-- [ ] The brief, the plan, the summary and the check can be read in order
-- [ ] Send back takes a note and reopens the task
-- [ ] Files and comments that agents wrote are read safely: no link is followed and nothing is shown as a web page
+- [x] The board shows each task as a card with its identifier, title, who has it, its size, and a schedule chip when it came from a routine
+- [x] A finished task waits under Pending review until the owner accepts it
+- [x] The task page shows how many verification rounds there were and one Accept button when the work is waiting
+- [x] Each check shows pass or fail, its reason and its evidence; an image is shown large
+- [x] Each round has its own tab, labelled Repairing, Passed or Failed
+- [x] The timeline shows each step with who did it and how long it took
+- [x] The brief, the plan, the summary and the check can be read in order
+- [x] Send back takes a note and reopens the task
+- [x] Files and comments that agents wrote are read safely: no link is followed and nothing is shown as a web page

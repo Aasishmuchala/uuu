@@ -4,18 +4,18 @@
 
 **Blocked by:** 05
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Plan tasks:** V1, V2, V7, V10, V11, V59, V48
 
-- [ ] Every colour, size, space and radius comes from one set of tokens, in light and dark, with six accents
-- [ ] Text meets a contrast of 4.5 to 1 in both themes, checked by a test
-- [ ] The font and the ten avatars are vendored with their licences, or the system font and coloured initials are used
-- [ ] One approval card is used everywhere: it shows exactly what is being approved, one main action, Send back with a note, and Esc cancels
-- [ ] A list item that waits for the owner shows a "waiting for you" mark; anything still working shows a live mark
-- [ ] The sidebar lists every agent with its avatar and state
-- [ ] A page that is not built yet says so instead of breaking
-- [ ] The command menu finds pages, agents and anything search finds
-- [ ] Below 860 px the sidebar becomes a drawer and every control is at least 44 px high
-- [ ] What a page shows is in its address, so any state can be opened directly
-- [ ] No code, logo or artwork is copied from another project
+- [x] Every colour, size, space and radius comes from one set of tokens, in light and dark, with six accents
+- [x] Text meets a contrast of 4.5 to 1 in both themes, checked by a test
+- [x] The font and the ten avatars are vendored with their licences, or the system font and coloured initials are used
+- [x] One approval card is used everywhere: it shows exactly what is being approved, one main action, Send back with a note, and Esc cancels
+- [x] A list item that waits for the owner shows a "waiting for you" mark; anything still working shows a live mark
+- [x] The sidebar lists every agent with its avatar and state
+- [x] A page that is not built yet says so instead of breaking
+- [x] The command menu finds pages, agents and anything search finds
+- [x] Below 860 px the sidebar becomes a drawer and every control is at least 44 px high
+- [x] What a page shows is in its address, so any state can be opened directly
+- [x] No code, logo or artwork is copied from another project

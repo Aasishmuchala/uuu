@@ -8,10 +8,10 @@
 
 **Plan tasks:** V16, V17, V20, V51, V52, V53, V54, V55
 
-- [ ] Each department page shows figures first, then drafts waiting with their actions in place
-- [ ] A department that is not installed or is switched off says so with the next step
-- [ ] Marketing groups drafts by week and says plainly that publishing is off
-- [ ] Docs adds a document, lists and opens documents, searches them, and shows what agents have learned
+- [x] Each department page shows figures first, then drafts waiting with their actions in place
+- [x] A department that is not installed or is switched off says so with the next step
+- [x] Marketing groups drafts by week and says plainly that publishing is off
+- [x] Docs adds a document, lists and opens documents, searches them, and shows what agents have learned
 - [ ] Live: a draft invoice is approved and becomes final in the books
 - [ ] Live: a lead is recorded and qualified
 - [ ] Live: a reply is drafted and approved, and nothing is sent

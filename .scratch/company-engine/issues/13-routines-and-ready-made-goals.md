@@ -4,14 +4,14 @@
 
 **Blocked by:** 06, 07
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Plan tasks:** V9, V21, V29, V30, V36, V37, V38, V39, V40, V41
 
-- [ ] A routine is one file: when it runs, which agent, what it must produce, and a time limit
-- [ ] The apply command creates routines paused and never switches one on or off afterwards
-- [ ] An agent cannot create, change or start a routine
-- [ ] The Routines page shows each routine's schedule, state and runs, with Run now and a switch
-- [ ] A task that came from a routine carries a schedule chip
-- [ ] Each department has four to eight ready-made goals written as the owner would say them
-- [ ] A ready-made goal opens in the composer as a draft with its blanks to fill
+- [x] A routine is one file: when it runs, which agent, what it must produce, and a time limit
+- [x] The apply command creates routines paused and never switches one on or off afterwards
+- [x] An agent cannot create, change or start a routine
+- [x] The Routines page shows each routine's schedule, state and runs, with Run now and a switch
+- [x] A task that came from a routine carries a schedule chip
+- [x] Each department has four to eight ready-made goals written as the owner would say them
+- [x] A ready-made goal opens in the composer as a draft with its blanks to fill
