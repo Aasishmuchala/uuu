@@ -141,6 +141,20 @@ button.k-checks__row:hover {
   overflow-wrap: anywhere;
 }
 
+/* A Markdown file of evidence, shown as readable text in a card that scrolls on its own when long. */
+.k-evidence__doc {
+  max-height: 70vh;
+  overflow: auto;
+  padding: var(--s-4);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+}
+
+.k-evidence__doc:focus-visible {
+  outline-offset: 2px;
+}
+
 .k-evidence__name,
 .k-evidence__more {
   margin: 0;

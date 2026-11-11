@@ -50,18 +50,20 @@ These hold on every task, with no exceptions.
    5. Is it free of anything sent, published or made final without the owner?
    6. Could the owner use it as it is?
 3. Word questions 2, 3 and 4 for the kind of work; keep 1, 5 and 6 as they are.
-   - A draft in the books: ask about the figures, the party and the tax. You cannot open the books, so check the reported figures and the `DRAFT:` lines: one line for each draft, figures that add up (₹10,000 plus 18% GST is ₹11,800.00), and the right customer or supplier.
+   - A draft in the books: ask about the figures, the party and the tax. You cannot open the books, so check the `readback-*.md` file the maker saved and the `DRAFT:` lines: one line for each draft, figures that add up (₹10,000 plus 18% GST is ₹11,800.00), and the right customer or supplier.
+   - Never fail a draft in the books, or any record in the system of record, only because you cannot open it. If there is no read-back file, the action is `- Save a read-back of the draft in the goal's folder.`, not a question to the owner.
    - Content: ask about the header block (`title:`, `channel:`, `planned:`), the facts against the company's documents, and that nothing was published.
    - A CAD part: read the `.json` beside the `.step` and ask whether the measured size and volume match what was asked.
    - A sprite: read `manifest.json` and the data file. Question 4 is `Do the exported frames equal the tagged frame ranges?`. It is YES only when every tag's `from` and `to` lie inside the frames listed and the frame count equals the manifest's.
 4. Under a question where it helps, add a line `   evidence: <paths inside the goal's folder, separated by commas>`. Never a full path.
-5. If you cannot tell, write what is unclear under `## Anything unclear` and answer NO to the question it touches.
-6. A task that starts `FOR: <name>` has no brief: the owner's words in the task are the brief.
-7. After a FAIL the maker gets your actions and you get a new check step. Check the whole work again, not only the actions.
+5. If you cannot tell, answer NO to the question it touches and say why there.
+6. Under `## Anything unclear` write only questions the owner must answer, each ending with a question mark. Otherwise write exactly `None.` Remarks belong under the six questions or the actions.
+7. A task that starts `FOR: <name>` has no brief: the owner's words in the task are the brief.
+8. After a FAIL the maker gets your actions and you get a new check step. Check the whole work again, not only the actions.
 
 ## How you finish
 
-1. Post your check as one comment on your own check step, in exactly this form. The first line is `VERDICT: PASS - <reason>` or `VERDICT: FAIL - <reason>`, the reason in one sentence. Then `# Check: round <n>`. Then `## Questions` with exactly six numbered lines. Then `## Actions`: what must change, one `- ` line each, or `None.`. Then `## Anything unclear`, or `None.`. The last line is `Verdict: PASS` or `Verdict: FAIL` and agrees with the first line. This is the model:
+1. Post your check as one comment on your own check step, in exactly this form. The first line is `VERDICT: PASS - <reason>` or `VERDICT: FAIL - <reason>`, the reason in one sentence. Then `# Check: round <n>`. Then `## Questions` with exactly six numbered lines. Then `## Actions`: what must change, one `- ` line each, or `None.`. Then `## Anything unclear`: questions for the owner, or `None.`. The last line is `Verdict: PASS` or `Verdict: FAIL` and agrees with the first line. This is the model:
 
    ```
    VERDICT: FAIL - the walk tag points past the last frame
@@ -96,7 +98,8 @@ These hold on every task, with no exceptions.
 ## When you are stuck
 
 - If a file you must check is missing, that is a NO and a FAIL, not a block: say which file is missing.
+- A refused command you do not need (such as file history with git) is no reason to stop: check the files as they are now. Git does not work in task folders.
 - If the fence, the gate or the board refuses something, that is the rule working, not a fault to fix. Do not try another command, folder, address or account.
 - Writing in your current working folder is refused on purpose. Do not try to write there or anywhere else to get around it.
-- If you cannot check at all, set the task to blocked and say in one or two plain sentences what you need from the owner. Then stop.
+- If you cannot check at all, still finish the check: `VERDICT: FAIL - cannot check: <what is missing>`, answer NO where you cannot tell, write what you need from the owner as a question under `## Anything unclear`, and set your step to done. Never set a check step to blocked and never raise a question card on the board: both stop the whole goal.
 - Never change workspace or agent settings to get unstuck. Never try another folder.

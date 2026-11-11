@@ -32,14 +32,25 @@ const VENDOR_FILES = {
   "preact-htm.js": "72284e8e9079c87817145df1110f74e8a2aa040b2fc384922e18dfcb46fc1fd7",
 };
 
+// Other work may save files in public/ while the tests run (an editor writes a temporary file and renames it
+// away): a file that is gone by the time it is looked at or read is not part of public/ any more.
+const gone = (e) => e && e.code === "ENOENT";
+
 function walk(dir, skip = [], out = []) {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
     if (skip.includes(full)) continue;
-    if (statSync(full).isDirectory()) walk(full, skip, out);
+    let st;
+    try { st = statSync(full); } catch (e) { if (gone(e)) continue; throw e; }
+    if (st.isDirectory()) walk(full, skip, out);
     else out.push(full);
   }
   return out;
+}
+
+// The text of a file found by walk(), or null when it has been removed since.
+function textOf(file) {
+  try { return readFileSync(file, "utf8"); } catch (e) { if (gone(e)) return null; throw e; }
 }
 
 const inside = (p) => p === PUBLIC || p.startsWith(PUBLIC + sep);
@@ -105,7 +116,9 @@ test("every static import of every module exists and stays inside public/", () =
   assert.ok(MODULES.length >= 15, "the modules were found");
   for (const file of MODULES) {
     const where = relative(PUBLIC, file);
-    for (const spec of staticImports(readFileSync(file, "utf8"))) {
+    const text = textOf(file);
+    if (text === null) continue;
+    for (const spec of staticImports(text)) {
       assert.ok(spec.startsWith("./") || spec.startsWith("../"), `${where} imports "${spec}" by a relative path only`);
       const target = resolve(dirname(file), spec);
       assert.ok(inside(target), `${where} imports "${spec}" from inside public/`);
@@ -117,7 +130,8 @@ test("every static import of every module exists and stays inside public/", () =
 test("no file outside vendor/ and assets/ names another host", () => {
   for (const file of FILES) {
     if (file === SELF || /\.(png|gif|jpe?g|webp|woff2?)$/i.test(file)) continue;
-    const text = readFileSync(file, "utf8");
+    const text = textOf(file);
+    if (text === null) continue;
     // The W3C's namespace names (for SVG) are names, not addresses.
     const hosts = [...text.matchAll(/\b(?:https?:)?\/\/([a-z0-9.-]+\.[a-z]{2,}|localhost|\d+\.\d+\.\d+\.\d+)(?::\d+)?/gi)]
       .filter((m) => !/^www\.w3\.org$/i.test(m[1]) && /^https?:/i.test(m[0]))

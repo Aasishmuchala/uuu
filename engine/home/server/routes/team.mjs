@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { HomeError } from "../lib/errors.mjs";
 import { descendants } from "../lib/goals.mjs";
 import { textOf } from "../lib/staged.mjs";
+import { plainLines } from "../inbox/goals.mjs";
 import { fileEntry, listTaskFiles, readChecked } from "../lib/taskfiles.mjs";
 import { agentCards, loadRoles, profileOf } from "../lib/team.mjs";
 import { loadTaskContext, taskCard } from "../lib/tasks.mjs";
@@ -107,7 +108,7 @@ async function conversationOf(ctx, tctx, role, agentId) {
         const body = String(c.body || "").slice(0, MAX_TEXT);
         const isResult = issue.status === "done" && i === own.length - 1;
         items.push({
-          who: who(role), kind: isResult ? "result" : "comment", text: body, at: c.createdAt,
+          who: who(role), kind: isResult ? "result" : "comment", text: plainLines(body), at: c.createdAt,
           taskId: goal.id, identifier: goal.identifier, files: isResult ? filesNamed(ctx.config, goal, body) : [],
         });
       });

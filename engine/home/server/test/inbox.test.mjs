@@ -88,7 +88,7 @@ test("board approval: approve, send back (needs a note), reject", async () => {
     assert.equal(item.kind, "approval");
     assert.equal(item.raisedBy, "Builder");
     assert.equal(item.title, "Buy a font licence");
-    assert.deepEqual(item.actions.map((a) => [a.id, a.style, a.needsNote]), [["approve", "primary", false], ["send_back", "plain", true], ["reject", "danger", false]]);
+    assert.deepEqual(item.actions.map((a) => [a.id, a.style, a.needsNote]), [["approve", "primary", false], ["send_back", "plain", true], ["reject", "danger", false], ["dismiss", "plain", false]]);
     assert.deepEqual(item.link, { page: "goals", id: IDS.issues["STH-1"] });
 
     const before = writes(h.board).length;
@@ -126,7 +126,7 @@ test("board review: approve and send back go to stalled-review-decision", async 
   await withHome(async (h) => {
     const item = (await inbox(h)).items.find((i) => i.id === "board:review:rv-1");
     assert.equal(item.kind, "approval");
-    assert.deepEqual(item.actions.map((a) => a.id), ["approve", "send_back"]);
+    assert.deepEqual(item.actions.map((a) => a.id), ["approve", "send_back", "dismiss"]);
     await actOn(h, item.id, "approve");
     const w = lastWrite(h);
     assert.equal(`${w.method} ${w.path}`, `POST /api/issues/${IDS.issues["STH-1"]}/stalled-review-decision`);
@@ -140,31 +140,29 @@ test("board review: approve and send back go to stalled-review-decision", async 
   }, { seed: seed() });
 });
 
-test("board question: accept, reject, answer", async () => {
+test("board question: a confirmation offers Accept, Decline and Hide; a decision only Hide", async () => {
   const base = `/api/issues/${IDS.issues["STH-1"]}/interactions/${IDS.interaction}`;
-  for (const [action, note, path, body] of [
-    ["accept", undefined, `${base}/accept`, {}],
-    ["reject", undefined, `${base}/reject`, {}],
-    ["answer", "Blue, please", `${base}/respond`, { answers: [], summaryMarkdown: "Blue, please" }],
-  ]) {
+  for (const [action, path] of [["accept", `${base}/accept`], ["reject", `${base}/reject`]]) {
     await withHome(async (h) => {
       const item = (await inbox(h)).items.find((i) => i.id === QUESTION_ID);
       assert.equal(item.kind, "question");
       assert.equal(item.raisedBy, "Chief of staff");
-      if (action === "answer") assert.equal((await actOn(h, QUESTION_ID, "answer")).status, 400);
-      const r = await actOn(h, QUESTION_ID, action, note);
+      assert.deepEqual(item.actions.map((a) => a.id), ["accept", "reject", "dismiss"]);
+      assert.equal((await actOn(h, QUESTION_ID, "answer", "Blue, please")).status, 400, "no answer for a confirmation");
+      const r = await actOn(h, QUESTION_ID, action);
       assert.equal(r.status, 200, action);
       const w = lastWrite(h);
       assert.equal(`${w.method} ${w.path}`, `POST ${path}`);
-      assert.deepEqual(w.body, body);
+      assert.deepEqual(w.body, {});
     });
   }
-  // a "decision" item is a question too
+  // a "decision" item is a question too, but it is not an interaction: nothing goes to the board for it
   const s = plainApprovalSeed();
   s.attention.push(extraItem("decision", "dc-1", { subject: { metadata: { interactionId: "dc-1", issueId: IDS.issues["STH-1"] } } }));
   await withHome(async (h) => {
     const item = (await inbox(h)).items.find((i) => i.id === "board:decision:dc-1");
     assert.equal(item.kind, "question");
+    assert.deepEqual(item.actions.map((a) => a.id), ["dismiss"]);
   }, { seed: s });
 });
 
@@ -188,9 +186,9 @@ test("board problems: retry, answer, dismiss; high when severity is high or crit
     assert.deepEqual(w.body, { body: "The statement is in the knowledge folder." });
   });
   const s = plainApprovalSeed();
-  s.attention.push(extraItem("recovery_action", "ra-1", { severity: "critical" }));
+  s.attention.push(extraItem("recovery_action", "ra-1", { severity: "critical", issueKey: "STH-3" }));
   s.attention.push(extraItem("agent_error_alert", "ae-1", { severity: "low" }));
-  s.attention.push(extraItem("blocker_attention", "bl-1", { severity: "high" }));
+  s.attention.push(extraItem("blocker_attention", "bl-1", { severity: "high", issueKey: "STH-3" }));
   await withHome(async (h) => {
     const items = (await inbox(h)).items;
     const by = (id) => items.find((i) => i.id === id);
@@ -199,7 +197,7 @@ test("board problems: retry, answer, dismiss; high when severity is high or crit
     assert.equal(by("board:agent_error_alert:ae-1").severity, "normal");
     assert.equal(by("board:blocker_attention:bl-1").severity, "high");
     await actOn(h, "board:recovery_action:ra-1", "retry");
-    assert.equal(lastWrite(h).path, `/api/issues/${IDS.issues["STH-1"]}/retry`);
+    assert.equal(lastWrite(h).path, `/api/issues/${IDS.issues["STH-3"]}/retry`);
   }, { seed: s });
 });
 

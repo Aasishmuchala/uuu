@@ -4,7 +4,7 @@
 
 **Blocked by:** 01, 02, 03, 04
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Plan tasks:** P1a, P1b, T16b (plan revision R1 in the first plan)
 
@@ -13,5 +13,5 @@
 - [x] The apply command no longer tries to change an agent's grants, and says plainly that the gate blocks them
 - [x] The stand-in board behaves like the real one about grants, so tests cannot pass by accident
 - [x] The proof shows each refusal with a real agent test key
-- [ ] One command starts everything; a real goal finishes and reaches the owner
-- [ ] The trial code is deleted
+- [x] One command starts everything; a real goal finishes and reaches the owner
+- [x] The trial code is deleted

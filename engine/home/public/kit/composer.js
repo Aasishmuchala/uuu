@@ -9,6 +9,24 @@ import { Kbd } from "./text.js";
 
 export const DEFAULT_PLACEHOLDER = "Say what you want done.  /  for ready-made goals,  @  to pick who.";
 
+export const SHORT_PLACEHOLDER = "Say what you want done.";
+const PHONE = "(max-width: 479px)";
+
+// True while the window is narrower than 480 px; follows the window as it changes.
+function usePhone() {
+  const query = () => (typeof matchMedia === "function" ? matchMedia(PHONE) : null);
+  const [phone, setPhone] = useState(() => !!query()?.matches);
+  useEffect(() => {
+    const mq = query();
+    if (!mq) return undefined;
+    const on = () => setPhone(mq.matches);
+    on();
+    if (mq.addEventListener) { mq.addEventListener("change", on); return () => mq.removeEventListener("change", on); }
+    return undefined;
+  }, []);
+  return phone;
+}
+
 const text = (v) => (v === null || v === undefined ? "" : String(v));
 
 // Pure. What the owner is typing at the caret: { kind: "/", query } for "/" at the start of a line,
@@ -58,6 +76,7 @@ export function Composer({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const area = useRef(null);
+  const phone = usePhone();
   const ids = useMemo(() => { seq += 1; return { list: `k-composer-list-${seq}`, field: `k-composer-field-${seq}` }; }, []);
 
   useEffect(() => { setWho(to || null); }, [to]);
@@ -182,7 +201,7 @@ export function Composer({
       </div>`}
       <label class="u-visually-hidden" for=${ids.field}>What you want done</label>
       <textarea id=${ids.field} ref=${area} class="k-composer__field" rows="2" value=${value}
-        placeholder=${text(placeholder) || DEFAULT_PLACEHOLDER} readOnly=${isBusy} aria-busy=${isBusy ? "true" : "false"}
+        placeholder=${phone && (!text(placeholder) || placeholder === DEFAULT_PLACEHOLDER) ? SHORT_PLACEHOLDER : text(placeholder) || DEFAULT_PLACEHOLDER} readOnly=${isBusy} aria-busy=${isBusy ? "true" : "false"}
         aria-autocomplete="list" aria-expanded=${open ? "true" : "false"}
         aria-controls=${open ? ids.list : undefined}
         aria-activedescendant=${open ? `${ids.list}-${current}` : undefined}

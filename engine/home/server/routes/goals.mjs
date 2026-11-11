@@ -2,6 +2,7 @@
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 import { buildText } from "../lib/staged.mjs";
+import { stopTask } from "../lib/stop.mjs";
 import { loadRoles } from "../lib/team.mjs";
 import {
   agentNames, authorOf, commentsOf, descendants, goalsOf, isFinished, isGoal, loadIssues, needIds,
@@ -137,8 +138,10 @@ export default function register(app) {
 
   app.post("/api/goals/:id/stop", async (ctx) => {
     const ids = needIds(ctx);
-    const { goal } = await findGoal(ctx, ids, ctx.params.id);
-    await ctx.board.patch(`/api/issues/${encodeURIComponent(goal.id)}`, { status: "cancelled" });
-    return { ok: true };
+    const { goal, issues } = await findGoal(ctx, ids, ctx.params.id);
+    // The goal first, then its open steps (lib/stop.mjs), so no step of a stopped task still waits for the owner or an agent.
+    const out = await stopTask(ctx, goal.id, { issues });
+    ctx.home?.unstick?.forget?.(goal.id);
+    return { ok: true, message: out.message };
   });
 }

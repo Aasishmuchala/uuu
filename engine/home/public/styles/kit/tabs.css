@@ -1,16 +1,12 @@
-/* kit/tabs.js: a quiet row of tabs; the current one is underlined in the accent. */
+/* kit/tabs.js: a quiet row of tabs; the current one is underlined in the accent. When the row is too narrow for
+   every tab, the tabs wrap onto a second line: every tab stays in sight, nothing hides off the edge. */
 
 .k-tabs {
   display: flex;
+  flex-wrap: wrap;
   align-items: stretch;
-  gap: var(--s-1);
+  gap: 0 var(--s-1);
   border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.k-tabs::-webkit-scrollbar {
-  display: none;
 }
 
 .k-tabs__tab {

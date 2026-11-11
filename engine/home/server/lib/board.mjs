@@ -9,7 +9,9 @@ export function boardOff() {
     "Run: engine start", "board_off");
 }
 
-export function createBoard({ baseUrl, ids, companyName, log = () => {}, timeoutMs = 8000 }) {
+// Reads get `timeoutMs`; writes (POST, PATCH, PUT, DELETE) get `writeTimeoutMs`, as a comment write on a
+// busy board can take longer than a read and must not be reported as "not answering" when it worked.
+export function createBoard({ baseUrl, ids, companyName, log = () => {}, timeoutMs = 8000, writeTimeoutMs = 20000 }) {
   let cachedCompanyId = null;
 
   async function call(method, path, body) {
@@ -20,7 +22,8 @@ export function createBoard({ baseUrl, ids, companyName, log = () => {}, timeout
     if (body !== undefined) headers["content-type"] = "application/json";
     let res;
     try {
-      res = await httpRequest(baseUrl + path, { method, headers, body, timeoutMs });
+      const limit = method === "GET" || method === "HEAD" ? timeoutMs : writeTimeoutMs;
+      res = await httpRequest(baseUrl + path, { method, headers, body, timeoutMs: limit });
     } catch {
       throw boardOff();
     }

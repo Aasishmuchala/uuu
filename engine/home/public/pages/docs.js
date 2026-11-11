@@ -4,7 +4,7 @@ import { api, useResource } from "../lib/api.js";
 import { bytes } from "../lib/format.js";
 import { useApp } from "../lib/context.js";
 import {
-  Button, Card, Empty, ErrorNotice, Field, Loading, Notice, PageHeader, Section, TextArea, TextInput, Time,
+  Button, Card, Empty, ErrorNotice, Field, Loading, Markdown, Notice, PageHeader, Section, TextArea, TextInput, Time,
 } from "../kit/index.js";
 
 const MAX_READ = 2 * 1024 * 1024;
@@ -122,13 +122,17 @@ function AddDocument({ onAdded }) {
     <//>`;
 }
 
-function DocBody({ id }) {
+// True for a document whose name ends in .md: it is shown as headings, lists and bold, not raw marks.
+export const isMarkdown = (name) => /\.md$/i.test(String(name ?? ""));
+
+function DocBody({ id, name }) {
   const res = useResource(`/api/knowledge/doc/${encodeURIComponent(id)}`);
   if (res.loading && !res.data) return html`<${Loading} lines=${3} label="Opening the document" />`;
   if (res.error) return html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`;
   const text = String(res.data?.text ?? "");
+  const shown = text.slice(0, MAX_SHOWN);
   return html`
-    <pre class="p-docs__text u-wrap">${text.slice(0, MAX_SHOWN)}</pre>
+    ${isMarkdown(name) ? html`<${Markdown} text=${shown} />` : html`<pre class="p-docs__text u-wrap">${shown}</pre>`}
     ${text.length > MAX_SHOWN ? html`<p class="u-caption">The rest of this long document is not shown here.</p>` : null}`;
 }
 
@@ -162,7 +166,7 @@ function DocRow({ doc, open, onToggle, onDeleted }) {
           : html`<${Button} variant="quiet" size="sm" onClick=${() => setAsking(true)}>Delete<//>`}
       </div>
       ${error ? html`<${ErrorNotice} error=${error} />` : null}
-      ${open ? html`<div class="p-docs__open"><${DocBody} id=${doc.id} /></div>` : null}
+      ${open ? html`<div class="p-docs__open"><${DocBody} id=${doc.id} name=${doc.name} /></div>` : null}
     </li>`;
 }
 

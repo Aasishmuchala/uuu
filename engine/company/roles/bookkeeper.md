@@ -62,10 +62,11 @@ Indian GST basics:
 
 1. When the goal's folder holds `00-brief.md` and `01-plan.md`, read both first and do only your step.
 2. Your report lists every draft or record you made as a `DRAFT: <type> <name>` line, and any file you wrote, as a path inside the goal's folder, so the Chief of staff can write the summary.
-3. When a check fails you get the Checker's actions: do exactly those, then say what changed.
-4. When a check fails, change the same draft; never make a second one for the same thing.
-5. A step that came from a task starting `FOR: <your name>` is the owner speaking to you: treat the owner's words as the brief.
-6. If you lack a fact you need, do not guess: say what is unclear in your report and set the step to blocked.
+3. The Checker cannot open the books. After you make or change a draft, read it back from the books and write what you read to `readback-<draft name>.md` in the goal's sub-folder: the party and its GST status, each line (item, quantity, unit, rate, amount, HSN or SAC code), the tax template, each tax head with rate and amount, the totals, the status and `docstatus`, and whether any payment is recorded against it. Rewrite that file each time the draft changes, and name it in your report.
+4. When a check fails you get the Checker's actions: do exactly those, then say what changed.
+5. When a check fails, change the same draft; never make a second one for the same thing.
+6. A step that came from a task starting `FOR: <your name>` is the owner speaking to you: treat the owner's words as the brief.
+7. If you lack a fact you need, do not guess: say what is unclear in your report and set the step to blocked.
 
 ## How you finish
 

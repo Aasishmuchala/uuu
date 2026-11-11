@@ -1,0 +1,21 @@
+{
+  "runId": "06b3d41e-2974-4a89-b233-a2e290b0266e",
+  "agentId": "d03db636-70c7-4bac-8e29-41665aa8e9a4",
+  "recoveryAction": null,
+  "execution": {
+    "phase": "recovery_needed",
+    "label": "Stopped",
+    "cause": "legacy_execution_requires_reconciliation",
+    "lastConfirmedActivityAt": "2026-11-11T02:25:42.883Z",
+    "retryAt": null,
+    "attempt": 1,
+    "maxAttempts": 3,
+    "recoveryOwner": null,
+    "nextAction": "Automatic recovery stopped. Recorded work is preserved; actions with unverified outcomes will not be repeated.",
+    "permittedActions": [
+      "inspect_run"
+    ],
+    "predecessorRunId": null,
+    "successorRunId": null
+  }
+}

@@ -133,16 +133,26 @@ test("note: comments; reopens a done or blocked goal, leaves a working one", asy
   });
 });
 
-test("stop: sets the goal to cancelled", async () => {
+test("stop: sets the goal and its open steps to cancelled, the goal first", async () => {
+  // Steps are made by the Chief of staff (an agent), as on the live board; lib/stop.mjs leaves the owner's own tasks alone.
+  const seed = boardSeed();
+  for (const i of seed.issues) if (i.parentId) Object.assign(i, { createdByAgentId: IDS.agents["chief-of-staff"], createdByUserId: null });
   await withHome(async (h) => {
     const r = await call(h.url, "POST", `/api/goals/${IDS.issues["STH-1"]}/stop`, { body: {} });
     assert.equal(r.status, 200);
-    const w = h.board.requests.filter((x) => x.method !== "GET").at(-1);
+    const ws = h.board.requests.filter((x) => x.method !== "GET");
+    assert.deepEqual(ws.map((x) => `${x.method} ${x.path} ${x.body.status}`).sort(), [
+      `PATCH /api/issues/${IDS.issues["STH-1"]} cancelled`,
+      `PATCH /api/issues/${IDS.issues["STH-4"]} cancelled`,
+      `PATCH /api/issues/${IDS.issues["STH-5"]} cancelled`,
+    ].sort());
+    const w = ws[0];
     assert.equal(`${w.method} ${w.path}`, `PATCH /api/issues/${IDS.issues["STH-1"]}`);
     assert.deepEqual(w.body, { status: "cancelled" });
+    assert.equal(r.json.message, "Stopped. The task will not go on.");
     const finished = (await call(h.url, "GET", "/api/goals?show=finished")).json.goals.map((g) => g.identifier);
     assert.ok(finished.includes("STH-1"));
-  });
+  }, { boardSeed: seed });
 });
 
 test("search: the goals source matches every word in title and description", async () => {

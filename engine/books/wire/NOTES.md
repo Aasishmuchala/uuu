@@ -78,7 +78,8 @@ Each user has exactly its one role (plus frappe's automatic `All` and
    Sales only once assigned to it.
 9. **Leave requests.** A draft with leave type `Leave Without Pay` works with
    no leave allocation and no holiday list. Other leave types need an
-   allocation first (owner set-up). **For T11/T17: HRMS submits a Leave
+   allocation first (owner set-up). A leave draft works without a holiday
+   list, but making it final needs one. **For T11/T17: HRMS submits a Leave
    Application only when its `status` is `Approved` or `Rejected`**, so the
    home screen's approve must set `status: "Approved"` before calling submit.
 10. **Final ledger documents cannot be deleted.** A cancelled Sales Invoice

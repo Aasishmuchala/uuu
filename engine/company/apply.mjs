@@ -7,6 +7,9 @@
 // Paperclip's grants are not managed: the board gives every agent its default grants and
 // refuses to let the owner remove them, so the gate blocks what they would open. Apply sets
 // only the three rights, and checks the one grant they move, tasks:assign.
+// Each agent's whole launch (adapter settings, tool, runner, run settings) must be exactly what
+// the company file produces, apart from the few keys the board writes itself
+// (lib/launch-settings.mjs); anything else is named and removed, never shown with its value.
 // Routines (CONTRACTS-V2 section 18) come from the routines folder beside the company file.
 // They are made paused; apply never switches one on or off afterwards and never deletes one.
 import { existsSync, readFileSync } from "node:fs";
@@ -16,6 +19,7 @@ import { loadConfig } from "../lib/config.mjs";
 import { boardClient, BoardDown, BoardRefused } from "./lib/board.mjs";
 import { loadCompanyFile, desiredAdapterConfig, FileProblem } from "./lib/company-file.mjs";
 import { ensureDir, ensureFile, writeIfChanged } from "./lib/state-files.mjs";
+import { anyDifference, desiredRuntimeConfig, fullAdapterConfig, launchDifferences, settingName } from "./lib/launch-settings.mjs";
 import { loadRoutineFiles } from "./lib/routine-files.mjs";
 import { applyRoutines, CHIEF, RoutineStop } from "./lib/routines.mjs";
 
@@ -37,11 +41,58 @@ const PLAIN = {
   role: "role", title: "title", capabilities: "job description", adapterType: "tool",
   cwd: "default folder", model: "model", engine: "engine", command: "command",
   timeoutSec: "run time limit", maxTurnsPerRun: "turn limit", heartbeat: "runs at once", approve: "approved as the owner",
+  runner: "runner",
 };
 
 // Whether the board lets an agent assign tasks, read from its grants: access.canAssignTasks
 // is true for every active member, so only the tasks:assign grant itself tells.
 const mayAssign = (detail) => (detail?.access?.grants || []).some((g) => g.permissionKey === "tasks:assign");
+
+// The two run settings apply sets; they are reported with the agent's other owned settings.
+const OWN_RUN = ["heartbeat.enabled", "heartbeat.maxConcurrentRuns"];
+
+// One plain note per launch setting the company file does not have: its name, never its value.
+function launchNotes(d, check) {
+  const notes = [];
+  for (const k of d.extra) notes.push(check ? `unexpected setting ${settingName(k)}` : `removed the setting ${settingName(k)}`);
+  for (const k of d.reset) notes.push(check ? `setting ${settingName(k)} differs` : `reset the setting ${settingName(k)}`);
+  for (const k of d.run) if (!OWN_RUN.includes(k)) notes.push(check ? `unexpected run setting ${settingName(k)}` : `removed the run setting ${settingName(k)}`);
+  if (d.environment) notes.push(check ? "unexpected setting defaultEnvironmentId" : "removed the setting defaultEnvironmentId");
+  return notes;
+}
+
+// The launch part of PATCH /api/agents/:id. The adapter configuration is sent whole with
+// replaceAdapterConfig: true, so the board replaces it instead of merging (routes/agents.js);
+// runtimeConfig is always replaced whole by the board.
+function launchPatch(a, want, found, d, ctx) {
+  const p = {};
+  if (d.typeDiffers || d.runnerDiffers || d.owned.length || d.extra.length || d.reset.length) {
+    p.adapterConfig = fullAdapterConfig(a, want, found, ctx);
+    p.replaceAdapterConfig = true;
+    if (d.typeDiffers || d.runnerDiffers) { p.adapterType = a.adapterType; p.runner = "legacy"; }
+  }
+  if (d.run.length) p.runtimeConfig = desiredRuntimeConfig(a);
+  if (d.environment) p.defaultEnvironmentId = null;
+  return p;
+}
+
+// Reads the agent back after a launch correction. A change of tool keeps some settings across
+// (paperclip carries env, cwd and a few others over to the new adapter), so one more full replace
+// may be needed; if the board still differs after that, apply stops.
+async function settleLaunch(board, a, want, id, ctx) {
+  const path = `/api/agents/${encodeURIComponent(id)}`;
+  for (let round = 0; round < 2; round++) {
+    const now = await board.get(path, { what: `show the agent ${a.name}` });
+    const d = launchDifferences(a, want, now, ctx);
+    if (!anyDifference(d)) return;
+    if (round === 1) {
+      const names = [...new Set([...(d.typeDiffers || d.runnerDiffers ? ["tool"] : []), ...d.owned, ...d.extra, ...d.reset, ...d.run,
+        ...(d.environment ? ["defaultEnvironmentId"] : [])].map(settingName))];
+      throw new Stop(`The board still launches ${a.name} with settings the company file does not have (${names.join(", ")}), so nothing more was changed; check the agent on the board, then run this again.`);
+    }
+    await board.patch(path, launchPatch(a, want, now, d, ctx), { what: `update the agent ${a.name}` });
+  }
+}
 
 async function apply({ check, file }) {
   const config = loadConfig();
@@ -153,25 +204,26 @@ async function apply({ check, file }) {
     const patch = {};
     const changed = [];
     for (const k of ["role", "title", "capabilities"]) if (found[k] !== a[k]) { patch[k] = a[k]; changed.push(k); }
-    const have = found.adapterConfig || {};
-    if (found.adapterType !== a.adapterType) {
-      patch.adapterType = a.adapterType; patch.runner = "legacy"; patch.adapterConfig = want; changed.push("adapterType");
-    } else {
-      const diff = Object.fromEntries(Object.entries(want).filter(([k, v]) => have[k] !== v));
-      if (Object.keys(diff).length) { patch.adapterConfig = diff; changed.push(...Object.keys(diff)); }
-    }
-    const rc = found.runtimeConfig || {};
-    if (rc.heartbeat?.enabled !== false || rc.heartbeat?.maxConcurrentRuns !== heartbeat.maxConcurrentRuns) {
-      patch.runtimeConfig = { ...rc, heartbeat: { ...(rc.heartbeat || {}), ...heartbeat } };
-      changed.push("heartbeat");
-    }
+    // The whole launch: every adapter setting, the tool and runner, the run settings and the run
+    // environment. Settings the file does not have are named one per line, never with their value.
+    const ctx = { instanceRoot: config.paperclip.instanceRoot, companyId: company.id, agentId: found.id };
+    const d = launchDifferences(a, want, found, ctx);
+    if (d.typeDiffers || d.runnerDiffers) changed.push(d.runnerDiffers ? "runner" : "adapterType");
+    changed.push(...d.owned);
+    if (d.run.some((k) => OWN_RUN.includes(k))) changed.push("heartbeat");
     const pending = found.status === "pending_approval";
-    if (!changed.length && !pending) { say("unchanged", `agent ${a.name}`); continue; }
+    const notes = launchNotes(d, check);
+    if (!changed.length && !notes.length && !pending) { say("unchanged", `agent ${a.name}`); continue; }
     if (!check) {
-      if (changed.length) await board.patch(`/api/agents/${enc(found.id)}`, patch, { what: `update the agent ${a.name}` });
+      if (anyDifference(d)) {
+        Object.assign(patch, launchPatch(a, want, found, d, ctx));
+        await board.patch(`/api/agents/${enc(found.id)}`, patch, { what: `update the agent ${a.name}` });
+        await settleLaunch(board, a, want, found.id, ctx);
+      } else if (changed.length) await board.patch(`/api/agents/${enc(found.id)}`, patch, { what: `update the agent ${a.name}` });
       if (pending) await board.post(`/api/agents/${enc(found.id)}/approve`, {}, { what: `approve the agent ${a.name}` });
     }
-    say("updated", `agent ${a.name}`, [...changed, ...(pending ? ["approve"] : [])].map((k) => PLAIN[k] || k).join(", "));
+    if (changed.length || pending) say("updated", `agent ${a.name}`, [...changed, ...(pending ? ["approve"] : [])].map((k) => PLAIN[k] || k).join(", "));
+    for (const n of notes) say("updated", `agent ${a.name}`, n);
   }
   for (const x of live) {
     if (!Object.values(ids).includes(x.id)) say("left alone", `agent ${x.name}`, "not in the company file");

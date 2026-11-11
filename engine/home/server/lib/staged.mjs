@@ -319,14 +319,21 @@ export function buildText({ text, to, planFirst } = {}) {
   return out;
 }
 
-// Every check round of a task's tree (comments oldest first): the n-th comment starting "VERDICT:" is round n.
-export function roundsOf(comments) {
+// True when this comment is a check: it starts "VERDICT:" and the Checker wrote it. `checkerId` is the Checker's
+// agent id; null (ids not set up) means no comment is a check. Leaving it out (undefined) does not look at the
+// author: only for callers not yet passing the id.
+export function isCheck(comment, checkerId) {
+  if (checkerId !== undefined && !(checkerId && comment && typeof comment === "object" && comment.authorAgentId === checkerId)) return false;
+  return /^\s*VERDICT:/i.test(bodyOf(comment).slice(0, MAX_LINE));
+}
+
+// Every check round of a task's tree (comments oldest first): the n-th check (isCheck) is round n.
+export function roundsOf(comments, checkerId) {
   const list = Array.isArray(comments) ? comments : [];
   const out = [];
   for (const comment of list) {
-    const body = bodyOf(comment);
-    if (!/^\s*VERDICT:/i.test(body.slice(0, MAX_LINE))) continue;
-    out.push({ n: out.length + 1, comment, ...parseCheck(body) });
+    if (!isCheck(comment, checkerId)) continue;
+    out.push({ n: out.length + 1, comment, ...parseCheck(bodyOf(comment)) });
   }
   return out;
 }

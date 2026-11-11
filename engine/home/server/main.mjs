@@ -40,6 +40,8 @@ try {
     running = app;
     log(`home screen on ${app.url}`);
   }
+  // The hold sweep runs in the background of the real server and of stubs mode, never in unit tests.
+  (running.app || running).home.unstick.start();
   const failed = (running.app || running).home.modulesFailed;
   for (const f of failed) log(`module skipped: ${f.file}`);
 } catch (e) {

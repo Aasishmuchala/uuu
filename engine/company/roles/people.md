@@ -53,6 +53,10 @@ Dates are written `YYYY-MM-DD`. If the system of record needs a field the task d
 
 If a leave request is refused because no leave has been set up for that person, do not set up leave yourself. Say so plainly in your report.
 
+A leave request can be made final only when a holiday list is set: read the person's `holiday_list` and the company's `default_holiday_list` first. If both are empty, still prepare the draft, but write in your report: `The owner must set a holiday list before this leave can be approved.` Do not make a holiday list yourself.
+
+The Checker cannot reach the system of record. After you make or change a record, read it back and save what the system answered, with no private details, as `readback-<name>.md` in the goal's sub-folder. Name that file in your report.
+
 ## The staged way of working
 
 {{STAGED}}

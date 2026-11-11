@@ -20,6 +20,33 @@ function encodeQuery(query) {
   return s ? `?${s}` : "";
 }
 
+// The books' own reason for a validation refusal, in plain words: tags, trace text, class names and
+// underscored names are removed. Real books answer HTTP 417 with `exception` ("frappe.exceptions.X: text")
+// and `_server_messages` (a JSON string of JSON strings, each with a `message`). Returns "" when none.
+export function validationReason(body) {
+  if (!body || typeof body !== "object") return "";
+  const found = [];
+  try {
+    const list = typeof body._server_messages === "string" ? JSON.parse(body._server_messages) : body._server_messages;
+    for (const m of Array.isArray(list) ? list : []) {
+      let one = m;
+      if (typeof one === "string") { try { one = JSON.parse(one); } catch { one = { message: one }; } }
+      if (one && typeof one.message === "string") found.push(one.message);
+    }
+  } catch { /* fall back to the exception text */ }
+  if (!found.length && typeof body.exception === "string") {
+    found.push(body.exception.split(/\n|Traceback/)[0].replace(/^\s*(?:[\w.]+\.)?\w*(?:Error|Exception)\s*:\s*/, ""));
+  }
+  const clean = String(found[0] || "")
+    .split(/Traceback|\n\s*File "/)[0]
+    .replace(/<br\s*\/?>|<\/(?:p|div|li)>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;|&#39;/g, "'")
+    .replace(/\b(?:[A-Za-z]+_)+[A-Za-z]+\b/g, (w) => w.replace(/_/g, " "))
+    .replace(/\s+/g, " ").trim();
+  return clean.length > 240 ? `${clean.slice(0, 239).trimEnd()}…` : clean;
+}
+
 export function createBench({ baseUrl, site, keyFile, booksDir, log = () => {}, timeoutMs = 15000 }) {
   function authHeader() {
     let lines;
@@ -52,6 +79,12 @@ export function createBench({ baseUrl, site, keyFile, booksDir, log = () => {}, 
     const excType = parsed && typeof parsed === "object" ? String(parsed.exc_type || "") || null : null;
     log(`bench ${method} ${path} -> ${res.status}${excType ? ` ${excType}` : ""}`);
     const extra = { upstreamStatus: res.status, excType };
+    const exc = parsed && typeof parsed === "object" ? String(parsed.exception || "") : "";
+    if (res.status === 417 || excType === "ValidationError" || /^(?:[\w.]+\.)?ValidationError\b/.test(exc)) {
+      const err = new HomeError(409, "The books did not accept this.", "The draft is kept. Look at it in the books.", "bench_invalid", extra);
+      err.reason = validationReason(parsed);
+      throw err;
+    }
     if (res.status === 404) throw new HomeError(404, "That record is not in the books.", "Refresh the page.", "bench_not_found", extra);
     if (res.status === 401 || res.status === 403) {
       throw new HomeError(502, "The books refused the home screen's key.", "Run: engine setup", "bench_refused", extra);

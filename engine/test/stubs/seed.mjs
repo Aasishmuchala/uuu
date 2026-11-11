@@ -114,7 +114,8 @@ export function boardSeed() {
     issue(2, ISSUE_TITLES["STH-2"], "done", { description: "Draft one launch post and one newsletter for November." }),
     issue(3, ISSUE_TITLES["STH-3"], "blocked", { description: "Reconcile the October bills against the bank." }),
   ];
-  const step = (n, title, status, parent, who) => issue(n, title, status, { parentId: IDS.issues[parent], assigneeAgentId: IDS.agents[who] });
+  // Steps are made by the Chief of staff, as on the live board (Stop leaves alone what the owner made).
+  const step = (n, title, status, parent, who) => issue(n, title, status, { parentId: IDS.issues[parent], assigneeAgentId: IDS.agents[who], createdByUserId: null, createdByAgentId: IDS.agents["chief-of-staff"] });
   const issues = [
     g1, g2, g3,
     step(4, "Draft the price list", "in_progress", "STH-1", "builder"),
@@ -248,7 +249,7 @@ export function boardSeedV2() {
   const I = (n) => IDS_V2.issues[`STH-${n}`];
   const A = (slug) => IDS_V2.agents[slug];
   const mk = (n, title, status, extra = {}) => issue(n, title, status, extra);
-  const step = (n, title, status, parent, who, extra = {}) => mk(n, title, status, { parentId: I(parent), assigneeAgentId: A(who), ...extra });
+  const step = (n, title, status, parent, who, extra = {}) => mk(n, title, status, { parentId: I(parent), assigneeAgentId: A(who), createdByUserId: null, createdByAgentId: A("chief-of-staff"), ...extra });
 
   const issues = [
     mk(7, "Open a second showroom page on the website", "blocked", {
@@ -333,7 +334,30 @@ export function boardSeedV2() {
     done(uid("13000000", 12), "people", "STH-1", -200, -210),
     done(uid("13000000", 13), "drafter", "STH-2", -700, -720),
     { id: uid("13000000", 14), companyId: IDS.company, agentId: A("builder"), scopeKind: "issue", issueId: I(3), status: "failed", createdAt: at(-50), finishedAt: at(-45) },
+    // STH-3's last run started (it has a process and a log), then stopped; the board holds the task (see recoveryActions).
+    {
+      id: uid("13000000", 15), companyId: IDS.company, agentId: A("chief-of-staff"), scopeKind: "issue", issueId: I(3), status: "cancelled",
+      startedAt: at(-44), finishedAt: at(-40), createdAt: at(-44), updatedAt: at(-40), processPid: 4242, logBytes: 9000,
+      errorCode: "legacy_disposition_repair_suppressed", error: "Execution stopped without a recorded cancellation request",
+    },
   ];
+  // The board's hold on STH-3, in the shape of the live hold of 11 November 2026 (server test fixtures-w2/): a settled
+  // action with no replay. The home's hold sweep leaves it to the owner as "A task stopped", since the run did start.
+  const holdRun = uid("13000000", 15);
+  const recoveryActions = [{
+    id: uid("ac000000", 1), companyId: IDS.company, sourceIssueId: I(3), recoveryIssueId: null, kind: "active_run_watchdog",
+    status: "resolved", ownerType: "board", ownerAgentId: null, ownerUserId: null, previousOwnerAgentId: null,
+    returnOwnerAgentId: A("chief-of-staff"), cause: "legacy_execution_requires_reconciliation", fingerprint: `legacy-execution:${holdRun}`,
+    evidence: {
+      runId: holdRun, attempt: 1, adapterRecovery: "unsupported_or_unknown",
+      automaticRecovery: { runId: holdRun, policy: "preserve_without_replay_v1", replay: "blocked", recordedAt: at(-40), actionOutcome: "unknown" },
+      originalFailureCode: "legacy_disposition_repair_suppressed",
+    },
+    nextAction: "Automatic recovery stopped. Recorded work is preserved; actions with unverified outcomes will not be repeated.",
+    wakePolicy: null, monitorPolicy: null, attemptCount: 1, maxAttempts: 3, timeoutAt: null, lastAttemptAt: at(-40), outcome: "blocked",
+    resolutionNote: "Automatic recovery stopped. Recorded work is preserved; actions with unverified outcomes will not be repeated.",
+    resolvedAt: at(-40), createdAt: at(-40), updatedAt: at(-40),
+  }];
 
   const triggers = [
     { id: uid("71000000", 1), routineId: IDS_V2.routines["daily-brief"], kind: "schedule", label: "Daily at 09:00", enabled: true, cronExpression: "0 9 * * *", timezone: "Asia/Kolkata", nextRunAt: null, lastFiredAt: at(-330) },
@@ -361,6 +385,7 @@ export function boardSeedV2() {
     instructions: Object.fromEntries(list.map(([slug], i) => [A(slug), { "AGENTS.md": { content: "You are an agent in a Paperclip company.\n", revisionId: uid("12000000", i + 1) } }])),
     memberGrants: grantRecords(list),
     heartbeatRuns,
+    recoveryActions,
     routines: [routine("daily-brief", "paused"), routine("weekly-content-plan", "active")],
     routineTriggers: triggers,
     routineRuns: [{

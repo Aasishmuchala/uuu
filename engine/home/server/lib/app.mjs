@@ -14,6 +14,7 @@ import { HomeError, fail, internalError } from "./errors.mjs";
 import { loadModules } from "./loader.mjs";
 import { createRouter } from "./router.mjs";
 import { FILE_RESPONSE, PLACEHOLDER_HTML, resolveStatic, streamFile } from "./static.mjs";
+import { createUnstick } from "./unstick.mjs";
 
 export const SERVER_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const MAX_BODY = 2 * 1024 * 1024;
@@ -74,9 +75,11 @@ export async function createHome(options) {
   const moduleDirs = options.moduleDirs || [SERVER_DIR];
   const loaded = await loadModules({ dirs: moduleDirs, router, log });
 
+  // The hold sweep (lib/unstick.mjs): made here, started only by main.mjs (or a test that asks).
+  const unstick = createUnstick({ board, ids, decisions, log });
   const home = {
     urls, prove, inboxSources: loaded.inbox, searchSources: loaded.search, modulesFailed: loaded.failed,
-    port: () => listenPort, publicDir,
+    port: () => listenPort, publicDir, unstick,
   };
 
   function send(res, status, payload, extra = {}) {
@@ -236,6 +239,7 @@ export async function createHome(options) {
       });
     },
     close() {
+      unstick.stop();
       return new Promise((resolve) => { server.closeAllConnections?.(); server.close(() => resolve()); });
     },
   };

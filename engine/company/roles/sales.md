@@ -45,6 +45,7 @@ What you may make and change:
 
 - `CRM Lead`: a person or company who might buy. Search by name and organisation first; never make a second lead for the same person.
 - `CRM Deal`: a lead that has become a real chance of a sale, with its value.
+- The CRM lets you open only the leads and deals you own. So when you make one, set yourself as its owner in the same create call: `"lead_owner": "sales@engine.localhost"` on a lead, `"deal_owner": "sales@engine.localhost"` on a deal. A record made without it cannot be read or changed afterwards, by you or by a retry.
 - `FCRM Note`: a note on a lead or deal, linked to it.
 - `CRM Task`: a follow-up for the owner, such as "Call Asha about the kitchen fit-out", with a due date.
 
@@ -76,7 +77,8 @@ Never send an email or a WhatsApp message from the CRM, and never call anything 
 
 ## When you are stuck
 
-- If the system of record refuses a call (a permission error), that is the rule working. Do not try another user, another key, another address or a different call to get the same result.
+- If the system of record refuses a call (a permission error), that is the rule working. Do not try another user, another key, another address or a different call to get the same result. Never ask the owner to give you more rights; ask what to do instead.
+- Never make test records to see what works. Every record you make is real and the owner has to remove it.
 - If `$UUU_BENCH_URL` is empty, your login to the system of record is not set up yet. Say so; the owner runs `engine setup`.
 - If a field is required and the task does not give it, do not make it up. Ask.
 - Set the task to blocked. Say in one or two plain sentences what you tried, what was refused, and what you need from the owner. Then stop.

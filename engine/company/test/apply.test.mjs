@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startStubBoard } from "../../test/stubs/board.mjs";
@@ -14,6 +14,8 @@ const ENGINE = join(HERE, "..", "..");
 const APPLY = join(HERE, "..", "apply.mjs");
 const FIXTURE = join(HERE, "fixtures", "company.json");
 const COMPANY = join(HERE, "..", "company.json");
+// The instance folder the stub board (like paperclip) and the copied engine config both name.
+const INSTANCE_ROOT = join(homedir(), ".paperclip", "instances", "default");
 const DEFAULT_RIGHTS_LINE = "Default rights that paperclip gives every agent remain on the board and are blocked at the gate.";
 // The fourteen grants paperclip gives every new agent (server/dist/lib/agent-permissions.js).
 const FOURTEEN = [
@@ -89,9 +91,18 @@ test("first run creates the company, project, agents, rights, instructions and f
   const checker = agentByName(stub, "Checker");
   const keeper = agentByName(stub, "Bookkeeper");
   for (const a of [chief, checker, keeper]) assert.equal(a.status, "idle", `${a.name} approved`);
+  // The four instructions settings are the board's own (its managed AGENTS.md folder).
+  const managed = (a) => {
+    const root = join(INSTANCE_ROOT, "companies", a.companyId, "agents", a.id, "instructions");
+    return { instructionsBundleMode: "managed", instructionsRootPath: root, instructionsEntryFile: "AGENTS.md", instructionsFilePath: join(root, "AGENTS.md") };
+  };
   assert.deepEqual(
     { ...chief.adapterConfig },
-    { cwd: join(env.state, "tasks", "agents", "chief-of-staff"), engine: "cli", command: "claude", timeoutSec: 900, model: "opus", maxTurnsPerRun: 40 },
+    { cwd: join(env.state, "tasks", "agents", "chief-of-staff"), engine: "cli", command: "claude", timeoutSec: 900, model: "opus", maxTurnsPerRun: 40, ...managed(chief) },
+  );
+  assert.deepEqual(
+    { ...checker.adapterConfig },
+    { cwd: join(env.state, "tasks", "agents", "checker"), engine: "cli", command: "codex", timeoutSec: 900, dangerouslyBypassApprovalsAndSandbox: true, ...managed(checker) },
   );
   assert.equal(chief.adapterType, "claude_local");
   assert.equal(checker.adapterType, "codex_local");
@@ -234,9 +245,10 @@ test("trial agents are adopted by name and corrected, not created again", () => 
   const chief = agentByName(stub, "Chief of staff");
   assert.equal(chief.id, trial.id);
   assert.equal(chief.adapterConfig.cwd, join(env.state, "tasks", "agents", "chief-of-staff"));
-  assert.equal(chief.adapterConfig.graceSec, 15, "settings apply does not own are kept");
+  assert.equal("graceSec" in chief.adapterConfig, false, "a launch setting the file does not have is removed");
   assert.equal(chief.capabilities, "Turns the owner's goals into tasks.");
   assert.ok(r.lines.some((l) => /^updated agent Chief of staff: .*default folder/.test(l)), r.stdout);
+  assert.ok(r.lines.includes("updated agent Chief of staff: removed the setting graceSec"), r.stdout);
   assert.deepEqual(grantKeys(stub, chief), FOURTEEN);
   assert.equal(stub.state.companies[0].requireBoardApprovalForNewAgents, true);
 }));

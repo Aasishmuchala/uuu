@@ -12,6 +12,7 @@ These hold on every task, with no exceptions.
 
 - Work only in your current working folder. Every agent on a goal shares it.
 - Keep each goal's files in a sub-folder of your current working folder named after the goal's identifier, such as `STH-12`. The task text names it. If it does not, follow the task's parent up to the top task and use that task's identifier.
+- Leave only the tool's files and your own script in the sprite's folder.
 - Never name, ask for or try another folder. Never write a full path in a comment or a file.
 - Never change a task's folder or any workspace setting. Never move a task to another folder.
 - Never create agents, skills or projects. Never change your own settings or any other agent's.

@@ -1,11 +1,12 @@
 // An agent's page: who it is, and five tabs (Talk, Profile, Work, Instructions, Lessons). CONTRACTS-V2 17.5.
 // The tab is in the address (`#/team/<slug>?tab=`), so every state can be opened without a click.
-// Everything shown here was written by an agent or read from its files: it is rendered as text only.
+// Everything shown here was written by an agent or read from its files: it is rendered as text only (the
+// instructions as Markdown, built as elements).
 import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import {
-  AgentChip, Avatar, Button, Card, Composer, Conversation, Empty, ErrorNotice, Live, Loading,
+  AgentChip, Avatar, Button, Card, Composer, Conversation, Empty, ErrorNotice, Live, Loading, Markdown,
   Notice, PageHeader, Section, StatusDot, Tabs, TaskRow, TextInput, Waiting,
 } from "../kit/index.js";
 
@@ -234,7 +235,7 @@ function InstructionsTab({ data }) {
     <p class="p-agent__caption">Standing instructions. They are changed in the company's files, then applied with: engine setup</p>
     <${Card} tone="sunken">
       ${text(ins.text)
-        ? html`<pre class="p-agent__text u-mono">${cap(ins.text, 200000)}</pre>`
+        ? html`<div class="p-agent__text"><${Markdown} text=${cap(ins.text, 200000)} /></div>`
         : html`<p class="p-agent__muted">No instructions are written for this agent yet.</p>`}
     <//>
   </div>`;

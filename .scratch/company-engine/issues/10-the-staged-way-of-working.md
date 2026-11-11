@@ -4,7 +4,7 @@
 
 **Blocked by:** 05, 06
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Plan tasks:** V3, V6, V26, V32, V33, V34, V35, V50
 
@@ -16,4 +16,8 @@
 - [x] A failed check goes back to the agent that did the work; after five rounds the task stops and asks the owner
 - [x] A task handed to one agent still goes through the Chief of staff and is still checked
 - [x] One shared text teaches the procedure to all ten roles
-- [ ] A live task goes through the whole chain and ends under Needs you
+- [x] A live task goes through the whole chain and ends under Needs you
+
+## Comments
+
+11 Nov 2026: the plan-first task (STH-18) went through question, plan, work, summary and two check rounds, then hung on a hold the board placed after a fault of its own. The home screen now clears that kind of hold; the task finished and was accepted. See docs/adr/0007.

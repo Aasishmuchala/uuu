@@ -4,6 +4,9 @@
 // reads. An action re-reads every source (with `ctx.acting` set, so no source answers from a cache) and is
 // refused when the item has a version and the browser did not send that same version back: the owner
 // acts only on what the owner saw. No source keeps any memory of what was shown.
+// When the item is missing from that re-read because its own source could not be read (the board or the books
+// did not answer in time), the action says so with the source's own plain words and next step (502), never
+// "no longer waiting for you": the item may well still be there.
 import { createHash } from "node:crypto";
 import { HomeError } from "./errors.mjs";
 
@@ -19,10 +22,98 @@ function plainReason(e) {
   return "This part could not be read just now.";
 }
 
+// Which source lists the items of each id prefix (`board:…`, `goal:…`, `staged:…`, `bench:…`, `content:…`).
+const PREFIX_SOURCE = { board: "board", goal: "goals", staged: "staged", bench: "bench", content: "content" };
+
+function unreadError(reason) {
+  return new HomeError(502, reason || "This part could not be read just now.",
+    "Try again in a minute. If it keeps happening, look at Health.", "source_unread");
+}
+
+// The task an item is about: its own taskId, or the goal its link points at (decorateInbox reads the same link).
+function taskOf(item) {
+  if (typeof item.taskId === "string" && item.taskId) return item.taskId;
+  const l = item.link;
+  return l && (l.page === "goals" || l.page === "tasks") && typeof l.id === "string" ? l.id : null;
+}
+
+// The board's "blocked" problem item (a stuck step or a blocker), as against a failed run or an agent error.
+const BLOCKED_KINDS = new Set(["recovery_action", "blocker_attention"]);
+
+// The one task an item is about: the step or goal itself when its source knows it (`_about`, a board record's
+// id), else the task of its link.
+export function aboutOf(item) {
+  if (item && typeof item._about === "string" && item._about) return item._about;
+  return item ? taskOf(item) : null;
+}
+
+// The task an item is about and its ancestors, nearest first (`_chain`, from the board's own parent links),
+// ending with the goal its link points at.
+function chainOf(item) {
+  const out = Array.isArray(item._chain) ? item._chain.filter((x) => typeof x === "string" && x) : [];
+  for (const id of [aboutOf(item), taskOf(item)]) if (id && !out.includes(id)) out.push(id);
+  return out;
+}
+
+const offers = (item, ...ids) => (Array.isArray(item.actions) ? item.actions : []).some((a) => a && ids.includes(a.id));
+
+// An item that waits for the owner on purpose: a question that can be answered or accepted, or the staged plan
+// to accept. A question card that offers only Hide waits for nothing.
+export function waitsOnOwner(item) {
+  if (!item) return false;
+  if (item.kind === "question") return offers(item, "answer", "accept");
+  return item.source === "goal" && item.kind === "approval" && String(item.id).startsWith("staged:plan:") && offers(item, "accept");
+}
+
+// A task the Chief of staff blocked on purpose waits for a question or a plan (waitsForOwner in tasks.mjs uses
+// the same rule). Then the board's own blocked problem item for that task, or for a step under it, is a second
+// item for one thing, and is dropped from the list. A question on one step never hides another step's item.
+function dropDuplicateBlocked(items, owners) {
+  const waiting = new Set();
+  for (const i of items) {
+    const id = waitsOnOwner(i) ? aboutOf(i) : null;
+    if (id) waiting.add(id);
+  }
+  if (!waiting.size) return;
+  for (let n = items.length - 1; n >= 0; n--) {
+    const i = items[n];
+    if (i.source !== "board" || i.kind !== "problem" || !BLOCKED_KINDS.has(i._raw?.sourceKind)) continue;
+    if (chainOf(i).some((id) => waiting.has(id))) {
+      items.splice(n, 1);
+      owners.delete(i.id);
+    }
+  }
+}
+
+// A task the board holds has its own "A task stopped" item. The board's "run failed" item for the same task
+// cannot be retried while it is held, so only the held item stays: one item per stopped task. Only the exact
+// task held counts (a hold item lists every held task of its goal in `_raw.issueIds`).
+export const isHeld = (i) => !!i && i.source === "board" && i.kind === "problem"
+  && (i._raw?.sourceKind === "execution_hold" || String(i.id).startsWith("board:hold:"));
+
+function dropFailedWhileHeld(items, owners) {
+  const held = new Set();
+  for (const i of items) {
+    if (!isHeld(i)) continue;
+    const list = Array.isArray(i._raw?.issueIds) && i._raw.issueIds.length ? i._raw.issueIds : [aboutOf(i)];
+    for (const id of list) if (id) held.add(id);
+  }
+  if (!held.size) return;
+  for (let n = items.length - 1; n >= 0; n--) {
+    const i = items[n];
+    const id = aboutOf(i);
+    if (i.source === "board" && i.kind === "problem" && id && held.has(id) && i._raw?.sourceKind === "failed_run") {
+      items.splice(n, 1);
+      owners.delete(i.id);
+    }
+  }
+}
+
 export async function mergeInbox(ctx, sources) {
   const items = [];
   const notConnected = [];
   const owners = new Map();
+  const unread = new Map(); // source id -> the error to give for an action on one of its items
   await Promise.all(sources.map(async (src) => {
     try {
       const out = (await src.list(ctx)) || {};
@@ -31,18 +122,24 @@ export async function mergeInbox(ctx, sources) {
         owners.set(item.id, src);
         items.push(item);
       }
-      if (out.notConnected) notConnected.push({ source: out.notConnected.source || src.id, reason: out.notConnected.reason });
+      if (out.notConnected) {
+        notConnected.push({ source: out.notConnected.source || src.id, reason: out.notConnected.reason });
+        unread.set(src.id, unreadError(typeof out.notConnected.reason === "string" ? out.notConnected.reason : null));
+      }
     } catch (e) {
       if (!(e instanceof HomeError)) ctx.log(`inbox source ${src.id} failed: ${String(e?.message || e).split("\n")[0]}`);
       notConnected.push({ source: src.id, reason: plainReason(e) });
+      unread.set(src.id, e instanceof HomeError ? e : unreadError(null));
     }
   }));
+  dropDuplicateBlocked(items, owners);
+  dropFailedWhileHeld(items, owners);
   const t = (i) => Date.parse(i.when) || 0;
   items.sort((a, b) => ((b.severity === "high") - (a.severity === "high")) || (t(b) - t(a)));
   const bySource = {};
   for (const i of items) bySource[i.source] = (bySource[i.source] || 0) + 1;
   notConnected.sort((a, b) => String(a.source).localeCompare(String(b.source)));
-  return { items, counts: { total: items.length, bySource }, notConnected, owners };
+  return { items, counts: { total: items.length, bySource }, notConnected, owners, unread };
 }
 
 export function createActor(sources) {
@@ -58,10 +155,14 @@ export function createActor(sources) {
     if (version !== undefined && version !== null && typeof version !== "string") {
       throw new HomeError(400, "The home screen sent a version it should not have.", "Refresh the page and try again.", "bad_request");
     }
-    const { items, owners } = await mergeInbox({ ...ctx, acting: true }, sources);
+    const { items, owners, unread } = await mergeInbox({ ...ctx, acting: true }, sources);
     const item = items.find((i) => i.id === id);
     if (!item) {
       if (handled.has(id)) throw new HomeError(409, "This was already handled.", "Nothing more to do here.", "already_handled");
+      // Its source could not be read: say why, not "gone". An unknown prefix with any source unread is the same.
+      const owner = PREFIX_SOURCE[id.split(":")[0]];
+      const why = owner ? unread.get(owner) : unread.values().next().value;
+      if (why) throw why;
       throw new HomeError(404, "This item is no longer waiting for you.", "Refresh the inbox.", "not_found");
     }
     const spec = (item.actions || []).find((a) => a.id === action);

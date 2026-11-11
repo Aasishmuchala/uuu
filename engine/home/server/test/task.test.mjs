@@ -145,6 +145,16 @@ test("the conversation has no line that starts with a marker", async () => {
   });
 });
 
+test("a PLAN READY line in lower case reads as its own sentence (live trial V50)", async () => {
+  const seed = boardSeedV2();
+  const ready = seed.comments.find((c) => c.issueId === STH(7) && c.body.startsWith("PLAN READY:"));
+  ready.body = "PLAN READY: the Marketer drafts both pieces in one step, then the Checker reads them.";
+  await withHome(async (h) => {
+    const texts = (await task(h, "STH-7")).conversation.map((c) => c.text);
+    assert.ok(texts.includes("The plan is ready. The Marketer drafts both pieces in one step, then the Checker reads them."), texts.join("\n"));
+  }, seed);
+});
+
 test("STH-13's brief stage lists two unclear questions", async () => {
   await withHome(async (h) => {
     const brief = (await task(h, "STH-13")).stages.find((s) => s.id === "brief");

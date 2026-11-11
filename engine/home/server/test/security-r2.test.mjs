@@ -216,7 +216,7 @@ test("every approval type but request_board_approval loses Approve; that one kee
   }
   await withStubs(async (h) => {
     const item = await itemOf(h, APPROVAL_ID);
-    assert.deepEqual(item.actions.map((a) => a.id), ["approve", "send_back", "reject"]);
+    assert.deepEqual(item.actions.map((a) => a.id), ["approve", "send_back", "reject", "dismiss"]);
     assert.equal(item.severity, "normal");
   }, { boardSeed: approvalSeed("request_board_approval") });
 });

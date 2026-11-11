@@ -11,7 +11,7 @@ One command, `engine/bin/engine`, with these words after it:
 - `start`: turns everything on, in order, and stops at the first part that fails. It says where to look. Running it twice starts nothing new. It ends with `Open http://127.0.0.1:3200`.
 - `stop`: turns everything off and leaves no agent running. Nothing starts by itself when the Mac starts.
 - `status`: one line per part: `on`, `off`, `unhealthy` or `not installed`, and what to do next. A good result ends with `Everything is on.`
-- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 101 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Two steps only you can do").
+- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 107 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
 - `setup`: makes the board match the company files. Safe to run again.
 - `test`: runs every test. A good result ends with `All tests passed.`
 
@@ -85,10 +85,11 @@ Each is an off switch or an account step. Nothing is done for you.
 - **PDF printing of invoices.** Off until there is more disk.
 - **Routines.** Off until you switch them on.
 
-## Two steps only you can do
+## Steps only you can do
 
 - **The Checker's own Codex login.** Run `engine/fence/login-wizard.sh codex` and follow the steps. Until then the Checker uses your own Codex login through a link, and the proof shows one note. `engine/fence/login-wizard.sh --status` shows where each login stands. The Claude agents' login is `engine/fence/login-wizard.sh`.
 - **Connecting accounts.** Before anything can be published or sent, you connect the account it goes through.
+- **The books, before real use.** In the books' own screens (open them from the Books page), enter the company's GST number and address; until then invoices say "Nil-Rated" even where tax is charged. Add a holiday list; until then leave can be drafted but not made final.
 
 Also optional: the board can be switched to its own sign-in. Today, other programs on this Mac can still reach the board and the home screen as you. The gate closes this gap for agents only.
 
@@ -134,4 +135,33 @@ Your own Codex login and your own files are never touched by the engine.
 
 ## What the live trials showed
 
-(filled in by the orchestrator after the trials)
+On 11 November 2026 every department got a real task on the live engine, with made-up customers. Nothing was sent out.
+
+| Trial | Result |
+|---|---|
+| Studio | Passed first time: a CAD part with its drawing (16 minutes) and a four-frame sprite (30 minutes). |
+| Support | Passed: a reply to a made-up ticket was drafted and waited for approval. 29 minutes. |
+| Marketing | Passed after one question to the owner was answered. 36 minutes, three check rounds. |
+| Books | Passed: an invoice was drafted, checked, approved and became final. A bill sent back from Needs you was corrected in two minutes. |
+| People | Passed in part: attendance and a leave draft worked. Leave cannot be made final until the books have a holiday list. |
+| Customers | Failed the first time: Sales did not own its lead, and its question could not be answered from the home screen. Both were fixed; the second run passed in 13 minutes. |
+| The staged way | The daily brief passed in 7 minutes. The plan-first task went through every stage and then hung, because the board held it after a fault of its own. The home screen now clears that kind of hold by itself, and the task finished. |
+
+What to expect:
+
+- A small task takes 5 to 15 minutes, a larger one 20 to 40. Each agent works on one thing at a time, and a larger task goes through a brief, a plan, the work and a check. Several tasks at once queue behind the Chief of staff.
+- A check often fails once before it passes. That is the check working.
+
+What the trials changed:
+
+- You can answer an agent's question card from Needs you (proven on the live board), and every item offers only buttons that work.
+- A draft you send back is fixed directly and comes back as the same item.
+- Department agents save a read-back of what they made in the books, so the Checker can check it. The Checker never blocks a task; its questions reach you through the check.
+- The final review found two ways around the fence. Both are closed and now part of the proof (`docs/adr/0007-what-runs-unfenced-never-trusts-agents-folders.md`).
+
+Known limits:
+
+- Agents cannot use git inside their task folders.
+- Each Claude agent now has its own Claude Code home under the state folder's `claude-home`. The older shared files there (`projects`, `sessions`, `backups`, `file-history`, `shell-snapshots`, `session-env`, `tmp`) are no longer used by anything and may be deleted.
+- If the board holds a task whose last run did real work, Needs you shows "A task stopped". You can stop the task or reply; the home screen will not restart it by itself.
+- Three content drafts from the Marketing trial are still in Needs you, so you have something to try Approve and Send back on. Nothing is published either way. The trial records in the books were removed.

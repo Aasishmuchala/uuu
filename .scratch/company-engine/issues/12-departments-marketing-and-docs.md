@@ -4,7 +4,7 @@
 
 **Blocked by:** 07
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Plan tasks:** V16, V17, V20, V51, V52, V53, V54, V55
 
@@ -12,8 +12,12 @@
 - [x] A department that is not installed or is switched off says so with the next step
 - [x] Marketing groups drafts by week and says plainly that publishing is off
 - [x] Docs adds a document, lists and opens documents, searches them, and shows what agents have learned
-- [ ] Live: a draft invoice is approved and becomes final in the books
-- [ ] Live: a lead is recorded and qualified
-- [ ] Live: a reply is drafted and approved, and nothing is sent
-- [ ] Live: a staff record and a leave or attendance draft are prepared
-- [ ] Live: a week of content drafts arrives; one is approved and one is sent back
+- [x] Live: a draft invoice is approved and becomes final in the books
+- [x] Live: a lead is recorded and qualified
+- [x] Live: a reply is drafted and approved, and nothing is sent
+- [x] Live: a staff record and a leave or attendance draft are prepared
+- [x] Live: a week of content drafts arrives; one is approved and one is sent back
+
+## Comments
+
+11 Nov 2026: all five ran live. The lead trial failed first (Sales did not own its lead; its question could not be answered from the home screen) and passed on the second run after both were fixed. Leave can be drafted but not made final until the owner adds a holiday list in the books. The trial records were removed from the books afterwards.

@@ -18,7 +18,8 @@ function move(event) {
   all[next].focus();
 }
 
-// Scrolls the row sideways (never the page) so the current tab is in view on a narrow screen.
+// The row wraps (tabs.css), so every tab is in sight; should a page make it scroll sideways, this keeps the current
+// tab in view (the row scrolls, never the page).
 function revealCurrent(row) {
   if (!row || typeof row.querySelector !== "function") return;
   const tab = row.querySelector(".k-tabs__tab--on");

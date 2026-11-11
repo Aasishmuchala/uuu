@@ -203,6 +203,47 @@ test("board: company switch makes new agents wait for approval; owner approves",
   } finally { await b.close(); }
 });
 
+test("board: adapter settings are stored whole, merged or replaced as the real board does", async () => {
+  const b = await startStubBoard({ seed: boardSeed(), instanceRoot: "/pc" });
+  try {
+    await call(b.url, "PATCH", `/api/companies/${C}`, { body: { requireBoardApprovalForNewAgents: false } });
+    const made = (await call(b.url, "POST", `/api/companies/${C}/agents`, {
+      body: { name: "Coder", adapterType: "codex_local", adapterConfig: { cwd: "/w", command: "codex", env: { K: "v" } } },
+    })).json;
+    const root = `/pc/companies/${C}/agents/${made.id}/instructions`;
+    assert.deepEqual(made.adapterConfig, {
+      cwd: "/w", command: "codex", env: { K: "v" }, dangerouslyBypassApprovalsAndSandbox: true,
+      instructionsBundleMode: "managed", instructionsRootPath: root, instructionsEntryFile: "AGENTS.md", instructionsFilePath: `${root}/AGENTS.md`,
+    });
+    const url = `/api/agents/${made.id}`;
+    // Merged by default: extra settings stay.
+    let r = (await call(b.url, "PATCH", url, { body: { adapterConfig: { extraArgs: ["-x"] } } })).json;
+    assert.deepEqual(r.adapterConfig.env, { K: "v" });
+    assert.deepEqual(r.adapterConfig.extraArgs, ["-x"]);
+    // Replaced with replaceAdapterConfig: only what is sent, plus the codex default; the
+    // instructions settings go when not sent.
+    r = (await call(b.url, "PATCH", url, { body: { adapterConfig: { cwd: "/w", command: "codex" }, replaceAdapterConfig: true } })).json;
+    assert.deepEqual(r.adapterConfig, { cwd: "/w", command: "codex", dangerouslyBypassApprovalsAndSandbox: true });
+    // An instructions file outside the managed folder is "external".
+    r = (await call(b.url, "PATCH", url, { body: { adapterConfig: { instructionsFilePath: "/x/A.md" } } })).json;
+    assert.equal(r.adapterConfig.instructionsBundleMode, "external");
+    assert.equal(r.adapterConfig.instructionsRootPath, "/x");
+    // A new adapter keeps the adapter-agnostic settings the request leaves out.
+    b.state.agents.find((a) => a.id === made.id).adapterConfig.env = { K: "v" };
+    r = (await call(b.url, "PATCH", url, { body: { adapterType: "claude_local", adapterConfig: { command: "claude" }, replaceAdapterConfig: true } })).json;
+    assert.equal(r.adapterType, "claude_local");
+    assert.deepEqual(r.adapterConfig.env, { K: "v" });
+    assert.equal(r.adapterConfig.cwd, "/w");
+    assert.equal("dangerouslyBypassApprovalsAndSandbox" in r.adapterConfig, false);
+    // runtimeConfig is replaced whole; the run environment can be cleared.
+    b.state.agents.find((a) => a.id === made.id).defaultEnvironmentId = "e1";
+    r = (await call(b.url, "PATCH", url, { body: { runtimeConfig: { heartbeat: { enabled: false } }, defaultEnvironmentId: null } })).json;
+    assert.deepEqual(r.runtimeConfig, { heartbeat: { enabled: false } });
+    assert.equal(r.defaultEnvironmentId, null);
+    assert.equal((await call(b.url, "PATCH", url, { body: { adapterConfig: "x" } })).status, 422);
+  } finally { await b.close(); }
+});
+
 test("board: issues, filters, comments and wakes", async () => {
   const b = await startStubBoard({ seed: boardSeed() });
   try {
@@ -246,9 +287,14 @@ test("board: owner decisions remove their attention items", async () => {
     await call(b.url, "POST", `/api/issues/${IDS.issues["STH-3"]}/retry`);
     assert.equal(b.state.attention.some((i) => i.sourceKind === "failed_run"), false);
     assert.ok(b.state.wakes.some((w) => w.reason === "retry"));
-    const r = await call(b.url, "POST", `/api/issues/${IDS.issues["STH-1"]}/interactions/${IDS.interaction}/respond`, { body: { text: "blue" } });
+    // The seed's question offers Accept and Reject (a confirmation): the board will not take an answer for it.
+    const base = `/api/issues/${IDS.issues["STH-1"]}/interactions/${IDS.interaction}`;
+    assert.equal((await call(b.url, "POST", `${base}/respond`, { body: { answers: [] } })).status, 422);
+    const r = await call(b.url, "POST", `${base}/accept`, { body: {} });
     assert.equal(r.status, 200);
-    assert.equal(b.state.interactions[0].action, "respond");
+    assert.equal(r.json.status, "accepted");
+    assert.equal(b.state.interactions[0].action, "accept");
+    assert.equal((await call(b.url, "POST", `${base}/reject`, { body: {} })).status, 409);
     assert.equal(b.state.attention.map((i) => i.sourceKind).join(), "budget_alert");
     const d = await call(b.url, "POST", `/api/issues/${IDS.issues["STH-1"]}/stalled-review-decision`, { body: { action: "approve", note: "good" } });
     assert.equal(d.json.status, "done");
@@ -419,4 +465,98 @@ test("seed: state-seed files are in the pinned formats and agree with the board 
   assert.ok(seed.issues.find((i) => i.identifier === "STH-2").status === "done");
   assert.ok(seed.comments.some((c) => c.body.startsWith("RESULT:")));
   assert.ok(seed.comments.some((c) => /^VERDICT: PASS - /.test(c.body)));
+});
+
+// V60a: the question Sales raised on the live board (fixture read from it), moved into the seed's company and
+// STH-1. The stub takes and refuses what the real board does; the bodies are also run through the board's own
+// validators when they are installed, so the stub cannot drift from them unnoticed.
+function liveQuestionSeed() {
+  const fx = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "home", "server", "test", "fixtures-v60a", "sales-question.json"), "utf8"));
+  const moved = JSON.parse(JSON.stringify({ a: fx.attentionItem, r: fx.interaction })
+    .replaceAll(fx.interaction.companyId, IDS.company).replaceAll(fx.interaction.issueId, IDS.issues["STH-1"]));
+  const s = boardSeed();
+  s.attention.push(moved.a);
+  s.threadInteractions = [moved.r];
+  return { seed: s, iid: fx.interaction.id, qid: fx.interaction.payload.questions[0].id };
+}
+
+const PAPERCLIP = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "node_modules", "@paperclipai");
+async function realCheck(record, body) {
+  const v = path.join(PAPERCLIP, "shared", "dist", "validators", "issue.js");
+  const q = path.join(PAPERCLIP, "server", "dist", "vendor", "paperclip-runner", "contracts", "question-set.js");
+  if (!fs.existsSync(v) || !fs.existsSync(q)) return null;
+  const { respondIssueThreadInteractionSchema } = await import(v);
+  const { parsePaperclipQuestionResponse } = await import(q);
+  if (!respondIssueThreadInteractionSchema.safeParse(body).success) return false;
+  const answers = {};
+  for (const c of record.payload.questionSet.questions) {
+    const a = body.answers.find((x) => x.questionId === c.id);
+    if (a) answers[c.id] = c.answerMode === "text" ? (a.otherText != null ? { text: a.otherText } : {}) : { selectedOptionIds: a.optionIds };
+  }
+  try { parsePaperclipQuestionResponse(record.payload.questionSet, { schema: "paperclip.question_response.v1", answers }); return true; } catch { return false; }
+}
+
+test("board: a question set is answered only as the real board takes it", async () => {
+  const { seed, iid, qid } = liveQuestionSeed();
+  const record = seed.threadInteractions[0];
+  const b = await startStubBoard({ seed });
+  try {
+    const base = `/api/issues/${IDS.issues["STH-1"]}/interactions/${iid}`;
+    const listed = (await call(b.url, "GET", `/api/issues/${IDS.issues["STH-1"]}/interactions`)).json;
+    assert.ok(listed.some((r) => r.id === iid && r.kind === "ask_user_questions"));
+    assert.equal((await call(b.url, "POST", `${base}/accept`, { body: {} })).status, 422, "no Accept for a question");
+    assert.equal((await call(b.url, "POST", `${base}/reject`, { body: {} })).status, 422, "no Decline for a question");
+    const empty = { answers: [], summaryMarkdown: "I set it myself." };
+    assert.equal((await call(b.url, "POST", `${base}/respond`, { body: empty })).status, 422, "what the home screen sent before");
+    assert.notEqual(await realCheck(record, empty), true);
+    const unknown = { answers: [{ questionId: "nope", optionIds: [], otherText: "x" }] };
+    assert.equal((await call(b.url, "POST", `${base}/respond`, { body: unknown })).status, 422);
+    const good = { answers: [{ questionId: qid, optionIds: [], otherText: "I set the status to Qualified myself." }] };
+    const real = await realCheck(record, good);
+    if (real !== null) assert.equal(real, true, "the board's own validators take it");
+    const r = await call(b.url, "POST", `${base}/respond`, { body: good });
+    assert.equal(r.status, 200);
+    assert.equal(r.json.status, "answered");
+    assert.equal(b.state.attention.some((i) => i.subject?.id === iid), false);
+    assert.equal((await call(b.url, "POST", `${base}/respond`, { body: good })).status, 409, "a second answer is refused");
+  } finally { await b.close(); }
+});
+
+test("board: an execution hold is shown, and cleared only by a resolve the real board would take", async () => {
+  const seed = boardSeed();
+  const issueId = IDS.issues["STH-1"];
+  const agentId = seed.issues.find((i) => i.id === issueId).assigneeAgentId;
+  const runId = "06b3d41e-2974-4a89-b233-a2e290b0266e";
+  const actionId = "26db09b0-ee43-428c-8b27-eaef5fdebdcb";
+  seed.heartbeatRuns.push({ id: runId, companyId: C, agentId, issueId, status: "cancelled", processPid: null, logBytes: null,
+    errorCode: "legacy_disposition_repair_suppressed", startedAt: "2026-11-11T02:25:42.883Z", finishedAt: "2026-11-11T02:25:43.360Z", createdAt: "2026-11-11T02:25:42.750Z" });
+  seed.recoveryActions = [{ id: actionId, companyId: C, sourceIssueId: issueId, kind: "active_run_watchdog", status: "resolved", ownerType: "board",
+    returnOwnerAgentId: agentId, cause: "legacy_execution_requires_reconciliation", outcome: "blocked", nextAction: "Automatic recovery stopped.",
+    evidence: { runId, automaticRecovery: { runId, policy: "preserve_without_replay_v1", replay: "blocked", actionOutcome: "unknown" } },
+    updatedAt: "2026-11-11T02:25:53.844Z" }];
+  const b = await startStubBoard({ seed });
+  try {
+    assert.equal((await call(b.url, "GET", `/api/issues/${IDS.issues["STH-2"]}/execution`)).json, null, "no run, no execution");
+    let exec = (await call(b.url, "GET", `/api/issues/${issueId}/execution`)).json;
+    assert.deepEqual([exec.runId, exec.recoveryAction, exec.execution.phase, exec.execution.label], [runId, null, "recovery_needed", "Stopped"]);
+    const listed = (await call(b.url, "GET", `/api/issues/${issueId}/recovery-actions`)).json;
+    assert.deepEqual([listed.active, listed.actions.map((a) => a.id)], [null, [actionId]]);
+    assert.equal((await call(b.url, "GET", `/api/heartbeat-runs/${runId}`)).json.errorCode, "legacy_disposition_repair_suppressed");
+    assert.equal((await call(b.url, "GET", `/api/heartbeat-runs/${IDS.issues["STH-2"]}`)).status, 404);
+    const path = `/api/issues/${issueId}/recovery-actions/resolve`;
+    const good = { actionId, outcome: "restored", sourceIssueStatus: "todo",
+      executionReconciliation: { runId, providerStopped: true, actionOutcome: "not_performed", outcomeEvidence: "No process, no output and no log; nothing was performed." } };
+    assert.equal((await call(b.url, "POST", path, { body: { ...good, sourceIssueStatus: "in_progress" } })).status, 400);
+    assert.equal((await call(b.url, "POST", path, { body: { ...good, executionReconciliation: { ...good.executionReconciliation, runId: actionId } } })).status, 409);
+    const t = Object.keys(b.state.tokens)[0];
+    if (t) assert.equal((await call(b.url, "POST", path, { body: good, headers: bearer(t) })).status, 403, "only the owner");
+    const r = await call(b.url, "POST", path, { body: good });
+    assert.equal(r.status, 200);
+    assert.deepEqual([r.json.issue.status, r.json.recoveryAction.status, r.json.recoveryAction.outcome], ["todo", "resolved", "handed_back"]);
+    assert.ok(b.state.wakes.some((w) => w.issueId === issueId && w.reason === "issue_recovery_action_restored"));
+    exec = (await call(b.url, "GET", `/api/issues/${issueId}/execution`)).json;
+    assert.equal(exec.execution.phase, "queued");
+    assert.deepEqual((await call(b.url, "GET", `/api/issues/${issueId}/recovery-actions`)).json.actions, []);
+    assert.equal(b.state.resolves.length, 1);
+  } finally { await b.close(); }
 });

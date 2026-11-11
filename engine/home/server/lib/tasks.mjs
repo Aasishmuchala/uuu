@@ -5,8 +5,9 @@
 // Shared by routes/shell.mjs and the Home, Tasks, Task, Team and Routines features; they never edit it.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { isFixTask } from "./draftfix.mjs";
 import { goalsOf, isGoal, loadIssues, needIds, plainState, rootOf } from "./goals.mjs";
-import { mergeInbox } from "./inbox.mjs";
+import { aboutOf, mergeInbox, waitsOnOwner } from "./inbox.mjs";
 import { roundsOf, sizeOf, textOf } from "./staged.mjs";
 import { readTaskText } from "./taskfiles.mjs";
 import { loadRoles } from "./team.mjs";
@@ -154,7 +155,9 @@ export async function loadTaskContext(ctx, { withInbox = true, withComments = "o
     return out;
   };
 
-  const accepted = (goalId) => !!ctx.decisions.get(`acknowledged:goal:${goalId}`);
+  // A fix task the home server made for a draft (lib/draftfix.mjs) counts as accepted: the owner decides on
+  // the draft, not on the fix task, so a finished one never waits for the owner on the Tasks board.
+  const accepted = (goalId) => !!ctx.decisions.get(`acknowledged:goal:${goalId}`) || isFixTask(ctx, goalId);
 
   const tctx = {
     ids, issues, goals, roles, agentList,
@@ -232,9 +235,24 @@ export function columnOf(goal, tctx) {
     case "done": return tctx.accepted(goal.id) ? "done" : "pending_review";
     case "cancelled": return "canceled";
     case "blocked":
-      return tctx.needsYou.some((i) => i.taskId === goal.id && i.kind === "problem" && i.source === "board") ? "failed" : "pending_review";
+      if (waitsForOwner(goal, tctx)) return "pending_review";
+      return isHeldTask(goal, tctx) || tctx.needsYou.some((i) => i.taskId === goal.id && i.kind === "problem" && i.source === "board") ? "failed" : "pending_review";
     default: return "backlog";
   }
+}
+
+// A task the Chief of staff blocked on purpose: Needs you holds a question about the task itself that can be
+// answered or accepted (the staged source's or a board question card), or the staged source's plan to accept.
+// The board's own "blocked" problem item beside it does not make it a failure. A question about one of its
+// steps does not count: the goal itself is not waiting on it (lib/inbox.mjs uses the same rule).
+export function waitsForOwner(goal, tctx) {
+  return tctx.needsYou.some((i) => waitsOnOwner(i) && aboutOf(i) === goal.id);
+}
+
+// Needs you holds "A task stopped" for this task: the board will not start it again by itself.
+export function isHeldTask(goal, tctx) {
+  return tctx.needsYou.some((i) => i.taskId === goal.id && i.source === "board" && i.kind === "problem"
+    && (i._raw?.sourceKind === "execution_hold" || String(i.id).startsWith("board:hold:")));
 }
 
 function hasDoc(tctx, goal, name) {
@@ -259,7 +277,8 @@ export function taskCard(goal, tctx) {
   const counted = steps.filter((s) => s.status !== "cancelled");
   const text = textOf(goal.description || "");
   const comments = tctx.comments.get(goal.id);
-  const rounds = comments ? roundsOf(comments) : null;
+  // Only the Checker's VERDICT comments are check rounds (none when the Checker is not set up).
+  const rounds = comments ? roundsOf(comments, tctx.ids?.agents?.checker || null) : null;
 
   let who = null;
   const working = [...steps].reverse().find((s) => WORKING.has(s.status) && s.assigneeAgentId);
@@ -279,7 +298,8 @@ export function taskCard(goal, tctx) {
     column: columnOf(goal, tctx), ...plainState(goal.status),
     who,
     size: comments ? sizeOf(comments) : null,
-    stage: stage ? { id: stage, label: STAGE_LABELS[stage] } : null,
+    stage: goal.status === "blocked" && isHeldTask(goal, tctx) && !waitsForOwner(goal, tctx) ? { id: stage || "work", label: "Stopped" }
+      : stage ? { id: stage, label: goal.status === "blocked" && waitsForOwner(goal, tctx) ? `${STAGE_LABELS[stage]}: waiting for you` : STAGE_LABELS[stage] } : null,
     round: rounds ? rounds.length : null,
     schedule: scheduleOf(goal, tctx, text),
     waitingForYou: tctx.needsYou.some((i) => i.taskId === goal.id),

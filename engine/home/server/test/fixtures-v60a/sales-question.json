@@ -1,0 +1,172 @@
+{
+  "_about": "Read from the live board (paperclip 2026.1106.0) on 2026-11-11: the question Sales raised on STH-26, exactly as GET /api/companies/:id/attention and GET /api/issues/:id/interactions return it.",
+  "attentionItem": {
+    "companyId": "d818b727-3a0c-4e4e-b199-ed63301691d7",
+    "sourceKind": "issue_thread_interaction",
+    "subject": {
+      "kind": "interaction",
+      "id": "f172849e-2a6e-4fd1-8cd6-4ac8858c0482",
+      "companyId": "d818b727-3a0c-4e4e-b199-ed63301691d7",
+      "title": "CRM Lead write permission is missing for the sales user",
+      "identifier": null,
+      "status": "pending",
+      "href": "/STH/issues/STH-26#interaction-f172849e-2a6e-4fd1-8cd6-4ac8858c0482",
+      "metadata": {
+        "kind": "ask_user_questions",
+        "issueId": "c4be7947-989e-4fd7-880a-7153c4e75152",
+        "createdByAgentId": "b7c12003-b9b4-42fe-a46c-d9c6c8f711d2",
+        "isPlanTarget": false,
+        "targetDocumentKey": null
+      }
+    },
+    "whyNow": "Questions need answers on an issue thread.",
+    "decisionVerbs": [
+      {
+        "id": "respond",
+        "label": "Respond",
+        "description": "Submit answers to the pending questions."
+      }
+    ],
+    "inlineResolvable": true,
+    "entryRule": "issue_thread_interactions.status = 'pending'",
+    "exitRule": "Interaction resolves, expires, fails, or is cancelled.",
+    "dedupKey": "interaction:f172849e-2a6e-4fd1-8cd6-4ac8858c0482",
+    "severity": "medium",
+    "activityAt": "2026-11-11T01:49:41.630Z",
+    "createdAt": "2026-11-11T01:49:41.630Z",
+    "updatedAt": "2026-11-11T01:49:41.630Z",
+    "relatedIssue": {
+      "kind": "issue",
+      "id": "c4be7947-989e-4fd7-880a-7153c4e75152",
+      "companyId": "d818b727-3a0c-4e4e-b199-ed63301691d7",
+      "title": "Record and qualify the trial lead Asha Rao of Rao Interiors in the CRM",
+      "identifier": "STH-26",
+      "status": "in_review",
+      "href": "/STH/issues/STH-26",
+      "metadata": {
+        "priority": "medium",
+        "assigneeAgentId": "b7c12003-b9b4-42fe-a46c-d9c6c8f711d2",
+        "assigneeUserId": null,
+        "reviewPolicy": null
+      }
+    },
+    "project": {
+      "id": "968d0619-9c17-4c61-bc22-776b07fb4610",
+      "name": "Company work",
+      "urlKey": "company-work",
+      "color": null,
+      "icon": null
+    },
+    "workspace": {
+      "id": "4113f312-08b7-4071-9693-1f4df284cb8d",
+      "name": "company-work"
+    },
+    "detail": {
+      "kind": "questions",
+      "questionCount": 1,
+      "firstQuestionText": "CRM-LEAD-2026-00001 (Asha Rao, trial) is drafted and recommended as 'Qualified' in the linked note, but I cannot set its status field myself - the CRM refuses write/read access to CRM Lead for the sales user, while FCRM Note and CRM Task work fine. Please either set the lead's status to Qualified yourself in the CRM, or grant the sales CRM user write/read permission on CRM Lead so I can do it next time. Let me know which you did (or will do).",
+      "images": []
+    },
+    "resolverAudience": {
+      "requestedResolverPolicy": "human_only",
+      "effectiveResolverPolicy": "human_only",
+      "effectiveResolverPolicySource": "requested",
+      "resolverPolicyProvenance": "explicit",
+      "addresseeAgentId": null,
+      "addresseeUserId": null,
+      "addresseeName": null,
+      "createdByAgentId": "b7c12003-b9b4-42fe-a46c-d9c6c8f711d2",
+      "createdByAgentName": null
+    },
+    "id": "issue_thread_interaction:interaction:f172849e-2a6e-4fd1-8cd6-4ac8858c0482",
+    "dismissalKey": "attention:interaction:f172849e-2a6e-4fd1-8cd6-4ac8858c0482",
+    "dismissal": null,
+    "expiresAt": null,
+    "ruleKey": null,
+    "originAgentName": "Sales",
+    "queues": [
+      {
+        "key": "questions",
+        "title": "Questions"
+      }
+    ],
+    "shelf": false,
+    "retentionDays": 30,
+    "keep": false,
+    "archivedAt": null,
+    "retentionVersion": 1,
+    "decideBy": null,
+    "decideByAttribution": null,
+    "snoozedUntil": null,
+    "trainingExampleId": null,
+    "rank": 2
+  },
+  "interaction": {
+    "id": "f172849e-2a6e-4fd1-8cd6-4ac8858c0482",
+    "companyId": "d818b727-3a0c-4e4e-b199-ed63301691d7",
+    "issueId": "c4be7947-989e-4fd7-880a-7153c4e75152",
+    "kind": "ask_user_questions",
+    "status": "pending",
+    "continuationPolicy": "wake_assignee",
+    "requestedResolverPolicy": "human_only",
+    "effectiveResolverPolicy": "human_only",
+    "resolverPolicyProvenance": "explicit",
+    "effectiveResolverPolicySource": "requested",
+    "idempotencyKey": "question:STH-26:lead-status-permission:v1",
+    "originCommentIds": [],
+    "sourceCommentId": null,
+    "sourceIdentityContextId": "ccbb7fad-7323-4e3e-bce9-34fb9c9bfef7",
+    "sourceRunId": "170f75ee-849d-4379-a559-52fd97d32b01",
+    "title": "CRM Lead write permission is missing for the sales user",
+    "summary": "The lead, note and follow-up task are drafted, but the sales CRM user cannot set the lead's status field (write/read on CRM Lead is refused).",
+    "createdByAgentId": "b7c12003-b9b4-42fe-a46c-d9c6c8f711d2",
+    "addresseeAgentId": null,
+    "addresseeUserId": null,
+    "createdByUserId": null,
+    "resolvedByAgentId": null,
+    "resolvedByRunId": null,
+    "resolvedByUserId": null,
+    "payload": {
+      "version": 1,
+      "supersedeOnUserComment": false,
+      "questions": [
+        {
+          "id": "resolution",
+          "prompt": "CRM-LEAD-2026-00001 (Asha Rao, trial) is drafted and recommended as 'Qualified' in the linked note, but I cannot set its status field myself - the CRM refuses write/read access to CRM Lead for the sales user, while FCRM Note and CRM Task work fine. Please either set the lead's status to Qualified yourself in the CRM, or grant the sales CRM user write/read permission on CRM Lead so I can do it next time. Let me know which you did (or will do).",
+          "selectionMode": "single",
+          "required": true,
+          "allowOther": true,
+          "options": [
+            {
+              "id": "paperclip_text_answer",
+              "label": "Type an answer",
+              "freeText": true
+            }
+          ]
+        }
+      ],
+      "questionSet": {
+        "schema": "paperclip.question_set.v1",
+        "questions": [
+          {
+            "id": "resolution",
+            "prompt": "CRM-LEAD-2026-00001 (Asha Rao, trial) is drafted and recommended as 'Qualified' in the linked note, but I cannot set its status field myself - the CRM refuses write/read access to CRM Lead for the sales user, while FCRM Note and CRM Task work fine. Please either set the lead's status to Qualified yourself in the CRM, or grant the sales CRM user write/read permission on CRM Lead so I can do it next time. Let me know which you did (or will do).",
+            "required": true,
+            "answerMode": "text"
+          }
+        ]
+      }
+    },
+    "result": null,
+    "resolvedAt": null,
+    "dismissedAt": null,
+    "dismissedByUserId": null,
+    "createdAt": "2026-11-11T01:49:41.630Z",
+    "updatedAt": "2026-11-11T01:49:41.630Z",
+    "resolverPolicy": "human_only",
+    "legacyResolverPolicyAliases": {
+      "requested": "board_only",
+      "effective": "board_only"
+    }
+  }
+}

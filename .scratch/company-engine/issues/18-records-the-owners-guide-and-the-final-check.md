@@ -4,7 +4,7 @@
 
 **Blocked by:** 17
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Plan tasks:** V57, V58
 
@@ -12,5 +12,5 @@
 - [x] The glossary has the new words and the seven department and studio roles
 - [x] The owner's guide covers every page and says what would turn each later option on
 - [x] Phase 1 tickets 13 and 15 are resolved with their answers; 14 stays open as an owner step
-- [ ] The final review finds nothing rated must fix, or each finding has a plan revision
-- [ ] Every test passes, the proof holds, and the company matches its files
+- [x] The final review finds nothing rated must fix, or each finding has a plan revision
+- [x] Every test passes, the proof holds, and the company matches its files

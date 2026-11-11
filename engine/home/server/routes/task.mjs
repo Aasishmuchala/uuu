@@ -5,10 +5,13 @@
 // (no links, nothing outside the goal's folder), texts are capped, markers are taken out of what the
 // owner reads, and nothing is ever followed or run. Accepting and sending back go through
 // POST /api/inbox/act with the ids given here; there is no other accept route.
+import { plainLines } from "../inbox/goals.mjs";
+import { isFixTask } from "../lib/draftfix.mjs";
+import { capText } from "../lib/format.mjs";
 import { plainState } from "../lib/goals.mjs";
-import { findTask, loadTaskContext, taskCard, treeComments } from "../lib/tasks.mjs";
+import { findTask, isHeldTask, loadTaskContext, taskCard, treeComments } from "../lib/tasks.mjs";
 import {
-  MARKERS, ROUND_CAP, parseBrief, parseDoc, parsePlan, parseSummary, roundsOf, sizeOf, stagesOf, textOf,
+  MARKERS, ROUND_CAP, isCheck, parseBrief, parseDoc, parsePlan, parseSummary, roundsOf, sizeOf, stagesOf, textOf,
 } from "../lib/staged.mjs";
 import { fileEntry, listTaskFiles, readTaskText } from "../lib/taskfiles.mjs";
 
@@ -29,8 +32,12 @@ const CHECK_SECTIONS = ["Questions", "Actions", "Anything unclear"];
 
 const bodyOf = (c) => (c && typeof c.body === "string" ? c.body : "");
 const cap = (s) => (s.length > MAX_TEXT ? `${s.slice(0, MAX_TEXT - 1)}…` : s);
-const isVerdict = (c) => /^\s*VERDICT:/i.test(bodyOf(c).slice(0, 4000));
+// Only the Checker's "VERDICT:" comment is a check (lib/staged.mjs isCheck); anyone else's is an ordinary comment.
+const checkerOf = (tctx) => tctx.ids?.agents?.checker || null;
 const isResult = (c) => /^\s*RESULT:/.test(bodyOf(c).slice(0, 4000));
+// What follows a marker becomes a sentence of its own: "PLAN READY: the Marketer drafts..." reads
+// "The plan is ready. The Marketer drafts...".
+const sentence = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function whoOf(tctx, comment) {
   if (!comment.authorAgentId) return YOU;
@@ -45,17 +52,20 @@ function assigneeOf(tctx, issue) {
 
 // One line with its marker turned into plain words; null drops the line. `byOwner` is true only for a
 // comment no agent wrote: an agent's own "PLAN ACCEPTED" line is never shown as the owner's acceptance.
-function plainLine(line, byOwner) {
+// Verdict lines are read only in the Checker's check (`check`).
+function plainLine(line, byOwner, check) {
   const t = line.trimStart();
   let m;
-  if ((m = /^VERDICT:\s*(PASS|FAIL)\b\s*[-:]?\s*(.*)$/i.exec(t))) {
-    const said = m[1].toUpperCase() === "PASS" ? "Passed" : "Did not pass";
-    return m[2].trim() ? `${said}: ${m[2].trim()}` : `${said}.`;
+  if (check) {
+    if ((m = /^VERDICT:\s*(PASS|FAIL)\b\s*[-:]?\s*(.*)$/i.exec(t))) {
+      const said = m[1].toUpperCase() === "PASS" ? "Passed" : "Did not pass";
+      return m[2].trim() ? `${said}: ${m[2].trim()}` : `${said}.`;
+    }
+    if (/^VERDICT:/i.test(t)) return t.replace(/^VERDICT:\s*/i, "The check says: ");
+    if (/^Verdict:\s*(PASS|FAIL)\s*$/i.test(t)) return null;
   }
-  if (/^VERDICT:/i.test(t)) return t.replace(/^VERDICT:\s*/i, "The check says: ");
-  if (/^Verdict:\s*(PASS|FAIL)\s*$/i.test(t)) return null;
   if ((m = /^SIZE:\s*(.*)$/.exec(t))) return m[1].trim() ? `Sized as ${m[1].trim()}` : null;
-  if ((m = /^PLAN READY:\s*(.*)$/.exec(t))) return m[1].trim() ? `The plan is ready. ${m[1].trim()}` : "The plan is ready.";
+  if ((m = /^PLAN READY:\s*(.*)$/.exec(t))) return m[1].trim() ? `The plan is ready. ${sentence(m[1].trim())}` : "The plan is ready.";
   if (t.startsWith(MARKERS.planAccepted)) return byOwner ? "You accepted the plan." : "It wrote that the plan was accepted.";
   if ((m = /^ANSWER:\s*(.*)$/.exec(t))) return m[1].trim() || null;
   if ((m = /^STOPPED:\s*(.*)$/.exec(t))) return m[1].trim() ? `Stopped because ${m[1].trim()}` : "Stopped.";
@@ -66,23 +76,24 @@ function plainLine(line, byOwner) {
   return line;
 }
 
-// A comment as the owner reads it: markers taken out, capped. A check shows as its first line only;
-// the whole check is in the rounds.
-function plainText(comment) {
-  let body = bodyOf(comment).slice(0, MAX_TEXT * 4).replace(/\r\n?/g, "\n");
-  if (isVerdict(comment)) body = body.trimStart().split("\n", 1)[0];
+// A comment as the owner reads it: markers taken out, capped (capText before any pattern runs). A check
+// shows as its first line only; the whole check is in the rounds.
+function plainText(comment, checkerId) {
+  let body = capText(bodyOf(comment)).replace(/\r\n?/g, "\n");
+  const check = isCheck(comment, checkerId);
+  if (check) body = body.trimStart().split("\n", 1)[0];
   const lines = [];
   const byOwner = !comment?.authorAgentId;
   for (const line of body.split("\n")) {
-    const p = plainLine(line, byOwner);
+    const p = plainLine(line, byOwner, check);
     if (p !== null) lines.push(p);
   }
-  return cap(lines.join("\n").trim());
+  return cap(plainLines(lines.join("\n")).trim());
 }
 
-function kindOfComment(comment) {
+function kindOfComment(comment, checkerId) {
   if (isResult(comment)) return "result";
-  if (isVerdict(comment)) return "verdict";
+  if (isCheck(comment, checkerId)) return "verdict";
   if (!comment.authorAgentId) return "note";
   return "comment";
 }
@@ -109,10 +120,11 @@ function roundLabel(round, isLast, open) {
 function roundsView(tctx, goal, comments, rounds) {
   const stopped = comments.some((c) => c.authorAgentId && /^\s*STOPPED:/.test(bodyOf(c)));
   const open = !FINISHED.has(goal.status) && !stopped && rounds.length < ROUND_CAP;
+  const checkerId = checkerOf(tctx);
   let from = 0;
   return rounds.map((r, i) => {
     const at = comments.indexOf(r.comment);
-    const between = comments.slice(from, at < 0 ? from : at).filter((c) => !isVerdict(c));
+    const between = comments.slice(from, at < 0 ? from : at).filter((c) => !isCheck(c, checkerId));
     from = at < 0 ? from : at + 1;
     return {
       n: r.n, outcome: r.outcome, label: roundLabel(r, i === rounds.length - 1, open),
@@ -124,7 +136,7 @@ function roundsView(tctx, goal, comments, rounds) {
       })),
       actions: r.actions,
       exchange: between.slice(-MAX_EXCHANGE)
-        .map((c) => ({ who: whoOf(tctx, c), text: plainText(c), at: c.createdAt || null }))
+        .map((c) => ({ who: whoOf(tctx, c), text: plainText(c, checkerId), at: c.createdAt || null }))
         .filter((e) => e.text),
     };
   });
@@ -184,6 +196,7 @@ function timelineView(tctx, goal) {
 
 function acceptanceState(goal, tctx, comments) {
   if (goal.status === "cancelled") return "stopped";
+  if (goal.status === "blocked" && isHeldTask(goal, tctx)) return "stopped";
   if (goal.status === "done") return tctx.accepted(goal.id) ? "accepted" : "waiting_for_you";
   const result = [...comments].reverse().find(isResult);
   if (result && comments.some((c) => !c.authorAgentId && String(c.createdAt) > String(result.createdAt))) return "sent_back";
@@ -193,7 +206,7 @@ function acceptanceState(goal, tctx, comments) {
 function resultOf(tctx, goal, comments) {
   const c = [...comments].reverse().find((x) => x.issueId === goal.id && isResult(x));
   if (!c) return null;
-  return { text: plainText(c), by: whoOf(tctx, c).name, at: c.createdAt || null };
+  return { text: plainText(c, checkerOf(tctx)), by: whoOf(tctx, c).name, at: c.createdAt || null };
 }
 
 export default function register(app) {
@@ -203,7 +216,8 @@ export default function register(app) {
     if (!goal) throw ctx.fail(404, "There is no such task.", "Go back to Tasks and pick one from the list.", "task_not_found");
     const comments = await treeComments(tctx, goal);
     tctx.comments.set(goal.id, comments);
-    const rounds = roundsOf(comments);
+    const checkerId = checkerOf(tctx);
+    const rounds = roundsOf(comments, checkerId);
     const newest = rounds[rounds.length - 1] || null;
     const text = textOf(goal.description || "");
     const needsYou = tctx.needsYou.filter((i) => i.taskId === goal.id);
@@ -211,7 +225,8 @@ export default function register(app) {
     const state = acceptanceState(goal, tctx, comments);
     let accept = null;
     let sendBack = null;
-    if (state === "waiting_for_you") {
+    // A fix task the home server made for a sent-back draft has no buttons here: the owner decides on the draft.
+    if (state === "waiting_for_you" && !isFixTask(ctx, goal.id)) {
       const inboxId = `goal:${goal.id}`;
       const item = needsYou.find((i) => i.id === inboxId);
       const label = (id, fallback) => item?.actions?.find((a) => a.id === id)?.label || fallback;
@@ -235,7 +250,7 @@ export default function register(app) {
       stages: stagesView(tctx, goal, comments, rounds),
       timeline: timelineView(tctx, goal),
       conversation: comments.slice(-MAX_CONVERSATION)
-        .map((c) => ({ who: whoOf(tctx, c), kind: kindOfComment(c), text: plainText(c), at: c.createdAt || null })),
+        .map((c) => ({ who: whoOf(tctx, c), kind: kindOfComment(c, checkerId), text: plainText(c, checkerId), at: c.createdAt || null })),
       files: goal.identifier ? listTaskFiles(ctx.config, goal.identifier).map((f) => fileEntry(goal.identifier, f.name, f.size)) : [],
       result: resultOf(tctx, goal, comments),
       generatedAt: new Date().toISOString(),

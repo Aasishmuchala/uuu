@@ -1,0 +1,37 @@
+{
+  "id": "42896de0-01e1-40d8-a543-17d59972b7f6",
+  "companyId": "d818b727-3a0c-4e4e-b199-ed63301691d7",
+  "parentId": null,
+  "title": "Write a one-page welcome note for new customers and a short post announcing our…",
+  "status": "in_progress",
+  "assigneeAgentId": "d03db636-70c7-4bac-8e29-41665aa8e9a4",
+  "identifier": "STH-18",
+  "issueNumber": 18,
+  "executionBlocker": {
+    "recoveryActionId": "26db09b0-ee43-428c-8b27-eaef5fdebdcb",
+    "runId": "06b3d41e-2974-4a89-b233-a2e290b0266e",
+    "agentId": "d03db636-70c7-4bac-8e29-41665aa8e9a4",
+    "cause": "legacy_execution_requires_reconciliation",
+    "nextAction": "Automatic recovery stopped. Recorded work is preserved; actions with unverified outcomes will not be repeated. Inspect the run before sending a new message to request continuation.",
+    "runStatus": "cancelled",
+    "runError": "Execution stopped without a recorded cancellation request: Disposition repair suppressed: recorded_disposition",
+    "canContinue": false,
+    "canRetry": false,
+    "savedMessageCount": 3
+  },
+  "interruption": {
+    "intentId": "8961ff98-d50c-4ffb-9086-d20884f19652",
+    "responsibility": "system",
+    "state": "failed",
+    "nextRetryAt": null,
+    "canRetry": true,
+    "userAction": null,
+    "sourceRunIds": [
+      "06b3d41e-2974-4a89-b233-a2e290b0266e"
+    ],
+    "observedRunId": "06b3d41e-2974-4a89-b233-a2e290b0266e"
+  },
+  "activeRecoveryAction": null,
+  "blockedBy": [],
+  "blocks": []
+}

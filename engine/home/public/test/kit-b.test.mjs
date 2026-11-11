@@ -279,7 +279,7 @@ test("each composite stylesheet exists, uses only k- selectors and tokens (11.2)
     // Every rule's selectors (outside @-rules' own lines and keyframe steps) are k- classes.
     const blocks = css
       .replace(/@keyframes[^{]+\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "")
-      .replace(/@(?:media|supports)[^{]+\{/g, "");
+      .replace(/@(?:media|supports|container)[^{]+\{/g, "");
     for (const m of blocks.matchAll(/([^{}@;]+)\{/g)) {
       for (const sel of m[1].split(",").map((s) => s.trim()).filter(Boolean)) {
         assert.ok(/^(?:[a-z]+)?\.k-/.test(sel), `${name}.css: selector "${sel}" starts with a k- class`);

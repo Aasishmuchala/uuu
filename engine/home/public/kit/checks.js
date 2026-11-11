@@ -5,6 +5,7 @@ import { api } from "../lib/api.js";
 import { safeHref } from "./util.js";
 import { Icon } from "./icon.js";
 import { FileCard } from "./conversation.js";
+import { Markdown } from "./doc.js";
 import { Loading, ErrorNotice } from "./states.js";
 
 const text = (v) => (v === null || v === undefined ? "" : String(v));
@@ -39,8 +40,10 @@ export function CheckList({ checks = [], selected, onSelect }) {
 }
 
 const TEXT_NAME = /\.(md|txt|json|py|csv|log)$/i;
+const MARKDOWN_NAME = /\.(md|markdown)$/i;
 
-// One file of evidence: an image shown large, a text file shown as plain text, anything else as a FileCard.
+// One file of evidence: an image shown large, a Markdown file as readable text, another text file as plain text,
+// anything else as a FileCard.
 export function Evidence({ file }) {
   const viewUrl = file ? safeHref(file.viewUrl) : null;
   const isImage = !!(viewUrl && file.kind === "image");
@@ -71,7 +74,9 @@ export function Evidence({ file }) {
     return html`<figure class="k-evidence k-evidence--text">
       ${s.loading && html`<${Loading} lines=${4} label=${`Loading ${name}`} />`}
       ${s.error && html`<${ErrorNotice} error=${s.error} onRetry=${() => setN(n + 1)} />`}
-      ${s.data && html`<pre class="k-evidence__text u-mono">${text(s.data.text)}</pre>`}
+      ${s.data && (MARKDOWN_NAME.test(name)
+        ? html`<div class="k-evidence__doc" tabindex="0" role="region" aria-label=${name}><${Markdown} text=${text(s.data.text)} /></div>`
+        : html`<pre class="k-evidence__text u-mono">${text(s.data.text)}</pre>`)}
       ${s.data && s.data.truncated && html`<p class="k-evidence__more u-mono">Only the start of this file is shown.</p>`}
       <figcaption class="k-evidence__name u-mono">${name}</figcaption>
     </figure>`;

@@ -64,7 +64,6 @@ export function TaskCard({ task }) {
   return html`<a class=${`k-task-card${task.waitingForYou ? " k-task-card--waiting" : ""}`} href=${taskHref(task)}>
     <div class="k-task-card__top">
       <${Mono}>${text(task.identifier)}<//>
-      ${task.live && html`<span class="k-task-card__live"><${Live} /></span>`}
       ${who && html`<span class="k-task-card__who" title=${text(who.name)}>
         <span class="u-visually-hidden">${text(who.name)}</span><${Avatar} slug=${who.slug} name=${who.name} size=${20} />
       </span>`}
@@ -80,6 +79,7 @@ export function TaskCard({ task }) {
     <div class="k-task-card__bottom">
       ${task.size && html`<${Chip}>Size ${text(task.size)}<//>`}
       ${task.schedule && html`<${Chip} icon="loop">${text(task.schedule.label)}<//>`}
+      ${task.live && html`<span class="k-task-card__live"><${Live} /></span>`}
       ${task.waitingForYou && html`<${Waiting} />`}
       ${date && html`<time class="k-task-card__date" datetime=${text(date)} title=${fullWhen(date)}>${when(date)}</time>`}
     </div>

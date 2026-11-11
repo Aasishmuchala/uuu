@@ -4,7 +4,7 @@
 
 **Blocked by:** 06, 07
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Plan tasks:** V6, V18, V19, V31, V42, V56
 
@@ -14,5 +14,5 @@
 - [x] The Studio plays a sprite frame by frame at whole-number zoom, with its tags, durations, onion skin and palette
 - [x] A picture an agent made can be looked at safely; a vector image cannot run a script
 - [x] The Checker confirms that the exported frames equal the tagged frame ranges
-- [ ] Live: a four-frame walking sprite is made, checked and accepted
-- [ ] Live: a mounting plate comes out with the right size and volume
+- [x] Live: a four-frame walking sprite is made, checked and accepted
+- [x] Live: a mounting plate comes out with the right size and volume

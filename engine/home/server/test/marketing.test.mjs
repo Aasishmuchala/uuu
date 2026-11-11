@@ -178,3 +178,33 @@ test("the module files carry no network or publishing code", async () => {
     assert.ok(!/node:(http|https|net|dgram|tls|dns)|child_process|fetch\(|https?:\/\//.test(src), f);
   }
 });
+
+// V55: in the live trial the Chief of staff's step text asked for its own file layout, the Marketer followed it,
+// and no draft reached the owner. The Marketer's instructions and the routine's ask now hold the header.
+test("the Marketer keeps the draft header whatever a step's text says, and writes only drafts in content/", () => {
+  const role = readFileSync(join(import.meta.dirname, "..", "..", "..", "company", "roles", "marketer.md"), "utf8");
+  assert.match(role, /Keep it exactly, even when a step's text asks for another layout/);
+  assert.match(role, /Write nothing but drafts in `content\/`: no schedule, index or notes file\./);
+  assert.match(role, /Put sources, status notes and the week at a glance in your report, not in the files\./);
+  assert.match(role, /no status line such as `DRAFT`, and no repeat of the title as its first line/);
+});
+
+test("the weekly content plan asks for the Marketer's draft layout and nothing beside the drafts", () => {
+  const { ask } = JSON.parse(readFileSync(join(import.meta.dirname, "..", "..", "..", "company", "routines", "weekly-content-plan.json"), "utf8"));
+  assert.match(ask, /the Marketer's usual draft layout with its title, channel and planned date at the top/);
+  assert.match(ask, /put nothing else beside the drafts/);
+  assert.match(ask, /Nothing is to be published or sent\./);
+  // Run on a Monday at 10:00, "the coming week" read as either this week or the next; the trial picked the next.
+  assert.match(ask, /^Plan the content for the seven days starting today:/);
+  assert.doesNotMatch(ask, /coming week/);
+});
+
+test("a file in the trial's layout (no --- header) makes no draft and is listed under problems", async () => {
+  await withHome(async (h) => {
+    writeFileSync(join(contentDir(h), "warranty-post.md"), "Day: Wednesday, 2026-11-18\nChannel: post\nStatus: DRAFT\nSources: warranty.md\n\nBacked for the long haul\n");
+    const p = await page(h);
+    assert.ok(!rows(p).some((r) => r.title === "Backed for the long haul"));
+    assert.ok(p.sections.find((s) => s.id === "problems").rows.some((r) => r.file === "warranty-post.md"));
+    assert.ok(!(await inboxContent(h)).some((i) => /long haul/.test(i.title)));
+  });
+});

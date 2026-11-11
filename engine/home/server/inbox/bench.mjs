@@ -8,15 +8,52 @@
 //    and refuses again when its stamp is not that version, or it is no longer a draft; the document
 //    submitted is the one just read (the books also refuse a stale copy);
 //  - an approved support reply is only recorded: nothing is sent to anyone.
+import { closeFixTasks, fixLine, recordFixTask } from "../lib/draftfix.mjs";
+import { HomeError } from "../lib/errors.mjs";
 import {
-  AGENT_BY_EMAIL, AGENTS, DRAFT_TYPES, decidedKey, inboxIdOf, isDraftReply, listDrafts, plainType, sentBackKey, stampToIso,
+  AGENT_BY_EMAIL, AGENTS, DRAFT_TYPES, decidedKey, inboxIdOf, isDraftReply, listDocs, listDrafts, plainType, sentBackKey, stampToIso,
 } from "../routes/_departments.mjs";
 
 const act = (id, label, style, needsNote = false) => ({ id, label, style, needsNote });
 
+// Role names the company file gives with no article ("Support", "People", "Sales"). Every other role reads
+// "the Builder" / "The Builder".
+const NO_ARTICLE = new Set(["Support", "People", "Sales"]);
+export function agentRef(name, { start = true } = {}) {
+  if (NO_ARTICLE.has(name)) return name;
+  return `${start ? "The" : "the"} ${name}`;
+}
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const ymd = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || "")); return m ? { y: +m[1], m: +m[2], d: +m[3] } : null; };
+
+// "Casual leave, 14 to 15 November"; the year only when it is not this year (or the two dates differ in year).
+export function leaveText(type, from, to, thisYear = new Date().getFullYear()) {
+  const a = ymd(from), b = ymd(to) || a;
+  const kind = String(type || "").trim();
+  let dates = "";
+  if (a) {
+    const yr = (x) => (x.y === thisYear && a.y === b.y ? "" : ` ${x.y}`);
+    if (a.y === b.y && a.m === b.m && a.d === b.d) dates = `${a.d} ${MONTHS[a.m - 1]}${yr(a)}`;
+    else if (a.y === b.y && a.m === b.m) dates = `${a.d} to ${b.d} ${MONTHS[a.m - 1]}${yr(a)}`;
+    else dates = `${a.d} ${MONTHS[a.m - 1]}${a.y === b.y ? "" : ` ${a.y}`} to ${b.d} ${MONTHS[b.m - 1]}${yr(b)}`;
+  }
+  return [kind, dates].filter(Boolean).join(", ");
+}
+
+// What the owner reads when the books refuse an approval with a reason of their own.
+export function refusalText(doctype, reason) {
+  if (doctype === "Leave Application" && (!reason || /holiday/i.test(reason))) {
+    return { message: "Making this leave final needs a holiday list in the books. The draft is kept.",
+      next: "Add a holiday list for the company or the person in the books, then approve again." };
+  }
+  return { message: reason ? `The books did not accept this: ${reason}` : "The books did not accept this.",
+    next: "The draft is kept. Fix what the books say, or send it back with a note." };
+}
+
 function describe(d) {
   const t = DRAFT_TYPES[d.doctype];
-  const who = `The ${d.agent.name}`;
+  const who = agentRef(d.agent.name);
   const party = t.party(d.doc);
   const amount = t.amount(d.doc);
   if (d.doctype === "HD Ticket Comment") {
@@ -35,7 +72,7 @@ function toItem(d) {
     version: String(d.modified ?? ""),
     summary: describe(d), severity: "normal",
     details: [...t.details(d.doc).filter(([, v]) => v !== undefined && v !== null && v !== "").map(([label, value]) => ({ label, value: String(value) })),
-      ...(d.doctype === "Leave Application" && d.doc.status ? [{ label: "Status", value: String(d.doc.status) }] : [])],
+      ...(d.doctype === "Leave Application" && d.leaveType ? [{ label: "Leave", value: leaveText(d.leaveType, d.doc.from_date, d.doc.to_date) }] : [])],
     actions: [
       act("approve", d.doctype === "HD Ticket Comment" ? "Approve the reply" : "Approve", "primary"),
       act("send_back", "Send back", "plain", true),
@@ -53,6 +90,17 @@ async function list(ctx) {
     return { items: [], notConnected: { source: "books", reason: "Books is not installed on this Mac yet." } };
   }
   const drafts = await listDrafts(ctx);
+  // The leave type is not among the fields the shared list asks for; one more read adds it.
+  const leaves = drafts.filter((d) => d.doctype === "Leave Application");
+  if (leaves.length) {
+    try {
+      const rows = await listDocs(ctx, "Leave Application", { fields: ["name", "leave_type"], filters: [["name", "in", leaves.map((d) => d.name)]], limit: 200 });
+      const byName = new Map(rows.map((r) => [String(r.name), r.leave_type]));
+      for (const d of leaves) d.leaveType = byName.get(d.name) || "";
+    } catch (e) {
+      if (!(e instanceof HomeError)) throw e;
+    }
+  }
   return { items: drafts.map(toItem) };
 }
 
@@ -84,11 +132,21 @@ async function approve(ctx, doctype, name) {
     if (!isDraftReply(doc.content)) throw refuse(ctx, 409, "This is not a draft reply.", "Refresh the inbox.", "not_a_draft");
     if (ctx.decisions.get(decidedKey(doctype, name))) throw refuse(ctx, 409, "This reply was already decided.", "Refresh the inbox.", "already_handled");
     ctx.decisions.set(decidedKey(doctype, name), new Date().toISOString());
+    await closeFixTasks(ctx, inboxIdOf(doctype, name));
     return { message: "Reply approved. Sending is switched off, so nothing was sent to the customer." };
   }
   const toSubmit = { ...doc, doctype };
   if (doctype === "Leave Application" && (!doc.status || doc.status === "Open")) toSubmit.status = "Approved";
-  await ctx.bench.post("/api/method/frappe.client.submit", { doc: toSubmit });
+  try {
+    await ctx.bench.post("/api/method/frappe.client.submit", { doc: toSubmit });
+  } catch (e) {
+    if (e instanceof HomeError && e.code === "bench_invalid") {
+      const r = refusalText(doctype, e.reason);
+      throw refuse(ctx, 409, r.message, r.next, "bench_invalid");
+    }
+    throw e;
+  }
+  await closeFixTasks(ctx, inboxIdOf(doctype, name));
   return { message: doctype === "Leave Application"
     ? `The ${label} for ${doc.employee_name || "this person"} is approved and final.`
     : `The ${label} ${name} is approved and final.` };
@@ -100,19 +158,21 @@ async function sendBack(ctx, doctype, name, note) {
   const slug = AGENT_BY_EMAIL.get(doc.owner).slug;
   const agentId = ids?.agents?.[slug];
   if (!ids?.companyId || !ids?.projectId || !agentId) {
-    throw refuse(ctx, 409, `The ${AGENTS[slug].name} is not set up yet, so this could not be sent back.`, "Run engine setup first.", "not_set_up");
+    throw refuse(ctx, 409, `${agentRef(AGENTS[slug].name)} is not set up yet, so this could not be sent back.`, "Run engine setup first.", "not_set_up");
   }
   const label = plainType(doctype);
+  await closeFixTasks(ctx, inboxIdOf(doctype, name));
   await ctx.bench.post("/api/method/frappe.desk.form.utils.add_comment", {
     reference_doctype: doctype, reference_name: name, content: note, comment_email: "Administrator", comment_by: "Administrator",
   });
-  await ctx.board.post(`/api/companies/${encodeURIComponent(ids.companyId)}/issues`, {
+  const created = await ctx.board.post(`/api/companies/${encodeURIComponent(ids.companyId)}/issues`, {
     title: `Fix ${label} ${name}`,
-    description: `${note}\n\nThis is about the draft ${label} ${name} in the books. Change the draft as asked and leave it as a draft.`,
+    description: `${note}\n\nThis is about the draft ${label} ${name} in the books. Change the draft as asked and leave it as a draft.\n\n${fixLine(inboxIdOf(doctype, name))}`,
     assigneeAgentId: agentId, projectId: ids.projectId, status: "todo", priority: "medium",
   });
+  recordFixTask(ctx, inboxIdOf(doctype, name), created);
   ctx.decisions.set(sentBackKey(doctype, name), doc.modified);
-  return { message: `Sent back to the ${AGENTS[slug].name} with your note.` };
+  return { message: `Sent back to ${agentRef(AGENTS[slug].name, { start: false })} with your note.` };
 }
 
 async function actOn(ctx, itemId, action, note) {

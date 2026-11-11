@@ -52,18 +52,9 @@
 .p-agent .p-agent__profile .k-section + .k-section { margin-top: var(--s-2); }
 .p-agent .p-agent__rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 
-/* Instructions: read-only text, kept as written. */
+/* Instructions: read-only Markdown, shown as readable text; the page scrolls, not the card. */
 .p-agent .p-agent__instructions { display: flex; flex-direction: column; gap: var(--s-3); }
-.p-agent .p-agent__text {
-  margin: 0;
-  max-height: 70vh;
-  overflow: auto;
-  font-size: var(--fs-caption);
-  line-height: var(--lh-body);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  color: var(--text);
-}
+.p-agent .p-agent__text { min-width: 0; max-width: 72ch; color: var(--text); }
 
 /* Lessons */
 .p-agent .p-agent__lessons { display: flex; flex-direction: column; gap: var(--s-3); }

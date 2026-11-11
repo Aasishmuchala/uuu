@@ -13,13 +13,24 @@ const nowStamp = () => new Date().toISOString().replace("T", " ").replace("Z", "
 const clone = (v) => (v === undefined ? v : structuredClone(v));
 
 function loadState(seed) {
-  const s = { users: {}, docs: {}, comments: [], missingDoctypes: [] };
+  const s = { users: {}, docs: {}, comments: [], missingDoctypes: [], submitRefusals: {} };
   if (seed) for (const [k, v] of Object.entries(clone(seed))) s[k] = v;
   return s;
 }
 
 function frappeError(status, excType, message) {
   return [status, { exc_type: excType, exception: `frappe.exceptions.${excType}: ${message}`, message }];
+}
+
+// What the real books answer to a validation refusal: HTTP 417, `exception` starting with the class and
+// `_server_messages` as a JSON string of JSON strings (each with a `message`, which may hold HTML).
+function frappeInvalid(message, doctype = "Leave Application") {
+  return [417, {
+    exception: `frappe.exceptions.ValidationError: ${message}`,
+    exc_type: "ValidationError",
+    _server_messages: JSON.stringify([JSON.stringify({ message, indicator: "red", title: "Message" })]),
+    exc: JSON.stringify([`Traceback (most recent call last):\n  File "apps/frappe/frappe/handler.py", line 1, in handle\n${doctype}`]),
+  }];
 }
 
 // SQL LIKE to RegExp (case-insensitive)
@@ -101,6 +112,8 @@ export async function startStubBench({ port = 0, seed } = {}) {
       if (!user.canSubmit || !canTouch(user, doc.doctype)) return frappeError(403, "PermissionError", `No permission to submit ${doc.doctype}`);
       const found = docsOf(doc.doctype).find((d) => nameOf(d) === String(doc.name));
       if (!found) return frappeError(404, "DoesNotExistError", `${doc.doctype} ${doc.name} not found`);
+      const refusal = state.submitRefusals?.[doc.doctype];
+      if (refusal) return frappeInvalid(refusal, doc.doctype);
       if (found.docstatus !== 0) return frappeError(417, "ValidationError", "Document is not a draft");
       found.docstatus = 1; found.modified = nowStamp();
       return { message: clone(found) };

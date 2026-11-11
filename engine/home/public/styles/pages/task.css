@@ -29,9 +29,12 @@
   width: min(360px, 100%);
 }
 
-/* A word, not a button: it must not look pressable. */
+/* A word, not a button: it must not look pressable. It keeps its own height beside a taller button. */
 .p-task .p-task__state {
+  align-self: center;
   margin: 0;
+  line-height: var(--lh-tight);
+  white-space: nowrap;
   padding: var(--s-1) var(--s-3);
   border-radius: var(--r-pill);
   background: var(--bg-subtle);

@@ -12,6 +12,12 @@
   color: var(--text);
 }
 
+/* A full card knows its own width, so its buttons can move under the words when the card is narrow
+   (a work panel open beside it), whatever the window is. */
+.k-decision:not(.k-decision--compact) {
+  container-type: inline-size;
+}
+
 .k-decision--compact {
   grid-template-columns: minmax(0, 1fr) auto;
   padding: var(--s-3);
@@ -24,6 +30,19 @@
 
 .k-decision__avatar {
   padding-top: 2px;
+}
+
+/* An item the board raised itself: a quiet mark in place of an agent picture. */
+.k-decision__source {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--bg-card);
+  color: var(--text-2);
 }
 
 .k-decision__body {
@@ -74,20 +93,21 @@
   white-space: pre-line;
 }
 
+/* One label column for every row, so the values line up however long a label is. */
 .k-decision__details {
   margin: var(--s-2) 0 0;
   display: grid;
-  gap: var(--s-1);
-}
-
-.k-decision__detail {
-  display: grid;
-  grid-template-columns: minmax(80px, max-content) minmax(0, 1fr);
-  gap: var(--s-3);
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
+  gap: var(--s-1) var(--s-3);
   align-items: baseline;
 }
 
+.k-decision__detail {
+  display: contents;
+}
+
 .k-decision__detail dt {
+  min-width: 80px;
   font-size: var(--fs-caption);
   color: var(--text-2);
 }
@@ -97,6 +117,29 @@
   color: var(--text);
   overflow-wrap: anywhere;
   white-space: pre-line;
+}
+
+/* The tasks a suggestion would make, each with who it is for: all of them, wrapping on a narrow screen. */
+.k-decision__tasks {
+  margin: var(--s-2) 0 0;
+  padding-left: var(--s-5);
+  display: grid;
+  gap: var(--s-1);
+}
+
+.k-decision__task {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.k-decision__task-title {
+  display: block;
+}
+
+.k-decision__task-who {
+  display: block;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
 }
 
 /* The buttons come after what is being approved: at the right, level with the last line of it. */
@@ -142,6 +185,71 @@
   background: var(--bg-card);
   color: var(--text);
   resize: vertical;
+}
+
+/* An agent's questions, each answered on its own: its words, its choices as buttons that stay pressed. */
+.k-decision__questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.k-decision__question {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.k-decision__question-prompt {
+  padding: 0;
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.k-decision__question-help {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.k-decision__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.k-decision__choice {
+  min-height: var(--h-sm);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-pill);
+  background: var(--bg-card);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  overflow-wrap: anywhere;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.k-decision__choice:hover {
+  background: var(--bg-subtle);
+}
+
+.k-decision__choice[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.k-decision__answer-field {
+  min-height: var(--h-lg);
 }
 
 .k-decision__note-actions {
@@ -209,6 +317,13 @@
   overflow-wrap: anywhere;
 }
 
+@container (max-width: 719px) {
+  .k-decision__actions {
+    grid-column: 2 / -1;
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 859px) {
   .k-decision {
     grid-template-columns: auto minmax(0, 1fr);
@@ -225,5 +340,9 @@
 
   .k-decision__note-field {
     min-height: calc(var(--s-12) * 2);
+  }
+
+  .k-decision__choice {
+    min-height: 44px;
   }
 }

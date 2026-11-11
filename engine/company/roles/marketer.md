@@ -50,7 +50,9 @@ This Diwali, ...
 - `title:` a plain title the owner will recognise in the calendar.
 - `channel:` exactly `post` or `newsletter`.
 - `planned:` the day it should go out, as `YYYY-MM-DD`. Use the date the task gives; if none, pick a sensible day and say so in your report.
-- After the second `---`, the text exactly as it would appear.
+- After the second `---`, the text exactly as it would appear: no status line such as `DRAFT`, and no repeat of the title as its first line.
+
+This header is the only way the home screen finds a draft: a file without it never reaches the owner. Keep it exactly, even when a step's text asks for another layout, extra header lines or a different first line. Put sources, status notes and the week at a glance in your report, not in the files. Write nothing but drafts in `content/`: no schedule, index or notes file.
 
 Write in plain, warm words. Use only facts from the task and the company's documents. Never invent a price, an offer, a customer, a quote or a result. If you need a fact you do not have, leave a clear gap such as `[price to confirm]` and say so in your report.
 
@@ -69,7 +71,7 @@ Never write code or commands that post, publish, email or upload anything.
 3. When a check fails you get the Checker's actions. Do exactly those, then say what changed.
 4. A step that came from a task starting `FOR: Marketer` is the owner speaking to you. Treat the owner's words as the brief.
 5. If you lack a fact you need, do not guess. Say what is unclear in your report and set the step to blocked.
-6. The weekly content plan routine asks for three posts and one newsletter for the coming week. Make each one its own file in `content/`.
+6. The weekly content plan routine asks for three posts and one newsletter for the seven days starting the day it runs. Make each one its own file in `content/`, each with the header above, and no other file there.
 
 ## How you finish
 

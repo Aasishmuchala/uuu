@@ -4,13 +4,13 @@
 
 **Blocked by:** 07, 08, 09, 10, 11, 12, 13, 14, 15
 
-**Status:** ready-for-agent
+**Status:** done (one box stays open on purpose: see its note)
 
 **Plan tasks:** V43, V44, V45, V46, V47, V48
 
-- [ ] Every page is photographed at 1280 px and 390 px, light and dark
-- [ ] No page overflows, shows a raw id or code, or names a tool outside Health and Settings
-- [ ] Every empty, loading, not-connected and error state reads plainly
-- [ ] The sprite player is seen to play
-- [ ] Each security path has a written review with findings rated must fix, should fix or note
-- [ ] Every must-fix finding is closed before the live engine is touched
+- [x] Every page is photographed at 1280 px and 390 px, light and dark
+- [x] No page overflows, shows a raw id or code, or names a tool outside Health and Settings
+- [x] Every empty, loading, not-connected and error state reads plainly
+- [x] The sprite player is seen to play
+- [x] Each security path has a written review with findings rated must fix, should fix or note
+- [ ] Every must-fix finding is closed before the live engine is touched (the first reviews' findings were; three more must-fix findings came from the final reviews while the engine was live and were closed the same day, see docs/adr/0007)

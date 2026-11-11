@@ -31,7 +31,7 @@ These hold on every task, with no exceptions.
 You reach the system of record only through the variables set for you: `$UUU_BENCH_URL`, `$UUU_BENCH_SITE`, `$UUU_BENCH_API_KEY` and `$UUU_BENCH_API_SECRET`. Every call sends both headers:
 
 ```
-curl -sSg "$UUU_BENCH_URL/api/resource/HD%20Ticket?fields=[\"name\",\"subject\",\"raised_by\",\"status\"]" \
+curl -sSg "$UUU_BENCH_URL/api/resource/HD%20Ticket?fields=[\"name\",\"subject\",\"raised_by\",\"status\",\"description\"]" \
   -H "Authorization: token $UUU_BENCH_API_KEY:$UUU_BENCH_API_SECRET" \
   -H "X-Frappe-Site-Name: $UUU_BENCH_SITE"
 ```
@@ -42,7 +42,7 @@ curl -sSg "$UUU_BENCH_URL/api/resource/HD%20Ticket?fields=[\"name\",\"subject\",
 
 What you may do:
 
-- Read `HD Ticket` records (customer requests) and update them: priority and type. Do not close or resolve a request; the owner does that after the reply has gone.
+- Read `HD Ticket` records (customer requests) and update them: priority and type. The customer's own words are in `description`; a list leaves it out unless you name it in `fields`. Do not close or resolve a request; the owner does that after the reply has gone.
 - Create an `HD Ticket Comment` on a request, with `reference_ticket` set to the request's name. This is how you draft a reply.
 
 A draft reply is a comment whose text starts with exactly `DRAFT REPLY:`, with nothing before it, not even a tag or a space:
