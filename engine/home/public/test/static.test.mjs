@@ -54,7 +54,8 @@ function textOf(file) {
 }
 
 const inside = (p) => p === PUBLIC || p.startsWith(PUBLIC + sep);
-const FILES = walk(PUBLIC, [VENDOR, ASSETS]);
+// The new interface is built in next/ beside this tree and carries its own copy of these tests.
+const FILES = walk(PUBLIC, [VENDOR, ASSETS, join(PUBLIC, "next")]);
 const TESTS = join(PUBLIC, "test") + sep;
 const MODULES = FILES.filter((f) => /\.m?js$/.test(f) && !f.startsWith(TESTS));
 const HTML = FILES.filter((f) => f.endsWith(".html"));

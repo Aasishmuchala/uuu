@@ -1,0 +1,15 @@
+{
+  "name": "title",
+  "title": "Opening title",
+  "kind": "video",
+  "video": "title.mp4",
+  "poster": "poster.png",
+  "width": 320,
+  "height": 180,
+  "fps": 30,
+  "seconds": 1,
+  "bytes": 5041,
+  "made_by": "render",
+  "script": "title.py",
+  "made_at": "2026-11-11T08:40:00Z"
+}

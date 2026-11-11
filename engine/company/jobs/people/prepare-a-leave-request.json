@@ -1,0 +1,55 @@
+{
+  "id": "prepare-a-leave-request",
+  "department": "people",
+  "cluster": "leave",
+  "title": "Prepare a leave request",
+  "summary": "A leave request for one person, ready for you to approve.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "people"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "full-name",
+      "label": "Full name:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "type-of-leave",
+      "label": "Type of leave:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "first-day",
+      "label": "First day:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "last-day",
+      "label": "Last day:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "reason",
+      "label": "Reason:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Prepare a leave request for [full-name] for [type-of-leave] from [first-day] to [last-day]. Note the reason as [reason]. Leave it as a draft for me to approve and tell me how many working days it takes.",
+  "produces": [
+    "*.md"
+  ]
+}

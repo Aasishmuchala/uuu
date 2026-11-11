@@ -1,0 +1,7 @@
+{
+  "slides": [
+    { "file": "slide-01.png", "w": 1080, "h": 1350, "text": "A new kitchen before the lamps are lit" },
+    { "file": "slide-02.png", "w": 1080, "h": 1350, "text": "Order by 30 November and we fit it before Diwali" },
+    { "file": "slide-03.png", "w": 1080, "h": 1350, "text": "Book a visit to the Whitefield studio" }
+  ]
+}

@@ -87,7 +87,7 @@ test("the Marketer's conversation starts with the owner's ask for STH-15", async
     assert.ok(c.length >= 3, JSON.stringify(c));
     assert.equal(c[0].kind, "ask");
     assert.equal(c[0].who.slug, "you");
-    assert.equal(c[0].identifier, "STH-15");
+    assert.equal(c[0].identifier, "STH-23");
     assert.doesNotMatch(c[0].text, /FOR:/);
     assert.ok(c.some((x) => x.kind === "comment" && x.who.slug === "marketer"));
     for (let i = 1; i < c.length; i++) assert.ok(Date.parse(c[i - 1].at) <= Date.parse(c[i].at));

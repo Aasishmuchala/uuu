@@ -3,7 +3,7 @@
 // goal's folder are refused; every answer says nosniff.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { startV2 } from "../lib/testing-v2.mjs";
 import { call, writes } from "../lib/testing.mjs";
@@ -154,5 +154,122 @@ test("view: a missing file is 404 and every answer carries nosniff", async () =>
   await withHome(async (h) => {
     const r = await view(h, "STH-8/nothing-here.png");
     assertNotFound(r, "file_not_found");
+  });
+});
+
+// ---- videos (C3 37.4)
+
+const TITLE = "STH-25/video/title/title.mp4";
+
+test("view: the seed's title card comes back as video/mp4, inline, under the sandbox policy, whole", async () => {
+  await withHome(async (h) => {
+    const r = await view(h, TITLE);
+    assert.equal(r.status, 200);
+    assert.equal(r.headers["content-type"], "video/mp4");
+    assert.match(r.headers["content-disposition"], /^inline; filename="title.mp4"$/);
+    assert.equal(r.headers["content-security-policy"], SANDBOX);
+    assert.equal(r.headers["accept-ranges"], "bytes");
+    assert.equal(r.headers["x-content-type-options"], "nosniff");
+    const bytes = readFileSync(work(h, "STH-25", "video", "title", "title.mp4"));
+    assert.equal(Number(r.headers["content-length"]), bytes.length);
+    assert.ok(r.buffer.equals(bytes));
+    assert.deepEqual(writes(h.board), []);
+  });
+});
+
+test("view: an .mp4 whose bytes are not an MP4 is not viewable", async () => {
+  await withHome(async (h) => {
+    writeFileSync(work(h, "STH-25", "trap.mp4"), "<!doctype html><script>alert(1)</script>");
+    writeFileSync(work(h, "STH-25", "empty.mp4"), "");
+    for (const rel of ["STH-25/trap.mp4", "STH-25/empty.mp4"]) {
+      const r = await view(h, rel);
+      assertNotFound(r, "not_viewable");
+      assert.ok(!r.text.includes("<script"));
+    }
+  });
+});
+
+test("view: a video over 300 MB is too large to show, and is not read", async () => {
+  await withHome(async (h) => {
+    const file = work(h, "STH-25", "big.mp4");
+    writeFileSync(file, readFileSync(work(h, "STH-25", "video", "title", "title.mp4")));
+    truncateSync(file, 300 * 1024 * 1024 + 1);
+    const r = await view(h, "STH-25/big.mp4");
+    assert.equal(r.status, 413);
+    assert.equal(r.json.error.code, "too_large");
+  });
+});
+
+test("view: a video that is a link, or behind a folder that is a link, is 404", async () => {
+  await withHome(async (h) => {
+    const real = work(h, "STH-25", "video", "title", "title.mp4");
+    symlinkSync(real, work(h, "STH-25", "link.mp4"));
+    mkdirSync(join(h.state, "elsewhere"));
+    writeFileSync(join(h.state, "elsewhere", "clip.mp4"), readFileSync(real));
+    symlinkSync(join(h.state, "elsewhere"), work(h, "STH-25", "dir"));
+    symlinkSync(join(h.state, "elsewhere", "clip.mp4"), work(h, "STH-8", "outside.mp4"));
+    for (const rel of ["STH-25/link.mp4", "STH-25/dir/clip.mp4", "STH-8/outside.mp4", "STH-25/../STH-25/video/title/title.mp4"]) {
+      assertNotFound(await view(h, rel));
+    }
+  });
+});
+
+test("view: a request for several ranges is answered with the whole video", async () => {
+  await withHome(async (h) => {
+    const r = await call(h.url, "GET", `/api/view/${token(TITLE)}`, { headers: { range: "bytes=0-99, 200-299" } });
+    assert.equal(r.status, 200);
+    assert.equal(r.headers["content-range"], undefined);
+    assert.equal(r.buffer.length, readFileSync(work(h, "STH-25", "video", "title", "title.mp4")).length);
+  });
+});
+
+test("view: ranges of a video: 0-99 and 100- are 206 from the same bytes; one past the end is 416", async () => {
+  await withHome(async (h) => {
+    const bytes = readFileSync(work(h, "STH-25", "video", "title", "title.mp4"));
+    const size = bytes.length;
+    const ranged = (range) => call(h.url, "GET", `/api/view/${token(TITLE)}`, { headers: { range } });
+
+    const first = await ranged("bytes=0-99");
+    assert.equal(first.status, 206);
+    assert.equal(first.headers["content-range"], `bytes 0-99/${size}`);
+    assert.equal(Number(first.headers["content-length"]), 100);
+    assert.equal(first.headers["content-type"], "video/mp4");
+    assert.equal(first.headers["content-security-policy"], SANDBOX);
+    assert.equal(first.headers["accept-ranges"], "bytes");
+    assert.equal(first.headers["x-content-type-options"], "nosniff");
+    assert.ok(first.buffer.equals(bytes.subarray(0, 100)));
+
+    const rest = await ranged("bytes=100-");
+    assert.equal(rest.status, 206);
+    assert.equal(rest.headers["content-range"], `bytes 100-${size - 1}/${size}`);
+    assert.equal(Number(rest.headers["content-length"]), size - 100);
+    assert.ok(rest.buffer.equals(bytes.subarray(100)));
+
+    const clipped = await ranged(`bytes=${size - 10}-999999999`);
+    assert.equal(clipped.status, 206);
+    assert.equal(clipped.headers["content-range"], `bytes ${size - 10}-${size - 1}/${size}`);
+    assert.ok(clipped.buffer.equals(bytes.subarray(size - 10)));
+
+    const past = await ranged("bytes=999999999-");
+    assert.equal(past.status, 416);
+    assert.equal(past.headers["content-range"], `bytes */${size}`);
+    assert.equal(past.buffer.length, 0);
+
+    for (const range of ["bytes=-100", "bytes=99-0", "items=0-99", "bytes=0-99,200-299"]) {
+      const whole = await ranged(range);
+      assert.equal(whole.status, 200, range);
+      assert.equal(whole.headers["content-range"], undefined, range);
+      assert.ok(whole.buffer.equals(bytes), range);
+    }
+  });
+});
+
+test("view: a range on an image or a text file changes nothing", async () => {
+  await withHome(async (h) => {
+    const r = await call(h.url, "GET", `/api/view/${token("STH-8/art/walker/walker-sheet.png")}`, { headers: { range: "bytes=0-9" } });
+    assert.equal(r.status, 200);
+    assert.equal(r.headers["content-range"], undefined);
+    assert.equal(r.headers["accept-ranges"], undefined);
+    assert.equal(r.buffer.subarray(1, 4).toString("latin1"), "PNG");
   });
 });

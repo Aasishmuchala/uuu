@@ -1,0 +1,416 @@
+/* A task, as a conversation with its acceptance (pages/task.js). Tokens only; every selector starts with .p-task.
+   One column with the panel under the title; with room (pages/task.js measures it) the page widens past the column
+   and the panel stands beside the story and stays in view. Below 860 px a bar above the tab bar holds Accept. */
+
+.p-task {
+  --p-task-panel: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  min-width: 0;
+}
+
+.p-task.p-task--side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--p-task-panel);
+  grid-template-areas: "head panel" "main panel";
+  grid-template-rows: auto 1fr;
+  column-gap: var(--s-6);
+  row-gap: var(--s-6);
+  width: var(--p-task-w);
+  margin-left: calc((100% - var(--p-task-w)) / 2);
+}
+
+.p-task.p-task--side .p-task__head {
+  grid-area: head;
+  min-width: 0;
+}
+
+.p-task.p-task--side .p-task__main {
+  grid-area: main;
+  min-width: 0;
+}
+
+.p-task.p-task--side .p-task__panel {
+  grid-area: panel;
+  align-self: start;
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--s-4));
+  max-height: calc(100vh - var(--topbar-h) - var(--s-8));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.p-task.p-task--barred {
+  padding-bottom: calc(var(--p-task-bar, 96px) + var(--s-4));
+}
+
+.p-task .p-task__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  color: var(--text-2);
+  font-size: var(--fs-body);
+}
+
+.p-task .p-task__who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text);
+}
+
+.p-task .p-task__chip-link {
+  display: inline-flex;
+  max-width: 100%;
+  border-radius: var(--r-pill);
+  color: inherit;
+  text-decoration: none;
+}
+
+.p-task .p-task__chip-link:hover .k-chip {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+/* The acceptance panel: a glass card. */
+.p-task .p-task__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+  padding: var(--s-4);
+  background: var(--glass);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-4);
+  box-shadow: var(--highlight);
+}
+
+.p-task .p-task__state-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.p-task .p-task__over {
+  margin: 0;
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.p-task .p-task__accept {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.p-task .p-task__accept-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.p-task .p-task__accept-row .k-btn--accept {
+  flex: 1 1 auto;
+}
+
+.p-task .p-task__sendback,
+.p-task .p-task__note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: 100%;
+}
+
+.p-task .p-task__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: 100%;
+  padding: var(--s-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-3);
+  background: var(--bg-subtle);
+}
+
+.p-task .p-task__confirm p {
+  margin: 0;
+}
+
+.p-task .p-task__said {
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-2);
+  background: var(--ok-bg);
+  color: var(--ok-text);
+}
+
+.p-task .p-task__needs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.p-task .p-task__h {
+  margin: var(--s-2) 0 var(--s-2);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+}
+
+.p-task .p-task__rounds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.p-task .p-task__round-line {
+  margin: 0;
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+
+/* In the panel each check reads as: the mark and the evidence count, then the question and the reason. */
+.p-task .p-task__rounds .k-checks__row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: var(--s-2);
+}
+
+.p-task .p-task__rounds .k-checks__body {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.p-task .p-task__chosen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  min-width: 0;
+}
+
+.p-task .p-task__chosen p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.p-task .p-task__chosen-a--pass {
+  color: var(--ok-text);
+}
+
+.p-task .p-task__chosen-a--fail {
+  color: var(--bad-text);
+}
+
+.p-task .p-task__evidence {
+  min-width: 0;
+}
+
+/* The chosen evidence is shown large; small pixel art is scaled up crisply. */
+.p-task .p-task__evidence .k-evidence--image img {
+  width: 100%;
+  height: auto;
+  max-height: 50vh;
+  image-rendering: pixelated;
+}
+
+.p-task .p-task__pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}
+
+.p-task .p-task__pick-item {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+
+.p-task .p-task__pick-item[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.p-task .p-task__actions {
+  margin: 0;
+  padding-left: var(--s-5);
+  overflow-wrap: anywhere;
+}
+
+.p-task .p-task__verdict {
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  overflow-wrap: anywhere;
+}
+
+.p-task .p-task__verdict p {
+  margin: 0 0 var(--s-1);
+}
+
+/* What can come next. */
+.p-task .p-task__next-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.p-task .p-task__next-link {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-3);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.p-task .p-task__next-link:hover {
+  border-color: var(--border-strong);
+}
+
+.p-task .p-task__next-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.p-task .p-task__next-label {
+  font-weight: var(--fw-medium);
+}
+
+.p-task .p-task__next-item--dim .p-task__next-link {
+  color: var(--text-2);
+  border-style: dashed;
+}
+
+.p-task .p-task__next-why {
+  margin: var(--s-1) 0 0;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+
+/* How it went. */
+.p-task .p-task__how {
+  border-top: 1px solid var(--hairline);
+  padding-top: var(--s-3);
+}
+
+.p-task .p-task__summary {
+  cursor: pointer;
+  font-weight: var(--fw-medium);
+}
+
+.p-task .p-task__stages {
+  margin: var(--s-3) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-task .p-task__stage {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-1) 0;
+}
+
+.p-task .p-task__stage--skipped .p-task__stage-name,
+.p-task .p-task__stage--waiting .p-task__stage-name {
+  color: var(--text-3);
+}
+
+.p-task .p-task__stage--current .p-task__stage-name {
+  font-weight: var(--fw-bold);
+}
+
+.p-task .p-task__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s-2);
+  border-top: 1px solid var(--hairline);
+  padding-top: var(--s-3);
+}
+
+/* The story. */
+.p-task .p-task__story {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+
+.p-task .p-task__docitem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.p-task .p-task__docbox {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-3);
+  background: var(--glass-soft);
+}
+
+.p-task .p-task__doc-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--r-3);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.p-task .p-task__doc {
+  padding: 0 var(--s-4) var(--s-4);
+}
+
+.p-task .p-task__files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+/* Below 860 px: Accept and Send back in a bar above the tab bar while the task waits. */
+.p-task .p-task__bar {
+  position: fixed;
+  left: var(--s-2);
+  right: var(--s-2);
+  bottom: calc(var(--tabbar-h) + var(--s-2) * 2);
+  z-index: 30;
+  padding: var(--s-3);
+  background: var(--glass-strong);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-4);
+  box-shadow: var(--shadow-pop);
+}
+
+.p-task .p-task__bar .p-task__accept-row .k-btn {
+  flex: 1 1 0;
+}

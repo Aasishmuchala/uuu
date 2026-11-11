@@ -1,0 +1,31 @@
+{
+  "id": "file-the-gst-return",
+  "department": "books",
+  "cluster": "month-end",
+  "title": "File the GST return",
+  "summary": "Send the month's GST return to the tax office, once an account is connected.",
+  "handoff": "you-lead",
+  "stage": 4,
+  "who": [
+    "bookkeeper"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "month",
+      "label": "Month:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "account"
+  ],
+  "takes": null,
+  "text": "Prepare the GST return for [month] from final invoices and bills only, show me every figure and where it came from, and wait for my yes. Only after I say yes, file it with the tax office through the connected account. If any figure is missing or does not add up, stop and tell me instead of filing.",
+  "produces": [
+    "gst-return.md"
+  ]
+}

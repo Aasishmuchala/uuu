@@ -1,0 +1,31 @@
+{
+  "id": "month-end-unpaid-bills",
+  "department": "books",
+  "cluster": "month-end",
+  "title": "Month-end check of unpaid bills",
+  "summary": "A written check of supplier bills still unpaid at month end.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "bookkeeper"
+  ],
+  "size": "M",
+  "planFirst": true,
+  "reads": [],
+  "asks": [
+    {
+      "id": "month",
+      "label": "Month:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Do the month-end check for [month]. List every supplier bill still unpaid, with its due date and amount, and mark which are overdue. Point out anything that looks doubled, missing or odd, and suggest what I should pay first. Write it as a report; do not pay or change anything.",
+  "produces": [
+    "*.md"
+  ]
+}

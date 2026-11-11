@@ -1,0 +1,55 @@
+{
+  "id": "move-a-deal-on-after-a-call",
+  "department": "sales",
+  "cluster": "deals",
+  "title": "Move a deal on after a call",
+  "summary": "A deal moved to its next stage, with a note of what was said.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "sales"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "contact",
+      "label": "Contact:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "deal-name",
+      "label": "Deal name:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "date",
+      "label": "Date:",
+      "kind": "date",
+      "required": true
+    },
+    {
+      "id": "what-was-said",
+      "label": "What was said:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "new-stage",
+      "label": "New stage:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "I spoke with [contact] about the deal [deal-name] on [date]. They said: [what-was-said]. Move the deal to [new-stage] as a draft change and write a short note of the call, with the next step and who does it.",
+  "produces": [
+    "*.md"
+  ]
+}

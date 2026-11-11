@@ -1,0 +1,49 @@
+{
+  "id": "a-small-animated-character",
+  "department": "studio",
+  "cluster": "pictures",
+  "title": "A small animated character",
+  "summary": "A small character that moves, as a sheet of frames and an animated picture.",
+  "handoff": "on-its-own",
+  "stage": 3,
+  "who": [
+    "artist"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "who-or-what-it-is",
+      "label": "Who or what it is:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "frame-size",
+      "label": "Frame size:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "number-of-frames",
+      "label": "Number of frames:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "what-it-does",
+      "label": "What it does:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "artist-tools"
+  ],
+  "takes": null,
+  "text": "Draw a small animated character: [who-or-what-it-is]. Each frame is [frame-size] pixels square and there are [number-of-frames] frames of it [what-it-does]. Give me one sheet with all the frames, and an animated picture that plays them.",
+  "produces": [
+    "art/*/manifest.json"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "id": "team",
+  "folder": "people",
+  "file": "team.md",
+  "title": "Team",
+  "lead": "Who works here. Agents read this before they plan anyone's week.",
+  "fields": [
+    {
+      "id": "people",
+      "label": "People",
+      "kind": "rows",
+      "required": true,
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name"
+        },
+        {
+          "id": "job",
+          "label": "Job"
+        },
+        {
+          "id": "days",
+          "label": "Working days"
+        }
+      ]
+    }
+  ]
+}

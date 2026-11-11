@@ -1,0 +1,46 @@
+{
+  "id": "briefing-before-a-call",
+  "department": "sales",
+  "cluster": "calls",
+  "title": "Briefing before a call",
+  "summary": "A one-page briefing on who you are about to speak to and what to offer.",
+  "handoff": "you-lead",
+  "stage": 3,
+  "who": [
+    "sales"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "customers/ideal-customer.md",
+      "need": "helps"
+    },
+    {
+      "file": "pricing/services.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "who",
+      "label": "Who is the call with?",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "when",
+      "label": "When is the call?",
+      "kind": "date",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Prepare a briefing for my call with [who] on [when]. Look up what our records say about them and any earlier calls. Give a short summary of who they are, what we last discussed, what they might want, and which of our services and prices fit. End with three questions to ask. Use only our records and files; do not invent facts and do not send anything.",
+  "produces": [
+    "call-briefing.md"
+  ]
+}

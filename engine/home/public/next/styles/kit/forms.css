@@ -1,0 +1,126 @@
+/* kit/forms.js: a company-brain form. Fields stack; a table of rows and a set of colours sit in a fieldset with
+   the same label, hint and error as a single field. */
+
+.k-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+
+.k-form__set {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.k-form__legend {
+  margin-bottom: var(--s-1);
+  padding: 0;
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+.k-form__optional {
+  color: var(--text-2);
+  font-weight: var(--fw-regular);
+}
+
+.k-form__hint {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.k-form__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-1);
+  color: var(--bad-text);
+  font-size: var(--fs-caption);
+}
+
+.k-form__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  overflow-x: auto;
+}
+
+.k-form__row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(120px, 1fr);
+  grid-template-columns: none;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.k-form__row--head {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+}
+
+.k-form__cell {
+  min-width: 0;
+}
+
+.k-form__cell .k-input {
+  width: 100%;
+}
+
+.k-form__cell--tool {
+  width: var(--h-md);
+}
+
+.k-form__row > .k-form__cell--tool {
+  justify-self: end;
+}
+
+.k-form__more {
+  display: flex;
+}
+
+.k-form__colours {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.k-form__colour {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.k-form__swatch {
+  flex: none;
+  width: var(--h-md);
+  height: var(--h-md);
+  padding: 0;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-2);
+  background: transparent;
+  cursor: pointer;
+}
+
+.k-form__hex {
+  width: 9em;
+  font-variant-numeric: tabular-nums;
+}
+
+.k-form__set--error .k-input {
+  border-color: var(--bad);
+}
+
+@media (max-width: 859px) {
+  .k-form__swatch {
+    width: 44px;
+    height: 44px;
+  }
+}

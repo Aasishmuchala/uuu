@@ -1,0 +1,55 @@
+{
+  "id": "record-a-new-lead",
+  "department": "sales",
+  "cluster": "leads",
+  "title": "Record and qualify a new lead",
+  "summary": "A new lead entered with a short note on how likely it is to buy.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "sales"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "name",
+      "label": "Name:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "company",
+      "label": "Company:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "source",
+      "label": "Source:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "what-they-want",
+      "label": "What they want:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "budget",
+      "label": "Budget:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Record a new lead: [name] from [company], reached through [source], interested in [what-they-want]. Note their budget if known [budget] and write two lines on how likely they are to buy and why. Keep it as a draft record for me to check.",
+  "produces": [
+    "*.md"
+  ]
+}

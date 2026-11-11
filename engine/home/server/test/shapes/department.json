@@ -1,0 +1,162 @@
+{
+  "department": {
+    "id": "sales",
+    "title": "Sales",
+    "line": "leads · calls · deals",
+    "dashboard": "customers",
+    "counts": {
+      "jobs": 9,
+      "ready": 7,
+      "working": 1,
+      "needsYou": 2
+    },
+    "state": {
+      "id": "working",
+      "plain": "Working on: Call write-up: Asha Kitchens",
+      "taskId": "e0000000-0000-4000-8000-000000000021"
+    }
+  },
+  "agents": [
+    {
+      "id": "a0000000-0000-4000-8000-000000000010",
+      "slug": "artist",
+      "name": "Artist",
+      "title": "Artist",
+      "summary": "Draws sprites, animations and simple images by script.",
+      "department": "studio",
+      "reportsTo": {
+        "slug": "artist",
+        "name": "Artist"
+      },
+      "state": "free",
+      "plainState": "Free",
+      "doingNow": {
+        "title": "Draw the walk cycle",
+        "taskId": "e0000000-0000-4000-8000-000000000008"
+      },
+      "waitingForYou": false,
+      "lastActiveAt": "2026-11-11T08:30:00.000Z",
+      "applied": true
+    }
+  ],
+  "clusters": [
+    {
+      "id": "calls",
+      "title": "Calls",
+      "jobs": [
+        {
+          "id": "sales/proposal-from-a-call",
+          "department": {
+            "id": "sales",
+            "title": "Sales"
+          },
+          "cluster": {
+            "id": "calls",
+            "title": "Calls"
+          },
+          "title": "Proposal from a call write-up",
+          "summary": "A written proposal for one customer, from the call write-up and your price list.",
+          "handoff": "you-approve",
+          "stage": 4,
+          "size": "M",
+          "planFirst": false,
+          "who": [
+            {
+              "slug": "artist",
+              "name": "Artist"
+            }
+          ],
+          "reads": [
+            {
+              "file": "pricing/services.md",
+              "title": "Prices and services",
+              "need": "must",
+              "state": "filled",
+              "link": {
+                "page": "files",
+                "id": "cHJpY2luZy9zZXJ2aWNlcy5tZA"
+              }
+            }
+          ],
+          "asks": [
+            {
+              "id": "earlier",
+              "label": "Which call write-up?",
+              "kind": "task",
+              "required": true,
+              "options": [
+                {
+                  "value": "e0000000-0000-4000-8000-000000000020",
+                  "label": "STH-20 · Call write-up: Asha Kitchens"
+                }
+              ]
+            }
+          ],
+          "takes": {
+            "from": [
+              "sales/call-write-up"
+            ],
+            "label": "Write the proposal from this"
+          },
+          "text": "Write a proposal for the customer of the call write-up in [earlier]. ...",
+          "ready": true,
+          "why": null,
+          "runs": {
+            "total": 3,
+            "accepted": 2,
+            "working": 1,
+            "needsYou": 0,
+            "last": {
+              "taskId": "e0000000-0000-4000-8000-000000000021",
+              "identifier": "STH-21",
+              "at": "2026-11-12T08:40:00.000Z",
+              "plainState": "Being worked on"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "recent": [
+    {
+      "id": "e0000000-0000-4000-8000-000000000008",
+      "identifier": "STH-8",
+      "title": "Make a walking sprite for the mascot",
+      "column": "pending_review",
+      "state": "done",
+      "plainState": "Finished",
+      "who": {
+        "slug": "artist",
+        "name": "Artist"
+      },
+      "size": "M",
+      "stage": {
+        "id": "check",
+        "label": "Check"
+      },
+      "round": 2,
+      "schedule": {
+        "label": "Daily at 09:00",
+        "routineId": "daily-brief"
+      },
+      "waitingForYou": true,
+      "live": false,
+      "stepsDone": 4,
+      "stepsTotal": 4,
+      "createdAt": "2026-11-11T08:00:00.000Z",
+      "updatedAt": "2026-11-11T09:00:00.000Z"
+    }
+  ],
+  "recentTotal": 14,
+  "neighbours": {
+    "prev": {
+      "id": "operations",
+      "title": "Operations"
+    },
+    "next": {
+      "id": "marketing",
+      "title": "Marketing"
+    }
+  },
+  "generatedAt": "2026-11-12T09:00:00.000Z"
+}

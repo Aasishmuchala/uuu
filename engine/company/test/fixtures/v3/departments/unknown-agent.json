@@ -1,0 +1,44 @@
+{
+  "departments": [
+    {
+      "id": "operations",
+      "title": "Operations",
+      "line": "plans · documents · checks",
+      "agents": [
+        "chief-of-staff",
+        "builder"
+      ],
+      "dashboard": null,
+      "clusters": [
+        {
+          "id": "brain",
+          "title": "Company brain"
+        },
+        {
+          "id": "planning",
+          "title": "Planning"
+        }
+      ]
+    },
+    {
+      "id": "sales",
+      "title": "Sales",
+      "line": "leads · calls · deals",
+      "agents": [
+        "sales",
+        "cashier"
+      ],
+      "dashboard": "customers",
+      "clusters": [
+        {
+          "id": "leads",
+          "title": "Leads"
+        },
+        {
+          "id": "calls",
+          "title": "Calls"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+/* kit/text.js: times, identifiers and keys; and .k-sr, the kit's screen-reader-only text.
+   Mono and Kbd are <code> and <kbd>, which base.css already sets in the mono font. */
+
+/* Times are captions: --text-3 on glass, where they live. */
+.k-time {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.k-mono {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.k-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--s-5);
+  height: var(--s-5);
+  padding: 0 var(--s-1);
+  border: 1px solid var(--hairline-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--r-1);
+  background: var(--glass-soft);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  line-height: 1;
+}
+
+.k-sr {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}

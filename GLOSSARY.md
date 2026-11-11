@@ -46,7 +46,7 @@ _Avoid_: Inbox, notifications, queue
 
 **Task**:
 What the owner asks for. The code calls it a goal.
-_Avoid_: Ticket, job, request, issue
+_Avoid_: Ticket, request, issue
 
 **Draft**:
 Work an agent has prepared that is not final until the owner approves it.
@@ -60,9 +60,9 @@ _Avoid_: Permissions, ACL, profile
 The check that the fence holds, with a result for every line, run by `engine prove`.
 _Avoid_: Audit, scan, pen test
 
-**Docs**:
-The company documents that agents may read.
-_Avoid_: Wiki, knowledge base, files
+**Files**:
+The page where the company brain's files are kept and filled in.
+_Avoid_: Docs, wiki, knowledge base
 
 **Lesson**:
 A note an agent keeps about how to do its job better next time. The owner can change it.
@@ -96,9 +96,29 @@ _Avoid_: Reject, deny, decline
 Standing work that runs on a schedule, kept as one small file. It starts switched off.
 _Avoid_: Cron job, automation, workflow, schedule
 
-**Ready-made goal**:
-A task written in advance for a department, opened as a draft the owner can change.
-_Avoid_: Template, preset, blueprint
+**Job**:
+A named piece of work an agent can start for the owner, kept as one small file. Starting a job makes a task.
+_Avoid_: Ready-made goal, template, preset, blueprint
+
+**Map**:
+The home page: the company brain in the middle, the departments around it.
+_Avoid_: Home, overview
+
+**Company brain**:
+The company's own files that every agent reads before it works.
+_Avoid_: Knowledge base, wiki, memory
+
+**Hand-off**:
+What is left for the owner when a job runs: you lead, you approve, or on its own.
+_Avoid_: Autonomy level, mode
+
+**Stage**:
+One step of the build order: Foundations, Take in, Make, Hand on.
+_Avoid_: Phase, level, tier
+
+**Dashboard**:
+The figures and records of one department.
+_Avoid_: Report, analytics, control panel
 
 **Daily brief**:
 A short note each morning of what happened that needs no decision.

@@ -25,7 +25,58 @@
     "stepsDone": 4,
     "stepsTotal": 4,
     "createdAt": "2026-11-11T08:00:00.000Z",
-    "updatedAt": "2026-11-11T09:00:00.000Z"
+    "updatedAt": "2026-11-11T09:00:00.000Z",
+    "job": {
+      "id": "studio/a-small-animated-character",
+      "title": "A small animated character"
+    },
+    "department": "studio",
+    "outcome": "The walking sprite has six frames, in art/walk/, with a contact sheet.",
+    "ask": false,
+    "follows": {
+      "taskId": "e0000000-0000-4000-8000-000000000007",
+      "identifier": "STH-7"
+    }
+  },
+  "job": {
+    "id": "studio/a-small-animated-character",
+    "title": "A small animated character",
+    "department": "studio"
+  },
+  "follows": {
+    "taskId": "e0000000-0000-4000-8000-000000000007",
+    "identifier": "STH-7",
+    "title": "Draw the mascot"
+  },
+  "next": [
+    {
+      "jobId": "books/quotation-from-a-call",
+      "title": "Quotation from a call write-up",
+      "label": "Draft the quotation from this",
+      "ready": false,
+      "why": "The books do not let the Bookkeeper draft quotations yet."
+    }
+  ],
+  "answer": {
+    "text": "Customers can return an unused item within 14 days for a full refund [1].",
+    "sources": [
+      {
+        "n": 1,
+        "path": "returns-policy.md",
+        "note": "Returns",
+        "found": true,
+        "link": {
+          "page": "files",
+          "id": "cmV0dXJucy1wb2xpY3kubWQ"
+        }
+      }
+    ],
+    "notInFiles": [
+      "When the policy last changed."
+    ],
+    "checked": false,
+    "at": "2026-11-12T08:02:00.000Z",
+    "wellFormed": true
   },
   "text": "Make a walking sprite for the mascot, four frames.",
   "planFirst": false,

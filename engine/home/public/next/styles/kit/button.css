@@ -1,0 +1,173 @@
+/* kit/button.js: every button is a pill. Primary is solid (light on the dark canvas, near-black on the light one),
+   plain is glass with a hairline, quiet has no edge, danger speaks in the problem colour, and Accept is the large
+   green one. Tokens only; colours change by a short transition, movement by transform. */
+
+.k-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: var(--h-md);
+  padding: 0 var(--s-4);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+
+.k-btn .k-icon {
+  flex: none;
+}
+
+.k-btn__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sizes. Every size stays at least 36 px tall, so "sm" is narrower and quieter, not shorter. */
+.k-btn--sm {
+  padding: 0 var(--s-3);
+  font-size: var(--fs-caption);
+  gap: var(--s-1);
+}
+
+.k-btn--lg {
+  min-height: var(--h-lg);
+  padding: 0 var(--s-5);
+}
+
+.k-btn--icon {
+  min-width: var(--h-md);
+  padding: 0;
+}
+
+/* Variants */
+.k-btn--primary {
+  color: var(--primary-text);
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.k-btn--primary:hover:not(:disabled):not(.k-btn--off) {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.k-btn--plain {
+  color: var(--text);
+  background: var(--glass);
+  border-color: var(--hairline);
+  box-shadow: var(--highlight);
+}
+
+.k-btn--plain:hover:not(:disabled):not(.k-btn--off) {
+  background: var(--glass-strong);
+  border-color: var(--hairline-strong);
+}
+
+.k-btn--quiet {
+  color: var(--text-2);
+  background: transparent;
+}
+
+.k-btn--quiet:hover:not(:disabled):not(.k-btn--off) {
+  color: var(--text);
+  background: var(--glass-soft);
+}
+
+.k-btn--danger {
+  color: var(--bad-text);
+  background: var(--glass);
+  border-color: var(--hairline);
+  box-shadow: var(--highlight);
+}
+
+.k-btn--danger:hover:not(:disabled):not(.k-btn--off) {
+  background: var(--bad-bg);
+  border-color: var(--bad);
+}
+
+.k-btn--accept {
+  min-height: calc(var(--h-lg) + var(--s-2));
+  padding: 0 var(--s-8);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-bold);
+  color: var(--accept-text);
+  background: var(--accept);
+  border-color: var(--accept);
+}
+
+.k-btn--accept:hover:not(:disabled):not(.k-btn--off) {
+  background: var(--accept-hover);
+  border-color: var(--accept-hover);
+}
+
+.k-btn:active:not(:disabled):not(.k-btn--off) {
+  transform: translateY(1px);
+}
+
+/* Disabled and busy */
+.k-btn:disabled,
+.k-btn--off {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.k-btn--busy:disabled,
+.k-btn--busy.k-btn--off {
+  opacity: 0.8;
+  cursor: progress;
+}
+
+/* The spinner turns for at most a minute; work that takes longer is shown by the page, not by this mark. */
+.k-btn__spinner {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--r-pill);
+  animation: k-btn-spin 0.75s linear 80;
+}
+
+@keyframes k-btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-btn__spinner {
+    animation: none;
+    border-right-color: currentColor;
+    opacity: 0.6;
+  }
+
+  .k-btn {
+    transition: none;
+  }
+}
+
+/* Narrow windows: every target at least 44 px tall. */
+@media (max-width: 859px) {
+  .k-btn,
+  .k-btn--sm,
+  .k-btn--lg {
+    min-height: calc(var(--h-lg) + var(--s-1));
+  }
+
+  .k-btn--accept {
+    min-height: calc(var(--h-lg) + var(--s-2));
+  }
+
+  .k-btn--icon {
+    min-width: calc(var(--h-lg) + var(--s-1));
+  }
+}

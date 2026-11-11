@@ -103,8 +103,8 @@ test("v2 board: a manual run makes a task, a run and a wake; an archived routine
     assert.equal(r.status, 201);
     assert.equal(r.json.status, "issue_created");
     assert.equal(r.json.source, "manual");
-    assert.equal(r.json.linkedIssue.identifier, "STH-19");
-    const issue = (await call(b.url, "GET", `/api/issues/STH-19`)).json;
+    assert.equal(r.json.linkedIssue.identifier, "STH-26");
+    const issue = (await call(b.url, "GET", `/api/issues/STH-26`)).json;
     assert.equal(issue.title, "Weekly content plan");
     assert.equal(issue.originKind, "routine_execution");
     assert.equal(issue.originId, WEEKLY);
@@ -152,9 +152,9 @@ test("v2 seed: ten agents with the artist, and every role has something happenin
     assert.ok(s.memberGrants[a.membershipId].length > 0);
     assert.ok(s.instructions[a.id]);
   }
-  assert.equal(s.companies[0].issueCounter, 18);
+  assert.equal(s.companies[0].issueCounter, 25);
   assert.equal(s.attention.length, 4);
-  assert.equal(s.liveRuns.length, 2);
+  assert.equal(s.liveRuns.length, 3);
   assert.ok(s.liveRuns.some((r) => r.agentId === IDS.agents.marketer && r.issueId === IDS_V2.issues["STH-16"]));
 });
 

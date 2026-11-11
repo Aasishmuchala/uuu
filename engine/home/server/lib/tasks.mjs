@@ -6,8 +6,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { isFixTask } from "./draftfix.mjs";
-import { goalsOf, isGoal, loadIssues, needIds, plainState, rootOf } from "./goals.mjs";
+import { departmentOf } from "./departments.mjs";
+import { goalsOf, isFinished, isGoal, loadIssues, needIds, plainState, rootOf } from "./goals.mjs";
 import { aboutOf, mergeInbox, waitsOnOwner } from "./inbox.mjs";
+import { loadCatalogue } from "./jobs.mjs";
 import { roundsOf, sizeOf, textOf } from "./staged.mjs";
 import { readTaskText } from "./taskfiles.mjs";
 import { loadRoles } from "./team.mjs";
@@ -16,6 +18,8 @@ const COMMENT_TTL = 15000;
 const COMMENT_CACHE_MAX = 2000;
 const OPEN_GOALS_MAX = 40;
 const ALL_GOALS_MAX = 200;
+const RESULT_GOALS_MAX = 20;  // finished tasks whose result comment is read for their outcome (CONTRACTS-V3 33.2)
+const OUTCOME_MAX = 140;
 const PARALLEL = 8;
 const ROUTINE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 
@@ -107,8 +111,9 @@ function isOpen(goal, accepted) {
 }
 
 // loadTaskContext(ctx, { withInbox = true, withComments = "open" }) -> tctx. `withComments`: "open"
-// (unfinished tasks, newest first, at most 40), "all" (at most 200), or false (none). Throws a HomeError
-// when the board is off or the company is not set up. An inbox source must pass withInbox: false.
+// (unfinished tasks, newest first, at most 40), "all" (at most 200), or false (none). Unless it is false, the
+// newest 20 finished tasks' own comments are read too, for their outcome only (`tctx.outcomes`). Throws a
+// HomeError when the board is off or the company is not set up. An inbox source must pass withInbox: false.
 export async function loadTaskContext(ctx, { withInbox = true, withComments = "open" } = {}) {
   const ids = needIds(ctx);
   const companyId = ids.companyId;
@@ -170,7 +175,12 @@ export async function loadTaskContext(ctx, { withInbox = true, withComments = "o
     stepsOf,
     config: ctx.config,
     comments: new Map(),     // goal id -> the comments of its whole tree, oldest first (only for goals read)
+    decisions: ctx.decisions || null,
+    outcomes: new Map(),     // goal id -> the first line of its newest result (finished tasks read for it)
   };
+  let catalogue;
+  // The job catalogue (lib/jobs.mjs), read once per context and only when a card needs it.
+  Object.defineProperty(tctx, "catalogue", { enumerable: true, get() { if (catalogue === undefined) catalogue = catalogueOf(ctx.config); return catalogue; } });
 
   let wanted = [];
   if (withComments === "open") wanted = goals.filter((g) => isOpen(g, accepted)).slice(0, OPEN_GOALS_MAX);
@@ -181,9 +191,37 @@ export async function loadTaskContext(ctx, { withInbox = true, withComments = "o
   const commentsRead = inBatches(wanted, async (g) => {
     tctx.comments.set(g.id, await treeComments(tctx, g));
   });
-  const [items] = await Promise.all([inboxRead, commentsRead]);
+  const finished = withComments ? goals.filter((g) => g.status === "done").slice(0, RESULT_GOALS_MAX) : [];
+  const resultsRead = inBatches(finished, async (g) => {
+    let own = [];
+    try { own = await tctx.commentsOf(g.id); } catch { own = []; } // an outcome is a nicety: never fail the read for it
+    const outcome = outcomeOf(own);
+    if (outcome) tctx.outcomes.set(g.id, outcome);
+  });
+  const [items] = await Promise.all([inboxRead, commentsRead, resultsRead]);
   tctx.needsYou = decorateInbox(items, tctx);
   return tctx;
+}
+
+function catalogueOf(config) {
+  try { return config && config.engineDir ? loadCatalogue(config) : null; } catch { return null; }
+}
+
+// The first line of the newest result an agent wrote (comments oldest first): the text after "RESULT:",
+// cut to 140 characters; null when there is none. It is shown as text only.
+export function outcomeOf(comments) {
+  const list = Array.isArray(comments) ? comments : [];
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    const c = list[i];
+    if (!c || !c.authorAgentId || typeof c.body !== "string") continue;
+    const m = /^\s*RESULT:/.exec(c.body.slice(0, 64));
+    if (!m) continue;
+    const rest = c.body.slice(m[0].length, m[0].length + 8000);
+    const line = rest.split("\n").map((l) => l.replace(/\s+/g, " ").trim()).find(Boolean) || "";
+    if (!line) return null;
+    return line.length > OUTCOME_MAX ? `${line.slice(0, OUTCOME_MAX - 1).trimEnd()}…` : line;
+  }
+  return null;
 }
 
 // The comments of a task and all its steps, oldest first (cached 15 seconds per task).
@@ -272,6 +310,22 @@ function scheduleOf(goal, tctx, text) {
   return null;
 }
 
+// What the home server's records say about a task (CONTRACTS-V3 31.3, 33.2): the job it was started from
+// (null when the record names a job no longer in the catalogue), whether it is a question, which task it follows.
+function recordsOf(goal, tctx) {
+  const get = (key) => (tctx.decisions && typeof tctx.decisions.get === "function" ? tctx.decisions.get(key) : null);
+  const ref = get(`template:${goal.id}`);
+  const file = typeof ref === "string" ? tctx.catalogue?.jobs?.get(ref) : null;
+  const job = file ? { id: ref, title: file.title, department: file.department } : null;
+  const fromId = get(`from:${goal.id}`);
+  let follows = null;
+  if (typeof fromId === "string" && fromId) {
+    const earlier = (tctx.goals || []).find((g) => g.id === fromId);
+    follows = { taskId: fromId, identifier: earlier ? earlier.identifier || null : null };
+  }
+  return { job, ask: !!get(`ask:${goal.id}`), follows };
+}
+
 export function taskCard(goal, tctx) {
   const steps = tctx.stepsOf(goal.id);
   const counted = steps.filter((s) => s.status !== "cancelled");
@@ -306,6 +360,17 @@ export function taskCard(goal, tctx) {
     live: tctx.liveByIssue.has(goal.id) || steps.some((s) => tctx.liveByIssue.has(s.id)),
     stepsDone: counted.filter((s) => s.status === "done").length, stepsTotal: counted.length,
     createdAt: goal.createdAt, updatedAt: goal.updatedAt,
+    ...v3Keys(goal, tctx, who),
+  };
+}
+
+function v3Keys(goal, tctx, who) {
+  const { job, ask, follows } = recordsOf(goal, tctx);
+  const outcome = isFinished(goal) ? tctx.outcomes?.get(goal.id) || null : null;
+  return {
+    job: job ? { id: job.id, title: job.title } : null,
+    department: job ? job.department : who ? departmentOf(who.slug) : null,
+    outcome, ask, follows,
   };
 }
 

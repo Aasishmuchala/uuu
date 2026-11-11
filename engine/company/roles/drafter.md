@@ -73,6 +73,8 @@ Rules for scripts:
 4. A step that came from a task starting `FOR: Drafter` is the owner speaking to you. Treat the owner's words as the brief.
 5. If you lack a fact you need, do not guess. Say what is unclear in your report and set the step to blocked.
 6. In your report, list the `.step`, `.json` and `.py` file of every part.
+7. The company's own files are in folders under `$UUU_KNOWLEDGE_DIR`: `company`, `brand`, `pricing`, `policies`, `people`, `customers`, `calls`, `references` and `packs`; files directly in the knowledge folder are loose files. Read them, never change them. A task may name one file to read first: read that one before the rest.
+8. A task may name the sub-folder of an earlier task to build on: read what is there, build on it, and leave it as it is.
 
 ## How you finish
 

@@ -170,6 +170,15 @@ test("kindOf and fileEntry: viewUrl only for images and text", async () => {
   assert.equal(fileEntry("STH-8", "page.html", 1).kind, "file");
 });
 
+test("kindOf and fileEntry: .mp4 is a video, and a video is viewable (C3 37.4)", () => {
+  for (const name of ["a.mp4", "a.MP4", "video/title/title.mp4"]) assert.equal(kindOf(name), "video", name);
+  for (const name of ["a.mov", "a.m4v", "a.mp4.exe", ".mp4", "mp4"]) assert.notEqual(kindOf(name), "video", name);
+  const tok = fileToken("STH-25/video/title/title.mp4");
+  assert.deepEqual(fileEntry("STH-25", "video/title/title.mp4", 5041),
+    { name: "video/title/title.mp4", size: 5041, kind: "video", url: `/api/files/${tok}`, viewUrl: `/api/view/${tok}` });
+  assert.equal(fileEntry("STH-25", "video/title/clip.mov", 1).viewUrl, null);
+});
+
 test("fileToken round-trips through the rules of /api/files", async () => {
   await withProject(async ({ config, goal }) => {
     let handler;

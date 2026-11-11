@@ -1,0 +1,68 @@
+{
+  "company": {
+    "name": "Sthyra"
+  },
+  "brain": {
+    "files": 12,
+    "basics": {
+      "filled": 4,
+      "total": 9
+    },
+    "asking": {
+      "id": "e0000000-0000-4000-8000-000000000022",
+      "question": "What is our returns policy?",
+      "since": "2026-11-12T09:00:00.000Z"
+    },
+    "unread": 1
+  },
+  "departments": [
+    {
+      "id": "sales",
+      "title": "Sales",
+      "line": "leads · calls · deals",
+      "dashboard": "customers",
+      "agents": [
+        {
+          "slug": "artist",
+          "name": "Artist"
+        }
+      ],
+      "counts": {
+        "jobs": 9,
+        "ready": 7,
+        "working": 1,
+        "needsYou": 2
+      },
+      "clusters": [
+        {
+          "id": "calls",
+          "title": "Calls",
+          "jobs": [
+            {
+              "id": "sales/call-write-up",
+              "title": "Call write-up",
+              "handoff": "on-its-own",
+              "stage": 2,
+              "ready": true,
+              "why": null,
+              "working": 1,
+              "needsYou": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "needsYou": 5,
+    "running": 2
+  },
+  "boardOff": null,
+  "problems": [
+    {
+      "file": "sales/broken.json",
+      "problem": "It has no title."
+    }
+  ],
+  "generatedAt": "2026-11-12T09:00:00.000Z"
+}

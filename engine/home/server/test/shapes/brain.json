@@ -1,0 +1,228 @@
+{
+  "folders": [
+    {
+      "id": "company",
+      "title": "Company basics",
+      "about": "What the company does, for whom, where.",
+      "files": 1
+    },
+    {
+      "id": "brand",
+      "title": "Brand",
+      "about": "How the company looks and sounds, and what it never says.",
+      "files": 2
+    },
+    {
+      "id": "pricing",
+      "title": "Prices and services",
+      "about": "What is sold, at what price, on what terms.",
+      "files": 1
+    },
+    {
+      "id": "policies",
+      "title": "Policies",
+      "about": "Refunds, warranty, support hours, how things are done.",
+      "files": 1
+    },
+    {
+      "id": "people",
+      "title": "People",
+      "about": "Who is who.",
+      "files": 1
+    },
+    {
+      "id": "customers",
+      "title": "Customers",
+      "about": "Who the company sells to.",
+      "files": 1
+    },
+    {
+      "id": "calls",
+      "title": "Calls and meetings",
+      "about": "Notes and transcripts you add.",
+      "files": 1
+    },
+    {
+      "id": "references",
+      "title": "References",
+      "about": "Examples and pictures you collect.",
+      "files": 1
+    },
+    {
+      "id": "packs",
+      "title": "Packs",
+      "about": "One page per kind of output: its shape, length and rules.",
+      "files": 1
+    },
+    {
+      "id": "loose",
+      "title": "Loose files",
+      "about": "Files kept directly in the knowledge folder.",
+      "files": 1
+    }
+  ],
+  "basics": {
+    "filled": 4,
+    "total": 9,
+    "items": [
+      {
+        "form": "about",
+        "title": "About",
+        "file": "company/about.md",
+        "state": "filled",
+        "token": "Y29tcGFueS9hYm91dC5tZA"
+      },
+      {
+        "form": "brand",
+        "title": "Brand",
+        "file": "brand/brand.md",
+        "state": "filled",
+        "token": "YnJhbmQvYnJhbmQubWQ"
+      },
+      {
+        "form": "cant-say",
+        "title": "What we never say",
+        "file": "brand/cant-say.md",
+        "state": "filled",
+        "token": "YnJhbmQvY2FudC1zYXkubWQ"
+      },
+      {
+        "form": "services",
+        "title": "Services",
+        "file": "pricing/services.md",
+        "state": "filled",
+        "token": "cHJpY2luZy9zZXJ2aWNlcy5tZA"
+      },
+      {
+        "form": "terms",
+        "title": "Terms",
+        "file": "pricing/terms.md",
+        "state": "empty",
+        "token": "cHJpY2luZy90ZXJtcy5tZA"
+      },
+      {
+        "form": "refunds",
+        "title": "Refunds",
+        "file": "policies/refunds.md",
+        "state": "empty",
+        "token": "cG9saWNpZXMvcmVmdW5kcy5tZA"
+      },
+      {
+        "form": "support-promise",
+        "title": "Support promise",
+        "file": "policies/support-promise.md",
+        "state": "empty",
+        "token": "cG9saWNpZXMvc3VwcG9ydC1wcm9taXNlLm1k"
+      },
+      {
+        "form": "team",
+        "title": "Team",
+        "file": "people/team.md",
+        "state": "empty",
+        "token": "cGVvcGxlL3RlYW0ubWQ"
+      },
+      {
+        "form": "ideal-customer",
+        "title": "Ideal customer",
+        "file": "customers/ideal-customer.md",
+        "state": "empty",
+        "token": "Y3VzdG9tZXJzL2lkZWFsLWN1c3RvbWVyLm1k"
+      }
+    ]
+  },
+  "starters": [
+    {
+      "id": "call-write-up",
+      "title": "Call write-up",
+      "about": "The shape of a call write-up: parts in order and lengths.",
+      "added": false
+    },
+    {
+      "id": "proposal",
+      "title": "Proposal",
+      "about": "The shape of a proposal: parts, length and tone.",
+      "added": false
+    },
+    {
+      "id": "carousel",
+      "title": "Carousel",
+      "about": "The shape of a carousel: slides, sizes, lengths.",
+      "added": false
+    },
+    {
+      "id": "post",
+      "title": "Post",
+      "about": "The shape of a post: length and parts.",
+      "added": false
+    },
+    {
+      "id": "newsletter",
+      "title": "Newsletter",
+      "about": "The shape of a newsletter: sections and length.",
+      "added": false
+    },
+    {
+      "id": "title-card",
+      "title": "Title card",
+      "about": "The shape of a title card: words, size and timing.",
+      "added": false
+    },
+    {
+      "id": "captions",
+      "title": "Captions",
+      "about": "The shape of captions: line length and timing.",
+      "added": false
+    },
+    {
+      "id": "video-cut",
+      "title": "Video cut",
+      "about": "The shape of a short cut: parts and length.",
+      "added": false
+    },
+    {
+      "id": "slow-reveal",
+      "title": "Slow reveal",
+      "about": "The shape of a slow reveal over a picture.",
+      "added": false
+    }
+  ],
+  "totals": {
+    "files": 12,
+    "bytes": 482113
+  },
+  "limits": {
+    "imageBytes": 10485760,
+    "textBytes": 2097152,
+    "files": 500,
+    "totalBytes": 209715200,
+    "endings": [
+      ".md",
+      ".txt",
+      ".csv",
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".webp",
+      ".gif",
+      ".pdf"
+    ]
+  },
+  "recent": [
+    {
+      "token": "YnJhbmQvYnJhbmQubWQ",
+      "path": "brand/brand.md",
+      "folder": "brand",
+      "name": "brand.md",
+      "kind": "text",
+      "size": 812,
+      "addedAt": "2026-11-12T08:00:00.000Z",
+      "changedAt": "2026-11-12T08:30:00.000Z",
+      "version": "1794472200000",
+      "form": "brand",
+      "viewUrl": "/api/brain/file/YnJhbmQvYnJhbmQubWQ",
+      "rawUrl": null,
+      "downloadUrl": "/api/brain/raw/YnJhbmQvYnJhbmQubWQ?download=1"
+    }
+  ],
+  "generatedAt": "2026-11-12T09:00:00.000Z"
+}

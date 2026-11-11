@@ -1,0 +1,45 @@
+{
+  "id": "invoice-from-a-quotation",
+  "department": "books",
+  "cluster": "selling",
+  "title": "Invoice from an approved quotation",
+  "summary": "An invoice made from a quotation you have already approved, left as a draft for you to approve.",
+  "handoff": "you-approve",
+  "stage": 4,
+  "who": [
+    "bookkeeper"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "earlier",
+      "label": "Which quotation?",
+      "kind": "task",
+      "required": true
+    },
+    {
+      "id": "date",
+      "label": "Invoice date:",
+      "kind": "date",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books",
+    "quotations"
+  ],
+  "takes": {
+    "from": [
+      "books/draft-a-quotation",
+      "books/quotation-from-a-call"
+    ],
+    "ask": "earlier",
+    "label": "Make the invoice from this"
+  },
+  "text": "Make an invoice from the quotation in [earlier], dated [date]. The quotation must already be approved: if it is not, stop and tell me so, and make no invoice. Copy its customer, lines and prices exactly. Leave the invoice as a draft for me to approve; do not send it to anyone. Then write a short read-back of what the invoice says.",
+  "produces": [
+    "readback-*.md"
+  ]
+}

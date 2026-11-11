@@ -375,16 +375,19 @@ export function boardSeedV2() {
   const artist = agents.find((a) => a.name === "Artist");
   artist.adapterConfig.maxTurnsPerRun = 60;
 
+  const v3 = seedV3();
+  agents.find((a) => a.name === "Sales").status = "running";
+
   return {
     ...base,
-    companies: base.companies.map((co) => ({ ...co, issueCounter: 18 })),
+    companies: base.companies.map((co) => ({ ...co, issueCounter: 25 })),
     agents,
-    issues: [...base.issues, ...issues],
-    comments: [...base.comments, ...comments],
-    liveRuns: [...base.liveRuns, { id: uid("11000000", 2), companyId: IDS.company, agentId: A("marketer"), issueId: I(16), status: "running", startedAt: at(-6) }],
+    issues: [...base.issues, ...issues, ...v3.issues],
+    comments: [...base.comments, ...comments, ...v3.comments],
+    liveRuns: [...base.liveRuns, { id: uid("11000000", 2), companyId: IDS.company, agentId: A("marketer"), issueId: I(16), status: "running", startedAt: at(-6) }, ...v3.liveRuns],
     instructions: Object.fromEntries(list.map(([slug], i) => [A(slug), { "AGENTS.md": { content: "You are an agent in a Paperclip company.\n", revisionId: uid("12000000", i + 1) } }])),
     memberGrants: grantRecords(list),
-    heartbeatRuns,
+    heartbeatRuns: [...heartbeatRuns, ...v3.heartbeatRuns],
     recoveryActions,
     routines: [routine("daily-brief", "paused"), routine("weekly-content-plan", "active")],
     routineTriggers: triggers,
@@ -395,14 +398,186 @@ export function boardSeedV2() {
   };
 }
 
-// A copy of the version 2 state seed: state-seed/ with the files of state-seed-v2/ laid over it.
-// `{state}` in ids.json is replaced by `dest`. Returns `dest`.
+// ---- version 3 (CONTRACTS-V3 section 38): STH-19 to STH-25, added to boardSeedV2, and their records.
+
+export const IDS_V3 = {
+  ...IDS_V2,
+  issues: { ...IDS_V2.issues, ...Object.fromEntries(Array.from({ length: 7 }, (_, i) => [`STH-${i + 19}`, uid("e0000000", i + 19)])) },
+};
+
+// A job's task text as the home server builds it (CONTRACTS-V3 31.3).
+const jobText = ({ to, text, reads, produces, job }) =>
+  `${to ? `FOR: ${to}\n` : ""}${text}\n\n${reads.length ? `Read first, from the company's files: ${reads.join(", ")}.\n` : ""}Produce: ${produces} in the goal's sub-folder.\nJOB: ${job}`;
+
+// A passing round in the form of CONTRACTS-V2 15.5: six questions in order, each [question, reason, evidence].
+// Questions 2 to 4 are worded for the kind of work; question 2 of STH-23 is the scored review of CONTRACTS-V3 36.3.
+const passCheck = (why, answers) => `VERDICT: PASS - ${why}
+# Check: round 1
+## Questions
+${answers.map(([question, reason, evidence], i) => `${i + 1}. ${question} YES - ${reason}${evidence ? `\n   evidence: ${evidence}` : ""}`).join("\n")}
+## Actions
+None.
+## Anything unclear
+None.
+Verdict: PASS`;
+const Q = {
+  brief: "Does the work do what the brief asked?",
+  must: "Is every must-have met?",
+  scored: "Does every piece score at least 8 out of 10 against the brand file, with nothing from the can't-say list?",
+  produced: "Is everything the plan said would be produced there?",
+  facts: "Are the facts, figures and names right, with nothing invented?",
+  free: "Is it free of anything sent, published or made final without the owner?",
+  usable: "Could the owner use it as it is?",
+};
+const CHECKS_V3 = {
+  "STH-20": passCheck("the write-up says what was asked, what we promised and what comes next", [
+    [Q.brief, "the write-up says what they told us, what we said we would do and what happens next", "call-write-up.md"],
+    [Q.must, "the customer, the day of the call, both lists and one follow-up with its date", "call-write-up.md"],
+    [Q.produced, "the write-up, and a note and a follow-up task on the customer's record", "call-write-up.md"],
+    [Q.facts, "the customer's name, the flat, the finish and the handover date match the owner's call notes", "call-write-up.md"],
+    [Q.free, "a note and a task on the customer's record; nothing was sent to the customer"],
+    [Q.usable, "a proposal can be written from it"],
+  ]),
+  "STH-23": passCheck("five concepts, each with a headline, an angle and a reason", [
+    [Q.brief, "five concepts for the Diwali offer, written before any design", "concepts.md"],
+    [Q.scored, "scores: concept-1 9, concept-2 8; every concept keeps to the brand's words and none uses the can't-say list", "concepts.md"],
+    ["Does each concept have a headline, an angle and a reason?", "five concepts, numbered 1 to 5, each with all three", "concepts.md"],
+    ["Are the five concepts different from each other?", "five angles: the date, a showroom visit, the finishes, the workshop and the lights", "concepts.md"],
+    [Q.free, "files only"],
+    [Q.usable, "any of the five can go on to a carousel"],
+  ]),
+  "STH-24": passCheck("three slides of 1080 by 1350 from the first concept", [
+    [Q.brief, "a carousel of three slides from the first concept", "slides/launch/contact.png"],
+    [Q.must, "three slides, the words of concept 1, the brand's three colours", "slides/launch/slide-01.png, slides/launch/slide-02.png, slides/launch/slide-03.png"],
+    [Q.produced, "three slides, the contact sheet, the list of words and the manifest", "slides/launch/manifest.json, slides/launch/slides.json"],
+    ["Is every slide the size the manifest says?", "all three are 1080 by 1350", "slides/launch/manifest.json, slides/launch/slide-01.png"],
+    [Q.free, "files only"],
+    [Q.usable, "the slides are ready to post once the owner agrees"],
+  ]),
+  "STH-25": passCheck("a one-second title card with a poster and six stills", [
+    [Q.brief, "a title card, one second long, in the wide shape", "video/title/title.mp4"],
+    [Q.must, "one second, the wide shape, the brand's dark green", "video/title/poster.png"],
+    [Q.produced, "the video, its poster, six stills and the manifest", "video/title/manifest.json, video/title/review/frame-01.png"],
+    ["Does the video match what its manifest says?", "320 by 180, 30 frames a second, one second", "video/title/manifest.json, video/title/title.mp4"],
+    [Q.free, "files only"],
+    [Q.usable, "it can open a video as it is"],
+  ]),
+};
+
+function seedV3() {
+  const I = (n) => IDS_V3.issues[`STH-${n}`];
+  const A = (slug) => IDS_V2.agents[slug];
+  const mk = (n, title, status, minutes, extra = {}) => issue(n, title, status, {
+    createdAt: at(minutes[0]), ...(minutes[1] !== undefined ? { startedAt: at(minutes[1]) } : {}),
+    ...(status === "done" ? { completedAt: at(minutes[2]) } : {}), updatedAt: at(minutes[2] ?? minutes[1] ?? minutes[0]), ...extra,
+  });
+  const issues = [
+    mk(19, "What is our returns policy, and when did it last change?", "done", [-130, -129, -126], {
+      description: "What is our returns policy, and when did it last change?\n\nASK",
+    }),
+    mk(20, "Call write-up: Asha Kitchens", "done", [-150, -149, -120], {
+      description: jobText({
+        to: "Sales", job: "sales/call-write-up", reads: ["packs/call-write-up.md"], produces: "call-write-up.md",
+        text: "Write up the call in the company file calls/2026-11-10-asha-kitchens.md. The customer is Asha Kitchens. Say what they told us, what we said we would do and what happens next, and add a note and follow-up tasks on the customer's record.",
+      }),
+    }),
+    mk(21, "Proposal from a call write-up", "in_progress", [-12, -11], {
+      description: jobText({
+        to: "Sales", job: "sales/proposal-from-a-call", reads: ["pricing/services.md", "pricing/terms.md", "brand/brand.md", "packs/proposal.md"], produces: "proposal.md",
+        text: "Write a proposal for the customer of the call write-up in the sub-folder STH-20 of your current working folder. Say back what they told us, what we will do, what it costs from our price list, how long it takes and our terms. Use only prices and terms from the company's files.",
+      }),
+    }),
+    mk(22, "Do we charge for delivery?", "in_progress", [-3, -2], { description: "Do we charge for delivery?\n\nASK" }),
+    mk(23, "Five concepts before any design: Diwali offer", "done", [-110, -109, -80], {
+      description: jobText({
+        to: "Marketer", job: "marketing/five-concepts", reads: ["brand/brand.md", "brand/cant-say.md", "references/"], produces: "concepts.md",
+        text: "Write five different concepts for Diwali offer, as a carousel, before anything is designed. Give each a headline, its angle and why it could work.",
+      }),
+    }),
+    mk(24, "A carousel from one concept", "done", [-75, -74, -40], {
+      description: jobText({
+        job: "marketing/carousel-from-a-concept", reads: ["brand/brand.md", "packs/carousel.md", "references/"], produces: "slides/*/manifest.json",
+        text: "Make a carousel of 3 slides from concept 1 in the sub-folder STH-23 of your current working folder. The Marketer writes the words for each slide; the Artist lays the slides out with the slide tool in the brand's colours and typeface.",
+      }),
+    }),
+    mk(25, "An animated title card", "done", [-70, -69, -35], {
+      description: jobText({
+        to: "Artist", job: "studio/an-animated-title-card", reads: ["brand/brand.md", "packs/title-card.md"], produces: "video/*/manifest.json",
+        text: "Make an animated title card that says Sthyra kitchens, one second long, in the wide shape, in the brand's colours and typeface.",
+      }),
+    }),
+  ];
+
+  let seq = 100;
+  const c = (key, body, who, minutes) => comment(seq++, key, body, who, minutes);
+  const comments = [
+    c("STH-19", "SIZE: XS - a question the company's files can answer.", "chief-of-staff", -129),
+    c("STH-19", "RESULT:\nCustomers can return an unused item within 14 days for a full refund [1]. Custom orders cannot be returned [1][2].", "chief-of-staff", -126),
+    c("STH-20", "SIZE: S - one agent, then a check.", "chief-of-staff", -149),
+    c("STH-20", CHECKS_V3["STH-20"], "checker", -125),
+    c("STH-20", "RESULT:\nThe call with Asha Kitchens is written up in call-write-up.md, with a note and a follow-up task on their record.", "chief-of-staff", -120),
+    c("STH-21", "SIZE: S - one agent, then a check.", "chief-of-staff", -11),
+    c("STH-22", "SIZE: XS - a question the company's files can answer.", "chief-of-staff", -2),
+    c("STH-23", "SIZE: M - one agent writes five concepts, then a scored check.", "chief-of-staff", -109),
+    c("STH-23", CHECKS_V3["STH-23"], "checker", -85),
+    c("STH-23", "RESULT:\nFive concepts for the Diwali offer are in concepts.md. The first scored highest.", "chief-of-staff", -80),
+    c("STH-24", "SIZE: M - the Marketer writes the words, the Artist lays out the slides, then a check.", "chief-of-staff", -74),
+    c("STH-24", CHECKS_V3["STH-24"], "checker", -45),
+    c("STH-24", "RESULT:\nThe launch carousel has three slides and a contact sheet, in slides/launch/.", "chief-of-staff", -40),
+    c("STH-25", "SIZE: S - one agent, then a check.", "chief-of-staff", -69),
+    c("STH-25", CHECKS_V3["STH-25"], "checker", -38),
+    c("STH-25", "RESULT:\nThe opening title is in video/title/, with its poster and six stills.", "chief-of-staff", -35),
+  ];
+
+  const run = (n, agent, key, status, started, finished) => ({
+    id: uid("13000000", n), companyId: IDS.company, agentId: A(agent), scopeKind: "issue", issueId: I(key), status,
+    createdAt: at(started), ...(finished !== undefined ? { finishedAt: at(finished) } : {}),
+  });
+  return {
+    issues, comments,
+    liveRuns: [{ id: uid("11000000", 3), companyId: IDS.company, agentId: A("sales"), issueId: I(21), status: "running", startedAt: at(-10) }],
+    heartbeatRuns: [
+      run(16, "sales", 21, "running", -10),
+      run(17, "chief-of-staff", 19, "succeeded", -128, -126),
+      run(18, "sales", 20, "succeeded", -148, -130),
+      run(19, "marketer", 23, "succeeded", -108, -90),
+      run(20, "artist", 24, "succeeded", -70, -50),
+      run(21, "artist", 25, "succeeded", -68, -40),
+    ],
+  };
+}
+
+// The records of the version 3 seed in state/home/decisions.json (CONTRACTS-V3 31.3, 33.5), as the home
+// server writes them. copyStateSeedV2 adds them to the version 2 file.
+export function decisionsV3() {
+  const I = (key) => IDS_V3.issues[key];
+  return {
+    [`ask:${I("STH-19")}`]: at(-130),
+    [`template:${I("STH-20")}`]: "sales/call-write-up",
+    [`acknowledged:goal:${I("STH-20")}`]: at(-100),
+    [`template:${I("STH-21")}`]: "sales/proposal-from-a-call",
+    [`from:${I("STH-21")}`]: I("STH-20"),
+    [`ask:${I("STH-22")}`]: at(-3),
+    [`template:${I("STH-23")}`]: "marketing/five-concepts",
+    [`asked:${I("STH-23")}`]: { answers: { subject: "Diwali offer", kind: "carousel" } },
+    [`template:${I("STH-24")}`]: "marketing/carousel-from-a-concept",
+    [`from:${I("STH-24")}`]: I("STH-23"),
+    [`acknowledged:goal:${I("STH-24")}`]: at(-30),
+    [`template:${I("STH-25")}`]: "studio/an-animated-title-card",
+  };
+}
+
+// A copy of the version 2 state seed: state-seed/ with the files of state-seed-v2/ laid over it, and the
+// version 3 records added to home/decisions.json. `{state}` in ids.json is replaced by `dest`. Returns `dest`.
 const STUBS_DIR = dirname(fileURLToPath(import.meta.url));
 export function copyStateSeedV2(dest) {
   cpSync(join(STUBS_DIR, "state-seed"), dest, { recursive: true });
   cpSync(join(STUBS_DIR, "state-seed-v2"), dest, { recursive: true });
   const idsFile = join(dest, "ids.json");
   writeFileSync(idsFile, readFileSync(idsFile, "utf8").split("{state}").join(dest));
+  const decisionsFile = join(dest, "home", "decisions.json");
+  const decisions = { ...JSON.parse(readFileSync(decisionsFile, "utf8")), ...decisionsV3() };
+  writeFileSync(decisionsFile, JSON.stringify(decisions, null, 2) + "\n");
   return dest;
 }
 
@@ -424,7 +599,8 @@ const istDate = (d) => new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().s
 const stamp = (d) => new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().replace("T", " ").replace("Z", "");
 
 // `now` fixes "today" so that month-based figures are stable in tests.
-export function benchSeed({ now = new Date() } = {}) {
+// `quotations: false` leaves out the Bookkeeper's right to draft quotations (CONTRACTS-V3 38).
+export function benchSeed({ now = new Date(), quotations = true } = {}) {
   const today = istDate(now);
   const t = stamp(now);
   const older = istDate(new Date(now.getTime() - 45 * 86400000));
@@ -444,8 +620,16 @@ export function benchSeed({ now = new Date() } = {}) {
 
   const users = { [BENCH_KEYS.owner]: { email: "Administrator", role: "System Manager", canSubmit: true, canDelete: true, doctypes: ["*"] } };
   for (const [slug, role, doctypes] of AGENT_USERS) {
-    users[BENCH_KEYS[slug]] = { email: `${slug}@engine.localhost`, role, canSubmit: false, canDelete: false, doctypes };
+    users[BENCH_KEYS[slug]] = { email: `${slug}@engine.localhost`, role, canSubmit: false, canDelete: false, doctypes: slug === "bookkeeper" && quotations ? [...doctypes, "Quotation"] : doctypes };
   }
+  const qtn = (n, owner, docstatus, customer, total) => base("Quotation", `SAL-QTN-2026-${String(n).padStart(5, "0")}`, owner, docstatus, {
+    quotation_to: "Customer", party_name: customer, customer_name: customer, order_type: "Sales",
+    transaction_date: today, valid_till: later, grand_total: total,
+  });
+  const perms = quotations ? [base("Custom DocPerm", "qtn-bookkeeper-perm", "Administrator", 0, {
+    parent: "Quotation", parenttype: "DocType", parentfield: "permissions", role: "Engine Bookkeeper", permlevel: 0, if_owner: 0,
+    read: 1, write: 1, create: 1, select: 1, submit: 0, cancel: 0, amend: 0, delete: 0, report: 0, export: 0, import: 0, print: 0, email: 0, share: 0,
+  })] : [];
   return {
     users,
     docs: {
@@ -483,6 +667,8 @@ export function benchSeed({ now = new Date() } = {}) {
         employee_name: "Priya Nair", from_date: later, to_date: later, status: "Open",
       })],
       Attendance: [],
+      Quotation: [qtn(1, bk, 0, "Asha Kitchens", 236000), qtn(2, "Administrator", 1, "Acme Interiors", 88500)],
+      "Custom DocPerm": perms,
     },
     comments: [],
     missingDoctypes: [],

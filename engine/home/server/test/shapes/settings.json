@@ -1,7 +1,9 @@
 {
   "appearance": {
-    "theme": "auto",
-    "accent": "graphite"
+    "theme": "dark",
+    "accent": "graphite",
+    "backdrop": "aurora",
+    "motion": "on"
   },
   "accents": [
     {
@@ -27,6 +29,20 @@
     {
       "id": "rose",
       "label": "Rose"
+    }
+  ],
+  "backdrops": [
+    {
+      "id": "aurora",
+      "label": "Aurora"
+    },
+    {
+      "id": "stars",
+      "label": "Stars"
+    },
+    {
+      "id": "plain",
+      "label": "Plain"
     }
   ],
   "later": [

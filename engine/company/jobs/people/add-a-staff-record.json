@@ -1,0 +1,55 @@
+{
+  "id": "add-a-staff-record",
+  "department": "people",
+  "cluster": "records",
+  "title": "Add a staff record",
+  "summary": "A new staff record with the details you give, kept as a draft for you to check.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "people"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "full-name",
+      "label": "Full name:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "job-title",
+      "label": "Job title:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "start-date",
+      "label": "Start date:",
+      "kind": "date",
+      "required": true
+    },
+    {
+      "id": "email-address",
+      "label": "Email address:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "manager",
+      "label": "Manager:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Add a staff record for [full-name], who joins as [job-title] on [start-date]. Their email is [email-address] and they report to [manager]. Keep it as a draft for me to check and tell me if any detail looks missing.",
+  "produces": [
+    "*.md"
+  ]
+}

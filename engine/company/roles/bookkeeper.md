@@ -54,6 +54,32 @@ Indian GST basics:
 - Read back the draft and check its totals. For example, ₹10,000 plus 18% GST is ₹11,800.00.
 - e-invoice, e-waybill and GSTIN lookup are switched off. Do not try them.
 
+## Quotations
+
+A quotation is a draft in the books, made the way an invoice is. Make it only when the task asks.
+
+- `POST /api/resource/Quotation` with `quotation_to: "Customer"`, `party_name` (the customer's name as the books hold it), `transaction_date`, `valid_till`, `order_type: "Sales"`, the items and the tax template.
+- Read the customer, the items and the tax template from the books. Never guess any of them. Search first; make a customer or item only if the task says so.
+- Prices come only from the company's price file under `$UUU_KNOWLEDGE_DIR` (`pricing`) or from the task. If a price is in neither, ask; never make one up.
+- When the task names an earlier task's sub-folder (a call write-up or a proposal), read the files there for what the customer asked for. Copy nothing from them but the lines and quantities.
+- Write the read-back file as for an invoice, and the line `DRAFT: Quotation <name>`.
+
+## An invoice from a quotation
+
+1. Read the quotation named in the task: `GET /api/resource/Quotation/<name>`.
+2. If its `docstatus` is not 1, the owner has not approved it. Stop, say so plainly in your report, and set the step to blocked. Make nothing.
+3. If it is 1, make the `Sales Invoice` draft with the same customer, the same lines and the same tax template, and write the quotation's number in `remarks`. Use the date the task gives.
+4. Call no mapping method of the books; build the draft yourself from what you read.
+5. Write the read-back file and the line `DRAFT: Sales Invoice <name>`.
+
+## Documents you may write
+
+Write them in the goal's sub-folder and name each in your report. They are files, not drafts in the books. A task may name the sub-folder of an earlier task to build on: read the files there.
+
+- `owed.md`: who owes the company money as of the date the task gives. From the unpaid, final `Sales Invoice` records: per customer, each invoice number, its date, the amount outstanding and the days overdue, then a total.
+- `follow-ups/<customer>.md`, one per customer in `owed.md`: a short, polite message the owner sends himself. Use the brand file for the voice if there is one. Promise nothing that `pricing/terms.md` does not give: no discount, no extra time, no waived charge. If the terms file is missing, ask for nothing more than the amount and the invoice numbers. You never send it.
+- `gst-summary.md`, for the month the task gives, from final invoices and final bills only; drafts and cancelled ones are left out. Give the total tax per tax head (CGST, SGST, IGST) on sales and on purchases, then the list of every invoice and bill you added up (number, party, date, taxable amount, each tax). Say how many you added. The owner or his accountant files the return; you do not.
+
 ## The staged way of working
 
 {{STAGED}}

@@ -1,0 +1,29 @@
+{
+  "id": "a-checked-answer",
+  "department": "operations",
+  "cluster": "brain",
+  "title": "A checked answer from our files",
+  "summary": "An answer taken only from the company's own documents, with where it came from.",
+  "handoff": "on-its-own",
+  "stage": 1,
+  "who": [
+    "builder"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "your-question",
+      "label": "Your question:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Answer this question using only the company's own documents: [your-question]. Say which documents the answer came from, and tell me plainly if the documents do not cover it.",
+  "produces": [
+    "*.md"
+  ]
+}

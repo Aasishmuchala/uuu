@@ -1,0 +1,49 @@
+/* kit/creature.js: a 16 × 16 pixel creature shown at a whole multiple of its size.
+   The sheet is a strip of frames inside a window one frame wide; the idle moves the strip
+   by transform in steps, one frame at a time, so no frame is ever drawn in between. */
+
+.k-creature {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: var(--k-creature-size, 32px);
+  height: var(--k-creature-size, 32px);
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.k-creature__sheet {
+  display: block;
+  width: calc(var(--k-creature-size, 32px) * var(--k-creature-frames, 4));
+  height: 100%;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  animation: k-creature-idle var(--k-creature-time, 1.6s) steps(var(--k-creature-frames, 4)) infinite;
+}
+
+@keyframes k-creature-idle {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+.k-creature[data-creature="brain"] .k-creature__sheet { background-image: url("../assets/creatures/brain-sheet.png"); }
+.k-creature[data-creature="operations"] .k-creature__sheet { background-image: url("../assets/creatures/operations-sheet.png"); }
+.k-creature[data-creature="sales"] .k-creature__sheet { background-image: url("../assets/creatures/sales-sheet.png"); }
+.k-creature[data-creature="marketing"] .k-creature__sheet { background-image: url("../assets/creatures/marketing-sheet.png"); }
+.k-creature[data-creature="studio"] .k-creature__sheet { background-image: url("../assets/creatures/studio-sheet.png"); }
+.k-creature[data-creature="support"] .k-creature__sheet { background-image: url("../assets/creatures/support-sheet.png"); }
+.k-creature[data-creature="people"] .k-creature__sheet { background-image: url("../assets/creatures/people-sheet.png"); }
+.k-creature[data-creature="books"] .k-creature__sheet { background-image: url("../assets/creatures/books-sheet.png"); }
+
+/* Still: the first frame, for `still`, for motion switched off and for reduced motion. */
+.k-creature--still .k-creature__sheet,
+[data-motion="off"] .k-creature__sheet {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-creature__sheet {
+    animation: none;
+  }
+}

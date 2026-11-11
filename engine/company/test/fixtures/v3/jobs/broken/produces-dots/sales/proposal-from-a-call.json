@@ -1,0 +1,54 @@
+{
+  "id": "proposal-from-a-call",
+  "department": "sales",
+  "cluster": "calls",
+  "title": "Proposal from a call write-up",
+  "summary": "A written proposal for one customer, from the call write-up and your price list.",
+  "handoff": "you-approve",
+  "stage": 4,
+  "who": [
+    "sales"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "pricing/services.md",
+      "need": "must"
+    },
+    {
+      "file": "pricing/terms.md",
+      "need": "must"
+    },
+    {
+      "file": "packs/proposal.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "earlier",
+      "label": "Which call write-up?",
+      "kind": "task",
+      "required": true
+    },
+    {
+      "id": "extra",
+      "label": "Anything to add?",
+      "kind": "text",
+      "required": false
+    }
+  ],
+  "needs": [],
+  "takes": {
+    "from": [
+      "sales/call-write-up"
+    ],
+    "ask": "earlier",
+    "label": "Write the proposal from this"
+  },
+  "text": "Write a proposal for the customer of the call write-up in [earlier]. Say back what they told us, what we will do, what it costs from our price list, how long it takes and our terms. Use only prices and terms from the company's files. [extra]",
+  "produces": [
+    "../proposal.md"
+  ]
+}

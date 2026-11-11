@@ -1,0 +1,42 @@
+{
+  "id": "a-slow-reveal-from-pictures",
+  "department": "studio",
+  "cluster": "motion",
+  "title": "A slow reveal from your pictures",
+  "summary": "A video that moves slowly across your pictures, with captions if you want them.",
+  "handoff": "on-its-own",
+  "stage": 3,
+  "who": [
+    "artist"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "references/",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "pictures",
+      "label": "Which pictures, in order?",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "captions",
+      "label": "A caption for each picture:",
+      "kind": "text",
+      "required": false
+    }
+  ],
+  "needs": [
+    "video"
+  ],
+  "takes": null,
+  "text": "Make a video that moves slowly across these pictures, in this order, fading from one to the next: [pictures]. Give each picture a few seconds. If captions are given, put each on its picture in plain readable type: [captions]. Use only pictures the owner named. The video is at most two minutes long and at most full HD in size. Look at the stills before you hand it over.",
+  "produces": [
+    "video/*/manifest.json"
+  ]
+}

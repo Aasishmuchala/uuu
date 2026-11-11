@@ -1,0 +1,55 @@
+{
+  "id": "a-set-of-small-icons",
+  "department": "studio",
+  "cluster": "pictures",
+  "title": "A set of small icons",
+  "summary": "Several small icons drawn in one style and placed on a single sheet.",
+  "handoff": "on-its-own",
+  "stage": 3,
+  "who": [
+    "artist"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "number-of-icons",
+      "label": "Number of icons:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "what-they-are-for",
+      "label": "What they are for:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "list-of-the-icons",
+      "label": "List of the icons:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "icon-size",
+      "label": "Icon size:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "colours-to-use",
+      "label": "Colours to use:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "artist-tools"
+  ],
+  "takes": null,
+  "text": "Draw a set of [number-of-icons] small icons for [what-they-are-for]: [list-of-the-icons]. Each one is [icon-size] pixels square, in one style with the colours [colours-to-use]. Put them all on one sheet.",
+  "produces": [
+    "art/*/manifest.json"
+  ]
+}

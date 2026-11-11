@@ -1,0 +1,302 @@
+/* The company brain's new file (brain/new-file.js) and its readiness panel (brain/readiness.js), both used by the
+   Files page. Every selector starts with .p-brain; tokens only. */
+
+.p-brain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+/* ---- a new file: paste, add a file, fill in a form */
+
+.p-brain .p-brain__flow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+  max-width: var(--column);
+}
+
+.p-brain .p-brain__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.p-brain .p-brain__over {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.p-brain .p-brain__title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-heading);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+}
+
+.p-brain .p-brain__lead,
+.p-brain .p-brain__where {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
+}
+
+.p-brain .p-brain__where {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.p-brain .p-brain__note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-3);
+  background: var(--glass-soft);
+  color: var(--text-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.p-brain .p-brain__note .k-icon {
+  flex: none;
+  margin-top: var(--s-1);
+  color: var(--text-3);
+}
+
+.p-brain .p-brain__notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin-top: calc(-1 * var(--s-2));
+}
+
+.p-brain .p-brain__notes:empty {
+  display: none;
+}
+
+.p-brain .p-brain__step {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.p-brain .p-brain__pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.p-brain .p-brain__picked {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  overflow-wrap: anywhere;
+}
+
+.p-brain .p-brain__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.p-brain .p-brain__toggle {
+  align-self: flex-start;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-caption);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.p-brain .p-brain__toggle:hover {
+  color: var(--text);
+}
+
+.p-brain .p-brain__saved {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  max-width: var(--column);
+}
+
+/* the list of forms, and the three ways in */
+
+.p-brain .p-brain__forms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-brain .p-brain__form-link {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 48px;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-3);
+  background: var(--glass);
+  color: var(--text);
+  font-size: var(--fs-body);
+  text-decoration: none;
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+
+.p-brain .p-brain__form-link:hover {
+  border-color: var(--hairline-strong);
+  background: var(--glass-strong);
+}
+
+.p-brain .p-brain__form-title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+
+.p-brain .p-brain__form-text,
+.p-brain .p-brain__form-state {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-regular);
+}
+
+.p-brain .p-brain__form-state {
+  flex: none;
+}
+
+/* ---- readiness: the ring and the nine rows */
+
+.p-brain .p-brain__ready-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.p-brain .p-brain__ready-words {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.p-brain .p-brain__ready-count {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+.p-brain .p-brain__ready-lead {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-body);
+}
+
+.p-brain .p-brain__basics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--s-1) var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-brain .p-brain__basic-link {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 40px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-2);
+  color: var(--text);
+  font-size: var(--fs-body);
+  text-decoration: none;
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.p-brain .p-brain__basic-link:hover {
+  background: var(--glass-soft);
+}
+
+.p-brain .p-brain__basic-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--r-pill);
+  color: var(--ok-text);
+}
+
+.p-brain .p-brain__basic--filled .p-brain__basic-mark {
+  border: 1px solid var(--ok);
+  background: var(--ok-bg);
+}
+
+.p-brain .p-brain__basic-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.p-brain .p-brain__basic-action {
+  flex: none;
+  color: var(--text);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+}
+
+.p-brain .p-brain__basic--filled .p-brain__basic-action {
+  color: var(--text-3);
+  font-weight: var(--fw-regular);
+}
+
+@media (max-width: 859px) {
+  .p-brain .p-brain__basics {
+    grid-template-columns: 1fr;
+  }
+
+  .p-brain .p-brain__actions .k-btn {
+    min-height: 44px;
+  }
+}

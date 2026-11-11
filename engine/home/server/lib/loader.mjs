@@ -5,6 +5,9 @@
 //                         app.get("/api/departments/books", async (ctx) => ({ ... }));   // 200 + JSON
 //                         app.post("/api/thing/:id", async (ctx) => ({ status: 201, body: {...} }));
 //                         app.delete(...)                                                  // :name segments
+//                         app.post("/api/upload", handler, { maxBody: 8 * 1024 * 1024 })   // own body limit
+//                       `maxBody` (post and delete only) is whole bytes from 1 to 16 MB; the default is 2 MB.
+//                       Any other value fails the module's registration.
 //                       }
 //                       A handler throws `ctx.fail(status, message, next, code)` for a plain error.
 //   inbox/<name>.mjs    export default { id: "bench",
@@ -39,7 +42,7 @@ function firstLineOf(e) {
   return String(e?.message || e).split("\n")[0].slice(0, 300);
 }
 
-// router: { add(method, pattern, handler, owner), removeOwner(owner) }
+// router: { add(method, pattern, handler, owner, options), removeOwner(owner) }
 export async function loadModules({ dirs, router, log }) {
   const inbox = [];
   const search = [];
@@ -56,8 +59,8 @@ export async function loadModules({ dirs, router, log }) {
             const owner = full;
             const app = {
               get: (p, h) => router.add("GET", p, h, owner),
-              post: (p, h) => router.add("POST", p, h, owner),
-              delete: (p, h) => router.add("DELETE", p, h, owner),
+              post: (p, h, opts) => router.add("POST", p, h, owner, opts),
+              delete: (p, h, opts) => router.add("DELETE", p, h, owner, opts),
             };
             try {
               await mod(app);

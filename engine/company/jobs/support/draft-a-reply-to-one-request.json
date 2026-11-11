@@ -1,0 +1,49 @@
+{
+  "id": "draft-a-reply-to-one-request",
+  "department": "support",
+  "cluster": "replies",
+  "title": "Draft a reply to one request",
+  "summary": "A reply drafted to one support request, for you to read before it goes.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "support"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "customer",
+      "label": "Customer:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "their-problem",
+      "label": "Their problem:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "friendly-or-formal",
+      "label": "Friendly or formal:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "date",
+      "label": "Date:",
+      "kind": "date",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Draft a reply to the request from [customer] about [their-problem]. Keep the tone [friendly-or-formal] and say clearly what we will do and by when [date]. Leave it as a draft for me; do not send it.",
+  "produces": [
+    "*.md"
+  ]
+}

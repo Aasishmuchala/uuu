@@ -113,7 +113,7 @@
       "instructions": "roles/artist.md",
       "limits": { "maxTurns": 60 },
       "fencePolicy": {
-        "readFolders": ["{state}/knowledge/docs", "{state}/art"],
+        "readFolders": ["{state}/knowledge/docs", "{state}/art", "{state}/media"],
         "envFile": "{state}/secrets/agents/artist.env"
       },
       "bench": null

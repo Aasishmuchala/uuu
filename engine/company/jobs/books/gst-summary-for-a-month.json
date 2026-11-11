@@ -1,0 +1,31 @@
+{
+  "id": "gst-summary-for-a-month",
+  "department": "books",
+  "cluster": "month-end",
+  "title": "GST summary for a month",
+  "summary": "The tax on sales and on purchases for one month, added up so you or your accountant can file it.",
+  "handoff": "you-lead",
+  "stage": 2,
+  "who": [
+    "bookkeeper"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "month",
+      "label": "Month:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Add up the GST for [month]: the tax on what we sold and the tax on what we bought, using final invoices and bills only, never drafts. Show the totals for each kind of tax and list every invoice and bill you added up. Do not file anything; I or my accountant will file it.",
+  "produces": [
+    "gst-summary.md"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "id": "follow-up-notes-for-quiet-leads",
+  "department": "sales",
+  "cluster": "leads",
+  "title": "Follow-up notes for quiet leads",
+  "summary": "A short follow-up note drafted for each lead with no recent activity.",
+  "handoff": "on-its-own",
+  "stage": 3,
+  "who": [
+    "sales"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "number",
+      "label": "Number:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Find every lead with no activity for [number] days. For each one, draft a short, friendly follow-up note that mentions what we last talked about. Keep them as drafts for me to read; do not send anything.",
+  "produces": [
+    "*.md"
+  ]
+}

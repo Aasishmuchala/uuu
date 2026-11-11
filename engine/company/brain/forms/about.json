@@ -1,0 +1,44 @@
+{
+  "id": "about",
+  "folder": "company",
+  "file": "about.md",
+  "title": "About the company",
+  "lead": "What your company does, for whom and where. Agents read this before they write to anyone.",
+  "fields": [
+    {
+      "id": "what",
+      "label": "What does your company do?",
+      "kind": "text",
+      "required": true,
+      "hint": "Such as: We make and fit kitchens for homes."
+    },
+    {
+      "id": "who",
+      "label": "Who is it for?",
+      "kind": "text",
+      "required": true,
+      "hint": "Such as: Families renovating a home, and small builders."
+    },
+    {
+      "id": "where",
+      "label": "Where do you work?",
+      "kind": "line",
+      "required": true,
+      "hint": "Such as: Hyderabad and the towns around it."
+    },
+    {
+      "id": "reach",
+      "label": "How can people reach you?",
+      "kind": "text",
+      "required": false,
+      "hint": "Such as: A phone number, an email address, opening hours."
+    },
+    {
+      "id": "name",
+      "label": "How is your company's name written?",
+      "kind": "line",
+      "required": false,
+      "hint": "Such as: The exact spelling and capital letters you use."
+    }
+  ]
+}

@@ -1,0 +1,169 @@
+/* A department (pages/dept.js): one column of glass cards, the composer at the bottom. */
+
+.p-dept { display: flex; flex-direction: column; gap: var(--s-4); min-height: 100%; }
+
+.p-dept .p-dept__card { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
+
+/* Card one: the creature beside the overline, the name and the three words. */
+.p-dept .p-dept__who { display: flex; align-items: center; gap: var(--s-4); min-width: 0; }
+.p-dept .p-dept__creature {
+  flex: none;
+  display: inline-flex;
+  padding: var(--s-2);
+  border-radius: var(--r-4);
+  border: 1px solid var(--hairline);
+  background: var(--glass-soft);
+}
+.p-dept .p-dept__who .k-page-header { flex: 1; min-width: 0; margin: 0; gap: var(--s-1); }
+.p-dept .p-dept__who .k-page-header__lead { margin: 0; color: var(--text-2); }
+
+.p-dept .p-dept__state { align-self: flex-start; display: inline-flex; }
+.p-dept .p-dept__state--link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: var(--r-pill);
+}
+.p-dept .p-dept__state--link:hover .k-chip { border-color: var(--hairline-strong); }
+
+.p-dept .p-dept__over {
+  margin: 0;
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.p-dept .p-dept__count { color: var(--text-3); }
+.p-dept .p-dept__muted { margin: 0; color: var(--text-2); }
+
+.p-dept .p-dept__can {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--hairline);
+}
+
+/* The "can run" chips; a dim one shows why it cannot start on hover and on focus. */
+.p-dept .p-dept__jobs { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.p-dept .p-dept__job { position: relative; max-width: 100%; }
+.p-dept .p-dept__job .k-job--chip { max-width: 100%; }
+.p-dept .p-dept__why {
+  position: absolute;
+  left: 0;
+  top: calc(100% + var(--s-1));
+  z-index: 5;
+  width: max-content;
+  max-width: min(320px, 80vw);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-2);
+  border: 1px solid var(--hairline);
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--fs-caption);
+  color: var(--text);
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.p-dept .p-dept__job--dim:hover .p-dept__why,
+.p-dept .p-dept__job--dim:focus-within .p-dept__why { opacity: 1; transform: none; }
+
+.p-dept .p-dept__links { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); }
+.p-dept .p-dept__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  text-decoration: none;
+}
+.p-dept .p-dept__link:hover { color: var(--text); text-decoration: underline; }
+
+.p-dept .p-dept__around {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--hairline);
+}
+.p-dept .p-dept__nb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 32px;
+  font-family: var(--font-serif);
+  font-size: var(--fs-caption);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  text-decoration: none;
+}
+.p-dept .p-dept__nb:hover { color: var(--dept); }
+.p-dept .p-dept__nb--next { margin-left: auto; }
+
+/* Card two: the agents; with one agent, a quiet line. */
+.p-dept .p-dept__one {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: 0 var(--s-2);
+  color: var(--text-2);
+}
+.p-dept .p-dept__one-label { font-size: var(--fs-caption); color: var(--text-2); }
+.p-dept .p-dept__agents {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--s-3);
+}
+.p-dept .p-dept__agents .k-agent--card { height: 100%; }
+
+/* Card three: the owner's tasks with this department. */
+.p-dept .p-dept__tasks-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
+.p-dept .p-dept__all { font-size: var(--fs-caption); color: var(--text-2); }
+.p-dept .p-dept__all:hover { color: var(--text); }
+.p-dept .p-dept__rows { list-style: none; margin: 0 calc(-1 * var(--s-2)); padding: 0; display: flex; flex-direction: column; }
+
+/* The composer sits at the bottom of the column, in the flow, so it never covers a card. */
+.p-dept .p-dept__give {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: auto;
+  padding-top: var(--s-4);
+}
+.p-dept .p-dept__for { max-width: 280px; }
+.p-dept .p-dept__started {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-3);
+  border: 1px solid var(--hairline);
+  background: var(--glass-strong);
+  color: var(--ok-text);
+}
+.p-dept .p-dept__started a { color: var(--text); }
+.p-dept .p-dept__caption { margin: 0; padding: 0 var(--s-2); font-size: var(--fs-caption); color: var(--text-2); }
+
+@media (max-width: 859px) {
+  .p-dept .p-dept__agents { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 479px) {
+  .p-dept .p-dept__who { align-items: flex-start; }
+  .p-dept .p-dept__links { flex-direction: column; }
+}

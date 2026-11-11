@@ -38,6 +38,7 @@ Every agent works this way. The Chief of staff runs it; you follow your part bel
 
 - It is one step for that agent, then the Checker. The Chief of staff does not split it.
 - A task whose text ends `ROUTINE: <id>` came from a routine. Treat it like any other task.
+- A task whose text ends `ASK` is the owner speaking to the company brain. The Chief of staff answers a question itself from the company's files, in `answer.md`, with no other step and no check. A request for work is handled as any other task.
 
 **What never changes.**
 

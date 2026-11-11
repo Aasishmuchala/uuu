@@ -1,0 +1,431 @@
+/* Files: the company brain (CONTRACTS-V3 30). Every selector starts with .p-files; tokens only (V2 11.2, V3 27.3). */
+
+.p-files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+
+.p-files.p-files--panel {
+  gap: var(--s-4);
+}
+
+/* + New: a solid pill, as the section's first action. */
+.p-files .p-files__new .k-menu__trigger {
+  background: var(--primary);
+  color: var(--primary-text);
+  border-radius: var(--r-pill);
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.p-files .p-files__new .k-menu__trigger:hover {
+  background: var(--primary-hover);
+}
+
+/* Readiness */
+.p-files .p-files__ready-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.p-files .p-files__ready-words {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.p-files .p-files__ready-words p {
+  margin: 0;
+}
+
+.p-files .p-files__ready-line {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+
+.p-files .p-files__basics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--s-1) var(--s-4);
+  margin: var(--s-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-files .p-files__basic {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  min-height: var(--h-md);
+  border-bottom: 1px solid var(--hairline);
+  min-width: 0;
+}
+
+/* Search and the Folders / Lessons switch */
+.p-files .p-files__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.p-files .p-files__search {
+  flex: 1 1 280px;
+  max-width: 520px;
+  min-width: 0;
+}
+
+/* Folders */
+.p-files .p-files__folders {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-files .p-files__folders > li {
+  display: flex;
+  min-width: 0;
+}
+
+.p-files .p-files__folder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+
+.p-files .p-files__folder-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text);
+  min-width: 0;
+}
+
+.p-files .p-files__folder-title {
+  font-weight: var(--fw-medium);
+}
+
+.p-files .p-files__folder-about {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  flex: 1;
+}
+
+/* One folder: the bar over its files */
+.p-files .p-files__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.p-files .p-files__bar-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-3);
+}
+
+.p-files .p-files__bar-tools .k-field {
+  margin: 0;
+}
+
+/* Files as tiles */
+.p-files .p-files__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-files .p-files__tile-link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  color: var(--text);
+  text-decoration: none;
+  border-radius: var(--r-3);
+  min-width: 0;
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+.p-files .p-files__tile-link:hover {
+  border-color: var(--hairline-strong);
+}
+
+.p-files .p-files__tile-name {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+}
+
+.p-files .p-files__tile-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1);
+  height: 96px;
+  border-radius: var(--r-2);
+  background: var(--glass-soft);
+  color: var(--text-2);
+}
+
+.p-files .p-files__tile-kind {
+  font-size: var(--fs-over);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+/* Files as rows, also the recent files and the search results */
+.p-files .p-files__rows,
+.p-files .p-files__results,
+.p-files .p-files__forms,
+.p-files .p-files__starters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-files .p-files__row-link {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--h-lg);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-3);
+  background: var(--glass);
+  color: var(--text);
+  text-decoration: none;
+  min-width: 0;
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+.p-files .p-files__row-link:hover,
+.p-files .p-files__result:hover {
+  border-color: var(--hairline-strong);
+}
+
+.p-files .p-files__row-icon {
+  display: inline-flex;
+  color: var(--text-2);
+}
+
+.p-files .p-files__row-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.p-files .p-files__row-meta {
+  display: flex;
+  gap: var(--s-3);
+  flex-shrink: 0;
+}
+
+.p-files .p-files__chev {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.p-files .p-files__result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-3);
+  border-radius: var(--r-3);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+.p-files .p-files__result-name {
+  font-weight: var(--fw-medium);
+}
+
+.p-files .p-files__result-snippet {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+
+/* Forms and starter packs in a folder */
+.p-files .p-files__form,
+.p-files .p-files__starter {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--h-lg);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-3);
+  background: var(--glass);
+  min-width: 0;
+}
+
+.p-files .p-files__starter-words {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Lessons */
+.p-files .p-files__lessons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--s-3);
+}
+
+.p-files .p-files__lesson-list {
+  margin: var(--s-2) 0 0;
+  padding-left: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  color: var(--text-2);
+}
+
+/* One file, in the work panel */
+.p-files .p-files__name {
+  margin: 0;
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+
+.p-files .p-files__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.p-files .p-files__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.p-files .p-files__action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.p-files .p-files__move {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-2);
+}
+
+.p-files .p-files__move .k-field {
+  margin: 0;
+  flex: 1 1 180px;
+}
+
+.p-files .p-files__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--border-warm);
+  border-radius: var(--r-3);
+  background: var(--bg-warm);
+}
+
+.p-files .p-files__refusal {
+  margin: 0;
+  color: var(--bad-text);
+}
+
+.p-files .p-files__text {
+  margin: 0;
+  padding: var(--s-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-3);
+  background: var(--glass-soft);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.p-files .p-files__table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.p-files .p-files__picture {
+  margin: 0;
+}
+
+.p-files .p-files__picture img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--r-3);
+  border: 1px solid var(--hairline);
+}
+
+.p-files .p-files__pdf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.p-files .p-files__pdf-icon {
+  display: inline-flex;
+  color: var(--text-2);
+}
+
+.p-files .p-files__pdf-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+@media (max-width: 859px) {
+  .p-files .p-files__row-meta > span:nth-child(2) {
+    display: none;
+  }
+
+  .p-files .p-files__search {
+    max-width: none;
+  }
+}
+
+@media (max-width: 479px) {
+  .p-files .p-files__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .p-files .p-files__row-meta > span:first-child {
+    display: none;
+  }
+}

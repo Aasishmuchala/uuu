@@ -27,7 +27,7 @@ test("lists the agents' drafts as plain items, and none made by the owner", asyn
   await withHome(async (h) => {
     const items = await benchItems(h);
     assert.deepEqual(items.map((i) => i.id).sort(), [
-      REPLY, LEAVE, "bench:Purchase Invoice:ACC-PINV-2026-00001", SINV, "bench:Sales Invoice:ACC-SINV-2026-00002",
+      REPLY, LEAVE, "bench:Purchase Invoice:ACC-PINV-2026-00001", "bench:Quotation:SAL-QTN-2026-00001", SINV, "bench:Sales Invoice:ACC-SINV-2026-00002",
     ].sort());
     const inv = items.find((i) => i.id === SINV);
     assert.equal(inv.source, "books");

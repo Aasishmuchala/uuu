@@ -1,0 +1,52 @@
+{
+  "id": "first-week-plan",
+  "department": "people",
+  "cluster": "joining",
+  "title": "A first-week plan for a new person",
+  "summary": "A day-by-day plan for someone joining, from your team notes and company profile.",
+  "handoff": "you-lead",
+  "stage": 3,
+  "who": [
+    "people"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "people/team.md",
+      "need": "must"
+    },
+    {
+      "file": "company/about.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "who",
+      "label": "Who is joining?",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "job",
+      "label": "Their job:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "start",
+      "label": "Start date:",
+      "kind": "date",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Write a first-week plan for [who], who joins as [job] on [start]. Plan each day: who they meet, what they learn and what they do, using only the people and facts in our team notes and company profile. Invent no names and no dates. Do not send it to anyone; I will share it myself.",
+  "produces": [
+    "first-week.md"
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "id": "what-the-brain-is-missing",
+  "department": "operations",
+  "cluster": "brain",
+  "title": "What the company brain is missing",
+  "summary": "A list of gaps and contradictions in your files, each with the file it was seen in.",
+  "handoff": "on-its-own",
+  "stage": 1,
+  "who": [
+    "builder"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "company/",
+      "need": "helps"
+    },
+    {
+      "file": "brand/",
+      "need": "helps"
+    },
+    {
+      "file": "pricing/",
+      "need": "helps"
+    },
+    {
+      "file": "policies/",
+      "need": "helps"
+    },
+    {
+      "file": "people/",
+      "need": "helps"
+    },
+    {
+      "file": "customers/",
+      "need": "helps"
+    },
+    {
+      "file": "calls/",
+      "need": "helps"
+    },
+    {
+      "file": "references/",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "focus",
+      "label": "Anything in particular to look at?",
+      "kind": "text",
+      "required": false
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Read every file in the company brain and tell me what is missing or does not agree. List each gap or contradiction, and name the file where you saw it. Write only what the files show; do not invent facts and do not fill a gap with a guess. If a topic is not covered at all, say so in one line. Put the most important gaps first. [focus]",
+  "produces": [
+    "brain-gaps.md"
+  ]
+}

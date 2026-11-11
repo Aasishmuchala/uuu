@@ -1,0 +1,56 @@
+{
+  "id": "a-newsletter-on-one-subject",
+  "department": "marketing",
+  "cluster": "writing",
+  "title": "A newsletter on one subject",
+  "summary": "One newsletter about a single subject, ready for you to read and approve.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "marketer"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "helps"
+    },
+    {
+      "file": "brand/cant-say.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "who-it-is-for",
+      "label": "Who it is for:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "the-one-subject",
+      "label": "The one subject:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "number-of-points",
+      "label": "Number of points:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "the-one-action",
+      "label": "The one action:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Write a newsletter for [who-it-is-for] about [the-one-subject]. Open with a short hook, give [number-of-points] clear points, and end with one thing I want readers to do: [the-one-action]. Keep it as a draft for me to approve.",
+  "produces": [
+    "content/*.md"
+  ]
+}

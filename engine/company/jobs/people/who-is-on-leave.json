@@ -1,0 +1,43 @@
+{
+  "id": "who-is-on-leave",
+  "department": "people",
+  "cluster": "leave",
+  "title": "Who is on leave",
+  "summary": "Everyone who is away in a period, with their dates.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "people"
+  ],
+  "size": "XS",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "first-day",
+      "label": "First day:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "last-day",
+      "label": "Last day:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "number",
+      "label": "Number:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "List everyone who is on leave between [first-day] and [last-day], with the dates and type of leave for each. Point out any days when more than [number] people are away together.",
+  "produces": [
+    "*.md"
+  ]
+}

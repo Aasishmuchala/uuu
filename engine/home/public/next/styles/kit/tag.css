@@ -1,0 +1,81 @@
+/* kit/tag.js: small pills. A Tag is a word with a tone; a Chip is a quiet glass pill with an icon or a coloured dot. */
+
+.k-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--s-5);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--text-2);
+  background: var(--glass-soft);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
+.k-tag--ok {
+  color: var(--ok-text);
+  background: var(--ok-bg);
+  box-shadow: none;
+}
+
+.k-tag--warn {
+  color: var(--warn-text);
+  background: var(--warn-bg);
+  box-shadow: none;
+}
+
+.k-tag--bad {
+  color: var(--bad-text);
+  background: var(--bad-bg);
+  box-shadow: none;
+}
+
+.k-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--s-6);
+  max-width: 100%;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--text-2);
+  background: var(--glass-soft);
+}
+
+.k-chip .k-icon {
+  color: var(--text-2);
+}
+
+.k-chip__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The dot: the department's colour from the nearest data-dept, or a state colour. */
+.k-chip__dot {
+  flex: none;
+  width: var(--s-2);
+  height: var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--dept, var(--text-3));
+}
+
+.k-chip__dot--live { background: var(--live); }
+.k-chip__dot--ok { background: var(--ok); }
+.k-chip__dot--warn { background: var(--warn); }
+.k-chip__dot--bad { background: var(--bad); }
+
+.k-chip__dot--off {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-3);
+}

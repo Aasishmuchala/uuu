@@ -1,0 +1,31 @@
+{
+  "id": "what-customers-owe",
+  "department": "books",
+  "cluster": "selling",
+  "title": "What customers owe",
+  "summary": "A list of unpaid invoices and how old each amount is.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "bookkeeper"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "date",
+      "label": "Date:",
+      "kind": "date",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Write me a list of everything customers owe us as of [date]. For each customer show the invoice, the amount, and how many days it has been unpaid, grouped as under 30 days, 30 to 60 days, and over 60 days. Put the total at the end. This is a written list only.",
+  "produces": [
+    "*.md"
+  ]
+}

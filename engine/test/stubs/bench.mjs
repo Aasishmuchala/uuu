@@ -6,6 +6,7 @@ const NAME_PREFIX = {
   "Payment Entry": "ACC-PAY-2026-", "CRM Lead": "CRM-LEAD-2026-", "CRM Deal": "CRM-DEAL-2026-",
   Employee: "HR-EMP-", "Leave Application": "HR-LAP-2026-", Attendance: "HR-ATT-2026-",
   "FCRM Note": "FCRM-NOTE-", "CRM Task": "CRM-TASK-", "HD Ticket Comment": "HD-COMMENT-",
+  Quotation: "SAL-QTN-2026-",
 };
 const NUMERIC_NAMES = new Set(["HD Ticket"]);
 

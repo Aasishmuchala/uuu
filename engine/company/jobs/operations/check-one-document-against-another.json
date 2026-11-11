@@ -1,0 +1,35 @@
+{
+  "id": "check-one-document-against-another",
+  "department": "operations",
+  "cluster": "documents",
+  "title": "Check one document against another",
+  "summary": "A list of where two documents agree and where they do not.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "builder"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "first-document",
+      "label": "First document:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "second-document",
+      "label": "Second document:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Check [first-document] against [second-document]. List every place where they disagree or where one leaves out something the other says, and suggest which one should change.",
+  "produces": [
+    "*.md"
+  ]
+}

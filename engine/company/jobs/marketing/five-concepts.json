@@ -1,0 +1,53 @@
+{
+  "id": "five-concepts",
+  "department": "marketing",
+  "cluster": "ideas",
+  "title": "Five concepts before any design",
+  "summary": "Five different ideas, each with an angle and a reason, before anything is designed.",
+  "handoff": "you-lead",
+  "stage": 3,
+  "who": [
+    "marketer"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "helps"
+    },
+    {
+      "file": "brand/cant-say.md",
+      "need": "helps"
+    },
+    {
+      "file": "references/",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "subject",
+      "label": "What is it about?",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "kind",
+      "label": "What will it become?",
+      "kind": "choice",
+      "required": true,
+      "options": [
+        "post",
+        "carousel",
+        "newsletter"
+      ]
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Come up with exactly five different concepts for [kind] about this: [subject]. Give each one a headline of at most 80 characters, the angle it takes in one line, and why it would work for our customers in one line. Keep to the brand file and stay clear of everything on the can't-say list. Do not design anything and do not write the full piece yet; the owner picks one concept to go on with.",
+  "produces": [
+    "concepts.md"
+  ]
+}

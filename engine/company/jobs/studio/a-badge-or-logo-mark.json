@@ -1,0 +1,43 @@
+{
+  "id": "a-badge-or-logo-mark",
+  "department": "studio",
+  "cluster": "pictures",
+  "title": "A badge or logo mark",
+  "summary": "A simple badge or logo mark as a vector image that scales cleanly.",
+  "handoff": "on-its-own",
+  "stage": 3,
+  "who": [
+    "artist"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "name-or-subject",
+      "label": "Name or subject:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "shape",
+      "label": "Shape:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "colours-to-use",
+      "label": "Colours to use:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "artist-tools"
+  ],
+  "takes": null,
+  "text": "Draw a simple badge or logo mark for [name-or-subject]. Use [shape] as the main shape and the colours [colours-to-use]. Give it to me as a vector image that stays sharp at any size.",
+  "produces": [
+    "art/*/manifest.json"
+  ]
+}

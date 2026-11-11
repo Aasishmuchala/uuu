@@ -1,0 +1,16 @@
+{ "departments": [
+  { "id": "operations", "title": "Operations", "line": "plans · documents · checks", "agents": ["chief-of-staff", "builder", "checker"], "dashboard": null,
+    "clusters": [ { "id": "brain", "title": "Company brain" }, { "id": "documents", "title": "Documents" }, { "id": "planning", "title": "Planning" } ] },
+  { "id": "sales", "title": "Sales", "line": "leads · calls · deals", "agents": ["sales"], "dashboard": "customers",
+    "clusters": [ { "id": "leads", "title": "Leads" }, { "id": "calls", "title": "Calls" }, { "id": "deals", "title": "Deals" } ] },
+  { "id": "marketing", "title": "Marketing", "line": "ideas · writing · design", "agents": ["marketer"], "dashboard": "marketing",
+    "clusters": [ { "id": "ideas", "title": "Ideas" }, { "id": "writing", "title": "Writing" }, { "id": "design", "title": "Design" }, { "id": "review", "title": "Review and memory" } ] },
+  { "id": "studio", "title": "Studio", "line": "parts · pictures · motion", "agents": ["drafter", "artist"], "dashboard": "studio",
+    "clusters": [ { "id": "parts", "title": "Parts" }, { "id": "pictures", "title": "Pictures" }, { "id": "motion", "title": "Motion and video" } ] },
+  { "id": "support", "title": "Support", "line": "requests · replies · answers", "agents": ["support"], "dashboard": "support",
+    "clusters": [ { "id": "requests", "title": "Requests" }, { "id": "replies", "title": "Replies" }, { "id": "learning", "title": "Learning" } ] },
+  { "id": "people", "title": "People", "line": "staff · leave · joining", "agents": ["people"], "dashboard": "people",
+    "clusters": [ { "id": "records", "title": "Staff records" }, { "id": "leave", "title": "Leave and attendance" }, { "id": "joining", "title": "Joining" } ] },
+  { "id": "books", "title": "Books", "line": "selling · buying · month end", "agents": ["bookkeeper"], "dashboard": "books",
+    "clusters": [ { "id": "selling", "title": "Selling" }, { "id": "buying", "title": "Buying" }, { "id": "month-end", "title": "Month end" } ] }
+] }

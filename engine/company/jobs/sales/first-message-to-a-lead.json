@@ -1,0 +1,44 @@
+{
+  "id": "first-message-to-a-lead",
+  "department": "sales",
+  "cluster": "leads",
+  "title": "Write a first message to a lead",
+  "summary": "A first message to one lead, written for you to read and send yourself.",
+  "handoff": "you-lead",
+  "stage": 3,
+  "who": [
+    "sales"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "customers/ideal-customer.md",
+      "need": "helps"
+    },
+    {
+      "file": "brand/brand.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "lead",
+      "label": "Who is the lead?",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "about",
+      "label": "What do you know about them?",
+      "kind": "text",
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Write a first message to [lead]. Here is what I know about them: [about]. Keep it short and friendly, in our company's voice, and say why we are getting in touch. Use only what I have told you and what is in the company's files; do not invent facts about them. Do not send anything. I will read it and send it myself.",
+  "produces": [
+    "first-message.md"
+  ]
+}

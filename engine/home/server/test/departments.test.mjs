@@ -42,7 +42,7 @@ test("books: figures, sections and the switch", async () => {
     assert.equal(fig(p, "spend_month").value, inr(sumOf(inMonth(final("Purchase Invoice")), "grand_total")));
     assert.deepEqual(sec(p, "drafts").columns.map((c) => c.key), ["name", "type", "party", "amount", "madeBy"]);
     const drafts = sec(p, "drafts").rows;
-    assert.deepEqual(drafts.map((r) => r.name).sort(), ["ACC-PINV-2026-00001", "ACC-SINV-2026-00001", "ACC-SINV-2026-00002"]);
+    assert.deepEqual(drafts.map((r) => r.name).sort(), ["ACC-PINV-2026-00001", "ACC-SINV-2026-00001", "ACC-SINV-2026-00002", "SAL-QTN-2026-00001"]);
     const first = drafts.find((r) => r.name === "ACC-SINV-2026-00001");
     assert.equal(first.type, "invoice");
     assert.equal(first.party, "Acme Interiors");

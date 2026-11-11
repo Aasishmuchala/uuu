@@ -1,0 +1,97 @@
+/* kit/segmented.js: the pill control. One glass capsule; the current choice is a solid pill in the primary
+   colours. Colours change by a short transition; nothing moves. */
+
+.k-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  padding: var(--s-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--glass);
+  box-shadow: var(--highlight);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.k-seg__item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  flex: none;
+  min-height: var(--h-sm);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.k-seg__item:hover {
+  color: var(--text);
+  background: var(--glass-soft);
+}
+
+.k-seg__item--on,
+.k-seg__item--on:hover {
+  color: var(--primary-text);
+  background: var(--primary);
+}
+
+.k-seg__item:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.k-seg__item .k-icon {
+  flex: none;
+}
+
+.k-seg__count {
+  min-width: var(--s-5);
+  padding: 0 var(--s-1);
+  border-radius: var(--r-pill);
+  background: var(--glass-soft);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.k-seg__item--on .k-seg__count {
+  background: transparent;
+}
+
+.k-seg--sm .k-seg__item {
+  padding: 0 var(--s-3);
+  font-size: var(--fs-caption);
+  gap: var(--s-1);
+}
+
+.k-seg--md .k-seg__item {
+  min-height: var(--h-md);
+}
+
+@media (max-width: 859px) {
+  .k-seg__item,
+  .k-seg--md .k-seg__item {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-seg__item {
+    transition: none;
+  }
+}

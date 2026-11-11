@@ -1,0 +1,27 @@
+{
+  "id": "what-worked-last-month",
+  "department": "marketing",
+  "cluster": "review",
+  "title": "What worked last month",
+  "summary": "What worked and what did not in the last month, from the owner's own verdicts.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "marketer"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "packs/recipe-log.md",
+      "need": "must"
+    }
+  ],
+  "asks": [],
+  "needs": [],
+  "takes": null,
+  "text": "Read the recipe log and say what worked and what did not in the last month. Group the pieces the owner accepted and the ones sent back, point out what the accepted ones had in common, and name the scores that kept coming up low. Rely only on the log: do not guess at reasons it does not give. End with three things to try next month.",
+  "produces": [
+    "what-worked.md"
+  ]
+}

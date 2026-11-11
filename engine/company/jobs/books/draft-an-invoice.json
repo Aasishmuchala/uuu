@@ -1,0 +1,66 @@
+{
+  "id": "draft-an-invoice",
+  "department": "books",
+  "cluster": "selling",
+  "title": "Draft an invoice",
+  "summary": "An invoice for one customer, with GST, ready for you to approve.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "bookkeeper"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "pricing/services.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "customer",
+      "label": "Customer:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "what-was-sold",
+      "label": "What was sold:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "amount",
+      "label": "Amount:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "rate",
+      "label": "Rate:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "date",
+      "label": "Date:",
+      "kind": "date",
+      "required": true
+    },
+    {
+      "id": "number",
+      "label": "Number:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Draft an invoice for [customer] for [what-was-sold] at [amount] plus GST at [rate] percent. Use the invoice date [date] and payment terms of [number] days. Leave it as a draft for me to approve; do not send it to anyone.",
+  "produces": [
+    "readback-*.md"
+  ]
+}

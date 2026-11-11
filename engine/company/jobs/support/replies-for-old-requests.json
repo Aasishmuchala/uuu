@@ -1,0 +1,31 @@
+{
+  "id": "replies-for-old-requests",
+  "department": "support",
+  "cluster": "replies",
+  "title": "Replies for old requests",
+  "summary": "A draft reply for every request older than a number of days.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "support"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "number",
+      "label": "Number:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Find every open request older than [number] days. For each one, draft a reply that apologises for the wait and answers the question as far as we can. Keep all of them as drafts for me to read; do not send anything.",
+  "produces": [
+    "*.md"
+  ]
+}

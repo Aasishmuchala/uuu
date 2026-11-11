@@ -24,6 +24,7 @@ const KINDS = {
   image: new Set(["png", "gif", "jpg", "jpeg", "webp", "svg"]),
   text: new Set(["md", "txt", "json", "py", "csv", "log"]),
   cad: new Set(["step", "stp"]),
+  video: new Set(["mp4"]),
 };
 
 function lstatOrNull(p) {
@@ -197,13 +198,13 @@ export function kindOf(name) {
   return "file";
 }
 
-// Shape file-entry (CONTRACTS-V2 17.1).
+// Shape file-entry (CONTRACTS-V2 17.1). A video is viewable too (C3 37.4): /api/view checks its bytes.
 export function fileEntry(identifier, name, size) {
   const token = fileToken(`${identifier}/${name}`);
   const kind = kindOf(name);
   return {
     name, size, kind,
     url: `/api/files/${token}`,
-    viewUrl: kind === "image" || kind === "text" ? `/api/view/${token}` : null,
+    viewUrl: kind === "image" || kind === "text" || kind === "video" ? `/api/view/${token}` : null,
   };
 }

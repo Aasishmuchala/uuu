@@ -1,0 +1,41 @@
+{
+  "id": "posts-from-one-document",
+  "department": "marketing",
+  "cluster": "writing",
+  "title": "Posts from one document",
+  "summary": "Short posts for your channels, each taken from one document you choose.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "marketer"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "doc",
+      "label": "Which document?",
+      "kind": "file",
+      "required": true,
+      "folder": "any"
+    },
+    {
+      "id": "count",
+      "label": "How many posts?",
+      "kind": "number",
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Read the company file [doc] and write [count] short posts from it, each on a different point and each able to stand alone. Use only what the document says: do not add facts, figures or promises that are not in it. Write them in our brand voice, as drafts only. Nothing is posted anywhere; the owner reads and approves them first.",
+  "produces": [
+    "content/*.md"
+  ]
+}

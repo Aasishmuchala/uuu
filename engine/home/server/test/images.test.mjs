@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import register, { gifFrameCount, pngSize, sniff } from "../routes/_images.mjs";
+import register, { gifFrameCount, isMp4, pngSize, sniff } from "../routes/_images.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WALKER = join(HERE, "..", "..", "..", "test", "stubs", "state-seed-v2", "tasks", "company-work", "STH-8", "art", "walker");
@@ -106,4 +106,21 @@ test("the helper registers nothing", () => {
   const seen = [];
   register({ get: (p) => seen.push(p), post: (p) => seen.push(p), delete: (p) => seen.push(p) });
   assert.deepEqual(seen, []);
+});
+
+test("isMp4: `ftyp` at byte 4 is an MP4; the seed's title card is one; anything else is not", () => {
+  const TITLE = join(HERE, "..", "..", "..", "test", "stubs", "state-seed", "tasks", "company-work", "STH-25", "video", "title", "title.mp4");
+  assert.equal(isMp4(readFileSync(TITLE)), true);
+  assert.equal(isMp4(hex("00 00 00 20 66 74 79 70 69 73 6F 6D")), true);
+  assert.equal(isMp4(hex("00 00 00 20 66 74 79 70")), true);
+  assert.equal(isMp4(hex("00 00 00 20 66 74 79")), false);           // cut before the type ends
+  assert.equal(isMp4(hex("66 74 79 70 00 00 00 20")), false);         // the type at byte 0
+  assert.equal(isMp4(hex("00 00 00 20 46 54 59 50")), false);         // upper case is another type
+  assert.equal(isMp4(Buffer.from("<!doctype html><script>")), false);
+  assert.equal(isMp4(readFileSync(join(WALKER, "walker-sheet.png"))), false);
+  for (const v of [null, undefined, "    ftyp", 42, {}, [0, 0, 0, 0, 0x66, 0x74, 0x79, 0x70], Buffer.alloc(0)]) {
+    assert.equal(isMp4(v), false);
+  }
+  assert.equal(isMp4(new Uint8Array(hex("00 00 00 18 66 74 79 70"))), true);
+  for (let i = 0; i < 200; i += 1) assert.equal(typeof isMp4(randomBytes(i)), "boolean");
 });

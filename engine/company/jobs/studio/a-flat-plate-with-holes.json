@@ -1,0 +1,67 @@
+{
+  "id": "a-flat-plate-with-holes",
+  "department": "studio",
+  "cluster": "parts",
+  "title": "A flat plate with holes",
+  "summary": "A flat plate with holes in it, sized in millimetres.",
+  "handoff": "on-its-own",
+  "stage": 3,
+  "who": [
+    "drafter"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "length",
+      "label": "Length:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "width",
+      "label": "Width:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "thickness",
+      "label": "Thickness:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "number-of-holes",
+      "label": "Number of holes:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "hole-size",
+      "label": "Hole size:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "where-the-holes-go",
+      "label": "Where the holes go:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "corner-size",
+      "label": "Corner size:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "cad-tools"
+  ],
+  "takes": null,
+  "text": "Design a flat plate that is [length] millimetres long, [width] millimetres wide and [thickness] millimetres thick. Put [number-of-holes] holes of [hole-size] millimetres across in [where-the-holes-go]. Round the corners by [corner-size] millimetres.",
+  "produces": [
+    "cad/*.step"
+  ]
+}

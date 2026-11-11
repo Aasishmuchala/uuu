@@ -1,0 +1,57 @@
+{
+  "id": "an-animated-title-card",
+  "department": "studio",
+  "cluster": "motion",
+  "title": "An animated title card",
+  "summary": "A short moving title card with your words, in the brand look.",
+  "handoff": "on-its-own",
+  "stage": 3,
+  "who": [
+    "artist"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "helps"
+    },
+    {
+      "file": "packs/title-card.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "words",
+      "label": "The words on the card:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "seconds",
+      "label": "How many seconds?",
+      "kind": "number",
+      "required": true
+    },
+    {
+      "id": "shape",
+      "label": "Which shape?",
+      "kind": "choice",
+      "required": true,
+      "options": [
+        "wide",
+        "tall",
+        "square"
+      ]
+    }
+  ],
+  "needs": [
+    "video"
+  ],
+  "takes": null,
+  "text": "Make a title card that shows these words: [words]. It lasts [seconds] seconds and its shape is [shape]. The words fade or slide in, hold, and settle, using the colours and type of the brand file. The video is at most two minutes long and at most full HD in size. Look at the stills of the result before you hand it over, and say if the words are hard to read anywhere.",
+  "produces": [
+    "video/*/manifest.json"
+  ]
+}

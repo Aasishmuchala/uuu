@@ -439,7 +439,7 @@ test("seed: state-seed files are in the pinned formats and agree with the board 
   assert.equal(ids.companyId, IDS.company);
   assert.equal(ids.projectId, IDS.project);
   assert.deepEqual(ids.agents, IDS.agents);
-  assert.equal(fs.readdirSync(path.join(root, "knowledge/docs")).length, 2);
+  assert.equal(fs.readdirSync(path.join(root, "knowledge/docs")).length, 8);
   const lessons = fs.readFileSync(path.join(root, "lessons/builder.md"), "utf8").trim().split("\n");
   assert.equal(lessons.length, 2);
   for (const l of lessons) assert.match(l, /^- \d{4}-\d{2}-\d{2}: .+/);

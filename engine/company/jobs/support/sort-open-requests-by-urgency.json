@@ -1,0 +1,24 @@
+{
+  "id": "sort-open-requests-by-urgency",
+  "department": "support",
+  "cluster": "requests",
+  "title": "Sort open requests by urgency",
+  "summary": "All open requests in order of urgency, with one line on each.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "support"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "List all open support requests sorted from most to least urgent. Give one plain line on each: who asked, what about, how long it has waited, and why you ranked it there.",
+  "produces": [
+    "*.md"
+  ]
+}

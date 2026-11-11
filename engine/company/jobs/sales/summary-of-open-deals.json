@@ -1,0 +1,24 @@
+{
+  "id": "summary-of-open-deals",
+  "department": "sales",
+  "cluster": "deals",
+  "title": "Summary of open deals by stage",
+  "summary": "Every open deal grouped by stage, with the value of each group.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "sales"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Give me a summary of all open deals grouped by stage. For each stage show how many deals there are, the total value, and the one or two deals that need my attention first. Write it as a short list.",
+  "produces": [
+    "*.md"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "find-companies-to-approach",
+  "department": "sales",
+  "cluster": "leads",
+  "title": "Find companies to approach",
+  "summary": "A list of companies that look like good customers, found by searching outside.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "sales"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "customers/ideal-customer.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "kind",
+      "label": "What kind of company?",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "count",
+      "label": "How many companies?",
+      "kind": "number",
+      "required": false
+    }
+  ],
+  "needs": [
+    "internet"
+  ],
+  "takes": null,
+  "text": "Find companies that match our ideal customer and the kind I describe here: [kind]. Give a short list, with why each one fits and where you found it. Aim for the number in [count] if I gave one. Do not contact anyone and do not send anything. Do not invent a company: list only what you actually found, and say so plainly if you found fewer.",
+  "produces": [
+    "companies.md"
+  ]
+}

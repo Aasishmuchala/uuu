@@ -1,0 +1,69 @@
+/* Needs you: department filters, the list of cards, the quiet not-connected lines. Every selector starts with .p-needs-you; tokens only. */
+
+.p-needs-you {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.p-needs-you .p-needs-you__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.p-needs-you .p-needs-you__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 36px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-5);
+  background: var(--bg-subtle);
+  color: var(--text-2);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.p-needs-you .p-needs-you__filter:hover {
+  color: var(--text);
+}
+
+.p-needs-you .p-needs-you__filter[aria-current="page"] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-text);
+}
+
+.p-needs-you .p-needs-you__count {
+  font-size: var(--fs-caption);
+  opacity: .8;
+}
+
+.p-needs-you .p-needs-you__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.p-needs-you .p-needs-you__quiet {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  overflow-wrap: anywhere;
+}
+
+.p-needs-you .p-needs-you__source {
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}

@@ -3,6 +3,8 @@ const ACCENTS = [
   { id: "graphite", label: "Graphite" }, { id: "blue", label: "Blue" }, { id: "green", label: "Green" },
   { id: "violet", label: "Violet" }, { id: "orange", label: "Orange" }, { id: "rose", label: "Rose" },
 ];
+const BACKDROPS = [{ id: "aurora", label: "Aurora" }, { id: "stars", label: "Stars" }, { id: "plain", label: "Plain" }];
+const MOTIONS = ["on", "off"];
 const THEMES = ["auto", "light", "dark"];
 const KEY = "settings:appearance";
 
@@ -37,15 +39,18 @@ const LATER = [
 
 function appearanceOf(ctx) {
   const saved = ctx.decisions.get(KEY);
-  const theme = saved && THEMES.includes(saved.theme) ? saved.theme : "auto";
+  const theme = saved && THEMES.includes(saved.theme) ? saved.theme : "dark";
   const accent = saved && ACCENTS.some((a) => a.id === saved.accent) ? saved.accent : "graphite";
-  return { theme, accent };
+  const backdrop = saved && BACKDROPS.some((b) => b.id === saved.backdrop) ? saved.backdrop : "aurora";
+  const motion = saved && MOTIONS.includes(saved.motion) ? saved.motion : "on";
+  return { theme, accent, backdrop, motion };
 }
 
 export default function register(app) {
   app.get("/api/settings", async (ctx) => ({
     appearance: appearanceOf(ctx),
     accents: ACCENTS.map((a) => ({ ...a })),
+    backdrops: BACKDROPS.map((b) => ({ ...b })),
     later: LATER.map((l) => ({ ...l })),
   }));
 
@@ -59,6 +64,14 @@ export default function register(app) {
     if (Object.hasOwn(body, "accent")) {
       if (typeof body.accent !== "string" || !ACCENTS.some((a) => a.id === body.accent)) throw ctx.fail(400, "That colour is not one of the choices.", "Pick one of the colours shown.", "bad_setting");
       next.accent = body.accent;
+    }
+    if (Object.hasOwn(body, "backdrop")) {
+      if (typeof body.backdrop !== "string" || !BACKDROPS.some((b) => b.id === body.backdrop)) throw ctx.fail(400, "That backdrop is not one of the choices.", "Pick aurora, stars or plain.", "bad_setting");
+      next.backdrop = body.backdrop;
+    }
+    if (Object.hasOwn(body, "motion")) {
+      if (typeof body.motion !== "string" || !MOTIONS.includes(body.motion)) throw ctx.fail(400, "That motion setting is not one of the choices.", "Pick on or off.", "bad_setting");
+      next.motion = body.motion;
     }
     ctx.decisions.set(KEY, next);
     return { ok: true, appearance: next };

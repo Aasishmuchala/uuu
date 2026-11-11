@@ -106,7 +106,7 @@ test("overrides are as pinned and nothing else differs from the defaults", () =>
       fencePolicy: { ...base.fencePolicy, readFolders: ["{state}/knowledge/docs", "{state}/cad"],
         envFile: "{state}/secrets/agents/drafter.env" } },
     artist: { ...base, limits: { ...base.limits, maxTurns: 60 },
-      fencePolicy: { ...base.fencePolicy, readFolders: ["{state}/knowledge/docs", "{state}/art"],
+      fencePolicy: { ...base.fencePolicy, readFolders: ["{state}/knowledge/docs", "{state}/art", "{state}/media"],
         envFile: "{state}/secrets/agents/artist.env" } },
   };
   for (const slug of Object.keys(BENCH)) {
@@ -139,9 +139,9 @@ test("the file lists no grants: paperclip's grants are not applied, the gate blo
   assert.ok(!readFileSync(join(companyDir, "company.json"), "utf8").includes('"grants"'));
 });
 
-test("a fence policy may read the art folder, and nothing else changed in the allowed list", () => {
+test("a fence policy may read the art and media folders, and nothing else changed in the allowed list", () => {
   const cfg = JSON.parse(readFileSync(join(engineDir, "config.json"), "utf8"));
-  assert.deepEqual(cfg.fence.readRootsAllowed, ["knowledge/docs", "lessons", "cad", "art"]);
+  assert.deepEqual(cfg.fence.readRootsAllowed, ["knowledge/docs", "lessons", "cad", "art", "media"]);
 });
 
 test("every agent has its instructions file, and there is no other", () => {
@@ -172,7 +172,8 @@ test("loadCompanyFile returns ten agents with their departments and the Artist's
     const artist = c.agents.find((a) => a.slug === "artist");
     assert.equal(artist.role, "designer");
     assert.equal(artist.limits.maxTurns, 60);
-    assert.deepEqual(artist.policy.readFolders, [join(config.paths.state, "knowledge", "docs"), join(config.paths.state, "art")]);
+    assert.deepEqual(artist.policy.readFolders, [join(config.paths.state, "knowledge", "docs"), join(config.paths.state, "art"),
+      join(config.paths.state, "media")]);
     assert.equal(artist.policy.envFile, join(config.paths.state, "secrets", "agents", "artist.env"));
     assert.equal(artist.reportsTo, "chief-of-staff");
   });

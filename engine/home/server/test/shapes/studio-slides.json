@@ -1,0 +1,44 @@
+{
+  "installed": true,
+  "notConnected": null,
+  "sets": [
+    {
+      "id": "STH-24/launch",
+      "goal": "STH-24",
+      "taskId": "e0000000-0000-4000-8000-000000000024",
+      "name": "launch",
+      "title": "Launch carousel",
+      "count": 5,
+      "size": {
+        "w": 1080,
+        "h": 1350
+      },
+      "slides": [
+        {
+          "name": "art/walker/walker-sheet.png",
+          "size": 412,
+          "kind": "image",
+          "url": "/api/files/U1RILTgvYXJ0",
+          "viewUrl": "/api/view/U1RILTgvYXJ0"
+        }
+      ],
+      "contact": {
+        "name": "art/walker/walker-sheet.png",
+        "size": 412,
+        "kind": "image",
+        "url": "/api/files/U1RILTgvYXJ0",
+        "viewUrl": "/api/view/U1RILTgvYXJ0"
+      },
+      "texts": [
+        "Five things we learned"
+      ],
+      "checks": {
+        "sizesMatch": true,
+        "countMatches": true,
+        "ok": true
+      },
+      "changed": "12 Nov 2026"
+    }
+  ],
+  "problems": []
+}

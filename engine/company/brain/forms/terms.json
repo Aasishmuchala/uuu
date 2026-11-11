@@ -1,0 +1,37 @@
+{
+  "id": "terms",
+  "folder": "pricing",
+  "file": "terms.md",
+  "title": "Terms",
+  "lead": "When you are paid and how long a quotation holds. Agents quote only terms written here.",
+  "fields": [
+    {
+      "id": "payment",
+      "label": "When do customers pay?",
+      "kind": "line",
+      "required": true,
+      "hint": "Such as: Half when the order is confirmed, half on delivery."
+    },
+    {
+      "id": "holds",
+      "label": "How long does a quotation hold?",
+      "kind": "line",
+      "required": true,
+      "hint": "Such as: Thirty days from the day it is sent."
+    },
+    {
+      "id": "deposit",
+      "label": "Do you ask for a deposit?",
+      "kind": "line",
+      "required": false,
+      "hint": "Such as: Yes, before any work begins."
+    },
+    {
+      "id": "other",
+      "label": "Is there anything else customers should know?",
+      "kind": "text",
+      "required": false,
+      "hint": "Such as: Delivery, installation or late payment rules."
+    }
+  ]
+}

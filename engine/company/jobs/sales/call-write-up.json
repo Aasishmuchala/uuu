@@ -1,0 +1,43 @@
+{
+  "id": "call-write-up",
+  "department": "sales",
+  "cluster": "calls",
+  "title": "Call write-up",
+  "summary": "A written record of one call, with a note and follow-up tasks on the customer's record.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "sales"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "packs/call-write-up.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "call",
+      "label": "Which call notes?",
+      "kind": "file",
+      "required": true,
+      "folder": "calls"
+    },
+    {
+      "id": "who",
+      "label": "Who was the call with?",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Write up the call with [who] from the notes in [call]. Follow the call write-up pack. Say what they told us, what they want, what was agreed and what happens next. Then add a short note and the follow-up tasks to that customer's record. Use only what the notes say, do not invent anything, and do not send anything to the customer.",
+  "produces": [
+    "call-write-up.md"
+  ]
+}

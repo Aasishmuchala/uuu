@@ -1,0 +1,44 @@
+{
+  "id": "shorten-last-weeks-drafts",
+  "department": "marketing",
+  "cluster": "writing",
+  "title": "Shorten last week's drafts",
+  "summary": "Last week's drafts rewritten in a shorter form, keeping the meaning.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "marketer"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "helps"
+    },
+    {
+      "file": "brand/cant-say.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "channel",
+      "label": "Channel:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "number-of-words",
+      "label": "Number of words:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Take last week's drafts for [channel] and rewrite each one in a shorter form of about [number-of-words] words. Keep the meaning and the tone, and save the shorter ones as new drafts next to the old ones.",
+  "produces": [
+    "content/*.md"
+  ]
+}

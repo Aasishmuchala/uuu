@@ -1,0 +1,30 @@
+{
+  "id": "team",
+  "folder": "people",
+  "file": "team.md",
+  "title": "Team",
+  "lead": "Who works with you, what they do and which days. Agents use this to say who owns what.",
+  "fields": [
+    {
+      "id": "people",
+      "label": "Who is on your team?",
+      "kind": "rows",
+      "required": true,
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name"
+        },
+        {
+          "id": "job",
+          "label": "Job"
+        },
+        {
+          "id": "days",
+          "label": "Working days"
+        }
+      ],
+      "hint": "Such as: one row for each person, with the days they work."
+    }
+  ]
+}

@@ -3,6 +3,7 @@
 import { join } from "node:path";
 import { loadCompanyFile } from "../../../company/lib/company-file.mjs";
 import { HomeError } from "../lib/errors.mjs";
+import { departmentLoad, loadDepartments } from "../lib/departments.mjs";
 import { goalsOf, loadIssues } from "../lib/goals.mjs";
 import { boardState, booksState } from "../lib/health.mjs";
 import { mergeInbox } from "../lib/inbox.mjs";
@@ -63,6 +64,28 @@ function companyAgents(ctx) {
   }
 }
 
+// CONTRACTS-V3 26.4: always eight entries, the brain then the seven departments in file order. The loads are
+// those of the map (lib/departments.mjs departmentLoad) on a light task model made from this route's own
+// board snapshot. The brain works while a question (an `ask:` record) is open; its Needs-you count is the
+// answers not yet read.
+function dockOf(ctx, data, inbox, team, goals) {
+  const slugOf = new Map(team.map((t) => [t.name, t.slug]));
+  const needsYou = inbox.items.map((i) => ({ source: i.source, id: i.id, agent: slugOf.has(i.raisedBy) ? { slug: slugOf.get(i.raisedBy) } : null }));
+  const liveByAgent = new Map((data?.live || []).filter((r) => r?.agentId).map((r) => [r.agentId, r]));
+  const agents = new Map((data?.agents || []).map((a) => [a.id, { slug: a.urlKey || null }]));
+  const light = { ids: ctx.ids(), agentList: data?.agents || [], agents, liveByAgent, needsYou };
+  const isAsk = (g) => !!ctx.decisions.get(`ask:${g.id}`);
+  const asks = goals.filter(isAsk);
+  const open = asks.some((g) => g.status !== "done" && g.status !== "cancelled" && g.status !== "canceled");
+  const askIds = new Set(asks.map((g) => `goal:${g.id}`));
+  const dock = [{ id: "brain", title: "Company brain", creature: "brain", colour: "brain", working: open ? 1 : 0, needsYou: needsYou.filter((i) => askIds.has(i.id)).length }];
+  for (const d of loadDepartments(ctx.config).departments) {
+    const load = departmentLoad(d, light);
+    dock.push({ id: d.id, title: d.title, creature: d.id, colour: d.id, working: load.working, needsYou: load.needsYou });
+  }
+  return dock;
+}
+
 export default function register(app) {
   app.get("/api/shell", async (ctx) => {
     const env = { config: ctx.config, urls: ctx.home.urls, bench: ctx.bench, port: ctx.home.port };
@@ -99,12 +122,16 @@ export default function register(app) {
       return { slug: a.slug, name: a.name, state, plainState, waitingForYou: waiting.has(a.name) };
     });
 
+    const ids = ctx.ids();
+    const goals = data && ids?.projectId ? goalsOf(data.issues, ids) : [];
+
     return {
       company: { name: data?.company?.name || ctx.config.paperclip.companyName },
       counts,
       team,
       departments: DEPARTMENTS.map(([id, title]) => ({ id, title, connected: BENCH.has(id) ? engine.books === "on" : true })),
       engine,
+      dock: dockOf(ctx, data, inbox, team, goals),
       generatedAt: new Date().toISOString(),
     };
   });

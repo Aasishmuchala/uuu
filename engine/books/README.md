@@ -34,6 +34,14 @@ Running it again updates the same Address and list: public holidays already
 there stay. It refuses if India Compliance's online look-ups are switched on,
 so no GST number leaves this Mac. Tests: `tests/test_wizard_books.py`.
 
+## Agents' logins
+
+`wire.sh` gives each department agent its own books user, one draft-only role
+and its own key; `wire.sh --verify` proves, with each agent's key, what it can
+and cannot do. The Bookkeeper drafts invoices, payments, journal entries and
+quotations; the owner makes each one final. The table of rights and why each
+guard exists: `wire/NOTES.md`.
+
 ## What is where
 
 - Bench: `~/.paperclip/uuu-engine/books/bench` (site `engine.localhost`)

@@ -143,6 +143,17 @@ class PlanTests(unittest.TestCase):
         self.refused(self.inputs(policy=self.policy(readFolders=[os.path.join(self.S, "secrets")])),
                      "policy for agent bookkeeper")
 
+    def test_media_folder_read_only(self):
+        media = os.path.join(self.S, "media")
+        os.makedirs(media)
+        cfg = dict(CONFIG, readRootsAllowed=CONFIG["readRootsAllowed"] + ["media"])
+        out = plan(self.inputs(config=cfg, policy=self.policy(readFolders=[media])))
+        self.assertIn(media, out["filesystem"]["allowRead"])
+        self.assertNotIn(media, out["filesystem"]["allowWrite"])
+        self.refused(self.inputs(config=cfg, policy=self.policy(
+            readFolders=[os.path.join(self.S, "media", "..", "secrets")])), "policy for agent bookkeeper")
+        self.refused(self.inputs(policy=self.policy(readFolders=[media])), "policy for agent bookkeeper")
+
     def test_missing_read_folder_skipped(self):
         cad = os.path.join(self.S, "cad")
         out = plan(self.inputs(policy=self.policy(readFolders=[cad])))

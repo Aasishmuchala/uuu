@@ -1,0 +1,30 @@
+{
+  "id": "meeting-notes-to-actions",
+  "department": "operations",
+  "cluster": "documents",
+  "title": "Turn meeting notes into actions",
+  "summary": "The decisions, who owns what, deadlines and risks from one set of meeting notes.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "builder"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "notes",
+      "label": "Which meeting notes?",
+      "kind": "file",
+      "required": true,
+      "folder": "calls"
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Read the meeting notes in [notes] and turn them into a short list of actions. Give the decisions that were made, who owns each action, the deadline for each one, and any risks that were raised. Use only what the notes say. If an owner or a deadline is not stated, write that it is not stated rather than guessing.",
+  "produces": [
+    "actions.md"
+  ]
+}

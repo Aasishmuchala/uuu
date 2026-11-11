@@ -1,0 +1,61 @@
+{
+  "id": "a-simple-bracket",
+  "department": "studio",
+  "cluster": "parts",
+  "title": "A simple bracket",
+  "summary": "An L-shaped bracket with holes for fixing, sized in millimetres.",
+  "handoff": "on-its-own",
+  "stage": 3,
+  "who": [
+    "drafter"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "first-arm-length",
+      "label": "First arm length:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "second-arm-length",
+      "label": "Second arm length:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "width",
+      "label": "Width:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "thickness",
+      "label": "Thickness:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "number-of-holes",
+      "label": "Number of holes:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "hole-size",
+      "label": "Hole size:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "cad-tools"
+  ],
+  "takes": null,
+  "text": "Design a simple L-shaped bracket. One arm is [first-arm-length] millimetres long and the other is [second-arm-length] millimetres, [width] millimetres wide and [thickness] millimetres thick. Add [number-of-holes] fixing holes of [hole-size] millimetres across.",
+  "produces": [
+    "cad/*.step"
+  ]
+}

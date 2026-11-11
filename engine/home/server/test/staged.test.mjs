@@ -423,3 +423,65 @@ test("malformed and empty input never throws", () => {
   assert.deepEqual(parsePlan(null).steps, []);
   assert.ok(parseCheck(`${CHECK}\n${"x".repeat(1024 * 1024)}`).problems.some((p) => /longer than 1 MB/.test(p)));
 });
+
+// ---- version 3 (CONTRACTS-V3 31.3, 33.2): the question marker and the job lines ----
+
+const EXAMPLE_31_3 = `FOR: Sales
+Write a proposal for the customer of the call write-up in the sub-folder STH-20 of your current working folder.
+
+Read first, from the company's files: pricing/services.md, pricing/terms.md, packs/proposal.md.
+Produce: proposal.md in the goal's sub-folder.
+JOB: sales/proposal-from-a-call`;
+
+test("vector: buildText with ask gives the words, a blank line and ASK", () => {
+  assert.equal(buildText({ text: "Do we deliver?", ask: true }), "Do we deliver?\n\nASK");
+  const t = textOf("Do we deliver?\n\nASK");
+  assert.equal(t.text, "Do we deliver?");
+  assert.equal(t.ask, true);
+  assert.equal(t.job, null);
+});
+
+test("vector: textOf of the example of 31.3 gives back its first block and the job", () => {
+  const t = textOf(EXAMPLE_31_3);
+  assert.equal(t.text, "Write a proposal for the customer of the call write-up in the sub-folder STH-20 of your current working folder.");
+  assert.equal(t.job, "sales/proposal-from-a-call");
+  assert.equal(t.for, "Sales");
+  assert.equal(t.ask, false);
+  assert.equal(t.planFirst, false);
+});
+
+test("vector: an ASK line the owner typed stays in the built text, and textOf reports it (the record decides)", () => {
+  const built = buildText({ text: "Tell me about deliveries.\nASK" });
+  assert.equal(built, "Tell me about deliveries.\nASK");
+  assert.ok(built.endsWith("\nASK"));
+  assert.equal(textOf(built).ask, true);
+});
+
+test("buildText with reads, produces and job writes the lines of 31.3, must files first, JOB before PLAN FIRST", () => {
+  const out = buildText({
+    text: "Write it.", to: "Sales", planFirst: true, job: "sales/proposal-from-a-call", produces: ["proposal.md"],
+    reads: [{ file: "packs/proposal.md", need: "helps" }, { file: "pricing/services.md", need: "must" }, { file: "pricing/terms.md", need: "must" }],
+  });
+  assert.equal(out, "FOR: Sales\nWrite it.\n\nRead first, from the company's files: pricing/services.md, pricing/terms.md, packs/proposal.md.\n"
+    + "Produce: proposal.md in the goal's sub-folder.\nJOB: sales/proposal-from-a-call\n\nPLAN FIRST");
+  const t = textOf(out);
+  assert.deepEqual({ ...t }, { text: "Write it.", planFirst: true, for: "Sales", routine: null });
+  assert.equal(t.job, "sales/proposal-from-a-call");
+  assert.equal(buildText({ text: "Write it.", reads: [], produces: [], job: "" }), "Write it.", "empty additions add nothing");
+  assert.equal(buildText({ text: "Write it.", produces: ["a.md", "b/*.md"] }), "Write it.\n\nProduce: a.md, b/*.md in the goal's sub-folder.");
+});
+
+test("textOf: Read first and Produce lines are taken out only above a JOB line", () => {
+  const own = "My notes.\nProduce: a report in the goal's sub-folder.";
+  assert.equal(textOf(own).text, own);
+  assert.equal(textOf(own).job, null);
+  assert.equal(textOf("Do X\nJOB: a/b\n\nASK\nPLAN FIRST").text, "Do X");
+  const odd = textOf("JOB: one two");
+  assert.equal(odd.job, null, "a JOB line with more than one word is not a job line");
+});
+
+test("MARKERS gains ASK and JOB:, not listed among the version 2 markers", () => {
+  assert.equal(MARKERS.ask, "ASK");
+  assert.equal(MARKERS.job, "JOB:");
+  assert.ok(!Object.values(MARKERS).includes("ASK"));
+});

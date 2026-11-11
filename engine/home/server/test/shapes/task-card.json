@@ -24,5 +24,16 @@
   "stepsDone": 4,
   "stepsTotal": 4,
   "createdAt": "2026-11-11T08:00:00.000Z",
-  "updatedAt": "2026-11-11T09:00:00.000Z"
+  "updatedAt": "2026-11-11T09:00:00.000Z",
+  "job": {
+    "id": "studio/a-small-animated-character",
+    "title": "A small animated character"
+  },
+  "department": "studio",
+  "outcome": "The walking sprite has six frames, in art/walk/, with a contact sheet.",
+  "ask": false,
+  "follows": {
+    "taskId": "e0000000-0000-4000-8000-000000000007",
+    "identifier": "STH-7"
+  }
 }

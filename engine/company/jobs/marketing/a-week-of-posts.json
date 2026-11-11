@@ -1,0 +1,62 @@
+{
+  "id": "a-week-of-posts",
+  "department": "marketing",
+  "cluster": "writing",
+  "title": "A week of posts",
+  "summary": "Five short posts for the week, each saved as a draft for you to approve.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "marketer"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "helps"
+    },
+    {
+      "file": "brand/cant-say.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "number-of-posts",
+      "label": "Number of posts:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "channel",
+      "label": "Channel:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "what-we-want-to-talk-about",
+      "label": "What we want to talk about:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "date",
+      "label": "Date:",
+      "kind": "date",
+      "required": true
+    },
+    {
+      "id": "tone-of-voice",
+      "label": "Tone of voice:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Write [number-of-posts] short posts for [channel] about [what-we-want-to-talk-about] for the week starting [date]. Keep the tone [tone-of-voice]. Save each one as a draft with a planned day, and do not publish anything.",
+  "produces": [
+    "content/*.md"
+  ]
+}

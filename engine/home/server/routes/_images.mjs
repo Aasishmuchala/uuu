@@ -1,9 +1,9 @@
-// Byte readers for images agents wrote (CONTRACTS-V2 17.8), shared by routes/view.mjs and
-// routes/studio-art.mjs. The first three are pure functions on a Buffer: they never throw, never read
-// past the end, and answer null for anything they do not recognise. readGoalBytes is the one function
-// here that touches the disk: it reads a file of a goal's folder as bytes, with the rules of
-// lib/taskfiles.mjs (no link on the way, then openChecked: O_NOFOLLOW and O_NONBLOCK, a regular file, and
-// the file opened is the one at that place inside the goal's folder).
+// Byte readers for images and videos agents wrote (CONTRACTS-V2 17.8, C3 37.4), shared by routes/view.mjs
+// and the Studio's routes. The first four are pure functions on a Buffer: they never throw, never read
+// past the end, and answer null (false for isMp4) for anything they do not recognise. openGoalFile and
+// readGoalBytes are the two functions here that touch the disk: they open a file of a goal's folder with
+// the rules of lib/taskfiles.mjs (no link on the way, then openChecked: O_NOFOLLOW and O_NONBLOCK, a
+// regular file, and the file opened is the one at that place inside the goal's folder).
 // A helper, not a feature: the default export registers nothing.
 import { closeSync, lstatSync, readSync } from "node:fs";
 import { join } from "node:path";
@@ -80,14 +80,30 @@ export function gifFrameCount(buffer) {
   return null;
 }
 
+// True when the bytes are an MP4 by its first box: the type `ftyp` at byte 4 (C3 37.4).
+export function isMp4(buffer) {
+  return isBuffer(buffer) && startsWith(buffer, ascii("ftyp"), 4);
+}
+
 function lstatOrNull(p) {
   try { return lstatSync(p); } catch { return null; }
 }
 
-// One file of a goal's folder as bytes. rel is the path inside the goal's folder.
-// -> { bytes, size, mtimeMs, real, dev, ino } (bytes: at most maxBytes; size is the whole file's),
-//    { tooLarge: true, size } when the file is over maxBytes and readOver is false, or null.
-export function readGoalBytes(config, identifier, rel, { maxBytes, readOver = false } = {}) {
+// Reads up to `want` bytes from the start of an open descriptor.
+function readHead(fd, want) {
+  const bytes = Buffer.alloc(want);
+  let got = 0;
+  while (got < want) {
+    const n = readSync(fd, bytes, got, want - got, got);
+    if (n <= 0) break;
+    got += n;
+  }
+  return bytes.subarray(0, got);
+}
+
+// One file of a goal's folder, opened once and checked. rel is the path inside the goal's folder.
+// -> { fd, st, real } (the caller reads from fd and closes it, or hands it on), or null with nothing open.
+export function openGoalFile(config, identifier, rel) {
   const base = goalFolder(config, identifier);
   if (!base || typeof rel !== "string" || !rel || rel.length > 1024) return null;
   if (rel.includes("\\") || rel.includes("\0") || rel.startsWith("/")) return null;
@@ -99,25 +115,30 @@ export function readGoalBytes(config, identifier, rel, { maxBytes, readOver = fa
     const st = lstatOrNull(dir);
     if (!st || !st.isDirectory()) return null;          // a link or a file on the way is refused
   }
-  const opened = openChecked(join(dir, parts[parts.length - 1]), base);
+  return openChecked(join(dir, parts[parts.length - 1]), base);
+}
+
+// One file of a goal's folder as bytes. rel is the path inside the goal's folder.
+// -> { bytes, size, mtimeMs, real, dev, ino } (bytes: at most maxBytes; size is the whole file's),
+//    { tooLarge: true, size } when the file is over maxBytes and readOver is false, or null.
+export function readGoalBytes(config, identifier, rel, { maxBytes, readOver = false } = {}) {
+  const opened = openGoalFile(config, identifier, rel);
   if (!opened) return null;
   const { fd, st, real } = opened;
   try {
     if (st.size > maxBytes && !readOver) return { tooLarge: true, size: st.size };
-    const want = Math.min(st.size, maxBytes);
-    const bytes = Buffer.alloc(want);
-    let got = 0;
-    while (got < want) {
-      const n = readSync(fd, bytes, got, want - got, got);
-      if (n <= 0) break;
-      got += n;
-    }
-    return { bytes: bytes.subarray(0, got), size: st.size, mtimeMs: st.mtimeMs, real, dev: st.dev, ino: st.ino };
+    const bytes = readHead(fd, Math.min(st.size, maxBytes));
+    return { bytes, size: st.size, mtimeMs: st.mtimeMs, real, dev: st.dev, ino: st.ino };
   } catch {
     return null;
   } finally {
     closeSync(fd);
   }
+}
+
+// The first `want` bytes of an open descriptor (for a check before the same descriptor is streamed).
+export function headOf(fd, want) {
+  try { return readHead(fd, want); } catch { return null; }
 }
 
 // The same file is still there, a regular file and not a link: used just before a file is streamed.

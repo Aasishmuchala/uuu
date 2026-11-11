@@ -1,0 +1,38 @@
+{
+  "id": "score-a-piece-against-the-brand",
+  "department": "marketing",
+  "cluster": "review",
+  "title": "Score a piece against the brand",
+  "summary": "A score out of ten for one piece of writing, with what to change.",
+  "handoff": "on-its-own",
+  "stage": 3,
+  "who": [
+    "marketer"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "must"
+    },
+    {
+      "file": "brand/cant-say.md",
+      "need": "must"
+    }
+  ],
+  "asks": [
+    {
+      "id": "piece",
+      "label": "Paste the piece:",
+      "kind": "text",
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Score this piece against the brand file and the can't-say list: [piece]. Give a score out of 10 for tone, for clarity, for brand fit and for the first line, with one reason for each. List every phrase that is on the can't-say list, or say there are none. Then list the changes that would raise the lowest score. Do not rewrite the piece itself.",
+  "produces": [
+    "review.md"
+  ]
+}

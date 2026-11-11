@@ -1,0 +1,138 @@
+/* Timeline (kit/timeline.js): one row per step, a bar on a shared time axis, on glass. Tokens only.
+   A running step's bar is the live colour and holds still: the live dot beside the work is what moves (27.3). */
+
+.k-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-4);
+  background: var(--glass);
+  box-shadow: var(--highlight);
+}
+
+.k-timeline--empty {
+  padding: var(--s-6) var(--s-4);
+  color: var(--text-2);
+  text-align: center;
+}
+
+.k-timeline__row {
+  display: grid;
+  grid-template-columns: minmax(160px, 30%) minmax(0, 1fr) minmax(120px, auto);
+  gap: var(--s-3);
+  align-items: center;
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.k-timeline__row:last-child {
+  border-bottom: 0;
+}
+
+.k-timeline__label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.k-timeline__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.k-timeline__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+  font-weight: var(--fw-medium);
+}
+
+.k-timeline__title > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.k-timeline__meta {
+  display: flex;
+  gap: var(--s-2);
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+.k-timeline__track {
+  position: relative;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--glass-soft);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
+.k-timeline__bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--r-pill);
+  background: var(--text-3);
+}
+
+.k-timeline__row--ok .k-timeline__bar {
+  background: var(--ok);
+}
+
+.k-timeline__row--live .k-timeline__bar {
+  background: var(--live);
+}
+
+.k-timeline__row--warn .k-timeline__bar {
+  background: var(--warn);
+}
+
+.k-timeline__row--bad .k-timeline__bar {
+  background: var(--bad);
+}
+
+.k-timeline__row--off .k-timeline__bar,
+.k-timeline__row--wait .k-timeline__bar {
+  background: var(--hairline-strong);
+}
+
+/* Still running: the open end of the bar is softer, so it reads as not finished. */
+.k-timeline__bar--running {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  opacity: .85;
+}
+
+.k-timeline__when {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
+.k-timeline__state {
+  color: var(--text);
+}
+
+.k-timeline__duration {
+  color: var(--text-3);
+}
+
+@media (max-width: 859px) {
+  .k-timeline__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .k-timeline__track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}

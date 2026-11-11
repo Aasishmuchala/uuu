@@ -1,0 +1,11 @@
+{
+  "name": "launch",
+  "title": "Launch carousel",
+  "kind": "slides",
+  "slides": ["slide-01.png", "slide-02.png", "slide-03.png"],
+  "size": { "w": 1080, "h": 1350 },
+  "data": "slides.json",
+  "contact": "contact.png",
+  "script": "launch.py",
+  "made_at": "2026-11-11T08:20:00Z"
+}

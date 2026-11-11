@@ -157,7 +157,9 @@ test("board calls: one each for tasks, agents and live runs; comments only for u
   const read = new Set(seen.filter((p) => p.endsWith("/comments")).map((p) => p.split("/")[3]));
   assert.ok(read.has(issueId(8)), "a task waiting for review is read");
   assert.ok(read.has(issueId(9)), "and its steps");
-  assert.ok(!read.has(issueId(14)), "an accepted task is not read");
+  // Version 3 (CONTRACTS-V3 33.2): the newest 20 finished tasks' own comments are read, for their outcome only.
+  assert.ok(read.has(issueId(14)), "an accepted task is read for its outcome");
+  assert.equal(card(tctx, "STH-14").outcome, "Today's brief has three items: two drafts in Marketing, an unpaid invoice and a late delivery.");
   assert.ok(!read.has(issueId(17)), "a canceled task is not read");
   assert.equal(card(tctx, "STH-14").size, null, "unread comments give no size");
   assert.equal(card(tctx, "STH-14").round, null);

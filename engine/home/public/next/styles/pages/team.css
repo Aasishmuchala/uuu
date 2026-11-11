@@ -1,0 +1,51 @@
+/* Team (pages/team.js): a grid of agent cards, each with its department as a chip under it. */
+
+.p-team { display: flex; flex-direction: column; gap: var(--s-6); }
+
+.p-team .p-team__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--s-4);
+}
+
+.p-team .p-team__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.p-team .p-team__item .k-agent--card { flex: 1; }
+
+.p-team .p-team__under {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-1);
+}
+
+.p-team .p-team__dept {
+  display: inline-flex;
+  max-width: 100%;
+  border-radius: var(--r-pill);
+  color: inherit;
+  text-decoration: none;
+}
+.p-team .p-team__dept:hover .k-chip { border-color: var(--hairline-strong); color: var(--text); }
+
+.p-team .p-team__note {
+  margin: 0;
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-2);
+  font-size: var(--fs-caption);
+  color: var(--warn-text);
+  background: var(--warn-bg);
+}
+
+@media (max-width: 859px) {
+  .p-team .p-team__grid { grid-template-columns: 1fr; gap: var(--s-3); }
+}

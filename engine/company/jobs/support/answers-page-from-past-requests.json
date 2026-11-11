@@ -1,0 +1,36 @@
+{
+  "id": "answers-page-from-past-requests",
+  "department": "support",
+  "cluster": "learning",
+  "title": "An answers page from past requests",
+  "summary": "A page of questions customers keep asking, with answers taken from your policies.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "support"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "policies/",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "months",
+      "label": "How many months back?",
+      "kind": "number",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Look at the requests from the last [months] months and find the questions customers ask most. Write an answers page with each question and a short, plain answer taken only from the company's policy files; where no file gives an answer, say so and do not guess. Do not send or publish anything; I will add it to the company files if I agree.",
+  "produces": [
+    "answers-page.md"
+  ]
+}

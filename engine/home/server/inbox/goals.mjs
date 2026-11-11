@@ -1,12 +1,15 @@
 // Inbox source "goals": finished goals the owner has not accepted yet (CONTRACTS 9.3, CONTRACTS-V2 17.4).
 // Each item's `version` (CONTRACTS 9.3a) is a hash of the newest result and the newest check, read from the
 // board on every list (never cached), so Accept acts only on the delivery the owner read.
+// An answered question (CONTRACTS-V3 33.5) is the same item with its own title, summary, details and labels.
 import { agentNames, commentsOf, descendants, goalsOf, loadIssues, needIds, pickResult } from "../lib/goals.mjs";
+import { parseAnswer } from "../lib/answer.mjs";
+import { brainFor } from "../brain/store.mjs";
 import { isFixTask } from "../lib/draftfix.mjs";
 import { capText } from "../lib/format.mjs";
 import { versionOf } from "../lib/inbox.mjs";
-import { roundsOf } from "../lib/staged.mjs";
-import { listTaskFiles } from "../lib/taskfiles.mjs";
+import { roundsOf, textOf } from "../lib/staged.mjs";
+import { listTaskFiles, readTaskText } from "../lib/taskfiles.mjs";
 
 // One line of Markdown as plain words: null for a line that is only a mark (a rule, a table divider, a fence).
 // `ends` says the line was a heading, list item or table row, `item` that it was a list item.
@@ -69,6 +72,40 @@ function checkedOf(rounds) {
   return passed ? `Passed in round ${passed.n}` : "Not checked";
 }
 
+// CONTRACTS-V3 33.5: the parsed answer of a finished question (a task with the home server's `ask:` record),
+// or null when the task is not a question or its answer file is missing or does not parse.
+function answerOf(ctx, g) {
+  if (!ctx.decisions.get(`ask:${g.id}`) || !g.identifier) return null;
+  const hit = readTaskText(ctx.config, g.identifier, "answer.md", { maxBytes: 64 * 1024 });
+  const parsed = hit ? parseAnswer(hit.text) : null;
+  return parsed && parsed.wellFormed ? parsed : null;
+}
+
+// How many of the answer's sources are files of the brain's own listing (never the agent's word).
+function foundOf(ctx, answer) {
+  let listed;
+  try { listed = new Set(brainFor(ctx.config).list().map((f) => f.path)); } catch { listed = new Set(); }
+  return answer.sources.filter((s) => listed.has(s.path)).length;
+}
+
+const cutTo = (s, max) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+
+// An answered question: its own title, summary, details and button labels; everything else as for any result.
+function asAnswer(ctx, item, g, answer) {
+  const question = textOf(g.description || g.title || "").text.replace(/\s+/g, " ").trim() || g.title || "";
+  item.title = `Answer: ${cutTo(question, 60)}`;
+  item.summary = cutTo(answer.text.replace(/\s+/g, " ").trim(), 200);
+  item.details = [
+    item.details[0],
+    { label: "From", value: `${foundOf(ctx, answer)} of your files` },
+  ];
+  item.actions = [
+    { id: "acknowledge", label: "Got it", style: "primary", needsNote: false },
+    { id: "reopen", label: "Ask again", style: "plain", needsNote: true },
+  ];
+  return item;
+}
+
 async function list(ctx) {
   const ids = needIds(ctx);
   const issues = await loadIssues(ctx, ids.companyId);
@@ -106,7 +143,8 @@ async function list(ctx) {
       link: { page: "tasks", id: g.id },
     };
     Object.defineProperty(item, "_goalId", { enumerable: false, value: g.id });
-    return item;
+    const answer = answerOf(ctx, g);
+    return answer ? asAnswer(ctx, item, g, answer) : item;
   }));
   return { items };
 }

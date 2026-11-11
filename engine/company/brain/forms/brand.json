@@ -1,0 +1,54 @@
+{
+  "id": "brand",
+  "folder": "brand",
+  "file": "brand.md",
+  "title": "Brand",
+  "lead": "How your company looks and sounds. Agents read this before they write or design anything.",
+  "fields": [
+    {
+      "id": "tone",
+      "label": "Three to five words for how you sound",
+      "kind": "list",
+      "required": true,
+      "max": 5,
+      "hint": "Such as: warm, plain, exact."
+    },
+    {
+      "id": "colours",
+      "label": "Your colours",
+      "kind": "colour",
+      "required": true,
+      "max": 5,
+      "hint": "Such as: #1a3c5e for the main colour."
+    },
+    {
+      "id": "fonts",
+      "label": "Your typeface",
+      "kind": "choice",
+      "required": false,
+      "options": [
+        "Helvetica Neue",
+        "Avenir Next",
+        "Futura",
+        "Gill Sans",
+        "Georgia",
+        "Baskerville",
+        "Didot"
+      ]
+    },
+    {
+      "id": "signoff",
+      "label": "How do you sign off a message?",
+      "kind": "line",
+      "required": false,
+      "hint": "Such as: Warm regards, then the team's first names."
+    },
+    {
+      "id": "logo",
+      "label": "Which file in Brand is your logo?",
+      "kind": "line",
+      "required": false,
+      "hint": "Such as: logo.png, once you have added it to Brand."
+    }
+  ]
+}

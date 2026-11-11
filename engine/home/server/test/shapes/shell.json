@@ -27,5 +27,23 @@
     "board": "on",
     "books": "on"
   },
-  "generatedAt": "2026-11-11T09:00:00.000Z"
+  "generatedAt": "2026-11-11T09:00:00.000Z",
+  "dock": [
+    {
+      "id": "brain",
+      "title": "Company brain",
+      "creature": "brain",
+      "colour": "brain",
+      "working": 1,
+      "needsYou": 0
+    },
+    {
+      "id": "sales",
+      "title": "Sales",
+      "creature": "sales",
+      "colour": "sales",
+      "working": 0,
+      "needsYou": 2
+    }
+  ]
 }

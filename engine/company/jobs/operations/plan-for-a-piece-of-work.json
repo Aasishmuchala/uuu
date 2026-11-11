@@ -1,0 +1,35 @@
+{
+  "id": "plan-for-a-piece-of-work",
+  "department": "operations",
+  "cluster": "planning",
+  "title": "A plan for a piece of work",
+  "summary": "A plan for you to read and approve before any work starts.",
+  "handoff": "you-lead",
+  "stage": 3,
+  "who": [
+    "builder"
+  ],
+  "size": "M",
+  "planFirst": true,
+  "reads": [],
+  "asks": [
+    {
+      "id": "the-piece-of-work",
+      "label": "The piece of work:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "date",
+      "label": "Date:",
+      "kind": "date",
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Make a plan for [the-piece-of-work] that should be finished by [date]. Set out the steps, what will be produced and what you need from me. Do not start the work until I have approved the plan.",
+  "produces": [
+    "*.md"
+  ]
+}

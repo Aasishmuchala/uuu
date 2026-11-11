@@ -225,6 +225,23 @@ touch "$FAKE_DIR/art.installed"
   assert.doesNotMatch(r2.stdout, /Artist's tools/);
 });
 
+test("setup prints the line of the speech model check and copies nothing", () => {
+  const t = setup([["20-board.sh", "Board"]]);
+  t.touch("board.on");
+  const c = commandCopy(t);
+  mkdirSync(join(c.copy, "media"));
+  writeFileSync(join(c.copy, "media", "install.sh"), `#!/bin/bash
+if [ "\${1:-}" = "--check-only" ]; then echo "Speech model: not in place"; exit 1; fi
+touch "$FAKE_DIR/media.installed"
+`);
+  const r = c.run("setup");
+  assert.match(r.stdout, /^Speech model: not in place$/m, r.stdout + r.stderr);
+  assert.equal(existsSync(join(t.fake, "media.installed")), false, "setup only checks");
+  rmSync(join(c.copy, "media"), { recursive: true });
+  const r2 = c.run("setup");
+  assert.doesNotMatch(r2.stdout, /Speech model/);
+});
+
 test("test also runs the Python tests in engine/art/tests", () => {
   const t = setup([]);
   const c = commandCopy(t);

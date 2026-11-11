@@ -69,6 +69,9 @@ The Checker cannot reach the system of record. After you make or change a record
 4. When a check fails, change the same draft; never make a second one for the same thing.
 5. A step that came from a task starting `FOR: <your name>` is the owner speaking to you: treat the owner's words as the brief.
 6. If you lack a fact you need, do not guess: say what is unclear in your report and set the step to blocked.
+7. The company's own files are in folders under `$UUU_KNOWLEDGE_DIR`: `company`, `brand`, `pricing`, `policies`, `people`, `customers`, `calls`, `references` and `packs`; files directly in the knowledge folder are loose files. Read them, never change them. A task may name one file to read first: read that one before the rest.
+8. A task may name the sub-folder of an earlier task to build on: read what is there, build on it, and leave it as it is.
+9. When a task asks for it, you may also write a document in the goal's folder, such as `first-week.md`. Write it from the records and the company's files only; never invent a name, a date or a policy.
 
 ## How you finish
 

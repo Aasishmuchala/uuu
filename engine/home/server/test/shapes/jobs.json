@@ -1,0 +1,143 @@
+{
+  "departments": [
+    {
+      "id": "sales",
+      "title": "Sales",
+      "clusters": [
+        {
+          "id": "calls",
+          "title": "Calls",
+          "jobs": [
+            {
+              "id": "sales/proposal-from-a-call",
+              "department": {
+                "id": "sales",
+                "title": "Sales"
+              },
+              "cluster": {
+                "id": "calls",
+                "title": "Calls"
+              },
+              "title": "Proposal from a call write-up",
+              "summary": "A written proposal for one customer, from the call write-up and your price list.",
+              "handoff": "you-approve",
+              "stage": 4,
+              "size": "M",
+              "planFirst": false,
+              "who": [
+                {
+                  "slug": "artist",
+                  "name": "Artist"
+                }
+              ],
+              "reads": [
+                {
+                  "file": "pricing/services.md",
+                  "title": "Prices and services",
+                  "need": "must",
+                  "state": "filled",
+                  "link": {
+                    "page": "files",
+                    "id": "cHJpY2luZy9zZXJ2aWNlcy5tZA"
+                  }
+                }
+              ],
+              "asks": [
+                {
+                  "id": "earlier",
+                  "label": "Which call write-up?",
+                  "kind": "task",
+                  "required": true,
+                  "options": [
+                    {
+                      "value": "e0000000-0000-4000-8000-000000000020",
+                      "label": "STH-20 · Call write-up: Asha Kitchens"
+                    }
+                  ]
+                }
+              ],
+              "takes": {
+                "from": [
+                  "sales/call-write-up"
+                ],
+                "label": "Write the proposal from this"
+              },
+              "text": "Write a proposal for the customer of the call write-up in [earlier]. ...",
+              "ready": true,
+              "why": null,
+              "runs": {
+                "total": 3,
+                "accepted": 2,
+                "working": 1,
+                "needsYou": 0,
+                "last": {
+                  "taskId": "e0000000-0000-4000-8000-000000000021",
+                  "identifier": "STH-21",
+                  "at": "2026-11-12T08:40:00.000Z",
+                  "plainState": "Being worked on"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "handoffs": [
+    {
+      "id": "you-lead",
+      "label": "You lead",
+      "about": "The agent gets things ready. You do the main part."
+    },
+    {
+      "id": "you-approve",
+      "label": "You approve",
+      "about": "The agent does the work. It counts only when you approve it."
+    },
+    {
+      "id": "on-its-own",
+      "label": "On its own",
+      "about": "The agent does it to the end and it is checked. You read the result."
+    }
+  ],
+  "stages": [
+    {
+      "n": 1,
+      "label": "Foundations",
+      "about": "Fill the company brain, so work sounds like your company.",
+      "jobs": 2,
+      "ready": 2,
+      "tried": 1
+    },
+    {
+      "n": 2,
+      "label": "Take in",
+      "about": "Jobs that read and sort what comes in.",
+      "jobs": 12,
+      "ready": 10,
+      "tried": 1
+    },
+    {
+      "n": 3,
+      "label": "Make",
+      "about": "Jobs that produce work.",
+      "jobs": 30,
+      "ready": 22,
+      "tried": 0
+    },
+    {
+      "n": 4,
+      "label": "Hand on",
+      "about": "Work passed from one agent to the next, with nothing copied by hand.",
+      "jobs": 16,
+      "ready": 13,
+      "tried": 0
+    }
+  ],
+  "totals": {
+    "jobs": 60,
+    "ready": 47
+  },
+  "problems": [],
+  "generatedAt": "2026-11-12T09:00:00.000Z"
+}

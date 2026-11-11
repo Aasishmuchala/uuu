@@ -4,12 +4,16 @@
 //     way, the file opened with O_NOFOLLOW, a regular file whose real path stays inside the goal's folder;
 //   - images by extension and by their first bytes (they must agree), with their real type, inline, and the
 //     policy `default-src 'none'; sandbox`, so nothing in them (an SVG's script) can run as the home screen;
+//   - a video (.mp4, C3 37.4) opened once, at most 300 MB, `ftyp` at byte 4, and streamed from that one
+//     descriptor under the same policy, whole or as one byte range;
 //   - text only as JSON; nothing is ever answered as HTML; every other file is "not viewable".
+import { closeSync } from "node:fs";
 import { fileResponse } from "../lib/static.mjs";
 import { readTaskText } from "../lib/taskfiles.mjs";
-import { readGoalBytes, sniff } from "./_images.mjs";
+import { headOf, isMp4, openGoalFile, readGoalBytes, sniff } from "./_images.mjs";
 
 const MAX_IMAGE = 20 * 1024 * 1024;
+const MAX_VIDEO = 300 * 1024 * 1024;
 const MAX_SVG = 1024 * 1024;
 const MAX_TEXT = 262144;
 const IDENTIFIER = /^[A-Za-z0-9_-]{1,64}$/;
@@ -64,6 +68,31 @@ function imageAnswer(found, type, name) {
   );
 }
 
+// A video, from the one descriptor opened and checked here. The core streams it and closes it: the one
+// byte range the core parsed (ctx.range) as 206, a range past the end as 416, no range (or several, or a
+// malformed one, which the core gives as null) as the whole file.
+function videoAnswer(ctx, t) {
+  const opened = openGoalFile(ctx.config, t.identifier, t.path);
+  if (!opened) throw notFound(ctx);
+  const { fd, st } = opened;
+  let handedOn = false;
+  try {
+    if (st.size > MAX_VIDEO) throw tooLarge(ctx);
+    if (!isMp4(headOf(fd, 12))) throw notViewable(ctx);
+    handedOn = true;
+    return fileResponse(
+      { fd, size: st.size, type: "video/mp4", range: ctx.range ?? null },
+      {
+        "content-disposition": `inline; filename="${headerName(t.base)}"`,
+        "content-security-policy": SANDBOX,
+        "accept-ranges": "bytes",
+      },
+    );
+  } finally {
+    if (!handedOn) try { closeSync(fd); } catch { /* already closed */ }
+  }
+}
+
 export default function register(app) {
   app.get("/api/view/:token", async (ctx) => {
     const t = parseToken(ctx.params.token);
@@ -77,6 +106,8 @@ export default function register(app) {
       if (sniff(found.bytes) !== IMAGES[ext].sniff) throw notViewable(ctx);
       return imageAnswer(found, IMAGES[ext].type, t.base);
     }
+
+    if (ext === "mp4") return videoAnswer(ctx, t);
 
     if (ext === "svg") {
       const found = readGoalBytes(ctx.config, t.identifier, t.path, { maxBytes: MAX_SVG });

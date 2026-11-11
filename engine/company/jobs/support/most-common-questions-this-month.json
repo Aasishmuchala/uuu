@@ -1,0 +1,24 @@
+{
+  "id": "most-common-questions-this-month",
+  "department": "support",
+  "cluster": "learning",
+  "title": "Most common questions this month",
+  "summary": "The three questions asked most this month, each with a standard answer.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "support"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Find the three most common questions customers asked this month. For each, say how many times it came up and suggest a standard answer I can reuse. Write the answers as drafts for me to approve.",
+  "produces": [
+    "*.md"
+  ]
+}

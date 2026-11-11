@@ -1,0 +1,248 @@
+/* Tasks: the list (the default) and the board. Every selector starts with .p-tasks; tokens only
+   (CONTRACTS-V2 11.2, CONTRACTS-V3 27.3). The rows are glass cards with no blur; nothing moves at rest. */
+
+.p-tasks {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Header controls: the List/Board switch and New task. */
+.p-tasks .p-tasks__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+/* The filter chips: departments on one line, agents on the next. A line too long for the window scrolls sideways. */
+.p-tasks .p-tasks__filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.p-tasks .p-tasks__filter {
+  min-width: 0;
+}
+
+.p-tasks .p-tasks__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-tasks .p-tasks__chip {
+  display: inline-flex;
+  border-radius: var(--r-pill);
+  color: inherit;
+  text-decoration: none;
+}
+
+.p-tasks .p-tasks__chip .k-chip {
+  min-height: var(--h-sm);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.p-tasks .p-tasks__chip:hover .k-chip {
+  color: var(--text);
+  border-color: var(--hairline-strong);
+}
+
+.p-tasks .p-tasks__chip--on .k-chip,
+.p-tasks .p-tasks__chip--on:hover .k-chip {
+  color: var(--primary-text);
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.p-tasks .p-tasks__chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* List: one group per state, its rows in one glass card with hairlines between them. */
+.p-tasks .p-tasks__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  max-width: var(--content-max);
+}
+
+.p-tasks .p-tasks__group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-2);
+  padding: 0 var(--s-1);
+  color: var(--text-2);
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  letter-spacing: .14em;
+  line-height: var(--lh-tight);
+  text-transform: uppercase;
+}
+
+.p-tasks .p-tasks__group--needs-you .p-tasks__group-head {
+  color: var(--warn-text);
+}
+
+.p-tasks .p-tasks__group-count {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-tasks .p-tasks__rows {
+  margin: 0;
+  padding: var(--s-1);
+  list-style: none;
+}
+
+.p-tasks .p-tasks__group--needs-you .p-tasks__rows {
+  border-color: var(--border-warm);
+}
+
+.p-tasks .p-tasks__row {
+  min-width: 0;
+}
+
+.p-tasks .p-tasks__row + .p-tasks__row {
+  border-top: 1px solid var(--hairline);
+}
+
+.p-tasks .p-tasks__older {
+  margin: 0;
+  padding: var(--s-2) var(--s-1);
+  text-align: center;
+}
+
+.p-tasks .p-tasks__list .p-tasks__older {
+  text-align: left;
+  padding-left: var(--s-3);
+}
+
+/* Board: six columns side by side. The four main ones share the width; an empty Failed or Canceled stays slim. */
+.p-tasks .p-tasks__board {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  overflow-x: auto;
+  padding-bottom: var(--s-2);
+}
+
+.p-tasks .p-tasks__col {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 176px;
+  max-height: calc(100vh - 220px);
+}
+
+/* Failed and Canceled, one above the other, in the last place of the board. */
+.p-tasks .p-tasks__stack {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 176px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+
+.p-tasks .p-tasks__stack--slim {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 148px;
+}
+
+.p-tasks .p-tasks__stack .p-tasks__col,
+.p-tasks .p-tasks__stack .p-tasks__col--slim {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  max-height: none;
+}
+
+.p-tasks .p-tasks__stack .p-tasks__col .k-board-col__cards {
+  overflow-y: visible;
+}
+
+.p-tasks .p-tasks__col--slim {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 148px;
+}
+
+.p-tasks .p-tasks__col .k-board-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+}
+
+/* A column longer than the window scrolls inside itself. */
+.p-tasks .p-tasks__col .k-board-col__cards {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.p-tasks .p-tasks__col--slim .k-board-col__cards {
+  display: none;
+}
+
+/* Narrow window: the chips scroll sideways on one line each, the columns become stacked sections, and every
+   control is easy to touch. */
+@media (max-width: 859px) {
+  /* The row keeps its title, time and chevron; the agent's face gives way so the title can be read. */
+  .p-tasks .p-tasks__row .k-task-row__who {
+    display: none;
+  }
+
+  .p-tasks .p-tasks__chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .p-tasks .p-tasks__chips > li {
+    flex: none;
+  }
+
+  .p-tasks .p-tasks__chip .k-chip {
+    min-height: 44px;
+  }
+
+  .p-tasks .p-tasks__board {
+    flex-direction: column;
+    align-items: stretch;
+    overflow-x: visible;
+  }
+
+  .p-tasks .p-tasks__stack,
+  .p-tasks .p-tasks__stack--slim {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .p-tasks .p-tasks__col,
+  .p-tasks .p-tasks__col--slim {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    max-height: none;
+  }
+
+  .p-tasks .p-tasks__col .k-board-col__cards {
+    overflow-y: visible;
+  }
+}

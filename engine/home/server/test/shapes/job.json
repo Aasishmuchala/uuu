@@ -1,0 +1,70 @@
+{
+  "id": "sales/proposal-from-a-call",
+  "department": {
+    "id": "sales",
+    "title": "Sales"
+  },
+  "cluster": {
+    "id": "calls",
+    "title": "Calls"
+  },
+  "title": "Proposal from a call write-up",
+  "summary": "A written proposal for one customer, from the call write-up and your price list.",
+  "handoff": "you-approve",
+  "stage": 4,
+  "size": "M",
+  "planFirst": false,
+  "who": [
+    {
+      "slug": "artist",
+      "name": "Artist"
+    }
+  ],
+  "reads": [
+    {
+      "file": "pricing/services.md",
+      "title": "Prices and services",
+      "need": "must",
+      "state": "filled",
+      "link": {
+        "page": "files",
+        "id": "cHJpY2luZy9zZXJ2aWNlcy5tZA"
+      }
+    }
+  ],
+  "asks": [
+    {
+      "id": "earlier",
+      "label": "Which call write-up?",
+      "kind": "task",
+      "required": true,
+      "options": [
+        {
+          "value": "e0000000-0000-4000-8000-000000000020",
+          "label": "STH-20 · Call write-up: Asha Kitchens"
+        }
+      ]
+    }
+  ],
+  "takes": {
+    "from": [
+      "sales/call-write-up"
+    ],
+    "label": "Write the proposal from this"
+  },
+  "text": "Write a proposal for the customer of the call write-up in [earlier]. ...",
+  "ready": true,
+  "why": null,
+  "runs": {
+    "total": 3,
+    "accepted": 2,
+    "working": 1,
+    "needsYou": 0,
+    "last": {
+      "taskId": "e0000000-0000-4000-8000-000000000021",
+      "identifier": "STH-21",
+      "at": "2026-11-12T08:40:00.000Z",
+      "plainState": "Being worked on"
+    }
+  }
+}

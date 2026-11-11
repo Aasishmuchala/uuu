@@ -50,7 +50,9 @@ AGENTS = [
 		"role": "Engine Bookkeeper",
 		"app": "erpnext",
 		"rights": [
-			(DRAFT, ["Sales Invoice", "Purchase Invoice", "Journal Entry", "Payment Entry"]),
+			# Quotation: drafts only, like the invoices; the owner approves each
+			# (CONTRACTS-V3 section 35; NOTES.md note 14).
+			(DRAFT, ["Sales Invoice", "Purchase Invoice", "Journal Entry", "Payment Entry", "Quotation"]),
 			(RECORD, ["Customer", "Supplier", "Item"]),
 			(READ, [
 				"Company", "Account", "Cost Center", "Fiscal Year", "Currency",

@@ -1,0 +1,44 @@
+{
+  "id": "quotation-from-a-call",
+  "department": "books",
+  "cluster": "selling",
+  "title": "Quotation from a call write-up",
+  "summary": "A quotation for the customer of an earlier call write-up or proposal, left as a draft for you to approve.",
+  "handoff": "you-approve",
+  "stage": 4,
+  "who": [
+    "bookkeeper"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "pricing/services.md",
+      "need": "must"
+    }
+  ],
+  "asks": [
+    {
+      "id": "earlier",
+      "label": "Which call write-up or proposal?",
+      "kind": "task",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books",
+    "quotations"
+  ],
+  "takes": {
+    "from": [
+      "sales/call-write-up",
+      "sales/proposal-from-a-call"
+    ],
+    "ask": "earlier",
+    "label": "Draft the quotation from this"
+  },
+  "text": "Draft a quotation for the customer in [earlier], for what they asked for there. Take every price from our price list and invent nothing; if a price is missing, say so instead of guessing. Leave it as a draft for me to approve; do not send it to anyone. Then write a short read-back of what the quotation says, so I can check it before I approve it.",
+  "produces": [
+    "readback-*.md"
+  ]
+}

@@ -1,0 +1,305 @@
+/* kit/job.js: the hand-off tag, the stage mark, why a job cannot start, a job as a line and as a chip, and the
+   start form. A job's dot takes its department's colour (data-dept sets --dept). A job that cannot start yet
+   is dim, and says why in words. */
+
+.k-job {
+  --k-job-dot: var(--dept, var(--text-2));
+}
+
+/* The hand-off tag: a small pill with a mark whose shape says how much is left for the owner. */
+.k-job--handoff {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: var(--s-5);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--glass-soft);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+}
+
+.k-job__handoff-mark {
+  width: var(--s-2);
+  height: var(--s-2);
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+.k-job--you-approve .k-job__handoff-mark {
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+}
+
+.k-job--on-its-own .k-job__handoff-mark {
+  background: currentColor;
+}
+
+/* The stage mark: the stage's number in a small square, then its word. */
+.k-job--stage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
+.k-job__stage-n {
+  display: inline-grid;
+  place-items: center;
+  width: var(--s-4);
+  height: var(--s-4);
+  border-radius: var(--r-1);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  color: var(--text);
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Why it cannot start. */
+.k-job--why {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-2);
+  font-size: var(--fs-body);
+}
+
+.k-job__why-icon {
+  flex: none;
+  color: var(--warn);
+}
+
+.k-job__why-link {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+
+/* One line. */
+.k-job--row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--h-lg);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-2);
+  color: var(--text);
+  text-decoration: none;
+  min-width: 0;
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+a.k-job--row:hover {
+  background: var(--glass-soft);
+}
+
+.k-job__dot {
+  flex: none;
+  width: var(--s-2);
+  height: var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--k-job-dot);
+}
+
+.k-job__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.k-job__marks {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: none;
+}
+
+.k-job__go {
+  flex: none;
+  color: var(--text-3);
+}
+
+.k-job--dim .k-job__title,
+.k-job--dim .k-job__chip-text {
+  color: var(--text-2);
+}
+
+.k-job--dim .k-job__dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--k-job-dot);
+}
+
+/* The "can run" chip. */
+.k-job--chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--h-sm);
+  max-width: 100%;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--glass-soft);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--text);
+  font-size: var(--fs-caption);
+  text-decoration: none;
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+a.k-job--chip:hover {
+  background: var(--glass);
+}
+
+.k-job__chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The start form. */
+.k-job--start {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+
+.k-job__asks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.k-job__from {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--h-md);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-2);
+  background: var(--glass-soft);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.k-job__over {
+  margin-bottom: var(--s-2);
+  color: var(--text-2);
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.k-job__read-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.k-job__read {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.k-job__read--filled .k-icon {
+  color: var(--ok);
+}
+
+.k-job__read--missing .k-icon {
+  color: var(--warn);
+}
+
+.k-job__read-name {
+  color: var(--text);
+}
+
+.k-job__read-state {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+
+.k-job__preview {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-3);
+  background: var(--glass-soft);
+}
+
+.k-job__preview-head {
+  padding: var(--s-2) var(--s-3);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+
+.k-job__preview-text {
+  padding: 0 var(--s-3) var(--s-3);
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.k-job__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.k-job__under {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+
+.k-job__started {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  color: var(--ok-text);
+  font-weight: var(--fw-medium);
+}
+
+.k-job__started .k-icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.k-job--started {
+  padding: var(--s-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-4);
+  background: var(--ok-bg);
+}
+
+@media (max-width: 859px) {
+  .k-job--row,
+  .k-job--chip,
+  .k-job__from {
+    min-height: 44px;
+  }
+
+  .k-job__marks .k-job--stage {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-job--row,
+  .k-job--chip {
+    transition: none;
+  }
+}

@@ -20,6 +20,14 @@ export const MARKERS = {
   planFirst: "PLAN FIRST",
   routine: "ROUTINE:",
 };
+// Version 3 (CONTRACTS-V3 33.2): the question marker and the job line. Added as keys that are not enumerable,
+// so every list of the version 2 markers (Object.values(MARKERS)) stays as it was.
+Object.defineProperties(MARKERS, {
+  ask: { value: "ASK", enumerable: false },
+  job: { value: "JOB:", enumerable: false },
+});
+const READ_FIRST = "Read first, from the company's files:";
+const PRODUCE = "Produce:";
 export const SIZES = ["XS", "S", "M", "L", "XL"];
 export const ROUND_CAP = 5;
 
@@ -285,18 +293,25 @@ export function sizeOf(comments) {
   return null;
 }
 
-// A task's text with its markers taken out: "FOR: <name>" on the first line, "PLAN FIRST" and
-// "ROUTINE: <id>" on the last lines (in either order).
+// A task's text with its markers taken out: "FOR: <name>" on the first line, "PLAN FIRST",
+// "ROUTINE: <id>", "ASK" and "JOB: <department>/<id>" on the last lines (in any order), and, above a JOB
+// line, the "Read first" and "Produce:" lines buildText writes. What it finds is for showing the text clean:
+// a task is a question, or came from a job, only by the home server's records, never by these lines.
+// `ask` and `job` are not enumerable, so the version 2 answer { text, planFirst, for, routine } compares as before.
 export function textOf(description) {
   const lines = clean(description).s.split("\n");
   let start = 0;
   let end = lines.length;
   const out = { text: "", planFirst: false, for: null, routine: null };
+  let ask = false;
+  let job = null;
   while (start < end && !lines[start].trim()) start += 1;
   if (start < end) {
     const m = /^FOR:\s*(.+)$/.exec(lines[start].trim());
     if (m && lines[start].length <= MAX_LINE) { out.for = short(m[1].trim()); start += 1; }
   }
+  let readFirst = false;
+  let produce = false;
   for (;;) {
     while (end > start && !lines[end - 1].trim()) end -= 1;
     if (end <= start || lines[end - 1].length > MAX_LINE) break;
@@ -304,17 +319,41 @@ export function textOf(description) {
     if (line === MARKERS.planFirst && !out.planFirst) { out.planFirst = true; end -= 1; continue; }
     const rm = /^ROUTINE:\s*(\S.*)$/.exec(line);
     if (rm && out.routine === null) { out.routine = short(rm[1].trim()); end -= 1; continue; }
+    if (line === MARKERS.ask && !ask) { ask = true; end -= 1; continue; }
+    const jm = /^JOB:\s*(\S+)$/.exec(line);
+    if (jm && job === null) { job = short(jm[1]); end -= 1; continue; }
+    if (job !== null && !produce && !readFirst && line.startsWith(`${PRODUCE} `)) { produce = true; end -= 1; continue; }
+    if (job !== null && !readFirst && line.startsWith(`${READ_FIRST} `)) { readFirst = true; end -= 1; continue; }
     break;
   }
   out.text = lines.slice(start, end).join("\n").trim();
+  Object.defineProperties(out, { ask: { value: ask, enumerable: false }, job: { value: job, enumerable: false } });
   return out;
 }
 
+const oneLine = (s) => String(s).replace(/\s+/g, " ").trim();
+
 // The task text the home server writes: "FOR: <to>\n<text>\n\nPLAN FIRST" (each marker only when asked).
-export function buildText({ text, to, planFirst } = {}) {
+// Version 3 (CONTRACTS-V3 31.3, 33.5) adds, all optional: `reads` (file paths, or { file, need } with the
+// `must` files first) and `produces` (paths) as the "Read first" and "Produce:" lines, `job` as the
+// "JOB:" line, and `ask` as the line "ASK"; they come after the text and a blank line, before PLAN FIRST.
+// Without them the output is exactly as before.
+export function buildText({ text, to, planFirst, ask, reads, produces, job } = {}) {
   const body = typeof text === "string" ? text.trim() : "";
   const name = typeof to === "string" ? to.replace(/\s+/g, " ").trim() : "";
   let out = name ? `${MARKERS.for} ${name}\n${body}` : body;
+  const files = (Array.isArray(reads) ? reads : [])
+    .map((r) => (typeof r === "string" ? { file: r, need: "helps" } : r && typeof r.file === "string" ? r : null))
+    .filter((r) => r && oneLine(r.file));
+  const ordered = [...files.filter((r) => r.need === "must"), ...files.filter((r) => r.need !== "must")].map((r) => oneLine(r.file));
+  const made = (Array.isArray(produces) ? produces : []).filter((p) => typeof p === "string" && oneLine(p)).map(oneLine);
+  const jobId = typeof job === "string" ? oneLine(job) : "";
+  const block = [];
+  if (ordered.length) block.push(`${READ_FIRST} ${ordered.join(", ")}.`);
+  if (made.length) block.push(`${PRODUCE} ${made.join(", ")} in the goal's sub-folder.`);
+  if (jobId) block.push(`${MARKERS.job} ${jobId}`);
+  if (block.length) out += `\n\n${block.join("\n")}`;
+  if (ask) out += `\n\n${MARKERS.ask}`;
   if (planFirst) out += `\n\n${MARKERS.planFirst}`;
   return out;
 }

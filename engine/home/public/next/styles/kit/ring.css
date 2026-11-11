@@ -1,0 +1,42 @@
+/* kit/ring.js: a small progress ring with its count in the middle. The drawn part is the primary colour;
+   a full ring turns to the passed colour. */
+
+.k-ring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--k-ring-size, 40px);
+  height: var(--k-ring-size, 40px);
+  vertical-align: middle;
+}
+
+.k-ring__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.k-ring__track {
+  stroke: var(--hairline-strong);
+}
+
+.k-ring__value {
+  stroke: var(--primary);
+}
+
+.k-ring--full .k-ring__value {
+  stroke: var(--ok);
+}
+
+.k-ring__count {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}

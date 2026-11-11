@@ -1,0 +1,150 @@
+/* The canvas behind every page (CONTRACTS-V3 section 27.3): the aurora, the stars and the glass helpers.
+   Markup (the shell draws it once):
+     <div class="s-canvas" aria-hidden="true">
+       <span class="s-canvas__light s-canvas__light--1"></span> ... --5
+       <span class="s-canvas__stars"></span>
+     </div>
+   The battery rules: no filter, no blend mode, no canvas, no script. Each light moves by transform only,
+   in steps of eight changes a second (steps(n) with n = 8 x the period in seconds), not sixty.
+   data-backdrop on <html>: aurora (default), stars (no aurora), plain (neither).
+   data-motion="off" or reduced motion stops every drift; the aurora stays as a still picture. */
+
+.s-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--canvas);
+}
+
+/* Aurora: five soft lights. Each is a circle of its colour fading to nothing; the opacity is the
+   strongest the theme allows. */
+.s-canvas__light {
+  position: absolute;
+  display: block;
+  width: var(--s-canvas-size);
+  height: var(--s-canvas-size);
+  left: calc(var(--s-canvas-x) - var(--s-canvas-size) / 2);
+  top: calc(var(--s-canvas-y) - var(--s-canvas-size) / 2);
+  border-radius: 50%;
+  opacity: var(--aurora-alpha);
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.s-canvas__light--1 {
+  --s-canvas-size: 62vmax;
+  --s-canvas-x: 38%;
+  --s-canvas-y: 34%;
+  background: radial-gradient(closest-side, var(--aurora-1), transparent);
+  animation: s-canvas-drift-1 70s steps(560) infinite alternate;
+}
+
+.s-canvas__light--2 {
+  --s-canvas-size: 54vmax;
+  --s-canvas-x: 64%;
+  --s-canvas-y: 30%;
+  background: radial-gradient(closest-side, var(--aurora-2), transparent);
+  animation: s-canvas-drift-2 84s steps(672) infinite alternate;
+}
+
+.s-canvas__light--3 {
+  --s-canvas-size: 66vmax;
+  --s-canvas-x: 70%;
+  --s-canvas-y: 62%;
+  background: radial-gradient(closest-side, var(--aurora-3), transparent);
+  animation: s-canvas-drift-3 96s steps(768) infinite alternate;
+}
+
+.s-canvas__light--4 {
+  --s-canvas-size: 50vmax;
+  --s-canvas-x: 44%;
+  --s-canvas-y: 70%;
+  background: radial-gradient(closest-side, var(--aurora-4), transparent);
+  animation: s-canvas-drift-4 110s steps(880) infinite alternate;
+}
+
+.s-canvas__light--5 {
+  --s-canvas-size: 58vmax;
+  --s-canvas-x: 28%;
+  --s-canvas-y: 54%;
+  background: radial-gradient(closest-side, var(--aurora-5), transparent);
+  animation: s-canvas-drift-5 78s steps(624) infinite alternate;
+}
+
+/* Each drift: a move of at most 6 vmax and a scale between .95 and 1.08. */
+@keyframes s-canvas-drift-1 {
+  from { transform: translate3d(0, 0, 0) scale(.95); }
+  to { transform: translate3d(5vmax, 3vmax, 0) scale(1.08); }
+}
+
+@keyframes s-canvas-drift-2 {
+  from { transform: translate3d(0, 0, 0) scale(1.04); }
+  to { transform: translate3d(-5vmax, 2vmax, 0) scale(.96); }
+}
+
+@keyframes s-canvas-drift-3 {
+  from { transform: translate3d(0, 0, 0) scale(.97); }
+  to { transform: translate3d(-3vmax, -5vmax, 0) scale(1.06); }
+}
+
+@keyframes s-canvas-drift-4 {
+  from { transform: translate3d(0, 0, 0) scale(1.08); }
+  to { transform: translate3d(4vmax, -4vmax, 0) scale(.95); }
+}
+
+@keyframes s-canvas-drift-5 {
+  from { transform: translate3d(0, 0, 0) scale(.95); }
+  to { transform: translate3d(3vmax, 5vmax, 0) scale(1.05); }
+}
+
+/* Stars: two fields of 1 px dots on tiles of 240 px and 360 px. They do not move. */
+.s-canvas__stars {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background-image:
+    radial-gradient(circle at 37px 83px, var(--star) 0.5px, transparent 1px),
+    radial-gradient(circle at 211px 149px, var(--star) 0.5px, transparent 1px);
+  background-size: 240px 240px, 360px 360px;
+  background-repeat: repeat;
+}
+
+/* The owner's choice of background. */
+:root[data-backdrop="stars"] .s-canvas__light,
+:root[data-backdrop="plain"] .s-canvas__light,
+:root[data-backdrop="plain"] .s-canvas__stars {
+  display: none;
+}
+
+/* Motion off: every drift stops and the aurora stays where it is drawn at rest. */
+:root[data-motion="off"] .s-canvas__light {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-canvas__light {
+    animation: none;
+  }
+}
+
+/* Glass. Cards have no backdrop blur: the aurora behind is already soft, and blurring a moving
+   background under many cards is what burns the battery. */
+.u-glass {
+  background: var(--glass);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--highlight);
+  border-radius: var(--r-4);
+}
+
+/* Chrome glass: only the top capsule, the dock, the tab bar, the box, menus, dialogs and drawers.
+   The blur of what is behind is held in a local property, so a search for a plain blur filter finds none. */
+.u-glass-chrome {
+  --s-canvas-chrome: blur(var(--blur-chrome));
+  background: var(--glass-strong);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--highlight);
+  border-radius: var(--r-4);
+  -webkit-backdrop-filter: var(--s-canvas-chrome);
+  backdrop-filter: var(--s-canvas-chrome);
+}

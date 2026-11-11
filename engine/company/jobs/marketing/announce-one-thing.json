@@ -1,0 +1,50 @@
+{
+  "id": "announce-one-thing",
+  "department": "marketing",
+  "cluster": "writing",
+  "title": "Announce one thing",
+  "summary": "A post that announces a single thing, in a short and a longer form.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "marketer"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "helps"
+    },
+    {
+      "file": "brand/cant-say.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "channel",
+      "label": "Channel:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "what-is-new",
+      "label": "What is new:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "date",
+      "label": "Date:",
+      "kind": "date",
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Write a post for [channel] announcing [what-is-new]. Say who it helps, what changes for them and when: [date]. Give me a short version and a longer one, and leave both as drafts.",
+  "produces": [
+    "content/*.md"
+  ]
+}

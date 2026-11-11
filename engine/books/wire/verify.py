@@ -33,7 +33,7 @@ AGENT_USERS = {
 
 # The main records of each department: no other agent may read them.
 DEPARTMENT_DOCTYPES = {
-	"bookkeeper": ["Sales Invoice", "Purchase Invoice", "Journal Entry", "Payment Entry", "Customer", "Supplier"],
+	"bookkeeper": ["Sales Invoice", "Purchase Invoice", "Journal Entry", "Payment Entry", "Quotation", "Customer", "Supplier"],
 	"sales": ["CRM Lead", "CRM Deal", "FCRM Note"],
 	"support": ["HD Ticket", "HD Ticket Comment"],
 	"people": ["Employee", "Leave Application", "Attendance"],
@@ -50,6 +50,7 @@ HOME_FIELDS = {
 	"Purchase Invoice": ["name", "supplier", "posting_date", "due_date", "grand_total", "outstanding_amount", "docstatus", "owner", "modified"],
 	"Journal Entry": ["name", "total_debit", "posting_date", "docstatus", "owner"],
 	"Payment Entry": ["name", "party", "paid_amount", "posting_date", "docstatus", "owner"],
+	"Quotation": ["name", "party_name", "customer_name", "transaction_date", "valid_till", "grand_total", "docstatus", "owner", "modified"],
 	"CRM Lead": ["name", "lead_name", "organization", "status", "converted", "creation"],
 	"CRM Deal": ["name", "organization", "status", "deal_value", "modified"],
 	"HD Ticket": ["name", "subject", "raised_by", "status", "creation"],
@@ -60,6 +61,7 @@ HOME_FIELDS = {
 }
 HOME_FIELDS_APP = {
 	"Sales Invoice": "erpnext", "Purchase Invoice": "erpnext", "Journal Entry": "erpnext", "Payment Entry": "erpnext",
+	"Quotation": "erpnext",
 	"CRM Lead": "crm", "CRM Deal": "crm", "HD Ticket": "helpdesk", "HD Ticket Comment": "helpdesk",
 	"Employee": "hrms", "Leave Application": "hrms", "Attendance": "hrms",
 }
@@ -351,6 +353,60 @@ def bookkeeper(run, a):
 	cannot_delete(run, "bookkeeper", a, "Sales Invoice", inv)
 	cannot_delete(run, "bookkeeper", a, "Customer", cust)
 	cannot_send(run, "bookkeeper", a, "Sales Invoice", inv)
+	quotation(run, a, cust, item)
+
+
+def quotation(run, a, cust, item):
+	"""The Bookkeeper drafts quotations (CONTRACTS-V3 section 35); the owner
+	alone makes one final. Not a ledger document, so the owner can make the
+	test one final, cancel it and delete it (NOTES.md notes 10 and 14)."""
+	m, o = run.mark, run.owner
+	today = time.strftime("%Y-%m-%d")
+	later = time.strftime("%Y-%m-%d", time.localtime(time.time() + 30 * 86400))
+	values = {
+		"quotation_to": "Customer", "party_name": cust, "company": "Sthyra", "order_type": "Sales",
+		"transaction_date": today, "valid_till": later, "items": [{"item_code": item, "qty": 1, "rate": 100}],
+	}
+	qtn = run.made_by("bookkeeper", "Quotation", a.new("Quotation", values), "a draft quotation")
+	if not qtn:
+		return
+	check(a.put(f"/api/resource/Quotation/{qtn}", {"terms": f"Engine {m}: edited"}).ok, "Bookkeeper can edit its draft quotation")
+	own_rights(run, "bookkeeper", a, "Quotation", qtn)
+	cannot_finalise(run, "bookkeeper", a, "Quotation", qtn)
+	r = a.new("Quotation", {**values, "docstatus": 1})
+	if r.ok:
+		run.keep("Quotation", r.data.get("name"))
+	check(
+		not r.ok and (r.denied or r.guarded("may only make drafts")),
+		"Bookkeeper cannot make a quotation that is final from the start",
+	)
+	guard = o.doc("Server Script", "Engine guard: agents make drafts only (Quotation)").data
+	check(
+		guard.get("reference_doctype") == "Quotation" and guard.get("doctype_event") == "Before Validate"
+		and not guard.get("disabled") and "may only make drafts" in (guard.get("script") or ""),
+		"the guard refuses, in an agent's name, a quotation saved as anything but a draft (its script is on)",
+	)
+	cannot_delete(run, "bookkeeper", a, "Quotation", qtn)
+	cannot_send(run, "bookkeeper", a, "Quotation", qtn)
+
+	# Once the owner has made it final, the Bookkeeper cannot change, cancel or amend it.
+	r = o.method("frappe.client.submit", {"doc": o.doc("Quotation", qtn).data})
+	if not check(r.ok and (r.message or {}).get("docstatus") == 1, "the owner can make the draft quotation final"):
+		return
+	check(a.put(f"/api/resource/Quotation/{qtn}", {"terms": f"Engine {m}: changed"}).denied, "Bookkeeper cannot change a final quotation")
+	check(a.method("frappe.client.cancel", {"doctype": "Quotation", "name": qtn}).denied, "Bookkeeper cannot cancel a final quotation (cancel call)")
+	check(
+		a.method("run_doc_method", {"dt": "Quotation", "dn": qtn, "method": "cancel"}).denied,
+		"Bookkeeper cannot cancel a final quotation (through the document's own method)",
+	)
+	check(o.doc("Quotation", qtn).data.get("docstatus") == 1, "the quotation is still final")
+	cannot_send(run, "bookkeeper", a, "Quotation", qtn)
+	if check(o.method("frappe.client.cancel", {"doctype": "Quotation", "name": qtn}).ok, "the owner can cancel it"):
+		r = a.new("Quotation", {**values, "amended_from": qtn})
+		if r.ok:
+			run.keep("Quotation", r.data.get("name"))
+		check(r.guarded("may not amend"), "Bookkeeper cannot amend a cancelled quotation")
+		cannot_delete(run, "bookkeeper", a, "Quotation", qtn)
 
 
 def sales(run, a):

@@ -31,6 +31,12 @@ export const DRAFT_TYPES = {
     party: (d) => d.customer, amount: (d) => money(d.grand_total),
     details: (d) => [["Customer", d.customer], ["Date", dateText(d.posting_date)], ["Due", dateText(d.due_date)], ["Total", money(d.grand_total)]],
   },
+  Quotation: {
+    source: "books", plain: "quotation",
+    fields: ["name", "party_name", "customer_name", "transaction_date", "valid_till", "grand_total", "docstatus", "owner", "modified"],
+    party: (d) => d.customer_name || d.party_name, amount: (d) => money(d.grand_total),
+    details: (d) => [["Customer", d.customer_name || d.party_name], ["Date", dateText(d.transaction_date)], ["Valid until", dateText(d.valid_till)], ["Total", money(d.grand_total)]],
+  },
   "Purchase Invoice": {
     source: "books", plain: "bill",
     fields: ["name", "supplier", "posting_date", "due_date", "grand_total", "outstanding_amount", "docstatus", "owner", "modified"],

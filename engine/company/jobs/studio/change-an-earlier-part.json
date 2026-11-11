@@ -1,0 +1,43 @@
+{
+  "id": "change-an-earlier-part",
+  "department": "studio",
+  "cluster": "parts",
+  "title": "Change an earlier part",
+  "summary": "A new version of a part you already have, with only the change you name.",
+  "handoff": "on-its-own",
+  "stage": 3,
+  "who": [
+    "drafter"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "name-of-the-earlier-part",
+      "label": "Name of the earlier part:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "what-to-change",
+      "label": "What to change:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "amount",
+      "label": "Amount:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "cad-tools"
+  ],
+  "takes": null,
+  "text": "Take the earlier part called [name-of-the-earlier-part] and make a new version of it. The only change is [what-to-change], by [amount] millimetres. Keep everything else as it was and keep the old version.",
+  "produces": [
+    "cad/*.step"
+  ]
+}

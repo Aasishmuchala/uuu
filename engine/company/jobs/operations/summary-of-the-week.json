@@ -1,0 +1,20 @@
+{
+  "id": "summary-of-the-week",
+  "department": "operations",
+  "cluster": "planning",
+  "title": "Summary of the week",
+  "summary": "Everything that was finished this week, in a short list.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [],
+  "size": "XS",
+  "planFirst": false,
+  "reads": [],
+  "asks": [],
+  "needs": [],
+  "takes": null,
+  "text": "Summarise everything that was finished this week in a short list, one line each, and say who did it. Then list what is still open and what is waiting for me.",
+  "produces": [
+    "*.md"
+  ]
+}

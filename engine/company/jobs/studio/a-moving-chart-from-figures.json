@@ -1,0 +1,37 @@
+{
+  "id": "a-moving-chart-from-figures",
+  "department": "studio",
+  "cluster": "motion",
+  "title": "A moving chart from figures",
+  "summary": "A short video of a chart drawing itself from the figures you give.",
+  "handoff": "on-its-own",
+  "stage": 3,
+  "who": [
+    "artist"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "title",
+      "label": "Chart title:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "figures",
+      "label": "The figures, one per line:",
+      "kind": "text",
+      "required": true
+    }
+  ],
+  "needs": [
+    "video"
+  ],
+  "takes": null,
+  "text": "Draw a chart called [title] from these figures and make it move so that it builds up over a few seconds: [figures]. Use only the figures given, label each one, and do not round or invent anything. The video is at most two minutes long and at most full HD in size. Look at the stills before you hand it over and check every label can be read.",
+  "produces": [
+    "video/*/manifest.json"
+  ]
+}

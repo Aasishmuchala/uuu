@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Installs the Artist's tools: a Python of its own, Pillow, and the sprite
-# helper, all under state/art (nothing in the repo, nothing in a shell profile,
-# no Homebrew). The Artist's own Python lives in state because the fence hides
-# the owner's home folder, where uv keeps its Pythons.
+# Installs the Artist's tools: a Python of its own, Pillow, the sprite helper,
+# the slide tool and the video helper, all under state/art (nothing in the
+# repo, nothing in a shell profile, no Homebrew). The Artist's own Python lives
+# in state because the fence hides the owner's home folder, where uv keeps its
+# Pythons. The video helper uses the ffmpeg and whisper-cli already on this Mac
+# and the speech model engine/media/install.sh puts in state/media/models; run
+# that one first, so the key file names the model.
 #
 # Usage: engine/art/install.sh [--check-only]
 #   --check-only   prints "Artist's tools: installed" (exit 0) or "not installed" (exit 1)
@@ -33,6 +36,16 @@ AGENT_SECRETS="$CFG_SECRETS/agents"
 ENV_FILE="$AGENT_SECRETS/artist.env"
 VPY="$VENV/bin/python"
 SPRITE_TOOL="$TOOLS/sprite.py"
+SLIDES_TOOL="$TOOLS/slides.py"
+VIDEO_TOOL="$TOOLS/video.py"
+TOOL_FILES="sprite.py slides.py fontmap.json video.py"   # copied from engine/art into state/art/tools
+
+# Programs already on this Mac, by fixed path (never from PATH). /opt/homebrew is
+# outside the home folder, so the fence can read it.
+FFMPEG="/opt/homebrew/bin/ffmpeg"
+FFPROBE="/opt/homebrew/bin/ffprobe"
+STT="/opt/homebrew/bin/whisper-cli"
+STT_MODEL="$CFG_STATE/media/models/ggml-small.en.bin"
 
 say() { echo "art: $*"; }
 die() { echo "art: $*" >&2; exit 1; }
@@ -49,13 +62,27 @@ need_disk() {   # need_disk <GB this step may take> <what>
   say "free disk $free GB; ok for: $2"
 }
 
+# The speech lines only when the model is in place and whisper-cli is here.
+have_speech() { [ -x "$STT" ] && /bin/bash "$HERE/../media/install.sh" --check-only >/dev/null 2>&1; }
+
 env_text() {
-  printf 'UUU_ART_PYTHON=%s\nUUU_ART_TOOL=%s\n' "$VPY" "$SPRITE_TOOL"
+  printf 'UUU_ART_PYTHON=%s\nUUU_ART_TOOL=%s\nUUU_ART_SLIDES=%s\nUUU_ART_VIDEO=%s\n' \
+    "$VPY" "$SPRITE_TOOL" "$SLIDES_TOOL" "$VIDEO_TOOL"
+  printf 'UUU_FFMPEG=%s\nUUU_FFPROBE=%s\n' "$FFMPEG" "$FFPROBE"
+  if have_speech; then
+    printf 'UUU_STT=%s\nUUU_STT_MODEL=%s\n' "$STT" "$STT_MODEL"
+  fi
+}
+
+tools_copied() {
+  local f
+  for f in $TOOL_FILES; do
+    cmp -s "$HERE/$f" "$TOOLS/$f" || return 1
+  done
 }
 
 installed() {
-  [ -x "$VPY" ] && [ -f "$SPRITE_TOOL" ] && [ -f "$ENV_FILE" ] \
-    && cmp -s "$HERE/sprite.py" "$SPRITE_TOOL" \
+  [ -x "$VPY" ] && [ -f "$ENV_FILE" ] && tools_copied \
     && [ "$(cat "$ENV_FILE")" = "$(env_text)" ] \
     && "$VPY" -I -c "import PIL.Image" >/dev/null 2>&1
 }
@@ -113,13 +140,24 @@ else
   "$VPY" -I -c "import PIL.Image" || die "Pillow installed but does not start"
 fi
 
-# --- 4. The sprite helper and the Artist's key file ------------------------------
+# --- 4. The helpers and the Artist's key file -------------------------------------
+[ -x "$FFMPEG" ] && [ -x "$FFPROBE" ] \
+  || die "ffmpeg is not at $FFMPEG, so the video helper could not work. Nothing new was installed for it."
 mkdir -p "$TOOLS"
-if cmp -s "$HERE/sprite.py" "$SPRITE_TOOL"; then
-  say "sprite helper already in state/art/tools"
+for f in $TOOL_FILES; do
+  [ -f "$HERE/$f" ] || die "engine/art/$f is missing from the repo; nothing was copied for it"
+  [ -L "$TOOLS/$f" ] && die "state/art/tools/$f is a link; remove it and run again"
+  if cmp -s "$HERE/$f" "$TOOLS/$f"; then
+    say "$f already in state/art/tools"
+  else
+    cp "$HERE/$f" "$TOOLS/$f.tmp" && chmod 644 "$TOOLS/$f.tmp" && mv "$TOOLS/$f.tmp" "$TOOLS/$f"
+    say "$f copied to state/art/tools"
+  fi
+done
+if have_speech; then
+  say "speech to text: whisper-cli and the speech model are in place"
 else
-  cp "$HERE/sprite.py" "$SPRITE_TOOL.tmp" && chmod 644 "$SPRITE_TOOL.tmp" && mv "$SPRITE_TOOL.tmp" "$SPRITE_TOOL"
-  say "sprite helper copied to state/art/tools"
+  say "speech to text: not set up (run engine/media/install.sh, then this again); the jobs that need it stay dim"
 fi
 
 [ -d "$CFG_SECRETS" ] || (umask 077; mkdir -p "$CFG_SECRETS")

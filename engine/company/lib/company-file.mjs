@@ -3,6 +3,8 @@
 // Nothing here touches the board or writes a file.
 import { readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { loadDepartmentFile } from "./department-file.mjs";
+import { loadJobFiles } from "./job-files.mjs";
 
 export class FileProblem extends Error {}
 
@@ -61,6 +63,19 @@ function checkPolicy(slug, p, state, fence) {
     }
   }
   if (!["read-write", "read-only"].includes(p.taskFolder)) bad('needs taskFolder "read-write" or "read-only"');
+}
+
+// One line per job of departments.json and jobs/ beside the company file:
+// `- <Title> (<Department>): <who's names, or "you plan it">. <summary>`; "" when there are none.
+function jobLines(baseDir, agents) {
+  const { departments } = loadDepartmentFile(join(baseDir, "departments.json"), agents);
+  const { jobs } = loadJobFiles(join(baseDir, "jobs"), agents, departments);
+  const nameOf = (slug) => agents.find((a) => a.slug === slug).name;
+  return jobs.map((j) => {
+    const dep = departments.find((d) => d.id === j.department);
+    const who = j.who.length ? j.who.map(nameOf).join(", ") : "you plan it";
+    return `- ${j.title} (${dep.title}): ${who}. ${j.summary}`;
+  }).join("\n");
 }
 
 export function loadCompanyFile(file, config) {
@@ -149,9 +164,13 @@ export function loadCompanyFile(file, config) {
       problem("the shared text shared/staged.md cannot be read");
     }
   }
+  // The job list (CONTRACTS-V3 31.3), read only when a role asks for it. A broken job is left out.
+  let jobs = null;
+  if (agents.some((a) => a.instructionsTemplate.includes("{{JOBS}}"))) jobs = jobLines(baseDir, agents);
   for (const a of agents) {
     let text = a.instructionsTemplate;
     if (staged !== null) text = text.split("{{STAGED}}").join(staged);
+    if (jobs !== null) text = text.split("{{JOBS}}").join(jobs);
     a.instructions = text.split("{{TEAM}}").join(team);
     delete a.instructionsTemplate;
   }

@@ -1,0 +1,42 @@
+{
+  "id": "e0000000-0000-4000-8000-000000000019",
+  "identifier": "STH-19",
+  "question": "What is our returns policy, and when did it last change?",
+  "state": "answered",
+  "plainState": "Answered",
+  "askedAt": "2026-11-12T08:00:00.000Z",
+  "answer": {
+    "text": "Customers can return an unused item within 14 days for a full refund [1]. Custom orders cannot be returned [1][2].",
+    "sources": [
+      {
+        "n": 1,
+        "path": "returns-policy.md",
+        "note": "Returns",
+        "found": true,
+        "link": {
+          "page": "files",
+          "id": "cmV0dXJucy1wb2xpY3kubWQ"
+        }
+      },
+      {
+        "n": 2,
+        "path": "policies/custom-orders.md",
+        "note": "",
+        "found": false,
+        "link": null
+      }
+    ],
+    "notInFiles": [
+      "When the policy last changed."
+    ],
+    "checked": false,
+    "at": "2026-11-12T08:02:00.000Z"
+  },
+  "needsYou": {
+    "inboxId": "goal:e0000000-0000-4000-8000-000000000019",
+    "action": "acknowledge",
+    "label": "Got it",
+    "version": "3f2a9c1b"
+  },
+  "taskId": "e0000000-0000-4000-8000-000000000019"
+}

@@ -1,0 +1,41 @@
+{
+  "id": "unpaid-invoices-with-follow-ups",
+  "department": "books",
+  "cluster": "selling",
+  "title": "Unpaid invoices, with follow-ups written",
+  "summary": "Who owes you what, and a polite message for each customer that you send yourself.",
+  "handoff": "you-lead",
+  "stage": 3,
+  "who": [
+    "bookkeeper"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "helps"
+    },
+    {
+      "file": "pricing/terms.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "asof",
+      "label": "As of this date:",
+      "kind": "date",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "List every invoice still unpaid on [asof], with the customer, the amount and how many days late it is, and write the total in owed.md. Then, for each customer who owes us, write a short, polite message in the company's voice in its own file in the follow-ups folder. Promise nothing our terms file does not give. Do not send anything; I will send the messages myself.",
+  "produces": [
+    "owed.md",
+    "follow-ups/*.md"
+  ]
+}

@@ -14,6 +14,8 @@ import {
   MARKERS, ROUND_CAP, isCheck, parseBrief, parseDoc, parsePlan, parseSummary, roundsOf, sizeOf, stagesOf, textOf,
 } from "../lib/staged.mjs";
 import { fileEntry, listTaskFiles, readTaskText } from "../lib/taskfiles.mjs";
+import { jobRef, loadCatalogue, needsState, readiness } from "../lib/jobs.mjs";
+import { askOf } from "./ask.mjs";
 
 const YOU = { slug: "you", name: "You" };
 const SOMEONE = { slug: null, name: "An agent" };
@@ -209,6 +211,21 @@ function resultOf(tctx, goal, comments) {
   return { text: plainText(c, checkerOf(tctx)), by: whoOf(tctx, c).name, at: c.createdAt || null };
 }
 
+// CONTRACTS-V3 33.4: the jobs whose `takes.from` holds this task's job, offered only for an accepted task.
+// The job and the earlier task come from the card (the home server's own records), never from the text.
+async function nextOf(ctx, goal, card, tctx) {
+  if (!card.job || !(goal.status === "done" && tctx.accepted(goal.id))) return [];
+  const { jobs } = loadCatalogue(ctx.config);
+  const needs = await needsState(ctx);
+  const out = [];
+  for (const j of jobs.values()) {
+    if (!j.takes || !Array.isArray(j.takes.from) || !j.takes.from.includes(card.job.id)) continue;
+    const { ready, why } = readiness(j, needs, ctx.config);
+    out.push({ jobId: jobRef(j), title: j.title, label: j.takes.label, ready, why: why ? why.text : null });
+  }
+  return out;
+}
+
 export default function register(app) {
   app.get("/api/tasks/:id", async (ctx) => {
     const tctx = await loadTaskContext(ctx, { withInbox: true, withComments: false });
@@ -236,8 +253,15 @@ export default function register(app) {
       sendBack = { inboxId, action: "reopen", label: label("reopen", "Send back"), version };
     }
 
+    const card = taskCard(goal, tctx);
+    const earlier = card.follows ? tctx.goals.find((g) => g.id === card.follows.taskId) : null;
     return {
-      task: taskCard(goal, tctx),
+      task: card,
+      job: card.job ? { id: card.job.id, title: card.job.title, department: card.department } : null,
+      follows: card.follows ? { taskId: card.follows.taskId, identifier: card.follows.identifier, title: earlier?.title || null } : null,
+      next: await nextOf(ctx, goal, card, tctx),
+      // CONTRACTS-V3 33.4: a question's answer (by its `ask:` record only, as on the card), else null.
+      answer: card.ask ? (await askOf(ctx, tctx, goal)).answer : null,
       text: cap(text.text), planFirst: text.planFirst, for: text.for,
       needsYou,
       acceptance: {

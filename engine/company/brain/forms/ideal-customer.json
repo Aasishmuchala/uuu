@@ -1,0 +1,31 @@
+{
+  "id": "ideal-customer",
+  "folder": "customers",
+  "file": "ideal-customer.md",
+  "title": "Ideal customer",
+  "lead": "Who you want to sell to and who you do not. Agents use this to aim messages and find leads.",
+  "fields": [
+    {
+      "id": "good",
+      "label": "Who do you sell to?",
+      "kind": "text",
+      "required": true,
+      "hint": "Such as: Homeowners with a budget set and a date in mind."
+    },
+    {
+      "id": "not",
+      "label": "Who do you not sell to?",
+      "kind": "text",
+      "required": true,
+      "hint": "Such as: Buyers who only want the lowest price."
+    },
+    {
+      "id": "asks",
+      "label": "What do they usually ask for?",
+      "kind": "list",
+      "required": false,
+      "max": 20,
+      "hint": "Such as: A modular kitchen, a wardrobe, a full flat."
+    }
+  ]
+}

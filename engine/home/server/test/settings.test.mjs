@@ -11,11 +11,11 @@ async function withHome(fn) {
   try { return await fn(h); } finally { await h.close(); }
 }
 
-test("the default is auto and graphite and the answer fits its shape", async () => {
+test("the default is dark, graphite, aurora and motion on and the answer fits its shape", async () => {
   await withHome(async (h) => {
     const r = await call(h.url, "GET", "/api/settings");
     assert.equal(r.status, 200);
-    assert.deepEqual(r.json.appearance, { theme: "auto", accent: "graphite" });
+    assert.deepEqual(r.json.appearance, { theme: "dark", accent: "graphite", backdrop: "aurora", motion: "on" });
     assert.deepEqual(sameShape(readShape("settings"), r.json), []);
     assert.deepEqual(r.json.accents.map((a) => a.id), ["graphite", "blue", "green", "violet", "orange", "rose"]);
   });
@@ -26,11 +26,11 @@ test("an accent that is posted is kept and read back", async () => {
     const p = await call(h.url, "POST", "/api/settings", { body: { accent: "blue" } });
     assert.equal(p.status, 200);
     assert.equal(p.json.ok, true);
-    assert.deepEqual(p.json.appearance, { theme: "auto", accent: "blue" });
+    assert.deepEqual(p.json.appearance, { theme: "dark", accent: "blue", backdrop: "aurora", motion: "on" });
     const t = await call(h.url, "POST", "/api/settings", { body: { theme: "dark" } });
-    assert.deepEqual(t.json.appearance, { theme: "dark", accent: "blue" });
+    assert.deepEqual(t.json.appearance, { theme: "dark", accent: "blue", backdrop: "aurora", motion: "on" });
     const r = await call(h.url, "GET", "/api/settings");
-    assert.deepEqual(r.json.appearance, { theme: "dark", accent: "blue" });
+    assert.deepEqual(r.json.appearance, { theme: "dark", accent: "blue", backdrop: "aurora", motion: "on" });
   });
 });
 
@@ -43,7 +43,7 @@ test("an unknown accent or theme is refused as bad_setting and nothing changes",
     assert.equal(t.status, 400);
     assert.equal(t.json.error.code, "bad_setting");
     const r = await call(h.url, "GET", "/api/settings");
-    assert.deepEqual(r.json.appearance, { theme: "auto", accent: "graphite" });
+    assert.deepEqual(r.json.appearance, { theme: "dark", accent: "graphite", backdrop: "aurora", motion: "on" });
   });
 });
 

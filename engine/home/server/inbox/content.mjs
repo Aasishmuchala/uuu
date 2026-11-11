@@ -8,6 +8,8 @@
 // Sending a draft back makes one fix task for the Marketer, recorded by the home server (lib/draftfix.mjs), so it
 // is not listed again as a result; approving the draft or sending it back again closes the recorded fix tasks
 // for it, best effort.
+// After its own work, the list brings the recipe log up to date (lib/recipes.mjs, CONTRACTS-V3 36.4): at most
+// once a minute, and never allowed to fail the list.
 import { storeOf } from "../content/context.mjs";
 import { plainDay } from "../content/plain-date.mjs";
 import { isDraftId } from "../content/store.mjs";
@@ -15,6 +17,7 @@ import { closeFixTasks, fixLine, recordFixTask } from "../lib/draftfix.mjs";
 import { capText } from "../lib/format.mjs";
 import { commentsOf, descendants, goalsOf, loadIssues, needIds } from "../lib/goals.mjs";
 import { versionOf } from "../lib/inbox.mjs";
+import { refreshRecipeLog } from "../lib/recipes.mjs";
 import { roundsOf } from "../lib/staged.mjs";
 import { plainSummary } from "./goals.mjs";
 
@@ -83,6 +86,7 @@ async function list(ctx) {
       link: { page: "marketing", id: d.id },
     };
   });
+  try { await refreshRecipeLog(ctx); } catch { /* the recipe log never fails the inbox */ }
   return { items };
 }
 

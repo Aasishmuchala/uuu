@@ -1,0 +1,61 @@
+{
+  "id": "record-a-supplier-bill",
+  "department": "books",
+  "cluster": "buying",
+  "title": "Record a supplier's bill",
+  "summary": "A bill from a supplier entered as a draft, with its due date.",
+  "handoff": "you-approve",
+  "stage": 2,
+  "who": [
+    "bookkeeper"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "supplier",
+      "label": "Supplier:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "date",
+      "label": "Date:",
+      "kind": "date",
+      "required": true
+    },
+    {
+      "id": "what-was-bought",
+      "label": "What was bought:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "amount",
+      "label": "Amount:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "gst-amount",
+      "label": "Gst amount:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "due-date",
+      "label": "Due date:",
+      "kind": "date",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Enter a bill from [supplier] dated [date] for [what-was-bought] of [amount] including GST of [gst-amount]. It is due on [due-date]. Keep it as a draft entry for me to check, and tell me if any detail looks missing.",
+  "produces": [
+    "readback-*.md"
+  ]
+}

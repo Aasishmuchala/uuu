@@ -1,0 +1,41 @@
+{
+  "id": "one-page-document",
+  "department": "operations",
+  "cluster": "documents",
+  "title": "Write a one-page document",
+  "summary": "A tidy one-page document written from the notes you paste in.",
+  "handoff": "on-its-own",
+  "stage": 3,
+  "who": [
+    "builder"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "document-title",
+      "label": "Document title:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "who-will-read-it",
+      "label": "Who will read it:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "paste-your-notes-here",
+      "label": "Paste your notes here:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Write a one-page document called [document-title] for [who-will-read-it] from these notes: [paste-your-notes-here]. Keep it plain and short, and mark anything you had to guess.",
+  "produces": [
+    "*.md"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "call-write-up",
+  "department": "sales",
+  "cluster": "calls",
+  "title": "Call write-up",
+  "summary": "A write-up of one call, with a note and follow-up tasks on the customer's record.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "sales"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "packs/call-write-up.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "call",
+      "label": "Which call?",
+      "kind": "file",
+      "folder": "calls",
+      "required": true
+    },
+    {
+      "id": "who",
+      "label": "Who was it with?",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Write up the call in [call] with [who]: what they need, what we said, what happens next. Add a note and follow-up tasks on their record.",
+  "produces": [
+    "call-write-up.md"
+  ]
+}

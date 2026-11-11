@@ -1,0 +1,38 @@
+{
+  "id": "services",
+  "folder": "pricing",
+  "file": "services.md",
+  "title": "What we sell",
+  "lead": "Each thing you sell, with its unit, price and tax. Quotations and invoices are drafted from this.",
+  "fields": [
+    {
+      "id": "items",
+      "label": "What do you sell?",
+      "kind": "rows",
+      "required": true,
+      "columns": [
+        {
+          "id": "name",
+          "label": "Name"
+        },
+        {
+          "id": "unit",
+          "label": "Unit"
+        },
+        {
+          "id": "price",
+          "label": "Price"
+        },
+        {
+          "id": "tax",
+          "label": "Tax rate"
+        },
+        {
+          "id": "code",
+          "label": "Tax code"
+        }
+      ],
+      "hint": "Such as: one row for each item or service you quote."
+    }
+  ]
+}

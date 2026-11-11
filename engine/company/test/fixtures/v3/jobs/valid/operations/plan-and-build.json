@@ -1,0 +1,34 @@
+{
+  "id": "plan-and-build",
+  "department": "operations",
+  "cluster": "planning",
+  "title": "Plan and build a page",
+  "summary": "The Chief of staff plans a page and the Builder writes it.",
+  "handoff": "you-lead",
+  "stage": 3,
+  "who": [
+    "chief-of-staff",
+    "builder"
+  ],
+  "size": "M",
+  "planFirst": true,
+  "reads": [],
+  "asks": [
+    {
+      "id": "page",
+      "label": "Which page?",
+      "kind": "choice",
+      "options": [
+        "About",
+        "Prices"
+      ],
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "The Chief of staff plans the [page] page and the Builder writes it from the plan.",
+  "produces": [
+    "page.md"
+  ]
+}

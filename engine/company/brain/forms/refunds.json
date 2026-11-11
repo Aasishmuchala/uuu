@@ -1,0 +1,23 @@
+{
+  "id": "refunds",
+  "folder": "policies",
+  "file": "refunds.md",
+  "title": "Refunds",
+  "lead": "What you do when a customer wants their money back. Support drafts follow this.",
+  "fields": [
+    {
+      "id": "rule",
+      "label": "What is your refund rule, in your own words?",
+      "kind": "text",
+      "required": true,
+      "hint": "Such as: Full refund within a week if the work has not started."
+    },
+    {
+      "id": "exceptions",
+      "label": "Who decides the exceptions?",
+      "kind": "line",
+      "required": false,
+      "hint": "Such as: The owner, or the person who made the sale."
+    }
+  ]
+}

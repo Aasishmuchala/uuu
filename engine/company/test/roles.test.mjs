@@ -1,5 +1,6 @@
-// Checks the ten role files (CONTRACTS-V2 21.3 and section 23). A role's four tests skip
-// until its file holds the {{STAGED}} line; the task that writes it shows them passing.
+// Checks the ten role files (CONTRACTS-V2 21.3 and section 23, CONTRACTS-V3 section 39). A role's
+// four tests skip until its file holds the {{STAGED}} line; its version 3 test skips until its file
+// holds the first new string of its row; the task that writes it shows them passing.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -31,6 +32,15 @@ const FORMATS = {
   artist: ['"$UUU_ART_PYTHON" "$UUU_ART_TOOL" <name>.py', "frames", "tags", "manifest.json", "art/<name>/"],
 };
 const EVERY = ["{{STAGED}}", "### Your part", "FOR:"];
+// What a role file must also contain from version 3 (CONTRACTS-V3 sections 34 and 39), word for word.
+const FORMATS_V3 = {
+  "chief-of-staff": ["{{JOBS}}", "ASK", "answer.md", "# Answer", "## Sources", "## Not in the files", "JOB:"],
+  checker: ["scores:", "at least 8 out of 10"],
+  bookkeeper: ["Quotation", "DRAFT: Quotation"],
+  sales: ["call-write-up.md", "proposal.md"],
+  marketer: ["concepts.md", "review.md"],
+  artist: ['"$UUU_ART_PYTHON" "$UUU_ART_SLIDES" <name>.py', '"$UUU_ART_PYTHON" "$UUU_ART_VIDEO"', "slides/<name>/", "video/<name>/"],
+};
 
 const roleFile = (slug) => join(companyDir, "roles", `${slug}.md`);
 const read = (slug) => readFileSync(roleFile(slug), "utf8");
@@ -74,7 +84,7 @@ for (const slug of SLUGS) {
   test(`role ${slug}: size and safety rules`, { skip }, () => {
     const text = read(slug);
     const lines = text.replace(/\n$/, "").split("\n").length;
-    assert.ok(lines >= 60 && lines <= 140, `${lines} lines`);
+    assert.ok(lines >= 60 && lines <= 170, `${lines} lines`);
     for (const s of ["current working folder", "$UUU_LESSONS_FILE", "$UUU_KNOWLEDGE_DIR", "blocked"]) assert.ok(text.includes(s), s);
     assert.ok(!text.includes("/Users/"), "/Users/");
     assert.ok(!text.includes("~/"), "~/");
@@ -91,4 +101,14 @@ for (const slug of SLUGS) {
     assert.ok(!text.includes("{{"), "a placeholder is left");
     assert.ok(text.includes("00-brief.md"), "the shared staged text is folded in");
   });
+
+  if (FORMATS_V3[slug]) {
+    const first = FORMATS_V3[slug][0];
+    const v3 = existsSync(roleFile(slug)) && read(slug).includes(first) ? false : `the role file does not hold ${first} yet`;
+    test(`role ${slug}: teaches its version 3 formats`, { skip: v3 }, () => {
+      const text = read(slug);
+      for (const s of FORMATS_V3[slug]) assert.ok(text.includes(s), s);
+      if (slug === "chief-of-staff") assert.match(instructionsOf(slug), /^- .+ \(Operations\): .+\. .+$/m, "the job list is filled in");
+    });
+  }
 }

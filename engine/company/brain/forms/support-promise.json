@@ -1,0 +1,31 @@
+{
+  "id": "support-promise",
+  "folder": "policies",
+  "file": "support-promise.md",
+  "title": "Our support promise",
+  "lead": "When you answer and how fast. Agents promise nothing beyond what is written here.",
+  "fields": [
+    {
+      "id": "hours",
+      "label": "When are you available to customers?",
+      "kind": "line",
+      "required": true,
+      "hint": "Such as: Monday to Saturday, ten in the morning to six."
+    },
+    {
+      "id": "speed",
+      "label": "How fast do you reply?",
+      "kind": "line",
+      "required": true,
+      "hint": "Such as: Within one working day."
+    },
+    {
+      "id": "never",
+      "label": "What do you never promise?",
+      "kind": "list",
+      "required": false,
+      "max": 20,
+      "hint": "Such as: A fixed finish date before the site is seen."
+    }
+  ]
+}

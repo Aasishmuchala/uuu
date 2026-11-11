@@ -1,0 +1,25 @@
+{
+  "id": "summary-of-the-week",
+  "department": "operations",
+  "cluster": "planning",
+  "title": "Summary of the week",
+  "summary": "What was done this week, what is stuck and what comes next.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [],
+  "size": "S",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "company/",
+      "need": "helps"
+    }
+  ],
+  "asks": [],
+  "needs": [],
+  "takes": null,
+  "text": "Write a short summary of this week's work: what was finished, what is stuck and what comes next.",
+  "produces": [
+    "*.md"
+  ]
+}

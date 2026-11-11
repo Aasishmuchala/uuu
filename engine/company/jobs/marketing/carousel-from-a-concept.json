@@ -1,0 +1,70 @@
+{
+  "id": "carousel-from-a-concept",
+  "department": "marketing",
+  "cluster": "design",
+  "title": "A carousel from one concept",
+  "summary": "A set of slides for one social carousel, built from the concept you picked.",
+  "handoff": "you-approve",
+  "stage": 4,
+  "who": [
+    "marketer",
+    "artist"
+  ],
+  "size": "L",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "must"
+    },
+    {
+      "file": "packs/carousel.md",
+      "need": "helps"
+    },
+    {
+      "file": "references/",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "earlier",
+      "label": "Which set of concepts?",
+      "kind": "task",
+      "required": true
+    },
+    {
+      "id": "concept",
+      "label": "Which concept?",
+      "kind": "choice",
+      "required": true,
+      "options": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ]
+    },
+    {
+      "id": "count",
+      "label": "How many slides?",
+      "kind": "number",
+      "required": true
+    }
+  ],
+  "needs": [
+    "slides"
+  ],
+  "takes": {
+    "from": [
+      "marketing/five-concepts"
+    ],
+    "ask": "earlier",
+    "label": "Make a carousel from this"
+  },
+  "text": "Make a carousel of [count] slides from concept [concept] of the concepts in [earlier]. In order: first the Marketer writes the words for each slide, short and in the brand voice, and saves them for the owner to read. Then the Artist lays the slides out from the brand file and the company's own pictures, all the same size, one idea to a slide. Make no new claims beyond the concept. Nothing is posted; the owner approves the set first.",
+  "produces": [
+    "slides/*/manifest.json"
+  ]
+}

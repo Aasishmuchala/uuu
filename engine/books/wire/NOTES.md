@@ -3,7 +3,9 @@
 Written by T10 on 11 November 2026 against the live bench (frappe 16.56,
 erpnext 16.54, india_compliance, hrms, crm, telephony, helpdesk; site
 `engine.localhost`). `wire.sh` does all of this; `wire.sh --verify` proves it
-with each agent's own key (145 checks, all PASS on this date).
+with each agent's own key (145 checks, all PASS on this date). M37 (version 3)
+added the Bookkeeper's draft quotations and 28 checks for them: 173 checks
+from then on, first run live by M56 (see note 14).
 
 ## What each role may do, as set
 
@@ -14,7 +16,7 @@ permission row naming the role is removed on each run.
 
 | Role (user) | Read, write, create | Read, write | Read only |
 |---|---|---|---|
-| Engine Bookkeeper (`bookkeeper@engine.localhost`) | Sales Invoice, Purchase Invoice, Journal Entry, Payment Entry (drafts); Customer, Supplier, Item | | Company, Account, Cost Center, Fiscal Year, Currency, Sales/Purchase Taxes and Charges Template, Item Tax Template, Tax Category, GST HSN Code, Price List, Customer Group, Supplier Group, Item Group, Territory, UOM, Warehouse, Mode of Payment, Payment Terms Template |
+| Engine Bookkeeper (`bookkeeper@engine.localhost`) | Sales Invoice, Purchase Invoice, Journal Entry, Payment Entry, Quotation (drafts); Customer, Supplier, Item | | Company, Account, Cost Center, Fiscal Year, Currency, Sales/Purchase Taxes and Charges Template, Item Tax Template, Tax Category, GST HSN Code, Price List, Customer Group, Supplier Group, Item Group, Territory, UOM, Warehouse, Mode of Payment, Payment Terms Template |
 | Engine Sales (`sales@engine.localhost`) | CRM Lead, CRM Deal, FCRM Note, CRM Task | | CRM Lead Status, CRM Deal Status, CRM Lead Source, CRM Industry, CRM Organization, CRM Territory |
 | Engine Support (`support@engine.localhost`) | HD Ticket Comment | HD Ticket | HD Ticket Status, HD Ticket Type, HD Ticket Priority, HD Team |
 | Engine People (`people@engine.localhost`) | Leave Application, Attendance (drafts); Employee | | Company, Leave Type, Holiday List, Department, Designation, Branch, Employment Type, Gender |
@@ -103,6 +105,28 @@ Each user has exactly its one role (plus frappe's automatic `All` and
     because deleting them over HTTP would leave new history of its own.
 13. Frappe makes a Contact for each new user (`Bookkeeper Agent`, ...). Left
     as is.
+14. **Quotations (M37, CONTRACTS-V3 section 35).** The Bookkeeper drafts
+    `Quotation`; no other role gains anything, and Sales has no right in the
+    books' selling records. Quotation is submittable, so `wire.sh` adds the
+    guard `Engine guard: agents make drafts only (Quotation)` by itself. What
+    a quotation to a customer needed, read from the doctype
+    (`erpnext/selling/doctype/quotation/quotation.json` and `quotation.py`):
+    `quotation_to: "Customer"`, `party_name`, `company`, `transaction_date`,
+    `order_type: "Sales"`, `items`; `valid_till` is optional. Currency, price
+    list and its currency, and their rates are filled in by the books from
+    the company and the customer, as for an invoice. Every type this reads
+    (Customer, Item, Company, Currency, Price List, Customer Group, Territory,
+    UOM, the tax templates, Tax Category, Payment Terms Template) the
+    Bookkeeper could already read or make, and the lookups inside the
+    quotation's own code (Selling and CRM settings, the customer's name) do
+    not check rights. So **no new read-only type was added.** Not proven live
+    yet: whether the books accept a draft quotation with the GST set-up as it
+    is; M56 runs `--verify`, and if a save is refused for lack of one more
+    read right, that type is added read only here and named in this note.
+    A quotation is not a ledger document, so `--verify` lets the owner make
+    its test quotation final, shows the Bookkeeper cannot change, cancel,
+    amend, delete or send from it, then cancels and deletes it newest first,
+    which winds the `SAL-QTN-` series back (note 11).
 
 ## The two owner calls (CONTRACTS section 8), checked live
 
@@ -144,4 +168,5 @@ engine/books/wire.sh --verify   # PASS/FAIL lines, then RESULT; exit 0 only when
 
 `--verify` needs the books on and makes and removes about a dozen records
 (one owner-opened test request among them). It never makes a ledger document
-final and never sends anything.
+final and never sends anything. The two records it does make final, an
+attendance record and a quotation, are cancelled and deleted again.

@@ -1,7 +1,7 @@
 // Marketing drafts (CONTRACTS 9.8, 9.6): found in goal folders, kept as records, approved in the inbox.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { IDS } from "../../../test/stubs/seed.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
@@ -206,5 +206,85 @@ test("a file in the trial's layout (no --- header) makes no draft and is listed 
     assert.ok(!rows(p).some((r) => r.title === "Backed for the long haul"));
     assert.ok(p.sections.find((s) => s.id === "problems").rows.some((r) => r.file === "warranty-post.md"));
     assert.ok(!(await inboxContent(h)).some((i) => /long haul/.test(i.title)));
+  });
+});
+
+// ---- version 3 (CONTRACTS-V3 36.1, 36.4): concepts, carousels and recipes on the Marketing answer.
+const V3 = { routes: ["marketing"], inbox: ["content"] };
+const section = (p, id) => p.sections.find((s) => s.id === id);
+const conceptsFile = (h) => join(h.state, "tasks", "company-work", "STH-23", "concepts.md");
+async function withV3(fn) {
+  const { startV2 } = await import("../lib/testing-v2.mjs");
+  const h = await startV2(V3);
+  try { return await fn(h); } finally { await h.close(); }
+}
+
+test("the three new sections are there, each with its empty sentence, and the old ones stay", async () => {
+  await withHome(async (h) => {
+    const p = await page(h);
+    assert.deepEqual(p.sections.map((s) => s.id), ["calendar", "concepts", "carousels", "recipes", "problems"]);
+    for (const id of ["concepts", "carousels", "recipes"]) {
+      assert.ok(section(p, id).emptyText.length > 10, id);
+      assert.ok(Array.isArray(section(p, id).rows), id);
+    }
+    assert.equal(section(p, "recipes").rows.length, 0);
+  });
+});
+
+test("concepts: the seed's STH-23 gives its five headlines and a link to the task", async () => {
+  await withV3(async (h) => {
+    const rows = section(await page(h), "concepts").rows;
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].identifier, "STH-23");
+    assert.equal(rows[0].taskId, "e0000000-0000-4000-8000-000000000023");
+    assert.equal(rows[0].title, "Five concepts before any design: Diwali offer");
+    assert.equal(rows[0].headlines.length, 5);
+    assert.equal(rows[0].headlines[0], "A new kitchen before the lamps are lit");
+  });
+});
+
+test("concepts: five or none (four, six, out of order, too long, no title, a link)", async () => {
+  await withV3(async (h) => {
+    const five = readFileSync(conceptsFile(h), "utf8");
+    const heads = (n) => Array.from({ length: n }, (_, i) => `## ${i + 1}. Headline ${i + 1}\nangle: a\nwhy: b`).join("\n");
+    const bad = [
+      `# Concepts: x\n${heads(4)}\n`,
+      `# Concepts: x\n${heads(6)}\n`,
+      five.replace("## 2.", "## 3."),
+      five.replace("A new kitchen before the lamps are lit", "x".repeat(81)),
+      five.replace(/^# Concepts: Diwali offer\n/, ""),
+      five.replace("## 3.", "### 3."),
+    ];
+    for (const text of bad) {
+      writeFileSync(conceptsFile(h), text);
+      assert.equal(section(await page(h), "concepts").rows.length, 0, text.slice(0, 60));
+    }
+    writeFileSync(conceptsFile(h), `# Concepts: x\n${heads(5)}\n`);
+    assert.deepEqual(section(await page(h), "concepts").rows[0].headlines, ["Headline 1", "Headline 2", "Headline 3", "Headline 4", "Headline 5"]);
+    // A link is never followed.
+    const outside = join(h.state, "outside-concepts.md");
+    writeFileSync(outside, five);
+    rmSync(conceptsFile(h));
+    symlinkSync(outside, conceptsFile(h));
+    assert.equal(section(await page(h), "concepts").rows.length, 0);
+  });
+});
+
+test("carousels: a link to each set the Studio lists, with its task", async () => {
+  await withV3(async (h) => {
+    const rows = section(await page(h), "carousels").rows;
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].id, "STH-24/launch");
+    assert.equal(rows[0].taskId, "e0000000-0000-4000-8000-000000000024");
+    assert.equal(rows[0].count, 3);
+    assert.equal(rows[0].ok, true);
+    assert.deepEqual(rows[0].link, { page: "marketing", id: null, slides: "STH-24/launch" });
+  });
+});
+
+test("recipes: the seed's accepted carousel is a row; the unaccepted concepts are not", async () => {
+  await withV3(async (h) => {
+    const rows = section(await page(h), "recipes").rows;
+    assert.deepEqual(rows.map((r) => [r.identifier, r.job, r.verdict, r.rounds]), [["STH-24", "A carousel from one concept", "Accepted", 1]]);
   });
 });

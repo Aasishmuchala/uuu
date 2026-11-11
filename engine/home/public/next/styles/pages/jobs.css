@@ -1,0 +1,99 @@
+/* The page jobs (CONTRACTS-V3 30, "Jobs"): every job by department and cluster, the filters, and the build
+   order as four glass bands. A department's colour comes from data-dept (it sets --dept). */
+.p-jobs { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+
+/* Filters */
+.p-jobs .p-jobs__filters { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+.p-jobs .p-jobs__search { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s-4); }
+.p-jobs .p-jobs__search > .k-field { flex: 1 1 280px; min-width: 0; margin: 0; }
+.p-jobs .p-jobs__search .k-switch { flex: none; }
+.p-jobs .p-jobs__chips { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
+.p-jobs .p-jobs__chips-label { flex: none; width: 88px; color: var(--text-3); font-size: var(--fs-over); font-weight: var(--fw-medium); letter-spacing: .16em; text-transform: uppercase; }
+.p-jobs .p-jobs__chips-row { display: flex; flex-wrap: wrap; gap: var(--s-2); min-width: 0; }
+.p-jobs .p-jobs__chip {
+  display: inline-flex; align-items: center; gap: var(--s-2); flex: none;
+  min-height: var(--h-sm); padding: 0 var(--s-3); border-radius: var(--r-pill);
+  background: var(--glass-soft); box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--text-2); font-size: var(--fs-caption); text-decoration: none; white-space: nowrap;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.p-jobs .p-jobs__chip:hover { background: var(--glass); color: var(--text); }
+.p-jobs .p-jobs__chip--on, .p-jobs .p-jobs__chip--on:hover { background: var(--primary); color: var(--primary-text); box-shadow: none; }
+.p-jobs .p-jobs__chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.p-jobs .p-jobs__chip-dot { flex: none; display: inline-block; width: var(--s-2); height: var(--s-2); border-radius: var(--r-pill); background: var(--dept, var(--text-3)); }
+.p-jobs .p-jobs__chip-n {
+  display: inline-grid; place-items: center; width: var(--s-4); height: var(--s-4); border-radius: var(--r-1);
+  box-shadow: inset 0 0 0 1px currentColor; font-size: var(--fs-over); font-variant-numeric: tabular-nums;
+}
+.p-jobs .p-jobs__count { color: var(--text-2); font-size: var(--fs-caption); }
+
+/* The list: one glass card per department, its clusters under it */
+.p-jobs .p-jobs__depts { display: flex; flex-direction: column; gap: var(--s-4); }
+.p-jobs .p-jobs__dept { display: flex; flex-direction: column; gap: var(--s-4); padding: var(--s-5); min-width: 0; }
+.p-jobs .p-jobs__dept-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); min-width: 0; }
+.p-jobs .p-jobs__dept-pet { display: inline-flex; flex: none; }
+.p-jobs .p-jobs__dept-dot { width: var(--s-3); height: var(--s-3); border-radius: var(--r-pill); background: var(--dept, var(--text-3)); }
+.p-jobs .p-jobs__dept-name { margin: 0; font-size: var(--fs-title); letter-spacing: .2em; }
+.p-jobs .p-jobs__dept-count { color: var(--text-2); font-size: var(--fs-caption); }
+.p-jobs .p-jobs__dept-open { margin-left: auto; color: var(--text-2); font-size: var(--fs-caption); }
+.p-jobs .p-jobs__dept-open:hover { color: var(--text); }
+.p-jobs .p-jobs__cluster { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.p-jobs .p-jobs__cluster-name { margin: 0 0 var(--s-1); padding-left: var(--s-3); color: var(--text-3); }
+.p-jobs .p-jobs__rows { display: flex; flex-direction: column; min-width: 0; }
+
+/* The legend */
+.p-jobs .p-jobs__legend { padding: 0; }
+.p-jobs .p-jobs__legend-head { padding: var(--s-3) var(--s-5); color: var(--text-2); font-size: var(--fs-caption); cursor: pointer; }
+.p-jobs .p-jobs__legend-head:hover { color: var(--text); }
+.p-jobs .p-jobs__legend-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--s-5); padding: 0 var(--s-5) var(--s-5); }
+.p-jobs .p-jobs__legend-list { display: flex; flex-direction: column; gap: var(--s-3); margin: var(--s-3) 0 0; }
+.p-jobs .p-jobs__legend-item { display: grid; grid-template-columns: 124px 1fr; align-items: baseline; gap: var(--s-3); }
+.p-jobs .p-jobs__legend-item dt { margin: 0; }
+.p-jobs .p-jobs__legend-item dd { margin: 0; color: var(--text-2); font-size: var(--fs-caption); line-height: var(--lh-body); }
+
+/* The build order */
+.p-jobs .p-jobs__order-line { color: var(--text-2); }
+.p-jobs .p-jobs__bands { display: flex; flex-direction: column; gap: var(--s-4); margin: 0; padding: 0; list-style: none; }
+.p-jobs .p-jobs__band { display: flex; flex-direction: column; gap: var(--s-4); padding: var(--s-5); min-width: 0; }
+.p-jobs .p-jobs__band-head { display: flex; align-items: center; gap: var(--s-4); min-width: 0; }
+.p-jobs .p-jobs__band-head .k-ring { flex: none; }
+.p-jobs .p-jobs__band-ring-wait { flex: none; width: 48px; height: 48px; border-radius: var(--r-pill); box-shadow: inset 0 0 0 3px var(--hairline); }
+.p-jobs .p-jobs__band-titles { flex: 1 1 auto; min-width: 0; }
+.p-jobs .p-jobs__band-name { margin: var(--s-1) 0 0; font-size: var(--fs-heading); font-weight: var(--fw-medium); line-height: var(--lh-tight); }
+.p-jobs .p-jobs__band-about { margin: var(--s-1) 0 0; color: var(--text-2); }
+.p-jobs .p-jobs__band-count { flex: none; color: var(--text-2); font-size: var(--fs-caption); text-align: right; }
+.p-jobs .p-jobs__band-empty { color: var(--text-2); font-size: var(--fs-caption); }
+.p-jobs .p-jobs__band-jobs { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+.p-jobs .p-jobs__band-sub { margin: 0; color: var(--text-3); }
+.p-jobs .p-jobs__band-group { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.p-jobs .p-jobs__band-dept { display: flex; align-items: center; gap: var(--s-2); margin: 0; padding-left: var(--s-3); color: var(--text-3); font-size: var(--fs-caption); }
+.p-jobs .p-jobs__forms { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--s-1) var(--s-4); margin: 0; padding: 0; list-style: none; }
+.p-jobs .p-jobs__form { display: flex; align-items: center; gap: var(--s-3); min-height: var(--h-lg); padding: var(--s-2) var(--s-3); border-radius: var(--r-2); min-width: 0; }
+.p-jobs .p-jobs__form-icon { flex: none; color: var(--warn); }
+.p-jobs .p-jobs__form--filled .p-jobs__form-icon { color: var(--ok); }
+.p-jobs .p-jobs__form-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.p-jobs .p-jobs__form-state { flex: none; color: var(--text-2); font-size: var(--fs-caption); }
+.p-jobs .p-jobs__form-fill { flex: none; color: var(--text); font-size: var(--fs-caption); font-weight: var(--fw-medium); }
+
+/* Problems in job files: one quiet line */
+.p-jobs .p-jobs__problems { color: var(--text-3); font-size: var(--fs-caption); }
+.p-jobs .p-jobs__problems a { color: var(--text-2); }
+
+@media (max-width: 859px) {
+  .p-jobs .p-jobs__chips { flex-direction: column; align-items: stretch; gap: var(--s-1); }
+  .p-jobs .p-jobs__chips-label { width: auto; }
+  .p-jobs .p-jobs__chips-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: var(--s-1); scrollbar-width: none; }
+  .p-jobs .p-jobs__chip { min-height: 44px; }
+  .p-jobs .p-jobs__dept, .p-jobs .p-jobs__band { padding: var(--s-4) var(--s-3); }
+  .p-jobs .p-jobs__dept-open { margin-left: 0; flex-basis: 100%; }
+  .p-jobs .p-jobs__band-head { flex-wrap: wrap; align-items: flex-start; }
+  .p-jobs .p-jobs__band-titles { flex-basis: calc(100% - 48px - var(--s-4)); }
+  .p-jobs .p-jobs__band-count { flex-basis: 100%; padding-left: calc(48px + var(--s-4)); text-align: left; }
+  .p-jobs .p-jobs__forms { grid-template-columns: 1fr; }
+  .p-jobs .p-jobs__form { min-height: 44px; }
+  .p-jobs .p-jobs__legend-item { grid-template-columns: 1fr; gap: var(--s-1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .p-jobs .p-jobs__chip { transition: none; }
+}

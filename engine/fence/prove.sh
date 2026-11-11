@@ -35,6 +35,7 @@ HDR=""; KEY_ID=""; KEY_AGENT=""
 
 cleanup() {
   rm -f "$POLICY_FILE" "$LESSONS_FILE" "$KNOWLEDGE_MARK" "$KNOWLEDGE/.fence-proof-write" "$ENV_FILE"
+  rm -f "$STATE_DIR/media/.fence-proof" "$STATE_DIR/media/.fence-proof-new"
   rm -rf "${STATE_DIR:?}/claude-home/$OTHER_ID"
   if [[ -n "$KEY_ID" ]]; then
     curl -s -m 10 -o /dev/null -X DELETE "$BOARD/api/agents/$KEY_AGENT/keys/$KEY_ID" || true
@@ -398,6 +399,40 @@ claude_home_checks() {
   AS=""
 }
 claude_home_checks
+
+# The media folder (state/media): the owner's footage and the speech model. One
+# agent's policy may name it for reading; no agent may write there. A mark is put
+# there on the owner's side, and a test policy for the proof's fixed id names the
+# folder; both are removed again on every exit. When the folder is not there yet
+# (engine/media/install.sh makes it) there is nothing to prove.
+echo; echo "The media folder (read only, and only with a policy that names it)"
+media_checks() {
+  local media="$STATE_DIR/media" mark
+  mark="$media/.fence-proof"
+  RUN="$HERE/bin/claude"; WHO="a Claude agent"; AS=""
+  if [[ ! -d "$media" ]]; then
+    say NOTE "the media folder is not there yet, so its fence checks did not run (engine/media/install.sh makes it)"
+    return
+  fi
+  rm -f "$media/.fence-proof-new"
+  echo "proof" > "$mark" || { say FAIL "could not put a mark in the media folder"; return; }
+  blocked "read the media folder without a fence policy that names it" "cat $mark"
+  mkdir -p "$CFG_POLICY"
+  (umask 022; printf '{\n  "agentId": "%s",\n  "slug": "proof",\n  "localServices": [],\n  "readFolders": ["%s"],\n  "lessonsFile": null,\n  "envFile": null,\n  "taskFolder": "read-write"\n}\n' \
+    "$PROOF_ID" "$media" > "$POLICY_FILE")
+  chmod 644 "$POLICY_FILE"
+  AS="$PROOF_ID"
+  allowed "read the media folder when its fence policy names it" "ls $media >/dev/null && cat $mark"
+  blocked "write a file in the media folder, even with a fence policy" "echo x > $mark"
+  blocked "create a file in the media folder, even with a fence policy" "echo x > $media/.fence-proof-new"
+  blocked "delete a file in the media folder, even with a fence policy" "rm -f $mark"
+  if [[ -e "$media/.fence-proof-new" ]] || [[ "$(cat "$mark" 2>/dev/null)" != proof ]]; then
+    say FAIL "a file in the media folder was made, changed or deleted from inside the fence"
+  fi
+  rm -f "$POLICY_FILE" "$mark" "$media/.fence-proof-new"
+  AS=""
+}
+media_checks
 
 echo
 RESULT="holds"

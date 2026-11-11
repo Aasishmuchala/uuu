@@ -1,0 +1,56 @@
+{
+  "id": "a-content-plan-for-a-month",
+  "department": "marketing",
+  "cluster": "ideas",
+  "title": "A content plan for a month",
+  "summary": "A month of planned content, shown to you as a plan before any writing starts.",
+  "handoff": "you-lead",
+  "stage": 3,
+  "who": [
+    "marketer"
+  ],
+  "size": "L",
+  "planFirst": true,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "helps"
+    },
+    {
+      "file": "brand/cant-say.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "month",
+      "label": "Month:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "channel",
+      "label": "Channel:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "who-it-is-for",
+      "label": "Who it is for:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "what-we-want-to-achieve",
+      "label": "What we want to achieve:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Plan the content for [month] for [channel] aimed at [who-it-is-for]. The main aim is [what-we-want-to-achieve]. Show me the plan first, with a subject and a day for each piece, and wait for my yes before writing anything.",
+  "produces": [
+    "content/*.md"
+  ]
+}

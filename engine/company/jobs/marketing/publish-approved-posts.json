@@ -1,0 +1,38 @@
+{
+  "id": "publish-approved-posts",
+  "department": "marketing",
+  "cluster": "writing",
+  "title": "Publish approved posts",
+  "summary": "Approved posts put out on your channels, once an account is connected.",
+  "handoff": "you-approve",
+  "stage": 4,
+  "who": [
+    "marketer"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "earlier",
+      "label": "Which posts?",
+      "kind": "task",
+      "required": true
+    }
+  ],
+  "needs": [
+    "account"
+  ],
+  "takes": {
+    "from": [
+      "marketing/a-week-of-posts",
+      "marketing/posts-from-one-document"
+    ],
+    "ask": "earlier",
+    "label": "Publish these posts"
+  },
+  "text": "Take the posts the owner approved in [earlier] and put them out on the connected channels, exactly as approved, with no changes to the words. Publish nothing that was not approved, and write down what went where and when. If an account is not connected, stop and say so instead of trying another way.",
+  "produces": [
+    "published.md"
+  ]
+}

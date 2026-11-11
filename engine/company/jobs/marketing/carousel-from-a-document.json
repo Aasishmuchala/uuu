@@ -1,0 +1,48 @@
+{
+  "id": "carousel-from-a-document",
+  "department": "marketing",
+  "cluster": "design",
+  "title": "A carousel from a document",
+  "summary": "A set of slides for one social carousel, built from a document you choose.",
+  "handoff": "you-approve",
+  "stage": 4,
+  "who": [
+    "marketer",
+    "artist"
+  ],
+  "size": "L",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "must"
+    },
+    {
+      "file": "packs/carousel.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "doc",
+      "label": "Which document?",
+      "kind": "file",
+      "required": true,
+      "folder": "any"
+    },
+    {
+      "id": "count",
+      "label": "How many slides?",
+      "kind": "number",
+      "required": true
+    }
+  ],
+  "needs": [
+    "slides"
+  ],
+  "takes": null,
+  "text": "Make a carousel of [count] slides from the company file [doc]. In order: first the Marketer reads the document and writes the words for each slide, short and in the brand voice, using only what the document says. Then the Artist lays the slides out from the brand file and the company's own pictures, all the same size, one idea to a slide. Invent nothing. Nothing is posted; the owner approves the set first.",
+  "produces": [
+    "slides/*/manifest.json"
+  ]
+}

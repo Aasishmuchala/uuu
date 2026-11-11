@@ -1,0 +1,31 @@
+{
+  "id": "attendance-for-a-day-or-week",
+  "department": "people",
+  "cluster": "leave",
+  "title": "Attendance for a day or a week",
+  "summary": "Who was in, who was away and who was late, for the period you name.",
+  "handoff": "you-approve",
+  "stage": 2,
+  "who": [
+    "people"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "day-or-week",
+      "label": "Day or week:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "Show me attendance for [day-or-week]. List who was present, who was away and who was late, with one line on anything that looks unusual.",
+  "produces": [
+    "*.md"
+  ]
+}

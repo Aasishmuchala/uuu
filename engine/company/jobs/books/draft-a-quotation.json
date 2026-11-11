@@ -1,0 +1,53 @@
+{
+  "id": "draft-a-quotation",
+  "department": "books",
+  "cluster": "selling",
+  "title": "Draft a quotation",
+  "summary": "A quotation for one customer, from your price list, left as a draft for you to approve.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "bookkeeper"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "pricing/services.md",
+      "need": "must"
+    },
+    {
+      "file": "pricing/terms.md",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "customer",
+      "label": "Customer:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "what",
+      "label": "What are they asking for?",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "valid",
+      "label": "Valid until:",
+      "kind": "date",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books",
+    "quotations"
+  ],
+  "takes": null,
+  "text": "Draft a quotation for [customer] for [what], valid until [valid]. Take every price from our price list and every term from our terms file, and invent nothing. Leave it as a draft for me to approve; do not send it to anyone. Then write a short read-back of what the quotation says, so I can check it before I approve it.",
+  "produces": [
+    "readback-*.md"
+  ]
+}

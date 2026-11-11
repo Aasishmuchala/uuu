@@ -1,0 +1,49 @@
+{
+  "installed": true,
+  "notConnected": null,
+  "speech": true,
+  "videos": [
+    {
+      "id": "STH-25/title",
+      "goal": "STH-25",
+      "taskId": "e0000000-0000-4000-8000-000000000025",
+      "name": "title",
+      "title": "Opening title",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "seconds": 8,
+      "video": {
+        "name": "art/walker/walker-sheet.png",
+        "size": 412,
+        "kind": "image",
+        "url": "/api/files/U1RILTgvYXJ0",
+        "viewUrl": "/api/view/U1RILTgvYXJ0"
+      },
+      "poster": {
+        "name": "art/walker/walker-sheet.png",
+        "size": 412,
+        "kind": "image",
+        "url": "/api/files/U1RILTgvYXJ0",
+        "viewUrl": "/api/view/U1RILTgvYXJ0"
+      },
+      "stills": [
+        {
+          "name": "art/walker/walker-sheet.png",
+          "size": 412,
+          "kind": "image",
+          "url": "/api/files/U1RILTgvYXJ0",
+          "viewUrl": "/api/view/U1RILTgvYXJ0"
+        }
+      ],
+      "checks": {
+        "isMp4": true,
+        "underLimit": true,
+        "posterMatches": true,
+        "ok": true
+      },
+      "changed": "12 Nov 2026"
+    }
+  ],
+  "problems": []
+}

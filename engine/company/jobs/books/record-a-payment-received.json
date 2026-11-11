@@ -1,0 +1,55 @@
+{
+  "id": "record-a-payment-received",
+  "department": "books",
+  "cluster": "selling",
+  "title": "Record a payment received",
+  "summary": "A payment matched to the invoice it settles, as a draft entry.",
+  "handoff": "you-approve",
+  "stage": 2,
+  "who": [
+    "bookkeeper"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "customer",
+      "label": "Customer:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "amount",
+      "label": "Amount:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "date",
+      "label": "Date:",
+      "kind": "date",
+      "required": true
+    },
+    {
+      "id": "bank-transfer-or-cheque",
+      "label": "Bank transfer or cheque:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "invoice-number",
+      "label": "Invoice number:",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "books"
+  ],
+  "takes": null,
+  "text": "[customer] paid [amount] on [date] by [bank-transfer-or-cheque]. Match it to invoice [invoice-number] and draft the entry. If the amount is less or more than the invoice, tell me the difference in a short note and leave the entry as a draft.",
+  "produces": [
+    "readback-*.md"
+  ]
+}

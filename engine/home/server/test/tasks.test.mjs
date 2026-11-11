@@ -70,8 +70,8 @@ test("?who=marketer gives STH-15 only", async () => {
   await withHome(async (h) => {
     const j = (await get(h, "?who=marketer")).json;
     const all = j.columns.flatMap(idsOf);
-    assert.deepEqual(all, ["STH-15"]);
-    assert.equal(j.total, 1);
+    assert.deepEqual(all, ["STH-15", "STH-23"]);
+    assert.equal(j.total, 2);
   });
 });
 

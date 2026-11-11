@@ -1,0 +1,25 @@
+{
+  "id": "cant-say",
+  "folder": "brand",
+  "file": "cant-say.md",
+  "title": "What we never say",
+  "lead": "Words and claims your company never uses. Agents check every draft against this list.",
+  "fields": [
+    {
+      "id": "words",
+      "label": "Which words and phrases should never be used?",
+      "kind": "list",
+      "required": true,
+      "max": 40,
+      "hint": "Such as: cheap, guaranteed, best in town."
+    },
+    {
+      "id": "claims",
+      "label": "Which claims must never be made?",
+      "kind": "list",
+      "required": true,
+      "max": 40,
+      "hint": "Such as: Promising a delivery date we do not control."
+    }
+  ]
+}
