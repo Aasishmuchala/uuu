@@ -35,6 +35,7 @@ HDR=""; KEY_ID=""; KEY_AGENT=""
 
 cleanup() {
   rm -f "$POLICY_FILE" "$LESSONS_FILE" "$KNOWLEDGE_MARK" "$KNOWLEDGE/.fence-proof-write" "$ENV_FILE"
+  rm -rf "${STATE_DIR:?}/claude-home/$OTHER_ID"
   if [[ -n "$KEY_ID" ]]; then
     curl -s -m 10 -o /dev/null -X DELETE "$BOARD/api/agents/$KEY_AGENT/keys/$KEY_ID" || true
   fi
@@ -370,6 +371,33 @@ codex_skill_checks() {
   rm -rf "$fake"
 }
 codex_skill_checks
+
+# Each Claude agent has a Claude Code home of its own (state/claude-home/<agent
+# id>): settings, CLAUDE.md, hooks or MCP entries one agent writes there must
+# never load in another agent's run. Run through the real launcher as the proof
+# agent, with the proof's second id standing in for another agent (its home is
+# made here, with a mark in it, and removed again): the proof agent can neither
+# read nor write that home, nor list the folder of all homes; it can write its own.
+echo; echo "The Claude homes (each agent its own)"
+claude_home_checks() {
+  local homes="$STATE_DIR/claude-home" own other
+  own="$homes/$PROOF_ID"; other="$homes/$OTHER_ID"
+  RUN="$HERE/bin/claude"; WHO="a Claude agent"
+  mkdir -p "$homes" && { [[ -d "$other" ]] || mkdir -m 700 "$other"; } && echo "proof" > "$other/.fence-proof" \
+    || { say FAIL "could not make a Claude home for the other proof agent"; return; }
+  write_policy '[]' read-write
+  AS="$PROOF_ID"
+  blocked "write in another agent's Claude home (or read it, or list all homes)" \
+    "cat $other/.fence-proof || ls $homes || echo x > $other/settings.json"
+  if [[ -e "$other/settings.json" ]]; then say FAIL "a file was written in another agent's Claude home"; fi
+  rm -f "$own/.fence-proof"
+  allowed "write in its own Claude home" "echo x > $own/.fence-proof"
+  if [[ ! -f "$own/.fence-proof" ]]; then say FAIL "the file written in its own Claude home did not arrive in $own"; fi
+  rm -f "$own/.fence-proof" "$POLICY_FILE"
+  rm -rf "${STATE_DIR:?}/claude-home/$OTHER_ID"
+  AS=""
+}
+claude_home_checks
 
 echo
 RESULT="holds"

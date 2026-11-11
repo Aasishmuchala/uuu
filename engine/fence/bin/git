@@ -11,7 +11,10 @@
 #     and `isolated-workspaces` (the folder git starts in, every `-C`, and any
 #     `--git-dir`, `--work-tree`, `--exec-path` or GIT_DIR-style variable).
 #     Git then says "not a git repository", which is what the board sees for
-#     every task folder anyway. No repository there is ever opened, so no
+#     every task folder anyway. Folders are compared by their one true path,
+#     in any letter case and under any other name for the same disk; a path
+#     under /.vol (a folder named by number) is refused outright. No
+#     repository there is ever opened, so no
 #     setting an agent writes there (a repository laid out directly in the
 #     folder, a `.git` file pointing anywhere, `.gitattributes` with a filter,
 #     `core.worktree` pointing outside) is ever read;
@@ -45,14 +48,56 @@ try:
     trees = [cfg["stateRoot"], os.path.join(inst, "workspaces"), os.path.join(inst, "isolated-workspaces")]
 except Exception:
     no("the engine config could not be read, so the engine does not run git")
-roots = set()
-for t in trees:
-    roots.add(os.path.abspath(t))
-    roots.add(os.path.realpath(t))
+# Every folder is compared by its one true path: each folder that exists is
+# entered and the system asked where it is (what `cd -P` then `pwd -P` do), which
+# undoes links, the /System/Volumes/Data and /.vol names for the same disk and,
+# on this Mac, other letter case. Comparisons are also made in folded case,
+# because the disk ignores case. A path that does not exist is resolved up to
+# its nearest existing folder and the rest appended.
+def numbered(p):
+    p = "/" + p.lstrip("/")
+    q = p.casefold()
+    return q == "/.vol" or q.startswith("/.vol/")
+def phys(p):
+    if numbered(p):
+        no("%s names a folder by number (/.vol), and the engine never runs git there" % p)
+    parts = p.split("/")
+    done = "/"
+    for k, part in enumerate(parts):
+        if part in ("", "."):
+            continue
+        nxt = os.path.join(done, part)
+        if os.path.isdir(nxt):
+            try:
+                os.chdir(nxt)
+                done = os.getcwd()
+            except OSError:
+                return os.path.normpath(os.path.join(nxt, *parts[k + 1:]))
+            continue
+        if os.path.lexists(nxt):
+            real = os.path.realpath(nxt)
+            if numbered(real):
+                no("%s names a folder by number (/.vol), and the engine never runs git there" % p)
+            try:
+                os.chdir(os.path.dirname(real))
+                done = os.path.join(os.getcwd(), os.path.basename(real))
+            except OSError:
+                done = real
+        else:
+            done = nxt
+        return os.path.normpath(os.path.join(done, *parts[k + 1:]))
+    return done
+def forms(p):
+    return [f.casefold().rstrip(os.sep) or os.sep for f in (os.path.abspath(p), os.path.realpath(p), phys(p))]
 try:
     cur = os.getcwd()
 except OSError:
     no("the folder git was started in is gone")
+trees = [os.path.abspath(t) for t in trees]
+roots = set()
+for t in trees:
+    roots.update(forms(t))
+cur = phys(cur)
 paths = [cur]
 i = 0
 while i < len(args):
@@ -60,7 +105,7 @@ while i < len(args):
     if a == "-C":
         i += 1
         if i < len(args) and args[i]:
-            cur = os.path.join(cur, args[i])
+            cur = phys(os.path.join(cur, args[i]))
             paths.append(cur)
     elif a in ("--git-dir", "--work-tree"):
         i += 1
@@ -79,9 +124,9 @@ for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GI
         if v:
             paths.append(os.path.join(cur, v))
 for p in paths:
-    for form in (os.path.abspath(p), os.path.realpath(p)):
+    for form in forms(p):
         for r in roots:
-            if form == r or form.startswith(r.rstrip(os.sep) + os.sep):
+            if r == os.sep or form == r or form.startswith(r + os.sep):
                 no("%s is a folder agents can write to, and the engine never runs git there" % p)
 '
 /usr/bin/python3 -I -c "$GUARD" "${LIB_DIR:-/nonexistent}" "$@" || exit 128

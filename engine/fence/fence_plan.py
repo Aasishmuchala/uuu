@@ -33,16 +33,22 @@ class Refused(Exception):
     pass
 
 
+def _same(a, b):
+    """The disk ignores letter case, so every comparison of paths does too."""
+    return a.casefold() == b.casefold()
+
+
 def _inside(path, root):
-    """True when path is root or lies under it. Both must be normalised absolute paths."""
-    root = root.rstrip("/") or "/"
+    """True when path is root or lies under it, in any letter case. Both must be
+    normalised absolute paths."""
+    path, root = path.casefold(), root.casefold().rstrip("/") or "/"
     if root == "/":
         return True
     return path == root or path.startswith(root + "/")
 
 
 def _strictly_inside(path, root):
-    return path != root and _inside(path, root)
+    return not _same(path, root) and _inside(path, root)
 
 
 def _real(path):
@@ -85,7 +91,7 @@ def _check_reach(name, path, home, state, instance_root, guarded, protected_file
         if _inside(path, root):
             raise Refused("refusing to share %s with an agent: it is inside %s" % (name, root))
     for f in protected_files:
-        if path == f:
+        if _same(path, f):
             raise Refused("refusing to share %s with an agent: it is %s" % (name, f))
     # Inside paperclip's folder only its skills and company folders are ever shared,
     # never its database, its private settings file, its logs or other workspaces.
@@ -98,34 +104,38 @@ def _check_reach(name, path, home, state, instance_root, guarded, protected_file
 
 def _check_place(kind, name, path, home, state, instance_root, agent_home):
     """Where each kind of handed-over path may lie at all (the backstop behind the
-    wrappers). Called on the path as given and as resolved; both must pass."""
+    wrappers). Called on the path as given and as resolved; both must pass.
+    In the state folder only the two agent-home trees are ever handed over."""
     roots = _dedupe([instance_root, _real(instance_root)])
+    homes = [os.path.join(s, h) for s in _dedupe([state, _real(state)]) for h in ("claude-home", "codex-home")]
     in_state = _inside(path, state) or _inside(path, _real(state))
+    is_or_in_homes = any(_inside(path, h) for h in homes)
+    in_homes = any(_strictly_inside(path, h) for h in homes)
     in_companies = any(_strictly_inside(path, os.path.join(r, "companies")) for r in roots)
     in_skills = any(_strictly_inside(path, os.path.join(r, "skills")) for r in roots)
     in_home = _inside(path, home) or _inside(path, _real(home))
-    codex_login = path in (os.path.join(home, ".codex", "auth.json"),
-                           os.path.join(_real(home), ".codex", "auth.json"))
+    codex_login = any(_same(path, os.path.join(h, ".codex", "auth.json")) for h in _dedupe([home, _real(home)]))
     if kind == "agentHome":
-        if not (in_state or in_companies):
+        if not (is_or_in_homes or in_companies):
             raise Refused("refusing to share %s with an agent: an agent home must lie in the engine's "
-                          "state folder or in a paperclip company folder (%s)" % (name, path))
+                          "claude-home or codex-home or in a paperclip company folder (%s)" % (name, path))
     elif kind == "innerTmp":
         in_agent_home = _inside(path, agent_home) or _inside(path, _real(agent_home))
-        run_tmp = not in_home and os.path.basename(path).startswith("paperclip-run-")
-        if not (in_agent_home or in_state or run_tmp):
+        run_tmp = not in_home and not in_state and os.path.basename(path).startswith("paperclip-run-")
+        if not (in_agent_home or in_homes or run_tmp):
             raise Refused("refusing to share %s with an agent: a temp folder must lie in the agent home, "
-                          "the engine's state folder, or be paperclip's own run folder (%s)" % (name, path))
+                          "the engine's claude-home or codex-home, or be paperclip's own run folder (%s)"
+                          % (name, path))
     elif kind == "write":
-        if not (in_state or in_companies or codex_login):
+        if not (in_homes or in_companies or codex_login):
             raise Refused("refusing to share %s with an agent for writing: it is not a place agents may "
                           "write (%s)" % (name, path))
-    elif kind == "read" and in_home:
+    elif kind == "read" and (in_home or in_state):
         engine_ok = _inside(path, os.path.join(ENGINE, "node_modules", "@openai")) \
-            or path == os.path.join(ENGINE, "fence", "steady-pipes.py")
-        if not (in_state or in_companies or in_skills or codex_login or engine_ok):
-            raise Refused("refusing to share %s with an agent: it is in the home folder, outside the "
-                          "places agents may read (%s)" % (name, path))
+            or _same(path, os.path.join(ENGINE, "fence", "steady-pipes.py"))
+        if not (in_homes or in_companies or in_skills or codex_login or engine_ok):
+            raise Refused("refusing to share %s with an agent: it is in the home or state folder, outside "
+                          "the places agents may read (%s)" % (name, path))
 
 
 def _check_policy(policy, state, config, board_port):
@@ -204,10 +214,10 @@ def _check_policy(policy, state, config, board_port):
                 or any(ord(c) < 32 for c in value):
             raise bad("%s must be an absolute file path or null" % key)
         lexical = os.path.normpath(value)
-        if os.path.dirname(lexical) != parent or os.path.basename(lexical) in ("", ".", ".."):
+        if not _same(os.path.dirname(lexical), parent) or os.path.basename(lexical) in ("", ".", ".."):
             raise bad("%s must be directly inside %s" % (key, parent))
         if os.path.lexists(lexical):
-            if os.path.dirname(_real(lexical)) != parent:
+            if not _same(os.path.dirname(_real(lexical)), parent):
                 raise bad("%s leads outside %s" % (key, parent))
             if not os.path.isfile(lexical):
                 raise bad("%s is not a plain file" % key)

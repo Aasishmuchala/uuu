@@ -314,6 +314,76 @@ class PlanTests(unittest.TestCase):
         # Outside the home folder an extra read keeps the earlier rules.
         plan(self.inputs(extraRead=[os.path.join(self.tmp, "outside", "x")]))
 
+    # In the state folder only claude-home and codex-home are ever handed over.
+
+    STATE_PLACES = ("books", "home", os.path.join("git", "config"), "run", "logs", "content",
+                    "lessons", "ids.json", "tasks", "knowledge")
+
+    def test_other_state_places_never_handed_over(self):
+        for sub in self.STATE_PLACES:
+            p = os.path.join(self.S, sub)
+            self.refused(self.inputs(agentHome=p, innerTmp=os.path.join(p, "tmp")), "an agent home must lie")
+            self.refused(self.inputs(innerTmp=p), "a temp folder must lie")
+            self.refused(self.inputs(extraWrite=[p]), "for writing")
+            self.refused(self.inputs(extraRead=[p]), "outside the places agents may read")
+        # Named like a run folder, but in the state folder.
+        self.refused(self.inputs(innerTmp=os.path.join(self.S, "paperclip-run-1")), "a temp folder must lie")
+
+    def test_other_letter_case_never_opens_protected_places(self):
+        # The disk ignores letter case, and so does the sandbox tool.
+        up = self.S.upper()
+        for bad in (os.path.join(self.S, "SECRETS"), os.path.join(self.S, "Secrets", "agents"),
+                    os.path.join(self.S, "AGENT.ENV"), os.path.join(up, "policy"), os.path.join(up, "POLICY"),
+                    os.path.join(up, "books"), os.path.join(self.H.upper(), "Documents")):
+            self.refused(self.inputs(extraRead=[bad]))
+            self.refused(self.inputs(extraWrite=[bad]))
+            self.refused(self.inputs(policy=self.policy(readFolders=[bad])), "outside the folders agents may read")
+            if bad != os.path.join(self.S, "Secrets", "agents"):
+                self.refused(self.inputs(policy=self.policy(envFile=os.path.join(bad, "x.env"))),
+                             "must be directly inside")
+        # The key folder itself in another spelling is the same folder: accepted, and never shared.
+        out = plan(self.inputs(policy=self.policy(envFile=os.path.join(self.S, "Secrets", "agents", "x.env"))))
+        self.assertFalse(any("ecrets" in p for p in out["filesystem"]["allowRead"]))
+        self.refused(self.inputs(agentHome=os.path.join(up, "BOOKS"), innerTmp=os.path.join(up, "BOOKS", "tmp")))
+        self.refused(self.inputs(innerTmp=os.path.join(up, "Books")))
+
+    def test_task_folder_in_other_letter_case(self):
+        for bad in (os.path.join(self.S, "SECRETS"), os.path.join(self.S.upper(), "Secrets", "agents"),
+                    os.path.join(self.S, "TASKS", "..", "secrets")):
+            self.refused(self.inputs(taskFolder=bad), "not an agent task folder")
+        os.symlink(os.path.join(self.S, "SECRETS"), os.path.join(self.S, "tasks", "company-work", "s"))
+        self.refused(self.inputs(taskFolder=os.path.join(self.S, "tasks", "company-work", "s")),
+                     "not an agent task folder")
+        # A real task folder in another spelling is the same folder.
+        plan(self.inputs(taskFolder=os.path.join(self.S.upper(), "TASKS", "company-work")))
+
+    def test_live_shapes_accepted(self):
+        agent = "d03db636-70c7-4bac-8e29-41665aa8e9a4"
+        for h in (os.path.join(self.S, "claude-home"), os.path.join(self.S, "claude-home", agent),
+                  os.path.join(self.S, "codex-home"),
+                  os.path.join(self.I, "companies", "c", "codex-home", "skill-runtimes", "a", "d")):
+            os.makedirs(os.path.join(h, "tmp"), exist_ok=True)
+            plan(self.inputs(agentHome=h, innerTmp=os.path.join(h, "tmp")))
+        run = tempfile.mkdtemp(prefix="paperclip-run-")
+        self.addCleanup(shutil.rmtree, run, True)
+        real = os.path.realpath(run)
+        self.assertTrue(real.startswith("/private/var/folders/"), real)
+        for t in (real, real[len("/private"):]):
+            plan(self.inputs(innerTmp=t))
+        engine = os.path.join(self.H, "eng")
+        with mock.patch.object(fence_plan, "ENGINE", engine):
+            reads = [os.path.join(self.S, "codex-home", "auth.json"), os.path.join(self.H, ".codex", "auth.json"),
+                     os.path.join(self.I, "companies", "c", "codex-home", "auth.json"),
+                     os.path.join(self.I, "skills", "c", "__versions__", "v", "r"),
+                     os.path.join(engine, "node_modules", "@openai"),
+                     os.path.join(engine, "fence", "steady-pipes.py")]
+            writes = [os.path.join(self.H, ".codex", "auth.json"), os.path.join(self.S, "codex-home", "auth.json")]
+            out = plan(self.inputs(extraRead=reads, extraWrite=writes))
+        for p in reads + writes:
+            self.assertIn(p, out["filesystem"]["allowRead"])
+        for p in writes:
+            self.assertIn(p, out["filesystem"]["allowWrite"])
+
     def test_extra_paths_listed(self):
         r = os.path.join(self.I, "companies", "c", "skills")
         w = os.path.join(self.H, ".codex", "auth.json")

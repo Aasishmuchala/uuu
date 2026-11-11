@@ -61,7 +61,7 @@ if [[ "${1:-}" == "--self-check" ]]; then
 fi
 
 # 2. Arguments.
-TOOL="claude"; AGENT_HOME="$CFG_STATE/claude-home"; MODE=""; SHELL_CMD=""
+TOOL="claude"; AGENT_HOME="$CFG_STATE/claude-home/_none"; MODE=""; SHELL_CMD=""
 EXTRA=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -78,7 +78,16 @@ case "$TOOL" in claude|codex) ;; *) refuse "unknown tool $TOOL" ;; esac
 [[ -x "$SRT" ]] || refuse "the sandbox tool is missing (engine/node_modules/.bin/srt)"
 
 TASK_FOLDER="$(pwd -P)" || refuse "could not read the working folder"
-mkdir -p "$AGENT_HOME" "$CFG_STATE/fences" "$CFG_LOGS"
+(umask 077; mkdir -p "$AGENT_HOME")
+mkdir -p "$CFG_STATE/fences" "$CFG_LOGS"
+# state/claude-home holds every Claude agent's own home (bin/claude picks one):
+# no run may have it, or a folder around it, as its home.
+_homes="$(cd "$CFG_STATE/claude-home" 2>/dev/null && pwd -P)" || _homes=""
+_home_real="$(cd "$AGENT_HOME" && pwd -P)" || refuse "could not read the agent home $AGENT_HOME"
+if [[ -n "$_homes" ]]; then
+  case "$_homes/" in "$_home_real"/*) refuse "the agent home $AGENT_HOME holds every Claude agent's home; give one agent's own" ;; esac
+fi
+unset _homes _home_real
 
 # Temp folder for the command: paperclip's per-run folder when it gave one (a
 # folder of ours named paperclip-run-* in the system temp area), else one inside

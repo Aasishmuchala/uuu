@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 FENCE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -162,6 +163,57 @@ class GitWrapperTests(unittest.TestCase):
             self.assertIn("agents can write to", r.stderr, (args, extra))
         self.assertFalse(os.path.exists(mark))
 
+    def assert_refused(self, cases, mark, text="agents can write to"):
+        for args, cwd, extra in cases:
+            r = self.run_git(self.git, args, cwd=cwd or self.elsewhere, env=clean_env(**(extra or {})))
+            self.assertEqual(r.returncode, 128, (args, cwd, extra, r.stderr))
+            self.assertIn(text, r.stderr, (args, cwd, extra))
+        self.assertFalse(os.path.exists(mark))
+
+    def test_other_letter_case_is_refused(self):
+        # The disk ignores letter case: .../TASKS/x is the same folder as .../tasks/x.
+        mark = self.plant_bare(self.task)
+        upper = self.task.upper()
+        mixed = "".join(c.upper() if n % 2 else c.lower() for n, c in enumerate(self.task))
+        self.assertTrue(os.path.isdir(upper) and os.path.isdir(mixed))
+        cases = []
+        for name in (upper, mixed):
+            cases += [
+                (["status"], name, None),
+                (["-C", name, "status"], None, None),
+                (["--git-dir=%s" % name, "status"], None, None),
+                (["--git-dir", name, "status"], None, None),
+                (["status"], None, {"GIT_DIR": name}),
+                (["status"], None, {"GIT_WORK_TREE": name}),
+            ]
+        cases.append((["-C", self.ws.upper(), "status"], None, None))
+        self.assert_refused(cases, mark)
+
+    def test_other_names_of_the_disk_are_refused(self):
+        mark = self.plant_bare(self.task)
+        data = "/System/Volumes/Data" + self.task
+        self.assertTrue(os.path.isdir(data))
+        self.assert_refused([(["-C", data, "status"], None, None),
+                             (["status"], None, {"GIT_DIR": data})], mark)
+        st = os.stat(self.task)
+        vol = "/.vol/%d/%d" % (st.st_dev, st.st_ino)
+        self.assert_refused([(["-C", vol, "status"], None, None),
+                             (["--git-dir=%s" % vol, "status"], None, None),
+                             (["-C", "/.vol/1/2", "status"], None, None)], mark, "by number")
+
+    def test_relative_chain_ending_inside_is_refused(self):
+        mark = self.plant_bare(self.task)
+        self.assert_refused([(["-C", self.elsewhere, "-C", "../STATE", "-C", "Tasks", "-C", "company-work",
+                               "status"], self.tmp, None)], mark)
+
+    def test_link_outside_pointing_inside_is_refused(self):
+        mark = self.plant_bare(self.task)
+        link = os.path.join(self.elsewhere, "case-link")
+        os.symlink(self.task.upper(), link)
+        self.assert_refused([(["-C", link, "status"], None, None),
+                             (["status"], link, None),
+                             (["status"], None, {"GIT_DIR": link})], mark)
+
     def test_planted_bare_repository_elsewhere_is_refused_by_git(self):
         folder = os.path.join(self.elsewhere, "b")
         os.makedirs(folder)
@@ -188,6 +240,16 @@ class GitWrapperTests(unittest.TestCase):
         self.assertEqual(r.stdout, "?? b.txt\n")
         r = self.run_git(self.git, ["rev-parse", "--show-toplevel"], cwd=repo, env=env)
         self.assertEqual(r.stdout.strip(), repo)
+
+    def test_this_checkout_still_works_and_is_fast(self):
+        repo = os.path.dirname(ENGINE)
+        start = time.monotonic()
+        r = subprocess.run("'%s' status --short | head -1" % self.git, shell=True, cwd=repo,
+                           env=clean_env(), capture_output=True, text=True, timeout=60)
+        took = time.monotonic() - start
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stderr, "")
+        self.assertLess(took, 0.5)
 
     def test_finds_a_real_git(self):
         r = self.run_git(self.git, ["--version"])
