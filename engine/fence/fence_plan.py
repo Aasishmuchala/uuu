@@ -23,6 +23,8 @@ REFUSED_EXIT = 78
 TOOLS = ("claude", "codex")
 POLICY_KEYS = ("agentId", "slug", "localServices", "readFolders", "lessonsFile",
                "envFile", "taskFolder")
+# The engine folder: two levels above this file, never taken from the inputs.
+ENGINE = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 PATH_INPUTS = ("home", "state", "taskFolder", "agentHome", "innerTmp", "nodeRoot",
                "realClaudeDir", "instanceRoot")
 
@@ -85,6 +87,45 @@ def _check_reach(name, path, home, state, instance_root, guarded, protected_file
     for f in protected_files:
         if path == f:
             raise Refused("refusing to share %s with an agent: it is %s" % (name, f))
+    # Inside paperclip's folder only its skills and company folders are ever shared,
+    # never its database, its private settings file, its logs or other workspaces.
+    for root in _dedupe([instance_root, _real(instance_root)]):
+        if _inside(path, root) and not any(
+                _strictly_inside(path, os.path.join(root, sub)) for sub in ("skills", "companies")):
+            raise Refused("refusing to share %s with an agent: it is inside paperclip's own folders (%s)"
+                          % (name, path))
+
+
+def _check_place(kind, name, path, home, state, instance_root, agent_home):
+    """Where each kind of handed-over path may lie at all (the backstop behind the
+    wrappers). Called on the path as given and as resolved; both must pass."""
+    roots = _dedupe([instance_root, _real(instance_root)])
+    in_state = _inside(path, state) or _inside(path, _real(state))
+    in_companies = any(_strictly_inside(path, os.path.join(r, "companies")) for r in roots)
+    in_skills = any(_strictly_inside(path, os.path.join(r, "skills")) for r in roots)
+    in_home = _inside(path, home) or _inside(path, _real(home))
+    codex_login = path in (os.path.join(home, ".codex", "auth.json"),
+                           os.path.join(_real(home), ".codex", "auth.json"))
+    if kind == "agentHome":
+        if not (in_state or in_companies):
+            raise Refused("refusing to share %s with an agent: an agent home must lie in the engine's "
+                          "state folder or in a paperclip company folder (%s)" % (name, path))
+    elif kind == "innerTmp":
+        in_agent_home = _inside(path, agent_home) or _inside(path, _real(agent_home))
+        run_tmp = not in_home and os.path.basename(path).startswith("paperclip-run-")
+        if not (in_agent_home or in_state or run_tmp):
+            raise Refused("refusing to share %s with an agent: a temp folder must lie in the agent home, "
+                          "the engine's state folder, or be paperclip's own run folder (%s)" % (name, path))
+    elif kind == "write":
+        if not (in_state or in_companies or codex_login):
+            raise Refused("refusing to share %s with an agent for writing: it is not a place agents may "
+                          "write (%s)" % (name, path))
+    elif kind == "read" and in_home:
+        engine_ok = _inside(path, os.path.join(ENGINE, "node_modules", "@openai")) \
+            or path == os.path.join(ENGINE, "fence", "steady-pipes.py")
+        if not (in_state or in_companies or in_skills or codex_login or engine_ok):
+            raise Refused("refusing to share %s with an agent: it is in the home folder, outside the "
+                          "places agents may read (%s)" % (name, path))
 
 
 def _check_policy(policy, state, config, board_port):
@@ -251,11 +292,14 @@ def plan(inputs):
                os.path.join(instance_root, "secrets"),
                "/private/tmp/claude-%d" % uid, "/tmp/claude-%d" % uid]
     protected_files = [os.path.join(state, "agent.env")]
-    for name, p in [("the agent home", agent_home), ("the temp folder", inner_tmp)] + \
-            [("an extra folder", p) for p in extra_read + extra_write]:
+    for kind, name, p in [("agentHome", "the agent home", agent_home), ("innerTmp", "the temp folder", inner_tmp)] + \
+            [("read", "an extra folder", p) for p in extra_read] + \
+            [("write", "an extra folder", p) for p in extra_write]:
         _check_reach(name, p, home, state, instance_root, guarded, protected_files)
+        _check_place(kind, name, p, home, state, instance_root, agent_home)
         if _real(p) != p:
             _check_reach(name, _real(p), home, state, instance_root, guarded, protected_files)
+            _check_place(kind, name, _real(p), home, state, instance_root, agent_home)
 
     extras = {"domains": [], "reads": [], "lessons": None, "taskReadOnly": False}
     if inputs["policy"] is not None:

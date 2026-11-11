@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync, cpSync,
-  chmodSync, rmSync,
+  chmodSync, rmSync, realpathSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -316,6 +316,97 @@ test("the board refuses to start when the fenced wrappers are not first on its P
   assert.equal(r.status, 3);
   assert.match(r.stdout, /^The fence is not in place, so the board was not started: the fenced claude and codex/m);
   assert.equal(await listening(c.cfg.ports.board), false);
+});
+
+// A fence that passes its own check, with fenced claude and codex in place.
+function fakeFence(c, { git }) {
+  mkdirSync(join(c.copy, "fence", "bin"), { recursive: true });
+  const fr = join(c.copy, "fence", "fence-run");
+  writeFileSync(fr, "#!/bin/bash\nexit 0\n");
+  chmodSync(fr, 0o755);
+  for (const name of ["claude", "codex"]) {
+    const p = join(c.copy, "fence", "bin", name);
+    writeFileSync(p, "#!/bin/bash\nexit 0\n");
+    chmodSync(p, 0o755);
+  }
+  if (git) cpSync(join(engineDir, "fence", "bin", "git"), join(c.copy, "fence", "bin", "git"));
+}
+
+test("the board refuses to start when the engine's git is not first on its PATH", async () => {
+  const c = await engineCopy();
+  fakeFence(c, { git: false });
+  const r = c.board("start");
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.match(r.stdout,
+    /^The fence is not in place, so the board was not started: the engine's git is not the first one the board would find\.$/m);
+  assert.equal(await listening(c.cfg.ports.board), false);
+  assert.equal(existsSync(join(c.root, "state", "run", "board.pid")), false);
+});
+
+// What an agent can write in its task folder: a repository laid out directly
+// in it, whose file-watcher setting names a program that leaves a mark.
+function plantRepository(folder) {
+  const mark = join(folder, "MARKED");
+  mkdirSync(join(folder, "objects"), { recursive: true });
+  mkdirSync(join(folder, "refs", "heads"), { recursive: true });
+  writeFileSync(join(folder, "HEAD"), "ref: refs/heads/main\n");
+  writeFileSync(join(folder, "watch.sh"), `#!/bin/sh\necho ran > '${mark}'\n`);
+  chmodSync(join(folder, "watch.sh"), 0o755);
+  writeFileSync(join(folder, "config"), "[core]\n\trepositoryformatversion = 0\n\tbare = false\n" +
+    `\tworktree = ${folder}\n\tfsmonitor = ${folder}/watch.sh\n`);
+  return mark;
+}
+
+test("the board is started with the engine's git settings and no git variable of the caller's", async () => {
+  const c = await engineCopy();
+  fakeFence(c, { git: true });
+  // a stand-in for paperclip: records its environment and answers health
+  const envFile = join(c.root, "board-env.json");
+  mkdirSync(join(c.copy, "node_modules", ".bin"), { recursive: true });
+  const fake = join(c.copy, "node_modules", ".bin", "paperclipai");
+  writeFileSync(fake, `#!/usr/bin/env node
+require("fs").writeFileSync(${JSON.stringify(envFile)}, JSON.stringify(process.env));
+require("http").createServer((q, s) => { s.end('{"status":"ok"}'); }).listen(${c.cfg.ports.board}, "127.0.0.1");
+`);
+  chmodSync(fake, 0o755);
+  const r = spawnSync("/bin/bash", [join(c.copy, "parts", "20-board.sh"), "start"], {
+    encoding: "utf8",
+    env: { ...process.env, ENGINE_CONFIG: join(c.root, "config.json"),
+      GIT_DIR: "/nowhere", GIT_SSH_COMMAND: "/bin/false", GIT_CONFIG_GLOBAL: "/nowhere/config" },
+  });
+  const pidFile = join(c.root, "state", "run", "board.pid");
+  try {
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const env = JSON.parse(readFileSync(envFile, "utf8"));
+    const gitConfig = join(c.root, "state", "git", "config");
+    assert.equal(env.PATH.split(":")[0], join(realpathSync(c.copy), "fence", "bin"));
+    const gitVars = Object.fromEntries(Object.entries(env).filter(([k]) => k.startsWith("GIT_")));
+    assert.deepEqual(gitVars, {
+      GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: "1", GIT_CEILING_DIRECTORIES: process.env.HOME,
+    });
+    const text = readFileSync(gitConfig, "utf8");
+    assert.match(text, /^\[safe\]\n\tbareRepository = explicit$/m);
+    assert.match(text, /^\tfsmonitor = false$/m);
+    assert.match(text, /^\thooksPath = \/dev\/null$/m);
+
+    // git by its full path, past the wrapper, with only the board's environment
+    const folder = mkdtempSync(join(tmpdir(), "boardgit-"));
+    const mark = plantRepository(folder);
+    const g = spawnSync("/usr/bin/git", ["-C", folder, "status", "--porcelain=v1", "--untracked-files=all"],
+      { encoding: "utf8", env });
+    assert.notEqual(g.status, 0);
+    assert.match(g.stderr, /cannot use bare repository/);
+    assert.equal(existsSync(mark), false, "the planted program ran");
+    // and without those settings it would have run
+    const plain = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith("GIT_")));
+    spawnSync("/usr/bin/git", ["-C", folder, "status", "--porcelain=v1"],
+      { encoding: "utf8", env: { ...plain, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" } });
+    assert.equal(existsSync(mark), true, "the planted repository is not a real test");
+    rmSync(folder, { recursive: true, force: true });
+  } finally {
+    const pid = existsSync(pidFile) ? Number(readFileSync(pidFile, "utf8").trim()) : 0;
+    if (pid > 0) { try { process.kill(-pid, "SIGKILL"); } catch { /* gone */ } }
+  }
 });
 
 test("part scripts answer health, installed and stop safely when nothing runs", async () => {

@@ -11,6 +11,7 @@ Every agent runs inside the fence. It can read and write its task folder and its
 ## What is here
 
 - `bin/claude`, `bin/codex`: the wrappers. This folder goes first on the board's PATH.
+- `bin/git`: the board's git (see "The board's git" below).
 - `fence-run`: runs one command inside the fence (Anthropic's sandbox-runtime). Interface in `.router/CONTRACTS.md` section 4.
 - `fence_inputs.py`: gathers the planner's inputs: config, the agent's policy file, the wrappers' paths.
 - `fence_plan.py`: the planner, a pure function (`plan`, `Refused`), and the script that writes `state/fences/<hash>.json`.
@@ -25,6 +26,8 @@ Every agent runs inside the fence. It can read and write its task folder and its
 - Ports, hosts and folders come from `engine/config.json`. The home folder is the one macOS has on record for the user, not `$HOME`.
 - Per agent: `state/policy/<agent id>.json`, written by `engine setup`. `PAPERCLIP_AGENT_ID` is only the key to find it. The file must be a plain file of the owner's that nobody else can change, and its `agentId` must match, or the run is refused (exit 78). A policy may add local services (only ports on `fence.policyPortsAllowed`), folders to read (only under `fence.readRootsAllowed`), one lessons file to append to, one key file whose `UUU_*` lines are exported, and a read-only task folder.
 - Paths the wrappers compute (paperclip's skills, instructions and tool config, the Codex login chain) are passed with `--read` and `--write`, and must lie inside paperclip's own company or skills folders or the Codex home. None may open the home folder, the state folder, `secrets/`, `policy/` or `fences/`.
+- The planner also checks where each kind may lie, as given and after resolving links, so a mistake in a wrapper cannot hand over more: the agent home only in the state folder or a paperclip company folder; the temp folder only in the agent home, the state folder, or paperclip's `paperclip-run-*` folder outside the home folder; extra writes only in the state folder, a company folder, or exactly `~/.codex/auth.json`.
+- Extra reads inside the home folder only from the state folder, paperclip's `skills/` and `companies/`, `~/.codex/auth.json`, `engine/node_modules/@openai` and `engine/fence/steady-pipes.py` (the engine folder is the planner's own, never an input).
 
 ## What the trial forced: Claude Code
 
@@ -44,6 +47,7 @@ Every agent runs inside the fence. It can read and write its task folder and its
 - **Paperclip picks the Codex home, a new generated folder per agent,** under `<instance>/companies/<company>/codex-home/skill-runtimes/`. The wrapper accepts only homes under that tree or the engine's own, and fences that one folder.
 - **The login file is a chain of links** ending at the shared login. The wrapper allows each link to be read (the links themselves, not resolved) and the last file to be written, so token refresh works.
 - **Skills are links pointing outside the home**, into paperclip's skills tree. The wrapper allows reading what they point at, and refuses a skill that points anywhere else.
+- **Nothing in the Codex home is trusted.** The agent can write in its home, and `codex_home.py` reads it outside the fence before the next run. A skill link planted to `<instance>/.env` or `<instance>/db` would have opened them to the agent the run after (found by the final review, 11 November 2026, and reproduced). Now a skill must lie strictly inside `<instance>/skills/<company>/`, and every link of the login chain and its last file must be a file named `auth.json` directly in the Codex home, a `<instance>/companies/<company>/codex-home/`, `state/codex-home/`, or be exactly `~/.codex/auth.json` (the home folder macOS has on record). Anything else refuses the run (exit 78). As a backstop the planner refuses any shared path inside paperclip's folder that is not strictly inside its `skills/` or `companies/`. The proof checks a planted link.
 - **Paperclip's start-up check uses the server's own `CODEX_HOME`,** so the board is started with `CODEX_HOME=state/codex-home`, never the owner's `~/.codex`.
 - **Engine `cli` is required.** The default engine launches a different program and would bypass the wrapper.
 - **Pipes of its own.** The Node programs above Codex share its output pipe and can switch it to non-blocking mode at any moment; on a large write Codex then crashed with "Resource temporarily unavailable (os error 35)". Resetting the mode at start-up was not enough, so `steady-pipes.py` gives Codex its own pipes and copies the output across. Tested against a deliberately slow reader: 5,000,000 of 5,000,000 bytes arrive through the relay. The wrapper also starts the native Codex program directly.
@@ -57,6 +61,14 @@ Every agent runs inside the fence. It can read and write its task folder and its
 - Task text names no folder, only "your current working folder". An agent told to use a folder the fence refuses will try to move its task to another folder (the gate now refuses that move).
 - The fence starts only strictly inside `state/tasks`, `<instance>/workspaces` or `<instance>/isolated-workspaces`, after resolving links, inside the home folder or out of it. `POST /board/chat/stream` makes the board start `claude` in its own folder; that run is refused, and must stay so.
 - The trial's `<task folder>.reads` files are gone. The Checker gets a read-only task folder through its policy instead.
+
+## The board's git
+
+- **The attack.** The board runs `git status` and other git commands in the agents' task folders, outside the fence, as the owner (every 40 seconds or so). An agent can write a made-up repository there: `HEAD`, `objects/`, `refs/` and a `config` laid out directly in the folder, or, in a subfolder, a `.git` file pointing at one. Its settings can name a program (`core.fsmonitor`, a `filter` in `.gitattributes`) or point git at files outside the folder (`core.worktree`). Plain git runs that program as the owner. Found by the final security review, 11 November 2026, and reproduced.
+- **What stops it.** `bin/git`, first on the board's PATH, refuses to run when git would work in a folder an agent can write to (anything under the state folder, `<instance>/workspaces`, `<instance>/isolated-workspaces`: the folder it starts in, every `-C`, `--git-dir`, `--work-tree`, `GIT_DIR` and the like, after resolving links). So no setting an agent writes is ever read. Everywhere else it runs the real git with `safe.bareRepository=explicit`, no file-watcher and no hooks, and never above the home folder. The folders come from `engine/config.json`; if that cannot be read, git is refused.
+- **Second guard.** The board starts with `GIT_CONFIG_GLOBAL=state/git/config` (written by `parts/20-board.sh`: the same three settings), `GIT_CONFIG_NOSYSTEM=1`, `GIT_CEILING_DIRECTORIES` at the home folder, and no other git variable. A git called by its full path still refuses a repository laid out directly in a folder. It does not stop a `.git` file in a subfolder; only `bin/git` does.
+- The board part refuses to start unless `bin/git` is the first `git` on the board's PATH. The proof checks both layouts.
+- What this turns off: paperclip's features that keep a git repository in a task folder (git worktree workspaces, restore points) and that keep bare repositories of their own (skills from GitHub, repository caches). The engine uses none of them.
 
 ## Still open
 

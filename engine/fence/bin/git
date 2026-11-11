@@ -5,13 +5,88 @@
 # run. Git would then run that program as the owner, outside the fence.
 #
 # This file sits first on the board's PATH, beside the fenced `claude` and
-# `codex`, so every git the board starts goes through it. It makes git:
-#   - refuse a repository that is laid out directly in the working folder
-#     (git calls it "bare"), which is the only kind an agent can make there,
-#     because the fence does not let it create a `.git` folder;
-#   - ignore the settings that would run a program (the file-watcher hook and
-#     the hooks folder).
+# `codex`, so every git the board starts goes through it. It:
+#   - refuses to run at all when git would work in a folder an agent can write
+#     to: anything under the engine's state folder, paperclip's `workspaces`
+#     and `isolated-workspaces` (the folder git starts in, every `-C`, and any
+#     `--git-dir`, `--work-tree`, `--exec-path` or GIT_DIR-style variable).
+#     Git then says "not a git repository", which is what the board sees for
+#     every task folder anyway. No repository there is ever opened, so no
+#     setting an agent writes there (a repository laid out directly in the
+#     folder, a `.git` file pointing anywhere, `.gitattributes` with a filter,
+#     `core.worktree` pointing outside) is ever read;
+#   - makes the real git refuse a repository laid out directly in a folder (git
+#     calls it "bare") and ignore the file-watcher hook and the hooks folder,
+#     wherever it runs;
+#   - never climbs above the owner's home folder to find a repository. The home
+#     folder is itself a git repository here, so without this every scan of a
+#     task folder ran `git status` over the whole home folder (and timed out).
+# The folders come from engine/config.json, never from the environment. When
+# the config cannot be read, git is refused everywhere.
 # Found by the final security review on 11 November 2026.
+unset ENGINE_CONFIG
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../lib" 2>/dev/null && pwd -P)" || LIB_DIR=""
+
+# -I: the folder git runs in may be an agent's, so Python must not import from it.
+# shellcheck disable=SC2016
+GUARD='
+import os, pwd, sys
+lib, args = sys.argv[1], sys.argv[2:]
+def no(why):
+    sys.stderr.write("fatal: not a git repository: %s\n" % why)
+    sys.exit(128)
+os.environ["HOME"] = os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir)
+os.environ.pop("ENGINE_CONFIG", None)
+try:
+    sys.path.insert(0, lib)
+    import config
+    cfg = config.load_config()
+    inst = cfg["paperclip"]["instanceRoot"]
+    trees = [cfg["stateRoot"], os.path.join(inst, "workspaces"), os.path.join(inst, "isolated-workspaces")]
+except Exception:
+    no("the engine config could not be read, so the engine does not run git")
+roots = set()
+for t in trees:
+    roots.add(os.path.abspath(t))
+    roots.add(os.path.realpath(t))
+try:
+    cur = os.getcwd()
+except OSError:
+    no("the folder git was started in is gone")
+paths = [cur]
+i = 0
+while i < len(args):
+    a = args[i]
+    if a == "-C":
+        i += 1
+        if i < len(args) and args[i]:
+            cur = os.path.join(cur, args[i])
+            paths.append(cur)
+    elif a in ("--git-dir", "--work-tree"):
+        i += 1
+        if i < len(args):
+            paths.append(os.path.join(cur, args[i]))
+    elif a.startswith(("--git-dir=", "--work-tree=", "--exec-path=")):
+        paths.append(os.path.join(cur, a.split("=", 1)[1]))
+    elif a in ("-c", "--namespace", "--config-env", "--attr-source", "--super-prefix", "--list-cmds"):
+        i += 1
+    elif not a.startswith("-"):
+        break
+    i += 1
+for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+             "GIT_EXEC_PATH", "GIT_ALTERNATE_OBJECT_DIRECTORIES"):
+    for v in os.environ.get(name, "").split(os.pathsep):
+        if v:
+            paths.append(os.path.join(cur, v))
+for p in paths:
+    for form in (os.path.abspath(p), os.path.realpath(p)):
+        for r in roots:
+            if form == r or form.startswith(r.rstrip(os.sep) + os.sep):
+                no("%s is a folder agents can write to, and the engine never runs git there" % p)
+'
+/usr/bin/python3 -I -c "$GUARD" "${LIB_DIR:-/nonexistent}" "$@" || exit 128
+
+export GIT_CEILING_DIRECTORIES="$HOME${GIT_CEILING_DIRECTORIES:+:$GIT_CEILING_DIRECTORIES}"
 for real in /opt/homebrew/bin/git /usr/local/bin/git /usr/bin/git; do
   if [ -x "$real" ]; then
     exec "$real" -c safe.bareRepository=explicit -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"

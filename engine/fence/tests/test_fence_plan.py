@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 FENCE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, FENCE)
@@ -209,6 +210,109 @@ class PlanTests(unittest.TestCase):
             self.refused(self.inputs(extraRead=[bad]))
             self.refused(self.inputs(extraWrite=[bad]))
         self.refused(self.inputs(agentHome=self.H))
+
+    def test_paperclip_private_folders_never_shared(self):
+        # Inside paperclip's folder only skills/... and companies/... may be shared.
+        os.makedirs(os.path.join(self.I, "db"))
+        with open(os.path.join(self.I, ".env"), "w") as fh:
+            fh.write("X=1")
+        for bad in (os.path.join(self.I, ".env"), os.path.join(self.I, "db"),
+                    os.path.join(self.I, "data", "x"), os.path.join(self.I, "workspaces", "w1"),
+                    os.path.join(self.I, "logs"), os.path.join(self.I, "skills"),
+                    os.path.join(self.I, "companies")):
+            self.refused(self.inputs(extraRead=[bad]), "inside paperclip's own folders")
+            self.refused(self.inputs(extraWrite=[bad]), "inside paperclip's own folders")
+        self.refused(self.inputs(agentHome=os.path.join(self.I, "db")), "inside paperclip's own folders")
+        self.refused(self.inputs(innerTmp=os.path.join(self.I, "logs")), "inside paperclip's own folders")
+
+    def test_link_into_paperclip_database_refused(self):
+        os.makedirs(os.path.join(self.I, "db"))
+        link = os.path.join(self.tmp, "looks-harmless")
+        os.symlink(os.path.join(self.I, "db"), link)
+        self.refused(self.inputs(extraRead=[link]), "inside paperclip's own folders")
+        # And through a link to paperclip's folder itself, as given.
+        alias = os.path.join(self.tmp, "I-alias")
+        os.symlink(self.I, alias)
+        self.refused(self.inputs(instanceRoot=alias, extraRead=[os.path.join(self.I, "db")]),
+                     "inside paperclip's own folders")
+
+    def test_paperclip_skills_and_companies_shared(self):
+        s = os.path.join(self.I, "skills", "c", "__versions__", "v1", "r1")
+        c = os.path.join(self.I, "companies", "c", "codex-home", "auth.json")
+        h = os.path.join(self.I, "companies", "c", "codex-home", "skill-runtimes", "a", "d")
+        os.makedirs(s)
+        os.makedirs(h)
+        out = plan(self.inputs(agentHome=h, innerTmp=os.path.join(h, "tmp"),
+                               extraRead=[s, c], extraWrite=[]))
+        self.assertIn(s, out["filesystem"]["allowRead"])
+        self.assertIn(c, out["filesystem"]["allowRead"])
+        self.assertIn(h, out["filesystem"]["allowWrite"])
+
+    # Rule 4: where each kind of handed-over path may lie at all.
+
+    def test_engine_folder_is_the_planners_own(self):
+        self.assertEqual(fence_plan.ENGINE, os.path.dirname(os.path.realpath(FENCE)))
+
+    def test_agent_home_places(self):
+        self.refused(self.inputs(agentHome=os.path.join(self.H, ".ssh"),
+                                 innerTmp=os.path.join(self.H, ".ssh", "tmp")), "an agent home must lie")
+        outside = os.path.join(self.tmp, "elsewhere")
+        self.refused(self.inputs(agentHome=outside, innerTmp=os.path.join(outside, "tmp")),
+                     "an agent home must lie")
+        # Through a link in the state folder that leads out of it.
+        os.makedirs(os.path.join(self.H, ".ssh"))
+        os.symlink(os.path.join(self.H, ".ssh"), os.path.join(self.S, "sneaky-home"))
+        self.refused(self.inputs(agentHome=os.path.join(self.S, "sneaky-home"),
+                                 innerTmp=os.path.join(self.S, "claude-home", "tmp")), "an agent home must lie")
+        for h in (os.path.join(self.S, "claude-home"), os.path.join(self.S, "codex-home"),
+                  os.path.join(self.I, "companies", "c", "codex-home", "skill-runtimes", "a", "d")):
+            os.makedirs(os.path.join(h, "tmp"), exist_ok=True)
+            plan(self.inputs(agentHome=h, innerTmp=os.path.join(h, "tmp")))
+
+    def test_temp_folder_places(self):
+        self.refused(self.inputs(innerTmp=os.path.join(self.H, "Documents")), "a temp folder must lie")
+        self.refused(self.inputs(innerTmp=os.path.join(self.H, "Documents", "paperclip-run-1")),
+                     "a temp folder must lie")
+        self.refused(self.inputs(innerTmp=os.path.join(self.tmp, "some-run")), "a temp folder must lie")
+        run = os.path.join(self.tmp, "T", "paperclip-run-abc")
+        os.makedirs(run)
+        plan(self.inputs(innerTmp=run))
+        # Seen through a link to the folder above (as /var/folders is to /private/var/folders).
+        os.symlink(os.path.join(self.tmp, "T"), os.path.join(self.tmp, "T-alias"))
+        plan(self.inputs(innerTmp=os.path.join(self.tmp, "T-alias", "paperclip-run-abc")))
+        # Named like a run folder, but leading into the home folder.
+        os.symlink(os.path.join(self.H, "Documents"), os.path.join(self.tmp, "paperclip-run-x"))
+        self.refused(self.inputs(innerTmp=os.path.join(self.tmp, "paperclip-run-x")), "a temp folder must lie")
+
+    def test_extra_write_places(self):
+        for bad in (os.path.join(self.H, ".ssh"), "/opt/homebrew/bin", os.path.join(self.I, "skills", "x"),
+                    os.path.join(self.H, ".codex", "config.toml")):
+            self.refused(self.inputs(extraWrite=[bad]), "for writing")
+        for good in (os.path.join(self.H, ".codex", "auth.json"),
+                     os.path.join(self.S, "codex-home", "auth.json"),
+                     os.path.join(self.I, "companies", "c", "codex-home", "auth.json")):
+            plan(self.inputs(extraWrite=[good]))
+
+    def test_extra_read_places_in_home(self):
+        engine = os.path.join(self.H, "eng")
+        os.makedirs(os.path.join(self.H, ".ssh"))
+        os.symlink(os.path.join(self.H, ".ssh"), os.path.join(self.S, "looks-harmless"))
+        with mock.patch.object(fence_plan, "ENGINE", engine):
+            for bad in (os.path.join(self.H, ".ssh"), os.path.join(self.H, "Documents"),
+                        os.path.join(engine, "gate"), os.path.join(engine, "fence"),
+                        os.path.join(engine, "node_modules"), os.path.join(self.S, "looks-harmless")):
+                self.refused(self.inputs(extraRead=[bad]), "outside the places agents may read")
+            good = [os.path.join(self.S, "codex-home", "auth.json"), os.path.join(self.H, ".codex", "auth.json"),
+                    os.path.join(self.I, "companies", "c", "agents", "a", "instructions"),
+                    os.path.join(self.I, "companies", "c", "claude-prompt-cache", "k"),
+                    os.path.join(self.I, "skills", "c", "__versions__", "v", "r"),
+                    os.path.join(engine, "node_modules", "@openai"),
+                    os.path.join(engine, "fence", "steady-pipes.py")]
+            out = plan(self.inputs(extraRead=good))
+            for g in good:
+                self.assertIn(g, out["filesystem"]["allowRead"])
+        # Outside the home folder an extra read keeps the earlier rules.
+        plan(self.inputs(extraRead=[os.path.join(self.tmp, "outside", "x")]))
 
     def test_extra_paths_listed(self):
         r = os.path.join(self.I, "companies", "c", "skills")

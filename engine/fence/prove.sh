@@ -301,6 +301,76 @@ EOF
 }
 gate_checks
 
+# The board runs git in the task folders (to see whether a folder has changes),
+# outside the fence. From inside the fence an agent lays out a made-up
+# repository in its task folder whose settings name a program for git to run,
+# and, in a subfolder, a `.git` file pointing at a repository whose files are
+# said to be the engine's own folder. Git, run the way the board runs it (the
+# board's PATH, where the engine's git comes first), must neither run the
+# program nor show those files.
+echo; echo "The board's git (a repository an agent makes up in its task folder)"
+git_checks() {
+  local board_path="$HERE/bin:$CFG_NODE24/bin:$PATH" found out rc plant
+  local made="HEAD objects refs config watch.sh MARKED git-trap"
+  RUN="$HERE/bin/claude"; WHO="a Claude agent"; AS=""
+  # shellcheck disable=SC2086
+  (cd "$WS" && rm -rf $made)
+  found="$(PATH="$board_path"; hash -r; command -v git || true)"
+  if [[ "$found" != "$HERE/bin/git" ]]; then
+    say FAIL "the engine's git is not the first git on the board's PATH (found: ${found:-none})"; return
+  fi
+  plant='mkdir -p objects refs/heads git-trap/repo/objects git-trap/repo/refs/heads || exit 1
+echo "ref: refs/heads/main" > HEAD
+printf "#!/bin/sh\necho ran > \"%s/MARKED\"\n" "$PWD" > watch.sh && chmod +x watch.sh || exit 1
+printf "[core]\n\trepositoryformatversion = 0\n\tbare = false\n\tworktree = %s\n\tfsmonitor = %s/watch.sh\n" "$PWD" "$PWD" > config || exit 1
+echo "ref: refs/heads/main" > git-trap/repo/HEAD
+printf "gitdir: repo\n" > git-trap/.git || exit 1
+printf "[core]\n\trepositoryformatversion = 0\n\tbare = false\n\tworktree = %s\n" "@OUTSIDE@" > git-trap/repo/config'
+  out="$(inside "${plant//@OUTSIDE@/$HERE}")"; rc=$?
+  if [[ "$out" != FENCE_UP* ]] || (( rc != 0 )) || [[ ! -f "$WS/config" || ! -f "$WS/git-trap/.git" ]]; then
+    say FAIL "the made-up repository could not be laid out from inside the fence"
+  else
+    out="$(cd / && PATH="$board_path" GIT_OPTIONAL_LOCKS=0 within 30 git -C "$WS" status --porcelain=v1 --untracked-files=all 2>&1)"
+    if [[ -e "$WS/MARKED" ]]; then say FAIL "git, run the way the board runs it, ran a program named in an agent's made-up repository"
+    else say PASS "git, run the way the board runs it, does not run a program named in an agent's made-up repository"; fi
+    out="$(cd / && PATH="$board_path" GIT_OPTIONAL_LOCKS=0 within 30 git -C "$WS/git-trap" status --porcelain=v1 --untracked-files=all 2>&1)"
+    if [[ "$out" == *prove.sh* ]]; then say FAIL "git, run the way the board runs it, followed an agent's .git file to files outside its task folder"
+    else say PASS "git, run the way the board runs it, does not follow an agent's .git file outside its task folder"; fi
+  fi
+  # shellcheck disable=SC2086
+  (cd "$WS" && rm -rf $made)
+}
+git_checks
+
+# The Codex home is writable inside the fence, and codex_home.py reads it
+# outside the fence before the next run. In a made-up paperclip folder (a temp
+# folder, removed again), a skill link planted to paperclip's private settings
+# file must make the helper refuse the run, and a skill link of the live shape
+# (<instance>/skills/<company>/__versions__/...) must still be shared, read only.
+echo; echo "The Codex helper (a skill link an agent plants in its Codex home)"
+codex_skill_checks() {
+  local fake run skill out rc co="00000000-0000-4000-8000-0000000000c0" tab
+  tab="$(printf '\t')"
+  fake="$(mktemp -d -t uuu-proof-codex)" && fake="$(cd "$fake" && pwd -P)" \
+    || { say FAIL "could not make a made-up paperclip folder for the Codex helper"; return; }
+  run="$fake/I/companies/$co/codex-home/skill-runtimes/$PROOF_ID/run"
+  skill="$fake/I/skills/$co/__versions__/v1/r1"
+  mkdir -p "$run/skills" "$skill" "$fake/I/db" "$fake/S" && printf 'PROOF_PRIVATE=1\n' > "$fake/I/.env" \
+    && ln -s "$fake/I/.env" "$run/skills/planted" \
+    || { say FAIL "could not lay out the made-up paperclip folder"; rm -rf "$fake"; return; }
+  out="$(/usr/bin/python3 "$HERE/codex_home.py" "$run" "$fake/S" "$fake/I" "$co" "$PROOF_ID" 2>&1)"; rc=$?
+  if (( rc == 78 )) && [[ "$out" == *planted* && "$out" != *PROOF_PRIVATE* ]]; then
+    say PASS "the Codex helper refuses a skill link an agent planted to paperclip's private file"
+  else say FAIL "the Codex helper did not refuse a skill link to paperclip's private file (exit $rc)"; fi
+  rm -f "$run/skills/planted"; ln -s "$skill" "$run/skills/paperclip"
+  out="$(/usr/bin/python3 "$HERE/codex_home.py" "$run" "$fake/S" "$fake/I" "$co" "$PROOF_ID" 2>&1)"; rc=$?
+  if (( rc == 0 )) && [[ "$out" == *"read$tab$skill"* ]]; then
+    say PASS "the Codex helper shares a skill in paperclip's skills folder, read only"
+  else say FAIL "the Codex helper did not share a skill in paperclip's skills folder (exit $rc)"; fi
+  rm -rf "$fake"
+}
+codex_skill_checks
+
 echo
 RESULT="holds"
 if (( fail )); then RESULT="failed"; elif (( skipped )); then RESULT="holds-with-todo"; fi

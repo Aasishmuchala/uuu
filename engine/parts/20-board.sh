@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # part-name: Board
 # The board (paperclip). It is started only here, and only inside the fence:
-# the fenced `claude` and `codex` wrappers come first on its PATH, no model
-# API key is in its environment, and every address it hands to agents points
-# at the gate.
+# the fenced `claude` and `codex` wrappers and the engine's `git` come first on
+# its PATH, no model API key is in its environment, and every address it hands
+# to agents points at the gate.
 #   20-board.sh start|stop|health|installed
 set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
@@ -14,6 +14,8 @@ FENCE_RUN="$ENGINE_DIR/fence/fence-run"
 # paperclip's own built-in database
 BOARD_DB_PORT=54329
 PID_PATTERN="paperclipai"
+# The board's own git settings, written by the engine (see fence/bin/git).
+BOARD_GITCONFIG="$CFG_STATE/git/config"
 
 part_installed() {
   if [ -e "$PAPERCLIP" ]; then return 0; fi
@@ -46,8 +48,23 @@ refuse() {
   exit 3
 }
 
+# The board runs git in the agents' task folders. fence/bin/git, first on its
+# PATH, refuses those folders outright. These settings are the second guard,
+# for a git called by its full path: it still refuses a repository laid out
+# directly in a folder (the only kind an agent can make in its task folder),
+# and runs no hooks and no file-watcher program. Used through
+# GIT_CONFIG_GLOBAL, so neither the owner's own git settings nor the system's
+# apply to the board.
+write_git_config() {
+  local tmp="$BOARD_GITCONFIG.$$.tmp"
+  mkdir -p "$(dirname "$BOARD_GITCONFIG")"
+  printf '[safe]\n\tbareRepository = explicit\n[core]\n\tfsmonitor = false\n\thooksPath = /dev/null\n' >"$tmp"
+  chmod 644 "$tmp"
+  mv -f "$tmp" "$BOARD_GITCONFIG"
+}
+
 part_start() {
-  local out code path_for_board found_claude found_codex
+  local out code path_for_board found_claude found_codex found_git v
   health_now
   if [ "$HEALTH_CODE" = 0 ]; then echo "$HEALTH_SENTENCE"; return 0; fi
 
@@ -76,14 +93,26 @@ part_start() {
     if [ "$found_claude" != "$FENCE_BIN/claude" ] || [ "$found_codex" != "$FENCE_BIN/codex" ]; then
       refuse "the fenced claude and codex are not the first ones the board would find."
     fi
+    found_git="$(PATH="$path_for_board"; hash -r; command -v git || true)"
+    if [ "$found_git" != "$FENCE_BIN/git" ]; then
+      refuse "the engine's git is not the first one the board would find."
+    fi
 
     [ -e "$PAPERCLIP" ] || { echo "The board's program is not installed."; return 1; }
 
+    write_git_config
+
     # 3. start it, detached. PAPERCLIP_API_URL is set for this one process only.
+    # No git variable of the caller's reaches the board; it gets the engine's
+    # git settings and never looks for a repository above the home folder.
     echo "$(date '+%Y-%m-%dT%H:%M:%S%z') engine: starting the board" >>"$PART_LOG"
-    (cd "$ENGINE_DIR" && detach "$PART_PIDFILE" "$PART_LOG" \
+    (for v in $(compgen -e); do
+       case "$v" in GIT_*) unset "$v" ;; esac
+     done
+     cd "$ENGINE_DIR" && detach "$PART_PIDFILE" "$PART_LOG" \
       env -u OPENAI_API_KEY -u ANTHROPIC_API_KEY -u ENGINE_CONFIG \
       PATH="$path_for_board" \
+      GIT_CONFIG_GLOBAL="$BOARD_GITCONFIG" GIT_CONFIG_NOSYSTEM=1 GIT_CEILING_DIRECTORIES="$HOME" \
       CODEX_HOME="$CFG_STATE/codex-home" \
       PAPERCLIP_API_URL="$CFG_GATE_URL" \
       PAPERCLIP_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 PAPERCLIP_NO_BROWSER=1 \

@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 FENCE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, FENCE)
@@ -79,36 +80,75 @@ class PolicyFileTests(unittest.TestCase):
 
 
 class CodexHomeTests(unittest.TestCase):
+    """The Codex home is writable inside the fence, and codex_home.py runs outside
+    it before the next run. Nothing the agent can plant there may widen the fence:
+    skill links only into this company's part of paperclip's skills folder, the
+    login chain only through auth.json files in the places it is kept."""
     SCRIPT = os.path.join(FENCE, "codex_home.py")
     CO = "11111111-1111-4111-8111-111111111111"
     AG = "22222222-2222-4222-8222-222222222222"
+    OTHER = "33333333-3333-4333-8333-333333333333"
 
     def setUp(self):
+        # The live shape: run home -> company home -> engine home -> ~/.codex/auth.json.
         self.tmp = os.path.realpath(tempfile.mkdtemp(prefix="codex-home-"))
         self.state = os.path.join(self.tmp, "S")
         self.inst = os.path.join(self.tmp, "I")
-        self.owner = os.path.join(self.tmp, "owner-codex")
+        self.home = os.path.join(self.tmp, "home")
+        self.owner = os.path.join(self.home, ".codex")
         os.makedirs(os.path.join(self.state, "codex-home"))
         os.makedirs(self.owner)
-        with open(os.path.join(self.owner, "auth.json"), "w") as fh:
-            fh.write("{}")
+        self.touch(os.path.join(self.owner, "auth.json"))
         os.symlink(os.path.join(self.owner, "auth.json"), os.path.join(self.state, "codex-home", "auth.json"))
-        co_home = os.path.join(self.inst, "companies", self.CO, "codex-home")
+        self.co_home = co_home = os.path.join(self.inst, "companies", self.CO, "codex-home")
         self.run_home = os.path.join(co_home, "skill-runtimes", self.AG, "abc")
         os.makedirs(os.path.join(self.run_home, "skills"))
         os.symlink(os.path.join(self.state, "codex-home", "auth.json"), os.path.join(co_home, "auth.json"))
         os.symlink(os.path.join(co_home, "auth.json"), os.path.join(self.run_home, "auth.json"))
-        skill = os.path.join(self.inst, "skills", self.CO, "paperclip")
+        skill = os.path.join(self.inst, "skills", self.CO, "__versions__", "v1", "r1")
         os.makedirs(skill)
         os.symlink(skill, os.path.join(self.run_home, "skills", "paperclip"))
         self.skill = skill
+        # paperclip's own private things, which no agent may ever be given.
+        self.touch(os.path.join(self.inst, ".env"), "PRIVATE_MARK=1")
+        os.makedirs(os.path.join(self.inst, "db"))
+        os.makedirs(os.path.join(self.inst, "companies", self.OTHER, "codex-home"))
+        self.touch(os.path.join(self.inst, "companies", self.OTHER, "codex-home", "auth.json"))
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
 
-    def run_script(self, home):
-        return subprocess.run([sys.executable, self.SCRIPT, home, self.state, self.inst, self.CO, self.AG],
-                              capture_output=True, text=True)
+    def touch(self, path, text="{}"):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as fh:
+            fh.write(text)
+
+    def run_script(self, home, company=None):
+        """Runs the helper in this process with its home folder pointed at the
+        made-up one (the real helper takes it from the user database)."""
+        import codex_home
+        out, err = io.StringIO(), io.StringIO()
+        args = [home, self.state, self.inst, self.CO if company is None else company, self.AG]
+        with mock.patch.object(codex_home, "owner_home", lambda: self.home, create=True), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = codex_home.main(args)
+            except SystemExit as e:
+                code = e.code
+        return subprocess.CompletedProcess(args, code, out.getvalue(), err.getvalue())
+
+    def plant_skill(self, target, name="sneaky"):
+        os.symlink(target, os.path.join(self.run_home, "skills", name))
+
+    def relink(self, link, target):
+        os.remove(link)
+        os.symlink(target, link)
+
+    def assert_refused(self, r, text):
+        self.assertEqual(r.returncode, 78, r.stdout)
+        self.assertIn(text, r.stderr)
+        self.assertEqual(r.stdout, "")
+        self.assertNotIn("PRIVATE_MARK", r.stderr)
 
     def test_paperclip_home_chain_and_skills(self):
         r = self.run_script(self.run_home)
@@ -126,14 +166,107 @@ class CodexHomeTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_other_home_refused(self):
-        r = self.run_script(self.owner)
+        r = subprocess.run([sys.executable, self.SCRIPT, self.owner, self.state, self.inst, self.CO, self.AG],
+                           capture_output=True, text=True)
         self.assertEqual(r.returncode, 78)
         self.assertIn("refusing Codex home", r.stderr)
 
+    def test_script_mode_with_login_file_in_engine_home(self):
+        # Run as a script (its home folder the real one): a chain ending in the
+        # engine's own login file needs no home folder at all.
+        engine_login = os.path.join(self.state, "codex-home", "auth.json")
+        os.remove(engine_login)
+        self.touch(engine_login)
+        r = subprocess.run([sys.executable, self.SCRIPT, self.run_home, self.state, self.inst, self.CO, self.AG],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("write\t%s" % engine_login, r.stdout.splitlines())
+        self.assertIn("read\t%s" % self.skill, r.stdout.splitlines())
+
+    # Rule 1: skill links.
+
     def test_skill_pointing_elsewhere_refused(self):
-        os.symlink(self.owner, os.path.join(self.run_home, "skills", "sneaky"))
+        self.plant_skill(self.owner)
+        self.assert_refused(self.run_script(self.run_home), "sneaky")
+
+    def test_skill_to_paperclip_env_file_refused(self):
+        self.plant_skill(os.path.join(self.inst, ".env"))
         r = self.run_script(self.run_home)
-        self.assertEqual(r.returncode, 78)
+        self.assert_refused(r, "the Codex skill sneaky points outside paperclip's skills folder")
+        self.assertNotIn(".env", r.stderr)
+
+    def test_skill_to_paperclip_database_refused(self):
+        self.plant_skill(os.path.join(self.inst, "db"))
+        self.assert_refused(self.run_script(self.run_home), "sneaky")
+
+    def test_skill_to_another_company_login_file_refused(self):
+        self.plant_skill(os.path.join(self.inst, "companies", self.OTHER, "codex-home", "auth.json"))
+        self.assert_refused(self.run_script(self.run_home), "sneaky")
+
+    def test_skill_of_another_company_refused(self):
+        other = os.path.join(self.inst, "skills", self.OTHER, "x")
+        os.makedirs(other)
+        self.plant_skill(other)
+        self.assert_refused(self.run_script(self.run_home), "sneaky")
+        # Without a company id, any skill in paperclip's skills folder is still fine.
+        self.assertEqual(self.run_script(self.run_home, company="").returncode, 0)
+
+    def test_skill_roots_refused(self):
+        for target in (os.path.join(self.inst, "skills"), os.path.join(self.inst, "skills", self.CO)):
+            self.plant_skill(target, "root")
+            self.assert_refused(self.run_script(self.run_home), "root")
+            os.remove(os.path.join(self.run_home, "skills", "root"))
+
+    def test_skill_link_to_link_ending_outside_refused(self):
+        hop = os.path.join(self.inst, "skills", self.CO, "hop")
+        os.symlink(os.path.join(self.inst, "db"), hop)
+        self.plant_skill(hop)
+        self.assert_refused(self.run_script(self.run_home), "sneaky")
+
+    def test_no_company_still_only_skills_folder(self):
+        self.plant_skill(os.path.join(self.inst, "db"))
+        self.assert_refused(self.run_script(self.run_home, company=""), "sneaky")
+
+    # Rule 2: the login chain.
+
+    def test_login_link_to_other_file_name_refused(self):
+        self.touch(os.path.join(self.owner, "config.toml"))
+        self.relink(os.path.join(self.run_home, "auth.json"), os.path.join(self.owner, "config.toml"))
+        self.assert_refused(self.run_script(self.run_home), "login file")
+
+    def test_login_link_to_paperclip_env_file_refused(self):
+        self.relink(os.path.join(self.run_home, "auth.json"), os.path.join(self.inst, ".env"))
+        r = self.run_script(self.run_home)
+        self.assert_refused(r, "login file")
+        self.assertNotIn(".env", r.stderr)
+
+    def test_login_link_to_auth_json_elsewhere_refused(self):
+        elsewhere = os.path.join(self.inst, "data", "auth.json")
+        self.touch(elsewhere)
+        self.relink(os.path.join(self.run_home, "auth.json"), elsewhere)
+        self.assert_refused(self.run_script(self.run_home), "login file")
+        # Nor further down the chain, nor one folder below ~/.codex.
+        self.relink(os.path.join(self.run_home, "auth.json"), os.path.join(self.co_home, "auth.json"))
+        self.relink(os.path.join(self.state, "codex-home", "auth.json"), elsewhere)
+        self.assert_refused(self.run_script(self.run_home), "login file")
+        deeper = os.path.join(self.owner, "sub", "auth.json")
+        self.touch(deeper)
+        self.relink(os.path.join(self.state, "codex-home", "auth.json"), deeper)
+        self.assert_refused(self.run_script(self.run_home), "login file")
+
+    def test_login_file_in_home_cannot_lead_on(self):
+        elsewhere = os.path.join(self.tmp, "elsewhere", "auth.json")
+        self.touch(elsewhere)
+        self.relink(os.path.join(self.owner, "auth.json"), elsewhere)
+        self.assert_refused(self.run_script(self.run_home), "login file")
+
+    def test_login_chain_ending_in_engine_home_accepted(self):
+        engine_login = os.path.join(self.state, "codex-home", "auth.json")
+        os.remove(engine_login)
+        self.touch(engine_login)
+        r = self.run_script(self.run_home)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("write\t%s" % engine_login, r.stdout.splitlines())
 
 
 class ClaudeSkillsTests(unittest.TestCase):
