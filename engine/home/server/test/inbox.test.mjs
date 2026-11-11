@@ -2,12 +2,29 @@
 // each action makes, dismiss, finished goals, and a failing source.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { boardSeed, IDS } from "../../../test/stubs/seed.mjs";
+import { SERVER_DIR } from "../lib/app.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
 import { call, writes } from "../lib/testing.mjs";
+
+// A module folder holding only the core's own modules (symlinked), so a test does not change when feature
+// modules are added to routes/, inbox/ or search/. Remove it with rmSync when done.
+const CORE_MODULES = {
+  routes: ["company", "files", "goals", "health", "inbox", "search", "state"],
+  inbox: ["board", "goals"],
+  search: ["goals"],
+};
+function coreModuleDir() {
+  const dir = mkdtempSync(join(tmpdir(), "uuu-home-core-"));
+  for (const [kind, names] of Object.entries(CORE_MODULES)) {
+    mkdirSync(join(dir, kind));
+    for (const n of names) symlinkSync(join(SERVER_DIR, kind, `${n}.mjs`), join(dir, kind, `${n}.mjs`));
+  }
+  return dir;
+}
 
 const at = (m) => new Date(Date.parse("2026-11-11T09:00:00.000Z") + m * 60000).toISOString();
 
@@ -37,7 +54,8 @@ const BUDGET_ID = "board:budget_alert:ba000000-0000-4000-8000-000000000001";
 const GOAL_DONE_ID = `goal:${IDS.issues["STH-2"]}`;
 
 test("merge: every source, high first then newest first, counts", async () => {
-  await withHome(async (h) => {
+  const core = coreModuleDir();
+  try { await withHome(async (h) => {
     const r = await call(h.url, "GET", "/api/inbox");
     assert.equal(r.status, 200);
     const d = r.json;
@@ -52,7 +70,7 @@ test("merge: every source, high first then newest first, counts", async () => {
       for (const k of ["id", "source", "kind", "title", "raisedBy", "when", "summary", "severity", "details", "actions", "link"]) assert.ok(k in i, `${i.id} has ${k}`);
       assert.ok(!("_raw" in i));
     }
-  });
+  }, { moduleDirs: [core] }); } finally { rmSync(core, { recursive: true, force: true }); }
 });
 
 test("board approval: approve, send back (needs a note), reject", async () => {
@@ -233,7 +251,7 @@ test("a source that fails lands in notConnected and the rest still list", async 
   mkdirSync(join(dir, "inbox"));
   writeFileSync(join(dir, "inbox", "broken.mjs"), "export default { id: 'broken', async list() { throw new Error('boom at /secret/path'); }, async act() { return {}; } };\n");
   writeFileSync(join(dir, "inbox", "off.mjs"), "export default { id: 'off', async list() { return { items: [], notConnected: { source: 'people', reason: 'The books are not installed.' } }; }, async act() { return {}; } };\n");
-  const { SERVER_DIR } = await import("../lib/app.mjs");
+  const core = coreModuleDir();
   try {
     await withHome(async (h) => {
       const d = await inbox(h);
@@ -242,17 +260,17 @@ test("a source that fails lands in notConnected and the rest still list", async 
       assert.ok(nc.broken);
       assert.ok(!nc.broken.includes("/secret/path"));
       assert.equal(nc.people, "The books are not installed.");
-    }, { moduleDirs: [SERVER_DIR, dir] });
+    }, { moduleDirs: [core, dir] });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
   // board off: both board sources are not connected, the answer is still 200
-  await withHome(async (h) => {
+  try { await withHome(async (h) => {
     await h.board.close();
     const r = await call(h.url, "GET", "/api/inbox");
     assert.equal(r.status, 200);
     assert.deepEqual(r.json.items, []);
     assert.deepEqual(r.json.notConnected.map((n) => n.source).sort(), ["board", "goals"]);
     assert.match(r.json.notConnected[0].reason, /board is not answering/);
-  });
+  }, { moduleDirs: [core] }); } finally { rmSync(core, { recursive: true, force: true }); }
 });

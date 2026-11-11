@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,22 @@ import { startStubsHome } from "../lib/stubs.mjs";
 import { call } from "../lib/testing.mjs";
 
 const MAIN = join(dirname(fileURLToPath(import.meta.url)), "..", "main.mjs");
+
+// A module folder holding only the core's own modules (symlinked), so a test does not change when feature
+// modules are added to routes/, inbox/ or search/. Remove it with rmSync when done.
+const CORE_MODULES = {
+  routes: ["company", "files", "goals", "health", "inbox", "search", "state"],
+  inbox: ["board", "goals"],
+  search: ["goals"],
+};
+function coreModuleDir() {
+  const dir = mkdtempSync(join(tmpdir(), "uuu-home-core-"));
+  for (const [kind, names] of Object.entries(CORE_MODULES)) {
+    mkdirSync(join(dir, kind));
+    for (const n of names) symlinkSync(join(SERVER_DIR, kind, `${n}.mjs`), join(dir, kind, `${n}.mjs`));
+  }
+  return dir;
+}
 
 function moduleDir(files) {
   const dir = mkdtempSync(join(tmpdir(), "uuu-home-mods-"));
@@ -58,7 +74,8 @@ test("modules are discovered at start; broken ones are skipped and listed", asyn
     "search/bad.mjs": "export default { id: 'bad', search() {} };\n",
   });
   const lines = [];
-  const h = await startStubsHome({ port: 0, moduleDirs: [SERVER_DIR, dir], log: (l) => lines.push(l) });
+  const core = coreModuleDir();
+  const h = await startStubsHome({ port: 0, moduleDirs: [core, dir], log: (l) => lines.push(l) });
   try {
     const health = (await call(h.url, "GET", "/api/health")).json;
     assert.deepEqual(health.modulesFailed.map((m) => m.file).sort(), ["inbox/bad.mjs", "routes/clash.mjs", "routes/shape.mjs", "routes/syntax.mjs", "search/bad.mjs"]);
@@ -100,6 +117,7 @@ test("modules are discovered at start; broken ones are skipped and listed", asyn
   } finally {
     await h.close();
     rmSync(dir, { recursive: true, force: true });
+    rmSync(core, { recursive: true, force: true });
   }
 });
 

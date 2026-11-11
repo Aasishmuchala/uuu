@@ -1,10 +1,28 @@
 // Health (CONTRACTS 9.9): parts, fence, not connected, disk, the proof runner, /api/state.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { SERVER_DIR } from "../lib/app.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
 import { call } from "../lib/testing.mjs";
+
+// A module folder holding only the core's own modules (symlinked), so a test does not change when feature
+// modules are added to routes/, inbox/ or search/. Remove it with rmSync when done.
+const CORE_MODULES = {
+  routes: ["company", "files", "goals", "health", "inbox", "search", "state"],
+  inbox: ["board", "goals"],
+  search: ["goals"],
+};
+function coreModuleDir() {
+  const dir = mkdtempSync(join(tmpdir(), "uuu-home-core-"));
+  for (const [kind, names] of Object.entries(CORE_MODULES)) {
+    mkdirSync(join(dir, kind));
+    for (const n of names) symlinkSync(join(SERVER_DIR, kind, `${n}.mjs`), join(dir, kind, `${n}.mjs`));
+  }
+  return dir;
+}
 
 async function withHome(fn, opts = {}) {
   const h = await startStubsHome({ port: 0, ...opts });
@@ -43,6 +61,7 @@ test("parts, fence, not connected and disk", async () => {
 });
 
 test("board off and books not installed: said so, still 200", async () => {
+  const core = coreModuleDir();
   await withHome(async (h) => {
     await h.board.close();
     rmSync(join(h.state, "proof", "last.json"));
@@ -61,7 +80,7 @@ test("board off and books not installed: said so, still 200", async () => {
     assert.equal(s.status, 200);
     assert.equal(s.json.engine.board, "off");
     assert.deepEqual(s.json.counts, { inbox: 0, goalsActive: 0, agentsWorking: 0 });
-  });
+  }, { moduleDirs: [core] });
   await withHome(async (h) => {
     const r = await call(h.url, "GET", "/api/health");
     const books = r.json.parts.find((p) => p.id === "books");
@@ -69,7 +88,8 @@ test("board off and books not installed: said so, still 200", async () => {
     assert.doesNotMatch(books.sentence, TECH);
     const s = await call(h.url, "GET", "/api/state");
     assert.equal(s.json.engine.books, "not_installed");
-  }, { benchInstalled: false });
+  }, { benchInstalled: false, moduleDirs: [core] });
+  rmSync(core, { recursive: true, force: true });
 });
 
 test("the proof runs in the background, once at a time", async () => {
@@ -84,6 +104,7 @@ test("the proof runs in the background, once at a time", async () => {
 });
 
 test("state: company, counts, engine", async () => {
+  const core = coreModuleDir();
   await withHome(async (h) => {
     const r = await call(h.url, "GET", "/api/state");
     assert.equal(r.status, 200);
@@ -91,5 +112,6 @@ test("state: company, counts, engine", async () => {
     assert.deepEqual(r.json.counts, { inbox: 5, goalsActive: 2, agentsWorking: 1 });
     assert.deepEqual(r.json.engine, { board: "on", books: "on" });
     assert.ok(Date.parse(r.json.generatedAt));
-  });
+  }, { moduleDirs: [core] });
+  rmSync(core, { recursive: true, force: true });
 });
