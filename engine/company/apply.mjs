@@ -7,13 +7,17 @@
 // Paperclip's grants are not managed: the board gives every agent its default grants and
 // refuses to let the owner remove them, so the gate blocks what they would open. Apply sets
 // only the three rights, and checks the one grant they move, tasks:assign.
-import { existsSync } from "node:fs";
+// Routines (CONTRACTS-V2 section 18) come from the routines folder beside the company file.
+// They are made paused; apply never switches one on or off afterwards and never deletes one.
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../lib/config.mjs";
 import { boardClient, BoardDown, BoardRefused } from "./lib/board.mjs";
 import { loadCompanyFile, desiredAdapterConfig, FileProblem } from "./lib/company-file.mjs";
 import { ensureDir, ensureFile, writeIfChanged } from "./lib/state-files.mjs";
+import { loadRoutineFiles } from "./lib/routine-files.mjs";
+import { applyRoutines, CHIEF, RoutineStop } from "./lib/routines.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -42,6 +46,15 @@ const mayAssign = (detail) => (detail?.access?.grants || []).some((g) => g.permi
 async function apply({ check, file }) {
   const config = loadConfig();
   const plan = loadCompanyFile(file, config);
+  // A routine file that is not usable stops everything before the board is asked anything.
+  const routineFiles = loadRoutineFiles(join(dirname(file), "routines"), plan.agents);
+  if (routineFiles.problems.length) {
+    const { file: bad, problem } = routineFiles.problems[0];
+    throw new Stop(`The routine file ${bad} is not usable: ${problem.charAt(0).toLowerCase()}${problem.slice(1).replace(/\.$/, "")}.`);
+  }
+  if (routineFiles.routines.length && !plan.agents.some((a) => a.slug === CHIEF)) {
+    throw new Stop("The routines need the Chief of staff in the company file, so nothing was changed.");
+  }
   const board = boardClient(config.urls.board, { portLabel: config.ports.board });
   const state = config.paths.state;
   const counts = { created: 0, updated: 0, unchanged: 0 };
@@ -208,6 +221,17 @@ async function apply({ check, file }) {
     say("updated", `boss of ${a.name}`, bossName);
   }
 
+  // Routines, as the owner, after the instructions and before ids.json.
+  let routineIds = {};
+  if (routineFiles.routines.length) {
+    let known = {};
+    try { known = JSON.parse(readFileSync(config.paths.ids, "utf8")).routines || {}; } catch { known = {}; }
+    routineIds = await applyRoutines({
+      board, company, project, agents: plan.agents, routines: routineFiles.routines, known,
+      chiefId: ids[CHIEF] ?? null, check, say,
+    });
+  }
+
   // Empty lessons files, ids.json and one fence policy per agent.
   for (const a of plan.agents) {
     if (a.policy.lessonsFile) say(ensureFile(a.policy.lessonsFile, { check }), `lessons file of ${a.name}`);
@@ -216,6 +240,7 @@ async function apply({ check, file }) {
     say(existsSync(config.paths.ids) ? "updated" : "created", "ids file");
   } else {
     const idsDoc = { companyId: company.id, projectId: project.id, projectFolder: plan.project.folder, agents: ids };
+    if (routineFiles.routines.length) idsDoc.routines = routineIds;
     say(writeIfChanged(config.paths.ids, JSON.stringify(idsDoc, null, 2) + "\n", { check }), "ids file");
   }
   for (const a of plan.agents) {
@@ -242,7 +267,7 @@ async function apply({ check, file }) {
 try {
   process.exitCode = await apply(parseArgs(process.argv.slice(2)));
 } catch (e) {
-  if (e instanceof BoardDown || e instanceof BoardRefused || e instanceof FileProblem || e instanceof Stop) {
+  if (e instanceof BoardDown || e instanceof BoardRefused || e instanceof FileProblem || e instanceof Stop || e instanceof RoutineStop) {
     console.error(e.message);
   } else if (e && /^engine config: /.test(e.message)) {
     console.error(e.message);

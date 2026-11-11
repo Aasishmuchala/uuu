@@ -13,7 +13,7 @@
     "claudeHosts": ["api.anthropic.com"],
     "codexHosts": ["chatgpt.com", "api.openai.com", "auth.openai.com"],
     "policyPortsAllowed": [8120],
-    "readRootsAllowed": ["knowledge/docs", "lessons", "cad"]
+    "readRootsAllowed": ["knowledge/docs", "lessons", "cad", "art"]
   },
   "minFreeDiskGb": 8
 }

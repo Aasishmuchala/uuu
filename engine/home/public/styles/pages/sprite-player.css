@@ -1,0 +1,240 @@
+/* The sprite player (V19). Every selector starts with .p-sprite-player; tokens only (CONTRACTS-V2 11.2). */
+
+.p-sprite-player {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.p-sprite-player .p-sprite-player__stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  padding: var(--s-4);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background-color: var(--bg-subtle);
+  /* A quiet checkerboard, so clear pixels read as clear. */
+  background-image:
+    linear-gradient(45deg, var(--border) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--border) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--border) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--border) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+.p-sprite-player .p-sprite-player__stage:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.p-sprite-player .p-sprite-player__stage .k-loading,
+.p-sprite-player .p-sprite-player__stage .k-notice {
+  width: 100%;
+  max-width: 420px;
+}
+
+.p-sprite-player .p-sprite-player__canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.p-sprite-player .p-sprite-player__where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.p-sprite-player .p-sprite-player__frame-no {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+
+.p-sprite-player .p-sprite-player__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.p-sprite-player .p-sprite-player__label {
+  margin-left: var(--s-2);
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+.p-sprite-player .p-sprite-player__label:first-child {
+  margin-left: 0;
+}
+
+.p-sprite-player .p-sprite-player__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--h-sm);
+  height: var(--h-sm);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--bg);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.p-sprite-player .p-sprite-player__toggle:hover:not(:disabled) {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.p-sprite-player .p-sprite-player__toggle.is-on {
+  border-color: var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+
+.p-sprite-player .p-sprite-player__toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.p-sprite-player .p-sprite-player__toggle:focus-visible,
+.p-sprite-player .p-sprite-player__thumb:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.p-sprite-player .p-sprite-player__zoom {
+  min-width: 2.5em;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  color: var(--text);
+}
+
+.p-sprite-player .p-sprite-player__part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.p-sprite-player .p-sprite-player__heading {
+  margin: 0;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  color: var(--text-3);
+}
+
+.p-sprite-player .p-sprite-player__strip {
+  display: flex;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0 0 var(--s-2);
+  overflow-x: auto;
+  list-style: none;
+}
+
+.p-sprite-player .p-sprite-player__thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--bg-card);
+  color: var(--text-2);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+.p-sprite-player .p-sprite-player__thumb:hover {
+  border-color: var(--border-strong);
+}
+
+.p-sprite-player .p-sprite-player__thumb.is-current {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.p-sprite-player .p-sprite-player__thumb-canvas {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: var(--bg-subtle);
+}
+
+.p-sprite-player .p-sprite-player__thumb-number {
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  color: var(--text);
+}
+
+.p-sprite-player .p-sprite-player__thumb-time {
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+.p-sprite-player .p-sprite-player__palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-sprite-player .p-sprite-player__colour {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.p-sprite-player .p-sprite-player__swatch {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-1);
+}
+
+.p-sprite-player .p-sprite-player__hex {
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .p-sprite-player .p-sprite-player__toggle,
+  .p-sprite-player .p-sprite-player__thumb {
+    transition: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .p-sprite-player .p-sprite-player__toggle,
+  .p-sprite-player .p-sprite-player__thumb {
+    min-height: 44px;
+  }
+
+  .p-sprite-player .p-sprite-player__stage {
+    min-height: 180px;
+  }
+}

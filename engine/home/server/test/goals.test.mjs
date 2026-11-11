@@ -1,14 +1,16 @@
-// Goals (CONTRACTS 9.4): create with the pinned body, list, detail with RESULT and VERDICT, note, stop.
+// Goals (CONTRACTS 9.4, CONTRACTS-V2 17.4): create with the pinned body (plan first, direct to one agent,
+// a ready-made goal), list, detail with RESULT and VERDICT, note, stop.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { IDS } from "../../../test/stubs/seed.mjs";
-import { startStubsHome } from "../lib/stubs.mjs";
+import { boardSeed, IDS } from "../../../test/stubs/seed.mjs";
 import { call, writes } from "../lib/testing.mjs";
+import { startV2 } from "../lib/testing-v2.mjs";
 
+// The goal routes on the version 1 board seed (STH-1 to STH-6), so the counts pinned below stay as they were.
 async function withHome(fn, opts = {}) {
-  const h = await startStubsHome({ port: 0, ...opts });
+  const h = await startV2({ routes: ["goals", "files", "search"], search: ["goals"], boardSeed: boardSeed(), ...opts });
   try { return await fn(h); } finally { await h.close(); }
 }
 
@@ -154,5 +156,90 @@ test("search: the goals source matches every word in title and description", asy
     assert.ok(!none.json.groups.some((x) => x.source === "goals"));
     assert.equal((await call(h.url, "GET", "/api/search?q=a")).status, 400);
     assert.equal((await call(h.url, "GET", "/api/search")).status, 400);
+  });
+});
+
+// ---- version 2 (CONTRACTS-V2 17.4)
+
+const created = (h) => h.board.requests.filter((x) => x.method === "POST" && x.path === `/api/companies/${IDS.company}/issues`);
+
+test("create: plan first, direct to the Marketer: one task for the Chief of staff with FOR, the text and PLAN FIRST", async () => {
+  await withHome(async (h) => {
+    const r = await call(h.url, "POST", "/api/goals", { body: { text: "  Write three captions for the new photos  ", planFirst: true, to: "marketer" } });
+    assert.equal(r.status, 201);
+    const posts = created(h);
+    assert.equal(posts.length, 1);
+    assert.deepEqual(posts[0].body, {
+      title: "Write three captions for the new photos",
+      description: "FOR: Marketer\nWrite three captions for the new photos\n\nPLAN FIRST",
+      assigneeAgentId: IDS.agents["chief-of-staff"], projectId: IDS.project, status: "todo", priority: "medium",
+    });
+    assert.deepEqual(writes(h.board), [`POST /api/companies/${IDS.company}/issues`]);
+    assert.equal(r.json.goal.title, "Write three captions for the new photos");
+  });
+});
+
+test("create: plan first alone ends with PLAN FIRST; direct alone starts with FOR", async () => {
+  await withHome(async (h) => {
+    await call(h.url, "POST", "/api/goals", { body: { text: "Plan the Diwali offer", planFirst: true } });
+    await call(h.url, "POST", "/api/goals", { body: { text: "Reconcile October", to: "bookkeeper", planFirst: false } });
+    const [a, b] = created(h).map((p) => p.body.description);
+    assert.equal(a, "Plan the Diwali offer\n\nPLAN FIRST");
+    assert.equal(b, "FOR: Bookkeeper\nReconcile October");
+    assert.ok(created(h).every((p) => p.body.assigneeAgentId === IDS.agents["chief-of-staff"]));
+  });
+});
+
+test("create: an unknown agent is 400 bad_to and nothing is written", async () => {
+  await withHome(async (h) => {
+    for (const to of ["nobody", "../builder", "Marketer", 7, ["marketer"], { slug: "marketer" }]) {
+      const r = await call(h.url, "POST", "/api/goals", { body: { text: "Do a thing", to } });
+      assert.equal(r.status, 400, JSON.stringify(to));
+      assert.equal(r.json.error.code, "bad_to");
+      assert.doesNotMatch(r.json.error.message, /slug|undefined|null/);
+    }
+    assert.deepEqual(writes(h.board), []);
+  });
+});
+
+test("create: to the Chief of staff adds no FOR line", async () => {
+  await withHome(async (h) => {
+    const r = await call(h.url, "POST", "/api/goals", { body: { text: "Write the price list", to: "chief-of-staff" } });
+    assert.equal(r.status, 201);
+    assert.equal(created(h)[0].body.description, "Write the price list");
+  });
+});
+
+test("create: the old body { text } behaves as before, with no markers and no extra keys", async () => {
+  await withHome(async (h) => {
+    const text = "Write a welcome letter\nKeep it short.";
+    const r = await call(h.url, "POST", "/api/goals", { body: { text } });
+    assert.equal(r.status, 201);
+    assert.deepEqual(created(h)[0].body, {
+      title: "Write a welcome letter", description: text, assigneeAgentId: IDS.agents["chief-of-staff"],
+      projectId: IDS.project, status: "todo", priority: "medium",
+    });
+    for (const body of [{ text, planFirst: "yes" }, { text, planFirst: 1 }, { text, to: "" }, { text, to: null }]) {
+      await call(h.url, "POST", "/api/goals", { body });
+      assert.equal(created(h).at(-1).body.description, text, JSON.stringify(body));
+    }
+  });
+});
+
+test("create: a ready-made goal is recorded only, under template:<id>", async () => {
+  await withHome(async (h) => {
+    const r = await call(h.url, "POST", "/api/goals", { body: { text: "Draft an invoice for Asha", to: "bookkeeper", template: "books/draft-invoice" } });
+    assert.equal(r.status, 201);
+    const id = r.json.goal.id;
+    const post = created(h)[0];
+    assert.deepEqual(Object.keys(post.body).sort(), ["assigneeAgentId", "description", "priority", "projectId", "status", "title"]);
+    assert.equal(post.body.description, "FOR: Bookkeeper\nDraft an invoice for Asha");
+    const saved = JSON.parse(readFileSync(join(h.state, "home", "decisions.json"), "utf8"));
+    assert.equal(saved[`template:${id}`], "books/draft-invoice");
+    // a template that is not "<department>/<goal id>" is not recorded, and the task is still made
+    const odd = await call(h.url, "POST", "/api/goals", { body: { text: "Another", template: "../../etc" } });
+    assert.equal(odd.status, 201);
+    const again = JSON.parse(readFileSync(join(h.state, "home", "decisions.json"), "utf8"));
+    assert.ok(!(`template:${odd.json.goal.id}` in again));
   });
 });

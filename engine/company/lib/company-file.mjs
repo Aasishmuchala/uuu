@@ -8,6 +8,8 @@ export class FileProblem extends Error {}
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const RIGHT_KEYS = ["canAssignTasks", "canCreateAgents", "canCreateSkills"];
+// The six departments of the home screen (CONTRACTS-V2 21.2); null is an agent of no department.
+const DEPARTMENTS = ["books", "customers", "support", "people", "marketing", "studio"];
 // Paperclip gives every agent its default grants and does not let the owner remove an
 // agent's grants, so the file no longer lists any: the gate blocks what they would open.
 const NO_GRANTS = 'it still lists grants, and grants are not applied (paperclip does not let the owner trim them; the gate blocks what they would open), so remove the "grants" key from';
@@ -99,6 +101,8 @@ export function loadCompanyFile(file, config) {
     const tool = TOOLS[a.tool];
     if (!tool) problem(`agent ${slug} has tool ${a.tool}; use claude or codex`);
     if (a.model !== null && (typeof a.model !== "string" || !/^[a-z0-9.-]+$/.test(a.model))) problem(`agent ${slug} has a bad model`);
+    const department = a.department === undefined ? null : a.department;
+    if (department !== null && !DEPARTMENTS.includes(department)) problem(`agent ${slug} has department ${a.department}; use one of ${DEPARTMENTS.join(", ")} or null`);
     if (a.reportsTo !== null && !seen.has(a.reportsTo)) problem(`agent ${slug} reports to ${a.reportsTo}, which is not listed before it`);
 
     const limits = { ...d.limits, ...(a.limits || {}) };
@@ -127,7 +131,7 @@ export function loadCompanyFile(file, config) {
     seen.add(slug);
     names.add(a.name);
     agents.push({
-      slug, name: a.name, role: a.paperclipRole, title: a.title, capabilities: a.capabilities,
+      slug, name: a.name, department, role: a.paperclipRole, title: a.title, capabilities: a.capabilities,
       tool: a.tool, adapterType: tool.adapterType, command: tool.command, model: a.model,
       reportsTo: a.reportsTo, limits, rights: Object.fromEntries(RIGHT_KEYS.map((k) => [k, rights[k]])),
       policy, instructionsTemplate: instructions,
@@ -136,8 +140,19 @@ export function loadCompanyFile(file, config) {
   }
 
   const team = agents.map((a) => `- ${a.name}: ${a.capabilities}`).join("\n");
+  // The one shared text on the staged way of working (CONTRACTS-V2 21.3), read only when a role asks for it.
+  let staged = null;
+  if (agents.some((a) => a.instructionsTemplate.includes("{{STAGED}}"))) {
+    try {
+      staged = readFileSync(join(baseDir, "shared", "staged.md"), "utf8").replace(/\n+$/, "");
+    } catch {
+      problem("the shared text shared/staged.md cannot be read");
+    }
+  }
   for (const a of agents) {
-    a.instructions = a.instructionsTemplate.split("{{TEAM}}").join(team);
+    let text = a.instructionsTemplate;
+    if (staged !== null) text = text.split("{{STAGED}}").join(staged);
+    a.instructions = text.split("{{TEAM}}").join(team);
     delete a.instructionsTemplate;
   }
   return {

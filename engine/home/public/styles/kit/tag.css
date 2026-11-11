@@ -1,0 +1,61 @@
+/* kit/tag.js: a small word with a tone, and a quiet pill with an icon. */
+
+.k-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--s-5);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-1);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--text-2);
+  background: var(--bg-subtle);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.k-tag--ok {
+  color: var(--ok-text);
+  background: var(--ok-bg);
+  box-shadow: none;
+}
+
+.k-tag--warn {
+  color: var(--warn-text);
+  background: var(--warn-bg);
+  box-shadow: none;
+}
+
+.k-tag--bad {
+  color: var(--bad-text);
+  background: var(--bad-bg);
+  box-shadow: none;
+}
+
+.k-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: var(--s-6);
+  padding: 0 var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--text-2);
+  background: var(--bg-card);
+}
+
+.k-chip .k-icon {
+  color: var(--text-3);
+}
+
+.k-chip__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

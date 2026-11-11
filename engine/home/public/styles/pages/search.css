@@ -1,0 +1,7 @@
+/* Search page. */
+.p-search .p-search__form { margin-bottom: var(--s-4); }
+.p-search .p-search__hint { color: var(--text-2); }
+.p-search .p-search__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.p-search .p-search__item { padding: var(--s-2) 0; border-bottom: 1px solid var(--border); }
+.p-search .p-search__title { font-weight: var(--fw-medium); overflow-wrap: anywhere; }
+.p-search .p-search__snippet { margin: var(--s-1) 0 0; color: var(--text-2); overflow-wrap: anywhere; }

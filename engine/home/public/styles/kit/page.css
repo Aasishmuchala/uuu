@@ -1,0 +1,136 @@
+/* kit/page.js: the page header and titled sections, with generous, calm spacing. */
+
+.k-page-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-bottom: var(--s-8);
+}
+
+.k-page-header__back {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: var(--h-md);
+  color: var(--text-2);
+  font-size: var(--fs-body);
+  text-decoration: none;
+}
+
+.k-page-header__back:hover {
+  color: var(--text);
+}
+
+.k-page-header__back-icon {
+  transform: scaleX(-1);
+}
+
+.k-page-header__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3) var(--s-4);
+}
+
+.k-page-header__title {
+  min-width: 0;
+  font-size: var(--fs-display);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.k-page-header__title:focus {
+  outline: none;
+}
+
+.k-page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.k-page-header__lead {
+  max-width: 68ch;
+  color: var(--text-2);
+  font-size: var(--fs-title);
+}
+
+.k-page-header__more {
+  margin-top: var(--s-2);
+}
+
+.k-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-bottom: var(--s-10);
+}
+
+.k-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: var(--h-md);
+}
+
+.k-section__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-bold);
+}
+
+.k-section__count {
+  min-width: var(--s-5);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  line-height: var(--s-5);
+  text-align: center;
+}
+
+.k-section__aside {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+}
+
+.k-section__hint {
+  margin-top: calc(var(--s-2) * -1);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.k-section__body {
+  min-width: 0;
+}
+
+@media (max-width: 859px) {
+  .k-page-header {
+    margin-bottom: var(--s-6);
+  }
+
+  .k-page-header__title {
+    font-size: var(--fs-heading);
+  }
+
+  .k-page-header__back {
+    min-height: calc(var(--h-lg) + var(--s-1));
+  }
+
+  .k-section {
+    margin-bottom: var(--s-8);
+  }
+}

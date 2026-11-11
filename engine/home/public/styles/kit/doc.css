@@ -1,0 +1,70 @@
+/* DocView (kit/doc.js): a staged document as headings and plain text. Tokens only. */
+
+.k-doc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  color: var(--text);
+}
+
+.k-doc__name {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+.k-doc__empty {
+  margin: 0;
+  color: var(--text-3);
+}
+
+.k-doc__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.k-doc__heading {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+}
+
+.k-doc__text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.k-doc__unclear {
+  padding: var(--s-3) var(--s-4);
+  background: var(--warn-bg);
+  border: 1px solid var(--border-warm);
+  border-radius: var(--r-3);
+  color: var(--warn-text);
+}
+
+.k-doc__unclear .k-doc__heading {
+  color: var(--warn-text);
+}
+
+.k-doc__unclear-lead {
+  margin: 0;
+  font-size: var(--fs-caption);
+}
+
+.k-doc__questions {
+  margin: 0;
+  padding-left: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  overflow-wrap: anywhere;
+}

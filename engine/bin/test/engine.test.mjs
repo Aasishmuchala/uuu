@@ -192,6 +192,62 @@ test("setup refuses when there is no board on", () => {
   assert.equal(r.stdout.trim(), "Start the engine first: engine start");
 });
 
+// A copy of the engine command and its config loader only (no apply, no books,
+// no Drafter's tools), so setup and test touch nothing real.
+function commandCopy(t) {
+  const copy = join(t.root, "engine");
+  mkdirSync(join(copy, "bin"), { recursive: true });
+  mkdirSync(join(copy, "lib"));
+  cpSync(engineCmd, join(copy, "bin", "engine"));
+  for (const f of ["config.sh", "config.py"]) cpSync(join(engineDir, "lib", f), join(copy, "lib", f));
+  const run = (...args) => spawnSync("/bin/bash", [join(copy, "bin", "engine"), ...args], {
+    encoding: "utf8",
+    env: { ...process.env, ENGINE_CONFIG: t.cfgPath, ENGINE_PARTS_DIR: join(t.root, "parts"), FAKE_DIR: t.fake },
+  });
+  return { copy, run };
+}
+
+test("setup prints the line of the Artist's tools check and installs nothing", () => {
+  const t = setup([["20-board.sh", "Board"]]);
+  t.touch("board.on");
+  const c = commandCopy(t);
+  mkdirSync(join(c.copy, "art"));
+  writeFileSync(join(c.copy, "art", "install.sh"), `#!/bin/bash
+if [ "\${1:-}" = "--check-only" ]; then echo "Artist's tools: installed"; exit 0; fi
+touch "$FAKE_DIR/art.installed"
+`);
+  const r = c.run("setup");
+  assert.match(r.stdout, /^Artist's tools: installed$/m, r.stdout + r.stderr);
+  assert.equal(existsSync(join(t.fake, "art.installed")), false, "setup only checks");
+  // without the file, no line
+  rmSync(join(c.copy, "art"), { recursive: true });
+  const r2 = c.run("setup");
+  assert.doesNotMatch(r2.stdout, /Artist's tools/);
+});
+
+test("test also runs the Python tests in engine/art/tests", () => {
+  const t = setup([]);
+  const c = commandCopy(t);
+  const dir = join(c.copy, "art", "tests");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "test_art.py"), `import os, unittest
+
+class ArtTest(unittest.TestCase):
+    def test_marker(self):
+        open(os.path.join(os.environ["FAKE_DIR"], "art.tests"), "w").close()
+        self.assertFalse(os.path.exists(os.path.join(os.environ["FAKE_DIR"], "art.fail")))
+`);
+  const r = c.run("test");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /^Running the Python tests in engine\/art\/tests\.\.\.$/m);
+  assert.match(r.stdout, /^All tests passed\.$/m);
+  assert.ok(existsSync(join(t.fake, "art.tests")));
+  t.touch("art.fail");
+  const bad = c.run("test");
+  assert.equal(bad.status, 1);
+  assert.match(bad.stdout, /^Some tests failed\. The lines above say which\.$/m);
+});
+
 function freePort() {
   return new Promise((resolve) => {
     const s = createServer();

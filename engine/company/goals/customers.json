@@ -1,0 +1,42 @@
+{
+  "department": "customers",
+  "title": "Customers",
+  "goals": [
+    {
+      "id": "record-a-new-lead",
+      "title": "Record and qualify a new lead",
+      "summary": "A new lead entered with a short note on how likely it is to buy.",
+      "text": "Record a new lead: [name] from [company], reached through [source], interested in [what they want]. Note their budget if known [budget] and write two lines on how likely they are to buy and why. Keep it as a draft record for me to check.",
+      "to": "sales",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "follow-up-notes-for-quiet-leads",
+      "title": "Follow-up notes for quiet leads",
+      "summary": "A short follow-up note drafted for each lead with no recent activity.",
+      "text": "Find every lead with no activity for [number] days. For each one, draft a short, friendly follow-up note that mentions what we last talked about. Keep them as drafts for me to read; do not send anything.",
+      "to": "sales",
+      "planFirst": false,
+      "size": "M"
+    },
+    {
+      "id": "summary-of-open-deals",
+      "title": "Summary of open deals by stage",
+      "summary": "Every open deal grouped by stage, with the value of each group.",
+      "text": "Give me a summary of all open deals grouped by stage. For each stage show how many deals there are, the total value, and the one or two deals that need my attention first. Write it as a short list.",
+      "to": "sales",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "move-a-deal-on-after-a-call",
+      "title": "Move a deal on after a call",
+      "summary": "A deal moved to its next stage, with a note of what was said.",
+      "text": "I spoke with [contact] about the deal [deal name] on [date]. They said: [what was said]. Move the deal to [new stage] as a draft change and write a short note of the call, with the next step and who does it.",
+      "to": "sales",
+      "planFirst": false,
+      "size": "S"
+    }
+  ]
+}

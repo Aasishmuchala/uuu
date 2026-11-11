@@ -1,0 +1,70 @@
+/* kit/avatar.js: a picture in a circle, or initials on one of six soft tints made from the tokens. */
+
+.k-avatar {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--k-avatar-size);
+  height: var(--k-avatar-size);
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.k-avatar--20 { --k-avatar-size: calc(var(--s-5)); font-size: calc(var(--fs-caption) * 0.75); }
+.k-avatar--24 { --k-avatar-size: calc(var(--s-6)); font-size: calc(var(--fs-caption) * 0.83); }
+.k-avatar--32 { --k-avatar-size: calc(var(--s-8)); font-size: var(--fs-caption); }
+.k-avatar--48 { --k-avatar-size: calc(var(--s-12)); font-size: var(--fs-title); }
+.k-avatar--72 { --k-avatar-size: calc(var(--s-12) + var(--s-6)); font-size: var(--fs-heading); }
+
+.k-avatar__img {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-pill);
+  object-fit: cover;
+}
+
+.k-avatar__initials {
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+/* Six tints, picked from the slug; text stays in --text for contrast. */
+.k-avatar--tint-1 { background: color-mix(in srgb, var(--ok) 22%, var(--bg-card)); }
+.k-avatar--tint-2 { background: color-mix(in srgb, var(--warn) 24%, var(--bg-card)); }
+.k-avatar--tint-3 { background: color-mix(in srgb, var(--bad) 18%, var(--bg-card)); }
+.k-avatar--tint-4 { background: color-mix(in srgb, var(--text-3) 22%, var(--bg-card)); }
+.k-avatar--tint-5 { background: color-mix(in srgb, color-mix(in srgb, var(--ok) 50%, var(--text-3)) 24%, var(--bg-card)); }
+.k-avatar--tint-6 { background: color-mix(in srgb, color-mix(in srgb, var(--warn) 50%, var(--bad)) 20%, var(--bg-card)); }
+
+/* The owner. */
+.k-avatar--you {
+  color: var(--primary-text);
+  background: var(--primary);
+  box-shadow: none;
+}
+
+/* A state dot at the lower right corner, ringed in the surface colour. */
+.k-avatar__state {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--r-pill);
+  background: var(--bg-card);
+  line-height: 0;
+}
+
+.k-avatar--20 .k-avatar__state,
+.k-avatar--24 .k-avatar__state {
+  right: -3px;
+  bottom: -3px;
+  padding: 1px;
+}

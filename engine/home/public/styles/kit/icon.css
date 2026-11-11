@@ -1,0 +1,32 @@
+/* kit/icon.js: line icons in currentColor; the six board-column marks get their state colour. */
+
+.k-icon {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  overflow: visible;
+}
+
+.k-state-icon--backlog {
+  color: var(--text-3);
+}
+
+.k-state-icon--in_progress {
+  color: var(--text);
+}
+
+.k-state-icon--pending_review {
+  color: var(--warn);
+}
+
+.k-state-icon--done {
+  color: var(--ok);
+}
+
+.k-state-icon--failed {
+  color: var(--bad);
+}
+
+.k-state-icon--canceled {
+  color: var(--text-3);
+}

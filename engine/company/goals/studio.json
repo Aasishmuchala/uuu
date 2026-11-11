@@ -1,0 +1,60 @@
+{
+  "department": "studio",
+  "title": "Studio",
+  "goals": [
+    {
+      "id": "a-flat-plate-with-holes",
+      "title": "A flat plate with holes",
+      "summary": "A flat plate with holes in it, sized in millimetres.",
+      "text": "Design a flat plate that is [length] millimetres long, [width] millimetres wide and [thickness] millimetres thick. Put [number of holes] holes of [hole size] millimetres across in [where the holes go]. Round the corners by [corner size] millimetres.",
+      "to": "drafter",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "a-simple-bracket",
+      "title": "A simple bracket",
+      "summary": "An L-shaped bracket with holes for fixing, sized in millimetres.",
+      "text": "Design a simple L-shaped bracket. One arm is [first arm length] millimetres long and the other is [second arm length] millimetres, [width] millimetres wide and [thickness] millimetres thick. Add [number of holes] fixing holes of [hole size] millimetres across.",
+      "to": "drafter",
+      "planFirst": false,
+      "size": "M"
+    },
+    {
+      "id": "change-an-earlier-part",
+      "title": "Change an earlier part",
+      "summary": "A new version of a part you already have, with only the change you name.",
+      "text": "Take the earlier part called [name of the earlier part] and make a new version of it. The only change is [what to change], by [amount] millimetres. Keep everything else as it was and keep the old version.",
+      "to": "drafter",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "a-small-animated-character",
+      "title": "A small animated character",
+      "summary": "A small character that moves, as a sheet of frames and an animated picture.",
+      "text": "Draw a small animated character: [who or what it is]. Each frame is [frame size] pixels square and there are [number of frames] frames of it [what it does]. Give me one sheet with all the frames, and an animated picture that plays them.",
+      "to": "artist",
+      "planFirst": false,
+      "size": "M"
+    },
+    {
+      "id": "a-set-of-small-icons",
+      "title": "A set of small icons",
+      "summary": "Several small icons drawn in one style and placed on a single sheet.",
+      "text": "Draw a set of [number of icons] small icons for [what they are for]: [list of the icons]. Each one is [icon size] pixels square, in one style with the colours [colours to use]. Put them all on one sheet.",
+      "to": "artist",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "a-badge-or-logo-mark",
+      "title": "A badge or logo mark",
+      "summary": "A simple badge or logo mark as a vector image that scales cleanly.",
+      "text": "Draw a simple badge or logo mark for [name or subject]. Use [shape] as the main shape and the colours [colours to use]. Give it to me as a vector image that stays sharp at any size.",
+      "to": "artist",
+      "planFirst": false,
+      "size": "S"
+    }
+  ]
+}

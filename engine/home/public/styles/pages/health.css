@@ -1,0 +1,8 @@
+/* Health page. */
+.p-health .p-health__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.p-health .p-health__row { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s-4); padding: var(--s-3) var(--s-4); background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r-3); }
+.p-health .p-health__head { display: flex; justify-content: space-between; align-items: center; gap: var(--s-4); }
+.p-health .p-health__name { margin: 0; font-size: var(--fs-body); font-weight: var(--fw-medium); }
+.p-health .p-health__sub { margin: var(--s-1) 0 0; color: var(--text-2); }
+.p-health .p-health__actions { display: flex; align-items: center; gap: var(--s-3); margin-top: var(--s-3); }
+.p-health .p-health__tech { list-style: none; margin: var(--s-2) 0 0; padding: var(--s-2) var(--s-3); background: var(--bg-subtle); border-radius: var(--r-2); color: var(--text-2); overflow-wrap: anywhere; }

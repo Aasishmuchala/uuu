@@ -1,0 +1,193 @@
+{
+  "task": {
+    "id": "e0000000-0000-4000-8000-000000000008",
+    "identifier": "STH-8",
+    "title": "Make a walking sprite for the mascot",
+    "column": "pending_review",
+    "state": "done",
+    "plainState": "Finished",
+    "who": {
+      "slug": "artist",
+      "name": "Artist"
+    },
+    "size": "M",
+    "stage": {
+      "id": "check",
+      "label": "Check"
+    },
+    "round": 2,
+    "schedule": {
+      "label": "Daily at 09:00",
+      "routineId": "daily-brief"
+    },
+    "waitingForYou": true,
+    "live": false,
+    "stepsDone": 4,
+    "stepsTotal": 4,
+    "createdAt": "2026-11-11T08:00:00.000Z",
+    "updatedAt": "2026-11-11T09:00:00.000Z"
+  },
+  "text": "Make a walking sprite for the mascot, four frames.",
+  "planFirst": false,
+  "for": null,
+  "needsYou": [
+    {
+      "id": "goal:e0000000-0000-4000-8000-000000000008",
+      "source": "goal",
+      "kind": "result",
+      "title": "Finished: Make a walking sprite for the mascot",
+      "raisedBy": "Chief of staff",
+      "when": "2026-11-11T09:00:00.000Z",
+      "summary": "The walk cycle is ready: four frames, a sheet, a data file and a GIF.",
+      "severity": "normal",
+      "details": [
+        {
+          "label": "Checked",
+          "value": "Passed in round 2"
+        }
+      ],
+      "actions": [
+        {
+          "id": "acknowledge",
+          "label": "Accept",
+          "style": "primary",
+          "needsNote": false
+        }
+      ],
+      "link": {
+        "page": "tasks",
+        "id": "e0000000-0000-4000-8000-000000000008"
+      },
+      "taskId": "e0000000-0000-4000-8000-000000000008",
+      "identifier": "STH-8",
+      "agent": {
+        "slug": "artist",
+        "name": "Artist"
+      }
+    }
+  ],
+  "acceptance": {
+    "state": "waiting_for_you",
+    "accept": {
+      "inboxId": "goal:e0000000-0000-4000-8000-000000000008",
+      "action": "acknowledge",
+      "label": "Accept"
+    },
+    "sendBack": {
+      "inboxId": "goal:e0000000-0000-4000-8000-000000000008",
+      "action": "reopen",
+      "label": "Send back"
+    },
+    "rounds": [
+      {
+        "n": 1,
+        "outcome": "fail",
+        "label": "Round 1 · Repairing",
+        "by": "Checker",
+        "at": "2026-11-11T08:20:00.000Z",
+        "reason": "the walk tag points past the last frame",
+        "wellFormed": true,
+        "checks": [
+          {
+            "n": 1,
+            "question": "Does the work do what the brief asked?",
+            "answer": "yes",
+            "reason": "four frames of a walk cycle",
+            "evidence": [
+              {
+                "name": "art/walker/walker-sheet.png",
+                "size": 412,
+                "kind": "image",
+                "url": "/api/files/U1RILTgvYXJ0",
+                "viewUrl": "/api/view/U1RILTgvYXJ0"
+              }
+            ]
+          }
+        ],
+        "actions": [
+          "Set the tag \"walk\" to frames 0 to 3."
+        ],
+        "exchange": [
+          {
+            "who": {
+              "slug": "artist",
+              "name": "Artist"
+            },
+            "text": "Set the tag to frames 0 to 3.",
+            "at": "2026-11-11T08:25:00.000Z"
+          }
+        ]
+      }
+    ],
+    "checksPassed": 6,
+    "checksTotal": 6,
+    "roundCap": 5
+  },
+  "stages": [
+    {
+      "id": "brief",
+      "label": "Brief",
+      "state": "done",
+      "unclear": [],
+      "doc": {
+        "name": "00-brief.md",
+        "file": {
+          "name": "art/walker/walker-sheet.png",
+          "size": 412,
+          "kind": "image",
+          "url": "/api/files/U1RILTgvYXJ0",
+          "viewUrl": "/api/view/U1RILTgvYXJ0"
+        },
+        "sections": [
+          {
+            "heading": "The goal in the owner's words",
+            "text": "Make a walking sprite for the mascot."
+          }
+        ]
+      }
+    }
+  ],
+  "timeline": [
+    {
+      "id": "e0000000-0000-4000-8000-000000000009",
+      "identifier": "STH-9",
+      "title": "Draw the walk cycle",
+      "who": {
+        "slug": "artist",
+        "name": "Artist"
+      },
+      "kind": "work",
+      "state": "done",
+      "plainState": "Finished",
+      "startedAt": "2026-11-11T08:00:00.000Z",
+      "endedAt": "2026-11-11T08:09:00.000Z",
+      "durationMs": 540000
+    }
+  ],
+  "conversation": [
+    {
+      "who": {
+        "slug": "artist",
+        "name": "Artist"
+      },
+      "kind": "comment",
+      "text": "I have split this into two steps.",
+      "at": "2026-11-11T08:00:00.000Z"
+    }
+  ],
+  "files": [
+    {
+      "name": "art/walker/walker-sheet.png",
+      "size": 412,
+      "kind": "image",
+      "url": "/api/files/U1RILTgvYXJ0",
+      "viewUrl": "/api/view/U1RILTgvYXJ0"
+    }
+  ],
+  "result": {
+    "text": "The walk cycle is ready.",
+    "by": "Chief of staff",
+    "at": "2026-11-11T08:50:00.000Z"
+  },
+  "generatedAt": "2026-11-11T09:00:00.000Z"
+}

@@ -1,0 +1,9 @@
+{
+  "id": "weekly-content-plan",
+  "title": "Weekly content plan",
+  "agent": "marketer",
+  "when": { "cron": "0 10 * * 1", "timezone": "Asia/Kolkata", "plain": "Mondays at 10:00" },
+  "ask": "Plan the content for the coming week: three short posts and one newsletter, each one planned for a particular day of that week. Draw only on the company's own documents and on what the company did last week, and do not invent facts. Write each piece as a draft for me to read. Nothing is to be published or sent. In your report, say which facts you were missing and could not find, so that I can supply them.",
+  "produces": ["content/*.md"],
+  "runMinutes": 15
+}

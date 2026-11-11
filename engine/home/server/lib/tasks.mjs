@@ -1,0 +1,295 @@
+// The task model (CONTRACTS-V2 16.3): one read of the board per request, turned into the columns,
+// cards and Needs-you items every v2 page shows. A task is a goal (CONTRACTS 9.4): a top task in the
+// project "Company work". Comments are read only as the contract says (unfinished tasks, at most 40)
+// and kept for 15 seconds, so a page that polls every 10 seconds does not read every comment again.
+// Shared by routes/shell.mjs and the Home, Tasks, Task, Team and Routines features; they never edit it.
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { goalsOf, isGoal, loadIssues, needIds, plainState, rootOf } from "./goals.mjs";
+import { mergeInbox } from "./inbox.mjs";
+import { roundsOf, sizeOf, textOf } from "./staged.mjs";
+import { readTaskText } from "./taskfiles.mjs";
+import { loadRoles } from "./team.mjs";
+
+const COMMENT_TTL = 15000;
+const COMMENT_CACHE_MAX = 2000;
+const OPEN_GOALS_MAX = 40;
+const ALL_GOALS_MAX = 200;
+const PARALLEL = 8;
+const ROUTINE_ID = /^[a-z][a-z0-9-]{1,40}$/;
+
+const STAGE_LABELS = { brief: "Brief", plan: "Plan", work: "Work", summary: "Summary", check: "Check" };
+const WORKING = new Set(["in_progress", "in_review"]);
+
+// ---- comments, cached 15 seconds per board and task
+const commentCache = new Map(); // `${board}\n${issueId}` -> { at, value: Promise<comment[]> }
+
+function readComments(ctx, issueId) {
+  const key = `${ctx.home?.urls?.board || ""}\n${issueId}`;
+  const now = Date.now();
+  const hit = commentCache.get(key);
+  if (hit && now - hit.at < COMMENT_TTL) return hit.value;
+  const value = ctx.board.get(`/api/issues/${encodeURIComponent(issueId)}/comments`)
+    .then((list) => (Array.isArray(list) ? list : []).slice()
+      .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))));
+  commentCache.set(key, { at: now, value });
+  value.catch(() => { if (commentCache.get(key)?.value === value) commentCache.delete(key); });
+  if (commentCache.size > COMMENT_CACHE_MAX) {
+    for (const [k, v] of commentCache) {
+      if (now - v.at >= COMMENT_TTL || commentCache.size > COMMENT_CACHE_MAX) commentCache.delete(k);
+      if (commentCache.size <= COMMENT_CACHE_MAX / 2) break;
+    }
+  }
+  return value;
+}
+
+// Forget cached comments (all, or one task's), for a feature that has just written a comment, and for tests.
+export function forgetComments(issueId) {
+  if (!issueId) { commentCache.clear(); return; }
+  for (const k of commentCache.keys()) if (k.endsWith(`\n${issueId}`)) commentCache.delete(k);
+}
+
+async function inBatches(items, fn) {
+  for (let i = 0; i < items.length; i += PARALLEL) await Promise.all(items.slice(i, i + PARALLEL).map(fn));
+}
+
+// ---- routines: the board's routines joined to the routine files (section 18)
+function routineFiles(config) {
+  const dir = join(config.engineDir, "company", "routines");
+  let names = [];
+  try { names = readdirSync(dir).filter((f) => f.endsWith(".json")).sort(); } catch { return []; }
+  const out = [];
+  for (const f of names) {
+    const id = f.slice(0, -5);
+    if (!ROUTINE_ID.test(id)) continue;
+    try {
+      const d = JSON.parse(readFileSync(join(dir, f), "utf8"));
+      out.push({ id, title: typeof d?.title === "string" ? d.title : null, plain: typeof d?.when?.plain === "string" ? d.when.plain : null });
+    } catch { /* a broken file is reported by the Routines page, not here */ }
+  }
+  return out;
+}
+
+function slugOfTitle(title) {
+  const s = String(title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 41);
+  return ROUTINE_ID.test(s) ? s : null;
+}
+
+function routineMap(boardRoutines, ids, config) {
+  const map = new Map();
+  if (!boardRoutines.length) return map;
+  const files = routineFiles(config);
+  const byBoardId = new Map(Object.entries(ids?.routines || {}).map(([id, boardId]) => [boardId, id]));
+  for (const r of boardRoutines) {
+    if (!r || typeof r.id !== "string") continue;
+    const file = files.find((f) => f.id === byBoardId.get(r.id)) || files.find((f) => f.title && f.title === r.title) || null;
+    const id = byBoardId.get(r.id) || file?.id || slugOfTitle(r.title);
+    if (!id) continue;
+    const trigger = (Array.isArray(r.triggers) ? r.triggers : []).find((t) => t?.kind === "schedule" && typeof t.label === "string" && t.label);
+    map.set(r.id, { id, plain: file?.plain || trigger?.label || "On a schedule" });
+  }
+  return map;
+}
+
+// ---- the context
+function agentMap(list, ids, roles) {
+  const slugs = new Map(Object.entries(ids?.agents || {}).map(([slug, id]) => [id, slug]));
+  return new Map(list.filter((a) => a && a.id).map((a) => {
+    const slug = slugs.get(a.id) || roles.find((r) => r.name === a.name)?.slug || a.urlKey || null;
+    return [a.id, { slug, name: a.name }];
+  }));
+}
+
+function isOpen(goal, accepted) {
+  if (goal.status === "cancelled") return false;
+  return !(goal.status === "done" && accepted(goal.id));
+}
+
+// loadTaskContext(ctx, { withInbox = true, withComments = "open" }) -> tctx. `withComments`: "open"
+// (unfinished tasks, newest first, at most 40), "all" (at most 200), or false (none). Throws a HomeError
+// when the board is off or the company is not set up. An inbox source must pass withInbox: false.
+export async function loadTaskContext(ctx, { withInbox = true, withComments = "open" } = {}) {
+  const ids = needIds(ctx);
+  const companyId = ids.companyId;
+  const enc = encodeURIComponent(companyId);
+  const [issues, agentList, liveRuns, boardRoutines] = await Promise.all([
+    loadIssues(ctx, companyId),
+    ctx.board.get(`/api/companies/${enc}/agents`).then((l) => (Array.isArray(l) ? l : [])),
+    ctx.board.get(`/api/companies/${enc}/live-runs`).then((l) => (Array.isArray(l) ? l : [])).catch(() => []),
+    ctx.board.get(`/api/companies/${enc}/routines`).then((l) => (Array.isArray(l) ? l : [])).catch(() => []),
+  ]);
+  const roles = loadRoles(ctx.config, { log: ctx.log });
+  const goals = goalsOf(issues, ids);
+
+  const liveByIssue = new Map();
+  const liveByAgent = new Map();
+  for (const r of liveRuns) {
+    if (r?.issueId && !liveByIssue.has(r.issueId)) liveByIssue.set(r.issueId, r);
+    if (r?.agentId && !liveByAgent.has(r.agentId)) liveByAgent.set(r.agentId, r);
+  }
+
+  const children = new Map();
+  for (const i of issues) {
+    if (!i.parentId) continue;
+    if (!children.has(i.parentId)) children.set(i.parentId, []);
+    children.get(i.parentId).push(i);
+  }
+  const stepsMemo = new Map();
+  // Every step (descendant task) of a task, oldest first.
+  const stepsOf = (goalId) => {
+    if (stepsMemo.has(goalId)) return stepsMemo.get(goalId);
+    const out = [];
+    const seen = new Set([goalId]);
+    const queue = [goalId];
+    while (queue.length) {
+      for (const c of children.get(queue.shift()) || []) {
+        if (seen.has(c.id)) continue;
+        seen.add(c.id);
+        out.push(c);
+        queue.push(c.id);
+      }
+    }
+    out.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    stepsMemo.set(goalId, out);
+    return out;
+  };
+
+  const accepted = (goalId) => !!ctx.decisions.get(`acknowledged:goal:${goalId}`);
+
+  const tctx = {
+    ids, issues, goals, roles, agentList,
+    agents: agentMap(agentList, ids, roles),
+    liveByIssue, liveByAgent,
+    needsYou: [],
+    accepted,
+    commentsOf: (issueId) => readComments(ctx, issueId),
+    routines: routineMap(boardRoutines, ids, ctx.config),
+    stepsOf,
+    config: ctx.config,
+    comments: new Map(),     // goal id -> the comments of its whole tree, oldest first (only for goals read)
+  };
+
+  let wanted = [];
+  if (withComments === "open") wanted = goals.filter((g) => isOpen(g, accepted)).slice(0, OPEN_GOALS_MAX);
+  else if (withComments === "all") wanted = goals.slice(0, ALL_GOALS_MAX);
+  const inboxRead = withInbox
+    ? mergeInbox(ctx, ctx.home.inboxSources).then((m) => m.items)
+    : Promise.resolve([]);
+  const commentsRead = inBatches(wanted, async (g) => {
+    tctx.comments.set(g.id, await treeComments(tctx, g));
+  });
+  const [items] = await Promise.all([inboxRead, commentsRead]);
+  tctx.needsYou = decorateInbox(items, tctx);
+  return tctx;
+}
+
+// The comments of a task and all its steps, oldest first (cached 15 seconds per task).
+export async function treeComments(tctx, goal) {
+  const all = [];
+  const tree = [goal, ...tctx.stepsOf(goal.id)];
+  await inBatches(tree, async (i) => { all.push(...await tctx.commentsOf(i.id)); });
+  return all.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+}
+
+// ---- Needs you
+function agentByName(tctx, name) {
+  const want = String(name || "").replace(/^the\s+/i, "").trim().toLowerCase();
+  if (!want) return null;
+  for (const a of tctx.agents.values()) if (a.slug && String(a.name).toLowerCase() === want) return { slug: a.slug, name: a.name };
+  const role = (tctx.roles || []).find((r) => r.name.toLowerCase() === want);
+  return role ? { slug: role.slug, name: role.name } : null;
+}
+
+function whoOfAgentId(tctx, agentId) {
+  const a = agentId ? tctx.agents.get(agentId) : null;
+  return a ? { slug: a.slug, name: a.name } : null;
+}
+
+// decorateInbox(items, tctx): each item with taskId, identifier and agent added. Hidden keys the inbox
+// sources keep on an item (for acting on it) are kept.
+export function decorateInbox(items, tctx) {
+  return (Array.isArray(items) ? items : []).map((item) => {
+    const out = Object.create(Object.getPrototypeOf(item));
+    Object.defineProperties(out, Object.getOwnPropertyDescriptors(item));
+    let root = null;
+    const link = item.link;
+    if (link && (link.page === "goals" || link.page === "tasks") && typeof link.id === "string") {
+      const r = rootOf(tctx.issues, link.id);
+      if (r && isGoal(r, tctx.ids)) root = r;
+    }
+    out.taskId = root ? root.id : null;
+    out.identifier = root ? root.identifier || null : null;
+    out.agent = agentByName(tctx, item.raisedBy);
+    return out;
+  });
+}
+
+// ---- columns and cards
+export function columnOf(goal, tctx) {
+  switch (goal.status) {
+    case "todo": case "backlog": return "backlog";
+    case "in_progress": case "in_review": return "in_progress";
+    case "done": return tctx.accepted(goal.id) ? "done" : "pending_review";
+    case "cancelled": return "canceled";
+    case "blocked":
+      return tctx.needsYou.some((i) => i.taskId === goal.id && i.kind === "problem" && i.source === "board") ? "failed" : "pending_review";
+    default: return "backlog";
+  }
+}
+
+function hasDoc(tctx, goal, name) {
+  return !!goal.identifier && readTaskText(tctx.config, goal.identifier, name, { maxBytes: 0 }) !== null;
+}
+
+function scheduleOf(goal, tctx, text) {
+  if (goal.originKind === "routine_execution" && goal.originId && tctx.routines.has(goal.originId)) {
+    const r = tctx.routines.get(goal.originId);
+    return { label: r.plain, routineId: r.id };
+  }
+  if (text.routine && ROUTINE_ID.test(text.routine)) {
+    const known = [...tctx.routines.values()].find((r) => r.id === text.routine);
+    const plain = known?.plain || routineFiles(tctx.config).find((f) => f.id === text.routine)?.plain || "On a schedule";
+    return { label: plain, routineId: text.routine };
+  }
+  return null;
+}
+
+export function taskCard(goal, tctx) {
+  const steps = tctx.stepsOf(goal.id);
+  const counted = steps.filter((s) => s.status !== "cancelled");
+  const text = textOf(goal.description || "");
+  const comments = tctx.comments.get(goal.id);
+  const rounds = comments ? roundsOf(comments) : null;
+
+  let who = null;
+  const working = [...steps].reverse().find((s) => WORKING.has(s.status) && s.assigneeAgentId);
+  if (working) who = whoOfAgentId(tctx, working.assigneeAgentId);
+  if (!who && text.for) who = agentByName(tctx, text.for);
+  if (!who) who = whoOfAgentId(tctx, goal.assigneeAgentId);
+
+  let stage = null;
+  if (rounds && rounds.length) stage = "check";
+  else if (hasDoc(tctx, goal, "04-summary.md")) stage = "summary";
+  else if (steps.length) stage = "work";
+  else if (hasDoc(tctx, goal, "01-plan.md")) stage = "plan";
+  else if (hasDoc(tctx, goal, "00-brief.md")) stage = "brief";
+
+  return {
+    id: goal.id, identifier: goal.identifier, title: goal.title,
+    column: columnOf(goal, tctx), ...plainState(goal.status),
+    who,
+    size: comments ? sizeOf(comments) : null,
+    stage: stage ? { id: stage, label: STAGE_LABELS[stage] } : null,
+    round: rounds ? rounds.length : null,
+    schedule: scheduleOf(goal, tctx, text),
+    waitingForYou: tctx.needsYou.some((i) => i.taskId === goal.id),
+    live: tctx.liveByIssue.has(goal.id) || steps.some((s) => tctx.liveByIssue.has(s.id)),
+    stepsDone: counted.filter((s) => s.status === "done").length, stepsTotal: counted.length,
+    createdAt: goal.createdAt, updatedAt: goal.updatedAt,
+  };
+}
+
+export function findTask(tctx, idOrIdentifier) {
+  if (typeof idOrIdentifier !== "string" || !idOrIdentifier) return null;
+  return tctx.goals.find((g) => g.id === idOrIdentifier || g.identifier === idOrIdentifier) || null;
+}

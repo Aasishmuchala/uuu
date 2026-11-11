@@ -1,0 +1,28 @@
+{
+  "id": "e0000000-0000-4000-8000-000000000008",
+  "identifier": "STH-8",
+  "title": "Make a walking sprite for the mascot",
+  "column": "pending_review",
+  "state": "done",
+  "plainState": "Finished",
+  "who": {
+    "slug": "artist",
+    "name": "Artist"
+  },
+  "size": "M",
+  "stage": {
+    "id": "check",
+    "label": "Check"
+  },
+  "round": 2,
+  "schedule": {
+    "label": "Daily at 09:00",
+    "routineId": "daily-brief"
+  },
+  "waitingForYou": true,
+  "live": false,
+  "stepsDone": 4,
+  "stepsTotal": 4,
+  "createdAt": "2026-11-11T08:00:00.000Z",
+  "updatedAt": "2026-11-11T09:00:00.000Z"
+}

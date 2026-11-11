@@ -1,7 +1,15 @@
-// Inbox source "goals": finished goals the owner has not acknowledged yet (CONTRACTS 9.3).
-import { agentNames, commentsOf, goalsOf, loadIssues, needIds, pickResult } from "../lib/goals.mjs";
+// Inbox source "goals": finished goals the owner has not accepted yet (CONTRACTS 9.3, CONTRACTS-V2 17.4).
+import { agentNames, commentsOf, descendants, goalsOf, loadIssues, needIds, pickResult } from "../lib/goals.mjs";
+import { roundsOf } from "../lib/staged.mjs";
+import { listTaskFiles } from "../lib/taskfiles.mjs";
 
 const ackKey = (id) => `acknowledged:goal:${id}`;
+
+// "Passed in round <n>" for the newest round that passed, else "Not checked".
+function checkedOf(treeComments) {
+  const passed = roundsOf(treeComments).filter((r) => r.outcome === "pass").at(-1);
+  return passed ? `Passed in round ${passed.n}` : "Not checked";
+}
 
 async function list(ctx) {
   const ids = needIds(ctx);
@@ -10,8 +18,12 @@ async function list(ctx) {
   if (!done.length) return { items: [] };
   const names = await agentNames(ctx, ids.companyId);
   const items = await Promise.all(done.map(async (g) => {
-    const result = pickResult(await commentsOf(ctx, g.id), names);
+    const own = await commentsOf(ctx, g.id);
+    const steps = await Promise.all(descendants(issues, g.id).map((s) => commentsOf(ctx, s.id)));
+    const tree = [...own, ...steps.flat()].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    const result = pickResult(own, names);
     const text = result?.text ? result.text.replace(/\s+/g, " ").trim() : "";
+    const files = listTaskFiles(ctx.config, g.identifier).length;
     const item = {
       id: `goal:${g.id}`,
       source: "goal",
@@ -19,14 +31,17 @@ async function list(ctx) {
       title: `Finished: ${g.title}`,
       raisedBy: "Chief of staff",
       when: g.updatedAt || g.createdAt,
-      summary: text ? (text.length > 280 ? `${text.slice(0, 279)}…` : text) : "The Chief of staff says this goal is finished.",
+      summary: text ? (text.length > 280 ? `${text.slice(0, 279)}…` : text) : "The Chief of staff says this task is finished.",
       severity: "normal",
-      details: [],
-      actions: [
-        { id: "acknowledge", label: "Got it", style: "primary", needsNote: false },
-        { id: "reopen", label: "Reopen", style: "plain", needsNote: true },
+      details: [
+        { label: "Checked", value: checkedOf(tree) },
+        { label: "Files", value: files === 1 ? "1 file" : `${files} files` },
       ],
-      link: { page: "goals", id: g.id },
+      actions: [
+        { id: "acknowledge", label: "Accept", style: "primary", needsNote: false },
+        { id: "reopen", label: "Send back", style: "plain", needsNote: true },
+      ],
+      link: { page: "tasks", id: g.id },
     };
     Object.defineProperty(item, "_goalId", { enumerable: false, value: g.id });
     return item;
@@ -38,13 +53,13 @@ async function act(ctx, itemId, action, note) {
   const goalId = ctx.item._goalId;
   if (action === "acknowledge") {
     ctx.decisions.set(ackKey(goalId), new Date().toISOString());
-    return { message: "Marked as seen." };
+    return { message: "Accepted." };
   }
   if (action === "reopen") {
     const path = `/api/issues/${encodeURIComponent(goalId)}`;
-    await ctx.board.post(`${path}/comments`, { body: note });
+    await ctx.board.post(`${path}/comments`, { body: String(note).trim() });
     await ctx.board.patch(path, { status: "todo" });
-    return { message: "The goal is open again with your note. The Chief of staff will pick it up." };
+    return { message: "Sent back with your note. The Chief of staff will pick it up." };
   }
   throw ctx.fail(400, "That action is not offered for this item.", "Refresh the inbox and pick one of the buttons shown.", "bad_action");
 }

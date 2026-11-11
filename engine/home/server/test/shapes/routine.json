@@ -1,0 +1,35 @@
+{
+  "routine": {
+    "id": "daily-brief",
+    "title": "Daily brief",
+    "who": {
+      "slug": "artist",
+      "name": "Artist"
+    },
+    "when": {
+      "plain": "Daily at 09:00",
+      "next": null
+    },
+    "state": "paused",
+    "plainState": "Paused",
+    "ask": "Write today's brief for the owner.",
+    "produces": [
+      "brief.md"
+    ],
+    "runMinutes": 10,
+    "lastRun": null
+  },
+  "runs": [
+    {
+      "id": "r1",
+      "at": "2026-11-11T03:30:00.000Z",
+      "source": "schedule",
+      "state": "finished",
+      "plainState": "Finished",
+      "taskId": "e0000000-0000-4000-8000-000000000014",
+      "identifier": "STH-14",
+      "title": "Daily brief",
+      "note": null
+    }
+  ]
+}

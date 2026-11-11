@@ -1,0 +1,105 @@
+{
+  "agent": {
+    "id": "a0000000-0000-4000-8000-000000000010",
+    "slug": "artist",
+    "name": "Artist",
+    "title": "Artist",
+    "summary": "Draws sprites, animations and simple images by script.",
+    "department": "studio",
+    "reportsTo": {
+      "slug": "artist",
+      "name": "Artist"
+    },
+    "state": "free",
+    "plainState": "Free",
+    "doingNow": {
+      "title": "Draw the walk cycle",
+      "taskId": "e0000000-0000-4000-8000-000000000008"
+    },
+    "waitingForYou": false,
+    "lastActiveAt": "2026-11-11T08:30:00.000Z",
+    "applied": true
+  },
+  "profile": {
+    "tool": {
+      "label": "Drawing tools",
+      "installed": true
+    },
+    "limits": {
+      "runMinutes": 15,
+      "maxTurns": 60,
+      "oneAtATime": true
+    },
+    "may": [
+      "Works inside its task folder and nowhere else on this Mac."
+    ],
+    "mayNot": [
+      "Cannot send anything outside the company."
+    ]
+  },
+  "instructions": {
+    "text": "# Artist\n...",
+    "file": "roles/artist.md"
+  },
+  "lessons": [
+    {
+      "n": 1,
+      "date": "2026-11-10",
+      "text": "Keep every frame the same size.",
+      "hash": "3f2a9c1b"
+    }
+  ],
+  "recent": [
+    {
+      "id": "e0000000-0000-4000-8000-000000000008",
+      "identifier": "STH-8",
+      "title": "Make a walking sprite for the mascot",
+      "column": "pending_review",
+      "state": "done",
+      "plainState": "Finished",
+      "who": {
+        "slug": "artist",
+        "name": "Artist"
+      },
+      "size": "M",
+      "stage": {
+        "id": "check",
+        "label": "Check"
+      },
+      "round": 2,
+      "schedule": {
+        "label": "Daily at 09:00",
+        "routineId": "daily-brief"
+      },
+      "waitingForYou": true,
+      "live": false,
+      "stepsDone": 4,
+      "stepsTotal": 4,
+      "createdAt": "2026-11-11T08:00:00.000Z",
+      "updatedAt": "2026-11-11T09:00:00.000Z"
+    }
+  ],
+  "conversation": [
+    {
+      "who": {
+        "slug": "artist",
+        "name": "Artist"
+      },
+      "kind": "ask",
+      "text": "Draw the walk cycle.",
+      "at": "2026-11-11T08:00:00.000Z",
+      "taskId": "e0000000-0000-4000-8000-000000000008",
+      "identifier": "STH-8",
+      "files": [
+        {
+          "name": "art/walker/walker-sheet.png",
+          "size": 412,
+          "kind": "image",
+          "url": "/api/files/U1RILTgvYXJ0",
+          "viewUrl": "/api/view/U1RILTgvYXJ0"
+        }
+      ]
+    }
+  ],
+  "generatedAt": "2026-11-11T09:00:00.000Z"
+}

@@ -1,0 +1,51 @@
+{
+  "department": "marketing",
+  "title": "Marketing",
+  "goals": [
+    {
+      "id": "a-week-of-posts",
+      "title": "A week of posts",
+      "summary": "Five short posts for the week, each saved as a draft for you to approve.",
+      "text": "Write [number of posts] short posts for [channel] about [what we want to talk about] for the week starting [date]. Keep the tone [tone of voice]. Save each one as a draft with a planned day, and do not publish anything.",
+      "to": "marketer",
+      "planFirst": false,
+      "size": "M"
+    },
+    {
+      "id": "a-newsletter-on-one-subject",
+      "title": "A newsletter on one subject",
+      "summary": "One newsletter about a single subject, ready for you to read and approve.",
+      "text": "Write a newsletter for [who it is for] about [the one subject]. Open with a short hook, give [number of points] clear points, and end with one thing I want readers to do: [the one action]. Keep it as a draft for me to approve.",
+      "to": "marketer",
+      "planFirst": false,
+      "size": "M"
+    },
+    {
+      "id": "announce-one-thing",
+      "title": "Announce one thing",
+      "summary": "A post that announces a single thing, in a short and a longer form.",
+      "text": "Write a post for [channel] announcing [what is new]. Say who it helps, what changes for them and when: [date]. Give me a short version and a longer one, and leave both as drafts.",
+      "to": "marketer",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "shorten-last-weeks-drafts",
+      "title": "Shorten last week's drafts",
+      "summary": "Last week's drafts rewritten in a shorter form, keeping the meaning.",
+      "text": "Take last week's drafts for [channel] and rewrite each one in a shorter form of about [number of words] words. Keep the meaning and the tone, and save the shorter ones as new drafts next to the old ones.",
+      "to": "marketer",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "a-content-plan-for-a-month",
+      "title": "A content plan for a month",
+      "summary": "A month of planned content, shown to you as a plan before any writing starts.",
+      "text": "Plan the content for [month] for [channel] aimed at [who it is for]. The main aim is [what we want to achieve]. Show me the plan first, with a subject and a day for each piece, and wait for my yes before writing anything.",
+      "to": "marketer",
+      "planFirst": true,
+      "size": "L"
+    }
+  ]
+}

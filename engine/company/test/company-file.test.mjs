@@ -1,27 +1,41 @@
-// Checks the company file and the nine role instructions (CONTRACTS section 5).
+// Checks the company file (CONTRACTS section 5, CONTRACTS-V2 21.2), the shared staged text
+// (21.3) and what loadCompanyFile makes of them. The role files are checked in roles.test.mjs.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadConfig } from "../../lib/config.mjs";
+import { FileProblem, loadCompanyFile } from "../lib/company-file.mjs";
 
 const companyDir = join(dirname(fileURLToPath(import.meta.url)), "..");
+const engineDir = join(companyDir, "..");
 const file = JSON.parse(readFileSync(join(companyDir, "company.json"), "utf8"));
 const bySlug = Object.fromEntries(file.agents.map((a) => [a.slug, a]));
 
-// The nine agents as pinned in CONTRACTS section 5.
+// The ten agents as pinned in CONTRACTS section 5 and CONTRACTS-V2 21.2.
 const PINNED = [
-  { slug: "chief-of-staff", name: "Chief of staff", paperclipRole: "pm", tool: "claude", model: "opus", reportsTo: null },
-  { slug: "builder", name: "Builder", paperclipRole: "engineer", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff" },
-  { slug: "checker", name: "Checker", paperclipRole: "qa", tool: "codex", model: null, reportsTo: "chief-of-staff" },
-  { slug: "bookkeeper", name: "Bookkeeper", paperclipRole: "general", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff" },
-  { slug: "sales", name: "Sales", paperclipRole: "general", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff" },
-  { slug: "support", name: "Support", paperclipRole: "general", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff" },
-  { slug: "people", name: "People", paperclipRole: "general", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff" },
-  { slug: "marketer", name: "Marketer", paperclipRole: "general", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff" },
-  { slug: "drafter", name: "Drafter", paperclipRole: "designer", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff" },
+  { slug: "chief-of-staff", name: "Chief of staff", paperclipRole: "pm", tool: "claude", model: "opus", reportsTo: null, department: null },
+  { slug: "builder", name: "Builder", paperclipRole: "engineer", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff", department: null },
+  { slug: "checker", name: "Checker", paperclipRole: "qa", tool: "codex", model: null, reportsTo: "chief-of-staff", department: null },
+  { slug: "bookkeeper", name: "Bookkeeper", paperclipRole: "general", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff", department: "books" },
+  { slug: "sales", name: "Sales", paperclipRole: "general", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff", department: "customers" },
+  { slug: "support", name: "Support", paperclipRole: "general", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff", department: "support" },
+  { slug: "people", name: "People", paperclipRole: "general", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff", department: "people" },
+  { slug: "marketer", name: "Marketer", paperclipRole: "general", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff", department: "marketing" },
+  { slug: "drafter", name: "Drafter", paperclipRole: "designer", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff", department: "studio" },
+  { slug: "artist", name: "Artist", paperclipRole: "designer", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff", department: "studio" },
 ];
 const BENCH = { bookkeeper: "Engine Bookkeeper", sales: "Engine Sales", support: "Engine Support", people: "Engine People" };
+// The markers of CONTRACTS-V2 15.1 and the document names of 15.2 to 15.4.
+const MARKERS = ["SIZE:", "PLAN READY:", "PLAN ACCEPTED", "ANSWER:", "STOPPED:", "RESULT:", "VERDICT: PASS", "VERDICT: FAIL", "FOR:", "PLAN FIRST", "ROUTINE:"];
+const DOCUMENTS = ["00-brief.md", "01-plan.md", "04-summary.md"];
+const HEADINGS = [
+  "# Brief: {title}", "## The goal in the owner's words", "## What done looks like", "## Must-haves", "## Nice-to-haves", "## Anything unclear",
+  "# Plan: {title}", "## Approach", "## What will be produced", "## Steps", "needs:",
+  "# Summary: {title}", "## What was done", "## Files", "## What is left",
+];
 
 // What an agent ends up with once its overrides are laid over the defaults, key by key.
 function effective(agent) {
@@ -31,6 +45,26 @@ function effective(agent) {
     rights: { ...d.rights, ...(agent.rights || {}) },
     fencePolicy: { ...d.fencePolicy, ...(agent.fencePolicy || {}) },
   };
+}
+
+// A config whose state folder is a temp path, so nothing here points at the live engine.
+function tempConfig(dir) {
+  const cfg = JSON.parse(readFileSync(join(engineDir, "config.json"), "utf8"));
+  cfg.stateRoot = join(dir, "state");
+  const path = join(dir, "config.json");
+  writeFileSync(path, JSON.stringify(cfg));
+  return loadConfig({ path });
+}
+
+// A copy of the company folder (without its tests) that a test may change.
+function withCopy(fn) {
+  const dir = mkdtempSync(join(tmpdir(), "uuu-company-file-"));
+  try {
+    cpSync(companyDir, join(dir, "company"), { recursive: true, filter: (src) => !src.startsWith(join(companyDir, "test")) });
+    return fn(join(dir, "company"), tempConfig(dir));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 test("company, project and defaults are as pinned", () => {
@@ -44,11 +78,12 @@ test("company, project and defaults are as pinned", () => {
   });
 });
 
-test("nine agents, bosses first, with the pinned slugs, tools, models and bosses", () => {
+test("ten agents, bosses first, with the pinned slugs, tools, models, bosses and departments", () => {
   assert.deepEqual(file.agents.map((a) => a.slug), PINNED.map((p) => p.slug));
   for (const p of PINNED) {
     const a = bySlug[p.slug];
-    for (const key of ["name", "paperclipRole", "tool", "model", "reportsTo"]) {
+    for (const key of ["name", "paperclipRole", "tool", "model", "reportsTo", "department"]) {
+      assert.ok(key in a, `${p.slug}.${key} is written out`);
       assert.equal(a[key], p[key], `${p.slug}.${key}`);
     }
     assert.equal(a.role, p.name, `${p.slug}.role`);
@@ -56,6 +91,7 @@ test("nine agents, bosses first, with the pinned slugs, tools, models and bosses
     assert.equal(a.instructions, `roles/${p.slug}.md`);
     assert.ok(typeof a.capabilities === "string" && a.capabilities.length > 10, `${p.slug} capabilities`);
   }
+  assert.equal(bySlug.artist.capabilities, "Draws sprites, animations and simple images by script, with frame data other tools can read.");
 });
 
 test("overrides are as pinned and nothing else differs from the defaults", () => {
@@ -69,11 +105,15 @@ test("overrides are as pinned and nothing else differs from the defaults", () =>
     drafter: { ...base, limits: { ...base.limits, maxTurns: 60 },
       fencePolicy: { ...base.fencePolicy, readFolders: ["{state}/knowledge/docs", "{state}/cad"],
         envFile: "{state}/secrets/agents/drafter.env" } },
+    artist: { ...base, limits: { ...base.limits, maxTurns: 60 },
+      fencePolicy: { ...base.fencePolicy, readFolders: ["{state}/knowledge/docs", "{state}/art"],
+        envFile: "{state}/secrets/agents/artist.env" } },
   };
   for (const slug of Object.keys(BENCH)) {
     expected[slug] = { ...base, fencePolicy: { ...base.fencePolicy,
       localServices: ["127.0.0.1:8120"], envFile: `{state}/secrets/agents/${slug}.env` } };
   }
+  assert.deepEqual(Object.keys(expected).sort(), PINNED.map((p) => p.slug).sort());
   for (const slug of Object.keys(expected)) assert.deepEqual(e[slug], expected[slug], slug);
 });
 
@@ -96,54 +136,84 @@ test("only the Chief of staff can assign tasks; nobody can create agents or skil
 test("the file lists no grants: paperclip's grants are not applied, the gate blocks them", () => {
   assert.equal("grants" in file.defaults, false);
   for (const a of file.agents) assert.equal("grants" in a, false, a.slug);
+  assert.ok(!readFileSync(join(companyDir, "company.json"), "utf8").includes('"grants"'));
 });
 
-test("every instructions file exists, is 60 to 120 lines and names no absolute path", () => {
+test("a fence policy may read the art folder, and nothing else changed in the allowed list", () => {
+  const cfg = JSON.parse(readFileSync(join(engineDir, "config.json"), "utf8"));
+  assert.deepEqual(cfg.fence.readRootsAllowed, ["knowledge/docs", "lessons", "cad", "art"]);
+});
+
+test("every agent has its instructions file, and there is no other", () => {
   const files = readdirSync(join(companyDir, "roles")).filter((f) => f.endsWith(".md")).sort();
   assert.deepEqual(files, PINNED.map((p) => `${p.slug}.md`).sort());
-  for (const a of file.agents) {
-    const path = join(companyDir, a.instructions);
-    assert.ok(existsSync(path), path);
-    const text = readFileSync(path, "utf8");
-    const lines = text.replace(/\n$/, "").split("\n").length;
-    assert.ok(lines >= 60 && lines <= 120, `${a.slug}: ${lines} lines`);
-    assert.ok(text.includes("current working folder"), `${a.slug}: current working folder`);
-    assert.ok(!text.includes("/Users/"), `${a.slug}: /Users/`);
-    assert.ok(!text.includes("~/"), `${a.slug}: ~/`);
-    assert.ok(text.includes("$UUU_LESSONS_FILE"), `${a.slug}: lessons file`);
-    assert.ok(text.includes("$UUU_KNOWLEDGE_DIR"), `${a.slug}: knowledge folder`);
-    assert.ok(text.includes("blocked"), `${a.slug}: blocked`);
+  for (const a of file.agents) assert.ok(existsSync(join(companyDir, a.instructions)), a.slug);
+});
+
+test("shared/staged.md names every marker and every document, with the pinned headings", () => {
+  const text = readFileSync(join(companyDir, "shared", "staged.md"), "utf8");
+  for (const m of MARKERS) assert.ok(text.includes(m), `marker ${m}`);
+  for (const d of DOCUMENTS) assert.ok(text.includes(d), `document ${d}`);
+  for (const h of HEADINGS) assert.ok(text.includes(h), `heading ${h}`);
+  const lines = text.replace(/\n$/, "").split("\n").length;
+  assert.ok(lines >= 35 && lines <= 50, `${lines} lines`);
+  assert.ok(text.includes("current working folder"));
+  assert.ok(!text.includes("/Users/") && !text.includes("~/"), "no absolute path");
+  assert.ok(!text.includes("{{"), "no placeholder of its own");
+  for (const tool of ["paperclip", "Frappe", "ERPNext", "Claude", "Codex", "CadQuery", "Pillow", "Aseprite"]) {
+    assert.ok(!text.toLowerCase().includes(tool.toLowerCase()), `names no tool: ${tool}`);
   }
 });
 
-test("the parts every file has come in the pinned order", () => {
-  const parts = ["## Who you are", "## Standing rules", "## How you start", "## Your job", "## How you finish", "## When you are stuck"];
-  for (const a of file.agents) {
-    const text = readFileSync(join(companyDir, a.instructions), "utf8");
-    const at = parts.map((p) => text.indexOf(p));
-    assert.ok(at.every((i) => i >= 0), `${a.slug}: missing a part`);
-    assert.deepEqual([...at].sort((x, y) => x - y), at, `${a.slug}: parts out of order`);
-  }
+test("loadCompanyFile returns ten agents with their departments and the Artist's policy", () => {
+  withCopy((dir, config) => {
+    const c = loadCompanyFile(join(dir, "company.json"), config);
+    assert.deepEqual(c.agents.map((a) => [a.slug, a.department]), PINNED.map((p) => [p.slug, p.department]));
+    const artist = c.agents.find((a) => a.slug === "artist");
+    assert.equal(artist.role, "designer");
+    assert.equal(artist.limits.maxTurns, 60);
+    assert.deepEqual(artist.policy.readFolders, [join(config.paths.state, "knowledge", "docs"), join(config.paths.state, "art")]);
+    assert.equal(artist.policy.envFile, join(config.paths.state, "secrets", "agents", "artist.env"));
+    assert.equal(artist.reportsTo, "chief-of-staff");
+  });
 });
 
-test("each role teaches its formats", () => {
-  const read = (slug) => readFileSync(join(companyDir, "roles", `${slug}.md`), "utf8");
-  const checker = read("checker");
-  assert.ok(checker.includes("VERDICT: PASS"));
-  assert.ok(checker.includes("VERDICT: FAIL"));
-  const chief = read("chief-of-staff");
-  assert.ok(chief.includes("RESULT:"));
-  assert.ok(chief.includes("{{TEAM}}"));
-  for (const slug of Object.keys(BENCH)) {
-    const t = read(slug);
-    assert.ok(t.includes("DRAFT:"), `${slug}: DRAFT:`);
-    assert.ok(t.includes("UUU_BENCH_URL"), `${slug}: UUU_BENCH_URL`);
-    assert.ok(t.includes("X-Frappe-Site-Name: $UUU_BENCH_SITE"), `${slug}: site header`);
-    assert.ok(t.includes("Authorization: token $UUU_BENCH_API_KEY:$UUU_BENCH_API_SECRET"), `${slug}: auth header`);
-  }
-  assert.ok(read("support").includes("DRAFT REPLY:"));
-  const marketer = read("marketer");
-  for (const s of ["title:", "channel:", "planned:", "content/<slug>.md"]) assert.ok(marketer.includes(s), `marketer: ${s}`);
-  const drafter = read("drafter");
-  for (const s of ['"$UUU_CAD_PYTHON" "$UUU_CAD_EXPORT" <name>.py', "result", "millimetres"]) assert.ok(drafter.includes(s), `drafter: ${s}`);
+test("loadCompanyFile refuses a department that is not one of the six", () => {
+  withCopy((dir, config) => {
+    const f = join(dir, "company.json");
+    const doc = JSON.parse(readFileSync(f, "utf8"));
+    for (const bad of ["finance", "", 3, true, ["books"]]) {
+      doc.agents[3].department = bad;
+      writeFileSync(f, JSON.stringify(doc));
+      assert.throws(() => loadCompanyFile(f, config), (e) => e instanceof FileProblem && /department/.test(e.message), String(bad));
+    }
+    delete doc.agents[3].department;
+    writeFileSync(f, JSON.stringify(doc));
+    assert.equal(loadCompanyFile(f, config).agents[3].department, null);
+  });
+});
+
+test("loadCompanyFile folds the shared staged text into {{STAGED}}, and a role without it still loads", () => {
+  withCopy((dir, config) => {
+    const staged = readFileSync(join(dir, "shared", "staged.md"), "utf8").replace(/\n+$/, "");
+    writeFileSync(join(dir, "roles", "builder.md"), "# Builder\n\nBefore.\n\n{{STAGED}}\n\nAfter.\n");
+    writeFileSync(join(dir, "roles", "checker.md"), "# Checker\n\nNo shared text here.\n");
+    const c = loadCompanyFile(join(dir, "company.json"), config);
+    const by = Object.fromEntries(c.agents.map((a) => [a.slug, a]));
+    assert.equal(by.builder.instructions, `# Builder\n\nBefore.\n\n${staged}\n\nAfter.\n`);
+    assert.equal(by.checker.instructions, "# Checker\n\nNo shared text here.\n");
+    assert.ok(!by.artist.instructions.includes("{{STAGED}}"));
+    assert.ok(by.artist.instructions.includes(staged));
+  });
+});
+
+test("loadCompanyFile refuses the file when a role asks for the shared text and it is missing", () => {
+  withCopy((dir, config) => {
+    rmSync(join(dir, "shared"), { recursive: true, force: true });
+    assert.throws(() => loadCompanyFile(join(dir, "company.json"), config), (e) => e instanceof FileProblem && /staged\.md/.test(e.message));
+    mkdirSync(join(dir, "shared"));
+    writeFileSync(join(dir, "shared", "staged.md"), "Shared.\n");
+    const c = loadCompanyFile(join(dir, "company.json"), config);
+    assert.ok(c.agents.find((a) => a.slug === "artist").instructions.includes("\nShared.\n"));
+  });
 });

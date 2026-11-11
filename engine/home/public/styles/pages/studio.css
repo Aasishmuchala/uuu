@@ -1,0 +1,25 @@
+/* The studio page's own styles, every selector under .p-studio (CONTRACTS-V2 11.2). */
+.p-studio .p-studio__player { margin-bottom: var(--s-4); }
+.p-studio .p-studio__sprites, .p-studio .p-studio__images, .p-studio .p-studio__problems { list-style: none; margin: 0; padding: 0; }
+.p-studio .p-studio__sprites { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); }
+.p-studio .p-studio__sprite { border: 1px solid var(--border); border-radius: var(--r-3); background: var(--bg-card); }
+.p-studio .p-studio__sprite--chosen { border-color: var(--accent); }
+.p-studio .p-studio__sprite-button {
+  display: flex; gap: var(--s-3); width: 100%; padding: var(--s-3); background: none; border: 0; color: inherit; text-align: left; cursor: pointer;
+}
+.p-studio .p-studio__thumb-box { flex: none; width: 4rem; height: 4rem; display: grid; place-items: center; }
+.p-studio .p-studio__thumb { display: block; }
+.p-studio .p-studio__sprite-text { display: grid; gap: var(--s-1); min-width: 0; }
+.p-studio .p-studio__sprite-title { font-weight: var(--fw-bold); overflow-wrap: anywhere; }
+.p-studio .p-studio__sprite-meta { color: var(--text-2); }
+.p-studio .p-studio__tags { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+.p-studio .p-studio__check { color: var(--text-2); }
+.p-studio .p-studio__check--warn { color: var(--warn); }
+.p-studio .p-studio__images { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
+.p-studio .p-studio__image { border: 1px solid var(--border); border-radius: var(--r-3); background: var(--bg-card); padding: var(--s-3); display: grid; gap: var(--s-2); }
+.p-studio .p-studio__picture { width: 100%; max-height: 12rem; object-fit: contain; }
+.p-studio .p-studio__image-title { margin: 0; font-weight: var(--fw-bold); overflow-wrap: anywhere; }
+.p-studio .p-studio__problems { display: grid; gap: var(--s-2); color: var(--text-2); }
+.p-studio .p-studio__strip { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.p-studio .p-studio__goal-title { margin: 0; font-weight: var(--fw-bold); }
+.p-studio .p-studio__goal-text { margin: var(--s-1) 0 0; color: var(--text-2); }

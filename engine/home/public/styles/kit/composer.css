@@ -1,0 +1,196 @@
+/* Composer (kit/composer.js): pinned to the bottom of its container, with the "/" and "@" lists above it. Tokens only. */
+
+.k-composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding-bottom: var(--s-3);
+  background: linear-gradient(to bottom, transparent, var(--bg) var(--s-4));
+}
+
+.k-composer__box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-4);
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+.k-composer__box:focus-within {
+  border-color: var(--text-3);
+}
+
+.k-composer__context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.k-composer__to,
+.k-composer__template {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 2px var(--s-1) 2px var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle);
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.k-composer__template {
+  padding-right: var(--s-2);
+}
+
+.k-composer__to-label {
+  color: var(--text-3);
+}
+
+.k-composer__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--s-5);
+  height: var(--s-5);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.k-composer__clear:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.k-composer__field {
+  width: 100%;
+  min-height: var(--h-lg);
+  max-height: 240px;
+  padding: var(--s-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  resize: none;
+  line-height: var(--lh-body);
+  white-space: pre-wrap;
+}
+
+.k-composer__field:focus,
+.k-composer__field:focus-visible {
+  outline: none;
+}
+
+.k-composer__field::placeholder {
+  color: var(--text-3);
+  white-space: pre;
+}
+
+.k-composer__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.k-composer__plan {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.k-composer__plan input {
+  width: var(--s-4);
+  height: var(--s-4);
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.k-composer__hint {
+  margin-left: auto;
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+.k-composer__error {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--fs-caption);
+  color: var(--bad-text);
+}
+
+.k-composer__menu {
+  margin-bottom: var(--s-2);
+  max-height: 320px;
+  overflow-y: auto;
+  padding: var(--s-1);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-4);
+  box-shadow: var(--shadow-pop);
+}
+
+.k-composer__menu-head {
+  margin: 0;
+  padding: var(--s-1) var(--s-2);
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+.k-composer__option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--h-md);
+  padding: var(--s-1) var(--s-2);
+  border: 0;
+  border-radius: var(--r-3);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.k-composer__option:hover,
+.k-composer__option--active {
+  background: var(--bg-subtle);
+}
+
+.k-composer__option-title {
+  flex: none;
+  font-weight: var(--fw-medium);
+}
+
+.k-composer__option-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+@media (max-width: 859px) {
+  .k-composer__hint {
+    display: none;
+  }
+
+  .k-composer__bar .k-btn {
+    margin-left: auto;
+  }
+
+  .k-composer__option,
+  .k-composer__plan {
+    min-height: 44px;
+  }
+}

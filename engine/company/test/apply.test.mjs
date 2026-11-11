@@ -390,7 +390,9 @@ test("from the half-applied live state a run finishes the job without new agents
     trial[slug] = made.id;
   }
 
-  // Run 1 stops where the live run stopped: after hiring and approving the six new agents,
+  // Every agent of the company file (ten since the Artist joined); the trial made three of them.
+  const total = JSON.parse(readFileSync(COMPANY, "utf8")).agents.length;
+  // Run 1 stops where the live run stopped: after hiring and approving the new agents,
   // before instructions, bosses, the ids file and the policy files.
   const refuse = [{ method: "PATCH", pattern: /^\/api\/agents\/[^/]+\/permissions$/, status: 403, error: "Only human company members can be removed." }];
   const strict = await startStrictBoard(stub, { refuse });
@@ -398,9 +400,9 @@ test("from the half-applied live state a run finishes the job without new agents
   try {
     let r = await runApply(env, ["--file", COMPANY]);
     assert.equal(r.code, 1, r.stdout);
-    assert.equal(stub.state.agents.length, 9);
+    assert.equal(stub.state.agents.length, total);
     const fresh = stub.state.agents.filter((a) => !Object.values(trial).includes(a.id));
-    assert.equal(fresh.length, 6);
+    assert.equal(fresh.length, total - 3);
     for (const a of fresh) {
       assert.equal(a.status, "idle", a.name);
       assert.deepEqual(grantKeys(stub, a), FOURTEEN, `${a.name} holds the default grants and tasks:assign`);
@@ -417,10 +419,10 @@ test("from the half-applied live state a run finishes the job without new agents
     r = await runApply(env, ["--file", COMPANY]);
     assert.equal(r.code, 0, r.stderr);
     assert.ok(!strict.seen.slice(from).some((q) => q.method === "POST" && /\/(agents|agent-hires)$/.test(q.path)), "no agent is made again");
-    assert.equal(stub.state.agents.length, 9);
-    assert.equal(new Set(stub.state.agents.map((a) => a.name)).size, 9);
+    assert.equal(stub.state.agents.length, total);
+    assert.equal(new Set(stub.state.agents.map((a) => a.name)).size, total);
     const ids = JSON.parse(readFileSync(join(env.state, "ids.json"), "utf8"));
-    assert.equal(Object.keys(ids.agents).length, 9);
+    assert.equal(Object.keys(ids.agents).length, total);
     for (const [slug, id] of Object.entries(trial)) assert.equal(ids.agents[slug], id, `${slug} kept its id`);
     const chief = ids.agents["chief-of-staff"];
     for (const [slug, id] of Object.entries(ids.agents)) {
@@ -431,7 +433,8 @@ test("from the half-applied live state a run finishes the job without new agents
       const text = stub.state.instructions[id]["AGENTS.md"].content;
       const role = readFileSync(join(HERE, "..", "roles", `${slug}.md`), "utf8");
       if (role.includes("{{TEAM}}")) assert.ok(text.includes("- Chief of staff: ") && !text.includes("{{TEAM}}"), slug);
-      else assert.equal(text, role, slug);
+      if (role.includes("{{STAGED}}")) assert.ok(text.includes("`00-brief.md`") && !text.includes("{{STAGED}}"), slug);
+      if (!role.includes("{{TEAM}}") && !role.includes("{{STAGED}}")) assert.equal(text, role, slug);
       assert.equal(JSON.parse(readFileSync(join(env.state, "policy", `${id}.json`), "utf8")).slug, slug);
       assert.ok(existsSync(join(env.state, "lessons", `${slug}.md`)));
     }

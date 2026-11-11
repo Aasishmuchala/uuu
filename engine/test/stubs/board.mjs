@@ -31,6 +31,7 @@ function emptyState() {
     companies: [], agents: [], projects: [], issues: [], comments: [], approvals: [], attention: [],
     liveRuns: [], tokens: {}, instructions: {}, memberGrants: {},
     wakes: [], interactions: [], keys: [], heartbeatRuns: [],
+    routines: [], routineTriggers: [], routineRuns: [],
   };
 }
 
@@ -308,9 +309,8 @@ export async function startStubBoard({ port = 0, seed } = {}) {
     if (limit > 0) list = list.slice(0, limit);
     return list.map(clone);
   });
-  route("POST", "/api/companies/:id/issues", ({ params, body, actor }) => {
-    const c = company(params.id); needBody(body);
-    if (!body.title) throw new HttpError(400, "title is required");
+  // Makes a task as POST /issues does; also used by a routine's manual run.
+  const makeIssue = (c, body, actor) => {
     c.issueCounter += 1;
     const t = nowIso();
     const issue = {
@@ -323,15 +323,21 @@ export async function startStubBoard({ port = 0, seed } = {}) {
       createdByAgentId: actor.kind === "agent" ? actor.agentId : null,
       createdAt: t, updatedAt: t,
     };
+    for (const k of ["originKind", "originId", "startedAt", "completedAt"]) if (k in body) issue[k] = body[k];
     state.issues.push(issue);
     wake(issue.assigneeAgentId, issue.id, "assigned");
-    return [201, clone(issue)];
+    return issue;
+  };
+  route("POST", "/api/companies/:id/issues", ({ params, body, actor }) => {
+    const c = company(params.id); needBody(body);
+    if (!body.title) throw new HttpError(400, "title is required");
+    return [201, clone(makeIssue(c, body, actor))];
   });
   route("GET", "/api/issues/:id", ({ params }) => clone(issueById(params.id)));
   route("PATCH", "/api/issues/:id", ({ params, body, actor }) => {
     const issue = issueById(params.id); needBody(body);
     const before = issue.assigneeAgentId;
-    for (const k of ["title", "description", "status", "priority", "assigneeAgentId", "assigneeUserId", "projectId", "parentId"]) if (k in body) issue[k] = body[k];
+    for (const k of ["title", "description", "status", "priority", "assigneeAgentId", "assigneeUserId", "projectId", "parentId", "startedAt", "completedAt"]) if (k in body) issue[k] = body[k];
     if (typeof body.comment === "string" && body.comment) addComment(issue, body.comment, actor);
     issue.updatedAt = nowIso();
     if (issue.assigneeAgentId !== before) wake(issue.assigneeAgentId, issue.id, "assigned");
@@ -373,6 +379,102 @@ export async function startStubBoard({ port = 0, seed } = {}) {
     state.interactions.push({ issueId: issue.id, interactionId: params.iid, action: params.verb, body: clone(body) ?? null });
     dropAttention((i) => i.subject?.metadata?.interactionId === params.iid || i.subject?.id === params.iid);
     return { ok: true, interactionId: params.iid, action: params.verb };
+  });
+
+  // ---- routines (version 2). Shapes as paperclip 2026.1106.0 gives them (CONTRACTS-V2 17.6); writes are owner only.
+  const ROUTINE_STATUSES = ["active", "paused", "archived"];
+  const routineById = (id) => {
+    const r = state.routines.find((x) => x.id === id);
+    if (!r) throw new HttpError(404, "Routine not found");
+    return r;
+  };
+  const withIssue = (run) => {
+    const out = clone(run);
+    const i = state.issues.find((x) => x.id === run.linkedIssueId);
+    out.linkedIssue = i ? { id: i.id, identifier: i.identifier, title: i.title, status: i.status } : null;
+    return out;
+  };
+  const runsOf = (r) => state.routineRuns.filter((x) => x.routineId === r.id)
+    .sort((a, b) => (a.triggeredAt < b.triggeredAt ? 1 : a.triggeredAt > b.triggeredAt ? -1 : 0));
+  const publicRoutine = (r) => {
+    const out = clone(r);
+    out.triggers = state.routineTriggers.filter((t) => t.routineId === r.id).map(clone);
+    const last = runsOf(r)[0];
+    out.lastRun = last ? withIssue(last) : null;
+    return out;
+  };
+  route("GET", "/api/companies/:id/routines", ({ params }) => {
+    company(params.id);
+    return state.routines.filter((r) => r.companyId === params.id).map(publicRoutine);
+  });
+  route("POST", "/api/companies/:id/routines", ({ params, body, actor }) => {
+    needOwner(actor); company(params.id); needBody(body);
+    if (!body.title) throw new HttpError(400, "title is required");
+    const status = body.status ?? "active";
+    if (!ROUTINE_STATUSES.includes(status)) throw new HttpError(400, "Validation error");
+    const t = nowIso();
+    const r = {
+      id: randomUUID(), companyId: params.id, title: body.title, description: body.description ?? null,
+      assigneeAgentId: body.assigneeAgentId ?? null, projectId: body.projectId ?? null, priority: body.priority ?? "medium",
+      status, concurrencyPolicy: body.concurrencyPolicy ?? "coalesce_if_active", catchUpPolicy: body.catchUpPolicy ?? "skip_missed",
+      createdAt: t, updatedAt: t,
+    };
+    state.routines.push(r);
+    return [201, publicRoutine(r)];
+  });
+  route("GET", "/api/routines/:id", ({ params }) => {
+    const r = routineById(params.id);
+    return { ...publicRoutine(r), recentRuns: runsOf(r).slice(0, 20).map(withIssue) };
+  });
+  route("PATCH", "/api/routines/:id", ({ params, body, actor }) => {
+    needOwner(actor); needBody(body);
+    const r = routineById(params.id);
+    if ("status" in body && !ROUTINE_STATUSES.includes(body.status)) throw new HttpError(400, "Validation error");
+    for (const k of ["title", "description", "assigneeAgentId", "projectId", "priority", "status", "concurrencyPolicy", "catchUpPolicy"]) if (k in body) r[k] = body[k];
+    r.updatedAt = nowIso();
+    return publicRoutine(r);
+  });
+  route("POST", "/api/routines/:id/triggers", ({ params, body, actor }) => {
+    needOwner(actor); needBody(body);
+    const r = routineById(params.id);
+    if (body.kind !== "schedule" || typeof body.cronExpression !== "string" || !body.cronExpression) throw new HttpError(400, "Validation error");
+    const trigger = {
+      id: randomUUID(), routineId: r.id, kind: "schedule", label: body.label ?? null, enabled: body.enabled !== false,
+      cronExpression: body.cronExpression, timezone: body.timezone ?? "UTC", nextRunAt: null, lastFiredAt: null,
+    };
+    state.routineTriggers.push(trigger);
+    return [201, clone(trigger)];
+  });
+  route("PATCH", "/api/routine-triggers/:id", ({ params, body, actor }) => {
+    needOwner(actor); needBody(body);
+    const t = state.routineTriggers.find((x) => x.id === params.id);
+    if (!t) throw new HttpError(404, "Trigger not found");
+    for (const k of ["label", "enabled", "cronExpression", "timezone"]) if (k in body) t[k] = body[k];
+    return clone(t);
+  });
+  route("GET", "/api/routines/:id/runs", ({ params, query }) => {
+    const r = routineById(params.id);
+    let list = runsOf(r);
+    const limit = Number(query.limit);
+    if (limit > 0) list = list.slice(0, limit);
+    return list.map(withIssue);
+  });
+  // An archived routine refuses (409); any other starts one task now, a run linked to it, and a wake.
+  route("POST", "/api/routines/:id/run", ({ params, actor }) => {
+    needOwner(actor);
+    const r = routineById(params.id);
+    if (r.status === "archived") throw new HttpError(409, "Routine is archived");
+    const issue = makeIssue(company(r.companyId), {
+      title: r.title, description: r.description, assigneeAgentId: r.assigneeAgentId, projectId: r.projectId,
+      priority: r.priority, originKind: "routine_execution", originId: r.id,
+    }, actor);
+    const t = nowIso();
+    const run = {
+      id: randomUUID(), routineId: r.id, source: "manual", status: "issue_created", triggeredAt: t, completedAt: null,
+      failureReason: null, linkedIssueId: issue.id,
+    };
+    state.routineRuns.push(run);
+    return [201, withIssue(run)];
   });
 
   // ---- attention, approvals, runs, badges

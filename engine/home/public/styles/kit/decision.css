@@ -1,0 +1,194 @@
+/* DecisionCard (kit/decision.js): the warm card for something that needs the owner. Tokens only. */
+
+.k-decision {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: start;
+  padding: var(--s-4);
+  background: var(--bg-warm);
+  border: 1px solid var(--border-warm);
+  border-radius: var(--r-4);
+  color: var(--text);
+}
+
+.k-decision--compact {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: var(--s-3);
+  border-radius: var(--r-3);
+}
+
+.k-decision--high {
+  border-color: var(--bad);
+}
+
+.k-decision__avatar {
+  padding-top: 2px;
+}
+
+.k-decision__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.k-decision__title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.k-decision--compact .k-decision__title {
+  font-size: var(--fs-body);
+}
+
+.k-decision__flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-right: var(--s-2);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--bad-bg);
+  color: var(--bad-text);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  vertical-align: middle;
+}
+
+.k-decision__context {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.k-decision__summary {
+  margin: var(--s-1) 0 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.k-decision__details {
+  margin: var(--s-2) 0 0;
+  display: grid;
+  gap: var(--s-1);
+}
+
+.k-decision__detail {
+  display: grid;
+  grid-template-columns: minmax(80px, max-content) minmax(0, 1fr);
+  gap: var(--s-3);
+  font-size: var(--fs-caption);
+}
+
+.k-decision__detail dt {
+  color: var(--text-2);
+}
+
+.k-decision__detail dd {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.k-decision__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.k-decision__note,
+.k-decision__confirm {
+  margin-top: var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.k-decision__confirm {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.k-decision__note-label {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+}
+
+.k-decision__note-field {
+  width: 100%;
+  min-height: calc(var(--h-lg) * 2);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-3);
+  background: var(--bg-card);
+  color: var(--text);
+  resize: vertical;
+}
+
+.k-decision__note-actions {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.k-decision__error {
+  margin: var(--s-2) 0 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  color: var(--bad-text);
+  font-size: var(--fs-caption);
+}
+
+.k-decision--done {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-4);
+  color: var(--text-2);
+}
+
+.k-decision--done .k-icon {
+  color: var(--ok);
+}
+
+.k-decision__done-text {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 859px) {
+  .k-decision {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .k-decision--compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .k-decision__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .k-decision__note-field {
+    min-height: calc(var(--s-12) * 2);
+  }
+}

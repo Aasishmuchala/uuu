@@ -1,0 +1,24 @@
+{
+  "name": "walker",
+  "title": "Mascot walk cycle",
+  "kind": "sprite",
+  "sheet": "walker-sheet.png",
+  "data": "walker.json",
+  "gif": "walker.gif",
+  "frames": 4,
+  "frameSize": {
+    "w": 16,
+    "h": 16
+  },
+  "tags": [
+    "walk"
+  ],
+  "palette": [
+    "#f4a261",
+    "#1b1b1f",
+    "#2a9d8f",
+    "#e76f51"
+  ],
+  "script": "walker.py",
+  "made_at": "2026-11-11T08:30:00Z"
+}

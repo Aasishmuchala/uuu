@@ -215,7 +215,7 @@ do_prove() {
 }
 
 do_setup() {
-  local board ok=1 code books wire cad wizard lines
+  local board ok=1 code books wire cad art wizard lines
   board="$(find_part board || true)"
   if [ -z "$board" ]; then
     echo "Start the engine first: engine start"
@@ -265,6 +265,11 @@ do_setup() {
   if [ -f "$cad" ]; then
     /bin/bash "$cad" --check-only || true
   fi
+  # and the Artist's tools
+  art="$ENGINE_DIR/art/install.sh"
+  if [ -f "$art" ]; then
+    /bin/bash "$art" --check-only || true
+  fi
 
   # 4. what only the owner can do
   echo "Still for you to do:"
@@ -299,7 +304,7 @@ EOF
     (cd "$REPO_DIR" && "$NODE" --test "${files[@]}") || code=$?
     [ "$code" = 0 ] || failed=1
   fi
-  for d in engine/lib/tests engine/fence/tests engine/cad/tests; do
+  for d in engine/lib/tests engine/fence/tests engine/cad/tests engine/art/tests; do
     [ -d "$REPO_DIR/$d" ] || continue
     echo "Running the Python tests in $d..."
     code=0

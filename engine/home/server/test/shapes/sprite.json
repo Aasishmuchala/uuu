@@ -1,0 +1,70 @@
+{
+  "sprite": {
+    "id": "STH-8/walker",
+    "goal": "STH-8",
+    "taskId": "e0000000-0000-4000-8000-000000000008",
+    "name": "walker",
+    "title": "Mascot walk cycle",
+    "frames": 4,
+    "frameSize": {
+      "w": 16,
+      "h": 16
+    },
+    "tags": [
+      {
+        "name": "walk",
+        "from": 0,
+        "to": 3,
+        "direction": "forward"
+      }
+    ],
+    "palette": [
+      "#1b1b1f"
+    ],
+    "sheet": {
+      "name": "art/walker/walker-sheet.png",
+      "size": 412,
+      "kind": "image",
+      "url": "/api/files/U1RILTgvYXJ0",
+      "viewUrl": "/api/view/U1RILTgvYXJ0"
+    },
+    "gif": {
+      "name": "art/walker/walker-sheet.png",
+      "size": 412,
+      "kind": "image",
+      "url": "/api/files/U1RILTgvYXJ0",
+      "viewUrl": "/api/view/U1RILTgvYXJ0"
+    },
+    "data": {
+      "name": "art/walker/walker-sheet.png",
+      "size": 412,
+      "kind": "image",
+      "url": "/api/files/U1RILTgvYXJ0",
+      "viewUrl": "/api/view/U1RILTgvYXJ0"
+    },
+    "checks": {
+      "framesMatchSheet": true,
+      "tagsValid": true,
+      "gifFrames": 4,
+      "ok": true
+    },
+    "changed": "11 Nov 2026"
+  },
+  "frames": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16,
+      "duration": 120
+    }
+  ],
+  "tags": [
+    {
+      "name": "walk",
+      "from": 0,
+      "to": 3,
+      "direction": "forward"
+    }
+  ]
+}

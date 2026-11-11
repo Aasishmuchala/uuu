@@ -1,0 +1,93 @@
+/* An agent's page (pages/agent.js): the header, the tabs, and the Talk tab's composer at the bottom. */
+
+.p-agent { display: flex; flex-direction: column; gap: var(--s-5); min-height: 100%; }
+
+.p-agent .p-agent__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+}
+
+.p-agent .p-agent__who { display: flex; flex-direction: column; gap: var(--s-2); flex: 1; min-width: 0; }
+.p-agent .p-agent__summary { margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
+.p-agent .p-agent__facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-5); }
+.p-agent .p-agent__reports { display: inline-flex; align-items: center; gap: var(--s-2); color: var(--text-2); }
+.p-agent .p-agent__actions { flex: none; }
+.p-agent .p-agent__pause { display: flex; flex-direction: column; align-items: flex-end; gap: var(--s-1); }
+
+.p-agent .p-agent__note {
+  margin: 0;
+  align-self: flex-start;
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-2);
+  font-size: var(--fs-caption);
+  color: var(--warn-text);
+  background: var(--warn-bg);
+}
+
+.p-agent .p-agent__error { margin: 0; font-size: var(--fs-caption); color: var(--bad-text); }
+.p-agent .p-agent__muted { margin: 0; color: var(--text-2); }
+.p-agent .p-agent__caption { margin: 0; font-size: var(--fs-caption); color: var(--text-3); }
+
+.p-agent .p-agent__panel { display: flex; flex-direction: column; gap: var(--s-5); flex: 1; min-height: 0; }
+
+/* Talk: the conversation scrolls, the composer stays at the bottom of the pane. */
+.p-agent .p-agent__talk { display: flex; flex-direction: column; gap: var(--s-4); flex: 1; min-height: 0; }
+.p-agent .p-agent__convo { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.p-agent .p-agent__compose {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3) 0 var(--s-4);
+  background: var(--bg);
+}
+.p-agent .p-agent__given { margin: 0; color: var(--ok-text); }
+
+/* Profile and Work */
+.p-agent .p-agent__list { margin: 0; padding-left: var(--s-5); display: flex; flex-direction: column; gap: var(--s-1); }
+.p-agent .p-agent__list li { overflow-wrap: anywhere; }
+.p-agent .p-agent__profile p, .p-agent .p-agent__work p { margin: 0; }
+.p-agent .p-agent__profile .k-section + .k-section { margin-top: var(--s-2); }
+.p-agent .p-agent__rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+
+/* Instructions: read-only text, kept as written. */
+.p-agent .p-agent__instructions { display: flex; flex-direction: column; gap: var(--s-3); }
+.p-agent .p-agent__text {
+  margin: 0;
+  max-height: 70vh;
+  overflow: auto;
+  font-size: var(--fs-caption);
+  line-height: var(--lh-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+/* Lessons */
+.p-agent .p-agent__lessons { display: flex; flex-direction: column; gap: var(--s-3); }
+.p-agent .p-agent__lesson-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.p-agent .p-agent__lesson {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s-2) var(--s-4);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.p-agent .p-agent__lesson-view { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s-1); }
+.p-agent .p-agent__lesson-text { margin: 0; overflow-wrap: anywhere; }
+.p-agent .p-agent__lesson-date { margin: 0; font-size: var(--fs-caption); color: var(--text-3); }
+.p-agent .p-agent__lesson-actions { flex: none; }
+.p-agent .p-agent__lesson-edit { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s-2); }
+.p-agent .p-agent__lesson .p-agent__error { flex-basis: 100%; }
+.p-agent .p-agent__lesson-add { display: flex; gap: var(--s-2); align-items: center; }
+.p-agent .p-agent__lesson-add .k-input { flex: 1; min-width: 0; }
+
+@media (max-width: 859px) {
+  .p-agent .p-agent__head { flex-wrap: wrap; }
+  .p-agent .p-agent__actions { flex-basis: 100%; }
+  .p-agent .p-agent__pause { align-items: flex-start; }
+  .p-agent .p-agent__lesson-add { flex-direction: column; align-items: stretch; }
+}

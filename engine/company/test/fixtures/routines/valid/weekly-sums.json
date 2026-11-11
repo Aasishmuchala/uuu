@@ -1,0 +1,16 @@
+{
+  "id": "weekly-sums",
+  "title": "Weekly sums",
+  "agent": "bookkeeper",
+  "when": {
+    "cron": "30 10 * * 1",
+    "timezone": "Asia/Kolkata",
+    "plain": "Mondays at 10:30"
+  },
+  "ask": "Add up last week's draft invoices and list any that look wrong.",
+  "produces": [
+    "sums.md",
+    "sheets/*.csv"
+  ],
+  "runMinutes": 15
+}

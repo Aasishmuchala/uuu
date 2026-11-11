@@ -26,7 +26,12 @@ const log = (line) => process.stdout.write(`${new Date().toISOString()} ${line}\
 let running;
 try {
   if (stubs) {
-    running = await startStubsHome({ port: port ?? 3210, log });
+    // The version 2 seed (ten roles, staged tasks, routines, sprites) when the stubs have it.
+    const seeds = await import("../../test/stubs/seed.mjs");
+    const v2 = await import("./lib/testing-v2.mjs");
+    running = typeof seeds.boardSeedV2 === "function" && typeof v2.startOnV2Seed === "function"
+      ? await v2.startOnV2Seed(seeds, { port: port ?? 3210, log })
+      : await startStubsHome({ port: port ?? 3210, log });
     log(`home screen (stubs mode, temp state ${running.state}) on ${running.url}`);
   } else {
     const config = loadConfig();

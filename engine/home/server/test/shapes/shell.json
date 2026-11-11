@@ -1,0 +1,31 @@
+{
+  "company": {
+    "name": "Sthyra"
+  },
+  "counts": {
+    "needsYou": 5,
+    "running": 2,
+    "tasksOpen": 6
+  },
+  "team": [
+    {
+      "slug": "chief-of-staff",
+      "name": "Chief of staff",
+      "state": "free",
+      "plainState": "Free",
+      "waitingForYou": false
+    }
+  ],
+  "departments": [
+    {
+      "id": "books",
+      "title": "Books",
+      "connected": true
+    }
+  ],
+  "engine": {
+    "board": "on",
+    "books": "on"
+  },
+  "generatedAt": "2026-11-11T09:00:00.000Z"
+}

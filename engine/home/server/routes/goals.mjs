@@ -2,6 +2,8 @@
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 import { firstLine } from "../lib/format.mjs";
+import { buildText } from "../lib/staged.mjs";
+import { loadRoles } from "../lib/team.mjs";
 import {
   agentNames, authorOf, commentsOf, descendants, goalsOf, isFinished, isGoal, loadIssues, needIds,
   pickResult, pickVerdict, plainState, summary,
@@ -9,6 +11,7 @@ import {
 
 const MAX_TEXT = 4000;
 const MAX_FILES = 200;
+const TEMPLATE = /^[a-z0-9][a-z0-9-]{0,39}\/[a-z0-9][a-z0-9-]{0,79}$/;
 
 export function fileToken(rel) {
   return Buffer.from(rel, "utf8").toString("base64url");
@@ -56,15 +59,27 @@ async function findGoal(ctx, ids, id) {
 }
 
 export default function register(app) {
+  // CONTRACTS-V2 17.4: `planFirst`, `to` and `template` are optional. The task always goes to the Chief of
+  // staff; `to` only adds a "FOR: <name>" line, with the name taken from the company file, never from the body.
   app.post("/api/goals", async (ctx) => {
     const text = readText(ctx);
+    const body = ctx.body && typeof ctx.body === "object" ? ctx.body : {};
+    const planFirst = body.planFirst === true;
+    let toName = null;
+    if (body.to !== undefined && body.to !== null && body.to !== "") {
+      const role = typeof body.to === "string" ? loadRoles(ctx.config, { log: ctx.log }).find((r) => r.slug === body.to) : null;
+      if (!role) throw ctx.fail(400, "That agent is not part of the company.", "Pick an agent from the list, or leave it to the Chief of staff.", "bad_to");
+      if (role.slug !== "chief-of-staff") toName = role.name;
+    }
+    const template = typeof body.template === "string" && TEMPLATE.test(body.template) ? body.template : null;
     const ids = needIds(ctx);
     const chief = ids.agents?.["chief-of-staff"];
     if (!chief) throw ctx.fail(409, "The Chief of staff is not set up yet.", "Run engine setup first.", "not_set_up");
     const created = await ctx.board.post(`/api/companies/${encodeURIComponent(ids.companyId)}/issues`, {
-      title: firstLine(text, 80), description: text, assigneeAgentId: chief, projectId: ids.projectId,
-      status: "todo", priority: "medium",
+      title: firstLine(text, 80), description: buildText({ text, to: toName, planFirst }), assigneeAgentId: chief,
+      projectId: ids.projectId, status: "todo", priority: "medium",
     });
+    if (template && created && typeof created.id === "string") ctx.decisions.set(`template:${created.id}`, template);
     return { status: 201, body: { goal: summary(created, [created]) } };
   });
 

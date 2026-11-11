@@ -227,9 +227,14 @@ test("a finished goal: listed once, acknowledge removes it, reopen comments then
     assert.equal(item.kind, "result");
     assert.equal(item.raisedBy, "Chief of staff");
     assert.match(item.summary, /Two drafts are ready/);
-    assert.deepEqual(item.link, { page: "goals", id: IDS.issues["STH-2"] });
+    assert.deepEqual(item.link, { page: "tasks", id: IDS.issues["STH-2"] });
+    assert.deepEqual(item.actions.map((a) => [a.id, a.label, a.style, a.needsNote]), [["acknowledge", "Accept", "primary", false], ["reopen", "Send back", "plain", true]]);
+    assert.deepEqual(item.details.map((d) => d.label), ["Checked", "Files"]);
+    assert.equal(item.details[0].value, "Passed in round 1");
     const before = writes(h.board).length;
-    assert.equal((await actOn(h, GOAL_DONE_ID, "acknowledge")).status, 200);
+    const ack = await actOn(h, GOAL_DONE_ID, "acknowledge");
+    assert.equal(ack.status, 200);
+    assert.equal(ack.json.message, "Accepted.");
     assert.equal(writes(h.board).length, before);
     assert.ok(!(await inbox(h)).items.some((i) => i.id === GOAL_DONE_ID));
   });
@@ -237,6 +242,7 @@ test("a finished goal: listed once, acknowledge removes it, reopen comments then
     assert.equal((await actOn(h, GOAL_DONE_ID, "reopen")).status, 400);
     const r = await actOn(h, GOAL_DONE_ID, "reopen", "Add a Hindi version too.");
     assert.equal(r.status, 200);
+    assert.equal(r.json.message, "Sent back with your note. The Chief of staff will pick it up.");
     const w = h.board.requests.filter((x) => x.method !== "GET").slice(-2);
     assert.equal(`${w[0].method} ${w[0].path}`, `POST /api/issues/${IDS.issues["STH-2"]}/comments`);
     assert.deepEqual(w[0].body, { body: "Add a Hindi version too." });

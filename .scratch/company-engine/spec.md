@@ -102,3 +102,59 @@ One engine, switched on with one command, and one home screen in the browser.
 - The trial README (`engine/prototype-fence/README.md`) is the record of what the fence needs and why. Its code is the starting point and is deleted once replaced.
 - Open tickets on the phase 1 map: 13 (closed here by the gate), 14 (the Codex agent's own login: an owner wizard), 15 (what an agent's own rights still allow: tests and grant removal here).
 - The orchestrator's brief with constraints and scout findings is `.router/BRIEF.md`.
+
+## Changed on 11 November 2026
+
+The owner changed direction mid-build after looking at LobeHub, Open WebUI, Cherry Studio, Jan, MetaGPT, Kestra and Aseprite. What is built stays (the fence, the gate, the engine command, the company as files, the system of record, the home server). The interface is rebuilt, a staged way of working is added for every role, and routines and a tenth role arrive. Where this section and the text above disagree, this section holds. The plan is `.router/PLAN-V2.md`; the interfaces are `.router/CONTRACTS-V2.md`; tickets 05 to 18 replace the old 05 to 13.
+
+### New user stories
+
+43. As the owner, I want the home screen to open with what needs me as cards with one main action each, so that I decide in seconds.
+44. As the owner, I want to see what is running right now and who has it, so that I know the company is working without opening anything.
+45. As the owner, I want a daily brief of things that need no decision, so that I stay informed without being asked.
+46. As the owner, I want every task on a board (Backlog, In progress, Pending review, Done, with Failed and Canceled in view) and as a list, so that I see the whole company's work at a glance.
+47. As the owner, I want to accept finished work on one page that shows the Checker's numbered checks and the evidence for each, round by round, so that I accept on proof and not on trust.
+48. As the owner, I want to send work back with a note from that same page, so that a correction takes one step.
+49. As the owner, I want a timeline of a task's steps with who did each and how long it took, so that I see where time goes.
+50. As the owner, I want larger work to start with a short brief and a plan I can read, so that I know what will be made before it is made.
+51. As the owner, I want to be asked when something is unclear, and the work to wait for my answer, so that agents do not guess.
+52. As the owner, I want to start a task "plan first" and accept the plan before any work, so that I steer large work early.
+53. As the owner, I want work that keeps failing its check to stop after five rounds and ask me, so that agents do not loop.
+54. As the owner, I want a page for each agent with what it may and may not do in plain words, what it is doing, its instructions and its lessons, so that I know my staff.
+55. As the owner, I want to hand a task to one agent in a conversation and still have it checked, so that quick asks are safe.
+56. As the owner, I want to correct or remove a lesson an agent wrote, so that a wrong lesson does not stick.
+57. As the owner, I want standing work to run on a schedule that I switch on and off, with its past runs in view, so that routine work does not need me.
+58. As the owner, I want ready-made goals for each department that open as a draft I can change, so that I do not start from a blank box.
+59. As the owner, I want to ask for a sprite, an animation or a simple image and get it with its frames, tags and palette on a page where I can play it, so that small art jobs need no operator.
+60. As the owner, I want to pick light or dark and one accent colour, so that the screen suits me.
+61. As the owner, I want a command menu on ⌘K that finds any page, agent, task or document, so that I move without the mouse.
+62. As the owner, I want every state of a page to have its own address, so that I can come back to exactly what I was looking at.
+63. As the owner, I want options that are not built yet (other chat apps as extra windows, a separate workflow engine, a free helper model, an in-place sprite editor) shown as off switches with what each would cost, so that I can choose later with the facts.
+64. As the Chief of staff, I want one fixed procedure with fixed document names and headings, so that every agent and the home screen read my work the same way.
+65. As the Checker, I want a fixed set of six questions with a yes or no for each, so that my verdict can be shown to the owner check by check.
+66. As the Artist, I want my own drawing tools inside the fence, so that I can make images without reaching anything else on the Mac.
+67. As a later builder, I want every route's answer pinned by an example that both the server's tests and the pages' tests use, so that the two sides cannot drift apart.
+
+### New and changed decisions
+
+- **One interface, written by us, in LobeHub's manner.** Layout, vocabulary and design language are borrowed; no code, logo or artwork is. Design tokens in light and dark with one changeable accent; a kit of parts; a left sidebar (Search, Home, Tasks, Docs, Team, Departments, then Routines, Health, Settings), a main pane, a work panel, a narrow-window layout and a command menu. Still no build step and no dependency beyond the vendored Preact and htm; the Geist font and Fluent Emoji avatars are vendored only if their licences are confirmed, with the system font and coloured initials as the fallback.
+- **Words.** Home, Tasks, Docs, Team, Routines, Needs you, Accept, Send back. "Inbox" becomes "Needs you"; "goal" becomes "task" on screen (the code keeps "goal"); "Knowledge" becomes "Docs"; "Company" becomes "Team".
+- **Approvals are one component everywhere,** acting through the one existing route. A finished task waits under Pending review until the owner accepts it.
+- **A staged way of working for every role** (from MetaGPT): sizes XS to XL; for M and larger a brief, a plan, the work, a summary and a check, with fixed names and headings; "Anything unclear" stops the work and asks the owner; plan first on request; at most five check rounds, then stop and ask.
+- **The check is the Checker's comment, in a fixed format of six questions,** because the Checker's task folder is read-only. One such comment is one round. The owner sees it as the document "Check".
+- **A task for one agent still goes through the Chief of staff and the Checker.** Its text starts `FOR: <name>`.
+- **Agents ask the board for nothing new.** They write documents in their task folder and comments on their tasks; the home server reads them as the owner. Files and comments that agents wrote are treated as untrusted: sizes are capped, links are never followed, nothing is shown as a web page.
+- **The gate refuses every change by default** and allows a short list (plan revision R1 of the first plan). The company file no longer lists grants.
+- **Routines are one small file each,** created on the board by the apply command as the owner, paused; the apply command never switches one on or off afterwards; agents cannot create, change or start one. Two to begin: a daily brief (Chief of staff) and a weekly content plan (Marketer). Kestra is not run.
+- **Ready-made goals are files in the repo,** one per department, opened in the composer as an editable draft.
+- **Roles.** A tenth role, the Artist, with its own Python and Pillow under the engine's state folder. A sprite is a sheet, a data file in Aseprite's `json-array` shape, an animated GIF and a manifest. Aseprite itself is not installed: its licence is not a free-software licence.
+- **The Studio** shows CAD parts, images and sprites; the sprite player (frame strip, play and loop, tags, onion skin, palette, whole-number zoom) is drawn on a canvas with no library. The home server checks from the bytes that a sprite's frames match its tags.
+- **Settings holds appearance only.** Everything else that could be switched is either on a department page as an off switch or listed under later options.
+- **Later options, not built:** running LobeHub, Open WebUI, Cherry Studio or Jan as extra chat windows through an OpenAI-compatible address; running Kestra; a free local helper model; editing sprites in place with Piskel; previewing Aseprite files. Each is described in the owner's guide as "what would turn this on".
+
+### Testing, added
+
+- Seams added: (7) the staged-procedure parsers, as pure functions with pinned vectors; (8) the task-folder reader against links, oversized files and odd paths; (9) each new route against its pinned example; (10) the sprite tool against a four-frame fixture.
+- A test for something a later wave builds skips until the thing exists, so the whole suite is green at every wave boundary; the task that builds it must show its tests passing with none skipped.
+- Every page is opened in a real browser at 1280 and 390 px, light and dark, first against the stand-ins and then against the live engine.
+- Live: one task through the whole staged way, and one task per department agent, each ending under Needs you.

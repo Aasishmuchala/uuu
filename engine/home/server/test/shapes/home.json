@@ -1,0 +1,89 @@
+{
+  "company": {
+    "name": "Sthyra"
+  },
+  "needsYou": {
+    "total": 5,
+    "items": [
+      {
+        "id": "goal:e0000000-0000-4000-8000-000000000008",
+        "source": "goal",
+        "kind": "result",
+        "title": "Finished: Make a walking sprite for the mascot",
+        "raisedBy": "Chief of staff",
+        "when": "2026-11-11T09:00:00.000Z",
+        "summary": "The walk cycle is ready: four frames, a sheet, a data file and a GIF.",
+        "severity": "normal",
+        "details": [
+          {
+            "label": "Checked",
+            "value": "Passed in round 2"
+          }
+        ],
+        "actions": [
+          {
+            "id": "acknowledge",
+            "label": "Accept",
+            "style": "primary",
+            "needsNote": false
+          }
+        ],
+        "link": {
+          "page": "tasks",
+          "id": "e0000000-0000-4000-8000-000000000008"
+        },
+        "taskId": "e0000000-0000-4000-8000-000000000008",
+        "identifier": "STH-8",
+        "agent": {
+          "slug": "artist",
+          "name": "Artist"
+        }
+      }
+    ],
+    "notConnected": [
+      {
+        "source": "books",
+        "reason": "Books is switched off."
+      }
+    ]
+  },
+  "running": [
+    {
+      "taskId": "e0000000-0000-4000-8000-000000000001",
+      "identifier": "STH-1",
+      "title": "Write the price list",
+      "who": {
+        "slug": "artist",
+        "name": "Artist"
+      },
+      "live": true,
+      "plainState": "Being worked on",
+      "since": "2026-11-11T08:55:00.000Z"
+    }
+  ],
+  "brief": {
+    "date": "2026-11-11",
+    "from": "routine",
+    "items": [
+      {
+        "id": "b1",
+        "title": "Two drafts are waiting in Marketing",
+        "text": "A launch post and the November newsletter are ready to read.",
+        "who": {
+          "slug": "artist",
+          "name": "Artist"
+        },
+        "about": {
+          "label": "STH-2",
+          "link": {
+            "page": "tasks",
+            "id": "e0000000-0000-4000-8000-000000000002"
+          }
+        },
+        "at": "2026-11-11T03:30:00.000Z"
+      }
+    ]
+  },
+  "boardOff": null,
+  "generatedAt": "2026-11-11T09:00:00.000Z"
+}

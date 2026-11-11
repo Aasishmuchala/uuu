@@ -1,0 +1,28 @@
+{
+  "connected": true,
+  "notConnected": null,
+  "agents": [
+    {
+      "id": "a0000000-0000-4000-8000-000000000010",
+      "slug": "artist",
+      "name": "Artist",
+      "title": "Artist",
+      "summary": "Draws sprites, animations and simple images by script.",
+      "department": "studio",
+      "reportsTo": {
+        "slug": "artist",
+        "name": "Artist"
+      },
+      "state": "free",
+      "plainState": "Free",
+      "doingNow": {
+        "title": "Draw the walk cycle",
+        "taskId": "e0000000-0000-4000-8000-000000000008"
+      },
+      "waitingForYou": false,
+      "lastActiveAt": "2026-11-11T08:30:00.000Z",
+      "applied": true
+    }
+  ],
+  "generatedAt": "2026-11-11T09:00:00.000Z"
+}

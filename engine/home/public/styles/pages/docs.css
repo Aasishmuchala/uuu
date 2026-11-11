@@ -1,0 +1,18 @@
+/* Docs page. */
+.p-docs { display: flex; flex-direction: column; gap: var(--s-6); }
+.p-docs .p-docs__results { list-style: none; padding: 0; margin: var(--s-3) 0 0; display: flex; flex-direction: column; gap: var(--s-3); }
+.p-docs .p-docs__add { display: flex; flex-direction: column; gap: var(--s-3); }
+.p-docs .p-docs__file { display: inline-flex; cursor: pointer; }
+.p-docs .p-docs__file:focus-within .k-btn { outline: 2px solid var(--focus); outline-offset: 2px; }
+.p-docs .p-docs__list { list-style: none; padding: 0; margin: 0; border: 1px solid var(--border); border-radius: var(--r-3); background: var(--bg-card); }
+.p-docs .p-docs__item + .p-docs__item { border-top: 1px solid var(--border); }
+.p-docs .p-docs__row { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-3); flex-wrap: wrap; }
+.p-docs .p-docs__name { flex: 1 1 200px; text-align: left; background: none; border: 0; padding: var(--s-2) 0; color: var(--text); font-weight: var(--fw-medium); cursor: pointer; }
+.p-docs .p-docs__open { padding: 0 var(--s-3) var(--s-3); }
+.p-docs .p-docs__text { margin: 0; padding: var(--s-3); background: var(--bg-subtle); border-radius: var(--r-2); font-family: var(--font-mono); font-size: var(--fs-caption); white-space: pre-wrap; max-height: 480px; overflow: auto; }
+.p-docs .p-docs__lessons { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--s-3); }
+.p-docs .p-docs__lesson-list { margin: var(--s-2) 0 0; padding-left: var(--s-5); color: var(--text-2); }
+@media (max-width: 859px) {
+  .p-docs .p-docs__row { padding: var(--s-3); }
+  .p-docs .p-docs__name { min-height: 44px; }
+}

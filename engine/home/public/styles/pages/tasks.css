@@ -1,0 +1,194 @@
+/* Tasks: the board and the list. Every selector starts with .p-tasks; tokens only (CONTRACTS-V2 11.2). */
+
+.p-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+/* Header controls: the Board/List switch, Who, New task. */
+.p-tasks .p-tasks__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.p-tasks .p-tasks__switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--bg-subtle);
+}
+
+.p-tasks .p-tasks__switch-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: calc(var(--h-sm) - 2px);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-2);
+  color: var(--text-2);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.p-tasks .p-tasks__switch-link:hover {
+  color: var(--text);
+}
+
+.p-tasks .p-tasks__switch-link[aria-current="page"] {
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.p-tasks .p-tasks__who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* Board: six columns side by side. The four main ones share the width; an empty Failed or Canceled stays slim. */
+.p-tasks .p-tasks__board {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  overflow-x: auto;
+  padding-bottom: var(--s-2);
+}
+
+.p-tasks .p-tasks__col {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 220px;
+  max-height: calc(100vh - 160px);
+}
+
+.p-tasks .p-tasks__col--slim {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 148px;
+}
+
+.p-tasks .p-tasks__col .k-board-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+}
+
+/* A column longer than the window scrolls inside itself. */
+.p-tasks .p-tasks__col .k-board-col__cards {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.p-tasks .p-tasks__col--slim .k-board-col__cards {
+  display: none;
+}
+
+.p-tasks .p-tasks__older {
+  margin: 0;
+  padding: var(--s-2) var(--s-1);
+  text-align: center;
+}
+
+/* List: one group per column, one quiet row per task. */
+.p-tasks .p-tasks__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  max-width: var(--content-max);
+}
+
+.p-tasks .p-tasks__group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+}
+
+.p-tasks .p-tasks__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.p-tasks .p-tasks__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 112px;
+  align-items: center;
+  gap: var(--s-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.p-tasks .p-tasks__row-main {
+  min-width: 0;
+}
+
+.p-tasks .p-tasks__row-state,
+.p-tasks .p-tasks__row-date {
+  white-space: nowrap;
+}
+
+.p-tasks .p-tasks__row-date {
+  text-align: right;
+  padding-right: var(--s-2);
+}
+
+/* Narrow window: the columns become stacked sections and every control is easy to touch. */
+@media (max-width: 859px) {
+  .p-tasks .p-tasks__actions {
+    width: 100%;
+  }
+
+  .p-tasks .p-tasks__switch-link {
+    min-height: 44px;
+  }
+
+  .p-tasks .p-tasks__board {
+    flex-direction: column;
+    align-items: stretch;
+    overflow-x: visible;
+  }
+
+  .p-tasks .p-tasks__col,
+  .p-tasks .p-tasks__col--slim {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    max-height: none;
+  }
+
+  .p-tasks .p-tasks__col .k-board-col__cards {
+    overflow-y: visible;
+  }
+
+  .p-tasks .p-tasks__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0;
+  }
+
+  .p-tasks .p-tasks__row-main {
+    grid-column: 1 / -1;
+  }
+
+  .p-tasks .p-tasks__row-state {
+    padding-left: var(--s-2);
+    padding-bottom: var(--s-2);
+  }
+
+  .p-tasks .p-tasks__row-date {
+    padding-bottom: var(--s-2);
+  }
+}

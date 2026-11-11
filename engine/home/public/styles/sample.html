@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tokens sample</title>
+  <script src="../lib/theme-boot.js"></script>
+  <link rel="stylesheet" href="../assets/fonts/fonts.css">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="base.css">
+</head>
+<body>
+  <!-- For looking at the tokens, not part of the app. Add ?theme=light|dark and ?accent=<name> to the address. -->
+  <main class="u-stack" style="max-width: var(--content-max); margin: 0 auto; padding: var(--s-8) var(--s-6); gap: var(--s-8);">
+
+    <section class="u-stack">
+      <h2>Type</h2>
+      <div style="font-size: var(--fs-display); font-weight: var(--fw-bold); line-height: var(--lh-tight);">Display 28</div>
+      <h1>Heading 20</h1>
+      <div style="font-size: var(--fs-title); font-weight: var(--fw-medium);">Title 16</div>
+      <p>Body 14. Calm, content first. <a href="#">A link in the accent</a>.</p>
+      <p class="u-muted">Secondary text.</p>
+      <p class="u-caption">Caption 12.</p>
+      <p class="u-mono">STH-12 mono</p>
+    </section>
+
+    <section class="u-stack">
+      <h2>Text on each surface</h2>
+      <div class="u-row" style="flex-wrap: wrap; align-items: stretch; gap: var(--s-3);">
+        <div class="u-stack" style="background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-3); padding: var(--s-4); gap: var(--s-1);"><strong>--bg</strong><span>Text</span><span style="color: var(--text-2);">Text 2</span><span style="color: var(--text-3);">Text 3</span></div>
+        <div class="u-stack" style="background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: var(--r-3); padding: var(--s-4); gap: var(--s-1);"><strong>--bg-sidebar</strong><span>Text</span><span style="color: var(--text-2);">Text 2</span><span style="color: var(--text-3);">Text 3</span></div>
+        <div class="u-stack" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r-3); padding: var(--s-4); gap: var(--s-1);"><strong>--bg-card</strong><span>Text</span><span style="color: var(--text-2);">Text 2</span><span style="color: var(--text-3);">Text 3</span></div>
+        <div class="u-stack" style="background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--r-3); padding: var(--s-4); gap: var(--s-1);"><strong>--bg-subtle</strong><span>Text</span><span style="color: var(--text-2);">Text 2</span><span style="color: var(--text-3);">Text 3</span></div>
+      </div>
+    </section>
+
+    <section class="u-stack">
+      <h2>A card that needs you</h2>
+      <div class="u-stack" style="background: var(--bg-warm); border: 1px solid var(--border-warm); border-radius: var(--r-4); padding: var(--s-4); gap: var(--s-2);">
+        <strong>Send the March invoices?</strong>
+        <span style="color: var(--text-2);">Bookkeeper · 2 minutes ago · STH-14</span>
+        <div class="u-row">
+          <button type="button" style="height: var(--h-md); padding: 0 var(--s-4); border: 0; border-radius: var(--r-2); background: var(--primary); color: var(--primary-text);">Approve</button>
+          <button type="button" style="height: var(--h-md); padding: 0 var(--s-4); border: 1px solid var(--border-strong); border-radius: var(--r-2); background: var(--bg-card);">Send back</button>
+          <button type="button" style="height: var(--h-lg); padding: 0 var(--s-5); border: 0; border-radius: var(--r-2); background: var(--accept); color: var(--accept-text);">Accept</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="u-stack">
+      <h2>State colours</h2>
+      <div class="u-row" style="flex-wrap: wrap;">
+        <span style="background: var(--ok-bg); color: var(--ok-text); border-radius: var(--r-pill); padding: 0 var(--s-2);">Passed</span>
+        <span style="background: var(--warn-bg); color: var(--warn-text); border-radius: var(--r-pill); padding: 0 var(--s-2);">Waiting for you</span>
+        <span style="background: var(--bad-bg); color: var(--bad-text); border-radius: var(--r-pill); padding: 0 var(--s-2);">Failed</span>
+        <span class="u-row" style="gap: var(--s-1);"><span style="width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--live);"></span>Working</span>
+        <span class="u-row" style="gap: var(--s-1);"><span style="width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--ok);"></span>Done</span>
+        <span class="u-row" style="gap: var(--s-1);"><span style="width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--warn);"></span>Paused</span>
+        <span class="u-row" style="gap: var(--s-1);"><span style="width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--bad);"></span>Problem</span>
+      </div>
+    </section>
+
+    <section class="u-stack">
+      <h2>Accents</h2>
+      <p class="u-muted">The accent is set on the page: pick one (needs the theme boot script that reads ?accent=).</p>
+      <div class="u-row" style="flex-wrap: wrap;">
+        <a href="?accent=blue">blue</a>
+        <a href="?accent=green">green</a>
+        <a href="?accent=violet">violet</a>
+        <a href="?accent=orange">orange</a>
+        <a href="?accent=rose">rose</a>
+        <a href="?accent=graphite">graphite</a>
+      </div>
+      <div class="u-row">
+        <span style="background: var(--accent); color: var(--accent-text); border-radius: var(--r-2); padding: var(--s-1) var(--s-3);">Current accent</span>
+        <button type="button" style="height: var(--h-sm); padding: 0 var(--s-3); border: 1px solid var(--border-strong); border-radius: var(--r-2); background: var(--bg-card);">Tab to see the focus ring</button>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>

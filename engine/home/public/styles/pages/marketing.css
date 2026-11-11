@@ -1,0 +1,17 @@
+/* Marketing page. */
+.p-marketing .p-marketing__group { margin-block: var(--s-4); }
+.p-marketing .p-marketing__group-title { margin: 0 0 var(--s-2); color: var(--text-2); }
+.p-marketing .p-marketing__rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.p-marketing .p-marketing__row { border: 1px solid var(--border); border-radius: var(--r-3); background: var(--bg-card); }
+.p-marketing .p-marketing__head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); width: 100%;
+  padding: var(--s-3); background: none; border: 0; color: inherit; text-align: left; cursor: pointer;
+}
+.p-marketing .p-marketing__date { color: var(--text-2); min-width: 7rem; }
+.p-marketing .p-marketing__title { flex: 1 1 12rem; font-weight: var(--fw-bold); }
+.p-marketing .p-marketing__open { padding: var(--s-3); display: grid; gap: var(--s-3); border-top: 1px solid var(--border); }
+.p-marketing .p-marketing__text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.p-marketing .p-marketing__note { margin: var(--s-3); color: var(--text-2); }
+.p-marketing .p-marketing__strip { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.p-marketing .p-marketing__goal-title { margin: 0; font-weight: var(--fw-bold); }
+.p-marketing .p-marketing__goal-text { margin: var(--s-1) 0 0; color: var(--text-2); }

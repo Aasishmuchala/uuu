@@ -1,0 +1,91 @@
+/* AgentChip and AgentCard (kit/agent.js). Tokens only. */
+
+.k-agent {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.k-agent--chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: 100%;
+  padding: 2px var(--s-2) 2px 2px;
+  border-radius: var(--r-pill);
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+a.k-agent--chip:hover {
+  background: var(--bg-subtle);
+}
+
+.k-agent__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--fw-medium);
+}
+
+.k-agent--card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-4);
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+a.k-agent--card:hover {
+  border-color: var(--border-strong);
+}
+
+.k-agent__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.k-agent__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.k-agent__title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+}
+
+.k-agent__summary {
+  margin: 0;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.k-agent__doing {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.k-agent__doing-label {
+  color: var(--text-3);
+}
+
+@media (max-width: 859px) {
+  .k-agent--chip {
+    min-height: 44px;
+  }
+}

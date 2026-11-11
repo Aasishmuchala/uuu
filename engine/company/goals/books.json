@@ -1,0 +1,51 @@
+{
+  "department": "books",
+  "title": "Books",
+  "goals": [
+    {
+      "id": "draft-an-invoice",
+      "title": "Draft an invoice",
+      "summary": "An invoice for one customer, with GST, ready for you to approve.",
+      "text": "Draft an invoice for [customer] for [what was sold] at [amount] plus GST at [rate] percent. Use the invoice date [date] and payment terms of [number] days. Leave it as a draft for me to approve; do not send it to anyone.",
+      "to": "bookkeeper",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "record-a-supplier-bill",
+      "title": "Record a supplier's bill",
+      "summary": "A bill from a supplier entered as a draft, with its due date.",
+      "text": "Enter a bill from [supplier] dated [date] for [what was bought] of [amount] including GST of [gst amount]. It is due on [due date]. Keep it as a draft entry for me to check, and tell me if any detail looks missing.",
+      "to": "bookkeeper",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "record-a-payment-received",
+      "title": "Record a payment received",
+      "summary": "A payment matched to the invoice it settles, as a draft entry.",
+      "text": "[customer] paid [amount] on [date] by [bank transfer or cheque]. Match it to invoice [invoice number] and draft the entry. If the amount is less or more than the invoice, tell me the difference in a short note and leave the entry as a draft.",
+      "to": "bookkeeper",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "what-customers-owe",
+      "title": "What customers owe",
+      "summary": "A list of unpaid invoices and how old each amount is.",
+      "text": "Write me a list of everything customers owe us as of [date]. For each customer show the invoice, the amount, and how many days it has been unpaid, grouped as under 30 days, 30 to 60 days, and over 60 days. Put the total at the end. This is a written list only.",
+      "to": "bookkeeper",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "month-end-unpaid-bills",
+      "title": "Month-end check of unpaid bills",
+      "summary": "A written check of supplier bills still unpaid at month end.",
+      "text": "Do the month-end check for [month]. List every supplier bill still unpaid, with its due date and amount, and mark which are overdue. Point out anything that looks doubled, missing or odd, and suggest what I should pay first. Write it as a report; do not pay or change anything.",
+      "to": "bookkeeper",
+      "planFirst": true,
+      "size": "M"
+    }
+  ]
+}

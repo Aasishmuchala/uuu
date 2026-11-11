@@ -39,11 +39,44 @@ export function count(n, one, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-// The page address for a `link` the API sends ({ page, id }).
+// How long something took, in words: 45 seconds, 9 minutes, 2 hours 5 minutes, 3 days 4 hours.
+export function duration(ms) {
+  const v = Math.max(0, Math.floor(Number(ms) || 0));
+  const secs = Math.floor(v / 1000);
+  if (secs < 60) return count(secs, "second");
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return count(mins, "minute");
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return mins % 60 ? `${count(hours, "hour")} ${count(mins % 60, "minute")}` : count(hours, "hour");
+  const days = Math.floor(hours / 24);
+  return hours % 24 ? `${count(days, "day")} ${count(hours % 24, "hour")}` : count(days, "day");
+}
+
+// "Good morning" before 12:00, "Good afternoon" before 17:00, else "Good evening" (the local clock).
+export function greeting(date = new Date()) {
+  const h = new Date(date).getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+// The page address for a `link` the API sends ({ page, id }) (CONTRACTS-V2 14.4). Null without a page.
 export function linkHref(link) {
   if (!link || !link.page) return null;
-  if (link.page === "goals" && link.id) return `#/goals/${encodeURIComponent(link.id)}`;
-  return `#/${encodeURIComponent(link.page)}`;
+  const page = String(link.page);
+  const has = link.id !== undefined && link.id !== null && link.id !== "";
+  const id = has ? encodeURIComponent(String(link.id)) : "";
+  switch (page) {
+    case "tasks":
+    case "goals": return has ? `#/tasks/${id}` : "#/tasks";
+    case "team": return has ? `#/team/${id}` : "#/team";
+    case "docs":
+    case "knowledge": return has ? `#/docs?doc=${id}` : "#/docs";
+    case "routines": return has ? `#/routines/${id}` : "#/routines";
+    case "gallery": return has ? `#/gallery?open=${id}` : "#/gallery";
+    case "studio": return has ? `#/studio?sprite=${id}` : "#/studio";
+    default: return `#/${encodeURIComponent(page)}`;
+  }
 }
 
 // Splits "Run: engine start" into a lead-in and a command, so the command can be shown as one.

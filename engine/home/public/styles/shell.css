@@ -1,0 +1,537 @@
+/* The shell (CONTRACTS-V2 14.2): the sidebar, the main pane, the work panel, the narrow top bar,
+   the command menu and the compose dialog's inside. Classes start with s-; tokens only. */
+
+/* The skip link: out of sight until it has focus. */
+.s-skip {
+  position: absolute;
+  left: var(--s-2);
+  top: -100px;
+  z-index: 300;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-2);
+  background: var(--primary);
+  color: var(--primary-text);
+  text-decoration: none;
+}
+.s-skip:focus {
+  top: var(--s-2);
+}
+
+/* Layout: sidebar | main pane | work panel. */
+.s-app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--bg);
+}
+.s-app.has-panel {
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--panel-w);
+}
+.s-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.s-content {
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--s-12));
+  margin: 0 auto;
+  padding: var(--s-10) var(--s-12) var(--s-12);
+  flex: 1;
+}
+.s-content--wide {
+  max-width: none;
+  padding-left: var(--s-8);
+  padding-right: var(--s-8);
+}
+.s-content:focus {
+  outline: none;
+}
+
+/* The sidebar: soft grey, full height, its own scroll. */
+.s-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-2) var(--s-2);
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+.s-sidebar--drawer {
+  position: static;
+  height: auto;
+  min-height: 100%;
+  padding: 0;
+  border-right: 0;
+  background: transparent;
+  overflow: visible;
+}
+.s-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-2) var(--s-2);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-title);
+  min-width: 0;
+}
+.s-brand-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-2);
+  background: var(--primary);
+  color: var(--primary-text);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+}
+.s-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.s-new,
+.s-search {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  height: var(--h-md);
+  padding: 0 var(--s-2) 0 var(--s-3);
+  border-radius: var(--r-3);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.s-new {
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+.s-new:hover {
+  border-color: var(--border-strong);
+}
+.s-search {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+}
+.s-search:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+.s-new .k-kbd,
+.s-search .k-kbd {
+  flex: none;
+}
+
+.s-offline {
+  margin: var(--s-1) var(--s-1) 0;
+  padding: var(--s-3);
+  border: 1px solid var(--border-warm);
+  border-radius: var(--r-3);
+  background: var(--bg-warm);
+  color: var(--text);
+  font-size: var(--fs-caption);
+}
+.s-offline p {
+  margin: 0 0 var(--s-1);
+  font-weight: var(--fw-medium);
+}
+
+.s-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-2);
+}
+.s-sidebar--drawer .s-scroll {
+  overflow: visible;
+}
+.s-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.s-group-title {
+  display: block;
+  margin: 0;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-2);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+a.s-group-title:hover {
+  color: var(--text);
+  background: var(--bg-subtle);
+}
+a.s-group-title.is-current {
+  color: var(--text);
+}
+
+.s-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 32px;
+  padding: 0 var(--s-2) 0 var(--s-3);
+  border-radius: var(--r-2);
+  color: var(--text-2);
+  text-decoration: none;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.s-nav-item:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+.s-nav-item.is-current {
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+/* The current item's mark, in the accent. */
+.s-nav-item.is-current::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+.s-nav-item .k-icon {
+  flex: none;
+  color: var(--text-3);
+}
+.s-nav-item:hover .k-icon,
+.s-nav-item.is-current .k-icon {
+  color: var(--text);
+}
+.s-nav-label {
+  flex: 1;
+  min-width: 0;
+}
+.s-agent {
+  padding-left: var(--s-2);
+}
+.s-mark {
+  display: inline-flex;
+  flex: none;
+}
+.s-count {
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--s-1);
+  border-radius: var(--r-pill);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-bold);
+  line-height: 20px;
+  text-align: center;
+}
+.s-quiet {
+  margin: 0;
+  padding: var(--s-1) var(--s-3);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.s-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--border);
+}
+.s-sidebar--drawer .s-bottom {
+  margin-top: var(--s-4);
+}
+.s-engine {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-2);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  text-decoration: none;
+}
+.s-engine:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+/* Icon-only buttons in the shell (the panel's close, the narrow top bar). */
+.s-icon-btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--h-md);
+  height: var(--h-md);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.s-icon-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+.s-link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* The work panel. */
+.s-panel {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg-sidebar);
+  border-left: 1px solid var(--border);
+}
+.s-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 52px;
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4);
+  border-bottom: 1px solid var(--border);
+}
+.s-panel-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-bold);
+}
+.s-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s-4);
+}
+
+/* The narrow top bar (shown only below 860 px). */
+.s-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: 56px;
+  padding: var(--s-1) var(--s-2);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.s-topbar-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-title);
+}
+.s-topbar-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--warn);
+}
+.s-topbar-new {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  height: 44px;
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-3);
+  background: var(--primary);
+  color: var(--primary-text);
+  font: inherit;
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+.s-topbar-new:hover {
+  background: var(--primary-hover);
+}
+
+/* The command menu's inside (the Dialog is the kit's). */
+.s-cmd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.s-cmd-field {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--h-lg);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-3);
+  background: var(--bg);
+  color: var(--text-3);
+}
+.s-cmd-field:focus-within {
+  border-color: var(--focus);
+}
+.s-cmd-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+.s-cmd-input::placeholder {
+  color: var(--text-3);
+}
+.s-cmd-list {
+  max-height: min(56vh, 420px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.s-cmd-group-title {
+  margin: 0;
+  padding: var(--s-1) var(--s-2);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+}
+.s-cmd-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 36px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.s-cmd-item .k-icon {
+  flex: none;
+  color: var(--text-3);
+}
+.s-cmd-item.is-active {
+  background: var(--bg-subtle);
+}
+.s-cmd-label {
+  flex: none;
+  max-width: 60%;
+}
+.s-cmd-hint {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+.s-cmd-note {
+  margin: 0;
+  padding: var(--s-1) var(--s-2);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+.s-cmd-help {
+  margin: 0;
+  padding: var(--s-1) var(--s-2) 0;
+}
+
+/* The compose dialog's inside. */
+.s-compose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.s-compose-done p {
+  margin: 0 0 var(--s-2);
+}
+.s-compose-gallery {
+  font-size: var(--fs-caption);
+}
+
+.s-notfound p {
+  color: var(--text-2);
+}
+
+/* The narrow layout. */
+@media (max-width: 859px) {
+  .s-app,
+  .s-app.has-panel {
+    display: block;
+  }
+  .s-content,
+  .s-content--wide {
+    padding: var(--s-5) var(--s-4) var(--s-10);
+  }
+  .s-panel--sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    width: auto;
+    height: auto;
+    border-left: 0;
+    background: var(--bg);
+  }
+  .s-nav-item,
+  .s-engine,
+  .s-cmd-item {
+    min-height: 44px;
+  }
+  .s-new,
+  .s-search,
+  .s-icon-btn {
+    min-height: 44px;
+    height: 44px;
+  }
+  .s-icon-btn {
+    width: 44px;
+  }
+  .s-new .k-kbd,
+  .s-search .k-kbd,
+  .s-cmd-help {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-new,
+  .s-search,
+  .s-nav-item {
+    transition: none;
+  }
+}

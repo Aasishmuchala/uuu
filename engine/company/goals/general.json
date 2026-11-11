@@ -1,0 +1,51 @@
+{
+  "department": "general",
+  "title": "Company",
+  "goals": [
+    {
+      "id": "answer-from-our-documents",
+      "title": "Answer a question from our documents",
+      "summary": "An answer taken only from the company's own documents, with where it came from.",
+      "text": "Answer this question using only the company's own documents: [your question]. Say which documents the answer came from, and tell me plainly if the documents do not cover it.",
+      "to": "builder",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "one-page-document",
+      "title": "Write a one-page document",
+      "summary": "A tidy one-page document written from the notes you paste in.",
+      "text": "Write a one-page document called [document title] for [who will read it] from these notes: [paste your notes here]. Keep it plain and short, and mark anything you had to guess.",
+      "to": "builder",
+      "planFirst": false,
+      "size": "S"
+    },
+    {
+      "id": "plan-for-a-piece-of-work",
+      "title": "A plan for a piece of work",
+      "summary": "A plan for you to read and approve before any work starts.",
+      "text": "Make a plan for [the piece of work] that should be finished by [date]. Set out the steps, what will be produced and what you need from me. Do not start the work until I have approved the plan.",
+      "to": "builder",
+      "planFirst": true,
+      "size": "M"
+    },
+    {
+      "id": "summary-of-the-week",
+      "title": "Summary of the week",
+      "summary": "Everything that was finished this week, in a short list.",
+      "text": "Summarise everything that was finished this week in a short list, one line each, and say who did it. Then list what is still open and what is waiting for me.",
+      "to": null,
+      "planFirst": false,
+      "size": "XS"
+    },
+    {
+      "id": "check-one-document-against-another",
+      "title": "Check one document against another",
+      "summary": "A list of where two documents agree and where they do not.",
+      "text": "Check [first document] against [second document]. List every place where they disagree or where one leaves out something the other says, and suggest which one should change.",
+      "to": "builder",
+      "planFirst": false,
+      "size": "S"
+    }
+  ]
+}

@@ -11,7 +11,7 @@
   },
   "agents": [
     {
-      "slug": "chief-of-staff", "name": "Chief of staff", "role": "Chief of staff",
+      "slug": "chief-of-staff", "name": "Chief of staff", "role": "Chief of staff", "department": null,
       "paperclipRole": "pm", "title": "Chief of staff",
       "tool": "claude", "model": "opus", "reportsTo": null,
       "capabilities": "Turns the owner's goals into tasks and hands each to the right agent.",
@@ -20,7 +20,7 @@
       "bench": null
     },
     {
-      "slug": "builder", "name": "Builder", "role": "Builder",
+      "slug": "builder", "name": "Builder", "role": "Builder", "department": null,
       "paperclipRole": "engineer", "title": "Builder",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Does the work on a task: writes documents, files, plans and code in the goal's folder.",
@@ -28,7 +28,7 @@
       "bench": null
     },
     {
-      "slug": "checker", "name": "Checker", "role": "Checker",
+      "slug": "checker", "name": "Checker", "role": "Checker", "department": null,
       "paperclipRole": "qa", "title": "Checker",
       "tool": "codex", "model": null, "reportsTo": "chief-of-staff",
       "capabilities": "Reads finished work, checks it against what was asked and gives a verdict: pass or fail, with the reason.",
@@ -37,7 +37,7 @@
       "bench": null
     },
     {
-      "slug": "bookkeeper", "name": "Bookkeeper", "role": "Bookkeeper",
+      "slug": "bookkeeper", "name": "Bookkeeper", "role": "Bookkeeper", "department": "books",
       "paperclipRole": "general", "title": "Bookkeeper",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Keeps the books: drafts invoices, bills, payments and journal entries with Indian GST, for the owner to approve.",
@@ -49,7 +49,7 @@
       "bench": { "user": "bookkeeper@engine.localhost", "role": "Engine Bookkeeper" }
     },
     {
-      "slug": "sales", "name": "Sales", "role": "Sales",
+      "slug": "sales", "name": "Sales", "role": "Sales", "department": "customers",
       "paperclipRole": "general", "title": "Sales",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Looks after customers in the CRM: records and qualifies leads, keeps deals, notes and follow-up tasks up to date.",
@@ -61,7 +61,7 @@
       "bench": { "user": "sales@engine.localhost", "role": "Engine Sales" }
     },
     {
-      "slug": "support", "name": "Support", "role": "Support",
+      "slug": "support", "name": "Support", "role": "Support", "department": "support",
       "paperclipRole": "general", "title": "Support",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Handles customer requests in the helpdesk: sorts them and drafts replies for the owner to approve.",
@@ -73,7 +73,7 @@
       "bench": { "user": "support@engine.localhost", "role": "Engine Support" }
     },
     {
-      "slug": "people", "name": "People", "role": "People",
+      "slug": "people", "name": "People", "role": "People", "department": "people",
       "paperclipRole": "general", "title": "People",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Keeps staff records and drafts leave requests and attendance for the owner to approve.",
@@ -85,7 +85,7 @@
       "bench": { "user": "people@engine.localhost", "role": "Engine People" }
     },
     {
-      "slug": "marketer", "name": "Marketer", "role": "Marketer",
+      "slug": "marketer", "name": "Marketer", "role": "Marketer", "department": "marketing",
       "paperclipRole": "general", "title": "Marketer",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Drafts posts and newsletters into the content calendar for the owner to approve. Never publishes.",
@@ -93,7 +93,7 @@
       "bench": null
     },
     {
-      "slug": "drafter", "name": "Drafter", "role": "Drafter",
+      "slug": "drafter", "name": "Drafter", "role": "Drafter", "department": "studio",
       "paperclipRole": "designer", "title": "Drafter",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Designs parts: writes CadQuery scripts and returns STEP files with measured sizes in millimetres.",
@@ -102,6 +102,19 @@
       "fencePolicy": {
         "readFolders": ["{state}/knowledge/docs", "{state}/cad"],
         "envFile": "{state}/secrets/agents/drafter.env"
+      },
+      "bench": null
+    },
+    {
+      "slug": "artist", "name": "Artist", "role": "Artist", "department": "studio",
+      "paperclipRole": "designer", "title": "Artist",
+      "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
+      "capabilities": "Draws sprites, animations and simple images by script, with frame data other tools can read.",
+      "instructions": "roles/artist.md",
+      "limits": { "maxTurns": 60 },
+      "fencePolicy": {
+        "readFolders": ["{state}/knowledge/docs", "{state}/art"],
+        "envFile": "{state}/secrets/agents/artist.env"
       },
       "bench": null
     }

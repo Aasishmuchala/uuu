@@ -1,0 +1,31 @@
+{
+  "departments": [
+    {
+      "id": "books",
+      "title": "Books",
+      "goals": [
+        {
+          "id": "books/draft-an-invoice",
+          "title": "Draft an invoice",
+          "summary": "An invoice for one customer, with GST, ready for you to approve.",
+          "text": "Draft an invoice for [customer] for [what was sold] at [amount] plus GST.",
+          "to": "bookkeeper",
+          "toName": "Bookkeeper",
+          "planFirst": false,
+          "size": "S",
+          "blanks": [
+            "customer",
+            "what was sold",
+            "amount"
+          ]
+        }
+      ]
+    }
+  ],
+  "problems": [
+    {
+      "file": "people.json",
+      "problem": "Goal 2 has no text."
+    }
+  ]
+}

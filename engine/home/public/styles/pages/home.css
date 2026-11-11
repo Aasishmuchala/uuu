@@ -1,0 +1,90 @@
+/* Home (pages/home.js): one calm column; the composer stays at the bottom of the pane. */
+
+.p-home {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.p-home .k-page-header__title {
+  font-size: var(--fs-display);
+  line-height: var(--lh-tight);
+  font-weight: var(--fw-bold);
+}
+
+.p-home .p-home__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  flex: 1 0 auto;
+  padding-bottom: var(--s-6);
+}
+
+.p-home .p-home__decisions,
+.p-home .p-home__running {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.p-home .p-home__running {
+  gap: var(--s-1);
+}
+
+.p-home .p-home__more {
+  margin-top: var(--s-2);
+}
+
+.p-home .p-home__caption {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+.p-home .p-home__quiet {
+  list-style: none;
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.p-home .p-home__quiet-source {
+  font-weight: var(--fw-medium);
+}
+
+.p-home .p-home__brief {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
+.p-home .p-home__composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3) 0 var(--s-4);
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+.p-home .p-home__given {
+  margin: 0;
+  color: var(--text-2);
+}
+
+@media (max-width: 859px) {
+  .p-home .p-home__brief {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .p-home .p-home__body {
+    gap: var(--s-6);
+  }
+}

@@ -1,41 +1,83 @@
-// Static checks for the home screen's interface: every referenced file exists, nothing is loaded from
-// another host or from outside public/, and the stylesheet carries the dark, focus, motion and narrow rules.
+// Static checks for the home screen's interface (CONTRACTS-V2 11): index.html links every stylesheet
+// in its order and every file it links exists; every static import exists and stays inside public/;
+// nothing names another host outside vendor/ and assets/; vendor/ is as it was; no inline script.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const VENDOR = join(PUBLIC, "vendor");
+const ASSETS = join(PUBLIC, "assets");
+const SELF = fileURLToPath(import.meta.url);
 
-function walk(dir, out = []) {
+const KIT_SHEETS = "button icon avatar status tag card tabs fields states overlays text page decision task-card brief composer conversation table timeline checks doc agent".split(" ");
+const PAGE_SHEETS = "home tasks task team agent department marketing studio sprite-player docs routines gallery health settings search".split(" ");
+const SHEETS = [
+  "./assets/fonts/fonts.css",
+  "./styles/tokens.css",
+  "./styles/base.css",
+  ...KIT_SHEETS.map((k) => `./styles/kit/${k}.css`),
+  "./styles/shell.css",
+  ...PAGE_SHEETS.map((p) => `./styles/pages/${p}.css`),
+];
+
+// The vendored library as it was checked in; replacing it is a deliberate change to this list.
+const VENDOR_FILES = {
+  "LICENSE-htm.txt": "740725f7252e750af735d0028cc534970772f513331e9f68150fede8fb3ce00f",
+  "LICENSE-preact.txt": "1fe6958409c8c257a70c587a18b6f7f412b179b456630790d30b2ec9a8e4b7d4",
+  "README.txt": "a7b17feafbc132f7a9cbcbe3b1e2d1f5d68aacc66cb5c58ac88540e6c5ca1c26",
+  "preact-htm.js": "72284e8e9079c87817145df1110f74e8a2aa040b2fc384922e18dfcb46fc1fd7",
+};
+
+function walk(dir, skip = [], out = []) {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
-    if (full === VENDOR) continue;
-    if (statSync(full).isDirectory()) walk(full, out);
+    if (skip.includes(full)) continue;
+    if (statSync(full).isDirectory()) walk(full, skip, out);
     else out.push(full);
   }
   return out;
 }
 
-const FILES = walk(PUBLIC);
-const MODULES = FILES.filter((f) => f.endsWith(".js") || f.endsWith(".mjs")).filter((f) => !f.startsWith(join(PUBLIC, "test") + sep));
 const inside = (p) => p === PUBLIC || p.startsWith(PUBLIC + sep);
+const FILES = walk(PUBLIC, [VENDOR, ASSETS]);
+const TESTS = join(PUBLIC, "test") + sep;
+const MODULES = FILES.filter((f) => /\.m?js$/.test(f) && !f.startsWith(TESTS));
+const HTML = FILES.filter((f) => f.endsWith(".html"));
+const index = () => readFileSync(join(PUBLIC, "index.html"), "utf8");
 
-function importsOf(file) {
-  const src = readFileSync(file, "utf8");
-  const specs = [];
-  const patterns = [/\bfrom\s*["']([^"']+)["']/g, /\bimport\s*["']([^"']+)["']/g, /\bimport\(\s*["']([^"']+)["']\s*\)/g];
-  for (const re of patterns) for (const m of src.matchAll(re)) specs.push(m[1]);
-  return specs;
+// Static imports only: `from "x"` and `import "x"`. A dynamic import() of a page is the shell's
+// business and is allowed to point at a file that is not there yet.
+function staticImports(src) {
+  const code = String(src).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[\s;{}(),])\/\/[^\n]*/g, "$1");
+  const out = [];
+  for (const re of [/\bfrom\s*["']([^"']+)["']/g, /(?:^|[\s;])import\s*["']([^"']+)["']/g]) {
+    for (const m of code.matchAll(re)) out.push(m[1]);
+  }
+  return out;
 }
 
+const linksOf = (html) => [...html.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]+)"/g)].map((m) => m[1]);
+const scriptsOf = (html) => [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].map((m) => ({ attrs: m[1], body: m[2] }));
+
+test("index.html links every stylesheet in the order of 11.1, then theme-boot.js, then app.js as a module", () => {
+  const html = index();
+  assert.deepEqual(linksOf(html), SHEETS);
+  const scripts = scriptsOf(html);
+  assert.equal(scripts.length, 2, "two scripts");
+  assert.match(scripts[0].attrs, /\bsrc="\.\/lib\/theme-boot\.js"/);
+  assert.doesNotMatch(scripts[0].attrs, /type="module"/, "theme-boot.js is a classic script, so it runs before paint");
+  assert.match(scripts[1].attrs, /\bsrc="\.\/app\.js"/);
+  assert.match(scripts[1].attrs, /\btype="module"/);
+  assert.ok(html.lastIndexOf("<link") < html.indexOf("<script"), "the scripts come after the stylesheets");
+});
+
 test("every file index.html refers to exists inside public/", () => {
-  const html = readFileSync(join(PUBLIC, "index.html"), "utf8");
-  const refs = [...html.matchAll(/\b(?:src|href)\s*=\s*"([^"]+)"/g)].map((m) => m[1]).filter((r) => !r.startsWith("data:"));
-  assert.ok(refs.includes("./styles.css"), "index.html loads styles.css");
-  assert.ok(refs.includes("./app.js"), "index.html loads app.js");
+  const refs = [...index().matchAll(/\b(?:src|href)\s*=\s*"([^"]+)"/g)].map((m) => m[1]).filter((r) => !r.startsWith("data:"));
+  assert.ok(refs.length >= SHEETS.length + 2);
   for (const ref of refs) {
     assert.ok(!/^[a-z]+:/i.test(ref) && !ref.startsWith("//"), `${ref} is a local address`);
     const target = resolve(PUBLIC, ref);
@@ -44,11 +86,26 @@ test("every file index.html refers to exists inside public/", () => {
   }
 });
 
-test("every module's imports exist and stay inside public/", () => {
-  assert.ok(MODULES.length >= 10, "the modules were found");
+test("every stylesheet in styles/kit/ and styles/pages/ is linked exactly once", () => {
+  const links = linksOf(index());
+  for (const dir of ["kit", "pages"]) {
+    for (const name of readdirSync(join(PUBLIC, "styles", dir)).filter((f) => f.endsWith(".css"))) {
+      const ref = `./styles/${dir}/${name}`;
+      assert.equal(links.filter((l) => l === ref).length, 1, `${ref} is linked once`);
+    }
+  }
+  assert.equal(new Set(links).size, links.length, "no stylesheet is linked twice");
+});
+
+test("package.json makes every module a plain ES module", () => {
+  assert.deepEqual(JSON.parse(readFileSync(join(PUBLIC, "package.json"), "utf8")), { type: "module", private: true });
+});
+
+test("every static import of every module exists and stays inside public/", () => {
+  assert.ok(MODULES.length >= 15, "the modules were found");
   for (const file of MODULES) {
-    for (const spec of importsOf(file)) {
-      const where = relative(PUBLIC, file);
+    const where = relative(PUBLIC, file);
+    for (const spec of staticImports(readFileSync(file, "utf8"))) {
       assert.ok(spec.startsWith("./") || spec.startsWith("../"), `${where} imports "${spec}" by a relative path only`);
       const target = resolve(dirname(file), spec);
       assert.ok(inside(target), `${where} imports "${spec}" from inside public/`);
@@ -57,49 +114,52 @@ test("every module's imports exist and stay inside public/", () => {
   }
 });
 
-test("the seven pages and the shell are present", () => {
-  for (const p of ["inbox", "goals", "goal", "company", "health", "search", "department"]) {
-    assert.ok(existsSync(join(PUBLIC, "pages", `${p}.js`)), `pages/${p}.js exists`);
-  }
-  const app = readFileSync(join(PUBLIC, "app.js"), "utf8");
-  for (const page of ["inbox", "goals", "company", "books", "customers", "support", "people", "marketing", "studio", "knowledge", "health", "search"]) {
-    assert.match(app, new RegExp(`\\b${page}:`), `app.js routes #/${page}`);
-  }
-});
-
-test("no file outside vendor/ names another host", () => {
+test("no file outside vendor/ and assets/ names another host", () => {
   for (const file of FILES) {
+    if (file === SELF || /\.(png|gif|jpe?g|webp|woff2?)$/i.test(file)) continue;
     const text = readFileSync(file, "utf8");
-    if (file.endsWith("static.test.mjs")) continue;
-    assert.doesNotMatch(text, /https?:\/\//i, `${relative(PUBLIC, file)} has no http(s) address`);
+    // The W3C's namespace names (for SVG) are names, not addresses.
+    const hosts = [...text.matchAll(/\b(?:https?:)?\/\/([a-z0-9.-]+\.[a-z]{2,}|localhost|\d+\.\d+\.\d+\.\d+)(?::\d+)?/gi)]
+      .filter((m) => !/^www\.w3\.org$/i.test(m[1]) && /^https?:/i.test(m[0]))
+      .map((m) => m[0]);
+    assert.deepEqual(hosts, [], `${relative(PUBLIC, file)} names no other host`);
   }
 });
 
-test("the vendor library is the only third-party code and is left as it is", () => {
-  const vendored = readdirSync(VENDOR).sort();
-  assert.deepEqual(vendored, ["LICENSE-htm.txt", "LICENSE-preact.txt", "README.txt", "preact-htm.js"]);
-  for (const file of MODULES) {
-    const text = readFileSync(file, "utf8");
-    assert.doesNotMatch(text, /<script[^>]+src=["']https?:/i, `${relative(PUBLIC, file)} loads no remote script`);
+test("vendor/ is left as it is", () => {
+  assert.deepEqual(readdirSync(VENDOR).sort(), Object.keys(VENDOR_FILES).sort());
+  for (const [name, sum] of Object.entries(VENDOR_FILES)) {
+    const got = createHash("sha256").update(readFileSync(join(VENDOR, name))).digest("hex");
+    assert.equal(got, sum, `vendor/${name} is unchanged`);
   }
 });
 
-test("the stylesheet carries dark, focus, reduced motion and the narrow layout", () => {
-  const css = readFileSync(join(PUBLIC, "styles.css"), "utf8");
-  assert.match(css, /prefers-color-scheme:\s*dark/);
-  assert.match(css, /:focus-visible/);
+test("no HTML file has an inline script (the server's content policy forbids it)", () => {
+  assert.ok(HTML.includes(join(PUBLIC, "index.html")));
+  for (const file of HTML) {
+    for (const s of scriptsOf(readFileSync(file, "utf8"))) {
+      assert.match(s.attrs, /\bsrc=/, `${relative(PUBLIC, file)}: every script has a src`);
+      assert.equal(s.body.trim(), "", `${relative(PUBLIC, file)}: and no inline body`);
+    }
+    assert.doesNotMatch(readFileSync(file, "utf8"), /\son[a-z]+\s*=\s*["']/i, `${relative(PUBLIC, file)} has no inline event handler`);
+  }
+});
+
+test("the first interface is gone", () => {
+  assert.ok(!existsSync(join(PUBLIC, "styles.css")), "styles.css is removed");
+  assert.ok(!existsSync(join(PUBLIC, "components")), "components/ is removed");
+  for (const p of ["inbox", "goals", "goal", "company"]) assert.ok(!existsSync(join(PUBLIC, "pages", `${p}.js`)), `pages/${p}.js is removed`);
+});
+
+test("shell.css uses the shell's own classes and carries the narrow layout and reduced motion", () => {
+  const css = readFileSync(join(PUBLIC, "styles", "shell.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, " ");
+  assert.match(css, /@media \(max-width: 859px\)/);
   assert.match(css, /prefers-reduced-motion/);
-  assert.match(css, /max-width:\s*899px|min-width:\s*900px/);
-  assert.doesNotMatch(css, /@import|url\(\s*["']?https?:/i, "no remote stylesheet or font");
-  assert.doesNotMatch(css, /gradient\(/, "no gradients");
-  const sizes = [...css.matchAll(/font-size:\s*(\d+)px/g)].map((m) => Number(m[1]));
-  for (const s of sizes) assert.ok([14, 16, 20, 28].includes(s), `font size ${s}px is on the scale`);
-});
-
-test("index.html has no inline script (the server's content policy forbids it)", () => {
-  const html = readFileSync(join(PUBLIC, "index.html"), "utf8");
-  for (const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)) {
-    assert.match(m[1], /\bsrc=/, "every script has a src");
-    assert.equal(m[2].trim(), "", "and no inline body");
+  assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b\s*;|rgba?\(/, "colours come from the tokens");
+  assert.doesNotMatch(css, /font-size\s*:\s*\d+px/, "sizes come from the tokens");
+  for (const m of css.matchAll(/(^|[{}])\s*([^{}@]+)\{/g)) {
+    for (const sel of m[2].split(",")) {
+      assert.match(sel.trim(), /^[a-z]*\.s-/, `shell.css selector "${sel.trim()}" starts with .s-`);
+    }
   }
 });

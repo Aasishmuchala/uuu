@@ -1,0 +1,79 @@
+{
+  "appearance": {
+    "theme": "auto",
+    "accent": "graphite"
+  },
+  "accents": [
+    {
+      "id": "graphite",
+      "label": "Graphite"
+    },
+    {
+      "id": "blue",
+      "label": "Blue"
+    },
+    {
+      "id": "green",
+      "label": "Green"
+    },
+    {
+      "id": "violet",
+      "label": "Violet"
+    },
+    {
+      "id": "orange",
+      "label": "Orange"
+    },
+    {
+      "id": "rose",
+      "label": "Rose"
+    }
+  ],
+  "later": [
+    {
+      "id": "local_model",
+      "label": "A free helper model on this Mac",
+      "on": false,
+      "explain": "Small jobs could run on this Mac instead of your plans.",
+      "cost": "About 5 GB of disk and 4 GB of memory while it runs.",
+      "how": "Not built yet. Ask for it when you have the disk to spare.",
+      "technical": "Ollama, already installed on this Mac."
+    },
+    {
+      "id": "chat_apps",
+      "label": "Other chat apps as extra windows",
+      "on": false,
+      "explain": "Other chat apps could talk to your company as extra windows.",
+      "cost": "Nothing to install beyond the chat app itself.",
+      "how": "Not built yet. Ask for it when you want another window.",
+      "technical": "An OpenAI-compatible address for LobeHub, Open WebUI, Cherry Studio or Jan."
+    },
+    {
+      "id": "workflow_engine",
+      "label": "A separate workflow engine",
+      "on": false,
+      "explain": "A dedicated engine could run long, scheduled workflows.",
+      "cost": "About 4 GB of memory while it runs.",
+      "how": "Not built yet. Ask for it when routines are not enough.",
+      "technical": "Kestra."
+    },
+    {
+      "id": "pixel_editor",
+      "label": "Edit sprites in place",
+      "on": false,
+      "explain": "You could touch up a sprite right here instead of asking again.",
+      "cost": "A small download, served from this Mac.",
+      "how": "Not built yet. Ask for it when you want to edit sprites by hand.",
+      "technical": "Piskel, Apache-2.0, served by the home server."
+    },
+    {
+      "id": "aseprite_files",
+      "label": "Preview Aseprite files",
+      "on": false,
+      "explain": "Sprite files from Aseprite could be shown on the Studio page.",
+      "cost": "Needs your own copy of Aseprite to make the files.",
+      "how": "Not built yet. Ask for it when you have Aseprite.",
+      "technical": "A small MIT parser; needs the owner's own copy of Aseprite."
+    }
+  ]
+}
