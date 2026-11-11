@@ -149,9 +149,10 @@ mkdir -p "$SHORT_TMP" && chmod 700 "$SHORT_TMP"
 # NO_PROXY is emptied inside, after the sandbox tool has set its own, so that
 # calls to 127.0.0.1 also go through the fence's proxy, which allows only the
 # listed local ports. `--` stops the tool from reading the command's flags
-# (such as --version) as its own.
+# (such as --version) as its own. zsh writes here-documents under TMPPREFIX
+# (default /tmp/zsh, outside the fence), not TMPDIR, so it gets the temp folder too.
 INNER_ENV=(env -u PAPERCLIP_LISTEN_HOST -u PAPERCLIP_LISTEN_PORT -u OPENAI_API_KEY -u ANTHROPIC_API_KEY
-  TMPDIR="$INNER_TMP" CLAUDE_CODE_TMPDIR="$INNER_TMP" NO_PROXY= no_proxy=
+  TMPDIR="$INNER_TMP" CLAUDE_CODE_TMPDIR="$INNER_TMP" TMPPREFIX="$INNER_TMP/zsh" NO_PROXY= no_proxy=
   PAPERCLIP_API_URL="$GATE_URL" PAPERCLIP_RUNTIME_API_URL="$GATE_URL")
 if [[ "$MODE" == "shell" ]]; then
   TMPDIR="$SHORT_TMP" exec "$SRT" -s "$SETTINGS" -- "${INNER_ENV[@]}" /bin/bash -c "$SHELL_CMD"

@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# PROTOTYPE (fence trial). The fenced Codex wrapper under the name paperclip looks for.
-exec "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/fenced-codex" "$@"

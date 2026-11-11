@@ -55,13 +55,27 @@ share() {
     *) refuse "paperclip asked to share $path with the agent, which is outside its own folders" ;;
   esac
 }
+# The skills in an --add-dir folder are links into paperclip's skills tree: share
+# what they point at too, or Claude sees the links and loads no skill.
+share_dir() {
+  local dir="$1" skills target
+  share "$dir"
+  [[ -d "$dir" ]] || return 0
+  skills="$(/usr/bin/python3 "$FENCE_DIR/claude_skills.py" "$dir" "$INSTANCE_REAL")" \
+    || refuse "paperclip asked to share a skill with the agent that lies outside its own folders"
+  while IFS= read -r target; do
+    [[ -n "$target" ]] && share "$target"
+  done <<EOF
+$skills
+EOF
+}
 prev=""
 for arg in "$@"; do
   case "$prev" in
-    --add-dir) share "$arg" ;;
+    --add-dir) share_dir "$arg" ;;
     --append-system-prompt-file|--mcp-config|--settings) if [[ -f "$arg" ]]; then share "$arg"; fi ;;
   esac
-  case "$arg" in --add-dir=*) share "${arg#--add-dir=}" ;; esac
+  case "$arg" in --add-dir=*) share_dir "${arg#--add-dir=}" ;; esac
   prev="$arg"
 done
 

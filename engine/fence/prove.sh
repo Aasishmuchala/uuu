@@ -149,6 +149,7 @@ fence_checks() {
   else say PASS "$WHO cannot take fence rules from the environment"; fi
   allowed "read its own task folder"            'cat note.txt'
   allowed "write in its own task folder"        'echo x > made-inside.txt'
+  allowed "use a here-document in zsh, its tools' shell" "/bin/zsh -c 'cat <<< fence-heredoc | grep -q fence-heredoc'"
   if [[ -e "$HOME/fence-escape-test.txt" ]]; then say FAIL "a file was written outside the fence"; rm -f "$HOME/fence-escape-test.txt"; fi
   refuses "run from engine/, which is not an agent task folder" "not an agent task folder" \
     /bin/bash -c 'cd "$1" && shift && "$@"' _ "$CFG_ENGINE_DIR" "$RUN" --fence-check 'echo FENCE_UP'

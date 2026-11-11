@@ -67,7 +67,8 @@ done
 # the board was refused ("Operation not permitted"). Add them, and the engine's
 # UUU_* variables (fence-run exports them: the knowledge folder, the lessons
 # file, the agent's own keys), by pattern and by the names in use today.
-EXTRA_NAMES='"HTTP_PROXY","HTTPS_PROXY","ALL_PROXY","NO_PROXY","http_proxy","https_proxy","all_proxy","no_proxy","GIT_SSH_COMMAND","SANDBOX_RUNTIME","SSL_CERT_FILE","PAPERCLIP_RUNTIME_API_URL","UUU_*","UUU_KNOWLEDGE_DIR","UUU_LESSONS_FILE","UUU_BENCH_URL","UUU_BENCH_SITE","UUU_BENCH_API_KEY","UUU_BENCH_API_SECRET","UUU_CAD_PYTHON","UUU_CAD_EXPORT"'
+# TMPPREFIX: where zsh writes here-documents (fence-run points it at the temp folder).
+EXTRA_NAMES='"HTTP_PROXY","HTTPS_PROXY","ALL_PROXY","NO_PROXY","http_proxy","https_proxy","all_proxy","no_proxy","GIT_SSH_COMMAND","SANDBOX_RUNTIME","SSL_CERT_FILE","TMPPREFIX","PAPERCLIP_RUNTIME_API_URL","UUU_*","UUU_KNOWLEDGE_DIR","UUU_LESSONS_FILE","UUU_BENCH_URL","UUU_BENCH_SITE","UUU_BENCH_API_KEY","UUU_BENCH_API_SECRET","UUU_CAD_PYTHON","UUU_CAD_EXPORT"'
 args=()
 for arg in "$@"; do
   case "$arg" in

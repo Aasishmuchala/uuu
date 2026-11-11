@@ -136,5 +136,86 @@ class CodexHomeTests(unittest.TestCase):
         self.assertEqual(r.returncode, 78)
 
 
+class ClaudeSkillsTests(unittest.TestCase):
+    """The Claude wrapper shares what the skill links in paperclip's prompt
+    bundle point at (T16b: without it Claude loaded no `paperclip` skill)."""
+    SCRIPT = os.path.join(FENCE, "claude_skills.py")
+    CO = "11111111-1111-4111-8111-111111111111"
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp(prefix="claude-skills-"))
+        self.inst = os.path.join(self.tmp, "I")
+        self.bundle = os.path.join(self.inst, "companies", self.CO, "claude-prompt-cache", "abc")
+        self.links = os.path.join(self.bundle, ".claude", "skills")
+        os.makedirs(self.links)
+        self.skill = os.path.join(self.inst, "skills", self.CO, "__versions__", "v1", "r1")
+        os.makedirs(self.skill)
+        os.symlink(self.skill, os.path.join(self.links, "paperclip"))
+        self.outside = os.path.join(self.tmp, "owner-claude")
+        os.makedirs(self.outside)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def run_script(self, add_dir):
+        return subprocess.run([sys.executable, self.SCRIPT, add_dir, self.inst],
+                              capture_output=True, text=True)
+
+    def test_skill_targets_listed(self):
+        r = self.run_script(self.bundle)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.splitlines(), [self.skill])
+
+    def test_no_skills_folder_prints_nothing(self):
+        other = os.path.join(self.inst, "companies", self.CO, "claude-prompt-cache", "empty")
+        os.makedirs(other)
+        r = self.run_script(other)
+        self.assertEqual((r.returncode, r.stdout), (0, ""))
+
+    def test_dangling_link_skipped(self):
+        os.symlink(os.path.join(self.inst, "skills", "gone"), os.path.join(self.links, "gone"))
+        r = self.run_script(self.bundle)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.splitlines(), [self.skill])
+
+    def test_skill_pointing_elsewhere_refused(self):
+        os.symlink(self.outside, os.path.join(self.links, "sneaky"))
+        r = self.run_script(self.bundle)
+        self.assertEqual(r.returncode, 78)
+        self.assertIn("points outside paperclip's folders", r.stderr)
+        self.assertEqual(r.stdout, "")
+
+    def test_wrapper_shares_skill_targets(self):
+        with open(os.path.join(FENCE, "bin", "claude")) as fh:
+            text = fh.read()
+        self.assertIn("claude_skills.py", text)
+        self.assertIn("--add-dir) share_dir", text)
+        self.assertIn('--add-dir=*) share_dir', text)
+
+
+class ZshTempTests(unittest.TestCase):
+    """zsh writes here-documents under TMPPREFIX (default /tmp/zsh, closed by
+    the fence). T16b: the Checker's first check failed on it. The live check is
+    the proof line "use a here-document in zsh"."""
+
+    def read(self, *parts):
+        with open(os.path.join(FENCE, *parts)) as fh:
+            return fh.read()
+
+    def test_fence_run_points_zsh_at_the_inner_temp_folder(self):
+        text = self.read("fence-run")
+        inner_env = text[text.index("INNER_ENV=("):]
+        inner_env = inner_env[:inner_env.index(")\n")]
+        self.assertIn('TMPPREFIX="$INNER_TMP/zsh"', inner_env)
+
+    def test_codex_shell_keeps_tmpprefix(self):
+        text = self.read("bin", "codex")
+        names = text[text.index("EXTRA_NAMES='"):].split("\n", 1)[0]
+        self.assertIn('"TMPPREFIX"', names)
+
+    def test_proof_checks_a_here_document(self):
+        self.assertIn("use a here-document in zsh", self.read("prove.sh"))
+
+
 if __name__ == "__main__":
     unittest.main()
