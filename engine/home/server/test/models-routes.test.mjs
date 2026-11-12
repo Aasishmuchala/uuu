@@ -113,6 +113,38 @@ test("refresh with the 19 models gives the C7 picks and fits the shape", async (
   });
 });
 
+test("an agent added after the list was read gets its ranked pick from the saved list, with no outside call; an owner's choice is kept", async () => {
+  await withModels(async ({ h, provider }) => {
+    assert.equal((await post(h, "/api/models/refresh")).status, 200);
+    assert.equal((await post(h, "/api/models/pick", { agent: "sales", model: "claude-opus-5" })).status, 200);
+    // As if the Art director and the Researcher were added to the company after this read.
+    const saved = JSON.parse(readFileSync(h.config.paths.modelsState, "utf8"));
+    delete saved.picks["art-director"];
+    delete saved.picks.researcher;
+    writeFileSync(h.config.paths.modelsState, JSON.stringify(saved), { mode: 0o600 });
+    const reads = provider.seen.filter((s) => s.path === "/v1/models").length;
+    const v = await view(h);
+    assert.deepEqual(v.missing, []);
+    assert.ok(!v.blockers.includes("pick_missing"));
+    assert.equal(v.agents.find((a) => a.slug === "art-director").pick, PICKS["art-director"]);
+    assert.equal(v.agents.find((a) => a.slug === "researcher").pick, PICKS.researcher);
+    assert.equal(v.agents.find((a) => a.slug === "sales").pick, "claude-opus-5", "the owner's choice is kept");
+    assert.equal(provider.seen.filter((s) => s.path === "/v1/models").length, reads, "no outside call");
+    const after = JSON.parse(readFileSync(h.config.paths.modelsState, "utf8"));
+    assert.equal(after.picks["art-director"].model, PICKS["art-director"], "saved for the relay and the wrappers");
+    assert.equal(after.picks.researcher.source, "ranked");
+    assert.equal(statSync(h.config.paths.modelsState).mode & 0o777, 0o600);
+  });
+});
+
+test("with no list ever read, the view saves no pick and still says the list is missing", async () => {
+  await withModels(async ({ h }) => {
+    const v = await view(h);
+    assert.ok(v.blockers.includes("no_catalogue"));
+    assert.equal(existsSync(h.config.paths.modelsState) ? Object.keys(JSON.parse(readFileSync(h.config.paths.modelsState, "utf8")).picks || {}).length : 0, 0);
+  }, { relay: false });
+});
+
 test("refresh keeps only well-formed ids, at most 200", async () => {
   const models = [
     { id: "claude-fable-5-1", display_name: "Fable 5.1" }, { id: "Bad Id" }, { id: "x/../y" }, { nope: 1 },

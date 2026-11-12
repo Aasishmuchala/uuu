@@ -173,6 +173,25 @@ export function recompute(config, state, agents) {
   return r;
 }
 
+// Saves a ranked pick for each agent that has none, from the list already saved; changes nothing when every
+// agent has one, when no list was ever read, or when the state or company file cannot be read. Never throws.
+export function fillNewPicks(config) {
+  try {
+    const { state, problem } = readState(config);
+    if (problem || !state.catalogue.models.length) return false;
+    const { agents, problem: companyProblem } = readAgents(config);
+    if (companyProblem || !agents.length || agents.every((a) => state.picks[a.slug])) return false;
+    const ids = state.catalogue.models.map((m) => m.id);
+    const r = pickModels({ ranking: ranking(config), agents, catalogue: ids, overrides: state.overrides });
+    const fresh = agents.filter((a) => !state.picks[a.slug] && r.picks[a.slug]);
+    if (!fresh.length) return false;
+    updateState(config, (s) => { for (const a of fresh) if (!s.picks[a.slug]) s.picks[a.slug] = r.picks[a.slug]; });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Whether a text from the provider holds the key, or its first or last 12 characters when the key
 // is at least 24 long. Such a text is never kept or shown, even if the provider quotes the key.
 export function holdsKey(value, key) {
@@ -253,6 +272,10 @@ function keyState(state, saved, status) {
 export async function buildView(ctx) {
   const config = ctx.config;
   const urls = ctx.home.urls;
+  // An agent added to the company after the list was last read has no saved pick. Its pick is worked out
+  // from the SAVED list (no outside call) and saved, so the relay and the wrappers find it; an owner's
+  // own choice for another agent is kept as it is.
+  fillNewPicks(config);
   const { state, problem: stateProblem } = readState(config);
   scrubState(config, state); // in memory only: a file saved before the key was never shown with it
   const { agents, problem: companyProblem } = readAgents(config);
