@@ -26,6 +26,36 @@ const isEmpty = (v) => v === undefined || v === null || v === "" || (Array.isArr
 const key = (s) => String(s).replace(/\s+/g, " ").trim().toLowerCase();
 const headingOf = (label) => String(label).replace(/\s+/g, " ").trim();
 
+// The fixed heading of each field of the nine basics, in C3 32.3's wording (M52 F1). A form's label is a
+// question for the owner ("What do you sell?"); a file may hold the plain name instead ("What you sell"), as the
+// seed and a hand-written file do. Saving writes the label, as before; reading takes the label or the fixed
+// heading (see headingKey), so neither kind of file opens empty and no answer is written twice. A field may
+// also carry its own `heading`.
+export const HEADINGS = {
+  about: { what: "What the company does", who: "Who it is for", where: "Where it works", reach: "How to reach it", name: "The company's name as it is written" },
+  brand: { tone: "Three to five words for how you sound", colours: "Your colours", fonts: "Your typeface", signoff: "How you sign off", logo: "Your logo's file in Brand" },
+  "cant-say": { words: "Words and phrases never to use", claims: "Claims never to make" },
+  services: { items: "What you sell" },
+  terms: { payment: "Payment terms", holds: "How long a quotation holds", deposit: "Deposit", other: "Anything else" },
+  refunds: { rule: "The refund rule in your words", exceptions: "Who decides exceptions" },
+  "support-promise": { hours: "Hours", speed: "How fast you reply", never: "What you never promise" },
+  team: { people: "People" },
+  "ideal-customer": { good: "Who you sell to", not: "Who you do not sell to", asks: "What they usually ask for" },
+};
+
+// A heading as it is matched: case, spacing and a final "?" do not count.
+export const headingKey = (s) => key(s).replace(/\s*\?$/, "");
+
+// fieldHeading(form, field) -> the field's fixed heading (its own, else the table's, else its label).
+export function fieldHeading(form, field) {
+  const own = typeof field.heading === "string" && field.heading.trim() ? field.heading : null;
+  const fixed = form && Object.hasOwn(HEADINGS, form.id) && Object.hasOwn(HEADINGS[form.id], field.id) ? HEADINGS[form.id][field.id] : null;
+  return headingOf(own || fixed || field.label);
+}
+
+// fieldKeys(form, field) -> the headings (as headingKey gives them) the field is read back from: its heading and its label.
+export const fieldKeys = (form, field) => [...new Set([fieldHeading(form, field), headingOf(field.label)].map(headingKey))];
+
 // ---- cleaning: one value of one kind -> the plain text that is written
 
 const oneLine = (s) => s.replace(CONTROL, "").replace(/[\r\n]/g, " ").trim();
@@ -259,7 +289,8 @@ function valueOf(field, lines) {
 
 // parseForm(form, markdown) -> { values, unknown: [{ heading, text }], intro }. `values` has every field
 // (empty when the file does not answer it). A section is a `## ` line and the lines under it; the first
-// section whose heading is a field's label (case and spacing aside) and whose content fits the field's kind
+// section whose heading is the field's heading or its label (case, spacing and a final "?" aside; see
+// fieldKeys) and whose content fits the field's kind
 // answers it; every other section is kept in `unknown` as it is. `intro` is the text between the title and
 // the first section (a title other than the form's is kept in it too).
 export function parseForm(form, markdown) {
@@ -285,10 +316,11 @@ export function parseForm(form, markdown) {
       cur.body.push(line);
     } else introLines.push(line);
   }
-  const byLabel = new Map(form.fields.map((f) => [key(headingOf(f.label)), f]));
+  const byLabel = new Map();
+  for (const f of form.fields) for (const k of fieldKeys(form, f)) if (!byLabel.has(k)) byLabel.set(k, f);
   const done = new Set();
   for (const s of sections) {
-    const f = byLabel.get(key(s.heading));
+    const f = byLabel.get(headingKey(s.heading));
     const value = f && !done.has(f.id) ? valueOf(f, s.body) : undefined;
     if (value !== undefined) {
       values[f.id] = value;

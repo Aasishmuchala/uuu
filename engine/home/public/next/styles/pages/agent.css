@@ -52,14 +52,19 @@
 .p-agent .p-agent__compose {
   position: sticky;
   bottom: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
   padding: var(--s-3) 0 var(--s-4);
+  /* The canvas shows through above the box only: messages scroll up behind a fade, never through the words. */
+  background: linear-gradient(to bottom, transparent, var(--bg) var(--s-4));
 }
+.p-agent .p-agent__end { display: block; height: 0; scroll-margin-bottom: 480px; }
 .p-agent .p-agent__given { margin: 0; color: var(--ok-text); }
 
-/* Profile and Work */
+/* Profile and Work. The description and Reports to show in Profile below 860 px only (in the header above that). */
+.p-agent .p-agent__about { display: none; }
 .p-agent .p-agent__list { margin: 0; padding-left: var(--s-5); display: flex; flex-direction: column; gap: var(--s-1); }
 .p-agent .p-agent__list li { overflow-wrap: anywhere; }
 .p-agent .p-agent__profile p, .p-agent .p-agent__work p { margin: 0; }
@@ -90,9 +95,20 @@
 .p-agent .p-agent__lesson-add { display: flex; gap: var(--s-2); align-items: center; }
 .p-agent .p-agent__lesson-add .k-input { flex: 1; min-width: 0; }
 
+/* Below 860 px (M51 F2, F25): the header is one line (state, department, Pause), the tabs scroll sideways on one
+   row, and the box stays above the tab bar with the conversation padded by as much at its end. */
 @media (max-width: 859px) {
-  .p-agent .p-agent__head { flex-wrap: wrap; }
-  .p-agent .p-agent__actions { flex-basis: 100%; }
-  .p-agent .p-agent__pause { align-items: flex-start; }
+  .p-agent { gap: var(--s-4); }
+  .p-agent .p-agent__head { align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); }
+  .p-agent .p-agent__head .p-agent__avatar,
+  .p-agent .p-agent__head .p-agent__summary,
+  .p-agent .p-agent__head .p-agent__reports { display: none; }
+  .p-agent .p-agent__facts { gap: var(--s-2) var(--s-3); }
+  .p-agent .p-agent__about { display: flex; flex-direction: column; gap: var(--s-2); }
+  .p-agent .k-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * var(--s-4)); padding: 0 var(--s-4); }
+  .p-agent .k-tabs::-webkit-scrollbar { display: none; }
+  .p-agent .p-agent__compose { bottom: calc(var(--tabbar-h) + var(--s-3)); padding-bottom: var(--s-2); }
   .p-agent .p-agent__lesson-add { flex-direction: column; align-items: stretch; }
+  .p-agent .p-agent__dept .p-team__dept, .p-agent .p-agent__reports a,
+  .p-agent .k-empty a, .p-agent .p-agent__note a, .p-agent .p-agent__given a { display: inline-flex; align-items: center; min-height: 44px; }
 }

@@ -24,25 +24,25 @@
   "asks": [
     {
       "id": "month",
-      "label": "Month:",
+      "label": "Which month?",
       "kind": "line",
       "required": true
     },
     {
       "id": "channel",
-      "label": "Channel:",
+      "label": "Where will it be posted?",
       "kind": "line",
       "required": true
     },
     {
       "id": "who-it-is-for",
-      "label": "Who it is for:",
+      "label": "Who is it for?",
       "kind": "line",
       "required": true
     },
     {
       "id": "what-we-want-to-achieve",
-      "label": "What we want to achieve:",
+      "label": "What should it achieve?",
       "kind": "line",
       "required": true
     }

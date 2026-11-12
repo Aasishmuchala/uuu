@@ -71,3 +71,19 @@
   transition: color var(--t-fast);
 }
 .p-dashboard .p-dashboard-open:hover { color: var(--dept); }
+
+/* Rows of a table that wait for the owner (a leave request): acted on in place above the table (M51 F5). */
+.p-dashboard .p-dashboard-waiting { display: flex; flex-direction: column; gap: var(--s-2); margin-bottom: var(--s-4); }
+.p-dashboard .p-dashboard-waiting-title {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--warn-text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Below 860 px the closing link and the jobs link keep a 44 px target (M51 F15). */
+@media (max-width: 859px) {
+  .p-dashboard .p-dashboard-open { min-height: 44px; }
+  .p-dashboard .k-section__aside a { display: inline-flex; align-items: center; min-height: 44px; }
+}

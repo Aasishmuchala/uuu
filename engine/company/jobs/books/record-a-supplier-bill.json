@@ -15,37 +15,37 @@
   "asks": [
     {
       "id": "supplier",
-      "label": "Supplier:",
+      "label": "Which supplier?",
       "kind": "line",
       "required": true
     },
     {
       "id": "date",
-      "label": "Date:",
+      "label": "What is the bill dated?",
       "kind": "date",
       "required": true
     },
     {
       "id": "what-was-bought",
-      "label": "What was bought:",
+      "label": "What was bought?",
       "kind": "line",
       "required": true
     },
     {
       "id": "amount",
-      "label": "Amount:",
+      "label": "What is the total, with GST?",
       "kind": "line",
       "required": true
     },
     {
       "id": "gst-amount",
-      "label": "Gst amount:",
+      "label": "How much of it is GST?",
       "kind": "line",
       "required": true
     },
     {
       "id": "due-date",
-      "label": "Due date:",
+      "label": "When is it due?",
       "kind": "date",
       "required": true
     }

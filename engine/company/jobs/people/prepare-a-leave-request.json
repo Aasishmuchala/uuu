@@ -15,31 +15,31 @@
   "asks": [
     {
       "id": "full-name",
-      "label": "Full name:",
+      "label": "Whose leave is it?",
       "kind": "line",
       "required": true
     },
     {
       "id": "type-of-leave",
-      "label": "Type of leave:",
+      "label": "What kind of leave?",
       "kind": "line",
       "required": true
     },
     {
       "id": "first-day",
-      "label": "First day:",
+      "label": "What is the first day?",
       "kind": "line",
       "required": true
     },
     {
       "id": "last-day",
-      "label": "Last day:",
+      "label": "What is the last day?",
       "kind": "line",
       "required": true
     },
     {
       "id": "reason",
-      "label": "Reason:",
+      "label": "What is the reason?",
       "kind": "line",
       "required": true
     }

@@ -1,15 +1,19 @@
 // The Studio dashboard (CONTRACTS-V3 30, 37.3, 37.4; CONTRACTS-V2 9.6, 17.8, 20.3), at #/dashboards/studio:
 // videos with a real player and six stills, carousels opened large in the work panel, sprites and animations
 // with the sprite player, pictures, CAD parts and other files, the room for footage, files that could not be
-// used, and the switches that are off. Everything shown is text or a picture from a file an agent made: it is
+// used, and the switches that are off. Built as the other dashboards are (M51 F20): the agents and their states at
+// the top right, Jobs to start, Open the department. A link that opens a sprite or a video brings it to the top
+// of the pane and moves focus to its heading (M51 F14). Everything shown is text or a picture from a file an agent made: it is
 // capped, shown as text, and no link in it is followed. Only addresses under /api/ reach an img or a video.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { bytes, count, duration } from "../lib/format.js";
+import { bytes, count, duration, when } from "../lib/format.js";
+import { currentMotion } from "../lib/theme.js";
+import { AgentHead, Jobs, OpenDepartment } from "./dashboard.js";
 import {
-  BeingBuilt, Chip, DataTable, Empty, ErrorNotice, Figures, FileCard, Live, Loading, Notice, NotConnected, PageHeader,
-  Section, StatusDot, Switch, Tag, Waiting,
+  BeingBuilt, DataTable, Empty, ErrorNotice, Figures, FileCard, Loading, Notice, NotConnected, PageHeader,
+  Section, Switch, Tag,
 } from "../kit/index.js";
 
 const HERE = "#/dashboards/studio";
@@ -140,7 +144,37 @@ const ROOM_ENDINGS = /\.(mp4|mov|m4v|mp3|m4a|wav|png|jpe?g)$/i;
 export function roomRows(room) {
   return list(room?.files)
     .filter((f) => typeof f.name === "string" && ROOM_ENDINGS.test(f.name))
-    .map((f) => ({ name: text(f.name, 200), size: bytes(f.size), changed: text(f.changed, 40) }));
+    .map((f) => ({ name: text(f.name, 200), size: bytes(f.size), changed: when(f.changed) || text(f.changed, 40) }));
+}
+
+// Whether a scroll may glide: not with motion switched off in Settings, nor with the system's reduced motion.
+export function scrollBehaviour() {
+  if (currentMotion() === "off") return "auto";
+  const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return reduced ? "auto" : "smooth";
+}
+
+// Brings an opened viewer to the top of the pane and puts focus on its heading, once per thing opened, after the
+// page's lists have come in (`settled`), so nothing that loads above it pushes it down again.
+function useBringIntoView(key, settled) {
+  const head = useRef(null);
+  const done = useRef("");
+  useEffect(() => {
+    const el = head.current;
+    if (!key || !el || !settled || done.current === key) return;
+    done.current = key;
+    if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "start", behavior: scrollBehaviour() });
+    if (typeof el.focus === "function") el.focus({ preventScroll: true });
+  }, [key, settled]);
+  return head;
+}
+
+// The video's box: as wide as the pane, but never more than twice the video's own size nor 60% of the window
+// (M51 F14), keeping its shape.
+export function videoBox(video) {
+  const v = video || {};
+  if (!whole(v.width, 2, 1920) || !whole(v.height, 2, 1920)) return "";
+  return `aspect-ratio:${v.width} / ${v.height};max-width:min(100%, ${v.width * 2}px);max-height:min(60vh, ${v.height * 2}px)`;
 }
 
 const tagNames = (sprite) => (sprite?.tags || []).map((t) => (typeof t === "string" ? t : t?.name)).filter(Boolean).slice(0, 12);
@@ -151,14 +185,6 @@ function CheckLines({ lines }) {
       <span class="p-studio__check-mark" aria-hidden="true">${l.ok ? "\u2713" : "!"}</span>${l.text}
     </li>`)}
   </ul>`;
-}
-
-function AgentLine({ name, agent }) {
-  const state = agent?.state;
-  const mark = state === "working" ? html`<${Live} />`
-    : state === "waiting_for_you" ? html`<${Waiting} />`
-      : html`<${StatusDot} tone=${state === "problem" ? "bad" : state === "paused" ? "warn" : "off"} label=${text(agent?.plainState, 40) || "Free"} />`;
-  return html`<span class="p-studio__agent"><span class="p-studio__agent-name">${name}</span>${mark}</span>`;
 }
 
 // ---- Sprites ------------------------------------------------------------------------------------------------
@@ -180,7 +206,7 @@ function SpriteCard({ sprite, chosen, onChoose }) {
     </li>`;
 }
 
-function Player({ id, query }) {
+function Player({ id, query, settled }) {
   const res = useResource(id ? `/api/studio/art/sprite?id=${encodeURIComponent(id)}` : null);
   const [mod, setMod] = useState(null);
   const [missing, setMissing] = useState(false);
@@ -190,10 +216,11 @@ function Player({ id, query }) {
     return () => { alive = false; };
   }, []);
   const d = res.data;
+  const head = useBringIntoView(id, settled && !!d);
   return html`
     <div class="p-studio__player">
       <div class="p-studio__viewer-head">
-        <h3 class="p-studio__viewer-title">${text(d?.sprite?.title, 120) || "Animation"}</h3>
+        <h3 class="p-studio__viewer-title" tabindex="-1" ref=${head}>${text(d?.sprite?.title, 120) || "Animation"}</h3>
         <a class="p-studio__close" href=${HERE}>Close</a>
       </div>
       ${res.loading && !d ? html`<${Loading} lines=${4} label="Loading the animation" />` : null}
@@ -226,19 +253,21 @@ function VideoCard({ video, chosen }) {
   </li>`;
 }
 
-function VideoViewer({ video }) {
+function VideoViewer({ video, settled }) {
   const title = text(video.title || video.name, 120) || "A video";
   const src = playable(video) ? safeApi(video.video.viewUrl) : null;
   const poster = safeApi(video.poster?.viewUrl);
   const download = safeApi(video.video?.url);
   const stills = list(video.stills, 6).map((f) => safeApi(f.viewUrl)).filter(Boolean);
+  const head = useBringIntoView(video.id, settled);
   return html`<div class="p-studio__viewer">
     <div class="p-studio__viewer-head">
-      <h3 class="p-studio__viewer-title">${title}</h3>
+      <h3 class="p-studio__viewer-title" tabindex="-1" ref=${head}>${title}</h3>
       <a class="p-studio__close" href=${HERE}>Close</a>
     </div>
     ${src
-      ? html`<video class="p-studio__video" controls preload="none" playsinline src=${src} poster=${poster || undefined} aria-label=${title}>
+      ? html`<video class="p-studio__video" controls preload="none" playsinline src=${src} poster=${poster || undefined} aria-label=${title}
+          style=${videoBox(video) || undefined}>
           This browser cannot play the video. Use Download below.
         </video>`
       : html`<${Notice} tone="warn" title="This video cannot play here.">The file is not a video, or it is too large. Its checks are below.<//>`}
@@ -311,9 +340,16 @@ function FilesTable({ section }) {
   return html`
     <${Section} title=${section.title} count=${section.rows?.length}>
       <${DataTable} columns=${[...columns, { key: "file", label: "File" }]} rows=${section.rows || []} emptyText=${section.emptyText}
-        renderCell=${(row, col) => (col.key === "file"
-          ? (safeApi(row.fileUrl) ? html`<a href=${safeApi(row.fileUrl)} download>Download</a>` : "")
-          : undefined)} />
+        renderCell=${(row, col) => {
+          if (col.key === "file") return safeApi(row.fileUrl) ? html`<a href=${safeApi(row.fileUrl)} download>Download</a>` : "";
+          // The task a file belongs to, by its title (the ref only when the board did not name it), as a link (M51 F8).
+          if (col.key === "goal") {
+            const ref = text(row.goal, 40);
+            const name = text(row.task, 160) || ref;
+            return /^[A-Za-z0-9-]{1,40}$/.test(ref) ? html`<a href=${`#/tasks/${encodeURIComponent(ref)}`}>${name}</a>` : name;
+          }
+          return undefined;
+        }} />
     <//>`;
 }
 
@@ -382,16 +418,15 @@ export default function Page({ route }) {
   useEffect(() => () => { if (opened.current && typeof app.closePanel === "function") app.closePanel(); }, []);
 
   const first = (r) => r.loading && !r.data;
+  const settled = [art, dept, slidesRes, videosRes].every((r) => r.data || r.error);
   return html`
-    <div class="p-studio" data-dept="studio">
+    <div class="p-studio p-dashboard" data-dept="studio">
       <${PageHeader} back=${{ label: "All dashboards", href: "#/dashboards" }} over="DASHBOARD" creature="studio" title="Studio"
         lead="Videos, slides, drawings, animations and parts made by the Artist and the Drafter."
-        actions=${html`<a class="p-studio__dept-link" href="#/departments/studio">Open the department</a>`}>
-        <span class="p-studio__agents">
-          <${AgentLine} name="Artist" agent=${a?.agent} />
-          <${AgentLine} name="Drafter" agent=${d?.agent} />
-        </span>
-      <//>
+        actions=${a?.agent || d?.agent ? html`<span class="p-studio__agents">
+          ${a?.agent ? html`<${AgentHead} slug="artist" agent=${{ name: "Artist", ...a.agent }} />` : null}
+          ${d?.agent ? html`<${AgentHead} slug="drafter" agent=${{ name: "Drafter", ...d.agent }} />` : null}
+        </span>` : null} />
       ${first(art) && first(dept) ? html`<${Loading} lines=${4} label="Loading the Studio" />` : null}
       ${art.error && !a ? html`<${ErrorNotice} error=${art.error} onRetry=${art.reload} />` : null}
       ${dept.error && !d ? html`<${ErrorNotice} error=${dept.error} onRetry=${dept.reload} />` : null}
@@ -402,7 +437,7 @@ export default function Page({ route }) {
 
       <${Section} title="Videos" count=${vd ? videos.length : undefined}>
         ${videoId && vd ? (chosenVideo
-          ? html`<${VideoViewer} key=${chosenVideo.id} video=${chosenVideo} />`
+          ? html`<${VideoViewer} key=${chosenVideo.id} video=${chosenVideo} settled=${settled} />`
           : html`<${Notice} tone="warn" title="That video is not here.">It may have been moved. <a href=${HERE}>Show all videos</a><//>`) : null}
         ${first(videosRes) ? html`<${Loading} lines=${2} label="Loading the videos" />` : null}
         ${videosRes.error && !vd ? html`<${ErrorNotice} error=${videosRes.error} onRetry=${videosRes.reload} />` : null}
@@ -422,7 +457,7 @@ export default function Page({ route }) {
 
       ${a ? html`
         <${Section} title="Sprites and animations" count=${sprites.length}>
-          ${sprite ? html`<${Player} key=${sprite} id=${sprite} query=${query} />` : null}
+          ${sprite ? html`<${Player} key=${sprite} id=${sprite} query=${query} settled=${settled} />` : null}
           ${sprites.length ? html`
             <ul class="p-studio__sprites">
               ${sprites.map((s) => html`<${SpriteCard} key=${s.id} sprite=${s} chosen=${s.id === sprite} onChoose=${choose} />`)}
@@ -456,9 +491,7 @@ export default function Page({ route }) {
           ${list(d.switches, 20).map((s) => html`<${Switch} key=${s.id} on=${false} disabled label=${text(s.label, 120)} explain=${text(s.explain, 300)} />`)}
         <//>` : null}
 
-      <p class="p-studio__foot">
-        <${Chip} dot="studio">Studio<//>
-        <a href="#/jobs?d=studio">Jobs the Studio can run</a>
-      </p>
+      <${Jobs} dept="studio" />
+      <${OpenDepartment} dept="studio" />
     </div>`;
 }

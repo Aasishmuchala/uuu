@@ -143,7 +143,7 @@ test("agentCards: a role not on the board, and the board off", async () => {
   for (const c of off) {
     assert.equal(c.state, "free");
     assert.equal(c.plainState, "Not known");
-    assert.equal(c.applied, false);
+    assert.equal(c.applied, null, "not known while the board is off, so no page says to set it up");
     assert.deepEqual(sameShape(readShape("agent-card"), c), [], c.slug);
   }
 });

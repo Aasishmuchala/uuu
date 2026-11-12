@@ -76,6 +76,12 @@
   color: var(--warn);
 }
 
+/* The sentence keeps the lock beside it on any width; the link may wrap under (M51 F26). */
+.k-job--why > span {
+  flex: 1 1 12em;
+  min-width: 0;
+}
+
 .k-job__why-link {
   color: var(--text);
   font-weight: var(--fw-medium);
@@ -83,6 +89,7 @@
 
 /* One line. */
 .k-job--row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--s-3);
@@ -107,6 +114,12 @@ a.k-job--row:hover {
   background: var(--k-job-dot);
 }
 
+/* In a list a job's bullet is drawn as on the map, in the text colour (hollow when it cannot start): a
+   department's colour beside "needs you" or "working" would read as a state (M18-10). */
+.k-job--row {
+  --k-job-dot: var(--text);
+}
+
 .k-job__title {
   flex: 1 1 auto;
   min-width: 0;
@@ -115,11 +128,17 @@ a.k-job--row:hover {
   white-space: nowrap;
 }
 
+/* Two fixed columns, so the tags and stages of a list line up under each other (M18-16). */
 .k-job__marks {
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: 104px 112px;
   align-items: center;
   gap: var(--s-3);
   flex: none;
+}
+
+.k-job__marks > .k-job--handoff {
+  justify-self: start;
 }
 
 .k-job__go {
@@ -228,6 +247,29 @@ a.k-job--chip:hover {
   color: var(--text);
 }
 
+/* A file that only helps and is not there yet: a quiet dot, no warning (M51 F7). */
+.k-job__read-dot {
+  flex: none;
+  width: var(--s-2);
+  height: var(--s-2);
+  margin: 0 3px;
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1.5px var(--text-3);
+}
+
+/* A task's short ref, quietly after its name. */
+.k-job__ref {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A question not answered yet, in the preview: its own words, quietly. */
+.k-job__blank {
+  color: var(--text-2);
+  font-style: italic;
+}
+
 .k-job__read-state {
   color: var(--text-2);
   font-size: var(--fs-caption);
@@ -239,11 +281,29 @@ a.k-job--chip:hover {
   background: var(--glass-soft);
 }
 
+/* The kit's chevron in place of the browser's triangle, turned while open (M18-26). */
 .k-job__preview-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  list-style: none;
   padding: var(--s-2) var(--s-3);
   color: var(--text-2);
   font-size: var(--fs-caption);
   cursor: pointer;
+}
+
+.k-job__preview-head::-webkit-details-marker {
+  display: none;
+}
+
+.k-job__fold {
+  flex: none;
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.k-job__preview[open] > .k-job__preview-head .k-job__fold {
+  transform: rotate(90deg);
 }
 
 .k-job__preview-text {
@@ -292,8 +352,61 @@ a.k-job--chip:hover {
     min-height: 44px;
   }
 
-  .k-job__marks .k-job--stage {
-    display: none;
+  /* A row on a phone: the name on up to two lines, the tag and the stage on a line under it, so no name is
+     cut and the stage still shows (M18-03, M51 F11). */
+  .k-job--row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: var(--s-3);
+    row-gap: var(--s-1);
+  }
+
+  .k-job--row > .k-job__dot {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .k-job--row > .k-job__title {
+    grid-column: 2;
+    grid-row: 1;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+  }
+
+  .k-job--row > .k-job__marks {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-1) var(--s-3);
+  }
+
+  .k-job--row > .k-job__go {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  /* Small links get a 44 px area to tap without changing how they look (M51 F15). */
+  .k-job__why-link,
+  .k-job__read-name {
+    position: relative;
+    display: inline-block;
+    padding: var(--s-1) 0;
+  }
+
+  .k-job__why-link::before,
+  .k-job__read-name::before {
+    content: "";
+    position: absolute;
+    inset: calc(-1 * var(--s-2)) calc(-1 * var(--s-1));
+  }
+
+  .k-job__preview-head {
+    min-height: 44px;
   }
 }
 

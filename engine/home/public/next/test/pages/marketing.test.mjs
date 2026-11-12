@@ -221,3 +221,20 @@ test("SlidesLarge: shows only pictures from /api/view/", async () => {
   assert.equal(imgs[0].getAttribute("src"), "/api/view/a.png");
   assert.match(textOf(root), /cannot be shown/);
 });
+
+test("marketing: a ?slides= for a carousel that is not there is said, once the carousels are read (M51 F26)", async () => {
+  const m = await import("../../pages/marketing.js");
+  const data = { sets: [{ id: "STH-24/launch", title: "Launch" }] };
+  assert.equal(m.slidesMissing(data, "STH-24/gone"), true);
+  assert.equal(m.slidesMissing(data, "STH-24/launch"), false);
+  assert.equal(m.slidesMissing(null, "STH-24/gone"), false, "not before the answer");
+  assert.equal(m.slidesMissing(data, ""), false);
+});
+
+test("marketing: no old ready-made goals strip and no read of the gallery route (M51 F3)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../../pages/marketing.js", import.meta.url), "utf8");
+  assert.ok(!/\/api\/gallery/.test(src));
+  assert.ok(!/[Rr]eady-made/.test(src.replace(/^\s*\/\/.*$/gm, "")));
+  assert.match(src, /<\$\{Jobs\} dept="marketing"/);
+});

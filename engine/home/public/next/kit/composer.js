@@ -18,6 +18,8 @@ export const SHORT_PLACEHOLDER = "Say what you want done.";
 // The words of the box in "ask" mode (CONTRACTS-V3 25).
 export const ASK_PLACEHOLDER = "Ask the company brain, or say what you want done.";
 export const ASK_HINT = "Enter to send. A real agent reads your files, so an answer takes a minute or two.";
+// Below 480 px the pinned placeholder is cut mid-word (M18-04), so a phone gets a shorter one.
+export const ASK_SHORT_PLACEHOLDER = "Ask the brain, or say what to do.";
 const PHONE = "(max-width: 479px)";
 
 // True while the window is narrower than 480 px; follows the window as it changes.
@@ -103,6 +105,7 @@ function AskBox({ placeholder, hint, onSend, busy = false, autoFocus = false, in
   const ids = useMemo(() => { seq += 1; return { field: `k-composer-field-${seq}`, hint: `k-composer-hint-${seq}` }; }, []);
   useEffect(() => { if (autoFocus && area.current) area.current.focus(); }, [autoFocus]);
   useGrow(area, value);
+  const phone = usePhone();
   const isBusy = busy || sending;
 
   const send = async () => {
@@ -137,7 +140,7 @@ function AskBox({ placeholder, hint, onSend, busy = false, autoFocus = false, in
     <div class="k-composer__box">
       <label class="u-visually-hidden" for=${ids.field}>Ask, or say what you want done</label>
       <textarea id=${ids.field} ref=${area} class="k-composer__field" rows="1" value=${value}
-        placeholder=${text(placeholder) || ASK_PLACEHOLDER} readOnly=${isBusy} aria-busy=${isBusy ? "true" : "false"}
+        placeholder=${phone && (!text(placeholder) || placeholder === ASK_PLACEHOLDER) ? ASK_SHORT_PLACEHOLDER : text(placeholder) || ASK_PLACEHOLDER} readOnly=${isBusy} aria-busy=${isBusy ? "true" : "false"}
         aria-describedby=${ids.hint} onInput=${onInput} onKeyDown=${onKeyDown}></textarea>
       <button type="button" class="k-composer__send" aria-label=${isBusy ? "Sending" : "Send"}
         disabled=${isBusy || !value.trim()} onClick=${send}><${Icon} name="send" /></button>

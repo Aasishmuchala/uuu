@@ -73,3 +73,9 @@
     display: none;
   }
 }
+
+/* Motion switched off in Settings: the live dot stands still, like reduced motion. */
+[data-motion="off"] .k-dot--pulse .k-dot__mark::after {
+  animation: none;
+  display: none;
+}

@@ -2,6 +2,7 @@
 // `task` is a task-card (17.1); TaskRow also takes a Home "running" entry ({ taskId, identifier, title, who, live, plainState }).
 // CONTRACTS-V3 28: TaskRow has a second line (the outcome, else the stage and state in words), the department's dot,
 // the time at the right and a chevron. It reads the same with or without `outcome`, `job` and `department` (33.2).
+// A task's short ref (STH-20) is how the owner and the agents name it, so it stays, quietly after the name.
 import { html } from "../vendor/preact-htm.js";
 import { when, fullWhen } from "../lib/format.js";
 import { Avatar } from "./avatar.js";
@@ -56,7 +57,8 @@ const deptOf = (task) => {
 // the row's mark shows only a dot. One line: no line breaks, the outcome cut to 140 characters.
 export function rowLine(task) {
   if (!task) return "";
-  const outcome = text(task.outcome).replace(/\s+/g, " ").trim().slice(0, 140);
+  // An answer's source marks ("[1]") mean nothing on one line, so they are left out (M50 F8).
+  const outcome = text(task.outcome).replace(/\s*\[\d{1,2}\]/g, "").replace(/\s+/g, " ").trim().slice(0, 140);
   const flag = task.live ? "Working" : task.waitingForYou ? "Waiting for you" : "";
   if (outcome) return flag ? `${flag} · ${outcome}` : outcome;
   const parts = [];
@@ -72,7 +74,9 @@ export function TaskRow({ task }) {
   const who = task.who || null;
   const href = taskHref(task);
   const dept = deptOf(task);
-  const job = task.job && task.job.title ? text(task.job.title) : "";
+  // The job's name is left out when the title already starts with it (M51 F12).
+  const jobTitle = task.job && task.job.title ? text(task.job.title) : "";
+  const job = jobTitle && !text(task.title).toLowerCase().startsWith(jobTitle.toLowerCase()) ? jobTitle : "";
   const line = rowLine(task);
   const date = task.updatedAt || task.since || task.createdAt;
   // The mark's word is for screen readers here: the second line says the state in words, so the titles line up.
@@ -85,8 +89,8 @@ export function TaskRow({ task }) {
     <span class="k-task-row__mark">${mark}</span>
     <span class="k-task-row__main">
       <span class="k-task-row__top">
-        ${task.identifier && html`<${Mono}>${text(task.identifier)}<//>`}
         <span class="k-task-row__title">${text(task.title)}</span>
+        ${task.identifier && html`<span class="k-task-row__ref"><${Mono}>${text(task.identifier)}<//></span>`}
       </span>
       ${(line || job || dept) && html`<span class="k-task-row__line">
         ${dept && html`<span class="k-task-row__dept" data-dept=${dept} aria-hidden="true"></span><span class="u-visually-hidden">${DEPARTMENTS[dept]}.</span>`}
@@ -110,7 +114,6 @@ export function TaskCard({ task }) {
   const steps = total > 0 ? `${Number(task.stepsDone) || 0} of ${total} ${total === 1 ? "step" : "steps"}` : "";
   return html`<a class=${`k-task-card${task.waitingForYou ? " k-task-card--waiting" : ""}`} href=${taskHref(task)}>
     <div class="k-task-card__top">
-      <${Mono}>${text(task.identifier)}<//>
       ${who && html`<span class="k-task-card__who" title=${text(who.name)}>
         <span class="u-visually-hidden">${text(who.name)}</span><${Avatar} slug=${who.slug} name=${who.name} size=${20} />
       </span>`}
@@ -129,6 +132,7 @@ export function TaskCard({ task }) {
       ${task.live && html`<span class="k-task-card__live"><${Live} /></span>`}
       ${task.waitingForYou && html`<${Waiting} />`}
       ${date && html`<time class="k-task-card__date" datetime=${text(date)} title=${fullWhen(date)}>${when(date)}</time>`}
+      ${task.identifier && html`<span class="k-task-card__ref"><${Mono}>${text(task.identifier)}<//></span>`}
     </div>
   </a>`;
 }

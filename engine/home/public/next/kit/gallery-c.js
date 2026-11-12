@@ -4,12 +4,12 @@
 import { html, useState } from "../vendor/preact-htm.js";
 import {
   AnswerView, Card, FilePicker, FormFields, HandoffTag, JobChip, JobRow, JobStart, Ring, Section, Segmented,
-  StageMark, WhyNot, checkForm, Creature,
+  StageMark, WhyNot, checkForm, Creature, PageHeader,
 } from "./index.js";
 
 const row = "display:flex;flex-wrap:wrap;align-items:center;gap:12px";
 const grid = "display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px";
-const page = "max-width:var(--content-max);margin:0 auto;padding:var(--s-8) var(--s-4);display:flex;flex-direction:column;gap:var(--s-8)";
+const page = "position:relative;z-index:1;max-width:var(--content-max);margin:0 auto;padding:var(--s-8) var(--s-4) var(--s-12);display:flex;flex-direction:column;gap:var(--s-8)";
 
 const CREATURE_IDS = "brain operations sales marketing studio support people books".split(" ");
 const NAMES = { brain: "Company brain", operations: "Operations", sales: "Sales", marketing: "Marketing", studio: "Studio", support: "Support", people: "People", books: "Books" };
@@ -144,11 +144,8 @@ function Pickers() {
 export default function Gallery() {
   const [seg, setSeg] = useState("list");
   return html`<main style=${page}>
-    <header class="u-stack">
-      <p class="u-over">Kit gallery · C</p>
-      <h1>The new parts</h1>
-      <p class="u-muted">Creatures, the pill control, jobs, answers, rings, forms and the file picker.</p>
-    </header>
+    <${PageHeader} over="Kit · New parts" title="The new parts"
+      lead="Creatures, the pill control, jobs, answers, rings, forms and the file picker, on sample data." />
 
     <${Section} title="Creatures">
       <div style=${row}>

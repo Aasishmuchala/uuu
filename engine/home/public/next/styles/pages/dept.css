@@ -159,8 +159,30 @@
 .p-dept .p-dept__started a { color: var(--text); }
 .p-dept .p-dept__caption { margin: 0; padding: 0 var(--s-2); font-size: var(--fs-caption); color: var(--text-2); }
 
+/* With the board off the box is greyed and cannot be typed in (M51 F24). */
+.p-dept .p-dept__box { margin: 0; padding: 0; border: 0; min-width: 0; }
+.p-dept .p-dept__box--off { opacity: 0.55; }
+.p-dept .p-dept__more { display: none; }
+
+/* Three agents side by side from 1080 px, so none sits alone on a row (M51 F26). */
+@media (min-width: 1080px) {
+  .p-dept .p-dept__agents { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+}
+
 @media (max-width: 859px) {
   .p-dept .p-dept__agents { grid-template-columns: 1fr; }
+  /* Six chips, then "Show all n" (M51 F24). */
+  .p-dept .p-dept__jobs--some > li:nth-child(n + 7) { display: none; }
+  .p-dept .p-dept__more {
+    display: inline-flex; align-items: center; align-self: flex-start; min-height: 44px; padding: 0;
+    border: 0; background: none; color: var(--text-2); font: inherit; font-size: var(--fs-caption); cursor: pointer;
+    text-decoration: underline; text-underline-offset: 3px;
+  }
+  .p-dept .p-dept__more:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-1); }
+  /* 44 px targets for the links and the state chip, without changing how they look (M51 F15). */
+  .p-dept .p-dept__link, .p-dept .p-dept__all, .p-dept .p-dept__nb, .p-dept .p-dept__state--link, .p-dept .k-empty a {
+    min-height: 44px; display: inline-flex; align-items: center;
+  }
 }
 
 @media (max-width: 479px) {

@@ -176,3 +176,10 @@ test("jobs: the legend and the bands use the kit's words of section 25, and the 
   assert.ok(src.includes("HANDOFFS[id].about"));
   assert.ok(src.includes("STAGES[n].about"));
 });
+
+test("jobs: the narrow Filter chip counts the chip rows that are on (M51 F23)", async () => {
+  const m = await import("../../pages/jobs.js");
+  assert.equal(m.chipsOn({}), 0);
+  assert.equal(m.chipsOn({ d: "sales", handoff: "", stage: 0 }), 1);
+  assert.equal(m.chipsOn({ d: "sales", handoff: "you-lead", stage: 3, ready: true, q: "x" }), 3, "Ready only and the search stay in sight, so they are not counted");
+});

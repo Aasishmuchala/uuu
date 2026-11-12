@@ -84,7 +84,9 @@
   color: var(--text-2);
 }
 
+/* The close link looks small but takes a 44 px area to click or tap (M52 K6, M51 F15). */
 .k-page-header__chip-close {
+  position: relative;
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -94,6 +96,12 @@
   border-radius: var(--r-pill);
   color: var(--text-2);
   transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+
+.k-page-header__chip-close::before {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--s-3));
 }
 
 .k-page-header__chip-close:hover {
@@ -249,6 +257,10 @@
   .k-page-header__chip-close {
     width: calc(var(--h-lg) - var(--s-1));
     height: calc(var(--h-lg) - var(--s-1));
+  }
+
+  .k-page-header__chip-close::before {
+    inset: calc(-1 * var(--s-1));
   }
 
   .k-section {

@@ -37,6 +37,43 @@ export function splitMarks(text) {
   return out;
 }
 
+// Pure. Joins each run of marks to the word before it, and to a closing stop after it, so a line never
+// breaks between a word and its marks (M50 F7, M18-28): "a refund [1]." gives
+// [{ text: "a " }, { word: "refund", marks: [1], after: "." }]. The space before a mark is dropped.
+export function glueMarks(parts) {
+  const list = Array.isArray(parts) ? parts.slice() : [];
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i];
+    if (!p || !p.mark) {
+      if (p && typeof p.text === "string" && p.text) out.push({ text: p.text });
+      continue;
+    }
+    const marks = [];
+    while (i < list.length && list[i] && list[i].mark) marks.push(list[i++].mark);
+    i -= 1;
+    let word = "";
+    const prev = out[out.length - 1];
+    if (prev && typeof prev.text === "string") {
+      const m = /(\S*)\s*$/.exec(prev.text);
+      word = m ? m[1] : "";
+      prev.text = prev.text.slice(0, prev.text.length - m[0].length);
+      if (!prev.text) out.pop();
+    }
+    let after = "";
+    const next = list[i + 1];
+    if (next && typeof next.text === "string") {
+      const m = /^[.,;:!?)\]»”’]+/.exec(next.text);
+      if (m) {
+        after = m[0];
+        list[i + 1] = { text: next.text.slice(after.length) };
+      }
+    }
+    out.push({ word, marks, after });
+  }
+  return out;
+}
+
 const taskHref = (ask) => {
   const id = ask.identifier || ask.taskId || ask.id;
   return id ? `#/tasks/${encodeURIComponent(String(id))}` : null;
@@ -53,11 +90,16 @@ export function SourceMark({ n, source }) {
 function SourceRow({ source }) {
   const n = Number(source.n);
   const path = clip(source.path, 200);
+  // A file by its title when the home server sends one, else by its own name: no folder path on screen
+  // (C3 25, M50 F17).
+  const file = path.split("/").pop() || path;
+  const title = source.found ? clip(source.title, 120) : "";
   const note = clip(source.note, 200);
   const href = source.found ? linkHref(source.link) : null;
   const body = html`<span class="k-answer__source-n" aria-hidden="true">${n}</span>
     <${Icon} name="file" size=${14} class="k-answer__source-icon" />
-    <span class="k-answer__source-name">${path}</span>
+    <span class="k-answer__source-name">${title || file}</span>
+    ${title && title !== file ? html`<span class="k-answer__source-note">${file}</span>` : null}
     ${note ? html`<span class="k-answer__source-note">${note}</span>` : null}`;
   if (href) {
     return html`<li class="k-answer__source"><a class="k-answer__source-link" href=${href}>${body}
@@ -80,10 +122,12 @@ function Answered({ ask }) {
   const label = !readable
     ? "Answered. The sources could not be read."
     : a.checked === true ? "Answered from your files. Checked." : "Answered from your files. Not checked.";
-  const parts = readable ? splitMarks(text) : [{ text }];
+  const parts = readable ? glueMarks(splitMarks(text)) : [{ text }];
   return html`
     <div class="k-answer__text">${parts.map((p, i) =>
-      p.mark ? html`<${SourceMark} key=${i} n=${p.mark} source=${byN.get(p.mark)} />` : html`<span key=${i}>${p.text}</span>`)}</div>
+      p.marks
+        ? html`<span key=${i} class="k-answer__glue">${p.word}${p.marks.map((n, j) => html`<${SourceMark} key=${j} n=${n} source=${byN.get(n)} />`)}${p.after}</span>`
+        : html`<span key=${i}>${p.text}</span>`)}</div>
     <p class=${cx("k-answer__label", !readable && "k-answer__label--warn")}>
       <${Icon} name=${readable ? "check" : "alert"} size=${14} />
       <span>${label}</span>
@@ -91,7 +135,7 @@ function Answered({ ask }) {
     </p>
     ${readable && sources.length
       ? html`<details class="k-answer__sources" open>
-          <summary class="k-answer__sources-head">${sources.length === 1 ? "1 source" : `${sources.length} sources`}</summary>
+          <summary class="k-answer__sources-head"><${Icon} name="chevron-right" size=${14} class="k-answer__fold" /><span>${sources.length === 1 ? "1 source" : `${sources.length} sources`}</span></summary>
           <ol class="k-answer__source-list">${sources.map((s) => html`<${SourceRow} key=${s.n} source=${s} />`)}</ol>
         </details>`
       : null}

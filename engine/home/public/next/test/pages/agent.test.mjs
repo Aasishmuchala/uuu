@@ -91,3 +91,10 @@ test("agent: a lesson's date is the calendar day only, with no clock time", () =
   assert.equal(page.lessonDate(undefined), "");
   assert.doesNotMatch(page.lessonDate("2026-11-10"), /\d:\d/);
 });
+
+test("agent: the header's note shows only when the board answered without the agent, never a command (M51 F1, F17)", () => {
+  const { agent } = shape("agent");
+  assert.equal(page.headerNote({ ...agent, applied: false }), "Not set up yet.");
+  assert.equal(page.headerNote({ ...agent, applied: null }), "", "board off: not known, so nothing is said");
+  assert.equal(page.headerNote(agent), "");
+});

@@ -472,14 +472,14 @@ function Rounds({ id, acceptance, query }) {
       <p class="p-task__round-line">${cap(round.label, 80)}${round.by ? html` <span class="u-caption">by ${cap(round.by, 60)}</span>` : null}</p>
       ${round.wellFormed ? html`
         <div class="u-spread">
-          <h3 class="p-task__h">The six checks</h3>
+          <h2 class="p-task__h">The six checks</h2>
           <span class="u-caption">${passedCount(round)} passed</span>
         </div>
         <${CheckList} checks=${list(round.checks)} selected=${check ? check.n : null}
           onSelect=${(n) => go(address(id, query, { round: round.n, check: n }))} />
         <${ChosenCheck} check=${check} />
         ${actions.length ? html`
-          <h3 class="p-task__h">What the Checker asked to change</h3>
+          <h2 class="p-task__h">What the Checker asked to change</h2>
           <ul class="p-task__actions">${actions.map((a, i) => html`<li key=${i}>${cap(a, 600)}</li>`)}</ul>` : null}` : html`
         <div class="p-task__verdict">
           <p><strong>${round.outcome === "pass" ? "Passed" : round.outcome === "fail" ? "Failed" : "No clear verdict"}</strong></p>
@@ -510,7 +510,7 @@ function NextUp({ items }) {
   if (!items.length) return null;
   return html`
     <div class="p-task__next">
-      <h3 class="p-task__h">What can come next</h3>
+      <h2 class="p-task__h">What can come next</h2>
       <ul class="p-task__next-list">
         ${items.map((n, i) => html`
           <li key=${i} class=${`p-task__next-item${n.ready ? "" : " p-task__next-item--dim"}`}>
@@ -601,8 +601,12 @@ export default function Page({ route }) {
   }, [d, id]);
   useEffect(() => () => { if (typeof app.closePanel === "function" && opened.current) app.closePanel(); }, []);
 
+  // After Accept, Send back or a note the line that says what happened takes focus, so the keyboard does not
+  // fall to the page's body when the button it was on goes away (M52 K3).
+  const saidRef = useRef(null);
   const after = (message) => {
     setSaid(message);
+    setTimeout(() => saidRef.current?.focus(), 0);
     if (typeof app.announce === "function") app.announce(message);
     if (typeof app.refreshShell === "function") app.refreshShell();
     res.refresh();
@@ -617,7 +621,7 @@ export default function Page({ route }) {
     return html`
       <div class="p-task" ref=${root}>
         <${PageHeader} title=${missing ? "Task not found" : "Task"} back=${BACK} />
-        ${missing ? html`<${Empty} title="That task is not here."><a href="#/tasks">All tasks</a><//>`
+        ${missing ? html`<${Empty} title="That task is not here."><a class="p-task__empty-link" href="#/tasks">All tasks</a><//>`
           : res.loading || !res.error ? html`<${Loading} lines=${6} label="Loading the task" />`
           : html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`}
       </div>`;
@@ -643,7 +647,7 @@ export default function Page({ route }) {
         <${Chip} dot=${STATE_DOTS[state] || "off"}>${stateWord(acceptance)}<//>
       </div>
       ${!layout.narrow ? html`<${AcceptBar} acceptance=${acceptance} onDone=${after} onChanged=${res.refresh} />` : null}
-      ${said ? html`<p class="p-task__said" role="status">${said}</p>` : null}
+      ${said ? html`<p class="p-task__said" role="status" tabindex="-1" ref=${saidRef}>${said}</p>` : null}
       ${needs.length ? html`
         <div class="p-task__needs">
           ${needs.map((item) => html`<${DecisionCard} key=${item.id} item=${item} onDone=${() => after("Done.")} />`)}

@@ -90,6 +90,23 @@
   }
 }
 
+/* More choices than fit: the cut edge fades (M18-29). */
+.k-seg--more {
+  -webkit-mask-image: linear-gradient(to right, var(--canvas) calc(100% - var(--s-10)), transparent);
+  mask-image: linear-gradient(to right, var(--canvas) calc(100% - var(--s-10)), transparent);
+}
+
+/* A phone: the words carry the choice, so the icons give way and more choices fit. */
+@media (max-width: 479px) {
+  .k-seg__item:has(.k-seg__label:not(:empty)) .k-icon {
+    display: none;
+  }
+
+  .k-seg__item {
+    padding: 0 var(--s-3);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .k-seg__item {
     transition: none;

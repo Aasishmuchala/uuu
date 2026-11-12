@@ -8,6 +8,7 @@
 // `checked` is true only when the task's tree has a passing round. Acting on an answer goes through
 // POST /api/inbox/act with the ids given in `needsYou`; there is no other route.
 import { parseAnswer } from "../lib/answer.mjs";
+import { brainTitle } from "../lib/brainfiles.mjs";
 import { needIds } from "../lib/goals.mjs";
 import { buildText, roundsOf, textOf } from "../lib/staged.mjs";
 import { findTask, isHeldTask, loadTaskContext, treeComments } from "../lib/tasks.mjs";
@@ -51,11 +52,14 @@ export function readAnswer(config, identifier) {
   return hit ? parseAnswer(hit.text) : null;
 }
 
-// Each source with `found` and `link` from the brain's own listing; an exact listed path only.
+// Each source with `found` and `link` from the brain's own listing; an exact listed path only. A found source
+// also carries the brain file's own `title` (a basic's form title, else the file's name without its folder;
+// lib/brainfiles.mjs brainTitle), so the screen names the file the owner knows, not a path (M50 F17).
 export function vouch(sources, paths) {
   return sources.map((s) => {
     const token = paths.has(s.path) ? paths.get(s.path) : null;
-    return { n: s.n, path: s.path, note: s.note, found: !!token, link: token ? { page: "files", id: token } : null };
+    return { n: s.n, path: s.path, note: s.note, found: !!token, link: token ? { page: "files", id: token } : null,
+      title: token ? brainTitle(s.path) : null };
   });
 }
 
@@ -112,7 +116,7 @@ export default function register(app) {
     const text = readQuestion(ctx);
     const ids = needIds(ctx);
     const chief = ids.agents?.["chief-of-staff"];
-    if (!chief) throw ctx.fail(409, "The Chief of staff is not set up yet.", "Run engine setup first.", "not_set_up");
+    if (!chief) throw ctx.fail(409, "The Chief of staff is not set up yet.", "Open Health to see how to set up the engine.", "not_set_up");
     const created = await ctx.board.post(`/api/companies/${encodeURIComponent(ids.companyId)}/issues`, {
       title: titleOf(text), description: buildText({ text, ask: true }), assigneeAgentId: chief,
       projectId: ids.projectId, status: "todo", priority: "medium",

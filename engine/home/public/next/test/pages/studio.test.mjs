@@ -173,8 +173,24 @@ test("studio: the page uses a real video element, the pinned room line, and rend
   assert.match(code, /query\.get\("slides"\)/);
   assert.match(code, /openPanel\(/);
   assert.match(code, /back=\$\{\{ label: "All dashboards", href: "#\/dashboards" \}\}/);
-  assert.match(code, /href="#\/departments\/studio">Open the department</);
+  // The closing link is the dashboards' shared one (M51 F20), with Jobs to start before it.
+  assert.match(code, /<\$\{OpenDepartment\} dept="studio" \/>/);
+  assert.match(code, /<\$\{Jobs\} dept="studio" \/>/);
   assert.doesNotMatch(code, /innerHTML|dangerouslySetInnerHTML|\beval\(|new Function/);
   assert.doesNotMatch(code, /#\/studio\b/, "uses the new address, not the old #/studio");
   assert.doesNotMatch(code, /\/api\/gallery/, "the gallery route goes at the switch");
+});
+
+test("studio: the video's box is never more than twice its own size nor 60% of the window (M51 F14)", async () => {
+  const m = await import("../../pages/studio.js");
+  assert.equal(m.videoBox({ width: 320, height: 180 }), "aspect-ratio:320 / 180;max-width:min(100%, 640px);max-height:min(60vh, 360px)");
+  assert.equal(m.videoBox({ width: "320", height: 180 }), "", "only whole numbers inside the helper's limits");
+  assert.equal(m.videoBox(null), "");
+});
+
+test("studio: the room's times read as the other pages' do, not as a machine time (M51 F10)", async () => {
+  const m = await import("../../pages/studio.js");
+  const [row] = m.roomRows({ files: [{ name: "clip.mp4", size: 10, changed: "2026-11-11T18:31:30.839Z" }] });
+  assert.ok(!/T\d\d:/.test(row.changed), row.changed);
+  assert.ok(row.changed.length > 0);
 });

@@ -73,6 +73,14 @@ test("departmentLoad: zero with the board off; live agents and Needs-you items b
     needsYou: [{ agent: { slug: "sales" } }, { source: "customers", agent: null }, { source: "books", agent: { slug: "bookkeeper" } }],
   };
   assert.deepEqual(departmentLoad(sales, tctx), { working: 1, needsYou: 2 });
+  // A decorated item counts by its department only: a task's result raised by the Chief of staff counts for the
+  // task's department (M50 F2), and an item placed nowhere counts for none.
+  const decorated = { ...tctx, needsYou: [
+    { agent: { slug: "chief-of-staff" }, source: "goal", department: "sales" },
+    { agent: { slug: "sales" }, source: "goal", department: "studio" },
+    { agent: null, source: "customers", department: null },
+  ] };
+  assert.deepEqual(departmentLoad(sales, decorated), { working: 1, needsYou: 1 });
 });
 
 // ---- the catalogue
@@ -281,9 +289,15 @@ test("jobView: fits shape job; the earlier task is offered from the accepted cal
   assert.deepEqual(v.department, { id: "sales", title: "Sales" });
   assert.deepEqual(v.cluster, { id: "calls", title: "Calls" });
   assert.deepEqual(v.who, [{ slug: "sales", name: "Sales" }]);
-  assert.deepEqual(v.asks[0].options, [{ value: issueId(20), label: "STH-20 · Call write-up: Asha Kitchens" }]);
+  // The title and the date, no task ref (M51 F8; C3 25 over the example in 33.3).
+  assert.equal(v.asks[0].options.length, 1);
+  assert.equal(v.asks[0].options[0].value, issueId(20));
+  assert.match(v.asks[0].options[0].label, /^Call write-up: Asha Kitchens · \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+  assert.ok(!/STH-/.test(v.asks[0].options[0].label));
+  assert.equal(v.asks[0].options[0].ref, "STH-20", "the ref rides along for matching ?from=, off screen");
   assert.equal(v.asks[1].options, null);
-  assert.deepEqual(v.takes, { from: ["sales/call-write-up"], label: "Write the proposal from this" });
+  assert.deepEqual(v.takes, { from: ["sales/call-write-up"], label: "Write the proposal from this",
+    after: [{ id: "sales/call-write-up", title: "Call write-up" }], waiting: null });
   assert.equal(v.ready, false, "the seed has no terms file");
   assert.equal(v.why.text, 'Fill in "Terms" first.');
   assert.equal(v.runs.working, 1);
@@ -296,9 +310,9 @@ test("jobView: options for file, media and choice questions; none for the others
   const cat = loadCatalogue(h.config);
   const view = (id) => jobView(cat.jobs.get(id), { needs: ALL_NEEDS, runs: new Map(), config: h.config });
   const notes = view("operations/meeting-notes-to-actions").asks.find((a) => a.kind === "file");
-  assert.deepEqual(notes.options, [{ value: "calls/2026-11-10-asha-kitchens.md", label: "2026-11-10-asha-kitchens.md" }]);
+  assert.deepEqual(notes.options, [{ value: "calls/2026-11-10-asha-kitchens.md", label: "2026-11-10-asha-kitchens.md", ref: null }]);
   const clip = view("studio/cut-the-pauses-out-of-a-video").asks.find((a) => a.kind === "media");
-  assert.deepEqual(clip.options, [{ value: "site-visit.mp4", label: "site-visit.mp4" }]);
+  assert.deepEqual(clip.options, [{ value: "site-visit.mp4", label: "site-visit.mp4", ref: null }]);
   const kind = view("marketing/five-concepts").asks.find((a) => a.kind === "choice");
   assert.deepEqual(kind.options.map((o) => o.value), ["post", "carousel", "newsletter"]);
   const earlier = view("sales/proposal-from-a-call").asks.find((a) => a.kind === "task");
@@ -336,7 +350,7 @@ test("taskCard: outcome is the first line after RESULT: of the newest result, fo
   assert.equal(taskCard(findTask(tctx, "STH-20"), tctx).outcome,
     "The call with Asha Kitchens is written up in call-write-up.md, with a note and a follow-up task on their record.");
   assert.equal(taskCard(findTask(tctx, "STH-19"), tctx).outcome,
-    "Customers can return an unused item within 14 days for a full refund [1]. Custom orders cannot be returned [1][2].");
+    "Customers can return an unused item within 14 days for a full refund. Custom orders cannot be returned.", "an answer's source marks are taken out (M50 F8)");
   const none = await loadTaskContext(makeCtx(), { withInbox: false, withComments: false });
   assert.equal(taskCard(findTask(none, "STH-20"), none).outcome, null, "no comments read, no outcome");
 });
@@ -371,4 +385,34 @@ test("taskCard: a task whose text says JOB: with no record has job null; a recor
   assert.equal(there.department, "sales");
   const bare = taskCard(goal, { ...base, decisions: undefined, catalogue: undefined, config: {} });
   assert.deepEqual([bare.job, bare.ask, bare.follows, bare.outcome], [null, false, null, null], "a hand-made context still works");
+});
+
+test("jobView: a job that follows another names it, and the task of it that waits to be accepted (M51 F6)", async () => {
+  forgetNeeds();
+  const ctx = makeCtx();
+  const tctx = await loadTaskContext(ctx);
+  const runs = runsIndex(ctx, tctx);
+  const cat = loadCatalogue(h.config);
+  for (const [id, job] of cat.jobs) {
+    if (!job.takes) continue;
+    const v = jobView(job, { needs: ALL_NEEDS, runs, config: h.config });
+    assert.deepEqual(v.takes.after.map((a) => a.id), job.takes.from, id);
+    for (const a of v.takes.after) assert.equal(a.title, cat.jobs.get(a.id)?.title || a.id, id);
+    if (v.takes.waiting) {
+      const t = tctx.goals.find((g) => g.id === v.takes.waiting.taskId);
+      assert.ok(t && t.status !== "cancelled", `${id}: the waiting task is not stopped`);
+      assert.ok(tctx.needsYou.some((i) => i.taskId === t.id), `${id}: it is in Needs you`);
+    }
+  }
+  const carousel = jobView(cat.jobs.get("marketing/carousel-from-a-concept"), { needs: ALL_NEEDS, runs, config: h.config });
+  assert.equal(carousel.takes.after[0].title, "Five concepts before any design");
+  assert.equal(carousel.takes.waiting?.title, "Five concepts before any design: Diwali offer", "the concepts wait in Needs you to be accepted");
+});
+
+test("jobView: a pack the job reads is named by the pack's title, not its file name (M51 F7)", () => {
+  const cat = loadCatalogue(h.config);
+  const v = jobView(cat.jobs.get("sales/proposal-from-a-call"), { needs: ALL_NEEDS, runs: new Map(), config: h.config });
+  const pack = v.reads.find((r) => r.file.startsWith("packs/"));
+  if (pack) assert.match(pack.title, /^The .+ pack$/);
+  for (const r of v.reads) assert.ok(!/\.md$/.test(r.title), r.title);
 });

@@ -214,6 +214,15 @@
   }
 }
 
+/* Motion switched off in Settings: overlays appear at once, where they belong. */
+[data-motion="off"] .k-menu__list,
+[data-motion="off"] .k-dialog__backdrop,
+[data-motion="off"] .k-drawer__backdrop,
+[data-motion="off"] .k-dialog__panel,
+[data-motion="off"] .k-drawer__panel {
+  animation: none;
+}
+
 @media (max-width: 859px) {
   .k-dialog {
     align-items: flex-end;
@@ -228,5 +237,15 @@
 
   .k-menu__item {
     min-height: calc(var(--h-lg) + var(--s-1));
+  }
+
+  /* Below 860 px a drawer is a full-width sheet (26.2), so no strip of half-covered page shows beside it. */
+  .k-drawer__panel {
+    width: 100%;
+  }
+
+  .k-drawer--left .k-drawer__panel,
+  .k-drawer--right .k-drawer__panel {
+    border-width: 0;
   }
 }

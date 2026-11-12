@@ -21,7 +21,8 @@ const BOOT_JS = readFileSync(join(PUBLIC, "lib", "theme-boot.js"), "utf8");
 const THEMED = {
   "--canvas": ["#0a0b0f", "#f6f5f2"],
   "--glass": ["rgba(22,24,31,.72)", "rgba(255,255,255,.78)"],
-  "--glass-strong": ["rgba(22,24,31,.92)", "rgba(255,255,255,.94)"],
+  // M55 (M18-30): .97 in light, so what lies behind a menu or dialog no longer shows as grey smudges.
+  "--glass-strong": ["rgba(22,24,31,.92)", "rgba(255,255,255,.97)"],
   "--glass-soft": ["rgba(255,255,255,.05)", "rgba(15,17,23,.04)"],
   "--hairline": ["rgba(255,255,255,.10)", "rgba(15,17,23,.10)"],
   "--hairline-strong": ["rgba(255,255,255,.18)", "rgba(15,17,23,.20)"],
@@ -47,6 +48,8 @@ const THEMED = {
   "--bg-warm": ["rgba(251,191,36,.10)", "rgba(217,119,6,.10)"],
   "--border-warm": ["rgba(251,191,36,.42)", "rgba(217,119,6,.45)"],
   "--live": ["#4ade80", "#16a34a"],
+  // M55 (M50 F10): the working mark's colour for words; the bright one stays for the dot.
+  "--live-text": ["#4ade80", "#15803d"],
   "--shadow-pop": ["0 16px 48px rgba(0,0,0,.55)", "0 16px 48px rgba(20,21,26,.16)"],
   "--dept-operations": ["#8b9cff", "#4f5bd5"],
   "--dept-sales": ["#ff8a6b", "#c8492a"],
@@ -409,6 +412,11 @@ for (const [mode, , ways] of MODES) {
         const onBg = contrast(colourOf(ta, "--accent"), colourOf(ta, "--bg"));
         assert.ok(onBg >= 3, `--accent on --bg (${accent}, ${mode}): ${onBg.toFixed(2)} < 3`);
       }
+      // M55 (M50 F10): words in the working colour ("1 working") read on the canvas and on glass.
+      for (const bg of [canvas, over(colourOf(t, "--glass"), canvas)]) {
+        const live = contrast(colourOf(t, "--live-text"), bg);
+        assert.ok(live >= 4.5, `--live-text in ${mode}: ${live.toFixed(2)} < 4.5`);
+      }
       for (const id of DEPTS) {
         const ratio = contrast(colourOf(t, `--dept-${id}`), canvas);
         assert.ok(ratio >= 3, `--dept-${id} on --canvas in ${mode}: ${ratio.toFixed(2)} < 3`);
@@ -618,7 +626,11 @@ test("base.css holds the document defaults, focus ring, selection, motion off an
   assert.match(d.get("transition-duration") ?? "", /!important/);
   const off = rulesFor(':root[data-motion="off"] *');
   assert.ok(off.length === 1, "a motion-off rule");
-  assert.match(off[0].decls.get("animation-play-state") ?? "", /^paused !important$/);
+  // M55: motion off ends every animation at once (as reduced motion does) instead of pausing it, since a
+  // paused opening animation held the Needs you drawer out of sight.
+  assert.equal(off[0].decls.get("animation-play-state"), undefined);
+  assert.match(off[0].decls.get("animation-duration") ?? "", /^0\.01ms !important$/);
+  assert.match(off[0].decls.get("animation-iteration-count") ?? "", /^1 !important$/);
   assert.match(off[0].decls.get("transition-duration") ?? "", /!important/);
 });
 

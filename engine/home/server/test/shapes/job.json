@@ -41,7 +41,8 @@
       "options": [
         {
           "value": "e0000000-0000-4000-8000-000000000020",
-          "label": "STH-20 · Call write-up: Asha Kitchens"
+          "label": "Call write-up: Asha Kitchens · 11 Nov 2026",
+          "ref": "STH-20"
         }
       ]
     }
@@ -50,7 +51,14 @@
     "from": [
       "sales/call-write-up"
     ],
-    "label": "Write the proposal from this"
+    "label": "Write the proposal from this",
+    "after": [
+      {
+        "id": "sales/call-write-up",
+        "title": "Call write-up"
+      }
+    ],
+    "waiting": null
   },
   "text": "Write a proposal for the customer of the call write-up in [earlier]. ...",
   "ready": true,

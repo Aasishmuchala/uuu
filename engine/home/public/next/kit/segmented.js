@@ -18,6 +18,18 @@ export function segStep(index, count, key) {
   return -1;
 }
 
+// Marks the control `k-seg--more` while it is wider than its box and not scrolled to its end: the cut edge
+// then fades, so the choices out of sight are known to be there (M18-29). A ref callback, not a hook, so the
+// control stays a plain function that can also be called directly.
+function watchMore(el) {
+  if (!el || el.__kSegMore || typeof el.scrollWidth !== "number" || !el.classList) return;
+  el.__kSegMore = true;
+  const look = () => el.classList.toggle("k-seg--more", el.scrollWidth - el.scrollLeft - el.clientWidth > 2);
+  look();
+  el.addEventListener("scroll", look, { passive: true });
+  if (typeof ResizeObserver === "function") new ResizeObserver(look).observe(el);
+}
+
 export function Segmented({ items, current, onChange, label, size = "md" }) {
   const list = Array.isArray(items) ? items.filter((it) => it && it.id !== undefined && it.id !== null) : [];
   const s = SIZES.includes(size) ? size : "md";
@@ -31,7 +43,7 @@ export function Segmented({ items, current, onChange, label, size = "md" }) {
     all[next].focus();
   };
 
-  return html`<div class=${cx("k-seg", `k-seg--${s}`)} role="group" aria-label=${label || undefined} onKeyDown=${onKeyDown}>
+  return html`<div ref=${watchMore} class=${cx("k-seg", `k-seg--${s}`)} role="group" aria-label=${label || undefined} onKeyDown=${onKeyDown}>
     ${list.map((it) => {
       const on = it.id === current;
       const hasCount = it.count !== undefined && it.count !== null && it.count !== "";

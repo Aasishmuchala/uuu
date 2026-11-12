@@ -49,3 +49,10 @@
 @media (max-width: 859px) {
   .p-team .p-team__grid { grid-template-columns: 1fr; gap: var(--s-3); }
 }
+
+.p-team .p-team__note a, .p-team .p-team__next a { color: inherit; font-weight: 600; }
+
+/* Below 860 px each chip and link keeps a 44 px target without changing how it looks (M51 F15). */
+@media (max-width: 859px) {
+  .p-team .p-team__dept { min-height: 44px; align-items: center; }
+}

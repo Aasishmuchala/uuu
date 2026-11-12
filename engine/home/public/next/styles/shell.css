@@ -100,6 +100,21 @@
   height: var(--topbar-h);
   padding: 0 var(--s-5);
 }
+/* Once the page is scrolled, a soft band of the canvas fades in behind the bar, so rows that scroll under it
+   do not read as part of it (M50 F12). At rest the bar stays clear, as 26.2 asks. Opacity only. */
+.s-topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 calc(-1 * var(--s-5)) 0;
+  z-index: -1;
+  background: linear-gradient(var(--canvas) 62%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-med) var(--ease);
+}
+.s-topbar.is-scrolled::before {
+  opacity: 1;
+}
 .s-topbar-left {
   min-width: 0;
 }
@@ -109,6 +124,33 @@
   justify-content: flex-end;
   gap: var(--s-2);
   min-width: 0;
+}
+
+/* A middle-sized window (M18-01): the capsule no longer centres on the window, so the right group keeps its
+   width and the Needs you pill is never under the capsule. The capsule centres in the space between. */
+@media (min-width: 860px) and (max-width: 1259px) {
+  .s-topbar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .s-topbar > .s-capsule {
+    justify-self: center;
+  }
+  .s-topbar-right {
+    flex: none;
+  }
+}
+/* The narrowest of those: the company's name gives way to its mark, and the capsule's items come closer. */
+@media (min-width: 860px) and (max-width: 979px) {
+  .s-topbar .s-brand-name {
+    display: none;
+  }
+  .s-topbar .s-capsule-item {
+    padding: 0 var(--s-3);
+  }
+  .s-topbar {
+    gap: var(--s-3);
+    padding: 0 var(--s-4);
+  }
 }
 .s-topbar-gap {
   flex: 1;
@@ -172,8 +214,9 @@
   color: var(--primary-text);
 }
 
-/* The Needs you pill: warm while something waits. */
+/* The Needs you pill: warm while something waits. It never gives up its width. */
 .s-needs {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
@@ -214,6 +257,7 @@
 
 /* Quiet words and square icon buttons on the right. */
 .s-word {
+  flex: none;
   padding: var(--s-1) var(--s-2);
   border-radius: var(--r-pill);
   color: var(--text-2);
@@ -366,6 +410,20 @@
   right: -3px;
   top: -2px;
   background: var(--warn);
+}
+
+/* A short window (M18-23): the tiny labels go (each item still says its name on hover and to a screen
+   reader), so the dock fits instead of scrolling with its end out of sight. */
+@media (max-height: 699px) {
+  .s-dock-label {
+    display: none;
+  }
+  .s-dock-item {
+    width: 48px;
+  }
+  .s-dock {
+    gap: var(--s-1);
+  }
 }
 
 /* The live mark breathes in opacity only. */
@@ -596,6 +654,11 @@
   flex-direction: column;
   gap: var(--s-2);
 }
+/* More below what shows (M18-14): the bottom edge fades, so the list reads as one that scrolls. */
+.s-cmd-list.has-more {
+  -webkit-mask-image: linear-gradient(var(--canvas) calc(100% - var(--s-10)), transparent);
+  mask-image: linear-gradient(var(--canvas) calc(100% - var(--s-10)), transparent);
+}
 .s-cmd-group-title {
   margin: 0;
   padding: var(--s-1) var(--s-2);
@@ -713,6 +776,20 @@
   }
   .s-cmd-help {
     display: none;
+  }
+  /* No key hints on a phone (M18-32). */
+  .s-sheet-item .k-kbd {
+    display: none;
+  }
+  /* "Open the full list" is a full-height target (M50 F9). */
+  .s-needs-full {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  /* The brand link is a full-height target (M50 F9). */
+  .s-topbar--narrow .s-brand {
+    min-height: 44px;
   }
 }
 

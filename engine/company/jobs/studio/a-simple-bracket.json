@@ -15,37 +15,37 @@
   "asks": [
     {
       "id": "first-arm-length",
-      "label": "First arm length:",
+      "label": "How long is the first arm, in millimetres?",
       "kind": "line",
       "required": true
     },
     {
       "id": "second-arm-length",
-      "label": "Second arm length:",
+      "label": "How long is the second arm, in millimetres?",
       "kind": "line",
       "required": true
     },
     {
       "id": "width",
-      "label": "Width:",
+      "label": "How wide, in millimetres?",
       "kind": "line",
       "required": true
     },
     {
       "id": "thickness",
-      "label": "Thickness:",
+      "label": "How thick, in millimetres?",
       "kind": "line",
       "required": true
     },
     {
       "id": "number-of-holes",
-      "label": "Number of holes:",
+      "label": "How many fixing holes?",
       "kind": "line",
       "required": true
     },
     {
       "id": "hole-size",
-      "label": "Hole size:",
+      "label": "How wide is each hole, in millimetres?",
       "kind": "line",
       "required": true
     }

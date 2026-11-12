@@ -15,7 +15,7 @@
   "asks": [
     {
       "id": "your-question",
-      "label": "Your question:",
+      "label": "What is your question?",
       "kind": "line",
       "required": true
     }

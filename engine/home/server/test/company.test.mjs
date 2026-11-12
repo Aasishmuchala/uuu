@@ -66,8 +66,8 @@ test("board off: not connected, still 200", async () => {
     const r = await call(h.url, "GET", "/api/company");
     assert.equal(r.status, 200);
     assert.equal(r.json.connected, false);
-    assert.match(r.json.notConnected.reason, /board is not answering/);
-    assert.equal(r.json.notConnected.next, "Run: engine start");
+    assert.match(r.json.notConnected.reason, /board is switched off/);
+    assert.equal(r.json.notConnected.next, "Open Health to see how to start it.");
     assert.deepEqual(r.json.agents, []);
     assert.equal((await call(h.url, "POST", `/api/company/agents/${IDS.agents.builder}/pause`, { body: {} })).status, 502);
   });

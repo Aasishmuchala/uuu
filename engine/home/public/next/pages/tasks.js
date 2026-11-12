@@ -20,13 +20,15 @@ import {
 } from "../kit/index.js";
 
 const COLUMN_IDS = ["backlog", "in_progress", "pending_review", "done", "failed", "canceled"];
+// The board's columns are named in the list's words (C3 25: plain column names, not the board's states).
+// Canceled tasks are shown with the failed ones, under one column: Stopped.
 const COLUMN_LABELS = {
-  backlog: "Backlog",
-  in_progress: "In progress",
-  pending_review: "Pending review",
-  done: "Done",
-  failed: "Failed",
-  canceled: "Canceled",
+  backlog: "Waiting to start",
+  in_progress: "Working",
+  pending_review: "Needs you",
+  done: "Finished",
+  failed: "Stopped",
+  canceled: "Stopped",
 };
 // Columns that stay slim, showing only their header, while they hold nothing.
 const SLIM_WHEN_EMPTY = new Set(["failed", "canceled"]);
@@ -71,6 +73,10 @@ const at = (t) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// A next step for the owner in words: a command ("Run: ...") stays off screen outside Health (C3 25, M50 F18);
+// Health is linked instead.
+export const plainNext = (next) => (/\bRun:/i.test(String(next ?? "")) ? "" : String(next ?? "").slice(0, 200));
+
 // The page's address for a view, a person and a department. The list, everyone and every department is plain `#/tasks`.
 export function address({ view, who, d } = {}) {
   const q = new URLSearchParams();
@@ -106,8 +112,21 @@ export function columnsOf(data) {
   return order.map((id) => {
     const c = byId.get(id) || {};
     const tasks = (Array.isArray(c.tasks) ? c.tasks : []).filter((t) => t && typeof t === "object").slice(0, MAX_TASKS_PER_COLUMN);
-    return { id, label: text(c.label) || COLUMN_LABELS[id], count: Math.max(num(c.count), tasks.length), tasks };
+    return { id, label: COLUMN_LABELS[id], count: Math.max(num(c.count), tasks.length), tasks };
   });
+}
+
+// The board's columns: the six of the answer with Failed and Canceled folded into one, Stopped (newest first).
+export function boardColumns(columns) {
+  const list = Array.isArray(columns) ? columns : [];
+  const out = list.filter((c) => c && c.id !== "failed" && c.id !== "canceled");
+  const stopped = list.filter((c) => c && (c.id === "failed" || c.id === "canceled"));
+  if (stopped.length) {
+    const tasks = stopped.flatMap((c) => c.tasks.map((t, i) => ({ t, i })))
+      .sort((a, b) => at(b.t) - at(a.t) || a.i - b.i).map((x) => x.t);
+    out.push({ id: "failed", label: COLUMN_LABELS.failed, count: stopped.reduce((n, c) => n + c.count, 0), tasks });
+  }
+  return out;
 }
 
 // The list view. Every card waiting for the owner goes under Needs you, whatever its column; the others go by
@@ -186,10 +205,11 @@ function Column({ c }) {
   </div>`;
 }
 
-// Failed and Canceled share the last place on the board, one above the other, so all six fit at 1280 px.
+// Stopped (failed and canceled together) takes the last place on the board, slim while it holds nothing.
 function Board({ columns }) {
-  const main = columns.filter((c) => !SLIM_WHEN_EMPTY.has(c.id));
-  const last = columns.filter((c) => SLIM_WHEN_EMPTY.has(c.id));
+  const folded = boardColumns(columns);
+  const main = folded.filter((c) => !SLIM_WHEN_EMPTY.has(c.id));
+  const last = folded.filter((c) => SLIM_WHEN_EMPTY.has(c.id));
   const allSlim = last.every((c) => c.count === 0);
   return html`<div class="p-tasks__board">
     ${main.map((c) => html`<${Column} key=${c.id} c=${c} />`)}
@@ -260,7 +280,7 @@ export default function Page({ route }) {
   </div>`;
 
   const filtered = who || d;
-  const showAll = html`<a href=${address({ view })}>Show every task</a>`;
+  const showAll = html`<a class="p-tasks__link" href=${address({ view })}>Show every task</a>`;
 
   let body;
   const data = res.data;
@@ -269,13 +289,15 @@ export default function Page({ route }) {
   } else if (!data && res.error) {
     const e = res.error;
     body = e.offline || e.status === 502
-      ? html`<${NotConnected} title="Tasks cannot be shown right now" reason=${e.message} next=${e.next} />`
+      ? html`<${NotConnected} title="Tasks cannot be shown right now" reason=${e.message} next=${plainNext(e.next)} />
+          <p><a class="p-tasks__link" href="#/health">Open Health</a></p>`
       : html`<div class="u-stack">
           <${ErrorNotice} error=${e} onRetry=${res.reload} />
           ${filtered && html`<p>${showAll}</p>`}
         </div>`;
   } else if (data && data.connected === false && data.notConnected) {
-    body = html`<${NotConnected} title="Tasks cannot be shown right now" reason=${text(data.notConnected.reason)} next=${text(data.notConnected.next)} />`;
+    body = html`<${NotConnected} title="Tasks cannot be shown right now" reason=${text(data.notConnected.reason)} next=${plainNext(data.notConnected.next)} />
+      <p><a class="p-tasks__link" href="#/health">Open Health</a></p>`;
   } else if (data) {
     const columns = columnsOf(data);
     const total = columns.reduce((n, c) => n + c.count, 0);
@@ -287,6 +309,7 @@ export default function Page({ route }) {
         ? html`<${Empty} title=${whose}>${showAll}<//>`
         : html`<${Empty} title="No tasks yet." text="A task is work you give an agent. Start one, or pick a job.">
             <${Button} variant="primary" icon="plus" onClick=${newTask}>New task<//>
+            <a class="p-tasks__link" href="#/jobs">See the jobs</a>
           <//>`;
     } else {
       body = view === "board" ? html`<${Board} columns=${columns} />` : html`<${List} groups=${groupsOf(columns)} />`;

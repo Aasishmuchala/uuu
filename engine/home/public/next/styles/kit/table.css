@@ -85,7 +85,16 @@
   line-height: var(--lh-tight);
   letter-spacing: -.01em;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: break-word;
+  white-space: nowrap;
+}
+
+/* Long figures step down a size, so they stay on one line (M51 F13). */
+.k-figures__value--long {
+  font-size: var(--fs-heading);
+}
+
+.k-figures__value--longer {
+  font-size: var(--fs-title);
 }
 
 .k-figures__hint {
@@ -105,6 +114,14 @@
 
   .k-figures__value {
     font-size: var(--fs-heading);
+  }
+
+  .k-figures__value--long {
+    font-size: var(--fs-title);
+  }
+
+  .k-figures__value--longer {
+    font-size: var(--fs-body);
   }
 
   .k-table {
@@ -148,6 +165,12 @@
     border-bottom: 0;
   }
 
+  /* A chip or tag in a stacked cell keeps its own width instead of stretching across it (M51 F21). */
+  .k-table__table td > * {
+    justify-self: start;
+    max-width: 100%;
+  }
+
   .k-table__table td::before {
     content: attr(data-label);
     font-size: var(--fs-over);
@@ -159,5 +182,17 @@
 
   .k-table__table tbody tr:hover td {
     background: transparent;
+  }
+}
+
+/* A phone: a tile with a long figure takes the whole row, and keeps its size. */
+@media (max-width: 479px) {
+  .k-figures__item:has(.k-figures__value--long),
+  .k-figures__item:has(.k-figures__value--longer) {
+    grid-column: 1 / -1;
+  }
+
+  .k-figures__value--long {
+    font-size: var(--fs-heading);
   }
 }

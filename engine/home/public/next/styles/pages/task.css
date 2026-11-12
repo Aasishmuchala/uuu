@@ -414,3 +414,28 @@
 .p-task .p-task__bar .p-task__accept-row .k-btn {
   flex: 1 1 0;
 }
+
+/* A phone: the small controls are 44 px targets; a link that wraps a chip pads the link itself (M50 F9). */
+@media (max-width: 859px) {
+  .p-task .p-task__chip-link {
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .p-task .p-task__pick-item {
+    min-height: 44px;
+    padding: var(--s-2) var(--s-3);
+  }
+
+  .p-task .p-task__summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .p-task .p-task__empty-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}

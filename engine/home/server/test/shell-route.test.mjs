@@ -49,7 +49,7 @@ test("shell: six departments in the pinned order, all connected with the bench o
     const r = await get(h);
     assert.deepEqual(r.json.departments.map((d) => d.id), ["books", "customers", "support", "people", "marketing", "studio"]);
     assert.deepEqual(r.json.departments.map((d) => d.title), ["Books", "Customers", "Support", "People", "Marketing", "Studio"]);
-    assert.deepEqual(r.json.engine, { board: "on", books: "on" });
+    assert.deepEqual(r.json.engine, { board: "on", books: "on", gate: "off" });
     assert.ok(r.json.departments.every((d) => d.connected === true));
   });
 });

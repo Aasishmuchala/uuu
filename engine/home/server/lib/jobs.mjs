@@ -6,6 +6,7 @@
 import { existsSync, lstatSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadJobFiles, NEEDS } from "../../../company/lib/job-files.mjs";
+import { loadStarters } from "../../../company/lib/brain-files.mjs";
 import { HomeError } from "./errors.mjs";
 import { plainState } from "./goals.mjs";
 import { booksState } from "./health.mjs";
@@ -179,7 +180,8 @@ export function runsIndex(ctx, tctx) {
     e.needsYou += tctx.needsYou.filter((i) => i.taskId === g.id).length;
     // tctx.goals are newest first, so the first seen is the last run.
     if (!e.last) e.last = { taskId: g.id, identifier: g.identifier || null, at: g.createdAt || null, plainState: plainState(g.status).plainState };
-    e.tasks.push({ taskId: g.id, identifier: g.identifier || null, title: g.title || "", accepted, at: g.createdAt || null });
+    const waiting = !accepted && g.status !== "cancelled" && tctx.needsYou.some((i) => i.taskId === g.id);
+    e.tasks.push({ taskId: g.id, identifier: g.identifier || null, title: g.title || "", accepted, waiting, at: g.createdAt || null });
   }
   return out;
 }
@@ -193,20 +195,68 @@ function whoOf(slugs, roles) {
   });
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// "12 Nov 2026", as every other date on screen; "" for no date.
+export function dayWords(at) {
+  const t = Date.parse(at);
+  if (!Number.isFinite(t)) return "";
+  const d = new Date(t);
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+// The label of an earlier task offered by a `task` question: its title and its date. Task refs stay off it
+// (C3 25 over the example of 33.3; M51 F8).
+export const taskOptionLabel = (t) => [String(t.title || "").slice(0, 160) || "A task", dayWords(t.at)].filter(Boolean).join(" · ");
+
+// The title of a file a job reads: a basic's title, else a starter pack's own title for a file in Packs
+// ("The proposal pack", so it is not mistaken for what the job writes; M51 F7), else the file's name.
+let startersCache = { dir: null, titles: null };
+function packTitles(config) {
+  const dir = join(config.engineDir, "company", "brain", "starters");
+  if (startersCache.dir === dir && startersCache.titles) return startersCache.titles;
+  const titles = new Map();
+  try {
+    for (const st of loadStarters(dir).starters) if (st.folder === "packs" && st.file && st.title) titles.set(st.file, String(st.title));
+  } catch { /* no starters: the file's name is used */ }
+  startersCache = { dir, titles };
+  return titles;
+}
+export function readTitle(config, rel) {
+  const m = /^packs\/([^/]+)$/.exec(String(rel || ""));
+  const pack = m ? packTitles(config).get(m[1]) : null;
+  return pack ? `The ${pack.toLowerCase()} pack` : brainTitle(rel);
+}
+
 function optionsOf(ask, job, runs, config) {
   switch (ask.kind) {
-    case "choice": return ask.options.map((o) => ({ value: o, label: o }));
-    case "file": return brainFiles(config, ask.folder, { max: FILE_OPTIONS }).map((f) => ({ value: f.path, label: f.name }));
-    case "media": return roomFiles(config).map((f) => ({ value: f.name, label: f.name }));
+    case "choice": return ask.options.map((o) => ({ value: o, label: o, ref: null }));
+    case "file": return brainFiles(config, ask.folder, { max: FILE_OPTIONS }).map((f) => ({ value: f.path, label: f.name, ref: null }));
+    case "media": return roomFiles(config).map((f) => ({ value: f.name, label: f.name, ref: null }));
     case "task": {
       const from = job.takes && Array.isArray(job.takes.from) ? job.takes.from : [];
       const list = [];
       if (runs instanceof Map) for (const ref of from) for (const t of runs.get(ref)?.tasks || []) if (t.accepted) list.push(t);
       list.sort((a, b) => String(b.at).localeCompare(String(a.at)));
-      return list.slice(0, TASK_OPTIONS).map((t) => ({ value: t.taskId, label: `${t.identifier || "Task"} · ${t.title}` }));
+      // `ref` is the task's short ref (STH-20), for the page to match ?from= and to fill the preview; not shown.
+      return list.slice(0, TASK_OPTIONS).map((t) => ({ value: t.taskId, label: taskOptionLabel(t), ref: t.identifier || null }));
     }
     default: return null;
   }
+}
+
+// What a job that follows earlier work needs first (M51 F6): the jobs it follows, by title, and the newest task
+// started from one of them that waits for the owner to accept it (null when none does).
+function takesOf(job, runs, catalogueJobs) {
+  if (!job.takes) return null;
+  const from = [...job.takes.from];
+  const after = from.map((id) => ({ id, title: catalogueJobs?.get(id)?.title || id }));
+  let waiting = null;
+  if (runs instanceof Map) {
+    const all = from.flatMap((ref) => runs.get(ref)?.tasks || []).filter((t) => t.waiting);
+    all.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    if (all[0]) waiting = { taskId: all[0].taskId, title: all[0].title || "A task" };
+  }
+  return { from, label: job.takes.label, after, waiting };
 }
 
 // jobView(job, { needs, runs, config, roles }) -> shape `job` (33.3). `runs` is runsIndex's Map (or this
@@ -226,11 +276,11 @@ export function jobView(job, { needs, runs, config, roles } = {}) {
     title: job.title, summary: job.summary, handoff: job.handoff, stage: job.stage, size: job.size, planFirst: job.planFirst,
     who: whoOf(job.who, allRoles),
     reads: job.reads.map((r) => ({
-      file: r.file, title: brainTitle(r.file), need: r.need, state: brainFileState(config, r.file),
+      file: r.file, title: readTitle(config, r.file), need: r.need, state: brainFileState(config, r.file),
       link: { page: "files", id: brainToken(r.file) },
     })),
     asks: job.asks.map((a) => ({ id: a.id, label: a.label, kind: a.kind, required: a.required, options: optionsOf(a, job, runs, config) })),
-    takes: job.takes ? { from: [...job.takes.from], label: job.takes.label } : null,
+    takes: takesOf(job, runs, job.takes ? loadCatalogue(config).jobs : null),
     text: job.text,
     ready, why,
     runs: own ? { total: own.total, accepted: own.accepted, working: own.working, needsYou: own.needsYou, last: own.last ? { ...own.last } : null } : NO_RUNS(),

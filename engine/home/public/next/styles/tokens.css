@@ -34,6 +34,7 @@
   --bg-warm: rgba(251,191,36,.10);
   --border-warm: rgba(251,191,36,.42);
   --live: #4ade80;
+  --live-text: #4ade80;
   --shadow-pop: 0 16px 48px rgba(0,0,0,.55);
 
   --dept-operations: #8b9cff;
@@ -149,7 +150,7 @@
 
   --canvas: #f6f5f2;
   --glass: rgba(255,255,255,.78);
-  --glass-strong: rgba(255,255,255,.94);
+  --glass-strong: rgba(255,255,255,.97);
   --glass-soft: rgba(15,17,23,.04);
   --hairline: rgba(15,17,23,.10);
   --hairline-strong: rgba(15,17,23,.20);
@@ -175,6 +176,7 @@
   --bg-warm: rgba(217,119,6,.10);
   --border-warm: rgba(217,119,6,.45);
   --live: #16a34a;
+  --live-text: #15803d;
   --shadow-pop: 0 16px 48px rgba(20,21,26,.16);
 
   --dept-operations: #4f5bd5;
@@ -222,7 +224,7 @@
 
     --canvas: #f6f5f2;
     --glass: rgba(255,255,255,.78);
-    --glass-strong: rgba(255,255,255,.94);
+    --glass-strong: rgba(255,255,255,.97);
     --glass-soft: rgba(15,17,23,.04);
     --hairline: rgba(15,17,23,.10);
     --hairline-strong: rgba(15,17,23,.20);
@@ -248,6 +250,7 @@
     --bg-warm: rgba(217,119,6,.10);
     --border-warm: rgba(217,119,6,.45);
     --live: #16a34a;
+    --live-text: #15803d;
     --shadow-pop: 0 16px 48px rgba(20,21,26,.16);
 
     --dept-operations: #4f5bd5;

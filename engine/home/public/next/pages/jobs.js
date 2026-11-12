@@ -206,7 +206,12 @@ function ChipRow({ label, items }) {
   </div>`;
 }
 
+// How many of the three chip rows have a choice on (shown on the narrow Filter chip; M51 F23).
+export const chipsOn = (f) => [f && f.d, f && f.handoff, f && f.stage].filter(Boolean).length;
+
 function Filters({ f, departments, words, onWords }) {
+  const [open, setOpen] = useState(false);
+  const on = chipsOn(f);
   const go = (change) => address({ ...f, q: words, ...change });
   const depts = [{ id: "all", label: "All", href: go({ d: "" }), on: !f.d },
     ...departments.map((d) => ({ id: d.id, label: d.title, dept: d.id, href: go({ d: d.id }), on: f.d === d.id }))];
@@ -222,9 +227,15 @@ function Filters({ f, departments, words, onWords }) {
       <//>
       <${Switch} on=${f.ready} label="Ready only" onChange=${(on) => { location.hash = go({ ready: on }); }} />
     </div>
-    <${ChipRow} label="Department" items=${depts} />
-    <${ChipRow} label="Hand-off" items=${handoffs} />
-    <${ChipRow} label="Stage" items=${stages} />
+    <button type="button" class=${`p-jobs__fold${on ? " p-jobs__fold--on" : ""}`} aria-expanded=${open ? "true" : "false"}
+      aria-controls="p-jobs-chip-rows" onClick=${() => setOpen(!open)}>
+      <${Icon} name="filter" size=${14} />Filter${on ? html` <span class="p-jobs__fold-n">${on} on</span>` : null}
+    </button>
+    <div id="p-jobs-chip-rows" class=${`p-jobs__chip-rows${open ? " is-open" : ""}`}>
+      <${ChipRow} label="Department" items=${depts} />
+      <${ChipRow} label="Hand-off" items=${handoffs} />
+      <${ChipRow} label="Stage" items=${stages} />
+    </div>
   </div>`;
 }
 
@@ -278,15 +289,18 @@ function ListView({ data, f, words, onWords }) {
   const narrowed = filtering({ ...known, q: words });
   return html`
     <${Filters} f=${known} departments=${departments} words=${words} onWords=${onWords} />
-    <p class="p-jobs__count" aria-live="polite">
-      ${narrowed ? `Showing ${now.jobs} of ${plural(total.jobs, "job")}` : `${plural(total.jobs, "job")} · ${total.ready} ready to start`}
-    </p>
+    <div class="p-jobs__top">
+      <p class="p-jobs__count" aria-live="polite">
+        ${narrowed ? `Showing ${now.jobs} of ${plural(total.jobs, "job")}` : `${plural(total.jobs, "job")} · ${total.ready} ready to start`}
+        ${narrowed && shown.length ? html` <a class="p-jobs__every" href="#/jobs">Show every job</a>` : null}
+      </p>
+      <${Legend} open=${false} />
+    </div>
     ${total.jobs === 0
       ? html`<${Empty} title="There are no jobs yet." text="Jobs appear here once the company's job files are in place." />`
       : shown.length === 0
         ? html`<${Empty} title="No job matches." text="Try fewer words or another filter."><a href="#/jobs">Show every job</a><//>`
-        : html`<div class="p-jobs__depts">${shown.map((d) => html`<${Department} key=${d.id} d=${d} />`)}</div>`}
-    <${Legend} open=${false} />`;
+        : html`<div class="p-jobs__depts">${shown.map((d) => html`<${Department} key=${d.id} d=${d} />`)}</div>`}`;
 }
 
 function Band({ band, brainState }) {

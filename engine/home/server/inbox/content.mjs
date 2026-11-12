@@ -108,7 +108,7 @@ async function act(ctx, itemId, action, note) {
   if (action === "send_back") {
     const ids = needIds(ctx);
     const marketer = ids.agents?.marketer;
-    if (!marketer) throw ctx.fail(409, "The Marketer is not set up yet.", "Run engine setup first.", "not_set_up");
+    if (!marketer) throw ctx.fail(409, "The Marketer is not set up yet.", "Open Health to see how to set up the engine.", "not_set_up");
     const where = d.sourcePath.split("/");
     // An earlier fix task for this draft is replaced by this one (best effort; never fails the send-back).
     await closeFixTasks(ctx, itemId);

@@ -34,3 +34,9 @@ test("routines: the page keeps its states and holds no address", async () => {
   assert.match(src, /No routines yet/);
   assert.match(src, /Left out/);
 });
+
+test("routines: the last run is named by its task's title, never by a ref alone (M52 F7)", async () => {
+  const m = await import("../../pages/routines.js");
+  assert.equal(m.runLinkLabel({ taskId: "x", identifier: "STH-14", title: "Daily brief" }), "Daily brief");
+  assert.equal(m.runLinkLabel({ taskId: "x", identifier: "STH-14" }), "Open the last run");
+});

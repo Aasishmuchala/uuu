@@ -112,7 +112,7 @@
   transform: translateY(-1px);
 }
 .p-dashboards .p-dashboards-quiet { margin: 0; color: var(--text-3); font-size: var(--fs-caption); }
-.p-dashboards .p-dashboards-off { display: flex; flex-direction: column; gap: var(--s-2); margin-top: auto; }
+.p-dashboards .p-dashboards-off { display: flex; flex-direction: column; gap: var(--s-2); }  /* at the top, as on every card (M51 F26) */
 .p-dashboards .p-dashboards-off-title {
   margin: 0;
   display: inline-flex;

@@ -23,9 +23,21 @@ export function departmentOf(slug, departments) {
   return null;
 }
 
-// The words under an agent's card: a note when it is not on the board yet. The department is its own chip.
+// The words under an agent's card: a note only when the board answered and does not have the agent. With the
+// board off `applied` is null (not known), and no card says anything: the notice above the cards says why.
+// The department is its own chip.
 export function cardNotes(agent) {
-  return agent && agent.applied === false ? ["Not set up yet. Run: engine setup"] : [];
+  return agent && agent.applied === false ? ["Not set up yet."] : [];
+}
+
+// The next step of a not-connected notice, in words with a link to Health (Health shows the command).
+export function HealthNext({ text: words }) {
+  const t = text(words).trim();
+  const link = html`<a href="#/health">Open Health</a>`;
+  // "Open Health to see how to start it." keeps its words, with "Open Health" as the link.
+  const at = t.indexOf("Open Health");
+  if (at >= 0 && !/\bRun:/.test(t)) return html`<span class="p-team__next">${t.slice(0, at)}${link}${t.slice(at + 11)}</span>`;
+  return html`<span class="p-team__next">${t && !/\bRun:/.test(t) ? `${t} ` : ""}${link}</span>`;
 }
 
 // The page's lead line: how many agents, and how many are working.
@@ -51,7 +63,7 @@ function Card({ agent, departments }) {
     <${AgentCard} agent=${agent} />
     ${(dept || note) && html`<div class="p-team__under">
       <${DeptChip} department=${dept} />
-      ${note && html`<p class="p-team__note">${note}</p>`}
+      ${note && html`<p class="p-team__note">${note} <a href="#/health">Open Health</a></p>`}
     </div>`}
   </li>`;
 }
@@ -71,9 +83,9 @@ export default function Page() {
   else {
     body = html`
       ${d && d.connected === false && html`<${NotConnected}
-        title="The board is not answering"
-        reason=${text(d.notConnected && d.notConnected.reason) || "The engine is not running."}
-        next=${text(d.notConnected && d.notConnected.next) || "Run: engine start"} />`}
+        title="The board is switched off"
+        reason=${text(d.notConnected && d.notConnected.reason) || "The board is switched off, so agents and tasks cannot be reached."}
+        next=${html`<${HealthNext} text=${d.notConnected && d.notConnected.next} />`} />`}
       ${agents.length
         ? html`<ul class="p-team__grid">${agents.map((a) => html`<${Card} key=${a.slug} agent=${a} departments=${departments} />`)}</ul>`
         : html`<${Empty} title="No agents yet" text="The company file names no agents." />`}`;

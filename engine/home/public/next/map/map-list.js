@@ -47,8 +47,8 @@ export function DepartmentSection({ dept, onNeeds, level = 2, links = true }) {
       </div>
     </div>
     ${links ? html`<p class="p-map__dept-links">
-      <a href=${`#/departments/${id}`}>Open</a>
-      <a href=${`#/jobs?d=${id}`}>See its jobs</a>
+      <a class="p-map__link-chip" href=${`#/departments/${id}`}>Open ${clip(dept.title, 40)}</a>
+      <a class="p-map__link-chip" href=${`#/jobs?d=${id}`}>See its jobs</a>
     </p>` : null}
     ${clusters.map((c) => {
       const jobs = jobsOf(c);
@@ -73,7 +73,7 @@ export function MapList({ data, onNeeds }) {
         <h2 class="p-map__dept-title" id="p-map-brain">Company brain</h2>
         <p class="p-map__dept-line">${brainLine(brain)}</p>
       </div>
-      <a class="p-map__row-go" href="#/files">Open Files <${Icon} name="chevron-right" size=${14} /></a>
+      <a class="p-map__row-go p-map__link-chip" href="#/files">Open Files <${Icon} name="chevron-right" size=${14} /></a>
     </section>
     ${departmentsOf(data).map((d) => html`<div key=${d.id} class="p-map__card u-glass"><${DepartmentSection} dept=${d} onNeeds=${onNeeds} /></div>`)}
   </div>`;

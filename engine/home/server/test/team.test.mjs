@@ -36,7 +36,7 @@ test("the Marketer is working and says what it is doing", async () => {
   });
 });
 
-test("with the board off the ten agents come from the file, not applied", async () => {
+test("with the board off the ten agents come from the file, applied not known", async () => {
   const h = await startV2({ ...OPTS, port: 0, boardSeed: boardSeedV2() });
   try {
     await h.board.close();
@@ -45,11 +45,13 @@ test("with the board off the ten agents come from the file, not applied", async 
     assert.equal(r.json.connected, false);
     assert.ok(r.json.notConnected.reason && r.json.notConnected.next);
     assert.deepEqual(r.json.agents.map((a) => a.slug), SLUGS);
-    assert.ok(r.json.agents.every((a) => a.applied === false && a.state === "free"));
+    assert.ok(r.json.agents.every((a) => a.applied === null && a.state === "free"));
     assert.deepEqual(sameShape(readShape("team"), r.json), []);
     const one = await agent(h, "artist");
     assert.equal(one.status, 200);
-    assert.equal(one.json.agent.applied, false);
+    assert.equal(one.json.agent.applied, null);
+    assert.equal(one.json.connected, false);
+    assert.ok(one.json.notConnected.reason);
     assert.deepEqual(one.json.conversation, []);
   } finally { await h.close(); }
 });

@@ -134,6 +134,14 @@
   outline-offset: 2px;
 }
 
+/* The zoom's label, −, the value and + stay together on one line (M51 F26). */
+.p-sprite-player .p-sprite-player__zoom-group {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+  white-space: nowrap;
+}
+
 .p-sprite-player .p-sprite-player__zoom {
   min-width: 2.5em;
   text-align: center;
@@ -233,6 +241,8 @@
   height: 20px;
   border: 1px solid var(--hairline-strong);
   border-radius: var(--r-pill);
+  /* A ring round each swatch, so a colour near the card's own (near black on dark) can still be seen (M51 F26). */
+  box-shadow: 0 0 0 1px var(--bg), 0 0 0 2px var(--text-3);
 }
 
 .p-sprite-player .p-sprite-player__hex {
@@ -253,6 +263,8 @@
   .p-sprite-player .p-sprite-player__thumb {
     min-height: 44px;
   }
+
+  .p-sprite-player .p-sprite-player__toggle { min-width: 44px; }
 
   .p-sprite-player .p-sprite-player__stage {
     min-height: 180px;

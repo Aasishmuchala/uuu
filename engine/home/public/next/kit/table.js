@@ -26,6 +26,13 @@ export function DataTable({ columns = [], rows = [], emptyText = "Nothing to sho
   </div>`;
 }
 
+// A figure never breaks over two lines (a sum split like "₹ 1,18,000.0 / 0" is easy to misread, M51 F13); a long
+// one is drawn smaller instead. Pure: the class for a value.
+export function figureClass(v) {
+  const n = text(v).length;
+  return n > 16 ? "k-figures__value k-figures__value--longer" : n > 9 ? "k-figures__value k-figures__value--long" : "k-figures__value";
+}
+
 // figures: [{ id, label, value, hint }]. Values arrive already formatted.
 // A currency sign stays on the same line as its number ("₹ 1,18,000.00" never breaks after the sign).
 export const glueValue = (v) => text(v).replace(/(^|\s)([₹$€£]|Rs\.?)\s+(?=[-\d])/g, "$1$2\u00a0");
@@ -36,7 +43,7 @@ export function Figures({ figures = [] }) {
   return html`<dl class="k-figures">
     ${list.map((f) => html`<div class="k-figures__item" key=${f.id}>
       <dt class="k-figures__label">${text(f.label)}</dt>
-      <dd class="k-figures__value">${glueValue(f.value)}</dd>
+      <dd class=${figureClass(f.value)}>${glueValue(f.value)}</dd>
       ${f.hint && html`<dd class="k-figures__hint">${text(f.hint)}</dd>`}
     </div>`)}
   </dl>`;

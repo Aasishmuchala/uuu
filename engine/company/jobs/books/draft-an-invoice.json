@@ -20,37 +20,37 @@
   "asks": [
     {
       "id": "customer",
-      "label": "Customer:",
+      "label": "Which customer is it for?",
       "kind": "line",
       "required": true
     },
     {
       "id": "what-was-sold",
-      "label": "What was sold:",
+      "label": "What was sold?",
       "kind": "line",
       "required": true
     },
     {
       "id": "amount",
-      "label": "Amount:",
+      "label": "What is the amount before GST?",
       "kind": "line",
       "required": true
     },
     {
       "id": "rate",
-      "label": "Rate:",
+      "label": "What GST rate, in percent?",
       "kind": "line",
       "required": true
     },
     {
       "id": "date",
-      "label": "Date:",
+      "label": "What is the invoice date?",
       "kind": "date",
       "required": true
     },
     {
       "id": "number",
-      "label": "Number:",
+      "label": "How many days to pay?",
       "kind": "line",
       "required": true
     }

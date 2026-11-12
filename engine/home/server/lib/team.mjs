@@ -96,7 +96,8 @@ function boardAgentOf(role, tctx) {
   return (id && list.find((a) => a.id === id)) || list.find((a) => a.name === role.name) || null;
 }
 
-// agentCards(ctx, tctx) -> [AgentCard]. With tctx null (the board is off) the cards come from the file alone.
+// agentCards(ctx, tctx) -> [AgentCard]. With tctx null (the board is off) the cards come from the file alone, and
+// `applied` is null: not known, since only the board can say whether an agent is set up.
 export function agentCards(ctx, tctx) {
   const roles = loadRoles(ctx.config, { log: ctx.log });
   return roles.map((role) => {
@@ -108,7 +109,7 @@ export function agentCards(ctx, tctx) {
     if (!agent) {
       return {
         ...base, state: "free", plainState: tctx ? "Not set up yet" : "Not known", doingNow: null,
-        waitingForYou: false, lastActiveAt: null, applied: false,
+        waitingForYou: false, lastActiveAt: null, applied: tctx ? false : null,
       };
     }
     const live = tctx.liveByAgent.get(agent.id) || null;

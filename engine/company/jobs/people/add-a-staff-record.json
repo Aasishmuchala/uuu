@@ -15,31 +15,31 @@
   "asks": [
     {
       "id": "full-name",
-      "label": "Full name:",
+      "label": "What is their full name?",
       "kind": "line",
       "required": true
     },
     {
       "id": "job-title",
-      "label": "Job title:",
+      "label": "What is their job title?",
       "kind": "line",
       "required": true
     },
     {
       "id": "start-date",
-      "label": "Start date:",
+      "label": "When do they start?",
       "kind": "date",
       "required": true
     },
     {
       "id": "email-address",
-      "label": "Email address:",
+      "label": "What is their email address?",
       "kind": "line",
       "required": true
     },
     {
       "id": "manager",
-      "label": "Manager:",
+      "label": "Who do they report to?",
       "kind": "line",
       "required": true
     }

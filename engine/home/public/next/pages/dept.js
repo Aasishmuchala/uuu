@@ -7,6 +7,7 @@
 import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
+import { HealthNext } from "./team.js";
 import {
   AgentCard, AgentChip, AgentState, Card, Chip, Composer, Creature, Empty, ErrorNotice, Field, Icon, JobChip,
   Loading, NotConnected, PageHeader, Select, STARTED, TaskRow, UNDER_START, jobHref,
@@ -15,8 +16,10 @@ import {
 const SLUG = /^[a-z][a-z0-9-]{1,30}$/;
 const RECENT = 10;
 // What the notice says when only the shell tells that the board is off (the map's answer carries its own words).
-const OFF_REASON = "The board is not answering, so agents and tasks cannot be reached.";
-const OFF_NEXT = "Run: engine start";
+const OFF_REASON = "The board is switched off, so agents and tasks cannot be reached.";
+const OFF_NEXT = "Open Health to see how to start it.";
+// Below 860 px the Can run list shows this many chips, then "Show all n" (M51 F24).
+export const NARROW_CHIPS = 6;
 
 const text = (v) => (v === null || v === undefined ? "" : String(v));
 const cap = (v, n = 200) => {
@@ -106,8 +109,8 @@ export function noTasksLine(name, off = null) {
   return off ? "Tasks cannot be shown right now." : `No tasks yet. What you give ${text(name) || "it"} below shows here.`;
 }
 
-// The line under the composer: how long a task takes, or that none can start while the board is not connected.
-export const captionUnder = (off = null) => (off ? "A task cannot start until the board is connected." : UNDER_START);
+// The line under the composer: how long a task takes, or that none can be given while the board is off.
+export const captionUnder = (off = null) => (off ? "Tasks cannot be given while the board is off." : UNDER_START);
 
 // Waiting opens the Needs you drawer for this department; working opens the task; idle is only words.
 function StateChip({ state, department, off }) {
@@ -124,8 +127,10 @@ function StateChip({ state, department, off }) {
 }
 
 function CanRun({ jobs }) {
+  const [all, setAll] = useState(false);
   if (!jobs.length) return html`<p class="p-dept__muted">No jobs yet. Give it a task below in your own words.</p>`;
-  return html`<ul class="p-dept__jobs">
+  const more = jobs.length > NARROW_CHIPS;
+  return html`<ul class=${`p-dept__jobs${more && !all ? " p-dept__jobs--some" : ""}`}>
     ${jobs.map((j) => {
       const why = j.ready === false ? whyText(j) : "";
       return html`<li key=${j.id} class=${`p-dept__job${why ? " p-dept__job--dim" : ""}`}>
@@ -133,7 +138,8 @@ function CanRun({ jobs }) {
         ${why && html`<span class="p-dept__why" role="note">${why}</span>`}
       </li>`;
     })}
-  </ul>`;
+  </ul>
+  ${more && !all && html`<button type="button" class="p-dept__more" onClick=${() => setAll(true)}>Show all ${jobs.length}</button>`}`;
 }
 
 function Head({ data, off }) {
@@ -233,12 +239,15 @@ function Give({ data, off, onSent }) {
           options=${agents.map((a) => ({ value: a.slug, label: text(a.name) || a.slug }))} />
       <//>
     </div>`}
-    <${Composer}
-      placeholder=${composerPlaceholder(name)}
-      agents=${[]}
-      templates=${jobs}
-      onPickJob=${pickJob}
-      onSend=${send} />
+    <fieldset class=${`p-dept__box${off ? " p-dept__box--off" : ""}`} disabled=${!!off}>
+      <legend class="k-sr">${composerPlaceholder(name)}</legend>
+      <${Composer}
+        placeholder=${composerPlaceholder(name)}
+        agents=${[]}
+        templates=${jobs}
+        onPickJob=${pickJob}
+        onSend=${send} />
+    </fieldset>
     <p class="p-dept__caption">${captionUnder(off)}</p>
   </div>`;
 }
@@ -267,7 +276,8 @@ export default function Page({ route }) {
 
   const off = boardOffOf(map.data, shell);
   return html`<div class="p-dept" data-dept=${text(d.department.id)}>
-    ${off && html`<${NotConnected} title=${offTitle(d.department.title)} reason=${off.reason} next=${off.next} />`}
+    ${off && html`<${NotConnected} title=${offTitle(d.department.title)} reason=${off.reason}
+      next=${html`<${HealthNext} text=${off.next} />`} />`}
     <${Head} data=${d} off=${off} />
     <${Agents} agents=${d.agents} />
     <${Tasks} data=${d} off=${off} />

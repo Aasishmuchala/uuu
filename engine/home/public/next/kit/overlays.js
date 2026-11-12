@@ -13,7 +13,9 @@ const activeElement = () => (typeof document === "undefined" ? null : document.a
 
 // Focus moves in on open (to an element marked data-autofocus, else the first control of the body,
 // else the panel), is kept inside on Tab, and goes back to the opener when the overlay goes away.
-function useFocusTrap(panelRef, onClose) {
+// A drawer (`firstClose`) starts on its Close button instead: its body is a long list that is often still
+// loading, and its first control could be far down, out of sight (M52 K1).
+function useFocusTrap(panelRef, onClose, firstClose = false) {
   const close = useRef(onClose);
   close.current = onClose;
   useEffect(() => {
@@ -22,6 +24,7 @@ function useFocusTrap(panelRef, onClose) {
     if (panel) {
       const pick =
         (panel.querySelector && panel.querySelector("[data-autofocus]")) ||
+        (firstClose && panel.querySelector && panel.querySelector("[data-overlay-close]")) ||
         focusables(panel.querySelector && panel.querySelector("[data-overlay-body]"))[0] ||
         panel;
       if (pick && typeof pick.focus === "function") pick.focus();
@@ -60,7 +63,7 @@ function useFocusTrap(panelRef, onClose) {
 function OverlayHead({ id, title, onClose, cls }) {
   return html`<div class=${`${cls}__head`}>
     <h2 class=${`${cls}__title`} id=${id}>${title}</h2>
-    <${Button} variant="quiet" icon="cross" aria-label="Close" class=${`${cls}__close`} onClick=${() => onClose && onClose()} />
+    <${Button} variant="quiet" icon="cross" aria-label="Close" class=${`${cls}__close`} data-overlay-close onClick=${() => onClose && onClose()} />
   </div>`;
 }
 
@@ -96,7 +99,7 @@ export function Dialog({ open, title, onClose, size = "md", footer, children }) 
 function DrawerPanel({ side, title, onClose, children }) {
   const ref = useRef(null);
   const [id] = useState(() => nextId("k-drawer"));
-  const onKeyDown = useFocusTrap(ref, onClose);
+  const onKeyDown = useFocusTrap(ref, onClose, true);
   return html`<div class=${cx("k-drawer", `k-drawer--${side === "left" ? "left" : "right"}`)}>
     <div class="k-drawer__backdrop" aria-hidden="true" onClick=${() => onClose && onClose()}></div>
     <div ref=${ref} class="k-drawer__panel" role="dialog" aria-modal="true" aria-labelledby=${id} tabindex="-1" onKeyDown=${onKeyDown}>

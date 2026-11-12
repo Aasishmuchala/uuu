@@ -80,12 +80,33 @@ test("tasks: older counts what the answer left out of a column", () => {
 test("tasks: columnsOf always gives six well-formed columns for the board", () => {
   const cols = mod.columnsOf(sample);
   assert.deepEqual(cols.map((c) => c.id), ["backlog", "in_progress", "pending_review", "done", "failed", "canceled"]);
-  assert.deepEqual(cols.map((c) => c.label), ["Backlog", "In progress", "Pending review", "Done", "Failed", "Canceled"]);
+  // Plain words, the list's own, whatever labels the answer carried (M50 F4).
+  assert.deepEqual(cols.map((c) => c.label), ["Waiting to start", "Working", "Needs you", "Finished", "Stopped", "Stopped"]);
   assert.equal(cols[0].tasks.length, 1);
   assert.equal(cols[5].count, 0);
   assert.deepEqual(mod.columnsOf(null).map((c) => c.count), [0, 0, 0, 0, 0, 0]);
   const odd = mod.columnsOf({ columns: [{ id: "done", count: 0, tasks: [card, null, "x"] }] });
   assert.equal(odd.find((c) => c.id === "done").count, 1);
+});
+
+test("tasks: the board folds Failed and Canceled into one column, Stopped, newest first (M50 F4)", () => {
+  const board = mod.boardColumns(mod.columnsOf(sixColumns()));
+  assert.deepEqual(board.map((c) => c.label), ["Waiting to start", "Working", "Needs you", "Finished", "Stopped"]);
+  const stopped = board[4];
+  assert.equal(stopped.id, "failed");
+  assert.equal(stopped.count, 2);
+  assert.equal(stopped.tasks.length, 2);
+  assert.ok(Date.parse(stopped.tasks[0].updatedAt || 0) >= Date.parse(stopped.tasks[1].updatedAt || 0) || !stopped.tasks[1].updatedAt);
+  assert.deepEqual(mod.boardColumns(null), []);
+  for (const w of ["Backlog", "In progress", "Pending review", "Canceled", "Failed"]) {
+    assert.ok(!board.some((c) => c.label === w), `${w} is not a column name`);
+  }
+});
+
+test("tasks: the empty page offers a way to the jobs it names (M50 F19)", () => {
+  const src = readFileSync(new URL("../../pages/tasks.js", import.meta.url), "utf8");
+  assert.match(src, /Start one, or pick a job\./);
+  assert.match(src, /href="#\/jobs">See the jobs</);
 });
 
 test("tasks: groupsOf puts every card waiting for the owner under Needs you, then groups by column", () => {

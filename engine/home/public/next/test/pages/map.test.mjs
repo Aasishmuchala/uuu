@@ -68,6 +68,8 @@ test("map: the words a dot gets for a screen reader", () => {
   assert.equal(view.dotLabel({ ...job, working: 0 }), "Call write-up, On its own, ready");
   assert.equal(view.dotLabel(job), "Call write-up, On its own, ready, being worked on");
   assert.equal(view.dotLabel({ ...job, ready: false, working: 0, needsYou: 1, handoff: "you-approve" }), "Call write-up, You approve, cannot start yet, needs you");
+  // At work and unable to start again: the work first, then why a new one cannot start (M18-15).
+  assert.equal(view.dotLabel({ ...job, ready: false, working: 1 }), "Call write-up, On its own, being worked on, a new one cannot start yet");
   assert.equal(view.dotLabel({ title: "x".repeat(90), handoff: "nobody" }), `${"x".repeat(60)}, ready`);
 });
 
@@ -81,7 +83,8 @@ test("map: which marks a dot shows", () => {
 
 test("map: the brain's line and its words for a screen reader", () => {
   assert.equal(view.brainLine({ ...map.brain, asking: null }), "12 files · 4 of 9 basics filled");
-  assert.equal(view.brainLine(map.brain), "Reading your files");
+  // The count stays while a question is open (M18-06): the ring and the chip say a question is being read.
+  assert.equal(view.brainLine(map.brain), "12 files · 4 of 9 basics filled");
   assert.equal(view.brainLine({ files: 1, basics: { filled: 0, total: 9 } }), "1 file · 0 of 9 basics filled");
   assert.equal(view.brainLabel({ ...map.brain, asking: null }), "Company brain, 12 files, 4 of 9 basics filled");
   assert.equal(view.brainLabel(map.brain), "Company brain, 12 files, 4 of 9 basics filled, reading your files");
@@ -106,13 +109,16 @@ test("map: the overview holds at most 16 dots a hub, and the seven fallback hubs
   assert.deepEqual(list.listOrder(odd), ["sales/call-write-up"]);
 });
 
-test("map: a zoomed job's label leaves room for its hand-off pill, and the layout keeps labels apart", () => {
+test("map: a zoomed job's label leaves room for its cluster's pill column, and the layout keeps labels apart", () => {
   const input = view.departmentInput(fullMap().departments[6]);
   for (const c of input.clusters) {
+    const longest = Math.max(...c.jobs.map((j) => j.title.trimEnd().length));
+    assert.equal(new Set(c.jobs.map((j) => j.title.length)).size, 1, "a cluster's labels are one width, so its pills stand in one column");
     for (const j of c.jobs) {
-      const title = j.title.trimEnd();
-      const room = layout.labelWidth(j.title);
-      assert.ok(room >= 6.6 * title.length + 10 + view.pillWidth("You approve"), `${title} has room for its pill`);
+      const label = { x: 0, anchor: "start" };
+      const right = view.pillX(label, longest, view.pillWidth("You approve")) + view.pillWidth("You approve");
+      assert.ok(layout.labelWidth(j.title) >= right, `${j.title.trimEnd()} has room for the pill column`);
+      assert.ok(view.TITLE_CHAR * longest + view.PILL_GAP <= view.pillX(label, longest, 0), "the column starts past the longest title");
     }
   }
   const lay = layout.layoutDepartment(input);
@@ -124,6 +130,30 @@ test("map: a zoomed job's label leaves room for its hand-off pill, and the layou
       assert.ok(!(a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom), "two labels overlap");
     }
   }
+});
+
+test("map: the words of the zoomed drawing: the cluster's overline and a job's note", () => {
+  assert.equal(view.clusterWords("Calls", 3), "CALLS · 3");
+  assert.equal(view.jobNote({ why: { text: "Fill in \"Terms\" first." }, working: 0 }), "Fill in \"Terms\" first.");
+  assert.equal(view.jobNote({ why: { text: "Fill in \"Terms\" first." }, working: 1 }), "Being worked on. A new one cannot start yet: Fill in \"Terms\" first.");
+  assert.equal(view.jobNote({ ready: true, working: 1 }), "");
+});
+
+test("map: a zoomed department is laid out in screen pixels, fanned when it fits, else shown as its list (M18-02)", () => {
+  const input = view.departmentInput(fullMap().departments[3]);
+  // A 1280 × 900 window gives the view about 1184 × 648: one map unit is one pixel, so titles are 14 px.
+  const big = view.departmentFrame({ w: 1184, h: 648 }, input);
+  assert.equal(big.fits, true);
+  assert.equal(big.scale, 1);
+  assert.deepEqual([big.w, big.h], [1184, 648]);
+  assert.equal(big.lay.mode, "fan");
+  assert.ok(big.lay.jobs.every((j) => j.y < big.h - view.NAME_ROOM), "the drawing keeps the band under the hub for its name");
+  // Too small to fan out even at 0.9: the list, never a drawing with words under about 12.5 px.
+  const small = view.departmentFrame({ w: 420, h: 300 }, input);
+  assert.equal(small.fits, false);
+  // Before the view is measured: the layout's own 1200 × 760.
+  assert.equal(view.departmentFrame(null, input).measured, false);
+  for (const k of view.SCALES) assert.ok(k >= 0.9);
 });
 
 test("map: Tab walks a zoomed department column by column, top to bottom", () => {
@@ -161,6 +191,26 @@ test("map: the ask routes' refusals become plain sentences", () => {
   const other = page.askProblem({ status: 502, code: "offline", message: "The engine is not answering.", next: "Run: engine start" });
   assert.deepEqual(other, { kind: "error", message: "The engine is not answering.", next: "Run: engine start" });
   for (const p of [page.ASK_NOT_READY, page.ASK_NOT_FOUND]) assert.doesNotMatch(`${p.message} ${p.next}`, /\b(404|api|route|ask_)\b/i);
+});
+
+test("map: the error and the words around it are plain (M50 F16, M18-C2)", () => {
+  assert.match(page.MAP_ERROR, /^The map could not be read\./);
+  assert.doesNotMatch(page.MAP_ERROR, /board|Retry|api|\d{3}/i);
+  const src = readFileSync(new URL("../../pages/map.js", import.meta.url), "utf8");
+  assert.match(src, />Back to the map</);
+  assert.doesNotMatch(src, />All departments</);
+  // The legend and Today are not shown over a map that could not be read.
+  assert.match(src, /narrow \|\| failed \? null : chipsRow/);
+});
+
+test("map: keyboard and screen-reader fixes (M52 K4, K9): Esc closes the two disclosures; count links say whose", () => {
+  const src = readFileSync(new URL("../../pages/map.js", import.meta.url), "utf8");
+  assert.equal((src.match(/onKeyDown=\$\{closeOnEsc\}/g) || []).length, 2);
+  const viewSrc = readFileSync(new URL("../../map/map-view.js", import.meta.url), "utf8");
+  assert.match(viewSrc, /aria-label=\$\{title \? `\$\{title\}: \$\{p\.text\}`/);
+  const listSrc = readFileSync(new URL("../../map/map-list.js", import.meta.url), "utf8");
+  assert.match(listSrc, />Open \$\{clip\(dept\.title, 40\)\}</, "\"Open\" says what it opens");
+  assert.doesNotMatch(listSrc, />Open</);
 });
 
 test("map: an open question is read every 5 seconds until it is answered", () => {

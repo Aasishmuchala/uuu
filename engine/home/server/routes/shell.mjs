@@ -3,9 +3,10 @@
 import { join } from "node:path";
 import { loadCompanyFile } from "../../../company/lib/company-file.mjs";
 import { HomeError } from "../lib/errors.mjs";
-import { departmentLoad, loadDepartments } from "../lib/departments.mjs";
+import { departmentLoad, itemDepartment, loadDepartments, taskOfItem } from "../lib/departments.mjs";
 import { goalsOf, loadIssues } from "../lib/goals.mjs";
-import { boardState, booksState } from "../lib/health.mjs";
+import { boardState, booksState, gateState } from "../lib/health.mjs";
+import { loadCatalogue } from "../lib/jobs.mjs";
 import { mergeInbox } from "../lib/inbox.mjs";
 
 const PLAIN = { free: "Free", working: "Working", paused: "Paused", problem: "Has a problem", waiting_for_you: "Waiting for your approval" };
@@ -64,15 +65,25 @@ function companyAgents(ctx) {
   }
 }
 
+// The department of a Needs-you item and the task it is about: one rule for the dock, the map and Needs you,
+// kept in lib/departments.mjs so they never disagree. Exported here as before.
+export { itemDepartment, taskOfItem };
+
 // CONTRACTS-V3 26.4: always eight entries, the brain then the seven departments in file order. The loads are
 // those of the map (lib/departments.mjs departmentLoad) on a light task model made from this route's own
 // board snapshot. The brain works while a question (an `ask:` record) is open; its Needs-you count is the
-// answers not yet read.
+// answers not yet read. A department's Needs-you count follows itemDepartment, so a task waiting for the owner
+// shows on the department that did it, not on the Chief of staff's who raised it.
 function dockOf(ctx, data, inbox, team, goals) {
   const slugOf = new Map(team.map((t) => [t.name, t.slug]));
   const needsYou = inbox.items.map((i) => ({ source: i.source, id: i.id, agent: slugOf.has(i.raisedBy) ? { slug: slugOf.get(i.raisedBy) } : null }));
   const liveByAgent = new Map((data?.live || []).filter((r) => r?.agentId).map((r) => [r.agentId, r]));
   const agents = new Map((data?.agents || []).map((a) => [a.id, { slug: a.urlKey || null }]));
+  const idSlug = new Map(Object.entries(ctx.ids()?.agents || {}).map(([slug, id]) => [id, slug]));
+  let catalogue = null;
+  try { catalogue = loadCatalogue(ctx.config); } catch { catalogue = null; }
+  const where = { decisions: ctx.decisions, catalogue, issues: data?.issues || [], slugOfAgentId: (id) => idSlug.get(id) || agents.get(id)?.slug || null };
+  for (const i of needsYou) i.department = itemDepartment(i, where);
   const light = { ids: ctx.ids(), agentList: data?.agents || [], agents, liveByAgent, needsYou };
   const isAsk = (g) => !!ctx.decisions.get(`ask:${g.id}`);
   const asks = goals.filter(isAsk);
@@ -81,7 +92,8 @@ function dockOf(ctx, data, inbox, team, goals) {
   const dock = [{ id: "brain", title: "Company brain", creature: "brain", colour: "brain", working: open ? 1 : 0, needsYou: needsYou.filter((i) => askIds.has(i.id)).length }];
   for (const d of loadDepartments(ctx.config).departments) {
     const load = departmentLoad(d, light);
-    dock.push({ id: d.id, title: d.title, creature: d.id, colour: d.id, working: load.working, needsYou: load.needsYou });
+    const waits = needsYou.filter((i) => i.department === d.id && !askIds.has(i.id)).length;
+    dock.push({ id: d.id, title: d.title, creature: d.id, colour: d.id, working: load.working, needsYou: waits });
   }
   return dock;
 }
@@ -89,10 +101,12 @@ function dockOf(ctx, data, inbox, team, goals) {
 export default function register(app) {
   app.get("/api/shell", async (ctx) => {
     const env = { config: ctx.config, urls: ctx.home.urls, bench: ctx.bench, port: ctx.home.port };
-    const [board, books] = await Promise.all([boardState(env), booksState(env)]);
+    const [board, books, gate] = await Promise.all([boardState(env), booksState(env), gateState(env)]);
+    // `gate` is added to 26.4's `engine` (M52 F4), so the top bar's Health dot is not "everything is on" while the gate is off.
     const engine = {
       board: board.state === "on" ? "on" : "off",
       books: books.state === "not_installed" ? "not_installed" : books.state === "on" ? "on" : "off",
+      gate: gate.state === "on" ? "on" : "off",
     };
     const { data, inbox } = await snapshot(ctx, engine.board === "on");
 

@@ -284,6 +284,6 @@ test("a source that fails lands in notConnected and the rest still list", async 
     assert.equal(r.status, 200);
     assert.deepEqual(r.json.items, []);
     assert.deepEqual(r.json.notConnected.map((n) => n.source).sort(), ["board", "goals"]);
-    assert.match(r.json.notConnected[0].reason, /board is not answering/);
+    assert.match(r.json.notConnected[0].reason, /board is switched off/);
   }, { moduleDirs: [core] }); } finally { rmSync(core, { recursive: true, force: true }); }
 });

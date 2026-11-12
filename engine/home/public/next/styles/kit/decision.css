@@ -7,7 +7,8 @@
   gap: var(--s-3);
   align-items: start;
   padding: var(--s-4) var(--s-5);
-  background: var(--bg-warm);
+  /* The warm tint lies over glass, so it reads the same over every light of the canvas (M18-11). */
+  background: linear-gradient(var(--bg-warm), var(--bg-warm)), var(--glass);
   border: 1px solid var(--border-warm);
   border-radius: var(--r-4);
   box-shadow: var(--highlight);
@@ -26,8 +27,9 @@
   border-radius: var(--r-3);
 }
 
+/* Urgent says so once, with its red chip; the card keeps the same warm edge as the others (M18-12). */
 .k-decision--high {
-  border-color: var(--bad);
+  border-color: var(--border-warm);
 }
 
 .k-decision__avatar {
@@ -123,6 +125,27 @@
   color: var(--text);
   overflow-wrap: anywhere;
   white-space: pre-line;
+}
+
+/* A detail the server hands on as the rest of a sentence still starts with a capital, on screen only. */
+.k-decision__detail dd::first-letter {
+  text-transform: uppercase;
+}
+
+/* A compact card (the drawer) is narrow: each label sits on its own line above its text, so every card
+   lines up the same way (M18-12). */
+.k-decision--compact .k-decision__details {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.k-decision--compact .k-decision__detail dt {
+  min-width: 0;
+  margin-top: var(--s-2);
+}
+
+.k-decision--compact .k-decision__detail:first-child dt {
+  margin-top: 0;
 }
 
 /* The tasks a suggestion would make, each with who it is for: all of them, wrapping on a narrow screen. */

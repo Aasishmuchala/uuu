@@ -4,13 +4,13 @@
 // The tab is in the address (`#/team/<slug>?tab=`), so every state can be opened without a click.
 // Everything shown here was written by an agent or read from its files: it is rendered as text only (the
 // instructions as Markdown, built as elements).
-import { html, useState } from "../vendor/preact-htm.js";
+import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { DeptChip, departmentOf } from "./team.js";
+import { DeptChip, HealthNext, departmentOf } from "./team.js";
 import {
   AgentChip, Avatar, Button, Card, Composer, Conversation, Empty, ErrorNotice, Live, Loading, Markdown,
-  Notice, PageHeader, Section, STARTED, StatusDot, Tabs, TaskRow, TextInput, Waiting, jobHref,
+  NotConnected, Notice, PageHeader, Section, STARTED, StatusDot, Tabs, TaskRow, TextInput, Waiting, jobHref,
 } from "../kit/index.js";
 
 export const TABS = [
@@ -131,19 +131,32 @@ function PauseButton({ agent, onChanged }) {
   </div>`;
 }
 
+// The words under the header: a note only when the board answered and does not have the agent (applied false).
+// With the board off `applied` is null: not known, and the page's notice says why instead.
+export function headerNote(agent) {
+  return agent && agent.applied === false ? "Not set up yet." : "";
+}
+
+function Reports({ agent }) {
+  const reports = agent.reportsTo && agent.reportsTo.slug ? agent.reportsTo : null;
+  return html`<span class="p-agent__reports">Reports to ${reports ? html`<${AgentChip} agent=${reports} />` : "you"}</span>`;
+}
+
+// Below 860 px the header keeps the state, the department and Pause on one line under the title; the
+// description and Reports to move into Profile (CSS hides them here and shows them there).
 function Header({ data, dept, onChanged }) {
   const a = data.agent;
-  const reports = a.reportsTo && a.reportsTo.slug ? a.reportsTo : null;
+  const note = headerNote(a);
   return html`<div class="p-agent__head">
-    <${Avatar} slug=${a.slug} name=${a.name} size=${72} />
+    <span class="p-agent__avatar"><${Avatar} slug=${a.slug} name=${a.name} size=${72} /></span>
     <div class="p-agent__who">
       <p class="p-agent__summary">${cap(a.summary, 400)}</p>
       <div class="p-agent__facts">
         <${StateMark} agent=${a} />
-        <span class="p-agent__reports">Reports to ${reports ? html`<${AgentChip} agent=${reports} />` : "you"}</span>
+        <${Reports} agent=${a} />
         ${dept && html`<span class="p-agent__dept"><span class="p-agent__dept-label">Works in</span><${DeptChip} department=${dept} /></span>`}
       </div>
-      ${a.applied === false && html`<p class="p-agent__note">Not set up yet. Run: engine setup</p>`}
+      ${note && html`<p class="p-agent__note">${note} <a href="#/health">Open Health</a></p>`}
     </div>
     <div class="p-agent__actions"><${PauseButton} agent=${a} onChanged=${onChanged} /></div>
   </div>`;
@@ -156,6 +169,12 @@ function TalkTab({ data, dept, onSent }) {
   const [given, setGiven] = useState(null);
   const a = data.agent;
   const messages = (data.conversation || []).map((m) => ({ ...m, text: cap(m.text) }));
+  const end = useRef(null);
+  // Open the tab at the newest message, which sits just above the box (M51 F2): once, when the tab opens.
+  useEffect(() => {
+    const el = end.current;
+    if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "end", behavior: "auto" });
+  }, []);
 
   async function send(input) {
     setBusy(true);
@@ -176,6 +195,7 @@ function TalkTab({ data, dept, onSent }) {
       ${messages.length
         ? html`<${Conversation} messages=${messages} />`
         : html`<${Empty} title="Nothing said yet" text=${`Tasks you hand to ${a.slug === CHIEF ? "the Chief of staff" : text(a.name)}, and what it says about them, show here.`} />`}
+      <span class="p-agent__end" ref=${end}></span>
     </div>
     <div class="p-agent__compose">
       ${given && html`<p class="p-agent__given" role="status">${STARTED}${given.id
@@ -205,7 +225,12 @@ function SentenceList({ items, empty }) {
 function ProfileTab({ data }) {
   const p = data.profile || {};
   const tool = p.tool || null;
+  const a = data.agent || {};
   return html`<div class="p-agent__profile">
+    <div class="p-agent__about">
+      <p class="p-agent__summary">${cap(a.summary, 400)}</p>
+      <${Reports} agent=${a} />
+    </div>
     <${Section} title="What it may do"><${SentenceList} items=${p.may} empty="Nothing is written down yet." /><//>
     <${Section} title="What it may not do"><${SentenceList} items=${p.mayNot} empty="Nothing is written down yet." /><//>
     <${Section} title="How it works">
@@ -242,7 +267,7 @@ function WorkTab({ data }) {
 function InstructionsTab({ data }) {
   const ins = data.instructions || {};
   return html`<div class="p-agent__instructions">
-    <p class="p-agent__caption">Standing instructions. They are changed in the company's files, then applied with: engine setup</p>
+    <p class="p-agent__caption">Standing instructions, written for the agent. They are changed in the company's files.</p>
     <${Card} tone="sunken">
       ${text(ins.text)
         ? html`<div class="p-agent__text"><${Markdown} text=${cap(ins.text, 200000)} /></div>`
@@ -415,6 +440,9 @@ export default function Page({ route }) {
   return html`<div class=${`p-agent p-agent--${tab}`}>
     <${PageHeader} title=${text(a.name) || "Agent"} back=${{ href: "#/team", label: "Team" }}
       over=${dept ? `${dept.title} · Agent` : "Agent"} creature=${dept ? dept.id : undefined} />
+    ${d.connected === false && html`<${NotConnected} title="The board is switched off"
+      reason=${text(d.notConnected && d.notConnected.reason) || "The board is switched off, so agents and tasks cannot be reached."}
+      next=${html`<${HealthNext} text=${d.notConnected && d.notConnected.next} />`} />`}
     <${Header} data=${d} dept=${dept} onChanged=${refresh} />
     <${Tabs} tabs=${tabs} current=${tab} onChange=${pick} label=${`About ${text(a.name)}`} />
     <div class="p-agent__panel">${panel}</div>

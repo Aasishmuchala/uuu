@@ -15,43 +15,43 @@
   "asks": [
     {
       "id": "length",
-      "label": "Length:",
+      "label": "How long, in millimetres?",
       "kind": "line",
       "required": true
     },
     {
       "id": "width",
-      "label": "Width:",
+      "label": "How wide, in millimetres?",
       "kind": "line",
       "required": true
     },
     {
       "id": "thickness",
-      "label": "Thickness:",
+      "label": "How thick, in millimetres?",
       "kind": "line",
       "required": true
     },
     {
       "id": "number-of-holes",
-      "label": "Number of holes:",
+      "label": "How many holes?",
       "kind": "line",
       "required": true
     },
     {
       "id": "hole-size",
-      "label": "Hole size:",
+      "label": "How wide is each hole, in millimetres?",
       "kind": "line",
       "required": true
     },
     {
       "id": "where-the-holes-go",
-      "label": "Where the holes go:",
+      "label": "Where do the holes go?",
       "kind": "line",
       "required": true
     },
     {
       "id": "corner-size",
-      "label": "Corner size:",
+      "label": "How round are the corners, in millimetres?",
       "kind": "line",
       "required": true
     }

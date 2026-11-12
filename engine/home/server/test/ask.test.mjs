@@ -106,8 +106,8 @@ test("the seed's STH-19 is answered: source 1 found and linked, source 2 not", a
   assert.equal(ask.plainState, "Answered");
   assert.equal(ask.answer.text, "Customers can return an unused item within 14 days for a full refund [1]. Custom orders cannot be returned [1][2].");
   assert.deepEqual(ask.answer.sources, [
-    { n: 1, path: "returns-policy.md", note: "Returns", found: true, link: { page: "files", id: RETURNS_TOKEN } },
-    { n: 2, path: "policies/custom-orders.md", note: "", found: false, link: null },
+    { n: 1, path: "returns-policy.md", note: "Returns", found: true, link: { page: "files", id: RETURNS_TOKEN }, title: "returns-policy.md" },
+    { n: 2, path: "policies/custom-orders.md", note: "", found: false, link: null, title: null },
   ]);
   assert.deepEqual(ask.answer.notInFiles, ["When the policy last changed."]);
   assert.equal(ask.answer.checked, false);

@@ -14,7 +14,7 @@
       "slug": "chief-of-staff", "name": "Chief of staff", "role": "Chief of staff", "department": null,
       "paperclipRole": "pm", "title": "Chief of staff",
       "tool": "claude", "model": "opus", "reportsTo": null,
-      "capabilities": "Turns the owner's goals into tasks and hands each to the right agent.",
+      "capabilities": "Turns what you ask for into tasks and hands each to the right agent.",
       "instructions": "roles/chief-of-staff.md",
       "rights": { "canAssignTasks": true },
       "bench": null
@@ -23,7 +23,7 @@
       "slug": "builder", "name": "Builder", "role": "Builder", "department": null,
       "paperclipRole": "engineer", "title": "Builder",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
-      "capabilities": "Does the work on a task: writes documents, files, plans and code in the goal's folder.",
+      "capabilities": "Does the work on a task: writes documents, files, plans and code in the task's folder.",
       "instructions": "roles/builder.md",
       "bench": null
     },
@@ -52,7 +52,7 @@
       "slug": "sales", "name": "Sales", "role": "Sales", "department": "customers",
       "paperclipRole": "general", "title": "Sales",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
-      "capabilities": "Looks after customers in the CRM: records and qualifies leads, keeps deals, notes and follow-up tasks up to date.",
+      "capabilities": "Looks after customers: records and qualifies leads, keeps deals, notes and follow-up tasks up to date.",
       "instructions": "roles/sales.md",
       "fencePolicy": {
         "localServices": ["127.0.0.1:8120"],
@@ -64,7 +64,7 @@
       "slug": "support", "name": "Support", "role": "Support", "department": "support",
       "paperclipRole": "general", "title": "Support",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
-      "capabilities": "Handles customer requests in the helpdesk: sorts them and drafts replies for the owner to approve.",
+      "capabilities": "Handles customer requests: sorts them and drafts replies for the owner to approve.",
       "instructions": "roles/support.md",
       "fencePolicy": {
         "localServices": ["127.0.0.1:8120"],
@@ -96,7 +96,7 @@
       "slug": "drafter", "name": "Drafter", "role": "Drafter", "department": "studio",
       "paperclipRole": "designer", "title": "Drafter",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
-      "capabilities": "Designs parts: writes CadQuery scripts and returns STEP files with measured sizes in millimetres.",
+      "capabilities": "Designs parts and returns part files with measured sizes in millimetres.",
       "instructions": "roles/drafter.md",
       "limits": { "maxTurns": 60 },
       "fencePolicy": {

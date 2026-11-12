@@ -186,7 +186,7 @@ export default function register(app) {
     return {
       id: "marketing", title: "Marketing", connected: true, notConnected: null, agent,
       figures: [
-        { id: "drafts", label: "Drafts waiting", value: String(drafts.filter((d) => d.status === "draft").length), hint: "Waiting for you in the inbox" },
+        { id: "drafts", label: "Drafts waiting", value: String(drafts.filter((d) => d.status === "draft").length), hint: "Waiting for you" },
         { id: "approved", label: "Approved", value: String(drafts.filter((d) => d.status === "approved").length), hint: "Approved, not published" },
         { id: "this_week", label: "Planned this week", value: String(drafts.filter((d) => d.planned >= from && d.planned <= to).length), hint: plainRange(from, to) },
       ],

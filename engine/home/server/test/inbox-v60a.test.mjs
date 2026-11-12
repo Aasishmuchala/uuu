@@ -285,7 +285,7 @@ test("an action whose source could not be read says the board is not answering, 
   const ctx = { log: () => {} };
   // listed once (the owner saw it), then the board stops answering while the action re-reads
   assert.equal((await flaky.list()).items.length, 1);
-  await assert.rejects(act(ctx, { id: "goal:g1", action: "acknowledge" }), (e) => e.status === 502 && e.code === "board_off" && /not answering/.test(e.message) && Boolean(e.next));
+  await assert.rejects(act(ctx, { id: "goal:g1", action: "acknowledge" }), (e) => e.status === 502 && e.code === "board_off" && /switched off/.test(e.message) && Boolean(e.next));
   await assert.rejects(act(ctx, { id: "bench:Sales Invoice:X", action: "approve" }), (e) => e.status === 502 && e.message === "The books are not answering." && Boolean(e.next));
   // a source that answered and does not list it: gone, as before
   await assert.rejects(act(ctx, { id: "board:nope", action: "approve" }), (e) => e.status === 404 && e.code === "not_found");

@@ -46,16 +46,26 @@
   overflow-wrap: anywhere;
 }
 
+/* A word and its marks never part at a line's end (M50 F7). */
+.k-answer__glue {
+  white-space: nowrap;
+}
+
+/* The mark sits on the baseline and is lifted, so it does not push lines apart (M18-28). */
 .k-answer__mark {
+  position: relative;
+  top: -0.45em;
   line-height: 0;
+  vertical-align: baseline;
 }
 
 .k-answer__mark-link {
+  position: relative;
   display: inline-grid;
   place-items: center;
   min-width: var(--s-4);
   height: var(--s-4);
-  margin: 0 1px;
+  margin: 0 0 0 1px;
   padding: 0 var(--s-1);
   border-radius: var(--r-pill);
   background: var(--glass-soft);
@@ -64,7 +74,7 @@
   font-size: var(--fs-over);
   font-weight: var(--fw-medium);
   text-decoration: none;
-  vertical-align: super;
+  vertical-align: baseline;
 }
 
 a.k-answer__mark-link:hover {
@@ -91,7 +101,12 @@ a.k-answer__mark-link:hover {
   box-shadow: var(--highlight);
 }
 
+/* The kit's chevron in place of the browser's triangle, turned while open (M18-26). */
 .k-answer__sources-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  list-style: none;
   padding: var(--s-2) var(--s-3);
   color: var(--text-2);
   font-size: var(--fs-over);
@@ -99,6 +114,19 @@ a.k-answer__mark-link:hover {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   cursor: pointer;
+}
+
+.k-answer__sources-head::-webkit-details-marker {
+  display: none;
+}
+
+.k-answer__fold {
+  flex: none;
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.k-answer__sources[open] > .k-answer__sources-head .k-answer__fold {
+  transform: rotate(90deg);
 }
 
 .k-answer__source-list {
@@ -227,6 +255,19 @@ a.k-answer__source-link:hover {
   }
 
   .k-answer__source-link {
+    min-height: 44px;
+  }
+
+  /* A mark keeps its look and gets a 44 px area to tap (M50 F9). */
+  a.k-answer__mark-link::before {
+    content: "";
+    position: absolute;
+    inset: -14px;
+  }
+
+  .k-answer__sources-head {
+    display: flex;
+    align-items: center;
     min-height: 44px;
   }
 }

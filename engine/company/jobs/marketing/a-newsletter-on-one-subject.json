@@ -24,25 +24,25 @@
   "asks": [
     {
       "id": "who-it-is-for",
-      "label": "Who it is for:",
+      "label": "Who is it for?",
       "kind": "line",
       "required": true
     },
     {
       "id": "the-one-subject",
-      "label": "The one subject:",
+      "label": "What is the one subject?",
       "kind": "line",
       "required": true
     },
     {
       "id": "number-of-points",
-      "label": "Number of points:",
+      "label": "How many points?",
       "kind": "line",
       "required": true
     },
     {
       "id": "the-one-action",
-      "label": "The one action:",
+      "label": "What should readers do after?",
       "kind": "line",
       "required": true
     }

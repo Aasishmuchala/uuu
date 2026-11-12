@@ -15,13 +15,13 @@
   "asks": [
     {
       "id": "document-title",
-      "label": "Document title:",
+      "label": "What is the document called?",
       "kind": "line",
       "required": true
     },
     {
       "id": "who-will-read-it",
-      "label": "Who will read it:",
+      "label": "Who will read it?",
       "kind": "line",
       "required": true
     },

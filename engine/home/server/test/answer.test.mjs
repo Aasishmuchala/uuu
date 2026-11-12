@@ -56,10 +56,13 @@ test("a source path that is a trick is kept as words and is never found or linke
   assert.deepEqual(a.sources.map((s) => s.path), ["../secrets", "/etc/passwd", "returns-policy.md"]);
   const listed = new Map([["returns-policy.md", "cmV0dXJucy1wb2xpY3kubWQ"], ["secrets", "c2VjcmV0cw"]]);
   const out = vouch(a.sources, listed);
-  assert.deepEqual(out[0], { n: 1, path: "../secrets", note: "keys", found: false, link: null });
-  assert.deepEqual(out[1], { n: 2, path: "/etc/passwd", note: "", found: false, link: null });
+  assert.deepEqual(out[0], { n: 1, path: "../secrets", note: "keys", found: false, link: null, title: null });
+  assert.deepEqual(out[1], { n: 2, path: "/etc/passwd", note: "", found: false, link: null, title: null });
   assert.deepEqual(out[2].link, { page: "files", id: "cmV0dXJucy1wb2xpY3kubWQ" });
   assert.equal(out[2].found, true);
+  assert.equal(out[2].title, "returns-policy.md", "a found source carries the brain file's own title");
+  const deep = vouch(parseAnswer("# Answer\nSee [1].\n## Sources\n1. policies/custom-orders.md\n").sources, new Map([["policies/custom-orders.md", "x"]]));
+  assert.equal(deep[0].title, "custom-orders.md", "no folder in the title");
 });
 
 test("no # Answer heading: not well formed, the whole file as plain text with no marks", () => {

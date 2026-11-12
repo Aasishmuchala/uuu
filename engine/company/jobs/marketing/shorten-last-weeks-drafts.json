@@ -24,13 +24,13 @@
   "asks": [
     {
       "id": "channel",
-      "label": "Channel:",
+      "label": "Drafts for which channel?",
       "kind": "line",
       "required": true
     },
     {
       "id": "number-of-words",
-      "label": "Number of words:",
+      "label": "About how many words each?",
       "kind": "line",
       "required": true
     }

@@ -15,31 +15,31 @@
   "asks": [
     {
       "id": "contact",
-      "label": "Contact:",
+      "label": "Who did you speak with?",
       "kind": "line",
       "required": true
     },
     {
       "id": "deal-name",
-      "label": "Deal name:",
+      "label": "Which deal?",
       "kind": "line",
       "required": true
     },
     {
       "id": "date",
-      "label": "Date:",
+      "label": "When was the call?",
       "kind": "date",
       "required": true
     },
     {
       "id": "what-was-said",
-      "label": "What was said:",
+      "label": "What did they say?",
       "kind": "line",
       "required": true
     },
     {
       "id": "new-stage",
-      "label": "New stage:",
+      "label": "Which stage does it move to?",
       "kind": "line",
       "required": true
     }

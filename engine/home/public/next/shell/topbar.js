@@ -3,7 +3,7 @@
 // Routines as words, and three square buttons: Health (with a dot), Settings and the light or dark switch.
 // Below 860 px it keeps the mark, the Needs you pill and a Menu button, and the Menu sheet (also here)
 // lists the rest. The bar has no fill of its own: the canvas shows through it.
-import { html } from "../vendor/preact-htm.js";
+import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { Drawer, Icon, Kbd } from "../kit/index.js";
 import { Creature } from "../kit/creature.js";
 import { DEPARTMENTS, SECTIONS, sectionOf } from "../routes.js";
@@ -14,10 +14,12 @@ const cap = (s, n) => {
 };
 
 // The Health button's dot from the shell's `engine` (CONTRACTS 9.2): "ok", "warn", "bad", or null when not
-// known yet, with the words a screen reader says.
+// known yet, with the words a screen reader says. `gate` is read when the shell sends it: a gate that is off
+// is never "everything is on".
 export function engineDot(engine) {
   if (!engine) return null;
   if (engine.board !== "on") return { tone: "bad", words: "the engine is off" };
+  if (engine.gate === "off") return { tone: "bad", words: "the gate is off" };
   if (engine.books === "off") return { tone: "warn", words: "the books are off" };
   return { tone: "ok", words: "everything is on" };
 }
@@ -87,14 +89,30 @@ export function Capsule({ routeId }) {
     </nav>`;
 }
 
+// True once the page has scrolled away from its top: the bar then lays a soft band of the canvas behind
+// itself, so what scrolls under it does not read as part of it. The bar stays clear at rest.
+function useScrolled() {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.addEventListener !== "function") return undefined;
+    const on = () => setScrolled((window.scrollY || 0) > 4);
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
+  return scrolled;
+}
+
 export function Topbar({ routeId, shell, narrow, settings, onSaveSettings, onNeeds, onMenu }) {
   const name = shell?.company?.name || "";
   const needs = Number(shell?.counts?.needsYou) || 0;
   const dot = engineDot(shell?.engine);
+  const scrolled = useScrolled();
+  const cls = `s-topbar${narrow ? " s-topbar--narrow" : ""}${scrolled ? " is-scrolled" : ""}`;
 
   if (narrow) {
     return html`
-      <header class="s-topbar s-topbar--narrow">
+      <header class=${cls}>
         <${Brand} name=${name} />
         <span class="s-topbar-gap"></span>
         <${NeedsPill} count=${needs} onOpen=${onNeeds} />
@@ -105,7 +123,7 @@ export function Topbar({ routeId, shell, narrow, settings, onSaveSettings, onNee
   }
 
   return html`
-    <header class="s-topbar">
+    <header class=${cls}>
       <div class="s-topbar-left"><${Brand} name=${name} /></div>
       <${Capsule} routeId=${routeId} />
       <div class="s-topbar-right">

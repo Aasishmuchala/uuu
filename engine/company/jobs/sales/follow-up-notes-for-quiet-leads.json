@@ -15,7 +15,7 @@
   "asks": [
     {
       "id": "number",
-      "label": "Number:",
+      "label": "Quiet for how many days?",
       "kind": "line",
       "required": true
     }

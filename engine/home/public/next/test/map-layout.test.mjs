@@ -222,6 +222,25 @@ test("the department gives the same answer for the same catalogue", () => {
   for (const input of DEPARTMENT_CASES) assert.deepEqual(layoutDepartment(input), layoutDepartment(structuredClone(input)));
 });
 
+test("the department holds every rule at the sizes the zoomed view is laid out at, in screen pixels (M18-02)", () => {
+  // The zoomed view lays a department out for its own box (window minus the bar, the box and the gutters), a
+  // little larger when it is tried at 0.95 or 0.9. Whichever arrangement it ends in, the rules hold.
+  const sizes = [[1184, 600], [1246, 632], [1316, 667], [1024, 420], [1824, 820], [712, 380], [400, 240]];
+  for (const [width, height] of sizes) {
+    for (const input of DEPARTMENT_CASES.filter((_, i) => i % 7 === 0)) {
+      const out = layoutDepartment({ ...input, width, height });
+      assert.ok(out.mode === "fan" || out.mode === "grid");
+      assert.deepEqual(out.viewBox, [0, 0, width, height]);
+      if (out.jobs.length === input.clusters.reduce((n, c) => n + c.jobs.length, 0)) holdsDepartment(input, out);
+    }
+  }
+});
+
+test("the department says which arrangement held: the fan on the pinned size, the grid when the fan cannot fit", () => {
+  assert.equal(layoutDepartment(departmentInput(3, 2, 13)).mode, "fan");
+  assert.equal(layoutDepartment({ ...departmentInput(5, 8, 60), width: 700, height: 500 }).mode, "grid");
+});
+
 test("a cluster with no jobs still has its place", () => {
   const out = layoutDepartment({ clusters: [{ id: "a", title: "A", jobs: [] }, { id: "b", title: "B", jobs: [{ id: "x", title: "Job" }] }] });
   assert.deepEqual(out.clusters.map((c) => c.id), ["a", "b"]);
@@ -294,5 +313,10 @@ test("the real catalogue holds the same rules", { skip: REAL ? false : "departme
     const view = layoutDepartment(input);
     holdsDepartment(input, view);
     assert.deepEqual(view, layoutDepartment(structuredClone(input)));
+    // At the zoomed view's size on a 1280 × 900 window (about 1184 × 600 for the drawing), each department either
+    // fans out with every rule holding, or is placed whole by the grid (the page then shows it as its list).
+    const px = layoutDepartment({ ...input, width: 1184, height: 600 });
+    assert.equal(px.jobs.length, input.clusters.reduce((n, c) => n + c.jobs.length, 0), `${d.id}: every job reachable`);
+    holdsDepartment(input, px);
   }
 });

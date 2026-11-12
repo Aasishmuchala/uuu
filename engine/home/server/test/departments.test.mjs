@@ -155,8 +155,8 @@ test("not connected: the books are off", async () => {
     const r = await call(h.url, "GET", "/api/departments/books");
     assert.equal(r.status, 200);
     assert.equal(r.json.connected, false);
-    assert.equal(r.json.notConnected.reason, "Books is switched off.");
-    assert.equal(r.json.notConnected.next, "Run: engine start");
+    assert.equal(r.json.notConnected.reason, "The books are switched off.");
+    assert.equal(r.json.notConnected.next, "Open Health to see how to start them.");
   });
 });
 

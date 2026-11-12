@@ -215,7 +215,7 @@ export async function departmentPage(ctx, def, build) {
   try {
     there = await ctx.bench.has(def.mainDoctype);
   } catch (e) {
-    if (e instanceof HomeError && e.code === "bench_off") return off("Books is switched off.", "Run: engine start");
+    if (e instanceof HomeError && e.code === "bench_off") return off("The books are switched off.", "Open Health to see how to start them.");
     throw e;
   }
   if (!there) return gone();
@@ -224,7 +224,7 @@ export async function departmentPage(ctx, def, build) {
     data = await build(ctx);
   } catch (e) {
     if (NOT_THERE(e)) return gone();
-    if (e instanceof HomeError && e.code === "bench_off") return off("Books is switched off.", "Run: engine start");
+    if (e instanceof HomeError && e.code === "bench_off") return off("The books are switched off.", "Open Health to see how to start them.");
     throw e;
   }
   return { ...frame, connected: true, notConnected: null, ...(await agentAndWork(ctx, def.agentSlug, def.agentName)), ...data };

@@ -186,8 +186,8 @@ const pickJob = () => {};
 const grid = "display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--s-3);align-items:start";
 
 export default function Gallery() {
-  return html`<main style="position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:var(--s-8) var(--s-6) var(--s-12)" class="u-stack">
-    <${PageHeader} title="Kit: composites" lead="Every composite of the kit, in its states, on sample data." />
+  return html`<main style="position:relative;z-index:1;max-width:var(--content-max);margin:0 auto;padding:var(--s-8) var(--s-4) var(--s-12)" class="u-stack">
+    <${PageHeader} over="Kit · Composites" title="The parts made of parts" lead="Every composite of the kit, in its states, on sample data." />
 
     <${Section} title="Needs you" hint="DecisionCard">
       <div class="u-stack">

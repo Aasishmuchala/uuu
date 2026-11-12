@@ -24,19 +24,19 @@
   "asks": [
     {
       "id": "channel",
-      "label": "Channel:",
+      "label": "Where will it be posted?",
       "kind": "line",
       "required": true
     },
     {
       "id": "what-is-new",
-      "label": "What is new:",
+      "label": "What is new?",
       "kind": "line",
       "required": true
     },
     {
       "id": "date",
-      "label": "Date:",
+      "label": "From when?",
       "kind": "date",
       "required": true
     }

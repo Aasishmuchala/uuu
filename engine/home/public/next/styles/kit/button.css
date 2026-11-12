@@ -126,6 +126,16 @@
   cursor: progress;
 }
 
+/* A switched-off primary is a solid, mixed fill, not the white pill at half strength: over a coloured light
+   that would take the light's colour and read as another button (M18-27). */
+.k-btn--primary:disabled:not(.k-btn--busy),
+.k-btn--primary.k-btn--off:not(.k-btn--busy) {
+  opacity: 1;
+  background: color-mix(in srgb, var(--primary) 22%, var(--canvas));
+  border-color: transparent;
+  color: color-mix(in srgb, var(--primary) 70%, var(--canvas));
+}
+
 /* The spinner turns for at most a minute; work that takes longer is shown by the page, not by this mark. */
 .k-btn__spinner {
   flex: none;

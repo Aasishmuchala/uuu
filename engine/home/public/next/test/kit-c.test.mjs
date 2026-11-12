@@ -253,7 +253,10 @@ test("splitMarks runs in linear time on a long hostile text", () => {
 // ---- fillPreview ----
 
 test("fillPreview: the shape's job with a task answer and an empty optional answer", { skip: SHAPES ? false : "no shapes" }, () => {
-  const job = { ...shape("job"), asks: [...shape("job").asks, { id: "extra", label: "Anything to add?", kind: "text", required: false, options: null }],
+  // M55: the server no longer puts the short ref in an option's label (it is not shown); it sends it as `ref`.
+  const asks = shape("job").asks.map((a) => (a.kind === "task"
+    ? { ...a, options: a.options.map((o) => ({ ...o, ref: /^[A-Z]+-\d+/.exec(o.label)?.[0] || "STH-20" })) } : a));
+  const job = { ...shape("job"), asks: [...asks, { id: "extra", label: "Anything to add?", kind: "text", required: false, options: null }],
     text: "Write a proposal for the customer of the call write-up in [earlier]. Use our price list. [extra]" };
   assert.equal(
     kit.job.fillPreview(job, { earlier: "e0000000-0000-4000-8000-000000000020" }),
@@ -491,7 +494,9 @@ test("AnswerView: the shape's answer with marks, the label, a found source as a 
   const missing = byClass(root, "k-answer__source--missing");
   assert.equal(missing.length, 1);
   assert.equal(elements(missing[0]).some((e) => e.localName === "a"), false, "a source not found is plain text");
-  assert.match(textOf(missing[0]), /policies\/custom-orders\.md/);
+  // M55 (M50 F17): a source is named by its own file name; its folder stays off screen.
+  assert.match(textOf(missing[0]), /custom-orders\.md/);
+  assert.doesNotMatch(textOf(missing[0]), /policies\//);
   unmount(root);
 });
 
@@ -565,7 +570,8 @@ test("JobStart: with `from` the task question is answered by the server; a refus
   try {
     const job = { ...LEAD, asks: [{ id: "earlier", label: "Which call write-up?", kind: "task", required: true, options: [{ value: "t20", label: "STH-20 · Call write-up: Asha" }] }], text: "Write from [earlier]." };
     const root = await mount(kit.job.JobStart, { job, from: "t20" });
-    assert.match(textOf(root), /From the earlier task: STH-20/);
+    // M55 (M51 F8, F9): the answered question is one quiet line, the task's name first and its ref after.
+    assert.match(textOf(root), /Already answered: from the earlier task, Call write-up: Asha STH-20\./);
     assert.match(textOf(root), /Write from the sub-folder STH-20 of your current working folder\./);
     fire(formOf(root), "submit");
     await settle();
@@ -707,7 +713,7 @@ function rulesOf(css) {
         const p = pre.trim();
         pre = "";
         if (p.startsWith("@keyframes")) { keyframes.push(p.slice(10).trim()); skip(); }
-        else if (p.startsWith("@media") || p.startsWith("@supports")) block(true);
+        else if (p.startsWith("@media") || p.startsWith("@supports") || p.startsWith("@container")) block(true);
         else { selectors.push(...p.split(",").map((s) => s.trim())); skip(); }
       } else if (ch === "}") { if (nested) return; }
       else pre += ch;

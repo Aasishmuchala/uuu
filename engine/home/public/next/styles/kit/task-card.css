@@ -47,8 +47,20 @@
   font-size: var(--fs-caption);
 }
 
+/* The short ref, quietly after the name. */
+.k-task-row__ref {
+  flex: none;
+  display: inline-flex;
+}
+
+.k-task-row__ref .k-mono {
+  color: var(--text-3);
+  background: none;
+  padding: 0;
+}
+
 .k-task-row__title {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -141,7 +153,7 @@
 }
 
 .k-task-card--waiting {
-  background: var(--bg-warm);
+  background: linear-gradient(var(--bg-warm), var(--bg-warm)), var(--glass);
   border-color: var(--border-warm);
 }
 
@@ -152,9 +164,11 @@
   min-height: var(--s-5);
 }
 
-.k-task-card__top .k-mono {
+.k-task-card__ref .k-mono {
   color: var(--text-3);
   font-size: var(--fs-caption);
+  background: none;
+  padding: 0;
 }
 
 /* "Working" sits in the bottom row with "Waiting for you", where it has room and is never cut. */
@@ -198,6 +212,11 @@
 .k-task-card__stage {
   font-size: var(--fs-caption);
   color: var(--text-3);
+}
+
+/* Each part of the step line stays whole; the line breaks between parts (M50 F20). */
+.k-task-card__stage > span {
+  white-space: nowrap;
 }
 
 .k-task-card__bottom {
@@ -270,10 +289,56 @@
 }
 
 @media (max-width: 859px) {
+  /* A phone: the title on up to two lines, the time under it, so neither the title nor the line under it is cut
+     to a few letters (M50 F15, M51 F12, M18-34). */
   .k-task-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    column-gap: var(--s-2);
+    row-gap: 2px;
     min-height: 44px;
-    gap: var(--s-2);
     padding: var(--s-2);
+  }
+
+  .k-task-row__mark {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: start;
+    padding-top: 5px;
+  }
+
+  .k-task-row__main {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .k-task-row__who {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  .k-task-row__time {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .k-task-row__chevron {
+    grid-column: 4;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .k-task-row__top {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+
+  .k-task-row__title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
   }
 
   .k-task-row__job {

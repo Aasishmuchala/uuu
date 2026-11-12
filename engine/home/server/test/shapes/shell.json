@@ -25,7 +25,8 @@
   ],
   "engine": {
     "board": "on",
-    "books": "on"
+    "books": "on",
+    "gate": "on"
   },
   "generatedAt": "2026-11-11T09:00:00.000Z",
   "dock": [

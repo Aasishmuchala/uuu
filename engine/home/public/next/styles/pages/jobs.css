@@ -25,7 +25,15 @@
   display: inline-grid; place-items: center; width: var(--s-4); height: var(--s-4); border-radius: var(--r-1);
   box-shadow: inset 0 0 0 1px currentColor; font-size: var(--fs-over); font-variant-numeric: tabular-nums;
 }
-.p-jobs .p-jobs__count { color: var(--text-2); font-size: var(--fs-caption); }
+.p-jobs .p-jobs__count { margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
+/* The count line with the legend beside it, at the top (M51 F23). */
+.p-jobs .p-jobs__top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--s-2) var(--s-4); }
+.p-jobs .p-jobs__top .p-jobs__count { padding-top: var(--s-3); }
+.p-jobs .p-jobs__top .p-jobs__legend { flex: 0 1 auto; min-width: 0; }
+.p-jobs .p-jobs__top .p-jobs__legend[open] { flex-basis: 100%; }
+.p-jobs .p-jobs__every { margin-left: var(--s-2); color: var(--text); }
+.p-jobs .p-jobs__chip-rows { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+.p-jobs .p-jobs__fold { display: none; }
 
 /* The list: one glass card per department, its clusters under it */
 .p-jobs .p-jobs__depts { display: flex; flex-direction: column; gap: var(--s-4); }
@@ -80,6 +88,19 @@
 .p-jobs .p-jobs__problems a { color: var(--text-2); }
 
 @media (max-width: 859px) {
+  /* The three chip rows fold behind one Filter chip that says how many are on (M51 F23). */
+  .p-jobs .p-jobs__fold {
+    display: inline-flex; align-items: center; align-self: flex-start; gap: var(--s-2); min-height: 44px; padding: 0 var(--s-4);
+    border: 0; border-radius: var(--r-pill); background: var(--glass-soft); box-shadow: inset 0 0 0 1px var(--hairline);
+    color: var(--text-2); font: inherit; font-size: var(--fs-caption); cursor: pointer;
+  }
+  .p-jobs .p-jobs__fold--on { color: var(--text); box-shadow: inset 0 0 0 1px var(--hairline-strong); }
+  .p-jobs .p-jobs__fold:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .p-jobs .p-jobs__fold-n { color: var(--text-3); }
+  .p-jobs .p-jobs__chip-rows:not(.is-open) { display: none; }
+  .p-jobs .p-jobs__top .p-jobs__legend { flex-basis: 100%; }
+  .p-jobs .p-jobs__legend-head { min-height: 44px; display: flex; align-items: center; }
+  .p-jobs .p-jobs__every, .p-jobs .p-jobs__dept-open, .p-jobs .p-jobs__form-fill { display: inline-flex; align-items: center; min-height: 44px; }
   .p-jobs .p-jobs__chips { flex-direction: column; align-items: stretch; gap: var(--s-1); }
   .p-jobs .p-jobs__chips-label { width: auto; }
   .p-jobs .p-jobs__chips-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: var(--s-1); scrollbar-width: none; }

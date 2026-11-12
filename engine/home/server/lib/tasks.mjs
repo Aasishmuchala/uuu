@@ -6,7 +6,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { isFixTask } from "./draftfix.mjs";
-import { departmentOf } from "./departments.mjs";
+import { departmentOf, itemDepartment } from "./departments.mjs";
 import { goalsOf, isFinished, isGoal, loadIssues, needIds, plainState, rootOf } from "./goals.mjs";
 import { aboutOf, mergeInbox, waitsOnOwner } from "./inbox.mjs";
 import { loadCatalogue } from "./jobs.mjs";
@@ -207,8 +207,8 @@ function catalogueOf(config) {
   try { return config && config.engineDir ? loadCatalogue(config) : null; } catch { return null; }
 }
 
-// The first line of the newest result an agent wrote (comments oldest first): the text after "RESULT:",
-// cut to 140 characters; null when there is none. It is shown as text only.
+// The first line of the newest result an agent wrote (comments oldest first): the text after "RESULT:", with an
+// answer's source marks ("[1]") taken out, cut to 140 characters; null when there is none. Shown as text only.
 export function outcomeOf(comments) {
   const list = Array.isArray(comments) ? comments : [];
   for (let i = list.length - 1; i >= 0; i -= 1) {
@@ -217,7 +217,7 @@ export function outcomeOf(comments) {
     const m = /^\s*RESULT:/.exec(c.body.slice(0, 64));
     if (!m) continue;
     const rest = c.body.slice(m[0].length, m[0].length + 8000);
-    const line = rest.split("\n").map((l) => l.replace(/\s+/g, " ").trim()).find(Boolean) || "";
+    const line = rest.split("\n").map((l) => l.replace(/\s*\[\d{1,3}\]/g, "").replace(/\s+/g, " ").trim()).find(Boolean) || "";
     if (!line) return null;
     return line.length > OUTCOME_MAX ? `${line.slice(0, OUTCOME_MAX - 1).trimEnd()}…` : line;
   }
@@ -246,8 +246,10 @@ function whoOfAgentId(tctx, agentId) {
   return a ? { slug: a.slug, name: a.name } : null;
 }
 
-// decorateInbox(items, tctx): each item with taskId, identifier and agent added. Hidden keys the inbox
-// sources keep on an item (for acting on it) are kept.
+// decorateInbox(items, tctx): each item with taskId, identifier, agent and department added. Hidden keys the
+// inbox sources keep on an item (for acting on it) are kept. `department` follows lib/departments.mjs
+// itemDepartment, the one rule the dock, the map's counts and the Needs you filter all count by: a task's item
+// belongs to the department that did the task, not to the Chief of staff who raised it.
 export function decorateInbox(items, tctx) {
   return (Array.isArray(items) ? items : []).map((item) => {
     const out = Object.create(Object.getPrototypeOf(item));
@@ -261,7 +263,26 @@ export function decorateInbox(items, tctx) {
     out.taskId = root ? root.id : null;
     out.identifier = root ? root.identifier || null : null;
     out.agent = agentByName(tctx, item.raisedBy);
+    out.department = itemDepartment({ id: item.id, source: item.source, taskId: out.taskId, agent: out.agent }, {
+      decisions: tctx.decisions, catalogue: tctx.catalogue, issues: tctx.issues,
+      slugOfAgentId: (id) => tctx.agents?.get(id)?.slug || null,
+    });
     return out;
+  });
+}
+
+// What GET /api/inbox lists (additive keys on each item, CONTRACTS 9.3): `agent` ({ slug, name } or null) and
+// `department` (an id), by lib/departments.mjs itemDepartment. Without the board (tctx null) items are placed by
+// their id's task alone where a job record names it, else by their source and the agent's name in the role files.
+// Plain objects: hidden keys are not listed.
+export function inboxView(items, tctx, roles = []) {
+  const list = Array.isArray(items) ? items : [];
+  if (tctx) return decorateInbox(list, tctx).map(({ taskId, identifier, ...item }) => item);
+  return list.map((item) => {
+    const want = String(item.raisedBy || "").replace(/^the\s+/i, "").trim().toLowerCase();
+    const role = want ? (roles || []).find((r) => String(r.name).toLowerCase() === want) : null;
+    const agent = role ? { slug: role.slug, name: role.name } : null;
+    return { ...item, agent, department: itemDepartment({ id: item.id, source: item.source, agent }) };
   });
 }
 
@@ -326,6 +347,17 @@ function recordsOf(goal, tctx) {
   return { job, ask: !!get(`ask:${goal.id}`), follows };
 }
 
+// Who a task is with: the agent of its newest working step, else the agent its text is for, else its assignee.
+function workerOf(goal, tctx, text) {
+  const steps = tctx.stepsOf(goal.id);
+  let who = null;
+  const working = [...steps].reverse().find((s) => WORKING.has(s.status) && s.assigneeAgentId);
+  if (working) who = whoOfAgentId(tctx, working.assigneeAgentId);
+  if (!who && text.for) who = agentByName(tctx, text.for);
+  if (!who) who = whoOfAgentId(tctx, goal.assigneeAgentId);
+  return who;
+}
+
 export function taskCard(goal, tctx) {
   const steps = tctx.stepsOf(goal.id);
   const counted = steps.filter((s) => s.status !== "cancelled");
@@ -334,11 +366,7 @@ export function taskCard(goal, tctx) {
   // Only the Checker's VERDICT comments are check rounds (none when the Checker is not set up).
   const rounds = comments ? roundsOf(comments, tctx.ids?.agents?.checker || null) : null;
 
-  let who = null;
-  const working = [...steps].reverse().find((s) => WORKING.has(s.status) && s.assigneeAgentId);
-  if (working) who = whoOfAgentId(tctx, working.assigneeAgentId);
-  if (!who && text.for) who = agentByName(tctx, text.for);
-  if (!who) who = whoOfAgentId(tctx, goal.assigneeAgentId);
+  const who = workerOf(goal, tctx, text);
 
   let stage = null;
   if (rounds && rounds.length) stage = "check";

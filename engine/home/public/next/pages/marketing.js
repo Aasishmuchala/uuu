@@ -1,12 +1,14 @@
 // Marketing page (CONTRACTS 9.6, 9.8): the content calendar grouped by week, each draft opening in place
-// with its text and the inbox decision, files that could not be used, and the ready-made goals strip.
+// with its text and the inbox decision, files that could not be used, and the jobs to start. Built as the other
+// dashboards are (M51 F20): the agent and its state at the top right, Jobs to start, Open the department.
 // Publishing is off and nothing here can turn it on.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import {
-  AgentChip, Card, Chip, DataTable, DecisionCard, Empty, ErrorNotice, Figures, Loading, NotConnected, Notice, PageHeader, Section, Switch, Tag,
+  Chip, DataTable, DecisionCard, Empty, ErrorNotice, Figures, Loading, NotConnected, Notice, PageHeader, Section, Switch, Tag,
 } from "../kit/index.js";
+import { AgentHead, Jobs, OpenDepartment } from "./dashboard.js";
 
 export const GROUPS = [
   { id: "this-week", title: "This week" },
@@ -249,27 +251,14 @@ function CalendarRow({ row, inbox, onDone }) {
     </li>`;
 }
 
-function Strip({ department, openComposer }) {
-  const goals = (department?.goals || []).slice(0, 3);
-  if (!goals.length) return null;
-  return html`
-    <${Section} title="Ready-made goals" aside=${html`<a href="#/gallery?d=marketing">All ready-made goals</a>`}>
-      <div class="p-marketing__strip">
-        ${goals.map((g) => html`
-          <${Card} key=${g.id} onClick=${() => openComposer({ text: g.text, to: g.to, planFirst: !!g.planFirst, template: g.id })}>
-            <p class="p-marketing__goal-title">${g.title}</p>
-            <p class="p-marketing__goal-text">${g.summary}</p>
-          <//>`)}
-      </div>
-    <//>`;
-}
+// `?slides=` names a carousel that is not (or no longer) there: true once the carousels are read.
+export const slidesMissing = (data, current) => Boolean(current && data && !data.notConnected && !slideSetById(data, current));
 
 export default function Page({ route }) {
-  const { openComposer, openPanel, closePanel } = useApp();
+  const { openPanel, closePanel } = useApp();
   const res = useResource("/api/departments/marketing", { every: 10000 });
   const slides = useResource("/api/studio/slides", { every: 10000 });
   const inbox = useResource("/api/inbox", { every: 10000 });
-  const gallery = useResource("/api/gallery");
   const d = res.data;
   const current = route?.query?.get("slides") || "";
   const opened = useRef("");
@@ -293,15 +282,14 @@ export default function Page({ route }) {
   const problems = sections.find((s) => s.id === "problems");
   const onDone = () => { res.refresh(); inbox.refresh(); };
   const groups = groupByWeek(calendar?.rows || [], new Date()).filter((g) => g.rows.length);
-  const strip = (gallery.data?.departments || []).find((x) => x.id === "marketing");
   const waiting = waitingDrafts(calendar?.rows, inbox.data);
   const publishing = (d?.switches || []).find((s) => s.id === "publishing");
   return html`
-    <div class="p-marketing">
+    <div class="p-marketing p-dashboard" data-dept="marketing">
       <${PageHeader} title="Marketing" over="DASHBOARD" creature="marketing" back=${{ label: "All dashboards", href: "#/dashboards" }}
-        lead="Posts and newsletters drafted by the Marketer.">
-        ${d?.agent ? html`<${AgentChip} agent=${{ slug: "marketer", name: d.agent.name, state: d.agent.state, plainState: d.agent.plainState }} />` : null}
-      <//>
+        lead="Posts and newsletters drafted by the Marketer."
+        actions=${d?.agent ? html`<${AgentHead} slug="marketer" agent=${d.agent} />` : null} />
+      ${slidesMissing(slides.data, current) ? html`<${Notice} tone="warn" title="That carousel is not here.">It may have been moved or taken away. The carousels below are the ones there are.<//>` : null}
       ${res.loading && !d ? html`<${Loading} lines=${4} label="Loading Marketing" />` : null}
       ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
       ${d ? html`
@@ -336,11 +324,11 @@ export default function Page({ route }) {
               ${d.inFlight.map((g) => html`<li key=${g.goalId}><a href=${`#/tasks/${encodeURIComponent(g.goalId)}`}>${g.title}</a> <${Chip}>${g.plainState}<//></li>`)}
             </ul>
           <//>` : null}
-        <${Strip} department=${strip} openComposer=${openComposer} />
+        <${Jobs} dept="marketing" />
         ${d.switches?.length ? html`
           <${Section} title="Switched off">
             ${d.switches.map((s) => html`<${Switch} key=${s.id} on=${!!s.on} disabled label=${s.label} explain=${s.explain} />`)}
           <//>` : null}
-        <p class="p-marketing__footer"><a href="#/departments/marketing">Open the department</a></p>` : null}
+        <${OpenDepartment} dept="marketing" />` : null}
     </div>`;
 }

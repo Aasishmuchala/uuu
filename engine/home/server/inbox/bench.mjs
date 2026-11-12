@@ -158,7 +158,7 @@ async function sendBack(ctx, doctype, name, note) {
   const slug = AGENT_BY_EMAIL.get(doc.owner).slug;
   const agentId = ids?.agents?.[slug];
   if (!ids?.companyId || !ids?.projectId || !agentId) {
-    throw refuse(ctx, 409, `${agentRef(AGENTS[slug].name)} is not set up yet, so this could not be sent back.`, "Run engine setup first.", "not_set_up");
+    throw refuse(ctx, 409, `${agentRef(AGENTS[slug].name)} is not set up yet, so this could not be sent back.`, "Open Health to see how to set up the engine.", "not_set_up");
   }
   const label = plainType(doctype);
   await closeFixTasks(ctx, inboxIdOf(doctype, name));

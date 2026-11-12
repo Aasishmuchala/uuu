@@ -39,9 +39,27 @@
   color: var(--primary-text);
 }
 
+/* The count in full colour: at .8 it fell under the contrast aim in light (M50 F10). */
 .p-needs-you .p-needs-you__count {
   font-size: var(--fs-caption);
-  opacity: .8;
+  font-variant-numeric: tabular-nums;
+}
+
+.p-needs-you .p-needs-you__filter:not([aria-current="page"]) .p-needs-you__count {
+  color: var(--text-2);
+}
+
+/* A phone: each chip is a 44 px target (M50 F9). */
+@media (max-width: 859px) {
+  .p-needs-you .p-needs-you__filter {
+    min-height: 44px;
+  }
+
+  .p-needs-you .p-needs-you__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
 }
 
 .p-needs-you .p-needs-you__list {

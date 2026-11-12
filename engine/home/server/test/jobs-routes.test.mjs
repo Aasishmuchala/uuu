@@ -83,7 +83,7 @@ test("GET /api/jobs/:department/:id fits shape job, with the earlier tasks offer
   assert.deepEqual(job.who, [{ slug: "sales", name: "Sales" }]);
   const earlier = job.asks.find((a) => a.id === "earlier");
   assert.deepEqual(earlier.options.map((o) => o.value), [issueId(20)]);
-  assert.match(earlier.options[0].label, /^STH-20 · /);
+  assert.match(earlier.options[0].label, /^Call write-up: Asha Kitchens · /, "the title and the date, no task ref (M51 F8)");
   assert.equal(job.asks.find((a) => a.id === "extra").options, null);
   assert.equal(job.runs.working, 1);
   assert.deepEqual(r.json.recent.map((c) => c.identifier), ["STH-21"]);
@@ -93,7 +93,7 @@ test("GET /api/jobs/:department/:id fits shape job, with the earlier tasks offer
 test("GET /api/jobs/:department/:id: a file ask offers the brain's folder, a media ask the room; unknown is 404", async () => {
   const call1 = await get(h, "/api/jobs/sales/call-write-up");
   assert.deepEqual(call1.json.job.asks.find((a) => a.id === "call").options,
-    [{ value: "calls/2026-11-10-asha-kitchens.md", label: "2026-11-10-asha-kitchens.md" }]);
+    [{ value: "calls/2026-11-10-asha-kitchens.md", label: "2026-11-10-asha-kitchens.md", ref: null }]);
   const captions = await get(h, "/api/jobs/studio/captions-for-a-video");
   assert.deepEqual(captions.json.job.asks.find((a) => a.kind === "media").options.map((o) => o.value), ["site-visit.mp4"]);
   for (const path of ["/api/jobs/sales/nope", "/api/jobs/nope/call-write-up", "/api/jobs/sales/..%2Fcall-write-up"]) {

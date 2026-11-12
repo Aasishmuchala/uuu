@@ -4,6 +4,7 @@
 // and a link to the department.
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
+import { HealthNext } from "./team.js";
 import {
   AgentChip, Chip, DataTable, DecisionCard, ErrorNotice, Figures, Icon, JobRow, Live, Loading, NotConnected,
   PageHeader, Section, StatusDot, Switch, Waiting,
@@ -36,6 +37,18 @@ export function itemFor(row, inbox) {
   if (!row || !row.inboxId) return null;
   const items = Array.isArray(inbox) ? inbox : Array.isArray(inbox?.items) ? inbox.items : [];
   return items.find((it) => it && it.id === row.inboxId) || null;
+}
+
+// The Needs-you items of a section's rows that are not drafts (a leave request on People, say): every row with an
+// `inboxId` whose item is in Needs you, so it can be acted on in place above its table (M51 F5, C3 30).
+export function waitingItems(section, inbox) {
+  const rows = Array.isArray(section?.rows) ? section.rows : [];
+  const out = [];
+  for (const row of rows) {
+    const item = itemFor(row, inbox);
+    if (item && !out.includes(item)) out.push(item);
+  }
+  return out;
 }
 
 // Status words and the tone of their chip's dot. Words not listed get a quiet grey dot; stages of a lead or
@@ -118,7 +131,7 @@ function StatusChip({ value }) {
 const renderCell = (row, col) =>
   CHIP_KEYS.includes(col.key) || col.key === STATUS_KEY ? html`<${StatusChip} value=${row[col.key]} />` : text(row[col.key]);
 
-function AgentState({ agent }) {
+export function AgentState({ agent }) {
   if (!agent) return null;
   if (agent.state === "working") return html`<${Live} />`;
   if (agent.state === "waiting_for_you") return html`<${Waiting} />`;
@@ -166,7 +179,21 @@ function StageRow({ section }) {
     <//>`;
 }
 
-function Jobs({ dept }) {
+// The agent's chip and its state, at the top right of every dashboard (M51 F20: the six are built one way).
+export function AgentHead({ slug, agent }) {
+  if (!agent) return null;
+  return html`<span class="p-dashboard-agent"><${AgentChip} agent=${{ slug, name: text(agent.name) }} /><${AgentState} agent=${agent} /></span>`;
+}
+
+// The closing link of every dashboard.
+export function OpenDepartment({ dept }) {
+  return html`<p class="p-dashboard-foot">
+    <a class="p-dashboard-open" href=${`#/departments/${dept}`}>Open the department <${Icon} name="arrow-right" size=${14} /></a>
+  </p>`;
+}
+
+// Jobs to start: three of the department's jobs, ready ones first, and a link to every job of it.
+export function Jobs({ dept }) {
   const res = useResource(`/api/map/${encodeURIComponent(dept)}`, { every: 10000 });
   const jobs = jobsToStart(res.data);
   if (!jobs.length) return null;
@@ -194,18 +221,27 @@ export default function DashboardPage({ route }) {
     <div class="p-dashboard" data-dept=${dept}>
       <${PageHeader} title=${title} over="DASHBOARD" creature=${dept}
         back=${{ href: "#/dashboards", label: "All dashboards" }}
-        actions=${d?.agent ? html`<span class="p-dashboard-agent"><${AgentChip} agent=${{ slug: AGENTS[id], name: text(d.agent.name) }} /><${AgentState} agent=${d.agent} /></span>` : null} />
+        actions=${d?.agent ? html`<${AgentHead} slug=${AGENTS[id]} agent=${d.agent} />` : null} />
       ${res.loading && !d ? html`<${Loading} lines=${4} />` : null}
       ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
-      ${d && !connected ? html`<${NotConnected} reason=${d.notConnected?.reason} next=${d.notConnected?.next} />` : null}
+      ${d && !connected ? html`<${NotConnected} reason=${d.notConnected?.reason}
+        next=${html`<${HealthNext} text=${d.notConnected?.next} />`} />` : null}
       ${d && connected ? html`
         <${Figures} figures=${d.figures || []} />
         ${parts.drafts.map((s) => html`<${DraftSection} key=${s.id} section=${s} inbox=${inbox.data} />`)}
         ${parts.stages ? html`<${StageRow} section=${parts.stages} />` : null}
         ${parts.tables.map((raw) => {
           const s = withStatus(raw, now);
+          const waiting = waitingItems(s, inbox.data);
           return html`
             <${Section} key=${s.id} title=${s.title} count=${(s.rows || []).length}>
+              ${waiting.length ? html`
+                <div class="p-dashboard-waiting">
+                  <p class="p-dashboard-waiting-title">Waiting for you</p>
+                  <ul class="p-dashboard-drafts">
+                    ${waiting.map((item) => html`<li key=${item.id}><${DecisionCard} item=${item} compact onDone=${() => { inbox.refresh(); res.refresh(); }} /></li>`)}
+                  </ul>
+                </div>` : null}
               <${DataTable} columns=${s.columns || []} rows=${s.rows || []} emptyText=${s.emptyText || "Nothing here yet."}
                 renderCell=${renderCell} />
             <//>`;
@@ -227,8 +263,6 @@ export default function DashboardPage({ route }) {
             ${d.switches.map((s) => html`<${Switch} key=${s.id} on=${false} disabled=${true} label=${s.label} explain=${s.explain} />`)}
           </div>
         <//>` : null}
-      <p class="p-dashboard-foot">
-        <a class="p-dashboard-open" href=${`#/departments/${dept}`}>Open the department <${Icon} name="arrow-right" size=${14} /></a>
-      </p>
+      <${OpenDepartment} dept=${dept} />
     </div>`;
 }

@@ -37,7 +37,11 @@ export function needsFor(items, department, departments) {
   if (!department) return list;
   const dep = (Array.isArray(departments) ? departments : []).find((d) => d && d.id === department);
   const slugs = new Set((Array.isArray(dep?.agents) ? dep.agents : []).map((a) => (a && typeof a === "object" ? a.slug : a)).filter(Boolean));
-  return list.filter((i) => (i.agent && slugs.has(i.agent.slug)) || SOURCE_DEPARTMENT[i.source] === department);
+  // The server now says which department an item belongs to (the same rule the map and the dock use);
+  // the older matching by agent or source stays for an answer that does not carry it.
+  return list.filter((i) => (typeof i.department === "string" && i.department
+    ? i.department === department
+    : (i.agent && slugs.has(i.agent.slug)) || SOURCE_DEPARTMENT[i.source] === department));
 }
 
 // The drawer's title: "Needs you", or "Needs you: Sales" for one department.

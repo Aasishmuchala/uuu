@@ -15,7 +15,7 @@
   "asks": [
     {
       "id": "day-or-week",
-      "label": "Day or week:",
+      "label": "Which day or week?",
       "kind": "line",
       "required": true
     }

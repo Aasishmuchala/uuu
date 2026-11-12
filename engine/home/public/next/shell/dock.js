@@ -1,7 +1,8 @@
 // The dock (CONTRACTS-V3 26.2): a floating vertical glass capsule at the left edge, shown from 860 px up on
 // the pages of work. Top: "+" (a new task). Then the company brain and the seven departments from
 // shell.dock (26.4), each its creature with a tiny label, a link, and two marks: working (live) and
-// something waiting for the owner (warm). Bottom: a book, a link to every job.
+// something waiting for the owner (warm), whose words also show on hover. Bottom: the briefcase that stands
+// for jobs everywhere else in the interface, a link to every job (M18-33, M18-C1).
 import { html } from "../vendor/preact-htm.js";
 import { Icon } from "../kit/index.js";
 import { Creature } from "../kit/creature.js";
@@ -70,7 +71,7 @@ export function Dock({ dock, current, onCompose }) {
         ${items.map((it) => html`
           <li key=${it.id}>
             <a class=${`s-dock-item${current === it.id ? " is-current" : ""}`} href=${it.href} data-dept=${it.id}
-              aria-label=${it.label} aria-current=${current === it.id ? "page" : undefined}>
+              aria-label=${it.label} title=${it.label} aria-current=${current === it.id ? "page" : undefined}>
               <span class="s-dock-face">
                 ${it.creature ? html`<${Creature} id=${it.creature} size=${32} />` : html`<${Icon} name="brain" />`}
                 ${it.live ? html`<span class="s-dock-live" aria-hidden="true"></span>` : null}
@@ -81,7 +82,7 @@ export function Dock({ dock, current, onCompose }) {
           </li>`)}
       </ul>
       <a class="s-dock-book" href="#/jobs" aria-label="Every job" title="Every job">
-        <${Icon} name="book" />
+        <${Icon} name="jobs" />
       </a>
     </nav>`;
 }

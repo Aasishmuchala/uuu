@@ -2,9 +2,8 @@
    Cards are glass with a hairline and no blur; pictures keep their own shape inside a quiet frame. */
 .p-studio { display: flex; flex-direction: column; gap: var(--s-6); min-width: 0; }
 .p-studio .p-studio__agents { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-4); }
-.p-studio .p-studio__agent { display: inline-flex; align-items: center; gap: var(--s-2); font-size: var(--fs-caption); color: var(--text-2); }
-.p-studio .p-studio__agent-name { color: var(--text); font-weight: var(--fw-medium); }
-.p-studio .p-studio__dept-link { white-space: nowrap; }
+/* A notice inside a section keeps its distance from the cards under it (M51 F26). */
+.p-studio .k-section .k-notice { margin-bottom: var(--s-4); }
 .p-studio .p-studio__figures { min-width: 0; }
 
 .p-studio .p-studio__lead { margin: 0 0 var(--s-3); color: var(--text-2); max-width: 64ch; }
@@ -46,7 +45,7 @@
   border: 1px solid var(--hairline); border-radius: var(--r-4); background: var(--glass); box-shadow: var(--highlight);
 }
 .p-studio .p-studio__viewer-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
-.p-studio .p-studio__viewer-title { margin: 0; font-size: var(--fs-title); font-weight: var(--fw-bold); overflow-wrap: anywhere; min-width: 0; }
+.p-studio .p-studio__viewer-title { scroll-margin-top: calc(var(--topbar-h) + var(--s-4)); margin: 0; font-size: var(--fs-title); font-weight: var(--fw-bold); overflow-wrap: anywhere; min-width: 0; }
 .p-studio .p-studio__close { flex: none; }
 .p-studio .p-studio__video {
   display: block; width: 100%; max-width: 960px; max-height: 60vh; border-radius: var(--r-2);
@@ -108,7 +107,6 @@
 .p-studio .p-studio__path { font-family: var(--font-mono); font-size: var(--fs-caption); color: var(--text); overflow-wrap: anywhere; }
 
 .p-studio .p-studio__problems { display: grid; gap: var(--s-2); color: var(--text-2); overflow-wrap: anywhere; }
-.p-studio .p-studio__foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); margin: 0; color: var(--text-2); }
 
 @media (prefers-reduced-motion: reduce) {
   .p-studio .p-studio__card, .p-studio .p-studio__sprite { transition: none; }
@@ -119,4 +117,8 @@
   .p-studio .p-studio__viewer, .p-studio .p-studio__player { padding: var(--s-3); }
   .p-studio .p-studio__stills { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .p-studio .p-studio__sprite-button, .p-studio .p-studio__where-line { min-height: 44px; }
+  /* 44 px targets for the links, without changing how they look (M51 F15). */
+  .p-studio .p-studio__close, .p-studio .p-studio__links a, .p-studio .k-table a, .p-studio .k-notice a {
+    display: inline-flex; align-items: center; min-height: 44px;
+  }
 }

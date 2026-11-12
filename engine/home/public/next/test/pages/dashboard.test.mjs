@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { splitSections, itemFor, statusChip, dayOf, dueStatus, withStatus, jobsToStart, DEPARTMENTS } =
+const { splitSections, itemFor, statusChip, dayOf, dueStatus, withStatus, jobsToStart, DEPARTMENTS, waitingItems } =
   await import("../../pages/dashboard.js");
 
 const page = { sections: [
@@ -129,4 +129,16 @@ test("the page serves the four dashboards from route.parts[1] and links to its d
   assert.match(src, /All dashboards/);
   assert.match(src, /Open the department/);
   assert.match(src, /#\/departments\/\$\{dept\}/);
+});
+
+test("waitingItems: a non-draft row that waits in Needs you can be acted on in place (M51 F5)", () => {
+  const leave = { id: "leave", title: "Leave", columns: [{ key: "name", label: "Name" }], rows: [
+    { name: "Priya Nair", status: "Waiting for you", inboxId: "bench:Leave Application:HR-LAP-2026-00001" },
+    { name: "Asha Rao", status: "Approved" },
+    { name: "Gone", inboxId: "bench:Leave Application:HR-LAP-2026-00009" },
+  ] };
+  const inbox = { items: [{ id: "bench:Leave Application:HR-LAP-2026-00001", title: "Leave for Priya Nair" }] };
+  assert.deepEqual(waitingItems(leave, inbox).map((i) => i.id), ["bench:Leave Application:HR-LAP-2026-00001"]);
+  assert.deepEqual(waitingItems(leave, null), []);
+  assert.deepEqual(waitingItems(null, inbox), []);
 });

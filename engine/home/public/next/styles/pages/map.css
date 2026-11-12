@@ -4,7 +4,9 @@
 
 .p-map {
   --p-map-side: 150px;
-  --p-map-bottom: 190px;
+  --p-map-gutter: 48px; /* a zoomed department reaches this close to the window's sides; its arrows sit in it */
+  --p-map-top: var(--s-10);
+  --p-map-bottom: 156px; /* the chips, the box and its hint, fixed at the bottom */
   position: relative;
   min-height: calc(100vh - var(--topbar-h));
   padding-bottom: var(--p-map-bottom);
@@ -64,13 +66,16 @@
   z-index: 6;
 }
 
-/* ---- The stage: the drawing keeps the layout's 1200 × 760 shape, so labels placed by percentage land on it. ---- */
+/* ---- The stage: the whole space between the top bar and the box. The overview keeps the layout's 1200 × 760
+   shape, centred in it, so labels placed by percentage land on it; a zoomed department is laid out in screen
+   pixels for its own box, which reaches out to the gutters. ---- */
 
 .p-map .p-map__stage {
   position: relative;
-  width: min(calc(100% - 2 * var(--p-map-side)), calc((100vh - var(--topbar-h) - var(--p-map-bottom) - var(--s-8)) * 1.5789));
-  aspect-ratio: 1200 / 760;
-  margin: var(--s-8) auto 0;
+  container-type: size;
+  width: calc(100% - 2 * var(--p-map-side));
+  height: max(320px, calc(100vh - var(--topbar-h) - var(--p-map-top) - var(--p-map-bottom)));
+  margin: var(--p-map-top) auto 0;
 }
 
 .p-map .p-map__stage-error {
@@ -86,6 +91,13 @@
   transition: transform var(--t-zoom) var(--ease), opacity var(--t-zoom) var(--ease);
 }
 
+.p-map .p-map__layer--overview {
+  inset: 0;
+  width: min(100cqw, 157.89cqh);
+  height: min(100cqh, 63.333cqw);
+  margin: auto;
+}
+
 .p-map .p-map__layer--overview.is-away {
   opacity: 0;
   transform: scale(2.2);
@@ -93,6 +105,8 @@
 }
 
 .p-map .p-map__layer--dept {
+  left: calc(var(--p-map-gutter) - var(--p-map-side));
+  right: calc(var(--p-map-gutter) - var(--p-map-side));
   opacity: 0;
   transform: scale(.94);
   pointer-events: none;
@@ -228,17 +242,24 @@
   transform: scale(1.4);
 }
 
-.p-map .p-map__pulse {
-  stroke: var(--live);
-  stroke-width: 1.5;
-  animation: p-map-breathe 2.4s ease-in-out infinite;
+/* Work in hand: the dot itself is filled in the live colour, and its ring breathes between full and .6. */
+.p-map .p-map__dot--working .p-map__dot-core {
+  fill: var(--live);
+  stroke: none;
+  opacity: 1;
 }
 
+.p-map .p-map__pulse {
+  stroke: var(--live);
+  stroke-width: 2;
+  animation: p-map-glow 2.4s ease-in-out infinite;
+}
+
+/* Something waits for the owner: a warm mark on the dot, ringed in the canvas colour so it reads apart from it. */
 .p-map .p-map__warm {
   fill: var(--warn);
   stroke: var(--canvas);
-  stroke-width: 1;
-  cursor: pointer;
+  stroke-width: 1.5;
 }
 
 /* The small glass label of a dot (its title and hand-off) and of a job that cannot start (its sentence) */
@@ -304,7 +325,7 @@
 
 .p-map .p-map__job-title {
   fill: var(--text);
-  font-size: calc(var(--fs-caption) * 1.1);
+  font-size: var(--fs-body);
 }
 
 .p-map .p-map__job--blocked .p-map__job-title {
@@ -319,17 +340,18 @@
 
 .p-map .p-map__pill-text {
   fill: var(--text-2);
-  font-size: var(--fs-over);
+  font-size: var(--fs-caption);
 }
 
+/* The ghost name fills the empty band above the clusters, not the band of job titles. */
 .p-map .p-map__ghost {
   position: absolute;
   left: 50%;
-  top: 44%;
+  top: 26%;
   margin: 0;
   transform: translate(-50%, -50%);
   font-family: var(--font-serif);
-  font-size: var(--fs-ghost);
+  font-size: min(var(--fs-ghost), calc(88vw / (var(--p-map-ghost-n, 6) * .95)));
   letter-spacing: .22em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -358,16 +380,21 @@
 }
 
 .p-map .p-map__edge--prev {
-  left: calc(var(--s-4) - var(--p-map-side));
+  left: calc(var(--s-3) - var(--p-map-gutter));
 }
 
 .p-map .p-map__edge--next {
-  right: calc(var(--s-4) - var(--p-map-side));
+  right: calc(var(--s-3) - var(--p-map-gutter));
+}
+
+.p-map .p-map__edge:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .p-map .p-map__edge-name {
   writing-mode: vertical-rl;
-  font-size: var(--fs-over);
+  font-size: var(--fs-caption);
   letter-spacing: .22em;
   text-transform: uppercase;
 }
@@ -446,6 +473,7 @@
   text-decoration: none;
 }
 
+/* Didot's hairlines thin out under one pixel on the coloured light: a hair of stroke keeps them. */
 .p-map .p-map__name-title {
   font-family: var(--font-serif);
   font-size: var(--fs-dept);
@@ -454,6 +482,7 @@
   letter-spacing: .22em;
   text-transform: uppercase;
   color: var(--text);
+  -webkit-text-stroke: .3px currentColor;
 }
 
 .p-map .p-map__name-link:hover .p-map__name-title {
@@ -472,7 +501,7 @@
 }
 
 .p-map .p-map__count-live {
-  color: var(--live);
+  color: var(--live-text); /* the working colour for words: darker in light, for contrast (M50 F10) */
   text-decoration: none;
 }
 
@@ -499,9 +528,13 @@
 
 /* ---- The corners: the legend, Today, Map or List ---- */
 
+.p-map .p-map__aids {
+  display: contents;
+}
+
 .p-map .p-map__corner {
   position: fixed;
-  z-index: 30;
+  z-index: 31;
 }
 
 .p-map .p-map__corner--top {
@@ -668,16 +701,35 @@
   gap: var(--s-2);
 }
 
+/* In the list the page scrolls under the box: there it stands on a strip of the canvas, the width of the window,
+   fading to clear at its top, so no two lines of text run through each other. */
+.p-map.p-map--wide.p-map--list .p-map__bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  padding: var(--s-10) max(var(--s-6), calc((100% - 640px) / 2)) var(--s-4);
+  background: linear-gradient(to top, var(--canvas) 70%, transparent);
+  transform: none;
+}
+
+/* The answer: a solid panel (the canvas under the glass, so nothing shows through its text) of at most about
+   40% of the window, scrolling inside; the drawing behind it is dimmed (opacity only) while it is open. */
 .p-map .p-map__answer {
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
-  max-height: 48vh;
+  max-height: max(260px, min(52vh, calc(100vh - var(--topbar-h) - 220px)));
   padding: var(--s-4);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--hairline-strong);
   border-radius: var(--r-4);
-  background: var(--glass-strong);
+  background: linear-gradient(var(--glass-strong), var(--glass-strong)), var(--canvas);
   box-shadow: var(--shadow-pop);
+}
+
+.p-map.p-map--asked .p-map__stage {
+  opacity: .25;
+  transition: opacity var(--t-med) var(--ease);
 }
 
 .p-map .p-map__answer-head {
@@ -688,11 +740,14 @@
 }
 
 .p-map .p-map__answer-body {
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .p-map .p-map__answer-foot {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -709,6 +764,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: none;
   width: var(--h-sm);
   height: var(--h-sm);
   border: 0;
@@ -797,13 +853,51 @@
 
 .p-map .p-map__dept-links {
   display: flex;
-  gap: var(--s-4);
+  flex-wrap: wrap;
+  gap: var(--s-2);
   margin: 0;
   font-size: var(--fs-caption);
 }
 
-.p-map .p-map__dept-links a {
+/* "Open Sales", "See its jobs", "Open Files": small glass chips that say where they go. */
+.p-map .p-map__link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: var(--h-sm);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--glass-soft);
   color: var(--text);
+  font-size: var(--fs-caption);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+.p-map .p-map__link-chip:hover {
+  border-color: var(--hairline-strong);
+}
+
+.p-map .p-map__link-chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* A department that does not fit the zoomed drawing on this window: its list, scrolling in the same place. */
+.p-map .p-map__view--fallback {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--s-6);
+}
+
+.p-map .p-map__dept-scroll {
+  width: min(760px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: var(--s-5);
+  overscroll-behavior: contain;
 }
 
 .p-map .p-map__cluster-title {
@@ -838,7 +932,7 @@
 
 .p-map .p-map__crown {
   position: relative;
-  width: min(340px, 100%);
+  width: min(300px, 100%);
   aspect-ratio: 360 / 300;
   margin: 0 auto;
 }
@@ -904,14 +998,33 @@
 
 @media (max-width: 859px) {
   .p-map {
-    --p-map-bottom: 210px;
+    --p-map-bottom: 136px;
     min-height: 0;
   }
 
-  .p-map .p-map__corner {
+  /* The legend and Today: one row under the crown, before the rows; an open one unfolds in the flow. */
+  .p-map .p-map__aids {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--s-2);
+  }
+
+  .p-map .p-map__aids .p-map__corner {
     position: static;
     display: block;
-    padding: var(--s-3) var(--s-4) 0;
+  }
+
+  .p-map .p-map__aids .p-map__corner--left {
+    order: -1;
+  }
+
+  .p-map .p-map__aids .p-map__pop[open] {
+    flex-basis: 100%;
+  }
+
+  .p-map .p-map__aids .p-map__corner:has(.p-map__pop[open]) {
+    flex-basis: 100%;
   }
 
   .p-map .p-map__pop-body {
@@ -920,19 +1033,70 @@
     margin-top: var(--s-2);
   }
 
+  /* The box block above the tab bar: about 120 px. A solid backing from the chips down (a short fade above),
+     the chips and the box; the hint shows only while the box has focus. */
   .p-map .p-map__bottom {
     left: 0;
     right: 0;
-    bottom: var(--tabbar-h);
+    bottom: 0;
     width: auto;
-    padding: var(--s-6) var(--s-3) var(--s-2);
-    background: linear-gradient(to top, var(--canvas) 72%, transparent);
+    gap: var(--s-2);
+    padding: var(--s-4) var(--s-3) calc(var(--tabbar-h) + var(--s-3));
+    background: linear-gradient(to top, var(--canvas) calc(100% - var(--s-4)), transparent);
     transform: none;
   }
 
-  .p-map .p-map__answer {
-    max-height: 52vh;
+  .p-map .p-map__narrow .p-map__list {
+    margin-top: 0;
+    padding: 0;
   }
+
+  .p-map .p-map__box .k-composer {
+    padding-bottom: 0;
+  }
+
+  .p-map .p-map__box:not(:focus-within) .k-composer__note {
+    display: none;
+  }
+
+  .p-map .p-map__box .k-composer__note {
+    padding-top: var(--s-1);
+  }
+
+  .p-map .p-map__answer {
+    max-height: calc(100vh - var(--topbar-h) - var(--tabbar-h) - 136px - var(--s-4));
+  }
+
+  .p-map.p-map--asked .p-map__narrow {
+    opacity: .25;
+  }
+
+  .p-map .p-map__link-chip {
+    min-height: 44px;
+    padding: 0 var(--s-4);
+  }
+
+  /* The count line's words are 44 px targets on a phone: the link itself is padded (M50 F9, M52 K7). */
+  .p-map .p-map__count {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--s-1);
+  }
+
+  .p-map .p-map__count-live,
+  .p-map .p-map__count-warm {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--s-1);
+  }
+
+  .p-map .p-map__icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
 
   .p-map .p-map__list {
     margin-top: var(--s-4);
@@ -945,6 +1109,17 @@
 
   .p-map .p-map__chip {
     min-height: 44px;
+  }
+}
+
+@media (max-width: 479px) {
+  /* The brain's row: "Open Files" goes under its line, so its name stays on one line. */
+  .p-map .p-map__brain-row {
+    flex-wrap: wrap;
+  }
+
+  .p-map .p-map__brain-row .p-map__row-go {
+    margin-left: calc(48px + var(--s-4));
   }
 }
 
@@ -983,4 +1158,9 @@
 @keyframes p-map-breathe {
   0%, 100% { opacity: 1; }
   50% { opacity: .35; }
+}
+
+@keyframes p-map-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .6; }
 }

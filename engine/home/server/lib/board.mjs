@@ -5,8 +5,9 @@ import { HomeError } from "./errors.mjs";
 import { httpRequest, parseJson } from "./httpclient.mjs";
 
 export function boardOff() {
-  return new HomeError(502, "The board is not answering, so agents and goals cannot be reached.",
-    "Run: engine start", "board_off");
+  // Words for the owner (M51 F17, M50 F18): Health shows the command.
+  return new HomeError(502, "The board is switched off, so agents and tasks cannot be reached.",
+    "Open Health to see how to start it.", "board_off");
 }
 
 // Reads get `timeoutMs`; writes (POST, PATCH, PUT, DELETE) get `writeTimeoutMs`, as a comment write on a

@@ -1,4 +1,4 @@
-// Every data state has a design: a notice, an error with Retry, not connected, empty, loading, being built.
+// Every data state has a design: a notice, an error with Try again (C3 25), not connected, empty, loading, being built.
 import { html } from "../vendor/preact-htm.js";
 import { Button } from "./button.js";
 import { Icon } from "./icon.js";
@@ -30,7 +30,7 @@ export function ErrorNotice({ error, onRetry }) {
       <p class="k-notice__title">This could not be loaded.</p>
       <div class="k-notice__text">${message(error)}</div>
     </div>
-    ${onRetry ? html`<div class="k-notice__actions"><${Button} size="sm" onClick=${onRetry}>Retry<//></div>` : null}
+    ${onRetry ? html`<div class="k-notice__actions"><${Button} size="sm" onClick=${onRetry}>Try again<//></div>` : null}
   </div>`;
 }
 

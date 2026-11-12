@@ -400,14 +400,19 @@ function FileItem({ file, folder, grid }) {
   const href = filesHref({ folder, file: file.token });
   const at = file.changedAt || file.addedAt;
   if (grid) {
+    // A picture shows itself (from the brain's own raw address, served with a sandbox policy); the size follows
+    // the date, as C3 30 asks (M52 F8).
+    const picture = file.kind === "image" ? safeBrainUrl(file.rawUrl) : null;
     return html`<li class="p-files__tile">
       <a class="p-files__tile-link u-glass" href=${href} title=${name}>
         <span class="p-files__tile-name u-truncate">${name}</span>
-        <span class="p-files__tile-face" aria-hidden="true">
-          <${Icon} name=${ICONS[file.kind] || "file"} size=${24} />
-          <span class="p-files__tile-kind">${kindLabel(file.kind)}</span>
+        <span class=${`p-files__tile-face${picture ? " p-files__tile-face--picture" : ""}`} aria-hidden="true">
+          ${picture
+            ? html`<img class="p-files__tile-img" src=${picture} alt="" loading="lazy" decoding="async" />`
+            : html`<${Icon} name=${ICONS[file.kind] || "file"} size=${24} />
+              <span class="p-files__tile-kind">${kindLabel(file.kind)}</span>`}
         </span>
-        <span class="p-files__tile-foot u-caption"><${Time} at=${at} prefix="Added" /></span>
+        <span class="p-files__tile-foot u-caption"><${Time} at=${at} prefix="Added" /> · ${bytes(file.size)}</span>
       </a>
     </li>`;
   }
@@ -587,7 +592,7 @@ function FolderView({ id, brain, onChanged }) {
   const files = sortFiles(arr(res.data && res.data.files).filter((f) => f && TOKEN.test(str(f.token))), by);
   return html`
     <div class="p-files__bar">
-      <span class="u-caption">${count(files.length, "file")}</span>
+      <span class="p-files__count u-caption">${count(files.length, "file")}</span>
       <div class="p-files__bar-tools">
         <${Field} label="Sort by">
           <${Select} options=${[{ value: "date", label: "Newest first" }, { value: "name", label: "Name" }]} value=${by}
@@ -650,6 +655,10 @@ export default function Page({ route }) {
   // The file named by ?file= opens in the work panel. It opens after the shell has finished its own work for a new
   // address (the shell closes the panel when the address changes). Closing the panel takes ?file= out of the address.
   const opened = useRef(null);
+  // The file a form, a paste or an upload has just saved (M52 K2): it opens in the panel even while /api/brain still
+  // lists it as missing, focus goes to the panel's title, and the page says "Saved.".
+  const saved = useRef("");
+  const [savedName, setSavedName] = useState("");
   const path = parts.join("/");
   const brainSettled = !!(brain.data || brain.error);
   const foldersRef = useRef(folders);
@@ -659,15 +668,16 @@ export default function Page({ route }) {
       if (opened.current) { opened.current = null; closePanel(); }
       return undefined;
     }
-    if (opened.current && opened.current.token === fileTok && opened.current.path === path) return undefined;
+    const shown = typeof document === "undefined" || !!document.querySelector(".s-panel");
+    if (opened.current && opened.current.token === fileTok && opened.current.path === path && (shown || saved.current !== fileTok)) return undefined;
     // A folder's token opens the folder; a basic not there yet opens its form (that needs /api/brain, so wait for it).
     const target = fileTarget(fileTok, brain.data);
     if (target.to === "folder") { redirect(target.href); return undefined; }
     if (target.to === "file" && !brainSettled) return undefined;
-    if (target.to === "form") { redirect(target.href); return undefined; }
+    if (target.to === "form" && saved.current !== fileTok) { redirect(target.href); return undefined; }
     const formTarget = fileTarget(fileTok, brain.data, { missingOnly: false });
     const formHref = formTarget.to === "form" ? formTarget.href : "";
-    const t = setTimeout(() => {
+    const show = () => {
       const mine = { token: fileTok, path };
       opened.current = mine;
       const known = arr(brain.data && brain.data.recent).find((f) => f && f.token === fileTok);
@@ -691,13 +701,28 @@ export default function Page({ route }) {
               history.replaceState(null, "", withoutKey(h, "file"));
             }
           } catch { /* the address stays as it is */ }
-        }} />`, { title: cut(known && known.name, NAME_MAX) || "File" });
-    }, 0);
-    return () => clearTimeout(t);
+        }} />`, { title: cut(known && known.name, NAME_MAX) || (saved.current === fileTok && savedName) || "File" });
+      if (saved.current === fileTok && typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => {
+          const title = typeof document !== "undefined" ? document.querySelector(".s-panel-title") : null;
+          if (title) { title.setAttribute("tabindex", "-1"); title.focus({ preventScroll: true }); }
+        });
+      }
+    };
+    const t = setTimeout(show, 0);
+    // After a save the address moves to the file's folder, and the shell closes the panel for the new page; when that
+    // lands after ours, open the saved file again (M52 K2).
+    const again = saved.current === fileTok ? setTimeout(() => {
+      if (typeof document !== "undefined" && !document.querySelector(".s-panel")
+        && new URLSearchParams(location.hash.split("?")[1] || "").get("file") === fileTok) show();
+    }, 400) : 0;
+    return () => { clearTimeout(t); clearTimeout(again); };
   }, [route, brainSettled]);
 
   const folderInfo = folders.find((f) => f && f.id === folder);
-  const folderTitle = cut(folderInfo && folderInfo.title, 60) || FOLDER_TITLES[folder] || folder;
+  // A folder the brain does not have is "Folder not found", never the typed address (M52 F5).
+  const unknownFolder = badFolder || (folder && brain.data && !folderInfo && !FOLDER_TITLES[folder]);
+  const folderTitle = cut(folderInfo && folderInfo.title, 60) || FOLDER_TITLES[folder] || (brain.data ? "Folder not found" : "Files");
   const closeNew = () => go(filesHref({ folder, q: term, tab: tab === "lessons" ? "lessons" : "" }));
 
   const built = newFile.state === "ready";
@@ -714,9 +739,9 @@ export default function Page({ route }) {
   const formTitle = wanted && wanted.mode === "form" ? cut((basics.find((b) => b.form === wanted.form) || {}).title, 60) : "";
 
   const header = folder || badFolder
-    ? html`<${PageHeader} over="Company brain" title=${badFolder ? "Files" : folderTitle}
+    ? html`<${PageHeader} over="Company brain" title=${unknownFolder ? "Folder not found" : folderTitle}
         lead=${folderInfo ? cut(folderInfo.about, 200) : undefined}
-        chip=${{ label: ["Files", badFolder ? "" : folderTitle], href: "#/files", closeLabel: "Back to all files" }}
+        chip=${{ label: unknownFolder ? ["Files"] : ["Files", folderTitle], href: "#/files", closeLabel: "Back to all files" }}
         actions=${menu} />`
     : html`<${PageHeader} over="Company brain" title="Files"
         lead="Your company's own files. Every agent reads them before it works." actions=${menu} />`;
@@ -726,6 +751,7 @@ export default function Page({ route }) {
   return html`<div class="p-files">
     ${header}
 
+    ${savedName && saved.current && saved.current === fileTok ? html`<p class="p-files__saved" role="status"><${Icon} name="check" size=${16} />Saved. ${savedName}</p>` : null}
     ${brain.error && !brain.data ? html`<${ErrorNotice} error=${brain.error} onRetry=${brain.reload} />` : null}
 
     ${!folder && !badFolder && brain.data ? html`<${ReadinessCard} brain=${brain.data} />` : null}
@@ -784,8 +810,12 @@ export default function Page({ route }) {
             onDone=${(res) => {
               reloadAll();
               const file = res && (res.file || res);
-              if (file && TOKEN.test(str(file.token))) go(filesHref({ folder: ID.test(str(file.folder)) ? file.folder : folder, file: file.token }));
-              else closeNew();
+              announce && announce("Saved.");
+              if (file && TOKEN.test(str(file.token))) {
+                saved.current = file.token;
+                setSavedName(cut(file.name, NAME_MAX));
+                go(filesHref({ folder: ID.test(str(file.folder)) ? file.folder : folder, file: file.token }));
+              } else closeNew();
             }} />`
         : wanted && newFile.state === "missing"
           ? html`<${BeingBuilt} title="Adding files here is not ready yet." />`

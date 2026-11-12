@@ -21,21 +21,22 @@ const MARKER_MAX = 120;
 export function FileCard({ file, onOpen }) {
   if (!file) return null;
   const name = text(file.name);
+  // The file's own name only: folder paths stay off screen outside Health (C3 25, M50 F17).
   const short = name.split("/").pop() || name;
-  const folder = name.length > short.length ? name.slice(0, name.length - short.length - 1) : "";
   const canView = !!file.viewUrl;
+  // Each button says which file it is for, so a list of files is not "Open, Open, Open" (M52 K9).
   const button = canView
     ? onOpen
-      ? html`<${Button} size="sm" icon="external" onClick=${() => onOpen(file)}>Open<//>`
-      : html`<${Button} size="sm" icon="external" href=${file.viewUrl}>Open<//>`
+      ? html`<${Button} size="sm" icon="external" aria-label=${`Open ${short}`} onClick=${() => onOpen(file)}>Open<//>`
+      : html`<${Button} size="sm" icon="external" aria-label=${`Open ${short}`} href=${file.viewUrl}>Open<//>`
     : file.url
-      ? html`<${Button} size="sm" icon="download" href=${file.url} download=${short}>Download<//>`
+      ? html`<${Button} size="sm" icon="download" aria-label=${`Download ${short}`} href=${file.url} download=${short}>Download<//>`
       : null;
   return html`<div class="k-file">
     <span class="k-file__icon"><${Icon} name=${file.kind === "image" ? "image" : "file"} /></span>
     <span class="k-file__body">
-      <span class="k-file__name" title=${name}>${short}</span>
-      <span class="k-file__meta">${folder && html`<span class="k-file__folder u-mono">${folder}</span>`}${Number.isFinite(Number(file.size)) && html`<span>${bytes(file.size)}</span>`}</span>
+      <span class="k-file__name" title=${short}>${short}</span>
+      <span class="k-file__meta">${Number.isFinite(Number(file.size)) && html`<span>${bytes(file.size)}</span>`}</span>
     </span>
     ${button}
   </div>`;

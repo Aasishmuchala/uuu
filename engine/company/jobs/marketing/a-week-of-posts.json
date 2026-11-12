@@ -24,31 +24,31 @@
   "asks": [
     {
       "id": "number-of-posts",
-      "label": "Number of posts:",
+      "label": "How many posts?",
       "kind": "line",
       "required": true
     },
     {
       "id": "channel",
-      "label": "Channel:",
+      "label": "Where will they be posted?",
       "kind": "line",
       "required": true
     },
     {
       "id": "what-we-want-to-talk-about",
-      "label": "What we want to talk about:",
+      "label": "What should they talk about?",
       "kind": "line",
       "required": true
     },
     {
       "id": "date",
-      "label": "Date:",
+      "label": "Which day does the week start?",
       "kind": "date",
       "required": true
     },
     {
       "id": "tone-of-voice",
-      "label": "Tone of voice:",
+      "label": "In what tone?",
       "kind": "line",
       "required": true
     }

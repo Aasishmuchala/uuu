@@ -122,7 +122,7 @@ function ThemeSwitch() {
 
 export default function Gallery() {
   const [busy, setBusy] = useState(false);
-  return html`<main style="position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:40px 24px 120px">
+  return html`<main style="position:relative;z-index:1;max-width:var(--content-max);margin:0 auto;padding:var(--s-8) var(--s-4) var(--s-12)">
     <${PageHeader}
       over="Kit · Primitives"
       title="The company brain's parts"

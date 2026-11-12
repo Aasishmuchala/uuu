@@ -125,11 +125,15 @@ hr {
   background: var(--border-strong);
 }
 
-/* Motion off when the owner asks for less: in this app's settings, or on the Mac. */
+/* Motion off when the owner asks for less: in this app's settings, or on the Mac. Every animation runs once
+   in no time and stops at its end, as with reduced motion: a paused one would hold an opening drawer or
+   dialog at its first frame, out of sight, and a breathing mark half faded. */
 :root[data-motion="off"] *,
 :root[data-motion="off"] *::before,
 :root[data-motion="off"] *::after {
-  animation-play-state: paused !important;
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
   transition-delay: 0s !important;
   scroll-behavior: auto !important;

@@ -45,8 +45,20 @@ export function capText(text, { total = TEXT_MAX, line = LINE_MAX } = {}) {
   return out.join("\n");
 }
 
+// Markdown's marks taken out of a text for a one-line snippet (M52 F6): headings' #, list and quote marks at the
+// start of a line, table rules and pipes, emphasis and code marks. The words stay.
+export function plainMarks(text) {
+  return String(text ?? "").split("\n").map((line) => line
+    .replace(/^\s{0,3}#{1,6}\s+/, "")
+    .replace(/^\s*(?:[-*+]|>)\s+/, "")
+    .replace(/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/, "")
+    .replace(/^\s*\|\s*|\s*\|\s*$/g, "")
+    .replace(/\s+\|\s+/g, " · ")
+    .replace(/(\*\*|__|`)/g, "")).join("\n");
+}
+
 export function snippet(text, words, max = 160) {
-  const t = capText(text).replace(/\s+/g, " ").trim();
+  const t = plainMarks(capText(text)).replace(/\s+/g, " ").trim();
   if (t.length <= max) return t;
   const lower = t.toLowerCase();
   const hit = words.map((w) => lower.indexOf(w)).filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? 0;

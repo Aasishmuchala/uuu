@@ -15,31 +15,31 @@
   "asks": [
     {
       "id": "customer",
-      "label": "Customer:",
+      "label": "Which customer paid?",
       "kind": "line",
       "required": true
     },
     {
       "id": "amount",
-      "label": "Amount:",
+      "label": "How much did they pay?",
       "kind": "line",
       "required": true
     },
     {
       "id": "date",
-      "label": "Date:",
+      "label": "When did they pay?",
       "kind": "date",
       "required": true
     },
     {
       "id": "bank-transfer-or-cheque",
-      "label": "Bank transfer or cheque:",
+      "label": "Bank transfer or cheque?",
       "kind": "line",
       "required": true
     },
     {
       "id": "invoice-number",
-      "label": "Invoice number:",
+      "label": "Which invoice number?",
       "kind": "line",
       "required": true
     }

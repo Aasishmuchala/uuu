@@ -15,25 +15,25 @@
   "asks": [
     {
       "id": "who-or-what-it-is",
-      "label": "Who or what it is:",
+      "label": "Who or what is it?",
       "kind": "line",
       "required": true
     },
     {
       "id": "frame-size",
-      "label": "Frame size:",
+      "label": "What frame size, in pixels?",
       "kind": "line",
       "required": true
     },
     {
       "id": "number-of-frames",
-      "label": "Number of frames:",
+      "label": "How many frames?",
       "kind": "line",
       "required": true
     },
     {
       "id": "what-it-does",
-      "label": "What it does:",
+      "label": "What does it do?",
       "kind": "line",
       "required": true
     }

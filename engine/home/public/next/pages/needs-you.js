@@ -19,6 +19,10 @@ const cap = (s, n) => {
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 };
 
+// A next step for the owner in words: a command ("Run: ...") stays off screen outside Health (C3 25, M50 F18);
+// Health is linked instead.
+export const plainNext = (next) => (/\bRun:/i.test(String(next ?? "")) ? "" : String(next ?? "").slice(0, 200));
+
 // The page's address for a department filter. Everyone is plain `#/needs-you`.
 export function address(d) {
   return DEPARTMENT_IDS.includes(d) ? `#/needs-you?d=${d}` : "#/needs-you";
@@ -30,11 +34,13 @@ export function filterOf(query) {
   return DEPARTMENT_IDS.includes(d) ? d : "";
 }
 
-// Pure. The department of one item: the one whose agent raised it (`agent.slug`), else the one whose dashboard
-// is its source, else "" (the item belongs to no department). `departments` is /api/map's list
-// ({ id, agents: [{ slug }] }), when it could be read.
+// Pure. The department of one item: the one the home server placed it in (`department`: a task's item belongs to
+// the task's department, as the map and the dock count it), else the one whose agent raised it (`agent.slug`),
+// else the one whose dashboard is its source, else "" (the item belongs to no department). `departments` is
+// /api/map's list ({ id, agents: [{ slug }] }), when it could be read.
 export function departmentOf(item, departments) {
   if (!item || typeof item !== "object") return "";
+  if (Object.hasOwn(item, "department")) return DEPARTMENT_IDS.includes(item.department) ? item.department : "";
   const slug = item.agent && typeof item.agent === "object" ? item.agent.slug : "";
   if (slug) {
     for (const d of Array.isArray(departments) ? departments : []) {
@@ -117,7 +123,8 @@ export default function Page({ route }) {
   else if (!data && res.error) {
     const e = res.error;
     body = e.offline || e.status === 502
-      ? html`<${NotConnected} title="What needs you cannot be shown right now" reason=${e.message} next=${e.next} />`
+      ? html`<${NotConnected} title="What needs you cannot be shown right now" reason=${e.message} next=${plainNext(e.next)} />
+          <p><a class="p-needs-you__link" href="#/health">Open Health</a></p>`
       : html`<${ErrorNotice} error=${e} onRetry=${res.reload} />`;
   } else if (data) {
     const all = sortItems(data.items);
@@ -127,11 +134,11 @@ export default function Page({ route }) {
     let list;
     if (!all.length) {
       list = html`<${Empty} title="Nothing needs you.">
-        <a href="#/map">Back to the map</a>
+        <a class="p-needs-you__link" href="#/map">Back to the map</a>
       <//>`;
     } else if (!shown.length) {
       list = html`<${Empty} title=${`Nothing from ${DEPARTMENT_TITLES[d]} needs you.`}>
-        <a href=${address("")}>Show everything</a>
+        <a class="p-needs-you__link" href=${address("")}>Show everything</a>
       <//>`;
     } else {
       list = html`<div class="p-needs-you__list">
@@ -147,6 +154,7 @@ export default function Page({ route }) {
       ${list}
       ${quiet.length ? html`<ul class="p-needs-you__quiet">
         ${quiet.map((n, i) => html`<li key=${i}><span class="p-needs-you__source">${n.source}:</span> ${n.reason}</li>`)}
+        <li><a class="p-needs-you__link" href="#/health">Open Health</a></li>
       </ul>` : null}`;
   } else body = html`<${Loading} lines=${5} label="Loading what needs you" />`;
 

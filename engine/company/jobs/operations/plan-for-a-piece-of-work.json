@@ -15,13 +15,13 @@
   "asks": [
     {
       "id": "the-piece-of-work",
-      "label": "The piece of work:",
+      "label": "What is the piece of work?",
       "kind": "line",
       "required": true
     },
     {
       "id": "date",
-      "label": "Date:",
+      "label": "By when should it be finished?",
       "kind": "date",
       "required": true
     }

@@ -108,6 +108,8 @@ export function layoutOverview({ departments = [], width = W0, height = H0 } = {
 }
 
 // ---- One department: the hub at the bottom, the clusters fanned upward, each job with its title ----
+// `mode` says which arrangement held: "fan" (the clusters rising from the hub) or "grid" (the fallback, columns
+// read top to bottom), so a drawing can choose to show a department that only fits as a grid another way.
 
 const DEPT_HUB_Y = 640;
 const DEPT_HUB_R = 28;
@@ -262,7 +264,7 @@ export function layoutDepartment({ clusters = [], width = W0, height = H0 } = {}
   const sy = height / H0;
   const s = Math.min(sx, sy);
   const hx = width / 2;
-  const hy = DEPT_HUB_Y * sy;
+  const hy = Math.min(DEPT_HUB_Y * sy, height - INSET - DEPT_HUB_R); // on a short box the hub stays inside
   const hub = { ...point(hx, hy), r: DEPT_HUB_R };
   const k = clusters.length;
   const anchors = clusters.map((_, i) => {
@@ -270,14 +272,18 @@ export function layoutDepartment({ clusters = [], width = W0, height = H0 } = {}
     return point(hx + FAN_R * s * Math.cos(rad(a)), hy + FAN_R * s * Math.sin(rad(a)));
   });
   let body = fan(clusters, anchors, hub, width);
-  if (!body || !holds({ hub, jobs: body.jobs }, width, height)) body = grid(clusters, anchors, hub, width, height);
+  let mode = "fan";
+  if (!body || !holds({ hub, jobs: body.jobs }, width, height)) {
+    body = grid(clusters, anchors, hub, width, height);
+    mode = "grid";
+  }
   const links = [];
   for (const c of body.clusters) links.push({ cluster: c.id, from: { x: hub.x, y: hub.y }, to: { x: c.x, y: c.y } });
   for (const j of body.jobs) {
     const c = body.clusters.find((x) => x.id === j.cluster);
     links.push({ cluster: j.cluster, from: { x: c.x, y: c.y }, to: { x: j.x, y: j.y } });
   }
-  return { viewBox: [0, 0, width, height], hub, clusters: body.clusters, jobs: body.jobs, links };
+  return { viewBox: [0, 0, width, height], hub, clusters: body.clusters, jobs: body.jobs, links, mode };
 }
 
 // ---- Moving between departments ----

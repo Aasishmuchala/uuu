@@ -165,7 +165,8 @@ export default function register(app) {
     if (tctx.error) {
       return {
         agent: agentCards(ctx, null).find((c) => c.slug === role.slug), profile, instructions, lessons,
-        recent: [], conversation: [], generatedAt,
+        recent: [], conversation: [], connected: false,
+        notConnected: { reason: tctx.error.message, next: tctx.error.next }, generatedAt,
       };
     }
     const card = agentCards(ctx, tctx).find((c) => c.slug === role.slug);
@@ -174,7 +175,7 @@ export default function register(app) {
       agent: card, profile, instructions, lessons,
       recent: recentOf(tctx, role, agentId),
       conversation: await conversationOf(ctx, tctx, role, agentId),
-      generatedAt,
+      connected: true, notConnected: null, generatedAt,
     };
   });
 }

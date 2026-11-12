@@ -17,8 +17,9 @@
 .k-card--pad-md { padding: var(--s-5); }
 .k-card--pad-lg { padding: var(--s-6); }
 
+/* The warm tint lies over glass, so a card that needs the owner looks the same over every light (M18-11). */
 .k-card--warm {
-  background: var(--bg-warm);
+  background: linear-gradient(var(--bg-warm), var(--bg-warm)), var(--glass);
   border-color: var(--border-warm);
 }
 

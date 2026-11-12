@@ -15,25 +15,25 @@
   "asks": [
     {
       "id": "customer",
-      "label": "Customer:",
+      "label": "Which customer?",
       "kind": "line",
       "required": true
     },
     {
       "id": "their-problem",
-      "label": "Their problem:",
+      "label": "What is their problem?",
       "kind": "line",
       "required": true
     },
     {
       "id": "friendly-or-formal",
-      "label": "Friendly or formal:",
+      "label": "Friendly or formal?",
       "kind": "line",
       "required": true
     },
     {
       "id": "date",
-      "label": "Date:",
+      "label": "By when will we act?",
       "kind": "date",
       "required": true
     }

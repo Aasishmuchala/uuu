@@ -81,6 +81,16 @@ test("/api/shell carries the dock: eight entries, the brain first, then the seve
   assert.equal(r.json.dock.find((d) => d.id === "sales").working >= 1, true, "Sales is working");
 });
 
+test("/api/shell's dock counts a waiting task under the department that did it, not under the Chief of staff (M51 F4)", async () => {
+  const r = await get("/api/shell");
+  const by = Object.fromEntries(r.json.dock.map((d) => [d.id, d.needsYou]));
+  const sum = Object.values(by).reduce((a, b) => a + b, 0);
+  assert.equal(sum, r.json.counts.needsYou, "every item is counted once, on one entry");
+  assert.ok(by.studio >= 1, `the Artist's sprite waits on Studio (${JSON.stringify(by)})`);
+  assert.ok(by.operations < r.json.counts.needsYou - by.brain, "Operations does not collect every task's item");
+  assert.equal(r.json.engine.gate, "off", "no gate in the test home, and the shell says so (M52 F4)");
+});
+
 test("settings: the new values, their lists, and dark when nothing was saved", async () => {
   const home = await startV2({ routes: ["settings"], inbox: [], search: [] });
   try {

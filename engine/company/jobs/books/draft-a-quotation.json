@@ -24,7 +24,7 @@
   "asks": [
     {
       "id": "customer",
-      "label": "Customer:",
+      "label": "Which customer is it for?",
       "kind": "line",
       "required": true
     },

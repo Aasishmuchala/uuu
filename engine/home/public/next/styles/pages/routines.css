@@ -15,3 +15,4 @@
 .p-routines .p-routines__produces { margin: 0; padding-left: var(--s-5); }
 .p-routines .p-routines__title a { color: var(--text); text-decoration: none; }
 .p-routines .p-routines__title a:hover { text-decoration: underline; }
+.p-routines .p-routines__ref { color: var(--text-3); font-size: var(--fs-caption); }

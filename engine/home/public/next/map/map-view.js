@@ -6,7 +6,7 @@
 // Nothing here moves by script: hover labels, pulses and the zoom are CSS (styles/pages/map.css).
 // Every word a job or a department shows comes from the company's own files, through the home server; it is
 // shown as text and cut to a fixed length.
-import { html } from "../vendor/preact-htm.js";
+import { html, useLayoutEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { Creature, HANDOFFS, Icon } from "../kit/index.js";
 import { DEPARTMENTS } from "../routes.js";
 import { layoutDepartment, layoutOverview, neighbours } from "./layout.js";
@@ -57,22 +57,31 @@ export function dotMarks(job) {
   return marks;
 }
 
-// What a screen reader hears for a job: "Call write-up, On its own, ready".
+// What a screen reader hears for a job: "Call write-up, On its own, ready". A job at work that could not be
+// started again says the work first: "being worked on, a new one cannot start yet".
 export function dotLabel(job) {
   const marks = dotMarks(job);
   const parts = [clip(job && job.title, 60) || "A job"];
   const tag = handoffWord(job && job.handoff);
   if (tag) parts.push(tag);
-  parts.push(marks[0] === "ready" ? "ready" : "cannot start yet");
-  if (marks.includes("working")) parts.push("being worked on");
+  if (marks[0] === "ready") parts.push("ready");
+  if (marks.includes("working")) parts.push("being worked on", ...(marks[0] === "ready" ? [] : ["a new one cannot start yet"]));
+  else if (marks[0] !== "ready") parts.push("cannot start yet");
   if (marks.includes("needs-you")) parts.push("needs you");
   return parts.join(", ");
 }
 
-// The line under the brain: "12 files · 4 of 9 basics filled", or "Reading your files" while a question is open.
+// The sentence a zoomed job shows on hover and focus: why it cannot start, after "Being worked on." when it is.
+export function jobNote(job) {
+  const why = whyText(job);
+  if (!num(job && job.working)) return why;
+  return why ? `Being worked on. A new one cannot start yet: ${why}` : "";
+}
+
+// The line under the brain: "12 files · 4 of 9 basics filled", always; while a question is open the ring
+// breathes and the chip over the box says so, so the count is never hidden.
 export function brainLine(brain) {
   if (!brain || typeof brain !== "object") return "";
-  if (brain.asking) return "Reading your files";
   const files = num(brain.files);
   const b = brain.basics || {};
   return `${files === 1 ? "1 file" : `${files} files`} · ${num(b.filled)} of ${num(b.total)} basics filled`;
@@ -115,25 +124,68 @@ export function overviewInput(data) {
   };
 }
 
-// A zoomed job's label holds its title and its hand-off pill; the layout keeps label boxes apart by their
-// length, so each title is given room for the pill with spaces.
-const TITLE_CHAR = 6.6; // a title's letter, drawn, in map units (a little wider than it is)
+// A zoomed job's label holds its title and its hand-off pill. The zoomed view is laid out in screen pixels, so
+// the words are drawn at their true size. A cluster's pills stand in one column just past its longest title;
+// the layout keeps label boxes apart by their length, so every title of a cluster is padded with spaces to the
+// same length: its longest title, then room for its widest pill.
+export const TITLE_CHAR = 6.9; // the widest letter of a title at --fs-body (Geist 14 px measures 6.87 at most)
 const PILL_CHAR = 6.2;
 const PILL_PAD = 16;
-const GAP = 10;
+export const PILL_GAP = 10;
 export const pillWidth = (label) => Math.round(PILL_CHAR * str(label).length + PILL_PAD);
-export const padFor = (label) => (label ? str(label).length + 2 : 0);
+// The spaces a title needs after it for a pill: the layout gives each letter 7.2 and a label 34 to spare.
+export const padFor = (label) => (label ? Math.max(0, Math.ceil((PILL_GAP + pillWidth(label) - 34) / 7.2)) : 0);
 
-// The input for layoutDepartment: each cluster's title and its jobs, the job titles padded for the pill.
+// The input for layoutDepartment: each cluster's title and its jobs, every title of a cluster padded to one length.
 export function departmentInput(dept) {
   return {
-    clusters: clustersOf(dept).map((c) => ({
-      id: c.id,
-      title: clip(c.title, 40),
-      jobs: jobsOfCluster(c).slice(0, 8).map((j) => ({ id: j.id, title: clip(j.title, 60) + " ".repeat(padFor(handoffWord(j.handoff))) })),
-    })),
+    clusters: clustersOf(dept).map((c) => {
+      const jobs = jobsOfCluster(c).slice(0, 8);
+      const longest = Math.max(0, ...jobs.map((j) => clip(j.title, 60).length));
+      const pad = Math.max(0, ...jobs.map((j) => padFor(handoffWord(j.handoff))));
+      return {
+        id: c.id,
+        title: clip(c.title, 40),
+        jobs: jobs.map((j) => {
+          const t = clip(j.title, 60);
+          return { id: j.id, title: t + " ".repeat(longest - t.length + pad) };
+        }),
+      };
+    }),
   };
 }
+
+// Where a cluster's pill column starts, from a job's label point: { x } of the pill's box, for `start` labels
+// just past the longest title, for `end` labels ending just before it. `longest` is in characters.
+export function pillX(label, longest, width) {
+  const reach = TITLE_CHAR * longest + PILL_GAP;
+  return label.anchor === "end" ? label.x - reach - width : label.x + reach;
+}
+
+// The zoomed view's frame for a box of w × h screen pixels: the drawing is laid out in pixels (one unit is one
+// pixel), over all but the bottom NAME_ROOM, which holds the hub's name and count line. When the clusters do not
+// fan out at full size, the layout is tried a little smaller (down to SCALES' last step, so a title is never
+// drawn under about 12.5 px); when they still do not, `fits` is false and the department is shown as its list.
+export const NAME_ROOM = 48;
+export const SCALES = [1, 0.95, 0.9];
+export function departmentFrame(size, input) {
+  const w = Math.round(Number(size && size.w)) || 0;
+  const h = Math.round(Number(size && size.h)) || 0;
+  const measured = w >= 320 && h >= 280;
+  const bw = measured ? w : W;
+  const bh = measured ? h : H;
+  let lay = null;
+  for (const k of SCALES) {
+    const vw = Math.round(bw / k);
+    const vh = Math.round(bh / k);
+    lay = layoutDepartment({ ...input, width: vw, height: vh - NAME_ROOM });
+    if (lay.mode === "fan") return { w: vw, h: vh, scale: k, lay, fits: true, measured };
+  }
+  return { w: bw, h: bh, scale: 1, lay, fits: !measured, measured };
+}
+
+// The cluster's overline in the zoomed drawing: "CALLS · 3".
+export const clusterWords = (title, n) => `${clip(title, 40)} · ${num(n)}`.toUpperCase();
 
 // Splits a sentence into lines of at most `n` characters, at spaces.
 export function wrapWords(text, n = 44) {
@@ -201,11 +253,13 @@ export function labelShift(hub) {
 export function CountLine({ dept, onNeeds, focusable = true }) {
   const id = idOf(dept);
   const tab = focusable ? undefined : "-1";
+  // Each link says whose count it is, so a list of departments is not "1 working, 1 working" (M52 K9).
+  const title = clip(dept && dept.title, 40);
   return html`<p class="p-map__count">${countParts(dept && dept.counts).map((p, i) => html`${i ? html`<span class="p-map__count-sep" aria-hidden="true"> · </span>` : null}${
     p.kind === "working" && id
-      ? html`<a class="p-map__count-live" href=${`#/tasks?d=${id}`} tabindex=${tab}>${p.text}</a>`
+      ? html`<a class="p-map__count-live" href=${`#/tasks?d=${id}`} tabindex=${tab} aria-label=${title ? `${title}: ${p.text}` : undefined}>${p.text}</a>`
       : p.kind === "needs" && onNeeds
-        ? html`<button type="button" class="p-map__count-warm" tabindex=${tab} onClick=${() => onNeeds(id)}>${p.text}</button>`
+        ? html`<button type="button" class="p-map__count-warm" tabindex=${tab} aria-label=${title ? `${title}: ${p.text}` : undefined} onClick=${() => onNeeds(id)}>${p.text}</button>`
         : html`<span class=${`p-map__count-${p.kind}`}>${p.text}</span>`}`)}</p>`;
 }
 
@@ -226,12 +280,12 @@ function BrainRing({ brain, x, y, asking }) {
 }
 
 // A dot's hover label: the title and the hand-off tag, in a small glass box above the dot.
-function Tip({ x, y, lines }) {
+function Tip({ x, y, lines, width = W }) {
   const rows = lines.filter(Boolean);
   if (!rows.length) return null;
   const w = Math.min(420, Math.max(...rows.map((l) => l.length)) * 7 + 24);
   const h = rows.length * 18 + 12;
-  const left = Math.max(8, Math.min(W - 8 - w, x - w / 2));
+  const left = Math.max(8, Math.min(width - 8 - w, x - w / 2));
   const top = y - 16 - h < 8 ? y + 16 : y - 16 - h;
   return html`<g class="p-map__tip" aria-hidden="true">
     <rect class="p-map__tip-box" x=${left} y=${top} width=${w} height=${h} rx="8" />
@@ -287,20 +341,21 @@ export function Overview({ data, loading = false, onNeeds, onHubKey }) {
         const job = jobById.get(dot.id) || {};
         const marks = dotMarks(job);
         const tag = handoffWord(job.handoff);
-        return html`<a key=${dot.id} class=${`p-map__dot p-map__dot--${marks[0]}`} data-dept=${dot.department} href=${`#/jobs/${dot.id}`}
+        const working = marks.includes("working");
+        const state = working ? "Being worked on" : marks[0] === "blocked" ? "Cannot start yet" : "";
+        // The warm mark is part of its dot's link: one target, the job. The count line's warm words open Needs you.
+        return html`<a key=${dot.id} class=${`p-map__dot p-map__dot--${marks[0]}${working ? " p-map__dot--working" : ""}`} data-dept=${dot.department} href=${`#/jobs/${dot.id}`}
           tabindex="-1" aria-label=${dotLabel(job)}>
           <g transform=${`translate(${dot.x} ${dot.y})`}>
-            <circle class="p-map__hit" r="9" />
-            ${marks.includes("working") ? html`<circle class="p-map__pulse" r="8.5" fill="none" />` : null}
-            <circle class="p-map__dot-core" r="4.5" />
-            ${FOCUS(10)}
+            <circle class="p-map__hit" r="10" />
+            ${working ? html`<circle class="p-map__pulse" r="9" fill="none" />` : null}
+            <circle class="p-map__dot-core" r="5.5" />
+            ${marks.includes("needs-you") ? html`<circle class="p-map__warm" cx="6" cy="-6" r="4.5" />` : null}
+            ${FOCUS(11)}
           </g>
-          <${Tip} x=${dot.x} y=${dot.y} lines=${[clip(job.title, 60), [tag, marks[0] === "blocked" ? "Cannot start yet" : ""].filter(Boolean).join(" · ")]} />
+          <${Tip} x=${dot.x} y=${dot.y} lines=${[clip(job.title, 60), [tag, state].filter(Boolean).join(" · ")]} />
         </a>`;
       })}
-      ${lay.dots.filter((dot) => num((jobById.get(dot.id) || {}).needsYou)).map((dot) => html`<circle key=${`w-${dot.id}`}
-        class="p-map__warm" cx=${dot.x + 7} cy=${dot.y - 7} r="3.5" aria-hidden="true"
-        onClick=${onNeeds ? () => onNeeds(dot.department) : undefined} />`)}
     </svg>
     <div class="p-map__over" aria-hidden="true">
       <span class="p-map__pet p-map__pet--brain" style=${`left: ${pct(b.x, W)}; top: ${pct(b.y, H)};`}><${Creature} id="brain" size=${64} /></span>
@@ -333,58 +388,109 @@ export function hubOrigin(data, id) {
 
 // ---- One department, zoomed ----
 
-// `all` is every department ({ id, title }) in file order, for the arrows to the neighbours.
-export function DepartmentView({ dept, all, onNeeds }) {
+// The size of an element in screen pixels, read again when it changes (no frame loop: a ResizeObserver).
+function useBoxSize(ref) {
+  const [size, setSize] = useState(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const read = () => {
+      const w = Math.round(el.clientWidth);
+      const h = Math.round(el.clientHeight);
+      setSize((s) => (s && s.w === w && s.h === h ? s : { w, h }));
+    };
+    read();
+    if (typeof ResizeObserver !== "function") return undefined;
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return size;
+}
+
+// `all` is every department ({ id, title }) in file order, for the arrows to the neighbours. The drawing is laid
+// out for the view's own size in screen pixels, so titles, pills and labels are drawn at their true size on any
+// window. When the department does not fit (a short or narrow window), the view shows `fallback` (its list).
+export function DepartmentView({ dept, all, onNeeds, fallback = null }) {
+  const ref = useRef(null);
+  const size = useBoxSize(ref);
   const id = idOf(dept);
   if (!id) return null;
-  const lay = layoutDepartment(departmentInput(dept));
+  const input = departmentInput(dept);
+  const frame = departmentFrame(size, input);
+  const lay = frame.lay;
   const jobById = new Map();
   for (const c of clustersOf(dept)) for (const j of jobsOfCluster(c)) jobById.set(j.id, j);
   const clusterById = new Map(clustersOf(dept).map((c) => [c.id, c]));
+  const longest = new Map(input.clusters.map((c) => [c.id, Math.max(0, ...jobsOfCluster(clusterById.get(c.id)).slice(0, 8).map((j) => clip(j.title, 60).length))]));
+  const widest = new Map(input.clusters.map((c) => [c.id, Math.max(0, ...jobsOfCluster(clusterById.get(c.id)).slice(0, 8).map((j) => {
+    const tag = handoffWord(j.handoff);
+    return tag ? pillWidth(tag) : 0;
+  }))]));
   const list = arr(all).filter((d) => idOf(d));
   const near = neighbours(list.map((d) => d.id), id);
   const titleOf = (x) => clip(list.find((d) => d.id === x)?.title, 40) || x;
   const hub = lay.hub;
   const title = clip(dept.title, 40);
+  const { w, h } = frame;
+  // The ghost name sits in the band above the highest cluster label, sized so its letters fit the window.
+  const top = Math.min(h, ...lay.clusters.map((c) => c.label.y - 12));
+  const ghostAt = top > 120 ? top / 2 : h * 0.3;
 
-  return html`<div class="p-map__view p-map__view--dept" data-dept=${id}>
-    <p class="p-map__ghost" aria-hidden="true">${title}</p>
-    <svg class="p-map__svg" viewBox=${lay.viewBox.join(" ")} preserveAspectRatio="xMidYMid meet" role="group" aria-label=${`${title} on the company map`}>
+  const edges = html`
+    ${near.prev && near.prev !== id ? html`<a class="p-map__edge p-map__edge--prev" href=${`#/map/${near.prev}`}>
+        <${Icon} name="arrow-left" size=${16} /><span class="p-map__edge-name">${titleOf(near.prev)}</span></a>` : null}
+    ${near.next && near.next !== id ? html`<a class="p-map__edge p-map__edge--next" href=${`#/map/${near.next}`}>
+        <${Icon} name="arrow-right" size=${16} /><span class="p-map__edge-name">${titleOf(near.next)}</span></a>` : null}`;
+
+  if (!frame.fits) {
+    return html`<div class="p-map__view p-map__view--dept p-map__view--fallback" data-dept=${id} ref=${ref}>
+      <div class="p-map__dept-scroll u-glass">${fallback}</div>
+      ${edges}
+    </div>`;
+  }
+
+  return html`<div class="p-map__view p-map__view--dept" data-dept=${id} ref=${ref}>
+    <p class="p-map__ghost" aria-hidden="true" style=${`top: ${pct(ghostAt, h)}; --p-map-ghost-n: ${Math.max(4, title.length)};`}>${title}</p>
+    <svg class="p-map__svg" viewBox=${`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet" role="group" aria-label=${`${title} on the company map`}>
       <g aria-hidden="true">
         ${stems(lay).map((l, i) => html`<line key=${i} class="p-map__link p-map__link--dept" x1=${l.from.x} y1=${l.from.y} x2=${l.to.x} y2=${l.to.y} />`)}
         ${lay.clusters.map((c) => html`<circle key=${`a-${c.id}`} class="p-map__joint" cx=${c.x} cy=${c.y} r="3" />`)}
         ${lay.clusters.map((c) => {
           const n = jobsOfCluster(clusterById.get(c.id)).slice(0, 8).length;
-          const words = `${clip(clusterById.get(c.id)?.title, 40)} · ${n === 1 ? "1 job" : `${n} jobs`}`.toUpperCase();
           return html`<text key=${`t-${c.id}`} class="p-map__cluster" x=${c.label.x} y=${c.label.y + 4}
-            text-anchor=${c.label.anchor === "end" ? "end" : c.label.anchor === "middle" ? "middle" : "start"}>${words}</text>`;
+            text-anchor=${c.label.anchor === "end" ? "end" : c.label.anchor === "middle" ? "middle" : "start"}>${clusterWords(clusterById.get(c.id)?.title, n)}</text>`;
         })}
       </g>
       ${readingOrder(lay.jobs).map((j) => {
         const job = jobById.get(j.id) || {};
         const marks = dotMarks(job);
+        const working = marks.includes("working");
         const tag = handoffWord(job.handoff);
         const name = clip(job.title, 60);
-        const why = whyText(job);
+        const note = jobNote(job);
         const end = j.label.anchor === "end";
-        const textW = TITLE_CHAR * name.length;
-        const pw = tag ? pillWidth(tag) : 0;
-        const pillX = end ? j.label.x - textW - GAP - pw : j.label.x + textW + GAP;
-        return html`<a key=${j.id} class=${`p-map__job p-map__job--${marks[0]}`} href=${`#/jobs/${j.id}`}
-          aria-label=${why ? `${dotLabel(job)}. ${why}` : dotLabel(job)}>
+        const pw = widest.get(j.cluster) || 0;
+        const px = pillX(j.label, longest.get(j.cluster) || name.length, pw);
+        const tw = tag ? pillWidth(tag) : 0;
+        // A cluster's pills share one column; on the left side they line up on their right edge.
+        const tx = end ? px + pw - tw : px;
+        const icon = marks[0] === "ready" || working ? "spark" : "lock";
+        return html`<a key=${j.id} class=${`p-map__job p-map__job--${working ? "ready" : marks[0]}${working ? " p-map__job--working" : ""}`} href=${`#/jobs/${j.id}`}
+          aria-label=${note ? `${dotLabel(job)}. ${note}` : dotLabel(job)}>
           <g transform=${`translate(${j.x} ${j.y})`}>
-            ${marks.includes("working") ? html`<circle class="p-map__pulse" r="19" fill="none" />` : null}
+            ${working ? html`<circle class="p-map__pulse" r="19" fill="none" />` : null}
             <circle class="p-map__job-disc" r="14" />
-            <g class="p-map__job-icon" transform="translate(-7 -7)"><${Icon} name=${marks[0] === "ready" ? "spark" : "lock"} size=${14} /></g>
-            ${marks.includes("needs-you") ? html`<circle class="p-map__warm" cx="11" cy="-11" r="4" />` : null}
+            <g class="p-map__job-icon" transform="translate(-7 -7)"><${Icon} name=${icon} size=${14} /></g>
+            ${marks.includes("needs-you") ? html`<circle class="p-map__warm" cx="11" cy="-11" r="5" />` : null}
             ${FOCUS(19)}
           </g>
-          <text class="p-map__job-title" x=${j.label.x} y=${j.label.y + 4.5} text-anchor=${end ? "end" : "start"}>${name}</text>
+          <text class="p-map__job-title" x=${j.label.x} y=${j.label.y + 5} text-anchor=${end ? "end" : "start"}>${name}</text>
           ${tag ? html`<g class="p-map__pill">
-              <rect class="p-map__pill-box" x=${pillX} y=${j.label.y - 9} width=${pw} height="18" rx="9" />
-              <text class="p-map__pill-text" x=${pillX + pw / 2} y=${j.label.y + 3.5} text-anchor="middle">${tag}</text>
+              <rect class="p-map__pill-box" x=${tx} y=${j.label.y - 10} width=${tw} height="20" rx="10" />
+              <text class="p-map__pill-text" x=${tx + tw / 2} y=${j.label.y + 4} text-anchor="middle">${tag}</text>
             </g>` : null}
-          ${why ? html`<${Tip} x=${j.x} y=${j.y - 8} lines=${wrapWords(why, 44)} />` : null}
+          ${note ? html`<${Tip} x=${j.x} y=${j.y - 8} lines=${wrapWords(note, 44)} width=${w} />` : null}
         </a>`;
       })}
       <a class="p-map__hub p-map__hub--big" data-dept=${id} href=${`#/departments/${id}`} aria-label=${`Open ${title}`}>
@@ -396,8 +502,8 @@ export function DepartmentView({ dept, all, onNeeds }) {
       </a>
     </svg>
     <div class="p-map__over" aria-hidden="true">
-      <span class="p-map__pet" style=${`left: ${pct(hub.x, W)}; top: ${pct(hub.y, H)};`}><${Creature} id=${id} size=${48} /></span>
-      <div class="p-map__name p-map__name--middle p-map__name--hub" style=${`left: ${pct(hub.x, W)}; top: ${pct(hub.y + hub.r + 14, H)};`}>
+      <span class="p-map__pet" style=${`left: ${pct(hub.x, w)}; top: ${pct(hub.y, h)};`}><${Creature} id=${id} size=${48} /></span>
+      <div class="p-map__name p-map__name--middle p-map__name--hub" style=${`left: ${pct(hub.x, w)}; top: ${pct(hub.y + hub.r + 14, h)};`}>
         <a class="p-map__name-link" href=${`#/departments/${id}`} tabindex="-1">
           <span class="p-map__name-title">${title}</span>
           ${dept.line ? html`<span class="p-map__name-line">${clip(dept.line, 80)}</span>` : null}
@@ -405,15 +511,14 @@ export function DepartmentView({ dept, all, onNeeds }) {
         <${CountLine} dept=${dept} onNeeds=${onNeeds} focusable=${false} />
       </div>
     </div>
-    ${near.prev && near.prev !== id ? html`<a class="p-map__edge p-map__edge--prev" href=${`#/map/${near.prev}`}>
-        <${Icon} name="arrow-left" size=${16} /><span class="p-map__edge-name">${titleOf(near.prev)}</span></a>` : null}
-    ${near.next && near.next !== id ? html`<a class="p-map__edge p-map__edge--next" href=${`#/map/${near.next}`}>
-        <span class="p-map__edge-name">${titleOf(near.next)}</span><${Icon} name="arrow-right" size=${16} /></a>` : null}
+    ${edges}
   </div>`;
 }
 
 // ---- The crown: the brain and the seven hubs only, a picture for narrow screens ----
 
+// Each disc is a link for touch and the mouse (out of the tab order: the rows under the crown are the same
+// links for the keyboard and screen readers, so the picture stays hidden from them).
 export function Crown({ data, loading = false }) {
   const depts = departmentsOf(data);
   const cw = 360;
@@ -424,9 +529,9 @@ export function Crown({ data, loading = false }) {
     <svg class="p-map__svg" viewBox=${`0 0 ${cw} ${ch}`} preserveAspectRatio="xMidYMid meet" focusable="false">
       <ellipse class="p-map__orbit" cx=${b.x} cy=${b.y} rx=${(300 * cw) / W} ry=${(215 * ch) / H} fill="none" />
       ${lay.hubs.map((h) => html`<line key=${`s-${h.id}`} class="p-map__spoke" data-dept=${h.id} x1=${b.x} y1=${b.y} x2=${h.x} y2=${h.y} />`)}
-      <circle class="p-map__brain-disc" cx=${b.x} cy=${b.y} r="38" />
-      ${lay.hubs.map((h) => html`<g key=${h.id} class="p-map__hub" data-dept=${h.id} transform=${`translate(${h.x} ${h.y})`}>
-        <circle class="p-map__hub-disc" r="21" /></g>`)}
+      <a class="p-map__brain" href="#/files" tabindex="-1"><circle class="p-map__brain-disc" cx=${b.x} cy=${b.y} r="38" /></a>
+      ${lay.hubs.map((h) => html`<a key=${h.id} class="p-map__hub" data-dept=${h.id} href=${`#/map/${h.id}`} tabindex="-1">
+        <g transform=${`translate(${h.x} ${h.y})`}><circle class="p-map__hub-disc" r="21" /></g></a>`)}
     </svg>
     <div class="p-map__over">
       <span class="p-map__pet" style=${`left: ${pct(b.x, cw)}; top: ${pct(b.y, ch)};`}><${Creature} id="brain" size=${48} /></span>

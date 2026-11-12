@@ -15,31 +15,31 @@
   "asks": [
     {
       "id": "name",
-      "label": "Name:",
+      "label": "What is their name?",
       "kind": "line",
       "required": true
     },
     {
       "id": "company",
-      "label": "Company:",
+      "label": "Which company are they from?",
       "kind": "line",
       "required": true
     },
     {
       "id": "source",
-      "label": "Source:",
+      "label": "How did they reach us?",
       "kind": "line",
       "required": true
     },
     {
       "id": "what-they-want",
-      "label": "What they want:",
+      "label": "What do they want?",
       "kind": "line",
       "required": true
     },
     {
       "id": "budget",
-      "label": "Budget:",
+      "label": "What is their budget, if known?",
       "kind": "line",
       "required": true
     }

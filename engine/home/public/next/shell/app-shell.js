@@ -254,6 +254,8 @@ export function AppShell() {
     document.getElementById("main")?.focus();
   };
 
+  // The tab bar sits inside .s-app, in the same layer as the pages: a page's own dialog (z-index 100 there)
+  // then lies over it, and its Save is never under the bar (M52 F2).
   const team = shell.data?.team || [];
   const pane = route ? paneOf(route.id, address.query) : "normal";
   const withDock = !narrow && route && showsDock(route.id);
@@ -279,8 +281,8 @@ export function AppShell() {
           </main>
         </div>
         <${WorkPanel} panel=${panel} onClose=${closePanel} narrow=${narrow} />
+        ${narrow ? html`<${TabBar} routeId=${routeId} />` : null}
       </div>
-      ${narrow ? html`<${TabBar} routeId=${routeId} />` : null}
       <${NeedsDrawer} open=${overlay === "needs"} department=${needsFor} stamp=${shell.data?.generatedAt || ""}
         onClose=${closeOverlay} onDone=${(message) => { if (message) announce(message); shell.refresh(); }} />
       <${MenuSheet} open=${overlay === "menu"} onClose=${closeOverlay} shell=${shell.data} dock=${dock}

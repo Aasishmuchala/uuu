@@ -126,6 +126,14 @@
   padding-left: var(--s-3);
 }
 
+/* The quiet links of the empty states: "See the jobs" (M50 F19), "Show every task". */
+.p-tasks .p-tasks__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--h-sm);
+  color: var(--text);
+}
+
 /* Board: six columns side by side. The four main ones share the width; an empty Failed or Canceled stays slim. */
 .p-tasks .p-tasks__board {
   display: flex;
@@ -216,6 +224,10 @@
   }
 
   .p-tasks .p-tasks__chip .k-chip {
+    min-height: 44px;
+  }
+
+  .p-tasks .p-tasks__link {
     min-height: 44px;
   }
 

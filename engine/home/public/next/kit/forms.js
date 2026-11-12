@@ -90,14 +90,19 @@ function RowsField({ f, value, error, set }) {
   const rows = arr(value).filter((r) => r && typeof r === "object");
   const shown = rows.length ? rows : [{}];
   const put = (i, col, text) => set(shown.map((r, j) => (j === i ? { ...r, [col]: text } : r)));
+  // The table knows its own width: when its columns do not fit, each row becomes a small card with a label over
+  // each box, so no column is out of sight (M52 F3). `--k-form-cols` sizes the columns when they do fit.
+  const fits = Math.min(Math.max(cols.length, 1), 6);
   return html`<${Fieldset} f=${f} error=${error} hint=${str(f.hint) || null}>
-    <div class="k-form__rows" role="table" aria-label=${f.label}>
+    <div class="k-form__rows-box">
+    <div class=${`k-form__rows k-form__rows--c${fits}`} role="table" aria-label=${f.label}>
       <div class="k-form__row k-form__row--head" role="row">
         ${cols.map((c) => html`<span key=${c.id} class="k-form__cell" role="columnheader">${c.label}</span>`)}
         <span class="k-form__cell k-form__cell--tool" role="columnheader"><span class="k-sr">Remove</span></span>
       </div>
       ${shown.map((r, i) => html`<div key=${i} class="k-form__row" role="row">
         ${cols.map((c) => html`<span key=${c.id} class="k-form__cell" role="cell">
+          <span class="k-form__cell-label" aria-hidden="true">${c.label}</span>
           <input type="text" class="k-input" maxlength=${LINE_MAX} aria-label=${`${c.label}, row ${i + 1}`}
             value=${str(r[c.id])} onInput=${(e) => put(i, c.id, String(e.target.value))} />
         </span>`)}
@@ -106,6 +111,7 @@ function RowsField({ f, value, error, set }) {
             onClick=${() => set(shown.filter((_, j) => j !== i))} />
         </span>
       </div>`)}
+    </div>
     </div>
     <div class="k-form__more">
       <${Button} size="sm" icon="plus" disabled=${shown.length >= ROWS_MAX} onClick=${() => set([...shown, {}])}>Add a row<//>

@@ -1,5 +1,5 @@
 // The command menu (CONTRACTS-V2 14.2, CONTRACTS-V3 26.2): ⌘K or Ctrl+K, and "/" outside the map. A
-// dialog with one field. Empty, it lists the pages, the seven departments, New task and Every job. Typed
+// dialog with one field. Empty, it lists New task and Every job, the seven departments, then the pages. Typed
 // text finds pages, departments, agents and jobs by name at once, then what /api/search finds (after 2
 // characters, 200 ms after the last key), grouped by source. Arrows move, Enter opens, Esc closes.
 import { html, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
@@ -33,12 +33,13 @@ const jobItem = (j) => ({
 export function localItems(query, team = [], jobs = []) {
   const q = norm(query);
   const allJobs = (Array.isArray(jobs) ? jobs : []).filter((j) => j && typeof j.id === "string" && j.id.includes("/"));
+  // Empty: what to start and the departments first; the pages last, since the capsule already shows four.
   if (!q) {
     return [
-      ...PAGES.map(pageItem),
-      ...DEPARTMENTS.map(departmentItem),
       { id: "act:compose", group: "Start", label: "New task", icon: "plus", action: "compose" },
       { id: "act:jobs", group: "Start", label: "Every job", icon: "jobs", href: "#/jobs" },
+      ...DEPARTMENTS.map(departmentItem),
+      ...PAGES.map(pageItem),
     ];
   }
   const pages = PAGES.filter((r) => hit(r.title, q)).map(pageItem);
@@ -79,6 +80,12 @@ export function grouped(items) {
   return [...map].map(([group, list]) => ({ group, items: list }));
 }
 
+// The field's placeholder. The dialog's title already says "Search", so the field does not say it again;
+// below 860 px a shorter one fits the phone's width.
+export const PLACEHOLDER = "Pages, jobs, agents and tasks, or say what you want done";
+export const PLACEHOLDER_SHORT = "Find, or say what you want done";
+const narrowNow = () => typeof matchMedia === "function" && matchMedia("(max-width: 859px)").matches;
+
 export function CommandMenu({ open, onClose, team, onCompose }) {
   const [jobs, setJobs] = useState([]);
   const [query, setQuery] = useState("");
@@ -86,6 +93,12 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
   const [active, setActive] = useState(0);
   const input = useRef(null);
   const list = useRef(null);
+  // True while the list holds more below what shows: its bottom edge then fades.
+  const [more, setMore] = useState(false);
+  const measure = () => {
+    const el = list.current;
+    setMore(Boolean(el && el.scrollHeight - el.scrollTop - el.clientHeight > 4));
+  };
 
   useEffect(() => {
     if (!open) return undefined;
@@ -125,6 +138,7 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
   }, [query, team, jobs, found]);
 
   useEffect(() => { setActive((a) => Math.min(a, Math.max(0, items.length - 1))); }, [items.length]);
+  useEffect(() => { if (open) measure(); }, [open, items, found.state]);
   useEffect(() => {
     list.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView?.({ block: "nearest" });
   }, [active]);
@@ -158,12 +172,12 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
         <div class="s-cmd-field">
           <${Icon} name="search" />
           <input ref=${input} data-autofocus class="s-cmd-input" type="text" value=${query} autocomplete="off" spellcheck=${false}
-            placeholder="Search pages, jobs, agents and tasks, or say what you want done"
+            placeholder=${narrowNow() ? PLACEHOLDER_SHORT : PLACEHOLDER}
             role="combobox" aria-expanded="true" aria-controls="s-cmd-list" aria-label="Search"
             aria-activedescendant=${items.length ? `s-cmd-${active}` : undefined}
             onInput=${(e) => { setQuery(e.currentTarget.value); setActive(0); }} onKeyDown=${onKey} />
         </div>
-        <div class="s-cmd-list" id="s-cmd-list" role="listbox" aria-label="Results" ref=${list}>
+        <div class=${`s-cmd-list${more ? " has-more" : ""}`} id="s-cmd-list" role="listbox" aria-label="Results" ref=${list} onScroll=${measure}>
           ${groups.map((g) => html`
             <div class="s-cmd-group" role="group" aria-label=${g.group}>
               <p class="s-cmd-group-title" aria-hidden="true">${g.group}</p>

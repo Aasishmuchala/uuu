@@ -15,31 +15,31 @@
   "asks": [
     {
       "id": "number-of-icons",
-      "label": "Number of icons:",
+      "label": "How many icons?",
       "kind": "line",
       "required": true
     },
     {
       "id": "what-they-are-for",
-      "label": "What they are for:",
+      "label": "What are they for?",
       "kind": "line",
       "required": true
     },
     {
       "id": "list-of-the-icons",
-      "label": "List of the icons:",
+      "label": "Which icons?",
       "kind": "line",
       "required": true
     },
     {
       "id": "icon-size",
-      "label": "Icon size:",
+      "label": "What size, in pixels?",
       "kind": "line",
       "required": true
     },
     {
       "id": "colours-to-use",
-      "label": "Colours to use:",
+      "label": "Which colours?",
       "kind": "line",
       "required": true
     }

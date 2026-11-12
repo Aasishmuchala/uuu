@@ -105,7 +105,7 @@ function lastRunOf(board) {
   return {
     at: iso(run.triggeredAt), state, plainState: RUN_PLAIN[state],
     taskId: str(run.linkedIssueId, 100) || str(issue?.id, 100),
-    identifier: str(issue?.identifier, 40),
+    identifier: str(issue?.identifier, 40), title: str(issue?.title, 160),
   };
 }
 

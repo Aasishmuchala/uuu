@@ -55,7 +55,7 @@ test("create: empty or too long is 400, no ids.json is 409, board off is 502", a
     const r = await call(h.url, "POST", "/api/goals", { body: { text: "Do a thing" } });
     assert.equal(r.status, 502);
     assert.equal(r.json.error.code, "board_off");
-    assert.equal(r.json.error.next, "Run: engine start");
+    assert.equal(r.json.error.next, "Open Health to see how to start it.");
   });
 });
 

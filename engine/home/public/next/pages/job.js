@@ -1,6 +1,8 @@
 // A job (CONTRACTS-V3 30, "A job"): the breadcrumb chip, the overline, the title, the sentence, the hand-off tag and
 // stage with their one-liners, who does it, then the start form. When it cannot start the reason stands in place of
-// the button. Under it, the earlier runs. With ?from=, the earlier task is named above the form.
+// the button. Under it, the earlier runs. With ?from=, the earlier task is named above the form, as a link to it by
+// its title. A job that follows earlier work, with no accepted earlier task to pick, says which job to run first in
+// place of the button (M51 F6).
 // The words of a job come from the company's own files; the server's refusals are shown as they come.
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
@@ -58,12 +60,36 @@ export function fromOf(query) {
   return FROM.test(v) ? v : null;
 }
 
-// The line above the form that names the earlier task: its label from the offered tasks when there, else the plain id.
-export function fromNote(job, from) {
-  if (!from) return "";
+// The earlier task of ?from=, for the band above the form: { title, href }, or null without ?from=. The title is
+// the task's own (from GET /api/tasks/<from>), else the offered option's title (its label without the date), else "".
+export function fromNote(job, from, task) {
+  if (!from) return null;
+  const href = `#/tasks/${encodeURIComponent(from)}`;
+  const own = task && typeof task === "object" && (task.id === from || task.identifier === from) ? text(task.title).slice(0, 160) : "";
+  if (own) return { title: own, href };
   const ask = list(job && job.asks).find((a) => a && a.kind === "task");
-  const opt = ask ? list(ask.options).find((o) => o && (o.value === from || text(o.label).startsWith(`${from} · `))) : null;
-  return opt && opt.label ? `Following the earlier task ${text(opt.label)}.` : "Following an earlier task.";
+  const opt = ask ? list(ask.options).find((o) => o && (o.value === from || (o.ref && o.ref === from))) : null;
+  return { title: opt ? text(opt.label).replace(/ · [^·]*$/, "").slice(0, 160) : "", href };
+}
+
+// A job that follows earlier work whose required task question has nothing to pick (and no ?from=): what to do
+// first, in place of Start. { after: [{ title, href }], waiting: { title, href } | null }, or null when it can start.
+export function followsFirst(job, from) {
+  if (!job || from || job.ready === false) return null;
+  const ask = list(job.asks).find((a) => a && a.kind === "task" && a.required);
+  if (!ask || list(ask.options).length) return null;
+  const takes = job.takes && typeof job.takes === "object" ? job.takes : {};
+  const after = list(takes.after).filter((a) => a && typeof a.id === "string")
+    .map((a) => ({ title: text(a.title).slice(0, 120) || a.id, href: /^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/.test(a.id) ? `#/jobs/${a.id}` : null }));
+  const w = takes.waiting && typeof takes.waiting === "object" && FROM.test(text(takes.waiting.taskId)) ? takes.waiting : null;
+  return { after, waiting: w ? { title: text(w.title).slice(0, 160) || "The waiting task", href: `#/tasks/${encodeURIComponent(w.taskId)}` } : null };
+}
+
+// The sentence of followsFirst: `This follows "Five concepts before any design". Accept one first.`
+export function followsSentence(first) {
+  const names = list(first && first.after).map((a) => `"${a.title}"`);
+  if (!names.length) return "This follows an earlier task. Accept one first.";
+  return `This follows ${names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`}. Accept one first.`;
 }
 
 // The unknown-job state is a 404 from the server.
@@ -71,10 +97,21 @@ export const isUnknown = (error) => Boolean(error && (Number(error.status) === 4
 
 // --- The page --------------------------------------------------------------------------------------------------
 
-function Body({ job, recent, from, onStarted }) {
+function FollowsFirst({ first }) {
+  return html`<div class="p-job__follows" role="note">
+    <p class="p-job__follows-text">${followsSentence(first)}</p>
+    <p class="p-job__follows-links">
+      ${first.after.filter((a) => a.href).map((a) => html`<a key=${a.href} class="p-job__link" href=${a.href}>Open ${a.title}</a>`)}
+      ${first.waiting ? html`<a class="p-job__link" href=${first.waiting.href}>${first.waiting.title}, waiting for you</a>` : null}
+    </p>
+  </div>`;
+}
+
+function Body({ job, recent, from, earlier, onStarted }) {
   const dept = text(job.department && job.department.id);
   const about = aboutLines(job);
-  const note = fromNote(job, from);
+  const note = fromNote(job, from, earlier);
+  const first = followsFirst(job, from);
   const state = startState(job);
   const runs = list(recent).filter((t) => t && typeof t === "object");
   return html`
@@ -84,10 +121,14 @@ function Body({ job, recent, from, onStarted }) {
         <div class="p-job__tag"><${StageMark} n=${job.stage} />${about.stage && html`<span class="p-job__about">${about.stage}</span>`}</div>
       </div>
       <p class="p-job__who">${whoLine(job)}</p>
-      ${note && html`<p class="p-job__from">${note}</p>`}
-      <div class=${state.canStart ? "p-job__start" : "p-job__start p-job__start--blocked"} data-dept=${dept || undefined}>
-        <${JobStart} key=${text(job.id)} job=${job} from=${from} onStarted=${onStarted} />
-      </div>
+      ${note && html`<p class="p-job__from">${note.title
+        ? html`Following the earlier task <a class="p-job__link" href=${note.href}>${note.title}</a>.`
+        : html`Following an <a class="p-job__link" href=${note.href}>earlier task</a>.`}</p>`}
+      ${first
+        ? html`<${FollowsFirst} first=${first} />`
+        : html`<div class=${state.canStart ? "p-job__start" : "p-job__start p-job__start--blocked"} data-dept=${dept || undefined}>
+            <${JobStart} key=${text(job.id)} job=${job} from=${from} onStarted=${onStarted} />
+          </div>`}
     </div>
     <${Section} title="Earlier runs" count=${runs.length || undefined}>
       ${runs.length
@@ -103,6 +144,7 @@ export default function Page() {
   const d = res.data;
   const job = d && d.job && typeof d.job === "object" ? d.job : null;
   const from = fromOf(query);
+  const earlier = useResource(from ? `/api/tasks/${encodeURIComponent(from)}` : null);
   const back = { href: "#/jobs", label: "All jobs" };
 
   if (!addr || (!job && res.error && isUnknown(res.error))) {
@@ -133,6 +175,7 @@ export default function Page() {
   return html`<div class="p-job">
     <${PageHeader} title=${text(job.title)} over=${overlineOf(job)} lead=${text(job.summary)} chip=${chip}
       creature=${SLUG.test(deptId) ? deptId : undefined} />
-    <${Body} job=${job} recent=${d.recent} from=${from} onStarted=${() => res.refresh()} />
+    <${Body} job=${job} recent=${d.recent} from=${from} earlier=${earlier.data && earlier.data.task}
+      onStarted=${() => res.refresh()} />
   </div>`;
 }

@@ -57,15 +57,34 @@ test("job: ?from= is passed on only when it looks like a task", () => {
   assert.equal(page.fromOf(null), null);
 });
 
-test("job: the earlier task is named above the form", () => {
+test("job: the earlier task is named above the form by its title, as a link to it (M51 F9)", () => {
   const job = shape("job");
   const ask = job.asks.find((a) => a.kind === "task");
   const opt = ask.options[0];
-  const ident = opt.label.split(" · ")[0];
-  assert.equal(page.fromNote(job, ident), `Following the earlier task ${opt.label}.`);
-  assert.equal(page.fromNote(job, opt.value), `Following the earlier task ${opt.label}.`);
-  assert.equal(page.fromNote(job, "STH-999"), "Following an earlier task.");
-  assert.equal(page.fromNote(job, null), "");
+  const title = opt.label.split(" · ")[0];
+  assert.deepEqual(page.fromNote(job, opt.value), { title, href: `#/tasks/${opt.value}` });
+  assert.deepEqual(page.fromNote(job, "STH-20", { id: opt.value, identifier: "STH-20", title: "Call write-up: Asha Kitchens" }),
+    { title: "Call write-up: Asha Kitchens", href: "#/tasks/STH-20" }, "the task's own title when it is read");
+  const withRef = { ...job, asks: job.asks.map((a) => (a.kind === "task" ? { ...a, options: [{ ...opt, ref: "STH-20" }] } : a)) };
+  assert.deepEqual(page.fromNote(withRef, "STH-20"), { title, href: "#/tasks/STH-20" }, "matched by its ref too");
+  assert.deepEqual(page.fromNote(job, "STH-999"), { title: "", href: "#/tasks/STH-999" });
+  assert.equal(page.fromNote(job, null), null);
+});
+
+test("job: a job that follows earlier work, with nothing accepted to pick, says which job to run first (M51 F6)", () => {
+  const job = {
+    ready: true, asks: [{ id: "earlier", kind: "task", required: true, options: [] }],
+    takes: { from: ["marketing/five-concepts"], after: [{ id: "marketing/five-concepts", title: "Five concepts before any design" }],
+      waiting: { taskId: "e0000000-0000-4000-8000-000000000023", title: "Five concepts: Diwali offer" } },
+  };
+  const first = page.followsFirst(job, null);
+  assert.equal(page.followsSentence(first), 'This follows "Five concepts before any design". Accept one first.');
+  assert.deepEqual(first.after, [{ title: "Five concepts before any design", href: "#/jobs/marketing/five-concepts" }]);
+  assert.deepEqual(first.waiting, { title: "Five concepts: Diwali offer", href: "#/tasks/e0000000-0000-4000-8000-000000000023" });
+  assert.equal(page.followsFirst(job, "STH-20"), null, "with ?from= the question is answered");
+  assert.equal(page.followsFirst({ ...job, asks: [{ ...job.asks[0], options: [{ value: "x", label: "X" }] }] }, null), null);
+  assert.equal(page.followsFirst({ ...job, ready: false }, null), null, "a job that cannot start shows its own reason");
+  assert.equal(page.followsFirst({ ...job, takes: { ...job.takes, waiting: null } }, null).waiting, null);
 });
 
 test("job: an unknown job is a 404 from the server", () => {

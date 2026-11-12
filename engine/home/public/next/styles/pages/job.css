@@ -7,9 +7,9 @@
   flex-direction: column;
   gap: var(--s-4);
   padding: var(--s-5);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-5);
   background: var(--glass);
-  box-shadow: inset 0 0 0 1px var(--hairline);
+  box-shadow: inset 0 0 0 1px var(--hairline), var(--highlight);
   min-width: 0;
 }
 
@@ -30,7 +30,7 @@
 .p-job .p-job__from {
   margin: 0;
   padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-md);
+  border-radius: var(--r-3);
   background: var(--glass-soft);
   color: var(--text-2);
   font-size: var(--fs-caption);
@@ -52,3 +52,20 @@
 }
 
 .p-job .p-job__link { color: var(--accent); }
+
+/* A job that follows earlier work with nothing accepted to start from: what to run first, in place of Start. */
+.p-job .p-job__follows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-3);
+  background: var(--glass-soft);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.p-job .p-job__follows-text { margin: 0; color: var(--text); }
+.p-job .p-job__follows-links { margin: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); }
+
+@media (max-width: 859px) {
+  .p-job .p-job__link { display: inline-flex; align-items: center; min-height: 44px; }
+}

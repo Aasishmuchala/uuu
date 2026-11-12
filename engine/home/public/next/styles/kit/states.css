@@ -160,3 +160,8 @@
     animation: none;
   }
 }
+
+/* Motion switched off in Settings: the loading lines stand still. */
+[data-motion="off"] .k-loading__line {
+  animation: none;
+}

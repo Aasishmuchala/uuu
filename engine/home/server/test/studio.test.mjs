@@ -39,7 +39,8 @@ test("the bracket is listed with its size, and the page has the pinned shape", a
     assert.deepEqual(p.agent, { name: "Drafter", state: "free", plainState: "Free" });
     assert.deepEqual(p.inFlight, []);
     assert.deepEqual(p.figures.map((f) => f.id), ["files", "cad"]);
-    assert.deepEqual(p.figures.map((f) => f.label), ["Files", "CAD parts"]);
+    assert.deepEqual(p.figures.map((f) => f.label), ["Files", "Parts"]);
+    assert.deepEqual(section(p, "cad").columns.map((c) => c.label), ["Part", "Size", "Volume", "Task", "File"], "workshop words and Goal are gone (M51 F8, F10)");
     assert.equal(p.figures.find((f) => f.id === "cad").value, "1");
     assert.equal(p.figures.find((f) => f.id === "files").value, "0");
     assert.deepEqual(section(p, "cad").columns.map((c) => c.key), ["name", "size", "volume", "goal", "file"]);
@@ -55,7 +56,7 @@ test("the bracket is listed with its size, and the page has the pinned shape", a
     assert.equal(dl.status, 200);
     assert.equal(dl.text, readFileSync(work(h, "STH-2", "cad", "bracket.step"), "utf8"));
     assert.deepEqual(p.switches, [{
-      id: "renderer", label: "Show parts in 3D", on: false, explain: "No renderer is connected. Files open in your own CAD program.",
+      id: "renderer", label: "Show parts in 3D", on: false, explain: "Parts cannot be shown in 3D here. Open the file in your own drawing program.",
     }]);
     assert.equal(writes(h.board).length, 0);
   });
@@ -65,7 +66,7 @@ test("not installed: the notice, and existing files are still listed", async () 
   await withHome(async (h) => {
     const p = await page(h);
     assert.equal(p.connected, false);
-    assert.deepEqual(p.notConnected, { reason: "The Drafter's tools are not installed yet.", next: "Run: engine/cad/install.sh" });
+    assert.deepEqual(p.notConnected, { reason: "The Drafter's tools are not installed yet.", next: "Open Health to see how to install them." });
     assert.equal(section(p, "cad").rows.length, 1);
     assert.equal(p.switches[0].on, false);
   });

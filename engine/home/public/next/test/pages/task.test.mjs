@@ -249,3 +249,11 @@ test("task: the result's files leave out the staged documents", () => {
   assert.ok(names.includes("art/walker/walker.gif"));
   assert.deepEqual(resultFiles(null, null), []);
 });
+
+test("task: headings go from the title to h2, and the line after Accept takes focus (M52 K8, K3)", () => {
+  const src = readFileSync(new URL("../../pages/task.js", import.meta.url), "utf8");
+  assert.doesNotMatch(src, /<h3/);
+  assert.match(src, /<h2 class="p-task__h">The six checks<\/h2>/);
+  assert.match(src, /saidRef\.current\?\.focus\(\)/);
+  assert.match(src, /tabindex="-1" ref=\$\{saidRef\}/);
+});

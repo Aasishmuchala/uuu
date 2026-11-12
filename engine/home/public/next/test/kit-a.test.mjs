@@ -435,7 +435,8 @@ for (const m of MODULES) {
     }
     const { selectors, keyframes } = selectorsOf(css);
     assert.ok(selectors.length > 0, "it has rules");
-    for (const s of selectors) assert.ok(s.startsWith(".k-"), `selector "${s}" starts with .k-`);
+    // M55: a rule for motion switched off may lead with [data-motion="off"], as kit-c allows.
+    for (const s of selectors) assert.ok(s.replace(/^\[data-motion="off"\] /, "").startsWith(".k-"), `selector "${s}" starts with .k-`);
     for (const k of keyframes) assert.ok(k.startsWith("k-"), `keyframes "${k}" are named k-...`);
   });
 }

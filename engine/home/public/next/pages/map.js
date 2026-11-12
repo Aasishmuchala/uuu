@@ -21,6 +21,7 @@ import {
   Notice,
   PageHeader,
   Segmented,
+  STAGES,
   useInboxAct,
 } from "../kit/index.js";
 import { nearestHub } from "../map/layout.js";
@@ -32,6 +33,10 @@ const ASK_ID = /^[A-Za-z0-9-]{1,64}$/;
 const NARROW = "(max-width: 859px)";
 const str = (v) => (typeof v === "string" ? v : "");
 const arr = (v) => (Array.isArray(v) ? v : []);
+
+// A next step for the owner in words: a command ("Run: ...") stays off screen outside Health (C3 25, M50 F18);
+// Health is linked instead.
+export const plainNext = (next) => (/\bRun:/i.test(String(next ?? "")) ? "" : String(next ?? "").slice(0, 200));
 
 // ---- The address (pure, tested) ----
 
@@ -80,6 +85,9 @@ export const askEvery = (ask) => (!ask || ask.state === "reading" ? 5000 : 0);
 export const briefItems = (home) => arr(home && home.brief && home.brief.items).filter((i) => i && typeof i === "object").slice(0, 12);
 
 // The page's heading for a screen reader, and the window's title.
+// What the map says when /api/map fails: the map is read from files, so the board is not named (C3 29.7).
+export const MAP_ERROR = "The map could not be read. Try again; if it stays, Health shows what is wrong.";
+
 export const titleFor = (dept, data) => {
   if (!dept) return "Map";
   const d = departmentsOf(data).find((x) => x.id === dept);
@@ -154,11 +162,21 @@ function AnswerPanel({ id, onClose }) {
 
 // ---- Today and the legend ----
 
+// Esc closes an open disclosure and gives focus back to its chip, before anything else hears the key (M52 K4).
+function closeOnEsc(e) {
+  const d = e.currentTarget;
+  if (e.key !== "Escape" || !d || !d.open) return;
+  e.preventDefault();
+  e.stopPropagation();
+  d.open = false;
+  d.querySelector("summary")?.focus();
+}
+
 function Today() {
   const [open, setOpen] = useState(false);
   const home = useResource(open ? "/api/home" : null);
   const items = briefItems(home.data);
-  return html`<details class="p-map__pop p-map__pop--today" onToggle=${(e) => setOpen(e.currentTarget.open)}>
+  return html`<details class="p-map__pop p-map__pop--today" onToggle=${(e) => setOpen(e.currentTarget.open)} onKeyDown=${closeOnEsc}>
     <summary class="p-map__chip"><${Icon} name="sun" size=${14} /><span>Today</span></summary>
     <div class="p-map__pop-body">
       <p class="p-map__over-line">Today's brief</p>
@@ -171,7 +189,7 @@ function Today() {
 }
 
 function Legend() {
-  return html`<details class="p-map__pop p-map__pop--legend">
+  return html`<details class="p-map__pop p-map__pop--legend" onKeyDown=${closeOnEsc}>
     <summary class="p-map__chip"><${Icon} name="tag" size=${14} /><span>What the dots mean</span></summary>
     <div class="p-map__pop-body">
       <ul class="p-map__legend">
@@ -179,6 +197,10 @@ function Legend() {
         <li><span class="p-map__key p-map__key--blocked" aria-hidden="true"></span>A job that cannot start yet</li>
         <li><span class="p-map__key p-map__key--working" aria-hidden="true"></span>Being worked on now</li>
         <li><span class="p-map__key p-map__key--warm" aria-hidden="true"></span>Something waits for you</li>
+      </ul>
+      <p class="p-map__over-line">The order to build in</p>
+      <ul class="p-map__legend">
+        ${Object.entries(STAGES).map(([n, s]) => html`<li key=${n}><strong class="p-map__legend-tag">${n} ${s.label}</strong> ${s.about}</li>`)}
       </ul>
       <p class="p-map__over-line">Who does the main part</p>
       <ul class="p-map__legend">
@@ -264,25 +286,36 @@ export default function MapPage({ route }) {
   const shownDept = depts.find((d) => d.id === (dept || shown)) || null;
   const origin = hubOrigin(data, dept || shown);
   const listHref = mapHref({ dept, view: "list", ask });
-  const cls = ["p-map", narrow ? "p-map--narrow" : "p-map--wide", dept ? "p-map--zoomed" : "", view === "list" ? "p-map--list" : "", still ? "p-map--still" : ""]
+  const failed = !!(map.error && !data);
+  const cls = ["p-map", narrow ? "p-map--narrow" : "p-map--wide", dept ? "p-map--zoomed" : "", view === "list" ? "p-map--list" : "",
+    ask ? "p-map--asked" : "", still ? "p-map--still" : ""]
     .filter(Boolean).join(" ");
 
+  // The legend and Today: fixed corners on a wide window; on a phone one row under the crown (or at the top of a
+  // department's list), before the rows. Not shown while the map cannot be read: there is nothing to explain.
+  const chipsRow = html`<div class="p-map__aids">
+    <div class="p-map__corner p-map__corner--top"><${Legend} /></div>
+    <div class="p-map__corner p-map__corner--left"><${Today} /></div>
+  </div>`;
+
   let body;
-  if (map.error && !data) {
-    body = html`<div class="p-map__stage-error"><${ErrorNotice} error=${map.error} onRetry=${map.reload} /></div>`;
+  if (failed) {
+    body = html`<div class="p-map__stage-error"><${ErrorNotice} error=${MAP_ERROR} onRetry=${map.reload} /></div>`;
   } else if (view === "list" && !narrow) {
     body = loading ? html`<${Loading} label="Loading the map" />` : html`<${MapList} data=${data} onNeeds=${onNeeds} />`;
   } else if (narrow && dept) {
     body = html`<div class="p-map__narrow">
-      <${Button} size="sm" icon="arrow-left" href=${mapHref({ view, ask })}>All departments<//>
+      <${Button} size="sm" icon="arrow-left" href=${mapHref({ view, ask })}>Back to the map<//>
+      ${chipsRow}
       ${zoomedDept ? html`<div class="p-map__card u-glass"><${DepartmentSection} dept=${zoomedDept} level=${1} onNeeds=${onNeeds} /></div>`
         : html`<${Loading} label="Loading the map" />`}
     </div>`;
   } else if (narrow && view === "list") {
-    body = loading ? html`<${Loading} label="Loading the map" />` : html`<${MapList} data=${data} onNeeds=${onNeeds} />`;
+    body = loading ? html`<${Loading} label="Loading the map" />` : html`<div class="p-map__narrow">${chipsRow}<${MapList} data=${data} onNeeds=${onNeeds} /></div>`;
   } else if (narrow) {
     body = html`<div class="p-map__narrow">
       <${Crown} data=${data} loading=${loading} />
+      ${chipsRow}
       ${loading ? html`<span class="u-visually-hidden" role="status">Loading the map</span>` : html`<${DepartmentRows} data=${data} onNeeds=${onNeeds} />`}
     </div>`;
   } else {
@@ -293,7 +326,8 @@ export default function MapPage({ route }) {
         ${loading ? html`<span class="u-visually-hidden" role="status">Loading the map</span>` : null}
       </div>
       <div class=${`p-map__layer p-map__layer--dept${dept ? " is-on" : ""}`} inert=${!dept}>
-        ${shownDept ? html`<${DepartmentView} dept=${shownDept} all=${depts} onNeeds=${onNeeds} />` : null}
+        ${shownDept ? html`<${DepartmentView} dept=${shownDept} all=${depts} onNeeds=${onNeeds}
+          fallback=${html`<${DepartmentSection} dept=${shownDept} level=${1} onNeeds=${onNeeds} />`} />` : null}
       </div>
     </div>`;
   }
@@ -305,16 +339,16 @@ export default function MapPage({ route }) {
     <div class="u-visually-hidden"><${PageHeader} title=${titleFor(dept, data)} /></div>
     ${boardOff ? html`<div class="p-map__notice">
       <${Notice} tone="warn" title="The board is switched off, so the map cannot show what is being worked on.">
-        ${boardOff.next ? html`<${NextStep} text=${str(boardOff.next).slice(0, 200)} />` : null}
+        ${plainNext(boardOff.next) ? html`<p class="k-next">${plainNext(boardOff.next)}</p>` : null}
+        <p class="k-next"><a href="#/health">Open Health</a></p>
       <//>
     </div>` : null}
-    ${map.error && data ? html`<div class="p-map__notice"><${ErrorNotice} error=${map.error} onRetry=${map.reload} /></div>` : null}
+    ${map.error && data ? html`<div class="p-map__notice"><${ErrorNotice} error=${MAP_ERROR} onRetry=${map.reload} /></div>` : null}
     ${dept && !narrow && view !== "list" ? html`<div class="p-map__back">
-      <${Button} size="sm" icon="arrow-left" href=${mapHref({ view, ask })}>All departments<//>
+      <${Button} size="sm" icon="arrow-left" href=${mapHref({ view, ask })}>Back to the map<//>
     </div>` : null}
     ${body}
-    <div class="p-map__corner p-map__corner--top"><${Legend} /></div>
-    <div class="p-map__corner p-map__corner--left"><${Today} /></div>
+    ${narrow || failed ? null : chipsRow}
     ${narrow ? null : html`<div class="p-map__corner p-map__corner--right">
       <${Segmented} size="sm" label="Show the map as" current=${view} items=${[
         { id: "map", label: "Map", icon: "map", href: mapHref({ dept, ask }) },

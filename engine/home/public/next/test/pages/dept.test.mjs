@@ -105,7 +105,7 @@ test("dept: the board is off when the map says so, with its reason and its next 
   assert.ok(odd.reason.length <= 201, "a long reason is cut");
   assert.equal(odd.next, "7");
   const bare = page.boardOffOf({ boardOff: {} }, null);
-  assert.ok(bare.reason && /^Run: /.test(bare.next), "an empty answer still gives a reason and a next step");
+  assert.ok(bare.reason && /Health/.test(bare.next) && !/Run:/.test(bare.next), "an empty answer still gives a reason and a next step, in words");
 });
 
 test("dept: until the map has answered, the shell says whether the board is off", () => {
@@ -116,7 +116,7 @@ test("dept: until the map has answered, the shell says whether the board is off"
   assert.equal(page.boardOffOf(undefined, { engine: {} }), null);
   const off = page.boardOffOf(null, { ...shell, engine: { board: "off", books: "on" } });
   assert.ok(off && off.reason.length > 10);
-  assert.equal(off.next, "Run: engine start");
+  assert.equal(off.next, "Open Health to see how to start it.");
   // The map reads the board the way this page's own answer does, so once it has answered it decides.
   assert.equal(page.boardOffOf(shape("map"), { engine: { board: "off" } }), null);
   assert.ok(page.boardOffOf({ boardOff: { reason: "r", next: "n" } }, shell));
@@ -130,7 +130,7 @@ test("dept: with the board off the page stops guessing", () => {
   assert.equal(page.offTitle(""), "This department cannot show its tasks right now");
   assert.equal(page.noTasksLine("Sales", off), "Tasks cannot be shown right now.");
   assert.equal(page.noTasksLine("Sales", null), "No tasks yet. What you give Sales below shows here.");
-  assert.equal(page.captionUnder(off), "A task cannot start until the board is connected.");
+  assert.equal(page.captionUnder(off), "Tasks cannot be given while the board is off.");
   assert.equal(page.captionUnder(null), "Takes a few minutes. It is checked before it reaches you.");
 });
 
@@ -216,22 +216,23 @@ function departmentWithBoardOff() {
 }
 
 test("dept: with the board off the page shows the notice with its reason and next step, not a made-up calm", async () => {
-  const boardOff = { reason: "The board is not answering, so agents and goals cannot be reached.", next: "Run: engine start" };
+  const boardOff = { reason: "The board is switched off, so agents and tasks cannot be reached.", next: "Open Health to see how to start it." };
   await showPage({ department: departmentWithBoardOff(), map: { ...shape("map"), boardOff }, shell: shape("shell") }, (root, asked) => {
     assert.ok(asked.includes("/api/map/sales") && asked.includes("/api/map"), "reads the department and the map");
     const notices = withClass(root, "k-notice");
     assert.equal(notices.length, 1, "one notice");
     const words = textOf(notices[0]);
     assert.match(words, /Sales cannot show its tasks right now/);
-    assert.match(words, /The board is not answering, so agents and goals cannot be reached\./);
-    assert.match(words, /Run:/);
-    assert.match(words, /engine start/);
+    assert.match(words, /The board is switched off, so agents and tasks cannot be reached\./);
+    assert.match(words, /Open Health/);
+    assert.doesNotMatch(words, /engine start/, "no command outside Health (M51 F17)");
+    assert.ok(withClass(root, "p-dept__box--off").length === 1, "the box is greyed (M51 F24)");
     assert.equal(textOf(withClass(root, "p-dept__state")[0]), "Not known");
     const all = textOf(root);
     assert.doesNotMatch(all, /Idle/);
     assert.doesNotMatch(all, /No tasks yet/);
     assert.match(all, /Tasks cannot be shown right now\./);
-    assert.match(all, /A task cannot start until the board is connected\./);
+    assert.match(all, /Tasks cannot be given while the board is off\./);
   });
 });
 
@@ -241,7 +242,7 @@ test("dept: before the map answers, a shell that says the board is off already b
     const notices = withClass(root, "k-notice");
     assert.equal(notices.length, 1);
     assert.match(textOf(notices[0]), /cannot show its tasks right now/);
-    assert.match(textOf(notices[0]), /engine start/);
+    assert.match(textOf(notices[0]), /Open Health/);
     assert.equal(textOf(withClass(root, "p-dept__state")[0]), "Not known");
   });
 });

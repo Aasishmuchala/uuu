@@ -145,8 +145,9 @@ export function scanStudio(projectFolder) {
 }
 
 // The Drafter's state and the goals it has open steps on. Unknown (board off, no ids) -> agent null.
+// Also the titles of the tasks by their ref, so a part's Task column can name its task (M51 F8).
 async function agentAndWork(ctx) {
-  const empty = { agent: null, inFlight: [] };
+  const empty = { agent: null, inFlight: [], titles: new Map() };
   try {
     const ids = ctx.ids();
     const drafterId = ids?.agents?.drafter;
@@ -157,8 +158,12 @@ async function agentAndWork(ctx) {
       ctx.board.get(`${base}/live-runs`).catch(() => []),
       loadIssues(ctx, ids.companyId).catch(() => []),
     ]);
+    const titles = new Map();
+    for (const i of Array.isArray(issues) ? issues : []) {
+      if (!i.parentId && typeof i.identifier === "string" && typeof i.title === "string") titles.set(i.identifier, i.title.slice(0, 160));
+    }
     const a = (Array.isArray(agents) ? agents : []).find((x) => x?.id === drafterId);
-    if (!a) return empty;
+    if (!a) return { ...empty, titles };
     let state = "free";
     if (a.status === "pending_approval") state = "waiting_for_you";
     else if (a.status === "error") state = "problem";
@@ -174,7 +179,7 @@ async function agentAndWork(ctx) {
         }
       }
     }
-    return { agent: { name: a.name || "Drafter", state, plainState: AGENT_STATES[state] }, inFlight };
+    return { agent: { name: a.name || "Drafter", state, plainState: AGENT_STATES[state] }, inFlight, titles };
   } catch (e) {
     if (e instanceof HomeError) return empty;
     throw e;
@@ -185,42 +190,44 @@ export default function register(app) {
   app.get("/api/departments/studio", async (ctx) => {
     const installed = existsSync(ctx.config.paths.cadPython);
     const { cad, files } = scanStudio(ctx.config.paths.projectFolder);
-    const { agent, inFlight } = await agentAndWork(ctx);
+    const { agent, inFlight, titles } = await agentAndWork(ctx);
+    // `task`: the title of the task the file belongs to, when the board names it (else the page shows `goal`).
+    const named = (rows) => rows.map((r) => ({ ...r, task: titles.get(r.goal) || null }));
     return {
       id: "studio",
       title: "Studio",
       connected: installed,
       notConnected: installed ? null : {
         reason: "The Drafter's tools are not installed yet.",
-        next: "Run: engine/cad/install.sh",
+        next: "Open Health to see how to install them.",
       },
       agent,
       figures: [
         { id: "files", label: "Files", value: String(files.length), hint: "Sketches and notes for you" },
-        { id: "cad", label: "CAD parts", value: String(cad.length), hint: "STEP files with measured sizes" },
+        { id: "cad", label: "Parts", value: String(cad.length), hint: "Part files with measured sizes" },
       ],
       sections: [
         {
-          id: "cad", title: "CAD parts", emptyText: "No parts yet. Give the Drafter a goal to get one.",
+          id: "cad", title: "Parts", emptyText: "No parts yet. Give the Drafter a task to get one.",
           columns: [
             { key: "name", label: "Part" }, { key: "size", label: "Size" }, { key: "volume", label: "Volume" },
-            { key: "goal", label: "Goal" }, { key: "file", label: "File" },
+            { key: "goal", label: "Task" }, { key: "file", label: "File" },
           ],
-          rows: cad,
+          rows: named(cad),
         },
         {
           id: "files", title: "Other files", emptyText: "No other files yet.",
           columns: [
-            { key: "name", label: "Name" }, { key: "goal", label: "Goal" }, { key: "size", label: "Size" },
+            { key: "name", label: "Name" }, { key: "goal", label: "Task" }, { key: "size", label: "Size" },
             { key: "changed", label: "Changed" }, { key: "file", label: "File" },
           ],
-          rows: files,
+          rows: named(files),
         },
       ],
       inFlight,
       switches: [{
         id: "renderer", label: "Show parts in 3D", on: false,
-        explain: "No renderer is connected. Files open in your own CAD program.",
+        explain: "Parts cannot be shown in 3D here. Open the file in your own drawing program.",
       }],
     };
   });

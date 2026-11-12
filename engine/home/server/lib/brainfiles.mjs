@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { loadBrainForms } from "../../../company/lib/brain-files.mjs";
 import { BRAIN_FOLDERS, isBrainPath } from "../../../company/lib/job-files.mjs";
 import { readChecked } from "./taskfiles.mjs";
+import { fieldKeys, headingKey } from "../brain/forms.mjs";
 
 // The nine basics of 32.3: form id, file, title. Pinned here so nothing waits for the form files.
 export const BASICS = [
@@ -65,7 +66,7 @@ function requiredHeadings(config) {
   try {
     const { forms } = loadBrainForms(dir);
     if (forms.length) {
-      required = new Map(forms.map((f) => [`${f.folder}/${f.file}`, new Set(f.fields.filter((x) => x.required).map((x) => x.label))]));
+      required = new Map(forms.map((f) => [`${f.folder}/${f.file}`, new Set(f.fields.filter((x) => x.required).flatMap((x) => fieldKeys(f, x)))]));
     }
   } catch { required = null; }
   formsCache = { key, required };
@@ -93,7 +94,7 @@ function formFileFilled(text, rel, config) {
   if (!req) return !text.split("\n").some((l) => l.trim() === PLACEHOLDER);
   const want = req.get(rel);
   if (!want) return !text.split("\n").some((l) => l.trim() === PLACEHOLDER);
-  return !secs.some((s) => want.has(s.heading) && isPlaceholder(s));
+  return !secs.some((s) => want.has(headingKey(s.heading)) && isPlaceholder(s));
 }
 
 // Regular files directly in a folder of the brain (or its root), with no dot and no link: [{ name, size, mtimeMs }].

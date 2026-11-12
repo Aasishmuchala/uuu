@@ -15,19 +15,19 @@
   "asks": [
     {
       "id": "name-or-subject",
-      "label": "Name or subject:",
+      "label": "What is it for?",
       "kind": "line",
       "required": true
     },
     {
       "id": "shape",
-      "label": "Shape:",
+      "label": "Which main shape?",
       "kind": "line",
       "required": true
     },
     {
       "id": "colours-to-use",
-      "label": "Colours to use:",
+      "label": "Which colours?",
       "kind": "line",
       "required": true
     }

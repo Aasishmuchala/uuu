@@ -307,10 +307,12 @@ export function SpritePlayer({ sheetUrl, frames, tags, palette, title, gif, init
         (s) => html`<button type="button" class=${`p-sprite-player__toggle${speed === s ? " is-on" : ""}`} aria-pressed=${speed === s ? "true" : "false"}
           aria-label=${`Speed ${s} times`} onClick=${() => setSpeed(s)}>${s}×</button>`,
       )}
-      <span class="p-sprite-player__label">Zoom</span>
-      <button type="button" class="p-sprite-player__toggle" aria-label="Zoom out" disabled=${zoom <= 1} onClick=${() => setZoom((z) => clampZoom(z - 1))}>−</button>
-      <span class="p-sprite-player__zoom">${zoom}×</span>
-      <button type="button" class="p-sprite-player__toggle" aria-label="Zoom in" disabled=${zoom >= 16} onClick=${() => setZoom((z) => clampZoom(z + 1))}>+</button>
+      <span class="p-sprite-player__zoom-group">
+        <span class="p-sprite-player__label">Zoom</span>
+        <button type="button" class="p-sprite-player__toggle" aria-label="Zoom out" disabled=${zoom <= 1} onClick=${() => setZoom((z) => clampZoom(z - 1))}>−</button>
+        <span class="p-sprite-player__zoom">${zoom}×</span>
+        <button type="button" class="p-sprite-player__toggle" aria-label="Zoom in" disabled=${zoom >= 16} onClick=${() => setZoom((z) => clampZoom(z + 1))}>+</button>
+      </span>
     </div>
 
     <section class="p-sprite-player__part" aria-label="Frames">

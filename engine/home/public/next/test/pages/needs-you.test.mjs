@@ -34,6 +34,23 @@ test("needs-you: an item belongs to the department of its agent, else of its sou
   assert.equal(mod.departmentOf(item("j", { source: "constructor" }), departments), "");
 });
 
+test("needs-you: the home server's department wins (M50 F1): a task's result raised by the Chief of staff is filtered under its task's department", () => {
+  assert.equal(mod.departmentOf(item("a", { agent: { slug: "chief-of-staff" }, department: "studio" }), departments), "studio");
+  assert.equal(mod.departmentOf(item("b", { source: "books", department: null }), departments), "", "placed nowhere stays nowhere");
+  assert.equal(mod.departmentOf(item("c", { department: "nonsense" }), departments), "");
+  assert.equal(mod.departmentOf(item("d", { department: "books" }), null), "books", "no map needed");
+});
+
+test("needs-you: with the home server's departments, the chips add up to All for the seed of 20", () => {
+  const where = ["operations", "operations", "operations", "marketing", "marketing", "books", "books", "books", "books", "people",
+    "support", "operations", "studio", "operations", "operations", "studio", "marketing", "operations", "operations", "operations"];
+  const items = where.map((d, i) => item(`i${i}`, { agent: { slug: "chief-of-staff" }, department: d }));
+  const chips = mod.chipsFor(items, departments, "");
+  assert.equal(chips[0].count, 20);
+  assert.equal(chips.slice(1).reduce((n, c) => n + c.count, 0), 20, "every item is under one chip");
+  for (const c of chips.slice(1)) assert.equal(mod.itemsFor(items, departments, c.id).length, c.count, c.id);
+});
+
 test("needs-you: urgent first, then newest; bad entries are dropped", () => {
   const out = mod.sortItems([
     item("old", { when: "2026-11-01T00:00:00Z" }),

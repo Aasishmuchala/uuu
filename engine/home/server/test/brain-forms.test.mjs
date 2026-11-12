@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadBrainForms } from "../../../company/lib/brain-files.mjs";
 import {
-  PLACEHOLDER, checkValues, cleanValues, emptyValues, parseForm, renderForm, stateOf,
+  HEADINGS, PLACEHOLDER, checkValues, cleanValues, emptyValues, fieldHeading, parseForm, renderForm, stateOf,
 } from "../brain/forms.mjs";
 import { brainToken } from "../brain/store.mjs";
 import { call } from "../lib/testing.mjs";
@@ -189,6 +189,50 @@ test("the seed's brand file: known headings become answers, the others are kept"
   const parsed = parseForm(BRAND, seed);
   assert.deepEqual(parsed.values, { tone: ["warm", "plain", "exact"], colours: ["#1f3a34", "#e8b04a", "#f4efe6"], fonts: "Avenir Next" });
   assert.deepEqual(parsed.unknown.map((u) => u.heading), ["How you sign off", "Your logo's file in Brand"]);
+});
+
+test("the nine basics: each field has a fixed heading; the seeded files read back whole, with nothing left over (M52 F1)", () => {
+  const { forms } = loadBrainForms(join(import.meta.dirname, "..", "..", "..", "company", "brain", "forms"));
+  assert.equal(forms.length, 9);
+  for (const form of forms) {
+    for (const f of form.fields) assert.ok(HEADINGS[form.id] && HEADINGS[form.id][f.id], `${form.id}.${f.id} has a fixed heading`);
+  }
+  const docs = join(import.meta.dirname, "..", "..", "..", "test", "stubs", "state-seed", "knowledge", "docs");
+  let seeded = 0;
+  for (const form of forms) {
+    const file = join(docs, form.folder, form.file);
+    if (!existsSync(file)) continue;
+    seeded += 1;
+    const text = readFileSync(file, "utf8");
+    const parsed = parseForm(form, text);
+    assert.deepEqual(parsed.unknown.map((u) => u.heading), [], `${form.id}: every heading is known`);
+    // A section the seed fills is read back filled (one left as the placeholder reads back empty).
+    const sections = text.split(/^## /m).slice(1);
+    for (const f of form.fields) {
+      const own = sections.find((sec) => sec.split("\n")[0].trim() === fieldHeading(form, f));
+      assert.ok(own, `${form.id}.${f.id} has its section in the seed`);
+      if (own.includes(PLACEHOLDER)) continue;
+      const v = parsed.values[f.id];
+      assert.ok(Array.isArray(v) ? v.length : v, `${form.id}.${f.id} is read back from the seed`);
+    }
+    // Saved again, the file keeps one section per field (no second answer under the other wording), and reads back the same.
+    const saved = renderForm(form, parsed.values, parsed);
+    for (const f of form.fields) {
+      const heads = saved.split("\n").filter((l) => l === `## ${fieldHeading(form, f)}` || l === `## ${f.label}`);
+      assert.equal(heads.length, 1, `${form.id}.${f.id}`);
+    }
+    assert.deepEqual(parseForm(form, saved).unknown, []);
+    assert.deepEqual(parseForm(form, saved).values, parsed.values);
+  }
+  assert.ok(seeded >= 4, "the four seeded basics are checked");
+});
+
+test("a heading is read by the fixed heading or by the label, case, spacing and a final ? aside", () => {
+  const form = { id: "services", title: "What we sell", fields: [{ id: "items", label: "What do you sell?", kind: "line", required: true }] };
+  for (const h of ["What you sell", "what you sell?", "What do you sell?", "WHAT DO YOU SELL"]) {
+    assert.equal(parseForm(form, `# What we sell\n\n## ${h}\nDoors\n`).values.items, "Doors", h);
+  }
+  assert.equal(renderForm(form, { items: "Doors" }), "# What we sell\n\n## What do you sell?\nDoors\n", "saving writes the label, as before");
 });
 
 // ---- the checks

@@ -124,10 +124,11 @@
 }
 
 /* One folder: the bar over its files */
+/* The count, Sort by and List or Grid: one row on one line (M52 F9); below 860 px the count goes on its own line above. */
 .p-files .p-files__bar {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
 }
@@ -135,12 +136,21 @@
 .p-files .p-files__bar-tools {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--s-3);
 }
 
 .p-files .p-files__bar-tools .k-field {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--s-2);
   margin: 0;
+}
+
+.p-files .p-files__bar-tools .k-field__label {
+  margin: 0;
+  white-space: nowrap;
 }
 
 /* Files as tiles */
@@ -184,6 +194,15 @@
   border-radius: var(--r-2);
   background: var(--glass-soft);
   color: var(--text-2);
+}
+
+.p-files .p-files__tile-face--picture { padding: var(--s-2); }
+.p-files .p-files__tile-img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  image-rendering: auto;
 }
 
 .p-files .p-files__tile-kind {
@@ -428,4 +447,18 @@
   .p-files .p-files__row-meta > span:first-child {
     display: none;
   }
+}
+
+@media (max-width: 859px) {
+  .p-files .p-files__count { flex-basis: 100%; }
+}
+
+/* "Saved." after a form, a paste or an upload (M52 K2). */
+.p-files .p-files__saved {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  color: var(--ok-text);
+  font-size: var(--fs-caption);
 }
