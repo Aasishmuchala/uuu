@@ -44,13 +44,26 @@
         "tall",
         "square"
       ]
+    },
+    {
+      "id": "research",
+      "label": "Research notes to learn from:",
+      "kind": "task",
+      "required": false
     }
   ],
   "needs": [
     "video"
   ],
-  "takes": null,
-  "text": "Make a title card that shows these words: [words]. It lasts [seconds] seconds and its shape is [shape]. The words fade or slide in, hold, and settle, using the colours and type of the brand file. The video is at most two minutes long and at most full HD in size. Look at the stills of the result before you hand it over, and say if the words are hard to read anywhere.",
+  "takes": {
+    "from": [
+      "marketing/research-notes-from-a-video",
+      "marketing/research-a-swipe-file"
+    ],
+    "ask": "research",
+    "label": "Make a title card that learns from this"
+  },
+  "text": "Make a title card that shows these words: [words]. It lasts [seconds] seconds and its shape is [shape]. The words fade or slide in, hold, and settle, using the colours and type of the brand file. The video is at most two minutes long and at most full HD in size. Look at the stills of the result before you hand it over, and say if the words are hard to read anywhere. If I name research notes here, learn from their examples and copy none of them: [research]",
   "produces": [
     "video/*/manifest.json"
   ]

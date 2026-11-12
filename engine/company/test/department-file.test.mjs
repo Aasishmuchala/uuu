@@ -18,8 +18,9 @@ const PINNED = [
   ["operations", "Operations", "plans · documents · checks", ["chief-of-staff", "builder", "checker", "art-director"], null,
     [["brain", "Company brain"], ["documents", "Documents"], ["planning", "Planning"]]],
   ["sales", "Sales", "leads · calls · deals", ["sales"], "customers", [["leads", "Leads"], ["calls", "Calls"], ["deals", "Deals"]]],
-  ["marketing", "Marketing", "ideas · writing · design", ["marketer"], "marketing",
-    [["ideas", "Ideas"], ["writing", "Writing"], ["design", "Design"], ["review", "Review and memory"]]],
+  // PLAN-V5 K10: the Researcher and its cluster, first in the order work goes.
+  ["marketing", "Marketing", "ideas · writing · design", ["marketer", "researcher"], "marketing",
+    [["research", "Research"], ["ideas", "Ideas"], ["writing", "Writing"], ["design", "Design"], ["review", "Review and memory"]]],
   ["studio", "Studio", "parts · pictures · motion", ["drafter", "artist"], "studio", [["parts", "Parts"], ["pictures", "Pictures"], ["motion", "Motion and video"]]],
   ["support", "Support", "requests · replies · answers", ["support"], "support", [["requests", "Requests"], ["replies", "Replies"], ["learning", "Learning"]]],
   ["people", "People", "staff · leave · joining", ["people"], "people", [["records", "Staff records"], ["leave", "Leave and attendance"], ["joining", "Joining"]]],
@@ -42,7 +43,7 @@ test("departments.json loads with no problem against the company file", () => {
   const { departments, problems } = loadDepartmentFile(join(COMPANY, "departments.json"), realRoles());
   assert.deepEqual(problems, []);
   assert.equal(departments.length, 7);
-  assert.equal(departments.reduce((n, d) => n + d.clusters.length, 0), 22);
+  assert.equal(departments.reduce((n, d) => n + d.clusters.length, 0), 23);
 });
 
 test("every agent of the company file is in exactly one department", () => {

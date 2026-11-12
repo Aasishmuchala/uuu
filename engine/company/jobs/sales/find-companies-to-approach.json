@@ -3,10 +3,11 @@
   "department": "sales",
   "cluster": "leads",
   "title": "Find companies to approach",
-  "summary": "A list of companies that look like good customers, found by searching outside.",
+  "summary": "A list of companies that look like good customers, found on public web pages by the Researcher.",
   "handoff": "on-its-own",
   "stage": 2,
   "who": [
+    "researcher",
     "sales"
   ],
   "size": "M",
@@ -35,7 +36,7 @@
     "internet"
   ],
   "takes": null,
-  "text": "Find companies that match our ideal customer and the kind I describe here: [kind]. Give a short list, with why each one fits and where you found it. Aim for the number in [count] if I gave one. Do not contact anyone and do not send anything. Do not invent a company: list only what you actually found, and say so plainly if you found fewer.",
+  "text": "Find companies that match our ideal customer and the kind I describe here: [kind]. In order: first the Researcher searches public web pages for companies of that kind, using only the words I wrote here and never our customer files, and writes its notes with a source for each company. Then Sales reads those notes in the research folder, keeps the companies that fit our ideal customer, and writes a short list with why each one fits and the source for each. Do not contact anyone and do not send anything. Do not invent a company: list only what the notes show, and say so plainly if there are fewer. If I gave a number, aim for this many: [count]",
   "produces": [
     "companies.md"
   ]

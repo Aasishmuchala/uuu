@@ -500,6 +500,12 @@ test("from the half-applied live state a run finishes the job without new agents
       if (!role.includes("{{TEAM}}") && !role.includes("{{STAGED}}")) assert.equal(text, role, slug);
       const policy = JSON.parse(readFileSync(join(env.state, "policy", `${id}.json`), "utf8"));
       assert.equal(policy.slug, slug);
+      if (slug === "researcher") {
+        // PLAN-V5 K10: the one walled agent, with no company folder, no lessons file and no key file.
+        assert.deepEqual(policy, { agentId: id, slug, localServices: [], readFolders: [], lessonsFile: null, envFile: null, taskFolder: "read-write", walled: true });
+        assert.equal(existsSync(join(env.state, "lessons", `${slug}.md`)), false, "the Researcher keeps no lessons");
+        continue;
+      }
       assert.equal("walled" in policy, false, `${slug} has no walled key`);
       assert.equal(policy.readFolders.includes(join(env.state, "art")), slug !== "drafter", `${slug} reads art, but the Drafter keeps its list`);
       assert.ok(existsSync(join(env.state, "lessons", `${slug}.md`)));

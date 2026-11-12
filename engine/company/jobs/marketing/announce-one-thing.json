@@ -39,11 +39,24 @@
       "label": "From when?",
       "kind": "date",
       "required": true
+    },
+    {
+      "id": "research",
+      "label": "Research notes to draw on:",
+      "kind": "task",
+      "required": false
     }
   ],
   "needs": [],
-  "takes": null,
-  "text": "Write a post for [channel] announcing [what-is-new]. Say who it helps, what changes for them and when: [date]. Give me a short version and a longer one, and leave both as drafts.",
+  "takes": {
+    "from": [
+      "marketing/research-a-topic",
+      "marketing/research-a-competitors-site"
+    ],
+    "ask": "research",
+    "label": "Announce something from this research"
+  },
+  "text": "Write a post for [channel] announcing [what-is-new]. Say who it helps, what changes for them and when: [date]. Give me a short version and a longer one, and leave both as drafts. If I name research notes here, use them as background only: [research]",
   "produces": [
     "content/*.md"
   ]

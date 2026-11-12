@@ -45,11 +45,25 @@
       "label": "What should it achieve?",
       "kind": "line",
       "required": true
+    },
+    {
+      "id": "research",
+      "label": "Research notes to plan from:",
+      "kind": "task",
+      "required": false
     }
   ],
   "needs": [],
-  "takes": null,
-  "text": "Plan the content for [month] for [channel] aimed at [who-it-is-for]. The main aim is [what-we-want-to-achieve]. Show me the plan first, with a subject and a day for each piece, and wait for my yes before writing anything.",
+  "takes": {
+    "from": [
+      "marketing/a-monthly-trend-scan",
+      "marketing/research-a-topic",
+      "marketing/research-a-competitors-site"
+    ],
+    "ask": "research",
+    "label": "Plan a month of content from this"
+  },
+  "text": "Plan the content for [month] for [channel] aimed at [who-it-is-for]. The main aim is [what-we-want-to-achieve]. Show me the plan first, with a subject and a day for each piece, and wait for my yes before writing anything. If I name research notes here, read them before you plan and use them as reference only: [research]",
   "produces": [
     "content/*.md"
   ]

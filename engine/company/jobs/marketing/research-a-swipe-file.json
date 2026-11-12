@@ -1,0 +1,37 @@
+{
+  "id": "research-a-swipe-file",
+  "department": "marketing",
+  "cluster": "research",
+  "title": "A swipe file from a list of links",
+  "summary": "The best examples from the pages and videos you list, each with what it is and why it works.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "researcher"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "links",
+      "label": "The links, one address per line:",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "examples-of",
+      "label": "What are they examples of?",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "internet"
+  ],
+  "takes": null,
+  "text": "Build a swipe file of [examples-of] from these pages and videos: [links]. For each one worth keeping, note its address, what it is, why it works, and one frame or one short quote. Skip any that cannot be opened and say why. These are references to learn from: nothing in them is copied into our own work.",
+  "produces": [
+    "research/notes.md"
+  ]
+}

@@ -33,7 +33,7 @@ const TOOL_LABELS = {
   "chief-of-staff": "Planning and handing out work", builder: "Documents and files", checker: "Reading and checking",
   bookkeeper: "The books (drafts only)", sales: "The customer records", support: "The support desk",
   people: "The staff records", marketer: "The content calendar", drafter: "CAD tools", artist: "Drawing tools",
-  "art-director": "Scoring against the brand kit",
+  "art-director": "Scoring against the brand kit", researcher: "Reading the web for the team",
 };
 
 function defaultLog(line) {
@@ -148,21 +148,25 @@ function toolInstalled(slug, config) {
 // profileOf(role, config): what the agent may and may not do, in the owner's words.
 export function profileOf(role, config) {
   const books = listsBooksPort(role.policy, config);
-  const may = [
-    "Works inside its task folder and nowhere else on this Mac.",
-    "Reads the company's documents and its own lessons before it starts.",
-  ];
+  const walled = role.policy?.walled === true;
+  const may = ["Works inside its task folder and nowhere else on this Mac."];
+  if (!walled) may.push("Reads the company's documents and its own lessons before it starts.");
   if (role.rights?.canAssignTasks) may.push("Hands tasks to the other agents.");
   if (books) may.push("Prepares drafts in the books. Nothing is final until you approve it.");
   if (role.policy?.taskFolder === "read-only") may.push("Reads the work it checks. It cannot change it.");
   if (role.slug === "drafter") may.push("Makes CAD parts with its own tools.");
   if (role.slug === "artist") may.push("Draws sprites, animations and simple images with its own tools.");
   if (role.slug === "art-director") may.push("Looks at pictures, pages and copy and scores them against the brand kit and the references. It changes nothing itself.");
+  if (role.slug === "researcher") {
+    may.push("Reads the public web through one guarded door when you have switched it on, and writes research notes with a source for every claim.");
+    may.push("Reads none of the company's files except what you share with it.");
+  }
   const mayNot = [
     "Cannot send anything outside the company.",
     "Cannot read your own files.",
     "Cannot create or change agents.",
   ];
+  if (role.slug === "researcher") mayNot.push("Cannot change anything outside its own research folder.");
   if (books) mayNot.push("Cannot make a draft final, cancel it or delete it.");
   const limits = role.limits || {};
   return {

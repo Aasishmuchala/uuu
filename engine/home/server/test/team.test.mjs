@@ -7,7 +7,7 @@ import { readShape, sameShape } from "../lib/shape.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 
 const OPTS = { routes: ["team", "inbox"], inbox: ["board", "goals"], search: [] };
-const SLUGS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist", "art-director"];
+const SLUGS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist", "art-director", "researcher"];
 
 async function withHome(fn, extra = {}) {
   const h = await startV2({ ...OPTS, port: 0, boardSeed: boardSeedV2(), ...extra });
@@ -16,7 +16,7 @@ async function withHome(fn, extra = {}) {
 const team = (h) => call(h.url, "GET", "/api/team");
 const agent = (h, slug) => call(h.url, "GET", `/api/team/${slug}`);
 
-test("the team fits its shape and holds eleven agents in file order", async () => {
+test("the team fits its shape and holds twelve agents in file order", async () => {
   await withHome(async (h) => {
     const r = await team(h);
     assert.equal(r.status, 200);
@@ -24,9 +24,9 @@ test("the team fits its shape and holds eleven agents in file order", async () =
     assert.equal(r.json.connected, true);
     assert.equal(r.json.notConnected, null);
     assert.deepEqual(r.json.agents.map((a) => a.slug), SLUGS);
-    // the stub board seed has ten agents: the Art director is in the file but not yet on the board
-    assert.ok(r.json.agents.filter((a) => a.slug !== "art-director").every((a) => a.applied === true));
-    assert.equal(r.json.agents.find((a) => a.slug === "art-director").applied, false);
+    // the stub board seed has ten agents: the Art director and the Researcher are in the file but not yet on the board
+    assert.ok(r.json.agents.filter((a) => !["art-director", "researcher"].includes(a.slug)).every((a) => a.applied === true));
+    for (const slug of ["art-director", "researcher"]) assert.equal(r.json.agents.find((a) => a.slug === slug).applied, false, slug);
   });
 });
 
@@ -38,7 +38,7 @@ test("the Marketer is working and says what it is doing", async () => {
   });
 });
 
-test("with the board off the eleven agents come from the file, applied not known", async () => {
+test("with the board off the twelve agents come from the file, applied not known", async () => {
   const h = await startV2({ ...OPTS, port: 0, boardSeed: boardSeedV2() });
   try {
     await h.board.close();

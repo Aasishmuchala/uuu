@@ -1,6 +1,6 @@
 // Tests for engine/company/lib/job-files.mjs (CONTRACTS-V3 31.2): first the loader on fixture
 // files, one valid folder and one broken folder per rule; then the shared tests of section 39 for
-// the 60 real job files of 31.5, which skip while a file does not exist.
+// the 60 real job files of 31.5 and the Researcher's five (PLAN-V5 T34), which skip while a file does not exist.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -123,7 +123,8 @@ const CATALOGUE = {
   "record-a-new-lead": ["sales", "leads", ["sales"], O, 2],
   "follow-up-notes-for-quiet-leads": ["sales", "leads", ["sales"], O, 3],
   "first-message-to-a-lead": ["sales", "leads", ["sales"], L, 3],
-  "find-companies-to-approach": ["sales", "leads", ["sales"], O, 2],
+  // PLAN-V5 T34: the web is the Researcher's, so the Researcher finds them and Sales makes the list.
+  "find-companies-to-approach": ["sales", "leads", ["researcher", "sales"], O, 2],
   "briefing-before-a-call": ["sales", "calls", ["sales"], L, 3],
   "call-write-up": ["sales", "calls", ["sales"], O, 2],
   "proposal-from-a-call": ["sales", "calls", ["sales"], A, 4],
@@ -173,7 +174,14 @@ const CATALOGUE = {
   "a-slow-reveal-from-pictures": ["studio", "motion", ["artist"], O, 3],
   "cut-the-pauses-out-of-a-video": ["studio", "motion", ["artist"], O, 3],
   "captions-for-a-video": ["studio", "motion", ["artist"], O, 3],
+  // PLAN-V5 K10, T34: the Researcher's five jobs.
+  "research-a-topic": ["marketing", "research", ["researcher"], O, 2],
+  "research-a-competitors-site": ["marketing", "research", ["researcher"], O, 2],
+  "research-notes-from-a-video": ["marketing", "research", ["researcher"], O, 2],
+  "research-a-swipe-file": ["marketing", "research", ["researcher"], O, 2],
+  "a-monthly-trend-scan": ["marketing", "research", ["researcher"], O, 2],
 };
+const RESEARCH = ["research-a-topic", "research-a-competitors-site", "research-notes-from-a-video", "research-a-swipe-file", "a-monthly-trend-scan"];
 
 // The roles straight from the company file, so these tests do not depend on the role files.
 function realRoles() {
@@ -190,11 +198,11 @@ function realCatalogue() {
   return loaded;
 }
 
-test("the catalogue table of the contract has 60 jobs, as many per department as it says", () => {
+test("the catalogue table has the 60 jobs of the contract and the Researcher's five, as many per department as it says", () => {
   const per = {};
   for (const [dep] of Object.values(CATALOGUE)) per[dep] = (per[dep] || 0) + 1;
-  assert.equal(Object.keys(CATALOGUE).length, 60);
-  assert.deepEqual(per, { operations: 7, sales: 9, books: 11, support: 5, people: 5, marketing: 12, studio: 11 });
+  assert.equal(Object.keys(CATALOGUE).length, 65);
+  assert.deepEqual(per, { operations: 7, sales: 9, books: 11, support: 5, people: 5, marketing: 17, studio: 11 });
 });
 
 for (const [id, [dep, cluster, who, handoff, stage]] of Object.entries(CATALOGUE)) {
@@ -229,13 +237,76 @@ for (const [id, [dep, cluster, who, handoff, stage]] of Object.entries(CATALOGUE
   });
 }
 
-test("the catalogue has exactly the 60 jobs of the contract and the brand-book job", {
-  skip: Object.entries(CATALOGUE).every(([id, [dep]]) => existsSync(join(REAL, dep, `${id}.json`))) ? false : "not all 60 job files exist yet",
+test("the catalogue has exactly the 60 jobs of the contract, the Researcher's five and the brand-book job", {
+  skip: Object.entries(CATALOGUE).every(([id, [dep]]) => existsSync(join(REAL, dep, `${id}.json`))) ? false : "not all 65 job files exist yet",
 }, () => {
   const { jobs, problems } = realCatalogue();
   assert.deepEqual(problems, []);
-  // V5 T17 adds one job to the 60 of the contract: "Read the brand book".
+  // V5 T17 adds one job to the 60 of the contract: "Read the brand book"; T34 the Researcher's five.
   assert.deepEqual(jobs.map((j) => j.id).sort(), [...Object.keys(CATALOGUE), "read-the-brand-book"].sort());
+});
+
+// ---- PLAN-V5 K10, T34: the research jobs, and the jobs that may follow them.
+
+test("the five research jobs need the web, read no company file and each produce research/notes.md", () => {
+  const { jobs } = realCatalogue();
+  for (const id of RESEARCH) {
+    const j = jobs.find((x) => x.file === `marketing/${id}.json`);
+    assert.ok(j, `${id} loads`);
+    assert.deepEqual(j.needs, ["internet"], id);
+    assert.deepEqual(j.produces, ["research/notes.md"], id);
+    assert.deepEqual(j.reads, [], `${id}: the walled Researcher cannot open the company's files`);
+    assert.equal(j.takes, null, id);
+    assert.equal(j.size, "S", `${id}: one step, so the Chief writes no brief the Researcher could not read`);
+    assert.equal(j.planFirst, false, id);
+  }
+  // Every job that needs the web has the Researcher, and the Researcher does its five and the first step of one more.
+  for (const j of jobs) {
+    assert.equal(j.needs.includes("internet"), j.who.includes("researcher"), j.file);
+    assert.equal(j.who.includes("researcher"), [...RESEARCH, "find-companies-to-approach"].includes(j.id), j.file);
+  }
+});
+
+test("finding companies to approach: the Researcher reads the web first, then Sales makes the list from its notes", () => {
+  const j = realCatalogue().jobs.find((x) => x.file === "sales/find-companies-to-approach.json");
+  assert.deepEqual([j.id, j.title, j.department, j.cluster], ["find-companies-to-approach", "Find companies to approach", "sales", "leads"]);
+  assert.deepEqual(j.who, ["researcher", "sales"], "the Researcher's step comes first");
+  assert.deepEqual(j.needs, ["internet"]);
+  assert.equal(j.size, "M");
+  assert.deepEqual(j.produces, ["companies.md"]);
+  assert.deepEqual(j.reads, [{ file: "customers/ideal-customer.md", need: "helps" }]);
+  assert.deepEqual(j.asks.map((a) => [a.id, a.kind, a.required]), [["kind", "line", true], ["count", "number", false]]);
+  for (const s of ["first the Researcher searches public web pages", "using only the words I wrote here and never our customer files",
+    "Then Sales reads those notes in the research folder", "the source for each", "Do not contact anyone"]) assert.ok(j.text.includes(s), s);
+  assert.ok(j.text.indexOf("Researcher") < j.text.indexOf("Sales"), "in that order");
+});
+
+// Jobs that may follow research take it through an optional question of the kind task, used last in their text,
+// so a job started without research reads exactly as before up to that sentence.
+const FOLLOWERS = {
+  "marketing/five-concepts": RESEARCH,
+  "marketing/a-content-plan-for-a-month": ["a-monthly-trend-scan", "research-a-topic", "research-a-competitors-site"],
+  "marketing/announce-one-thing": ["research-a-topic", "research-a-competitors-site"],
+  "studio/an-animated-title-card": ["research-notes-from-a-video", "research-a-swipe-file"],
+  "studio/a-slow-reveal-from-pictures": ["research-notes-from-a-video", "research-a-swipe-file"],
+};
+
+test("the jobs that may follow research take it through an optional task question at the end of their text", () => {
+  const { jobs } = realCatalogue();
+  const refs = new Set(jobs.map((j) => j.file.replace(/\.json$/, "")));
+  for (const [ref, from] of Object.entries(FOLLOWERS)) {
+    const j = jobs.find((x) => x.file === `${ref}.json`);
+    assert.ok(j, ref);
+    assert.deepEqual(j.takes.from, from.map((id) => `marketing/${id}`), ref);
+    for (const f of j.takes.from) assert.ok(refs.has(f), `${ref} follows ${f}, which exists`);
+    const ask = j.asks.find((a) => a.id === j.takes.ask);
+    assert.deepEqual(ask, { id: "research", label: ask.label, kind: "task", required: false }, ref);
+    assert.ok(j.text.endsWith(": [research]"), ref);
+    assert.match(j.text, /If I name research notes here, /, ref);
+  }
+  // A carousel follows a set of concepts: its one task question is the concepts, so research reaches it through them.
+  const carousel = jobs.find((x) => x.file === "marketing/carousel-from-a-concept.json");
+  assert.deepEqual(carousel.takes, { from: ["marketing/five-concepts"], ask: "earlier", label: "Make a carousel from this" });
 });
 
 // ---- {{JOBS}} in a role file (31.3), filled by loadCompanyFile from departments.json and jobs/.

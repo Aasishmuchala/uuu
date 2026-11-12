@@ -86,14 +86,14 @@ test("departmentLoad: zero with the board off; live agents and Needs-you items b
 });
 
 // ---- the catalogue
-test("loadCatalogue: the 61 jobs of 31.5 keyed department/id, by department in file order, cached", () => {
+test("loadCatalogue: the 66 jobs of 31.5 keyed department/id, by department in file order, cached", () => {
   const c = loadCatalogue(h.config);
-  assert.equal(c.jobs.size, 61);
+  assert.equal(c.jobs.size, 66);
   assert.deepEqual(c.problems, []);
   assert.ok(c.jobs.has("sales/proposal-from-a-call"));
   assert.equal(c.jobs.get("sales/proposal-from-a-call").title, "Proposal from a call write-up");
   const counts = Object.fromEntries([...c.byDepartment].map(([d, list]) => [d, list.length]));
-  assert.deepEqual(counts, { operations: 8, sales: 9, marketing: 12, studio: 11, support: 5, people: 5, books: 11 });
+  assert.deepEqual(counts, { operations: 8, sales: 9, marketing: 17, studio: 11, support: 5, people: 5, books: 11 });
   assert.equal(loadCatalogue(h.config), c, "cached while no file changes");
 });
 
@@ -103,7 +103,7 @@ test("loadCatalogue: a broken job file is left out and listed; the others stay",
     cpSync(join(h.config.engineDir, "company"), join(dir, "company"), { recursive: true, filter: (p) => !p.includes(`${join("company", "test")}`) });
     writeFileSync(join(dir, "company", "jobs", "sales", "broken.json"), JSON.stringify({ id: "broken" }));
     const c = loadCatalogue({ ...h.config, engineDir: dir });
-    assert.equal(c.jobs.size, 61);
+    assert.equal(c.jobs.size, 66);
     assert.ok(!c.jobs.has("sales/broken"));
     assert.ok(c.problems.length >= 1);
     assert.ok(c.problems.every((p) => p.file === "sales/broken.json" && typeof p.problem === "string" && p.problem.endsWith(".")));

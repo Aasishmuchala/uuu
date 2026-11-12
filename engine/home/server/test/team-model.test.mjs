@@ -11,10 +11,10 @@ import { loadTaskContext } from "../lib/tasks.mjs";
 import { agentCards, DEPARTMENTS, loadRoles, profileOf } from "../lib/team.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 
-const SLUGS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist", "art-director"];
+const SLUGS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist", "art-director", "researcher"];
 const DEPT = {
   "chief-of-staff": null, builder: null, checker: null, bookkeeper: "books", sales: "customers",
-  support: "support", people: "people", marketer: "marketing", drafter: "studio", artist: "studio", "art-director": null,
+  support: "support", people: "people", marketer: "marketing", drafter: "studio", artist: "studio", "art-director": null, researcher: "marketing",
 };
 
 let h;
@@ -32,7 +32,7 @@ function makeCtx(log = () => {}) {
   };
 }
 
-test("loadRoles: eleven roles in file order, with departments and filled instructions", () => {
+test("loadRoles: twelve roles in file order, with departments and filled instructions", () => {
   const roles = loadRoles(h.config);
   assert.deepEqual(roles.map((r) => r.slug), SLUGS);
   for (const r of roles) {
@@ -64,7 +64,9 @@ test("DEPARTMENTS: the six, in order, with their agents", () => {
 
 test("profileOf: each sentence of the table for the role it belongs to", () => {
   const roles = loadRoles(h.config);
-  const ALWAYS = ["Works inside its task folder and nowhere else on this Mac.", "Reads the company's documents and its own lessons before it starts."];
+  const FOLDER = "Works inside its task folder and nowhere else on this Mac.";
+  const READS = "Reads the company's documents and its own lessons before it starts.";
+  const ALWAYS = [FOLDER, READS];
   const NEVER = ["Cannot send anything outside the company.", "Cannot read your own files.", "Cannot create or change agents."];
   const BOOKS_MAY = "Prepares drafts in the books. Nothing is final until you approve it.";
   const BOOKS_NOT = "Cannot make a draft final, cancel it or delete it.";
@@ -76,19 +78,26 @@ test("profileOf: each sentence of the table for the role it belongs to", () => {
     marketer: [],
     drafter: ["Makes CAD parts with its own tools."],
     artist: ["Draws sprites, animations and simple images with its own tools."],
+    researcher: [
+      "Reads the public web through one guarded door when you have switched it on, and writes research notes with a source for every claim.",
+      "Reads none of the company's files except what you share with it.",
+    ],
     "art-director": ["Reads the work it checks. It cannot change it.", "Looks at pictures, pages and copy and scores them against the brand kit and the references. It changes nothing itself."],
   };
   const labels = {
     "chief-of-staff": "Planning and handing out work", builder: "Documents and files", checker: "Reading and checking",
     bookkeeper: "The books (drafts only)", sales: "The customer records", support: "The support desk",
     people: "The staff records", marketer: "The content calendar", drafter: "CAD tools", artist: "Drawing tools",
-    "art-director": "Scoring against the brand kit",
+    "art-director": "Scoring against the brand kit", researcher: "Reading the web for the team",
   };
   for (const role of roles) {
     const p = profileOf(role, h.config);
     const books = extra[role.slug].includes(BOOKS_MAY);
-    assert.deepEqual(p.may, [...ALWAYS, ...extra[role.slug]], role.slug);
-    assert.deepEqual(p.mayNot, books ? [...NEVER, BOOKS_NOT] : NEVER, role.slug);
+    const walled = role.policy.walled === true;
+    assert.equal(walled, role.slug === "researcher", role.slug);
+    assert.deepEqual(p.may, [...(walled ? [FOLDER] : ALWAYS), ...extra[role.slug]], role.slug);
+    assert.deepEqual(p.mayNot, books ? [...NEVER, BOOKS_NOT] : walled ? [...NEVER, "Cannot change anything outside its own research folder."] : NEVER, role.slug);
+    if (walled) for (const t of [...p.may, ...p.mayNot]) assert.ok(!/company's documents|lessons/.test(t), `${role.slug}: ${t}`);
     assert.equal(p.tool.label, labels[role.slug], role.slug);
     assert.equal(p.tool.installed, true, `${role.slug}: the stub state has every tool`);
     assert.deepEqual(p.limits, { runMinutes: role.limits.runMinutes, maxTurns: role.limits.maxTurns, oneAtATime: true }, role.slug);
@@ -104,7 +113,7 @@ test("profileOf: tools that are not installed say so", () => {
     const bare = { ...h.config, paths: { ...h.config.paths, state: empty, books: join(empty, "books"), cadPython: join(empty, "cad", "venv", "bin", "python") } };
     const by = Object.fromEntries(roles.map((r) => [r.slug, profileOf(r, bare).tool.installed]));
     for (const slug of ["bookkeeper", "sales", "support", "people", "drafter", "artist"]) assert.equal(by[slug], false, slug);
-    for (const slug of ["chief-of-staff", "builder", "checker", "marketer", "art-director"]) assert.equal(by[slug], true, slug);
+    for (const slug of ["chief-of-staff", "builder", "checker", "marketer", "art-director", "researcher"]) assert.equal(by[slug], true, slug);
   } finally {
     rmSync(empty, { recursive: true, force: true });
   }
@@ -141,7 +150,7 @@ test("agentCards: a role not on the board, and the board off", async () => {
   assert.deepEqual(sameShape(readShape("agent-card"), artist), []);
 
   const off = agentCards(ctx, null);
-  assert.equal(off.length, 11);
+  assert.equal(off.length, 12);
   for (const c of off) {
     assert.equal(c.state, "free");
     assert.equal(c.plainState, "Not known");
@@ -170,7 +179,7 @@ test("loadRoles: reloads when a file's modified time changes", () => {
     cpSync(join(h.config.engineDir, "company"), join(dir, "company"), { recursive: true, filter: (src) => !src.includes(`${join("company", "test")}`) });
     const config = { ...h.config, engineDir: dir };
     const first = loadRoles(config);
-    assert.equal(first.length, 11);
+    assert.equal(first.length, 12);
     const file = join(dir, "company", "company.json");
     const doc = JSON.parse(readFileSync(file, "utf8"));
     doc.agents[1].capabilities = "Changed for the test.";

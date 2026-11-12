@@ -1,0 +1,37 @@
+{
+  "id": "research-a-competitors-site",
+  "department": "marketing",
+  "cluster": "research",
+  "title": "Study a competitor's site",
+  "summary": "What a competitor's public site offers and how it says it, read page by page, with sources.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "researcher"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "site",
+      "label": "The site's full address:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "focus",
+      "label": "Anything to look at in particular?",
+      "kind": "line",
+      "required": false
+    }
+  ],
+  "needs": [
+    "internet"
+  ],
+  "takes": null,
+  "text": "Read the public site at [site] and up to twenty of its own pages. Note what they offer, how they say it, any prices they show and how the pages are laid out, each with its source, and keep the best pages as examples. Report only what the pages say, never a guess about the company behind them. Look in particular at: [focus]",
+  "produces": [
+    "research/notes.md"
+  ]
+}

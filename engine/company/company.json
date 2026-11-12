@@ -140,6 +140,18 @@
         "taskFolder": "read-only"
       },
       "bench": null
+    },
+    {
+      "slug": "researcher", "name": "Researcher", "role": "Researcher", "department": "marketing",
+      "needs": "reasoning",
+      "paperclipRole": "researcher", "title": "Researcher",
+      "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
+      "capabilities": "Reads public web pages and videos through the web door when the owner switches it on, and writes research notes with a source for every claim.",
+      "instructions": "roles/researcher.md",
+      "fencePolicy": {
+        "localServices": [], "readFolders": [], "lessonsFile": null, "envFile": null, "taskFolder": "read-write", "walled": true
+      },
+      "bench": null
     }
   ]
 }

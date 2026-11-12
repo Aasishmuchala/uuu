@@ -15,7 +15,7 @@ const engineDir = join(companyDir, "..");
 const file = JSON.parse(readFileSync(join(companyDir, "company.json"), "utf8"));
 const bySlug = Object.fromEntries(file.agents.map((a) => [a.slug, a]));
 
-// The eleven agents as pinned in CONTRACTS section 5, CONTRACTS-V2 21.2 and PLAN-V5 K8.
+// The twelve agents as pinned in CONTRACTS section 5, CONTRACTS-V2 21.2 and PLAN-V5 K8 and K10.
 const PINNED = [
   { slug: "chief-of-staff", name: "Chief of staff", paperclipRole: "pm", tool: "claude", model: "opus", reportsTo: null, department: null },
   { slug: "builder", name: "Builder", paperclipRole: "engineer", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff", department: null },
@@ -28,7 +28,10 @@ const PINNED = [
   { slug: "drafter", name: "Drafter", paperclipRole: "designer", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff", department: "studio" },
   { slug: "artist", name: "Artist", paperclipRole: "designer", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff", department: "studio" },
   { slug: "art-director", name: "Art director", paperclipRole: "designer", tool: "claude", model: "opus", reportsTo: "chief-of-staff", department: null },
+  { slug: "researcher", name: "Researcher", paperclipRole: "researcher", tool: "claude", model: "sonnet", reportsTo: "chief-of-staff", department: "marketing" },
 ];
+// K10 and K2d: the Researcher's policy as the file writes it, walled.
+const WALLED = { localServices: [], readFolders: [], lessonsFile: null, envFile: null, taskFolder: "read-write", walled: true };
 const BENCH = { bookkeeper: "Engine Bookkeeper", sales: "Engine Sales", support: "Engine Support", people: "Engine People" };
 // The markers of CONTRACTS-V2 15.1 and the document names of 15.2 to 15.4.
 const MARKERS = ["SIZE:", "PLAN READY:", "PLAN ACCEPTED", "ANSWER:", "STOPPED:", "RESULT:", "VERDICT: PASS", "VERDICT: FAIL", "FOR:", "PLAN FIRST", "ROUTINE:"];
@@ -80,7 +83,7 @@ test("company, project and defaults are as pinned", () => {
   });
 });
 
-test("eleven agents, bosses first, with the pinned slugs, tools, models, bosses and departments", () => {
+test("twelve agents, bosses first, with the pinned slugs, tools, models, bosses and departments", () => {
   assert.deepEqual(file.agents.map((a) => a.slug), PINNED.map((p) => p.slug));
   for (const p of PINNED) {
     const a = bySlug[p.slug];
@@ -112,6 +115,7 @@ test("overrides are as pinned and nothing else differs from the defaults", () =>
         envFile: "{state}/secrets/agents/artist.env" } },
     "art-director": { ...base, fencePolicy: { ...base.fencePolicy,
       readFolders: ["{state}/knowledge/docs", "{state}/art", "{state}/media"], taskFolder: "read-only" } },
+    researcher: { ...base, fencePolicy: { ...WALLED } },
   };
   for (const slug of Object.keys(BENCH)) {
     expected[slug] = { ...base, fencePolicy: { ...base.fencePolicy,
@@ -170,7 +174,7 @@ test("shared/staged.md names every marker and every document, with the pinned he
   }
 });
 
-test("loadCompanyFile returns eleven agents with their departments and the Artist's policy", () => {
+test("loadCompanyFile returns twelve agents with their departments and the Artist's policy", () => {
   withCopy((dir, config) => {
     const c = loadCompanyFile(join(dir, "company.json"), config);
     assert.deepEqual(c.agents.map((a) => [a.slug, a.department]), PINNED.map((p) => [p.slug, p.department]));
@@ -249,7 +253,7 @@ test("loadCompanyFile carries needs on every agent, or null when the file has no
     assert.deepEqual(by, {
       "chief-of-staff": "reasoning", bookkeeper: "reasoning", builder: "making", drafter: "making", artist: "making",
       sales: "writing", marketer: "writing", support: "writing", people: "writing", checker: "checking",
-      "art-director": "reasoning",
+      "art-director": "reasoning", researcher: "reasoning",
     });
     const doc = JSON.parse(readFileSync(f, "utf8"));
     delete doc.agents[1].needs;
@@ -279,8 +283,46 @@ test("the Art director reads the knowledge, art and media folders, its task fold
     assert.equal(by["art-director"].needs, "reasoning");
     assert.equal(by.drafter.policy.readFolders.includes(st("art")), false, "the Drafter keeps its own list");
     for (const a of Object.values(by)) {
-      if (a.slug !== "drafter") assert.ok(a.policy.readFolders.includes(st("art")), a.slug);
-      assert.equal("walled" in a.policy, false, a.slug);
+      // The Researcher is walled (K10): it reads no company folder at all.
+      if (a.slug !== "drafter" && a.slug !== "researcher") assert.ok(a.policy.readFolders.includes(st("art")), a.slug);
+      assert.equal("walled" in a.policy, a.slug === "researcher", a.slug);
+    }
+  });
+});
+
+// PLAN-V5 K10 and K2d: the one walled agent, checked by the loader and by the fence planner's own policy check.
+test("the Researcher's policy is walled, reads no company folder, has no lessons or key file, and passes the planner's checks", () => {
+  withCopy((dir, config) => {
+    const r = loadCompanyFile(join(dir, "company.json"), config).agents.find((a) => a.slug === "researcher");
+    assert.deepEqual(r.policy, WALLED);
+    assert.equal(r.department, "marketing");
+    assert.equal(r.needs, "reasoning");
+    assert.equal(r.tool, "claude");
+    assert.equal(r.model, "sonnet");
+    assert.deepEqual(r.rights, { canAssignTasks: false, canCreateAgents: false, canCreateSkills: false });
+    // The policy file as apply writes it, through fence_plan.py's _check_policy (the K2d rules for a walled agent).
+    const doc = { agentId: "a0000000-0000-4000-8000-000000000012", slug: "researcher", localServices: r.policy.localServices,
+      readFolders: r.policy.readFolders, lessonsFile: r.policy.lessonsFile, envFile: r.policy.envFile, taskFolder: r.policy.taskFolder, walled: true };
+    const check = (policy) => execFileSync("/usr/bin/python3", ["-I", "-c", [
+      "import json, sys",
+      "sys.path.insert(0, sys.argv[1])",
+      "import fence_plan",
+      "a = json.loads(sys.argv[2])",
+      "try:",
+      "    out = fence_plan._check_policy(a['policy'], a['state'], a['fence'], a['board'])",
+      "    print(json.dumps({'ok': True, 'walled': out['walled'], 'reads': out['reads'], 'lessons': out['lessons'], 'domains': out['domains']}))",
+      "except fence_plan.Refused as e:",
+      "    print(json.dumps({'ok': False, 'why': str(e)}))",
+    ].join("\n"), join(engineDir, "fence"), JSON.stringify({ policy, state: config.paths.state, fence: config.fence, board: config.ports.board })],
+    { encoding: "utf8" });
+    assert.deepEqual(JSON.parse(check(doc)), { ok: true, walled: true, reads: [], lessons: null, domains: [] });
+    // The planner would refuse the same policy with a lessons file, a company folder or a key file.
+    for (const [over, words] of [[{ lessonsFile: join(config.paths.state, "lessons", "researcher.md") }, "a walled agent has no lessons file"],
+      [{ readFolders: [join(config.paths.state, "knowledge", "docs")] }, "a walled agent may read no folder of the company"],
+      [{ envFile: join(config.paths.state, "secrets", "agents", "researcher.env") }, "a walled agent has no key file"]]) {
+      const out = JSON.parse(check({ ...doc, ...over }));
+      assert.equal(out.ok, false, words);
+      assert.ok(out.why.includes(words), out.why);
     }
   });
 });
@@ -335,7 +377,14 @@ test("company.json, departments.json and models.json as saved still load with th
     const config = oldConfig({ path: join(dir, "config.json") });
     const c = oldCompany(join(dir, "data", "company.json"), config);
     assert.deepEqual(c.agents.map((a) => a.slug), PINNED.map((p) => p.slug));
-    assert.deepEqual(oldDepartments(join(dir, "data", "departments.json"), c.agents).problems, []);
+    assert.deepEqual(c.agents.find((a) => a.slug === "researcher").policy, WALLED, "the Researcher's walled policy in the old loader");
+    const deps = oldDepartments(join(dir, "data", "departments.json"), c.agents);
+    assert.deepEqual(deps.problems, []);
+    // The job files as saved, the five research jobs and the hand-ons to them included (PLAN-V5 T34).
+    const { loadJobFiles: oldJobs } = await old("company/lib/job-files.mjs");
+    const j = oldJobs(join(dir, "data", "jobs"), c.agents, deps.departments);
+    assert.deepEqual(j.problems, []);
+    assert.equal(j.jobs.filter((x) => x.cluster === "research").length, 5);
     const r = oldRanking(join(dir, "data", "models.json"));
     const picked = oldPick({ ranking: r, agents: c.agents, catalogue: ["claude-fable-5-1", "claude-gpt-6-1-sol"], overrides: {} });
     assert.deepEqual(picked.missing, []);

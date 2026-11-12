@@ -29,13 +29,26 @@
       "label": "A caption for each picture:",
       "kind": "text",
       "required": false
+    },
+    {
+      "id": "research",
+      "label": "Research notes to learn from:",
+      "kind": "task",
+      "required": false
     }
   ],
   "needs": [
     "video"
   ],
-  "takes": null,
-  "text": "Make a video that moves slowly across these pictures, in this order, fading from one to the next: [pictures]. Give each picture a few seconds. If captions are given, put each on its picture in plain readable type: [captions]. Use only pictures the owner named. The video is at most two minutes long and at most full HD in size. Look at the stills before you hand it over.",
+  "takes": {
+    "from": [
+      "marketing/research-notes-from-a-video",
+      "marketing/research-a-swipe-file"
+    ],
+    "ask": "research",
+    "label": "Make a slow reveal that learns from this"
+  },
+  "text": "Make a video that moves slowly across these pictures, in this order, fading from one to the next: [pictures]. Give each picture a few seconds. If captions are given, put each on its picture in plain readable type: [captions]. Use only pictures the owner named. The video is at most two minutes long and at most full HD in size. Look at the stills before you hand it over. If I name research notes here, learn from their pacing and examples and copy none of them: [research]",
   "produces": [
     "video/*/manifest.json"
   ]

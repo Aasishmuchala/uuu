@@ -42,11 +42,27 @@
         "carousel",
         "newsletter"
       ]
+    },
+    {
+      "id": "research",
+      "label": "Research notes to start from:",
+      "kind": "task",
+      "required": false
     }
   ],
   "needs": [],
-  "takes": null,
-  "text": "Come up with exactly five different concepts for [kind] about this: [subject]. Give each one a headline of at most 80 characters, the angle it takes in one line, and why it would work for our customers in one line. Keep to the brand file and stay clear of everything on the can't-say list. Do not design anything and do not write the full piece yet; the owner picks one concept to go on with.",
+  "takes": {
+    "from": [
+      "marketing/research-a-topic",
+      "marketing/research-a-competitors-site",
+      "marketing/research-notes-from-a-video",
+      "marketing/research-a-swipe-file",
+      "marketing/a-monthly-trend-scan"
+    ],
+    "ask": "research",
+    "label": "Five concepts from this research"
+  },
+  "text": "Come up with exactly five different concepts for [kind] about this: [subject]. Give each one a headline of at most 80 characters, the angle it takes in one line, and why it would work for our customers in one line. Keep to the brand file and stay clear of everything on the can't-say list. Do not design anything and do not write the full piece yet; the owner picks one concept to go on with. If I name research notes here, read them first and use them as reference only: [research]",
   "produces": [
     "concepts.md"
   ]

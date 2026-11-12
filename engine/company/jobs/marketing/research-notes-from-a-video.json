@@ -1,0 +1,37 @@
+{
+  "id": "research-notes-from-a-video",
+  "department": "marketing",
+  "cluster": "research",
+  "title": "Notes from a video",
+  "summary": "What one public video shows and says, with a few of its frames and what to learn from it.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "researcher"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "video",
+      "label": "The video's full address:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "learn",
+      "label": "What should it learn from it?",
+      "kind": "line",
+      "required": false
+    }
+  ],
+  "needs": [
+    "internet"
+  ],
+  "takes": null,
+  "text": "Watch the video at [video] and take notes: what it shows, what is said, and what we could learn from it, each with the moment it happens. Keep a few frames worth learning from. If the video has no captions and its words cannot be made out, say so. Look in particular for: [learn]",
+  "produces": [
+    "research/notes.md"
+  ]
+}

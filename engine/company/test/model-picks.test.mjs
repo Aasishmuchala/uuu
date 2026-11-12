@@ -22,7 +22,7 @@ const CATALOGUE = [
 
 const pick = (o = {}) => pickModels({ ranking, agents, catalogue: CATALOGUE, overrides: {}, ...o });
 
-test("with all 19 ids the nine Claude agents get Fable 5.1, the Art director Opus 5.5 and the Checker GPT 6.1 Sol", () => {
+test("with all 19 ids the ten Claude agents get Fable 5.1, the Art director Opus 5.5 and the Checker GPT 6.1 Sol", () => {
   assert.equal(CATALOGUE.length, 19);
   const r = pick();
   assert.deepEqual(r.missing, []);
@@ -42,9 +42,9 @@ test("without claude-fable-5-1, reasoning and making get fable-5 and writing get
   assert.equal(r.picks.checker.model, "claude-gpt-6-1-sol");
 });
 
-test("a catalogue of only unranked models leaves all eleven agents missing", () => {
+test("a catalogue of only unranked models leaves all twelve agents missing", () => {
   const r = pick({ catalogue: ["claude-qwen-3-8-flash", "claude-omega-ultra", "claude-quantum-lite-1"] });
-  assert.equal(r.missing.length, 11);
+  assert.equal(r.missing.length, 12);
   assert.deepEqual(r.picks, {});
   assert.equal(r.options.builder.length, 3);
   assert.ok(r.options.builder.every((o) => o.ranked === false));
@@ -103,7 +103,7 @@ test("an agent without needs is missing unless overridden", () => {
 });
 
 test("the real company.json gives every agent a need", () => {
-  assert.equal(agents.length, 11);
+  assert.equal(agents.length, 12);
   for (const a of agents) assert.ok(["reasoning", "making", "writing", "checking"].includes(a.needs), a.slug);
 });
 

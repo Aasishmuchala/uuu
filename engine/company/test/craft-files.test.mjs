@@ -148,15 +148,20 @@ test("loadCraft: a good entry loads; a bad kind, a fifth playbook and an unknown
   }
 });
 
-test("the real job files give no problem, craft.json names only jobs that exist, and the job files are untouched", () => {
+// Craft never goes into a job file (K7, rule 11): PLAN-V5 T34 changed job files on purpose (the research jobs and the
+// hand-ons to them), so what is checked is that no job file carries a key of craft.json; that the files as saved
+// load in the loaders of the last commit is checked in company-file.test.mjs.
+test("the real job files give no problem, craft.json names only jobs that exist, and no job file holds a craft key", () => {
   const roles = JSON.parse(readFileSync(join(COMPANY, "company.json"), "utf8")).agents.map((a) => ({ slug: a.slug, name: a.name }));
   const { departments } = loadDepartmentFile(join(COMPANY, "departments.json"), roles);
   const { jobs, problems } = loadJobFiles(join(COMPANY, "jobs"), roles, departments);
   assert.deepEqual(problems, []);
-  assert.equal(jobs.length, 61);
+  assert.equal(jobs.length, 66);
   const refs = jobs.map((j) => j.file.replace(/\.json$/, ""));
   const c = loadCraft(join(BRAND, "craft.json"), refs);
   assert.deepEqual(c.problems, []);
-  const stat = execFileSync("git", ["diff", "--stat", "--", "engine/company/jobs"], { cwd: join(COMPANY, "..", ".."), encoding: "utf8" });
-  assert.equal(stat, "");
+  for (const j of jobs) {
+    const raw = JSON.parse(readFileSync(join(COMPANY, "jobs", j.file), "utf8"));
+    for (const k of ["craft", "kind", "review", "variants", "playbooks"]) assert.equal(k in raw, false, `${j.file}: ${k}`);
+  }
 });

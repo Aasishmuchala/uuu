@@ -1,0 +1,37 @@
+{
+  "id": "research-a-topic",
+  "department": "marketing",
+  "cluster": "research",
+  "title": "Research a topic with sources",
+  "summary": "Notes on one subject from public web pages, with a source for every claim.",
+  "handoff": "on-its-own",
+  "stage": 2,
+  "who": [
+    "researcher"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "subject",
+      "label": "What should it find out about?",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "pages",
+      "label": "Pages to start from, one address per line:",
+      "kind": "text",
+      "required": false
+    }
+  ],
+  "needs": [
+    "internet"
+  ],
+  "takes": null,
+  "text": "Find out about this from public web pages: [subject]. Use several sources that do not copy each other, write down only what they say, and put a source after every claim. Say plainly what you could not find. Start from these pages if I give any: [pages]",
+  "produces": [
+    "research/notes.md"
+  ]
+}
