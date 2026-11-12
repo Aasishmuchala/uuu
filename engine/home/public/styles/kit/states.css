@@ -1,17 +1,19 @@
-/* kit/states.js: notices, empty, loading and "being built". Calm, with the state in an icon and words. */
+/* kit/states.js: notices, empty, loading and "being built". Calm glass, with the state in an icon and words. */
 
 .k-notice {
   display: flex;
   align-items: flex-start;
   gap: var(--s-3);
   padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-4);
-  background: var(--bg-subtle);
+  background: var(--glass);
+  box-shadow: var(--highlight);
   color: var(--text);
 }
 
 .k-notice__icon {
+  flex: none;
   margin-top: 2px;
 }
 
@@ -78,9 +80,9 @@
   display: inline-block;
   margin-top: var(--s-1);
   padding: var(--s-1) var(--s-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-2);
-  background: var(--bg-card);
+  background: var(--glass-soft);
   color: var(--text);
   font-size: var(--fs-caption);
   overflow-wrap: anywhere;
@@ -94,8 +96,9 @@
   align-items: center;
   gap: var(--s-2);
   padding: var(--s-10) var(--s-6);
-  border: 1px dashed var(--border-strong);
+  border: 1px dashed var(--hairline-strong);
   border-radius: var(--r-4);
+  background: var(--glass);
   text-align: center;
   color: var(--text-2);
 }
@@ -123,7 +126,7 @@
   margin-top: var(--s-2);
 }
 
-/* Loading: quiet grey lines that shimmer gently. */
+/* Loading: quiet lines that fade gently for a while, then rest (no animation runs for ever). */
 .k-loading {
   display: flex;
   flex-direction: column;
@@ -134,9 +137,9 @@
 .k-loading__line {
   display: block;
   height: var(--s-3);
-  border-radius: var(--r-1);
-  background: var(--bg-subtle);
-  animation: k-loading-fade 1.2s var(--ease) infinite alternate;
+  border-radius: var(--r-pill);
+  background: var(--hairline-strong);
+  animation: k-loading-fade 1.2s var(--ease) 24 alternate;
 }
 
 .k-loading__line:nth-child(3n + 2) { width: 92%; }
@@ -156,4 +159,9 @@
   .k-loading__line {
     animation: none;
   }
+}
+
+/* Motion switched off in Settings: the loading lines stand still. */
+[data-motion="off"] .k-loading__line {
+  animation: none;
 }

@@ -39,8 +39,10 @@ test("upload then search finds it with a plain snippet; the index is in the home
     const g = await call(h.url, "GET", "/api/knowledge/doc/warranty.md");
     assert.equal(g.json.text, "Our warranty is 27 months.");
     const all = await call(h.url, "GET", "/api/search?q=warranty");
-    const grp = all.json.groups.find((x) => x.source === "knowledge");
-    assert.deepEqual(grp.results[0].link, { page: "knowledge", id: "warranty.md" });
+    assert.equal(all.json.groups.find((x) => x.source === "knowledge"), undefined, "the brain source replaced it (CONTRACTS-V3 24.2)");
+    const grp = all.json.groups.find((x) => x.source === "brain");
+    assert.equal(grp.results[0].title, "warranty.md");
+    assert.equal(grp.results[0].link.page, "files");
   });
 });
 

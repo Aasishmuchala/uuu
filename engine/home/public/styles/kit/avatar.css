@@ -1,4 +1,4 @@
-/* kit/avatar.js: a picture in a circle, or initials on one of six soft tints made from the tokens. */
+/* kit/avatar.js: a picture in a circle, or initials on one of six soft tints of the department colours. */
 
 .k-avatar {
   position: relative;
@@ -9,8 +9,8 @@
   width: var(--k-avatar-size);
   height: var(--k-avatar-size);
   border-radius: var(--r-pill);
-  background: var(--bg-subtle);
-  box-shadow: inset 0 0 0 1px var(--border);
+  background: var(--glass-strong);
+  box-shadow: inset 0 0 0 1px var(--hairline);
   color: var(--text);
   vertical-align: middle;
 }
@@ -40,13 +40,13 @@
   user-select: none;
 }
 
-/* Six tints, picked from the slug; text stays in --text for contrast. */
-.k-avatar--tint-1 { background: color-mix(in srgb, var(--ok) 22%, var(--bg-card)); }
-.k-avatar--tint-2 { background: color-mix(in srgb, var(--warn) 24%, var(--bg-card)); }
-.k-avatar--tint-3 { background: color-mix(in srgb, var(--bad) 18%, var(--bg-card)); }
-.k-avatar--tint-4 { background: color-mix(in srgb, var(--text-3) 22%, var(--bg-card)); }
-.k-avatar--tint-5 { background: color-mix(in srgb, color-mix(in srgb, var(--ok) 50%, var(--text-3)) 24%, var(--bg-card)); }
-.k-avatar--tint-6 { background: color-mix(in srgb, color-mix(in srgb, var(--warn) 50%, var(--bad)) 20%, var(--bg-card)); }
+/* Six tints from the department colours, picked from the slug; text stays in --text for contrast. */
+.k-avatar--tint-1 { background: color-mix(in srgb, var(--dept-operations) 26%, var(--glass-strong)); }
+.k-avatar--tint-2 { background: color-mix(in srgb, var(--dept-sales) 24%, var(--glass-strong)); }
+.k-avatar--tint-3 { background: color-mix(in srgb, var(--dept-marketing) 24%, var(--glass-strong)); }
+.k-avatar--tint-4 { background: color-mix(in srgb, var(--dept-studio) 22%, var(--glass-strong)); }
+.k-avatar--tint-5 { background: color-mix(in srgb, var(--dept-people) 24%, var(--glass-strong)); }
+.k-avatar--tint-6 { background: color-mix(in srgb, var(--dept-books) 22%, var(--glass-strong)); }
 
 /* The owner. */
 .k-avatar--you {
@@ -63,7 +63,7 @@
   display: inline-flex;
   padding: 2px;
   border-radius: var(--r-pill);
-  background: var(--bg-card);
+  background: var(--canvas);
   line-height: 0;
 }
 

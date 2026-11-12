@@ -1,38 +1,58 @@
-// The command menu (CONTRACTS-V2 14.2): ⌘K or Ctrl+K, and "/". A dialog with one field. Empty, it
-// lists the pages, New task and Ready-made goals. Typed text finds pages and agents by name at once,
-// then what /api/search finds (after 2 characters, 200 ms after the last key), grouped by source.
-// Arrows move, Enter opens, Esc closes.
+// The command menu (CONTRACTS-V2 14.2, CONTRACTS-V3 26.2): ⌘K or Ctrl+K, and "/" outside the map. A
+// dialog with one field. Empty, it lists New task and Every job, the seven departments, then the pages. Typed
+// text finds pages, departments, agents and jobs by name at once, then what /api/search finds (after 2
+// characters, 200 ms after the last key), grouped by source. Arrows move, Enter opens, Esc closes.
 import { html, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { linkHref } from "../lib/format.js";
 import { Avatar, Dialog, Icon } from "../kit/index.js";
-import { ROUTES } from "../routes.js";
+import { DEPARTMENTS, routeById } from "../routes.js";
+import { jobsOf } from "./compose-dialog.js";
 
-// The pages the menu offers, in the sidebar's order.
-const PAGE_IDS = ["home", "tasks", "docs", "team", "books", "customers", "support", "people", "marketing", "studio", "routines", "gallery", "health", "settings"];
-const PAGES = PAGE_IDS.map((id) => ROUTES.find((r) => r.id === id));
+// The pages the menu offers, in this order.
+const PAGE_IDS = ["map", "tasks", "dashboards", "files", "needs-you", "jobs", "team", "routines", "health", "settings"];
+const PAGES = PAGE_IDS.map((id) => routeById(id));
+const MAX_JOBS = 8;
 
 const norm = (s) => String(s || "").toLowerCase().trim();
 const hit = (text, q) => norm(text).includes(q);
+const cap = (s, n) => {
+  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
+};
 
-// The items that need no server, for the typed text. Each item:
-// { id, group, label, hint?, icon?, agent?, href? , action?: "compose", text? }
-export function localItems(query, team = []) {
+const pageItem = (r) => ({ id: `page:${r.id}`, group: "Pages", label: r.title, icon: r.icon, href: `#/${r.id}` });
+const departmentItem = (d) => ({ id: `dept:${d.id}`, group: "Departments", label: d.title, icon: "map", href: `#/departments/${encodeURIComponent(d.id)}` });
+const jobItem = (j) => ({
+  id: `job:${j.id}`, group: "Jobs", label: cap(j.title, 120), icon: "jobs",
+  hint: j.ready === false ? "Cannot start yet" : cap(j.department?.title, 40), href: linkHref({ page: "jobs", id: j.id }),
+});
+
+// The items that need no search, for the typed text. Each item:
+// { id, group, label, hint?, icon?, agent?, href?, action?: "compose", text? }. `jobs` are jobs of shape job.
+export function localItems(query, team = [], jobs = []) {
   const q = norm(query);
+  const allJobs = (Array.isArray(jobs) ? jobs : []).filter((j) => j && typeof j.id === "string" && j.id.includes("/"));
+  // Empty: what to start and the departments first; the pages last, since the capsule already shows four.
   if (!q) {
     return [
-      ...PAGES.filter((r) => r.id !== "gallery").map((r) => ({ id: `page:${r.id}`, group: "Pages", label: r.title, icon: r.icon, href: `#/${r.id}` })),
       { id: "act:compose", group: "Start", label: "New task", icon: "plus", action: "compose" },
-      { id: "act:gallery", group: "Start", label: "Ready-made goals", icon: "layers", href: "#/gallery" },
+      { id: "act:jobs", group: "Start", label: "Every job", icon: "jobs", href: "#/jobs" },
+      ...DEPARTMENTS.map(departmentItem),
+      ...PAGES.map(pageItem),
     ];
   }
-  const pages = PAGES.filter((r) => hit(r.title, q)).map((r) => ({ id: `page:${r.id}`, group: "Pages", label: r.title, icon: r.icon, href: `#/${r.id}` }));
-  const agents = (Array.isArray(team) ? team : []).filter((a) => hit(a.name, q) || hit(a.slug, q))
-    .map((a) => ({ id: `agent:${a.slug}`, group: "Team", label: a.name, hint: a.plainState || "", agent: a, href: `#/team/${encodeURIComponent(a.slug)}` }));
+  const pages = PAGES.filter((r) => hit(r.title, q)).map(pageItem);
+  const departments = DEPARTMENTS.filter((d) => hit(d.title, q)).map(departmentItem);
+  const agents = (Array.isArray(team) ? team : []).filter((a) => a && (hit(a.name, q) || hit(a.slug, q)))
+    .map((a) => ({ id: `agent:${a.slug}`, group: "Team", label: cap(a.name, 60), hint: cap(a.plainState, 60), agent: a, href: `#/team/${encodeURIComponent(a.slug)}` }));
+  const found = allJobs.filter((j) => hit(j.title, q) || hit(j.summary, q)).slice(0, MAX_JOBS).map(jobItem);
   const text = String(query).trim();
   return [
     ...pages,
+    ...departments,
     ...agents,
+    ...found,
     { id: "act:compose-text", group: "Start", label: `New task: ${text}`, icon: "plus", action: "compose", text },
     { id: "act:search", group: "Start", label: `Search everything for "${text}"`, icon: "search", href: `#/search?q=${encodeURIComponent(text)}` },
   ];
@@ -44,7 +64,7 @@ export function searchItems(answer) {
   for (const g of Array.isArray(answer?.groups) ? answer.groups : []) {
     (Array.isArray(g.results) ? g.results : []).forEach((r, i) => {
       const href = linkHref(r.link);
-      if (href) out.push({ id: `found:${g.source}:${i}`, group: g.label || g.source, label: r.title, hint: r.snippet || "", icon: "file", href });
+      if (href) out.push({ id: `found:${g.source}:${i}`, group: g.label || g.source, label: cap(r.title, 120), hint: cap(r.snippet, 160), icon: g.source === "jobs" ? "jobs" : "file", href });
     });
   }
   return out;
@@ -60,19 +80,35 @@ export function grouped(items) {
   return [...map].map(([group, list]) => ({ group, items: list }));
 }
 
+// The field's placeholder. The dialog's title already says "Search", so the field does not say it again;
+// below 860 px a shorter one fits the phone's width.
+export const PLACEHOLDER = "Pages, jobs, agents and tasks, or say what you want done";
+export const PLACEHOLDER_SHORT = "Find, or say what you want done";
+const narrowNow = () => typeof matchMedia === "function" && matchMedia("(max-width: 859px)").matches;
+
 export function CommandMenu({ open, onClose, team, onCompose }) {
+  const [jobs, setJobs] = useState([]);
   const [query, setQuery] = useState("");
   const [found, setFound] = useState({ q: "", items: [], state: "idle" });
   const [active, setActive] = useState(0);
   const input = useRef(null);
   const list = useRef(null);
+  // True while the list holds more below what shows: its bottom edge then fades.
+  const [more, setMore] = useState(false);
+  const measure = () => {
+    const el = list.current;
+    setMore(Boolean(el && el.scrollHeight - el.scrollTop - el.clientHeight > 4));
+  };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     setQuery("");
     setFound({ q: "", items: [], state: "idle" });
     setActive(0);
     requestAnimationFrame(() => input.current?.focus());
+    let live = true;
+    api.get("/api/jobs").then((a) => { if (live) setJobs(jobsOf(a)); }).catch(() => {});
+    return () => { live = false; };
   }, [open]);
 
   // Ask the server 200 ms after the last key, once there are 2 characters.
@@ -93,15 +129,16 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
   }, [query, open]);
 
   const items = useMemo(() => {
-    const local = localItems(query, team);
+    const local = localItems(query, team, jobs);
     if (!query.trim()) return local;
-    // Pages and agents first, then what the search found, then the two "Start" lines.
+    // Pages, departments, agents and jobs first, then what the search found, then the two "Start" lines.
     const start = local.filter((i) => i.group === "Start");
     const rest = local.filter((i) => i.group !== "Start");
     return [...rest, ...(found.q === query.trim() ? found.items : []), ...start];
-  }, [query, team, found]);
+  }, [query, team, jobs, found]);
 
   useEffect(() => { setActive((a) => Math.min(a, Math.max(0, items.length - 1))); }, [items.length]);
+  useEffect(() => { if (open) measure(); }, [open, items, found.state]);
   useEffect(() => {
     list.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView?.({ block: "nearest" });
   }, [active]);
@@ -135,12 +172,12 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
         <div class="s-cmd-field">
           <${Icon} name="search" />
           <input ref=${input} data-autofocus class="s-cmd-input" type="text" value=${query} autocomplete="off" spellcheck=${false}
-            placeholder="Search pages, agents and tasks, or say what you want done"
+            placeholder=${narrowNow() ? PLACEHOLDER_SHORT : PLACEHOLDER}
             role="combobox" aria-expanded="true" aria-controls="s-cmd-list" aria-label="Search"
             aria-activedescendant=${items.length ? `s-cmd-${active}` : undefined}
             onInput=${(e) => { setQuery(e.currentTarget.value); setActive(0); }} onKeyDown=${onKey} />
         </div>
-        <div class="s-cmd-list" id="s-cmd-list" role="listbox" aria-label="Results" ref=${list}>
+        <div class=${`s-cmd-list${more ? " has-more" : ""}`} id="s-cmd-list" role="listbox" aria-label="Results" ref=${list} onScroll=${measure}>
           ${groups.map((g) => html`
             <div class="s-cmd-group" role="group" aria-label=${g.group}>
               <p class="s-cmd-group-title" aria-hidden="true">${g.group}</p>

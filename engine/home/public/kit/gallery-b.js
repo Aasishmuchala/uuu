@@ -1,5 +1,6 @@
-// The composites' gallery: every component of CONTRACTS-V2 13.2 in its states, on fixed sample data copied from
-// engine/home/server/test/shapes/ (the browser cannot import from outside public/). Honours ?theme= and ?accent=.
+// The composites' gallery: every component of CONTRACTS-V2 13.2 in its states, restyled by CONTRACTS-V3 28, on the
+// canvas, on fixed sample data copied from engine/home/server/test/shapes/ (the browser cannot import from outside
+// public/). Honours ?theme=, ?accent=, ?backdrop= and ?motion= (lib/theme-boot.js).
 // Nothing here acts on the server: the sample items have ids no source knows.
 import { html, useEffect, useRef } from "../vendor/preact-htm.js";
 import {
@@ -128,6 +129,46 @@ const templates = [
   { id: "marketing/write-a-post", title: "Write a post", summary: "One post for one channel, as a draft.", text: "Write a post for [channel] about [what].", to: "marketer", planFirst: false },
 ];
 
+// Version 3: a task row with the keys of CONTRACTS-V3 33.2, and without them.
+const rows3 = [
+  card({ id: "g21", identifier: "STH-21", title: "Proposal from a call write-up: Asha Kitchens", who: { slug: "sales", name: "Sales" },
+    column: "done", plainState: "Accepted", waitingForYou: false, stage: { id: "check", label: "Check" }, round: 1, updatedAt: at(-90),
+    outcome: "A three-page proposal for Asha Kitchens, with the price list's two packages.",
+    job: { id: "sales/proposal-from-a-call", title: "Proposal from a call write-up" }, department: "sales" }),
+  card({ id: "g22", identifier: "STH-22", title: "A carousel from a concept", who: marketer, column: "in_progress", live: true,
+    plainState: "Being worked on", waitingForYou: false, stage: { id: "work", label: "Work" }, round: 0, updatedAt: at(50),
+    outcome: null, job: { id: "marketing/carousel-from-a-concept", title: "A carousel from a concept" }, department: "marketing" }),
+  card({ id: "g23", identifier: "STH-23", title: "Reconcile the October bills", who: bookkeeper, column: "pending_review",
+    plainState: "Waiting for you", waitingForYou: true, stage: { id: "check", label: "Check" }, round: 2, updatedAt: at(10),
+    outcome: null, job: null, department: "books" }),
+  card({ id: "g24", identifier: "STH-24", title: "Tidy the shared folder names, a long title that has to be cut before the time at the right", who: chief,
+    column: "backlog", plainState: "Not started", waitingForYou: false, stage: null, round: 0, updatedAt: at(-2000) }),
+];
+
+// Jobs for the "/" list, of shape `job` (cut to what the list reads).
+const jobs = [
+  { id: "sales/proposal-from-a-call", department: { id: "sales", title: "Sales" }, title: "Proposal from a call write-up",
+    summary: "A written proposal for one customer, from the call write-up and your price list.", ready: true },
+  { id: "books/quotation-from-a-call", department: { id: "books", title: "Books" }, title: "Quotation from a call write-up",
+    summary: "A draft quotation in the books, from the call write-up.", ready: false },
+  { id: "marketing/carousel-from-a-concept", department: { id: "marketing", title: "Marketing" }, title: "A carousel from a concept",
+    summary: "Five slides for one concept, in your brand's colours.", ready: true },
+  { id: "studio/title-card", department: { id: "studio", title: "Studio" }, title: "A title card",
+    summary: "A short moving title for the start of a video.", ready: true },
+];
+
+// A task as a conversation, with the quiet markers of its stages.
+const chat = [
+  { who: { slug: "you", name: "Asha Rao" }, kind: "note", text: "Write a proposal for Asha Kitchens from yesterday's call.", at: at(0) },
+  { marker: { label: "Brief written", tone: "neutral" } },
+  { who: { slug: "sales", name: "Sales" }, kind: "comment", text: "I read the call write-up and the price list. Two packages fit what they asked for: the basic fit-out and the full kitchen.", at: at(4),
+    marker: { label: "Round 1 · Working", tone: "neutral" } },
+  { marker: { label: "Round 1 · Repairing", tone: "warn" } },
+  { who: checker, kind: "verdict", text: "The totals on page 3 do not add up to the price list's figures. Sent back.", at: at(12) },
+  { marker: { label: "Round 2 · Passed", tone: "ok" } },
+  { who: { slug: "sales", name: "Sales" }, kind: "result", text: "The proposal is ready: three pages, both packages, totals from the price list.", at: at(20), files: [dataFile] },
+];
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const fakeSend = async () => { await sleep(600); };
 
@@ -141,11 +182,12 @@ function OpenNote({ children }) {
   return html`<div ref=${ref}>${children}</div>`;
 }
 
+const pickJob = () => {};
 const grid = "display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--s-3);align-items:start";
 
 export default function Gallery() {
-  return html`<main style="max-width:1100px;margin:0 auto;padding:var(--s-8) var(--s-6) var(--s-12)" class="u-stack">
-    <${PageHeader} title="Kit: composites" lead="Every composite of the kit, in its states, on sample data." />
+  return html`<main style="position:relative;z-index:1;max-width:var(--content-max);margin:0 auto;padding:var(--s-8) var(--s-4) var(--s-12)" class="u-stack">
+    <${PageHeader} over="Kit · Composites" title="The parts made of parts" lead="Every composite of the kit, in its states, on sample data." />
 
     <${Section} title="Needs you" hint="DecisionCard">
       <div class="u-stack">
@@ -159,6 +201,10 @@ export default function Gallery() {
 
     <${Section} title="Running now" hint="TaskRow">
       <div>${running.map((t) => html`<${TaskRow} task=${t} />`)}${html`<${TaskRow} task=${cards[0]} />`}</div>
+    <//>
+
+    <${Section} title="Tasks with an outcome, a job and a department" hint="TaskRow, version 3">
+      <div class="u-glass" style="padding:var(--s-1)">${rows3.map((t) => html`<${TaskRow} task=${t} />`)}</div>
     <//>
 
     <${Section} title="Daily brief" hint="BriefCard">
@@ -201,6 +247,13 @@ export default function Gallery() {
       <${FileCard} file=${sheet} onOpen=${() => {}} />
     <//>
 
+    <${Section} title="A task as a conversation" hint="Conversation with markers">
+      <div style="max-width:var(--column);width:100%;margin:0 auto">
+        <${Conversation} messages=${chat} />
+      </div>
+      <${Conversation} messages=${[]} />
+    <//>
+
     <${Section} title="Team" hint="AgentCard and AgentChip">
       <div style=${grid}>${agentCards.map((a) => html`<${AgentCard} agent=${a} />`)}</div>
       <div class="u-row" style="flex-wrap:wrap">${team.map((a) => html`<${AgentChip} agent=${a} />`)}</div>
@@ -220,11 +273,25 @@ export default function Gallery() {
       <${DataTable} columns=${[{ key: "name", label: "Invoice" }]} rows=${[]} emptyText="No invoices yet." />
     <//>
 
-    <${Section} title="Composer" hint="Composer, with the ready-made list open">
+    <${Section} title="Composer" hint="Composer, the jobs list open; a picked job fills the line">
       <div style="position:relative;min-height:360px;display:flex;flex-direction:column;justify-content:flex-end">
         <${Composer} agents=${team} templates=${templates} onSend=${fakeSend} initialText="/" />
       </div>
       <${Composer} agents=${team} templates=${templates} onSend=${fakeSend} to="artist" />
+    <//>
+
+    <${Section} title="Composer with jobs" hint="Composer, the jobs list open; picking a job opens it">
+      <div style="position:relative;min-height:320px;display:flex;flex-direction:column;justify-content:flex-end">
+        <${Composer} agents=${team} templates=${jobs} onPickJob=${pickJob} onSend=${fakeSend} initialText="/" hint="Takes a few minutes. It is checked before it reaches you." />
+      </div>
+    <//>
+
+    <${Section} title="The map's box" hint="Composer, ask mode: empty, typed, sending">
+      <div class="u-stack" style="max-width:640px;width:100%;margin:0 auto;gap:var(--s-6)">
+        <${Composer} mode="ask" onSend=${fakeSend} />
+        <${Composer} mode="ask" onSend=${fakeSend} initialText="What is our returns policy?" />
+        <${Composer} mode="ask" onSend=${fakeSend} initialText="Draft a proposal for Asha Kitchens." busy />
+      </div>
     <//>
   </main>`;
 }

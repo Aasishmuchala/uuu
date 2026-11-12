@@ -1,4 +1,5 @@
-/* The sprite player (V19). Every selector starts with .p-sprite-player; tokens only (CONTRACTS-V2 11.2). */
+/* The sprite player (V19), in the glass style of version 3. Every selector starts with .p-sprite-player; tokens
+   only (CONTRACTS-V2 11.2, CONTRACTS-V3 27.3). Controls are pills; the stage keeps its checkerboard. */
 
 .p-sprite-player {
   display: flex;
@@ -14,8 +15,9 @@
   min-height: 240px;
   padding: var(--s-4);
   overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--r-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-4);
+  box-shadow: var(--highlight);
   /* A mid-grey checkerboard in both themes, so clear pixels read as clear and dark or light pixels stay visible. */
   --p-sprite-player-a: color-mix(in srgb, var(--text) 20%, var(--bg));
   --p-sprite-player-b: color-mix(in srgb, var(--text) 30%, var(--bg));
@@ -86,9 +88,9 @@
   min-width: var(--h-sm);
   height: var(--h-sm);
   padding: 0 var(--s-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-2);
-  background: var(--bg);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--glass-soft);
   color: var(--text-2);
   font: inherit;
   font-size: var(--fs-caption);
@@ -100,7 +102,7 @@
 .p-sprite-player .p-sprite-player__toggle--md {
   height: var(--h-md);
   padding: 0 var(--s-4);
-  border-radius: var(--r-3);
+  border-radius: var(--r-pill);
   font-size: var(--fs-body);
 }
 
@@ -110,10 +112,15 @@
 }
 
 .p-sprite-player .p-sprite-player__toggle.is-on {
-  border-color: var(--border-strong);
-  background: var(--bg-subtle);
-  color: var(--text);
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-text);
   font-weight: var(--fw-medium);
+}
+
+.p-sprite-player .p-sprite-player__toggle.is-on:hover:not(:disabled) {
+  background: var(--primary-hover);
+  color: var(--primary-text);
 }
 
 .p-sprite-player .p-sprite-player__toggle:disabled {
@@ -125,6 +132,14 @@
 .p-sprite-player .p-sprite-player__thumb:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* The zoom's label, −, the value and + stay together on one line (M51 F26). */
+.p-sprite-player .p-sprite-player__zoom-group {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+  white-space: nowrap;
 }
 
 .p-sprite-player .p-sprite-player__zoom {
@@ -143,8 +158,10 @@
 
 .p-sprite-player .p-sprite-player__heading {
   margin: 0;
-  font-size: var(--fs-caption);
+  font-size: var(--fs-over);
   font-weight: var(--fw-medium);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--text-3);
 }
 
@@ -163,9 +180,10 @@
   align-items: center;
   gap: var(--s-1);
   padding: var(--s-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-2);
-  background: var(--bg-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-3);
+  background: var(--glass);
+  box-shadow: var(--highlight);
   color: var(--text-2);
   font: inherit;
   cursor: pointer;
@@ -173,7 +191,7 @@
 }
 
 .p-sprite-player .p-sprite-player__thumb:hover {
-  border-color: var(--border-strong);
+  border-color: var(--hairline-strong);
 }
 
 .p-sprite-player .p-sprite-player__thumb.is-current {
@@ -221,8 +239,10 @@
   display: inline-block;
   width: 20px;
   height: 20px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-1);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-pill);
+  /* A ring round each swatch, so a colour near the card's own (near black on dark) can still be seen (M51 F26). */
+  box-shadow: 0 0 0 1px var(--bg), 0 0 0 2px var(--text-3);
 }
 
 .p-sprite-player .p-sprite-player__hex {
@@ -243,6 +263,8 @@
   .p-sprite-player .p-sprite-player__thumb {
     min-height: 44px;
   }
+
+  .p-sprite-player .p-sprite-player__toggle { min-width: 44px; }
 
   .p-sprite-player .p-sprite-player__stage {
     min-height: 180px;

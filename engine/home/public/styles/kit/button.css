@@ -1,4 +1,6 @@
-/* kit/button.js: one near-black primary, edge-only plain, quiet, danger, and the large green Accept. */
+/* kit/button.js: every button is a pill. Primary is solid (light on the dark canvas, near-black on the light one),
+   plain is glass with a hairline, quiet has no edge, danger speaks in the problem colour, and Accept is the large
+   green one. Tokens only; colours change by a short transition, movement by transform. */
 
 .k-btn {
   display: inline-flex;
@@ -8,7 +10,7 @@
   min-height: var(--h-md);
   padding: 0 var(--s-4);
   border: 1px solid transparent;
-  border-radius: var(--r-3);
+  border-radius: var(--r-pill);
   font-size: var(--fs-body);
   font-weight: var(--fw-medium);
   line-height: var(--lh-tight);
@@ -16,7 +18,7 @@
   text-decoration: none;
   cursor: pointer;
   user-select: none;
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
 
 .k-btn .k-icon {
@@ -34,7 +36,6 @@
   padding: 0 var(--s-3);
   font-size: var(--fs-caption);
   gap: var(--s-1);
-  border-radius: var(--r-2);
 }
 
 .k-btn--lg {
@@ -61,12 +62,14 @@
 
 .k-btn--plain {
   color: var(--text);
-  background: var(--bg-card);
-  border-color: var(--border-strong);
+  background: var(--glass);
+  border-color: var(--hairline);
+  box-shadow: var(--highlight);
 }
 
 .k-btn--plain:hover:not(:disabled):not(.k-btn--off) {
-  background: var(--bg-subtle);
+  background: var(--glass-strong);
+  border-color: var(--hairline-strong);
 }
 
 .k-btn--quiet {
@@ -76,13 +79,14 @@
 
 .k-btn--quiet:hover:not(:disabled):not(.k-btn--off) {
   color: var(--text);
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
 }
 
 .k-btn--danger {
   color: var(--bad-text);
-  background: var(--bg-card);
-  border-color: var(--border-strong);
+  background: var(--glass);
+  border-color: var(--hairline);
+  box-shadow: var(--highlight);
 }
 
 .k-btn--danger:hover:not(:disabled):not(.k-btn--off) {
@@ -91,14 +95,13 @@
 }
 
 .k-btn--accept {
-  min-height: calc(var(--h-lg) + var(--s-1));
-  padding: 0 var(--s-6);
+  min-height: calc(var(--h-lg) + var(--s-2));
+  padding: 0 var(--s-8);
   font-size: var(--fs-title);
   font-weight: var(--fw-bold);
   color: var(--accept-text);
   background: var(--accept);
   border-color: var(--accept);
-  border-radius: var(--r-3);
 }
 
 .k-btn--accept:hover:not(:disabled):not(.k-btn--off) {
@@ -123,6 +126,17 @@
   cursor: progress;
 }
 
+/* A switched-off primary is a solid, mixed fill, not the white pill at half strength: over a coloured light
+   that would take the light's colour and read as another button (M18-27). */
+.k-btn--primary:disabled:not(.k-btn--busy),
+.k-btn--primary.k-btn--off:not(.k-btn--busy) {
+  opacity: 1;
+  background: color-mix(in srgb, var(--primary) 22%, var(--canvas));
+  border-color: transparent;
+  color: color-mix(in srgb, var(--primary) 70%, var(--canvas));
+}
+
+/* The spinner turns for at most a minute; work that takes longer is shown by the page, not by this mark. */
 .k-btn__spinner {
   flex: none;
   width: 1em;
@@ -130,7 +144,7 @@
   border: 2px solid currentColor;
   border-right-color: transparent;
   border-radius: var(--r-pill);
-  animation: k-btn-spin 0.7s linear infinite;
+  animation: k-btn-spin 0.75s linear 80;
 }
 
 @keyframes k-btn-spin {
@@ -154,8 +168,13 @@
 /* Narrow windows: every target at least 44 px tall. */
 @media (max-width: 859px) {
   .k-btn,
+  .k-btn--sm,
   .k-btn--lg {
     min-height: calc(var(--h-lg) + var(--s-1));
+  }
+
+  .k-btn--accept {
+    min-height: calc(var(--h-lg) + var(--s-2));
   }
 
   .k-btn--icon {

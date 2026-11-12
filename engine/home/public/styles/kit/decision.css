@@ -1,14 +1,17 @@
-/* DecisionCard (kit/decision.js): the warm card for something that needs the owner. Tokens only. */
+/* DecisionCard (kit/decision.js): the warm card for something that needs the owner. Tokens only.
+   Glass in the warm tokens, a hairline and the inner highlight; the buttons are the kit's pills. No backdrop blur. */
 
 .k-decision {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: var(--s-3);
   align-items: start;
-  padding: var(--s-4);
-  background: var(--bg-warm);
+  padding: var(--s-4) var(--s-5);
+  /* The warm tint lies over glass, so it reads the same over every light of the canvas (M18-11). */
+  background: linear-gradient(var(--bg-warm), var(--bg-warm)), var(--glass);
   border: 1px solid var(--border-warm);
   border-radius: var(--r-4);
+  box-shadow: var(--highlight);
   color: var(--text);
 }
 
@@ -20,12 +23,13 @@
 
 .k-decision--compact {
   grid-template-columns: minmax(0, 1fr) auto;
-  padding: var(--s-3);
+  padding: var(--s-3) var(--s-4);
   border-radius: var(--r-3);
 }
 
+/* Urgent says so once, with its red chip; the card keeps the same warm edge as the others (M18-12). */
 .k-decision--high {
-  border-color: var(--bad);
+  border-color: var(--border-warm);
 }
 
 .k-decision__avatar {
@@ -39,9 +43,10 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-pill);
-  background: var(--bg-card);
+  background: var(--glass);
+  box-shadow: var(--highlight);
   color: var(--text-2);
 }
 
@@ -55,7 +60,7 @@
 .k-decision__title {
   margin: 0;
   font-size: var(--fs-title);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-tight);
   /* Never cut: the title is what is being approved, so it wraps in full. */
   overflow-wrap: anywhere;
@@ -108,7 +113,10 @@
 
 .k-decision__detail dt {
   min-width: 80px;
-  font-size: var(--fs-caption);
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  letter-spacing: .16em;
+  text-transform: uppercase;
   color: var(--text-2);
 }
 
@@ -117,6 +125,27 @@
   color: var(--text);
   overflow-wrap: anywhere;
   white-space: pre-line;
+}
+
+/* A detail the server hands on as the rest of a sentence still starts with a capital, on screen only. */
+.k-decision__detail dd::first-letter {
+  text-transform: uppercase;
+}
+
+/* A compact card (the drawer) is narrow: each label sits on its own line above its text, so every card
+   lines up the same way (M18-12). */
+.k-decision--compact .k-decision__details {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.k-decision--compact .k-decision__detail dt {
+  min-width: 0;
+  margin-top: var(--s-2);
+}
+
+.k-decision--compact .k-decision__detail:first-child dt {
+  margin-top: 0;
 }
 
 /* The tasks a suggestion would make, each with who it is for: all of them, wrapping on a narrow screen. */
@@ -180,11 +209,17 @@
   width: 100%;
   min-height: calc(var(--h-lg) * 2);
   padding: var(--s-2) var(--s-3);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--hairline-strong);
   border-radius: var(--r-3);
-  background: var(--bg-card);
+  background: var(--glass);
+  box-shadow: var(--highlight);
   color: var(--text);
   resize: vertical;
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+.k-decision__note-field:focus {
+  border-color: var(--text-3);
 }
 
 /* An agent's questions, each answered on its own: its words, its choices as buttons that stay pressed. */
@@ -227,9 +262,9 @@
 .k-decision__choice {
   min-height: var(--h-sm);
   padding: 0 var(--s-3);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--hairline-strong);
   border-radius: var(--r-pill);
-  background: var(--bg-card);
+  background: var(--glass-soft);
   color: var(--text);
   font: inherit;
   cursor: pointer;
@@ -239,7 +274,7 @@
 }
 
 .k-decision__choice:hover {
-  background: var(--bg-subtle);
+  border-color: var(--text-3);
 }
 
 .k-decision__choice[aria-pressed="true"] {
@@ -303,9 +338,10 @@
   align-items: center;
   gap: var(--s-2);
   padding: var(--s-3) var(--s-4);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--glass);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-4);
+  box-shadow: var(--highlight);
   color: var(--text-2);
 }
 

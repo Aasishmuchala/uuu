@@ -6,10 +6,14 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync as __ex } from "node:fs";
+import { dirname as __dn, join as __jn } from "node:path";
+import { fileURLToPath as __fp } from "node:url";
+// The shape files sit beside the server, outside this tree: found by walking up from this file.
+const SHAPES = (() => { let d = __dn(__fp(import.meta.url)); for (;;) { const c = __jn(d, "server", "test", "shapes"); if (__ex(c)) return c; const p = __dn(d); if (p === d) throw new Error("shape files not found"); d = p; } })();
 
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const KIT = join(PUBLIC, "kit");
-const SHAPES = resolve(PUBLIC, "../server/test/shapes");
 const shape = (name) => JSON.parse(readFileSync(join(SHAPES, `${name}.json`), "utf8"));
 
 const PINNED = {
@@ -121,9 +125,91 @@ test("trigger: '/' at the start of a line and '@' at the start of a word", async
   assert.equal(trigger("", 0), null);
 });
 
-test("Composer has the pinned default placeholder", async () => {
+// CONTRACTS-V3 25 and 28: the "/" list holds jobs now, so the placeholder names them; the ask box has its own words.
+test("Composer has the pinned default placeholder, and the ask box's words", async () => {
   const src = readFileSync(join(KIT, "composer.js"), "utf8");
-  assert.ok(src.includes('"Say what you want done.  /  for ready-made goals,  @  to pick who."'));
+  assert.ok(src.includes('"Say what you want done.  /  for jobs,  @  to pick who."'));
+  const m = await load("composer");
+  assert.equal(m.ASK_PLACEHOLDER, "Ask the company brain, or say what you want done.");
+  assert.equal(m.ASK_HINT, "Enter to send. A real agent reads your files, so an answer takes a minute or two.");
+  assert.ok(!/ready-made/i.test(src.replace(/^\/\/.*$/gm, "")), "no \"ready-made\" on screen");
+});
+
+test("TaskRow: a second line with the outcome, else the stage and state; the department's dot, the time, a chevron", async () => {
+  const { TaskRow, rowLine } = await load("task-card");
+  const card = shape("task-card");
+  // Without the keys of 33.2 it still reads: the stage and the state in words.
+  const plain = { ...card, outcome: undefined, job: undefined, department: undefined };
+  assert.equal(rowLine(plain), [card.stage.label, Number(card.round) > 0 ? `Round ${card.round}` : null, card.plainState].filter(Boolean).join(" · "));
+  const bare = walk(TaskRow({ task: plain }));
+  assert.ok(bare.classes.includes("k-task-row__line") && bare.classes.includes("k-task-row__chevron") && bare.classes.includes("k-task-row__time"));
+  assert.ok(!bare.classes.includes("k-task-row__dept"), "no dot without a department");
+  assert.ok(bare.text.includes(rowLine(plain)));
+  // With them: the outcome replaces the stage and state, the job is named, the dot carries the department's colour.
+  const full = { ...card, live: false, waitingForYou: false, outcome: "Proposal for Asha Kitchens, 3 pages.", job: { id: "sales/proposal-from-a-call", title: "Proposal from a call write-up" }, department: "sales" };
+  assert.equal(rowLine(full), "Proposal for Asha Kitchens, 3 pages.");
+  // The mark is a dot only, so waiting or working is said in words on the line.
+  assert.equal(rowLine({ ...full, waitingForYou: true }), "Waiting for you · Proposal for Asha Kitchens, 3 pages.");
+  assert.equal(rowLine({ live: true }), "Working");
+  const out = walk(TaskRow({ task: full }));
+  assert.ok(out.text.includes("Proposal for Asha Kitchens, 3 pages."));
+  assert.ok(out.text.includes("Proposal from a call write-up"));
+  assert.ok(out.props.some((p) => p["data-dept"] === "sales" && String(p.class).includes("k-task-row__dept")));
+  assert.ok(out.text.includes("Sales"), "the department is named for screen readers");
+  // An unknown department is not drawn; a long outcome is cut to 140 characters on one line.
+  assert.ok(!walk(TaskRow({ task: { ...full, department: "<b>x" } })).props.some((p) => "data-dept" in p));
+  assert.equal(rowLine({ outcome: `a\n${"b".repeat(300)}` }).length, 140);
+  assert.ok(!rowLine({ outcome: "one\ntwo" }).includes("\n"));
+  // A Home "running" entry: its time is when it started.
+  const home = shape("home").running[0];
+  const live = walk(TaskRow({ task: home }));
+  assert.ok(live.props.some((p) => p.datetime === home.since));
+  assert.equal(rowLine({}), "");
+});
+
+test("Conversation: the owner's bubble has an initials badge; an agent's head; a marker is a centred quiet line", async () => {
+  const { Conversation, markerOf } = await load("conversation");
+  assert.deepEqual(markerOf({ marker: { label: "Brief  written", tone: "ok" } }), { label: "Brief written", tone: "ok" });
+  assert.deepEqual(markerOf({ marker: { label: "Round 1 · Repairing", tone: "pink" } }), { label: "Round 1 · Repairing", tone: "neutral" });
+  assert.equal(markerOf({ marker: { label: "  " } }), null);
+  assert.equal(markerOf({ marker: "Brief written" }), null);
+  assert.equal(markerOf({}), null);
+  assert.equal(markerOf({ marker: { label: "x".repeat(500) } }).label.length, 120);
+  const msgs = [
+    { marker: { label: "Brief written", tone: "neutral" } },
+    { who: { slug: "you", name: "Asha Rao" }, kind: "note", text: "Make it four frames.", at: "2026-11-11T08:00:00.000Z" },
+    { who: shape("who"), kind: "comment", text: "On it.", at: "2026-11-11T08:01:00.000Z", marker: { label: "Round 1 · Repairing", tone: "warn" } },
+  ];
+  const out = walk(Conversation({ messages: msgs }));
+  assert.equal(out.classes.filter((c) => c === "k-convo__marker").length, 2);
+  assert.ok(out.classes.includes("k-convo__marker--warn"));
+  assert.ok(out.text.includes("Brief written") && out.text.includes("Round 1 · Repairing"));
+  assert.equal(out.classes.filter((c) => c === "k-convo__msg").length, 2, "a marker alone is only its line");
+  assert.ok(out.classes.includes("k-convo__badge") && out.classes.includes("k-convo__mine"));
+  assert.ok(out.classes.includes("k-convo__head"));
+  assert.ok(out.text.includes("On it."));
+  // A marker's words are an agent's words too: text only.
+  const bad = walk(Conversation({ messages: [{ marker: { label: UNTRUSTED } }] }));
+  assert.ok(bad.text.includes(UNTRUSTED));
+  assert.ok(!bad.props.some((p) => "dangerouslySetInnerHTML" in p));
+});
+
+test("composer.css is the only composite stylesheet that blurs what is behind it (27.3)", () => {
+  for (const name of MODULES) {
+    const css = readFileSync(join(PUBLIC, "styles", "kit", `${name}.css`), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    if (name !== "composer") assert.ok(!/backdrop-filter/.test(css), `${name}.css: no backdrop-filter`);
+    assert.ok(!/filter\s*:\s*blur/.test(css), `${name}.css: no filter: blur`);
+    assert.ok(!/will-change/.test(css), `${name}.css: no will-change`);
+    // Nothing moves for ever here (the live dot is status.css's).
+    assert.ok(!/animation[^;]*infinite/.test(css), `${name}.css: no endless animation`);
+    for (const m of css.matchAll(/transition\s*:([^;]+);/g)) {
+      for (const part of m[1].split(",")) {
+        const prop = part.trim().split(/\s+/)[0];
+        assert.ok(["transform", "opacity", "background-color", "border-color", "color", "box-shadow"].includes(prop), `${name}.css: transition of ${prop}`);
+        if (!["transform", "opacity"].includes(prop)) assert.ok(/var\(--t-(fast|med)\)/.test(part), `${name}.css: a colour moves in --t-med at most`);
+      }
+    }
+  }
 });
 
 test("layout: back-to-back items share the axis; an open item runs to now; widths are at least 1", async () => {

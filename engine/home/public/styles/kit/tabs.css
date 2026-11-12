@@ -1,12 +1,11 @@
-/* kit/tabs.js: a quiet row of tabs; the current one is underlined in the accent. When the row is too narrow for
-   every tab, the tabs wrap onto a second line: every tab stays in sight, nothing hides off the edge. */
+/* kit/tabs.js: a quiet row of tabs with a soft pill under the current one. When the row is too narrow for every
+   tab, the tabs wrap onto a second line: every tab stays in sight, nothing hides off the edge. */
 
 .k-tabs {
   display: flex;
   flex-wrap: wrap;
-  align-items: stretch;
-  gap: 0 var(--s-1);
-  border-bottom: 1px solid var(--border);
+  align-items: center;
+  gap: var(--s-1);
 }
 
 .k-tabs__tab {
@@ -16,47 +15,36 @@
   align-items: center;
   gap: var(--s-2);
   min-height: var(--h-md);
-  padding: 0 var(--s-3);
-  border: 0;
-  border-radius: var(--r-2) var(--r-2) 0 0;
+  padding: 0 var(--s-4);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
   background: transparent;
   color: var(--text-2);
   font-size: var(--fs-body);
   font-weight: var(--fw-medium);
   white-space: nowrap;
   cursor: pointer;
-  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 
 .k-tabs__tab:hover {
   color: var(--text);
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
 }
 
-.k-tabs__tab:focus-visible {
-  outline-offset: -2px;
-}
-
-.k-tabs__tab--on {
+.k-tabs__tab--on,
+.k-tabs__tab--on:hover {
   color: var(--text);
-}
-
-.k-tabs__tab--on::after {
-  content: "";
-  position: absolute;
-  left: var(--s-2);
-  right: var(--s-2);
-  bottom: -1px;
-  height: 2px;
-  border-radius: var(--r-pill);
-  background: var(--accent);
+  background: var(--glass-soft);
+  border-color: var(--hairline);
+  box-shadow: var(--highlight);
 }
 
 .k-tabs__count {
   min-width: var(--s-5);
   padding: 0 var(--s-1);
   border-radius: var(--r-pill);
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
   color: var(--text-2);
   font-size: var(--fs-caption);
   font-weight: var(--fw-medium);
@@ -65,8 +53,8 @@
 }
 
 .k-tabs__tab--on .k-tabs__count {
-  color: var(--text);
-  background: var(--border);
+  color: var(--primary-text);
+  background: var(--primary);
 }
 
 @media (max-width: 859px) {

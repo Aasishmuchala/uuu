@@ -1,5 +1,5 @@
 // The home screen: one front door to the company engine. No build step: plain modules, vendored Preact.
-// This file only starts the shell. Frozen after V11.
+// This file only starts the shell. Frozen after M13.
 //
 // How to add a page: see the top of routes.js. In short, write pages/<file>.js with
 // `export default function Page({ route })`, style it in styles/pages/<id>.css under `.p-<id>`, and

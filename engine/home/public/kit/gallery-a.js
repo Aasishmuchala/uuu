@@ -1,5 +1,6 @@
-// The primitives' gallery: every component of CONTRACTS-V2 13.1 in every variant and state, on fixed sample data.
-// "?open=dialog" or "?open=drawer" opens that overlay at once (for screenshots).
+// The primitives' gallery: every component of CONTRACTS-V2 13.1 with the changes of CONTRACTS-V3 28, in every
+// variant and state, on fixed sample data, over the canvas. "?open=dialog" or "?open=drawer" opens that overlay at
+// once (for screenshots); "?theme=", "?accent=", "?backdrop=" and "?motion=" are read by lib/theme-boot.js.
 import { html, useState } from "../vendor/preact-htm.js";
 import {
   Avatar, BeingBuilt, Button, Card, Chip, Dialog, Drawer, Empty, ErrorNotice, Field, ICON_NAMES, Icon, Kbd, Live,
@@ -11,6 +12,11 @@ const NOW = "2026-11-11T09:00:00.000Z";
 const TEAM = [
   ["chief-of-staff", "Chief of staff"], ["builder", "Builder"], ["checker", "Checker"], ["bookkeeper", "Bookkeeper"],
   ["sales", "Sales"], ["support", "Support"], ["people", "People"], ["marketer", "Marketer"], ["drafter", "Drafter"], ["artist", "Artist"],
+];
+
+const DEPTS = [
+  ["operations", "Operations"], ["sales", "Sales"], ["marketing", "Marketing"], ["studio", "Studio"],
+  ["support", "Support"], ["people", "People"], ["books", "Books"], ["brain", "Company brain"],
 ];
 
 const row = "display:flex;flex-wrap:wrap;align-items:center;gap:12px";
@@ -99,19 +105,37 @@ function TabsDemo() {
   </div>`;
 }
 
+// The two themes, for this visit only (theme-boot.js keeps the remembered choice).
+function ThemeSwitch() {
+  const read = () => (typeof document === "undefined" ? "dark" : document.documentElement.getAttribute("data-theme") || "dark");
+  const [theme, setTheme] = useState(read);
+  const set = (t) => {
+    document.documentElement.setAttribute("data-theme", t);
+    setTheme(t);
+  };
+  return html`<${Button}
+    variant="plain"
+    icon=${theme === "light" ? "moon" : "sun"}
+    onClick=${() => set(theme === "light" ? "dark" : "light")}
+  >${theme === "light" ? "Dark" : "Light"}<//>`;
+}
+
 export default function Gallery() {
   const [busy, setBusy] = useState(false);
-  return html`<main style="max-width:1100px;margin:0 auto;padding:40px 24px 120px">
+  return html`<main style="position:relative;z-index:1;max-width:var(--content-max);margin:0 auto;padding:var(--s-8) var(--s-4) var(--s-12)">
     <${PageHeader}
-      title="Kit: primitives"
+      over="Kit · Primitives"
+      title="The company brain's parts"
+      creature="brain"
       lead="Every primitive of the kit, in each variant and state, on fixed sample data."
-      back=${{ href: "#", label: "Home" }}
-      actions=${html`<${Button} icon="plus" variant="primary">New task<//>`}
+      back=${{ href: "#", label: "All parts" }}
+      chip=${{ label: ["Marketing", "A carousel from a concept"], href: "#" }}
+      actions=${html`<${ThemeSwitch} /><${Button} icon="plus" variant="primary">New task<//>`}
     >
-      <p class="u-caption">Add ?theme=dark, ?accent=blue or ?open=dialog to the address.</p>
+      <p class="u-muted">Add ?theme=light, ?accent=blue, ?backdrop=stars, ?motion=off or ?open=dialog to the address.</p>
     <//>
 
-    <${Section} title="Buttons" hint="One near-black primary per view; the green Accept only on a task's page.">
+    <${Section} title="Buttons" hint="Every button is a pill. One solid primary per view; the green Accept only on a task's page.">
       <div class="u-stack">
         <div style=${row}>
           <${Button} variant="primary">Approve<//>
@@ -192,14 +216,26 @@ export default function Gallery() {
         <${Chip} icon="layers">M<//>
         <${Chip}>No icon<//>
       </div>
+      <div style=${`${row};margin-top:12px`}>
+        ${DEPTS.map(([id, name]) => html`<${Chip} dot=${id}>${name}<//>`)}
+      </div>
+      <div style=${`${row};margin-top:12px`}>
+        <span data-dept="studio" style="display:contents"><${Chip} dot>A dot from the nearest department<//></span>
+        <${Chip} dot="live">Working<//>
+        <${Chip} dot="ok">Passed<//>
+        <${Chip} dot="warn">Waiting for you<//>
+        <${Chip} dot="bad">Failed<//>
+        <${Chip} dot="off">Idle · last active 2 hours ago<//>
+      </div>
     <//>
 
     <${Section} title="Cards">
       <div style=${grid}>
         <${Card}>
           <div class="u-stack">
+            <p class="u-over">Glass</p>
             <strong>A plain card</strong>
-            <p class="u-muted">Soft corners, a hairline edge, generous room.</p>
+            <p class="u-muted">A translucent fill, a hairline edge and a faint top highlight.</p>
           </div>
         <//>
         <${Card} tone="warm">
@@ -209,6 +245,12 @@ export default function Gallery() {
           </div>
         <//>
         <${Card} tone="sunken" padding="sm"><p class="u-muted">A sunken card, small padding.</p><//>
+        <${Card} tone="ghost">
+          <div class="u-stack">
+            <strong>A ghost card</strong>
+            <p class="u-muted">No fill: the hairline alone, for quiet groups straight on the canvas.</p>
+          </div>
+        <//>
         <${Card} href="#/tasks/STH-8">
           <div class="u-stack">
             <div class="u-row"><${Live} /><${Mono}>STH-8<//></div>

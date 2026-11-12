@@ -1,13 +1,15 @@
-/* BriefCard (kit/brief.js): a white, rounded, hairline card that needs no decision. Tokens only. */
+/* BriefCard (kit/brief.js): a glass card with a hairline and the inner highlight, for something that needs no
+   decision. Tokens only. */
 
 .k-brief {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  padding: var(--s-4);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  padding: var(--s-4) var(--s-5);
+  background: var(--glass);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-4);
+  box-shadow: var(--highlight);
   color: var(--text);
 }
 
@@ -22,7 +24,7 @@
   min-width: 0;
   margin: 0;
   font-size: var(--fs-body);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-tight);
   overflow-wrap: anywhere;
 }

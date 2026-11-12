@@ -1,8 +1,9 @@
-// A soft rounded card with a hairline edge. With `href` it is one link, with `onClick` one button.
+// A glass card: a translucent fill, a hairline edge and the inner highlight. `ghost` is the hairline alone.
+// With `href` it is one link, with `onClick` one button.
 import { html } from "../vendor/preact-htm.js";
 import { cx, safeHref } from "./util.js";
 
-const TONES = ["plain", "warm", "sunken"];
+const TONES = ["plain", "warm", "sunken", "ghost"];
 const PADDINGS = ["none", "sm", "md", "lg"];
 
 // Other attributes (aria-label, id) pass through; `class` is added to the kit's.

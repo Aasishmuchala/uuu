@@ -1,20 +1,29 @@
-// A task's acceptance view (CONTRACTS-V2 17.3): who did it and how many check rounds it took, one large Accept,
-// the Checker's numbered checks per round with their evidence, the timeline of steps, the staged documents, the
-// conversation with a note to the Chief of staff, and the files in the work panel.
-// Address state: ?round=<n>, ?check=<n>, ?files=1 (14.1). Everything here was written by agents: shown as text only.
+// A task, as a conversation with its acceptance beside it (CONTRACTS-V3 30, "A task"; CONTRACTS-V2 17.3).
+// The column: the back chip, the title, a line with the agent, the size, the job it came from and the task it
+// follows, then the story in time order (the owner's words, each document as it was written, the agents'
+// comments, a marker for each check round, the result with its files). For a question task the story is the
+// answer. Beside the column when there is room (under the title when there is not): the acceptance panel with
+// the state, Accept and Send back, the other Needs-you items, the rounds and their checks, what can come next,
+// how it went, the files, a note and stop. Below 860 px a bar above the tab bar holds Accept and Send back.
+// Address state: ?round=<n>, ?check=<n>, ?doc=<stage id>, ?files=1. Everything here was written by agents:
+// shown as text only, sizes capped, no link followed.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { go } from "../lib/router.js";
 import {
-  Avatar, Button, Chip, CheckList, Composer, Conversation, DecisionCard, DocView, Empty, ErrorNotice, Evidence,
-  FileCard, Icon, Loading, Menu, PageHeader, Section, Tabs, TextArea, Timeline, changedText, isChangedSinceSeen, useInboxAct,
+  AnswerView, Avatar, Button, Chip, CheckList, Conversation, DecisionCard, DocView, Empty, ErrorNotice, Evidence,
+  FileCard, Icon, Loading, PageHeader, Tabs, TextArea, Timeline, changedText, isChangedSinceSeen, jobHref, useInboxAct,
 } from "../kit/index.js";
 
 const BACK = { href: "#/tasks", label: "All tasks" };
+const YOU = { slug: "you", name: "You" };
 const text = (v) => (v === null || v === undefined ? "" : String(v));
 const list = (v) => (Array.isArray(v) ? v : []);
 const cap = (v, n) => { const s = text(v); return s.length > n ? `${s.slice(0, n)}…` : s; };
+const ms = (iso) => { const t = Date.parse(text(iso)); return Number.isFinite(t) ? t : NaN; };
+const NARROW = 860;
+const WIDE = 1080;
 
 // --- Pure helpers (tested in test/pages/task.test.mjs) ---------------------------------------------------------
 
@@ -56,8 +65,9 @@ const STATE_WORDS = {
   sent_back: "Sent back",
   stopped: "Stopped",
 };
+const STATE_DOTS = { waiting_for_you: "warn", accepted: "ok", not_ready: "live", sent_back: "warn", stopped: "off" };
 
-// The word shown in place of the Accept button.
+// The word for the state of the acceptance.
 export function stateWord(acceptance) {
   const s = acceptance && acceptance.state;
   return STATE_WORDS[s] || "Not ready yet";
@@ -92,7 +102,203 @@ export function actArgs(acceptance, which, note) {
   return [a.inboxId, a.action, note, a.version];
 }
 
-// --- The header's right side: Accept and Send back, or a word for the state ------------------------------------
+// The marker of a check round: its label and a tone (passed, repairing, failed).
+export function roundMarker(round) {
+  const n = Number(round && round.n);
+  const pass = round && round.outcome === "pass";
+  const label = cap(text(round && round.label).trim() || (Number.isFinite(n) ? `Round ${n}` : "A round"), 80);
+  if (pass) return { label, tone: "ok" };
+  return { label, tone: /failed/i.test(label) ? "bad" : "warn" };
+}
+
+// The documents the story shows, and the line that marks each as written. The check is in the panel.
+export const STORY_DOCS = { brief: "Brief written", plan: "Plan ready", summary: "Summary written" };
+
+const STORY_FILES = 6;
+const STAFF = new Set(["chief-of-staff", "you"]);
+const slugOf = (name) => text(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+
+// The task's files that belong under the result: not the staged documents, which the story shows as documents.
+export function resultFiles(files, stages) {
+  const docs = new Set(list(stages).map((s) => s && s.doc && s.doc.file && text(s.doc.file.name)).filter(Boolean));
+  return list(files).filter((f) => f && typeof f === "object" && !docs.has(text(f.name)));
+}
+
+// The question of a question task as shape `ask` (33.5), for AnswerView; null when this is not a question,
+// or when the Chief of staff took it as work (then the story is told as for any task). `answer` may be the
+// whole ask or only its answer; before the server sends it, an open question reads as being read.
+export function askOf(d) {
+  const t = d && d.task;
+  if (!t || t.ask !== true) return null;
+  const a = d.answer;
+  if (a && typeof a === "object" && (typeof a.question === "string" || typeof a.state === "string")) {
+    return a.state === "became_task" ? null : a;
+  }
+  const answered = !!(a && typeof a === "object");
+  const done = t.state === "done" || t.column === "done";
+  let state;
+  if (answered) state = "answered";
+  else if (t.column === "canceled" || (d.acceptance && d.acceptance.state === "stopped")) state = "stopped";
+  else if (done || Number(t.stepsTotal) > 0) return null;
+  else if (t.state === "needs_you") state = "needs_you";
+  else state = "reading";
+  return {
+    id: t.id, identifier: t.identifier, taskId: t.id,
+    question: cap(text(d.text).trim() || t.title, 2000),
+    state, plainState: text(t.plainState), askedAt: t.createdAt,
+    answer: answered ? a : null,
+  };
+}
+
+// The story of a task, in time order: [{ kind: "message", message } | { kind: "doc", id, label, marker, doc,
+// unclear } | { kind: "answer", ask }]. Built from the owner's words, `conversation`, `stages`,
+// `acceptance.rounds` and `result`. Documents carry no time of their own: the brief and the plan are placed
+// before the first word of an agent other than the Chief of staff (or the first round, or the result), the
+// summary before the newest round (or the result); with nothing to place them by, after what was said.
+export function storyOf(d) {
+  if (!d || typeof d !== "object") return [];
+  const ask = askOf(d);
+  if (ask) return [{ kind: "answer", ask }];
+  const t = d.task || {};
+  const rounds = list(d.acceptance && d.acceptance.rounds).filter((r) => r && typeof r === "object");
+  const result = d.result && typeof d.result === "object" && text(d.result.text).trim() ? d.result : null;
+  const convo = list(d.conversation).filter((m) => m && typeof m === "object").slice(-200);
+  const out = [];
+  let seq = 0;
+  const push = (time, rank, item) => out.push({ time, rank, i: seq++, item });
+
+  const opening = text(d.text).trim() || text(t.title).trim();
+  if (opening) {
+    const start = ms(t.createdAt);
+    push(Number.isFinite(start) ? start : -Infinity, 0, { kind: "message", message: { who: YOU, text: cap(opening, 8000), at: t.createdAt } });
+  }
+
+  // Rounds: each marks the Checker's verdict given at its time, or stands alone.
+  const unused = rounds.map((r) => ({ r, at: ms(r.at), used: false }));
+  const files = resultFiles(d.files, d.stages).slice(0, STORY_FILES);
+  let last = -Infinity;
+  let resultPlaced = false;
+  for (const m of convo) {
+    const at = ms(m.at);
+    if (Number.isFinite(at)) last = at;
+    const who = m.who && typeof m.who === "object" ? { slug: text(m.who.slug), name: text(m.who.name) } : { slug: "", name: "" };
+    const message = { who, kind: text(m.kind) || "comment", text: cap(m.text, 8000), at: m.at };
+    if (message.kind === "verdict") {
+      const hit = unused.find((u) => !u.used && u.at === at);
+      if (hit) { hit.used = true; message.marker = roundMarker(hit.r); }
+    }
+    if (result && !resultPlaced && message.kind === "result" && ms(result.at) === at) {
+      resultPlaced = true;
+      message.text = cap(result.text, 8000);
+      if (files.length) message.files = files;
+    }
+    push(last, 2, { kind: "message", message });
+  }
+  for (const u of unused) {
+    if (u.used) continue;
+    push(Number.isFinite(u.at) ? u.at : Infinity, 3, { kind: "message", message: { marker: roundMarker(u.r) } });
+  }
+  if (result && !resultPlaced) {
+    const at = ms(result.at);
+    const said = convo.find((m) => m.kind === "result" && m.who && text(m.who.name) === text(result.by));
+    const who = said ? { slug: text(said.who.slug), name: text(said.who.name) } : { slug: slugOf(result.by), name: cap(result.by, 80) };
+    push(Number.isFinite(at) ? at : Infinity, 9, { kind: "message", message: { who, kind: "result", text: cap(result.text, 8000), at: result.at, files: files.length ? files : undefined } });
+  }
+
+  // Documents.
+  const finite = (xs) => xs.filter(Number.isFinite);
+  const firstWorker = convo.find((m) => m.who && !STAFF.has(text(m.who.slug)) && m.kind !== "verdict" && Number.isFinite(ms(m.at)));
+  const early = finite([firstWorker ? ms(firstWorker.at) : NaN, rounds.length ? ms(rounds[0].at) : NaN, result ? ms(result.at) : NaN]);
+  const newest = rounds.length ? ms(rounds[rounds.length - 1].at) : NaN;
+  const late = finite([newest, result ? ms(result.at) : NaN]);
+  for (const s of list(d.stages)) {
+    if (!s || !s.doc || !Object.hasOwn(STORY_DOCS, s.id)) continue;
+    const anchor = s.id === "summary" ? (late.length ? late[0] : Infinity) : (early.length ? Math.min(...early) : Infinity);
+    push(anchor, 1, { kind: "doc", id: s.id, label: text(s.label), marker: { label: STORY_DOCS[s.id], tone: "neutral" }, doc: s.doc, unclear: list(s.unclear) });
+  }
+
+  if (d.acceptance && d.acceptance.state === "stopped") push(Infinity, 8, { kind: "message", message: { marker: { label: "Stopped", tone: "bad" } } });
+
+  const order = (a, b) => (a === b ? 0 : a < b ? -1 : 1);
+  out.sort((a, b) => order(a.time, b.time) || a.rank - b.rank || a.i - b.i);
+  return out.map((e) => e.item);
+}
+
+// "What can come next" (33.4 `next`) as links to the job, told which task they follow.
+export function nextLinks(next, task) {
+  const from = text(task && (task.identifier || task.id));
+  return list(next).filter((n) => n && typeof n === "object").slice(0, 12).map((n) => {
+    const base = jobHref({ id: text(n.jobId) });
+    if (!base) return null;
+    const why = n.why && typeof n.why === "object" ? n.why.text : n.why;
+    return {
+      href: from ? `${base}?from=${encodeURIComponent(from)}` : base,
+      title: cap(n.title, 120),
+      label: cap(n.label, 120) || cap(n.title, 120),
+      ready: n.ready === true,
+      why: cap(why, 300),
+    };
+  }).filter(Boolean);
+}
+
+// Whether the panel stands beside the column: the window is at least 1080 px wide and the page has room for
+// both (`room`, the width the main pane leaves the page). `width` is how wide the page then is.
+export const SIDE_ROOM = 880;
+export const SIDE_MAX = 1084;
+export function sideLayout(viewport, room) {
+  const v = Number(viewport);
+  const r = Math.floor(Number(room));
+  if (!Number.isFinite(v) || v < WIDE || !Number.isFinite(r) || r < SIDE_ROOM) return { side: false, width: null };
+  return { side: true, width: Math.min(r, SIDE_MAX) };
+}
+
+// --- Layout: beside, stacked, or narrow with a bar ---------------------------------------------------------------
+
+const px = (v) => Number.parseFloat(v) || 0;
+
+function useLayout(ref) {
+  const [state, setState] = useState({ narrow: false, side: false, width: null });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof window === "undefined") return undefined;
+    const main = el.closest("main");
+    const outer = main && main.parentElement;
+    const measure = () => {
+      const vw = window.innerWidth;
+      let room = 0;
+      if (outer) {
+        const o = getComputedStyle(outer);
+        const m = getComputedStyle(main);
+        room = outer.clientWidth - px(o.paddingLeft) - px(o.paddingRight) - px(m.paddingLeft) - px(m.paddingRight);
+      }
+      const next = { narrow: vw < NARROW, ...sideLayout(vw, room) };
+      setState((s) => (s.narrow === next.narrow && s.side === next.side && s.width === next.width ? s : next));
+    };
+    measure();
+    const ro = typeof ResizeObserver === "function" && outer ? new ResizeObserver(measure) : null;
+    if (ro) ro.observe(outer);
+    window.addEventListener("resize", measure);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener("resize", measure); };
+  }, []);
+  return state;
+}
+
+// The height of the bar fixed at the bottom, so the page can leave room for it.
+function useHeight(ref, on) {
+  const [h, setH] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!on || !el) { setH(0); return undefined; }
+    const measure = () => setH(Math.ceil(el.getBoundingClientRect().height));
+    measure();
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+    if (ro) ro.observe(el);
+    return () => { if (ro) ro.disconnect(); };
+  }, [on]);
+  return h;
+}
+
+// --- Accept and Send back, or a word for the state ----------------------------------------------------------------
 
 function AcceptBar({ acceptance, onDone, onChanged }) {
   const { act, busy, error, changed } = useInboxAct();
@@ -104,9 +310,7 @@ function AcceptBar({ acceptance, onDone, onChanged }) {
   // The task changed after the owner looked: read it again once. Nothing is sent again.
   useEffect(() => { if (changed && typeof onChanged === "function") onChanged(); }, [changed, error]);
 
-  if (!accept) {
-    return html`<p class="p-task__state" role="status">${stateWord(acceptance)}</p>`;
-  }
+  if (!accept) return null;
 
   async function doAccept() {
     const res = await act(...actArgs(acceptance, "accept"));
@@ -133,9 +337,9 @@ function AcceptBar({ acceptance, onDone, onChanged }) {
             <${Button} variant="quiet" onClick=${cancel} disabled=${busy}>Cancel<//>
           </div>
         </form>` : html`
-        <div class="u-row">
-          ${sendBack ? html`<${Button} variant="plain" onClick=${() => setNoting(true)} disabled=${busy}>${text(sendBack.label) || "Send back"}<//>` : null}
+        <div class="p-task__accept-row">
           <${Button} variant="accept" size="lg" busy=${busy} onClick=${doAccept}>${text(accept.label) || "Accept"}<//>
+          ${sendBack ? html`<${Button} variant="plain" onClick=${() => setNoting(true)} disabled=${busy}>${text(sendBack.label) || "Send back"}<//>` : null}
         </div>`}
       ${error ? html`<${Refused} error=${error} />` : null}
     </div>`;
@@ -153,7 +357,7 @@ function Refused({ error }) {
   </div>`;
 }
 
-// "Stop this task" in a menu; asks once, then POST /api/goals/<id>/stop.
+// "Stop this task": asks once, then POST /api/goals/<id>/stop.
 function StopTask({ task, onDone }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -173,10 +377,7 @@ function StopTask({ task, onDone }) {
     }
   }
 
-  if (!asking) {
-    return html`<${Menu} label="More for this task" icon="menu"
-      items=${[{ id: "stop", label: "Stop this task", danger: true, onSelect: () => setAsking(true) }]} />`;
-  }
+  if (!asking) return html`<${Button} variant="quiet" size="sm" icon="cross" onClick=${() => setAsking(true)}>Stop this task<//>`;
   return html`
     <div class="p-task__confirm" role="group" aria-label="Stop this task?"
       onKeyDown=${(e) => { if (e.key === "Escape") { e.stopPropagation(); setAsking(false); } }}>
@@ -189,7 +390,50 @@ function StopTask({ task, onDone }) {
     </div>`;
 }
 
-// --- Acceptance: tabs per round, the checks on the left, the chosen check on the right --------------------------
+// "Send a note": a short note to the Chief of staff, POST /api/goals/<id>/note.
+function SendNote({ task, onDone }) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function send(e) {
+    if (e) e.preventDefault();
+    const body = note.trim();
+    if (!body) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/api/goals/${encodeURIComponent(task.id)}/note`, { text: body });
+      setNote("");
+      setOpen(false);
+      onDone("Note sent to the Chief of staff.");
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const cancel = () => { setOpen(false); setError(null); };
+
+  if (!open) return html`<${Button} variant="plain" size="sm" icon="reply" onClick=${() => setOpen(true)}>Send a note<//>`;
+  return html`
+    <form class="p-task__note" onSubmit=${send} onKeyDown=${(e) => {
+      if (e.key === "Escape") { e.stopPropagation(); cancel(); }
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send(e);
+    }}>
+      <label class="u-caption" for="p-task-note">A note to the Chief of staff</label>
+      <${TextArea} id="p-task-note" autoGrow rows=${3} maxLength=${4000} value=${note} autoFocus disabled=${busy}
+        onInput=${(e) => setNote(e.currentTarget.value)} />
+      <div class="u-row">
+        <${Button} type="submit" variant="primary" size="sm" busy=${busy} disabled=${!note.trim()}>Send<//>
+        <${Button} variant="quiet" size="sm" onClick=${cancel} disabled=${busy}>Cancel<//>
+      </div>
+      ${error ? html`<${Refused} error=${error} />` : null}
+    </form>`;
+}
+
+// --- The rounds: tabs, the checks, the chosen check with its evidence, the Checker's actions --------------------
 
 function ChosenCheck({ check }) {
   const [pick, setPick] = useState(0);
@@ -213,64 +457,114 @@ function ChosenCheck({ check }) {
     </div>`;
 }
 
-function Acceptance({ id, acceptance, query }) {
-  const rounds = list(acceptance && acceptance.rounds);
-  if (rounds.length === 0) return html`<p class="u-muted">Not checked yet.</p>`;
+function Rounds({ id, acceptance, query }) {
+  const rounds = list(acceptance && acceptance.rounds).filter((r) => r && typeof r === "object");
+  if (rounds.length === 0) return html`<p class="u-caption">Not checked yet.</p>`;
   const round = pickRound(rounds, query.get("round"));
   const check = round && round.wellFormed ? pickCheck(round, query.get("check")) : null;
-  const tabs = rounds.map((r) => ({ id: text(r.n), label: text(r.label) || `Round ${text(r.n)}`, tone: r.outcome === "pass" ? "ok" : "bad" }));
-  const exchange = list(round.exchange).slice(-20);
+  const tabs = rounds.map((r) => ({ id: text(r.n), label: `Round ${text(r.n)}`, tone: r.outcome === "pass" ? "ok" : "bad" }));
   const actions = list(round.actions).slice(0, 50);
 
   return html`
-    <${Tabs} label="Verification rounds" tabs=${tabs} current=${text(round.n)}
-      onChange=${(n) => go(address(id, query, { round: n, check: null }))} />
-    ${round.wellFormed ? html`
-      <div class="p-task__rounds">
-        <div class="p-task__checks">
-          <div class="u-spread">
-            <h3 class="p-task__h">Acceptance checks</h3>
-            <span class="u-caption">${passedCount(round)} passed</span>
-          </div>
-          <${CheckList} checks=${list(round.checks)} selected=${check ? check.n : null}
-            onSelect=${(n) => go(address(id, query, { round: round.n, check: n }))} />
+    <div class="p-task__rounds">
+      <${Tabs} label="Check rounds" tabs=${tabs} current=${text(round.n)}
+        onChange=${(n) => go(address(id, query, { round: n, check: null }))} />
+      <p class="p-task__round-line">${cap(round.label, 80)}${round.by ? html` <span class="u-caption">by ${cap(round.by, 60)}</span>` : null}</p>
+      ${round.wellFormed ? html`
+        <div class="u-spread">
+          <h2 class="p-task__h">The six checks</h2>
+          <span class="u-caption">${passedCount(round)} passed</span>
         </div>
-        <div class="p-task__detail">
-          <${ChosenCheck} check=${check} />
-          <h3 class="p-task__h">What was said in this round</h3>
-          ${exchange.length ? html`<${Conversation} messages=${exchange} />` : html`<p class="u-caption">Nothing was said in this round.</p>`}
-          ${actions.length ? html`
-            <h3 class="p-task__h">What the Checker asked to change</h3>
-            <ul class="p-task__actions">${actions.map((a, i) => html`<li key=${i}>${cap(a, 600)}</li>`)}</ul>` : null}
-        </div>
-      </div>` : html`
-      <div class="p-task__verdict">
-        <p><strong>${round.outcome === "pass" ? "Passed" : round.outcome === "fail" ? "Failed" : "No clear verdict"}</strong></p>
-        ${round.reason ? html`<p>${cap(round.reason, 2000)}</p>` : null}
-      </div>`}`;
+        <${CheckList} checks=${list(round.checks)} selected=${check ? check.n : null}
+          onSelect=${(n) => go(address(id, query, { round: round.n, check: n }))} />
+        <${ChosenCheck} check=${check} />
+        ${actions.length ? html`
+          <h2 class="p-task__h">What the Checker asked to change</h2>
+          <ul class="p-task__actions">${actions.map((a, i) => html`<li key=${i}>${cap(a, 600)}</li>`)}</ul>` : null}` : html`
+        <div class="p-task__verdict">
+          <p><strong>${round.outcome === "pass" ? "Passed" : round.outcome === "fail" ? "Failed" : "No clear verdict"}</strong></p>
+          ${round.reason ? html`<p>${cap(round.reason, 2000)}</p>` : null}
+        </div>`}
+    </div>`;
 }
 
-// --- Documents: the five stages in order ------------------------------------------------------------------------
+// --- How it went: the five stages and the timeline of steps ------------------------------------------------------
 
-function Stages({ stages }) {
-  const [open, setOpen] = useState(null);
+function HowItWent({ stages, timeline, now }) {
   return html`
-    <ol class="p-task__stages">
-      ${list(stages).map((s) => {
-        const isOpen = open === s.id && !!s.doc;
-        return html`
+    <details class="p-task__how">
+      <summary class="p-task__summary">How it went</summary>
+      <ol class="p-task__stages">
+        ${list(stages).filter((s) => s && s.id).map((s) => html`
           <li key=${text(s.id)} class=${`p-task__stage p-task__stage--${text(s.state)}`}>
-            <div class="u-spread">
-              ${s.doc ? html`
-                <button type="button" class="p-task__stage-name" aria-expanded=${isOpen ? "true" : "false"}
-                  onClick=${() => setOpen(isOpen ? null : s.id)}>${text(s.label)}</button>`
-                : html`<span class="p-task__stage-name">${text(s.label)}</span>`}
-              <span class="u-caption">${s.state === "skipped" ? "Skipped for a small task." : STAGE_WORDS[s.state] || text(s.state)}</span>
-            </div>
-            ${isOpen ? html`<div class="p-task__doc"><${DocView} doc=${s.doc} unclear=${list(s.unclear)} /></div>` : null}
-          </li>`;
-      })}
-    </ol>`;
+            <span class="p-task__stage-name">${cap(s.label, 60)}</span>
+            <span class="u-caption">${s.state === "skipped" ? "Skipped for a small task." : STAGE_WORDS[s.state] || cap(s.state, 30)}</span>
+          </li>`)}
+      </ol>
+      ${list(timeline).length ? html`<${Timeline} items=${list(timeline).slice(0, 100)} now=${now} />`
+        : html`<p class="u-caption">No steps yet.</p>`}
+    </details>`;
+}
+
+function NextUp({ items }) {
+  if (!items.length) return null;
+  return html`
+    <div class="p-task__next">
+      <h2 class="p-task__h">What can come next</h2>
+      <ul class="p-task__next-list">
+        ${items.map((n, i) => html`
+          <li key=${i} class=${`p-task__next-item${n.ready ? "" : " p-task__next-item--dim"}`}>
+            <a class="p-task__next-link" href=${n.href}>
+              <${Icon} name="arrow-right" size=${14} />
+              <span class="p-task__next-text">
+                <span class="p-task__next-label">${n.label}</span>
+                ${n.label !== n.title ? html`<span class="u-caption">${n.title}</span>` : null}
+              </span>
+            </a>
+            ${!n.ready && n.why ? html`<p class="p-task__next-why">${n.why}</p>` : null}
+          </li>`)}
+      </ul>
+    </div>`;
+}
+
+// --- The story -----------------------------------------------------------------------------------------------------
+
+function DocItem({ item, open, onToggle }) {
+  const box = `p-task-doc-${item.id}`;
+  return html`
+    <div class="p-task__docitem">
+      <${Conversation} messages=${[{ marker: item.marker }]} />
+      <div class="p-task__docbox">
+        <button type="button" class="p-task__doc-toggle" aria-expanded=${open ? "true" : "false"} aria-controls=${box}
+          onClick=${onToggle}>
+          <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${14} />
+          <span>${open ? "Hide" : "Read"} the ${cap(item.label, 40).toLowerCase() || "document"}</span>
+        </button>
+        ${open ? html`<div class="p-task__doc" id=${box}><${DocView} doc=${item.doc} unclear=${item.unclear} /></div>` : null}
+      </div>
+    </div>`;
+}
+
+function Story({ id, items, query }) {
+  if (!items.length) return html`<p class="u-muted">Nothing has been said yet.</p>`;
+  const blocks = [];
+  let run = [];
+  const flush = () => {
+    if (run.length) blocks.push(html`<${Conversation} key=${`c${blocks.length}`} messages=${run} />`);
+    run = [];
+  };
+  for (const it of items) {
+    if (it.kind === "message") { run.push(it.message); continue; }
+    flush();
+    if (it.kind === "answer") blocks.push(html`<${AnswerView} key="answer" ask=${it.ask} />`);
+    else if (it.kind === "doc") {
+      const open = query.get("doc") === it.id;
+      blocks.push(html`<${DocItem} key=${`d${it.id}`} item=${it} open=${open}
+        onToggle=${() => go(address(id, query, { doc: open ? null : it.id }))} />`);
+    }
+  }
+  flush();
+  return html`<div class="p-task__story">${blocks}</div>`;
 }
 
 function FilesPanel({ files }) {
@@ -286,102 +580,112 @@ export default function Page({ route }) {
   const res = useResource(id ? `/api/tasks/${encodeURIComponent(id)}` : null, { every: 10000 });
   const [said, setSaid] = useState(null);
   const opened = useRef(null);
+  const root = useRef(null);
+  const bar = useRef(null);
+  const layout = useLayout(root);
   const d = res.data;
   const files = list(d && d.files).filter((f) => f && typeof f === "object").slice(0, 200);
+  const acceptance = (d && d.acceptance) || {};
+  const barred = layout.narrow && !!acceptance.accept;
+  const barHeight = useHeight(bar, barred);
 
   const showFiles = () => {
     if (typeof app.openPanel === "function") app.openPanel(html`<${FilesPanel} files=${files} />`, { title: `Files (${files.length})` });
   };
 
-  // The work panel opens from the start with ?files=1, or on a window 1280 px or wider when there are files.
-  // Once per task.
+  // The work panel opens from the start with ?files=1, once per task. The right side is the acceptance panel's.
   useEffect(() => {
     if (!d || opened.current === id) return;
     opened.current = id;
-    const wide = typeof window !== "undefined" && window.innerWidth >= 1280;
-    if (query.get("files") === "1" || (wide && files.length > 0)) showFiles();
+    if (query.get("files") === "1" && files.length > 0) showFiles();
   }, [d, id]);
   useEffect(() => () => { if (typeof app.closePanel === "function" && opened.current) app.closePanel(); }, []);
 
+  // After Accept, Send back or a note the line that says what happened takes focus, so the keyboard does not
+  // fall to the page's body when the button it was on goes away (M52 K3).
+  const saidRef = useRef(null);
   const after = (message) => {
     setSaid(message);
+    setTimeout(() => saidRef.current?.focus(), 0);
     if (typeof app.announce === "function") app.announce(message);
     if (typeof app.refreshShell === "function") app.refreshShell();
     res.refresh();
   };
 
+  const rootClass = ["p-task", layout.side ? "p-task--side" : "", barred ? "p-task--barred" : ""].filter(Boolean).join(" ");
+  const rootStyle = [layout.side && layout.width ? `--p-task-w: ${layout.width}px` : "", barred && barHeight ? `--p-task-bar: ${barHeight}px` : ""]
+    .filter(Boolean).join("; ") || undefined;
+
   if (!d) {
     const missing = res.error && (res.error.code === "task_not_found" || res.error.status === 404);
     return html`
-      <div class="p-task">
+      <div class="p-task" ref=${root}>
         <${PageHeader} title=${missing ? "Task not found" : "Task"} back=${BACK} />
-        ${missing ? html`<${Empty} title="That task is not here."><a href="#/tasks">All tasks</a><//>`
+        ${missing ? html`<${Empty} title="That task is not here."><a class="p-task__empty-link" href="#/tasks">All tasks</a><//>`
           : res.loading || !res.error ? html`<${Loading} lines=${6} label="Loading the task" />`
           : html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`}
       </div>`;
   }
 
   const t = d.task || {};
-  const acceptance = d.acceptance || {};
   const rounds = list(acceptance.rounds);
   const needs = otherNeeds(d.needsYou, acceptance);
   const who = t.who || null;
-  const canStop = acceptance.state !== "stopped" && acceptance.state !== "accepted";
+  const job = d.job && typeof d.job === "object" ? d.job : t.job && typeof t.job === "object" ? t.job : null;
+  const jobLink = job ? jobHref(job) : null;
+  const follows = d.follows && typeof d.follows === "object" ? d.follows : null;
+  const dept = text((job && job.department) || t.department);
+  const canStop = acceptance.state !== "stopped" && acceptance.state !== "accepted" && t.column !== "canceled";
+  const next = nextLinks(d.next, t);
+  const story = storyOf(d);
+  const state = acceptance.state || "not_ready";
 
-  async function sendNote({ text: note }) {
-    const body = text(note).trim();
-    if (!body) return;
-    await api.post(`/api/goals/${encodeURIComponent(t.id)}/note`, { text: body });
-    after("Note sent to the Chief of staff.");
-  }
-
-  const actions = html`
-    <div class="p-task__head-actions">
-      <${AcceptBar} acceptance=${acceptance} onDone=${after} onChanged=${res.refresh} />
-      ${canStop && t.id ? html`<${StopTask} task=${t} onDone=${after} />` : null}
-    </div>`;
-
-  return html`
-    <div class="p-task">
-    <${PageHeader} title=${cap(t.title, 300) || "Task"} back=${BACK} actions=${actions}>
-      <div class="p-task__meta">
-        ${who ? html`<span class="u-row"><${Avatar} slug=${text(who.slug)} name=${text(who.name)} size=${20} /><span>${text(who.name)}</span></span>` : null}
-        <span>${roundsLine(rounds.length)}</span>
-        ${t.size ? html`<${Chip}>Size ${text(t.size)}<//>` : null}
-        ${t.schedule ? html`<${Chip} icon="clock">${text(t.schedule.label)}<//>` : null}
+  const panel = html`
+    <aside class="p-task__panel" aria-label="Acceptance">
+      <div class="p-task__state-row">
+        <p class="p-task__over">Acceptance</p>
+        <${Chip} dot=${STATE_DOTS[state] || "off"}>${stateWord(acceptance)}<//>
       </div>
-    <//>
-      ${said ? html`<p class="p-task__said" role="status">${said}</p>` : null}
-
+      ${!layout.narrow ? html`<${AcceptBar} acceptance=${acceptance} onDone=${after} onChanged=${res.refresh} />` : null}
+      ${said ? html`<p class="p-task__said" role="status" tabindex="-1" ref=${saidRef}>${said}</p>` : null}
       ${needs.length ? html`
         <div class="p-task__needs">
           ${needs.map((item) => html`<${DecisionCard} key=${item.id} item=${item} onDone=${() => after("Done.")} />`)}
         </div>` : null}
+      <${Rounds} id=${id} acceptance=${acceptance} query=${query} />
+      <${NextUp} items=${next} />
+      <${HowItWent} stages=${d.stages} timeline=${d.timeline} now=${d.generatedAt} />
+      <div class="p-task__tools">
+        ${files.length ? html`<${Button} variant="plain" size="sm" icon="panel" onClick=${showFiles}>Files (${files.length})<//>` : null}
+        ${t.id ? html`<${SendNote} task=${t} onDone=${after} />` : null}
+        ${canStop && t.id ? html`<${StopTask} task=${t} onDone=${after} />` : null}
+      </div>
+    </aside>`;
 
-      <${Section} title="Acceptance">
-        <${Acceptance} id=${id} acceptance=${acceptance} query=${query} />
-      <//>
-
-      <${Section} title="Timeline">
-        ${list(d.timeline).length ? html`<${Timeline} items=${list(d.timeline)} now=${d.generatedAt} />`
-          : html`<p class="u-muted">No steps yet.</p>`}
-      <//>
-
-      <${Section} title="Documents">
-        <${Stages} stages=${d.stages} />
-      <//>
-
-      <${Section} title="Conversation">
-        ${list(d.conversation).length ? html`<${Conversation} messages=${list(d.conversation).slice(-200)} />`
-          : html`<p class="u-muted">Nothing has been said yet.</p>`}
-        <div class="p-task__composer">
-          <${Composer} placeholder="Send a note to the Chief of staff." allowPlanFirst=${false} onSend=${sendNote} />
-        </div>
-      <//>
-
-      ${files.length ? html`
-        <div class="p-task__files-open">
-          <${Button} variant="plain" icon="panel" onClick=${showFiles}>Files (${files.length})<//>
+  return html`
+    <div class=${rootClass} ref=${root} style=${rootStyle}>
+      <div class="p-task__head">
+        <${PageHeader} title=${cap(t.title, 300) || "Task"} back=${BACK}>
+          <div class="p-task__meta">
+            ${who ? html`<span class="p-task__who"><${Avatar} slug=${text(who.slug)} name=${text(who.name)} size=${20} /><span>${cap(who.name, 60)}</span></span>` : null}
+            ${t.size ? html`<${Chip}>Size ${cap(t.size, 4)}<//>` : null}
+            ${job && jobLink ? html`<a class="p-task__chip-link" href=${jobLink}><${Chip} dot=${dept || true}>${cap(job.title, 80)}<//></a>` : null}
+            ${follows && (follows.identifier || follows.taskId) ? html`
+              <a class="p-task__chip-link" href=${`#/tasks/${encodeURIComponent(text(follows.identifier || follows.taskId))}`}>
+                <${Chip} icon="link">Follows ${cap(follows.title || follows.identifier, 80)}<//>
+              </a>` : null}
+            ${t.schedule ? html`<${Chip} icon="clock">${cap(t.schedule.label, 60)}<//>` : null}
+            <span class="u-caption">${roundsLine(rounds.length)}</span>
+          </div>
+        <//>
+      </div>
+      ${panel}
+      <section class="p-task__main" aria-label="What was said">
+        <${Story} id=${id} items=${story} query=${query} />
+      </section>
+      ${barred ? html`
+        <div class="p-task__bar" ref=${bar} role="region" aria-label="Accept or send back">
+          <${AcceptBar} acceptance=${acceptance} onDone=${after} onChanged=${res.refresh} />
         </div>` : null}
     </div>`;
 }

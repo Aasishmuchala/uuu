@@ -5,10 +5,10 @@
 .p-settings .p-settings__swatch { position: relative; display: inline-flex; align-items: center; gap: var(--s-2); cursor: pointer; }
 .p-settings .p-settings__swatch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
 .p-settings .p-settings__swatch input:focus-visible + .p-settings__dot { outline: 2px solid var(--focus); outline-offset: 2px; }
-.p-settings .p-settings__swatch input:checked + .p-settings__dot { box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--text); }
+.p-settings .p-settings__swatch input:checked + .p-settings__dot { box-shadow: 0 0 0 2px var(--glass-strong), 0 0 0 4px var(--text); }
 .p-settings .p-settings__dot { display: inline-block; width: var(--s-6); height: var(--s-6); border-radius: var(--r-pill); background: var(--text-3); }
 .p-settings .p-settings__later { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-3); }
-.p-settings .p-settings__item { padding: var(--s-4) var(--s-5); background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r-4); }
+.p-settings .p-settings__item { padding: var(--s-4) var(--s-5); background: var(--glass); border: 1px solid var(--hairline); box-shadow: var(--highlight); border-radius: var(--r-4); }
 .p-settings .p-settings__sub { margin: var(--s-1) 0 0; color: var(--text-2); font-size: var(--fs-caption); }
 .p-settings .p-settings__tech { margin: var(--s-2) 0 0; padding: var(--s-2) var(--s-3); background: var(--bg-subtle); border-radius: var(--r-2); color: var(--text-2); }
 .p-settings .p-settings__swatches { gap: var(--s-2) var(--s-4); }

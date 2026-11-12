@@ -1,4 +1,4 @@
-/* DocView (kit/doc.js): a staged document as headings and readable text. Tokens only. */
+/* DocView (kit/doc.js): a staged document as overline headings and readable text. Tokens only. */
 
 .k-doc {
   display: flex;
@@ -13,12 +13,12 @@
   align-items: center;
   gap: var(--s-1);
   font-size: var(--fs-caption);
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 .k-doc__empty {
   margin: 0;
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 .k-doc__section {
@@ -32,9 +32,12 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-bold);
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  letter-spacing: .16em;
   line-height: var(--lh-tight);
+  text-transform: uppercase;
+  color: var(--text-2);
 }
 
 .k-doc__text {
@@ -47,7 +50,8 @@
   padding: var(--s-3) var(--s-4);
   background: var(--warn-bg);
   border: 1px solid var(--border-warm);
-  border-radius: var(--r-3);
+  border-radius: var(--r-4);
+  box-shadow: var(--highlight);
   color: var(--warn-text);
 }
 
@@ -93,7 +97,7 @@
 
 .k-md__h {
   margin: var(--s-2) 0 0;
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-tight);
   color: var(--text);
 }
@@ -177,17 +181,17 @@
 .k-md__code {
   padding: 1px var(--s-1);
   border-radius: var(--r-1);
-  background: var(--bg-subtle);
-  box-shadow: inset 0 0 0 1px var(--border);
+  background: var(--glass-soft);
+  box-shadow: inset 0 0 0 1px var(--hairline);
   font-size: 0.9em;
 }
 
 .k-md__pre {
   margin: 0;
-  padding: var(--s-3);
-  border: 1px solid var(--border);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-3);
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
   font-size: var(--fs-caption);
   line-height: var(--lh-body);
   white-space: pre-wrap;

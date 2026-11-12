@@ -1,28 +1,124 @@
-/* The studio page's own styles, every selector under .p-studio (CONTRACTS-V2 11.2). */
-.p-studio .p-studio__player { margin-bottom: var(--s-4); }
-.p-studio .p-studio__sprites, .p-studio .p-studio__images, .p-studio .p-studio__problems { list-style: none; margin: 0; padding: 0; }
+/* The Studio dashboard: every selector under .p-studio, tokens only (CONTRACTS-V2 11.2, CONTRACTS-V3 27.3).
+   Cards are glass with a hairline and no blur; pictures keep their own shape inside a quiet frame. */
+.p-studio { display: flex; flex-direction: column; gap: var(--s-6); min-width: 0; }
+.p-studio .p-studio__agents { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-4); }
+/* A notice inside a section keeps its distance from the cards under it (M51 F26). */
+.p-studio .k-section .k-notice { margin-bottom: var(--s-4); }
+.p-studio .p-studio__figures { min-width: 0; }
+
+.p-studio .p-studio__lead { margin: 0 0 var(--s-3); color: var(--text-2); max-width: 64ch; }
+.p-studio .p-studio__meta { color: var(--text-2); font-size: var(--fs-caption); overflow-wrap: anywhere; }
+.p-studio .p-studio__check { color: var(--text-2); font-size: var(--fs-caption); }
+.p-studio .p-studio__check--warn { color: var(--warn-text); }
+.p-studio .p-studio__links { display: flex; flex-wrap: wrap; gap: var(--s-4); margin: 0; }
+
+/* Video and carousel cards. */
+.p-studio .p-studio__cards, .p-studio .p-studio__sprites, .p-studio .p-studio__images, .p-studio .p-studio__problems,
+.p-studio .p-studio__checks, .p-studio .p-studio__stills, .p-studio .p-studio__slides { list-style: none; margin: 0; padding: 0; }
+.p-studio .p-studio__cards { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
+.p-studio .p-studio__card {
+  min-width: 0; border: 1px solid var(--hairline); border-radius: var(--r-4); background: var(--glass); box-shadow: var(--highlight);
+  transition: border-color var(--t-fast) var(--ease);
+}
+.p-studio .p-studio__card:hover { border-color: var(--hairline-strong); }
+.p-studio .p-studio__card--chosen { border-color: var(--text); }
+.p-studio .p-studio__card-link {
+  display: flex; flex-direction: column; gap: var(--s-1); padding: var(--s-3); color: inherit; text-decoration: none; border-radius: var(--r-4);
+}
+.p-studio .p-studio__card-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.p-studio .p-studio__card-title { margin-top: var(--s-2); font-weight: var(--fw-bold); overflow-wrap: anywhere; }
+.p-studio .p-studio__frame {
+  position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; overflow: hidden;
+  border: 1px solid var(--hairline); border-radius: var(--r-2); background: var(--glass-soft);
+}
+.p-studio .p-studio__frame--wide { aspect-ratio: 16 / 9; }
+.p-studio .p-studio__cover, .p-studio .p-studio__contact { display: block; width: 100%; height: 100%; object-fit: contain; }
+.p-studio .p-studio__no-picture { color: var(--text-3); font-size: var(--fs-caption); }
+.p-studio .p-studio__play {
+  position: absolute; display: grid; place-items: center; width: var(--h-lg); height: var(--h-lg); border-radius: var(--r-pill);
+  background: var(--glass-strong); border: 1px solid var(--hairline-strong); color: var(--text); font-size: var(--fs-caption);
+}
+
+/* An open video, or an open sprite: a glass panel above its cards. */
+.p-studio .p-studio__viewer, .p-studio .p-studio__player {
+  display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; margin-bottom: var(--s-4); padding: var(--s-4);
+  border: 1px solid var(--hairline); border-radius: var(--r-4); background: var(--glass); box-shadow: var(--highlight);
+}
+.p-studio .p-studio__viewer-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
+.p-studio .p-studio__viewer-title { scroll-margin-top: calc(var(--topbar-h) + var(--s-4)); margin: 0; font-size: var(--fs-title); font-weight: var(--fw-bold); overflow-wrap: anywhere; min-width: 0; }
+.p-studio .p-studio__close { flex: none; }
+.p-studio .p-studio__video {
+  display: block; width: 100%; max-width: 960px; max-height: 60vh; border-radius: var(--r-2);
+  border: 1px solid var(--hairline); background: var(--glass-soft);
+}
+.p-studio .p-studio__checks { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); }
+.p-studio .p-studio__check-mark { display: inline-block; min-width: 1.2em; font-weight: var(--fw-bold); }
+.p-studio .p-studio__subhead { margin: var(--s-2) 0 0; font-size: var(--fs-over); font-weight: var(--fw-medium); letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
+.p-studio .p-studio__stills { display: grid; gap: var(--s-2); grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr)); }
+.p-studio .p-studio__still-img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; border-radius: var(--r-1); background: var(--glass-soft); }
+
+/* The slides large, in the work panel. */
+.p-studio .p-studio__panel { display: flex; flex-direction: column; gap: var(--s-4); }
+.p-studio .p-studio__slides { display: flex; flex-direction: column; gap: var(--s-4); }
+.p-studio .p-studio__slide { display: flex; flex-direction: column; gap: var(--s-1); }
+.p-studio .p-studio__slide-img { display: block; width: 100%; height: auto; border: 1px solid var(--hairline); border-radius: var(--r-2); }
+.p-studio .p-studio__slide-no { margin: 0; color: var(--text-3); font-size: var(--fs-caption); }
+.p-studio .p-studio__slide-words { margin: 0; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Sprites, kept from version 2. */
 .p-studio .p-studio__sprites { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); }
-.p-studio .p-studio__sprite { border: 1px solid var(--border); border-radius: var(--r-3); background: var(--bg-card); }
+.p-studio .p-studio__sprite {
+  border: 1px solid var(--hairline); border-radius: var(--r-4); background: var(--glass); box-shadow: var(--highlight);
+  transition: border-color var(--t-fast) var(--ease);
+}
+.p-studio .p-studio__sprite:hover { border-color: var(--hairline-strong); }
 .p-studio .p-studio__sprite--chosen { border-color: var(--text); }
 .p-studio .p-studio__sprite-button {
-  display: flex; gap: var(--s-3); width: 100%; padding: var(--s-3); background: none; border: 0; color: inherit; text-align: left; cursor: pointer;
+  display: flex; gap: var(--s-3); width: 100%; padding: var(--s-3); background: none; border: 0; color: inherit; text-align: left; cursor: pointer; font: inherit;
 }
-.p-studio .p-studio__thumb-box { flex: none; width: 4rem; height: 4rem; display: grid; place-items: center; }
+.p-studio .p-studio__sprite-button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-4); }
+.p-studio .p-studio__thumb-box {
+  flex: none; width: 4rem; height: 4rem; display: grid; place-items: center; border-radius: var(--r-2);
+  background: var(--glass-soft); border: 1px solid var(--hairline);
+}
 .p-studio .p-studio__thumb { display: block; }
 .p-studio .p-studio__sprite-text { display: grid; gap: var(--s-1); min-width: 0; }
 .p-studio .p-studio__sprite-title { font-weight: var(--fw-bold); overflow-wrap: anywhere; }
-.p-studio .p-studio__sprite-meta { color: var(--text-2); }
 .p-studio .p-studio__tags { display: flex; flex-wrap: wrap; gap: var(--s-1); }
-.p-studio .p-studio__check { color: var(--text-2); }
-.p-studio .p-studio__check--warn { color: var(--warn); }
+
+/* Pictures. */
 .p-studio .p-studio__images { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
-.p-studio .p-studio__image { border: 1px solid var(--border); border-radius: var(--r-3); background: var(--bg-card); padding: var(--s-3); display: grid; gap: var(--s-2); }
+.p-studio .p-studio__image {
+  display: grid; gap: var(--s-2); padding: var(--s-3); min-width: 0;
+  border: 1px solid var(--hairline); border-radius: var(--r-4); background: var(--glass); box-shadow: var(--highlight);
+}
 .p-studio .p-studio__picture { width: 100%; max-height: 12rem; object-fit: contain; }
 .p-studio .p-studio__image-title { margin: 0; font-weight: var(--fw-bold); overflow-wrap: anywhere; }
-.p-studio .p-studio__problems { display: grid; gap: var(--s-2); color: var(--text-2); }
-.p-studio .p-studio__strip { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
-.p-studio .p-studio__goal-title { margin: 0; font-weight: var(--fw-bold); }
-.p-studio .p-studio__goal-text { margin: var(--s-1) 0 0; color: var(--text-2); }
-/* A goal card in the strip is stretched to the row's height; keep its text at the top. */
-.p-studio .p-studio__strip > .k-card { display: flex; flex-direction: column; justify-content: flex-start; }
-.p-studio .p-studio__sprite-button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-3); }
+
+/* The room. */
+.p-studio .p-studio__where { margin-top: var(--s-3); color: var(--text-2); }
+.p-studio .p-studio__where-line {
+  cursor: pointer; width: fit-content; min-height: var(--h-sm); display: list-item; color: var(--text-2);
+  text-decoration: underline dotted; text-underline-offset: 3px;
+}
+.p-studio .p-studio__where-line:hover { color: var(--text); }
+.p-studio .p-studio__where-line:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-1); }
+.p-studio .p-studio__where-text { margin: var(--s-2) 0 0; overflow-wrap: anywhere; }
+.p-studio .p-studio__path { font-family: var(--font-mono); font-size: var(--fs-caption); color: var(--text); overflow-wrap: anywhere; }
+
+.p-studio .p-studio__problems { display: grid; gap: var(--s-2); color: var(--text-2); overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: reduce) {
+  .p-studio .p-studio__card, .p-studio .p-studio__sprite { transition: none; }
+}
+
+@media (max-width: 860px) {
+  .p-studio .p-studio__cards { grid-template-columns: minmax(0, 1fr); }
+  .p-studio .p-studio__viewer, .p-studio .p-studio__player { padding: var(--s-3); }
+  .p-studio .p-studio__stills { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .p-studio .p-studio__sprite-button, .p-studio .p-studio__where-line { min-height: 44px; }
+  /* 44 px targets for the links, without changing how they look (M51 F15). */
+  .p-studio .p-studio__close, .p-studio .p-studio__links a, .p-studio .k-table a, .p-studio .k-notice a {
+    display: inline-flex; align-items: center; min-height: 44px;
+  }
+}

@@ -1,27 +1,16 @@
-// The search sources team, routines and gallery (CONTRACTS 9.1 and 9.10, CONTRACTS-V2 17.7).
+// The search sources team and routines (CONTRACTS 9.1 and 9.10). The gallery source went at the switch (CONTRACTS-V3 24.2).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { boardSeedV2 } from "../../../test/stubs/seed.mjs";
 import { call } from "../lib/testing.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 
-const goal = (n, over = {}) => ({
-  id: `goal-number-${n}`, title: `Goal ${n}`, summary: `Summary of goal ${n}.`,
-  text: `Please do the number ${n} thing for [someone] with care.`, to: "bookkeeper", planFirst: false, size: "S", ...over,
-});
-
 async function withSearch(fn) {
-  const dir = mkdtempSync(join(tmpdir(), "uuu-search-goals-"));
-  writeFileSync(join(dir, "books.json"), JSON.stringify({
-    department: "books", title: "Books",
-    goals: [goal(1, { id: "draft-an-invoice", title: "Draft an invoice", text: "Draft an invoice for [customer] for [what was sold] at [amount] plus GST." }), goal(2), goal(3), goal(4)],
-  }));
-  const h = await startV2({ routes: ["search", "gallery"], inbox: [], search: ["team", "routines", "gallery"], port: 0, boardSeed: boardSeedV2() });
-  h.config.goalsDir = dir;
-  try { return await fn(h); } finally { await h.close(); rmSync(dir, { recursive: true, force: true }); }
+  const h = await startV2({ routes: ["search"], inbox: [], search: ["team", "routines"], port: 0, boardSeed: boardSeedV2() });
+  try { return await fn(h); } finally { await h.close(); }
 }
 
 const find = (r, source) => r.json.groups.find((g) => g.source === source);
@@ -52,20 +41,10 @@ test("brief finds the daily brief routine", async () => {
   });
 });
 
-test("invoice finds the ready-made goal", async () => {
-  await withSearch(async (h) => {
-    const r = await call(h.url, "GET", "/api/search?q=invoice");
-    const g = find(r, "gallery");
-    assert.ok(g, "a gallery group");
-    assert.equal(g.label, "Ready-made goals");
-    assert.deepEqual(g.results[0].link, { page: "gallery", id: "books/draft-an-invoice" });
-  });
-});
-
 test("a word nobody has gives no group from these sources", async () => {
   await withSearch(async (h) => {
     const r = await call(h.url, "GET", "/api/search?q=zzzqqqxx");
-    for (const s of ["team", "routines", "gallery"]) assert.equal(find(r, s), undefined);
+    for (const s of ["team", "routines"]) assert.equal(find(r, s), undefined);
   });
 });
 

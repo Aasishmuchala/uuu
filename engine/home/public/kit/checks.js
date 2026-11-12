@@ -63,11 +63,12 @@ export function Evidence({ file }) {
   }, [isText, viewUrl, n]);
 
   if (!file) return null;
-  const name = text(file.name);
+  // Shown and said by its own name, never its folder path (C3 25, M52 K10).
+  const name = text(file.name).split("/").pop() || text(file.name);
   if (isImage) {
     return html`<figure class="k-evidence k-evidence--image">
-      <img src=${viewUrl} alt=${`Evidence: ${name}`} loading="lazy" />
-      <figcaption class="k-evidence__name u-mono">${name}</figcaption>
+      <img src=${viewUrl} alt=${`The picture the Checker looked at: ${name}`} loading="lazy" />
+      <figcaption class="k-evidence__name">${name}</figcaption>
     </figure>`;
   }
   if (isText) {
@@ -78,7 +79,7 @@ export function Evidence({ file }) {
         ? html`<div class="k-evidence__doc" tabindex="0" role="region" aria-label=${name}><${Markdown} text=${text(s.data.text)} /></div>`
         : html`<pre class="k-evidence__text u-mono">${text(s.data.text)}</pre>`)}
       ${s.data && s.data.truncated && html`<p class="k-evidence__more u-mono">Only the start of this file is shown.</p>`}
-      <figcaption class="k-evidence__name u-mono">${name}</figcaption>
+      <figcaption class="k-evidence__name">${name}</figcaption>
     </figure>`;
   }
   return html`<div class="k-evidence k-evidence--file"><${FileCard} file=${file} /></div>`;

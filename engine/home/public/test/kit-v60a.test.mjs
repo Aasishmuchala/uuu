@@ -236,3 +236,95 @@ test("DecisionCard with questions: Esc cancels and nothing is sent", async () =>
     f.restore();
   }
 });
+
+// ---- The Composer's two modes (CONTRACTS-V3 28), in the same small DOM.
+const composer = await import(pathToFileURL(join(KIT, "composer.js")).href);
+const { readFileSync } = await import("node:fs");
+const SHAPES = (() => { let d = dirname(fileURLToPath(import.meta.url)); for (;;) { const c = join(d, "server", "test", "shapes"); if (existsSyncLocal(c)) return c; const p = dirname(d); if (p === d) throw new Error("shape files not found"); d = p; } })();
+function existsSyncLocal(p) { try { readFileSync(join(p, "job.json")); return true; } catch { return false; } }
+const JOB = JSON.parse(readFileSync(join(SHAPES, "job.json"), "utf8"));
+const textarea = (root) => elements(root).find((e) => e.localName === "textarea");
+// The Composer puts the caret back after a pick.
+FakeElement.prototype.setSelectionRange ||= function () {};
+const type = (el, value) => fire(el, "input", { currentTarget: { value, selectionStart: value.length } });
+
+test("Composer in ask mode: one box, a round send button, the hint under it; Enter sends only the text", async () => {
+  installDom();
+  const sent = [];
+  const root = await showTree(composer.Composer, { mode: "ask", onSend: async (body) => { sent.push(body); }, agents: [{ slug: "artist", name: "Artist" }], templates: [JOB] });
+  assert.ok(elements(root).some((e) => /\bk-composer--ask\b/.test(e.getAttribute("class") || "")));
+  const field = textarea(root);
+  assert.equal(field.getAttribute("placeholder") ?? field.placeholder, composer.ASK_PLACEHOLDER);
+  assert.ok(textOf(root).includes(composer.ASK_HINT), "the hint is under the box");
+  assert.ok(!textOf(root).includes("Plan first"), "no Plan first box");
+  const send = elements(root).find((e) => e.localName === "button" && /k-composer__send/.test(e.getAttribute("class") || ""));
+  assert.ok(send, "a round send button");
+  assert.equal(send.getAttribute("aria-label"), "Send");
+  // "/" and "@" open nothing here.
+  type(field, "/");
+  await settle();
+  assert.ok(!elements(root).some((e) => e.getAttribute("role") === "listbox"));
+  type(field, "@");
+  await settle();
+  assert.ok(!elements(root).some((e) => e.getAttribute("role") === "listbox"));
+  type(field, "  What is our returns policy?  ");
+  await settle();
+  fire(textarea(root), "keydown", { key: "Enter", shiftKey: true });
+  await settle();
+  assert.equal(sent.length, 0, "Shift+Enter is a new line");
+  fire(textarea(root), "keydown", { key: "Enter", shiftKey: false });
+  await settle();
+  assert.deepEqual(sent, [{ text: "What is our returns policy?" }]);
+  render(null, root);
+});
+
+test("Composer in ask mode takes its own hint and placeholder", async () => {
+  installDom();
+  const root = await showTree(composer.Composer, { mode: "ask", hint: "A minute or two.", placeholder: "Ask Sales.", onSend: async () => {} });
+  assert.ok(textOf(root).includes("A minute or two."));
+  assert.ok(!textOf(root).includes(composer.ASK_HINT));
+  const field = textarea(root);
+  assert.equal(field.getAttribute("placeholder") ?? field.placeholder, "Ask Sales.");
+  render(null, root);
+});
+
+test("Composer in task mode: '/' lists jobs; picking one calls onPickJob and fills no text", async () => {
+  installDom();
+  const picked = [];
+  const sent = [];
+  const dim = { ...JOB, id: "books/quotation-from-a-call", title: "Quotation from a call write-up", department: { id: "books", title: "Books" }, ready: false };
+  const root = await showTree(composer.Composer, { onSend: async (b) => { sent.push(b); }, onPickJob: (job) => picked.push(job), templates: [JOB, dim], hint: "Started jobs take a few minutes." });
+  assert.ok(!elements(root).some((e) => /\bk-composer--ask\b/.test(e.getAttribute("class") || "")), "task is the default mode");
+  assert.ok(textOf(root).includes("Plan first"));
+  assert.ok(textOf(root).includes("Started jobs take a few minutes."), "the hint replaces the keys line");
+  type(textarea(root), "/");
+  await settle();
+  const list = elements(root).find((e) => e.getAttribute("role") === "listbox");
+  assert.ok(list, "the list opens");
+  assert.equal(list.getAttribute("aria-label"), "Jobs");
+  assert.ok(textOf(list).includes(JOB.title) && textOf(list).includes(dim.title));
+  const options = elements(list).filter((e) => e.getAttribute("role") === "option");
+  assert.ok(/k-composer__option--dim/.test(options[1].getAttribute("class")), "a job that cannot start is dim");
+  assert.ok(elements(options[0]).some((e) => e.getAttribute("data-dept") === "sales"), "the department's dot");
+  fire(options[0], "click");
+  await settle();
+  assert.deepEqual(picked.map((j) => j.id), [JOB.id]);
+  assert.ok(!textOf(root).includes("Job") || !elements(root).some((e) => /k-composer__template/.test(e.getAttribute("class") || "")), "no template chip");
+  assert.ok(!elements(root).some((e) => e.getAttribute("role") === "listbox"), "the list closed");
+  assert.equal(sent.length, 0, "nothing was sent");
+  render(null, root);
+});
+
+test("Composer in task mode without onPickJob: a job's text fills the line, as in version 2", async () => {
+  installDom();
+  const goal = { id: "books/draft-an-invoice", title: "Draft an invoice", summary: "An invoice.", text: "Draft an invoice for [customer].", to: "bookkeeper", planFirst: false };
+  const root = await showTree(composer.Composer, { onSend: async () => {}, templates: [goal], agents: [{ slug: "bookkeeper", name: "Bookkeeper" }] });
+  type(textarea(root), "/dr");
+  await settle();
+  const option = elements(root).find((e) => e.getAttribute("role") === "option");
+  fire(option, "click");
+  await settle();
+  assert.ok(elements(root).some((e) => /k-composer__template/.test(e.getAttribute("class") || "")), "the job chip shows");
+  assert.ok(textOf(root).includes("For") && textOf(root).includes("Bookkeeper"));
+  render(null, root);
+});

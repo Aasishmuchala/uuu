@@ -1,4 +1,5 @@
-/* kit/status.js: a small coloured mark beside a word. The live mark pulses unless motion is reduced. */
+/* kit/status.js: a small coloured mark beside a word. The live mark pulses (one of the three endless animations
+   27.3 allows) unless motion is off or reduced. */
 
 .k-dot {
   display: inline-flex;
@@ -17,7 +18,7 @@
   width: var(--s-2);
   height: var(--s-2);
   border-radius: var(--r-pill);
-  background: var(--k-dot-colour, var(--text-3));
+  background: var(--k-dot-colour, var(--text-2));
 }
 
 .k-dot__label {
@@ -26,14 +27,14 @@
 
 .k-dot--live { --k-dot-colour: var(--live); }
 .k-dot--ok { --k-dot-colour: var(--ok); }
-.k-dot--wait { --k-dot-colour: var(--text-3); }
+.k-dot--wait { --k-dot-colour: var(--text-2); }
 .k-dot--warn { --k-dot-colour: var(--warn); }
 .k-dot--bad { --k-dot-colour: var(--bad); }
 
 /* Off is an empty ring, so it differs in shape too. */
 .k-dot--off .k-dot__mark {
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--text-3);
+  box-shadow: inset 0 0 0 1.5px var(--text-2);
 }
 
 .k-dot--warn .k-dot__label {
@@ -71,4 +72,10 @@
     animation: none;
     display: none;
   }
+}
+
+/* Motion switched off in Settings: the live dot stands still, like reduced motion. */
+[data-motion="off"] .k-dot--pulse .k-dot__mark::after {
+  animation: none;
+  display: none;
 }

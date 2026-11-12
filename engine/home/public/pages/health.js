@@ -6,6 +6,44 @@ import { useApp } from "../lib/context.js";
 import { fullWhen } from "../lib/format.js";
 import { Button, Card, ErrorNotice, Loading, Mono, NextStep, PageHeader, Section, StatusDot } from "../kit/index.js";
 
+const cap = (v, n = 300) => (v === null || v === undefined ? "" : String(v)).slice(0, n);
+
+// What the jobs that cannot start are waiting for (the tools and the speech model), from GET /api/jobs.
+// One entry per reason: { text, step, count, titles }. Reasons that point to a file in Files are left out:
+// those are filled in on the Files page, not here. Pure, so it is tested without a page.
+export function waitingFor(jobs) {
+  const out = new Map();
+  const depts = jobs && Array.isArray(jobs.departments) ? jobs.departments : [];
+  for (const d of depts) {
+    for (const c of (d && Array.isArray(d.clusters) ? d.clusters : [])) {
+      for (const j of (c && Array.isArray(c.jobs) ? c.jobs : [])) {
+        if (!j || typeof j !== "object" || j.ready !== false || !j.why) continue;
+        const why = typeof j.why === "string" ? { text: j.why } : j.why;
+        const text = cap(why && why.text, 200);
+        if (!text || /^Fill in /.test(text)) continue;
+        if (why.link && why.link.page && why.link.page !== "health") continue;
+        const name = cap(why.name, 40);
+        let e = out.get(text);
+        if (!e) {
+          e = { text, step: name === "books" ? "Run: engine start" : "Run: engine setup", count: 0, titles: [] };
+          out.set(text, e);
+        }
+        e.count += 1;
+        if (e.titles.length < 5 && j.title) e.titles.push(cap(j.title, 80));
+      }
+    }
+  }
+  return [...out.values()];
+}
+
+// One plain sentence for a job file that could not be read.
+export function problemLine(p) {
+  if (typeof p === "string") return `${cap(p, 300)} Fix the file, then look here again.`;
+  const file = cap(p && p.file, 120);
+  const what = cap(p && (p.problem || p.text), 300);
+  return `${file ? `The job file ${file} was left out` : "A job file was left out"}${what ? `: ${what}` : "."}${what && !/[.!?]$/.test(what) ? "." : ""} Fix the file, then look here again.`;
+}
+
 const PART = {
   on: { tone: "ok", word: "On" },
   off: { tone: "bad", word: "Off" },
@@ -63,6 +101,9 @@ export default function Page() {
   const [runError, setRunError] = useState(null);
   const res = useResource("/api/health", { every: 10000 });
   const d = res.data;
+  const jobsRes = useResource("/api/jobs", { every: 10000 });
+  const waiting = waitingFor(jobsRes.data);
+  const problems = jobsRes.data && Array.isArray(jobsRes.data.problems) ? jobsRes.data.problems.slice(0, 20) : [];
 
   async function runProof() {
     setRunError(null);
@@ -115,6 +156,31 @@ export default function Page() {
 
       <${Section} title="Safety">
         <${Proof} fence=${d.fence} technical=${technical} onRun=${runProof} running=${running} runError=${runError} />
+      <//>
+
+      <${Section} title="Jobs that are waiting" hint="These jobs cannot start yet. Each one needs something on this Mac first.">
+        ${jobsRes.error && !jobsRes.data ? html`<${ErrorNotice} error=${jobsRes.error} onRetry=${jobsRes.reload} />` : null}
+        ${jobsRes.loading && !jobsRes.data ? html`<${Loading} lines=${2} label="Checking the jobs" />` : null}
+        ${jobsRes.data && !waiting.length ? html`<p class="p-health__sub">No job is waiting for a tool.</p>` : null}
+        <ul class="p-health__list">
+          ${waiting.map((w) => html`
+            <li key=${w.text} class="p-health__row">
+              <div>
+                <h3 class="p-health__name">${w.text}</h3>
+                <p class="p-health__sub">${w.count} ${w.count === 1 ? "job is" : "jobs are"} waiting${w.titles.length ? `: ${w.titles.join(", ")}${w.count > w.titles.length ? " and more" : ""}` : ""}.</p>
+                <div class="p-health__sub"><${NextStep} text=${w.step} /></div>
+              </div>
+              <${StatusDot} tone="warn" label="Waiting" />
+            </li>`)}
+        </ul>
+        ${problems.length ? html`
+          <ul class="p-health__list p-health__problems">
+            ${problems.map((p, i) => html`
+              <li key=${i} class="p-health__row">
+                <p class="p-health__sub">${problemLine(p)}</p>
+                <${StatusDot} tone="bad" label="Left out" />
+              </li>`)}
+          </ul>` : null}
       <//>
 
       <${Section} title="Not connected yet" hint="These are off on purpose. Nothing leaves the company until you connect it.">

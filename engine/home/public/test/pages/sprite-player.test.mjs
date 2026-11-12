@@ -120,3 +120,18 @@ test("sprite-player: loads in Node and exports the player", { skip: !existsSync(
   assert.equal(typeof mod.SpritePlayer, "function");
   assert.equal(mod.default, mod.SpritePlayer);
 });
+
+test("sprite-player: the restyle makes the controls pills and the stage glass, and keeps the checkerboard", () => {
+  const css = readFileSync(join(PUBLIC, "styles/pages/sprite-player.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const rule = (sel) => {
+    const m = new RegExp(`${sel.replace(/[.]/g, "\\.")}\\s*\\{([^}]*)\\}`).exec(css);
+    return m ? m[1] : "";
+  };
+  assert.match(rule(".p-sprite-player .p-sprite-player__toggle"), /border-radius:\s*var\(--r-pill\)/);
+  assert.match(rule(".p-sprite-player .p-sprite-player__toggle.is-on"), /background:\s*var\(--primary\)/);
+  assert.match(rule(".p-sprite-player .p-sprite-player__toggle.is-on"), /color:\s*var\(--primary-text\)/);
+  assert.match(rule(".p-sprite-player .p-sprite-player__stage"), /border:\s*1px solid var\(--hairline\)/);
+  assert.match(rule(".p-sprite-player .p-sprite-player__stage"), /linear-gradient\(45deg/);
+  assert.match(rule(".p-sprite-player .p-sprite-player__thumb"), /background:\s*var\(--glass\)/);
+  assert.doesNotMatch(css, /backdrop-filter|will-change|filter:\s*blur/);
+});

@@ -1,64 +1,94 @@
-/* Design tokens (CONTRACTS-V2 section 12). The only file with colours and fonts; frozen.
-   Light on :root, dark on [data-theme="dark"] and, when no theme is chosen, under prefers-color-scheme: dark.
-   The accent follows data-accent on <html>; without it the accent is graphite. */
+/* Design tokens (CONTRACTS-V3 section 27). The only file with colours and fonts, beside canvas.css.
+   Dark on :root (the default), light on [data-theme="light"], and data-theme="auto" follows the Mac:
+   light under prefers-color-scheme: light, otherwise dark. The accent follows data-accent on <html>;
+   without it the accent is graphite. A department's colour is set by data-dept on any element. */
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  --bg: #ffffff;
-  --bg-sidebar: #f7f7f8;
-  --bg-subtle: #f4f4f5;
-  --bg-card: #ffffff;
-  --bg-warm: #fff7ed;
-  --border-warm: #fed7aa;
-  --border: #e8e8ea;
-  --border-strong: #d4d4d8;
-  --text: #18181b;
-  --text-2: #52525b;
-  --text-3: #6b6b74;
-  --primary: #18181b;
-  --primary-hover: #27272a;
-  --primary-text: #ffffff;
+  --canvas: #0a0b0f;
+  --glass: rgba(22,24,31,.72);
+  --glass-strong: rgba(22,24,31,.92);
+  --glass-soft: rgba(255,255,255,.05);
+  --hairline: rgba(255,255,255,.10);
+  --hairline-strong: rgba(255,255,255,.18);
+  --highlight: inset 0 1px 0 rgba(255,255,255,.06);
+  --text: #f2f3f5;
+  --text-2: #b4b8c4;
+  --text-3: #9297a6;
+  --primary: #f2f3f5;
+  --primary-hover: #ffffff;
+  --primary-text: #0a0b0f;
   --accept: #15803d;
   --accept-hover: #166534;
   --accept-text: #ffffff;
-  --ok: #16a34a;
-  --ok-bg: #f0fdf4;
-  --ok-text: #166534;
-  --warn: #d97706;
-  --warn-bg: #fffbeb;
-  --warn-text: #92400e;
-  --bad: #dc2626;
-  --bad-bg: #fef2f2;
-  --bad-text: #991b1b;
-  --live: #16a34a;
-  --shadow-pop: 0 8px 24px rgba(0,0,0,.12);
+  --ok: #4ade80;
+  --ok-bg: rgba(74,222,128,.12);
+  --ok-text: #86efac;
+  --warn: #fbbf24;
+  --warn-bg: rgba(251,191,36,.12);
+  --warn-text: #fcd34d;
+  --bad: #f87171;
+  --bad-bg: rgba(248,113,113,.12);
+  --bad-text: #fca5a5;
+  --bg-warm: rgba(251,191,36,.10);
+  --border-warm: rgba(251,191,36,.42);
+  --live: #4ade80;
+  --live-text: #4ade80;
+  --shadow-pop: 0 16px 48px rgba(0,0,0,.55);
 
-  --accent: #18181b;
-  --accent-text: #ffffff;
+  --dept-operations: #8b9cff;
+  --dept-sales: #ff8a6b;
+  --dept-marketing: #d48cff;
+  --dept-studio: #3fd6c4;
+  --dept-support: #5fb8ff;
+  --dept-people: #f7c35a;
+  --dept-books: #69d98b;
+  --dept-brain: #e8e6ff;
+
+  --aurora-1: #2dd4bf;
+  --aurora-2: #8b5cf6;
+  --aurora-3: #ec4899;
+  --aurora-4: #f59e0b;
+  --aurora-5: #22c55e;
+  --aurora-alpha: .34;
+  --star: rgba(255,255,255,.55);
+
+  --accent: #f2f3f5;
+  --accent-text: #0a0b0f;
   --focus: var(--accent);
 
-  /* Added by V48 (additions only; nothing pinned is renamed): each accent by name, for the Settings swatches;
-     a grey checkerboard pair behind images and sprites, light enough for dark outlines in both themes;
-     a light backing behind avatar pictures. */
-  --accent-graphite: #18181b;
-  --accent-blue: #2563eb;
-  --accent-green: #15803d;
-  --accent-violet: #7c3aed;
-  --accent-orange: #c2410c;
-  --accent-rose: #be123c;
-  --checker-a: #f4f4f5;
-  --checker-b: #e4e4e7;
-  --avatar-backing: #f4f4f5;
+  --accent-graphite: #f2f3f5;
+  --accent-blue: #60a5fa;
+  --accent-green: #4ade80;
+  --accent-violet: #a78bfa;
+  --accent-orange: #fb923c;
+  --accent-rose: #fb7185;
+  --checker-a: #d4d4d8;
+  --checker-b: #b4b4bc;
+  --avatar-backing: #b4b4bc;
 
+  /* Kept names (version 2), so every forked stylesheet works from the first day. */
+  --bg: var(--canvas);
+  --bg-card: var(--glass);
+  --bg-sidebar: var(--glass-strong);
+  --bg-subtle: var(--glass-soft);
+  --border: var(--hairline);
+  --border-strong: var(--hairline-strong);
+
+  /* Not themed. */
   --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif: "Didot", "Bodoni 72", "Hoefler Text", "Baskerville", "Times New Roman", serif;
 
+  --fs-over: 11px;
   --fs-caption: 12px;
   --fs-body: 14px;
   --fs-title: 16px;
-  --fs-heading: 20px;
-  --fs-display: 28px;
+  --fs-heading: 22px;
+  --fs-display: 32px;
+  --fs-dept: 22px;
+  --fs-ghost: clamp(72px, 14vw, 180px);
 
   --fw-regular: 400;
   --fw-medium: 500;
@@ -77,140 +107,197 @@
   --s-10: 40px;
   --s-12: 48px;
 
-  --r-1: 4px;
-  --r-2: 6px;
-  --r-3: 8px;
-  --r-4: 12px;
+  --r-1: 6px;
+  --r-2: 10px;
+  --r-3: 12px;
+  --r-4: 16px;
+  --r-5: 22px;
   --r-pill: 999px;
 
   --h-sm: 28px;
   --h-md: 36px;
   --h-lg: 40px;
 
-  --t-fast: 100ms;
-  --t-med: 160ms;
-  --t-slow: 200ms;
+  --blur-chrome: 18px;
+
+  --t-fast: 120ms;
+  --t-med: 200ms;
+  --t-slow: 320ms;
+  --t-zoom: 420ms;
   --ease: cubic-bezier(.2,0,0,1);
 
+  --topbar-h: 56px;
+  --tabbar-h: 60px;
+  --dock-w: 56px;
+  --column: 720px;
+  --content-max: 1080px;
+  --panel-w: 380px;
+  /* Kept for the forked version 2 shell until the new shell (M13) replaces the sidebar. */
   --sidebar-w: 248px;
-  --panel-w: 360px;
-  --content-max: 960px;
 }
 
-/* Accents, light. */
-:root[data-accent="graphite"] { --accent: #18181b; --accent-text: #ffffff; }
-:root[data-accent="blue"] { --accent: #2563eb; --accent-text: #ffffff; }
-:root[data-accent="green"] { --accent: #15803d; --accent-text: #ffffff; }
-:root[data-accent="violet"] { --accent: #7c3aed; --accent-text: #ffffff; }
-:root[data-accent="orange"] { --accent: #c2410c; --accent-text: #ffffff; }
-:root[data-accent="rose"] { --accent: #be123c; --accent-text: #ffffff; }
+/* Accents, dark. */
+:root[data-accent="graphite"] { --accent: #f2f3f5; --accent-text: #0a0b0f; }
+:root[data-accent="blue"] { --accent: #60a5fa; --accent-text: #18181b; }
+:root[data-accent="green"] { --accent: #4ade80; --accent-text: #18181b; }
+:root[data-accent="violet"] { --accent: #a78bfa; --accent-text: #18181b; }
+:root[data-accent="orange"] { --accent: #fb923c; --accent-text: #18181b; }
+:root[data-accent="rose"] { --accent: #fb7185; --accent-text: #18181b; }
 
-/* Dark, chosen. */
-:root[data-theme="dark"] {
-  color-scheme: dark;
+/* Light, chosen. */
+:root[data-theme="light"] {
+  color-scheme: light;
 
-  --bg: #0f0f10;
-  --bg-sidebar: #161618;
-  --bg-subtle: #1f1f23;
-  --bg-card: #17171a;
-  --bg-warm: #2a1d0f;
-  --border-warm: #7c4a12;
-  --border: #27272a;
-  --border-strong: #3f3f46;
-  --text: #fafafa;
-  --text-2: #a1a1aa;
-  --text-3: #8f8f99;
-  --primary: #fafafa;
-  --primary-hover: #e4e4e7;
-  --primary-text: #18181b;
+  --canvas: #f6f5f2;
+  --glass: rgba(255,255,255,.78);
+  --glass-strong: rgba(255,255,255,.97);
+  --glass-soft: rgba(15,17,23,.04);
+  --hairline: rgba(15,17,23,.10);
+  --hairline-strong: rgba(15,17,23,.20);
+  --highlight: inset 0 1px 0 rgba(255,255,255,.7);
+  --text: #14151a;
+  --text-2: #4b4f5c;
+  --text-3: #5f6474;
+  --primary: #14151a;
+  --primary-hover: #2a2c35;
+  --primary-text: #ffffff;
   --accept: #15803d;
   --accept-hover: #166534;
   --accept-text: #ffffff;
-  --ok: #4ade80;
-  --ok-bg: #0f2417;
-  --ok-text: #86efac;
-  --warn: #fbbf24;
-  --warn-bg: #2a2008;
-  --warn-text: #fcd34d;
-  --bad: #f87171;
-  --bad-bg: #2c1212;
-  --bad-text: #fca5a5;
-  --live: #4ade80;
-  --shadow-pop: 0 8px 24px rgba(0,0,0,.5);
+  --ok: #16a34a;
+  --ok-bg: rgba(22,163,74,.12);
+  --ok-text: #166534;
+  --warn: #d97706;
+  --warn-bg: rgba(217,119,6,.14);
+  --warn-text: #8a3c0a;
+  --bad: #dc2626;
+  --bad-bg: rgba(220,38,38,.10);
+  --bad-text: #991b1b;
+  --bg-warm: rgba(217,119,6,.10);
+  --border-warm: rgba(217,119,6,.45);
+  --live: #16a34a;
+  --live-text: #15803d;
+  --shadow-pop: 0 16px 48px rgba(20,21,26,.16);
 
-  --accent: #fafafa;
-  --accent-text: #18181b;
+  --dept-operations: #4f5bd5;
+  --dept-sales: #c8492a;
+  --dept-marketing: #9442c9;
+  --dept-studio: #0f8f80;
+  --dept-support: #1877c9;
+  --dept-people: #9a6400;
+  --dept-books: #1f8a4c;
+  --dept-brain: #3a3d4a;
 
-  --accent-graphite: #fafafa;
-  --accent-blue: #60a5fa;
-  --accent-green: #4ade80;
-  --accent-violet: #a78bfa;
-  --accent-orange: #fb923c;
-  --accent-rose: #fb7185;
-  --checker-a: #d4d4d8;
-  --checker-b: #b4b4bc;
-  --avatar-backing: #b4b4bc;
+  --aurora-1: #5eead4;
+  --aurora-2: #c4b5fd;
+  --aurora-3: #f9a8d4;
+  --aurora-4: #fcd34d;
+  --aurora-5: #86efac;
+  --aurora-alpha: .45;
+  --star: rgba(20,21,26,.18);
+
+  --accent: #18181b;
+  --accent-text: #ffffff;
+
+  --accent-graphite: #18181b;
+  --accent-blue: #2563eb;
+  --accent-green: #15803d;
+  --accent-violet: #7c3aed;
+  --accent-orange: #c2410c;
+  --accent-rose: #be123c;
+  --checker-a: #f4f4f5;
+  --checker-b: #e4e4e7;
+  --avatar-backing: #f4f4f5;
 }
 
-:root[data-theme="dark"][data-accent="graphite"] { --accent: #fafafa; --accent-text: #18181b; }
-:root[data-theme="dark"][data-accent="blue"] { --accent: #60a5fa; --accent-text: #18181b; }
-:root[data-theme="dark"][data-accent="green"] { --accent: #4ade80; --accent-text: #18181b; }
-:root[data-theme="dark"][data-accent="violet"] { --accent: #a78bfa; --accent-text: #18181b; }
-:root[data-theme="dark"][data-accent="orange"] { --accent: #fb923c; --accent-text: #18181b; }
-:root[data-theme="dark"][data-accent="rose"] { --accent: #fb7185; --accent-text: #18181b; }
+:root[data-theme="light"][data-accent="graphite"] { --accent: #18181b; --accent-text: #ffffff; }
+:root[data-theme="light"][data-accent="blue"] { --accent: #2563eb; --accent-text: #ffffff; }
+:root[data-theme="light"][data-accent="green"] { --accent: #15803d; --accent-text: #ffffff; }
+:root[data-theme="light"][data-accent="violet"] { --accent: #7c3aed; --accent-text: #ffffff; }
+:root[data-theme="light"][data-accent="orange"] { --accent: #c2410c; --accent-text: #ffffff; }
+:root[data-theme="light"][data-accent="rose"] { --accent: #be123c; --accent-text: #ffffff; }
 
-/* Dark, from the system, unless light is chosen. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
+/* Auto, on a Mac set to light. */
+@media (prefers-color-scheme: light) {
+  :root[data-theme="auto"] {
+    color-scheme: light;
 
-    --bg: #0f0f10;
-    --bg-sidebar: #161618;
-    --bg-subtle: #1f1f23;
-    --bg-card: #17171a;
-    --bg-warm: #2a1d0f;
-    --border-warm: #7c4a12;
-    --border: #27272a;
-    --border-strong: #3f3f46;
-    --text: #fafafa;
-    --text-2: #a1a1aa;
-    --text-3: #8f8f99;
-    --primary: #fafafa;
-    --primary-hover: #e4e4e7;
-    --primary-text: #18181b;
+    --canvas: #f6f5f2;
+    --glass: rgba(255,255,255,.78);
+    --glass-strong: rgba(255,255,255,.97);
+    --glass-soft: rgba(15,17,23,.04);
+    --hairline: rgba(15,17,23,.10);
+    --hairline-strong: rgba(15,17,23,.20);
+    --highlight: inset 0 1px 0 rgba(255,255,255,.7);
+    --text: #14151a;
+    --text-2: #4b4f5c;
+    --text-3: #5f6474;
+    --primary: #14151a;
+    --primary-hover: #2a2c35;
+    --primary-text: #ffffff;
     --accept: #15803d;
     --accept-hover: #166534;
     --accept-text: #ffffff;
-    --ok: #4ade80;
-    --ok-bg: #0f2417;
-    --ok-text: #86efac;
-    --warn: #fbbf24;
-    --warn-bg: #2a2008;
-    --warn-text: #fcd34d;
-    --bad: #f87171;
-    --bad-bg: #2c1212;
-    --bad-text: #fca5a5;
-    --live: #4ade80;
-    --shadow-pop: 0 8px 24px rgba(0,0,0,.5);
+    --ok: #16a34a;
+    --ok-bg: rgba(22,163,74,.12);
+    --ok-text: #166534;
+    --warn: #d97706;
+    --warn-bg: rgba(217,119,6,.14);
+    --warn-text: #8a3c0a;
+    --bad: #dc2626;
+    --bad-bg: rgba(220,38,38,.10);
+    --bad-text: #991b1b;
+    --bg-warm: rgba(217,119,6,.10);
+    --border-warm: rgba(217,119,6,.45);
+    --live: #16a34a;
+    --live-text: #15803d;
+    --shadow-pop: 0 16px 48px rgba(20,21,26,.16);
 
-    --accent: #fafafa;
-    --accent-text: #18181b;
+    --dept-operations: #4f5bd5;
+    --dept-sales: #c8492a;
+    --dept-marketing: #9442c9;
+    --dept-studio: #0f8f80;
+    --dept-support: #1877c9;
+    --dept-people: #9a6400;
+    --dept-books: #1f8a4c;
+    --dept-brain: #3a3d4a;
 
-    --accent-graphite: #fafafa;
-    --accent-blue: #60a5fa;
-    --accent-green: #4ade80;
-    --accent-violet: #a78bfa;
-    --accent-orange: #fb923c;
-    --accent-rose: #fb7185;
-    --checker-a: #d4d4d8;
-    --checker-b: #b4b4bc;
-    --avatar-backing: #b4b4bc;
+    --aurora-1: #5eead4;
+    --aurora-2: #c4b5fd;
+    --aurora-3: #f9a8d4;
+    --aurora-4: #fcd34d;
+    --aurora-5: #86efac;
+    --aurora-alpha: .45;
+    --star: rgba(20,21,26,.18);
+
+    --accent: #18181b;
+    --accent-text: #ffffff;
+
+    --accent-graphite: #18181b;
+    --accent-blue: #2563eb;
+    --accent-green: #15803d;
+    --accent-violet: #7c3aed;
+    --accent-orange: #c2410c;
+    --accent-rose: #be123c;
+    --checker-a: #f4f4f5;
+    --checker-b: #e4e4e7;
+    --avatar-backing: #f4f4f5;
   }
 
-  :root:not([data-theme="light"])[data-accent="graphite"] { --accent: #fafafa; --accent-text: #18181b; }
-  :root:not([data-theme="light"])[data-accent="blue"] { --accent: #60a5fa; --accent-text: #18181b; }
-  :root:not([data-theme="light"])[data-accent="green"] { --accent: #4ade80; --accent-text: #18181b; }
-  :root:not([data-theme="light"])[data-accent="violet"] { --accent: #a78bfa; --accent-text: #18181b; }
-  :root:not([data-theme="light"])[data-accent="orange"] { --accent: #fb923c; --accent-text: #18181b; }
-  :root:not([data-theme="light"])[data-accent="rose"] { --accent: #fb7185; --accent-text: #18181b; }
+  :root[data-theme="auto"][data-accent="graphite"] { --accent: #18181b; --accent-text: #ffffff; }
+  :root[data-theme="auto"][data-accent="blue"] { --accent: #2563eb; --accent-text: #ffffff; }
+  :root[data-theme="auto"][data-accent="green"] { --accent: #15803d; --accent-text: #ffffff; }
+  :root[data-theme="auto"][data-accent="violet"] { --accent: #7c3aed; --accent-text: #ffffff; }
+  :root[data-theme="auto"][data-accent="orange"] { --accent: #c2410c; --accent-text: #ffffff; }
+  :root[data-theme="auto"][data-accent="rose"] { --accent: #be123c; --accent-text: #ffffff; }
 }
+
+/* A department's colour, on any element that carries data-dept. */
+[data-dept="operations"] { --dept: var(--dept-operations); }
+[data-dept="sales"] { --dept: var(--dept-sales); }
+[data-dept="marketing"] { --dept: var(--dept-marketing); }
+[data-dept="studio"] { --dept: var(--dept-studio); }
+[data-dept="support"] { --dept: var(--dept-support); }
+[data-dept="people"] { --dept: var(--dept-people); }
+[data-dept="books"] { --dept: var(--dept-books); }
+[data-dept="brain"] { --dept: var(--dept-brain); }

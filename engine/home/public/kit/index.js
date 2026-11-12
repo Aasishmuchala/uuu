@@ -25,3 +25,12 @@ export * from "./timeline.js";
 export * from "./checks.js";
 export * from "./doc.js";
 export * from "./agent.js";
+
+// New in version 3 (CONTRACTS-V3 28)
+export * from "./creature.js";
+export * from "./segmented.js";
+export * from "./job.js";
+export * from "./answer.js";
+export * from "./ring.js";
+export * from "./forms.js";
+export * from "./upload.js";

@@ -1,4 +1,6 @@
-/* kit/page.js: the page header and titled sections, with generous, calm spacing. */
+/* kit/page.js: the page header and titled sections, with generous, calm spacing. The back link and the breadcrumb
+   are small glass chips; the overline sits above the title in wide-tracked capitals; a department's creature sits
+   left of the title. Text straight on the canvas uses --text or --text-2 only. */
 
 .k-page-header {
   display: flex;
@@ -7,23 +9,104 @@
   margin-bottom: var(--s-8);
 }
 
-.k-page-header__back {
-  display: inline-flex;
-  align-self: flex-start;
+.k-page-header__top {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-1);
-  min-height: var(--h-md);
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+}
+
+/* The back chip and the breadcrumb chip share one glass pill. */
+.k-page-header__back,
+.k-page-header__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--h-sm);
+  max-width: 100%;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--glass);
+  box-shadow: var(--highlight);
   color: var(--text-2);
-  font-size: var(--fs-body);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
   text-decoration: none;
+}
+
+.k-page-header__back {
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 
 .k-page-header__back:hover {
   color: var(--text);
+  border-color: var(--hairline-strong);
 }
 
 .k-page-header__back-icon {
-  transform: scaleX(-1);
+  flex: none;
+}
+
+.k-page-header__chip {
+  min-width: 0;
+  padding-right: var(--s-1);
+}
+
+.k-page-header__crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.k-page-header__crumb-part {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-2);
+}
+
+.k-page-header__crumb-last {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.k-page-header__sep {
+  flex: none;
+  color: var(--text-2);
+}
+
+/* The close link looks small but takes a 44 px area to click or tap (M52 K6, M51 F15). */
+.k-page-header__chip-close {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--h-sm) - var(--s-2));
+  height: calc(var(--h-sm) - var(--s-2));
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+
+.k-page-header__chip-close::before {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--s-3));
+}
+
+.k-page-header__chip-close:hover {
+  color: var(--text);
+  background: var(--glass-soft);
 }
 
 .k-page-header__row {
@@ -34,12 +117,41 @@
   gap: var(--s-3) var(--s-4);
 }
 
+.k-page-header__name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.k-page-header__creature {
+  display: inline-flex;
+  flex: none;
+  line-height: 0;
+}
+
+.k-page-header__titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.k-page-header__over {
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
 .k-page-header__title {
   min-width: 0;
   font-size: var(--fs-display);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-tight);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   overflow-wrap: anywhere;
 }
 
@@ -79,23 +191,29 @@
   min-height: var(--h-md);
 }
 
+/* Section titles are overlines: small capitals with the count after a dot. */
 .k-section__title {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
   min-width: 0;
-  font-size: var(--fs-title);
-  font-weight: var(--fw-bold);
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-2);
 }
 
 .k-section__count {
   min-width: var(--s-5);
   padding: 0 var(--s-2);
   border-radius: var(--r-pill);
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
+  box-shadow: inset 0 0 0 1px var(--hairline);
   color: var(--text-2);
   font-size: var(--fs-caption);
   font-weight: var(--fw-medium);
+  letter-spacing: 0;
   line-height: var(--s-5);
   text-align: center;
 }
@@ -109,7 +227,7 @@
 
 .k-section__hint {
   margin-top: calc(var(--s-2) * -1);
-  color: var(--text-3);
+  color: var(--text-2);
   font-size: var(--fs-caption);
 }
 
@@ -126,8 +244,23 @@
     font-size: var(--fs-heading);
   }
 
-  .k-page-header__back {
+  .k-page-header__back,
+  .k-page-header__chip {
     min-height: calc(var(--h-lg) + var(--s-1));
+    padding-left: var(--s-4);
+  }
+
+  .k-page-header__back {
+    padding-right: var(--s-4);
+  }
+
+  .k-page-header__chip-close {
+    width: calc(var(--h-lg) - var(--s-1));
+    height: calc(var(--h-lg) - var(--s-1));
+  }
+
+  .k-page-header__chip-close::before {
+    inset: calc(-1 * var(--s-1));
   }
 
   .k-section {

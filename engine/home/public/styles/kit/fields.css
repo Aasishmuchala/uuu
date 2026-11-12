@@ -1,4 +1,5 @@
-/* kit/fields.js: a label above, the control, a hint or an error (with an icon, not colour alone) below. */
+/* kit/fields.js: a label above, the control, a hint or an error (with an icon, not colour alone) below.
+   Controls are glass with a stronger hairline; the focused one gets the accent edge. */
 
 .k-field {
   display: flex;
@@ -15,7 +16,7 @@
 
 .k-field__hint {
   font-size: var(--fs-caption);
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 .k-field__error {
@@ -38,13 +39,14 @@
   width: 100%;
   min-height: var(--h-md);
   padding: 0 var(--s-3);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--hairline-strong);
   border-radius: var(--r-3);
-  background: var(--bg-card);
+  background: var(--glass);
+  box-shadow: var(--highlight);
   color: var(--text);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
 
 .k-input::placeholder,
@@ -56,6 +58,7 @@
 .k-textarea:hover,
 .k-select__control:hover {
   border-color: var(--text-3);
+  background: var(--glass-strong);
 }
 
 .k-input:focus,
@@ -70,7 +73,7 @@
 .k-textarea:disabled,
 .k-select__control:disabled {
   color: var(--text-3);
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
   cursor: default;
 }
 
@@ -83,6 +86,7 @@
 .k-textarea {
   display: block;
   padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-3);
   resize: vertical;
 }
 
@@ -155,7 +159,7 @@
   width: calc(var(--s-8) + var(--s-1));
   height: var(--s-5);
   border-radius: var(--r-pill);
-  background: var(--border-strong);
+  background: var(--hairline-strong);
   transition: background-color var(--t-med) var(--ease);
 }
 
@@ -166,8 +170,8 @@
   width: calc(var(--s-5) - 4px);
   height: calc(var(--s-5) - 4px);
   border-radius: var(--r-pill);
-  background: var(--bg-card);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 25%, transparent);
+  background: var(--text);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--canvas) 40%, transparent);
   transition: transform var(--t-med) var(--ease);
 }
 
@@ -194,7 +198,7 @@
 .k-switch__explain {
   margin-top: calc(var(--s-2) * -1);
   font-size: var(--fs-caption);
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 @media (max-width: 859px) {

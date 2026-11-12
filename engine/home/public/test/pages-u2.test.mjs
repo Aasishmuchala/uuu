@@ -1,4 +1,4 @@
-// U2: Markdown documents on the Docs page are shown as readable text; the composer's hint is short on a phone.
+// U2: the composer's hint is short on a phone. (The Docs page and its Markdown test went with M13: the Files page replaces it.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { dirname, join, resolve } from "node:path";
@@ -7,7 +7,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const { html, render } = await import(pathToFileURL(join(PUBLIC, "vendor", "preact-htm.js")).href);
 const composer = await import(pathToFileURL(join(PUBLIC, "kit", "composer.js")).href);
-const docs = await import(pathToFileURL(join(PUBLIC, "pages", "docs.js")).href);
 
 // ---- A very small DOM, enough for Preact to render into and for us to walk (as in kit-v60a). ----
 class FakeNode {
@@ -59,14 +58,6 @@ async function show(Component, props) {
   await settle();
   return root;
 }
-
-test("docs: only names ending in .md are read as Markdown", () => {
-  assert.equal(docs.isMarkdown("Refund policy.md"), true);
-  assert.equal(docs.isMarkdown("README.MD"), true);
-  assert.equal(docs.isMarkdown("notes.txt"), false);
-  assert.equal(docs.isMarkdown("md"), false);
-  assert.equal(docs.isMarkdown(null), false);
-});
 
 test("composer: the full hint at wide sizes, the short one below 480 px, and never both", async () => {
   const find = (root) => elements(root).find((e) => e.localName === "textarea");

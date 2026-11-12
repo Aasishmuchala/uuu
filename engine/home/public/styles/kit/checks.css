@@ -1,4 +1,5 @@
-/* CheckList and Evidence (kit/checks.js). A pass or fail is a mark plus a word, never colour alone. Tokens only. */
+/* CheckList and Evidence (kit/checks.js). A pass or fail is a mark plus a word, never colour alone. Tokens only.
+   Glass with hairlines between the checks; no backdrop blur. */
 
 .k-checks {
   margin: 0;
@@ -6,20 +7,21 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-4);
-  background: var(--bg-card);
+  background: var(--glass);
+  box-shadow: var(--highlight);
   overflow: hidden;
 }
 
 .k-checks--empty {
   padding: var(--s-6) var(--s-4);
-  color: var(--text-3);
+  color: var(--text-2);
   text-align: center;
 }
 
 .k-checks__item {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .k-checks__item:last-child {
@@ -45,11 +47,11 @@ button.k-checks__row {
 }
 
 button.k-checks__row:hover {
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
 }
 
 .k-checks__item--selected .k-checks__row {
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
@@ -133,8 +135,8 @@ button.k-checks__row:hover {
   max-height: 60vh;
   overflow: auto;
   padding: var(--s-3) var(--s-4);
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
+  background: var(--glass-soft);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-3);
   font-size: var(--fs-caption);
   white-space: pre-wrap;
@@ -145,10 +147,11 @@ button.k-checks__row:hover {
 .k-evidence__doc {
   max-height: 70vh;
   overflow: auto;
-  padding: var(--s-4);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--r-3);
+  padding: var(--s-4) var(--s-5);
+  background: var(--glass);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-4);
+  box-shadow: var(--highlight);
 }
 
 .k-evidence__doc:focus-visible {
@@ -159,7 +162,7 @@ button.k-checks__row:hover {
 .k-evidence__more {
   margin: 0;
   font-size: var(--fs-caption);
-  color: var(--text-3);
+  color: var(--text-2);
   text-align: center;
   overflow-wrap: anywhere;
 }

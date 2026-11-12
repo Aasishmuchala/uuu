@@ -1,5 +1,6 @@
-/* Base stylesheet (CONTRACTS-V2 section 12): reset, document defaults, focus, motion and the u- utilities.
-   Tokens only; every colour, font and size comes from tokens.css. Frozen. */
+/* Base stylesheet (CONTRACTS-V2 section 12, with CONTRACTS-V3 section 27): reset, document defaults, focus,
+   motion and the u- utilities. Tokens only; every colour, font and size comes from tokens.css. The canvas,
+   the aurora and the glass helpers live in canvas.css. */
 
 /* Reset */
 *,
@@ -89,7 +90,7 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text);
 }
 
-h1 { font-size: var(--fs-heading); }
+h1 { font-size: var(--fs-heading); font-weight: var(--fw-medium); }
 h2 { font-size: var(--fs-title); }
 h3, h4, h5, h6 { font-size: var(--fs-body); }
 
@@ -124,7 +125,20 @@ hr {
   background: var(--border-strong);
 }
 
-/* Motion off when the owner asks for less. */
+/* Motion off when the owner asks for less: in this app's settings, or on the Mac. Every animation runs once
+   in no time and stops at its end, as with reduced motion: a paused one would hold an opening drawer or
+   dialog at its first frame, out of sight, and a breathing mark half faded. */
+:root[data-motion="off"] *,
+:root[data-motion="off"] *::before,
+:root[data-motion="off"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -198,4 +212,24 @@ hr {
 .u-grow {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* The overline: small, wide-tracked capitals above a title. */
+.u-over {
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* A department's name: the serif, in wide-tracked capitals. */
+.u-serif {
+  font-family: var(--font-serif);
+  font-size: var(--fs-dept);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-tight);
+  letter-spacing: .22em;
+  text-transform: uppercase;
 }

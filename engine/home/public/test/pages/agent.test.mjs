@@ -3,8 +3,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { existsSync as __ex } from "node:fs";
+import { dirname as __dn, join as __jn } from "node:path";
+import { fileURLToPath as __fp } from "node:url";
+// The shape files sit beside the server, outside this tree: found by walking up from this file.
+const SHAPES = (() => { let d = __dn(__fp(import.meta.url)); for (;;) { const c = __jn(d, "server", "test", "shapes"); if (__ex(c)) return c; const p = __dn(d); if (p === d) throw new Error("shape files not found"); d = p; } })();
 
-const shape = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../../server/test/shapes/${name}.json`, import.meta.url)), "utf8"));
+const shape = (name) => JSON.parse(readFileSync(__jn(SHAPES, `${name}.json`), "utf8"));
 const page = await import("../../pages/agent.js");
 
 test("agent: the default export is a component", () => {
@@ -39,16 +44,27 @@ test("agent: Pause or Resume, hidden when not set up", () => {
   assert.equal(page.pauseAction(null), null);
 });
 
-test("agent: the composer offers only the department's ready-made goals", () => {
-  const gallery = shape("gallery");
-  const { agent } = shape("agent");
-  assert.deepEqual(page.goalsFor(gallery, agent), []);
-  const books = page.goalsFor(gallery, { ...agent, slug: "bookkeeper", department: "books" });
-  assert.equal(books.length, 1);
-  assert.equal(books[0].id, "books/draft-an-invoice");
-  const general = { departments: [{ id: "general", title: "Company", goals: [{ id: "general/x" }] }, ...gallery.departments] };
-  assert.deepEqual(page.goalsFor(general, { slug: "builder", department: null }).map((g) => g.id), ["general/x"]);
-  assert.deepEqual(page.goalsFor(null, agent), []);
+test("agent: the composer offers the jobs of its department that this agent does, ready ones first", () => {
+  const department = shape("department");
+  assert.deepEqual(page.jobsFor(department, "artist").map((j) => j.id), ["sales/proposal-from-a-call"]);
+  assert.deepEqual(page.jobsFor(department, "sales"), []);
+  const studio = { clusters: [
+    { id: "parts", jobs: [{ id: "studio/plate", who: [{ slug: "drafter" }], ready: true }] },
+    { id: "pictures", jobs: [{ id: "studio/icons", who: [{ slug: "artist" }], ready: false }, { id: "studio/badge", who: ["artist"], ready: true }] },
+  ] };
+  assert.deepEqual(page.jobsFor(studio, "artist").map((j) => j.id), ["studio/badge", "studio/icons"]);
+  assert.deepEqual(page.jobsFor(studio, "drafter").map((j) => j.id), ["studio/plate"]);
+  const ops = { clusters: [{ id: "planning", jobs: [{ id: "operations/week", who: [], ready: true }, { id: "operations/doc", who: [{ slug: "builder" }], ready: true }] }] };
+  assert.deepEqual(page.jobsFor(ops, "chief-of-staff").map((j) => j.id), ["operations/week"], "the Chief of staff plans the jobs nobody is named for");
+  assert.deepEqual(page.jobsFor(ops, "builder").map((j) => j.id), ["operations/doc"]);
+  assert.deepEqual(page.jobsFor(null, "artist"), []);
+});
+
+test("agent: the department chip names the map's department of this agent", async () => {
+  const team = await import("../../pages/team.js");
+  const map = shape("map");
+  const who = map.departments[0].agents[0];
+  assert.deepEqual(team.departmentOf(who.slug, map.departments), { id: map.departments[0].id, title: map.departments[0].title });
 });
 
 test("agent: a task handed here names the agent, except the Chief of staff", () => {
@@ -56,7 +72,7 @@ test("agent: a task handed here names the agent, except the Chief of staff", () 
   assert.deepEqual(page.goalBody({ text: "Plan it.", planFirst: true, template: "books/draft-an-invoice" }, "bookkeeper"),
     { text: "Plan it.", to: "bookkeeper", planFirst: true, template: "books/draft-an-invoice" });
   assert.deepEqual(page.goalBody({ text: "Sort it out." }, "chief-of-staff"), { text: "Sort it out." });
-  assert.equal(page.composerPlaceholder("Artist"), "Hand Artist a task.  /  for ready-made goals");
+  assert.equal(page.composerPlaceholder("Artist"), "Hand Artist a task.  /  for its jobs");
 });
 
 test("agent: a lesson is one line of 1 to 500 characters", () => {
@@ -74,4 +90,11 @@ test("agent: a lesson's date is the calendar day only, with no clock time", () =
   assert.equal(page.lessonDate(""), "");
   assert.equal(page.lessonDate(undefined), "");
   assert.doesNotMatch(page.lessonDate("2026-11-10"), /\d:\d/);
+});
+
+test("agent: the header's note shows only when the board answered without the agent, never a command (M51 F1, F17)", () => {
+  const { agent } = shape("agent");
+  assert.equal(page.headerNote({ ...agent, applied: false }), "Not set up yet.");
+  assert.equal(page.headerNote({ ...agent, applied: null }), "", "board off: not known, so nothing is said");
+  assert.equal(page.headerNote(agent), "");
 });

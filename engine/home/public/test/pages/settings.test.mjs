@@ -16,3 +16,15 @@ test("settings: the page names nothing it should not and holds no address", () =
   assert.doesNotMatch(src, /https?:\/\//);
 });
 import { readFileSync } from "node:fs";
+
+import { BACKDROPS } from "../../pages/settings.js";
+
+test("settings: three backdrops, and the page saves Background and Moving background", () => {
+  assert.deepEqual(BACKDROPS.map((b) => b.id), ["aurora", "stars", "plain"]);
+  assert.deepEqual(BACKDROPS.map((b) => b.label), ["Aurora", "Stars", "Plain"]);
+  const src = readFileSync(new URL("../../pages/settings.js", import.meta.url), "utf8");
+  assert.match(src, /Background/);
+  assert.match(src, /Moving background/);
+  assert.match(src, /change\(\{ backdrop:/);
+  assert.match(src, /change\(\{ motion:/);
+});

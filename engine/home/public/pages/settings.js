@@ -2,13 +2,20 @@
 import { html, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { currentAccent, currentTheme } from "../lib/theme.js";
-import { Button, Card, ErrorNotice, Loading, PageHeader, Section, Switch } from "../kit/index.js";
+import { currentAccent, currentBackdrop, currentMotion, currentTheme } from "../lib/theme.js";
+import { Button, Card, ErrorNotice, Loading, PageHeader, Section, Segmented, Switch } from "../kit/index.js";
 
 export const THEMES = [
   { id: "auto", label: "Auto" },
   { id: "light", label: "Light" },
   { id: "dark", label: "Dark" },
+];
+
+// The backgrounds, in case the server's list has not arrived yet (CONTRACTS-V3 27.3).
+export const BACKDROPS = [
+  { id: "aurora", label: "Aurora" },
+  { id: "stars", label: "Stars" },
+  { id: "plain", label: "Plain" },
 ];
 
 // Each accent's colour in the light and the dark theme (CONTRACTS-V2 12), for the swatches only. The tokens
@@ -31,7 +38,7 @@ function drawnDark() {
 }
 
 export default function Page() {
-  const { saveSettings } = useApp();
+  const { saveSettings, settings } = useApp();
   const res = useResource("/api/settings");
   const [chosen, setChosen] = useState({});
   const [technical, setTechnical] = useState(false);
@@ -49,10 +56,14 @@ export default function Page() {
   // What is on screen wins over what the server keeps: "?theme=" and "?accent=" hold for this visit.
   const theme = chosen.theme || currentTheme() || (d.appearance && d.appearance.theme) || "auto";
   const accent = chosen.accent || currentAccent() || (d.appearance && d.appearance.accent) || "graphite";
+  const backdrop = chosen.backdrop || currentBackdrop() || (d.appearance && d.appearance.backdrop) || "aurora";
+  const motion = chosen.motion || currentMotion() || (d.appearance && d.appearance.motion) || "on";
+  const backdrops = (Array.isArray(d.backdrops) && d.backdrops.length ? d.backdrops : settings && Array.isArray(settings.backdrops) && settings.backdrops.length ? settings.backdrops : BACKDROPS)
+    .filter((b) => b && typeof b.id === "string").map((b) => ({ id: b.id, label: String(b.label || b.id) }));
   const dark = drawnDark();
   function change(patch) {
     setChosen({ ...chosen, ...patch });
-    saveSettings({ theme, accent, ...patch });
+    saveSettings({ theme, accent, backdrop, motion, ...patch });
   }
 
   return html`
@@ -63,11 +74,7 @@ export default function Page() {
         <${Card}>
           <div class="p-settings__group" role="group" aria-labelledby="set-theme">
             <h3 id="set-theme" class="p-settings__label">Theme</h3>
-            <div class="p-settings__themes">
-              ${THEMES.map((t) => html`
-                <button key=${t.id} type="button" class=${`k-btn k-btn--${theme === t.id ? "primary" : "plain"} k-btn--md`}
-                  aria-pressed=${theme === t.id ? "true" : "false"} onClick=${() => change({ theme: t.id })}>${t.label}</button>`)}
-            </div>
+            <${Segmented} label="Theme" items=${THEMES} current=${theme} onChange=${(id) => change({ theme: id })} />
           </div>
           <div class="p-settings__group" role="radiogroup" aria-labelledby="set-accent">
             <h3 id="set-accent" class="p-settings__label">Accent colour</h3>
@@ -79,6 +86,14 @@ export default function Page() {
                   <span>${a.label}</span>
                 </label>`)}
             </div>
+          </div>
+          <div class="p-settings__group" role="group" aria-labelledby="set-backdrop">
+            <h3 id="set-backdrop" class="p-settings__label">Background</h3>
+            <${Segmented} label="Background" items=${backdrops} current=${backdrop} onChange=${(id) => change({ backdrop: id })} />
+          </div>
+          <div class="p-settings__group">
+            <${Switch} on=${motion !== "off"} label="Moving background" explain="The colours drift slowly. Switch it off to save battery."
+              onChange=${(on) => change({ motion: on ? "on" : "off" })} />
           </div>
         <//>
       <//>

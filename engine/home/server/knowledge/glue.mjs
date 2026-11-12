@@ -1,4 +1,4 @@
-// Shared by routes/knowledge.mjs and search/knowledge.mjs.
+// Used by routes/knowledge.mjs.
 import { createKnowledge, KnowledgeError } from "./store.mjs";
 
 const stores = new Map();

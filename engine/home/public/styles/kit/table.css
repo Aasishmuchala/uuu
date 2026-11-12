@@ -1,17 +1,19 @@
-/* DataTable and Figures (kit/table.js). The table stacks into labelled rows below 860 px. Tokens only. */
+/* DataTable and Figures (kit/table.js). The table is glass with overline heads and stacks into labelled rows below
+   860 px; Figures are stat tiles. Tokens only. */
 
 .k-table {
   width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-4);
-  background: var(--bg-card);
+  background: var(--glass);
+  box-shadow: var(--highlight);
 }
 
 .k-table--empty {
   margin: 0;
   padding: var(--s-6) var(--s-4);
-  color: var(--text-3);
+  color: var(--text-2);
   text-align: center;
 }
 
@@ -22,18 +24,21 @@
 
 .k-table__table th,
 .k-table__table td {
-  padding: var(--s-2) var(--s-3);
+  padding: var(--s-3) var(--s-4);
   text-align: left;
   vertical-align: top;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--hairline);
   overflow-wrap: anywhere;
 }
 
 .k-table__table th {
-  font-size: var(--fs-caption);
+  padding-top: var(--s-3);
+  padding-bottom: var(--s-2);
+  font-size: var(--fs-over);
   font-weight: var(--fw-medium);
+  letter-spacing: .16em;
+  text-transform: uppercase;
   color: var(--text-3);
-  background: var(--bg-sidebar);
   white-space: nowrap;
 }
 
@@ -42,53 +47,87 @@
 }
 
 .k-table__table tbody tr:hover td {
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
 }
 
+/* Stat tiles: an overline, a large figure, a quiet line under it. */
 .k-figures {
   margin: 0;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: var(--s-3);
 }
 
 .k-figures__item {
-  flex: 1 1 140px;
   min-width: 0;
-  padding: var(--s-3) var(--s-4);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-4) var(--s-5);
+  background: var(--glass);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-4);
+  box-shadow: var(--highlight);
 }
 
 .k-figures__label {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  letter-spacing: .16em;
+  text-transform: uppercase;
   color: var(--text-3);
 }
 
 .k-figures__value {
   margin: 0;
-  font-size: var(--fs-heading);
-  font-weight: var(--fw-bold);
+  font-size: var(--fs-display);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-tight);
+  letter-spacing: -.01em;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: break-word;
+  white-space: nowrap;
+}
+
+/* Long figures step down a size, so they stay on one line (M51 F13). */
+.k-figures__value--long {
+  font-size: var(--fs-heading);
+}
+
+.k-figures__value--longer {
+  font-size: var(--fs-title);
 }
 
 .k-figures__hint {
   margin: 0;
   font-size: var(--fs-caption);
-  color: var(--text-2);
+  color: var(--text-3);
 }
 
 @media (max-width: 859px) {
+  .k-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .k-figures__item {
+    padding: var(--s-3) var(--s-4);
+  }
+
   .k-figures__value {
+    font-size: var(--fs-heading);
+  }
+
+  .k-figures__value--long {
     font-size: var(--fs-title);
+  }
+
+  .k-figures__value--longer {
+    font-size: var(--fs-body);
   }
 
   .k-table {
     border: 0;
     background: transparent;
+    box-shadow: none;
     overflow: visible;
   }
 
@@ -111,10 +150,11 @@
 
   .k-table__table tr {
     margin-bottom: var(--s-2);
-    padding: var(--s-2) var(--s-3);
-    background: var(--bg-card);
-    border: 1px solid var(--border);
+    padding: var(--s-2) var(--s-4);
+    background: var(--glass);
+    border: 1px solid var(--hairline);
     border-radius: var(--r-4);
+    box-shadow: var(--highlight);
   }
 
   .k-table__table td {
@@ -125,13 +165,34 @@
     border-bottom: 0;
   }
 
+  /* A chip or tag in a stacked cell keeps its own width instead of stretching across it (M51 F21). */
+  .k-table__table td > * {
+    justify-self: start;
+    max-width: 100%;
+  }
+
   .k-table__table td::before {
     content: attr(data-label);
-    font-size: var(--fs-caption);
+    font-size: var(--fs-over);
+    font-weight: var(--fw-medium);
+    letter-spacing: .16em;
+    text-transform: uppercase;
     color: var(--text-3);
   }
 
   .k-table__table tbody tr:hover td {
     background: transparent;
+  }
+}
+
+/* A phone: a tile with a long figure takes the whole row, and keeps its size. */
+@media (max-width: 479px) {
+  .k-figures__item:has(.k-figures__value--long),
+  .k-figures__item:has(.k-figures__value--longer) {
+    grid-column: 1 / -1;
+  }
+
+  .k-figures__value--long {
+    font-size: var(--fs-heading);
   }
 }

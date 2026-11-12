@@ -9,8 +9,8 @@ import { readShape, sameShape } from "../lib/shape.mjs";
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "shapes");
 const NAMES = ["map", "department", "jobs", "job", "ask", "brain", "brain-file", "studio-slides", "studio-videos"];
 
-test("there are twenty-six shape files in all", () => {
-  assert.equal(fs.readdirSync(dir).filter((f) => f.endsWith(".json")).length, 26);
+test("there are twenty-five shape files in all", () => {
+  assert.equal(fs.readdirSync(dir).filter((f) => f.endsWith(".json")).length, 25);
 });
 
 for (const n of NAMES) {

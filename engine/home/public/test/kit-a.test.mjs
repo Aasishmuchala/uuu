@@ -28,6 +28,9 @@ const MODULES = Object.keys(PINNED);
 const COMPOSITES = ["decision", "task-card", "brief", "composer", "conversation", "table", "timeline", "checks", "doc", "agent"];
 const PINNED_ICONS =
   "search home tasks docs team routines health settings plus check cross clock chevron-right chevron-down file download external play pause loop send menu panel sun moon alert image layers".split(" ");
+// CONTRACTS-V3 28: the icon names added for the map style.
+const V3_ICONS =
+  "map dashboards files jobs needs brain upload folder form spark arrow-left arrow-right list grid tag stage link lock book filter reply video".split(" ");
 
 // Load every module before any fake document exists: nothing may touch document or window at load.
 const kit = {};
@@ -201,10 +204,16 @@ function cases(h) {
     ["Tag", Tag, { tone: "bad", children: h }],
     ["Chip", Chip, {}],
     ["Chip", Chip, { icon: "clock", children: h }],
+    ["Chip", Chip, { dot: "sales", children: h }],
+    ["Chip", Chip, { dot: "warn", icon: "clock", children: h }],
+    ["Chip", Chip, { dot: true, children: h }],
+    ["Chip", Chip, { dot: h, children: h }],
     ["Card", Card, {}],
     ["Card", Card, { tone: "warm", padding: "lg", children: h }],
     ["Card", Card, { tone: "sunken", href: "#/tasks/1", children: h }],
     ["Card", Card, { onClick: noop, padding: "none", children: h }],
+    ["Card", Card, { tone: "ghost", children: h }],
+    ["Card", Card, { tone: "ghost", href: "#/files", padding: "sm", children: h }],
     ["Tabs", Tabs, {}],
     ["Tabs", Tabs, { tabs: [{ id: "a", label: h, count: 3, tone: "bad" }, { id: "b", label: "Two" }], current: "b", onChange: noop, label: h }],
     ["Field", Field, {}],
@@ -245,6 +254,8 @@ function cases(h) {
     ["Kbd", Kbd, { children: h }],
     ["PageHeader", PageHeader, {}],
     ["PageHeader", PageHeader, { title: h, lead: h, back: { href: "#/tasks", label: h }, actions: h, children: h }],
+    ["PageHeader", PageHeader, { title: h, over: h, creature: "sales", chip: { label: ["Marketing", h], href: "#/jobs" } }],
+    ["PageHeader", PageHeader, { title: "Plain", over: "Sales · Outreach", creature: h, chip: { label: h, href: "javascript:alert(1)" } }],
     ["Section", Section, {}],
     ["Section", Section, { title: h, hint: h, count: 4, aside: h, children: h }],
   ];
@@ -424,7 +435,8 @@ for (const m of MODULES) {
     }
     const { selectors, keyframes } = selectorsOf(css);
     assert.ok(selectors.length > 0, "it has rules");
-    for (const s of selectors) assert.ok(s.startsWith(".k-"), `selector "${s}" starts with .k-`);
+    // M55: a rule for motion switched off may lead with [data-motion="off"], as kit-c allows.
+    for (const s of selectors) assert.ok(s.replace(/^\[data-motion="off"\] /, "").startsWith(".k-"), `selector "${s}" starts with .k-`);
     for (const k of keyframes) assert.ok(k.startsWith("k-"), `keyframes "${k}" are named k-...`);
   });
 }
@@ -549,5 +561,142 @@ test("DecisionCard: Esc in an open note or confirm cancels and sends nothing", a
     render(null, root);
   } finally {
     f.restore();
+  }
+});
+
+// ---- Version 3 (CONTRACTS-V3 27 and 28): the new icon names and props, and the stylesheet rules of 27.3. ----
+
+test("ICON_NAMES holds every icon name of V3 28, and every icon draws at least one stroke", async () => {
+  const { ICON_NAMES } = kit.icon;
+  for (const n of V3_ICONS) assert.ok(ICON_NAMES.includes(n), `icon ${n}`);
+  assert.equal(new Set(ICON_NAMES).size, ICON_NAMES.length, "no name twice");
+  installDom();
+  for (const n of ICON_NAMES) {
+    const root = await showTree(kit.icon.Icon, { name: n, size: 24 });
+    const paths = elements(root).filter((e) => e.localName === "path");
+    assert.ok(paths.length > 0, `${n} draws something`);
+    for (const p of paths) assert.match(p.getAttribute("d") || "", /^M[-\d.]/, `${n}: a path starts with a move`);
+    assert.equal(root.firstChild.getAttribute("viewBox"), "0 0 24 24", `${n} is on the 24 unit grid`);
+    render(null, root);
+  }
+});
+
+test("Card: tone ghost has its own class; an unknown tone falls back to plain", async () => {
+  installDom();
+  let root = await showTree(kit.card.Card, { tone: "ghost", children: "Quiet" });
+  assert.match(root.firstChild.getAttribute("class"), /\bk-card k-card--ghost\b/);
+  root = await showTree(kit.card.Card, { tone: "ghost", href: "#/files", children: "Files" });
+  assert.equal(root.firstChild.localName, "a");
+  assert.match(root.firstChild.getAttribute("class"), /k-card--ghost .*k-card--action/);
+  root = await showTree(kit.card.Card, { tone: "loud", children: "x" });
+  assert.match(root.firstChild.getAttribute("class"), /k-card--plain/);
+});
+
+test("Chip: dot takes a department, a state tone or true; anything else draws no dot; the words stay", async () => {
+  installDom();
+  const dotOf = (root) => elements(root).find((e) => (e.getAttribute("class") || "").split(" ").includes("k-chip__dot"));
+  let root = await showTree(kit.tag.Chip, { dot: "sales", children: "List building" });
+  let dot = dotOf(root);
+  assert.equal(dot.getAttribute("data-dept"), "sales");
+  assert.equal(dot.getAttribute("aria-hidden"), "true");
+  assert.match(textOf(root), /List building/);
+  root = await showTree(kit.tag.Chip, { dot: "warn", children: "Waiting for you" });
+  assert.match(dotOf(root).getAttribute("class"), /k-chip__dot--warn/);
+  root = await showTree(kit.tag.Chip, { dot: true, children: "Here" });
+  dot = dotOf(root);
+  assert.ok(dot, "a plain dot");
+  assert.equal(dot.getAttribute("data-dept"), null, "its colour comes from the nearest data-dept");
+  for (const bad of [undefined, false, "purple", '"><script>', 7]) {
+    root = await showTree(kit.tag.Chip, { dot: bad, children: "x" });
+    assert.equal(dotOf(root), undefined, `no dot for ${String(bad)}`);
+  }
+  root = await showTree(kit.tag.Chip, { dot: "books", icon: "clock", children: "Monthly" });
+  const kinds = elements(root.firstChild).map((e) => e.localName);
+  assert.ok(kinds.indexOf("span") < kinds.indexOf("svg"), "the dot comes before the icon");
+});
+
+test("PageHeader: the overline above the title, the creature at 48 px, the breadcrumb chip with a close link, the back chip", async () => {
+  installDom();
+  let root = await showTree(kit.page.PageHeader, {
+    title: "Carousel production",
+    over: "Marketing · Design",
+    creature: "marketing",
+    chip: { label: ["Marketing", "A carousel from a concept"], href: "#/jobs" },
+    back: { href: "#/map", label: "All departments" },
+  });
+  const all = elements(root);
+  const cls = (e) => (e.getAttribute("class") || "").split(" ");
+  const find = (c) => all.find((e) => cls(e).includes(c));
+  const over = find("k-page-header__over");
+  const h1 = all.find((e) => e.localName === "h1");
+  assert.equal(textOf(over), "Marketing · Design");
+  assert.ok(all.indexOf(over) < all.indexOf(h1), "the overline comes before the title");
+  const pet = find("k-creature");
+  assert.equal(pet.getAttribute("data-creature"), "marketing");
+  assert.match(pet.style.cssText || pet.getAttribute("style") || "", /--k-creature-size: 48px/);
+  assert.ok(all.indexOf(pet) < all.indexOf(h1), "the creature is left of (before) the title");
+  assert.match(cls(root.firstChild).join(" "), /k-page-header--creature/);
+  const chip = find("k-page-header__chip");
+  assert.match(textOf(chip), /Marketing\/A carousel from a concept/);
+  const close = find("k-page-header__chip-close");
+  assert.equal(close.localName, "a");
+  assert.equal(close.getAttribute("href"), "#/jobs");
+  assert.equal(close.getAttribute("aria-label"), "Close");
+  const back = find("k-page-header__back");
+  assert.equal(back.getAttribute("href"), "#/map");
+  assert.match(textOf(back), /All departments/);
+  assert.ok(elements(back).some((e) => e.localName === "svg"), "the back chip has its arrow");
+  assert.equal(h1.getAttribute("id"), "page-title");
+  render(null, root);
+
+  // No overline, creature or chip unless asked; an unknown creature and an outside close link draw nothing.
+  root = await showTree(kit.page.PageHeader, { title: "Tasks", creature: "dragon", chip: { label: "Somewhere", href: "javascript:alert(1)" } });
+  const names = elements(root).flatMap(cls);
+  assert.ok(!names.includes("k-page-header__over"));
+  assert.ok(!names.includes("k-creature"));
+  assert.ok(!names.includes("k-page-header--creature"));
+  assert.ok(names.includes("k-page-header__chip"), "the chip still names where you are");
+  assert.ok(!names.includes("k-page-header__chip-close"), "no close link to another place");
+  render(null, root);
+  root = await showTree(kit.page.PageHeader, { title: "Tasks" });
+  assert.ok(!elements(root).flatMap(cls).includes("k-page-header__top"), "no top row without back or chip");
+});
+
+// 27.3: tokens only, backdrop-filter only in overlays.css, motion only on transform and opacity (colours may fade
+// for at most --t-med), no endless animation but the live dot, no will-change; 44 px controls below 860 px.
+test("the primitives' stylesheets follow the rules of V3 27.3", () => {
+  const ALLOWED_TRANSITION = /^(transform|opacity|color|background-color|border-color)$/;
+  for (const m of MODULES) {
+    const css = stripComments(readFileSync(join(STYLES, `${m}.css`), "utf8"));
+    if (m !== "overlays") assert.doesNotMatch(css, /backdrop-filter/, `${m}.css has no backdrop-filter`);
+    assert.doesNotMatch(css, /(^|[^-])filter\s*:\s*blur/, `${m}.css has no filter: blur`);
+    assert.doesNotMatch(css, /will-change/, `${m}.css has no will-change`);
+    assert.doesNotMatch(css, /mix-blend-mode/, `${m}.css has no blend mode`);
+    for (const t of css.matchAll(/transition\s*:\s*([^;]+);/g)) {
+      if (t[1].trim() === "none") continue;
+      for (const part of t[1].split(",")) {
+        const [prop, time] = part.trim().split(/\s+/);
+        assert.match(prop, ALLOWED_TRANSITION, `${m}.css transitions ${prop}`);
+        if (prop !== "transform" && prop !== "opacity") assert.match(time, /^var\(--t-(fast|med)\)$/, `${m}.css: ${prop} fades in at most --t-med`);
+      }
+    }
+    if (m !== "status") assert.doesNotMatch(css, /\binfinite\b/, `${m}.css has no animation that never ends`);
+    for (const k of css.matchAll(/@keyframes\s+[\w-]+\s*\{([\s\S]*?)\n\}/g)) {
+      for (const d of k[1].matchAll(/([a-z-]+)\s*:/g)) assert.match(d[1], /^(transform|opacity)$/, `${m}.css animates ${d[1]}`);
+    }
+  }
+  const button = stripComments(readFileSync(join(STYLES, "button.css"), "utf8"));
+  assert.match(button, /\.k-btn \{[^}]*border-radius: var\(--r-pill\)/, "every button is a pill");
+  const card = stripComments(readFileSync(join(STYLES, "card.css"), "utf8"));
+  assert.match(card, /\.k-card \{[^}]*background: var\(--glass\)[^}]*box-shadow: var\(--highlight\)/, "a card is glass with the highlight");
+  assert.match(card, /\.k-card--ghost \{[^}]*background: transparent/, "a ghost card has no fill");
+  const overlays = stripComments(readFileSync(join(STYLES, "overlays.css"), "utf8"));
+  assert.match(overlays, /backdrop-filter: blur\(var\(--blur-chrome\)\)/, "overlays are chrome glass");
+  assert.match(overlays, /var\(--shadow-pop\)/, "overlays carry the pop shadow");
+  for (const m of ["button", "tabs", "fields", "overlays", "page"]) {
+    const css = stripComments(readFileSync(join(STYLES, `${m}.css`), "utf8"));
+    const narrow = /@media \(max-width: 859px\) \{([\s\S]*)\}\s*$/.exec(css);
+    assert.ok(narrow, `${m}.css has a narrow block`);
+    assert.match(narrow[1], /min-height: calc\(var\(--h-lg\) \+ var\(--s-[12]\)\)/, `${m}.css makes controls at least 44 px high below 860 px`);
   }
 });

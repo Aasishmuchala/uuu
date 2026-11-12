@@ -23,7 +23,7 @@ Press Cmd+K anywhere to jump to a page, an agent or a search result.
 
 ## Give a task
 
-At the bottom of Home there is one box. Say what you want done, in your own words, then press Enter.
+On the Map there is one box. Say what you want done, in your own words, then press Enter.
 
 - **Plain.** Type it and send. The Chief of staff sizes it, hands it out, and the Checker looks at the result before it reaches you.
 - **Plan first.** Tick "Plan first". The Chief of staff writes a short brief and a plan, then waits. Nothing is done until you accept the plan. Use it for anything big or costly.
@@ -34,7 +34,7 @@ An agent's own page (under Team) has a conversation where you can give it a task
 
 ## Needs you
 
-Everything waiting for you shows on Home as cards, one main button each. You can also see them under Tasks.
+Everything waiting for you shows under Needs you as cards, one main button each. You can also see them under Tasks.
 
 - **Accept.** The work is good. A finished task waits under "Pending review" until you accept it. A draft becomes final only when you accept it.
 - **Send back.** The work is not right. Write a note. The task reopens and the agent does it again.
@@ -54,22 +54,22 @@ A routine is standing work on a schedule. Two exist:
 - **Daily brief**: every morning at 09:00, a short note of what happened that needs no decision.
 - **Weekly content plan**: Mondays at 10:00, drafts of three posts and a newsletter. Nothing is published.
 
-Both start switched off. Until the daily brief is switched on, Home shows a brief the home screen puts together itself. To switch one on, open Routines and use its switch. Each run costs one run of that agent on your plan. You can also use Run now, or pause it again. Agents cannot create, change or start a routine.
+Both start switched off. Until the daily brief is switched on, the Map shows a brief the home screen puts together itself. To switch one on, open Routines and use its switch. Each run costs one run of that agent on your plan. You can also use Run now, or pause it again. Agents cannot create, change or start a routine.
 
 ## The pages
 
-- **Home**: what needs you, what is running, the daily brief, and the box to give a task.
+- **Map** (it was Home): the company brain in the middle, the departments around it, the daily brief, and the box to give a task or ask the company brain.
 - **Tasks**: every task, as a board or a list. A task's page is the acceptance view.
-- **Docs**: company documents. Add one, read it, search it, and see what agents learned.
+- **Files** (it was Docs): the company brain's files. Add one, read it, search it, and see what agents learned.
 - **Team**: the ten agents. Each page says what that agent may and may not do, what it is doing, its lessons, and lets you pause it or give it a task.
 - **Books, Customers, Support, People**: figures first, then drafts waiting for you.
 - **Marketing**: content drafts by week. Publishing is off.
 - **Studio**: parts and pictures the Drafter and the Artist made.
 - **Routines**: standing work, its runs and its switch.
-- **Ready-made goals**: tasks written in advance for each department.
+- **Jobs** (they were ready-made goals): named pieces of work an agent can start for you, by department.
 - **Health**: what is on, whether the fence holds, what is not connected. You can run the proof from here.
 - **Settings**: theme and accent, and the later options with what each would cost.
-- **Search**: finds tasks, documents, records, agents, routines and ready-made goals.
+- **Search**: finds tasks, files, records, agents, routines and jobs.
 
 ## The Studio
 

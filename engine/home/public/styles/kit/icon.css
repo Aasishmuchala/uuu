@@ -8,7 +8,7 @@
 }
 
 .k-state-icon--backlog {
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 .k-state-icon--in_progress {
@@ -28,5 +28,5 @@
 }
 
 .k-state-icon--canceled {
-  color: var(--text-3);
+  color: var(--text-2);
 }

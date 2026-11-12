@@ -1,4 +1,4 @@
-/* Team (pages/team.js): a grid of agent cards, each with its department under it. */
+/* Team (pages/team.js): a grid of agent cards, each with its department as a chip under it. */
 
 .p-team { display: flex; flex-direction: column; gap: var(--s-6); }
 
@@ -14,18 +14,28 @@
 .p-team .p-team__item {
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
+  gap: var(--s-2);
   min-width: 0;
 }
 
-.p-team .p-team__item .k-agent--card { height: 100%; }
+.p-team .p-team__item .k-agent--card { flex: 1; }
+
+.p-team .p-team__under {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-1);
+}
 
 .p-team .p-team__dept {
-  margin: 0;
-  padding: 0 var(--s-1);
-  font-size: var(--fs-caption);
-  color: var(--text-3);
+  display: inline-flex;
+  max-width: 100%;
+  border-radius: var(--r-pill);
+  color: inherit;
+  text-decoration: none;
 }
+.p-team .p-team__dept:hover .k-chip { border-color: var(--hairline-strong); color: var(--text); }
 
 .p-team .p-team__note {
   margin: 0;
@@ -38,4 +48,11 @@
 
 @media (max-width: 859px) {
   .p-team .p-team__grid { grid-template-columns: 1fr; gap: var(--s-3); }
+}
+
+.p-team .p-team__note a, .p-team .p-team__next a { color: inherit; font-weight: 600; }
+
+/* Below 860 px each chip and link keeps a 44 px target without changing how it looks (M51 F15). */
+@media (max-width: 859px) {
+  .p-team .p-team__dept { min-height: 44px; align-items: center; }
 }

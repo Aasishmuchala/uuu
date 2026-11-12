@@ -1,21 +1,26 @@
-/* Composer (kit/composer.js): pinned to the bottom of its container, with the "/" and "@" lists above it. Tokens only. */
+/* Composer (kit/composer.js): the glass box at the bottom of its container, with the "/" and "@" lists above it,
+   and the map's round ask box. Tokens only. The one composite stylesheet that blurs what is behind it (27.3):
+   the box and its list float over the canvas. The blur is held in a local property, as in canvas.css. */
 
 .k-composer {
   position: sticky;
   bottom: 0;
   z-index: 20;
   padding-bottom: var(--s-3);
-  background: linear-gradient(to bottom, transparent, var(--bg) var(--s-4));
 }
 
 .k-composer__box {
+  --k-composer-blur: blur(var(--blur-chrome));
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  padding: var(--s-3);
-  background: var(--bg-card);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-4);
+  padding: var(--s-3) var(--s-3) var(--s-2) var(--s-4);
+  background: var(--glass-strong);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-5);
+  box-shadow: var(--highlight);
+  -webkit-backdrop-filter: var(--k-composer-blur);
+  backdrop-filter: var(--k-composer-blur);
   transition: border-color var(--t-fast) var(--ease);
 }
 
@@ -35,8 +40,9 @@
   align-items: center;
   gap: var(--s-1);
   padding: 2px var(--s-1) 2px var(--s-2);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-pill);
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
   font-size: var(--fs-caption);
   color: var(--text-2);
 }
@@ -64,7 +70,7 @@
 }
 
 .k-composer__clear:hover {
-  background: var(--bg);
+  background: var(--glass-soft);
   color: var(--text);
 }
 
@@ -128,21 +134,28 @@
   color: var(--bad-text);
 }
 
+/* The "/" and "@" lists: chrome glass over whatever is above the box. */
 .k-composer__menu {
+  --k-composer-blur: blur(var(--blur-chrome));
   margin-bottom: var(--s-2);
   max-height: 320px;
   overflow-y: auto;
   padding: var(--s-1);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--glass-strong);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-4);
-  box-shadow: var(--shadow-pop);
+  box-shadow: var(--highlight), var(--shadow-pop);
+  -webkit-backdrop-filter: var(--k-composer-blur);
+  backdrop-filter: var(--k-composer-blur);
 }
 
 .k-composer__menu-head {
   margin: 0;
-  padding: var(--s-1) var(--s-2);
-  font-size: var(--fs-caption);
+  padding: var(--s-2) var(--s-2) var(--s-1);
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  letter-spacing: .16em;
+  text-transform: uppercase;
   color: var(--text-3);
 }
 
@@ -163,7 +176,25 @@
 
 .k-composer__option:hover,
 .k-composer__option--active {
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
+}
+
+.k-composer__option--active {
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
+/* A job that cannot start yet: still listed, so the page can say why. */
+.k-composer__option--dim .k-composer__option-title {
+  color: var(--text-2);
+  font-weight: var(--fw-regular);
+}
+
+.k-composer__option-dot {
+  flex: none;
+  width: var(--s-2);
+  height: var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--dept, var(--text-3));
 }
 
 .k-composer__option-title {
@@ -180,6 +211,74 @@
   color: var(--text-3);
 }
 
+/* The map's ask box: one rounded glass box with a round send button, and the hint under it. */
+.k-composer--ask {
+  position: relative;
+  bottom: auto;
+  z-index: auto;
+  padding-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.k-composer--ask .k-composer__box {
+  flex-direction: row;
+  align-items: flex-end;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-5);
+  border-radius: var(--r-5);
+}
+
+.k-composer--ask .k-composer__field {
+  flex: 1 1 auto;
+  min-height: var(--h-md);
+  padding: var(--s-2) 0;
+}
+
+.k-composer__send {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--h-md);
+  height: var(--h-md);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--primary);
+  color: var(--primary-text);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
+}
+
+.k-composer__send:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.k-composer__send:disabled {
+  opacity: .4;
+  cursor: default;
+}
+
+.k-composer--busy .k-composer__send:disabled {
+  opacity: .7;
+}
+
+.k-composer__note {
+  margin: 0;
+  padding: 0 var(--s-5);
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  text-align: center;
+  /* No word left alone on the last line (M18-31). */
+  text-wrap: balance;
+}
+
+.k-composer--ask .k-composer__error {
+  justify-content: center;
+}
+
 @media (max-width: 859px) {
   .k-composer__hint {
     display: none;
@@ -192,5 +291,36 @@
   .k-composer__option,
   .k-composer__plan {
     min-height: 44px;
+  }
+
+  .k-composer__send {
+    width: 44px;
+    height: 44px;
+  }
+
+  .k-composer--ask .k-composer__field {
+    min-height: 44px;
+  }
+
+  .k-composer__note {
+    padding: 0 var(--s-2);
+  }
+
+  /* "Do not give it to …" keeps its look and takes a 44 px area to tap (M51 F15). */
+  .k-composer__clear {
+    position: relative;
+  }
+
+  .k-composer__clear::before {
+    content: "";
+    position: absolute;
+    inset: calc(-1 * var(--s-3));
+  }
+}
+
+/* A phone: the box's hint shows only while the box is in use, so the box takes less of the screen (M18-04). */
+@media (max-width: 479px) {
+  .k-composer--ask:not(:focus-within) .k-composer__note {
+    display: none;
   }
 }

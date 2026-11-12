@@ -9,9 +9,10 @@
 .p-routines .p-routines__message { margin: 0; color: var(--ok-text); font-size: var(--fs-caption); }
 .p-routines .p-routines__ask { white-space: pre-wrap; margin: 0; }
 .p-routines .p-routines__runs, .p-routines .p-routines__problems { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
-.p-routines .p-routines__run { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); padding: var(--s-2) 0; border-bottom: 1px solid var(--border); }
+.p-routines .p-routines__run { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); padding: var(--s-2) 0; border-bottom: 1px solid var(--hairline); }
 .p-routines .p-routines__problems { color: var(--text-3); font-size: var(--fs-caption); }
 .p-routines .p-routines__one { margin-bottom: var(--s-8); }
 .p-routines .p-routines__produces { margin: 0; padding-left: var(--s-5); }
 .p-routines .p-routines__title a { color: var(--text); text-decoration: none; }
 .p-routines .p-routines__title a:hover { text-decoration: underline; }
+.p-routines .p-routines__ref { color: var(--text-3); font-size: var(--fs-caption); }

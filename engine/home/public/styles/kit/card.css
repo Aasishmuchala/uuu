@@ -1,31 +1,41 @@
-/* kit/card.js: soft rounded cards with a hairline edge; warm for what needs the owner, sunken for asides. */
+/* kit/card.js: glass cards. The same recipe as .u-glass in canvas.css (a translucent fill, a hairline edge, the
+   inner highlight, no backdrop blur), written out here because kit classes start with k-. Warm is what needs the
+   owner, sunken an aside inside a card, ghost the hairline alone. */
 
 .k-card {
   display: block;
   min-width: 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-4);
-  background: var(--bg-card);
+  background: var(--glass);
+  box-shadow: var(--highlight);
   color: var(--text);
 }
 
 .k-card--pad-none { padding: 0; }
 .k-card--pad-sm { padding: var(--s-3); }
-.k-card--pad-md { padding: var(--s-4) var(--s-5); }
+.k-card--pad-md { padding: var(--s-5); }
 .k-card--pad-lg { padding: var(--s-6); }
 
+/* The warm tint lies over glass, so a card that needs the owner looks the same over every light (M18-11). */
 .k-card--warm {
-  background: var(--bg-warm);
+  background: linear-gradient(var(--bg-warm), var(--bg-warm)), var(--glass);
   border-color: var(--border-warm);
 }
 
 .k-card--sunken {
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
   border-color: transparent;
+  box-shadow: none;
+  border-radius: var(--r-3);
 }
 
-/* A card that is one link or one button. */
-/* A column with its content at the top, even when a grid stretches a button card. */
+.k-card--ghost {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* A card that is one link or one button: a column with its content at the top, even when a grid stretches it. */
 .k-card--action {
   display: flex;
   flex-direction: column;
@@ -36,19 +46,21 @@
   text-align: inherit;
   text-decoration: none;
   cursor: pointer;
-  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
 
 .k-card--action:hover {
-  border-color: var(--border-strong);
+  border-color: var(--hairline-strong);
 }
 
 .k-card--plain.k-card--action:hover {
-  background: var(--bg-card);
+  background: var(--glass-strong);
 }
 
-.k-card--sunken.k-card--action:hover {
-  border-color: var(--border);
+.k-card--sunken.k-card--action:hover,
+.k-card--ghost.k-card--action:hover {
+  background: var(--glass-soft);
+  border-color: var(--hairline);
 }
 
 .k-card--action:active {

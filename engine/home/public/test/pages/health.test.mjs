@@ -21,3 +21,31 @@ test("health: diskLine puts free space against the floor", () => {
   assert.equal(diskLine({ freeGb: null, floorGb: 20, ok: false }), "Free space on this Mac is not known.");
   assert.equal(diskLine(undefined), "Free space on this Mac is not known.");
 });
+
+import { waitingFor, problemLine } from "../../pages/health.js";
+
+const J = (title, ready, why) => ({ id: `x/${title}`, title, ready, why });
+const jobs = { departments: [{ id: "studio", clusters: [{ id: "motion", jobs: [
+  J("A", false, { name: "video", text: "The Artist's video tool is not installed yet.", link: { page: "health" } }),
+  J("B", false, { name: "video", text: "The Artist's video tool is not installed yet.", link: { page: "health" } }),
+  J("C", false, { name: "speech", text: "The speech model is not in place yet.", link: { page: "health" } }),
+  J("D", false, { name: "reads", text: 'Fill in "Brand" first.', link: { page: "files", id: "x" } }),
+  J("E", true, null),
+] }] }] };
+
+test("health: waitingFor groups the dim jobs by what they wait for and leaves out files", () => {
+  const w = waitingFor(jobs);
+  assert.equal(w.length, 2);
+  assert.equal(w[0].text, "The Artist's video tool is not installed yet.");
+  assert.equal(w[0].count, 2);
+  assert.deepEqual(w[0].titles, ["A", "B"]);
+  assert.match(w[1].step, /^Run: /);
+  assert.deepEqual(waitingFor(null), []);
+  assert.deepEqual(waitingFor({ departments: [null, { clusters: "x" }] }), []);
+});
+
+test("health: problemLine says what was left out and what to do", () => {
+  assert.equal(problemLine({ file: "sales/x.json", problem: "no title" }), "The job file sales/x.json was left out: no title. Fix the file, then look here again.");
+  assert.match(problemLine("odd"), /Fix the file/);
+  assert.match(problemLine(null), /^A job file was left out/);
+});

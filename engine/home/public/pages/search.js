@@ -12,7 +12,7 @@ export function groupCount(groups) {
 }
 
 // The owner's words for a group, where the server's label is an older one.
-const GROUP_WORDS = { goals: "Tasks", knowledge: "Docs" };
+const GROUP_WORDS = { goals: "Tasks", knowledge: "Files", brain: "Files", jobs: "Jobs" };
 export const groupLabel = (g) => GROUP_WORDS[g && g.source] || (g && g.label) || "";
 
 export default function Page({ route }) {
@@ -35,7 +35,7 @@ export default function Page({ route }) {
     <div class="p-search">
       <${PageHeader} title="Search" />
       <form class="p-search__form" role="search" onSubmit=${submit}>
-        <${TextInput} type="search" value=${text} aria-label="Search" placeholder="Search tasks, documents and records"
+        <${TextInput} type="search" value=${text} aria-label="Search" placeholder="Search tasks, jobs, files and records"
           maxLength=${200} onInput=${(e) => setText(e.target.value)} />
       </form>
       ${!ok ? html`<p class="p-search__hint">Type at least two letters.</p>` : null}

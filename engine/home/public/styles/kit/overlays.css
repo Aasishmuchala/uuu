@@ -1,4 +1,7 @@
-/* kit/overlays.js: the action menu, the dialog and the drawer. Overlays own z-index 100 and up. */
+/* kit/overlays.js: the action menu, the dialog and the drawer. Overlays own z-index 100 and up.
+   Each panel is chrome glass (.u-glass-chrome in canvas.css, written out here because kit classes start with k-):
+   the strong glass fill, the blur of what is behind, a hairline, the inner highlight and the pop shadow.
+   This is one of the few stylesheets 27.3 lets use backdrop-filter; overlays are small and short-lived. */
 
 /* Menu */
 .k-menu {
@@ -8,7 +11,7 @@
 
 .k-menu--open .k-menu__trigger {
   color: var(--text);
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
 }
 
 .k-menu__list {
@@ -21,10 +24,12 @@
   min-width: calc(var(--s-12) * 4);
   max-width: min(90vw, calc(var(--s-12) * 7));
   padding: var(--s-1);
-  border: 1px solid var(--border);
-  border-radius: var(--r-3);
-  background: var(--bg-card);
-  box-shadow: var(--shadow-pop);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-4);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(var(--blur-chrome));
+  backdrop-filter: blur(var(--blur-chrome));
+  box-shadow: var(--highlight), var(--shadow-pop);
   animation: k-overlay-in var(--t-fast) var(--ease);
 }
 
@@ -35,7 +40,7 @@
   min-height: var(--h-md);
   padding: 0 var(--s-3);
   border: 0;
-  border-radius: var(--r-2);
+  border-radius: var(--r-3);
   background: transparent;
   color: var(--text);
   font-size: var(--fs-body);
@@ -44,12 +49,12 @@
 }
 
 .k-menu__item .k-icon {
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 .k-menu__item:hover,
 .k-menu__item:focus {
-  background: var(--bg-subtle);
+  background: var(--glass-soft);
 }
 
 .k-menu__item:focus-visible {
@@ -87,7 +92,7 @@
 .k-drawer__backdrop {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--text) 32%, transparent);
+  background: color-mix(in srgb, var(--canvas) 60%, transparent);
   animation: k-overlay-fade var(--t-med) var(--ease);
 }
 
@@ -96,16 +101,18 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
+  border: 1px solid var(--hairline);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(var(--blur-chrome));
+  backdrop-filter: blur(var(--blur-chrome));
   color: var(--text);
-  box-shadow: var(--shadow-pop);
+  box-shadow: var(--highlight), var(--shadow-pop);
 }
 
 .k-dialog__panel {
   width: 100%;
   max-height: 80vh;
-  border-radius: var(--r-4);
+  border-radius: var(--r-5);
   animation: k-overlay-in var(--t-med) var(--ease);
 }
 
@@ -125,7 +132,7 @@
   justify-content: space-between;
   gap: var(--s-3);
   padding: var(--s-3) var(--s-3) var(--s-3) var(--s-5);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .k-dialog__title,
@@ -150,7 +157,7 @@
   justify-content: flex-end;
   gap: var(--s-2);
   padding: var(--s-3) var(--s-5);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--hairline);
 }
 
 /* Drawer */
@@ -169,7 +176,6 @@
 
 .k-drawer--left .k-drawer__panel {
   border-width: 0 1px 0 0;
-  background: var(--bg-sidebar);
   animation: k-drawer-left var(--t-slow) var(--ease);
 }
 
@@ -208,6 +214,15 @@
   }
 }
 
+/* Motion switched off in Settings: overlays appear at once, where they belong. */
+[data-motion="off"] .k-menu__list,
+[data-motion="off"] .k-dialog__backdrop,
+[data-motion="off"] .k-drawer__backdrop,
+[data-motion="off"] .k-dialog__panel,
+[data-motion="off"] .k-drawer__panel {
+  animation: none;
+}
+
 @media (max-width: 859px) {
   .k-dialog {
     align-items: flex-end;
@@ -217,10 +232,20 @@
   .k-dialog__panel {
     max-width: none;
     max-height: 92vh;
-    border-radius: var(--r-4) var(--r-4) 0 0;
+    border-radius: var(--r-5) var(--r-5) 0 0;
   }
 
   .k-menu__item {
     min-height: calc(var(--h-lg) + var(--s-1));
+  }
+
+  /* Below 860 px a drawer is a full-width sheet (26.2), so no strip of half-covered page shows beside it. */
+  .k-drawer__panel {
+    width: 100%;
+  }
+
+  .k-drawer--left .k-drawer__panel,
+  .k-drawer--right .k-drawer__panel {
+    border-width: 0;
   }
 }

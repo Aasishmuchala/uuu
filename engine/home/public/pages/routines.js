@@ -39,10 +39,14 @@ function taskHref(run) {
   return run && run.taskId ? `#/tasks/${encodeURIComponent(run.taskId)}` : null;
 }
 
+// The last run, named by its task's title (M52 F7); without one, "Open the last run". The ref is never the link's name.
+export function runLinkLabel(run) {
+  return text(run && run.title).slice(0, 120) || "Open the last run";
+}
+
 function RunLink({ run }) {
   const href = taskHref(run);
-  const label = text(run.identifier) || "Task";
-  return href ? html`<a href=${href}>${label}</a>` : null;
+  return href ? html`<a href=${href}>${runLinkLabel(run)}</a>` : null;
 }
 
 function RoutineCard({ r, onChanged, detail }) {
@@ -88,7 +92,7 @@ function RoutineCard({ r, onChanged, detail }) {
       </div>
       ${r.lastRun && html`<p class="p-routines__last">Last run: ${runLine(r.lastRun)} ${" "}<${RunLink} run=${r.lastRun} /></p>`}
       ${notApplied
-        ? html`<p class="p-routines__unset">Not set up yet. Run: engine setup</p>`
+        ? html`<p class="p-routines__unset">Not set up yet. <a href="#/health">Open Health</a></p>`
         : html`<div class="p-routines__actions">
             <${Button} variant="plain" busy=${busy === (isOn ? "pause" : "resume")} disabled=${!!busy} onClick=${() => call(isOn ? "pause" : "resume")}>${isOn ? "Pause" : "Switch on"}<//>
             <${Button} variant="plain" busy=${busy === "run"} disabled=${!!busy} onClick=${() => call("run")}>Run now<//>
@@ -126,7 +130,7 @@ function Runs({ runs }) {
       <${StatusDot} tone=${RUN_TONE[run.state] || "off"} label=${cap(run.plainState) || cap(run.state)} />
       <span class="p-routines__run-when">${run.at ? when(run.at) : ""}</span>
       <${Tag}>${sourceWords(run.source)}<//>
-      ${href && html`<a href=${href}>${cap(run.identifier) || "Task"}${run.title ? ` ${cap(run.title, 120)}` : ""}</a>`}
+      ${href && html`<a href=${href}>${cap(run.title, 120) || "Open the run"}${run.identifier ? html` <span class="p-routines__ref">${cap(run.identifier, 20)}</span>` : null}</a>`}
       ${run.note && html`<span class="p-routines__run-note">${cap(run.note, 300)}</span>`}
     </li>`;
   })}</ul>`;

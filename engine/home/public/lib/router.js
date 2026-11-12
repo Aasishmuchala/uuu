@@ -1,14 +1,14 @@
-// Hash addresses: #/home (also the empty address), #/tasks, #/tasks/<id>, #/team/<slug> ... #/search?q=
-// The table of addresses is routes.js; old addresses are redirected there.
+// Hash addresses: #/map (also the empty address), #/tasks, #/tasks/<id>, #/jobs/<department>/<id> ...
+// #/search?q=. The table of addresses is routes.js; old addresses are redirected there.
 import { useEffect, useState } from "../vendor/preact-htm.js";
 
 export function parseHash(hash = location.hash) {
-  const raw = String(hash || "").replace(/^#/, "") || "/home";
+  const raw = String(hash || "").replace(/^#/, "") || "/map";
   const [path, qs] = raw.split("?");
   const parts = path.split("/").filter(Boolean).map((p) => {
     try { return decodeURIComponent(p); } catch { return p; }
   });
-  return { parts: parts.length ? parts : ["home"], query: new URLSearchParams(qs || "") };
+  return { parts: parts.length ? parts : ["map"], query: new URLSearchParams(qs || "") };
 }
 
 export function go(address) {

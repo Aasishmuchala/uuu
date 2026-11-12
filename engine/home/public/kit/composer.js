@@ -1,15 +1,25 @@
-// Where the owner says what should be done. CONTRACTS-V2 13.2. A text area pinned to the bottom of its container;
-// "/" at the start of a line opens the ready-made goals, "@" opens the agents and sets who it is for; Enter sends,
-// Shift+Enter makes a new line; a "Plan first" box when allowed. onSend({ text, to, planFirst, template }) -> promise.
+// Where the owner says what should be done. CONTRACTS-V2 13.2, changed by CONTRACTS-V3 28. Two modes:
+// - "task" (the default): a text area pinned to the bottom of its container; "/" at the start of a line opens the
+//   jobs, "@" opens the agents and sets who it is for; Enter sends, Shift+Enter makes a new line; a "Plan first" box
+//   when allowed. onSend({ text, to, planFirst, template }) -> promise. Picking a job calls onPickJob(job) when it is
+//   given (the page opens the job); without it the job's text fills the line, as in version 2.
+// - "ask": the map's box. One rounded glass box with a round send button and the hint under it; no Plan first, no
+//   "/" or "@" lists. onSend({ text }) -> promise.
 import { html, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
 import { Avatar } from "./avatar.js";
 import { Button } from "./button.js";
 import { Icon } from "./icon.js";
 import { Kbd } from "./text.js";
 
-export const DEFAULT_PLACEHOLDER = "Say what you want done.  /  for ready-made goals,  @  to pick who.";
+export const DEFAULT_PLACEHOLDER = "Say what you want done.  /  for jobs,  @  to pick who.";
 
 export const SHORT_PLACEHOLDER = "Say what you want done.";
+
+// The words of the box in "ask" mode (CONTRACTS-V3 25).
+export const ASK_PLACEHOLDER = "Ask the company brain, or say what you want done.";
+export const ASK_HINT = "Enter to send. A real agent reads your files, so an answer takes a minute or two.";
+// Below 480 px the pinned placeholder is cut mid-word (M18-04), so a phone gets a shorter one.
+export const ASK_SHORT_PLACEHOLDER = "Ask the brain, or say what to do.";
 const PHONE = "(max-width: 479px)";
 
 // True while the window is narrower than 480 px; follows the window as it changes.
@@ -45,12 +55,20 @@ export function trigger(value, caret) {
 const MAX_OPTIONS = 8;
 const fold = (s) => text(s).toLowerCase();
 
+// A job's department id (shape `job`: { department: { id } }), or a plain id string, or "".
+const deptOf = (g) => {
+  const d = g && g.department;
+  const id = d && typeof d === "object" ? d.id : d;
+  return typeof id === "string" && /^[a-z][a-z-]{0,31}$/.test(id) ? id : "";
+};
+
 function optionsFor(t, templates, agents) {
   if (!t) return [];
   const q = fold(t.query);
   if (t.kind === "/") {
     return (Array.isArray(templates) ? templates : [])
-      .filter((g) => g && (!q || fold(g.title).includes(q) || fold(g.summary).includes(q) || fold(g.id).includes(q)))
+      .filter((g) => g && (!q || fold(g.title).includes(q) || fold(g.summary).includes(q) || fold(g.id).includes(q)
+        || fold(g.department && g.department.title).includes(q)))
       .slice(0, MAX_OPTIONS)
       .map((g) => ({ key: `/${g.id}`, kind: "/", value: g }));
   }
@@ -62,8 +80,78 @@ function optionsFor(t, templates, agents) {
 
 let seq = 0;
 
-export function Composer({
-  placeholder = DEFAULT_PLACEHOLDER, onSend, to = null, agents = [], templates = [], allowPlanFirst = true,
+// Grows the text area with what is typed, up to 240 px.
+function useGrow(area, value) {
+  useEffect(() => {
+    const el = area.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+  }, [value]);
+}
+
+const later = (fn) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(fn) : setTimeout(fn, 0));
+
+export function Composer(props) {
+  return props && props.mode === "ask" ? html`<${AskBox} ...${props} />` : html`<${TaskComposer} ...${props} />`;
+}
+
+// The map's box: a question for the company brain or a request, sent as the owner typed it.
+function AskBox({ placeholder, hint, onSend, busy = false, autoFocus = false, initialText = "" }) {
+  const [value, setValue] = useState(text(initialText));
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const area = useRef(null);
+  const ids = useMemo(() => { seq += 1; return { field: `k-composer-field-${seq}`, hint: `k-composer-hint-${seq}` }; }, []);
+  useEffect(() => { if (autoFocus && area.current) area.current.focus(); }, [autoFocus]);
+  useGrow(area, value);
+  const phone = usePhone();
+  const isBusy = busy || sending;
+
+  const send = async () => {
+    const body = value.trim();
+    if (!body || isBusy || !onSend) return;
+    setSending(true);
+    setError("");
+    try {
+      await onSend({ text: body });
+      setValue("");
+    } catch (e) {
+      setError(text(e && e.message) || "That did not go through. Try again.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const onKeyDown = (ev) => {
+    if (ev.isComposing) return;
+    if (ev.key === "Enter" && !ev.shiftKey) {
+      ev.preventDefault();
+      send();
+    }
+  };
+
+  const onInput = (ev) => {
+    setValue(ev.currentTarget.value);
+    if (error) setError("");
+  };
+
+  return html`<div class=${`k-composer k-composer--ask${isBusy ? " k-composer--busy" : ""}`}>
+    <div class="k-composer__box">
+      <label class="u-visually-hidden" for=${ids.field}>Ask, or say what you want done</label>
+      <textarea id=${ids.field} ref=${area} class="k-composer__field" rows="1" value=${value}
+        placeholder=${phone && (!text(placeholder) || placeholder === ASK_PLACEHOLDER) ? ASK_SHORT_PLACEHOLDER : text(placeholder) || ASK_PLACEHOLDER} readOnly=${isBusy} aria-busy=${isBusy ? "true" : "false"}
+        aria-describedby=${ids.hint} onInput=${onInput} onKeyDown=${onKeyDown}></textarea>
+      <button type="button" class="k-composer__send" aria-label=${isBusy ? "Sending" : "Send"}
+        disabled=${isBusy || !value.trim()} onClick=${send}><${Icon} name="send" /></button>
+    </div>
+    <p class="k-composer__note" id=${ids.hint}>${text(hint) || ASK_HINT}</p>
+    ${error && html`<p class="k-composer__error" role="alert"><${Icon} name="alert" /><span>${error}</span></p>`}
+  </div>`;
+}
+
+function TaskComposer({
+  placeholder = DEFAULT_PLACEHOLDER, onSend, onPickJob, hint, to = null, agents = [], templates = [], allowPlanFirst = true,
   busy = false, autoFocus = false, initialText = "",
 }) {
   const [value, setValue] = useState(text(initialText));
@@ -81,12 +169,7 @@ export function Composer({
 
   useEffect(() => { setWho(to || null); }, [to]);
   useEffect(() => { if (autoFocus && area.current) area.current.focus(); }, [autoFocus]);
-  useEffect(() => {
-    const el = area.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
-  }, [value]);
+  useGrow(area, value);
 
   const t = closed ? null : trigger(value, caret);
   const options = optionsFor(t, templates, agents);
@@ -104,7 +187,7 @@ export function Composer({
     const pos = start + insert.length;
     setValue(next);
     setCaret(pos);
-    requestAnimationFrame(() => {
+    later(() => {
       const el = area.current;
       if (el) { el.focus(); el.setSelectionRange(pos, pos); }
     });
@@ -112,13 +195,17 @@ export function Composer({
 
   const pick = (opt) => {
     if (!opt) return;
-    if (opt.kind === "/") {
+    if (opt.kind === "/" && typeof onPickJob === "function") {
+      // The page opens the job, with its own questions; the "/" and what follows it are taken out of the line.
+      replaceTrigger("");
+      onPickJob(opt.value);
+    } else if (opt.kind === "/") {
       const g = opt.value;
       setTemplate(text(g.id) || null);
       if (g.to) setWho(g.to);
       if (allowPlanFirst) setPlanFirst(!!g.planFirst);
       const insert = text(g.text);
-      // A ready-made goal replaces the whole line it was picked from.
+      // A job's text replaces the whole line it was picked from.
       replaceTrigger(insert);
     } else {
       setWho(opt.value.slug);
@@ -176,15 +263,16 @@ export function Composer({
 
   return html`<div class=${`k-composer${isBusy ? " k-composer--busy" : ""}`}>
     ${open && html`<div class="k-composer__menu" id=${ids.list} role="listbox"
-        aria-label=${t.kind === "/" ? "Ready-made goals" : "Agents"}>
-      <p class="k-composer__menu-head">${t.kind === "/" ? "Ready-made goals" : "Give it to"}</p>
+        aria-label=${t.kind === "/" ? "Jobs" : "Agents"}>
+      <p class="k-composer__menu-head">${t.kind === "/" ? "Jobs" : "Give it to"}</p>
       ${options.map((o, i) => html`<button type="button" role="option" tabindex="-1" key=${o.key}
           id=${`${ids.list}-${i}`} aria-selected=${i === current ? "true" : "false"}
-          class=${`k-composer__option${i === current ? " k-composer__option--active" : ""}`}
+          class=${`k-composer__option${i === current ? " k-composer__option--active" : ""}${o.kind === "/" && o.value.ready === false ? " k-composer__option--dim" : ""}`}
           onMouseDown=${(e) => e.preventDefault()} onClick=${() => pick(o)}>
         ${o.kind === "@"
           ? html`<${Avatar} slug=${o.value.slug} name=${o.value.name} size=${20} /><span class="k-composer__option-title">${text(o.value.name)}</span>`
-          : html`<span class="k-composer__option-title">${text(o.value.title)}</span>
+          : html`${deptOf(o.value) && html`<span class="k-composer__option-dot" data-dept=${deptOf(o.value)} aria-hidden="true"></span>`}
+              <span class="k-composer__option-title">${text(o.value.title)}</span>
               ${o.value.summary && html`<span class="k-composer__option-hint">${text(o.value.summary)}</span>`}`}
       </button>`)}
     </div>`}
@@ -197,7 +285,7 @@ export function Composer({
           <button type="button" class="k-composer__clear" aria-label=${`Do not give it to ${text(whoAgent.name)}`}
             onClick=${() => setWho(null)}><${Icon} name="cross" /></button>
         </span>`}
-        ${template && html`<span class="k-composer__template"><${Icon} name="layers" /><span>Ready-made goal</span></span>`}
+        ${template && html`<span class="k-composer__template"><${Icon} name="layers" /><span>Job</span></span>`}
       </div>`}
       <label class="u-visually-hidden" for=${ids.field}>What you want done</label>
       <textarea id=${ids.field} ref=${area} class="k-composer__field" rows="2" value=${value}
@@ -212,7 +300,9 @@ export function Composer({
             onChange=${(e) => setPlanFirst(e.currentTarget.checked)} />
           <span>Plan first</span>
         </label>`}
-        <span class="k-composer__hint" aria-hidden="true"><${Kbd}>Enter<//> to send, <${Kbd}>Shift<//> + <${Kbd}>Enter<//> for a new line</span>
+        ${text(hint)
+          ? html`<span class="k-composer__hint">${text(hint)}</span>`
+          : html`<span class="k-composer__hint" aria-hidden="true"><${Kbd}>Enter<//> to send, <${Kbd}>Shift<//> + <${Kbd}>Enter<//> for a new line</span>`}
         <${Button} variant="primary" icon="send" busy=${isBusy} disabled=${isBusy || !value.trim()} onClick=${send}>Send<//>
       </div>
       ${error && html`<p class="k-composer__error" role="alert"><${Icon} name="alert" /><span>${error}</span></p>`}

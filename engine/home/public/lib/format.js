@@ -1,4 +1,4 @@
-// Plain-language formatting for times, sizes and counts.
+// Plain-language formatting for times, sizes and counts, and the page address of a link.
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -60,22 +60,48 @@ export function greeting(date = new Date()) {
   return "Good evening";
 }
 
-// The page address for a `link` the API sends ({ page, id }) (CONTRACTS-V2 14.4). Null without a page.
+// The token of a file in the company brain: the base64url of its path inside the brain, without padding
+// (CONTRACTS-V3 32.2). Works in the browser and in Node.
+export function fileToken(path) {
+  const bytes = new TextEncoder().encode(String(path ?? ""));
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+const RECORDS = ["books", "customers", "support", "people", "marketing", "studio"];
+
+// The page address for a `link` the API sends ({ page, id }) (CONTRACTS-V2 14.4, CONTRACTS-V3 26.3).
+// Null without a page. Old page names go where their addresses now redirect.
 export function linkHref(link) {
   if (!link || !link.page) return null;
   const page = String(link.page);
   const has = link.id !== undefined && link.id !== null && link.id !== "";
-  const id = has ? encodeURIComponent(String(link.id)) : "";
+  const raw = has ? String(link.id) : "";
+  const id = encodeURIComponent(raw);
+  // A job's id is "<department>/<id>": each part is its own part of the address.
+  const path = raw.split("/").filter(Boolean).map(encodeURIComponent).join("/");
   switch (page) {
     case "tasks":
     case "goals": return has ? `#/tasks/${id}` : "#/tasks";
-    case "team": return has ? `#/team/${id}` : "#/team";
+    case "team":
+    case "company": return has ? `#/team/${id}` : "#/team";
+    case "files": return has ? `#/files?file=${id}` : "#/files";
     case "docs":
-    case "knowledge": return has ? `#/docs?doc=${id}` : "#/docs";
+    case "knowledge": return has ? `#/files?file=${fileToken(raw)}` : "#/files";
+    case "jobs":
+    case "gallery": return has && path ? `#/jobs/${path}` : "#/jobs";
+    case "departments": return has ? `#/departments/${id}` : "#/map";
+    case "map": return has ? `#/map/${id}` : "#/map";
+    case "home": return "#/map";
+    case "inbox":
+    case "needs-you": return "#/needs-you";
+    case "dashboards": return has ? `#/dashboards/${id}` : "#/dashboards";
     case "routines": return has ? `#/routines/${id}` : "#/routines";
-    case "gallery": return has ? `#/gallery?open=${id}` : "#/gallery";
-    case "studio": return has ? `#/studio?sprite=${id}` : "#/studio";
-    default: return `#/${encodeURIComponent(page)}`;
+    case "studio": return has ? `#/dashboards/studio?sprite=${id}` : "#/dashboards/studio";
+    default:
+      if (RECORDS.includes(page)) return `#/dashboards/${page}`;
+      return `#/${encodeURIComponent(page)}`;
   }
 }
 
