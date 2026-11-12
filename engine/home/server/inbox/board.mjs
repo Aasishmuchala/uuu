@@ -20,8 +20,10 @@
 // A write the board may have made although its answer did not arrive in time is looked up again before it is
 // reported as failed, so the owner is never told "the board is off" for an answer that was recorded.
 // The board's "blocked, waiting on you" card (blocker_attention) stays up after the owner has answered, for as long
-// as the agent's run waits its turn. Such a card is left out while a run of the blocked task (or of a task above
-// it) is queued or running, or for a moment after the owner acted on the task (lib/turn.mjs answeredBlock); the task
+// as the agent's run waits its turn. Such a card is left out only once the owner has answered after the block (the
+// home server's `acted:` record or the owner's own comment), and then while a run of the blocked task (or of a task
+// above it) is queued or running, or for a moment after the answer (lib/turn.mjs answeredBlock); a run with no
+// answer from the owner never hides it. The task
 // then shows as waiting its turn (lib/tasks.mjs answeredTurn). When the block is still there with nothing queued or running, the card is back.
 // Only board records decide it: the runs the board lists, who wrote a comment, when the board blocked the task,
 // and the home server's own record of the owner's action.
@@ -390,8 +392,9 @@ async function answeredBlockCards(ctx, items, issues, companyId) {
     const runs = treeRuns(live, new Set(chainOf(issues, issue.id)));
     const blockedAt = issue.blockedTransitionAt || card.activityAt || null;
     let ownerAt = actedAt(ctx.decisions, root.id);
-    if (!runs.running && !runs.queued && !answeredBlock({ blockedAt, ownerAt })) {
-      // The owner's own comments on the blocked task and on its top task (a reply, an ANSWER:).
+    if (!answeredBlock({ blockedAt, ownerAt })) {
+      // The owner's own comments on the blocked task and on its top task (a reply, an ANSWER:), read whether or not
+      // a run is live: a run alone never hides the card (lib/turn.mjs answeredBlock).
       for (const id of new Set([issue.id, root.id])) {
         try { ownerAt = newer(ownerAt, ownerCommentAt(await ctx.board.get(`/api/issues/${encodeURIComponent(id)}/comments`))); } catch { /* unread: no answer seen */ }
       }

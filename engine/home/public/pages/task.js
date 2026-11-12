@@ -462,9 +462,10 @@ function ChosenCheck({ check }) {
     </div>`;
 }
 
-function Rounds({ id, acceptance, query }) {
+function Rounds({ id, acceptance, query, ask = false }) {
   const rounds = list(acceptance && acceptance.rounds).filter((r) => r && typeof r === "object");
-  if (rounds.length === 0) return html`<p class="u-caption">Not checked yet.</p>`;
+  // A question is never checked: the panel says so as the header does (M63 item 4; live, the panel still said "yet").
+  if (rounds.length === 0) return html`<p class="u-caption">${roundsLine(0, { ask })}.</p>`;
   const round = pickRound(rounds, query.get("round"));
   const check = round && round.wellFormed ? pickCheck(round, query.get("check")) : null;
   const tabs = rounds.map((r) => ({ id: text(r.n), label: `Round ${text(r.n)}`, tone: r.outcome === "pass" ? "ok" : "bad" }));
@@ -662,7 +663,7 @@ export default function Page({ route }) {
         <div class="p-task__needs">
           ${needs.map((item) => html`<${DecisionCard} key=${item.id} item=${item} onDone=${() => after("Done.")} />`)}
         </div>` : null}
-      <${Rounds} id=${id} acceptance=${acceptance} query=${query} />
+      <${Rounds} id=${id} acceptance=${acceptance} query=${query} ask=${t.ask === true} />
       ${nextOnTop(acceptance, next) ? null : html`<${NextUp} items=${next} />`}
       <${HowItWent} stages=${d.stages} timeline=${d.timeline} now=${d.generatedAt} />
       <div class="p-task__tools">

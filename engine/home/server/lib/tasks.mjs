@@ -6,6 +6,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { isFixTask } from "./draftfix.mjs";
+import { plainMarks } from "./format.mjs";
 import { departmentOf, itemDepartment } from "./departments.mjs";
 import { goalsOf, isFinished, isGoal, loadIssues, needIds, plainState, rootOf } from "./goals.mjs";
 import { aboutOf, mergeInbox, waitsOnOwner } from "./inbox.mjs";
@@ -217,7 +218,8 @@ function catalogueOf(config) {
 }
 
 // The first line of the newest result an agent wrote (comments oldest first): the text after "RESULT:", with an
-// answer's source marks ("[1]") taken out, cut to 140 characters; null when there is none. Shown as text only.
+// answer's source marks ("[1]") and Markdown's marks (lib/format.mjs plainMarks) taken out, cut to 140
+// characters; null when there is none. Shown as text only.
 export function outcomeOf(comments) {
   const list = Array.isArray(comments) ? comments : [];
   for (let i = list.length - 1; i >= 0; i -= 1) {
@@ -227,7 +229,7 @@ export function outcomeOf(comments) {
     if (!m) continue;
     const rest = c.body.slice(m[0].length, m[0].length + 8000);
     // White space is collapsed first, so no pattern below ever walks a long run of it again (S8 F1: quadratic).
-    const line = rest.split("\n").map((l) => l.replace(/\s+/g, " ").replace(/ ?\[\d{1,3}\]/g, "").replace(/ {2,}/g, " ").trim()).find(Boolean) || "";
+    const line = rest.split("\n").map((l) => plainMarks(l.replace(/\s+/g, " ")).replace(/ ?\[\d{1,3}\]/g, "").replace(/ {2,}/g, " ").trim()).find(Boolean) || "";
     if (!line) return null;
     return line.length > OUTCOME_MAX ? `${line.slice(0, OUTCOME_MAX - 1).trimEnd()}…` : line;
   }

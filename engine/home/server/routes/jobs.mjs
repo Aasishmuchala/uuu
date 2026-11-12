@@ -118,11 +118,13 @@ function placeOf(ctx, ask, value, offered, tctx) {
 }
 
 // The job's text with every [id] replaced, in one pass (an answer that holds "[x]" is never replaced again).
-// An empty optional answer leaves nothing, and the space before it goes with it.
+// An empty optional answer leaves nothing, and the space before it goes with it. An answer that ends a sentence
+// where the job's text ends one too keeps one full stop ("the office.. Keep it" on the live engine, M63).
 function fillText(text, places) {
-  const filled = text.replace(/( ?)\[([a-z][a-z0-9-]{0,30})\]/g, (all, space, id) => {
+  const filled = text.replace(/( ?)\[([a-z][a-z0-9-]{0,30})\]/g, (all, space, id, at, whole) => {
     if (!Object.hasOwn(places, id)) return all;
-    return places[id] === "" ? "" : `${space}${places[id]}`;
+    const said = whole[at + all.length] === "." ? String(places[id]).replace(/\.+$/, "") : places[id];
+    return said === "" ? "" : `${space}${said}`;
   });
   // A line an answer made that reads as a marker is kept as quoted words, never as a marker.
   return filled.split("\n").map((l) => (MARKER_LINE.test(asMarkerReads(l)) ? `> ${l.trim()}` : l)).join("\n").trim();

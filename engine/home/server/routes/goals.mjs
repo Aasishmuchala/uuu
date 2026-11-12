@@ -95,7 +95,15 @@ export default function register(app) {
     const created = await ctx.board.post(`/api/companies/${encodeURIComponent(ids.companyId)}/issues`, {
       title: titleOf(text), description: buildText({ text, to: toName, planFirst }), assigneeAgentId: chief,
       projectId: ids.projectId, status: "todo", priority: "medium",
+      // Every task the owner gives is a new task: without this the board hands back an open top-level task of the
+      // last 48 hours with the same first line, and the new text reaches nobody (as routes/jobs.mjs; M63b).
+      allowDuplicate: true,
     });
+    if (created && created.deduplicated) {
+      ctx.log("goals: the board handed back an existing task for a new one; nothing was recorded");
+      throw ctx.fail(409, "This task was not given again: the board kept an earlier one with the same words.",
+        "Open Tasks to find it, or change the first line and send it again.", "already_given");
+    }
     if (template && created && typeof created.id === "string") ctx.decisions.set(`template:${created.id}`, template);
     return { status: 201, body: { goal: summary(created, [created]) } };
   });

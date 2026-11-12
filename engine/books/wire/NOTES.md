@@ -144,7 +144,10 @@ Each user has exactly its one role (plus frappe's automatic `All` and
     Level 8 (the request's key, its mail account, its opening time) stays
     shut. `--verify` shows Support reads the sender on a request and in the
     list, cannot change it, cannot read level 8, and holds no other right
-    above level 0.
+    above level 0. The books blank a shut field rather than drop it, and a
+    blanked check box (`via_customer_portal`) still comes back as 0, so the
+    check looks for a value, not for the field's name (first live run: the
+    owner saw 1 on the sample request, Support saw 0).
 
 ## The two owner calls (CONTRACTS section 8), checked live
 

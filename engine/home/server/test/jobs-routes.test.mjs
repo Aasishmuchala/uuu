@@ -156,6 +156,17 @@ test("start: an offered earlier task picked in the form fills the identifier and
   assert.equal(decisions(h)[`from:${r.json.goal.id}`], issueId(20));
 });
 
+test("start: an answer that ends with a full stop where the job's text has one keeps one (M63, live)", async () => {
+  const { r, sent } = await start(h, "/api/jobs/operations/one-page-document", { answers: {
+    "document-title": "Tool return checklist", "who-will-read-it": "Fitters",
+    "paste-your-notes-here": "Count drills, return keys to the office.",
+  } });
+  assert.equal(r.status, 201, r.text);
+  const d = sent[0].body.description;
+  assert.ok(!d.includes(".."), d);
+  assert.match(d, /from these notes: Count drills, return keys to the office\. Keep it plain/);
+});
+
 test("start: one who gives a FOR: line; two give none; none gives none", async () => {
   const one = await start(h, "/api/jobs/sales/call-write-up", { answers: { call: "calls/2026-11-10-asha-kitchens.md", who: "Asha Kitchens" } });
   assert.equal(one.r.status, 201, one.r.text);

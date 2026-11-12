@@ -215,4 +215,47 @@ Known limits:
 
 ### The second trials, 12 November 2026
 
-(filled in by the orchestrator after the trials)
+Six trials ran at the same time on the live engine with the new interface, all with made-up values marked TRIAL. Nothing was sent out. Six at once is the hardest case: every task goes through the Chief of staff, so most of each time below was spent waiting in line.
+
+| Trial | Result |
+|---|---|
+| One question to the brain | Passed: "How long is our warranty?" was answered in about 40 seconds on an idle engine, with the file named and the answer labelled Not checked. |
+| Ask the brain, forms and files | Passed in part: four questions were answered correctly. Adding a file by paste, a picture, a table and a PDF, moving, deleting and the forms all worked, and every refusal was right. Behind five other trials each answer took 33 to 50 minutes; the answer itself took 1 to 3. |
+| The chain, from a call to an invoice draft | Passed in part: the call write-up, the proposal, the quotation (₹22,066, approved) and the invoice draft followed one another with nothing copied by hand, and the figures agreed everywhere. The write-up needed three check rounds because the job and its pack disagreed. |
+| Books | Passed: an invoice was drafted and approved. "Unpaid invoices with follow-ups" and "GST summary for a month" each had 9 of 9 figures right. |
+| Marketing | Passed in part: five concepts, an announcement sent back and redone to the note, and a five-slide carousel laid out by code in the brand's colours. The recipe log and the dashboard's list of concepts showed the wrong things. |
+| Studio video | Passed in part: a title card, a slow reveal over two pictures and captions on a spoken clip were all made and accepted. Three caption faults in the video tool got past the Checker. |
+| Six other jobs | Passed in part: all six finished and were accepted, none invented anything, and the three dim jobs refused with the right sentence. Every one needed two check rounds. |
+
+After the fixes were applied to the live engine, three were proven again on it:
+
+- A question to the brain was answered in 45 seconds, in plain sentences, with its four files named.
+- The same job started twice made two tasks, each with its own answers. Both passed their first check, in 10 and 11 minutes.
+- Captions were made again with the fixed tool: the first caption appears as the voice starts (2.0 seconds in), no frame shows two captions, and they break at sentence ends. It took 43 minutes and three check rounds; the first two failed on the notes beside the video, not the video.
+
+What to expect:
+
+- On an idle engine a question to the brain takes about a minute, and a job takes 10 to 25 minutes of work.
+- Tasks queue. With six trials open, jobs took 14 to 133 minutes from start to finish, and most of that was waiting. The home screen now says so ("Waiting its turn: 3 tasks are ahead of it.") and no longer promises "a few minutes".
+- The first check often fails and the second passes.
+
+What the trials changed (52 findings: 51 fixed, one left as a ticket):
+
+- Starting the same job twice makes two tasks. Before, the second start landed on the first task and the recipe log described the wrong work.
+- After you answer an agent's question, the task says "Your answer is waiting its turn". Before, it showed a red "blocked" card with Try again for up to 55 minutes.
+- A draft quotation's or invoice's card lists its lines, so you see what you approve. "What can come next" sits at the top of an accepted task.
+- Captions: none before the voice starts, never two at once, breaks at sentence ends. A video's length is kept to one decimal.
+- The recipe log keeps one row for every Accept and Send back. The Marketing dashboard lists the concepts.
+- Answers are plain sentences, and a long comment from an agent folds behind "Show all".
+- The call write-up job and its pack now ask for the same parts. Forms ask for what the books need: a unit, a tax code, the company's state.
+- Support's login can now read who raised a request, so a reply can be drafted to the right person. The books grant this by group of fields, so it also reads the request's priority, type, team, response times, contact and customer. It can change none of them.
+- A task that waits on you stays in Needs you until you answer it. The final review found that an agent's queued run could hide it for a while.
+- A second question or typed task with the same first line as an open one is a new task. Before, the board quietly kept the old one.
+- Agents' instructions: results name files by their titles; a slide that uses a company picture uses a real one; a manifest is never edited by hand; a point of wording is a note on a pass, not a fail.
+
+Known limits:
+
+- You cannot check a GST split by month from the home screen yet (`.scratch/company-engine/issues/23-tax-by-month-on-the-books-dashboard.md`).
+- The Checker cannot always open pictures; when it cannot, its check says so.
+- Every record the trials made was removed: in the books, the company brain, the room and the task list. The four starter packs the trials added to the brain stay (carousel, captions, call write-up, proposal), and the nine basics are empty again for you to fill.
+- Still there from the first trials: three Marketing drafts in Needs you, eight finished tasks, and the helpdesk's own sample request.

@@ -365,6 +365,10 @@ test("outcomeOf: cut to 140 characters; only an agent's comment counts; the newe
   assert.equal(outcomeOf([agent("RESULT: mine"), { body: "RESULT: the owner's", authorAgentId: null }]), "mine");
   assert.equal(outcomeOf([agent("Not a result")]), null);
   assert.equal(outcomeOf(undefined), null);
+  // Markdown's marks never reach the task's row (M63: a live row showed `SAL-QTN-2026-00001` in back quotes).
+  assert.equal(outcomeOf([agent("RESULT: The Bookkeeper fetched `SAL-QTN-2026-00001` and it is **approved**.")]),
+    "The Bookkeeper fetched SAL-QTN-2026-00001 and it is approved.");
+  assert.equal(outcomeOf([agent("RESULT:\n## Done\n- first point")]), "Done");
 });
 
 test("taskCard: a task whose text says JOB: with no record has job null; a record of a job no longer there gives null", () => {

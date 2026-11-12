@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { IDS_V3 } from "../../../test/stubs/seed.mjs";
 import { forgetComments } from "../lib/tasks.mjs";
-import { ANSWERED_GRACE_MS, aheadIn, answeredBlock, ownerCommentAt, rootFinder, treeRuns } from "../lib/turn.mjs";
+import { ANSWERED_GRACE_MS, aheadIn, answeredBlock, isOwnerComment, ownerCommentAt, rootFinder, treeRuns } from "../lib/turn.mjs";
 import { actAsSeen, call } from "../lib/testing.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 
@@ -48,7 +48,12 @@ test("treeRuns, answeredBlock and ownerCommentAt", () => {
   assert.deepEqual(treeRuns(runs, new Set(["g", "s"])), { running: 1, queued: 1, agentId: "a" });
   assert.deepEqual(treeRuns(null, new Set(["g"])), { running: 0, queued: 0, agentId: null });
   const now = T0;
-  assert.equal(answeredBlock({ live: true, now }), true, "a queued or running run of the task");
+  // A run alone answers nothing (final review, M63b): an agent can cause a run with any comment.
+  assert.equal(answeredBlock({ live: true, now }), false, "a run with no answer from the owner");
+  assert.equal(answeredBlock({ live: true, blockedAt: iso(-10), now }), false, "a run, a block, no answer");
+  assert.equal(answeredBlock({ live: true, blockedAt: iso(-10), ownerAt: iso(-20), now }), false, "an answer from before the block");
+  assert.equal(answeredBlock({ live: true, blockedAt: iso(-60), ownerAt: iso(-30), now }), true,
+    "an answer after the block and a run: waiting its turn, however long ago the answer was");
   assert.equal(answeredBlock({ blockedAt: iso(-10), ownerAt: iso(-1), now }), true, "the owner answered after the block, a moment ago");
   assert.equal(answeredBlock({ blockedAt: iso(-1), ownerAt: iso(-10), now }), false, "blocked again after the answer");
   assert.equal(answeredBlock({ blockedAt: iso(-60), ownerAt: new Date(now - ANSWERED_GRACE_MS - 1000).toISOString(), now }), false,
@@ -57,6 +62,13 @@ test("treeRuns, answeredBlock and ownerCommentAt", () => {
   assert.equal(answeredBlock({ blockedAt: iso(-1), now }), false);
   assert.equal(ownerCommentAt([{ authorAgentId: "a", createdAt: iso(5) }, { authorUserId: "u", createdAt: iso(1) }, { authorUserId: "u", createdAt: iso(2) }]), iso(2));
   assert.equal(ownerCommentAt([{ authorAgentId: "a", createdAt: iso(5) }]), null, "an agent's comment is never the owner's");
+  // The board's own notes (no agent, no user) are nobody's answer (final review, M63b).
+  const relay = { authorType: "system", authorAgentId: null, authorUserId: null, body: "System relay: STH-5 transitioned to blocked", createdAt: iso(9) };
+  assert.equal(isOwnerComment(relay), false);
+  assert.equal(ownerCommentAt([relay]), null, "a system comment is not an answer");
+  assert.equal(ownerCommentAt([relay, { authorType: "user", authorUserId: "local-board", createdAt: iso(3) }]), iso(3));
+  assert.equal(isOwnerComment({ authorType: "system", authorUserId: "local-board" }), false);
+  assert.equal(isOwnerComment({ authorAgentId: null, authorUserId: "" }), false);
 });
 
 // ---- the routes
@@ -177,9 +189,16 @@ test("a blocked card the owner has answered: left out while the task's run is qu
   assert.ok((await listed()).includes(card));
   assert.equal((await cardOf(goal.id)).column, "failed");
 
-  // The owner's answer woke the Chief of staff, whose run is queued behind other work.
+  // A run with no answer from the owner hides nothing (final review, M63b): an agent's comment can cause one.
   const ahead = run(STH(20), "running", -20);
   const mine = run(goal.id, "queued", -1);
+  assert.ok((await listed()).includes(card), "a run alone: the card stays");
+  assert.equal((await cardOf(goal.id)).column, "failed");
+  // The owner's answer after the block (longer ago than the moment allowed) woke the Chief of staff, whose run is
+  // queued behind other work.
+  h.board.state.comments.push({ id: "c6300000-0000-4000-8000-0000000000a1", issueId: goal.id, body: "ANSWER: Go ahead.",
+    authorType: "user", authorAgentId: null, authorUserId: "local-board", createdAt: iso(-10, Date.now()) });
+  forgetComments();
   try {
     assert.ok(!(await listed()).includes(card), "no Urgent card while the run waits its turn");
     let t = await cardOf(goal.id);

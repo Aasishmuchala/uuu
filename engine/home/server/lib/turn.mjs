@@ -6,7 +6,7 @@
 //     were made;
 //   - the board's parent links, so a step's run counts for its top task, and two steps of one task are one task;
 //   - for a block the owner has already answered: the time the board blocked the task, the owner's own comments
-//     (a comment with no agent as its author) and the home server's own record `acted:<task id>`, written when the
+//     (a user as author, no agent: isOwnerComment) and the home server's own record `acted:<task id>`, written when the
 //     owner acts on a Needs-you item of the task (lib/inbox.mjs).
 // `queue` is { ahead: n }: the number of tasks ahead in the agent's line. It is null once the task's own run is
 // running (the present words then hold) or when the board did not say.
@@ -71,22 +71,29 @@ export function treeRuns(liveRuns, mine) {
   return { running: running.length, queued: queued.length, agentId: first && typeof first.agentId === "string" ? first.agentId : null };
 }
 
-// True when a block the board shows is one the owner has already answered: a run of the task is queued or
-// running, or the owner acted on the task after it was blocked and less than ANSWERED_GRACE_MS ago. A block whose
-// time is not known counts as older than the owner's action.
+// True when a block the board shows is one the owner has already answered: the owner answered after the block (the
+// home server's own `acted:` record or the owner's own comment), and either a run of the task is queued or running
+// (the answer woke its agent) or the answer is less than ANSWERED_GRACE_MS old. A run alone answers nothing: any
+// comment wakes an agent, so an agent could otherwise hide a real question from Needs you by causing a run (final
+// review, M63b). A block whose time is not known counts as older than the owner's action.
 export function answeredBlock({ live = false, blockedAt = null, ownerAt = null, now = Date.now() } = {}) {
-  if (live) return true;
   const o = ms(ownerAt);
-  if (!Number.isFinite(o) || now - o >= ANSWERED_GRACE_MS || o > now + 60000) return false;
+  if (!Number.isFinite(o) || o > now + 60000) return false;
   const b = ms(blockedAt);
-  return !Number.isFinite(b) || o > b;
+  if (Number.isFinite(b) && o <= b) return false;
+  return live || now - o < ANSWERED_GRACE_MS;
 }
 
-// The newest of the owner's own comments (no agent as author) in a list, as an ISO time, or null.
+// A comment the owner wrote: a user is its author and no agent. The board's own notes ("System relay: ...", with
+// `authorType: "system"`, no agent and no user) are nobody's answer (final review, M63b).
+export const isOwnerComment = (c) => !!c && !c.authorAgentId && typeof c.authorUserId === "string" && c.authorUserId !== ""
+  && (c.authorType === undefined || c.authorType === null || c.authorType === "user");
+
+// The newest of the owner's own comments in a list, as an ISO time, or null.
 export function ownerCommentAt(comments) {
   let best = NaN;
   for (const c of Array.isArray(comments) ? comments : []) {
-    if (!c || c.authorAgentId) continue;
+    if (!isOwnerComment(c)) continue;
     const t = ms(c.createdAt);
     if (Number.isFinite(t) && !(t <= best)) best = t;
   }

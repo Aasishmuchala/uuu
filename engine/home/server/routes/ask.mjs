@@ -79,6 +79,11 @@ function stateOf(goal, tctx, parsed) {
 // `needsYou`); `paths` from brainPaths, read once per request.
 export async function askOf(ctx, tctx, goal, { paths } = {}) {
   const parsed = goal.status === "done" ? readAnswer(ctx.config, goal.identifier) : null;
+  // A blocked question is answered only by the owner's own words after the block (lib/turn.mjs answeredBlock), so
+  // its comments are read first; a run alone answers nothing.
+  if (goal.status === "blocked" && !tctx.comments.has(goal.id)) {
+    try { tctx.comments.set(goal.id, await treeComments(tctx, goal)); } catch { /* unread: no answer seen */ }
+  }
   const state = stateOf(goal, tctx, parsed);
   let answer = null;
   if (state === "answered") {
@@ -131,7 +136,16 @@ export default function register(app) {
     const created = await ctx.board.post(`/api/companies/${encodeURIComponent(ids.companyId)}/issues`, {
       title: titleOf(text), description: buildText({ text, ask: true }), assigneeAgentId: chief,
       projectId: ids.projectId, status: "todo", priority: "medium",
+      // Every question is a new task: without this the board hands back an open top-level task of the last 48
+      // hours with the same first line, and the `ask:` record would land on a task the home screen did not make
+      // (as routes/jobs.mjs; M63b).
+      allowDuplicate: true,
     });
+    if (created && created.deduplicated) {
+      ctx.log("ask: the board handed back an existing task for a question; nothing was recorded");
+      throw ctx.fail(409, "This question was not asked again: the board kept an earlier one with the same words.",
+        "Open Tasks to find its answer, or ask it in other words.", "already_asked");
+    }
     if (!created || typeof created.id !== "string") {
       throw ctx.fail(502, "The board did not take the question.", "Try again in a moment.", "board_error");
     }

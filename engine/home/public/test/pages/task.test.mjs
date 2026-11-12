@@ -295,3 +295,11 @@ test("task: once accepted, what can come next goes at the top of the panel", () 
   const panel = src.slice(src.indexOf('aria-label="Acceptance"'));
   assert.ok(panel.indexOf("nextOnTop(acceptance, next) ? html`<${NextUp}") < panel.indexOf("<${Rounds}"), "above the checks");
 });
+
+// M63, live: a question's acceptance panel said "Not checked yet." under a header that says "Not checked".
+test("task: a question's acceptance panel says Not checked, with no promise of a check", () => {
+  const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "pages", "task.js"), "utf8");
+  assert.ok(!src.includes("<p class=\"u-caption\">Not checked yet.</p>"), "no fixed words in the panel");
+  assert.ok(src.includes("roundsLine(0, { ask })"), "the panel's words come from roundsLine");
+  assert.ok(src.includes("<${Rounds} id=${id} acceptance=${acceptance} query=${query} ask=${t.ask === true} />"));
+});

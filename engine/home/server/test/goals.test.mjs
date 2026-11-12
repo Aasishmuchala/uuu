@@ -30,7 +30,7 @@ test("create: the pinned board call, no Authorization header, 201 with a summary
     assert.equal(posts[0].path, `/api/companies/${IDS.company}/issues`);
     assert.deepEqual(posts[0].body, {
       title: titleOf(long), description: text, assigneeAgentId: IDS.agents["chief-of-staff"],
-      projectId: IDS.project, status: "todo", priority: "medium",
+      projectId: IDS.project, status: "todo", priority: "medium", allowDuplicate: true,
     });
     assert.ok(posts[0].body.title.length <= 80);
     assert.ok(h.board.requests.every((x) => !("authorization" in x.headers)));
@@ -184,6 +184,7 @@ test("create: plan first, direct to the Marketer: one task for the Chief of staf
       title: "Write three captions for the new photos",
       description: "FOR: Marketer\nWrite three captions for the new photos\n\nPLAN FIRST",
       assigneeAgentId: IDS.agents["chief-of-staff"], projectId: IDS.project, status: "todo", priority: "medium",
+      allowDuplicate: true,
     });
     assert.deepEqual(writes(h.board), [`POST /api/companies/${IDS.company}/issues`]);
     assert.equal(r.json.goal.title, "Write three captions for the new photos");
@@ -228,7 +229,7 @@ test("create: the old body { text } behaves as before, with no markers and no ex
     assert.equal(r.status, 201);
     assert.deepEqual(created(h)[0].body, {
       title: "Write a welcome letter", description: text, assigneeAgentId: IDS.agents["chief-of-staff"],
-      projectId: IDS.project, status: "todo", priority: "medium",
+      projectId: IDS.project, status: "todo", priority: "medium", allowDuplicate: true,
     });
     for (const body of [{ text, planFirst: "yes" }, { text, planFirst: 1 }, { text, to: "" }, { text, to: null }]) {
       await call(h.url, "POST", "/api/goals", { body });
@@ -243,7 +244,7 @@ test("create: a ready-made goal is recorded only, under template:<id>", async ()
     assert.equal(r.status, 201);
     const id = r.json.goal.id;
     const post = created(h)[0];
-    assert.deepEqual(Object.keys(post.body).sort(), ["assigneeAgentId", "description", "priority", "projectId", "status", "title"]);
+    assert.deepEqual(Object.keys(post.body).sort(), ["allowDuplicate", "assigneeAgentId", "description", "priority", "projectId", "status", "title"]);
     assert.equal(post.body.description, "FOR: Bookkeeper\nDraft an invoice for Asha");
     const saved = JSON.parse(readFileSync(join(h.state, "home", "decisions.json"), "utf8"));
     assert.equal(saved[`template:${id}`], "books/draft-invoice");

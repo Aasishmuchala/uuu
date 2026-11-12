@@ -481,7 +481,10 @@ def sender(run, a, ticket):
 	check(bool(rows) and rows[0].get("raised_by") == raised_by, "Support can read who raised a request (in the list)")
 	a.put(f"/api/resource/HD Ticket/{ticket}", {"raised_by": "intruder@example.invalid"})
 	check(o.doc("HD Ticket", ticket).data.get("raised_by") == raised_by, "Support cannot change who raised a request")
-	seen = [f for f in ("key", "email_account", "opening_date", "via_customer_portal") if f in data]
+	# The books blank a field of a shut level; a blanked check box still comes
+	# back as 0 (the owner sees 1 on the helpdesk's own sample request), so a
+	# field counts as read only when a value comes back.
+	seen = [f for f in ("key", "email_account", "opening_date", "via_customer_portal") if data.get(f) not in (None, "", 0)]
 	check(not seen, "Support cannot read a request's level-8 fields (its key, its mail account)" + (f" (but can: {', '.join(seen)})" if seen else ""))
 	r = o.get("/api/resource/Custom DocPerm", {
 		"fields": ["permlevel", *ALL_RIGHTS], "filters": [["parent", "=", "HD Ticket"], ["role", "=", "Engine Support"]],
