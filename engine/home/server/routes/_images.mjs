@@ -3,11 +3,12 @@
 // past the end, and answer null (false for isMp4) for anything they do not recognise. openGoalFile and
 // readGoalBytes are the two functions here that touch the disk: they open a file of a goal's folder with
 // the rules of lib/taskfiles.mjs (no link on the way, then openChecked: O_NOFOLLOW and O_NONBLOCK, a
-// regular file, and the file opened is the one at that place inside the goal's folder).
+// regular file, and the file opened is the one at that place inside the goal's folder). A path that starts
+// "@research/" is a file of the goal's research folder (PLAN-V5 K10), opened by openTaskFile with the same
+// rules and the research folder's own.
 // A helper, not a feature: the default export registers nothing.
 import { closeSync, lstatSync, readSync } from "node:fs";
-import { join } from "node:path";
-import { goalFolder, openChecked } from "../lib/taskfiles.mjs";
+import { openTaskFile } from "../lib/taskfiles.mjs";
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const MAX_GIF_FRAMES = 100000;
@@ -101,21 +102,11 @@ function readHead(fd, want) {
   return bytes.subarray(0, got);
 }
 
-// One file of a goal's folder, opened once and checked. rel is the path inside the goal's folder.
+// One file of a goal's folder (or, by "@research/", of its research folder), opened once and checked. rel is
+// the path inside the goal's folder.
 // -> { fd, st, real } (the caller reads from fd and closes it, or hands it on), or null with nothing open.
 export function openGoalFile(config, identifier, rel) {
-  const base = goalFolder(config, identifier);
-  if (!base || typeof rel !== "string" || !rel || rel.length > 1024) return null;
-  if (rel.includes("\\") || rel.includes("\0") || rel.startsWith("/")) return null;
-  const parts = rel.split("/");
-  if (parts.some((s) => !s || s === "." || s === "..")) return null;
-  let dir = base;
-  for (const part of parts.slice(0, -1)) {
-    dir = join(dir, part);
-    const st = lstatOrNull(dir);
-    if (!st || !st.isDirectory()) return null;          // a link or a file on the way is refused
-  }
-  return openChecked(join(dir, parts[parts.length - 1]), base);
+  return openTaskFile(config, identifier, rel);
 }
 
 // One file of a goal's folder as bytes. rel is the path inside the goal's folder.

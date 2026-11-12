@@ -130,7 +130,7 @@ export function brandLine(brand) {
     return { tone: "warn", text: `Brand check: ${n <= 1 ? "1 thing" : `${n} things`} to look at`, lines, kit, running: false };
   }
   if (b.result === "fail") return { tone: "bad", text: `Brand check: ${n <= 1 ? "1 thing" : `${n} things`} to fix`, lines, kit, running: false };
-  if (b.result === "unknown" && all.some((l) => STILL_RUNNING.test(l))) return { tone: "live", text: BRAND_WORDS.running, lines: [], kit: false, running: true };
+  if (b.result === "unknown" && all.some((l) => STILL_RUNNING.test(l))) return { tone: "wait", text: BRAND_WORDS.running, lines: [], kit: false, running: true };
   return { tone: "off", text: BRAND_WORDS.unknown, lines, kit, running: false };
 }
 
@@ -227,10 +227,10 @@ function Scores({ review, kind }) {
   const s = scoreRows(review, kind);
   if (!s) return html`<p class="k-pick__unscored"><${Icon} name="clock" size=${14} /><span>${PICK_WORDS.noReview}</span></p>`;
   return html`<div class="k-pick__review">
+    <p class="k-pick__total-by">The Art director's scores</p>
     <div class="k-pick__total">
       <span class="k-pick__total-n">${s.total}</span>
       <span class="k-pick__total-of">of ${s.of}</span>
-      <span class="k-pick__total-by">Art director</span>
       ${s.below && html`<${Tag} tone="warn">${PICK_WORDS.below}<//>`}
     </div>
     ${s.reason && html`<p class="k-pick__reason">${s.reason}</p>`}
@@ -282,7 +282,7 @@ function Words({ body, id }) {
 
 function Preview({ v, baseId }) {
   const p = previewParts(v.preview);
-  const label = v.letter ? `${v.letter}, ${v.title}` : v.title;
+  const label = v.letter ? `Version ${v.letter}: ${v.title}` : v.title;
   if (!p.images.length && !p.text) return html`<p class="k-pick__none">${PICK_WORDS.noPreview}</p>`;
   return html`<div class="k-pick__preview">
     <${Pictures} images=${p.images} label=${label} />

@@ -1,11 +1,17 @@
 // Direct checks of each part, for GET /api/health and GET /api/state.
 // Sentences are for the owner; tool names, ports and addresses go only in `technical`.
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { closeSync, constants as fsConstants, existsSync, fstatSync, lstatSync, openSync, readFileSync, readSync } from "node:fs";
+import http from "node:http";
+import { join } from "node:path";
+import { readDoorsState } from "../../../doors/common.mjs";
 import { readModelState } from "../../../relay/state.mjs";
 import { httpRequest, parseJson } from "./httpclient.mjs";
 
 const TIMEOUT = 2000;
+const DOOR_ANSWER_MAX = 64 * 1024;
+const INDEX_MAX = 4 * 1024 * 1024;
+const PLAYBOOK_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
 async function probe(url) {
   if (!url) return { offline: true };
@@ -52,6 +58,114 @@ export async function relayState(env) {
     return { id: "relay", name: "Model relay", state: "on", sentence, technical };
   }
   return { id: "relay", name: "Model relay", state: "unhealthy", sentence: "The model relay answers but its check fails. Restart the engine: engine stop, then engine start.", technical: `${technical}; /relay/health answered ${r.status}` };
+}
+
+// ---- the three doors (PLAN-V5 K12) and the playbooks ----------------------------------------------------------
+
+const DOORS = [
+  { id: "web", name: "Web door", the: "The web door", path: "/web/health", part: "web", folder: "web", who: "Only the Researcher can reach it." },
+  { id: "generate", name: "Generation door", the: "The generation door", path: "/gen/health", part: "generate", folder: "generate", who: "Only the Artist can reach it." },
+  { id: "viewer", name: "Page viewer", the: "The page viewer", path: "/view/health", part: "viewer", folder: "viewer", who: "Only the Builder and the Art director can reach it." },
+];
+
+// One GET of a door's health on its local address: 2 seconds and 64 KB at most, so a stranger on the port can
+// neither hold Health nor fill it. -> { status, json } or { offline: true }.
+function probeDoor(url) {
+  return new Promise((resolve) => {
+    let u;
+    try { u = new URL(url); } catch { return resolve({ offline: true }); }
+    if (u.protocol !== "http:" || u.hostname !== "127.0.0.1") return resolve({ offline: true });
+    let done = false;
+    const chunks = [];
+    let size = 0;
+    const finish = (v) => { if (!done) { done = true; clearTimeout(timer); resolve(v); } };
+    const req = http.request({ host: "127.0.0.1", port: u.port || 80, path: u.pathname, method: "GET", headers: { accept: "application/json" }, agent: false }, (res) => {
+      res.on("data", (c) => {
+        size += c.length;
+        if (size > DOOR_ANSWER_MAX) { finish({ status: res.statusCode, json: null }); req.destroy(); return; }
+        chunks.push(c);
+      });
+      res.on("end", () => finish({ status: res.statusCode, json: parseJson(Buffer.concat(chunks).toString("utf8")) }));
+      res.on("error", () => finish({ offline: true }));
+    });
+    const timer = setTimeout(() => { finish({ offline: true }); req.destroy(); }, TIMEOUT);
+    req.on("error", () => finish({ offline: true }));
+    req.end();
+  });
+}
+
+// A door counts as installed once its own live task wrote `engine/<folder>/READY` (K12), or while it answers.
+function doorInstalled(env, folder) {
+  try { return lstatSync(join(env.config.engineDir, folder, "READY")).isFile(); } catch { return false; }
+}
+
+async function doorState(env, d, switches) {
+  const base = env.urls?.[d.id] || null;
+  const technical = `${d.name.toLowerCase()} on ${base || "(none in stubs mode)"}`;
+  const off = { id: d.id, name: d.name, state: "off", sentence: `${d.the} is off. Run: engine start`, technical };
+  if (!base) return off;
+  const r = await probeDoor(`${base}${d.path}`);
+  if (r.offline) {
+    if (!doorInstalled(env, d.folder)) return { ...off, state: "not_installed", sentence: `${d.the} is not installed yet.` };
+    return off;
+  }
+  const j = r.json && typeof r.json === "object" ? r.json : null;
+  if (r.status !== 200 || !j || j.part !== d.part) {
+    return { id: d.id, name: d.name, state: "unhealthy", sentence: `${d.the} answers but its check fails. Restart the engine: engine stop, then engine start.`, technical: `${technical}; ${d.path} answered ${r.status}` };
+  }
+  let extra = "";
+  if (d.id === "generate") extra = j.key === true ? "; a Runway key is saved" : "; no Runway key";
+  if (d.id === "viewer") {
+    const version = typeof j.version === "string" ? j.version.replace(/[^A-Za-z0-9 ./()-]/g, "").slice(0, 60) : "";
+    extra = j.chrome === true ? `; Chrome${version ? ` ${version}` : ""}` : "; no Chrome";
+    if (j.chrome !== true) {
+      return { id: d.id, name: d.name, state: "unhealthy", sentence: `${d.the} is on, but no Chrome was found on this Mac.`, technical: `${technical}${extra}` };
+    }
+  }
+  let sentence;
+  if (!switches.ok) sentence = `${d.the} is on. It lets no agent in: its switches could not be read. Open Settings.`;
+  else if (switches[d.id].on === true) sentence = `${d.the} is on. ${d.who}`;
+  else sentence = `${d.the} is on. It is idle: the switch in Settings is off.`;
+  return { id: d.id, name: d.name, state: "on", sentence, technical: `${technical}${extra}` };
+}
+
+// doorStates(env) -> the three Health lines of K12, in the order web, generation, viewer. A null address (stub
+// homes) is "off" with nothing called; a door that does not answer and has no READY marker is "not installed".
+export function doorStates(env) {
+  const path = env.config?.paths?.doorsState;
+  const switches = typeof path === "string" ? readDoorsState(path) : { ok: false };
+  return Promise.all(DOORS.map((d) => doorState(env, d, switches)));
+}
+
+// How many playbooks the installer put in place, from `<state>/playbooks/index.json` (read without following a
+// link, capped); 0 when it cannot be read.
+function playbookCount(dir) {
+  try { if (!lstatSync(dir).isDirectory()) return 0; } catch { return 0; }
+  let fd;
+  try { fd = openSync(join(dir, "index.json"), fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK); } catch { return 0; }
+  let text = null;
+  try {
+    const st = fstatSync(fd);
+    if (st.isFile() && st.size <= INDEX_MAX) {
+      const buf = Buffer.alloc(st.size);
+      let at = 0;
+      while (at < st.size) { const n = readSync(fd, buf, at, st.size - at, null); if (n === 0) break; at += n; }
+      text = buf.subarray(0, at).toString("utf8");
+    }
+  } catch { text = null; } finally { closeSync(fd); }
+  const data = parseJson(text);
+  const rows = Array.isArray(data) ? data : data && typeof data === "object" && Array.isArray(data.playbooks) ? data.playbooks : [];
+  const names = new Set(rows.slice(0, 200).filter((r) => r && typeof r === "object" && typeof r.name === "string" && PLAYBOOK_NAME.test(r.name)).map((r) => r.name));
+  return names.size;
+}
+
+// playbooksState(env) -> the Health line of the playbooks (K12).
+export function playbooksState(env) {
+  const dir = env.config?.paths?.playbooks;
+  const n = typeof dir === "string" ? playbookCount(dir) : 0;
+  const technical = `playbooks in ${dir || "(none)"}, from engine/playbooks/manifest.json`;
+  if (n > 0) return { id: "playbooks", name: "Playbooks", state: "on", sentence: `Playbooks: ${n} in place.`, technical };
+  return { id: "playbooks", name: "Playbooks", state: "not_installed", sentence: "Playbooks are not in place. Run: engine/playbooks/install.sh", technical };
 }
 
 export async function booksState(env) {

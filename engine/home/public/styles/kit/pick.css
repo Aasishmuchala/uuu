@@ -300,7 +300,7 @@
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 4 / 3;
+  min-height: 120px;
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--hairline);
@@ -309,12 +309,20 @@
   cursor: zoom-in;
 }
 
-.k-pick__shot img,
+/* The picture at its own shape, as wide as the version, never taller than a phone's screen allows. */
+.k-pick__shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 420px;
+  object-fit: contain;
+}
+
 .k-pick__thumb img {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 .k-pick__zoom {
@@ -476,7 +484,7 @@
 .k-pick__review {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: var(--s-1);
   padding-top: var(--s-3);
   border-top: 1px solid var(--hairline);
 }
@@ -501,7 +509,7 @@
 }
 
 .k-pick__total-by {
-  margin-left: auto;
+  margin: 0;
   font-size: var(--fs-over);
   font-weight: var(--fw-medium);
   letter-spacing: .16em;
@@ -510,7 +518,7 @@
 }
 
 .k-pick__reason {
-  margin: 0;
+  margin: 0 0 var(--s-1);
   color: var(--text);
   font-size: var(--fs-body);
   overflow-wrap: anywhere;

@@ -1,0 +1,22 @@
+{
+  "on": false,
+  "door": { "state": "on", "sentence": "The web door is running." },
+  "canSwitchOn": false,
+  "blockers": ["no_researcher"],
+  "whyNot": null,
+  "search": "keyless",
+  "searchKeySaved": false,
+  "allow": ["example.com"],
+  "block": ["example.org"],
+  "watchHosts": ["youtube.com"],
+  "caps": { "perHour": 60, "perDay": 300 },
+  "today": { "fetches": 0, "searches": 0, "watches": 0, "refused": 0, "lastAt": null },
+  "shared": [
+    { "name": "services.md", "size": 120, "source": "brain", "path": null, "token": null, "title": "services.md" }
+  ],
+  "sharedTotals": { "files": 1, "bytes": 120, "maxFiles": 50, "maxBytes": 5242880 },
+  "lastTest": null,
+  "changedAt": null,
+  "problem": null,
+  "problemSentence": null
+}

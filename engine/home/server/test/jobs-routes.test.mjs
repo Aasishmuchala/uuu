@@ -514,13 +514,15 @@ const SENTENCE = (a, b, c) => `Make three versions, one in each of these directi
 
 // A stub home on the version 3 seed whose engine folder is a copy of engine/company with TABLE as its craft table,
 // with one test-only route that writes a record as the home server would (the pick: records T18 writes).
-async function withCraftHome(fn) {
+// `edit`, when given, changes the copy of engine/company before the home starts.
+async function withCraftHome(fn, edit = null) {
   const engine = mkdtempSync(join(tmpdir(), "uuu-engine-"));
   const modules = modulesOnly({ routes: ["jobs"], inbox: ["board", "goals"] });
   let home = null;
   try {
     cpSync(join(h.config.engineDir, "company"), join(engine, "company"), { recursive: true, filter: (p) => !p.includes(`${join("company", "test")}`) });
     writeFileSync(join(engine, "company", "brand", "craft.json"), JSON.stringify({ version: 1, jobs: TABLE }));
+    if (edit) edit(join(engine, "company"));
     writeFileSync(join(modules, "routes", "zz-record.mjs"),
       'export default function register(app) { app.post("/api/test/record", async (ctx) => { ctx.decisions.set(ctx.body.key, ctx.body.value); return { ok: true }; }); }\n');
     home = await startOnV2Seed(await import("../../../test/stubs/seed.mjs"), { port: 0, moduleDirs: [modules] });
@@ -687,4 +689,102 @@ test("start (v5): the playbooks line, Review: art and the versions sentence in a
   const t = textOf(desc);
   assert.equal(t.job, "sales/proposal-from-a-call");
   assert.ok(t.text.includes("> Review: art"));
+});
+
+// ---- the reply to a start (PLAN-V5 K9): a job with craft says the job page's time, never "a few minutes"
+
+const sentence = (words) => `Started. The Chief of staff has it. ${words} when nothing else is ahead. It is checked before it reaches you.`;
+// Runs in the Chief of staff's line on the stub board, as the board lists them: work ahead of a new task.
+const chiefRuns = (home, n) => {
+  const runs = Array.from({ length: n }, (_, i) => ({
+    id: `11000000-0000-4000-8000-0000000009${String(i).padStart(2, "0")}`, companyId: IDS.company, agentId: IDS.agents["chief-of-staff"],
+    issueId: `e0000000-0000-4000-8000-0000000009${String(i).padStart(2, "0")}`, status: i === 0 ? "running" : "queued",
+    startedAt: "2026-11-12T09:00:00.000Z", createdAt: "2026-11-12T09:00:00.000Z",
+  }));
+  home.board.state.liveRuns.push(...runs);
+};
+
+test("start (v5): a job with craft and nothing ahead says the job page's time for the versions chosen", async () => {
+  await withCraftHome(async (home) => {
+    const page = (await get(home, DOC)).json.job.craft.estimate;
+    const three = await start(home, DOC, { answers: DOC_ANSWERS, versions: 3 });
+    assert.equal(three.r.status, 201, three.r.text);
+    assert.deepEqual(three.r.json.queue, { ahead: 0 });
+    assert.equal(three.r.json.message, "Started. The Chief of staff has it. About 55 to 100 minutes when nothing else is ahead. It is checked before it reaches you.");
+    assert.equal(three.r.json.message, sentence(page["3"].words), "the job page's own words");
+    const one = await start(home, DOC, { answers: DOC_ANSWERS, versions: 1 });
+    assert.equal(one.r.json.message, "Started. The Chief of staff has it. About 30 to 55 minutes when nothing else is ahead. It is checked before it reaches you.");
+    const dflt = await start(home, DOC, { answers: DOC_ANSWERS });
+    assert.equal(dflt.r.json.message, sentence(page["3"].words), "no versions in the body: the default, three");
+    const small = await start(home, "/api/jobs/support/most-common-questions-this-month", {});
+    assert.equal(small.r.status, 201, small.r.text);
+    assert.equal(small.r.json.message, sentence((await get(home, "/api/jobs/support/most-common-questions-this-month")).json.job.craft.estimate["1"].words));
+    for (const m of [three, one, dflt, small].map((s) => s.r.json.message)) assert.doesNotMatch(m, /a few minutes/);
+  });
+});
+
+test("start (v5): a job with craft and work ahead keeps today's waiting sentence, with no time", async () => {
+  await withCraftHome(async (home) => {
+    chiefRuns(home, 2);
+    const { r } = await start(home, DOC, { answers: DOC_ANSWERS, versions: 3 });
+    assert.equal(r.status, 201, r.text);
+    assert.deepEqual(r.json.queue, { ahead: 2 });
+    assert.equal(r.json.message, "Started. The Chief of staff has it. Waiting its turn: 2 tasks are ahead of it. It is checked before it reaches you.");
+    assert.doesNotMatch(r.json.message, /minute/);
+  });
+});
+
+test("start (v5): a job with no craft entry keeps today's sentence, ahead or not", async () => {
+  await withCraftHome(async (home) => {
+    for (const [path, body] of [[PROPOSAL, { answers: { extra: "" }, from: "STH-20" }], ["/api/jobs/operations/summary-of-the-week", {}]]) {
+      const { r } = await start(home, path, body);
+      assert.equal(r.status, 201, r.text);
+      assert.equal(r.json.message, STARTED, path);
+    }
+    chiefRuns(home, 1);
+    const ahead = await start(home, "/api/jobs/operations/summary-of-the-week", {});
+    assert.equal(ahead.r.json.message, "Started. The Chief of staff has it. Waiting its turn: 1 task is ahead of it. It is checked before it reaches you.");
+  });
+  const { startedMessage } = await import("../routes/jobs.mjs");
+  assert.equal(startedMessage({ ahead: 0 }), STARTED);
+  assert.equal(startedMessage(null, null), STARTED, "the board did not say, no craft");
+  assert.equal(startedMessage(null, "About 5 to 10 minutes"), sentence("About 5 to 10 minutes"));
+  assert.equal(startedMessage({ ahead: 3 }, "About 5 to 10 minutes"), "Started. The Chief of staff has it. Waiting its turn: 3 tasks are ahead of it. It is checked before it reaches you.");
+});
+
+// ---- work that follows a research task (PLAN-V5 K10): pointed at the research folder by the `template:` record
+
+// In this copy the call write-up is a job of a cluster `research`, so the seed's STH-20 (started from it, accepted)
+// is a research task, and the proposal job that takes it follows research.
+const callWriteUpIsResearch = (company) => {
+  const depsFile = join(company, "departments.json");
+  const deps = JSON.parse(readFileSync(depsFile, "utf8"));
+  deps.departments.find((d) => d.id === "sales").clusters.push({ id: "research", title: "Research" });
+  writeFileSync(depsFile, JSON.stringify(deps));
+  const jobFile = join(company, "jobs", "sales", "call-write-up.json");
+  writeFileSync(jobFile, JSON.stringify({ ...JSON.parse(readFileSync(jobFile, "utf8")), cluster: "research" }));
+};
+
+test("start (v5): work that follows a research task names the research folder, by from and by the form; an ordinary task keeps its place", async () => {
+  const research = "the call write-up in the sub-folder STH-20 of the research folder, $UUU_RESEARCH_DIR. Say back";
+  await withCraftHome(async (home) => {
+    const list = await get(home, "/api/jobs");
+    assert.deepEqual(list.json.problems, [], "the edited copy loads cleanly");
+    assert.equal((await get(home, "/api/jobs/sales/call-write-up")).json.job.cluster.id, "research");
+    const byFrom = await start(home, PROPOSAL, { answers: {}, from: "STH-20" });
+    assert.equal(byFrom.r.status, 201, byFrom.r.text);
+    assert.ok(byFrom.sent[0].body.description.includes(research), byFrom.sent[0].body.description);
+    assert.ok(!byFrom.sent[0].body.description.includes("current working folder"));
+    const byForm = await start(home, PROPOSAL, { answers: { earlier: issueId(20) } });
+    assert.equal(byForm.r.status, 201, byForm.r.text);
+    assert.ok(byForm.sent[0].body.description.includes(research), byForm.sent[0].body.description);
+    assert.equal(decisions(home)[`asked:${byForm.r.json.goal.id}`].answers.earlier, "STH-20", "the record keeps the identifier only");
+    assert.equal(decisions(home)[`from:${byForm.r.json.goal.id}`], issueId(20));
+  }, callWriteUpIsResearch);
+  await withCraftHome(async (home) => {
+    const { r, sent } = await start(home, PROPOSAL, { answers: {}, from: "STH-20" });
+    assert.equal(r.status, 201, r.text);
+    assert.ok(sent[0].body.description.includes("the call write-up in the sub-folder STH-20 of your current working folder. Say back"), sent[0].body.description);
+    assert.ok(!sent[0].body.description.includes("research"));
+  });
 });

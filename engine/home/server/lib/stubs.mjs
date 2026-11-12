@@ -13,6 +13,11 @@ import { stubBrandCheckRunner } from "./brandcheck.mjs";
 
 const ENGINE_DIR = join(SERVER_DIR, "..", "..");
 
+// The addresses a stub home never calls unless a test gives one: the gate, the provider, the relay, and the doors.
+export const STUB_URLS = Object.freeze({
+  gate: null, provider: null, relay: null, web: null, generate: null, viewer: null, preview: null,
+});
+
 // Records for state/home/decisions.json (a test's `template:` records), merged over any the seed holds.
 export function seedDecisions(state, records) {
   if (!records || typeof records !== "object") return;
@@ -25,7 +30,8 @@ export function seedDecisions(state, records) {
 
 // options: port (default 3210; 0 = any), boardSeed, benchSeed, moduleDirs, publicDir, proveCommand, log,
 // urls (override board/gate/bench addresses; provider and relay are null unless given, so a stub home
-// never calls out or probes the live relay), benchInstalled (default true), decisions (records written to
+// never calls out or probes the live relay; so are the doors' web, generate, viewer and preview, PLAN-V5 T32, so
+// a stub home never opens a socket to a live door), benchInstalled (default true), decisions (records written to
 // state/home/decisions.json before the home starts), brandCheckRunner (default: an answer at once, never a
 // process; PLAN-V5 K9).
 export async function startStubsHome(options = {}) {
@@ -53,7 +59,7 @@ export async function startStubsHome(options = {}) {
 
   const app = await createHome({
     config,
-    urls: { gate: null, provider: null, relay: null, ...(options.urls || {}) },
+    urls: { ...STUB_URLS, ...(options.urls || {}) },
     moduleDirs: options.moduleDirs,
     publicDir: options.publicDir,
     proveCommand: options.proveCommand || [process.execPath, "-e", "setTimeout(() => {}, 1500)"],

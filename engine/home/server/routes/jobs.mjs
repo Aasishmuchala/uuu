@@ -7,11 +7,12 @@
 // Version 5 (PLAN-V5 K7, K9): a job with craft may be started with one or three versions; three adds one fixed
 // sentence naming directions from the repo's directions.json, and the playbooks and review lines come from the
 // repo's craft.json. Which direction the owner picked before, and which version of an earlier task, come only
-// from the home server's own `pick:` records.
+// from the home server's own `pick:` records. Work that follows a research task (K10) is pointed at the research
+// folder, by the earlier task's `template:` record.
 import { directionsFor, pickDirections } from "../../../company/lib/craft-files.mjs";
 import { HomeError } from "../lib/errors.mjs";
 import { needIds, summary } from "../lib/goals.mjs";
-import { craftOf, jobRef, jobView, loadCatalogue, loadCraftTable, needsState, runsIndex } from "../lib/jobs.mjs";
+import { craftOf, estimateOf, jobRef, jobView, loadCatalogue, loadCraftTable, needsState, runsIndex } from "../lib/jobs.mjs";
 import { loadDepartments } from "../lib/departments.mjs";
 import { stripInvisible } from "../lib/owner-text.mjs";
 import { buildText } from "../lib/staged.mjs";
@@ -24,11 +25,14 @@ const RECENT = 10;
 const RECORD_MAX = 300;
 const CAPS = { line: 200, text: 2000 };
 const STARTED = "Started. The Chief of staff has it. It takes a few minutes and is checked before it reaches you.";
-// When other work is ahead in the Chief of staff's line (lib/turn.mjs), no time is promised (M63).
+// When other work is ahead in the Chief of staff's line (lib/turn.mjs), no time is promised (M63). A job with
+// craft says the time its job page says for the versions chosen (K9's words, `estimate`), not "a few minutes".
 const aheadWords = (n) => (n === 1 ? "1 task is" : `${n} tasks are`);
-export function startedMessage(queue) {
+export function startedMessage(queue, estimate = null) {
   const n = queue && Number.isInteger(queue.ahead) ? queue.ahead : 0;
-  return n > 0 ? `Started. The Chief of staff has it. Waiting its turn: ${aheadWords(n)} ahead of it. It is checked before it reaches you.` : STARTED;
+  if (n > 0) return `Started. The Chief of staff has it. Waiting its turn: ${aheadWords(n)} ahead of it. It is checked before it reaches you.`;
+  if (typeof estimate === "string" && estimate) return `Started. The Chief of staff has it. ${estimate} when nothing else is ahead. It is checked before it reaches you.`;
+  return STARTED;
 }
 const IDENTIFIER = /^[A-Z][A-Z0-9]{0,9}-\d{1,9}$/;
 
@@ -152,8 +156,13 @@ export function pickedVersion(ctx, taskId) {
   return null;
 }
 
-// Where an earlier task's work is, as the text says it; with the owner's pick when there is one (K9).
+// Where an earlier task's work is, as the text says it; with the owner's pick when there is one (K9). A task
+// started from a job of the cluster `research` (by its `template:` record) left its work in the research folder,
+// which every other agent reads at $UUU_RESEARCH_DIR (K10).
 function earlierPlace(ctx, identifier, taskId) {
+  const ref = ctx.decisions.get(`template:${taskId}`);
+  const from = typeof ref === "string" ? loadCatalogue(ctx.config).jobs.get(ref) : null;
+  if (from && from.cluster === "research") return `the sub-folder ${identifier} of the research folder, $UUU_RESEARCH_DIR`;
   const v = pickedVersion(ctx, taskId);
   const place = `the sub-folder ${identifier} of your current working folder`;
   return v ? `${place} (use version ${v} there: the owner picked it)` : place;
@@ -394,6 +403,7 @@ export default function register(app) {
         : { answers: kept });
       if (earlier) ctx.decisions.set(`from:${created.id}`, earlier.id);
     }
-    return { status: 201, body: { goal: summary(created, [created]), message: startedMessage(queue), queue } };
+    const estimate = craft ? estimateOf(job, craft, versions)?.words : null;
+    return { status: 201, body: { goal: summary(created, [created]), message: startedMessage(queue, estimate), queue } };
   });
 }

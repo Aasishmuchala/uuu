@@ -8,7 +8,7 @@ import { startStubBench } from "../../../test/stubs/bench.mjs";
 import { startStubBoard } from "../../../test/stubs/board.mjs";
 import { createHome, SERVER_DIR } from "./app.mjs";
 import { stubBrandCheckRunner } from "./brandcheck.mjs";
-import { seedDecisions, startStubsHome } from "./stubs.mjs";
+import { seedDecisions, startStubsHome, STUB_URLS } from "./stubs.mjs";
 
 const ENGINE_DIR = join(SERVER_DIR, "..", "..");
 
@@ -96,7 +96,7 @@ export async function startOnV2Seed(seeds, options) {
     const config = loadConfig({ path: configFile });
     app = await createHome({
       config,
-      urls: { gate: null, provider: null, relay: null, ...(options.urls || {}) },
+      urls: { ...STUB_URLS, ...(options.urls || {}) },
       moduleDirs: options.moduleDirs,
       publicDir: options.publicDir,
       proveCommand: options.proveCommand || [process.execPath, "-e", "setTimeout(() => {}, 1500)"],

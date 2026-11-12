@@ -32,10 +32,19 @@ KNOWLEDGE_MARK="$KNOWLEDGE/.fence-proof"
 ENV_FILE="$STATE_DIR/secrets/agents/proof.env"
 LINES="$(mktemp -t uuu-proof-lines)" || exit 1
 HDR=""; KEY_ID=""; KEY_AGENT=""
+# The doors' two folders (PLAN-V5, K1) and the names a program loads as its settings
+# from the folder it works in (K2a), as the checks below try to plant them.
+DOORS_DIR="$STATE_DIR/doors"; DOOR_SECRETS="$STATE_DIR/secrets/doors"; MADE_DOOR_DIRS=""
+PLANTS=".claude CLAUDE.md claude.md AGENTS.md .mcp.json .codex sub y ordinary.txt"
+STAND_IN=""
 
 cleanup() {
   rm -f "$POLICY_FILE" "$LESSONS_FILE" "$KNOWLEDGE_MARK" "$KNOWLEDGE/.fence-proof-write" "$ENV_FILE"
   rm -f "$STATE_DIR/media/.fence-proof" "$STATE_DIR/media/.fence-proof-new"
+  clear_plants
+  rm -rf "$CFG_PLAYBOOKS/.fence-proof-write" "$CFG_PLAYBOOKS/.fence-proof-dir"
+  remove_door_marks
+  stand_in_stop
   rm -rf "${STATE_DIR:?}/claude-home/$OTHER_ID" "${STATE_DIR:?}"/tasks/_proof-answer.* "${STATE_DIR:?}/codex-home/_proof-login"
   rm -rf "${CFG_INSTANCE_ROOT:?}"/companies/*/codex-home/_proof-home.*
   if [[ -n "$KEY_ID" ]]; then
@@ -43,6 +52,22 @@ cleanup() {
   fi
   [[ -n "$HDR" ]] && rm -f "$HDR"
   rm -f "$LINES"
+}
+# The proof's own leftovers in its task folder: removed from outside, never following
+# a link (rm removes a link itself, not what it points at).
+clear_plants() {
+  local n
+  for n in $PLANTS; do rm -rf "${WS:?}/$n"; done
+}
+remove_door_marks() {
+  local d
+  rm -f "$DOORS_DIR/.fence-proof" "$DOOR_SECRETS/.fence-proof"
+  for d in $MADE_DOOR_DIRS; do rmdir "$d" 2>/dev/null; done
+  MADE_DOOR_DIRS=""
+}
+stand_in_stop() {   # only the proof's own stand-in, by its process id
+  if [[ -n "$STAND_IN" ]]; then kill "$STAND_IN" 2>/dev/null; wait "$STAND_IN" 2>/dev/null; fi
+  STAND_IN=""
 }
 trap cleanup EXIT
 trap 'exit 1' INT TERM HUP
@@ -102,6 +127,81 @@ REACH_BENCH="curl -s -m 6 -H '$SITE_HEADER' $BENCH/api/method/ping | grep -q pon
 # outside the fence; a settings file it cannot trust is a failure of its own.
 MODE="$(/usr/bin/python3 -I "$HERE/model_mode.py" --mode 2>&1 </dev/null)" \
   || { say FAIL "the model settings could not be read (${MODE#fence: })"; MODE=""; }
+
+# Which doors are switched on, as door_mode.py reads the switches file outside the
+# fence: none when there is no file, or one it cannot trust (the fence then opens no door).
+DOORS_ON="$(within 30 /usr/bin/python3 -I -c 'import sys
+sys.path.insert(0, sys.argv[1])
+import door_mode, model_mode
+s = door_mode.read_state(model_mode.load_engine_config(model_mode.owner_home()))
+print(" ".join(n for n in ("web", "generate", "viewer") if s.get("ok") and s[n]["on"] is True))' "$HERE" 2>/dev/null </dev/null)" \
+  || { say FAIL "the doors' switches could not be read"; DOORS_ON=""; }
+
+# A fenced call to a port where nothing answers fails whether or not the fence refuses
+# it, so it proves nothing. The same request must first succeed from outside the fence.
+# Where nothing listens on such a port, the proof listens there itself for the length of
+# the check: a stand-in of its own that answers every request with 200, ends by itself
+# after two minutes, and is stopped again by its process id.
+STAND_IN_PY='import json, signal, socket, sys, threading, time
+signal.alarm(int(sys.argv[1]))
+body = json.dumps({"status": "ok", "part": "proof"}).encode()
+answer = b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: %d\r\n\r\n" % len(body) + body
+def serve(s):
+    while True:
+        c = s.accept()[0]
+        try:
+            c.settimeout(2)
+            c.recv(65536)
+            c.sendall(answer)
+        except OSError:
+            pass
+        finally:
+            c.close()
+bound = 0
+for p in sys.argv[2:]:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind(("127.0.0.1", int(p)))
+        s.listen(16)
+    except OSError:
+        s.close()
+        continue
+    threading.Thread(target=serve, args=(s,), daemon=True).start()
+    bound += 1
+if not bound:
+    sys.exit(1)
+while True:
+    time.sleep(60)'
+answers_ok() { curl -s -m 3 -f --noproxy '*' -o /dev/null "http://127.0.0.1:$1$2" 2>/dev/null; }   # <port> <path>
+NOT_ANSWERING=""
+stand_in() {   # stand_in <port> <path> ...: afterwards NOT_ANSWERING names each port that still does not answer
+  local need=() ports=() i
+  stand_in_stop
+  NOT_ANSWERING=""
+  while (( $# >= 2 )); do
+    answers_ok "$1" "$2" || { need+=("$1" "$2"); ports+=("$1"); }
+    shift 2
+  done
+  (( ${#need[@]} )) || return 0
+  /usr/bin/python3 -I -c "$STAND_IN_PY" 120 "${ports[@]}" </dev/null >/dev/null 2>&1 &
+  STAND_IN=$!
+  set -- "${need[@]}"
+  while (( $# >= 2 )); do
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+      answers_ok "$1" "$2" && break
+      sleep 0.25
+    done
+    answers_ok "$1" "$2" || NOT_ANSWERING="$NOT_ANSWERING $1"
+    shift 2
+  done
+  NOT_ANSWERING="${NOT_ANSWERING# }"
+}
+# A fenced shell line that succeeds when anything on <port> answers <path> with 2xx,
+# by either name, through the fence's proxy or around it.
+reach() {
+  printf "curl -s -m 5 -f -o /dev/null http://127.0.0.1:%s%s || curl -s -m 5 -f -o /dev/null http://localhost:%s%s || curl -s -m 5 -f --noproxy '*' -o /dev/null http://127.0.0.1:%s%s" \
+    "$1" "$2" "$1" "$2" "$1" "$2"
+}
 
 # An agent's id from ids.json, or nothing.
 agent_id_of() {
@@ -192,12 +292,90 @@ fence_checks() {
   else say PASS "$WHO cannot take fence rules from the environment"; fi
   allowed "read its own task folder"            'cat note.txt'
   allowed "write in its own task folder"        'echo x > made-inside.txt'
+  # Program settings in a task folder would load in the next agent's program there
+  # (PLAN-V5, K2a). Each try is joined with ||, so any one that works fails the
+  # check; the folder is cleared of them first, so no try fails only because its
+  # name is already taken. Ordinary files beside them must still write.
+  clear_plants
+  blocked "plant program settings in its task folder (.claude, CLAUDE.md, AGENTS.md, .mcp.json, .codex)" \
+    'mkdir .claude || echo x > CLAUDE.md || echo x > claude.md || echo x > AGENTS.md || echo x > .mcp.json || mkdir .codex || { mkdir -p sub && echo x > sub/CLAUDE.md; } || { echo x > y && mv y CLAUDE.md; } || ln -s note.txt AGENTS.md'
+  local name
+  for name in .claude CLAUDE.md AGENTS.md .mcp.json .codex sub/CLAUDE.md; do
+    if [[ -e "$WS/$name" || -L "$WS/$name" ]]; then say FAIL "$WHO left $name in its task folder"; fi
+  done
+  clear_plants
+  allowed "still write an ordinary file beside them" 'echo x > ordinary.txt && mkdir -p sub && echo x > sub/ordinary.txt'
+  if [[ ! -f "$WS/ordinary.txt" || ! -f "$WS/sub/ordinary.txt" ]]; then say FAIL "the ordinary files $WHO wrote did not arrive in its task folder"; fi
+  clear_plants
   allowed "use a here-document in zsh, its tools' shell" "/bin/zsh -c 'cat <<< fence-heredoc | grep -q fence-heredoc'"
   if [[ -e "$HOME/fence-escape-test.txt" ]]; then say FAIL "a file was written outside the fence"; rm -f "$HOME/fence-escape-test.txt"; fi
   refuses "run from engine/, which is not an agent task folder" "not an agent task folder" \
     /bin/bash -c 'cd "$1" && shift && "$@"' _ "$CFG_ENGINE_DIR" "$RUN" --fence-check 'echo FENCE_UP'
   refuses "its agent id has no fence policy" "no fence policy for this agent" \
     env PAPERCLIP_AGENT_ID="$OTHER_ID" "$RUN" --fence-check 'echo FENCE_UP'
+}
+
+# The playbooks (PLAN-V5, K4 and K2f): every run with a policy may read them, none may
+# write there. Until the installer has put them in place there is nothing to read and
+# nothing to refuse, so both checks wait for it.
+playbook_checks() {
+  local pb="$CFG_PLAYBOOKS" why="(playbooks not in place: run engine/playbooks/install.sh)"
+  if [[ ! -d "$pb" || -L "$pb" || ! -f "$pb/index.json" || -L "$pb/index.json" ]]; then
+    say SKIP "whether $WHO can read the playbooks $why"
+    say SKIP "whether $WHO can write in the playbooks $why"
+    return
+  fi
+  allowed "read the playbooks" \
+    "test \"\$UUU_PLAYBOOKS_DIR\" = $pb && ls \"\$UUU_PLAYBOOKS_DIR\" >/dev/null && cat \"\$UUU_PLAYBOOKS_DIR/index.json\" >/dev/null"
+  rm -rf "$pb/.fence-proof-write" "$pb/.fence-proof-dir"
+  blocked "write in the playbooks" \
+    'echo x > "$UUU_PLAYBOOKS_DIR/.fence-proof-write" || mkdir "$UUU_PLAYBOOKS_DIR/.fence-proof-dir"'
+  if [[ -e "$pb/.fence-proof-write" || -e "$pb/.fence-proof-dir" ]]; then
+    say FAIL "a file was made in the playbooks from inside the fence"
+  fi
+  rm -rf "$pb/.fence-proof-write" "$pb/.fence-proof-dir"
+}
+
+# The doors and the narrow gate (PLAN-V5, K2c and K2d). A door enters a run's fence only
+# while its switch is on, and only for the agents it serves; the narrow gate only for
+# the walled Researcher. The proof's own agent is neither, so it reaches none of them.
+# Each port must answer from outside first (the real part, or the proof's stand-in).
+# The doors' settings and secrets are read with nothing to tell them apart from any
+# other file: the real ones when there are any, and a mark the proof puts in each of
+# their two folders (made with the doors' own mode when missing, and removed again).
+door_checks() {
+  local what d ok=1
+  if [[ -z "$DOORS_ON" ]]; then
+    what="reach the web door, the generation door or the page viewer while their switches are off"
+  else
+    what="reach the web door, the generation door or the page viewer, none of which serves it (switched on: ${DOORS_ON// /, })"
+  fi
+  stand_in "$CFG_PORT_WEB" /web/health "$CFG_PORT_GENERATE" /gen/health "$CFG_PORT_VIEWER" /view/health \
+    "$CFG_PORT_GATE_NARROW" /gate/health
+  case " $NOT_ANSWERING " in
+    *" $CFG_PORT_WEB "*|*" $CFG_PORT_GENERATE "*|*" $CFG_PORT_VIEWER "*)
+      say SKIP "whether $WHO can $what (nothing answers on port ${NOT_ANSWERING// /, }, and the proof could not stand in there)" ;;
+    *) blocked "$what" "$(reach "$CFG_PORT_WEB" /web/health) || $(reach "$CFG_PORT_GENERATE" /gen/health) || $(reach "$CFG_PORT_VIEWER" /view/health)" ;;
+  esac
+  case " $NOT_ANSWERING " in
+    *" $CFG_PORT_GATE_NARROW "*)
+      say SKIP "whether $WHO can reach the narrow gate, which serves only the Researcher (nothing answers on port $CFG_PORT_GATE_NARROW, and the proof could not stand in there)" ;;
+    *) blocked "reach the narrow gate, which serves only the Researcher" "$(reach "$CFG_PORT_GATE_NARROW" /gate/health)" ;;
+  esac
+  stand_in_stop
+  for d in "$DOORS_DIR" "$DOOR_SECRETS"; do
+    if [[ ! -e "$d" && ! -L "$d" ]]; then
+      mkdir -m 700 "$d" && MADE_DOOR_DIRS="$MADE_DOOR_DIRS $d" || ok=0
+    fi
+    [[ -d "$d" && ! -L "$d" ]] && (umask 077; echo proof > "$d/.fence-proof") || ok=0
+  done
+  if (( ok )); then
+    blocked "read the doors' settings and secrets" \
+      "cat $DOORS_DIR/.fence-proof >/dev/null || cat $DOOR_SECRETS/.fence-proof >/dev/null || ls $DOORS_DIR >/dev/null || ls $DOOR_SECRETS >/dev/null || cat $CFG_DOORS_STATE >/dev/null || cat $DOOR_SECRETS/web-secret >/dev/null || cat $DOOR_SECRETS/generate-secret >/dev/null || cat $DOOR_SECRETS/viewer-secret >/dev/null"
+  else
+    say FAIL "could not put a mark in the doors' folders ($DOORS_DIR, $DOOR_SECRETS)"
+  fi
+  remove_door_marks
 }
 
 policy_checks() {
@@ -224,6 +402,8 @@ policy_checks() {
   blocked "write in the knowledge folder" 'echo x > "$UUU_KNOWLEDGE_DIR/.fence-proof-write"'
   allowed "use the keys from its own key file" 'test "$UUU_PROOF_VALUE" = ok'
   blocked "read its key file itself" "cat $ENV_FILE"
+  playbook_checks
+  door_checks
   write_policy '[]' read-only
   allowed "read its task folder when the policy makes it read-only" 'cat note.txt'
   blocked "write in its task folder when the policy makes it read-only" 'echo x > ro-made.txt'
@@ -609,6 +789,22 @@ media_checks() {
   AS=""
 }
 media_checks
+
+# Whoever put them there, no task folder may hold program settings that the next
+# agent's program there would load (PLAN-V5, K2a's names, in any letter case, down to
+# two folders below a task folder). Looked for from outside the fence, by name only:
+# no file is opened, no link followed, and only how many is said.
+echo; echo "The task folders (no program settings for another agent's program to load)"
+settings_check() {
+  local n
+  n="$(within 60 find -P "$STATE_DIR/tasks" -maxdepth 3 \( -iname .claude -o -iname CLAUDE.md \
+    -o -iname CLAUDE.local.md -o -iname .mcp.json -o -iname AGENTS.md -o -iname AGENTS.override.md \
+    -o -iname .codex -o -iname .agents \) -print0 2>/dev/null | tr -cd '\000' | wc -c | tr -d ' ')" || n=""
+  if [[ ! "$n" =~ ^[0-9]+$ ]]; then say FAIL "the task folders could not all be looked through for program settings"
+  elif (( n == 0 )); then say PASS "the task folders hold no program settings"
+  else say FAIL "the task folders hold $n program settings (files or folders named like CLAUDE.md, .claude or AGENTS.md)"; fi
+}
+settings_check
 
 echo
 RESULT="holds"
