@@ -120,6 +120,58 @@ Under Dashboards. The Drafter designs parts. For each it gives a STEP file and a
 - **The room** is a folder where you drop your own footage and sound with Finder (the Studio shows where, under "Where is this folder?"). Big files cannot go through the browser.
 - A vector image cannot run a script when shown. There is no 3D and no web-page video yet.
 
+## Your brand kit and examples
+
+The brand kit is where your brand becomes rules the tools obey, not advice they may forget. It was built and tested on 12 November 2026. It is not live yet: it goes live with the next restart of the home screen and `engine setup`. Until you save a kit, nothing is enforced and every tool works as before.
+
+Where it is: open Files and press the card "Brand kit". It has its own page. Only you write in it. Agents cannot.
+
+Fill it in like this.
+
+1. If you have a brand book, add it to Brand in Files ("Add your brand book" on the Brand kit page does this). Then open Jobs, find "Read the brand book" (in Operations) and press Start. It proposes values for you. It never saves them. You accept them one part at a time, then press Save.
+2. Or fill it in yourself, top to bottom. Do Colours first. Everything else is drawn with them.
+3. Give each colour a name, a hex code and a role. One colour must be the main one.
+4. Choose a heading typeface and a body typeface. If yours is not on this Mac, add its font file under "Your font files" (up to six files, 5 MB each) and then choose it.
+5. Choose your logo files, say how much clear space it needs, and the smallest size it may be.
+6. Under "How we sound", write your voice words, one line on how you sound, and examples of what you do and don't say.
+7. Under "Examples", pick pictures of work you approve. Add them first with "Add pictures" (they go in the References folder). For each one, tick what kind of work it is an example of, and write why it is good in your own words ("The light on the stone; nothing else in the frame."). The Art director reads your words.
+8. Press "Save the brand kit". The page says "Saved. Every tool uses this from now on."
+
+What each part does:
+
+- **Colours, type and logo.** Slides, title cards, captions and end cards take them from the kit. The tools refuse a colour or typeface that is not in it.
+- **How we sound.** Makers read it before they write. Your words never to use (the Words never to use form) still apply.
+- **Examples.** The Art director lays new work beside them and scores it.
+- **For the Researcher.** A short public summary of the brand. It is saved now and used by a later step.
+
+The brand check is code, not an opinion. Before any reviewer sees a piece it measures it: colours that are not in your palette, your banned phrases, a shipped list of machine-sounding filler such as "unlock the power of", a missing or wrong logo where you asked for one, and a script that loads its own typeface. If a hard rule fails, the work goes back to the maker with the check's own words. No reviewer's time is spent. It cannot read type from a picture and it does not judge photographs, so the Art director also looks.
+
+No rule can guarantee taste. What is done instead is this: real inputs (your own pictures and examples, not a text prompt), the code check, a reviewer that must say what it looked at, versions you choose between, and your choices remembered in your own words.
+
+## Versions and picking
+
+Some jobs offer a choice on the job page: "One (fastest)" or "Three to choose from". Three versions are three different directions, such as "Type led", "Picture led" and "Diagram led" for a carousel. They are not three takes on one idea. Each is checked by the brand check, then scored by the Art director on seven things: brand, hierarchy, composition, finish, idea, voice and kind. Each version is scored on its own. The Art director never picks.
+
+What it costs in time. Three versions with an art review take about twice as long as one. The job page shows an estimate before you press Start. For example, a large job with two agents is about 30 to 55 minutes with one version and about 55 to 100 minutes with three. A small one-agent job with no art review is about 5 to 10 minutes. Once a job has run three times, the page also shows how long your last runs took. Choosing "One (fastest)" keeps jobs as fast as before.
+
+To pick:
+
+1. Open Needs you. A task with versions shows as "Pick one: ..." with the versions side by side, each with its scores and a one-line reason.
+2. Press "Pick this one" under the version you want. You may add a note.
+3. Or press "Another round" for fresh directions, or "Send all back" and say why. A note is needed when you send all back.
+
+Picking counts as accepting. Nothing is published or sent. The Art director does at most two rounds on its own work. After that the Checker still checks facts and figures, and you see the scores.
+
+What is remembered. The home screen writes your choice to the recipe log, and to a file called the taste file (`brand/taste.md` in Files, under Brand). It holds the date, the kind of work, the direction you picked and the others, and your own note. Only the home screen writes it, only from your choices. Makers and the Art director read it before the next piece of that kind, and a direction you picked before is kept in the next round.
+
+## Playbooks
+
+A playbook is craft advice an agent reads before a kind of work: how to write a post, lay out a carousel, light a render, cut a film, build a page. There are sixteen. Ten are your own skill folders from `~/.claude/skills/` on this Mac. Six are a third party's work, kept with their licence where there is one.
+
+To install them, run `engine/playbooks/install.sh`. It copies only the files the list in `engine/playbooks/manifest.json` names (notes in text, Markdown or JSON, at most 512 KB each and 20 MB in all) into `~/.paperclip/uuu-engine/playbooks/`. It never copies a folder whole, a script, a picture, a font or a program. It downloads nothing. A skill folder that is not on this Mac is skipped with one line. `engine/playbooks/install.sh --check-only` says how many are installed.
+
+The repository holds only the list, because it is on GitHub and some of the text is a third party's. Every agent can read the playbooks and none can change them. Each copy has a note, `IN-THIS-ENGINE.md`, that says what to do where a playbook assumes a browser, the internet, a paid tool or an install, which agents here do not have.
+
 ## What is switched off
 
 Each is an off switch or an account step. Nothing is done for you.
@@ -189,6 +241,8 @@ None of these is built or running. Each is a choice for later. Settings lists th
 ## Where things live
 
 - The engine's state: `~/.paperclip/uuu-engine/`. It holds the company records (`books/`), agents' task folders (`tasks/`), lessons (`lessons/`), the company brain's files (`knowledge/docs/`), the Drafter's and Artist's tools (`cad/`, `art/`), your footage and the speech model (`media/`) and the last proof (`proof/last.json`).
+- Playbooks: `~/.paperclip/uuu-engine/playbooks/` (one folder each, with `index.json`). Made by `engine/playbooks/install.sh`. Every agent reads them, none writes them.
+- The brand kit: `~/.paperclip/uuu-engine/knowledge/docs/brand/kit.json`, with `kit.css`, `brand.md`, your fonts in `fonts/` and the taste file `taste.md` beside it. Only the home server writes them. The brand's short public summary is `knowledge/shared/brand-public.md`.
 - Omega Plus settings: `~/.paperclip/uuu-engine/models/state.json` (the mode, the picks, the last list of models) and `relay-status.json` beside it (what the model relay has seen). The key is `secrets/provider/omega-key` and the relay's own secret is `secrets/provider/relay-secret`. Agents cannot reach any of them.
 - Logs: `~/.paperclip/uuu-engine/logs/`. One file per part, including `relay.log`, plus `gate-refusals.log`, which lists what the gate turned away.
 - Secrets: `~/.paperclip/uuu-engine/secrets/`, and the agents' login in `agent.env` beside it. Only you can read them. They are never in the repository and are never shown here.

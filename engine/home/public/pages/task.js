@@ -5,6 +5,10 @@
 // answer. Beside the column when there is room (under the title when there is not): the acceptance panel with
 // the state, Accept and Send back, the other Needs-you items, the rounds and their checks, what can come next,
 // how it went, the files, a note and stop. Below 860 px a bar above the tab bar holds Accept and Send back.
+// A task of a job that makes versions (PLAN-V5 K9) shows them above the story: while it waits on the owner, the
+// card to pick one from (the pick is the acceptance, so the panel points to it in place of Accept); after, the
+// versions as they are, from GET /api/tasks/:id/pieces. When that route is not there (404, an older home server)
+// or fails, the page is as it was.
 // Address state: ?round=<n>, ?check=<n>, ?doc=<stage id>, ?files=1. Everything here was written by agents:
 // shown as text only, sizes capped, no link followed.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
@@ -14,7 +18,8 @@ import { waitingLine } from "../lib/format.js";
 import { go } from "../lib/router.js";
 import {
   AnswerView, Avatar, Button, Chip, CheckList, Conversation, DecisionCard, DocView, Empty, ErrorNotice, Evidence,
-  FileCard, Icon, Loading, PageHeader, Tabs, TextArea, Timeline, changedText, isChangedSinceSeen, jobHref, useInboxAct,
+  FileCard, Icon, Loading, PageHeader, PickNudge, Tabs, TextArea, Timeline, Versions, brandLine, changedText, isChangedSinceSeen,
+  isPickItem, jobHref, useInboxAct,
 } from "../kit/index.js";
 
 const BACK = { href: "#/tasks", label: "All tasks" };
@@ -255,6 +260,23 @@ export function sideLayout(viewport, room) {
   const r = Math.floor(Number(room));
   if (!Number.isFinite(v) || v < WIDE || !Number.isFinite(r) || r < SIDE_ROOM) return { side: false, width: null };
   return { side: true, width: Math.min(r, SIDE_MAX) };
+}
+
+// The card of versions waiting on the owner for this task, or null: the task's own Needs-you item when it is a
+// card of versions (K9).
+export function pickItemOf(d) {
+  const t = (d && d.task) || {};
+  const own = (d && d.acceptance && d.acceptance.accept && d.acceptance.accept.inboxId) || (t.id ? `goal:${t.id}` : "");
+  return list(d && d.needsYou).find((i) => i && i.id === own && isPickItem(i)) || null;
+}
+
+// When the versions are read again: when the task moves, and on every refresh while a brand check still runs.
+export function piecesStamp(d, pieces) {
+  if (!d) return "";
+  const t = d.task || {};
+  const a = d.acceptance || {};
+  const running = list(pieces && pieces.variants).some((v) => v && brandLine(v.brand).running);
+  return [t.column, t.state, t.updatedAt, a.state, list(a.rounds).length, running ? d.generatedAt : ""].map(text).join("|");
 }
 
 // --- Layout: beside, stacked, or narrow with a bar ---------------------------------------------------------------
@@ -583,6 +605,21 @@ function FilesPanel({ files }) {
 
 // --- The page --------------------------------------------------------------------------------------------------
 
+// The task's versions, read when `stamp` changes. null while unread, when the route is missing (an older home
+// server answers 404) or when it fails: then nothing is shown and the page is as it was.
+function usePieces(id, on, stamp) {
+  const [s, setS] = useState({ id: null, data: null });
+  useEffect(() => {
+    if (!on || !id) return undefined;
+    let live = true;
+    api.get(`/api/tasks/${encodeURIComponent(id)}/pieces`)
+      .then((data) => { if (live) setS({ id, data: data && typeof data === "object" ? data : null }); })
+      .catch(() => { if (live) setS({ id, data: null }); });
+    return () => { live = false; };
+  }, [id, on, stamp]);
+  return s.id === id ? s.data : null;
+}
+
 export default function Page({ route }) {
   const app = useApp() || {};
   const id = text(route && route.parts && route.parts[1]);
@@ -596,7 +633,12 @@ export default function Page({ route }) {
   const d = res.data;
   const files = list(d && d.files).filter((f) => f && typeof f === "object").slice(0, 200);
   const acceptance = (d && d.acceptance) || {};
-  const barred = layout.narrow && !!acceptance.accept;
+  const pickItem = pickItemOf(d);
+  const [pickedHere, setPickedHere] = useState(null);
+  const lastPieces = useRef(null);
+  const pieces = usePieces(id, !!d && !pickItem, piecesStamp(d, lastPieces.current));
+  lastPieces.current = pieces;
+  const barred = layout.narrow && !!acceptance.accept && !pickItem;
   const barHeight = useHeight(bar, barred);
 
   const showFiles = () => {
@@ -657,7 +699,8 @@ export default function Page({ route }) {
         <${Chip} dot=${STATE_DOTS[state] || "off"}>${stateWord(acceptance)}<//>
       </div>
       ${nextOnTop(acceptance, next) ? html`<${NextUp} items=${next} />` : null}
-      ${!layout.narrow ? html`<${AcceptBar} acceptance=${acceptance} onDone=${after} onChanged=${res.refresh} />` : null}
+      ${pickItem ? html`<${PickNudge} target="p-task-versions" />`
+        : !layout.narrow ? html`<${AcceptBar} acceptance=${acceptance} onDone=${after} onChanged=${res.refresh} />` : null}
       ${said ? html`<p class="p-task__said" role="status" tabindex="-1" ref=${saidRef}>${said}</p>` : null}
       ${needs.length ? html`
         <div class="p-task__needs">
@@ -693,6 +736,8 @@ export default function Page({ route }) {
       </div>
       ${panel}
       <section class="p-task__main" aria-label="What was said">
+        <${Versions} id="p-task-versions" item=${pickItem} pieces=${pieces} picked=${pickedHere}
+          onDone=${(r) => { setPickedHere(r && r.variant ? r.variant : null); after(text(r && r.message) || "Done."); }} />
         <${Story} id=${id} items=${story} query=${query} />
       </section>
       ${barred ? html`

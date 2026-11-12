@@ -166,3 +166,9 @@ test("job: the start request carries versions as a number", () => {
   assert.deepEqual(page.startExtra(CRAFT(), 1), { versions: 1 });
   assert.deepEqual(page.startExtra(CRAFT(), "3"), { versions: 1 });
 });
+
+test("job: only the craft path of the start form turns the promised time off", () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../pages/job.js"), "utf8");
+  assert.equal((src.match(/timed=\$\{false\}/g) || []).length, 1, "one place, next to the Versions control");
+  assert.match(src, /if \(!craft\) return html`<\$\{JobStart\}[^`]*queue=\$\{queue\} \/>`/, "no craft: today's line");
+});

@@ -26,9 +26,10 @@ export const STARTED = "Started. The Chief of staff has it. It takes a few minut
 export const UNDER_START = "Takes a few minutes. It is checked before it reaches you.";
 // Under Start when other work is ahead in the Chief of staff's line (`queue` from the server, M63): no time is
 // promised. "3 tasks are ahead, so it waits its turn. It is checked before it reaches you."
-export function underStart(queue) {
+// `timed` false (a job with craft, whose estimate is shown above Start) never promises a time.
+export function underStart(queue, timed = true) {
   const ahead = aheadLine(queue);
-  return ahead ? `${ahead} It is checked before it reaches you.` : UNDER_START;
+  return ahead ? `${ahead} It is checked before it reaches you.` : timed ? UNDER_START : "It is checked before it reaches you.";
 }
 
 const SLUG = /^[a-z][a-z0-9-]{0,50}$/;
@@ -302,7 +303,7 @@ const offline = (e) => Boolean(e && (e.offline || e.code === "not_set_up" || Num
 // switched off, with the one sentence that says why (M63 item 13).
 // `extra` is an object merged into the start request (the job page sends `versions` this way); `before` is a node
 // shown just above the Start button.
-export function JobStart({ job, from, onStarted, queue = null, extra = null, before = null }) {
+export function JobStart({ job, from, onStarted, queue = null, extra = null, before = null, timed = true }) {
   const [answers, setAnswers] = useState({});
   const [errors, setErrors] = useState({});
   const [phase, setPhase] = useState({ id: "ready" });
@@ -411,7 +412,7 @@ export function JobStart({ job, from, onStarted, queue = null, extra = null, bef
         </p>`
       : html`${before}<div class="k-job__actions">
           <${Button} type="submit" variant="primary" icon="play" busy=${sending} disabled=${!ready || !href}>Start<//>
-          <p class="k-job__under">${sending ? "Sending…" : underStart(queue)}</p>
+          <p class="k-job__under">${sending ? "Sending…" : underStart(queue, timed)}</p>
         </div>`}
   </form>`;
 }

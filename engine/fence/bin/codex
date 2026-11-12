@@ -140,15 +140,19 @@ fi
 # The fence's proxy settings are not on it, so every call from the shell tool to
 # the board was refused ("Operation not permitted"). Add them, and the engine's
 # UUU_* variables (fence-run exports them: the knowledge folder, the lessons
-# file, the agent's own keys), by pattern and by the names in use today.
+# file, the agent's own keys, the playbooks, research and brand check paths, the
+# doors' addresses and tokens), by pattern and by the names in use today.
 # TMPPREFIX: where zsh writes here-documents (fence-run points it at the temp folder).
-EXTRA_NAMES='"HTTP_PROXY","HTTPS_PROXY","ALL_PROXY","NO_PROXY","http_proxy","https_proxy","all_proxy","no_proxy","GIT_SSH_COMMAND","SANDBOX_RUNTIME","SSL_CERT_FILE","TMPPREFIX","PAPERCLIP_RUNTIME_API_URL","UUU_*","UUU_KNOWLEDGE_DIR","UUU_LESSONS_FILE","UUU_BENCH_URL","UUU_BENCH_SITE","UUU_BENCH_API_KEY","UUU_BENCH_API_SECRET","UUU_CAD_PYTHON","UUU_CAD_EXPORT"'
+EXTRA_NAMES='"HTTP_PROXY","HTTPS_PROXY","ALL_PROXY","NO_PROXY","http_proxy","https_proxy","all_proxy","no_proxy","GIT_SSH_COMMAND","SANDBOX_RUNTIME","SSL_CERT_FILE","TMPPREFIX","PAPERCLIP_RUNTIME_API_URL","UUU_*","UUU_KNOWLEDGE_DIR","UUU_LESSONS_FILE","UUU_BENCH_URL","UUU_BENCH_SITE","UUU_BENCH_API_KEY","UUU_BENCH_API_SECRET","UUU_CAD_PYTHON","UUU_CAD_EXPORT","UUU_PLAYBOOKS_DIR","UUU_RESEARCH_DIR","UUU_BRAND_PY","UUU_BRAND_CHECK","UUU_WEB_URL","UUU_WEB_TOKEN","UUU_GENERATE_URL","UUU_GENERATE_TOKEN","UUU_VIEWER_URL","UUU_VIEWER_TOKEN"'
 #
 # In provider mode Codex is pointed at the relay. The three settings go right
 # after `exec`: Codex drops every -c given before `exec` when `exec` has -c of its
 # own (paperclip always adds some), and they stay in front of `resume`. A model
 # named with --model or -m beats -c model=, so that value becomes the pick too.
 # The relay sets the model again on every call; this keeps Codex's own view right.
+# In either mode two more settings follow (PLAN-V5, K2b as T1 found them): no
+# AGENTS.md from the working folder reaches the model, and Codex's own web search
+# is off (the web is the web door's). A run without `exec` gets neither.
 args=()
 expect=""
 placed=""
@@ -157,28 +161,27 @@ for arg in "$@"; do
     shell_environment_policy.include_only=\[\]) arg="shell_environment_policy.include_only=[$EXTRA_NAMES]" ;;
     shell_environment_policy.include_only=\[*\]) arg="${arg%]},$EXTRA_NAMES]" ;;
   esac
-  if [[ "$MODEL_MODE" == provider ]]; then
-    if [[ -n "$expect" ]]; then
-      [[ "$expect" == --model || "$expect" == -m ]] && arg="$MODEL_PICK"
-      args+=("$arg"); expect=""; continue
-    fi
-    case "$arg" in
-      --model=*) arg="--model=$MODEL_PICK" ;;
-      -m=*) arg="-m=$MODEL_PICK" ;;
-      -c|--config|--enable|--disable|-i|--image|-m|--model|--local-provider|-p|--profile|-s|--sandbox|\
-      -a|--ask-for-approval|-C|--cd|--add-dir|--output-schema|--color|-o|--output-last-message|--remote)
-        expect="$arg" ;;
-    esac
-    args+=("$arg")
-    if [[ "$arg" == exec && -z "$placed" ]]; then
+  if [[ -n "$expect" ]]; then
+    if [[ "$MODEL_MODE" == provider ]] && [[ "$expect" == --model || "$expect" == -m ]]; then arg="$MODEL_PICK"; fi
+    args+=("$arg"); expect=""; continue
+  fi
+  case "$arg" in
+    --model=*) if [[ "$MODEL_MODE" == provider ]]; then arg="--model=$MODEL_PICK"; fi ;;
+    -m=*) if [[ "$MODEL_MODE" == provider ]]; then arg="-m=$MODEL_PICK"; fi ;;
+    -c|--config|--enable|--disable|-i|--image|-m|--model|--local-provider|-p|--profile|-s|--sandbox|\
+    -a|--ask-for-approval|-C|--cd|--add-dir|--output-schema|--color|-o|--output-last-message|--remote)
+      expect="$arg" ;;
+  esac
+  args+=("$arg")
+  if [[ "$arg" == exec && -z "$placed" ]]; then
+    if [[ "$MODEL_MODE" == provider ]]; then
       args+=(-c 'model_provider="uuu-relay"'
              -c "model_providers.uuu-relay={name=\"Model relay\",base_url=\"$RELAY_URL/v1\",env_key=\"ENGINE_RELAY_TOKEN\",wire_api=\"responses\",requires_openai_auth=false,supports_websockets=false}"
              -c "model=\"$MODEL_PICK\"")
-      placed=1
     fi
-    continue
+    args+=(-c project_doc_max_bytes=0 -c 'web_search="disabled"')
+    placed=1
   fi
-  args+=("$arg")
 done
 # Without `exec` the settings have nowhere to go, and Codex would try OpenAI,
 # which the fence blocks in provider mode: the run would hang, so refuse it.

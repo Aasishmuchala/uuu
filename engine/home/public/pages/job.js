@@ -212,7 +212,7 @@ function StartForm({ job, from, onStarted, queue }) {
   const [n, setN] = useState(craft ? versionChoices(craft).preset : 1);
   if (!craft) return html`<${JobStart} job=${job} from=${from} onStarted=${onStarted} queue=${queue} />`;
   const chosen = versionChoices(craft).allowed.includes(n) ? n : 1;
-  return html`<${JobStart} job=${job} from=${from} onStarted=${onStarted} queue=${queue}
+  return html`<${JobStart} job=${job} from=${from} onStarted=${onStarted} queue=${queue} timed=${false}
     extra=${startExtra(craft, chosen)} before=${html`<${VersionChoice} craft=${craft} n=${chosen} onPick=${setN} />`} />`;
 }
 

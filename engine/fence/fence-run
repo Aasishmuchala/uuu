@@ -3,7 +3,9 @@
 #   files   - the task folder (the current folder) and the agent's own home are
 #             readable and writable; the rest of the owner's home cannot be read
 #   network - the tool's model hosts and the gate; nothing else, except the local
-#             services the agent's fence policy names
+#             services the agent's fence policy names and the doors that serve it
+# A walled agent (the Researcher) works in its own folder under the task folders
+# and reaches the board only through the narrow gate (PLAN-V5, K2d).
 # The rules come from engine/config.json and from the agent's policy file
 # (state/policy/<agent id>.json), never from environment variables. The fence
 # refuses to start in a folder that is not an agent task folder.
@@ -116,7 +118,41 @@ LESSONS_FILE="$(printf '%s\n' "$INPUTS" | sed -n 2p)"
 ENV_FILE="$(printf '%s\n' "$INPUTS" | sed -n 3p)"
 SETTINGS="$(printf '%s\n' "$INPUTS_JSON" | /usr/bin/python3 -I "$HERE/fence_plan.py")" || exit 78
 [[ -f "$SETTINGS" ]] || refuse "the planner wrote no settings"
+# Read only now that the planner has accepted: a walled agent's folder and the
+# narrow gate's address (PLAN-V5, K2d), empty for every other agent.
+WORK_FOLDER="$(printf '%s\n' "$INPUTS" | sed -n 4p)"
+NARROW_URL="$(printf '%s\n' "$INPUTS" | sed -n 5p)"
 unset INPUTS INPUTS_JSON
+
+# A walled agent works in its own folder under the task folders, whatever folder
+# it was started in, and reaches the board only through the narrow gate. The
+# sandbox tool is started in that folder (its own list is relative to it).
+WALLED=""
+if [[ -n "$WORK_FOLDER" || -n "$NARROW_URL" ]]; then
+  [[ -n "$WORK_FOLDER" && -n "$NARROW_URL" ]] || refuse "the fence was given only half of a walled agent's settings"
+  [[ "$NARROW_URL" =~ ^http://127\.0\.0\.1:[0-9]{1,5}$ ]] || refuse "the narrow gate's address is not a local one"
+  _tasks="$(cd "$CFG_STATE/tasks" 2>/dev/null && pwd -P)" || refuse "the task folders are missing"
+  case "$WORK_FOLDER" in
+    *"/../"*|*/..|*"/./"*|*/.|*//*) refuse "a walled agent's folder is not a plain path" ;;
+    "$_tasks"/?*) ;;
+    *) refuse "a walled agent's folder is outside the task folders" ;;
+  esac
+  # Its parent must be reached through no link, so making it never lands elsewhere.
+  _parent="$(cd "$(dirname "$WORK_FOLDER")" 2>/dev/null && pwd -P)" || _parent=""
+  [[ -n "$_parent" && "$_parent" == "$(dirname "$WORK_FOLDER")" ]] \
+    || refuse "a walled agent's folder is reached through a link"
+  [[ ! -L "$WORK_FOLDER" ]] || refuse "a walled agent's folder is a link; the fence only trusts a plain folder"
+  mkdir -p "$WORK_FOLDER" || refuse "could not make a walled agent's folder"
+  [[ ! -L "$WORK_FOLDER" && -d "$WORK_FOLDER" && -O "$WORK_FOLDER" ]] \
+    || refuse "a walled agent's folder is not a plain folder of yours"
+  _mode="$(stat -f '%Lp' "$WORK_FOLDER")" || refuse "could not check a walled agent's folder"
+  (( (8#$_mode & 8#022) == 0 )) || refuse "a walled agent's folder can be changed by others"
+  [[ "$(cd "$WORK_FOLDER" && pwd -P)" == "$WORK_FOLDER" ]] || refuse "a walled agent's folder is reached through a link"
+  cd "$WORK_FOLDER" || refuse "could not change into a walled agent's folder"
+  GATE_URL="$NARROW_URL"; WALLED=1
+  unset _tasks _parent _mode
+fi
+unset WORK_FOLDER NARROW_URL
 
 # 4. What the command gets inside the fence. Values from the env file are
 # exported, never put on a command line and never logged.
@@ -136,8 +172,39 @@ if [[ -n "$ENV_FILE" && -e "$ENV_FILE" ]]; then
   done < "$ENV_FILE"
   unset _line _key _n _mode
 fi
-export UUU_KNOWLEDGE_DIR="$CFG_STATE/knowledge/docs"
+# Paths only, never contents (PLAN-V5, K2d and K2e). A walled agent knows only
+# the shared files, never the company's own nor the Researcher's notes folder.
+if [[ -n "$WALLED" ]]; then
+  export UUU_KNOWLEDGE_DIR="$CFG_STATE/knowledge/shared"
+else
+  export UUU_KNOWLEDGE_DIR="$CFG_STATE/knowledge/docs" UUU_RESEARCH_DIR="$CFG_RESEARCH"
+fi
+export UUU_PLAYBOOKS_DIR="$CFG_PLAYBOOKS"
+if [[ -f "$CFG_STATE/art/venv/bin/python" && -f "$CFG_STATE/art/tools/brandcheck.py" ]]; then
+  export UUU_BRAND_PY="$CFG_STATE/art/venv/bin/python" UUU_BRAND_CHECK="$CFG_STATE/art/tools/brandcheck.py"
+fi
 if [[ -n "$LESSONS_FILE" ]]; then export UUU_LESSONS_FILE="$LESSONS_FILE"; fi
+
+# 5. The doors this agent may reach (door_mode.py, outside the fence): an address
+# and a token for each door that is on and serves it, nothing otherwise. Each
+# line must have exactly the one shape below. A token is exported, never put on
+# a command line, never logged and never in a message; no temp file holds it.
+if [[ -n "$AGENT_ID" ]]; then
+  _doors="$(/usr/bin/python3 -I "$HERE/door_mode.py" --for-run --agent "$AGENT_ID" </dev/null)" \
+    || refuse "the doors for this run could not be worked out"
+  _door_line='^UUU_(WEB|GENERATE|VIEWER)_(URL|TOKEN)=[!-<>-~]{1,200}$'
+  _seen=" "
+  while [[ -n "$_doors" ]]; do
+    _line="${_doors%%$'\n'*}"
+    if [[ "$_doors" == *$'\n'* ]]; then _doors="${_doors#*$'\n'}"; else _doors=""; fi
+    [[ "$_line" =~ $_door_line ]] || { unset _doors _line; refuse "a line about the doors has a shape the fence does not accept"; }
+    _key="${_line%%=*}"
+    case "$_seen" in *" $_key "*) unset _doors _line; refuse "the doors named $_key twice" ;; esac
+    _seen="$_seen$_key "
+    export "$_key=${_line#*=}"
+  done
+  unset _doors _door_line _line _key _seen
+fi
 export PAPERCLIP_API_URL="$GATE_URL" PAPERCLIP_RUNTIME_API_URL="$GATE_URL"
 unset PAPERCLIP_LISTEN_HOST PAPERCLIP_LISTEN_PORT OPENAI_API_KEY ANTHROPIC_API_KEY
 export PATH="$CFG_NODE24/bin:$PATH"

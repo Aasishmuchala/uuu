@@ -1,0 +1,11 @@
+:root { --bg: #FAF7F2; --ink: #1E2A33; --accent: #B5562F; }
+@media (prefers-color-scheme: dark) { :root { --bg: #14181C; --ink: #EDE7DD; --accent: #E08A5F; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 Georgia, "Times New Roman", serif; }
+header { display: flex; align-items: center; gap: 12px; padding: 16px 24px; }
+h1 { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 44px; margin: 40px 24px 8px; color: var(--accent); }
+h3 { margin: 24px; }
+p { margin: 0 24px 16px; max-width: 60ch; }
+.faint { color: #A9A9A9; background: #BBBBBB; font-size: 12px; padding: 4px; }
+.wide { width: 1500px; height: 40px; background: var(--accent); margin: 24px; }
+.tall { height: 2600px; margin: 24px; border-top: 2px solid var(--accent); }
+a.tiny { font-size: 10px; }

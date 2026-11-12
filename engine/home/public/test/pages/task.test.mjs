@@ -20,7 +20,7 @@ const SERVER = (() => {
 const shape = (name) => JSON.parse(readFileSync(resolve(SERVER, "test", "shapes", `${name}.json`), "utf8"));
 
 const mod = await import("../../pages/task.js");
-const { actArgs, roundsLine, pickRound, pickCheck, stateWord, otherNeeds, address, storyOf, askOf, nextLinks, sideLayout, roundMarker, resultFiles } = mod;
+const { actArgs, roundsLine, pickRound, pickCheck, stateWord, otherNeeds, address, storyOf, askOf, nextLinks, sideLayout, roundMarker, resultFiles, pickItemOf, piecesStamp } = mod;
 
 let home = null;
 const seed = {};
@@ -302,4 +302,45 @@ test("task: a question's acceptance panel says Not checked, with no promise of a
   assert.ok(!src.includes("<p class=\"u-caption\">Not checked yet.</p>"), "no fixed words in the panel");
   assert.ok(src.includes("roundsLine(0, { ask })"), "the panel's words come from roundsLine");
   assert.ok(src.includes("<${Rounds} id=${id} acceptance=${acceptance} query=${query} ask=${t.ask === true} />"));
+});
+
+// PLAN-V5 K9, T20: the versions of a task. While it waits on the owner, its own Needs-you item of kind "pick" is the
+// card; without one (every task of the seed, and every task when the pieces route is missing) the page is as today.
+const PICK = {
+  id: "goal:g1", kind: "pick", version: "v1", title: "Pick one: Launch",
+  variants: [{ id: "a", direction: { id: "type-led", title: "Type led" }, preview: [], brand: { result: "pass", lines: [] }, review: null }],
+};
+
+test("task: the card of versions is the task's own item of kind pick, and only that", () => {
+  const d = { task: { id: "g1" }, acceptance: { accept: { inboxId: "goal:g1" } }, needsYou: [{ id: "goal:g1", kind: "result" }, PICK] };
+  assert.equal(pickItemOf(d), PICK);
+  assert.equal(pickItemOf({ ...d, needsYou: [{ ...PICK, id: "goal:other" }] }), null);
+  assert.equal(pickItemOf({ ...d, needsYou: [{ ...PICK, variants: undefined }] }), null, "no versions: the ordinary Accept");
+  assert.equal(pickItemOf({ task: { id: "g1" }, needsYou: [PICK] }), PICK, "found by the task's id when there is no Accept");
+  assert.equal(pickItemOf(null), null);
+});
+
+test("task: every task of the seed keeps today's Accept and has no card of versions", () => {
+  for (const n of [7, 8, 13, 18, 19]) assert.equal(pickItemOf(seed[n]), null, `STH-${n}`);
+  assert.ok(seed[8].acceptance, "the acceptance is as the server sends it");
+});
+
+test("task: the versions are read again when the task moves, and on each refresh only while a brand check runs", () => {
+  const d = { task: { column: "done", updatedAt: "t1" }, acceptance: { state: "accepted", rounds: [] }, generatedAt: "g1" };
+  const still = { variants: [{ id: "a", brand: { result: "unknown", lines: ["The brand check is still running. Look again in a minute."] } }] };
+  const ready = { variants: [{ id: "a", brand: { result: "pass", lines: [] } }] };
+  assert.equal(piecesStamp(d, ready), piecesStamp({ ...d, generatedAt: "g2" }, ready));
+  assert.notEqual(piecesStamp(d, still), piecesStamp({ ...d, generatedAt: "g2" }, still));
+  assert.notEqual(piecesStamp(d, ready), piecesStamp({ ...d, task: { ...d.task, updatedAt: "t2" } }, ready));
+  assert.equal(piecesStamp(null, null), "");
+});
+
+test("task: when the pieces route is missing (404) nothing is shown and Accept stays", async () => {
+  const r = await fetch(`${home.url}/api/tasks/STH-8/pieces`);
+  assert.equal(r.status, 404, "this stub home has no pieces route, as an older home server");
+  const { Versions } = await import("../../kit/pick.js");
+  assert.equal(Versions({ item: null, pieces: null }), null);
+  const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../pages/task.js"), "utf8");
+  assert.match(src, /\.catch\(\(\) => \{ if \(live\) setS\(\{ id, data: null \}\); \}\)/, "a failed read shows nothing");
+  assert.match(src, /const barred = layout\.narrow && !!acceptance\.accept && !pickItem;/);
 });

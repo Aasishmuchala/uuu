@@ -101,3 +101,17 @@ test("needs-you: the page uses the approval card and refreshes every 10 seconds"
   assert.match(src, /refreshShell/);
   assert.match(src, /Nothing needs you\./);
 });
+
+// PLAN-V5 K9, T20: a finished task with versions is a card of versions; after a pick its outcome stays in view.
+test("needs-you: a card of versions is shown with the kit's PickCard; any other item keeps the approval card", () => {
+  const src = readFileSync(resolve(HERE, "../../pages/needs-you.js"), "utf8");
+  assert.match(src, /isPickItem\(item\)\s*\n?\s*\? html`<\$\{PickCard\}/);
+  assert.match(src, /: html`<\$\{DecisionCard\} key=\$\{item\.id\} item=\$\{item\} onDone=\$\{done\} \/>`/);
+});
+
+test("needs-you: the outcome of a pick stays once its item has left the list, newest first, at most three", () => {
+  const settled = [{ id: "goal:3" }, { id: "goal:2" }, { id: "goal:1" }, { id: "goal:0" }, null, { title: "no id" }];
+  assert.deepEqual(mod.settledShown(settled, [item("goal:2")]).map((s) => s.id), ["goal:3", "goal:1", "goal:0"]);
+  assert.deepEqual(mod.settledShown(settled, []).map((s) => s.id), ["goal:3", "goal:2", "goal:1"]);
+  assert.deepEqual(mod.settledShown(null, null), []);
+});

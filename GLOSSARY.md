@@ -45,7 +45,7 @@ The outside service whose models agents can use instead of the Claude and Codex 
 _Avoid_: Vendor, API, backend
 
 **Pick**:
-The one model chosen for an agent, by the ranking or by the owner in Settings.
+Two things. The one model chosen for an agent, by the ranking or by the owner in Settings. And the owner's choice of one version out of several in Needs you, which counts as accepting it.
 _Avoid_: Default model, assignment
 
 **Plans mode**:
@@ -148,6 +148,30 @@ _Avoid_: History, analytics
 The folder where the owner drops footage and sound for the Artist's video work.
 _Avoid_: Library, media bin
 
+**Brand kit**:
+The owner's brand as data in the company brain: colours by name, two typefaces, the smallest sizes, logo files and their clear space, the voice with examples, and approved example pictures. Only the home screen writes it, from what the owner types and uploads. The art tools take their colours, type and logo from it.
+_Avoid_: Brand book (that is the owner's own document), style guide, theme
+
+**Brand check**:
+The code that measures a piece against the brand kit and the can't-say list before any reviewer sees it: colours off the palette, banned or filler phrases, a missing or wrong logo, a script that loads its own typeface. It writes nothing, and nobody reads anybody else's result.
+_Avoid_: Brand review, lint, QA
+
+**Playbook**:
+Craft advice from the owner's own skill folders on this Mac, copied into the engine's state folder where every agent can read it and none can write it. The repo holds only a list of them.
+_Avoid_: Skill, prompt, template
+
+**Version**:
+One of up to three pieces made for the same ask, each in a different direction, for the owner to choose between. The code calls it a variant.
+_Avoid_: Draft, option, take, variant
+
+**Direction**:
+A named way of making a kind of piece, such as "Picture led" for a carousel. Three versions are three different directions.
+_Avoid_: Style, theme, concept
+
+**Taste file**:
+The one file in the company brain, `brand/taste.md`, that records what the owner picked and sent back, by kind of piece, in the owner's own words. Only the home screen writes it. Makers and the Art director read it before the next piece of that kind.
+_Avoid_: Preferences, profile, memory
+
 **Daily brief**:
 A short note each morning of what happened that needs no decision.
 _Avoid_: Digest, report, summary email
@@ -173,6 +197,10 @@ _Avoid_: Engineer, worker, implementer
 **Checker**:
 The agent that tests and reviews a builder's work before it reaches the owner.
 _Avoid_: Reviewer, QA, verifier
+
+**Art director**:
+The agent that looks at finished pictures, pages and words against the brand kit and the owner's examples, and scores each version on seven axes. It never changes the work and never picks a version. It comes before the Checker.
+_Avoid_: Designer, reviewer, creative director
 
 **Bookkeeper**:
 The agent that prepares entries and invoices in the books as drafts.

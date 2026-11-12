@@ -568,6 +568,22 @@ test("JobStart: a job that cannot start yet cannot be typed into; neither can on
   unmount(root);
 });
 
+test("JobStart: a job with craft (timed off) promises no time under Start; a job without craft keeps today's line", async () => {
+  installDom();
+  assert.equal(kit.job.underStart(null, false), "It is checked before it reaches you.");
+  assert.equal(kit.job.underStart({ ahead: 2 }, false), "2 tasks are ahead, so it waits its turn. It is checked before it reaches you.");
+  let root = await mount(kit.job.JobStart, { job: LEAD, timed: false });
+  assert.match(textOf(root), /It is checked before it reaches you\./);
+  assert.doesNotMatch(textOf(root), /few minutes/);
+  unmount(root);
+  root = await mount(kit.job.JobStart, { job: LEAD, timed: false, queue: { ahead: 2 } });
+  assert.match(textOf(root), /2 tasks are ahead, so it waits its turn\. It is checked before it reaches you\./);
+  unmount(root);
+  root = await mount(kit.job.JobStart, { job: LEAD });
+  assert.match(textOf(root), /Takes a few minutes\. It is checked before it reaches you\./);
+  unmount(root);
+});
+
 // M63 items 15 and 21: when other work is ahead in the Chief of staff's line, no time is promised.
 test("JobStart: the line under Start names the work ahead, from the server's count only", async () => {
   installDom();

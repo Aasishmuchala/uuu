@@ -138,7 +138,7 @@ export function readTar(input) {
     }
     entries.push({ name, type, data: type === "file" ? buf.subarray(dataStart, dataEnd) : null, size });
   }
-  if (!ended && off < buf.length) return bad("the archive ends in the middle of a header");
+  if (!ended) return bad("the archive ends in the middle, with no end of archive");
   if (pax) return bad("the archive ends after an extended header");
   const check = checkEntries(entries.map((e) => ({ name: e.name, type: e.type, size: e.size })));
   if (!check.ok) return bad(check.reason);

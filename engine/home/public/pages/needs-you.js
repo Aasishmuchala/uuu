@@ -2,10 +2,12 @@
 // department and the not-connected lines. CONTRACTS-V3 30 ("Needs you") and 26.4.
 // Address: #/needs-you, #/needs-you?d=<department>. Data: GET /api/inbox every 10 seconds; the agents of each
 // department come from GET /api/map (read once; without it items are placed by their source alone).
+// A finished task with versions (PLAN-V5 K9) is a card of versions to pick from (kit PickCard); after a pick its
+// outcome stays at the top of the list, so the owner sees what was chosen when the item leaves the list.
 import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { DecisionCard, Empty, ErrorNotice, Loading, NotConnected, PageHeader } from "../kit/index.js";
+import { DecisionCard, Empty, ErrorNotice, Loading, NotConnected, PageHeader, PickCard, PickDone, isPickItem } from "../kit/index.js";
 
 const DEPARTMENT_IDS = ["operations", "sales", "marketing", "studio", "support", "people", "books"];
 const DEPARTMENT_TITLES = { operations: "Operations", sales: "Sales", marketing: "Marketing", studio: "Studio", support: "Support", people: "People", books: "Books" };
@@ -13,6 +15,7 @@ const DEPARTMENT_TITLES = { operations: "Operations", sales: "Sales", marketing:
 const SOURCE_DEPARTMENT = { books: "books", people: "people", support: "support", marketing: "marketing", customers: "sales" };
 const SOURCE_WORDS = { board: "The board", books: "The books", customers: "Customers", support: "Support", people: "People", marketing: "Marketing", studio: "Studio", goal: "Tasks" };
 const MAX_ITEMS = 200;
+const MAX_SETTLED = 3;
 
 const cap = (s, n) => {
   const t = String(s ?? "").replace(/\s+/g, " ").trim();
@@ -94,12 +97,20 @@ export function quietLines(list) {
     .map((n) => ({ source: SOURCE_WORDS[n.source] || "A part", reason: cap(n.reason, 200) }));
 }
 
+// Pure. The outcomes of picks to keep showing: the newest first, at most three, and only those whose item has
+// left the list (while it is still listed, its own card says what happened).
+export function settledShown(settled, items) {
+  const listed = new Set((Array.isArray(items) ? items : []).map((i) => i && i.id));
+  return (Array.isArray(settled) ? settled : []).filter((s) => s && s.id && !listed.has(s.id)).slice(0, MAX_SETTLED);
+}
+
 export default function Page({ route }) {
   const app = useApp() || {};
   const query = route && route.query ? route.query : new URLSearchParams();
   const d = filterOf(query);
   const res = useResource("/api/inbox", { every: 10000 });
   const [departments, setDepartments] = useState(null);
+  const [settled, setSettled] = useState([]);
 
   // The agents of each department, once; the page works without them.
   useEffect(() => {
@@ -112,6 +123,7 @@ export default function Page({ route }) {
 
   // After an action the list and the shell's count are read again at once.
   const done = (r) => {
+    if (r && r.done && r.done.id) setSettled((old) => [r.done, ...old.filter((s) => s.id !== r.done.id)].slice(0, MAX_SETTLED));
     res.refresh();
     if (typeof app.refreshShell === "function") app.refreshShell();
     if (r && r.message && typeof app.announce === "function") app.announce(String(r.message));
@@ -131,9 +143,13 @@ export default function Page({ route }) {
     const shown = itemsFor(data.items, departments, d);
     const chips = chipsFor(all, departments, d);
     const quiet = quietLines(data.notConnected);
+    const kept = settledShown(settled, all);
+    const outcomes = kept.length ? html`<div class="p-needs-you__list">
+      ${kept.map((s, i) => html`<${PickDone} key=${`done:${s.id}`} done=${s} focus=${i === 0} />`)}
+    </div>` : null;
     let list;
     if (!all.length) {
-      list = html`<${Empty} title="Nothing needs you.">
+      list = html`${outcomes}<${Empty} title="Nothing needs you.">
         <a class="p-needs-you__link" href="#/map">Back to the map</a>
       <//>`;
     } else if (!shown.length) {
@@ -141,8 +157,10 @@ export default function Page({ route }) {
         <a class="p-needs-you__link" href=${address("")}>Show everything</a>
       <//>`;
     } else {
-      list = html`<div class="p-needs-you__list">
-        ${shown.map((item) => html`<${DecisionCard} key=${item.id} item=${item} onDone=${done} />`)}
+      list = html`${outcomes}<div class="p-needs-you__list">
+        ${shown.map((item) => (isPickItem(item)
+          ? html`<${PickCard} key=${item.id} item=${item} onDone=${done} />`
+          : html`<${DecisionCard} key=${item.id} item=${item} onDone=${done} />`))}
       </div>`;
     }
     body = html`

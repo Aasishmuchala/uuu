@@ -3,7 +3,7 @@
 // (`srt`), never outside it. The address and the file are hostile, so:
 // - the address is checked here (row 8, the owner's lists, the owner's watch hosts) and is
 //   handed to the downloader as the last argument, after `--`, so it is never a flag;
-// - each run is `srt -s <settings> -- <tool> <args>` started by execFile (no shell of ours),
+// - each run is `srt -s <settings> -- <tool> <args>` started without a shell of ours,
 //   with an empty environment but PATH, HOME and TMPDIR, in its own process group, under a
 //   time limit, a file-size limit (`ulimit -f`) and a cap on the job folder's total; it is
 //   ended by its process group id, never by a program's name;
@@ -18,7 +18,7 @@
 //   plain capped text, and log lines hold the agent, the job id, a state and a fixed word.
 // The job folder lives under `<work>/watch/`, 0700, and is removed as soon as the job ends
 // (its results are kept in memory for an hour, then forgotten). Zero dependencies.
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
   chmodSync, closeSync, constants, existsSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readSync,
@@ -256,8 +256,11 @@ export const whisperArgs = (model) => ["-ng", "-t", "4", "-m", model, "-f", "sou
 
 // ---- one sandboxed run --------------------------------------------------------------------
 
-// Runs `argv` inside srt with `settingsPath`, in `job` (the working folder), as its own
-// process group. Resolves { code, signal, ended: null|"time"|"size", stdout, stderr }.
+// Runs `argv` inside srt with `settingsPath`, in `job` (the working folder). srt is started
+// directly (no shell of ours) in a new session, so it and everything under it form one
+// process group whose id is srt's process id: that group, and only it, is ended. (execFile
+// cannot start a new group, which is why this is spawn with the same safe options.)
+// Resolves { code, signal, ended: null|"time"|"size"|"output"|"closed"|"spawn", stdout, stderr }.
 // `track(child)` / `untrack(child)` let close() end it early.
 export function runBoxed({ tools, settingsPath, job, srtTmp, argv, limitMs, lim = WATCH_LIMITS, track, untrack }) {
   return new Promise((done) => {
@@ -266,7 +269,11 @@ export function runBoxed({ tools, settingsPath, job, srtTmp, argv, limitMs, lim 
     let ended = null;
     let child;
     let killTimer = null;
+    let timer = null;
+    let sizer = null;
     let pgid = null;
+    let finished = false;
+    const out = { stdout: [], stderr: [], bytes: 0 };
     const group = (signal) => {
       if (pgid === null) return false;
       try { process.kill(-pgid, signal); return true; } catch { return false; }
@@ -276,40 +283,52 @@ export function runBoxed({ tools, settingsPath, job, srtTmp, argv, limitMs, lim 
       group("SIGTERM");
       if (killTimer === null) killTimer = setTimeout(() => group("SIGKILL"), lim.killGraceMs);
     };
+    const finish = (code, signal) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      clearInterval(sizer);
+      if (killTimer) clearTimeout(killTimer);
+      // Whatever of the group is still there is ended now.
+      if (group(0)) group("SIGKILL");
+      if (untrack && child) untrack(child);
+      done({
+        code: Number.isInteger(code) ? code : null, signal: signal || null, ended,
+        stdout: Buffer.concat(out.stdout), stderr: Buffer.concat(out.stderr),
+      });
+    };
     try {
-      child = execFile(tools.node, [tools.srt, "-s", settingsPath, "--", ...inner], {
+      child = spawn(tools.node, [tools.srt, "-s", settingsPath, "--", ...inner], {
         cwd: job,
         env: { PATH: "/usr/bin:/bin", HOME: job, TMPDIR: srtTmp },
         detached: true,
-        encoding: "buffer",
-        maxBuffer: lim.outputBytes,
-        killSignal: "SIGKILL",
+        shell: false,
+        stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
-      }, (err, stdout, stderr) => {
-        clearTimeout(timer);
-        clearInterval(sizer);
-        if (killTimer) clearTimeout(killTimer);
-        // Whatever of the group is still there is ended now.
-        if (group(0)) group("SIGKILL");
-        if (untrack) untrack(child);
-        if (err && err.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" && ended === null) ended = "output";
-        const code = child.exitCode;
-        done({ code: Number.isInteger(code) ? code : null, signal: child.signalCode, ended, stdout: stdout || Buffer.alloc(0), stderr: stderr || Buffer.alloc(0) });
       });
     } catch {
-      done({ code: null, signal: null, ended: "spawn", stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) });
+      ended = "spawn";
+      finish(null, null);
       return;
     }
     pgid = Number.isInteger(child.pid) ? child.pid : null;
-    if (child.stdin) {
-      child.stdin.on("error", () => {});
-      child.stdin.end();
-    }
-    child.on("error", () => {});
+    const keep = (which) => (chunk) => {
+      out.bytes += chunk.length;
+      if (out.bytes > lim.outputBytes) return end("output");
+      out[which].push(chunk);
+      return undefined;
+    };
+    child.stdout.on("data", keep("stdout"));
+    child.stderr.on("data", keep("stderr"));
+    child.on("error", () => {
+      if (ended === null) ended = "spawn";
+      finish(null, null);
+    });
+    child.on("close", (code, signal) => finish(code, signal));
     child.endGroup = () => end("closed");
     if (track) track(child);
-    const timer = setTimeout(() => end("time"), Math.max(1, limitMs));
-    const sizer = setInterval(() => {
+    timer = setTimeout(() => end("time"), Math.max(1, limitMs));
+    sizer = setInterval(() => {
       if (folderBytes(job) > lim.folderBytes) end("size");
     }, lim.folderEveryMs);
   });
@@ -431,6 +450,8 @@ export function createWatch({ paths, tools, log, now, checkAddress, hostAllowed 
     if (stop(dl)) return fail(j, stop(dl));
     let names = [];
     try { names = readdirSync(j.folder).slice(0, 500); } catch { /* none */ }
+    const t = readCapped(j.folder, "title.txt", lim.titleBytes);
+    j.title = t ? clean(t.buf.toString("utf8")).replace(/\s+/g, " ").trim().slice(0, 300) || null : null;
     const video = names.filter((n) => /^video\.(mp4|m4v|mov|webm|mkv|ts|3gp)$/.test(n)).sort()[0];
     if (!video) return fail(j, dl.code === 0 || dl.code === 101 ? "not_fetched" : "download_failed");
     const head = readCapped(j.folder, video, 512);
@@ -438,8 +459,6 @@ export function createWatch({ paths, tools, log, now, checkAddress, hostAllowed 
     if (head.size > lim.videoBytes) return fail(j, "too_big");
     const demux = sniff(head.buf);
     if (!demux) return fail(j, "not_video");
-    const t = readCapped(j.folder, "title.txt", lim.titleBytes);
-    j.title = t ? clean(t.buf.toString("utf8")).replace(/\s+/g, " ").trim().slice(0, 300) || null : null;
     const capName = names.includes("video.en.vtt") ? "video.en.vtt"
       : names.filter((n) => /^video\.en[A-Za-z0-9-]{0,20}\.vtt$/.test(n)).sort()[0];
 

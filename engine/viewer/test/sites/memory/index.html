@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Eats memory</title></head>
+<body><h1>This page allocates without end</h1>
+<script>
+window.__hold = [];
+(function grow() { if (window.__hold.length >= 60) return; const b = new Uint8Array(100 * 1024 * 1024); b.fill(1); window.__hold.push(b); setTimeout(grow, 20); })();
+</script></body></html>

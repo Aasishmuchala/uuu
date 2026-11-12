@@ -123,6 +123,7 @@ export class Pipe {
     this.waiting = new Map();
     this.listeners = [];
     this.closed = false;
+    this.whenClosed = new Promise((r) => { this.markClosed = r; });
     let chunks = [];
     let held = 0;
     toChrome.on("error", () => this.close());
@@ -175,6 +176,7 @@ export class Pipe {
   close() {
     if (this.closed) return;
     this.closed = true;
+    this.markClosed();
     for (const [, w] of this.waiting) { clearTimeout(w.timer); w.reject(new Error(`${w.method}: chrome is gone`)); }
     this.waiting.clear();
     try { this.w.destroy(); } catch { /* already closed */ }
@@ -257,6 +259,8 @@ export async function startChrome({
     pid, version: null, gone: false, why: null, peakKb: 0,
     send: (m, p, s, ms) => pipe.send(m, p, s, ms),
     on: (f) => pipe.on(f),
+    // settles when Chrome is gone (ended, crashed or stopped by the watchdog)
+    whenGone: pipe.whenClosed,
     end: null,
   };
   child.on("exit", () => { session.gone = true; if (!session.why) session.why = "exited"; pipe.close(); });

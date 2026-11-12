@@ -1,0 +1,27 @@
+WEBVTT
+Kind: captions
+Language: en
+
+STYLE
+::cue { color: red }
+
+NOTE this note is not spoken
+
+1
+00:00:00.000 --> 00:00:02.000 align:start position:0%
+<c.colorE5E5E5>Welcome</c> <b>to</b> the <i>stand-in</i> &amp; site
+
+2
+00:00:02.000 --> 00:00:04.000
+Welcome to the stand-in &amp; site
+<v Speaker>Brick houses</v><00:00:03.100><c> in the morning</c>
+
+00:00:04.000 --> 00:00:06.000
+Brick houses in the morning
+light &lt;3 <script>alert(1)</script>
+
+00:00:06.000 --> 00:00:07.000
+​‮hidden‬ marks
+
+00:00:07.000 --> 00:00:08.000
+unclosed <tag never ends

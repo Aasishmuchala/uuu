@@ -69,6 +69,10 @@ The key and the relay's secret are never given to the fence or to a program. The
 - The fence starts only strictly inside `state/tasks`, `<instance>/workspaces` or `<instance>/isolated-workspaces`, after resolving links, inside the home folder or out of it. `POST /board/chat/stream` makes the board start `claude` in its own folder; that run is refused, and must stay so.
 - The trial's `<task folder>.reads` files are gone. The Checker gets a read-only task folder through its policy instead.
 
+## The deny list
+
+The fence refuses writes to eight names (`.claude`, `CLAUDE.md`, `CLAUDE.local.md`, `.mcp.json`, `AGENTS.md`, `AGENTS.override.md`, `.codex`, `.agents`) at any depth, in any letter case, in the task folder, the agent's own home and the run's temp folder, so no agent can leave settings, skills or hooks for another agent's program to load (`docs/adr/0012-no-program-settings-in-a-task-folder.md`). All three folders are needed because a folder built in one and moved whole into another keeps what it holds. The Claude wrapper also passes `--disallowedTools WebSearch WebFetch` and the Codex wrapper `-c project_doc_max_bytes=0 -c web_search="disabled"`, as a second layer.
+
 ## The board's git
 
 - **The attack.** The board runs `git status` and other git commands in the agents' task folders, outside the fence, as the owner (every 40 seconds or so). An agent can write a made-up repository there: `HEAD`, `objects/`, `refs/` and a `config` laid out directly in the folder, or, in a subfolder, a `.git` file pointing at one. Its settings can name a program (`core.fsmonitor`, a `filter` in `.gitattributes`) or point git at files outside the folder (`core.worktree`). Plain git runs that program as the owner. Found by the final security review, 11 November 2026, and reproduced.

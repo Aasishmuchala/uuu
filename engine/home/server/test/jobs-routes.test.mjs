@@ -50,7 +50,7 @@ async function start(home, path, body) {
   return { r, sent: posts(home).slice(seen) };
 }
 
-test("GET /api/jobs fits shape jobs: seven departments, the hand-offs, the four stages, 60 jobs", async () => {
+test("GET /api/jobs fits shape jobs: seven departments, the hand-offs, the four stages, 61 jobs", async () => {
   forgetNeeds();
   const r = await get(h, "/api/jobs");
   assert.equal(r.status, 200, r.text);
@@ -58,11 +58,11 @@ test("GET /api/jobs fits shape jobs: seven departments, the hand-offs, the four 
   assert.deepEqual(r.json.departments.map((d) => d.id), ["operations", "sales", "marketing", "studio", "support", "people", "books"]);
   assert.deepEqual(r.json.handoffs.map((x) => x.label), ["You lead", "You approve", "On its own"]);
   assert.deepEqual(r.json.stages.map((s) => [s.n, s.label]), [[1, "Foundations"], [2, "Take in"], [3, "Make"], [4, "Hand on"]]);
-  assert.equal(r.json.totals.jobs, 60);
-  assert.equal(r.json.stages.reduce((n, s) => n + s.jobs, 0), 60);
+  assert.equal(r.json.totals.jobs, 61);
+  assert.equal(r.json.stages.reduce((n, s) => n + s.jobs, 0), 61);
   assert.equal(r.json.stages.reduce((n, s) => n + s.ready, 0), r.json.totals.ready);
   const all = r.json.departments.flatMap((d) => d.clusters.flatMap((c) => c.jobs));
-  assert.equal(all.length, 60);
+  assert.equal(all.length, 61);
   assert.equal(r.json.totals.ready, all.filter((j) => j.ready).length);
   assert.deepEqual(r.json.problems, []);
   assert.deepEqual(writes(h.board), [], "reading the jobs writes nothing");
@@ -352,7 +352,7 @@ test("start: the board off is 502 and writes no record", async () => {
     assert.deepEqual(decisions(home), before0);
     const list = await get(home, "/api/jobs");
     assert.equal(list.status, 200, "the catalogue still shows with the board off");
-    assert.equal(list.json.totals.jobs, 60);
+    assert.equal(list.json.totals.jobs, 61);
   });
 });
 
@@ -437,8 +437,8 @@ test("start (M63 item 22): two starts of one job with different answers are two 
     const d = decisions(home);
     assert.equal(d[`template:${a.r.json.goal.id}`], "marketing/five-concepts");
     assert.equal(d[`template:${b.r.json.goal.id}`], "marketing/five-concepts");
-    assert.deepEqual(d[`asked:${a.r.json.goal.id}`], { answers: { subject: "Why we label every shelf", kind: "post" } });
-    assert.deepEqual(d[`asked:${b.r.json.goal.id}`], { answers: { subject: "Five small habits for a tidy workshop", kind: "carousel" } });
+    assert.deepEqual(d[`asked:${a.r.json.goal.id}`], { answers: { subject: "Why we label every shelf", kind: "post" }, versions: 1 });
+    assert.deepEqual(d[`asked:${b.r.json.goal.id}`], { answers: { subject: "Five small habits for a tidy workshop", kind: "carousel" }, versions: 1 });
   });
 });
 
@@ -453,7 +453,7 @@ test("start (M63 item 22): a start the board hands back as an existing task chan
     assert.equal(b.r.json.error.code, "already_started");
     assert.doesNotMatch(b.r.json.error.message, /STH-|[0-9a-f]{8}-/);
     assert.deepEqual(decisions(home), before0);
-    assert.deepEqual(decisions(home)[`asked:${id}`], { answers: { subject: "Why we label every shelf", kind: "post" } });
+    assert.deepEqual(decisions(home)[`asked:${id}`], { answers: { subject: "Why we label every shelf", kind: "post" }, versions: 1 });
   });
 });
 

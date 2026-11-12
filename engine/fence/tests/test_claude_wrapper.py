@@ -207,6 +207,8 @@ UNSET = ("CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR", "
          "ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_BEDROCK_MANTLE_BASE_URL", "ANTHROPIC_VERTEX_BASE_URL",
          "ANTHROPIC_FOUNDRY_BASE_URL", "ANTHROPIC_AWS_BASE_URL", "ANTHROPIC_GOOGLE_CLOUD_BASE_URL",
          "ANTHROPIC_AWS_API_KEY", "ANTHROPIC_FOUNDRY_API_KEY", "ANTHROPIC_FOUNDRY_AUTH_TOKEN", "AWS_BEARER_TOKEN_BEDROCK")
+# PLAN-V5, K2b as T1 found it: after paperclip's own arguments, in either mode.
+NO_WEB = ["--disallowedTools", "WebSearch", "WebFetch"]
 ENV_STAND_IN = """#!/bin/bash
 env | LC_ALL=C sort | sed 's/^/env:/'
 for a in "$@"; do echo "arg=$a"; done
@@ -325,7 +327,8 @@ class ProviderModeTests(unittest.TestCase):
         ]
         for given, wanted in cases:
             _, args = self.seen(self.run_claude(given, AGENT_A))
-            self.assertEqual(args[-len(wanted):] if wanted else args, wanted, given)
+            self.assertEqual(args[-len(wanted) - 3:-3], wanted, given)
+            self.assertEqual(args[-3:], NO_WEB)
 
     def test_every_listed_name_and_pattern_is_gone(self):
         self.assertEqual(len(UNSET), 34)
@@ -399,11 +402,46 @@ class ProviderModeTests(unittest.TestCase):
                 self.assertNotIn("ANTHROPIC_BASE_URL", env)
                 self.assertNotIn("ANTHROPIC_AUTH_TOKEN", env)
                 self.assertNotIn("ANTHROPIC_MODEL", env)
-                self.assertEqual(args[-4:], ["--model", "sonnet", "-p", "hi"])
+                self.assertEqual(args[-7:-3], ["--model", "sonnet", "-p", "hi"])
+                self.assertEqual(args[-3:], NO_WEB)
         os.remove(os.path.join(self.state, "agent.env"))
         r = self.run_claude(["-p", "hi"], AGENT_A)
         self.assertEqual(r.returncode, 78)
         self.assertIn("No agent login yet", r.stderr)
+
+    # The program flags (PLAN-V5, K2b as T1 found them)
+
+    def paperclip_args(self):
+        return ["--print", "--output-format", "stream-json", "--verbose", "--model", "sonnet",
+                "--max-turns", "30", "--add-dir", os.path.join(self.tmp, "nowhere")]
+
+    def test_no_web_flag_comes_last_once_in_either_mode(self):
+        for mode in ("plans", "provider"):
+            self.set_state(mode)
+            given = self.paperclip_args()
+            _, args = self.seen(self.run_claude(given, AGENT_A))
+            self.assertEqual(args[-3:], NO_WEB, mode)
+            self.assertEqual(args.count("--disallowedTools"), 1, mode)
+            self.assertNotIn("--setting-sources", args, mode)
+            if mode == "plans":
+                self.assertEqual(args[args.index("--print"):], given + NO_WEB)
+            # Already there at the end: not added again.
+            _, again = self.seen(self.run_claude(given + NO_WEB, AGENT_A))
+            self.assertEqual(again.count("--disallowedTools"), 1, mode)
+            self.assertEqual(again[-3:], NO_WEB, mode)
+
+    def test_no_web_flag_not_on_version_help_or_fence_check(self):
+        for mode in ("provider", "plans"):
+            self.set_state(mode)
+            for given in (["--version"], ["-v"], ["--help"], ["-h"]):
+                _, args = self.seen(self.run_claude(given, AGENT_A))
+                self.assertIn(given[0], args)
+                self.assertNotIn("--disallowedTools", args)
+        _, args = self.seen(self.run_claude(["--fence-check", "true"], AGENT_A))
+        self.assertNotIn("--disallowedTools", args)
+        # A run with no arguments at all still gets it.
+        _, args = self.seen(self.run_claude([], AGENT_A))
+        self.assertEqual(args[-3:], NO_WEB)
 
 
 if __name__ == "__main__":

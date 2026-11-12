@@ -34,3 +34,9 @@ export * from "./answer.js";
 export * from "./ring.js";
 export * from "./forms.js";
 export * from "./upload.js";
+
+// New in version 5 (PLAN-V5 K9, T20): the card of versions to pick from. DecisionCard is the one approval card
+// for any Needs-you item, so it shows a card of versions as one (kit/pick.js DecisionOrPick; this explicit
+// export wins over decision.js's own through the star export above).
+export * from "./pick.js";
+export { DecisionOrPick as DecisionCard } from "./pick.js";

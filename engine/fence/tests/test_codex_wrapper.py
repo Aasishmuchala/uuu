@@ -56,6 +56,8 @@ SETTINGS = [
           'supports_websockets=false}',
     "-c", 'model="%s"' % PICK,
 ]
+# PLAN-V5, K2b as T1 found them: right after `exec` (after SETTINGS), in either mode.
+FLAGS = ["-c", "project_doc_max_bytes=0", "-c", 'web_search="disabled"']
 
 
 class CodexWrapperTests(unittest.TestCase):
@@ -151,6 +153,10 @@ class CodexWrapperTests(unittest.TestCase):
         self.assertEqual(prog[prog.index("--model") + 1], "gpt-x")
         include = [a for a in prog if a.startswith("shell_environment_policy.include_only=")][0]
         self.assertTrue(include.startswith('shell_environment_policy.include_only=["PATH","HOME","HTTP_PROXY"'))
+        # Apart from the two settings right after exec, today's arguments exactly.
+        i = prog.index("exec")
+        self.assertEqual(prog[i + 1:i + 5], FLAGS)
+        prog = prog[:i + 1] + prog[i + 5:]
         self.assertEqual(prog, [include if a.startswith("shell_environment_policy.include_only=") else a
                                 for a in PAPERCLIP_ARGS])
 
@@ -189,7 +195,8 @@ class CodexWrapperTests(unittest.TestCase):
         # Paperclip's own arguments keep their order around them.
         self.assertEqual(prog[:7], PAPERCLIP_ARGS[:7])
         self.assertEqual(i, PAPERCLIP_ARGS.index("exec"))
-        self.assertEqual(prog[i + 7:i + 9], ["--json", "-c"])
+        self.assertEqual(prog[i + 7:i + 11], FLAGS)
+        self.assertEqual(prog[i + 11:i + 13], ["--json", "-c"])
         self.assertEqual(prog[-1], "-")
 
     def test_provider_token_verifies_and_is_on_no_command_line(self):
@@ -213,11 +220,11 @@ class CodexWrapperTests(unittest.TestCase):
                             (["-m=gpt-x"], ["-m=%s" % PICK])):
             args, _ = self.ok(self.run_codex(["exec", "--json"] + given + ["-"], AGENT_A))
             prog = self.program_args(args)
-            self.assertEqual(prog[7:-1], ["--json"] + want, given)
+            self.assertEqual(prog[11:-1], ["--json"] + want, given)
             self.assertNotIn("gpt-x", " ".join(prog))
         # A -c value that reads like a flag is a value, not a flag.
         args, _ = self.ok(self.run_codex(["exec", "-c", "--model", "keep", "-"], AGENT_A))
-        self.assertEqual(self.program_args(args)[7:], ["-c", "--model", "keep", "-"])
+        self.assertEqual(self.program_args(args)[11:], ["-c", "--model", "keep", "-"])
 
     def test_provider_include_only_rewrite_still_happens(self):
         self.provider()
@@ -417,6 +424,35 @@ class CodexWrapperTests(unittest.TestCase):
             self.assertEqual(token, "<unset>")
             self.assertEqual(args[-2:], ["-c", "true"])
             self.assertNotIn('model_provider="uuu-relay"', args)
+
+    # The program flags (PLAN-V5, K2b as T1 found them)
+
+    def test_flags_right_after_exec_once_in_either_mode(self):
+        for mode in ("plans", "provider"):
+            self.provider(mode=mode)
+            for given in (PAPERCLIP_ARGS, PAPERCLIP_ARGS[:-1] + ["resume", "sess-1", "-"]):
+                args, _ = self.ok(self.run_codex(given, AGENT_A))
+                prog = self.program_args(args)
+                i = prog.index("exec") + (7 if mode == "provider" else 1)
+                self.assertEqual(prog[i:i + 4], FLAGS, mode)
+                self.assertEqual(prog.count("project_doc_max_bytes=0"), 1, mode)
+                self.assertEqual(prog.count('web_search="disabled"'), 1, mode)
+                self.assertEqual(i + 4, prog.index("--json"))
+
+    def test_no_flags_without_exec(self):
+        self.provider(mode="plans")
+        for given in (["--version"], ["-s", "read-only", "-a", "on-request", "app-server"], ["-p", "exec", "-"]):
+            args, _ = self.ok(self.run_codex(given, AGENT_A))
+            self.assertEqual(self.program_args(args), given)
+        args, _ = self.ok(self.run_codex(["--fence-check", "true"], AGENT_A))
+        self.assertNotIn("project_doc_max_bytes=0", args)
+
+    def test_include_only_names_the_new_exports(self):
+        args, _ = self.ok(self.run_codex(PAPERCLIP_ARGS, AGENT_A))
+        include = [a for a in self.program_args(args) if a.startswith("shell_environment_policy.include_only=")][0]
+        for name in ("UUU_PLAYBOOKS_DIR", "UUU_RESEARCH_DIR", "UUU_BRAND_PY", "UUU_BRAND_CHECK",
+                     "UUU_WEB_URL", "UUU_WEB_TOKEN", "UUU_GENERATE_TOKEN", "UUU_VIEWER_TOKEN"):
+            self.assertIn('"%s"' % name, include)
 
 
 if __name__ == "__main__":
