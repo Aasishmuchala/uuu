@@ -84,7 +84,8 @@ class PlanTests(unittest.TestCase):
         self.assertIn("/private/tmp/claude-501", out["filesystem"]["denyRead"])
         self.assertIn("/tmp/claude-501", out["filesystem"]["denyRead"])
         self.assertEqual(out["filesystem"]["denyWrite"],
-                         fence_plan._deny_entries([self.task, i["agentHome"], i["innerTmp"]]))
+                         fence_plan.SANDBOX_OWN_TMP
+                         + fence_plan._deny_entries([self.task, i["agentHome"], i["innerTmp"]]))
         self.assertEqual(out["network"]["deniedDomains"], [])
         self.assertNotIn("127.0.0.1:3100", out["network"]["allowedDomains"])
 
@@ -595,16 +596,19 @@ class PlanTests(unittest.TestCase):
         out = plan(i)
         deny = out["filesystem"]["denyWrite"]
         roots = [self.task, i["agentHome"], i["innerTmp"]]
-        self.assertEqual(len(deny), len(roots) * len(fence_plan.CONFIG_NAMES) * 4)
+        self.assertEqual(deny[:2], fence_plan.SANDBOX_OWN_TMP)
+        deny = deny[2:]
+        spellings = sum(len(fence_plan._any_case(n)) for n in fence_plan.CONFIG_NAMES)
+        self.assertEqual(len(deny), len(roots) * spellings * 4)
         self.assertEqual(len(set(deny)), len(deny))
         ci = "[Cc][Ll][Aa][Uu][Dd][Ee].[Mm][Dd]"
         for root in roots:
             self.assertEqual([e for e in deny if e[:-len(ci)] in (root + "/", root + "/**/") and e.endswith(ci)],
                              ["%s/%s" % (root, ci), "%s/**/%s" % (root, ci)])
             for name in fence_plan.CONFIG_NAMES:
-                n = fence_plan._any_case(name)
-                for entry in ("%s/%s", "%s/%s/**", "%s/**/%s", "%s/**/%s/**"):
-                    self.assertIn(entry % (root, n), deny)
+                for n in fence_plan._any_case(name):
+                    for entry in ("%s/%s", "%s/%s/**", "%s/**/%s", "%s/**/%s/**"):
+                        self.assertIn(entry % (root, n), deny)
                 for spelling in (name, name.lower(), name.upper(), name.swapcase()):
                     for where in ("", "a/", "a/b/"):
                         self.assertTrue(self.denied(deny, "%s/%s%s" % (root, where, spelling)), spelling)
@@ -631,7 +635,8 @@ class PlanTests(unittest.TestCase):
                 deny = out["filesystem"]["denyWrite"]
                 for root in out["filesystem"]["allowWrite"] + [self.task]:
                     for name in fence_plan.CONFIG_NAMES:
-                        self.assertIn("%s/**/%s" % (root, fence_plan._any_case(name)), deny)
+                        for n in fence_plan._any_case(name):
+                            self.assertIn("%s/**/%s" % (root, n), deny)
 
     def test_door_port_added_after_gate(self):
         p = self.policy(localServices=["127.0.0.1:8120"])
@@ -697,7 +702,8 @@ class PlanTests(unittest.TestCase):
                                            os.path.join(self.H, ".local", "bin"), i["realClaudeDir"],
                                            self.playbooks, self.shared])
         self.assertEqual(fs["allowWrite"], [self.research, i["agentHome"], i["innerTmp"]])
-        self.assertEqual(fs["denyWrite"], fence_plan._deny_entries(fs["allowWrite"]))
+        self.assertEqual(fs["denyWrite"],
+                         fence_plan.SANDBOX_OWN_TMP + fence_plan._deny_entries(fs["allowWrite"]))
         self.assertEqual(out["network"]["allowedDomains"], ["api.anthropic.com", "127.0.0.1:3111", "localhost:3111"])
         for company in (self.task, os.path.join(self.S, "knowledge", "docs"), os.path.join(self.S, "lessons")):
             self.assertFalse(any(fence_plan._inside(p, company) for p in fs["allowRead"]), company)
@@ -783,6 +789,76 @@ class PlanTests(unittest.TestCase):
                     if p is not None:
                         q = dict(p, walled=False)
                         self.assertEqual(plan(self.new(tool=tool, policy=q, **mode)), old)
+
+
+    # The review of step 1: the sandbox tool allows writes to its own temp folder
+    # (/private/tmp/claude) in every profile, and could carry a folder of program
+    # settings into a task folder by one mv or ln -s. Closed as a whole folder.
+
+    def every_kind_of_run(self):
+        yield self.inputs()
+        yield self.inputs(tool="codex", policy=self.policy(taskFolder="read-only"))
+        yield self.inputs(modelMode="provider", relayPort=3120, policy=self.policy(localServices=["127.0.0.1:8120"]))
+        yield self.walled_inputs()
+
+    def test_sandbox_temp_folder_closed(self):
+        for i in self.every_kind_of_run():
+            fs = plan(i)["filesystem"]
+            for p in ("/private/tmp/claude", "/tmp/claude"):
+                self.assertIn(p, fs["denyWrite"])
+                self.assertIn(p, fs["denyRead"])
+                self.assertEqual([r for r in fs["allowRead"] + fs["allowWrite"] if fence_plan._inside(r, p)], [])
+
+
+    # The review of step 1: this disk also folds U+017F LONG S onto "s" (and the
+    # Kelvin sign onto "k"), which a [Ss] set does not match. fold-probe.py in the
+    # T1 prototype found no other character it folds onto a letter of the names.
+
+    def test_long_s_spellings_denied(self):
+        i = self.inputs()
+        deny = plan(i)["filesystem"]["denyWrite"]
+        for root in (self.task, i["agentHome"], i["innerTmp"]):
+            for bad in (".agent\u017f", ".AGENT\u017f/skills/x/SKILL.md", "AGENT\u017f.md", "a/b/agent\u017f.md",
+                        ".mcp.j\u017fon", "AGENT\u017f.override.md", "a/.agent\u017f", "AGENTS.md", ".mcp.json"):
+                self.assertTrue(self.denied(deny, "%s/%s" % (root, bad)), bad)
+            for ok in ("\u017ftory.txt", "note\u017f.md", "a/.agentſx", "AGENT\u017f.txt"):
+                self.assertFalse(self.denied(deny, "%s/%s" % (root, ok)), ok)
+            # Each long s stands alone in its entry, never inside a [...] set.
+            for e in deny:
+                self.assertNotIn("[\u017f", e)
+                self.assertNotIn("\u017f]", e)
+        # Four entries more per root for each name holding one s.
+        with_s = [n for n in fence_plan.CONFIG_NAMES if "s" in n.lower()]
+        self.assertEqual(len(deny), 2 + 3 * 4 * (len(fence_plan.CONFIG_NAMES) + len(with_s)))
+
+    def test_every_folded_spelling_of_two_letters(self):
+        self.assertEqual(fence_plan._any_case("ss"),
+                         ["[Ss][Ss]", "[Ss]\u017f", "\u017f[Ss]", "\u017f\u017f"])
+        self.assertEqual(fence_plan._any_case("k.md"), ["[Kk].[Mm][Dd]", "\u212a.[Mm][Dd]"])
+        self.assertEqual(fence_plan._any_case(".codex"), [".[Cc][Oo][Dd][Ee][Xx]"])
+
+
+    # The review of step 1: a walled run reads no other run's temp folder.
+
+    TEMP_AREAS = ["/private/var/folders", "/var/folders", "/private/tmp", "/tmp"]
+
+    def test_walled_reads_no_temp_area(self):
+        run = tempfile.mkdtemp(prefix="paperclip-run-")
+        self.addCleanup(shutil.rmtree, run, True)
+        run = os.path.realpath(run)
+        for over in ({}, {"innerTmp": run}, {"tool": "codex", "modelMode": "provider", "relayPort": 3120}):
+            fs = plan(self.walled_inputs(**over))["filesystem"]
+            for area in self.TEMP_AREAS:
+                self.assertIn(area, fs["denyRead"])
+            # Its own temp folder stays readable and writable beneath the deny.
+            if over.get("innerTmp"):
+                self.assertIn(run, fs["allowRead"])
+                self.assertIn(run, fs["allowWrite"])
+        # Everyone else's reads are as before.
+        for i in (self.inputs(), self.inputs(policy=self.policy())):
+            fs = plan(i)["filesystem"]
+            for area in self.TEMP_AREAS:
+                self.assertNotIn(area, fs["denyRead"])
 
 
 if __name__ == "__main__":

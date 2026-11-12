@@ -489,15 +489,23 @@ def check_box(box, size, who):
     return (l, t, r, b)
 
 
+def cover_rect(pw, ph, w, h):
+    """The part of a pw x ph picture that, scaled, just covers w x h: the largest centred rectangle of the
+    box's shape. Never larger than the picture itself."""
+    if pw * h > ph * w:                  # the picture is wider than the box: keep its full height
+        cw, ch = ph * w / float(h), float(ph)
+    else:
+        cw, ch = float(pw), pw * h / float(w)
+    x, y = (pw - cw) / 2.0, (ph - ch) / 2.0
+    return (x, y, x + cw, y + ch)
+
+
 def cover_fit(pic, w, h):
-    """The picture scaled to just cover w × h, centred, cropped to it."""
+    """The picture scaled to just cover w × h, centred, cropped to it. The crop is taken first and resized
+    straight to w × h, so nothing larger than the source or the box is ever made."""
     from PIL import Image
 
-    scale = max(w / float(pic.width), h / float(pic.height))
-    sw, sh = max(w, int(math.ceil(pic.width * scale))), max(h, int(math.ceil(pic.height * scale)))
-    big = pic.resize((sw, sh), Image.LANCZOS)
-    x, y = (sw - w) // 2, (sh - h) // 2
-    return big.crop((x, y, x + w, y + h))
+    return pic.resize((w, h), Image.LANCZOS, box=cover_rect(pic.width, pic.height, w, h))
 
 
 def find_picture_bytes(state, name, cap=MAX_PICTURE_BYTES):

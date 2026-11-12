@@ -11,7 +11,7 @@ export const DEPARTMENTS = [
   { id: "customers", title: "Customers", agents: ["sales"] },
   { id: "support", title: "Support", agents: ["support"] },
   { id: "people", title: "People", agents: ["people"] },
-  { id: "marketing", title: "Marketing", agents: ["marketer"] },
+  { id: "marketing", title: "Marketing", agents: ["marketer", "researcher"] },
   { id: "studio", title: "Studio", agents: ["drafter", "artist"] },
 ];
 // The departments whose records live in the books (the bench); the other two need nothing switched on.

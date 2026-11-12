@@ -129,19 +129,20 @@ test("variants: a version whose folder is a link out of the goal is not listed; 
   });
 });
 
-test("previews: a contact sheet by its first bytes, shown through /api/view; anything else is not shown", () => {
+test("previews: a slide by its first bytes, shown through /api/view; anything else is not shown", () => {
   withGoal((g) => {
     carousel(g);
-    writeFileSync(g.at("slides", "launch-b", "contact.png"), "<svg onload=alert(1)>");
-    rmSync(g.at("slides", "launch-c", "contact.png"));
-    symlinkSync(join(g.goal, "slides", "launch-a", "contact.png"), g.at("slides", "launch-c", "contact.png"));
+    for (const id of ["a", "b", "c"]) writeFileSync(g.at("slides", `launch-${id}`, "slide-01.png"), PNG);
+    writeFileSync(g.at("slides", "launch-b", "slide-01.png"), "<svg onload=alert(1)>");
+    rmSync(g.at("slides", "launch-c", "slide-01.png"));
+    symlinkSync(join(g.goal, "slides", "launch-a", "slide-01.png"), g.at("slides", "launch-c", "slide-01.png"));
     const v = readVariants(g.config, "STH-12", "carousel");
     const [a, b, c] = v.variants.map((x) => previewOf(g.config, "STH-12", "carousel", x));
-    assert.equal(a.length, 1);
+    assert.equal(a.length, 2);
     assert.equal(a[0].type, "image");
-    assert.equal(Buffer.from(a[0].token, "base64url").toString("utf8"), "STH-12/slides/launch-a/contact.png");
+    assert.equal(Buffer.from(a[0].token, "base64url").toString("utf8"), "STH-12/slides/launch-a/slide-01.png");
     assert.equal(a[0].url, `/api/view/${a[0].token}`);
-    assert.deepEqual(b, [], "bytes that are not a PNG are not shown");
+    assert.deepEqual(b, [], "bytes that are not a PNG are not shown, and the contact sheet is not shown alone");
     assert.deepEqual(c, [], "a link is not shown");
     // Only places made here are looked at: a variant object with another path is still only its own place.
     assert.deepEqual(previewOf(g.config, "STH-12", "carousel", null), []);
@@ -174,5 +175,22 @@ test("previews: a title card's poster, a film's board, a draft's body as capped 
     assert.ok(Array.from(text[0].text).length <= 1500);
     assert.equal(draftBody("no header here"), "no header here");
     assert.equal(draftBody(null), "");
+  });
+});
+
+test("previews: a carousel shows the slide files the check measures, in order; a folder holding only contact.png shows nothing", () => {
+  withGoal((g) => {
+    carousel(g);
+    for (const n of ["01", "02", "03", "04", "05"]) writeFileSync(g.at("slides", "launch-a", `slide-${n}.png`), PNG);
+    writeFileSync(g.at("slides", "launch-c", "slide-01.png"), "<svg onload=alert(1)>");
+    writeFileSync(g.at("slides", "launch-c", "slide-02.png"), PNG);
+    const v = readVariants(g.config, "STH-12", "carousel");
+    const [a, b, c] = v.variants.map((x) => previewOf(g.config, "STH-12", "carousel", x));
+    const names = (list) => list.map((p) => Buffer.from(p.token, "base64url").toString("utf8"));
+    assert.deepEqual(names(a.filter((p) => !p.contact)), ["01", "02", "03", "04"].map((n) => `STH-12/slides/launch-a/slide-${n}.png`));
+    assert.deepEqual(a.filter((p) => p.contact).length, 1, "the contact sheet only as an extra, after the slides");
+    assert.equal(a.at(-1).contact, true);
+    assert.deepEqual(b, [], "contact.png alone is never shown as the version");
+    assert.deepEqual(names(c.filter((p) => !p.contact)), ["STH-12/slides/launch-c/slide-02.png"]);
   });
 });

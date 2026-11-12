@@ -500,5 +500,45 @@ class ZshTempTests(unittest.TestCase):
         self.assertIn("use a here-document in zsh", self.read("prove.sh"))
 
 
+class ProofSettingsNamesTests(unittest.TestCase):
+    """The review of step 1: the proof tries the sandbox tool's own temp folder,
+    and its look through the task folders sees names as this disk folds them."""
+
+    def read(self):
+        with open(os.path.join(FENCE, "prove.sh"), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_proof_tries_the_sandbox_tools_temp_folder(self):
+        text = self.read()
+        self.assertIn('blocked "use the sandbox tool\'s own temp folder to carry files in"', text)
+        for attempt in ("mkdir -p /private/tmp/claude/", "mkdir -p /tmp/claude/", "ln -s \"$PWD\" /private/tmp/claude/"):
+            self.assertIn(attempt, text)
+        self.assertIn("mkdir .agent\u017f", text)
+
+    def test_proof_sees_folded_names(self):
+        text = self.read()
+        start = text.index('n="$(within 60 /usr/bin/python3 -I -c "') + len('n="$(within 60 /usr/bin/python3 -I -c "')
+        code = text[start:text.index('" "$STATE_DIR/tasks"', start)]
+        tmp = os.path.realpath(tempfile.mkdtemp(prefix="proof-names-"))
+        self.addCleanup(shutil.rmtree, tmp)
+
+        def count():
+            r = subprocess.run(["/usr/bin/python3", "-I", "-c", code, tmp], capture_output=True, text=True, timeout=30)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return int(r.stdout)
+        os.makedirs(os.path.join(tmp, "t1", "a"))
+        for ok in ("notes.md", "a/\u017ftory.txt", "AGENTS.txt", "a/my.claude"):
+            open(os.path.join(tmp, "t1", ok), "w").close()
+        self.assertEqual(count(), 0)
+        bad = [".agent\u017f", "a/AGENT\u017f.md", ".mcp.j\u017fon", "\uff23LAUDE.md", "a/.CODEX"]
+        for name in bad:
+            os.makedirs(os.path.join(tmp, "t1", name))
+        self.assertEqual(count(), len(bad))
+        # Three levels below the task tree, as the find it replaces; a link is not followed.
+        os.makedirs(os.path.join(tmp, "t1", "a", "b", "CLAUDE.md"))
+        os.symlink(os.path.join(tmp, "t1"), os.path.join(tmp, "loop"))
+        self.assertEqual(count(), len(bad))
+
+
 if __name__ == "__main__":
     unittest.main()

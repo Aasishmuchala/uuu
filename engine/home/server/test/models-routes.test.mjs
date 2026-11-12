@@ -13,7 +13,7 @@ import { startStubsHome } from "../lib/stubs.mjs";
 import { call } from "../lib/testing.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 
-const PICKS = { checker: "claude-gpt-6-1-sol", "art-director": "claude-opus-5-5" };
+const PICKS = { checker: "claude-gpt-6-1-sol", "art-director": "claude-opus-5-5", researcher: "claude-fable-5-1" };
 const SLUGS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist", "art-director", "researcher"];
 const madeUpKey = () => `test-key-${randomBytes(12).toString("hex")}`;
 const madeUpSecret = () => randomBytes(32).toString("hex");

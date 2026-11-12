@@ -588,6 +588,124 @@ class DistrustTest(BrandCheckBase):
         self.assertEqual(codes(self.piece(r, "long")), ["could_not_check"])
 
 
+class EvasionTest(BrandCheckBase):
+    """A maker cannot turn a hard fail into "could not check" (exit 2) by what it leaves in the goal."""
+
+    def test_more_than_forty_pieces_check_forty_and_fail_the_rest(self):
+        for i in range(41):
+            self.write_text("content/note-%02d.md" % i, WORDS + "\n")
+        self.write_text("content/note-05.md", WORDS + " Cheap.\n")
+        code, r = self.check()
+        self.assertEqual(code, 1)
+        self.assertEqual(len(r["pieces"]), 41)
+        self.assertEqual(codes(self.piece(r, "note-05")), ["banned_phrase"])
+        self.assertEqual(self.piece(r, "note-39")["result"], "pass")
+        self.assertEqual(codes(self.piece(r, "note-40")), ["too_many_pieces"])
+
+    def test_a_goal_with_no_pieces_is_a_hard_no_pieces(self):
+        code, r = self.check()
+        self.assertEqual((code, [codes(p) for p in r["pieces"]]), (1, [["no_pieces"]]))
+        self.write_json(os.path.join(self.goal, "variants.json"),
+                        {"kind": "post", "name": "note", "round": 1, "variants": [{"id": "a", "direction": "scene"}]})
+        code, r = self.check()
+        self.assertEqual((code, [codes(p) for p in r["pieces"]]), (1, [["no_pieces"]]))
+        self.assertEqual(r["variants"]["result"], "fail")
+
+    def test_a_missing_or_linked_goal_folder_is_a_hard_no_pieces(self):
+        shutil.rmtree(self.goal)
+        code, r = self.check()
+        self.assertEqual((code, [codes(p) for p in r["pieces"]]), (1, [["no_pieces"]]))
+        os.makedirs(os.path.join(self.root, "away"))
+        os.symlink(os.path.join(self.root, "away"), self.goal)
+        code, r = self.check()
+        self.assertEqual((code, [codes(p) for p in r["pieces"]]), (1, [["no_pieces"]]))
+
+    def test_a_slides_piece_with_no_slide_pictures_never_passes(self):
+        folder = os.path.join(self.goal, "slides", "empty")
+        os.makedirs(folder)
+        self.slide().save(os.path.join(folder, "contact.png"))
+        self.write_json(os.path.join(folder, "slides.json"), {"slides": [{"text": "A calm home"}]})
+        os.makedirs(os.path.join(self.goal, "slides", "nothing"))
+        code, r = self.check()
+        self.assertEqual(code, 1)
+        for name in ("empty", "nothing"):
+            p = self.piece(r, name)
+            self.assertEqual(codes(p), ["could_not_check"])
+            self.assertIn("slide-01.png", p["hard"][0]["detail"])
+
+    def test_a_video_piece_with_no_poster_never_passes(self):
+        os.makedirs(os.path.join(self.goal, "video", "blank"))
+        code, r = self.check()
+        self.assertEqual((code, codes(self.piece(r, "blank"))), (1, ["could_not_check"]))
+
+    def test_running_out_of_time_fails_the_unchecked_pieces(self):
+        self.write_text("drafts/a.md", WORDS + "\n")
+        self.write_text("drafts/b.md", WORDS + "\n")
+        saved = brandcheck.TOTAL_SECONDS
+        brandcheck.TOTAL_SECONDS = -1
+        try:
+            code, r = self.check()
+        finally:
+            brandcheck.TOTAL_SECONDS = saved
+        self.assertEqual((code, [codes(p) for p in r["pieces"]]), (1, [["could_not_check"], ["could_not_check"]]))
+
+
+MEASURE = """import json, resource, sys, time
+sys.path.insert(0, sys.argv[1])
+import brandcheck
+t = time.monotonic()
+code, out, err = brandcheck.run(["--json", "--state", sys.argv[2], "STH-7"], cwd=sys.argv[3])
+rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+print(json.dumps({"code": code, "seconds": time.monotonic() - t, "rss": rss if sys.platform == "darwin" else rss * 1024,
+                  "out": out, "err": err}))
+"""
+
+
+class HostileSizeTest(BrandCheckBase):
+    """A manifest's box may not make the check build a picture larger than the slide or the source."""
+
+    def wide_slide(self, claims):
+        folder = os.path.join(self.goal, "slides", "wide")
+        os.makedirs(folder)
+        Image.new("RGB", (50000, 1000), SAND).save(os.path.join(folder, "slide-01.png"))   # exactly 50 MP, flat
+        self.assertLess(os.path.getsize(os.path.join(folder, "slide-01.png")), 400 * 1024)
+        self.write_json(os.path.join(folder, "manifest.json"), {"name": "wide", "pictures": claims})
+
+    def measure(self):
+        script = os.path.join(self.root, "measure.py")
+        with open(script, "w") as fh:
+            fh.write(MEASURE)
+        r = subprocess.run([sys.executable, script, self.bin, self.state, self.work],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        return json.loads(r.stdout)
+
+    def test_a_huge_claimed_box_is_measured_without_a_huge_picture(self):
+        self.wide_slide([{"slide": 1, "box": [0, 0, 50000, 1000], "source": "logo.png"}])
+        m = self.measure()
+        self.assertLess(m["seconds"], 20)
+        self.assertLess(m["rss"], 700 * 1024 * 1024)     # the 50 MP slide itself is 150 MB; never gigabytes
+        p = json.loads(m["out"])["pieces"][0]
+        self.assertEqual((m["code"], p["result"]), (1, "fail"))
+        self.assertIn("picture_claim_false", codes(p))     # the logo is not what the slide shows
+
+    def test_forty_huge_claims_stay_within_the_pixel_budget(self):
+        self.wide_slide([{"slide": 1, "box": [0, 0, 50000, 1000], "source": "logo.png"}] * 40)
+        m = self.measure()
+        self.assertLess(m["seconds"], 30)
+        self.assertLess(m["rss"], 700 * 1024 * 1024)
+        self.assertEqual(m["code"], 1)
+        self.assertEqual(json.loads(m["out"])["pieces"][0]["result"], "fail")
+
+    def test_cover_fit_never_makes_a_picture_larger_than_the_box(self):
+        pic = Image.new("RGB", (512, 512), CLAY)
+        out = kitmod.cover_fit(pic, 50000, 1000)
+        self.assertEqual(out.size, (50000, 1000))
+        rect = kitmod.cover_rect(512, 512, 50000, 1000)
+        self.assertEqual((rect[0], rect[2]), (0, 512))
+        self.assertAlmostEqual(rect[3] - rect[1], 512 * 1000 / 50000.0)
+
+
 class CommandTest(BrandCheckBase):
     @classmethod
     def setUpClass(cls):
@@ -615,14 +733,14 @@ class CommandTest(BrandCheckBase):
 
     def test_could_not_check_is_exit_2_with_one_line(self):
         bc = os.path.join(self.bin, "brandcheck.py")
-        for args in (["STH-99"], ["../STH-7"], [], ["--what", "STH-7"]):
+        for args in (["../STH-7"], ["STH 7"], [], ["--what", "STH-7"]):
             r = self.cli(bc, "--state", self.state, *args)
             self.assertEqual(r.returncode, 2, args)
             self.assertEqual(len(r.stderr.strip().splitlines()), 1, r.stderr)
             self.assertTrue(r.stderr.startswith("brandcheck: "), r.stderr)
-        r = self.cli(bc, "--state", self.state, "STH-7")       # the goal holds no pieces yet
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("no pieces", r.stderr)
+        r = self.cli(bc, "--state", self.state, "STH-7")       # no pieces is the maker's fault: a hard fail
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no_pieces", r.stdout)
 
     def test_installed_it_finds_its_state_and_refuses_state(self):
         tools = os.path.join(self.state, "art", "tools")

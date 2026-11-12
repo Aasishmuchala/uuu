@@ -35,6 +35,15 @@ POLICY_OPTIONAL_KEYS = ("walled",)
 # for another agent's program, or its own next run, to load.
 CONFIG_NAMES = (".claude", "CLAUDE.md", "CLAUDE.local.md", ".mcp.json", "AGENTS.md",
                 "AGENTS.override.md", ".codex", ".agents")
+# The sandbox tool's own temp folder. Every profile it builds allows writes
+# under it (and so its creation), outside every root the planner knows; a
+# folder of program settings built there could be moved or linked into a task
+# folder whole. Closed for every run, for reading and for writing; fence-run
+# gives the command a temp folder of its own (review of step 1).
+SANDBOX_OWN_TMP = ["/private/tmp/claude", "/tmp/claude"]
+# The system's temp areas, where other runs keep their temp folders: a walled
+# run may not read them (its own temp folder is opened again by allowRead).
+TEMP_AREAS = ["/private/var/folders", "/var/folders", "/private/tmp", "/tmp"]
 # The engine folder: two levels above this file, never taken from the inputs.
 ENGINE = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 PATH_INPUTS = ("home", "state", "taskFolder", "agentHome", "innerTmp", "nodeRoot",
@@ -90,22 +99,38 @@ def _dedupe(items):
     return out
 
 
+# Characters other than its two cases that this disk folds onto a letter (the
+# review of step 1; .router/prototypes/v5/p1/fold-probe.py tried every code
+# point and found these two only). A [Ss] set does not match them, so each is
+# spelt out as a literal of its own.
+DISK_FOLDS = {"s": ["\u017f"], "k": ["\u212a"]}    # LONG S, KELVIN SIGN
+
+
 def _any_case(name):
-    """Each letter as a two-letter set ([Cc]), because the disk ignores letter case."""
-    return "".join("[%s%s]" % (c.upper(), c.lower()) if c.isalpha() else c for c in name)
+    """Every spelling the disk takes for name, as glob patterns: each letter as a
+    two-letter set ([Cc]), because the disk ignores letter case, and once more
+    for every combination of the characters of DISK_FOLDS, each kept outside
+    any set. The first is the plain letter-set form."""
+    spellings = [""]
+    for c in name:
+        options = ["[%s%s]" % (c.upper(), c.lower())] if c.isalpha() else [c]
+        options += DISK_FOLDS.get(c.lower(), [])
+        spellings = [s + o for s in spellings for o in options]
+    return spellings
 
 
 def _deny_entries(roots):
-    """Four entries per name for each root a run can write: the name at the top,
-    inside it, at any depth, and inside it at any depth. All three writable roots
-    (task folder, agent home, temp folder) need them: a folder built in one and
-    moved whole into another keeps what it holds (T1: only its own name is checked)."""
+    """Four entries per spelling of each name for each root a run can write: the
+    name at the top, inside it, at any depth, and inside it at any depth. All
+    three writable roots (task folder, agent home, temp folder) need them: a
+    folder built in one and moved whole into another keeps what it holds (T1:
+    only its own name is checked)."""
     out = []
     for root in roots:
         for name in CONFIG_NAMES:
-            n = _any_case(name)
-            out += ["%s/%s" % (root, n), "%s/%s/**" % (root, n),
-                    "%s/**/%s" % (root, n), "%s/**/%s/**" % (root, n)]
+            for n in _any_case(name):
+                out += ["%s/%s" % (root, n), "%s/%s/**" % (root, n),
+                        "%s/**/%s" % (root, n), "%s/**/%s/**" % (root, n)]
     return out
 
 
@@ -384,7 +409,7 @@ def plan(inputs):
     if door_ports and inputs["policy"] is None:
         raise Refused("a door can only be opened for an agent with a fence policy")
 
-    deny =[home, "/private/tmp/claude-%d" % uid, "/tmp/claude-%d" % uid]
+    deny = [home, "/private/tmp/claude-%d" % uid, "/tmp/claude-%d" % uid] + SANDBOX_OWN_TMP
 
     # The task folder: only inside the engine's own task tree or paperclip's two
     # trees (a default folder per agent, a folder per task). Never the root of a
@@ -429,6 +454,7 @@ def plan(inputs):
             raise Refused("refusing to run a walled agent in %s: it works only in %s" % (task, research))
         if narrow_port is None or gate_port != narrow_port:
             raise Refused("a walled agent reaches the board only through the narrow gate")
+        deny = deny + TEMP_AREAS
     else:
         if narrow_port is not None and gate_port == narrow_port:
             raise Refused("only a walled agent goes through the narrow gate")
@@ -468,7 +494,8 @@ def plan(inputs):
     domains = domains + ["127.0.0.1:%d" % p for p in door_ports] + extras["domains"]
     return {
         "filesystem": {"denyRead": deny, "allowRead": _dedupe(read),
-                       "allowWrite": write, "denyWrite": _deny_entries(deny_roots)},
+                       "allowWrite": write,
+                       "denyWrite": SANDBOX_OWN_TMP + _deny_entries(deny_roots)},
         "network": {"allowedDomains": _dedupe(domains), "deniedDomains": []},
     }
 

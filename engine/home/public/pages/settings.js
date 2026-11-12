@@ -1,10 +1,15 @@
-// Settings: how it looks, which models the agents use (pages/settings-models.js), and what could be switched on later.
+// Settings: how it looks, which models the agents use (pages/settings-models.js), the doors the owner switches on
+// (Web, Generation and Page viewer, each its own module: pages/settings-web.js, settings-generation.js and
+// settings-viewer.js), and what could be switched on later.
 import { html, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { currentAccent, currentBackdrop, currentMotion, currentTheme } from "../lib/theme.js";
 import { Button, Card, ErrorNotice, Loading, PageHeader, Section, Segmented, Switch } from "../kit/index.js";
 import ModelsSection from "./settings-models.js";
+import WebSection from "./settings-web.js";
+import GenerationSection from "./settings-generation.js";
+import ViewerSection from "./settings-viewer.js";
 
 export const THEMES = [
   { id: "auto", label: "Auto" },
@@ -100,6 +105,9 @@ export default function Page() {
       <//>
 
       <${ModelsSection} />
+      <${WebSection} />
+      <${GenerationSection} />
+      <${ViewerSection} />
 
       <${Section} title="Later, when you want it"
         aside=${html`<${Button} variant="quiet" onClick=${() => setTechnical(!technical)}>${technical ? "Hide technical details" : "Show technical details"}<//>`}>

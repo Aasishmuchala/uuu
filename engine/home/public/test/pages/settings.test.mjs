@@ -37,3 +37,14 @@ test("settings: the Models section sits between Appearance and Later", () => {
   assert.ok(a > 0 && m > a && l > m);
   assert.match(src, /import ModelsSection from "\.\/settings-models\.js";/);
 });
+
+test("settings: Web, Generation and Page viewer follow Models, in that order, each from its own module", () => {
+  const src = readFileSync(new URL("../../pages/settings.js", import.meta.url), "utf8");
+  const at = (s) => src.indexOf(s);
+  const order = ["<${ModelsSection} />", "<${WebSection} />", "<${GenerationSection} />", "<${ViewerSection} />", 'title="Later, when you want it"'].map(at);
+  assert.ok(order.every((n) => n > 0), String(order));
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+  assert.match(src, /import WebSection from "\.\/settings-web\.js";/);
+  assert.match(src, /import GenerationSection from "\.\/settings-generation\.js";/);
+  assert.match(src, /import ViewerSection from "\.\/settings-viewer\.js";/);
+});

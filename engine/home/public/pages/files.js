@@ -2,6 +2,8 @@
 // a search over them, and what agents have learned. Adding a file (`?new=`) and the readiness panel are
 // brain/new-file.js and brain/readiness.js; until they are built the page says so.
 // Every name and every word of a file is shown as text, never as HTML. A picture is shown only from its own raw address.
+// A text or table file can be marked as fine to share with the Researcher (PLAN-V5 K10, T35): the switch sits in the
+// file's panel, and `?shared=1` lists what the Researcher can read.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { go } from "../lib/router.js";
@@ -9,7 +11,7 @@ import { bytes, count } from "../lib/format.js";
 import { useApp } from "../lib/context.js";
 import {
   BeingBuilt, Button, Card, Chip, DataTable, Dialog, Empty, ErrorNotice, Field, Icon, Loading, Menu, PageHeader,
-  Ring, Section, Segmented, Select, Tag, TextInput, Time,
+  Ring, Section, Segmented, Select, Switch, Tag, TextInput, Time,
 } from "../kit/index.js";
 
 const EVERY = 10000;
@@ -50,14 +52,15 @@ export const formLeadsToKit = (form) => form === "brand";
 // ---------------------------------------------------------------------------------------------------------------
 // Pure helpers (tested in test/pages/files.test.mjs)
 
-// The address of a state of this page: #/files, #/files/<folder>, with ?file=, ?q=, ?tab=lessons, ?new=.
-export function filesHref({ folder, file, q, tab, mode } = {}) {
+// The address of a state of this page: #/files, #/files/<folder>, with ?file=, ?q=, ?tab=lessons, ?new=, ?shared=1.
+export function filesHref({ folder, file, q, tab, mode, shared } = {}) {
   const f = ID.test(str(folder)) ? `/${folder}` : "";
   const qs = new URLSearchParams();
   if (TOKEN.test(str(file))) qs.set("file", file);
   if (str(q).trim()) qs.set("q", str(q).trim().slice(0, 200));
   if (tab === "lessons") qs.set("tab", "lessons");
   if (newMode(mode)) qs.set("new", mode);
+  if (shared === true && !f) qs.set("shared", "1");
   const s = qs.toString();
   return `#/files${f}${s ? `?${s}` : ""}`;
 }
@@ -246,6 +249,30 @@ export function splitLesson(line) {
   return { date: `${+m[3]} ${MONTHS[+m[2] - 1]} ${m[1]}`, text: m[4] };
 }
 
+// What the Researcher may read (PLAN-V5 K10, T35). Only text and table files can be shared; the list comes from
+// /api/web, where `source` is "brand-kit" (the brand's public summary), "brain" (a file of yours) or "other".
+export const SHARE_WORDS = {
+  label: "Fine to share with the Researcher",
+  explain: "The Researcher reads nothing else of your files. Switch it off to take this file back.",
+  title: "Shared with the Researcher",
+  lead: "The Researcher can read these and its own task, nothing else of yours.",
+  none: "Nothing is shared yet.",
+  noneHow: "Open a text or table file and switch on \"Fine to share with the Researcher\".",
+  restart: "This list appears after the home screen is restarted: engine stop, then engine start.",
+};
+export const SOURCE_WORDS = { "brand-kit": "From the brand kit", brain: "From your files", other: "Put there another way" };
+export const canShare = (file) => Boolean(file) && (file.kind === "text" || file.kind === "table");
+export const sharedLine = (n) => `Shared with the Researcher: ${count(Math.max(0, Math.round(Number(n)) || 0), "file")}`;
+export const sharedFiles = (view) => arr(view && view.shared)
+  .filter((f) => f && typeof f === "object" && typeof f.name === "string" && Object.hasOwn(SOURCE_WORDS, f.source));
+export const isShared = (view, token) => TOKEN.test(str(token)) && sharedFiles(view).some((f) => f.source === "brain" && f.token === token);
+// Where a shared file leads: the brand kit, the file in its panel over the list, or nowhere.
+export function sharedHref(f) {
+  if (f && f.source === "brand-kit") return BRAND_KIT_HREF;
+  if (f && f.source === "brain" && TOKEN.test(str(f.token))) return filesHref({ file: f.token, shared: true });
+  return null;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // The parts M29 builds, loaded by address when they exist (a module that is not there yet is not an error).
 
@@ -265,6 +292,34 @@ function useBrainPart(key) {
 
 // ---------------------------------------------------------------------------------------------------------------
 // One file, in the work panel.
+
+// The owner's switch for one text or table file. Drawn only once /api/web has answered (before the home screen is
+// restarted it has no such route, and nothing is shown).
+function ShareSwitch({ file }) {
+  const { announce } = useApp();
+  const res = useResource("/api/web");
+  const [fresh, setFresh] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const view = fresh || res.data;
+  if (!canShare(file) || !TOKEN.test(str(file.token)) || !view) return null;
+  const change = async (next) => {
+    setBusy(true);
+    setMessage("");
+    try {
+      setFresh(await api.post("/api/web/share", { token: file.token, share: next }));
+      announce && announce(next ? "Shared with the Researcher." : "No longer shared with the Researcher.");
+    } catch (e) {
+      setMessage(refusal(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return html`<div class="p-files__share">
+    <${Switch} on=${isShared(view, file.token)} disabled=${busy} label=${SHARE_WORDS.label} explain=${SHARE_WORDS.explain} onChange=${change} />
+    ${message ? html`<p class="p-files__refusal" role="alert">${message}</p>` : null}
+  </div>`;
+}
 
 function FileBody({ data }) {
   const file = data.file || {};
@@ -399,6 +454,7 @@ function FileView({ token, folders, formHref, onMoved, onDeleted, onGone }) {
     </div>
     <${FileActions} key=${str(file.version)} file=${file} folders=${folders}
       onMoved=${(moved) => onMoved(moved || file)} onDeleted=${onDeleted} />
+    <${ShareSwitch} file=${file} />
     <${FileBody} data=${res.data} />
   </div>`;
 }
@@ -555,6 +611,43 @@ function Folders({ brain }) {
   </ul>`;
 }
 
+// The line under the page's title: how many files the Researcher can read, leading to the list of them.
+function SharedLink() {
+  const res = useResource("/api/web");
+  if (!res.data) return null;
+  return html`<${Button} variant="quiet" size="sm" icon="lock" href=${filesHref({ shared: true })}>${sharedLine(sharedFiles(res.data).length)}<//>`;
+}
+
+// What the Researcher can read: the brand's public summary and every file the owner shared.
+function SharedView() {
+  const res = useResource("/api/web", { every: EVERY });
+  if (res.loading && !res.data) return html`<${Loading} lines=${3} label="Loading what is shared" />`;
+  if (res.error && !res.data) {
+    return res.error.status === 404
+      ? html`<${Empty} title=${SHARE_WORDS.restart} />`
+      : html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`;
+  }
+  const files = sharedFiles(res.data);
+  const t = (res.data && res.data.sharedTotals) || {};
+  if (!files.length) return html`<${Empty} title=${SHARE_WORDS.none} text=${SHARE_WORDS.noneHow} />`;
+  return html`<${Section} title="What it can read" count=${files.length}
+      hint=${`${count(files.length, "file")} of ${Number(t.maxFiles) || 50}, ${bytes(t.bytes)} of ${bytes(t.maxBytes || 5 * 1024 * 1024)}.`}>
+    <ul class="p-files__rows">
+      ${files.map((f) => {
+        const href = sharedHref(f);
+        const inner = html`<span class="p-files__row-icon"><${Icon} name=${f.source === "brand-kit" ? "spark" : "file"} /></span>
+          <span class="p-files__row-name u-truncate" title=${cut(f.title || f.name, NAME_MAX)}>${cut(f.title || f.name, NAME_MAX)}</span>
+          <span class="p-files__row-meta u-caption"><span>${SOURCE_WORDS[f.source]}</span><span>${bytes(f.size)}</span></span>`;
+        return html`<li key=${f.name} class="p-files__row">
+          ${href
+            ? html`<a class="p-files__row-link" href=${href}>${inner}<${Icon} name="chevron-right" size=${14} class="p-files__chev" /></a>`
+            : html`<span class="p-files__row-link">${inner}</span>`}
+        </li>`;
+      })}
+    </ul>
+  <//>`;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // One folder
 
@@ -672,6 +765,7 @@ function FilesPage({ route }) {
   const badFolder = parts.length === 2 && !folder;
   const fileTok = TOKEN.test(query.get("file") || "") ? query.get("file") : "";
   const tab = query.get("tab") === "lessons" ? "lessons" : "files";
+  const sharedMode = !folder && !badFolder && query.get("shared") === "1";
   const wanted = newMode(query.get("new"));
   // The Brand form now lives in the Brand kit (PLAN-V5 T14).
   const toKit = Boolean(wanted && wanted.mode === "form" && formLeadsToKit(wanted.form));
@@ -794,8 +888,11 @@ function FilesPage({ route }) {
         lead=${folderInfo ? cut(folderInfo.about, 200) : undefined}
         chip=${{ label: unknownFolder ? ["Files"] : ["Files", folderTitle], href: "#/files", closeLabel: "Back to all files" }}
         actions=${menu} />`
-    : html`<${PageHeader} over="Company brain" title="Files"
-        lead="Your company's own files. Every agent reads them before it works." actions=${menu} />`;
+    : sharedMode
+      ? html`<${PageHeader} over="Company brain" title=${SHARE_WORDS.title} lead=${SHARE_WORDS.lead}
+          chip=${{ label: ["Files", SHARE_WORDS.title], href: "#/files", closeLabel: "Back to all files" }} />`
+      : html`<${PageHeader} over="Company brain" title="Files"
+          lead="Your company's own files. Every agent reads them before it works." actions=${menu}><${SharedLink} /><//>`;
 
   const searching = tab === "files" && q.trim().length > 0;
 
@@ -805,9 +902,9 @@ function FilesPage({ route }) {
     ${savedName && saved.current && saved.current === fileTok ? html`<p class="p-files__saved" role="status"><${Icon} name="check" size=${16} />Saved. ${savedName}</p>` : null}
     ${brain.error && !brain.data ? html`<${ErrorNotice} error=${brain.error} onRetry=${brain.reload} />` : null}
 
-    ${!folder && !badFolder && brain.data ? html`<${ReadinessCard} brain=${brain.data} />` : null}
+    ${!folder && !badFolder && !sharedMode && brain.data ? html`<${ReadinessCard} brain=${brain.data} />` : null}
 
-    <div class="p-files__tools">
+    ${sharedMode ? html`<${SharedView} />` : html`<div class="p-files__tools">
       <div class="p-files__search">
         <${Field} label="Search your files">
           <${TextInput} type="search" value=${q} maxLength=${200} placeholder="Search in files"
@@ -820,9 +917,9 @@ function FilesPage({ route }) {
             { id: "lessons", label: "What agents learned", icon: "spark", href: filesHref({ tab: "lessons" }) },
           ]} />`
         : null}
-    </div>
+    </div>`}
 
-    ${searching
+    ${sharedMode ? null : searching
       ? html`<${Section} title="Found in your files"><${SearchResults} term=${term} folder=${folder} /><//>`
       : tab === "lessons" && !folder
         ? html`<${Section} title="What agents have learned"><${Lessons} /><//>`

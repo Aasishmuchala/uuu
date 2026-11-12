@@ -137,9 +137,12 @@ export function draftBody(text) {
   return chars.length > MAX_PREVIEW_TEXT ? `${chars.slice(0, MAX_PREVIEW_TEXT - 1).join("").trimEnd()}…` : t;
 }
 
-// The fixed picture names shown for a piece of each kind (never a name from a manifest).
+// The fixed picture names shown for a piece of each kind (never a name from a manifest). A carousel's or a
+// poster's are its slide files, the pictures the brand check measures (slide-01.png to slide-10.png, the
+// first four that pass in order); its contact sheet is never shown alone, only after them as an extra.
+const SLIDE_NAMES = Array.from({ length: 10 }, (_, i) => `slide-${String(i + 1).padStart(2, "0")}.png`);
+export const MAX_SLIDES_SHOWN = 4;
 function pictureNames(kind) {
-  if (kind === "carousel" || kind === "poster") return [["contact.png"]];
   if (kind === "title-card") return [["poster.png"], ["title-card.png"]];
   if (kind === "film") return [["contact.png"], ["board/shot-01.png", "board/shot-02.png", "board/shot-03.png"]];
   return [];                                      // a page: the home server's own screenshots (T52)
@@ -153,7 +156,27 @@ function picture(config, identifier, rel) {
   return { type: "image", token, url: `/api/view/${token}` };
 }
 
-// previewOf(config, identifier, kind, variant) -> [{ type: "image", token, url } | { type: "text", text }].
+const isSlideKind = (kind) => kind === "carousel" || kind === "poster";
+
+// The checked slide pictures of a carousel or poster version, in order, at most four.
+function slidesOf(config, identifier, rel) {
+  const out = [];
+  for (const n of SLIDE_NAMES) {
+    if (out.length >= MAX_SLIDES_SHOWN) break;
+    const p = picture(config, identifier, `${rel}/${n}`);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+// True when the preview holds a picture the brand check measures (for a carousel or poster: a slide file;
+// a contact sheet does not count). Other kinds: true.
+export function previewIsChecked(kind, preview) {
+  if (!isSlideKind(kind)) return true;
+  return Array.isArray(preview) && preview.some((p) => p && p.type === "image" && !p.contact);
+}
+
+// previewOf(config, identifier, kind, variant) -> [{ type: "image", token, url, contact? } | { type: "text", text }].
 // `variant` is one of readVariants' variants (its place was made here, not read from a file).
 export function previewOf(config, identifier, kind, variant) {
   try {
@@ -162,6 +185,12 @@ export function previewOf(config, identifier, kind, variant) {
       const read = readTaskText(config, identifier, variant.rel, { maxBytes: MAX_DRAFT_READ });
       const text = read ? draftBody(read.text) : "";
       return text ? [{ type: "text", text }] : [];
+    }
+    if (isSlideKind(kind)) {
+      const slides = slidesOf(config, identifier, variant.rel);
+      if (!slides.length) return [];
+      const contact = picture(config, identifier, `${variant.rel}/contact.png`);
+      return contact ? [...slides, { ...contact, contact: true }] : slides;
     }
     for (const group of pictureNames(kind)) {
       const got = group.map((n) => picture(config, identifier, `${variant.rel}/${n}`)).filter(Boolean);

@@ -57,6 +57,7 @@ async function withPick({ variants = VARIANTS, ids = ["a", "b", "c"], comments =
     for (const id of ids) {
       mkdirSync(join(goal, "slides", `launch-${id}`), { recursive: true });
       writeFileSync(join(goal, "slides", `launch-${id}`, "contact.png"), PNG());
+      writeFileSync(join(goal, "slides", `launch-${id}`, "slide-01.png"), PNG());
     }
     if (comments) {
       h.board.state.comments.push({ id: "cd000000-0000-4000-8000-000000000001", issueId: GOAL, body: REVIEW, authorAgentId: AD, authorUserId: null, createdAt: later(5) });
@@ -317,5 +318,19 @@ test("the pieces' files are never removed or changed by an action", async () => 
     for (const id of ["a", "b", "c"]) assert.ok(existsSync(join(goal, "slides", `launch-${id}`, "contact.png")));
     assert.equal(JSON.parse(readFileSync(join(goal, "variants.json"), "utf8")).name, "launch");
     rmSync(join(goal, "variants.json"));
+  });
+});
+
+test("pick card: thousands of junk files keep the card's version steady between lists, show no scores, and a pick still works", async () => {
+  await withPick({}, async (h, goal) => {
+    mkdirSync(join(goal, "content"), { recursive: true });
+    for (let i = 0; i < 3100; i += 1) writeFileSync(join(goal, "content", `junk-${i}.md`), "x");
+    const first = await itemOf(h);
+    const second = await itemOf(h);
+    assert.equal(first.version, second.version);
+    assert.deepEqual(first.variants.map((v) => v.review), [null, null, null]);
+    assert.ok(first.details.some((d) => d.label === "Scores" && /too many files/.test(d.value)));
+    const r = await actAsSeen(h.url, { id: ITEM, action: "pick", variant: "a" });
+    assert.equal(r.status, 200, r.text);
   });
 });

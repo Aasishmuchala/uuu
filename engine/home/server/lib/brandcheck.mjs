@@ -31,7 +31,8 @@ const CLEAN_PATH = "/usr/bin:/bin:/usr/sbin:/sbin";
 // K6's report, as read here.
 const KITS = new Set(["present", "missing", "unreadable"]);
 const RESULTS = new Set(["pass", "warn", "fail"]);
-const PIECE_KINDS = new Set(["content", "draft", "slides", "video", "film", "site"]);
+// "goal": the tool's line about the goal as a whole (no_pieces, or a could_not_check), named after the goal.
+const PIECE_KINDS = new Set(["content", "draft", "slides", "video", "film", "site", "goal"]);
 const CODE = /^[a-z][a-z_]{0,39}$/;
 const PIECE_NAME = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,99}$/;
 const MAX_PIECES = 40;
@@ -53,6 +54,8 @@ export const SAY = {
   kitUnreadable: "The brand kit could not be read, so colours, the logo and type were not checked.",
   notCompared: "Whether the versions differ from each other was not checked.",
   couldNot: "Part of this version could not be checked.",
+  noPieces: "No pieces were found to check.",
+  tooManyPieces: "There were more than 40 pieces; the rest were not checked.",
 };
 
 // A string from the tool's answer as the owner reads it: one line, no control or format characters, capped.
@@ -196,12 +199,19 @@ function lstatSafe(p) {
 
 // ---- the hash of what would be checked
 
-// stampOf(config, identifier) -> { key, newest }. The key hashes the pieces' names, sizes and times, and the
-// kit's and the can't-say list's; `newest` is the latest change time of variants.json or anything in the
-// goal's piece folders (ctime as well as mtime: an agent can set a file's mtime back, not its ctime).
-export function stampOf(config, identifier) {
+// stampOf(config, identifier, { versions }) -> { key, newest, complete }. The key hashes the pieces' names,
+// sizes and times, and the kit's and the can't-say list's; `newest` is the latest change time of
+// variants.json or anything walked in the goal's piece folders (ctime as well as mtime: an agent can set a
+// file's mtime back, not its ctime). `versions` are the places of variants.json's versions (made by
+// lib/variants.mjs); they are walked FIRST, each within its own cap, because they are what the owner picks.
+// When any cap is reached (entries or depth), `complete` is false: the key is still stable for the same
+// files (never a clock), but nothing may be trusted to be newer than every file.
+const VERSION_PLACE = /^(drafts|slides|video|film|site)\/[a-z0-9][a-z0-9-]{0,35}-[abc](\.md)?$/;
+const VERSION_ENTRIES = 500;
+export function stampOf(config, identifier, { versions = [] } = {}) {
   const h = createHash("sha256").update(String(identifier));
   let newest = 0;
+  let complete = true;
   const note = (name, st, counts = true) => {
     if (!st) { h.update(`${name}|-\n`); return; }
     if (counts) newest = Math.max(newest, st.ctimeMs || 0, st.mtimeMs || 0);
@@ -213,34 +223,53 @@ export function stampOf(config, identifier) {
     note("cant-say", lstatSafe(join(docs, "brand", "cant-say.md")), false);
   }
   const base = goalFolder(config, identifier);
-  if (!base) return { key: h.update("no-goal").digest("hex"), newest };
+  if (!base) return { key: h.update("no-goal").digest("hex"), newest, complete };
   note("variants.json", lstatSafe(join(base, "variants.json")));
-  let seen = 0;
-  const walk = (dir, rel, depth) => {
-    let d;
-    try { d = opendirSync(dir); } catch { return; }
-    try {
-      const names = [];
-      let e;
-      while (seen < STAMP_ENTRIES && (e = d.readSync()) !== null) { seen += 1; names.push(e); }
-      names.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-      for (const x of names) {
-        const full = join(dir, x.name);
-        const st = lstatSafe(full);
-        note(`${rel}/${x.name}`, st);
-        if (st && st.isDirectory() && depth < STAMP_DEPTH) walk(full, `${rel}/${x.name}`, depth + 1);
+  // One walk with its own budget of entries; a folder past the depth or entries past the budget make the
+  // stamp incomplete. Entries are sorted before they are hashed.
+  const walker = (budget) => {
+    let seen = 0;
+    const walk = (dir, rel, depth) => {
+      let d;
+      try { d = opendirSync(dir); } catch { return; }
+      try {
+        const names = [];
+        let e;
+        while ((e = d.readSync()) !== null) {
+          if (seen >= budget) { complete = false; break; }
+          seen += 1;
+          names.push(e.name);
+        }
+        names.sort();
+        for (const n of names) {
+          const full = join(dir, n);
+          const st = lstatSafe(full);
+          note(`${rel}/${n}`, st);
+          if (st && st.isDirectory()) {
+            if (depth < STAMP_DEPTH) walk(full, `${rel}/${n}`, depth + 1);
+            else complete = false;
+          }
+        }
+      } finally {
+        try { d.closeSync(); } catch { /* closed */ }
       }
-    } finally {
-      try { d.closeSync(); } catch { /* closed */ }
-    }
+    };
+    return walk;
   };
+  const places = [...new Set((Array.isArray(versions) ? versions : []).filter((r) => typeof r === "string" && VERSION_PLACE.test(r)))].sort();
+  for (const rel of places) {
+    const st = lstatSafe(join(base, rel));
+    note(`version:${rel}`, st);
+    if (st && st.isDirectory()) walker(VERSION_ENTRIES)(join(base, rel), `version:${rel}`, 1);
+  }
+  const walkAll = walker(STAMP_ENTRIES);
   for (const f of PIECE_FOLDERS) {
     const st = lstatSafe(join(base, f));
     note(f, st);
-    if (st && st.isDirectory()) walk(join(base, f), f, 1);
+    if (st && st.isDirectory()) walkAll(join(base, f), f, 1);
   }
-  if (seen >= STAMP_ENTRIES) h.update(`many|${Date.now()}`);   // too many to know: never reuse
-  return { key: h.digest("hex"), newest };
+  if (!complete) h.update("incomplete");
+  return { key: h.digest("hex"), newest, complete };
 }
 
 // ---- runs, kept
@@ -281,17 +310,18 @@ async function runOnce(ctx, identifier) {
   }
 }
 
-// runBrandCheck(ctx, identifier, { waitMs }) -> { state: "done", report } | { state: "unknown" } |
-// { state: "running" } (still running when the wait ran out; the run goes on and its result is kept).
-export async function runBrandCheck(ctx, identifier, { waitMs } = {}) {
+// runBrandCheck(ctx, identifier, { waitMs, versions }) -> { state: "done", report } | { state: "unknown" } |
+// { state: "running" } (still running when the wait ran out; the run goes on and its result is kept). When the
+// stamp is incomplete the result is never kept: only a run already going is shared.
+export async function runBrandCheck(ctx, identifier, { waitMs, versions } = {}) {
   try {
     if (typeof identifier !== "string" || !IDENTIFIER.test(identifier)) return { state: "unknown" };
-    const { key } = stampOf(ctx.config, identifier);
-    const hit = kept.get(key);
+    const { key, complete } = stampOf(ctx.config, identifier, { versions });
+    const hit = complete ? kept.get(key) : null;
     if (hit && Date.now() - hit.at < hit.ttl) return hit.value ? { state: "done", report: hit.value } : { state: "unknown" };
     let p = running.get(key);
     if (!p) {
-      p = runOnce(ctx, identifier).then((report) => { keep(key, report); running.delete(key); return report; });
+      p = runOnce(ctx, identifier).then((report) => { if (complete) keep(key, report); running.delete(key); return report; });
       running.set(key, p);
     }
     const wait = Number.isFinite(waitMs) ? waitMs : Number.isFinite(ctx?.home?.brandCheckWaitMs) ? ctx.home.brandCheckWaitMs : WAIT_MS;
@@ -310,7 +340,9 @@ export async function runBrandCheck(ctx, identifier, { waitMs } = {}) {
 
 // ---- what one version shows
 
-const lineOf = (e) => (e.where ? `${e.where}: ${e.detail}` : e.detail);
+// Codes shown in the home server's own words rather than the tool's.
+const OWN_WORDS = { no_pieces: SAY.noPieces, too_many_pieces: SAY.tooManyPieces };
+const lineOf = (e) => OWN_WORDS[e.code] || (e.where ? `${e.where}: ${e.detail}` : e.detail);
 const unknown = (line) => ({ result: "unknown", lines: [line] });
 
 // The ids a variants-level line is about ("variant a ...", "variants a and b ..."), from the tool's fixed
@@ -324,10 +356,21 @@ function finishLines(result, lines) {
   return { result, lines: lines.filter(Boolean).slice(0, MAX_LINES) };
 }
 
-// One piece's result. A piece whose only hard entries are could_not_check is "unknown", never "pass".
+// One piece's result. Any hard entry other than could_not_check is a fail, whatever the piece's own result
+// says; a piece whose only hard entries are could_not_check is "unknown", never "pass".
 function pieceResult(piece) {
-  if (piece.hard.length && piece.hard.every((e) => e.code === "could_not_check")) return "unknown";
-  return piece.result;
+  if (piece.hard.some((e) => e.code !== "could_not_check")) return "fail";
+  if (piece.hard.length) return "unknown";
+  return piece.result === "fail" ? "fail" : piece.result;
+}
+
+// The goal-level lines (pieces of kind "goal"): { result: "fail"|"unknown"|null, lines }. They apply to every
+// version: a fail there fails them all; only could_not_check makes them all unknown.
+function goalLevel(report) {
+  const goal = report.pieces.filter((p) => p.kind === "goal");
+  const results = goal.map(pieceResult);
+  const result = results.includes("fail") ? "fail" : results.includes("unknown") ? "unknown" : null;
+  return { result, lines: goal.flatMap((p) => p.hard.map(lineOf)) };
 }
 
 // After the kit's state: no kit means colours were not checked (a pass becomes a warning); a kit that could
@@ -350,11 +393,18 @@ export function brandOfVariant(run, variant, { expectVariants = true } = {}) {
   if (!run || run.state === "running") return unknown(SAY.running);
   if (run.state !== "done" || !run.report) return unknown(SAY.notRun);
   const report = run.report;
+  const goal = goalLevel(report);
   const piece = report.pieces.find((p) => p.kind === variant.report && p.name === variant.reportName);
-  if (!piece) return unknown(SAY.notFound);
+  if (!piece) {
+    if (goal.result === "fail") return finishLines("fail", goal.lines);
+    return unknown(SAY.notFound);
+  }
   let result = pieceResult(piece);
   const lines = [...piece.hard, ...piece.soft].filter((e) => e.code !== "kit_missing").map(lineOf);
   if (result === "unknown") lines.unshift(SAY.couldNot);
+  if (goal.result === "fail") result = "fail";
+  else if (goal.result === "unknown" && result !== "fail") result = "unknown";
+  lines.unshift(...goal.lines);
   if (expectVariants) {
     if (!report.variants.present) {
       lines.push(SAY.notCompared);
@@ -382,7 +432,10 @@ export function brandOfAll(run) {
   let result = results.includes("fail") ? "fail" : results.includes("unknown") ? "unknown" : results.includes("warn") ? "warn" : "pass";
   const lines = [];
   for (const p of report.pieces) {
-    for (const e of [...p.hard, ...p.soft]) if (e.code !== "kit_missing") lines.push(`${p.name}: ${lineOf(e)}`);
+    for (const e of [...p.hard, ...p.soft]) {
+      if (e.code === "kit_missing") continue;
+      lines.push((OWN_WORDS[e.code] || p.kind === "goal") ? lineOf(e) : `${p.name}: ${lineOf(e)}`);
+    }
   }
   if (results.includes("unknown")) lines.unshift(SAY.couldNot);
   result = withKit(report, result, lines);

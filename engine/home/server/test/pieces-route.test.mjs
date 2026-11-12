@@ -71,6 +71,7 @@ async function withHome({ comments = [], template = JOB, runner, variants = VARI
       for (const id of ["a", "b", "c"]) {
         mkdirSync(join(goal, "slides", `launch-${id}`), { recursive: true });
         writeFileSync(join(goal, "slides", `launch-${id}`, "contact.png"), PNG);
+        if (files !== "contact-only") writeFileSync(join(goal, "slides", `launch-${id}`, "slide-01.png"), PNG);
       }
     }
     return await fn(h, goal);
@@ -97,7 +98,8 @@ test("pieces: three versions with previews, the home server's own brand result a
     assert.equal(a.single, false);
     assert.equal(a.problem, null);
     assert.deepEqual(a.variants.map((x) => [x.id, x.direction.title]), [["a", "Type led"], ["b", "Picture led"], ["c", "Diagram led"]]);
-    assert.equal(Buffer.from(a.variants[0].preview[0].token, "base64url").toString(), "STH-2/slides/launch-a/contact.png");
+    assert.equal(Buffer.from(a.variants[0].preview[0].token, "base64url").toString(), "STH-2/slides/launch-a/slide-01.png");
+    assert.equal(a.variants[0].preview.at(-1).contact, true);
     assert.deepEqual(a.variants.map((x) => x.brand.result), ["pass", "fail", "pass"]);
     assert.deepEqual(a.variants[1].brand.lines, ["slide-02.png: 12% of the picture is in colours outside the kit"]);
     assert.deepEqual(a.variants.map((x) => x.review && [x.review.total, x.review.of, x.review.meets]), [[52, 70, true], [46, 70, false], null]);
@@ -160,7 +162,7 @@ test("pieces: a broken variants.json is a plain problem and no version; a task f
   });
   await withHome({ template: null, variants: null }, async (h) => {
     const r = await pieces(h);
-    assert.deepEqual(r.json, { kind: null, round: null, variants: [], single: true, missing: [], problem: null });
+    assert.deepEqual(r.json, { kind: null, round: null, variants: [], single: true, missing: [], problem: null, complete: true, note: null });
     assert.equal((await pieces(h, "STH-999")).status, 404);
   });
 });
@@ -172,5 +174,34 @@ test("pieces: a single piece of a craft job is one entry with the id piece, scor
     assert.equal(r.status, 200);
     assert.equal(r.json.single, true);
     assert.deepEqual(r.json.variants.map((x) => [x.id, x.direction, x.review?.total, x.brand.result]), [["piece", null, 52, "fail"]]);
+  });
+});
+
+test("pieces: a version whose folder holds only contact.png is could-not-check, whatever the runner says", async () => {
+  await withHome({ comments: [review(K8_EXAMPLE)], runner: async () => JSON.stringify(REPORT), files: "contact-only" }, async (h, goal) => {
+    for (const id of ["a", "c"]) writeFileSync(join(goal, "slides", `launch-${id}`, "slide-01.png"), PNG);
+    const r = await pieces(h);
+    assert.equal(r.status, 200);
+    const b = r.json.variants.find((x) => x.id === "b");
+    assert.deepEqual(b.preview, []);
+    assert.equal(b.brand.result, "unknown");
+    assert.deepEqual(b.brand.lines, ["This version has no slide pictures, so it was not checked."]);
+    assert.equal(r.json.variants.find((x) => x.id === "a").brand.result, "pass");
+  });
+});
+
+test("pieces: junk files and a version changed in place after the review show no scores, with one plain line why", async () => {
+  await withHome({ runner: async () => JSON.stringify(REPORT) }, async (h, goal) => {
+    mkdirSync(join(goal, "content"), { recursive: true });
+    for (let i = 0; i < 3100; i += 1) writeFileSync(join(goal, "content", `junk-${i}.md`), "x");
+    await new Promise((r) => setTimeout(r, 50));
+    h.board.state.comments.push(review(K8_EXAMPLE, { at: new Date().toISOString(), n: 9 }));
+    await new Promise((r) => setTimeout(r, 50));
+    writeFileSync(join(goal, "slides", "launch-b", "slide-01.png"), Buffer.concat([PNG, Buffer.alloc(10)]));
+    const r = await pieces(h);
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.json.variants.map((x) => x.review), [null, null, null]);
+    assert.equal(r.json.complete, false);
+    assert.equal(r.json.note, "This task's folder holds too many files to be sure the scores are newer than the versions, so the scores are not shown.");
   });
 });

@@ -154,7 +154,7 @@ async function versionsOf(ctx, g, tree, artDirectorId) {
   if (pieces.problem) return { problem: pieces.problem };
   if (pieces.single || !pieces.variants.length) return { problem: "The versions' files are missing, so there is nothing to pick from." };
   const reviews = reviewsOf(tree, artDirectorId);
-  return { kind, name: v.name, identifier: g.identifier, pieces, stamp: stampOf(ctx.config, g.identifier).key, reviewId: reviews.at(-1)?.commentId || null };
+  return { kind, name: v.name, identifier: g.identifier, pieces, stamp: stampOf(ctx.config, g.identifier, { versions: v.variants.map((x) => x.rel) }).key, reviewId: reviews.at(-1)?.commentId || null };
 }
 
 const countWords = (n) => (n === 1 ? "One version is ready" : `${NUMBER[n] || n} versions are ready`);
@@ -172,6 +172,7 @@ function asPick(item, versions) {
       ? `${pieces.variants.length} to choose from; ${pieces.missing.length === 1 ? "1 has" : `${pieces.missing.length} have`} missing files`
       : `${pieces.variants.length} to choose from` },
     ...(pieces.round ? [{ label: "Round", value: String(pieces.round) }] : []),
+    ...(pieces.note ? [{ label: "Scores", value: pieces.note }] : []),
     ...item.details,
   ];
   item.actions = [

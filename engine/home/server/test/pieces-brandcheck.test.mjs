@@ -223,3 +223,55 @@ test("runs: garbage, 1 MB or a runner that never answers is unknown within the w
     assert.equal(calls, 2);
   } finally { forgetBrandChecks(); f.close(); }
 });
+
+test("stamp: thousands of junk files give a stable key marked incomplete; the versions' folders are walked first", () => {
+  const f = fakeEngine("exit 0");
+  try {
+    const goal = join(f.state, "tasks", "company-work", "STH-12");
+    mkdirSync(join(goal, "content"), { recursive: true });
+    for (let i = 0; i < 3100; i += 1) writeFileSync(join(goal, "content", `junk-${i}.md`), "x");
+    mkdirSync(join(goal, "slides", "launch-b"), { recursive: true });
+    writeFileSync(join(goal, "slides", "launch-b", "slide-01.png"), "x");
+    const versions = ["slides/launch-b"];
+    const one = stampOf(f.config, "STH-12", { versions });
+    const two = stampOf(f.config, "STH-12", { versions });
+    assert.equal(one.complete, false);
+    assert.equal(one.key, two.key, "the same files give the same key, so a card's version does not change between lists");
+    writeFileSync(join(goal, "slides", "launch-b", "slide-01.png"), "changed in place");
+    const three = stampOf(f.config, "STH-12", { versions });
+    assert.notEqual(three.key, one.key, "a change in a version's folder is seen even past the cap");
+    assert.ok(three.newest >= one.newest);
+    const small = fakeEngine("exit 0");
+    try { assert.equal(stampOf(small.config, "STH-12").complete, true); } finally { small.close(); }
+  } finally { f.close(); }
+});
+
+test("results: a goal-level piece parses; no_pieces and too_many_pieces fail with their own sentences; a fail never turns unknown", () => {
+  const goalPiece = (hard) => ({ kind: "goal", name: "STH-12", result: "fail", hard, soft: [], measured: { colours: [], words: 0 } });
+  const NO = { code: "no_pieces", where: "STH-12", detail: "the goal holds no piece to check" };
+  const CANNOT = { code: "could_not_check", where: "STH-12", detail: "it took longer than 120 seconds" };
+  const TOO_MANY = { code: "too_many_pieces", where: "launch-c", detail: "only the first 40 pieces of a goal are checked; this one was not" };
+  const noPieces = { ...REPORT, pieces: [goalPiece([NO])] };
+  assert.ok(parseReport(noPieces), "a report with a goal piece parses");
+  assert.equal(parseReport({ ...REPORT, pieces: [{ ...goalPiece([NO]), name: "../x" }] }), null, "the same name rule");
+  for (const id of ["a", "b", "c"]) assert.deepEqual(brandOfVariant(done(noPieces), v(id)), { result: "fail", lines: [SAY.noPieces] });
+  assert.deepEqual(brandOfAll(done(noPieces)), { result: "fail", lines: [SAY.noPieces] });
+
+  // A goal-level fail beside the pieces fails every version, a pass included.
+  const withGoalFail = { ...REPORT, pieces: [...REPORT.pieces, goalPiece([NO])] };
+  assert.deepEqual(["a", "b", "c"].map((id) => brandOfVariant(done(withGoalFail), v(id)).result), ["fail", "fail", "fail"]);
+  assert.equal(brandOfVariant(done(withGoalFail), v("a")).lines[0], SAY.noPieces);
+
+  // Only could_not_check at goal level: every version unknown, but a version that failed stays failed.
+  const goalCannot = { ...REPORT, pieces: [...REPORT.pieces, { ...goalPiece([CANNOT]) }] };
+  assert.deepEqual(["a", "b", "c"].map((id) => brandOfVariant(done(goalCannot), v(id)).result), ["unknown", "fail", "unknown"]);
+
+  // too_many_pieces on a version's own piece is a fail for that version, with its sentence, even if the piece says pass.
+  const tooMany = { ...REPORT, pieces: [REPORT.pieces[0], REPORT.pieces[1], { ...REPORT.pieces[2], result: "pass", hard: [TOO_MANY], soft: [] }] };
+  assert.deepEqual(brandOfVariant(done(tooMany), v("c")), { result: "fail", lines: [SAY.tooManyPieces] });
+  assert.equal(brandOfVariant(done(tooMany), v("a")).result, "pass");
+  // A fail mixed with could_not_check stays a fail.
+  const mixed = { ...REPORT, pieces: [{ ...REPORT.pieces[1], hard: [CANNOT, REPORT.pieces[1].hard[0]] }] };
+  assert.equal(brandOfVariant(done(mixed), v("b")).result, "fail");
+  assert.equal(brandOfAll(done(tooMany)).result, "fail");
+});

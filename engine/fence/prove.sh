@@ -35,14 +35,18 @@ HDR=""; KEY_ID=""; KEY_AGENT=""
 # The doors' two folders (PLAN-V5, K1) and the names a program loads as its settings
 # from the folder it works in (K2a), as the checks below try to plant them.
 DOORS_DIR="$STATE_DIR/doors"; DOOR_SECRETS="$STATE_DIR/secrets/doors"; MADE_DOOR_DIRS=""
-PLANTS=".claude CLAUDE.md claude.md AGENTS.md .mcp.json .codex sub y ordinary.txt"
+PLANTS=".claude CLAUDE.md claude.md AGENTS.md .mcp.json .codex .agentſ sub y ordinary.txt"
 STAND_IN=""
+# The sandbox tool's own temp folder: was it there before the proof (it is not on this Mac)?
+SANDBOX_TMP_MADE=""; SANDBOX_TMP_WAS=""; [[ -e /private/tmp/claude || -L /private/tmp/claude ]] && SANDBOX_TMP_WAS=1
 
 cleanup() {
   rm -f "$POLICY_FILE" "$LESSONS_FILE" "$KNOWLEDGE_MARK" "$KNOWLEDGE/.fence-proof-write" "$ENV_FILE"
   rm -f "$STATE_DIR/media/.fence-proof" "$STATE_DIR/media/.fence-proof-new"
   clear_plants
   rm -rf "$CFG_PLAYBOOKS/.fence-proof-write" "$CFG_PLAYBOOKS/.fence-proof-dir"
+  rm -rf /private/tmp/claude/.fence-proof-carry /private/tmp/claude/.fence-proof-x /private/tmp/claude/.fence-proof-link
+  [[ -n "$SANDBOX_TMP_MADE" ]] && rmdir /private/tmp/claude 2>/dev/null
   remove_door_marks
   stand_in_stop
   rm -rf "${STATE_DIR:?}/claude-home/$OTHER_ID" "${STATE_DIR:?}"/tasks/_proof-answer.* "${STATE_DIR:?}/codex-home/_proof-login"
@@ -298,12 +302,19 @@ fence_checks() {
   # name is already taken. Ordinary files beside them must still write.
   clear_plants
   blocked "plant program settings in its task folder (.claude, CLAUDE.md, AGENTS.md, .mcp.json, .codex)" \
-    'mkdir .claude || echo x > CLAUDE.md || echo x > claude.md || echo x > AGENTS.md || echo x > .mcp.json || mkdir .codex || { mkdir -p sub && echo x > sub/CLAUDE.md; } || { echo x > y && mv y CLAUDE.md; } || ln -s note.txt AGENTS.md'
+    'mkdir .claude || echo x > CLAUDE.md || echo x > claude.md || echo x > AGENTS.md || echo x > .mcp.json || mkdir .codex || mkdir .agentſ || { mkdir -p sub && echo x > sub/CLAUDE.md; } || { echo x > y && mv y CLAUDE.md; } || ln -s note.txt AGENTS.md'
   local name
-  for name in .claude CLAUDE.md AGENTS.md .mcp.json .codex sub/CLAUDE.md; do
+  for name in .claude CLAUDE.md AGENTS.md .mcp.json .codex .agentſ sub/CLAUDE.md; do
     if [[ -e "$WS/$name" || -L "$WS/$name" ]]; then say FAIL "$WHO left $name in its task folder"; fi
   done
   clear_plants
+  # The sandbox tool allows writes to its own temp folder in every profile; a folder
+  # of program settings made there could be moved or linked into a task folder whole.
+  blocked "use the sandbox tool's own temp folder to carry files in" \
+    'mkdir -p /private/tmp/claude/.fence-proof-carry/.claude || mkdir -p /tmp/claude/.fence-proof-carry || echo x > /private/tmp/claude/.fence-proof-x || ln -s "$PWD" /private/tmp/claude/.fence-proof-link || ls /private/tmp/claude'
+  if [[ -z "$SANDBOX_TMP_WAS" && ( -e /private/tmp/claude || -L /private/tmp/claude ) ]]; then
+    SANDBOX_TMP_MADE=1; say FAIL "$WHO made the sandbox tool's own temp folder /private/tmp/claude"
+  fi
   allowed "still write an ordinary file beside them" 'echo x > ordinary.txt && mkdir -p sub && echo x > sub/ordinary.txt'
   if [[ ! -f "$WS/ordinary.txt" || ! -f "$WS/sub/ordinary.txt" ]]; then say FAIL "the ordinary files $WHO wrote did not arrive in its task folder"; fi
   clear_plants
@@ -797,12 +808,20 @@ media_checks
 echo; echo "The task folders (no program settings for another agent's program to load)"
 settings_check() {
   local n
-  n="$(within 60 find -P "$STATE_DIR/tasks" -maxdepth 3 \( -iname .claude -o -iname CLAUDE.md \
-    -o -iname CLAUDE.local.md -o -iname .mcp.json -o -iname AGENTS.md -o -iname AGENTS.override.md \
-    -o -iname .codex -o -iname .agents \) -print0 2>/dev/null | tr -cd '\000' | wc -c | tr -d ' ')" || n=""
+  # Names are compared as this disk might take them: NFKC and case folded, so a
+  # long s (U+017F) or another look-alike that the disk folds is seen too.
+  n="$(within 60 /usr/bin/python3 -I -c "import os,sys,unicodedata
+names={'.claude','claude.md','claude.local.md','.mcp.json','agents.md','agents.override.md','.codex','.agents'}
+def walk(d,depth):
+    n=0
+    for e in os.scandir(d):
+        if unicodedata.normalize('NFKC',e.name).casefold() in names: n+=1
+        if depth<3 and e.is_dir(follow_symlinks=False): n+=walk(e.path,depth+1)
+    return n
+print(walk(sys.argv[1],1))" "$STATE_DIR/tasks" 2>/dev/null)" || n=""
   if [[ ! "$n" =~ ^[0-9]+$ ]]; then say FAIL "the task folders could not all be looked through for program settings"
   elif (( n == 0 )); then say PASS "the task folders hold no program settings"
-  else say FAIL "the task folders hold $n program settings (files or folders named like CLAUDE.md, .claude or AGENTS.md)"; fi
+  else say FAIL "the task folders hold $n program settings (files or folders named like CLAUDE.md, .claude or AGENTS.md, in any letter case or look-alike)"; fi
 }
 settings_check
 

@@ -14,8 +14,12 @@ the room only. Every file is read by `lstat` first, without following a link,
 with a cap: text 256 KB, pictures 20 MB and 50 million pixels (the size is read
 from the header before anything is decoded). 30 seconds a piece, 120 in all.
 
-Exit 0: every piece passes or only warns. Exit 1: a hard rule failed.
-Exit 2: it could not check (a bad goal, no pieces, a kit it cannot read, time).
+Exit 0: every piece passes or only warns. Exit 1: a hard rule failed, including
+whatever a maker can cause by what it leaves in the goal: no pieces (`no_pieces`),
+more than 40 (`too_many_pieces` on the rest), a piece it cannot read or measure,
+or time running out (`could_not_check` on the pieces left). Exit 2 only for a
+problem with the tool itself or the kit (a bad command, a goal outside the task
+folders, a kit it cannot read).
 
 Without --json: one plain line per piece. With --json, K6's shape:
   {"version": 1, "kit": "present|missing|unreadable",
@@ -64,6 +68,7 @@ MAX_SLIDES = 10
 MAX_PHRASES = 200
 PIECE_SECONDS = 30
 TOTAL_SECONDS = 120
+PIXEL_BUDGET = 1000 * 1000 * 1000   # pixels decoded or compared in one run (an honest goal reads under 700 million)
 
 # The measures (K6). Why each number: see the README section "The brand check".
 SCALE_TO = 512                   # long side, nearest neighbour
@@ -451,8 +456,9 @@ def check_box(box, size):
         return None
 
 
-def claim_holds(state, im, box, source):
-    """True when the picture named by bare name, cover-fitted to the box, is what the box shows."""
+def claim_holds(state, im, box, source, spend=None):
+    """True when the picture named by bare name, cover-fitted to the box, is what the box shows. Both sides
+    are resized straight to 64 x 64 from their own pixels: no picture larger than the slide or the source."""
     from PIL import Image, ImageChops
 
     if not isinstance(source, str) or not FILE_NAME.match(source) \
@@ -465,9 +471,12 @@ def claim_holds(state, im, box, source):
         pic = kitmod.open_picture(data, "RGB", MAX_PICTURE_PIXELS)
     except ValueError:
         return False
+    if spend:
+        spend(pic.width * pic.height)
     w, h = box[2] - box[0], box[3] - box[1]
-    want = kitmod.cover_fit(pic, w, h).resize((CLAIM_SIZE, CLAIM_SIZE), Image.BILINEAR)
-    got = im.crop(box).resize((CLAIM_SIZE, CLAIM_SIZE), Image.BILINEAR)
+    size = (CLAIM_SIZE, CLAIM_SIZE)
+    want = pic.resize(size, Image.BILINEAR, box=kitmod.cover_rect(pic.width, pic.height, w, h))
+    got = im.resize(size, Image.BILINEAR, box=box)
     r, g, b = ImageChops.difference(want, got).split()
     worst = ImageChops.lighter(ImageChops.lighter(r, g), b)
     agree = worst.point(lambda v: 255 if v <= CLAIM_PIXEL else 0).histogram()[255]
@@ -479,12 +488,12 @@ def logo_difference(im, box, mark):
     from PIL import Image, ImageChops, ImageStat
 
     w, h = box[2] - box[0], box[3] - box[1]
-    crop = im.crop(box)
-    scaled = mark.resize((w, h), Image.LANCZOS)
     s = min(1.0, LOGO_COMPARE_MAX / float(max(w, h)))
-    if s < 1:
+    if s < 1:   # a large box: both sides straight to the comparison size, nothing the size of the box is made
         size = (max(1, int(w * s)), max(1, int(h * s)))
-        crop, scaled = crop.resize(size, Image.BOX), scaled.resize(size, Image.BOX)
+        crop, scaled = im.resize(size, Image.BOX, box=box), mark.resize(size, Image.LANCZOS)
+    else:
+        crop, scaled = im.crop(box), mark.resize((w, h), Image.LANCZOS)
     alpha = scaled.getchannel("A")
     n = alpha.size[0] * alpha.size[1]
     mask = alpha.point(lambda v: 255 if v >= 250 else 0)
@@ -503,6 +512,14 @@ class Ctx:
         self.palette = Palette(kit) if kit else None
         self.deadline = deadline
         self.logos = None
+        self.pixels = 0
+
+    def spend(self, n):
+        """Counts pixels decoded or compared; past the budget the piece cannot be checked (a hard result)."""
+        self.pixels += n
+        if self.pixels > PIXEL_BUDGET:
+            raise PieceProblem("its pictures are more than the check measures in one run (%d million pixels)"
+                               % (PIXEL_BUDGET // 1000000))
 
     def logo_pictures(self):
         if self.logos is None:
@@ -525,13 +542,16 @@ class Piece:
         self.first_picture = None
         self.variant_kind = None
         self.started = None
+        self.deadline = float("inf")
 
     def add(self, code, where, detail, hard=True):
         (self.hard if hard else self.soft).append({"code": code, "where": where, "detail": detail})
 
     def tick(self):
-        if time.monotonic() - self.started > PIECE_SECONDS:
-            raise PieceProblem("it took longer than %d seconds" % PIECE_SECONDS)
+        now = time.monotonic()
+        if now - self.started > PIECE_SECONDS or now > self.deadline:
+            raise PieceProblem("it took longer than the check allows (%d seconds a piece, %d in all)"
+                               % (PIECE_SECONDS, TOTAL_SECONDS))
 
     def result(self):
         return "fail" if self.hard else "warn" if self.soft else "pass"
@@ -560,15 +580,18 @@ def check_pictures(ctx, piece, pictures, pics, logos, required):
     for label, fname, path in pictures:
         piece.tick()
         im = read_picture(path)
+        ctx.spend(im.width * im.height)
         exempt = []
         key = "slide" if isinstance(label, int) else "frame"
         for c in pics:
             if c.get(key) != label:
                 continue
-            box = check_box(c.get("box"), im.size)
+            box = check_box(c.get("box"), im.size)      # a claimed box is never larger than the picture
             if box is None:
                 piece.add("picture_claim_false", fname, "a picture box in the manifest is not a box inside the picture")
-            elif claim_holds(ctx.state, im, box, c.get("source")):
+                continue
+            ctx.spend((box[2] - box[0]) * (box[3] - box[1]))
+            if claim_holds(ctx.state, im, box, c.get("source"), ctx.spend):
                 exempt.append(box)
             else:
                 piece.add("picture_claim_false", fname, "the box at %d, %d (%d × %d) does not show the company "
@@ -584,6 +607,7 @@ def check_pictures(ctx, piece, pictures, pics, logos, required):
                 if box is None:
                     piece.add("wrong_logo", fname, "the logo box in the manifest is not a box inside the picture", hard)
                     continue
+                ctx.spend((box[2] - box[0]) * (box[3] - box[1]) * max(1, len(ctx.kit.logo_files)))
                 if check_logo(ctx, piece, im, fname, box, entry.get("file"), hard):
                     exempt.append(box)
                 piece.tick()
@@ -675,6 +699,9 @@ def check_folder_piece(ctx, piece):
         # A slide-NN.png that is a link or a pipe is still a slide: reading it refuses it (could_not_check).
         slides = sorted(n for n, k in entries if k != "dir" and SLIDE_FILE.match(n))[:MAX_SLIDES]
         pictures = [(int(SLIDE_FILE.match(n).group(1)), n, os.path.join(piece.path, n)) for n in slides]
+        if not pictures:   # never a pass beside a contact.png the check did not measure
+            piece.add("could_not_check", piece.where, "there is no slide-01.png to measure; a carousel is checked "
+                      "from its slides, never from contact.png")
         if pictures:
             piece.first_picture = pictures[0][2]
             last = pictures[-1][0]
@@ -698,7 +725,9 @@ def check_folder_piece(ctx, piece):
                 if found:
                     texts.append((safe(n), "\n".join(found)))
         made_by_script = raw.get("made_by") == "render" or any(k == "file" and n.endswith(".py") for n, k in entries)
-        if names.get("poster.png") == "file":
+        if names.get("poster.png") != "file":
+            piece.add("could_not_check", piece.where, "there is no poster.png to measure")
+        else:
             piece.first_picture = os.path.join(piece.path, "poster.png")
             if made_by_script:
                 pictures.append(("poster", "poster.png", piece.first_picture))
@@ -861,23 +890,24 @@ def variant_kinds(goal):
 # --- The run -------------------------------------------------------------------------------
 
 def find_goal(state, cwd, goal_id):
+    """The goal's folder, or None when it is missing or not a plain folder (the maker's doing: no_pieces).
+    A bad identifier or a folder outside the task-folder tree is a problem with the command: exit 2."""
     homes = [os.path.join(state, "tasks", "company-work"), os.path.join(state, "tasks", "_proof")]
     if not isinstance(goal_id, str) or not (GOAL_ID.match(goal_id) or NAME.match(goal_id)):
         raise Problem("give the goal's identifier, such as STH-12")
-    goal = os.path.join(cwd, goal_id)
-    try:
-        st = os.lstat(goal)
-    except OSError:
-        raise Problem("there is no folder %s in this folder; run the check from the task folder" % goal_id)
-    if not stat.S_ISDIR(st.st_mode):
-        raise Problem("%s is not a plain folder" % goal_id)
-    real = os.path.realpath(goal)
+    here = os.path.realpath(cwd)
     for home in homes:
         home = os.path.realpath(home)
-        if os.path.dirname(real).lower() == home.lower():
-            if os.path.basename(home) == "company-work" and not GOAL_ID.match(goal_id):
-                break
-            return real
+        if here.lower() != home.lower():
+            continue
+        if os.path.basename(home) == "company-work" and not GOAL_ID.match(goal_id):
+            break
+        goal = os.path.join(here, goal_id)
+        try:
+            st = os.lstat(goal)
+        except OSError:
+            return None
+        return goal if stat.S_ISDIR(st.st_mode) else None
     raise Problem("run the check from the task folder, with the goal's identifier, such as STH-12")
 
 
@@ -895,9 +925,7 @@ def find_pieces(goal):
                 pieces.append(Piece(kind, n, os.path.join(base, n), True))
             elif not is_dir and k == "file" and n.lower().endswith(".md"):
                 pieces.append(Piece(kind, n[:-3], os.path.join(base, n), False))
-            if len(pieces) > MAX_PIECES:
-                raise Problem("the goal holds more than %d pieces; check fewer at a time" % MAX_PIECES)
-    return pieces
+    return pieces       # in a fixed order: by folder, then by name
 
 
 def check(state, cwd, goal_id, deadline):
@@ -913,15 +941,26 @@ def check(state, cwd, goal_id, deadline):
         kit, status = None, "unreadable"
     words = Words(load_cant_say(state), load_filler(state), kit)
     ctx = Ctx(state, kit, status, words, load_directions(), deadline)
-    pieces = find_pieces(goal)
+    pieces = find_pieces(goal) if goal else []
     if not pieces:
-        raise Problem("found no pieces to check in %s" % goal_id)
+        none = Piece("goal", goal_id, os.path.join(cwd, goal_id), True)
+        none.add("no_pieces", safe(goal_id), "the goal holds no piece to check: nothing in content, drafts, "
+                 "slides, video, film or site")
+        variants = check_variants(ctx, goal, {}) if goal else {"result": "pass", "hard": [], "present": False}
+        return {"version": 1, "kit": status, "pieces": [none.shape()], "variants": variants}
     kinds = variant_kinds(goal)
     by_path = {}
-    for p in pieces:
+    for i, p in enumerate(pieces):
+        if i >= MAX_PIECES:
+            p.add("too_many_pieces", p.where, "only the first %d pieces of a goal are checked; this one was not"
+                  % MAX_PIECES)
+            continue
         if time.monotonic() > deadline:
-            raise OutOfTime()
+            p.add("could_not_check", p.where, "the check ran out of time (%d seconds in all) before this piece"
+                  % TOTAL_SECONDS)
+            continue
         p.variant_kind = kinds.get(p.path)
+        p.deadline = deadline
         check_piece(ctx, p)
         by_path[p.path] = p
     if status == "missing":

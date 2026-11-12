@@ -11,7 +11,8 @@
 //   - review: the Art director's newest usable review (lib/artreview.mjs; by the board's author id), with
 //     `meets` worked out from its numbers, and only when the review is newer than every file of the pieces
 //     (so a piece changed after it was scored is not shown as scored).
-// A single piece (no variants.json) of a craft job is one entry with the id "piece".
+// A single piece (no variants.json) of a craft job is one entry with the id "piece". `complete` is false (and
+// `note` says why, and no review is shown) when the goal holds more files than the stamp walks.
 import { lstatSync } from "node:fs";
 import { join } from "node:path";
 import { loadCraft } from "../../../company/lib/craft-files.mjs";
@@ -19,7 +20,10 @@ import { reviewsOf, reviewView } from "../lib/artreview.mjs";
 import { brandOfAll, brandOfVariant, runBrandCheck, stampOf } from "../lib/brandcheck.mjs";
 import { loadCatalogue } from "../lib/jobs.mjs";
 import { findTask, loadTaskContext, treeComments } from "../lib/tasks.mjs";
-import { PLACES, previewOf, readVariants } from "../lib/variants.mjs";
+import { PLACES, previewIsChecked, previewOf, readVariants } from "../lib/variants.mjs";
+
+const TOO_MANY = "This task's folder holds too many files to be sure the scores are newer than the versions, so the scores are not shown.";
+const NO_SLIDES = "This version has no slide pictures, so it was not checked.";
 
 // craft.json, read again only when its time or size changes (or the catalogue does).
 let craftCache = { key: null, value: null };
@@ -59,37 +63,42 @@ function reviewFor(comments, artDirectorId, round, newestFile) {
 export async function piecesFor(ctx, goal, comments, { artDirectorId = null } = {}) {
   const identifier = typeof goal.identifier === "string" ? goal.identifier : null;
   const kind = kindOfTask(ctx, goal);
-  const out = { kind, round: null, variants: [], single: true, missing: [], problem: null };
+  const out = { kind, round: null, variants: [], single: true, missing: [], problem: null, complete: true, note: null };
   if (!identifier) return out;
   const v = readVariants(ctx.config, identifier, kind);
   if (v.present && v.problem) return { ...out, single: false, problem: v.problem };
   if (!v.present && !kind) return out;
-  const { newest } = stampOf(ctx.config, identifier);
-  const run = await runBrandCheck(ctx, identifier);
+  const versions = v.present ? v.variants.map((x) => x.rel) : [];
+  const { newest, complete } = stampOf(ctx.config, identifier, { versions });
+  const run = await runBrandCheck(ctx, identifier, { versions });
+  // Too many files to be sure every one is older than a review: no scores are shown, and the owner is told.
+  const note = complete ? null : TOO_MANY;
+  const reviewed = (round) => (complete ? reviewFor(comments, artDirectorId, round, newest) : null);
 
   if (!v.present) {
-    const review = reviewFor(comments, artDirectorId, null, newest);
+    const review = reviewed(null);
     const piece = review ? review.pieces.find((p) => p.id === "piece") : null;
     return {
       ...out,
+      complete, note,
       round: review ? review.round : null,
       variants: [{ id: "piece", direction: null, preview: [], brand: brandOfAll(run), review: reviewView(piece) }],
     };
   }
 
-  const review = reviewFor(comments, artDirectorId, v.round, newest);
+  const review = reviewed(v.round);
   return {
     ...out,
+    complete, note,
     round: v.round,
     single: false,
     missing: v.missing,
-    variants: v.variants.map((x) => ({
-      id: x.id,
-      direction: x.direction,
-      preview: previewOf(ctx.config, identifier, kind, x),
-      brand: brandOfVariant(run, x),
-      review: reviewView(review ? review.pieces.find((p) => p.id === x.id) : null),
-    })),
+    variants: v.variants.map((x) => {
+      const preview = previewOf(ctx.config, identifier, kind, x);
+      // A carousel or poster with no slide file has nothing the check measured: never "fits".
+      const brand = previewIsChecked(kind, preview) ? brandOfVariant(run, x) : { result: "unknown", lines: [NO_SLIDES] };
+      return { id: x.id, direction: x.direction, preview, brand, review: reviewView(review ? review.pieces.find((p) => p.id === x.id) : null) };
+    }),
   };
 }
 
