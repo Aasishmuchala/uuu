@@ -15,7 +15,7 @@ unset ENGINE_CONFIG _v
 
 FENCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 refuse() { echo "fence: $1" >&2; exit 78; }
-OWNER_HOME="$(/usr/bin/python3 -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" \
+OWNER_HOME="$(/usr/bin/python3 -I -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" \
   || refuse "could not find your home folder"
 _given_home="${HOME:-}"; HOME="$OWNER_HOME"
 . "$FENCE_DIR/../lib/config.sh" || refuse "the engine config could not be read. Check engine/config.json"
@@ -59,12 +59,12 @@ fi
 # shell variable and then the program's environment; never on a command line.
 MODEL_MODE=""
 if [[ -z "${PAPERCLIP_AGENT_ID:-}" ]]; then
-  MODEL_MODE="$(/usr/bin/python3 "$FENCE_DIR/model_mode.py" --mode </dev/null)" \
+  MODEL_MODE="$(/usr/bin/python3 -I "$FENCE_DIR/model_mode.py" --mode </dev/null)" \
     || { [[ $? -eq 78 ]] && exit 78; refuse "the model settings could not be read"; }
   [[ "$MODEL_MODE" == plans ]] \
     || refuse "the provider is on, and a run without an agent id has no model. The proof passes a real agent's id."
 else
-  _for_run="$(/usr/bin/python3 "$FENCE_DIR/model_mode.py" --for-run --agent "$PAPERCLIP_AGENT_ID" </dev/null)" \
+  _for_run="$(/usr/bin/python3 -I "$FENCE_DIR/model_mode.py" --for-run --agent "$PAPERCLIP_AGENT_ID" </dev/null)" \
     || { [[ $? -eq 78 ]] && exit 78; refuse "the model settings could not be read"; }
   MODEL_MODE="${_for_run%%$'\n'*}"; _for_run="${_for_run#*$'\n'}"
   _relay="${_for_run%%$'\n'*}"; _for_run="${_for_run#*$'\n'}"
@@ -146,7 +146,7 @@ share_dir() {
   local dir="$1" skills target
   share "$dir"
   [[ -d "$dir" ]] || return 0
-  skills="$(/usr/bin/python3 "$FENCE_DIR/claude_skills.py" "$dir" "$INSTANCE_REAL")" \
+  skills="$(/usr/bin/python3 -I "$FENCE_DIR/claude_skills.py" "$dir" "$INSTANCE_REAL")" \
     || refuse "paperclip asked to share a skill with the agent that lies outside its own folders"
   while IFS= read -r target; do
     [[ -n "$target" ]] && share "$target"

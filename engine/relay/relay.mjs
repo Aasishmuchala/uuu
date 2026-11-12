@@ -2,8 +2,10 @@
 // It runs unfenced and trusts nothing an agent sends (docs/adr/0007). It forwards a call only
 // when it is a POST on one of three model paths, carries exactly one valid relay token, the
 // mode and the files of the state folder allow it, and the body is one JSON object. In a
-// request it changes only the credential headers and the `model` field; in an answer it
-// changes nothing. It never logs a header, a body, a query string, a key or a token.
+// request it changes only the credential headers, the `model` field and `accept-encoding`
+// (always `identity`, so the answer can be scanned); in an answer it changes nothing, except
+// that an answer holding the provider key is withheld or cut before the key is passed on.
+// It never logs a header, a body, a query string, a key or a token.
 import http from "node:http";
 import https from "node:https";
 import { appendFileSync, chmodSync, mkdirSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
@@ -12,7 +14,7 @@ import { dirname, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
 import { checkToken } from "./token.mjs";
-import { readIds, readKey, readModelState, readSecret } from "./state.mjs";
+import { MODEL_RE, readIds, readKey, readModelState, readSecret } from "./state.mjs";
 import { PROVIDER_ORIGIN, checkOrigin } from "./upstream.mjs";
 
 const MB = 1024 * 1024;
@@ -35,7 +37,7 @@ const NUMBER = /^[0-9]{1,9}$/;
 // the real key itself.
 const DROP = new Set(["authorization", "x-api-key", "proxy-authorization", "cookie", "chatgpt-account-id",
   "host", "content-length", "connection", "keep-alive", "proxy-connection", "transfer-encoding", "te",
-  "upgrade", "expect"]);
+  "upgrade", "expect", "accept-encoding"]);
 const DROP_RE = /(api-?key|auth-token|access-token|secret)/i;
 
 const REFUSALS = {
@@ -48,6 +50,7 @@ const REFUSALS = {
   relay_bad_body: ["invalid_request_error", "The model relay takes only one JSON object with the type application/json."],
   relay_too_big: ["request_too_large", "This request is too big for the model relay."],
   relay_upstream_down: ["api_error", "The model provider is not answering."],
+  relay_key_in_answer: ["api_error", "The provider's answer was withheld because it held the provider key."],
 };
 const refusalBody = (code) => ({ type: "error", error: { type: REFUSALS[code][0], message: REFUSALS[code][1] }, code });
 
@@ -132,6 +135,27 @@ function readBody(req, limit) {
     req.on("error", () => settle(null));
     req.on("close", () => settle(null));
   });
+}
+
+// True when Node can write this answer's head as it came: a status from 100 to 999 and a
+// reason without control characters (the header lines were already checked by the parser).
+function writableHead(a) {
+  return Number.isInteger(a.statusCode) && a.statusCode >= 100 && a.statusCode <= 999 &&
+    (a.statusMessage === undefined || !/[^\t\x20-\x7e\x80-\xff]/.test(a.statusMessage));
+}
+
+// True when any of the texts holds the key.
+function holdsKey(texts, key) {
+  return texts.some((t) => typeof t === "string" && t.includes(key));
+}
+
+// The length of the longest tail of `buf` that is the start of `key` (at most key length - 1).
+function keyPrefixTail(buf, key) {
+  for (let n = Math.min(key.length - 1, buf.length); n > 0; n -= 1) {
+    const at = buf.length - n;
+    if (buf[at] === key[0] && buf.compare(key, 0, n, at, buf.length) === 0) return n;
+  }
+  return 0;
 }
 
 const count = (v) => (Number.isSafeInteger(v) && v >= 0 ? v : null);
@@ -276,8 +300,9 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
     sendJson(res, 200, { status: "ok", part: "relay", mode: st.ok ? st.mode : "unreadable", key: readKey(paths.key) !== null });
   }
 
-  // Sends the call once and passes the answer back as it comes. No retry, ever.
-  function forward(req, res, { path, slug, pick, key, body, kind }) {
+  // Sends the call once and passes the answer back as it comes. No retry, ever. `model` is
+  // read from the object that was serialised into `body`, so the log says what was sent.
+  function forward(req, res, { path, slug, model, key, body, kind }) {
     const started = Date.now();
     const headers = [];
     for (let i = 0; i < req.rawHeaders.length; i += 2) {
@@ -285,7 +310,9 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
       if (DROP.has(name) || DROP_RE.test(name)) continue;
       headers.push(req.rawHeaders[i], req.rawHeaders[i + 1]);
     }
-    headers.push("host", hostHeader, "content-length", String(body.length));
+    // The relay sets host, content-length, the real key, and asks for an uncompressed answer
+    // so it can make sure the key never comes back to the agent.
+    headers.push("host", hostHeader, "content-length", String(body.length), "accept-encoding", "identity");
     if (MESSAGES_PATHS.has(path)) headers.push("x-api-key", key);
     else headers.push("authorization", `Bearer ${key}`);
 
@@ -301,70 +328,165 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
       agent,
     });
     calls.add(call);
-    let answered = null;   // the provider's status once its answer started
+    const keyBytes = Buffer.from(key, "utf8");
+    let ans = null;        // the provider's answer, once it started
     let watcher = null;
-    let finished = false;
+    let over = false;
+    let clientGone = false;
     let idleTimer = null;
-    const firstTimer = setTimeout(() => call.destroy(new Error("no answer")), lim.firstByteMs);
-    const totalTimer = setTimeout(() => { call.destroy(); res.destroy(); }, lim.totalMs);
-    const touch = () => {
-      if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => { call.destroy(); res.destroy(); }, lim.idleMs);
-    };
-    const finish = () => {
-      if (finished) return;
-      finished = true;
+
+    // Ends the call once. `how`: "done" (the answer passed whole), "cut" (stopped part way),
+    // "none" (nothing usable came back), "withheld" (the answer held the key).
+    function close(how) {
+      if (over) return;
+      over = true;
       calls.delete(call);
       clearTimeout(firstTimer);
       clearTimeout(totalTimer);
       if (idleTimer) clearTimeout(idleTimer);
-      if (answered === null) return;
+      if (how !== "done") {
+        call.destroy();
+        if (ans) ans.destroy();
+      }
+      if (how === "none") {
+        if (clientGone || closing) return void res.destroy();
+        noteProvider(null);
+        try {
+          if (!res.headersSent && !res.destroyed) refuse(res, 502, "relay_upstream_down");
+          else res.destroy();
+        } catch {
+          res.destroy();
+        }
+        return;
+      }
+      if (how === "withheld") {
+        say(`${iso()} refused relay_key_in_answer`);
+        try {
+          if (!res.headersSent && !res.destroyed) sendJson(res, 502, refusalBody("relay_key_in_answer"));
+          else res.destroy();
+        } catch {
+          res.destroy();
+        }
+        return;
+      }
+      if (how === "cut") res.destroy();
       const usage = watcher ? watcher.result() : null;
-      if (kind === "a") noteAgent(slug, answered, usage);
-      say(`${iso()} call ${slug} ${path} ${answered} ${Date.now() - started}ms model=${pick}`);
+      if (kind === "a") noteAgent(slug, ans.statusCode, usage);
+      say(`${iso()} call ${slug} ${path} ${ans.statusCode} ${Date.now() - started}ms model=${typeof model === "string" && MODEL_RE.test(model) ? model : "?"}`);
+    }
+    // Whatever the reason, a call with no answer by now ends.
+    const firstTimer = setTimeout(() => { if (!ans) close("none"); }, lim.firstByteMs);
+    const totalTimer = setTimeout(() => close(ans ? "cut" : "none"), lim.totalMs);
+    const touch = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => close("cut"), lim.idleMs);
     };
 
-    call.on("response", (ans) => {
+    call.on("response", (a) => {
+      if (over) return void a.destroy();
       clearTimeout(firstTimer);
-      answered = ans.statusCode;
-      noteProvider(ans.statusCode, ans.headers["retry-after"]);
-      watcher = usageWatcher(ans.headers, lim.countJsonBytes);
-      res.writeHead(ans.statusCode, ans.statusMessage, ans.rawHeaders);
-      if (typeof res.flushHeaders === "function") res.flushHeaders();
+      ans = a;
+      // A head that holds the key is withheld whole, before anything is written.
+      if (holdsKey([a.statusMessage, ...a.rawHeaders], key)) return close("withheld");
+      noteProvider(a.statusCode, a.headers["retry-after"]);
+      watcher = usageWatcher(a.headers, lim.countJsonBytes);
+      // The head is written with the first bytes passed on (or at the end), so a short
+      // answer that holds the key can still be withheld with a clean 502. A head Node will
+      // not write (a status like 099, a control character in the reason) is no answer.
+      let headDone = false;
+      const head = () => {
+        if (headDone) return true;
+        try {
+          if (!writableHead(a)) throw new Error("bad head");
+          res.writeHead(a.statusCode, a.statusMessage, a.rawHeaders);
+        } catch {
+          // writeHead may have kept part of the bad head: clear it before the 502 is written.
+          res.statusCode = 200;
+          res.statusMessage = undefined;
+          for (const name of res.getHeaderNames()) res.removeHeader(name);
+          ans = null;
+          close("none");
+          return false;
+        }
+        headDone = true;
+        return true;
+      };
+      const emit = (buf) => {
+        if (!head() || buf.length === 0) return;
+        if (!res.write(buf)) {
+          a.pause();
+          res.once("drain", () => a.resume());
+        }
+      };
+      // A compressed answer (the provider ignored accept-encoding: identity) cannot be
+      // scanned for the key: it passes as it comes.
+      const enc = a.headers["content-encoding"];
+      const scan = enc === undefined || /^\s*identity\s*$/i.test(enc);
+      let carry = Buffer.alloc(0);
       touch();
-      ans.on("data", (c) => {
+      a.on("data", (c) => {
+        if (over) return;
         touch();
         if (watcher) {
           try { watcher.feed(c); } catch { watcher = null; }
         }
+        if (!scan) return emit(c);
+        const all = carry.length ? Buffer.concat([carry, c]) : c;
+        if (all.indexOf(keyBytes) !== -1) return close("withheld");
+        // Hold back only the tail that could be the start of the key (at most its length - 1).
+        const keep = keyPrefixTail(all, keyBytes);
+        carry = Buffer.from(all.subarray(all.length - keep));
+        emit(all.subarray(0, all.length - keep));
       });
-      ans.pipe(res);
-      ans.on("error", () => res.destroy());
-      ans.on("end", finish);
+      a.on("end", () => {
+        if (over) return;
+        if (!head()) return;
+        if (carry.length) res.write(carry);
+        res.end();
+        close("done");
+      });
+      a.on("error", () => close("cut"));
+      a.on("close", () => { if (!a.complete) close("cut"); });
     });
-    call.on("error", () => {
-      if (answered === null) {
-        // A caller that went away says nothing about the provider.
-        if (!clientGone && !closing) noteProvider(null);
-        if (!res.headersSent) refuse(res, 502, "relay_upstream_down");
-        else res.destroy();
-        finished = true;
-        calls.delete(call);
-        clearTimeout(firstTimer);
-        clearTimeout(totalTimer);
-      } else {
-        res.destroy();
-      }
+    // A 101 is never a model answer, and Node gives it no `response`: refuse it.
+    call.on("upgrade", (_a, socket) => {
+      socket.destroy();
+      close("none");
     });
-    let clientGone = false;
+    call.on("error", () => close(ans ? "cut" : "none"));
+    call.on("close", () => { if (!ans) close("none"); });
     res.on("close", () => {
       if (!res.writableFinished) {
         clientGone = true;
-        call.destroy();
+        close(ans ? "cut" : "none");
       }
-      finish();
     });
     call.end(body);
+  }
+
+  // Steps 5 to 7: the mode, the key and the pick, read from the files now.
+  function decide(who) {
+    const st = readModelState(paths.state);
+    if (!st.ok || (who.kind === "a" && st.mode !== "provider")) return { status: 403, code: "relay_off" };
+    const key = readKey(paths.key);
+    if (key === null) return { status: 403, code: "relay_no_key" };
+    let slug = null;
+    if (who.kind === "t") {
+      slug = who.subject;
+    } else {
+      const ids = readIds(paths.ids);
+      const slugs = ids ? Object.keys(ids).filter((s) => ids[s] === who.subject) : [];
+      if (slugs.length === 1) slug = slugs[0];
+    }
+    const pick = slug === null ? undefined : st.picks[slug];
+    if (pick === undefined) return { status: 403, code: "relay_no_pick" };
+    return { key, slug, pick };
+  }
+
+  function tokenOf(req) {
+    const token = bearerOf(req.rawHeaders);
+    const secret = token === null ? null : readSecret(paths.secret);
+    return secret === null ? null : checkToken(secret, token, clock());
   }
 
   async function onRequest(req, res) {
@@ -379,27 +501,11 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
       return refuse(res, 404, "relay_not_found");
     }
     // 4. Exactly one bearer token that the secret accepts.
-    const token = bearerOf(req.rawHeaders);
-    const secret = token === null ? null : readSecret(paths.secret);
-    const who = secret === null ? null : checkToken(secret, token, clock());
+    const who = tokenOf(req);
     if (!who) return refuse(res, 401, "relay_no_token");
-    // 5. The mode: a test token works in either mode, an agent token only in provider mode.
-    const st = readModelState(paths.state);
-    if (!st.ok || (who.kind === "a" && st.mode !== "provider")) return refuse(res, 403, "relay_off");
-    // 6. The key, read now and kept only for this call.
-    const key = readKey(paths.key);
-    if (key === null) return refuse(res, 403, "relay_no_key");
-    // 7. Who calls, and the model picked for them.
-    let slug = null;
-    if (who.kind === "t") {
-      slug = who.subject;
-    } else {
-      const ids = readIds(paths.ids);
-      const slugs = ids ? Object.keys(ids).filter((s) => ids[s] === who.subject) : [];
-      if (slugs.length === 1) slug = slugs[0];
-    }
-    const pick = slug === null ? undefined : st.picks[slug];
-    if (pick === undefined) return refuse(res, 403, "relay_no_pick");
+    // 5 to 7, early: refuse before reading a body that could not be sent anyway.
+    const early = decide(who);
+    if (early.code) return refuse(res, early.status, early.code);
     // 8 and 9. One JSON object, within the size limit.
     const types = headerValues(req.rawHeaders, "content-type");
     if (types.length !== 1 || !JSON_TYPE.test(types[0])) return refuse(res, 400, "relay_bad_body");
@@ -409,9 +515,16 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
     let body;
     try { body = JSON.parse(raw.toString("utf8")); } catch { body = null; }
     if (body === null || typeof body !== "object" || Array.isArray(body)) return refuse(res, 400, "relay_bad_body");
+    // 4 to 7 again, now that the body is in: the owner may have switched off, removed the
+    // key or changed a pick while it was arriving. Only these answers decide.
+    const whoNow = tokenOf(req);
+    if (!whoNow) return refuse(res, 401, "relay_no_token");
+    const now_ = decide(whoNow);
+    if (now_.code) return refuse(res, now_.status, now_.code);
     // 10 and 11. The model is the pick, whatever the body asked for; then forward once.
-    body.model = pick;
-    return forward(req, res, { path, slug, pick, key, body: Buffer.from(JSON.stringify(body), "utf8"), kind: who.kind });
+    body.model = now_.pick;
+    const bytes = Buffer.from(JSON.stringify(body), "utf8");
+    return forward(req, res, { path, slug: now_.slug, model: body.model, key: now_.key, body: bytes, kind: whoNow.kind });
   }
 
   const server = http.createServer((req, res) => {
@@ -470,7 +583,16 @@ function ownFolder(path) {
   chmodSync(path, 0o700);
 }
 
+// The last resort: an error nothing else caught is logged by its code only (never its
+// message, a header or a body), and the relay keeps serving.
+function lastResort(err) {
+  const code = err && typeof err.code === "string" && /^[A-Z0-9_]{1,64}$/.test(err.code) ? err.code : "unknown";
+  console.log(`${new Date().toISOString()} relay caught an error it did not expect: ${code}`);
+}
+
 async function main() {
+  process.on("uncaughtException", lastResort);
+  process.on("unhandledRejection", lastResort);
   const { loadConfig } = await import("../lib/config.mjs");
   const cfg = loadConfig();
   const p = cfg.paths;

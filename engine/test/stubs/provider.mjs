@@ -9,6 +9,10 @@
 //   key: "<text>"              when set, usage, billing and the model paths need this key
 //   gzip: true                 answer the model paths with content-encoding: gzip
 //   eventDelayMs: 0            the pause between stream events
+//   echoKey: "body401" | "body200" | "header" | "stream" | "split"
+//                              quote the key it was sent back: in a 401 or 200 JSON body, in an
+//                              answer header, in the middle of a stream, or split across two
+//                              writes of a stream
 // `seen` records { method, path, rawHeaders, body } of every request (body as text).
 import http from "node:http";
 import { readFileSync } from "node:fs";
@@ -112,6 +116,25 @@ function stream(res, events, delayMs, gzip) {
   next();
 }
 
+function echoKey(res, where, key) {
+  if (where === "body401") return json(res, 401, { type: "error", error: { type: "authentication_error", message: `Invalid API key: ${key}` } });
+  if (where === "body200") return json(res, 200, { ...messageAnswer("x"), content: [{ type: "text", text: `your key is ${key}` }] });
+  if (where === "header") return json(res, 200, messageAnswer("x"), { "X-Your-Key": key });
+  res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8" });
+  res.flushHeaders();
+  const event = (text) => `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text } })}\n\n`;
+  res.write(`${event("first part, no secret here")}event: ping\ndata: {"type":"ping"}\n\n`);
+  if (where === "stream") {
+    setTimeout(() => { res.write(event(`the key is ${key} and more`)); setTimeout(() => res.end(event("after")), 100); }, 100);
+    return undefined;
+  }
+  const half = Math.floor(key.length / 2);
+  const whole = event(`the key is ${key} and more`);
+  const at = whole.indexOf(key) + half;
+  setTimeout(() => { res.write(whole.slice(0, at)); setTimeout(() => { res.write(whole.slice(at)); res.end(event("after")); }, 150); }, 100);
+  return undefined;
+}
+
 export async function startProvider({ models = OMEGA_MODELS.data, behaviour = {} } = {}) {
   const seen = [];
   const sockets = new Set();
@@ -137,6 +160,7 @@ export async function startProvider({ models = OMEGA_MODELS.data, behaviour = {}
       const modelPath = req.method === "POST" && ["/v1/messages", "/v1/messages/count_tokens", "/v1/responses", "/api/v1/responses"].includes(path);
       if (!modelPath) return json(res, 404, { type: "error", error: { type: "not_found_error", message: "Not found." } });
       if (b.hang) return undefined;
+      if (b.echoKey) return echoKey(res, b.echoKey, keyOf(req.rawHeaders)[0] || "");
       if (!keyOk) return json(res, 401, { type: "error", error: { type: ERRORS[401][0], message: ERRORS[401][1] } });
       if (b.status === 302) {
         res.writeHead(302, { Location: b.location || "http://127.0.0.1:9/elsewhere", "Content-Length": 0 });

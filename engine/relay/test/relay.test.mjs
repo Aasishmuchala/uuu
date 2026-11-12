@@ -336,7 +336,8 @@ test("anthropic-version, anthropic-beta, user-agent, x-stainless-lang and ?beta=
   assert.deepEqual(header(seen.rawHeaders, "anthropic-beta"), ["interleaved-thinking-2025-05-14,fine-grained"]);
   assert.deepEqual(header(seen.rawHeaders, "user-agent"), ["claude-cli/9.9.9 (external, cli)"]);
   assert.deepEqual(header(seen.rawHeaders, "x-stainless-lang"), ["js"]);
-  assert.deepEqual(header(seen.rawHeaders, "accept-encoding"), ["gzip, br"]);
+  // The one request header the relay sets besides the key: an uncompressed answer, so it can be scanned.
+  assert.deepEqual(header(seen.rawHeaders, "accept-encoding"), ["identity"]);
   assert.deepEqual(header(seen.rawHeaders, "content-length"), [String(Buffer.byteLength(seen.body))]);
   const body = JSON.parse(seen.body);
   assert.deepEqual(body.thinking, { type: "adaptive" });
@@ -600,4 +601,153 @@ test("a stream that goes quiet longer than the idle time is ended on both sides"
   assert.equal(outcome, "cut");
   assert.ok(Date.now() - t0 < 2500, "cut long before the stream would have ended");
   await quiet.close();
+});
+
+// ---- what the final review found -------------------------------------------------------
+// A stand-in that answers each connection with the next raw answer of `answers`.
+async function rawUpstream(answers) {
+  let n = 0;
+  const socks = new Set();
+  const server = net.createServer((sock) => {
+    socks.add(sock);
+    const answer = answers[Math.min(n, answers.length - 1)];
+    n += 1;
+    sock.on("error", () => {});
+    sock.once("data", () => { if (answer !== null) sock.write(answer); });
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  return { server, url: `http://127.0.0.1:${server.address().port}`, count: () => n, close: () => new Promise((r) => { for (const k of socks) k.destroy(); server.close(r); }) };
+}
+const GOOD_ANSWER = 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}';
+
+test("a malformed status line or reason text from the provider → 502, and the relay keeps serving", async () => {
+  for (const bad of [
+    "HTTP/1.1 099 Weird\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
+    "HTTP/1.1 000 Zero\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
+    "HTTP/1.1 200 O\x01K\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
+  ]) {
+    const stub = await rawUpstream([bad, GOOD_ANSWER]);
+    const r1 = makeRelay({ upstream: stub.url });
+    const p = await r1.listen();
+    lines = [];
+    assertRefusal(await request("POST", "/v1/messages", { port: p, headers: jsonAuth(), body: "{}" }), 502, "relay_upstream_down");
+    const again = await request("POST", "/v1/messages", { port: p, headers: jsonAuth(), body: "{}" });
+    assert.equal(again.status, 200, "a normal call afterwards still works");
+    assert.equal(again.text, "{}");
+    assert.match(lines[0], / refused relay_upstream_down$/);
+    await r1.close();
+    await stub.close();
+  }
+});
+
+test("a 101 answer from the provider → 502 relay_upstream_down at once, with a log line", async () => {
+  const stub = await rawUpstream(["HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n", GOOD_ANSWER]);
+  const r1 = makeRelay({ upstream: stub.url });
+  const p = await r1.listen();
+  lines = [];
+  const t0 = Date.now();
+  assertRefusal(await request("POST", "/v1/responses", { port: p, headers: jsonAuth(), body: "{}" }), 502, "relay_upstream_down");
+  assert.ok(Date.now() - t0 < 2000, "not left hanging");
+  assert.deepEqual(lines.map((l) => l.replace(/^\S+ /, "")), ["refused relay_upstream_down"]);
+  assert.equal((await request("POST", "/v1/responses", { port: p, headers: jsonAuth(), body: "{}" })).status, 200);
+  await r1.close();
+  await stub.close();
+});
+
+test("an upstream that accepts the call and says nothing is ended by the first-byte timer", async () => {
+  const stub = await rawUpstream([null]);
+  const r1 = makeRelay({ upstream: stub.url, limits: { firstByteMs: 250, statusEveryMs: 20 } });
+  const p = await r1.listen();
+  const t0 = Date.now();
+  assertRefusal(await request("POST", "/v1/messages", { port: p, headers: jsonAuth(), body: "{}" }), 502, "relay_upstream_down");
+  assert.ok(Date.now() - t0 < 2000);
+  await r1.close();
+  await stub.close();
+});
+
+// Sends the head, waits, runs `between`, then sends the body.
+function headThenBody(token, between) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ max_tokens: 1 });
+    const req = http.request({ host: "127.0.0.1", port, method: "POST", path: "/v1/messages", agent: false,
+      headers: { ...jsonAuth(token), "Content-Length": Buffer.byteLength(body) } }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, json: JSON.parse(Buffer.concat(chunks).toString()) }));
+    });
+    req.on("error", reject);
+    req.flushHeaders();
+    setTimeout(() => { between(); req.end(body); }, 200);
+  });
+}
+
+test("switched off and the key removed between the head and the body → nothing reaches the upstream", async () => {
+  const r = await headThenBody(agentToken(), () => { setState("plans"); rmSync(paths.key); });
+  assert.equal(r.status, 403);
+  assert.equal(r.json.code, "relay_off");
+  assert.equal(provider.seen.length, 0);
+});
+
+test("the key removed between the head and the body of a test call → relay_no_key, nothing sent", async () => {
+  const r = await headThenBody(testToken("builder"), () => rmSync(paths.key));
+  assert.equal(r.status, 403);
+  assert.equal(r.json.code, "relay_no_key");
+  assert.equal(provider.seen.length, 0);
+});
+
+test("a pick changed while the body arrives: the new pick is sent and logged", async () => {
+  const r = await headThenBody(agentToken(), () => setState("provider", { ...PICKS, builder: "claude-opus-5-5" }));
+  assert.equal(r.status, 200);
+  assert.equal(JSON.parse(modelCalls()[0].body).model, "claude-opus-5-5");
+  assert.match(lines.at(-1), / model=claude-opus-5-5$/);
+});
+
+test("the logged model is always the model in the body the upstream received", async () => {
+  for (const [path, token] of [["/v1/messages", agentToken()], ["/v1/messages/count_tokens", agentToken()],
+    ["/v1/responses", agentToken(CHECKER)], ["/v1/messages", testToken("checker")]]) {
+    for (const asked of ["claude-quantum-lite-1", "sonnet", undefined]) {
+      provider.seen.length = 0;
+      lines = [];
+      await post(path, asked === undefined ? { max_tokens: 1 } : { model: asked, max_tokens: 1 }, jsonAuth(token));
+      const sent = JSON.parse(modelCalls()[0].body).model;
+      const logged = lines.at(-1).match(/ model=(\S+)$/)[1];
+      assert.equal(logged, sent, `${path} ${asked}`);
+      assert.notEqual(logged, asked);
+    }
+  }
+});
+
+// Sends a call and returns every byte the caller received (head and body), until the relay closes.
+const rawCall = (path = "/v1/messages", token = agentToken()) => {
+  const body = JSON.stringify({ max_tokens: 1, stream: true });
+  return raw(`POST ${path} HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer ${token}\r\nContent-Type: application/json\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n${body}`);
+};
+
+test("the key in a 401 body, a 200 body or an answer header → withheld whole: 502 relay_key_in_answer", async () => {
+  for (const where of ["body401", "body200", "header"]) {
+    provider.behaviour.echoKey = where;
+    lines = [];
+    const got = await rawCall();
+    assert.equal(modelCalls().length > 0, true);
+    assert.ok(!got.includes(KEY), `the key reached the caller (${where})`);
+    assert.ok(!got.includes(KEY.slice(0, 20)), `part of the key reached the caller (${where})`);
+    assert.equal(statusOf(got), 502, where);
+    assert.match(got, /relay_key_in_answer/);
+    assert.match(got, /The provider's answer was withheld because it held the provider key\./);
+    assert.deepEqual(lines.map((l) => l.replace(/^\S+ /, "")), ["refused relay_key_in_answer"]);
+  }
+});
+
+test("the key in the middle of a stream, or split across two chunks → the stream is cut before it", async () => {
+  for (const where of ["stream", "split"]) {
+    provider.behaviour.echoKey = where;
+    lines = [];
+    const got = await rawCall();
+    assert.equal(statusOf(got), 200, where);
+    assert.match(got, /first part, no secret here/, "what came before the key passed");
+    assert.ok(!got.includes(KEY), `the key reached the caller (${where})`);
+    assert.ok(!got.includes(KEY.slice(Math.floor(KEY.length / 2))), `the key's second half reached the caller (${where})`);
+    assert.ok(!got.includes("after"), "nothing after the key is passed");
+    assert.deepEqual(lines.map((l) => l.replace(/^\S+ /, "")), ["refused relay_key_in_answer"]);
+  }
 });

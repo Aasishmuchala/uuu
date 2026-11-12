@@ -5,6 +5,7 @@
 // nobody: it is never put in an answer, an error or a log line. Files are read on every use.
 import { chmodSync, lstatSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
+import http from "node:http";
 import { dirname, join } from "node:path";
 import { loadCompanyFile } from "../../../company/lib/company-file.mjs";
 import { loadRanking, pickModels } from "../../../company/lib/model-picks.mjs";
@@ -16,6 +17,7 @@ import { providerGet, providerOrigin } from "./provider.mjs";
 
 export const MAX_CATALOGUE = 200;
 const TEST_TIMEOUT_MS = 30000;
+const TEST_MAX_BYTES = 1024 * 1024;
 const TEST_TOKEN_SEC = 120;
 const KEY_STATES = new Set(["none", "unknown", "ok", "refused", "limited", "unreachable"]);
 const PROVIDER_STATES = new Set(["ok", "refused", "limited", "unreachable"]);
@@ -94,7 +96,21 @@ function writePrivate(file, content) {
   }
 }
 
+// Before a save: no text that came from the provider may hold the saved key (holdsKey), whichever
+// route put it there: catalogue names and owners fall back to the id or null, plan rows are dropped.
+function scrubState(config, state) {
+  const key = readKey(config.paths.providerKey);
+  if (key === null) return;
+  state.catalogue.models = state.catalogue.models.filter((m) => !holdsKey(m.id, key)).map((m) => ({
+    ...m, name: holdsKey(m.name, key) ? m.id : m.name, owner: holdsKey(m.owner, key) ? null : m.owner,
+  }));
+  if (state.lastTest && Array.isArray(state.lastTest.plan)) {
+    state.lastTest.plan = state.lastTest.plan.filter((r) => !obj(r) || (!holdsKey(r.label, key) && !holdsKey(r.value, key)));
+  }
+}
+
 export function writeState(config, state) {
+  scrubState(config, state);
   ownFolder(config.paths.models);
   state.changedAt = nowIso();
   writePrivate(config.paths.modelsState, `${JSON.stringify(state, null, 2)}\n`);
@@ -157,8 +173,18 @@ export function recompute(config, state, agents) {
   return r;
 }
 
+// Whether a text from the provider holds the key, or its first or last 12 characters when the key
+// is at least 24 long. Such a text is never kept or shown, even if the provider quotes the key.
+export function holdsKey(value, key) {
+  if (typeof key !== "string" || !key || value === null || value === undefined) return false;
+  const t = String(value);
+  if (t.includes(key)) return true;
+  return key.length >= 24 && (t.includes(key.slice(0, 12)) || t.includes(key.slice(-12)));
+}
+
 // The keyless read of the list: entries kept as C8 says. -> [model] ; throws { unreachable: true }.
-export async function readCatalogue(urls) {
+// `key` (the saved key, or null) is used only to drop any text that holds it.
+export async function readCatalogue(urls, key = null) {
   const r = await providerGet(providerOrigin(urls), "/v1/models");
   const list = Array.isArray(r.json?.data) ? r.json.data : Array.isArray(r.json) ? r.json : null;
   if (r.status !== 200 || !list) throw Object.assign(new Error("the provider's list could not be read"), { unreachable: true });
@@ -166,10 +192,11 @@ export async function readCatalogue(urls) {
   const seen = new Set();
   for (const m of list) {
     if (out.length >= MAX_CATALOGUE) break;
-    if (!obj(m) || typeof m.id !== "string" || !MODEL_RE.test(m.id) || seen.has(m.id)) continue;
+    if (!obj(m) || typeof m.id !== "string" || !MODEL_RE.test(m.id) || seen.has(m.id) || holdsKey(m.id, key)) continue;
     seen.add(m.id);
+    const safe = (v) => (holdsKey(v, key) ? null : v);
     out.push({
-      id: m.id, name: text(m.display_name, 120) || m.id, owner: text(m.owned_by, 80),
+      id: m.id, name: text(safe(m.display_name), 120) || m.id, owner: text(safe(m.owned_by), 80),
       context: num(m.context_window), maxOutput: num(m.max_output_tokens),
     });
   }
@@ -227,6 +254,7 @@ export async function buildView(ctx) {
   const config = ctx.config;
   const urls = ctx.home.urls;
   const { state, problem: stateProblem } = readState(config);
+  scrubState(config, state); // in memory only: a file saved before the key was never shown with it
   const { agents, problem: companyProblem } = readAgents(config);
   const relay = await relayProbe(urls);
   const status = readRelayStatus(config);
@@ -274,18 +302,20 @@ export async function buildView(ctx) {
 // ---- the test -------------------------------------------------------------------------
 
 // The provider's own answer as at most 12 rows of plain values; nothing is guessed about a field.
-export function planRows(answers) {
+// A row whose name or value holds the key (holdsKey) is dropped.
+export function planRows(answers, key = null) {
   const rows = [];
   const walk = (v, label, depth) => {
     if (rows.length >= PLAN_ROWS * 2 || depth > 3) return;
     if (v === null || ["string", "number", "boolean"].includes(typeof v)) {
+      if (holdsKey(label, key) || holdsKey(v, key)) return;
       rows.push({ label: label.slice(0, 80), value: String(v).slice(0, 120) });
       return;
     }
     if (Array.isArray(v)) { v.forEach((x, i) => walk(x, `${label} ${i + 1}`, depth + 1)); return; }
     if (!obj(v)) return;
     for (const [k, x] of Object.entries(v)) {
-      if (PLAN_HIDDEN.test(k)) continue;
+      if (PLAN_HIDDEN.test(k) || holdsKey(k, key)) continue;
       walk(x, label ? `${label} ${k.replace(/_/g, " ")}` : k.replace(/_/g, " "), depth + 1);
     }
   };
@@ -313,9 +343,43 @@ function answerText(json) {
   return "";
 }
 
+// One POST to the relay, bounded from start to finish: at most `limitMs` and `maxBytes` of answer.
+// Past either the call is destroyed and the answer dropped. -> { status, text } or { failed } where
+// failed is "no_connection" (the relay could not be reached), "nothing" (no answer began in time) or
+// "cut" (an answer began but was too slow or too large).
+export function boundedPost(url, { headers, body, limitMs = TEST_TIMEOUT_MS, maxBytes = TEST_MAX_BYTES }) {
+  return new Promise((resolve) => {
+    const u = new URL(url);
+    if (u.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(u.hostname)) return resolve({ failed: "no_connection" });
+    const data = Buffer.from(JSON.stringify(body));
+    let done = false;
+    let began = false;
+    let chunks = [];
+    const finish = (v) => { if (!done) { done = true; clearTimeout(timer); chunks = []; resolve(v); } };
+    const req = http.request({
+      host: u.hostname, port: u.port || 80, path: u.pathname, method: "POST", agent: false,
+      headers: { ...headers, "content-length": data.length },
+    }, (res) => {
+      began = true;
+      let size = 0;
+      res.on("data", (c) => {
+        if (done) return;
+        size += c.length;
+        if (size > maxBytes) { finish({ failed: "cut" }); req.destroy(); return; }
+        chunks.push(c);
+      });
+      res.on("end", () => finish({ status: res.statusCode, text: Buffer.concat(chunks).toString("utf8") }));
+      res.on("error", () => finish({ failed: "cut" }));
+    });
+    const timer = setTimeout(() => { finish({ failed: began ? "cut" : "nothing" }); req.destroy(); }, limitMs);
+    req.on("error", () => finish({ failed: began ? "cut" : "no_connection" }));
+    req.end(data);
+  });
+}
+
 // One question to one model through the relay with a short-lived test token for `slug`.
 // -> { answered, reason, signal }
-async function askThroughRelay(relayUrl, secret, slug, program, model) {
+async function askThroughRelay(relayUrl, secret, slug, program, model, limits) {
   if (!relayUrl || !secret) return { answered: false, reason: "relay_off", signal: null };
   const token = mintToken(secret, "t", slug, Math.floor(Date.now() / 1000) + TEST_TOKEN_SEC);
   const messages = program !== "codex";
@@ -325,12 +389,10 @@ async function askThroughRelay(relayUrl, secret, slug, program, model) {
     : { model, input: QUESTION, max_output_tokens: 16 };
   const headers = { authorization: `Bearer ${token}`, "content-type": "application/json" };
   if (messages) headers["anthropic-version"] = "2023-06-01";
-  let r;
-  try {
-    r = await httpRequest(`${relayUrl}${path}`, { method: "POST", headers, body, timeoutMs: TEST_TIMEOUT_MS });
-  } catch {
-    return { answered: false, reason: "relay_off", signal: null };
-  }
+  const r = await boundedPost(`${relayUrl}${path}`, { headers, body, ...(limits || {}) });
+  if (r.failed === "no_connection") return { answered: false, reason: "relay_off", signal: null };
+  if (r.failed === "nothing") return { answered: false, reason: "unreachable", signal: "unreachable" };
+  if (r.failed) return { answered: false, reason: "no_answer", signal: null };
   const json = parseJson(r.text);
   const relayCode = obj(json) && typeof json.code === "string" && json.code.startsWith("relay_") ? json.code : null;
   if (relayCode === "relay_upstream_down") return { answered: false, reason: "unreachable", signal: "unreachable" };
@@ -343,7 +405,8 @@ async function askThroughRelay(relayUrl, secret, slug, program, model) {
 
 // Reads usage and billing with the key, then asks each distinct picked model through the relay, all at
 // once. -> lastTest, or null when no usable key is saved. The key is passed to the provider client and nowhere else.
-export async function runTest(ctx) {
+// `limits` ({ limitMs, maxBytes } for each model's question) is for tests; the defaults are C8's.
+export async function runTest(ctx, limits) {
   const config = ctx.config;
   const urls = ctx.home.urls;
   const key = readKey(config.paths.providerKey);
@@ -366,7 +429,7 @@ export async function runTest(ctx) {
   const models = [...byModel.entries()];
   const [usage, billing, ...asked] = await Promise.all([
     read("/v1/usage"), read("/v1/billing"),
-    ...models.map(([model, m]) => askThroughRelay(urls.relay, secret, m.slug, m.program, model)),
+    ...models.map(([model, m]) => askThroughRelay(urls.relay, secret, m.slug, m.program, model, limits)),
   ]);
 
   const signals = [usage.signal, billing.signal, ...asked.map((a) => a.signal)];
@@ -377,7 +440,7 @@ export async function runTest(ctx) {
   return {
     at: nowIso(),
     key: keyResult,
-    plan: planRows([usage.json, billing.json]),
+    plan: planRows([usage.json, billing.json], key),
     models: models.map(([model, m], i) => ({
       model, name: nameOf.get(model) || model, agents: m.names, answered: asked[i].answered, reason: asked[i].reason,
     })),

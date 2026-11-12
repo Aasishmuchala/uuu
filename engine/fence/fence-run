@@ -25,7 +25,7 @@ refuse() { echo "fence: $1" >&2; exit 78; }
 
 # The home folder macOS has on record for this user, not $HOME: the config's "~"
 # and the fence's protected folder must not move with whatever HOME we were given.
-OWNER_HOME="$(/usr/bin/python3 -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" \
+OWNER_HOME="$(/usr/bin/python3 -I -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" \
   || refuse "could not find your home folder"
 _given_home="${HOME:-}"
 HOME="$OWNER_HOME"
@@ -108,13 +108,13 @@ mkdir -p "$INNER_TMP"
 
 # 3. The planner's inputs, then the planner. The agent id is only a lookup key.
 AGENT_ID="${PAPERCLIP_AGENT_ID:-}"
-INPUTS="$(/usr/bin/python3 "$HERE/fence_inputs.py" --tool "$TOOL" --task-folder "$TASK_FOLDER" \
+INPUTS="$(/usr/bin/python3 -I "$HERE/fence_inputs.py" --tool "$TOOL" --task-folder "$TASK_FOLDER" \
   --agent-home "$AGENT_HOME" --inner-tmp "$INNER_TMP" --agent-id "$AGENT_ID" \
   ${EXTRA[@]+"${EXTRA[@]}"})" || exit 78
 INPUTS_JSON="$(printf '%s\n' "$INPUTS" | sed -n 1p)"
 LESSONS_FILE="$(printf '%s\n' "$INPUTS" | sed -n 2p)"
 ENV_FILE="$(printf '%s\n' "$INPUTS" | sed -n 3p)"
-SETTINGS="$(printf '%s\n' "$INPUTS_JSON" | /usr/bin/python3 "$HERE/fence_plan.py")" || exit 78
+SETTINGS="$(printf '%s\n' "$INPUTS_JSON" | /usr/bin/python3 -I "$HERE/fence_plan.py")" || exit 78
 [[ -f "$SETTINGS" ]] || refuse "the planner wrote no settings"
 unset INPUTS INPUTS_JSON
 

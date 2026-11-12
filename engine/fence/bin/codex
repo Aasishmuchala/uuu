@@ -16,7 +16,7 @@ unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL
 
 FENCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 refuse() { echo "fence: $1" >&2; exit 78; }
-OWNER_HOME="$(/usr/bin/python3 -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" \
+OWNER_HOME="$(/usr/bin/python3 -I -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" \
   || refuse "could not find your home folder"
 _given_home="${HOME:-}"; HOME="$OWNER_HOME"
 . "$FENCE_DIR/../lib/config.sh" || refuse "the engine config could not be read. Check engine/config.json"
@@ -24,18 +24,38 @@ HOME="$_given_home"; unset _given_home
 STATE_DIR="$CFG_STATE"
 ENGINE_DIR="$CFG_ENGINE_DIR"
 
+# The model mode, known before anything is shared: in provider mode the Codex
+# login must be neither readable nor writable inside the fence (the program talks
+# to the model relay and needs no login; what it could read could reach the provider).
+LOGIN_MODE="$(/usr/bin/python3 -I "$FENCE_DIR/model_mode.py" --mode </dev/null)" || exit 78
+
 # Paperclip picks the Codex home. Only homes the engine or paperclip made for an
 # agent are accepted (codex_home.py checks), and the fence allows that one home.
+# In provider mode the engine's shared home, which holds the login file itself,
+# is swapped for an empty folder inside it.
 CODEX_HOME="${CODEX_HOME:-$STATE_DIR/codex-home}"
-PLAN="$(/usr/bin/python3 "$FENCE_DIR/codex_home.py" "$CODEX_HOME" "$STATE_DIR" "$CFG_INSTANCE_ROOT" \
+if [[ "$LOGIN_MODE" == provider ]]; then
+  _shared="$(cd "$STATE_DIR/codex-home" 2>/dev/null && pwd -P)" || _shared=""
+  _given="$(cd "$CODEX_HOME" 2>/dev/null && pwd -P)" || _given=""
+  if [[ -n "$_shared" && "$_given" == "$_shared" ]]; then
+    CODEX_HOME="$_shared/provider-mode"
+    [[ -d "$CODEX_HOME" && ! -L "$CODEX_HOME" ]] || mkdir -m 700 "$CODEX_HOME" \
+      || refuse "could not make the Codex home for provider mode"
+  fi
+  unset _shared _given
+fi
+PLAN="$(/usr/bin/python3 -I "$FENCE_DIR/codex_home.py" "$CODEX_HOME" "$STATE_DIR" "$CFG_INSTANCE_ROOT" \
   "${PAPERCLIP_COMPANY_ID:-}" "${PAPERCLIP_AGENT_ID:-}")" || exit 78
 PATHS=()
 CODEX_HOME=""
 while IFS="$(printf '\t')" read -r kind path; do
   case "$kind" in
     home) CODEX_HOME="$path" ;;
-    read) PATHS+=(--read "$path") ;;
-    write) PATHS+=(--write "$path") ;;
+    read|write)
+      # Every link of the login chain and its last file are named auth.json
+      # (codex_home.py checks): none of them is shared in provider mode.
+      if [[ "$LOGIN_MODE" == provider && "${path##*/}" == auth.json ]]; then continue; fi
+      PATHS+=("--$kind" "$path") ;;
   esac
 done <<EOF
 $PLAN
@@ -77,12 +97,12 @@ MODEL_PICK=""
 RELAY_URL=""
 if [[ -z "$QUOTA_CHECK" && "$*" != "--version" && "$*" != "-V" ]]; then
   if [[ -z "${PAPERCLIP_AGENT_ID:-}" ]]; then
-    MODEL_MODE="$(/usr/bin/python3 "$FENCE_DIR/model_mode.py" --mode)" || exit 78
+    MODEL_MODE="$(/usr/bin/python3 -I "$FENCE_DIR/model_mode.py" --mode)" || exit 78
     [[ "$MODEL_MODE" == plans ]] \
       || refuse "the provider is on, and a run without an agent id has no model. The proof passes a real agent's id."
   else
     NL=$'\n'
-    _run="$(/usr/bin/python3 "$FENCE_DIR/model_mode.py" --for-run --agent "$PAPERCLIP_AGENT_ID")" || exit 78
+    _run="$(/usr/bin/python3 -I "$FENCE_DIR/model_mode.py" --for-run --agent "$PAPERCLIP_AGENT_ID")" || exit 78
     MODEL_MODE="${_run%%"$NL"*}"
     if [[ "$MODEL_MODE" == provider ]]; then
       _run="${_run#*"$NL"}"; RELAY_URL="${_run%%"$NL"*}"

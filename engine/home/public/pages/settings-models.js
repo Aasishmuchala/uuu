@@ -284,7 +284,6 @@ function SwitchCard({ view, busy, act, failure, switched }) {
   return html`
     <${Card} class=${`p-settings__m-card p-settings__m-switch${on ? " p-settings__m-switch--on" : ""}`}>
       <${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
-        explain=${locked ? "It can be switched on when these are done:" : null}
         onChange=${(next) => act("mode", "/api/models/mode", { mode: next ? "provider" : "plans" }, next ? WORDS.on : WORDS.off, true)} />
       <p class="p-settings__m-state" role="status">
         ${busy === "mode"
@@ -292,6 +291,7 @@ function SwitchCard({ view, busy, act, failure, switched }) {
           : html`<${StatusDot} tone=${on ? "ok" : "off"} label=${modeLine(view.mode)} />`}
       </p>
       ${locked ? html`
+        <p class="p-settings__m-text">It can be switched on when these are done:</p>
         <ul class="p-settings__m-steps">
           ${blockers.map((b, i) => html`<li key=${i}><${Line}>${b}<//></li>`)}
         </ul>` : null}

@@ -11,7 +11,7 @@ done
 unset ENGINE_CONFIG PAPERCLIP_AGENT_ID PAPERCLIP_API_URL PAPERCLIP_RUNTIME_API_URL CODEX_HOME _v
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-OWNER_HOME="$(/usr/bin/python3 -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" || exit 1
+OWNER_HOME="$(/usr/bin/python3 -I -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" || exit 1
 _given_home="${HOME:-}"; HOME="$OWNER_HOME"
 . "$HERE/../lib/config.sh" || { echo "The engine config could not be read. Check engine/config.json" >&2; exit 1; }
 HOME="$_given_home"; unset _given_home
@@ -36,7 +36,7 @@ HDR=""; KEY_ID=""; KEY_AGENT=""
 cleanup() {
   rm -f "$POLICY_FILE" "$LESSONS_FILE" "$KNOWLEDGE_MARK" "$KNOWLEDGE/.fence-proof-write" "$ENV_FILE"
   rm -f "$STATE_DIR/media/.fence-proof" "$STATE_DIR/media/.fence-proof-new"
-  rm -rf "${STATE_DIR:?}/claude-home/$OTHER_ID"
+  rm -rf "${STATE_DIR:?}/claude-home/$OTHER_ID" "${STATE_DIR:?}"/tasks/_proof-answer.* "${STATE_DIR:?}/codex-home/_proof-login"
   if [[ -n "$KEY_ID" ]]; then
     curl -s -m 10 -o /dev/null -X DELETE "$BOARD/api/agents/$KEY_AGENT/keys/$KEY_ID" || true
   fi
@@ -46,9 +46,12 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 1' INT TERM HUP
 
-mkdir -p "$WS" && cd "$WS" || exit 1
-rm -f made-inside.txt ro-made.txt "$HOME/fence-escape-test.txt"
-echo "inside" > note.txt
+# The proof itself runs from a folder no agent can write: every unfenced helper
+# (python3 among them) would otherwise start in a folder an agent can plant files in.
+# Only the fenced calls go into the proof's task folder, each in a subshell.
+mkdir -p "$WS" && cd / || exit 1
+rm -f "$WS/made-inside.txt" "$WS/ro-made.txt" "$HOME/fence-escape-test.txt"
+echo "inside" > "$WS/note.txt"
 fail=0; skipped=0
 RUN=""; WHO=""; AS=""
 
@@ -60,7 +63,7 @@ say() {
 
 # Each check first prints a marker from inside the fence. No marker means the
 # fence never started, and that must never be counted as "blocked".
-inside() { PAPERCLIP_AGENT_ID="$AS" "$RUN" --fence-check "echo FENCE_UP; $1" 2>/dev/null; }
+inside() { (cd "$WS" && PAPERCLIP_AGENT_ID="$AS" "$RUN" --fence-check "echo FENCE_UP; $1" 2>/dev/null); }
 blocked() {
   local out rc; out="$(inside "$2")"; rc=$?
   if [[ "$out" != FENCE_UP* ]]; then say FAIL "the fence around $WHO did not start (while checking: $1)"
@@ -74,7 +77,7 @@ allowed() {
 # The wrapper must refuse to start at all: exit 78, no marker, and the reason.
 refuses() {
   local what="$1" want="$2" out rc; shift 2
-  out="$("$@" 2>&1)"; rc=$?
+  out="$(cd "$WS" && "$@" 2>&1)"; rc=$?
   if [[ "$out" == *FENCE_UP* ]]; then say FAIL "$WHO started when $what"
   elif (( rc == 78 )) && [[ "$out" == *"$want"* ]]; then say PASS "$WHO refuses to start when $what"
   else say FAIL "$WHO did not refuse as expected when $what (exit $rc)"; fi
@@ -96,12 +99,12 @@ REACH_BENCH="curl -s -m 6 -H '$SITE_HEADER' $BENCH/api/method/ping | grep -q pon
 # Which models the agents use: plans (the Claude and Codex plans) or provider (the
 # outside provider, reached only through the model relay). model_mode.py decides,
 # outside the fence; a settings file it cannot trust is a failure of its own.
-MODE="$(/usr/bin/python3 "$HERE/model_mode.py" --mode 2>&1 </dev/null)" \
+MODE="$(/usr/bin/python3 -I "$HERE/model_mode.py" --mode 2>&1 </dev/null)" \
   || { say FAIL "the model settings could not be read (${MODE#fence: })"; MODE=""; }
 
 # An agent's id from ids.json, or nothing.
 agent_id_of() {
-  /usr/bin/python3 -c "import json,re,sys
+  /usr/bin/python3 -I -c "import json,re,sys
 a=json.load(open(sys.argv[1])).get('agents',{}).get(sys.argv[2])
 print(a if isinstance(a,str) and re.fullmatch('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',a) else '')" \
     "$STATE_DIR/ids.json" "$1" 2>/dev/null
@@ -117,7 +120,7 @@ write_policy() {   # write_policy <localServices JSON> <taskFolder>
 fence_checks() {
   local other_home="$1"
   AS=""
-  rm -f "$HOME/fence-escape-test.txt" made-inside.txt
+  rm -f "$HOME/fence-escape-test.txt" "$WS/made-inside.txt"
   blocked "read your SSH keys"                  'ls ~/.ssh'
   blocked "list your home folder"               'ls ~'
   blocked "read your own Claude settings"       'ls ~/.claude'
@@ -132,6 +135,19 @@ fence_checks() {
   blocked "reach the model provider directly"   'curl -s -m 8 https://api.omegaplusapi.com/v1/models -o /dev/null'
   blocked "read the provider key, the relay's secret or the model settings" \
     "cat $CFG_PROVIDER_KEY >/dev/null || cat $CFG_RELAY_SECRET >/dev/null || cat $CFG_MODELS_STATE >/dev/null"
+  # In provider mode Codex runs with no login: neither a Codex home that links to
+  # the login (as paperclip's homes do) nor the engine's own shared home may open it.
+  if [[ "$MODE" == provider && "$RUN" == "$HERE/bin/codex" ]]; then
+    local login_home="$STATE_DIR/codex-home/_proof-login" shared="$STATE_DIR/codex-home/auth.json"
+    rm -rf "$login_home"
+    mkdir -p "$STATE_DIR/codex-home" && mkdir -m 700 "$login_home" && ln -s "$shared" "$login_home/auth.json" \
+      || say FAIL "could not make a Codex home that links to the login"
+    CODEX_HOME="$login_home" blocked "read the Codex login" \
+      "cat \"\$CODEX_HOME/auth.json\" >/dev/null || cat $shared >/dev/null || cat ~/.codex/auth.json >/dev/null"
+    blocked "read the Codex login from the engine's own Codex home" \
+      "cat \"\$CODEX_HOME/auth.json\" >/dev/null || cat $shared >/dev/null"
+    rm -rf "$login_home"
+  fi
   blocked "read your other Claude sessions' temp files" "ls /private/tmp/claude-$(id -u)"
   blocked "reach other local services (port 5432)"      'curl -s -m 5 -f http://127.0.0.1:5432/ -o /dev/null'
   if (( BOARD_UP )); then
@@ -157,13 +173,13 @@ fence_checks() {
   fi
   # Addresses: paperclip's are replaced by the gate's, the listen ones removed, NO_PROXY empty.
   local out rc
-  out="$(PAPERCLIP_API_URL="$BOARD" PAPERCLIP_RUNTIME_API_URL="$BOARD" PAPERCLIP_LISTEN_HOST=127.0.0.1 \
+  out="$(cd "$WS" && PAPERCLIP_API_URL="$BOARD" PAPERCLIP_RUNTIME_API_URL="$BOARD" PAPERCLIP_LISTEN_HOST=127.0.0.1 \
     PAPERCLIP_LISTEN_PORT="$CFG_PORT_BOARD" NO_PROXY='*' "$RUN" --fence-check \
     "echo FENCE_UP; test \"\$PAPERCLIP_API_URL\" = $GATE && test \"\$PAPERCLIP_RUNTIME_API_URL\" = $GATE && test -z \"\${PAPERCLIP_LISTEN_HOST+x}\${PAPERCLIP_LISTEN_PORT+x}\" && test -z \"\$NO_PROXY\"" 2>/dev/null)"; rc=$?
   if [[ "$out" == FENCE_UP* ]] && (( rc == 0 )); then say PASS "$WHO is pointed at the gate, never at the board"
   else say FAIL "$WHO is not pointed at the gate only"; fi
   # Fence rules handed in from outside are ignored.
-  out="$(FENCE_EXTRA_READ="$HOME" UUU_LESSONS_FILE="$HOME/.zshrc" UUU_KNOWLEDGE_DIR="$HOME" \
+  out="$(cd "$WS" && FENCE_EXTRA_READ="$HOME" UUU_LESSONS_FILE="$HOME/.zshrc" UUU_KNOWLEDGE_DIR="$HOME" \
     ENGINE_CONFIG=/nonexistent "$RUN" --fence-check 'echo FENCE_UP; ls ~' 2>/dev/null)"; rc=$?
   if [[ "$out" != FENCE_UP* ]]; then say FAIL "the fence around $WHO did not start (while checking rules from outside)"
   elif (( rc == 0 )); then say FAIL "$WHO could take fence rules from the environment"
@@ -228,12 +244,14 @@ if [[ "$MODE" == provider ]]; then
   elif [[ -z "$as" ]]; then
     say SKIP "a Claude agent answering from inside the fence through the model relay (no Builder in ids.json yet: run engine setup)"
   else
-    out="$(PAPERCLIP_AGENT_ID="$as" within 180 "$RUN" -p "Reply with exactly: OK" --max-turns 1 </dev/null 2>&1 | tail -1)"
+    once="$(mktemp -d "$STATE_DIR/tasks/_proof-answer.XXXXXX")" || once=""
+    out="$([[ -n "$once" ]] && cd "$once" && PAPERCLIP_AGENT_ID="$as" within 180 "$RUN" -p "Reply with exactly: OK" --max-turns 1 </dev/null 2>&1 | tail -1)"
+    [[ -n "$once" ]] && rm -rf "$once"
     if [[ "$out" == *OK* ]]; then say PASS "a Claude agent answers from inside the fence through the model relay"
     else say FAIL "a Claude agent did not answer from inside the fence through the model relay: ${out:0:200}"; fi
   fi
 elif [[ -f "$STATE_DIR/agent.env" ]]; then
-  out="$(within 180 "$RUN" -p "Reply with exactly: OK" --max-turns 1 </dev/null 2>&1 | tail -1)"
+  out="$(cd "$WS" && within 180 "$RUN" -p "Reply with exactly: OK" --max-turns 1 </dev/null 2>&1 | tail -1)"
   if [[ "$out" == *OK* ]]; then say PASS "a Claude agent answers from inside the fence"
   else say FAIL "a Claude agent did not answer from inside the fence: ${out:0:200}"; fi
 else
@@ -251,15 +269,17 @@ if [[ "$MODE" == provider ]]; then
   elif [[ -z "$as" ]]; then
     say SKIP "the Codex agent answering from inside the fence through the model relay (no Checker in ids.json yet: run engine setup)"
   else
-    out="$(PAPERCLIP_AGENT_ID="$as" within 180 "$RUN" exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "Reply with exactly: OK" </dev/null 2>/dev/null | tail -1)"
+    once="$(mktemp -d "$STATE_DIR/tasks/_proof-answer.XXXXXX")" || once=""
+    out="$([[ -n "$once" ]] && cd "$once" && PAPERCLIP_AGENT_ID="$as" within 180 "$RUN" exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "Reply with exactly: OK" </dev/null 2>/dev/null | tail -1)"
+    [[ -n "$once" ]] && rm -rf "$once"
     if [[ "$out" == *OK* ]]; then say PASS "the Codex agent answers from inside the fence through the model relay"
     else say FAIL "the Codex agent did not answer from inside the fence through the model relay: ${out:0:200}"; fi
   fi
 elif [[ -e "$STATE_DIR/codex-home/auth.json" ]]; then
-  out="$(within 180 "$RUN" exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "Reply with exactly: OK" </dev/null 2>/dev/null | tail -1)"
+  out="$(cd "$WS" && within 180 "$RUN" exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "Reply with exactly: OK" </dev/null 2>/dev/null | tail -1)"
   if [[ "$out" == *OK* ]]; then say PASS "the Codex agent answers from inside the fence"
   else say FAIL "the Codex agent did not answer from inside the fence: ${out:0:200}"; fi
-  case "$(/usr/bin/python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$STATE_DIR/codex-home/auth.json")" in
+  case "$(/usr/bin/python3 -I -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$STATE_DIR/codex-home/auth.json")" in
     "$STATE_DIR"/*) ;;
     *) say NOTE "the Codex agent still uses your own Codex login file; a login of its own is still to do (engine/fence/login-wizard.sh codex)" ;;
   esac
@@ -306,21 +326,21 @@ relay_checks() {   # relay_checks <slug> <name> <slug of another agent>
   [[ -n "$other" && "$other" != "$me" ]] || other="$OTHER_ID"
   AS="$me"
   relay_turns_away "without a token" "" 401
-  tok="$(/usr/bin/python3 "$HERE/model_mode.py" --token --agent "$me" </dev/null 2>/dev/null)" || tok=""
+  tok="$(/usr/bin/python3 -I "$HERE/model_mode.py" --token --agent "$me" </dev/null 2>/dev/null)" || tok=""
   if [[ "$tok" != "v1.a.$me."* ]]; then say FAIL "a token for the $name could not be made (model_mode.py --token)"; AS=""; return; fi
   relay_turns_away "with a token whose agent id was swapped for another agent's" "v1.a.$other.${tok#v1.a.$me.}" 401
   if [[ ! -f "$CFG_PROVIDER_KEY" ]]; then
     say SKIP "whether the model relay turns $WHO away with a token for an agent that has no model picked (no provider key saved: paste it in Settings)"
   else
     relay_turns_away "with a token for an agent that has no model picked" \
-      "$(/usr/bin/python3 "$HERE/model_mode.py" --token --agent "$PROOF_ID" </dev/null 2>/dev/null)" 403 relay_no_pick
+      "$(/usr/bin/python3 -I "$HERE/model_mode.py" --token --agent "$PROOF_ID" </dev/null 2>/dev/null)" 403 relay_no_pick
   fi
   # The Builder asks for a model that is never picked; the relay's log must name the pick.
   if [[ "$slug" == builder ]]; then
     if [[ ! -f "$CFG_PROVIDER_KEY" ]]; then
       say SKIP "whether the relay sends the Builder's call to its picked model (no provider key saved: paste it in Settings)"
     else
-      run="$(/usr/bin/python3 "$HERE/model_mode.py" --for-run --agent "$me" </dev/null 2>/dev/null)" || run=""
+      run="$(/usr/bin/python3 -I "$HERE/model_mode.py" --for-run --agent "$me" </dev/null 2>/dev/null)" || run=""
       pick="$(printf '%s\n' "$run" | sed -n 3p)"; run=""
       before="$(wc -l < "$CFG_LOGS/relay.log" 2>/dev/null | tr -d ' ')"; before="${before:-0}"
       out="$(relay_call "$tok" '{"model":"claude-quantum-lite-1","max_tokens":1,"messages":[{"role":"user","content":"Reply with exactly: OK"}]}')"
@@ -363,16 +383,16 @@ gate_checks() {
   if (( ! GATE_UP )); then say SKIP "the gate checks with an agent token (the gate is not running)"; return; fi
   if (( ! BOARD_UP )); then say SKIP "the gate checks with an agent token (the board is not running)"; return; fi
   if [[ ! -f "$ids" ]]; then say SKIP "the gate checks with an agent token (no ids.json yet: run engine setup)"; return; fi
-  co="$(/usr/bin/python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['companyId'])" "$ids" 2>/dev/null)"
-  builder="$(/usr/bin/python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['agents']['builder'])" "$ids" 2>/dev/null)"
+  co="$(/usr/bin/python3 -I -c "import json,sys;print(json.load(open(sys.argv[1]))['companyId'])" "$ids" 2>/dev/null)"
+  builder="$(/usr/bin/python3 -I -c "import json,sys;print(json.load(open(sys.argv[1]))['agents']['builder'])" "$ids" 2>/dev/null)"
   if [[ -z "$co" || -z "$builder" ]]; then say SKIP "the gate checks with an agent token (ids.json has no company or Builder)"; return; fi
   KEY_AGENT="$builder"
   resp="$(curl -s -m 10 -X POST -H 'Content-Type: application/json' -d '{"name":"engine-proof"}' \
     "$BOARD/api/agents/$builder/keys")"
-  KEY_ID="$(printf '%s' "$resp" | /usr/bin/python3 -c "import json,sys;print(json.load(sys.stdin).get('id') or '')" 2>/dev/null)"
+  KEY_ID="$(printf '%s' "$resp" | /usr/bin/python3 -I -c "import json,sys;print(json.load(sys.stdin).get('id') or '')" 2>/dev/null)"
   HDR="$(mktemp -t uuu-proof-hdr)" || { say FAIL "could not make a header file for the test key"; return; }
   chmod 600 "$HDR"
-  printf '%s' "$resp" | /usr/bin/python3 -c "import json,sys;t=json.load(sys.stdin).get('token') or '';t and print('Authorization: Bearer '+t)" > "$HDR" 2>/dev/null
+  printf '%s' "$resp" | /usr/bin/python3 -I -c "import json,sys;t=json.load(sys.stdin).get('token') or '';t and print('Authorization: Bearer '+t)" > "$HDR" 2>/dev/null
   resp=""
   if [[ -z "$KEY_ID" || ! -s "$HDR" ]]; then say FAIL "could not make a test key for the Builder on the board"; return; fi
   code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -H @"$HDR" "$GATE/api/agents/me")"
@@ -483,12 +503,12 @@ codex_skill_checks() {
   mkdir -p "$run/skills" "$skill" "$fake/I/db" "$fake/S" && printf 'PROOF_PRIVATE=1\n' > "$fake/I/.env" \
     && ln -s "$fake/I/.env" "$run/skills/planted" \
     || { say FAIL "could not lay out the made-up paperclip folder"; rm -rf "$fake"; return; }
-  out="$(/usr/bin/python3 "$HERE/codex_home.py" "$run" "$fake/S" "$fake/I" "$co" "$PROOF_ID" 2>&1)"; rc=$?
+  out="$(/usr/bin/python3 -I "$HERE/codex_home.py" "$run" "$fake/S" "$fake/I" "$co" "$PROOF_ID" 2>&1)"; rc=$?
   if (( rc == 78 )) && [[ "$out" == *planted* && "$out" != *PROOF_PRIVATE* ]]; then
     say PASS "the Codex helper refuses a skill link an agent planted to paperclip's private file"
   else say FAIL "the Codex helper did not refuse a skill link to paperclip's private file (exit $rc)"; fi
   rm -f "$run/skills/planted"; ln -s "$skill" "$run/skills/paperclip"
-  out="$(/usr/bin/python3 "$HERE/codex_home.py" "$run" "$fake/S" "$fake/I" "$co" "$PROOF_ID" 2>&1)"; rc=$?
+  out="$(/usr/bin/python3 -I "$HERE/codex_home.py" "$run" "$fake/S" "$fake/I" "$co" "$PROOF_ID" 2>&1)"; rc=$?
   if (( rc == 0 )) && [[ "$out" == *"read$tab$skill"* ]]; then
     say PASS "the Codex helper shares a skill in paperclip's skills folder, read only"
   else say FAIL "the Codex helper did not share a skill in paperclip's skills folder (exit $rc)"; fi
@@ -560,7 +580,7 @@ media_checks
 echo
 RESULT="holds"
 if (( fail )); then RESULT="failed"; elif (( skipped )); then RESULT="holds-with-todo"; fi
-/usr/bin/python3 "$HERE/proof_record.py" "$LINES" "$STATE_DIR/proof/last.json" "$RESULT" \
+/usr/bin/python3 -I "$HERE/proof_record.py" "$LINES" "$STATE_DIR/proof/last.json" "$RESULT" \
   || echo "NOTE  the result could not be saved to $STATE_DIR/proof/last.json"
 if (( fail )); then echo "RESULT: the fence FAILED"; exit 1; fi
 if (( skipped )); then echo "RESULT: the fence holds; something is still to do (see SKIP lines)"; exit 2; fi

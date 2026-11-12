@@ -225,7 +225,7 @@ ask_long_secret() {
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 _given_home="${HOME:-}"
-HOME="$(/usr/bin/python3 -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")"
+HOME="$(/usr/bin/python3 -I -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")"
 unset ENGINE_CONFIG
 . "$HERE/../lib/config.sh" || { echo "The engine config could not be read. Check engine/config.json" >&2; exit 1; }
 HOME="$_given_home"; unset _given_home
@@ -236,7 +236,7 @@ CODEX_AUTH="$STATE_DIR/codex-home/auth.json"
 # the engine's state, not a link to the owner's own ~/.codex login.
 codex_login_is_own() {
   [[ -e "$CODEX_AUTH" ]] || return 1
-  case "$(/usr/bin/python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$CODEX_AUTH")" in
+  case "$(/usr/bin/python3 -I -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$CODEX_AUTH")" in
     "$STATE_DIR"/*) return 0 ;;
   esac
   return 1

@@ -278,6 +278,68 @@ class CodexWrapperTests(unittest.TestCase):
         self.assertEqual(token, "<unset>")
         self.assertEqual(self.program_args(args), ["--version"])
 
+    # The Codex login (in provider mode never shared with the fence)
+
+    def login_chain(self, shape):
+        """Lays out a login as the real Mac has it, for an agent's Codex home inside
+        the engine's shared one. Returns that home."""
+        shared = os.path.join(self.state, "codex-home")
+        home = os.path.join(shared, "agent-x")
+        os.makedirs(home)
+        managed = os.path.join(self.inst, "companies", "aaaaaaaa-1111-4111-8111-0000000000c0", "codex-home")
+        os.makedirs(managed)
+        if shape == "plain":
+            self.write_private(os.path.join(home, "auth.json"), '{"marker":"made-up"}')
+        elif shape == "link":
+            self.write_private(os.path.join(shared, "auth.json"), '{"marker":"made-up"}')
+            os.symlink(os.path.join(shared, "auth.json"), os.path.join(home, "auth.json"))
+        else:  # a chain of two links
+            self.write_private(os.path.join(managed, "auth.json"), '{"marker":"made-up"}')
+            os.symlink(os.path.join(managed, "auth.json"), os.path.join(shared, "auth.json"))
+            os.symlink(os.path.join(shared, "auth.json"), os.path.join(home, "auth.json"))
+        return home
+
+    def shared_paths(self, args):
+        """The --read and --write paths handed to fence-run, in order."""
+        fence = args[:args.index("--")] if "--" in args else args
+        return [(fence[i], fence[i + 1]) for i in range(len(fence) - 1) if fence[i] in ("--read", "--write")]
+
+    def test_provider_mode_shares_no_codex_login(self):
+        for shape in ("plain", "link", "chain"):
+            with self.subTest(shape=shape):
+                self.tearDown(); self.setUp()
+                home = self.login_chain(shape)
+                self.provider(mode="plans")
+                plans = self.shared_paths(self.ok(self.run_codex(PAPERCLIP_ARGS, AGENT_A, {"CODEX_HOME": home}))[0])
+                self.provider()
+                for extra in (PAPERCLIP_ARGS, ["--fence-check", "true"]):
+                    args, _ = self.ok(self.run_codex(extra, AGENT_A, {"CODEX_HOME": home}))
+                    paths = self.shared_paths(args)
+                    self.assertFalse([p for _, p in paths if "auth.json" in p], (shape, paths))
+                    # Everything else that plans mode shares is still shared.
+                    self.assertEqual(paths, [kp for kp in plans if not kp[1].endswith("/auth.json")])
+                # Plans mode still shares the login chain as before.
+                want = {"plain": 0, "link": 2, "chain": 3}[shape]
+                self.assertEqual(len([p for _, p in plans if p.endswith("/auth.json")]), want, plans)
+
+    def test_provider_mode_swaps_the_shared_home_for_an_empty_one(self):
+        # The engine's shared home holds the login file itself: in provider mode a
+        # run that would use it gets an empty folder inside it instead.
+        shared = os.path.join(self.state, "codex-home")
+        self.write_private(os.path.join(shared, "auth.json"), '{"marker":"made-up"}')
+        self.provider(mode="plans")
+        r = self.run_codex(PAPERCLIP_ARGS, AGENT_A)
+        self.ok(r)
+        self.assertIn("codex-home=%s\n" % shared, r.stdout)
+        self.provider()
+        for extra in (PAPERCLIP_ARGS, ["--fence-check", "true"]):
+            r = self.run_codex(extra, AGENT_A)
+            args, _ = self.ok(r)
+            self.assertIn("codex-home=%s\n" % os.path.join(shared, "provider-mode"), r.stdout)
+            self.assertEqual(args[args.index("--agent-home") + 1], os.path.join(shared, "provider-mode"))
+            self.assertFalse([p for _, p in self.shared_paths(args) if "auth.json" in p])
+        self.assertEqual(os.stat(os.path.join(shared, "provider-mode")).st_mode & 0o777, 0o700)
+
     def test_fence_check_works_without_an_agent_id_in_either_mode(self):
         for mode in ("plans", "provider"):
             self.provider(mode=mode)

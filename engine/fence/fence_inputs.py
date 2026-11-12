@@ -22,7 +22,10 @@ import re
 import stat
 import sys
 
-import model_mode
+# fence-run starts this with python3 -I, which leaves even this script's own folder
+# off the import path (and the agent's task folder, the current one, too): add it back.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import model_mode  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REFUSED_EXIT = 78

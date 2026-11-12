@@ -13,7 +13,7 @@ One command, `engine/bin/engine`, with these words after it:
 - `start`: turns everything on, in order, and stops at the first part that fails. It says where to look. Running it twice starts nothing new. It ends with `Open http://127.0.0.1:3200`.
 - `stop`: turns everything off and leaves no agent running. Nothing starts by itself when the Mac starts.
 - `status`: one line per part (the board, the gate, the Model relay, the home screen and the others): `on`, `off`, `unhealthy` or `not installed`, and what to do next. A good result ends with `Everything is on.`
-- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 112 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
+- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 118 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
 - `setup`: makes the board match the company files. Safe to run again.
 - `test`: runs every test. A good result ends with `All tests passed.`
 
@@ -160,6 +160,8 @@ What is sent where:
 - Everything an agent reads and writes in a task goes to Omega Plus. Omega Plus decides which model answers under each name. Its own documentation says a name does not guarantee a particular model, so this cannot be checked from here.
 - Your key stays outside the fence, in the secrets folder. Only the model relay uses it. Agents can reach only the gate and the model relay, and no outside host at all.
 - Your Claude login is never sent to the relay or to Omega Plus.
+- Your Codex login cannot be read by the Checker while Omega Plus is on.
+- If Omega Plus ever quoted your key back in an answer, the relay would withhold that answer, so the key cannot reach an agent.
 - Each agent is held to the model picked for it. Nine agents run on the Claude program, so they get the best Claude-named model the list has (Fable 5.1 first). The Checker stays on the Codex program with the best GPT-named model, so its checks come from a different maker.
 
 If something goes wrong:
