@@ -13,8 +13,8 @@
 // (node:sqlite, FTS5, state/home/brain.sqlite) is a cache, rebuilt when a file's size or time differs.
 import { DatabaseSync } from "node:sqlite";
 import {
-  closeSync, fchmodSync, fsyncSync, linkSync, lstatSync, mkdirSync, opendirSync, openSync, realpathSync,
-  renameSync, rmSync, statfsSync, unlinkSync, writeSync,
+  closeSync, constants as fsConstants, fchmodSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, opendirSync,
+  openSync, realpathSync, renameSync, rmSync, statfsSync, unlinkSync, writeSync,
 } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
@@ -97,12 +97,12 @@ const FORM_OF = new Map(BASICS.map((b) => [b.file, b.form]));
 // A name typed by the owner -> the one safe file name it becomes, or a BrainError (400). The knowledge
 // store's cleanName, widened to the endings of 32.2. Only the last part counts: anything before a slash is
 // dropped, never followed; characters outside letters, digits, space, dot, dash and underscore (a NUL
-// among them) are dropped; leading dots and spaces are dropped; a missing ending becomes .md.
+// among them) are dropped; leading dots, spaces, dashes and underscores are dropped; a missing ending becomes .md.
 export function cleanName(input) {
   if (typeof input !== "string") throw ERR.nameMissing();
   let n = input.split(/[\\/]/).pop();
   n = n.normalize("NFC").replace(/[^A-Za-z0-9 ._-]/g, "");
-  n = n.replace(/^[ .]+/, "").replace(/ +$/, "").replace(/\.{2,}/g, ".");
+  n = n.replace(/^[ ._-]+/, "").replace(/ +$/, "").replace(/\.{2,}/g, ".");
   const ext = n.match(/\.([A-Za-z0-9]+)$/);
   const known = ext && KIND_OF[ext[1].toLowerCase()];
   if (ext && /[A-Za-z]/.test(ext[1]) && !known) throw ERR.nameType();
@@ -247,22 +247,38 @@ export function createBrain(config, options = {}) {
     if (String(version) !== versionOf(f.mtimeMs) || !stillThere(f)) throw ERR.changed();
   }
 
-  // Writes bytes to a new temp file beside `dest` (wx, 0644, synced) and returns its path.
+  // Writes bytes to a new temp file beside `dest` (wx, no link followed, 0644, synced) and returns
+  // { tmp, dev, ino }: its path and the identity of the file the descriptor wrote.
   function writeTemp(dir, bytes) {
     const tmp = join(dir, `.brain-${process.pid}-${randomBytes(6).toString("hex")}.tmp`);
-    const fd = openSync(tmp, "wx", 0o644);
+    const fd = openSync(tmp, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_NOFOLLOW, 0o644);
+    let st;
     try {
       let at = 0;
       while (at < bytes.length) at += writeSync(fd, bytes, at, bytes.length - at);
       fchmodSync(fd, 0o644);
       fsyncSync(fd);
+      st = fstatSync(fd);
     } catch (e) {
       try { closeSync(fd); } catch { /* already closed */ }
       rmSync(tmp, { force: true });
       throw e;
     }
     closeSync(fd);
-    return tmp;
+    return { tmp, dev: st.dev, ino: st.ino };
+  }
+
+  // Node has no linkat or openat, so a folder (or a file) swapped for a link between the check and the write
+  // cannot be stopped before the write. It is caught after: the folder must still be the very folder checked
+  // (same device and inode, not a link, its real path the brain's own) and the name must hold the very file
+  // meant (same device and inode, not a link). Otherwise what was written is undone and the change refused.
+  const idOf = (path) => { try { const st = lstatSync(path); return { st, dev: st.dev, ino: st.ino }; } catch { return null; } };
+  function landedSafely(folder, dirId, dest, want) {
+    const nowDir = idOf(folder === "loose" ? root : join(root, folder));
+    if (!nowDir || !nowDir.st.isDirectory() || nowDir.dev !== dirId.dev || nowDir.ino !== dirId.ino) return false;
+    try { folderDir(folder); } catch { return false; }
+    const got = idOf(dest);
+    return !!got && got.st.isFile() && got.dev === want.dev && got.ino === want.ino;
   }
 
   // ---- the index
@@ -418,10 +434,13 @@ export function createBrain(config, options = {}) {
       if (pasted && !input.text.trim()) throw ERR.empty();
       checkBytes(name, bytes);
       const dir = folderDir(input.folder, { create: true });
+      const dirId = idOf(dir);
+      if (!dirId) throw ERR.folderNotFound();
       checkRoom(bytes.length);
       const dest = join(dir, name);
       try { lstatSync(dest); throw ERR.exists(); } catch (e) { if (e instanceof BrainError) throw e; }
-      const tmp = writeTemp(dir, bytes);
+      const written = writeTemp(dir, bytes);
+      const { tmp } = written;
       try {
         // A hard link fails when the name is taken, so nothing there is ever replaced (a rename would).
         linkSync(tmp, dest);
@@ -429,6 +448,11 @@ export function createBrain(config, options = {}) {
         rmSync(tmp, { force: true });
         if (e?.code === "EEXIST") throw ERR.exists();
         throw e;
+      }
+      if (!landedSafely(input.folder, dirId, dest, written)) {
+        rmSync(dest, { force: true });
+        rmSync(tmp, { force: true });
+        throw ERR.folderNotFound();
       }
       unlinkSync(tmp);
       const f = scanFolder(input.folder).find((x) => x.name === name);
@@ -448,6 +472,8 @@ export function createBrain(config, options = {}) {
       if (bytes.length > MAX_TEXT_BYTES) throw ERR.tooLarge("text");
       if (!isUtf8Text(bytes)) throw ERR.kindMismatch();
       const dir = folderDir(parts[0], { create: true });
+      const dirId = idOf(dir);
+      if (!dirId) throw ERR.folderNotFound();
       const dest = join(dir, name);
       const current = scanFolder(parts[0]).find((x) => x.name === name);
       let destSt = null;
@@ -455,7 +481,8 @@ export function createBrain(config, options = {}) {
       if (current) checkVersion(current, version);
       else if (destSt || (version !== null && version !== undefined)) throw ERR.changed();
       checkRoom(bytes.length, { replacing: current ? current.path : null });
-      const tmp = writeTemp(dir, bytes);
+      const written = writeTemp(dir, bytes);
+      const { tmp } = written;
       try {
         if (current && !stillThere(current)) throw ERR.changed();
         if (current) renameSync(tmp, dest);
@@ -464,6 +491,11 @@ export function createBrain(config, options = {}) {
         rmSync(tmp, { force: true });
         if (e?.code === "EEXIST") throw ERR.changed();
         throw e;
+      }
+      if (!landedSafely(parts[0], dirId, dest, written)) {
+        rmSync(dest, { force: true });
+        rmSync(tmp, { force: true });
+        throw ERR.changed();
       }
       if (!current) unlinkSync(tmp);
       const f = scanFolder(parts[0]).find((x) => x.name === name);
@@ -477,15 +509,22 @@ export function createBrain(config, options = {}) {
       checkVersion(f, version);
       const dir = folderDir(folder, { create: true });
       if (folder === f.folder) return toFile(f);
-      if (!stillThere(f)) throw ERR.changed();
+      const dirId = idOf(dir);
+      if (!dirId || !stillThere(f)) throw ERR.changed();
       const dest = join(dir, f.name);
       try {
+        // link() follows a link at the source on this Mac, so what landed is checked right after.
         linkSync(fullPath(f), dest);
       } catch (e) {
         if (e?.code === "EEXIST") throw ERR.exists();
         throw e;
       }
-      unlinkSync(fullPath(f));
+      if (!landedSafely(folder, dirId, dest, f)) {
+        rmSync(dest, { force: true });
+        throw ERR.changed();
+      }
+      // The old name goes only while it still names the very file moved.
+      if (stillThere(f)) unlinkSync(fullPath(f));
       const moved = scanFolder(folder).find((x) => x.name === f.name);
       if (!moved) throw ERR.fileNotFound();
       return toFile(moved);

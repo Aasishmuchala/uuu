@@ -1,6 +1,7 @@
 // CONTRACTS 9.4: give a goal, list goals, one goal's detail, a note, stop.
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
+import { loadCatalogue } from "../lib/jobs.mjs";
 import { buildText } from "../lib/staged.mjs";
 import { stopTask } from "../lib/stop.mjs";
 import { loadRoles } from "../lib/team.mjs";
@@ -81,7 +82,10 @@ export default function register(app) {
       if (!role) throw ctx.fail(400, "That agent is not part of the company.", "Pick an agent from the list, or leave it to the Chief of staff.", "bad_to");
       if (role.slug !== "chief-of-staff") toName = role.name;
     }
-    const template = typeof body.template === "string" && TEMPLATE.test(body.template) ? body.template : null;
+    // A ready-made goal of version 2 is recorded; a template that names a job is not. Only a start through the
+    // jobs route records a run of a job (CONTRACTS-V3 31.3), so free text sent here is an ordinary task.
+    const template = typeof body.template === "string" && TEMPLATE.test(body.template)
+      && !loadCatalogue(ctx.config).jobs.has(body.template) ? body.template : null;
     const ids = needIds(ctx);
     const chief = ids.agents?.["chief-of-staff"];
     if (!chief) throw ctx.fail(409, "The Chief of staff is not set up yet.", "Run engine setup first.", "not_set_up");

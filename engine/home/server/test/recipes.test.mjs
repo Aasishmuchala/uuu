@@ -62,7 +62,7 @@ test("accepting STH-23 logs its job title, the owner's words and two scores, new
     const b = blockOf(text, "Five concepts before any design");
     assert.ok(b, text);
     assert.match(b, /The owner asked for: What is it about: Diwali offer; What will it become: carousel/);
-    assert.match(b, /- Scores of the last round: concept-1 9, concept-2 8\n/);
+    assert.match(b, /- Scores of the last round: piece 1: 9, piece 2: 8\n/);
     assert.match(b, /- Rounds: 1\n/);
     assert.match(b, /- Verdict: Accepted/);
     assert.ok(text.indexOf("Five concepts before any design") < text.indexOf("A carousel from one concept"), "newest first");
@@ -96,7 +96,7 @@ test("a comment starting scores: written by the Marketer is ignored; so is its o
     await refresh(h);
     const b = blockOf(readLog(h), "Five concepts before any design");
     assert.match(b, /- Rounds: 1\n/);
-    assert.match(b, /- Scores of the last round: concept-1 9, concept-2 8\n/);
+    assert.match(b, /- Scores of the last round: piece 1: 9, piece 2: 8\n/);
   });
 });
 
@@ -114,7 +114,7 @@ test("a later round by the Checker counts: two rounds, the last round's scores",
     await refresh(h);
     const b = blockOf(readLog(h), "Five concepts before any design");
     assert.match(b, /- Rounds: 2\n/);
-    assert.match(b, /- Scores of the last round: concept-1 10, concept-3 8\n/);
+    assert.match(b, /- Scores of the last round: piece 1: 10, piece 2: 8\n/);
   });
 });
 
@@ -217,7 +217,7 @@ test("renderLog: fixed words, the job's title, the owner's words and numbers", (
     { date: "12 Nov 2026", job: "Five concepts before any design", words: "What is it about: Diwali offer", rounds: 2, scores: [{ slug: "concept-1", score: 9 }], verdict: "Sent back", note: "Shorter." },
     { date: "11 Nov 2026", job: "A carousel from one concept", words: null, rounds: 0, scores: [], verdict: "Accepted", note: null },
   ]);
-  assert.match(text, /## 12 Nov 2026 · Five concepts before any design\n- The owner asked for: What is it about: Diwali offer\n- Rounds: 2\n- Scores of the last round: concept-1 9\n- Verdict: Sent back\. The owner's note: Shorter\.\n/);
+  assert.match(text, /## 12 Nov 2026 · Five concepts before any design\n- The owner asked for: What is it about: Diwali offer\n- Rounds: 2\n- Scores of the last round: piece 1: 9\n- Verdict: Sent back\. The owner's note: Shorter\.\n/);
   assert.match(text, /## 11 Nov 2026 · A carousel from one concept\n- The owner asked for: Not recorded\.\n- Rounds: 0\n- Scores of the last round: None\n- Verdict: Accepted\n$/);
   assert.match(renderLog([]), /Nothing yet\.\n$/);
 });

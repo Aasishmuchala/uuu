@@ -51,7 +51,7 @@ It writes beside the script: `<name>-sheet.png`, `<name>.json` (the frame data, 
 cd <goal>/video/<name> && "$UUU_ART_PYTHON" "$UUU_ART_VIDEO" <command> ...
 ```
 
-It refuses to run from any other folder. The goal is the folder directly under the outermost `company-work` (or, for `fence-check.sh`, `_proof`), so its 2 GB limit always counts the whole goal.
+It refuses to run from any other folder. The task-folder tree is found from where the tool is installed (`state/tasks/company-work`, and `state/tasks/_proof` for `fence-check.sh`), never from the folder's name alone: the folder it runs in is resolved through links and must lie in that tree, compared without regard to letter case. The goal is the folder directly under it, and under `company-work` it must be named like a task (`STH-12`).
 
 | Command | Does |
 |---|---|
@@ -61,9 +61,27 @@ It refuses to run from any other folder. The goal is the folder directly under t
 | `cut <name>.json` | `{ "source", "keep": [[from, to]], "captions": "words.json" \| null, "caption_style"?, "title"? }`. With a `words.json` beside it, an edge that falls inside a word moves to that word's edge, so the whole word is kept. |
 | `stills <name>.mp4` | `review/frame-01.png` to `frame-06.png`, six frames spread evenly, at most 640 px wide. |
 
-`render`, `reveal` and `cut` write `<name>.mp4`, `poster.png` (the middle frame, at the video's size), the six stills and, last, `manifest.json`. Pictures, sounds and clips are found in the goal's folder (a path from the task folder, such as `../../pictures/front.jpg`), in the company's files, or, by bare name, in the room (`state/media/room`, found from where the tool is installed). `caption_style` is `{ "font", "size", "position" }`: a typeface name of the brand form (`fontmap.json`), 12 to 120 px, `bottom` or `top`.
+`render`, `reveal` and `cut` write `<name>.mp4`, `poster.png` (the middle frame, at the video's size), the six stills and, last, `manifest.json`. Pictures, sounds and clips are found in the goal's folder (a path from the task folder, such as `../../pictures/front.jpg`), in the company's files (`state/knowledge/docs`), or, by bare name, in the room (`state/media/room`). All three are found from where the tool is installed; no variable the agent can set adds a folder to that list. `caption_style` is `{ "font", "size", "position" }`: a typeface name of the brand form (`fontmap.json`), 12 to 120 px, `bottom` or `top`.
 
-This build of ffmpeg cannot draw text, so every title and caption is a Pillow picture laid over the video. The hardware encoder fails inside the fence, so it is always `libx264`. The helper holds every limit itself: at most 1920 × 1080 with even sides, 30 frames a second and 120 seconds; a source clip of at most 5 minutes and 1 GB; `-fs` of 300 MB on every output; a file-size limit of 2 GB on itself and everything it starts; it does not start with under 10 GB of free disk; it stops after 10 minutes; at most 2 GB of files in one goal's folder. Size, rate, length and a missing `frames` are refused before ffmpeg starts. It takes ffmpeg, ffprobe, whisper-cli and the model only from the `UUU_` variables above; when one is missing it says so and stops. One plain line on success; a problem is one line starting `video:` and exit 1.
+This build of ffmpeg cannot draw text, so every title and caption is a Pillow picture laid over the video. The hardware encoder fails inside the fence, so it is always `libx264`. For every run that goes through it, the helper holds these limits itself: at most 1920 × 1080 with even sides, 30 frames a second and 120 seconds; a source clip of at most 5 minutes and 1 GB; `-fs` of 300 MB on every output; a file-size limit of 2 GB on itself and everything it starts; it does not start with under 10 GB of free disk; after 10 minutes, or when it is told to stop, it stops each process group it started; at most 2 GB of files in one goal's folder, counted through links (a file moved away and left as a link still counts), and at most 10 GB in the `video` folders of all goals together. Size, rate, length and a missing `frames` are refused before ffmpeg starts. It takes ffmpeg, ffprobe, whisper-cli and the model only from the `UUU_` variables above; when one is missing it says so and stops. One plain line on success; a problem is one line starting `video:` and exit 1.
+
+## What the helpers guarantee, and what only the fence does
+
+The sprite, slide and video helpers run inside the fence, in the Artist's own shell. The Artist can set any variable for them, can run Pillow, ffmpeg (`$UUU_FFMPEG`) or a copy of a helper without them, and can write what it likes in its task folder. So **no helper is a wall against an agent that does not cooperate. The fence is the wall.**
+
+What the helpers guarantee, for a run that goes through them:
+
+- Every limit listed above for that run: sizes, frame rates, lengths, the 300 MB output cap, the 2 GB file-size limit on the helper and its children, the 10 GB free-disk floor, and the per-goal and all-goals totals before it starts.
+- The video helper writes only in the folder it is run from, which must be `<goal>/video/<name>` inside the task-folder tree. The slide and sprite helpers write only beside a script named without a folder, in the folder they are run from.
+- Folders the video helper reads sources from (the goal, the company's files, the room) and the task-folder tree are found from where the tool is installed, never from a variable. The tools it runs (`ffmpeg`, `ffprobe`, `whisper-cli`, the model) do come from `UUU_` variables, which the Artist can set; a missing one stops the run, and `PATH` is never searched.
+- The video helper's stop (the 10 minutes, a problem, or a stop signal) ends each process group it started, so what a script started goes too. A process that asks for a session of its own is out of its reach.
+- The slide helper runs the script in its own process, so a script can change the helper's limits. The home server does not take its word: it checks each slide's size, the count and the words from the files' own bytes (`routes/studio-slides.mjs`).
+
+What only the fence guarantees, whatever the Artist does:
+
+- It can write only in the task folders. Of the state folder it can read only the folders its policy names (`state/knowledge/docs`, `state/art`, `state/media`), and it cannot write in any of them.
+- A process it leaves running stays inside the same fence, with the same rights (and, when a helper started it, the 2 GB file-size limit it inherited).
+- The disk as a whole: an agent that skips the helpers is held only by the disk's size, as every agent with a task folder is.
 
 Not used, on the prototype's findings (`.router/V3-P1-FINDINGS.md`): Blender (it cannot start inside the fence) and a browser inside the fence (it would need a patched fence tool).
 

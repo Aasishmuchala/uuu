@@ -23,6 +23,8 @@ const ID = /^[a-z][a-z0-9-]{1,50}$/;
 const ASK_ID = /^[a-z][a-z0-9-]{0,30}$/;
 const JOB_REF = /^[a-z][a-z0-9-]{1,30}\/[a-z][a-z0-9-]{1,50}$/;
 const NAME = /^[A-Za-z0-9][A-Za-z0-9 ._'()-]{0,99}$/;
+// Control characters, line and paragraph separators, and the invisible and direction-changing format characters.
+const CONTROL = /[\u0000-\u001F\u007F-\u009F\u2028\u2029\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/;
 const MAX_BYTES = 64 * 1024;
 
 const obj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -95,8 +97,10 @@ export function jobProblems(doc, file, folder, roles, departments) {
   if ("cluster" in doc && dep && !dep.clusters.some((c) => c.id === doc.cluster)) {
     out.push(`Its cluster must be one of ${plainList(dep.clusters.map((c) => c.id))}.`);
   }
-  if ("title" in doc && !text(doc.title, 1, 60)) out.push("Its title must be 1 to 60 characters.");
-  if ("summary" in doc && (!text(doc.summary, 1, 140) || /[.?!]\s+\S/.test(doc.summary.trim()) || /\n/.test(doc.summary))) {
+  // The title and the summary go into the Chief of staff's instructions as one {{JOBS}} line each, so neither
+  // may hold a line break or a control character that could start a line of its own there.
+  if ("title" in doc && (!text(doc.title, 1, 60) || CONTROL.test(doc.title))) out.push("Its title must be 1 to 60 characters on one line.");
+  if ("summary" in doc && (!text(doc.summary, 1, 140) || /[.?!]\s+\S/.test(doc.summary.trim()) || CONTROL.test(doc.summary))) {
     out.push("Its summary must be one sentence of 1 to 140 characters.");
   }
   if ("handoff" in doc && !HANDOFFS.includes(doc.handoff)) out.push(`Its hand-off must be ${plainList(HANDOFFS)}.`);

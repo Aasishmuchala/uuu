@@ -179,6 +179,24 @@ test("loadCompanyFile returns ten agents with their departments and the Artist's
   });
 });
 
+test("only the Artist's policy may read the media folder (the owner's footage and the speech model)", () => {
+  withCopy((dir, config) => {
+    const c = loadCompanyFile(join(dir, "company.json"), config);
+    const media = join(config.paths.state, "media").toLowerCase();
+    // Any read folder at or under state/media, in any letter case (this disk ignores case).
+    const readsMedia = (a) => (a.policy?.readFolders || []).some((f) => {
+      const x = String(f).toLowerCase().replace(/\/+$/, "");
+      return x === media || x.startsWith(`${media}/`);
+    });
+    assert.deepEqual(c.agents.filter(readsMedia).map((a) => a.slug), ["artist"]);
+  });
+  // And in the file itself, every agent but the Artist names no folder under {state}/media.
+  for (const a of file.agents) {
+    if (a.slug === "artist") continue;
+    for (const f of a.fencePolicy?.readFolders || []) assert.doesNotMatch(String(f), /\{state\}\/media(\/|$)/i, a.slug);
+  }
+});
+
 test("loadCompanyFile refuses a department that is not one of the six", () => {
   withCopy((dir, config) => {
     const f = join(dir, "company.json");

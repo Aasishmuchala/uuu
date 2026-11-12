@@ -65,8 +65,26 @@ export function parseRangeHeader(header) {
 // says Accept-Ranges; one range is answered 206 with Content-Range, read from the same descriptor; a range
 // that starts at or past the end is 416 with `Content-Range: bytes */<size>`; null is the whole file.
 export function streamFile(res, found, headers, headOnly) {
+  // Closed once, here, or handed to the read stream (which closes it); never closed twice.
+  let held = found.fd !== undefined;
+  const closeFd = () => { if (held) { held = false; try { closeSync(found.fd); } catch { /* already closed */ } } };
+  const handOver = () => { held = false; };
+  // The descriptor is closed on every path: a client that left while the route was still working (its
+  // "close" is already past, so the listener below would never run), and anything that throws here.
+  if (res.destroyed || res.writableEnded || res.socket?.destroyed) {
+    closeFd();
+    return undefined;
+  }
+  try {
+    return sendFile(res, found, headers, headOnly, closeFd, handOver);
+  } catch (e) {
+    closeFd();
+    throw e;
+  }
+}
+
+function sendFile(res, found, headers, headOnly, closeFd, handOver) {
   const size = found.bytes ? found.bytes.length : found.size;
-  const closeFd = () => { if (found.fd !== undefined) try { closeSync(found.fd); } catch { /* already closed */ } };
   const ranged = "range" in found;
   const r = ranged ? found.range : null;
   const one = r && Number.isSafeInteger(r.start) && r.start >= 0
@@ -91,6 +109,7 @@ export function streamFile(res, found, headers, headOnly) {
   const s = found.fd !== undefined
     ? createReadStream(null, { fd: found.fd, start, end, autoClose: true })
     : createReadStream(found.file, one ? { start, end } : undefined);
+  handOver();
   s.on("error", () => res.destroy());
   // A browser's video player drops requests all the time when the owner seeks. Without this the paused
   // read stream is never destroyed and the file stays open until the server restarts.

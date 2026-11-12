@@ -29,7 +29,14 @@ Writes beside the script:
   manifest.json      what the home server lists
 
 Everything is checked before anything is written; after writing, every picture
-is opened again and checked. Prints one plain line, such as
+is opened again and checked. The script is named without a folder, so the tool
+writes only in the folder it is run from.
+
+These checks help an honest script; they are not a wall. The script runs in
+this tool's own process and could change the tool's limits, and the agent can
+run Pillow without the tool. The home server does not take the tool's word: it
+checks every slide's size, the count and the words itself, from the files'
+own bytes, and the fence holds where anything can be written. Prints one plain line, such as
   launch: 5 slides of 1080 × 1350. Wrote slide-01.png to slide-05.png, contact.png, slides.json.
 On a problem it prints one plain line starting `slides:` and exits 1.
 
@@ -304,6 +311,9 @@ def contact_sheet(slides, w, h):
 
 
 def make(script_arg):
+    if "/" in script_arg or script_arg.startswith("."):
+        raise Problem("give the script's file name in this folder, with no folder in front, "
+                      "and run the tool from that folder")
     if not script_arg.endswith(".py"):
         raise Problem("give the script's file name, ending in .py")
     script = os.path.abspath(script_arg)

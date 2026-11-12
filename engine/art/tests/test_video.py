@@ -13,6 +13,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 ART = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -46,6 +47,15 @@ frames = frames_()
 """
 
 
+def install_copy(state):
+    """Copies video.py and fontmap.json into <state>/art/tools, as engine/art/install.sh does."""
+    tools = os.path.join(state, "art", "tools")
+    os.makedirs(tools)
+    for f in ("video.py", "fontmap.json"):
+        shutil.copy(os.path.join(ART, f), os.path.join(tools, f))
+    return os.path.join(tools, "video.py")
+
+
 def script(size="(64, 64)", fps="10", count="20", frames=True):
     text = "from PIL import Image\n\nsize = %s\nfps = %s\n" % (size, fps)
     if frames:
@@ -57,8 +67,11 @@ def script(size="(64, 64)", fps="10", count="20", frames=True):
                      "Pillow or ffmpeg is not there (run engine/art/install.sh); video tests skipped")
 class VideoTest(unittest.TestCase):
     def setUp(self):
+        # The helper trusts only the folders found from where it is installed, so it is run from a copy laid
+        # out as the engine lays it out: state/art/tools/video.py and state/tasks/company-work/<goal>.
         self.root = tempfile.mkdtemp(prefix="uuu-video-test-")
-        self.goal = os.path.join(self.root, "company-work", "STH-25")
+        self.video = install_copy(os.path.join(self.root, "state"))
+        self.goal = os.path.join(self.root, "state", "tasks", "company-work", "STH-25")
         self.dir = os.path.join(self.goal, "video", "clip")
         os.makedirs(self.dir)
         self.fake = os.path.join(self.root, "fake-ffmpeg")
@@ -80,7 +93,7 @@ class VideoTest(unittest.TestCase):
             fh.write(text)
 
     def run_video(self, *args, env=None):
-        return subprocess.run([sys.executable, VIDEO] + list(args), cwd=self.dir, env=env or self.env(),
+        return subprocess.run([sys.executable, self.video] + list(args), cwd=self.dir, env=env or self.env(),
                               capture_output=True, text=True, timeout=300)
 
     def read_json(self, name):
@@ -278,34 +291,164 @@ class FreeDiskTest(unittest.TestCase):
     def test_the_goals_folder_holds_at_most_2_gb(self):
         root = tempfile.mkdtemp(prefix="uuu-video-test-")
         try:
-            self.assertEqual(video.output_cap(root), video.MAX_OUTPUT_BYTES)
-            with open(os.path.join(root, "big.bin"), "wb") as fh:
+            goal = os.path.join(root, "company-work", "STH-1")
+            os.makedirs(goal)
+            self.assertEqual(video.output_cap(goal), video.MAX_OUTPUT_BYTES)
+            with open(os.path.join(goal, "big.bin"), "wb") as fh:
                 fh.truncate(2 * video.GB - 100 * video.MB)    # sparse: takes no disk
-            self.assertEqual(video.output_cap(root), 100 * video.MB)
-            with open(os.path.join(root, "more.bin"), "wb") as fh:
+            self.assertEqual(video.output_cap(goal), 100 * video.MB)
+            with open(os.path.join(goal, "more.bin"), "wb") as fh:
                 fh.truncate(100 * video.MB)
             with self.assertRaises(video.Problem):
-                video.output_cap(root)
+                video.output_cap(goal)
         finally:
             shutil.rmtree(root, ignore_errors=True)
 
     def test_the_goal_folder_is_two_up_from_video_name(self):
-        self.assertEqual(video.goal_folder("/t/company-work/STH-1/video/title"),
+        homes = ("/t/company-work", "/t/_proof")
+        self.assertEqual(video.goal_folder("/t/company-work/STH-1/video/title", homes),
                          "/t/company-work/STH-1")
-        self.assertEqual(video.goal_folder("/t/_proof/art-check/video/clip"), "/t/_proof/art-check")
+        self.assertEqual(video.goal_folder("/t/_proof/art-check/video/clip", homes), "/t/_proof/art-check")
         # anywhere else is refused, a look-alike company-work inside a goal too
         for bad in ("/t/company-work/STH-1", "/t/company-work/STH-1/video",
                     "/t/company-work/STH-1/clips/a", "/t/company-work/STH-1/video/title/sub",
                     "/t/company-work/STH-1/other/video/a",
                     "/t/company-work/STH-1/company-work/x/video/a",
-                    "/t/company-work/STH-1/video/Bad_Name", "/t/_proof/art-check", "/t/STH-1/video/title"):
+                    "/t/company-work/STH-1/video/Bad_Name", "/t/_proof/art-check", "/t/STH-1/video/title",
+                    # a made-up goal is not a fresh goal with nothing in it
+                    "/t/company-work/ANY-NAME/video/b", "/t/company-work/notes/video/b",
+                    # a company-work folder outside the pinned task-folder tree
+                    "/home/agent/company-work/STH-1/video/a", "/t/x/company-work/STH-1/video/a"):
             with self.assertRaises(video.Problem, msg=bad):
-                video.goal_folder(bad)
+                video.goal_folder(bad, homes)
+        # Installed, the homes come from where the tool lives, never from a variable.
+        self.assertEqual(video.TASK_HOMES, (os.path.join(video.STATE, "tasks", "company-work"),
+                                            os.path.join(video.STATE, "tasks", "_proof")))
+        with self.assertRaises(video.Problem):
+            video.goal_folder("/t/company-work/STH-1/video/title")
+
+    def test_the_goal_is_found_through_links_and_letter_case(self):
+        root = os.path.realpath(tempfile.mkdtemp(prefix="uuu-video-test-"))
+        try:
+            home = os.path.join(root, "tasks", "company-work")
+            own = os.path.join(home, "STH-3", "video", "a")
+            os.makedirs(own)
+            homes = (home,)
+            # A folder the agent links to from elsewhere is judged where it really is.
+            os.symlink(os.path.join(home, "STH-3"), os.path.join(root, "elsewhere"))
+            self.assertEqual(video.goal_folder(os.path.join(root, "elsewhere", "video", "a"), homes),
+                             os.path.join(home, "STH-3"))
+            # A link inside the tree that leads outside it is refused.
+            outside = os.path.join(root, "outside", "video", "a")
+            os.makedirs(outside)
+            os.symlink(os.path.join(root, "outside"), os.path.join(home, "STH-4"))
+            with self.assertRaises(video.Problem):
+                video.goal_folder(os.path.join(home, "STH-4", "video", "a"), homes)
+            # The disk ignores letter case, and so does the match.
+            self.assertEqual(video.goal_folder(own, (home.upper(),)).lower(), os.path.join(home, "STH-3").lower())
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_files_moved_away_and_left_as_links_still_count(self):
+        root = tempfile.mkdtemp(prefix="uuu-video-test-")
+        try:
+            goal = os.path.join(root, "company-work", "STH-5")
+            away = os.path.join(root, "agent-home")
+            os.makedirs(os.path.join(goal, "video", "a"))
+            os.makedirs(os.path.join(away, "more"))
+            with open(os.path.join(away, "big.bin"), "wb") as fh:
+                fh.truncate(2 * video.GB + video.MB)          # sparse: takes no disk
+            os.symlink(os.path.join(away, "big.bin"), os.path.join(goal, "video", "a", "big.bin"))
+            with self.assertRaises(video.Problem):
+                video.output_cap(goal)
+            os.remove(os.path.join(goal, "video", "a", "big.bin"))
+            os.rename(os.path.join(away, "big.bin"), os.path.join(away, "more", "big.bin"))
+            os.symlink(os.path.join(away, "more"), os.path.join(goal, "linked-folder"))
+            os.symlink(goal, os.path.join(goal, "loop"))     # a loop is walked once
+            with self.assertRaises(video.Problem):
+                video.output_cap(goal)
+            # The same file under two names is counted once.
+            os.remove(os.path.join(goal, "linked-folder"))
+            with open(os.path.join(goal, "half.bin"), "wb") as fh:
+                fh.truncate(video.GB)
+            os.link(os.path.join(goal, "half.bin"), os.path.join(goal, "half-again.bin"))
+            self.assertEqual(video.output_cap(goal), video.MAX_OUTPUT_BYTES)
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_every_goals_video_folders_together_hold_at_most_10_gb(self):
+        root = tempfile.mkdtemp(prefix="uuu-video-test-")
+        try:
+            home = os.path.join(root, "company-work")
+            for n in range(1, 7):
+                v = os.path.join(home, "STH-%d" % n, "video", "a")
+                os.makedirs(v)
+                with open(os.path.join(v, "a.mp4"), "wb") as fh:
+                    fh.truncate(int(1.8 * video.GB))          # sparse: takes no disk
+            fresh = os.path.join(home, "STH-99")
+            os.makedirs(os.path.join(fresh, "video", "b"))
+            with self.assertRaises(video.Problem) as cm:
+                video.output_cap(fresh)
+            self.assertIn("all goals", str(cm.exception))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_sources_come_only_from_folders_found_from_where_the_tool_lives(self):
+        root = tempfile.mkdtemp(prefix="uuu-video-test-")
+        saved = os.environ.get("UUU_KNOWLEDGE_DIR")
+        try:
+            goal = os.path.join(root, "company-work", "STH-6")
+            other = os.path.join(root, "company-work", "STH-7")
+            os.makedirs(os.path.join(goal, "video", "a"))
+            os.makedirs(other)
+            with open(os.path.join(other, "theirs.mp4"), "wb") as fh:
+                fh.write(b"x")
+            os.environ["UUU_KNOWLEDGE_DIR"] = root
+            with self.assertRaises(video.Problem):
+                video.find_input(os.path.join(other, "theirs.mp4"), os.path.join(goal, "video", "a"), goal,
+                                 video.CLIP_ENDINGS, "clip", video.MAX_SOURCE_BYTES)
+            self.assertEqual(video.KNOWLEDGE, os.path.join(video.STATE, "knowledge", "docs"))
+            self.assertEqual(video.ROOM, os.path.join(video.STATE, "media", "room"))
+        finally:
+            if saved is None:
+                os.environ.pop("UUU_KNOWLEDGE_DIR", None)
+            else:
+                os.environ["UUU_KNOWLEDGE_DIR"] = saved
+            shutil.rmtree(root, ignore_errors=True)
+
+
+class StopTest(unittest.TestCase):
+    def test_the_stop_reaches_what_a_child_started(self):
+        root = tempfile.mkdtemp(prefix="uuu-video-test-")
+        try:
+            pidfile = os.path.join(root, "pid")
+            code = ("import subprocess, sys\n"
+                    "p = subprocess.Popen(['/bin/sleep', '47'])\n"
+                    "open(sys.argv[1], 'w').write(str(p.pid))\n"
+                    "sys.exit(1)\n")
+            child = video.start([sys.executable, "-c", code, pidfile])
+            child.wait(timeout=30)
+            with open(pidfile) as fh:
+                grandchild = int(fh.read())
+            os.kill(grandchild, 0)                             # still running after the child left
+            video.stop_children()
+            for _ in range(50):
+                try:
+                    os.kill(grandchild, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.1)
+            with self.assertRaises(ProcessLookupError):
+                os.kill(grandchild, 0)
+        finally:
+            del video.CHILDREN[:]
+            shutil.rmtree(root, ignore_errors=True)
 
     def test_render_from_outside_video_name_is_refused_while_the_goal_is_full(self):
         root = tempfile.mkdtemp(prefix="uuu-video-test-")
         try:
             goal = os.path.join(root, "company-work", "STH-9")
+            homes = (os.path.join(root, "company-work"),)
             other = os.path.join(goal, "other", "x")
             own = os.path.join(goal, "video", "clip")
             os.makedirs(other)
@@ -323,7 +466,7 @@ class FreeDiskTest(unittest.TestCase):
             self.assertIn("<goal>/video/<name>", r.stderr)
             self.assertEqual(os.listdir(other), ["x.py"])
             with self.assertRaises(video.Problem) as cm:
-                video.output_cap(video.goal_folder(os.path.realpath(own)))
+                video.output_cap(video.goal_folder(os.path.realpath(own), homes))
             self.assertIn("at most 2 GB", str(cm.exception))
         finally:
             shutil.rmtree(root, ignore_errors=True)

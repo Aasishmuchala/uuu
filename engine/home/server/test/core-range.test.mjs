@@ -55,6 +55,11 @@ before(async () => {
       app.get("/api/r/plain", () => fileResponse({ fd: openSync(FILE, "r"), size: ${SIZE}, type: "video/mp4" }, H));
       app.get("/api/r/big", (ctx) => fileResponse({ fd: openSync(BIG, "r"), size: 8 * 1024 * 1024, type: "video/mp4", range: ctx.range }, H));
       app.get("/api/r/bigpath", (ctx) => fileResponse({ file: BIG, size: 8 * 1024 * 1024, type: "video/mp4", range: ctx.range }, H));
+      app.get("/api/r/slow", async (ctx) => {
+        const fd = openSync(BIG, "r");
+        await new Promise((r) => setTimeout(r, 400));
+        return fileResponse({ fd, size: 8 * 1024 * 1024, type: "video/mp4", range: ctx.range }, H);
+      });
       app.get("/api/r/echo", (ctx) => ({ range: ctx.range, keys: Object.keys(ctx).sort(), headers: "headers" in ctx || "req" in ctx }));
     }\n`);
   h = await startStubsHome({ port: 0, moduleDirs: [dir], log: () => {} });
@@ -199,6 +204,26 @@ test("20 requests that read one chunk and abort leave no descriptor open", async
   for (let i = 0; i < 20; i++) codes.push(one(i));
   const got = await Promise.all(codes);
   assert.ok(got.every((c) => c === 200 || c === 206), String(got));
+  let now = openOf(big);
+  for (let t = 0; t < 40 && now > before; t++) {
+    await new Promise((r) => setTimeout(r, 100));
+    now = openOf(big);
+  }
+  assert.equal(now, before, `descriptors left open on the file: ${now - before}`);
+  assert.equal((await call(h.url, "GET", "/healthz")).status, 200);
+});
+
+test("10 requests given up while the route still waits after opening the file leave no descriptor open", async () => {
+  const big = join(dir, "big.bin");
+  const before = openOf(big);
+  const port = new URL(h.url).port;
+  const one = () => new Promise((resolve) => {
+    const req = http.get({ host: "127.0.0.1", port, path: "/api/r/slow", agent: false, headers: { host: `127.0.0.1:${port}` } });
+    req.on("error", () => resolve());
+    setTimeout(() => { req.destroy(); resolve(); }, 100);
+  });
+  await Promise.all(Array.from({ length: 10 }, one));
+  await new Promise((r) => setTimeout(r, 1000));
   let now = openOf(big);
   for (let t = 0; t < 40 && now > before; t++) {
     await new Promise((r) => setTimeout(r, 100));

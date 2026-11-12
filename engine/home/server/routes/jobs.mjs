@@ -34,8 +34,13 @@ const STAGES = [
 
 // A line of the text that an agent, or textOf, could read as a marker (CONTRACTS-V2 15.1, CONTRACTS-V3 31.3, 34).
 const MARKER_LINE = /^(FOR:|PLAN FIRST\b|PLAN READY:|PLAN ACCEPTED\b|ANSWER:|STOPPED:|RESULT:|VERDICT:|ROUTINE:|SIZE:|JOB:|ASK\s*$|Read first, from the company's files:|Produce:)/i;
-// Control characters, the Unicode line and paragraph separators, and the direction overrides.
-const CONTROL = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+// Control characters, the Unicode line and paragraph separators, the direction marks and overrides, and the
+// characters that show nothing on their own (zero-width spaces, word joiners, soft hyphens, fillers, the byte
+// order mark). The zero-width joiner and non-joiner stay: some scripts and emoji need them between letters.
+const CONTROL = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180F\u200B\u200E\u200F\u202A-\u202E\u2060-\u206F\u3164\uFEFF\uFFA0\uFFF0-\uFFFB]/g;
+// A line as a reader of markers might see it: compatibility forms folded (full-width letters), every
+// invisible or formatting character dropped, and any kind of space at its start gone. MARKER_LINE ignores case.
+const asMarkerReads = (l) => l.normalize("NFKC").replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}]/gu, "").replace(/^[\s\p{Z}]+/u, "");
 const BREAKS = /\r\n?|\u2028|\u2029|\u0085/g;
 
 // The task model, or null when the board cannot be read (off, or the company not set up).
@@ -115,7 +120,7 @@ function fillText(text, places) {
     return places[id] === "" ? "" : `${space}${places[id]}`;
   });
   // A line an answer made that reads as a marker is kept as quoted words, never as a marker.
-  return filled.split("\n").map((l) => (MARKER_LINE.test(l.trim()) ? `> ${l.trim()}` : l)).join("\n").trim();
+  return filled.split("\n").map((l) => (MARKER_LINE.test(asMarkerReads(l)) ? `> ${l.trim()}` : l)).join("\n").trim();
 }
 
 // ---- the earlier task (`from`)

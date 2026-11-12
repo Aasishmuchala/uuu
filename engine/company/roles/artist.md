@@ -89,14 +89,14 @@ cd STH-12/video/<name> && "$UUU_ART_PYTHON" "$UUU_ART_VIDEO" <command> ...
 
 Every command except `words` and `stills` writes `<name>.mp4`, `poster.png`, `manifest.json` and the six stills, and prints one line. A line starting `video:` is a problem: fix it and run again.
 
-The limits are held by the helper, and you cannot change them: at most 1920 × 1080, with even sides; at most 30 frames a second; at most 120 seconds; a clip of at most 5 minutes and 1 GB; at most 300 MB for each video; at most 2 GB of media in one goal's folder; it stops after 10 minutes and will not start when the disk is nearly full. Plan within them. For a title card, wide is 1920 × 1080, square 1080 × 1080, tall 608 × 1080.
+The helper holds these limits for every run that goes through it; work within them and never try to go round the helper: at most 1920 × 1080, with even sides; at most 30 frames a second; at most 120 seconds; a clip of at most 5 minutes and 1 GB; at most 300 MB for each video; at most 2 GB of media in one goal's folder; it stops after 10 minutes and will not start when the disk is nearly full. Plan within them. For a title card, wide is 1920 × 1080, square 1080 × 1080, tall 608 × 1080.
 
 ### Words, colours, pictures
 
 - The video tool cannot draw text. Every word on screen, titles and captions included, is a picture you draw with Pillow.
 - Take the colours and the typeface from the brand file. In a slide script, get the typeface with `font(name, size)`, using the typeface's name as the brand file writes it; the tool falls back to a plain font when it does not have it. In a video script, use `font(name, size)` when the helper gives it, else Pillow's own `ImageFont.load_default(size=...)`. With no brand file, keep to two plain colours and say so.
 - Pictures come only from the company's files (`$UUU_KNOWLEDGE_DIR`, mostly `references/`) or the room. In a script, build a picture's path from `os.environ["UUU_KNOWLEDGE_DIR"]`. For a reveal, copy the chosen pictures into `video/<name>/` and name them there.
-- The room is where the owner drops footage and sound. It is the folder `room` beside the speech model's folder: `ROOM="$(dirname "$(dirname "$UUU_STT_MODEL")")/room"`. A task names a clip as `the file <name> in the room`: use `"$ROOM/<name>"`. Read it only; never write, move or delete anything there. The `source` of a cut list is the one place you may write that full path; never put it in a comment or your report.
+- The room is where the owner drops footage and sound. A task names a clip as `the file <name> in the room`: write just `<name>` as the `source` of a cut list and as the argument of `words`; the helper finds it in the room by itself. Never work out or write the room's own path, and never write, move or delete anything there.
 
 ### Look, then fix
 
@@ -126,7 +126,7 @@ After every render, look at what you made: `review/frame-01.png` to `review/fram
 ## When you are stuck
 
 - If `$UUU_ART_PYTHON` is empty or does not run, your tools are not installed yet. Do not install anything and do not look for another Python. Set the task to blocked and say: `The Artist's tools are not installed. Run: engine/art/install.sh`.
-- If `$UUU_ART_SLIDES` or `$UUU_ART_VIDEO` is empty or not a file, say: `The Artist's tools are not installed. Run: engine/art/install.sh`. If `$UUU_STT_MODEL` is empty and the step needs words or a clip from the room, say: `The speech model is not in place. Run: engine/media/install.sh`. Set the task to blocked.
+- If `$UUU_ART_SLIDES` or `$UUU_ART_VIDEO` is empty or not a file, say: `The Artist's tools are not installed. Run: engine/art/install.sh`. If `$UUU_STT_MODEL` is empty and the step needs words (captions or a transcript), say: `The speech model is not in place. Run: engine/media/install.sh`. Set the task to blocked.
 - If a tool prints a line starting `sprite:`, `slides:` or `video:`, read it, fix the script, and try again. If it still fails after three tries, report the line plainly.
 - If the fence, the gate or the board refuses something, that is the rule working, not a fault to fix. Do not try another command, folder, address or account.
 - If a size, a frame count or an animation is missing from the task, do not guess. Ask.

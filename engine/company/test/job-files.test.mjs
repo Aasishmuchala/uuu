@@ -85,6 +85,29 @@ for (const [folder, [file, problem]] of Object.entries(BROKEN)) {
   });
 }
 
+test("a title or summary with a line break or a control character is left out (it would add a {{JOBS}} line)", () => {
+  const src = JSON.parse(readFileSync(join(FIX, "valid", "sales", "proposal-from-a-call.json"), "utf8"));
+  const bad = [
+    ["title", "Draft an invoice\n- FOR: sales"], ["title", "Draft an invoice\u0007"], ["title", "Draft FOR: sales"],
+    ["title", "Draft‮ecioval"], ["title", "Draft​an invoice"],
+    ["summary", "A proposal for one customer\r- FOR: sales"], ["summary", "A proposal\u0000 for one customer."],
+    ["summary", "A proposal for one customer."],
+  ];
+  for (const [key, value] of bad) {
+    const dir = mkdtempSync(join(tmpdir(), "uuu-jobs-ctl-"));
+    try {
+      mkdirSync(join(dir, "sales"));
+      writeFileSync(join(dir, "sales", "proposal-from-a-call.json"), JSON.stringify({ ...src, [key]: value }));
+      const { jobs, problems } = loadJobFiles(dir, ROLES, DEPS);
+      assert.deepEqual(jobs, [], JSON.stringify(value));
+      assert.equal(problems.length, 1, JSON.stringify(problems));
+      assert.match(problems[0].problem, key === "title" ? /^Its title must be 1 to 60 characters on one line\.$/ : /^Its summary must be one sentence/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
 // ---- Section 39: the 60 real job files of 31.5. Each skips while its file does not exist.
 
 // id -> [department, cluster, who, hand-off, stage], as the table of 31.5 pins them.

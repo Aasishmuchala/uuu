@@ -7,7 +7,8 @@
 //   - the verdict: the owner's `acknowledged:goal:` record (Accepted), or the owner's own comment on the board
 //     after the newest result, on a task that is not finished (Sent back, with that comment as the note);
 //   - the rounds: how many check comments the Checker wrote (by its author on the board, never by the text);
-//   - the scores: slugs and numbers of the newest round, through scoresOf, from the Checker's comments only.
+//   - the scores: the numbers of the newest round, through scoresOf, from the Checker's comments only. A piece's
+//     name (its slug) is the Checker's own word, so it never reaches the file: each piece is "piece <n>".
 // Every line of the file is fixed words, numbers, the job file's title or the owner's own text made one line.
 // recipeEntries feeds the Marketing answer; refreshRecipeLog writes the file, at most once a minute and only
 // when its text would change, and never throws.
@@ -127,7 +128,8 @@ export async function recipeEntries(ctx) {
   return out.slice(0, MAX_ENTRIES);
 }
 
-const scoreLine = (scores) => (scores.length ? scores.map((s) => `${s.slug} ${s.score}`).join(", ") : "None");
+// Numbers only: the slugs an agent wrote are replaced by a neutral label.
+const scoreLine = (scores) => (scores.length ? scores.map((s, i) => `piece ${i + 1}: ${Number(s.score)}`).join(", ") : "None");
 
 // The file's text: fixed words, the job's title, the owner's own words and numbers. Pure.
 export function renderLog(entries) {

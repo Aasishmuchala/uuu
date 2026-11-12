@@ -73,32 +73,38 @@ function checkedOf(rounds) {
 }
 
 // CONTRACTS-V3 33.5: the parsed answer of a finished question (a task with the home server's `ask:` record),
-// or null when the task is not a question or its answer file is missing or does not parse.
+// or null when the task is not a question or its answer file is missing. One that does not parse is returned
+// too (wellFormed false): the answer panel shows its text, so the item's version must hash it.
 function answerOf(ctx, g) {
   if (!ctx.decisions.get(`ask:${g.id}`) || !g.identifier) return null;
   const hit = readTaskText(ctx.config, g.identifier, "answer.md", { maxBytes: 64 * 1024 });
-  const parsed = hit ? parseAnswer(hit.text) : null;
-  return parsed && parsed.wellFormed ? parsed : null;
+  return hit ? parseAnswer(hit.text) : null;
 }
 
-// How many of the answer's sources are files of the brain's own listing (never the agent's word).
-function foundOf(ctx, answer) {
-  let listed;
-  try { listed = new Set(brainFor(ctx.config).list().map((f) => f.path)); } catch { listed = new Set(); }
-  return answer.sources.filter((s) => listed.has(s.path)).length;
+// The paths of the brain's own listing (never the agent's word).
+function listedOf(ctx) {
+  try { return new Set(brainFor(ctx.config).list().map((f) => f.path)); } catch { return new Set(); }
 }
+
+// How many different files of that listing the answer's sources name: one file named twelve times is one.
+const foundOf = (answer, listed) => new Set(answer.sources.filter((s) => listed.has(s.path)).map((s) => s.path)).size;
 
 const cutTo = (s, max) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 
 // An answered question: its own title, summary, details and button labels; everything else as for any result.
+// Its version also hashes what the answer panel shows (the text, each source as shown, what is not in the
+// files), so "Got it" never acknowledges an answer that changed after the owner opened it (CONTRACTS 9.3a).
 function asAnswer(ctx, item, g, answer) {
+  const listed = listedOf(ctx);
   const question = textOf(g.description || g.title || "").text.replace(/\s+/g, " ").trim() || g.title || "";
   item.title = `Answer: ${cutTo(question, 60)}`;
   item.summary = cutTo(answer.text.replace(/\s+/g, " ").trim(), 200);
   item.details = [
     item.details[0],
-    { label: "From", value: `${foundOf(ctx, answer)} of your files` },
+    { label: "From", value: `${foundOf(answer, listed)} of your files` },
   ];
+  const shown = [answer.text, answer.sources.map((s) => [s.n, s.path, s.note, listed.has(s.path)]), answer.notInFiles];
+  item.version = versionOf(item.version, JSON.stringify(shown));
   item.actions = [
     { id: "acknowledge", label: "Got it", style: "primary", needsNote: false },
     { id: "reopen", label: "Ask again", style: "plain", needsNote: true },
@@ -144,7 +150,8 @@ async function list(ctx) {
     };
     Object.defineProperty(item, "_goalId", { enumerable: false, value: g.id });
     const answer = answerOf(ctx, g);
-    return answer ? asAnswer(ctx, item, g, answer) : item;
+    if (answer && !answer.wellFormed) item.version = versionOf(item.version, JSON.stringify([answer.text]));
+    return answer && answer.wellFormed ? asAnswer(ctx, item, g, answer) : item;
   }));
   return { items };
 }

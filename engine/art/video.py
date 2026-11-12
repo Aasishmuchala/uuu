@@ -32,13 +32,22 @@ render, reveal and cut end by writing poster.png (the middle frame), the six
 stills and, last, manifest.json. One plain line on success; a problem is one
 line starting `video:` and exit 1.
 
-Limits, held here and not by the agent's goodwill: at most 1920 x 1080 with
-even sides; at most 30 frames a second; at most 120 seconds of output; a source
-clip of at most 5 minutes and 1 GB; ffmpeg's -fs of 300 MB on every output; a
-file-size limit of 2 GB on this process and every process it starts; it will
-not start with under 10 GB of free disk; it stops the work after 10 minutes;
-at most 2 GB of files in one goal's folder. The agent's script runs in a child
-process, so nothing it does can lift a limit this process holds.
+Limits, held by this helper for every run that goes through it: at most
+1920 x 1080 with even sides; at most 30 frames a second; at most 120 seconds of
+output; a source clip of at most 5 minutes and 1 GB; ffmpeg's -fs of 300 MB on
+every output; a file-size limit of 2 GB on this process and every process it
+starts; it will not start with under 10 GB of free disk; it stops its own work
+(each process group it started) after 10 minutes; at most 2 GB of files in one
+goal's folder and 10 GB in the video folders of all goals. The agent's script
+runs in a child process, so nothing it does can lift a limit this process holds.
+
+These are guide rails for an honest run, not a wall. The agent runs this helper
+in its own shell: it can call ffmpeg itself, run a copy of this file, or start a
+process in a session of its own that the stop does not reach. What holds against
+an agent that does not cooperate is the fence (README, "What the helpers
+guarantee"). The folders and limits here come only from where the tool is
+installed and from constants, never from a variable the agent can set; the
+tools' paths do come from the UUU_ variables below, which the agent can set.
 
 Tools come only from $UUU_FFMPEG, $UUU_FFPROBE, $UUU_STT and $UUU_STT_MODEL
 (absolute paths, written by engine/art/install.sh into the Artist's key file).
@@ -93,8 +102,14 @@ CLIP_ENDINGS = (".mp4", ".mov", ".m4v")
 SOUND_ENDINGS = (".mp3", ".m4a", ".wav")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# The room is state/media/room; this tool lives in state/art/tools.
-ROOM = os.path.realpath(os.path.join(HERE, "..", "..", "media", "room"))
+# This tool lives in state/art/tools. Every folder it trusts is found from there, never from a variable the
+# agent can set: the room (state/media/room), the company's files (state/knowledge/docs) and the task-folder
+# tree (state/tasks/company-work, and state/tasks/_proof for fence-check.sh).
+STATE = os.path.realpath(os.path.join(HERE, "..", ".."))
+ROOM = os.path.join(STATE, "media", "room")
+KNOWLEDGE = os.path.join(STATE, "knowledge", "docs")
+TASK_HOMES = (os.path.join(STATE, "tasks", "company-work"), os.path.join(STATE, "tasks", "_proof"))
+MAX_VIDEO_TREE_BYTES = 10 * GB   # the video folders of every goal together
 
 START = time.monotonic()
 CHILDREN = []      # processes to stop when the time is up or on a problem
@@ -159,11 +174,17 @@ def remove_temps():
 
 
 def stop_children():
+    """Stops each child's whole process group (each child starts its own), so what a script started goes too.
+    A process that asked for a session of its own is out of reach; the fence still holds it."""
     for p in CHILDREN:
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
         try:
             if p.poll() is None:
                 p.kill()
-                p.wait(timeout=5)
+            p.wait(timeout=5)
         except Exception:
             pass
 
@@ -186,6 +207,17 @@ def out_of_time(signum, frame):
         os._exit(1)
 
 
+def stopped(signum, frame):
+    # Asked to stop (the run ended, or Ctrl-C): the children are in groups of their own, so stop them too.
+    stop_children()
+    remove_temps()
+    try:
+        sys.stderr.write("video: stopped\n")
+        sys.stderr.flush()
+    finally:
+        os._exit(1)
+
+
 def hold_limits():
     """The process-wide limits. Children inherit them and cannot raise them."""
     soft, hard = resource.getrlimit(resource.RLIMIT_FSIZE)
@@ -193,6 +225,8 @@ def hold_limits():
     resource.setrlimit(resource.RLIMIT_FSIZE, (cap, cap))
     signal.signal(signal.SIGXFSZ, signal.SIG_IGN)   # a write past the limit fails instead of killing
     signal.signal(signal.SIGALRM, out_of_time)
+    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+        signal.signal(sig, stopped)
     signal.alarm(MAX_WALL_SECONDS)
 
 
@@ -208,38 +242,60 @@ def free_bytes_at(folder):
     return st.f_bavail * st.f_frsize
 
 
-GOAL_HOMES = ("company-work", "_proof")   # tasks/company-work/<goal>; the fence check's tasks/_proof/<goal>
+GOAL_ID = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,9}-[0-9]{1,9}$")   # a task's identifier, such as STH-12
 
 
-def goal_folder(cwd):
-    """.../company-work/<goal>/video/<name> -> <goal>. Anywhere else is refused.
+def goal_folder(cwd, homes=None):
+    """<home>/<goal>/video/<name> -> the real <home>/<goal>. Anywhere else is refused.
 
-    The goal is found from the outermost company-work (or _proof) folder, which an
-    agent cannot make above its own task folder, so a nested look-alike cannot
-    shrink the goal whose 2 GB is counted."""
-    parts = cwd.split(os.sep)
-    homes = [i for i, p in enumerate(parts) if p in GOAL_HOMES]
-    if homes:
-        i = homes[0]
-        if (len(parts) == i + 4 and parts[i + 1] and parts[i + 2] == "video"
-                and NAME.match(parts[i + 3])):
-            return os.sep.join(parts[:i + 2])
+    The homes are the task-folder trees found from where the tool is installed
+    (TASK_HOMES; `homes` only for tests), compared after links are resolved and
+    without regard to letter case, as this disk sees paths. Under company-work the
+    goal must be named like a task (STH-12), so a made-up folder is not a new goal
+    with nothing in it; and every goal's video folders are counted together too."""
+    real = os.path.realpath(cwd)
+    for home in (homes or TASK_HOMES):
+        home = os.path.realpath(home)
+        if not real.lower().startswith(home.lower() + os.sep):
+            continue
+        rest = real[len(home) + 1:].split(os.sep)
+        named = GOAL_ID.match(rest[0]) if os.path.basename(home).lower() == "company-work" else NAME.match(rest[0])
+        if len(rest) == 3 and named and rest[1] == "video" and NAME.match(rest[2]):
+            return os.path.join(home, rest[0])
     raise Problem("run the video helper from the folder for this one video: "
                   "<goal>/video/<name>, with a name of a to z, 0 to 9 and -")
 
 
 def bytes_in(folder, cap=200000):
-    total, seen = 0, 0
-    for root, dirs, files in os.walk(folder, followlinks=False):
-        for f in files:
-            seen += 1
-            if seen > cap:
+    """Bytes of the files in a folder and below. A link is followed and counted by what it leads to, so
+    moving a file away and leaving a link saves nothing; each file and folder is counted once."""
+    total, seen, files_seen, todo = 0, set(), 0, [folder]
+    while todo:
+        d = todo.pop()
+        try:
+            st = os.stat(d)
+        except OSError:
+            continue
+        if (st.st_dev, st.st_ino) in seen:
+            continue
+        seen.add((st.st_dev, st.st_ino))
+        try:
+            names = os.listdir(d)
+        except OSError:
+            continue
+        for f in names:
+            files_seen += 1
+            if files_seen > cap:
                 raise Problem("the goal's folder holds more than %d files; tidy it first" % cap)
+            p = os.path.join(d, f)
             try:
-                st = os.lstat(os.path.join(root, f))
+                st = os.stat(p)            # follows a link
             except OSError:
                 continue
-            if not os.path.islink(os.path.join(root, f)):
+            if os.path.isdir(p):
+                todo.append(p)
+            elif (st.st_dev, st.st_ino) not in seen:
+                seen.add((st.st_dev, st.st_ino))
                 total += st.st_size
     return total
 
@@ -250,7 +306,21 @@ def output_cap(goal):
     if left < 4 * MB:
         raise Problem("the goal's folder already holds %.1f GB of files; at most 2 GB is allowed. "
                       "Remove old videos first." % (used / float(GB)))
-    return min(MAX_OUTPUT_BYTES, left)
+    home = os.path.dirname(goal)
+    tree = 0
+    try:
+        goals = os.listdir(home)
+    except OSError:
+        goals = []
+    for g in goals:
+        v = os.path.join(home, g, "video")
+        if os.path.isdir(v):
+            tree += bytes_in(v)
+    tree_left = MAX_VIDEO_TREE_BYTES - tree
+    if tree_left < 4 * MB:
+        raise Problem("the video folders of all goals already hold %.1f GB; at most 10 GB is allowed. "
+                      "Ask the owner to remove old videos first." % (tree / float(GB)))
+    return min(MAX_OUTPUT_BYTES, left, tree_left)
 
 
 def tool(var):
@@ -293,10 +363,7 @@ def find_input(arg, cwd, goal, endings, what, max_bytes):
         raise Problem("the %s must be a file name" % what)
     if not arg.lower().endswith(endings):
         raise Problem("the %s %s must end with %s" % (what, json.dumps(arg), ", ".join(endings)))
-    roots = [goal, ROOM]
-    knowledge = os.environ.get("UUU_KNOWLEDGE_DIR", "")
-    if knowledge and os.path.isabs(knowledge):
-        roots.append(knowledge)
+    roots = [goal, ROOM, KNOWLEDGE]     # never from a variable the agent can set
     candidates = [arg] if os.path.isabs(arg) else [os.path.join(cwd, arg)]
     if not os.path.isabs(arg) and "/" not in arg:
         candidates.append(os.path.join(ROOM, arg))
@@ -369,6 +436,7 @@ def fit(w, h, max_w=MAX_W, max_h=MAX_H):
 # --- Running ffmpeg and friends ---------------------------------------------------
 
 def start(cmd, **kw):
+    kw.setdefault("start_new_session", True)    # its own group, so stop_children reaches what it starts
     try:
         p = subprocess.Popen(cmd, **kw)
     except OSError as e:

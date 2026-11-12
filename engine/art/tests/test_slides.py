@@ -176,6 +176,18 @@ class SlidesTest(unittest.TestCase):
         r = self.run_slides("Launch_1.py", carousel(2))
         self.assertProblem(r, "Launch_1.py")
 
+    def test_a_script_in_another_folder_is_refused_and_nothing_is_written_there(self):
+        other = os.path.join(self.dir, "other")
+        os.makedirs(other)
+        with open(os.path.join(other, "launch.py"), "w", encoding="utf-8") as fh:
+            fh.write(carousel(3))
+        for arg in ("other/launch.py", os.path.join(other, "launch.py"), "./launch.py"):
+            r = subprocess.run([sys.executable, SLIDES, arg], cwd=self.dir, capture_output=True, text=True, timeout=120)
+            self.assertEqual(r.returncode, 1, arg)
+            self.assertIn("no folder in front", r.stderr)
+        self.assertEqual(sorted(os.listdir(other)), ["launch.py"])
+        self.assertEqual(self.files(), ["other"])
+
 
 class FontMapTest(unittest.TestCase):
     def test_the_seven_typefaces_of_the_brand_form_map_to_real_files(self):
