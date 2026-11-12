@@ -217,7 +217,8 @@ export function outcomeOf(comments) {
     const m = /^\s*RESULT:/.exec(c.body.slice(0, 64));
     if (!m) continue;
     const rest = c.body.slice(m[0].length, m[0].length + 8000);
-    const line = rest.split("\n").map((l) => l.replace(/\s*\[\d{1,3}\]/g, "").replace(/\s+/g, " ").trim()).find(Boolean) || "";
+    // White space is collapsed first, so no pattern below ever walks a long run of it again (S8 F1: quadratic).
+    const line = rest.split("\n").map((l) => l.replace(/\s+/g, " ").replace(/ ?\[\d{1,3}\]/g, "").replace(/ {2,}/g, " ").trim()).find(Boolean) || "";
     if (!line) return null;
     return line.length > OUTCOME_MAX ? `${line.slice(0, OUTCOME_MAX - 1).trimEnd()}…` : line;
   }
@@ -265,7 +266,7 @@ export function decorateInbox(items, tctx) {
     out.agent = agentByName(tctx, item.raisedBy);
     out.department = itemDepartment({ id: item.id, source: item.source, taskId: out.taskId, agent: out.agent }, {
       decisions: tctx.decisions, catalogue: tctx.catalogue, issues: tctx.issues,
-      slugOfAgentId: (id) => tctx.agents?.get(id)?.slug || null,
+      slugOfAgentId: (id) => tctx.agents?.get(id)?.slug || null, chiefId: tctx.ids?.agents?.["chief-of-staff"] || null,
     });
     return out;
   });

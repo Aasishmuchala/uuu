@@ -81,18 +81,25 @@ const PLANNERS = new Set(["chief-of-staff", "checker"]);
 
 // The department a Needs-you item belongs to (M51 F4, M50 F2): a task's item belongs to the department of the
 // job it came from, else of the agent who did the work (the newest step given to an agent other than the
-// Chief of staff and the Checker, else any agent's step); an item that is not about a task belongs to its
-// dashboard, else to the agent who raised it. Operations only when nothing else is known. The one rule for the
-// dock (routes/shell.mjs), the map's count lines and warm marks (lib/tasks.mjs decorateInbox) and Needs you.
-export function itemDepartment(item, { decisions, catalogue, issues, slugOfAgentId } = {}) {
+// Chief of staff and the Checker, else any agent's step, else the task's own assignee); an item that is not
+// about a task belongs to its dashboard, else to the agent who raised it. Operations only when nothing else is
+// known. Only steps the Chief of staff made count (`chiefId`, from the ids file): any agent can add a step
+// under any task, and one it gave itself must not move the item to its own department (S8 F5). The one rule for
+// the dock (routes/shell.mjs), the map's count lines and warm marks (lib/tasks.mjs decorateInbox) and Needs you.
+export function itemDepartment(item, { decisions, catalogue, issues, slugOfAgentId, chiefId } = {}) {
   const taskId = item.taskId || taskOfItem(item.id);
   if (taskId) {
     const ref = decisions?.get?.(`template:${taskId}`);
     const job = typeof ref === "string" ? catalogue?.jobs?.get(ref) : null;
     if (job?.department) return job.department;
-    const steps = descendants(issues || [], taskId).filter((st) => st.assigneeAgentId)
+    const steps = descendants(issues || [], taskId).filter((st) => st.assigneeAgentId && chiefId && st.createdByAgentId === chiefId)
       .sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
-    const slugs = steps.map((st) => (typeof slugOfAgentId === "function" ? slugOfAgentId(st.assigneeAgentId) : null)).filter(Boolean);
+    const slugOf = (id) => (typeof slugOfAgentId === "function" && id ? slugOfAgentId(id) : null);
+    const slugs = steps.map((st) => slugOf(st.assigneeAgentId)).filter(Boolean);
+    if (!slugs.length) {
+      const own = slugOf((issues || []).find((i) => i.id === taskId)?.assigneeAgentId);
+      if (own) slugs.push(own);
+    }
     const doer = slugs.find((sl) => !PLANNERS.has(sl)) || slugs[0];
     const d = doer ? departmentOf(doer) : null;
     if (d) return d;

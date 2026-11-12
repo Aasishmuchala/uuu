@@ -143,7 +143,7 @@ test("v3 board: the new tasks are served and the next one made is STH-26", async
 test("v3 records: decisions.json holds the ask:, template:, from: and asked: records", () => {
   const d = decisionsV3();
   const I = IDS_V3.issues;
-  for (const k of ["STH-19", "STH-22"]) assert.ok(!Number.isNaN(Date.parse(d[`ask:${I[k]}`])), k);
+  for (const k of ["STH-19", "STH-22"]) assert.ok(!Number.isNaN(Date.parse(d[`ask:${I[k]}`].at)) && d[`ask:${I[k]}`].text, k);
   assert.equal(Object.keys(d).filter((k) => k.startsWith("ask:")).length, 2);
   assert.deepEqual(Object.fromEntries(Object.entries(d).filter(([k]) => k.startsWith("template:"))), {
     [`template:${I["STH-20"]}`]: "sales/call-write-up", [`template:${I["STH-21"]}`]: "sales/proposal-from-a-call",

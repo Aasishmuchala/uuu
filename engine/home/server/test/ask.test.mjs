@@ -53,8 +53,10 @@ test("POST /api/ask sends one issue to the Chief of staff whose text ends ASK, t
   assert.equal(issue.title, "Do we deliver on Sundays?");
   assert.equal(issue.assigneeAgentId, IDS_V3.agents["chief-of-staff"]);
   assert.equal(issue.status, "todo");
-  const at = decisions()[`ask:${issue.id}`];
-  assert.ok(typeof at === "string" && Number.isFinite(Date.parse(at)));
+  // The record keeps the time and the question as sent (S8 F3).
+  const rec = decisions()[`ask:${issue.id}`];
+  assert.ok(typeof rec.at === "string" && Number.isFinite(Date.parse(rec.at)));
+  assert.equal(rec.text, "Do we deliver on Sundays?");
   const ask = r.json.ask;
   assert.deepEqual(sameShape(readShape("ask"), ask), []);
   assert.equal(ask.state, "reading");

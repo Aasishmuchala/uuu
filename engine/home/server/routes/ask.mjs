@@ -9,8 +9,10 @@
 // POST /api/inbox/act with the ids given in `needsYou`; there is no other route.
 import { parseAnswer } from "../lib/answer.mjs";
 import { brainTitle } from "../lib/brainfiles.mjs";
+import { plainMarks } from "../lib/format.mjs";
 import { needIds } from "../lib/goals.mjs";
-import { buildText, roundsOf, textOf } from "../lib/staged.mjs";
+import { askedAt, askedQuestion, ownerText } from "../lib/owner-text.mjs";
+import { buildText, roundsOf } from "../lib/staged.mjs";
 import { findTask, isHeldTask, loadTaskContext, treeComments } from "../lib/tasks.mjs";
 import { readTaskText } from "../lib/taskfiles.mjs";
 import { brainFor } from "../brain/store.mjs";
@@ -29,9 +31,9 @@ const PLAIN = {
 };
 
 const askKey = (id) => `ask:${id}`;
-const isoOr = (v, fallback) => (typeof v === "string" && Number.isFinite(Date.parse(v)) ? v : fallback || null);
 
 // The record of a question, or null: the home server's own `ask:` record is the only thing that makes one.
+// It is { at, text }: the time and the owner's question as sent (S8 F3); one made before is the time alone.
 export function askRecord(ctx, goalId) {
   const v = ctx.decisions && typeof ctx.decisions.get === "function" ? ctx.decisions.get(askKey(goalId)) : null;
   return v === null || v === undefined || v === false ? null : v;
@@ -82,7 +84,8 @@ export async function askOf(ctx, tctx, goal, { paths } = {}) {
     tctx.comments.set(goal.id, comments);
     const rounds = roundsOf(comments, tctx.ids?.agents?.checker || null);
     answer = {
-      text: parsed.text,
+      // Shown as plain text: Markdown's marks taken out (S8 T3); the source marks ("[1]") stay.
+      text: plainMarks(parsed.text),
       sources: parsed.wellFormed ? vouch(parsed.sources, paths || brainPaths(ctx.config)) : [],
       notInFiles: parsed.wellFormed ? parsed.notInFiles : [],
       checked: rounds.some((r) => r.outcome === "pass"),
@@ -95,17 +98,19 @@ export async function askOf(ctx, tctx, goal, { paths } = {}) {
   const ack = item?.actions?.find((a) => a.id === "acknowledge");
   return {
     id: goal.id, identifier: goal.identifier || null,
-    question: textOf(goal.description || goal.title || "").text.slice(0, MAX_QUESTION),
+    // The owner's words from the record, never the task's text, which any agent can edit (S8 F3).
+    question: askedQuestion(askRecord(ctx, goal.id), goal, MAX_QUESTION).text,
     state, plainState: PLAIN[state],
-    askedAt: isoOr(askRecord(ctx, goal.id), goal.createdAt),
+    askedAt: askedAt(askRecord(ctx, goal.id)) || goal.createdAt || null,
     answer,
     needsYou: item && ack ? { inboxId, action: "acknowledge", label: ack.label, version: typeof item.version === "string" ? item.version : null } : null,
     taskId: goal.id,
   };
 }
 
+// The owner's question, cleaned by the one rule for text that becomes a task's (lib/owner-text.mjs).
 function readQuestion(ctx) {
-  const text = ctx.body && typeof ctx.body.text === "string" ? ctx.body.text.trim() : "";
+  const text = ctx.body ? ownerText(ctx.body.text) : "";
   if (!text) throw ctx.fail(400, "There is nothing written yet.", "Write your question, then send it.", "empty_text");
   if (text.length > MAX_QUESTION) throw ctx.fail(400, "That is too long.", `Keep it under ${MAX_QUESTION} characters.`, "text_too_long");
   return text;
@@ -124,14 +129,16 @@ export default function register(app) {
     if (!created || typeof created.id !== "string") {
       throw ctx.fail(502, "The board did not take the question.", "Try again in a moment.", "board_error");
     }
-    // The record is written only after the board answered: it is what makes this task a question.
-    const askedAt = ctx.decisions.set(askKey(created.id), new Date().toISOString());
+    // The record is written only after the board answered: it is what makes this task a question. It keeps the
+    // question as sent, so what is shown as the owner's words never comes from the task's text.
+    const at = new Date().toISOString();
+    ctx.decisions.set(askKey(created.id), { at, text });
     return {
       status: 201,
       body: {
         ask: {
           id: created.id, identifier: created.identifier || null, question: text,
-          state: "reading", plainState: PLAIN.reading, askedAt,
+          state: "reading", plainState: PLAIN.reading, askedAt: at,
           answer: null, needsYou: null, taskId: created.id,
         },
       },
@@ -141,7 +148,7 @@ export default function register(app) {
   app.get("/api/ask", async (ctx) => {
     const tctx = await loadTaskContext(ctx, { withInbox: true, withComments: false });
     const asked = tctx.goals
-      .map((g) => ({ g, at: isoOr(askRecord(ctx, g.id), null) }))
+      .map((g) => ({ g, at: askedAt(askRecord(ctx, g.id)) }))
       .filter((x) => askRecord(ctx, x.g.id) !== null)
       .sort((a, b) => String(b.at || b.g.createdAt).localeCompare(String(a.at || a.g.createdAt)))
       .slice(0, NEWEST);

@@ -552,12 +552,12 @@ function seedV3() {
 export function decisionsV3() {
   const I = (key) => IDS_V3.issues[key];
   return {
-    [`ask:${I("STH-19")}`]: at(-130),
+    [`ask:${I("STH-19")}`]: { at: at(-130), text: "What is our returns policy, and when did it last change?" },
     [`template:${I("STH-20")}`]: "sales/call-write-up",
     [`acknowledged:goal:${I("STH-20")}`]: at(-100),
     [`template:${I("STH-21")}`]: "sales/proposal-from-a-call",
     [`from:${I("STH-21")}`]: I("STH-20"),
-    [`ask:${I("STH-22")}`]: at(-3),
+    [`ask:${I("STH-22")}`]: { at: at(-3), text: "Do we charge for delivery?" },
     [`template:${I("STH-23")}`]: "marketing/five-concepts",
     [`asked:${I("STH-23")}`]: { answers: { subject: "Diwali offer", kind: "carousel" } },
     [`template:${I("STH-24")}`]: "marketing/carousel-from-a-concept",

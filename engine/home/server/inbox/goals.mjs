@@ -6,9 +6,10 @@ import { agentNames, commentsOf, descendants, goalsOf, loadIssues, needIds, pick
 import { parseAnswer } from "../lib/answer.mjs";
 import { brainFor } from "../brain/store.mjs";
 import { isFixTask } from "../lib/draftfix.mjs";
-import { capText } from "../lib/format.mjs";
+import { capText, plainMarks } from "../lib/format.mjs";
 import { versionOf } from "../lib/inbox.mjs";
-import { roundsOf, textOf } from "../lib/staged.mjs";
+import { askedQuestion } from "../lib/owner-text.mjs";
+import { roundsOf } from "../lib/staged.mjs";
 import { listTaskFiles, readTaskText } from "../lib/taskfiles.mjs";
 
 // One line of Markdown as plain words: null for a line that is only a mark (a rule, a table divider, a fence).
@@ -94,11 +95,12 @@ const cutTo = (s, max) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 // An answered question: its own title, summary, details and button labels; everything else as for any result.
 // Its version also hashes what the answer panel shows (the text, each source as shown, what is not in the
 // files), so "Got it" never acknowledges an answer that changed after the owner opened it (CONTRACTS 9.3a).
+// The question is the one in the `ask:` record (lib/owner-text.mjs askedQuestion), hashed in list() (S8 F3).
 function asAnswer(ctx, item, g, answer) {
   const listed = listedOf(ctx);
-  const question = textOf(g.description || g.title || "").text.replace(/\s+/g, " ").trim() || g.title || "";
+  const question = askedQuestion(ctx.decisions.get(`ask:${g.id}`), g).text.replace(/\s+/g, " ").trim() || g.title || "";
   item.title = `Answer: ${cutTo(question, 60)}`;
-  item.summary = cutTo(answer.text.replace(/\s+/g, " ").trim(), 200);
+  item.summary = cutTo(plainMarks(answer.text).replace(/\s+/g, " ").trim(), 200);
   item.details = [
     item.details[0],
     { label: "From", value: `${foundOf(answer, listed)} of your files` },
@@ -149,6 +151,9 @@ async function list(ctx) {
       link: { page: "tasks", id: g.id },
     };
     Object.defineProperty(item, "_goalId", { enumerable: false, value: g.id });
+    // A question's item also hashes the question as shown (the answer panel and the title show it, S8 F3).
+    const asked = ctx.decisions.get(`ask:${g.id}`);
+    if (asked) item.version = versionOf(item.version, JSON.stringify(["question", askedQuestion(asked, g).text]));
     const answer = answerOf(ctx, g);
     if (answer && !answer.wellFormed) item.version = versionOf(item.version, JSON.stringify([answer.text]));
     return answer && answer.wellFormed ? asAnswer(ctx, item, g, answer) : item;

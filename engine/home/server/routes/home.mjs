@@ -161,7 +161,7 @@ function readLessons(config, roles) {
     const role = roles.find((r) => r.slug === m[1]);
     const name = role?.name || m[1];
     for (const line of text.split(/\r?\n/)) {
-      const l = /^\s*[-*]\s*(\d{4}-\d{2}-\d{2}):\s*(.+)$/.exec(line);
+      const l = /^\s*[-*]\s*(\d{4}-\d{2}-\d{2}):\s*(\S.*)$/.exec(line);
       if (l) out.push({ slug: m[1], name, date: l[1], text: l[2].trim() });
     }
   }

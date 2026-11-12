@@ -8,6 +8,7 @@ import { HomeError } from "../lib/errors.mjs";
 import { needIds, summary } from "../lib/goals.mjs";
 import { jobRef, jobView, loadCatalogue, needsState, runsIndex } from "../lib/jobs.mjs";
 import { loadDepartments } from "../lib/departments.mjs";
+import { stripInvisible } from "../lib/owner-text.mjs";
 import { buildText } from "../lib/staged.mjs";
 import { loadRoles } from "../lib/team.mjs";
 import { findTask, loadTaskContext, taskCard } from "../lib/tasks.mjs";
@@ -34,13 +35,10 @@ const STAGES = [
 
 // A line of the text that an agent, or textOf, could read as a marker (CONTRACTS-V2 15.1, CONTRACTS-V3 31.3, 34).
 const MARKER_LINE = /^(FOR:|PLAN FIRST\b|PLAN READY:|PLAN ACCEPTED\b|ANSWER:|STOPPED:|RESULT:|VERDICT:|ROUTINE:|SIZE:|JOB:|ASK\s*$|Read first, from the company's files:|Produce:)/i;
-// Control characters, the Unicode line and paragraph separators, the direction marks and overrides, and the
-// characters that show nothing on their own (zero-width spaces, word joiners, soft hyphens, fillers, the byte
-// order mark). The zero-width joiner and non-joiner stay: some scripts and emoji need them between letters.
-const CONTROL = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180F\u200B\u200E\u200F\u202A-\u202E\u2060-\u206F\u3164\uFEFF\uFFA0\uFFF0-\uFFFB]/g;
 // A line as a reader of markers might see it: compatibility forms folded (full-width letters), every
-// invisible or formatting character dropped, and any kind of space at its start gone. MARKER_LINE ignores case.
-const asMarkerReads = (l) => l.normalize("NFKC").replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}]/gu, "").replace(/^[\s\p{Z}]+/u, "");
+// invisible or formatting character dropped, and any kind of space at its start gone (the blank U+2800 too).
+// MARKER_LINE ignores case.
+const asMarkerReads = (l) => l.normalize("NFKC").replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}]/gu, "").replace(/^[\s\p{Z}\u2800]+/u, "");
 const BREAKS = /\r\n?|\u2028|\u2029|\u0085/g;
 
 // The task model, or null when the board cannot be read (off, or the company not set up).
@@ -65,7 +63,7 @@ function findJob(ctx) {
 const missing = (ctx, ask) => ctx.fail(400, `Fill in: ${ask.label}`, "Fill it in, then start the job again.", "missing_answer");
 const bad = (ctx, ask) => ctx.fail(400, `That answer does not fit: ${ask.label}`, "Change it, then start the job again.", "bad_answer");
 
-// One answer as the owner's words: trimmed, control characters removed, line breaks kept only for `text`, capped.
+// One answer as the owner's words: trimmed, control and invisible characters removed (lib/owner-text.mjs), line breaks kept only for `text`, capped.
 // -> "" (empty) or the clean value. A line break in any other kind is refused.
 function cleanAnswer(ctx, ask, raw) {
   if (raw === undefined || raw === null) return "";
@@ -75,7 +73,7 @@ function cleanAnswer(ctx, ask, raw) {
   s = s.replace(/\t/g, " ");
   if (ask.kind === "text") s = s.replace(BREAKS, "\n");
   else if (/[\n\r\u2028\u2029\u0085]/.test(s)) throw bad(ctx, ask);
-  s = s.replace(CONTROL, "").trim();
+  s = stripInvisible(s).trim();
   if (ask.kind === "text") s = s.split("\n").map((l) => l.trimEnd()).join("\n").replace(/\n{3,}/g, "\n\n");
   const cap = CAPS[ask.kind];
   if (cap && s.length > cap) s = s.slice(0, cap).trimEnd();

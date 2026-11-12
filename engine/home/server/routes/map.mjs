@@ -6,7 +6,7 @@ import { basics, brainFileCount } from "../lib/brainfiles.mjs";
 import { departmentLoad, loadDepartments } from "../lib/departments.mjs";
 import { HomeError } from "../lib/errors.mjs";
 import { jobRef, jobView, loadCatalogue, needsState, readiness, runsIndex } from "../lib/jobs.mjs";
-import { textOf } from "../lib/staged.mjs";
+import { askedAt, askedQuestion } from "../lib/owner-text.mjs";
 import { agentCards, loadRoles } from "../lib/team.mjs";
 import { loadTaskContext, taskCard } from "../lib/tasks.mjs";
 
@@ -76,16 +76,17 @@ function mapJobs(dept, catalogue, needs, runs, config) {
   };
 }
 
-// The newest open question (a task with an `ask:` record that is not finished), and the answers waiting.
+// The newest open question (a task with an `ask:` record that is not finished and has not become a task, S8
+// T1), and the answers waiting. The question is the one in the record (lib/owner-text.mjs askedQuestion).
 function brainOf(ctx, tctx) {
   if (!tctx) return { asking: null, unread: 0 };
   const isAsk = (g) => !!ctx.decisions.get(`ask:${g.id}`);
-  const open = tctx.goals.find((g) => isAsk(g) && g.status !== "done" && g.status !== "cancelled") || null;
+  const open = tctx.goals.find((g) => isAsk(g) && g.status !== "done" && g.status !== "cancelled" && !tctx.stepsOf(g.id).length) || null;
   let asking = null;
   if (open) {
     const rec = ctx.decisions.get(`ask:${open.id}`);
-    const since = typeof rec === "string" && Number.isFinite(Date.parse(rec)) ? rec : open.createdAt || null;
-    asking = { id: open.id, question: cut(textOf(open.description || "").text || open.title, QUESTION_MAX), since };
+    const since = askedAt(rec) || open.createdAt || null;
+    asking = { id: open.id, question: cut(askedQuestion(rec, open).text, QUESTION_MAX), since };
   }
   const asks = new Set(tctx.goals.filter(isAsk).map((g) => g.id));
   const unread = tctx.needsYou.filter((i) => i.taskId && asks.has(i.taskId)).length;

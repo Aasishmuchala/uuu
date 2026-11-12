@@ -60,7 +60,7 @@ export const fieldKeys = (form, field) => [...new Set([fieldHeading(form, field)
 
 const oneLine = (s) => s.replace(CONTROL, "").replace(/[\r\n]/g, " ").trim();
 function manyLines(s) {
-  const lines = s.replace(/\r\n?/g, "\n").replace(CONTROL, "").split("\n").map((l) => l.replace(/\s+$/, ""));
+  const lines = s.replace(/\r\n?/g, "\n").replace(CONTROL, "").split("\n").map((l) => l.trimEnd());
   while (lines.length && !lines[0].trim()) lines.shift();
   while (lines.length && !lines[lines.length - 1]) lines.pop();
   return lines.join("\n");
@@ -213,11 +213,11 @@ function bodyOf(field, value) {
 export function renderForm(form, values, kept = {}) {
   const v = cleanValues(form, values);
   const out = [`# ${headingOf(form.title)}`, ""];
-  const intro = typeof kept.intro === "string" ? kept.intro.replace(/\s+$/, "") : "";
+  const intro = typeof kept.intro === "string" ? kept.intro.trimEnd() : "";
   if (intro) out.push(intro, "");
   for (const f of form.fields) out.push(`## ${headingOf(f.label)}`, ...bodyOf(f, v[f.id]), "");
   for (const u of Array.isArray(kept.unknown) ? kept.unknown : []) {
-    if (u && typeof u.text === "string" && u.text.trim()) out.push(u.text.replace(/\s+$/, ""), "");
+    if (u && typeof u.text === "string" && u.text.trim()) out.push(u.text.trimEnd(), "");
   }
   return `${out.join("\n").replace(/\n+$/, "")}\n`;
 }
@@ -326,10 +326,10 @@ export function parseForm(form, markdown) {
       values[f.id] = value;
       done.add(f.id);
     } else {
-      unknown.push({ heading: s.heading, text: s.raw.join("\n").replace(/\s+$/, "") });
+      unknown.push({ heading: s.heading, text: s.raw.join("\n").trimEnd() });
     }
   }
-  return { values, unknown, intro: introLines.join("\n").replace(/^\n+/, "").replace(/\s+$/, "") };
+  return { values, unknown, intro: introLines.join("\n").replace(/^\n+/, "").trimEnd() };
 }
 
 // ---- the store

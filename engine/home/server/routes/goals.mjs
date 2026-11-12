@@ -2,6 +2,7 @@
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 import { loadCatalogue } from "../lib/jobs.mjs";
+import { ownerText } from "../lib/owner-text.mjs";
 import { buildText } from "../lib/staged.mjs";
 import { stopTask } from "../lib/stop.mjs";
 import { loadRoles } from "../lib/team.mjs";
@@ -28,8 +29,9 @@ export function fileToken(rel) {
   return Buffer.from(rel, "utf8").toString("base64url");
 }
 
+// The owner's text, cleaned by the one rule for text that becomes a task's (lib/owner-text.mjs).
 function readText(ctx, field = "text") {
-  const text = ctx.body && typeof ctx.body[field] === "string" ? ctx.body[field].trim() : "";
+  const text = ctx.body ? ownerText(ctx.body[field]) : "";
   if (!text) throw ctx.fail(400, "There is nothing written yet.", "Write it in your own words, then send it.", "empty_text");
   if (text.length > MAX_TEXT) throw ctx.fail(400, "That is too long.", `Keep it under ${MAX_TEXT} characters.`, "text_too_long");
   return text;

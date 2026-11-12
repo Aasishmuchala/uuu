@@ -82,12 +82,15 @@ function dockOf(ctx, data, inbox, team, goals) {
   const idSlug = new Map(Object.entries(ctx.ids()?.agents || {}).map(([slug, id]) => [id, slug]));
   let catalogue = null;
   try { catalogue = loadCatalogue(ctx.config); } catch { catalogue = null; }
-  const where = { decisions: ctx.decisions, catalogue, issues: data?.issues || [], slugOfAgentId: (id) => idSlug.get(id) || agents.get(id)?.slug || null };
+  const where = { decisions: ctx.decisions, catalogue, issues: data?.issues || [], slugOfAgentId: (id) => idSlug.get(id) || agents.get(id)?.slug || null,
+    chiefId: ctx.ids()?.agents?.["chief-of-staff"] || null };
   for (const i of needsYou) i.department = itemDepartment(i, where);
   const light = { ids: ctx.ids(), agentList: data?.agents || [], agents, liveByAgent, needsYou };
   const isAsk = (g) => !!ctx.decisions.get(`ask:${g.id}`);
   const asks = goals.filter(isAsk);
-  const open = asks.some((g) => g.status !== "done" && g.status !== "cancelled" && g.status !== "canceled");
+  // A question that has become a task (it has a step) is no longer the brain's work, as on the map (S8 T1).
+  const parents = new Set((data?.issues || []).map((i) => i.parentId).filter(Boolean));
+  const open = asks.some((g) => g.status !== "done" && g.status !== "cancelled" && g.status !== "canceled" && !parents.has(g.id));
   const askIds = new Set(asks.map((g) => `goal:${g.id}`));
   const dock = [{ id: "brain", title: "Company brain", creature: "brain", colour: "brain", working: open ? 1 : 0, needsYou: needsYou.filter((i) => askIds.has(i.id)).length }];
   for (const d of loadDepartments(ctx.config).departments) {

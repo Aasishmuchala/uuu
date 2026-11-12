@@ -48,7 +48,10 @@ export function capText(text, { total = TEXT_MAX, line = LINE_MAX } = {}) {
 // Markdown's marks taken out of a text for a one-line snippet (M52 F6): headings' #, list and quote marks at the
 // start of a line, table rules and pipes, emphasis and code marks. The words stay.
 export function plainMarks(text) {
+  // Each line's runs of white space are collapsed first: the patterns below then never walk a long run of an
+  // agent's spaces from every start (S8 F1: quadratic).
   return String(text ?? "").split("\n").map((line) => line
+    .replace(/[^\S\n]+/g, " ")
     .replace(/^\s{0,3}#{1,6}\s+/, "")
     .replace(/^\s*(?:[-*+]|>)\s+/, "")
     .replace(/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/, "")

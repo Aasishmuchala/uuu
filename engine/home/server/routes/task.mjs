@@ -56,7 +56,8 @@ function assigneeOf(tctx, issue) {
 // comment no agent wrote: an agent's own "PLAN ACCEPTED" line is never shown as the owner's acceptance.
 // Verdict lines are read only in the Checker's check (`check`).
 function plainLine(line, byOwner, check) {
-  const t = line.trimStart();
+  // White space collapsed first (a line separator too), so no pattern below walks a long run of it (S8 F1).
+  const t = line.trimStart().replace(/\s+/g, " ");
   let m;
   if (check) {
     if ((m = /^VERDICT:\s*(PASS|FAIL)\b\s*[-:]?\s*(.*)$/i.exec(t))) {
@@ -255,14 +256,16 @@ export default function register(app) {
 
     const card = taskCard(goal, tctx);
     const earlier = card.follows ? tctx.goals.find((g) => g.id === card.follows.taskId) : null;
+    // CONTRACTS-V3 33.4: a question (by its `ask:` record only, as on the card). Its text is the question as the
+    // record keeps it, never the task's text, which any agent can edit (S8 F3).
+    const ask = card.ask ? await askOf(ctx, tctx, goal) : null;
     return {
       task: card,
       job: card.job ? { id: card.job.id, title: card.job.title, department: card.department } : null,
       follows: card.follows ? { taskId: card.follows.taskId, identifier: card.follows.identifier, title: earlier?.title || null } : null,
       next: await nextOf(ctx, goal, card, tctx),
-      // CONTRACTS-V3 33.4: a question's answer (by its `ask:` record only, as on the card), else null.
-      answer: card.ask ? (await askOf(ctx, tctx, goal)).answer : null,
-      text: cap(text.text), planFirst: text.planFirst, for: text.for,
+      answer: ask ? ask.answer : null,
+      text: cap(ask ? ask.question : text.text), planFirst: text.planFirst, for: text.for,
       needsYou,
       acceptance: {
         state, accept, sendBack,

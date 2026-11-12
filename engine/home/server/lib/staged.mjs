@@ -248,7 +248,7 @@ export function parseCheck(body) {
   if (!actions.length) problem('The section "Actions" is missing.');
   for (const sec of actions) {
     for (const raw of plainLines(sec.text)) {
-      const am = /^\s*-\s+(.+)$/.exec(raw);
+      const am = /^\s*-\s+(\S.*)$/.exec(raw);
       if (am && result.actions.length < MAX_ITEMS) result.actions.push(short(am[1].trim()));
     }
   }
@@ -307,8 +307,8 @@ export function textOf(description) {
   let job = null;
   while (start < end && !lines[start].trim()) start += 1;
   if (start < end) {
-    const m = /^FOR:\s*(.+)$/.exec(lines[start].trim());
-    if (m && lines[start].length <= MAX_LINE) { out.for = short(m[1].trim()); start += 1; }
+    const m = lines[start].length <= MAX_LINE ? /^FOR:\s*(\S.*)$/.exec(lines[start].trim()) : null;
+    if (m) { out.for = short(m[1].trim()); start += 1; }
   }
   let readFirst = false;
   let produce = false;

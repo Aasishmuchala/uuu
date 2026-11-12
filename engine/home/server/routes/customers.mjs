@@ -17,7 +17,7 @@ const NOTE_MAX = 120;
 
 // The first line of a note (the books keep notes as HTML), plain, cut at about 120 characters.
 export function noteLine(content, title = "") {
-  const text = String(content || "").replace(/<br\s*\/?>|<\/(?:p|div|li|h\d)>/gi, "\n").replace(/<[^>]*>/g, " ")
+  const text = String(content || "").replace(/<br\s*\/?>|<\/(?:p|div|li|h\d)>/gi, "\n").replace(/<[^<>]*>/g, " ")
     .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
   const line = text.split("\n").map((l) => l.replace(/\s+/g, " ").trim()).find(Boolean) || plainText(title);
   return line.length > NOTE_MAX ? `${line.slice(0, NOTE_MAX - 1).trimEnd()}…` : line;

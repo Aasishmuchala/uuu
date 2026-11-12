@@ -38,7 +38,7 @@ export function validationReason(body) {
     found.push(body.exception.split(/\n|Traceback/)[0].replace(/^\s*(?:[\w.]+\.)?\w*(?:Error|Exception)\s*:\s*/, ""));
   }
   const clean = String(found[0] || "")
-    .split(/Traceback|\n\s*File "/)[0]
+    .split(/Traceback|\n[^\S\n]*File "/)[0]
     .replace(/<br\s*\/?>|<\/(?:p|div|li)>/gi, " ")
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;|&#39;/g, "'")
