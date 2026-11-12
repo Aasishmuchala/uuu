@@ -2,7 +2,7 @@
 
 The engine runs your company with a small team of AI agents and you. It runs on this Mac only. Nothing leaves the building: no email, message or post is sent by anything, and publishing and sending are switched off.
 
-It has five parts: the board (where tasks are kept), the fence around every agent, the gate between the agents and the board, one set of company records (books, customers, support, people) and your home screen. The team has ten roles: Chief of staff, Builder, Checker, Bookkeeper, Sales, Support, People, Marketer, Drafter and Artist. Words in bold in `GLOSSARY.md` mean what they say there.
+It has five parts: the board (where tasks are kept), the fence around every agent, the gate between the agents and the board, one set of company records (books, customers, support, people), the company brain (your own files that every agent reads) and your home screen. The team has ten roles: Chief of staff, Builder, Checker, Bookkeeper, Sales, Support, People, Marketer, Drafter and Artist. Words in bold in `GLOSSARY.md` mean what they say there.
 
 ## Switch it on and off
 
@@ -11,7 +11,7 @@ One command, `engine/bin/engine`, with these words after it:
 - `start`: turns everything on, in order, and stops at the first part that fails. It says where to look. Running it twice starts nothing new. It ends with `Open http://127.0.0.1:3200`.
 - `stop`: turns everything off and leaves no agent running. Nothing starts by itself when the Mac starts.
 - `status`: one line per part: `on`, `off`, `unhealthy` or `not installed`, and what to do next. A good result ends with `Everything is on.`
-- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 107 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
+- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 112 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
 - `setup`: makes the board match the company files. Safe to run again.
 - `test`: runs every test. A good result ends with `All tests passed.`
 
@@ -19,7 +19,14 @@ One command, `engine/bin/engine`, with these words after it:
 
 Go to http://127.0.0.1:3200 in your browser. It works only on this Mac. If the engine is off, the page does not load; run `engine start`.
 
-Press Cmd+K anywhere to jump to a page, an agent or a search result.
+What you see:
+
+- **In the middle at the top:** four sections: Map, Tasks, Dashboards and Files.
+- **At the right:** Needs you, with a count. It opens as a drawer from any page. Beside it are Jobs and Routines as words, and Health, Settings and the light and dark switch as small icons.
+- **Down the left:** a dock of small pixel creatures, one for each department and one for the brain. Click one to see that department.
+- **On a phone-sized window:** the four sections become a bar at the bottom, and the map becomes a small crown over a plain list.
+
+Press Cmd+K anywhere to jump to a page, an agent or a search result. Press `c` for a new task.
 
 ## Give a task
 
@@ -28,24 +35,55 @@ On the Map there is one box. Say what you want done, in your own words, then pre
 - **Plain.** Type it and send. The Chief of staff sizes it, hands it out, and the Checker looks at the result before it reaches you.
 - **Plan first.** Tick "Plan first". The Chief of staff writes a short brief and a plan, then waits. Nothing is done until you accept the plan. Use it for anything big or costly.
 - **To one agent.** Type `@` and pick the agent. The task goes to that agent, and the Checker still checks it.
-- **From a ready-made goal.** Type `/` and pick one. It opens as a draft you can change, with blanks to fill.
+- **From a job.** Type `/` and pick one, or open Jobs. It opens with blanks to fill.
+- **A question.** If you ask something about the company, the box answers from your files. See "Ask the brain".
 
 An agent's own page (under Team) has a conversation where you can give it a task too.
 
 ## Needs you
 
-Everything waiting for you shows under Needs you as cards, one main button each. You can also see them under Tasks.
+Everything waiting for you shows as cards, one main button each. Click Needs you at the top right and it opens as a drawer on any page. The same list is also under Tasks.
 
 - **Accept.** The work is good. A finished task waits under "Pending review" until you accept it. A draft becomes final only when you accept it.
 - **Send back.** The work is not right. Write a note. The task reopens and the agent does it again.
 - **Answer a question.** If a brief or plan has something unclear, work stops and the question shows here. Type the answer. Work carries on.
 - **Accept a plan.** For a plan-first task, read the plan, then Accept, or Send back with a note to change it.
+- **Hand on.** When a job is accepted and the next job fits it, a button offers the next one. Nothing is passed on until you press it.
 
 Press Esc on a card to close it without doing anything.
 
 ## The acceptance view
 
 Open a task from Tasks. At the top you see who did it, how many checks it took, and one large Accept button when it is waiting. Below are the Checker's numbered checks, each pass or fail with its reason. There is a tab per round. Then the timeline of steps, the documents in order (brief, plan, summary, check), the conversation, and the files. After five failed checks the task stops and asks you.
+
+## The company brain
+
+The company brain is the page called Files. These are your own files, and every agent reads them before it works, so what they make sounds like your company. Only you write in it.
+
+- **Nine basics**, filled through short forms: About the company, Brand, Words never to use, Prices and services, Terms, Refunds, the Support promise, Team and Ideal customer. Filling them takes about 20 minutes and is the best first step. The page shows a count of how many are filled.
+- **Ten folders:** Company basics, Brand, Prices and services, Policies, People, Customers, Calls and meetings, References, Packs, and Loose files (files that were there before). Nothing is moved for you.
+- **Adding a file:** by form, by paste, or by upload. Text, Markdown, CSV and images are accepted. A PDF can be kept and downloaded but is not read. SVG pictures are not accepted.
+- **Search** finds words across all of it. The Lessons tab shows what agents have learned, and you can change a lesson.
+- **The recipe log** is the one file the home server writes, from the Marketing scores. It holds numbers and plain labels only, never words an agent wrote.
+
+Agents cannot write in Files. Anything they want kept comes to you as a draft.
+
+## Jobs and the build order
+
+A job is a named piece of work an agent can start for you. There are 60, in seven departments: Operations 7, Sales 9, Marketing 12, Studio 11, Support 5, People 5 and Books 11. Open Jobs, pick one, press Start. It makes a task, and from there it is like any task.
+
+- **Hand-off tags** say what is left to you: "You lead" (the agent gets things ready, you do the main part), "You approve" (the agent does the work, and it counts when you approve it), "On its own" (the agent does it to the end, it is checked, and you read the result).
+- **The build order** has four stages: Foundations (fill the company brain), Take in (jobs that read and sort what comes in), Make (jobs that produce work) and Hand on (work passed from one agent to the next, such as a call write-up, then a proposal, then an invoice draft).
+- **What can start.** On the live engine 49 jobs can start before any basics are filled. Nine wait until you fill the basics (what we sell, brand, team and the recipe log). Three stay dim with the reason shown: agents have no internet, and sending needs a connected account.
+- A job says "Takes a few minutes. It is checked before it reaches you." That is true: expect 5 to 40 minutes, as in the trials below.
+
+## Ask the brain
+
+Type a question about your company in the Map's box, such as "How long is our warranty?". An agent reads your files and answers from them. It names the files it used and lists what the files do not say.
+
+- **It takes time.** The one time measured so far: that warranty question was answered on the live engine in about 40 seconds. Answers usually take a minute or two.
+- **It is labelled "Not checked".** The Checker does not look at these answers, which is why they are fast. If an answer matters (a price you will quote, a date you will promise), check the file it names.
+- If your files do not cover the question, it says "Your files do not say." Fill the folder it points to.
 
 ## Routines
 
@@ -58,27 +96,33 @@ Both start switched off. Until the daily brief is switched on, the Map shows a b
 
 ## The pages
 
-- **Map** (it was Home): the company brain in the middle, the departments around it, the daily brief, and the box to give a task or ask the company brain.
+- **Map**: the company brain in the middle, the departments around it, the daily brief, and the box to give a task or ask a question. Click a department to zoom into its jobs.
 - **Tasks**: every task, as a board or a list. A task's page is the acceptance view.
-- **Files** (it was Docs): the company brain's files. Add one, read it, search it, and see what agents learned.
-- **Team**: the ten agents. Each page says what that agent may and may not do, what it is doing, its lessons, and lets you pause it or give it a task.
-- **Books, Customers, Support, People**: figures first, then drafts waiting for you.
-- **Marketing**: content drafts by week. Publishing is off.
-- **Studio**: parts and pictures the Drafter and the Artist made.
+- **Dashboards**: figures first, then drafts waiting for you. Books, Customers, Support, People, Marketing and Studio.
+- **Files**: the company brain.
+- **Needs you**: the drawer and the full list.
+- **Jobs**: the 60 jobs by department, with the build order.
 - **Routines**: standing work, its runs and its switch.
-- **Jobs** (they were ready-made goals): named pieces of work an agent can start for you, by department.
+- **Team** (from the menu or a creature): the ten agents. Each page says what that agent may and may not do, what it is doing, its lessons, and lets you pause it or give it a task.
 - **Health**: what is on, whether the fence holds, what is not connected. You can run the proof from here.
 - **Settings**: theme and accent, and the later options with what each would cost.
 - **Search**: finds tasks, files, records, agents, routines and jobs.
 
 ## The Studio
 
-The Drafter designs parts. For each it gives a STEP file and a note with the measured size and volume. The Artist makes sprites, small animations and simple vector images by script. A sprite comes as a sheet, a data file, an animated GIF and a small manifest. The Studio plays a sprite frame by frame, with zoom, its named animations and its colours. The home server checks from the files that the frames match the animations. A vector image cannot run a script when shown.
+Under Dashboards. The Drafter designs parts. For each it gives a STEP file and a note with the measured size and volume. The Artist makes sprites, small animations, simple vector images, slide sets (carousels) and short videos, all by script.
+
+- **Sprites** come as a sheet, a data file, an animated GIF and a small manifest. The Studio plays one frame by frame, with zoom, its named animations and its colours. The home server checks from the files that the frames match the animations.
+- **Slides** show as a set, checked for size and count from the files themselves.
+- **Videos** play in the Studio with a poster and six still frames. Titles and captions are pictures laid over the video. Speech to text uses the model already on this Mac and understands English only.
+- **The room** is a folder where you drop your own footage and sound with Finder (the Studio shows where, under "Where is this folder?"). Big files cannot go through the browser.
+- A vector image cannot run a script when shown. There is no 3D and no web-page video yet.
 
 ## What is switched off
 
 Each is an off switch or an account step. Nothing is done for you.
 
+- **Anything that needs the internet.** Agents have no internet, so jobs that would look things up online stay dim, with the reason shown.
 - **Publishing and sending.** No post, email or message can go out. To turn it on, connect the account first; each page says "Connect an account to turn this on."
 - **WhatsApp and the GST portal.** Off in the same way.
 - **India Compliance's paid features.** Off.
@@ -87,6 +131,7 @@ Each is an off switch or an account step. Nothing is done for you.
 
 ## Steps only you can do
 
+- **Fill the nine basics in Files** (about 20 minutes). Until then nine jobs wait and the agents' work sounds less like your company.
 - **The Checker's own Codex login.** Run `engine/fence/login-wizard.sh codex` and follow the steps. Until then the Checker uses your own Codex login through a link, and the proof shows one note. `engine/fence/login-wizard.sh --status` shows where each login stands. The Claude agents' login is `engine/fence/login-wizard.sh`.
 - **Connecting accounts.** Before anything can be published or sent, you connect the account it goes through.
 - **The books, before real use.** Run `engine/books/setup-wizard.sh`. It asks whether the company is registered for GST (and its GST number and scheme), the company's address, and the weekly days off and public holidays, then shows it all and saves it in one go. Until then invoices say "Nil-Rated" even where tax is charged, and leave can be drafted but not made final. `--dry-run` checks your answers without saving; `--status` shows what the books hold.
@@ -109,10 +154,10 @@ None of these is built or running. Each is a choice for later. Settings lists th
 
 ## Where things live
 
-- The engine's state: `~/.paperclip/uuu-engine/`. It holds the company records (`books/`), agents' task folders (`tasks/`), lessons (`lessons/`), company documents (`knowledge/docs/`), the Drafter's and Artist's tools (`cad/`, `art/`) and the last proof (`proof/last.json`).
+- The engine's state: `~/.paperclip/uuu-engine/`. It holds the company records (`books/`), agents' task folders (`tasks/`), lessons (`lessons/`), the company brain's files (`knowledge/docs/`), the Drafter's and Artist's tools (`cad/`, `art/`), your footage and the speech model (`media/`) and the last proof (`proof/last.json`).
 - Logs: `~/.paperclip/uuu-engine/logs/`. One file per part, plus `gate-refusals.log`, which lists what the gate turned away.
 - Secrets: `~/.paperclip/uuu-engine/secrets/`, and the agents' login in `agent.env` beside it. Only you can read them. They are never in the repository and are never shown here.
-- The company's files (agents, instructions, routines, ready-made goals): `engine/company/`.
+- The company's files (agents, instructions, routines, jobs): `engine/company/`.
 - Decisions and why: `docs/adr/`.
 
 ## What to do when a part says `unhealthy`
@@ -135,7 +180,9 @@ Your own Codex login and your own files are never touched by the engine.
 
 ## What the live trials showed
 
-On 11 November 2026 every department got a real task on the live engine, with made-up customers. Nothing was sent out.
+### The first trials, 11 November 2026
+
+Every department got a real task on the live engine, with made-up customers. Nothing was sent out.
 
 | Trial | Result |
 |---|---|
@@ -165,3 +212,7 @@ Known limits:
 - Each Claude agent now has its own Claude Code home under the state folder's `claude-home`. The older shared files there (`projects`, `sessions`, `backups`, `file-history`, `shell-snapshots`, `session-env`, `tmp`) are no longer used by anything and may be deleted.
 - If the board holds a task whose last run did real work, Needs you shows "A task stopped". You can stop the task or reply; the home screen will not restart it by itself.
 - Three content drafts from the Marketing trial are still in Needs you, so you have something to try Approve and Send back on. Nothing is published either way. The trial records in the books were removed.
+
+### The second trials, 12 November 2026
+
+(filled in by the orchestrator after the trials)

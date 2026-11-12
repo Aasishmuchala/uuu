@@ -38,7 +38,7 @@ _Avoid_: Firewall, proxy, API gateway
 
 **Home screen**:
 The owner's one front door to the engine, in a browser on this Mac.
-_Avoid_: Dashboard, portal, admin panel, UI
+_Avoid_: Portal, admin panel, UI
 
 **Needs you**:
 Everything waiting for the owner: work to accept, drafts to approve, questions, plans.
@@ -119,6 +119,14 @@ _Avoid_: Phase, level, tier
 **Dashboard**:
 The figures and records of one department.
 _Avoid_: Report, analytics, control panel
+
+**Recipe log**:
+The one file in the company brain that the home server writes: the Marketing scores, as numbers and plain labels only.
+_Avoid_: History, analytics
+
+**Room**:
+The folder where the owner drops footage and sound for the Artist's video work.
+_Avoid_: Library, media bin
 
 **Daily brief**:
 A short note each morning of what happened that needs no decision.
