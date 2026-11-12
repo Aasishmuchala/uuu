@@ -10,7 +10,7 @@ import http from "node:http";
 import https from "node:https";
 import { appendFileSync, chmodSync, mkdirSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
 import { checkToken } from "./token.mjs";
@@ -137,16 +137,24 @@ function readBody(req, limit) {
   });
 }
 
-// True when Node can write this answer's head as it came: a status from 100 to 999 and a
-// reason without control characters (the header lines were already checked by the parser).
+// True when this answer's head may be written as it came: a final status from 200 to 999 (a
+// 1xx is never a model answer) and a reason without control characters (the header lines
+// were already checked by the parser).
 function writableHead(a) {
-  return Number.isInteger(a.statusCode) && a.statusCode >= 100 && a.statusCode <= 999 &&
+  return Number.isInteger(a.statusCode) && a.statusCode >= 200 && a.statusCode <= 999 &&
     (a.statusMessage === undefined || !/[^\t\x20-\x7e\x80-\xff]/.test(a.statusMessage));
 }
 
-// True when any of the texts holds the key.
-function holdsKey(texts, key) {
-  return texts.some((t) => typeof t === "string" && t.includes(key));
+// The spellings of the key the answer is scanned for: as written, escaped inside a JSON
+// string (with and without `/` escaped as `\/`), and percent-encoded. Each distinct one once.
+export function keyForms(key) {
+  const json = JSON.stringify(key).slice(1, -1);
+  return [...new Set([key, json, json.replaceAll("/", "\\/"), encodeURIComponent(key)])];
+}
+
+// True when any of the texts holds any of the key's forms.
+function holdsKey(texts, forms) {
+  return texts.some((t) => typeof t === "string" && forms.some((f) => t.includes(f)));
 }
 
 // The length of the longest tail of `buf` that is the start of `key` (at most key length - 1).
@@ -328,7 +336,8 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
       agent,
     });
     calls.add(call);
-    const keyBytes = Buffer.from(key, "utf8");
+    const forms = keyForms(key);
+    const formBytes = forms.map((f) => Buffer.from(f, "utf8"));
     let ans = null;        // the provider's answer, once it started
     let watcher = null;
     let over = false;
@@ -387,7 +396,7 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
       clearTimeout(firstTimer);
       ans = a;
       // A head that holds the key is withheld whole, before anything is written.
-      if (holdsKey([a.statusMessage, ...a.rawHeaders], key)) return close("withheld");
+      if (holdsKey([a.statusMessage, ...a.rawHeaders], forms)) return close("withheld");
       noteProvider(a.statusCode, a.headers["retry-after"]);
       watcher = usageWatcher(a.headers, lim.countJsonBytes);
       // The head is written with the first bytes passed on (or at the end), so a short
@@ -418,10 +427,10 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
           res.once("drain", () => a.resume());
         }
       };
-      // A compressed answer (the provider ignored accept-encoding: identity) cannot be
-      // scanned for the key: it passes as it comes.
-      const enc = a.headers["content-encoding"];
-      const scan = enc === undefined || /^\s*identity\s*$/i.test(enc);
+      // Every answer is scanned, whatever its content-encoding says, for the key as written,
+      // JSON-escaped and percent-encoded. Not caught: a key inside a really compressed answer
+      // (the provider ignored accept-encoding: identity), or any other re-encoding of it
+      // (base64, split by markup, another letter case).
       let carry = Buffer.alloc(0);
       touch();
       a.on("data", (c) => {
@@ -430,11 +439,12 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
         if (watcher) {
           try { watcher.feed(c); } catch { watcher = null; }
         }
-        if (!scan) return emit(c);
         const all = carry.length ? Buffer.concat([carry, c]) : c;
-        if (all.indexOf(keyBytes) !== -1) return close("withheld");
-        // Hold back only the tail that could be the start of the key (at most its length - 1).
-        const keep = keyPrefixTail(all, keyBytes);
+        if (formBytes.some((f) => all.indexOf(f) !== -1)) return close("withheld");
+        // Hold back only the tail that could be the start of a form of the key (at most the
+        // longest form's length - 1).
+        let keep = 0;
+        for (const f of formBytes) keep = Math.max(keep, keyPrefixTail(all, f));
         carry = Buffer.from(all.subarray(all.length - keep));
         emit(all.subarray(0, all.length - keep));
       });
@@ -583,11 +593,36 @@ function ownFolder(path) {
   chmodSync(path, 0o700);
 }
 
-// The last resort: an error nothing else caught is logged by its code only (never its
+const ENGINE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+
+// Describes an error nothing else caught by its name, its code and the first stack frame in
+// the engine as `<file base name>:<line>`; never its message, a path or a value.
+export function describeError(err) {
+  const isObj = err !== null && typeof err === "object";
+  const name = isObj && typeof err.name === "string" && /^[A-Za-z]{1,40}$/.test(err.name) ? err.name : "unknown";
+  const code = isObj && typeof err.code === "string" && /^[A-Z0-9_]{1,64}$/.test(err.code) ? err.code : null;
+  let place = "no engine frame";
+  if (isObj && typeof err.stack === "string") {
+    // The stack starts with the name and the message; frames follow the message's lines.
+    const skip = typeof err.message === "string" ? err.message.split("\n").length : 1;
+    for (const line of err.stack.split("\n").slice(skip)) {
+      const m = /^\s+at (?:.*\()?(?:file:\/\/)?(\/[^():]+):(\d+):\d+\)?$/.exec(line);
+      if (!m) continue;
+      let file;
+      try { file = decodeURIComponent(m[1]); } catch { continue; }
+      if (!file.startsWith(`${ENGINE_ROOT}/`)) continue;
+      const base = basename(file);
+      if (/^[A-Za-z0-9._-]{1,80}$/.test(base)) place = `${base}:${m[2]}`;
+      break;
+    }
+  }
+  return [name, code, `at ${place}`].filter(Boolean).join(" ");
+}
+
+// The last resort: an error nothing else caught is logged as describeError says (never its
 // message, a header or a body), and the relay keeps serving.
 function lastResort(err) {
-  const code = err && typeof err.code === "string" && /^[A-Z0-9_]{1,64}$/.test(err.code) ? err.code : "unknown";
-  console.log(`${new Date().toISOString()} relay caught an error it did not expect: ${code}`);
+  console.log(`${new Date().toISOString()} relay caught an error it did not expect: ${describeError(err)}`);
 }
 
 async function main() {

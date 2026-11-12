@@ -13,6 +13,8 @@
 //                              quote the key it was sent back: in a 401 or 200 JSON body, in an
 //                              answer header, in the middle of a stream, or split across two
 //                              writes of a stream
+//   echoForm: "json" | "jsonSlash" | "percent"   how the echoed key is spelled (default: as is)
+//   encodingLabel: "<text>"    the content-encoding the echo answers claim (the bytes stay plain)
 // `seen` records { method, path, rawHeaders, body } of every request (body as text).
 import http from "node:http";
 import { readFileSync } from "node:fs";
@@ -116,21 +118,38 @@ function stream(res, events, delayMs, gzip) {
   next();
 }
 
-function echoKey(res, where, key) {
-  if (where === "body401") return json(res, 401, { type: "error", error: { type: "authentication_error", message: `Invalid API key: ${key}` } });
-  if (where === "body200") return json(res, 200, { ...messageAnswer("x"), content: [{ type: "text", text: `your key is ${key}` }] });
-  if (where === "header") return json(res, 200, messageAnswer("x"), { "X-Your-Key": key });
-  res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8" });
+// The key as the stand-in quotes it: as written, JSON-escaped (`json`), JSON-escaped with `/`
+// as `\/` (`jsonSlash`), or percent-encoded (`percent`). It is put into the answer's text as
+// is, with no further escaping, so the relay sees exactly that form.
+function keyShown(key, form) {
+  const json = JSON.stringify(key).slice(1, -1);
+  if (form === "json") return json;
+  if (form === "jsonSlash") return json.replaceAll("/", "\\/");
+  if (form === "percent") return encodeURIComponent(key);
+  return key;
+}
+
+function echoKey(res, b, key) {
+  const where = b.echoKey;
+  const shown = keyShown(key, b.echoForm);
+  const label = b.encodingLabel !== undefined ? { "Content-Encoding": b.encodingLabel } : {};
+  const plain = (status, text, extra = {}) => {
+    res.writeHead(status, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(text), ...label, ...extra });
+    res.end(text);
+  };
+  if (where === "body401") return plain(401, `{"type":"error","error":{"type":"authentication_error","message":"Invalid API key: ${shown}"}}`);
+  if (where === "body200") return plain(200, `{"type":"message","content":[{"type":"text","text":"your key is ${shown}"}]}`);
+  if (where === "header") return plain(200, JSON.stringify(messageAnswer("x")), { "X-Your-Key": shown });
+  res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", ...label });
   res.flushHeaders();
-  const event = (text) => `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text } })}\n\n`;
+  const event = (text) => `event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"${text}"}}\n\n`;
   res.write(`${event("first part, no secret here")}event: ping\ndata: {"type":"ping"}\n\n`);
   if (where === "stream") {
-    setTimeout(() => { res.write(event(`the key is ${key} and more`)); setTimeout(() => res.end(event("after")), 100); }, 100);
+    setTimeout(() => { res.write(event(`the key is ${shown} and more`)); setTimeout(() => res.end(event("after")), 100); }, 100);
     return undefined;
   }
-  const half = Math.floor(key.length / 2);
-  const whole = event(`the key is ${key} and more`);
-  const at = whole.indexOf(key) + half;
+  const whole = event(`the key is ${shown} and more`);
+  const at = whole.indexOf(shown) + Math.floor(shown.length / 2);
   setTimeout(() => { res.write(whole.slice(0, at)); setTimeout(() => { res.write(whole.slice(at)); res.end(event("after")); }, 150); }, 100);
   return undefined;
 }
@@ -160,7 +179,7 @@ export async function startProvider({ models = OMEGA_MODELS.data, behaviour = {}
       const modelPath = req.method === "POST" && ["/v1/messages", "/v1/messages/count_tokens", "/v1/responses", "/api/v1/responses"].includes(path);
       if (!modelPath) return json(res, 404, { type: "error", error: { type: "not_found_error", message: "Not found." } });
       if (b.hang) return undefined;
-      if (b.echoKey) return echoKey(res, b.echoKey, keyOf(req.rawHeaders)[0] || "");
+      if (b.echoKey) return echoKey(res, b, keyOf(req.rawHeaders)[0] || "");
       if (!keyOk) return json(res, 401, { type: "error", error: { type: ERRORS[401][0], message: ERRORS[401][1] } });
       if (b.status === 302) {
         res.writeHead(302, { Location: b.location || "http://127.0.0.1:9/elsewhere", "Content-Length": 0 });

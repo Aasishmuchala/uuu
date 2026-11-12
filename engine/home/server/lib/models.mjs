@@ -396,6 +396,9 @@ async function askThroughRelay(relayUrl, secret, slug, program, model, limits) {
   const json = parseJson(r.text);
   const relayCode = obj(json) && typeof json.code === "string" && json.code.startsWith("relay_") ? json.code : null;
   if (relayCode === "relay_upstream_down") return { answered: false, reason: "unreachable", signal: "unreachable" };
+  // The relay withheld the provider's answer because it held the key: the model did not answer, and
+  // nothing of that answer is kept (only the reason is).
+  if (relayCode === "relay_key_in_answer") return { answered: false, reason: "no_answer", signal: null };
   if (relayCode) return { answered: false, reason: "relay_off", signal: null };
   const signal = signalOf(r.status);
   if (signal === "ok") return answerText(json).trim() ? { answered: true, reason: null, signal } : { answered: false, reason: "no_answer", signal };

@@ -161,7 +161,7 @@ What is sent where:
 - Your key stays outside the fence, in the secrets folder. Only the model relay uses it. Agents can reach only the gate and the model relay, and no outside host at all.
 - Your Claude login is never sent to the relay or to Omega Plus.
 - Your Codex login cannot be read by the Checker while Omega Plus is on.
-- If Omega Plus ever quoted your key back in an answer, the relay would withhold that answer, so the key cannot reach an agent.
+- If Omega Plus ever quoted your key back in an answer, the relay withholds that answer. It looks for the key as written and in its usual escaped forms.
 - Each agent is held to the model picked for it. Nine agents run on the Claude program, so they get the best Claude-named model the list has (Fable 5.1 first). The Checker stays on the Codex program with the best GPT-named model, so its checks come from a different maker.
 
 If something goes wrong:

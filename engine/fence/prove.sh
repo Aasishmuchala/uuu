@@ -37,6 +37,7 @@ cleanup() {
   rm -f "$POLICY_FILE" "$LESSONS_FILE" "$KNOWLEDGE_MARK" "$KNOWLEDGE/.fence-proof-write" "$ENV_FILE"
   rm -f "$STATE_DIR/media/.fence-proof" "$STATE_DIR/media/.fence-proof-new"
   rm -rf "${STATE_DIR:?}/claude-home/$OTHER_ID" "${STATE_DIR:?}"/tasks/_proof-answer.* "${STATE_DIR:?}/codex-home/_proof-login"
+  rm -rf "${CFG_INSTANCE_ROOT:?}"/companies/*/codex-home/_proof-home.*
   if [[ -n "$KEY_ID" ]]; then
     curl -s -m 10 -o /dev/null -X DELETE "$BOARD/api/agents/$KEY_AGENT/keys/$KEY_ID" || true
   fi
@@ -138,15 +139,20 @@ fence_checks() {
   # In provider mode Codex runs with no login: neither a Codex home that links to
   # the login (as paperclip's homes do) nor the engine's own shared home may open it.
   if [[ "$MODE" == provider && "$RUN" == "$HERE/bin/codex" ]]; then
+    # A PASS must mean a real file was refused: with no login file there (seen from
+    # outside the fence, without reading it) there is nothing to try.
     local login_home="$STATE_DIR/codex-home/_proof-login" shared="$STATE_DIR/codex-home/auth.json"
     rm -rf "$login_home"
-    mkdir -p "$STATE_DIR/codex-home" && mkdir -m 700 "$login_home" && ln -s "$shared" "$login_home/auth.json" \
-      || say FAIL "could not make a Codex home that links to the login"
-    CODEX_HOME="$login_home" blocked "read the Codex login" \
-      "cat \"\$CODEX_HOME/auth.json\" >/dev/null || cat $shared >/dev/null || cat ~/.codex/auth.json >/dev/null"
-    blocked "read the Codex login from the engine's own Codex home" \
-      "cat \"\$CODEX_HOME/auth.json\" >/dev/null || cat $shared >/dev/null"
-    rm -rf "$login_home"
+    if [[ ! -f "$shared" ]]; then
+      say SKIP "whether $WHO can read the Codex login (no login file at $shared to try)"
+      say SKIP "whether $WHO can read the Codex login from the engine's own Codex home (no login file at $shared to try)"
+    else
+      mkdir -m 700 "$login_home" && ln -s "$shared" "$login_home/auth.json" \
+        || say FAIL "could not make a Codex home that links to the login"
+      CODEX_HOME="$login_home" blocked "read the Codex login" 'cat "$CODEX_HOME/auth.json" >/dev/null'
+      blocked "read the Codex login from the engine's own Codex home" "cat $shared >/dev/null"
+      rm -rf "$login_home"
+    fi
   fi
   blocked "read your other Claude sessions' temp files" "ls /private/tmp/claude-$(id -u)"
   blocked "reach other local services (port 5432)"      'curl -s -m 5 -f http://127.0.0.1:5432/ -o /dev/null'
@@ -274,6 +280,33 @@ if [[ "$MODE" == provider ]]; then
     [[ -n "$once" ]] && rm -rf "$once"
     if [[ "$out" == *OK* ]]; then say PASS "the Codex agent answers from inside the fence through the model relay"
     else say FAIL "the Codex agent did not answer from inside the fence through the model relay: ${out:0:200}"; fi
+    # Every real Checker run gets a Codex home paperclip made under the company's
+    # codex-home, its auth.json a link to the login, which the fence now refuses.
+    # A throwaway home of that shape (a link to the company's link; the login is
+    # never read here), called with paperclip's own arguments; removed again.
+    co="$(/usr/bin/python3 -I -c "import json,re,sys
+c=json.load(open(sys.argv[1])).get('companyId')
+print(c if isinstance(c,str) and re.fullmatch('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',c) else '')" \
+      "$STATE_DIR/ids.json" 2>/dev/null)"
+    company_home="$CFG_INSTANCE_ROOT/companies/$co/codex-home"
+    if [[ -z "$co" ]]; then
+      say SKIP "the Codex agent answering from a Codex home that links to the login, as paperclip's do (ids.json has no company: run engine setup)"
+    elif [[ ! -L "$company_home/auth.json" || ! -f "$company_home/auth.json" ]]; then
+      say SKIP "the Codex agent answering from a Codex home that links to the login, as paperclip's do (paperclip has not linked a login into the company's Codex home yet)"
+    else
+      ph="$(mktemp -d "$company_home/_proof-home.XXXXXX")" && ln -s "$company_home/auth.json" "$ph/auth.json" || ph=""
+      once="$(mktemp -d "$STATE_DIR/tasks/_proof-answer.XXXXXX")" || once=""
+      out="$([[ -n "$ph" && -n "$once" ]] && cd "$once" && printf 'Reply with exactly: OK\n' \
+        | CODEX_HOME="$ph" PAPERCLIP_COMPANY_ID="$co" PAPERCLIP_AGENT_ID="$as" within 180 "$RUN" \
+          -c features.shell_snapshot=false -c 'shell_environment_policy.inherit="all"' \
+          -c shell_environment_policy.ignore_default_excludes=true -c 'shell_environment_policy.include_only=["PATH","HOME"]' \
+          exec --json --dangerously-bypass-approvals-and-sandbox --model codex - 2>/dev/null)"
+      if [[ -n "$ph" && -L "$ph/auth.json" && "$out" == *'"text":"OK"'* ]]; then
+        say PASS "the Codex agent answers from a Codex home that links to the login, as paperclip's do, with the login refused"
+      else say FAIL "the Codex agent did not answer from a Codex home that links to the login, as paperclip's do"; fi
+      [[ -n "$ph" ]] && rm -rf "$ph"
+      [[ -n "$once" ]] && rm -rf "$once"
+    fi
   fi
 elif [[ -e "$STATE_DIR/codex-home/auth.json" ]]; then
   out="$(cd "$WS" && within 180 "$RUN" exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "Reply with exactly: OK" </dev/null 2>/dev/null | tail -1)"

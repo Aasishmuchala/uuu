@@ -29,6 +29,7 @@ AGENT_A = "11111111-2222-4333-8444-555555555555"
 AGENT_B = "66666666-7777-4888-9999-aaaaaaaaaaaa"
 SECRET = "b" * 64
 PICK = "claude-gpt-6-1-sol"
+COMPANY = "aaaaaaaa-1111-4111-8111-0000000000c0"
 CODEX_BIN = "node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex"
 STAND_IN = """#!/bin/bash
 for a in "$@"; do echo "arg=$a"; done
@@ -305,22 +306,90 @@ class CodexWrapperTests(unittest.TestCase):
         return [(fence[i], fence[i + 1]) for i in range(len(fence) - 1) if fence[i] in ("--read", "--write")]
 
     def test_provider_mode_shares_no_codex_login(self):
-        for shape in ("plain", "link", "chain"):
+        for shape in ("link", "chain", "managed"):
             with self.subTest(shape=shape):
                 self.tearDown(); self.setUp()
-                home = self.login_chain(shape)
+                home = self.managed_home() if shape == "managed" else self.login_chain(shape)
+                extra_env = {"CODEX_HOME": home, "PAPERCLIP_COMPANY_ID": COMPANY}
                 self.provider(mode="plans")
-                plans = self.shared_paths(self.ok(self.run_codex(PAPERCLIP_ARGS, AGENT_A, {"CODEX_HOME": home}))[0])
+                plans = self.shared_paths(self.ok(self.run_codex(PAPERCLIP_ARGS, AGENT_A, extra_env))[0])
                 self.provider()
                 for extra in (PAPERCLIP_ARGS, ["--fence-check", "true"]):
-                    args, _ = self.ok(self.run_codex(extra, AGENT_A, {"CODEX_HOME": home}))
+                    args, _ = self.ok(self.run_codex(extra, AGENT_A, extra_env))
                     paths = self.shared_paths(args)
                     self.assertFalse([p for _, p in paths if "auth.json" in p], (shape, paths))
                     # Everything else that plans mode shares is still shared.
                     self.assertEqual(paths, [kp for kp in plans if not kp[1].endswith("/auth.json")])
+                    self.assertTrue(os.path.islink(os.path.join(home, "auth.json")))
                 # Plans mode still shares the login chain as before.
-                want = {"plain": 0, "link": 2, "chain": 3}[shape]
+                want = {"link": 2, "chain": 3, "managed": 3}[shape]
                 self.assertEqual(len([p for _, p in plans if p.endswith("/auth.json")]), want, plans)
+
+    def managed_home(self):
+        """A home as paperclip makes one for a Checker run: under the company's
+        codex-home, its auth.json a link to the company's, which links to the
+        engine's shared login (a made-up file here)."""
+        company_home = os.path.join(self.inst, "companies", COMPANY, "codex-home")
+        home = os.path.join(company_home, "skill-runtimes", AGENT_A, "d1gest")
+        os.makedirs(home)
+        shared = os.path.join(self.state, "codex-home")
+        self.write_private(os.path.join(shared, "auth.json"), '{"marker":"made-up"}')
+        os.symlink(os.path.join(shared, "auth.json"), os.path.join(company_home, "auth.json"))
+        os.symlink(os.path.join(company_home, "auth.json"), os.path.join(home, "auth.json"))
+        return home
+
+    def test_provider_mode_refuses_a_login_file_in_the_agents_own_home(self):
+        # A plain auth.json in the home the run uses would be readable in the fence.
+        for home in (self.login_chain("plain"), self.managed_home()):
+            login = os.path.join(home, "auth.json")
+            if os.path.islink(login):
+                os.remove(login)
+                self.write_private(login, '{"marker":"made-up"}')
+            extra_env = {"CODEX_HOME": home, "PAPERCLIP_COMPANY_ID": COMPANY}
+            self.provider(mode="plans")
+            self.ok(self.run_codex(PAPERCLIP_ARGS, AGENT_A, extra_env))
+            self.provider()
+            for extra in (PAPERCLIP_ARGS, ["--fence-check", "true"]):
+                self.refused(self.run_codex(extra, AGENT_A, extra_env),
+                             "a Codex login sits in this agent's own Codex home")
+            # Never deleted.
+            self.assertTrue(os.path.isfile(login) and not os.path.islink(login))
+
+    def mode_flips(self, first, second):
+        """A stand-in model_mode.py whose --mode answers `first` and whose next
+        answer (--mode or --for-run) is `second`."""
+        count = os.path.join(self.tmp, "mode-calls")
+        stand_in = ("import os, sys\n"
+                    "p = %r\n"
+                    "n = int(open(p).read()) if os.path.exists(p) else 0\n"
+                    "open(p, 'w').write(str(n + 1))\n"
+                    "mode = %r if n == 0 else %r\n"
+                    "if sys.argv[1] == '--for-run' and mode == 'provider':\n"
+                    "    t = 'v1.a.%s.9999999999.' + 'c' * 64\n"
+                    "    print('provider\\nhttp://127.0.0.1:3120\\n%s\\n' + t)\n"
+                    "elif sys.argv[1] == '--for-run':\n"
+                    "    print('plans\\n\\n\\n')\n"
+                    "else:\n"
+                    "    print(mode)\n") % (count, first, second, AGENT_A, PICK)
+        with open(os.path.join(self.engine, "fence", "model_mode.py"), "w") as fh:
+            fh.write(stand_in)
+        return count
+
+    def test_a_mode_switch_while_starting_is_refused(self):
+        for first, second in (("plans", "provider"), ("provider", "plans")):
+            for agent in (AGENT_A, None):
+                with self.subTest(first=first, second=second, agent=agent):
+                    count = self.mode_flips(first, second)
+                    if os.path.exists(count):
+                        os.remove(count)
+                    self.refused(self.run_codex(PAPERCLIP_ARGS, agent),
+                                 "the model mode changed while this run was starting")
+        # The control: the same stand-in answering the same mode twice runs.
+        for mode in ("plans", "provider"):
+            count = self.mode_flips(mode, mode)
+            if os.path.exists(count):
+                os.remove(count)
+            self.ok(self.run_codex(PAPERCLIP_ARGS, AGENT_A))
 
     def test_provider_mode_swaps_the_shared_home_for_an_empty_one(self):
         # The engine's shared home holds the login file itself: in provider mode a

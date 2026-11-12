@@ -7,7 +7,7 @@ import net from "node:net";
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createRelay } from "../relay.mjs";
+import { createRelay, describeError, keyForms } from "../relay.mjs";
 import { mintToken } from "../token.mjs";
 import { startProvider, STUB_USAGE } from "../../test/stubs/provider.mjs";
 
@@ -613,7 +613,12 @@ async function rawUpstream(answers) {
     const answer = answers[Math.min(n, answers.length - 1)];
     n += 1;
     sock.on("error", () => {});
-    sock.once("data", () => { if (answer !== null) sock.write(answer); });
+    // An answer is raw text, or { text, end: true } to close the connection after it.
+    sock.once("data", () => {
+      if (answer === null) return;
+      sock.write(typeof answer === "string" ? answer : answer.text);
+      if (answer.end) sock.end();
+    });
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   return { server, url: `http://127.0.0.1:${server.address().port}`, count: () => n, close: () => new Promise((r) => { for (const k of socks) k.destroy(); server.close(r); }) };
@@ -750,4 +755,76 @@ test("the key in the middle of a stream, or split across two chunks → the stre
     assert.ok(!got.includes("after"), "nothing after the key is passed");
     assert.deepEqual(lines.map((l) => l.replace(/^\S+ /, "")), ["refused relay_key_in_answer"]);
   }
+});
+
+// ---- the second review --------------------------------------------------------------------
+test("a bare 101 or 199 answer (no upgrade headers) → 502 relay_upstream_down, never written", async () => {
+  for (const bare of [
+    "HTTP/1.1 101 X\r\n\r\n",
+    { text: "HTTP/1.1 101 X\r\n\r\n", end: true },
+    { text: "HTTP/1.1 199 X\r\n\r\n", end: true },
+    "HTTP/1.1 199 X\r\nContent-Length: 0\r\n\r\n",
+  ]) {
+    const stub = await rawUpstream([bare, GOOD_ANSWER]);
+    const r1 = makeRelay({ upstream: stub.url, limits: { firstByteMs: 1000, statusEveryMs: 20 } });
+    const p = await r1.listen();
+    const t0 = Date.now();
+    const r = await request("POST", "/v1/messages", { port: p, headers: jsonAuth(), body: "{}" });
+    assertRefusal(r, 502, "relay_upstream_down");
+    assert.ok(Date.now() - t0 < 3000);
+    assert.equal((await request("POST", "/v1/messages", { port: p, headers: jsonAuth(), body: "{}" })).status, 200);
+    await r1.close();
+    await stub.close();
+  }
+});
+
+test("an answer mislabelled utf-8, none, empty or identity, identity is still scanned for the key", async () => {
+  for (const label of ["utf-8", "none", "", "identity, identity", "gzip"]) {
+    for (const where of ["body200", "stream"]) {
+      provider.behaviour.echoKey = where;
+      provider.behaviour.encodingLabel = label;
+      const got = await rawCall();
+      assert.ok(!got.includes(KEY), `the key passed with Content-Encoding "${label}" (${where})`);
+      assert.ok(where === "stream" || statusOf(got) === 502, `${label} ${where}`);
+    }
+  }
+});
+
+test("the key echoed JSON-escaped or percent-encoded, whole or split across two chunks → never reaches the caller", async () => {
+  const odd = 'sk/omega+MADE=up"q\\x/0123456789==';
+  put(paths.key, `${odd}\n`);
+  const forms = keyForms(odd);
+  assert.equal(forms.length, 4, "four distinct spellings");
+  for (const echoForm of ["json", "jsonSlash", "percent", undefined]) {
+    for (const where of ["body401", "body200", "header", "stream", "split"]) {
+      provider.behaviour.echoKey = where;
+      provider.behaviour.echoForm = echoForm;
+      lines = [];
+      const got = await rawCall();
+      for (const f of forms) assert.ok(!got.includes(f), `${f} reached the caller (${echoForm} ${where})`);
+      assert.ok(!got.includes(encodeURIComponent(odd).slice(-12)) || where === "header", `the tail of the percent form passed (${echoForm} ${where})`);
+      assert.deepEqual(lines.map((l) => l.replace(/^\S+ /, "")), ["refused relay_key_in_answer"], `${echoForm} ${where}`);
+    }
+  }
+});
+
+test("describeError gives the name, the code and the engine frame, never the message or a path", () => {
+  const where = () => { const o = null; return o.field; };
+  let typeErr;
+  try { where(); } catch (e) { typeErr = e; }
+  const line = describeError(typeErr);
+  assert.match(line, /^TypeError at relay\.test\.mjs:\d+$/);
+  const coded = Object.assign(new Error(`secret ${KEY} /Users/x/private`), { code: "ERR_HTTP_INVALID_STATUS_CODE" });
+  const codedLine = describeError(coded);
+  assert.match(codedLine, /^Error ERR_HTTP_INVALID_STATUS_CODE at relay\.test\.mjs:\d+$/);
+  // A message that forges a frame line is skipped with the message.
+  const forged = new Error("x\n    at file:///Users/aasish/uuu/engine/forged.mjs:1:1");
+  assert.match(describeError(forged), /^Error at relay\.test\.mjs:\d+$/);
+  const outside = new Error("m");
+  outside.stack = "Error: m\n    at node:_http_server:416:11\n    at /usr/lib/x/elsewhere.js:3:4";
+  assert.equal(describeError(outside), "Error at no engine frame");
+  assert.equal(describeError("a string with a key in it"), "unknown at no engine frame");
+  assert.equal(describeError(undefined), "unknown at no engine frame");
+  assert.equal(describeError({ name: "Weird name!", code: "lower" }), "unknown at no engine frame");
+  for (const out of [line, codedLine]) assert.ok(!out.includes(KEY) && !out.includes("/Users") && !out.includes("secret"));
 });

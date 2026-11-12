@@ -37,6 +37,20 @@ def plant(folder, mark):
             fh.write("open(%r, 'a').write(%r)\nraise SystemExit(99)\n" % (mark, name + "\n"))
 
 
+def real_calls(rel):
+    """The code of every `/usr/bin/python3 -I -c` call in a script, as bash hands
+    it to Python (double-quoted text unescaped)."""
+    with open(os.path.join(ENGINE, rel), encoding="utf-8") as fh:
+        text = fh.read()
+    out = []
+    for m in re.finditer(r'/usr/bin/python3 -I -c (?:"((?:[^"\\]|\\.)*)"|\'([^\']*)\')', text):
+        if m.group(1) is not None:
+            out.append(re.sub(r'\\([\\"$`])', r"\1", m.group(1)))
+        else:
+            out.append(m.group(2))
+    return out
+
+
 class StaticTests(unittest.TestCase):
     def test_every_unfenced_python3_is_isolated(self):
         for rel in SCRIPTS:
@@ -55,8 +69,8 @@ class StaticTests(unittest.TestCase):
         # Fenced calls go into the task folder in a subshell only.
         self.assertIn('inside() { (cd "$WS" && ', text)
         # The provider-mode answer checks get a folder of their own, removed again.
-        self.assertEqual(text.count('once="$(mktemp -d "$STATE_DIR/tasks/_proof-answer.XXXXXX")"'), 2)
-        self.assertEqual(text.count('rm -rf "$once"'), 2)
+        self.assertEqual(text.count('once="$(mktemp -d "$STATE_DIR/tasks/_proof-answer.XXXXXX")"'), 3)
+        self.assertEqual(text.count('rm -rf "$once"'), 3)
 
     def test_helpers_start_isolated_from_a_planted_folder(self):
         # Each helper the scripts start with -I, from a folder full of planted
@@ -76,25 +90,47 @@ class StaticTests(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_isolation_is_what_stops_the_import(self):
-        # The test above means something: without -I the planted module runs.
+    def test_real_calls_import_nothing_planted_and_would_without_isolation(self):
+        # Every `python3 -I -c` in the proof that imports json or re (modules that
+        # are read from disk when first imported), run as written from a folder
+        # planted with those modules: the planted file is not run. The control, the
+        # same call with -I taken out, does run it, so this test can fail.
+        calls = [c for c in real_calls("fence/prove.sh") if re.search(r"\bimport [^\n]*\b(json|re)\b", c)]
+        self.assertGreaterEqual(len(calls), 6, calls)
         tmp = tempfile.mkdtemp(prefix="fence-cwd-")
         try:
+            ids = os.path.join(tmp, "ids.json")
+            with open(ids, "w") as fh:
+                json.dump({"companyId": "aaaaaaaa-1111-4111-8111-0000000000c0",
+                           "agents": {"builder": AGENT_A, "checker": AGENT_A}}, fh)
+            planted = os.path.join(tmp, "task")
+            os.makedirs(planted)
             mark = os.path.join(tmp, "MARK")
-            plant(tmp, mark)
-            bare = subprocess.run(["/usr/bin/python3", "-c", "import json"], cwd=tmp, capture_output=True)
-            self.assertEqual(bare.returncode, 99)
-            os.remove(mark)
-            iso = subprocess.run(["/usr/bin/python3", "-I", "-c", "import json,re,hmac"], cwd=tmp,
-                                 capture_output=True)
-            self.assertEqual(iso.returncode, 0)
-            self.assertFalse(os.path.exists(mark))
+            plant(planted, mark)
+            for code in calls:
+                for flags, imported in ((["-I"], False), ([], True)):
+                    if os.path.exists(mark):
+                        os.remove(mark)
+                    r = subprocess.run(["/usr/bin/python3"] + flags + ["-c", code, ids, "builder"], cwd=planted,
+                                       input='{"id":"x","token":""}', capture_output=True, text=True, timeout=30)
+                    self.assertEqual(os.path.exists(mark), imported, (flags, code, r.stderr))
+                    self.assertEqual(r.returncode == 99, imported, (flags, code, r.stderr))
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_the_wrappers_one_liners_need_nothing_from_disk(self):
+        # The wrappers' and fence-run's own -c calls import only os and pwd, which
+        # Python has loaded before it looks at any folder; -I is kept on them anyway.
+        for rel in ("fence/bin/claude", "fence/bin/codex", "fence/fence-run"):
+            calls = real_calls(rel)
+            self.assertTrue(calls, rel)
+            for code in calls:
+                self.assertTrue(code.startswith("import os,pwd;"), (rel, code))
+
 
 class WrapperTests(unittest.TestCase):
-    """Both wrappers, run from a task folder full of planted modules, in both modes."""
+    """Both wrappers still run end to end with every helper isolated, in both modes
+    (an import that -I breaks, as it once broke fence_inputs.py, fails here)."""
 
     def setUp(self):
         self.tmp = os.path.realpath(tempfile.mkdtemp(prefix="fence-cwd-"))

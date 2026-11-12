@@ -4,8 +4,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, chmodSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, chmodSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { createRelay } from "../../../relay/relay.mjs";
 import { OMEGA_MODELS, startProvider } from "../../../test/stubs/provider.mjs";
 import { readShape, sameShape } from "../lib/shape.mjs";
@@ -395,6 +395,30 @@ test("a model that does not answer is said so: an error answer, an unreachable p
     assert.equal(r.json.lastTest.key, "unreachable");
     assert.equal(r.json.key.state, "unreachable");
     assert.ok(r.json.lastTest.models.every((m) => m.reason === "unreachable"));
+  });
+});
+
+test("an answer the relay withholds because it quotes the key is no_answer, and the key is kept nowhere", async () => {
+  await withModels(async ({ h, provider }) => {
+    const key = await ready(h);
+    const texts = [];
+    for (const where of ["body200", "body401", "header", "stream", "split"]) {
+      provider.behaviour.echoKey = where;
+      const r = await post(h, "/api/models/test");
+      texts.push(r.text, (await call(h.url, "GET", "/api/models")).text);
+      assert.equal(r.status, 200, where);
+      assert.ok(r.json.lastTest.models.length > 0);
+      for (const m of r.json.lastTest.models) assert.deepEqual([m.answered, m.reason], [false, "no_answer"], `${where} ${m.model}`);
+    }
+    for (const t of texts) assert.ok(!t.includes(key), "an answer holds the key");
+    const walk = (dir) => readdirSync(dir).flatMap((n) => {
+      const f = join(dir, n);
+      return statSync(f).isDirectory() ? walk(f) : [f];
+    });
+    for (const f of walk(h.state)) {
+      if (f === h.config.paths.providerKey) continue;
+      assert.ok(!readFileSync(f).includes(key), `${f} holds the key`);
+    }
   });
 });
 

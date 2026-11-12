@@ -62,6 +62,12 @@ $PLAN
 EOF
 [[ -n "$CODEX_HOME" ]] || refuse "no Codex home was worked out"
 mkdir -p "$CODEX_HOME"
+# A login that is a plain file inside the home the run uses would be readable in
+# the fence (the home is). In provider mode such a run is refused; the file is
+# never deleted. A link is fine: its target is not shared (see above).
+if [[ "$LOGIN_MODE" == provider && -f "$CODEX_HOME/auth.json" && ! -L "$CODEX_HOME/auth.json" ]]; then
+  refuse "a Codex login sits in this agent's own Codex home ($CODEX_HOME/auth.json), and the provider is on, so the run could read it. Remove that file, or switch the provider off in Settings"
+fi
 export CODEX_HOME
 # The native Codex program and the relay that gives it pipes of its own.
 PATHS+=(--read "$ENGINE_DIR/node_modules/@openai" --read "$FENCE_DIR/steady-pipes.py")
@@ -95,9 +101,12 @@ done
 MODEL_MODE=plans
 MODEL_PICK=""
 RELAY_URL=""
+_read_again=""
 if [[ -z "$QUOTA_CHECK" && "$*" != "--version" && "$*" != "-V" ]]; then
+  _read_again=1
   if [[ -z "${PAPERCLIP_AGENT_ID:-}" ]]; then
     MODEL_MODE="$(/usr/bin/python3 -I "$FENCE_DIR/model_mode.py" --mode)" || exit 78
+    [[ "$MODEL_MODE" == "$LOGIN_MODE" ]] || refuse "the model mode changed while this run was starting"
     [[ "$MODEL_MODE" == plans ]] \
       || refuse "the provider is on, and a run without an agent id has no model. The proof passes a real agent's id."
   else
@@ -112,6 +121,12 @@ if [[ -z "$QUOTA_CHECK" && "$*" != "--version" && "$*" != "-V" ]]; then
     unset _run
   fi
 fi
+# The mode was read once above to decide what to share: a switch in between would
+# give one run both the login and a relay token.
+if [[ -n "$_read_again" && "$MODEL_MODE" != "$LOGIN_MODE" ]]; then
+  refuse "the model mode changed while this run was starting"
+fi
+unset _read_again
 if [[ "$MODEL_MODE" == provider ]]; then
   [[ "$RELAY_URL" =~ ^http://127\.0\.0\.1:[0-9]{1,5}$ && "$MODEL_PICK" =~ ^[a-z0-9.-]{1,80}$ \
      && "$ENGINE_RELAY_TOKEN" =~ ^v1\.a\.[0-9a-f-]+\.[0-9]+\.[0-9a-f]{64}$ ]] \
