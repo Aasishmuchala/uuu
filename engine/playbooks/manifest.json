@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "playbooks": [
+    {
+      "name": "sthyra-copywriting",
+      "source": "~/.claude/skills/sthyra-copywriting",
+      "origin": "own",
+      "licence": "own",
+      "files": ["SKILL.md", "references/*.md"],
+      "licenceFiles": [],
+      "roles": ["marketer", "builder", "art-director"],
+      "kinds": ["post", "newsletter", "carousel", "poster", "page"],
+      "note": "In this engine: use it for every piece of words: posts, newsletters, the lines on carousels and posters, and page copy. Read SKILL.md, then references/editing-gates.md before you report, plus the one file for the medium (landing-pages.md for a page, emails.md for a newsletter, headlines-and-hooks.md for any first line; ads-and-ugc.md for the words only, never for making an ad). Its research stage assumes you can fetch reviews, forums and ad libraries: you cannot. Use the company's own files in $UUU_KNOWLEDGE_DIR (customers, calls, past posts) and the Researcher's notes in $UUU_RESEARCH_DIR; quote only words you found there, never invent a customer's words or a figure, and say plainly when you found none. The brand kit's voice (brand/kit.json, brand/brand.md) and brand/cant-say.md outrank its default house voice. Ignore: writing corrections to memory (read brand/taste.md instead), the other skills it hands work to unless they are playbooks here, and any ad-making tool (the generation door when it is on, else stop and say so). When the job asks for three versions, its pool of headlines feeds three different directions the job names, one piece each; the owner picks, not you. Its banned words overlap the brand check: run the brand check and fix every hard line before you report."
+    },
+    {
+      "name": "storycraft",
+      "source": "~/.claude/skills/storycraft",
+      "origin": "own",
+      "licence": "own",
+      "files": ["SKILL.md", "references/*.md"],
+      "licenceFiles": [],
+      "roles": ["marketer", "artist", "builder"],
+      "kinds": ["post", "newsletter", "carousel", "film", "page"],
+      "note": "In this engine: the story under a post, a newsletter, a carousel's sequence, a film's arc or a page's scroll. It needs no tool and no install. Read SKILL.md, then only the reference its routing table names for the work: story-shapes.md for a carousel or film arc, story-bank.md for a company or founder story, designer-translation.md for project pages and walkthrough words, neurochemistry.md for the order of beats. Its gates ask for a named person and real numbers: take both only from the company's files in $UUU_KNOWLEDGE_DIR (calls, customers, projects); never invent a person, a quote or a figure; where the files have none, write the piece without and say what was missing. Skip the parts about the teller's career, creative block and reading lists. Its check against your last three pieces means the earlier work in the company's files and brand/taste.md. The words still go through the brand check and the can't-say list."
+    },
+    {
+      "name": "aasish-design",
+      "source": "~/.claude/skills/Aasish-design",
+      "origin": "own",
+      "licence": "own",
+      "files": ["SKILL.md", "references/*.md"],
+      "licenceFiles": [],
+      "roles": ["marketer", "artist", "builder", "art-director"],
+      "kinds": ["carousel", "poster", "title-card", "page"],
+      "note": "In this engine: the house standard for anything laid out: carousels, posters, title cards and pages. Read SKILL.md, then references/typography.md, plus decks-and-brand.md for slides and posters, awwwards-web.md and motion.md for a page; output-templates.md only for the shape of your notes. The brand kit outranks its house signature: colours, typefaces, logo and corners come only from the kit (in slide and video scripts through kit.colour, kit.font, kit.place and kit.place_logo; on a page through brand/kit.css), never the lavender, the typefaces or the glass it suggests by default. Keep its element limit, one big thing per view, and its anti-slop and jury gates. The jury looks at the made thing: for slides open contact.png and the slides, for a video the six stills and the poster, for a page ask the page viewer when it is on, else say you could not look. Its step of three directions where only the winner is shown changes here: when the job asks for three versions, make all three, one per direction the job names, and the owner picks. Ignore: Higgsfield and generated hero pictures (use the owner's pictures through kit.place; the generation door when it is on, else stop and say so), animation and 3D libraries (never install; plain CSS and a little JavaScript), writing to memory (read brand/taste.md). Run the brand check before you report."
+    },
+    {
+      "name": "creative-director",
+      "source": "~/.claude/skills/creative-director",
+      "origin": "third-party",
+      "licence": "CC-BY-4.0 (Serge Shima)",
+      "files": ["SKILL.md", "references/*.md", "references/legendary-campaigns/*.md", "references/legendary-campaigns/cards/*.md", "assets/output-templates.md"],
+      "licenceFiles": ["SKILL.md"],
+      "roles": ["marketer", "art-director"],
+      "kinds": ["post", "carousel", "poster", "film", "page"],
+      "note": "In this engine: concept work before anything is made (the five-concepts and content-plan jobs, a campaign's one idea), and the Art director's test of whether an idea belongs to this company and no other. Read SKILL.md, then for ideas references/insight-mining.md, methods-catalog.md and method-selection-matrix.md; for judging, scoring-calibration.md and creative-constitution.md. The campaign library under references/legendary-campaigns/ is for checking an idea is not a copy of a famous one: open one index file and a few cards, never the whole library. Insight comes from the company's files in $UUU_KNOWLEDGE_DIR and the Researcher's notes in $UUU_RESEARCH_DIR, never from guesses about the market; you cannot look anything up yourself. Its refine-until-nine loop must end: at most two passes, then report the scores honestly. Its six criteria are not the Art director's seven axes; as the Art director, score on yours. Ignore its scripts (not copied), its voice-note and PDF intake and production budgets. A third party's work under CC-BY-4.0: the licence and author lines are in its SKILL.md, kept here; never paste its text into a deliverable."
+    },
+    {
+      "name": "impact-3d",
+      "source": "~/.claude/skills/impact-3d-2-0",
+      "origin": "own",
+      "licence": "own",
+      "files": ["SKILL.md", "references/*.md", "assets/brief-template.md"],
+      "licenceFiles": [],
+      "roles": ["artist", "art-director"],
+      "kinds": ["poster", "carousel", "title-card", "film"],
+      "note": "In this engine: the studio language for architectural stills and property films: time of day as the story, materials, Indian context, the arc of a walkthrough and its scorecard. Read SKILL.md, then references/exteriors.md or interiors.md for stills, cinematic-films.md for a film's arc; the review and QA sections of SKILL.md when judging a film or a set of renders. Its V-Ray, Corona, 3ds Max and Forest Pack settings and the hand-offs to the owner's render tools are for the owner's own machine: ignore them unless the task asks for a written brief for the owner. Its image and clip models are tools you do not have: for a clip, the generation door when it is on, else stop and say so; seedance-films.md is still useful for the beat list and the project bible. It asks for a video link or a cloud analysis to review a film: here you review from the six stills and the poster the video tool writes. Card colours and type come from the brand kit, and the logo goes on with kit.place_logo, never painted into a picture. Pictures are the owner's renders from the room or the company's files; never invent a building."
+    },
+    {
+      "name": "renders",
+      "source": "~/.claude/skills/renders",
+      "origin": "own",
+      "licence": "own",
+      "files": ["SKILL.md"],
+      "licenceFiles": [],
+      "roles": ["artist"],
+      "kinds": ["poster", "carousel", "film"],
+      "note": "In this engine: one of the owner's renders turned into a written pack: a cleaner version, a few changes of light, and at most one slow-motion prompt. Read SKILL.md; it leans on sthyra-cinematic, so its links into the owner's home folder mean $UUU_PLAYBOOKS_DIR/sthyra-cinematic/references/ here (ai-prompt-pipeline.md, lighting-prompts.md, vegetation-realism.md, video-motion-calibration.md). Its execute step (an image model through an outside tool, uploads with curl) is the generation door when it is on, else stop at the written pack and say so. For its crop checks, cut the crops with the art tools' Python ($UUU_ART_PYTHON, Pillow) in your task folder and open them; sips and ImageMagick are not yours. The source render is the design: never present a picture made from words alone as the building. Its line about logging new findings means your lessons file, not the playbook, which you cannot write."
+    },
+    {
+      "name": "lightcraft",
+      "source": "~/.claude/skills/lightcraft",
+      "origin": "own",
+      "licence": "own",
+      "files": ["SKILL.md", "references/*.md"],
+      "licenceFiles": [],
+      "roles": ["artist", "art-director"],
+      "kinds": ["poster", "carousel", "title-card", "film"],
+      "note": "In this engine: how light is decided and judged, for the Artist's stills, storyboards and shot prompts, and for the Art director's look at the light in a picture. Read SKILL.md, then references/render-translation.md (the craft in render and prompt words), plus the one reference its routing table gives for the scene (naturalism.md for daylight, night.md for dusk and night, color-mood.md for a look, faces.md when people are in frame). Real-set gear, rigging and safety advice does not apply here: keep the principles, skip the hardware. Its ten-point gate is a self-check before you report, not the Art director's score. Its study notes are not copied and nothing here needs a video. A colour of light is a mood, not a brand colour: whatever is drawn or set in type still takes its colours from the kit."
+    },
+    {
+      "name": "visual-realism-prompts",
+      "source": "~/.claude/skills/visual-realism-prompts",
+      "origin": "third-party",
+      "licence": "MIT",
+      "files": ["SKILL.md", "people-composite.md", "docs/01-physical-realism.md", "docs/02-cinematic-lighting.md", "docs/03-composition.md", "docs/04-camera-motion.md", "docs/05-action-grammar.md", "prompts/*.md"],
+      "licenceFiles": ["LICENSE"],
+      "roles": ["artist"],
+      "kinds": ["poster", "film"],
+      "note": "In this engine: how to write a prompt for a still or a clip that does not look machine-made: subject, materials, light, framing, lens and an avoid line, each with real values. Use it only when the generation door is on and the job asks for a generated still or clip; otherwise it is reading for describing a shot in a shotlist. Read SKILL.md, then the template in prompts/ that fits and docs/01 to 05 for the layer that failed. Its chapters on two outside tools are not copied, and its notes on those tools do not apply: the models are the ones the generation door offers; with the door off, stop and say so. Its advice for tools that refuse artists' names (describe the light and framing instead) applies to the door. Its compositing script is not copied; never install. For people in an owner's render, people-composite.md holds: everything but the people stays exactly as it is. A third party's work under MIT: LICENSE is kept beside the copy."
+    },
+    {
+      "name": "shotlist-director",
+      "source": "~/.claude/skills/shotlist-director",
+      "origin": "own",
+      "licence": "own",
+      "files": ["SKILL.md", "references/critique.md", "references/runway-routing.md", "templates/presets.json"],
+      "licenceFiles": [],
+      "roles": ["artist", "art-director"],
+      "kinds": ["film"],
+      "note": "In this engine: the film playbook: brief or script to beats, blocking, light, camera and a shotlist, then the repair loop when a clip fails. Read SKILL.md steps 1 to 6 and its jury gate, references/critique.md for judging and retakes, references/runway-routing.md for motion prompts, templates/presets.json for the names of shot kinds and moves. Here a shotlist is a treatment: film/<name>-<id>/shotlist.json with one storyboard still per shot in board/, made from the owner's renders with the slide and video tools, not an HTML page. Its execution step and every line about its own scripts, its ledger and outside tools are not here (scripts not copied; never install). Clips come only through the generation door when it is on, else stop and say so; the door keeps the money ledger, not you. Its approval gates stay in the engine's form: the owner approves the shotlist and its cost in Needs you; never write an approval yourself and never spend past the approved batch. A building is never made from words: the owner's render is the first frame. Prompt blocks for a model the door does not offer do not apply."
+    },
+    {
+      "name": "sthyra-cinematic",
+      "source": "~/.claude/skills/sthyra-cinematic",
+      "origin": "own",
+      "licence": "own",
+      "files": ["SKILL.md", "references/*.md"],
+      "licenceFiles": [],
+      "roles": ["artist", "art-director"],
+      "kinds": ["film", "poster", "carousel"],
+      "note": "In this engine: architecture on film: the brief's frame, the five-axis critique, light per shot, prompt blocks for remaking a shot from a render, and the realism checks for planting and materials. Artist: SKILL.md, then references/brief-frames.md, lighting-prompts.md, camera-vocabulary.md and transitions.md for a treatment; ai-prompt-pipeline.md, vegetation-realism.md and material-realism.md when a still or clip is to be made from a render. Art director: its five-axis critique and its habit of arguing the other verdict first feed your own seven axes; render-mismatch.md when a shotlist and the renders disagree (the renders win). Ignore: outside generation tools (the generation door when it is on, else stop and say so), its data-file and PDF or CSV book build, the Python versions and libraries it names (never install; a treatment is shotlist.json with board stills), its stress test by helper agents (you have none to send), its folder names for the owner's machine. Its example pictures are not copied; worked-example-amphitheatre.md reads without them."
+    },
+    {
+      "name": "archfilm-edit",
+      "source": "~/.claude/skills/archfilm-edit",
+      "origin": "own",
+      "licence": "own",
+      "files": ["SKILL.md", "references/*.md"],
+      "licenceFiles": [],
+      "roles": ["artist"],
+      "kinds": ["film", "title-card"],
+      "note": "In this engine: the editing grammar for cutting a film from renders and clips: arc, shot length, when to dissolve, cards and titles. Read SKILL.md's hard rules and review loop, then references/editing-grammar.md, arcs.md and titles.md. Its setup step, its own Python, its film file format, its title renderer, music analysis, colour files, bundled fonts and its QA and delivery scripts are not here (never install). Cut with the video tool instead: $UUU_ART_VIDEO reveal for renders and stills (slow moves, half-second crossfades), cut for a clip with captions, render for title and end cards drawn with kit.font, kit.colour and kit.place_logo; after each run look at the six stills and the poster. Its rules carry over as they are: a few seconds a shot, straight cuts, a dissolve only where time passes, titles inside the safe area. The video tool finds no beats: when there is music, set lengths from its stated tempo by hand, or say you could not. Read references/gotchas.md only for trouble with the clips themselves."
+    },
+    {
+      "name": "cinematic-ai-film",
+      "source": "~/.claude/skills/cinematic-ai-film",
+      "origin": "own",
+      "licence": "own",
+      "files": ["SKILL.md"],
+      "licenceFiles": [],
+      "roles": ["artist", "art-director"],
+      "kinds": ["film"],
+      "note": "In this engine: a short doctrine for stills and clips that look filmed: the still comes first, light with a direction, three planes of depth, one change per retake, short takes, a hard edit. Use it beside shotlist-director and sthyra-cinematic when a film is made, and its four pillars as a checklist when judging a frame. Generation only through the generation door when it is on, else stop and say so. Ignore: taking a working prompt from someone else's picture or video (nothing is copied from anyone; the look comes from the owner's renders and the brand kit), training on many photos of one person, and its lines about other tools and apps. Its soft foreground overlay can be drawn with Pillow in a video tool render script."
+    },
+    {
+      "name": "taste-skill",
+      "source": "~/.claude/skills/taste-skill",
+      "origin": "third-party",
+      "licence": "none found",
+      "files": ["SKILL.md"],
+      "licenceFiles": [],
+      "roles": ["builder", "art-director"],
+      "kinds": ["page"],
+      "note": "In this engine: the Builder's anti-slop rules for a landing page or a small site, and the Art director's list of tells on a page. Read sections 0, 1, 4, 6, 8 and 9 and the final pre-flight check. Its default stack (a framework, a CSS framework, an animation library, icon packages, design-system installs in the appendices) does not apply: pages here are plain HTML, CSS and a little JavaScript with no package (never install); an icon is an inline SVG you draw; a typeface is the kit's. Never use a placeholder-photo service, a stock site, a font or logo address or any outside address: pictures are the owner's, copied from the company's files into the site folder. Colours and type come from the tokens in brand/kit.css, never the palettes it lists. Its 'check both modes' and 'check the viewport' mean the page viewer when it is on, else say you could not look. A third party's work; no licence file was found in its folder: read it here, never copy its text into a page."
+    },
+    {
+      "name": "hallmark",
+      "source": "~/.claude/skills/hallmark",
+      "origin": "third-party",
+      "licence": "none found",
+      "files": ["references/*.md", "references/genres/*.md", "references/components/*.md"],
+      "licenceFiles": [],
+      "roles": ["builder", "art-director"],
+      "kinds": ["page"],
+      "note": "In this engine: only its references/ folder is copied, no SKILL.md, so start here. Builder: pick a page shape in macrostructures.md before writing code, then structure.md, layout-and-space.md, typography.md, color.md, responsive.md, interaction-and-states.md, motion.md and copy.md; component-cookbook.md with components/ and genres/ for parts. Before you report, go through slop-test.md and anti-patterns.md. Art director: anti-patterns.md and slop-test.md are your list of tells on a page's screenshots. Its catalogue of themes is replaced by the brand kit: every colour and font is a named token from brand/kit.css. Ignore: study.md's reading of live addresses (you have no web; a reference is a picture in the company's references/ folder or the Researcher's notes in $UUU_RESEARCH_DIR), the outside addresses in assets.md and imagery-kit.md (no remote file; pictures are the owner's), export-formats.md and design-md.md unless the job asks. Check the widths with the page viewer when it is on, else say you could not look. A third party's work; no licence file was found in its folder (the scout found none either): read it here, never paste its text into a page."
+    },
+    {
+      "name": "impeccable",
+      "source": "~/.claude/skills/impeccable",
+      "origin": "third-party",
+      "licence": "Apache-2.0 (stated in its own header)",
+      "files": ["reference/adapt.md", "reference/animate.md", "reference/audit.md", "reference/bolder.md", "reference/brand.md", "reference/clarify.md", "reference/colorize.md", "reference/craft.md", "reference/critique.md", "reference/delight.md", "reference/distill.md", "reference/harden.md", "reference/interaction-design.md", "reference/layout.md", "reference/optimize.md", "reference/polish.md", "reference/product.md", "reference/quieter.md", "reference/shape.md", "reference/typeset.md"],
+      "licenceFiles": [],
+      "roles": ["builder", "art-director"],
+      "kinds": ["page"],
+      "note": "In this engine: only files from its reference/ folder are copied; its SKILL.md and scripts are not, so there are no commands to run: each file is one lens. Builder: brand.md first (marketing pages), then shape.md before code, typeset.md, layout.md, colorize.md, interaction-design.md, adapt.md for the phone width, harden.md, and polish.md last. Art director: critique.md and audit.md are your procedure for a page; skip their snapshot, detector and browser steps and judge from the viewer's screenshots and report. Use bolder.md, quieter.md, distill.md, delight.md, animate.md or clarify.md when a review asks for that change. Ignore every package runner, node script, dev server, live mode, hook and set-up file it mentions. Its token advice is met by brand/kit.css. Never install. To look at a page: the page viewer when it is on, else say you could not look. A third party's work under Apache-2.0 as its own header states; no licence file is in its folder and that header is not copied."
+    },
+    {
+      "name": "frontend-ui-engineering",
+      "source": "~/.claude/skills/frontend-ui-engineering",
+      "origin": "third-party",
+      "licence": "none found",
+      "files": ["SKILL.md"],
+      "licenceFiles": [],
+      "roles": ["builder"],
+      "kinds": ["page"],
+      "note": "In this engine: engineering basics for a page that works for everyone: keyboard use, labels, focus, empty and error states, spacing, type and colour discipline, layouts that hold at every width. Read its sections on design-system adherence, accessibility, responsive design and verification. Its component framework, typed components, utility CSS, state libraries, test files and developer tools do not apply: plain HTML, CSS and a little JavaScript with no package (never install). The accessibility checklist it links to is not here. Its breakpoint checks mean the page viewer at 390 and 1280 px when it is on, else say you could not look. Colours and type come from brand/kit.css. Its origin is not marked and no licence file was found in its folder: read it here, never copy its text into a page."
+    }
+  ]
+}

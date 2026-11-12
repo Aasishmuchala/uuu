@@ -428,7 +428,7 @@ require("http").createServer((q, s) => { s.end('{"status":"ok"}'); }).listen(${c
 
 test("part scripts answer health, installed and stop safely when nothing runs", async () => {
   const c = await engineCopy();
-  for (const part of ["30-gate.sh", "35-relay.sh", "40-home.sh"]) {
+  for (const part of ["30-gate.sh", "35-relay.sh", "36-web.sh", "37-generate.sh", "38-viewer.sh", "40-home.sh"]) {
     const run = (sub) => spawnSync("/bin/bash", [join(c.copy, "parts", part), sub], {
       encoding: "utf8", env: { ...process.env, ENGINE_CONFIG: join(c.root, "config.json") },
     });
@@ -445,4 +445,28 @@ test("part scripts answer health, installed and stop safely when nothing runs", 
   const h = c.board("health");
   assert.equal(h.status, 1);
   assert.equal(h.stdout.trim(), "The board is off; run engine start to turn it on.");
+});
+
+test("a door is not installed until its READY marker is there, even with its code in place", async () => {
+  const c = await engineCopy();
+  for (const [part, dir, script, name] of [["36-web.sh", "web", "door.mjs", "web door"],
+    ["37-generate.sh", "generate", "door.mjs", "generation door"], ["38-viewer.sh", "viewer", "viewer.mjs", "page viewer"]]) {
+    const run = (sub) => spawnSync("/bin/bash", [join(c.copy, "parts", part), sub], {
+      encoding: "utf8", env: { ...process.env, ENGINE_CONFIG: join(c.root, "config.json") },
+    });
+    mkdirSync(join(c.copy, dir), { recursive: true });
+    writeFileSync(join(c.copy, dir, script), "process.exit(1);\n");
+    let r = run("installed");
+    assert.equal(r.status, 1, part);
+    assert.equal(r.stdout.trim(), `The ${name} is not installed yet.`);
+    r = run("start");
+    assert.equal(r.status, 1, part);
+    assert.equal(r.stdout.trim(), `The ${name} is not installed yet.`);
+    assert.equal(existsSync(join(c.root, "state", "run", `${dir}.pid`)), false);
+    writeFileSync(join(c.copy, dir, "READY"), "2026-11-12\n");
+    r = run("installed");
+    assert.equal(r.status, 0, part);
+    r = run("health");
+    assert.equal(r.stdout.trim(), `The ${name} is off; run engine start to turn it on.`);
+  }
 });

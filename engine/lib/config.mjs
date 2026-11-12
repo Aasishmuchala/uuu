@@ -7,7 +7,11 @@ import { fileURLToPath } from "node:url";
 const ENGINE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const PORT_KEYS = ["board", "gate", "relay", "home", "benchWeb", "benchSocketio",
-  "benchRedisQueue", "benchRedisCache", "benchDb"];
+  "benchRedisQueue", "benchRedisCache", "benchDb",
+  "gateNarrow", "web", "generate", "viewer", "preview"];
+// The doors (PLAN-V5 K1): each lists the agents, by slug, that may reach it.
+const DOOR_NAMES = ["web", "generate", "viewer"];
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 function fail(what) {
   throw new Error(`engine config: ${what}`);
@@ -17,6 +21,18 @@ function expand(p) {
   if (p === "~") return homedir();
   if (p.startsWith("~/")) return join(homedir(), p.slice(2));
   return p;
+}
+
+// `doors` holds exactly the three doors, each `{ "agents": [slug, ...] }`.
+function needDoors(cfg) {
+  const d = cfg.doors;
+  if (d === null || typeof d !== "object" || Array.isArray(d)) fail("missing key doors");
+  const names = Object.keys(d).sort();
+  if (names.join(",") !== [...DOOR_NAMES].sort().join(",")) fail(`key doors must name ${DOOR_NAMES.join(", ")}`);
+  for (const name of DOOR_NAMES) {
+    const agents = need(cfg, `doors.${name}.agents`, "array");
+    if (!agents.every((s) => typeof s === "string" && SLUG_RE.test(s))) fail(`key doors.${name}.agents must list agent slugs`);
+  }
 }
 
 function need(obj, dotted, type) {
@@ -60,6 +76,7 @@ export function loadConfig({ path } = {}) {
   for (const k of ["claudeHosts", "codexHosts", "policyPortsAllowed", "readRootsAllowed"]) {
     need(cfg, `fence.${k}`, "array");
   }
+  needDoors(cfg);
   need(cfg, "minFreeDiskGb", "number");
 
   const out = JSON.parse(text);
@@ -77,6 +94,11 @@ export function loadConfig({ path } = {}) {
     relay: `${host}:${p.relay}`,
     home: `${host}:${p.home}`,
     bench: `${host}:${p.benchWeb}`,
+    gateNarrow: `${host}:${p.gateNarrow}`,
+    web: `${host}:${p.web}`,
+    generate: `${host}:${p.generate}`,
+    viewer: `${host}:${p.viewer}`,
+    preview: `${host}:${p.preview}`,
   };
   const s = out.stateRoot;
   out.paths = {
@@ -110,6 +132,24 @@ export function loadConfig({ path } = {}) {
     providerSecrets: join(s, "secrets", "provider"),
     providerKey: join(s, "secrets", "provider", "omega-key"),
     relaySecret: join(s, "secrets", "provider", "relay-secret"),
+    playbooks: join(s, "playbooks"),
+    research: join(s, "tasks", "research"),
+    sharedBrain: join(s, "knowledge", "shared"),
+    doors: join(s, "doors"),
+    doorsState: join(s, "doors", "state.json"),
+    doorSecrets: join(s, "secrets", "doors"),
+    webSecret: join(s, "secrets", "doors", "web-secret"),
+    generateSecret: join(s, "secrets", "doors", "generate-secret"),
+    viewerSecret: join(s, "secrets", "doors", "viewer-secret"),
+    runwayKey: join(s, "secrets", "doors", "runway-key"),
+    searchKey: join(s, "secrets", "doors", "search-key"),
+    webVisits: join(s, "doors", "web-visits.jsonl"),
+    ledger: join(s, "doors", "generate-ledger.jsonl"),
+    batches: join(s, "doors", "batches"),
+    doorWork: join(s, "doors", "work"),
+    webStatus: join(s, "doors", "web-status.json"),
+    generateStatus: join(s, "doors", "generate-status.json"),
+    viewerStatus: join(s, "doors", "viewer-status.json"),
   };
   return out;
 }

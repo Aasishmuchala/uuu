@@ -1,0 +1,45 @@
+{
+  "kit": {
+    "version": 1,
+    "savedAt": "2026-11-12T10:00:00.000Z",
+    "name": "Sthyra",
+    "colours": [
+      { "name": "ink", "hex": "#1A3C5E", "role": "main" },
+      { "name": "sand", "hex": "#E8DCC8", "role": "background" }
+    ],
+    "neutrals": true,
+    "type": {
+      "heading": { "family": "Didot", "file": null, "fallback": "serif" },
+      "body": { "family": "Avenir Next", "file": null, "fallback": "sans-serif" },
+      "minPx": 16,
+      "minSlidePx": 28
+    },
+    "logo": {
+      "files": [{ "file": "logo.png", "on": "light" }],
+      "clearSpace": 0.5,
+      "minPx": 48,
+      "requiredOn": ["carousel-last", "poster", "title-card", "end-card", "page"]
+    },
+    "layout": { "radiusPx": 0, "marginShare": 0.06 },
+    "voice": { "words": ["warm", "plain", "exact"], "is": "", "do": [], "dont": [], "signoff": "" },
+    "references": [{ "file": "references/tower-dusk.jpg", "kinds": ["carousel", "film"], "note": "The light on the stone." }],
+    "filler": { "block": true, "allow": [] },
+    "public": { "summary": "" }
+  },
+  "exists": true,
+  "version": "k1794472200000-b1794472200000",
+  "fromOldForm": false,
+  "problem": null,
+  "fontsOnThisMac": ["Avenir Next", "Didot"],
+  "fontsUploaded": [{ "file": "Sthyra-Display.otf", "size": 48212 }],
+  "fillerCount": 74,
+  "playbooks": [
+    { "name": "aasish-design", "origin": "own", "licence": "own", "roles": ["marketer"], "kinds": ["carousel"], "files": ["SKILL.md"], "bytes": 20480 }
+  ],
+  "proposal": {
+    "from": "STH-12",
+    "values": {},
+    "dropped": ["colours"],
+    "problem": null
+  }
+}

@@ -32,6 +32,8 @@ test("pinned ports and urls", () => {
   assert.deepEqual(c.urls, {
     board: "http://127.0.0.1:3100", gate: "http://127.0.0.1:3110",
     relay: "http://127.0.0.1:3120", home: "http://127.0.0.1:3200", bench: "http://127.0.0.1:8120",
+    gateNarrow: "http://127.0.0.1:3111", web: "http://127.0.0.1:3130", generate: "http://127.0.0.1:3140",
+    viewer: "http://127.0.0.1:3150", preview: "http://127.0.0.1:3160",
   });
   assert.equal(c.engineDir, engineDir);
 });
@@ -47,7 +49,9 @@ test("tilde is expanded", () => {
 
 test("paths cover every key", () => {
   const c = loadConfig();
-  const keys = "state logs run secrets agentSecrets policy ids tasks projectFolder agentFolders proofFolder quotaFolder knowledgeDocs lessons contentDrafts homeData cad cadPython proofLast fences claudeHome codexHome books benchOwnerKey models modelsState relayStatus providerSecrets providerKey relaySecret".split(" ");
+  const keys = ("state logs run secrets agentSecrets policy ids tasks projectFolder agentFolders proofFolder quotaFolder knowledgeDocs lessons contentDrafts homeData cad cadPython proofLast fences claudeHome codexHome books benchOwnerKey models modelsState relayStatus providerSecrets providerKey relaySecret "
+    + "playbooks research sharedBrain doors doorsState doorSecrets webSecret generateSecret viewerSecret "
+    + "runwayKey searchKey webVisits ledger batches doorWork webStatus generateStatus viewerStatus").split(" ");
   assert.deepEqual(Object.keys(c.paths).sort(), keys.sort());
   assert.equal(c.paths.projectFolder, join(c.stateRoot, "tasks/company-work"));
   assert.equal(c.paths.benchOwnerKey, join(c.stateRoot, "secrets/bench-owner-api.txt"));
@@ -57,6 +61,62 @@ test("paths cover every key", () => {
   assert.equal(c.paths.providerSecrets, join(c.stateRoot, "secrets/provider"));
   assert.equal(c.paths.providerKey, join(c.stateRoot, "secrets/provider/omega-key"));
   assert.equal(c.paths.relaySecret, join(c.stateRoot, "secrets/provider/relay-secret"));
+});
+
+test("the doors' ports, paths and agents (PLAN-V5 K1)", () => {
+  const c = loadConfig();
+  const s = c.stateRoot;
+  assert.deepEqual([c.ports.gateNarrow, c.ports.web, c.ports.generate, c.ports.viewer, c.ports.preview],
+    [3111, 3130, 3140, 3150, 3160]);
+  assert.deepEqual(c.fence.policyPortsAllowed, [8120]);
+  assert.deepEqual(c.fence.readRootsAllowed, ["knowledge/docs", "lessons", "cad", "art", "media"]);
+  assert.deepEqual(c.doors, {
+    web: { agents: ["researcher"] }, generate: { agents: ["artist"] },
+    viewer: { agents: ["builder", "art-director"] },
+  });
+  const want = {
+    playbooks: "playbooks", research: "tasks/research", sharedBrain: "knowledge/shared", doors: "doors",
+    doorsState: "doors/state.json", doorSecrets: "secrets/doors", webSecret: "secrets/doors/web-secret",
+    generateSecret: "secrets/doors/generate-secret", viewerSecret: "secrets/doors/viewer-secret",
+    runwayKey: "secrets/doors/runway-key", searchKey: "secrets/doors/search-key",
+    webVisits: "doors/web-visits.jsonl", ledger: "doors/generate-ledger.jsonl", batches: "doors/batches",
+    doorWork: "doors/work", webStatus: "doors/web-status.json", generateStatus: "doors/generate-status.json",
+    viewerStatus: "doors/viewer-status.json",
+  };
+  for (const [k, rel] of Object.entries(want)) assert.equal(c.paths[k], join(s, rel), k);
+});
+
+test("a config without a door's port or with a bad doors block is refused", () => {
+  for (const k of ["gateNarrow", "web", "generate", "viewer", "preview"]) {
+    const c = clone();
+    delete c.ports[k];
+    assert.throws(() => loadConfig({ path: writeCfg(`p-${k}.json`, c) }), new RegExp(`^Error: engine config: .*ports\\.${k}`));
+    const r = py(["--json"], { ENGINE_CONFIG: writeCfg(`pp-${k}.json`, c) });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, new RegExp(`^engine config: .*ports\\.${k}`));
+  }
+  const bad = [
+    (c) => { delete c.doors; },
+    (c) => { c.doors = []; },
+    (c) => { delete c.doors.viewer; },
+    (c) => { c.doors.other = { agents: [] }; },
+    (c) => { c.doors.web = ["researcher"]; },
+    (c) => { c.doors.web.agents = "researcher"; },
+    (c) => { c.doors.web.agents = ["Researcher"]; },
+    (c) => { c.doors.generate.agents = ["../artist"]; },
+    (c) => { c.doors.viewer.agents = [5]; },
+  ];
+  bad.forEach((change, i) => {
+    const c = clone();
+    change(c);
+    assert.throws(() => loadConfig({ path: writeCfg(`d${i}.json`, c) }), /^Error: engine config: .*doors/, String(i));
+    const r = py(["--json"], { ENGINE_CONFIG: writeCfg(`dp${i}.json`, c) });
+    assert.equal(r.status, 1, String(i));
+    assert.match(r.stderr, /^engine config: .*doors/);
+  });
+  const empty = clone();
+  empty.doors.web.agents = [];
+  assert.deepEqual(loadConfig({ path: writeCfg("de.json", empty) }).doors.web, { agents: [] });
 });
 
 test("a config without the relay's port is refused", () => {
@@ -106,12 +166,14 @@ test("Python honours ENGINE_CONFIG and reports errors", () => {
 
 test("config.sh sets the variables", () => {
   const r = spawnSync("/bin/bash", ["-c",
-    `set -euo pipefail; . "${join(libDir, "config.sh")}"; echo "$CFG_PORT_GATE|$CFG_STATE|$CFG_GATE_URL|$CFG_PROJECT_FOLDER|$CFG_MIN_FREE_GB|$CFG_PORT_RELAY|$CFG_RELAY_URL|$CFG_MODELS_STATE|$CFG_PROVIDER_KEY|$CFG_RELAY_SECRET"`],
+    `set -euo pipefail; . "${join(libDir, "config.sh")}"; echo "$CFG_PORT_GATE|$CFG_STATE|$CFG_GATE_URL|$CFG_PROJECT_FOLDER|$CFG_MIN_FREE_GB|$CFG_PORT_RELAY|$CFG_RELAY_URL|$CFG_MODELS_STATE|$CFG_PROVIDER_KEY|$CFG_RELAY_SECRET|$CFG_PORT_GATE_NARROW|$CFG_PORT_WEB|$CFG_PORT_GENERATE|$CFG_PORT_VIEWER|$CFG_PORT_PREVIEW|$CFG_GATE_NARROW_URL|$CFG_WEB_URL|$CFG_GENERATE_URL|$CFG_VIEWER_URL|$CFG_PREVIEW_URL|$CFG_DOORS_STATE|$CFG_PLAYBOOKS|$CFG_RESEARCH"`],
     { encoding: "utf8", env: { ...process.env, ENGINE_CONFIG: "" } });
   assert.equal(r.status, 0, r.stderr);
   const s = join(homedir(), ".paperclip/uuu-engine");
   assert.equal(r.stdout.trim(), `3110|${s}|http://127.0.0.1:3110|${s}/tasks/company-work|8|3120|http://127.0.0.1:3120|`
-    + `${s}/models/state.json|${s}/secrets/provider/omega-key|${s}/secrets/provider/relay-secret`);
+    + `${s}/models/state.json|${s}/secrets/provider/omega-key|${s}/secrets/provider/relay-secret|`
+    + "3111|3130|3140|3150|3160|http://127.0.0.1:3111|http://127.0.0.1:3130|http://127.0.0.1:3140|"
+    + `http://127.0.0.1:3150|http://127.0.0.1:3160|${s}/doors/state.json|${s}/playbooks|${s}/tasks/research`);
 });
 
 test("config.sh returns 1 with a message on a bad file", () => {

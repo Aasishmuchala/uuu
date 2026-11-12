@@ -10,7 +10,8 @@ usage() {
   cat <<'EOF'
 Usage: engine <command>
 
-  start    Turn the engine on: the books, the board, the gate, the model relay, the home screen.
+  start    Turn the engine on: the books, the board, the gate, the model relay, the web door,
+           the generation door, the page viewer, the home screen.
   stop     Turn everything off.
   status   Say what is on and what needs attention.
   prove    Check that the fence around the agents holds.
@@ -299,7 +300,8 @@ do_test() {
   while IFS= read -r f; do
     [ -n "$f" ] && files+=("$f")
   done <<EOF
-$(cd "$REPO_DIR" && for d in engine/lib engine/gate engine/relay engine/company engine/home engine/bin engine/test; do
+$(cd "$REPO_DIR" && for d in engine/lib engine/gate engine/relay engine/doors engine/web engine/generate engine/viewer \
+    engine/playbooks engine/company engine/home engine/bin engine/test; do
     [ -d "$d" ] && find "$d" -name '*.test.mjs' -not -path '*/node_modules/*'
   done | sort)
 EOF

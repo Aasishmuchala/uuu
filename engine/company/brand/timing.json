@@ -1,0 +1,8 @@
+{
+  "plan": 4,
+  "step": { "XS": 3, "S": 5, "M": 8, "L": 12, "XL": 20 },
+  "extraVariantShare": 0.6,
+  "artReview": 4,
+  "artReviewExtraShare": 0.25,
+  "check": 3
+}

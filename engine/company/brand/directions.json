@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "kinds": {
+    "post": [
+      { "id": "fact-first", "title": "Fact first", "what": "Open with the most concrete fact or number in the company's files, with no scene-setting before it." },
+      { "id": "scene", "title": "Scene", "what": "Open inside one real moment, a site, a room or a customer's question, and let the point arrive by the third line." },
+      { "id": "question", "title": "Question", "what": "Open with the reader's own doubt in their words, then answer it plainly." },
+      { "id": "contrast", "title": "Contrast", "what": "Set the usual way against this company's way, one line each, then give the proof." },
+      { "id": "list", "title": "List", "what": "Give three to five numbered points, each a complete thought, with no introduction." }
+    ],
+    "carousel": [
+      { "id": "type-led", "title": "Type led", "what": "Set one large line per slide in the heading face, and show no picture before the last slide." },
+      { "id": "picture-led", "title": "Picture led", "what": "Let one of the owner's pictures fill each slide edge to edge, with at most eight words over it." },
+      { "id": "diagram-led", "title": "Diagram led", "what": "Make a plan, a section, a number or a simple chart drawn from the facts the hero of each slide." },
+      { "id": "split", "title": "Split", "what": "Put a picture on half of each slide and flat brand colour on the other half, with the words on the colour." },
+      { "id": "sequence", "title": "Sequence", "what": "Use one picture or drawing that develops slide by slide, as a zoom, a build-up or a before and after." }
+    ],
+    "title-card": [
+      { "id": "still-type", "title": "Still type", "what": "Let the type set itself in place with one move and a long hold." },
+      { "id": "reveal-mask", "title": "Reveal mask", "what": "Wipe a brand colour across the frame to uncover the title." },
+      { "id": "kinetic", "title": "Kinetic", "what": "Bring the words in one beat at a time." },
+      { "id": "line-draw", "title": "Line draw", "what": "Draw a thin line that makes a plan or a mark, then show the title." },
+      { "id": "number-first", "title": "Number first", "what": "Count one figure up on screen, then let the title explain it." }
+    ],
+    "film": [
+      { "id": "slow-approach", "title": "Slow approach", "what": "Make one continuous approach from far away to the door, in a few long takes." },
+      { "id": "detail-to-whole", "title": "Detail to whole", "what": "Show materials and joints close first and the whole building last." },
+      { "id": "day-of-light", "title": "Day of light", "what": "Show the same views from morning to dusk." },
+      { "id": "people-first", "title": "People first", "what": "Start where a person stands and show the building as their experience." },
+      { "id": "plan-to-place", "title": "Plan to place", "what": "Dissolve a drawing or model into the built view, room by room." }
+    ],
+    "page": [
+      { "id": "editorial", "title": "Editorial", "what": "Use large heading type and a long calm scroll, with one picture a screen." },
+      { "id": "gallery", "title": "Gallery", "what": "Put full-width pictures first and use words only as captions." },
+      { "id": "spec-sheet", "title": "Spec sheet", "what": "Lay out a strict grid of facts, plans and numbers, with pictures small and exact." },
+      { "id": "story-scroll", "title": "Story scroll", "what": "Tell one story in five to seven full-height sections." },
+      { "id": "index", "title": "Index", "what": "Make a dense page that is a table of contents, with every project a row." }
+    ]
+  },
+  "alias": { "newsletter": "post", "poster": "carousel" }
+}

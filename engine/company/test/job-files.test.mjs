@@ -7,7 +7,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { asksIn, isBrainPath, loadJobFiles } from "../lib/job-files.mjs";
+import { NEEDS, asksIn, isBrainPath, loadJobFiles } from "../lib/job-files.mjs";
 import { loadDepartmentFile } from "../lib/department-file.mjs";
 import { TOOL_NAMES } from "../lib/routine-files.mjs";
 import { loadCompanyFile } from "../lib/company-file.mjs";
@@ -294,4 +294,21 @@ test("{{JOBS}} is an empty line when there are no jobs, and the file loads witho
     cpSync(join(FIX, "valid", "sales"), join(dir, "jobs", "sales"), { recursive: true });
     assert.equal(loadCompanyFile(join(dir, "company.json"), config).agents.find((a) => a.slug === "builder").instructions, "Before\n\nAfter\n");
   });
+});
+
+// ---- V5 T6: the needs "generation" and "browser" are names a new job may use.
+test("NEEDS gives generation and browser after account, and a job may name them", () => {
+  assert.deepEqual(NEEDS.slice(0, 5), ["internet", "account", "generation", "browser", "cad-tools"]);
+  const dir = mkdtempSync(join(tmpdir(), "uuu-needs-"));
+  try {
+    cpSync(join(FIX, "valid"), dir, { recursive: true });
+    const f = join(dir, "sales", "call-write-up.json");
+    const doc = JSON.parse(readFileSync(f, "utf8"));
+    doc.needs = ["generation", "browser"];
+    writeFileSync(f, JSON.stringify(doc));
+    const { problems } = loadJobFiles(dir, ROLES, DEPS);
+    assert.deepEqual(problems, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

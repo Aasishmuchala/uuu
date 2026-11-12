@@ -42,7 +42,10 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(c["ports"]["relay"], 3120)
         self.assertEqual(c["urls"], {
             "board": "http://127.0.0.1:3100", "gate": "http://127.0.0.1:3110",
-            "relay": "http://127.0.0.1:3120", "home": "http://127.0.0.1:3200", "bench": "http://127.0.0.1:8120"})
+            "relay": "http://127.0.0.1:3120", "home": "http://127.0.0.1:3200", "bench": "http://127.0.0.1:8120",
+            "gateNarrow": "http://127.0.0.1:3111", "web": "http://127.0.0.1:3130",
+            "generate": "http://127.0.0.1:3140", "viewer": "http://127.0.0.1:3150",
+            "preview": "http://127.0.0.1:3160"})
         self.assertEqual(c["engineDir"], os.path.dirname(LIB))
 
     def test_tilde_expanded(self):
@@ -56,7 +59,9 @@ class ConfigTest(unittest.TestCase):
         keys = ("state logs run secrets agentSecrets policy ids tasks projectFolder agentFolders "
                 "proofFolder quotaFolder knowledgeDocs lessons contentDrafts homeData cad cadPython "
                 "proofLast fences claudeHome codexHome books benchOwnerKey models modelsState relayStatus "
-                "providerSecrets providerKey relaySecret").split()
+                "providerSecrets providerKey relaySecret playbooks research sharedBrain doors doorsState "
+                "doorSecrets webSecret generateSecret viewerSecret runwayKey searchKey webVisits ledger "
+                "batches doorWork webStatus generateStatus viewerStatus").split()
         paths = config.load_config()["paths"]
         self.assertEqual(sorted(paths), sorted(keys))
         s = paths["state"]
@@ -64,6 +69,49 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(paths["relayStatus"], os.path.join(s, "models", "relay-status.json"))
         self.assertEqual(paths["providerKey"], os.path.join(s, "secrets", "provider", "omega-key"))
         self.assertEqual(paths["relaySecret"], os.path.join(s, "secrets", "provider", "relay-secret"))
+
+    def test_door_paths_and_agents(self):
+        c = config.load_config()
+        paths = c["paths"]
+        s = paths["state"]
+        j = os.path.join
+        self.assertEqual(paths["doorsState"], j(s, "doors", "state.json"))
+        self.assertEqual(paths["webSecret"], j(s, "secrets", "doors", "web-secret"))
+        self.assertEqual(paths["runwayKey"], j(s, "secrets", "doors", "runway-key"))
+        self.assertEqual(paths["research"], j(s, "tasks", "research"))
+        self.assertEqual(paths["sharedBrain"], j(s, "knowledge", "shared"))
+        self.assertEqual(paths["ledger"], j(s, "doors", "generate-ledger.jsonl"))
+        self.assertEqual(paths["viewerStatus"], j(s, "doors", "viewer-status.json"))
+        self.assertEqual(c["doors"], {"web": {"agents": ["researcher"]}, "generate": {"agents": ["artist"]},
+                                      "viewer": {"agents": ["builder", "art-director"]}})
+        self.assertEqual(c["fence"]["policyPortsAllowed"], [8120])
+
+    def test_missing_door_port_or_bad_doors(self):
+        for k in ("gateNarrow", "web", "generate", "viewer", "preview"):
+            c = real_cfg()
+            del c["ports"][k]
+            with self.assertRaises(config.ConfigError) as cm:
+                config.load_config(self.write("p.json", c))
+            self.assertIn("ports." + k, str(cm.exception))
+        changes = [
+            lambda c: c.pop("doors"),
+            lambda c: c.update(doors=[]),
+            lambda c: c["doors"].pop("viewer"),
+            lambda c: c["doors"].update(other={"agents": []}),
+            lambda c: c["doors"].update(web=["researcher"]),
+            lambda c: c["doors"]["web"].update(agents="researcher"),
+            lambda c: c["doors"]["web"].update(agents=["Researcher"]),
+            lambda c: c["doors"]["generate"].update(agents=["../artist"]),
+            lambda c: c["doors"]["viewer"].update(agents=[5]),
+            lambda c: c["doors"]["viewer"].update(agents=["builder\n"]),
+        ]
+        for i, change in enumerate(changes):
+            c = real_cfg()
+            change(c)
+            with self.assertRaises(config.ConfigError, msg=str(i)) as cm:
+                config.load_config(self.write("d.json", c))
+            self.assertTrue(str(cm.exception).startswith("engine config: "))
+            self.assertIn("doors", str(cm.exception))
 
     def test_missing_relay_port(self):
         c = real_cfg()
@@ -112,7 +160,20 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(lines["CFG_MODELS_STATE"], "'%s/models/state.json'" % s)
         self.assertEqual(lines["CFG_PROVIDER_KEY"], "'%s/secrets/provider/omega-key'" % s)
         self.assertEqual(lines["CFG_RELAY_SECRET"], "'%s/secrets/provider/relay-secret'" % s)
-        self.assertEqual(len(lines), 30)
+        self.assertEqual(lines["CFG_PORT_GATE_NARROW"], "'3111'")
+        self.assertEqual(lines["CFG_PORT_WEB"], "'3130'")
+        self.assertEqual(lines["CFG_PORT_GENERATE"], "'3140'")
+        self.assertEqual(lines["CFG_PORT_VIEWER"], "'3150'")
+        self.assertEqual(lines["CFG_PORT_PREVIEW"], "'3160'")
+        self.assertEqual(lines["CFG_GATE_NARROW_URL"], "'http://127.0.0.1:3111'")
+        self.assertEqual(lines["CFG_WEB_URL"], "'http://127.0.0.1:3130'")
+        self.assertEqual(lines["CFG_GENERATE_URL"], "'http://127.0.0.1:3140'")
+        self.assertEqual(lines["CFG_VIEWER_URL"], "'http://127.0.0.1:3150'")
+        self.assertEqual(lines["CFG_PREVIEW_URL"], "'http://127.0.0.1:3160'")
+        self.assertEqual(lines["CFG_DOORS_STATE"], "'%s/doors/state.json'" % s)
+        self.assertEqual(lines["CFG_PLAYBOOKS"], "'%s/playbooks'" % s)
+        self.assertEqual(lines["CFG_RESEARCH"], "'%s/tasks/research'" % s)
+        self.assertEqual(len(lines), 43)
 
     def test_shell_quotes_apostrophes(self):
         c = real_cfg()

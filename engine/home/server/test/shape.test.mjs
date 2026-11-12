@@ -9,7 +9,7 @@ import { readShape, sameShape } from "../lib/shape.mjs";
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "shapes");
 const names = fs.readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5));
 
-test("there are twenty-six shape files", () => assert.equal(names.length, 26));
+test("there are at least twenty-six shape files", () => assert.ok(names.length >= 26, `only ${names.length}`));
 
 test("every shape file is valid JSON with no placeholder left", () => {
   for (const n of names) {

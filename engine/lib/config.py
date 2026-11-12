@@ -6,12 +6,17 @@ Standard library only (runs on /usr/bin/python3, 3.9).
 """
 import json
 import os
+import re
 import sys
 
 ENGINE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 PORT_KEYS = ["board", "gate", "relay", "home", "benchWeb", "benchSocketio",
-             "benchRedisQueue", "benchRedisCache", "benchDb"]
+             "benchRedisQueue", "benchRedisCache", "benchDb",
+             "gateNarrow", "web", "generate", "viewer", "preview"]
+# The doors (PLAN-V5 K1): each lists the agents, by slug, that may reach it.
+DOOR_NAMES = ["web", "generate", "viewer"]
+SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 
 
 class ConfigError(Exception):
@@ -48,6 +53,19 @@ def _need(obj, dotted, kind):
     return v
 
 
+def _need_doors(cfg):
+    """`doors` holds exactly the three doors, each {"agents": [slug, ...]}."""
+    d = cfg.get("doors")
+    if not isinstance(d, dict):
+        _fail("missing key doors")
+    if sorted(d) != sorted(DOOR_NAMES):
+        _fail("key doors must name " + ", ".join(DOOR_NAMES))
+    for name in DOOR_NAMES:
+        agents = _need(cfg, "doors.%s.agents" % name, "array")
+        if not all(isinstance(s, str) and SLUG.fullmatch(s) for s in agents):
+            _fail("key doors.%s.agents must list agent slugs" % name)
+
+
 def load_config(path=None):
     path = path or os.environ.get("ENGINE_CONFIG") or os.path.join(ENGINE_DIR, "config.json")
     try:
@@ -74,6 +92,7 @@ def load_config(path=None):
     _need(cfg, "fence.realClaude", "string")
     for k in ["claudeHosts", "codexHosts", "policyPortsAllowed", "readRootsAllowed"]:
         _need(cfg, "fence." + k, "array")
+    _need_doors(cfg)
     _need(cfg, "minFreeDiskGb", "number")
 
     cfg["stateRoot"] = _expand(cfg["stateRoot"])
@@ -90,6 +109,11 @@ def load_config(path=None):
         "relay": "%s:%d" % (host, p["relay"]),
         "home": "%s:%d" % (host, p["home"]),
         "bench": "%s:%d" % (host, p["benchWeb"]),
+        "gateNarrow": "%s:%d" % (host, p["gateNarrow"]),
+        "web": "%s:%d" % (host, p["web"]),
+        "generate": "%s:%d" % (host, p["generate"]),
+        "viewer": "%s:%d" % (host, p["viewer"]),
+        "preview": "%s:%d" % (host, p["preview"]),
     }
     s = cfg["stateRoot"]
     j = os.path.join
@@ -124,6 +148,24 @@ def load_config(path=None):
         "providerSecrets": j(s, "secrets", "provider"),
         "providerKey": j(s, "secrets", "provider", "omega-key"),
         "relaySecret": j(s, "secrets", "provider", "relay-secret"),
+        "playbooks": j(s, "playbooks"),
+        "research": j(s, "tasks", "research"),
+        "sharedBrain": j(s, "knowledge", "shared"),
+        "doors": j(s, "doors"),
+        "doorsState": j(s, "doors", "state.json"),
+        "doorSecrets": j(s, "secrets", "doors"),
+        "webSecret": j(s, "secrets", "doors", "web-secret"),
+        "generateSecret": j(s, "secrets", "doors", "generate-secret"),
+        "viewerSecret": j(s, "secrets", "doors", "viewer-secret"),
+        "runwayKey": j(s, "secrets", "doors", "runway-key"),
+        "searchKey": j(s, "secrets", "doors", "search-key"),
+        "webVisits": j(s, "doors", "web-visits.jsonl"),
+        "ledger": j(s, "doors", "generate-ledger.jsonl"),
+        "batches": j(s, "doors", "batches"),
+        "doorWork": j(s, "doors", "work"),
+        "webStatus": j(s, "doors", "web-status.json"),
+        "generateStatus": j(s, "doors", "generate-status.json"),
+        "viewerStatus": j(s, "doors", "viewer-status.json"),
     }
     return cfg
 
@@ -168,6 +210,19 @@ def shell_lines(cfg):
         ("CFG_MODELS_STATE", pa["modelsState"]),
         ("CFG_PROVIDER_KEY", pa["providerKey"]),
         ("CFG_RELAY_SECRET", pa["relaySecret"]),
+        ("CFG_PORT_GATE_NARROW", p["gateNarrow"]),
+        ("CFG_PORT_WEB", p["web"]),
+        ("CFG_PORT_GENERATE", p["generate"]),
+        ("CFG_PORT_VIEWER", p["viewer"]),
+        ("CFG_PORT_PREVIEW", p["preview"]),
+        ("CFG_GATE_NARROW_URL", u["gateNarrow"]),
+        ("CFG_WEB_URL", u["web"]),
+        ("CFG_GENERATE_URL", u["generate"]),
+        ("CFG_VIEWER_URL", u["viewer"]),
+        ("CFG_PREVIEW_URL", u["preview"]),
+        ("CFG_DOORS_STATE", pa["doorsState"]),
+        ("CFG_PLAYBOOKS", pa["playbooks"]),
+        ("CFG_RESEARCH", pa["research"]),
     ]
     return "\n".join("%s=%s" % (k, _q(v)) for k, v in pairs)
 

@@ -12,7 +12,7 @@ export const HANDOFFS = ["you-lead", "you-approve", "on-its-own"];
 export const STAGES = [1, 2, 3, 4];
 export const SIZES = ["XS", "S", "M", "L", "XL"];
 // The names of 31.4, in the order a job's reason is chosen.
-export const NEEDS = ["internet", "account", "cad-tools", "artist-tools", "slides", "video", "speech", "books", "quotations"];
+export const NEEDS = ["internet", "account", "generation", "browser", "cad-tools", "artist-tools", "slides", "video", "speech", "books", "quotations"];
 export const ASK_KINDS = ["line", "text", "date", "number", "choice", "file", "media", "task"];
 // The company brain's folders (32.1); `loose` is the files directly in its root.
 export const BRAIN_FOLDERS = ["company", "brand", "pricing", "policies", "people", "customers", "calls", "references", "packs"];
