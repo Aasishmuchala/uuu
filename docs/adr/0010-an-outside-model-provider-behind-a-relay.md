@@ -43,6 +43,7 @@ The provider's installer script (`omega-helper.sh`) is not needed and must not b
 - The board's own figures for the Claude and Codex plans do not apply in provider mode.
 - Nothing is sent to the board when the switch changes. The wrappers and the relay read the state file on every run, so the next run of every agent uses the new mode.
 - The fence in provider mode has a shorter outside list than in plans mode. The proof checks both modes, including that an agent cannot reach the provider, cannot read the key or the relay's secret, cannot call the relay with another agent's token or none, and cannot make the relay use another model.
+- An agent can see its own relay token: both programs hand their environment to their shell tool (checked in the rehearsal). The token works only on this Mac, only at the relay, only for that agent's own picked model, and for six hours. An agent that wrote it into the shared folder would give another agent nothing it does not already have, except a different model for those hours. The provider key and the relay's secret are never inside the fence.
 - The provider has never been switched on in this engine. Provider mode was tried only against a stand-in provider with a made-up key. Real use starts when the owner pastes a key.
 
 ## Rejected

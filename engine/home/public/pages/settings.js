@@ -1,9 +1,10 @@
-// Settings: how it looks, and what could be switched on later. Nothing else is on this page.
+// Settings: how it looks, which models the agents use (pages/settings-models.js), and what could be switched on later.
 import { html, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { currentAccent, currentBackdrop, currentMotion, currentTheme } from "../lib/theme.js";
 import { Button, Card, ErrorNotice, Loading, PageHeader, Section, Segmented, Switch } from "../kit/index.js";
+import ModelsSection from "./settings-models.js";
 
 export const THEMES = [
   { id: "auto", label: "Auto" },
@@ -97,6 +98,8 @@ export default function Page() {
           </div>
         <//>
       <//>
+
+      <${ModelsSection} />
 
       <${Section} title="Later, when you want it"
         aside=${html`<${Button} variant="quiet" onClick=${() => setTechnical(!technical)}>${technical ? "Hide technical details" : "Show technical details"}<//>`}>

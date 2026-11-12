@@ -28,3 +28,12 @@ test("settings: three backdrops, and the page saves Background and Moving backgr
   assert.match(src, /change\(\{ backdrop:/);
   assert.match(src, /change\(\{ motion:/);
 });
+
+test("settings: the Models section sits between Appearance and Later", () => {
+  const src = readFileSync(new URL("../../pages/settings.js", import.meta.url), "utf8");
+  const a = src.indexOf('title="Appearance"');
+  const m = src.indexOf("<${ModelsSection} />");
+  const l = src.indexOf('title="Later, when you want it"');
+  assert.ok(a > 0 && m > a && l > m);
+  assert.match(src, /import ModelsSection from "\.\/settings-models\.js";/);
+});

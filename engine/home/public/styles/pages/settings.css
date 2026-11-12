@@ -14,7 +14,44 @@
 .p-settings .p-settings__swatches { gap: var(--s-2) var(--s-4); }
 .p-settings .p-settings__group:last-child { margin-bottom: 0; }
 .p-settings .p-settings__dot { flex: none; border: 1px solid var(--border-strong); }
+/* The Models section (pages/settings-models.js). */
+.p-settings .p-settings__models { display: grid; gap: var(--s-3); }
+.p-settings .p-settings__m-card { display: grid; gap: var(--s-3); }
+.p-settings .p-settings__m-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
+.p-settings .p-settings__m-head > .k-dot { flex: none; }
+.p-settings .p-settings__m-lead { margin: 0; max-width: 64ch; line-height: var(--lh-body); }
+.p-settings .p-settings__m-text { margin: 0; color: var(--text-2); line-height: var(--lh-body); }
+.p-settings .p-settings__m-text + .p-settings__m-text { margin-top: var(--s-1); }
+.p-settings .p-settings__m-sub { margin: 0; font-size: var(--fs-caption); font-weight: var(--fw-medium); color: var(--text-2); text-transform: uppercase; letter-spacing: .08em; }
+.p-settings .p-settings__m-later { display: grid; gap: var(--s-2); padding: var(--s-4); border: 1px dashed var(--hairline-strong); border-radius: var(--r-3); }
+.p-settings .p-settings__m-restart { margin: 0; line-height: 2; }
+.p-settings .p-settings__m-later .k-next__command { white-space: nowrap; }
+.p-settings .p-settings__m-key { display: grid; gap: var(--s-3); }
+.p-settings .p-settings__m-key .k-input { max-width: 36rem; }
+.p-settings .p-settings__m-buttons { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.p-settings .p-settings__m-test { display: grid; gap: var(--s-2); padding-top: var(--s-3); border-top: 1px solid var(--hairline); }
+.p-settings .p-settings__m-plan { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--s-2); margin: 0; }
+.p-settings .p-settings__m-planrow { padding: var(--s-2) var(--s-3); background: var(--bg-subtle); border-radius: var(--r-2); min-width: 0; }
+.p-settings .p-settings__m-planrow dt { font-size: var(--fs-caption); color: var(--text-2); }
+.p-settings .p-settings__m-planrow dd { margin: 0; overflow-wrap: anywhere; }
+.p-settings .p-settings__m-answers { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.p-settings .p-settings__m-answer { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1) var(--s-3); }
+.p-settings .p-settings__m-for { color: var(--text-3); font-size: var(--fs-caption); }
+.p-settings .p-settings__m-agent { font-weight: var(--fw-medium); }
+.p-settings .p-settings__m-tech { display: block; margin-top: var(--s-1); color: var(--text-2); font-size: var(--fs-caption); overflow-wrap: anywhere; }
+.p-settings .p-settings__m-none { color: var(--text-3); }
+.p-settings .p-settings__m-pick { display: grid; gap: var(--s-1); justify-items: start; }
+.p-settings .p-settings__m-pick .k-select { min-width: 13rem; max-width: 100%; }
+.p-settings .p-settings__m-chosen { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); color: var(--text-2); font-size: var(--fs-caption); }
+.p-settings .p-settings__m-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-4); border: 1px dashed var(--hairline-strong); border-radius: var(--r-3); }
+.p-settings .p-settings__m-switch--on { border-color: var(--ok); }
+.p-settings .p-settings__m-state { margin: 0; }
+.p-settings .p-settings__m-steps { margin: 0; padding-left: var(--s-5); display: grid; gap: var(--s-1); color: var(--text-2); }
+.p-settings .p-settings__m-steps .k-next { margin: 0; }
+.p-settings .p-settings__m-techlist { list-style: none; margin: 0; padding: var(--s-2) var(--s-3); background: var(--bg-subtle); border-radius: var(--r-2); color: var(--text-2); display: grid; gap: var(--s-1); overflow-wrap: anywhere; }
 @media (max-width: 859px) {
   .p-settings .p-settings__item { padding: var(--s-4); }
   .p-settings .p-settings__swatch { min-height: 44px; }
+  .p-settings .p-settings__m-buttons .k-btn { flex: 1 1 auto; }
+  .p-settings .p-settings__m-pick, .p-settings .p-settings__m-pick .k-select { width: 100%; }
 }

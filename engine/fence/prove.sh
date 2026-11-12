@@ -87,9 +87,25 @@ BOARD_UP=0; answers "$BOARD/api/health" | grep -q '"status":"ok"' && BOARD_UP=1
 HOME_UP=0; answers "$HOME_URL/healthz" | grep -q '"part":"home"' && HOME_UP=1
 GATE_UP=0; answers "$GATE/gate/health" | grep -q '"part":"gate"' && GATE_UP=1
 BENCH_UP=0; answers -H "$SITE_HEADER" "$BENCH/api/method/ping" | grep -q pong && BENCH_UP=1
+RELAY="$CFG_RELAY_URL"
+RELAY_UP=0; answers "$RELAY/relay/health" | grep -q '"part":"relay"' && RELAY_UP=1
 REACH_BOARD="{ curl -s -m 6 $BOARD/api/health; curl -s -m 6 http://localhost:$CFG_PORT_BOARD/api/health; } | grep -q '\"status\":\"ok\"'"
 REACH_HOME="curl -s -m 6 $HOME_URL/healthz | grep -q '\"part\":\"home\"'"
 REACH_BENCH="curl -s -m 6 -H '$SITE_HEADER' $BENCH/api/method/ping | grep -q pong"
+
+# Which models the agents use: plans (the Claude and Codex plans) or provider (the
+# outside provider, reached only through the model relay). model_mode.py decides,
+# outside the fence; a settings file it cannot trust is a failure of its own.
+MODE="$(/usr/bin/python3 "$HERE/model_mode.py" --mode 2>&1 </dev/null)" \
+  || { say FAIL "the model settings could not be read (${MODE#fence: })"; MODE=""; }
+
+# An agent's id from ids.json, or nothing.
+agent_id_of() {
+  /usr/bin/python3 -c "import json,re,sys
+a=json.load(open(sys.argv[1])).get('agents',{}).get(sys.argv[2])
+print(a if isinstance(a,str) and re.fullmatch('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',a) else '')" \
+    "$STATE_DIR/ids.json" "$1" 2>/dev/null
+}
 
 write_policy() {   # write_policy <localServices JSON> <taskFolder>
   mkdir -p "$CFG_POLICY" "$STATE_DIR/lessons"
@@ -113,6 +129,9 @@ fence_checks() {
   blocked "read another agent's home"           "ls $other_home"
   blocked "write outside its task folder"       'echo x > ~/fence-escape-test.txt'
   blocked "reach the open internet"             'curl -s -m 8 https://example.com -o /dev/null'
+  blocked "reach the model provider directly"   'curl -s -m 8 https://api.omegaplusapi.com/v1/models -o /dev/null'
+  blocked "read the provider key, the relay's secret or the model settings" \
+    "cat $CFG_PROVIDER_KEY >/dev/null || cat $CFG_RELAY_SECRET >/dev/null || cat $CFG_MODELS_STATE >/dev/null"
   blocked "read your other Claude sessions' temp files" "ls /private/tmp/claude-$(id -u)"
   blocked "reach other local services (port 5432)"      'curl -s -m 5 -f http://127.0.0.1:5432/ -o /dev/null'
   if (( BOARD_UP )); then
@@ -201,7 +220,19 @@ echo "Claude Code (Chief of staff, Builder and the department agents)"
 RUN="$HERE/bin/claude"; WHO="a Claude agent"
 fence_checks "$STATE_DIR/codex-home"
 policy_checks
-if [[ -f "$STATE_DIR/agent.env" ]]; then
+# In provider mode the answer comes from the Builder's pick, through the relay.
+if [[ "$MODE" == provider ]]; then
+  as="$(agent_id_of builder)"
+  if [[ ! -f "$CFG_PROVIDER_KEY" ]]; then
+    say SKIP "a Claude agent answering from inside the fence through the model relay (no provider key saved: paste it in Settings)"
+  elif [[ -z "$as" ]]; then
+    say SKIP "a Claude agent answering from inside the fence through the model relay (no Builder in ids.json yet: run engine setup)"
+  else
+    out="$(PAPERCLIP_AGENT_ID="$as" within 180 "$RUN" -p "Reply with exactly: OK" --max-turns 1 </dev/null 2>&1 | tail -1)"
+    if [[ "$out" == *OK* ]]; then say PASS "a Claude agent answers from inside the fence through the model relay"
+    else say FAIL "a Claude agent did not answer from inside the fence through the model relay: ${out:0:200}"; fi
+  fi
+elif [[ -f "$STATE_DIR/agent.env" ]]; then
   out="$(within 180 "$RUN" -p "Reply with exactly: OK" --max-turns 1 </dev/null 2>&1 | tail -1)"
   if [[ "$out" == *OK* ]]; then say PASS "a Claude agent answers from inside the fence"
   else say FAIL "a Claude agent did not answer from inside the fence: ${out:0:200}"; fi
@@ -213,7 +244,18 @@ echo; echo "Codex (Checker)"
 RUN="$HERE/bin/codex"; WHO="the Codex agent"
 fence_checks "$STATE_DIR/claude-home"
 policy_checks
-if [[ -e "$STATE_DIR/codex-home/auth.json" ]]; then
+if [[ "$MODE" == provider ]]; then
+  as="$(agent_id_of checker)"
+  if [[ ! -f "$CFG_PROVIDER_KEY" ]]; then
+    say SKIP "the Codex agent answering from inside the fence through the model relay (no provider key saved: paste it in Settings)"
+  elif [[ -z "$as" ]]; then
+    say SKIP "the Codex agent answering from inside the fence through the model relay (no Checker in ids.json yet: run engine setup)"
+  else
+    out="$(PAPERCLIP_AGENT_ID="$as" within 180 "$RUN" exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "Reply with exactly: OK" </dev/null 2>/dev/null | tail -1)"
+    if [[ "$out" == *OK* ]]; then say PASS "the Codex agent answers from inside the fence through the model relay"
+    else say FAIL "the Codex agent did not answer from inside the fence through the model relay: ${out:0:200}"; fi
+  fi
+elif [[ -e "$STATE_DIR/codex-home/auth.json" ]]; then
   out="$(within 180 "$RUN" exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "Reply with exactly: OK" </dev/null 2>/dev/null | tail -1)"
   if [[ "$out" == *OK* ]]; then say PASS "the Codex agent answers from inside the fence"
   else say FAIL "the Codex agent did not answer from inside the fence: ${out:0:200}"; fi
@@ -223,6 +265,87 @@ if [[ -e "$STATE_DIR/codex-home/auth.json" ]]; then
   esac
 else
   say SKIP "the Codex agent answering from inside the fence (no Codex login yet: run engine/fence/login-wizard.sh codex)"
+fi
+
+# The model relay (the door to the outside model provider). In plans mode no agent
+# may reach it at all. In provider mode each tool acts as a real agent with a fence
+# policy (the Builder for Claude, the Checker for Codex), and the relay must turn
+# away a call with no token, with a token whose agent id was swapped for another
+# agent's, and with a token for an agent that has no model picked; and a call
+# that asks for another model must go to the agent's pick. Tokens come from
+# model_mode.py outside the fence, live only in a shell variable and the call's
+# environment (curl reads the header from its input, so no command line holds
+# one), and are never printed.
+echo; echo "The model relay (what an agent can do with it)"
+relay_call() {   # relay_call <token or ""> <JSON body>: prints FENCE_UP, the answer, then its status
+  PROOF_RELAY_TOKEN="$1" inside "printf '%s' \"\${PROOF_RELAY_TOKEN:+Authorization: Bearer \$PROOF_RELAY_TOKEN}\" \
+| curl -s -m 20 -H @- -H 'Content-Type: application/json' -H 'anthropic-version: 2023-06-01' \
+--data '$2' -w '\n%{http_code}' $RELAY/v1/messages"
+}
+relay_turns_away() {   # relay_turns_away <what> <token or ""> <status> [<relay code>]
+  local what="$1" want="$3" code_want="${4:-}" out code
+  out="$(relay_call "$2" '{"max_tokens":1,"messages":[{"role":"user","content":"proof"}]}')"
+  code="${out##*$'\n'}"
+  if [[ "$out" != FENCE_UP* ]]; then say FAIL "the fence around $WHO did not start (while checking: the model relay $what)"
+  elif [[ "$code" == "$want" && ( -z "$code_want" || "$out" == *"\"code\":\"$code_want\""* ) ]]; then
+    say PASS "the model relay turns $WHO away $what ($want${code_want:+ $code_want})"
+  else say FAIL "the model relay did not turn $WHO away $what (got $code)"; fi
+}
+relay_checks() {   # relay_checks <slug> <name> <slug of another agent>
+  local slug="$1" name="$2" me other tok run pick before out code line i
+  AS=""
+  if [[ "$MODE" == plans ]]; then
+    blocked "reach the model relay while the provider is off" \
+      "curl -s -m 6 -f -o /dev/null $RELAY/relay/health || curl -s -m 6 -f -o /dev/null http://localhost:$CFG_PORT_RELAY/relay/health"
+    return
+  fi
+  [[ "$MODE" == provider ]] || return 0
+  me="$(agent_id_of "$slug")"; other="$(agent_id_of "$3")"
+  if [[ -z "$me" ]]; then say SKIP "the model relay checks for $WHO (no $name in ids.json yet: run engine setup)"; return; fi
+  if [[ ! -f "$CFG_POLICY/$me.json" ]]; then say SKIP "the model relay checks for $WHO (the $name has no fence policy yet: run engine setup)"; return; fi
+  [[ -n "$other" && "$other" != "$me" ]] || other="$OTHER_ID"
+  AS="$me"
+  relay_turns_away "without a token" "" 401
+  tok="$(/usr/bin/python3 "$HERE/model_mode.py" --token --agent "$me" </dev/null 2>/dev/null)" || tok=""
+  if [[ "$tok" != "v1.a.$me."* ]]; then say FAIL "a token for the $name could not be made (model_mode.py --token)"; AS=""; return; fi
+  relay_turns_away "with a token whose agent id was swapped for another agent's" "v1.a.$other.${tok#v1.a.$me.}" 401
+  if [[ ! -f "$CFG_PROVIDER_KEY" ]]; then
+    say SKIP "whether the model relay turns $WHO away with a token for an agent that has no model picked (no provider key saved: paste it in Settings)"
+  else
+    relay_turns_away "with a token for an agent that has no model picked" \
+      "$(/usr/bin/python3 "$HERE/model_mode.py" --token --agent "$PROOF_ID" </dev/null 2>/dev/null)" 403 relay_no_pick
+  fi
+  # The Builder asks for a model that is never picked; the relay's log must name the pick.
+  if [[ "$slug" == builder ]]; then
+    if [[ ! -f "$CFG_PROVIDER_KEY" ]]; then
+      say SKIP "whether the relay sends the Builder's call to its picked model (no provider key saved: paste it in Settings)"
+    else
+      run="$(/usr/bin/python3 "$HERE/model_mode.py" --for-run --agent "$me" </dev/null 2>/dev/null)" || run=""
+      pick="$(printf '%s\n' "$run" | sed -n 3p)"; run=""
+      before="$(wc -l < "$CFG_LOGS/relay.log" 2>/dev/null | tr -d ' ')"; before="${before:-0}"
+      out="$(relay_call "$tok" '{"model":"claude-quantum-lite-1","max_tokens":1,"messages":[{"role":"user","content":"Reply with exactly: OK"}]}')"
+      code="${out##*$'\n'}"; out="${out%%$'\n'*}"
+      line=""
+      for i in 1 2 3 4 5 6 7 8 9 10; do   # the relay writes its line when the answer has ended
+        line="$(tail -n +"$((before + 1))" "$CFG_LOGS/relay.log" 2>/dev/null | grep ' call builder ' | tail -1)"
+        [[ -n "$line" ]] && break
+        sleep 0.5
+      done
+      if [[ "$out" != FENCE_UP ]]; then say FAIL "the fence around $WHO did not start (while checking: the model the relay sends a call to)"
+      elif [[ -n "$pick" && "$line" == *" model=$pick" ]]; then
+        say PASS "the relay sent the call to the Builder's picked model, not the one asked for"
+      else say FAIL "the relay did not send the call to the Builder's picked model (status $code; log: ${line:-no call line})"; fi
+    fi
+  fi
+  tok=""; AS=""
+}
+if (( ! RELAY_UP )); then
+  say SKIP "the model relay checks (the model relay is not running)"
+else
+  RUN="$HERE/bin/claude"; WHO="a Claude agent"
+  relay_checks builder Builder checker
+  RUN="$HERE/bin/codex"; WHO="the Codex agent"
+  relay_checks checker Checker builder
 fi
 
 # The gate, with a real agent token: a short-lived key for the Builder, made on

@@ -33,6 +33,7 @@ CODEX_BIN = "node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin
 STAND_IN = """#!/bin/bash
 for a in "$@"; do echo "arg=$a"; done
 echo "token=${ENGINE_RELAY_TOKEN-<unset>}"
+echo "claude-login=${CLAUDE_CODE_OAUTH_TOKEN-<unset>}${ANTHROPIC_AUTH_TOKEN-<unset>}${ANTHROPIC_BASE_URL-<unset>}"
 echo "codex-home=${CODEX_HOME:-}"
 echo "cwd=$(pwd -P)"
 """
@@ -156,6 +157,18 @@ class CodexWrapperTests(unittest.TestCase):
         args, token = self.ok(self.run_codex(PAPERCLIP_ARGS, AGENT_A,
                                              {"ENGINE_RELAY_TOKEN": "made-up-inherited"}))
         self.assertEqual(token, "<unset>")
+
+    def test_an_inherited_claude_login_never_reaches_codex(self):
+        # In either mode: Codex's shell tool gets the program's whole environment,
+        # so a Claude login the board happened to inherit must be gone before it.
+        inherited = {"CLAUDE_CODE_OAUTH_TOKEN": "made-up-login", "ANTHROPIC_AUTH_TOKEN": "made-up-token",
+                     "ANTHROPIC_BASE_URL": "http://127.0.0.1:1"}
+        for mode in ("plans", "provider"):
+            self.provider(mode=mode)
+            r = self.run_codex(PAPERCLIP_ARGS, AGENT_A, inherited)
+            self.ok(r)
+            self.assertIn("claude-login=<unset><unset><unset>", r.stdout)
+            self.assertNotIn("made-up", r.stdout + r.stderr)
 
     def test_plans_mode_without_an_agent_id_still_runs(self):
         self.provider(mode="plans")

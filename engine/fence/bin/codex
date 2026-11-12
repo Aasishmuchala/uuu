@@ -10,6 +10,9 @@ for _v in $(compgen -e); do
 done
 unset ENGINE_CONFIG _v
 unset OPENAI_API_KEY ANTHROPIC_API_KEY ENGINE_RELAY_TOKEN
+# Codex never needs the Claude login or a Claude endpoint: an inherited one must not reach
+# the program or its shell tool (which gets the program's whole environment).
+unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL
 
 FENCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 refuse() { echo "fence: $1" >&2; exit 78; }
