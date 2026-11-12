@@ -392,9 +392,30 @@
   max-width: 100%;
 }
 
+/* A table's cells break only at spaces, never inside a word (M63 item 5). A table too wide for the page scrolls
+   sideways inside its own box: the box is the scroller, and it can be reached and scrolled with the keyboard. */
 .p-files .p-files__table {
   max-width: 100%;
   overflow-x: auto;
+  border-radius: var(--r-4);
+}
+
+.p-files .p-files__table:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* As wide as the box, unless its longest words need more: then wider, and the box scrolls. */
+.p-files .p-files__table .k-table {
+  width: fit-content;
+  min-width: 100%;
+  overflow: visible;
+}
+
+.p-files .p-files__table .k-table__table th,
+.p-files .p-files__table .k-table__table td {
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .p-files .p-files__picture {
@@ -430,6 +451,15 @@
 }
 
 @media (max-width: 859px) {
+  /* Stacked into labelled rows: each row is as wide as the page, and only a word longer than its line breaks. */
+  .p-files .p-files__table .k-table {
+    width: auto;
+  }
+
+  .p-files .p-files__table .k-table__table td {
+    overflow-wrap: break-word;
+  }
+
   .p-files .p-files__row-meta > span:nth-child(2) {
     display: none;
   }

@@ -107,7 +107,7 @@ function FollowsFirst({ first }) {
   </div>`;
 }
 
-function Body({ job, recent, from, earlier, onStarted }) {
+function Body({ job, recent, from, earlier, onStarted, queue }) {
   const dept = text(job.department && job.department.id);
   const about = aboutLines(job);
   const note = fromNote(job, from, earlier);
@@ -127,7 +127,7 @@ function Body({ job, recent, from, earlier, onStarted }) {
       ${first
         ? html`<${FollowsFirst} first=${first} />`
         : html`<div class=${state.canStart ? "p-job__start" : "p-job__start p-job__start--blocked"} data-dept=${dept || undefined}>
-            <${JobStart} key=${text(job.id)} job=${job} from=${from} onStarted=${onStarted} />
+            <${JobStart} key=${text(job.id)} job=${job} from=${from} onStarted=${onStarted} queue=${queue} />
           </div>`}
     </div>
     <${Section} title="Earlier runs" count=${runs.length || undefined}>
@@ -176,6 +176,6 @@ export default function Page() {
     <${PageHeader} title=${text(job.title)} over=${overlineOf(job)} lead=${text(job.summary)} chip=${chip}
       creature=${SLUG.test(deptId) ? deptId : undefined} />
     <${Body} job=${job} recent=${d.recent} from=${from} earlier=${earlier.data && earlier.data.task}
-      onStarted=${() => res.refresh()} />
+      onStarted=${() => res.refresh()} queue=${d.queue && typeof d.queue === "object" ? d.queue : null} />
   </div>`;
 }

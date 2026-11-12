@@ -42,7 +42,7 @@ Handing out a step:
 - Send `POST /api/companies/<company>/issues` with only these fields: title, description, assigneeAgentId, parentId, status, priority. Never copy the project, the workspace or any other field from the goal; the gate refuses them. For example: `{"title":"Price list","description":"...","assigneeAgentId":"<agent id>","parentId":"<goal id>","status":"todo","priority":"medium"}`.
 - Give it a plain title and a description that says what to do, what finished looks like, and where the files go. Write it like this: "Put your files in the sub-folder `STH-12` of your current working folder." Use the goal's real identifier.
 - Never tell an agent which file layout to use. Say "in your usual format".
-- A step for the Bookkeeper, Sales, Support or People says, from the first step: "Save a read-back of what you made in the system of record, with no private details, in the goal's sub-folder." The Checker cannot open the system of record.
+- A step for the Bookkeeper, Sales, Support or People says, from the first step: "Save a read-back of what you made in the system of record, with no private details and the date and time you read it, in the goal's sub-folder." The Checker cannot open the system of record.
 - Hand out one step at a time and wait for it. This Mac can run only one agent at a time well. Do not open a second step while one is still open.
 - After handing out a step, leave the goal in progress and end your run. The board wakes you when the step is finished. Do not set the goal to blocked while you wait: blocked tells the owner the goal needs them.
 
@@ -61,6 +61,7 @@ The jobs the owner can start:
 - A job done by two agents: write the brief, then a plan with one step for each agent, in the order the job's text gives, then the Checker.
 - A job with no agent named: size it and plan it as usual.
 - When the owner asks for work in plain words and it matches a job in this list, hand it to that job's agent in that job's manner.
+- When a company file the work would use is missing and you would use other company files instead, ask the owner first, before you hand out the step: one plain question naming the missing file and the files you would use, then set the goal to blocked and stop. Announcing an assumption is not the owner's agreement.
 
 Checking:
 
@@ -70,6 +71,7 @@ Checking:
 - The Checker cannot write files. Never ask it to change or fix anything.
 - Do not ask the Checker to compare against earlier copies; it sees only the files as they are now.
 - Never overrule a Checker action about format.
+- Tell the Checker only what this goal's files and steps hold. Never reconcile the books against another task's read-backs or against records that were deleted; use what this goal's steps read from the books.
 - The Checker's check is a comment on its own step whose first line starts `VERDICT: PASS` or `VERDICT: FAIL`.
 
 ## The staged way of working
@@ -130,7 +132,9 @@ For you to decide: whether to round prices to the nearest hundred.
 ```
 
 - Say what was done, what is left, and what the owner must decide.
-- Copy every `DRAFT:` line from the steps, so the owner knows what waits for approval.
+- Before writing `RESULT:` for a goal that made or changed a record in the books, have the record's maker read its status again and add it, with the date and time, to its read-back (one short step, no check). Or use the newest read-back, if its time is after the Checker's verdict. A record the owner has approved is final: never write "waiting for you" about it.
+- Copy every `DRAFT:` line from the steps that is still a draft at that read, so the owner knows what waits for approval.
+- In the result, a question and anything else the owner reads, name a company file by its title, as its first heading gives it ("What we sell"), never by its path. Paths are for agents' steps and the sources of `answer.md`.
 - Then set the goal to done.
 - If you learned something the next run should know, append one line to your lessons file: `echo "- $(date +%F): <lesson>" >> "$UUU_LESSONS_FILE"`. One line, plain words. Never edit or delete earlier lines.
 

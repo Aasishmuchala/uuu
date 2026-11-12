@@ -25,7 +25,7 @@ export const RECORD_DASHBOARDS = ["books", "customers", "support", "people"];
 
 export const ROUTES = [
   { id: "map", file: "./pages/map.js", title: "Map", match: (p) => p.length === 0 || ((p.length === 1 || p.length === 2) && p[0] === "map"), section: "map", icon: "map" },
-  { id: "needs-you", file: "./pages/needs-you.js", title: "Needs you", match: only("needs-you"), section: "tasks", icon: "needs" },
+  { id: "needs-you", file: "./pages/needs-you.js", title: "Needs you", match: only("needs-you"), section: null, icon: "needs" },
   { id: "tasks", file: "./pages/tasks.js", title: "Tasks", match: only("tasks"), section: "tasks", icon: "tasks" },
   { id: "task", file: "./pages/task.js", title: "Task", match: withId("tasks"), section: "tasks", icon: "tasks" },
   { id: "dashboards", file: "./pages/dashboards.js", title: "Dashboards", match: only("dashboards"), section: "dashboards", icon: "dashboards" },

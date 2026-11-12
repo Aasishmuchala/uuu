@@ -13,6 +13,7 @@ import { loadCatalogue } from "./jobs.mjs";
 import { roundsOf, sizeOf, textOf } from "./staged.mjs";
 import { readTaskText } from "./taskfiles.mjs";
 import { loadRoles } from "./team.mjs";
+import { actedAt, aheadIn, answeredBlock, newer, ownerCommentAt, rootFinder, treeRuns } from "./turn.mjs";
 
 const COMMENT_TTL = 15000;
 const COMMENT_CACHE_MAX = 2000;
@@ -25,6 +26,11 @@ const ROUTINE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 
 const STAGE_LABELS = { brief: "Brief", plan: "Plan", work: "Work", summary: "Summary", check: "Check" };
 const WORKING = new Set(["in_progress", "in_review"]);
+// A blocked task whose block the owner has answered (answeredTurn), as the card shows it.
+const TURN_STATES = {
+  waiting: { state: "waiting", plainState: "Waiting its turn" },
+  working: { state: "working", plainState: "Being worked on" },
+};
 
 // ---- comments, cached 15 seconds per board and task
 const commentCache = new Map(); // `${board}\n${issueId}` -> { at, value: Promise<comment[]> }
@@ -121,7 +127,8 @@ export async function loadTaskContext(ctx, { withInbox = true, withComments = "o
   const [issues, agentList, liveRuns, boardRoutines] = await Promise.all([
     loadIssues(ctx, companyId),
     ctx.board.get(`/api/companies/${enc}/agents`).then((l) => (Array.isArray(l) ? l : [])),
-    ctx.board.get(`/api/companies/${enc}/live-runs`).then((l) => (Array.isArray(l) ? l : [])).catch(() => []),
+    // null when the board did not answer: then no queue is worked out (lib/turn.mjs), and nothing is live.
+    ctx.board.get(`/api/companies/${enc}/live-runs`).then((l) => (Array.isArray(l) ? l : [])).catch(() => null),
     ctx.board.get(`/api/companies/${enc}/routines`).then((l) => (Array.isArray(l) ? l : [])).catch(() => []),
   ]);
   const roles = loadRoles(ctx.config, { log: ctx.log });
@@ -129,7 +136,7 @@ export async function loadTaskContext(ctx, { withInbox = true, withComments = "o
 
   const liveByIssue = new Map();
   const liveByAgent = new Map();
-  for (const r of liveRuns) {
+  for (const r of liveRuns || []) {
     if (r?.issueId && !liveByIssue.has(r.issueId)) liveByIssue.set(r.issueId, r);
     if (r?.agentId && !liveByAgent.has(r.agentId)) liveByAgent.set(r.agentId, r);
   }
@@ -168,6 +175,8 @@ export async function loadTaskContext(ctx, { withInbox = true, withComments = "o
     ids, issues, goals, roles, agentList,
     agents: agentMap(agentList, ids, roles),
     liveByIssue, liveByAgent,
+    liveRuns,                // the board's queued and running runs, or null when it did not answer
+    rootOf: rootFinder(issues),
     needsYou: [],
     accepted,
     commentsOf: (issueId) => readComments(ctx, issueId),
@@ -294,9 +303,12 @@ export function columnOf(goal, tctx) {
     case "in_progress": case "in_review": return "in_progress";
     case "done": return tctx.accepted(goal.id) ? "done" : "pending_review";
     case "cancelled": return "canceled";
-    case "blocked":
+    case "blocked": {
       if (waitsForOwner(goal, tctx)) return "pending_review";
+      const turn = answeredTurn(goal, tctx);
+      if (turn) return turn === "working" ? "in_progress" : "backlog";
       return isHeldTask(goal, tctx) || tctx.needsYou.some((i) => i.taskId === goal.id && i.kind === "problem" && i.source === "board") ? "failed" : "pending_review";
+    }
     default: return "backlog";
   }
 }
@@ -307,6 +319,45 @@ export function columnOf(goal, tctx) {
 // steps does not count: the goal itself is not waiting on it (lib/inbox.mjs uses the same rule).
 export function waitsForOwner(goal, tctx) {
   return tctx.needsYou.some((i) => waitsOnOwner(i) && aboutOf(i) === goal.id);
+}
+
+// The ids of a task and all its steps.
+function treeIds(goal, tctx) {
+  return new Set([goal.id, ...tctx.stepsOf(goal.id).map((s) => s.id)]);
+}
+
+// A blocked task whose block the owner has already answered (lib/turn.mjs answeredBlock: a run of it or of a blocked
+// step is queued or running, or the owner acted on it after the block, moments ago), and for which Needs you holds nothing: not a
+// question, not the board's own problem item (inbox/board.mjs leaves that out for the same reason). "waiting"
+// while its run waits its turn, "working" once it runs; null otherwise. From the board's records and the home
+// server's own record of the owner's action only.
+export function answeredTurn(goal, tctx) {
+  if (!goal || goal.status !== "blocked") return null;
+  if (waitsForOwner(goal, tctx)) return null;
+  if (tctx.needsYou.some((i) => i.taskId === goal.id && i.kind === "problem" && i.source === "board")) return null;
+  // A run of the task itself or of one of its blocked steps (where the owner's answer wakes an agent); a step at
+  // work on something else does not answer the block.
+  const blocked = new Set([goal.id, ...tctx.stepsOf(goal.id).filter((s) => s.status === "blocked").map((s) => s.id)]);
+  const runs = treeRuns(tctx.liveRuns, blocked);
+  const ownerAt = newer(actedAt(tctx.decisions, goal.id), ownerCommentAt(tctx.comments?.get(goal.id)));
+  if (!answeredBlock({ live: runs.running + runs.queued > 0, blockedAt: goal.blockedTransitionAt || null, ownerAt })) return null;
+  return runs.running ? "working" : "waiting";
+}
+
+const NOT_STARTED = new Set(["todo", "backlog", "cancelled"]);
+
+// queueOf(goal, tctx) -> { ahead } | null (lib/turn.mjs): how many tasks are ahead of this one in its agent's line,
+// while it waits to start or to go on: not started yet, an answered block, or a run of it queued and none running.
+// null once a run of it is running, for a finished task, or when the board did not list its runs.
+export function queueOf(goal, tctx) {
+  if (!goal || !Array.isArray(tctx.liveRuns) || goal.status === "done" || goal.status === "cancelled") return null;
+  const mine = treeIds(goal, tctx);
+  const runs = treeRuns(tctx.liveRuns, mine);
+  if (runs.running) return null;
+  const notStarted = NOT_STARTED.has(goal.status) && !tctx.stepsOf(goal.id).some((s) => !NOT_STARTED.has(s.status));
+  const waiting = notStarted || (goal.status === "blocked" ? answeredTurn(goal, tctx) === "waiting" : runs.queued > 0);
+  if (!waiting) return null;
+  return aheadIn(tctx.liveRuns, { agentId: runs.agentId || goal.assigneeAgentId || null, mine, rootOf: tctx.rootOf });
 }
 
 // Needs you holds "A task stopped" for this task: the board will not start it again by itself.
@@ -368,6 +419,7 @@ export function taskCard(goal, tctx) {
   const rounds = comments ? roundsOf(comments, tctx.ids?.agents?.checker || null) : null;
 
   const who = workerOf(goal, tctx, text);
+  const turn = answeredTurn(goal, tctx);
 
   let stage = null;
   if (rounds && rounds.length) stage = "check";
@@ -378,7 +430,7 @@ export function taskCard(goal, tctx) {
 
   return {
     id: goal.id, identifier: goal.identifier, title: goal.title,
-    column: columnOf(goal, tctx), ...plainState(goal.status),
+    column: columnOf(goal, tctx), ...(turn ? TURN_STATES[turn] : plainState(goal.status)),
     who,
     size: comments ? sizeOf(comments) : null,
     stage: goal.status === "blocked" && isHeldTask(goal, tctx) && !waitsForOwner(goal, tctx) ? { id: stage || "work", label: "Stopped" }
@@ -390,6 +442,7 @@ export function taskCard(goal, tctx) {
     stepsDone: counted.filter((s) => s.status === "done").length, stepsTotal: counted.length,
     createdAt: goal.createdAt, updatedAt: goal.updatedAt,
     ...v3Keys(goal, tctx, who),
+    queue: queueOf(goal, tctx),
   };
 }
 

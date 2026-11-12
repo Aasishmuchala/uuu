@@ -12,12 +12,19 @@ import { stripInvisible } from "../lib/owner-text.mjs";
 import { buildText } from "../lib/staged.mjs";
 import { loadRoles } from "../lib/team.mjs";
 import { findTask, loadTaskContext, taskCard } from "../lib/tasks.mjs";
+import { aheadIn, chiefQueue } from "../lib/turn.mjs";
 import { titleOf } from "./goals.mjs";
 
 const RECENT = 10;
 const RECORD_MAX = 300;
 const CAPS = { line: 200, text: 2000 };
 const STARTED = "Started. The Chief of staff has it. It takes a few minutes and is checked before it reaches you.";
+// When other work is ahead in the Chief of staff's line (lib/turn.mjs), no time is promised (M63).
+const aheadWords = (n) => (n === 1 ? "1 task is" : `${n} tasks are`);
+export function startedMessage(queue) {
+  const n = queue && Number.isInteger(queue.ahead) ? queue.ahead : 0;
+  return n > 0 ? `Started. The Chief of staff has it. Waiting its turn: ${aheadWords(n)} ahead of it. It is checked before it reaches you.` : STARTED;
+}
 const IDENTIFIER = /^[A-Z][A-Z0-9]{0,9}-\d{1,9}$/;
 
 // Section 25: the hand-off tags and the stages, in their order.
@@ -183,7 +190,10 @@ export default function register(app) {
     const recent = tctx
       ? tctx.goals.filter((g) => ctx.decisions.get(`template:${g.id}`) === ref).slice(0, RECENT).map((g) => taskCard(g, tctx))
       : [];
-    return { job: jobView(job, { needs, runs, config: ctx.config, roles }), recent };
+    // How many tasks the Chief of staff has now: a job started now waits behind them (null: the board did not say).
+    const chief = tctx?.ids?.agents?.["chief-of-staff"] || null;
+    const queue = tctx && Array.isArray(tctx.liveRuns) && chief ? aheadIn(tctx.liveRuns, { agentId: chief, rootOf: tctx.rootOf }) : null;
+    return { job: jobView(job, { needs, runs, config: ctx.config, roles }), recent, queue };
   });
 
   app.post("/api/jobs/:department/:id/start", async (ctx) => {
@@ -250,6 +260,8 @@ export default function register(app) {
     const ids = needIds(ctx);
     const chief = ids.agents?.["chief-of-staff"];
     if (!chief) throw ctx.fail(409, "The Chief of staff is not set up yet.", "Run engine setup first.", "not_set_up");
+    // The Chief of staff's line before the task joins it: everything in it is ahead of the new task.
+    const queue = await chiefQueue(ctx);
     const created = await ctx.board.post(`/api/companies/${encodeURIComponent(ids.companyId)}/issues`, {
       title, description, assigneeAgentId: chief, projectId: ids.projectId, status: "todo", priority: "medium",
     });
@@ -260,6 +272,6 @@ export default function register(app) {
       ctx.decisions.set(`asked:${created.id}`, { answers: kept });
       if (earlier) ctx.decisions.set(`from:${created.id}`, earlier.id);
     }
-    return { status: 201, body: { goal: summary(created, [created]), message: STARTED } };
+    return { status: 201, body: { goal: summary(created, [created]), message: startedMessage(queue), queue } };
   });
 }

@@ -3,7 +3,7 @@
 // A job's words come from the company's own job files; the server's refusals are shown as the sentences it sends.
 import { html, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
-import { linkHref } from "../lib/format.js";
+import { aheadLine, linkHref } from "../lib/format.js";
 import { Button } from "./button.js";
 import { Field, Select, TextArea, TextInput } from "./fields.js";
 import { Icon } from "./icon.js";
@@ -24,6 +24,12 @@ export const STAGES = Object.freeze({
 });
 export const STARTED = "Started. The Chief of staff has it. It takes a few minutes and is checked before it reaches you.";
 export const UNDER_START = "Takes a few minutes. It is checked before it reaches you.";
+// Under Start when other work is ahead in the Chief of staff's line (`queue` from the server, M63): no time is
+// promised. "3 tasks are ahead, so it waits its turn. It is checked before it reaches you."
+export function underStart(queue) {
+  const ahead = aheadLine(queue);
+  return ahead ? `${ahead} It is checked before it reaches you.` : UNDER_START;
+}
 
 const SLUG = /^[a-z][a-z0-9-]{0,50}$/;
 const REF = /^[A-Z][A-Z0-9]{0,9}-\d{1,7}$/;
@@ -290,8 +296,11 @@ function AskField({ ask, value, error, disabled, onValue, fromText }) {
 const offline = (e) => Boolean(e && (e.offline || e.code === "not_set_up" || Number(e.status) >= 502));
 
 // The start form. `from` is the earlier task this one follows (a task id or identifier), when the owner came
-// from "What can come next". `onStarted(answer)` gets the server's 201 answer.
-export function JobStart({ job, from, onStarted }) {
+// from "What can come next". `onStarted(answer)` gets the server's 201 answer. `queue` is the Chief of staff's line
+// as the server sent it with the job ({ ahead }), for the line under Start.
+// A job that cannot start yet (not ready, or it follows earlier work with nothing to pick) keeps its questions
+// switched off, with the one sentence that says why (M63 item 13).
+export function JobStart({ job, from, onStarted, queue = null }) {
   const [answers, setAnswers] = useState({});
   const [errors, setErrors] = useState({});
   const [phase, setPhase] = useState({ id: "ready" });
@@ -370,11 +379,12 @@ export function JobStart({ job, from, onStarted }) {
     </div>`;
   }
 
-  return html`<form ref=${form} class=${cx("k-job", "k-job--start", !ready && "k-job--dim")} onSubmit=${start} novalidate>
+  const off = !ready || !!blocked;
+  return html`<form ref=${form} class=${cx("k-job", "k-job--start", off && "k-job--dim")} onSubmit=${start} novalidate>
     ${!ready ? html`<${WhyNot} why=${job.why} />` : null}
     ${asks.length
-      ? html`<div class="k-job__asks">${asks.map((a) => html`<${AskField} key=${a.id} ask=${a} value=${str(answers[a.id])} error=${errors[a.id]}
-          disabled=${!ready || sending} fromText=${fromAsk && a.id === fromAsk.id ? fromText : null} onValue=${(v) => setOne(a.id, v)} />`)}</div>`
+      ? html`<div class=${cx("k-job__asks", off && "k-job__asks--off")}>${asks.map((a) => html`<${AskField} key=${a.id} ask=${a} value=${str(answers[a.id])} error=${errors[a.id]}
+          disabled=${off || sending} fromText=${fromAsk && a.id === fromAsk.id ? fromText : null} onValue=${(v) => setOne(a.id, v)} />`)}</div>`
       : null}
     <${Reads} reads=${job.reads} />
     ${str(job.text)
@@ -398,7 +408,7 @@ export function JobStart({ job, from, onStarted }) {
         </p>`
       : html`<div class="k-job__actions">
           <${Button} type="submit" variant="primary" icon="play" busy=${sending} disabled=${!ready || !href}>Start<//>
-          <p class="k-job__under">${sending ? "Sending…" : UNDER_START}</p>
+          <p class="k-job__under">${sending ? "Sending…" : underStart(queue)}</p>
         </div>`}
   </form>`;
 }

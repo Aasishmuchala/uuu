@@ -2,7 +2,7 @@
 // The answer was written by an agent: every word is shown as text, sizes are capped, and a source is a link
 // only when the home server found it in the brain's own listing (`found` and `link`), never on the agent's word.
 import { html } from "../vendor/preact-htm.js";
-import { linkHref } from "../lib/format.js";
+import { linkHref, waitingLine } from "../lib/format.js";
 import { Icon } from "./icon.js";
 import { Time } from "./text.js";
 import { cx } from "./util.js";
@@ -165,6 +165,9 @@ export function AnswerView({ ask }) {
     body = html`<${Answered} ask=${ask} />`;
   } else if (state === "answered") {
     body = html`<${StateLine} tone="warn" icon="alert" href=${href} linkText="Open the task">Answered. The answer could not be read.<//>`;
+  } else if (state === "reading" && waitingLine(ask.queue)) {
+    // Other work is ahead in the Chief of staff's line (the server's count): no time is promised (M63).
+    body = html`<${StateLine} icon="clock">${waitingLine(ask.queue)}<//>`;
   } else if (state === "reading") {
     body = html`<${StateLine} tone="live" icon="live">Reading your files. This takes a minute or two.<//>`;
   } else if (state === "became_task") {

@@ -47,6 +47,17 @@ test("task: exports a page component", () => {
   assert.equal(typeof mod.default, "function");
 });
 
+// M63 item 4: an answer is never checked, so a question's header says "Not checked", not "Not checked yet".
+test("task: a question with no round says Not checked; the waiting words come with askOf", () => {
+  assert.equal(roundsLine(0, { ask: true }), "Not checked");
+  assert.equal(roundsLine(undefined, { ask: true }), "Not checked");
+  assert.equal(roundsLine(0, { ask: false }), "Not checked yet");
+  assert.equal(roundsLine(2, { ask: true }), "2 verification rounds");
+  const d = { task: { id: "e1", identifier: "STH-40", ask: true, state: "waiting", plainState: "Waiting to start", stepsTotal: 0, queue: { ahead: 2 } }, text: "Do we deliver?" };
+  assert.deepEqual(askOf(d).queue, { ahead: 2 }, "the server's count goes to the answer view");
+  assert.equal(askOf({ ...d, task: { ...d.task, queue: "2" } }).queue, null);
+});
+
 test("task: roundsLine says how many verification rounds in words", () => {
   assert.equal(roundsLine(0), "Not checked yet");
   assert.equal(roundsLine(undefined), "Not checked yet");

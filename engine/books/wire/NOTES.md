@@ -5,12 +5,14 @@ erpnext 16.54, india_compliance, hrms, crm, telephony, helpdesk; site
 `engine.localhost`). `wire.sh` does all of this; `wire.sh --verify` proves it
 with each agent's own key (145 checks, all PASS on this date). M37 (version 3)
 added the Bookkeeper's draft quotations and 28 checks for them: 173 checks
-from then on, first run live by M56 (see note 14).
+from then on, first run live by M56 (see note 14). M63 let Support read who
+raised a request, with 5 checks: 178 from then on (see note 15).
 
 ## What each role may do, as set
 
 Rights are custom permission rows at level 0 (`Custom DocPerm`), one per role
-and doctype. Every right not listed is 0: no role has delete, submit, cancel,
+and doctype, plus one read-only row at level 7 of HD Ticket for Support
+(note 15). Every right not listed is 0: no role has delete, submit, cancel,
 amend, share, print, email, report, export or import anywhere. Any other
 permission row naming the role is removed on each run.
 
@@ -18,7 +20,7 @@ permission row naming the role is removed on each run.
 |---|---|---|---|
 | Engine Bookkeeper (`bookkeeper@engine.localhost`) | Sales Invoice, Purchase Invoice, Journal Entry, Payment Entry, Quotation (drafts); Customer, Supplier, Item | | Company, Account, Cost Center, Fiscal Year, Currency, Sales/Purchase Taxes and Charges Template, Item Tax Template, Tax Category, GST HSN Code, Price List, Customer Group, Supplier Group, Item Group, Territory, UOM, Warehouse, Mode of Payment, Payment Terms Template |
 | Engine Sales (`sales@engine.localhost`) | CRM Lead, CRM Deal, FCRM Note, CRM Task | | CRM Lead Status, CRM Deal Status, CRM Lead Source, CRM Industry, CRM Organization, CRM Territory |
-| Engine Support (`support@engine.localhost`) | HD Ticket Comment | HD Ticket | HD Ticket Status, HD Ticket Type, HD Ticket Priority, HD Team |
+| Engine Support (`support@engine.localhost`) | HD Ticket Comment | HD Ticket | HD Ticket Status, HD Ticket Type, HD Ticket Priority, HD Team; HD Ticket's level-7 fields, `raised_by` among them |
 | Engine People (`people@engine.localhost`) | Leave Application, Attendance (drafts); Employee | | Company, Leave Type, Holiday List, Department, Designation, Branch, Employment Type, Gender |
 
 Each user has exactly its one role (plus frappe's automatic `All` and
@@ -127,6 +129,22 @@ Each user has exactly its one role (plus frappe's automatic `All` and
     its test quotation final, shows the Bookkeeper cannot change, cancel,
     amend, delete or send from it, then cancels and deletes it newest first,
     which winds the `SAL-QTN-` series back (note 11).
+15. **Who raised a request (M63).** Support could read a request but not its
+    sender, though the owner's dashboard shows it. The helpdesk puts
+    `raised_by` at permission level 7 of `HD Ticket`
+    (`helpdesk/helpdesk/doctype/hd_ticket/hd_ticket.json`), and the books
+    strip every field of a level the user's roles cannot read, from one
+    record (`Document.apply_fieldlevel_read_permissions`) and from a list
+    (`frappe.model.get_permitted_fields`). Support's only row was at level 0.
+    `wire.sh` now adds one `Custom DocPerm` row for Engine Support on HD
+    Ticket at level 7 with read and every other right 0. Rights go by level,
+    not by field, so this also shows the other level-7 fields (priority, type,
+    team, contact, customer, the service-level times), which the helpdesk's
+    own customers can already read on their requests; none can be changed.
+    Level 8 (the request's key, its mail account, its opening time) stays
+    shut. `--verify` shows Support reads the sender on a request and in the
+    list, cannot change it, cannot read level 8, and holds no other right
+    above level 0.
 
 ## The two owner calls (CONTRACTS section 8), checked live
 

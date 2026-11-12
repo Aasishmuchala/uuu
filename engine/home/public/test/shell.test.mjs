@@ -111,7 +111,9 @@ test("Routines, Health, Settings and Search, and nothing else", () => {
 test("which section is current for each page", () => {
   const want = {
     map: "map", dept: "map", jobs: "map", job: "map",
-    tasks: "tasks", task: "tasks", "needs-you": "tasks",
+    tasks: "tasks", task: "tasks",
+    // M63 item 6: on the Needs you page no section is current; the Needs you pill is (topbar).
+    "needs-you": null,
     dashboards: "dashboards", dashboard: "dashboards", marketing: "dashboards", studio: "dashboards",
     files: "files",
     team: null, agent: null, routines: null, health: null, settings: null, search: null,
@@ -340,6 +342,19 @@ test("the dock marks the department the page is about", () => {
   assert.equal(dockCurrent("tasks", ["tasks"], q("d=people")), "people");
   assert.equal(dockCurrent("needs-you", ["needs-you"], q("")), null);
   assert.equal(dockCurrent("team", ["team"], q("d=sales")), null);
+});
+
+// M63 item 6: on the Needs you page the pill is the current place, and no capsule section is.
+test("the Needs you pill shows as current on the Needs you page only", () => {
+  const props = (current) => topbar.NeedsPill({ count: 2, onOpen: () => {}, current }).props;
+  assert.match(props(true).class, /\bis-current\b/);
+  assert.equal(props(true)["aria-current"], "page");
+  assert.doesNotMatch(props(false).class, /is-current/);
+  assert.equal(props(false)["aria-current"], undefined);
+  assert.equal(routes.sectionOf("needs-you"), null);
+  const flat = (routeId) => JSON.stringify(topbar.Capsule({ routeId }), (k, v) => (k === "__" || k === "_parent" || typeof v === "function" ? undefined : v));
+  assert.doesNotMatch(flat("needs-you"), /is-current/, "no section of the capsule is current");
+  assert.match(flat("tasks"), /is-current/, "on Tasks, Tasks is");
 });
 
 test("the top bar's words: the Needs you pill, the Health dot, the theme switch", () => {

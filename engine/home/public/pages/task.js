@@ -10,6 +10,7 @@
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
+import { waitingLine } from "../lib/format.js";
 import { go } from "../lib/router.js";
 import {
   AnswerView, Avatar, Button, Chip, CheckList, Conversation, DecisionCard, DocView, Empty, ErrorNotice, Evidence,
@@ -27,10 +28,11 @@ const WIDE = 1080;
 
 // --- Pure helpers (tested in test/pages/task.test.mjs) ---------------------------------------------------------
 
-// "Not checked yet", "1 verification round", "3 verification rounds".
-export function roundsLine(n) {
+// "Not checked yet", "1 verification round", "3 verification rounds". A question is answered by the Chief of staff
+// and never checked (C3 25), so with no round it is "Not checked" (M63 item 4).
+export function roundsLine(n, { ask = false } = {}) {
   const v = Math.floor(Number(n) || 0);
-  if (v <= 0) return "Not checked yet";
+  if (v <= 0) return ask ? "Not checked" : "Not checked yet";
   return v === 1 ? "1 verification round" : `${v} verification rounds`;
 }
 
@@ -147,6 +149,7 @@ export function askOf(d) {
     question: cap(text(d.text).trim() || t.title, 2000),
     state, plainState: text(t.plainState), askedAt: t.createdAt,
     answer: answered ? a : null,
+    queue: t.queue && typeof t.queue === "object" ? t.queue : null,
   };
 }
 
@@ -675,8 +678,9 @@ export default function Page({ route }) {
                 <${Chip} icon="link">Follows ${cap(follows.title || follows.identifier, 80)}<//>
               </a>` : null}
             ${t.schedule ? html`<${Chip} icon="clock">${cap(t.schedule.label, 60)}<//>` : null}
-            <span class="u-caption">${roundsLine(rounds.length)}</span>
+            <span class="u-caption">${roundsLine(rounds.length, { ask: t.ask === true })}</span>
           </div>
+          ${waitingLine(t.queue) && !askOf(d) ? html`<p class="p-task__turn"><${Icon} name="clock" size=${14} /><span>${waitingLine(t.queue)}</span></p>` : null}
         <//>
       </div>
       ${panel}

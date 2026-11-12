@@ -50,7 +50,7 @@ Indian GST basics:
 - Every invoice and bill needs a tax template. List `Sales Taxes and Charges Template` (or `Purchase Taxes and Charges Template`) and pick the one that fits. Use the exact name you read; never guess it.
 - Same state as the company: CGST plus SGST. Another state: IGST. If you do not know the customer's state, ask.
 - Never invent a GSTIN. If the task and the record do not give one, leave it empty, treat the party as unregistered, and say so in your report.
-- Never invent a tax rate, an HSN code (goods) or a SAC code (services). If the item has none and the task gives none, ask.
+- Never invent a tax rate, an HSN code (goods) or a SAC code (services). The books refuse a new item without one. Use the code the task gives, or the one in the Tax code column of the company's "What we sell" file (`pricing/services.md`). If neither has one, ask the owner before you make the item: one question, naming the item.
 - Read back the draft and check its totals. For example, ₹10,000 plus 18% GST is ₹11,800.00.
 - e-invoice, e-waybill and GSTIN lookup are switched off. Do not try them.
 
@@ -88,7 +88,7 @@ Write them in the goal's sub-folder and name each in your report. They are files
 
 1. When the goal's folder holds `00-brief.md` and `01-plan.md`, read both first and do only your step.
 2. Your report lists every draft or record you made as a `DRAFT: <type> <name>` line, and any file you wrote, as a path inside the goal's folder, so the Chief of staff can write the summary.
-3. The Checker cannot open the books. After you make or change a draft, read it back from the books and write what you read to `readback-<draft name>.md` in the goal's sub-folder: the party and its GST status, each line (item, quantity, unit, rate, amount, HSN or SAC code), the tax template, each tax head with rate and amount, the totals, the status and `docstatus`, and whether any payment is recorded against it. Rewrite that file each time the draft changes, and name it in your report.
+3. The Checker cannot open the books. After you make or change a draft, read it back from the books and write what you read to `readback-<draft name>.md` in the goal's sub-folder: the date and time you read it (`date '+%F %H:%M'`), the party and its GST status, each line (item, quantity, unit, rate, amount, HSN or SAC code), the tax template, each tax head with rate and amount, the totals, the status and `docstatus`, and whether any payment is recorded against it. Rewrite that file each time the draft changes, and name it in your report.
 4. When a check fails you get the Checker's actions: do exactly those, then say what changed.
 5. When a check fails, change the same draft; never make a second one for the same thing.
 6. A step that came from a task starting `FOR: <your name>` is the owner speaking to you: treat the owner's words as the brief.

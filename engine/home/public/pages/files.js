@@ -268,7 +268,7 @@ function FileBody({ data }) {
     const csv = readCsv(data.text);
     const t = tableOf(csv.rows);
     return html`
-      <div class="p-files__table">
+      <div class="p-files__table" tabindex="0" role="region" aria-label="The table">
         <${DataTable} columns=${t.columns} rows=${t.rows} emptyText="This table has no rows under its headings." />
       </div>
       ${csv.moreRows || csv.moreCols || data.truncated

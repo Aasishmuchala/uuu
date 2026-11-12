@@ -110,3 +110,24 @@ export function splitCommand(text) {
   const m = /^(.*?\bRun:)\s+(.+)$/.exec(String(text || ""));
   return m ? { lead: m[1], command: m[2] } : null;
 }
+
+// Waiting its turn (M63). The server works out from the board's records how many tasks are ahead of a task in its
+// agent's line and sends `queue: { ahead }`; nothing here guesses a number. aheadCount(queue) -> that number, or
+// 0 when the server sent none (then the present words hold).
+export function aheadCount(queue) {
+  const n = queue && typeof queue === "object" ? queue.ahead : null;
+  return Number.isInteger(n) && n > 0 && n < 100000 ? n : 0;
+}
+const tasksAhead = (n) => (n === 1 ? "1 task is" : `${n} tasks are`);
+
+// "Waiting its turn: 3 tasks are ahead of it." for a task waiting to start or to go on; "" when nothing is ahead.
+export function waitingLine(queue) {
+  const n = aheadCount(queue);
+  return n ? `Waiting its turn: ${tasksAhead(n)} ahead of it.` : "";
+}
+
+// Before something is sent or started: "3 tasks are ahead, so it waits its turn."; "" when nothing is ahead.
+export function aheadLine(queue) {
+  const n = aheadCount(queue);
+  return n ? `${tasksAhead(n)} ahead, so it waits its turn.` : "";
+}

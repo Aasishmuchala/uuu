@@ -13,7 +13,8 @@ import { plainMarks } from "../lib/format.mjs";
 import { needIds } from "../lib/goals.mjs";
 import { askedAt, askedQuestion, ownerText } from "../lib/owner-text.mjs";
 import { buildText, roundsOf } from "../lib/staged.mjs";
-import { findTask, isHeldTask, loadTaskContext, treeComments } from "../lib/tasks.mjs";
+import { answeredTurn, findTask, isHeldTask, loadTaskContext, queueOf, treeComments } from "../lib/tasks.mjs";
+import { chiefQueue } from "../lib/turn.mjs";
 import { readTaskText } from "../lib/taskfiles.mjs";
 import { brainFor } from "../brain/store.mjs";
 import { titleOf } from "./goals.mjs";
@@ -67,7 +68,8 @@ export function vouch(sources, paths) {
 
 function stateOf(goal, tctx, parsed) {
   if (goal.status === "cancelled") return "stopped";
-  if (goal.status === "blocked") return isHeldTask(goal, tctx) ? "stopped" : "needs_you";
+  // A question the owner has already answered waits for the Chief of staff again (lib/tasks.mjs answeredTurn).
+  if (goal.status === "blocked") return isHeldTask(goal, tctx) ? "stopped" : answeredTurn(goal, tctx) ? "reading" : "needs_you";
   if (goal.status === "done") return parsed ? "answered" : "became_task";
   if (tctx.stepsOf(goal.id).length) return "became_task";
   return "reading";
@@ -105,6 +107,8 @@ export async function askOf(ctx, tctx, goal, { paths } = {}) {
     answer,
     needsYou: item && ack ? { inboxId, action: "acknowledge", label: ack.label, version: typeof item.version === "string" ? item.version : null } : null,
     taskId: goal.id,
+    // While it is read: how many tasks are ahead of it in the Chief of staff's line (lib/turn.mjs), else null.
+    queue: state === "reading" ? queueOf(goal, tctx) : null,
   };
 }
 
@@ -122,6 +126,8 @@ export default function register(app) {
     const ids = needIds(ctx);
     const chief = ids.agents?.["chief-of-staff"];
     if (!chief) throw ctx.fail(409, "The Chief of staff is not set up yet.", "Open Health to see how to set up the engine.", "not_set_up");
+    // The Chief of staff's line before the question joins it: everything in it is ahead of the question.
+    const queue = await chiefQueue(ctx);
     const created = await ctx.board.post(`/api/companies/${encodeURIComponent(ids.companyId)}/issues`, {
       title: titleOf(text), description: buildText({ text, ask: true }), assigneeAgentId: chief,
       projectId: ids.projectId, status: "todo", priority: "medium",
@@ -139,7 +145,7 @@ export default function register(app) {
         ask: {
           id: created.id, identifier: created.identifier || null, question: text,
           state: "reading", plainState: PLAIN.reading, askedAt: at,
-          answer: null, needsYou: null, taskId: created.id,
+          answer: null, needsYou: null, taskId: created.id, queue,
         },
       },
     };

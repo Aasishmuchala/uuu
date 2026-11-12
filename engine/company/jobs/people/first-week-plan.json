@@ -3,7 +3,7 @@
   "department": "people",
   "cluster": "joining",
   "title": "A first-week plan for a new person",
-  "summary": "A day-by-day plan for someone joining, from your team notes and company profile.",
+  "summary": "A day-by-day plan for someone joining, from your company profile, team notes and other company files.",
   "handoff": "you-lead",
   "stage": 3,
   "who": [
@@ -13,11 +13,19 @@
   "planFirst": false,
   "reads": [
     {
+      "file": "company/about.md",
+      "need": "must"
+    },
+    {
       "file": "people/team.md",
       "need": "must"
     },
     {
-      "file": "company/about.md",
+      "file": "pricing/services.md",
+      "need": "helps"
+    },
+    {
+      "file": "policies/support-promise.md",
       "need": "helps"
     }
   ],
@@ -45,7 +53,7 @@
     "books"
   ],
   "takes": null,
-  "text": "Write a first-week plan for [who], who joins as [job] on [start]. Plan each day: who they meet, what they learn and what they do, using only the people and facts in our team notes and company profile. Invent no names and no dates. Do not send it to anyone; I will share it myself.",
+  "text": "Write a first-week plan for [who], who joins as [job] on [start]. Plan each day: who they meet, what they learn and what they do. Use only the people and facts in our company files: the company profile, the team notes, what we sell and our support promise. Meetings are proposed, not confirmed: a person's working days do not mean they are free. Where the files do not cover something, say so instead of filling it. Invent no names and no dates. Do not send it to anyone; I will share it myself.",
   "produces": [
     "first-week.md"
   ]

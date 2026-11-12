@@ -156,6 +156,22 @@ a.k-job--row:hover {
   box-shadow: inset 0 0 0 1.5px var(--k-job-dot);
 }
 
+/* A job that cannot start yet: its questions are switched off and look it (M63 item 13); the sentence that says
+   why stays at full strength above them. */
+.k-job__asks--off .k-field__label,
+.k-job__asks--off .k-field__hint {
+  color: var(--text-3);
+}
+
+.k-job__asks--off .k-input:disabled,
+.k-job__asks--off .k-textarea:disabled,
+.k-job__asks--off .k-select__control:disabled {
+  border-style: dashed;
+  border-color: var(--hairline-strong);
+  background: transparent;
+  cursor: not-allowed;
+}
+
 /* The "can run" chip. */
 .k-job--chip {
   display: inline-flex;

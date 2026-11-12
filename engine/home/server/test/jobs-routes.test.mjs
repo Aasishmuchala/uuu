@@ -77,7 +77,8 @@ test("GET /api/jobs/:department/:id fits shape job, with the earlier tasks offer
   const r = await get(h, PROPOSAL);
   assert.equal(r.status, 200, r.text);
   assert.deepEqual(sameShape(readShape("job"), r.json.job), []);
-  assert.deepEqual(Object.keys(r.json).sort(), ["job", "recent"]);
+  assert.deepEqual(Object.keys(r.json).sort(), ["job", "queue", "recent"]);
+  assert.deepEqual(r.json.queue, { ahead: 0 }, "the Chief of staff has nothing in its line on the seed");
   const job = r.json.job;
   assert.equal(job.id, "sales/proposal-from-a-call");
   assert.deepEqual(job.who, [{ slug: "sales", name: "Sales" }]);

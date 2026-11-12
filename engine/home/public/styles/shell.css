@@ -254,6 +254,17 @@
   background: var(--warn-bg);
   color: var(--warn-text);
 }
+/* On the Needs you page the pill is the current place: a solid pill, as the capsule's current section. */
+.s-needs.is-current {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-text);
+}
+.s-needs.is-current .s-needs-count,
+.s-needs.is-current.is-warm .s-needs-count {
+  background: var(--primary-text);
+  color: var(--primary);
+}
 
 /* Quiet words and square icon buttons on the right. */
 .s-word {

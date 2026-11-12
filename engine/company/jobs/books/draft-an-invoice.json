@@ -53,13 +53,19 @@
       "label": "How many days to pay?",
       "kind": "line",
       "required": true
+    },
+    {
+      "id": "hsn",
+      "label": "The HSN or SAC code for this, if you know it:",
+      "kind": "line",
+      "required": false
     }
   ],
   "needs": [
     "books"
   ],
   "takes": null,
-  "text": "Draft an invoice for [customer] for [what-was-sold] at [amount] plus GST at [rate] percent. Use the invoice date [date] and payment terms of [number] days. Leave it as a draft for me to approve; do not send it to anyone.",
+  "text": "Draft an invoice for [customer] for [what-was-sold] at [amount] plus GST at [rate] percent. Use the invoice date [date] and payment terms of [number] days. Leave it as a draft for me to approve; do not send it to anyone. If I give an HSN or SAC code here, use it for the item: [hsn]",
   "produces": [
     "readback-*.md"
   ]

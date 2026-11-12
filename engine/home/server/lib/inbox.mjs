@@ -142,6 +142,18 @@ export async function mergeInbox(ctx, sources) {
   return { items, counts: { total: items.length, bySource }, notConnected, owners, unread };
 }
 
+// The home server's own record of the owner's newest action on a task (`acted:<task id>`, a time): a block the
+// owner has just answered is shown as waiting its turn, not as a new "blocked" card (lib/turn.mjs). Hiding an item
+// or stopping a task is not an answer.
+const NOT_ANSWERS = new Set(["dismiss", "stop"]);
+function recordActed(ctx, item, action) {
+  if (NOT_ANSWERS.has(action) || !ctx.decisions || typeof ctx.decisions.set !== "function") return;
+  const chain = chainOf(item);
+  const goalId = taskOf(item) || chain[chain.length - 1] || null;
+  if (!goalId) return;
+  try { ctx.decisions.set(`acted:${goalId}`, new Date().toISOString()); } catch { /* the action itself is done */ }
+}
+
 export function createActor(sources) {
   const handled = new Map(); // item id -> time, so a second click says "already handled"
 
@@ -177,6 +189,7 @@ export function createActor(sources) {
     }
     const out = await owners.get(id).act({ ...ctx, acting: true, item }, id, action, text || null);
     handled.set(id, Date.now());
+    recordActed(ctx, item, action);
     if (handled.size > 500) handled.delete(handled.keys().next().value);
     return { ok: true, message: out?.message || "Done." };
   };

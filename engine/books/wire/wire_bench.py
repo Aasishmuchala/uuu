@@ -37,6 +37,7 @@ DRAFT = ("read", "write", "create", "select")  # submittable: stays a draft
 RECORD = ("read", "write", "create", "select")  # a plain record
 UPDATE = ("read", "write", "select")
 READ = ("read", "select")
+LEVEL_READ = ("read",)  # the fields of one higher level: read, nothing else
 ALL_RIGHTS = (
 	"read", "write", "create", "delete", "submit", "cancel", "amend",
 	"report", "export", "import", "share", "print", "email", "select", "mask",
@@ -89,6 +90,11 @@ AGENTS = [
 			(RECORD, ["HD Ticket Comment"]),
 			(READ, ["HD Ticket Status", "HD Ticket Type", "HD Ticket Priority", "HD Team"]),
 		],
+		# Rights above level 0, as (doctype, level, rights). The helpdesk puts who
+		# raised a request (`raised_by`) at level 7 of HD Ticket; a draft reply
+		# needs the sender, so Support reads that level and changes nothing in it
+		# (NOTES.md note 15). Level 8 (the request's key, mail account) stays shut.
+		"levels": [("HD Ticket", 7, LEVEL_READ)],
 	},
 	{
 		"slug": "people",
@@ -188,52 +194,58 @@ def wire_role(agent):
 
 def wire_rights(agent):
 	role = agent["role"]
-	wanted = {}
+	wanted = {}  # (doctype, level) -> rights
 	for rights, doctypes in agent["rights"]:
 		for dt in doctypes:
 			if not frappe.db.exists("DocType", dt):
 				say("skipped", f"{role}: {dt} is not in the books")
 				continue
-			wanted[dt] = set(rights)
+			wanted[(dt, 0)] = set(rights)
+	for dt, level, rights in agent.get("levels", []):
+		# A higher level only ever comes with the level-0 row of the same doctype.
+		if (dt, 0) in wanted:
+			wanted[(dt, level)] = set(rights)
+	wanted_doctypes = {dt for dt, _level in wanted}
 
-	# Rows that name this role on any doctype not wanted, at another level, or
-	# only for the owner of a record: removed. Standard rows (DocPerm) only
-	# count where no custom rows exist; custom rows replace them.
+	# Rows that name this role on any doctype or level not wanted, or only for
+	# the owner of a record: removed. Standard rows (DocPerm) only count where
+	# no custom rows exist; custom rows replace them.
 	custom_parents = set(frappe.permissions.get_doctypes_with_custom_docperms())
 	for row in frappe.get_all("Custom DocPerm", filters={"role": role}, fields=["name", "parent", "permlevel", "if_owner"]):
-		if row.parent not in wanted or row.permlevel != 0 or row.if_owner:
+		if (row.parent, row.permlevel) not in wanted or row.if_owner:
 			frappe.delete_doc("Custom DocPerm", row.name, ignore_permissions=True, force=True)
 			frappe.clear_cache(doctype=row.parent)
 			say("removed", f"{role}: rights on {row.parent} (level {row.permlevel})")
 	for row in frappe.get_all("DocPerm", filters={"role": role}, fields=["parent"]):
-		if row.parent not in custom_parents and row.parent not in wanted:
+		if row.parent not in custom_parents and row.parent not in wanted_doctypes:
 			frappe.permissions.setup_custom_perms(row.parent)
 			for c in frappe.get_all("Custom DocPerm", filters={"role": role, "parent": row.parent}, pluck="name"):
 				frappe.delete_doc("Custom DocPerm", c, ignore_permissions=True, force=True)
 			frappe.clear_cache(doctype=row.parent)
 			say("removed", f"{role}: standard rights on {row.parent}")
 
-	for dt, rights in wanted.items():
+	for (dt, level), rights in wanted.items():
 		values = {r: (1 if r in rights else 0) for r in ALL_RIGHTS}
+		where = dt if level == 0 else f"{dt} (level {level})"
 		frappe.permissions.setup_custom_perms(dt)
-		name = frappe.db.get_value("Custom DocPerm", {"parent": dt, "role": role, "permlevel": 0, "if_owner": 0})
+		name = frappe.db.get_value("Custom DocPerm", {"parent": dt, "role": role, "permlevel": level, "if_owner": 0})
 		if not name:
 			doc = frappe.get_doc({
 				"doctype": "Custom DocPerm", "parent": dt, "parenttype": "DocType",
-				"parentfield": "permissions", "role": role, "permlevel": 0, "if_owner": 0, **values,
+				"parentfield": "permissions", "role": role, "permlevel": level, "if_owner": 0, **values,
 			})
 			doc.insert(ignore_permissions=True)
 			frappe.clear_cache(doctype=dt)
-			say("created", f"{role}: {', '.join(sorted(rights - {'select'}))} on {dt}")
+			say("created", f"{role}: {', '.join(sorted(rights - {'select'}))} on {where}")
 			continue
 		doc = frappe.get_doc("Custom DocPerm", name)
 		if any(int(doc.get(r) or 0) != v for r, v in values.items()):
 			doc.update(values)
 			doc.save(ignore_permissions=True)
 			frappe.clear_cache(doctype=dt)
-			say("updated", f"{role}: {', '.join(sorted(rights - {'select'}))} on {dt}")
+			say("updated", f"{role}: {', '.join(sorted(rights - {'select'}))} on {where}")
 		else:
-			say("unchanged", f"{role}: rights on {dt}")
+			say("unchanged", f"{role}: rights on {where}")
 
 
 def wire_user(agent, state):

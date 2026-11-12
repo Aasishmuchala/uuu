@@ -506,6 +506,17 @@ test("AnswerView: reading, became a task, could not be read", async () => {
   let root = await mount(kit.answer.AnswerView, { ask: { ...base, state: "reading", answer: null } });
   assert.match(textOf(root), /Reading your files\. This takes a minute or two\./);
   unmount(root);
+  // M63: other work ahead in the Chief of staff's line: its turn, and no time promised.
+  root = await mount(kit.answer.AnswerView, { ask: { ...base, state: "reading", answer: null, queue: { ahead: 3 } } });
+  assert.match(textOf(root), /Waiting its turn: 3 tasks are ahead of it\./);
+  assert.doesNotMatch(textOf(root), /minute/);
+  unmount(root);
+  root = await mount(kit.answer.AnswerView, { ask: { ...base, state: "reading", answer: null, queue: { ahead: 1 } } });
+  assert.match(textOf(root), /Waiting its turn: 1 task is ahead of it\./);
+  unmount(root);
+  root = await mount(kit.answer.AnswerView, { ask: { ...base, state: "reading", answer: null, queue: { ahead: 0 } } });
+  assert.match(textOf(root), /Reading your files\. This takes a minute or two\./, "nothing ahead: the words of section 25");
+  unmount(root);
   root = await mount(kit.answer.AnswerView, { ask: { ...base, state: "became_task", answer: null } });
   assert.match(textOf(root), /became a task/);
   assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/tasks/STH-19"));
@@ -530,6 +541,44 @@ test("JobStart: a job that cannot start says why and its Start is off", async ()
   const start = elements(root).find((e) => e.localName === "button" && /Start/.test(textOf(e)));
   assert.equal(start.getAttribute("disabled"), "true");
   assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/health"));
+  unmount(root);
+});
+
+// M63 item 13: a job that cannot start yet keeps its questions switched off, with the one sentence that says why.
+test("JobStart: a job that cannot start yet cannot be typed into; neither can one that follows work not accepted yet", async () => {
+  installDom();
+  const dim = { ...LEAD, ready: false, why: { name: "internet", text: "Agents have no internet, and this job needs it.", link: null } };
+  let root = await mount(kit.job.JobStart, { job: dim });
+  const fields = inputsOf(root);
+  assert.equal(fields.length, LEAD.asks.length);
+  for (const f of fields) assert.equal(f.getAttribute("disabled"), "true", `${f.localName} is switched off`);
+  assert.ok(byClass(root, "k-job__asks--off").length === 1, "the questions look switched off");
+  assert.equal((textOf(root).match(/Agents have no internet, and this job needs it\./g) || []).length, 1, "one sentence says why");
+  unmount(root);
+  const follows = {
+    ...LEAD, asks: [{ id: "earlier", label: "Which call write-up?", kind: "task", required: true, options: [] }, LEAD.asks[0]],
+    takes: { from: ["sales/call-write-up"], after: [{ id: "sales/call-write-up", title: "Call write-up" }] },
+  };
+  root = await mount(kit.job.JobStart, { job: follows });
+  for (const f of inputsOf(root)) assert.equal(f.getAttribute("disabled"), "true", `${f.localName} is switched off`);
+  assert.match(textOf(root), /This follows "Call write-up"\./);
+  unmount(root);
+  root = await mount(kit.job.JobStart, { job: LEAD });
+  assert.ok(inputsOf(root).every((f) => f.getAttribute("disabled") !== "true"), "a ready job's questions can be typed into");
+  unmount(root);
+});
+
+// M63 items 15 and 21: when other work is ahead in the Chief of staff's line, no time is promised.
+test("JobStart: the line under Start names the work ahead, from the server's count only", async () => {
+  installDom();
+  assert.equal(kit.job.underStart(null), "Takes a few minutes. It is checked before it reaches you.");
+  assert.equal(kit.job.underStart({ ahead: 0 }), "Takes a few minutes. It is checked before it reaches you.");
+  assert.equal(kit.job.underStart({ ahead: 1 }), "1 task is ahead, so it waits its turn. It is checked before it reaches you.");
+  assert.equal(kit.job.underStart({ ahead: 3 }), "3 tasks are ahead, so it waits its turn. It is checked before it reaches you.");
+  assert.equal(kit.job.underStart({ ahead: "3" }), "Takes a few minutes. It is checked before it reaches you.", "not a number the server sent");
+  const root = await mount(kit.job.JobStart, { job: LEAD, queue: { ahead: 2 } });
+  assert.match(textOf(root), /2 tasks are ahead, so it waits its turn\. It is checked before it reaches you\./);
+  assert.doesNotMatch(textOf(root), /few minutes/);
   unmount(root);
 });
 

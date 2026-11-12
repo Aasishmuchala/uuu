@@ -7,8 +7,10 @@
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
+import { aheadLine, waitingLine } from "../lib/format.js";
 import {
   AnswerView,
+  ASK_HINT,
   BriefCard,
   Button,
   changedText,
@@ -80,6 +82,18 @@ export function askProblem(error) {
 
 // How often an open question is read again: every 5 seconds while its answer is being written, then never.
 export const askEvery = (ask) => (!ask || ask.state === "reading" ? 5000 : 0);
+
+// The hint under the box (C3 25, M63): the time an answer takes, unless other work is ahead in the Chief of staff's
+// line (`brain.queue`, worked out by the server); then no time is promised.
+export function askHint(brain) {
+  const ahead = aheadLine(brain && brain.queue);
+  return ahead ? `Enter to send. ${ahead}` : ASK_HINT;
+}
+
+// The chip of the open question: "Reading your files", or "Waiting its turn" while other work is ahead of it.
+export function askingChip(asking) {
+  return waitingLine(asking && asking.queue) ? "Waiting its turn" : "Reading your files";
+}
 
 // The daily brief's items from /api/home, at most 12.
 export const briefItems = (home) => arr(home && home.brief && home.brief.items).filter((i) => i && typeof i === "object").slice(0, 12);
@@ -360,9 +374,9 @@ export default function MapPage({ route }) {
       <div class="p-map__chips">
         <button type="button" class="p-map__chip" onClick=${() => app.openComposer({})}><${Icon} name="plus" size=${14} /><span>New task</span></button>
         ${asking && !ask && ASK_ID.test(str(asking.id)) ? html`<a class="p-map__chip p-map__chip--live" href=${mapHref({ dept, view, ask: asking.id })}>
-          <span class="p-map__live" aria-hidden="true"></span><span>Reading your files</span></a>` : null}
+          ${waitingLine(asking.queue) ? html`<${Icon} name="clock" size=${14} />` : html`<span class="p-map__live" aria-hidden="true"></span>`}<span>${askingChip(asking)}</span></a>` : null}
       </div>
-      <div class="p-map__box" data-box><${Composer} mode="ask" onSend=${send} /></div>
+      <div class="p-map__box" data-box><${Composer} mode="ask" onSend=${send} hint=${askHint(data && data.brain)} /></div>
     </div>
   </div>`;
 }

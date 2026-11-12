@@ -54,6 +54,16 @@
   font-size: var(--fs-body);
 }
 
+/* Waiting its turn: other work is ahead of this task in its agent's line (M63). */
+.p-task .p-task__turn {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-2) 0 0;
+  color: var(--text-2);
+  font-size: var(--fs-body);
+}
+
 .p-task .p-task__who {
   display: inline-flex;
   align-items: center;

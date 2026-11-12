@@ -41,8 +41,14 @@ DEPARTMENT_DOCTYPES = {
 # Records no agent may read at all.
 NOBODY_READS = ["User", "Role", "Has Role", "DocPerm", "Custom DocPerm", "Email Account", "Server Script", "Salary Slip"]
 
+# Every right a permission row can hold (wire_bench.py's ALL_RIGHTS).
+ALL_RIGHTS = (
+	"read", "write", "create", "delete", "submit", "cancel", "amend",
+	"report", "export", "import", "share", "print", "email", "select", "mask",
+)
+
 # Rights that must be 0 on an agent's own documents.
-NEVER = ("submit", "cancel", "amend", "delete", "share", "email", "print", "export", "import", "report")
+NEVER =("submit", "cancel", "amend", "delete", "share", "email", "print", "export", "import", "report")
 
 # The fields the home screen reads (PLAN T11); checked with the owner's key.
 HOME_FIELDS = {
@@ -446,6 +452,7 @@ def support(run, a):
 	check(r.ok and any(row.get("name") == ticket for row in r.body.get("data", [])), "Support can list requests")
 	check(a.put(f"/api/resource/HD Ticket/{ticket}", {"priority": "Low"}).ok, "Support can update a request")
 	check(a.new("HD Ticket", {"subject": f"Engine {m}", "raised_by": "Administrator", "description": "x"}).denied, "Support cannot open a request itself")
+	sender(run, a, ticket)
 	draft = run.made_by("support", "HD Ticket Comment", a.new("HD Ticket Comment", {
 		"reference_ticket": ticket, "content": f"DRAFT REPLY: Engine {m}", "commented_by": AGENT_USERS["support"][1],
 	}), "a draft reply")
@@ -459,6 +466,33 @@ def support(run, a):
 	r = a.method("run_doc_method", {"dt": "HD Ticket", "dn": ticket, "method": "create_communication_via_contact", "args": {"message": f"Engine {m}"}})
 	check(r.guarded("may not send"), "Support cannot post a message on a request in the customer's name")
 	cannot_send(run, "support", a, "HD Ticket", ticket)
+
+
+def sender(run, a, ticket):
+	"""Support reads who raised a request, which the helpdesk keeps at level 7
+	of HD Ticket, and nothing more (NOTES.md note 15): it cannot change the
+	sender, and level 8 (the request's key, its mail account) stays shut."""
+	o = run.owner
+	raised_by = o.doc("HD Ticket", ticket).data.get("raised_by")
+	data = a.doc("HD Ticket", ticket).data
+	check(bool(raised_by) and data.get("raised_by") == raised_by, "Support can read who raised a request (on the request)")
+	r = a.get("/api/resource/HD Ticket", {"fields": ["name", "raised_by"], "filters": [["name", "=", ticket]]})
+	rows = r.body.get("data", []) if r.ok else []
+	check(bool(rows) and rows[0].get("raised_by") == raised_by, "Support can read who raised a request (in the list)")
+	a.put(f"/api/resource/HD Ticket/{ticket}", {"raised_by": "intruder@example.invalid"})
+	check(o.doc("HD Ticket", ticket).data.get("raised_by") == raised_by, "Support cannot change who raised a request")
+	seen = [f for f in ("key", "email_account", "opening_date", "via_customer_portal") if f in data]
+	check(not seen, "Support cannot read a request's level-8 fields (its key, its mail account)" + (f" (but can: {', '.join(seen)})" if seen else ""))
+	r = o.get("/api/resource/Custom DocPerm", {
+		"fields": ["permlevel", *ALL_RIGHTS], "filters": [["parent", "=", "HD Ticket"], ["role", "=", "Engine Support"]],
+		"limit_page_length": 20,
+	})
+	rows = {row.get("permlevel"): row for row in r.body.get("data", [])} if r.ok else {}
+	level7 = rows.get(7) or {}
+	check(
+		sorted(rows) == [0, 7] and level7.get("read") == 1 and not any(level7.get(x) for x in ALL_RIGHTS if x != "read"),
+		"the books give Support read and nothing else above level 0 of a request, at level 7 only",
+	)
 
 
 def people(run, a):

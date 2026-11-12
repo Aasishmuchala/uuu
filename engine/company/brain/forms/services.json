@@ -32,7 +32,7 @@
           "label": "Tax code"
         }
       ],
-      "hint": "Such as: one row for each item or service you quote."
+      "hint": "Such as: one row for each thing you sell. Tax code: its HSN code (goods) or SAC code (services), if you know it."
     }
   ]
 }

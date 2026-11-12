@@ -214,6 +214,14 @@ test("map: keyboard and screen-reader fixes (M52 K4, K9): Esc closes the two dis
 });
 
 test("map: an open question is read every 5 seconds until it is answered", () => {
+  // M63: the hint and the chip never promise a time when other work is ahead (the server's count only).
+  assert.equal(page.askHint({ queue: null }), "Enter to send. A real agent reads your files, so an answer takes a minute or two.");
+  assert.equal(page.askHint({ queue: { ahead: 0 } }), "Enter to send. A real agent reads your files, so an answer takes a minute or two.");
+  assert.equal(page.askHint(null), "Enter to send. A real agent reads your files, so an answer takes a minute or two.");
+  assert.equal(page.askHint({ queue: { ahead: 1 } }), "Enter to send. 1 task is ahead, so it waits its turn.");
+  assert.equal(page.askHint({ queue: { ahead: 4 } }), "Enter to send. 4 tasks are ahead, so it waits its turn.");
+  assert.equal(page.askingChip({ id: "e1", queue: { ahead: 2 } }), "Waiting its turn");
+  assert.equal(page.askingChip({ id: "e1", queue: null }), "Reading your files");
   assert.equal(page.askEvery(null), 5000);
   assert.equal(page.askEvery({ ...ask, state: "reading" }), 5000);
   for (const state of ["answered", "became_task", "needs_you", "stopped"]) assert.equal(page.askEvery({ ...ask, state }), 0);

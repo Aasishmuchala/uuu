@@ -96,9 +96,11 @@ test("a question about the goal hides the stuck items of the steps under it", as
 });
 
 test("a question that offers only Hide hides nothing", async () => {
+  // STH-5, not STH-4: the seed has a run of STH-4 running, and a run of the blocked task itself means its block is
+  // being dealt with (M63: the card is left out while a run of the task is queued or running).
   const s = seed();
-  const same = blocker(s, "b4", "STH-4");
-  const q = interaction(s, 1, "STH-4", "connection_intent", { version: 1 });
+  const same = blocker(s, "b5", "STH-5");
+  const q = interaction(s, 1, "STH-5", "connection_intent", { version: 1 });
   await withSeed(s, async (h) => {
     const items = (await inbox(h)).items;
     assert.deepEqual(items.find((i) => i.id === q.id).actions.map((a) => a.id), ["dismiss"]);

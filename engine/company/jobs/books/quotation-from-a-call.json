@@ -23,6 +23,12 @@
       "label": "Which call write-up or proposal?",
       "kind": "task",
       "required": true
+    },
+    {
+      "id": "hsn",
+      "label": "The HSN or SAC code for this, if you know it:",
+      "kind": "line",
+      "required": false
     }
   ],
   "needs": [
@@ -37,7 +43,7 @@
     "ask": "earlier",
     "label": "Draft the quotation from this"
   },
-  "text": "Draft a quotation for the customer in [earlier], for what they asked for there. Take every price from our price list and invent nothing; if a price is missing, say so instead of guessing. Leave it as a draft for me to approve; do not send it to anyone. Then write a short read-back of what the quotation says, so I can check it before I approve it.",
+  "text": "Draft a quotation for the customer in [earlier], for what they asked for there. Take every price from our price list and invent nothing; if a price is missing, say so instead of guessing. Leave it as a draft for me to approve; do not send it to anyone. Then write a short read-back of what the quotation says, so I can check it before I approve it. If I give an HSN or SAC code here, use it for the item: [hsn]",
   "produces": [
     "readback-*.md"
   ]

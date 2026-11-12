@@ -57,10 +57,13 @@ function ThemeSwitch({ settings, onSave, withWords }) {
     </button>`;
 }
 
-export function NeedsPill({ count, onOpen }) {
+// `current`: the Needs you page is open; the pill then shows as the current place, and no section of the
+// capsule does (M63 item 6).
+export function NeedsPill({ count, onOpen, current = false }) {
   const n = Math.max(0, Math.floor(Number(count) || 0));
   return html`
-    <button type="button" class=${`s-needs${n ? " is-warm" : ""}`} onClick=${() => onOpen({})} aria-label=${needsLabel(n)}>
+    <button type="button" class=${`s-needs${n ? " is-warm" : ""}${current ? " is-current" : ""}`} onClick=${() => onOpen({})}
+      aria-label=${needsLabel(n)} aria-current=${current ? "page" : undefined}>
       <span class="s-needs-word" aria-hidden="true">Needs you</span>
       <span class="s-needs-count" aria-hidden="true">${n}</span>
     </button>`;
@@ -115,7 +118,7 @@ export function Topbar({ routeId, shell, narrow, settings, onSaveSettings, onNee
       <header class=${cls}>
         <${Brand} name=${name} />
         <span class="s-topbar-gap"></span>
-        <${NeedsPill} count=${needs} onOpen=${onNeeds} />
+        <${NeedsPill} count=${needs} onOpen=${onNeeds} current=${routeId === "needs-you"} />
         <button type="button" class="s-square" onClick=${onMenu} aria-label="Menu">
           <${Icon} name="menu" />
         </button>
@@ -127,7 +130,7 @@ export function Topbar({ routeId, shell, narrow, settings, onSaveSettings, onNee
       <div class="s-topbar-left"><${Brand} name=${name} /></div>
       <${Capsule} routeId=${routeId} />
       <div class="s-topbar-right">
-        <${NeedsPill} count=${needs} onOpen=${onNeeds} />
+        <${NeedsPill} count=${needs} onOpen=${onNeeds} current=${routeId === "needs-you"} />
         <a class=${`s-word${routeId === "jobs" || routeId === "job" ? " is-current" : ""}`} href="#/jobs"
           aria-current=${routeId === "jobs" ? "page" : undefined}>Jobs</a>
         <a class=${`s-word${routeId === "routines" ? " is-current" : ""}`} href="#/routines"

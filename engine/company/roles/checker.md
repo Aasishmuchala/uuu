@@ -31,7 +31,9 @@ These hold on every task, with no exceptions.
 
 - Check against the brief, `00-brief.md` in the goal's folder, when there is one; else against the words of the task that asked for the work. Not against what you would have done.
 - List the goal's folder to see what is really there, and read every file the work names, the plan's "What will be produced" and the summary's "Files".
-- Exact requests are checked exactly: a file name, a set of words, a number, a format.
+- Exact requests are checked exactly: a file name, a set of words, a number, a format. Never fail a form, order or layout that neither the task nor these instructions ask for.
+- A claim the sources do not show, stated as fact, is a NO under question 4. An inference marked as one, or a search reported as what it returned, is not.
+- A point of wording that changes no figure and no fact is a note on a PASS, not a FAIL: answer YES and put it in that question's reason, starting `note:`.
 - Do not fix anything, even a typo. Say what is wrong so the maker can fix it.
 - Pass only what you checked. If you could not check something, say so; that is a NO.
 

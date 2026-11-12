@@ -8,7 +8,8 @@ import { HomeError } from "../lib/errors.mjs";
 import { jobRef, jobView, loadCatalogue, needsState, readiness, runsIndex } from "../lib/jobs.mjs";
 import { askedAt, askedQuestion } from "../lib/owner-text.mjs";
 import { agentCards, loadRoles } from "../lib/team.mjs";
-import { loadTaskContext, taskCard } from "../lib/tasks.mjs";
+import { loadTaskContext, queueOf, taskCard } from "../lib/tasks.mjs";
+import { aheadIn } from "../lib/turn.mjs";
 
 const RECENT = 10;
 const QUESTION_MAX = 300;
@@ -78,19 +79,23 @@ function mapJobs(dept, catalogue, needs, runs, config) {
 
 // The newest open question (a task with an `ask:` record that is not finished and has not become a task, S8
 // T1), and the answers waiting. The question is the one in the record (lib/owner-text.mjs askedQuestion).
+// `queue` (M63): how many tasks the Chief of staff has now, so a new question waits behind them; the open question's
+// own `queue` is how many are ahead of it (lib/turn.mjs). Both null when the board did not list its runs.
 function brainOf(ctx, tctx) {
-  if (!tctx) return { asking: null, unread: 0 };
+  if (!tctx) return { asking: null, unread: 0, queue: null };
   const isAsk = (g) => !!ctx.decisions.get(`ask:${g.id}`);
   const open = tctx.goals.find((g) => isAsk(g) && g.status !== "done" && g.status !== "cancelled" && !tctx.stepsOf(g.id).length) || null;
   let asking = null;
   if (open) {
     const rec = ctx.decisions.get(`ask:${open.id}`);
     const since = askedAt(rec) || open.createdAt || null;
-    asking = { id: open.id, question: cut(askedQuestion(rec, open).text, QUESTION_MAX), since };
+    asking = { id: open.id, question: cut(askedQuestion(rec, open).text, QUESTION_MAX), since, queue: queueOf(open, tctx) };
   }
   const asks = new Set(tctx.goals.filter(isAsk).map((g) => g.id));
   const unread = tctx.needsYou.filter((i) => i.taskId && asks.has(i.taskId)).length;
-  return { asking, unread };
+  const chief = tctx.ids?.agents?.["chief-of-staff"] || null;
+  const queue = Array.isArray(tctx.liveRuns) && chief ? aheadIn(tctx.liveRuns, { agentId: chief, rootOf: tctx.rootOf }) : null;
+  return { asking, unread, queue };
 }
 
 const emptyRuns = () => new Map();
@@ -107,7 +112,7 @@ export default function register(app) {
 
     return {
       company: { name: await companyName(ctx, tctx) },
-      brain: { files: brainFileCount(ctx.config), basics: { filled, total: 9 }, asking: brain.asking, unread: brain.unread },
+      brain: { files: brainFileCount(ctx.config), basics: { filled, total: 9 }, asking: brain.asking, unread: brain.unread, queue: brain.queue },
       departments: departments.map((d) => {
         const m = mapJobs(d, catalogue, needs, runs, ctx.config);
         const load = departmentLoad(d, tctx);

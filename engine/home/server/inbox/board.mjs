@@ -19,12 +19,19 @@
 // board's own recovery item for a hold of that kind loses its "Try again" for the same reason.
 // A write the board may have made although its answer did not arrive in time is looked up again before it is
 // reported as failed, so the owner is never told "the board is off" for an answer that was recorded.
+// The board's "blocked, waiting on you" card (blocker_attention) stays up after the owner has answered, for as long
+// as the agent's run waits its turn. Such a card is left out while a run of the blocked task (or of a task above
+// it) is queued or running, or for a moment after the owner acted on the task (lib/turn.mjs answeredBlock); the task
+// then shows as waiting its turn (lib/tasks.mjs answeredTurn). When the block is still there with nothing queued or running, the card is back.
+// Only board records decide it: the runs the board lists, who wrote a comment, when the board blocked the task,
+// and the home server's own record of the owner's action.
 import { randomUUID } from "node:crypto";
 import { HomeError } from "../lib/errors.mjs";
 import { isGoal, loadIssues, rootOf } from "../lib/goals.mjs";
 import { versionOf } from "../lib/inbox.mjs";
 import { stopTask } from "../lib/stop.mjs";
 import { loadRoles } from "../lib/team.mjs";
+import { actedAt, answeredBlock, newer, ownerCommentAt, treeRuns } from "../lib/turn.mjs";
 import { RECONCILIATION_CAUSES } from "../lib/unstick.mjs";
 
 const APPROVAL = new Set(["approval"]);
@@ -356,6 +363,43 @@ async function interactionRecords(ctx, items) {
   return out;
 }
 
+// The task a blocked card is about: the blocked task the board names, else the card's own subject.
+function blockedIdsOf(item) {
+  return [item.relatedIssue?.id, item.subject?.metadata?.issueId, item.subject?.id].filter((x) => typeof x === "string" && x);
+}
+
+// The ids of the board's blocked cards the owner has already answered (see the top of this file).
+async function answeredBlockCards(ctx, items, issues, companyId) {
+  const cards = items.filter((i) => i.sourceKind === "blocker_attention");
+  if (!cards.length || !issues.length) return new Set();
+  let live = null;
+  try {
+    const l = await ctx.board.get(`/api/companies/${encodeURIComponent(companyId)}/live-runs`);
+    live = Array.isArray(l) ? l : null;
+  } catch { live = null; }
+  const byId = new Map(issues.map((i) => [i.id, i]));
+  const out = new Set();
+  await Promise.all(cards.map(async (card) => {
+    const issue = blockedIdsOf(card).map((id) => byId.get(id)).find(Boolean);
+    if (!issue) return;
+    const root = rootOf(issues, issue.id);
+    if (!root) return;
+    // A run of the blocked task itself or of a task above it (where the owner's answer wakes its agent); a
+    // sibling step at work does not answer this block.
+    const runs = treeRuns(live, new Set(chainOf(issues, issue.id)));
+    const blockedAt = issue.blockedTransitionAt || card.activityAt || null;
+    let ownerAt = actedAt(ctx.decisions, root.id);
+    if (!runs.running && !runs.queued && !answeredBlock({ blockedAt, ownerAt })) {
+      // The owner's own comments on the blocked task and on its top task (a reply, an ANSWER:).
+      for (const id of new Set([issue.id, root.id])) {
+        try { ownerAt = newer(ownerAt, ownerCommentAt(await ctx.board.get(`/api/issues/${encodeURIComponent(id)}/comments`))); } catch { /* unread: no answer seen */ }
+      }
+    }
+    if (answeredBlock({ live: runs.running + runs.queued > 0, blockedAt, ownerAt })) out.add(card.id);
+  }));
+  return out;
+}
+
 // One problem item per task the board holds, from what the hold sweep last found.
 function holdItems(ctx, ids) {
   const byGoal = new Map();
@@ -404,11 +448,11 @@ async function list(ctx) {
     && !(i.sourceKind === "recovery_action" && heldActions.has(i.subject?.id)));
   let issues = [];
   const ids = ctx.ids();
-  if (ids?.projectId && visible.some((i) => issueIdOf(i))) {
+  if (ids?.projectId && visible.some((i) => issueIdOf(i) || i.sourceKind === "blocker_attention")) {
     try { issues = await loadIssues(ctx, companyId); } catch { issues = []; }
   }
-  const records = await interactionRecords(ctx, visible);
-  const items = visible.map((raw) => {
+  const [records, answered] = await Promise.all([interactionRecords(ctx, visible), answeredBlockCards(ctx, visible, issues, companyId)]);
+  const items = visible.filter((i) => !answered.has(i.id)).map((raw) => {
     const i = { ...raw };
     const record = i.sourceKind === "issue_thread_interaction" ? records.get(i.subject?.metadata?.interactionId || i.subject?.id) : null;
     Object.defineProperty(i, "_record", { enumerable: false, value: record || null });
