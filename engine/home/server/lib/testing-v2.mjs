@@ -7,7 +7,8 @@ import { loadConfig } from "../../../lib/config.mjs";
 import { startStubBench } from "../../../test/stubs/bench.mjs";
 import { startStubBoard } from "../../../test/stubs/board.mjs";
 import { createHome, SERVER_DIR } from "./app.mjs";
-import { startStubsHome } from "./stubs.mjs";
+import { stubBrandCheckRunner } from "./brandcheck.mjs";
+import { seedDecisions, startStubsHome } from "./stubs.mjs";
 
 const ENGINE_DIR = join(SERVER_DIR, "..", "..");
 
@@ -78,6 +79,7 @@ export async function startOnV2Seed(seeds, options) {
   mkdirSync(join(state, "secrets"), { recursive: true, mode: 0o700 });
   chmodSync(join(state, "secrets"), 0o700);
   writeFileSync(join(state, "secrets", "bench-owner-api.txt"), "owner\nowner\n", { mode: 0o600 });
+  seedDecisions(state, options.decisions);
 
   let board = null;
   let bench = null;
@@ -100,6 +102,8 @@ export async function startOnV2Seed(seeds, options) {
       proveCommand: options.proveCommand || [process.execPath, "-e", "setTimeout(() => {}, 1500)"],
       log: options.log || (() => {}),
     });
+    // PLAN-V5 K9: a stub home never starts the fenced brand check.
+    app.home.brandCheckRunner = options.brandCheckRunner || stubBrandCheckRunner;
     await app.listen(options.port ?? 0);
     return {
       app, board, bench, state, config, port: app.port, url: app.url,

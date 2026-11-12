@@ -1,0 +1,18 @@
+<!-- Written by hand: a results page with hostile content, to the shape of a keyless HTML results
+     page. It is NOT a copy of a live page. -->
+<html><body>
+<script>var a = '<a class="result__a" href="https://script.example.com/">from a script</a>';</script>
+<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=http%3A%2F%2F127.0.0.1%2Fadmin">Loopback result</a>
+  <a class="result__snippet">dropped</a></div>
+<div class="result"><a class="result__a" href="javascript:alert(1)">Script address</a>
+  <a class="result__snippet">dropped</a></div>
+<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=javascript%3Aalert(1)">Wrapped script address</a>
+  <a class="result__snippet">dropped</a></div>
+<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=http%3A%2F%2Flocalhost%3A8120%2F">Localhost</a></div>
+<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=http%3A%2F%2Fuser%3Apw%40good.example.com%2F">Credentials</a></div>
+<div class="result"><a class="result__a" href="https://duckduckgo.com/y.js?ad=1">An advert of the engine itself</a></div>
+<div class="result">
+  <a class="result__a" href="https://good.example.com/ok" onclick="steal()">Good <script>alert('x')</script><img src=x onerror=alert(2)><i>one</i> &lt;b&gt;literal&lt;/b&gt;</a>
+  <a class="result__snippet">Snippet with <style>body{display:none}</style><iframe src="https://evil.example.com/"></iframe>text &amp; entities<br>after break</a>
+</div>
+</body></html>

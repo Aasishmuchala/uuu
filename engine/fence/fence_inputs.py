@@ -6,14 +6,18 @@ and ENGINE_CONFIG variable.
   fence_inputs.py --tool claude|codex --task-folder DIR --agent-home DIR
                   --inner-tmp DIR [--agent-id ID] [--read PATH]... [--write PATH]...
 
-Prints three lines: the planner's inputs as one line of JSON, then the policy's
-lessons file (or an empty line), then the policy's env file (or an empty line).
-fence-run uses the last two only after the planner has accepted them.
+Prints five lines: the planner's inputs as one line of JSON, then the policy's
+lessons file (or an empty line), then the policy's env file (or an empty line),
+then, for a walled agent only (PLAN-V5, K2d), the folder to work in and the
+narrow gate's address (two empty lines for everyone else). fence-run uses the
+last four only after the planner has accepted them.
 
 Nothing here comes from the environment: the home folder is the one macOS has on
 record for this user (not $HOME), and every port and path comes from
-engine/config.json. The model mode comes from model_mode.py. A policy is found by the agent's id alone and must pass the
-file checks of CONTRACTS section 4 before it is used. Exit 78 on any refusal.
+engine/config.json. The model mode comes from model_mode.py, the doors this
+run may reach from door_mode.py (the switches and the config's agent lists). A
+policy is found by the agent's id alone and must pass the file checks of
+CONTRACTS section 4 before it is used. Exit 78 on any refusal.
 """
 import json
 import os
@@ -26,6 +30,7 @@ import sys
 # off the import path (and the agent's task folder, the current one, too): add it back.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import model_mode  # noqa: E402
+import door_mode  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REFUSED_EXIT = 78
@@ -125,22 +130,31 @@ def main(argv):
     if opts["agentId"]:
         policy = read_policy(opts["agentId"], cfg["paths"]["policy"])
     fence = cfg["fence"]
+    ports = cfg["ports"]
+    # A walled agent works in the Researcher's folder whatever folder it was
+    # started in, and reaches the board only through the narrow gate.
+    walled = policy is not None and policy.get("walled") is True
+    work_folder = os.path.join(state, "tasks", "research") if walled else ""
     inputs = {
         "home": home,
         "uid": os.getuid(),
         "state": state,
-        "taskFolder": opts["task"],
+        "taskFolder": work_folder or opts["task"],
         "tool": opts["tool"],
         "agentHome": os.path.realpath(opts["agentHome"]),
         "innerTmp": os.path.realpath(opts["innerTmp"]),
         "nodeRoot": os.path.realpath(cfg["node24"]),
         "realClaudeDir": os.path.dirname(os.path.realpath(fence["realClaude"])),
         "instanceRoot": os.path.realpath(cfg["paperclip"]["instanceRoot"]),
-        "gatePort": cfg["ports"]["gate"],
-        "boardPort": cfg["ports"]["board"],
+        "gatePort": ports["gateNarrow"] if walled else ports["gate"],
+        "boardPort": ports["board"],
         # plans or provider; a models file that cannot be trusted refuses the run.
         "modelMode": model_mode.read_mode(cfg),
-        "relayPort": cfg["ports"]["relay"],
+        "relayPort": ports["relay"],
+        "narrowGatePort": ports["gateNarrow"],
+        # The doors that are on and list this agent; [] without an agent id.
+        "doorPorts": door_mode.doors_for(cfg, opts["agentId"]),
+        "doorPortsKnown": [ports[k] for k in ("gateNarrow", "web", "generate", "viewer", "preview")],
         # Not resolved: the Codex login chain needs each link itself to be readable.
         "extraRead": [os.path.normpath(os.path.abspath(p)) for p in opts["read"]],
         "extraWrite": [os.path.normpath(os.path.abspath(p)) for p in opts["write"]],
@@ -158,6 +172,8 @@ def main(argv):
     print(json.dumps(inputs, separators=(",", ":")))
     print(lessons)
     print(env_file)
+    print(work_folder)
+    print(cfg["urls"]["gateNarrow"] if walled else "")
     return 0
 
 

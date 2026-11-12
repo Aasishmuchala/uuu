@@ -24,6 +24,9 @@ import { loadRoutineFiles } from "./lib/routine-files.mjs";
 import { applyRoutines, CHIEF, RoutineStop } from "./lib/routines.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+// The brand check's own identity (PLAN-V5 K9): the home server runs the check inside the fence as
+// this id, with a policy of its own that reads the company documents and the art tools, nothing else.
+const BRAND_CHECK_ID = "00000000-0000-4000-8000-0000000000b1";
 
 class Stop extends Error {}
 
@@ -120,8 +123,10 @@ async function apply({ check, file }) {
 
   // Folders first: the board is given the project folder and each agent's default folder.
   const rel = (p) => relative(state, p) || ".";
+  // The research folder (read-only to everyone but the Researcher) and the shared part of the brain.
   const folders = [config.paths.tasks, plan.project.folder, config.paths.agentFolders,
-    ...plan.agents.map((a) => a.cwd), config.paths.lessons, config.paths.knowledgeDocs, config.paths.policy];
+    ...plan.agents.map((a) => a.cwd), config.paths.research, config.paths.lessons, config.paths.knowledgeDocs,
+    config.paths.sharedBrain, config.paths.policy];
   for (const f of folders) say(ensureDir(f, { check }), `folder ${rel(f)}`);
 
   // Company and its switch.
@@ -302,8 +307,14 @@ async function apply({ check, file }) {
       agentId: ids[a.slug], slug: a.slug, localServices: p.localServices, readFolders: p.readFolders,
       lessonsFile: p.lessonsFile, envFile: p.envFile, taskFolder: p.taskFolder,
     };
+    if (p.walled === true) doc.walled = true;
     say(writeIfChanged(join(config.paths.policy, `${ids[a.slug]}.json`), JSON.stringify(doc, null, 2) + "\n", { check }), `fence policy of ${a.name}`);
   }
+  const brandCheck = {
+    agentId: BRAND_CHECK_ID, slug: "brand-check", localServices: [], readFolders: [config.paths.knowledgeDocs, join(state, "art")],
+    lessonsFile: null, envFile: null, taskFolder: "read-only",
+  };
+  say(writeIfChanged(join(config.paths.policy, `${BRAND_CHECK_ID}.json`), JSON.stringify(brandCheck, null, 2) + "\n", { check }), "fence policy of the brand check");
 
   const changes = counts.created + counts.updated;
   if (check) {

@@ -1,1 +1,16 @@
-{ "version": 1, "jobs": {} }
+{
+  "version": 1,
+  "jobs": {
+    "marketing/carousel-from-a-concept": { "kind": "carousel", "review": "art", "variants": 3, "playbooks": ["sthyra-copywriting", "aasish-design", "creative-director"] },
+    "marketing/carousel-from-a-document": { "kind": "carousel", "review": "art", "variants": 3, "playbooks": ["sthyra-copywriting", "aasish-design", "creative-director"] },
+    "marketing/announce-one-thing": { "kind": "post", "review": "art", "variants": 3, "playbooks": ["sthyra-copywriting", "storycraft"] },
+    "marketing/a-week-of-posts": { "kind": "post", "review": "art", "variants": 1, "playbooks": ["sthyra-copywriting", "storycraft"] },
+    "marketing/posts-from-one-document": { "kind": "post", "review": "art", "variants": 1, "playbooks": ["sthyra-copywriting", "storycraft"] },
+    "marketing/a-newsletter-on-one-subject": { "kind": "newsletter", "review": "art", "variants": 3, "playbooks": ["sthyra-copywriting", "storycraft"] },
+    "marketing/five-concepts": { "kind": "post", "review": "none", "variants": 1, "playbooks": ["creative-director", "storycraft"] },
+    "studio/an-animated-title-card": { "kind": "title-card", "review": "art", "variants": 3, "playbooks": ["aasish-design", "impact-3d"] },
+    "studio/a-moving-chart-from-figures": { "kind": "title-card", "review": "art", "variants": 1, "playbooks": ["aasish-design", "impact-3d"] },
+    "studio/a-badge-or-logo-mark": { "kind": "poster", "review": "art", "variants": 1, "playbooks": ["aasish-design", "lightcraft"] },
+    "studio/a-slow-reveal-from-pictures": { "kind": "title-card", "review": "art", "variants": 1, "playbooks": ["aasish-design", "lightcraft"] }
+  }
+}

@@ -2,6 +2,7 @@
 // `department` (additive keys; lib/tasks.mjs inboxView), so the Needs you page filters by the same rule the map
 // and the dock count by. The task model is read without its inbox and comments; when the board cannot be read
 // the items are still listed, placed by their agent's name and their source.
+// PLAN-V5 K9: an act may carry `variant`, the version the owner picks on a card of versions (lib/inbox.mjs).
 import { createActor, mergeInbox } from "../lib/inbox.mjs";
 import { inboxView, loadTaskContext } from "../lib/tasks.mjs";
 import { loadRoles } from "../lib/team.mjs";
@@ -21,6 +22,6 @@ export default function register(app) {
   app.post("/api/inbox/act", async (ctx) => {
     actor ||= createActor(ctx.home.inboxSources);
     const b = ctx.body && typeof ctx.body === "object" ? ctx.body : {};
-    return actor(ctx, { id: b.id, action: b.action, note: b.note, version: b.version });
+    return actor(ctx, { id: b.id, action: b.action, note: b.note, version: b.version, variant: b.variant });
   });
 }

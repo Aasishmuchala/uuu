@@ -15,7 +15,7 @@ const ROLES = [{ slug: "chief-of-staff" }, { slug: "builder" }, { slug: "sales" 
 
 // The seven of 31.1, in the order around the map: id, title, line, agents, dashboard, clusters.
 const PINNED = [
-  ["operations", "Operations", "plans · documents · checks", ["chief-of-staff", "builder", "checker"], null,
+  ["operations", "Operations", "plans · documents · checks", ["chief-of-staff", "builder", "checker", "art-director"], null,
     [["brain", "Company brain"], ["documents", "Documents"], ["planning", "Planning"]]],
   ["sales", "Sales", "leads · calls · deals", ["sales"], "customers", [["leads", "Leads"], ["calls", "Calls"], ["deals", "Deals"]]],
   ["marketing", "Marketing", "ideas · writing · design", ["marketer"], "marketing",

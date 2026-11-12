@@ -9,7 +9,7 @@ import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useRoute } from "../lib/router.js";
 import {
-  Button, Empty, ErrorNotice, HANDOFFS, HandoffTag, Icon, JobStart, Loading, NotConnected, PageHeader, STAGES, Section, StageMark,
+  Button, Empty, ErrorNotice, HANDOFFS, HandoffTag, Icon, JobStart, Loading, NotConnected, PageHeader, STAGES, Section, Segmented, StageMark,
   TaskRow,
 } from "../kit/index.js";
 
@@ -132,6 +132,90 @@ export function starterProblem(error) {
 // The unknown-job state is a 404 from the server.
 export const isUnknown = (error) => Boolean(error && (Number(error.status) === 404 || error.code === "job_not_found" || error.code === "not_found"));
 
+
+// --- Versions (PLAN-V5 K9): one piece, or three directions to pick from, and what each costs in time ----------------
+
+// The craft block of a job, or null when the job has none (a live server today sends no `craft` key at all).
+export function craftOf(job) {
+  const c = job && typeof job === "object" ? job.craft : null;
+  return c && typeof c === "object" && !Array.isArray(c) ? c : null;
+}
+
+// Which counts the owner may choose, and the one preset: [1] or [1, 3].
+export function versionChoices(craft) {
+  const allowed = list(craft && craft.versions).includes(3) ? [1, 3] : [1];
+  return { allowed, preset: allowed.includes(craft && craft.default) ? craft.default : 1 };
+}
+
+// The estimate words of the chosen number, exactly as the server gave them; "" when it gave none.
+export function estimateWords(craft, n) {
+  const e = craft && craft.estimate && typeof craft.estimate === "object" ? craft.estimate[String(n)] : null;
+  return e && typeof e === "object" ? text(e.words).slice(0, 80) : "";
+}
+
+// "Your last runs took 42, 38 and 51 minutes." only with exactly three of them.
+export function lastRunsLine(craft) {
+  const runs = list(craft && craft.lastRuns);
+  if (runs.length !== 3 || !runs.every((m) => Number.isFinite(m) && m >= 0)) return "";
+  return `Your last runs took ${runs[0]}, ${runs[1]} and ${runs[2]} minutes.`;
+}
+
+// "Reads these playbooks: a, b." or "" when there are none.
+export function playbooksLine(craft) {
+  const names = list(craft && craft.playbooks).map((n) => text(n).slice(0, 60)).filter(Boolean).slice(0, 4);
+  return names.length ? `Reads these playbooks: ${names.join(", ")}.` : "";
+}
+
+// What the owner gets from the chosen number, in plain words.
+export function versionPromise(craft, n) {
+  if (!craft) return "";
+  return n === 3
+    ? "You get three different directions to pick from. Each is checked against your brand kit before you choose."
+    : "You get one piece, checked against your brand kit.";
+}
+
+// The line about the art review, for a job that has it.
+export function reviewLine(craft) {
+  return craft && craft.review === "art" ? "An art director looks at the result before you do." : "";
+}
+
+// The extra field of the start request: a NUMBER, only for a job with craft.
+export function startExtra(craft, n) {
+  return craft ? { versions: n === 3 ? 3 : 1 } : null;
+}
+
+function VersionChoice({ craft, n, onPick }) {
+  const { allowed } = versionChoices(craft);
+  const items = [{ id: 1, label: "One (fastest)" }, ...(allowed.includes(3) ? [{ id: 3, label: `Three to choose from` }] : [])];
+  const words = estimateWords(craft, n);
+  const last = lastRunsLine(craft);
+  const books = playbooksLine(craft);
+  const review = reviewLine(craft);
+  return html`<fieldset class="p-job__versions">
+    <legend class="p-job__versions-head">Versions</legend>
+    ${items.length > 1
+      ? html`<${Segmented} items=${items} current=${n} onChange=${onPick} label="Versions" />`
+      : html`<p class="p-job__versions-only">This job makes one version.</p>`}
+    <div class="p-job__estimate" role="status" aria-live="polite">
+      ${words ? html`<p class="p-job__time"><${Icon} name="clock" size=${16} /><strong>${words}</strong></p>` : null}
+      <p class="p-job__promise">${versionPromise(craft, n)}</p>
+      ${review ? html`<p class="p-job__review">${review}</p>` : null}
+      ${last ? html`<p class="p-job__last">${last}</p>` : null}
+    </div>
+    ${books ? html`<p class="p-job__books">${books}</p>` : null}
+  </fieldset>`;
+}
+
+// The job's start form; a job with craft gets the Versions control above Start and sends its choice.
+function StartForm({ job, from, onStarted, queue }) {
+  const craft = craftOf(job);
+  const [n, setN] = useState(craft ? versionChoices(craft).preset : 1);
+  if (!craft) return html`<${JobStart} job=${job} from=${from} onStarted=${onStarted} queue=${queue} />`;
+  const chosen = versionChoices(craft).allowed.includes(n) ? n : 1;
+  return html`<${JobStart} job=${job} from=${from} onStarted=${onStarted} queue=${queue}
+    extra=${startExtra(craft, chosen)} before=${html`<${VersionChoice} craft=${craft} n=${chosen} onPick=${setN} />`} />`;
+}
+
 // --- The page --------------------------------------------------------------------------------------------------
 
 function FollowsFirst({ first }) {
@@ -198,7 +282,7 @@ function Body({ job, recent, from, earlier, onStarted, onChanged, queue }) {
       ${first
         ? html`<${FollowsFirst} first=${first} />`
         : html`<div class=${state.canStart ? "p-job__start" : "p-job__start p-job__start--blocked"} data-dept=${dept || undefined}>
-            <${JobStart} key=${text(job.id)} job=${job} from=${from} onStarted=${onStarted} queue=${queue} />
+            <${StartForm} key=${text(job.id)} job=${job} from=${from} onStarted=${onStarted} queue=${queue} />
           </div>`}
       <${StarterPacks} key=${text(job.id)} job=${job} onAdded=${onChanged} />
     </div>

@@ -108,13 +108,14 @@ test("the loaders of the three plain files say one plain sentence for a bad file
   }
 });
 
-test("loadCraft: a missing file is an empty map; the real file is empty and clean", () => {
+test("loadCraft: a missing file is an empty map; the real file loads clean when no job refs are given", () => {
   const none = loadCraft(join(tmpdir(), "uuu-no-such-craft.json"), []);
   assert.equal(none.jobs.size, 0);
   assert.deepEqual(none.problems, []);
+  // With no refs every entry names an unknown job (T17 filled the table); the full check is craft-table.test.mjs.
   const real = loadCraft(join(BRAND, "craft.json"), []);
   assert.equal(real.jobs.size, 0);
-  assert.deepEqual(real.problems, []);
+  assert.equal(real.problems.length, 11);
 });
 
 test("loadCraft: a good entry loads; a bad kind, a fifth playbook and an unknown job are each one sentence and left out", () => {
@@ -147,12 +148,12 @@ test("loadCraft: a good entry loads; a bad kind, a fifth playbook and an unknown
   }
 });
 
-test("the 60 real job files give no problem, craft.json names no job, and the job files are untouched", () => {
+test("the real job files give no problem, craft.json names only jobs that exist, and the job files are untouched", () => {
   const roles = JSON.parse(readFileSync(join(COMPANY, "company.json"), "utf8")).agents.map((a) => ({ slug: a.slug, name: a.name }));
   const { departments } = loadDepartmentFile(join(COMPANY, "departments.json"), roles);
   const { jobs, problems } = loadJobFiles(join(COMPANY, "jobs"), roles, departments);
   assert.deepEqual(problems, []);
-  assert.equal(jobs.length, 60);
+  assert.equal(jobs.length, 61);
   const refs = jobs.map((j) => j.file.replace(/\.json$/, ""));
   const c = loadCraft(join(BRAND, "craft.json"), refs);
   assert.deepEqual(c.problems, []);

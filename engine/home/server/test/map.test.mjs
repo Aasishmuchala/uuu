@@ -75,7 +75,7 @@ test("GET /api/map: internet is never ready; account neither; each with its pinn
   const { body } = await get(h, "/api/map");
   const find = jobOf(body, "sales/find-companies-to-approach");
   assert.equal(find.ready, false);
-  assert.deepEqual(find.why, { name: "internet", text: "Agents have no internet, and this job needs it.", link: null });
+  assert.deepEqual(find.why, { name: "internet", text: "The web door is off. Switch it on in Settings.", link: { page: "settings", id: null } });
   const publish = jobOf(body, "marketing/publish-approved-posts");
   assert.equal(publish.why.text, "Sending and publishing are switched off. Connect an account first.");
   assert.equal(jobOf(body, "books/draft-a-quotation").ready, true, "the seed's books allow quotations");

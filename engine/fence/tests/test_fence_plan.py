@@ -3,6 +3,7 @@ the refusals that keep wrapper-given paths from opening up protected folders.
 
 Run: /usr/bin/python3 -m unittest discover -s engine/fence/tests -p 'test_*.py'
 """
+import fnmatch
 import json
 import os
 import shutil
@@ -82,7 +83,8 @@ class PlanTests(unittest.TestCase):
         self.assertIn(self.H, out["filesystem"]["denyRead"])
         self.assertIn("/private/tmp/claude-501", out["filesystem"]["denyRead"])
         self.assertIn("/tmp/claude-501", out["filesystem"]["denyRead"])
-        self.assertEqual(out["filesystem"]["denyWrite"], [])
+        self.assertEqual(out["filesystem"]["denyWrite"],
+                         fence_plan._deny_entries([self.task, i["agentHome"], i["innerTmp"]]))
         self.assertEqual(out["network"]["deniedDomains"], [])
         self.assertNotIn("127.0.0.1:3100", out["network"]["allowedDomains"])
 
@@ -548,6 +550,239 @@ class PlanTests(unittest.TestCase):
                              capture_output=True, text=True)
         self.assertEqual(bad.returncode, fence_plan.REFUSED_EXIT)
         self.assertIn("fence: the fence was given a model mode it does not know", bad.stderr)
+
+    # PLAN-V5, K2 (a), (c), (d), (f), with the corrections after T1: the deny list
+    # on every root a run can write, the doors, the walled agent, folders by rule.
+
+    KNOWN = [3111, 3130, 3140, 3150, 3160]
+
+    @property
+    def research(self):
+        return os.path.join(self.S, "tasks", "research")
+
+    @property
+    def shared(self):
+        return os.path.join(self.S, "knowledge", "shared")
+
+    @property
+    def playbooks(self):
+        return os.path.join(self.S, "playbooks")
+
+    def new(self, **over):
+        base = {"narrowGatePort": 3111, "doorPortsKnown": list(self.KNOWN), "doorPorts": []}
+        base.update(over)
+        return self.inputs(**base)
+
+    def walled(self, **over):
+        p = self.policy(slug="researcher", walled=True)
+        p.update(over)
+        return p
+
+    def walled_inputs(self, policy=None, **over):
+        os.makedirs(self.research, exist_ok=True)
+        base = {"taskFolder": self.research, "gatePort": 3111,
+                "policy": policy if policy is not None else self.walled()}
+        base.update(over)
+        return self.new(**base)
+
+    @staticmethod
+    def denied(entries, path):
+        # fnmatch's "*" also crosses "/", as the sandbox's "**" does.
+        return any(fnmatch.fnmatchcase(path, e) for e in entries)
+
+    def test_deny_names_at_top_and_nested(self):
+        i = self.inputs()
+        out = plan(i)
+        deny = out["filesystem"]["denyWrite"]
+        roots = [self.task, i["agentHome"], i["innerTmp"]]
+        self.assertEqual(len(deny), len(roots) * len(fence_plan.CONFIG_NAMES) * 4)
+        self.assertEqual(len(set(deny)), len(deny))
+        ci = "[Cc][Ll][Aa][Uu][Dd][Ee].[Mm][Dd]"
+        for root in roots:
+            self.assertEqual([e for e in deny if e[:-len(ci)] in (root + "/", root + "/**/") and e.endswith(ci)],
+                             ["%s/%s" % (root, ci), "%s/**/%s" % (root, ci)])
+            for name in fence_plan.CONFIG_NAMES:
+                n = fence_plan._any_case(name)
+                for entry in ("%s/%s", "%s/%s/**", "%s/**/%s", "%s/**/%s/**"):
+                    self.assertIn(entry % (root, n), deny)
+                for spelling in (name, name.lower(), name.upper(), name.swapcase()):
+                    for where in ("", "a/", "a/b/"):
+                        self.assertTrue(self.denied(deny, "%s/%s%s" % (root, where, spelling)), spelling)
+                        self.assertTrue(self.denied(deny, "%s/%s%s/x/y" % (root, where, spelling)), spelling)
+            # Ordinary files, and the programs' own files in their homes, still write.
+            for ok in ("notes.md", "a/b/out.txt", ".claude.json", "projects/-x-claude/s.jsonl",
+                       "my.claude", "CLAUDE.md.txt", "x-AGENTS.md", "agents", "codex/x", "skills/s/SKILL.md"):
+                self.assertFalse(self.denied(deny, "%s/%s" % (root, ok)), ok)
+        # Nothing else changes: the rest of the settings are those of a planner without the list.
+        for key in ("denyRead", "allowRead", "allowWrite"):
+            self.assertEqual(out["filesystem"][key], plan(self.new())["filesystem"][key])
+
+    def test_deny_list_same_for_read_only_task(self):
+        ro = plan(self.inputs(policy=self.policy(taskFolder="read-only")))
+        self.assertNotIn(self.task, ro["filesystem"]["allowWrite"])
+        self.assertEqual(ro["filesystem"]["denyWrite"], plan(self.inputs())["filesystem"]["denyWrite"])
+
+    def test_deny_list_covers_every_writable_root(self):
+        f = os.path.join(self.S, "lessons", "builder.md")
+        w = os.path.join(self.H, ".codex", "auth.json")
+        for tool in ("claude", "codex"):
+            for mode in ({}, {"modelMode": "provider", "relayPort": 3120}):
+                out = plan(self.inputs(tool=tool, extraWrite=[w], policy=self.policy(lessonsFile=f), **mode))
+                deny = out["filesystem"]["denyWrite"]
+                for root in out["filesystem"]["allowWrite"] + [self.task]:
+                    for name in fence_plan.CONFIG_NAMES:
+                        self.assertIn("%s/**/%s" % (root, fence_plan._any_case(name)), deny)
+
+    def test_door_port_added_after_gate(self):
+        p = self.policy(localServices=["127.0.0.1:8120"])
+        out = plan(self.new(policy=p, doorPorts=[3130]))
+        self.assertEqual(out["network"]["allowedDomains"],
+                         ["api.anthropic.com", "127.0.0.1:3110", "localhost:3110", "127.0.0.1:3130",
+                          "127.0.0.1:8120"])
+        out = plan(self.new(policy=p, doorPorts=[3130, 3150], modelMode="provider", relayPort=3120))
+        self.assertEqual(out["network"]["allowedDomains"],
+                         self.PROVIDER_LIST + ["127.0.0.1:3130", "127.0.0.1:3150", "127.0.0.1:8120"])
+        self.assertNotIn("localhost:3130", out["network"]["allowedDomains"])
+        # Without a door, the doors' ports appear nowhere.
+        domains = plan(self.new(policy=p))["network"]["allowedDomains"]
+        self.assertFalse(any(d.endswith(":%d" % k) for d in domains for k in self.KNOWN), domains)
+
+    def test_door_needs_policy(self):
+        self.refused(self.new(doorPorts=[3130]), "fence policy")
+        # A port that is not a door's is never opened as one.
+        self.refused(self.new(policy=self.policy(), doorPorts=[8120]), "door port")
+        i = self.inputs(policy=self.policy(), doorPorts=[3130])
+        self.refused(i, "door port")
+
+    def test_policy_may_not_name_a_door_port(self):
+        cfg = dict(CONFIG, policyPortsAllowed=[8120] + self.KNOWN)
+        for port in self.KNOWN:
+            self.refused(self.new(config=cfg, policy=self.policy(localServices=["127.0.0.1:%d" % port])),
+                         "a door's port")
+        plan(self.new(config=cfg, policy=self.policy(localServices=["127.0.0.1:8120"])))
+
+    def test_bad_door_port(self):
+        p = self.policy()
+        for bad in (0, 3110, 3100, 3120, 3111, -1, 65536, "3130", True, None, 3130.0):
+            self.refused(self.new(policy=p, doorPorts=[bad], relayPort=3120,
+                                  doorPortsKnown=self.KNOWN + [3110, 3100, 3120, 1]), "door port")
+        self.refused(self.new(policy=p, doorPorts=3130), "not a list")
+        self.refused(self.new(policy=p, doorPortsKnown="3130"), "not a list")
+        self.refused(self.new(policy=p, doorPortsKnown=[0]), "door port")
+        for bad in (0, 3100, 3120, "3111", True, 70000):
+            self.refused(self.new(narrowGatePort=bad, relayPort=3120), "narrow gate")
+
+    def test_doors_folder_guarded(self):
+        doors = os.path.join(self.S, "doors")
+        os.makedirs(doors)
+        with open(os.path.join(doors, "state.json"), "w") as fh:
+            fh.write("{}")
+        os.symlink(doors, os.path.join(self.tmp, "looks-harmless"))
+        bad = [doors, os.path.join(doors, "state.json"), os.path.join(self.S, "DOORS"),
+               os.path.join(self.tmp, "looks-harmless"), os.path.join(self.tmp, "looks-harmless", "state.json")]
+        for p in bad:
+            self.refused(self.new(extraRead=[p]), "refusing to share")
+            self.refused(self.new(extraWrite=[p]), "refusing to share")
+        self.refused(self.new(agentHome=doors, innerTmp=os.path.join(doors, "tmp")), "refusing to share")
+        self.refused(self.new(innerTmp=doors), "refusing to share")
+        self.refused(self.new(taskFolder=doors), "not an agent task folder")
+
+    def test_walled_ok(self):
+        for d in (self.shared, self.playbooks):
+            os.makedirs(d)
+        i = self.walled_inputs()
+        out = plan(i)
+        fs = out["filesystem"]
+        self.assertEqual(fs["allowRead"], [self.research, i["agentHome"], i["innerTmp"], i["nodeRoot"],
+                                           os.path.join(self.H, ".local", "bin"), i["realClaudeDir"],
+                                           self.playbooks, self.shared])
+        self.assertEqual(fs["allowWrite"], [self.research, i["agentHome"], i["innerTmp"]])
+        self.assertEqual(fs["denyWrite"], fence_plan._deny_entries(fs["allowWrite"]))
+        self.assertEqual(out["network"]["allowedDomains"], ["api.anthropic.com", "127.0.0.1:3111", "localhost:3111"])
+        for company in (self.task, os.path.join(self.S, "knowledge", "docs"), os.path.join(self.S, "lessons")):
+            self.assertFalse(any(fence_plan._inside(p, company) for p in fs["allowRead"]), company)
+        # Its door, and provider mode, change only the network.
+        out = plan(self.walled_inputs(doorPorts=[3130], modelMode="provider", relayPort=3120))
+        self.assertEqual(out["network"]["allowedDomains"],
+                         ["127.0.0.1:3111", "localhost:3111", "127.0.0.1:3120", "localhost:3120", "127.0.0.1:3130"])
+        self.assertEqual(out["filesystem"], fs)
+
+    def test_walled_refusals(self):
+        self.refused(self.walled_inputs(taskFolder=self.task), "walled")
+        os.makedirs(os.path.join(self.research, "STH-1"))
+        self.refused(self.walled_inputs(taskFolder=os.path.join(self.research, "STH-1")), "walled")
+        shutil.rmtree(self.research)
+        os.symlink(self.task, self.research)
+        self.refused(self.new(taskFolder=self.research, gatePort=3111, policy=self.walled()))
+        os.remove(self.research)
+        self.refused(self.walled_inputs(gatePort=3110), "narrow gate")
+        i = self.walled_inputs()
+        del i["narrowGatePort"]
+        self.refused(i, "narrow gate")
+        docs = os.path.join(self.S, "knowledge", "docs")
+        for over in ({"localServices": ["127.0.0.1:8120"]}, {"readFolders": [docs]},
+                     {"envFile": os.path.join(self.S, "secrets", "agents", "r.env")},
+                     {"lessonsFile": os.path.join(self.S, "lessons", "r.md")},
+                     {"taskFolder": "read-only"}):
+            self.refused(self.walled_inputs(policy=self.walled(**over)), "walled agent")
+        for bad in ("yes", 1, None, [True]):
+            self.refused(self.walled_inputs(policy=self.walled(walled=bad)), "walled must be")
+
+    def test_rule_folders(self):
+        p = self.policy()
+        self.assertEqual(plan(self.new(policy=p))["filesystem"], plan(self.inputs(policy=p))["filesystem"])
+        for d in (self.playbooks, self.research, self.shared):
+            os.makedirs(d)
+        fs = plan(self.new(policy=p))["filesystem"]
+        self.assertEqual(fs["allowRead"][-2:], [self.playbooks, self.research])
+        self.assertNotIn(self.shared, fs["allowRead"])
+        for d in (self.playbooks, self.research, self.shared):
+            self.assertFalse(any(fence_plan._inside(d, w) or fence_plan._inside(w, d) for w in fs["allowWrite"]), d)
+        # Never for a run without a policy.
+        fs = plan(self.new())["filesystem"]
+        for d in (self.playbooks, self.research, self.shared):
+            self.assertNotIn(d, fs["allowRead"])
+        # A link is left out, wherever it leads.
+        shutil.rmtree(self.playbooks)
+        os.symlink(os.path.join(self.S, "knowledge", "docs"), self.playbooks)
+        fs = plan(self.new(policy=p))["filesystem"]
+        self.assertNotIn(self.playbooks, fs["allowRead"])
+        self.assertNotIn(os.path.join(self.S, "knowledge", "docs"), fs["allowRead"])
+        os.remove(self.playbooks)
+        with open(self.playbooks, "w") as fh:
+            fh.write("not a folder")
+        self.assertNotIn(self.playbooks, plan(self.new(policy=p))["filesystem"]["allowRead"])
+
+    def test_research_folder_never_another_agents_task(self):
+        os.makedirs(os.path.join(self.research, "STH-1"))
+        for t in (self.research, os.path.join(self.research, "STH-1")):
+            self.refused(self.new(taskFolder=t), "Researcher's folder")
+            self.refused(self.new(taskFolder=t, policy=self.policy()), "Researcher's folder")
+
+    def test_not_walled_with_narrow_gate_refused(self):
+        self.refused(self.new(gatePort=3111), "only a walled agent")
+        self.refused(self.new(gatePort=3111, policy=self.policy()), "only a walled agent")
+        self.refused(self.new(gatePort=3111, policy=self.policy(walled=False)), "only a walled agent")
+
+    def test_unknown_policy_key_still_refused(self):
+        for key in ("Walled", "walls", "doors", "readFolders2"):
+            p = self.policy()
+            p[key] = True
+            self.refused(self.new(policy=p), "not one the fence knows")
+        p = self.walled()
+        del p["readFolders"]
+        self.refused(self.walled_inputs(policy=p), "missing")
+
+    def test_old_policy_without_walled_unchanged(self):
+        for tool in ("claude", "codex"):
+            for mode in ({}, {"modelMode": "provider", "relayPort": 3120}):
+                for p in (None, self.policy(), self.policy(localServices=["127.0.0.1:8120"]),
+                          self.policy(taskFolder="read-only")):
+                    old = plan(self.inputs(tool=tool, policy=p, **mode))
+                    self.assertEqual(plan(self.new(tool=tool, policy=p, **mode)), old)
+                    if p is not None:
+                        q = dict(p, walled=False)
+                        self.assertEqual(plan(self.new(tool=tool, policy=q, **mode)), old)
 
 
 if __name__ == "__main__":

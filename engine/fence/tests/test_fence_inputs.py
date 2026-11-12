@@ -140,6 +140,95 @@ class ModelModeInputTests(unittest.TestCase):
             self.assertEqual(out, "")
 
 
+class DoorsAndWalledInputTests(unittest.TestCase):
+    """PLAN-V5, K2 (c) and (d): the doors a run may reach and a walled agent's
+    folder and gate. The engine config is the real one, with every state file
+    moved into a temp folder."""
+
+    def setUp(self):
+        self.dir = os.path.realpath(tempfile.mkdtemp(prefix="fence-inputs-doors-"))
+        os.chmod(self.dir, 0o755)
+        sys.path.insert(0, os.path.join(os.path.dirname(FENCE), "lib"))
+        import config as engine_config
+        self.cfg = engine_config.load_config()
+        j = lambda *p: os.path.join(self.dir, *p)  # noqa: E731
+        self.cfg["paths"] = dict(self.cfg["paths"], state=self.dir, policy=j("policy"), ids=j("ids.json"),
+                                 modelsState=j("models", "state.json"), doorsState=j("doors", "state.json"))
+        os.makedirs(j("policy"), mode=0o755)
+        os.chmod(j("policy"), 0o755)
+
+    def tearDown(self):
+        shutil.rmtree(self.dir)
+
+    def write(self, path, body, mode=0o600):
+        os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+        with open(path, "w") as fh:
+            fh.write(json.dumps(body))
+        os.chmod(path, mode)
+
+    def agent(self, slug, **over):
+        p = {"agentId": AGENT, "slug": slug, "localServices": [], "readFolders": [], "lessonsFile": None,
+             "envFile": None, "taskFolder": "read-write"}
+        p.update(over)
+        self.write(os.path.join(self.dir, "policy", AGENT + ".json"), p, 0o644)
+        self.write(self.cfg["paths"]["ids"], {"agents": {slug: AGENT}})
+
+    def web_on(self):
+        self.write(self.cfg["paths"]["doorsState"], {"version": 1, "web": {"on": True}})
+
+    def run_main(self, agent_id=AGENT):
+        out, err = io.StringIO(), io.StringIO()
+        args = ["--tool", "claude", "--task-folder", os.path.join(self.dir, "tasks", "company-work"),
+                "--agent-home", os.path.join(self.dir, "h"), "--inner-tmp", os.path.join(self.dir, "h", "tmp"),
+                "--agent-id", agent_id]
+        with mock.patch.object(fence_inputs, "load_engine_config", lambda home: self.cfg), \
+                mock.patch.object(fence_inputs, "owner_home", lambda: self.dir), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = fence_inputs.main(args)
+            except SystemExit as e:
+                code = e.code
+        self.assertEqual(code, 0, err.getvalue())
+        lines = out.getvalue().split("\n")
+        self.assertEqual(len(lines), 6, lines)    # five lines, each ended by a newline
+        self.assertEqual(lines[5], "")
+        return json.loads(lines[0]), lines[1:5]
+
+    def test_no_doors_file_no_door(self):
+        self.agent("researcher")
+        inputs, rest = self.run_main()
+        self.assertEqual(inputs["doorPorts"], [])
+        self.assertEqual(inputs["doorPortsKnown"], [3111, 3130, 3140, 3150, 3160])
+        self.assertEqual(inputs["narrowGatePort"], 3111)
+        self.assertEqual(inputs["gatePort"], 3110)
+        self.assertEqual(inputs["taskFolder"], os.path.join(self.dir, "tasks", "company-work"))
+        self.assertEqual(rest, ["", "", "", ""])
+
+    def test_web_on_for_the_policys_slug(self):
+        self.agent("researcher")
+        self.web_on()
+        self.assertEqual(self.run_main()[0]["doorPorts"], [3130])
+        self.agent("builder")
+        self.assertEqual(self.run_main()[0]["doorPorts"], [])
+        # Without an agent id there is no policy and no door.
+        self.agent("researcher")
+        self.assertEqual(self.run_main(agent_id="")[0]["doorPorts"], [])
+
+    def test_walled_policy(self):
+        self.agent("researcher", walled=True)
+        self.web_on()
+        inputs, rest = self.run_main()
+        research = os.path.join(self.dir, "tasks", "research")
+        self.assertEqual(inputs["taskFolder"], research)
+        self.assertEqual(inputs["gatePort"], 3111)
+        self.assertEqual(inputs["doorPorts"], [3130])
+        self.assertEqual(rest, ["", "", research, "http://127.0.0.1:3111"])
+        # Only true walls an agent in; the planner refuses any other value.
+        self.agent("researcher", walled="yes")
+        inputs, rest = self.run_main()
+        self.assertEqual((inputs["gatePort"], rest[2:]), (3110, ["", ""]))
+
+
 class CodexHomeTests(unittest.TestCase):
     """The Codex home is writable inside the fence, and codex_home.py runs outside
     it before the next run. Nothing the agent can plant there may widen the fence:

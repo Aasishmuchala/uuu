@@ -31,11 +31,21 @@ const cut = (v, n) => str(v).slice(0, n);
 // Go to an address in place of this one, so Back does not land on an address that sends the owner on again.
 const redirect = (href) => { try { location.replace(href); } catch { go(href); } };
 
-// The modules of M29, loaded when they exist: [path from this file, export name].
+// The modules of M29, loaded when they exist: [path from this file, export name]. The Brand kit (PLAN-V5 T14) is
+// its own page at #/files/brand-kit, handed over from here so the route table stays as it is.
 const BRAIN_PARTS = {
   newFile: ["../brain/new-file.js", "NewFile"],
   readiness: ["../brain/readiness.js", "Readiness"],
+  brandKit: ["./brand-kit.js", "default"],
 };
+export const BRAND_KIT_HREF = "#/files/brand-kit";
+export const BRAND_KIT_WORDS = "your colours, type, logo, voice and examples. Agents' tools obey it.";
+
+// True when the address is the Brand kit's (#/files/brand-kit), which is not a folder.
+export const isBrandKit = (parts) => Array.isArray(parts) && parts.length === 2 && parts[0] === "files" && parts[1] === "brand-kit";
+
+// The brand form is replaced by the Brand kit: `?new=form:brand` and a brand file not there yet lead to it.
+export const formLeadsToKit = (form) => form === "brand";
 
 // ---------------------------------------------------------------------------------------------------------------
 // Pure helpers (tested in test/pages/files.test.mjs)
@@ -95,6 +105,7 @@ export function fileTarget(token, brain, { missingOnly = true } = {}) {
   const items = arr(brain && brain.basics && brain.basics.items);
   const item = items.find((b) => b && ID.test(str(b.form)) && ((str(b.token) && b.token === token) || (path && str(b.file) === path)));
   if (item && (!missingOnly || item.state === "missing")) {
+    if (formLeadsToKit(item.form)) return { to: "form", href: BRAND_KIT_HREF };
     const folder = str(item.file).split("/")[0];
     return { to: "form", href: filesHref({ folder: ID.test(folder) ? folder : "", mode: `form:${item.form}` }) };
   }
@@ -511,6 +522,22 @@ function ReadinessCard({ brain }) {
   <//>`;
 }
 
+// The Brand kit, where the Brand form was: one card that reads as one sentence.
+function BrandKitCard() {
+  return html`<ul class="p-files__folders">
+    <li>
+      <${Card} href=${BRAND_KIT_HREF} class="p-files__folder" aria-label=${`Brand kit: ${BRAND_KIT_WORDS}`}>
+        <span class="p-files__folder-head">
+          <${Icon} name="spark" size=${18} />
+          <span class="p-files__folder-title u-truncate">Brand kit</span>
+        </span>
+        <span class="p-files__folder-about">${BRAND_KIT_WORDS.charAt(0).toUpperCase()}${BRAND_KIT_WORDS.slice(1)}</span>
+        <span class="u-caption">Open the brand kit</span>
+      <//>
+    </li>
+  </ul>`;
+}
+
 function Folders({ brain }) {
   const folders = arr(brain && brain.folders).filter((f) => f && ID.test(str(f.id)));
   if (!folders.length) return html`<${Empty} title="No folders yet." text="Add a file and its folder appears here." />`;
@@ -536,12 +563,18 @@ function FolderForms({ forms, folder }) {
   if (!list.length) return null;
   return html`<${Section} title="Forms for this folder" hint="Only you know these facts. Fill them in and agents read them.">
     <ul class="p-files__forms">
-      ${list.map((f) => html`<li key=${f.id} class="p-files__form">
+      ${list.map((f) => (formLeadsToKit(f.id)
+        ? html`<li key=${f.id} class="p-files__form">
+            <${Icon} name="spark" />
+            <span class="u-grow u-truncate">Brand kit</span>
+            <a href=${BRAND_KIT_HREF}>Open the brand kit</a>
+          </li>`
+        : html`<li key=${f.id} class="p-files__form">
         <${Icon} name="form" />
         <span class="u-grow u-truncate">${cut(f.title, 80)}</span>
         ${f.state === "filled" ? html`<${Tag} tone="ok">Filled<//>` : html`<${Tag}>Not filled in yet<//>`}
         <a href=${filesHref({ folder, mode: `form:${f.id}` })}>${f.state === "filled" ? "Edit" : "Fill it in"}</a>
-      </li>`)}
+      </li>`))}
     </ul>
   <//>`;
 }
@@ -602,6 +635,7 @@ function FolderView({ id, brain, onChanged }) {
           items=${[{ id: "list", label: "List", icon: "list" }, { id: "grid", label: "Grid", icon: "grid" }]} />
       </div>
     </div>
+    ${id === "brand" ? html`<${BrandKitCard} />` : null}
     ${files.length
       ? html`<${FileList} files=${files} folder=${id} grid=${grid} />`
       : html`<${Empty} title="Nothing in this folder yet.">
@@ -616,7 +650,21 @@ function FolderView({ id, brain, onChanged }) {
 
 const NEW_TITLES = { paste: "Paste text", upload: "Add a file", form: "Fill in a form" };
 
+// The Brand kit's page, loaded the first time its address is opened.
+function BrandKitHost({ route }) {
+  const part = useBrainPart("brandKit");
+  if (part.state === "ready") return html`<${part.C} route=${route} />`;
+  return html`<div class="p-files">
+    <${PageHeader} over="Company brain" title="Brand kit" chip=${{ label: ["Files", "Brand kit"], href: "#/files", closeLabel: "Back to all files" }} />
+    ${part.state === "missing" ? html`<${BeingBuilt} title="The brand kit page is not ready yet." />` : html`<${Loading} lines=${4} label="Opening the brand kit" />`}
+  </div>`;
+}
+
 export default function Page({ route }) {
+  return isBrandKit(route && route.parts) ? html`<${BrandKitHost} route=${route} />` : html`<${FilesPage} route=${route} />`;
+}
+
+function FilesPage({ route }) {
   const { announce, openPanel, closePanel } = useApp();
   const parts = arr(route && route.parts);
   const query = (route && route.query) || new URLSearchParams();
@@ -625,6 +673,9 @@ export default function Page({ route }) {
   const fileTok = TOKEN.test(query.get("file") || "") ? query.get("file") : "";
   const tab = query.get("tab") === "lessons" ? "lessons" : "files";
   const wanted = newMode(query.get("new"));
+  // The Brand form now lives in the Brand kit (PLAN-V5 T14).
+  const toKit = Boolean(wanted && wanted.mode === "form" && formLeadsToKit(wanted.form));
+  useEffect(() => { if (toKit) redirect(BRAND_KIT_HREF); }, [toKit]);
   const routeQ = cut(query.get("q") || "", 200);
 
   const brain = useResource("/api/brain", { every: EVERY });
@@ -783,6 +834,7 @@ export default function Page({ route }) {
               ? html`<${Loading} lines=${4} label="Loading your files" />`
               : brain.data
                 ? html`
+                  <${Section} title="Brand kit"><${BrandKitCard} /><//>
                   <${Section} title="Folders" count=${folders.length}><${Folders} brain=${brain.data} /><//>
                   ${arr(brain.data.recent).length
                     ? html`<${Section} title="Recently changed">
@@ -804,7 +856,7 @@ export default function Page({ route }) {
         : html`<p class="u-muted">The forms could not be read yet.</p>`}
     <//>
 
-    <${Dialog} open=${!!wanted} size="lg" title=${wanted ? (formTitle ? `Fill in: ${formTitle}` : NEW_TITLES[wanted.mode]) : ""} onClose=${closeNew}>
+    <${Dialog} open=${!!wanted && !toKit} size="lg" title=${wanted ? (formTitle ? `Fill in: ${formTitle}` : NEW_TITLES[wanted.mode]) : ""} onClose=${closeNew}>
       ${wanted && built
         ? html`<${newFile.C} mode=${query.get("new")} folder=${folder}
             onDone=${(res) => {

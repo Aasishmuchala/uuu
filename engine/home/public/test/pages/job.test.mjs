@@ -130,3 +130,39 @@ test("job: the page offers the starter pack through the Files page's route, with
   assert.match(src, /"Add the starter pack"/);
   assert.match(src, /role="alert"/);
 });
+
+const CRAFT = () => shape("job").craft;
+
+test("job: no craft, no Versions control and no extra field", () => {
+  assert.equal(page.craftOf({}), null);
+  assert.equal(page.craftOf({ craft: null }), null);
+  assert.equal(page.startExtra(null, 3), null);
+});
+
+test("job: the choices follow what the job allows, preset to its default", () => {
+  assert.deepEqual(page.versionChoices(CRAFT()), { allowed: [1, 3], preset: 3 });
+  assert.deepEqual(page.versionChoices({ ...CRAFT(), versions: [1], default: 3 }), { allowed: [1], preset: 1 });
+  assert.deepEqual(page.versionChoices({ ...CRAFT(), default: 1 }), { allowed: [1, 3], preset: 1 });
+});
+
+test("job: the estimate words are the server's, for the chosen number", () => {
+  assert.equal(page.estimateWords(CRAFT(), 3), "About 55 to 100 minutes");
+  assert.equal(page.estimateWords(CRAFT(), 1), "About 30 to 55 minutes");
+  assert.equal(page.estimateWords({ ...CRAFT(), estimate: { 1: CRAFT().estimate["1"], 3: null } }, 3), "");
+});
+
+test("job: the last runs line needs exactly three; playbooks and review lines", () => {
+  assert.equal(page.lastRunsLine(CRAFT()), "Your last runs took 42, 38 and 51 minutes.");
+  assert.equal(page.lastRunsLine({ ...CRAFT(), lastRuns: [42, 38] }), "");
+  assert.equal(page.lastRunsLine({ ...CRAFT(), lastRuns: [] }), "");
+  assert.equal(page.playbooksLine(CRAFT()), "Reads these playbooks: sthyra-copywriting, aasish-design, creative-director.");
+  assert.equal(page.playbooksLine({ playbooks: [] }), "");
+  assert.match(page.reviewLine(CRAFT()), /art director looks at the result before you do/);
+  assert.equal(page.reviewLine({ review: null }), "");
+});
+
+test("job: the start request carries versions as a number", () => {
+  assert.deepEqual(page.startExtra(CRAFT(), 3), { versions: 3 });
+  assert.deepEqual(page.startExtra(CRAFT(), 1), { versions: 1 });
+  assert.deepEqual(page.startExtra(CRAFT(), "3"), { versions: 1 });
+});

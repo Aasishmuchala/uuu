@@ -28,6 +28,10 @@ Object.defineProperties(MARKERS, {
 });
 const READ_FIRST = "Read first, from the company's files:";
 const PRODUCE = "Produce:";
+// Version 5 (PLAN-V5 K4, K9): the playbooks line and the review line, after the company-files line.
+export const PLAYBOOKS_LINE = "Read first, from the playbooks:";
+export const REVIEW_ART = "Review: art";
+const PLAYBOOK_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/;
 export const SIZES = ["XS", "S", "M", "L", "XL"];
 export const ROUND_CAP = 5;
 
@@ -295,7 +299,8 @@ export function sizeOf(comments) {
 
 // A task's text with its markers taken out: "FOR: <name>" on the first line, "PLAN FIRST",
 // "ROUTINE: <id>", "ASK" and "JOB: <department>/<id>" on the last lines (in any order), and, above a JOB
-// line, the "Read first" and "Produce:" lines buildText writes. What it finds is for showing the text clean:
+// line, the lines buildText writes in its order: "Read first" (company files), "Read first, from the
+// playbooks", "Review: art" and "Produce:", each at most once. What it finds is for showing the text clean:
 // a task is a question, or came from a job, only by the home server's records, never by these lines.
 // `ask` and `job` are not enumerable, so the version 2 answer { text, planFirst, for, routine } compares as before.
 export function textOf(description) {
@@ -310,8 +315,9 @@ export function textOf(description) {
     const m = lines[start].length <= MAX_LINE ? /^FOR:\s*(\S.*)$/.exec(lines[start].trim()) : null;
     if (m) { out.for = short(m[1].trim()); start += 1; }
   }
-  let readFirst = false;
-  let produce = false;
+  // Above the JOB line, read from the bottom up: Produce (1), Review (2), playbooks (3), company files (4).
+  let block = 0;
+  const takes = (n) => { if (job === null || block >= n) return false; block = n; end -= 1; return true; };
   for (;;) {
     while (end > start && !lines[end - 1].trim()) end -= 1;
     if (end <= start || lines[end - 1].length > MAX_LINE) break;
@@ -322,8 +328,10 @@ export function textOf(description) {
     if (line === MARKERS.ask && !ask) { ask = true; end -= 1; continue; }
     const jm = /^JOB:\s*(\S+)$/.exec(line);
     if (jm && job === null) { job = short(jm[1]); end -= 1; continue; }
-    if (job !== null && !produce && !readFirst && line.startsWith(`${PRODUCE} `)) { produce = true; end -= 1; continue; }
-    if (job !== null && !readFirst && line.startsWith(`${READ_FIRST} `)) { readFirst = true; end -= 1; continue; }
+    if (line.startsWith(`${PRODUCE} `) && takes(1)) continue;
+    if (line === REVIEW_ART && takes(2)) continue;
+    if (line.startsWith(`${PLAYBOOKS_LINE} `) && takes(3)) continue;
+    if (line.startsWith(`${READ_FIRST} `) && takes(4)) continue;
     break;
   }
   out.text = lines.slice(start, end).join("\n").trim();
@@ -337,8 +345,10 @@ const oneLine = (s) => String(s).replace(/\s+/g, " ").trim();
 // Version 3 (CONTRACTS-V3 31.3, 33.5) adds, all optional: `reads` (file paths, or { file, need } with the
 // `must` files first) and `produces` (paths) as the "Read first" and "Produce:" lines, `job` as the
 // "JOB:" line, and `ask` as the line "ASK"; they come after the text and a blank line, before PLAN FIRST.
+// Version 5 (K9) adds `playbooks` (names) as the line "Read first, from the playbooks: a, b." and
+// `review: "art"` as the line "Review: art", both after the company-files line and before "Produce:".
 // Without them the output is exactly as before.
-export function buildText({ text, to, planFirst, ask, reads, produces, job } = {}) {
+export function buildText({ text, to, planFirst, ask, reads, produces, job, playbooks, review } = {}) {
   const body = typeof text === "string" ? text.trim() : "";
   const name = typeof to === "string" ? to.replace(/\s+/g, " ").trim() : "";
   let out = name ? `${MARKERS.for} ${name}\n${body}` : body;
@@ -348,8 +358,11 @@ export function buildText({ text, to, planFirst, ask, reads, produces, job } = {
   const ordered = [...files.filter((r) => r.need === "must"), ...files.filter((r) => r.need !== "must")].map((r) => oneLine(r.file));
   const made = (Array.isArray(produces) ? produces : []).filter((p) => typeof p === "string" && oneLine(p)).map(oneLine);
   const jobId = typeof job === "string" ? oneLine(job) : "";
+  const books = [...new Set((Array.isArray(playbooks) ? playbooks : []).filter((p) => typeof p === "string" && PLAYBOOK_NAME.test(p)))];
   const block = [];
   if (ordered.length) block.push(`${READ_FIRST} ${ordered.join(", ")}.`);
+  if (books.length) block.push(`${PLAYBOOKS_LINE} ${books.join(", ")}.`);
+  if (review === "art") block.push(REVIEW_ART);
   if (made.length) block.push(`${PRODUCE} ${made.join(", ")} in the goal's sub-folder.`);
   if (jobId) block.push(`${MARKERS.job} ${jobId}`);
   if (block.length) out += `\n\n${block.join("\n")}`;

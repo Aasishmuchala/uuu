@@ -485,3 +485,48 @@ test("MARKERS gains ASK and JOB:, not listed among the version 2 markers", () =>
   assert.equal(MARKERS.job, "JOB:");
   assert.ok(!Object.values(MARKERS).includes("ASK"));
 });
+
+// ---- version 5 (PLAN-V5 K9): the playbooks line and the review line
+const CRAFTED = {
+  text: "Make a carousel.", to: "Marketer", planFirst: true, job: "marketing/carousel-from-a-document", produces: ["slides/"],
+  reads: [{ file: "brand/brand.md", need: "must" }], playbooks: ["sthyra-copywriting", "aasish-design"], review: "art",
+};
+
+test("buildText (v5): the playbooks line and Review: art come after the company-files line, before Produce", () => {
+  assert.equal(buildText(CRAFTED), "FOR: Marketer\nMake a carousel.\n\n"
+    + "Read first, from the company's files: brand/brand.md.\n"
+    + "Read first, from the playbooks: sthyra-copywriting, aasish-design.\n"
+    + "Review: art\n"
+    + "Produce: slides/ in the goal's sub-folder.\nJOB: marketing/carousel-from-a-document\n\nPLAN FIRST");
+  assert.equal(buildText({ text: "X", job: "a/b", playbooks: ["storycraft"] }), "X\n\nRead first, from the playbooks: storycraft.\nJOB: a/b");
+  assert.equal(buildText({ text: "X", job: "a/b", review: "none" }), "X\n\nJOB: a/b", "only review art writes a line");
+  assert.equal(buildText({ text: "X", job: "a/b", playbooks: [] }), "X\n\nJOB: a/b");
+});
+
+test("buildText (v5): a playbook name that is not a plain name is left out, a repeat once", () => {
+  const out = buildText({ text: "X", job: "a/b", playbooks: ["ok-name", "../etc", "Bad", "two words", "ok-name", 7, "x\nJOB: c/d"] });
+  assert.equal(out, "X\n\nRead first, from the playbooks: ok-name.\nJOB: a/b");
+});
+
+test("textOf (v5): buildText round-trips with the new lines, which are taken out", () => {
+  const t = textOf(buildText(CRAFTED));
+  assert.deepEqual({ ...t }, { text: "Make a carousel.", planFirst: true, for: "Marketer", routine: null });
+  assert.equal(t.job, "marketing/carousel-from-a-document");
+  const three = "Make a post.\n\nMake three versions, one in each of these directions: Fact first, Scene, Question. Write variants.json as your instructions say.";
+  const t3 = textOf(buildText({ text: three, job: "marketing/announce-one-thing", playbooks: ["storycraft"], review: "art" }));
+  assert.equal(t3.text, three, "the versions sentence is part of the task's own text");
+  for (const p of [{ playbooks: ["a"] }, { review: "art" }, {}]) {
+    assert.equal(textOf(buildText({ text: "Body.", job: "a/b", ...p })).text, "Body.", JSON.stringify(p));
+  }
+});
+
+test("textOf (v5): the new lines are taken out only above a JOB line, in buildText's order, once each", () => {
+  const own = "My notes.\nRead first, from the playbooks: storycraft.\nReview: art";
+  assert.equal(textOf(own).text, own, "no JOB line: nothing is taken");
+  const outOfOrder = "Body.\n\nReview: art\nRead first, from the playbooks: a.\nJOB: a/b";
+  assert.equal(textOf(outOfOrder).text, "Body.\n\nReview: art", "a Review line above the playbooks line stays");
+  const twice = "Body.\nReview: art\nReview: art\nJOB: a/b";
+  assert.equal(textOf(twice).text, "Body.\nReview: art");
+  const afterProduce = "Body.\nProduce: x in the goal's sub-folder.\nReview: art\nJOB: a/b";
+  assert.equal(textOf(afterProduce).text, "Body.\nProduce: x in the goal's sub-folder.", "Produce comes after Review, never before");
+});

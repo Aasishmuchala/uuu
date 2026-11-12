@@ -15,6 +15,20 @@ The script is given `font(name, size, bold=False)`: a typeface named in the
 brand file (fontmap.json, beside this tool) at a size in pixels, or Pillow's
 own font when the name is not in the map or its file is not on this Mac.
 
+It is also given `kit`: the brand kit (kit.py, beside this tool; PLAN-V5 K5),
+or None when the owner has not saved one. With a kit, `font` takes only the
+kit's two typefaces, at no less than the kit's smallest size for slides, and
+the script takes the rest from the kit:
+    bg = kit.colour("sand")                       # (r, g, b)
+    title = kit.font("heading", 96)               # or font("Didot", 96)
+    kit.place(im, "tower-dusk.jpg", (0, 0, 1080, 700))   # a company picture, recorded
+    kit.place_logo(im, "bottom-right")            # the logo with its clear space, recorded
+What `place` and `place_logo` put on which slide goes into the manifest as
+`pictures` and `logo`, for the brand check (brandcheck.py) to verify against
+the pixels. Paste on the slides you leave in `slides`: a copy made after the
+paste loses the record. With no kit, nothing changes. A damaged kit stops the
+tool with one line; the owner saves the kit again to mend it.
+
 It leaves, by name (CONTRACTS-V3 36.2):
   slides     a list of 2 to 10 Pillow images, all 1080 x 1350 or all 1080 x 1080
   texts      a list of the words on each slide, one plain string per slide,
@@ -26,7 +40,8 @@ Writes beside the script:
   slide-01.png ...   one picture per slide
   contact.png        every slide side by side, at most 2160 pixels wide
   slides.json        {"slides": [{"file", "w", "h", "text"}]}
-  manifest.json      what the home server lists
+  manifest.json      what the home server lists (with a kit, also `pictures`
+                     and `logo`: [{slide, box, source}], [{file, slide, box}])
 
 Everything is checked before anything is written; after writing, every picture
 is opened again and checked. The script is named without a folder, so the tool
@@ -45,11 +60,13 @@ fontmap.json beside it, and run with the Artist's own Python (state/art/venv).
 Standard library and Pillow only.
 """
 import datetime
+import importlib.util
 import io
 import json
 import os
 import re
 import runpy
+import stat
 import sys
 import traceback
 
@@ -69,6 +86,25 @@ MAX_FACES = 32                  # faces looked at in one font collection
 
 class Problem(Exception):
     pass
+
+
+def load_brand_kit():
+    """The brand kit, or None when there is none (or no kit.py beside this tool). kit.py is loaded from this
+    tool's own folder, never from the script's; a damaged kit is a Problem in one sentence."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kit.py")
+    try:
+        if not stat.S_ISREG(os.lstat(path).st_mode):
+            raise Problem("kit.py beside the tool is not a plain file; ask the owner to run engine/art/install.sh")
+    except FileNotFoundError:
+        return None
+    sys.dont_write_bytecode = True
+    spec = importlib.util.spec_from_file_location("kit", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    try:
+        return mod.load_kit()
+    except mod.KitProblem as e:
+        raise Problem("%s Ask the owner to save the brand kit again in Files." % e)
 
 
 def plural(n, one, many=None):
@@ -101,8 +137,9 @@ def read_fontmap():
 class Fonts:
     """The `font` helper the script is given, and a note of every name that fell back."""
 
-    def __init__(self, fontmap):
+    def __init__(self, fontmap, kit=None):
         self.map = fontmap
+        self.kit = kit           # with a kit, only its two typefaces
         self.faces = {}          # path -> [(index, style)]
         self.fell_back = []
 
@@ -152,6 +189,8 @@ class Fonts:
         if not whole(size) or not 1 <= size <= MAX_FONT_SIZE:
             raise ValueError("font size must be a whole number of pixels from 1 to %d" % MAX_FONT_SIZE)
         key = " ".join(name.lower().split()) if isinstance(name, str) else ""
+        if self.kit is not None:
+            return self.kit_font(key, name, size, bold)
         entry = self.map.get(key)
         choice = self.pick(entry[1], bool(bold)) if entry else None
         if choice:
@@ -164,6 +203,15 @@ class Fonts:
         if label not in self.fell_back:
             self.fell_back.append(label)
         return self.fallback(size)
+
+    def kit_font(self, key, name, size, bold):
+        families = self.kit.families
+        for role, family in zip(("heading", "body"), families):
+            if key == " ".join(family.lower().split()):
+                return self.kit.font(role, size, bold=bool(bold))
+        label = " ".join(name.split())[:40] if isinstance(name, str) else type(name).__name__
+        raise ValueError("the brand kit's typefaces are %s and %s; font() takes only those, not %s"
+                         % (families[0], families[1], json.dumps(label, ensure_ascii=False)))
 
 
 # --- Running the script --------------------------------------------------------
@@ -178,18 +226,20 @@ def where_in_script(script):
     return line
 
 
-def run_script(script, fonts):
+def run_script(script, fonts, kit=None):
     # Whatever the script prints goes to stderr, so the one plain line stays last.
     saved = sys.stdout
     sys.stdout = sys.stderr
     try:
-        return runpy.run_path(script, init_globals={"font": fonts}, run_name="__main__")
+        return runpy.run_path(script, init_globals={"font": fonts, "kit": kit}, run_name="__main__")
     except SystemExit as e:
         raise Problem("the script stopped itself (exit %s) before leaving any slides" % (e.code,))
     except BaseException as e:   # the script's own error, shown in one line
         line = where_in_script(script)
         at = " on line %d" % line if line else ""
         msg = str(e).strip().splitlines()[0] if str(e).strip() else ""
+        if type(e).__name__ == "KitProblem":    # the kit's own sentence says it all
+            raise Problem("the script failed%s: %s" % (at, msg[:300]))
         raise Problem("the script failed%s: %s%s" % (at, type(e).__name__, ": " + msg[:200] if msg else ""))
     finally:
         sys.stdout = saved
@@ -329,10 +379,13 @@ def make(script_arg):
     except ImportError:
         raise Problem("the drawing library is not installed; run engine/art/install.sh")
 
-    fonts = Fonts(read_fontmap())
-    space = run_script(script, fonts)
+    kit = load_brand_kit()
+    fonts = Fonts(read_fontmap(), kit)
+    space = run_script(script, fonts, kit)
     if "slides" not in space:
         raise Problem("the script left no `slides` (a list of 2 to %d images)" % MAX_SLIDES)
+    # What was placed, by the slides' own identity: before check_slides makes its flat copies.
+    placed = kit.recorded(list(space["slides"])) if kit is not None and isinstance(space["slides"], (list, tuple)) else None
     slides, w, h = check_slides(space)
     n = len(slides)
     texts = check_texts(space, n)
@@ -352,6 +405,9 @@ def make(script_arg):
         "data": "slides.json", "contact": "contact.png",
         "script": base, "made_at": now(),
     }
+    if placed is not None:
+        manifest["pictures"] = placed["pictures"]
+        manifest["logo"] = placed["logo"]
 
     # Everything is checked and made; now write. The manifest goes last.
     for f, b in zip(files, slide_data):

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Installs the Artist's tools: a Python of its own, Pillow, the sprite helper,
-# the slide tool and the video helper, all under state/art (nothing in the
+# the slide tool, the video helper, the brand kit's module and the brand check
+# (with the shipped filler list and directions), all under state/art (nothing in the
 # repo, nothing in a shell profile, no Homebrew). The Artist's own Python lives
 # in state because the fence hides the owner's home folder, where uv keeps its
 # Pythons. The video helper uses the ffmpeg and whisper-cli already on this Mac
@@ -38,7 +39,8 @@ VPY="$VENV/bin/python"
 SPRITE_TOOL="$TOOLS/sprite.py"
 SLIDES_TOOL="$TOOLS/slides.py"
 VIDEO_TOOL="$TOOLS/video.py"
-TOOL_FILES="sprite.py slides.py fontmap.json video.py"   # copied from engine/art into state/art/tools
+TOOL_FILES="sprite.py slides.py fontmap.json video.py kit.py brandcheck.py"   # copied from engine/art into state/art/tools
+BRAND_FILES="filler.json directions.json"   # copied from engine/company/brand into state/art/tools, for the brand check
 
 # Programs already on this Mac, by fixed path (never from PATH). /opt/homebrew is
 # outside the home folder, so the fence can read it.
@@ -74,10 +76,14 @@ env_text() {
   fi
 }
 
+source_of() {   # source_of <file>: where the copy in state/art/tools comes from
+  case " $BRAND_FILES " in *" $1 "*) echo "$HERE/../company/brand/$1" ;; *) echo "$HERE/$1" ;; esac
+}
+
 tools_copied() {
   local f
-  for f in $TOOL_FILES; do
-    cmp -s "$HERE/$f" "$TOOLS/$f" || return 1
+  for f in $TOOL_FILES $BRAND_FILES; do
+    cmp -s "$(source_of "$f")" "$TOOLS/$f" || return 1
   done
 }
 
@@ -144,13 +150,14 @@ fi
 [ -x "$FFMPEG" ] && [ -x "$FFPROBE" ] \
   || die "ffmpeg is not at $FFMPEG, so the video helper could not work. Nothing new was installed for it."
 mkdir -p "$TOOLS"
-for f in $TOOL_FILES; do
-  [ -f "$HERE/$f" ] || die "engine/art/$f is missing from the repo; nothing was copied for it"
+for f in $TOOL_FILES $BRAND_FILES; do
+  src="$(source_of "$f")"
+  [ -f "$src" ] || die "$f is missing from the repo (engine/art or engine/company/brand); nothing was copied for it"
   [ -L "$TOOLS/$f" ] && die "state/art/tools/$f is a link; remove it and run again"
-  if cmp -s "$HERE/$f" "$TOOLS/$f"; then
+  if cmp -s "$src" "$TOOLS/$f"; then
     say "$f already in state/art/tools"
   else
-    cp "$HERE/$f" "$TOOLS/$f.tmp" && chmod 644 "$TOOLS/$f.tmp" && mv "$TOOLS/$f.tmp" "$TOOLS/$f"
+    cp "$src" "$TOOLS/$f.tmp" && chmod 644 "$TOOLS/$f.tmp" && mv "$TOOLS/$f.tmp" "$TOOLS/$f"
     say "$f copied to state/art/tools"
   fi
 done

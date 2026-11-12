@@ -74,5 +74,17 @@
       "at": "2026-11-12T08:40:00.000Z",
       "plainState": "Being worked on"
     }
+  },
+  "craft": {
+    "kind": "carousel",
+    "review": "art",
+    "versions": [1, 3],
+    "default": 3,
+    "playbooks": ["sthyra-copywriting", "aasish-design", "creative-director"],
+    "estimate": {
+      "1": { "low": 30, "high": 55, "words": "About 30 to 55 minutes" },
+      "3": { "low": 55, "high": 100, "words": "About 55 to 100 minutes" }
+    },
+    "lastRuns": [42, 38, 51]
   }
 }

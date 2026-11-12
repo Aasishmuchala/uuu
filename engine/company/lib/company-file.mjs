@@ -65,6 +65,14 @@ function checkPolicy(slug, p, state, fence) {
     }
   }
   if (!["read-write", "read-only"].includes(p.taskFolder)) bad('needs taskFolder "read-write" or "read-only"');
+  // A walled agent (PLAN-V5 K2d) reads only its own task folder and talks only to the narrow gate.
+  if ("walled" in p && typeof p.walled !== "boolean") bad("needs walled as true or false");
+  if (p.walled === true) {
+    if (p.localServices.length) bad("is walled, so it may name no local service");
+    if (p.readFolders.length) bad("is walled, so it may read no company folder");
+    if (p.envFile !== null) bad("is walled, so it may have no key file");
+    if (p.taskFolder !== "read-write") bad('is walled, so its taskFolder must be "read-write"');
+  }
 }
 
 // One line per job of departments.json and jobs/ beside the company file:
@@ -137,6 +145,8 @@ export function loadCompanyFile(file, config) {
       if (!(k in policy)) problem(`the fence policy for agent ${slug} needs ${k}`);
     }
     checkPolicy(slug, policy, state, config.fence);
+    // The policy carries walled only when true, so every other agent's policy is as before.
+    if (policy.walled !== true) delete policy.walled;
 
     const instrPath = resolve(baseDir, a.instructions);
     if (!inside(instrPath, baseDir)) problem(`the instructions of agent ${slug} are outside the company folder`);

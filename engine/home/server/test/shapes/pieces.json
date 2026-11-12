@@ -1,0 +1,24 @@
+{
+  "kind": "carousel",
+  "round": 1,
+  "variants": [
+    {
+      "id": "a",
+      "direction": { "id": "type-led", "title": "Type led" },
+      "preview": [
+        { "type": "image" }
+      ],
+      "brand": { "result": "pass", "lines": [] },
+      "review": {
+        "scores": { "brand": 8, "hierarchy": 7, "composition": 8, "finish": 7, "idea": 7, "voice": 8, "kind": 7 },
+        "total": 52,
+        "of": 70,
+        "meets": true,
+        "reason": "calm and exact, the type carries it"
+      }
+    }
+  ],
+  "single": false,
+  "missing": [],
+  "problem": null
+}

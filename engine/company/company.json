@@ -5,7 +5,7 @@
     "limits": { "maxConcurrentRuns": 1, "runMinutes": 15, "maxTurns": 40 },
     "rights": { "canAssignTasks": false, "canCreateAgents": false, "canCreateSkills": false },
     "fencePolicy": {
-      "localServices": [], "readFolders": ["{state}/knowledge/docs"],
+      "localServices": [], "readFolders": ["{state}/knowledge/docs", "{state}/art"],
       "lessonsFile": "{state}/lessons/{slug}.md", "envFile": null, "taskFolder": "read-write"
     }
   },
@@ -125,6 +125,19 @@
       "fencePolicy": {
         "readFolders": ["{state}/knowledge/docs", "{state}/art", "{state}/media"],
         "envFile": "{state}/secrets/agents/artist.env"
+      },
+      "bench": null
+    },
+    {
+      "slug": "art-director", "name": "Art director", "role": "Art director", "department": null,
+      "needs": "reasoning",
+      "paperclipRole": "designer", "title": "Art director",
+      "tool": "claude", "model": "opus", "reportsTo": "chief-of-staff",
+      "capabilities": "Looks at finished pictures, slides, films, pages and words, and scores their craft against the brand kit and the references.",
+      "instructions": "roles/art-director.md",
+      "fencePolicy": {
+        "readFolders": ["{state}/knowledge/docs", "{state}/art", "{state}/media"],
+        "taskFolder": "read-only"
       },
       "bench": null
     }

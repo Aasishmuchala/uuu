@@ -12,6 +12,9 @@ const MAX_FILES = 500;
 const MAX_GOAL_FOLDERS = 500;
 const CHANNELS = ["post", "newsletter"];
 const ID_RE = /^[0-9a-f]{12}$/;
+const GOAL_RE = /^[A-Z][A-Z0-9]{0,9}-\d{1,9}$/;
+const NAME_RE = /^[a-z0-9][a-z0-9-]{0,35}$/;
+const VARIANT_RE = /^[abc]$/;
 
 export const isDraftId = (id) => typeof id === "string" && ID_RE.test(id);
 
@@ -153,5 +156,45 @@ export function createStore({ root, draftsDir }) {
     return write({ ...d, status, note: note ?? d.note, decidedAt: new Date().toISOString() });
   }
 
-  return { sync, read, decide };
+  // PLAN-V5 K9: the one draft of a task's versions that the owner picked, `<goal>/drafts/<name>-<id>.md`. A goal
+  // with versions keeps them in drafts/, which sync never scans, so no version is listed before the pick and the
+  // others never are. The caller (inbox/goals.mjs, on the owner's pick) passes the goal's identifier and the
+  // checked name and id from lib/variants.mjs; the place is made here from those parts, read as sync reads (no
+  // link, capped), and kept as approved: the pick is the acceptance, so the draft does not wait for the owner a
+  // second time. -> { ok: true, draft } | { ok: false, problem }
+  function addPicked(goal, name, variant) {
+    if (!GOAL_RE.test(String(goal)) || !NAME_RE.test(String(name)) || !VARIANT_RE.test(String(variant))) {
+      return { ok: false, problem: "The picked version has no draft to add." };
+    }
+    const realRoot = realDir(root);
+    if (!realRoot) return { ok: false, problem: "The work folder could not be read." };
+    try {
+      if (!lstatSync(join(root, goal)).isDirectory()) return { ok: false, problem: "The task's folder could not be read." };
+    } catch { return { ok: false, problem: "The task's folder could not be read." }; }
+    const dir = join(root, goal, "drafts");
+    const real = realDir(dir);
+    if (!real || !real.startsWith(realRoot + sep)) return { ok: false, problem: "The drafts folder could not be read." };
+    const fileName = `${name}-${variant}.md`;
+    const sourcePath = `${goal}/drafts/${fileName}`;
+    let r;
+    try {
+      if (!lstatSync(join(dir, fileName)).isFile()) return { ok: false, problem: "It is not a plain file." };
+      r = readCapped(join(dir, fileName), real);
+    } catch { return { ok: false, problem: "The file could not be read." }; }
+    if (r.problem) return { ok: false, problem: r.problem };
+    const parsed = parseDraft(r.buffer.toString("utf8"));
+    if (!parsed.ok) return { ok: false, problem: parsed.problem };
+    const id = idOf(sourcePath);
+    const old = read(id);
+    const now = new Date().toISOString();
+    const draft = write({
+      id, title: parsed.title, channel: parsed.channel, planned: parsed.planned, body: parsed.body,
+      status: "approved", note: null, raisedBy: "Marketer", sourcePath,
+      sourceHash: createHash("sha256").update(r.buffer).digest("hex"),
+      createdAt: old?.createdAt || now, decidedAt: now,
+    });
+    return { ok: true, draft };
+  }
+
+  return { sync, read, decide, addPicked };
 }

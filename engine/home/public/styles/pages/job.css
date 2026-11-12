@@ -103,7 +103,33 @@
 .p-job .p-job__pack-act { flex: none; }
 .p-job .p-job__pack-problem { margin: 0; flex-basis: 100%; color: var(--bad-text); font-size: var(--fs-caption); }
 
+/* Versions (K9): one piece or three, with its honest price in time. */
+.p-job .p-job__versions {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 0;
+  border-radius: var(--r-4);
+  background: var(--glass-soft);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.p-job .p-job__versions-head { float: left; width: 100%; margin-bottom: calc(var(--s-3) * -1); padding: 0; font-size: var(--fs-over); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); font-weight: var(--fw-bold); }
+.p-job .p-job__versions-only { margin: 0; color: var(--text-2); font-size: var(--fs-body); }
+.p-job .p-job__estimate { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.p-job .p-job__time { margin: 0; display: flex; align-items: center; gap: var(--s-2); color: var(--text); font-size: 18px; }
+.p-job .p-job__time strong { font-weight: var(--fw-bold); }
+.p-job .p-job__promise, .p-job .p-job__review, .p-job .p-job__last, .p-job .p-job__books {
+  margin: 0; color: var(--text-2); font-size: var(--fs-body); overflow-wrap: anywhere;
+}
+.p-job .p-job__review { color: var(--text); }
+.p-job .p-job__last, .p-job .p-job__books { font-size: var(--fs-caption); color: var(--text-3); }
+
 @media (max-width: 859px) {
+  .p-job .p-job__versions .k-seg { width: 100%; }
+  .p-job .p-job__versions .k-seg__item { min-height: 44px; flex: 1 1 0; }
   .p-job .p-job__pack-act { flex-basis: 100%; }
   .p-job .p-job__pack-act .k-btn { min-height: 44px; }
 

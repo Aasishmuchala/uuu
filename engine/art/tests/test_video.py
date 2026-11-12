@@ -781,5 +781,256 @@ class StopTest(unittest.TestCase):
             shutil.rmtree(root, ignore_errors=True)
 
 
+BEFORE_THE_KIT = "faf7f1b"      # the commit before the tools took the brand kit (PLAN-V5 T10)
+
+PLACED = """from PIL import Image
+
+size = (640, 360)
+fps = 10
+im = Image.new("RGB", size, kit.colour("sand"))
+im.paste(kit.colour("ink"), (0, 300, 640, 360))
+kit.place_logo(im, "top-right")
+frames = [im] * 20               # one picture, sent twenty times: every frame keeps its record
+"""
+
+PLACED_EACH = """from PIL import Image
+
+size = (640, 360)
+fps = 10
+
+def frames_():
+    for i in range(20):
+        im = Image.new("RGB", size, kit.colour("sand"))
+        kit.place(im, "site.jpg", (40, 40, 240, 200))
+        kit.place_logo(im, "bottom-right")
+        yield im
+
+frames = frames_()
+"""
+
+
+@unittest.skipUnless(HAVE_PIL and HAVE_FFMPEG,
+                     "Pillow or ffmpeg is not there (run engine/art/install.sh); video tests skipped")
+class VideoKitTest(unittest.TestCase):
+    """The video helper with a brand kit, installed as the engine installs it (kit.py and fontmap.json beside
+    it), the kit, a logo and the room's picture laid out as test_kit lays them out."""
+
+    def setUp(self):
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from test_kit import a_kit, lay_out_state
+        self.root = tempfile.mkdtemp(prefix="uuu-video-kit-test-")
+        self.state = lay_out_state(self.root, a_kit())
+        self.kit_file = os.path.join(self.state, "knowledge", "docs", "brand", "kit.json")
+        self.video = install_copy(self.state)
+        shutil.copy(os.path.join(ART, "kit.py"), os.path.dirname(self.video))
+        self.work = os.path.join(self.state, "tasks", "company-work")
+        self.goal = os.path.join(self.work, "STH-25")
+        pics = os.path.join(self.goal, "pictures")
+        os.makedirs(pics)
+        Image.new("RGB", (800, 600), (200, 80, 40)).save(os.path.join(pics, "front.png"))
+        Image.new("RGB", (600, 800), (40, 120, 200)).save(os.path.join(pics, "garden.jpg"))
+        self.marker = os.path.join(self.root, "ffmpeg-started")
+        self.fake = os.path.join(self.root, "fake-ffmpeg")
+        with open(self.fake, "w") as fh:
+            fh.write("#!/bin/sh\ntouch '%s'\nexit 1\n" % self.marker)
+        os.chmod(self.fake, stat.S_IRWXU)
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def folder(self, name):
+        d = os.path.join(self.goal, "video", name)
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    def run_in(self, name, args, text=None, ffmpeg=FFMPEG):
+        d = self.folder(name)
+        if text is not None:
+            with open(os.path.join(d, args[1]), "w", encoding="utf-8") as fh:
+                fh.write(text)
+        env = {k: v for k, v in os.environ.items() if not k.startswith("UUU_")}
+        env.update(UUU_FFMPEG=ffmpeg, UUU_FFPROBE=FFPROBE)
+        return subprocess.run([sys.executable, self.video] + list(args), cwd=d, env=env,
+                              capture_output=True, text=True, timeout=300)
+
+    def manifest(self, name):
+        return self.read_manifest(os.path.join(self.goal, "video", name))
+
+    def read_manifest(self, folder):
+        with open(os.path.join(folder, "manifest.json"), encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def seconds(self, name, stream="format"):
+        what = "format=duration" if stream == "format" else "stream=duration"
+        out = subprocess.run([FFPROBE, "-v", "error", "-select_streams", "a:0", "-show_entries", what, "-of",
+                              "default=nw=1:nk=1", os.path.join(self.goal, "video", name, name + ".mp4")],
+                             capture_output=True, text=True, check=True).stdout
+        return float(out.split()[0])
+
+    def brand_check(self):
+        r = subprocess.run([sys.executable, os.path.join(ART, "brandcheck.py"), "--json", "--state", self.state,
+                            "STH-25"], cwd=self.work, capture_output=True, text=True, timeout=120)
+        return r.returncode, json.loads(r.stdout) if r.stdout else r.stderr
+
+    def tour(self, cards=None, **extra):
+        spec = {"size": [640, 360], "fps": 10, "title": "The house",
+                "shots": [{"image": "../../pictures/front.png", "seconds": 1.5, "move": "in",
+                           "caption": "The front door"},
+                          {"image": "../../pictures/garden.jpg", "seconds": 1.5, "move": "left"}]}
+        if cards is not None:
+            spec["cards"] = cards
+        spec.update(extra)
+        return json.dumps(spec)
+
+    def assertRefusedBeforeFfmpeg(self, r, words):
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        lines = r.stderr.strip().splitlines()
+        self.assertEqual(len(lines), 1, r.stderr)
+        self.assertTrue(lines[0].startswith("video: "), r.stderr)
+        self.assertIn(words, lines[0])
+        self.assertFalse(os.path.exists(self.marker), "ffmpeg was not started")
+
+    def test_a_title_and_end_card_are_added_to_a_reveal_and_its_length_grows_by_their_seconds(self):
+        r = self.run_in("plain", ["reveal", "plain.json"], self.tour())
+        self.assertEqual(r.returncode, 0, r.stderr)
+        plain = self.manifest("plain")
+        self.assertEqual((plain["pictures"], plain["logo"]), ([], []))
+        r = self.run_in("tour", ["reveal", "tour.json"], self.tour(
+            {"title": {"text": "The house by the river", "seconds": 2}, "end": {"text": "Sthyra", "seconds": 1.5}}))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertAlmostEqual(self.seconds("tour") - self.seconds("plain"), 3.5, delta=0.15)
+        m = self.manifest("tour")
+        self.assertAlmostEqual(m["seconds"] - plain["seconds"], 3.5, delta=0.15)
+        self.assertEqual(sorted(e["frame"] for e in m["logo"]), ["end-card", "title-card"])
+        self.assertTrue(all(e["file"] == "logo.png" and len(e["box"]) == 4 for e in m["logo"]), m["logo"])
+        self.assertEqual(m["pictures"], [])
+        tour = os.path.join(self.goal, "video", "tour")
+        for card in ("title-card.png", "end-card.png"):
+            with Image.open(os.path.join(tour, card)) as im:
+                self.assertEqual(im.size, (640, 360))
+                self.assertEqual(im.convert("RGB").getpixel((3, 3)), (0xE8, 0xDC, 0xC8), "the kit's background")
+        # The poster is still from the shots, never a card.
+        with Image.open(os.path.join(tour, "poster.png")) as im:
+            self.assertNotEqual(im.convert("RGB").getpixel((3, 3)), (0xE8, 0xDC, 0xC8))
+        code, report = self.brand_check()
+        self.assertEqual(code, 0, report)
+        piece = [p for p in report["pieces"] if p["name"] == "tour"][0]
+        self.assertEqual(piece["hard"], [], piece)
+        # A run without cards takes away the cards of the run before.
+        r = self.run_in("tour", ["reveal", "tour.json"], self.tour())
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(os.path.exists(os.path.join(tour, "end-card.png")))
+
+    def test_a_cut_with_cards_keeps_its_sound_through_them(self):
+        subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-y",
+                        "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=25:duration=4",
+                        "-f", "lavfi", "-i", "sine=frequency=440:duration=4",
+                        "-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac", "-shortest",
+                        os.path.join(self.goal, "talk.mp4")], check=True, timeout=60)
+        r = self.run_in("short", ["cut", "short.json"], json.dumps({
+            "source": "../../talk.mp4", "keep": [[0.5, 2.5]], "captions": None,
+            "cards": {"title": "Site visit", "end": {"seconds": 1}}}))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        # 2 seconds kept, the title card's 3 (its words alone: the length cards take when they do not say), 1.
+        self.assertAlmostEqual(self.seconds("short"), 6.0, delta=0.15)
+        self.assertAlmostEqual(self.seconds("short", "audio"), 6.0, delta=0.15)
+        m = self.manifest("short")
+        self.assertEqual(sorted(e["frame"] for e in m["logo"]), ["end-card", "title-card"])
+        code, report = self.brand_check()
+        piece = [p for p in report["pieces"] if p["name"] == "short"][0]
+        self.assertEqual((code, piece["hard"]), (0, []), piece)
+
+    def test_a_render_notes_what_the_script_placed_on_the_poster_and_stills(self):
+        for name, text in (("still", PLACED), ("moving", PLACED_EACH)):
+            with self.subTest(name=name):
+                r = self.run_in(name, ["render", name + ".py"], text)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                m = self.manifest(name)
+                labels = ["frame-%02d" % i for i in range(1, 7)] + ["poster"]
+                self.assertEqual(sorted(e["frame"] for e in m["logo"]), labels)
+                self.assertTrue(all(e["file"] == "logo.png" for e in m["logo"]))
+                self.assertEqual(sorted(e["frame"] for e in m["pictures"]), labels if name == "moving" else [])
+        code, report = self.brand_check()
+        for name in ("still", "moving"):
+            piece = [p for p in report["pieces"] if p["name"] == name][0]
+            self.assertEqual(piece["hard"], [], piece)
+        self.assertEqual(code, 0, report)
+
+    def test_cards_without_a_kit_are_refused_and_with_one_a_bad_card_is_too(self):
+        os.remove(self.kit_file)
+        r = self.run_in("tour", ["reveal", "tour.json"], self.tour({"title": "Hello"}), ffmpeg=self.fake)
+        self.assertRefusedBeforeFfmpeg(r, "there is no brand kit yet")
+        with open(self.kit_file, "w") as fh:
+            fh.write("[]")
+        r = self.run_in("tour", ["reveal", "tour.json"], self.tour(), ffmpeg=self.fake)
+        self.assertRefusedBeforeFfmpeg(r, "The brand kit is damaged")
+        os.remove(self.kit_file)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from test_kit import a_kit
+        with open(self.kit_file, "w") as fh:
+            json.dump(a_kit(), fh)
+        for cards, words in (({"title": {"text": "x", "seconds": 30}}, "from 1 to 10"),
+                             ({"middle": "x"}, "`cards` must be {title, end}"),
+                             ({"title": ""}, "the title card needs its words")):
+            r = self.run_in("tour", ["reveal", "tour.json"], self.tour(cards), ffmpeg=self.fake)
+            self.assertRefusedBeforeFfmpeg(r, words)
+
+    def test_with_a_kit_captions_take_only_its_typefaces_and_sizes(self):
+        r = self.run_in("tour", ["reveal", "tour.json"], self.tour(caption_style={"font": "Georgia"}),
+                        ffmpeg=self.fake)
+        self.assertRefusedBeforeFfmpeg(r, "one of the brand kit's typefaces: Didot or Avenir Next")
+        r = self.run_in("tour", ["reveal", "tour.json"], self.tour(caption_style={"size": 20}), ffmpeg=self.fake)
+        self.assertRefusedBeforeFfmpeg(r, "at least 28 px")
+        sys.path.insert(0, ART)
+        import kit as kitmod
+        kit = kitmod.load_kit(self.state)
+        style = video.check_caption_style({"font": "Didot"}, kit)
+        im = video.caption_picture("The front door", 640, 360, style)
+        colours = {c for _, c in im.getcolors(640 * 360)}
+        self.assertIn((0x1A, 0x3C, 0x5E, 255), colours, "with no text colour, the main colour")
+        self.assertIn((0xE8, 0xDC, 0xC8, 178), colours, "the band in the kit's background colour")
+
+    def test_with_no_kit_the_outputs_are_what_they_were(self):
+        os.remove(self.kit_file)
+        try:
+            old = subprocess.run(["git", "-C", ART, "show", "%s:engine/art/video.py" % BEFORE_THE_KIT],
+                                 capture_output=True, timeout=30).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            old = b""
+        if not old:
+            self.skipTest("git cannot show the video helper before the kit")
+        script = TWO_SECONDS + "assert kit is None\n"
+        r = self.run_in("clip", ["render", "clip.py"], script)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        # The helper before the kit, installed in a state of its own, makes the same render and reveal.
+        before = os.path.join(self.root, "before")
+        old_video = install_copy(os.path.join(before, "state"))
+        with open(old_video, "wb") as fh:
+            fh.write(old)
+        old_goal = os.path.join(before, "state", "tasks", "company-work", "STH-25")
+        shutil.copytree(os.path.join(self.goal, "pictures"), os.path.join(old_goal, "pictures"))
+        env = {k: v for k, v in os.environ.items() if not k.startswith("UUU_")}
+        env.update(UUU_FFMPEG=FFMPEG, UUU_FFPROBE=FFPROBE)
+        for name, args, text in (("clip", ["render", "clip.py"], TWO_SECONDS),
+                                 ("tour", ["reveal", "tour.json"], self.tour())):
+            d_old = os.path.join(old_goal, "video", name)
+            os.makedirs(d_old)
+            with open(os.path.join(d_old, args[1]), "w", encoding="utf-8") as fh:
+                fh.write(text)
+            r_old = subprocess.run([sys.executable, old_video] + args, cwd=d_old, env=env,
+                                   capture_output=True, text=True, timeout=300)
+            r_new = self.run_in(name, args, text)
+            self.assertEqual(r_new.returncode, 0, r_new.stderr)
+            self.assertEqual((r_new.stdout, r_new.stderr), (r_old.stdout, r_old.stderr))
+            d_new = os.path.join(self.goal, "video", name)
+            self.assertEqual(sorted(os.listdir(d_new)), sorted(os.listdir(d_old)))
+            m_old, m_new = [self.read_manifest(d) for d in (d_old, d_new)]
+            m_old.pop("made_at"), m_new.pop("made_at")
+            self.assertEqual(m_new, m_old)
+            for f in ("poster.png", "review/frame-01.png", name + ".mp4"):
+                with open(os.path.join(d_new, f), "rb") as a, open(os.path.join(d_old, f), "rb") as b:
+                    self.assertEqual(a.read(), b.read(), f)
+
+
 if __name__ == "__main__":
     unittest.main()

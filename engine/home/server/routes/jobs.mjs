@@ -4,9 +4,14 @@
 // answers (cleaned and capped by kind), names from the brain's and the room's own listings, and an earlier
 // task's identifier from the board. Nothing an agent wrote goes into it, and a task is "from a job" or "follows
 // a task" only by the records written here, after the board created the task (docs/adr/0007).
+// Version 5 (PLAN-V5 K7, K9): a job with craft may be started with one or three versions; three adds one fixed
+// sentence naming directions from the repo's directions.json, and the playbooks and review lines come from the
+// repo's craft.json. Which direction the owner picked before, and which version of an earlier task, come only
+// from the home server's own `pick:` records.
+import { directionsFor, pickDirections } from "../../../company/lib/craft-files.mjs";
 import { HomeError } from "../lib/errors.mjs";
 import { needIds, summary } from "../lib/goals.mjs";
-import { jobRef, jobView, loadCatalogue, needsState, runsIndex } from "../lib/jobs.mjs";
+import { craftOf, jobRef, jobView, loadCatalogue, loadCraftTable, needsState, runsIndex } from "../lib/jobs.mjs";
 import { loadDepartments } from "../lib/departments.mjs";
 import { stripInvisible } from "../lib/owner-text.mjs";
 import { buildText } from "../lib/staged.mjs";
@@ -41,7 +46,8 @@ const STAGES = [
 ];
 
 // A line of the text that an agent, or textOf, could read as a marker (CONTRACTS-V2 15.1, CONTRACTS-V3 31.3, 34).
-const MARKER_LINE = /^(FOR:|PLAN FIRST\b|PLAN READY:|PLAN ACCEPTED\b|ANSWER:|STOPPED:|RESULT:|VERDICT:|ROUTINE:|SIZE:|JOB:|ASK\s*$|Read first, from the company's files:|Produce:)/i;
+// Version 5 (K9) adds the playbooks line, any "Review:" line and the three-versions sentence.
+const MARKER_LINE = /^(FOR:|PLAN FIRST\b|PLAN READY:|PLAN ACCEPTED\b|ANSWER:|STOPPED:|RESULT:|VERDICT:|ROUTINE:|SIZE:|JOB:|ASK\s*$|Read first, from the company's files:|Read first, from the playbooks:|Review:|Make three versions\b|Produce:)/i;
 // A line as a reader of markers might see it: compatibility forms folded (full-width letters), every
 // invisible or formatting character dropped, and any kind of space at its start gone (the blank U+2800 too).
 // MARKER_LINE ignores case.
@@ -111,7 +117,7 @@ function placeOf(ctx, ask, value, offered, tctx) {
       if (!isOffered() || !tctx) throw bad(ctx, ask);
       const earlier = findTask(tctx, value);
       if (!earlier || !IDENTIFIER.test(String(earlier.identifier || ""))) throw bad(ctx, ask);
-      return { place: `the sub-folder ${earlier.identifier} of your current working folder`, identifier: earlier.identifier, taskId: earlier.id };
+      return { place: earlierPlace(ctx, earlier.identifier, earlier.id), identifier: earlier.identifier, taskId: earlier.id };
     }
     default: throw bad(ctx, ask);
   }
@@ -129,6 +135,67 @@ function fillText(text, places) {
   // A line an answer made that reads as a marker is kept as quoted words, never as a marker.
   return filled.split("\n").map((l) => (MARKER_LINE.test(asMarkerReads(l)) ? `> ${l.trim()}` : l)).join("\n").trim();
 }
+
+// ---- versions and picks (K7, K9)
+
+const VARIANT = /^[abc]$/;
+
+// The version the owner picked of an earlier task, from the home server's own `pick:` record (the newest entry
+// that names one), or null.
+export function pickedVersion(ctx, taskId) {
+  const rec = ctx.decisions.get(`pick:${taskId}`);
+  const list = Array.isArray(rec) ? rec : rec && typeof rec === "object" ? [rec] : [];
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    const v = list[i] && typeof list[i] === "object" ? list[i].variant : null;
+    if (typeof v === "string" && VARIANT.test(v)) return v;
+  }
+  return null;
+}
+
+// Where an earlier task's work is, as the text says it; with the owner's pick when there is one (K9).
+function earlierPlace(ctx, identifier, taskId) {
+  const v = pickedVersion(ctx, taskId);
+  const place = `the sub-folder ${identifier} of your current working folder`;
+  return v ? `${place} (use version ${v} there: the owner picked it)` : place;
+}
+
+// How many versions the owner asked for: 1 or 3, the job's default when the body says nothing. Only a job whose
+// craft allows three may have three; anything else is a bad answer.
+function versionsOf(ctx, craft, raw) {
+  const refuse = () => ctx.fail(400, "That number of versions does not fit this job.",
+    "Choose one version, or three where the job offers them.", "bad_answer");
+  if (raw === undefined || raw === null) return craft ? (craft.variants === 3 ? 3 : 1) : 1;
+  if (raw !== 1 && raw !== 3) throw refuse();
+  if (raw === 3 && craft?.variants !== 3) throw refuse();
+  return raw;
+}
+
+// The direction the owner picked most recently for this kind of work, from the `pick:` records of earlier
+// tasks whose job makes the same kind (by the directions they share), or null.
+function keptDirection(ctx, tctx, kind) {
+  const family = directionsFor(kind).map((d) => d.id);
+  if (!family.length || !tctx) return null;
+  const catalogue = loadCatalogue(ctx.config);
+  const craft = loadCraftTable(ctx.config).jobs;
+  let best = null;
+  for (const g of tctx.goals) {
+    const ref = ctx.decisions.get(`template:${g.id}`);
+    const c = typeof ref === "string" && catalogue.jobs.has(ref) ? craft.get(ref) : null;
+    if (!c) continue;
+    const theirs = directionsFor(c.kind).map((d) => d.id);
+    if (theirs.join(",") !== family.join(",")) continue;
+    const rec = ctx.decisions.get(`pick:${g.id}`);
+    for (const p of Array.isArray(rec) ? rec : []) {
+      if (!p || typeof p !== "object" || typeof p.direction !== "string" || !family.includes(p.direction) || !VARIANT.test(String(p.variant))) continue;
+      const at = Date.parse(p.at);
+      const t = Number.isFinite(at) ? at : 0;
+      if (!best || t > best.t) best = { id: p.direction, t };
+    }
+  }
+  return best ? best.id : null;
+}
+
+const oneLine = (s) => String(s).replace(/\s+/g, " ").trim();
 
 // ---- the earlier task (`from`)
 
@@ -171,7 +238,8 @@ export function subjectOf(ctx, taskId, depth = 0) {
 function notReady(ctx, why) {
   const next = !why.link ? "Pick another job for now."
     : why.link.page === "files" ? "Open Files and fill it in, then start the job."
-      : "Open Health to see what to do next.";
+      : why.link.page === "settings" ? "Open Settings, then start the job."
+        : "Open Health to see what to do next.";
   return ctx.fail(409, why.text, next, "job_not_ready");
 }
 
@@ -199,7 +267,7 @@ export default function register(app) {
         return { ...s, jobs: mine.length, ready: mine.filter((v) => v.ready).length, tried: mine.filter((v) => v.runs.accepted > 0).length };
       }),
       totals: { jobs: views.length, ready: views.filter((v) => v.ready).length },
-      problems: [...depProblems, ...catalogue.problems],
+      problems: [...depProblems, ...catalogue.problems, ...loadCraftTable(ctx.config).problems.map((problem) => ({ file: "brand/craft.json", problem }))],
       generatedAt: new Date().toISOString(),
     };
   });
@@ -233,12 +301,15 @@ export default function register(app) {
     // Readiness first: a job that cannot start says why, whatever was filled in.
     const ready = jobView(job, { needs, runs: new Map(), config: ctx.config, roles });
     if (!ready.ready) throw notReady(ctx, ready.why);
+    const craft = craftOf(ctx.config, job);
+    const versions = versionsOf(ctx, craft, body.versions);
 
-    // The board is read only when an earlier task is involved; with it off the start fails as the board call would.
+    // The board is read only when an earlier task or the owner's earlier picks are involved; with it off the
+    // start fails as the board call would.
     const hasFrom = body.from !== undefined && body.from !== null && body.from !== "";
     const taskAsks = job.asks.filter((a) => a.kind === "task");
     let tctx = null;
-    if (hasFrom || taskAsks.length) tctx = await loadTaskContext(ctx, { withInbox: false, withComments: false });
+    if (hasFrom || taskAsks.length || versions === 3) tctx = await loadTaskContext(ctx, { withInbox: false, withComments: false });
     const runs = tctx ? runsIndex(ctx, tctx) : new Map();
     const view = jobView(job, { needs, runs, config: ctx.config, roles });
     const offeredOf = (id) => view.asks.find((a) => a.id === id)?.options || null;
@@ -249,7 +320,7 @@ export default function register(app) {
     for (const ask of job.asks) {
       if (earlier && job.takes && ask.id === job.takes.ask) {
         // Answered by the server from the board; a value for it in the body is ignored.
-        places[ask.id] = `the sub-folder ${earlier.identifier} of your current working folder`;
+        places[ask.id] = earlierPlace(ctx, earlier.identifier, earlier.id);
         record[ask.id] = earlier.identifier;
         continue;
       }
@@ -277,9 +348,20 @@ export default function register(app) {
     // A task that follows earlier work carries what that work was about (M63 item 47), so two of them read apart.
     const subject = (earlier && subjectOf(ctx, earlier.id)) || (firstLine ? places[firstLine.id] : null);
     const title = titleOf(subject ? `${job.title}: ${subject}` : job.title);
+    // Three versions: one fixed sentence after the job's own text, with directions from the repo's list (K7).
+    let directions = null;
+    let text = fillText(job.text, places);
+    if (versions === 3) {
+      directions = pickDirections({ kind: craft.kind, kept: keptDirection(ctx, tctx, craft.kind) });
+      if (directions.length !== 3) {
+        throw ctx.fail(400, "This job cannot make three versions yet.", "Choose one version, then start the job.", "bad_answer");
+      }
+      text = `${text}\n\nMake three versions, one in each of these directions: ${directions.map((d) => oneLine(d.title)).join(", ")}. Write variants.json as your instructions say.`;
+    }
     const description = buildText({
-      text: fillText(job.text, places), to, planFirst: job.planFirst || body.planFirst === true,
+      text, to, planFirst: job.planFirst || body.planFirst === true,
       reads: job.reads, produces: job.produces, job: ref,
+      ...(craft ? { playbooks: craft.playbooks, review: craft.review } : {}),
     });
 
     const ids = needIds(ctx);
@@ -306,7 +388,10 @@ export default function register(app) {
       for (const [k, v] of Object.entries(record)) kept[k] = String(v).slice(0, RECORD_MAX);
       // Write-once records (lib/decisions.mjs): a replayed start can never change them.
       ctx.decisions.set(`template:${created.id}`, ref);
-      ctx.decisions.set(`asked:${created.id}`, { answers: kept });
+      // A job with craft also keeps the number of versions, and with three the directions asked for (K9).
+      ctx.decisions.set(`asked:${created.id}`, craft
+        ? { answers: kept, versions, ...(directions ? { directions: directions.map((d) => d.id) } : {}) }
+        : { answers: kept });
       if (earlier) ctx.decisions.set(`from:${created.id}`, earlier.id);
     }
     return { status: 201, body: { goal: summary(created, [created]), message: startedMessage(queue), queue } };

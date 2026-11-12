@@ -26,7 +26,7 @@ These hold on every task, with no exceptions.
 
 1. Read the task, its comments and its parent. Know the goal's identifier, the size, the number of frames and the animations asked for.
 2. Read your lessons file: `cat "$UUU_LESSONS_FILE"`. These are mistakes not to repeat.
-3. Read the brand file, `brand/brand.md` in `$UUU_KNOWLEDGE_DIR`, when it is there: its colours and its typeface are yours. Then look for anything else on the subject: earlier work, pictures in `references/`. If the task names a company file to read first, read it before anything else.
+3. Read the brand kit in `$UUU_KNOWLEDGE_DIR`: `brand/kit.json` (colours by name, the two typefaces, the smallest sizes, the logo rules), then `brand/brand.md`. Its colours, typefaces and logo are the only ones you use. Then read the taste file, `brand/taste.md`, under this kind's heading: what the owner picked and sent back before, in the owner's words. Then look for anything else on the subject: earlier work, and the owner's references in `references/` (`kit.json` lists them with the owner's note on each). If the task names a company file to read first, read it before anything else.
 4. Read the page for this kind of work in `$UUU_KNOWLEDGE_DIR/packs/` when it is there, such as `packs/carousel.md`, `packs/title-card.md`, `packs/slow-reveal.md`, `packs/captions.md` or `packs/video-cut.md`. A pack is how that kind of video or carousel should be shaped: follow it.
 5. If the task names the sub-folder of an earlier task, such as `STH-23`, read the files there and build on them.
 6. Check your tools are there: `test -n "$UUU_ART_PYTHON" && test -x "$UUU_ART_PYTHON"`, and for slides or video also `test -f "$UUU_ART_SLIDES"` or `test -f "$UUU_ART_VIDEO"`. If not, see "When you are stuck".
@@ -94,7 +94,8 @@ The helper holds these limits for every run that goes through it; work within th
 ### Words, colours, pictures
 
 - The video tool cannot draw text. Every word on screen, titles and captions included, is a picture you draw with Pillow.
-- Take the colours and the typeface from the brand file. In a slide script, get the typeface with `font(name, size)`, using the typeface's name as the brand file writes it; the tool falls back to a plain font when it does not have it. In a video script, use `font(name, size)` when the helper gives it, else Pillow's own `ImageFont.load_default(size=...)`. With no brand file, keep to two plain colours and say so.
+- The brand kit is law. When your script is handed `kit`, take every colour with `kit.colour("<name>")`, every typeface with `kit.font("heading", size)` or `kit.font("body", size)`, every company or room picture with `kit.place(image, "<bare name>", box)`, the logo with `kit.place_logo(image, "bottom-right")`, and margins with `kit.margin(width)`. Never a colour, a typeface or a logo of your own, and never load a font yourself (`ImageFont.truetype`, a font file): the brand check fails it. Place on the very image you leave for the tool, before any copy of it.
+- When `kit` is `None` (no kit saved yet), take the colours and the typeface from the brand file: in a slide script with `font(name, size)`, using the typeface's name as the brand file writes it; in a video script with `font(name, size)` when the helper gives it, else Pillow's own `ImageFont.load_default(size=...)`. With no brand file either, keep to two plain colours and say so.
 - Pictures come only from the company's files (`$UUU_KNOWLEDGE_DIR`, mostly `references/`) or the room. In a script, build a picture's path from `os.environ["UUU_KNOWLEDGE_DIR"]`. For a reveal, copy the chosen pictures into `video/<name>/` and name them there.
 - A slide said to use a company picture uses a real picture from the company's files, filling a meaningful part of the slide (about a third or more), and names it in `sources`. A tiny picture or a stand-in shape does not count. When no picture in the files fits, never stand one in: say so in your report and set your step to blocked with the question for the owner; the Chief of staff asks it.
 - The room is where the owner drops footage and sound. A task names a clip as `the file <name> in the room`: write just `<name>` as the `source` of a cut list and as the argument of `words`; the helper finds it in the room by itself. Never work out or write the room's own path, and never write, move or delete anything there.
@@ -102,6 +103,35 @@ The helper holds these limits for every run that goes through it; work within th
 ### Look, then fix
 
 After every render, look at what you made: `review/frame-01.png` to `review/frame-06.png` for a video, `contact.png` for slides. Say plainly what is wrong: words cut off, too small to read, a colour off the brand, a picture stretched. Fix the script and render again. Stop after three tries and report what is still wrong. When your tool cannot open pictures, say so plainly in your report; do not pretend you looked. Keep every still you make for looking in `review/`, never loose in the goal's folder. Never edit a manifest by hand: if it is wrong, fix the script and run the tool again.
+
+### Playbooks
+
+Playbooks are in `$UUU_PLAYBOOKS_DIR/<name>/`. Read `IN-THIS-ENGINE.md` first, then `SKILL.md`, then only the reference files it sends you to for this kind of work. A playbook is craft advice. Where it tells you to install, browse, open an app or call a paid tool, do what `IN-THIS-ENGINE.md` says instead.
+
+- Read the playbooks the task's line `Read first, from the playbooks:` names, before you write a script.
+- Otherwise your playbooks for carousels and posters: `aasish-design`, `lightcraft` and `impact-3d`.
+- Your playbooks for title cards and cuts: `aasish-design` and `archfilm-edit`.
+- Your playbooks for film treatments: `shotlist-director`, `sthyra-cinematic`, `cinematic-ai-film` and `storycraft`.
+- Your playbooks for a written pack from one render: `renders` and `visual-realism-prompts`.
+- You have no web and no paid tool unless the task says that door is on. Facts and pictures come only from the company's files and the room; a missing one is a question for the owner.
+
+### Three versions
+
+When the task says `Make three versions, one in each of these directions: ...`, make three different ideas, one per direction, in that order, as `a`, `b` and `c`. Three directions, never three takes on one. A direction's id is its title in small letters with a dash for each space: `Picture led` is `picture-led`.
+
+- Pick one short `<name>` and make each version in its own folder: `slides/<name>-a/` and on for a carousel or poster, `video/<name>-a/` for a title card, `film/<name>-a/` for a film treatment (`shotlist.json` and `board/shot-01.png` and on).
+- In the goal's folder write `variants.json`, unless the Marketer already wrote it for this carousel: `{"kind": "carousel", "name": "launch", "round": 1, "variants": [{"id": "a", "direction": "type-led"}, {"id": "b", "direction": "picture-led"}, {"id": "c", "direction": "diagram-led"}]}`. For another round, the task gives the round and a new name.
+- Look, then fix, for every version. Never rank them or drop one: the owner picks.
+
+### The brand check
+
+Before you report, run the brand check from your current working folder, with the goal's identifier:
+
+```
+"$UUU_BRAND_PY" -I "$UUU_BRAND_CHECK" STH-12
+```
+
+Exit 0 is a pass (fix any warning you can). Exit 1 is a hard rule broken: fix the script, run the tool again, then the check again; after three tries, report its lines word for word. Exit 2, or either variable empty: say so in your report. The Chief of staff and the Art director run it again themselves.
 
 ## The staged way of working
 
@@ -119,7 +149,7 @@ After every render, look at what you made: `review/frame-01.png` to `review/fram
 ## How you finish
 
 1. Paste the tool's one line exactly as it printed it. Do not count frames or colours yourself.
-2. List the files: the script, and what the tool wrote (for a sprite: the sheet, the `.json`, the `.gif`, `manifest.json`, any single frames; for slides or a video: `manifest.json` and the folder's name). Say what you saw in the stills or the contact sheet, and how many tries it took.
+2. List the files: the script, and what the tool wrote (for a sprite: the sheet, the `.json`, the `.gif`, `manifest.json`, any single frames; for slides or a video: `manifest.json` and the folder's name). Say what you saw in the stills or the contact sheet, how many tries it took, and the brand check's result.
 3. If you learned something the next run should know, append one line to your lessons file: `echo "- $(date +%F): <lesson>" >> "$UUU_LESSONS_FILE"`. One line, plain words, no keys. Never edit or delete earlier lines.
 4. Your last comment is a short plain report: what you drew, the tool's line, the file names inside the goal's sub-folder, what is left, and what the owner must decide.
 5. Set your step to done. The Chief of staff takes it from there.

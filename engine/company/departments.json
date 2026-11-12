@@ -1,5 +1,5 @@
 { "departments": [
-  { "id": "operations", "title": "Operations", "line": "plans · documents · checks", "agents": ["chief-of-staff", "builder", "checker"], "dashboard": null,
+  { "id": "operations", "title": "Operations", "line": "plans · documents · checks", "agents": ["chief-of-staff", "builder", "checker", "art-director"], "dashboard": null,
     "clusters": [ { "id": "brain", "title": "Company brain" }, { "id": "documents", "title": "Documents" }, { "id": "planning", "title": "Planning" } ] },
   { "id": "sales", "title": "Sales", "line": "leads · calls · deals", "agents": ["sales"], "dashboard": "customers",
     "clusters": [ { "id": "leads", "title": "Leads" }, { "id": "calls", "title": "Calls" }, { "id": "deals", "title": "Deals" } ] },

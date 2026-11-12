@@ -1,7 +1,8 @@
 // The recipe log (CONTRACTS-V3 36.4): `packs/recipe-log.md` in the company brain, the one file there the owner
 // did not type. Every agent reads the brain before it works, so nothing an agent wrote may reach this file:
 // it is built only from records agents cannot write and from numbers.
-//   - which tasks: the home server's own `template:` records naming a Marketing job in the catalogue;
+//   - which tasks: the home server's own `template:` records naming a Marketing job in the catalogue (the log
+//     also takes Studio jobs, PLAN-V5 K9; the Marketing page's answer keeps to Marketing);
 //   - the job's title: from the job file in the repo;
 //   - the owner's words: the answers the home server recorded when the job was started (`asked:<task id>`); an
 //     earlier task chosen as an answer is named by the title the home server gave it (its job's title and its
@@ -13,18 +14,24 @@
 //     by the text);
 //   - the scores: the numbers of the last of those rounds, through scoresOf, from the Checker's comments only. A
 //     piece's name (its slug) is the Checker's own word, so it never reaches the file: each piece is "piece <n>".
+//   - the versions (PLAN-V5 K9): the home server's `pick:` records (lib/picks.mjs). A pick is the acceptance and
+//     its row says "Picked version 2 of 3 (<direction title>)", the title from the repo's directions.json; "send
+//     all back" is a Sent back row; "another round" is a row of its own. The Art director's totals are numbers.
 // Every line of the file is fixed words, numbers, the job file's title or the owner's own text made one line.
 // recipeEntries feeds the Marketing answer; refreshRecipeLog writes the file, at most once a minute and only
 // when its text would change, and never throws.
 import { brainFor } from "../brain/store.mjs";
 import { commentsOf, descendants, goalsOf, loadIssues } from "./goals.mjs";
 import { loadCatalogue } from "./jobs.mjs";
+import { ANOTHER, BACK, directionTitle, PICK, picksOf } from "./picks.mjs";
 import { roundsOf } from "./staged.mjs";
 import { scoresOf } from "./scores.mjs";
 import { ACCEPTED, verdictsOf } from "./verdicts.mjs";
+import { kindOfTask } from "../routes/pieces.mjs";
 
 export const LOG_PATH = "packs/recipe-log.md";
 export const MAX_ENTRIES = 200;
+export const LOG_DEPARTMENTS = ["marketing", "studio"];
 const MAX_WORDS = 300;
 const MAX_NOTE = 300;
 const CHECK_EVERY = 60000;
@@ -79,16 +86,48 @@ function wordsOf(ctx, jobs, job, record, issues) {
   return parts.length ? oneLine(parts.join("; "), MAX_WORDS) : null;
 }
 
-// The owner's verdicts on a task from the home server's own records, oldest first: [{ verdict, note, at }].
-function verdictsFor(ctx, goal) {
-  const list = verdictsOf(ctx.decisions, goal.id).map((v) => ({
-    verdict: v.verdict === ACCEPTED ? "Accepted" : "Sent back",
-    note: v.note ? oneLine(v.note, MAX_NOTE) || null : null,
-    at: timeOf(v.at) ?? 0,
-  }));
+// What the owner did with a card of versions, in fixed words, the repo's direction titles and numbers:
+// "Picked version 2 of 3 (Picture led). Totals of 70: 52, 46, 50". null for anything else.
+export function versionsLine(kind, p) {
+  if (!p) return null;
+  const n = p.versions.length;
+  const totals = p.versions.map((v) => v.total).filter((t) => Number.isInteger(t));
+  const tail = totals.length ? `. Totals of 70: ${totals.join(", ")}` : "";
+  if (p.action === PICK) {
+    const at = p.versions.findIndex((v) => v.id === p.variant);
+    const which = at >= 0 && n ? `version ${at + 1} of ${n}` : "one version";
+    const title = directionTitle(kind, p.direction);
+    return `Picked ${which}${title ? ` (${title})` : ""}${tail}`;
+  }
+  if (p.action === BACK) return `Sent all ${n || "the versions"} back${tail}`;
+  if (p.action === ANOTHER) return `Asked for another round after ${n || "the versions"}${tail}`;
+  return null;
+}
+
+// The owner's verdicts on a task from the home server's own records, oldest first: [{ verdict, note, at,
+// versions }]. A verdict written in the same moment as a choice on the versions carries that choice (and, for a
+// pick, the owner's note with it); "another round" is a row of its own.
+function verdictsFor(ctx, goal, kind) {
+  const picks = picksOf(ctx.decisions, goal.id);
+  const byAt = new Map(picks.map((p) => [p.at, p]));
+  const list = verdictsOf(ctx.decisions, goal.id).map((v) => {
+    const p = byAt.get(v.at) || null;
+    const note = v.note || p?.note || null;
+    return {
+      verdict: v.verdict === ACCEPTED ? "Accepted" : "Sent back",
+      note: note ? oneLine(note, MAX_NOTE) || null : null,
+      at: timeOf(v.at) ?? 0,
+      versions: versionsLine(kind, p),
+    };
+  });
+  for (const p of picks) {
+    if (p.action !== ANOTHER) continue;
+    list.push({ verdict: "Another round", note: p.note ? oneLine(p.note, MAX_NOTE) || null : null, at: timeOf(p.at) ?? 0, versions: versionsLine(kind, p) });
+  }
+  list.sort((a, b) => a.at - b.at);
   if (list.length) return list;
   const ack = ctx.decisions?.get(`acknowledged:goal:${goal.id}`);
-  return ack ? [{ verdict: "Accepted", note: null, at: timeOf(ack) ?? timeOf(goal.updatedAt) ?? 0 }] : [];
+  return ack ? [{ verdict: "Accepted", note: null, at: timeOf(ack) ?? timeOf(goal.updatedAt) ?? 0, versions: null }] : [];
 }
 
 // The scores of a round: from question 2's reason (36.3), else the first other reason that holds them.
@@ -107,9 +146,12 @@ async function inBatches(list, fn) {
   for (let i = 0; i < list.length; i += BATCH) await Promise.all(list.slice(i, i + BATCH).map(fn));
 }
 
-// recipeEntries(ctx) -> [{ taskId, identifier, at, date, jobId, job, words, rounds, scores, verdict, note }], one
-// per verdict of the owner, newest first, at most 200. Throws when the board cannot be read.
-export async function recipeEntries(ctx) {
+// recipeEntries(ctx, { departments }) -> [{ taskId, identifier, at, date, jobId, job, words, rounds, scores,
+// verdict, note, versions }], one per verdict of the owner (and per "another round"), newest first, at most 200,
+// for jobs of those departments (default Marketing, as the Marketing page shows). Throws when the board cannot
+// be read.
+export async function recipeEntries(ctx, { departments = ["marketing"] } = {}) {
+  const wanted = new Set(departments);
   const ids = ctx.ids();
   if (!ids?.companyId || !ids?.projectId) return [];
   const { jobs } = loadCatalogue(ctx.config);
@@ -118,10 +160,12 @@ export async function recipeEntries(ctx) {
   const candidates = [];
   for (const g of goalsOf(issues, ids)) {
     const ref = ctx.decisions?.get(`template:${g.id}`);
-    if (typeof ref !== "string" || !ref.startsWith("marketing/")) continue;
+    if (typeof ref !== "string" || !wanted.has(ref.split("/")[0])) continue;
     const job = jobs.get(ref);
-    if (!job || job.department !== "marketing") continue;
-    const verdicts = verdictsFor(ctx, g);
+    if (!job || !wanted.has(job.department)) continue;
+    let kind = null;
+    try { kind = kindOfTask(ctx, g); } catch { kind = null; }
+    const verdicts = verdictsFor(ctx, g, kind);
     if (!verdicts.length) continue;
     candidates.push({ g, ref, job, verdicts });
     if (candidates.length >= MAX_ENTRIES * 2) break;
@@ -140,7 +184,7 @@ export async function recipeEntries(ctx) {
         taskId: g.id, identifier: typeof g.identifier === "string" ? oneLine(g.identifier, 64) : null,
         at: v.at, date: dateText(v.at), jobId: ref, job: oneLine(job.title, 120), words,
         rounds: rounds.length, scores: roundScores(rounds.at(-1)),
-        verdict: v.verdict, note: v.note,
+        verdict: v.verdict, note: v.note, versions: v.versions,
       });
     }
   });
@@ -156,7 +200,7 @@ export function renderLog(entries) {
   const lines = [
     "# Recipe log",
     "",
-    "What was made from a Marketing job, how many check rounds it took, the Checker's scores out of 10, and what the owner said. Newest first.",
+    "What was made from a Marketing or Studio job, how many check rounds it took, the Checker's scores out of 10, which version the owner picked, and what the owner said. Newest first.",
     "The home screen writes this file from its own records. Agents do not write it.",
   ];
   if (!entries.length) lines.push("", "Nothing yet.");
@@ -167,6 +211,7 @@ export function renderLog(entries) {
       `- The owner asked for: ${e.words || "Not recorded."}`,
       `- Rounds: ${e.rounds}`,
       `- Scores of the last round: ${scoreLine(e.scores)}`,
+      ...(e.versions ? [`- Versions: ${e.versions}`] : []),
       `- Verdict: ${e.verdict}${e.note ? `. The owner's note: ${e.note}` : ""}`,
     );
   }
@@ -176,7 +221,7 @@ export function renderLog(entries) {
 // writeRecipeLog(ctx) -> { written: boolean }: builds the log and writes it through the brain store only when
 // the text would change. Nothing is written while there is nothing to log and no log yet. May throw.
 export async function writeRecipeLog(ctx) {
-  const entries = await recipeEntries(ctx);
+  const entries = await recipeEntries(ctx, { departments: LOG_DEPARTMENTS });
   const brain = brainFor(ctx.config);
   const current = brain.find(LOG_PATH);
   if (!current && !entries.length) return { written: false };

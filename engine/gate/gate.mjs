@@ -2,15 +2,21 @@
 // It forwards a request only when it carries exactly one bearer token, is not on the
 // refusal list, and, for a write, is on the allow-list with a body that passes the row's
 // body rules (body.mjs). It never logs a header, a body or a query string.
+// With `narrow: true` it is the narrow gate for a walled agent (PLAN-V5 K10, narrow.mjs):
+// every rule above, and on top only its own tasks, decided from the board's own records.
 import http from "node:http";
 import { appendFileSync, mkdirSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalisePath, refusal, allowRow } from "./rules.mjs";
 import { BODY_LIMIT, bodyRefusal } from "./body.mjs";
+import { narrowRoute, narrowBodyRefusal, ownership, createCache } from "./narrow.mjs";
 
 const BEARER = /^bearer +\S+$/i;
 const OVERRIDE_HEADERS = new Set(["x-http-method-override", "x-http-method", "x-method-override"]);
+// The narrow gate's questions to the board: 5 seconds each, answers of at most 8 MB.
+const ASK_TIMEOUT_MS = 5000;
+const ASK_LIMIT = 8 * 1024 * 1024;
 
 const BODIES = {
   badPath: { error: "The gate could not read this address.", code: "gate_bad_path" },
@@ -112,6 +118,63 @@ function socketJson(socket, status, reason, body) {
   }
 }
 
+// For the narrow gate: true when any method-override header is present, and true when a
+// request declares a body.
+function hasOverride(rawHeaders) {
+  for (let i = 0; i < rawHeaders.length; i += 2) {
+    if (OVERRIDE_HEADERS.has(rawHeaders[i].toLowerCase())) return true;
+  }
+  return false;
+}
+
+function declaresBody(rawHeaders) {
+  if (headerValues(rawHeaders, "transfer-encoding").length > 0) return true;
+  return headerValues(rawHeaders, "content-length").some((v) => v.trim() !== "0");
+}
+
+// The narrow gate asks the board one question with the caller's own token. Resolves to
+// { status, json } (json null when the answer is not JSON) or { error }.
+function askBoard(boardHost, boardPort, token, path) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const req = http.get({ host: boardHost, port: boardPort, path, agent: false,
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } }, (res) => {
+      const chunks = [];
+      let size = 0;
+      res.on("data", (c) => {
+        size += c.length;
+        if (size > ASK_LIMIT) {
+          settle({ error: "too-big" });
+          req.destroy();
+          return;
+        }
+        chunks.push(c);
+      });
+      res.on("end", () => {
+        let json = null;
+        try {
+          json = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        } catch {
+          json = null;
+        }
+        settle({ status: res.statusCode, json });
+      });
+      res.on("error", () => settle({ error: "read" }));
+    });
+    const timer = setTimeout(() => {
+      settle({ error: "timeout" });
+      req.destroy();
+    }, ASK_TIMEOUT_MS);
+    req.on("error", () => settle({ error: "down" }));
+  });
+}
+
 function checkBoard(boardHost, boardPort) {
   return new Promise((resolve) => {
     const req = http.get({ host: boardHost, port: boardPort, path: "/api/health", agent: false, timeout: 2000 }, (res) => {
@@ -123,7 +186,13 @@ function checkBoard(boardHost, boardPort) {
   });
 }
 
-export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", refusalLog } = {}) {
+// `narrow: true` builds the narrow listener; `narrowPort`, on the ordinary one, is only
+// reported in its health answer so the part script knows to check the narrow one too.
+export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", refusalLog, narrow = false,
+  narrowPort = null, now = Date.now } = {}) {
+  const cache = narrow ? createCache({ now }) : null;
+  const ask = (token, path) => askBoard(boardHost, boardPort, token, path);
+
   function logRefusal(method, path, rule) {
     if (!refusalLog) return;
     try {
@@ -141,7 +210,8 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
   }
 
   // `body`, when given, is the whole body already read; it is sent as it was received.
-  function forward(req, res, body) {
+  // `token`, on the narrow listener, is the caller's: a 401 from the board forgets it.
+  function forward(req, res, body, token) {
     const upstream = http.request({
       host: boardHost,
       port: boardPort,
@@ -151,6 +221,7 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
       setHost: false,
     });
     upstream.on("response", (up) => {
+      if (cache && token && up.statusCode === 401) cache.drop(token);
       res.writeHead(up.statusCode, up.statusMessage, up.rawHeaders);
       if (typeof res.flushHeaders === "function") res.flushHeaders();
       up.pipe(res);
@@ -186,7 +257,9 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
     // 1. The gate's own health.
     if (isHealth(req)) {
       const board = await checkBoard(boardHost, boardPort);
-      sendJson(res, 200, { status: "ok", part: "gate", board });
+      if (narrow) sendJson(res, 200, { status: "ok", part: "gate", narrow: true, board });
+      else if (Number.isInteger(narrowPort)) sendJson(res, 200, { status: "ok", part: "gate", board, narrowPort });
+      else sendJson(res, 200, { status: "ok", part: "gate", board });
       return;
     }
     // 2. Path check. CONNECT and any target that is not origin-form are unreadable.
@@ -209,6 +282,15 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
         return;
       }
     }
+    // 4b. The narrow listener: only its own routes, spelt one way, no query, no override.
+    let route = null;
+    if (narrow) {
+      route = narrowRoute(req.method, req.url, { overrides: hasOverride(req.rawHeaders), hasBody: declaresBody(req.rawHeaders) });
+      if (route.rule) {
+        refuse(req, res, path, route.rule);
+        return;
+      }
+    }
     // 5. Body rules, for every allow-list row with a JSON body that any of the methods
     // matches. The file upload (body kind null) and reads are streamed as before.
     const kinds = [];
@@ -217,6 +299,10 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
       if (row && row[3] !== null && !kinds.includes(row[3])) kinds.push(row[3]);
     }
     if (kinds.length === 0) {
+      if (narrow) {
+        await forwardIfYours(req, res, path, route, null);
+        return;
+      }
       forward(req, res);
       return;
     }
@@ -233,8 +319,58 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
         return;
       }
     }
+    if (narrow) {
+      await forwardIfYours(req, res, path, route, body);
+      return;
+    }
     // 6. Forward: the bytes read are the bytes sent.
     forward(req, res, body);
+  }
+
+  // The narrow listener's last checks: the write body's keys, then whether the issue is the
+  // caller's (asked of the board only now, so a request refused above never reaches it).
+  async function forwardIfYours(req, res, path, route, body) {
+    let value = null;
+    if (route.write) {
+      if (body.length > 0) {
+        try {
+          // As body.mjs read it: a byte-order mark is dropped.
+          value = JSON.parse(new TextDecoder("utf-8").decode(body));
+        } catch {
+          refuse(req, res, path, "bad-body");
+          return;
+        }
+      }
+      const rule = narrowBodyRefusal(route.kind, value);
+      if (rule) {
+        refuse(req, res, path, rule);
+        return;
+      }
+    }
+    const token = headerValues(req.rawHeaders, "authorization")[0].trim().replace(/^bearer +/i, "");
+    if (route.issueId !== null) {
+      const { result, agentId } = await ownership(cache, token, route.issueId, ask);
+      if (result === "no-token") {
+        sendJson(res, 401, BODIES.noToken);
+        return;
+      }
+      if (result === "board-down") {
+        sendJson(res, 502, BODIES.boardDown);
+        return;
+      }
+      if (result !== "yours") {
+        refuse(req, res, path, "narrow-not-yours");
+        return;
+      }
+      // A checkout names the agent taking the task: only the caller itself.
+      if (route.kind === "checkout" && value && value.agentId !== undefined && value.agentId !== agentId) {
+        refuse(req, res, path, "narrow-write");
+        return;
+      }
+    }
+    if (req.socket.destroyed) return;
+    // A narrow read carries no body (refused above), so an empty one is sent.
+    forward(req, res, route.write ? body : Buffer.alloc(0), token);
   }
 
   const server = http.createServer(onRequest);
@@ -250,6 +386,7 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
 
   return {
     server,
+    cache,
     get port() {
       const a = server.address();
       return a && typeof a === "object" ? a.port : null;
@@ -276,10 +413,14 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
 async function main() {
   const { loadConfig } = await import("../lib/config.mjs");
   const cfg = loadConfig();
+  const refusalLog = join(cfg.paths.logs, "gate-refusals.log");
+  // The narrow listener for a walled agent, when the config names its port.
+  const narrowPort = Number.isInteger(cfg.ports.gateNarrow) ? cfg.ports.gateNarrow : null;
   const gate = createGate({
     listenPort: cfg.ports.gate,
     boardPort: cfg.ports.board,
-    refusalLog: join(cfg.paths.logs, "gate-refusals.log"),
+    refusalLog,
+    narrowPort,
   });
   try {
     await gate.listen();
@@ -288,11 +429,24 @@ async function main() {
     process.exit(1);
   }
   console.log(`${new Date().toISOString()} gate started on 127.0.0.1:${cfg.ports.gate}, forwarding to 127.0.0.1:${cfg.ports.board}`);
+  // The ordinary gate keeps serving every other agent when the narrow one cannot start;
+  // its health then says the narrow door is not answering.
+  let narrowGate = null;
+  if (narrowPort !== null) {
+    const g = createGate({ listenPort: narrowPort, boardPort: cfg.ports.board, refusalLog, narrow: true });
+    try {
+      await g.listen();
+      narrowGate = g;
+      console.log(`${new Date().toISOString()} narrow gate started on 127.0.0.1:${narrowPort}, forwarding to 127.0.0.1:${cfg.ports.board}`);
+    } catch (err) {
+      console.log(`${new Date().toISOString()} narrow gate could not start on 127.0.0.1:${narrowPort}: ${err.code || err.message}`);
+    }
+  }
   let stopping = false;
   const stop = async (signal) => {
     if (stopping) return;
     stopping = true;
-    await gate.close();
+    await Promise.all([gate.close(), narrowGate ? narrowGate.close() : null]);
     console.log(`${new Date().toISOString()} gate stopped (${signal})`);
     process.exit(0);
   };

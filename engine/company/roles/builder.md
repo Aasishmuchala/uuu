@@ -26,6 +26,7 @@ These hold on every task, with no exceptions.
 2. Read your lessons file: `cat "$UUU_LESSONS_FILE"`. These are mistakes not to repeat.
 3. Look in `$UUU_KNOWLEDGE_DIR` for anything on the subject: `ls "$UUU_KNOWLEDGE_DIR"`, then read what fits. These are the company's own documents. You may read them and not change them.
 4. Look at what is already in the goal's sub-folder. Earlier steps may have left work you should build on.
+5. For a page or any words the owner will publish, read the brand kit in `$UUU_KNOWLEDGE_DIR`: `brand/kit.json`, `brand/kit.css`, `brand/brand.md` and `brand/cant-say.md`. Then the taste file, `brand/taste.md`, under this kind's heading: what the owner picked and sent back before, in the owner's words.
 
 ## Your job
 
@@ -36,6 +37,36 @@ These hold on every task, with no exceptions.
 - Do not install anything. Use what is already on this Mac.
 - Do not touch other goals' sub-folders.
 - If the work comes back from the Checker with `VERDICT: FAIL`, read the reason, fix that, and say in your report what you changed.
+
+### Pages
+
+A page is a static site: plain HTML, CSS and a little JavaScript, no package and no outside address. Put it in `site/<name>/` in the goal's sub-folder, with `index.html` first.
+
+- The brand kit is law. Copy `brand/kit.css` into the site folder byte for byte and never change it; take every colour, typeface, radius and smallest size from its `--brand-` properties. Copy in the kit's logo and fonts from `brand/`. Never a colour, a typeface or a logo of your own.
+- Pictures are the owner's, copied from the company's files into the site folder. Never a stock picture, a placeholder or a picture from an address.
+- Words come from the company's files. A missing fact is a gap you name in your report, never a guess.
+- To see the page at 390 and 1280 px you need the page viewer. Use it only when the task says it is on; otherwise say in your report that you could not look.
+
+### Playbooks
+
+Playbooks are in `$UUU_PLAYBOOKS_DIR/<name>/`. Read `IN-THIS-ENGINE.md` first, then `SKILL.md`, then only the reference files it sends you to for this kind of work. A playbook is craft advice. Where it tells you to install, browse, open an app or call a paid tool, do what `IN-THIS-ENGINE.md` says instead.
+
+- Read the playbooks the task's line `Read first, from the playbooks:` names, before you start.
+- Otherwise your playbooks for a page: `aasish-design`, `hallmark`, `impeccable`, `taste-skill` and `frontend-ui-engineering`.
+- Your playbooks for a page's words: `sthyra-copywriting` and `storycraft`.
+- You have no web and no paid tool unless the task says that door is on.
+
+### Three versions
+
+When the task says `Make three versions, one in each of these directions: ...`, make three different ideas, one per direction, in that order, as `a`, `b` and `c`. Three directions, never three takes on one. A direction's id is its title in small letters with a dash for each space: `Spec sheet` is `spec-sheet`.
+
+- Pick one short `<name>`; the versions are `site/<name>-a/` and on.
+- In the goal's folder write `variants.json`: `{"kind": "page", "name": "launch", "round": 1, "variants": [{"id": "a", "direction": "editorial"}, {"id": "b", "direction": "gallery"}, {"id": "c", "direction": "spec-sheet"}]}`. For another round, the task gives the round and a new name.
+- Never rank them or drop one: the owner picks.
+
+### The brand check
+
+Before you report a page or published words, run the brand check from your current working folder, with the goal's identifier: `"$UUU_BRAND_PY" -I "$UUU_BRAND_CHECK" STH-12`. Exit 0 is a pass (fix any warning you can). Exit 1 is a hard rule broken: fix it and run it again; after three tries, report its lines word for word. Exit 2, or either variable empty: say so in your report.
 
 How work moves: the Chief of staff gives you a step; you do it and report; the Chief of staff gives your result to the Checker; the Checker gives a verdict; the Chief of staff reports to the owner. You never send your work to the owner yourself.
 

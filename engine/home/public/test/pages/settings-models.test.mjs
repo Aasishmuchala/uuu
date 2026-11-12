@@ -4,8 +4,9 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Section, {
-  NEEDS, PROBLEMS, WORDS, blockerLines, keyStatus, missingLine, modeLine, orderOptions, problemLine, sectionState, testLine, usageLine,
+  NEEDS, PROBLEMS, WORDS, blockerLines, keyStatus, missingLine, modeLine, orderOptions, problemLine, sameModelLine, sectionState, testLine, usageLine,
 } from "../../pages/settings-models.js";
+import { loadRanking, pickModels } from "../../../../company/lib/model-picks.mjs";
 
 // The same checks as pages.test.mjs, kept here so that file's tests do not run twice.
 const stripJsComments = (src) => String(src).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[\s;{}(),])\/\/[^\n]*/g, "$1");
@@ -129,4 +130,50 @@ test("models: imports stay inside public, use the kit through kit/index.js, and 
     assert.ok(!spec.includes("/kit/") || spec === "../kit/index.js", spec);
   }
   assert.deepEqual(hostsIn(stripJsComments(SRC)), []);
+});
+
+// PLAN-V5 K8: the Art director's model against the makers', with the real ranking and company file.
+const COMPANY = resolve(PUBLIC, "..", "..", "company");
+const SAME = "The Art director is on the same model as the makers. A second opinion from another model is stronger: choose one if your list has it.";
+const NINETEEN = [
+  "claude-fable-5-1", "claude-fable-5", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5", "claude-sonnet-5",
+  "claude-gpt-6-1-sol", "claude-gpt-6-astra", "claude-gpt-6-sol", "claude-gpt-6",
+  "claude-kimi-k3", "claude-qwen-3-8-flash", "claude-omega-ultra", "claude-quantum-lite-1",
+  "claude-glm-5", "claude-deepseek-v4", "claude-mistral-large-3", "claude-grok-5", "claude-gemini-3-lite",
+];
+const pickedView = (catalogue) => {
+  const ranking = loadRanking(join(COMPANY, "models.json"));
+  const agents = JSON.parse(readFileSync(join(COMPANY, "company.json"), "utf8")).agents.map((a) => ({ slug: a.slug, name: a.name, tool: a.tool, needs: a.needs }));
+  const { picks } = pickModels({ ranking, agents, catalogue, overrides: {} });
+  return view({ agents: agents.map((a) => ({ ...a, pick: picks[a.slug]?.model || null })) });
+};
+
+test("models: the same-model sentence of K8 is used as written", () => {
+  assert.equal(WORDS.sameModel, SAME);
+});
+
+test("models: with the nineteen ids the Art director is on Opus 5.5, the makers on Fable 5.1, and nothing is said", () => {
+  const v = pickedView(NINETEEN);
+  const by = Object.fromEntries(v.agents.map((a) => [a.slug, a.pick]));
+  assert.equal(by["art-director"], "claude-opus-5-5");
+  for (const s of ["artist", "builder", "drafter", "marketer"]) assert.equal(by[s], "claude-fable-5-1", s);
+  assert.equal(sameModelLine(v), "");
+});
+
+test("models: without any opus the Art director gets Fable 5.1 like the makers, and the sentence says so", () => {
+  const v = pickedView(NINETEEN.filter((id) => !id.startsWith("claude-opus-")));
+  assert.equal(v.agents.find((a) => a.slug === "art-director").pick, "claude-fable-5-1");
+  assert.equal(sameModelLine(v), SAME);
+  assert.match(sameModelLine(v), /same model/);
+});
+
+test("models: the same-model sentence needs both picks and never throws", () => {
+  for (const bad of [null, undefined, {}, { agents: null }, { agents: [null, 3, "x"] }]) assert.equal(sameModelLine(bad), "");
+  const two = (a, b) => view({ agents: [{ slug: "art-director", pick: a }, { slug: "artist", pick: b }] });
+  assert.equal(sameModelLine(two(null, null)), "");
+  assert.equal(sameModelLine(two("", "")), "");
+  assert.equal(sameModelLine(two("m-1", null)), "");
+  assert.equal(sameModelLine(two("m-1", "m-2")), "");
+  assert.equal(sameModelLine(two("m-1", "m-1")), SAME);
+  assert.ok(SRC.includes("sameModelLine(view)"), "the card shows it");
 });

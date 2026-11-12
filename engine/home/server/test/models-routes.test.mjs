@@ -13,7 +13,8 @@ import { startStubsHome } from "../lib/stubs.mjs";
 import { call } from "../lib/testing.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 
-const SLUGS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist"];
+const PICKS = { checker: "claude-gpt-6-1-sol", "art-director": "claude-opus-5-5" };
+const SLUGS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist", "art-director"];
 const madeUpKey = () => `test-key-${randomBytes(12).toString("hex")}`;
 const madeUpSecret = () => randomBytes(32).toString("hex");
 
@@ -91,7 +92,7 @@ test("refresh with the 19 models gives the C7 picks and fits the shape", async (
     assert.deepEqual(sameShape(readShape("models"), r.json), []);
     assert.equal(r.json.catalogue.count, 19);
     for (const a of r.json.agents) {
-      assert.equal(a.pick, a.slug === "checker" ? "claude-gpt-6-1-sol" : "claude-fable-5-1", a.slug);
+      assert.equal(a.pick, PICKS[a.slug] || "claude-fable-5-1", a.slug);
       assert.equal(a.source, "ranked");
       assert.equal(a.options.length, 19);
     }
@@ -330,7 +331,7 @@ test("the test reports ok, the plan rows and each picked model's answer through 
     assert.equal(r.json.key.state, "ok");
     assert.deepEqual(t.models.map((m) => m.model).sort(), ["claude-fable-5-1", "claude-gpt-6-1-sol", "claude-opus-5-5"]);
     for (const m of t.models) { assert.equal(m.answered, true, m.model); assert.equal(m.reason, null); }
-    assert.deepEqual(t.models.find((m) => m.model === "claude-opus-5-5").agents, ["Sales"]);
+    assert.deepEqual(t.models.find((m) => m.model === "claude-opus-5-5").agents, ["Sales", "Art director"]);
     assert.deepEqual(t.models.find((m) => m.model === "claude-gpt-6-1-sol").agents, ["Checker"]);
     assert.ok(t.models.find((m) => m.model === "claude-fable-5-1").agents.includes("Builder"));
     assert.ok(t.plan.length > 0 && t.plan.length <= 12);

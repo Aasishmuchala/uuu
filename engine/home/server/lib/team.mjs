@@ -33,6 +33,7 @@ const TOOL_LABELS = {
   "chief-of-staff": "Planning and handing out work", builder: "Documents and files", checker: "Reading and checking",
   bookkeeper: "The books (drafts only)", sales: "The customer records", support: "The support desk",
   people: "The staff records", marketer: "The content calendar", drafter: "CAD tools", artist: "Drawing tools",
+  "art-director": "Scoring against the brand kit",
 };
 
 function defaultLog(line) {
@@ -156,6 +157,7 @@ export function profileOf(role, config) {
   if (role.policy?.taskFolder === "read-only") may.push("Reads the work it checks. It cannot change it.");
   if (role.slug === "drafter") may.push("Makes CAD parts with its own tools.");
   if (role.slug === "artist") may.push("Draws sprites, animations and simple images with its own tools.");
+  if (role.slug === "art-director") may.push("Looks at pictures, pages and copy and scores them against the brand kit and the references. It changes nothing itself.");
   const mayNot = [
     "Cannot send anything outside the company.",
     "Cannot read your own files.",

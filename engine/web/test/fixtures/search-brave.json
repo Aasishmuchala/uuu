@@ -1,0 +1,12 @@
+{"_comment":"Written by hand to the shape PLAN-V5 K11 gives for a keyed search answer (web.results[].{title,url,description}). It is NOT a copy of a live answer.",
+ "type":"search",
+ "query":{"original":"architecture"},
+ "web":{"type":"search","results":[
+  {"title":"Software <strong>architecture</strong> guide","url":"https://example.org/arch","description":"How systems are <strong>shaped</strong> &amp; why."},
+  {"title":"Loopback","url":"http://127.0.0.1/","description":"dropped"},
+  {"title":"Script","url":"javascript:alert(1)","description":"dropped"},
+  {"title":"Second","url":"https://second.example.net/x?y=1","description":"Plain snippet."},
+  {"title":"No snippet","url":"https://third.example.com/"},
+  {"title":"Bad row"},
+  17
+ ]}}

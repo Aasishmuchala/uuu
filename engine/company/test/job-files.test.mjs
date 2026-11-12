@@ -229,12 +229,13 @@ for (const [id, [dep, cluster, who, handoff, stage]] of Object.entries(CATALOGUE
   });
 }
 
-test("the catalogue has exactly the 60 jobs of the contract", {
+test("the catalogue has exactly the 60 jobs of the contract and the brand-book job", {
   skip: Object.entries(CATALOGUE).every(([id, [dep]]) => existsSync(join(REAL, dep, `${id}.json`))) ? false : "not all 60 job files exist yet",
 }, () => {
   const { jobs, problems } = realCatalogue();
   assert.deepEqual(problems, []);
-  assert.deepEqual(jobs.map((j) => j.id).sort(), Object.keys(CATALOGUE).sort());
+  // V5 T17 adds one job to the 60 of the contract: "Read the brand book".
+  assert.deepEqual(jobs.map((j) => j.id).sort(), [...Object.keys(CATALOGUE), "read-the-brand-book"].sort());
 });
 
 // ---- {{JOBS}} in a role file (31.3), filled by loadCompanyFile from departments.json and jobs/.

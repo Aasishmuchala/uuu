@@ -24,6 +24,8 @@ const FOURTEEN = [
   "tools:manage_connections", "tools:manage_profiles", "tools:manage_runtime", "tools:use", "tools:view_audit",
 ];
 const WITHOUT_ASSIGN = FOURTEEN.filter((k) => k !== "tasks:assign");
+// The brand check's own identity (PLAN-V5 K9).
+const BRAND_CHECK_ID = "00000000-0000-4000-8000-0000000000b1";
 
 function makeEnv(boardPort) {
   const dir = mkdtempSync(join(tmpdir(), "apply-test-"));
@@ -161,7 +163,26 @@ test("first run creates the company, project, agents, rights, instructions and f
     assert.ok(statSync(join(env.state, "tasks", "agents", s)).isDirectory());
   }
   assert.ok(statSync(join(env.state, "knowledge", "docs")).isDirectory());
+  for (const f of [["tasks", "research"], ["knowledge", "shared"]]) {
+    const st = statSync(join(env.state, ...f));
+    assert.ok(st.isDirectory(), f.join("/"));
+    assert.equal(st.mode & 0o777, 0o755, f.join("/"));
+  }
   assert.equal(existsSync(join(env.state, "secrets")), false, "apply never makes key files");
+
+  // The brand check's own policy, and no walled key for any of today's agents.
+  const bc = join(env.state, "policy", `${BRAND_CHECK_ID}.json`);
+  assert.equal(statSync(bc).mode & 0o777, 0o644);
+  assert.deepEqual(JSON.parse(readFileSync(bc, "utf8")), {
+    agentId: BRAND_CHECK_ID, slug: "brand-check", localServices: [],
+    readFolders: [join(env.state, "knowledge", "docs"), join(env.state, "art")],
+    lessonsFile: null, envFile: null, taskFolder: "read-only",
+  });
+  assert.ok(r.lines.includes("created fence policy of the brand check"), r.stdout);
+  assert.ok(r.lines.includes("created folder tasks/research"), r.stdout);
+  assert.ok(r.lines.includes("created folder knowledge/shared"), r.stdout);
+  assert.deepEqual(readdirSync(join(env.state, "policy")).sort(), [...[chief, checker, keeper].map((a) => `${a.id}.json`), `${BRAND_CHECK_ID}.json`].sort());
+  for (const a of [chief, checker, keeper]) assert.equal("walled" in JSON.parse(readFileSync(policyOf(a), "utf8")), false, a.name);
 
   for (const q of stub.requests) assert.equal(q.headers.authorization, undefined, `${q.method} ${q.path} carried Authorization`);
 }));
@@ -259,6 +280,9 @@ test("--check writes nothing and exits 3 when something differs, 0 when not", ()
   assert.deepEqual(writesSince(stub, 0), []);
   assert.equal(existsSync(env.state), false, "no folder made");
   assert.ok(r.lines.some((l) => l.startsWith("would create agent Checker")));
+  for (const l of ["would create fence policy of the brand check", "would create folder tasks/research", "would create folder knowledge/shared"]) {
+    assert.ok(r.lines.includes(l), l);
+  }
 
   assert.equal((await runApply(env)).code, 0);
   let before = snapshot(env.state);
@@ -286,6 +310,33 @@ test("--check writes nothing and exits 3 when something differs, 0 when not", ()
   assert.deepEqual(snapshot(env.state), before);
   assert.equal(agentByName(stub, "Checker").adapterConfig.cwd, "/elsewhere");
   assert.ok(r.lines.includes("would create fence policy of Bookkeeper"));
+
+  // The brand check's policy is reported like any other.
+  rmSync(join(env.state, "policy", `${BRAND_CHECK_ID}.json`));
+  r = await runApply(env, ["--check"]);
+  assert.equal(r.code, 3);
+  assert.ok(r.lines.includes("would create fence policy of the brand check"), r.stdout);
+  assert.equal(existsSync(join(env.state, "policy", `${BRAND_CHECK_ID}.json`)), false);
+}));
+
+test("a walled policy is written with walled: true, and only then", () => withBoard(async (stub, env) => {
+  const doc = JSON.parse(readFileSync(FIXTURE, "utf8"));
+  const i = doc.agents.findIndex((a) => a.slug === "bookkeeper");
+  doc.agents[i].fencePolicy = { localServices: [], readFolders: [], envFile: null, taskFolder: "read-write", walled: true };
+  const dir = join(env.dir, "co");
+  cpSync(join(HERE, "fixtures", "roles"), join(dir, "roles"), { recursive: true });
+  const f = join(dir, "company.json");
+  writeFileSync(f, JSON.stringify(doc));
+  const r = await runApply(env, ["--file", f]);
+  assert.equal(r.code, 0, r.stderr);
+  const ids = JSON.parse(readFileSync(join(env.state, "ids.json"), "utf8")).agents;
+  const policyOf = (slug) => JSON.parse(readFileSync(join(env.state, "policy", `${ids[slug]}.json`), "utf8"));
+  assert.deepEqual(policyOf("bookkeeper"), {
+    agentId: ids.bookkeeper, slug: "bookkeeper", localServices: [], readFolders: [],
+    lessonsFile: join(env.state, "lessons", "bookkeeper.md"), envFile: null, taskFolder: "read-write", walled: true,
+  });
+  assert.equal("walled" in policyOf("checker"), false);
+  assert.equal("walled" in policyOf("chief-of-staff"), false);
 }));
 
 test("board off: exit 1 with the pinned line and nothing written", async () => {
@@ -447,7 +498,10 @@ test("from the half-applied live state a run finishes the job without new agents
       if (role.includes("{{TEAM}}")) assert.ok(text.includes("- Chief of staff: ") && !text.includes("{{TEAM}}"), slug);
       if (role.includes("{{STAGED}}")) assert.ok(text.includes("`00-brief.md`") && !text.includes("{{STAGED}}"), slug);
       if (!role.includes("{{TEAM}}") && !role.includes("{{STAGED}}")) assert.equal(text, role, slug);
-      assert.equal(JSON.parse(readFileSync(join(env.state, "policy", `${id}.json`), "utf8")).slug, slug);
+      const policy = JSON.parse(readFileSync(join(env.state, "policy", `${id}.json`), "utf8"));
+      assert.equal(policy.slug, slug);
+      assert.equal("walled" in policy, false, `${slug} has no walled key`);
+      assert.equal(policy.readFolders.includes(join(env.state, "art")), slug !== "drafter", `${slug} reads art, but the Drafter keeps its list`);
       assert.ok(existsSync(join(env.state, "lessons", `${slug}.md`)));
     }
     assert.ok(!strict.seen.some((q) => q.path.includes("/members/")));

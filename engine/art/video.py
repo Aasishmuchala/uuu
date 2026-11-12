@@ -28,6 +28,21 @@ Commands (CONTRACTS-V3 37.2):
   stills <name>.mp4    writes review/frame-01.png to frame-06.png (six frames
                        spread evenly, at most 640 px wide).
 
+With a brand kit (kit.py beside this tool finds state/knowledge/docs/brand/
+kit.json; PLAN-V5 K5): a `render` script is given `kit` (else `kit` is None)
+and what it pastes with kit.place and kit.place_logo on the frames that become
+the poster and the stills goes into the manifest as `pictures` and `logo`
+([{frame, box, source}], [{file, frame, box}]) for the brand check; captions
+default to the kit's body face and its text and background colours, and
+`caption_style.font` takes only the kit's two typefaces; `reveal` and `cut`
+take `"cards": {"title", "end"}` (each the words, or {"text", "seconds"},
+1 to 10 seconds, 3 by default): cards the tool draws from the kit (heading
+face, main colour on the background colour, the logo by kit.place_logo on the
+end card, and on the title card when the kit asks for it there), written as
+title-card.png and end-card.png beside the video. With no kit every command is
+as it was, and `cards` is refused. A damaged kit stops the command with one
+line.
+
 render, reveal and cut end by writing poster.png (a frame from the middle of
 the longest shot; for a video of one shot, from one third in; never on a
 caption change), the six stills and, last, manifest.json, whose `seconds` has
@@ -67,6 +82,7 @@ Installed by engine/art/install.sh as state/art/tools/video.py and run with the
 Artist's own Python (state/art/venv). Standard library and Pillow only.
 """
 import datetime
+import importlib.util
 import io
 import json
 import math
@@ -75,12 +91,14 @@ import re
 import resource
 import runpy
 import signal
+import stat
 import struct
 import subprocess
 import sys
 import tempfile
 import time
 import traceback
+import weakref
 
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 MB = 1024 * 1024
@@ -113,6 +131,10 @@ CAPTION_HARD_PAUSE = 1.5     # a silence this long always ends a caption
 SILENCE = "silencedetect=noise=-35dB:d=0.3"
 STILL_MAX_W = 640
 MOVES = ("in", "out", "left", "right", "still")
+CARDS = ("title", "end")
+CARD_SECONDS = 3.0               # a card's length when the cards do not say
+CARD_MAX_PX = 160                # a card's words start at h / 7, at most this, and step down to the kit's minimum
+MAX_RECORDS = 8                  # pictures or logos noted for one frame of a render
 PICTURE_ENDINGS = (".png", ".jpg", ".jpeg", ".webp")
 CLIP_ENDINGS = (".mp4", ".mov", ".m4v")
 SOUND_ENDINGS = (".mp3", ".m4a", ".wav")
@@ -134,6 +156,46 @@ TEMPS = []         # files to remove whatever happens
 
 class Problem(Exception):
     pass
+
+
+def load_brand_kit():
+    """The brand kit, or None when there is none (or no kit.py beside this tool). kit.py is loaded from this
+    tool's own folder, never from the task folder; a damaged kit is a Problem in one sentence."""
+    path = os.path.join(HERE, "kit.py")
+    try:
+        if not stat.S_ISREG(os.lstat(path).st_mode):
+            raise Problem("kit.py beside the tool is not a plain file; ask the owner to run engine/art/install.sh")
+    except FileNotFoundError:
+        return None
+    sys.dont_write_bytecode = True
+    spec = importlib.util.spec_from_file_location("kit", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    try:
+        return mod.load_kit()
+    except mod.KitProblem as e:
+        raise Problem("%s Ask the owner to save the brand kit again in Files." % e)
+
+
+def is_kit_problem(e):
+    return type(e).__name__ == "KitProblem"
+
+
+def luminance(rgb):
+    return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+
+
+def brand_colours(kit):
+    """(main, text, background) from the kit's roles. Without a `text` colour the main one; without a
+    `background` colour the kit's colour farthest in lightness from the text."""
+    by_role = {}
+    for c in kit.palette:
+        by_role.setdefault(c["role"], c["rgb"])
+    main = by_role["main"]
+    text = by_role.get("text", main)
+    back = by_role.get("background") or max((c["rgb"] for c in kit.palette),
+                                            key=lambda rgb: abs(luminance(rgb) - luminance(text)))
+    return main, text, back
 
 
 # --- Small helpers ---------------------------------------------------------------
@@ -545,10 +607,8 @@ def write_stills(folder, video, ffmpeg, ffprobe, duration=None):
     if os.path.islink(review) or (os.path.exists(review) and not os.path.isdir(review)):
         raise Problem("review is not a folder here; remove it and run again")
     stills = []
-    for i in range(STILLS):
-        at = duration * (i + 0.5) / STILLS
-        data = frame_png(video, min(at, max(0.0, duration - 0.05)), ffmpeg,
-                         "scale='min(%d,iw)':-2" % STILL_MAX_W)
+    for at in still_times(duration):
+        data = frame_png(video, at, ffmpeg, "scale='min(%d,iw)':-2" % STILL_MAX_W)
         w, _ = png_size(data)
         if w > STILL_MAX_W:
             raise Problem("a still came out wider than %d px" % STILL_MAX_W)
@@ -586,10 +646,22 @@ def poster_time(spans, duration, boundaries=(), fps=30):
     return min(max(0.0, t), end)
 
 
+def still_times(duration):
+    """When write_stills takes each of the six stills."""
+    return [min(duration * (i + 0.5) / STILLS, max(0.0, duration - 0.05)) for i in range(STILLS)]
+
+
+def frame_at(t, fps, count):
+    """The frame of a render shown when a still is taken at t: the first that starts at or after it."""
+    return min(max(0, count - 1), max(0, int(math.ceil(t * fps - 1e-3))))
+
+
 def finish(folder, name, tmp_video, title, made_by, script, w, h, fps, expected, ffmpeg, ffprobe,
-           spans=None, boundaries=()):
+           spans=None, boundaries=(), brand=None, cards=None, frames=None):
     """Checks the made video, then writes it, the poster, the stills and the manifest. `spans` and
-    `boundaries` place the poster (poster_time); without them the video is one shot."""
+    `boundaries` place the poster (poster_time); without them the video is one shot. With a kit, `brand` is
+    {"pictures", "logo"} (the cards'), `cards` {"title-card": PNG bytes, ...} and, for a render, `frames`
+    (count, {frame number: {"pictures", "logo"}}) of what the script placed; the manifest gets the two lists."""
     if not os.path.isfile(tmp_video):
         raise Problem("ffmpeg wrote no video")
     size = os.path.getsize(tmp_video)
@@ -609,7 +681,8 @@ def finish(folder, name, tmp_video, title, made_by, script, w, h, fps, expected,
     if expected and seconds < expected - max(0.5, 2.0 / fps):
         raise Problem("the video stopped at %.1f of %.1f seconds: it reached the size limit "
                       "(300 MB, or what is left of 2 GB in the goal's folder)" % (seconds, expected))
-    poster = frame_png(tmp_video, poster_time(spans, seconds, boundaries, fps), ffmpeg)
+    poster_at = poster_time(spans, seconds, boundaries, fps)
+    poster = frame_png(tmp_video, poster_at, ffmpeg)
     if png_size(poster) != (w, h):
         raise Problem("the poster is not the size of the video")
 
@@ -617,11 +690,28 @@ def finish(folder, name, tmp_video, title, made_by, script, w, h, fps, expected,
     os.replace(tmp_video, os.path.join(folder, video_name))
     write_atomic(os.path.join(folder, "poster.png"), poster)
     write_stills(folder, os.path.join(folder, video_name), ffmpeg, ffprobe, seconds)
+    for card in ("title-card", "end-card"):    # a card of an earlier run would be taken for this one's
+        path = os.path.join(folder, card + ".png")
+        if cards and card in cards:
+            write_atomic(path, cards[card])
+        elif os.path.lexists(path) and not os.path.isdir(path):
+            os.remove(path)
     manifest = {
         "name": name, "title": title, "kind": "video", "video": video_name, "poster": "poster.png",
         "width": w, "height": h, "fps": fps, "seconds": max(0.1, round(seconds, 1)), "bytes": size,
         "made_by": made_by, "script": script, "made_at": now(),
     }
+    if brand is not None:
+        pictures, logo = list(brand.get("pictures", [])), list(brand.get("logo", []))
+        if frames:
+            count, noted = frames
+            labels = [("poster", poster_at)] + [("frame-%02d" % (i + 1), t)
+                                                for i, t in enumerate(still_times(seconds))]
+            for label, t in labels:
+                rec = noted.get(frame_at(t, fps, count), {})
+                pictures += [{"frame": label, "box": r["box"], "source": r["source"]} for r in rec.get("pictures", [])]
+                logo += [{"file": r["file"], "frame": label, "box": r["box"]} for r in rec.get("logo", [])]
+        manifest["pictures"], manifest["logo"] = pictures, logo
     write_atomic(os.path.join(folder, "manifest.json"), json_bytes(manifest))
     weight = "%.1f MB" % (size / float(MB)) if size >= MB else "%d KB" % max(1, size // 1024)
     return "%s: %.1f seconds of %d × %d at %d frames a second, %s. Wrote %s, poster.png, " \
@@ -707,17 +797,27 @@ def wrap_caption(words, measure, max_w, max_lines=CAPTION_LINES):
 def caption_picture(text, w, h, style=None):
     """A transparent picture of the video's size with the words in a dark band. The words are wrapped into at
     most three balanced lines; when they do not fit, the size steps down to CAPTION_MIN_PX, and when they still
-    do not fit the caption is refused, never cut short."""
+    do not fit the caption is refused, never cut short. With a kit (style["kit"], from check_caption_style)
+    the words are in the kit's body face (or its heading face, when the style names it), in its text colour
+    on its background colour, and never below its smallest size."""
     from PIL import Image, ImageDraw
     style = style or {}
+    kit = style.get("kit")
     asked = style.get("size") or max(14, min(96, h // 16))
     im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     max_w = int(w * 0.84)
     floor = min(asked, CAPTION_MIN_PX)
+    ink, band = (250, 250, 250, 255), (12, 12, 16, 178)
+    if kit is not None:
+        asked = max(asked, kit.min_slide_px)
+        floor = max(floor, kit.min_slide_px)
+        _, text_rgb, back_rgb = brand_colours(kit)
+        ink, band = text_rgb + (255,), back_rgb + (178,)
+        role = "heading" if style.get("font") and kit_role(kit, style["font"]) == "heading" else "body"
     size, lines = asked, None
     while True:
-        f = font(style.get("font"), size)
+        f = kit.font(role, size) if kit is not None else font(style.get("font"), size)
         lines = wrap_caption(text.split(), lambda t: d.textlength(t, font=f), max_w)
         if lines is not None or size <= floor:
             break
@@ -734,31 +834,46 @@ def caption_picture(text, w, h, style=None):
     top = int(h * 0.06) if style.get("position") == "top" else h - int(h * 0.08) - block_h - 2 * pad
     left = int((w - widest) / 2)
     d.rounded_rectangle([left - pad, top - pad // 2, left + widest + pad, top + block_h + pad * 3 // 2],
-                        radius=pad, fill=(12, 12, 16, 178))
+                        radius=pad, fill=band)
     y = top + pad // 2
     for l, lh in zip(lines, heights):
         x = int((w - d.textlength(l, font=f)) / 2)
-        d.text((x, y - d.textbbox((0, 0), l, font=f)[1]), l, font=f, fill=(250, 250, 250, 255))
+        d.text((x, y - d.textbbox((0, 0), l, font=f)[1]), l, font=f, fill=ink)
         y += lh + gap
     return im
 
 
-def check_caption_style(style):
+def kit_role(kit, name):
+    """heading or body: the kit's typeface of that name, or None."""
+    key = " ".join(name.lower().split())
+    for role, family in zip(("heading", "body"), kit.families):
+        if key == " ".join(family.lower().split()):
+            return role
+    return None
+
+
+def check_caption_style(style, kit=None):
+    out = {"kit": kit} if kit is not None else {}
     if style is None:
-        return {}
+        return out
     if not isinstance(style, dict):
         raise Problem("`caption_style` must be {font, size, position}")
     extra = set(style) - {"font", "size", "position"}
     if extra:
         raise Problem("`caption_style` has keys it does not have: %s" % ", ".join(sorted(map(str, extra))))
-    out = {}
     if "font" in style:
         if not isinstance(style["font"], str) or len(style["font"]) > 60:
             raise Problem("`caption_style.font` must be a typeface name from the brand file")
+        if kit is not None and kit_role(kit, style["font"]) is None:
+            raise Problem("`caption_style.font` must be one of the brand kit's typefaces: %s or %s"
+                          % tuple(kit.families))
         out["font"] = style["font"]
     if "size" in style:
         if not whole(style["size"]) or not 12 <= style["size"] <= 120:
             raise Problem("`caption_style.size` must be a whole number of pixels from 12 to 120")
+        if kit is not None and style["size"] < kit.min_slide_px:
+            raise Problem("`caption_style.size` must be at least %d px, the brand kit's smallest size for "
+                          "slides and videos" % kit.min_slide_px)
         out["size"] = style["size"]
     if "position" in style:
         if style["position"] not in ("bottom", "top"):
@@ -767,10 +882,137 @@ def check_caption_style(style):
     return out
 
 
+# --- Title and end cards, drawn from the brand kit ----------------------------------
+
+def check_cards(cards, kit):
+    """{"title"|"end": {"text", "seconds"}} from a reveal's or a cut's `cards`, or None without them."""
+    if cards is None:
+        return None
+    if kit is None:
+        raise Problem("`cards` are drawn from the brand kit, and there is no brand kit yet; leave them out")
+    if not isinstance(cards, dict) or not cards or set(cards) - set(CARDS):
+        raise Problem("`cards` must be {title, end}: each the words on the card, or {text, seconds}")
+    out = {}
+    for which in CARDS:
+        if which not in cards:
+            continue
+        c = cards[which]
+        c = {"text": c} if isinstance(c, str) else c
+        if not isinstance(c, dict) or set(c) - {"text", "seconds"}:
+            raise Problem("the %s card must be its words, or {text, seconds}" % which)
+        text = c.get("text", "")
+        if not isinstance(text, str) or len(text) > MAX_CAPTION or "\n" in text.strip():
+            raise Problem("the words of the %s card must be one line of at most %d characters" % (which, MAX_CAPTION))
+        text = " ".join(text.split())
+        if which == "title" and not text:
+            raise Problem("the title card needs its words")
+        sec = c.get("seconds", CARD_SECONDS)
+        if not number(sec) or not 1 <= sec <= 10:
+            raise Problem("the %s card's `seconds` must be from 1 to 10" % which)
+        out[which] = {"text": text, "seconds": float(sec)}
+    return out
+
+
+def draw_card(kit, w, h, text, logo, logo_first):
+    """One card: the words in the kit's heading face and main colour on its background colour, and the
+    logo (by kit.place_logo, so it is recorded) above or below them, the whole centred. Refused when the
+    words do not fit at the kit's smallest size."""
+    from PIL import Image, ImageDraw
+    main, _, back = brand_colours(kit)
+    im = Image.new("RGB", (w, h), back)
+    d = ImageDraw.Draw(im)
+    margin = max(2, kit.margin(w))
+    logo_h = max(int(math.ceil(kit.logo_min_px)), int(round(h * 0.16))) if logo else 0
+    room = h - 2 * max(margin, int(math.ceil(kit.clear_space * logo_h)))    # the logo keeps its clear space
+    size = max(kit.min_slide_px, min(CARD_MAX_PX, h // 7))
+    while True:
+        f = kit.font("heading", size)
+        asc, desc = f.getmetrics()
+        lines = wrap_caption(text.split(), lambda t: d.textlength(t, font=f), w - 2 * margin) if text else []
+        gap = int(size * 0.25)
+        text_h = len(lines) * (asc + desc) + gap * max(0, len(lines) - 1) if lines else 0
+        block = text_h + (logo_h + (2 * gap if text_h else 0) if logo else 0)
+        if lines is not None and block <= room:
+            break
+        if size <= kit.min_slide_px:
+            shown = text if len(text) <= 60 else text[:57] + "..."
+            raise Problem("the card %s does not fit at %d px, the brand kit's smallest size; shorten it"
+                          % (json.dumps(shown, ensure_ascii=False), kit.min_slide_px))
+        size = max(kit.min_slide_px, int(size * 0.9))
+    y = (h - block) // 2
+    if logo and logo_first:
+        kit.place_logo(im, (margin, y, w - margin, y + logo_h))
+        y += logo_h + 2 * gap
+    for l in lines:
+        d.text((int((w - d.textlength(l, font=f)) / 2), y), l, font=f, fill=main)
+        y += asc + desc + gap
+    if logo and not logo_first:
+        y += gap
+        kit.place_logo(im, (margin, y, w - margin, y + logo_h))
+    return im
+
+
+def make_cards(kit, w, h, fps, cards):
+    """{"title"|"end": {"image", "frames", "png"}} and the logo records, for the cards asked for. The end card
+    always carries the logo; the title card when the kit asks for the logo on title cards."""
+    out, brand = {}, {"pictures": [], "logo": []}
+    for which in CARDS:
+        if not cards or which not in cards:
+            continue
+        logo = bool(kit.logo_files) and (which == "end" or "title-card" in kit.required_on)
+        im = draw_card(kit, w, h, cards[which]["text"], logo, logo_first=(which == "end"))
+        rec = kit.recorded([im], key="frame", labels=[which + "-card"])
+        brand["pictures"] += rec["pictures"]
+        brand["logo"] += rec["logo"]
+        buf = io.BytesIO()
+        im.save(buf, "PNG")
+        out[which] = {"image": im, "frames": max(1, int(round(cards[which]["seconds"] * fps))),
+                      "png": buf.getvalue()}
+    return out, brand
+
+
+def card_seconds(made, which, fps):
+    return made[which]["frames"] / float(fps) if which in made else 0.0
+
+
+def card_files(made):
+    return {which + "-card": c["png"] for which, c in made.items()}
+
+
 # --- render: frames from an agent's script, in a child process ---------------------
 # The child runs the script and writes, on its stdout: one JSON line (what the
 # script left, or the problem), then for each frame b"F" and the raw RGB bytes,
-# and at the end b"D", or b"E" + 4-byte length + the problem.
+# and at the end b"D", or b"E" + 4-byte length + the problem. With a kit, b"D" is followed by b"R" + 4-byte
+# length + JSON {frame number: {"pictures", "logo"}}: what kit.place and kit.place_logo put on each frame.
+
+class FrameNotes:
+    """What the kit recorded on each frame, taken as the frame is sent. The kit's own note of an image is let
+    go once taken, so frames already sent are not kept alive; an image sent again keeps what it had."""
+
+    def __init__(self, kit):
+        self.kit = kit
+        self.seen = {}           # id(image) -> (weak reference, record)
+        self.by_frame = {}
+
+    def take(self, im, i):
+        rec = self.kit.recorded([im], key="frame", labels=[i])
+        for attr in ("_placed", "_logos"):
+            kept = getattr(self.kit, attr, None)
+            if isinstance(kept, list):
+                kept[:] = [r for r in kept if r.get("image") is not im]
+        old = self.seen.get(id(im))
+        if old is not None and old[0]() is im:
+            rec = {k: old[1][k] + rec[k] for k in ("pictures", "logo")}
+        rec = {k: [{x: r[x] for x in r if x != "frame"} for r in rec[k][:MAX_RECORDS]] for k in ("pictures", "logo")}
+        if rec["pictures"] or rec["logo"]:
+            if len(self.seen) > 256:
+                self.seen = {k: v for k, v in self.seen.items() if v[0]() is not None}
+            self.seen[id(im)] = (weakref.ref(im), rec)
+            self.by_frame[i] = rec
+
+    def trailer(self):
+        body = json.dumps(self.by_frame, separators=(",", ":")).encode("utf-8")
+        return b"R" + struct.pack(">I", len(body)) + body
 
 def child_frames(script):
     data = os.fdopen(os.dup(1), "wb", buffering=0)
@@ -790,6 +1032,8 @@ def child_frames(script):
 
     def failed(e):
         msg = str(e).strip().splitlines()[0] if str(e).strip() else ""
+        if is_kit_problem(e):           # the kit's own sentence says it all
+            return "the script failed%s: %s" % (where(), msg[:300])
         return "the script failed%s: %s%s" % (where(), type(e).__name__, ": " + msg[:200] if msg else "")
 
     try:
@@ -798,7 +1042,13 @@ def child_frames(script):
         problem_line("the drawing library is not installed; ask the owner to run engine/art/install.sh")
         return 0
     try:
-        space = runpy.run_path(script, run_name="__main__")
+        kit = load_brand_kit()
+    except Problem as e:
+        problem_line(str(e))
+        return 0
+    notes = FrameNotes(kit) if kit is not None else None
+    try:
+        space = runpy.run_path(script, init_globals={"kit": kit}, run_name="__main__")
     except SystemExit as e:
         problem_line("the script stopped itself (exit %s) before leaving any frames" % (e.code,))
         return 0
@@ -840,6 +1090,8 @@ def child_frames(script):
             if im.size != (w, h):
                 raise Problem("frame %d is %d × %d but `size` is %d × %d" % (i, im.size[0], im.size[1], w, h))
             data.write(b"F" + im.convert("RGB").tobytes())
+            if notes is not None:
+                notes.take(im, i)
             i += 1
     except BrokenPipeError:
         return 0
@@ -855,6 +1107,8 @@ def child_frames(script):
             pass
         return 0
     data.write(b"D")
+    if notes is not None:
+        data.write(notes.trailer())
     return 0
 
 
@@ -896,6 +1150,35 @@ def read_frame(fh, nbytes):
     raise Problem("the script stopped before it finished its frames")
 
 
+MAX_TRAILER = 8 * MB
+
+
+def read_notes(fh, count):
+    """{frame number: {"pictures", "logo"}} from the child's trailer, after b"D"; {} when there is none. Only
+    whole numbers, boxes of four whole numbers and short names are kept."""
+    if fh.read(1) != b"R":
+        return {}
+    n = struct.unpack(">I", read_exact(fh, 4) or b"\0\0\0\0")[0]
+    if n > MAX_TRAILER:
+        raise Problem("the script placed too many pictures to note")
+    try:
+        raw = json.loads(read_exact(fh, n).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        raise Problem("what the script placed could not be read")
+    box_ok = lambda b: isinstance(b, list) and len(b) == 4 and all(whole(v) for v in b)
+    name_ok = lambda x: isinstance(x, str) and 0 < len(x) <= 100
+    out = {}
+    for k, rec in (raw.items() if isinstance(raw, dict) else []):
+        if not k.isdigit() or int(k) >= count or not isinstance(rec, dict):
+            continue
+        pics = [{"box": r["box"], "source": r["source"]} for r in rec.get("pictures", [])[:MAX_RECORDS]
+                if isinstance(r, dict) and box_ok(r.get("box")) and name_ok(r.get("source"))]
+        logos = [{"file": r["file"], "box": r["box"]} for r in rec.get("logo", [])[:MAX_RECORDS]
+                 if isinstance(r, dict) and box_ok(r.get("box")) and name_ok(r.get("file"))]
+        out[int(k)] = {"pictures": pics, "logo": logos}
+    return out
+
+
 def cmd_render(args, cwd, goal):
     if len(args) != 1:
         raise Problem("give one script, for example: video.py render title.py")
@@ -907,6 +1190,7 @@ def cmd_render(args, cwd, goal):
     check_free(free_bytes_at(cwd))
     cap = output_cap(goal)
 
+    kit = load_brand_kit()      # the child loads it too; a damaged kit is refused here first
     child = start([sys.executable, "-E", os.path.abspath(__file__), "--frames-from", os.path.abspath(script)],
                   cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
     fh = child.stdout
@@ -964,6 +1248,7 @@ def cmd_render(args, cwd, goal):
         enc.wait(timeout=30)
         errf.seek(0)
         raise Problem("ffmpeg stopped: %s" % last_line(errf.read()))
+    noted = read_notes(fh, n) if kit is not None else {}
     try:
         enc.wait(timeout=remaining())
     except subprocess.TimeoutExpired:
@@ -972,7 +1257,10 @@ def cmd_render(args, cwd, goal):
         errf.seek(0)
         raise Problem("ffmpeg failed: %s" % last_line(errf.read()))
     child.wait(timeout=30)
-    return finish(cwd, name, tmp, title, "render", args[0], w, h, fps, n / float(fps), ffmpeg, ffprobe)
+    if kit is None:
+        return finish(cwd, name, tmp, title, "render", args[0], w, h, fps, n / float(fps), ffmpeg, ffprobe)
+    return finish(cwd, name, tmp, title, "render", args[0], w, h, fps, n / float(fps), ffmpeg, ffprobe,
+                  brand={}, frames=(n, noted))
 
 
 # --- reveal: slow moves over pictures, crossfades, captions -------------------------
@@ -1020,16 +1308,18 @@ def shot_frame(pic, w, h, move, t):
     return pic.resize((w, h), Image.BILINEAR, box=box)
 
 
-def check_reveal(spec, cwd, goal, name):
+def check_reveal(spec, cwd, goal, name, kit=None):
     if not isinstance(spec, dict):
         raise Problem("the reveal must be {size, fps, shots}")
-    extra = set(spec) - {"size", "fps", "shots", "title", "caption_style"}
+    if "cards" in spec:
+        check_cards(spec["cards"], kit)
+    extra = set(spec) - {"size", "fps", "shots", "title", "caption_style", "cards"}
     if extra:
         raise Problem("the reveal has keys it does not have: %s" % ", ".join(sorted(map(str, extra))))
     w, h = check_size(spec.get("size"))
     fps = check_fps(spec.get("fps"))
     title = check_title(spec.get("title"), name)
-    style = check_caption_style(spec.get("caption_style"))
+    style = check_caption_style(spec.get("caption_style"), kit)
     shots = spec.get("shots")
     if not isinstance(shots, list) or not 1 <= len(shots) <= MAX_SHOTS:
         raise Problem("`shots` must be a list of 1 to %d pictures" % MAX_SHOTS)
@@ -1118,16 +1408,37 @@ def reveal_frames(w, h, fps, style, shots, fade):
         yield frame
 
 
+def with_cards(frames, made):
+    """The title card's frames, the shots' frames, the end card's frames."""
+    if "title" in made:
+        for _ in range(made["title"]["frames"]):
+            yield made["title"]["image"]
+    for im in frames:
+        yield im
+    if "end" in made:
+        for _ in range(made["end"]["frames"]):
+            yield made["end"]["image"]
+
+
 def cmd_reveal(args, cwd, goal):
     if len(args) != 1:
         raise Problem("give one reveal file, for example: video.py reveal tour.json")
     name = plain_name(args[0], (".json",), "reveal file")
     spec = read_json_file(args[0], cwd, "reveal file")
-    w, h, fps, title, style, shots, fade = check_reveal(spec, cwd, goal, name)
+    kit = load_brand_kit()
+    w, h, fps, title, style, shots, fade = check_reveal(spec, cwd, goal, name, kit)
+    cards = check_cards(spec.get("cards"), kit) if isinstance(spec, dict) else None
+    if cards:
+        _, length = shot_starts(shots, fade)
+        more = sum(c["seconds"] for c in cards.values())
+        if length + more > MAX_SECONDS:
+            raise Problem("the shots and cards last %.1f seconds; at most %d seconds is allowed"
+                          % (length + more, MAX_SECONDS))
     ffmpeg, ffprobe = runnable("UUU_FFMPEG"), runnable("UUU_FFPROBE")
     check_free(free_bytes_at(cwd))
     cap = output_cap(goal)
-    frames = reveal_frames(w, h, fps, style, shots, fade)
+    made, brand = make_cards(kit, w, h, fps, cards) if kit is not None else ({}, None)
+    frames = with_cards(reveal_frames(w, h, fps, style, shots, fade), made)
     first = next(frames)
     tmp = temp_path(cwd, name, ".mp4")
     errf = tempfile.TemporaryFile()
@@ -1155,8 +1466,10 @@ def cmd_reveal(args, cwd, goal):
     if enc.returncode != 0:
         errf.seek(0)
         raise Problem("ffmpeg failed: %s" % last_line(errf.read()))
+    lead = card_seconds(made, "title", fps)
     return finish(cwd, name, tmp, title, "reveal", args[0], w, h, fps, n / float(fps), ffmpeg, ffprobe,
-                  spans=shot_spans(shots, fade))
+                  spans=[[a + lead, b + lead] for a, b in shot_spans(shots, fade)],
+                  brand=brand, cards=card_files(made))
 
 
 # --- words: speech to text -----------------------------------------------------------
@@ -1464,11 +1777,13 @@ def cmd_cut(args, cwd, goal):
     spec = read_json_file(args[0], cwd, "edit list")
     if not isinstance(spec, dict):
         raise Problem("the edit list must be {source, keep, captions}")
-    extra = set(spec) - {"source", "keep", "captions", "caption_style", "title"}
+    kit = load_brand_kit()
+    cards = check_cards(spec["cards"], kit) if "cards" in spec else None
+    extra = set(spec) - {"source", "keep", "captions", "caption_style", "title", "cards"}
     if extra:
         raise Problem("the edit list has keys it does not have: %s" % ", ".join(sorted(map(str, extra))))
     title = check_title(spec.get("title"), name)
-    style = check_caption_style(spec.get("caption_style"))
+    style = check_caption_style(spec.get("caption_style"), kit)
     keep = spec.get("keep")
     if not isinstance(keep, list) or not 1 <= len(keep) <= MAX_KEEP:
         raise Problem("`keep` must be a list of 1 to %d [from, to] pairs in seconds" % MAX_KEEP)
@@ -1501,6 +1816,9 @@ def cmd_cut(args, cwd, goal):
     total = sum(b - a for a, b in ranges)
     if total > MAX_SECONDS:
         raise Problem("the cut lasts %.1f seconds; at most %d seconds is allowed" % (total, MAX_SECONDS))
+    if cards and total + sum(c["seconds"] for c in cards.values()) > MAX_SECONDS:
+        raise Problem("the cut and its cards last %.1f seconds; at most %d seconds is allowed"
+                      % (total + sum(c["seconds"] for c in cards.values()), MAX_SECONDS))
     v = info["video"]
     w, h = fit(int(v.get("width") or 0) or 2, int(v.get("height") or 0) or 2)
     fps = int(round(info["fps"])) if info["fps"] else 30
@@ -1531,18 +1849,48 @@ def cmd_cut(args, cwd, goal):
             cmd += ["-i", p]
             parts.append("[%s][%d:v]overlay=0:0:enable='%s'[s%d]" % (last, i + 1, caption_enable(s, e), i + 1))
             last = "s%d" % (i + 1)
+    made, brand = make_cards(kit, w, h, fps, cards) if kit is not None else ({}, None)
+    audio = "ac"
+    if made:
+        # The cards go before and after the cut as still pictures; the sound waits through the title card
+        # and is padded with silence through the end card.
+        n_in = 1 + len(lines)
+        joined = ""
+        for which in CARDS:
+            if which not in made:
+                continue
+            p = temp_path(cwd, "%s-%s-card" % (name, which), ".png")
+            with open(p, "wb") as fh:
+                fh.write(made[which]["png"])
+            cmd += ["-loop", "1", "-framerate", str(fps), "-t", "%.3f" % card_seconds(made, which, fps), "-i", p]
+            parts.append("[%d:v]fps=%d,format=yuv420p,setsar=1[c%s]" % (n_in, fps, which))
+            n_in += 1
+        parts.append("[%s]setsar=1[main]" % last)
+        joined = "".join("[%s]" % x for x in (["ctitle"] if "title" in made else []) + ["main"]
+                         + (["cend"] if "end" in made else []))
+        parts.append("%sconcat=n=%d:v=1:a=0[carded]" % (joined, len(made) + 1))
+        last = "carded"
+        if has_audio:
+            lead = card_seconds(made, "title", fps)
+            whole_len = total + lead + card_seconds(made, "end", fps)
+            parts.append("[ac]%sapad=whole_dur=%.3f,atrim=end=%.3f[acard]"
+                         % ("adelay=delays=%d:all=1," % int(round(lead * 1000)) if lead else "", whole_len, whole_len))
+            audio = "acard"
     tmp = temp_path(cwd, name, ".mp4")
     cmd += ["-filter_complex", ";".join(parts), "-map", "[%s]" % last]
     if has_audio:
-        cmd += ["-map", "[ac]", "-c:a", "aac", "-b:a", "160k"]
+        cmd += ["-map", "[%s]" % audio, "-c:a", "aac", "-b:a", "160k"]
     cmd += x264_args(cap) + [tmp]
     run(cmd, "ffmpeg")
-    spans, at = [], 0.0
+    lead = card_seconds(made, "title", fps)
+    spans, at = [], lead
     for a, b in ranges:
         spans.append([at, at + b - a])
         at += b - a
-    line = finish(cwd, name, tmp, title, "cut", args[0], w, h, fps, total, ffmpeg, ffprobe,
-                  spans=spans, boundaries=[t for s, e, _ in lines for t in (s, e)])
+    line = finish(cwd, name, tmp, title, "cut", args[0], w, h, fps,
+                  total + lead + card_seconds(made, "end", fps), ffmpeg, ffprobe,
+                  spans=spans, boundaries=[t + lead for s, e, _ in lines for t in (s, e)],
+                  brand=brand, cards=card_files(made))
     return line[:-1] + "; kept %s of the clip." % plural(len(ranges), "part")
 
 
@@ -1588,6 +1936,9 @@ def main(argv):
         stop_children()
         remove_temps()
         msg = str(e).strip().splitlines()[0] if str(e).strip() else type(e).__name__
+        if is_kit_problem(e):    # a card the kit's rules refused: the kit's own sentence
+            sys.stderr.write("video: %s\n" % msg[:300])
+            return 1
         sys.stderr.write("video: the video could not be made: %s\n" % msg[:200])
         return 1
     stop_children()

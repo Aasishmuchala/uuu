@@ -1,0 +1,31 @@
+{
+  "id": "read-the-brand-book",
+  "department": "operations",
+  "cluster": "brain",
+  "title": "Read the brand book",
+  "summary": "Reads your brand book and proposes the brand kit's colours, type, logo rules and voice for you to accept.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "builder"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "book",
+      "label": "Which file is the brand book?",
+      "kind": "file",
+      "required": true,
+      "folder": "brand"
+    }
+  ],
+  "needs": [],
+  "takes": null,
+  "text": "Read the brand book in [book]. Write brand-proposal.json in this task's folder: one JSON object that holds only what the book states. Invent nothing; a part the book does not state is left out whole. Every part is optional. name: text. colours: 2 to 8 of {name, hex, role}; name in lower-case letters, digits and dashes, hex like #1A3C5E, role main, accent, background, text or other; exactly one main, the book's primary colour, or the first listed if it ranks none. type: {heading, body, minPx, minSlidePx}; each face is {family, file: null, fallback} with fallback serif, sans-serif or monospace; minPx 10 to 40, minSlidePx 16 to 120; leave type out unless the book gives every part. logo: {files: an empty list, clearSpace 0 to 2 times its height, minPx 8 to 400, requiredOn: a list from carousel-last, poster, title-card, end-card, page}; leave it out unless the book gives clear space and smallest size. voice: {words: up to 5, is, do: up to 12, dont: up to 12, signoff}; use \"\" or an empty list for what the book lacks; copy the book's own examples, one line each, at most 200 characters. No other keys. Then write brand-proposal-notes.md with two headings: Not in the book, one line for each part left out or empty; and Needs a look, for anything you could not put in the file, such as a typeface. Nothing is saved to the brand kit; the owner accepts the parts on the Brand kit page.",
+  "produces": [
+    "brand-proposal.json",
+    "brand-proposal-notes.md"
+  ]
+}

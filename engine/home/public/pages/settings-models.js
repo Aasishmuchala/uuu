@@ -26,6 +26,8 @@ export const WORDS = {
   afterSwitch: "Nothing else to do. Each agent's next run uses this. Run the proof on Health to check the fence.",
   restart: "This section appears after the home screen is restarted: engine stop, then engine start.",
   switchLabel: "Use Omega Plus for the agents",
+  // PLAN-V5 K8, as written.
+  sameModel: "The Art director is on the same model as the makers. A second opinion from another model is stronger: choose one if your list has it.",
 };
 
 // What each kind of work is called on screen.
@@ -128,6 +130,17 @@ export function usageLine(u) {
   const tok = (Number(u && u.inputTokens) || 0) + (Number(u && u.outputTokens) || 0);
   if (!req && !tok) return "No calls yet";
   return `${req.toLocaleString("en")} ${req === 1 ? "call" : "calls"}, ${tok.toLocaleString("en")} ${tok === 1 ? "token" : "tokens"}`;
+}
+
+// The K8 sentence when the Art director's model is the Artist's, else "". The Artist stands for the makers.
+export function sameModelLine(view) {
+  const agents = view && Array.isArray(view.agents) ? view.agents : [];
+  const pickOf = (slug) => {
+    const a = agents.find((x) => x && x.slug === slug);
+    return a && typeof a.pick === "string" && a.pick ? a.pick : null;
+  };
+  const judge = pickOf("art-director");
+  return judge && judge === pickOf("artist") ? WORDS.sameModel : "";
 }
 
 // What the section draws: "loading", "restart" (the routes are not there yet), "error" or "ready".
@@ -273,6 +286,7 @@ function AgentsCard({ view, busy, act, failure, technical }) {
         <${Notice} tone="warn">
           ${[...missing].map((s) => html`<p key=${s} class="p-settings__m-text">${missingLine((agents.find((a) => a.slug === s) || {}).name || s)}</p>`)}
         <//>` : null}
+      ${readAt && sameModelLine(view) ? html`<${Notice} tone="warn" title=${sameModelLine(view)} />` : null}
       ${agents.length ? html`<${DataTable} columns=${columns} rows=${agents.map((a) => ({ ...a, id: a.slug }))} renderCell=${cell} />` : null}
     <//>`;
 }

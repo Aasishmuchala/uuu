@@ -22,7 +22,7 @@ The Artist draws sprites, small animations and simple images, lays out carousels
 |---|---|
 | `state/art/python/` | the Artist's own Python, fetched by `uv` (`UV_PYTHON_INSTALL_DIR`). The fence hides your home folder, where `uv` keeps its Pythons, so the Artist needs one inside state. |
 | `state/art/venv/` | Pillow (about 66 MB in all, with the Python) |
-| `state/art/tools/` | copies of `sprite.py`, `slides.py`, `fontmap.json` and `video.py` from `engine/art` |
+| `state/art/tools/` | copies of `sprite.py`, `slides.py`, `fontmap.json`, `video.py`, `kit.py` and `brandcheck.py` from `engine/art`, and of `filler.json` and `directions.json` from `engine/company/brand` (the brand check's shipped filler list and the directions for variants). `--check-only` says "installed" only when every one of them matches the repo. |
 | `state/secrets/agents/artist.env` (0600) | `UUU_ART_PYTHON`, `UUU_ART_TOOL` (the sprite helper), `UUU_ART_SLIDES`, `UUU_ART_VIDEO`, `UUU_FFMPEG`, `UUU_FFPROBE`, and, only when the speech model is in place and `whisper-cli` is on this Mac, `UUU_STT` and `UUU_STT_MODEL`. The fence exports these to the Artist. They are paths, not keys. Run the installer again after `engine/media/install.sh` and it adds the two speech lines. |
 
 Nothing goes into `~/.local/bin`, a shell profile or Homebrew. `uv` gets its own caches under `state/art/.cache`, which are deleted when the install ends; your own `uv` cache is left alone.
@@ -30,6 +30,34 @@ Nothing goes into `~/.local/bin`, a shell profile or Homebrew. `uv` gets its own
 ## Disk
 
 Before each download the installer checks free disk. It stops with a plain message when less than 9 GB is free, and it does not start a step that could leave less than 8 GB (the Python is counted as 1 GB, Pillow as 1 GB). Nothing is deleted to make room; free some disk and run it again, and it carries on from where it stopped.
+
+## The brand kit
+
+The owner fills the brand kit in Files; only the home server writes it, as `state/knowledge/docs/brand/kit.json` (PLAN-V5 K5): the colours by name and role, the heading and body typefaces, the smallest sizes, the logo files with their clear space, the margins, the voice. `kit.py` reads it for the tools and the scripts they run. It finds the kit from where it is installed (`state/art/tools`), never from a variable.
+
+The slide tool and the video helper hand the script `kit` (or `None` when the owner has not saved one):
+
+```
+bg, ink = kit.colour("sand"), kit.colour("ink")      # (r, g, b), by the kit's own names
+title = kit.font("heading", 96)                      # the kit's face; below its smallest size is refused
+kit.place(im, "tower-dusk.jpg", (0, 0, 1080, 700))   # a company or room picture by bare name, cover-fitted
+kit.place_logo(im, "bottom-right")                   # the logo, with its clear space and least height
+m = kit.margin(1080)                                 # the kit's margin for that width
+```
+
+What `place` and `place_logo` put on which picture is written into the manifest as `pictures: [{slide|frame, box, source}]` and `logo: [{file, slide|frame, box}]` (a box is `[left, top, right, bottom]`), so the brand check can test each claim against the pixels. Paste on the very image you leave for the tool: a copy made after the paste loses its record. With a kit:
+
+- `slides.py`: `font(name, size)` takes only the kit's two typefaces, at no less than its smallest size for slides; anything else is one line starting `slides:`.
+- `video.py render`: the frames that become the poster and the six stills carry what the script placed on them into the manifest (by frame, as the poster and stills are taken).
+- `video.py reveal` and `cut`: captions are in the kit's body face (or its heading face when `caption_style.font` names it; no other name is taken), in its text colour (the main one when it has none) on a band of its background colour, never below its smallest size. `"cards": { "title", "end" }` (each the words, or `{ "text", "seconds" }`, 1 to 10 seconds, 3 when not said) adds a title card before and an end card after, drawn by the tool: the heading face in the main colour on the background colour, the logo by `place_logo` on the end card and, when the kit asks for the logo on title cards, on the title card too. They are written as `title-card.png` and `end-card.png` beside the video, and the video grows by their seconds (the sound waits through the title card and is silent through the end card).
+
+With no `kit.json` every command does exactly what it did before the kit, and `cards` is refused ("there is no brand kit yet"). A damaged kit stops the command with one plain line naming what is wrong; the owner mends it by saving the kit again in Files.
+
+## The brand check
+
+`brandcheck.py` is the brand check by code (PLAN-V5 K6). It is run from the task folder, as `"$UUU_BRAND_PY" -I "$UUU_BRAND_CHECK" [--json] <goal id>`, writes nothing, and reads the goal's pieces itself (`content/`, `drafts/`, `slides/`, `video/`, `film/`, `site/`), with caps, never through a link and never at a path a manifest names. It measures colours outside the kit's palette on script-made pictures, checks each claimed company picture and logo against the pixels, the logo's size and clear space where the kit asks for a logo, a script that loads a typeface itself, the owner's can't-say list and the shipped filler list (`filler.json`), and variants that are near copies or repeat a direction (`directions.json`). Exit 0 passes (or only warns), 1 is a hard rule broken, 2 is "could not check". With no kit it says so once and still runs the word rules.
+
+Who runs it: the maker, after making, to fix things before reporting; the Chief of staff before any reviewer's step (a hard failure goes back to the maker with the tool's own lines, and no reviewer is spent); the Art director before it scores; and the home server, inside the fence under a tool identity of its own, for what the owner sees. Nobody reads another's report: every run is the engine's own code on the files as they are, so a maker cannot forge one.
 
 ## The sprite helper
 

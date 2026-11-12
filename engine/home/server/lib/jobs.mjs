@@ -1,13 +1,19 @@
 // The jobs (CONTRACTS-V3 31, 33.2, 33.3): the catalogue read from engine/company/jobs/, what the engine has
 // in place for a job (needsState), whether a job can start and why not (readiness), how often each was
 // run (runsIndex), and one job as the pages see it (jobView, shape `job`). Read-only.
+// Version 5 (PLAN-V5 K7, K9): a job's craft from engine/company/brand/craft.json (craftOf), what it costs in
+// time with one or three versions, and the needs `internet`, `generation` and `browser` from the doors' switches.
 // A task counts as started from a job only by its `template:` record (written by the home server), never
 // by the `JOB:` line in its text. Shared by routes/map.mjs and the jobs features; they never edit it.
 import { existsSync, lstatSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadJobFiles, NEEDS } from "../../../company/lib/job-files.mjs";
+import { estimateMinutes, loadCraft, loadTiming } from "../../../company/lib/craft-files.mjs";
+import { readDoorsState } from "../../../doors/common.mjs";
+import { trusted } from "../../../relay/state.mjs";
 import { loadStarters } from "../../../company/lib/brain-files.mjs";
 import { HomeError } from "./errors.mjs";
+import { httpRequest, parseJson } from "./httpclient.mjs";
 import { plainState } from "./goals.mjs";
 import { booksState } from "./health.mjs";
 import { brainFiles, brainFileState, brainTitle, brainToken, roomFiles } from "./brainfiles.mjs";
@@ -18,6 +24,9 @@ const NEEDS_TTL = 60000;
 const TASK_OPTIONS = 20;
 const FILE_OPTIONS = 100;
 const HEALTH = { page: "health", id: null };
+const SETTINGS = { page: "settings", id: null };
+const DOOR_PROBE_MS = 1000;
+const LAST_RUNS = 3;
 
 // The sentences of 31.4, with their links.
 export const WHY = {
@@ -28,8 +37,10 @@ export const WHY = {
   slides: ["The Artist's slide tool is not installed yet.", HEALTH],
   video: ["The Artist's video tool is not installed yet.", HEALTH],
   speech: ["The speech model is not in place yet.", HEALTH],
-  internet: ["Agents have no internet, and this job needs it.", null],
+  internet: ["The web door is off. Switch it on in Settings.", SETTINGS],
   account: ["Sending and publishing are switched off. Connect an account first.", HEALTH],
+  generation: ["Generation is off or has no key yet. Open Settings.", SETTINGS],
+  browser: ["The page viewer is off. Switch it on in Settings.", SETTINGS],
 };
 
 // ---- the catalogue, cached until a file in jobs/ (or the departments or roles) changes
@@ -77,6 +88,74 @@ export function loadCatalogue(config) {
 
 export const jobRef = (job) => `${job.department}/${job.id}`;
 
+// ---- craft (K7), cached until craft.json or the catalogue changes
+let craftCache = { key: null, catalogue: null, value: null };
+
+// loadCraftTable(config) -> { jobs: Map("<department>/<id>" -> { kind, review, variants, playbooks }), problems:
+// [sentence] }. Read only from the repo's craft.json; a missing file is an empty table.
+export function loadCraftTable(config) {
+  const catalogue = loadCatalogue(config);
+  const file = join(config.engineDir, "company", "brand", "craft.json");
+  let key;
+  try { const st = lstatSync(file); key = `${file}|${st.mtimeMs}|${st.size}|${st.ino}`; } catch { key = `${file}|none`; }
+  if (craftCache.value && craftCache.key === key && craftCache.catalogue === catalogue) return craftCache.value;
+  const value = loadCraft(file, [...catalogue.jobs.keys()]);
+  craftCache = { key, catalogue, value };
+  return value;
+}
+
+// A job's craft entry, or null for a job with none (that job runs exactly as before version 5).
+export function craftOf(config, job) {
+  const c = loadCraftTable(config).jobs.get(jobRef(job));
+  return c ? { ...c, playbooks: [...c.playbooks] } : null;
+}
+
+let timingCache = null;
+function timing() {
+  if (!timingCache) {
+    try { timingCache = { value: loadTiming() }; } catch { timingCache = { value: null }; }
+  }
+  return timingCache.value;
+}
+
+// K9's time words for one number of versions: { low, high, words }, or null when the size or the timing
+// file cannot give one.
+export function estimateOf(job, craft, versions) {
+  const t = timing();
+  if (!t) return null;
+  try {
+    const e = estimateMinutes({ size: job.size, who: job.who, versions, review: craft?.review === "art", timing: t });
+    return { low: e.low, high: e.high, words: e.words };
+  } catch { return null; }
+}
+
+// Minutes each of the last three accepted runs took, newest first, from the board's own times.
+function lastRunsOf(own) {
+  const out = [];
+  for (const t of own?.tasks || []) {
+    if (out.length >= LAST_RUNS) break;
+    if (!t.accepted) continue;
+    const from = Date.parse(t.at);
+    const to = Date.parse(t.doneAt);
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) continue;
+    out.push(Math.max(1, Math.round((to - from) / 60000)));
+  }
+  return out;
+}
+
+// The `craft` key of jobView (null for a job with no entry).
+function craftView(job, craft, own) {
+  if (!craft) return null;
+  const three = craft.variants === 3;
+  return {
+    kind: craft.kind, review: craft.review,
+    versions: three ? [1, 3] : [1], default: three ? 3 : 1,
+    playbooks: [...craft.playbooks],
+    estimate: { 1: estimateOf(job, craft, 1), 3: three ? estimateOf(job, craft, 3) : null },
+    lastRuns: lastRunsOf(own),
+  };
+}
+
 // ---- what is in place, cached 60 seconds per state folder
 const needsCache = new Map(); // state folder -> { at, value: Promise }
 
@@ -96,6 +175,41 @@ function speechInPlace(state) {
   } catch { return false; }
 }
 
+// One door answers its health address within a second with its own part name. A null address (stub homes)
+// is false, and nothing is called.
+async function doorAnswers(base, path, part) {
+  if (typeof base !== "string" || !base) return false;
+  let timer;
+  try {
+    const call = httpRequest(`${base}${path}`, { timeoutMs: DOOR_PROBE_MS, headers: { accept: "application/json" } });
+    const late = new Promise((resolve) => { timer = setTimeout(() => resolve(null), DOOR_PROBE_MS); });
+    const r = await Promise.race([call.catch(() => null), late]);
+    return !!r && r.status === 200 && r.text.length <= 4096 && parseJson(r.text)?.part === part;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// K9: internet, generation and browser, each only while its switch is on (read through the trust rule of
+// engine/relay/state.mjs) and its door answers; generation also needs the Runway key saved (its file is
+// checked, never opened). No switches file, or one that cannot be trusted, means all three are false.
+async function doorNeeds(ctx) {
+  const off = { internet: false, generation: false, browser: false };
+  const paths = ctx.config.paths || {};
+  if (typeof paths.doorsState !== "string") return off;
+  const state = readDoorsState(paths.doorsState);
+  if (!state.ok) return off;
+  const urls = ctx.home?.urls || ctx.config.urls || {};
+  const [internet, generation, browser] = await Promise.all([
+    state.web.on ? doorAnswers(urls.web, "/web/health", "web") : false,
+    state.generate.on && typeof paths.runwayKey === "string" && trusted(paths.runwayKey) ? doorAnswers(urls.generate, "/gen/health", "generate") : false,
+    state.viewer.on ? doorAnswers(urls.viewer, "/view/health", "viewer") : false,
+  ]);
+  return { internet, generation, browser };
+}
+
 async function readNeeds(ctx) {
   const state = ctx.config.paths.state;
   let books = false;
@@ -107,6 +221,7 @@ async function readNeeds(ctx) {
   if (books) {
     try { quotations = await quotationsAllowed(ctx); } catch (e) { if (!(e instanceof HomeError)) throw e; quotations = false; }
   }
+  const doors = await doorNeeds(ctx);
   return {
     books, quotations,
     "cad-tools": existsSync(ctx.config.paths.cadPython),
@@ -114,11 +229,12 @@ async function readNeeds(ctx) {
     slides: existsSync(join(state, "art", "tools", "slides.py")),
     video: existsSync(join(state, "art", "tools", "video.py")),
     speech: speechInPlace(state),
+    ...doors,
   };
 }
 
-// needsState(ctx) -> { books, quotations, "cad-tools", "artist-tools", slides, video, speech } (booleans).
-// A books call that fails means false. Cached 60 seconds.
+// needsState(ctx) -> { books, quotations, "cad-tools", "artist-tools", slides, video, speech, internet, generation,
+// browser } (booleans). A books call that fails, or a door that does not answer, means false. Cached 60 seconds.
 export function needsState(ctx) {
   const key = ctx.config.paths.state;
   const now = Date.now();
@@ -137,12 +253,13 @@ export function forgetNeeds() {
 }
 
 // readiness(job, needs, config) -> { ready, why: null | { name, text, link } } (31.4). The first name that
-// fails, in the order internet, account, the tools, books, quotations, then the `must` files of `reads`.
+// fails, in the order internet, account, generation, browser, the tools, books, quotations, then the `must` files
+// of `reads`. Account is never held; internet, generation and browser only as needsState says (K9).
 export function readiness(job, needs, config) {
   const want = Array.isArray(job?.needs) ? job.needs : [];
   for (const name of NEEDS) {
     if (!want.includes(name)) continue;
-    const holds = name === "internet" || name === "account" ? false : !!needs?.[name];
+    const holds = name === "account" ? false : needs?.[name] === true;
     if (!holds) return { ready: false, why: { name, text: WHY[name][0], link: WHY[name][1] ? { ...WHY[name][1] } : null } };
   }
   for (const r of Array.isArray(job?.reads) ? job.reads : []) {
@@ -160,7 +277,7 @@ const isLive = (g, tctx) => tctx.liveByIssue.has(g.id) || tctx.stepsOf(g.id).som
 
 // runsIndex(ctx, tctx) -> Map(job id -> { total, accepted, working, needsYou, last }) from the `template:`
 // records of the tasks on the board. Only jobs still in the catalogue are counted. Each entry also holds,
-// not enumerable (never sent), `tasks`: [{ taskId, identifier, title, accepted, at }], newest first.
+// not enumerable (never sent), `tasks`: [{ taskId, identifier, title, accepted, waiting, at, doneAt }], newest first.
 export function runsIndex(ctx, tctx) {
   const { jobs } = loadCatalogue(ctx.config);
   const out = new Map();
@@ -181,7 +298,7 @@ export function runsIndex(ctx, tctx) {
     // tctx.goals are newest first, so the first seen is the last run.
     if (!e.last) e.last = { taskId: g.id, identifier: g.identifier || null, at: g.createdAt || null, plainState: plainState(g.status).plainState };
     const waiting = !accepted && g.status !== "cancelled" && tctx.needsYou.some((i) => i.taskId === g.id);
-    e.tasks.push({ taskId: g.id, identifier: g.identifier || null, title: g.title || "", accepted, waiting, at: g.createdAt || null });
+    e.tasks.push({ taskId: g.id, identifier: g.identifier || null, title: g.title || "", accepted, waiting, at: g.createdAt || null, doneAt: g.completedAt || null });
   }
   return out;
 }
@@ -271,7 +388,7 @@ function takesOf(job, runs, catalogueJobs) {
 }
 
 // jobView(job, { needs, runs, config, roles }) -> shape `job` (33.3). `runs` is runsIndex's Map (or this
-// job's own entry); `needs` is needsState's answer.
+// job's own entry); `needs` is needsState's answer. `craft` is null for a job with no craft entry (K9).
 export function jobView(job, { needs, runs, config, roles } = {}) {
   const ref = jobRef(job);
   const deps = loadDepartments(config).departments;
@@ -298,5 +415,6 @@ export function jobView(job, { needs, runs, config, roles } = {}) {
     text: job.text,
     ready, why,
     runs: own ? { total: own.total, accepted: own.accepted, working: own.working, needsYou: own.needsYou, last: own.last ? { ...own.last } : null } : NO_RUNS(),
+    craft: craftView(job, craftOf(config, job), own),
   };
 }

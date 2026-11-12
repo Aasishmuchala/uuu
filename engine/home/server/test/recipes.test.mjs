@@ -206,13 +206,16 @@ test("the Marketing answer lists the recipes: date, job, rounds, scores and verd
   });
 });
 
-test("only tasks from a Marketing job are logged", async () => {
+test("tasks from a Marketing or Studio job are logged (PLAN-V5 K9), a Sales job's are not; the Marketing page keeps to Marketing", async () => {
   await withHome(async (h) => {
+    // STH-20 (a Sales job) is accepted in the seed.
     assert.equal((await accept(h, 25)).status, 200);
     await refresh(h);
     const text = readLog(h);
-    assert.doesNotMatch(text, /title card/i);
-    assert.deepEqual(text.split("\n").filter((l) => l.startsWith("## ")).map((l) => l.split(" · ")[1]), ["A carousel from one concept"]);
+    assert.deepEqual(text.split("\n").filter((l) => l.startsWith("## ")).map((l) => l.split(" · ")[1]), ["An animated title card", "A carousel from one concept"]);
+    assert.doesNotMatch(text, /Call write-up/);
+    const rows = (await call(h.url, "GET", "/api/departments/marketing")).json.sections.find((s) => s.id === "recipes").rows;
+    assert.deepEqual(rows.map((r) => r.job), ["A carousel from one concept"]);
   });
 });
 
@@ -278,4 +281,54 @@ test("an earlier task chosen as an answer is named by the title the home server 
     const row = (await recipeEntries(ctx)).find((e) => e.taskId === STH(24));
     assert.ok(!row.words.includes(MARK));
   });
+});
+
+// ---- PLAN-V5 K9: versions and the owner's pick
+test("a pick row says which version of how many and its direction; another round and send all back have rows; the Marketing rows of the seed stay as they were", async () => {
+  const { forgetBrandChecks } = await import("../lib/brandcheck.mjs");
+  const { versionsLine } = await import("../lib/recipes.mjs");
+  const GOAL = STH(25);
+  const AD = "aaaaaaaa-0000-4000-8000-0000000000ad";
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(56)]);
+  const review = ["REVIEW: PASS - fine", "# Art review: round 1", "## Pieces",
+    "a: brand 8, hierarchy 8, composition 8, finish 8, idea 8, voice 8, kind 8; teal and neon", "b: brand 7, hierarchy 7, composition 7, finish 7, idea 7, voice 7, kind 7; quiet",
+    "c: brand 6, hierarchy 6, composition 6, finish 6, idea 6, voice 6, kind 6; plain", "## Seen", "- a: slide 1", "## Actions", "None.", "Review: PASS"].join("\n");
+  let seedRows;
+  await withHome(async (h) => { await refresh(h); seedRows = readLog(h).split("\n## ").slice(1).filter((b) => b.includes(" · A carousel from one concept\n")); });
+  forgetBrandChecks();
+  const h = await startV2({ ...OPTIONS, decisions: { [`template:${GOAL}`]: "marketing/carousel-from-a-concept" } });
+  try {
+    const ids = JSON.parse(readFileSync(h.config.paths.ids, "utf8"));
+    ids.agents["art-director"] = AD;
+    writeFileSync(h.config.paths.ids, JSON.stringify(ids));
+    const goal = join(h.state, "tasks", "company-work", "STH-25");
+    writeFileSync(join(goal, "variants.json"), JSON.stringify({ kind: "carousel", name: "launch", round: 1, variants: [{ id: "a", direction: "type-led" }, { id: "b", direction: "picture-led" }, { id: "c", direction: "diagram-led" }] }));
+    for (const id of ["a", "b", "c"]) {
+      mkdirSync(join(goal, "slides", `launch-${id}`), { recursive: true });
+      writeFileSync(join(goal, "slides", `launch-${id}`, "contact.png"), png);
+    }
+    h.board.state.comments.push({ id: "cd000000-0000-4000-8000-000000000009", issueId: GOAL, body: review, authorAgentId: AD, authorUserId: null, createdAt: new Date(Date.now() + 300000).toISOString() });
+    const another = await actAsSeen(h.url, { id: `goal:${GOAL}`, action: "another", note: "Darker, please." });
+    assert.equal(another.status, 200, another.text);
+    // The round is redone and finished again; the owner picks b.
+    h.board.state.issues.find((i) => i.id === GOAL).status = "done";
+    await new Promise((r) => setTimeout(r, 20));
+    const pick = await actAsSeen(h.url, { id: `goal:${GOAL}`, action: "pick", variant: "b", note: "This one." });
+    assert.equal(pick.status, 200, pick.text);
+    await refresh(h);
+    const text = readLog(h);
+    const blocks = text.split("\n## ").filter((b) => b.includes(" · A carousel from one concept\n"));
+    const ours = blocks.filter((b) => !seedRows.includes(b));
+    assert.equal(ours.length, 2, text);
+    assert.match(ours[0], /- Versions: Picked version 2 of 3 \(Picture led\)\. Totals of 70: 56, 49, 42\n- Verdict: Accepted\. The owner's note: This one\.\n?$/);
+    assert.match(ours[1], /- Versions: Asked for another round after 3\. Totals of 70: 56, 49, 42\n- Verdict: Another round\. The owner's note: Darker, please\.\n?$/);
+    for (const b of seedRows) assert.ok(blocks.includes(b), "the seed's Marketing row is unchanged");
+    assert.ok(!text.includes("teal") && !text.includes("quiet"), "no reason the Art director wrote");
+  } finally {
+    forgetBrandChecks();
+    await h.close();
+  }
+  // Send all back, as a line.
+  assert.equal(versionsLine("carousel", { action: "back", variant: null, versions: [{ id: "a", total: null }, { id: "b", total: null }] }), "Sent all 2 back");
+  assert.equal(versionsLine("carousel", null), null);
 });

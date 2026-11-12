@@ -327,3 +327,44 @@ test("conceptHeadlines is linear and capped on hostile text", async () => {
     assert.ok(performance.now() - t0 < 500, `${(performance.now() - t0).toFixed(0)} ms`);
   }
 });
+
+// ---- PLAN-V5 K9: a post made as three versions. The versions live in drafts/, which the calendar never scans:
+// none is listed before the owner picks, and after the pick only the picked one, already approved (the pick is
+// the acceptance), so it never waits in Needs you a second time.
+test("the calendar shows one draft after a pick and none before; the others never", async () => {
+  const { IDS_V3 } = await import("../../../test/stubs/seed.mjs");
+  const { startV2 } = await import("../lib/testing-v2.mjs");
+  const { forgetBrandChecks } = await import("../lib/brandcheck.mjs");
+  const GOAL = IDS_V3.issues["STH-23"];
+  forgetBrandChecks();
+  const h = await startV2({
+    routes: ["marketing", "inbox"], inbox: ["content", "goals"],
+    decisions: { [`template:${GOAL}`]: "marketing/announce-one-thing" },
+  });
+  try {
+    const goal = join(h.state, "tasks", "company-work", "STH-23");
+    mkdirSync(join(goal, "drafts"), { recursive: true });
+    writeFileSync(join(goal, "variants.json"), JSON.stringify({ kind: "post", name: "launch", round: 1, variants: [{ id: "a", direction: "fact-first" }, { id: "b", direction: "scene" }, { id: "c", direction: "question" }] }));
+    for (const id of ["a", "b", "c"]) writeFileSync(join(goal, "drafts", `launch-${id}.md`), post(`Version ${id} of the launch`, `Words of version ${id}.`, "2026-12-0" + (id === "a" ? 2 : id === "b" ? 3 : 4)));
+    const titles = async () => rows(await page(h)).map((r) => r.title);
+    const before = await titles();
+    assert.ok(!before.some((t) => t.startsWith("Version ")), before.join(", "));
+    const card = (await call(h.url, "GET", "/api/inbox")).json.items.find((i) => i.id === `goal:${GOAL}`);
+    assert.equal(card.kind, "pick");
+    assert.deepEqual(card.variants.map((v) => v.preview[0]?.text), ["Words of version a.", "Words of version b.", "Words of version c."]);
+    const r = await actAsSeen(h.url, { id: `goal:${GOAL}`, action: "pick", variant: "b" });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.message, "Picked. Your choice and note are kept for next time.");
+    const after = rows(await page(h));
+    const picked = after.filter((x) => x.title.startsWith("Version "));
+    assert.deepEqual(picked.map((x) => [x.title, x.status, x.planned]), [["Version b of the launch", "Approved", "2026-12-03"]]);
+    assert.equal(after.length, before.length + 1);
+    assert.ok(!("inboxId" in picked[0]), "approved: nothing waits for the owner");
+    const inbox = (await call(h.url, "GET", "/api/inbox")).json.items;
+    assert.ok(!inbox.some((i) => i.title.includes("Version ")), "no second step in Needs you");
+    assert.ok(!inbox.some((i) => i.id === `goal:${GOAL}`));
+  } finally {
+    forgetBrandChecks();
+    await h.close();
+  }
+});

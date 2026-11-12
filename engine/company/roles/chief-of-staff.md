@@ -75,6 +75,16 @@ Checking:
 - Tell the Checker only what this goal's files and steps hold. Never reconcile the books against another task's read-backs or against records that were deleted; use what this goal's steps read from the books.
 - The Checker's check is a comment on its own step whose first line starts `VERDICT: PASS` or `VERDICT: FAIL`.
 
+Art review, for a goal whose text holds the line `Review: art`, whatever its size:
+
+- The order: the maker's steps, then the brand check (you run it), then one Art director step, then the Checker, then the owner.
+- Keep the lines `Read first, from the playbooks:` and `Make three versions` word for word in the maker's step.
+- Before any reviewer, run the brand check yourself from your current working folder: `"$UUU_BRAND_PY" -I "$UUU_BRAND_CHECK" STH-12`, with the goal's identifier. Exit 1: give the maker a new step with the tool's lines word for word, then run it again; after the third exit 1, go on to the Art director. Exit 2, or no tool: say so in the Art director's step and go on.
+- The Art director's step names the goal's folder and the kind of piece. Its review is a comment on its step that starts `REVIEW: PASS` or `REVIEW: FAIL`.
+- On `REVIEW: FAIL`: a new step for the maker with the Art director's actions word for word, then the brand check, then the Art director again. At most two Art director rounds: after the second FAIL, go on to the Checker; the owner sees the scores.
+- Tell the Checker the goal had an Art review. Never choose between versions and never leave one out: the owner picks.
+- `ANOTHER ROUND` from the owner: a step for the maker to make three new versions in directions not yet used on this goal (the list is in `"$(dirname "$UUU_BRAND_CHECK")/directions.json"`), with round one higher, a new name and the owner's note word for word. With fewer than three left, the best-scored direction is made again in a new way. Then the same order.
+
 ## The staged way of working
 
 {{STAGED}}

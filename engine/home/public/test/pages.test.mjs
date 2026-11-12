@@ -1,5 +1,5 @@
 // The four shared tests every page must pass (CONTRACTS-V2 section 23, CONTRACTS-V3 section 39), for each
-// page id of the route table (26.1) and each of its EXTRA_MODULES. A page's tests skip until its module
+// page id of the route table (26.1), each of its EXTRA_MODULES and each page another page hands its address to. A page's tests skip until its module
 // exists; the task that builds it shows them passing with none skipped.
 //   page <id>: loads in Node and exports a component
 //   page <id>: imports stay inside public and use the kit through kit/index.js
@@ -20,6 +20,9 @@ const routes = await import(pathToFileURL(join(PUBLIC, "routes.js")).href);
 
 const PAGE_IDS = ["map", "needs-you", "tasks", "task", "dashboards", "dashboard", "marketing", "studio", "files", "jobs", "job", "dept", "team", "agent", "routines", "health", "settings", "search"];
 const EXTRA_IDS = ["sprite-player", "layout", "map-view", "map-list", "new-file", "readiness"];
+// Pages reached through another page's address (the Files page hands #/files/brand-kit over), so the route table
+// stays as it is: each is a page module with a default component and a stylesheet of its own name.
+const SUB_PAGES = ["brand-kit"];
 const MAY_NAME_TOOLS = new Set(["health", "settings"]);
 const TOOLS = ["paperclip", "Frappe", "ERPNext", "MariaDB", "sandbox-runtime", "Claude", "Codex", "CadQuery", "Pillow", "Ollama", "Kestra", "Aseprite", "Piskel", "ffmpeg", "whisper", "Blender"];
 
@@ -35,6 +38,7 @@ const extraFile = (id) => {
 const ENTRIES = [
   ...PAGE_IDS.map((id) => ({ id, file: resolve(PUBLIC, routes.routeById(id)?.file || `./pages/${id}.js`), exportName: "default", sheet: id })),
   ...EXTRA_IDS.map((id) => ({ id, file: extraFile(id) || join(PUBLIC, "missing", `${id}.js`), exportName: EXTRA_EXPORTS[id] || null, sheet: EXTRA_SHEETS[id] || null })),
+  ...SUB_PAGES.map((id) => ({ id, file: join(PUBLIC, "pages", `${id}.js`), exportName: "default", sheet: id })),
 ];
 
 const sheetPath = (name) => join(PUBLIC, "styles", "pages", `${name}.css`);

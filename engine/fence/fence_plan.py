@@ -27,6 +27,14 @@ TOOLS = ("claude", "codex")
 MODEL_MODES = ("plans", "provider")
 POLICY_KEYS = ("agentId", "slug", "localServices", "readFolders", "lessonsFile",
                "envFile", "taskFolder")
+# The one key a policy may carry beyond those (PLAN-V5, K2d): a walled agent.
+POLICY_OPTIONAL_KEYS = ("walled",)
+# Names the Claude program and Codex load as settings, instructions, skills or
+# hooks from the folder they work in (PLAN-V5, K2a, as the T1 prototype found
+# them). No run may write one anywhere it can write, so nothing is left there
+# for another agent's program, or its own next run, to load.
+CONFIG_NAMES = (".claude", "CLAUDE.md", "CLAUDE.local.md", ".mcp.json", "AGENTS.md",
+                "AGENTS.override.md", ".codex", ".agents")
 # The engine folder: two levels above this file, never taken from the inputs.
 ENGINE = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 PATH_INPUTS = ("home", "state", "taskFolder", "agentHome", "innerTmp", "nodeRoot",
@@ -80,6 +88,43 @@ def _dedupe(items):
         if item not in out:
             out.append(item)
     return out
+
+
+def _any_case(name):
+    """Each letter as a two-letter set ([Cc]), because the disk ignores letter case."""
+    return "".join("[%s%s]" % (c.upper(), c.lower()) if c.isalpha() else c for c in name)
+
+
+def _deny_entries(roots):
+    """Four entries per name for each root a run can write: the name at the top,
+    inside it, at any depth, and inside it at any depth. All three writable roots
+    (task folder, agent home, temp folder) need them: a folder built in one and
+    moved whole into another keeps what it holds (T1: only its own name is checked)."""
+    out = []
+    for root in roots:
+        for name in CONFIG_NAMES:
+            n = _any_case(name)
+            out += ["%s/%s" % (root, n), "%s/%s/**" % (root, n),
+                    "%s/**/%s" % (root, n), "%s/**/%s/**" % (root, n)]
+    return out
+
+
+def _port(value):
+    """A whole number 1 to 65535 (not a bool), else None."""
+    if isinstance(value, int) and not isinstance(value, bool) and 0 < value < 65536:
+        return value
+    return None
+
+
+def _rule_folder(path):
+    """A folder given by rule (PLAN-V5, K2f) is shared only when it is a plain
+    folder whose real path is itself: never a link, never through one."""
+    try:
+        if os.path.islink(path) or not os.path.isdir(path):
+            return None
+    except OSError:
+        return None
+    return path if _real(path) == path else None
 
 
 def _check_reach(name, path, home, state, instance_root, guarded, protected_files):
@@ -142,7 +187,7 @@ def _check_place(kind, name, path, home, state, instance_root, agent_home):
                           "the places agents may read (%s)" % (name, path))
 
 
-def _check_policy(policy, state, config, board_port, relay_port=None):
+def _check_policy(policy, state, config, board_port, relay_port=None, door_ports_known=()):
     """Checks one fence policy (CONTRACTS section 4) and returns what it adds."""
     if not isinstance(policy, dict):
         raise Refused("the fence policy is not a JSON object")
@@ -157,10 +202,13 @@ def _check_policy(policy, state, config, board_port, relay_port=None):
         if key not in policy:
             raise bad("the key %s is missing" % key)
     for key in policy:
-        if key not in POLICY_KEYS:
+        if key not in POLICY_KEYS + POLICY_OPTIONAL_KEYS:
             raise bad("the key %s is not one the fence knows" % key)
     if not isinstance(policy["agentId"], str) or not policy["agentId"]:
         raise bad("agentId is missing")
+    walled = policy.get("walled", False)
+    if not isinstance(walled, bool):
+        raise bad("walled must be true or false")
 
     # Local services: only 127.0.0.1 and only the ports the engine allows.
     allowed_ports = set()
@@ -182,6 +230,8 @@ def _check_policy(policy, state, config, board_port, relay_port=None):
             raise bad("localServices may never name the board's port %d" % port)
         if relay_port is not None and port == relay_port:
             raise bad("localServices may never name the model relay's port %d" % port)
+        if port in door_ports_known:
+            raise bad("localServices may never name a door's port %d" % port)
         if port not in allowed_ports:
             raise bad("localServices names port %d, which the engine does not allow" % port)
         domains.append(entry)
@@ -235,8 +285,20 @@ def _check_policy(policy, state, config, board_port, relay_port=None):
     task_mode = policy["taskFolder"]
     if task_mode not in ("read-write", "read-only"):
         raise bad("taskFolder must be read-write or read-only")
+    # A walled agent (PLAN-V5, K2d) gets nothing of the company through its policy.
+    if walled:
+        if services:
+            raise bad("a walled agent may reach no local service")
+        if folders:
+            raise bad("a walled agent may read no folder of the company")
+        if policy["lessonsFile"] is not None:
+            raise bad("a walled agent has no lessons file")
+        if policy["envFile"] is not None:
+            raise bad("a walled agent has no key file")
+        if task_mode != "read-write":
+            raise bad("a walled agent's task folder is read-write")
     return {"domains": domains, "reads": reads, "lessons": lessons,
-            "taskReadOnly": task_mode == "read-only"}
+            "taskReadOnly": task_mode == "read-only", "walled": walled}
 
 
 def plan(inputs):
@@ -300,7 +362,29 @@ def plan(inputs):
         for p in inputs[key]:
             out.append(_check_abs("extra path", p))
 
-    deny = [home, "/private/tmp/claude-%d" % uid, "/tmp/claude-%d" % uid]
+    # The narrow gate (PLAN-V5, K2d): a walled agent's only way to the board.
+    narrow_port = inputs.get("narrowGatePort")
+    if narrow_port is not None and (_port(narrow_port) is None or narrow_port in (board_port, relay_port)):
+        raise Refused("the fence was given a narrow gate port it cannot use")
+    # Doors (PLAN-V5, K2c). A missing key is no door. doorPortsKnown is every new
+    # port (the narrow gate's too): no policy may name one; doorPorts are the
+    # doors this run may reach, each one of them, never the gate, board or relay.
+    door_ports_known, door_ports = [], []
+    for key, out in (("doorPortsKnown", door_ports_known), ("doorPorts", door_ports)):
+        given = inputs.get(key, [])
+        if not isinstance(given, list):
+            raise Refused("the fence was given %s that is not a list" % key)
+        for p in given:
+            if _port(p) is None:
+                raise Refused("the fence was given a door port it cannot use (%r)" % (p,))
+            out.append(p)
+    for p in door_ports:
+        if p in (gate_port, board_port, relay_port, narrow_port) or p not in door_ports_known:
+            raise Refused("the fence was given a door port it cannot use (%d)" % p)
+    if door_ports and inputs["policy"] is None:
+        raise Refused("a door can only be opened for an agent with a fence policy")
+
+    deny =[home, "/private/tmp/claude-%d" % uid, "/tmp/claude-%d" % uid]
 
     # The task folder: only inside the engine's own task tree or paperclip's two
     # trees (a default folder per agent, a folder per task). Never the root of a
@@ -318,7 +402,8 @@ def plan(inputs):
     # Paths the wrappers hand over must not open up what the fence protects.
     guarded = [os.path.join(state, "secrets"), os.path.join(state, "policy"),
                os.path.join(state, "fences"), os.path.join(state, "proof"),
-               os.path.join(state, "models"), os.path.join(instance_root, "secrets"),
+               os.path.join(state, "models"), os.path.join(state, "doors"),
+               os.path.join(instance_root, "secrets"),
                "/private/tmp/claude-%d" % uid, "/tmp/claude-%d" % uid]
     protected_files = [os.path.join(state, "agent.env")]
     for kind, name, p in [("agentHome", "the agent home", agent_home), ("innerTmp", "the temp folder", inner_tmp)] + \
@@ -330,29 +415,60 @@ def plan(inputs):
             _check_reach(name, _real(p), home, state, instance_root, guarded, protected_files)
             _check_place(kind, name, _real(p), home, state, instance_root, agent_home)
 
-    extras = {"domains": [], "reads": [], "lessons": None, "taskReadOnly": False}
+    extras = {"domains": [], "reads": [], "lessons": None, "taskReadOnly": False, "walled": False}
     if inputs["policy"] is not None:
         extras = _check_policy(inputs["policy"], state, config, board_port,
-                               relay_port if relay_ok else None)
+                               relay_port if relay_ok else None, door_ports_known)
+
+    # The Researcher's folder: a walled agent works there and nowhere else; no
+    # other agent ever writes in it (they may read it, below).
+    real_state = _real(state)
+    research = os.path.join(real_state, "tasks", "research")
+    if extras["walled"]:
+        if not (_same(task, research) and _same(_real(research), research)):
+            raise Refused("refusing to run a walled agent in %s: it works only in %s" % (task, research))
+        if narrow_port is None or gate_port != narrow_port:
+            raise Refused("a walled agent reaches the board only through the narrow gate")
+    else:
+        if narrow_port is not None and gate_port == narrow_port:
+            raise Refused("only a walled agent goes through the narrow gate")
+        for r in _dedupe([research, os.path.join(state, "tasks", "research")]):
+            if _inside(task, r) or _inside(task_given, r):
+                raise Refused("refusing to run in %s: it is the Researcher's folder" % task)
+
+    # Folders by rule, not by policy (PLAN-V5, K2f): read-only, only for a run
+    # with a policy, only when each is a plain folder whose real path is itself.
+    rule_reads = []
+    if inputs["policy"] is not None:
+        names = [("playbooks",)] + ([("knowledge", "shared")] if extras["walled"] else [("tasks", "research")])
+        for parts in names:
+            p = _rule_folder(os.path.join(real_state, *parts))
+            if p:
+                rule_reads.append(p)
 
     read = [task, agent_home, inner_tmp, node_root, os.path.join(home, ".local", "bin"),
-            claude_dir] + extra_read + extra_write + extras["reads"]
+            claude_dir] + extra_read + extra_write + extras["reads"] + rule_reads
     write = [agent_home, inner_tmp] + extra_write
     if not extras["taskReadOnly"]:
         write = [task] + write
     if extras["lessons"]:
         read.append(extras["lessons"])
         write.append(extras["lessons"])
+    write = _dedupe(write)
+    # Every root a run can write, as given and as resolved, the task folder even
+    # when it is read-only (K2a, widened by T1 to the home and the temp folder).
+    deny_roots = _dedupe([r for w in [task] + write for r in (w, _real(w))])
     domains = ["127.0.0.1:%d" % gate_port, "localhost:%d" % gate_port]
     if model_mode == "provider":
         # The relay holds the key; the agent reaches no model host itself.
         domains = domains + ["127.0.0.1:%d" % relay_port, "localhost:%d" % relay_port]
     else:
         domains = list(hosts) + domains
-    domains = domains + extras["domains"]
+    # Doors in their one spelling, after the gate and before the policy's services.
+    domains = domains + ["127.0.0.1:%d" % p for p in door_ports] + extras["domains"]
     return {
         "filesystem": {"denyRead": deny, "allowRead": _dedupe(read),
-                       "allowWrite": _dedupe(write), "denyWrite": []},
+                       "allowWrite": write, "denyWrite": _deny_entries(deny_roots)},
         "network": {"allowedDomains": _dedupe(domains), "deniedDomains": []},
     }
 

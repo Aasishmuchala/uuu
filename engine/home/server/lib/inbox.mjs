@@ -7,6 +7,9 @@
 // When the item is missing from that re-read because its own source could not be read (the board or the books
 // did not answer in time), the action says so with the source's own plain words and next step (502), never
 // "no longer waiting for you": the item may well still be there.
+// PLAN-V5 K9: an item of kind "pick" (a task's versions, inbox/goals.mjs) offers `pick`, which takes `variant`
+// (a, b or c, and nothing else, on no other item or action); a stale version of such an item is refused with
+// its own sentence, before anything is written.
 import { createHash } from "node:crypto";
 import { HomeError } from "./errors.mjs";
 
@@ -54,6 +57,9 @@ function chainOf(item) {
   for (const id of [aboutOf(item), taskOf(item)]) if (id && !out.includes(id)) out.push(id);
   return out;
 }
+
+const VARIANT = /^[abc]$/;
+export const PICK_CHANGED = "These versions changed since you looked. Read them again.";
 
 const offers = (item, ...ids) => (Array.isArray(item.actions) ? item.actions : []).some((a) => a && ids.includes(a.id));
 
@@ -157,7 +163,7 @@ function recordActed(ctx, item, action) {
 export function createActor(sources) {
   const handled = new Map(); // item id -> time, so a second click says "already handled"
 
-  return async function act(ctx, { id, action, note, version }) {
+  return async function act(ctx, { id, action, note, version, variant }) {
     if (typeof id !== "string" || !id || typeof action !== "string" || !action) {
       throw new HomeError(400, "The home screen did not say which item and which action.", "Refresh the page and try again.", "bad_request");
     }
@@ -166,6 +172,10 @@ export function createActor(sources) {
     }
     if (version !== undefined && version !== null && typeof version !== "string") {
       throw new HomeError(400, "The home screen sent a version it should not have.", "Refresh the page and try again.", "bad_request");
+    }
+    const hasVariant = variant !== undefined && variant !== null;
+    if (hasVariant && (typeof variant !== "string" || !VARIANT.test(variant))) {
+      throw new HomeError(400, "That is not one of the versions.", "Refresh the page and pick one of the versions shown.", "bad_variant");
     }
     const { items, owners, unread } = await mergeInbox({ ...ctx, acting: true }, sources);
     const item = items.find((i) => i.id === id);
@@ -184,10 +194,18 @@ export function createActor(sources) {
       throw new HomeError(400, "This needs a short note.", "Write what should change, then send it.", "needs_note");
     }
     if (text.length > 4000) throw new HomeError(400, "The note is too long.", "Keep it under 4000 characters.", "note_too_long");
+    const picking = item.kind === "pick" && action === "pick";
+    if (hasVariant && !picking) {
+      throw new HomeError(400, "A version can be picked only on a card of versions.", "Refresh the inbox and pick one of the buttons shown.", "bad_variant");
+    }
+    if (picking && !hasVariant) {
+      throw new HomeError(400, "Pick one of the versions first.", "Choose the version you want, then press Pick this one.", "needs_variant");
+    }
     if (typeof item.version === "string" && item.version && version !== item.version) {
+      if (item.kind === "pick") throw new HomeError(409, PICK_CHANGED, "Look at the versions again, then decide.", "changed_since_seen");
       throw new HomeError(409, "This changed after you looked at it. Nothing was done.", "Look at it again, then decide.", "changed_since_seen");
     }
-    const out = await owners.get(id).act({ ...ctx, acting: true, item }, id, action, text || null);
+    const out = await owners.get(id).act({ ...ctx, acting: true, item, variant: picking ? variant : null }, id, action, text || null);
     handled.set(id, Date.now());
     recordActed(ctx, item, action);
     if (handled.size > 500) handled.delete(handled.keys().next().value);

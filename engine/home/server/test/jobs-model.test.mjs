@@ -2,7 +2,8 @@
 // lib/jobs.mjs, lib/brainfiles.mjs and the task card's new keys, on the version 3 seed.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import http from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { benchSeed } from "../../../test/stubs/seed.mjs";
@@ -18,6 +19,7 @@ import { startV2 } from "../lib/testing-v2.mjs";
 
 const issueId = (n) => `e0000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const ALL_NEEDS = { books: true, quotations: true, "cad-tools": true, "artist-tools": true, slides: true, video: true, speech: true };
+const DOORS_OFF = { internet: false, generation: false, browser: false };
 
 let h;
 before(async () => { h = await startV2({ inbox: ["board", "goals"] }); });
@@ -111,9 +113,9 @@ test("loadCatalogue: a broken job file is left out and listed; the others stay",
 });
 
 // ---- what is in place
-test("needsState: the version 3 seed has the books, quotations and every tool in place", async () => {
+test("needsState: the version 3 seed has the books, quotations and every tool in place, and no door (no switches file)", async () => {
   forgetNeeds();
-  assert.deepEqual(await needsState(makeCtx()), ALL_NEEDS);
+  assert.deepEqual(await needsState(makeCtx()), { ...ALL_NEEDS, ...DOORS_OFF });
 });
 
 test("needsState: quotations: false in the bench seed means no quotations; no books means neither", async () => {
@@ -152,10 +154,18 @@ test("readiness: the order of reasons of 31.4", () => {
   assert.deepEqual(readiness(job(["video"]), { video: true }, h.config), { ready: true, why: null });
 });
 
-test("readiness: internet and account are never ready; each sentence and link is as pinned", () => {
-  const r = (name) => readiness(job([name]), { ...ALL_NEEDS, internet: true, account: true }, h.config);
-  assert.deepEqual(r("internet"), { ready: false, why: { name: "internet", text: "Agents have no internet, and this job needs it.", link: null } });
+test("readiness: account is never ready; internet, generation and browser only as needsState says (K9); each sentence and link is as pinned", () => {
+  const r = (name) => readiness(job([name]), { ...ALL_NEEDS, internet: true, account: true, generation: true, browser: true }, h.config);
   assert.deepEqual(r("account").why, { name: "account", text: "Sending and publishing are switched off. Connect an account first.", link: { page: "health", id: null } });
+  for (const name of ["internet", "generation", "browser"]) assert.deepEqual(r(name), { ready: true, why: null }, name);
+  const settings = { page: "settings", id: null };
+  const off = (name, needs = ALL_NEEDS) => readiness(job([name]), needs, h.config).why;
+  assert.deepEqual(off("internet"), { name: "internet", text: "The web door is off. Switch it on in Settings.", link: settings });
+  assert.deepEqual(off("generation"), { name: "generation", text: "Generation is off or has no key yet. Open Settings.", link: settings });
+  assert.deepEqual(off("browser"), { name: "browser", text: "The page viewer is off. Switch it on in Settings.", link: settings });
+  assert.equal(off("internet", { internet: "yes" }).name, "internet", "only true holds");
+  assert.equal(readiness(job(["browser", "generation", "account", "internet"]), {}, h.config).why.name, "internet", "the order of NEEDS");
+  assert.equal(readiness(job(["browser", "generation"]), {}, h.config).why.name, "generation");
   const sentences = {
     books: "The books are switched off.", quotations: "The books do not let the Bookkeeper draft quotations yet.",
     "cad-tools": "The Drafter's tools are not installed yet.", "artist-tools": "The Artist's tools are not installed yet.",
@@ -442,4 +452,175 @@ test("jobView: a starter pack the job reads that is not in the company's files y
   // A file that is not a starter pack never carries one, missing or not.
   const sales = jobView(cat.jobs.get("sales/proposal-from-a-call"), { needs: ALL_NEEDS, runs: new Map(), config: h.config });
   for (const r of sales.reads) if (!r.file.startsWith("packs/")) assert.equal(r.starter, null, r.file);
+});
+
+// ---- version 5 (PLAN-V5 K7, K9): craft, versions and time on the job; needs from the switches
+
+// A config whose engine folder is a copy of engine/company with this craft table (the rest as the stub home's).
+function withCraft(jobs, fn) {
+  const dir = mkdtempSync(join(tmpdir(), "uuu-engine-"));
+  try {
+    cpSync(join(h.config.engineDir, "company"), join(dir, "company"), { recursive: true, filter: (p) => !p.includes(`${join("company", "test")}`) });
+    writeFileSync(join(dir, "company", "brand", "craft.json"), JSON.stringify({ version: 1, jobs }));
+    return fn({ ...h.config, engineDir: dir });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const CAROUSEL = { kind: "carousel", review: "art", variants: 3, playbooks: ["sthyra-copywriting", "aasish-design", "creative-director"] };
+const PLAIN = { kind: "post", review: "none", variants: 1, playbooks: ["storycraft"] };
+const TABLE = { "marketing/carousel-from-a-document": CAROUSEL, "support/most-common-questions-this-month": PLAIN };
+
+test("jobView (v5): the three time vectors of K9", () => {
+  withCraft(TABLE, (config) => {
+    const cat = loadCatalogue(config);
+    const big = cat.jobs.get("marketing/carousel-from-a-document");
+    assert.equal(big.size, "L");
+    assert.equal(big.who.length, 2);
+    const v = jobView(big, { needs: ALL_NEEDS, runs: new Map(), config });
+    assert.deepEqual(sameShape(readShape("job"), v), []);
+    assert.deepEqual(v.craft, {
+      kind: "carousel", review: "art", versions: [1, 3], default: 3, playbooks: CAROUSEL.playbooks,
+      estimate: {
+        1: { low: 30, high: 55, words: "About 30 to 55 minutes" },
+        3: { low: 55, high: 100, words: "About 55 to 100 minutes" },
+      },
+      lastRuns: [],
+    });
+    const small = cat.jobs.get("support/most-common-questions-this-month");
+    assert.deepEqual([small.size, small.who.length], ["S", 1]);
+    const s = jobView(small, { needs: ALL_NEEDS, runs: new Map(), config });
+    assert.deepEqual(s.craft.estimate, { 1: { low: 5, high: 10, words: "About 5 to 10 minutes" }, 3: null }, "5 + 3 = 8 minutes; three not offered");
+    assert.deepEqual([s.craft.versions, s.craft.default, s.craft.review], [[1], 1, "none"]);
+    assert.deepEqual(sameShape(readShape("job"), s), []);
+    assert.equal(JSON.stringify(v.craft.estimate).includes('"1":'), true, "the keys are the numbers of versions");
+  });
+});
+
+test("jobView (v5): a job with no craft entry is exactly as before but for craft: null", () => {
+  const cat = loadCatalogue(h.config);
+  const plain = jobView(cat.jobs.get("sales/proposal-from-a-call"), { needs: ALL_NEEDS, runs: new Map(), config: h.config });
+  assert.equal(plain.craft, null);
+  assert.equal(Object.keys(plain).at(-1), "craft", "one key added, last");
+  withCraft(TABLE, (config) => {
+    const c2 = loadCatalogue(config);
+    for (const id of c2.jobs.keys()) {
+      const before0 = jobView(cat.jobs.get(id), { needs: ALL_NEEDS, runs: new Map(), config: h.config });
+      const after0 = jobView(c2.jobs.get(id), { needs: ALL_NEEDS, runs: new Map(), config });
+      const { craft: a, ...restA } = before0;
+      const { craft: b, ...restB } = after0;
+      assert.deepEqual(restB, restA, id);
+      if (!TABLE[id]) assert.equal(b, null, id);
+      assert.deepEqual(sameShape(readShape("job"), after0), [], id);
+    }
+  });
+});
+
+test("jobView (v5): a broken craft entry is left out and named; the job shows craft: null", () => {
+  withCraft({ "marketing/carousel-from-a-document": { ...CAROUSEL, variants: 2 }, "nowhere/at-all": PLAIN }, (config) => {
+    const v = jobView(loadCatalogue(config).jobs.get("marketing/carousel-from-a-document"), { needs: ALL_NEEDS, runs: new Map(), config });
+    assert.equal(v.craft, null);
+  });
+});
+
+test("jobView (v5): lastRuns are the last three accepted runs, newest first, in whole minutes from the board's times", () => {
+  withCraft(TABLE, (config) => {
+    const big = loadCatalogue(config).jobs.get("marketing/carousel-from-a-document");
+    const at = (m) => new Date(Date.UTC(2026, 10, 12, 8, 0) + m * 60000).toISOString();
+    const own = { total: 6, accepted: 4, working: 0, needsYou: 0, last: null };
+    Object.defineProperty(own, "tasks", { enumerable: false, value: [
+      { accepted: false, at: at(0), doneAt: at(5) },
+      { accepted: true, at: at(0), doneAt: at(42) },
+      { accepted: true, at: at(0), doneAt: null },
+      { accepted: true, at: at(0), doneAt: at(37.6) },
+      { accepted: true, at: at(10), doneAt: at(0) },
+      { accepted: true, at: at(0), doneAt: at(51) },
+      { accepted: true, at: at(0), doneAt: at(70) },
+    ] });
+    assert.deepEqual(jobView(big, { needs: ALL_NEEDS, runs: own, config }).craft.lastRuns, [42, 38, 51]);
+  });
+});
+
+test("runsIndex (v5): each run keeps the board's completedAt, not sent", async () => {
+  const ctx = makeCtx();
+  const tctx = await loadTaskContext(ctx);
+  const w = runsIndex(ctx, tctx).get("sales/call-write-up");
+  assert.ok("doneAt" in w.tasks[0]);
+  assert.ok(!JSON.stringify(w).includes("doneAt"));
+});
+
+// The three doors' health addresses, as a stand-in on 127.0.0.1 (no door is ever called for real).
+async function standInDoors({ part = (p) => p, hang = false } = {}) {
+  const server = http.createServer((req, res) => {
+    if (hang) return;
+    const m = /^\/(web|gen|view)\/health$/.exec(req.url);
+    if (!m) { res.writeHead(404); return res.end(); }
+    const name = { web: "web", gen: "generate", view: "viewer" }[m[1]];
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", part: part(name), on: true }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${server.address().port}`;
+  return { url, close: () => new Promise((resolve) => { server.closeAllConnections?.(); server.close(() => resolve()); }) };
+}
+
+// A ctx whose switches file and Runway key live in a temp folder, with the door addresses given.
+function doorCtx(urls, { on = true, key = false, mode = 0o600, text } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "uuu-doors-"));
+  const paths = { ...h.config.paths, doorsState: join(dir, "state.json"), runwayKey: join(dir, "runway-key") };
+  const body = text !== undefined ? text : JSON.stringify({ version: 1, web: { on }, generate: { on }, viewer: { on } });
+  if (body !== null) { writeFileSync(paths.doorsState, body, { mode }); chmodSync(paths.doorsState, mode); }
+  if (key) writeFileSync(paths.runwayKey, "key_made-up-for-a-test\n", { mode: 0o600 });
+  const ctx = { ...makeCtx(), config: { ...h.config, paths }, home: { urls: { ...h.config.urls, ...urls } } };
+  return { ctx, done: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+async function doorNeedsOf(urls, options) {
+  const { ctx, done } = doorCtx(urls, options);
+  try {
+    forgetNeeds();
+    const n = await needsState(ctx);
+    return { internet: n.internet, generation: n.generation, browser: n.browser };
+  } finally { done(); forgetNeeds(); }
+}
+
+test("needsState (v5): with the switches on and the doors answering, internet and browser hold; generation also needs the key", async () => {
+  const doors = await standInDoors();
+  try {
+    const urls = { web: doors.url, generate: doors.url, viewer: doors.url };
+    assert.deepEqual(await doorNeedsOf(urls, { key: true }), { internet: true, generation: true, browser: true });
+    assert.deepEqual(await doorNeedsOf(urls, { key: false }), { internet: true, generation: false, browser: true }, "no key saved");
+    assert.deepEqual(await doorNeedsOf(urls, { on: false, key: true }), DOORS_OFF, "switches off: nothing is called, nothing holds");
+  } finally { await doors.close(); }
+});
+
+test("needsState (v5): the three are false with no switches file, with a stub home's null addresses, and with an untrusted file", async () => {
+  const doors = await standInDoors();
+  try {
+    const urls = { web: doors.url, generate: doors.url, viewer: doors.url };
+    assert.deepEqual(await doorNeedsOf(urls, { key: true, text: null }), DOORS_OFF, "no switches file");
+    assert.deepEqual(await doorNeedsOf({ web: null, generate: null, viewer: null }, { key: true }), DOORS_OFF, "a stub home");
+    assert.deepEqual(await doorNeedsOf(urls, { key: true, mode: 0o666 }), DOORS_OFF, "a switches file others can write");
+    assert.deepEqual(await doorNeedsOf(urls, { key: true, text: "not json" }), DOORS_OFF);
+    assert.deepEqual(await doorNeedsOf(urls, { key: true, text: JSON.stringify({ web: { on: "yes" } }) }), DOORS_OFF, "a field of the wrong kind");
+  } finally { await doors.close(); }
+});
+
+test("needsState (v5): a switch on but its door not answering, answering late, or answering as another part is false", async () => {
+  const closed = await standInDoors();
+  const gone = closed.url;
+  await closed.close();
+  assert.deepEqual(await doorNeedsOf({ web: gone, generate: gone, viewer: gone }, { key: true }), DOORS_OFF, "nothing listens");
+  const hang = await standInDoors({ hang: true });
+  try {
+    const t0 = Date.now();
+    assert.deepEqual(await doorNeedsOf({ web: hang.url, generate: hang.url, viewer: hang.url }, { key: true }), DOORS_OFF, "never answers");
+    assert.ok(Date.now() - t0 < 2500, "each door is given one second, all at once");
+  } finally { await hang.close(); }
+  const wrong = await standInDoors({ part: () => "relay" });
+  try {
+    assert.deepEqual(await doorNeedsOf({ web: wrong.url, generate: wrong.url, viewer: wrong.url }, { key: true }), DOORS_OFF, "another part");
+  } finally { await wrong.close(); }
+  assert.deepEqual(await doorNeedsOf({ web: "http://example.com", generate: "http://10.0.0.1:1", viewer: "file:///etc" }, { key: true }), DOORS_OFF, "never a non-local address");
 });

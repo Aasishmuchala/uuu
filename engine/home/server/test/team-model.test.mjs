@@ -11,10 +11,10 @@ import { loadTaskContext } from "../lib/tasks.mjs";
 import { agentCards, DEPARTMENTS, loadRoles, profileOf } from "../lib/team.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 
-const SLUGS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist"];
+const SLUGS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist", "art-director"];
 const DEPT = {
   "chief-of-staff": null, builder: null, checker: null, bookkeeper: "books", sales: "customers",
-  support: "support", people: "people", marketer: "marketing", drafter: "studio", artist: "studio",
+  support: "support", people: "people", marketer: "marketing", drafter: "studio", artist: "studio", "art-director": null,
 };
 
 let h;
@@ -32,7 +32,7 @@ function makeCtx(log = () => {}) {
   };
 }
 
-test("loadRoles: ten roles in file order, with departments and filled instructions", () => {
+test("loadRoles: eleven roles in file order, with departments and filled instructions", () => {
   const roles = loadRoles(h.config);
   assert.deepEqual(roles.map((r) => r.slug), SLUGS);
   for (const r of roles) {
@@ -76,11 +76,13 @@ test("profileOf: each sentence of the table for the role it belongs to", () => {
     marketer: [],
     drafter: ["Makes CAD parts with its own tools."],
     artist: ["Draws sprites, animations and simple images with its own tools."],
+    "art-director": ["Reads the work it checks. It cannot change it.", "Looks at pictures, pages and copy and scores them against the brand kit and the references. It changes nothing itself."],
   };
   const labels = {
     "chief-of-staff": "Planning and handing out work", builder: "Documents and files", checker: "Reading and checking",
     bookkeeper: "The books (drafts only)", sales: "The customer records", support: "The support desk",
     people: "The staff records", marketer: "The content calendar", drafter: "CAD tools", artist: "Drawing tools",
+    "art-director": "Scoring against the brand kit",
   };
   for (const role of roles) {
     const p = profileOf(role, h.config);
@@ -102,7 +104,7 @@ test("profileOf: tools that are not installed say so", () => {
     const bare = { ...h.config, paths: { ...h.config.paths, state: empty, books: join(empty, "books"), cadPython: join(empty, "cad", "venv", "bin", "python") } };
     const by = Object.fromEntries(roles.map((r) => [r.slug, profileOf(r, bare).tool.installed]));
     for (const slug of ["bookkeeper", "sales", "support", "people", "drafter", "artist"]) assert.equal(by[slug], false, slug);
-    for (const slug of ["chief-of-staff", "builder", "checker", "marketer"]) assert.equal(by[slug], true, slug);
+    for (const slug of ["chief-of-staff", "builder", "checker", "marketer", "art-director"]) assert.equal(by[slug], true, slug);
   } finally {
     rmSync(empty, { recursive: true, force: true });
   }
@@ -139,7 +141,7 @@ test("agentCards: a role not on the board, and the board off", async () => {
   assert.deepEqual(sameShape(readShape("agent-card"), artist), []);
 
   const off = agentCards(ctx, null);
-  assert.equal(off.length, 10);
+  assert.equal(off.length, 11);
   for (const c of off) {
     assert.equal(c.state, "free");
     assert.equal(c.plainState, "Not known");
@@ -168,7 +170,7 @@ test("loadRoles: reloads when a file's modified time changes", () => {
     cpSync(join(h.config.engineDir, "company"), join(dir, "company"), { recursive: true, filter: (src) => !src.includes(`${join("company", "test")}`) });
     const config = { ...h.config, engineDir: dir };
     const first = loadRoles(config);
-    assert.equal(first.length, 10);
+    assert.equal(first.length, 11);
     const file = join(dir, "company", "company.json");
     const doc = JSON.parse(readFileSync(file, "utf8"));
     doc.agents[1].capabilities = "Changed for the test.";

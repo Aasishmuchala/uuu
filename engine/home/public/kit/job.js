@@ -198,7 +198,7 @@ export function WhyNot({ why }) {
   const href = why && typeof why === "object" ? linkHref(why.link) : null;
   const page = why && why.link ? why.link.page : "";
   // A form that must be filled in first opens that form, so the link says so (M51 F26).
-  const where = page === "health" ? "Open Health" : page === "files" && /^Fill in\b/.test(text) ? "Fill it in" : page === "files" ? "Open Files" : "Open";
+  const where = page === "health" ? "Open Health" : page === "settings" ? "Open Settings" : page === "files" && /^Fill in\b/.test(text) ? "Fill it in" : page === "files" ? "Open Files" : "Open";
   return html`<p class="k-job k-job--why">
     <${Icon} name="lock" size=${14} class="k-job__why-icon" />
     <span>${text.slice(0, 200)}</span>
@@ -300,7 +300,9 @@ const offline = (e) => Boolean(e && (e.offline || e.code === "not_set_up" || Num
 // as the server sent it with the job ({ ahead }), for the line under Start.
 // A job that cannot start yet (not ready, or it follows earlier work with nothing to pick) keeps its questions
 // switched off, with the one sentence that says why (M63 item 13).
-export function JobStart({ job, from, onStarted, queue = null }) {
+// `extra` is an object merged into the start request (the job page sends `versions` this way); `before` is a node
+// shown just above the Start button.
+export function JobStart({ job, from, onStarted, queue = null, extra = null, before = null }) {
   const [answers, setAnswers] = useState({});
   const [errors, setErrors] = useState({});
   const [phase, setPhase] = useState({ id: "ready" });
@@ -356,6 +358,7 @@ export function JobStart({ job, from, onStarted, queue = null }) {
       if (v) body.answers[a.id] = v;
     }
     if (from) body.from = String(from);
+    if (extra && typeof extra === "object") Object.assign(body, extra);
     setPhase({ id: "sending" });
     try {
       const res = await api.post(`/api/${href.slice(2)}/start`, body);
@@ -406,7 +409,7 @@ export function JobStart({ job, from, onStarted, queue = null }) {
           ${follows.waiting ? html`<a class="k-job__why-link" href=${follows.waiting.href}>Open the task that waits</a>` : null}
           ${follows.href ? html`<a class="k-job__why-link" href=${follows.href}>Open that job</a>` : null}
         </p>`
-      : html`<div class="k-job__actions">
+      : html`${before}<div class="k-job__actions">
           <${Button} type="submit" variant="primary" icon="play" busy=${sending} disabled=${!ready || !href}>Start<//>
           <p class="k-job__under">${sending ? "Sending…" : underStart(queue)}</p>
         </div>`}

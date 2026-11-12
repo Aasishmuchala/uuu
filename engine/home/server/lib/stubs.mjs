@@ -9,12 +9,25 @@ import { startStubBench } from "../../../test/stubs/bench.mjs";
 import { startStubBoard } from "../../../test/stubs/board.mjs";
 import { benchSeed, boardSeed } from "../../../test/stubs/seed.mjs";
 import { createHome, SERVER_DIR } from "./app.mjs";
+import { stubBrandCheckRunner } from "./brandcheck.mjs";
 
 const ENGINE_DIR = join(SERVER_DIR, "..", "..");
 
+// Records for state/home/decisions.json (a test's `template:` records), merged over any the seed holds.
+export function seedDecisions(state, records) {
+  if (!records || typeof records !== "object") return;
+  const file = join(state, "home", "decisions.json");
+  let data = {};
+  try { data = JSON.parse(readFileSync(file, "utf8")); } catch { data = {}; }
+  mkdirSync(join(state, "home"), { recursive: true, mode: 0o700 });
+  writeFileSync(file, JSON.stringify({ ...data, ...records }, null, 2) + "\n", { mode: 0o600 });
+}
+
 // options: port (default 3210; 0 = any), boardSeed, benchSeed, moduleDirs, publicDir, proveCommand, log,
 // urls (override board/gate/bench addresses; provider and relay are null unless given, so a stub home
-// never calls out or probes the live relay), benchInstalled (default true).
+// never calls out or probes the live relay), benchInstalled (default true), decisions (records written to
+// state/home/decisions.json before the home starts), brandCheckRunner (default: an answer at once, never a
+// process; PLAN-V5 K9).
 export async function startStubsHome(options = {}) {
   const root = mkdtempSync(join(tmpdir(), "uuu-home-stubs-"));
   const state = join(root, "state");
@@ -25,6 +38,7 @@ export async function startStubsHome(options = {}) {
   mkdirSync(join(state, "secrets"), { recursive: true, mode: 0o700 });
   chmodSync(join(state, "secrets"), 0o700);
   writeFileSync(join(state, "secrets", "bench-owner-api.txt"), "owner\nowner\n", { mode: 0o600 });
+  seedDecisions(state, options.decisions);
 
   const board = await startStubBoard({ seed: options.boardSeed || boardSeed() });
   const bench = await startStubBench({ seed: options.benchSeed || benchSeed() });
@@ -45,6 +59,7 @@ export async function startStubsHome(options = {}) {
     proveCommand: options.proveCommand || [process.execPath, "-e", "setTimeout(() => {}, 1500)"],
     log: options.log || (() => {}),
   });
+  app.home.brandCheckRunner = options.brandCheckRunner || stubBrandCheckRunner;
   try {
     await app.listen(options.port ?? 3210);
   } catch (e) {
