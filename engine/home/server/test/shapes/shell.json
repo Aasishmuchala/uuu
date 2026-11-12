@@ -29,6 +29,7 @@
     "gate": "on"
   },
   "generatedAt": "2026-11-11T09:00:00.000Z",
+  "queue": { "ahead": 2 },
   "dock": [
     {
       "id": "brain",

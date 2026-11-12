@@ -2,17 +2,20 @@
 // stage with their one-liners, who does it, then the start form. When it cannot start the reason stands in place of
 // the button. Under it, the earlier runs. With ?from=, the earlier task is named above the form, as a link to it by
 // its title. A job that follows earlier work, with no accepted earlier task to pick, says which job to run first in
-// place of the button (M51 F6).
+// place of the button (M51 F6). A starter pack the job reads that is not in the company's files yet gets one action,
+// "Add the starter pack", through the same route the Files page uses (M63 41).
 // The words of a job come from the company's own files; the server's refusals are shown as they come.
-import { html } from "../vendor/preact-htm.js";
-import { useResource } from "../lib/api.js";
+import { html, useState } from "../vendor/preact-htm.js";
+import { api, useResource } from "../lib/api.js";
 import { useRoute } from "../lib/router.js";
 import {
-  Empty, ErrorNotice, HANDOFFS, HandoffTag, JobStart, Loading, NotConnected, PageHeader, STAGES, Section, StageMark, TaskRow,
+  Button, Empty, ErrorNotice, HANDOFFS, HandoffTag, Icon, JobStart, Loading, NotConnected, PageHeader, STAGES, Section, StageMark,
+  TaskRow,
 } from "../kit/index.js";
 
 const SLUG = /^[a-z][a-z0-9-]{0,50}$/;
 const FROM = /^[A-Za-z0-9-]{1,64}$/;
+const STARTER = /^[a-z0-9][a-z0-9-]{0,60}$/;
 const text = (v) => (v === null || v === undefined ? "" : String(v));
 const list = (v) => (Array.isArray(v) ? v : []);
 
@@ -92,6 +95,40 @@ export function followsSentence(first) {
   return `This follows ${names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`}. Accept one first.`;
 }
 
+// The starter packs the job reads that are not in the company's files yet, and those added from this page since it
+// opened (`added`: { <starter id>: true }), so a pack stays on its line, as present, after the job is read again:
+// [{ id, title, present }].
+export function startersOf(job, added) {
+  const done = added && typeof added === "object" ? added : {};
+  const out = [];
+  for (const r of list(job && job.reads)) {
+    if (!r || typeof r !== "object") continue;
+    const m = /^packs\/([a-z0-9][a-z0-9-]{0,60})\.md$/.exec(text(r.file));
+    const offered = STARTER.test(text(r.starter)) && r.state === "missing" ? text(r.starter) : "";
+    const id = offered || (m && done[m[1]] === true ? m[1] : "");
+    if (!id || out.some((p) => p.id === id)) continue;
+    out.push({ id, title: text(r.title).slice(0, 120) || "The starter pack", present: done[id] === true });
+  }
+  return out;
+}
+
+// What the starters route answered for one pack: { ok: true } when it was added or is already there, else
+// { ok: false, text } with the server's own reason.
+export function starterAnswer(res, id) {
+  if (list(res && res.added).includes(id)) return { ok: true };
+  const skipped = list(res && res.skipped).find((s) => s && s.id === id);
+  const why = text(skipped && skipped.why).slice(0, 300);
+  if (/already/i.test(why)) return { ok: true };
+  return { ok: false, text: why || "The starter pack was not added. Try again." };
+}
+
+// The words for a request that failed: the server's own, or a plain line when it did not answer.
+export function starterProblem(error) {
+  if (error && (error.offline || Number(error.status) >= 502)) return "The home screen's server is not answering. Try again in a moment.";
+  const m = text(error && error.message).trim();
+  return m ? m.slice(0, 300) : "The starter pack could not be added. Try again.";
+}
+
 // The unknown-job state is a 404 from the server.
 export const isUnknown = (error) => Boolean(error && (Number(error.status) === 404 || error.code === "job_not_found" || error.code === "not_found"));
 
@@ -107,7 +144,41 @@ function FollowsFirst({ first }) {
   </div>`;
 }
 
-function Body({ job, recent, from, earlier, onStarted, queue }) {
+function StarterPacks({ job, onAdded }) {
+  const [added, setAdded] = useState({});
+  const [busy, setBusy] = useState("");
+  const [problems, setProblems] = useState({});
+  const packs = startersOf(job, added);
+  if (!packs.length) return null;
+  const add = async (id) => {
+    setBusy(id);
+    setProblems((p) => ({ ...p, [id]: "" }));
+    try {
+      const got = starterAnswer(await api.post("/api/brain/starters", { ids: [id] }), id);
+      if (got.ok) {
+        setAdded((a) => ({ ...a, [id]: true }));
+        onAdded();
+      } else setProblems((p) => ({ ...p, [id]: got.text }));
+    } catch (e) {
+      setProblems((p) => ({ ...p, [id]: starterProblem(e) }));
+    } finally {
+      setBusy("");
+    }
+  };
+  return html`<ul class="p-job__packs" aria-label="Starter packs">
+    ${packs.map((p) => html`<li key=${p.id} class=${p.present ? "p-job__pack p-job__pack--present" : "p-job__pack"}>
+      ${p.present
+        ? html`<p class="p-job__pack-text" role="status"><${Icon} name="check" size=${16} /><span><strong>${p.title}</strong> is in your files now. You can change it on the Files page.</span></p>`
+        : html`<p class="p-job__pack-text"><span><strong>${p.title}</strong> is not in your files yet. A starter pack is ready: it helps the work come out the right shape.</span></p>
+          <div class="p-job__pack-act">
+            <${Button} size="sm" icon="plus" busy=${busy === p.id} disabled=${Boolean(busy) && busy !== p.id} onClick=${() => add(p.id)}>${busy === p.id ? "Adding the starter pack" : "Add the starter pack"}<//>
+          </div>
+          ${problems[p.id] ? html`<p class="p-job__pack-problem" role="alert">${problems[p.id]}</p>` : null}`}
+    </li>`)}
+  </ul>`;
+}
+
+function Body({ job, recent, from, earlier, onStarted, onChanged, queue }) {
   const dept = text(job.department && job.department.id);
   const about = aboutLines(job);
   const note = fromNote(job, from, earlier);
@@ -129,6 +200,7 @@ function Body({ job, recent, from, earlier, onStarted, queue }) {
         : html`<div class=${state.canStart ? "p-job__start" : "p-job__start p-job__start--blocked"} data-dept=${dept || undefined}>
             <${JobStart} key=${text(job.id)} job=${job} from=${from} onStarted=${onStarted} queue=${queue} />
           </div>`}
+      <${StarterPacks} key=${text(job.id)} job=${job} onAdded=${onChanged} />
     </div>
     <${Section} title="Earlier runs" count=${runs.length || undefined}>
       ${runs.length
@@ -176,6 +248,6 @@ export default function Page() {
     <${PageHeader} title=${text(job.title)} over=${overlineOf(job)} lead=${text(job.summary)} chip=${chip}
       creature=${SLUG.test(deptId) ? deptId : undefined} />
     <${Body} job=${job} recent=${d.recent} from=${from} earlier=${earlier.data && earlier.data.task}
-      onStarted=${() => res.refresh()} queue=${d.queue && typeof d.queue === "object" ? d.queue : null} />
+      onStarted=${() => res.refresh()} onChanged=${() => res.refresh()} queue=${d.queue && typeof d.queue === "object" ? d.queue : null} />
   </div>`;
 }

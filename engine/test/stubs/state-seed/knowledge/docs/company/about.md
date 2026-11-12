@@ -9,6 +9,9 @@
 ## Where it works
 (not filled in yet)
 
+## The state it is in
+(not filled in yet)
+
 ## How to reach it
 (not filled in yet)
 

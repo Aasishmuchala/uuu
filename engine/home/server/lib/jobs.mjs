@@ -210,21 +210,32 @@ export const taskOptionLabel = (t) => [String(t.title || "").slice(0, 160) || "A
 
 // The title of a file a job reads: a basic's title, else a starter pack's own title for a file in Packs
 // ("The proposal pack", so it is not mistaken for what the job writes; M51 F7), else the file's name.
-let startersCache = { dir: null, titles: null };
-function packTitles(config) {
+let startersCache = { dir: null, packs: null };
+function starterPacks(config) {
   const dir = join(config.engineDir, "company", "brain", "starters");
-  if (startersCache.dir === dir && startersCache.titles) return startersCache.titles;
-  const titles = new Map();
+  if (startersCache.dir === dir && startersCache.packs) return startersCache.packs;
+  const packs = new Map();
   try {
-    for (const st of loadStarters(dir).starters) if (st.folder === "packs" && st.file && st.title) titles.set(st.file, String(st.title));
+    for (const st of loadStarters(dir).starters) {
+      if (st.folder === "packs" && st.file && st.title) packs.set(st.file, { id: String(st.id), title: String(st.title) });
+    }
   } catch { /* no starters: the file's name is used */ }
-  startersCache = { dir, titles };
-  return titles;
+  startersCache = { dir, packs };
+  return packs;
 }
-export function readTitle(config, rel) {
+const packOf = (config, rel) => {
   const m = /^packs\/([^/]+)$/.exec(String(rel || ""));
-  const pack = m ? packTitles(config).get(m[1]) : null;
-  return pack ? `The ${pack.toLowerCase()} pack` : brainTitle(rel);
+  return m ? starterPacks(config).get(m[1]) || null : null;
+};
+export function readTitle(config, rel) {
+  const pack = packOf(config, rel);
+  return pack ? `The ${pack.title.toLowerCase()} pack` : brainTitle(rel);
+}
+// The starter's id for a pack the job reads that is one of the repo's starter packs and is not in the company's
+// files yet (M63 41: the job's page offers to add it through POST /api/brain/starters); else null.
+export function starterToAdd(config, rel, state) {
+  const pack = state === "missing" ? packOf(config, rel) : null;
+  return pack ? pack.id : null;
 }
 
 function optionsOf(ask, job, runs, config) {
@@ -275,10 +286,13 @@ export function jobView(job, { needs, runs, config, roles } = {}) {
     cluster: { id: job.cluster, title: cluster?.title || job.cluster },
     title: job.title, summary: job.summary, handoff: job.handoff, stage: job.stage, size: job.size, planFirst: job.planFirst,
     who: whoOf(job.who, allRoles),
-    reads: job.reads.map((r) => ({
-      file: r.file, title: readTitle(config, r.file), need: r.need, state: brainFileState(config, r.file),
-      link: { page: "files", id: brainToken(r.file) },
-    })),
+    reads: job.reads.map((r) => {
+      const state = brainFileState(config, r.file);
+      return {
+        file: r.file, title: readTitle(config, r.file), need: r.need, state,
+        link: { page: "files", id: brainToken(r.file) }, starter: starterToAdd(config, r.file, state),
+      };
+    }),
     asks: job.asks.map((a) => ({ id: a.id, label: a.label, kind: a.kind, required: a.required, options: optionsOf(a, job, runs, config) })),
     takes: takesOf(job, runs, job.takes ? loadCatalogue(config).jobs : null),
     text: job.text,

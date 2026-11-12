@@ -121,6 +121,38 @@
   overflow-wrap: anywhere;
 }
 
+/* A long agent comment, folded (M63): one real button under its first lines. */
+.k-convo__fold {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: 32px;
+  padding: 0 var(--s-2);
+  margin-left: calc(-1 * var(--s-2));
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+
+.k-convo__fold:hover {
+  background: var(--glass-soft);
+  color: var(--text);
+}
+
+.k-convo__fold:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.k-convo__fold--open svg {
+  transform: rotate(180deg);
+}
+
 .k-convo__files {
   display: flex;
   flex-direction: column;

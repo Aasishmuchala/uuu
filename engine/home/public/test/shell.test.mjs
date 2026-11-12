@@ -3,7 +3,7 @@
 // dock's marks from shell.dock, the overlays from the query, and every shell/ and lib/ module loads in Node.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -545,4 +545,16 @@ test("the tab bar holds the four sections, the current one marked", async () => 
   const root = show(TabBar, { routeId: "dashboard" });
   const tabs = withClass(root, "s-tab");
   assert.deepEqual(tabs.map((t) => [attr(t, "href"), attr(t, "aria-current")]), [["#/map", null], ["#/tasks", null], ["#/dashboards", "page"], ["#/files", null]]);
+});
+
+// M63: once a task is given, the dialog says how long it takes, unless other work is ahead in the Chief of staff's
+// line (`queue` of GET /api/shell); then it names the line with the words the map and the jobs use.
+test("the compose dialog's words follow the Chief of staff's line", () => {
+  assert.equal(compose.givenLine(null), "Given to the Chief of staff. It takes a few minutes and is checked before it reaches you.");
+  assert.equal(compose.givenLine({ ahead: 0 }), "Given to the Chief of staff. It takes a few minutes and is checked before it reaches you.");
+  assert.equal(compose.givenLine({ ahead: 3 }), "Given to the Chief of staff. 3 tasks are ahead, so it waits its turn. It is checked before it reaches you.");
+  assert.equal(compose.givenLine({ ahead: 1 }), "Given to the Chief of staff. 1 task is ahead, so it waits its turn. It is checked before it reaches you.");
+  assert.equal(compose.givenLine({ ahead: -2 }), compose.givenLine(null));
+  const src = readFileSync(join(PUBLIC, "shell", "app-shell.js"), "utf8");
+  assert.match(src, /<\$\{ComposeDialog\}[^>]*queue=\$\{shell\.data\?\.queue/, "the shell passes its queue to the dialog");
 });

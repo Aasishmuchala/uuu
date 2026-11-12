@@ -134,6 +134,19 @@ test("dept: with the board off the page stops guessing", () => {
   assert.equal(page.captionUnder(null), "Takes a few minutes. It is checked before it reaches you.");
 });
 
+// M63: the line under the box and the words once a task is given follow the Chief of staff's line (`queue` of
+// GET /api/shell), with the words the map and the jobs use.
+test("dept: when other work is ahead no time is promised; nothing ahead keeps the present words", () => {
+  assert.equal(page.captionUnder(null, { ahead: 3 }), "3 tasks are ahead, so it waits its turn. It is checked before it reaches you.");
+  assert.equal(page.captionUnder(null, { ahead: 1 }), "1 task is ahead, so it waits its turn. It is checked before it reaches you.");
+  assert.equal(page.captionUnder(null, { ahead: 0 }), "Takes a few minutes. It is checked before it reaches you.");
+  assert.equal(page.captionUnder(null, { ahead: "3" }), "Takes a few minutes. It is checked before it reaches you.");
+  assert.equal(page.captionUnder({ reason: "r" }, { ahead: 3 }), "Tasks cannot be given while the board is off.");
+  assert.equal(page.startedLine({ ahead: 2 }), "Started. The Chief of staff has it. 2 tasks are ahead, so it waits its turn. It is checked before it reaches you.");
+  assert.equal(page.startedLine(null), "Started. The Chief of staff has it. It takes a few minutes and is checked before it reaches you.");
+  assert.doesNotMatch(page.startedLine({ ahead: 2 }), /minute/);
+});
+
 // ---- The whole page, rendered into a very small DOM with the server's answers faked (as in pages-u2). ----
 class FakeNode {
   constructor() { this.childNodes = []; this.parentNode = null; }
@@ -253,6 +266,11 @@ test("dept: with the board on there is no notice, and the page says what the ser
     assert.equal(textOf(withClass(root, "p-dept__state")[0]), "Working on: Call write-up: Asha Kitchens");
     const all = textOf(root);
     assert.doesNotMatch(all, /cannot show its tasks/);
-    assert.match(all, /Takes a few minutes\. It is checked before it reaches you\./);
+    // The shell's example has two tasks in the Chief of staff's line.
+    assert.match(all, /2 tasks are ahead, so it waits its turn\. It is checked before it reaches you\./);
+    assert.doesNotMatch(all, /Takes a few minutes/);
+  });
+  await showPage({ department: shape("department"), map: shape("map"), shell: { ...shape("shell"), queue: null } }, (root) => {
+    assert.match(textOf(root), /Takes a few minutes\. It is checked before it reaches you\./);
   });
 });

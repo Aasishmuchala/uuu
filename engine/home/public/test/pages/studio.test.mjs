@@ -70,10 +70,14 @@ test("studio: only the home server's own addresses reach a picture, a video or a
 
 test("studio: a video's size and length in words, from the pinned shape", () => {
   const v = shape("studio-videos").videos[0];
-  assert.equal(videoWords(v), "1920 by 1080, 8 seconds, 30 frames a second, 412 bytes");
-  assert.equal(videoWords({ ...v, video: { size: 1258291 } }), "1920 by 1080, 8 seconds, 30 frames a second, 1.2 MB");
+  assert.equal(videoWords(v), "1920 by 1080, 8 s, 30 frames a second, 412 bytes");
+  assert.equal(videoWords({ ...v, video: { size: 1258291 } }), "1920 by 1080, 8 s, 30 frames a second, 1.2 MB");
   assert.equal(videoWords({ seconds: 0.4 }), "under a second");
-  assert.equal(videoWords({ seconds: 75 }), "1 minute");
+  assert.equal(videoWords({ seconds: 75 }), "75 s");
+  // One decimal, as the manifest now has it (M63): 11.5 is not 12.
+  assert.equal(videoWords({ seconds: 11.5 }), "11.5 s");
+  assert.equal(videoWords({ seconds: 19.94 }), "19.9 s");
+  assert.equal(videoWords({ seconds: 12 }), "12 s");
   // Numbers that are not whole or outside the helper's limits are left out.
   assert.equal(videoWords({ width: 1920.5, height: 1080, seconds: 9999, fps: 240 }), "");
   assert.equal(videoWords({ width: "1920", height: 1080, fps: -1, seconds: "x" }), "");

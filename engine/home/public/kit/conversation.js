@@ -4,7 +4,9 @@
 // its picture, name and time. `marker` ({ label, tone }) is a centred quiet line before the message, such as
 // "Brief written" or "Round 1 · Repairing"; a message with only a marker is only that line.
 // Agents wrote these words: they are shown as text, never as HTML.
-import { html } from "../vendor/preact-htm.js";
+// `fold: true` on an agent's message (the task page sets it on agents' comments, M63 item 28) shows only the first
+// lines of a long text, with a "Show all" button that opens the rest and "Show less" that closes it again.
+import { html, useState } from "../vendor/preact-htm.js";
 import { bytes, fullWhen, when } from "../lib/format.js";
 import { Avatar } from "./avatar.js";
 import { Button } from "./button.js";
@@ -57,6 +59,52 @@ function Marker({ marker }) {
   </li>`;
 }
 
+// A text is long when it has more than FOLD_LINES lines or FOLD_CHARS characters. Folded, the first HEAD_LINES
+// lines show, at most HEAD_CHARS characters of them.
+export const FOLD_LINES = 12;
+export const FOLD_CHARS = 900;
+const HEAD_LINES = 6;
+const HEAD_CHARS = 480;
+
+// foldText(text) -> { long, head }: `head` is the folded view of a long text, else the text itself. Linear.
+export function foldText(value) {
+  const t = text(value);
+  let lines = 1;
+  let cut = -1;
+  for (let i = 0; i < t.length && lines <= FOLD_LINES; i += 1) {
+    if (t.charCodeAt(i) === 10) {
+      lines += 1;
+      if (lines === HEAD_LINES + 1 && cut < 0) cut = i;
+    }
+  }
+  const long = lines > FOLD_LINES || t.length > FOLD_CHARS;
+  if (!long) return { long: false, head: t };
+  let head = cut >= 0 ? t.slice(0, cut) : t;
+  if (head.length > HEAD_CHARS) {
+    head = head.slice(0, HEAD_CHARS);
+    const space = head.lastIndexOf(" ");
+    if (space > HEAD_CHARS * 0.6) head = head.slice(0, space);
+  }
+  head = head.trimEnd();
+  return { long: true, head: /[.!?…]$/.test(head) ? head : `${head}…` };
+}
+
+let foldSeq = 0;
+
+// An agent's long text with its first lines showing and one real button to open or close the rest.
+function FoldedText({ value }) {
+  const [open, setOpen] = useState(false);
+  const [id] = useState(() => `k-convo-fold-${(foldSeq += 1)}`);
+  const f = foldText(value);
+  return html`
+    <div class="k-convo__text" id=${id}>${open ? text(value) : f.head}</div>
+    <button type="button" class=${`k-convo__fold${open ? " k-convo__fold--open" : ""}`} aria-expanded=${open ? "true" : "false"}
+      aria-controls=${id} onClick=${() => setOpen(!open)}>
+      <${Icon} name="chevron-down" size=${14} />
+      <span>${open ? "Show less" : "Show all"}</span>
+    </button>`;
+}
+
 export function Conversation({ messages = [] }) {
   const list = Array.isArray(messages) ? messages : [];
   if (list.length === 0) return html`<p class="k-convo k-convo--empty">No messages yet.</p>`;
@@ -93,7 +141,7 @@ export function Conversation({ messages = [] }) {
         ${stamp}
       </div>
       <div class="k-convo__content">
-        <div class="k-convo__text">${text(m.text)}</div>
+        ${m.fold && foldText(m.text).long ? html`<${FoldedText} value=${m.text} />` : html`<div class="k-convo__text">${text(m.text)}</div>`}
         ${fileList}
       </div>
     </li>`);

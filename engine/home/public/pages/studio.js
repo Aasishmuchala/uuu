@@ -8,7 +8,7 @@
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { bytes, count, duration, when } from "../lib/format.js";
+import { bytes, count, when } from "../lib/format.js";
 import { currentMotion } from "../lib/theme.js";
 import { AgentHead, Jobs, OpenDepartment } from "./dashboard.js";
 import {
@@ -72,7 +72,8 @@ export function videoWords(video) {
   const parts = [];
   if (whole(v.width, 2, 1920) && whole(v.height, 2, 1920)) parts.push(`${v.width} by ${v.height}`);
   const s = Number(v.seconds);
-  if (Number.isFinite(s) && s > 0 && s <= 120) parts.push(s < 1 ? "under a second" : duration(Math.round(s) * 1000));
+  // The manifest's length has one decimal (M63): "11.5 s", a whole number as "12 s".
+  if (Number.isFinite(s) && s > 0 && s <= 120) parts.push(s < 1 ? "under a second" : `${String(Math.round(s * 10) / 10)} s`);
   if (whole(v.fps, 1, 30)) parts.push(`${v.fps} frames a second`);
   const size = Number(v.video?.size);
   if (Number.isFinite(size) && size > 0) parts.push(bytes(size));

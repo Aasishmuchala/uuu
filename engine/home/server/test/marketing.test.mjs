@@ -2,11 +2,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { IDS } from "../../../test/stubs/seed.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
 import { plainDay, plainRange, indiaToday } from "../content/plain-date.mjs";
 import { actAsSeen, call, writes } from "../lib/testing.mjs";
+
+const HERE_M63 = dirname(fileURLToPath(import.meta.url));
 
 async function withHome(fn) {
   const h = await startStubsHome({ port: 0 });
@@ -287,4 +290,40 @@ test("recipes: the seed's accepted carousel is a row; the unaccepted concepts ar
     const rows = section(await page(h), "recipes").rows;
     assert.deepEqual(rows.map((r) => [r.identifier, r.job, r.verdict, r.rounds]), [["STH-24", "A carousel from one concept", "Accepted", 1]]);
   });
+});
+
+// ---- M63 item 25: the real concepts.md of the Marketing trial (STH-76) had "(40 characters)" after each headline
+// and a closing "## Anything unclear" section, so the dashboard listed none.
+test("conceptHeadlines reads the trial's real concepts.md: counts stripped, the list ends at the first heading that is not numbered", async () => {
+  const { conceptHeadlines } = await import("../routes/marketing.mjs");
+  const real = readFileSync(join(HERE_M63, "fixtures-m63", "concepts-STH-76.md"), "utf8");
+  assert.deepEqual(conceptHeadlines(real), [
+    "Five small habits, one steadier workshop",
+    "What a bench looks like before and after five small habits",
+    "Walk the bench: five habits, in the order you would do them",
+    "One habit, start to finish: putting a tool back where it lives",
+    "Tidy is not the same as perfect: a myth worth correcting",
+  ]);
+  // Still five or none: a sixth numbered heading, or a number out of order, gives none.
+  assert.deepEqual(conceptHeadlines(real.replace("## Anything unclear", "## 6. One more")), []);
+  assert.deepEqual(conceptHeadlines(real.replace("## 4. ", "## 5. ")), []);
+  // Only a trailing count is taken off, and a headline over 80 characters once it is off is refused.
+  assert.equal(conceptHeadlines(real.replace("(40 characters)", "(40 characters) now"))[0], "Five small habits, one steadier workshop (40 characters) now");
+  assert.deepEqual(conceptHeadlines(real.replace("Five small habits, one steadier workshop", "x".repeat(81))), []);
+});
+
+test("conceptHeadlines is linear and capped on hostile text", async () => {
+  const { conceptHeadlines } = await import("../routes/marketing.mjs");
+  const hostile = [
+    `# Concepts: x\n## 1. ${" ".repeat(200000)}(`,
+    `# Concepts: x\n${"## 1. a (1 characters)".repeat(50000)}`,
+    `# Concepts: ${"#".repeat(300000)}`,
+    `# Concepts: x\n${"## 1. (".repeat(100000)}`,
+    `# Concepts: x\n## 1. a${" (9".repeat(100000)} characters)`,
+  ];
+  for (const text of hostile) {
+    const t0 = performance.now();
+    assert.deepEqual(conceptHeadlines(text), []);
+    assert.ok(performance.now() - t0 < 500, `${(performance.now() - t0).toFixed(0)} ms`);
+  }
 });

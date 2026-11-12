@@ -83,11 +83,11 @@ cd STH-12/video/<name> && "$UUU_ART_PYTHON" "$UUU_ART_VIDEO" <command> ...
 
 - `render <name>.py`: your script leaves `size` (width, height), `fps`, `frames` (yield Pillow images one at a time; never save frames to disk) and, if wanted, `title` and `audio` (a file in the goal's folder). For title cards and moving charts.
 - `reveal <name>.json`: slow pans over pictures with crossfades: `{ "size", "fps", "shots": [{ "image", "seconds", "move", "caption" }] }`, `move` one of `in`, `out`, `left`, `right`, `still`; `caption` is optional.
-- `words <clip>`: writes `words.json`, every spoken word with its start and end time. Needs the speech model.
+- `words <clip>`: writes `words.json`, every spoken word with its start and end time. Needs the speech model. Its line may say where speech starts, or that it could not find it: then look closely at the first caption.
 - `cut <name>.json`: `{ "source", "keep": [[from, to]], "captions": "words.json" or null }`: keeps the parts listed, and lays captions on when asked.
 - `stills <name>.mp4`: six frames, `review/frame-01.png` to `review/frame-06.png`.
 
-Every command except `words` and `stills` writes `<name>.mp4`, `poster.png`, `manifest.json` and the six stills, and prints one line. A line starting `video:` is a problem: fix it and run again.
+Every command except `words` and `stills` writes `<name>.mp4`, `poster.png`, `manifest.json` and the six stills, and prints one line. A line starting `video:` is a problem: fix it and run again. The tool breaks captions (at sentence ends, then commas, then by length), keeps each on screen at least one second, takes the poster from the middle of the longest shot and writes the length with one decimal: do not work around any of these.
 
 The helper holds these limits for every run that goes through it; work within them and never try to go round the helper: at most 1920 × 1080, with even sides; at most 30 frames a second; at most 120 seconds; a clip of at most 5 minutes and 1 GB; at most 300 MB for each video; at most 2 GB of media in one goal's folder; it stops after 10 minutes and will not start when the disk is nearly full. Plan within them. For a title card, wide is 1920 × 1080, square 1080 × 1080, tall 608 × 1080.
 
@@ -96,11 +96,12 @@ The helper holds these limits for every run that goes through it; work within th
 - The video tool cannot draw text. Every word on screen, titles and captions included, is a picture you draw with Pillow.
 - Take the colours and the typeface from the brand file. In a slide script, get the typeface with `font(name, size)`, using the typeface's name as the brand file writes it; the tool falls back to a plain font when it does not have it. In a video script, use `font(name, size)` when the helper gives it, else Pillow's own `ImageFont.load_default(size=...)`. With no brand file, keep to two plain colours and say so.
 - Pictures come only from the company's files (`$UUU_KNOWLEDGE_DIR`, mostly `references/`) or the room. In a script, build a picture's path from `os.environ["UUU_KNOWLEDGE_DIR"]`. For a reveal, copy the chosen pictures into `video/<name>/` and name them there.
+- A slide said to use a company picture uses a real picture from the company's files, filling a meaningful part of the slide (about a third or more), and names it in `sources`. A tiny picture or a stand-in shape does not count. When no picture in the files fits, never stand one in: say so in your report and set your step to blocked with the question for the owner; the Chief of staff asks it.
 - The room is where the owner drops footage and sound. A task names a clip as `the file <name> in the room`: write just `<name>` as the `source` of a cut list and as the argument of `words`; the helper finds it in the room by itself. Never work out or write the room's own path, and never write, move or delete anything there.
 
 ### Look, then fix
 
-After every render, look at what you made: `review/frame-01.png` to `review/frame-06.png` for a video, `contact.png` for slides. Say plainly what is wrong: words cut off, too small to read, a colour off the brand, a picture stretched. Fix the script and render again. Stop after three tries and report what is still wrong. When your tool cannot open pictures, say so plainly in your report; do not pretend you looked.
+After every render, look at what you made: `review/frame-01.png` to `review/frame-06.png` for a video, `contact.png` for slides. Say plainly what is wrong: words cut off, too small to read, a colour off the brand, a picture stretched. Fix the script and render again. Stop after three tries and report what is still wrong. When your tool cannot open pictures, say so plainly in your report; do not pretend you looked. Keep every still you make for looking in `review/`, never loose in the goal's folder. Never edit a manifest by hand: if it is wrong, fix the script and run the tool again.
 
 ## The staged way of working
 

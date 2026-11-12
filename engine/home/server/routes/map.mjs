@@ -115,7 +115,7 @@ export default function register(app) {
       brain: { files: brainFileCount(ctx.config), basics: { filled, total: 9 }, asking: brain.asking, unread: brain.unread, queue: brain.queue },
       departments: departments.map((d) => {
         const m = mapJobs(d, catalogue, needs, runs, ctx.config);
-        const load = departmentLoad(d, tctx);
+        const load = departmentLoad(d, tctx, { catalogue });
         return {
           id: d.id, title: d.title, line: d.line, dashboard: d.dashboard, agents: whoOf(d.agents, roles),
           counts: { jobs: m.jobs, ready: m.ready, working: load.working, needsYou: load.needsYou },
@@ -141,7 +141,7 @@ export default function register(app) {
     const roles = loadRoles(ctx.config, { log: ctx.log });
     const [{ tctx }, needs] = await Promise.all([taskModel(ctx), needsState(ctx)]);
     const runs = tctx ? runsIndex(ctx, tctx) : emptyRuns();
-    const load = departmentLoad(dept, tctx);
+    const load = departmentLoad(dept, tctx, { catalogue });
     const jobs = catalogue.byDepartment.get(dept.id) || [];
     const views = jobs.map((job) => jobView(job, { needs, runs, config: ctx.config, roles }));
 

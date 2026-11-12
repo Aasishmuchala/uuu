@@ -7,7 +7,8 @@
 // untrusted; links are never used; a manifest is read up to 256 KB and only its pinned keys are used; the
 // names it gives must be plain file names in the same folder; `checks` come from bytes read here (`ftyp`
 // at byte 4 of the video, its size, the poster's PNG header), and the manifest's numbers are shown only
-// when they are whole numbers inside the helper's limits (37.2). The room's files are never opened.
+// when they are whole numbers inside the helper's limits (37.2); the length may carry one decimal (11.5, M63 38).
+// The room's files are never opened.
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { roomFiles } from "../lib/brainfiles.mjs";
@@ -21,14 +22,20 @@ const MAX_VIDEO = 300 * 1024 * 1024;
 const CLIP_BYTES = 1024 * 1024 * 1024;
 const STILLS = ["frame-01.png", "frame-02.png", "frame-03.png", "frame-04.png", "frame-05.png", "frame-06.png"];
 
-// A number of the manifest, when it is a whole number inside the helper's limits; else null.
+// A number of the manifest, when it is a whole number inside the helper's limits; else null. The length is a
+// number of seconds with at most one decimal, from 0.1 to 120; anything else (11.55, "11.5", 1e9) is null.
 const even = (v, hi) => whole(v, 2, hi) && v % 2 === 0;
+export function lengthOf(v) {
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 0.1 || v > 120) return null;
+  const tenths = Math.round(v * 10);
+  return Math.abs(v * 10 - tenths) < 1e-6 ? tenths / 10 : null;
+}
 function numbers(m) {
   return {
     width: even(m.width, 1920) ? m.width : null,
     height: even(m.height, 1080) ? m.height : null,
     fps: whole(m.fps, 1, 30) ? m.fps : null,
-    seconds: whole(m.seconds, 1, 120) ? m.seconds : null,
+    seconds: lengthOf(m.seconds),
   };
 }
 

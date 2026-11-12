@@ -85,8 +85,10 @@ test("conceptsOf keeps five headlines per task and a link to the task", async ()
 });
 test("scoreList reads a list or the text form, and drops the rest", async () => {
   const { scoreList, scoreTone } = await import("../../pages/marketing.js");
-  assert.deepEqual(scoreList("concept-1 9, concept-2 8"), [{ slug: "concept-1", score: 9 }, { slug: "concept-2", score: 8 }]);
-  assert.deepEqual(scoreList([{ slug: "a", score: 7 }, { slug: "b", score: 11 }]), [{ slug: "a", score: 7 }]);
+  // A label an agent wrote is never shown: every piece is "piece <n>" (M63 item 26).
+  assert.deepEqual(scoreList("concept-1 9, concept-2 8"), [{ label: "piece 1", score: 9 }, { label: "piece 2", score: 8 }]);
+  assert.deepEqual(scoreList([{ slug: "a", score: 7 }, { slug: "b", score: 11 }]), [{ label: "piece 1", score: 7 }]);
+  assert.deepEqual(scoreList([{ label: "piece 1", score: 9 }, { label: "saturday-short", score: 8 }]), [{ label: "piece 1", score: 9 }, { label: "piece 2", score: 8 }]);
   assert.deepEqual(scoreList("a b, 9"), []);
   assert.equal(scoreList(Array.from({ length: 30 }, (_, i) => ({ slug: `s${i}`, score: 8 }))).length, 20);
   assert.equal(scoreTone(8), "ok");
@@ -209,8 +211,15 @@ test("Recipes: empty sentence and score chips", async () => {
   let root = await show(Recipes, { section: { rows: [] } });
   assert.match(textOf(root), /Nothing made and answered yet/);
   root = await show(Recipes, { section: { rows: [{ date: "2026-11-01", job: "Post", rounds: 2, scores: "concept-1 9, concept-2 6", verdict: "Accepted" }] } });
-  assert.match(textOf(root), /concept-1 9/);
+  // The Checker's labels are its own words: every piece is shown as "piece <n>" (M63 item 26).
+  assert.match(textOf(root), /piece 1: 9/);
+  assert.match(textOf(root), /piece 2: 6/);
+  assert.doesNotMatch(textOf(root), /concept-1/);
   assert.match(textOf(root), /Accepted/);
+  root = await show(Recipes, { section: { rows: [{ date: "12 Nov 2026", job: "Post", rounds: 1, scores: [{ label: "piece 1", score: 9 }, { slug: "saturday-short", score: 8 }], verdict: "Sent back" }] } });
+  assert.match(textOf(root), /piece 1: 9/);
+  assert.match(textOf(root), /piece 2: 8/);
+  assert.doesNotMatch(textOf(root), /saturday-short/);
 });
 
 test("SlidesLarge: shows only pictures from /api/view/", async () => {

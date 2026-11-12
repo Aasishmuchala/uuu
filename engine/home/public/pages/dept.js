@@ -7,6 +7,7 @@
 import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
+import { aheadLine } from "../lib/format.js";
 import { HealthNext } from "./team.js";
 import {
   AgentCard, AgentChip, AgentState, Card, Chip, Composer, Creature, Empty, ErrorNotice, Field, Icon, JobChip,
@@ -109,8 +110,19 @@ export function noTasksLine(name, off = null) {
   return off ? "Tasks cannot be shown right now." : `No tasks yet. What you give ${text(name) || "it"} below shows here.`;
 }
 
-// The line under the composer: how long a task takes, or that none can be given while the board is off.
-export const captionUnder = (off = null) => (off ? "Tasks cannot be given while the board is off." : UNDER_START);
+// The line under the composer: how long a task takes, or that none can be given while the board is off. When other
+// work is ahead in the Chief of staff's line (`queue` of GET /api/shell, M63) no time is promised.
+export function captionUnder(off = null, queue = null) {
+  if (off) return "Tasks cannot be given while the board is off.";
+  const ahead = aheadLine(queue);
+  return ahead ? `${ahead} It is checked before it reaches you.` : UNDER_START;
+}
+
+// The words once a task is given, by the same rule.
+export function startedLine(queue = null) {
+  const ahead = aheadLine(queue);
+  return ahead ? `Started. The Chief of staff has it. ${ahead} It is checked before it reaches you.` : STARTED;
+}
 
 // Waiting opens the Needs you drawer for this department; working opens the task; idle is only words.
 function StateChip({ state, department, off }) {
@@ -207,7 +219,8 @@ function Tasks({ data, off }) {
 }
 
 function Give({ data, off, onSent }) {
-  const { refreshShell, announce } = useApp();
+  const { refreshShell, announce, shell } = useApp();
+  const queue = shell && shell.queue ? shell.queue : null;
   const name = text(data.department && data.department.title);
   const agents = arr(data.agents).filter((a) => a && a.slug);
   const [picked, setPicked] = useState(null);
@@ -218,8 +231,10 @@ function Give({ data, off, onSent }) {
   async function send(input) {
     setStarted(null);
     const out = await api.post("/api/goals", goalBody(input, agents, picked));
-    setStarted(out && out.goal ? out.goal : {});
-    announce(STARTED);
+    // The line as it stood when the task was given: it joined the end of it.
+    const line = startedLine(queue);
+    setStarted({ ...(out && out.goal ? out.goal : {}), line });
+    announce(line);
     refreshShell();
     onSent();
   }
@@ -230,7 +245,7 @@ function Give({ data, off, onSent }) {
 
   return html`<div class="p-dept__give">
     ${started && html`<p class="p-dept__started" role="status"><${Icon} name="check" size=${16} />
-      <span>${STARTED}${started.id
+      <span>${started.line || STARTED}${started.id
         ? html` <a href=${`#/tasks/${encodeURIComponent(started.id)}`}>Open the task${started.identifier ? ` ${cap(started.identifier, 20)}` : ""}</a>`
         : null}</span></p>`}
     ${agents.length > 1 && html`<div class="p-dept__for">
@@ -248,7 +263,7 @@ function Give({ data, off, onSent }) {
         onPickJob=${pickJob}
         onSend=${send} />
     </fieldset>
-    <p class="p-dept__caption">${captionUnder(off)}</p>
+    <p class="p-dept__caption">${captionUnder(off, queue)}</p>
   </div>`;
 }
 

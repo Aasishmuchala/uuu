@@ -288,7 +288,7 @@ export function AppShell() {
       <${MenuSheet} open=${overlay === "menu"} onClose=${closeOverlay} shell=${shell.data} dock=${dock}
         settings=${settings} onSaveSettings=${saveSettings} onCompose=${() => openComposer({})} onCommand=${openCommand} />
       <${CommandMenu} open=${overlay === "command"} onClose=${closeOverlay} team=${team} onCompose=${openComposer} />
-      <${ComposeDialog} open=${overlay === "compose"} seed=${seed} team=${team} onClose=${closeOverlay}
+      <${ComposeDialog} open=${overlay === "compose"} seed=${seed} team=${team} queue=${shell.data?.queue || null} onClose=${closeOverlay}
         onSent=${(text) => { announce(text); shell.refresh(); }} />
       <p class="u-visually-hidden" aria-live="polite" role="status">${live}</p>
     <//>`;

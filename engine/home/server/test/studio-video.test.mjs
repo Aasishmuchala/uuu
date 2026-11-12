@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { cpSync, mkdirSync, readFileSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readShape, sameShape } from "../lib/shape.mjs";
+import { lengthOf } from "../routes/studio-video.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 import { call, writes } from "../lib/testing.mjs";
 import { boardSeedV2, copyStateSeedV2, IDS_V3 } from "../../../test/stubs/seed.mjs";
@@ -174,6 +175,27 @@ test("videos: numbers outside the helper's limits are not shown; the list still 
       assert.deepEqual([v.width, v.height, v.fps, v.seconds], [null, null, null, null], id);
       assert.equal(v.checks.posterMatches, false, id);
     }
+  });
+});
+
+test("videos: the length has at most one decimal (M63 38); a manifest edited by hand in the trial reads right", async () => {
+  assert.deepEqual([11.5, 12, 0.1, 120, 19.9, 2.0].map(lengthOf), [11.5, 12, 0.1, 120, 19.9, 2]);
+  for (const bad of [11.55, 0.05, 0, -1, 120.1, 121, 1e9, NaN, Infinity, "11.5", null, undefined, [11.5], { s: 1 }, true]) {
+    assert.equal(lengthOf(bad), null, String(bad));
+  }
+  await withHome(async (h) => {
+    // The slow reveal's manifest as the Artist left it in the trial: `seconds` edited by hand to 11.5.
+    copyTitle(h, "reveal", (m) => ({ ...m, seconds: 11.5 }));
+    // The captions' manifest with the extra keys the Artist added by hand: they are ignored.
+    copyTitle(h, "captions", (m) => ({ ...m, seconds: 19.9, seconds_exact: 19.9, seconds_note: "added by hand" }));
+    copyTitle(h, "two-decimals", (m) => ({ ...m, seconds: 11.55 }));
+    copyTitle(h, "text", (m) => ({ ...m, seconds: "11.5" }));
+    const a = await videos(h);
+    assert.equal(videoOf(a, "STH-25/reveal").seconds, 11.5);
+    assert.equal(videoOf(a, "STH-25/captions").seconds, 19.9);
+    assert.equal(videoOf(a, "STH-25/two-decimals").seconds, null);
+    assert.equal(videoOf(a, "STH-25/text").seconds, null);
+    assert.ok(!("seconds_exact" in videoOf(a, "STH-25/captions")), "only the pinned keys are used");
   });
 });
 

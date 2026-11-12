@@ -32,6 +32,7 @@ costs, how long it takes and on what terms. It is written for one customer after
 - No price, date or promise that is not in the company's files or on the call.
 - No long lists of features the customer did not ask for.
 - No pressure and no made-up deadlines.
+- Do not call the formal quotation separate work for the owner. If it is mentioned, say the Bookkeeper can draft it from this proposal and the owner approves it.
 - No sending. This is a draft for the owner to read and send themselves.
 
 ## Before you hand it over

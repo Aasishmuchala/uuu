@@ -73,7 +73,9 @@ function addIssue(home, from, changes) {
   mkdirSync(work(home, issue.identifier), { recursive: true });
   return issue;
 }
-const agentComment = (home, issue, slug, body, createdAt = "2026-11-12T09:59:00.000Z") => home.board.state.comments.push({
+// A time just before now: the owner's verdict, written now, comes after it (rounds are counted up to a verdict).
+const ago = (minutes) => new Date(Date.now() - minutes * 60000).toISOString();
+const agentComment = (home, issue, slug, body, createdAt = ago(1)) => home.board.state.comments.push({
   id: `c-m53-${home.board.state.comments.length}`, issueId: issue, body, authorAgentId: A(slug), authorUserId: null, createdAt,
 });
 
@@ -741,7 +743,7 @@ test("recipe log: comments by the Marketer, the Chief of staff or a step never r
   });
 });
 
-test("recipe log: a Sent back note is the owner's own comment; an agent's comment after the result is never the note", async () => {
+test("recipe log (M63 item 23): a Sent back note is the owner's own words, recorded when the owner acts; no comment on the board is ever the note", async () => {
   await withHome(async (home) => {
     const r = await post(home, "/api/jobs/marketing/five-concepts/start", { answers: { subject: "Diwali offer", kind: "post" } });
     assert.equal(r.status, 201, r.text);
@@ -752,7 +754,13 @@ test("recipe log: a Sent back note is the owner's own comment; an agent's commen
     await refreshLog(home);
     assert.ok(!logText(home).includes(MARK), logText(home));
     assert.ok(!logText(home).includes("Diwali offer"), "no verdict yet, so no block yet");
-    home.board.state.comments.push({ id: "c-m53-owner", issueId: id, body: "Make every headline shorter.", authorAgentId: null, authorUserId: "local-board", createdAt: ago(60000) });
+    // A comment with no agent as its author is not a verdict: only the owner's action through the home screen is.
+    home.board.state.comments.push({ id: "c-m53-owner", issueId: id, body: `${MARK} as the owner`, authorAgentId: null, authorUserId: "local-board", createdAt: ago(60000) });
+    await refreshLog(home);
+    assert.ok(!logText(home).includes("Diwali offer"), logText(home));
+    home.board.state.issues.find((i) => i.id === id).status = "done";
+    const back = await actAsSeen(home.url, { id: `goal:${id}`, action: "reopen", note: "Make every headline shorter." });
+    assert.equal(back.status, 200, back.text);
     await refreshLog(home);
     const text = logText(home);
     assert.match(text, /- Verdict: Sent back\. The owner's note: Make every headline shorter\./);
@@ -770,7 +778,7 @@ test("recipe log (M53 F5): the Checker's score slugs never reach the log; each p
       "3. Is it right? YES - yes", "4. Is it short? YES - yes", "5. Is nothing sent? YES - yes", "6. Could the owner use it? YES - yes",
       "## Actions", "None.", "Verdict: PASS",
     ].join("\n");
-    agentComment(home, STH(23), "checker", check, "2026-11-12T09:58:00.000Z");
+    agentComment(home, STH(23), "checker", check, ago(2));
     assert.equal((await actAsSeen(home.url, { id: `goal:${STH(23)}`, action: "acknowledge" })).status, 200);
     await refreshLog(home);
     const text = logText(home);

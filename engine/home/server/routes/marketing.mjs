@@ -63,20 +63,31 @@ const CONCEPTS_FILE = "concepts.md";
 const MAX_CONCEPT_TASKS = 20;
 const MAX_HEADLINE = 80;
 
-// The five headlines of a concepts.md: "# Concepts: <subject>" first, then exactly the headings "## 1. " to
-// "## 5. ", in order, each headline at most 80 characters. Anything else gives [] (five or none). The
-// headlines are an agent's text: shown as plain text only, with control and format characters taken out.
+const MAX_CONCEPTS_TEXT = 65536;
+const MAX_HEADING_LINE = 400;
+// "(40 characters)" after a headline: a count an agent added, not part of the headline.
+const COUNT_NOTE = / ?\((?:\d{1,5}) characters?\)$/;
+
+// The five headlines of a concepts.md: "# Concepts: <subject>" first, then the headings "## 1. " to "## 5. ", in
+// order, each headline at most 80 characters once a trailing "(n characters)" is taken off. The list ends at the
+// first heading that is not numbered (such as "## Anything unclear"). Anything else gives [] (five or none). The
+// headlines are an agent's text: the text is capped first, white space is collapsed before any pattern runs, every
+// pattern is anchored and bounded (linear in the input, as lib/format.mjs capText), and the headlines are shown as
+// plain text only, with control and format characters taken out.
 export function conceptHeadlines(text) {
-  const lines = String(text ?? "").replace(/\r/g, "").split("\n");
+  const s = String(text ?? "");
+  const lines = (s.length > MAX_CONCEPTS_TEXT ? s.slice(0, MAX_CONCEPTS_TEXT) : s).split("\n");
   let i = 0;
   while (i < lines.length && !lines[i].trim()) i += 1;
-  if (i >= lines.length || !/^# Concepts: \S/.test(lines[i])) return [];
+  if (i >= lines.length || !/^# Concepts: \S/.test(lines[i].slice(0, MAX_HEADING_LINE))) return [];
   const out = [];
-  for (const line of lines.slice(i + 1)) {
-    if (!line.startsWith("#")) continue;
+  for (const raw of lines.slice(i + 1)) {
+    if (!raw.startsWith("#")) continue;
+    const line = raw.slice(0, MAX_HEADING_LINE).replace(/[\p{C}]/gu, " ").replace(/\s+/g, " ").trim();
     const m = /^## ([1-9])\. (.+)$/.exec(line);
-    if (!m || Number(m[1]) !== out.length + 1) return [];
-    const headline = m[2].replace(/[\p{C}]/gu, " ").replace(/\s+/g, " ").trim();
+    if (!m) break;
+    if (Number(m[1]) !== out.length + 1) return [];
+    const headline = m[2].replace(COUNT_NOTE, "").trim();
     if (!headline || headline.length > MAX_HEADLINE) return [];
     out.push(headline);
   }
@@ -123,7 +134,8 @@ async function recipeRows(ctx) {
   try {
     return (await recipeEntries(ctx)).map((e) => ({
       taskId: e.taskId, identifier: e.identifier, date: e.date, job: e.job, rounds: e.rounds,
-      scores: e.scores, verdict: e.verdict, note: e.note,
+      // Numbers only, as in the log: the Checker's labels are words an agent wrote (M63 item 26).
+      scores: e.scores.map((x, n) => ({ label: `piece ${n + 1}`, score: Number(x.score) })), verdict: e.verdict, note: e.note,
     }));
   } catch {
     return [];

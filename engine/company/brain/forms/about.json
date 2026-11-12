@@ -27,6 +27,13 @@
       "hint": "Such as: Hyderabad and the towns around it."
     },
     {
+      "id": "state",
+      "label": "Which state is the company in?",
+      "kind": "line",
+      "required": false,
+      "hint": "Such as: Telangana. Used to tell in-state from out-of-state tax."
+    },
+    {
       "id": "reach",
       "label": "How can people reach you?",
       "kind": "text",

@@ -11,7 +11,8 @@
 import { closeFixTasks, fixLine, recordFixTask } from "../lib/draftfix.mjs";
 import { HomeError } from "../lib/errors.mjs";
 import {
-  AGENT_BY_EMAIL, AGENTS, DRAFT_TYPES, decidedKey, inboxIdOf, isDraftReply, listDocs, listDrafts, plainType, sentBackKey, stampToIso,
+  AGENT_BY_EMAIL, AGENTS, DRAFT_TYPES, decidedKey, draftLines, inboxIdOf, isDraftReply, lineDetails, LINE_TYPES, listDocs, listDrafts,
+  plainType, sentBackKey, stampToIso,
 } from "../routes/_departments.mjs";
 
 const act = (id, label, style, needsNote = false) => ({ id, label, style, needsNote });
@@ -72,7 +73,8 @@ function toItem(d) {
     version: String(d.modified ?? ""),
     summary: describe(d), severity: "normal",
     details: [...t.details(d.doc).filter(([, v]) => v !== undefined && v !== null && v !== "").map(([label, value]) => ({ label, value: String(value) })),
-      ...(d.doctype === "Leave Application" && d.leaveType ? [{ label: "Leave", value: leaveText(d.leaveType, d.doc.from_date, d.doc.to_date) }] : [])],
+      ...(d.doctype === "Leave Application" && d.leaveType ? [{ label: "Leave", value: leaveText(d.leaveType, d.doc.from_date, d.doc.to_date) }] : []),
+      ...(d.lines ? lineDetails(d.lines) : [])],
     actions: [
       act("approve", d.doctype === "HD Ticket Comment" ? "Approve the reply" : "Approve", "primary"),
       act("send_back", "Send back", "plain", true),
@@ -100,6 +102,11 @@ async function list(ctx) {
     } catch (e) {
       if (!(e instanceof HomeError)) throw e;
     }
+  }
+  // A quotation, invoice or bill shows its lines, not only its total (M63 item 50): one read of each, a few at a time.
+  const priced = drafts.filter((d) => LINE_TYPES.has(d.doctype)).slice(0, 40);
+  for (let i = 0; i < priced.length; i += 6) {
+    await Promise.all(priced.slice(i, i + 6).map(async (d) => { d.lines = await draftLines(ctx, d.doctype, d.name); }));
   }
   return { items: drafts.map(toItem) };
 }

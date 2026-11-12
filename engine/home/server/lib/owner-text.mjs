@@ -45,3 +45,35 @@ export function askedQuestion(record, goal, max = 2000) {
   const now = textOf(goal?.description || goal?.title || "").text || String(goal?.title || "");
   return { text: `${NOT_SAVED}${now}`.slice(0, max), saved: false };
 }
+
+// ---- the owner's answers to an agent's question on the board (M63 item 40)
+
+// The board keeps an answer to a question card as a record of its own, not as a comment, so the task's conversation
+// never showed it. The home server keeps the owner's words as sent, `owneranswers:<issue id>`: a list of { at, text },
+// written when the owner answers (inbox/board.mjs), shown as the owner's own message in its place in time
+// (routes/task.mjs). Nothing an agent wrote is in it: a choice the owner picked is not copied, since its label is
+// the agent's word.
+export const OWNER_ANSWER_MAX = 2000;
+const OWNER_ANSWERS = 20;
+export const PICKED = "You answered with one of the choices offered.";
+const answersKey = (issueId) => `owneranswers:${issueId}`;
+
+export function ownerAnswersOf(decisions, issueId) {
+  const v = decisions && typeof decisions.get === "function" && issueId ? decisions.get(answersKey(issueId)) : null;
+  return Array.isArray(v)
+    ? v.filter((e) => e && typeof e.at === "string" && Number.isFinite(Date.parse(e.at)) && typeof e.text === "string" && e.text)
+      .slice(-OWNER_ANSWERS).map((e) => ({ at: e.at, text: e.text.slice(0, OWNER_ANSWER_MAX) }))
+    : [];
+}
+
+// recordOwnerAnswer(decisions, issueId, texts) -> the entry kept, or null. `texts`: the owner's typed answers (may be
+// empty when the owner only picked choices). Never throws: the answer itself has been passed on.
+export function recordOwnerAnswer(decisions, issueId, texts, { now = new Date() } = {}) {
+  if (!decisions || typeof decisions.set !== "function" || typeof issueId !== "string" || !issueId) return null;
+  const said = [...new Set((Array.isArray(texts) ? texts : []).map((t) => ownerText(typeof t === "string" ? t.slice(0, 20000) : "")).filter(Boolean))];
+  let text = said.join("\n\n") || PICKED;
+  if (text.length > OWNER_ANSWER_MAX) text = `${text.slice(0, OWNER_ANSWER_MAX - 1).trimEnd()}…`;
+  const entry = { at: now.toISOString(), text };
+  try { decisions.set(answersKey(issueId), [...ownerAnswersOf(decisions, issueId), entry].slice(-OWNER_ANSWERS)); } catch { /* passed on already */ }
+  return entry;
+}

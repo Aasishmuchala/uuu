@@ -2,9 +2,11 @@
 // 33.3), and the `jobs` search source (33.4), on the version 3 seed with only these modules.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import http from "node:http";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { IDS } from "../../../test/stubs/seed.mjs";
+import { createDecisions } from "../lib/decisions.mjs";
 import { forgetNeeds } from "../lib/jobs.mjs";
 import { readShape, sameShape } from "../lib/shape.mjs";
 import { textOf } from "../lib/staged.mjs";
@@ -120,6 +122,7 @@ test("start: one POST issues, whose description is the pinned example of 31.3 fo
       + "Produce: proposal.md in the goal's sub-folder.\n"
       + "JOB: sales/proposal-from-a-call",
     assigneeAgentId: IDS.agents["chief-of-staff"], projectId: IDS.project, status: "todo", priority: "medium",
+    allowDuplicate: true,
   });
   assert.equal(r.json.message, STARTED);
   for (const k of ["id", "identifier", "title", "state", "plainState", "createdAt", "updatedAt", "stepsDone", "stepsTotal"]) assert.ok(k in r.json.goal, k);
@@ -361,4 +364,125 @@ test("search source jobs: title and summary, labelled Jobs, linking to the job",
   assert.ok(summaryOnly.json.groups.find((g) => g.source === "jobs").results.some((x) => x.link.id === "sales/proposal-from-a-call"));
   const none = await get(h, "/api/search?q=zzqx");
   assert.equal(none.json.groups.find((g) => g.source === "jobs"), undefined);
+});
+
+// ---- M63 item 22: two starts of one job merged into one task, and the second start's answers overwrote the first's.
+// Cause: the board treats a new top-level task whose title matches an open one of the last 48 hours as that task
+// and hands the old one back with `deduplicated: true`, unless the request says `allowDuplicate: true`
+// (paperclip's createIssueSchema defaults it to false; services/issues.js "recent_open_title"). The stub board does
+// not do that, so a small proxy in front of it does, as the board does.
+const CONCEPTS = "/api/jobs/marketing/five-concepts";
+const norm = (t) => String(t || "").trim().replace(/\s+/g, " ").toLowerCase();
+
+// A proxy to the stub board. mode "board": dedup by title as the board does; "replay": hand back the open task with
+// the same title whatever the request says (as a replayed request would be). Everything else is passed on.
+async function dedupBoard(mode) {
+  const state = { target: null, stub: null };
+  const server = http.createServer(async (req, res) => {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    const raw = Buffer.concat(chunks).toString("utf8");
+    if (req.method === "POST" && /^\/api\/companies\/[^/]+\/issues$/.test(req.url)) {
+      const body = JSON.parse(raw);
+      const dedup = mode === "replay" || body.allowDuplicate !== true;
+      const old = dedup && state.stub.state.issues.find((i) => !i.parentId && !["done", "cancelled"].includes(i.status) && norm(i.title) === norm(body.title));
+      if (old) {
+        const text = JSON.stringify({ ...old, deduplicated: true, deduplicationReason: "recent_open_title" });
+        res.writeHead(200, { "content-type": "application/json" });
+        return res.end(text);
+      }
+    }
+    const out = await fetch(`${state.target}${req.url}`, { method: req.method, headers: { "content-type": "application/json", ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}) }, body: raw || undefined });
+    res.writeHead(out.status, { "content-type": "application/json" });
+    res.end(await out.text());
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  state.url = `http://127.0.0.1:${server.address().port}`;
+  state.close = () => new Promise((resolve) => { server.closeAllConnections?.(); server.close(() => resolve()); });
+  return state;
+}
+
+async function withDedupBoard(mode, fn) {
+  const proxy = await dedupBoard(mode);
+  try {
+    const home = await startV2({ ...OPTIONS, urls: { board: proxy.url } });
+    proxy.target = home.board.url;
+    proxy.stub = home.board;
+    try { return await fn(home); } finally { await home.close(); }
+  } finally { await proxy.close(); }
+}
+
+test("start (M63 item 22): two starts of one job with different answers are two tasks, each with its own records", async () => {
+  await withDedupBoard("board", async (home) => {
+    const a = await start(home, CONCEPTS, { answers: { subject: "Why we label every shelf", kind: "post" } });
+    const b = await start(home, CONCEPTS, { answers: { subject: "Five small habits for a tidy workshop", kind: "carousel" } });
+    assert.equal(a.r.status, 201, a.r.text);
+    assert.equal(b.r.status, 201, b.r.text);
+    assert.equal(b.sent[0].body.allowDuplicate, true);
+    assert.equal(a.r.json.goal.title, b.r.json.goal.title, "the same title, as in the trial");
+    assert.notEqual(a.r.json.goal.id, b.r.json.goal.id, "a second start is a new task");
+    const d = decisions(home);
+    assert.equal(d[`template:${a.r.json.goal.id}`], "marketing/five-concepts");
+    assert.equal(d[`template:${b.r.json.goal.id}`], "marketing/five-concepts");
+    assert.deepEqual(d[`asked:${a.r.json.goal.id}`], { answers: { subject: "Why we label every shelf", kind: "post" } });
+    assert.deepEqual(d[`asked:${b.r.json.goal.id}`], { answers: { subject: "Five small habits for a tidy workshop", kind: "carousel" } });
+  });
+});
+
+test("start (M63 item 22): a start the board hands back as an existing task changes no record and says so", async () => {
+  await withDedupBoard("replay", async (home) => {
+    const a = await start(home, CONCEPTS, { answers: { subject: "Why we label every shelf", kind: "post" } });
+    assert.equal(a.r.status, 201, a.r.text);
+    const id = a.r.json.goal.id;
+    const before0 = decisions(home);
+    const b = await start(home, CONCEPTS, { answers: { subject: "Something else entirely", kind: "newsletter" } });
+    assert.equal(b.r.status, 409, b.r.text);
+    assert.equal(b.r.json.error.code, "already_started");
+    assert.doesNotMatch(b.r.json.error.message, /STH-|[0-9a-f]{8}-/);
+    assert.deepEqual(decisions(home), before0);
+    assert.deepEqual(decisions(home)[`asked:${id}`], { answers: { subject: "Why we label every shelf", kind: "post" } });
+  });
+});
+
+test("records (M63 item 22): template:, asked:, from: and ask: are write-once; a second write is refused and logged", () => {
+  const dir = join(h.state, "write-once");
+  mkdirSync(dir, { recursive: true });
+  const logged = [];
+  const file = join(dir, "decisions.json");
+  const d = createDecisions(file, { log: (l) => logged.push(l) });
+  for (const k of ["template", "asked", "from", "ask"]) {
+    assert.deepEqual(d.set(`${k}:t1`, { first: k }), { first: k });
+    assert.deepEqual(d.set(`${k}:t1`, { second: k }), { first: k }, `${k} kept`);
+    assert.deepEqual(d.get(`${k}:t1`), { first: k });
+  }
+  assert.equal(logged.length, 4);
+  assert.ok(logged.every((l) => /refused a second write/.test(l)));
+  // On disk too, and after a restart.
+  assert.deepEqual(createDecisions(file).get("asked:t1"), { first: "asked" });
+  // Other records still change.
+  d.set("acknowledged:goal:t1", "a");
+  d.set("acknowledged:goal:t1", "b");
+  assert.equal(d.get("acknowledged:goal:t1"), "b");
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("start (M63 item 47): a task that follows earlier work is titled with what the first work was about, from records only", async () => {
+  const { subjectOf } = await import("../routes/jobs.mjs");
+  const rec = new Map(Object.entries({
+    "template:call": "sales/call-write-up", "asked:call": { answers: { call: "calls/asha.md", who: "Asha Kitchens" } },
+    "template:prop": "sales/proposal-from-a-call", "asked:prop": { answers: { earlier: "STH-20" } }, "from:prop": "call",
+    "template:quote": "books/quotation-from-a-call", "asked:quote": { answers: { earlier: "STH-21", hsn: "998391" } }, "from:quote": "prop",
+    "template:ideas": "marketing/five-concepts", "asked:ideas": { answers: { subject: "Why we label every shelf\nand more", kind: "post" } },
+    "template:loop": "sales/proposal-from-a-call", "from:loop": "loop",
+  }));
+  const ctx = { config: h.config, decisions: { get: (k) => (rec.has(k) ? rec.get(k) : null) } };
+  assert.equal(subjectOf(ctx, "call"), "Asha Kitchens");
+  assert.equal(subjectOf(ctx, "prop"), "Asha Kitchens");
+  assert.equal(subjectOf(ctx, "quote"), "Asha Kitchens", "the first work's subject, not a tax code");
+  assert.equal(subjectOf(ctx, "ideas"), "Why we label every shelf");
+  assert.equal(subjectOf(ctx, "loop"), null, "a loop of records ends");
+  assert.equal(subjectOf(ctx, "unknown"), null);
+  // The seed's STH-23 (five concepts on "Diwali offer"): a carousel started from it would read apart from another.
+  const seedCtx = { config: h.config, decisions: { get: (k) => decisions(h)[k] ?? null } };
+  assert.equal(subjectOf(seedCtx, issueId(23)), "Diwali offer");
 });

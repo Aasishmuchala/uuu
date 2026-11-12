@@ -8,6 +8,7 @@ import { goalsOf, loadIssues } from "../lib/goals.mjs";
 import { boardState, booksState, gateState } from "../lib/health.mjs";
 import { loadCatalogue } from "../lib/jobs.mjs";
 import { mergeInbox } from "../lib/inbox.mjs";
+import { aheadIn, rootFinder } from "../lib/turn.mjs";
 
 const PLAIN = { free: "Free", working: "Working", paused: "Paused", problem: "Has a problem", waiting_for_you: "Waiting for your approval" };
 const DEPARTMENTS = [
@@ -32,10 +33,10 @@ async function readBoard(ctx) {
   const [company, agents, live, issues] = await Promise.all([
     ctx.board.get(base).catch(() => null),
     ctx.board.get(`${base}/agents`).catch(() => []),
-    ctx.board.get(`${base}/live-runs`).catch(() => []),
+    ctx.board.get(`${base}/live-runs`).catch(() => null),
     loadIssues(ctx, companyId).catch(() => []),
   ]);
-  return { company, agents: Array.isArray(agents) ? agents : [], live: Array.isArray(live) ? live : [], issues };
+  return { company, agents: Array.isArray(agents) ? agents : [], live: Array.isArray(live) ? live : [], liveKnown: Array.isArray(live), issues };
 }
 
 // The board's answers and the merged inbox, kept for one second.
@@ -85,7 +86,8 @@ function dockOf(ctx, data, inbox, team, goals) {
   const where = { decisions: ctx.decisions, catalogue, issues: data?.issues || [], slugOfAgentId: (id) => idSlug.get(id) || agents.get(id)?.slug || null,
     chiefId: ctx.ids()?.agents?.["chief-of-staff"] || null };
   for (const i of needsYou) i.department = itemDepartment(i, where);
-  const light = { ids: ctx.ids(), agentList: data?.agents || [], agents, liveByAgent, needsYou };
+  const light = { ids: ctx.ids(), agentList: data?.agents || [], agents, liveByAgent, needsYou, decisions: ctx.decisions,
+    liveRuns: data?.live || [], rootOf: rootFinder(data?.issues || []) };
   const isAsk = (g) => !!ctx.decisions.get(`ask:${g.id}`);
   const asks = goals.filter(isAsk);
   // A question that has become a task (it has a step) is no longer the brain's work, as on the map (S8 T1).
@@ -94,7 +96,7 @@ function dockOf(ctx, data, inbox, team, goals) {
   const askIds = new Set(asks.map((g) => `goal:${g.id}`));
   const dock = [{ id: "brain", title: "Company brain", creature: "brain", colour: "brain", working: open ? 1 : 0, needsYou: needsYou.filter((i) => askIds.has(i.id)).length }];
   for (const d of loadDepartments(ctx.config).departments) {
-    const load = departmentLoad(d, light);
+    const load = departmentLoad(d, light, { catalogue });
     const waits = needsYou.filter((i) => i.department === d.id && !askIds.has(i.id)).length;
     dock.push({ id: d.id, title: d.title, creature: d.id, colour: d.id, working: load.working, needsYou: waits });
   }
@@ -141,6 +143,10 @@ export default function register(app) {
 
     const ids = ctx.ids();
     const goals = data && ids?.projectId ? goalsOf(data.issues, ids) : [];
+    // The Chief of staff's line now (M63): how many tasks a task given to it now would wait behind, from the
+    // board's live runs and parent links only (lib/turn.mjs). null when the board did not list its runs.
+    const chief = ids?.agents?.["chief-of-staff"] || null;
+    const queue = data && data.liveKnown && chief ? aheadIn(data.live, { agentId: chief, rootOf: rootFinder(data.issues) }) : null;
 
     return {
       company: { name: data?.company?.name || ctx.config.paperclip.companyName },
@@ -149,6 +155,7 @@ export default function register(app) {
       departments: DEPARTMENTS.map(([id, title]) => ({ id, title, connected: BENCH.has(id) ? engine.books === "on" : true })),
       engine,
       dock: dockOf(ctx, data, inbox, team, goals),
+      queue,
       generatedAt: new Date().toISOString(),
     };
   });

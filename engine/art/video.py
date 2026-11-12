@@ -28,9 +28,19 @@ Commands (CONTRACTS-V3 37.2):
   stills <name>.mp4    writes review/frame-01.png to frame-06.png (six frames
                        spread evenly, at most 640 px wide).
 
-render, reveal and cut end by writing poster.png (the middle frame), the six
-stills and, last, manifest.json. One plain line on success; a problem is one
-line starting `video:` and exit 1.
+render, reveal and cut end by writing poster.png (a frame from the middle of
+the longest shot; for a video of one shot, from one third in; never on a
+caption change), the six stills and, last, manifest.json, whose `seconds` has
+one decimal (11.5). One plain line on success; a problem is one line starting
+`video:` and exit 1.
+
+Captions: a caption is on screen from its start up to but not including its
+end, so two captions that touch never share a frame. `cut` breaks the words
+into captions at sentence ends first, then at commas or pauses, then by length,
+and keeps each caption on screen at least a second, borrowing from the silence
+that follows. `words` finds where speech starts (ffmpeg's silencedetect) and
+never times a word before it. In a `reveal`, the caption changes at the middle
+of the crossfade.
 
 Limits, held by this helper for every run that goes through it: at most
 1920 x 1080 with even sides; at most 30 frames a second; at most 120 seconds of
@@ -95,6 +105,12 @@ MAX_JSON_BYTES = 2 * MB
 MAX_PICTURE_BYTES = 50 * MB
 MAX_PICTURE_PIXELS = 50 * 1000 * 1000
 STILLS = 6
+CAPTION_CHARS = 42           # one caption, as the captions pack asks (about 40 characters a line)
+CAPTION_MAX_SECONDS = 6.0    # a caption that would stay longer is broken, like one that is too long
+CAPTION_MIN_SECONDS = 1.0    # every caption stays at least this long, from the silence that follows
+CAPTION_PAUSE = 0.6          # a pause this long inside a sentence is a place to break, like a comma
+CAPTION_HARD_PAUSE = 1.5     # a silence this long always ends a caption
+SILENCE = "silencedetect=noise=-35dB:d=0.3"
 STILL_MAX_W = 640
 MOVES = ("in", "out", "left", "right", "still")
 PICTURE_ENDINGS = (".png", ".jpg", ".jpeg", ".webp")
@@ -543,8 +559,37 @@ def write_stills(folder, video, ffmpeg, ffprobe, duration=None):
     return ["review/frame-%02d.png" % (i + 1) for i in range(STILLS)]
 
 
-def finish(folder, name, tmp_video, title, made_by, script, w, h, fps, expected, ffmpeg, ffprobe):
-    """Checks the made video, then writes it, the poster, the stills and the manifest."""
+def poster_time(spans, duration, boundaries=(), fps=30):
+    """Where the poster is taken, in seconds. `spans` are the shots as [from, to] on the video's timeline, each
+    where it is on screen alone (not in a crossfade); `boundaries` are the moments a caption comes or goes.
+    The middle of the longest shot; for a video of one shot, one third in. Never within two frames (or a tenth
+    of a second) of a caption boundary: then the middle of the stretch between boundaries it falls in, or of
+    the longest such stretch in that shot when its own is too short."""
+    end = max(0.0, duration - 1.0 / fps)
+    shots = [(float(a), float(b)) for a, b in (spans or []) if b > a]
+    if not shots:
+        shots = [(0.0, float(duration))]
+    if len(shots) == 1:
+        a, b = shots[0]
+        t = a + (b - a) / 3.0
+    else:
+        a, b = max(shots, key=lambda x: x[1] - x[0])     # the first of equals
+        t = (a + b) / 2.0
+    margin = max(2.0 / fps, 0.1)
+    cuts = sorted(set(x for x in boundaries if a < x < b))
+    if any(abs(t - x) < margin for x in cuts):
+        edges = [a] + cuts + [b]
+        stretches = list(zip(edges, edges[1:]))
+        own = next((s for s in stretches if s[0] <= t <= s[1]), stretches[0])
+        pick = own if own[1] - own[0] >= 2 * margin else max(stretches, key=lambda x: x[1] - x[0])
+        t = (pick[0] + pick[1]) / 2.0
+    return min(max(0.0, t), end)
+
+
+def finish(folder, name, tmp_video, title, made_by, script, w, h, fps, expected, ffmpeg, ffprobe,
+           spans=None, boundaries=()):
+    """Checks the made video, then writes it, the poster, the stills and the manifest. `spans` and
+    `boundaries` place the poster (poster_time); without them the video is one shot."""
     if not os.path.isfile(tmp_video):
         raise Problem("ffmpeg wrote no video")
     size = os.path.getsize(tmp_video)
@@ -564,7 +609,7 @@ def finish(folder, name, tmp_video, title, made_by, script, w, h, fps, expected,
     if expected and seconds < expected - max(0.5, 2.0 / fps):
         raise Problem("the video stopped at %.1f of %.1f seconds: it reached the size limit "
                       "(300 MB, or what is left of 2 GB in the goal's folder)" % (seconds, expected))
-    poster = frame_png(tmp_video, seconds / 2.0, ffmpeg)
+    poster = frame_png(tmp_video, poster_time(spans, seconds, boundaries, fps), ffmpeg)
     if png_size(poster) != (w, h):
         raise Problem("the poster is not the size of the video")
 
@@ -574,7 +619,7 @@ def finish(folder, name, tmp_video, title, made_by, script, w, h, fps, expected,
     write_stills(folder, os.path.join(folder, video_name), ffmpeg, ffprobe, seconds)
     manifest = {
         "name": name, "title": title, "kind": "video", "video": video_name, "poster": "poster.png",
-        "width": w, "height": h, "fps": fps, "seconds": max(1, int(round(seconds))), "bytes": size,
+        "width": w, "height": h, "fps": fps, "seconds": max(0.1, round(seconds, 1)), "bytes": size,
         "made_by": made_by, "script": script, "made_at": now(),
     }
     write_atomic(os.path.join(folder, "manifest.json"), json_bytes(manifest))
@@ -614,26 +659,73 @@ def font(name, size):
     return ImageFont.load_default(size=size)
 
 
+CAPTION_LINES = 3                # a caption is at most three lines on the picture
+CAPTION_MIN_PX = 24              # the smallest size a caption steps down to (or the size asked for, when smaller)
+
+
+def wrap_caption(words, measure, max_w, max_lines=CAPTION_LINES):
+    """The words as balanced lines no wider than max_w (measure(text) -> width), or None when they cannot fit
+    in max_lines. As few lines as fit; among those, the widest line as narrow as it can be, and a line of one
+    short word alone only when nothing else fits (or the caption is that word). Pure."""
+    words = [x for x in words if x]
+    if not words:
+        return []
+    if any(measure(x) > max_w for x in words):
+        return None
+    n = len(words)
+    width = {}
+
+    def wide(i, j):
+        if (i, j) not in width:
+            width[(i, j)] = measure(" ".join(words[i:j]))
+        return width[(i, j)]
+
+    for k in range(1, min(max_lines, n) + 1):
+        best = None
+
+        def walk(i, left, lines):
+            nonlocal best
+            if left == 1:
+                if wide(i, n) <= max_w:
+                    cand = lines + [(i, n)]
+                    lone = sum(1 for a, b in cand if b - a == 1 and len(words[a]) <= 4)
+                    key = (lone if n > 1 else 0, max(wide(a, b) for a, b in cand))
+                    if best is None or key < best[0]:
+                        best = (key, cand)
+                return
+            for j in range(i + 1, n - left + 2):
+                if wide(i, j) > max_w:
+                    break
+                walk(j, left - 1, lines + [(i, j)])
+
+        walk(0, k, [])
+        if best is not None:
+            return [" ".join(words[a:b]) for a, b in best[1]]
+    return None
+
+
 def caption_picture(text, w, h, style=None):
-    """A transparent picture of the video's size with the words in a dark band."""
+    """A transparent picture of the video's size with the words in a dark band. The words are wrapped into at
+    most three balanced lines; when they do not fit, the size steps down to CAPTION_MIN_PX, and when they still
+    do not fit the caption is refused, never cut short."""
     from PIL import Image, ImageDraw
     style = style or {}
-    size = style.get("size") or max(14, min(96, h // 16))
-    f = font(style.get("font"), size)
+    asked = style.get("size") or max(14, min(96, h // 16))
     im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     max_w = int(w * 0.84)
-    lines, line = [], ""
-    for word in text.split():
-        trial = (line + " " + word).strip()
-        if d.textlength(trial, font=f) <= max_w or not line:
-            line = trial
-        else:
-            lines.append(line)
-            line = word
-    if line:
-        lines.append(line)
-    lines = lines[:3]
+    floor = min(asked, CAPTION_MIN_PX)
+    size, lines = asked, None
+    while True:
+        f = font(style.get("font"), size)
+        lines = wrap_caption(text.split(), lambda t: d.textlength(t, font=f), max_w)
+        if lines is not None or size <= floor:
+            break
+        size = max(floor, int(size * 0.9))
+    if lines is None:
+        shown = text if len(text) <= 60 else text[:57] + "..."
+        raise Problem("the caption %s does not fit in %d lines, even at %d px; shorten it or split it"
+                      % (json.dumps(shown, ensure_ascii=False), CAPTION_LINES, size))
     gap = int(size * 0.25)
     heights = [d.textbbox((0, 0), l, font=f)[3] - d.textbbox((0, 0), l, font=f)[1] for l in lines]
     block_h = sum(heights) + gap * (len(lines) - 1)
@@ -971,6 +1063,32 @@ def check_reveal(spec, cwd, goal, name):
     return w, h, fps, title, style, out, fade
 
 
+def shot_starts(shots, fade):
+    """When each shot starts on the video's timeline, and the video's length."""
+    starts, t = [], 0.0
+    for s in shots:
+        starts.append(t)
+        t += s["seconds"] - fade
+    return starts, t + fade
+
+
+def shot_spans(shots, fade):
+    """Each shot's stretch on screen alone, outside the crossfades: [[from, to]], for the poster."""
+    starts, _ = shot_starts(shots, fade)
+    last = len(shots) - 1
+    return [[a + (fade if i else 0.0), a + s["seconds"] - (fade if i < last else 0.0)]
+            for i, (a, s) in enumerate(zip(starts, shots))]
+
+
+def caption_owner(at, starts, fade):
+    """Which shot's caption is on screen at `at`: one at a time, and in a crossfade it changes at the middle."""
+    i = 0
+    for j in range(1, len(starts)):
+        if at >= starts[j] + fade / 2.0:
+            i = j
+    return i
+
+
 def reveal_frames(w, h, fps, style, shots, fade):
     from PIL import Image
     pics = []
@@ -978,11 +1096,7 @@ def reveal_frames(w, h, fps, style, shots, fade):
         pic = load_picture(s["path"])
         cap = caption_picture(s["caption"], w, h, style) if s["caption"] else None
         pics.append((pic, cap))
-    starts, t = [], 0.0
-    for s in shots:
-        starts.append(t)
-        t += s["seconds"] - fade
-    total = t + fade
+    starts, total = shot_starts(shots, fade)
     n = int(round(total * fps))
     for k in range(n):
         at = k / float(fps)
@@ -991,16 +1105,16 @@ def reveal_frames(w, h, fps, style, shots, fade):
             a, b = starts[i], starts[i] + s["seconds"]
             if not a <= at < b:
                 continue
-            pic, cap = pics[i]
-            im = shot_frame(pic, w, h, s["move"], (at - a) / s["seconds"])
-            if cap is not None:
-                im = Image.alpha_composite(im.convert("RGBA"), cap).convert("RGB")
+            im = shot_frame(pics[i][0], w, h, s["move"], (at - a) / s["seconds"])
             if frame is None:
                 frame = im
             else:   # the crossfade: this shot comes in over the one before
                 frame = Image.blend(frame, im, min(1.0, (at - a) / fade) if fade else 1.0)
         if frame is None:
             frame = Image.new("RGB", (w, h), (0, 0, 0))
+        cap = pics[caption_owner(at, starts, fade)][1]   # the caption is never blended with the next one
+        if cap is not None:
+            frame = Image.alpha_composite(frame.convert("RGBA"), cap).convert("RGB")
         yield frame
 
 
@@ -1041,7 +1155,8 @@ def cmd_reveal(args, cwd, goal):
     if enc.returncode != 0:
         errf.seek(0)
         raise Problem("ffmpeg failed: %s" % last_line(errf.read()))
-    return finish(cwd, name, tmp, title, "reveal", args[0], w, h, fps, n / float(fps), ffmpeg, ffprobe)
+    return finish(cwd, name, tmp, title, "reveal", args[0], w, h, fps, n / float(fps), ffmpeg, ffprobe,
+                  spans=shot_spans(shots, fade))
 
 
 # --- words: speech to text -----------------------------------------------------------
@@ -1087,6 +1202,62 @@ def whisper_words(data):
     return out
 
 
+def leading_silence(text):
+    """Where speech starts, in seconds, from what ffmpeg's silencedetect printed: the end of a silence that
+    starts at the beginning, 0.0 when the sound does not start with one, None when it cannot be told (the
+    sound is silent all through, or the numbers are not there)."""
+    starts = re.findall(r"silence_start:\s*(-?[0-9]+(?:\.[0-9]+)?)", text or "")
+    ends = re.findall(r"silence_end:\s*(-?[0-9]+(?:\.[0-9]+)?)", text or "")
+    if not starts:
+        return 0.0
+    if float(starts[0]) > 0.05:
+        return 0.0
+    if not ends or not math.isfinite(float(ends[0])) or float(ends[0]) < 0:
+        return None
+    return round(float(ends[0]), 2)
+
+
+def speech_start(wav, ffmpeg):
+    """Where speech starts in the sound file, by ffmpeg's silencedetect (nothing is written); None when it
+    cannot be told."""
+    p = start([ffmpeg, "-hide_banner", "-nostats", "-nostdin", "-i", wav, "-af", SILENCE, "-f", "null", "-"],
+              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    try:
+        _, err = p.communicate(timeout=remaining())
+    except subprocess.TimeoutExpired:
+        p.kill()
+        raise Problem("the work took longer than 10 minutes and was stopped")
+    if p.returncode != 0:
+        return None
+    return leading_silence(err[-2 * MB:].decode("utf-8", "replace"))
+
+
+def clamp_to_speech(words, at):
+    """No word is timed before speech starts at `at`. The speech tool spreads the first words over a silence
+    at the start; those words are moved, in order and in proportion, into the time from `at` to where the
+    first of them that was timed after `at` begins (or the end of the last moved word, when later)."""
+    if not words or at is None or at <= 0:
+        return words
+    k = sum(1 for x in words if x["from"] < at)
+    if k == 0:
+        return words
+    lo, hi = words[0]["from"], words[k - 1]["to"]
+    top = max(hi, at + 0.1 * k)
+    if k < len(words):
+        top = min(top, max(at, words[k]["from"]))
+    span = hi - lo
+    move = (lambda x: at + (x - lo) * (top - at) / span) if span > 0 else (lambda x: at)
+    out = []
+    for i, x in enumerate(words):
+        if i < k:
+            a = round(min(top, move(x["from"])), 2)
+            b = round(min(top, max(move(x["to"]), a)), 2)
+            out.append({"w": x["w"], "from": a, "to": max(a, b)})
+        else:
+            out.append(dict(x))
+    return out
+
+
 def cmd_words(args, cwd, goal):
     if len(args) != 1:
         raise Problem("give one clip, for example: video.py words site-visit.mp4")
@@ -1113,9 +1284,17 @@ def cmd_words(args, cwd, goal):
     except (OSError, ValueError):
         raise Problem("speech to text wrote no words")
     words = whisper_words(data)
+    at = speech_start(wav, ffmpeg)
+    words = clamp_to_speech(words, at)
     write_atomic(os.path.join(cwd, "words.json"), json_bytes(words))
-    return "words: %s from %.1f seconds of %s. Wrote words.json." % (
-        plural(len(words), "word"), info["duration"], os.path.basename(clip))
+    if at is None:
+        note = "; where speech starts could not be found, so the first words keep the speech tool's times"
+    elif at > 0:
+        note = "; speech starts at %.1f seconds and no word is timed before it" % at
+    else:
+        note = ""
+    return "words: %s from %.1f seconds of %s%s. Wrote words.json." % (
+        plural(len(words), "word"), info["duration"], os.path.basename(clip), note)
 
 
 # --- cut: an edit list, never inside a word -------------------------------------------
@@ -1143,24 +1322,139 @@ def snap_ranges(keep, words, duration):
     return [[round(a, 3), round(b, 3)] for a, b in joined]
 
 
+SENTENCE_END = re.compile(r"[.!?\u2026][\"'\u201d\u2019)\]]*$")
+CLAUSE_END = re.compile(r"[,;:\u2013\u2014][\"'\u201d\u2019)\]]*$")
+WEAK_END = frozenset("a an the to of and or but for in at on with by from as that this my our your their its".split())
+JOINS = frozenset("and but or so because then which who when while where".split())
+
+
+def caption_text(piece):
+    return " ".join(x[2] for x in piece)
+
+
+def caption_fits(piece):
+    return len(piece) == 1 or (len(caption_text(piece)) <= CAPTION_CHARS
+                               and piece[-1][1] - piece[0][0] <= CAPTION_MAX_SECONDS)
+
+
+def bare(word):
+    return re.sub(r"[^a-z']", "", word.lower())
+
+
+def split_by_length(clause):
+    """A clause too long for one caption, broken by length: as few pieces as fit, kept even, a break never
+    left after a small word such as "the" and, where it can, put before "and" or "but"."""
+    n = len(clause)
+
+    def cost_of(i, j):
+        c = 10 + max(0, CAPTION_CHARS - len(caption_text(clause[i:j]))) ** 2
+        if j < n:
+            c += 5000           # each break counts more than any evenness
+            if bare(clause[j - 1][2]) in WEAK_END:
+                c += 300
+            if bare(clause[j][2]) in JOINS:
+                c -= 200
+        return c
+
+    best = [0.0] + [float("inf")] * n
+    back = [0] * (n + 1)
+    for j in range(1, n + 1):
+        for i in range(j - 1, -1, -1):
+            if not caption_fits(clause[i:j]):
+                break
+            c = best[i] + cost_of(i, j)
+            if c < best[j]:
+                best[j], back[j] = c, i
+    pieces, j = [], n
+    while j > 0:
+        pieces.append(clause[back[j]:j])
+        j = back[j]
+    return pieces[::-1]
+
+
+def split_sentence(sent):
+    """One sentence as captions: whole if it fits; else broken at its commas and pauses (clauses next to each
+    other that fit together stay together, kept even), and a clause that is still too long by length."""
+    if caption_fits(sent):
+        return [sent]
+    clauses, cur = [], []
+    for i, x in enumerate(sent):
+        cur.append(x)
+        if i + 1 < len(sent) and (CLAUSE_END.search(x[2]) or sent[i + 1][0] - x[1] > CAPTION_PAUSE):
+            clauses.append(cur)
+            cur = []
+    clauses.append(cur)
+    units = [p for c in clauses for p in (split_by_length(c) if not caption_fits(c) else [c])]
+    n = len(units)
+    best = [0.0] + [float("inf")] * n
+    back = [0] * (n + 1)
+    for j in range(1, n + 1):
+        for i in range(j - 1, -1, -1):
+            piece = [x for u in units[i:j] for x in u]
+            if j - i > 1 and not caption_fits(piece):
+                break
+            c = best[i] + 10 + max(0, CAPTION_CHARS - len(caption_text(piece))) ** 2
+            if c < best[j]:
+                best[j], back[j] = c, i
+    pieces, j = [], n
+    while j > 0:
+        pieces.append([x for u in units[back[j]:j] for x in u])
+        j = back[j]
+    return pieces[::-1]
+
+
 def caption_lines(words, keep):
-    """Words moved onto the cut's timeline, grouped into short lines."""
+    """Words moved onto the cut's timeline, broken into captions: [(from, to, text)].
+
+    A caption ends at a sentence's end or a long silence first; a sentence that does not fit one caption
+    (CAPTION_CHARS, CAPTION_MAX_SECONDS) is broken at a comma or a pause, and only then by length. Each
+    caption stays on screen at least CAPTION_MIN_SECONDS, borrowing from the silence that follows and never
+    running into the next caption; when the next follows straight on, its start waits a little, and two
+    short ones that fit together become one. Shown from `from` up to but not including `to`."""
     placed, offset = [], 0.0
     for a, b in keep:
         for x in words:
             if x["from"] >= a - 1e-6 and x["to"] <= b + 1e-6:
                 placed.append((offset + x["from"] - a, offset + x["to"] - a, x["w"]))
         offset += b - a
-    lines, cur = [], []
-    for s, e, w in placed:
-        if cur and (len(cur) >= 7 or e - cur[0][0] > 3.5 or s - cur[-1][1] > 0.6
-                    or len(" ".join(c[2] for c in cur) + " " + w) > 42):
-            lines.append(cur)
+    end = offset
+    sentences, cur = [], []
+    for x in placed:
+        if cur and x[0] - cur[-1][1] > CAPTION_HARD_PAUSE:
+            sentences.append(cur)
             cur = []
-        cur.append((s, e, w))
+        cur.append(x)
+        if SENTENCE_END.search(x[2]):
+            sentences.append(cur)
+            cur = []
     if cur:
-        lines.append(cur)
-    return [(l[0][0], l[-1][1], " ".join(c[2] for c in l)) for l in lines]
+        sentences.append(cur)
+    caps = [[p[0][0], p[-1][1], caption_text(p)] for sent in sentences for p in split_sentence(sent)]
+
+    i = 0
+    while i < len(caps):
+        s, e, text = caps[i]
+        nxt = caps[i + 1] if i + 1 < len(caps) else None
+        limit = nxt[0] if nxt else end
+        if e - s < CAPTION_MIN_SECONDS:
+            e = max(e, min(s + CAPTION_MIN_SECONDS, limit))
+        if e - s < CAPTION_MIN_SECONDS - 1e-9 and nxt:
+            if nxt[1] - nxt[0] > CAPTION_MIN_SECONDS:      # the next one starts a little later
+                e = max(e, min(s + CAPTION_MIN_SECONDS, nxt[1] - CAPTION_MIN_SECONDS))
+                nxt[0] = e
+            elif len(text + " " + nxt[2]) <= CAPTION_CHARS:    # two short ones together
+                caps[i] = [s, nxt[1], text + " " + nxt[2]]
+                del caps[i + 1]
+                continue
+        caps[i] = [s, e, text]
+        i += 1
+    return [(round(s, 3), round(e, 3), text) for s, e, text in caps]
+
+
+def caption_enable(s, e):
+    """ffmpeg's `enable` for a caption on screen from s up to but not including e, so two captions that touch
+    never share a frame (`between` would include both ends)."""
+    return "gte(t,%.3f)*lt(t,%.3f)" % (s, e)
 
 
 def cmd_cut(args, cwd, goal):
@@ -1235,7 +1529,7 @@ def cmd_cut(args, cwd, goal):
             p = os.path.join(cdir, "%03d.png" % i)
             caption_picture(text, w, h, style).save(p, "PNG")
             cmd += ["-i", p]
-            parts.append("[%s][%d:v]overlay=0:0:enable='between(t,%.3f,%.3f)'[s%d]" % (last, i + 1, s, e, i + 1))
+            parts.append("[%s][%d:v]overlay=0:0:enable='%s'[s%d]" % (last, i + 1, caption_enable(s, e), i + 1))
             last = "s%d" % (i + 1)
     tmp = temp_path(cwd, name, ".mp4")
     cmd += ["-filter_complex", ";".join(parts), "-map", "[%s]" % last]
@@ -1243,7 +1537,12 @@ def cmd_cut(args, cwd, goal):
         cmd += ["-map", "[ac]", "-c:a", "aac", "-b:a", "160k"]
     cmd += x264_args(cap) + [tmp]
     run(cmd, "ffmpeg")
-    line = finish(cwd, name, tmp, title, "cut", args[0], w, h, fps, total, ffmpeg, ffprobe)
+    spans, at = [], 0.0
+    for a, b in ranges:
+        spans.append([at, at + b - a])
+        at += b - a
+    line = finish(cwd, name, tmp, title, "cut", args[0], w, h, fps, total, ffmpeg, ffprobe,
+                  spans=spans, boundaries=[t for s, e, _ in lines for t in (s, e)])
     return line[:-1] + "; kept %s of the clip." % plural(len(ranges), "part")
 
 

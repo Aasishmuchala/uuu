@@ -6,6 +6,7 @@ import { ownerText } from "../lib/owner-text.mjs";
 import { buildText } from "../lib/staged.mjs";
 import { stopTask } from "../lib/stop.mjs";
 import { loadRoles } from "../lib/team.mjs";
+import { recordVerdict, SENT_BACK } from "../lib/verdicts.mjs";
 import {
   agentNames, authorOf, commentsOf, descendants, goalsOf, isFinished, isGoal, loadIssues, needIds,
   pickResult, pickVerdict, plainState, summary,
@@ -138,6 +139,8 @@ export default function register(app) {
     const { goal } = await findGoal(ctx, ids, ctx.params.id);
     const path = `/api/issues/${encodeURIComponent(goal.id)}`;
     await ctx.board.post(`${path}/comments`, { body: text });
+    // A note on finished work sends it back: the owner's verdict, recorded as given (lib/verdicts.mjs).
+    if (goal.status === "done") recordVerdict(ctx.decisions, goal.id, SENT_BACK, text);
     if (goal.status === "done" || goal.status === "blocked") await ctx.board.patch(path, { status: "todo" });
     return { ok: true };
   });

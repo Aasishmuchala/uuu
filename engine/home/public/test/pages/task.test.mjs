@@ -268,3 +268,30 @@ test("task: headings go from the title to h2, and the line after Accept takes fo
   assert.match(src, /saidRef\.current\?\.focus\(\)/);
   assert.match(src, /tabindex="-1" ref=\$\{saidRef\}/);
 });
+
+// M63 items 28 and 48.
+test("task: an agent's comment is marked to fold; the owner's words, the check and the result are not", () => {
+  const d = {
+    task: { id: "e1", createdAt: "2026-11-12T08:00:00Z" }, text: "Do it.",
+    conversation: [
+      { who: { slug: "builder", name: "Builder" }, kind: "comment", text: "A long report", at: "2026-11-12T08:01:00Z" },
+      { who: { slug: "you", name: "You" }, kind: "note", text: "Use Nos.", at: "2026-11-12T08:02:00Z" },
+      { who: { slug: "checker", name: "Checker" }, kind: "verdict", text: "Passed.", at: "2026-11-12T08:03:00Z" },
+      { who: { slug: "chief-of-staff", name: "Chief of staff" }, kind: "result", text: "Done.", at: "2026-11-12T08:04:00Z" },
+    ],
+  };
+  const folds = storyOf(d).filter((i) => i.kind === "message" && i.message.text).map((i) => [i.message.kind || "words", !!i.message.fold]);
+  assert.deepEqual(folds, [["words", false], ["comment", true], ["note", false], ["verdict", false], ["result", false]]);
+});
+
+test("task: once accepted, what can come next goes at the top of the panel", () => {
+  const { nextOnTop } = mod;
+  const next = [{ href: "#/jobs/books/x", label: "Draft the quotation", title: "Quotation", ready: true }];
+  assert.equal(nextOnTop({ state: "accepted" }, next), true);
+  assert.equal(nextOnTop({ state: "accepted" }, []), false);
+  assert.equal(nextOnTop({ state: "waiting_for_you" }, next), false);
+  assert.equal(nextOnTop(null, next), false);
+  const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "pages", "task.js"), "utf8");
+  const panel = src.slice(src.indexOf('aria-label="Acceptance"'));
+  assert.ok(panel.indexOf("nextOnTop(acceptance, next) ? html`<${NextUp}") < panel.indexOf("<${Rounds}"), "above the checks");
+});

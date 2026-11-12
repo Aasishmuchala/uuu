@@ -30,7 +30,7 @@
     "speech"
   ],
   "takes": null,
-  "text": "Take the clip [clip] and cut out the long pauses, keeping a short breath between sentences. Work out the words first so that no cut lands in the middle of a word. Keep the order of everything that is said and leave out nothing that is spoken. The clip is at most five minutes, and the result is at most two minutes and at most full HD in size. Look at the stills before you hand it over, and say how much was cut.",
+  "text": "Take [clip] and cut out the long pauses, keeping a short breath between sentences. Work out the words first so that no cut lands in the middle of a word. Keep the order of everything that is said and leave out nothing that is spoken. The clip is at most five minutes, and the result is at most two minutes and at most full HD in size. Look at the stills before you hand it over, and say how much was cut.",
   "produces": [
     "video/*/manifest.json"
   ]

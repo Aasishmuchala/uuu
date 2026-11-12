@@ -3,12 +3,16 @@
 // it is built only from records agents cannot write and from numbers.
 //   - which tasks: the home server's own `template:` records naming a Marketing job in the catalogue;
 //   - the job's title: from the job file in the repo;
-//   - the owner's words: the answers the home server recorded when the job was started (`asked:<task id>`);
-//   - the verdict: the owner's `acknowledged:goal:` record (Accepted), or the owner's own comment on the board
-//     after the newest result, on a task that is not finished (Sent back, with that comment as the note);
-//   - the rounds: how many check comments the Checker wrote (by its author on the board, never by the text);
-//   - the scores: the numbers of the newest round, through scoresOf, from the Checker's comments only. A piece's
-//     name (its slug) is the Checker's own word, so it never reaches the file: each piece is "piece <n>".
+//   - the owner's words: the answers the home server recorded when the job was started (`asked:<task id>`); an
+//     earlier task chosen as an answer is named by the title the home server gave it (its job's title and its
+//     first one-line answer, from its own records), else by its identifier on the board;
+//   - the verdicts: the home server's `verdicts:<task id>` records (lib/verdicts.mjs), one row per verdict, written
+//     when the owner accepts the task or sends it back, with the owner's own note; for a task accepted before
+//     those records existed, the owner's `acknowledged:goal:` record (Accepted);
+//   - the rounds: how many check comments the Checker wrote up to that verdict (by its author on the board, never
+//     by the text);
+//   - the scores: the numbers of the last of those rounds, through scoresOf, from the Checker's comments only. A
+//     piece's name (its slug) is the Checker's own word, so it never reaches the file: each piece is "piece <n>".
 // Every line of the file is fixed words, numbers, the job file's title or the owner's own text made one line.
 // recipeEntries feeds the Marketing answer; refreshRecipeLog writes the file, at most once a minute and only
 // when its text would change, and never throws.
@@ -17,6 +21,7 @@ import { commentsOf, descendants, goalsOf, loadIssues } from "./goals.mjs";
 import { loadCatalogue } from "./jobs.mjs";
 import { roundsOf } from "./staged.mjs";
 import { scoresOf } from "./scores.mjs";
+import { ACCEPTED, verdictsOf } from "./verdicts.mjs";
 
 export const LOG_PATH = "packs/recipe-log.md";
 export const MAX_ENTRIES = 200;
@@ -24,9 +29,6 @@ const MAX_WORDS = 300;
 const MAX_NOTE = 300;
 const CHECK_EVERY = 60000;
 const BATCH = 8;
-
-const isResult = (c) => !!c?.authorAgentId && /^\s*RESULT:/.test(String(c.body || "").slice(0, 200));
-const isOwners = (c) => !!c && !c.authorAgentId;
 
 // The owner's text as one plain line: no control or format characters, no line breaks, capped.
 function oneLine(v, max) {
@@ -43,10 +45,23 @@ const timeOf = (v) => {
   return Number.isFinite(t) ? t : null;
 };
 
-// The answers recorded at the start, in the order of the job's asks: "<label>: <answer>; ...". A task chosen
-// as an answer is named by its identifier on the board.
-function wordsOf(job, record, issues) {
-  const answers = record && typeof record === "object" && record.answers && typeof record.answers === "object" ? record.answers : null;
+const answersOf = (record) => (record && typeof record === "object" && record.answers && typeof record.answers === "object" ? record.answers : null);
+
+// The title the home server gave an earlier task, from its own records only: the job's title, then ": " and the
+// task's first one-line answer when there is one. null when the task was not started from a job.
+function startedTitle(ctx, jobs, taskId) {
+  const ref = ctx.decisions?.get(`template:${taskId}`);
+  const job = typeof ref === "string" ? jobs.get(ref) : null;
+  if (!job) return null;
+  const answers = answersOf(ctx.decisions?.get(`asked:${taskId}`));
+  const line = (Array.isArray(job.asks) ? job.asks : []).find((a) => a.kind === "line" && answers && typeof answers[a.id] === "string" && answers[a.id].trim());
+  return oneLine(line ? `${job.title}: ${answers[line.id]}` : job.title, 120);
+}
+
+// The answers recorded at the start, in the order of the job's asks: "<label>: <answer>; ...". A task chosen as
+// an answer is recorded by its identifier (or, in older records, its id) and named by startedTitle.
+function wordsOf(ctx, jobs, job, record, issues) {
+  const answers = answersOf(record);
   if (!answers) return null;
   const parts = [];
   for (const ask of Array.isArray(job.asks) ? job.asks : []) {
@@ -54,25 +69,26 @@ function wordsOf(job, record, issues) {
     let v = answers[ask.id];
     if (typeof v === "number" && Number.isFinite(v)) v = String(v);
     if (typeof v !== "string") continue;
-    if (ask.kind === "task") v = issues.find((i) => i.id === v)?.identifier || "an earlier task";
+    if (ask.kind === "task") {
+      const earlier = issues.find((i) => i.id === v || (typeof i.identifier === "string" && i.identifier === v));
+      v = (earlier && (startedTitle(ctx, jobs, earlier.id) || (typeof earlier.identifier === "string" ? earlier.identifier : null))) || "an earlier task";
+    }
     const answer = oneLine(v, MAX_WORDS);
     if (answer) parts.push(`${oneLine(ask.label, 80).replace(/[?:.]+$/, "")}: ${answer}`);
   }
   return parts.length ? oneLine(parts.join("; "), MAX_WORDS) : null;
 }
 
-// The verdict from the owner's own records: { verdict, note, at } or null when there is none yet.
-function verdictOf(ctx, goal, own) {
+// The owner's verdicts on a task from the home server's own records, oldest first: [{ verdict, note, at }].
+function verdictsFor(ctx, goal) {
+  const list = verdictsOf(ctx.decisions, goal.id).map((v) => ({
+    verdict: v.verdict === ACCEPTED ? "Accepted" : "Sent back",
+    note: v.note ? oneLine(v.note, MAX_NOTE) || null : null,
+    at: timeOf(v.at) ?? 0,
+  }));
+  if (list.length) return list;
   const ack = ctx.decisions?.get(`acknowledged:goal:${goal.id}`);
-  if (ack) return { verdict: "Accepted", note: null, at: timeOf(ack) ?? timeOf(goal.updatedAt) ?? 0 };
-  if (goal.status === "done" || goal.status === "cancelled") return null;
-  let result = null;
-  for (const c of own) if (isResult(c)) result = c;
-  if (!result) return null;
-  let note = null;
-  for (const c of own) if (isOwners(c) && String(c.createdAt) > String(result.createdAt)) note = c;
-  if (!note) return null;
-  return { verdict: "Sent back", note: oneLine(note.body, MAX_NOTE) || null, at: timeOf(note.createdAt) ?? 0 };
+  return ack ? [{ verdict: "Accepted", note: null, at: timeOf(ack) ?? timeOf(goal.updatedAt) ?? 0 }] : [];
 }
 
 // The scores of a round: from question 2's reason (36.3), else the first other reason that holds them.
@@ -91,8 +107,8 @@ async function inBatches(list, fn) {
   for (let i = 0; i < list.length; i += BATCH) await Promise.all(list.slice(i, i + BATCH).map(fn));
 }
 
-// recipeEntries(ctx) -> [{ taskId, identifier, at, date, jobId, job, words, rounds, scores, verdict, note }],
-// newest first, at most 200. Throws when the board cannot be read.
+// recipeEntries(ctx) -> [{ taskId, identifier, at, date, jobId, job, words, rounds, scores, verdict, note }], one
+// per verdict of the owner, newest first, at most 200. Throws when the board cannot be read.
 export async function recipeEntries(ctx) {
   const ids = ctx.ids();
   if (!ids?.companyId || !ids?.projectId) return [];
@@ -105,24 +121,28 @@ export async function recipeEntries(ctx) {
     if (typeof ref !== "string" || !ref.startsWith("marketing/")) continue;
     const job = jobs.get(ref);
     if (!job || job.department !== "marketing") continue;
-    candidates.push({ g, ref, job });
+    const verdicts = verdictsFor(ctx, g);
+    if (!verdicts.length) continue;
+    candidates.push({ g, ref, job, verdicts });
     if (candidates.length >= MAX_ENTRIES * 2) break;
   }
   const out = [];
-  await inBatches(candidates, async ({ g, ref, job }) => {
+  await inBatches(candidates, async ({ g, ref, job, verdicts }) => {
     const own = await commentsOf(ctx, g.id);
-    const verdict = verdictOf(ctx, g, own);
-    if (!verdict) return;
     const steps = await Promise.all(descendants(issues, g.id).map((s) => commentsOf(ctx, s.id)));
     const tree = [...own, ...steps.flat()].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
-    const rounds = roundsOf(tree, checker);
-    out.push({
-      taskId: g.id, identifier: typeof g.identifier === "string" ? oneLine(g.identifier, 64) : null,
-      at: verdict.at, date: dateText(verdict.at), jobId: ref, job: oneLine(job.title, 120),
-      words: wordsOf(job, ctx.decisions?.get(`asked:${g.id}`), issues),
-      rounds: rounds.length, scores: roundScores(rounds.at(-1)),
-      verdict: verdict.verdict, note: verdict.note,
-    });
+    const words = wordsOf(ctx, jobs, job, ctx.decisions?.get(`asked:${g.id}`), issues);
+    for (const v of verdicts) {
+      // The rounds the owner had seen when giving this verdict.
+      const seen = tree.filter((c) => { const t = timeOf(c.createdAt); return t === null || t <= v.at; });
+      const rounds = roundsOf(seen, checker);
+      out.push({
+        taskId: g.id, identifier: typeof g.identifier === "string" ? oneLine(g.identifier, 64) : null,
+        at: v.at, date: dateText(v.at), jobId: ref, job: oneLine(job.title, 120), words,
+        rounds: rounds.length, scores: roundScores(rounds.at(-1)),
+        verdict: v.verdict, note: v.note,
+      });
+    }
   });
   out.sort((a, b) => b.at - a.at || String(b.taskId).localeCompare(String(a.taskId)));
   return out.slice(0, MAX_ENTRIES);

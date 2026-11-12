@@ -93,3 +93,40 @@ test("job: an unknown job is a 404 from the server", () => {
   assert.equal(page.isUnknown({ status: 500, code: "error" }), false);
   assert.equal(page.isUnknown(null), false);
 });
+
+test("job: a starter pack the job reads that is not in the files yet is offered; once added it stays, as present (M63 41)", () => {
+  const job = { reads: [
+    { file: "packs/captions.md", title: "The captions pack", need: "helps", state: "missing", starter: "captions" },
+    { file: "pricing/terms.md", title: "Terms", need: "must", state: "missing", starter: null },
+    { file: "packs/own.md", title: "Our own pack", need: "helps", state: "missing" },
+    { file: "packs/carousel.md", title: "The carousel pack", need: "helps", state: "filled", starter: null },
+    { file: "packs/bad.md", title: "Bad", need: "helps", state: "missing", starter: "../x" },
+    { file: "packs/odd.md", title: "Odd", need: "helps", state: "empty", starter: "odd" },
+  ] };
+  assert.deepEqual(page.startersOf(job, {}), [{ id: "captions", title: "The captions pack", present: false }]);
+  // After the add, the job is read again: the server no longer offers it, and the line shows it as present.
+  const after = { reads: [{ file: "packs/captions.md", title: "The captions pack", need: "helps", state: "filled", starter: null }] };
+  assert.deepEqual(page.startersOf(after, { captions: true }), [{ id: "captions", title: "The captions pack", present: true }]);
+  assert.deepEqual(page.startersOf(after, {}), []);
+  assert.deepEqual(page.startersOf(shape("job"), {}), []);
+  assert.deepEqual(page.startersOf(null, null), []);
+});
+
+test("job: the starters route's answer and a failed request, in plain words (M63 41)", () => {
+  assert.deepEqual(page.starterAnswer({ added: ["captions"], skipped: [] }, "captions"), { ok: true });
+  assert.deepEqual(page.starterAnswer({ added: [], skipped: [{ id: "captions", why: "It is already in Packs." }] }, "captions"), { ok: true });
+  assert.deepEqual(page.starterAnswer({ added: [], skipped: [{ id: "captions", why: "That starter page is not there." }] }, "captions"),
+    { ok: false, text: "That starter page is not there." });
+  assert.equal(page.starterAnswer(null, "captions").ok, false);
+  assert.match(page.starterProblem({ offline: true }), /not answering\. Try again/);
+  assert.equal(page.starterProblem({ status: 400, message: "That request was not understood." }), "That request was not understood.");
+  assert.match(page.starterProblem(null), /could not be added\. Try again\./);
+});
+
+test("job: the page offers the starter pack through the Files page's route, with a keyboard-reachable button (M63 41)", () => {
+  const src = readFileSync(fileURLToPath(new URL("../../pages/job.js", import.meta.url)), "utf8");
+  assert.match(src, /api\.post\("\/api\/brain\/starters", \{ ids: \[id\] \}\)/);
+  assert.match(src, /<\$\{Button\}[^>]*onClick=\$\{\(\) => add\(p\.id\)\}>/);
+  assert.match(src, /"Add the starter pack"/);
+  assert.match(src, /role="alert"/);
+});

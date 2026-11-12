@@ -416,3 +416,26 @@ test("jobView: a pack the job reads is named by the pack's title, not its file n
   if (pack) assert.match(pack.title, /^The .+ pack$/);
   for (const r of v.reads) assert.ok(!/\.md$/.test(r.title), r.title);
 });
+
+test("jobView: a starter pack the job reads that is not in the company's files yet carries its starter id (M63 41)", () => {
+  const cat = loadCatalogue(h.config);
+  const job = cat.jobs.get("studio/captions-for-a-video");
+  const empty = withBrain({});
+  try {
+    const v = jobView(job, { needs: ALL_NEEDS, runs: new Map(), config: empty.config });
+    const pack = v.reads.find((r) => r.file === "packs/captions.md");
+    assert.equal(pack.state, "missing");
+    assert.equal(pack.starter, "captions");
+    assert.equal(pack.title, "The captions pack");
+  } finally { rmSync(empty.root, { recursive: true, force: true }); }
+  const added = withBrain({ "packs/captions.md": readFileSync(join(h.config.engineDir, "company", "brain", "starters", "packs", "captions.md"), "utf8") });
+  try {
+    const v = jobView(job, { needs: ALL_NEEDS, runs: new Map(), config: added.config });
+    const pack = v.reads.find((r) => r.file === "packs/captions.md");
+    assert.equal(pack.state, "filled");
+    assert.equal(pack.starter, null, "once it is there, nothing is offered");
+  } finally { rmSync(added.root, { recursive: true, force: true }); }
+  // A file that is not a starter pack never carries one, missing or not.
+  const sales = jobView(cat.jobs.get("sales/proposal-from-a-call"), { needs: ALL_NEEDS, runs: new Map(), config: h.config });
+  for (const r of sales.reads) if (!r.file.startsWith("packs/")) assert.equal(r.starter, null, r.file);
+});

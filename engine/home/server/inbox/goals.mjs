@@ -11,6 +11,7 @@ import { versionOf } from "../lib/inbox.mjs";
 import { askedQuestion } from "../lib/owner-text.mjs";
 import { roundsOf } from "../lib/staged.mjs";
 import { listTaskFiles, readTaskText } from "../lib/taskfiles.mjs";
+import { ACCEPTED, recordVerdict, SENT_BACK } from "../lib/verdicts.mjs";
 
 // One line of Markdown as plain words: null for a line that is only a mark (a rule, a table divider, a fence).
 // `ends` says the line was a heading, list item or table row, `item` that it was a list item.
@@ -165,11 +166,14 @@ async function act(ctx, itemId, action, note) {
   const goalId = ctx.item._goalId;
   if (action === "acknowledge") {
     ctx.decisions.set(ackKey(goalId), new Date().toISOString());
+    recordVerdict(ctx.decisions, goalId, ACCEPTED);
     return { message: "Accepted." };
   }
   if (action === "reopen") {
     const path = `/api/issues/${encodeURIComponent(goalId)}`;
     await ctx.board.post(`${path}/comments`, { body: String(note).trim() });
+    // The owner's verdict, as the owner gave it, once the board has the note (lib/verdicts.mjs).
+    recordVerdict(ctx.decisions, goalId, SENT_BACK, note);
     await ctx.board.patch(path, { status: "todo" });
     return { message: "Sent back with your note. The Chief of staff will pick it up." };
   }

@@ -67,11 +67,13 @@ When a task asks for a document, write it in the goal's sub-folder, as a file wi
 
 ```
 # Call write-up: <who>
+## What they told us
 ## Decisions
 ## Who owns what
 ## Deadlines
 ## Risks
 ## What they asked for
+## Open questions
 ```
 
 Say only what the call file says. A part with nothing in it says "Nothing was said." Then leave two follow-ups on the customer's record, if the task names a lead or deal: an `FCRM Note` (the write-up in short, in plain sentences) and a `CRM Task` for the owner (the next step, with a due date only if the call gave one). Set yourself as the owner when you create them, as for any CRM record. Report each as a line `DRAFT: FCRM Note <name>` and `DRAFT: CRM Task <name>`.
@@ -89,9 +91,13 @@ Say only what the call file says. A part with nothing in it says "Nothing was sa
 ## Our terms
 ```
 
-"What you told us" repeats the customer's own asks in plain words. "What it costs" and "Our terms" use the price and terms files only, with the line they came from named. The owner reads it and sends it himself.
+"What you told us" repeats the customer's own asks in plain words. "What it costs" and "Our terms" use the price and terms files only, with the line they came from named. The owner reads it and sends it himself. A formal quotation is never "separate work for the owner": the Bookkeeper drafts it from the proposal and the owner approves it, so say that if you mention it.
 
 `first-message.md`: a short first message to a lead, in the company's voice from the brand file if there is one, and nothing the company's files do not support. The owner sends it himself.
+
+## What the owner reads
+
+Your results, questions and summaries are read by the owner. Say what happened in plain words. Use no id except a task's short ref, no field name of the books or the CRM, no file path (name a file by its title), and no error name.
 
 ## The staged way of working
 

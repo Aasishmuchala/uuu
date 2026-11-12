@@ -97,7 +97,7 @@ for (const [folder, [file, problem]] of Object.entries(BROKEN_STARTERS)) {
 
 // id -> [file, the kinds of its fields in order, how many of them are required (they come first)].
 const NINE = {
-  about: ["company/about.md", ["text", "text", "line", "text", "line"], 3],
+  about: ["company/about.md", ["text", "text", "line", "line", "text", "line"], 3],
   brand: ["brand/brand.md", ["list", "colour", "choice", "line", "line"], 2],
   "cant-say": ["brand/cant-say.md", ["list", "list"], 2],
   services: ["pricing/services.md", ["rows"], 1],

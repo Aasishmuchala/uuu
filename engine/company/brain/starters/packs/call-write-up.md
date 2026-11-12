@@ -5,11 +5,15 @@ from the notes or the transcript and from nothing else.
 
 ## Parts, in this order
 
-1. **Decisions**: what was agreed, one line each. Only what was said out loud.
-2. **Who owns what**: each job with one name beside it. If no one was named, write "not decided".
-3. **Deadlines**: each date that was said, with what it is for. Write dates in full.
-4. **Risks**: what could go wrong, as the people on the call described it.
-5. **What they asked for**: the other side's requests, in their own words where possible.
+Use these names as the headings, in this order, and no other headings.
+
+1. **What they told us**: the background they gave, in a few short lines. Facts about their place, their need or their situation.
+2. **Decisions**: what was agreed, one line each. Only what was said out loud.
+3. **Who owns what**: each job with one name beside it. If no one was named, write "not decided".
+4. **Deadlines**: each date that was said, with what it is for. Write dates in full.
+5. **Risks**: what could go wrong, as the people on the call described it. If nothing was said, write "Nothing was said."
+6. **What they asked for**: the other side's requests, in their own words where possible. Background goes in part 1, not here.
+7. **Open questions**: what was left hanging.
 
 ## Length and shape
 
@@ -23,7 +27,7 @@ from the notes or the transcript and from nothing else.
 - Every decision can be found without reading the rest.
 - Every owner is a person, never "the team".
 - Every deadline has a day, or says "no date given".
-- A short list of open questions at the end, if any were left hanging.
+- The open questions come last.
 
 ## What to avoid
 

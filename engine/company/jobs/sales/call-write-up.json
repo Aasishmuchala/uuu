@@ -36,7 +36,7 @@
     "books"
   ],
   "takes": null,
-  "text": "Write up the call with [who] from the notes in [call]. Follow the call write-up pack. Say what they told us, what they want, what was agreed and what happens next. Then add a short note and the follow-up tasks to that customer's record. Use only what the notes say, do not invent anything, and do not send anything to the customer.",
+  "text": "Write up the call with [who] from the notes in [call]. Follow the call write-up pack. Use the pack's parts as the headings, in its order: What they told us, Decisions, Who owns what, Deadlines, Risks, What they asked for, Open questions. Then add a short note and the follow-up tasks to that customer's record. Use only what the notes say, do not invent anything, and do not send anything to the customer.",
   "produces": [
     "call-write-up.md"
   ]

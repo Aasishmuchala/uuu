@@ -32,7 +32,7 @@ const headingOf = (label) => String(label).replace(/\s+/g, " ").trim();
 // heading (see headingKey), so neither kind of file opens empty and no answer is written twice. A field may
 // also carry its own `heading`.
 export const HEADINGS = {
-  about: { what: "What the company does", who: "Who it is for", where: "Where it works", reach: "How to reach it", name: "The company's name as it is written" },
+  about: { what: "What the company does", who: "Who it is for", where: "Where it works", state: "The state it is in", reach: "How to reach it", name: "The company's name as it is written" },
   brand: { tone: "Three to five words for how you sound", colours: "Your colours", fonts: "Your typeface", signoff: "How you sign off", logo: "Your logo's file in Brand" },
   "cant-say": { words: "Words and phrases never to use", claims: "Claims never to make" },
   services: { items: "What you sell" },

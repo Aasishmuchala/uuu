@@ -5,7 +5,7 @@
 // The Composer is loaded the same lazy way as a page, so this dialog works before it exists.
 import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
-import { linkHref } from "../lib/format.js";
+import { aheadLine, linkHref } from "../lib/format.js";
 import { BeingBuilt, Dialog, Loading } from "../kit/index.js";
 import { loadModule } from "./lazy-page.js";
 
@@ -30,6 +30,15 @@ export function jobsOf(answer) {
 // The page of a job: "#/jobs/<department>/<id>".
 export const jobHref = (job) => linkHref({ page: "jobs", id: job && job.id });
 
+// The words once a task is given (C3 25, M63): the time it takes, unless other work is ahead in the Chief of
+// staff's line (`queue` of GET /api/shell, worked out by the server); then no time is promised.
+export function givenLine(queue) {
+  const ahead = aheadLine(queue);
+  return ahead
+    ? `Given to the Chief of staff. ${ahead} It is checked before it reaches you.`
+    : "Given to the Chief of staff. It takes a few minutes and is checked before it reaches you.";
+}
+
 // The body of POST /api/goals from what the Composer sends; empty keys are left out.
 export function goalBody({ text, to, planFirst, template } = {}) {
   const body = { text: String(text || "").trim() };
@@ -39,7 +48,7 @@ export function goalBody({ text, to, planFirst, template } = {}) {
   return body;
 }
 
-export function ComposeDialog({ open, seed, team, onClose, onSent }) {
+export function ComposeDialog({ open, seed, team, queue, onClose, onSent }) {
   const [Composer, setComposer] = useState(undefined);
   const [jobs, setJobs] = useState([]);
   const [sent, setSent] = useState(null);
@@ -61,7 +70,8 @@ export function ComposeDialog({ open, seed, team, onClose, onSent }) {
       const s = seed || {};
       const answer = await api.post("/api/goals", goalBody({ ...msg, planFirst: msg.planFirst || s.planFirst, template: msg.template || s.template }));
       const goal = answer.goal || {};
-      setSent({ id: goal.identifier || goal.id || "", title: goal.title || "" });
+      // The line as it stood when the task was given: it joined the end of it.
+      setSent({ id: goal.identifier || goal.id || "", title: goal.title || "", line: givenLine(queue) });
       onSent?.("Given to the Chief of staff.");
     } finally {
       // A failure reaches the Composer, which keeps the text and says what went wrong.
@@ -81,7 +91,7 @@ export function ComposeDialog({ open, seed, team, onClose, onSent }) {
   if (sent) {
     body = html`
       <div class="s-compose-done" role="status">
-        <p>Given to the Chief of staff. It takes a few minutes and is checked before it reaches you.${" "}
+        <p>${sent.line || givenLine(null)}${" "}
           ${sent.id ? html`<a href=${`#/tasks/${encodeURIComponent(sent.id)}`} onClick=${onClose}>Open the task</a>` : null}</p>
         <button type="button" class="s-link-btn" onClick=${() => setSent(null)}>Start another task</button>
       </div>`;

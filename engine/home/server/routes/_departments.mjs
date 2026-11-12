@@ -159,6 +159,51 @@ export async function listDrafts(ctx, source) {
   return out.sort((a, b) => String(b.modified).localeCompare(String(a.modified)));
 }
 
+// ---- the lines of a draft quotation, invoice or bill (M63 item 50), so the owner sees what a total is for
+export const LINE_TYPES = new Set(["Quotation", "Sales Invoice", "Purchase Invoice"]);
+export const MAX_LINES = 12;
+const WHAT_MAX = 80;
+const qtyText = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? String(Math.round(n * 1000) / 1000) : "";
+};
+
+// linesOf(doc) -> { lines: [{ what, qty, rate, amount }], more }: the document's item rows as plain text, at most
+// MAX_LINES, `more` the rest. The item's name was typed into the books (by an agent or a person), so it is cut and
+// made one line here and only ever shown as text.
+export function linesOf(doc) {
+  const rows = Array.isArray(doc?.items) ? doc.items.filter((r) => r && typeof r === "object") : [];
+  const lines = rows.slice(0, MAX_LINES).map((r) => {
+    const raw = String(r.item_name || r.description || r.item_code || "").slice(0, 400);
+    const what = plainText(raw).replace(/[\p{C}]/gu, " ").replace(/\s+/g, " ").trim();
+    return {
+      what: (what.length > WHAT_MAX ? `${what.slice(0, WHAT_MAX - 1).trimEnd()}…` : what) || "An item",
+      qty: qtyText(r.qty), rate: money(r.rate), amount: money(r.amount ?? (Number(r.qty) || 0) * (Number(r.rate) || 0)),
+    };
+  });
+  return { lines, more: Math.max(0, rows.length - lines.length) };
+}
+
+// The lines as details of a Needs-you card: "<what>" -> "<qty> × <rate> = <amount>", then "And n more lines".
+export function lineDetails({ lines, more }) {
+  const out = lines.map((l) => ({ label: l.what, value: `${l.qty || "?"} × ${l.rate} = ${l.amount}` }));
+  if (more) out.push({ label: "More", value: more === 1 ? "And 1 more line" : `And ${more} more lines` });
+  return out;
+}
+
+// draftLines(ctx, doctype, name) -> { lines, more } read with the home server's own login, or null when the
+// document cannot be read (the card then shows its total alone).
+export async function draftLines(ctx, doctype, name) {
+  if (!LINE_TYPES.has(doctype)) return null;
+  try {
+    const out = await ctx.bench.get(`/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`);
+    return out?.data && typeof out.data === "object" ? linesOf(out.data) : null;
+  } catch (e) {
+    if (e instanceof HomeError) return null;
+    throw e;
+  }
+}
+
 // ---- the page frame (CONTRACTS 9.6)
 const SWITCH_EXPLAIN = "Connect an account to turn this on.";
 export const offSwitch = (id, label) => ({ id, label, on: false, explain: SWITCH_EXPLAIN });

@@ -274,3 +274,34 @@ test("the owner's key never shows in any answer", async () => {
     for (const r of [a, b]) assert.ok(!/owner:owner|token /.test(r.text));
   });
 });
+
+// M63 item 50: a draft quotation, invoice or bill shows what its total is for: its lines, at most 12, as text.
+test("a draft's card lists its lines (what, how many, rate, amount), at most 12, then how many more", async () => {
+  const s = benchSeed();
+  const inv = s.docs["Sales Invoice"].find((d) => d.name === "ACC-SINV-2026-00001");
+  inv.items = [
+    { item_code: "TRIAL-WALL-SHELF-90CM", item_name: "Wall shelf, 90 cm", qty: 4, rate: 2500, amount: 10000 },
+    { item_code: "FIT", item_name: "<b>Fitting</b>\nper shelf‮", qty: 4, rate: 450, amount: 1800 },
+  ];
+  const q = s.docs.Quotation.find((d) => d.name === "SAL-QTN-2026-00001");
+  q.items = Array.from({ length: 15 }, (_, i) => ({ item_name: `Part ${i + 1}`, qty: 1, rate: 100, amount: 100 }));
+  await withHome(async (h) => {
+    const items = await benchItems(h);
+    const card = items.find((i) => i.id === SINV);
+    const after = card.details.slice(card.details.findIndex((d) => d.label === "Total") + 1);
+    assert.deepEqual(after, [
+      { label: "Wall shelf, 90 cm", value: "4 × ₹ 2,500.00 = ₹ 10,000.00" },
+      { label: "Fitting per shelf", value: "4 × ₹ 450.00 = ₹ 1,800.00" },
+    ]);
+    const qc = items.find((i) => i.id === "bench:Quotation:SAL-QTN-2026-00001");
+    const lines = qc.details.filter((d) => /^Part /.test(d.label));
+    assert.equal(lines.length, 12);
+    assert.deepEqual(qc.details.at(-1), { label: "More", value: "And 3 more lines" });
+    // A draft whose lines cannot be read keeps its card, with its total.
+    h.bench.state.docs.Quotation.find((d) => d.name === "SAL-QTN-2026-00001").items = undefined;
+    const again = (await benchItems(h)).find((i) => i.id === "bench:Quotation:SAL-QTN-2026-00001");
+    assert.ok(again.details.some((d) => d.label === "Total"));
+    // A leave request has no lines.
+    assert.ok(!(await benchItems(h)).find((i) => i.id === LEAVE).details.some((d) => d.label === "More" || / × /.test(d.value)));
+  }, { benchSeed: s });
+});

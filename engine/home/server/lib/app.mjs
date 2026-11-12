@@ -63,7 +63,7 @@ export async function createHome(options) {
   const bench = createBench({
     baseUrl: urls.bench, site: config.bench.site, keyFile: config.paths.benchOwnerKey, booksDir: config.paths.books, log,
   });
-  const decisions = createDecisions(join(config.paths.homeData, "decisions.json"));
+  const decisions = createDecisions(join(config.paths.homeData, "decisions.json"), { log });
 
   const proveCommand = options.proveCommand || [join(config.engineDir, "bin", "engine"), "prove"];
   const prove = {

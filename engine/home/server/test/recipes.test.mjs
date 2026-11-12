@@ -28,7 +28,9 @@ async function refresh(h) {
   return r.json;
 }
 
-const agentComment = (h, issue, slug, body, createdAt = "2026-11-12T09:59:00.000Z") => h.board.state.comments.push({
+// A time just before now: the owner's verdict, written now, comes after it (rounds are counted up to a verdict).
+const ago = (minutes) => new Date(Date.now() - minutes * 60000).toISOString();
+const agentComment = (h, issue, slug, body, createdAt = ago(1)) => h.board.state.comments.push({
   id: `c-${slug}-${h.board.state.comments.length}`, issueId: issue, body, authorAgentId: A(slug), authorUserId: null, createdAt,
 });
 
@@ -72,7 +74,7 @@ test("accepting STH-23 logs its job title, the owner's words and two scores, new
 
 test("no sentence an agent wrote reaches the log: comments, checks, concepts.md", async () => {
   await withHome(async (h) => {
-    agentComment(h, STH(23), "chief-of-staff", `RESULT:\n${MARK}`, "2026-11-12T09:00:00.000Z");
+    agentComment(h, STH(23), "chief-of-staff", `RESULT:\n${MARK}`, ago(59));
     agentComment(h, STH(23), "marketer", `${MARK}\n## 1. Fake heading`);
     writeFileSync(join(h.state, "tasks", "company-work", "STH-23", "concepts.md"),
       `# Concepts: ${MARK}\n${[1, 2, 3, 4, 5].map((n) => `## ${n}. ${MARK.slice(0, 40)}\nangle: ${MARK}\nwhy: ${MARK}`).join("\n")}\n`);
@@ -109,7 +111,7 @@ test("a later round by the Checker counts: two rounds, the last round's scores",
       "3. Is each concept different? YES - yes", "4. Is each one short? YES - yes", "5. Is it free of anything sent? YES - files only", "6. Could the owner use it? YES - yes",
       "## Actions", "None.", "Verdict: PASS",
     ].join("\n");
-    agentComment(h, STH(23), "checker", check, "2026-11-12T09:58:00.000Z");
+    agentComment(h, STH(23), "checker", check, ago(2));
     assert.equal((await accept(h, 23)).status, 200);
     await refresh(h);
     const b = blockOf(readLog(h), "Five concepts before any design");
@@ -196,7 +198,9 @@ test("the Marketing answer lists the recipes: date, job, rounds, scores and verd
     const [first] = s.rows;
     assert.equal(first.taskId, STH(23));
     assert.equal(first.rounds, 1);
-    assert.deepEqual(first.scores, [{ slug: "concept-1", score: 9 }, { slug: "concept-2", score: 8 }]);
+    // Numbers only: the Checker's labels are its own words (M63 item 26).
+    assert.deepEqual(first.scores, [{ label: "piece 1", score: 9 }, { label: "piece 2", score: 8 }]);
+    assert.ok(!JSON.stringify(s.rows).includes("concept-1"));
     assert.equal(first.verdict, "Accepted");
     assert.match(first.date, /^\d{1,2} [A-Z][a-z]{2} \d{4}$/);
   });
@@ -220,4 +224,58 @@ test("renderLog: fixed words, the job's title, the owner's words and numbers", (
   assert.match(text, /## 12 Nov 2026 · Five concepts before any design\n- The owner asked for: What is it about: Diwali offer\n- Rounds: 2\n- Scores of the last round: piece 1: 9\n- Verdict: Sent back\. The owner's note: Shorter\.\n/);
   assert.match(text, /## 11 Nov 2026 · A carousel from one concept\n- The owner asked for: Not recorded\.\n- Rounds: 0\n- Scores of the last round: None\n- Verdict: Accepted\n$/);
   assert.match(renderLog([]), /Nothing yet\.\n$/);
+});
+
+// ---- M63 items 23 and 24
+test("one row per verdict (M63 item 23): sent back with a note, then redone and accepted, keeps both rows", async () => {
+  await withHome(async (h) => {
+    const back = await actAsSeen(h.url, { id: `goal:${STH(23)}`, action: "reopen", note: "Make the headlines shorter." });
+    assert.equal(back.status, 200, back.text);
+    const goal = h.board.state.issues.find((i) => i.id === STH(23));
+    // The work is redone: a second round by the Checker, and the task is finished again.
+    const check = [
+      "VERDICT: PASS - better", "# Check: round 2", "## Questions", "1. Does the work do what the brief asked? YES - yes",
+      "2. Does every piece score at least 8 out of 10 against the brand file, with nothing from the can't-say list? YES - scores: concept-1 10, concept-2 9; better",
+      "3. A? YES - y", "4. B? YES - y", "5. C? YES - y", "6. D? YES - y", "## Actions", "None.", "Verdict: PASS",
+    ].join("\n");
+    agentComment(h, STH(23), "checker", check, new Date(Date.now() + 1000).toISOString());
+    goal.status = "done";
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    assert.equal((await accept(h, 23)).status, 200);
+    await refresh(h);
+    const blocks = readLog(h).split("\n## ").filter((b) => b.includes(" · Five concepts before any design\n"));
+    assert.equal(blocks.length, 2, readLog(h));
+    assert.match(blocks[0], /- Verdict: Accepted\n?$/);
+    assert.match(blocks[0], /- Rounds: 2\n/);
+    assert.match(blocks[0], /- Scores of the last round: piece 1: 10, piece 2: 9\n/);
+    assert.match(blocks[1], /- Verdict: Sent back\. The owner's note: Make the headlines shorter\./);
+    assert.match(blocks[1], /- Rounds: 1\n/, "the rounds the owner had seen when sending it back");
+    assert.match(blocks[1], /- Scores of the last round: piece 1: 9, piece 2: 8\n/);
+    const rows = (await call(h.url, "GET", "/api/departments/marketing")).json.sections.find((s) => s.id === "recipes").rows
+      .filter((r) => r.taskId === STH(23));
+    assert.deepEqual(rows.map((r) => r.verdict), ["Accepted", "Sent back"]);
+    assert.equal(rows[1].note, "Make the headlines shorter.");
+  });
+});
+
+test("an earlier task chosen as an answer is named by the title the home server gave it (M63 item 24), whether the record holds its ref or its id", async () => {
+  const { recipeEntries } = await import("../lib/recipes.mjs");
+  const { createBoard } = await import("../lib/board.mjs");
+  await withHome(async (h) => {
+    const file = JSON.parse(readFileSync(join(h.state, "home", "decisions.json"), "utf8"));
+    const ids = () => JSON.parse(readFileSync(h.config.paths.ids, "utf8"));
+    const board = createBoard({ baseUrl: h.board.url, ids, companyName: "Sthyra" });
+    for (const earlier of ["STH-23", STH(23)]) {
+      const rec = { ...file, [`asked:${STH(24)}`]: { answers: { earlier, concept: "3", count: "5" } } };
+      const ctx = { ids, config: h.config, board, log() {}, decisions: { get: (k) => (Object.hasOwn(rec, k) ? rec[k] : null) } };
+      const row = (await recipeEntries(ctx)).find((e) => e.taskId === STH(24));
+      assert.equal(row.words, "Which set of concepts: Five concepts before any design; Which concept: 3; How many slides: 5", earlier);
+    }
+    // A task the board changed the title of is still named from the records, never from its title.
+    h.board.state.issues.find((i) => i.id === STH(23)).title = MARK;
+    const rec = { ...file, [`asked:${STH(24)}`]: { answers: { earlier: "STH-23" } } };
+    const ctx = { ids, config: h.config, board, log() {}, decisions: { get: (k) => (Object.hasOwn(rec, k) ? rec[k] : null) } };
+    const row = (await recipeEntries(ctx)).find((e) => e.taskId === STH(24));
+    assert.ok(!row.words.includes(MARK));
+  });
 });

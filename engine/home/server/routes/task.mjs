@@ -8,6 +8,7 @@
 import { plainLines } from "../inbox/goals.mjs";
 import { isFixTask } from "../lib/draftfix.mjs";
 import { capText } from "../lib/format.mjs";
+import { ownerAnswersOf } from "../lib/owner-text.mjs";
 import { plainState } from "../lib/goals.mjs";
 import { findTask, isHeldTask, loadTaskContext, taskCard, treeComments } from "../lib/tasks.mjs";
 import {
@@ -227,6 +228,17 @@ async function nextOf(ctx, goal, card, tctx) {
   return out;
 }
 
+// The owner's answers to the board's question cards (lib/owner-text.mjs), on the task and its steps, put among the
+// comments in their place in time as the owner's own messages (M63 item 40).
+function withOwnerAnswers(ctx, tctx, goal, messages) {
+  const ids = [goal.id, ...tctx.stepsOf(goal.id).map((st) => st.id)];
+  const answers = ids.flatMap((id) => ownerAnswersOf(ctx.decisions, id)).map((a) => ({ who: YOU, kind: "note", text: a.text, at: a.at }));
+  if (!answers.length) return messages;
+  const t = (m) => { const v = Date.parse(m.at || ""); return Number.isFinite(v) ? v : -Infinity; };
+  return [...messages.map((m, i) => ({ m, i })), ...answers.map((m, i) => ({ m, i: messages.length + i }))]
+    .sort((a, b) => t(a.m) - t(b.m) || a.i - b.i).map((x) => x.m);
+}
+
 export default function register(app) {
   app.get("/api/tasks/:id", async (ctx) => {
     const tctx = await loadTaskContext(ctx, { withInbox: true, withComments: false });
@@ -276,8 +288,8 @@ export default function register(app) {
       },
       stages: stagesView(tctx, goal, comments, rounds),
       timeline: timelineView(tctx, goal),
-      conversation: comments.slice(-MAX_CONVERSATION)
-        .map((c) => ({ who: whoOf(tctx, c), kind: kindOfComment(c, checkerId), text: plainText(c, checkerId), at: c.createdAt || null })),
+      conversation: withOwnerAnswers(ctx, tctx, goal, comments.map((c) => ({ who: whoOf(tctx, c), kind: kindOfComment(c, checkerId), text: plainText(c, checkerId), at: c.createdAt || null })))
+        .slice(-MAX_CONVERSATION),
       files: goal.identifier ? listTaskFiles(ctx.config, goal.identifier).map((f) => fileEntry(goal.identifier, f.name, f.size)) : [],
       result: resultOf(tctx, goal, comments),
       generatedAt: new Date().toISOString(),

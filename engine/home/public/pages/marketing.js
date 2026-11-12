@@ -104,15 +104,18 @@ export function conceptsOf(section) {
   }).filter((c) => c.headlines.length);
 }
 
-// Scores arrive as a list of { slug, score } or as the text "concept-1 9, concept-2 8". Anything else is none.
+// Scores arrive as a list of { label, score } (or { slug, score }) or as the text "concept-1 9, concept-2 8".
+// Anything else is none. Whatever a piece was called, it is shown as "piece <n>": a label the Checker wrote is
+// an agent's word and is never shown (M63 item 26).
 export function scoreList(value) {
   const list = Array.isArray(value)
-    ? value.map((x) => ({ slug: clip(x?.slug, 40), score: Number(x?.score) }))
-    : String(value ?? "").split(",").map((part) => {
-      const m = /^\s*([a-z0-9-]{1,40})\s+(10|[0-9])\s*$/.exec(part);
-      return m ? { slug: m[1], score: Number(m[2]) } : null;
+    ? value.map((x) => (x && typeof x === "object" ? { score: Number(x.score) } : null))
+    : String(value ?? "").slice(0, 2000).split(",").map((part) => {
+      const m = /^\s*([a-z0-9-]{1,40})\s+(10|[0-9])\s*$/.exec(part.slice(0, 60));
+      return m ? { score: Number(m[2]) } : null;
     });
-  return list.filter((x) => x && x.slug && Number.isInteger(x.score) && x.score >= 0 && x.score <= 10).slice(0, 20);
+  return list.filter((x) => x && Number.isInteger(x.score) && x.score >= 0 && x.score <= 10).slice(0, 20)
+    .map((x, i) => ({ label: `piece ${i + 1}`, score: x.score }));
 }
 
 // A score of 8 or more passes the Checker's bar.
@@ -206,7 +209,7 @@ export function Recipes({ section }) {
         <${DataTable} columns=${columns} rows=${rows.map((r, i) => ({ ...r, id: r?.id ?? i }))} renderCell=${(row, col) => {
           if (col.key === "scores") {
             const list = scoreList(row.scores);
-            return list.length ? html`<span class="p-marketing__scores">${list.map((x) => html`<${Tag} key=${x.slug} tone=${scoreTone(x.score)}>${x.slug} ${x.score}<//>`)}</span>` : "No scores";
+            return list.length ? html`<span class="p-marketing__scores">${list.map((x) => html`<${Tag} key=${x.label} tone=${scoreTone(x.score)}>${x.label}: ${x.score}<//>`)}</span>` : "No scores";
           }
           if (col.key === "verdict") return row.verdict ? html`<${Tag} tone=${verdictTone(row.verdict)}>${clip(row.verdict, 40)}<//>` : "";
           return undefined;

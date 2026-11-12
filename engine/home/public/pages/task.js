@@ -186,6 +186,8 @@ export function storyOf(d) {
     if (Number.isFinite(at)) last = at;
     const who = m.who && typeof m.who === "object" ? { slug: text(m.who.slug), name: text(m.who.name) } : { slug: "", name: "" };
     const message = { who, kind: text(m.kind) || "comment", text: cap(m.text, 8000), at: m.at };
+    // A long comment of an agent folds behind "Show all" (M63 item 28); the check and the result stay open.
+    if (message.kind === "comment" && who.slug !== YOU.slug) message.fold = true;
     if (message.kind === "verdict") {
       const hit = unused.find((u) => !u.used && u.at === at);
       if (hit) { hit.used = true; message.marker = roundMarker(hit.r); }
@@ -509,6 +511,10 @@ function HowItWent({ stages, timeline, now }) {
     </details>`;
 }
 
+// Once a task is accepted, what can come next is the point of the panel: it goes at the top, above the checks (M63
+// item 48). Otherwise it keeps its place below them.
+export const nextOnTop = (acceptance, next) => !!acceptance && acceptance.state === "accepted" && list(next).length > 0;
+
 function NextUp({ items }) {
   if (!items.length) return null;
   return html`
@@ -649,6 +655,7 @@ export default function Page({ route }) {
         <p class="p-task__over">Acceptance</p>
         <${Chip} dot=${STATE_DOTS[state] || "off"}>${stateWord(acceptance)}<//>
       </div>
+      ${nextOnTop(acceptance, next) ? html`<${NextUp} items=${next} />` : null}
       ${!layout.narrow ? html`<${AcceptBar} acceptance=${acceptance} onDone=${after} onChanged=${res.refresh} />` : null}
       ${said ? html`<p class="p-task__said" role="status" tabindex="-1" ref=${saidRef}>${said}</p>` : null}
       ${needs.length ? html`
@@ -656,7 +663,7 @@ export default function Page({ route }) {
           ${needs.map((item) => html`<${DecisionCard} key=${item.id} item=${item} onDone=${() => after("Done.")} />`)}
         </div>` : null}
       <${Rounds} id=${id} acceptance=${acceptance} query=${query} />
-      <${NextUp} items=${next} />
+      ${nextOnTop(acceptance, next) ? null : html`<${NextUp} items=${next} />`}
       <${HowItWent} stages=${d.stages} timeline=${d.timeline} now=${d.generatedAt} />
       <div class="p-task__tools">
         ${files.length ? html`<${Button} variant="plain" size="sm" icon="panel" onClick=${showFiles}>Files (${files.length})<//>` : null}

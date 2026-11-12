@@ -30,7 +30,7 @@
     "speech"
   ],
   "takes": null,
-  "text": "Take the clip [clip], work out the words that are spoken, and put them on the picture as captions that appear as each is said. Keep the words exactly as spoken and keep the captions big enough to read on a phone. The clip is at most five minutes, and the result is at most two minutes and at most full HD in size. Look at the stills before you hand it over, and say if any word looked unsure.",
+  "text": "Take [clip], work out the words that are spoken, and put them on the picture as captions that appear as each is said. Keep the words exactly as spoken and keep the captions big enough to read on a phone. The clip is at most five minutes, and the result is at most two minutes and at most full HD in size. Look at the stills before you hand it over, and say if any word looked unsure.",
   "produces": [
     "video/*/manifest.json"
   ]

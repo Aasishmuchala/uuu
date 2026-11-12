@@ -58,7 +58,22 @@ export function departmentOf(slugOrSource) {
 // for the Chief of staff who raised it); an item without that key counts by its agent or its dashboard. An
 // answer to a question to the company brain counts on the brain, not on a department (26.4), as on the dock.
 // tctx: the task model (lib/tasks.mjs), or null when the board is off (then both are 0).
-export function departmentLoad(dept, tctx) {
+// A job the Chief of staff is planning counts as work for the department the job belongs to (M63 item 52): its run
+// is running on a task whose `template:` record (the home server's own) names a job of that department in
+// `catalogue`. Never from a task's text.
+function planningFor(dept, tctx, catalogue) {
+  const chief = tctx.ids?.agents?.["chief-of-staff"];
+  if (!chief || !catalogue?.jobs || dept.agents.includes("chief-of-staff") || typeof tctx.decisions?.get !== "function") return 0;
+  for (const r of Array.isArray(tctx.liveRuns) ? tctx.liveRuns : []) {
+    if (!r || r.agentId !== chief || r.status === "queued" || typeof r.issueId !== "string") continue;
+    const root = typeof tctx.rootOf === "function" ? tctx.rootOf(r.issueId) || r.issueId : r.issueId;
+    const ref = tctx.decisions.get(`template:${root}`);
+    if (typeof ref === "string" && catalogue.jobs.get(ref)?.department === dept.id) return 1;
+  }
+  return 0;
+}
+
+export function departmentLoad(dept, tctx, { catalogue = null } = {}) {
   if (!tctx) return { working: 0, needsYou: 0 };
   const ids = new Set(dept.agents.map((slug) => tctx.ids?.agents?.[slug]).filter(Boolean));
   for (const a of tctx.agentList || []) {
@@ -67,6 +82,7 @@ export function departmentLoad(dept, tctx) {
   }
   let working = 0;
   for (const id of ids) if (tctx.liveByAgent?.has(id)) working += 1;
+  working += planningFor(dept, tctx, catalogue);
   const isAsk = (i) => !!(i.taskId && tctx.decisions?.get?.(`ask:${i.taskId}`));
   const needsYou = (tctx.needsYou || []).filter((i) => !isAsk(i) && (Object.hasOwn(i, "department") ? i.department === dept.id
     : (i.agent && dept.agents.includes(i.agent.slug)) || (dept.dashboard && i.source === dept.dashboard))).length;

@@ -29,6 +29,7 @@ import { randomUUID } from "node:crypto";
 import { HomeError } from "../lib/errors.mjs";
 import { isGoal, loadIssues, rootOf } from "../lib/goals.mjs";
 import { versionOf } from "../lib/inbox.mjs";
+import { recordOwnerAnswer } from "../lib/owner-text.mjs";
 import { stopTask } from "../lib/stop.mjs";
 import { loadRoles } from "../lib/team.mjs";
 import { actedAt, answeredBlock, newer, ownerCommentAt, treeRuns } from "../lib/turn.mjs";
@@ -538,7 +539,10 @@ async function actOn(ctx, itemId, action, note) {
       }
     };
     if (action === "answer" && raw._questions) {
-      await send("respond", { answers: answersFor(raw._questions, note) }, ["answered"]);
+      const answers = answersFor(raw._questions, note);
+      await send("respond", { answers }, ["answered"]);
+      // The owner's own words, for the task's conversation (lib/owner-text.mjs).
+      recordOwnerAnswer(ctx.decisions, qIssue, answers.map((a) => a.otherText || ""));
       return { message: "Your answer was passed on." };
     }
     if (action === "accept") { await send("accept", {}, ["accepted"]); return { message: "Accepted." }; }

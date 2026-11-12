@@ -66,6 +66,46 @@
 .p-job .p-job__follows-text { margin: 0; color: var(--text); }
 .p-job .p-job__follows-links { margin: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); }
 
+/* A starter pack the job reads that is not in the company's files yet: one line and one action (M63 41). */
+.p-job .p-job__packs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.p-job .p-job__pack {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-3);
+  background: var(--glass-soft);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  min-width: 0;
+}
+.p-job .p-job__pack-text {
+  margin: 0;
+  flex: 1 1 16rem;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  overflow-wrap: anywhere;
+}
+.p-job .p-job__pack-text strong { color: var(--text); font-weight: 600; }
+.p-job .p-job__pack--present .p-job__pack-text { color: var(--text); }
+.p-job .p-job__pack--present .k-icon { color: var(--ok-text); flex: none; margin-top: 2px; }
+.p-job .p-job__pack-act { flex: none; }
+.p-job .p-job__pack-problem { margin: 0; flex-basis: 100%; color: var(--bad-text); font-size: var(--fs-caption); }
+
 @media (max-width: 859px) {
+  .p-job .p-job__pack-act { flex-basis: 100%; }
+  .p-job .p-job__pack-act .k-btn { min-height: 44px; }
+
   .p-job .p-job__link { display: inline-flex; align-items: center; min-height: 44px; }
 }

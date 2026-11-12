@@ -145,6 +145,27 @@ function earlierTask(ctx, job, tctx, from) {
   return earlier;
 }
 
+// What an earlier task was about, from the home server's own records only (never its title on the board, which an
+// agent can change): the subject of the work it followed, when it followed some; else its own first one-line
+// answer; else the first line of its first longer answer. null when the records say nothing.
+const SUBJECT_MAX = 80;
+export function subjectOf(ctx, taskId, depth = 0) {
+  if (typeof taskId !== "string" || !taskId || depth > 5) return null;
+  const from = ctx.decisions.get(`from:${taskId}`);
+  const before = typeof from === "string" ? subjectOf(ctx, from, depth + 1) : null;
+  if (before) return before;
+  const ref = ctx.decisions.get(`template:${taskId}`);
+  const job = typeof ref === "string" ? loadCatalogue(ctx.config).jobs.get(ref) : null;
+  const rec = ctx.decisions.get(`asked:${taskId}`);
+  const answers = rec && typeof rec === "object" && rec.answers && typeof rec.answers === "object" ? rec.answers : null;
+  if (!job || !answers) return null;
+  const said = (a) => (typeof answers[a.id] === "string" ? stripInvisible(answers[a.id]).split("\n")[0].replace(/\s+/g, " ").trim() : "");
+  const ask = job.asks.find((a) => a.kind === "line" && said(a)) || job.asks.find((a) => a.kind === "text" && said(a));
+  if (!ask) return null;
+  const t = said(ask);
+  return t.length > SUBJECT_MAX ? `${t.slice(0, SUBJECT_MAX - 1).trimEnd()}…` : t;
+}
+
 function notReady(ctx, why) {
   const next = !why.link ? "Pick another job for now."
     : why.link.page === "files" ? "Open Files and fill it in, then start the job."
@@ -251,7 +272,9 @@ export default function register(app) {
     const toRole = job.who.length === 1 ? roles.find((r) => r.slug === job.who[0]) : null;
     const to = toRole && toRole.slug !== "chief-of-staff" ? toRole.name : null;
     const firstLine = job.asks.find((a) => a.kind === "line" && typeof places[a.id] === "string" && places[a.id]);
-    const title = titleOf(firstLine ? `${job.title}: ${places[firstLine.id]}` : job.title);
+    // A task that follows earlier work carries what that work was about (M63 item 47), so two of them read apart.
+    const subject = (earlier && subjectOf(ctx, earlier.id)) || (firstLine ? places[firstLine.id] : null);
+    const title = titleOf(subject ? `${job.title}: ${subject}` : job.title);
     const description = buildText({
       text: fillText(job.text, places), to, planFirst: job.planFirst || body.planFirst === true,
       reads: job.reads, produces: job.produces, job: ref,
@@ -262,12 +285,24 @@ export default function register(app) {
     if (!chief) throw ctx.fail(409, "The Chief of staff is not set up yet.", "Run engine setup first.", "not_set_up");
     // The Chief of staff's line before the task joins it: everything in it is ahead of the new task.
     const queue = await chiefQueue(ctx);
+    // Every start is a new task (M63 item 22). Unless told otherwise, the board treats a new task whose title
+    // matches an open top-level task of the last 48 hours as that task and hands the old one back
+    // (`allowDuplicate` defaults to false in paperclip's createIssueSchema; services/issues.js
+    // "recent_open_title"), so a second start of a job with the same title merged into the first.
     const created = await ctx.board.post(`/api/companies/${encodeURIComponent(ids.companyId)}/issues`, {
       title, description, assigneeAgentId: chief, projectId: ids.projectId, status: "todo", priority: "medium",
+      allowDuplicate: true,
     });
+    // A task the board says it already had is not this start's: nothing is recorded for it, and the owner is told.
+    if (created && created.deduplicated) {
+      ctx.log(`jobs: the board handed back an existing task for a start of ${ref}; nothing was recorded`);
+      throw ctx.fail(409, "This job was not started again: the board kept the earlier task.",
+        "Open Tasks to find it, or start the job again in a minute.", "already_started");
+    }
     if (created && typeof created.id === "string") {
       const kept = {};
       for (const [k, v] of Object.entries(record)) kept[k] = String(v).slice(0, RECORD_MAX);
+      // Write-once records (lib/decisions.mjs): a replayed start can never change them.
       ctx.decisions.set(`template:${created.id}`, ref);
       ctx.decisions.set(`asked:${created.id}`, { answers: kept });
       if (earlier) ctx.decisions.set(`from:${created.id}`, earlier.id);

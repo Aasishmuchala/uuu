@@ -326,6 +326,16 @@ function treeIds(goal, tctx) {
   return new Set([goal.id, ...tctx.stepsOf(goal.id).map((s) => s.id)]);
 }
 
+// The earliest block time the board gives for these issues, or null when it gives none.
+function firstBlock(issues) {
+  let best = NaN;
+  for (const i of issues) {
+    const t = Date.parse(i?.blockedTransitionAt || "");
+    if (Number.isFinite(t) && !(t >= best)) best = t;
+  }
+  return Number.isFinite(best) ? new Date(best).toISOString() : null;
+}
+
 // A blocked task whose block the owner has already answered (lib/turn.mjs answeredBlock: a run of it or of a blocked
 // step is queued or running, or the owner acted on it after the block, moments ago), and for which Needs you holds nothing: not a
 // question, not the board's own problem item (inbox/board.mjs leaves that out for the same reason). "waiting"
@@ -337,10 +347,14 @@ export function answeredTurn(goal, tctx) {
   if (tctx.needsYou.some((i) => i.taskId === goal.id && i.kind === "problem" && i.source === "board")) return null;
   // A run of the task itself or of one of its blocked steps (where the owner's answer wakes an agent); a step at
   // work on something else does not answer the block.
-  const blocked = new Set([goal.id, ...tctx.stepsOf(goal.id).filter((s) => s.status === "blocked").map((s) => s.id)]);
+  const blockedSteps = tctx.stepsOf(goal.id).filter((s) => s.status === "blocked");
+  const blocked = new Set([goal.id, ...blockedSteps.map((s) => s.id)]);
   const runs = treeRuns(tctx.liveRuns, blocked);
   const ownerAt = newer(actedAt(tctx.decisions, goal.id), ownerCommentAt(tctx.comments?.get(goal.id)));
-  if (!answeredBlock({ live: runs.running + runs.queued > 0, blockedAt: goal.blockedTransitionAt || null, ownerAt })) return null;
+  // The block the owner answered is the first one in the tree: Needs you hides a step's card by the step's own block
+  // time (inbox/board.mjs), so the task must not be "stuck" because the board blocked the top task again after it
+  // (M63 item 49: the task said "Stuck, needs you" while Needs you held nothing).
+  if (!answeredBlock({ live: runs.running + runs.queued > 0, blockedAt: firstBlock([goal, ...blockedSteps]), ownerAt })) return null;
   return runs.running ? "working" : "waiting";
 }
 

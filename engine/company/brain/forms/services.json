@@ -32,7 +32,7 @@
           "label": "Tax code"
         }
       ],
-      "hint": "Such as: one row for each thing you sell. Tax code: its HSN code (goods) or SAC code (services), if you know it."
+      "hint": "Such as: one row per item. Unit: one the books know (Nos, Hour, Day). Tax code: 6 or 8 digits, HSN (goods) or SAC (services)."
     }
   ]
 }
