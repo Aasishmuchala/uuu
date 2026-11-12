@@ -9,7 +9,7 @@ for _v in $(compgen -e); do
   case "$_v" in FENCE_*|UUU_*) unset "$_v" ;; esac
 done
 unset ENGINE_CONFIG _v
-unset OPENAI_API_KEY ANTHROPIC_API_KEY
+unset OPENAI_API_KEY ANTHROPIC_API_KEY ENGINE_RELAY_TOKEN
 
 FENCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 refuse() { echo "fence: $1" >&2; exit 78; }
@@ -55,12 +55,48 @@ fi
 
 # Paperclip's quota check starts `codex ... app-server` from the server's own
 # folder. Give that one an empty folder of its own instead of refusing it.
+QUOTA_CHECK=""
 for arg in "$@"; do
   if [[ "$arg" == "app-server" ]]; then
     mkdir -p "$STATE_DIR/tasks/_quota" && cd "$STATE_DIR/tasks/_quota"
+    QUOTA_CHECK=1
     break
   fi
 done
+
+# Which models this run uses (PLAN-V4, C6): the Codex plan as today, or the
+# owner's provider through the model relay. model_mode.py runs out here and
+# refuses with its own sentence (exit 78). The quota check and a version question
+# need no model and are left as today: no token, no settings. The relay token
+# lives only in a shell variable and then the environment, never on a command line.
+MODEL_MODE=plans
+MODEL_PICK=""
+RELAY_URL=""
+if [[ -z "$QUOTA_CHECK" && "$*" != "--version" && "$*" != "-V" ]]; then
+  if [[ -z "${PAPERCLIP_AGENT_ID:-}" ]]; then
+    MODEL_MODE="$(/usr/bin/python3 "$FENCE_DIR/model_mode.py" --mode)" || exit 78
+    [[ "$MODEL_MODE" == plans ]] \
+      || refuse "the provider is on, and a run without an agent id has no model. The proof passes a real agent's id."
+  else
+    NL=$'\n'
+    _run="$(/usr/bin/python3 "$FENCE_DIR/model_mode.py" --for-run --agent "$PAPERCLIP_AGENT_ID")" || exit 78
+    MODEL_MODE="${_run%%"$NL"*}"
+    if [[ "$MODEL_MODE" == provider ]]; then
+      _run="${_run#*"$NL"}"; RELAY_URL="${_run%%"$NL"*}"
+      _run="${_run#*"$NL"}"; MODEL_PICK="${_run%%"$NL"*}"
+      ENGINE_RELAY_TOKEN="${_run#*"$NL"}"
+    fi
+    unset _run
+  fi
+fi
+if [[ "$MODEL_MODE" == provider ]]; then
+  [[ "$RELAY_URL" =~ ^http://127\.0\.0\.1:[0-9]{1,5}$ && "$MODEL_PICK" =~ ^[a-z0-9.-]{1,80}$ \
+     && "$ENGINE_RELAY_TOKEN" =~ ^v1\.a\.[0-9a-f-]+\.[0-9]+\.[0-9a-f]{64}$ ]] \
+    || refuse "the model relay's address, model or token for this run could not be worked out"
+  export ENGINE_RELAY_TOKEN
+elif [[ "$MODEL_MODE" != plans ]]; then
+  refuse "the model settings for this run could not be worked out"
+fi
 
 # Paperclip tells Codex to hand its shell tool only a fixed list of variables.
 # The fence's proxy settings are not on it, so every call from the shell tool to
@@ -69,14 +105,48 @@ done
 # file, the agent's own keys), by pattern and by the names in use today.
 # TMPPREFIX: where zsh writes here-documents (fence-run points it at the temp folder).
 EXTRA_NAMES='"HTTP_PROXY","HTTPS_PROXY","ALL_PROXY","NO_PROXY","http_proxy","https_proxy","all_proxy","no_proxy","GIT_SSH_COMMAND","SANDBOX_RUNTIME","SSL_CERT_FILE","TMPPREFIX","PAPERCLIP_RUNTIME_API_URL","UUU_*","UUU_KNOWLEDGE_DIR","UUU_LESSONS_FILE","UUU_BENCH_URL","UUU_BENCH_SITE","UUU_BENCH_API_KEY","UUU_BENCH_API_SECRET","UUU_CAD_PYTHON","UUU_CAD_EXPORT"'
+#
+# In provider mode Codex is pointed at the relay. The three settings go right
+# after `exec`: Codex drops every -c given before `exec` when `exec` has -c of its
+# own (paperclip always adds some), and they stay in front of `resume`. A model
+# named with --model or -m beats -c model=, so that value becomes the pick too.
+# The relay sets the model again on every call; this keeps Codex's own view right.
 args=()
+expect=""
+placed=""
 for arg in "$@"; do
   case "$arg" in
     shell_environment_policy.include_only=\[\]) arg="shell_environment_policy.include_only=[$EXTRA_NAMES]" ;;
     shell_environment_policy.include_only=\[*\]) arg="${arg%]},$EXTRA_NAMES]" ;;
   esac
+  if [[ "$MODEL_MODE" == provider ]]; then
+    if [[ -n "$expect" ]]; then
+      [[ "$expect" == --model || "$expect" == -m ]] && arg="$MODEL_PICK"
+      args+=("$arg"); expect=""; continue
+    fi
+    case "$arg" in
+      --model=*) arg="--model=$MODEL_PICK" ;;
+      -m=*) arg="-m=$MODEL_PICK" ;;
+      -c|--config|--enable|--disable|-i|--image|-m|--model|--local-provider|-p|--profile|-s|--sandbox|\
+      -a|--ask-for-approval|-C|--cd|--add-dir|--output-schema|--color|-o|--output-last-message|--remote)
+        expect="$arg" ;;
+    esac
+    args+=("$arg")
+    if [[ "$arg" == exec && -z "$placed" ]]; then
+      args+=(-c 'model_provider="uuu-relay"'
+             -c "model_providers.uuu-relay={name=\"Model relay\",base_url=\"$RELAY_URL/v1\",env_key=\"ENGINE_RELAY_TOKEN\",wire_api=\"responses\",requires_openai_auth=false,supports_websockets=false}"
+             -c "model=\"$MODEL_PICK\"")
+      placed=1
+    fi
+    continue
+  fi
   args+=("$arg")
 done
+# Without `exec` the settings have nowhere to go, and Codex would try OpenAI,
+# which the fence blocks in provider mode: the run would hang, so refuse it.
+if [[ "$MODEL_MODE" == provider && -z "$placed" ]]; then
+  refuse "the provider is on, and this Codex run has no exec, so it cannot be pointed at the model relay"
+fi
 
 # Run the native Codex program directly (what its Node launcher would do), through
 # the small relay that gives it output pipes of its own.

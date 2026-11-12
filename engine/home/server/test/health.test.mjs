@@ -1,9 +1,10 @@
 // Health (CONTRACTS 9.9): parts, fence, not connected, disk, the proof runner, /api/state.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createRelay } from "../../../relay/relay.mjs";
 import { SERVER_DIR } from "../lib/app.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
 import { call } from "../lib/testing.mjs";
@@ -36,11 +37,15 @@ test("parts, fence, not connected and disk", async () => {
     const r = await call(h.url, "GET", "/api/health");
     assert.equal(r.status, 200);
     const d = r.json;
-    assert.deepEqual(d.parts.map((p) => p.id), ["books", "board", "gate", "home"]);
+    assert.deepEqual(d.parts.map((p) => p.id), ["books", "board", "gate", "relay", "home"]);
     const by = Object.fromEntries(d.parts.map((p) => [p.id, p]));
     assert.equal(by.books.state, "on");
     assert.equal(by.board.state, "on");
     assert.equal(by.gate.state, "off");
+    assert.equal(by.relay.state, "off");
+    assert.equal(by.relay.name, "Model relay");
+    assert.equal(by.relay.sentence, "The model relay is off. Run: engine start");
+    assert.match(by.relay.technical, /none in stubs mode/);
     assert.equal(by.home.state, "on");
     for (const p of d.parts) {
       assert.ok(p.name && p.sentence && p.technical);
@@ -114,4 +119,36 @@ test("state: company, counts, engine", async () => {
     assert.ok(Date.parse(r.json.generatedAt));
   }, { moduleDirs: [core] });
   rmSync(core, { recursive: true, force: true });
+});
+
+test("the model relay: idle in plans mode, the only way out in provider mode, and off said plainly", async () => {
+  await withHome(async (h) => {
+    const p = h.config.paths;
+    const relay = createRelay({
+      listenPort: 0, upstream: "http://127.0.0.1:9", log: () => {},
+      paths: { state: p.modelsState, ids: p.ids, key: p.providerKey, secret: p.relaySecret, status: p.relayStatus },
+    });
+    await relay.listen();
+    try {
+      h.app.home.urls.relay = `http://127.0.0.1:${relay.port}`;
+      const part = async () => (await call(h.url, "GET", "/api/health")).json.parts.find((x) => x.id === "relay");
+      let r = await part();
+      assert.equal(r.state, "on");
+      assert.equal(r.sentence, "The model relay is on. It is idle: your agents use your Claude and Codex plans.");
+      assert.match(r.technical, /model relay on http:\/\/127\.0\.0\.1:/);
+      assert.doesNotMatch(r.sentence, TECH);
+      mkdirSync(p.models, { recursive: true, mode: 0o700 });
+      writeFileSync(p.modelsState, JSON.stringify({ version: 1, mode: "provider", picks: {} }), { mode: 0o600 });
+      chmodSync(p.modelsState, 0o600);
+      r = await part();
+      assert.equal(r.sentence, "The model relay is on. Your agents reach Omega Plus only through it.");
+      await relay.close();
+      r = await part();
+      assert.equal(r.state, "off");
+      assert.equal(r.sentence, "The model relay is off, so your agents cannot reach their models. Run: engine start");
+      assert.doesNotMatch(r.sentence, TECH);
+    } finally {
+      await relay.close();
+    }
+  });
 });

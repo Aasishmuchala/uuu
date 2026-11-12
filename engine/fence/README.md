@@ -56,6 +56,12 @@ Every agent runs inside the fence. It can read and write its task folder and its
 - **The quota check** (`codex ... app-server`) starts from the server's own folder; the wrapper moves it to `state/tasks/_quota`.
 - **Bundled Codex is 0.156.1.** Fine for the default model; paperclip notes its extra tracing wants 0.160.0.
 
+## Provider mode
+
+When the owner switches Omega Plus on (see `docs/adr/0010-an-outside-model-provider-behind-a-relay.md`), an agent's allowed addresses are the gate and the model relay (`127.0.0.1:3110`, `localhost:3110`, `127.0.0.1:3120`, `localhost:3120`) and then the policy's local services, for both tools. No model host is listed at all. In plans mode the lists are exactly as above.
+
+The key and the relay's secret are never given to the fence or to a program. The mode is read from `<state>/models/state.json` outside the fence, and that folder is on the planner's guarded list. A damaged file refuses the run (exit 78).
+
 ## Task folders
 
 - Paperclip ties a folder to the task, not to the agent. A child task starts in its parent's folder, whichever agent runs it. So everyone on one goal shares one folder.

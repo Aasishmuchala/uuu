@@ -1,0 +1,25 @@
+{
+  "provider": { "name": "Omega Plus", "host": "api.omegaplusapi.com" },
+  "mode": "plans",
+  "key": { "saved": false, "savedAt": null, "state": "none" },
+  "relay": { "state": "on", "sentence": "The model relay is on." },
+  "catalogue": { "readAt": "2026-11-12T10:00:00.000Z", "count": 19 },
+  "agents": [
+    {
+      "slug": "builder", "name": "Builder", "program": "claude", "needs": "making", "plansModel": "sonnet",
+      "pick": "claude-fable-5-1", "pickName": "Fable 5.1", "source": "ranked",
+      "options": [ { "id": "claude-fable-5-1", "name": "Fable 5.1", "ranked": true } ],
+      "usage": { "requests": 0, "inputTokens": 0, "outputTokens": 0 }
+    }
+  ],
+  "missing": [],
+  "canSwitchOn": false,
+  "blockers": ["no_key"],
+  "lastTest": {
+    "at": "2026-11-12T10:00:00.000Z",
+    "key": "ok",
+    "plan": [ { "label": "plan", "value": "Pro" } ],
+    "models": [ { "model": "claude-fable-5-1", "name": "Fable 5.1", "agents": ["Builder"], "answered": true, "reason": null } ]
+  },
+  "problem": null
+}

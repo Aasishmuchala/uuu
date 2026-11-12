@@ -2,6 +2,7 @@
 // Sentences are for the owner; tool names, ports and addresses go only in `technical`.
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { readModelState } from "../../../relay/state.mjs";
 import { httpRequest, parseJson } from "./httpclient.mjs";
 
 const TIMEOUT = 2000;
@@ -30,6 +31,27 @@ export async function gateState(env) {
   if (r.offline) return { id: "gate", name: "Gate", state: "off", sentence: "The gate is off, so agents cannot reach the board. Run: engine start", technical };
   if (r.status === 200) return { id: "gate", name: "Gate", state: "on", sentence: "The gate is on. Agents reach the board only through it, with their own limited rights.", technical };
   return { id: "gate", name: "Gate", state: "unhealthy", sentence: "The gate answers but its check fails. Restart the engine: engine stop, then engine start.", technical: `${technical}; /gate/health answered ${r.status}` };
+}
+
+// The model relay (CONTRACTS-V4 C4): idle in plans mode, the only way to the provider in provider mode.
+export async function relayState(env) {
+  const r = await probe(env.urls.relay && `${env.urls.relay}/relay/health`);
+  const technical = `model relay on ${env.urls.relay || "(none in stubs mode)"}, forwarding to the provider`;
+  const st = readModelState(env.config.paths.modelsState);
+  const provider = st.ok && st.mode === "provider";
+  if (r.offline) {
+    const sentence = provider
+      ? "The model relay is off, so your agents cannot reach their models. Run: engine start"
+      : "The model relay is off. Run: engine start";
+    return { id: "relay", name: "Model relay", state: "off", sentence, technical };
+  }
+  if (r.status === 200 && r.json?.part === "relay") {
+    const sentence = provider
+      ? "The model relay is on. Your agents reach Omega Plus only through it."
+      : "The model relay is on. It is idle: your agents use your Claude and Codex plans.";
+    return { id: "relay", name: "Model relay", state: "on", sentence, technical };
+  }
+  return { id: "relay", name: "Model relay", state: "unhealthy", sentence: "The model relay answers but its check fails. Restart the engine: engine stop, then engine start.", technical: `${technical}; /relay/health answered ${r.status}` };
 }
 
 export async function booksState(env) {

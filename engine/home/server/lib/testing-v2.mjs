@@ -94,7 +94,7 @@ export async function startOnV2Seed(seeds, options) {
     const config = loadConfig({ path: configFile });
     app = await createHome({
       config,
-      urls: { gate: null, ...(options.urls || {}) },
+      urls: { gate: null, provider: null, relay: null, ...(options.urls || {}) },
       moduleDirs: options.moduleDirs,
       publicDir: options.publicDir,
       proveCommand: options.proveCommand || [process.execPath, "-e", "setTimeout(() => {}, 1500)"],

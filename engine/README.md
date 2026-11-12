@@ -2,7 +2,9 @@
 
 The engine runs your company with a small team of AI agents and you. It runs on this Mac only. Nothing leaves the building: no email, message or post is sent by anything, and publishing and sending are switched off.
 
-It has five parts: the board (where tasks are kept), the fence around every agent, the gate between the agents and the board, one set of company records (books, customers, support, people), the company brain (your own files that every agent reads) and your home screen. The team has ten roles: Chief of staff, Builder, Checker, Bookkeeper, Sales, Support, People, Marketer, Drafter and Artist. Words in bold in `GLOSSARY.md` mean what they say there.
+The only things you pay for are your Claude and Codex plans. Until 12 November 2026 no paid key was allowed. On that day you asked for Omega Plus, so you can now switch on a paid outside provider in Settings. It is off by default: nothing changes until you paste a key and switch it on, and switching it off brings the plans back. While it is on, everything an agent reads and writes in a task is sent to Omega Plus. See "Using Omega Plus".
+
+It has six parts: the board (where tasks are kept), the fence around every agent, the gate between the agents and the board, the model relay (the one door to Omega Plus, closed unless you switch it on), one set of company records (books, customers, support, people), the company brain (your own files that every agent reads) and your home screen. The team has ten roles: Chief of staff, Builder, Checker, Bookkeeper, Sales, Support, People, Marketer, Drafter and Artist. Words in bold in `GLOSSARY.md` mean what they say there.
 
 ## Switch it on and off
 
@@ -10,7 +12,7 @@ One command, `engine/bin/engine`, with these words after it:
 
 - `start`: turns everything on, in order, and stops at the first part that fails. It says where to look. Running it twice starts nothing new. It ends with `Open http://127.0.0.1:3200`.
 - `stop`: turns everything off and leaves no agent running. Nothing starts by itself when the Mac starts.
-- `status`: one line per part: `on`, `off`, `unhealthy` or `not installed`, and what to do next. A good result ends with `Everything is on.`
+- `status`: one line per part (the board, the gate, the Model relay, the home screen and the others): `on`, `off`, `unhealthy` or `not installed`, and what to do next. A good result ends with `Everything is on.`
 - `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 112 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
 - `setup`: makes the board match the company files. Safe to run again.
 - `test`: runs every test. A good result ends with `All tests passed.`
@@ -105,7 +107,7 @@ Both start switched off. Until the daily brief is switched on, the Map shows a b
 - **Routines**: standing work, its runs and its switch.
 - **Team** (from the menu or a creature): the ten agents. Each page says what that agent may and may not do, what it is doing, its lessons, and lets you pause it or give it a task.
 - **Health**: what is on, whether the fence holds, what is not connected. You can run the proof from here.
-- **Settings**: theme and accent, and the later options with what each would cost.
+- **Settings**: theme and accent, the Models section for Omega Plus, and the later options with what each would cost.
 - **Search**: finds tasks, files, records, agents, routines and jobs.
 
 ## The Studio
@@ -138,6 +140,36 @@ Each is an off switch or an account step. Nothing is done for you.
 
 Also optional: the board can be switched to its own sign-in. Today, other programs on this Mac can still reach the board and the home screen as you. The gate closes this gap for agents only.
 
+## Using Omega Plus
+
+Omega Plus is a paid service that offers many models behind one key. It is run by SingleByte Infotech Pvt Ltd, at `api.omegaplusapi.com`. It is off by default. The engine works as before until you do these steps. Provider mode has not been switched on here yet, so the first real use is yours.
+
+1. Get a key from your Omega Plus account.
+2. Open Settings on the home screen and find "Models".
+3. If it says the list of models has not been read, press "Read the list".
+4. Paste the key into "Provider key" and press "Save key". The field is empty again, and the page says "A key is saved". The key is never shown again.
+5. Press "Test". It says whether the key works, shows your plan and what is used, and asks each picked model a one-line question.
+6. Look at the table. Each agent has a model picked for it. You can change any pick from the list. A choice marked "not ranked" is one the engine would not pick by itself.
+7. Turn on "Use Omega Plus for the agents". Nothing else is needed. Each agent's next run uses it.
+8. Open Health and run the proof, to check that the fence holds.
+
+To switch back, turn the switch off. Your agents use your Claude and Codex plans again, exactly as before. "Remove key" also switches it off and deletes the key.
+
+What is sent where:
+
+- Everything an agent reads and writes in a task goes to Omega Plus. Omega Plus decides which model answers under each name. Its own documentation says a name does not guarantee a particular model, so this cannot be checked from here.
+- Your key stays outside the fence, in the secrets folder. Only the model relay uses it. Agents can reach only the gate and the model relay, and no outside host at all.
+- Your Claude login is never sent to the relay or to Omega Plus.
+- Each agent is held to the model picked for it. Nine agents run on the Claude program, so they get the best Claude-named model the list has (Fable 5.1 first). The Checker stays on the Codex program with the best GPT-named model, so its checks come from a different maker.
+
+If something goes wrong:
+
+- **Limit reached.** Omega Plus has usage limits. When one is reached, agents cannot work until it resets, and Settings says so.
+- **Key refused.** Settings says "Omega Plus refused this key." The Claude program tries again for a few minutes before a run fails. Paste the key again, or remove it and switch off.
+- **The model relay is off.** Run `engine start`.
+
+The installer script from Omega Plus (`omega-helper.sh`) is not needed. Do not run it.
+
 ## What would turn this on later
 
 None of these is built or running. Each is a choice for later. Settings lists them as off.
@@ -155,7 +187,8 @@ None of these is built or running. Each is a choice for later. Settings lists th
 ## Where things live
 
 - The engine's state: `~/.paperclip/uuu-engine/`. It holds the company records (`books/`), agents' task folders (`tasks/`), lessons (`lessons/`), the company brain's files (`knowledge/docs/`), the Drafter's and Artist's tools (`cad/`, `art/`), your footage and the speech model (`media/`) and the last proof (`proof/last.json`).
-- Logs: `~/.paperclip/uuu-engine/logs/`. One file per part, plus `gate-refusals.log`, which lists what the gate turned away.
+- Omega Plus settings: `~/.paperclip/uuu-engine/models/state.json` (the mode, the picks, the last list of models) and `relay-status.json` beside it (what the model relay has seen). The key is `secrets/provider/omega-key` and the relay's own secret is `secrets/provider/relay-secret`. Agents cannot reach any of them.
+- Logs: `~/.paperclip/uuu-engine/logs/`. One file per part, including `relay.log`, plus `gate-refusals.log`, which lists what the gate turned away.
 - Secrets: `~/.paperclip/uuu-engine/secrets/`, and the agents' login in `agent.env` beside it. Only you can read them. They are never in the repository and are never shown here.
 - The company's files (agents, instructions, routines, jobs): `engine/company/`.
 - Decisions and why: `docs/adr/`.

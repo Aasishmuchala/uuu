@@ -13,7 +13,8 @@ import { createHome, SERVER_DIR } from "./app.mjs";
 const ENGINE_DIR = join(SERVER_DIR, "..", "..");
 
 // options: port (default 3210; 0 = any), boardSeed, benchSeed, moduleDirs, publicDir, proveCommand, log,
-// urls (override board/gate/bench addresses), benchInstalled (default true).
+// urls (override board/gate/bench addresses; provider and relay are null unless given, so a stub home
+// never calls out or probes the live relay), benchInstalled (default true).
 export async function startStubsHome(options = {}) {
   const root = mkdtempSync(join(tmpdir(), "uuu-home-stubs-"));
   const state = join(root, "state");
@@ -38,7 +39,7 @@ export async function startStubsHome(options = {}) {
 
   const app = await createHome({
     config,
-    urls: { gate: null, ...(options.urls || {}) },
+    urls: { gate: null, provider: null, relay: null, ...(options.urls || {}) },
     moduleDirs: options.moduleDirs,
     publicDir: options.publicDir,
     proveCommand: options.proveCommand || [process.execPath, "-e", "setTimeout(() => {}, 1500)"],

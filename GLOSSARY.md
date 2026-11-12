@@ -36,6 +36,26 @@ _Avoid_: Dashboard, tracker, control panel
 The small server between the agents and the board. It turns away every request an agent has no need to make.
 _Avoid_: Firewall, proxy, API gateway
 
+**Model relay**:
+The small server between the agents and the provider. It adds the provider's key itself, so the key never enters the fence, and it holds each agent to its pick.
+_Avoid_: Proxy, gateway, router
+
+**Provider**:
+The outside service whose models agents can use instead of the Claude and Codex plans: Omega Plus. Off until the owner pastes a key in Settings and switches it on.
+_Avoid_: Vendor, API, backend
+
+**Pick**:
+The one model chosen for an agent, by the ranking or by the owner in Settings.
+_Avoid_: Default model, assignment
+
+**Plans mode**:
+The engine's normal state: agents use the owner's Claude and Codex plans.
+_Avoid_: Free mode, default mode
+
+**Provider mode**:
+Agents use the provider through the model relay. Everything an agent reads and writes in a task is sent to the provider.
+_Avoid_: Paid mode, outside mode
+
 **Home screen**:
 The owner's one front door to the engine, in a browser on this Mac.
 _Avoid_: Portal, admin panel, UI
