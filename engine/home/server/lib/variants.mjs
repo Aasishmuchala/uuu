@@ -9,7 +9,7 @@
 //   - a preview is a picture at a fixed name in that place, checked by its first bytes, shown through
 //     /api/view; or a draft's body as plain capped text. Nothing is rendered or run.
 // Nothing here throws on what an agent wrote: a broken file gives `problem`, one plain sentence.
-import { lstatSync } from "node:fs";
+import { lstatSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { directionsFor } from "../../../company/lib/craft-files.mjs";
 import { fileToken, goalFolder, readChecked, readTaskText } from "./taskfiles.mjs";
@@ -137,46 +137,59 @@ export function draftBody(text) {
   return chars.length > MAX_PREVIEW_TEXT ? `${chars.slice(0, MAX_PREVIEW_TEXT - 1).join("").trimEnd()}…` : t;
 }
 
-// The fixed picture names shown for a piece of each kind (never a name from a manifest). A carousel's or a
-// poster's are its slide files, the pictures the brand check measures (slide-01.png to slide-10.png, the
-// first four that pass in order); its contact sheet is never shown alone, only after them as an extra.
+// The fixed picture names shown for a piece of each kind, the same fixed names engine/art/brandcheck.py
+// measures (never a name from a manifest, never a contact sheet): a carousel's or poster's slide-01.png to
+// slide-10.png (the first four found, in order); a title card's poster.png (measured), then its title and
+// end cards; a film's board/shot-01.png to shot-03.png. A page shows nothing here (T52).
 const SLIDE_NAMES = Array.from({ length: 10 }, (_, i) => `slide-${String(i + 1).padStart(2, "0")}.png`);
 export const MAX_SLIDES_SHOWN = 4;
-function pictureNames(kind) {
-  if (kind === "title-card") return [["poster.png"], ["title-card.png"]];
-  if (kind === "film") return [["contact.png"], ["board/shot-01.png", "board/shot-02.png", "board/shot-03.png"]];
-  return [];                                      // a page: the home server's own screenshots (T52)
+const PICTURES = {
+  carousel: { names: SLIDE_NAMES, max: MAX_SLIDES_SHOWN, measured: SLIDE_NAMES },
+  poster: { names: SLIDE_NAMES, max: MAX_SLIDES_SHOWN, measured: SLIDE_NAMES },
+  "title-card": { names: ["poster.png", "title-card.png", "end-card.png"], max: 3, measured: ["poster.png"] },
+  film: { names: ["board/shot-01.png", "board/shot-02.png", "board/shot-03.png"], max: 3, measured: ["board/shot-01.png", "board/shot-02.png", "board/shot-03.png"] },
+};
+const TEXT_KINDS = new Set(["post", "newsletter"]);
+const MAX_LISTED = 500;
+
+// The names in one folder, exactly as stored (at most 500 looked at), or null.
+function namesIn(dir) {
+  try {
+    const st = lstatSync(dir);
+    if (!st.isDirectory()) return null;
+    return readdirSync(dir).slice(0, MAX_LISTED);
+  } catch { return null; }
+}
+
+// True when `name` is in the folder in exactly that letter case and no other entry folds to it (this disk
+// ignores letter case, so "SLIDE-01.png" would open as "slide-01.png"; the check refuses such a folder too).
+function exactlyThere(names, name) {
+  if (!names) return false;
+  const low = name.toLowerCase();
+  const folding = names.filter((n) => n.toLowerCase() === low);
+  return folding.length === 1 && folding[0] === name;
 }
 
 // One picture of a goal, checked by its first bytes as /api/view checks it; null when it would not show.
-function picture(config, identifier, rel) {
+function picture(config, identifier, rel, file) {
   const head = readGoalBytes(config, identifier, rel, { maxBytes: 16, readOver: true });
   if (!head || head.tooLarge || head.size > MAX_IMAGE || sniff(head.bytes) !== "png") return null;
   const token = fileToken(`${identifier}/${rel}`);
-  return { type: "image", token, url: `/api/view/${token}` };
+  return { type: "image", token, url: `/api/view/${token}`, file };
 }
 
-const isSlideKind = (kind) => kind === "carousel" || kind === "poster";
-
-// The checked slide pictures of a carousel or poster version, in order, at most four.
-function slidesOf(config, identifier, rel) {
-  const out = [];
-  for (const n of SLIDE_NAMES) {
-    if (out.length >= MAX_SLIDES_SHOWN) break;
-    const p = picture(config, identifier, `${rel}/${n}`);
-    if (p) out.push(p);
-  }
-  return out;
-}
-
-// True when the preview holds a picture the brand check measures (for a carousel or poster: a slide file;
-// a contact sheet does not count). Other kinds: true.
+// True when the preview holds something the brand check measures, so a result beside it may say "fits": a
+// slide (carousel, poster), a poster (title card), a board shot (film), or the draft's own text (post,
+// newsletter: the check reads that very file). Any other kind, or a preview without one: false.
 export function previewIsChecked(kind, preview) {
-  if (!isSlideKind(kind)) return true;
-  return Array.isArray(preview) && preview.some((p) => p && p.type === "image" && !p.contact);
+  const list = Array.isArray(preview) ? preview : [];
+  if (TEXT_KINDS.has(kind)) return list.some((p) => p && p.type === "text" && p.text);
+  const pics = PICTURES[kind];
+  if (!pics) return false;
+  return list.some((p) => p && p.type === "image" && pics.measured.includes(p.file));
 }
 
-// previewOf(config, identifier, kind, variant) -> [{ type: "image", token, url, contact? } | { type: "text", text }].
+// previewOf(config, identifier, kind, variant) -> [{ type: "image", token, url, file } | { type: "text", text }].
 // `variant` is one of readVariants' variants (its place was made here, not read from a file).
 export function previewOf(config, identifier, kind, variant) {
   try {
@@ -186,17 +199,28 @@ export function previewOf(config, identifier, kind, variant) {
       const text = read ? draftBody(read.text) : "";
       return text ? [{ type: "text", text }] : [];
     }
-    if (isSlideKind(kind)) {
-      const slides = slidesOf(config, identifier, variant.rel);
-      if (!slides.length) return [];
-      const contact = picture(config, identifier, `${variant.rel}/contact.png`);
-      return contact ? [...slides, { ...contact, contact: true }] : slides;
+    const pics = PICTURES[kind];
+    if (!pics) return [];
+    const base = goalFolder(config, identifier);
+    if (!base) return [];
+    const listings = new Map();
+    const listing = (sub) => {
+      if (!listings.has(sub)) {
+        const top = namesIn(join(base, variant.rel));
+        listings.set(sub, !sub ? top : exactlyThere(top, sub) ? namesIn(join(base, variant.rel, sub)) : null);
+      }
+      return listings.get(sub);
+    };
+    const out = [];
+    for (const name of pics.names) {
+      if (out.length >= pics.max) break;
+      const slash = name.lastIndexOf("/");
+      const sub = slash < 0 ? "" : name.slice(0, slash);
+      if (!exactlyThere(listing(sub), name.slice(slash + 1))) continue;
+      const p = picture(config, identifier, `${variant.rel}/${name}`, name);
+      if (p) out.push(p);
     }
-    for (const group of pictureNames(kind)) {
-      const got = group.map((n) => picture(config, identifier, `${variant.rel}/${n}`)).filter(Boolean);
-      if (got.length) return got;
-    }
-    return [];
+    return out;
   } catch {
     return [];
   }

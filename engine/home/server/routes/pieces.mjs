@@ -23,7 +23,7 @@ import { findTask, loadTaskContext, treeComments } from "../lib/tasks.mjs";
 import { PLACES, previewIsChecked, previewOf, readVariants } from "../lib/variants.mjs";
 
 const TOO_MANY = "This task's folder holds too many files to be sure the scores are newer than the versions, so the scores are not shown.";
-const NO_SLIDES = "This version has no slide pictures, so it was not checked.";
+const NO_SLIDES = "This version has none of the pictures the brand check measures, so it was not checked.";
 
 // craft.json, read again only when its time or size changes (or the catalogue does).
 let craftCache = { key: null, value: null };
@@ -95,7 +95,7 @@ export async function piecesFor(ctx, goal, comments, { artDirectorId = null } = 
     missing: v.missing,
     variants: v.variants.map((x) => {
       const preview = previewOf(ctx.config, identifier, kind, x);
-      // A carousel or poster with no slide file has nothing the check measured: never "fits".
+      // A version whose preview holds nothing the check measures (no slide, poster or board shot; a page): never "fits".
       const brand = previewIsChecked(kind, preview) ? brandOfVariant(run, x) : { result: "unknown", lines: [NO_SLIDES] };
       return { id: x.id, direction: x.direction, preview, brand, review: reviewView(review ? review.pieces.find((p) => p.id === x.id) : null) };
     }),

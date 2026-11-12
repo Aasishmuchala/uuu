@@ -44,7 +44,7 @@ const MAX_LINES = 10;                  // lines shown for one version
 // Folders of a goal that hold pieces (brandcheck.py FOLDERS), walked for the hash.
 const PIECE_FOLDERS = ["content", "drafts", "slides", "video", "film", "site"];
 const STAMP_ENTRIES = 3000;
-const STAMP_DEPTH = 3;
+const STAMP_DEPTH = 8;                  // folders deep; the entry budgets are the real limit
 
 export const SAY = {
   notRun: "The brand check could not be run, so this version is not marked as checked.",
@@ -86,7 +86,7 @@ export function parseReport(value) {
   try {
     const r = value;
     if (!isObject(r) || (r.version !== undefined && r.version !== 1)) return null;
-    if (!KITS.has(r.kit) || !Array.isArray(r.pieces) || r.pieces.length > MAX_PIECES) return null;
+    if (!KITS.has(r.kit) || !Array.isArray(r.pieces) || r.pieces.length > MAX_PIECES + 1) return null;
     const pieces = [];
     for (const p of r.pieces) {
       if (!isObject(p) || !PIECE_KINDS.has(p.kind) || typeof p.name !== "string" || !PIECE_NAME.test(p.name)) return null;
@@ -95,6 +95,11 @@ export function parseReport(value) {
       const soft = entries(p.soft);
       if (!hard || !soft) return null;
       pieces.push({ kind: p.kind, name: p.name, result: p.result, hard, soft });
+    }
+    // At most 40 pieces, plus (agreed with brandcheck.py) one goal-level piece carrying too_many_pieces.
+    if (pieces.length > MAX_PIECES) {
+      const goal = pieces.filter((p) => p.kind === "goal");
+      if (goal.length !== 1 || !goal[0].hard.some((e) => e.code === "too_many_pieces")) return null;
     }
     let variants = { result: "pass", hard: [], present: false };
     if (r.variants !== undefined) {

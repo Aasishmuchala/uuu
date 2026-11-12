@@ -384,7 +384,7 @@ class ScriptAndKitTest(BrandCheckBase):
 
 
 class VideoAndFilmTest(BrandCheckBase):
-    def video(self, name, script=True, made_by="render", poster=None, cards=None):
+    def video(self, name, script=True, made_by="render", poster=None, cards=None, claims=None):
         folder = os.path.join(self.goal, "video", name)
         os.makedirs(os.path.join(folder, "review"))
         (poster or self.slide()).save(os.path.join(folder, "poster.png"))
@@ -397,17 +397,30 @@ class VideoAndFilmTest(BrandCheckBase):
         for card, im in (cards or {}).items():
             im.save(os.path.join(folder, card + ".png"))
         manifest.update(self.kit.recorded(list((cards or {}).values()), key="frame", labels=list(cards or {})))
+        if claims:
+            manifest["pictures"] = claims
         self.write_json(os.path.join(folder, "manifest.json"), manifest)
         return folder
 
-    def test_a_render_poster_off_the_palette_fails_and_a_reveal_poster_is_a_photo(self):
+    def test_a_render_poster_off_the_palette_fails(self):
         self.video("drawn", poster=self.with_patch(MAGENTA, 0.2))
-        self.video("photos", script=False, made_by="reveal", poster=self.with_patch(MAGENTA, 0.2))
         code, r = self.check()
         drawn = self.piece(r, "drawn")
         self.assertEqual((code, codes(drawn)), (1, ["off_palette"]))
         self.assertEqual(drawn["hard"][0]["where"], "poster.png")
-        self.assertEqual(self.piece(r, "photos")["result"], "pass")
+
+    def test_every_poster_is_measured_whatever_the_maker_says(self):
+        self.video("said-photo", script=False, made_by="reveal", poster=self.with_patch(MAGENTA, 0.2))
+        code, r = self.check()
+        self.assertEqual((code, codes(self.piece(r, "said-photo"))), (1, ["off_palette"]))
+
+    def test_a_reveal_poster_with_its_picture_claimed_passes(self):
+        poster = self.slide()
+        box = self.kit.place(poster, "tower.png", (0, 0, 1080, 900))     # magenta and green, the owner's picture
+        self.video("photos", script=False, made_by="reveal", poster=poster,
+                   claims=[{"frame": "poster", "box": box, "source": "tower.png"}])
+        code, r = self.check()
+        self.assertEqual((code, self.piece(r, "photos")["result"]), (0, "pass"))
 
     def test_an_end_card_needs_the_logo_and_captions_are_words(self):
         signed = self.slide()
@@ -423,8 +436,55 @@ class VideoAndFilmTest(BrandCheckBase):
         self.assertEqual(codes(p), ["banned_phrase", "no_logo"])
         self.assertEqual(sorted(e["where"] for e in p["hard"]), ["caption words", "end-card.png"])
 
+    def test_a_cuts_footage_poster_gets_only_the_soft_note(self):
+        title, end = self.slide(), self.slide()
+        self.kit.place_logo(title, "bottom-right")
+        self.kit.place_logo(end, "bottom-right")
+        self.video("talk", script=False, made_by="cut", poster=self.with_patch(MAGENTA, 0.4),
+                   cards={"title-card": title, "end-card": end})
+        code, r = self.check()
+        p = self.piece(r, "talk")
+        self.assertEqual((code, p["result"], p["hard"]), (0, "warn", []))
+        self.assertEqual([e["code"] for e in p["soft"]], ["footage_not_measured"])
+        self.assertEqual(p["soft"][0]["where"], "poster.png")
+
+    def test_a_cuts_title_card_off_the_palette_still_fails(self):
+        title, end = self.with_patch(MAGENTA, 0.2), self.slide()
+        self.kit.place_logo(title, "bottom-right")
+        self.kit.place_logo(end, "bottom-right")
+        self.video("talk", script=False, made_by="cut", poster=self.slide(),
+                   cards={"title-card": title, "end-card": end})
+        code, r = self.check()
+        p = self.piece(r, "talk")
+        self.assertEqual((code, codes(p)), (1, ["off_palette"]))
+        self.assertEqual(p["hard"][0]["where"], "title-card.png")
+        self.assertEqual(codes(p, "soft"), ["footage_not_measured"])
+
+    def film(self, name, shots):
+        board = os.path.join(self.goal, "film", name, "board")
+        os.makedirs(board)
+        for i, im in enumerate(shots):
+            im.save(os.path.join(board, "shot-%02d.png" % (i + 1)))
+
+    def test_a_films_board_pictures_are_measured(self):
+        self.film("calm", [self.slide(), self.slide(INK), self.slide()])
+        self.film("loud", [self.slide(), self.with_patch(MAGENTA, 0.2), self.slide()])
+        code, r = self.check()
+        self.assertEqual(self.piece(r, "calm")["result"], "pass")
+        loud = self.piece(r, "loud")
+        self.assertEqual((code, codes(loud)), (1, ["off_palette"]))
+        self.assertEqual(loud["hard"][0]["where"], "shot-02.png")
+
+    def test_a_film_with_no_board_picture_and_a_page_cannot_pass(self):
+        os.makedirs(os.path.join(self.goal, "film", "empty"))
+        os.makedirs(os.path.join(self.goal, "site", "landing"))
+        code, r = self.check()
+        self.assertEqual(code, 1)
+        self.assertEqual(codes(self.piece(r, "empty")), ["could_not_check"])
+        self.assertEqual(codes(self.piece(r, "landing")), ["could_not_check"])
+
     def test_a_film_treatment_is_checked_for_words(self):
-        os.makedirs(os.path.join(self.goal, "film", "walk", "board"))
+        self.film("walk", [self.slide()])
         self.write_json(os.path.join(self.goal, "film", "walk", "shotlist.json"),
                         {"shots": [{"what": "Slow approach at dawn", "note": "Guaranteed to impress"}]})
         code, r = self.check()
@@ -595,12 +655,19 @@ class EvasionTest(BrandCheckBase):
         for i in range(41):
             self.write_text("content/note-%02d.md" % i, WORDS + "\n")
         self.write_text("content/note-05.md", WORDS + " Cheap.\n")
+        for i in range(5):
+            self.write_text("drafts/late-%d.md" % i, WORDS + "\n")
         code, r = self.check()
         self.assertEqual(code, 1)
+        # Agreed with the home server's parser: at most 40 pieces, then one piece of kind "goal".
+        self.assertEqual([p["name"] for p in r["pieces"][:40]], ["note-%02d" % i for i in range(40)])
         self.assertEqual(len(r["pieces"]), 41)
+        goal = r["pieces"][40]
+        self.assertEqual((goal["kind"], goal["name"], goal["result"]), ("goal", "STH-7", "fail"))
+        self.assertEqual([e["code"] for e in goal["hard"]], ["too_many_pieces"])
+        self.assertIn("6", goal["hard"][0]["detail"])           # note-40 and the five late drafts
         self.assertEqual(codes(self.piece(r, "note-05")), ["banned_phrase"])
         self.assertEqual(self.piece(r, "note-39")["result"], "pass")
-        self.assertEqual(codes(self.piece(r, "note-40")), ["too_many_pieces"])
 
     def test_a_goal_with_no_pieces_is_a_hard_no_pieces(self):
         code, r = self.check()
@@ -650,6 +717,75 @@ class EvasionTest(BrandCheckBase):
         self.assertEqual((code, [codes(p) for p in r["pieces"]]), (1, [["could_not_check"], ["could_not_check"]]))
 
 
+class FixedNameTest(BrandCheckBase):
+    """Pictures are found by the fixed names the home server's preview opens, so the two never disagree."""
+
+    def test_slides_are_found_by_their_fixed_names_whatever_the_letter_case(self):
+        loud = [self.with_patch(MAGENTA, 0.3) for _ in range(4)]
+        folder = self.carousel("cased", loud + [self.slide()])
+        for i in range(1, 5):
+            os.rename(os.path.join(folder, "slide-%02d.png" % i), os.path.join(folder, "Slide-%02d.png" % i))
+        code, r = self.check()
+        p = self.piece(r, "cased")
+        self.assertEqual((code, codes(p)), (1, ["off_palette"]))
+        self.assertEqual(sorted(e["where"] for e in p["hard"]), ["slide-%02d.png" % i for i in range(1, 5)])
+
+    def test_two_names_that_fold_to_one_fixed_name_cannot_be_checked(self):
+        folder = self.carousel("twins", [self.slide(), self.slide()])
+        self.with_patch(MAGENTA, 0.3).save(os.path.join(folder, "\uff53lide-01.png"))   # a full-width s
+        code, r = self.check()
+        p = self.piece(r, "twins")
+        self.assertEqual((code, codes(p)), (1, ["could_not_check"]))
+        self.assertIn("slide-01.png", p["hard"][0]["detail"])
+        self.assertNotIn("\uff53", json.dumps(r, ensure_ascii=False))
+
+
+class ClockTest(BrandCheckBase):
+    """Running out of time is a hard fail (exit 1), never "could not check" (exit 2)."""
+
+    def test_variants_after_the_deadline_open_no_picture_and_fail(self):
+        self.carousel("launch-a", [self.slide(), self.slide()])
+        self.carousel("launch-b", [self.slide(INK), self.slide()], texts=["Sun first", "Plan after"])
+        self.write_json(os.path.join(self.goal, "variants.json"),
+                        {"kind": "carousel", "name": "launch", "round": 1,
+                         "variants": [{"id": "a", "direction": "type-led"}, {"id": "b", "direction": "split"}]})
+        opened, real_check, real_grey = [], brandcheck.check_piece, brandcheck.grey64
+
+        def slow_check(ctx, piece):
+            real_check(ctx, piece)
+            time.sleep(0.6)
+
+        def spy_grey(path):
+            opened.append(path)
+            return real_grey(path)
+        saved = brandcheck.TOTAL_SECONDS
+        brandcheck.TOTAL_SECONDS, brandcheck.check_piece, brandcheck.grey64 = 1, slow_check, spy_grey
+        try:
+            code, r = self.check()
+        finally:
+            brandcheck.TOTAL_SECONDS, brandcheck.check_piece, brandcheck.grey64 = saved, real_check, real_grey
+        self.assertEqual(opened, [])
+        self.assertEqual(code, 1)
+        self.assertEqual([e["code"] for e in r["variants"]["hard"]], ["could_not_check"])
+
+    def test_the_alarm_is_exit_1(self):
+        def too_slow(argv):
+            raise brandcheck.OutOfTime()
+        real_run = brandcheck.run
+        brandcheck.run = too_slow
+        out, err = io.StringIO(), io.StringIO()
+        saved = sys.stdout, sys.stderr
+        sys.stdout, sys.stderr = out, err
+        try:
+            code = brandcheck.main(["STH-7"])
+        finally:
+            brandcheck.run = real_run
+            sys.stdout, sys.stderr = saved
+        self.assertEqual(code, 1)
+        self.assertEqual(len(err.getvalue().splitlines()), 1)
+        self.assertIn("took longer than", err.getvalue())
+
+
 MEASURE = """import json, resource, sys, time
 sys.path.insert(0, sys.argv[1])
 import brandcheck
@@ -696,6 +832,19 @@ class HostileSizeTest(BrandCheckBase):
         self.assertLess(m["rss"], 700 * 1024 * 1024)
         self.assertEqual(m["code"], 1)
         self.assertEqual(json.loads(m["out"])["pieces"][0]["result"], "fail")
+
+    def test_one_big_company_photo_used_on_thirty_slides_is_charged_once(self):
+        big = Image.new("RGB", (8000, 6000), MAGENTA)          # 48 MP, the owner's own photograph
+        ImageDraw.Draw(big).rectangle([4000, 0, 7999, 5999], fill=(0, 200, 0))
+        big.save(os.path.join(self.state, "knowledge", "docs", "pictures", "big.png"))
+        base = self.slide()
+        box = self.kit.place(base, "big.png", (60, 60, 1020, 860))
+        for name in ("one", "two", "three"):
+            slides = [base.copy() for _ in range(10)]
+            claims = [{"slide": i + 1, "box": box, "source": "big.png"} for i in range(10)]
+            self.carousel(name, slides, extra={"pictures": claims})
+        code, r = self.check()
+        self.assertEqual((code, [p["result"] for p in r["pieces"]]), (0, ["pass", "pass", "pass"]))
 
     def test_cover_fit_never_makes_a_picture_larger_than_the_box(self):
         pic = Image.new("RGB", (512, 512), CLAY)

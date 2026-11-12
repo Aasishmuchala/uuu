@@ -275,3 +275,24 @@ test("results: a goal-level piece parses; no_pieces and too_many_pieces fail wit
   assert.equal(brandOfVariant(done(mixed), v("b")).result, "fail");
   assert.equal(brandOfAll(done(tooMany)).result, "fail");
 });
+
+test("report: 40 pieces plus one goal piece with too_many_pieces parses and fails every version with its sentence; 41 without it does not", () => {
+  const piece = (i) => ({ kind: "slides", name: i < 3 ? `launch-${"abc"[i]}` : `extra-${i}`, result: "pass", hard: [], soft: [], measured: { colours: [], words: 0 } });
+  const forty = Array.from({ length: 40 }, (_, i) => piece(i));
+  const goal = { kind: "goal", name: "STH-12", result: "fail", hard: [{ code: "too_many_pieces", where: "STH-12", detail: "the goal holds more than 40 pieces; only the first 40 were checked" }], soft: [], measured: { colours: [], words: 0 } };
+  const report = { ...REPORT, pieces: [...forty, goal] };
+  assert.ok(parseReport(report), "the agreed shape parses");
+  for (const id of ["a", "b", "c"]) assert.deepEqual(brandOfVariant(done(report), v(id)), { result: "fail", lines: [SAY.tooManyPieces] });
+  assert.equal(parseReport({ ...REPORT, pieces: [...forty, piece(40)] }), null, "41 ordinary pieces: no report");
+  assert.equal(parseReport({ ...REPORT, pieces: [...forty, { ...goal, hard: [] }] }), null, "the 41st must be the goal-level too_many_pieces");
+  assert.equal(parseReport({ ...REPORT, pieces: [...forty, goal, goal] }), null);
+});
+
+test("stamp: a folder deeper than eight levels marks the stamp incomplete", () => {
+  const f = fakeEngine("exit 0");
+  try {
+    const deep = join(f.state, "tasks", "company-work", "STH-12", "site", "x", "1", "2", "3", "4", "5", "6", "7", "8");
+    mkdirSync(deep, { recursive: true });
+    assert.equal(stampOf(f.config, "STH-12").complete, false);
+  } finally { f.close(); }
+});

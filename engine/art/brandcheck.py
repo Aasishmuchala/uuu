@@ -68,6 +68,7 @@ MAX_SLIDES = 10
 MAX_PHRASES = 200
 PIECE_SECONDS = 30
 TOTAL_SECONDS = 120
+SOURCE_KEEP = 1024                 # long side of the copy of a company picture kept for later claims
 PIXEL_BUDGET = 1000 * 1000 * 1000   # pixels decoded or compared in one run (an honest goal reads under 700 million)
 
 # The measures (K6). Why each number: see the README section "The brand check".
@@ -93,10 +94,15 @@ FILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 VARIANT_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,35}$")
 GOAL_ID = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,9}-[0-9]{1,9}$")
-SLIDE_FILE = re.compile(r"^slide-(\d\d)\.png$")
-SHOT_FILE = re.compile(r"^shot-\d\d\.png$")
-STILL_FILE = re.compile(r"^frame-0[1-6]\.png$")
 CARDS = ("title-card", "end-card")
+# Pictures and files are found by these fixed names, by lstat, exactly as the home server's preview opens them:
+# this disk resolves letter case (and folds the long s) the same way for both, so what is measured is what is shown.
+SLIDE_NAMES = ["slide-%02d.png" % i for i in range(1, 11)]
+STILL_NAMES = ["frame-%02d.png" % i for i in range(1, 7)]
+SHOT_NAMES = ["shot-%02d.png" % i for i in range(1, 4)]
+PIECE_NAMES = SLIDE_NAMES + ["poster.png", "title-card.png", "end-card.png", "contact.png", "manifest.json",
+                             "slides.json", "copy.md", "shotlist.json", "words.json"]
+MAX_FOLDER_ENTRIES = 2000        # a piece's folder with more entries than this is not checked
 PLACEHOLDER = "(not filled in yet)"
 UNUSUAL = "a file with an unusual name"
 
@@ -153,6 +159,37 @@ def listing(folder):
     except OSError:
         return []
     return sorted(out)
+
+
+def kind_at(path):
+    """"file", "dir", "other" (a link, a pipe) or None, by lstat of a fixed name."""
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return None
+    return "file" if stat.S_ISREG(st.st_mode) else "dir" if stat.S_ISDIR(st.st_mode) else "other"
+
+
+def fold(name):
+    return unicodedata.normalize("NFKC", name).casefold()
+
+
+def refuse_twins(folder, fixed):
+    """PieceProblem when the folder holds more than one name that folds (NFKC, case) to one of the fixed names,
+    so the check and the preview could open different files; or when it is too full to tell."""
+    want, seen = {fold(n): n for n in fixed}, {}
+    try:
+        with os.scandir(folder) as it:
+            for i, e in enumerate(it):
+                if i >= MAX_FOLDER_ENTRIES:
+                    raise PieceProblem("a folder of this piece holds more than %d files" % MAX_FOLDER_ENTRIES)
+                f = fold(e.name)
+                if f in want:
+                    seen[f] = seen.get(f, 0) + 1
+                    if seen[f] > 1:
+                        raise PieceProblem("the folder holds more than one file named like %s" % want[f])
+    except OSError:
+        return
 
 
 def read_bytes(path, cap, what):
@@ -456,23 +493,38 @@ def check_box(box, size):
         return None
 
 
-def claim_holds(state, im, box, source, spend=None):
-    """True when the picture named by bare name, cover-fitted to the box, is what the box shows. Both sides
-    are resized straight to 64 x 64 from their own pixels: no picture larger than the slide or the source."""
-    from PIL import Image, ImageChops
+def source_picture(state, source, spend=None):
+    """A company or room picture by bare name, decoded once and kept as a copy of at most SOURCE_KEEP px on its
+    long side (enough for the 64 x 64 comparison); None when it is not there or cannot be read."""
+    from PIL import Image
 
     if not isinstance(source, str) or not FILE_NAME.match(source) \
             or not source.lower().endswith(kitmod.PICTURE_ENDINGS):
-        return False
+        return None
     data = kitmod.find_picture_bytes(state, source, MAX_PICTURE_BYTES)
     if data is None:
-        return False
+        return None
     try:
         pic = kitmod.open_picture(data, "RGB", MAX_PICTURE_PIXELS)
     except ValueError:
-        return False
+        return None
     if spend:
         spend(pic.width * pic.height)
+    if max(pic.size) > SOURCE_KEEP:
+        pic.thumbnail((SOURCE_KEEP, SOURCE_KEEP), Image.BILINEAR)
+    return pic
+
+
+def claim_holds(state, im, box, source, spend=None, pic=None):
+    """True when the picture named by bare name, cover-fitted to the box, is what the box shows. Both sides
+    are resized straight to 64 x 64 from their own pixels: no picture larger than the slide or the source.
+    `pic` is the source already opened (Ctx.source keeps one copy per name for the whole run)."""
+    from PIL import Image, ImageChops
+
+    if pic is None:
+        pic = source_picture(state, source, spend)
+    if pic is None:
+        return False
     w, h = box[2] - box[0], box[3] - box[1]
     size = (CLAIM_SIZE, CLAIM_SIZE)
     want = pic.resize(size, Image.BILINEAR, box=kitmod.cover_rect(pic.width, pic.height, w, h))
@@ -513,6 +565,14 @@ class Ctx:
         self.deadline = deadline
         self.logos = None
         self.pixels = 0
+        self.sources = {}
+
+    def source(self, name):
+        """Each company picture is opened and charged once a run; later claims reuse the kept copy."""
+        key = name if isinstance(name, str) else None
+        if key not in self.sources:
+            self.sources[key] = source_picture(self.state, name, self.spend)
+        return self.sources[key]
 
     def spend(self, n):
         """Counts pixels decoded or compared; past the budget the piece cannot be checked (a hard result)."""
@@ -591,7 +651,8 @@ def check_pictures(ctx, piece, pictures, pics, logos, required):
                 piece.add("picture_claim_false", fname, "a picture box in the manifest is not a box inside the picture")
                 continue
             ctx.spend((box[2] - box[0]) * (box[3] - box[1]))
-            if claim_holds(ctx.state, im, box, c.get("source"), ctx.spend):
+            pic = ctx.source(c.get("source"))
+            if pic is not None and claim_holds(ctx.state, im, box, c.get("source"), pic=pic):
                 exempt.append(box)
             else:
                 piece.add("picture_claim_false", fname, "the box at %d, %d (%d × %d) does not show the company "
@@ -679,11 +740,12 @@ def json_strings(value, out, depth=0):
 
 
 def check_folder_piece(ctx, piece):
+    refuse_twins(piece.path, PIECE_NAMES)
     entries = listing(piece.path)
-    names = {n: k for n, k in entries}
+    at = lambda *parts: os.path.join(piece.path, *parts)   # noqa: E731
     raw, pics, logos = manifest_lists(piece)
     texts = []
-    if names.get("copy.md") == "file":
+    if kind_at(at("copy.md")) == "file":
         texts.append(("copy.md", read_text(os.path.join(piece.path, "copy.md"))))
     if isinstance(raw.get("title"), str):
         texts.append(("manifest.json", raw["title"][:500]))
@@ -691,14 +753,13 @@ def check_folder_piece(ctx, piece):
     req = ctx.kit.required_on if ctx.kit else []
 
     if piece.kind == "slides":
-        data = read_json(os.path.join(piece.path, "slides.json"), MAX_TEXT_BYTES) if names.get("slides.json") == "file" else None
+        data = read_json(os.path.join(piece.path, "slides.json"), MAX_TEXT_BYTES) if kind_at(at("slides.json")) == "file" else None
         if isinstance(data, dict) and isinstance(data.get("slides"), list):
             for i, s in enumerate(data["slides"][:MAX_SLIDES]):
                 if isinstance(s, dict) and isinstance(s.get("text"), str):
                     texts.append(("slide %d" % (i + 1), s["text"]))
         # A slide-NN.png that is a link or a pipe is still a slide: reading it refuses it (could_not_check).
-        slides = sorted(n for n, k in entries if k != "dir" and SLIDE_FILE.match(n))[:MAX_SLIDES]
-        pictures = [(int(SLIDE_FILE.match(n).group(1)), n, os.path.join(piece.path, n)) for n in slides]
+        pictures = [(i + 1, n, at(n)) for i, n in enumerate(SLIDE_NAMES) if kind_at(at(n)) not in (None, "dir")]
         if not pictures:   # never a pass beside a contact.png the check did not measure
             piece.add("could_not_check", piece.where, "there is no slide-01.png to measure; a carousel is checked "
                       "from its slides, never from contact.png")
@@ -724,37 +785,57 @@ def check_folder_piece(ctx, piece):
                     json_strings(data["cards"], found)
                 if found:
                     texts.append((safe(n), "\n".join(found)))
-        made_by_script = raw.get("made_by") == "render" or any(k == "file" and n.endswith(".py") for n, k in entries)
-        if names.get("poster.png") != "file":
+        # The poster and the cards are what the owner is shown: always measured, whatever the manifest says
+        # (pictures of the owner's in them are exempt only where a claimed box is verified). The six stills
+        # are measured too when the video was drawn by a script.
+        # A `cut` is the owner's own footage, which cannot fail a brand rule: its poster and stills are not
+        # judged, and a soft note keeps the piece from ever showing as "fits". Claiming `cut` gains nothing.
+        footage = raw.get("made_by") == "cut"
+        made_by_script = not footage and (raw.get("made_by") == "render"
+                                          or any(k == "file" and n.endswith(".py") for n, k in entries))
+        if kind_at(at("poster.png")) is None:
             piece.add("could_not_check", piece.where, "there is no poster.png to measure")
         else:
-            piece.first_picture = os.path.join(piece.path, "poster.png")
-            if made_by_script:
+            piece.first_picture = at("poster.png")
+            if footage:
+                piece.add("footage_not_measured", "poster.png", "The poster is a frame of your footage, so its "
+                          "colours were not measured.", False)
+            else:
                 pictures.append(("poster", "poster.png", piece.first_picture))
-        if made_by_script and names.get("review") == "dir":
-            for n, k in listing(os.path.join(piece.path, "review")):
-                if k == "file" and STILL_FILE.match(n):
-                    pictures.append((n[:-4], n, os.path.join(piece.path, "review", n)))
+        if made_by_script and kind_at(at("review")) == "dir":
+            refuse_twins(at("review"), STILL_NAMES)
+            for n in STILL_NAMES:
+                if kind_at(at("review", n)) not in (None, "dir"):
+                    pictures.append((n[:-4], n, at("review", n)))
         for card in CARDS:
-            if names.get(card + ".png") == "file":
-                pictures.append((card, card + ".png", os.path.join(piece.path, card + ".png")))
+            if kind_at(at(card + ".png")) not in (None, "dir"):
+                pictures.append((card, card + ".png", at(card + ".png")))
                 if card in req:
                     required.add(card)
     elif piece.kind == "film":
-        if names.get("shotlist.json") == "file":
+        if kind_at(at("shotlist.json")) == "file":
             found = []
             json_strings(read_json(os.path.join(piece.path, "shotlist.json"), MAX_TEXT_BYTES), found)
             texts.append(("shotlist.json", "\n".join(found)))
-        if names.get("board") == "dir":
-            shots = sorted(n for n, k in listing(os.path.join(piece.path, "board")) if k == "file" and SHOT_FILE.match(n))
-            if shots:
-                piece.first_picture = os.path.join(piece.path, "board", shots[0])
+        if kind_at(at("board")) == "dir":
+            refuse_twins(at("board"), SHOT_NAMES)
+            for n in SHOT_NAMES:        # the storyboard stills the preview shows
+                if kind_at(at("board", n)) not in (None, "dir"):
+                    pictures.append((n[:-4], n, at("board", n)))
+        if not pictures or pictures[0][1] != SHOT_NAMES[0]:
+            piece.add("could_not_check", piece.where, "there is no board/shot-01.png to measure")
+        else:
+            piece.first_picture = pictures[0][2]
+    elif piece.kind == "site":
+        piece.add("could_not_check", piece.where, "a page is not measured yet: its colours and type are checked "
+                  "from the page viewer's screenshots, which this check does not have")
 
     piece.texts = texts
     ctx.words.check(piece, texts)
     piece.tick()
     if piece.kind in ("slides", "video"):
         check_scripts(ctx, piece, entries)
+    if piece.kind in ("slides", "video", "film"):
         check_pictures(ctx, piece, pictures, pics, logos, required)
 
 
@@ -842,8 +923,17 @@ def check_variants(ctx, goal, by_path):
             else:
                 hard("could_not_check", "variant %s has no piece in %s" % (v["id"], folder))
         ids = sorted(pieces)
+        if time.monotonic() > ctx.deadline:
+            hard("could_not_check", "the check ran out of time (%d seconds in all) before it compared the variants"
+                 % TOTAL_SECONDS)
+            ids = []
         pics = {}
         for i in ids:
+            if time.monotonic() > ctx.deadline:
+                hard("could_not_check", "the check ran out of time (%d seconds in all) while it compared the "
+                     "variants" % TOTAL_SECONDS)
+                ids = []
+                break
             if pieces[i].first_picture:
                 try:
                     pics[i] = grey64(pieces[i].first_picture)
@@ -950,11 +1040,8 @@ def check(state, cwd, goal_id, deadline):
         return {"version": 1, "kit": status, "pieces": [none.shape()], "variants": variants}
     kinds = variant_kinds(goal)
     by_path = {}
-    for i, p in enumerate(pieces):
-        if i >= MAX_PIECES:
-            p.add("too_many_pieces", p.where, "only the first %d pieces of a goal are checked; this one was not"
-                  % MAX_PIECES)
-            continue
+    rest, pieces = pieces[MAX_PIECES:], pieces[:MAX_PIECES]     # the first 40, in the fixed order
+    for p in pieces:
         if time.monotonic() > deadline:
             p.add("could_not_check", p.where, "the check ran out of time (%d seconds in all) before this piece"
                   % TOTAL_SECONDS)
@@ -967,7 +1054,13 @@ def check(state, cwd, goal_id, deadline):
         pieces[0].add("kit_missing", "brand/kit.json", "there is no brand kit yet, so colours, the logo and type "
                       "were not checked; the word rules were", False)
     variants = check_variants(ctx, goal, by_path)
-    return {"version": 1, "kit": status, "pieces": [p.shape() for p in pieces], "variants": variants}
+    shapes = [p.shape() for p in pieces]
+    if rest:   # agreed with the home server's parser: at most 40 pieces, then one piece of kind "goal"
+        over = Piece("goal", goal_id, goal, True)
+        over.add("too_many_pieces", safe(goal_id), "the goal holds %d more pieces than the %d a goal may have; "
+                 "they were not checked" % (len(rest), MAX_PIECES))
+        shapes.append(over.shape())
+    return {"version": 1, "kit": status, "pieces": shapes, "variants": variants}
 
 
 def plain(report):
@@ -1008,12 +1101,16 @@ def run(argv, cwd=None):
         report = check(state, os.path.realpath(cwd or os.getcwd()), goal_id, time.monotonic() + TOTAL_SECONDS)
     except Problem as e:
         return 2, "", "brandcheck: could not check: %s.\n" % e
-    except OutOfTime:
-        return 2, "", "brandcheck: could not check: it took longer than %d seconds.\n" % TOTAL_SECONDS
+    except OutOfTime:   # the maker's pieces took the time: a hard fail, never "could not check"
+        return 1, "", TOO_SLOW
     failed = any(p["result"] == "fail" for p in report["pieces"]) or report["variants"]["result"] == "fail"
     code = 1 if failed else 2 if report["kit"] == "unreadable" else 0
     out = json.dumps(report, ensure_ascii=False) + "\n" if as_json else plain(report)
     return code, out, ""
+
+
+TOO_SLOW = ("brandcheck: fail: the check took longer than %d seconds, so not every piece was checked; "
+            "make the pieces smaller or fewer.\n" % TOTAL_SECONDS)
 
 
 def out_of_time(signum, frame):
@@ -1026,7 +1123,7 @@ def main(argv):
     try:
         code, out, err = run(argv)
     except OutOfTime:
-        code, out, err = 2, "", "brandcheck: could not check: it took longer than %d seconds.\n" % TOTAL_SECONDS
+        code, out, err = 1, "", TOO_SLOW
     except Exception as e:   # never a trace: one line
         code, out, err = 2, "", "brandcheck: could not check: %s.\n" % type(e).__name__
     finally:

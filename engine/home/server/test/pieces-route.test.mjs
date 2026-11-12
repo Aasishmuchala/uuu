@@ -99,7 +99,7 @@ test("pieces: three versions with previews, the home server's own brand result a
     assert.equal(a.problem, null);
     assert.deepEqual(a.variants.map((x) => [x.id, x.direction.title]), [["a", "Type led"], ["b", "Picture led"], ["c", "Diagram led"]]);
     assert.equal(Buffer.from(a.variants[0].preview[0].token, "base64url").toString(), "STH-2/slides/launch-a/slide-01.png");
-    assert.equal(a.variants[0].preview.at(-1).contact, true);
+    assert.deepEqual(a.variants[0].preview.map((p) => p.file), ["slide-01.png"], "the contact sheet is never shown");
     assert.deepEqual(a.variants.map((x) => x.brand.result), ["pass", "fail", "pass"]);
     assert.deepEqual(a.variants[1].brand.lines, ["slide-02.png: 12% of the picture is in colours outside the kit"]);
     assert.deepEqual(a.variants.map((x) => x.review && [x.review.total, x.review.of, x.review.meets]), [[52, 70, true], [46, 70, false], null]);
@@ -185,7 +185,7 @@ test("pieces: a version whose folder holds only contact.png is could-not-check, 
     const b = r.json.variants.find((x) => x.id === "b");
     assert.deepEqual(b.preview, []);
     assert.equal(b.brand.result, "unknown");
-    assert.deepEqual(b.brand.lines, ["This version has no slide pictures, so it was not checked."]);
+    assert.deepEqual(b.brand.lines, ["This version has none of the pictures the brand check measures, so it was not checked."]);
     assert.equal(r.json.variants.find((x) => x.id === "a").brand.result, "pass");
   });
 });
@@ -203,5 +203,20 @@ test("pieces: junk files and a version changed in place after the review show no
     assert.deepEqual(r.json.variants.map((x) => x.review), [null, null, null]);
     assert.equal(r.json.complete, false);
     assert.equal(r.json.note, "This task's folder holds too many files to be sure the scores are newer than the versions, so the scores are not shown.");
+  });
+});
+
+test("pieces: a version with a folder two levels down (assets/img) shows its scores and keeps its brand result", async () => {
+  let calls = 0;
+  const runner = async () => { calls += 1; return JSON.stringify(REPORT); };
+  await withHome({ comments: [review(K8_EXAMPLE)], runner }, async (h, goal) => {
+    mkdirSync(join(goal, "slides", "launch-a", "assets", "img"), { recursive: true });
+    writeFileSync(join(goal, "slides", "launch-a", "assets", "img", "a.png"), PNG);
+    const r = await pieces(h);
+    assert.equal(r.json.complete, true);
+    assert.equal(r.json.note, null);
+    assert.equal(r.json.variants[0].review?.total, 52);
+    await pieces(h);
+    assert.equal(calls, 1, "the kept result is used the second time");
   });
 });

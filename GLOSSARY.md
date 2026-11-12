@@ -172,6 +172,26 @@ _Avoid_: Style, theme, concept
 The one file in the company brain, `brand/taste.md`, that records what the owner picked and sent back, by kind of piece, in the owner's own words. Only the home screen writes it. Makers and the Art director read it before the next piece of that kind.
 _Avoid_: Preferences, profile, memory
 
+**Web door**:
+The small server that lets the Researcher, and no other agent, read public pages, search and watch videos. It refuses private addresses and keeps a list of every address opened. Off until the owner switches it on in Settings.
+_Avoid_: Proxy, browser, internet access
+
+**Narrow gate**:
+A second listener of the gate, used only by a walled agent. It lets the agent read and answer its own task and nothing else on the board.
+_Avoid_: Second gate, restricted gate
+
+**Walled agent**:
+An agent that reads text from the internet and so is kept apart: its own folder, only its own task on the board, and none of the company's files except those the owner shared. Only the Researcher is walled.
+_Avoid_: Sandboxed agent, isolated agent
+
+**Research folder**:
+The folder `tasks/research/` where the Researcher works and writes its notes. Other agents read the notes there and cannot change them. The home screen shows them in a task's files under `@research/`.
+_Avoid_: Web folder, scratch folder
+
+**Shared files**:
+The text and table files the owner marked "Fine to share with the Researcher", with the brand's public summary. They are the only company files the Researcher can read.
+_Avoid_: Public files, exported files
+
 **Daily brief**:
 A short note each morning of what happened that needs no decision.
 _Avoid_: Digest, report, summary email
@@ -229,3 +249,7 @@ _Avoid_: Engineer, CAD operator, designer
 **Artist**:
 The agent that makes sprites, animated GIFs, sprite sheets and simple vector images by script.
 _Avoid_: Designer, illustrator, animator
+
+**Researcher**:
+The one agent that may read public web pages and watch videos, through the web door, when the owner has switched the web on. It writes research notes with a source for every claim. It reads only its own task and the files the owner shared with it.
+_Avoid_: Browser, scraper, crawler, web agent

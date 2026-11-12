@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { draftBody, placeOf, previewOf, readVariants } from "../lib/variants.mjs";
+import { draftBody, placeOf, previewIsChecked, previewOf, readVariants } from "../lib/variants.mjs";
 
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(56)]);
 
@@ -138,7 +138,7 @@ test("previews: a slide by its first bytes, shown through /api/view; anything el
     symlinkSync(join(g.goal, "slides", "launch-a", "slide-01.png"), g.at("slides", "launch-c", "slide-01.png"));
     const v = readVariants(g.config, "STH-12", "carousel");
     const [a, b, c] = v.variants.map((x) => previewOf(g.config, "STH-12", "carousel", x));
-    assert.equal(a.length, 2);
+    assert.equal(a.length, 1);
     assert.equal(a[0].type, "image");
     assert.equal(Buffer.from(a[0].token, "base64url").toString("utf8"), "STH-12/slides/launch-a/slide-01.png");
     assert.equal(a[0].url, `/api/view/${a[0].token}`);
@@ -187,10 +187,53 @@ test("previews: a carousel shows the slide files the check measures, in order; a
     const v = readVariants(g.config, "STH-12", "carousel");
     const [a, b, c] = v.variants.map((x) => previewOf(g.config, "STH-12", "carousel", x));
     const names = (list) => list.map((p) => Buffer.from(p.token, "base64url").toString("utf8"));
-    assert.deepEqual(names(a.filter((p) => !p.contact)), ["01", "02", "03", "04"].map((n) => `STH-12/slides/launch-a/slide-${n}.png`));
-    assert.deepEqual(a.filter((p) => p.contact).length, 1, "the contact sheet only as an extra, after the slides");
-    assert.equal(a.at(-1).contact, true);
+    assert.deepEqual(names(a), ["01", "02", "03", "04"].map((n) => `STH-12/slides/launch-a/slide-${n}.png`), "four slides, no contact sheet");
     assert.deepEqual(b, [], "contact.png alone is never shown as the version");
-    assert.deepEqual(names(c.filter((p) => !p.contact)), ["STH-12/slides/launch-c/slide-02.png"]);
+    assert.deepEqual(names(c), ["STH-12/slides/launch-c/slide-02.png"]);
+  });
+});
+
+test("previews: only the check's fixed names, in exact letter case; never contact.png; checked only where the check measures", () => {
+  withGoal((g) => {
+    const names = (list) => list.map((p) => Buffer.from(p.token, "base64url").toString("utf8").split("/").slice(3).join("/"));
+    // A slide in other letter case is not the fixed name, so it is not shown (this disk folds case).
+    mkdirSync(g.at("slides", "odd-a"), { recursive: true });
+    writeFileSync(g.at("slides", "odd-a", "SLIDE-01.png"), PNG);
+    writeFileSync(g.at("slides", "odd-a", "contact.png"), PNG);
+    assert.deepEqual(previewOf(g.config, "STH-12", "carousel", placeOf("carousel", "odd", "a")), []);
+    writeFileSync(g.at("slides", "odd-a", "slide-02.png"), PNG);
+    const slides = previewOf(g.config, "STH-12", "carousel", placeOf("carousel", "odd", "a"));
+    assert.deepEqual(names(slides), ["slide-02.png"], "contact.png is never opened");
+    assert.equal(previewIsChecked("carousel", slides), true);
+
+    // A film: its board shots only; a contact sheet alone is nothing.
+    mkdirSync(g.at("film", "walk-a", "board"), { recursive: true });
+    writeFileSync(g.at("film", "walk-a", "contact.png"), PNG);
+    const filmNone = previewOf(g.config, "STH-12", "film", placeOf("film", "walk", "a"));
+    assert.deepEqual(filmNone, []);
+    assert.equal(previewIsChecked("film", filmNone), false);
+    writeFileSync(g.at("film", "walk-a", "board", "Shot-01.png"), PNG);
+    assert.deepEqual(previewOf(g.config, "STH-12", "film", placeOf("film", "walk", "a")), []);
+    writeFileSync(g.at("film", "walk-a", "board", "shot-02.png"), PNG);
+    const film = previewOf(g.config, "STH-12", "film", placeOf("film", "walk", "a"));
+    assert.deepEqual(names(film), ["board/shot-02.png"]);
+    assert.equal(previewIsChecked("film", film), true);
+
+    // A title card: the poster is what is measured; a title-card.png alone is shown but not "checked".
+    mkdirSync(g.at("video", "open-a"), { recursive: true });
+    writeFileSync(g.at("video", "open-a", "title-card.png"), PNG);
+    const cardOnly = previewOf(g.config, "STH-12", "title-card", placeOf("title-card", "open", "a"));
+    assert.deepEqual(names(cardOnly), ["title-card.png"]);
+    assert.equal(previewIsChecked("title-card", cardOnly), false);
+    writeFileSync(g.at("video", "open-a", "poster.png"), PNG);
+    const card = previewOf(g.config, "STH-12", "title-card", placeOf("title-card", "open", "a"));
+    assert.deepEqual(names(card), ["poster.png", "title-card.png"]);
+    assert.equal(previewIsChecked("title-card", card), true);
+
+    // A page's preview is never measured here; a draft is the measured file itself.
+    assert.equal(previewIsChecked("page", [{ type: "image", token: "x", url: "/api/view/x", file: "slide-01.png" }]), false);
+    assert.equal(previewIsChecked("post", [{ type: "text", text: "Hello" }]), true);
+    assert.equal(previewIsChecked("post", []), false);
+    assert.equal(previewIsChecked("unknown", [{ type: "text", text: "x" }]), false);
   });
 });
