@@ -10,7 +10,7 @@ import sys
 
 ENGINE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-PORT_KEYS = ["board", "gate", "home", "benchWeb", "benchSocketio",
+PORT_KEYS = ["board", "gate", "relay", "home", "benchWeb", "benchSocketio",
              "benchRedisQueue", "benchRedisCache", "benchDb"]
 
 
@@ -87,6 +87,7 @@ def load_config(path=None):
     cfg["urls"] = {
         "board": "%s:%d" % (host, p["board"]),
         "gate": "%s:%d" % (host, p["gate"]),
+        "relay": "%s:%d" % (host, p["relay"]),
         "home": "%s:%d" % (host, p["home"]),
         "bench": "%s:%d" % (host, p["benchWeb"]),
     }
@@ -117,6 +118,12 @@ def load_config(path=None):
         "codexHome": j(s, "codex-home"),
         "books": j(s, "books"),
         "benchOwnerKey": j(s, "secrets", "bench-owner-api.txt"),
+        "models": j(s, "models"),
+        "modelsState": j(s, "models", "state.json"),
+        "relayStatus": j(s, "models", "relay-status.json"),
+        "providerSecrets": j(s, "secrets", "provider"),
+        "providerKey": j(s, "secrets", "provider", "omega-key"),
+        "relaySecret": j(s, "secrets", "provider", "relay-secret"),
     }
     return cfg
 
@@ -135,6 +142,7 @@ def shell_lines(cfg):
         ("CFG_NODE24", cfg["node24"]),
         ("CFG_PORT_BOARD", p["board"]),
         ("CFG_PORT_GATE", p["gate"]),
+        ("CFG_PORT_RELAY", p["relay"]),
         ("CFG_PORT_HOME", p["home"]),
         ("CFG_PORT_BENCH_WEB", p["benchWeb"]),
         ("CFG_PORT_BENCH_SOCKETIO", p["benchSocketio"]),
@@ -143,6 +151,7 @@ def shell_lines(cfg):
         ("CFG_PORT_BENCH_DB", p["benchDb"]),
         ("CFG_BOARD_URL", u["board"]),
         ("CFG_GATE_URL", u["gate"]),
+        ("CFG_RELAY_URL", u["relay"]),
         ("CFG_HOME_URL", u["home"]),
         ("CFG_BENCH_URL", u["bench"]),
         ("CFG_BENCH_SITE", cfg["bench"]["site"]),
@@ -155,6 +164,10 @@ def shell_lines(cfg):
         ("CFG_POLICY", pa["policy"]),
         ("CFG_TASKS", pa["tasks"]),
         ("CFG_PROJECT_FOLDER", pa["projectFolder"]),
+        # Paths only: no script ever reads these files' contents into a variable.
+        ("CFG_MODELS_STATE", pa["modelsState"]),
+        ("CFG_PROVIDER_KEY", pa["providerKey"]),
+        ("CFG_RELAY_SECRET", pa["relaySecret"]),
     ]
     return "\n".join("%s=%s" % (k, _q(v)) for k, v in pairs)
 

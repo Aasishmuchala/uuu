@@ -12,6 +12,7 @@
   "agents": [
     {
       "slug": "chief-of-staff", "name": "Chief of staff", "role": "Chief of staff", "department": null,
+      "needs": "reasoning",
       "paperclipRole": "pm", "title": "Chief of staff",
       "tool": "claude", "model": "opus", "reportsTo": null,
       "capabilities": "Turns what you ask for into tasks and hands each to the right agent.",
@@ -21,6 +22,7 @@
     },
     {
       "slug": "builder", "name": "Builder", "role": "Builder", "department": null,
+      "needs": "making",
       "paperclipRole": "engineer", "title": "Builder",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Does the work on a task: writes documents, files, plans and code in the task's folder.",
@@ -29,6 +31,7 @@
     },
     {
       "slug": "checker", "name": "Checker", "role": "Checker", "department": null,
+      "needs": "checking",
       "paperclipRole": "qa", "title": "Checker",
       "tool": "codex", "model": null, "reportsTo": "chief-of-staff",
       "capabilities": "Reads finished work, checks it against what was asked and gives a verdict: pass or fail, with the reason.",
@@ -38,6 +41,7 @@
     },
     {
       "slug": "bookkeeper", "name": "Bookkeeper", "role": "Bookkeeper", "department": "books",
+      "needs": "reasoning",
       "paperclipRole": "general", "title": "Bookkeeper",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Keeps the books: drafts invoices, bills, payments and journal entries with Indian GST, for the owner to approve.",
@@ -50,6 +54,7 @@
     },
     {
       "slug": "sales", "name": "Sales", "role": "Sales", "department": "customers",
+      "needs": "writing",
       "paperclipRole": "general", "title": "Sales",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Looks after customers: records and qualifies leads, keeps deals, notes and follow-up tasks up to date.",
@@ -62,6 +67,7 @@
     },
     {
       "slug": "support", "name": "Support", "role": "Support", "department": "support",
+      "needs": "writing",
       "paperclipRole": "general", "title": "Support",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Handles customer requests: sorts them and drafts replies for the owner to approve.",
@@ -74,6 +80,7 @@
     },
     {
       "slug": "people", "name": "People", "role": "People", "department": "people",
+      "needs": "writing",
       "paperclipRole": "general", "title": "People",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Keeps staff records and drafts leave requests and attendance for the owner to approve.",
@@ -86,6 +93,7 @@
     },
     {
       "slug": "marketer", "name": "Marketer", "role": "Marketer", "department": "marketing",
+      "needs": "writing",
       "paperclipRole": "general", "title": "Marketer",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Drafts posts and newsletters into the content calendar for the owner to approve. Never publishes.",
@@ -94,6 +102,7 @@
     },
     {
       "slug": "drafter", "name": "Drafter", "role": "Drafter", "department": "studio",
+      "needs": "making",
       "paperclipRole": "designer", "title": "Drafter",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Designs parts and returns part files with measured sizes in millimetres.",
@@ -107,6 +116,7 @@
     },
     {
       "slug": "artist", "name": "Artist", "role": "Artist", "department": "studio",
+      "needs": "making",
       "paperclipRole": "designer", "title": "Artist",
       "tool": "claude", "model": "sonnet", "reportsTo": "chief-of-staff",
       "capabilities": "Draws sprites, animations and simple images by script, with frame data other tools can read.",

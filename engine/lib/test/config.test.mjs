@@ -27,10 +27,11 @@ function py(args, env = {}) {
 test("pinned ports and urls", () => {
   const c = loadConfig();
   assert.equal(c.ports.gate, 3110);
+  assert.equal(c.ports.relay, 3120);
   assert.equal(c.ports.benchDb, 3317);
   assert.deepEqual(c.urls, {
     board: "http://127.0.0.1:3100", gate: "http://127.0.0.1:3110",
-    home: "http://127.0.0.1:3200", bench: "http://127.0.0.1:8120",
+    relay: "http://127.0.0.1:3120", home: "http://127.0.0.1:3200", bench: "http://127.0.0.1:8120",
   });
   assert.equal(c.engineDir, engineDir);
 });
@@ -46,10 +47,22 @@ test("tilde is expanded", () => {
 
 test("paths cover every key", () => {
   const c = loadConfig();
-  const keys = "state logs run secrets agentSecrets policy ids tasks projectFolder agentFolders proofFolder quotaFolder knowledgeDocs lessons contentDrafts homeData cad cadPython proofLast fences claudeHome codexHome books benchOwnerKey".split(" ");
+  const keys = "state logs run secrets agentSecrets policy ids tasks projectFolder agentFolders proofFolder quotaFolder knowledgeDocs lessons contentDrafts homeData cad cadPython proofLast fences claudeHome codexHome books benchOwnerKey models modelsState relayStatus providerSecrets providerKey relaySecret".split(" ");
   assert.deepEqual(Object.keys(c.paths).sort(), keys.sort());
   assert.equal(c.paths.projectFolder, join(c.stateRoot, "tasks/company-work"));
   assert.equal(c.paths.benchOwnerKey, join(c.stateRoot, "secrets/bench-owner-api.txt"));
+  assert.equal(c.paths.models, join(c.stateRoot, "models"));
+  assert.equal(c.paths.modelsState, join(c.stateRoot, "models/state.json"));
+  assert.equal(c.paths.relayStatus, join(c.stateRoot, "models/relay-status.json"));
+  assert.equal(c.paths.providerSecrets, join(c.stateRoot, "secrets/provider"));
+  assert.equal(c.paths.providerKey, join(c.stateRoot, "secrets/provider/omega-key"));
+  assert.equal(c.paths.relaySecret, join(c.stateRoot, "secrets/provider/relay-secret"));
+});
+
+test("a config without the relay's port is refused", () => {
+  const c = clone();
+  delete c.ports.relay;
+  assert.throws(() => loadConfig({ path: writeCfg("g.json", c) }), /^Error: engine config: .*ports\.relay/);
 });
 
 test("missing key, bad JSON and missing file throw the pinned error", () => {
@@ -93,11 +106,12 @@ test("Python honours ENGINE_CONFIG and reports errors", () => {
 
 test("config.sh sets the variables", () => {
   const r = spawnSync("/bin/bash", ["-c",
-    `set -euo pipefail; . "${join(libDir, "config.sh")}"; echo "$CFG_PORT_GATE|$CFG_STATE|$CFG_GATE_URL|$CFG_PROJECT_FOLDER|$CFG_MIN_FREE_GB"`],
+    `set -euo pipefail; . "${join(libDir, "config.sh")}"; echo "$CFG_PORT_GATE|$CFG_STATE|$CFG_GATE_URL|$CFG_PROJECT_FOLDER|$CFG_MIN_FREE_GB|$CFG_PORT_RELAY|$CFG_RELAY_URL|$CFG_MODELS_STATE|$CFG_PROVIDER_KEY|$CFG_RELAY_SECRET"`],
     { encoding: "utf8", env: { ...process.env, ENGINE_CONFIG: "" } });
   assert.equal(r.status, 0, r.stderr);
   const s = join(homedir(), ".paperclip/uuu-engine");
-  assert.equal(r.stdout.trim(), `3110|${s}|http://127.0.0.1:3110|${s}/tasks/company-work|8`);
+  assert.equal(r.stdout.trim(), `3110|${s}|http://127.0.0.1:3110|${s}/tasks/company-work|8|3120|http://127.0.0.1:3120|`
+    + `${s}/models/state.json|${s}/secrets/provider/omega-key|${s}/secrets/provider/relay-secret`);
 });
 
 test("config.sh returns 1 with a message on a bad file", () => {

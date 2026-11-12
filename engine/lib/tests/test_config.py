@@ -39,9 +39,10 @@ class ConfigTest(unittest.TestCase):
     def test_ports_and_urls(self):
         c = config.load_config()
         self.assertEqual(c["ports"]["gate"], 3110)
+        self.assertEqual(c["ports"]["relay"], 3120)
         self.assertEqual(c["urls"], {
             "board": "http://127.0.0.1:3100", "gate": "http://127.0.0.1:3110",
-            "home": "http://127.0.0.1:3200", "bench": "http://127.0.0.1:8120"})
+            "relay": "http://127.0.0.1:3120", "home": "http://127.0.0.1:3200", "bench": "http://127.0.0.1:8120"})
         self.assertEqual(c["engineDir"], os.path.dirname(LIB))
 
     def test_tilde_expanded(self):
@@ -54,8 +55,22 @@ class ConfigTest(unittest.TestCase):
     def test_paths_keys(self):
         keys = ("state logs run secrets agentSecrets policy ids tasks projectFolder agentFolders "
                 "proofFolder quotaFolder knowledgeDocs lessons contentDrafts homeData cad cadPython "
-                "proofLast fences claudeHome codexHome books benchOwnerKey").split()
-        self.assertEqual(sorted(config.load_config()["paths"]), sorted(keys))
+                "proofLast fences claudeHome codexHome books benchOwnerKey models modelsState relayStatus "
+                "providerSecrets providerKey relaySecret").split()
+        paths = config.load_config()["paths"]
+        self.assertEqual(sorted(paths), sorted(keys))
+        s = paths["state"]
+        self.assertEqual(paths["modelsState"], os.path.join(s, "models", "state.json"))
+        self.assertEqual(paths["relayStatus"], os.path.join(s, "models", "relay-status.json"))
+        self.assertEqual(paths["providerKey"], os.path.join(s, "secrets", "provider", "omega-key"))
+        self.assertEqual(paths["relaySecret"], os.path.join(s, "secrets", "provider", "relay-secret"))
+
+    def test_missing_relay_port(self):
+        c = real_cfg()
+        del c["ports"]["relay"]
+        with self.assertRaises(config.ConfigError) as cm:
+            config.load_config(self.write("r.json", c))
+        self.assertIn("ports.relay", str(cm.exception))
 
     def test_missing_key(self):
         c = real_cfg()
@@ -91,7 +106,13 @@ class ConfigTest(unittest.TestCase):
         lines = dict(l.split("=", 1) for l in r.stdout.strip().splitlines())
         self.assertEqual(lines["CFG_PORT_GATE"], "'3110'")
         self.assertEqual(lines["CFG_GATE_URL"], "'http://127.0.0.1:3110'")
-        self.assertEqual(len(lines), 25)
+        self.assertEqual(lines["CFG_PORT_RELAY"], "'3120'")
+        self.assertEqual(lines["CFG_RELAY_URL"], "'http://127.0.0.1:3120'")
+        s = config.load_config()["paths"]["state"]
+        self.assertEqual(lines["CFG_MODELS_STATE"], "'%s/models/state.json'" % s)
+        self.assertEqual(lines["CFG_PROVIDER_KEY"], "'%s/secrets/provider/omega-key'" % s)
+        self.assertEqual(lines["CFG_RELAY_SECRET"], "'%s/secrets/provider/relay-secret'" % s)
+        self.assertEqual(len(lines), 30)
 
     def test_shell_quotes_apostrophes(self):
         c = real_cfg()

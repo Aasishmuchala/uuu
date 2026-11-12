@@ -2,7 +2,7 @@
   "stateRoot": "~/.paperclip/uuu-engine",
   "node24": "~/.nvm/versions/node/v24.13.0",
   "ports": {
-    "board": 3100, "gate": 3110, "home": 3200,
+    "board": 3100, "gate": 3110, "relay": 3120, "home": 3200,
     "benchWeb": 8120, "benchSocketio": 9120,
     "benchRedisQueue": 11120, "benchRedisCache": 13120, "benchDb": 3317
   },

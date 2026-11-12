@@ -428,7 +428,7 @@ require("http").createServer((q, s) => { s.end('{"status":"ok"}'); }).listen(${c
 
 test("part scripts answer health, installed and stop safely when nothing runs", async () => {
   const c = await engineCopy();
-  for (const part of ["30-gate.sh", "40-home.sh"]) {
+  for (const part of ["30-gate.sh", "35-relay.sh", "40-home.sh"]) {
     const run = (sub) => spawnSync("/bin/bash", [join(c.copy, "parts", part), sub], {
       encoding: "utf8", env: { ...process.env, ENGINE_CONFIG: join(c.root, "config.json") },
     });

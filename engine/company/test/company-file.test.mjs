@@ -237,3 +237,28 @@ test("loadCompanyFile refuses the file when a role asks for the shared text and 
     assert.ok(c.agents.find((a) => a.slug === "artist").instructions.includes("\nShared.\n"));
   });
 });
+
+test("loadCompanyFile carries needs on every agent, or null when the file has none", () => {
+  withCopy((dir, config) => {
+    const f = join(dir, "company.json");
+    const by = Object.fromEntries(loadCompanyFile(f, config).agents.map((a) => [a.slug, a.needs]));
+    assert.deepEqual(by, {
+      "chief-of-staff": "reasoning", bookkeeper: "reasoning", builder: "making", drafter: "making", artist: "making",
+      sales: "writing", marketer: "writing", support: "writing", people: "writing", checker: "checking",
+    });
+    const doc = JSON.parse(readFileSync(f, "utf8"));
+    delete doc.agents[1].needs;
+    writeFileSync(f, JSON.stringify(doc));
+    assert.equal(loadCompanyFile(f, config).agents[1].needs, null);
+  });
+});
+
+test("loadCompanyFile refuses a needs value it does not know", () => {
+  withCopy((dir, config) => {
+    const f = join(dir, "company.json");
+    const doc = JSON.parse(readFileSync(f, "utf8"));
+    doc.agents[1].needs = "dreaming";
+    writeFileSync(f, JSON.stringify(doc));
+    assert.throws(() => loadCompanyFile(f, config), (e) => e instanceof FileProblem && e.message.includes("agent builder has needs dreaming; use reasoning, making, writing or checking"));
+  });
+});

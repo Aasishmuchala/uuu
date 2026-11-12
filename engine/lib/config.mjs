@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const ENGINE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-const PORT_KEYS = ["board", "gate", "home", "benchWeb", "benchSocketio",
+const PORT_KEYS = ["board", "gate", "relay", "home", "benchWeb", "benchSocketio",
   "benchRedisQueue", "benchRedisCache", "benchDb"];
 
 function fail(what) {
@@ -74,6 +74,7 @@ export function loadConfig({ path } = {}) {
   out.urls = {
     board: `${host}:${p.board}`,
     gate: `${host}:${p.gate}`,
+    relay: `${host}:${p.relay}`,
     home: `${host}:${p.home}`,
     bench: `${host}:${p.benchWeb}`,
   };
@@ -103,6 +104,12 @@ export function loadConfig({ path } = {}) {
     codexHome: join(s, "codex-home"),
     books: join(s, "books"),
     benchOwnerKey: join(s, "secrets", "bench-owner-api.txt"),
+    models: join(s, "models"),
+    modelsState: join(s, "models", "state.json"),
+    relayStatus: join(s, "models", "relay-status.json"),
+    providerSecrets: join(s, "secrets", "provider"),
+    providerKey: join(s, "secrets", "provider", "omega-key"),
+    relaySecret: join(s, "secrets", "provider", "relay-secret"),
   };
   return out;
 }

@@ -79,6 +79,67 @@ class PolicyFileTests(unittest.TestCase):
         self.assertIn("is a link", self.refused())
 
 
+class ModelModeInputTests(unittest.TestCase):
+    """The planner's inputs carry the model mode (from model_mode.read_mode) and
+    the relay's port (PLAN-V4, C5). The engine config is the real one, with the
+    models state file moved into a temp folder."""
+
+    def setUp(self):
+        self.dir = os.path.realpath(tempfile.mkdtemp(prefix="fence-inputs-mode-"))
+        sys.path.insert(0, os.path.join(os.path.dirname(FENCE), "lib"))
+        import config as engine_config
+        self.cfg = engine_config.load_config()
+        self.cfg["paths"] = dict(self.cfg["paths"], modelsState=os.path.join(self.dir, "state.json"))
+
+    def tearDown(self):
+        shutil.rmtree(self.dir)
+
+    def write_state(self, body, mode=0o600):
+        path = self.cfg["paths"]["modelsState"]
+        with open(path, "w") as fh:
+            fh.write(body if isinstance(body, str) else json.dumps(body))
+        os.chmod(path, mode)
+
+    def run_main(self):
+        out, err = io.StringIO(), io.StringIO()
+        args = ["--tool", "claude", "--task-folder", os.path.join(self.dir, "t"),
+                "--agent-home", os.path.join(self.dir, "h"), "--inner-tmp", os.path.join(self.dir, "h", "tmp")]
+        with mock.patch.object(fence_inputs, "load_engine_config", lambda home: self.cfg), \
+                mock.patch.object(fence_inputs, "owner_home", lambda: self.dir), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = fence_inputs.main(args)
+            except SystemExit as e:
+                code = e.code
+        return code, out.getvalue(), err.getvalue()
+
+    def test_no_state_file_is_plans(self):
+        code, out, err = self.run_main()
+        self.assertEqual(code, 0, err)
+        inputs = json.loads(out.splitlines()[0])
+        self.assertEqual(inputs["modelMode"], "plans")
+        self.assertEqual(inputs["relayPort"], self.cfg["ports"]["relay"])
+
+    def test_provider_file(self):
+        self.write_state({"version": 1, "mode": "provider",
+                          "picks": {"builder": {"model": "claude-fable-5-1", "source": "ranked"}}})
+        code, out, err = self.run_main()
+        self.assertEqual(code, 0, err)
+        inputs = json.loads(out.splitlines()[0])
+        self.assertEqual(inputs["modelMode"], "provider")
+        self.assertEqual(inputs["relayPort"], 3120)
+
+    def test_untrusted_state_file_refused(self):
+        for body, mode in (({"version": 1, "mode": "provider"}, 0o666),
+                           ({"version": 1, "mode": "provider"}, 0o620),
+                           ("{nope", 0o600), ({"version": 1, "mode": "off"}, 0o600)):
+            self.write_state(body, mode)
+            code, out, err = self.run_main()
+            self.assertEqual(code, 78, (body, mode))
+            self.assertTrue(err.startswith("fence: "), err)
+            self.assertEqual(out, "")
+
+
 class CodexHomeTests(unittest.TestCase):
     """The Codex home is writable inside the fence, and codex_home.py runs outside
     it before the next run. Nothing the agent can plant there may widen the fence:

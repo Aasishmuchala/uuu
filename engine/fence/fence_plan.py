@@ -21,6 +21,10 @@ import sys
 
 REFUSED_EXIT = 78
 TOOLS = ("claude", "codex")
+# plans: the Claude and Codex plans, through their own hosts. provider: every
+# model call goes through the model relay on 127.0.0.1, and no model host is
+# reachable at all (PLAN-V4, C5).
+MODEL_MODES = ("plans", "provider")
 POLICY_KEYS = ("agentId", "slug", "localServices", "readFolders", "lessonsFile",
                "envFile", "taskFolder")
 # The engine folder: two levels above this file, never taken from the inputs.
@@ -138,7 +142,7 @@ def _check_place(kind, name, path, home, state, instance_root, agent_home):
                           "the places agents may read (%s)" % (name, path))
 
 
-def _check_policy(policy, state, config, board_port):
+def _check_policy(policy, state, config, board_port, relay_port=None):
     """Checks one fence policy (CONTRACTS section 4) and returns what it adds."""
     if not isinstance(policy, dict):
         raise Refused("the fence policy is not a JSON object")
@@ -176,6 +180,8 @@ def _check_policy(policy, state, config, board_port):
         port = int(m.group(1))
         if board_port is not None and port == board_port:
             raise bad("localServices may never name the board's port %d" % port)
+        if relay_port is not None and port == relay_port:
+            raise bad("localServices may never name the model relay's port %d" % port)
         if port not in allowed_ports:
             raise bad("localServices names port %d, which the engine does not allow" % port)
         domains.append(entry)
@@ -274,6 +280,19 @@ def plan(inputs):
         if not isinstance(h, str) or not re.match(r"^[a-z0-9.-]+$", h) or h in ("localhost",) \
                 or re.match(r"^[0-9.]+$", h):
             raise Refused("the fence config lists a model host that is not a plain host name")
+    # No model mode given means plans, today's fence.
+    model_mode = inputs.get("modelMode", "plans")
+    if not isinstance(model_mode, str) or model_mode not in MODEL_MODES:
+        raise Refused("the fence was given a model mode it does not know")
+    relay_port = inputs.get("relayPort")
+    relay_ok = isinstance(relay_port, int) and not isinstance(relay_port, bool) \
+        and 0 < relay_port < 65536 and relay_port != gate_port and relay_port != board_port
+    if model_mode == "provider" and not relay_ok:
+        raise Refused("the fence was given no usable port for the model relay")
+    # In provider mode the relay's port must be known not to be the board's, so
+    # the board's port has to be given: an unknown port is not a different one.
+    if model_mode == "provider" and board_port is None:
+        raise Refused("the fence was given no board port, so the model relay cannot be told from the board")
     extra_read, extra_write = [], []
     for key, out in (("extraRead", extra_read), ("extraWrite", extra_write)):
         if not isinstance(inputs[key], list):
@@ -299,7 +318,7 @@ def plan(inputs):
     # Paths the wrappers hand over must not open up what the fence protects.
     guarded = [os.path.join(state, "secrets"), os.path.join(state, "policy"),
                os.path.join(state, "fences"), os.path.join(state, "proof"),
-               os.path.join(instance_root, "secrets"),
+               os.path.join(state, "models"), os.path.join(instance_root, "secrets"),
                "/private/tmp/claude-%d" % uid, "/tmp/claude-%d" % uid]
     protected_files = [os.path.join(state, "agent.env")]
     for kind, name, p in [("agentHome", "the agent home", agent_home), ("innerTmp", "the temp folder", inner_tmp)] + \
@@ -313,7 +332,8 @@ def plan(inputs):
 
     extras = {"domains": [], "reads": [], "lessons": None, "taskReadOnly": False}
     if inputs["policy"] is not None:
-        extras = _check_policy(inputs["policy"], state, config, board_port)
+        extras = _check_policy(inputs["policy"], state, config, board_port,
+                               relay_port if relay_ok else None)
 
     read = [task, agent_home, inner_tmp, node_root, os.path.join(home, ".local", "bin"),
             claude_dir] + extra_read + extra_write + extras["reads"]
@@ -323,7 +343,13 @@ def plan(inputs):
     if extras["lessons"]:
         read.append(extras["lessons"])
         write.append(extras["lessons"])
-    domains = list(hosts) + ["127.0.0.1:%d" % gate_port, "localhost:%d" % gate_port] + extras["domains"]
+    domains = ["127.0.0.1:%d" % gate_port, "localhost:%d" % gate_port]
+    if model_mode == "provider":
+        # The relay holds the key; the agent reaches no model host itself.
+        domains = domains + ["127.0.0.1:%d" % relay_port, "localhost:%d" % relay_port]
+    else:
+        domains = list(hosts) + domains
+    domains = domains + extras["domains"]
     return {
         "filesystem": {"denyRead": deny, "allowRead": _dedupe(read),
                        "allowWrite": _dedupe(write), "denyWrite": []},

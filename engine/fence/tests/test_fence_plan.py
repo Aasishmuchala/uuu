@@ -440,6 +440,115 @@ class PlanTests(unittest.TestCase):
                               capture_output=True, text=True)
         self.assertEqual(junk.returncode, fence_plan.REFUSED_EXIT)
 
+    # Provider mode (PLAN-V4, C5): the gate and the model relay, and no model host.
+
+    PROVIDER_LIST = ["127.0.0.1:3110", "localhost:3110", "127.0.0.1:3120", "localhost:3120"]
+
+    def provider(self, **over):
+        base = {"modelMode": "provider", "relayPort": 3120}
+        base.update(over)
+        return self.inputs(**base)
+
+    def test_provider_claude_no_policy(self):
+        out = plan(self.provider())
+        self.assertEqual(out["network"]["allowedDomains"], self.PROVIDER_LIST)
+        self.assertEqual(out["network"]["deniedDomains"], [])
+        # Only the network changes: the files are exactly those of plans mode.
+        self.assertEqual(out["filesystem"], plan(self.inputs())["filesystem"])
+
+    def test_provider_codex_no_policy(self):
+        out = plan(self.provider(tool="codex"))
+        self.assertEqual(out["network"]["allowedDomains"], self.PROVIDER_LIST)
+        self.assertEqual(out["filesystem"], plan(self.inputs(tool="codex"))["filesystem"])
+
+    def test_provider_local_service_last(self):
+        for tool in ("claude", "codex"):
+            out = plan(self.provider(tool=tool, policy=self.policy(localServices=["127.0.0.1:8120"])))
+            self.assertEqual(out["network"]["allowedDomains"], self.PROVIDER_LIST + ["127.0.0.1:8120"])
+
+    def test_provider_no_model_host(self):
+        for tool in ("claude", "codex"):
+            for policy in (None, self.policy(localServices=["127.0.0.1:8120"])):
+                domains = plan(self.provider(tool=tool, policy=policy))["network"]["allowedDomains"]
+                for host in CONFIG["claudeHosts"] + CONFIG["codexHosts"]:
+                    self.assertFalse(any(host in d for d in domains), (tool, host, domains))
+                self.assertTrue(all(d.startswith(("127.0.0.1:", "localhost:")) for d in domains), domains)
+
+    def test_provider_bad_relay_port(self):
+        i = self.provider()
+        del i["relayPort"]
+        self.refused(i, "the model relay")
+        for bad in (0, 3110, 3100, -1, 65536, None, True, "3120", 3120.0):
+            self.refused(self.provider(relayPort=bad), "the model relay")
+        # With no board port given, the relay may not take the gate's port either.
+        i = self.provider(relayPort=3110)
+        del i["boardPort"]
+        self.refused(i, "the model relay")
+
+    def test_provider_needs_the_board_port(self):
+        # An unknown board port is not a different one: without it the relay's
+        # port could be the board's, so provider mode is refused outright.
+        for port in (3120, 3100):
+            i = self.provider(relayPort=port)
+            del i["boardPort"]
+            self.refused(i, "the model relay")
+
+    def test_plans_mode_given_is_today(self):
+        # Plans mode named outright is today's fence, whatever relay port comes with it.
+        for port in (3120, None, 0, 3110, "x"):
+            for tool in ("claude", "codex"):
+                self.assertEqual(plan(self.inputs(tool=tool, modelMode="plans", relayPort=port)),
+                                 plan(self.inputs(tool=tool)))
+
+    def test_relay_port_never_a_local_service(self):
+        # The relay's port is not in policyPortsAllowed, so no policy can name it ...
+        self.assertNotIn(3120, CONFIG["policyPortsAllowed"])
+        for i in (self.inputs(), self.provider()):
+            i["policy"] = self.policy(localServices=["127.0.0.1:3120"])
+            self.refused(i, "policy for agent bookkeeper")
+        # ... and even an engine config that allowed it could not open it.
+        cfg = dict(CONFIG, policyPortsAllowed=[8120, 3120])
+        for over in ({"modelMode": "provider"}, {"modelMode": "plans"}):
+            i = self.provider(config=cfg, policy=self.policy(localServices=["127.0.0.1:3120"]), **over)
+            self.refused(i, "the model relay's port")
+
+    def test_models_folder_guarded(self):
+        models = os.path.join(self.S, "models")
+        os.makedirs(models)
+        for name in ("state.json", "relay-status.json"):
+            with open(os.path.join(models, name), "w") as fh:
+                fh.write("{}")
+        os.symlink(models, os.path.join(self.tmp, "looks-harmless"))
+        bad = [models, os.path.join(models, "state.json"), os.path.join(models, "relay-status.json"),
+               os.path.join(self.S, "MODELS"), os.path.join(self.S.upper(), "Models", "state.json"),
+               os.path.join(self.tmp, "looks-harmless"), os.path.join(self.tmp, "looks-harmless", "state.json")]
+        for make in (self.inputs, self.provider):
+            for p in bad:
+                self.refused(make(extraRead=[p]), "refusing to share")
+                self.refused(make(extraWrite=[p]), "refusing to share")
+            self.refused(make(agentHome=models, innerTmp=os.path.join(models, "tmp")), "refusing to share")
+            self.refused(make(innerTmp=models), "refusing to share")
+            self.refused(make(policy=self.policy(readFolders=[models])), "policy for agent bookkeeper")
+            self.refused(make(taskFolder=models), "not an agent task folder")
+        self.assertIn("/models", self.refused(self.inputs(extraRead=[os.path.join(models, "state.json")])))
+
+    def test_unknown_mode_refused(self):
+        for bad in ("Provider", "PLANS", "", "off", None, 1, True, ["provider"], {"mode": "provider"}):
+            self.refused(self.inputs(modelMode=bad, relayPort=3120),
+                         "the fence was given a model mode it does not know")
+
+    def test_script_mode_provider(self):
+        script = os.path.join(FENCE, "fence_plan.py")
+        r = subprocess.run([sys.executable, script], input=json.dumps(self.provider()),
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        with open(r.stdout.strip()) as fh:
+            self.assertEqual(json.load(fh)["network"]["allowedDomains"], self.PROVIDER_LIST)
+        bad = subprocess.run([sys.executable, script], input=json.dumps(self.inputs(modelMode="other")),
+                             capture_output=True, text=True)
+        self.assertEqual(bad.returncode, fence_plan.REFUSED_EXIT)
+        self.assertIn("fence: the fence was given a model mode it does not know", bad.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

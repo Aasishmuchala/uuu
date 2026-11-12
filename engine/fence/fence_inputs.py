@@ -12,7 +12,7 @@ fence-run uses the last two only after the planner has accepted them.
 
 Nothing here comes from the environment: the home folder is the one macOS has on
 record for this user (not $HOME), and every port and path comes from
-engine/config.json. A policy is found by the agent's id alone and must pass the
+engine/config.json. The model mode comes from model_mode.py. A policy is found by the agent's id alone and must pass the
 file checks of CONTRACTS section 4 before it is used. Exit 78 on any refusal.
 """
 import json
@@ -21,6 +21,8 @@ import pwd
 import re
 import stat
 import sys
+
+import model_mode
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REFUSED_EXIT = 78
@@ -133,6 +135,9 @@ def main(argv):
         "instanceRoot": os.path.realpath(cfg["paperclip"]["instanceRoot"]),
         "gatePort": cfg["ports"]["gate"],
         "boardPort": cfg["ports"]["board"],
+        # plans or provider; a models file that cannot be trusted refuses the run.
+        "modelMode": model_mode.read_mode(cfg),
+        "relayPort": cfg["ports"]["relay"],
         # Not resolved: the Codex login chain needs each link itself to be readable.
         "extraRead": [os.path.normpath(os.path.abspath(p)) for p in opts["read"]],
         "extraWrite": [os.path.normpath(os.path.abspath(p)) for p in opts["write"]],

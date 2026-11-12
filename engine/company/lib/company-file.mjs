@@ -15,6 +15,8 @@ const DEPARTMENTS = ["books", "customers", "support", "people", "marketing", "st
 // Paperclip gives every agent its default grants and does not let the owner remove an
 // agent's grants, so the file no longer lists any: the gate blocks what they would open.
 const NO_GRANTS = 'it still lists grants, and grants are not applied (paperclip does not let the owner trim them; the gate blocks what they would open), so remove the "grants" key from';
+// What an agent needs from a model (CONTRACTS-V4 C7); the ranking file lists models for each.
+const NEEDS = ["reasoning", "making", "writing", "checking"];
 const TOOLS = {
   claude: { adapterType: "claude_local", command: "claude" },
   codex: { adapterType: "codex_local", command: "codex" },
@@ -116,6 +118,8 @@ export function loadCompanyFile(file, config) {
     const tool = TOOLS[a.tool];
     if (!tool) problem(`agent ${slug} has tool ${a.tool}; use claude or codex`);
     if (a.model !== null && (typeof a.model !== "string" || !/^[a-z0-9.-]+$/.test(a.model))) problem(`agent ${slug} has a bad model`);
+    const needs = a.needs === undefined ? null : a.needs;
+    if (needs !== null && !NEEDS.includes(needs)) problem(`agent ${slug} has needs ${needs}; use reasoning, making, writing or checking`);
     const department = a.department === undefined ? null : a.department;
     if (department !== null && !DEPARTMENTS.includes(department)) problem(`agent ${slug} has department ${a.department}; use one of ${DEPARTMENTS.join(", ")} or null`);
     if (a.reportsTo !== null && !seen.has(a.reportsTo)) problem(`agent ${slug} reports to ${a.reportsTo}, which is not listed before it`);
@@ -147,7 +151,7 @@ export function loadCompanyFile(file, config) {
     names.add(a.name);
     agents.push({
       slug, name: a.name, department, role: a.paperclipRole, title: a.title, capabilities: a.capabilities,
-      tool: a.tool, adapterType: tool.adapterType, command: tool.command, model: a.model,
+      needs, tool: a.tool, adapterType: tool.adapterType, command: tool.command, model: a.model,
       reportsTo: a.reportsTo, limits, rights: Object.fromEntries(RIGHT_KEYS.map((k) => [k, rights[k]])),
       policy, instructionsTemplate: instructions,
       cwd: join(config.paths.agentFolders, slug),
