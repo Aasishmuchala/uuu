@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The fence proof. Proves the fence around each agent tool (Claude Code and
-# Codex), the per-agent fence policy, and the gate in front of the board.
+# Codex), the per-agent fence policy, the walled Researcher, and the gate in
+# front of the board (the ordinary one and the narrow one).
 # Prints PASS, FAIL, SKIP or NOTE per check, then RESULT. Writes
 # state/proof/last.json. Exit 0 when every check passes, 1 when the fence
 # failed, 2 when it holds but something is still to do (see the SKIP lines).
@@ -31,12 +32,14 @@ KNOWLEDGE="$STATE_DIR/knowledge/docs"
 KNOWLEDGE_MARK="$KNOWLEDGE/.fence-proof"
 ENV_FILE="$STATE_DIR/secrets/agents/proof.env"
 LINES="$(mktemp -t uuu-proof-lines)" || exit 1
-HDR=""; KEY_ID=""; KEY_AGENT=""
+HDR=""; KEY_ID=""; KEY_AGENT=""; KEY_CO=""
 # The doors' two folders (PLAN-V5, K1) and the names a program loads as its settings
 # from the folder it works in (K2a), as the checks below try to plant them.
 DOORS_DIR="$STATE_DIR/doors"; DOOR_SECRETS="$STATE_DIR/secrets/doors"; MADE_DOOR_DIRS=""
 PLANTS=".claude CLAUDE.md claude.md AGENTS.md .mcp.json .codex .agentſ sub y ordinary.txt"
 STAND_IN=""
+# Temp folders made for the Researcher's checks (its own and another run's), removed on every exit.
+RUN_TMPS=""
 # The sandbox tool's own temp folder: was it there before the proof (it is not on this Mac)?
 SANDBOX_TMP_MADE=""; SANDBOX_TMP_WAS=""; [[ -e /private/tmp/claude || -L /private/tmp/claude ]] && SANDBOX_TMP_WAS=1
 
@@ -49,6 +52,8 @@ cleanup() {
   [[ -n "$SANDBOX_TMP_MADE" ]] && rmdir /private/tmp/claude 2>/dev/null
   remove_door_marks
   stand_in_stop
+  remove_run_tmps
+  rm -f "${STATE_DIR:?}/tasks/research/.fence-proof-research"
   rm -rf "${STATE_DIR:?}/claude-home/$OTHER_ID" "${STATE_DIR:?}"/tasks/_proof-answer.* "${STATE_DIR:?}/codex-home/_proof-login"
   rm -rf "${CFG_INSTANCE_ROOT:?}"/companies/*/codex-home/_proof-home.*
   if [[ -n "$KEY_ID" ]]; then
@@ -73,6 +78,11 @@ stand_in_stop() {   # only the proof's own stand-in, by its process id
   if [[ -n "$STAND_IN" ]]; then kill "$STAND_IN" 2>/dev/null; wait "$STAND_IN" 2>/dev/null; fi
   STAND_IN=""
 }
+remove_run_tmps() {   # each a folder the proof made itself; rm removes a link, never what it points at
+  local d
+  for d in $RUN_TMPS; do rm -rf "$d"; done
+  RUN_TMPS=""
+}
 trap cleanup EXIT
 trap 'exit 1' INT TERM HUP
 
@@ -92,8 +102,9 @@ say() {
 }
 
 # Each check first prints a marker from inside the fence. No marker means the
-# fence never started, and that must never be counted as "blocked".
-inside() { (cd "$WS" && PAPERCLIP_AGENT_ID="$AS" "$RUN" --fence-check "echo FENCE_UP; $1" 2>/dev/null); }
+# fence never started, and that must never be counted as "blocked". Each ends
+# within two minutes, whatever it runs.
+inside() { (cd "$WS" && PAPERCLIP_AGENT_ID="$AS" within 120 "$RUN" --fence-check "echo FENCE_UP; $1" 2>/dev/null); }
 blocked() {
   local out rc; out="$(inside "$2")"; rc=$?
   if [[ "$out" != FENCE_UP* ]]; then say FAIL "the fence around $WHO did not start (while checking: $1)"
@@ -119,6 +130,8 @@ answers() { curl -s -m 3 "$@" 2>/dev/null; }
 BOARD_UP=0; answers "$BOARD/api/health" | grep -q '"status":"ok"' && BOARD_UP=1
 HOME_UP=0; answers "$HOME_URL/healthz" | grep -q '"part":"home"' && HOME_UP=1
 GATE_UP=0; answers "$GATE/gate/health" | grep -q '"part":"gate"' && GATE_UP=1
+NARROW="$CFG_GATE_NARROW_URL"
+NARROW_UP=0; answers "$NARROW/gate/health" | grep -q '"narrow":true' && NARROW_UP=1
 BENCH_UP=0; answers -H "$SITE_HEADER" "$BENCH/api/method/ping" | grep -q pong && BENCH_UP=1
 RELAY="$CFG_RELAY_URL"
 RELAY_UP=0; answers "$RELAY/relay/health" | grep -q '"part":"relay"' && RELAY_UP=1
@@ -663,12 +676,198 @@ task-launch-settings PATCH /api/issues/x {"status":"proof-refused","assigneeAdap
 task-launch-settings POST /api/companies/<co>/issues {"title":"proof","status":"proof-refused","executionWorkspaceSettings":{"mode":"agent_default"}}
 approval-type POST /api/companies/<co>/approvals {"type":"hire_agent","payload":"proof-refused"}
 EOF
-  code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -X DELETE "$BOARD/api/agents/$builder/keys/$KEY_ID")"
-  rm -f "$HDR"; HDR=""
+  KEY_CO="$co"
+}
+# The test key is kept for the narrow gate's checks below, then removed (and on every exit).
+remove_test_key() {
+  local code
+  [[ -n "$HDR" ]] && rm -f "$HDR"; HDR=""
+  [[ -n "$KEY_ID" ]] || return 0
+  code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -X DELETE "$BOARD/api/agents/$KEY_AGENT/keys/$KEY_ID")"
   if [[ "$code" == 200 || "$code" == 204 ]]; then KEY_ID=""; say PASS "the test key was removed again"
   else say FAIL "the test key could not be removed (got $code); remove the key named engine-proof on the board"; fi
 }
 gate_checks
+
+# The Researcher, the one walled agent (PLAN-V5, K10, K2d): it works only in its own
+# folder, reads only what the owner shared (and the playbooks), reaches the board only
+# through the narrow gate and the internet only through the web door, and that only
+# while the owner has the web switched on. Run as the Researcher itself (its id from
+# ids.json, its own walled policy) from the proof's task folder: the fence moves it into
+# its own. Every folder it must not read is first seen to be there from outside (the
+# proof's own note, a mark in the company's files), so a refusal means the fence refused.
+echo; echo "The Researcher and the web door (a walled agent, and who else reaches the door)"
+# A temp folder of the shape paperclip gives each run (paperclip-run-* in the system's
+# temp area, or in /private/tmp), made here; with <mark>, a file of the proof's inside.
+RUN_TMP=""
+run_tmp() {   # run_tmp <area> [mark]: sets RUN_TMP to the new folder's real path
+  local d
+  RUN_TMP=""
+  [[ -n "$1" && -d "$1" ]] || return 1
+  d="$(mktemp -d "${1%/}/paperclip-run-proof.XXXXXX")" || return 1
+  RUN_TMPS="$RUN_TMPS $d"
+  d="$(cd "$d" && pwd -P)" || return 1
+  if [[ -n "${2:-}" ]]; then (umask 077; echo proof > "$d/.fence-proof") || return 1; fi
+  RUN_TMP="$d"
+}
+researcher_checks() {
+  local rid why research shared what d cmd own other other_tmp area web_on=0
+  RUN="$HERE/bin/claude"; WHO="the Researcher"; AS=""
+  rid="$(agent_id_of researcher)"; why=""
+  if [[ -z "$rid" ]]; then why="no Researcher in ids.json yet: run engine setup"
+  elif [[ ! -f "$CFG_POLICY/$rid.json" ]]; then why="the Researcher has no fence policy yet: run engine setup"
+  fi
+  if [[ -n "$why" ]]; then say SKIP "the Researcher's fence checks ($why)"; return; fi
+  if ! within 30 /usr/bin/python3 -I -c "import json,sys
+p=json.load(open(sys.argv[1]))
+sys.exit(0 if isinstance(p,dict) and p.get('walled') is True else 1)" "$CFG_POLICY/$rid.json" 2>/dev/null; then
+    say FAIL "the Researcher's fence policy is not a walled one ($CFG_POLICY/$rid.json)"; return
+  fi
+  AS="$rid"
+  research="$(cd "$STATE_DIR" && pwd -P)/tasks/research"
+  rm -f "$STATE_DIR/tasks/research/.fence-proof-research"
+  allowed "write in its own research folder" \
+    "test \"\$(pwd -P)\" = $research && echo x > .fence-proof-research && test -f .fence-proof-research"
+  if [[ ! -f "$research/.fence-proof-research" ]]; then say FAIL "the file the Researcher wrote did not arrive in $research"; fi
+  rm -f "$research/.fence-proof-research"
+  # The other agents' work: the company's task folders and paperclip's, and the proof's own.
+  cmd="cat $WS/note.txt >/dev/null"
+  for d in "$STATE_DIR/tasks/company-work" "$STATE_DIR/tasks/agents" "$CFG_INSTANCE_ROOT/workspaces" "$CFG_INSTANCE_ROOT/isolated-workspaces"; do
+    [[ -d "$d" ]] && cmd="$cmd || ls $d >/dev/null"
+  done
+  blocked "read the other agents' work" "$cmd"
+  mkdir -p "$KNOWLEDGE" && echo "proof" > "$KNOWLEDGE_MARK"
+  cmd="ls $KNOWLEDGE >/dev/null || cat $KNOWLEDGE_MARK >/dev/null"
+  [[ -d "$STATE_DIR/lessons" ]] && cmd="$cmd || ls $STATE_DIR/lessons >/dev/null"
+  blocked "read the company's files" "$cmd"
+  cmd=""
+  for d in "$STATE_DIR/media/room" "$STATE_DIR/media" "$STATE_DIR/art/tools" "$STATE_DIR/art"; do
+    [[ -d "$d" ]] && cmd="${cmd:+$cmd || }ls $d >/dev/null"
+  done
+  if [[ -z "$cmd" ]]; then say SKIP "whether the Researcher can read the room or the art tools (neither is there yet)"
+  else blocked "read the room or the art tools" "$cmd"; fi
+  shared="$STATE_DIR/knowledge/shared"
+  if [[ ! -d "$shared" || -L "$shared" ]]; then
+    say SKIP "whether the Researcher can read what the owner shared (the shared folder is not there yet: run engine setup)"
+  else
+    allowed "read what the owner shared" \
+      "test \"\$UUU_KNOWLEDGE_DIR\" = $shared && ls \"\$UUU_KNOWLEDGE_DIR\" >/dev/null && for f in \"\$UUU_KNOWLEDGE_DIR\"/*; do test -f \"\$f\" || continue; cat \"\$f\" >/dev/null || exit 1; done"
+  fi
+  # Its temp folder: one of its own, and another run's beside it (in the system's temp
+  # area, and in /private/tmp), each with the proof's mark; every spelling of each, and
+  # the temp areas that hold them. (Its own is used by a name made in $TMPDIR: macOS's
+  # mktemp with no name of its own writes to the system's temp area, never $TMPDIR, and
+  # no fenced run may write there.)
+  area="$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null)"
+  own=""; other=""; other_tmp=""
+  run_tmp "$area" && own="$RUN_TMP" && run_tmp "$area" mark && other="$RUN_TMP" \
+    && run_tmp /private/tmp mark && other_tmp="$RUN_TMP" || own=""
+  if [[ -z "$own" ]]; then say FAIL "could not make the temp folders for the Researcher's checks"
+  else
+    area="$(dirname "$other")"
+    TMPDIR="$own" allowed "use its own temp folder" \
+      "test \"\$TMPDIR\" = $own && f=\"\$(mktemp \"\$TMPDIR/proof.XXXXXX\")\" && echo x > \"\$f\" && cat \"\$f\" >/dev/null && ls \"\$TMPDIR\" >/dev/null && echo x > \"\$TMPDIR/.fence-proof-own\""
+    if [[ ! -f "$own/.fence-proof-own" ]]; then say FAIL "the file the Researcher wrote did not arrive in its own temp folder"; fi
+    TMPDIR="$own" blocked "list or read another run's temp folder (or the temp areas that hold them)" \
+      "ls $other >/dev/null || cat $other/.fence-proof >/dev/null || ls ${other#/private} >/dev/null || cat ${other#/private}/.fence-proof >/dev/null || ls $other_tmp >/dev/null || cat $other_tmp/.fence-proof >/dev/null || ls ${other_tmp#/private} >/dev/null || cat ${other_tmp#/private}/.fence-proof >/dev/null || ls $area >/dev/null || ls ${area#/private} >/dev/null || ls /private/tmp >/dev/null || ls /tmp/ >/dev/null"
+  fi
+  remove_run_tmps
+  if (( GATE_UP )); then blocked "reach the ordinary gate" "$(reach "$CFG_PORT_GATE" /gate/health)"
+  else say SKIP "whether the Researcher can reach the ordinary gate (the gate is not running)"; fi
+  if (( NARROW_UP )); then
+    allowed "reach the narrow gate, which turns it away without a token (401)" \
+      "test \"\$PAPERCLIP_API_URL\" = $NARROW && curl -s -m 6 $NARROW/gate/health | grep -q '\"narrow\":true' && test \"\$(curl -s -m 6 -o /dev/null -w '%{http_code}' $NARROW/api/agents/me)\" = 401"
+  else say SKIP "whether the narrow gate turns the Researcher away without a token (the narrow gate is not running)"; fi
+  blocked "reach the open internet" 'curl -s -m 8 https://example.com -o /dev/null'
+  case " $DOORS_ON " in *" web "*) web_on=1 ;; esac
+  stand_in "$CFG_PORT_WEB" /web/health
+  if [[ -n "$NOT_ANSWERING" ]]; then
+    say SKIP "whether the Researcher can reach the web door (the web door is not running, and the proof could not stand in on port $CFG_PORT_WEB)"
+  elif (( web_on )); then
+    allowed "reach the web door while its switch is on, with its address and a token" \
+      "test \"\$UUU_WEB_URL\" = $CFG_WEB_URL && test -n \"\$UUU_WEB_TOKEN\" && { $(reach "$CFG_PORT_WEB" /web/health); }"
+  else
+    blocked "reach the web door while it is switched off" "$(reach "$CFG_PORT_WEB" /web/health)"
+    allowed "be given no web door address or token while it is switched off" 'test -z "${UUU_WEB_URL+x}${UUU_WEB_TOKEN+x}"'
+  fi
+  stand_in_stop
+  AS=""
+}
+# The narrow gate with the proof's own test key (the Builder's, made on the owner's side
+# above): it lists nothing of the company's and shows no task that is not the caller's.
+# Each refusal is set beside the same request through the ordinary gate, which must answer
+# it (200), so a refusal shows the narrow gate refused, not that there was nothing to show.
+# A task is picked by its id only; nothing of a task is printed.
+narrow_key_checks() {
+  local code body pick
+  if (( ! NARROW_UP )); then say SKIP "the narrow gate checks with an agent token (the narrow gate is not running)"; return; fi
+  if [[ -z "$KEY_CO" || -z "$HDR" || ! -s "$HDR" ]]; then
+    say SKIP "the narrow gate checks with an agent token (there is no test key: see the gate's lines above)"; return
+  fi
+  code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -H @"$HDR" "$NARROW/api/agents/me")"
+  if [[ "$code" == 200 ]]; then say PASS "an agent token passes the narrow gate where it may (GET /api/agents/me is 200)"
+  else say FAIL "an agent token did not pass the narrow gate where it may (GET /api/agents/me gave $code)"; fi
+  pick="$(curl -s -m 20 -H @"$HDR" -w '\n%{http_code}' "$GATE/api/companies/$KEY_CO/issues" 2>/dev/null \
+    | within 30 /usr/bin/python3 -I -c 'import json,re,sys
+raw=sys.stdin.read(33554432)
+body,_,code=raw.rpartition("\n")
+pick="-"
+try:
+    for i in json.loads(body):
+        if isinstance(i,dict) and isinstance(i.get("id"),str) and re.fullmatch("[0-9a-f-]{36}",i["id"]) and i.get("assigneeAgentId")!=sys.argv[1]:
+            pick=i["id"]
+            break
+except (ValueError,TypeError):
+    pass
+print((code.strip() or "000")[:3],pick)' "$KEY_AGENT" 2>/dev/null)"
+  code="${pick%% *}"; pick="${pick#* }"
+  if [[ "$code" != 200 ]]; then
+    say SKIP "whether the narrow gate lists the company's tasks (the ordinary gate did not list them either: got ${code:-nothing})"
+  else
+    body="$(curl -s -m 10 -w '\n%{http_code}' -H @"$HDR" "$NARROW/api/companies/$KEY_CO/issues")"
+    code="${body##*$'\n'}"; body="${body%$'\n'*}"
+    if [[ "$code" == 403 && "$body" == *'"rule":"narrow-read"'* ]]; then say PASS "the narrow gate will not list the company's tasks (403 narrow-read)"
+    else say FAIL "the narrow gate did not refuse to list the company's tasks (got $code)"; fi
+  fi
+  if [[ ! "$pick" =~ ^[0-9a-f-]{36}$ ]]; then
+    say SKIP "whether the narrow gate shows a task that is not the caller's (the board has no task that is not the Builder's to try)"
+  else
+    code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -H @"$HDR" "$GATE/api/issues/$pick")"
+    if [[ "$code" != 200 ]]; then
+      say SKIP "whether the narrow gate shows a task that is not the caller's (the ordinary gate did not show it either: got $code)"
+    else
+      body="$(curl -s -m 15 -w '\n%{http_code}' -H @"$HDR" "$NARROW/api/issues/$pick")"
+      code="${body##*$'\n'}"; body="${body%$'\n'*}"
+      if [[ "$code" == 403 && "$body" == *'"rule":"narrow-not-yours"'* ]]; then
+        say PASS "the narrow gate will not show a task that is not the caller's (403 narrow-not-yours)"
+      else say FAIL "the narrow gate did not refuse a task that is not the caller's (got $code)"; fi
+    fi
+  fi
+  body=""
+}
+# Every other agent: the Builder, with its own fence policy, never reaches the web door,
+# whether the switch is on or off.
+builder_web_check() {
+  local bid state=off
+  bid="$(agent_id_of builder)"
+  if [[ -z "$bid" || ! -f "$CFG_POLICY/$bid.json" ]]; then
+    say SKIP "whether the Builder can reach the web door (no Builder with a fence policy yet: run engine setup)"; return
+  fi
+  case " $DOORS_ON " in *" web "*) state=on ;; esac
+  RUN="$HERE/bin/claude"; WHO="the Builder"; AS="$bid"
+  stand_in "$CFG_PORT_WEB" /web/health
+  if [[ -n "$NOT_ANSWERING" ]]; then
+    say SKIP "whether the Builder can reach the web door (the web door is not running, and the proof could not stand in on port $CFG_PORT_WEB)"
+  else
+    blocked "reach the web door (its switch is $state)" "$(reach "$CFG_PORT_WEB" /web/health)"
+  fi
+  stand_in_stop
+  AS=""
+}
+researcher_checks
+narrow_key_checks
+builder_web_check
+remove_test_key
 
 # The board runs git in the task folders (to see whether a folder has changes),
 # outside the fence. From inside the fence an agent lays out a made-up
