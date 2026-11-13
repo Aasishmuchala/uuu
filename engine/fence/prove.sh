@@ -1164,8 +1164,8 @@ codex_home_checks() {
   rm -rf "$ph"
   mkdir -m 700 "$ph" || { say FAIL "could not make a Codex home for the proof"; return; }
   CODEX_HOME="$ph" blocked "leave settings, instructions, skills or memories in its own Codex home for its next run" \
-    'cd "$CODEX_HOME" && { echo x > config.toml || echo x > Config.toml || echo x > config.toml.paperclip-backup || echo x > AGENTS.md || echo x > instructions.md || mkdir -p skills/x || mkdir -p skills/.system/x || mkdir ſkills || mkdir prompts || mkdir rules || mkdir plugins || mkdir memories || echo x > hooks.json || { mkdir -p tmp/.fence-proof-carry/x && mv tmp/.fence-proof-carry skills; }; }'
-  for n in config.toml config.toml.paperclip-backup AGENTS.md instructions.md skills prompts rules plugins memories hooks.json; do
+    'cd "$CODEX_HOME" && { echo x > config.toml || echo x > Config.toml || echo x > config.toml.paperclip-backup || echo x > AGENTS.md || echo x > instructions.md || mkdir -p skills/x || mkdir -p skills/.system/x || mkdir ſkills || mkdir prompts || mkdir rules || mkdir plugins || mkdir memories || echo x > hooks.json || echo x > .env || echo x > .ENV || { mkdir -p tmp/.fence-proof-carry/x && mv tmp/.fence-proof-carry skills; }; }'
+  for n in config.toml config.toml.paperclip-backup AGENTS.md instructions.md skills prompts rules plugins memories hooks.json .env .ENV; do
     if [[ -e "$ph/$n" || -L "$ph/$n" ]]; then say FAIL "$WHO left $n in its own Codex home"; fi
   done
   CODEX_HOME="$ph" allowed "still keep its sessions and the program's own state in its own Codex home" \

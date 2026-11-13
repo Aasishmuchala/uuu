@@ -67,7 +67,8 @@ CODEX_PLANTS = ["config.toml", "Config.toml", "config.toml.paperclip-backup", "c
                 "requirements.toml", "instructions.md", "prompts/x.md", "skills/x/SKILL.md",
                 "skills/.system/x/SKILL.md", "ſkills/x/SKILL.md", "plugins/x", "hooks.json", "hooks/x",
                 "rules/default.rules", "memories/memory_summary.md", "agents/x.toml", "AGENTS.md",
-                "AGENTS.override.md", ".codex/config.toml", ".agents/skills/x/SKILL.md"]
+                "AGENTS.override.md", ".codex/config.toml", ".agents/skills/x/SKILL.md",
+                ".env", ".ENV", ".Env", ".ENv"]
 CODEX_WRITES = ["sessions/2026/11/13/rollout-1.jsonl", "archived_sessions/x.jsonl", "state_5.sqlite",
                 "state_5.sqlite-wal", "logs_2.sqlite", "cache/x", "models_cache.json", "installation_id",
                 ".sandbox_migration", "shell_snapshots/x.sh", "thread-writer-locks/x", "log/codex.log",

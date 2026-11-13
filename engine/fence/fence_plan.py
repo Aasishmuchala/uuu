@@ -72,7 +72,10 @@ HOME_CONFIG_NAMES = {
         "requirements.toml",
         # Instructions, skills, plugins, hooks, rules for commands, and memories.
         "instructions.md", "prompts", "skills", "plugins", "hooks", "hooks.json", "rules",
-        "memories", "agents"),
+        "memories", "agents",
+        # Read into the program's own environment at every start (all but CODEX_*):
+        # a planted BASH_ENV or PATH would steer every later run (review of step 3).
+        ".env"),
 }
 # The board's id of an agent.
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
