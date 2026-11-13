@@ -8,7 +8,9 @@
 //   carries no body. Anything else is `narrow-read` (GET, HEAD, OPTIONS) or `narrow-write`.
 // - A write body may carry only the keys below (fewer than the ordinary gate allows).
 // - A route with an issue id passes only when the board's own record says that issue is
-//   assigned to the caller, or is one of the first four ancestors of an issue that is.
+//   assigned to the caller. A read also passes for one of the first four ancestors of an
+//   issue that is: the parents are for reading only (ADR 0013). A write needs the board's
+//   own answer for that exact issue; the ancestors remembered for reads are never asked.
 //   Otherwise `narrow-not-yours`. Ownership is never read from a request or from text an
 //   agent wrote: only from the board's answers to GET /api/agents/me and
 //   GET /api/issues/<id>, asked with the caller's own token.
@@ -103,7 +105,9 @@ export function createCache({ now = Date.now, max = MAX_TOKENS } = {}) {
       const key = keyOf(token);
       let e = entries.get(key);
       if (e) entries.delete(key);
-      else e = { agentId: null, agentAt: 0, issues: new Map() };
+      // `own`: issues the board said are assigned to the caller. `ancestors`: their parents,
+      // for reads only.
+      else e = { agentId: null, agentAt: 0, own: new Map(), ancestors: new Map() };
       entries.set(key, e);
       while (entries.size > max) entries.delete(entries.keys().next().value);
       return e;
@@ -116,12 +120,21 @@ export function createCache({ now = Date.now, max = MAX_TOKENS } = {}) {
 
 // Issue ids are remembered in upper case: the board reads an identifier in any letter case
 // and a UUID likewise, so every spelling of one id is the same issue.
-function remember(entry, id, at) {
+function remember(issues, id, at) {
   if (typeof id !== "string" || !ID_PATTERN.test(id)) return;
   const key = id.toUpperCase();
-  entry.issues.delete(key);
-  entry.issues.set(key, at);
-  while (entry.issues.size > MAX_ISSUES_PER_TOKEN) entry.issues.delete(entry.issues.keys().next().value);
+  issues.delete(key);
+  issues.set(key, at);
+  while (issues.size > MAX_ISSUES_PER_TOKEN) issues.delete(issues.keys().next().value);
+}
+
+// True when `issues` holds `key` from at most ISSUE_TTL_MS ago; an older entry is dropped.
+function recent(issues, key, at) {
+  const seen = issues.get(key);
+  if (seen === undefined) return false;
+  if (at - seen <= ISSUE_TTL_MS) return true;
+  issues.delete(key);
+  return false;
 }
 
 // An answer from the board is usable only when it came back at all, is not a server
@@ -139,9 +152,12 @@ function judge(answer) {
 // Whether `issueId` belongs to the caller. `ask(token, path)` asks the board with the
 // caller's token and resolves to { status, json } or { error }. Resolves to
 // { result: "yours" | "not-yours" | "no-token" | "board-down", agentId }.
+// `write` is true for any request that is not a read: then only an issue the board itself
+// said is assigned to the caller passes, never an ancestor; anything else is "not-yours".
 // The token's cache entry is dropped on any 401. Only positive answers are remembered, so
 // a newly assigned task is never refused from memory.
-export async function ownership(cache, token, issueId, ask) {
+export async function ownership(cache, token, issueId, ask, { write = false } = {}) {
+  const forWrite = write !== false;
   let entry = cache.entry(token);
   let at = cache.now();
   if (!entry.agentId || at - entry.agentAt > AGENT_TTL_MS) {
@@ -156,17 +172,21 @@ export async function ownership(cache, token, issueId, ask) {
     if (typeof id !== "string" || !ID_PATTERN.test(id)) return { result: "not-yours", agentId: null };
     entry = cache.entry(token);
     at = cache.now();
-    if (entry.agentId !== id) entry.issues.clear();
+    if (entry.agentId !== id) {
+      entry.own.clear();
+      entry.ancestors.clear();
+    }
     entry.agentId = id;
     entry.agentAt = at;
   }
   const agentId = entry.agentId;
-  if (issueId === null || issueId === undefined) return { result: "yours", agentId };
+  // Without an issue id only a read passes (the identity and the inbox): a write always
+  // names the issue it changes.
+  if (issueId === null || issueId === undefined) return { result: forWrite ? "not-yours" : "yours", agentId };
   if (typeof issueId !== "string" || !ID_PATTERN.test(issueId)) return { result: "not-yours", agentId };
   const key = issueId.toUpperCase();
-  const seen = entry.issues.get(key);
-  if (seen !== undefined && at - seen <= ISSUE_TTL_MS) return { result: "yours", agentId };
-  if (seen !== undefined) entry.issues.delete(key);
+  if (recent(entry.own, key, at)) return { result: "yours", agentId };
+  if (!forWrite && recent(entry.ancestors, key, at)) return { result: "yours", agentId };
 
   const answer = await ask(token, `/api/issues/${issueId}`);
   const verdict = judge(answer);
@@ -180,17 +200,18 @@ export async function ownership(cache, token, issueId, ask) {
   if (typeof issue.assigneeAgentId !== "string" || issue.assigneeAgentId !== agentId) {
     return { result: "not-yours", agentId };
   }
-  // The board's own record of this issue's ancestors, nearest first.
+  // This exact issue is the caller's: every spelling of it the board gave. Then the board's
+  // own record of its ancestors, nearest first, kept apart: they are for reads only.
   entry = cache.entry(token);
   at = cache.now();
-  remember(entry, issueId, at);
-  remember(entry, issue.id, at);
-  remember(entry, issue.identifier, at);
+  remember(entry.own, issueId, at);
+  remember(entry.own, issue.id, at);
+  remember(entry.own, issue.identifier, at);
   const ancestors = Array.isArray(issue.ancestors) ? issue.ancestors.slice(0, ANCESTOR_STEPS) : [];
   for (const a of ancestors) {
     if (a === null || typeof a !== "object") break;
-    remember(entry, a.id, at);
-    remember(entry, a.identifier, at);
+    remember(entry.ancestors, a.id, at);
+    remember(entry.ancestors, a.identifier, at);
   }
   return { result: "yours", agentId };
 }

@@ -328,7 +328,9 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
   }
 
   // The narrow listener's last checks: the write body's keys, then whether the issue is the
-  // caller's (asked of the board only now, so a request refused above never reaches it).
+  // caller's (asked of the board only now, so a request refused above never reaches it). A
+  // write needs the board's answer that this exact issue is the caller's; an ancestor of
+  // its own task is for reading only.
   async function forwardIfYours(req, res, path, route, body) {
     let value = null;
     if (route.write) {
@@ -348,8 +350,13 @@ export function createGate({ listenPort, boardPort, boardHost = "127.0.0.1", ref
       }
     }
     const token = headerValues(req.rawHeaders, "authorization")[0].trim().replace(/^bearer +/i, "");
+    // Every narrow write names its issue; one that does not is refused, never forwarded.
+    if (route.write && route.issueId === null) {
+      refuse(req, res, path, "narrow-write");
+      return;
+    }
     if (route.issueId !== null) {
-      const { result, agentId } = await ownership(cache, token, route.issueId, ask);
+      const { result, agentId } = await ownership(cache, token, route.issueId, ask, { write: route.write });
       if (result === "no-token") {
         sendJson(res, 401, BODIES.noToken);
         return;
