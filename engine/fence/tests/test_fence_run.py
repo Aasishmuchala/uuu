@@ -97,10 +97,15 @@ class FenceRunTests(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def answer(self, work="", narrow=""):
-        """What the stand-in fence_inputs.py prints: five lines, as the real one."""
+    def answer(self, work="", narrow="", home=None, tmp=None):
+        """What the stand-in fence_inputs.py prints: seven lines, as the real one. A walled
+        run's Claude home is its goal's own, with its temp folder in it, unless given."""
+        if home is None:
+            home = os.path.join(self.state, "claude-home", AGENT, os.path.basename(work)) if work else ""
+        if tmp is None:
+            tmp = os.path.join(home, "tmp") if home else ""
         with open(os.path.join(self.fence, "inputs-answer"), "w") as fh:
-            fh.write('{"x":1}\n\n\n%s\n%s\n' % (work, narrow))
+            fh.write('{"x":1}\n\n\n%s\n%s\n%s\n%s\n' % (work, narrow, home, tmp))
 
     def doors(self, text, code=0):
         with open(os.path.join(self.fence, "doors-answer"), "w") as fh:
@@ -252,6 +257,13 @@ class FenceRunTests(unittest.TestCase):
         self.assertNotIn("UUU_RESEARCH_DIR", env)
         self.assertEqual(env["UUU_PLAYBOOKS_DIR"], os.path.join(self.state, "playbooks"))
         self.assertEqual(env["UUU_WEB_TOKEN"], TOKEN)
+        # Its Claude home is its goal's own (made when missing, closed to others), with its temp folder in it.
+        home = os.path.join(self.state, "claude-home", AGENT, "STH-12")
+        self.assertEqual(env["CLAUDE_CONFIG_DIR"], home)
+        for name in ("TMPDIR", "CLAUDE_CODE_TMPDIR"):
+            self.assertIn("%s=%s" % (name, os.path.join(home, "tmp")), args)
+        for d in (os.path.dirname(home), home, os.path.join(home, "tmp")):
+            self.assertEqual(stat.S_IMODE(os.lstat(d).st_mode), 0o700, d)
         # The goal's folder is made when missing: a plain folder of the owner's, closed to others.
         self.assertEqual(stat.S_IMODE(os.stat(self.goal).st_mode), 0o700)
         os.rmdir(self.goal)
@@ -334,6 +346,80 @@ class FenceRunTests(unittest.TestCase):
         for work, narrow in ((self.goal, ""), ("", self.narrow)):
             self.answer(work, narrow)
             self.refused(self.run_fence(), "only half")
+        for home, tmp in (("", None), (None, "")):
+            self.answer(self.goal, self.narrow, home, tmp)
+            self.refused(self.run_fence(), "only half")
+        self.answer("", "", os.path.join(self.state, "claude-home", AGENT, "STH-12"), "")
+        self.refused(self.run_fence(), "only half")
+
+    # The second look at the review of step 2: a walled run keeps one Claude home per goal.
+
+    def test_a_walled_home_that_is_not_its_goals_own_is_refused(self):
+        homes = os.path.join(self.state, "claude-home")
+        mine = os.path.join(homes, AGENT, "STH-12")
+        elsewhere = os.path.join(self.tmp, "elsewhere")
+        os.makedirs(elsewhere)
+        for home in (os.path.join(homes, AGENT), os.path.join(homes, AGENT, "GOL-7"), os.path.join(homes, "_none"),
+                     os.path.join(homes, "11111111-2222-4333-8444-666666666666", "STH-12"), homes,
+                     os.path.join(homes, AGENT, "STH-12", "deeper"), os.path.join(homes, AGENT, "sth-12"),
+                     os.path.join(homes, AGENT, ".", "STH-12"), os.path.join(homes, AGENT, "GOL-7", "..", "STH-12"),
+                     elsewhere, os.path.join(self.state, "codex-home", AGENT, "STH-12")):
+            with self.subTest(home=home):
+                self.answer(self.goal, self.narrow, home)
+                self.refused(self.run_fence(), "home")
+        # Its temp folder lies in that home, or is paperclip's own folder for the run.
+        for tmp in (os.path.join(homes, AGENT, "tmp"), os.path.join(homes, AGENT, "GOL-7", "tmp"),
+                    os.path.join(homes, "_none", "tmp"), elsewhere, os.path.join(self.tmp, "paperclip-run-x")):
+            with self.subTest(tmp=tmp):
+                self.answer(self.goal, self.narrow, mine, tmp)
+                self.refused(self.run_fence(), "temp folder")
+        # A run with no agent id is no walled agent's.
+        self.answer(self.goal, self.narrow, mine)
+        self.refused(self.run_fence(None), "agent id")
+        self.assertEqual(os.listdir(elsewhere), [])
+        # A home, or the folder above it, that is a link or can be changed by others.
+        shutil.rmtree(os.path.join(homes, AGENT), ignore_errors=True)
+        os.symlink(elsewhere, os.path.join(homes, AGENT))
+        self.refused(self.run_fence(), "link")
+        self.assertEqual(os.listdir(elsewhere), [])
+        os.remove(os.path.join(homes, AGENT))
+        os.makedirs(os.path.join(homes, AGENT), mode=0o700)
+        os.symlink(elsewhere, mine)
+        self.refused(self.run_fence(), "link")
+        self.assertEqual(os.listdir(elsewhere), [])
+        os.remove(mine)
+        os.makedirs(mine)
+        for d in (os.path.join(homes, AGENT), mine):
+            os.chmod(d, 0o777)
+            self.refused(self.run_fence(), "changed by others")
+            os.chmod(d, 0o700)
+        os.symlink(elsewhere, os.path.join(mine, "tmp"))
+        self.refused(self.run_fence(), "temp folder")
+        os.remove(os.path.join(mine, "tmp"))
+        # A home left open (but not to writing) is closed; then the run goes ahead.
+        os.chmod(mine, 0o755)
+        env, _, _ = self.seen(self.run_fence())
+        self.assertEqual(env["CLAUDE_CONFIG_DIR"], mine)
+        self.assertEqual(stat.S_IMODE(os.stat(mine).st_mode), 0o700)
+
+    def test_a_walled_run_keeps_paperclips_own_temp_folder(self):
+        run = os.path.realpath(tempfile.mkdtemp(prefix="paperclip-run-"))
+        self.addCleanup(shutil.rmtree, run, True)
+        mine = os.path.join(self.state, "claude-home", AGENT, "STH-12")
+        self.answer(self.goal, self.narrow, mine, run)
+        env, args, _ = self.seen(self.run_fence(extra={"TMPDIR": run}))
+        self.assertEqual(env["CLAUDE_CONFIG_DIR"], mine)
+        self.assertIn("TMPDIR=" + run, args)
+        # Another run's folder of that shape is not this run's.
+        other = os.path.realpath(tempfile.mkdtemp(prefix="paperclip-run-"))
+        self.addCleanup(shutil.rmtree, other, True)
+        self.answer(self.goal, self.narrow, mine, other)
+        self.refused(self.run_fence(extra={"TMPDIR": run}), "temp folder")
+
+    def test_an_ordinary_run_sets_no_claude_home(self):
+        env, _, _ = self.seen(self.run_fence())
+        self.assertNotIn("CLAUDE_CONFIG_DIR", env)
+        self.assertFalse(os.path.exists(os.path.join(self.state, "claude-home", AGENT)))
 
     def test_no_token_in_the_fence_calls_log(self):
         self.doors(DOOR_LINES)

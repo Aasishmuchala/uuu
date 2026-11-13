@@ -7,12 +7,13 @@ and ENGINE_CONFIG variable.
                   --inner-tmp DIR [--agent-id ID] [--task-id ID]
                   [--read PATH]... [--write PATH]...
 
-Prints five lines: the planner's inputs as one line of JSON, then the policy's
+Prints seven lines: the planner's inputs as one line of JSON, then the policy's
 lessons file (or an empty line), then the policy's env file (or an empty line),
 then, for a walled agent only (PLAN-V5, K2d), the folder to work in (the one
-folder of the goal the run's task belongs to, under tasks/research) and the
-narrow gate's address (two empty lines for everyone else). fence-run uses the
-last four only after the planner has accepted them.
+folder of the goal the run's task belongs to, under tasks/research), the narrow
+gate's address, the agent's Claude home for that goal (claude-home/<agent
+id>/<goal>) and the run's temp folder (four empty lines for everyone else).
+fence-run uses the last six only after the planner has accepted them.
 
 A walled run's goal is not in the folder it was started in (paperclip starts
 every run in one shared folder), so it is asked of the board itself: the run's
@@ -169,7 +170,10 @@ def _board_get(port, path, key):
         body = resp.read(BOARD_ANSWER_CAP + 1)
         if len(body) > BOARD_ANSWER_CAP:
             return None
-        doc = json.loads(body.decode("utf-8"))
+        try:
+            doc = json.loads(body.decode("utf-8"))
+        except Exception:   # any answer it cannot read (nested past the stack: RecursionError) is no answer
+            return None
         return doc if isinstance(doc, dict) else None
     except (OSError, ValueError, http.client.HTTPException, TimeoutError):
         return None
@@ -236,19 +240,28 @@ def main(argv):
     # whatever folder it was started in, and reaches the board only through the
     # narrow gate. The goal comes from the board, never from the run's words.
     walled = policy is not None and policy.get("walled") is True
-    work_folder = ""
+    work_folder = walled_home = walled_tmp = ""
+    agent_home = os.path.realpath(opts["agentHome"])
+    inner_tmp = os.path.realpath(opts["innerTmp"])
     if walled:
         goal = goal_identifier(opts["taskId"], opts["agentId"], os.environ.get("PAPERCLIP_API_KEY", ""),
                                ports["board"])
         work_folder = os.path.join(state, "tasks", "research", goal)
+        # One Claude home per goal, whatever home the wrapper named: what a run of one
+        # goal leaves in its home is never read by a run of another. Its temp folder
+        # is in it, unless paperclip gave the run a folder of its own.
+        walled_home = os.path.join(state, "claude-home", opts["agentId"], goal)
+        if not os.path.basename(inner_tmp).startswith("paperclip-run-"):
+            inner_tmp = os.path.join(walled_home, "tmp")
+        agent_home, walled_tmp = walled_home, inner_tmp
     inputs = {
         "home": home,
         "uid": os.getuid(),
         "state": state,
         "taskFolder": work_folder or opts["task"],
         "tool": opts["tool"],
-        "agentHome": os.path.realpath(opts["agentHome"]),
-        "innerTmp": os.path.realpath(opts["innerTmp"]),
+        "agentHome": agent_home,
+        "innerTmp": inner_tmp,
         "nodeRoot": os.path.realpath(cfg["node24"]),
         "realClaudeDir": os.path.dirname(os.path.realpath(fence["realClaude"])),
         "instanceRoot": os.path.realpath(cfg["paperclip"]["instanceRoot"]),
@@ -280,6 +293,8 @@ def main(argv):
     print(env_file)
     print(work_folder)
     print(cfg["urls"]["gateNarrow"] if walled else "")
+    print(walled_home)
+    print(walled_tmp)
     return 0
 
 
