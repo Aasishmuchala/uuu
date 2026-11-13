@@ -27,7 +27,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { crc32, deflateSync } from "node:zlib";
-import { readVisitLines } from "./state.mjs";
+import { readVisits, visitCalls } from "./state.mjs";
 import { clean } from "./readable.mjs";
 import { writeJobSettings } from "./sandbox.mjs";
 import { MAX_CAPTIONS_BYTES, MAX_TRANSCRIPT, vttToText } from "./vtt.mjs";
@@ -395,15 +395,15 @@ export function createWatch({ paths, tools, log, now, checkAddress, hostAllowed 
   sweep.unref();
 
   function countToday() {
-    const key = dayKey(clock());
+    const t = clock();
+    const key = dayKey(t);
     if (today === null || today.key !== key) {
-      // Seeded from the owner's list, so a restart does not reset the day's count.
-      let count = 0;
-      for (const line of typeof P.visits === "string" ? readVisitLines(P.visits) : []) {
-        let v;
-        try { v = JSON.parse(line); } catch { continue; }
-        if (v && v.kind === "watch" && v.status === 202 && dayKey(Date.parse(v.at)) === key) count += 1;
-      }
+      // Seeded from the owner's list, so a restart does not reset the day's count. When the
+      // list may be missing some of today's lines (it could not be read, only its end was, or
+      // lines of today were cut away), the day counts as used up: closed, never open.
+      const read = typeof P.visits === "string" ? readVisits(P.visits) : { ok: true, whole: true, lines: [] };
+      const seen = visitCalls(read, key * DAY - IST - 1, t);
+      const count = seen.gone !== null ? Infinity : seen.calls.filter((c) => c.kind === "watch" && c.status === 202).length;
       today = { key, count };
     }
     return today;

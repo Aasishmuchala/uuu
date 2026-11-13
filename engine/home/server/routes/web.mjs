@@ -9,6 +9,7 @@ import { lstatSync } from "node:fs";
 import { join } from "node:path";
 import { readIds } from "../../../relay/state.mjs";
 import { SLUG_RE } from "../../../relay/token.mjs";
+import { readVisits } from "../../../web/state.mjs";
 import {
   MAX_HOSTS, callDoor, doorKeySaved, holdsSavedKey, hostName, readDoors, readTrustedText, removeDoorKey, saveDoorKey, updateDoors,
   validDoorKey,
@@ -16,7 +17,6 @@ import {
 import { listShared, share } from "../lib/shared-brain.mjs";
 
 export const VISITS_PAGE = 100;
-const VISITS_MAX_BYTES = 8 * 1024 * 1024;
 const VISIT_LINE_MAX = 4096;
 const STATUS_MAX_BYTES = 64 * 1024;
 const TEST_TIMEOUT_MS = 45000;
@@ -115,7 +115,8 @@ export async function buildWebView(ctx) {
 // ---- the visits ----------------------------------------------------------------------------------------------
 
 // One line of the door's list as the page shows it, or null. The address is the Researcher's or a site's: plain
-// text, invisible and control characters removed, at most 1024 characters.
+// text, invisible and control characters removed, at most 1024 characters. `calls` is how many calls the line
+// stands for: 1, or for the door's line that counts an agent's further calls refused over its cap, that count.
 function visitOf(line) {
   if (typeof line !== "string" || line.length > VISIT_LINE_MAX) return null;
   let v;
@@ -137,20 +138,16 @@ function visitOf(line) {
     url: plain(v.url, 1024),
     status, code, result,
     bytes: count(v.bytes),
+    calls: Number.isInteger(v.calls) && v.calls >= 1 ? Math.min(v.calls, 1e9) : 1,
   };
 }
 
-// The door's list (newest last in the file), read with the trust rule and capped.
-function readVisits(config) {
-  const text = readTrustedText(config.paths.webVisits, VISITS_MAX_BYTES);
-  if (typeof text !== "string" || text === "missing") return [];
-  return text.split("\n").filter((l) => l !== "");
-}
-
 // 100 visits older than `before` (all, without it), newest first. A page that ends inside a run of visits of the
-// same time takes the rest of that run too, so "Show older" never skips one.
+// same time takes the rest of that run too, so "Show older" never skips one. The door's list (newest last) is read
+// with the trust rule (a file of this user no one else may write, never through a link), and only its last 8 MB:
+// a larger file still shows its newest visits.
 function visitsPage(config, before) {
-  const lines = readVisits(config);
+  const lines = readVisits(config.paths.webVisits, { strict: true }).lines;
   const limit = before === null ? Infinity : Date.parse(before);
   const out = [];
   let i = lines.length - 1;

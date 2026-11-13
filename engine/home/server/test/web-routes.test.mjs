@@ -11,6 +11,7 @@ import { readSecret } from "../../../relay/state.mjs";
 import { mintToken } from "../../../relay/token.mjs";
 import { ok, startInternet } from "../../../test/stubs/internet.mjs";
 import { createWebDoor } from "../../../web/door.mjs";
+import { updateDoors } from "../lib/doors.mjs";
 import { readShape, sameShape } from "../lib/shape.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
 import { call } from "../lib/testing.mjs";
@@ -345,6 +346,48 @@ test("visits of the same moment are never split across pages", async () => {
     assert.equal(p1.visits.length, 103);
     assert.equal(p1.more, false);
   }, { door: false });
+});
+
+test("a list larger than 8 MB still shows its newest visits, newest first", async () => {
+  await withWeb(async ({ h }) => {
+    const base = Date.parse("2026-11-12T08:00:00.000Z");
+    const at = (i) => new Date(base + i * 1000).toISOString();
+    // Long lines (under the 4 KB a line may be), older; then the three newest.
+    const lines = Array.from({ length: 2400 }, (_, i) => JSON.stringify({ at: at(i), slug: "researcher", kind: "fetch", url: `https://old.test/${"x".repeat(3700)}`, status: 200, bytes: 1 }));
+    for (let i = 0; i < 3; i += 1) lines.push(JSON.stringify({ at: at(3000 + i), slug: "researcher", kind: "fetch", url: `https://new${i}.test/`, status: 200, bytes: 1 }));
+    writeVisits(h.config, lines);
+    assert.ok(statSync(h.config.paths.webVisits).size > 8 * 1024 * 1024);
+    const p = (await call(h.url, "GET", "/api/web/visits")).json;
+    assert.deepEqual(p.visits.slice(0, 3).map((v) => v.url), ["https://new2.test/", "https://new1.test/", "https://new0.test/"]);
+    assert.equal(p.visits.length, 100);
+    assert.equal(p.more, true);
+    assert.equal(p.visits[0].calls, 1);
+    chmodSync(h.config.paths.webVisits, 0o666);
+    assert.deepEqual((await call(h.url, "GET", "/api/web/visits")).json.visits, [], "a large file others can write is not read either");
+  }, { door: false });
+});
+
+// The T38 review's finding F1, through a real door: refused calls past the cap no longer fill the list, so the
+// owner still sees the first visit, and the count of what was refused arrives as one line.
+test("thousands of refused calls through the door leave the owner's list small, with the first visit listed", async () => {
+  await withWeb(async ({ h, door }) => {
+    assert.equal((await post(h, "/api/web/switch", { on: true })).status, 200);
+    updateDoors(h.config, (s) => { s.web.perHour = 1; s.web.perDay = 1; });
+    assert.equal((await agentFetch(door, h, "https://site.test/the-visit-the-owner-must-see")).status, 200);
+    const junk = ["\ud800", "\\", "\""].map((c) => c.repeat(1024));
+    for (let round = 0; round < 80; round += 1) {
+      const rs = await Promise.all(Array.from({ length: 25 }, (_, i) => agentFetch(door, h, junk[(round + i) % 3])));
+      assert.ok(rs.every((r) => r.status === 403 && r.json.code === "web_too_many"));
+    }
+    assert.ok(statSync(h.config.paths.webVisits).size < 4096, `${statSync(h.config.paths.webVisits).size} bytes`);
+    let p = (await call(h.url, "GET", "/api/web/visits")).json;
+    assert.deepEqual(p.visits.map((v) => [v.result, v.code, v.calls]), [["refused", "web_too_many", 1], ["ok", null, 1]]);
+    assert.equal(p.visits[1].url, "https://site.test/the-visit-the-owner-must-see");
+    await door.close(); // writes the count of the rest
+    p = (await call(h.url, "GET", "/api/web/visits")).json;
+    assert.deepEqual(p.visits.map((v) => [v.result, v.calls]), [["refused", 1999], ["refused", 1], ["ok", 1]]);
+    assert.equal(p.visits[2].url, "https://site.test/the-visit-the-owner-must-see");
+  });
 });
 
 test("a real fetch through the door is listed, and today's counts come from the door's status file", async () => {
