@@ -150,3 +150,115 @@
   .p-settings .p-settings__w-addr-long { display: none; }
   .p-settings .p-settings__w-addr-short { display: inline; }
 }
+/* The Generation section (pages/settings-generation.js, PLAN-V5 K13). It shares the Web section's hero, drawing,
+   switch and empty states; what follows is its own: Runway in the drawing, the money line, Test's answer, the
+   limits, the bars of what is spent, the models, the approved films and the days of what was spent. */
+.p-settings .p-settings__g-hero--held { border-color: var(--warn); }
+.p-settings .p-settings__g-note { display: flex; align-items: flex-start; gap: var(--s-2); margin: 0; color: var(--warn-text); font-weight: var(--fw-medium); line-height: var(--lh-body); }
+.p-settings .p-settings__g-note .k-icon { flex: none; margin-top: 3px; }
+.p-settings .p-settings__g-runway { position: relative; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: var(--s-8); height: var(--s-8); border: 1.5px solid var(--text-2); border-radius: var(--r-2); color: var(--text-2); }
+.p-settings .p-settings__w-map--open .p-settings__g-runway { border-color: var(--ok); color: var(--ok-text); }
+.p-settings .p-settings__g-money { display: flex; align-items: flex-start; gap: var(--s-2); margin: 0; color: var(--text-2); line-height: var(--lh-body); }
+.p-settings .p-settings__g-money .k-icon { flex: none; margin-top: 3px; color: var(--text-3); }
+/* Test's answer: a quiet panel in the answer's colour. */
+.p-settings .p-settings__g-answer { display: flex; align-items: flex-start; gap: var(--s-3); padding: var(--s-3) var(--s-4); border: 1px solid var(--hairline); border-radius: var(--r-3); background: var(--bg-subtle); }
+.p-settings .p-settings__g-answer .k-dot { margin-top: 2px; }
+.p-settings .p-settings__g-answer--ok { border-color: var(--ok); background: var(--ok-bg); }
+.p-settings .p-settings__g-answer--bad { border-color: var(--bad); background: var(--bad-bg); }
+.p-settings .p-settings__g-answer--warn { border-color: var(--warn); background: var(--warn-bg); }
+.p-settings .p-settings__g-answer-words { display: grid; gap: var(--s-1); min-width: 0; }
+.p-settings .p-settings__g-answer-line { margin: 0; font-weight: var(--fw-medium); }
+.p-settings .p-settings__g-answer .k-next { margin: 0; }
+/* Limits: the two fields side by side, each with its dollars under it. */
+.p-settings .p-settings__g-limits { display: grid; gap: var(--s-4); }
+.p-settings .p-settings__g-caps { display: grid; grid-template-columns: repeat(2, minmax(0, 18rem)); gap: var(--s-4) var(--s-6); }
+.p-settings .p-settings__g-cap .k-input { font-variant-numeric: tabular-nums; }
+.p-settings .p-settings__g-cap .k-field__hint { margin: 0; font-variant-numeric: tabular-nums; }
+.p-settings .p-settings__g-cap .k-field__error { margin: 0; }
+.p-settings .p-settings__g-cap--zero .k-field__hint { color: var(--warn-text); font-weight: var(--fw-medium); }
+/* Spent: today and this month, each a figure over a bar. */
+.p-settings .p-settings__g-meters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
+.p-settings .p-settings__g-meter { display: grid; gap: var(--s-2); min-width: 0; padding: var(--s-3) var(--s-4) var(--s-4); border-radius: var(--r-3); background: var(--bg-subtle); }
+.p-settings .p-settings__g-meter-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); }
+.p-settings .p-settings__g-meter-label { font-size: var(--fs-over); font-weight: var(--fw-medium); letter-spacing: .16em; text-transform: uppercase; color: var(--text-3); }
+.p-settings .p-settings__g-meter-left { color: var(--text-2); font-size: var(--fs-caption); font-variant-numeric: tabular-nums; }
+.p-settings .p-settings__g-figure { margin: 0; font-variant-numeric: tabular-nums; }
+.p-settings .p-settings__g-figure-credits { font-size: var(--fs-title); font-weight: var(--fw-medium); }
+.p-settings .p-settings__g-figure-dollars { color: var(--text-2); }
+.p-settings .p-settings__g-bar { position: relative; display: block; height: 6px; overflow: hidden; border-radius: var(--r-pill); background: var(--hairline); }
+.p-settings .p-settings__g-bar--sm { height: 4px; }
+.p-settings .p-settings__g-fill { position: absolute; inset: 0; border-radius: var(--r-pill); background: var(--accent); transform-origin: left center; transition: transform var(--t-slow) var(--ease); }
+.p-settings .p-settings__g-bar--warn .p-settings__g-fill { background: var(--warn); }
+.p-settings .p-settings__g-bar--bad .p-settings__g-fill { background: var(--bad); }
+.p-settings .p-settings__g-paused { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3) var(--s-4); padding: var(--s-3) var(--s-4); border: 1px solid var(--warn); border-radius: var(--r-3); background: var(--warn-bg); }
+.p-settings .p-settings__g-paused > .k-icon { flex: none; align-self: flex-start; margin-top: 3px; color: var(--warn-text); }
+.p-settings .p-settings__g-paused-words { display: grid; gap: var(--s-1); flex: 1 1 18rem; min-width: 0; }
+.p-settings .p-settings__g-paused-line { margin: 0; font-weight: var(--fw-medium); color: var(--text); line-height: var(--lh-body); }
+.p-settings .p-settings__g-paused > .k-btn { flex: none; }
+/* Models: four choices in two columns; the example under them. */
+.p-settings .p-settings__g-models { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-6); }
+.p-settings .p-settings__g-model { display: grid; gap: var(--s-1); align-content: start; min-width: 0; }
+.p-settings .p-settings__g-model .k-select { width: 100%; }
+.p-settings .p-settings__g-model .k-field__hint { margin: 0; }
+.p-settings .p-settings__g-only { display: flex; align-items: center; min-height: var(--h-md); box-sizing: border-box; margin: 0; padding: var(--s-2) var(--s-3); border: 1px dashed var(--hairline-strong); border-radius: var(--r-2); color: var(--text); overflow-wrap: anywhere; }
+.p-settings .p-settings__g-example { display: flex; align-items: flex-start; gap: var(--s-2); margin: 0; padding: var(--s-3) var(--s-4); border-radius: var(--r-3); background: var(--bg-subtle); line-height: var(--lh-body); font-variant-numeric: tabular-nums; }
+.p-settings .p-settings__g-example .k-icon { flex: none; margin-top: 3px; color: var(--text-3); }
+/* Approved films: a row each, the film's link, its dates, its spend against its budget, open or closed. */
+.p-settings .p-settings__g-films { list-style: none; margin: 0; padding: 0; border: 1px solid var(--hairline); border-radius: var(--r-3); overflow: hidden; }
+.p-settings .p-settings__g-film { display: grid; grid-template-columns: minmax(0, 1fr) 13rem 6rem; align-items: center; gap: var(--s-2) var(--s-5); padding: var(--s-3) var(--s-4); border-top: 1px solid var(--hairline); }
+.p-settings .p-settings__g-film:first-child { border-top: 0; }
+.p-settings .p-settings__g-film-name { display: grid; gap: 2px; min-width: 0; }
+.p-settings .p-settings__g-film-link { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--s-2); min-width: 0; color: var(--text); font-weight: var(--fw-medium); text-decoration: none; overflow-wrap: anywhere; }
+.p-settings a.p-settings__g-film-link:hover .p-settings__g-film-title { text-decoration: underline; }
+.p-settings .p-settings__g-film-id { font-family: var(--font-mono); font-size: var(--fs-caption); color: var(--text-2); font-weight: var(--fw-regular); }
+.p-settings .p-settings__g-film-dates { display: flex; flex-wrap: wrap; gap: 0 var(--s-3); color: var(--text-3); font-size: var(--fs-caption); }
+.p-settings .p-settings__g-film-money { display: grid; gap: var(--s-1); min-width: 0; }
+.p-settings .p-settings__g-film-spent { font-size: var(--fs-caption); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.p-settings .p-settings__g-film-state { justify-self: end; }
+/* What was spent: a day a row that opens to its jobs. */
+.p-settings .p-settings__g-days { list-style: none; margin: 0; padding: 0; border: 1px solid var(--hairline); border-radius: var(--r-3); overflow: hidden; }
+.p-settings .p-settings__g-day { border-top: 1px solid var(--hairline); }
+.p-settings .p-settings__g-day:first-child { border-top: 0; }
+.p-settings .p-settings__g-dayhead { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(8rem, auto); align-items: center; gap: var(--s-3) var(--s-5); width: 100%; min-height: var(--s-12); padding: var(--s-2) var(--s-4); border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background-color var(--t-fast) var(--ease); }
+.p-settings .p-settings__g-dayhead:hover { background: var(--bg-subtle); }
+.p-settings .p-settings__g-dayhead:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.p-settings .p-settings__g-chev { color: var(--text-3); transition: transform var(--t-med) var(--ease); }
+.p-settings .p-settings__g-day--open .p-settings__g-chev { transform: rotate(90deg); }
+.p-settings .p-settings__g-dayname { font-weight: var(--fw-medium); }
+.p-settings .p-settings__g-daycredits { font-variant-numeric: tabular-nums; }
+.p-settings .p-settings__g-dayjobs { display: flex; justify-content: flex-end; gap: var(--s-2); color: var(--text-2); font-size: var(--fs-caption); font-variant-numeric: tabular-nums; }
+.p-settings .p-settings__g-dayrefused { color: var(--bad-text); }
+.p-settings .p-settings__g-rows { display: grid; gap: var(--s-2); padding: 0 var(--s-4) var(--s-3); }
+.p-settings .p-settings__g-rowhead, .p-settings .p-settings__g-row { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr) minmax(0, 1fr) 6.5rem minmax(0, 12rem) 4.5rem; align-items: baseline; gap: var(--s-1) var(--s-4); padding: var(--s-2) var(--s-3); }
+.p-settings .p-settings__g-rowhead { font-size: var(--fs-over); font-weight: var(--fw-medium); letter-spacing: .16em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--hairline); }
+.p-settings .p-settings__g-rowlist { list-style: none; margin: 0; padding: 0; }
+.p-settings .p-settings__g-row { border-top: 1px solid var(--hairline); }
+.p-settings .p-settings__g-row:first-child { border-top: 0; }
+.p-settings .p-settings__g-row-time { color: var(--text-2); font-size: var(--fs-caption); font-variant-numeric: tabular-nums; }
+.p-settings .p-settings__g-row-model { color: var(--text-2); font-family: var(--font-mono); font-size: var(--fs-caption); overflow-wrap: anywhere; }
+.p-settings .p-settings__g-row-credits { font-variant-numeric: tabular-nums; }
+.p-settings .p-settings__g-row-result { min-width: 0; }
+.p-settings .p-settings__g-row-film { font-family: var(--font-mono); font-size: var(--fs-caption); }
+.p-settings .p-settings__g-rowhead > span:nth-child(4), .p-settings .p-settings__g-row-credits { text-align: right; }
+@media (max-width: 859px) {
+  .p-settings .p-settings__g-caps, .p-settings .p-settings__g-meters, .p-settings .p-settings__g-models { grid-template-columns: minmax(0, 1fr); }
+  .p-settings .p-settings__g-paused > .k-btn { flex: 1 1 100%; }
+  .p-settings .p-settings__g-film { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name state" "money money"; padding: var(--s-3); }
+  .p-settings .p-settings__g-film-name { grid-area: name; }
+  .p-settings .p-settings__g-film-money { grid-area: money; }
+  .p-settings .p-settings__g-film-state { grid-area: state; align-self: start; }
+  .p-settings .p-settings__g-dayhead { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "chev name credits" ". jobs jobs"; row-gap: 2px; padding: var(--s-2) var(--s-3); }
+  .p-settings .p-settings__g-chev { grid-area: chev; }
+  .p-settings .p-settings__g-dayname { grid-area: name; }
+  .p-settings .p-settings__g-daycredits { grid-area: credits; }
+  .p-settings .p-settings__g-dayjobs { grid-area: jobs; justify-content: flex-start; }
+  .p-settings .p-settings__g-rows { padding: 0 var(--s-2) var(--s-2); }
+  .p-settings .p-settings__g-rowhead { display: none; }
+  .p-settings .p-settings__g-row { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "time what credits" ". model model" ". result film"; padding: var(--s-3) var(--s-2); }
+  .p-settings .p-settings__g-row-time { grid-area: time; }
+  .p-settings .p-settings__g-row-what { grid-area: what; }
+  .p-settings .p-settings__g-row-credits { grid-area: credits; }
+  .p-settings .p-settings__g-row-model { grid-area: model; }
+  .p-settings .p-settings__g-row-result { grid-area: result; }
+  .p-settings .p-settings__g-row-film { grid-area: film; text-align: right; }
+}

@@ -31,9 +31,9 @@ const HTTPS = "https:" + "//";
 const HTTP = "http:" + "//";
 const view = (over = {}) => ({ ...WEB, ...over });
 
-test("web: the section and the two placeholders are components; the placeholders draw nothing", () => {
+test("web: the section and the other two are components; the Page viewer's placeholder draws nothing", () => {
   assert.equal(typeof Section, "function");
-  assert.equal(Generation(), null);
+  assert.equal(typeof Generation, "function", "step 3 (T44) replaced its placeholder with the section");
   assert.equal(Viewer(), null);
 });
 
