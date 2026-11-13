@@ -3,7 +3,7 @@
 exact measures, where they break the brand kit, the owner's can't-say list or
 the shipped list of machine-sounding filler.
 
-    cd <task folder> && "$UUU_BRAND_PY" -I "$UUU_BRAND_CHECK" [--json] <goal id>
+    cd <task folder> && "$UUU_BRAND_PY" -I "$UUU_BRAND_CHECK" [--json] [--report] <goal id>
 
 It writes nothing. It finds the pieces by listing the goal's folder itself
 (content/*.md, drafts/*.md, slides/*/, video/*/, film/*/, site/*/; at most 40)
@@ -16,6 +16,14 @@ file is read by `lstat` first, without following a link, with a cap: text
 256 KB, pictures 20 MB and 50 million pixels, a render a board claims 100 MB and
 80 million pixels (the size is read from the header before anything is decoded,
 and a render is made small at once). 30 seconds a piece, 120 in all.
+
+A site (site/<name>/, PLAN-V5 K16) is read as its files, with the page viewer's
+caps (300 entries, 6 names deep, 20 MB): its .html, .css, .js and .mjs files as
+text, 512 KB each and 4 MB in all, by scanners that read each text once. Its
+page rules: tokens_file_changed, colour_not_token, font_not_kit, text_too_small,
+outside_address, no_logo, and the soft font_collection. `--report` (no value)
+also reads viewer/<ref>/report.json of the goal for each site/<ref>/: the
+smallest text the page viewer measured; a false report can only add failures.
 
 Exit 0: every piece passes or only warns. Exit 1: a hard rule failed, including
 whatever a maker can cause by what it leaves in the goal: no pieces (`no_pieces`),
@@ -40,6 +48,8 @@ The state folder is found from where this file is installed (state/art/tools).
 filler.json and directions.json, and run with the Artist's own Python.
 Standard library and Pillow only.
 """
+import bisect
+import hashlib
 import json
 import math
 import os
@@ -49,6 +59,7 @@ import stat
 import sys
 import time
 import unicodedata
+from html.entities import html5 as HTML5
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)        # kit.py beside this file (-I leaves the script's folder out of the path)
@@ -656,6 +667,7 @@ class Ctx:
         self.words, self.directions = words, directions
         self.palette = Palette(kit) if kit else None
         self.deadline = deadline
+        self.report = False     # --report: a site's text sizes from the page viewer's report too
         self.logos = None
         self.pixels = 0
         self.sources = {}
@@ -731,8 +743,18 @@ class Piece:
         return "fail" if self.hard else "warn" if self.soft else "pass"
 
     def shape(self):
-        return {"kind": self.kind, "name": safe(self.name), "result": self.result(), "hard": self.hard,
-                "soft": self.soft, "measured": self.measured}
+        return {"kind": self.kind, "name": safe(self.name), "result": self.result(), "hard": listed(self.hard),
+                "soft": listed(self.soft), "measured": self.measured}
+
+
+def listed(entries):
+    """At most LISTED entries, the last saying how many more there were: the home server reads at most 50 of a
+    kind in a piece and refuses a longer list whole."""
+    if len(entries) <= LISTED:
+        return entries
+    rest = entries[LISTED - 1:]
+    return entries[:LISTED - 1] + [{"code": rest[0]["code"], "where": rest[0]["where"],
+                                    "detail": "and %d more problems were not listed" % len(rest)}]
 
 
 def manifest_lists(piece):
@@ -858,7 +880,1185 @@ def json_strings(value, out, depth=0):
             json_strings(v, out, depth + 1)
 
 
+# --- Pages (PLAN-V5 K16, T51) ----------------------------------------------------------------
+#
+# A site piece (site/<name>/ or site/<name>-<id>/) is checked from its own files: its pages, style sheets and
+# scripts read as text, nothing run and nothing fetched. Every scanner reads its text once, left to right, with
+# str.find and with patterns matched at one place that consume what they match (their alternatives start on
+# different characters, and the only repeat is last), so nothing is read again after a pattern stops: hostile
+# text costs time in proportion to its length, and the caps bound the length. Brackets are counted in lists,
+# never by recursion.
+
+SITE_ENTRIES = 300               # files and folders, as the page viewer takes a site
+SITE_SEGMENTS = 6                # names deep, the file's own included (the viewer's rule)
+SITE_BYTES = 20 * MB
+PAGE_TEXT_BYTES = 512 * KB       # one page, style sheet or script
+SITE_TEXT_BYTES = 4 * MB         # all of a site's
+SITE_WORDS = MAX_TEXT_BYTES      # the words of a site's pages that the word rules read
+REPORT_BYTES = 512 * KB          # viewer/<ref>/report.json, as the home server reads the viewer's answer
+REPORT_PAGES = 10
+REPORT_FONTS = 50
+MAX_REFS = 40                    # pictures looked at in the first page's header
+PER_CODE = 6                     # entries listed for one rule on one site; the rest are counted in one more
+LISTED = 48                      # entries of one kind in a piece's answer (the home server reads at most 50)
+FONT_TOKENS = 64
+CAPTURE_TOKENS = 24
+PAGE_ENDINGS = ("html", "css", "js", "mjs")
+OWN_FILES = "a page may use only its own files"
+KIT_COLOURS = "use the brand kit's var(--brand-…) colours"
+
+HEXDIGITS = "0123456789abcdefABCDEF"
+CONTROL = "".join(chr(c) for c in range(0x21))
+DROP_TAB_NL = {9: None, 10: None, 13: None}
+ASCII_LOWER = {c: c + 32 for c in range(65, 91)}
+SCHEME = re.compile(r"([a-z][a-z0-9+.-]{0,30}):")
+OUTSIDE_SCHEMES = ("http", "https", "ws", "wss", "ftp")
+PERCENT = re.compile(r"%([0-9a-fA-F]{2})")
+
+# The CSS colour names, and the system colours a page can name.
+NAMED_COLOURS = dict((n, kitmod.rgb_of("#" + h)) for n, h in (x.split(":") for x in """
+aliceblue:F0F8FF antiquewhite:FAEBD7 aqua:00FFFF aquamarine:7FFFD4 azure:F0FFFF beige:F5F5DC bisque:FFE4C4
+black:000000 blanchedalmond:FFEBCD blue:0000FF blueviolet:8A2BE2 brown:A52A2A burlywood:DEB887 cadetblue:5F9EA0
+chartreuse:7FFF00 chocolate:D2691E coral:FF7F50 cornflowerblue:6495ED cornsilk:FFF8DC crimson:DC143C cyan:00FFFF
+darkblue:00008B darkcyan:008B8B darkgoldenrod:B8860B darkgray:A9A9A9 darkgreen:006400 darkgrey:A9A9A9
+darkkhaki:BDB76B darkmagenta:8B008B darkolivegreen:556B2F darkorange:FF8C00 darkorchid:9932CC darkred:8B0000
+darksalmon:E9967A darkseagreen:8FBC8F darkslateblue:483D8B darkslategray:2F4F4F darkslategrey:2F4F4F
+darkturquoise:00CED1 darkviolet:9400D3 deeppink:FF1493 deepskyblue:00BFFF dimgray:696969 dimgrey:696969
+dodgerblue:1E90FF firebrick:B22222 floralwhite:FFFAF0 forestgreen:228B22 fuchsia:FF00FF gainsboro:DCDCDC
+ghostwhite:F8F8FF gold:FFD700 goldenrod:DAA520 gray:808080 green:008000 greenyellow:ADFF2F grey:808080
+honeydew:F0FFF0 hotpink:FF69B4 indianred:CD5C5C indigo:4B0082 ivory:FFFFF0 khaki:F0E68C lavender:E6E6FA
+lavenderblush:FFF0F5 lawngreen:7CFC00 lemonchiffon:FFFACD lightblue:ADD8E6 lightcoral:F08080 lightcyan:E0FFFF
+lightgoldenrodyellow:FAFAD2 lightgray:D3D3D3 lightgreen:90EE90 lightgrey:D3D3D3 lightpink:FFB6C1
+lightsalmon:FFA07A lightseagreen:20B2AA lightskyblue:87CEFA lightslategray:778899 lightslategrey:778899
+lightsteelblue:B0C4DE lightyellow:FFFFE0 lime:00FF00 limegreen:32CD32 linen:FAF0E6 magenta:FF00FF maroon:800000
+mediumaquamarine:66CDAA mediumblue:0000CD mediumorchid:BA55D3 mediumpurple:9370DB mediumseagreen:3CB371
+mediumslateblue:7B68EE mediumspringgreen:00FA9A mediumturquoise:48D1CC mediumvioletred:C71585
+midnightblue:191970 mintcream:F5FFFA mistyrose:FFE4E1 moccasin:FFE4B5 navajowhite:FFDEAD navy:000080
+oldlace:FDF5E6 olive:808000 olivedrab:6B8E23 orange:FFA500 orangered:FF4500 orchid:DA70D6 palegoldenrod:EEE8AA
+palegreen:98FB98 paleturquoise:AFEEEE palevioletred:DB7093 papayawhip:FFEFD5 peachpuff:FFDAB9 peru:CD853F
+pink:FFC0CB plum:DDA0DD powderblue:B0E0E6 purple:800080 rebeccapurple:663399 red:FF0000 rosybrown:BC8F8F
+royalblue:4169E1 saddlebrown:8B4513 salmon:FA8072 sandybrown:F4A460 seagreen:2E8B57 seashell:FFF5EE
+sienna:A0522D silver:C0C0C0 skyblue:87CEEB slateblue:6A5ACD slategray:708090 slategrey:708090 snow:FFFAFA
+springgreen:00FF7F steelblue:4682B4 tan:D2B48C teal:008080 thistle:D8BFD8 tomato:FF6347 turquoise:40E0D0
+violet:EE82EE wheat:F5DEB3 white:FFFFFF whitesmoke:F5F5F5 yellow:FFFF00 yellowgreen:9ACD32
+canvas:FFFFFF canvastext:000000 linktext:0000EE visitedtext:551A8B activetext:FF0000 buttonface:EFEFEF
+buttontext:000000 buttonborder:767676 field:FFFFFF fieldtext:000000 highlight:B5D5FF highlighttext:000000
+selecteditem:0075FF selecteditemtext:FFFFFF mark:FFFF00 marktext:000000 graytext:808080 accentcolor:0075FF
+accentcolortext:FFFFFF
+""".split()))
+COLOUR_FUNCS = ("rgb", "rgba", "hsl", "hsla", "hwb")                  # read and compared with the kit
+UNREAD_FUNCS = ("lab", "lch", "oklab", "oklch", "color")               # colours the check does not read: refused
+URL_FUNCS = ("url", "src", "image", "image-set", "-webkit-image-set")  # a string in these is an address
+# Properties whose words are names, never colours (an animation called "tomato" is not a colour).
+NAME_PROPS = frozenset("""font-family font animation animation-name transition transition-property will-change
+grid grid-area grid-row grid-column grid-row-start grid-row-end grid-column-start grid-column-end grid-template
+grid-template-areas grid-template-columns grid-template-rows counter-reset counter-increment counter-set container
+container-name view-transition-name view-transition-class anchor-name position-anchor list-style list-style-type
+timeline-scope scroll-timeline scroll-timeline-name view-timeline view-timeline-name animation-timeline page
+content quotes font-palette font-feature-settings font-variant-alternates string-set""".split())
+FONT_PROPS = ("font-family", "font", "font-size")
+WIDE = ("inherit", "initial", "unset")
+BRAND_FACES = ("--brand-heading", "--brand-body")
+FALLBACKS = ("serif", "sans-serif", "monospace")
+FONT_LEAD = frozenset("""normal italic oblique bold bolder lighter small-caps ultra-condensed extra-condensed
+condensed semi-condensed semi-expanded expanded extra-expanded ultra-expanded""".split())
+FONT_SIZES = frozenset("xx-small x-small small medium large x-large xx-large xxx-large smaller larger math".split())
+SYSTEM_FONTS = ("caption", "icon", "menu", "message-box", "small-caption", "status-bar")
+ANGLES = ("deg", "rad", "grad", "turn")
+
+# HTML attributes that hold an address the page fetches (href only off <a> and <area>, which are links).
+URL_ATTRS = ("src", "srcset", "poster", "data", "action", "formaction", "background", "ping", "manifest",
+             "imagesrcset", "href", "xlink:href")
+LINK_TAGS = ("a", "area")
+SVG_COLOUR_ATTRS = ("fill", "stroke", "stop-color", "flood-color", "lighting-color")
+LEGACY_COLOUR_TAGS = ("font", "hr", "basefont")
+BODY_COLOUR_ATTRS = ("text", "link", "vlink", "alink")
+WORD_ATTRS = ("alt", "title", "aria-label", "placeholder")
+RAW_TAGS = ("script", "style", "textarea", "title", "xmp", "noembed", "noframes", "noscript", "iframe")
+BLOCK_TAGS = frozenset("""p div br li ul ol dl dt dd h1 h2 h3 h4 h5 h6 header footer main section article aside
+nav figure figcaption blockquote pre table tr td th caption form fieldset legend label button option hr address
+details summary dialog""".split())
+JS_TYPES = ("", "module", "text/javascript", "application/javascript", "text/ecmascript", "application/ecmascript",
+            "application/x-javascript", "text/jscript", "text/livescript")
+JS_LIST_TYPES = ("importmap", "speculationrules")     # every string in them is an address
+JS_CALLEES = ("fetch", "import", "importScripts", "Worker", "SharedWorker", "WebSocket", "EventSource",
+              "sendBeacon", "open", "Request")
+JS_BEFORE_EXPR = frozenset("""return typeof instanceof in of new delete void throw case do else yield await""".split())
+
+CSS_START = r"(?:[A-Za-z_]|[^\x00-\x7f]|\\[^\n\r\f])"
+CSS_NAME = r"(?:[A-Za-z0-9_-]|[^\x00-\x7f]|\\[^\n\r\f])"
+CSS_TOKEN = re.compile(r"(?P<ws>[\t\n\f\r ]+)|(?P<cm>/\*)|(?P<q>[\"'])"
+                       r"|(?P<id>(?:--|-?" + CSS_START + r")" + CSS_NAME + r"*)"
+                       r"|(?P<hash>#" + CSS_NAME + r"+)"
+                       r"|(?P<num>[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)"
+                       r"|(?P<at>@(?:--|-?" + CSS_START + r")" + CSS_NAME + r"*)"
+                       r"|(?P<other>.)", re.S)
+CSS_UNIT = re.compile(r"%|-?" + CSS_START + CSS_NAME + r"*")
+CSS_WS = re.compile(r"[\t\n\f\r ]*")
+CSS_STR = {'"': re.compile(r'[^"\\\n\r\f]*'), "'": re.compile(r"[^'\\\n\r\f]*")}
+CSS_ESCAPE = re.compile(r"\\(?:([0-9a-fA-F]{1,6})(?:\r\n|[\t\n\f\r ])?|(\r\n|[\n\r\f])|(.))", re.S)
+
+HTML_WS = re.compile(r"[\t\n\f\r ]*")
+HTML_GAP = re.compile(r"[\t\n\f\r /]*")
+TAG_NAME = re.compile(r"[A-Za-z][^\t\n\f\r />]*")
+ATTR_NAME = re.compile(r"[^\t\n\f\r />][^\t\n\f\r />=]*")
+ATTR_VALUE = re.compile(r"[^\t\n\f\r >]*")
+TAG_END = "\t\n\f\r />"
+ENTITY = re.compile(r"&(#[xX]0*[0-9a-fA-F]{1,8}|#0*[0-9]{1,10}|[A-Za-z][A-Za-z0-9]{0,31})(;?)")
+
+JS_ID = r"(?:[A-Za-z_$]|[^\x00-\x7f]|\\u(?:[0-9a-fA-F]{4}|\{[0-9a-fA-F]{1,6}\}))"
+JS_TOKEN = re.compile(r"(?P<ws>\s+)|(?P<lc>//)|(?P<bc>/\*)|(?P<q>[\"'`])"
+                      r"|(?P<id>" + JS_ID + r"(?:[0-9]|" + JS_ID + r")*)"
+                      r"|(?P<num>\.?[0-9][A-Za-z0-9_.]*)"
+                      r"|(?P<p>\?\.(?![0-9])|[(){}\[\];,])"
+                      r"|(?P<other>.)", re.S)
+JS_STR = {'"': re.compile(r'[^"\\\n\r]*'), "'": re.compile(r"[^'\\\n\r]*")}
+JS_TPL = re.compile(r"[^`\\$]*")
+JS_RE_CHUNK = re.compile(r"[^\\/\[\]\n\r]*")
+JS_FLAGS = re.compile(r"[A-Za-z]*")
+JS_ESCAPE = re.compile(r"\\(?:x([0-9a-fA-F]{2})|u([0-9a-fA-F]{4})|u\{0*([0-9a-fA-F]{1,6})\}"
+                       r"|(\r\n|[\n\r\u2028\u2029])|(.))", re.S)
+JS_SIMPLE = {"n": "\n", "t": "\t", "r": "\r", "b": "\b", "f": "\f", "v": "\v", "0": "\0"}
+
+
+def code_point(n):
+    return chr(n) if 0 < n <= 0x10FFFF and not 0xD800 <= n <= 0xDFFF else "\ufffd"
+
+
+def _entity(m):
+    body, semi = m.group(1), m.group(2)
+    if body[0] == "#":
+        return code_point(int(body[2:], 16) if body[1] in "xX" else int(body[1:]))
+    if semi and body + ";" in HTML5:
+        return HTML5[body + ";"]
+    for k in range(len(body), 1, -1):        # a legacy name needs no semicolon: the longest one that fits
+        if body[:k] in HTML5:
+            return HTML5[body[:k]] + body[k:] + semi
+    return m.group(0)
+
+
+def unescape_html(s):
+    """Character references decoded as a browser decodes them (bounded digits: never a huge number)."""
+    return ENTITY.sub(_entity, s) if "&" in s else s
+
+
+def _css_escape(m):
+    if m.group(1):
+        return code_point(int(m.group(1), 16))
+    return "" if m.group(2) else m.group(3)
+
+
+def css_unescape(s):
+    return CSS_ESCAPE.sub(_css_escape, s) if "\\" in s else s
+
+
+def _js_escape(m):
+    h = m.group(1) or m.group(2) or m.group(3)
+    if h:
+        return code_point(int(h, 16)) if int(h, 16) else "\0"
+    if m.group(4):
+        return ""
+    return JS_SIMPLE.get(m.group(5), m.group(5))
+
+
+def js_unescape(s):
+    return JS_ESCAPE.sub(_js_escape, s) if "\\" in s else s
+
+
+def is_outside(url):
+    """True for an address that leaves the site: http, https, ws, wss, ftp or //, read as a browser reads it
+    (leading spaces and controls dropped, tabs and line breaks removed, a backslash taken as a slash)."""
+    u = url.translate(DROP_TAB_NL).lstrip(CONTROL)[:40].lower().replace("\\", "/")
+    if u.startswith("//"):
+        return True
+    m = SCHEME.match(u)
+    return m is not None and m.group(1) in OUTSIDE_SCHEMES
+
+
+def site_ref(value):
+    """The site file a reference from the top page names, or None: no scheme, query or fragment; dot segments
+    resolved as a browser resolves them (never above the top)."""
+    v = value.translate(DROP_TAB_NL).strip(CONTROL).replace("\\", "/")
+    if v.startswith("//") or SCHEME.match(v[:40].lower()):
+        return None
+    for cut in "?#":
+        v = v.split(cut, 1)[0]
+    v = PERCENT.sub(lambda m: chr(int(m.group(1), 16)), v)
+    parts = []
+    for seg in v.split("/", 64)[:64]:
+        if seg in ("", "."):
+            continue
+        if seg == "..":
+            if parts:
+                parts.pop()
+            continue
+        parts.append(seg)
+    return "/".join(parts)
+
+
+def shown_path(name):
+    """A site file's path as a detail may name it: every name in it by K6's pattern, else the fixed words."""
+    return name if len(name) <= 100 and all(FILE_NAME.match(p) for p in name.split("/")) else UNUSUAL
+
+
+def decode_page(data):
+    """A page's text, by its byte order mark as a browser decodes it (one wins over the served charset)."""
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return data.decode("utf-16", errors="replace")
+    return data.decode("utf-8-sig" if data[:3] == b"\xef\xbb\xbf" else "utf-8", errors="replace")
+
+
+def hex_rgb(h):
+    if len(h) not in (3, 4, 6, 8) or any(c not in HEXDIGITS for c in h):
+        return None
+    if len(h) <= 4:
+        return tuple(int(c, 16) * 17 for c in h[:3])
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+def legacy_colour(value):
+    """The colour HTML makes of a legacy colour attribute (bgcolor, <font color>): any text gives one."""
+    v = value.strip(" \t\n\f\r")
+    if not v or v.lower() == "transparent":
+        return None
+    if v.lower() in NAMED_COLOURS:
+        return NAMED_COLOURS[v.lower()]
+    if len(v) == 4 and v[0] == "#" and all(c in HEXDIGITS for c in v[1:]):
+        return tuple(int(c, 16) * 17 for c in v[1:])
+    s = "".join("00" if ord(c) > 0xFFFF else c for c in v[:128])[:128]
+    s = "".join(c if c in HEXDIGITS else "0" for c in (s[1:] if s.startswith("#") else s))
+    while not s or len(s) % 3:
+        s += "0"
+    n = len(s) // 3
+    parts = [s[:n], s[n:2 * n], s[2 * n:]]
+    if n > 8:
+        parts, n = [p[-8:] for p in parts], 8
+    while n > 2 and all(p[0] == "0" for p in parts):
+        parts, n = [p[1:] for p in parts], n - 1
+    return tuple(int(p[:2], 16) for p in parts)
+
+
+def colour_function(name, toks, kit_names):
+    """rgb(), rgba(), hsl(), hsla() or hwb() from its tokens [(depth, kind, value)] (depth 0: its own arguments):
+    (r, g, b); True for the kit's own colour with any alpha (`from var(--brand-<name>) r g b / a`); None when
+    the check cannot read it."""
+    import colorsys
+
+    if any(t[0] == "over" for t in toks):
+        return None
+    if toks and toks[0][1:] == ("id", "from"):
+        same = {"rgb": "rgb", "rgba": "rgb", "hsl": "hsl", "hsla": "hsl", "hwb": "hwb"}[name]
+        if len(toks) < 6 or toks[1][1:] != ("fn", "var") or toks[2][:2] != (1, "id") \
+                or css_unescape(toks[2][2]) not in kit_names:
+            return None
+        chans = [css_unescape(t[2]).lower() if t[1] == "id" else None for t in toks[3:6]]
+        rest = toks[6:]
+        if [t[0] for t in toks[3:6]] != [0, 0, 0] or chans != list(same) \
+                or (rest and rest[0][1:] != ("other", "/")):
+            return None
+        return True
+    args = []
+    for d, kind, tok in toks:
+        if d != 0 or kind == "fn":
+            return None
+        if kind == "num":
+            args.append(tok)
+        elif kind == "id" and css_unescape(tok).lower() == "none":
+            args.append((0.0, ""))
+        elif kind == "other" and tok in ",/":
+            args.append(tok)
+        else:
+            return None
+    if "/" in args:
+        chans = [a for a in args[:args.index("/")] if a != ","]
+    else:
+        chans = [a for a in args if a != ","][:3]
+    if len(chans) != 3 or any(not isinstance(a, tuple) or not math.isfinite(a[0]) for a in chans):
+        return None
+
+    def part(v, unit, scale):     # a percentage or a plain number, as a share of 1
+        if unit == "%":
+            return min(1.0, max(0.0, v / 100.0))
+        return min(1.0, max(0.0, v / scale)) if unit == "" else None
+
+    def hue(v, unit):
+        f = {"": 1.0, "deg": 1.0, "rad": 180.0 / math.pi, "grad": 0.9, "turn": 360.0}.get(unit)
+        return None if f is None else (v * f % 360.0) / 360.0
+
+    if name in ("rgb", "rgba"):
+        out = [part(v, u, 255.0) for v, u in chans]
+    else:
+        h, a, b = hue(*chans[0]), part(*chans[1], scale=100.0), part(*chans[2], scale=100.0)
+        if None in (h, a, b):
+            return None
+        if name in ("hsl", "hsla"):
+            out = list(colorsys.hls_to_rgb(h, b, a))
+        elif a + b >= 1:
+            out = [a / (a + b)] * 3
+        else:
+            out = [c * (1 - a - b) + a for c in colorsys.hls_to_rgb(h, 0.5, 1.0)]
+    if None in out:
+        return None
+    return tuple(int(round(min(1.0, max(0.0, c)) * 255)) for c in out)
+
+
+def css_string(text, i, end, q):
+    """(the raw words, where the string ends) of a CSS string whose quote is just before i; a line break ends a
+    broken one, as CSS reads it."""
+    start, pat = i, CSS_STR[q]
+    while True:
+        j = pat.match(text, i, end).end()
+        if j >= end:
+            return text[start:end], end
+        if text[j] == q:
+            return text[start:j], j + 1
+        if text[j] == "\\":
+            i = min(end, j + (3 if text.startswith("\r\n", j + 1) else 2))
+            continue
+        return text[start:j], j
+
+
+def js_string(text, i, end, q):
+    start, pat = i, JS_STR[q]
+    while True:
+        j = pat.match(text, i, end).end()
+        if j >= end:
+            return text[start:end], end
+        if text[j] == q:
+            return text[start:j], j + 1
+        if text[j] == "\\":
+            i = min(end, j + (3 if text.startswith("\r\n", j + 1) else 2))
+            continue
+        return text[start:j], j
+
+
+def js_template(text, i, end):
+    """(the words up to the end or the first ${, where they stop, whether a ${ was opened)."""
+    start = i
+    while True:
+        j = JS_TPL.match(text, i, end).end()
+        if j >= end:
+            return text[start:end], end, False
+        if text[j] == "`":
+            return text[start:j], j + 1, False
+        if text[j] == "\\":
+            i = min(end, j + 2)
+            continue
+        if text.startswith("${", j):
+            return text[start:j], j + 2, True
+        i = j + 1
+
+
+def js_regex(text, i, end):
+    """Where a regular expression literal whose slash is just before i ends (at the latest, its line's end)."""
+    in_class = False
+    while i < end:
+        i = JS_RE_CHUNK.match(text, i, end).end()
+        if i >= end:
+            return end
+        c = text[i]
+        if c == "\\":
+            i += 2
+            continue
+        if c in "\n\r":
+            return i
+        if c == "[":
+            in_class = True
+        elif c == "]":
+            in_class = False
+        elif not in_class:
+            return JS_FLAGS.match(text, i + 1, end).end()
+        i += 1
+    return min(i, end)
+
+
+def regex_may_start(prev):
+    kind, tok = prev
+    if kind is None:
+        return True
+    if kind in ("num", "str", "re"):
+        return False
+    if kind == "id":
+        return tok in JS_BEFORE_EXPR
+    if kind == "p":
+        return tok in ("(", "[", "{", "}", ";", ",")
+    return True
+
+
+class Lines:
+    """Line numbers of a text's offsets."""
+
+    def __init__(self, text):
+        self.nl, i = [], text.find("\n")
+        while i >= 0:
+            self.nl.append(i)
+            i = text.find("\n", i + 1)
+
+    def at(self, offset):
+        return bisect.bisect_left(self.nl, offset) + 1
+
+
+class Found:
+    """A site's entries: the first PER_CODE of each rule listed, the rest counted in one more line."""
+
+    def __init__(self, piece):
+        self.piece, self.seen, self.counts, self.over = piece, set(), {}, {}
+
+    def add(self, code, detail, hard=True, where=None):
+        key = (code, where, detail)
+        if key in self.seen:
+            return
+        if len(self.seen) < 20000:
+            self.seen.add(key)
+        self.counts[code] = self.counts.get(code, 0) + 1
+        if self.counts[code] > PER_CODE:
+            self.over[code] = self.over.get(code, 0) + 1
+            return
+        self.piece.add(code, where or self.piece.where, detail, hard)
+
+    def finish(self):
+        for code in sorted(self.over):
+            self.piece.add(code, self.piece.where, "and %d more like this in this site" % self.over[code],
+                           code != "font_collection")
+
+
+def walk_site(piece, found):
+    """{path in the site: (path on disk, size)} of the site's plain files, by lstat, never through a link, in a
+    fixed order, with the page viewer's caps. What is passed over is a hard could_not_check."""
+    files, entries, total = {}, 0, 0
+    stack = [(piece.path, "")]
+    while stack:
+        folder, rel = stack.pop()
+        listed = []
+        try:
+            with os.scandir(folder) as it:
+                for e in it:
+                    entries += 1
+                    if entries > SITE_ENTRIES:
+                        break
+                    listed.append(e)
+        except OSError:
+            found.add("could_not_check", "%s could not be listed" % (shown_path(rel) if rel else "the site's folder"))
+            continue
+        if entries > SITE_ENTRIES:
+            found.add("could_not_check", "the site holds more than %d files and folders; the check reads no more, "
+                      "and the page viewer takes no more" % SITE_ENTRIES)
+            stack = []
+        folders = []
+        for e in sorted(listed, key=lambda x: x.name):
+            name = rel + "/" + e.name if rel else e.name
+            try:
+                st = e.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if stat.S_ISDIR(st.st_mode):
+                if name.count("/") + 2 > SITE_SEGMENTS:
+                    found.add("could_not_check", "%s is too deep: a site's files are at most %d names deep, the "
+                              "file's own included" % (shown_path(name), SITE_SEGMENTS))
+                else:
+                    folders.append((e.path, name))
+            elif stat.S_ISREG(st.st_mode):
+                files[name] = (e.path, st.st_size)
+                total += st.st_size
+            else:
+                found.add("could_not_check", "%s is a link or a special file; the check reads plain files only "
+                          "and follows no link" % shown_path(name))
+        stack.extend(reversed(folders))
+    if total > SITE_BYTES:
+        found.add("could_not_check", "the site's files come to more than %d MB; the page viewer takes no more"
+                  % (SITE_BYTES // MB))
+    return files
+
+
+class SiteCheck:
+    """The page rules on one site piece (K16): its tokens file, colours, type, sizes, addresses, logo, words."""
+
+    def __init__(self, ctx, piece, found, files):
+        self.ctx, self.piece, self.found, self.files = ctx, piece, found, files
+        self.kit = ctx.kit
+        if self.kit:
+            self.kit_rgbs = [c["rgb"] for c in self.kit.palette]
+            self.kit_names = {"--brand-" + c["name"] for c in self.kit.palette}
+            self.families = {" ".join(f.lower().split()) for f in self.kit.families}
+            self.faces = ", ".join(owner_words(f, 40) for f in self.kit.families)
+        self.cache = {}
+        self.texts, self.word_chars, self.words_cut = [], 0, False
+        self.header, self.header_seen, self.refs, self.index_read = 0, False, [], False
+        self.steps = 0
+
+    def step(self):
+        self.steps += 1
+        if not self.steps & 4095:
+            self.piece.tick()
+
+    @staticmethod
+    def at(file, line, how=""):
+        return "%s, line %d%s" % (file, line, ", " + how if how else "")
+
+    def colour_ok(self, rgb):
+        if rgb not in self.cache:
+            ok = any(max(abs(a - b) for a, b in zip(rgb, k)) <= 1 for k in self.kit_rgbs)
+            if not ok and self.kit.neutrals:
+                _, a, b = lab(rgb)
+                ok = math.hypot(a, b) <= GREY_CHROMA
+            self.cache[rgb] = ok
+        return self.cache[rgb]
+
+    def not_kit(self, rgb):
+        return "%s is not one of the brand kit's colours; %s" % (hexa(rgb), KIT_COLOURS)
+
+    # --- the files
+
+    def tokens_file(self):
+        try:
+            want = kitmod.read_capped(os.path.join(self.kit.brand, "kit.css"), MAX_SMALL_JSON)
+        except OSError:
+            want = None
+        if want is None:
+            self.found.add("could_not_check", "the brand kit's kit.css could not be read, so the site's copy of it "
+                           "was not compared")
+            return
+        have = None
+        if "kit.css" in self.files:
+            try:
+                have = kitmod.read_capped(self.files["kit.css"][0], MAX_SMALL_JSON) or b""
+            except OSError:
+                have = b""
+        if have is None:
+            self.found.add("tokens_file_changed", "there is no kit.css at the site's top; copy brand/kit.css into "
+                           "it byte for byte")
+        elif hashlib.sha256(have).digest() != hashlib.sha256(want).digest():
+            self.found.add("tokens_file_changed", "kit.css at the site's top is not brand/kit.css byte for byte; "
+                           "copy it again and never change it")
+
+    def font_collections(self):
+        for role in ("heading", "body"):
+            face = self.kit.type[role]
+            f = face.get("file")
+            if isinstance(f, str) and f.lower().endswith((".ttc", ".otc")):
+                fallback = face.get("fallback") if face.get("fallback") in FALLBACKS else "the fallback face"
+                self.found.add("font_collection", "Web pages cannot use a font collection; pages show %s instead. "
+                               "Upload the .ttf or .otf." % fallback, hard=False, where=safe(f))
+
+    def read_all(self):
+        budget = SITE_TEXT_BYTES
+        for name in sorted(self.files):
+            ending = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+            if ending not in PAGE_ENDINGS:
+                continue
+            path, size = self.files[name]
+            shown = shown_path(name)
+            if size > PAGE_TEXT_BYTES:
+                self.found.add("could_not_check", "%s is more than %d KB; the check reads a page, style sheet or "
+                               "script of at most %d KB" % (shown, PAGE_TEXT_BYTES // KB, PAGE_TEXT_BYTES // KB))
+                continue
+            if size > budget:
+                self.found.add("could_not_check", "%s was not read: the site's pages, style sheets and scripts come "
+                               "to more than %d MB, and the check reads no more" % (shown, SITE_TEXT_BYTES // MB))
+                continue
+            try:
+                data = kitmod.read_capped(path, PAGE_TEXT_BYTES)
+            except OSError:
+                data = None
+            if data is None:
+                self.found.add("could_not_check", "%s is not a plain file of at most %d KB"
+                               % (shown, PAGE_TEXT_BYTES // KB))
+                continue
+            budget -= len(data)
+            text = decode_page(data)
+            self.piece.tick()
+            if ending == "html":
+                self.html(shown, text, index=name == "index.html")
+                self.index_read = self.index_read or name == "index.html"
+            elif ending == "css":
+                lines = Lines(text)
+                self.css(shown, text, 0, len(text), lines.at, tokens=name == "kit.css")
+            else:
+                lines = Lines(text)
+                self.js(shown, text, 0, len(text), lines.at)
+
+    # --- HTML
+
+    def attrs(self, text, i, end):
+        """[(name, raw value, offset)] of a start tag from i, and where the tag ends (after its >)."""
+        out = []
+        while i < end:
+            i = HTML_GAP.match(text, i, end).end()
+            if i >= end:
+                break
+            if text[i] == ">":
+                return out, i + 1
+            m = ATTR_NAME.match(text, i, end)
+            name, at = m.group().translate(ASCII_LOWER), i
+            i = HTML_WS.match(text, m.end(), end).end()
+            value = ""
+            if i < end and text[i] == "=":
+                i = HTML_WS.match(text, i + 1, end).end()
+                if i < end and text[i] in "\"'":
+                    k = text.find(text[i], i + 1, end)
+                    value, i = (text[i + 1:end], end) if k < 0 else (text[i + 1:k], k + 1)
+                else:
+                    v = ATTR_VALUE.match(text, i, end)
+                    value, i = v.group(), v.end()
+            out.append((name, value, at))
+        return out, end
+
+    def html(self, file, text, index=False, nested=0, line=None):
+        """One page: its tags' attributes, <style> and <script> blocks, and the words it shows. `nested` is a
+        page inside an iframe's srcdoc (at most two deep), all of it on the attribute's `line`."""
+        line_of = Lines(text).at if line is None else (lambda pos: line)
+        top = index and nested == 0
+        low = text.translate(ASCII_LOWER)
+        n, i, words = len(text), 0, []
+        while i < n:
+            self.step()
+            j = text.find("<", i)
+            if j < 0:
+                words.append(text[i:])
+                break
+            if j > i:
+                words.append(text[i:j])
+            if text.startswith("<!--", j):
+                k = text.find("-->", j + 4)
+                i = n if k < 0 else k + 3
+                continue
+            c = text[j + 1:j + 2]
+            if c in ("/", "!", "?"):
+                m = TAG_NAME.match(text, j + 2) if c == "/" else None
+                k = text.find(">", j + 2)
+                i = n if k < 0 else k + 1
+                if m:
+                    name = m.group().translate(ASCII_LOWER)
+                    if name in BLOCK_TAGS:
+                        words.append("\n")
+                    if top and name == "header" and self.header > 0:
+                        self.header -= 1
+                        if not self.header:
+                            self.header = -1
+                continue
+            m = TAG_NAME.match(text, j + 1)
+            if not m:
+                words.append("<")
+                i = j + 1
+                continue
+            name = m.group().translate(ASCII_LOWER)
+            attrs, i = self.attrs(text, m.end(), n)
+            if top and name == "header" and self.header >= 0:
+                self.header += 1
+                self.header_seen = True
+            self.start_tag(file, name, attrs, line_of, nested, words, top and self.header > 0)
+            if name == "plaintext":
+                words.append(text[i:])
+                break
+            if name in RAW_TAGS:
+                close = low.find("</" + name, i)
+                while close >= 0 and close + 2 + len(name) < n and text[close + 2 + len(name)] not in TAG_END:
+                    close = low.find("</" + name, close + 2)
+                stop = n if close < 0 else close
+                self.raw(file, name, attrs, text, i, stop, line_of, words, top and self.header > 0)
+                k = -1 if close < 0 else text.find(">", close)
+                i = n if k < 0 else k + 1
+        self.add_words(file, words)
+
+    def start_tag(self, file, name, attrs, line_of, nested, words, in_header):
+        rules = self.kit is not None
+        for a, raw, at in attrs:
+            v = unescape_html(raw)
+            line = line_of(at)
+            const = (lambda pos, line=line: line)
+            if a == "style":
+                self.css(file, v, 0, len(v), const, "in a style attribute", attr=True, header=in_header)
+            elif a in URL_ATTRS:
+                if a in ("href", "xlink:href") and name in LINK_TAGS:
+                    pass
+                else:
+                    self.address(file, line, a, v)
+                if a in ("href", "src", "action", "formaction"):
+                    u = v.translate(DROP_TAB_NL).lstrip(CONTROL)
+                    if u[:11].lower() == "javascript:":
+                        u = PERCENT.sub(lambda m: chr(int(m.group(1), 16)), u[11:])
+                        self.js(file, u, 0, len(u), const, "in a javascript: address")
+                if in_header and name == "img" and a == "src" and len(self.refs) < MAX_REFS:
+                    self.refs.append(v)
+            elif a.startswith("on") and len(a) > 2:
+                self.js(file, v, 0, len(v), const, "in an event attribute")
+            elif a in WORD_ATTRS:
+                words.append("\n%s\n" % v)
+            elif a == "srcdoc" and nested < 2:
+                self.html(file, v, nested=nested + 1, line=line)
+            if not rules:
+                continue
+            if a in SVG_COLOUR_ATTRS or (a == "color" and name not in LEGACY_COLOUR_TAGS):
+                self.css(file, v, 0, len(v), const, "in a %s attribute" % a, attr=True, decl=a)
+            elif a == "bgcolor" or (a == "color" and name in LEGACY_COLOUR_TAGS) \
+                    or (name == "body" and a in BODY_COLOUR_ATTRS):
+                rgb = legacy_colour(v)
+                if rgb is not None and not self.colour_ok(rgb):
+                    self.found.add("colour_not_token", "%s: %s" % (self.at(file, line, "in a %s attribute" % a),
+                                                                  self.not_kit(rgb)))
+        if name in BLOCK_TAGS:
+            words.append("\n")
+
+    def raw(self, file, name, attrs, text, start, stop, line_of, words, in_header):
+        if name == "style":
+            self.css(file, text, start, stop, line_of, "in a <style> block", header=in_header)
+        elif name == "script":
+            kind = ""
+            for a, raw, at in attrs:
+                if a == "type":
+                    kind = unescape_html(raw).strip(" \t\n\f\r").lower()
+                    break
+            if kind in JS_TYPES:
+                self.js(file, text, start, stop, line_of, "in a <script> block")
+            elif kind in JS_LIST_TYPES:
+                self.js(file, text, start, stop, line_of, "in a <script> block", every=True)
+        elif name in ("title", "textarea"):
+            words.append("\n%s\n" % text[start:stop])
+
+    def address(self, file, line, attr, value):
+        if attr in ("srcset", "imagesrcset"):
+            urls = [c.split(None, 1)[0] for c in value.split(",") if c.strip()]
+        elif attr == "ping":
+            urls = value.split()
+        else:
+            urls = [value]
+        if any(is_outside(u) for u in urls):
+            self.found.add("outside_address", "%s: an address outside the site in %s %s attribute; %s"
+                           % (self.at(file, line), "an" if attr[0] in "aeiou" else "a", attr, OWN_FILES))
+
+    def add_words(self, file, chunks):
+        text = unescape_html("".join(chunks))
+        if not text.strip():
+            return
+        left = SITE_WORDS - self.word_chars
+        if len(text) > left:
+            text = text[:max(0, left)]
+            if not self.words_cut:
+                self.words_cut = True
+                self.found.add("could_not_check", "the words of the site's pages come to more than %d KB; the word "
+                               "rules read only that much" % (SITE_WORDS // KB))
+        if text:
+            self.word_chars += len(text)
+            self.texts.append((file, text))
+
+    # --- CSS
+
+    def css(self, file, text, start, end, line_of, how="", attr=False, tokens=False, header=False, decl=None):
+        """A style sheet, a <style> block (both: rules, at-rules, declarations in blocks), a style attribute
+        (`attr`: declarations at its top), or one presentation attribute's value (`decl`: its property's name).
+        `tokens` is the site's kit.css: only its addresses are read. `header`: inside the first page's header,
+        where the url()s are kept for the logo."""
+        rules = self.kit is not None and not tokens
+        depth, mode, fresh, cand, at_rule = 0, (1 if decl else 0), True, None, None
+        prop, prop_at = decl, start
+        stack, var_open, url_open = [], 0, 0
+        pending, font, cap = [], [], None
+        i = start
+        while i < end:
+            self.step()
+            m = CSS_TOKEN.match(text, i, end)
+            kind, tok, pos, i = m.lastgroup, m.group(), m.start(), m.end()
+            if kind == "ws":
+                continue
+            if kind == "cm":
+                k = text.find("*/", i, end)
+                i = end if k < 0 else k + 2
+                continue
+            if kind == "q":
+                tok, i = css_string(text, i, end, tok)
+                kind = "str"
+            elif kind == "id" and i < end and text[i] == "(":
+                kind, tok, i = "fn", css_unescape(tok).lower(), i + 1
+                if tok == "url":
+                    k = CSS_WS.match(text, i, end).end()
+                    if k < end and text[k] not in "\"'":
+                        close = text.find(")", k, end)
+                        kind, tok = "url", text[k:end if close < 0 else close]
+                        i = end if close < 0 else close + 1
+            elif kind == "num":
+                u = CSS_UNIT.match(text, i, end)
+                unit = ""
+                if u:
+                    unit, i = css_unescape(u.group()).lower(), u.end()
+                tok = (float(tok) if len(tok) <= 40 else 1e40, unit)
+
+            if mode == 0:
+                if kind == "id" and fresh:
+                    cand, prop_at, fresh = tok, pos, False
+                elif kind == "other" and tok == ":" and cand is not None and (depth or attr):
+                    prop, mode, cand = css_unescape(cand).lower(), 1, None
+                elif kind == "at" and fresh:
+                    at_rule, mode, fresh = css_unescape(tok).lower(), 2, False
+                elif kind == "other" and tok in "{};":
+                    depth = depth + 1 if tok == "{" else max(0, depth - 1) if tok == "}" else depth
+                    fresh, cand = True, None
+                else:
+                    fresh, cand = False, None
+                continue
+
+            if mode == 2:       # an at-rule's prelude: only its addresses
+                if kind == "fn":
+                    stack.append(tok)
+                    url_open += tok in URL_FUNCS
+                elif kind == "other" and tok == "(":
+                    stack.append("")
+                elif kind == "other" and tok == ")":
+                    if stack:
+                        url_open -= stack.pop() in URL_FUNCS
+                elif kind == "url" or (kind == "str" and (url_open or at_rule == "@import")):
+                    if is_outside(css_unescape(tok)):
+                        self.found.add("outside_address", "%s: an address outside the site in %s; %s" % (
+                            self.at(file, line_of(pos), how), "an @import" if at_rule == "@import" else "an at-rule",
+                            OWN_FILES))
+                elif kind == "other" and tok in "{};":
+                    depth = depth + 1 if tok == "{" else max(0, depth - 1) if tok == "}" else depth
+                    mode, fresh, stack, url_open = 0, True, [], 0
+                continue
+
+            # mode 1: a declaration's value
+            if kind == "other" and (tok in "{}" or (tok == ";" and not stack)):
+                if tok == "{":      # its name and colon began a nested rule's selector, not a declaration
+                    depth += 1
+                else:
+                    if cap is not None:
+                        self.capture(cap, pending)
+                    self.commit(file, line_of, how, prop, prop_at, pending, font, rules)
+                    if tok == "}":
+                        depth = max(0, depth - 1)
+                mode, fresh, cand, stack, var_open, url_open, pending, font, cap = 0, True, None, [], 0, 0, [], [], None
+                continue
+            d = len(stack)
+            if kind == "fn" or (kind == "other" and tok == "("):
+                name = tok if kind == "fn" else ""
+                if prop in FONT_PROPS and len(font) < FONT_TOKENS:
+                    font.append((d, "fn", name))
+                if cap is not None:
+                    if len(cap[2]) < CAPTURE_TOKENS:
+                        cap[2].append((d - cap[1], "fn", name))
+                    else:
+                        cap[2].append(("over", None, None))
+                elif rules and not var_open and name in COLOUR_FUNCS:
+                    cap = [name, d + 1, [], pos]
+                elif rules and not var_open and name in UNREAD_FUNCS:
+                    pending.append(("colour_not_token", pos, "a colour written with %s(), which the check does not "
+                                    "read; %s" % (name, KIT_COLOURS)))
+                stack.append(name)
+                var_open += name == "var"
+                url_open += name in URL_FUNCS
+                continue
+            if kind == "other" and tok == ")":
+                if stack:
+                    name = stack.pop()
+                    var_open -= name == "var"
+                    url_open -= name in URL_FUNCS
+                    if cap is not None and len(stack) < cap[1]:
+                        self.capture(cap, pending)
+                        cap = None
+                continue
+            if prop in FONT_PROPS and len(font) < FONT_TOKENS:
+                font.append((d, kind, tok))
+            if kind == "url" or (kind == "str" and url_open):
+                url = css_unescape(tok)
+                if is_outside(url):
+                    pending.append(("outside_address", pos, "an address outside the site in a url(); " + OWN_FILES))
+                elif header and len(self.refs) < MAX_REFS:
+                    self.refs.append(url)
+                continue
+            if cap is not None:
+                if len(cap[2]) < CAPTURE_TOKENS:
+                    cap[2].append((d - cap[1], kind, tok))
+                else:
+                    cap[2].append(("over", None, None))
+                continue
+            if not rules or var_open:
+                continue            # what is inside var(…) is not a colour
+            if kind == "hash":
+                rgb = hex_rgb(css_unescape(tok)[1:])
+                if rgb is not None and not self.colour_ok(rgb):
+                    pending.append(("colour_not_token", pos, self.not_kit(rgb)))
+            elif kind == "id" and prop not in NAME_PROPS:
+                rgb = NAMED_COLOURS.get(css_unescape(tok).lower())
+                if rgb is not None and not self.colour_ok(rgb):
+                    pending.append(("colour_not_token", pos, self.not_kit(rgb)))
+        if mode == 1:
+            if cap is not None:
+                self.capture(cap, pending)
+            self.commit(file, line_of, how, prop, prop_at, pending, font, rules)
+
+    def capture(self, cap, pending):
+        name, _, toks, pos = cap
+        rgb = colour_function(name, toks, self.kit_names)
+        if rgb is None:
+            pending.append(("colour_not_token", pos, "a colour written with %s() that the check cannot read; %s"
+                            % (name, KIT_COLOURS)))
+        elif rgb is not True and not self.colour_ok(rgb):
+            pending.append(("colour_not_token", pos, self.not_kit(rgb)))
+
+    def commit(self, file, line_of, how, prop, prop_at, pending, font, rules):
+        for code, pos, what in pending:
+            self.found.add(code, "%s: %s" % (self.at(file, line_of(pos), how), what))
+        if rules and prop in FONT_PROPS:
+            self.font_rules(prop, font, self.at(file, line_of(prop_at), how))
+
+    # --- type
+
+    def font_rules(self, prop, toks, where):
+        for k, t in enumerate(toks):           # !important is not part of the value
+            if t[0] == 0 and t[1:] == ("other", "!"):
+                toks = toks[:k]
+                break
+        top = [k for k, t in enumerate(toks) if t[0] == 0]
+        if prop == "font-size":
+            self.size_rule(toks, top[:1], where)
+            return
+        if prop == "font-family":
+            if not self.family_ok(toks, top, 0):
+                self.found.add("font_not_kit", "%s: a font-family that starts with neither the brand kit's faces "
+                               "(%s) nor var(--brand-heading) or var(--brand-body)" % (where, self.faces))
+            return
+        if len(top) == 1 and toks[top[0]][1] == "id" and css_unescape(toks[top[0]][2]).lower() in WIDE:
+            return
+        k = 0
+        while k < len(top) and self.font_lead(toks[top[k]], toks[top[k - 1]] if k else None):
+            k += 1
+        if k < len(top) and self.font_size(toks[top[k]]):
+            self.size_rule(toks, top[k:k + 1], where)
+            if k == len(top) - 1 and toks[top[k]][1:] == ("fn", "var"):
+                pass            # `font: var(--brand-body)`: the one var is the face
+            else:
+                k += 1
+                if k < len(top) and toks[top[k]][1:] == ("other", "/"):
+                    k += 2
+        if not self.family_ok(toks, top, k):
+            self.found.add("font_not_kit", "%s: a font shorthand whose face starts with neither the brand kit's "
+                           "faces (%s) nor var(--brand-heading) or var(--brand-body)" % (where, self.faces))
+
+    @staticmethod
+    def font_lead(t, before):
+        """A word or number of `font` before its size: style, variant, weight, stretch, an oblique's angle."""
+        _, kind, tok = t
+        if kind == "id":
+            return css_unescape(tok).lower() in FONT_LEAD
+        if kind == "num":
+            return tok[1] == "" or (tok[1] in ANGLES and before is not None and before[1] == "id")
+        return False
+
+    @staticmethod
+    def font_size(t):
+        _, kind, tok = t
+        if kind == "num":
+            return tok[1] != ""
+        if kind == "id":
+            return css_unescape(tok).lower() in FONT_SIZES
+        return kind == "fn"
+
+    def size_rule(self, toks, top, where):
+        """text_too_small: a size in px under the kit's smallest; in min() any px argument, in clamp() its first,
+        in max() the largest when every argument is px."""
+        if not top:
+            return
+        i = top[0]
+        d, kind, tok = toks[i]
+        px = []
+        if kind == "num" and tok[1] == "px":
+            px = [tok[0]]
+        elif kind == "fn" and tok in ("min", "clamp", "max"):
+            args, arg = [], []
+            for t in toks[i + 1:]:
+                if t[0] <= d:
+                    break
+                if t[0] == d + 1 and t[1:] == ("other", ","):
+                    args.append(arg)
+                    arg = []
+                else:
+                    arg.append(t)
+            args.append(arg)
+            one = [a[0][2][0] if len(a) == 1 and a[0][1] == "num" and a[0][2][1] == "px" else None for a in args]
+            if tok == "min":
+                px = [v for v in one if v is not None]
+            elif tok == "clamp":
+                px = [one[0]] if one[0] is not None else []
+            elif one and None not in one:
+                px = [max(one)]
+        small = [v for v in px if v < self.kit.min_px]
+        if small:
+            self.found.add("text_too_small", "%s: text set at %s px; the brand kit's smallest is %d px"
+                           % (where, "%g" % min(small), self.kit.min_px))
+
+    def family_ok(self, toks, top, k):
+        if k >= len(top):
+            return False
+        i = top[k]
+        d, kind, tok = toks[i]
+        if kind == "fn":
+            return tok == "var" and i + 1 < len(toks) and toks[i + 1][:2] == (d + 1, "id") \
+                and css_unescape(toks[i + 1][2]) in BRAND_FACES
+        if kind == "str":
+            name = css_unescape(tok)
+        elif kind == "id":
+            words = []
+            for j in top[k:]:
+                if toks[j][1] != "id":
+                    break
+                words.append(css_unescape(toks[j][2]))
+            if len(words) == 1 and words[0].lower() in WIDE:
+                return True
+            name = " ".join(words)
+        else:
+            return False
+        return " ".join(name.lower().split()) in self.families
+
+    # --- JavaScript
+
+    def js(self, file, text, start, end, line_of, how="", every=False):
+        """A script: the string literals passed to fetch(), import(), new Worker() and the others of
+        JS_CALLEES, and the addresses of static imports. `every`: an import map, where every string counts."""
+        stack, prev, prev2, i = [], (None, None), (None, None), start
+        while i < end:
+            self.step()
+            m = JS_TOKEN.match(text, i, end)
+            kind, tok, pos, i = m.lastgroup, m.group(), m.start(), m.end()
+            if kind == "ws":
+                continue
+            if kind == "lc":
+                k = text.find("\n", i, end)
+                i = end if k < 0 else k
+                continue
+            if kind == "bc":
+                k = text.find("*/", i, end)
+                i = end if k < 0 else k + 2
+                continue
+            if kind == "q":
+                opened = False
+                if tok == "`":
+                    s, i, opened = js_template(text, i, end)
+                else:
+                    s, i = js_string(text, i, end, tok)
+                self.js_literal(file, line_of, how, pos, s, stack, prev, every)
+                if opened:          # after the literal is judged: its ${ is not the call it is passed to
+                    stack.append("${")
+                prev2, prev = prev, ("str", None)
+                continue
+            if kind == "other" and tok == "/" and regex_may_start(prev):
+                i = js_regex(text, i, end)
+                prev2, prev = prev, ("re", None)
+                continue
+            if kind == "p":
+                if tok == "(":
+                    callee = prev[1] if prev[0] == "id" else prev2[1] if prev == ("p", "?.") and prev2[0] == "id" \
+                        else None
+                    stack.append(callee)
+                elif tok in "[{":
+                    stack.append(None)
+                elif tok in ")]}" and stack:
+                    if stack.pop() == "${" and tok == "}":
+                        _, i, opened = js_template(text, i, end)
+                        if opened:
+                            stack.append("${")
+                        prev2, prev = prev, ("str", None)
+                        continue
+            if kind == "id" and "\\" in tok:
+                tok = js_unescape(tok)
+            prev2, prev = prev, (kind, tok)
+
+    def js_literal(self, file, line_of, how, pos, s, stack, prev, every):
+        callee = stack[-1] if stack else None
+        if every:
+            what = "an import map"
+        elif callee in JS_CALLEES:
+            what = "a string passed to %s()" % callee
+        elif prev[0] == "id" and prev[1] in ("import", "from"):
+            what = "a module's address"
+        else:
+            return
+        if is_outside(js_unescape(s)):
+            self.found.add("outside_address", "%s: an address outside the site in %s; %s"
+                           % (self.at(file, line_of(pos), how), what, OWN_FILES))
+
+    # --- the logo, the viewer's report
+
+    def logo(self):
+        """no_logo (when the kit asks for its logo on pages): no file of the site that is a kit logo file, byte for
+        byte, is shown by an <img src> or a url() inside the first <header> of index.html."""
+        if "page" not in self.kit.required_on or not self.index_read:
+            return
+        if not self.header_seen:
+            self.found.add("no_logo", "index.html has no <header>; the brand kit asks for its logo in the header of "
+                           "the first page")
+            return
+        names = [f["file"] for f in self.kit.logo_files]
+        marks = {}
+        for f in names:
+            try:
+                data = kitmod.read_capped(os.path.join(self.kit.brand, f), MAX_PICTURE_BYTES)
+            except OSError:
+                data = None
+            if data:
+                marks.setdefault(len(data), set()).add(hashlib.sha256(data).digest())
+        for ref in self.refs:
+            name = site_ref(ref)
+            if name not in self.files or self.files[name][1] not in marks:
+                continue
+            try:
+                data = kitmod.read_capped(self.files[name][0], MAX_PICTURE_BYTES)
+            except OSError:
+                continue
+            if data and hashlib.sha256(data).digest() in marks.get(len(data), ()):
+                return
+        self.found.add("no_logo", "index.html: no picture in its first <header> is the brand kit's logo (%s); copy "
+                       "it from brand/ into the site and show it there with <img src>"
+                       % (", ".join(safe(n) for n in names) or "the kit has no logo file"))
+
+    def viewer_report(self):
+        """With --report: the smallest text the page viewer measured on each page, from viewer/<ref>/report.json of
+        the goal (where the Builder keeps the viewer's answer). Missing, unreadable or not the shape: ignored. A
+        false report can only add failures."""
+        goal = os.path.dirname(os.path.dirname(self.piece.path))
+        folder = os.path.join(goal, "viewer", self.piece.name)
+        if kind_at(os.path.join(goal, "viewer")) != "dir" or kind_at(folder) != "dir":
+            return
+        try:
+            raw = read_json(os.path.join(folder, "report.json"), REPORT_BYTES)
+        except (PieceProblem, RecursionError):
+            return
+        if not isinstance(raw, dict) or not isinstance(raw.get("pages"), list):
+            return
+        for page in raw["pages"][:REPORT_PAGES]:
+            if not isinstance(page, dict) or not isinstance(page.get("fonts"), list):
+                continue
+            sizes = [f.get("minPx") for f in page["fonts"][:REPORT_FONTS] if isinstance(f, dict)]
+            small = [s for s in sizes if kitmod.number(s) and 0 <= s < self.kit.min_px]
+            if small:
+                shown = shown_path(page["page"]) if isinstance(page.get("page"), str) else UNUSUAL
+                self.found.add("text_too_small", "the page viewer measured text of %s px on %s (viewer/%s/report.json);"
+                               " the brand kit's smallest is %d px" % ("%g" % min(small), shown,
+                                                                      self.piece.where, self.kit.min_px))
+
+
+def check_site(ctx, piece):
+    found = Found(piece)
+    files = walk_site(piece, found)
+    piece.tick()
+    if "index.html" not in files:
+        found.add("could_not_check", "there is no index.html at the site's top")
+    sc = SiteCheck(ctx, piece, found, files)
+    if ctx.kit:
+        sc.tokens_file()
+        sc.font_collections()
+    sc.read_all()
+    if ctx.kit:
+        sc.logo()
+        if ctx.report:
+            sc.viewer_report()
+    found.finish()
+    piece.texts = []        # three versions of a page share their facts: their words are not compared
+    ctx.words.check(piece, sc.texts)
+
+
 def check_folder_piece(ctx, piece):
+    if piece.kind == "site":
+        check_site(ctx, piece)
+        return
     refuse_twins(piece.path, PIECE_NAMES)
     entries = listing(piece.path)
     at = lambda *parts: os.path.join(piece.path, *parts)   # noqa: E731
@@ -958,9 +2158,6 @@ def check_folder_piece(ctx, piece):
             piece.add("could_not_check", piece.where, "there is no board/shot-01.png to measure")
         else:
             piece.first_picture = pictures[0][2]
-    elif piece.kind == "site":
-        piece.add("could_not_check", piece.where, "a page is not measured yet: its colours and type are checked "
-                  "from the page viewer's screenshots, which this check does not have")
 
     piece.texts = texts
     ctx.words.check(piece, texts)
@@ -1150,7 +2347,7 @@ def find_pieces(goal):
     return pieces       # in a fixed order: by folder, then by name
 
 
-def check(state, cwd, goal_id, deadline):
+def check(state, cwd, goal_id, deadline, report=False):
     goal = find_goal(state, cwd, goal_id)
     try:
         import PIL  # noqa: F401
@@ -1163,6 +2360,7 @@ def check(state, cwd, goal_id, deadline):
         kit, status = None, "unreadable"
     words = Words(load_cant_say(state), load_filler(state), kit)
     ctx = Ctx(state, kit, status, words, load_directions(), deadline)
+    ctx.report = report
     pieces = find_pieces(goal) if goal else []
     if not pieces:
         none = Piece("goal", goal_id, os.path.join(cwd, goal_id), True)
@@ -1213,11 +2411,13 @@ def plain(report):
 def run(argv, cwd=None):
     """(exit code, what to print on stdout, what to print on stderr)."""
     usage = "brandcheck: give the goal's identifier, for example: brandcheck.py --json STH-12\n"
-    as_json, state, goal_id, args = False, None, None, list(argv)
+    as_json, report, state, goal_id, args = False, False, None, None, list(argv)
     while args:
         a = args.pop(0)
         if a == "--json":
             as_json = True
+        elif a == "--report":      # takes no value: each site's viewer/<ref>/report.json (PLAN-V5 C16)
+            report = True
         elif a == "--state" and args:
             state = args.pop(0)
         elif not a.startswith("-") and goal_id is None:
@@ -1230,7 +2430,8 @@ def run(argv, cwd=None):
         return 2, "", "brandcheck: --state is only for the tests; the installed check finds the state folder itself\n"
     state = os.path.realpath(state) if state else kitmod.STATE
     try:
-        report = check(state, os.path.realpath(cwd or os.getcwd()), goal_id, time.monotonic() + TOTAL_SECONDS)
+        report = check(state, os.path.realpath(cwd or os.getcwd()), goal_id, time.monotonic() + TOTAL_SECONDS,
+                       report)
     except Problem as e:
         return 2, "", "brandcheck: could not check: %s.\n" % e
     except OutOfTime:   # the maker's pieces took the time: a hard fail, never "could not check"

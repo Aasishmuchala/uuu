@@ -1,3 +1,8 @@
 node_modules/
 .DS_Store
 .router/
+
+# Apps built or installed at run time
+apps/*/.build/
+apps/*/dist/
+apps/*/node_modules

@@ -1,0 +1,12 @@
+{
+  "on": false,
+  "door": { "state": "on", "sentence": "The page viewer is running." },
+  "chrome": { "found": true, "version": "142.0.7444.60" },
+  "today": { "renders": 0, "refused": 0 },
+  "busy": false,
+  "canSwitchOn": false,
+  "blockers": ["no_agents"],
+  "whyNot": "Run engine setup first, then try again.",
+  "problem": null,
+  "problemSentence": null
+}

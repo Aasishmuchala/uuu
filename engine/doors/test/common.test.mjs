@@ -108,6 +108,24 @@ test("the owner's test token is let in, and only with subject owner", () => {
   assert.equal(caller(s, bearer(mintToken(DOOR_SECRET, "t", "checker", NOW + 120))), "not_owner");
 });
 
+test("an app token: kind p for a listed app, not_listed otherwise, bad_token with another secret", () => {
+  const s = setup();
+  const call = (tok, apps) => checkCaller({ rawHeaders: bearer(tok), secretPath: s.secretPath,
+    idsPath: s.idsPath, agents: ["researcher"], apps, now: NOW });
+  const tok = mintToken(DOOR_SECRET, "t", "app-render-to-film", NOW + 120);
+  assert.deepEqual(call(tok, ["render-to-film"]),
+    { kind: "p", slug: "app-render-to-film", app: "render-to-film", subject: "app-render-to-film" });
+  assert.equal(call(tok, ["other"]), "not_listed");
+  assert.equal(call(tok, []), "not_listed");
+  assert.equal(call(tok, undefined), "not_listed");
+  assert.equal(call(mintToken(SECRET, "t", "app-render-to-film", NOW + 120), ["render-to-film"]), "bad_token");
+  assert.deepEqual(call(mintToken(DOOR_SECRET, "t", "owner", NOW + 120), ["render-to-film"]),
+    { kind: "t", slug: null, subject: "owner" });
+  assert.equal(call(mintToken(DOOR_SECRET, "t", "researcher", NOW + 120), ["render-to-film"]), "not_owner");
+  assert.equal(call(mintToken(DOOR_SECRET, "t", "app--x", NOW + 120), ["-x"]), "not_owner");
+  assert.equal(call(mintToken(DOOR_SECRET, "t", "app-" + "a".repeat(25), NOW + 120), ["a".repeat(25)]), "not_owner");
+});
+
 test("no header, two headers, not a bearer", () => {
   const s = setup();
   const t = mintToken(DOOR_SECRET, "a", RESEARCHER, NOW + 7200);

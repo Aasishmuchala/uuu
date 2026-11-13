@@ -1,0 +1,212 @@
+#!/bin/bash
+# Runs one app's code, its packages or its build inside the app fence (Anthropic's
+# sandbox-runtime, the agent fence's own tool), the only way any of them runs on this Mac
+# (PLAN-V5 K18):
+#   files   - the app reads its own folders and Node 24, nothing else of the owner's home
+#             and none of the system's temp areas; it writes only the folders of its mode
+#   network - none (install: registry.npmjs.org only); no TCP port, local or remote; in
+#             --run, only the unix sockets of its own run folder
+# The rules come from engine/config.json and the app's app.json (manifest.mjs, fence.mjs),
+# never from environment variables, and the command's environment is built from nothing.
+#
+# Usage: app-exec <slug> --run | --build | --test <src/<name>.test.ts>... | --install prune|fetch
+# Exit 78 on a refusal, with one line "app-exec: <why>".
+set -euo pipefail
+
+# 1. Nothing of the caller's environment decides anything here.
+for _v in $(compgen -e); do
+  case "$_v" in FENCE_*|UUU_*|APP_*) unset "$_v" ;; esac
+done
+unset ENGINE_CONFIG _v
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin"
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+refuse() { echo "app-exec: $1" >&2; exit 78; }
+
+# The home folder macOS has on record for this user, not $HOME: the config's "~" must not
+# move with whatever HOME we were given.
+OWNER_HOME="$(/usr/bin/python3 -I -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" \
+  || refuse "could not find your home folder"
+HOME="$OWNER_HOME"
+. "$HERE/../lib/config.sh" || refuse "the engine config could not be read. Check engine/config.json"
+
+SRT="$CFG_ENGINE_DIR/node_modules/.bin/srt"
+NODE="$CFG_NODE24/bin/node"
+PNPM="$CFG_NODE24/lib/node_modules/pnpm/bin/pnpm.cjs"
+SAFE_PATH="$CFG_NODE24/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+# 2. Arguments.
+usage="usage: app-exec <slug> --run | --build | --test <files>... | --install prune|fetch"
+[[ $# -ge 2 ]] || refuse "$usage"
+SLUG="$1"; FLAG="$2"; shift 2
+[[ "$SLUG" =~ ^[a-z0-9][a-z0-9-]{0,23}$ ]] || refuse "no app is named that"
+STEP=""; FILES=()
+case "$FLAG" in
+  --run) MODE=run; [[ $# -eq 0 ]] || refuse "--run takes nothing else" ;;
+  --build) MODE=build; [[ $# -eq 0 ]] || refuse "--build takes nothing else" ;;
+  --test)
+    MODE=test
+    [[ $# -ge 1 ]] || refuse "--test needs at least one test file"
+    [[ $# -le 200 ]] || refuse "--test takes at most 200 files"
+    for _f in "$@"; do
+      [[ "$_f" =~ ^src/[A-Za-z0-9/_.-]+\.test\.ts$ ]] || refuse "a test file must be src/<name>.test.ts"
+      case "/$_f/" in
+        */../*|*/./*|*//*) refuse "a test file must be a plain path inside src/" ;;
+      esac
+    done
+    FILES=("$@"); unset _f ;;
+  --install)
+    MODE=install
+    [[ $# -eq 1 ]] || refuse "--install needs prune or fetch"
+    case "$1" in prune|fetch) STEP="$1" ;; *) refuse "--install needs prune or fetch" ;; esac ;;
+  *) refuse "$usage" ;;
+esac
+[[ -x "$NODE" ]] || refuse "Node 24 is missing ($CFG_NODE24)"
+[[ -x "$SRT" ]] || refuse "the sandbox tool is missing (engine/node_modules/.bin/srt)"
+
+# 3. The app, by its manifest. The helpers get an environment built from nothing too, so no
+# NODE_OPTIONS or anything else of the caller's runs in them.
+HELPER_ENV=(/usr/bin/env -i "HOME=$OWNER_HOME" "PATH=$SAFE_PATH" "LANG=en_US.UTF-8")
+INFO="$("${HELPER_ENV[@]}" "$NODE" "$HERE/manifest.mjs" --launch "$SLUG" </dev/null)" || exit 78
+CODE=""; DEPS=""; STORE=""; DATA=""; TMP=""; APP_HOME=""; RUN=""; ENTRY=""; MEMORY=""; TOOLS=""; INSTALLED=""
+# Eleven lines, each key in its place (no here-string: it would need a temp file).
+_n=0; _rest="$INFO"
+while [[ -n "$_rest" ]]; do
+  _line="${_rest%%$'\n'*}"
+  if [[ "$_rest" == *$'\n'* ]]; then _rest="${_rest#*$'\n'}"; else _rest=""; fi
+  _n=$((_n + 1))
+  [[ "$_line" == *=* ]] || refuse "the app's description came back in a shape app-exec does not accept"
+  _key="${_line%%=*}"; _val="${_line#*=}"
+  case "$_n:$_key" in
+    1:code) CODE="$_val" ;; 2:deps) DEPS="$_val" ;; 3:store) STORE="$_val" ;; 4:data) DATA="$_val" ;;
+    5:tmp) TMP="$_val" ;; 6:home) APP_HOME="$_val" ;; 7:run) RUN="$_val" ;; 8:entry) ENTRY="$_val" ;;
+    9:memoryMb) MEMORY="$_val" ;; 10:tools) TOOLS="$_val" ;; 11:installed) INSTALLED="$_val" ;;
+    *) refuse "the app's description came back in a shape app-exec does not accept" ;;
+  esac
+done
+[[ $_n -eq 11 ]] || refuse "the app's description came back in a shape app-exec does not accept"
+unset INFO _n _rest _line _key _val
+for _p in "$CODE" "$DEPS" "$STORE" "$DATA" "$TMP" "$APP_HOME" "$RUN"; do
+  case "$_p" in /*) ;; *) refuse "an app folder is not an absolute path" ;; esac
+  case "$_p/" in */../*|*/./*) refuse "an app folder is not a plain path" ;; esac
+done
+unset _p
+[[ "$ENTRY" =~ ^[A-Za-z0-9._/-]{1,80}$ && "$ENTRY" != /* && "$ENTRY" != -* ]] || refuse "the app's entry is not a plain path"
+[[ "$MEMORY" =~ ^[1-9][0-9]{2,3}$ ]] || refuse "the app's memory is not a number"
+[[ "$TOOLS" =~ ^((ffmpeg|ffprobe)( (ffmpeg|ffprobe))?)?$ ]] || refuse "the app names a tool app-exec does not know"
+[[ "$INSTALLED" == yes || "$INSTALLED" == no ]] || refuse "the app's description came back in a shape app-exec does not accept"
+if [[ "$MODE" == run && "$INSTALLED" != yes ]]; then
+  refuse "the app $SLUG is not installed yet (its READY file is missing)"
+fi
+
+# 4. Its folders: each a plain folder of ours, never reached through a link. Every folder the
+# command may write is made here, before it starts: the sandbox tool lets nothing inside make
+# or move a folder above a name it denies (the program-config names under each writable
+# root), so a missing one could never be made from inside. data, home and the run folder are
+# kept; tmp is emptied at each start. The run folder is not emptied here: the host empties
+# it, then opens the engine socket in it, before it starts the app.
+private_folder() {   # <path> <words>: made 0700 when missing, closed to others
+  local d="$1"
+  [[ ! -L "$d" ]] || refuse "$2 is a link; app-exec only trusts a plain folder"
+  if [[ ! -e "$d" ]]; then (umask 077; mkdir -p "$d") || refuse "could not make $2"; fi
+  [[ ! -L "$d" && -d "$d" && -O "$d" ]] || refuse "$2 is not a plain folder of yours"
+  chmod 700 "$d" || refuse "could not close $2 to others"
+  [[ "$(cd "$d" && pwd -P)" == "$d" ]] || refuse "$2 is reached through a link"
+}
+plain_folder() {     # <path> <words>: must be there already
+  local d="$1"
+  [[ ! -L "$d" && -d "$d" && -O "$d" ]] || refuse "$2 is not a plain folder of yours"
+  [[ "$(cd "$d" && pwd -P)" == "$d" ]] || refuse "$2 is reached through a link"
+}
+shared_folder() {    # <path> <words>: made 0755 when missing (the packages' store, a build's output)
+  local d="$1"
+  [[ ! -L "$d" ]] || refuse "$2 is a link; app-exec only trusts a plain folder"
+  if [[ ! -e "$d" ]]; then (umask 022; mkdir "$d") || refuse "could not make $2"; fi
+  plain_folder "$d" "$2"
+}
+plain_folder "$CODE" "the app's folder"
+private_folder "$(dirname "$DATA")" "the app's state folder"
+private_folder "$DATA" "the app's data folder"
+private_folder "$APP_HOME" "the app's home folder"
+private_folder "$TMP" "the app's temp folder"
+# Emptied: folders the app made unwritable are opened first (no link is followed).
+find "$TMP" -mindepth 1 -type d ! -perm -u+rwx -exec chmod u+rwx {} + 2>/dev/null || true
+rm -rf -- "$TMP" || refuse "could not empty the app's temp folder"
+private_folder "$TMP" "the app's temp folder"
+case "$MODE" in
+  run) private_folder "$RUN" "the app's run folder" ;;
+  build)
+    shared_folder "$CODE/.build" "the app's .build folder"
+    shared_folder "$CODE/dist" "the app's dist folder" ;;
+  test) private_folder "$TMP/data" "the app's test data folder" ;;
+  install)
+    [[ -e "$DEPS" || -L "$DEPS" ]] || refuse "the app's packages folder ($DEPS) is missing; make it first"
+    plain_folder "$DEPS" "the app's packages folder"
+    shared_folder "$STORE" "the app's package store"
+    [[ -f "$PNPM" ]] || refuse "pnpm is missing ($PNPM)" ;;
+esac
+
+# 5. The fence's settings for this app and mode (fence.mjs, outside the fence).
+SETTINGS="$("${HELPER_ENV[@]}" "$NODE" "$HERE/fence.mjs" --settings "$SLUG" "$MODE" </dev/null)" || exit 78
+case "$SETTINGS" in
+  "$CFG_STATE/fences/"*.json) ;;
+  *) refuse "the fence wrote its settings somewhere unexpected" ;;
+esac
+[[ -f "$SETTINGS" && ! -L "$SETTINGS" ]] || refuse "the fence wrote no settings"
+
+# 6. The command's environment, from nothing (K18). TMPDIR is set again inside: the sandbox
+# tool puts its own in. Install gets no NODE_ENV: pnpm would leave out devDependencies.
+ENVS=("HOME=$APP_HOME" "APP_TMP=$TMP" "LANG=en_US.UTF-8" "PATH=$SAFE_PATH")
+case "$MODE" in
+  run) ENVS+=("APP_SOCKET=$RUN/app.sock" "ENGINE_SOCKET=$RUN/engine.sock" "APP_DATA=$DATA" "NODE_ENV=production") ;;
+  build) ENVS+=("APP_DATA=$DATA" "NODE_ENV=production") ;;
+  test) ENVS+=("APP_DATA=$TMP/data" "NODE_ENV=production") ;;
+  install) ENVS+=("APP_DATA=$DATA") ;;
+esac
+for _t in $TOOLS; do
+  case "$_t" in
+    ffmpeg) ENVS+=("FFMPEG=/opt/homebrew/bin/ffmpeg") ;;
+    ffprobe) ENVS+=("FFPROBE=/opt/homebrew/bin/ffprobe") ;;
+  esac
+done
+unset _t
+
+# 7. The mode's fixed command and its working folder.
+case "$MODE" in
+  run) WORK="$CODE"; CMD=("$NODE" "--max-old-space-size=$MEMORY" "$ENTRY") ;;
+  build) WORK="$CODE"; CMD=("$NODE" scripts/build.mjs) ;;
+  test) WORK="$CODE"; CMD=("$NODE" --test --test-reporter=tap "${FILES[@]}") ;;
+  install)
+    WORK="$DEPS"
+    if [[ "$STEP" == prune ]]; then
+      CMD=("$NODE" "$PNPM" install --lockfile-only --ignore-scripts)
+    else
+      CMD=("$NODE" "$PNPM" install --frozen-lockfile --ignore-scripts --store-dir "$STORE")
+    fi ;;
+esac
+
+# The sandbox tool keeps its own sockets under its TMPDIR, out of the app's reach and short
+# enough for a socket path (fence-run does the same).
+SRT_TMP="/tmp/uuu-apps-$(id -u)"
+if [[ -L "$SRT_TMP" ]] || { [[ -e "$SRT_TMP" ]] && [[ ! -d "$SRT_TMP" || ! -O "$SRT_TMP" ]]; }; then
+  refuse "$SRT_TMP is not a folder of yours; remove it and try again"
+fi
+{ mkdir -p "$SRT_TMP" && chmod 700 "$SRT_TMP"; } || refuse "could not make $SRT_TMP"
+
+cd "$WORK" || refuse "could not change into the app's working folder"
+FENCED=(/usr/bin/env -i "${ENVS[@]}" "TMPDIR=$SRT_TMP"
+  "$SRT" -s "$SETTINGS" -- /usr/bin/env "TMPDIR=$TMP" "${CMD[@]}")
+# No mode reads its input. Node inside the fence stops at its start when one of its three
+# standard streams is a file it may not look at (a log in the owner's home, say: fstat
+# answers EPERM), so the command always gets pipes, devices or sockets: the host's pipes as
+# they are, anything else through a pipe of ours, stdout and stderr each kept apart.
+exec </dev/null
+stream_ok() { [[ -p "/dev/fd/$1" || -S "/dev/fd/$1" || -c "/dev/fd/$1" ]]; }
+if stream_ok 1 && stream_ok 2; then
+  exec "${FENCED[@]}"
+fi
+exec 3>&1 4>&2
+set +e
+{ "${FENCED[@]}" 3>&- 4>&- | cat >&3 3>&- 4>&-; } 2>&1 | cat >&4 3>&- 4>&-
+_status=$?
+exit "$_status"

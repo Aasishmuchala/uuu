@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "slug": "render-to-film",
+  "name": "Render to Film",
+  "about": "Turn a render into cinematic stills, clips and a finished film.",
+  "port": 3171,
+  "entry": ".build/index.mjs",
+  "client": "dist",
+  "engine": ["generate", "relay"],
+  "tools": ["ffmpeg", "ffprobe"],
+  "icon": "icon.svg",
+  "memoryMb": 2048
+}

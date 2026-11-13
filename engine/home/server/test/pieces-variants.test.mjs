@@ -162,7 +162,8 @@ test("previews: a title card's poster, a film's board, a draft's body as capped 
     mkdirSync(g.at("film", "walk-b", "board"), { recursive: true });
     for (const n of ["01", "02", "03", "04"]) writeFileSync(g.at("film", "walk-b", "board", `shot-${n}.png`), PNG);
     assert.equal(previewOf(g.config, "STH-12", "film", placeOf("film", "walk", "b")).length, 3);
-    assert.deepEqual(previewOf(g.config, "STH-12", "page", placeOf("page", "home", "a")), []);
+    // A page shows the home server's own pictures, never the agent's: none kept yet is one sentence (T52).
+    assert.deepEqual(previewOf(g.config, "STH-12", "page", placeOf("page", "home", "a")), [{ type: "text", text: "Pictures of this version are not taken yet: the page viewer is off." }]);
 
     mkdirSync(g.at("drafts"));
     const body = `Line one‮ of the post.\n\n\n\nLine two\u0000. ${"word ".repeat(600)}`;
@@ -230,10 +231,34 @@ test("previews: only the check's fixed names, in exact letter case; never contac
     assert.deepEqual(names(card), ["poster.png", "title-card.png"]);
     assert.equal(previewIsChecked("title-card", card), true);
 
-    // A page's preview is never measured here; a draft is the measured file itself.
-    assert.equal(previewIsChecked("page", [{ type: "image", token: "x", url: "/api/view/x", file: "slide-01.png" }]), false);
+    // A page is measured by its own files (T51), whatever its preview; a draft is the measured file itself.
+    assert.equal(previewIsChecked("page", [{ type: "image", token: "x", url: "/api/view/x", file: "slide-01.png" }]), true);
+    assert.equal(previewIsChecked("page", [{ type: "text", text: "Pictures of this version are not taken yet." }]), true);
     assert.equal(previewIsChecked("post", [{ type: "text", text: "Hello" }]), true);
     assert.equal(previewIsChecked("post", []), false);
     assert.equal(previewIsChecked("unknown", [{ type: "text", text: "x" }]), false);
+  });
+});
+
+test("previews: a page version shows only the home server's kept pictures of its index page, never a picture the agent wrote", () => {
+  withGoal((g) => {
+    const VARIANTS_PAGE = { kind: "page", name: "home", round: 1, variants: [{ id: "a", direction: "editorial" }, { id: "b", direction: "gallery" }] };
+    writeFileSync(g.at("variants.json"), JSON.stringify(VARIANTS_PAGE));
+    for (const id of ["a", "b"]) {
+      mkdirSync(g.at("site", `home-${id}`), { recursive: true });
+      writeFileSync(g.at("site", `home-${id}`, "index.html"), `<h1>${id}</h1>`);
+      // A picture the agent left in its site, named like a shot: never shown.
+      writeFileSync(g.at("site", `home-${id}`, "shot-index-1280-light.png"), PNG);
+      writeFileSync(g.at("site", `home-${id}`, "contact.png"), PNG);
+    }
+    const v = readVariants(g.config, "STH-12", "page");
+    assert.equal(v.problem, null);
+    assert.deepEqual(v.variants.map((x) => [x.id, x.rel, x.direction.title]), [["a", "site/home-a", "Editorial"], ["b", "site/home-b", "Gallery"]]);
+    for (const x of v.variants) {
+      const p = previewOf(g.config, "STH-12", "page", x);
+      assert.equal(p.length, 1);
+      assert.equal(p[0].type, "text");
+      assert.ok(!JSON.stringify(p).includes("/api/view/"), "nothing of the agent's folder is shown");
+    }
   });
 });

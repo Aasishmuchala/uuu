@@ -5,7 +5,7 @@
     "board": 3100, "gate": 3110, "relay": 3120, "home": 3200,
     "benchWeb": 8120, "benchSocketio": 9120,
     "benchRedisQueue": 11120, "benchRedisCache": 13120, "benchDb": 3317,
-    "gateNarrow": 3111, "web": 3130, "generate": 3140, "viewer": 3150, "preview": 3160
+    "gateNarrow": 3111, "web": 3130, "generate": 3140, "viewer": 3150, "preview": 3160, "apps": 3170
   },
   "bench": { "site": "engine.localhost", "company": "Sthyra", "abbr": "STH" },
   "paperclip": { "instanceRoot": "~/.paperclip/instances/default", "companyName": "Sthyra" },
@@ -18,7 +18,7 @@
   },
   "doors": {
     "web": { "agents": ["researcher"] },
-    "generate": { "agents": ["artist"] },
+    "generate": { "agents": ["artist"], "apps": ["render-to-film"] },
     "viewer": { "agents": ["builder", "art-director"] }
   },
   "minFreeDiskGb": 8

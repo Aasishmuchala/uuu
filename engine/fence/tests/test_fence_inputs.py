@@ -216,7 +216,7 @@ class DoorsAndWalledInputTests(unittest.TestCase):
         self.agent("researcher")
         inputs, rest = self.run_main()
         self.assertEqual(inputs["doorPorts"], [])
-        self.assertEqual(inputs["doorPortsKnown"], [3111, 3130, 3140, 3150, 3160])
+        self.assertEqual(inputs["doorPortsKnown"], [3111, 3130, 3140, 3150, 3160, 3170] + list(range(3171, 3190)))
         self.assertEqual(inputs["narrowGatePort"], 3111)
         self.assertEqual(inputs["gatePort"], 3110)
         self.assertEqual(inputs["taskFolder"], os.path.join(self.dir, "tasks", "company-work"))

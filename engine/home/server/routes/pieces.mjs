@@ -5,7 +5,9 @@
 //   - kind: the job's craft entry (engine/company/brand/craft.json) through the task's `template:` record,
 //     the home server's own; never the agent's word;
 //   - the versions and their previews: lib/variants.mjs (variants.json read with caps and checked against
-//     the kind and the repo's directions; places made by convention, never a path from the file);
+//     the kind and the repo's directions; places made by convention, never a path from the file); a page's
+//     preview is the home server's own pictures, asked for in the background when there are none
+//     (lib/siteshots.mjs; this route never waits for them);
 //   - brand: the home server's own fenced run of the brand check (lib/brandcheck.mjs), never a report from
 //     the task folder; while it runs, or when it cannot, "unknown";
 //   - review: the Art director's newest usable review (lib/artreview.mjs; by the board's author id), with
@@ -18,6 +20,7 @@ import { join } from "node:path";
 import { loadCraft } from "../../../company/lib/craft-files.mjs";
 import { reviewsOf, reviewView } from "../lib/artreview.mjs";
 import { brandOfAll, brandOfVariant, runBrandCheck, stampOf } from "../lib/brandcheck.mjs";
+import { requestShots } from "../lib/siteshots.mjs";
 import { loadCatalogue } from "../lib/jobs.mjs";
 import { findTask, loadTaskContext, treeComments } from "../lib/tasks.mjs";
 import { PLACES, previewIsChecked, previewOf, readVariants } from "../lib/variants.mjs";
@@ -95,7 +98,10 @@ export async function piecesFor(ctx, goal, comments, { artDirectorId = null } = 
     missing: v.missing,
     variants: v.variants.map((x) => {
       const preview = previewOf(ctx.config, identifier, kind, x);
-      // A version whose preview holds nothing the check measures (no slide, poster or board shot; a page): never "fits".
+      // A page version with no pictures yet: they are asked for in the background, never waited for.
+      if (kind === "page" && !preview.some((p) => p.type === "image")) requestShots(ctx, identifier, x.reportName);
+      // A version whose preview holds nothing the check measures (no slide, poster or board shot): never "fits". A page
+      // is always measured: the check reads its own files (T51).
       const brand = previewIsChecked(kind, preview) ? brandOfVariant(run, x) : { result: "unknown", lines: [NO_SLIDES] };
       return { id: x.id, direction: x.direction, preview, brand, review: reviewView(review ? review.pieces.find((p) => p.id === x.id) : null) };
     }),

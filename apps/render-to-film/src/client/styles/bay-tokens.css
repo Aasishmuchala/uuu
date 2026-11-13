@@ -1,0 +1,37 @@
+/**
+ * Radii, motion and the avatar palette. Local to the app: these used to come
+ * from a platform package. Colours live in tokens.css.
+ */
+:root {
+  --bay-r-xs: 4px;
+  --bay-r-sm: 6px;
+  --bay-r-md: 8px;
+  --bay-r-lg: 12px;
+  --bay-r-xl: 16px;
+  --bay-r-pill: 999px;
+
+  --bay-dur-fast: 120ms;
+  --bay-dur: 160ms;
+  --bay-dur-slow: 240ms;
+  --bay-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* One quiet pair per name in ui/Avatar.tsx's PALETTE_KEYS. */
+  --bay-app-mint-bg: #dcebe1;
+  --bay-app-mint-fg: #2f4b3a;
+  --bay-app-pink-bg: #f2dde2;
+  --bay-app-pink-fg: #6b3342;
+  --bay-app-purple-bg: #e4dff0;
+  --bay-app-purple-fg: #4a3b6b;
+  --bay-app-sky-bg: #dae7f1;
+  --bay-app-sky-fg: #2e4a63;
+  --bay-app-amber-bg: #f3e6cc;
+  --bay-app-amber-fg: #6b4e17;
+  --bay-app-red-bg: #f2dcd7;
+  --bay-app-red-fg: #6b2f25;
+  --bay-app-lime-bg: #e6ecc9;
+  --bay-app-lime-fg: #4b5a1a;
+  --bay-app-cyan-bg: #d4eaec;
+  --bay-app-cyan-fg: #21545a;
+  --bay-app-slate-bg: #e0e2e5;
+  --bay-app-slate-fg: #3b4350;
+}

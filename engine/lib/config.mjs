@@ -8,10 +8,13 @@ const ENGINE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const PORT_KEYS = ["board", "gate", "relay", "home", "benchWeb", "benchSocketio",
   "benchRedisQueue", "benchRedisCache", "benchDb",
-  "gateNarrow", "web", "generate", "viewer", "preview"];
+  "gateNarrow", "web", "generate", "viewer", "preview", "apps"];
 // The doors (PLAN-V5 K1): each lists the agents, by slug, that may reach it.
 const DOOR_NAMES = ["web", "generate", "viewer"];
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+// App Studio (K17): each app's own port lies in this range (not a config key).
+const APP_PORTS = { first: 3171, last: 3189 };
+const APP_NAME_RE = /^[a-z0-9][a-z0-9-]{0,23}$/;
 
 function fail(what) {
   throw new Error(`engine config: ${what}`);
@@ -32,6 +35,14 @@ function needDoors(cfg) {
   for (const name of DOOR_NAMES) {
     const agents = need(cfg, `doors.${name}.agents`, "array");
     if (!agents.every((s) => typeof s === "string" && SLUG_RE.test(s))) fail(`key doors.${name}.agents must list agent slugs`);
+    // Only the generation door serves apps; the list is optional.
+    if ("apps" in d[name]) {
+      if (name !== "generate") fail("only the generation door serves apps");
+      const apps = d[name].apps;
+      if (!Array.isArray(apps) || !apps.every((s) => typeof s === "string" && APP_NAME_RE.test(s))) {
+        fail("key doors.generate.apps must list app names");
+      }
+    }
   }
 }
 
@@ -100,6 +111,9 @@ export function loadConfig({ path } = {}) {
     viewer: `${host}:${p.viewer}`,
     preview: `${host}:${p.preview}`,
   };
+  out.urls.apps = `${host}:${p.apps}`;
+  out.appPorts = { ...APP_PORTS };
+  if (!("apps" in out.doors.generate)) out.doors.generate.apps = [];
   const s = out.stateRoot;
   out.paths = {
     state: s,
@@ -150,6 +164,14 @@ export function loadConfig({ path } = {}) {
     webStatus: join(s, "doors", "web-status.json"),
     generateStatus: join(s, "doors", "generate-status.json"),
     viewerStatus: join(s, "doors", "viewer-status.json"),
+    appsCode: join(ENGINE_DIR, "..", "apps"),
+    apps: join(s, "apps"),
+    appsState: join(s, "apps", "state.json"),
+    appsStatus: join(s, "apps", "host-status.json"),
+    appsRun: join(s, "run", "apps"),
+    appsLogs: join(s, "logs", "apps"),
+    allowances: join(s, "doors", "allowances"),
+    higgsfieldAuth: join(s, "secrets", "doors", "higgsfield-oauth.json"),
   };
   return out;
 }

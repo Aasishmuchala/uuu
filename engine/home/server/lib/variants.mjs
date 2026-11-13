@@ -7,13 +7,15 @@
 //   - a piece's place is made here from the kind's folder, the checked name and the id (a, b or c), and each
 //     place is checked with lstat under the goal's folder: no path is ever taken from the file;
 //   - a preview is a picture at a fixed name in that place, checked by its first bytes, shown through
-//     /api/view; or a draft's body as plain capped text. Nothing is rendered or run.
+//     /api/view; or a draft's body as plain capped text; or, for a page, the home server's own pictures of it
+//     (lib/siteshots.mjs, PLAN-V5 T52), never a picture the agent made. Nothing is rendered or run here.
 // Nothing here throws on what an agent wrote: a broken file gives `problem`, one plain sentence.
 import { lstatSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { directionsFor } from "../../../company/lib/craft-files.mjs";
 import { fileToken, goalFolder, readChecked, readTaskText } from "./taskfiles.mjs";
 import { readGoalBytes, sniff } from "../routes/_images.mjs";
+import { pagePreview } from "./siteshots.mjs";
 
 export const MAX_VARIANTS_JSON = 16 * 1024;
 export const NAME = /^[a-z0-9][a-z0-9-]{0,35}$/;
@@ -140,7 +142,7 @@ export function draftBody(text) {
 // The fixed picture names shown for a piece of each kind, the same fixed names engine/art/brandcheck.py
 // measures (never a name from a manifest, never a contact sheet): a carousel's or poster's slide-01.png to
 // slide-10.png (the first four found, in order); a title card's poster.png (measured), then its title and
-// end cards; a film's board/shot-01.png to shot-03.png. A page shows nothing here (T52).
+// end cards; a film's board/shot-01.png to shot-03.png. A page shows the home server's own pictures (pagePreview).
 const SLIDE_NAMES = Array.from({ length: 10 }, (_, i) => `slide-${String(i + 1).padStart(2, "0")}.png`);
 export const MAX_SLIDES_SHOWN = 4;
 const PICTURES = {
@@ -180,8 +182,10 @@ function picture(config, identifier, rel, file) {
 
 // True when the preview holds something the brand check measures, so a result beside it may say "fits": a
 // slide (carousel, poster), a poster (title card), a board shot (film), or the draft's own text (post,
-// newsletter: the check reads that very file). Any other kind, or a preview without one: false.
+// newsletter: the check reads that very file). A page always: the check reads the page's own files (T51), not
+// the pictures. Any other kind, or a preview without one: false.
 export function previewIsChecked(kind, preview) {
+  if (kind === "page") return true;
   const list = Array.isArray(preview) ? preview : [];
   if (TEXT_KINDS.has(kind)) return list.some((p) => p && p.type === "text" && p.text);
   const pics = PICTURES[kind];
@@ -190,10 +194,13 @@ export function previewIsChecked(kind, preview) {
 }
 
 // previewOf(config, identifier, kind, variant) -> [{ type: "image", token, url, file } | { type: "text", text }].
-// `variant` is one of readVariants' variants (its place was made here, not read from a file).
+// `variant` is one of readVariants' variants (its place was made here, not read from a file). A page's pictures are
+// `{ type: "image", url: "/api/sites/shot/<key>/<name>", file }` (its index page at 1280 light, then 390 light), or
+// one sentence while there are none.
 export function previewOf(config, identifier, kind, variant) {
   try {
     if (!variant || typeof variant.rel !== "string" || !PLACES[kind]) return [];
+    if (kind === "page") return pagePreview(config, identifier, variant);
     if (!variant.dir) {
       const read = readTaskText(config, identifier, variant.rel, { maxBytes: MAX_DRAFT_READ });
       const text = read ? draftBody(read.text) : "";

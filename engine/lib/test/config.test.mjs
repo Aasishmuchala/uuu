@@ -34,6 +34,7 @@ test("pinned ports and urls", () => {
     relay: "http://127.0.0.1:3120", home: "http://127.0.0.1:3200", bench: "http://127.0.0.1:8120",
     gateNarrow: "http://127.0.0.1:3111", web: "http://127.0.0.1:3130", generate: "http://127.0.0.1:3140",
     viewer: "http://127.0.0.1:3150", preview: "http://127.0.0.1:3160",
+    apps: "http://127.0.0.1:3170",
   });
   assert.equal(c.engineDir, engineDir);
 });
@@ -51,7 +52,8 @@ test("paths cover every key", () => {
   const c = loadConfig();
   const keys = ("state logs run secrets agentSecrets policy ids tasks projectFolder agentFolders proofFolder quotaFolder knowledgeDocs lessons contentDrafts homeData cad cadPython proofLast fences claudeHome codexHome books benchOwnerKey models modelsState relayStatus providerSecrets providerKey relaySecret "
     + "playbooks research sharedBrain doors doorsState doorSecrets webSecret generateSecret viewerSecret "
-    + "runwayKey searchKey webVisits ledger batches doorWork webStatus generateStatus viewerStatus").split(" ");
+    + "runwayKey searchKey webVisits ledger batches doorWork webStatus generateStatus viewerStatus "
+    + "appsCode apps appsState appsStatus appsRun appsLogs allowances higgsfieldAuth").split(" ");
   assert.deepEqual(Object.keys(c.paths).sort(), keys.sort());
   assert.equal(c.paths.projectFolder, join(c.stateRoot, "tasks/company-work"));
   assert.equal(c.paths.benchOwnerKey, join(c.stateRoot, "secrets/bench-owner-api.txt"));
@@ -71,7 +73,7 @@ test("the doors' ports, paths and agents (PLAN-V5 K1)", () => {
   assert.deepEqual(c.fence.policyPortsAllowed, [8120]);
   assert.deepEqual(c.fence.readRootsAllowed, ["knowledge/docs", "lessons", "cad", "art", "media"]);
   assert.deepEqual(c.doors, {
-    web: { agents: ["researcher"] }, generate: { agents: ["artist"] },
+    web: { agents: ["researcher"] }, generate: { agents: ["artist"], apps: ["render-to-film"] },
     viewer: { agents: ["builder", "art-director"] },
   });
   const want = {
@@ -87,7 +89,7 @@ test("the doors' ports, paths and agents (PLAN-V5 K1)", () => {
 });
 
 test("a config without a door's port or with a bad doors block is refused", () => {
-  for (const k of ["gateNarrow", "web", "generate", "viewer", "preview"]) {
+  for (const k of ["gateNarrow", "web", "generate", "viewer", "preview", "apps"]) {
     const c = clone();
     delete c.ports[k];
     assert.throws(() => loadConfig({ path: writeCfg(`p-${k}.json`, c) }), new RegExp(`^Error: engine config: .*ports\\.${k}`));
@@ -117,6 +119,57 @@ test("a config without a door's port or with a bad doors block is refused", () =
   const empty = clone();
   empty.doors.web.agents = [];
   assert.deepEqual(loadConfig({ path: writeCfg("de.json", empty) }).doors.web, { agents: [] });
+});
+
+test("App Studio: ports, paths, the optional apps list (PLAN-V5 K17)", () => {
+  const c = loadConfig();
+  const s = c.stateRoot;
+  assert.equal(c.ports.apps, 3170);
+  assert.deepEqual(c.appPorts, { first: 3171, last: 3189 });
+  assert.equal(c.urls.apps, "http://127.0.0.1:3170");
+  const want = {
+    appsCode: "", apps: "apps", appsState: "apps/state.json", appsStatus: "apps/host-status.json",
+    appsRun: "run/apps", appsLogs: "logs/apps", allowances: "doors/allowances",
+    higgsfieldAuth: "secrets/doors/higgsfield-oauth.json",
+  };
+  for (const [k, rel] of Object.entries(want)) {
+    if (k === "appsCode") assert.equal(c.paths[k], join(engineDir, "..", "apps"));
+    else assert.equal(c.paths[k], join(s, rel), k);
+  }
+  assert.deepEqual(c.doors.generate.apps, ["render-to-film"]);
+  // No apps key: defaults to []; the other doors never gain one.
+  const none = clone();
+  delete none.doors.generate.apps;
+  const d = loadConfig({ path: writeCfg("na.json", none) }).doors;
+  assert.deepEqual(d.generate.apps, []);
+  assert.equal("apps" in d.web, false);
+  assert.equal("apps" in d.viewer, false);
+  const pj = JSON.parse(py(["--json"], { ENGINE_CONFIG: writeCfg("na2.json", none) }).stdout);
+  assert.deepEqual(pj.doors.generate.apps, []);
+  // A bad name, a non-list, apps on another door.
+  const bad = [
+    (x) => { x.doors.generate.apps = ["Render"]; },
+    (x) => { x.doors.generate.apps = ["../x"]; },
+    (x) => { x.doors.generate.apps = ["a".repeat(25)]; },
+    (x) => { x.doors.generate.apps = "render-to-film"; },
+    (x) => { x.doors.generate.apps = [5]; },
+  ];
+  bad.forEach((f, i) => {
+    const x = clone();
+    f(x);
+    assert.throws(() => loadConfig({ path: writeCfg(`ab${i}.json`, x) }), /^Error: engine config: key doors\.generate\.apps must list app names$/, String(i));
+    const r = py(["--json"], { ENGINE_CONFIG: writeCfg(`abp${i}.json`, x) });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /^engine config: key doors\.generate\.apps must list app names/);
+  });
+  for (const door of ["web", "viewer"]) {
+    const x = clone();
+    x.doors[door].apps = [];
+    assert.throws(() => loadConfig({ path: writeCfg(`ad-${door}.json`, x) }), /^Error: engine config: only the generation door serves apps$/);
+    const r = py(["--json"], { ENGINE_CONFIG: writeCfg(`adp-${door}.json`, x) });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /^engine config: only the generation door serves apps/);
+  }
 });
 
 test("a config without the relay's port is refused", () => {
@@ -166,14 +219,15 @@ test("Python honours ENGINE_CONFIG and reports errors", () => {
 
 test("config.sh sets the variables", () => {
   const r = spawnSync("/bin/bash", ["-c",
-    `set -euo pipefail; . "${join(libDir, "config.sh")}"; echo "$CFG_PORT_GATE|$CFG_STATE|$CFG_GATE_URL|$CFG_PROJECT_FOLDER|$CFG_MIN_FREE_GB|$CFG_PORT_RELAY|$CFG_RELAY_URL|$CFG_MODELS_STATE|$CFG_PROVIDER_KEY|$CFG_RELAY_SECRET|$CFG_PORT_GATE_NARROW|$CFG_PORT_WEB|$CFG_PORT_GENERATE|$CFG_PORT_VIEWER|$CFG_PORT_PREVIEW|$CFG_GATE_NARROW_URL|$CFG_WEB_URL|$CFG_GENERATE_URL|$CFG_VIEWER_URL|$CFG_PREVIEW_URL|$CFG_DOORS_STATE|$CFG_PLAYBOOKS|$CFG_RESEARCH"`],
+    `set -euo pipefail; . "${join(libDir, "config.sh")}"; echo "$CFG_PORT_GATE|$CFG_STATE|$CFG_GATE_URL|$CFG_PROJECT_FOLDER|$CFG_MIN_FREE_GB|$CFG_PORT_RELAY|$CFG_RELAY_URL|$CFG_MODELS_STATE|$CFG_PROVIDER_KEY|$CFG_RELAY_SECRET|$CFG_PORT_GATE_NARROW|$CFG_PORT_WEB|$CFG_PORT_GENERATE|$CFG_PORT_VIEWER|$CFG_PORT_PREVIEW|$CFG_GATE_NARROW_URL|$CFG_WEB_URL|$CFG_GENERATE_URL|$CFG_VIEWER_URL|$CFG_PREVIEW_URL|$CFG_DOORS_STATE|$CFG_PLAYBOOKS|$CFG_RESEARCH|$CFG_PORT_APPS|$CFG_APPS_URL|$CFG_APP_PORT_FIRST|$CFG_APP_PORT_LAST|$CFG_APPS|$CFG_APPS_CODE|$CFG_APPS_STATE|$CFG_APPS_RUN|$CFG_APPS_LOGS"`],
     { encoding: "utf8", env: { ...process.env, ENGINE_CONFIG: "" } });
   assert.equal(r.status, 0, r.stderr);
   const s = join(homedir(), ".paperclip/uuu-engine");
   assert.equal(r.stdout.trim(), `3110|${s}|http://127.0.0.1:3110|${s}/tasks/company-work|8|3120|http://127.0.0.1:3120|`
     + `${s}/models/state.json|${s}/secrets/provider/omega-key|${s}/secrets/provider/relay-secret|`
     + "3111|3130|3140|3150|3160|http://127.0.0.1:3111|http://127.0.0.1:3130|http://127.0.0.1:3140|"
-    + `http://127.0.0.1:3150|http://127.0.0.1:3160|${s}/doors/state.json|${s}/playbooks|${s}/tasks/research`);
+    + `http://127.0.0.1:3150|http://127.0.0.1:3160|${s}/doors/state.json|${s}/playbooks|${s}/tasks/research|`
+    + `3170|http://127.0.0.1:3170|3171|3189|${s}/apps|${join(engineDir, "..", "apps")}|${s}/apps/state.json|${s}/run/apps|${s}/logs/apps`);
 });
 
 test("config.sh returns 1 with a message on a bad file", () => {

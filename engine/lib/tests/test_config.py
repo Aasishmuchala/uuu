@@ -45,7 +45,8 @@ class ConfigTest(unittest.TestCase):
             "relay": "http://127.0.0.1:3120", "home": "http://127.0.0.1:3200", "bench": "http://127.0.0.1:8120",
             "gateNarrow": "http://127.0.0.1:3111", "web": "http://127.0.0.1:3130",
             "generate": "http://127.0.0.1:3140", "viewer": "http://127.0.0.1:3150",
-            "preview": "http://127.0.0.1:3160"})
+            "preview": "http://127.0.0.1:3160",
+            "apps": "http://127.0.0.1:3170"})
         self.assertEqual(c["engineDir"], os.path.dirname(LIB))
 
     def test_tilde_expanded(self):
@@ -61,7 +62,8 @@ class ConfigTest(unittest.TestCase):
                 "proofLast fences claudeHome codexHome books benchOwnerKey models modelsState relayStatus "
                 "providerSecrets providerKey relaySecret playbooks research sharedBrain doors doorsState "
                 "doorSecrets webSecret generateSecret viewerSecret runwayKey searchKey webVisits ledger "
-                "batches doorWork webStatus generateStatus viewerStatus").split()
+                "batches doorWork webStatus generateStatus viewerStatus "
+                "appsCode apps appsState appsStatus appsRun appsLogs allowances higgsfieldAuth").split()
         paths = config.load_config()["paths"]
         self.assertEqual(sorted(paths), sorted(keys))
         s = paths["state"]
@@ -82,12 +84,12 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(paths["sharedBrain"], j(s, "knowledge", "shared"))
         self.assertEqual(paths["ledger"], j(s, "doors", "generate-ledger.jsonl"))
         self.assertEqual(paths["viewerStatus"], j(s, "doors", "viewer-status.json"))
-        self.assertEqual(c["doors"], {"web": {"agents": ["researcher"]}, "generate": {"agents": ["artist"]},
+        self.assertEqual(c["doors"], {"web": {"agents": ["researcher"]}, "generate": {"agents": ["artist"], "apps": ["render-to-film"]},
                                       "viewer": {"agents": ["builder", "art-director"]}})
         self.assertEqual(c["fence"]["policyPortsAllowed"], [8120])
 
     def test_missing_door_port_or_bad_doors(self):
-        for k in ("gateNarrow", "web", "generate", "viewer", "preview"):
+        for k in ("gateNarrow", "web", "generate", "viewer", "preview", "apps"):
             c = real_cfg()
             del c["ports"][k]
             with self.assertRaises(config.ConfigError) as cm:
@@ -112,6 +114,38 @@ class ConfigTest(unittest.TestCase):
                 config.load_config(self.write("d.json", c))
             self.assertTrue(str(cm.exception).startswith("engine config: "))
             self.assertIn("doors", str(cm.exception))
+
+    def test_app_studio_config(self):
+        c = config.load_config()
+        s = c["paths"]["state"]
+        j = os.path.join
+        self.assertEqual(c["ports"]["apps"], 3170)
+        self.assertEqual(c["appPorts"], {"first": 3171, "last": 3189})
+        self.assertIn("apps", config.PORT_KEYS)
+        self.assertEqual(c["paths"]["appsCode"], os.path.normpath(j(config.ENGINE_DIR, "..", "apps")))
+        for k, rel in (("apps", "apps"), ("appsState", "apps/state.json"), ("appsStatus", "apps/host-status.json"),
+                       ("appsRun", "run/apps"), ("appsLogs", "logs/apps"), ("allowances", "doors/allowances"),
+                       ("higgsfieldAuth", "secrets/doors/higgsfield-oauth.json")):
+            self.assertEqual(c["paths"][k], j(s, *rel.split("/")), k)
+        self.assertEqual(c["doors"]["generate"]["apps"], ["render-to-film"])
+        none = real_cfg()
+        del none["doors"]["generate"]["apps"]
+        d = config.load_config(self.write("na.json", none))["doors"]
+        self.assertEqual(d["generate"]["apps"], [])
+        self.assertNotIn("apps", d["web"])
+        self.assertNotIn("apps", d["viewer"])
+        for bad in (["Render"], ["../x"], ["a" * 25], "render-to-film", [5]):
+            x = real_cfg()
+            x["doors"]["generate"]["apps"] = bad
+            with self.assertRaises(config.ConfigError) as cm:
+                config.load_config(self.write("ab.json", x))
+            self.assertIn("key doors.generate.apps must list app names", str(cm.exception))
+        for door in ("web", "viewer"):
+            x = real_cfg()
+            x["doors"][door]["apps"] = []
+            with self.assertRaises(config.ConfigError) as cm:
+                config.load_config(self.write("ad.json", x))
+            self.assertIn("only the generation door serves apps", str(cm.exception))
 
     def test_missing_relay_port(self):
         c = real_cfg()
@@ -173,7 +207,16 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(lines["CFG_DOORS_STATE"], "'%s/doors/state.json'" % s)
         self.assertEqual(lines["CFG_PLAYBOOKS"], "'%s/playbooks'" % s)
         self.assertEqual(lines["CFG_RESEARCH"], "'%s/tasks/research'" % s)
-        self.assertEqual(len(lines), 43)
+        self.assertEqual(lines["CFG_PORT_APPS"], "'3170'")
+        self.assertEqual(lines["CFG_APPS_URL"], "'http://127.0.0.1:3170'")
+        self.assertEqual(lines["CFG_APP_PORT_FIRST"], "'3171'")
+        self.assertEqual(lines["CFG_APP_PORT_LAST"], "'3189'")
+        self.assertEqual(lines["CFG_APPS"], "'%s/apps'" % s)
+        self.assertEqual(lines["CFG_APPS_CODE"], "'%s'" % os.path.normpath(os.path.join(config.ENGINE_DIR, "..", "apps")))
+        self.assertEqual(lines["CFG_APPS_STATE"], "'%s/apps/state.json'" % s)
+        self.assertEqual(lines["CFG_APPS_RUN"], "'%s/run/apps'" % s)
+        self.assertEqual(lines["CFG_APPS_LOGS"], "'%s/logs/apps'" % s)
+        self.assertEqual(len(lines), 52)
 
     def test_shell_quotes_apostrophes(self):
         c = real_cfg()

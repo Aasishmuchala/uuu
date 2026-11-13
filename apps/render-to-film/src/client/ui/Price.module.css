@@ -1,0 +1,44 @@
+/* The price beside a spending button: quiet, tabular, never louder than the
+   button it belongs to. */
+.price {
+  flex: none;
+  min-width: 5.5em;
+  color: var(--bay-text-3);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  white-space: nowrap;
+  text-align: right;
+  transition: opacity var(--bay-dur) var(--bay-ease);
+}
+
+/* While the options are still moving the last price fades back. */
+.loading {
+  opacity: 0.45;
+}
+
+/* A button and its price on one line. A full-width button (the action bar's)
+   gives up just enough room; a small one stays its own size. */
+.buy {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.buy > :first-child {
+  min-width: 0;
+}
+
+/* Why the button is held. */
+.note {
+  margin: 0;
+  color: var(--bay-text-3);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .price {
+    transition: none;
+  }
+}

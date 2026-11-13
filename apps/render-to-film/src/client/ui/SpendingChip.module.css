@@ -1,0 +1,53 @@
+/* A hairline pill in the header. A small green dot when spending is allowed,
+   a muted one when it is not; no fill, no shadow. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--bay-border-hair);
+  border-radius: var(--bay-r-pill);
+  color: var(--bay-text-2);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.chip[data-state='reading'] {
+  width: 120px;
+  border-color: transparent;
+  background: var(--bay-bg-subtle);
+}
+
+.chip[data-state='closed'] {
+  color: var(--bay-text-3);
+}
+
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--bay-text-4);
+}
+
+.chip[data-state='open'] .dot {
+  background: var(--bay-brand);
+}
+
+.words {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Phones: the header row is crowded, so only the dot and the figures that
+   fit are shown, the whole sentence stays in the title. */
+@media (max-width: 680px) {
+  .chip {
+    padding: 0 10px;
+    max-width: 52vw;
+  }
+}

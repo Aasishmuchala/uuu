@@ -121,7 +121,12 @@ export function wantsUpgrade(rawHeaders) {
 // slug: null, subject: "owner" } for the owner's test token, or a refusal code (a string:
 // no_token, two_tokens, not_bearer, no_secret, bad_token, no_ids, unknown_agent, not_listed,
 // not_owner). Every refusal is the door's `<door>_no_token`. Never throws.
-export function checkCaller({ rawHeaders, secretPath, idsPath, agents, now } = {}) {
+// App Studio (PLAN-V5 K17, K19): a kind `t` token whose subject is `app-<name>` is
+// { kind: "p", slug: <subject>, app: <name>, subject } when <name> is in `apps` (missing
+// means []: the web door and the viewer never name one), else "not_listed".
+const APP_SUBJECT = /^app-([a-z0-9][a-z0-9-]{0,23})$/;
+
+export function checkCaller({ rawHeaders, secretPath, idsPath, agents, apps, now } = {}) {
   const values = headerValues(rawHeaders, "authorization");
   if (values.length === 0) return "no_token";
   if (values.length > 1) return "two_tokens";
@@ -131,7 +136,15 @@ export function checkCaller({ rawHeaders, secretPath, idsPath, agents, now } = {
   if (secret === null) return "no_secret";
   const who = checkToken(secret, m[1], now === undefined ? Date.now() : now);
   if (who === null) return "bad_token";
-  if (who.kind === "t") return who.subject === "owner" ? { kind: "t", slug: null, subject: "owner" } : "not_owner";
+  if (who.kind === "t") {
+    if (who.subject === "owner") return { kind: "t", slug: null, subject: "owner" };
+    const am = typeof who.subject === "string" ? APP_SUBJECT.exec(who.subject) : null;
+    if (am) {
+      return Array.isArray(apps) && apps.includes(am[1])
+        ? { kind: "p", slug: who.subject, app: am[1], subject: who.subject } : "not_listed";
+    }
+    return "not_owner";
+  }
   const ids = readIds(idsPath);
   if (ids === null) return "no_ids";
   const slugs = Object.keys(ids).filter((s) => ids[s] === who.subject);

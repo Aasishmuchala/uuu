@@ -1,0 +1,29 @@
+{
+  "viewer": { "on": true, "state": "on" },
+  "sites": [
+    {
+      "ref": "launch-a",
+      "variant": "a",
+      "direction": { "id": "editorial", "title": "Editorial" },
+      "files": 4,
+      "bytes": 1024,
+      "left": [
+        { "name": "stolen.css", "why": "a link" }
+      ],
+      "pages": ["index.html"],
+      "problem": null,
+      "shots": {
+        "state": "ready",
+        "sentence": null,
+        "taken": "2026-11-13T10:00:00.000Z",
+        "images": [
+          { "url": "/api/sites/shot/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/shot-index-1280-light.png", "page": "index.html", "width": 1280, "scheme": "light" }
+        ],
+        "report": [
+          { "page": "index.html", "lines": ["Nothing to fix was found."] }
+        ]
+      }
+    }
+  ],
+  "problem": null
+}

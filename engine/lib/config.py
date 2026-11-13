@@ -13,10 +13,13 @@ ENGINE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 PORT_KEYS = ["board", "gate", "relay", "home", "benchWeb", "benchSocketio",
              "benchRedisQueue", "benchRedisCache", "benchDb",
-             "gateNarrow", "web", "generate", "viewer", "preview"]
+             "gateNarrow", "web", "generate", "viewer", "preview", "apps"]
 # The doors (PLAN-V5 K1): each lists the agents, by slug, that may reach it.
 DOOR_NAMES = ["web", "generate", "viewer"]
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
+# App Studio (K17): each app's own port lies in this range (not a config key).
+APP_PORTS = {"first": 3171, "last": 3189}
+APP_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,23}")
 
 
 class ConfigError(Exception):
@@ -64,6 +67,13 @@ def _need_doors(cfg):
         agents = _need(cfg, "doors.%s.agents" % name, "array")
         if not all(isinstance(s, str) and SLUG.fullmatch(s) for s in agents):
             _fail("key doors.%s.agents must list agent slugs" % name)
+        # Only the generation door serves apps; the list is optional.
+        if "apps" in d[name]:
+            if name != "generate":
+                _fail("only the generation door serves apps")
+            apps = d[name]["apps"]
+            if not isinstance(apps, list) or not all(isinstance(s, str) and APP_NAME.fullmatch(s) for s in apps):
+                _fail("key doors.generate.apps must list app names")
 
 
 def load_config(path=None):
@@ -115,6 +125,9 @@ def load_config(path=None):
         "viewer": "%s:%d" % (host, p["viewer"]),
         "preview": "%s:%d" % (host, p["preview"]),
     }
+    cfg["urls"]["apps"] = "%s:%d" % (host, p["apps"])
+    cfg["appPorts"] = dict(APP_PORTS)
+    cfg["doors"]["generate"].setdefault("apps", [])
     s = cfg["stateRoot"]
     j = os.path.join
     cfg["paths"] = {
@@ -166,6 +179,14 @@ def load_config(path=None):
         "webStatus": j(s, "doors", "web-status.json"),
         "generateStatus": j(s, "doors", "generate-status.json"),
         "viewerStatus": j(s, "doors", "viewer-status.json"),
+        "appsCode": os.path.normpath(j(ENGINE_DIR, "..", "apps")),
+        "apps": j(s, "apps"),
+        "appsState": j(s, "apps", "state.json"),
+        "appsStatus": j(s, "apps", "host-status.json"),
+        "appsRun": j(s, "run", "apps"),
+        "appsLogs": j(s, "logs", "apps"),
+        "allowances": j(s, "doors", "allowances"),
+        "higgsfieldAuth": j(s, "secrets", "doors", "higgsfield-oauth.json"),
     }
     return cfg
 
@@ -223,6 +244,15 @@ def shell_lines(cfg):
         ("CFG_DOORS_STATE", pa["doorsState"]),
         ("CFG_PLAYBOOKS", pa["playbooks"]),
         ("CFG_RESEARCH", pa["research"]),
+        ("CFG_PORT_APPS", p["apps"]),
+        ("CFG_APPS_URL", u["apps"]),
+        ("CFG_APP_PORT_FIRST", cfg["appPorts"]["first"]),
+        ("CFG_APP_PORT_LAST", cfg["appPorts"]["last"]),
+        ("CFG_APPS", pa["apps"]),
+        ("CFG_APPS_CODE", pa["appsCode"]),
+        ("CFG_APPS_STATE", pa["appsState"]),
+        ("CFG_APPS_RUN", pa["appsRun"]),
+        ("CFG_APPS_LOGS", pa["appsLogs"]),
     ]
     return "\n".join("%s=%s" % (k, _q(v)) for k, v in pairs)
 

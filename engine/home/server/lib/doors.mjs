@@ -50,6 +50,10 @@ const CALLS = Object.freeze({
 });
 const LOCAL_ADDRESS = /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})$/;
 const DOOR_PATH = /^\/[A-Za-z0-9/_.-]{1,199}$/;
+// PLAN-V5 C23: the one query a door call may carry, the viewer's `pages=` with one to three pages, each named by the
+// viewer's own rule; a page with an empty or `..` part, or named twice, is refused here before anything is sent.
+const QUERY_PAGE = /^[A-Za-z0-9._/-]{1,200}\.html$/;
+const MAX_QUERY_PAGES = 3;
 
 const obj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const copy = (v) => JSON.parse(JSON.stringify(v));
@@ -291,11 +295,20 @@ export function ownerToken(config, door) {
 
 const bound = (v, def, ceiling) => (Number.isInteger(v) && v > 0 ? Math.min(v, ceiling) : def);
 
+// The query of a call to the viewer: exactly `pages=<page>[,<page>[,<page>]]`; anything else is false.
+function viewerQueryOk(query) {
+  if (typeof query !== "string" || !query.startsWith("pages=")) return false;
+  const pages = query.slice("pages=".length).split(",");
+  if (pages.length < 1 || pages.length > MAX_QUERY_PAGES || new Set(pages).size !== pages.length) return false;
+  return pages.every((p) => QUERY_PAGE.test(p) && p.split("/").every((part) => part !== "" && part !== "." && part !== ".."));
+}
+
 // callDoor(ctx, door, path, body, opts) -> { ok: true, status, type, json, bytes } or { ok: false, reason } with
 // reason "no_address" (null in stub homes, or not a local address: nothing is called), "bad_path", "no_secret",
 // "no_connection", "nothing" (no answer began in time) or "cut" (too slow or too large once begun).
 // `body`: undefined or null for a GET; an object (sent as JSON) or a Buffer (opts.type) for a POST.
-// opts: { auth (default true: an owner token), timeoutMs (30 s), maxBytes (1 MB), type }.
+// opts: { auth (default true: an owner token), timeoutMs (30 s), maxBytes (1 MB), type, query }. `query` is taken only
+// for the viewer and only as `pages=` with one to three page names (C23); for any other door or text it is bad_path.
 export function callDoor(ctx, door, path, body, opts = {}) {
   if (!Object.hasOwn(CALLS, door)) return Promise.resolve({ ok: false, reason: "no_address" });
   const base = ctx?.home?.urls?.[door];
@@ -304,6 +317,9 @@ export function callDoor(ctx, door, path, body, opts = {}) {
   if (typeof path !== "string" || !DOOR_PATH.test(path) || !path.startsWith(CALLS[door].prefix) || path.includes("..")) {
     return Promise.resolve({ ok: false, reason: "bad_path" });
   }
+  const hasQuery = opts.query !== undefined && opts.query !== null;
+  if (hasQuery && (door !== "viewer" || !viewerQueryOk(opts.query))) return Promise.resolve({ ok: false, reason: "bad_path" });
+  const target = hasQuery ? `${path}?${opts.query}` : path;
   const headers = { accept: "application/json" };
   if (opts.auth !== false) {
     const token = ownerToken(ctx.config, door);
@@ -327,7 +343,7 @@ export function callDoor(ctx, door, path, body, opts = {}) {
     let chunks = [];
     const finish = (v) => { if (!done) { done = true; clearTimeout(timer); if (!v.ok) chunks = []; resolve(v); } };
     const req = http.request({
-      host: "127.0.0.1", port: Number(m[1]), path, method: data ? "POST" : "GET", headers, agent: false,
+      host: "127.0.0.1", port: Number(m[1]), path: target, method: data ? "POST" : "GET", headers, agent: false,
     }, (res) => {
       began = true;
       let size = 0;

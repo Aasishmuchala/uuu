@@ -368,3 +368,51 @@ test("callDoor to a closed port is no_connection", async () => {
     assert.equal(lstatSync(t.config.paths.state).isDirectory(), true);
   } finally { t.done(); }
 });
+
+test("callDoor's query (C23): only for the viewer, only pages= with one to three plain page names; anything else is bad_path", async () => {
+  const t = tempConfig();
+  writeSecret(t.config, "web");
+  writeSecret(t.config, "viewer");
+  const paths = [];
+  const server = http.createServer((req, res) => {
+    paths.push(req.url);
+    req.resume();
+    req.on("end", () => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ path: req.url }));
+    });
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const at = `http://127.0.0.1:${server.address().port}`;
+    const ctx = { config: t.config, home: { urls: { web: at, generate: at, viewer: at, preview: at } } };
+    const tar = Buffer.from("x");
+    const seen = await connectionsDuring(async () => {
+      for (const door of ["web", "generate", "preview"]) {
+        const path = { web: "/web/fetch", generate: "/gen/jobs", preview: "/preview/load" }[door];
+        assert.deepEqual(await callDoor(ctx, door, path, tar, { query: "pages=index.html" }), { ok: false, reason: "bad_path" }, door);
+      }
+      for (const query of [
+        "pages=../x.html", "pages=a/../x.html", "pages=./x.html", "pages=/x.html", "pages=a//x.html",
+        "pages=a.html,b.html,c.html,d.html", "pages=a.html,a.html", "pages=a.html,", "pages=", "pages=a.htm", "pages=A.HTML",
+        "pages=a.html&x=1", "pages=a%2E.html", "x=1", "pages=a.html#x", `pages=${"a".repeat(201)}.html`, "", " pages=a.html", 7, {}, ["pages=a.html"],
+      ]) {
+        assert.deepEqual(await callDoor(ctx, "viewer", "/view/shots", tar, { type: "application/x-tar", query }), { ok: false, reason: "bad_path" }, JSON.stringify(query));
+      }
+    });
+    assert.deepEqual(seen, [], "nothing was sent");
+    const one = await callDoor(ctx, "viewer", "/view/shots", tar, { type: "application/x-tar", query: "pages=index.html" });
+    assert.equal(one.json.path, "/view/shots?pages=index.html");
+    const three = await callDoor(ctx, "viewer", "/view/shots", tar, { type: "application/x-tar", query: "pages=index.html,about-us.html,work/one_2.html" });
+    assert.equal(three.json.path, "/view/shots?pages=index.html,about-us.html,work/one_2.html");
+    for (const query of [undefined, null]) {
+      assert.equal((await callDoor(ctx, "viewer", "/view/health", null, { auth: false, query })).json.path, "/view/health", String(query));
+    }
+    assert.equal((await callDoor(ctx, "web", "/web/health", null, { query: undefined })).json.path, "/web/health");
+    assert.deepEqual(paths, ["/view/shots?pages=index.html", "/view/shots?pages=index.html,about-us.html,work/one_2.html", "/view/health", "/view/health", "/web/health"]);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((r) => server.close(r));
+    t.done();
+  }
+});
