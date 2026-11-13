@@ -56,6 +56,7 @@ test("studio: every open thing is in the address", () => {
   assert.equal(studioHref({ video: "STH-25/title" }), "#/dashboards/studio?video=STH-25%2Ftitle");
   assert.equal(studioHref({ slides: "STH-24/launch" }), "#/dashboards/studio?slides=STH-24%2Flaunch");
   assert.equal(studioHref({ video: "a&b=c#/x" }), "#/dashboards/studio?video=a%26b%3Dc%23%2Fx");
+  assert.equal(studioHref({ film: "e0000000-0000-4000-8000-000000000041" }), "#/dashboards/studio?film=e0000000-0000-4000-8000-000000000041");
   assert.equal(studioHref({ video: 7 }), "#/dashboards/studio");
   const q = new URLSearchParams(studioHref({ video: "STH-25/title" }).split("?")[1]);
   assert.equal(q.get("video"), "STH-25/title");

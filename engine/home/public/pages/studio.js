@@ -1,5 +1,5 @@
 // The Studio dashboard (CONTRACTS-V3 30, 37.3, 37.4; CONTRACTS-V2 9.6, 17.8, 20.3), at #/dashboards/studio:
-// videos with a real player and six stills, carousels opened large in the work panel, sprites and animations
+// films (a film's own view is pages/studio-film.js), videos with a real player and six stills, carousels opened large in the work panel, sprites and animations
 // with the sprite player, pictures, CAD parts and other files, the room for footage, files that could not be
 // used, and the switches that are off. Built as the other dashboards are (M51 F20): the agents and their states at
 // the top right, Jobs to start, Open the department. A link that opens a sprite or a video brings it to the top
@@ -11,6 +11,7 @@ import { useApp } from "../lib/context.js";
 import { bytes, count, when } from "../lib/format.js";
 import { currentMotion } from "../lib/theme.js";
 import { AgentHead, Jobs, OpenDepartment } from "./dashboard.js";
+import { FilmRow, FilmView } from "./studio-film.js";
 import {
   BeingBuilt, DataTable, Empty, ErrorNotice, Figures, FileCard, Loading, Notice, NotConnected, PageHeader,
   Section, Switch, Tag,
@@ -25,9 +26,9 @@ const text = (v, max = 200) => (v === null || v === undefined ? "" : String(v).s
 const list = (v, max = MAX_ITEMS) => (Array.isArray(v) ? v.filter((x) => x && typeof x === "object").slice(0, max) : []);
 const whole = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 
-// The address of this page with one thing open: studioHref({ video: "STH-25/title" }). Nothing open: the page.
+// The address of this page with one thing open: studioHref({ video: "STH-25/title" }) or studioHref({ film: "<task id>" }). Nothing open: the page.
 export function studioHref(open = {}) {
-  for (const key of ["sprite", "video", "slides"]) {
+  for (const key of ["sprite", "video", "slides", "film"]) {
     const v = open && open[key];
     if (typeof v === "string" && v) return `${HERE}?${key}=${encodeURIComponent(v.slice(0, 200))}`;
   }
@@ -157,7 +158,7 @@ export function scrollBehaviour() {
 
 // Brings an opened viewer to the top of the pane and puts focus on its heading, once per thing opened, after the
 // page's lists have come in (`settled`), so nothing that loads above it pushes it down again.
-function useBringIntoView(key, settled) {
+export function useBringIntoView(key, settled) {
   const head = useRef(null);
   const done = useRef("");
   useEffect(() => {
@@ -383,6 +384,7 @@ export default function Page({ route }) {
   const slidesRes = useResource("/api/studio/slides", { every: EVERY });
   const videosRes = useResource("/api/studio/videos", { every: EVERY });
   const room = useResource("/api/studio/room", { every: EVERY });
+  const filmsRes = useResource("/api/studio/films", { every: EVERY });
   const a = art.data;
   const d = dept.data;
   const sl = slidesRes.data;
@@ -391,11 +393,13 @@ export default function Page({ route }) {
   const images = list(a?.images);
   const sets = list(sl?.sets);
   const videos = list(vd?.videos);
+  const films = list(filmsRes.data?.films, 30);
   const problems = problemsOf(a, sl, vd);
   const notices = motionNotices(sl, vd);
   const sprite = query.get("sprite") || "";
   const videoId = query.get("video") || "";
   const slidesId = query.get("slides") || "";
+  const filmId = query.get("film") || "";
   const chosenVideo = videoId ? videos.find((v) => v.id === videoId) : null;
   const chosenSet = slidesId ? sets.find((s) => s.id === slidesId) : null;
   const choose = (id) => { if (typeof location !== "undefined") location.hash = studioHref({ sprite: id }); };
@@ -419,7 +423,7 @@ export default function Page({ route }) {
   useEffect(() => () => { if (opened.current && typeof app.closePanel === "function") app.closePanel(); }, []);
 
   const first = (r) => r.loading && !r.data;
-  const settled = [art, dept, slidesRes, videosRes].every((r) => r.data || r.error);
+  const settled = [art, dept, slidesRes, videosRes, filmsRes].every((r) => r.data || r.error);
   return html`
     <div class="p-studio p-dashboard" data-dept="studio">
       <${PageHeader} back=${{ label: "All dashboards", href: "#/dashboards" }} over="DASHBOARD" creature="studio" title="Studio"
@@ -435,6 +439,16 @@ export default function Page({ route }) {
       ${d?.notConnected ? html`<${NotConnected} reason=${text(d.notConnected.reason, 300)} next=${text(d.notConnected.next, 300)} />` : null}
       ${notices.map((n, i) => html`<${NotConnected} key=${i} reason=${n.reason} next=${n.next} />`)}
       ${figures.length ? html`<div class="p-studio__figures"><${Figures} figures=${figures} /></div>` : null}
+
+      <${Section} title="Films" count=${filmsRes.data ? films.length : undefined}
+        hint="Films made from your renders with Runway: each shot, its takes, the Art director's verdicts and what it cost.">
+        ${filmId ? html`<${FilmView} key=${filmId} id=${filmId} settled=${settled} />` : null}
+        ${first(filmsRes) ? html`<${Loading} lines=${2} label="Loading the films" />` : null}
+        ${filmsRes.error && !filmsRes.data ? html`<${ErrorNotice} error=${filmsRes.error} onRetry=${filmsRes.reload} />` : null}
+        ${filmsRes.data ? (films.length
+          ? html`<ul class="p-studio__films">${films.map((f) => html`<${FilmRow} key=${f.task?.id} film=${f} chosen=${f.task?.id === filmId || f.task?.identifier === filmId} />`)}</ul>`
+          : html`<${Empty} title="No films yet."><span>Start "A film from your renders" in <a href="#/jobs/studio/a-film-from-your-renders">Jobs</a>.</span><//>`) : null}
+      <//>
 
       <${Section} title="Videos" count=${vd ? videos.length : undefined}>
         ${videoId && vd ? (chosenVideo
