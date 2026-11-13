@@ -207,8 +207,10 @@ UNSET = ("CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR", "
          "ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_BEDROCK_MANTLE_BASE_URL", "ANTHROPIC_VERTEX_BASE_URL",
          "ANTHROPIC_FOUNDRY_BASE_URL", "ANTHROPIC_AWS_BASE_URL", "ANTHROPIC_GOOGLE_CLOUD_BASE_URL",
          "ANTHROPIC_AWS_API_KEY", "ANTHROPIC_FOUNDRY_API_KEY", "ANTHROPIC_FOUNDRY_AUTH_TOKEN", "AWS_BEARER_TOKEN_BEDROCK")
-# PLAN-V5, K2b as T1 found it: after paperclip's own arguments, in either mode.
-NO_WEB = ["--disallowedTools", "WebSearch", "WebFetch"]
+# PLAN-V5, K2b as T1 found it: after paperclip's own arguments, in either mode. Before
+# it, --strict-mcp-config (the second look at the review of step 2): no MCP server the
+# agent home's own .claude.json names starts, only those paperclip names.
+NO_WEB = ["--strict-mcp-config", "--disallowedTools", "WebSearch", "WebFetch"]
 ENV_STAND_IN = """#!/bin/bash
 env | LC_ALL=C sort | sed 's/^/env:/'
 for a in "$@"; do echo "arg=$a"; done
@@ -327,8 +329,8 @@ class ProviderModeTests(unittest.TestCase):
         ]
         for given, wanted in cases:
             _, args = self.seen(self.run_claude(given, AGENT_A))
-            self.assertEqual(args[-len(wanted) - 3:-3], wanted, given)
-            self.assertEqual(args[-3:], NO_WEB)
+            self.assertEqual(args[-len(wanted) - 4:-4], wanted, given)
+            self.assertEqual(args[-4:], NO_WEB)
 
     def test_every_listed_name_and_pattern_is_gone(self):
         self.assertEqual(len(UNSET), 34)
@@ -402,8 +404,8 @@ class ProviderModeTests(unittest.TestCase):
                 self.assertNotIn("ANTHROPIC_BASE_URL", env)
                 self.assertNotIn("ANTHROPIC_AUTH_TOKEN", env)
                 self.assertNotIn("ANTHROPIC_MODEL", env)
-                self.assertEqual(args[-7:-3], ["--model", "sonnet", "-p", "hi"])
-                self.assertEqual(args[-3:], NO_WEB)
+                self.assertEqual(args[-8:-4], ["--model", "sonnet", "-p", "hi"])
+                self.assertEqual(args[-4:], NO_WEB)
         os.remove(os.path.join(self.state, "agent.env"))
         r = self.run_claude(["-p", "hi"], AGENT_A)
         self.assertEqual(r.returncode, 78)
@@ -420,7 +422,7 @@ class ProviderModeTests(unittest.TestCase):
             self.set_state(mode)
             given = self.paperclip_args()
             _, args = self.seen(self.run_claude(given, AGENT_A))
-            self.assertEqual(args[-3:], NO_WEB, mode)
+            self.assertEqual(args[-4:], NO_WEB, mode)
             self.assertEqual(args.count("--disallowedTools"), 1, mode)
             self.assertNotIn("--setting-sources", args, mode)
             if mode == "plans":
@@ -428,7 +430,7 @@ class ProviderModeTests(unittest.TestCase):
             # Already there at the end: not added again.
             _, again = self.seen(self.run_claude(given + NO_WEB, AGENT_A))
             self.assertEqual(again.count("--disallowedTools"), 1, mode)
-            self.assertEqual(again[-3:], NO_WEB, mode)
+            self.assertEqual(again[-4:], NO_WEB, mode)
 
     def test_no_web_flag_not_on_version_help_or_fence_check(self):
         for mode in ("provider", "plans"):
@@ -441,7 +443,22 @@ class ProviderModeTests(unittest.TestCase):
         self.assertNotIn("--disallowedTools", args)
         # A run with no arguments at all still gets it.
         _, args = self.seen(self.run_claude([], AGENT_A))
-        self.assertEqual(args[-3:], NO_WEB)
+        self.assertEqual(args[-4:], NO_WEB)
+
+    def test_mcp_servers_only_from_paperclip_and_no_auto_memory(self):
+        # The second look at the review of step 2: the program's own .claude.json in the
+        # agent home stays writable, so the servers it could list never start (only those
+        # paperclip names with --mcp-config); auto memory, read into every later run, is off.
+        for mode in ("plans", "provider"):
+            self.set_state(mode)
+            given = self.paperclip_args() + ["--mcp-config", os.path.join(self.tmp, "none.json"), "--strict-mcp-config"]
+            env, args = self.seen(self.run_claude(given, AGENT_A))
+            self.assertEqual(args[-4:], NO_WEB, mode)
+            self.assertIn("--mcp-config", args, mode)
+            self.assertEqual(env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"], "1", mode)
+            env, args = self.seen(self.run_claude(self.paperclip_args(), AGENT_A))
+            self.assertEqual(args.count("--strict-mcp-config"), 1, mode)
+            self.assertEqual(env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"], "1", mode)
 
 
 if __name__ == "__main__":

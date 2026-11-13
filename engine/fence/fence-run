@@ -5,7 +5,8 @@
 #   network - the tool's model hosts and the gate; nothing else, except the local
 #             services the agent's fence policy names and the doors that serve it
 # A walled agent (the Researcher) works in the one folder of its goal under
-# tasks/research and reaches the board only through the narrow gate (PLAN-V5, K2d, K10).
+# tasks/research, keeps a Claude home of its own for that goal, and reaches the
+# board only through the narrow gate (PLAN-V5, K2d, K10).
 # The rules come from engine/config.json and from the agent's policy file
 # (state/policy/<agent id>.json), never from environment variables. The fence
 # refuses to start in a folder that is not an agent task folder.
@@ -124,10 +125,13 @@ LESSONS_FILE="$(printf '%s\n' "$INPUTS" | sed -n 2p)"
 ENV_FILE="$(printf '%s\n' "$INPUTS" | sed -n 3p)"
 SETTINGS="$(printf '%s\n' "$INPUTS_JSON" | /usr/bin/python3 -I "$HERE/fence_plan.py")" || exit 78
 [[ -f "$SETTINGS" ]] || refuse "the planner wrote no settings"
-# Read only now that the planner has accepted: a walled agent's folder and the
-# narrow gate's address (PLAN-V5, K2d), empty for every other agent.
+# Read only now that the planner has accepted: a walled agent's folder, the
+# narrow gate's address (PLAN-V5, K2d), its Claude home for that goal and its temp
+# folder, empty for every other agent.
 WORK_FOLDER="$(printf '%s\n' "$INPUTS" | sed -n 4p)"
 NARROW_URL="$(printf '%s\n' "$INPUTS" | sed -n 5p)"
+WALLED_HOME="$(printf '%s\n' "$INPUTS" | sed -n 6p)"
+WALLED_TMP="$(printf '%s\n' "$INPUTS" | sed -n 7p)"
 unset INPUTS INPUTS_JSON
 
 # A walled agent works in the folder of one goal, directly under the Researcher's
@@ -135,8 +139,9 @@ unset INPUTS INPUTS_JSON
 # board), and reaches the board only through the narrow gate. The sandbox tool is
 # started in that folder (its own list is relative to it).
 WALLED=""
-if [[ -n "$WORK_FOLDER" || -n "$NARROW_URL" ]]; then
-  [[ -n "$WORK_FOLDER" && -n "$NARROW_URL" ]] || refuse "the fence was given only half of a walled agent's settings"
+if [[ -n "$WORK_FOLDER" || -n "$NARROW_URL" || -n "$WALLED_HOME" || -n "$WALLED_TMP" ]]; then
+  [[ -n "$WORK_FOLDER" && -n "$NARROW_URL" && -n "$WALLED_HOME" && -n "$WALLED_TMP" ]] \
+    || refuse "the fence was given only half of a walled agent's settings"
   [[ "$NARROW_URL" =~ ^http://127\.0\.0\.1:[0-9]{1,5}$ ]] || refuse "the narrow gate's address is not a local one"
   _tasks="$(cd "$CFG_STATE/tasks" 2>/dev/null && pwd -P)" || refuse "the task folders are missing"
   case "$WORK_FOLDER" in
@@ -166,11 +171,42 @@ if [[ -n "$WORK_FOLDER" || -n "$NARROW_URL" ]]; then
   (( (8#$_mode & 8#022) == 0 )) || refuse "a walled agent's folder can be changed by others"
   [[ "$_mode" == 700 ]] || chmod 700 "$WORK_FOLDER" || refuse "could not close a walled agent's folder to others"
   [[ "$(cd "$WORK_FOLDER" && pwd -P)" == "$WORK_FOLDER" ]] || refuse "a walled agent's folder is reached through a link"
+  # One Claude home per goal (the second look at the review of step 2): exactly
+  # claude-home/<agent id>/<goal>, a plain folder of the owner's closed to others,
+  # made here when missing, never through a link. What a run of one goal leaves in
+  # its home (its sessions, the program's own state) is never read by another's.
+  _homes="$(cd "$CFG_STATE/claude-home" 2>/dev/null && pwd -P)" || refuse "the Claude homes folder is missing"
+  [[ "$AGENT_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] \
+    || refuse "a walled agent's run must carry its agent id"
+  [[ "$WALLED_HOME" == "$_homes/$AGENT_ID/$_goal" ]] || refuse "a walled agent's home is not its goal's own"
+  _ahome="$_homes/$AGENT_ID"
+  if [[ ! -e "$_ahome" && ! -L "$_ahome" ]]; then
+    mkdir -m 700 "$_ahome" || refuse "could not make the walled agent's Claude home"
+  fi
+  for _d in "$_ahome" "$WALLED_HOME"; do
+    [[ ! -L "$_d" ]] || refuse "a walled agent's Claude home is a link; the fence only trusts a plain folder"
+    if [[ ! -e "$_d" ]]; then mkdir -m 700 "$_d" || refuse "could not make a walled agent's Claude home"; fi
+    [[ ! -L "$_d" && -d "$_d" && -O "$_d" ]] || refuse "a walled agent's Claude home is not a plain folder of yours"
+    _mode="$(stat -f '%Lp' "$_d")" || refuse "could not check a walled agent's Claude home"
+    (( (8#$_mode & 8#022) == 0 )) || refuse "a walled agent's Claude home can be changed by others"
+    [[ "$(cd "$_d" && pwd -P)" == "$_d" ]] || refuse "a walled agent's Claude home is reached through a link"
+  done
+  [[ "$_mode" == 700 ]] || chmod 700 "$WALLED_HOME" || refuse "could not close a walled agent's Claude home to others"
+  # Its temp folder: in that home, or paperclip's own folder for this run (found above).
+  if [[ "$WALLED_TMP" == "$WALLED_HOME/tmp" ]]; then
+    [[ ! -L "$WALLED_TMP" ]] || refuse "a walled agent's temp folder is a link"
+    if [[ ! -e "$WALLED_TMP" ]]; then mkdir -m 700 "$WALLED_TMP" || refuse "could not make a walled agent's temp folder"; fi
+    [[ ! -L "$WALLED_TMP" && -d "$WALLED_TMP" && -O "$WALLED_TMP" ]] || refuse "a walled agent's temp folder is not a plain folder of yours"
+  elif [[ "$WALLED_TMP" != "$INNER_TMP" || "$(basename "$WALLED_TMP")" != paperclip-run-* ]]; then
+    refuse "a walled agent's temp folder is neither in its goal's home nor paperclip's own for this run"
+  fi
+  AGENT_HOME="$WALLED_HOME"; INNER_TMP="$WALLED_TMP"
+  export CLAUDE_CONFIG_DIR="$WALLED_HOME"
   cd "$WORK_FOLDER" || refuse "could not change into a walled agent's folder"
   GATE_URL="$NARROW_URL"; WALLED=1
-  unset _tasks _parent _mode _goal
+  unset _tasks _parent _mode _goal _homes _ahome _d
 fi
-unset WORK_FOLDER NARROW_URL
+unset WORK_FOLDER NARROW_URL WALLED_HOME WALLED_TMP
 
 # 4. What the command gets inside the fence. Values from the env file are
 # exported, never put on a command line and never logged.

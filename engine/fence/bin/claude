@@ -26,7 +26,10 @@ STATE_DIR="$CFG_STATE"
 # commands, hooks and MCP entries one agent writes there never load in another
 # agent's run (their rights differ). The agent id is the one fence-run uses to
 # find the fence policy. A run without one (the proof, the quota check) gets
-# `_none`, never the parent folder, which holds all the others.
+# `_none`, never the parent folder, which holds all the others. The fence keeps
+# a run from writing in it any name the program loads as settings or instructions
+# (fence_plan.py, HOME_CONFIG_NAMES), and gives a walled agent one folder in it
+# per goal (fence-run).
 _agent="${PAPERCLIP_AGENT_ID:-}"
 if [[ -z "$_agent" ]]; then
   _agent="_none"
@@ -95,7 +98,7 @@ if [[ "$MODEL_MODE" == plans ]]; then
   set -a; . "$ENV_FILE"; set +a
   unset OPENAI_API_KEY ANTHROPIC_API_KEY
   export CLAUDE_CONFIG_DIR="$AGENT_HOME"
-  export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+  export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
 
 else
   # Provider mode. Nothing here may carry the owner's Claude login or any other
@@ -123,9 +126,12 @@ else
   export ANTHROPIC_MODEL="$_pick" ANTHROPIC_DEFAULT_HAIKU_MODEL="$_pick" ANTHROPIC_DEFAULT_SONNET_MODEL="$_pick"
   export ANTHROPIC_DEFAULT_OPUS_MODEL="$_pick" ANTHROPIC_DEFAULT_FABLE_MODEL="$_pick" CLAUDE_CODE_SUBAGENT_MODEL="$_pick"
   export CLAUDE_CONFIG_DIR="$AGENT_HOME"
-  export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+  export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
   unset _relay _relay_token
 fi
+# Auto memory (above) is off: the program would otherwise read notes a run left
+# in its home (projects/<folder>/memory) into every later run. The fence denies
+# writing there too; this only spares the program a folder it may not use.
 # Paperclip hands Claude extra folders (its skills) with --add-dir, and files for
 # this run (instructions, tool config) by path. The fence may read those, and only
 # when they sit inside paperclip's own company or skills folders.
@@ -193,11 +199,15 @@ unset ARGS _named _pick
 # after paperclip's own arguments (the prompt comes on stdin), once, and not on
 # the version and help questions. `--setting-sources user` is left out: it stops
 # paperclip's own skills from loading (T1).
+# Before it, --strict-mcp-config: only the MCP servers paperclip names with
+# --mcp-config start. The program's own state file in the agent home
+# (.claude.json) must stay writable, and the servers it lists would otherwise
+# start in every later run of the agent (the second look at the review of step 2).
 if [[ -n "$_no_web" ]]; then
   _tail=""
-  if [[ $# -ge 3 ]]; then _tail="$(printf '%s\n' "${@: -3}")"; fi
-  if [[ "$_tail" != $'--disallowedTools\nWebSearch\nWebFetch' ]]; then
-    set -- "$@" --disallowedTools WebSearch WebFetch
+  if [[ $# -ge 4 ]]; then _tail="$(printf '%s\n' "${@: -4}")"; fi
+  if [[ "$_tail" != $'--strict-mcp-config\n--disallowedTools\nWebSearch\nWebFetch' ]]; then
+    set -- "$@" --strict-mcp-config --disallowedTools WebSearch WebFetch
   fi
 fi
 unset _no_web _tail

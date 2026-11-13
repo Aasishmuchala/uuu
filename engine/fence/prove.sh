@@ -37,6 +37,13 @@ HDR=""; KEY_ID=""; KEY_AGENT=""; KEY_CO=""
 # from the folder it works in (K2a), as the checks below try to plant them.
 DOORS_DIR="$STATE_DIR/doors"; DOOR_SECRETS="$STATE_DIR/secrets/doors"; MADE_DOOR_DIRS=""
 PLANTS=".claude CLAUDE.md claude.md AGENTS.md .mcp.json .codex .agentſ sub y ordinary.txt"
+# And the names a program loads as settings or instructions from its own home (fence_plan.py,
+# HOME_CONFIG_NAMES), as the checks of the agents' homes try to plant them there; with the
+# proof's own leftovers of the writes that must still work.
+HOME_PLANTS="settings.json Settings.json ſettings.json .config.json remote-settings.json skills ſkills agents commands
+  rules hooks plugins output-styles CLAUDE.md projects/-fence-proof session-env/fence-proof .fence-proof-state.json
+  tmp/.fence-proof-carry config.toml Config.toml config.toml.paperclip-backup AGENTS.md instructions.md prompts
+  memories hooks.json sessions/fence-proof state_9.sqlite"
 STAND_IN=""
 # Temp folders made for the Researcher's checks (its own and another run's), removed on every exit.
 RUN_TMPS=""
@@ -44,6 +51,9 @@ RUN_TMPS=""
 # the proof makes, assigned to the Researcher, with a key of the Researcher's own. All set back on every exit.
 PROOF_TASK_ID=""; PROOF_IDENT=""; PROOF_RKEY=""; PROOF_RKEY_ID=""; PROOF_RKEY_AGENT=""
 PROOF_GOAL_DIR=""; PROOF_GOAL_MADE=""; PROOF_OTHER_DIR=""
+# The Researcher's Claude home for the proof task's goal (made by the fence on its first run) and
+# another goal's home beside it (made by the proof): both removed on every exit.
+PROOF_HOME_DIR=""; PROOF_HOME_MADE=""; PROOF_OTHER_HOME=""
 # The sandbox tool's own temp folder: was it there before the proof (it is not on this Mac)?
 SANDBOX_TMP_MADE=""; SANDBOX_TMP_WAS=""; [[ -e /private/tmp/claude || -L /private/tmp/claude ]] && SANDBOX_TMP_WAS=1
 
@@ -60,6 +70,8 @@ cleanup() {
   rm -f "${STATE_DIR:?}/tasks/research/.fence-proof-research"
   proof_task_end
   rm -rf "${STATE_DIR:?}/claude-home/$OTHER_ID" "${STATE_DIR:?}"/tasks/_proof-answer.* "${STATE_DIR:?}/codex-home/_proof-login"
+  clear_home_plants "${STATE_DIR:?}/claude-home/$PROOF_ID"
+  rm -rf "${STATE_DIR:?}/codex-home/_proof-plant"
   rm -rf "${CFG_INSTANCE_ROOT:?}"/companies/*/codex-home/_proof-home.*
   if [[ -n "$KEY_ID" ]]; then
     curl -s -m 10 -o /dev/null -X DELETE "$BOARD/api/agents/$KEY_AGENT/keys/$KEY_ID" || true
@@ -72,6 +84,13 @@ cleanup() {
 clear_plants() {
   local n
   for n in $PLANTS; do rm -rf "${WS:?}/$n"; done
+}
+clear_home_plants() {   # clear_home_plants <an agent home the proof plants in>
+  local n
+  [[ -n "$1" && -d "$1" && ! -L "$1" ]] || return 0
+  for n in $HOME_PLANTS; do rm -rf "${1:?}/$n"; done
+  rmdir "$1/projects" "$1/session-env" "$1/sessions" 2>/dev/null   # only when the proof's own left them empty
+  return 0
 }
 remove_door_marks() {
   local d
@@ -98,6 +117,12 @@ proof_task_end() {
   PROOF_RKEY=""
   [[ -n "$PROOF_OTHER_DIR" ]] && rm -rf "${PROOF_OTHER_DIR:?}"
   PROOF_OTHER_DIR=""
+  [[ -n "$PROOF_OTHER_HOME" ]] && rm -rf "${PROOF_OTHER_HOME:?}"
+  PROOF_OTHER_HOME=""
+  if [[ -n "$PROOF_HOME_MADE" && -n "$PROOF_HOME_DIR" && -d "$PROOF_HOME_DIR" && ! -L "$PROOF_HOME_DIR" ]]; then
+    rm -rf "${PROOF_HOME_DIR:?}"
+  fi
+  PROOF_HOME_MADE=""; PROOF_HOME_DIR=""
   if [[ -n "$PROOF_GOAL_MADE" && -n "$PROOF_GOAL_DIR" ]]; then rm -f "$PROOF_GOAL_DIR/.fence-proof-research"; rmdir "$PROOF_GOAL_DIR" 2>/dev/null; fi
   PROOF_GOAL_MADE=""; PROOF_GOAL_DIR=""
 }
@@ -787,7 +812,7 @@ proof_task_finish() {
   proof_task_end
 }
 researcher_checks() {
-  local rid why research shared what d cmd own other other_tmp area web_on=0 goal other_goal
+  local rid why research shared what d cmd own other other_tmp area web_on=0 goal other_goal homes ghome other_home out one_home
   RUN="$HERE/bin/claude"; WHO="the Researcher"; AS=""
   rid="$(agent_id_of researcher)"; why=""
   if [[ -z "$rid" ]]; then why="no Researcher in ids.json yet: run engine setup"
@@ -806,6 +831,10 @@ sys.exit(0 if isinstance(p,dict) and p.get('walled') is True else 1)" "$CFG_POLI
   # Its working folder is its goal's folder under the research folder, whose name the fence got from the board.
   goal="$research/$PROOF_IDENT"
   PROOF_GOAL_DIR="$goal"; [[ -e "$goal" || -L "$goal" ]] || PROOF_GOAL_MADE=1
+  # And its Claude home is that goal's own, claude-home/<its id>/<goal>, made by the fence too.
+  homes="$(cd "$STATE_DIR/claude-home" && pwd -P)"
+  ghome="$homes/$rid/$PROOF_IDENT"
+  PROOF_HOME_DIR="$ghome"; [[ -e "$ghome" || -L "$ghome" ]] || PROOF_HOME_MADE=1
   # No task of its own, no run: the fence will not guess which goal's folder it is.
   refuses "it has no task of its own" "must name its task" \
     env -u PAPERCLIP_TASK_ID -u PAPERCLIP_API_KEY PAPERCLIP_AGENT_ID="$rid" "$RUN" --fence-check 'echo FENCE_UP'
@@ -827,6 +856,52 @@ sys.exit(0 if isinstance(p,dict) and p.get('walled') is True else 1)" "$CFG_POLI
       say FAIL "the Researcher wrote in another goal's research folder"
     fi
     rm -rf "${other_goal:?}" "${research:?}/FENCEPROOF-2" "${research:?}/.fence-proof-x"; PROOF_OTHER_DIR=""
+  fi
+  # Its Claude home is its goal's own (claude-home/<its id>/<goal>), made by the fence as a plain
+  # folder closed to others, so nothing a run of one goal leaves there is read by a run of another
+  # (the second look at the review of step 2). Another goal's home beside it, made here with a
+  # mark, and the folder above them are out of its reach.
+  allowed "use its goal's own Claude home" \
+    "test \"\$CLAUDE_CONFIG_DIR\" = $ghome && echo x > \"\$CLAUDE_CONFIG_DIR/.fence-proof\" && test -f \"\$CLAUDE_CONFIG_DIR/.fence-proof\""
+  if [[ -L "$ghome" || ! -d "$ghome" || "$(stat -f '%Lp' "$ghome" 2>/dev/null)" != 700 ]]; then
+    say FAIL "the Researcher's Claude home for its goal is not a plain folder closed to others ($ghome)"
+  fi
+  rm -f "$ghome/.fence-proof"
+  other_home="$homes/$rid/FENCEPROOF-1"
+  if [[ -e "$other_home" || -L "$other_home" ]]; then say FAIL "could not make another goal's Claude home for the Researcher's check ($other_home is there already)"
+  elif ! (umask 077; mkdir "$other_home" && echo proof > "$other_home/.fence-proof"); then
+    rm -rf "${other_home:?}"; say FAIL "could not make another goal's Claude home for the Researcher's check"
+  else
+    PROOF_OTHER_HOME="$other_home"
+    blocked "read or write another goal's Claude home, or list the homes of its goals" \
+      "cat $other_home/.fence-proof >/dev/null || ls $other_home >/dev/null || ls $homes/$rid >/dev/null || echo x > $other_home/.fence-proof-x || echo x > $homes/$rid/.fence-proof-x || mkdir $homes/$rid/FENCEPROOF-2"
+    if [[ -e "$other_home/.fence-proof-x" || -e "$homes/$rid/.fence-proof-x" || -e "$homes/$rid/FENCEPROOF-2" ]]; then
+      say FAIL "the Researcher wrote beside its goal's own Claude home"
+    fi
+    rm -rf "${other_home:?}" "${homes:?}/$rid/FENCEPROOF-2" "${homes:?}/$rid/.fence-proof-x"; PROOF_OTHER_HOME=""
+  fi
+  # A real answer, as a run on the proof's task: the program starts, works and keeps its session
+  # in its goal's own home, and nowhere a run of another goal could read it.
+  if [[ "$MODE" == provider && ! -f "$CFG_PROVIDER_KEY" ]]; then
+    say SKIP "the Researcher answering from inside the fence (no provider key saved: paste it in Settings)"
+  elif [[ "$MODE" != provider && ! -f "$STATE_DIR/agent.env" ]]; then
+    say SKIP "the Researcher answering from inside the fence (no agent login yet: run engine/fence/login-wizard.sh)"
+  else
+    one_home=0; [[ -e "$homes/$rid/projects" || -L "$homes/$rid/projects" ]] && one_home=1
+    out="$(cd "$WS" && PAPERCLIP_TASK_ID="$PROOF_TASK_ID" PAPERCLIP_API_KEY="$PROOF_RKEY" PAPERCLIP_AGENT_ID="$rid" \
+      within 180 "$RUN" -p "Reply with exactly: OK" --max-turns 1 </dev/null 2>&1 | tail -1)"
+    if [[ "$out" == *"no model is picked for this agent"* ]]; then
+      say SKIP "the Researcher answering from inside the fence (no model is picked for it: open Settings)"
+    elif [[ "$out" != *OK* ]]; then
+      say FAIL "the Researcher did not answer from inside the fence: ${out:0:200}"
+    elif ! ls "$ghome/projects/"*/*.jsonl >/dev/null 2>&1; then
+      say FAIL "the Researcher answered, but its session was not kept in its goal's own Claude home"
+    else
+      say PASS "the Researcher answers from inside the fence and keeps its session in its goal's own Claude home"
+    fi
+    if (( ! one_home )) && [[ -e "$homes/$rid/projects" || -L "$homes/$rid/projects" ]]; then
+      say FAIL "the Researcher's session was kept in the home all its goals would share"
+    fi
   fi
   # The other agents' work: the company's task folders and paperclip's, and the proof's own.
   cmd="cat $WS/note.txt >/dev/null"
@@ -1046,7 +1121,7 @@ codex_skill_checks
 # read nor write that home, nor list the folder of all homes; it can write its own.
 echo; echo "The Claude homes (each agent its own)"
 claude_home_checks() {
-  local homes="$STATE_DIR/claude-home" own other
+  local homes="$STATE_DIR/claude-home" own other n
   own="$homes/$PROOF_ID"; other="$homes/$OTHER_ID"
   RUN="$HERE/bin/claude"; WHO="a Claude agent"
   mkdir -p "$homes" && { [[ -d "$other" ]] || mkdir -m 700 "$other"; } && echo "proof" > "$other/.fence-proof" \
@@ -1059,11 +1134,45 @@ claude_home_checks() {
   rm -f "$own/.fence-proof"
   allowed "write in its own Claude home" "echo x > $own/.fence-proof"
   if [[ ! -f "$own/.fence-proof" ]]; then say FAIL "the file written in its own Claude home did not arrive in $own"; fi
-  rm -f "$own/.fence-proof" "$POLICY_FILE"
+  rm -f "$own/.fence-proof"
+  # What the program loads from its own home as settings or instructions (fence_plan.py,
+  # HOME_CONFIG_NAMES) cannot be left there for the agent's next run: in any spelling, nor
+  # moved or linked in whole from its temp folder. Its sessions and own state still write.
+  clear_home_plants "$own"
+  blocked "leave settings, skills, hooks or memory in its own Claude home for its next run" \
+    "cd $own && { echo x > settings.json || echo x > Settings.json || echo x > ſettings.json || echo x > .config.json || echo x > remote-settings.json || mkdir -p skills/x || mkdir ſkills || mkdir agents || mkdir commands || mkdir rules || mkdir hooks || mkdir plugins || mkdir output-styles || echo x > CLAUDE.md || mkdir -p projects/-fence-proof/memory || { mkdir -p tmp/.fence-proof-carry/x && mv tmp/.fence-proof-carry skills; } || ln -s tmp skills; }"
+  for n in settings.json .config.json remote-settings.json skills agents commands rules hooks plugins output-styles CLAUDE.md projects/-fence-proof/memory; do
+    if [[ -e "$own/$n" || -L "$own/$n" ]]; then say FAIL "$WHO left $n in its own Claude home"; fi
+  done
+  clear_home_plants "$own"
+  allowed "still keep its sessions and the program's own state in its own Claude home" \
+    "cd $own && mkdir -p projects/-fence-proof session-env/fence-proof && echo x > projects/-fence-proof/s.jsonl && echo x > session-env/fence-proof/x && echo x > .fence-proof-state.json"
+  clear_home_plants "$own"
+  rm -f "$POLICY_FILE"
   rm -rf "${STATE_DIR:?}/claude-home/$OTHER_ID"
   AS=""
 }
 claude_home_checks
+
+# The same for what Codex loads from its home (config.toml, which paperclip writes before
+# a run, its instructions, skills, prompts, rules, hooks and memories): in a Codex home of
+# the proof's own, in the engine's Codex home folder, made here and removed again.
+echo; echo "The Codex homes (nothing left in one for the agent's next run)"
+codex_home_checks() {
+  local ph="$STATE_DIR/codex-home/_proof-plant" n
+  RUN="$HERE/bin/codex"; WHO="the Codex agent"; AS=""
+  rm -rf "$ph"
+  mkdir -m 700 "$ph" || { say FAIL "could not make a Codex home for the proof"; return; }
+  CODEX_HOME="$ph" blocked "leave settings, instructions, skills or memories in its own Codex home for its next run" \
+    'cd "$CODEX_HOME" && { echo x > config.toml || echo x > Config.toml || echo x > config.toml.paperclip-backup || echo x > AGENTS.md || echo x > instructions.md || mkdir -p skills/x || mkdir -p skills/.system/x || mkdir ſkills || mkdir prompts || mkdir rules || mkdir plugins || mkdir memories || echo x > hooks.json || { mkdir -p tmp/.fence-proof-carry/x && mv tmp/.fence-proof-carry skills; }; }'
+  for n in config.toml config.toml.paperclip-backup AGENTS.md instructions.md skills prompts rules plugins memories hooks.json; do
+    if [[ -e "$ph/$n" || -L "$ph/$n" ]]; then say FAIL "$WHO left $n in its own Codex home"; fi
+  done
+  CODEX_HOME="$ph" allowed "still keep its sessions and the program's own state in its own Codex home" \
+    'cd "$CODEX_HOME" && mkdir -p sessions/fence-proof && echo x > sessions/fence-proof/r.jsonl && echo x > state_9.sqlite'
+  rm -rf "${ph:?}"
+}
+codex_home_checks
 
 # The media folder (state/media): the owner's footage and the speech model. One
 # agent's policy may name it for reading; no agent may write there. A mark is put

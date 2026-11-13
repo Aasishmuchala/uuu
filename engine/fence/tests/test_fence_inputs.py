@@ -188,10 +188,11 @@ class DoorsAndWalledInputTests(unittest.TestCase):
     TASK = "aaaaaaaa-bbbb-4ccc-8ddd-000000000001"
     KEY = "pcp_run_key_" + "q" * 40
 
-    def run_main(self, agent_id=AGENT, task_id=None, key=None, expect=0):
+    def run_main(self, agent_id=AGENT, task_id=None, key=None, expect=0, inner_tmp=None):
         out, err = io.StringIO(), io.StringIO()
         args = ["--tool", "claude", "--task-folder", os.path.join(self.dir, "tasks", "company-work"),
-                "--agent-home", os.path.join(self.dir, "h"), "--inner-tmp", os.path.join(self.dir, "h", "tmp"),
+                "--agent-home", os.path.join(self.dir, "h"),
+                "--inner-tmp", inner_tmp or os.path.join(self.dir, "h", "tmp"),
                 "--agent-id", agent_id, "--task-id", self.TASK if task_id is None else task_id]
         self.assertNotIn(self.KEY, " ".join(args))      # the key is never an argument
         env = {} if key == "" else {"PAPERCLIP_API_KEY": key or self.KEY}
@@ -208,9 +209,9 @@ class DoorsAndWalledInputTests(unittest.TestCase):
         if expect:
             return out.getvalue(), err.getvalue()
         lines = out.getvalue().split("\n")
-        self.assertEqual(len(lines), 6, lines)    # five lines, each ended by a newline
-        self.assertEqual(lines[5], "")
-        return json.loads(lines[0]), lines[1:5]
+        self.assertEqual(len(lines), 8, lines)    # seven lines, each ended by a newline
+        self.assertEqual(lines[7], "")
+        return json.loads(lines[0]), lines[1:7]
 
     def test_no_doors_file_no_door(self):
         self.agent("researcher")
@@ -220,7 +221,10 @@ class DoorsAndWalledInputTests(unittest.TestCase):
         self.assertEqual(inputs["narrowGatePort"], 3111)
         self.assertEqual(inputs["gatePort"], 3110)
         self.assertEqual(inputs["taskFolder"], os.path.join(self.dir, "tasks", "company-work"))
-        self.assertEqual(rest, ["", "", "", ""])
+        self.assertEqual(rest, ["", "", "", "", "", ""])
+        # Everyone but a walled agent keeps the home and temp folder the wrapper named.
+        self.assertEqual((inputs["agentHome"], inputs["innerTmp"]),
+                         (os.path.join(self.dir, "h"), os.path.join(self.dir, "h", "tmp")))
 
     def test_web_on_for_the_policys_slug(self):
         self.agent("researcher")
@@ -240,20 +244,31 @@ class DoorsAndWalledInputTests(unittest.TestCase):
         self.assertEqual(inputs["taskFolder"], goal)
         self.assertEqual(inputs["gatePort"], 3111)
         self.assertEqual(inputs["doorPorts"], [3130])
-        self.assertEqual(rest, ["", "", goal, "http://127.0.0.1:3111"])
+        # Its Claude home is its goal's own, whatever home the wrapper named, with its temp folder in it.
+        home = os.path.join(self.dir, "claude-home", AGENT, "STH-12")
+        self.assertEqual(rest, ["", "", goal, "http://127.0.0.1:3111", home, os.path.join(home, "tmp")])
+        self.assertEqual((inputs["agentHome"], inputs["innerTmp"]), (home, os.path.join(home, "tmp")))
         # The board was asked at its own address, for the task and its parent, with the run's key.
         self.assertEqual(self.board.seen, [("/api/issues/" + self.TASK, "Bearer " + self.KEY),
                                            ("/api/issues/aaaaaaaa-bbbb-4ccc-8ddd-000000000002", "Bearer " + self.KEY)])
         self.assertEqual(inputs["boardPort"], self.board.port)
         # Only true walls an agent in; the planner refuses any other value.
+        # Paperclip's own temp folder for the run is kept.
+        run_tmp = os.path.join(self.dir, "T", "paperclip-run-abc")
+        os.makedirs(run_tmp)
+        inputs, rest = self.run_main(inner_tmp=run_tmp)
+        self.assertEqual((inputs["agentHome"], inputs["innerTmp"]), (home, run_tmp))
+        self.assertEqual(rest[4:], [home, run_tmp])
         self.agent("researcher", walled="yes")
         inputs, rest = self.run_main()
-        self.assertEqual((inputs["gatePort"], rest[2:]), (3110, ["", ""]))
+        self.assertEqual((inputs["gatePort"], rest[2:]), (3110, ["", "", "", ""]))
+        self.assertEqual(inputs["agentHome"], os.path.join(self.dir, "h"))
 
     def test_an_ordinary_agent_never_asks_the_board(self):
         self.agent("builder")
         inputs, rest = self.run_main(task_id="", key="")
-        self.assertEqual((inputs["taskFolder"], rest[2:]), (os.path.join(self.dir, "tasks", "company-work"), ["", ""]))
+        self.assertEqual((inputs["taskFolder"], rest[2:]),
+                         (os.path.join(self.dir, "tasks", "company-work"), ["", "", "", ""]))
         self.agent("researcher", walled=False)
         self.run_main()
         self.assertEqual(self.board.seen, [])
