@@ -197,3 +197,12 @@ test("a line of the list stays under 1.3 KB whatever the address, so 5,500 lines
   for (const l of fileLines()) assert.ok(Buffer.byteLength(l) + 1 < 1300, `${Buffer.byteLength(l)} bytes`);
   assert.ok((MAX_VISITS + VISITS_SLACK) * 1300 < VISITS_READ_BYTES);
 });
+
+test("a cut marker dated in the future counts only up to now, so it cannot shut the door for a year", () => {
+  const lines = [JSON.stringify({ cut: iso(NOW + 365 * DAY) }), line(NOW - HOUR)];
+  const r = visitCalls({ ok: true, whole: true, lines }, NOW - DAY, NOW);
+  assert.equal(r.gone, NOW, "limited to now");
+  assert.ok(r.gone <= NOW);
+  assert.equal(visitCalls({ ok: true, whole: true, lines: [JSON.stringify({ cut: iso(NOW - HOUR) })] }, NOW - DAY, NOW).gone, NOW - HOUR, "a past cut is unchanged");
+  assert.equal(visitCalls({ ok: true, whole: true, lines: [JSON.stringify({ cut: iso(NOW + 365 * DAY) })] }, NOW, NOW).gone, null, "nothing after now is unknown");
+});

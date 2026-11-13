@@ -185,7 +185,8 @@ export async function ownership(cache, token, issueId, ask, { write = false } = 
   if (issueId === null || issueId === undefined) return { result: forWrite ? "not-yours" : "yours", agentId };
   if (typeof issueId !== "string" || !ID_PATTERN.test(issueId)) return { result: "not-yours", agentId };
   const key = issueId.toUpperCase();
-  if (recent(entry.own, key, at)) return { result: "yours", agentId };
+  // A read may be answered from memory; a write never is: the board is asked every time.
+  if (!forWrite && recent(entry.own, key, at)) return { result: "yours", agentId };
   if (!forWrite && recent(entry.ancestors, key, at)) return { result: "yours", agentId };
 
   const answer = await ask(token, `/api/issues/${issueId}`);

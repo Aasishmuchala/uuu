@@ -705,14 +705,51 @@ test("ownership for a write: only the board's answer for that exact issue, never
     assert.equal((await ownership(cache, "t", id, ask, { write: true })).result, "not-yours", id);
   }
   assert.deepEqual(asked, ["/api/issues/P1", "/api/issues/par-1", "/api/issues/P2"], "each write asked about its own issue");
-  // The refusals changed nothing: the parent is still readable, the own issue still writable.
+  // The refusals changed nothing: the parent is still readable from memory, the own issue still
+  // writable, but a write asks the board each time.
   asked.length = 0;
   assert.equal((await ownership(cache, "t", "P1", ask)).result, "yours");
-  assert.equal((await ownership(cache, "t", "I1", ask, { write: true })).result, "yours");
-  assert.equal((await ownership(cache, "t", "i1-key", ask, { write: true })).result, "yours", "the identifier the board gave");
   assert.deepEqual(asked, []);
+  assert.equal((await ownership(cache, "t", "I1", ask, { write: true })).result, "yours");
+  assert.deepEqual(asked, ["/api/issues/I1"]);
   // A write with no issue, or any value of `write` but false, never passes on an ancestor.
   assert.equal((await ownership(cache, "t", null, ask, { write: true })).result, "not-yours");
   assert.equal((await ownership(cache, "t", null, ask)).result, "yours");
   assert.equal((await ownership(cache, "t", "P1", ask, { write: "yes" })).result, "not-yours");
+});
+
+test("ownership for a write is never answered from memory: a step the board reassigned is refused at once", async () => {
+  let clock = 1_000_000;
+  const cache = createCache({ now: () => clock });
+  let assignee = "agent-1";
+  let mode = "ok";
+  const asked = [];
+  const ask = async (_token, path) => {
+    asked.push(path);
+    if (path === "/api/agents/me") return { status: 200, json: { id: "agent-1" } };
+    if (mode === "down") return { error: "timeout" };
+    if (mode === "500") return { status: 500, json: null };
+    return { status: 200, json: { id: "I1", identifier: "STH-1", assigneeAgentId: assignee, ancestors: [] } };
+  };
+  assert.equal((await ownership(cache, "t", "I1", ask)).result, "yours");
+  assignee = "agent-2"; // the board gives the step to the Chief of staff
+  clock += 4 * 60_000;
+  asked.length = 0;
+  assert.equal((await ownership(cache, "t", "I1", ask)).result, "yours", "a read may still use the memory");
+  assert.deepEqual(asked, []);
+  for (const spell of ["I1", "i1", "STH-1", "sth-1"]) {
+    assert.equal((await ownership(cache, "t", spell, ask, { write: true })).result, "not-yours", spell);
+  }
+  assert.deepEqual(asked.filter((p) => p.startsWith("/api/issues/")).length, 4, "the board is asked every time");
+  // Assigned back: a write passes, and again asks the board.
+  assignee = "agent-1";
+  asked.length = 0;
+  assert.equal((await ownership(cache, "t", "I1", ask, { write: true })).result, "yours");
+  assert.equal((await ownership(cache, "t", "I1", ask, { write: true })).result, "yours");
+  assert.deepEqual(asked.filter((p) => p === "/api/issues/I1").length, 2);
+  // An error or timeout from the board fails closed, though the memory holds the issue.
+  mode = "down";
+  assert.equal((await ownership(cache, "t", "I1", ask, { write: true })).result, "board-down");
+  mode = "500";
+  assert.equal((await ownership(cache, "t", "I1", ask, { write: true })).result, "board-down");
 });

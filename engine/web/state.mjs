@@ -140,7 +140,8 @@ export function visitCalls(read, since, now) {
     if (!v || typeof v !== "object") continue;
     if (Object.hasOwn(v, "cut")) {
       const c = typeof v.cut === "string" ? Date.parse(v.cut) : NaN;
-      gone = Math.max(gone, Number.isFinite(c) ? c : now);
+      // A cut made while the clock ran ahead is limited to now, so it cannot shut the door for long.
+      gone = Math.max(gone, Number.isFinite(c) ? Math.min(c, now) : now);
       continue;
     }
     const t = Date.parse(v.at);
