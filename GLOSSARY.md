@@ -192,6 +192,38 @@ _Avoid_: Web folder, scratch folder
 The text and table files the owner marked "Fine to share with the Researcher", with the brand's public summary. They are the only company files the Researcher can read.
 _Avoid_: Public files, exported files
 
+**Generation door**:
+The small server that lets the Artist, and no other agent, make video clips and pictures with Runway, a paid service, from the owner's own renders. It spends only inside a batch the owner approved, keeps the spending ledger, and holds the Runway key, which no agent can read. Off until the owner switches it on in Settings.
+_Avoid_: Runway connection, video API, AI generator
+
+**Treatment**:
+One way to make a film, on paper: a direction, a shotlist and a storyboard still for every shot. A film comes as one to three treatments at no cost. The owner approves one with its cost.
+_Avoid_: Concept, pitch, version of a film
+
+**Shotlist**:
+The list of a treatment's shots: for each, the render it starts from, its length in seconds, the move, and the words sent to Runway. The home screen works out its cost from the lengths.
+_Avoid_: Storyboard, script, scene list
+
+**Batch**:
+The owner's yes for one film or one still job, written as a file only the home screen writes. It names the shots, the models, the longest length of each, the takes allowed and the most it may cost, and it ends after seven days. The generation door spends only inside a batch.
+_Avoid_: Order, budget, permission slip
+
+**Take**:
+One try at a shot: one call to Runway and the clip it makes. The first is take 1, named like `s01-t1`.
+_Avoid_: Attempt, render, version
+
+**Retake**:
+A second take of a shot, made when the Art director marks the first one to be redone. Each shot may have one. The generation door refuses a third.
+_Avoid_: Redo, reshoot
+
+**Credit**:
+Runway's unit of price. One credit is one US cent. A clip costs credits for each second; a picture costs a fixed number.
+_Avoid_: Token, point
+
+**Spending ledger**:
+The generation door's own file, `doors/generate-ledger.jsonl`, with a line for every amount held, spent or given back. Every limit is checked against it. The door alone writes it and tidies it when it starts; if it cannot be read, nothing is made.
+_Avoid_: Bill, invoice, usage log
+
 **Daily brief**:
 A short note each morning of what happened that needs no decision.
 _Avoid_: Digest, report, summary email
@@ -247,7 +279,7 @@ The agent that designs parts and gives back a STEP file with measured size.
 _Avoid_: Engineer, CAD operator, designer
 
 **Artist**:
-The agent that makes sprites, animated GIFs, sprite sheets and simple vector images by script.
+The agent that makes sprites, animated GIFs, sprite sheets, simple vector images, slides and videos by script. It is the only agent that may use the generation door, to make film clips and stills inside a batch the owner approved.
 _Avoid_: Designer, illustrator, animator
 
 **Researcher**:

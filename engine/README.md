@@ -2,7 +2,7 @@
 
 The engine runs your company with a small team of AI agents and you. It runs on this Mac only. Nothing leaves the building: no email, message or post is sent by anything, and publishing and sending are switched off.
 
-The only things you pay for are your Claude and Codex plans. Until 12 November 2026 no paid key was allowed. On that day you asked for Omega Plus, so you can now switch on a paid outside provider in Settings. It is off by default: nothing changes until you paste a key and switch it on, and switching it off brings the plans back. While it is on, everything an agent reads and writes in a task is sent to Omega Plus. See "Using Omega Plus".
+The only things you pay for are your Claude and Codex plans. Until 12 November 2026 no paid key was allowed. On that day you asked for Omega Plus, so you can now switch on a paid outside provider in Settings. On the same day you also said yes to one more paid thing, Runway for video clips and pictures, with its own switch and limits: see "Turning on Generation". It is off by default: nothing changes until you paste a key and switch it on, and switching it off brings the plans back. While it is on, everything an agent reads and writes in a task is sent to Omega Plus. See "Using Omega Plus".
 
 It has six parts: the board (where tasks are kept), the fence around every agent, the gate between the agents and the board, the model relay (the one door to Omega Plus, closed unless you switch it on), one set of company records (books, customers, support, people), the company brain (your own files that every agent reads) and your home screen. The team has ten roles: Chief of staff, Builder, Checker, Bookkeeper, Sales, Support, People, Marketer, Drafter and Artist. Words in bold in `GLOSSARY.md` mean what they say there.
 
@@ -72,7 +72,7 @@ Agents cannot write in Files. Anything they want kept comes to you as a draft.
 
 ## Jobs and the build order
 
-A job is a named piece of work an agent can start for you. There are 60, in seven departments: Operations 7, Sales 9, Marketing 12, Studio 11, Support 5, People 5 and Books 11. Open Jobs, pick one, press Start. It makes a task, and from there it is like any task.
+A job is a named piece of work an agent can start for you. There are 69, in seven departments: Operations 8, Sales 9, Marketing 17, Studio 14, Support 5, People 5 and Books 11. Open Jobs, pick one, press Start. It makes a task, and from there it is like any task.
 
 - **Hand-off tags** say what is left to you: "You lead" (the agent gets things ready, you do the main part), "You approve" (the agent does the work, and it counts when you approve it), "On its own" (the agent does it to the end, it is checked, and you read the result).
 - **The build order** has four stages: Foundations (fill the company brain), Take in (jobs that read and sort what comes in), Make (jobs that produce work) and Hand on (work passed from one agent to the next, such as a call write-up, then a proposal, then an invoice draft).
@@ -222,10 +222,67 @@ Be careful with what it brings back. Everything on a web page can be written to 
 
 One risk is open. A video tool that a hostile video had taken over could leave its process group and keep using the processor after its job was ended. It would have no network, could not read your files, and its folder is removed. Run `engine stop` and `engine start` if the Mac slows down for no reason after a video job.
 
+## Turning on Generation
+
+On 12 November 2026 you said yes to one agent making video clips and pictures with Runway, a paid service, from your own renders. It is the Artist. It is built and tested against a stand-in for Runway, not yet against the real one, and it is not live yet: it goes live when the generation door is started. Even then it is off until you turn it on, and nothing is spent until you approve a cost. This is the first thing in the engine that costs money besides your plans.
+
+What it can do: turn one of your renders into a short clip, make variations of a picture, and make a picture larger and sharper. The Artist cuts the clips into a film. It cannot spend money, reach Runway or read the key by itself; it can only ask the generation door, and the door checks everything.
+
+Turn it on.
+
+1. Get a key from your own Runway developer account.
+2. Open Settings on the home screen and find "Generation".
+3. Paste the key into "Runway key" and press "Save key". It is kept on this Mac only, outside the fence, and is never shown again. "Remove key" deletes it.
+4. Press "Test". It asks Runway how many credits you have. It costs nothing and works while the switch is off, once a key is saved. It says "Runway says you have <n> credits." or "Runway refused this key."
+5. Check the two limits, "Most to spend in a day (credits)" and "Most to spend in a month (credits)". They start at 300 and 1,000. One credit is one US cent, so that is $3 a day and $10 a month. A limit of 0 stops all making. Days and months are by the clock in Kolkata.
+6. Check "Models". Each choice shows its price. The start is gen4_turbo for clips (5 credits a second), gen4.5 for clips marked best or made from words alone (12 a second), gen4_image for variations (8 a picture) and magnific_precision_upscaler_v2 for larger stills (25 a picture).
+7. Turn on "Let the Artist use Runway". The page says "On. Only the Artist can ask, and only inside what you approved." If it will not switch on, it says why: no key, the door is not running (run `engine start`), or the Artist is not set up (run `engine setup`).
+
+What leaves this Mac when it is on: the renders and pictures you approve, and the prompts the Artist wrote for them, are sent to Runway. Nothing else of the company is sent. Runway's terms say it may use what you send to train its models unless you have an Enterprise agreement. Do not use Generation for client work you may not share. Settings says this next to the switch, and you should read Runway's own terms before the first real film.
+
+The limits are the door's own, not the Artist's. It adds up what is spent and what is held for jobs still running, and refuses anything that would go over a limit. If it cannot read its own record of spending, it makes nothing.
+
+Where to read what was spent. In Settings, under "Spent": today and this month against the limits, and every job day by day. Under "Approved films": each film you approved, when, and when its approval ends. The record is the file `~/.paperclip/uuu-engine/doors/generate-ledger.jsonl`. The door tidies it when it starts by moving old months into a dated file beside it. If Settings says "The spending ledger is nearly full", run `engine stop` and then `engine start`. One gap is known: if the file grows past 32 MB before the door is next started, it is never tidied and the door refuses all work until someone deals with the file; Settings only warns at 24 MB.
+
+If Runway refuses. Runway can refuse a picture or a prompt on safety grounds, and it charges for the try. Such a picture or prompt is never sent again. Two refusals in one film stop that film ("Runway refused two pictures or prompts in this film. It needs you."). Three refusals in 24 hours pause Generation altogether: Settings says "Runway refused three requests in a day. Generation is paused so your account stays safe." Nothing is sent until you press "Start again" under "Spent". Runway may suspend an account that makes too many refused requests, which is why the door stops early.
+
+Switch it off. Turn off "Let the Artist use Runway". The page says "Off. Nothing is sent to Runway." The next call is refused at once. A job already at Runway is still counted.
+
+## Making a film: what it costs and how you approve it
+
+A film is made from your own renders. Start it from Jobs, in Studio: "A film from your renders". It asks which renders in the room, in order (two to twelve), how long (15, 30 or 45 seconds), the one thing it should say, and whether a shot may be made from words alone with no render (the answer starts at No). You may also name research notes to learn from.
+
+The job page says what it costs in time and money before you press Start. A film takes long: first the Artist writes the film on paper, at no cost, then you see what the clips would cost and approve it, and only then is anything sent to Runway. Each clip takes Runway a few minutes, and the edit and the checks follow. Plan on one to two hours from start to finish, plus the time the shotlist waits for you.
+
+1. **The treatments.** The Artist writes one to three treatments: different ways to make the same film. Each has a direction, a shotlist, which is a list of its shots with the render each starts from, its length, its move and the words for Runway, and a storyboard picture for every shot. These are drawn from your own renders. None of it costs anything and nothing is sent anywhere. The brand check, the Art director's scores and the Checker go over them first.
+2. **The card.** In Needs you the film shows as a shotlist card: the treatments side by side with their storyboards, the Art director's scores and each treatment's cost, worked out by the home screen from the lengths and Runway's prices. It reads like this: "6 clips, 30 seconds: about 150 credits ($1.50), up to 300 with one retake each. Today's limit: 300." Under it: "Runway takes a few minutes a clip: about 10 to 30 minutes for 6 clips, then the edit and the checks." The first number is the clips. The second is the most it can cost: your approval covers one retake for each shot, so up to twice the clips. What is not used is not spent.
+3. **Approve.** Press "Approve this one and its cost" under the treatment you want. A box asks once more and says the most Runway may charge, with a button "Approve and spend up to <amount>". Nothing is sent to Runway before you press it. You can also press "Another round" for fresh treatments or "Send all back" (with a note). A treatment cannot be approved while the clips alone cost more than what is left of today's or this month's limit, or while Generation is off, has no key, or the spending record cannot be read. The card says which, and links to Settings or Health. Retakes may stop short at the limit; the card says so when that could happen. Approving writes your yes as a file that ends after seven days. Only the home screen writes it. One card, one approval.
+4. **The clips.** Now the Artist asks the generation door for one clip per shot, from your render, and nothing outside what you approved. Each clip is a take: take 1 of a shot is its first try.
+5. **The clip review.** The Art director looks at six stills of every clip against the render it came from and marks it keep, or retake with one reason. A retake is one more try of that shot, inside the same approval. There is at most one retake for each shot and one round of them; the door refuses a third take. After that the film is edited from the clips the Art director kept, and you see every take in Studio.
+6. **The edit.** The Artist cuts the kept clips together with half-second crossfades (the usual), a title card and an end card drawn from your brand kit, and captions if the shotlist has them. A sound from the room is added when the job names one; the clips' own sound is not used. It writes the film, a poster and six stills. The brand check and the Checker go over it. The poster of a film shows Runway's footage, so its colours are only noted against your palette; the cards are measured hard.
+7. **Accept.** The finished film comes to Needs you as an ordinary card, to Accept or send back. It is not published or sent anywhere.
+
+Studio's film view. In Studio, under "Films", every film shows as a row of shots: the storyboard, the clip and its stills, each take (Take 1, Take 2) with its credits, the picture that was sent to Runway (kept for one day, then "No longer kept"), the Art director's verdict ("Keep", "Retake: <reason>" or "Not looked at yet"), and at the top the total, such as "120 of 300 credits". While clips are being made it says "Runway may still charge for clips that are being made." The numbers are the door's own record, not what the Artist reports.
+
+When something goes wrong:
+
+- **Runway refuses a picture or prompt.** The take shows "Refused by Runway" and is not sent again. Two in one film freeze it and the film view says "Runway refused two pictures or prompts in this film. It needs you."
+- **A limit is reached.** The door refuses the next clip. The clips already made are kept. Settings says "Today's limit is reached. Nothing more will be made until tomorrow, or raise the limit." The goal stops, blocked, with the door's sentence.
+- **The shotlist is changed after you approved it.** The film view says so. The clips follow what you approved.
+- **Runway fails or does not answer.** A job that fails shows as "Failed". A job Runway does not finish in 20 minutes is stopped and its cost stays counted. A take whose result could not be fetched safely is paid for but nothing is kept.
+- **Your approval ends.** After seven days. The film view says "Approval ended". Nothing more is made for it.
+
+## Variations and larger stills
+
+Two small jobs, in Studio: "Variations of a still" (one to three versions of a picture from the room, changing only what you say) and "A larger, sharper still" (two or four times larger, up to 4096 pixels on the long side).
+
+Pressing Start is your yes. The job page says the cost first, for example "Each variation costs 8 credits ($0.08) with gen4_image; three cost 24 credits ($0.24). Pressing Start approves the cost of the number you choose; nothing else is spent." Start then writes a batch of one try for each picture, and the Artist makes only those. If the cost is more than is left of today's or this month's limit, Start is refused and says so, and nothing is made. No small job runs without your Start.
+
 ## What is switched off
 
 Each is an off switch or an account step. Nothing is done for you.
 
+- **Generation.** Off until you save a Runway key and turn it on (see "Turning on Generation"). Nothing is sent to Runway and nothing is spent while it is off.
 - **Anything that needs the internet.** Agents have no internet, so jobs that would look things up online stay dim, with the reason shown. The one exception is the Researcher, once you switch on the web (see "Letting the Researcher use the web").
 - **Publishing and sending.** No post, email or message can go out. To turn it on, connect the account first; each page says "Connect an account to turn this on."
 - **WhatsApp and the GST portal.** Off in the same way.
@@ -295,6 +352,10 @@ None of these is built or running. Each is a choice for later. Settings lists th
 - The brand kit: `~/.paperclip/uuu-engine/knowledge/docs/brand/kit.json`, with `kit.css`, `brand.md`, your fonts in `fonts/` and the taste file `taste.md` beside it. Only the home server writes them. The brand's short public summary is `knowledge/shared/brand-public.md`.
 - Omega Plus settings: `~/.paperclip/uuu-engine/models/state.json` (the mode, the picks, the last list of models) and `relay-status.json` beside it (what the model relay has seen). The key is `secrets/provider/omega-key` and the relay's own secret is `secrets/provider/relay-secret`. Agents cannot reach any of them.
 - The web door's switches and lists: `~/.paperclip/uuu-engine/doors/state.json`, and what it opened: `doors/web-visits.jsonl`, with `web-status.json` beside it. A Brave search key, if you add one, is `secrets/doors/search-key`. Agents cannot reach any of them.
+- Generation: the switch, the limits and the models are in `~/.paperclip/uuu-engine/doors/state.json` beside the web door's. The Runway key is `secrets/doors/runway-key`. Agents cannot reach either.
+- Your approvals for films and still jobs: `~/.paperclip/uuu-engine/doors/batches/`, one small file each, written only by the home screen. They are removed 30 days after they end.
+- What was spent: `~/.paperclip/uuu-engine/doors/generate-ledger.jsonl`, written only by the generation door, with dated copies of old months (`generate-ledger-<date>.jsonl`) beside it.
+- The generation door's work folder: `~/.paperclip/uuu-engine/doors/work/gen/`. It holds the pictures sent to Runway (for one day) and the clips and pictures Runway made (for two days), and the job records. The clips and pictures you keep are copied into the goal's folder by the Artist. Agents cannot reach this folder.
 - The Researcher's notes: `~/.paperclip/uuu-engine/tasks/research/<goal>/`. Files you shared with it: `knowledge/shared/`.
 - Logs: `~/.paperclip/uuu-engine/logs/`. One file per part, including `relay.log`, plus `gate-refusals.log`, which lists what the gate turned away.
 - Secrets: `~/.paperclip/uuu-engine/secrets/`, and the agents' login in `agent.env` beside it. Only you can read them. They are never in the repository and are never shown here.

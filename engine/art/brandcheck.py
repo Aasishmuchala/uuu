@@ -10,9 +10,12 @@ It writes nothing. It finds the pieces by listing the goal's folder itself
 and never opens a path that a piece's own files name: a manifest's claims (a
 company picture in a box, a logo in a box) are checked against the pixels, and
 the picture a claim names is looked up by bare name in the company's files and
-the room only. Every file is read by `lstat` first, without following a link,
-with a cap: text 256 KB, pictures 20 MB and 50 million pixels (the size is read
-from the header before anything is decoded). 30 seconds a piece, 120 in all.
+the room only (a film's board claims the owner's render, found in the room as
+its shotlist names it: exact letter case, the shotlist's render names). Every
+file is read by `lstat` first, without following a link, with a cap: text
+256 KB, pictures 20 MB and 50 million pixels, a render a board claims 100 MB and
+80 million pixels (the size is read from the header before anything is decoded,
+and a render is made small at once). 30 seconds a piece, 120 in all.
 
 Exit 0: every piece passes or only warns. Exit 1: a hard rule failed, including
 whatever a maker can cause by what it leaves in the goal: no pieces (`no_pieces`),
@@ -68,8 +71,16 @@ MAX_SLIDES = 10
 MAX_PHRASES = 200
 PIECE_SECONDS = 30
 TOTAL_SECONDS = 120
+ROOM_PICTURE_BYTES = 100 * MB    # a render a film's board claims, as video.py's board and inputs take it
+ROOM_PICTURE_PIXELS = 80 * 1000 * 1000
+MAX_ROOM_LISTED = 20000          # entries looked at in the room (video.py's own number); a fuller room finds none
 SOURCE_KEEP = 1024                 # long side of the copy of a company picture kept for later claims
-PIXEL_BUDGET = 1000 * 1000 * 1000   # pixels decoded or compared in one run (an honest goal reads under 700 million)
+# Pixels decoded or compared in one run. A source is counted once, however many claims name it. Slides and
+# videos read under 700 million; a film's goal reads its twelve renders once (at 80 million pixels each, 960
+# million) and the boards of its treatments: a round of three treatments of twelve square boards, with their
+# render boxes, is about 110 million. That leaves room for four rounds; past it a piece is a hard
+# `could_not_check`.
+PIXEL_BUDGET = 1500 * 1000 * 1000
 
 # The measures (K6). Why each number: see the README section "The brand check".
 SCALE_TO = 512                   # long side, nearest neighbour
@@ -91,6 +102,7 @@ ALIKE_MIN_GRAMS = 10             # texts shorter than this many three-grams are 
 DASH_PER_WORDS = 100
 
 FILE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+RENDER_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._()-]{0,99}$")   # a shotlist's render (PLAN-V5 T41b)
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 VARIANT_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,35}$")
 GOAL_ID = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,9}-[0-9]{1,9}$")
@@ -99,7 +111,8 @@ CARDS = ("title-card", "end-card")
 # this disk resolves letter case (and folds the long s) the same way for both, so what is measured is what is shown.
 SLIDE_NAMES = ["slide-%02d.png" % i for i in range(1, 11)]
 STILL_NAMES = ["frame-%02d.png" % i for i in range(1, 7)]
-SHOT_NAMES = ["shot-%02d.png" % i for i in range(1, 4)]
+# A film's boards, s01 to s12, are taken only in exactly these names, as the home server shows them (exactlyThere).
+SHOT_NAMES = ["shot-%02d.png" % i for i in range(1, 13)]
 PIECE_NAMES = SLIDE_NAMES + ["poster.png", "title-card.png", "end-card.png", "contact.png", "manifest.json",
                              "slides.json", "copy.md", "shotlist.json", "words.json"]
 MAX_FOLDER_ENTRIES = 2000        # a piece's folder with more entries than this is not checked
@@ -176,8 +189,9 @@ def fold(name):
 
 def refuse_twins(folder, fixed):
     """PieceProblem when the folder holds more than one name that folds (NFKC, case) to one of the fixed names,
-    so the check and the preview could open different files; or when it is too full to tell."""
-    want, seen = {fold(n): n for n in fixed}, {}
+    so the check and the preview could open different files; or when it is too full to tell. Else the names, as
+    listed, that fold to a fixed name: a fixed name among them is there in exactly that letter case."""
+    want, seen, listed = {fold(n): n for n in fixed}, {}, set()
     try:
         with os.scandir(folder) as it:
             for i, e in enumerate(it):
@@ -188,8 +202,10 @@ def refuse_twins(folder, fixed):
                     seen[f] = seen.get(f, 0) + 1
                     if seen[f] > 1:
                         raise PieceProblem("the folder holds more than one file named like %s" % want[f])
+                    listed.add(e.name)
     except OSError:
-        return
+        return set()
+    return listed
 
 
 def read_bytes(path, cap, what):
@@ -515,6 +531,83 @@ def source_picture(state, source, spend=None):
     return pic
 
 
+def room_picture(state, name, names, spend=None):
+    """The owner's render a film's board claims, as video.py's board took it (PLAN-V5 T41b): a name of the
+    shotlist's render pattern, listed in the room in exactly that letter case with no other entry in another
+    case (`names`, Ctx.room_names: video.py's exactly_there, the home server's exactlyThere), a regular file
+    directly in the room, not a link, at most 100 MB and 80 million pixels. Kept as a copy of at most
+    SOURCE_KEEP px on its long side; None when it is not there or cannot be read."""
+    room = os.path.join(state, "media", "room")
+    if not isinstance(name, str) or not RENDER_NAME.match(name) or not names or names.get(name.lower()) != [name]:
+        return None
+    path = os.path.join(room, name)     # no slash in the pattern: directly in the room
+    try:
+        st = os.lstat(path)
+        if not stat.S_ISREG(st.st_mode) or st.st_size > ROOM_PICTURE_BYTES:
+            return None
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    except OSError:
+        return None
+    with os.fdopen(fd, "rb") as fh:
+        fs = os.fstat(fd)
+        if not stat.S_ISREG(fs.st_mode) or (fs.st_dev, fs.st_ino) != (st.st_dev, st.st_ino) \
+                or fs.st_size > ROOM_PICTURE_BYTES:
+            return None
+        return decode_small(fh, ROOM_PICTURE_PIXELS, spend)
+
+
+def decode_small(fh, max_pixels, spend=None):
+    """A picture read from an open file and kept small: its size is read from the header and one over
+    `max_pixels` is refused before anything is decoded (Pillow's own guard is set to the same number); a JPEG is
+    decoded at a half, a quarter or an eighth of its size when that still covers the copy; the pixels decoded
+    are charged before they are; then the copy of at most SOURCE_KEEP px is made at once and the full picture
+    let go, so one full-size picture at most is ever held. None when it cannot be read."""
+    from PIL import Image
+    import warnings
+
+    saved = Image.MAX_IMAGE_PIXELS
+    Image.MAX_IMAGE_PIXELS = max_pixels
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            im = Image.open(fh, formats=kitmod.PICTURE_FORMATS)
+            w, h = im.size
+            if w < 1 or h < 1 or w * h > max_pixels:
+                return None
+            im.draft(None, (SOURCE_KEEP, SOURCE_KEEP))
+            if spend:
+                spend(im.width * im.height)
+            im.load()
+            return small_copy(im)
+    except PieceProblem:
+        raise
+    except Exception:   # a bomb, a damaged file, a format or mode the board could not have taken either
+        return None
+    finally:
+        Image.MAX_IMAGE_PIXELS = saved
+
+
+def small_copy(im):
+    """An RGB copy of at most SOURCE_KEEP px on its long side, the colours taken as video.py's board takes them
+    (an alpha band is dropped, never weighed in). Pillow makes a second full-size picture to resize one with an
+    alpha band, so such a picture is resized band by band; every other is resized in place."""
+    from PIL import Image
+
+    keep = (SOURCE_KEEP, SOURCE_KEEP)
+    if im.mode in ("RGBA", "LA"):
+        bands = []
+        for i in range(len(im.mode) - 1):
+            band = im.getchannel(i)
+            band.thumbnail(keep, Image.BILINEAR)
+            bands.append(band)
+        return Image.merge("RGB", bands * 3 if len(bands) == 1 else bands)
+    if im.mode not in ("RGB", "L"):
+        im = im.convert("RGB")      # a palette, 16-bit or CMYK picture
+    im.thumbnail(keep, Image.BILINEAR)
+    return im.convert("RGB")
+
+
 def claim_holds(state, im, box, source, spend=None, pic=None):
     """True when the picture named by bare name, cover-fitted to the box, is what the box shows. Both sides
     are resized straight to 64 x 64 from their own pixels: no picture larger than the slide or the source.
@@ -566,13 +659,34 @@ class Ctx:
         self.logos = None
         self.pixels = 0
         self.sources = {}
+        self.room = None
 
-    def source(self, name):
-        """Each company picture is opened and charged once a run; later claims reuse the kept copy."""
-        key = name if isinstance(name, str) else None
+    def source(self, name, room=False):
+        """Each company picture, or each render a board claims, is opened and charged once a run; later claims
+        reuse the kept copy (one full-size picture at a time, never more)."""
+        key = (room, name if isinstance(name, str) else None)
         if key not in self.sources:
-            self.sources[key] = source_picture(self.state, name, self.spend)
+            self.sources[key] = (room_picture(self.state, name, self.room_names(), self.spend) if room
+                                 else source_picture(self.state, name, self.spend))
         return self.sources[key]
+
+    def room_names(self):
+        """{name in lower case: [names as listed]} of the room, listed once a run; {} when the room is a link, is
+        not there, cannot be listed or holds more than MAX_ROOM_LISTED entries (no render is found then)."""
+        if self.room is None:
+            self.room, names = {}, {}
+            room = os.path.join(self.state, "media", "room")
+            if kind_at(room) == "dir":
+                try:
+                    with os.scandir(room) as it:
+                        for i, e in enumerate(it):
+                            if i >= MAX_ROOM_LISTED:
+                                return self.room
+                            names.setdefault(e.name.lower(), []).append(e.name)
+                except OSError:
+                    return self.room
+                self.room = names
+        return self.room
 
     def spend(self, n):
         """Counts pixels decoded or compared; past the budget the piece cannot be checked (a hard result)."""
@@ -633,8 +747,11 @@ def manifest_lists(piece):
     return raw, [p for p in pics[:MAX_CLAIMS] if isinstance(p, dict)], [p for p in logos[:MAX_CLAIMS] if isinstance(p, dict)]
 
 
-def check_pictures(ctx, piece, pictures, pics, logos, required):
-    """pictures: [(label, file name, path)] (label: a slide number or a frame name). Claims, logo, palette."""
+def check_pictures(ctx, piece, pictures, pics, logos, required, soft_palette=(), room=False):
+    """pictures: [(label, file name, path)] (label: a slide number or a frame name). Claims, logo, palette.
+    A picture whose label is in `soft_palette` (a film's poster: Runway's footage) only warns off the palette.
+    With `room` (a film's boards) each claim's source is the owner's render in the room (room_picture)."""
+    what = "the render" if room else "the company picture"
     counts, total_pixels = {}, 0
     found = set()
     for label, fname, path in pictures:
@@ -651,12 +768,12 @@ def check_pictures(ctx, piece, pictures, pics, logos, required):
                 piece.add("picture_claim_false", fname, "a picture box in the manifest is not a box inside the picture")
                 continue
             ctx.spend((box[2] - box[0]) * (box[3] - box[1]))
-            pic = ctx.source(c.get("source"))
+            pic = ctx.source(c.get("source"), room)
             if pic is not None and claim_holds(ctx.state, im, box, c.get("source"), pic=pic):
                 exempt.append(box)
             else:
-                piece.add("picture_claim_false", fname, "the box at %d, %d (%d × %d) does not show the company "
-                          "picture %s" % (box[0], box[1], box[2] - box[0], box[3] - box[1], safe(c.get("source"))))
+                piece.add("picture_claim_false", fname, "the box at %d, %d (%d × %d) does not show %s %s"
+                          % (box[0], box[1], box[2] - box[0], box[3] - box[1], what, safe(c.get("source"))))
             piece.tick()
         if ctx.kit:
             hard = label in required
@@ -687,7 +804,9 @@ def check_pictures(ctx, piece, pictures, pics, logos, required):
                 offs = sorted(((c, rgb) for rgb, c in colours if not ctx.palette.on(rgb)), reverse=True)[:3]
                 detail = "%s of the picture is in colours outside the brand kit: %s" % (
                     pct(share), ", ".join("%s %s" % (hexa(rgb), pct(c / float(n))) for c, rgb in offs))
-                piece.add("off_palette", fname, detail, share >= OFF_HARD)
+                if label in soft_palette:
+                    detail += "; it is a frame of the film's footage, so this only warns"
+                piece.add("off_palette", fname, detail, share >= OFF_HARD and label not in soft_palette)
     if total_pixels:
         top = sorted(((c, rgb) for rgb, c in counts.items()), reverse=True)[:6]
         piece.measured["colours"] = ["%s %d%%" % (hexa(rgb), round(100.0 * c / total_pixels)) for c, rgb in top]
@@ -749,7 +868,13 @@ def check_folder_piece(ctx, piece):
         texts.append(("copy.md", read_text(os.path.join(piece.path, "copy.md"))))
     if isinstance(raw.get("title"), str):
         texts.append(("manifest.json", raw["title"][:500]))
-    pictures, required = [], set()
+    # A film's edit records the captions it drew on the picture (video.py film): its own words, written with the
+    # video, so editing the film file afterwards cannot hide them. They are read whatever the manifest's maker.
+    if isinstance(raw.get("captions"), list):      # all of them: the manifest is at most 64 KB
+        found = [c for c in raw["captions"] if isinstance(c, str)]
+        if found:
+            texts.append(("captions", "\n".join(found)))
+    pictures, required, soft_palette = [], set(), set()
     req = ctx.kit.required_on if ctx.kit else []
 
     if piece.kind == "slides":
@@ -776,9 +901,10 @@ def check_folder_piece(ctx, piece):
                 texts.append(("caption words", " ".join(w["w"] for w in data if isinstance(w, dict) and isinstance(w.get("w"), str))))
             elif isinstance(data, dict):
                 found = []
-                for s in data.get("shots", []) if isinstance(data.get("shots"), list) else []:
-                    if isinstance(s, dict) and isinstance(s.get("caption"), str):
-                        found.append(s["caption"])
+                for key in ("shots", "clips"):     # a reveal's shots; a film's clips (video.py film)
+                    for s in data.get(key, []) if isinstance(data.get(key), list) else []:
+                        if isinstance(s, dict) and isinstance(s.get("caption"), str):
+                            found.append(s["caption"])
                 if isinstance(data.get("title"), str):
                     found.append(data["title"])
                 if isinstance(data.get("cards"), dict):
@@ -793,6 +919,10 @@ def check_folder_piece(ctx, piece):
         footage = raw.get("made_by") == "cut"
         made_by_script = not footage and (raw.get("made_by") == "render"
                                           or any(k == "file" and n.endswith(".py") for n, k in entries))
+        # A film's edit (`made_by: "film"`, PLAN-V5 C13) shows Runway's footage, made from the owner's renders:
+        # its poster is measured and only warns off the palette. Its title and end cards stay hard.
+        if raw.get("made_by") == "film":
+            soft_palette.add("poster")
         if kind_at(at("poster.png")) is None:
             piece.add("could_not_check", piece.where, "there is no poster.png to measure")
         else:
@@ -818,9 +948,11 @@ def check_folder_piece(ctx, piece):
             json_strings(read_json(os.path.join(piece.path, "shotlist.json"), MAX_TEXT_BYTES), found)
             texts.append(("shotlist.json", "\n".join(found)))
         if kind_at(at("board")) == "dir":
-            refuse_twins(at("board"), SHOT_NAMES)
-            for n in SHOT_NAMES:        # the storyboard stills the preview shows
-                if kind_at(at("board", n)) not in (None, "dir"):
+            # Every storyboard still the home server can show, shot-01.png to shot-12.png, each only in exactly
+            # that name (its exactlyThere): a board in another letter case is never shown, so never measured.
+            listed = refuse_twins(at("board"), SHOT_NAMES)
+            for n in SHOT_NAMES:
+                if n in listed and kind_at(at("board", n)) not in (None, "dir"):
                     pictures.append((n[:-4], n, at("board", n)))
         if not pictures or pictures[0][1] != SHOT_NAMES[0]:
             piece.add("could_not_check", piece.where, "there is no board/shot-01.png to measure")
@@ -836,7 +968,7 @@ def check_folder_piece(ctx, piece):
     if piece.kind in ("slides", "video"):
         check_scripts(ctx, piece, entries)
     if piece.kind in ("slides", "video", "film"):
-        check_pictures(ctx, piece, pictures, pics, logos, required)
+        check_pictures(ctx, piece, pictures, pics, logos, required, soft_palette, room=piece.kind == "film")
 
 
 def check_piece(ctx, piece):

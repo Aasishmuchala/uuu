@@ -9,9 +9,14 @@
 #    engine/fence/fence-run in state/tasks/_proof and makes a sprite sheet.
 # 2. With the same policy, the video helper renders a two-second video (frames
 #    piped into ffmpeg, libx264) and then takes its six stills.
-# 3. Without a policy, the same fence cannot read state/art.
+# 3. With the same policy, a film's commands: two 2-second testsrc clips made
+#    with $UUU_FFMPEG in film/fc-a/clips/ (where the generation door's clips
+#    land), `board` on a shotlist of two shots from words alone (no render
+#    needed), `clipstills s01-t1`, and `film` from video/fc/: an MP4 of about
+#    3.5 seconds (two clips and a half-second crossfade). One line each.
+# 4. Without a policy, the same fence cannot read state/art.
 # The test policy and the test folder are removed afterwards, whatever happens.
-# Exit 0 when both hold, 1 otherwise. Does not touch the board, the gate or the bench.
+# Exit 0 when every one holds, 1 otherwise. Does not touch the board, the gate or the bench.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/../lib/config.sh" || { echo "engine config: could not be read" >&2; exit 1; }
@@ -87,6 +92,57 @@ else
   say FAIL "with its policy, the video helper did not render inside the fence: ${out##*$'\n'}"
   fails=1
 fi
+
+# A film: the treatment film/fc-a (its shotlist, board/, clips/) and the edit in video/fc.
+FILM="$WORK/film/fc-a"
+EDIT="$WORK/video/fc"
+mkdir -p "$FILM/clips" "$EDIT"
+cat > "$FILM/shotlist.json" <<'JSON'
+{ "title": "Fence check film", "seconds": 5, "ratio": "1280:720",
+  "shots": [
+    { "id": "s01", "seconds": 2, "move": "A still view", "prompt": "A still view of a quiet street.", "kind": "text_to_video" },
+    { "id": "s02", "seconds": 2, "move": "A still view", "prompt": "A still view of a quiet garden.", "kind": "text_to_video" } ] }
+JSON
+printf '{ "film": "fc-a", "title": "Fence check film", "clips": [ { "clip": "s01-t1" }, { "clip": "s02-t1" } ] }\n' > "$EDIT/fc.json"
+
+out="$(cd "$PROOF" && PAPERCLIP_AGENT_ID="$TEST_ID" "$FENCE_RUN" \
+  -c 'cd art-check/film/fc-a && for s in s01 s02; do "$UUU_FFMPEG" -hide_banner -loglevel error -nostdin -y -f lavfi -i testsrc=size=320x180:rate=24:duration=2 -c:v libx264 -pix_fmt yuv420p "clips/$s-t1.mp4" || exit 1; done && echo "two 2-second clips made"' 2>&1)" || true
+if [ -s "$FILM/clips/s01-t1.mp4" ] && [ -s "$FILM/clips/s02-t1.mp4" ]; then
+  say PASS "with its policy, the Artist's ffmpeg makes two test clips in a film's clips folder inside the fence (${out##*$'\n'})"
+else
+  say FAIL "with its policy, the Artist's ffmpeg did not make the film's test clips inside the fence: ${out##*$'\n'}"
+  fails=1
+fi
+
+out="$(cd "$PROOF" && PAPERCLIP_AGENT_ID="$TEST_ID" "$FENCE_RUN" \
+  -c 'cd art-check/film/fc-a && "$UUU_ART_PYTHON" "$UUU_ART_VIDEO" board shotlist.json' 2>&1)" || true
+if [ -s "$FILM/board/shot-01.png" ] && [ -s "$FILM/board/shot-02.png" ] && [ -s "$FILM/manifest.json" ]; then
+  say PASS "with its policy, the video helper draws a film's storyboard inside the fence (${out##*$'\n'})"
+else
+  say FAIL "with its policy, the video helper did not draw the storyboard inside the fence: ${out##*$'\n'}"
+  fails=1
+fi
+
+out="$(cd "$PROOF" && PAPERCLIP_AGENT_ID="$TEST_ID" "$FENCE_RUN" \
+  -c 'cd art-check/film/fc-a && "$UUU_ART_PYTHON" "$UUU_ART_VIDEO" clipstills s01-t1' 2>&1)" || true
+if [ -s "$FILM/clips/s01-t1/frame-01.png" ] && [ -s "$FILM/clips/s01-t1/frame-06.png" ]; then
+  say PASS "with its policy, the video helper takes a clip's six stills inside the fence (${out##*$'\n'})"
+else
+  say FAIL "with its policy, the video helper did not take the clip's stills inside the fence: ${out##*$'\n'}"
+  fails=1
+fi
+
+out="$(cd "$PROOF" && PAPERCLIP_AGENT_ID="$TEST_ID" "$FENCE_RUN" \
+  -c 'cd art-check/video/fc && "$UUU_ART_PYTHON" "$UUU_ART_VIDEO" film fc.json' 2>&1)" || true
+if [ -s "$EDIT/fc.mp4" ] && [ -s "$EDIT/poster.png" ] && [ -s "$EDIT/review/frame-06.png" ] \
+    && grep -q '"made_by": "film"' "$EDIT/manifest.json" 2>/dev/null \
+    && grep -Eq '"seconds": 3\.[3-7],' "$EDIT/manifest.json" 2>/dev/null; then
+  say PASS "with its policy, the video helper edits a film of about 3.5 seconds from the two clips inside the fence (${out##*$'\n'})"
+else
+  say FAIL "with its policy, the video helper did not edit the film of about 3.5 seconds inside the fence: ${out##*$'\n'}"
+  fails=1
+fi
+rm -rf "$WORK/film" "$EDIT"
 rm -f "$POLICY_FILE"
 
 rm -f "$WORK/walker-sheet.png" "$WORK/walker.json" "$WORK/walker.gif" "$WORK/manifest.json"

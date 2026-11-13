@@ -27,6 +27,27 @@ Commands (CONTRACTS-V3 37.2):
                        words.json no cut lands inside a word. Writes <name>.mp4.
   stills <name>.mp4    writes review/frame-01.png to frame-06.png (six frames
                        spread evenly, at most 640 px wide).
+  film <name>.json     {"film", "clips": [{"clip", "from"?, "to"?, "caption"?}],
+                       "fade"?, "cards"?, "caption_style"?, "title"?, "sound"?}:
+                       the edit of a film from the clips the generation door
+                       made, film/<film>/clips/<clip>.mp4, named by id, never by
+                       path; crossfades, captions, the kit's cards, a sound from
+                       the room. Writes <name>.mp4.
+
+A film's treatment (PLAN-V5 K14, C8, C12) is film/<name>-<id>/ in the goal:
+shotlist.json, board/, inputs/ and clips/. These run only from that folder:
+  board shotlist.json  a storyboard still per shot, board/shot-01.png and on,
+                       from the owner's render in the room, and manifest.json.
+  inputs shotlist.json inputs/s01.jpg and on: each render cropped to the
+                       film's ratio and made small enough for the generation
+                       door (at most 3,200,000 bytes).
+  clipstills <id>      clips/<id>/frame-01.png to frame-06.png from
+                       clips/<id>.mp4 (id s01-t1: the shot and the take).
+And from film/<name> or a still's folder, stills/<name>:
+  fit <picture> <out> [--ratio W:H] [--long N]
+                       one picture of the room or the company's files, cropped
+                       and made small enough for the door: inputs/<out>.jpg.
+This tool never talks to Runway; only the generation door does.
 
 With a brand kit (kit.py beside this tool finds state/knowledge/docs/brand/
 kit.json; PLAN-V5 K5): a `render` script is given `kit` (else `kit` is None)
@@ -63,8 +84,9 @@ output; a source clip of at most 5 minutes and 1 GB; ffmpeg's -fs of 300 MB on
 every output; a file-size limit of 2 GB on this process and every process it
 starts; it will not start with under 10 GB of free disk; it stops its own work
 (each process group it started) after 10 minutes; at most 2 GB of files in one
-goal's folder and 10 GB in the video folders of all goals. The agent's script
-runs in a child process, so nothing it does can lift a limit this process holds.
+goal's folder and 10 GB in the video, film and stills folders of all goals. The
+agent's script runs in a child process, so nothing it does can lift a limit
+this process holds. Every command holds them, the film's too.
 
 These are guide rails for an honest run, not a wall. The agent runs this helper
 in its own shell: it can call ffmpeg itself, run a copy of this file, or start a
@@ -138,6 +160,35 @@ MAX_RECORDS = 8                  # pictures or logos noted for one frame of a re
 PICTURE_ENDINGS = (".png", ".jpg", ".jpeg", ".webp")
 CLIP_ENDINGS = (".mp4", ".mov", ".m4v")
 SOUND_ENDINGS = (".mp3", ".m4a", ".wav")
+
+# A film (PLAN-V5 K14, C4, C8, C12). The ratios Runway takes, copied as lists from engine/generate/runway.mjs
+# (VIDEO_RATIOS, STILL_RATIOS): a film's shotlist names one of the first; `fit --ratio` takes either.
+VIDEO_RATIOS = ("1280:720", "720:1280", "1104:832", "832:1104", "960:960", "1584:672")
+STILL_RATIOS = ("1024:1024", "1080:1080", "1168:880", "1360:768", "1440:1080", "1080:1440", "1808:768",
+                "1920:1080", "1080:1920", "2112:912", "1280:720", "720:1280", "720:720", "960:720", "720:960",
+                "1680:720")
+SHOT_KINDS = ("image_to_video", "text_to_video")
+SHOT_ID = re.compile(r"^s(0[1-9]|1[0-2])$")
+CLIP_ID = re.compile(r"^s(0[1-9]|1[0-2])-t[1-5]$")             # a clip: its shot and its take
+RENDER_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._()-]{0,99}$")
+FIT_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,35}$")
+LINE_BREAKERS = re.compile(r"[\x00-\x1f\x7f-\x9f  ]")   # a control character or a line separator
+MAX_FILM_SHOTS = 12
+MAX_SHOTLIST_BYTES = 32 * 1024
+MAX_FILM_CLIPS = 24
+MAX_CLIP_SECONDS = 12
+MAX_RENDER_BYTES = 100 * MB          # a render or picture made to fit: refused before it is decoded
+MAX_RENDER_PIXELS = 80 * 1000 * 1000
+INPUT_MAX_BYTES = 3200000            # a picture for the generation door, which refuses one over 3.3 MB (C4)
+JPEG_STEPS = (90, 80, 70, 60)
+BOARD_LONG = 1280                    # a board's long side
+BOARD_BAND = 0.14                    # the band under the render, as a share of the board's height
+FIT_LONG, FIT_LONG_MIN, FIT_LONG_MAX = 1920, 300, 4096
+MIN_SHORT_SIDE = 300                 # the door's upscaler takes no side under this
+MAX_ROOM_LISTED = 20000              # entries looked at in one folder of the room or the company's files
+MAX_FOLDERS = 64                     # folders of the company's files looked through for a picture
+WORDS_ALONE = "Made from words alone"
+MADE_FOLDERS = ("video", "film", "stills")   # what the tools write in, counted together for all goals
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # This tool lives in state/art/tools. Every folder it trusts is found from there, never from a variable the
@@ -323,8 +374,9 @@ def free_bytes_at(folder):
 GOAL_ID = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,9}-[0-9]{1,9}$")   # a task's identifier, such as STH-12
 
 
-def goal_folder(cwd, homes=None):
-    """<home>/<goal>/video/<name> -> the real <home>/<goal>. Anywhere else is refused.
+def goal_folder(cwd, homes=None, places=("video",)):
+    """<home>/<goal>/<place>/<name> -> the real <home>/<goal>, for a place of the command's own (`places`:
+    video, film or stills). Anywhere else is refused, with a line naming the right folder.
 
     The homes are the task-folder trees found from where the tool is installed
     (TASK_HOMES; `homes` only for tests), compared after links are resolved and
@@ -338,10 +390,21 @@ def goal_folder(cwd, homes=None):
             continue
         rest = real[len(home) + 1:].split(os.sep)
         named = GOAL_ID.match(rest[0]) if os.path.basename(home).lower() == "company-work" else NAME.match(rest[0])
-        if len(rest) == 3 and named and rest[1] == "video" and NAME.match(rest[2]):
+        if len(rest) == 3 and named and rest[1] in places and NAME.match(rest[2]):
             return os.path.join(home, rest[0])
-    raise Problem("run the video helper from the folder for this one video: "
-                  "<goal>/video/<name>, with a name of a to z, 0 to 9 and -")
+    raise Problem(wrong_folder(places))
+
+
+def wrong_folder(places):
+    """The one line that names where a command runs."""
+    if tuple(places) == ("film",):
+        return ("run this from the folder of one film treatment: <goal>/film/<name>, with a name of a to z, "
+                "0 to 9 and -")
+    if tuple(places) == ("film", "stills"):
+        return ("run fit from the folder of one film treatment or one still: <goal>/film/<name> or "
+                "<goal>/stills/<name>, with a name of a to z, 0 to 9 and -")
+    return ("run the video helper from the folder for this one video: "
+            "<goal>/video/<name>, with a name of a to z, 0 to 9 and -")
 
 
 def bytes_in(folder, cap=200000):
@@ -391,13 +454,14 @@ def output_cap(goal):
     except OSError:
         goals = []
     for g in goals:
-        v = os.path.join(home, g, "video")
-        if os.path.isdir(v):
-            tree += bytes_in(v)
+        for sub in MADE_FOLDERS:       # video, and the film's folders (film, stills) with it
+            v = os.path.join(home, g, sub)
+            if os.path.isdir(v):
+                tree += bytes_in(v)
     tree_left = MAX_VIDEO_TREE_BYTES - tree
     if tree_left < 4 * MB:
-        raise Problem("the video folders of all goals already hold %.1f GB; at most 10 GB is allowed. "
-                      "Ask the owner to remove old videos first." % (tree / float(GB)))
+        raise Problem("the video, film and stills folders of all goals already hold %.1f GB; at most 10 GB is "
+                      "allowed. Ask the owner to remove old videos first." % (tree / float(GB)))
     return min(MAX_OUTPUT_BYTES, left, tree_left)
 
 
@@ -600,12 +664,8 @@ def png_size(data):
 
 # --- The finish every video command shares ----------------------------------------
 
-def write_stills(folder, video, ffmpeg, ffprobe, duration=None):
-    if duration is None:
-        duration = probe(video, ffprobe)["duration"]
-    review = os.path.join(folder, "review")
-    if os.path.islink(review) or (os.path.exists(review) and not os.path.isdir(review)):
-        raise Problem("review is not a folder here; remove it and run again")
+def still_pngs(video, ffmpeg, duration):
+    """The six stills of a video as PNG bytes, spread evenly, each at most 640 px wide."""
     stills = []
     for at in still_times(duration):
         data = frame_png(video, at, ffmpeg, "scale='min(%d,iw)':-2" % STILL_MAX_W)
@@ -613,6 +673,16 @@ def write_stills(folder, video, ffmpeg, ffprobe, duration=None):
         if w > STILL_MAX_W:
             raise Problem("a still came out wider than %d px" % STILL_MAX_W)
         stills.append(data)
+    return stills
+
+
+def write_stills(folder, video, ffmpeg, ffprobe, duration=None):
+    if duration is None:
+        duration = probe(video, ffprobe)["duration"]
+    review = os.path.join(folder, "review")
+    if os.path.islink(review) or (os.path.exists(review) and not os.path.isdir(review)):
+        raise Problem("review is not a folder here; remove it and run again")
+    stills = still_pngs(video, ffmpeg, duration)
     os.makedirs(review, exist_ok=True)
     for i, data in enumerate(stills):
         write_atomic(os.path.join(review, "frame-%02d.png" % (i + 1)), data)
@@ -657,11 +727,12 @@ def frame_at(t, fps, count):
 
 
 def finish(folder, name, tmp_video, title, made_by, script, w, h, fps, expected, ffmpeg, ffprobe,
-           spans=None, boundaries=(), brand=None, cards=None, frames=None):
+           spans=None, boundaries=(), brand=None, cards=None, frames=None, extra=None):
     """Checks the made video, then writes it, the poster, the stills and the manifest. `spans` and
     `boundaries` place the poster (poster_time); without them the video is one shot. With a kit, `brand` is
     {"pictures", "logo"} (the cards'), `cards` {"title-card": PNG bytes, ...} and, for a render, `frames`
-    (count, {frame number: {"pictures", "logo"}}) of what the script placed; the manifest gets the two lists."""
+    (count, {frame number: {"pictures", "logo"}}) of what the script placed; the manifest gets the two lists.
+    `extra` adds a command's own keys to the manifest (a film's `film`, `clips` and `captions`)."""
     if not os.path.isfile(tmp_video):
         raise Problem("ffmpeg wrote no video")
     size = os.path.getsize(tmp_video)
@@ -701,6 +772,8 @@ def finish(folder, name, tmp_video, title, made_by, script, w, h, fps, expected,
         "width": w, "height": h, "fps": fps, "seconds": max(0.1, round(seconds, 1)), "bytes": size,
         "made_by": made_by, "script": script, "made_at": now(),
     }
+    if extra:
+        manifest.update(extra)
     if brand is not None:
         pictures, logo = list(brand.get("pictures", [])), list(brand.get("logo", []))
         if frames:
@@ -1913,7 +1986,747 @@ def cmd_stills(args, cwd, goal):
     return "%s: wrote review/frame-01.png to frame-%02d.png." % (args[0][:-4], STILLS)
 
 
-COMMANDS = {"render": cmd_render, "reveal": cmd_reveal, "words": cmd_words, "cut": cmd_cut, "stills": cmd_stills}
+# --- A film: reading with distrust ------------------------------------------------------
+# The treatment's files and the clips are the Artist's; the room and the company's files are the owner's.
+# Each is found by a fixed name, by lstat, and opened without following a link.
+
+def size_words(n):
+    return "%d MB" % (n // MB) if n >= MB else "%d KB" % (n // 1024)
+
+
+def kind_of(path):
+    """"file", "dir", "other" (a link, a pipe) or None, by lstat."""
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return None
+    return "file" if stat.S_ISREG(st.st_mode) else "dir" if stat.S_ISDIR(st.st_mode) else "other"
+
+
+def open_plain(path, label, cap):
+    """A read-only descriptor of a regular file of at most `cap` bytes, found by lstat, opened without
+    following a link and checked to be the file lstat saw. A link, a folder or a pipe is refused."""
+    try:
+        st = os.lstat(path)
+    except OSError:
+        raise Problem("there is no %s" % label)
+    if not stat.S_ISREG(st.st_mode):
+        raise Problem("%s is not a plain file (a link or a folder is not taken)" % label)
+    if st.st_size > cap:
+        raise Problem("%s is larger than %s, the most that is taken" % (label, size_words(cap)))
+    try:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    except OSError:
+        raise Problem("%s could not be opened" % label)
+    fs = os.fstat(fd)
+    if not stat.S_ISREG(fs.st_mode) or (fs.st_dev, fs.st_ino) != (st.st_dev, st.st_ino):
+        os.close(fd)
+        raise Problem("%s changed while it was read" % label)
+    return fd
+
+
+def names_in(folder):
+    """The names in a folder, as listed (so in their own letter case); empty when it is not a plain folder."""
+    if kind_of(folder) != "dir":
+        return set()
+    out = set()
+    try:
+        with os.scandir(folder) as it:
+            for i, e in enumerate(it):
+                if i >= MAX_ROOM_LISTED:
+                    break
+                out.add(e.name)
+    except OSError:
+        return set()
+    return out
+
+
+def exactly_there(names, name):
+    """True when `name` is listed in exactly that letter case and no other entry folds to it (this disk ignores
+    letter case): the rule of the home server's lib/variants.mjs and lib/shotlist.mjs."""
+    low = name.lower()
+    folding = [n for n in names if n.lower() == low]
+    return len(folding) == 1 and folding[0] == name
+
+
+def owners_picture(name, room_only=False):
+    """The path of a file of exactly this name, letter case too, in the room, or (unless `room_only`) in the
+    company's files (knowledge/docs and the folders directly in it); None when there is none. Found by
+    listing, so a name in another letter case is not this one."""
+    folders = [ROOM]
+    if not room_only:
+        folders.append(KNOWLEDGE)
+        folders += [os.path.join(KNOWLEDGE, s) for s in sorted(names_in(KNOWLEDGE))[:MAX_FOLDERS * 4]
+                    if kind_of(os.path.join(KNOWLEDGE, s)) == "dir"][:MAX_FOLDERS]
+    for folder in folders:
+        if exactly_there(names_in(folder), name):
+            return os.path.join(folder, name)
+    return None
+
+
+def open_picture_capped(path, label):
+    """A picture of the owner's, decoded as RGB. Refused before it is decoded when it is over 100 MB or
+    80 million pixels, or not a PNG, JPEG or WebP."""
+    from PIL import Image
+    import warnings
+    fd = open_plain(path, label, MAX_RENDER_BYTES)
+    Image.MAX_IMAGE_PIXELS = MAX_RENDER_PIXELS
+    with os.fdopen(fd, "rb") as fh, warnings.catch_warnings():
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+        try:
+            im = Image.open(fh, formats=("PNG", "JPEG", "WEBP"))
+            if im.width * im.height > MAX_RENDER_PIXELS:
+                raise Problem("%s is larger than 80 million pixels" % label)
+            im.load()
+            return im.convert("RGB")
+        except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+            raise Problem("%s is larger than 80 million pixels" % label)
+        except Problem:
+            raise
+        except Exception:
+            raise Problem("%s could not be read as a PNG, JPEG or WebP picture" % label)
+
+
+def check_folder(path, label):
+    """True when the folder is there, False when it is not; a Problem when a link or a file is in its place."""
+    k = kind_of(path)
+    if k is None:
+        return False
+    if k != "dir":
+        raise Problem("%s is not a folder here; remove it and run again" % label)
+    return True
+
+
+def make_folder(path, label):
+    if not check_folder(path, label):
+        os.mkdir(path)
+    return path
+
+
+def ratio_numbers(ratio):
+    a, b = ratio.split(":")
+    return int(a), int(b)
+
+
+def cover_rect(pw, ph, w, h):
+    """The part of a pw x ph picture that, scaled, just covers w x h: the largest centred rectangle of the
+    box's shape. The same as kit.cover_rect, so the brand check finds a render where a board put it."""
+    if pw * h > ph * w:
+        cw, ch = ph * w / float(h), float(ph)
+    else:
+        cw, ch = float(pw), pw * h / float(w)
+    x, y = (pw - cw) / 2.0, (ph - ch) / 2.0
+    return (x, y, x + cw, y + ch)
+
+
+def jpeg_under(im, limit, what):
+    """The picture as a JPEG of quality 90, else 80, 70 or 60: the first of at most `limit` bytes."""
+    rgb = im.convert("RGB")
+    for q in JPEG_STEPS:
+        buf = io.BytesIO()
+        rgb.save(buf, "JPEG", quality=q)
+        if buf.tell() <= limit:
+            return buf.getvalue()
+    raise Problem("%s is still larger than %.1f MB as a JPEG of quality %d, so the generation door would refuse "
+                  "it; make it smaller" % (what, limit / 1e6, JPEG_STEPS[-1]))
+
+
+def and_list(items):
+    items = list(items)
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+# --- A film's treatment: its shotlist ----------------------------------------------------
+# The shape, THE list the home server's lib/shotlist.mjs reads (PLAN-V5 T41b), word for word:
+#   `title` 1 to 120 characters on one line; `seconds` whole, 5 to 120; `ratio` one of `1280:720`,
+#   `720:1280`, `1104:832`, `832:1104`, `960:960`, `1584:672`; `shots` 1 to 12, ids `s01`, `s02`, … in order
+#   with no gap (`^s(0[1-9]|1[0-2])$`); each shot: `render` (`^[A-Za-z0-9][A-Za-z0-9 ._()-]{0,99}$`, and for
+#   `image_to_video` a regular file of exactly that name, in that letter case, in `<state>/media/room/`, by
+#   listing and `lstat`), `seconds` whole 2 to 10, `move` one line of at most 200, `prompt` 1 to 1000
+#   characters with no control character but a line break, `kind` `image_to_video` or `text_to_video` (the
+#   second only with `allowWords`), `best` true or false (absent is false); shot seconds add up to at most
+#   120; optional `cards` `{ title, end }` (each at most 120) and `captions` (at most 24 of at most 120);
+#   other keys ignored.
+# Here, as lib/shotlist.mjs reads the same words: `allowWords` is the owner's answer to the job's question,
+# which only the home server reads, so the board draws a `text_to_video` shot whatever it was; a
+# `text_to_video` shot has no render, so its `render` may be left out or null, and when it is given it is held
+# to the pattern only; "one line" is no control character and no line or paragraph separator; a title or a
+# prompt is not only spaces; the line break a prompt may hold is "\n"; lengths are counted as JavaScript
+# counts them (UTF-16 units); a whole number may be written 5.0.
+
+def units(text):
+    return len(text.encode("utf-16-le")) // 2
+
+
+def one_line(v, lo, hi):
+    return isinstance(v, str) and lo <= units(v) <= hi and not LINE_BREAKERS.search(v) and (lo == 0 or v.strip() != "")
+
+
+def whole_in(v, lo, hi):
+    """v as an int when it is a whole number from lo to hi (5 and 5.0 alike), else None."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v != int(v):
+        return None
+    return int(v) if lo <= v <= hi else None
+
+
+def check_shotlist(raw):
+    """The shotlist checked against the list above: {"title", "seconds", "ratio", "shots": [{"id", "render",
+    "seconds", "move", "prompt", "kind", "best"}]}, or a Problem in one sentence naming the shot and the
+    field. Agent text is in it only as a render's name that passed its pattern."""
+    if not isinstance(raw, dict):
+        raise Problem("the shotlist must be one object: {title, seconds, ratio, shots}")
+    title = raw.get("title")
+    if not one_line(title, 1, 120):
+        raise Problem("the shotlist's `title` must be 1 to 120 characters on one line")
+    seconds = whole_in(raw.get("seconds"), 5, MAX_SECONDS)
+    if seconds is None:
+        raise Problem("the shotlist's `seconds` must be a whole number from 5 to %d" % MAX_SECONDS)
+    if raw.get("ratio") not in VIDEO_RATIOS:
+        raise Problem("the shotlist's `ratio` must be one of %s" % ", ".join(VIDEO_RATIOS))
+    shots = raw.get("shots")
+    if not isinstance(shots, list) or not 1 <= len(shots) <= MAX_FILM_SHOTS:
+        raise Problem("the shotlist's `shots` must hold 1 to %d shots%s" % (
+            MAX_FILM_SHOTS, "; it has %d" % len(shots) if isinstance(shots, list) else ""))
+    out, total = [], 0
+    for i, s in enumerate(shots):
+        sid = "s%02d" % (i + 1)
+        if not isinstance(s, dict):
+            raise Problem("shot %s must be {id, render, seconds, move, prompt, kind, best}" % sid)
+        if s.get("id") != sid or not SHOT_ID.match(sid):
+            raise Problem("shot %d's `id` must be %s: the ids run s01, s02 and on, in order with no gap" % (i + 1, sid))
+        kind = s.get("kind")
+        if kind not in SHOT_KINDS:
+            raise Problem("shot %s: `kind` must be image_to_video or text_to_video" % sid)
+        render = s.get("render")
+        if not (render is None and kind == "text_to_video") and \
+                (not isinstance(render, str) or not RENDER_NAME.match(render)):
+            raise Problem("shot %s: `render` must be the bare name of a picture in the room, such as "
+                          "tower-dusk.png: letters, digits, spaces and . _ ( ) -, at most 100 characters" % sid)
+        sec = whole_in(s.get("seconds"), 2, 10)
+        if sec is None:
+            raise Problem("shot %s: `seconds` must be a whole number from 2 to 10" % sid)
+        move = s.get("move")
+        if not one_line(move, 0, 200):
+            raise Problem("shot %s: `move` must be one line of at most 200 characters" % sid)
+        prompt = s.get("prompt")
+        if not isinstance(prompt, str) or not 1 <= units(prompt) <= 1000 or not prompt.strip() \
+                or LINE_BREAKERS.search(prompt.replace("\n", "")):
+            raise Problem("shot %s: `prompt` must be 1 to 1000 characters with no control character but a "
+                          "line break" % sid)
+        best = s.get("best", False)
+        if not isinstance(best, bool):
+            raise Problem("shot %s: `best` must be true or false" % sid)
+        total += sec
+        out.append({"id": sid, "render": render, "seconds": sec, "move": move, "prompt": prompt,
+                    "kind": kind, "best": best})
+    if total > MAX_SECONDS:
+        raise Problem("the shots last %d seconds together; at most %d" % (total, MAX_SECONDS))
+    cards = raw.get("cards")
+    if cards is not None and (not isinstance(cards, dict) or any(
+            cards.get(k) is not None and not one_line(cards[k], 0, 120) for k in CARDS)):
+        raise Problem("the shotlist's `cards` must be {title, end}, each one line of at most 120 characters")
+    captions = raw.get("captions")
+    if captions is not None and (not isinstance(captions, list) or len(captions) > 24 or any(
+            not one_line(c, 0, 120) for c in captions)):
+        raise Problem("the shotlist's `captions` must be a list of at most 24, each one line of at most 120 "
+                      "characters")
+    return {"title": title, "seconds": seconds, "ratio": raw["ratio"], "shots": out}
+
+
+def read_shotlist(arg, cwd):
+    """The shotlist named on the command line, a plain file of at most 32 KB in this folder, checked."""
+    plain_name(arg, (".json",), "shotlist")
+    fd = open_plain(os.path.join(cwd, arg), "shotlist named %s here" % arg, MAX_SHOTLIST_BYTES)
+    with os.fdopen(fd, "rb") as fh:
+        data = fh.read(MAX_SHOTLIST_BYTES + 1)
+    try:
+        raw = json.loads(data.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError) as e:
+        raise Problem("%s is not valid JSON: %s" % (arg, str(e).splitlines()[0][:160]))
+    return check_shotlist(raw)
+
+
+def renders_of(shotlist):
+    """{shot id: path} of each image_to_video shot's render: a file of exactly that name, letter case too, in
+    the room (by listing, then lstat when it is opened). A missing render names its shot."""
+    out = {}
+    for s in shotlist["shots"]:
+        if s["kind"] != "image_to_video":
+            continue
+        path = owners_picture(s["render"], room_only=True)
+        if path is None:
+            raise Problem("shot %s: there is no render named %s in the room (the name must match exactly, "
+                          "letter case too)" % (s["id"], json.dumps(s["render"])))
+        if kind_of(path) != "file":
+            raise Problem("shot %s: the render %s in the room is not a plain file" % (s["id"], json.dumps(s["render"])))
+        out[s["id"]] = path
+    return out
+
+
+# --- board: a storyboard still per shot -------------------------------------------------
+
+def board_size(ratio):
+    """A board's size: the film's ratio with its long side 1280 px and even sides (1280 x 720, 720 x 1280)."""
+    rw, rh = ratio_numbers(ratio)
+    if rw >= rh:
+        return BOARD_LONG, int(BOARD_LONG * rh / float(rw)) // 2 * 2
+    return int(BOARD_LONG * rw / float(rh)) // 2 * 2, BOARD_LONG
+
+
+def fit_line(text, measure, max_w):
+    """The text, cut with an ellipsis where it is wider than max_w."""
+    if measure(text) <= max_w:
+        return text
+    lo, hi = 0, len(text)
+    while lo < hi:                       # the longest start that fits with the ellipsis
+        mid = (lo + hi + 1) // 2
+        if measure(text[:mid].rstrip() + "…") <= max_w:
+            lo = mid
+        else:
+            hi = mid - 1
+    return text[:lo].rstrip() + "…"
+
+
+def board_type(kit, w, h, band):
+    """(font, ink, back, margin) for a board's band: with a kit its body face, in its text colour (its main
+    colour when it has none) on its background colour, at no less than its smallest size for slides; with
+    none, today's caption type and colours. Refused when the words cannot fit the band."""
+    size = max(14, min(96, h // 16))         # a caption's own size (caption_picture)
+    if kit is not None:
+        _, ink, back = brand_colours(kit)
+        size, floor = max(size, kit.min_slide_px), kit.min_slide_px
+        make, margin = (lambda s: kit.font("body", s)), max(2, kit.margin(w))
+    else:
+        ink, back = (250, 250, 250), (12, 12, 16)
+        floor = min(size, CAPTION_MIN_PX)
+        make, margin = (lambda s: font(None, s)), int(w * 0.04)
+    while True:
+        f = make(size)
+        asc, desc = f.getmetrics()
+        if asc + desc <= band or size <= floor:
+            break
+        size = max(floor, int(size * 0.9))
+    if asc + desc > band:
+        raise Problem("the brand kit's smallest size for slides and videos (%d px) does not fit a board's band, "
+                      "%d px high; ask the owner to lower it in the brand kit" % (size, band))
+    return f, ink, back, margin
+
+
+def draw_board(shot, pic, w, h, band, kind):
+    """One board: the render cover-fitted into [0, 0, w, h - band], and the band under it with
+    `s01 · 5 s · <move>`. A shot made from words alone is the band colour whole, with that said above the
+    band."""
+    from PIL import Image, ImageDraw
+    f, ink, back, margin = kind
+    im = Image.new("RGB", (w, h), back)
+    if pic is not None:
+        im.paste(pic.resize((w, h - band), Image.LANCZOS, box=cover_rect(pic.width, pic.height, w, h - band)), (0, 0))
+    d = ImageDraw.Draw(im)
+    measure = lambda t: d.textlength(t, font=f)    # noqa: E731
+    asc, desc = f.getmetrics()
+    move = " ".join(shot["move"].split())
+    words = "%s · %d s" % (shot["id"], shot["seconds"]) + (" · " + move if move else "")
+    d.text((margin, h - band + (band - asc - desc) // 2), fit_line(words, measure, w - 2 * margin), font=f, fill=ink)
+    if pic is None:
+        alone = fit_line(WORDS_ALONE, measure, w - 2 * margin)
+        d.text((int((w - measure(alone)) / 2), (h - band - asc - desc) // 2), alone, font=f, fill=ink)
+    return im
+
+
+def cmd_board(args, cwd, goal):
+    if len(args) != 1:
+        raise Problem("give the shotlist, for example: video.py board shotlist.json")
+    shotlist = read_shotlist(args[0], cwd)
+    kit = load_brand_kit()
+    check_free(free_bytes_at(cwd))
+    cap = output_cap(goal)
+    renders = renders_of(shotlist)
+    folder = os.path.join(cwd, "board")
+    check_folder(folder, "board")
+    w, h = board_size(shotlist["ratio"])
+    band = int(round(h * BOARD_BAND))
+    kind = board_type(kit, w, h, band)
+    boards, pictures = [], []
+    for i, s in enumerate(shotlist["shots"]):
+        remaining()
+        pic = None
+        if s["id"] in renders:
+            pic = open_picture_capped(renders[s["id"]], "shot %s's render %s" % (s["id"], json.dumps(s["render"])))
+            pictures.append({"frame": "shot-%02d" % (i + 1), "box": [0, 0, w, h - band], "source": s["render"]})
+        buf = io.BytesIO()
+        draw_board(s, pic, w, h, band, kind).save(buf, "PNG")
+        boards.append(buf.getvalue())
+    manifest = json_bytes({"kind": "board", "made_by": "board", "title": shotlist["title"],
+                           "ratio": shotlist["ratio"], "shots": len(boards), "pictures": pictures, "logo": []})
+    if sum(len(b) for b in boards) + len(manifest) > cap:
+        raise Problem("the boards would be larger than what is left of the goal's 2 GB")
+    make_folder(folder, "board")
+    for i, data in enumerate(boards):
+        write_atomic(os.path.join(folder, "shot-%02d.png" % (i + 1)), data)
+    for i in range(len(boards) + 1, MAX_FILM_SHOTS + 1):    # a board of an earlier, longer list goes
+        old = os.path.join(folder, "shot-%02d.png" % i)
+        if kind_of(old) not in (None, "dir"):
+            os.remove(old)
+    write_atomic(os.path.join(cwd, "manifest.json"), manifest)
+    n = len(boards)
+    return "board: %s, wrote board/shot-01.png%s." % (plural(n, "shot"), " to shot-%02d.png" % n if n > 1 else "")
+
+
+# --- inputs and fit: pictures made small enough for the generation door -------------------
+
+def cmd_inputs(args, cwd, goal):
+    from PIL import Image
+    if len(args) != 1:
+        raise Problem("give the shotlist, for example: video.py inputs shotlist.json")
+    shotlist = read_shotlist(args[0], cwd)
+    check_free(free_bytes_at(cwd))
+    cap = output_cap(goal)
+    renders = renders_of(shotlist)
+    folder = os.path.join(cwd, "inputs")
+    check_folder(folder, "inputs")
+    rw, rh = ratio_numbers(shotlist["ratio"])
+    made = []
+    for s in shotlist["shots"]:
+        if s["id"] not in renders:
+            continue
+        remaining()
+        pic = open_picture_capped(renders[s["id"]], "shot %s's render %s" % (s["id"], json.dumps(s["render"])))
+        box = cover_rect(pic.width, pic.height, rw, rh)
+        scale = min(1.0, rw / (box[2] - box[0]))      # down to the ratio's own size, never up
+        size = (max(1, int(round((box[2] - box[0]) * scale))), max(1, int(round((box[3] - box[1]) * scale))))
+        im = pic.resize(size, Image.LANCZOS, box=box)
+        made.append((s["id"], jpeg_under(im, INPUT_MAX_BYTES, "the picture for shot %s" % s["id"])))
+    if not made:
+        return "inputs: no shot is made from a render, so no picture was written."
+    if sum(len(d) for _, d in made) > cap:
+        raise Problem("the pictures would be larger than what is left of the goal's 2 GB")
+    make_folder(folder, "inputs")
+    for sid, data in made:
+        write_atomic(os.path.join(folder, sid + ".jpg"), data)
+    return "inputs: %s, wrote inputs/%s." % (plural(len(made), "picture"), and_list(sid + ".jpg" for sid, _ in made))
+
+
+def cmd_fit(args, cwd, goal):
+    from PIL import Image
+    usage = ("give a picture and a name for what is made, for example: "
+             "video.py fit tower-dusk.jpg tower --ratio 1280:720 --long 1920")
+    names, ratio, long_side, i = [], None, FIT_LONG, 0
+    while i < len(args):
+        a = args[i]
+        if a in ("--ratio", "--long"):
+            if i + 1 >= len(args):
+                raise Problem("%s needs a value; %s" % (a, usage))
+            v = args[i + 1]
+            i += 2
+            if a == "--ratio":
+                if v not in VIDEO_RATIOS + STILL_RATIOS:
+                    raise Problem("--ratio must be one of Runway's: %s" % ", ".join(
+                        sorted(set(VIDEO_RATIOS + STILL_RATIOS), key=lambda r: ratio_numbers(r))))
+                ratio = v
+            else:
+                if not re.match(r"^[0-9]{1,5}$", v) or not FIT_LONG_MIN <= int(v) <= FIT_LONG_MAX:
+                    raise Problem("--long must be a whole number of pixels from %d to %d" % (FIT_LONG_MIN, FIT_LONG_MAX))
+                long_side = int(v)
+        elif a.startswith("-"):
+            raise Problem(usage)
+        else:
+            names.append(a)
+            i += 1
+    if len(names) != 2:
+        raise Problem(usage)
+    picture, out = names
+    if not RENDER_NAME.match(picture) or not picture.lower().endswith(PICTURE_ENDINGS):
+        raise Problem("give the picture's bare name in the room or the company's files, ending .png, .jpg, "
+                      ".jpeg or .webp")
+    if not FIT_NAME.match(out):
+        raise Problem("the name for what is made may only use a to z, 0 to 9 and -, start with a letter or digit, "
+                      "at most 36 characters")
+    check_free(free_bytes_at(cwd))
+    cap = output_cap(goal)
+    path = owners_picture(picture)
+    if path is None:
+        raise Problem("there is no picture named %s in the room or the company's files (the name must match "
+                      "exactly, letter case too)" % json.dumps(picture))
+    folder = os.path.join(cwd, "inputs")
+    check_folder(folder, "inputs")
+    pic = open_picture_capped(path, "the picture %s" % json.dumps(picture))
+    box = cover_rect(pic.width, pic.height, *ratio_numbers(ratio)) if ratio else (0, 0, pic.width, pic.height)
+    bw, bh = box[2] - box[0], box[3] - box[1]
+    scale = min(1.0, long_side / float(max(bw, bh)))     # the long side at most N, never larger than it was
+    size = (max(1, int(round(bw * scale))), max(1, int(round(bh * scale))))
+    if min(size) < MIN_SHORT_SIDE:
+        raise Problem("the picture would be %d × %d; its short side must be at least %d px, so give a larger "
+                      "--long or another ratio" % (size[0], size[1], MIN_SHORT_SIDE))
+    data = jpeg_under(pic.resize(size, Image.LANCZOS, box=box), INPUT_MAX_BYTES, "the picture")
+    if len(data) > cap:
+        raise Problem("the picture would be larger than what is left of the goal's 2 GB")
+    make_folder(folder, "inputs")
+    write_atomic(os.path.join(folder, out + ".jpg"), data)
+    return "fit: wrote inputs/%s.jpg, %d × %d, %d KB." % (out, size[0], size[1], max(1, len(data) // 1024))
+
+
+# --- clipstills: a clip's six stills --------------------------------------------------------
+
+def check_clip(path, label, ffprobe):
+    """A clip the generation door made: a plain file (not a link) of at most 300 MB, an MP4 (`ftyp` at byte
+    4) with a picture, at most 12 seconds long. Its probe."""
+    fd = open_plain(path, label, MAX_OUTPUT_BYTES)
+    try:
+        head = os.read(fd, 12)
+    finally:
+        os.close(fd)
+    if len(head) < 12 or head[4:8] != b"ftyp":
+        raise Problem("%s is not an MP4" % label)
+    info = probe(path, ffprobe)
+    if not info["video"]:
+        raise Problem("%s has no picture" % label)
+    if info["duration"] > MAX_CLIP_SECONDS + 0.05:
+        raise Problem("%s is %.1f seconds long; a clip is at most %d seconds"
+                      % (label, info["duration"], MAX_CLIP_SECONDS))
+    return info
+
+
+def cmd_clipstills(args, cwd, goal):
+    if len(args) != 1 or not CLIP_ID.match(args[0]):
+        raise Problem("give one clip's id, such as s01-t1: its shot, s01 to s12, and its take, t1 to t5")
+    cid = args[0]
+    ffmpeg, ffprobe = runnable("UUU_FFMPEG"), runnable("UUU_FFPROBE")
+    check_free(free_bytes_at(cwd))
+    output_cap(goal)
+    clips = os.path.join(cwd, "clips")
+    if kind_of(clips) != "dir":
+        raise Problem("there is no clips folder here (a link is not taken); a clip is kept as clips/%s.mp4" % cid)
+    path = os.path.join(clips, cid + ".mp4")
+    info = check_clip(path, "clip clips/%s.mp4" % cid, ffprobe)
+    out = os.path.join(clips, cid)
+    check_folder(out, "clips/" + cid)
+    stills = still_pngs(path, ffmpeg, info["duration"])
+    make_folder(out, "clips/" + cid)
+    for i, data in enumerate(stills):
+        write_atomic(os.path.join(out, "frame-%02d.png" % (i + 1)), data)
+    return "clipstills: %.1f seconds of %s.mp4, wrote clips/%s/frame-01.png to frame-%02d.png." % (
+        info["duration"], cid, cid, STILLS)
+
+
+# --- film: the edit, from the clips the door made ---------------------------------------------
+
+FILM_KEYS = ("film", "clips", "fade", "cards", "caption_style", "title", "sound")
+
+
+def check_film(spec, goal, name, kit, ffprobe):
+    """Everything about the edit, checked before ffmpeg starts: the treatment and its clips by fixed names,
+    the pieces, the fade, the length with the cards, the sound."""
+    if not isinstance(spec, dict):
+        raise Problem("the film file must be {film, clips}")
+    extra = set(spec) - set(FILM_KEYS)
+    if extra:
+        raise Problem("the film file has keys it does not have: %s" % ", ".join(sorted(map(str, extra))[:5]))
+    cards = check_cards(spec["cards"], kit) if "cards" in spec else None
+    title = check_title(spec.get("title"), name)
+    style = check_caption_style(spec.get("caption_style"), kit)
+    film = spec.get("film")
+    if not isinstance(film, str) or not NAME.match(film):
+        raise Problem("`film` must be the name of the treatment's folder, film/<name>: a to z, 0 to 9 and -")
+    clips = spec.get("clips")
+    if not isinstance(clips, list) or not 1 <= len(clips) <= MAX_FILM_CLIPS:
+        raise Problem("`clips` must be a list of 1 to %d clips" % MAX_FILM_CLIPS)
+    fade = spec.get("fade", 0.5)
+    if not number(fade) or not 0 <= fade <= 1:
+        raise Problem("`fade` must be from 0 to 1 second")
+    asked = []
+    for i, c in enumerate(clips):
+        if not isinstance(c, dict):
+            raise Problem("clip %d must be {clip, from, to, caption}" % (i + 1))
+        extra = set(c) - {"clip", "from", "to", "caption"}
+        if extra:
+            raise Problem("clip %d has keys a clip does not have: %s" % (i + 1, ", ".join(sorted(map(str, extra))[:5])))
+        if not isinstance(c.get("clip"), str) or not CLIP_ID.match(c["clip"]):
+            raise Problem("clip %d must name a clip of the treatment by its id, such as s01-t1, never by a path" % (i + 1))
+        for k in ("from", "to"):
+            if k in c and not number(c[k]):
+                raise Problem("clip %d (%s): `%s` must be a number of seconds" % (i + 1, c["clip"], k))
+        cap = c.get("caption")
+        if cap is not None:
+            if not isinstance(cap, str) or len(cap) > MAX_CAPTION or "\n" in cap.strip():
+                raise Problem("the caption of clip %d must be one line of at most %d characters" % (i + 1, MAX_CAPTION))
+            cap = " ".join(cap.split()) or None
+        asked.append({"clip": c["clip"], "from": c.get("from"), "to": c.get("to"), "caption": cap})
+    sound = spec.get("sound")
+    if sound is not None and (not isinstance(sound, str) or not RENDER_NAME.match(sound)
+                              or not sound.lower().endswith(SOUND_ENDINGS)):
+        raise Problem("`sound` must be the bare name of a .mp3, .m4a or .wav in the room, or null")
+
+    # The treatment and its clips: by fixed names under this goal, never through a link.
+    treatment = os.path.join(goal, "film", film)
+    if kind_of(os.path.join(goal, "film")) != "dir" or kind_of(treatment) != "dir":
+        raise Problem("there is no treatment folder film/%s in this goal (a link is not taken)" % film)
+    if kind_of(os.path.join(treatment, "clips")) != "dir":
+        raise Problem("film/%s has no clips folder (a link is not taken)" % film)
+    probes, pieces = {}, []
+    for i, c in enumerate(asked):
+        path = os.path.join(treatment, "clips", c["clip"] + ".mp4")
+        if c["clip"] not in probes:
+            probes[c["clip"]] = check_clip(path, "clip film/%s/clips/%s.mp4" % (film, c["clip"]), ffprobe)
+        info = probes[c["clip"]]
+        a = float(c["from"]) if c["from"] is not None else 0.0
+        b = float(c["to"]) if c["to"] is not None else info["duration"]
+        if not 0 <= a < b <= info["duration"] + 0.05:
+            raise Problem("clip %d (%s): `from` and `to` must lie inside its %.1f seconds, `from` before `to`"
+                          % (i + 1, c["clip"], info["duration"]))
+        b = min(b, info["duration"])
+        if b - a < 1.0:
+            raise Problem("clip %d (%s) keeps %.1f seconds; each piece is at least 1 second" % (i + 1, c["clip"], b - a))
+        pieces.append({"clip": c["clip"], "path": path, "from": a, "to": b, "caption": c["caption"], "info": info})
+    first = pieces[0]["info"]["video"]
+    w, h = fit(int(first.get("width") or 0) or 2, int(first.get("height") or 0) or 2)
+    fps = int(round(pieces[0]["info"]["fps"])) if pieces[0]["info"]["fps"] else 30
+    fps = max(1, min(MAX_FPS, fps))
+    # Every length is whole frames, so the crossfades fall on frames and the length is exact.
+    for p in pieces:
+        p["frames"] = int(math.floor((p["to"] - p["from"]) * fps + 1e-6))
+        p["seconds"] = p["frames"] / float(fps)
+    fade_frames = int(round(fade * fps)) if len(pieces) > 1 else 0
+    shortest = min(p["seconds"] for p in pieces)
+    if fade_frames and fade_frames / float(fps) > shortest / 2.0 + 1e-9:
+        raise Problem("`fade` of %.2f seconds is more than half the shortest piece (%.1f seconds)" % (fade, shortest))
+    main = sum(p["frames"] for p in pieces) - fade_frames * (len(pieces) - 1)
+    total = main / float(fps) + sum(c["seconds"] for c in (cards or {}).values())
+    if total > MAX_SECONDS:
+        raise Problem("the film and its cards last %.1f seconds; at most %d seconds is allowed" % (total, MAX_SECONDS))
+    sound_path, sound_seconds = None, 0.0
+    if sound is not None:
+        sound_path = owners_picture(sound, room_only=True)
+        if sound_path is None:
+            raise Problem("there is no sound named %s in the room (the name must match exactly, letter case too)"
+                          % json.dumps(sound))
+        os.close(open_plain(sound_path, "the sound %s" % json.dumps(sound), MAX_SOURCE_BYTES))
+        info = probe(sound_path, ffprobe)
+        if not info["audio"]:
+            raise Problem("the sound %s has no sound in it" % json.dumps(sound))
+        if info["duration"] > MAX_SOURCE_SECONDS + 0.5:
+            raise Problem("the sound is %d seconds long; at most 5 minutes is taken" % int(info["duration"]))
+        sound_seconds = info["duration"]
+    return {"film": film, "title": title, "style": style, "cards": cards, "pieces": pieces, "w": w, "h": h,
+            "fps": fps, "fade_frames": fade_frames, "main_frames": main, "sound": sound_path,
+            "sound_seconds": sound_seconds}
+
+
+def film_timeline(pieces, fade):
+    """(starts, spans, captions) in seconds on the film's own timeline: where each piece starts, its stretch on
+    screen alone (outside the crossfades: for the poster), and each caption [from, to, text], on screen up to
+    but not including its end and changing at the middle of a crossfade."""
+    starts, at = [], 0.0
+    for p in pieces:
+        starts.append(at)
+        at += p["seconds"] - fade
+    end = at + fade
+    last = len(pieces) - 1
+    spans = [[a + (fade if i else 0.0), a + p["seconds"] - (fade if i < last else 0.0)]
+             for i, (a, p) in enumerate(zip(starts, pieces))]
+    caps = []
+    for i, p in enumerate(pieces):
+        if p["caption"]:
+            caps.append([starts[i] + fade / 2.0 if i else 0.0,
+                         starts[i + 1] + fade / 2.0 if i < last else end, p["caption"]])
+    return starts, spans, caps
+
+
+def cmd_film(args, cwd, goal):
+    if len(args) != 1:
+        raise Problem("give one film file, for example: video.py film launch.json")
+    name = plain_name(args[0], (".json",), "film file")
+    spec = read_json_file(args[0], cwd, "film file")
+    kit = load_brand_kit()
+    ffmpeg, ffprobe = runnable("UUU_FFMPEG"), runnable("UUU_FFPROBE")
+    f = check_film(spec, goal, name, kit, ffprobe)
+    check_free(free_bytes_at(cwd))
+    cap = output_cap(goal)
+    w, h, fps, pieces = f["w"], f["h"], f["fps"], f["pieces"]
+    fade = f["fade_frames"] / float(fps)
+    starts, spans, caps = film_timeline(pieces, fade)
+    main_seconds = f["main_frames"] / float(fps)
+
+    cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostats", "-nostdin", "-y"]
+    parts = []
+    for i, p in enumerate(pieces):
+        # Each piece: cut, cover-cropped to the film's size, at its rate, exactly its frames (the last one
+        # held when the clip ends a frame short). The clips' own sound is never taken.
+        cmd += ["-i", p["path"]]
+        parts.append("[%d:v]setpts=PTS-STARTPTS,trim=start=%.3f:end=%.3f,setpts=PTS-STARTPTS,"
+                     "scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,setsar=1,fps=%d,format=yuv420p,"
+                     "tpad=stop_mode=clone:stop=2,trim=end_frame=%d,setpts=PTS-STARTPTS[p%d]"
+                     % (i, p["from"], p["from"] + p["seconds"] + 2.0 / fps, w, h, w, h, fps, p["frames"], i))
+    n_in = len(pieces)
+    if len(pieces) == 1:
+        last = "p0"
+    elif f["fade_frames"]:
+        last = "p0"
+        for k in range(1, len(pieces)):
+            parts.append("[%s][p%d]xfade=transition=fade:duration=%.6f:offset=%.6f[x%d]"
+                         % (last, k, fade, starts[k], k))
+            last = "x%d" % k
+    else:
+        parts.append("%sconcat=n=%d:v=1:a=0[x0]" % ("".join("[p%d]" % i for i in range(len(pieces))), len(pieces)))
+        last = "x0"
+    if caps:
+        cdir = temp_path(cwd, name + "-captions", "")
+        os.mkdir(cdir)
+        for i, (s, e, text) in enumerate(caps):
+            p = os.path.join(cdir, "%03d.png" % i)
+            caption_picture(text, w, h, f["style"]).save(p, "PNG")
+            cmd += ["-i", p]
+            parts.append("[%s][%d:v]overlay=0:0:enable='%s'[c%d]" % (last, n_in, caption_enable(s, e), i))
+            n_in += 1
+            last = "c%d" % i
+    made, brand = make_cards(kit, w, h, fps, f["cards"]) if kit is not None else ({}, None)
+    if made:   # the cards go before and after the film as still pictures, as `cut` puts them
+        for which in CARDS:
+            if which not in made:
+                continue
+            p = temp_path(cwd, "%s-%s-card" % (name, which), ".png")
+            with open(p, "wb") as fh:
+                fh.write(made[which]["png"])
+            cmd += ["-loop", "1", "-framerate", str(fps), "-t", "%.3f" % card_seconds(made, which, fps), "-i", p]
+            parts.append("[%d:v]fps=%d,format=yuv420p,setsar=1[k%s]" % (n_in, fps, which))
+            n_in += 1
+        parts.append("[%s]setsar=1[main]" % last)
+        joined = "".join("[%s]" % x for x in (["ktitle"] if "title" in made else []) + ["main"]
+                         + (["kend"] if "end" in made else []))
+        parts.append("%sconcat=n=%d:v=1:a=0[carded]" % (joined, len(made) + 1))
+        last = "carded"
+    lead = card_seconds(made, "title", fps)
+    length = (f["main_frames"] + sum(c["frames"] for c in made.values())) / float(fps)
+    if f["sound"]:
+        # The sound from the start of the title card, cut to the film's length and fading over the last second
+        # it plays; a shorter sound is followed by silence.
+        heard = min(length, f["sound_seconds"])
+        cmd += ["-i", f["sound"]]
+        parts.append("[%d:a]atrim=end=%.3f,asetpts=PTS-STARTPTS,afade=t=out:st=%.3f:d=%.3f,apad=whole_dur=%.3f,"
+                     "atrim=end=%.3f[snd]" % (n_in, length, max(0.0, heard - 1.0), min(1.0, heard), length, length))
+        n_in += 1
+    tmp = temp_path(cwd, name, ".mp4")
+    cmd += ["-filter_complex", ";".join(parts), "-map", "[%s]" % last]
+    if f["sound"]:
+        cmd += ["-map", "[snd]", "-c:a", "aac", "-b:a", "160k"]
+    cmd += x264_args(cap) + [tmp]
+    run(cmd, "ffmpeg")
+    used = [{"clip": p["clip"], "from": round(p["from"], 3), "to": round(p["from"] + p["seconds"], 3)} for p in pieces]
+    # `captions`: the words drawn on the picture, as drawn, for the brand check's word rules (written with the
+    # video, so a film file changed afterwards does not change what is checked).
+    line = finish(cwd, name, tmp, f["title"], "film", args[0], w, h, fps, length, ffmpeg, ffprobe,
+                  spans=[[a + lead, b + lead] for a, b in spans],
+                  boundaries=[t + lead for s, e, _ in caps for t in (s, e)],
+                  brand=brand, cards=card_files(made),
+                  extra={"film": f["film"], "clips": used, "captions": [text for _, _, text in caps]})
+    return line[:-1] + "; %s from film/%s." % (plural(len(pieces), "clip"), f["film"])
+
+
+COMMANDS = {"render": cmd_render, "reveal": cmd_reveal, "words": cmd_words, "cut": cmd_cut, "stills": cmd_stills,
+            "film": cmd_film, "board": cmd_board, "inputs": cmd_inputs, "fit": cmd_fit,
+            "clipstills": cmd_clipstills}
+# Where each command runs (goal_folder): the film's treatment for board, inputs and clipstills; a treatment or
+# a still's folder for fit; <goal>/video/<name> for the rest, the film's edit among them.
+PLACES = {"board": ("film",), "inputs": ("film",), "clipstills": ("film",), "fit": ("film", "stills")}
 
 
 def main(argv):
@@ -1921,12 +2734,13 @@ def main(argv):
         return child_frames(argv[1])
     if not argv or argv[0] not in COMMANDS:
         sys.stderr.write("video: give a command: render <name>.py, reveal <name>.json, words <clip>, "
-                         "cut <name>.json or stills <name>.mp4\n")
+                         "cut <name>.json, stills <name>.mp4 or film <name>.json; in a film's treatment, "
+                         "board shotlist.json, inputs shotlist.json, fit <picture> <name> or clipstills <clip id>\n")
         return 1
     try:
         hold_limits()
         cwd = os.path.realpath(os.getcwd())
-        line = COMMANDS[argv[0]](argv[1:], cwd, goal_folder(cwd))
+        line = COMMANDS[argv[0]](argv[1:], cwd, goal_folder(cwd, places=PLACES.get(argv[0], ("video",))))
     except Problem as e:
         stop_children()
         remove_temps()

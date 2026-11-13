@@ -14,11 +14,13 @@ import io
 import json
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
+import zlib
 
 ART = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ART)
@@ -150,6 +152,16 @@ class BrandCheckBase(unittest.TestCase):
             if p["name"] == name:
                 return p
         self.fail("no piece %s in %s" % (name, [p["name"] for p in report["pieces"]]))
+
+    def measure(self):
+        """The check run in a child Python of its own: its exit code, report, seconds and peak memory (MEASURE)."""
+        script = os.path.join(self.root, "measure.py")
+        with open(script, "w") as fh:
+            fh.write(MEASURE)
+        r = subprocess.run([sys.executable, script, self.bin, self.state, self.work],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        return json.loads(r.stdout)
 
 
 class PaletteTest(BrandCheckBase):
@@ -460,6 +472,35 @@ class VideoAndFilmTest(BrandCheckBase):
         self.assertEqual(p["hard"][0]["where"], "title-card.png")
         self.assertEqual(codes(p, "soft"), ["footage_not_measured"])
 
+    def test_a_films_off_palette_poster_only_warns_and_the_same_poster_of_a_render_fails(self):
+        # PLAN-V5 C13: a film's edit shows Runway's footage of the owner's renders; its poster only warns.
+        self.video("edit", script=False, made_by="film", poster=self.with_patch(MAGENTA, 0.2))
+        self.video("drawn", script=False, made_by="render", poster=self.with_patch(MAGENTA, 0.2))
+        code, r = self.check()
+        edit = self.piece(r, "edit")
+        self.assertEqual((edit["result"], edit["hard"], codes(edit, "soft")), ("warn", [], ["off_palette"]))
+        self.assertEqual(edit["soft"][0]["where"], "poster.png")
+        self.assertIn("the film's footage", edit["soft"][0]["detail"])
+        drawn = self.piece(r, "drawn")
+        self.assertEqual((code, codes(drawn), drawn["hard"][0]["where"]), (1, ["off_palette"], "poster.png"))
+
+    def test_a_films_cards_stay_hard(self):
+        end = self.with_patch(MAGENTA, 0.2)
+        self.kit.place_logo(end, "bottom-right")
+        self.video("edit", script=False, made_by="film", poster=self.with_patch(MAGENTA, 0.2), cards={"end-card": end})
+        code, r = self.check()
+        p = self.piece(r, "edit")
+        self.assertEqual((code, codes(p), [e["where"] for e in p["hard"]]), (1, ["off_palette"], ["end-card.png"]))
+        self.assertEqual([e["where"] for e in p["soft"]], ["poster.png"])
+
+    def test_a_film_with_a_card_off_the_palette_or_without_its_logo_still_fails(self):
+        title = self.slide()
+        self.kit.place_logo(title, "bottom-right")
+        self.video("edit", script=False, made_by="film", cards={"title-card": title, "end-card": self.slide()})
+        code, r = self.check()
+        p = self.piece(r, "edit")
+        self.assertEqual((code, codes(p), [e["where"] for e in p["hard"]]), (1, ["no_logo"], ["end-card.png"]))
+
     def film(self, name, shots):
         board = os.path.join(self.goal, "film", name, "board")
         os.makedirs(board)
@@ -489,6 +530,49 @@ class VideoAndFilmTest(BrandCheckBase):
                         {"shots": [{"what": "Slow approach at dawn", "note": "Guaranteed to impress"}]})
         code, r = self.check()
         self.assertEqual((code, codes(self.piece(r, "walk"))), (1, ["banned_phrase"]))
+
+    def captioned(self, name, captions):
+        folder = self.video(name, script=False, made_by="film")
+        path = os.path.join(folder, "manifest.json")
+        with open(path, encoding="utf-8") as fh:
+            manifest = json.load(fh)
+        manifest.update(film="walk-a", clips=[{"clip": "s01-t1", "from": 0, "to": 3}], captions=captions)
+        self.write_json(path, manifest)
+        return folder
+
+    def test_a_films_captions_get_the_word_rules_from_its_manifest_and_its_film_file(self):
+        # PLAN-V5 T42b: `video.py film` records the captions it drew in its manifest; its film file has them in
+        # `clips`. Both are read as words, as a reveal's and a cut's captions are.
+        self.captioned("drawn", ["The door at dusk", "Best in town"])
+        spec = self.captioned("filed", ["The door at dusk"])
+        self.write_json(os.path.join(spec, "filed.json"), {"film": "walk-a", "clips": [
+            {"clip": "s01-t1", "caption": "The door at dusk"}, {"clip": "s02-t1", "caption": "Guaranteed calm"}]})
+        self.captioned("clean", ["The door at dusk", "The garden wall"])
+        code, r = self.check()
+        drawn, filed = self.piece(r, "drawn"), self.piece(r, "filed")
+        self.assertEqual((code, codes(drawn), drawn["hard"][0]["where"]), (1, ["banned_phrase"], "captions"))
+        self.assertIn('"best in town"', drawn["hard"][0]["detail"])
+        self.assertEqual((codes(filed), filed["hard"][0]["where"]), (["banned_phrase"], "filed.json"))
+        self.assertEqual(self.piece(r, "clean")["result"], "pass")
+
+    def test_every_board_to_shot_12_is_measured_and_only_in_its_exact_name(self):
+        self.film("long", [self.slide()] * 11 + [self.with_patch(MAGENTA, 0.2)])
+        self.film("cased", [self.slide(), self.with_patch(MAGENTA, 0.2)])
+        board = os.path.join(self.goal, "film", "cased", "board")
+        os.rename(os.path.join(board, "shot-02.png"), os.path.join(board, "Shot-02.png"))
+        code, r = self.check()
+        long = self.piece(r, "long")
+        self.assertEqual((code, codes(long), [e["where"] for e in long["hard"]]), (1, ["off_palette"], ["shot-12.png"]))
+        # The home server shows a board only in exactly its name (exactlyThere): Shot-02.png is never shown.
+        self.assertEqual(self.piece(r, "cased")["result"], "pass")
+
+    def test_two_boards_that_fold_to_one_name_cannot_be_checked(self):
+        self.film("twins", [self.slide(), self.slide()])
+        self.with_patch(MAGENTA, 0.3).save(os.path.join(self.goal, "film", "twins", "board", "ｓhot-02.png"))
+        code, r = self.check()
+        p = self.piece(r, "twins")
+        self.assertEqual((code, codes(p)), (1, ["could_not_check"]))
+        self.assertIn("shot-02.png", p["hard"][0]["detail"])
 
 
 class VariantsTest(BrandCheckBase):
@@ -807,15 +891,6 @@ class HostileSizeTest(BrandCheckBase):
         self.assertLess(os.path.getsize(os.path.join(folder, "slide-01.png")), 400 * 1024)
         self.write_json(os.path.join(folder, "manifest.json"), {"name": "wide", "pictures": claims})
 
-    def measure(self):
-        script = os.path.join(self.root, "measure.py")
-        with open(script, "w") as fh:
-            fh.write(MEASURE)
-        r = subprocess.run([sys.executable, script, self.bin, self.state, self.work],
-                           capture_output=True, text=True, timeout=60)
-        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
-        return json.loads(r.stdout)
-
     def test_a_huge_claimed_box_is_measured_without_a_huge_picture(self):
         self.wide_slide([{"slide": 1, "box": [0, 0, 50000, 1000], "source": "logo.png"}])
         m = self.measure()
@@ -853,6 +928,172 @@ class HostileSizeTest(BrandCheckBase):
         rect = kitmod.cover_rect(512, 512, 50000, 1000)
         self.assertEqual((rect[0], rect[2]), (0, 512))
         self.assertAlmostEqual(rect[3] - rect[1], 512 * 1000 / 50000.0)
+
+
+BOARD_BOX = [0, 0, 1280, 720 - int(round(720 * 0.14))]     # a 1280:720 board's render box (video.py board)
+
+
+def png_header(w, h):
+    """A PNG that says it is w x h and holds almost nothing: decoding it would be the bomb."""
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(b"\x00" * 64)) + chunk(b"IEND", b""))
+
+
+class RenderBoxTest(BrandCheckBase):
+    """PLAN-V5 T42b: a film's boards claim the owner's renders in the room, named as a shotlist names them and as
+    large as real renders are (to 100 MB and 80 million pixels). Each is decoded once, made small at once and
+    counted once against the run's pixels."""
+
+    def setUp(self):
+        super().setUp()
+        self.room = os.path.join(self.state, "media", "room")
+
+    def small(self, left, right, size):
+        """A picture of two flat halves of the render's shape, 1000 px wide: what the boards are drawn from."""
+        w, h = 1000, int(round(1000 * size[1] / float(size[0])))
+        im = Image.new("RGB", (w, h), left)
+        ImageDraw.Draw(im).rectangle([w // 2, 0, w - 1, h - 1], fill=right)
+        return im
+
+    def render(self, name, left=CLAY, right=INK, size=(1600, 1000), folder=None):
+        """A render of two flat halves saved in the room (or `folder`); its small likeness for the boards."""
+        big = Image.new("RGB", size, left)
+        ImageDraw.Draw(big).rectangle([size[0] // 2, 0, size[0] - 1, size[1] - 1], fill=right)
+        big.save(os.path.join(folder or self.room, name))
+        return self.small(left, right, size)
+
+    def board(self, treatment, shots):
+        """film/<treatment>/ as video.py board leaves it: per shot (render name, likeness) a 1280 x 720 board, the
+        render cover-fitted above the band in the kit's background colour, and a manifest claiming each box."""
+        folder = os.path.join(self.goal, "film", treatment)
+        os.makedirs(os.path.join(folder, "board"))
+        pictures = []
+        for i, (name, pic) in enumerate(shots):
+            im = Image.new("RGB", (1280, 720), SAND)
+            im.paste(kitmod.cover_fit(pic, BOARD_BOX[2], BOARD_BOX[3]), (0, 0))
+            im.save(os.path.join(folder, "board", "shot-%02d.png" % (i + 1)))
+            pictures.append({"frame": "shot-%02d" % (i + 1), "box": BOARD_BOX, "source": name})
+        self.write_json(os.path.join(folder, "manifest.json"), {
+            "kind": "board", "made_by": "board", "title": "A walk to the door", "ratio": "1280:720",
+            "shots": len(shots), "pictures": pictures, "logo": []})
+        return folder
+
+    def test_a_render_named_with_spaces_and_brackets_is_verified_in_exactly_its_letter_case(self):
+        pic = self.render("Ridge House (dusk) 01.png")
+        self.board("walk-a", [("Ridge House (dusk) 01.png", pic)])
+        self.board("walk-b", [("ridge house (dusk) 01.png", pic)])     # another letter case: not the render
+        slide = self.slide()                       # a slide's claims keep the company pictures' rule
+        slide.paste(kitmod.cover_fit(pic, 1080, 900), (0, 0))
+        self.carousel("rooms", [slide, self.slide()],
+                      extra={"pictures": [{"slide": 1, "box": [0, 0, 1080, 900], "source": "Ridge House (dusk) 01.png"}]})
+        code, r = self.check()
+        self.assertEqual(self.piece(r, "walk-a")["result"], "pass")
+        b = self.piece(r, "walk-b")
+        self.assertEqual((code, codes(b)), (1, ["picture_claim_false"]))
+        self.assertIn("does not show the render a file with an unusual name", b["hard"][0]["detail"])
+        self.assertEqual(codes(self.piece(r, "rooms")), ["picture_claim_false"])
+
+    def test_a_link_a_company_picture_and_a_room_that_is_a_link_are_not_a_boards_render(self):
+        pic = self.render("Hall.png")
+        outside = os.path.join(self.root, "outside")
+        os.makedirs(outside)
+        self.render("Linked.png", folder=outside)
+        os.symlink(os.path.join(outside, "Linked.png"), os.path.join(self.room, "Linked.png"))
+        self.render("Study.png", folder=os.path.join(self.state, "knowledge", "docs", "pictures"))
+        self.board("walk-a", [("Hall.png", pic)])
+        self.board("walk-b", [("Linked.png", pic)])
+        self.board("walk-c", [("Study.png", pic)])       # a company picture: a board's renders are the room's only
+        code, r = self.check()
+        self.assertEqual([(p["name"], codes(p)) for p in r["pieces"]],
+                         [("walk-a", []), ("walk-b", ["picture_claim_false"]), ("walk-c", ["picture_claim_false"])])
+        real = os.path.join(self.root, "room-elsewhere")
+        os.rename(self.room, real)
+        os.symlink(real, self.room)
+        code, r = self.check()
+        self.assertEqual((code, codes(self.piece(r, "walk-a"))), (1, ["picture_claim_false"]))
+
+    def test_a_render_over_20_mb_and_50_million_pixels_is_verified(self):
+        size = (8000, 7000)                        # 56 million pixels, as a real 8K render
+        big = Image.new("RGB", size, CLAY)
+        ImageDraw.Draw(big).rectangle([4000, 0, 7999, 6999], fill=INK)
+        big.paste(Image.frombytes("RGB", (8000, 1000), os.urandom(8000 * 1000 * 3)), (0, 0))   # grain the board crops off
+        path = os.path.join(self.room, "Ridge House (night) 8K.png")
+        big.save(path, compress_level=1)
+        del big
+        self.assertGreater(os.path.getsize(path), 20 * 1024 * 1024)
+        self.board("walk-a", [("Ridge House (night) 8K.png", self.small(CLAY, INK, size))])
+        code, r = self.check()
+        self.assertEqual((code, self.piece(r, "walk-a")["result"]), (0, "pass"))
+
+    def test_a_render_over_100_mb_or_80_million_pixels_is_refused_before_it_is_decoded(self):
+        from PIL import ImageFile
+        pic = self.render("Padded.png", size=(1601, 1001))
+        os.truncate(os.path.join(self.room, "Padded.png"), 100 * 1024 * 1024 + 1)    # sparse: takes no disk
+        with open(os.path.join(self.room, "Bomb.png"), "wb") as fh:
+            fh.write(png_header(10000, 8001))     # 80,010,000 pixels by its header, a few bytes on disk
+        self.board("walk-a", [("Padded.png", pic)])
+        self.board("walk-b", [("Bomb.png", pic)])
+        loaded, real_load = [], ImageFile.ImageFile.load
+
+        def spy_load(im):
+            loaded.append(im.size)
+            return real_load(im)
+        ImageFile.ImageFile.load = spy_load
+        try:
+            code, r = self.check()
+        finally:
+            ImageFile.ImageFile.load = real_load
+        self.assertEqual([(p["name"], codes(p)) for p in r["pieces"]],
+                         [("walk-a", ["picture_claim_false"]), ("walk-b", ["picture_claim_false"])])
+        self.assertEqual(code, 1)
+        self.assertEqual(sorted(set(loaded)), [(1280, 720)], "only the boards were decoded")
+
+    def test_a_render_is_kept_small_counted_once_and_its_alpha_band_dropped_as_the_board_drops_it(self):
+        im = Image.new("RGBA", (6000, 4000), MAGENTA + (0,))         # a colour under a transparent picture
+        ImageDraw.Draw(im).rectangle([3000, 0, 5999, 3999], fill=INK + (255,))
+        im.save(os.path.join(self.room, "Glass (alpha).png"))
+        Image.new("RGB", (4096, 4096), CLAY).save(os.path.join(self.room, "Site 2.jpg"), quality=90)
+        ctx = brandcheck.Ctx(self.state, self.kit, "present", None, None, time.monotonic() + 60)
+        glass = ctx.source("Glass (alpha).png", room=True)
+        self.assertEqual((glass.mode, glass.size, ctx.pixels), ("RGB", (1024, 683), 6000 * 4000))
+        self.assertEqual((glass.getpixel((10, 10)), glass.getpixel((1000, 10))), (MAGENTA, INK))
+        self.assertIs(ctx.source("Glass (alpha).png", room=True), glass)
+        self.assertEqual(ctx.pixels, 6000 * 4000, "a render is counted once")
+        site = ctx.source("Site 2.jpg", room=True)     # a JPEG is decoded at a quarter, and counted so
+        self.assertEqual((site.size, ctx.pixels - 6000 * 4000), ((1024, 1024), 1024 * 1024))
+        self.assertIsNone(ctx.source("Glass (alpha).png"), "the company pictures' rule takes no such name")
+
+    def test_three_treatments_over_the_same_twelve_80_megapixel_renders_stay_inside_the_budget(self):
+        size, renders = (10000, 8000), {}            # exactly 80 million pixels each
+        for i in range(1, 19):
+            level = 20 + 12 * i
+            name = "Ridge House %02d (final).png" % i
+            renders[i] = (name, self.render(name, (level, level // 2, 40), (40, 255 - level, 255 - level), size))
+        for v, order in (("a", range(1, 13)), ("b", range(12, 0, -1)), ("c", list(range(7, 13)) + list(range(1, 7)))):
+            self.board("walk-" + v, [renders[i] for i in order])
+        directions = dict(DIRECTIONS, kinds=dict(DIRECTIONS["kinds"], film=[
+            {"id": d} for d in ("slow-approach", "day-of-light", "plan-to-place")]))
+        self.write_json(os.path.join(self.bin, "directions.json"), directions)
+        self.write_json(os.path.join(self.goal, "variants.json"), {"kind": "film", "name": "walk", "round": 1, "variants": [
+            {"id": "a", "direction": "slow-approach"}, {"id": "b", "direction": "day-of-light"},
+            {"id": "c", "direction": "plan-to-place"}]})
+        m = self.measure()
+        r = json.loads(m["out"])
+        self.assertEqual((m["code"], [(p["name"], p["result"]) for p in r["pieces"]], r["variants"]["result"]),
+                         (0, [("walk-a", "pass"), ("walk-b", "pass"), ("walk-c", "pass")], "pass"), r)
+        # Pillow keeps 4 bytes a pixel: two full-size renders at once would be 640 MB before anything else.
+        self.assertLess(m["rss"], 2 * 80 * 1000 * 1000 * 4)
+        self.assertLess(m["seconds"], 30)
+        # A fourth treatment that brings six renders more goes over: a hard could_not_check, never a pass.
+        self.board("walk-d", [renders[i] for i in list(range(13, 19)) + list(range(1, 7))])
+        m = self.measure()
+        r = json.loads(m["out"])
+        self.assertEqual((m["code"], [p["result"] for p in r["pieces"]]), (1, ["pass", "pass", "pass", "fail"]))
+        d = self.piece(r, "walk-d")
+        self.assertEqual((codes(d), d["soft"]), (["could_not_check"], []))
+        self.assertIn("more than the check measures in one run (1500 million pixels)", d["hard"][0]["detail"])
 
 
 class CommandTest(BrandCheckBase):

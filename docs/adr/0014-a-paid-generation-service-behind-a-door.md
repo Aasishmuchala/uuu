@@ -1,0 +1,71 @@
+# 0014: One agent may spend money on a paid generation service, through a door
+
+## Context
+
+Until 12 November 2026 the only things the company paid for were the owner's Claude and Codex plans. Everything the Artist made, it drew by script. On 12 November 2026 the owner said yes to a paid service that makes video clips and pictures from the owner's own renders: Runway. The change is the owner's to make. Every other rule stands: this Mac only, the fence is never loosened to make something work, and what runs unfenced never trusts what agents can write (`0007`).
+
+This one is not like the web door (`0013`). It does two things the web door does not: it spends money, and it sends the owner's pictures out. So there are two questions. What is the most an agent can spend if everything it says is wrong? And what can it send that the owner never saw?
+
+## Decision
+
+One agent, one door, one switch, and the owner's yes for every spend.
+
+- **One agent.** Only the Artist can reach the generation door. The door counts a caller only if its token names an agent in the door's list in `config.json`, which today is the Artist alone. No other agent's fence changes.
+- **A door of its own, off by default.** The generation door is a small server with no dependencies, on 127.0.0.1 port 3140, built on the pattern of the web door (`0013`) and the model relay (`0010`): a token minted outside the fence for one agent, a log, a status file, a part script and a line in `engine status` and Health. Its switch and the owner's limits are in `<state>/doors/state.json`, which agents cannot reach. A missing or damaged file means off. The part counts as installed only when `engine/generate/READY` exists.
+- **The key stays outside the fence.** The Runway key is in `<state>/secrets/doors/runway-key`. Only the home server writes or deletes it (Settings, "Runway key"). Only the door reads it. It goes to Runway's address in one header, `Authorization`, and nowhere else: not in a log, not in an answer to an agent, and never to the host that serves the results. Any text Runway sends back is scrubbed of the key before anyone sees it. The door talks to exactly one address, `https://api.dev.runwayml.com`; a stand-in on 127.0.0.1 is accepted only in tests.
+- **Only the door's own code talks to Runway.** It does not use Runway's SDK, its MCP server or its upload path (see "Rejected").
+
+### What is sent
+
+Three things leave this Mac for Runway, and only inside a batch the owner approved: pictures the Artist prepared from the owner's renders (or from the owner's own pictures, for a still job), the prompts the Artist wrote (at most 1,000 characters each), and the choices that go with them (the model, the shape of the picture, the seconds). A picture goes as a PNG, JPEG or WebP of at most 3.3 MB, judged by its first bytes and not by its name.
+
+Runway's terms, as the plan recorded them, say it may use what is sent to train its models unless the account has an Enterprise agreement. The builders did not re-read Runway's terms from Runway's page; the owner should. So Settings says, always, beside the switch: "When this is on, the renders and prompts you approve are sent to Runway. Runway's terms say it may use them to train its models unless you have an Enterprise agreement. Do not use it for client work you may not share." The owner's rule that follows: keep Generation off for work that is not the owner's to share.
+
+### Money
+
+The door holds the money. It is built so that a wrong agent cannot spend more than the owner's numbers allow, and so that any doubt stops the spending.
+
+- **The owner's yes is a file.** When the owner presses "Approve this one and its cost" on a film's card, or presses Start on a still job, the home server writes a batch file in `<state>/doors/batches/`. Only the home server writes there. The file names the agent, the shots, each shot's kind, model and longest length, how many takes each may have, and the budget. It ends seven days after it was written. A batch file is the only thing that lets the door spend.
+- **The price is worked out by the home server.** From the shotlist's seconds and the door's own price table, never from a number an agent wrote. A film's budget is the clips plus one retake for each shot. A still job's is one take. The home server reads the file back with the door's own reader before the approval counts; a file the door would not accept is removed and nothing is approved.
+- **The door checks again.** It reads the batch on every call and refuses a batch that is missing, untrusted, expired, for another agent, or that does not hold the shot; a kind, a model or a length beyond what was approved; video from words alone when the owner did not allow it; a third take; and a call that would take the batch over its budget. It prices the call itself and refuses any body that claims a cost. The model comes from Settings, never from the agent.
+- **A reservation before any call.** Before a call to Runway leaves, the door appends a "reserved" line to its ledger and syncs it to disk. If it cannot write the line, it does not call. When the job ends, it appends the final line. A job that never ends counts as spent at its reservation, and the next start of the door asks Runway once about each.
+- **The highest known charge.** The ledger charges the highest of what is known: the door's estimate, the estimate Runway gave when it started the job, and the cost Runway reports at the end. Runway's pages disagree on whether a refused job costs anything (one example shows 0, the moderation page says the same as a success), so the door charges a refused job in full unless Runway says 0.
+- **Caps fail closed.** The daily and monthly limits in Settings (300 and 1,000 credits to start with; one credit is one US cent) count what is spent and what is reserved. Exactly at a cap passes, one credit over refuses, a cap of 0 refuses everything, and a ledger that cannot be read refuses everything. Days and months are the Asia/Kolkata calendar's. At most two jobs run at once, and a job is given up after 20 minutes.
+- **Refusals are counted.** Runway can refuse a picture or a prompt for safety. A refused picture or prompt is never sent again. Two refusals in one film freeze that film: the door refuses its further jobs and the film view says "Runway refused two pictures or prompts in this film. It needs you." Three refusals in 24 hours pause the whole door: nothing more is made until the owner presses "Start again" in Settings. This matters because Runway says an account that makes too many moderated requests may be suspended.
+- **The ledger is tidied by the door, at its start.** The ledger is a file of one line per event. Left alone it grows. At its own start, before it answers anyone, and only when the file is over 8 MB, the door moves the lines of jobs that began before last month into a dated file beside it, and keeps everything the totals of now depend on: this month's and last month's jobs, any job still open, every pause. Only the door writes the ledger, so a second writer cannot lose a reservation. Settings shows a warning when the file passes 24 MB.
+- **The known gap.** The tidy runs only on a ledger it can read whole, and the door will not read a ledger over 32 MB. A ledger that grows past 32 MB before the door is next started is never tidied and the door refuses all work: it fails closed, but nothing in the engine repairs it. The 24 MB warning is the only notice. This is accepted for this version and is left for the review.
+- **No automatic allowance in this version.** The first plan had a setting that let small jobs run without asking, up to a daily amount. In this version every film asks at its shotlist and every still job asks at Start, so the setting would do nothing. It is not shown, it stays at 0, and the door still honours a value if one is ever put in the file. The owner said no small job runs without a yes.
+
+### What still bounds the rest
+
+The door holds the money, not the content. It enforces the batch's shots, kinds, models, seconds, takes and budget, and every cap. It cannot know that a picture is the render the owner approved, or that a prompt holds only words about it. An Artist that was fooled could send a different one of the pictures it can reach, inside a batch, and spend only up to that batch.
+
+What bounds it: the switch; a batch for each film that ends after seven days; the Artist's fence (it reads only the company's files, the art tools and the room, and no other web); the Art director's review of every clip against the render it came from; and Studio's film view, which shows each clip beside the picture the door itself kept as sent, for one day. It cannot be reduced to nothing, because the whole purpose is to send pictures and words an agent chose. The review that follows this change attacks exactly this.
+
+### Where the results go
+
+Runway answers with an address for the result. It expires within one or two days. The door fetches it at once, and only if it is `https`, a name that resolves to public addresses only (the web door's address checks), with no redirect followed, no Runway key and no header of ours sent, at most 200 MB for a video and 30 MB for a picture, and the first bytes those of an MP4, PNG, JPEG or WebP. Anything else is refused and nothing is kept. Results and the pictures sent are kept in `<state>/doors/work/gen/` (results for two days, sent pictures for one) and are handed to the Artist as bytes. No path an agent names is ever opened.
+
+### How a film runs
+
+A film stops at its shotlist, the way a plan stops at PLAN READY. The Artist writes up to three treatments on paper (a direction, a shotlist and a storyboard still for each shot) at no cost. The brand check, the Art director and the Checker go over them. Then the Chief of staff comments `SHOTLIST READY:`, the goal is blocked, and the owner sees one Needs you card with the treatments side by side, each with its cost worked out by the home server. Approving writes the batch and the line `SHOTLIST ACCEPTED: <treatment> batch <batch id>`. Only then does the Artist make the clips, the Art director looks at the stills of each clip and marks it keep or retake, a retake is one more call inside the same batch, and the edit is made by the video tool. A finished film is an ordinary Accept card for the owner. Variations of a still and a larger still are two small jobs: the job page says the cost, and Start approves it.
+
+## Consequences
+
+- One more part to run, with its own line in `engine status` and Health.
+- Nothing of this is live yet. On 13 November 2026 it is built and tested against a stand-in Runway, never against the real one. With the switch off, the fence's lists and every run are exactly as before. The first contact with the real Runway is the owner's own "Test" in Settings (it asks only for the credit balance, costs nothing, and works while the switch is off).
+- Runway's pages were read by a summarising tool. Answers the pages gave no example of (an organization answer, a cancelled task, most error bodies) are read tolerantly: a missing or odd field never crashes the door, and a doubt means the door spends nothing.
+- Every film costs time as well as money. Runway takes a few minutes a clip; the card and the job page say so before the owner decides.
+- A job the door gives up on (after 20 minutes) is cancelled with Runway but stays counted in full, because Runway's pages do not say whether a cancel is refunded.
+- The ledger has the gap above.
+- Where Runway is slow or the Artist's run runs out of time, the clips not yet made are made in a new step in the same batch, within its budget and its takes.
+
+## Rejected
+
+- **Runway's own SDK and MCP server.** Both would put Runway's code, and a key, in a place the door does not control, with a network path of their own and no ledger. The door makes the few calls it needs itself, to one address.
+- **Runway's upload path.** It sends the owner's file to a host that Runway names when it answers, which the door cannot know in advance and so cannot pin. Pictures go inside the request, as data addresses only, so video-to-video, which needs the upload path, is not offered.
+- **The door re-encoding pictures.** Shrinking a picture needs a picture library, and the door has no dependencies. The Artist's art tool makes every picture fit, and the door refuses one that does not.
+- **An automatic allowance in this version.** See above.
+- **Hashing the approved pictures into the batch.** The home server cannot decode and resize pictures with no dependencies, and the Artist's resize would not match byte for byte.
+- **More than one retake a shot.** The owner's approval includes one retake each, so up to twice the clips' price; what is not used is not spent. A second retake would need a second yes. The door refuses a third take.
+- **Letting the Artist keep the key or call Runway directly.** The Artist's fence has no path to Runway at all.
