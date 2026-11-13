@@ -14,6 +14,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -88,6 +89,7 @@ class FenceRunTests(unittest.TestCase):
         self.narrow = "http://127.0.0.1:%d" % cfg["ports"]["gateNarrow"]
         self.task = os.path.join(self.state, "tasks", "company-work", "STH-1")
         self.research = os.path.join(self.state, "tasks", "research")
+        self.goal = os.path.join(self.research, "STH-12")
         os.makedirs(self.task)
         os.makedirs(self.research, mode=0o755)
         self.answer()
@@ -237,10 +239,10 @@ class FenceRunTests(unittest.TestCase):
         self.assertFalse([k for k in self.given("inputs-given")["env"] if k.startswith("UUU_")])
 
     def test_a_walled_run_changes_folder_and_gate_address(self):
-        self.answer(self.research, self.narrow)
+        self.answer(self.goal, self.narrow)
         self.doors(DOOR_LINES)
         env, args, cwd = self.seen(self.run_fence())
-        self.assertEqual(cwd, self.research)
+        self.assertEqual(cwd, self.goal)
         self.assertEqual(env["PAPERCLIP_API_URL"], self.narrow)
         self.assertEqual(env["PAPERCLIP_RUNTIME_API_URL"], self.narrow)
         self.assertIn("PAPERCLIP_API_URL=" + self.narrow, args)
@@ -250,40 +252,93 @@ class FenceRunTests(unittest.TestCase):
         self.assertNotIn("UUU_RESEARCH_DIR", env)
         self.assertEqual(env["UUU_PLAYBOOKS_DIR"], os.path.join(self.state, "playbooks"))
         self.assertEqual(env["UUU_WEB_TOKEN"], TOKEN)
-        # The folder is made when missing, as a plain folder of the owner's.
-        os.rmdir(self.research)
+        # The goal's folder is made when missing: a plain folder of the owner's, closed to others.
+        self.assertEqual(stat.S_IMODE(os.stat(self.goal).st_mode), 0o700)
+        os.rmdir(self.goal)
         _, _, cwd = self.seen(self.run_fence())
-        self.assertEqual(cwd, self.research)
+        self.assertEqual(cwd, self.goal)
+        self.assertEqual(stat.S_IMODE(os.stat(self.goal).st_mode), 0o700)
+        # The research folder too, when it is not there yet; and a goal folder left open is closed.
+        shutil.rmtree(self.research)
+        _, _, cwd = self.seen(self.run_fence())
+        self.assertEqual(cwd, self.goal)
+        os.chmod(self.goal, 0o755)
+        self.seen(self.run_fence())
+        self.assertEqual(stat.S_IMODE(os.stat(self.goal).st_mode), 0o700)
 
-    def test_a_walled_folder_outside_the_task_tree_is_refused(self):
+    def test_the_task_id_goes_to_fence_inputs_and_the_key_only_by_the_environment(self):
+        key = "pcp_secret_key_%s" % ("k" * 30)
+        task = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+        self.seen(self.run_fence(extra={"PAPERCLIP_TASK_ID": task, "PAPERCLIP_API_KEY": key}))
+        given = self.given("inputs-given")
+        self.assertEqual(given["argv"][given["argv"].index("--task-id") + 1], task)
+        self.assertNotIn(key, " ".join(given["argv"]))
+        self.assertIn("PAPERCLIP_API_KEY", given["env"])
+        # Whatever is not the board's id shape goes on as nothing.
+        for bad in ("", "../x", "STH-12", task.upper(), task + "\n", task[:-1], "x" * 400, "$(id)"):
+            with self.subTest(task=bad):
+                self.seen(self.run_fence(extra={"PAPERCLIP_TASK_ID": bad, "PAPERCLIP_API_KEY": key}))
+                given = self.given("inputs-given")
+                self.assertEqual(given["argv"][given["argv"].index("--task-id") + 1], "")
+                self.assertNotIn(key, " ".join(given["argv"]))
+        self.seen(self.run_fence())
+        given = self.given("inputs-given")
+        self.assertEqual(given["argv"][given["argv"].index("--task-id") + 1], "")
+        # Nothing the run is given shows the key on the sandbox tool's command line.
+        _, args, _ = self.seen(self.run_fence(extra={"PAPERCLIP_TASK_ID": task, "PAPERCLIP_API_KEY": key}))
+        self.assertNotIn(key, " ".join(args))
+
+    def test_a_walled_folder_that_is_not_one_goals_is_refused(self):
         tasks = os.path.join(self.state, "tasks")
         elsewhere = os.path.join(self.tmp, "elsewhere")
         os.makedirs(elsewhere)
         os.symlink(elsewhere, os.path.join(tasks, "linked"))
         os.makedirs(os.path.join(tasks, "open"))
         os.chmod(os.path.join(tasks, "open"), 0o777)
-        for work in (elsewhere, os.path.join(self.state, "knowledge"), tasks, tasks + "/",
-                     tasks + "/../research", tasks + "/research/..", tasks + "//research",
-                     os.path.join(tasks, "linked"), os.path.join(tasks, "linked", "deeper"),
-                     os.path.join(tasks, "open"), "research"):
+        os.makedirs(os.path.join(self.research, "GOL-7"))
+        os.symlink(os.path.join(self.research, "GOL-7"), os.path.join(self.research, "LNK-1"))
+        os.symlink(elsewhere, os.path.join(self.research, "LNK-2"))
+        for work in (elsewhere, os.path.join(self.state, "knowledge"), tasks, tasks + "/", self.research,
+                     self.research + "/", os.path.join(self.research, "GOL-7", "deeper"),
+                     os.path.join(self.research, "sth-12"), os.path.join(self.research, "STH-0"),
+                     os.path.join(self.research, "STH-12", ".."), os.path.join(self.research, "STH-12", "..", "GOL-7"),
+                     os.path.join(self.research, "LNK-1"), os.path.join(self.research, "LNK-2"),
+                     os.path.join(self.research, "LNK-2", "STH-1"),
+                     os.path.join(tasks, "company-work", "STH-12"),
+                     tasks + "/../research/STH-12", tasks + "/research/./STH-12", tasks + "//research/STH-12",
+                     tasks + "/research//STH-12",
+                     os.path.join(tasks, "linked"), os.path.join(tasks, "linked", "STH-12"),
+                     os.path.join(tasks, "open"), "research", "STH-12"):
             with self.subTest(work=work):
                 self.answer(work, self.narrow)
                 self.refused(self.run_fence())
-        # Nothing was made through the link.
+        # Nothing was made through a link, and no other goal's folder was touched.
         self.assertEqual(os.listdir(elsewhere), [])
+        self.assertEqual(os.listdir(os.path.join(self.research, "GOL-7")), [])
+        # A research folder that is itself a link is not used to make a goal's folder in.
+        shutil.rmtree(self.research)
+        os.symlink(elsewhere, self.research)
+        self.answer(self.goal, self.narrow)
+        self.refused(self.run_fence())
+        self.assertEqual(os.listdir(elsewhere), [])
+        os.remove(self.research)
+        os.makedirs(self.research, mode=0o777)
+        os.chmod(self.research, 0o777)
+        self.refused(self.run_fence())
+        os.chmod(self.research, 0o755)
         for narrow in ("http://127.0.0.1:3111/x", "http://localhost:3111", "https://127.0.0.1:3111",
                        "http://127.0.0.1:311111", "http://10.0.0.1:3111"):
             with self.subTest(narrow=narrow):
-                self.answer(self.research, narrow)
+                self.answer(self.goal, narrow)
                 self.refused(self.run_fence())
-        for work, narrow in ((self.research, ""), ("", self.narrow)):
+        for work, narrow in ((self.goal, ""), ("", self.narrow)):
             self.answer(work, narrow)
             self.refused(self.run_fence(), "only half")
 
     def test_no_token_in_the_fence_calls_log(self):
         self.doors(DOOR_LINES)
         self.seen(self.run_fence())
-        self.answer(self.research, self.narrow)
+        self.answer(self.goal, self.narrow)
         self.seen(self.run_fence())
         with open(os.path.join(self.state, "logs", "fence-calls.log")) as fh:
             lines = fh.read().splitlines()

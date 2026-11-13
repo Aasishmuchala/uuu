@@ -561,6 +561,12 @@ class PlanTests(unittest.TestCase):
     def research(self):
         return os.path.join(self.S, "tasks", "research")
 
+    GOAL = "STH-12"
+
+    @property
+    def goal(self):
+        return os.path.join(self.research, self.GOAL)
+
     @property
     def shared(self):
         return os.path.join(self.S, "knowledge", "shared")
@@ -580,8 +586,9 @@ class PlanTests(unittest.TestCase):
         return p
 
     def walled_inputs(self, policy=None, **over):
-        os.makedirs(self.research, exist_ok=True)
-        base = {"taskFolder": self.research, "gatePort": 3111,
+        # A walled run works in one goal's folder (fence-run makes it before the sandbox starts).
+        os.makedirs(self.goal, exist_ok=True)
+        base = {"taskFolder": self.goal, "gatePort": 3111,
                 "policy": policy if policy is not None else self.walled()}
         base.update(over)
         return self.new(**base)
@@ -698,10 +705,10 @@ class PlanTests(unittest.TestCase):
         i = self.walled_inputs()
         out = plan(i)
         fs = out["filesystem"]
-        self.assertEqual(fs["allowRead"], [self.research, i["agentHome"], i["innerTmp"], i["nodeRoot"],
+        self.assertEqual(fs["allowRead"], [self.goal, i["agentHome"], i["innerTmp"], i["nodeRoot"],
                                            os.path.join(self.H, ".local", "bin"), i["realClaudeDir"],
                                            self.playbooks, self.shared])
-        self.assertEqual(fs["allowWrite"], [self.research, i["agentHome"], i["innerTmp"]])
+        self.assertEqual(fs["allowWrite"], [self.goal, i["agentHome"], i["innerTmp"]])
         self.assertEqual(fs["denyWrite"],
                          fence_plan.SANDBOX_OWN_TMP + fence_plan._deny_entries(fs["allowWrite"]))
         self.assertEqual(out["network"]["allowedDomains"], ["api.anthropic.com", "127.0.0.1:3111", "localhost:3111"])
@@ -715,10 +722,9 @@ class PlanTests(unittest.TestCase):
 
     def test_walled_refusals(self):
         self.refused(self.walled_inputs(taskFolder=self.task), "walled")
-        os.makedirs(os.path.join(self.research, "STH-1"))
-        self.refused(self.walled_inputs(taskFolder=os.path.join(self.research, "STH-1")), "walled")
         shutil.rmtree(self.research)
         os.symlink(self.task, self.research)
+        self.refused(self.new(taskFolder=self.goal, gatePort=3111, policy=self.walled()))
         self.refused(self.new(taskFolder=self.research, gatePort=3111, policy=self.walled()))
         os.remove(self.research)
         self.refused(self.walled_inputs(gatePort=3110), "narrow gate")
@@ -733,6 +739,51 @@ class PlanTests(unittest.TestCase):
             self.refused(self.walled_inputs(policy=self.walled(**over)), "walled agent")
         for bad in ("yes", 1, None, [True]):
             self.refused(self.walled_inputs(policy=self.walled(walled=bad)), "walled must be")
+
+    # Review of step 2, finding F3: a walled run works in one goal's folder and nowhere else.
+
+    def test_walled_run_is_fenced_to_its_one_goal(self):
+        other = os.path.join(self.research, "GOL-7", "research")
+        os.makedirs(other)
+        fs = plan(self.walled_inputs())["filesystem"]
+        mine = os.path.join(self.goal, "research", "notes.md")
+        theirs = os.path.join(other, "notes.md")
+        for path, want in ((mine, True), (theirs, False), (os.path.join(self.research, "x"), False)):
+            readable = any(path == r or path.startswith(r + os.sep) for r in fs["allowRead"])
+            writable = any(path == w or path.startswith(w + os.sep) for w in fs["allowWrite"])
+            self.assertEqual((readable, writable), (want, want), path)
+        self.assertNotIn(self.research, fs["allowRead"] + fs["allowWrite"])
+        # fence-run makes the folder after the planner accepts it: a goal folder not there yet is fine.
+        shutil.rmtree(self.goal)
+        self.assertEqual(plan(self.walled_inputs(taskFolder=self.goal, policy=self.walled()))["filesystem"]["allowWrite"][0],
+                         self.goal)
+
+    def test_walled_run_refuses_anything_but_one_goal_folder(self):
+        os.makedirs(os.path.join(self.research, "GOL-7"))
+        os.makedirs(os.path.join(self.research, self.GOAL, "deeper"))
+        pointed = os.path.join(self.research, "LNK-1")
+        os.symlink(os.path.join(self.research, "GOL-7"), pointed)
+        outside = os.path.join(self.S, "tasks", "company-work")
+        os.symlink(self.task, os.path.join(self.research, "LNK-2"))
+        for bad in (self.research, self.research + "/",
+                    os.path.join(self.research, self.GOAL, "deeper"),         # below a goal
+                    os.path.join(self.research, "GOL-7", ".."),                 # the whole folder, spelled with ..
+                    os.path.join(self.research, self.GOAL, "..", "GOL-7"),     # another goal, spelled with ..
+                    os.path.join(self.research, "sth-12"), os.path.join(self.research, "Sth-12"),
+                    os.path.join(self.research, "STH-0"), os.path.join(self.research, "STH-012"),
+                    os.path.join(self.research, "STH-"), os.path.join(self.research, "STH12"),
+                    os.path.join(self.research, "TOOLONGNAME1-1"), os.path.join(self.research, ".hidden"),
+                    os.path.join(self.research, "STH-12 "),
+                    pointed, os.path.join(self.research, "LNK-2"),              # links, to a goal and out
+                    os.path.join(self.research, "LNK-1", "research"),
+                    self.task, outside, os.path.join(self.S, "tasks", "STH-12"),
+                    os.path.join(self.S, "tasks", "other", "STH-12")):
+            with self.subTest(task=bad):
+                self.refused(self.walled_inputs(taskFolder=bad), "walled agent")
+        self.refused(self.walled_inputs(taskFolder=os.path.join(self.research, "STH-1\n2")))
+        # Another folder with the right name, but not directly under the research folder.
+        os.makedirs(os.path.join(self.S, "tasks", "company-work", "STH-12"), exist_ok=True)
+        self.refused(self.walled_inputs(taskFolder=os.path.join(self.S, "tasks", "company-work", "STH-12")), "walled agent")
 
     def test_rule_folders(self):
         p = self.policy()

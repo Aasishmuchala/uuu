@@ -9,7 +9,7 @@ set -uo pipefail
 for _v in $(compgen -e); do
   case "$_v" in FENCE_*|UUU_*) unset "$_v" ;; esac
 done
-unset ENGINE_CONFIG PAPERCLIP_AGENT_ID PAPERCLIP_API_URL PAPERCLIP_RUNTIME_API_URL CODEX_HOME _v
+unset ENGINE_CONFIG PAPERCLIP_AGENT_ID PAPERCLIP_TASK_ID PAPERCLIP_API_KEY PAPERCLIP_API_URL PAPERCLIP_RUNTIME_API_URL CODEX_HOME _v
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 OWNER_HOME="$(/usr/bin/python3 -I -c "import os,pwd;print(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))")" || exit 1
@@ -40,6 +40,10 @@ PLANTS=".claude CLAUDE.md claude.md AGENTS.md .mcp.json .codex .agentſ sub y or
 STAND_IN=""
 # Temp folders made for the Researcher's checks (its own and another run's), removed on every exit.
 RUN_TMPS=""
+# The Researcher's checks run for a real task on the board (its goal's folder comes from the board): a task
+# the proof makes, assigned to the Researcher, with a key of the Researcher's own. All set back on every exit.
+PROOF_TASK_ID=""; PROOF_IDENT=""; PROOF_RKEY=""; PROOF_RKEY_ID=""; PROOF_RKEY_AGENT=""
+PROOF_GOAL_DIR=""; PROOF_GOAL_MADE=""; PROOF_OTHER_DIR=""
 # The sandbox tool's own temp folder: was it there before the proof (it is not on this Mac)?
 SANDBOX_TMP_MADE=""; SANDBOX_TMP_WAS=""; [[ -e /private/tmp/claude || -L /private/tmp/claude ]] && SANDBOX_TMP_WAS=1
 
@@ -54,6 +58,7 @@ cleanup() {
   stand_in_stop
   remove_run_tmps
   rm -f "${STATE_DIR:?}/tasks/research/.fence-proof-research"
+  proof_task_end
   rm -rf "${STATE_DIR:?}/claude-home/$OTHER_ID" "${STATE_DIR:?}"/tasks/_proof-answer.* "${STATE_DIR:?}/codex-home/_proof-login"
   rm -rf "${CFG_INSTANCE_ROOT:?}"/companies/*/codex-home/_proof-home.*
   if [[ -n "$KEY_ID" ]]; then
@@ -77,6 +82,24 @@ remove_door_marks() {
 stand_in_stop() {   # only the proof's own stand-in, by its process id
   if [[ -n "$STAND_IN" ]]; then kill "$STAND_IN" 2>/dev/null; wait "$STAND_IN" 2>/dev/null; fi
   STAND_IN=""
+}
+# The Researcher's proof task, quietly: set it to cancelled (and unassigned, so cancelling wakes no one), remove
+# the Researcher's test key, remove the folders the checks made. Safe to call again; the checks report below.
+proof_task_end() {
+  if [[ -n "$PROOF_TASK_ID" ]]; then
+    curl -s -m 10 -o /dev/null -X PATCH -H 'Content-Type: application/json' \
+      -d '{"status":"cancelled","assigneeAgentId":null}' "$BOARD/api/issues/$PROOF_TASK_ID" || true
+    PROOF_TASK_ID=""
+  fi
+  if [[ -n "$PROOF_RKEY_ID" ]]; then
+    curl -s -m 10 -o /dev/null -X DELETE "$BOARD/api/agents/$PROOF_RKEY_AGENT/keys/$PROOF_RKEY_ID" || true
+    PROOF_RKEY_ID=""
+  fi
+  PROOF_RKEY=""
+  [[ -n "$PROOF_OTHER_DIR" ]] && rm -rf "${PROOF_OTHER_DIR:?}"
+  PROOF_OTHER_DIR=""
+  if [[ -n "$PROOF_GOAL_MADE" && -n "$PROOF_GOAL_DIR" ]]; then rm -f "$PROOF_GOAL_DIR/.fence-proof-research"; rmdir "$PROOF_GOAL_DIR" 2>/dev/null; fi
+  PROOF_GOAL_MADE=""; PROOF_GOAL_DIR=""
 }
 remove_run_tmps() {   # each a folder the proof made itself; rm removes a link, never what it points at
   local d
@@ -104,7 +127,8 @@ say() {
 # Each check first prints a marker from inside the fence. No marker means the
 # fence never started, and that must never be counted as "blocked". Each ends
 # within two minutes, whatever it runs.
-inside() { (cd "$WS" && PAPERCLIP_AGENT_ID="$AS" within 120 "$RUN" --fence-check "echo FENCE_UP; $1" 2>/dev/null); }
+# The Researcher's task and key go in by the environment only (never an argument), and only while its checks run.
+inside() { (cd "$WS" && { [[ -z "$PROOF_TASK_ID" ]] || export PAPERCLIP_TASK_ID="$PROOF_TASK_ID" PAPERCLIP_API_KEY="$PROOF_RKEY"; } && PAPERCLIP_AGENT_ID="$AS" within 120 "$RUN" --fence-check "echo FENCE_UP; $1" 2>/dev/null); }
 blocked() {
   local out rc; out="$(inside "$2")"; rc=$?
   if [[ "$out" != FENCE_UP* ]]; then say FAIL "the fence around $WHO did not start (while checking: $1)"
@@ -710,8 +734,60 @@ run_tmp() {   # run_tmp <area> [mark]: sets RUN_TMP to the new folder's real pat
   if [[ -n "${2:-}" ]]; then (umask 077; echo proof > "$d/.fence-proof") || return 1; fi
   RUN_TMP="$d"
 }
+# The proof's own task for the Researcher: made on the board assigned to it (in backlog, which wakes no one),
+# with a key of the Researcher's own; a run of the Researcher carries both and the fence asks the board which
+# goal the task belongs to. Sets PROOF_TASK_ID, PROOF_IDENT and PROOF_RKEY; says why when it cannot.
+proof_task_make() {   # proof_task_make <the Researcher's id>
+  local rid="$1" co resp made
+  if (( ! BOARD_UP )); then
+    say SKIP "the Researcher's fence checks (the board is not running, and a run of the Researcher needs a task on it)"; return 1
+  fi
+  co="$(/usr/bin/python3 -I -c "import json,sys;print(json.load(open(sys.argv[1]))['companyId'])" "$STATE_DIR/ids.json" 2>/dev/null)"
+  if [[ -z "$co" ]]; then say SKIP "the Researcher's fence checks (ids.json has no company: run engine setup)"; return 1; fi
+  resp="$(curl -s -m 10 -X POST -H 'Content-Type: application/json' -d '{"name":"engine-proof-researcher"}' \
+    "$BOARD/api/agents/$rid/keys")"
+  PROOF_RKEY_AGENT="$rid"
+  PROOF_RKEY_ID="$(printf '%s' "$resp" | /usr/bin/python3 -I -c "import json,sys;print(json.load(sys.stdin).get('id') or '')" 2>/dev/null)"
+  PROOF_RKEY="$(printf '%s' "$resp" | /usr/bin/python3 -I -c "import json,sys;print(json.load(sys.stdin).get('token') or '')" 2>/dev/null)"
+  resp=""
+  if [[ -z "$PROOF_RKEY_ID" || -z "$PROOF_RKEY" ]]; then say FAIL "could not make a test key for the Researcher on the board"; return 1; fi
+  resp="$(curl -s -m 15 -X POST -H 'Content-Type: application/json' \
+    -d "{\"title\":\"engine proof: the Researcher's folder (cancelled again when the proof ends)\",\"status\":\"backlog\",\"assigneeAgentId\":\"$rid\"}" \
+    "$BOARD/api/companies/$co/issues")"
+  made="$(printf '%s' "$resp" | /usr/bin/python3 -I -c 'import json,re,sys
+try:
+    d=json.load(sys.stdin)
+    ok=isinstance(d,dict) and isinstance(d.get("id"),str) and re.fullmatch("[0-9a-f-]{36}",d["id"]) \
+        and isinstance(d.get("identifier"),str) and re.fullmatch("[A-Z][A-Z0-9]{0,9}-[1-9][0-9]{0,8}",d["identifier"]) \
+        and d.get("assigneeAgentId")==sys.argv[1]
+    print(d["id"],d["identifier"]) if ok else print("-")
+except (ValueError,TypeError,KeyError):
+    print("-")' "$rid" 2>/dev/null)"
+  resp=""
+  if [[ "$made" == "-" || -z "$made" ]]; then say FAIL "could not make a task for the Researcher on the board"; return 1; fi
+  PROOF_TASK_ID="${made%% *}"; PROOF_IDENT="${made#* }"
+}
+# The task is set to cancelled (and unassigned in the same request, so nothing wakes the Researcher), the key
+# is removed, and the folders the checks made go; each said in its own line.
+proof_task_finish() {
+  local code
+  if [[ -n "$PROOF_TASK_ID" ]]; then
+    code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -X PATCH -H 'Content-Type: application/json' \
+      -d '{"status":"cancelled","assigneeAgentId":null}' "$BOARD/api/issues/$PROOF_TASK_ID")"
+    if [[ "$code" == 200 ]]; then
+      say PASS "the Researcher's proof task $PROOF_IDENT was set to cancelled again (it is on the board only as a cancelled task)"
+      PROOF_TASK_ID=""
+    else say FAIL "the Researcher's proof task $PROOF_IDENT could not be set to cancelled (got $code); cancel it on the board"; fi
+  fi
+  if [[ -n "$PROOF_RKEY_ID" ]]; then
+    code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -X DELETE "$BOARD/api/agents/$PROOF_RKEY_AGENT/keys/$PROOF_RKEY_ID")"
+    if [[ "$code" == 200 || "$code" == 204 ]]; then say PASS "the Researcher's test key was removed again"; PROOF_RKEY_ID=""
+    else say FAIL "the Researcher's test key could not be removed (got $code); remove the key named engine-proof-researcher on the board"; fi
+  fi
+  proof_task_end
+}
 researcher_checks() {
-  local rid why research shared what d cmd own other other_tmp area web_on=0
+  local rid why research shared what d cmd own other other_tmp area web_on=0 goal other_goal
   RUN="$HERE/bin/claude"; WHO="the Researcher"; AS=""
   rid="$(agent_id_of researcher)"; why=""
   if [[ -z "$rid" ]]; then why="no Researcher in ids.json yet: run engine setup"
@@ -726,10 +802,32 @@ sys.exit(0 if isinstance(p,dict) and p.get('walled') is True else 1)" "$CFG_POLI
   AS="$rid"
   research="$(cd "$STATE_DIR" && pwd -P)/tasks/research"
   rm -f "$STATE_DIR/tasks/research/.fence-proof-research"
-  allowed "write in its own research folder" \
-    "test \"\$(pwd -P)\" = $research && echo x > .fence-proof-research && test -f .fence-proof-research"
-  if [[ ! -f "$research/.fence-proof-research" ]]; then say FAIL "the file the Researcher wrote did not arrive in $research"; fi
-  rm -f "$research/.fence-proof-research"
+  proof_task_make "$rid" || { proof_task_finish; AS=""; return; }
+  # Its working folder is its goal's folder under the research folder, whose name the fence got from the board.
+  goal="$research/$PROOF_IDENT"
+  PROOF_GOAL_DIR="$goal"; [[ -e "$goal" || -L "$goal" ]] || PROOF_GOAL_MADE=1
+  # No task of its own, no run: the fence will not guess which goal's folder it is.
+  refuses "it has no task of its own" "must name its task" \
+    env -u PAPERCLIP_TASK_ID -u PAPERCLIP_API_KEY PAPERCLIP_AGENT_ID="$rid" "$RUN" --fence-check 'echo FENCE_UP'
+  allowed "write in its own goal's research folder" \
+    "test \"\$(pwd -P)\" = $goal && echo x > .fence-proof-research && test -f .fence-proof-research"
+  if [[ ! -f "$goal/.fence-proof-research" ]]; then say FAIL "the file the Researcher wrote did not arrive in $goal"; fi
+  rm -f "$goal/.fence-proof-research"
+  # Another goal's folder, made here from outside with a mark in it (so a refusal is the fence's, not a missing
+  # folder): the Researcher can neither read nor write it, nor list the research folder that holds both.
+  other_goal="$research/FENCEPROOF-1"
+  if [[ -e "$other_goal" || -L "$other_goal" ]]; then say FAIL "could not make another goal's folder for the Researcher's check ($other_goal is there already)"
+  elif ! (umask 077; mkdir "$other_goal" && echo proof > "$other_goal/.fence-proof"); then
+    rm -rf "${other_goal:?}"; say FAIL "could not make another goal's folder for the Researcher's check"
+  else
+    PROOF_OTHER_DIR="$other_goal"
+    blocked "read or write another goal's research folder" \
+      "ls $other_goal >/dev/null || cat $other_goal/.fence-proof >/dev/null || ls ../FENCEPROOF-1 >/dev/null || ls $research >/dev/null || ls .. >/dev/null || echo x > $other_goal/.fence-proof-x || echo x > ../FENCEPROOF-1/.fence-proof-x || echo x > $research/.fence-proof-x || mkdir $research/FENCEPROOF-2"
+    if [[ -e "$other_goal/.fence-proof-x" || -e "$research/.fence-proof-x" || -e "$research/FENCEPROOF-2" ]]; then
+      say FAIL "the Researcher wrote in another goal's research folder"
+    fi
+    rm -rf "${other_goal:?}" "${research:?}/FENCEPROOF-2" "${research:?}/.fence-proof-x"; PROOF_OTHER_DIR=""
+  fi
   # The other agents' work: the company's task folders and paperclip's, and the proof's own.
   cmd="cat $WS/note.txt >/dev/null"
   for d in "$STATE_DIR/tasks/company-work" "$STATE_DIR/tasks/agents" "$CFG_INSTANCE_ROOT/workspaces" "$CFG_INSTANCE_ROOT/isolated-workspaces"; do
@@ -792,6 +890,7 @@ sys.exit(0 if isinstance(p,dict) and p.get('walled') is True else 1)" "$CFG_POLI
   fi
   stand_in_stop
   AS=""
+  proof_task_finish
 }
 # The narrow gate with the proof's own test key (the Builder's, made on the owner's side
 # above): it lists nothing of the company's and shows no task that is not the caller's.

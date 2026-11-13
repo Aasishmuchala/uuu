@@ -50,6 +50,10 @@ PATH_INPUTS = ("home", "state", "taskFolder", "agentHome", "innerTmp", "nodeRoot
                "realClaudeDir", "instanceRoot")
 
 
+# A goal's folder name, as the board makes a goal's identifier (PLAN-V5, K10).
+GOAL = re.compile(r"[A-Z][A-Z0-9]{0,9}-[1-9][0-9]{0,8}")
+
+
 class Refused(Exception):
     pass
 
@@ -450,8 +454,19 @@ def plan(inputs):
     real_state = _real(state)
     research = os.path.join(real_state, "tasks", "research")
     if extras["walled"]:
-        if not (_same(task, research) and _same(_real(research), research)):
-            raise Refused("refusing to run a walled agent in %s: it works only in %s" % (task, research))
+        # Exactly one goal's folder directly under the Researcher's folder, named as
+        # the board names a goal (capital letters, so no other letter case), as given
+        # (no "..", no link anywhere in it) and as it really is.
+        goal = os.path.basename(task_given)
+        ok = (GOAL.fullmatch(goal) is not None
+              and task_given == inputs["taskFolder"]
+              and _same(os.path.dirname(task_given), research)
+              and _same(_real(research), research)
+              and task == _real(task_given) and task_given == task
+              and not os.path.islink(task_given))
+        if not ok:
+            raise Refused("refusing to run a walled agent in %s: it works only in one goal's folder directly under %s"
+                          % (task, research))
         if narrow_port is None or gate_port != narrow_port:
             raise Refused("a walled agent reaches the board only through the narrow gate")
         deny = deny + TEMP_AREAS
