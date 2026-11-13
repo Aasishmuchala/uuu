@@ -11,6 +11,7 @@
     "studio/an-animated-title-card": { "kind": "title-card", "review": "art", "variants": 3, "playbooks": ["aasish-design", "impact-3d"] },
     "studio/a-moving-chart-from-figures": { "kind": "title-card", "review": "art", "variants": 1, "playbooks": ["aasish-design", "impact-3d"] },
     "studio/a-badge-or-logo-mark": { "kind": "poster", "review": "art", "variants": 1, "playbooks": ["aasish-design", "lightcraft"] },
-    "studio/a-slow-reveal-from-pictures": { "kind": "title-card", "review": "art", "variants": 1, "playbooks": ["aasish-design", "lightcraft"] }
+    "studio/a-slow-reveal-from-pictures": { "kind": "title-card", "review": "art", "variants": 1, "playbooks": ["aasish-design", "lightcraft"] },
+    "studio/a-film-from-your-renders": { "kind": "film", "review": "art", "variants": 3, "playbooks": ["shotlist-director", "sthyra-cinematic", "archfilm-edit", "cinematic-ai-film"] }
   }
 }

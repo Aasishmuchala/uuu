@@ -26,11 +26,22 @@ Object.defineProperties(MARKERS, {
   ask: { value: "ASK", enumerable: false },
   job: { value: "JOB:", enumerable: false },
 });
+// Version 5, step 3 (PLAN-V5 K14, C7, C9, C11): a film's shotlist waits for the owner, the owner's approval, the
+// Art director's clip review and the line naming the owner's approved batch. Not enumerable, as above.
+Object.defineProperties(MARKERS, {
+  shotlistReady: { value: "SHOTLIST READY:", enumerable: false },
+  shotlistAccepted: { value: "SHOTLIST ACCEPTED:", enumerable: false },
+  clips: { value: "CLIPS:", enumerable: false },
+  generationBatch: { value: "Generation batch:", enumerable: false },
+});
 const READ_FIRST = "Read first, from the company's files:";
 const PRODUCE = "Produce:";
 // Version 5 (PLAN-V5 K4, K9): the playbooks line and the review line, after the company-files line.
 export const PLAYBOOKS_LINE = "Read first, from the playbooks:";
 export const REVIEW_ART = "Review: art";
+// Version 5, step 3 (C9): the batch the owner approved for this task, after the review line. Only an id of the
+// home server's own form (lib/batches.mjs) is ever written or read.
+export const BATCH_ID = /^b[0-9a-f]{20}$/;
 const PLAYBOOK_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/;
 export const SIZES = ["XS", "S", "M", "L", "XL"];
 export const ROUND_CAP = 5;
@@ -300,9 +311,10 @@ export function sizeOf(comments) {
 // A task's text with its markers taken out: "FOR: <name>" on the first line, "PLAN FIRST",
 // "ROUTINE: <id>", "ASK" and "JOB: <department>/<id>" on the last lines (in any order), and, above a JOB
 // line, the lines buildText writes in its order: "Read first" (company files), "Read first, from the
-// playbooks", "Review: art" and "Produce:", each at most once. What it finds is for showing the text clean:
-// a task is a question, or came from a job, only by the home server's records, never by these lines.
-// `ask` and `job` are not enumerable, so the version 2 answer { text, planFirst, for, routine } compares as before.
+// playbooks", "Review: art", "Generation batch: <id>" and "Produce:", each at most once. What it finds is for
+// showing the text clean: a task is a question, or came from a job, only by the home server's records, never by
+// these lines. `ask`, `job` and `batch` are not enumerable, so the version 2 answer { text, planFirst, for, routine }
+// compares as before. A batch line whose id is not of the home server's form is not taken: it stays in the text.
 export function textOf(description) {
   const lines = clean(description).s.split("\n");
   let start = 0;
@@ -310,12 +322,13 @@ export function textOf(description) {
   const out = { text: "", planFirst: false, for: null, routine: null };
   let ask = false;
   let job = null;
+  let batch = null;
   while (start < end && !lines[start].trim()) start += 1;
   if (start < end) {
     const m = lines[start].length <= MAX_LINE ? /^FOR:\s*(\S.*)$/.exec(lines[start].trim()) : null;
     if (m) { out.for = short(m[1].trim()); start += 1; }
   }
-  // Above the JOB line, read from the bottom up: Produce (1), Review (2), playbooks (3), company files (4).
+  // Above the JOB line, read from the bottom up: Produce (1), the batch (2), Review (3), playbooks (4), company files (5).
   let block = 0;
   const takes = (n) => { if (job === null || block >= n) return false; block = n; end -= 1; return true; };
   for (;;) {
@@ -329,13 +342,17 @@ export function textOf(description) {
     const jm = /^JOB:\s*(\S+)$/.exec(line);
     if (jm && job === null) { job = short(jm[1]); end -= 1; continue; }
     if (line.startsWith(`${PRODUCE} `) && takes(1)) continue;
-    if (line === REVIEW_ART && takes(2)) continue;
-    if (line.startsWith(`${PLAYBOOKS_LINE} `) && takes(3)) continue;
-    if (line.startsWith(`${READ_FIRST} `) && takes(4)) continue;
+    const id = line.startsWith(`${MARKERS.generationBatch} `) ? line.slice(MARKERS.generationBatch.length + 1) : null;
+    if (id !== null && BATCH_ID.test(id) && takes(2)) { batch = id; continue; }
+    if (line === REVIEW_ART && takes(3)) continue;
+    if (line.startsWith(`${PLAYBOOKS_LINE} `) && takes(4)) continue;
+    if (line.startsWith(`${READ_FIRST} `) && takes(5)) continue;
     break;
   }
   out.text = lines.slice(start, end).join("\n").trim();
-  Object.defineProperties(out, { ask: { value: ask, enumerable: false }, job: { value: job, enumerable: false } });
+  Object.defineProperties(out, {
+    ask: { value: ask, enumerable: false }, job: { value: job, enumerable: false }, batch: { value: batch, enumerable: false },
+  });
   return out;
 }
 
@@ -347,8 +364,10 @@ const oneLine = (s) => String(s).replace(/\s+/g, " ").trim();
 // "JOB:" line, and `ask` as the line "ASK"; they come after the text and a blank line, before PLAN FIRST.
 // Version 5 (K9) adds `playbooks` (names) as the line "Read first, from the playbooks: a, b." and
 // `review: "art"` as the line "Review: art", both after the company-files line and before "Produce:".
-// Without them the output is exactly as before.
-export function buildText({ text, to, planFirst, ask, reads, produces, job, playbooks, review } = {}) {
+// Step 3 (C9) adds `batch`, the id of the owner's approved batch, as the line "Generation batch: <id>" after the
+// review line; an id not of the home server's form (BATCH_ID) writes nothing. Without them the output is exactly
+// as before.
+export function buildText({ text, to, planFirst, ask, reads, produces, job, playbooks, review, batch } = {}) {
   const body = typeof text === "string" ? text.trim() : "";
   const name = typeof to === "string" ? to.replace(/\s+/g, " ").trim() : "";
   let out = name ? `${MARKERS.for} ${name}\n${body}` : body;
@@ -363,6 +382,7 @@ export function buildText({ text, to, planFirst, ask, reads, produces, job, play
   if (ordered.length) block.push(`${READ_FIRST} ${ordered.join(", ")}.`);
   if (books.length) block.push(`${PLAYBOOKS_LINE} ${books.join(", ")}.`);
   if (review === "art") block.push(REVIEW_ART);
+  if (typeof batch === "string" && BATCH_ID.test(batch)) block.push(`${MARKERS.generationBatch} ${batch}`);
   if (made.length) block.push(`${PRODUCE} ${made.join(", ")} in the goal's sub-folder.`);
   if (jobId) block.push(`${MARKERS.job} ${jobId}`);
   if (block.length) out += `\n\n${block.join("\n")}`;

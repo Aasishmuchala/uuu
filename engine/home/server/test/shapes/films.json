@@ -1,0 +1,61 @@
+{
+  "list": {
+    "films": [
+      {
+        "task": { "id": "e0000000-0000-4000-8000-000000000041", "identifier": "STH-41", "title": "A film of the lake house" },
+        "approvedAt": "2026-11-13T09:00:00.000Z",
+        "budget": 600,
+        "spent": 175,
+        "clips": 3,
+        "kept": 2,
+        "state": "needs you",
+        "problem": "Runway refused two pictures or prompts in this film. It needs you."
+      }
+    ]
+  },
+  "film": {
+    "task": { "id": "e0000000-0000-4000-8000-000000000041", "identifier": "STH-41", "title": "A film of the lake house" },
+    "treatment": { "variant": "b", "direction": { "id": "detail-to-whole", "title": "Detail to whole" }, "name": "lake" },
+    "batches": [
+      {
+        "id": "b0123456789abcdef0123",
+        "approvedAt": "2026-11-13T09:00:00.000Z",
+        "expiresAt": "2026-11-20T09:00:00.000Z",
+        "budget": 300,
+        "spent": 125,
+        "refused": 0,
+        "frozen": false
+      }
+    ],
+    "shots": [
+      {
+        "id": "s01",
+        "render": "tower.png",
+        "move": "A slow push towards the door.",
+        "seconds": 5,
+        "prompt": "The camera moves slowly towards the front door in soft morning light.",
+        "kind": "image_to_video",
+        "board": "/api/view/U1RILTQxL2ZpbG0vbGFrZS1iL2JvYXJkL3Nob3QtMDEucG5n",
+        "takes": [
+          {
+            "take": "t1",
+            "batch": "b0123456789abcdef0123",
+            "job": "g0123456789abcdef0123",
+            "state": "made",
+            "credits": 25,
+            "result": "Made",
+            "sent": "/api/studio/films/e0000000-0000-4000-8000-000000000041/sent/g0123456789abcdef0123",
+            "clip": "/api/view/U1RILTQxL2ZpbG0vbGFrZS1iL2NsaXBzL3MwMS10MS5tcDQ",
+            "stills": ["/api/view/U1RILTQxL2ZpbG0vbGFrZS1iL2NsaXBzL3MwMS10MS9mcmFtZS0wMS5wbmc"],
+            "verdict": { "verdict": "retake", "reason": "the tower's edge bends in the last two stills", "round": 1 }
+          }
+        ],
+        "credits": 50
+      }
+    ],
+    "total": { "spent": 175, "budget": 600, "words": "175 of 600 credits spent ($1.75 of $6.00)." },
+    "edit": { "identifier": "STH-41", "name": "lake-film" },
+    "changedAfterApproval": false,
+    "problem": null
+  }
+}

@@ -1,6 +1,7 @@
 // Tests for engine/company/lib/job-files.mjs (CONTRACTS-V3 31.2): first the loader on fixture
 // files, one valid folder and one broken folder per rule; then the shared tests of section 39 for
-// the 60 real job files of 31.5 and the Researcher's five (PLAN-V5 T34), which skip while a file does not exist.
+// the 60 real job files of 31.5 and the Researcher's five (PLAN-V5 T34), which skip while a file does not exist;
+// then the film and the two still jobs of PLAN-V5 T43.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -237,13 +238,17 @@ for (const [id, [dep, cluster, who, handoff, stage]] of Object.entries(CATALOGUE
   });
 }
 
-test("the catalogue has exactly the 60 jobs of the contract, the Researcher's five and the brand-book job", {
+// PLAN-V5 T43: the film from the owner's renders and the two still jobs, all made with Runway.
+const STEP3 = ["a-film-from-your-renders", "variations-of-a-still", "a-larger-sharper-still"];
+
+test("the catalogue has exactly the 60 jobs of the contract, the Researcher's five, the brand-book job and step 3's three", {
   skip: Object.entries(CATALOGUE).every(([id, [dep]]) => existsSync(join(REAL, dep, `${id}.json`))) ? false : "not all 65 job files exist yet",
 }, () => {
   const { jobs, problems } = realCatalogue();
   assert.deepEqual(problems, []);
-  // V5 T17 adds one job to the 60 of the contract: "Read the brand book"; T34 the Researcher's five.
-  assert.deepEqual(jobs.map((j) => j.id).sort(), [...Object.keys(CATALOGUE), "read-the-brand-book"].sort());
+  // V5 T17 adds one job to the 60 of the contract: "Read the brand book"; T34 the Researcher's five; T43 the film and two stills.
+  assert.deepEqual(jobs.map((j) => j.id).sort(), [...Object.keys(CATALOGUE), "read-the-brand-book", ...STEP3].sort());
+  assert.equal(jobs.length, 69);
 });
 
 // ---- PLAN-V5 K10, T34: the research jobs, and the jobs that may follow them.
@@ -289,6 +294,7 @@ const FOLLOWERS = {
   "marketing/announce-one-thing": ["research-a-topic", "research-a-competitors-site"],
   "studio/an-animated-title-card": ["research-notes-from-a-video", "research-a-swipe-file"],
   "studio/a-slow-reveal-from-pictures": ["research-notes-from-a-video", "research-a-swipe-file"],
+  "studio/a-film-from-your-renders": ["research-notes-from-a-video", "research-a-swipe-file"],
 };
 
 test("the jobs that may follow research take it through an optional task question at the end of their text", () => {
@@ -307,6 +313,84 @@ test("the jobs that may follow research take it through an optional task questio
   // A carousel follows a set of concepts: its one task question is the concepts, so research reaches it through them.
   const carousel = jobs.find((x) => x.file === "marketing/carousel-from-a-concept.json");
   assert.deepEqual(carousel.takes, { from: ["marketing/five-concepts"], ask: "earlier", label: "Make a carousel from this" });
+});
+
+// ---- PLAN-V5 T43 (K14, C8, C9): the film from the owner's renders and the two still jobs, as the plan pins them.
+
+const ARTIST = { department: "studio", handoff: "you-approve", stage: 3, who: ["artist"], planFirst: false };
+const PINNED = {
+  "a-film-from-your-renders": {
+    ...ARTIST, cluster: "motion", title: "A film from your renders", size: "L",
+    summary: "A short film made with Runway from your own renders, after you approve its shotlist and cost.",
+    reads: [{ file: "references/", need: "helps" }],
+    asks: [
+      // The plan's label ends "Two to twelve names." and the loader takes only a label that ends with ? or :.
+      { id: "renders", label: "Which renders in the room, in order? Two to twelve names:", kind: "text", required: true },
+      { id: "seconds", label: "How long, in seconds?", kind: "choice", required: true, options: ["15", "30", "45"] },
+      { id: "point", label: "The one thing it should say:", kind: "line", required: true },
+      { id: "fromwords", label: "May a shot be made from words alone, with no render?", kind: "choice", required: true, options: ["No", "Yes"] },
+      { id: "research", label: "Research notes to learn from:", kind: "task", required: false },
+    ],
+    needs: ["video", "generation"],
+    takes: { from: ["marketing/research-notes-from-a-video", "marketing/research-a-swipe-file"], ask: "research", label: "Make a film that learns from this" },
+    text: "Make a film of about [seconds] seconds from these renders in the room, in this order: [renders]. It says one thing: [point]. Shots made from words alone, with no render: [fromwords]. First write the treatment, its shotlist and a storyboard still for every shot, as your instructions say for a film; nothing is sent to Runway before the owner approves a shotlist and its cost. Then make the clips inside the approved batch, have them looked at, and edit the film with the brand kit's title and end cards. If I name research notes here, learn from their pacing and examples and copy none of them: [research]",
+    produces: ["film/*/shotlist.json", "video/*/manifest.json"],
+  },
+  "variations-of-a-still": {
+    ...ARTIST, cluster: "pictures", title: "Variations of a still", size: "S",
+    summary: "New versions of one of your pictures, made with Runway from that picture.",
+    reads: [],
+    asks: [
+      { id: "picture", label: "Which picture in the room?", kind: "media", required: true },
+      { id: "count", label: "How many variations?", kind: "choice", required: true, options: ["1", "2", "3"] },
+      { id: "change", label: "What should change?", kind: "line", required: true },
+    ],
+    needs: ["video", "generation"],
+    takes: null,
+    text: "Make [count] variations of [picture] with Runway, each from that picture, changing only this: [change]. Use the generation batch named in this task and nothing else. Keep the building, its lines and its materials as they are; add no words, no logo and no person. Save each as stills/<name>/v1.png and on, with its prompt beside it, and look at each before you hand them over.",
+    produces: ["stills/*/v1.png"],
+  },
+  "a-larger-sharper-still": {
+    ...ARTIST, cluster: "pictures", title: "A larger, sharper still", size: "S",
+    summary: "One of your pictures made two or four times larger and sharper with Runway's upscaler.",
+    reads: [],
+    asks: [
+      { id: "picture", label: "Which picture in the room?", kind: "media", required: true },
+      { id: "scale", label: "How much larger?", kind: "choice", required: true, options: ["2", "4"] },
+    ],
+    needs: ["video", "generation"],
+    takes: null,
+    text: "Make [picture] [scale] times larger and sharper with Runway's upscaler, using the generation batch named in this task and nothing else. The result is at most 4096 px on its long side. Save it as stills/<name>/u1.png and look at it before you hand it over.",
+    produces: ["stills/*/u1.png"],
+  },
+};
+
+test("step 3's three jobs load and are exactly as the plan pins them", () => {
+  const { jobs, problems } = realCatalogue();
+  assert.deepEqual(problems, []);
+  for (const id of STEP3) {
+    const j = jobs.find((x) => x.file === `studio/${id}.json`);
+    assert.ok(j, `${id} loads`);
+    const { file, ...doc } = j;
+    assert.deepEqual(doc, { id, ...PINNED[id] }, id);
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(REAL, "studio", `${id}.json`), "utf8"))),
+      ["id", "department", "cluster", "title", "summary", "handoff", "stage", "who", "size", "planFirst", "reads", "asks", "needs", "takes", "text", "produces"],
+      `${id}: the keys in the order of every other job file`);
+  }
+});
+
+test("step 3's jobs read as the owner would say them: no tool, path, address or marker, and money only after the owner's yes", () => {
+  for (const id of STEP3) {
+    const j = PINNED[id];
+    const all = [j.title, j.summary, j.text, ...j.asks.map((a) => a.label), ...(j.takes ? [j.takes.label] : [])].join(" ");
+    for (const t of TOOL_NAMES) assert.ok(!new RegExp(`\\b${t}\\b`, "i").test(all), `${id} names ${t}`);
+    assert.doesNotMatch(all, /\/Users\/|~\/|\/private\/|\/tmp\/|https?:|www\.|[`$\\{}]/, id);
+    assert.doesNotMatch(j.text, /^(FOR|ROUTINE|SIZE|RESULT|PLAN READY|PLAN FIRST|STOPPED|VERDICT|JOB|ASK|SHOTLIST|CLIPS|Generation batch)\b/m, id);
+    assert.ok(j.needs.includes("generation"), `${id} needs generation`);
+    assert.match(j.summary, /Runway/, `${id} says it uses Runway`);
+  }
+  assert.match(PINNED["a-film-from-your-renders"].text, /nothing is sent to Runway before the owner approves a shotlist and its cost/);
+  for (const id of ["variations-of-a-still", "a-larger-sharper-still"]) assert.match(PINNED[id].text, /the generation batch named in this task and nothing else/);
 });
 
 // ---- {{JOBS}} in a role file (31.3), filled by loadCompanyFile from departments.json and jobs/.

@@ -1,0 +1,49 @@
+{
+  "id": "variations-of-a-still",
+  "department": "studio",
+  "cluster": "pictures",
+  "title": "Variations of a still",
+  "summary": "New versions of one of your pictures, made with Runway from that picture.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "artist"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "picture",
+      "label": "Which picture in the room?",
+      "kind": "media",
+      "required": true
+    },
+    {
+      "id": "count",
+      "label": "How many variations?",
+      "kind": "choice",
+      "required": true,
+      "options": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    {
+      "id": "change",
+      "label": "What should change?",
+      "kind": "line",
+      "required": true
+    }
+  ],
+  "needs": [
+    "video",
+    "generation"
+  ],
+  "takes": null,
+  "text": "Make [count] variations of [picture] with Runway, each from that picture, changing only this: [change]. Use the generation batch named in this task and nothing else. Keep the building, its lines and its materials as they are; add no words, no logo and no person. Save each as stills/<name>/v1.png and on, with its prompt beside it, and look at each before you hand them over.",
+  "produces": [
+    "stills/*/v1.png"
+  ]
+}

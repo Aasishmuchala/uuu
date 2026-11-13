@@ -3,13 +3,16 @@
 // run (runsIndex), and one job as the pages see it (jobView, shape `job`). Read-only.
 // Version 5 (PLAN-V5 K7, K9): a job's craft from engine/company/brand/craft.json (craftOf), what it costs in
 // time with one or three versions, and the needs `internet`, `generation` and `browser` from the doors' switches.
+// Step 3 (C9): what a job that needs the generation door costs in money (moneyOf, the view's `generation`), from
+// the models chosen in Settings and the door's own price table, never from a number in a file.
 // A task counts as started from a job only by its `template:` record (written by the home server), never
 // by the `JOB:` line in its text. Shared by routes/map.mjs and the jobs features; they never edit it.
 import { existsSync, lstatSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadJobFiles, NEEDS } from "../../../company/lib/job-files.mjs";
 import { estimateMinutes, loadCraft, loadTiming } from "../../../company/lib/craft-files.mjs";
-import { readDoorsState } from "../../../doors/common.mjs";
+import { DOORS_DEFAULTS, readDoorsState } from "../../../doors/common.mjs";
+import { estimate, PRICES, priced } from "../../../generate/runway.mjs";
 import { trusted } from "../../../relay/state.mjs";
 import { loadStarters } from "../../../company/lib/brain-files.mjs";
 import { HomeError } from "./errors.mjs";
@@ -155,6 +158,64 @@ function craftView(job, craft, own) {
     lastRuns: lastRunsOf(own),
   };
 }
+
+// ---- money (PLAN-V5 C9): what a job that needs the generation door costs, as its page says it before Start
+
+// The jobs whose cost the job page states, by the job's id (the repo's; a job file cannot add itself here).
+// Pressing Start on a still job is the owner's approval of exactly its cost (routes/jobs.mjs writes the batch);
+// a film's cost is approved later, on its shotlist card.
+export const MONEY_JOBS = Object.freeze({
+  "studio/a-film-from-your-renders": "film",
+  "studio/variations-of-a-still": "variations",
+  "studio/a-larger-sharper-still": "upscale",
+});
+export const FILM_WORDS = "A film takes long and costs money. First the Artist writes the shotlist, at no cost; then you see what its "
+  + "clips would cost and approve it, and only then is anything sent to Runway. Each clip takes Runway a few minutes, and the edit "
+  + "and the checks follow: plan on one to two hours from start to finish, plus the time the shotlist waits for you.";
+export const NO_PRICE_WORDS = "The model chosen in Settings has no price, so this job cannot start.";
+const MODEL_NAME = /^[A-Za-z0-9._-]{1,80}$/;
+// "$0.08" for 8 credits: one credit is one US cent.
+const dollars = (credits) => `$${(credits / 100).toFixed(2)}`;
+const modelName = (v) => (typeof v === "string" && MODEL_NAME.test(v) ? v : null);
+
+// The models the owner chose in Settings, from the switches file read through the doors' own trust rule; K1's
+// defaults when there is no file or it cannot be used (the generation need is false then, so nothing starts).
+export function chosenModels(config) {
+  const path = config?.paths?.doorsState;
+  const st = typeof path === "string" ? readDoorsState(path) : { ok: false };
+  return { ...(st.ok ? st.generate.models : DOORS_DEFAULTS.generate.models) };
+}
+
+// moneyOf(job, models) -> null | { kind: "film" | "variations" | "upscale", words, unit, model, ok }: null unless the
+// job needs `generation` and is one of MONEY_JOBS. `unit` is the door's price in credits for a second of a clip
+// (film, models.video) or for one picture (models.still, models.upscale), null with no price; `ok` false means
+// the model chosen has no price in the door's table, and the job cannot start.
+export function moneyOf(job, models) {
+  if (!Array.isArray(job?.needs) || !job.needs.includes("generation")) return null;
+  const kind = Object.hasOwn(MONEY_JOBS, jobRef(job)) ? MONEY_JOBS[jobRef(job)] : null;
+  if (!kind) return null;
+  const m = models && typeof models === "object" ? models : {};
+  if (kind === "film") {
+    // A film's clips use models.video, and models.videoBest for shots marked best: both must have a price.
+    const model = modelName(m.video);
+    const row = model && priced(model) && PRICES[model].kinds.includes("image_to_video") ? PRICES[model] : null;
+    const best = modelName(m.videoBest);
+    const ok = row !== null && best !== null && estimate({ kind: "image_to_video", model: best, seconds: 5 }) !== null;
+    return { kind, words: ok ? FILM_WORDS : NO_PRICE_WORDS, unit: ok ? row.perSecond : null, model, ok };
+  }
+  const model = modelName(kind === "variations" ? m.still : m.upscale);
+  const unit = model ? estimate({ kind: kind === "variations" ? "still_variation" : "still_upscale", model }) : null;
+  if (unit === null) return { kind, words: NO_PRICE_WORDS, unit: null, model, ok: false };
+  const words = kind === "variations"
+    ? `Each variation costs ${unit} credits (${dollars(unit)}) with ${model}; three cost ${3 * unit} credits (${dollars(3 * unit)}). `
+      + "Pressing Start approves the cost of the number you choose; nothing else is spent."
+    : `A larger still costs ${unit} credits (${dollars(unit)}) with ${model}. Pressing Start approves this cost; nothing else is spent.`;
+  return { kind, words, unit, model, ok: true };
+}
+
+// The `generation` key of jobView: the switches file is read only for a job that needs the door.
+const generationView = (job, config) => (Array.isArray(job?.needs) && job.needs.includes("generation") && Object.hasOwn(MONEY_JOBS, jobRef(job))
+  ? moneyOf(job, chosenModels(config)) : null);
 
 // ---- what is in place, cached 60 seconds per state folder
 const needsCache = new Map(); // state folder -> { at, value: Promise }
@@ -388,7 +449,8 @@ function takesOf(job, runs, catalogueJobs) {
 }
 
 // jobView(job, { needs, runs, config, roles }) -> shape `job` (33.3). `runs` is runsIndex's Map (or this
-// job's own entry); `needs` is needsState's answer. `craft` is null for a job with no craft entry (K9).
+// job's own entry); `needs` is needsState's answer. `craft` is null for a job with no craft entry (K9);
+// `generation` (moneyOf, C9) is null for every job that does not need the generation door.
 export function jobView(job, { needs, runs, config, roles } = {}) {
   const ref = jobRef(job);
   const deps = loadDepartments(config).departments;
@@ -415,6 +477,7 @@ export function jobView(job, { needs, runs, config, roles } = {}) {
     text: job.text,
     ready, why,
     runs: own ? { total: own.total, accepted: own.accepted, working: own.working, needsYou: own.needsYou, last: own.last ? { ...own.last } : null } : NO_RUNS(),
+    generation: generationView(job, config),
     craft: craftView(job, craftOf(config, job), own),
   };
 }

@@ -1,0 +1,71 @@
+{
+  "id": "staged:shotlist:e0000000-0000-4000-8000-000000000026",
+  "source": "goal",
+  "raisedBy": "Chief of staff",
+  "severity": "normal",
+  "kind": "shotlist",
+  "version": "0f1e2d3c4b5a6978",
+  "title": "Approve a shotlist: A film of the lake house",
+  "when": "2026-11-13T09:00:00.000Z",
+  "summary": "Three treatments are ready. Approve one and its cost; nothing is sent to Runway before you do.",
+  "details": [
+    { "label": "Today's limit", "value": "300 credits ($3.00); 40 spent" },
+    { "label": "This month", "value": "1000 credits ($10.00); 40 spent" }
+  ],
+  "actions": [
+    { "id": "approve", "label": "Approve this one and its cost", "style": "primary", "needsNote": false }
+  ],
+  "pieceKind": "film",
+  "round": 1,
+  "missing": [],
+  "variants": [
+    {
+      "id": "a",
+      "direction": { "id": "slow-approach", "title": "Slow approach" },
+      "preview": [
+        { "type": "image", "token": "U1RILTI2L2ZpbG0vbGFrZS1hL2JvYXJkL3Nob3QtMDEucG5n", "url": "/api/view/U1RILTI2L2ZpbG0vbGFrZS1hL2JvYXJkL3Nob3QtMDEucG5n", "file": "board/shot-01.png" }
+      ],
+      "brand": { "result": "unknown", "lines": [] },
+      "review": {
+        "scores": { "brand": 8, "hierarchy": 7, "composition": 8, "finish": 7, "idea": 7, "voice": 8, "kind": 7 },
+        "total": 52,
+        "of": 70,
+        "meets": true,
+        "reason": "calm and exact, the light carries it"
+      },
+      "shotlist": {
+        "title": "The lake house at dawn",
+        "seconds": 30,
+        "ratio": "1280:720",
+        "shots": [
+          {
+            "id": "s01",
+            "render": "tower.png",
+            "seconds": 5,
+            "move": "A slow push towards the door.",
+            "prompt": "The camera moves slowly towards the front door in soft morning light.",
+            "kind": "image_to_video",
+            "best": false,
+            "model": "gen4_turbo",
+            "credits": 25
+          }
+        ],
+        "cards": null
+      },
+      "boards": [
+        { "shot": "s01", "url": "/api/view/U1RILTI2L2ZpbG0vbGFrZS1hL2JvYXJkL3Nob3QtMDEucG5n" }
+      ],
+      "cost": {
+        "base": 150,
+        "most": 300,
+        "words": "6 clips, 30 seconds: about 150 credits ($1.50), up to 300 with one retake each. Today's limit: 300. Retakes may stop at today's limit.",
+        "time": "Runway takes a few minutes a clip: about 10 to 30 minutes for 6 clips, then the edit and the checks."
+      },
+      "approvable": true,
+      "blocked": null
+    }
+  ],
+  "generation": { "on": true, "key": true, "daily": 300, "monthly": 1000, "dayLeft": 260, "monthLeft": 960 },
+  "problem": null,
+  "link": { "page": "tasks", "id": "e0000000-0000-4000-8000-000000000026" }
+}

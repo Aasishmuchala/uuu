@@ -75,6 +75,13 @@
       "plainState": "Being worked on"
     }
   },
+  "generation": {
+    "kind": "variations",
+    "words": "Each variation costs 8 credits ($0.08) with gen4_image; three cost 24 credits ($0.24). Pressing Start approves the cost of the number you choose; nothing else is spent.",
+    "unit": 8,
+    "model": "gen4_image",
+    "ok": true
+  },
   "craft": {
     "kind": "carousel",
     "review": "art",

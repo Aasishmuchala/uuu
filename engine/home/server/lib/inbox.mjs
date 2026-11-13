@@ -10,6 +10,9 @@
 // PLAN-V5 K9: an item of kind "pick" (a task's versions, inbox/goals.mjs) offers `pick`, which takes `variant`
 // (a, b or c, and nothing else, on no other item or action); a stale version of such an item is refused with
 // its own sentence, before anything is written.
+// PLAN-V5 K14, C7: an item of kind "shotlist" (a film's treatments and their cost, inbox/staged.mjs) offers
+// `approve`, which takes `variant` by the same rule; a stale one is refused with its own sentence, since what
+// changed may be the money. While it offers `approve` it waits for the owner as a staged plan does.
 import { createHash } from "node:crypto";
 import { HomeError } from "./errors.mjs";
 
@@ -60,18 +63,25 @@ function chainOf(item) {
 
 const VARIANT = /^[abc]$/;
 export const PICK_CHANGED = "These versions changed since you looked. Read them again.";
+export const SHOTLIST_CHANGED = "This shotlist or its cost changed since you looked. Read it again.";
 
 const offers = (item, ...ids) => (Array.isArray(item.actions) ? item.actions : []).some((a) => a && ids.includes(a.id));
 
-// An item that waits for the owner on purpose: a question that can be answered or accepted, or the staged plan
-// to accept. A question card that offers only Hide waits for nothing.
+// The one action of each kind of card that chooses one of its versions, and so takes `variant`.
+const CHOOSES = { pick: "pick", shotlist: "approve" };
+const chooses = (item, action) => Object.hasOwn(CHOOSES, item.kind) && CHOOSES[item.kind] === action;
+
+// An item that waits for the owner on purpose: a question that can be answered or accepted, the staged plan
+// to accept, or a film's shotlist to approve. A question card that offers only Hide, or a shotlist card that
+// offers only Send all back, waits for nothing.
 export function waitsOnOwner(item) {
   if (!item) return false;
   if (item.kind === "question") return offers(item, "answer", "accept");
+  if (item.source === "goal" && item.kind === "shotlist" && String(item.id).startsWith("staged:shotlist:")) return offers(item, "approve");
   return item.source === "goal" && item.kind === "approval" && String(item.id).startsWith("staged:plan:") && offers(item, "accept");
 }
 
-// A task the Chief of staff blocked on purpose waits for a question or a plan (waitsForOwner in tasks.mjs uses
+// A task the Chief of staff blocked on purpose waits for a question, a plan or a shotlist (waitsForOwner in tasks.mjs uses
 // the same rule). Then the board's own blocked problem item for that task, or for a step under it, is a second
 // item for one thing, and is dropped from the list. A question on one step never hides another step's item.
 function dropDuplicateBlocked(items, owners) {
@@ -194,15 +204,19 @@ export function createActor(sources) {
       throw new HomeError(400, "This needs a short note.", "Write what should change, then send it.", "needs_note");
     }
     if (text.length > 4000) throw new HomeError(400, "The note is too long.", "Keep it under 4000 characters.", "note_too_long");
-    const picking = item.kind === "pick" && action === "pick";
+    const picking = chooses(item, action);
     if (hasVariant && !picking) {
       throw new HomeError(400, "A version can be picked only on a card of versions.", "Refresh the inbox and pick one of the buttons shown.", "bad_variant");
     }
     if (picking && !hasVariant) {
+      if (item.kind === "shotlist") {
+        throw new HomeError(400, "Choose one of the treatments first.", "Choose the treatment you want, then press Approve this one and its cost.", "needs_variant");
+      }
       throw new HomeError(400, "Pick one of the versions first.", "Choose the version you want, then press Pick this one.", "needs_variant");
     }
     if (typeof item.version === "string" && item.version && version !== item.version) {
       if (item.kind === "pick") throw new HomeError(409, PICK_CHANGED, "Look at the versions again, then decide.", "changed_since_seen");
+      if (item.kind === "shotlist") throw new HomeError(409, SHOTLIST_CHANGED, "Look at the treatments and their cost again, then decide.", "changed_since_seen");
       throw new HomeError(409, "This changed after you looked at it. Nothing was done.", "Look at it again, then decide.", "changed_since_seen");
     }
     const out = await owners.get(id).act({ ...ctx, acting: true, item, variant: picking ? variant : null }, id, action, text || null);

@@ -10,6 +10,9 @@
 // to date (lib/taste.mjs). Its version also hashes the pieces' files (stampOf), the newest review comment and the
 // versions as shown, so a pick made on a card that has changed is refused. A task without variants.json gets
 // today's item.
+// A finished film (PLAN-V5 K14 step 5, C7): a goal whose job makes films and that has the owner's `shotlist:`
+// record is today's item (Accept, Send back), never a pick card, with two more details hashed into its version:
+// "Film" (from the edit's manifest) and "Spent" (from the generation door's ledger only; routes/films.mjs).
 import { agentNames, commentsOf, descendants, goalsOf, loadIssues, needIds, pickResult } from "../lib/goals.mjs";
 import { parseAnswer } from "../lib/answer.mjs";
 import { brainFor } from "../brain/store.mjs";
@@ -20,12 +23,14 @@ import { askedQuestion } from "../lib/owner-text.mjs";
 import { reviewsOf } from "../lib/artreview.mjs";
 import { stampOf } from "../lib/brandcheck.mjs";
 import { ANOTHER, BACK, PICK, recordPick } from "../lib/picks.mjs";
+import { approvalsOf } from "../lib/shotlist.mjs";
 import { roundsOf } from "../lib/staged.mjs";
 import { refreshTaste } from "../lib/taste.mjs";
 import { listTaskFiles, readTaskText } from "../lib/taskfiles.mjs";
 import { readVariants } from "../lib/variants.mjs";
 import { ACCEPTED, recordVerdict, SENT_BACK } from "../lib/verdicts.mjs";
 import { storeOf } from "../content/context.mjs";
+import { filmCardDetails } from "../routes/films.mjs";
 import { kindOfTask, piecesFor } from "../routes/pieces.mjs";
 
 // One line of Markdown as plain words: null for a line that is only a mark (a rule, a table divider, a fence).
@@ -128,6 +133,16 @@ function asAnswer(ctx, item, g, answer) {
     { id: "reopen", label: "Ask again", style: "plain", needsNote: true },
   ];
   return item;
+}
+
+// A finished film's two details, or null when the goal's job does not make films or has no `shotlist:` record.
+// Such a film is never a pick card, even when its details cannot be read.
+const FILM_UNREAD = { film: "Could not be read", spent: "Could not be read" };
+function filmOf(ctx, g) {
+  let kind = null;
+  try { kind = kindOfTask(ctx, g); } catch { kind = null; }
+  if (kind !== "film" || !approvalsOf(ctx.decisions, g.id).length) return null;
+  try { return filmCardDetails(ctx, g) || FILM_UNREAD; } catch { return FILM_UNREAD; }
 }
 
 // ---- versions to pick from (PLAN-V5 K9)
@@ -234,6 +249,12 @@ async function list(ctx) {
     const answer = answerOf(ctx, g);
     if (answer && !answer.wellFormed) item.version = versionOf(item.version, JSON.stringify([answer.text]));
     if (answer && answer.wellFormed) return asAnswer(ctx, item, g, answer);
+    const film = filmOf(ctx, g);
+    if (film) {
+      item.details = [...item.details, { label: "Film", value: film.film }, { label: "Spent", value: film.spent }];
+      item.version = versionOf(item.version, JSON.stringify(["film", film.film, film.spent]));
+      return item;
+    }
     const versions = await versionsOf(ctx, g, tree, ids.agents?.["art-director"] || null);
     if (versions && versions.problem) {
       // The versions cannot be shown: the task is accepted or sent back as any other, and the owner is told why.

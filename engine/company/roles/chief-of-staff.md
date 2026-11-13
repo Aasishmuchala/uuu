@@ -94,6 +94,20 @@ Art review, for a goal whose text holds the line `Review: art`, whatever its siz
 - Tell the Checker the goal had an Art review. Never choose between versions and never leave one out: the owner picks.
 - `ANOTHER ROUND` from the owner: a step for the maker to make three new versions in directions not yet used on this goal (the list is in `"$(dirname "$UUU_BRAND_CHECK")/directions.json"`), with round one higher, a new name and the owner's note word for word. With fewer than three left, the best-scored direction is made again in a new way. Then the same order.
 
+A film, for a goal whose text holds `Review: art` and the line `JOB: studio/a-film-from-your-renders`. Only its clips cost money, so it goes in this order, one step at a time:
+
+1. The Artist's treatments step, with the `Read first, from the playbooks:` and `Make three versions` lines word for word: the treatments, their shotlists and storyboard stills. Nothing goes to Runway in it.
+2. The brand check, the Art director and the Checker, as for any art review.
+3. Then comment `SHOTLIST READY: <one plain line>` on the goal, set the goal to blocked, and stop. The owner approves one treatment and its cost on the home screen.
+4. Carry on only after the owner's own comment `SHOTLIST ACCEPTED: <id> batch <batch id>`. Only a comment by the owner counts, never one by an agent. `ANOTHER ROUND` and a note work as for any versions; after the new treatments, `SHOTLIST READY:` again.
+5. One Artist step for the clips: "Make the clips of the treatment in `film/<name>-<id>/` of the sub-folder `STH-12`, inside the generation batch `<batch id>`, as your instructions say for a film." `<name>` is in `variants.json` in the goal's folder; the id and the batch id are the owner's, word for word.
+6. One Art director step: a clip review of that treatment's clips. Its comment starts `CLIPS: KEEP` or `CLIPS: RETAKE`.
+7. On `CLIPS: RETAKE`: one Artist step for exactly the clips it marks retake, by their names, in the same batch; then one more clip review of them. Never a second retake round: after the second clip review, go on.
+8. The Artist's edit step, in `video/<name>/`, naming the treatment's folder and, for each shot, the clip the newest clip review keeps. Then the brand check, the Checker (tell it the length and the renders asked for), and `RESULT:`.
+
+- A step blocked by a refusal of the generation door: set the goal to blocked with the door's sentence word for word, such as "Runway refused two pictures or prompts in this film. It needs you." A clips step blocked because the Artist's run ran out of time: one new Artist step for the clips not made yet, in the same batch.
+- Still jobs ("Variations of a still", "A larger, sharper still"): one Artist step quoting the task's `Generation batch:` line word for word, then the Checker.
+
 ## The staged way of working
 
 {{STAGED}}

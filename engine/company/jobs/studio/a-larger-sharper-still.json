@@ -1,0 +1,42 @@
+{
+  "id": "a-larger-sharper-still",
+  "department": "studio",
+  "cluster": "pictures",
+  "title": "A larger, sharper still",
+  "summary": "One of your pictures made two or four times larger and sharper with Runway's upscaler.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "artist"
+  ],
+  "size": "S",
+  "planFirst": false,
+  "reads": [],
+  "asks": [
+    {
+      "id": "picture",
+      "label": "Which picture in the room?",
+      "kind": "media",
+      "required": true
+    },
+    {
+      "id": "scale",
+      "label": "How much larger?",
+      "kind": "choice",
+      "required": true,
+      "options": [
+        "2",
+        "4"
+      ]
+    }
+  ],
+  "needs": [
+    "video",
+    "generation"
+  ],
+  "takes": null,
+  "text": "Make [picture] [scale] times larger and sharper with Runway's upscaler, using the generation batch named in this task and nothing else. The result is at most 4096 px on its long side. Save it as stills/<name>/u1.png and look at it before you hand it over.",
+  "produces": [
+    "stills/*/u1.png"
+  ]
+}

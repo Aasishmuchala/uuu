@@ -1,0 +1,78 @@
+{
+  "id": "a-film-from-your-renders",
+  "department": "studio",
+  "cluster": "motion",
+  "title": "A film from your renders",
+  "summary": "A short film made with Runway from your own renders, after you approve its shotlist and cost.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "artist"
+  ],
+  "size": "L",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "references/",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "renders",
+      "label": "Which renders in the room, in order? Two to twelve names:",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "seconds",
+      "label": "How long, in seconds?",
+      "kind": "choice",
+      "required": true,
+      "options": [
+        "15",
+        "30",
+        "45"
+      ]
+    },
+    {
+      "id": "point",
+      "label": "The one thing it should say:",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "fromwords",
+      "label": "May a shot be made from words alone, with no render?",
+      "kind": "choice",
+      "required": true,
+      "options": [
+        "No",
+        "Yes"
+      ]
+    },
+    {
+      "id": "research",
+      "label": "Research notes to learn from:",
+      "kind": "task",
+      "required": false
+    }
+  ],
+  "needs": [
+    "video",
+    "generation"
+  ],
+  "takes": {
+    "from": [
+      "marketing/research-notes-from-a-video",
+      "marketing/research-a-swipe-file"
+    ],
+    "ask": "research",
+    "label": "Make a film that learns from this"
+  },
+  "text": "Make a film of about [seconds] seconds from these renders in the room, in this order: [renders]. It says one thing: [point]. Shots made from words alone, with no render: [fromwords]. First write the treatment, its shotlist and a storyboard still for every shot, as your instructions say for a film; nothing is sent to Runway before the owner approves a shotlist and its cost. Then make the clips inside the approved batch, have them looked at, and edit the film with the brand kit's title and end cards. If I name research notes here, learn from their pacing and examples and copy none of them: [research]",
+  "produces": [
+    "film/*/shotlist.json",
+    "video/*/manifest.json"
+  ]
+}

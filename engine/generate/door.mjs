@@ -16,7 +16,7 @@ import { checkCaller, ensureSecret, headerValues, readBody, refuse, sendJson, st
 import { describeError } from "../relay/relay.mjs";
 import { checkAddress } from "../web/address.mjs";
 import { REAL_NET, fetchPublic } from "../web/fetch.mjs";
-import { createLedger, dayOf } from "./ledger.mjs";
+import { createLedger, dayOf, rotateLedger } from "./ledger.mjs";
 import {
   API_LIMITS, KINDS, ORGANIZATION_PATH, PRICES, RUNWAY_ORIGIN, UPSCALE_MAX_SIDE, VIDEO_KINDS, buildRequest, callRunway,
   checkUpstream, chosen, credits as creditsOf, defaultModel, errorText, estimate, failureKind, holdsKey, priced, ratioFits,
@@ -721,6 +721,14 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
           status.on = gs.ok && gs.on;
           status.key = readRunwayKey(P.key) !== null;
           try { store.sweep(clock()); } catch { /* nothing to sweep yet */ }
+          // The ledger is tidied here, synchronously, before any request or settling can
+          // append to it (PLAN-V5 C3); a failure leaves it as it was.
+          try {
+            const tidy = rotateLedger(P.ledger, clock());
+            if (tidy.moved > 0) say(`${iso()} ledger tidied: ${tidy.moved} old lines moved, ${tidy.kept} kept`);
+          } catch (err) {
+            say(`${iso()} ledger not tidied: ${describeError(err)}`);
+          }
           touch();
           statusOut.flush();
           settling = settleOpen().catch((err) => say(`${iso()} settling failed: ${describeError(err)}`));

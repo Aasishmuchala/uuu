@@ -9,10 +9,18 @@
 // repo's craft.json. Which direction the owner picked before, and which version of an earlier task, come only
 // from the home server's own `pick:` records. Work that follows a research task (K10) is pointed at the research
 // folder, by the earlier task's `template:` record.
+// Step 3 (PLAN-V5 C9, C10): pressing Start on a still job ("Variations of a still", "A larger, sharper still") is
+// the owner's approval of exactly its cost. The cost is worked out here from the models chosen in Settings and the
+// door's own prices, checked against the switch, the key and what is left of today's and this month's limits (all
+// read again now), and written as a one-take batch for the new task; its text names the batch. Nothing else is
+// approved: a batch that cannot be written cancels the task.
 import { directionsFor, pickDirections } from "../../../company/lib/craft-files.mjs";
+import { generationNow, newBatchId, removeBatch, writeBatch } from "../lib/batches.mjs";
 import { HomeError } from "../lib/errors.mjs";
 import { needIds, summary } from "../lib/goals.mjs";
-import { craftOf, estimateOf, jobRef, jobView, loadCatalogue, loadCraftTable, needsState, runsIndex } from "../lib/jobs.mjs";
+import {
+  chosenModels, craftOf, estimateOf, jobRef, jobView, loadCatalogue, loadCraftTable, moneyOf, needsState, NO_PRICE_WORDS, runsIndex, WHY,
+} from "../lib/jobs.mjs";
 import { loadDepartments } from "../lib/departments.mjs";
 import { stripInvisible } from "../lib/owner-text.mjs";
 import { buildText } from "../lib/staged.mjs";
@@ -50,8 +58,9 @@ const STAGES = [
 ];
 
 // A line of the text that an agent, or textOf, could read as a marker (CONTRACTS-V2 15.1, CONTRACTS-V3 31.3, 34).
-// Version 5 (K9) adds the playbooks line, any "Review:" line and the three-versions sentence.
-const MARKER_LINE = /^(FOR:|PLAN FIRST\b|PLAN READY:|PLAN ACCEPTED\b|ANSWER:|STOPPED:|RESULT:|VERDICT:|ROUTINE:|SIZE:|JOB:|ASK\s*$|Read first, from the company's files:|Read first, from the playbooks:|Review:|Make three versions\b|Produce:)/i;
+// Version 5 (K9) adds the playbooks line, any "Review:" line and the three-versions sentence; step 3 (C9, C11) the
+// film's markers and the batch line, with any spacing between their words.
+const MARKER_LINE = /^(FOR:|PLAN FIRST\b|PLAN READY:|PLAN ACCEPTED\b|ANSWER:|STOPPED:|RESULT:|VERDICT:|ROUTINE:|SIZE:|JOB:|ASK\s*$|Read first, from the company's files:|Read first, from the playbooks:|Review:|Make three versions\b|Produce:|SHOTLIST\s*READY\s*:|SHOTLIST\s*ACCEPTED|CLIPS\s*:|ANOTHER\s*ROUND|Generation\s*batch\s*:)/i;
 // A line as a reader of markers might see it: compatibility forms folded (full-width letters), every
 // invisible or formatting character dropped, and any kind of space at its start gone (the blank U+2800 too).
 // MARKER_LINE ignores case.
@@ -252,6 +261,70 @@ function notReady(ctx, why) {
   return ctx.fail(409, why.text, next, "job_not_ready");
 }
 
+// ---- what a still job spends (C9)
+
+const LEDGER_UNREADABLE = "The spending ledger cannot be read, so nothing will be made. Health shows what to do.";
+const NOT_RECORDED = "The cost could not be recorded, so the job was not started.";
+const MOST_VARIATIONS = 3;
+
+// A job that needs the generation door cannot start when the model chosen in Settings has no price (its page says so).
+const noPrice = (ctx) => ctx.fail(409, NO_PRICE_WORDS, "Choose another model in Settings, then start the job.", "no_price");
+
+// The shots a still job's Start approves and their cost: v1 to vN of `still_variation` with models.still (N the
+// owner's answer to `count`), or u1 of `still_upscale` with models.upscale, priced by the door's own table. The
+// switch, the key, the models, the ledger and the limits are read now, not from the 60-second needs. -> { shots,
+// cost }; throws the refusal (job_not_ready, no_price, ledger_unreadable, over_limit), and nothing is written.
+function stillCost(ctx, job, kind, record) {
+  const gen = generationNow(ctx.config, Date.now());
+  if (!gen.on || !gen.key) throw notReady(ctx, { name: "generation", text: WHY.generation[0], link: { ...WHY.generation[1] } });
+  const money = moneyOf(job, gen.models);
+  if (!money || !money.ok) throw noPrice(ctx);
+  let count = 1;
+  if (kind === "variations") {
+    const ask = job.asks.find((a) => a.id === "count");
+    count = /^[1-9]$/.test(String(record.count ?? "")) ? Number(record.count) : 0;
+    if (!ask || count < 1 || count > MOST_VARIATIONS) throw bad(ctx, ask || { label: "How many variations?" });
+  }
+  const shots = kind === "variations"
+    ? Array.from({ length: count }, (_, i) => ({ id: `v${i + 1}`, kind: "still_variation", model: money.model }))
+    : [{ id: "u1", kind: "still_upscale", model: money.model }];
+  const cost = money.unit * shots.length;
+  if (!gen.ledgerOk) throw ctx.fail(409, LEDGER_UNREADABLE, "Open Health to see what to do next.", "ledger_unreadable");
+  if (cost > gen.dayLeft) {
+    throw ctx.fail(409, `This costs more than is left of today's limit (${gen.dayLeft} credits). Raise it in Settings, or start it tomorrow.`,
+      "Open Settings, then start the job.", "over_limit");
+  }
+  if (cost > gen.monthLeft) {
+    throw ctx.fail(409, `This costs more than is left of this month's limit (${gen.monthLeft} credits). Raise it in Settings, or start it next month.`,
+      "Open Settings, then start the job.", "over_limit");
+  }
+  return { shots, cost };
+}
+
+// The batch for a still job's new task: one take a shot, its budget the door's prices (lib/batches.mjs works it out
+// again and reads the file back with the door's own reader). When it cannot be written, or comes out at another
+// cost than the one checked, the task is cancelled and the start fails: nothing was approved.
+async function writeStillBatch(ctx, ref, created, id, still) {
+  try {
+    if (!created || typeof created.id !== "string") throw new Error("the board gave no task id");
+    const written = writeBatch(ctx.config, { id, task: created.id, slug: "artist", shots: still.shots, takes: 1, textToVideo: false });
+    if (written.budget !== still.cost) {
+      removeBatch(ctx.config, written.id);
+      throw new Error("the batch's budget is not the cost checked");
+    }
+  } catch (e) {
+    ctx.log(`jobs: the batch for a start of ${ref} could not be written: ${String(e?.code && e.code !== "error" ? e.code : e?.message || e).split("\n")[0]}`);
+    if (created && typeof created.id === "string") {
+      try {
+        await ctx.board.patch(`/api/issues/${encodeURIComponent(created.id)}`, { status: "cancelled" });
+      } catch (c) {
+        ctx.log(`jobs: the task of a start of ${ref} could not be cancelled: ${String(c?.message || c).split("\n")[0]}`);
+      }
+    }
+    throw ctx.fail(500, NOT_RECORDED, "Try again in a minute. If it keeps happening, look at Health.", "batch_not_written");
+  }
+}
+
 export default function register(app) {
   app.get("/api/jobs", async (ctx) => {
     const { departments, problems: depProblems } = loadDepartments(ctx.config);
@@ -310,6 +383,9 @@ export default function register(app) {
     // Readiness first: a job that cannot start says why, whatever was filled in.
     const ready = jobView(job, { needs, runs: new Map(), config: ctx.config, roles });
     if (!ready.ready) throw notReady(ctx, ready.why);
+    // A job that needs the generation door cannot start without a price for the model chosen in Settings (C9).
+    const money = job.needs.includes("generation") ? moneyOf(job, chosenModels(ctx.config)) : null;
+    if (money && !money.ok) throw noPrice(ctx);
     const craft = craftOf(ctx.config, job);
     const versions = versionsOf(ctx, craft, body.versions);
 
@@ -367,10 +443,15 @@ export default function register(app) {
       }
       text = `${text}\n\nMake three versions, one in each of these directions: ${directions.map((d) => oneLine(d.title)).join(", ")}. Write variants.json as your instructions say.`;
     }
+    // A still job's cost, approved by this Start (C9): checked now, before the board is asked, and its batch named in
+    // the text. A film's cost is approved later, on its shotlist card.
+    const still = money && money.kind !== "film" ? stillCost(ctx, job, money.kind, record) : null;
+    const batch = still ? newBatchId() : null;
     const description = buildText({
       text, to, planFirst: job.planFirst || body.planFirst === true,
       reads: job.reads, produces: job.produces, job: ref,
       ...(craft ? { playbooks: craft.playbooks, review: craft.review } : {}),
+      ...(batch ? { batch } : {}),
     });
 
     const ids = needIds(ctx);
@@ -392,15 +473,21 @@ export default function register(app) {
       throw ctx.fail(409, "This job was not started again: the board kept the earlier task.",
         "Open Tasks to find it, or start the job again in a minute.", "already_started");
     }
+    // The owner's approved cost of a still job, for this task only; the task is cancelled when it cannot be written.
+    if (still) await writeStillBatch(ctx, ref, created, batch, still);
     if (created && typeof created.id === "string") {
       const kept = {};
       for (const [k, v] of Object.entries(record)) kept[k] = String(v).slice(0, RECORD_MAX);
       // Write-once records (lib/decisions.mjs): a replayed start can never change them.
       ctx.decisions.set(`template:${created.id}`, ref);
-      // A job with craft also keeps the number of versions, and with three the directions asked for (K9).
-      ctx.decisions.set(`asked:${created.id}`, craft
-        ? { answers: kept, versions, ...(directions ? { directions: directions.map((d) => d.id) } : {}) }
-        : { answers: kept });
+      // A job with craft also keeps the number of versions, and with three the directions asked for (K9); a still
+      // job keeps the batch its Start approved (C9).
+      ctx.decisions.set(`asked:${created.id}`, {
+        ...(craft
+          ? { answers: kept, versions, ...(directions ? { directions: directions.map((d) => d.id) } : {}) }
+          : { answers: kept }),
+        ...(batch ? { batch } : {}),
+      });
       if (earlier) ctx.decisions.set(`from:${created.id}`, earlier.id);
     }
     const estimate = craft ? estimateOf(job, craft, versions)?.words : null;

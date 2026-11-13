@@ -13,10 +13,16 @@
 //   paused    (job null) three refusals in a day: the door stops until the owner starts it again
 // A job counts what its end line says; a job with no end counts its highest reservation.
 // Days and months are Asia/Kolkata's, and a job belongs to the day it was reserved.
-import { closeSync, constants, fstatSync, fsyncSync, mkdirSync, openSync, readSync, writeSync } from "node:fs";
-import { dirname } from "node:path";
+// The door tidies the file at its own start (rotateLedger, PLAN-V5 C3): old finished jobs move,
+// in order, to a dated file beside it, and nothing the totals of now depend on ever moves.
+import { randomBytes } from "node:crypto";
+import {
+  closeSync, constants, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync, renameSync, unlinkSync, writeSync,
+} from "node:fs";
+import { basename, dirname, join } from "node:path";
 
 export const MAX_LEDGER_BYTES = 32 * 1024 * 1024;
+export const ROTATE_OVER_BYTES = 8 * 1024 * 1024;
 export const JOB_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const STATES = new Set(["reserved", "spent", "released", "paused"]);
 const DAY_MS = 24 * 3600_000;
@@ -43,13 +49,14 @@ function readLine(text) {
   return v;
 }
 
-// The file's lines: { ok: true, lines } (no file: no lines) or { ok: false }.
-export function readLedger(path) {
+// The whole file: { ok: true, lines, raws (each line's own text), size } (no file: no lines)
+// or { ok: false }.
+function readWhole(path) {
   let fd;
   try {
     fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   } catch (err) {
-    return err && err.code === "ENOENT" ? { ok: true, lines: [] } : { ok: false };
+    return err && err.code === "ENOENT" ? { ok: true, lines: [], raws: [], size: 0 } : { ok: false };
   }
   try {
     const st = fstatSync(fd);
@@ -63,20 +70,27 @@ export function readLedger(path) {
     }
     if (size !== st.size) return { ok: false };
     const text = buf.toString("utf8");
-    if (text === "") return { ok: true, lines: [] };
+    if (text === "") return { ok: true, lines: [], raws: [], size };
     if (!text.endsWith("\n")) return { ok: false };        // a torn last line
     const lines = [];
-    for (const raw of text.slice(0, -1).split("\n")) {
+    const raws = text.slice(0, -1).split("\n");
+    for (const raw of raws) {
       const line = readLine(raw);
       if (line === null) return { ok: false };
       lines.push(line);
     }
-    return { ok: true, lines };
+    return { ok: true, lines, raws, size };
   } catch {
     return { ok: false };
   } finally {
     closeSync(fd);
   }
+}
+
+// The file's lines: { ok: true, lines } (no file: no lines) or { ok: false }.
+export function readLedger(path) {
+  const r = readWhole(path);
+  return r.ok ? { ok: true, lines: r.lines } : { ok: false };
 }
 
 // Appends one line and syncs it to disk; throws when it could not (the caller then refuses).
@@ -184,4 +198,88 @@ export function createLedger(path) {
       appendLine(path, base({ at, state: "paused", verdict }));
     },
   };
+}
+
+// ---- the tidy at the door's start -----------------------------------------------------------
+
+const monthBefore = (month) => {
+  const y = Number(month.slice(0, 4));
+  const m = Number(month.slice(5, 7));
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+};
+
+// Writes `text` to a new file (0600, never over anything, never through a link) and syncs it.
+function writeNewSynced(path, text) {
+  const fd = openSync(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+  try {
+    const buf = Buffer.from(text, "utf8");
+    let off = 0;
+    while (off < buf.length) off += writeSync(fd, buf, off, buf.length - off);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+// The dated file the moved lines go to, beside the ledger: `<name>-<YYYY-MM-DD>.jsonl`, then
+// `-2`, `-3` for a second tidy that day. Returns its path once written.
+function writeMoved(path, now, text) {
+  const stem = basename(path).replace(/\.jsonl$/, "");
+  for (let n = 1; n <= 99; n += 1) {
+    const out = join(dirname(path), `${stem}-${dayOf(now)}${n === 1 ? "" : `-${n}`}.jsonl`);
+    try {
+      writeNewSynced(out, text);
+      return out;
+    } catch (err) {
+      if (!err || err.code !== "EEXIST") throw err;
+    }
+  }
+  throw new Error("ledger: no free name for the moved lines today");
+}
+
+// rotateLedger(path, now) -> { moved, kept } (lines). Only when the file is over 8 MB and is
+// read whole by the rule of readLedger; otherwise nothing changes and both are 0. Keeps every
+// line of a job whose first line is in this month or the one before (Asia/Kolkata), every line
+// of a job with no end line, and every pause line, so nothing the door totals as of now moves;
+// moves the rest, in order and byte for byte, to the dated file (written and synced first),
+// then writes the kept lines to a temp file in the same folder, syncs it and renames it over
+// the ledger. Synchronous: the door calls it before any request or settling can append. On a
+// failure the dated file is removed again and the ledger is as it was; the error is thrown.
+export function rotateLedger(path, now) {
+  const none = { moved: 0, kept: 0 };
+  let st;
+  try { st = lstatSync(path); } catch { return none; }
+  if (!st.isFile() || st.size <= ROTATE_OVER_BYTES) return none;
+  const r = readWhole(path);
+  if (!r.ok || r.size <= ROTATE_OVER_BYTES) return none;
+  const month = monthOf(now);
+  const recent = new Set([month, monthBefore(month)]);
+  const { jobs } = summarize(r.lines);
+  const keep = [];
+  const move = [];
+  r.lines.forEach((line, i) => {
+    if (line.state === "paused") return void keep.push(r.raws[i]);
+    const j = jobs.get(line.job);
+    if (j.end === null || recent.has(monthOf(j.at))) keep.push(r.raws[i]);
+    else move.push(r.raws[i]);
+  });
+  if (move.length === 0) return { moved: 0, kept: keep.length };
+  const dir = dirname(path);
+  const moved = writeMoved(path, now, `${move.join("\n")}\n`);
+  const tmp = join(dir, `.${basename(path)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+  try {
+    writeNewSynced(tmp, keep.length ? `${keep.join("\n")}\n` : "");
+    renameSync(tmp, path);
+  } catch (err) {
+    try { unlinkSync(tmp); } catch { /* nothing was left */ }
+    try { unlinkSync(moved); } catch { /* nothing was left */ }
+    throw err;
+  }
+  try {
+    const dfd = openSync(dir, constants.O_RDONLY);
+    try { fsyncSync(dfd); } finally { closeSync(dfd); }
+  } catch {
+    // The rename is done; syncing the folder is a courtesy some systems refuse.
+  }
+  return { moved: move.length, kept: keep.length };
 }
