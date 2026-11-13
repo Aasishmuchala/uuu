@@ -115,3 +115,17 @@ test("needs-you: the outcome of a pick stays once its item has left the list, ne
   assert.deepEqual(mod.settledShown(settled, []).map((s) => s.id), ["goal:3", "goal:2", "goal:1"]);
   assert.deepEqual(mod.settledShown(null, null), []);
 });
+
+// PLAN-V5 K14, T45: a film's shotlist is a card of its own, and its outcome stays like a pick's.
+test("needs-you: an item of kind shotlist is shown with ShotlistCard, before PickCard and DecisionCard", () => {
+  const src = readFileSync(resolve(HERE, "..", "..", "pages", "needs-you.js"), "utf8");
+  assert.match(src, /isShotlistItem\(item\)\s*\n?\s*\? html`<\$\{ShotlistCard\} key=\$\{item\.id\} item=\$\{item\} onDone=\$\{done\} \/>`/);
+  assert.match(src, /s\.kind === "shotlist"\s*\n?\s*\? html`<\$\{ShotlistDone\}/);
+  assert.doesNotMatch(src, /innerHTML/);
+});
+
+test("needs-you: a shotlist's settled outcome stays at the top once its item has left the list", () => {
+  const settled = [{ id: "staged:shotlist:g1", kind: "shotlist", action: "approve" }];
+  assert.equal(mod.settledShown(settled, []).length, 1);
+  assert.equal(mod.settledShown(settled, [{ id: "staged:shotlist:g1" }]).length, 0);
+});

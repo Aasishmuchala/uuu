@@ -210,7 +210,7 @@ export function stepAt(scrollLeft, width, count) {
 
 // ---- Parts ----
 
-function BrandRow({ brand }) {
+export function BrandRow({ brand }) {
   const [all, setAll] = useState(false);
   const b = brandLine(brand);
   const shown = all ? b.lines : b.lines.slice(0, BRAND_SHOWN);
@@ -223,7 +223,7 @@ function BrandRow({ brand }) {
   </div>`;
 }
 
-function Scores({ review, kind }) {
+export function Scores({ review, kind }) {
   const s = scoreRows(review, kind);
   if (!s) return html`<p class="k-pick__unscored"><${Icon} name="clock" size=${14} /><span>${PICK_WORDS.noReview}</span></p>`;
   return html`<div class="k-pick__review">
@@ -333,7 +333,7 @@ function Version({ v, kind, level, baseId, readOnly, picked, busy, stopped, conf
 }
 
 // The stepper of a narrow card: one button per version, the one in view pressed. Left and Right move along.
-function Steps({ versions, current, onStep, baseId }) {
+export function Steps({ versions, current, onStep, baseId }) {
   const onKeyDown = (event) => {
     const next = segStep(current, versions.length, event.key);
     if (next < 0) return;

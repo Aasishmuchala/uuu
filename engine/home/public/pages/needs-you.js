@@ -3,11 +3,14 @@
 // Address: #/needs-you, #/needs-you?d=<department>. Data: GET /api/inbox every 10 seconds; the agents of each
 // department come from GET /api/map (read once; without it items are placed by their source alone).
 // A finished task with versions (PLAN-V5 K9) is a card of versions to pick from (kit PickCard); after a pick its
-// outcome stays at the top of the list, so the owner sees what was chosen when the item leaves the list.
+// outcome stays at the top of the list, so the owner sees what was chosen when the item leaves the list. A film's
+// shotlist (PLAN-V5 K14, T45) is a card of treatments and their cost to approve (kit ShotlistCard), settled the same way.
 import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { DecisionCard, Empty, ErrorNotice, Loading, NotConnected, PageHeader, PickCard, PickDone, isPickItem } from "../kit/index.js";
+import {
+  DecisionCard, Empty, ErrorNotice, Loading, NotConnected, PageHeader, PickCard, PickDone, ShotlistCard, ShotlistDone, isPickItem, isShotlistItem,
+} from "../kit/index.js";
 
 const DEPARTMENT_IDS = ["operations", "sales", "marketing", "studio", "support", "people", "books"];
 const DEPARTMENT_TITLES = { operations: "Operations", sales: "Sales", marketing: "Marketing", studio: "Studio", support: "Support", people: "People", books: "Books" };
@@ -145,7 +148,9 @@ export default function Page({ route }) {
     const quiet = quietLines(data.notConnected);
     const kept = settledShown(settled, all);
     const outcomes = kept.length ? html`<div class="p-needs-you__list">
-      ${kept.map((s, i) => html`<${PickDone} key=${`done:${s.id}`} done=${s} focus=${i === 0} />`)}
+      ${kept.map((s, i) => (s.kind === "shotlist"
+        ? html`<${ShotlistDone} key=${`done:${s.id}`} done=${s} focus=${i === 0} />`
+        : html`<${PickDone} key=${`done:${s.id}`} done=${s} focus=${i === 0} />`))}
     </div>` : null;
     let list;
     if (!all.length) {
@@ -158,9 +163,11 @@ export default function Page({ route }) {
       <//>`;
     } else {
       list = html`${outcomes}<div class="p-needs-you__list">
-        ${shown.map((item) => (isPickItem(item)
-          ? html`<${PickCard} key=${item.id} item=${item} onDone=${done} />`
-          : html`<${DecisionCard} key=${item.id} item=${item} onDone=${done} />`))}
+        ${shown.map((item) => (isShotlistItem(item)
+          ? html`<${ShotlistCard} key=${item.id} item=${item} onDone=${done} />`
+          : isPickItem(item)
+            ? html`<${PickCard} key=${item.id} item=${item} onDone=${done} />`
+            : html`<${DecisionCard} key=${item.id} item=${item} onDone=${done} />`))}
       </div>`;
     }
     body = html`

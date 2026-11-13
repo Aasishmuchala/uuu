@@ -1,0 +1,390 @@
+/* ShotlistCard (kit/shotlist.js): a film's treatments, their shots and their cost, and the one approval.
+   Tokens only. The card is the Needs-you card of kit/pick.css (the warm glass, the head, the foot with its note); a
+   treatment is a pick.css version. The card measures itself: from 780 px of its own width the treatments stand side
+   by side, under it one at a time on a swipeable strip with a numbered stepper. */
+
+.k-sl__limits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-5);
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.k-sl__limit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-2);
+  min-width: 0;
+}
+
+.k-sl__limit dt {
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+
+.k-sl__limit dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---- The treatments: a strip when narrow, columns when wide ---- */
+
+.k-sl__stage {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.k-sl__versions {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.k-sl__versions::-webkit-scrollbar {
+  display: none;
+}
+
+.k-sl__versions > .k-pick__version {
+  flex: 0 0 100%;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+@container (min-width: 780px) {
+  .k-sl__steps-wrap {
+    display: none;
+  }
+
+  .k-sl__versions {
+    display: grid;
+    grid-template-columns: repeat(var(--k-sl-n, 3), minmax(0, 1fr));
+    align-items: stretch;
+    gap: var(--s-4);
+    overflow: visible;
+  }
+
+  .k-sl__versions--one {
+    max-width: 520px;
+  }
+}
+
+.k-sl__facts {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.k-sl__film {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+/* ---- The storyboard: a strip of small boards, each opens larger ---- */
+
+.k-sl__strip {
+  display: flex;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0 0 var(--s-1);
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.k-sl__strip-item {
+  flex: none;
+}
+
+.k-sl__board {
+  position: relative;
+  display: block;
+  width: 96px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-2);
+  background: var(--glass-soft);
+  cursor: zoom-in;
+}
+
+.k-sl__board img {
+  display: block;
+  width: 100%;
+  height: 60px;
+  object-fit: cover;
+}
+
+.k-sl__board-id {
+  position: absolute;
+  left: var(--s-1);
+  bottom: var(--s-1);
+  padding: 0 var(--s-1);
+  border-radius: var(--r-1);
+  background: var(--glass-strong);
+  color: var(--text);
+  font-size: var(--fs-over);
+  font-variant-numeric: tabular-nums;
+}
+
+.k-sl__board:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---- The shots ---- */
+
+.k-sl__table {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--hairline);
+}
+
+.k-sl__sub {
+  margin: 0;
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.k-sl__shots {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.k-sl__shot {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.k-sl__shot:first-child {
+  border-top: 0;
+  padding-top: var(--s-1);
+}
+
+.k-sl__thumb {
+  display: block;
+  width: 56px;
+  height: 36px;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-1);
+  background: var(--glass-soft);
+}
+
+.k-sl__thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.k-sl__shot-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.k-sl__shot-body p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.k-sl__shot-top {
+  align-self: stretch;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.k-sl__shot-id {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.k-sl__shot-credits {
+  flex: none;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.k-sl__shot-render {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.k-sl__shot-move {
+  font-size: var(--fs-body);
+  color: var(--text);
+}
+
+.k-sl__shot-prompt {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.k-sl__shot-prompt--folded {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.k-sl__shot-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+/* ---- The foot of a treatment: its cost in words, and the one approval ---- */
+
+.k-sl__foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: auto;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--hairline-strong);
+}
+
+.k-sl__cost {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.k-sl__cost-words {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.k-sl__cost-time {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.k-sl__cost-time .k-icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+.k-sl__cost-none {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--text-2);
+}
+
+.k-sl__blocked {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-2);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  font-size: var(--fs-body);
+}
+
+.k-sl__blocked .k-icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.k-sl__blocked p {
+  margin: 0;
+}
+
+.k-sl__blocked .k-pick__link {
+  color: var(--warn-text);
+}
+
+.k-sl__confirm {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: 1.6;
+}
+
+@media (max-width: 859px) {
+  .k-sl__board {
+    width: 112px;
+  }
+
+  .k-sl__board img {
+    height: 70px;
+  }
+}
+
+/* ---- The job page's money words (pages/job.js): what a job that spends credits costs, before Start ---- */
+
+.k-sl__money {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.k-sl__money .k-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-2);
+}
+
+.k-sl__price {
+  padding: var(--s-4);
+  border-radius: var(--r-4);
+  background: var(--glass-soft);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
+.k-sl__label {
+  color: var(--text-2);
+  font-weight: var(--fw-regular);
+}

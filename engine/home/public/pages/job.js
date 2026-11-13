@@ -4,6 +4,9 @@
 // its title. A job that follows earlier work, with no accepted earlier task to pick, says which job to run first in
 // place of the button (M51 F6). A starter pack the job reads that is not in the company's files yet gets one action,
 // "Add the starter pack", through the same route the Files page uses (M63 41).
+// A job that needs the generation door (PLAN-V5 C9, T45) says what it costs in money under its estimate, in the
+// server's own words (`generation.words`); when the model chosen in Settings has no price, Start is off and those
+// words stand in its place.
 // The words of a job come from the company's own files; the server's refusals are shown as they come.
 import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
@@ -184,20 +187,61 @@ export function startExtra(craft, n) {
   return craft ? { versions: n === 3 ? 3 : 1 } : null;
 }
 
-function VersionChoice({ craft, n, onPick }) {
+// --- Money (PLAN-V5 C9, T45): what a job that needs the generation door costs, as the server says it ---------------
+
+const SETTINGS_LINK = Object.freeze({ page: "settings", id: null });
+
+// The `generation` block of a job, or null when the job has none (every job that does not spend money).
+export function generationOf(job) {
+  const g = job && typeof job === "object" ? job.generation : null;
+  if (!g || typeof g !== "object" || Array.isArray(g)) return null;
+  const words = text(g.words).trim().slice(0, 800);
+  return words ? { kind: text(g.kind), words, ok: g.ok !== false } : null;
+}
+
+// The label before a job's estimate: a film's estimate is for the shotlist (its clips come after the owner's yes).
+export function estimateLabel(job) {
+  const g = generationOf(job);
+  return g && g.kind === "film" ? "The shotlist:" : "";
+}
+
+// The job as the start form sees it: when the money cannot be worked out (`generation.ok` false) it is not ready, and
+// the server's words stand where Start would be, with a link to Settings. Anything else is the job itself.
+export function gatedJob(job) {
+  const g = generationOf(job);
+  if (!g || g.ok || (job && job.ready === false)) return job;
+  return { ...job, ready: false, why: { name: "generation", text: g.words, link: { ...SETTINGS_LINK } } };
+}
+
+// The money words to show under the estimate: those of a job that can be priced. Without a price they stand in
+// place of Start instead (gatedJob), once.
+export function moneyWords(job) {
+  const g = generationOf(job);
+  return g && g.ok ? g : null;
+}
+
+// The money words under the estimate; they are the server's sentence, shown as text.
+function Money({ generation }) {
+  return html`<p class="k-sl__money"><${Icon} name="tag" size=${16} /><span>${generation.words}</span></p>`;
+}
+
+function VersionChoice({ craft, n, onPick, job }) {
   const { allowed } = versionChoices(craft);
   const items = [{ id: 1, label: "One (fastest)" }, ...(allowed.includes(3) ? [{ id: 3, label: `Three to choose from` }] : [])];
   const words = estimateWords(craft, n);
   const last = lastRunsLine(craft);
   const books = playbooksLine(craft);
   const review = reviewLine(craft);
+  const money = moneyWords(job);
+  const label = estimateLabel(job);
   return html`<fieldset class="p-job__versions">
     <legend class="p-job__versions-head">Versions</legend>
     ${items.length > 1
       ? html`<${Segmented} items=${items} current=${n} onChange=${onPick} label="Versions" />`
       : html`<p class="p-job__versions-only">This job makes one version.</p>`}
     <div class="p-job__estimate" role="status" aria-live="polite">
-      ${words ? html`<p class="p-job__time"><${Icon} name="clock" size=${16} /><strong>${words}</strong></p>` : null}
+      ${words ? html`<p class="p-job__time"><${Icon} name="clock" size=${16} /><span>${label ? html`<span class="k-sl__label">${label} </span>` : null}<strong>${words}</strong></span></p>` : null}
+      ${money ? html`<${Money} generation=${money} />` : null}
       <p class="p-job__promise">${versionPromise(craft, n)}</p>
       ${review ? html`<p class="p-job__review">${review}</p>` : null}
       ${last ? html`<p class="p-job__last">${last}</p>` : null}
@@ -210,10 +254,15 @@ function VersionChoice({ craft, n, onPick }) {
 function StartForm({ job, from, onStarted, queue }) {
   const craft = craftOf(job);
   const [n, setN] = useState(craft ? versionChoices(craft).preset : 1);
-  if (!craft) return html`<${JobStart} job=${job} from=${from} onStarted=${onStarted} queue=${queue} />`;
+  const money = moneyWords(job);
+  const seen = gatedJob(job);
+  if (!craft) {
+    return html`<${JobStart} job=${seen} from=${from} onStarted=${onStarted} queue=${queue}
+      before=${money ? html`<div class="k-sl__price"><${Money} generation=${money} /></div>` : null} />`;
+  }
   const chosen = versionChoices(craft).allowed.includes(n) ? n : 1;
-  return html`<${JobStart} job=${job} from=${from} onStarted=${onStarted} queue=${queue} timed=${false}
-    extra=${startExtra(craft, chosen)} before=${html`<${VersionChoice} craft=${craft} n=${chosen} onPick=${setN} />`} />`;
+  return html`<${JobStart} job=${seen} from=${from} onStarted=${onStarted} queue=${queue} timed=${false}
+    extra=${startExtra(craft, chosen)} before=${html`<${VersionChoice} craft=${craft} n=${chosen} onPick=${setN} job=${job} />`} />`;
 }
 
 // --- The page --------------------------------------------------------------------------------------------------
@@ -267,7 +316,7 @@ function Body({ job, recent, from, earlier, onStarted, onChanged, queue }) {
   const about = aboutLines(job);
   const note = fromNote(job, from, earlier);
   const first = followsFirst(job, from);
-  const state = startState(job);
+  const state = startState(gatedJob(job));
   const runs = list(recent).filter((t) => t && typeof t === "object");
   return html`
     <div class="p-job__card">

@@ -170,5 +170,41 @@ test("job: the start request carries versions as a number", () => {
 test("job: only the craft path of the start form turns the promised time off", () => {
   const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../pages/job.js"), "utf8");
   assert.equal((src.match(/timed=\$\{false\}/g) || []).length, 1, "one place, next to the Versions control");
-  assert.match(src, /if \(!craft\) return html`<\$\{JobStart\}[^`]*queue=\$\{queue\} \/>`/, "no craft: today's line");
+  const branch = src.slice(src.indexOf("if (!craft) {"), src.indexOf("const chosen"));
+  assert.match(branch, /return html`<\$\{JobStart\} job=\$\{seen\} from=\$\{from\} onStarted=\$\{onStarted\} queue=\$\{queue\}/, "no craft: today's line");
+  assert.doesNotMatch(src.slice(src.indexOf("if (!craft)"), src.indexOf("const chosen")), /timed=/);
+});
+
+// PLAN-V5 C9, T45: the money words of a job that needs the generation door.
+const NONE = { ...shape("job"), generation: null };
+const FILM_JOB = { ...shape("job"), generation: { kind: "film", words: "A film takes long and costs money. First the Artist writes the shotlist, at no cost.", unit: 5, model: "gen4_turbo", ok: true } };
+const VARIATIONS_JOB = { ...shape("job"), generation: { kind: "variations", words: "Each variation costs 8 credits ($0.08) with gen4_image; three cost 24 credits ($0.24). Pressing Start approves the cost of the number you choose; nothing else is spent.", unit: 8, model: "gen4_image", ok: true } };
+const NO_PRICE = { ...shape("job"), generation: { kind: "variations", words: "The model chosen in Settings has no price, so this job cannot start.", unit: null, model: null, ok: false } };
+
+test("job: the money words are the server's, and a job without `generation` shows nothing", () => {
+  assert.equal(page.generationOf(NONE), null);
+  assert.equal(page.generationOf({ ...shape("job"), generation: null }), null);
+  assert.equal(page.moneyWords(NONE), null);
+  assert.equal(page.generationOf(FILM_JOB).words, FILM_JOB.generation.words);
+  assert.equal(page.moneyWords(VARIATIONS_JOB).words, VARIATIONS_JOB.generation.words);
+  assert.equal(page.generationOf({ generation: { kind: "film", words: "", ok: true } }), null);
+});
+
+test("job: a film's estimate is labelled The shotlist:, no other job's is", () => {
+  assert.equal(page.estimateLabel(FILM_JOB), "The shotlist:");
+  assert.equal(page.estimateLabel(VARIATIONS_JOB), "");
+  assert.equal(page.estimateLabel(NONE), "");
+});
+
+test("job: with no price Start is off and the server's words stand in its place; otherwise the job is as it was", () => {
+  const gated = page.gatedJob(NO_PRICE);
+  assert.equal(gated.ready, false);
+  assert.equal(gated.why.text, NO_PRICE.generation.words);
+  assert.deepEqual(gated.why.link, { page: "settings", id: null });
+  assert.equal(page.startState(gated).canStart, false);
+  assert.equal(page.moneyWords(NO_PRICE), null, "said once, in place of Start");
+  assert.equal(page.gatedJob(FILM_JOB), FILM_JOB);
+  assert.equal(page.gatedJob(NONE), NONE);
+  const off = { ...NO_PRICE, ready: false, why: { text: "Generation is off or has no key yet. Open Settings.", link: null } };
+  assert.equal(page.gatedJob(off), off, "an earlier reason is kept");
 });

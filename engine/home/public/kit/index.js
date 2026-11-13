@@ -39,4 +39,8 @@ export * from "./upload.js";
 // for any Needs-you item, so it shows a card of versions as one (kit/pick.js DecisionOrPick; this explicit
 // export wins over decision.js's own through the star export above).
 export * from "./pick.js";
-export { DecisionOrPick as DecisionCard } from "./pick.js";
+
+// Step 3 (PLAN-V5 K14, T45): a film's shotlist, where the owner approves its shots and their cost. DecisionCard
+// now also shows a shotlist as one (kit/shotlist.js DecisionOrShotlist, which falls back to DecisionOrPick).
+export * from "./shotlist.js";
+export { DecisionOrShotlist as DecisionCard } from "./shotlist.js";
