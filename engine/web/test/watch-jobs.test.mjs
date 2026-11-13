@@ -130,6 +130,25 @@ test("the eleventh watch of a day is refused, counting what the owner's list alr
   assert.ok(r.extra.retryAfterSec > 0 && r.extra.retryAfterSec <= 86400);
 });
 
+test("the day counts as used up when the owner's list cannot be read, or lines of today were cut from it", { skip: SKIP }, async () => {
+  const refusedWith = async (prepare) => {
+    if (watch) await watch.close();
+    rmSync(visits, { recursive: true, force: true });
+    prepare();
+    watch = make({ ytdlp: sh("exit 1") });
+    return watch.start({ slug: "researcher", url: URL1, state: STATE });
+  };
+  const cutAt = (ms) => () => writeFileSync(visits, `${JSON.stringify({ cut: new Date(ms).toISOString() })}\n`, { mode: 0o600 });
+  assert.equal((await refusedWith(() => mkdirSync(visits))).code, "web_too_many", "a folder where the list should be");
+  assert.equal((await refusedWith(cutAt(Date.now() - 1000))).code, "web_too_many", "lines of today were cut away");
+  // An end of a large list that is all from today: what was not read may hold today's watches.
+  const big = () => writeFileSync(visits, `${Array.from({ length: 1500 }, () => JSON.stringify({ at: new Date().toISOString(), slug: "researcher", kind: "fetch", url: "\ud800".repeat(1000), status: "web_too_many", bytes: 0 })).join("\n")}\n`, { mode: 0o600 });
+  assert.equal((await refusedWith(big)).code, "web_too_many", "only the end of a list over 8 MB could be read");
+  const s = await refusedWith(cutAt(Date.now() - 3 * 24 * 3600_000));
+  assert.equal(s.status, 202, "a cut of days ago leaves today whole");
+  await finish(watch, "researcher", s.json.job);
+});
+
 test("ten watches run in a day and the eleventh is refused (real srt)", { skip: SKIP }, async () => {
   watch = make({ ytdlp: sh("exit 1") });
   for (let i = 0; i < 10; i += 1) {

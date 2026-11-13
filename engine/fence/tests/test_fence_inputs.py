@@ -17,6 +17,8 @@ from unittest import mock
 FENCE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, FENCE)
 import fence_inputs  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from stub_board import StubBoard  # noqa: E402
 
 AGENT = "00000000-0000-4000-8000-0000000000aa"
 
@@ -156,8 +158,15 @@ class DoorsAndWalledInputTests(unittest.TestCase):
                                  modelsState=j("models", "state.json"), doorsState=j("doors", "state.json"))
         os.makedirs(j("policy"), mode=0o755)
         os.chmod(j("policy"), 0o755)
+        # The board is a stand-in: the run's task (STH-12's child) is this agent's.
+        self.board = StubBoard().start()
+        self.cfg["ports"] = dict(self.cfg["ports"], board=self.board.port)
+        top, mine = "aaaaaaaa-bbbb-4ccc-8ddd-000000000002", self.TASK
+        self.board.issues[mine] = {"id": mine, "parentId": top, "identifier": "STH-13", "assigneeAgentId": AGENT}
+        self.board.issues[top] = {"id": top, "parentId": None, "identifier": "STH-12", "assigneeAgentId": None}
 
     def tearDown(self):
+        self.board.stop()
         shutil.rmtree(self.dir)
 
     def write(self, path, body, mode=0o600):
@@ -176,19 +185,28 @@ class DoorsAndWalledInputTests(unittest.TestCase):
     def web_on(self):
         self.write(self.cfg["paths"]["doorsState"], {"version": 1, "web": {"on": True}})
 
-    def run_main(self, agent_id=AGENT):
+    TASK = "aaaaaaaa-bbbb-4ccc-8ddd-000000000001"
+    KEY = "pcp_run_key_" + "q" * 40
+
+    def run_main(self, agent_id=AGENT, task_id=None, key=None, expect=0):
         out, err = io.StringIO(), io.StringIO()
         args = ["--tool", "claude", "--task-folder", os.path.join(self.dir, "tasks", "company-work"),
                 "--agent-home", os.path.join(self.dir, "h"), "--inner-tmp", os.path.join(self.dir, "h", "tmp"),
-                "--agent-id", agent_id]
+                "--agent-id", agent_id, "--task-id", self.TASK if task_id is None else task_id]
+        self.assertNotIn(self.KEY, " ".join(args))      # the key is never an argument
+        env = {} if key == "" else {"PAPERCLIP_API_KEY": key or self.KEY}
         with mock.patch.object(fence_inputs, "load_engine_config", lambda home: self.cfg), \
                 mock.patch.object(fence_inputs, "owner_home", lambda: self.dir), \
+                mock.patch.dict(os.environ, env), \
                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             try:
                 code = fence_inputs.main(args)
             except SystemExit as e:
                 code = e.code
-        self.assertEqual(code, 0, err.getvalue())
+        self.assertNotIn(self.KEY, out.getvalue() + err.getvalue())
+        self.assertEqual(code, expect, err.getvalue())
+        if expect:
+            return out.getvalue(), err.getvalue()
         lines = out.getvalue().split("\n")
         self.assertEqual(len(lines), 6, lines)    # five lines, each ended by a newline
         self.assertEqual(lines[5], "")
@@ -218,15 +236,40 @@ class DoorsAndWalledInputTests(unittest.TestCase):
         self.agent("researcher", walled=True)
         self.web_on()
         inputs, rest = self.run_main()
-        research = os.path.join(self.dir, "tasks", "research")
-        self.assertEqual(inputs["taskFolder"], research)
+        goal = os.path.join(self.dir, "tasks", "research", "STH-12")
+        self.assertEqual(inputs["taskFolder"], goal)
         self.assertEqual(inputs["gatePort"], 3111)
         self.assertEqual(inputs["doorPorts"], [3130])
-        self.assertEqual(rest, ["", "", research, "http://127.0.0.1:3111"])
+        self.assertEqual(rest, ["", "", goal, "http://127.0.0.1:3111"])
+        # The board was asked at its own address, for the task and its parent, with the run's key.
+        self.assertEqual(self.board.seen, [("/api/issues/" + self.TASK, "Bearer " + self.KEY),
+                                           ("/api/issues/aaaaaaaa-bbbb-4ccc-8ddd-000000000002", "Bearer " + self.KEY)])
+        self.assertEqual(inputs["boardPort"], self.board.port)
         # Only true walls an agent in; the planner refuses any other value.
         self.agent("researcher", walled="yes")
         inputs, rest = self.run_main()
         self.assertEqual((inputs["gatePort"], rest[2:]), (3110, ["", ""]))
+
+    def test_an_ordinary_agent_never_asks_the_board(self):
+        self.agent("builder")
+        inputs, rest = self.run_main(task_id="", key="")
+        self.assertEqual((inputs["taskFolder"], rest[2:]), (os.path.join(self.dir, "tasks", "company-work"), ["", ""]))
+        self.agent("researcher", walled=False)
+        self.run_main()
+        self.assertEqual(self.board.seen, [])
+
+    def test_a_walled_run_that_cannot_prove_its_goal_is_refused_with_one_line(self):
+        self.agent("researcher", walled=True)
+        cases = (("no task id", dict(task_id="")), ("a bad task id", dict(task_id="STH-13")),
+                 ("no key", dict(key="")), ("a task of another agent", None), ("a task the board has not got", dict(task_id="aaaaaaaa-bbbb-4ccc-8ddd-0000000000ff")))
+        for name, over in cases:
+            with self.subTest(name):
+                if over is None:
+                    self.board.issues[self.TASK]["assigneeAgentId"] = "0741e40b-fd9c-43ca-8f69-fc2abdd86a6d"
+                out, err = self.run_main(expect=78, **(over or {}))
+                self.assertEqual(out, "")                        # nothing is handed on
+                self.assertTrue(err.startswith("fence: ") and err.count("\n") == 1, err)
+                self.board.issues[self.TASK]["assigneeAgentId"] = AGENT
 
 
 class CodexHomeTests(unittest.TestCase):

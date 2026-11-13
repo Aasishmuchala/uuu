@@ -5,15 +5,15 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import net from "node:net";
 import {
-  chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
+  chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mintToken } from "../../relay/token.mjs";
-import { CODES, NOTICE, createWebDoor, webDoorOptions } from "../door.mjs";
+import { CODES, NOTICE, REFUSED_WINDOW_MS, createWebDoor, webDoorOptions } from "../door.mjs";
 import { REAL_NET } from "../fetch.mjs";
-import { MAX_VISITS } from "../state.mjs";
+import { MAX_VISITS, VISITS_SLACK } from "../state.mjs";
 import { big, bomb, ok, redirect, stall, startInternet } from "../../test/stubs/internet.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -396,15 +396,117 @@ test("the owner's list gets one line per call, control characters removed", asyn
   assert.deepEqual([v[2].kind, v[2].url], ["search", "glass towers"]);
 });
 
-test("the owner's list is cut to the newest 5,000 lines", async () => {
-  const old = Array.from({ length: MAX_VISITS }, (_, i) => JSON.stringify({ at: "2020-01-01T00:00:00.000Z", slug: "researcher", kind: "fetch", url: `https://old.test/${i}`, status: 200, bytes: 1 }));
+test("the owner's list is cut back to the newest 5,000 lines at 5,500, not rewritten on every call", async () => {
+  const n = MAX_VISITS + VISITS_SLACK - 2;
+  const old = Array.from({ length: n }, (_, i) => JSON.stringify({ at: "2020-01-01T00:00:00.000Z", slug: "researcher", kind: "fetch", url: `https://old.test/${i}`, status: 200, bytes: 1 }));
   put(paths.webVisits, `${old.join("\n")}\n`);
   await startDoor();
+  await fetchUrl("https://site.test/a");
+  assert.equal(visits().length, n + 1);
   await fetchUrl("https://site.test/newest");
   const v = visits();
-  assert.equal(v.length, MAX_VISITS);
-  assert.equal(v[0].url, "https://old.test/1");
+  assert.equal(v.length, MAX_VISITS + 1);
+  assert.deepEqual(v[0], { cut: "2020-01-01T00:00:00.000Z" }, "the first line says up to when lines were dropped");
+  assert.equal(v[1].url, `https://old.test/${n - (MAX_VISITS - 2)}`);
   assert.equal(v.at(-1).url, "https://site.test/newest");
+  const ino = statSync(paths.webVisits).ino;
+  await fetchUrl("https://site.test/b");
+  assert.equal(statSync(paths.webVisits).ino, ino, "appended, not rewritten");
+  assert.equal(visits().length, MAX_VISITS + 2);
+});
+
+// The T38 review's finding F1: past the rate cap, every refused call wrote a line, so a
+// Researcher could push the list over 8 MB in a second; the door then read nothing, the cut
+// stopped and a restart forgot the day's calls.
+test("a caller past its cap cannot fill the owner's list: thousands of refused calls add two lines in ten minutes, the first visit stays, a restarted door still refuses", async () => {
+  let t = Date.now();
+  setWeb({ perHour: 1, perDay: 1 });
+  await startDoor({ now: () => t });
+  assert.equal((await fetchUrl("https://site.test/the-visit-the-owner-must-see")).status, 200);
+  // What the review sent: lone surrogates (six bytes each as JSON), backslashes and quotes (two each).
+  const bodies = ["\ud800", "\\", "\""].map((c) => JSON.stringify({ url: c.repeat(1024) }));
+  let refused = 0;
+  for (let round = 0; round < 120; round += 1) {
+    const rs = await Promise.all(Array.from({ length: 25 }, (_, i) => call("/web/fetch", bodies[(round + i) % 3])));
+    refused += rs.filter((r) => r.status === 403 && r.json.code === "web_too_many").length;
+  }
+  assert.equal(refused, 3000);
+  const searches = await Promise.all(Array.from({ length: 20 }, () => call("/web/search", { q: "glass towers" })));
+  assert.ok(searches.every((r) => r.json.code === "web_too_many"));
+  assert.equal(requestsTo("site.test").length, 1, "nothing refused reached a site");
+  let v = visits();
+  assert.deepEqual(v.map((x) => [x.kind, x.status]), [["fetch", 200], ["fetch", "web_too_many"], ["search", "web_too_many"]]);
+  assert.ok(statSync(paths.webVisits).size < 4096, `${statSync(paths.webVisits).size} bytes`);
+  assert.equal(v[0].url, "https://site.test/the-visit-the-owner-must-see");
+  assert.equal(v[1].url, "�".repeat(341), "an address of lone surrogates is written well formed and within 1,024 bytes");
+  // Ten minutes on, the next refused call first writes how many the last ten minutes refused.
+  t += REFUSED_WINDOW_MS;
+  assert.equal((await call("/web/fetch", bodies[1])).json.code, "web_too_many");
+  v = visits();
+  assert.equal(v.length, 5);
+  assert.deepEqual([v[3].kind, v[3].status, v[3].calls], ["fetch", "web_too_many", 2999], "one line counts the rest, with the last address");
+  assert.ok([341, 512].includes(v[3].url.length));
+  assert.equal(v[4].calls, undefined);
+  for (const x of v) assert.ok(Buffer.byteLength(JSON.stringify(x.url ?? "")) <= 1026);
+  // A restart (which writes the searches' count) still knows the day's call: a cap of one a day refuses.
+  await startDoor({ now: () => t });
+  assert.deepEqual(visits().slice(5).map((x) => [x.kind, x.calls]), [["search", 19]]);
+  const again = await fetchUrl("https://site.test/after-restart");
+  assert.equal(again.json.code, "web_too_many");
+  assert.ok(again.json.retryAfterSec > 85_000);
+  assert.equal(requestsTo("site.test").length, 1);
+  assert.equal(visits()[0].url, "https://site.test/the-visit-the-owner-must-see", "the first visit is still listed");
+});
+
+test("a list too big to read whole: the door counts from its end, refuses while the part it cannot see may hold the day's calls, and cuts it back", async () => {
+  const now = Date.now();
+  const iso = (ms) => new Date(ms).toISOString();
+  // Lines as the door before the fix could write them: lone surrogates are six bytes a character.
+  const fat = (at, i) => JSON.stringify({ at: iso(at), slug: "researcher", kind: "fetch", url: `${"\ud800".repeat(1000)}${i}`, status: "web_too_many", bytes: 0 });
+  const recent = JSON.stringify({ at: iso(now - 60_000), slug: "researcher", kind: "fetch", url: "https://site.test/recent", status: 200, bytes: 9 });
+  // (a) Its end reaches back more than a day: the calls there are counted, nothing is unknown.
+  put(paths.webVisits, `${[...Array.from({ length: 1500 }, (_, i) => fat(now - 3 * 86_400_000, i)), recent].join("\n")}\n`);
+  assert.ok(statSync(paths.webVisits).size > 8 * MB);
+  setWeb({ perHour: 100, perDay: 3 });
+  await startDoor();
+  assert.equal((await fetchUrl("https://site.test/")).status, 200);
+  assert.ok(statSync(paths.webVisits).size <= 6 * MB + 4096, "cut back at the first line written");
+  let v = visits();
+  assert.ok(Date.parse(v[0].cut) < now - 86_400_000, "what was dropped is older than a day");
+  assert.deepEqual(v.slice(-2).map((x) => x.url), ["https://site.test/recent", "https://site.test/"]);
+  await startDoor();
+  assert.equal((await fetchUrl("https://site.test/")).status, 200, "the third of three today");
+  assert.equal((await fetchUrl("https://site.test/")).json.code, "web_too_many");
+  // (b) Its end is all from the last two hours: what it cannot see may hold calls of the day,
+  // so the cap counts as used up until a day after the oldest line it read.
+  put(paths.webVisits, `${Array.from({ length: 1500 }, (_, i) => fat(now - 2 * 3600_000, i)).join("\n")}\n`);
+  setWeb({ perHour: 1000, perDay: 1000 });
+  await startDoor();
+  const r = await fetchUrl("https://site.test/");
+  assert.equal(r.json.code, "web_too_many");
+  assert.ok(r.json.retryAfterSec > 22 * 3600 - 60 && r.json.retryAfterSec <= 22 * 3600 + 2, `${r.json.retryAfterSec}`);
+  assert.ok(statSync(paths.webVisits).size <= 6 * MB + 4096);
+  v = visits();
+  assert.ok(Date.parse(v[0].cut) >= now - 2 * 3600_000, "the cut says lines of the day were dropped");
+  await startDoor();
+  assert.equal((await fetchUrl("https://site.test/")).json.code, "web_too_many", "and a restart after the cut still knows it");
+  rmSync(paths.webVisits, { force: true });
+});
+
+test("a list the door cannot read (a link, a folder) counts every cap as used up for a day", async () => {
+  const elsewhere = join(dir, "elsewhere.jsonl");
+  writeFileSync(elsewhere, "");
+  symlinkSync(elsewhere, paths.webVisits);
+  await startDoor();
+  const r = await fetchUrl("https://site.test/");
+  assert.equal(r.json.code, "web_too_many");
+  assert.ok(r.json.retryAfterSec > 86_000);
+  assert.equal(readFileSync(elsewhere, "utf8"), "", "nothing written through the link");
+  rmSync(paths.webVisits);
+  mkdirSync(paths.webVisits);
+  await startDoor();
+  assert.equal((await fetchUrl("https://site.test/")).json.code, "web_too_many");
+  assert.equal(requestsTo("site.test").length, 0);
 });
 
 test("the status file counts today's calls and refusals", async () => {
