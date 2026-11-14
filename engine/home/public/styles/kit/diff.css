@@ -1,2 +1,12 @@
-/* kit/diff.js: placeholder; its part fills this in. */
-.k-diff { }
+/* kit/diff.js: what was approved against what was sent, at 14 px, with a key line of swatches that match the tints. */
+.k-diff { display: block; }
+.k-diff__key { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin: 0 0 var(--s-2); font-size: var(--fs-label); line-height: var(--lh-label); font-weight: var(--fw-medium); color: var(--ink-2); }
+.k-diff__key span { display: inline-flex; align-items: center; gap: var(--s-2); }
+.k-diff__swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
+.k-diff__swatch--del { background: var(--del-bg); border: 1px solid var(--bad); }
+.k-diff__swatch--add { background: var(--add-bg); border: 1px solid var(--good); }
+.k-diff__text { margin: 0; font-size: var(--fs-ui); line-height: var(--lh-ui); color: var(--ink); overflow-wrap: anywhere; }
+.k-diff__del { background: var(--del-bg); color: var(--ink-2); text-decoration: line-through; border-radius: 3px; padding: 1px 3px; }
+.k-diff__add { background: var(--add-bg); color: var(--ink); text-decoration: none; border-radius: 3px; padding: 1px 3px; }
+.k-diff__name { margin: 0 0 var(--s-1); font-size: var(--fs-label); line-height: var(--lh-label); font-weight: var(--fw-medium); color: var(--ink-2); }
+.k-diff--plain .k-diff__block + .k-diff__block { margin-top: var(--s-3); }
