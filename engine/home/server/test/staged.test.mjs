@@ -159,7 +159,10 @@ test("vector: size M, brief and plan present, one step in progress", () => {
     [["brief", "done"], ["plan", "done"], ["work", "current"], ["summary", "waiting"], ["check", "waiting"]]);
 });
 
-test("vector: slow patterns return within 200 ms", () => {
+// The bound is on the CPU time this process spends in the call, not the wall clock: a busy machine
+// (other suites beside this one) stretches the wall clock but not the work a pattern does, and a
+// pattern that backtracks still takes seconds of CPU. The calls here take about 70 ms of CPU.
+test("vector: slow patterns return within 200 ms of CPU time", () => {
   const hashes = "#".repeat(200000);
   const ones = Array(50000).fill("1. ? YES -").join("\n");
   const inputs = [hashes, ones, `VERDICT: FAIL - x\n# Check: round 1\n## Questions\n${ones}`, `## Steps\n${ones}`,
@@ -167,10 +170,11 @@ test("vector: slow patterns return within 200 ms", () => {
     `## Steps\n1. ${" - ".repeat(300000)}`];
   for (const input of inputs) {
     for (const fn of [parseDoc, parseBrief, parsePlan, parseSummary, parseCheck, textOf, (x) => sizeOf([x]), (x) => roundsOf([x])]) {
-      const t0 = performance.now();
+      const c0 = process.cpuUsage();
       fn(input);
-      const ms = performance.now() - t0;
-      assert.ok(ms < 200, `${ms.toFixed(0)} ms for an input starting ${JSON.stringify(input.slice(0, 20))}`);
+      const c = process.cpuUsage(c0);
+      const ms = (c.user + c.system) / 1000;
+      assert.ok(ms < 200, `${ms.toFixed(0)} ms of CPU for an input starting ${JSON.stringify(input.slice(0, 20))}`);
     }
   }
 });

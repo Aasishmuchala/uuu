@@ -106,6 +106,8 @@ class ConfigTest(unittest.TestCase):
             lambda c: c["doors"]["generate"].update(agents=["../artist"]),
             lambda c: c["doors"]["viewer"].update(agents=[5]),
             lambda c: c["doors"]["viewer"].update(agents=["builder\n"]),
+            lambda c: c["doors"]["generate"].update(agents=["artist", "app-render-to-film"]),
+            lambda c: c["doors"]["web"].update(agents=["app-x"]),
         ]
         for i, change in enumerate(changes):
             c = real_cfg()

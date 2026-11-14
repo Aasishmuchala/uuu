@@ -36,6 +36,8 @@ function needDoors(cfg) {
   for (const name of DOOR_NAMES) {
     const agents = need(cfg, `doors.${name}.agents`, "array");
     if (!agents.every((s) => typeof s === "string" && SLUG_RE.test(s))) fail(`key doors.${name}.agents must list agent slugs`);
+    // `app-<name>` is an app's name, never an agent's (the company file refuses it too).
+    if (agents.some((s) => s.startsWith("app-"))) fail(`key doors.${name}.agents names an app, not an agent (a name starting with app-)`);
     // Only the generation door serves apps; the list is optional.
     if ("apps" in d[name]) {
       if (name !== "generate") fail("only the generation door serves apps");

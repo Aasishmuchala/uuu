@@ -262,6 +262,20 @@ test("loadCompanyFile carries needs on every agent, or null when the file has no
   });
 });
 
+test("loadCompanyFile refuses an agent named like an app (app-...), the name App Studio's apps are known by", () => {
+  assert.ok(file.agents.every((a) => !a.slug.startsWith("app-")));
+  withCopy((dir, config) => {
+    const f = join(dir, "company.json");
+    const doc = JSON.parse(readFileSync(f, "utf8"));
+    for (const bad of ["app-researcher", "app-render-to-film", "app-x"]) {
+      doc.agents[11].slug = bad;
+      writeFileSync(f, JSON.stringify(doc));
+      assert.throws(() => loadCompanyFile(f, config), (e) => e instanceof FileProblem
+        && e.message === `The company file is not usable: the agent ${bad} has a name that starts with app-, which only App Studio's apps may use; give it another name.`, bad);
+    }
+  });
+});
+
 test("loadCompanyFile refuses a needs value it does not know", () => {
   withCopy((dir, config) => {
     const f = join(dir, "company.json");

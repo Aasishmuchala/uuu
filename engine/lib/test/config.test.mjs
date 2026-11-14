@@ -107,6 +107,8 @@ test("a config without a door's port or with a bad doors block is refused", () =
     (c) => { c.doors.web.agents = ["Researcher"]; },
     (c) => { c.doors.generate.agents = ["../artist"]; },
     (c) => { c.doors.viewer.agents = [5]; },
+    (c) => { c.doors.generate.agents = ["artist", "app-render-to-film"]; },
+    (c) => { c.doors.web.agents = ["app-x"]; },
   ];
   bad.forEach((change, i) => {
     const c = clone();

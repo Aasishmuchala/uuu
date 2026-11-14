@@ -117,6 +117,9 @@ export function loadCompanyFile(file, config) {
   for (const a of doc.agents) {
     if (!obj(a) || typeof a.slug !== "string" || !SLUG.test(a.slug)) problem(`an agent has a bad slug (${a && a.slug})`);
     const slug = a.slug;
+    // `app-<name>` is the name App Studio's apps are known by (their relay tokens and Models lines), so an
+    // agent named so would be counted and refused as an app (PLAN-V5 T86).
+    if (slug.startsWith("app-")) problem(`the agent ${slug} has a name that starts with app-, which only App Studio's apps may use; give it another name`);
     if (seen.has(slug)) problem(`the slug ${slug} is used twice`);
     if ("grants" in a) problem(`${NO_GRANTS} agent ${slug}`);
     for (const k of ["name", "role", "paperclipRole", "title", "capabilities", "instructions"]) {
