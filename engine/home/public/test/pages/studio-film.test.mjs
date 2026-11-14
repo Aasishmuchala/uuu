@@ -244,7 +244,9 @@ test("drawn: both prompts are text nodes, a clip address outside /api/ is droppe
   try {
     const ctx = await import("../../lib/context.js");
     root = await DOM.mount(({ id }) => DOM.html`<${ctx.AppContext.Provider} value=${{ setTop: (t) => tops.push(t) }}><${m.FilmView} id=${id} /><//>`, { id: f.task.id });
-    await DOM.settle();
+    // Both answers (the film and the Films list) have come in and the top bar has heard the film: at most two seconds.
+    const ready = () => DOM.textOf(root).includes("$1.75 of $6.00") && tops.some((t) => t && t.pager && t.crumbs.at(-1).label === "STH-41");
+    for (let i = 0; i < 20 && !ready(); i += 1) await DOM.settle();
     const all = DOM.elements(root);
     const texts = [...DOM.walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
     // The approved words that were not sent, and the sent words that were not approved, each a text node as written.
@@ -263,7 +265,7 @@ test("drawn: both prompts are text nodes, a clip address outside /api/ is droppe
     assert.match(words, /you approved, not sent/);
     assert.match(words, /The shotlist was changed after you approved it\./);
     assert.ok(all.some((e) => e.getAttribute("id") === "page-title"), "the film's title is the page's h1");
-    const top = tops.filter(Boolean).pop();
+    const top = tops.filter((t) => t && t.pager).pop();
     assert.deepEqual(top.crumbs.map((c) => c.label), ["Dashboards", "Studio", "Films", "STH-41"]);
     assert.equal(top.pager.label, "Film 1 of 1");
     assert.deepEqual(top.links, [{ label: "Open its task", href: "#/tasks/STH-41" }]);
