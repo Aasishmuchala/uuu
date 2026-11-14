@@ -63,5 +63,19 @@ test("the landing reads each card's answer by itself and links to its dashboard"
   assert.match(src, /useResource\(`\/api\/departments\/\$\{encodeURIComponent\(d\.id\)\}`/);
   assert.match(src, /#\/dashboards\/\$\{d\.id\}/);
   assert.match(src, /The figures and records of each department\. They are real: they come from your books\./);
-  assert.match(src, /over="DASHBOARDS"/);
+  // No kind line over the title (R9: no eyebrow labels); the title says where you are.
+  assert.doesNotMatch(src, /over=/);
+  assert.match(src, /title="Dashboards"/);
+});
+
+test("each card wears its department's line icon and no creature or department colour (O2, O7)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { CARD_FACTS } = await import("../../pages/dashboards.js");
+  assert.deepEqual(DASHBOARDS.map((d) => d.icon), ["book", "trend", "buoy", "team", "horn", "film"]);
+  assert.equal(CARD_FACTS, 2);
+  const src = readFileSync(new URL("../../pages/dashboards.js", import.meta.url), "utf8");
+  assert.doesNotMatch(src, /Creature|data-dept/);
+  assert.match(src, /cardFigures\(page, CARD_FACTS\)/);
+  const css = readFileSync(new URL("../../styles/pages/dashboards.css", import.meta.url), "utf8");
+  assert.doesNotMatch(css, /--dept\b|--font-serif/);
 });

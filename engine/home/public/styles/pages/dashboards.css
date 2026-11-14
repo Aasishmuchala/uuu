@@ -1,5 +1,7 @@
-/* Dashboards: six glass cards on a shelf (CONTRACTS-V3 30). A grid at 860 px and wider; below it the shelf
-   scrolls sideways with snap. Each card wears its department's colour through data-dept. */
+/* Dashboards (CONTRACTS-V3 30, R12): six cards three across on the raised step, two across below 1100 px and one
+   below 860 px. A card is a line icon in a tile, the name at 15 px, one grey sentence, two facts as a label over its
+   value in tabular figures, and one quiet line of what waits. The whole card is the name's link (the link's
+   ::after covers it); the keyboard ring is drawn on the card. No creature, no department colour. */
 .p-dashboards { display: flex; flex-direction: column; gap: var(--s-6); }
 
 .p-dashboards .p-dashboards-shelf {
@@ -18,129 +20,126 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
-  border-top: 2px solid color-mix(in srgb, var(--dept) 70%, transparent);
-  transition: transform var(--t-med) var(--ease), border-color var(--t-fast);
+  padding: var(--s-5);
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
-.p-dashboards .p-dashboards-card:hover { transform: translateY(-2px); border-color: var(--hairline-strong); }
-.p-dashboards .p-dashboards-card:focus-within { border-color: var(--hairline-strong); }
+.p-dashboards .p-dashboards-card:hover { border-color: var(--line-2); }
+.p-dashboards .p-dashboards-card:has(.p-dashboards-link:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 .p-dashboards .p-dashboards-head { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
-.p-dashboards .p-dashboards-pet {
+.p-dashboards .p-dashboards-tile {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--h-lg);
-  height: var(--h-lg);
-  border-radius: var(--r-3);
-  background: color-mix(in srgb, var(--dept) 14%, transparent);
+  width: var(--h-md);
+  height: var(--h-md);
+  border-radius: var(--r-2);
+  background: var(--ctl);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-2);
 }
-.p-dashboards .p-dashboards-names { flex: 1; min-width: 0; }
 .p-dashboards .p-dashboards-name {
+  flex: 1;
+  min-width: 0;
   margin: 0;
-  font-family: var(--font-serif);
-  font-size: var(--fs-dept);
-  font-weight: var(--fw-regular);
-  line-height: var(--lh-tight);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-bold);
 }
-/* The title's link covers the whole card, so the card opens from anywhere; the Try again button sits above it. */
-.p-dashboards .p-dashboards-link { color: var(--text); text-decoration: none; }
-.p-dashboards .p-dashboards-link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.p-dashboards .p-dashboards-link { color: var(--ink); text-decoration: none; }
 .p-dashboards .p-dashboards-link:focus-visible { outline: none; }
-.p-dashboards .p-dashboards-card:has(.p-dashboards-link:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
-.p-dashboards .p-dashboards-about { margin: var(--s-1) 0 0; color: var(--text-3); font-size: var(--fs-caption); }
-.p-dashboards .p-dashboards-go { flex: none; color: var(--text-3); }
-.p-dashboards .p-dashboards-card:hover .p-dashboards-go { color: var(--dept); }
+.p-dashboards .p-dashboards-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-3);
+}
+.p-dashboards .p-dashboards-go { flex: none; color: var(--ink-3); transition: color var(--t-fast) var(--ease); }
+.p-dashboards .p-dashboards-card:hover .p-dashboards-go { color: var(--ink); }
 
-/* The figures: one line each, the label on the left and the value on the right, so a sum is never broken. */
+.p-dashboards .p-dashboards-about {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+/* Two facts side by side: a 12 px label over the value, one left edge each. */
 .p-dashboards .p-dashboards-figures {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid var(--hairline);
+  margin: var(--s-5) 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
 }
-.p-dashboards .p-dashboards-figure {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-3);
-  padding: var(--s-2) 0;
-  border-bottom: 1px solid var(--hairline);
-}
+.p-dashboards .p-dashboards-figure { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .p-dashboards .p-dashboards-label {
-  min-width: 0;
-  color: var(--text-2);
-  font-size: var(--fs-caption);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  letter-spacing: var(--ls-label);
+  color: var(--ink-3);
 }
 .p-dashboards .p-dashboards-value {
   margin: 0;
-  flex: none;
-  font-size: var(--fs-title);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
   font-weight: var(--fw-medium);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-.p-dashboards .p-dashboards-figures--wait { gap: var(--s-2); border-top: 0; }
-.p-dashboards .p-dashboards-ghost {
-  display: block;
-  height: var(--h-sm);
-  border-radius: var(--r-2);
-  background: var(--glass-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+.p-dashboards .p-dashboards-unit { margin-right: 0.2em; font-size: var(--fs-note); font-weight: var(--fw-regular); color: var(--ink-3); }
+
+.p-dashboards .p-dashboards-figures--wait { gap: var(--s-4); }
+.p-dashboards .p-dashboards-ghost {
+  display: block;
+  height: 40px;
+  border-radius: var(--r-2);
+  background: var(--ctl);
+}
+
+.p-dashboards .p-dashboards-waits,
+.p-dashboards .p-dashboards-quiet {
+  margin: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
 .p-dashboards .p-dashboards-waits {
-  margin: auto 0 0;
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-2);
-  color: var(--text-2);
-  font-size: var(--fs-caption);
+  margin-top: auto;
+  padding-top: var(--s-4);
 }
-.p-dashboards .p-dashboards-dot {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: var(--r-round);
-  background: var(--dept);
-  transform: translateY(-1px);
-}
-.p-dashboards .p-dashboards-quiet { margin: 0; color: var(--text-3); font-size: var(--fs-caption); }
-.p-dashboards .p-dashboards-off { display: flex; flex-direction: column; gap: var(--s-2); }  /* at the top, as on every card (M51 F26) */
+.p-dashboards .p-dashboards-figures + .p-dashboards-waits,
+.p-dashboards .p-dashboards-quiet + .p-dashboards-waits { margin-top: auto; }
+.p-dashboards .p-dashboards-card > .p-dashboards-quiet { margin-top: var(--s-5); }
+
+.p-dashboards .p-dashboards-off { margin-top: var(--s-5); display: flex; flex-direction: column; gap: var(--s-1); }
 .p-dashboards .p-dashboards-off-title {
   margin: 0;
   display: inline-flex;
   align-items: center;
-  gap: var(--s-2);
-  color: var(--warn-text);
-  font-size: var(--fs-caption);
+  gap: 6px;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   font-weight: var(--fw-medium);
+  color: var(--ink);
 }
-.p-dashboards .p-dashboards-retry { position: relative; z-index: 1; }
+.p-dashboards .p-dashboards-off-title .k-icon { color: var(--warn); }
+.p-dashboards .p-dashboards-retry { position: relative; z-index: 1; margin-top: var(--s-2); }
 
-@media (max-width: 1079px) {
+@media (max-width: 1099px) {
   .p-dashboards .p-dashboards-shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 859px) {
-  .p-dashboards .p-dashboards-shelf {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: 82%;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    scroll-padding-inline: var(--s-1);
-    padding: var(--s-1) var(--s-1) var(--s-3);
-    margin: 0 calc(-1 * var(--s-1));
-  }
-  .p-dashboards .p-dashboards-item { scroll-snap-align: start; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .p-dashboards .p-dashboards-card { transition: none; }
-  .p-dashboards .p-dashboards-card:hover { transform: none; }
+  .p-dashboards .p-dashboards-shelf { grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
+  .p-dashboards .p-dashboards-card { padding: var(--s-4); }
+  .p-dashboards .p-dashboards-figures { margin-top: var(--s-4); }
+  .p-dashboards .p-dashboards-head { min-height: 44px; }
+  .p-dashboards .p-dashboards-about { margin-top: var(--s-1); }
 }

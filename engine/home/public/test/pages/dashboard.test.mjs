@@ -142,3 +142,58 @@ test("waitingItems: a non-draft row that waits in Needs you can be acted on in p
   assert.deepEqual(waitingItems(leave, null), []);
   assert.deepEqual(waitingItems(null, inbox), []);
 });
+
+test("a ledger's amounts: the unit apart from the figure, failed rows struck, money in coloured (R07)", async () => {
+  const { moneyParts, rowFailed, rowCameIn, figureTone, MONEY_IN } = await import("../../pages/dashboard.js");
+  assert.deepEqual(moneyParts("₹ 1,18,000.00"), { sign: "", unit: "₹", figure: "1,18,000.00" });
+  assert.deepEqual(moneyParts("-$213.11"), { sign: "−", unit: "$", figure: "213.11" });
+  assert.deepEqual(moneyParts("Rs. 500"), { sign: "", unit: "Rs.", figure: "500" });
+  assert.equal(moneyParts("4"), null);
+  assert.equal(moneyParts("14 Dec 2026"), null);
+  assert.equal(moneyParts(null), null);
+  assert.equal(rowFailed({ status: "Failed" }), true);
+  assert.equal(rowFailed({ status: "Cancelled" }), true);
+  assert.equal(rowFailed({ status: "Unpaid" }), false);
+  assert.equal(rowCameIn({ status: "Paid" }), true);
+  assert.equal(rowCameIn({ _status: "Unpaid" }), false);
+  assert.equal(figureTone({ id: "owed_to_you" }), "plain");
+  assert.equal(figureTone({ id: MONEY_IN[0] }), "in");
+  assert.equal(figureTone({ id: "money_in", failed: true }), "failed");
+  assert.equal(figureTone(null), "plain");
+});
+
+test("the filters: read from the address, written back, and applied to the tables", async () => {
+  const { filtersOf, dashboardAddress, statusChoices, filterTables } = await import("../../pages/dashboard.js");
+  assert.deepEqual(filtersOf(new URLSearchParams("s=quotations&st=Draft")), { s: "quotations", st: "draft" });
+  assert.deepEqual(filtersOf(undefined), { s: "", st: "" });
+  assert.equal(dashboardAddress("books", {}), "#/dashboards/books");
+  assert.equal(dashboardAddress("books", { s: "quotations", st: "draft" }), "#/dashboards/books?s=quotations&st=draft");
+  const tables = [
+    { id: "quotations", columns: [{ key: "status" }], rows: [{ status: "Draft" }, { status: "Final" }, { status: "Draft" }] },
+    { id: "unpaid_invoices", columns: [{ key: "_status" }], rows: [{ _status: "Overdue by 2 days" }] },
+    { id: "staff", columns: [{ key: "name" }], rows: [{ name: "A" }] },
+  ];
+  assert.deepEqual(statusChoices(tables), [
+    { value: "draft", label: "Draft" }, { value: "final", label: "Final" }, { value: "overdue by 2 days", label: "Overdue by 2 days" },
+  ]);
+  assert.deepEqual(filterTables(tables, {}).map((t) => t.id), ["quotations", "unpaid_invoices", "staff"]);
+  assert.deepEqual(filterTables(tables, { s: "staff" }).map((t) => t.id), ["staff"]);
+  const draft = filterTables(tables, { st: "draft" });
+  assert.deepEqual(draft.map((t) => [t.id, t.rows.length]), [["quotations", 2], ["unpaid_invoices", 0]]);
+});
+
+test("the record dashboard: agents at the top right, filters as menus, drafts as rows into Needs you", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { DASHBOARD_WORDS } = await import("../../pages/dashboard.js");
+  const src = readFileSync(new URL("../../pages/dashboard.js", import.meta.url), "utf8");
+  assert.match(src, /openNeeds\(\{ department: dept \}\)/);
+  assert.match(src, /<\$\{Menu\} /);
+  assert.match(src, /<\$\{DataTable\} /);
+  assert.match(src, /<\$\{NotConnected\} reason=\$\{d\.notConnected\?\.reason\}/);
+  assert.doesNotMatch(src, /DecisionCard|Creature|over=/);
+  assert.equal(DASHBOARD_WORDS.queue, "Open in Needs you");
+  assert.equal(DASHBOARD_WORDS.waitsMany(3), "3 rows here wait for you.");
+  const css = readFileSync(new URL("../../styles/pages/dashboard.css", import.meta.url), "utf8");
+  assert.match(css, /font-variant-numeric: tabular-nums/);
+  assert.doesNotMatch(css, /--dept\b|--glass|--warn-text/);
+});

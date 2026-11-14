@@ -1,89 +1,145 @@
-/* Books, Customers, Support and People (CONTRACTS-V3 30): stat tiles, tables with status chips, drafts in
-   place, the switches that are off. The department's colour comes from data-dept on the root. */
+/* Books, Customers, Support and People (CONTRACTS-V3 30), as a ledger (R07): the title with the agent at the top
+   right, one row of filter menus, the totals in a row between hairlines, then each list as the kit's table edge to
+   edge of the column. Nothing is coloured but money that came in, a failed amount and a late or lost row.
+   `.p-dashboard` is shared with Studio and Marketing (the agent, the jobs, the closing link); what only the four
+   record dashboards draw sits under `.p-dashboard--records`. */
 .p-dashboard { display: flex; flex-direction: column; gap: var(--s-6); }
 .p-dashboard .p-dashboard-agent { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--s-3); }
 
-.p-dashboard .p-dashboard-drafts,
-.p-dashboard .p-dashboard-flight { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-3); }
-.p-dashboard .p-dashboard-plain {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2) var(--s-4);
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-3);
-  background: var(--glass);
-  box-shadow: var(--highlight);
-  overflow-wrap: anywhere;
-}
-.p-dashboard .p-dashboard-label { color: var(--text-3); font-size: var(--fs-caption); }
-.p-dashboard .p-dashboard-empty,
-.p-dashboard .p-dashboard-state { color: var(--text-2); }
+.p-dashboard .p-dashboard-flight { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .p-dashboard .p-dashboard-flight li {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--s-2) var(--s-4);
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-3);
-  background: var(--glass);
+  gap: var(--s-1) var(--s-4);
+  min-height: var(--s-12);
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
 }
-.p-dashboard .p-dashboard-state { font-size: var(--fs-caption); }
-
-/* Leads by stage: a row of small tiles, the count above the stage. */
-.p-dashboard .p-dashboard-stages {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: var(--s-3);
-}
-.p-dashboard .p-dashboard-stage {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--hairline);
-  border-left: 2px solid var(--dept);
-  border-radius: var(--r-3);
-  background: var(--glass);
-}
-.p-dashboard .p-dashboard-stage-count { font-size: var(--fs-heading); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; line-height: var(--lh-tight); }
-.p-dashboard .p-dashboard-stage-name { color: var(--text-2); font-size: var(--fs-caption); }
+.p-dashboard .p-dashboard-flight a { color: var(--ink); text-decoration: none; }
+.p-dashboard .p-dashboard-flight a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.p-dashboard .p-dashboard-state { color: var(--ink-2); font-size: var(--fs-note); }
 
 .p-dashboard .p-dashboard-jobs { display: flex; flex-direction: column; gap: var(--s-2); }
-.p-dashboard .p-dashboard-switches { display: flex; flex-direction: column; gap: var(--s-3); }
 
-.p-dashboard .p-dashboard-foot { margin: 0; padding-top: var(--s-2); border-top: 1px solid var(--hairline); }
+.p-dashboard .p-dashboard-foot { margin: 0; padding-top: var(--s-2); border-top: 1px solid var(--line); }
 .p-dashboard .p-dashboard-open {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
   min-height: var(--h-md);
-  color: var(--ink-3);
+  color: var(--ink-2);
   text-decoration: none;
-  font-size: var(--fs-label);
-  letter-spacing: var(--ls-label);
-  transition: color var(--t-fast);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  transition: color var(--t-fast) var(--ease);
+}
+.p-dashboard .p-dashboard-open:hover { color: var(--ink); }
+
+/* ---- The four record dashboards ---- */
+.p-dashboard.p-dashboard--records { gap: 0; }
+.p-dashboard.p-dashboard--records .k-page-header { margin-bottom: var(--s-5); }
+.p-dashboard.p-dashboard--records .k-section { margin-bottom: var(--s-8); }
+.p-dashboard.p-dashboard--records > .k-notice { margin-bottom: var(--s-6); }
+
+/* The filters: the list pattern's menus, a quiet control each, lifted once a choice is made. */
+.p-dashboard .p-dashboard-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); min-width: 0; }
+.p-dashboard .p-dashboard-filter .k-menu__trigger {
+  min-height: var(--h-md);
+  padding: 0 10px 0 var(--s-3);
+  gap: 6px;
+  border-color: var(--line);
+  background: var(--ctl);
+  color: var(--ink);
   font-weight: var(--fw-medium);
 }
-.p-dashboard .p-dashboard-open:hover { color: var(--dept); }
+.p-dashboard .p-dashboard-filter .k-menu__trigger .k-icon { color: var(--ink-3); }
+.p-dashboard .p-dashboard-filter--on .k-menu__trigger { border-color: var(--line-2); background: var(--raise); box-shadow: var(--shadow-card); }
+.p-dashboard .p-dashboard-filter .k-menu__trigger:hover { border-color: var(--ink-3); }
+.p-dashboard .p-dashboard-filter .k-menu__list { left: 0; right: auto; min-width: 220px; max-height: min(60vh, calc(var(--s-12) * 9)); overflow-y: auto; }
+.p-dashboard .p-dashboard-filter .k-menu__item:not(:has(.k-icon)) { padding-left: calc(10px + 16px + var(--s-2)); }
+.p-dashboard .p-dashboard-filter .k-menu__item .k-icon { color: var(--accent); }
 
-/* Rows of a table that wait for the owner (a leave request): acted on in place above the table (M51 F5). */
-.p-dashboard .p-dashboard-waiting { display: flex; flex-direction: column; gap: var(--s-2); margin-bottom: var(--s-4); }
-.p-dashboard .p-dashboard-waiting-title {
-  margin: 0;
-  font-size: var(--fs-label);
-  color: var(--warn-text);
-  letter-spacing: var(--ls-label);
-  font-weight: var(--fw-medium);
+/* The totals: a 13 px label over the figure at the stat size, in a row between hairlines (R07). */
+.p-dashboard .p-dashboard-totals {
+  margin: 0 0 var(--s-8);
+  padding: var(--s-5) 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-5) var(--s-12);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
+.p-dashboard .p-dashboard-total { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.p-dashboard .p-dashboard-total dd { margin: 0; }
+.p-dashboard .p-dashboard-total-label { font-size: var(--fs-note); line-height: var(--lh-note); color: var(--ink-2); }
+.p-dashboard .p-dashboard-total-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-stat);
+  line-height: var(--lh-stat);
+  letter-spacing: var(--ls-stat);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.p-dashboard .p-dashboard-total-value .p-dashboard-unit { font-size: var(--fs-ui); }
+.p-dashboard .p-dashboard-total-hint { font-size: var(--fs-label); line-height: var(--lh-label); color: var(--ink-3); }
 
-/* Below 860 px the closing link and the jobs link keep a 44 px target (M51 F15). */
+/* An amount: the unit small and grey beside the figure; money that came in in the good colour; a failed one
+   struck through. */
+.p-dashboard .p-dashboard-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.p-dashboard .p-dashboard-unit {
+  margin-right: 0.2em;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-regular);
+  color: var(--ink-3);
+}
+.p-dashboard .p-dashboard-amount--in,
+.p-dashboard .p-dashboard-amount--in .p-dashboard-unit { color: var(--good); }
+.p-dashboard s.p-dashboard-amount { color: var(--ink-2); text-decoration-thickness: 1px; }
+
+.p-dashboard .p-dashboard-status { color: var(--ink-2); }
+
+/* Rows that wait for the owner: one quiet line above the table; the table's own status says which. */
+.p-dashboard .p-dashboard-waits { margin: 0 0 var(--s-3); font-size: var(--fs-note); line-height: var(--lh-note); color: var(--ink-2); }
+.p-dashboard .p-dashboard-waits .k-icon { color: var(--ink-3); }
+
+/* The way into Needs you: a quiet text button at the right of a section's heading. */
+.p-dashboard .p-dashboard-queue {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: var(--h-sm);
+  padding: 0 var(--s-1) 0 var(--s-2);
+  margin-right: calc(var(--s-1) * -1);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
+}
+.p-dashboard .p-dashboard-queue:hover { background: var(--ctl); }
+
+/* Below 860 px every control and link keeps a 44 px target (M51 F15). */
 @media (max-width: 859px) {
   .p-dashboard .p-dashboard-open { min-height: 44px; }
   .p-dashboard .k-section__aside a { display: inline-flex; align-items: center; min-height: 44px; }
+  .p-dashboard .p-dashboard-queue { min-height: 44px; }
+  .p-dashboard .p-dashboard-filter .k-menu__trigger { min-height: 44px; }
+  .p-dashboard .p-dashboard-totals {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s-4);
+    margin-bottom: var(--s-6);
+  }
+  .p-dashboard .p-dashboard-total-value { white-space: normal; flex-wrap: wrap; }
 }

@@ -1,14 +1,17 @@
-// Marketing page (CONTRACTS 9.6, 9.8): the content calendar grouped by week, each draft opening in place
-// with its text and the inbox decision, files that could not be used, and the jobs to start. Built as the other
-// dashboards are (M51 F20): the agent and its state at the top right, Jobs to start, Open the department.
-// Publishing is off and nothing here can turn it on.
+// Marketing page (CONTRACTS 9.6, 9.8), in the frame of the record dashboards (R07): the title with the agent and
+// its state at the top right, a row of filters, the figures as totals, then the content calendar grouped by week,
+// each post a row with a small picture and its state, opening in place with its text and the inbox decision. A
+// shotlist or a card of versions waiting for the owner is the compact card that opens it in Needs you; drafts
+// waiting stay as rows with the way into Needs you. Then concepts, carousels, what was made, files that could not
+// be used, the jobs to start (M51 F20). Publishing is off and nothing here can turn it on.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import {
-  Chip, DataTable, DecisionCard, Empty, ErrorNotice, Figures, Loading, NotConnected, Notice, PageHeader, Section, Switch, Tag,
+  DataTable, DecisionCard, Empty, ErrorNotice, Icon, isPickItem, isShotlistItem, Loading, Menu, NotConnected, Notice,
+  PageHeader, Row, Rows, Section, St, Tag,
 } from "../kit/index.js";
-import { AgentHead, Jobs, OpenDepartment } from "./dashboard.js";
+import { AgentHead, Jobs, OpenDepartment, QueueLink, Totals } from "./dashboard.js";
 
 export const GROUPS = [
   { id: "this-week", title: "This week" },
@@ -200,7 +203,7 @@ export function Carousels({ slides, current, onOpen }) {
 export function Recipes({ section }) {
   const rows = asList(section?.rows).slice(0, 200);
   const columns = [
-    { key: "date", label: "Date" }, { key: "job", label: "What was made" }, { key: "rounds", label: "Rounds" },
+    { key: "date", label: "Date", align: "start" }, { key: "job", label: "What was made" }, { key: "rounds", label: "Rounds" },
     { key: "scores", label: "Scores" }, { key: "verdict", label: "Your answer" },
   ];
   return html`
@@ -219,6 +222,61 @@ export function Recipes({ section }) {
 
 const STATUS_TONE = { "Waiting for you": "warn", Approved: "ok", "Sent back": "neutral" };
 
+// The page's own words (a new label is added here and pinned by the page's test).
+export const MARKETING_WORDS = {
+  filters: "Filters",
+  kind: "Kind",
+  anyKind: "Any kind",
+  status: "Status",
+  anyStatus: "Any status",
+  noMatch: "No posts match these filters.",
+  allPosts: "Show every post",
+  waitsPick: "To pick or approve",
+};
+
+// A calendar row's kind of piece and its line icon, for a row with no picture.
+const KIND_ICON = { post: "image", newsletter: "send", carousel: "layers" };
+export const kindIcon = (kind) => KIND_ICON[String(kind ?? "").toLowerCase()] || "docs";
+
+// A calendar row's own picture, only through the page's view helper (an /api/view/ address), or null.
+export const rowPicture = (row) => viewOnly(row?.picture) || viewOnly(row);
+
+// The filters of the address: ?kind=<kind>&st=<status>, both in small letters. Pure.
+export function postFilters(query) {
+  const get = (k) => (query && typeof query.get === "function" ? String(query.get(k) || "") : "");
+  return { kind: get("kind").slice(0, 40).toLowerCase(), st: get("st").slice(0, 40).toLowerCase() };
+}
+
+// The address of Marketing with its filters; an empty filter is left out. Pure.
+export function marketingAddress(f = {}) {
+  const q = new URLSearchParams();
+  if (f.kind) q.set("kind", f.kind);
+  if (f.st) q.set("st", f.st);
+  const qs = q.toString();
+  return `#/dashboards/marketing${qs ? `?${qs}` : ""}`;
+}
+
+// The words of one column of the calendar's rows, once each in the order first seen: [{ value, label }]. Pure.
+export function postChoices(rows, key) {
+  const seen = new Map();
+  for (const r of asList(rows)) {
+    const label = clip(r?.[key], 40).trim();
+    if (label && !seen.has(label.toLowerCase())) seen.set(label.toLowerCase(), label);
+  }
+  return [...seen].map(([value, label]) => ({ value, label }));
+}
+
+// The calendar rows the filters keep. Pure.
+export function filterPosts(rows, f = {}) {
+  const low = (v) => String(v ?? "").trim().toLowerCase();
+  return asList(rows).filter((r) => r && (!f.kind || low(r.kind) === f.kind) && (!f.st || low(r.status) === f.st));
+}
+
+// The items of Marketing in Needs you that are a shotlist or a card of versions: each is drawn as the compact card.
+export function cardsWaiting(inbox) {
+  return asList(inbox?.items).filter((i) => i && i.department === "marketing" && (isShotlistItem(i) || isPickItem(i)));
+}
+
 function DraftBody({ id, item, onDone }) {
   const res = useResource(id ? `/api/content/${encodeURIComponent(id)}` : null);
   const draft = res.data?.draft;
@@ -233,18 +291,26 @@ function DraftBody({ id, item, onDone }) {
     </div>`;
 }
 
+// One post as a row: a small picture (or its kind's line icon), the title over the day and kind, the state at the
+// right. The row opens in place with the draft's text and its decision.
 function CalendarRow({ row, inbox, onDone }) {
   const [open, setOpen] = useState(false);
   const id = draftIdOf(row);
   const item = itemFor(row, inbox);
   const panel = `p-marketing-row-${id || "none"}`;
+  const src = rowPicture(row);
   return html`
-    <li class="p-marketing__row">
+    <li class=${`p-marketing__row${open ? " is-open" : ""}`}>
       <button type="button" class="p-marketing__head" aria-expanded=${open ? "true" : "false"} aria-controls=${panel} onClick=${() => setOpen(!open)}>
-        <span class="p-marketing__date">${plannedLabel(row.planned)}</span>
-        <span class="p-marketing__title">${row.title || "Untitled"}</span>
-        <span class="p-marketing__meta"><${Chip}>${row.kind || "Draft"}<//></span>
-        <${Tag} tone=${STATUS_TONE[row.status] || "neutral"}>${row.status || ""}<//>
+        <span class="p-marketing__thumb" aria-hidden="true">
+          ${src ? html`<img src=${src} alt="" loading="lazy" />` : html`<${Icon} name=${kindIcon(row.kind)} size=${18} />`}
+        </span>
+        <span class="p-marketing__words">
+          <span class="p-marketing__title">${row.title || "Untitled"}</span>
+          <span class="p-marketing__meta"><span class="p-marketing__date">${plannedLabel(row.planned)}</span> · ${row.kind || "Draft"}</span>
+        </span>
+        ${row.status ? html`<${St} tone=${STATUS_TONE[row.status] || "neutral"}>${row.status}<//>` : null}
+        <${Icon} name="chevron-right" size=${16} class="p-marketing__chev" />
       </button>
       ${open ? html`
         <div id=${panel}>
@@ -257,6 +323,33 @@ function CalendarRow({ row, inbox, onDone }) {
 // `?slides=` names a carousel that is not (or no longer) there: true once the carousels are read.
 export const slidesMissing = (data, current) => Boolean(current && data && !data.notConnected && !slideSetById(data, current));
 
+const go = (href) => { if (href && typeof location !== "undefined") location.hash = href; };
+
+// One filter: the kit's menu, its button showing the filter's name, or its choice once one is made.
+function FilterMenu({ name, options, current, make }) {
+  const on = options.find((o) => o.value && o.value === current);
+  const items = options.map((o) => {
+    const now = o.value === (current || "");
+    return { id: o.value || "all", label: o.label, icon: now ? "check" : undefined, current: now ? true : undefined, onSelect: () => go(make(o.value)) };
+  });
+  return html`<div class=${`p-dashboard-filter${on ? " p-dashboard-filter--on" : ""}`}>
+    <${Menu} label=${on ? on.label : name} items=${items} />
+  </div>`;
+}
+
+function Bar({ f, rows }) {
+  const W = MARKETING_WORDS;
+  const kinds = postChoices(rows, "kind");
+  const states = postChoices(rows, "status");
+  if (!kinds.length && !states.length) return null;
+  return html`<div class="p-dashboard-bar" role="group" aria-label=${W.filters}>
+    ${kinds.length ? html`<${FilterMenu} name=${W.kind} current=${f.kind} make=${(v) => marketingAddress({ ...f, kind: v })}
+      options=${[{ value: "", label: W.anyKind }, ...kinds]} />` : null}
+    ${states.length ? html`<${FilterMenu} name=${W.status} current=${f.st} make=${(v) => marketingAddress({ ...f, st: v })}
+      options=${[{ value: "", label: W.anyStatus }, ...states]} />` : null}
+  </div>`;
+}
+
 export default function Page({ route }) {
   const { openPanel, closePanel } = useApp();
   const res = useResource("/api/departments/marketing", { every: 10000 });
@@ -264,6 +357,7 @@ export default function Page({ route }) {
   const inbox = useResource("/api/inbox", { every: 10000 });
   const d = res.data;
   const current = route?.query?.get("slides") || "";
+  const f = postFilters(route?.query);
   const opened = useRef("");
   const openSet = (id) => {
     if (typeof location !== "undefined" && location.hash !== `#/dashboards/marketing?slides=${encodeURIComponent(id)}`) location.hash = `#/dashboards/marketing?slides=${encodeURIComponent(id)}`;
@@ -284,27 +378,42 @@ export default function Page({ route }) {
   const calendar = sections.find((s) => s.id === "calendar");
   const problems = sections.find((s) => s.id === "problems");
   const onDone = () => { res.refresh(); inbox.refresh(); };
-  const groups = groupByWeek(calendar?.rows || [], new Date()).filter((g) => g.rows.length);
+  const posts = filterPosts(calendar?.rows, f);
+  const groups = groupByWeek(posts, new Date()).filter((g) => g.rows.length);
   const waiting = waitingDrafts(calendar?.rows, inbox.data);
+  const cards = cardsWaiting(inbox.data);
   const publishing = (d?.switches || []).find((s) => s.id === "publishing");
+  const filtered = Boolean(f.kind || f.st);
   return html`
-    <div class="p-marketing p-dashboard" data-dept="marketing">
-      <${PageHeader} title="Marketing" over="DASHBOARD" creature="marketing" back=${{ label: "All dashboards", href: "#/dashboards" }}
+    <div class="p-marketing p-dashboard">
+      <${PageHeader} title="Marketing" back=${{ label: "All dashboards", href: "#/dashboards" }}
+        crumbs=${[{ label: "Dashboards", href: "#/dashboards" }, { label: "Marketing" }]}
         lead="Posts and newsletters drafted by the Marketer."
-        actions=${d?.agent ? html`<${AgentHead} slug="marketer" agent=${d.agent} />` : null} />
+        actions=${d?.agent ? html`<${AgentHead} slug="marketer" agent=${d.agent} />` : null}>
+        ${calendar?.rows?.length ? html`<${Bar} f=${f} rows=${calendar.rows} />` : null}
+      <//>
       ${slidesMissing(slides.data, current) ? html`<${Notice} tone="warn" title="That carousel is not here.">It may have been moved or taken away. The carousels below are the ones there are.<//>` : null}
       ${res.loading && !d ? html`<${Loading} lines=${4} label="Loading Marketing" />` : null}
       ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
       ${d ? html`
+        <${Totals} figures=${d.figures || []} />
         <${Notice} tone="info" title="Publishing is off.">${publishing?.explain || "Connect an account to turn this on."}<//>
-        <${Figures} figures=${d.figures || []} />
-        ${waiting.length ? html`
-          <${Section} title="Drafts waiting for you" count=${waiting.length}>
-            <ul class="p-marketing__waiting">
-              ${waiting.map(({ row, item }) => html`<li key=${item.id}><${DecisionCard} item=${item} compact onDone=${onDone} /></li>`)}
+        ${cards.length ? html`
+          <${Section} title=${MARKETING_WORDS.waitsPick} count=${cards.length}>
+            <ul class="p-marketing__cards">
+              ${cards.map((item) => html`<li key=${item.id}><${DecisionCard} item=${item} compact onDone=${onDone} /></li>`)}
             </ul>
           <//>` : null}
-        <${Section} title=${calendar?.title || "Content calendar"}>
+        ${waiting.length ? html`
+          <${Section} title="Drafts waiting for you" count=${waiting.length} aside=${html`<${QueueLink} dept="marketing" />`}>
+            <ul class="p-marketing__waiting">
+              ${waiting.map(({ row, item }) => html`<li key=${item.id} class="p-marketing__wait">
+                <span class="p-marketing__wait-title">${row.title || "Untitled"}</span>
+                <span class="p-marketing__wait-meta">${plannedLabel(row.planned)} · ${row.kind || "Draft"}</span>
+              </li>`)}
+            </ul>
+          <//>` : null}
+        <${Section} title=${calendar?.title || "Content calendar"} count=${posts.length || undefined}>
           ${groups.length ? groups.map((g) => html`
             <div key=${g.id} class="p-marketing__group">
               <h3 class="p-marketing__group-title">${g.title}</h3>
@@ -312,7 +421,9 @@ export default function Page({ route }) {
                 ${g.rows.map((r, i) => html`<${CalendarRow} key=${r.inboxId || `${r.planned}-${i}`} row=${r} inbox=${inbox.data} onDone=${onDone} />`)}
               </ul>
             </div>`)
-            : html`<${Empty} title=${calendar?.emptyText || "No drafts yet."} />`}
+            : filtered
+              ? html`<${Empty} title=${MARKETING_WORDS.noMatch}><a href="#/dashboards/marketing">${MARKETING_WORDS.allPosts}</a><//>`
+              : html`<${Empty} title=${calendar?.emptyText || "No drafts yet."} />`}
         <//>
         <${Concepts} section=${sections.find((x) => x.id === "concepts")} />
         <${Carousels} slides=${slides} current=${current} onOpen=${openSet} />
@@ -322,15 +433,17 @@ export default function Page({ route }) {
             <${DataTable} columns=${problems.columns} rows=${problems.rows} />
           <//>` : null}
         ${d.inFlight?.length ? html`
-          <${Section} title="In progress">
-            <ul class="p-marketing__rows">
-              ${d.inFlight.map((g) => html`<li key=${g.goalId}><a href=${`#/tasks/${encodeURIComponent(g.goalId)}`}>${g.title}</a> <${Chip}>${g.plainState}<//></li>`)}
+          <${Section} title="In progress" count=${d.inFlight.length}>
+            <ul class="p-dashboard-flight">
+              ${d.inFlight.map((g) => html`<li key=${g.goalId}><a href=${`#/tasks/${encodeURIComponent(g.goalId)}`}>${g.title}</a> <span class="p-dashboard-state">${g.plainState}</span></li>`)}
             </ul>
           <//>` : null}
         <${Jobs} dept="marketing" />
         ${d.switches?.length ? html`
           <${Section} title="Switched off">
-            ${d.switches.map((s) => html`<${Switch} key=${s.id} on=${!!s.on} disabled label=${s.label} explain=${s.explain} />`)}
+            <${Rows}>
+              ${d.switches.map((s) => html`<${Row} key=${s.id} icon="power" title=${clip(s.label, 120)} state=${s.on ? "On" : "Off"} say=${clip(s.explain, 300)} />`)}
+            <//>
           <//>` : null}
         <${OpenDepartment} dept="marketing" />` : null}
     </div>`;

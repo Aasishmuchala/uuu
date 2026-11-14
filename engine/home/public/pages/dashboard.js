@@ -1,18 +1,21 @@
-// One page for Books, Customers, Support and People (CONTRACTS 9.6, CONTRACTS-V3 30), at #/dashboards/<id>:
-// the figures as stat tiles, drafts with the approval card in place, the other sections as tables with status
-// chips (Books also shows its quotations), what is being worked on, jobs to start, the switches that are off,
-// and a link to the department.
+// One page for Books, Customers, Support and People (CONTRACTS 9.6, CONTRACTS-V3 30), at #/dashboards/<id>, in the
+// manner of a ledger (R07): the title with the agent and its state at the top right, a row of filters (the list
+// pattern's menus), the figures as totals in a row, then each list as the kit's table edge to edge of the column.
+// Drafts waiting for the owner stay as rows and open in Needs you; nothing is coloured but money that came in and
+// what failed or is late. Then what is being worked on, jobs to start, the switches that are off, and the
+// department's link.
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
+import { useApp } from "../lib/context.js";
 import { HealthNext } from "./team.js";
 import {
-  AgentChip, Chip, DataTable, DecisionCard, ErrorNotice, Figures, Icon, JobRow, Live, Loading, NotConnected,
-  PageHeader, Section, StatusDot, Switch, Waiting,
+  AgentChip, DataTable, ErrorNotice, Icon, JobRow, Live, Loading, Menu, NotConnected, PageHeader, Row, Rows, Section,
+  St, StatusDot, Tag, Waiting,
 } from "../kit/index.js";
 
 const TITLES = { books: "Books", customers: "Customers", support: "Support", people: "People" };
 const AGENTS = { books: "bookkeeper", customers: "sales", support: "support", people: "people" };
-// The department each dashboard belongs to (its creature, its colour, its page).
+// The department each dashboard belongs to (its page, its jobs, its items in Needs you).
 export const DEPARTMENTS = { books: "books", customers: "sales", support: "support", people: "people" };
 const DRAFT_SECTIONS = ["drafts", "draft_replies"];
 // Sections whose rows owe money and carry a due date: their status is worked out from it.
@@ -122,61 +125,108 @@ export function jobsToStart(mapDept, n = MAX_JOBS) {
 
 const text = (v) => (v == null || v === "" ? "—" : String(v).slice(0, TEXT_MAX));
 
-function StatusChip({ value }) {
-  const c = statusChip(value);
-  if (!c) return text(value);
-  return html`<${Chip} dot=${c.tone}>${c.label}<//>`;
+
+// The page's own words (a new label is added here and pinned by the page's test).
+export const DASHBOARD_WORDS = {
+  filters: "Filters",
+  show: "Show",
+  everything: "Every list",
+  status: "Status",
+  anyStatus: "Any status",
+  queue: "Open in Needs you",
+  waitsOne: "1 row here waits for you.",
+  waitsMany: (n) => `${n} rows here wait for you.`,
+  failed: "Failed",
+  noRows: "No rows have this status.",
+};
+
+// Figures whose money came in (drawn in the good colour). Every other figure stays in the first ink.
+export const MONEY_IN = ["money_in", "received", "received_month", "paid_month", "payments_in"];
+// Status words that mean a row's money did not move: its amount is struck through.
+const FAILED = ["failed", "bounced", "returned", "cancelled"];
+// Status words that mean a row's money came in.
+const CAME_IN = ["paid", "received"];
+
+const statusOf = (row) => String(row?.status ?? row?.[STATUS_KEY] ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+export const rowFailed = (row) => FAILED.includes(statusOf(row));
+export const rowCameIn = (row) => CAME_IN.includes(statusOf(row));
+// How a figure is drawn: "failed" (struck through, with a tag), "in" (money that came in) or "plain".
+export const figureTone = (f) => (f && f.failed === true ? "failed" : f && MONEY_IN.includes(String(f.id)) ? "in" : "plain");
+
+// An amount as the server writes it ("₹ 1,18,000.00", "-$213.11") → { sign, unit, figure }, so the unit can be
+// drawn small and grey beside the figure. Null when the value is not an amount with a currency. Pure.
+export function moneyParts(v) {
+  const m = /^([-+−]?)\s*([₹$€£]|Rs\.?)\s*(\d[\d,]*(?:\.\d+)?)$/.exec(String(v ?? "").trim());
+  return m ? { sign: m[1] === "-" ? "−" : m[1], unit: m[2], figure: m[3] } : null;
 }
 
-const renderCell = (row, col) =>
-  CHIP_KEYS.includes(col.key) || col.key === STATUS_KEY ? html`<${StatusChip} value=${row[col.key]} />` : text(row[col.key]);
+// The filters of the address: ?s=<list id>&st=<status, in small letters>. Pure.
+export function filtersOf(query) {
+  const get = (k) => (query && typeof query.get === "function" ? String(query.get(k) || "") : "");
+  return { s: get("s").slice(0, 60), st: get("st").slice(0, 60).toLowerCase() };
+}
+
+// The address of a dashboard with its filters; an empty filter is left out. Pure.
+export function dashboardAddress(id, f = {}) {
+  const q = new URLSearchParams();
+  if (f.s) q.set("s", f.s);
+  if (f.st) q.set("st", f.st);
+  const qs = q.toString();
+  return `#/dashboards/${encodeURIComponent(id)}${qs ? `?${qs}` : ""}`;
+}
+
+// The status words of the tables' rows, once each, in the order first seen: [{ value, label }]. Pure.
+export function statusChoices(tables) {
+  const seen = new Map();
+  for (const s of Array.isArray(tables) ? tables : []) {
+    for (const row of Array.isArray(s?.rows) ? s.rows : []) {
+      const c = statusChip(row?.status ?? row?.[STATUS_KEY]);
+      if (c && !seen.has(c.label.toLowerCase())) seen.set(c.label.toLowerCase(), c.label);
+    }
+  }
+  return [...seen].map(([value, label]) => ({ value, label }));
+}
+
+// The tables the filters keep: one list when `s` names one; with `st`, only the rows of that status (a table with
+// no statuses is left out then). Pure.
+export function filterTables(tables, f = {}) {
+  let list = (Array.isArray(tables) ? tables : []).filter(Boolean);
+  if (f.s) list = list.filter((t) => t.id === f.s);
+  if (f.st) {
+    list = list
+      .filter((t) => (t.columns || []).some((c) => c.key === "status" || c.key === STATUS_KEY))
+      .map((t) => ({ ...t, rows: (t.rows || []).filter((r) => (statusChip(r?.status ?? r?.[STATUS_KEY])?.label || "").toLowerCase() === f.st) }));
+  }
+  return list;
+}
+
+// A status in a table: late, lost or failed is a tag in the bad colour; every other word stays grey.
+function StatusWords({ value }) {
+  const c = statusChip(value);
+  if (!c) return text(value);
+  return c.tone === "bad" ? html`<${Tag} tone="bad">${c.label}<//>` : html`<span class="p-dashboard-status">${c.label}</span>`;
+}
+
+// An amount: the unit small and grey, the figure in tabular figures; struck through when its row failed, in the
+// good colour when its money came in.
+export function Amount({ value, failed, cameIn }) {
+  const m = moneyParts(value);
+  const body = m ? html`${m.sign}<span class="p-dashboard-unit">${m.unit}</span>${m.figure}` : text(value);
+  const cls = `p-dashboard-amount${cameIn && !failed ? " p-dashboard-amount--in" : ""}`;
+  return failed ? html`<s class=${cls}>${body}</s>` : html`<span class=${cls}>${body}</span>`;
+}
+
+const renderCell = (row, col) => {
+  if (CHIP_KEYS.includes(col.key) || col.key === STATUS_KEY) return html`<${StatusWords} value=${row[col.key]} />`;
+  if (moneyParts(row[col.key])) return html`<${Amount} value=${row[col.key]} failed=${rowFailed(row)} cameIn=${rowCameIn(row)} />`;
+  return undefined;
+};
 
 export function AgentState({ agent }) {
   if (!agent) return null;
   if (agent.state === "working") return html`<${Live} />`;
   if (agent.state === "waiting_for_you") return html`<${Waiting} />`;
   return html`<${StatusDot} tone=${agent.state === "problem" ? "bad" : agent.state === "paused" ? "warn" : "off"} label=${text(agent.plainState)} />`;
-}
-
-function PlainRow({ section, row }) {
-  const cols = section.columns || [];
-  return html`
-    <li class="p-dashboard-plain">
-      ${cols.map((c) => html`<span key=${c.key}><span class="p-dashboard-label">${c.label}</span> ${text(row[c.key])}</span>`)}
-    </li>`;
-}
-
-function DraftSection({ section, inbox }) {
-  const rows = section.rows || [];
-  return html`
-    <${Section} title=${section.title || "Drafts waiting for you"} count=${rows.length}>
-      ${rows.length === 0 ? html`<p class="p-dashboard-empty">${section.emptyText || "Nothing waiting."}</p>` : html`
-        <ul class="p-dashboard-drafts">
-          ${rows.map((row, i) => {
-            const item = itemFor(row, inbox);
-            return item
-              ? html`<li key=${row.inboxId}><${DecisionCard} item=${item} compact /></li>`
-              : html`<${PlainRow} key=${row.inboxId || i} section=${section} row=${row} />`;
-          })}
-        </ul>`}
-    <//>`;
-}
-
-function StageRow({ section }) {
-  const rows = section.rows || [];
-  const cols = section.columns || [];
-  const [a, b] = [cols[0]?.key || "stage", cols[1]?.key || "count"];
-  return html`
-    <${Section} title=${section.title}>
-      ${rows.length === 0 ? html`<p class="p-dashboard-empty">${section.emptyText || "Nothing here yet."}</p>` : html`
-        <ul class="p-dashboard-stages">
-          ${rows.map((r, i) => html`
-            <li key=${i} class="p-dashboard-stage">
-              <span class="p-dashboard-stage-count">${text(r[b])}</span>
-              <span class="p-dashboard-stage-name">${text(r[a])}</span>
-            </li>`)}
-        </ul>`}
-    <//>`;
 }
 
 // The agent's chip and its state, at the top right of every dashboard (M51 F20: the six are built one way).
@@ -205,48 +255,116 @@ export function Jobs({ dept }) {
     <//>`;
 }
 
+// The figures as totals in a row (R07): a 13 px label over the figure at the stat size, its unit small and grey,
+// the server's hint under it.
+export function Totals({ figures }) {
+  const list = (Array.isArray(figures) ? figures : []).filter((f) => f && f.label !== undefined && f.value !== undefined);
+  if (!list.length) return null;
+  return html`<dl class="p-dashboard-totals">
+    ${list.map((f, i) => {
+      const tone = figureTone(f);
+      return html`<div class="p-dashboard-total" key=${f.id ?? i}>
+        <dt class="p-dashboard-total-label">${text(f.label)}</dt>
+        <dd class="p-dashboard-total-value">
+          <${Amount} value=${f.value} failed=${tone === "failed"} cameIn=${tone === "in"} />
+          ${tone === "failed" ? html`<${Tag} tone="bad">${DASHBOARD_WORDS.failed}<//>` : null}
+        </dd>
+        ${f.hint ? html`<dd class="p-dashboard-total-hint">${text(f.hint)}</dd>` : null}
+      </div>`;
+    })}
+  </dl>`;
+}
+
+// The way into Needs you, filtered to the department.
+export function QueueLink({ dept }) {
+  const app = useApp() || {};
+  const open = () => { if (typeof app.openNeeds === "function") app.openNeeds({ department: dept }); };
+  return html`<button type="button" class="p-dashboard-queue" onClick=${open}>${DASHBOARD_WORDS.queue}<${Icon} name="chevron-right" size=${14} /></button>`;
+}
+
+const go = (href) => { if (href && typeof location !== "undefined") location.hash = href; };
+
+// One filter: the kit's menu, its button showing the filter's name, or its choice once one is made.
+function FilterMenu({ name, options, current, make }) {
+  const on = options.find((o) => o.value && o.value === current);
+  const items = options.map((o) => {
+    const now = o.value === (current || "");
+    return { id: o.value || "all", label: o.label, icon: now ? "check" : undefined, current: now ? true : undefined, onSelect: () => go(make(o.value)) };
+  });
+  return html`<div class=${`p-dashboard-filter${on ? " p-dashboard-filter--on" : ""}`}>
+    <${Menu} label=${on ? on.label : name} items=${items} />
+  </div>`;
+}
+
+function Bar({ id, f, lists, statuses }) {
+  const W = DASHBOARD_WORDS;
+  if (lists.length < 2 && !statuses.length) return null;
+  return html`<div class="p-dashboard-bar" role="group" aria-label=${W.filters}>
+    ${lists.length > 1 ? html`<${FilterMenu} name=${W.show} current=${f.s} make=${(v) => dashboardAddress(id, { ...f, s: v })}
+      options=${[{ value: "", label: W.everything }, ...lists.map((s) => ({ value: s.id, label: text(s.title) }))]} />` : null}
+    ${statuses.length ? html`<${FilterMenu} name=${W.status} current=${f.st} make=${(v) => dashboardAddress(id, { ...f, st: v })}
+      options=${[{ value: "", label: W.anyStatus }, ...statuses]} />` : null}
+  </div>`;
+}
+
+// Drafts waiting for the owner: rows as the server words them, and the way into Needs you.
+function DraftSection({ section, dept }) {
+  const rows = section.rows || [];
+  return html`
+    <${Section} title=${section.title || "Drafts waiting for you"} count=${rows.length}
+      aside=${rows.length ? html`<${QueueLink} dept=${dept} />` : null}>
+      <${DataTable} columns=${section.columns || []} rows=${rows} emptyText=${section.emptyText || "Nothing waiting."}
+        renderCell=${renderCell} />
+    <//>`;
+}
+
 export default function DashboardPage({ route }) {
   const asked = route?.parts?.[1];
   const id = Object.hasOwn(TITLES, asked) ? asked : "books";
   const title = TITLES[id];
   const dept = DEPARTMENTS[id];
+  const f = filtersOf(route?.query);
   const res = useResource(`/api/departments/${encodeURIComponent(id)}`, { every: 10000 });
   const inbox = useResource("/api/inbox", { every: 10000 });
   const d = res.data;
   const parts = d ? splitSections(d) : null;
   const connected = d ? d.connected !== false : true;
   const now = new Date();
+  const all = parts ? [...(parts.stages ? [parts.stages] : []), ...parts.tables.map((s) => withStatus(s, now))] : [];
+  const lists = parts ? [...parts.drafts, ...all] : [];
+  const statuses = statusChoices(all);
+  const shown = filterTables(all, f);
+  const drafts = parts && !f.st ? parts.drafts.filter((s) => !f.s || s.id === f.s) : [];
+  const filtered = Boolean(f.s || f.st);
 
   return html`
-    <div class="p-dashboard" data-dept=${dept}>
-      <${PageHeader} title=${title} over="DASHBOARD" creature=${dept}
+    <div class="p-dashboard p-dashboard--records">
+      <${PageHeader} title=${title}
         back=${{ href: "#/dashboards", label: "All dashboards" }}
-        actions=${d?.agent ? html`<${AgentHead} slug=${AGENTS[id]} agent=${d.agent} />` : null} />
+        crumbs=${[{ label: "Dashboards", href: "#/dashboards" }, { label: title }]}
+        actions=${d?.agent ? html`<${AgentHead} slug=${AGENTS[id]} agent=${d.agent} />` : null}>
+        ${d && connected ? html`<${Bar} id=${id} f=${f} lists=${lists} statuses=${statuses} />` : null}
+      <//>
       ${res.loading && !d ? html`<${Loading} lines=${4} />` : null}
       ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
       ${d && !connected ? html`<${NotConnected} reason=${d.notConnected?.reason}
         next=${html`<${HealthNext} text=${d.notConnected?.next} />`} />` : null}
       ${d && connected ? html`
-        <${Figures} figures=${d.figures || []} />
-        ${parts.drafts.map((s) => html`<${DraftSection} key=${s.id} section=${s} inbox=${inbox.data} />`)}
-        ${parts.stages ? html`<${StageRow} section=${parts.stages} />` : null}
-        ${parts.tables.map((raw) => {
-          const s = withStatus(raw, now);
+        <${Totals} figures=${d.figures || []} />
+        ${drafts.map((s) => html`<${DraftSection} key=${s.id} section=${s} dept=${dept} />`)}
+        ${shown.map((s) => {
           const waiting = waitingItems(s, inbox.data);
           return html`
-            <${Section} key=${s.id} title=${s.title} count=${(s.rows || []).length}>
-              ${waiting.length ? html`
-                <div class="p-dashboard-waiting">
-                  <p class="p-dashboard-waiting-title">Waiting for you</p>
-                  <ul class="p-dashboard-drafts">
-                    ${waiting.map((item) => html`<li key=${item.id}><${DecisionCard} item=${item} compact onDone=${() => { inbox.refresh(); res.refresh(); }} /></li>`)}
-                  </ul>
-                </div>` : null}
-              <${DataTable} columns=${s.columns || []} rows=${s.rows || []} emptyText=${s.emptyText || "Nothing here yet."}
-                renderCell=${renderCell} />
+            <${Section} key=${s.id} title=${s.title} count=${(s.rows || []).length}
+              aside=${waiting.length ? html`<${QueueLink} dept=${dept} />` : null}>
+              ${waiting.length ? html`<p class="p-dashboard-waits">
+                <${St} icon="inbox">${waiting.length === 1 ? DASHBOARD_WORDS.waitsOne : DASHBOARD_WORDS.waitsMany(waiting.length)}<//>
+              </p>` : null}
+              <${DataTable} columns=${s.columns || []} rows=${s.rows || []}
+                emptyText=${f.st ? DASHBOARD_WORDS.noRows : s.emptyText || "Nothing here yet."} renderCell=${renderCell} />
             <//>`;
         })}
-        ${(d.inFlight || []).length ? html`
+        ${!filtered && (d.inFlight || []).length ? html`
           <${Section} title="In progress" count=${d.inFlight.length}>
             <ul class="p-dashboard-flight">
               ${d.inFlight.map((t) => html`
@@ -256,12 +374,12 @@ export default function DashboardPage({ route }) {
                 </li>`)}
             </ul>
           <//>` : null}
-        <${Jobs} dept=${dept} />` : null}
-      ${d && (d.switches || []).length ? html`
+        ${filtered ? null : html`<${Jobs} dept=${dept} />`}` : null}
+      ${d && !filtered && (d.switches || []).length ? html`
         <${Section} title="Switched off">
-          <div class="p-dashboard-switches">
-            ${d.switches.map((s) => html`<${Switch} key=${s.id} on=${false} disabled=${true} label=${s.label} explain=${s.explain} />`)}
-          </div>
+          <${Rows}>
+            ${d.switches.map((s) => html`<${Row} key=${s.id} icon="power" title=${text(s.label)} state="Off" say=${text(s.explain)} />`)}
+          <//>
         <//>` : null}
       <${OpenDepartment} dept=${dept} />
     </div>`;

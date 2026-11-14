@@ -1,46 +1,168 @@
-/* Marketing page. */
-.p-marketing .p-marketing__group { margin-block: var(--s-4); }
-.p-marketing .p-marketing__group-title { margin: 0 0 var(--s-2); color: var(--text-2); }
-.p-marketing .p-marketing__rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
-.p-marketing .p-marketing__row { border: 1px solid var(--border); border-radius: var(--r-3); background: var(--bg-card); }
+/* Marketing, in the frame of the record dashboards (dashboard.css draws the agent, the filters, the totals and the
+   way into Needs you): posts as rows on the ground parted by hairlines, each with a 48 by 36 picture or its kind's
+   line icon, the title over the day and kind, the state at the right; concepts and carousels as cards on the
+   raised step (R09, R12), a carousel's picture flush to its card's top. */
+.p-marketing { gap: 0; }
+.p-marketing .k-page-header { margin-bottom: var(--s-5); }
+.p-marketing .k-section { margin-bottom: var(--s-8); }
+.p-marketing > .k-notice { margin-bottom: var(--s-8); }
+
+/* The calendar: a week's heading, then its posts. */
+.p-marketing .p-marketing__group + .p-marketing__group { margin-top: var(--s-5); }
+.p-marketing .p-marketing__group-title {
+  margin: 0 0 var(--s-1);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  font-weight: var(--fw-medium);
+  color: var(--ink-2);
+}
+.p-marketing .p-marketing__rows { list-style: none; margin: 0; padding: 0; }
+.p-marketing .p-marketing__row { border-top: 1px solid var(--line); }
+.p-marketing .p-marketing__rows > .p-marketing__row:last-child { border-bottom: 1px solid var(--line); }
 .p-marketing .p-marketing__head {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); width: 100%;
-  padding: var(--s-3); background: none; border: 0; color: inherit; text-align: left; cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 56px;
+  padding: 10px var(--s-2);
+  margin: 0;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
 }
-.p-marketing .p-marketing__date { color: var(--text-2); min-width: 6rem; font-variant-numeric: tabular-nums; }
-.p-marketing .p-marketing__title { flex: 1 1 12rem; font-weight: var(--fw-bold); }
-.p-marketing .p-marketing__open { padding: var(--s-3); display: grid; gap: var(--s-3); border-top: 1px solid var(--border); }
-.p-marketing .p-marketing__text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.p-marketing .p-marketing__note { margin: var(--s-3); color: var(--text-2); }
-.p-marketing { display: flex; flex-direction: column; gap: var(--s-6); }
-.p-marketing .p-marketing__waiting { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-3); }
-.p-marketing .p-marketing__group:first-child { margin-top: 0; }
-.p-marketing .p-marketing__group:last-child { margin-bottom: 0; }
-.p-marketing .p-marketing__rows > li:not(.p-marketing__row) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
-@media (max-width: 859px) {
-  .p-marketing .p-marketing__date { min-width: 0; }
-  .p-marketing .p-marketing__title { flex-basis: 100%; order: -1; }
+.p-marketing .p-marketing__head:hover { background: var(--ctl); }
+.p-marketing .p-marketing__thumb {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: var(--r-xs);
+  background: var(--ctl);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-3);
 }
-/* auto-fill, not auto-fit: one concept or one carousel keeps the width of a card, not the whole row (M51 F21). */
-.p-marketing .p-marketing__concepts, .p-marketing .p-marketing__sets { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
+.p-marketing .p-marketing__thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.p-marketing .p-marketing__words { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.p-marketing .p-marketing__title {
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  font-weight: var(--fw-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.p-marketing .p-marketing__meta { font-size: var(--fs-note); line-height: var(--lh-note); color: var(--ink-2); }
+.p-marketing .p-marketing__date { font-variant-numeric: tabular-nums; }
+.p-marketing .p-marketing__head .k-st { flex: none; font-size: var(--fs-note); }
+.p-marketing .p-marketing__chev { flex: none; color: var(--ink-3); transition: transform var(--t-fast) var(--ease); }
+.p-marketing .p-marketing__row.is-open .p-marketing__chev { transform: rotate(90deg); }
+.p-marketing .p-marketing__open {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-2) var(--s-5) calc(var(--s-2) + 48px + var(--s-3));
+}
+.p-marketing .p-marketing__text { margin: 0; max-width: 68ch; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-ui); line-height: var(--lh-body); }
+.p-marketing .p-marketing__note { margin: 0; font-size: var(--fs-note); line-height: var(--lh-note); color: var(--ink-2); }
+
+/* Drafts waiting: one line each, the way into Needs you at the section's right. */
+.p-marketing .p-marketing__waiting { list-style: none; margin: 0; padding: 0; }
+.p-marketing .p-marketing__wait {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-1) var(--s-4);
+  min-height: var(--s-12);
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+.p-marketing .p-marketing__wait-title { min-width: 0; overflow-wrap: anywhere; }
+.p-marketing .p-marketing__wait-meta { color: var(--ink-2); font-size: var(--fs-note); font-variant-numeric: tabular-nums; }
+
+/* A shotlist or a card of versions: the compact card, two across. */
+.p-marketing .p-marketing__cards { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-4); grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); }
+
+/* Concepts and carousels: cards on the raised step. auto-fill, not auto-fit: one card keeps a card's width (M51 F21). */
+.p-marketing .p-marketing__concepts,
+.p-marketing .p-marketing__sets { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-4); grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); }
+.p-marketing .p-marketing__concepts { grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr)); }
+.p-marketing .p-marketing__concept,
+.p-marketing .p-marketing__set {
+  display: grid;
+  gap: var(--s-2);
+  align-content: start;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+.p-marketing .p-marketing__concept { padding: var(--s-4) var(--s-5); }
+.p-marketing .p-marketing__concept-title { margin: 0; font-size: var(--fs-ui); line-height: var(--lh-ui); font-weight: var(--fw-bold); overflow-wrap: anywhere; }
+.p-marketing .p-marketing__headlines {
+  margin: 0;
+  padding-left: var(--s-5);
+  display: grid;
+  gap: var(--s-1);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.p-marketing .p-marketing__concept > a { justify-self: start; font-size: var(--fs-note); color: var(--accent); }
+
+.p-marketing .p-marketing__set { overflow: hidden; padding: 0 0 var(--s-4); }
+.p-marketing .p-marketing__set > :not(.p-marketing__set-open) { margin-left: var(--s-4); margin-right: var(--s-4); }
+.p-marketing .p-marketing__set.is-current { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .p-marketing .p-marketing__set .k-tag { justify-self: start; }
-.p-marketing .p-marketing__concept { border: 1px solid var(--border); border-radius: var(--r-3); background: var(--bg-card); padding: var(--s-3); display: grid; gap: var(--s-2); align-content: start; }
-.p-marketing .p-marketing__concept-title { margin: 0; font-weight: var(--fw-bold); }
-.p-marketing .p-marketing__headlines { margin: 0; padding-left: var(--s-5); display: grid; gap: var(--s-1); overflow-wrap: anywhere; }
-.p-marketing .p-marketing__set { border: 1px solid var(--border); border-radius: var(--r-3); background: var(--bg-card); padding: var(--s-3); display: grid; gap: var(--s-2); align-content: start; }
-.p-marketing .p-marketing__set.is-current { border-color: var(--text-2); }
-.p-marketing .p-marketing__set-open { display: block; padding: 0; background: none; border: 0; cursor: pointer; border-radius: var(--r-2); }
-.p-marketing .p-marketing__contact { display: block; width: 100%; max-height: 10rem; object-fit: contain; border-radius: var(--r-2); background: var(--bg-card); }
-.p-marketing .p-marketing__contact--none { padding: var(--s-4); color: var(--text-2); text-align: center; }
-.p-marketing .p-marketing__set-title { margin: 0; font-weight: var(--fw-bold); overflow-wrap: anywhere; }
+.p-marketing .p-marketing__set-open {
+  display: block;
+  margin: 0 0 var(--s-2);
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--stage);
+  cursor: pointer;
+}
+.p-marketing .p-marketing__contact { display: block; width: 100%; height: 10rem; object-fit: contain; }
+.p-marketing .p-marketing__contact--none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 10rem;
+  color: var(--ink-3);
+  font-size: var(--fs-note);
+}
+.p-marketing .p-marketing__set-title { margin: 0; font-size: var(--fs-ui); line-height: var(--lh-ui); font-weight: var(--fw-bold); overflow-wrap: anywhere; }
+.p-marketing .p-marketing__set .p-marketing__note { margin-top: -6px; }
 .p-marketing .p-marketing__scores { display: inline-flex; flex-wrap: wrap; gap: var(--s-1); }
+
+/* A carousel opened large, in the work panel. */
+.p-marketing.p-marketing--panel { gap: 0; }
 .p-marketing .p-marketing__large { display: grid; gap: var(--s-4); }
 .p-marketing .p-marketing__slide { margin: 0; display: grid; gap: var(--s-2); }
 .p-marketing .p-marketing__slide img { display: block; width: 100%; height: auto; border-radius: var(--r-2); }
-.p-marketing .p-marketing__slide figcaption { color: var(--text-2); overflow-wrap: anywhere; }
-.p-marketing.p-marketing--panel { gap: 0; }
+.p-marketing .p-marketing__slide figcaption { color: var(--ink-2); font-size: var(--fs-note); overflow-wrap: anywhere; }
 
-/* Below 860 px each link keeps a 44 px target without changing how it looks (M51 F15). */
+/* Below 860 px every link and row keeps a 44 px target without changing how it looks (M51 F15). */
 @media (max-width: 859px) {
+  .p-marketing .p-marketing__head { padding-left: 0; padding-right: 0; gap: var(--s-3); flex-wrap: wrap; }
+  .p-marketing .p-marketing__words { flex-basis: calc(100% - 48px - var(--s-3) - 16px - var(--s-3)); }
+  .p-marketing .p-marketing__head .k-st { order: 4; margin-left: calc(48px + var(--s-3)); }
+  .p-marketing .p-marketing__chev { order: 3; }
+  .p-marketing .p-marketing__open { padding-left: 0; padding-right: 0; }
   .p-marketing .p-marketing__concept > a { display: inline-flex; align-items: center; min-height: 44px; }
+  .p-marketing .p-marketing__cards { grid-template-columns: minmax(0, 1fr); }
 }

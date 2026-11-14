@@ -247,3 +247,49 @@ test("marketing: no old ready-made goals strip and no read of the gallery route 
   assert.ok(!/[Rr]eady-made/.test(src.replace(/^\s*\/\/.*$/gm, "")));
   assert.match(src, /<\$\{Jobs\} dept="marketing"/);
 });
+
+test("marketing: posts filtered by kind and status, through the address", async () => {
+  const m = await import("../../pages/marketing.js");
+  const rows = [
+    { title: "a", kind: "Post", status: "Waiting for you" },
+    { title: "b", kind: "Newsletter", status: "Approved" },
+    { title: "c", kind: "post", status: "Approved" },
+  ];
+  assert.deepEqual(m.postChoices(rows, "kind"), [{ value: "post", label: "Post" }, { value: "newsletter", label: "Newsletter" }]);
+  assert.deepEqual(m.filterPosts(rows, { kind: "post" }).map((r) => r.title), ["a", "c"]);
+  assert.deepEqual(m.filterPosts(rows, { kind: "post", st: "approved" }).map((r) => r.title), ["c"]);
+  assert.deepEqual(m.filterPosts(null, {}), []);
+  assert.deepEqual(m.postFilters(new URLSearchParams("kind=Post&st=approved&slides=x")), { kind: "post", st: "approved" });
+  assert.equal(m.marketingAddress({}), "#/dashboards/marketing");
+  assert.equal(m.marketingAddress({ kind: "post", st: "approved" }), "#/dashboards/marketing?kind=post&st=approved");
+  assert.equal(m.MARKETING_WORDS.noMatch, "No posts match these filters.");
+});
+
+test("marketing: a post's picture only from /api/view/, else its kind's line icon", async () => {
+  const m = await import("../../pages/marketing.js");
+  assert.equal(m.rowPicture({ picture: { viewUrl: "/api/view/a.png" } }), "/api/view/a.png");
+  assert.equal(m.rowPicture({ viewUrl: "/api/view/b.png" }), "/api/view/b.png");
+  assert.equal(m.rowPicture({ picture: { viewUrl: "https://evil/x.png" } }), null);
+  assert.equal(m.rowPicture({}), null);
+  assert.equal(m.kindIcon("Post"), "image");
+  assert.equal(m.kindIcon("Newsletter"), "send");
+  assert.equal(m.kindIcon("anything"), "docs");
+});
+
+test("marketing: a shotlist or a card of versions waiting is the compact card; drafts link to Needs you", async () => {
+  const m = await import("../../pages/marketing.js");
+  const inbox = { items: [
+    { id: "s", kind: "shotlist", department: "marketing" },
+    { id: "p", kind: "pick", department: "marketing", variants: [{ id: "a" }] },
+    { id: "o", kind: "shotlist", department: "studio" },
+    { id: "d", kind: "draft", department: "marketing" },
+  ] };
+  assert.deepEqual(m.cardsWaiting(inbox).map((i) => i.id), ["s", "p"]);
+  assert.deepEqual(m.cardsWaiting(null), []);
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../../pages/marketing.js", import.meta.url), "utf8");
+  assert.match(src, /<\$\{DecisionCard\} item=\$\{item\} compact onDone=\$\{onDone\} \/>/);
+  assert.match(src, /<\$\{QueueLink\} dept="marketing" \/>/);
+  assert.match(src, /<\$\{St\} tone=\$\{STATUS_TONE\[row\.status\] \|\| "neutral"\}>/);
+  assert.doesNotMatch(src, /creature=|over=/);
+});

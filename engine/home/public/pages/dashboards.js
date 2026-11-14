@@ -1,21 +1,31 @@
-// Dashboards (CONTRACTS-V3 30): the figures and records of each department, as six glass cards on a shelf.
-// Each card reads its own GET /api/departments/<id>, so one card that cannot be read or is not connected
-// shows that by itself and never fails the page. Below 860 px the shelf scrolls sideways with snap.
+// Dashboards (CONTRACTS-V3 30): the figures and records of each department, as six cards two or three across on
+// the raised step (R12). Each card reads its own GET /api/departments/<id>, so one card that cannot be read or is
+// not connected shows that by itself and never fails the page. A card is a line icon, the name, one sentence and
+// two facts as label and value; no creature and no department colour (O2, O7).
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
-import { Button, Card, Creature, glueValue, Icon, PageHeader } from "../kit/index.js";
+import { Button, Card, glueValue, Icon, PageHeader } from "../kit/index.js";
+import { moneyParts } from "./dashboard.js";
 
-// The six dashboards, in the order of the shelf. `dept` names the department whose creature and colour the
-// card wears (Customers is the Sales department's dashboard).
+// A fact's value: an amount's unit small and grey beside its figure, anything else as written.
+function Value({ value }) {
+  const m = moneyParts(value);
+  return m ? html`${m.sign}<span class="p-dashboards-unit">${m.unit}</span>${m.figure}` : glueValue(value);
+}
+
+// The six dashboards, in the order of the shelf. `dept` names the department the dashboard belongs to (Customers
+// is the Sales department's dashboard); `icon` is that department's line icon, as the sidebar draws it.
 export const DASHBOARDS = [
-  { id: "books", title: "Books", dept: "books", about: "Invoices, bills and what is owed" },
-  { id: "customers", title: "Customers", dept: "sales", about: "Leads and deals" },
-  { id: "support", title: "Support", dept: "support", about: "Requests and replies" },
-  { id: "people", title: "People", dept: "people", about: "Staff, leave and attendance" },
-  { id: "marketing", title: "Marketing", dept: "marketing", about: "Posts, newsletters and carousels" },
-  { id: "studio", title: "Studio", dept: "studio", about: "Parts, pictures and video" },
+  { id: "books", title: "Books", dept: "books", icon: "book", about: "Invoices, bills and what is owed" },
+  { id: "customers", title: "Customers", dept: "sales", icon: "trend", about: "Leads and deals" },
+  { id: "support", title: "Support", dept: "support", icon: "buoy", about: "Requests and replies" },
+  { id: "people", title: "People", dept: "people", icon: "team", about: "Staff, leave and attendance" },
+  { id: "marketing", title: "Marketing", dept: "marketing", icon: "horn", about: "Posts, newsletters and carousels" },
+  { id: "studio", title: "Studio", dept: "studio", icon: "film", about: "Parts, pictures and video" },
 ];
 
+// How many facts a card shows.
+export const CARD_FACTS = 2;
 const MAX_FIGURES = 3;
 const TEXT_MAX = 80;
 const short = (v) => (v === null || v === undefined ? "" : String(v).slice(0, TEXT_MAX));
@@ -76,24 +86,22 @@ function DashboardCard({ d }) {
   const res = useResource(`/api/departments/${encodeURIComponent(d.id)}`, { every: 10000 });
   const state = cardState(res);
   const page = res.data;
-  const figures = state === "ready" ? cardFigures(page) : [];
+  const figures = state === "ready" ? cardFigures(page, CARD_FACTS) : [];
   const waits = state === "ready" ? waitsLine(page) : null;
   const href = `#/dashboards/${d.id}`;
   return html`
     <li class="p-dashboards-item">
-      <${Card} class="p-dashboards-card" data-dept=${d.dept} aria-busy=${state === "loading" ? "true" : undefined}>
+      <${Card} class="p-dashboards-card" padding="none" aria-busy=${state === "loading" ? "true" : undefined}>
         <div class="p-dashboards-head">
-          <span class="p-dashboards-pet"><${Creature} id=${d.dept} size=${32} /></span>
-          <div class="p-dashboards-names">
-            <h2 class="p-dashboards-name"><a class="p-dashboards-link" href=${href}>${d.title}</a></h2>
-            <p class="p-dashboards-about">${d.about}</p>
-          </div>
-          <${Icon} name="arrow-right" size=${16} class="p-dashboards-go" />
+          <span class="p-dashboards-tile" aria-hidden="true"><${Icon} name=${d.icon} size=${20} /></span>
+          <h2 class="p-dashboards-name"><a class="p-dashboards-link" href=${href}>${d.title}</a></h2>
+          <${Icon} name="chevron-right" size=${16} class="p-dashboards-go" />
         </div>
+        <p class="p-dashboards-about">${d.about}</p>
         ${state === "loading" ? html`
           <div class="p-dashboards-figures p-dashboards-figures--wait" role="status">
             <span class="k-sr">Loading</span>
-            ${[0, 1, 2].map((i) => html`<span key=${i} class="p-dashboards-ghost" aria-hidden="true"></span>`)}
+            ${[0, 1].map((i) => html`<span key=${i} class="p-dashboards-ghost" aria-hidden="true"></span>`)}
           </div>` : null}
         ${state === "ready" ? html`
           ${figures.length ? html`
@@ -101,12 +109,10 @@ function DashboardCard({ d }) {
               ${figures.map((f) => html`
                 <div class="p-dashboards-figure" key=${f.id}>
                   <dt class="p-dashboards-label">${f.label}</dt>
-                  <dd class="p-dashboards-value">${glueValue(f.value)}</dd>
+                  <dd class="p-dashboards-value"><${Value} value=${f.value} /></dd>
                 </div>`)}
             </dl>` : html`<p class="p-dashboards-quiet">No figures yet.</p>`}
-          <p class="p-dashboards-waits">
-            <span class="p-dashboards-dot" aria-hidden="true"></span>${waits}
-          </p>` : null}
+          <p class="p-dashboards-waits">${waits}</p>` : null}
         ${state === "off" ? html`
           <div class="p-dashboards-off">
             <p class="p-dashboards-off-title"><${Icon} name="alert" size=${14} /> Not connected yet</p>
@@ -124,7 +130,7 @@ function DashboardCard({ d }) {
 export default function DashboardsPage() {
   return html`
     <div class="p-dashboards">
-      <${PageHeader} over="DASHBOARDS" title="Dashboards"
+      <${PageHeader} title="Dashboards"
         lead="The figures and records of each department. They are real: they come from your books." />
       <ul class="p-dashboards-shelf" aria-label="Dashboards">
         ${DASHBOARDS.map((d) => html`<${DashboardCard} key=${d.id} d=${d} />`)}
