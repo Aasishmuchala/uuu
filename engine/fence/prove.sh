@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # The fence proof. Proves the fence around each agent tool (Claude Code and
-# Codex), the per-agent fence policy, the walled Researcher, the gate in
-# front of the board (the ordinary one and the narrow one), who reaches the
-# page viewer and the owner's preview, and that no agent reaches App Studio.
+# Codex), the per-agent fence policy, the walled Researcher, the Artist and the
+# generation door, the gate in front of the board (the ordinary one and the
+# narrow one), who reaches the page viewer and the owner's preview, and that no
+# agent reaches App Studio.
 # Prints PASS, FAIL, SKIP or NOTE per check, then RESULT. Writes
 # state/proof/last.json. Exit 0 when every check passes, 1 when the fence
 # failed, 2 when it holds but something is still to do (see the SKIP lines).
@@ -1291,6 +1292,77 @@ echo; echo "The page viewer and the preview (the Builder, the Art director, the 
 viewer_checks
 echo; echo "App Studio (no agent reaches the host, an app, an app's sockets, the allowances or the Higgsfield sign-in)"
 app_studio_all
+
+# The Artist, the one agent the generation door serves (PLAN-V5, K13 and K14): it never holds
+# the Runway key, never reads the money files (the spending ledger, the owner's approved batches,
+# the door's work folder), never reaches Runway itself, and reaches the door only while the owner
+# has generation switched on. Run as the Artist itself (its id from ids.json, its own policy). The
+# key and the money files are read with nothing to tell them apart from any other file: the real
+# ones when there are any, and a mark the proof puts in the doors' two folders (as door_checks does).
+echo; echo "The Artist and the generation door (the Runway key, the money files, and who reaches the door)"
+artist_checks() {
+  local aid why d ok=1 gen_on=0 cmd
+  RUN="$HERE/bin/claude"; WHO="the Artist"; AS=""
+  aid="$(agent_id_of artist)"; why=""
+  if [[ -z "$aid" ]]; then why="no Artist in ids.json yet: run engine setup"
+  elif [[ ! -f "$CFG_POLICY/$aid.json" ]]; then why="the Artist has no fence policy yet: run engine setup"
+  fi
+  if [[ -n "$why" ]]; then say SKIP "the Artist's fence checks ($why)"; return; fi
+  AS="$aid"
+  for d in "$DOORS_DIR" "$DOOR_SECRETS"; do
+    if [[ ! -e "$d" && ! -L "$d" ]]; then
+      mkdir -m 700 "$d" && MADE_DOOR_DIRS="$MADE_DOOR_DIRS $d" || ok=0
+    fi
+    [[ -d "$d" && ! -L "$d" ]] && (umask 077; echo proof > "$d/.fence-proof") || ok=0
+  done
+  if (( ok )); then
+    blocked "read the Runway key" \
+      "cat $DOOR_SECRETS/runway-key >/dev/null || cat $DOOR_SECRETS/.fence-proof >/dev/null || ls $DOOR_SECRETS >/dev/null"
+    cmd="cat $DOORS_DIR/generate-ledger.jsonl >/dev/null || cat $DOORS_DIR/.fence-proof >/dev/null || ls $DOORS_DIR >/dev/null || ls $DOORS_DIR/batches >/dev/null || ls $DOORS_DIR/work/gen >/dev/null || ls $DOORS_DIR/work/gen/jobs >/dev/null"
+    for d in "$DOORS_DIR"/generate-ledger*.jsonl "$DOORS_DIR"/batches/*.json; do
+      [[ -f "$d" && ! -L "$d" ]] && cmd="$cmd || cat $d >/dev/null"
+    done
+    blocked "read the spending ledger, the approved batches or the generation door's work folder" "$cmd"
+  else
+    say FAIL "could not put a mark in the doors' folders ($DOORS_DIR, $DOOR_SECRETS)"
+  fi
+  remove_door_marks
+  blocked "reach Runway directly" 'curl -s -m 8 https://api.dev.runwayml.com/v1/organization -o /dev/null'
+  case " $DOORS_ON " in *" generate "*) gen_on=1 ;; esac
+  stand_in "$CFG_PORT_GENERATE" /gen/health
+  if [[ -n "$NOT_ANSWERING" ]]; then
+    say SKIP "whether the Artist can reach the generation door (the generation door is not running, and the proof could not stand in on port $CFG_PORT_GENERATE)"
+  elif (( gen_on )); then
+    allowed "reach the generation door while its switch is on, with its address and a token" \
+      "test \"\$UUU_GENERATE_URL\" = $CFG_GENERATE_URL && test -n \"\$UUU_GENERATE_TOKEN\" && { $(reach "$CFG_PORT_GENERATE" /gen/health); }"
+  else
+    blocked "reach the generation door while its switch is off" "$(reach "$CFG_PORT_GENERATE" /gen/health)"
+    allowed "be given no generation door address or token while it is switched off" 'test -z "${UUU_GENERATE_URL+x}${UUU_GENERATE_TOKEN+x}"'
+  fi
+  stand_in_stop
+  AS=""
+}
+# Every other agent: the Builder, with its own fence policy, never reaches the generation door,
+# whether the switch is on or off.
+builder_generate_check() {
+  local bid state=off
+  bid="$(agent_id_of builder)"
+  if [[ -z "$bid" || ! -f "$CFG_POLICY/$bid.json" ]]; then
+    say SKIP "whether the Builder can reach the generation door (no Builder with a fence policy yet: run engine setup)"; return
+  fi
+  case " $DOORS_ON " in *" generate "*) state=on ;; esac
+  RUN="$HERE/bin/claude"; WHO="the Builder"; AS="$bid"
+  stand_in "$CFG_PORT_GENERATE" /gen/health
+  if [[ -n "$NOT_ANSWERING" ]]; then
+    say SKIP "whether the Builder can reach the generation door (the generation door is not running, and the proof could not stand in on port $CFG_PORT_GENERATE)"
+  else
+    blocked "reach the generation door (its switch is $state)" "$(reach "$CFG_PORT_GENERATE" /gen/health)"
+  fi
+  stand_in_stop
+  AS=""
+}
+artist_checks
+builder_generate_check
 
 # The board runs git in the task folders (to see whether a folder has changes),
 # outside the fence. From inside the fence an agent lays out a made-up

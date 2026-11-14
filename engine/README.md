@@ -13,7 +13,7 @@ One command, `engine/bin/engine`, with these words after it:
 - `start`: turns everything on, in order, and stops at the first part that fails. It says where to look. Running it twice starts nothing new. It ends with `Open http://127.0.0.1:3200`.
 - `stop`: turns everything off and leaves no agent running. Nothing starts by itself when the Mac starts.
 - `status`: one line per part (the board, the gate, the Model relay, the home screen and the others): `on`, `off`, `unhealthy` or `not installed`, and what to do next. A good result ends with `Everything is on.`
-- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 162 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
+- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 168 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
 - `setup`: makes the board match the company files. Safe to run again.
 - `test`: runs every test. A good result ends with `All tests passed.`
 
@@ -76,7 +76,7 @@ A job is a named piece of work an agent can start for you. There are 72, in seve
 
 - **Hand-off tags** say what is left to you: "You lead" (the agent gets things ready, you do the main part), "You approve" (the agent does the work, and it counts when you approve it), "On its own" (the agent does it to the end, it is checked, and you read the result).
 - **The build order** has four stages: Foundations (fill the company brain), Take in (jobs that read and sort what comes in), Make (jobs that produce work) and Hand on (work passed from one agent to the next, such as a call write-up, then a proposal, then an invoice draft).
-- **What can start.** On the live engine 49 jobs can start before any basics are filled. Nine wait until you fill the basics (what we sell, brand, team and the recipe log). Three stay dim with the reason shown: agents have no internet, and sending needs a connected account.
+- **What can start.** On the live engine 51 jobs can start before any basics are filled. Seven wait until you fill the basics (what we sell, brand and about the company). Eleven stay dim with the reason shown: six need the web switched on, three need Generation switched on with a Runway key, and two need a connected account for sending.
 - A job says "Takes a few minutes. It is checked before it reaches you." That is true: expect 5 to 40 minutes, as in the trials below.
 
 ## Ask the brain
@@ -177,7 +177,7 @@ The repository holds only the list, because it is on GitHub and some of the text
 
 ## Letting the Researcher use the web
 
-On 12 November 2026 you said yes to one agent reading the public internet. It is the Researcher. It was built and tested the same day. It is not live yet: it goes live with the next `engine setup` and the start of the web door. Even then the web is off until you turn it on. Until then no agent can reach the internet, and the jobs that need it stay dim.
+On 12 November 2026 you said yes to one agent reading the public internet. It is the Researcher. It was built and tested the same day, and went live on 13 November 2026. The web is off until you turn it on. Until then no agent can reach the internet, and the jobs that need it stay dim.
 
 What the Researcher can do: read a public page by its address, search, and watch a public video (it makes a transcript and takes a few pictures from it). It writes notes, with a source after every claim, in its own folder. Other agents read the notes as reference. It cannot send, post or sign in to anything. It only reads.
 
@@ -227,7 +227,7 @@ One risk is open. A video tool that a hostile video had taken over could leave i
 
 ## Turning on Generation
 
-On 12 November 2026 you said yes to one agent making video clips and pictures with Runway, a paid service, from your own renders. It is the Artist. It is built and tested against a stand-in for Runway, not yet against the real one, and it is not live yet: it goes live when the generation door is started. Even then it is off until you turn it on, and nothing is spent until you approve a cost. This is the first thing in the engine that costs money besides your plans.
+On 12 November 2026 you said yes to one agent making video clips and pictures with Runway, a paid service, from your own renders. It is the Artist. It is built and tested against a stand-in for Runway, not yet against the real one. The generation door went live on 14 November 2026. It is off until you turn it on, and nothing is spent until you approve a cost. This is the first thing in the engine that costs money besides your plans.
 
 What it can do: turn one of your renders into a short clip, make variations of a picture, and make a picture larger and sharper. The Artist cuts the clips into a film. It cannot spend money, reach Runway or read the key by itself; it can only ask the generation door, and the door checks everything.
 
