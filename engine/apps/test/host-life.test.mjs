@@ -6,7 +6,11 @@
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
-import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import fs, {
+  chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, symlinkSync, writeFileSync,
+} from "node:fs";
+import fsp from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { readAppsState } from "../host.mjs";
@@ -339,7 +343,51 @@ test("the run folder is emptied at each start; what an app left there is gone", 
   assert.ok(await waitFor(() => stateOf(host, "fix") === "on", 3000));
   assert.equal(existsSync(join(run, "deep")), false);
   assert.ok(lstatSync(join(run, "engine.sock")).isSocket());
-  assert.equal(statSync(join(run, "engine.sock")).mode & 0o777, 0o600);
+  // What closes the engine socket to others is its folder, made new and 0700, in a folder of the
+  // host's that is 0700 too; the socket's own mode is never changed by name (T85).
+  assert.equal(statSync(run).mode & 0o777, 0o700);
+  assert.equal(statSync(w.paths.appsRun).mode & 0o777, 0o700);
+  assert.equal(statSync(join(w.paths.appsRun, ".host")).mode & 0o777, 0o700);
+});
+
+test("the host never changes a mode or removes a tree by name inside a run folder an app can write; it renames it away first (T85)", async () => {
+  const { w, host } = await setup([{ slug: "fix" }], { limits: { everyMs: 200 } });
+  const runRoot = realpathSync(w.paths.appsRun);
+  const run = join(w.paths.appsRun, "fix");
+  // What an app could leave: a link to a folder outside, a link inside a folder it closed.
+  const outside = join(w.root, "outside");
+  mkdirSync(join(outside, "keep"), { recursive: true });
+  writeFileSync(join(outside, "keep", "precious.txt"), "the owner's");
+  mkdirSync(join(run, "deep", "closed"), { recursive: true });
+  symlinkSync(outside, join(run, "to-outside"));
+  symlinkSync(join(outside, "keep"), join(run, "deep", "closed", "keep"));
+  chmodSync(join(run, "deep", "closed"), 0o000);
+  const calls = [];
+  const saved = { chmodSync: fs.chmodSync, rm: fsp.rm, rmSync: fs.rmSync, unlinkSync: fs.unlinkSync, rmdirSync: fs.rmdirSync };
+  fs.chmodSync = (path, mode) => { calls.push(["chmodSync", String(path)]); return saved.chmodSync(path, mode); };
+  fs.rmSync = (path, o) => { calls.push(["rmSync", String(path)]); return saved.rmSync(path, o); };
+  fs.unlinkSync = (path) => { calls.push(["unlinkSync", String(path)]); return saved.unlinkSync(path); };
+  fs.rmdirSync = (path, o) => { calls.push(["rmdirSync", String(path)]); return saved.rmdirSync(path, o); };
+  fsp.rm = (path, o) => { calls.push(["rm", String(path)]); return saved.rm(path, o); };
+  syncBuiltinESMExports();
+  try {
+    w.switches({ fix: true });
+    assert.ok(await waitFor(() => stateOf(host, "fix") === "on", 5000));
+    w.switches({ fix: false });
+    assert.ok(await waitFor(() => stateOf(host, "fix") === "off", 5000));
+    w.switches({ fix: true });
+    assert.ok(await waitFor(() => stateOf(host, "fix") === "on", 5000));
+  } finally {
+    Object.assign(fs, { chmodSync: saved.chmodSync, rmSync: saved.rmSync, unlinkSync: saved.unlinkSync, rmdirSync: saved.rmdirSync });
+    fsp.rm = saved.rm;
+    syncBuiltinESMExports();
+  }
+  const inRun = calls.filter(([, path]) => path === run || path.startsWith(`${run}/`));
+  assert.deepEqual(inRun, [], "nothing done by name in or to the run folder");
+  assert.ok(calls.some(([k, path]) => k === "rm" && path.startsWith(`${runRoot}/.gone-fix-`)), JSON.stringify(calls));
+  assert.equal(readFileSync(join(outside, "keep", "precious.txt"), "utf8"), "the owner's", "no link was followed");
+  assert.deepEqual(readdirSync(w.paths.appsRun).filter((n) => n.startsWith(".gone-")), [], "what was renamed away is gone");
+  assert.equal(existsSync(join(run, "to-outside")), false);
 });
 
 test("close stops every app and closes every listener", async () => {

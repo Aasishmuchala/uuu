@@ -60,6 +60,42 @@ const server = http.createServer(async (req, res) => {
     });
   }
   if (url.pathname === "/x") return json(res, await engine(JSON.parse((await read(req)).text)));
+  // Answers no browser should get as they are (T85): written raw on the socket, or headers that
+  // would make the browser fetch, report, reload or clear elsewhere.
+  if (url.pathname === "/raw") {
+    const raw = {
+      "101": "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\nRAW BYTES AFTER UPGRADE",
+      "099": "HTTP/1.1 099 Odd\r\nContent-Length: 2\r\n\r\nok",
+      "600": "HTTP/1.1 600 Odd\r\nContent-Length: 2\r\n\r\nok",
+      "close": "",
+      "garbage": "NOT HTTP AT ALL\r\n\r\n",
+    }[url.searchParams.get("kind")];
+    if (raw === undefined) return void res.end("?");
+    return void res.socket.end(raw);
+  }
+  if (url.pathname === "/hint-headers") {
+    res.writeHead(200, {
+      "Content-Type": "text/html", Link: "<http://192.0.2.1/x?d=secret>; rel=prerender", Refresh: "0; url=http://192.0.2.1/",
+      "Clear-Site-Data": "\"cookies\", \"storage\"", "Content-Security-Policy-Report-Only": "default-src 'none'; report-uri http://192.0.2.1/r",
+      "Report-To": "{\"group\":\"g\",\"max_age\":9,\"endpoints\":[{\"url\":\"http://192.0.2.1/r\"}]}", "Reporting-Endpoints": "g=\"http://192.0.2.1/r\"",
+      NEL: "{\"report_to\":\"g\",\"max_age\":9}", "Speculation-Rules": "\"http://192.0.2.1/rules.json\"", "Alt-Svc": "h3=\"192.0.2.1:443\"",
+      "Origin-Trial": "x", "Document-Policy-Report-Only": "x", "X-Kept": "yes",
+    });
+    return void res.end("<p>hints</p>");
+  }
+  // A helper that leaves the app twice over (T85): its parent starts it in a session of its own,
+  // with an environment of nothing, then exits at once, so it is no descendant of the app, not in
+  // its group, and carries none of its variables. It ignores SIGTERM and writes a beat.
+  if (url.pathname === "/orphan") {
+    const beat = join(process.env.APP_DATA, "orphan.beat");
+    const pidFile = join(process.env.APP_DATA, "orphan.pid");
+    const inner = `process.on("SIGTERM", () => {}); require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));`
+      + ` setInterval(() => { try { require("fs").writeFileSync(${JSON.stringify(beat)}, String(Date.now())); } catch {} }, 200);`;
+    const outer = `require("child_process").spawn(process.execPath, ["-e", ${JSON.stringify(inner)}], { detached: true, stdio: "ignore", env: {} }).unref();`
+      + " setTimeout(() => process.exit(0), 100);";
+    spawn(process.execPath, ["-e", outer], { detached: true, stdio: "ignore", env: {} }).unref();
+    return json(res, { started: true });
+  }
   if (url.pathname === "/deaf") {
     const deaf = spawn(process.execPath, ["-e", "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"], { stdio: "ignore" });
     return json(res, { deaf: deaf.pid });

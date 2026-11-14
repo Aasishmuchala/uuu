@@ -4,7 +4,8 @@
 // makes the running apps match: an app runs only when its manifest is good, its READY exists and
 // the owner switched it on. For each running app it holds three things:
 //   - the app itself: `app-exec <slug> --run` (the app fence, K18), in its own process group,
-//     its output kept in `<state>/logs/apps/<slug>.log` (cut to `.1` at 5 MB);
+//     its output kept in `<state>/logs/apps/<slug>.log` (cut to `.1` at 5 MB); a stop ends the
+//     group and every process of the app's run fence, wherever it went (fencedProcesses);
 //   - its engine socket `<run>/engine.sock` (K19): the app's only way to the generation door
 //     and the model relay. The app is known by the socket it can reach, so it holds no secret:
 //     the host adds a fresh token of kind `t`, subject `app-<slug>`, 120 seconds, per call;
@@ -21,13 +22,14 @@
 // query string or a token.
 import http from "node:http";
 import { spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
-  chmodSync, closeSync, constants, fchmodSync, fstatSync, lstatSync, mkdirSync, openSync, readSync, realpathSync,
-  renameSync, writeSync,
+  chmodSync, closeSync, constants, fchmodSync, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync,
+  renameSync, statSync, writeSync,
 } from "node:fs";
 import { rm } from "node:fs/promises";
 import { userInfo } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { headerValues, readBody, statusFile, wantsUpgrade } from "../doors/common.mjs";
 import { describeError } from "../relay/relay.mjs";
@@ -59,6 +61,7 @@ export const HOST_LIMITS = Object.freeze({
   relayPerHour: 60,
   relayPerDay: 300,
   relayBytes: 32 * MB,
+  relayMaxTokens: 12_000,     // max_tokens of one thinking call (Render to Film asks at most 10,000)
   genJsonBytes: 64 * 1024,    // estimate and jobs (the door takes 8 KB)
   genInputBytes: 4 * MB,      // one picture (the door takes 3.3 MB)
   tokenSec: 120,
@@ -77,6 +80,7 @@ export const ENGINE_CODES = Object.freeze({
   app_too_big: [403, "This request is too big for the engine."],
   app_busy: [403, "This app is asking the engine too much at once. Wait for an answer first."],
   app_limited: [403, "This app has asked to think too often today."],
+  app_too_long: [403, "This app asked the model for a longer answer than App Studio allows."],
   app_engine_off: [403, "The engine part this app needs is off."],
   app_no_answer: [403, "The engine part this app needs did not answer."],
 });
@@ -105,6 +109,28 @@ export const ENGINE_ROUTES = Object.freeze([
   { target: "relay", name: "messages", method: "POST", re: /^\/v1\/messages$/, max: "relayBytes", json: true, limited: true },
 ].map((r) => Object.freeze(r)));
 
+// The provider's API version, set by the host on the relay route (the app cannot: only
+// Content-Type, Content-Length and Accept go in). The home screen's own model test sends the same
+// (engine/home/server/lib/models.mjs, askThroughRelay).
+export const ANTHROPIC_VERSION = "2023-06-01";
+
+// A thinking call's body as the relay route takes it (K19, T85): one JSON object whose max_tokens
+// is a whole number from 1 to the host's limit. → { ok: true, body (the bytes to send, written
+// from what was checked) } or { ok: false, code }. A larger ask is refused, never cut.
+export function checkThinking(buf, maxTokens = HOST_LIMITS.relayMaxTokens) {
+  let v;
+  try {
+    v = JSON.parse(buf.toString("utf8"));
+  } catch {
+    return { ok: false, code: "app_refused" };
+  }
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return { ok: false, code: "app_refused" };
+  const m = v.max_tokens;
+  if (!Number.isSafeInteger(m) || m < 1) return { ok: false, code: "app_refused" };
+  if (m > maxTokens) return { ok: false, code: "app_too_long" };
+  return { ok: true, body: Buffer.from(JSON.stringify(v), "utf8") };
+}
+
 // The route for a raw request target, or null. Nothing is decoded: a query string, a second
 // slash or an escape is simply not one of these paths.
 export function engineRoute(method, target, engine) {
@@ -114,10 +140,14 @@ export function engineRoute(method, target, engine) {
   return route;
 }
 
+// The app's page, in the home screen's frame or in a window of its own, runs as a sandboxed
+// document (T85): it may run its script, keep its own storage, send its own forms, download and
+// ask, but opens no window or tab elsewhere, whatever its frame allows.
 export function contentPolicy(homePort) {
   return "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
     + "media-src 'self' blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; "
-    + `base-uri 'self'; form-action 'self'; frame-ancestors http://127.0.0.1:${homePort} http://localhost:${homePort}`;
+    + "base-uri 'self'; form-action 'self'; sandbox allow-downloads allow-forms allow-modals allow-same-origin allow-scripts; "
+    + `frame-ancestors http://127.0.0.1:${homePort} http://localhost:${homePort}`;
 }
 
 // Set over whatever the app sent, on every answer of the browser side.
@@ -127,10 +157,20 @@ export function securityHeaders(homePort) {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
     "Cross-Origin-Resource-Policy": "same-origin",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), usb=(), serial=(), bluetooth=(), hid=(), payment=(), display-capture=()",
   };
 }
 const OURS = new Set(Object.keys(securityHeaders(0)).map((k) => k.toLowerCase()));
+// The app's answer headers never passed to the browser (T85): those that make the browser fetch,
+// connect, prerender or send reports to an address the app chose (Link, Speculation-Rules,
+// Alt-Svc, a report-only policy's report-uri, Report-To, Reporting-Endpoints, NEL and the other
+// reporting policies), move or reload the page (Refresh), clear what every port of 127.0.0.1
+// keeps (Clear-Site-Data), or switch on what the browser has not shipped (Origin-Trial).
+export const DROPPED_OUT = Object.freeze(new Set(["link", "refresh", "clear-site-data", "speculation-rules", "alt-svc",
+  "content-security-policy-report-only", "report-to", "reporting-endpoints", "nel", "document-policy",
+  "document-policy-report-only", "permissions-policy-report-only", "cross-origin-opener-policy-report-only",
+  "cross-origin-embedder-policy-report-only", "integrity-policy", "integrity-policy-report-only", "origin-trial",
+  "service-worker-allowed"]));
 
 // Hop-by-hop headers (RFC 9110 7.6.1, and the old proxy ones): never passed either way, and
 // neither is any header a Connection header names.
@@ -159,14 +199,14 @@ export function inboundHeaders(rawHeaders) {
   return out;
 }
 
-// The headers that go out to the browser: the app's, without hop-by-hop headers, Set-Cookie and
-// the five the host sets, then the host's five.
+// The headers that go out to the browser: the app's, without hop-by-hop headers, Set-Cookie,
+// DROPPED_OUT and the five the host sets, then the host's five.
 export function outboundHeaders(rawHeaders, homePort) {
   const named = connectionNamed(rawHeaders);
   const out = [];
   for (let i = 0; i + 1 < rawHeaders.length; i += 2) {
     const n = String(rawHeaders[i]).toLowerCase();
-    if (HOP.has(n) || named.has(n) || n === "set-cookie" || OURS.has(n)) continue;
+    if (HOP.has(n) || named.has(n) || n === "set-cookie" || OURS.has(n) || DROPPED_OUT.has(n)) continue;
     out.push(rawHeaders[i], rawHeaders[i + 1]);
   }
   for (const [k, v] of Object.entries(securityHeaders(homePort))) out.push(k, v);
@@ -204,6 +244,20 @@ export function browserRefusal(req, port, bodyBytes = HOST_LIMITS.bodyBytes) {
   if (lengths.length > 1) return "bad_target";
   if (lengths.length === 1 && !(Number(lengths[0]) <= bodyBytes)) return "too_big";
   return null;
+}
+
+// Writes an answer's status and headers, never throwing (T85): a status outside 200 to 599 (no
+// 1xx is passed on: Node's client takes 100 and 103 itself, and 101 is an upgrade) or a header
+// Node will not write → false, with nothing of that answer left on `res`.
+export function passOn(res, status, headers) {
+  if (!Number.isInteger(status) || status < 200 || status > 599) return false;
+  try {
+    res.writeHead(status, headers);
+    return true;
+  } catch {
+    if (!res.headersSent) for (const n of res.getHeaderNames()) res.removeHeader(n);
+    return false;
+  }
 }
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[c]);
@@ -302,16 +356,93 @@ export function appExecSpawner(execPath = join(HERE, "app-exec")) {
   });
 }
 
-// Every process of this Mac as { pid, ppid, pgid, start }; [] when ps cannot be read.
+// Every process of this Mac as { pid, ppid, pgid, uid, zombie, start }; [] when ps cannot be read.
 function processTable() {
-  const r = spawnSync("/bin/ps", ["-A", "-o", "pid=,ppid=,pgid=,lstart="], { encoding: "utf8", timeout: 5000 });
+  const r = spawnSync("/bin/ps", ["-A", "-o", "pid=,ppid=,pgid=,uid=,stat=,lstart="], { encoding: "utf8", timeout: 5000 });
   if (r.status !== 0 || typeof r.stdout !== "string") return [];
   const out = [];
   for (const line of r.stdout.split("\n")) {
-    const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(line);
-    if (m) out.push({ pid: Number(m[1]), ppid: Number(m[2]), pgid: Number(m[3]), start: m[4] });
+    const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(.+?)\s*$/.exec(line);
+    if (m) {
+      out.push({ pid: Number(m[1]), ppid: Number(m[2]), pgid: Number(m[3]), uid: Number(m[4]), zombie: m[5].startsWith("Z"), start: m[6] });
+    }
   }
   return out;
+}
+
+// The processes of one app's run fence, found by the fence itself (T85): a process cannot leave
+// the sandbox it was started in, nor change it, however it forks and whatever group, session,
+// parent, name or environment it takes, so the fence is the one mark of an app's process that
+// no helper can shed. The kernel is asked (sandbox_check, the system's own library, through
+// /usr/bin/python3 -I -S, the Python app-exec uses) of each process of ours whether it is
+// sandboxed, may write `data`, and may neither read the owner's home nor write `code`. Only an
+// app's run fence answers so: K18 opens `data` to the run mode alone, no agent's fence opens
+// it, and a fence that reads the home folder (the owner's own sandboxed programs) is not this
+// one. A pid is signalled by the same check, at once after it (`sig` "TERM" or "KILL"; "0"
+// only lists). Paths that do not exist answer "denied", so nothing matches them.
+// → the pids found (and signalled), or null when the kernel could not be asked.
+const FENCED_PY = [
+  "import ctypes, os, signal, sys",
+  "lib = ctypes.CDLL('/usr/lib/libSystem.B.dylib')",
+  "check = lib.sandbox_check",
+  "check.restype = ctypes.c_int",
+  "check.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]",
+  "PATH = 1 | 0x40000000",  // SANDBOX_FILTER_PATH, SANDBOX_CHECK_NO_REPORT
+  "sig, data, code, home = sys.argv[1:5]",
+  "found = []",
+  "for a in sys.argv[5:]:",
+  "    pid = int(a)",
+  "    if pid <= 1 or pid == os.getpid() or pid == os.getppid():",
+  "        continue",
+  "    if check(pid, None, 0) != 1:",
+  "        continue",
+  "    if check(pid, b'file-write-data', PATH, data.encode()) != 0:",
+  "        continue",
+  "    if check(pid, b'file-read-data', PATH, home.encode()) != 1:",
+  "        continue",
+  "    if check(pid, b'file-write-data', PATH, code.encode()) != 1:",
+  "        continue",
+  "    if sig != '0':",
+  "        try:",
+  "            os.kill(pid, {'TERM': signal.SIGTERM, 'KILL': signal.SIGKILL}[sig])",
+  "        except OSError:",
+  "            continue",
+  "    found.append(str(pid))",
+  "print(' '.join(found))",
+].join("\n");
+
+// The Python /usr/bin/python3 stands for (a root-owned program the system's own launcher
+// names), found once: the launcher costs a tenth of a second on every call, and a stop asks
+// more than once.
+let python = null;
+function pythonPath() {
+  if (python) return python;
+  python = "/usr/bin/python3";
+  const r = spawnSync(python, ["-I", "-S", "-c", "import sys; print(sys.executable)"], {
+    encoding: "utf8", timeout: 15000, env: { PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8" },
+  });
+  const real = r.status === 0 && typeof r.stdout === "string" ? r.stdout.trim() : "";
+  try {
+    const st = statSync(real);
+    if (real.startsWith("/") && st.isFile() && st.uid === 0 && (st.mode & 0o022) === 0) python = real;
+  } catch { /* the launcher it is */ }
+  return python;
+}
+
+// The marks of one app's run fence, from its paths.
+export function fenceOf(paths) {
+  return { data: paths.data, code: paths.code, home: ownerHome() };
+}
+
+export function fencedProcesses(fence, sig = "0", table = processTable()) {
+  if (!fence || !["0", "TERM", "KILL"].includes(sig)) return [];
+  const pids = table.filter((p) => p.uid === process.getuid() && !p.zombie && p.pid > 1 && p.pid !== process.pid).map((p) => String(p.pid));
+  if (pids.length === 0) return [];
+  const r = spawnSync(pythonPath(), ["-I", "-S", "-c", FENCED_PY, sig, fence.data, fence.code, fence.home, ...pids], {
+    encoding: "utf8", timeout: 15000, env: { PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8" },
+  });
+  if (r.status !== 0 || typeof r.stdout !== "string") return null;
+  return r.stdout.trim().split(/\s+/).filter(Boolean).map(Number);
 }
 
 // The processes started from a group that left it (an app may start a helper in a session of
@@ -355,31 +486,42 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // spans a closed lid is not judged to have taken all that time.
 const awakeMs = () => Number(process.hrtime.bigint() / 1_000_000n);
 
-// Ends a process group and every process that left it: SIGTERM, then SIGKILL after `graceMs`.
-// A stray is killed only while it is still the process it was (same start time).
-export async function endGroup(pgid, graceMs = HOST_LIMITS.stopGraceMs) {
-  if (!Number.isInteger(pgid) || pgid <= 1) return;
-  const away = strays(pgid);
-  signal(-pgid, "SIGTERM");
+// Ends a process group, every process that left it, and (given `fence`, fenceOf's) every
+// process of the app's run fence wherever it went, a helper that double-forked away from the
+// group included (T85): SIGTERM, then SIGKILL after `graceMs`. A stray is killed only while it
+// is still the process it was (same start time); a process of the fence only when the kernel
+// has just said it is one. `pgid` null: the fence's processes alone.
+export async function endGroup(pgid, graceMs = HOST_LIMITS.stopGraceMs, fence = null) {
+  const group = Number.isInteger(pgid) && pgid > 1;
+  if (!group && !fence) return;
+  const away = group ? strays(pgid) : [];
+  if (group) signal(-pgid, "SIGTERM");
   for (const p of away) signal(p.pid, "SIGTERM");
+  const termed = fence ? fencedProcesses(fence, "TERM") : [];
+  if (!group && (!termed || termed.length === 0)) return;
   const until = Date.now() + graceMs;
+  // The group and its strays by the process table; the fence (a slower question) only once
+  // they are gone, and again until it has nothing left.
   const still = () => {
     const now = processTable();
     const left = away.filter((p) => now.some((q) => q.pid === p.pid && q.start === p.start));
-    return { group: groupAlive(pgid), left };
+    const alive = (group && groupAlive(pgid)) || left.length > 0;
+    const fenced = !alive && fence ? (fencedProcesses(fence, "0", now) || []) : [];
+    return { alive: alive || fenced.length > 0, left };
   };
   for (;;) {
     const s = still();
-    if (!s.group && s.left.length === 0) return;
+    if (!s.alive) return;
     if (Date.now() >= until) {
-      signal(-pgid, "SIGKILL");
+      if (group) signal(-pgid, "SIGKILL");
       for (const p of s.left) signal(p.pid, "SIGKILL");
+      if (fence) fencedProcesses(fence, "KILL");
       break;
     }
     await wait(100);
   }
   const end = Date.now() + 2000;
-  while (Date.now() < end && (groupAlive(pgid) || still().left.length > 0)) await wait(50);
+  while (Date.now() < end && still().alive) await wait(100);
 }
 
 // Calls per app in the last hour and day (the web door's window), counted when a call goes out.
@@ -600,6 +742,13 @@ export function createAppHost({ cfg, now, log, spawnApp, limits } = {}) {
         body = await readBody(req, lim[route.max]);
         if (body === null) return undefined;
         if (body === "too-big") return engineRefuse(rec, res, "app_too_big", route.name);
+        // A thinking call: its max_tokens within the host's limit, and the body sent is the one
+        // checked (written again from it, so no second max_tokens can slip past).
+        if (route.target === "relay") {
+          const t = checkThinking(body, lim.relayMaxTokens);
+          if (!t.ok) return engineRefuse(rec, res, t.code, route.name);
+          body = t.body;
+        }
       } else {
         req.resume();
       }
@@ -616,6 +765,7 @@ export function createAppHost({ cfg, now, log, spawnApp, limits } = {}) {
       if (types.length === 1) headers["content-type"] = types[0];
       if (accepts.length === 1) headers.accept = accepts[0];
       if (body !== null) headers["content-length"] = body.length;
+      if (route.target === "relay") headers["anthropic-version"] = ANTHROPIC_VERSION;
       const to = upstreamOf[route.target];
       await new Promise((resolve) => {
         const up = http.request({
@@ -635,7 +785,13 @@ export function createAppHost({ cfg, now, log, spawnApp, limits } = {}) {
           if (ct.length === 1) out["Content-Type"] = ct[0];
           if (cl.length === 1 && /^[0-9]{1,12}$/.test(cl[0])) out["Content-Length"] = cl[0];
           say(`${iso()} app ${rec.slug} ${route.name} ${ans.statusCode}`);
-          res.writeHead(ans.statusCode, out);
+          if (!passOn(res, ans.statusCode, out)) {
+            ans.on("error", () => {});
+            ans.on("end", done);
+            ans.on("close", done);
+            ans.resume();
+            return void engineRefuse(rec, res, "app_no_answer", route.name);
+          }
           ans.pipe(res);
           ans.on("error", () => res.destroy());
           ans.on("aborted", () => res.destroy());
@@ -679,9 +835,8 @@ export function createAppHost({ cfg, now, log, spawnApp, limits } = {}) {
       server.listen(sockPath, () => {
         server.off("error", reject);
         server.on("error", (err) => say(`${iso()} app ${rec.slug} engine socket: ${describeError(err)}`));
-        try {
-          chmodSync(sockPath, 0o600);
-        } catch { /* the folder is 0700 anyway */ }
+        // Its mode is never changed by name: the run folder is 0700 (freshRun checks it), and a
+        // name in a folder an app can write is never trusted (T85).
         resolve(server);
       });
     });
@@ -733,18 +888,38 @@ export function createAppHost({ cfg, now, log, spawnApp, limits } = {}) {
     const up = http.request({ socketPath: rec.hostSock, method: req.method, path: req.url, headers, agent: false });
     rec.upstreams.add(up);
     const forget = () => rec.upstreams.delete(up);
+    // An answer the host cannot pass on (a status outside 200 to 599, a header Node will not
+    // write), a switch of protocols, or the app closing before it answers: the not-answering page
+    // at once, never a thrown error or a request left waiting (T85).
+    let failed = false;
+    const broken = () => {
+      forget();
+      if (failed) return;
+      failed = true;
+      if (!res.headersSent) notAnswering(rec, res);
+      else if (!res.writableEnded) res.destroy();
+    };
     up.on("response", (ans) => {
-      res.writeHead(ans.statusCode, outboundHeaders(ans.rawHeaders, homePort));
-      ans.pipe(res);
       ans.on("error", () => res.destroy());
       ans.on("aborted", () => res.destroy());
       ans.on("close", forget);
+      if (!passOn(res, ans.statusCode, outboundHeaders(ans.rawHeaders, homePort))) {
+        say(`${iso()} app ${rec.slug} browser 502 bad_answer`);
+        ans.resume();
+        up.destroy();
+        return void broken();
+      }
+      ans.pipe(res);
     });
     up.on("information", () => {});
-    up.on("error", () => {
-      forget();
-      if (!res.headersSent) notAnswering(rec, res);
-      else res.destroy();
+    up.on("upgrade", (_ans, socket) => {
+      say(`${iso()} app ${rec.slug} browser 502 upgrade`);
+      socket.destroy();
+      broken();
+    });
+    up.on("error", broken);
+    up.on("close", () => {
+      if (!res.headersSent) broken();
     });
     up.setTimeout(lim.appIdleMs, () => up.destroy(new Error("idle")));
     res.on("close", () => {
@@ -802,20 +977,42 @@ export function createAppHost({ cfg, now, log, spawnApp, limits } = {}) {
   // ---- starting and stopping one app ---------------------------------------------------
 
   // Empties a run folder (the app may have left a tree in it, or folders it closed to
-  // itself): links are removed, never followed. Then made again, 0700, and its inode kept.
+  // itself), first ending whatever of the app's run fence is still alive. Then made again,
+  // 0700 (made new, never changed by name), and its inode kept.
   async function freshRun(rec) {
     const run = rec.paths.run;
     mkdirSync(runRoot, { recursive: true, mode: 0o700 });
     chmodSync(runRoot, 0o700);
     mkdirSync(hostDir, { recursive: true, mode: 0o700 });
     chmodSync(hostDir, 0o700);
-    await removeTree(run);
+    await endGroup(null, lim.stopGraceMs, fenceOf(rec.paths));
+    await removeRun(rec.paths.run);
     await rm(rec.hostSock, { recursive: true, force: true });
     mkdirSync(run, { mode: 0o700 });
-    chmodSync(run, 0o700);
-    rec.runIno = lstatSync(run).ino;
+    const st = lstatSync(run);
+    if (!st.isDirectory() || st.uid !== process.getuid() || (st.mode & 0o777) !== 0o700) {
+      throw new Error("the new run folder is not a folder of ours, closed to others");
+    }
+    rec.runIno = st.ino;
   }
 
+  // Removes a run folder without following anything and without working by name inside a folder
+  // an app may still write (T85): it is first renamed (rename follows no link; the app fence
+  // keeps the app from moving or replacing the folder itself) to `<runRoot>/.gone-<slug>-<random>`,
+  // a name no app fence opens (each opens only its own `<runRoot>/<slug>`), so no process of the
+  // app, even one still alive, can change what is in it any more; then that is removed.
+  async function removeRun(run) {
+    const gone = join(runRoot, `.gone-${basename(run)}-${randomBytes(6).toString("hex")}`);
+    try {
+      renameSync(run, gone);
+    } catch (err) {
+      if (err && err.code === "ENOENT") return;
+      throw err;
+    }
+    await removeTree(gone);
+  }
+
+  // A tree no app can write any more: links are removed, never followed.
   async function removeTree(path) {
     try {
       await rm(path, { recursive: true, force: true });
@@ -978,14 +1175,14 @@ export function createAppHost({ cfg, now, log, spawnApp, limits } = {}) {
     rec.child = null;
     rec.pgid = null;
     await closeServer(browser);
-    if (pgid) await endGroup(pgid, lim.stopGraceMs);
+    if (pgid || rec.paths) await endGroup(pgid, lim.stopGraceMs, rec.paths ? fenceOf(rec.paths) : null);
     for (const up of rec.upstreams) up.destroy();
     rec.upstreams.clear();
     const engine = rec.engine;
     rec.engine = null;
     await closeServer(engine);
     if (rec.paths) {
-      await removeTree(rec.paths.run).catch(() => {});
+      await removeRun(rec.paths.run).catch((err) => say(`${iso()} app ${rec.slug} its run folder could not be removed: ${describeError(err)}`));
       await rm(rec.hostSock, { recursive: true, force: true }).catch(() => {});
     }
     if (rec.out) rec.out.write(`${iso()} App Studio: ${rec.slug} ${state === "failed" ? `stopped (${why})` : "stopped"}\n`);
@@ -1018,7 +1215,7 @@ export function createAppHost({ cfg, now, log, spawnApp, limits } = {}) {
       const gen = ++rec.gen;
       rec.adopted = false;
       setState(rec, "starting");
-      if (pgid) await endGroup(pgid, Math.min(lim.stopGraceMs, lim.restartMs));
+      if (pgid || rec.paths) await endGroup(pgid, Math.min(lim.stopGraceMs, lim.restartMs), rec.paths ? fenceOf(rec.paths) : null);
       rec.pgid = null;
       const engine = rec.engine;
       rec.engine = null;
@@ -1163,8 +1360,53 @@ export function createAppHost({ cfg, now, log, spawnApp, limits } = {}) {
 
   // What an earlier host left: apps still running after it was killed are ended (only a
   // group whose first process is still one of ours: the fence's settings or the app's folder
-  // in its command), and each app's thinking calls of the last day are counted again.
+  // in its command), then every process of any app's run fence still alive (T85: a helper that
+  // left its group), and each app's thinking calls of the last day are counted again. Run
+  // folders an earlier host renamed away but did not finish removing go too.
   async function tidyEarlier() {
+    await tidyGroups();
+    const slugs = new Set();
+    try {
+      for (const e of readManifests(cfg)) slugs.add(e.ok ? e.app.slug : e.slug);
+    } catch { /* no apps to read */ }
+    for (const a of earlierApps()) slugs.add(a.slug);
+    await Promise.all([...slugs].map(async (slug) => {
+      let paths;
+      try {
+        paths = appPaths(cfg, slug);
+      } catch {
+        return;
+      }
+      const left = fencedProcesses(fenceOf(paths), "0");
+      if (left === null) say(`${iso()} app ${slug}: which processes are its own could not be asked of this Mac`);
+      if (left && left.length > 0) {
+        say(`${iso()} app ${slug} had ${left.length} process(es) still running from before; ending them`);
+        await endGroup(null, lim.stopGraceMs, fenceOf(paths));
+      }
+    }));
+    let names = [];
+    try {
+      names = readdirSync(runRoot);
+    } catch { /* no run folder yet */ }
+    for (const n of names) {
+      if (/^\.gone-/.test(n)) await removeTree(join(runRoot, n)).catch(() => {});
+    }
+  }
+
+  function earlierApps() {
+    const text = readTrustedText(P.appsStatus, 4 * MB);
+    if (typeof text !== "string" || text === "missing") return [];
+    let old;
+    try {
+      old = JSON.parse(text);
+    } catch {
+      return [];
+    }
+    if (!isObject(old) || !Array.isArray(old.apps)) return [];
+    return old.apps.filter((a) => isObject(a) && typeof a.slug === "string" && SLUG_RE.test(a.slug));
+  }
+
+  async function tidyGroups() {
     const text = readTrustedText(P.appsStatus, 4 * MB);
     if (typeof text !== "string" || text === "missing") return;
     let old;
@@ -1215,8 +1457,10 @@ export function createAppHost({ cfg, now, log, spawnApp, limits } = {}) {
         mkdirSync(f, { recursive: true, mode: 0o700 });
         chmodSync(f, 0o700);
       }
-      await tidyEarlier();
+      // The host's own address first: it is held by one host at a time, so a second host started
+      // by mistake ends nothing of the first's before it fails here.
       healthServer = await openHealth(cfg.ports.apps);
+      await tidyEarlier();
       startedAt = iso();
       tick();
       timer = setInterval(tick, lim.everyMs);
