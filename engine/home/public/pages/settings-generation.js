@@ -100,8 +100,8 @@ export function dollars(credits) {
 // "1 credit", "1,200 credits".
 export const creditWords = (n) => `${grouped(num(n))} ${num(n) === 1 ? "credit" : "credits"}`;
 
-// "25 credits ($0.25)".
-export const creditsAndDollars = (n) => `${creditWords(n)} (${dollars(num(n))})`;
+// "$0.25".
+export const creditsAndDollars = (n) => dollars(num(n));
 
 // K13's balance sentence.
 export const balanceLine = (n) => `Runway says you have ${grouped(num(n))} ${num(n) === 1 ? "credit" : "credits"}.`;
@@ -241,14 +241,14 @@ export function barTone(value, total) {
   return s >= 1 ? "bad" : s >= 0.8 ? "warn" : "ok";
 }
 
-// "120 of 300 credits ($1.20 of $3.00)"; null spent (the ledger cannot be read) says so.
+// "$1.20 of $3.00"; null spent (the ledger cannot be read) says so.
 export function spentLine(spent, cap) {
   if (!Number.isInteger(spent) || spent < 0) return "Cannot be read";
-  return `${grouped(spent)} of ${creditWords(cap)} (${dollars(spent)} of ${dollars(num(cap))})`;
+  return `${dollars(spent)} of ${dollars(num(cap))}`;
 }
 
 // What is left under one limit, in words.
-export const leftLine = (left) => `${grouped(num(left))} left`;
+export const leftLine = (left) => `${dollars(num(left))} left`;
 
 // The sentences under Spent for the limits: K13's over-a-cap sentence, this month's, and the stop of a 0.
 export function capsLines(view) {
@@ -332,11 +332,11 @@ export function filmName(task) {
   return { identifier: plain(task.identifier, 40), title: plain(task.title, 200) || "A film" };
 }
 
-// "<spent> of <budget> credits"; with the ledger unreadable, only the budget.
+// "$0.50 of $3.00"; with the ledger unreadable, only the budget.
 export function batchLine(b) {
   const x = obj(b) ? b : {};
-  if (!Number.isInteger(x.spent)) return `Budget ${creditWords(x.budget)}`;
-  return `${grouped(x.spent)} of ${creditWords(x.budget)}`;
+  if (!Number.isInteger(x.spent)) return `Budget ${dollars(num(x.budget))}`;
+  return `${dollars(x.spent)} of ${dollars(num(x.budget))}`;
 }
 
 // A ledger row's kind in words, the server's own when it gave them ("Clip, 5 s", "Clip from words, 5 s",
@@ -366,7 +366,7 @@ export const RESULT_TONES = {
 };
 export const resultTone = (result) => RESULT_TONES[result] || "warn";
 
-// A day's figures in words: "50 credits ($0.50)", "2 jobs", "1 refused".
+// A day's figures in words: "$0.50", "2 jobs", "1 refused".
 export function dayFigures(d) {
   const x = obj(d) ? d : {};
   return {
@@ -614,7 +614,7 @@ function Meter({ label, spent, cap, left }) {
     </div>
     <p class="p-settings__g-figure">
       ${known
-        ? html`<span class="p-settings__g-figure-credits">${grouped(spent)} of ${creditWords(cap)}</span> <span class="p-settings__g-figure-dollars">(${dollars(spent)} of ${dollars(num(cap))})</span>`
+        ? html`<span class="p-settings__g-figure-dollars">${dollars(spent)} of ${dollars(num(cap))}</span>`
         : html`<span class="p-settings__g-figure-credits">Cannot be read</span>`}
     </p>
     ${known ? html`<${Bar} value=${spent} total=${cap} />` : null}
@@ -733,7 +733,7 @@ function LedgerRow({ row }) {
     <span class="p-settings__g-row-time">${clockOf(row.at)}</span>
     <span class="p-settings__g-row-what">${rowWords(row)}</span>
     <span class="p-settings__g-row-model">${plain(row.model, 80)}</span>
-    <span class="p-settings__g-row-credits">${creditWords(row.credits)}</span>
+    <span class="p-settings__g-row-credits">${dollars(num(row.credits))}</span>
     <span class="p-settings__g-row-result"><${StatusDot} tone=${resultTone(row.result)} label=${plain(row.result, 80) || "Unclear"} /></span>
     <span class="p-settings__g-row-film">${href && id ? html`<a href=${href} aria-label=${`Film ${id}`}>${id}</a>` : null}</span>
   </li>`;

@@ -81,7 +81,7 @@ test("a finished film is today's ordinary item with the Film and Spent details, 
     assert.deepEqual(item.actions.map((a) => [a.id, a.label]), [["acknowledge", "Accept"], ["reopen", "Send back"]]);
     assert.deepEqual(item.details.slice(-2), [
       { label: "Film", value: "3 clips, 14.5 seconds" },
-      { label: "Spent", value: "55 of 320 credits ($0.55 of $3.20)" },
+      { label: "Spent", value: "$0.55 of $3.20" },
     ]);
     for (const k of ["variants", "pieceKind", "round", "missing"]) assert.ok(!(k in item), k);
   });
@@ -98,7 +98,7 @@ test("the two details are hashed into the version: a new ledger line or a new ed
     assert.notEqual(second.version, first.version);
     appendLine(h.config.paths.ledger, { at: later(0), job: "g4", batch: B2, shot: "s01", slug: "artist", kind: "image_to_video", model: "gen4_turbo", seconds: 5, estimate: 25, state: "reserved", credits: 25, runwayTask: null, verdict: null });
     const third = await itemOf(h);
-    assert.equal(third.details.at(-1).value, "80 of 320 credits ($0.80 of $3.20)");
+    assert.equal(third.details.at(-1).value, "$0.80 of $3.20");
     assert.notEqual(third.version, second.version);
     // An edit of another treatment, or not made by `film`, is no edit of this film.
     writeFileSync(join(goal, "video", "lake-film", "manifest.json"), JSON.stringify({ ...EDIT, film: "lake-a" }));
@@ -130,7 +130,7 @@ test("the ledger unreadable: Spent says so; the card stays an ordinary item", as
     writeFileSync(h.config.paths.ledger, "{torn", { flag: "a" });
     const item = await itemOf(h);
     assert.equal(item.kind, "result");
-    assert.equal(item.details.at(-1).value, "Not known: the spending ledger cannot be read. Up to 320 credits ($3.20) were approved.");
+    assert.equal(item.details.at(-1).value, "Not known: the spending ledger cannot be read. Up to $3.20 was approved.");
   });
 });
 

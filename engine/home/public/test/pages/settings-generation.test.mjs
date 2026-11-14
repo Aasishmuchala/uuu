@@ -203,14 +203,14 @@ test("generation: dollars and credits", () => {
   assert.equal(creditWords(1), "1 credit");
   assert.equal(creditWords(1200), "1,200 credits");
   assert.equal(creditWords(null), "0 credits");
-  assert.equal(creditsAndDollars(25), "25 credits ($0.25)");
-  assert.equal(spentLine(120, 300), "120 of 300 credits ($1.20 of $3.00)");
-  assert.equal(spentLine(0, 0), "0 of 0 credits ($0.00 of $0.00)");
-  assert.equal(spentLine(1200, 3000), "1,200 of 3,000 credits ($12.00 of $30.00)");
+  assert.equal(creditsAndDollars(25), "$0.25");
+  assert.equal(spentLine(120, 300), "$1.20 of $3.00");
+  assert.equal(spentLine(0, 0), "$0.00 of $0.00");
+  assert.equal(spentLine(1200, 3000), "$12.00 of $30.00");
   assert.equal(spentLine(null, 300), "Cannot be read");
-  assert.equal(leftLine(180), "180 left");
-  assert.equal(batchLine({ spent: 50, budget: 300 }), "50 of 300 credits");
-  assert.equal(batchLine({ spent: null, budget: 300 }), "Budget 300 credits");
+  assert.equal(leftLine(180), "$1.80 left");
+  assert.equal(batchLine({ spent: 50, budget: 300 }), "$0.50 of $3.00");
+  assert.equal(batchLine({ spent: null, budget: 300 }), "Budget $3.00");
 });
 
 test("generation: a limit as typed, its dollars, and a refusal at its field", () => {
@@ -264,8 +264,8 @@ test("generation: a ledger row's words, its result's colour, and its day and tim
   assert.equal(resultTone("Refused by Runway"), "bad");
   assert.equal(resultTone("Running, counted until it ends"), "live");
   assert.equal(resultTone("Something new"), "warn");
-  assert.deepEqual(dayFigures({ credits: 75, jobs: 3, refused: 3 }), { credits: "75 credits ($0.75)", jobs: "3 jobs", refused: "3 refused" });
-  assert.deepEqual(dayFigures({ credits: 25, jobs: 1, refused: 0 }), { credits: "25 credits ($0.25)", jobs: "1 job", refused: "" });
+  assert.deepEqual(dayFigures({ credits: 75, jobs: 3, refused: 3 }), { credits: "$0.75", jobs: "3 jobs", refused: "3 refused" });
+  assert.deepEqual(dayFigures({ credits: 25, jobs: 1, refused: 0 }), { credits: "$0.25", jobs: "1 job", refused: "" });
   const now = Date.parse("2026-11-13T05:00:00.000Z");   // 10:30 in India, Friday 13 November
   assert.equal(dayWords("2026-11-13", now), "Today");
   assert.equal(dayWords("2026-11-12", now), "Yesterday");
@@ -287,7 +287,7 @@ test("generation: pages of days are one list, newest first, each day once", () =
 });
 
 test("generation: the models' choices, and the films' links", () => {
-  assert.deepEqual(modelOptions(GEN, "video"), [{ value: "gen4_turbo", label: "gen4_turbo: 5 credits a second" }]);
+  assert.deepEqual(modelOptions(GEN, "video"), [{ value: "gen4_turbo", label: "Gen-4 Turbo on Runway: $0.05 a second" }]);
   const two = view({ choices: { ...GEN.choices, still: [{ model: "gen4_image", words: "gen4_image: 8 credits a picture" }, { model: "gen4_image_turbo", words: "gen4_image_turbo: 2 credits a picture" }] } });
   assert.deepEqual(modelOptions(two, "still").map((o) => o.value), ["gen4_image", "gen4_image_turbo"]);
   const gone = view({ models: { ...GEN.models, upscale: "old_model" } });

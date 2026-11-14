@@ -278,7 +278,7 @@ test("start a still job over today's or this month's money: 409 over_limit namin
     updateDoors(home.config, (st) => { st.generate.dailyCredits = 20; });
     spent(home, 10);
     await refused(home, VARIATIONS, TWO, 409, "over_limit",
-      "This costs more than is left of today's limit (10 credits). Raise it in Settings, or start it tomorrow.");
+      "This costs more than is left of today's limit ($0.10). Raise it in Settings, or start it tomorrow.");
     // Exactly what is left is allowed: one variation of 8 fits in 10.
     const fits = await start(home, VARIATIONS, { answers: { ...TWO, count: "1" } });
     assert.equal(fits.r.status, 201, fits.r.text);
@@ -288,13 +288,13 @@ test("start a still job over today's or this month's money: 409 over_limit namin
     updateDoors(home.config, (st) => { st.generate.monthlyCredits = 30; });
     spent(home, 20);
     const r = await refused(home, UPSCALE, { picture: "lobby.png", scale: "4" }, 409, "over_limit",
-      "This costs more than is left of this month's limit (10 credits). Raise it in Settings, or start it next month.");
+      "This costs more than is left of this month's limit ($0.10). Raise it in Settings, or start it next month.");
     assert.match(r.json.error.next, /Settings/);
   });
   await withGeneration(async (home) => {
     updateDoors(home.config, (st) => { st.generate.dailyCredits = 0; });
     await refused(home, VARIATIONS, { ...TWO, count: "1" }, 409, "over_limit",
-      "This costs more than is left of today's limit (0 credits). Raise it in Settings, or start it tomorrow.");
+      "This costs more than is left of today's limit ($0.00). Raise it in Settings, or start it tomorrow.");
   });
 });
 

@@ -89,7 +89,7 @@ export function confirmWords(v) {
   const name = cap(v.direction && v.direction.title, 80) || (v.id ? `Version ${letterOf(v.id)}` : "this treatment");
   return {
     title: `Approve ${name}?`,
-    body: `Runway may charge up to ${most} credits (${creditsDollars(most)}) for its ${clips(shots.length)} and one retake each. Nothing else is spent without you.`,
+    body: `Runway may charge up to ${creditsDollars(most)} for its ${clips(shots.length)} and one retake each. Nothing else is spent without you.`,
     button: `Approve and spend up to ${creditsDollars(most)}`,
   };
 }
@@ -249,7 +249,7 @@ function Shot({ s, baseId }) {
     <div class="k-sl__shot-body">
       <p class="k-sl__shot-top">
         <span class="k-sl__shot-id">${s.label}</span>
-        ${s.credits !== null && html`<span class="k-sl__shot-credits">${s.credits} credits</span>`}
+        ${s.credits !== null && html`<span class="k-sl__shot-credits">${creditsDollars(s.credits)}</span>`}
       </p>
       ${s.render && html`<p class="k-sl__shot-render">${s.render}</p>`}
       ${s.move && html`<p class="k-sl__shot-move">${s.move}</p>`}

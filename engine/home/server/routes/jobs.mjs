@@ -19,7 +19,7 @@ import { generationNow, newBatchId, removeBatch, writeBatch } from "../lib/batch
 import { HomeError } from "../lib/errors.mjs";
 import { needIds, summary } from "../lib/goals.mjs";
 import {
-  chosenModels, craftOf, estimateOf, jobRef, jobView, loadCatalogue, loadCraftTable, moneyOf, needsState, NO_PRICE_WORDS, runsIndex, WHY,
+  chosenModels, craftOf, dollars, estimateOf, jobRef, jobView, loadCatalogue, loadCraftTable, moneyOf, needsState, NO_PRICE_WORDS, runsIndex, WHY,
 } from "../lib/jobs.mjs";
 import { loadDepartments } from "../lib/departments.mjs";
 import { stripInvisible } from "../lib/owner-text.mjs";
@@ -291,11 +291,11 @@ function stillCost(ctx, job, kind, record) {
   const cost = money.unit * shots.length;
   if (!gen.ledgerOk) throw ctx.fail(409, LEDGER_UNREADABLE, "Open Health to see what to do next.", "ledger_unreadable");
   if (cost > gen.dayLeft) {
-    throw ctx.fail(409, `This costs more than is left of today's limit (${gen.dayLeft} credits). Raise it in Settings, or start it tomorrow.`,
+    throw ctx.fail(409, `This costs more than is left of today's limit (${dollars(gen.dayLeft)}). Raise it in Settings, or start it tomorrow.`,
       "Open Settings, then start the job.", "over_limit");
   }
   if (cost > gen.monthLeft) {
-    throw ctx.fail(409, `This costs more than is left of this month's limit (${gen.monthLeft} credits). Raise it in Settings, or start it next month.`,
+    throw ctx.fail(409, `This costs more than is left of this month's limit (${dollars(gen.monthLeft)}). Raise it in Settings, or start it next month.`,
       "Open Settings, then start the job.", "over_limit");
   }
   return { shots, cost };

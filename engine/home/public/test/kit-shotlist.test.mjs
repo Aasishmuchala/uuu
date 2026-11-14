@@ -105,13 +105,13 @@ const variant = (id, title, extra = {}) => ({
   review: { scores: { brand: 8, hierarchy: 7, composition: 8, finish: 7, idea: 7, voice: 8, kind: 7 }, total: 52, of: 70, meets: true, reason: "calm" },
   shotlist: { title: `Film ${id}`, seconds: 10, ratio: "1280:720", shots: [shotOf(1), shotOf(2, { kind: "text_to_video", best: true, render: undefined })], cards: null },
   boards: [{ shot: "s01", url: img(`b${id}1`) }, { shot: "s02", url: img(`b${id}2`) }],
-  cost: { base: 50, most: 100, words: "2 clips, 10 seconds: about 50 credits ($0.50), up to 100 with one retake each.", time: "Runway takes a few minutes a clip." },
+  cost: { base: 50, most: 100, words: "2 clips, 10 seconds: about $0.50, up to $1.00 with one retake each.", time: "Runway takes a few minutes a clip." },
   approvable: true, blocked: null, ...extra,
 });
 const ITEM = {
   ...SHAPE, id: "staged:shotlist:g1", version: "v1", round: 1, missing: [],
   actions: [{ id: "approve", label: "Approve this one and its cost" }, { id: "another", label: "Another round" }, { id: "send_back", label: "Send all back" }],
-  variants: [variant("c", "<b>Day of light</b>"), variant("a", "Slow approach"), variant("b", "Details first", { approvable: false, blocked: "This costs more than is left of today's limit (40 credits). Raise it in Settings, or approve it tomorrow." })],
+  variants: [variant("c", "<b>Day of light</b>"), variant("a", "Slow approach"), variant("b", "Details first", { approvable: false, blocked: "This costs more than is left of today's limit ($0.40). Raise it in Settings, or approve it tomorrow." })],
 };
 
 // ---- Pure helpers ----
@@ -119,7 +119,7 @@ const ITEM = {
 test("confirmWords: the most Runway may charge, from the server's own numbers", () => {
   const w = sl.confirmWords(variant("a", "Slow approach"));
   assert.equal(w.title, "Approve Slow approach?");
-  assert.equal(w.body, "Runway may charge up to 100 credits ($1.00) for its 2 clips and one retake each. Nothing else is spent without you.");
+  assert.equal(w.body, "Runway may charge up to $1.00 for its 2 clips and one retake each. Nothing else is spent without you.");
   assert.equal(w.button, "Approve and spend up to $1.00");
   const one = sl.confirmWords(variant("a", "One", { shotlist: { shots: [shotOf(1)] }, cost: { most: 20 } }));
   assert.match(one.body, /for its 1 clip and/);
@@ -190,9 +190,9 @@ test("the card: three treatments in a to c order, one approve button each but th
   const all = textOf(root);
   assert.equal(buttons(root, "Approve this one and its cost").length, 2);
   assert.ok(all.indexOf("Slow approach") < all.indexOf("Details first") && all.indexOf("Details first") < all.indexOf("Day of light"));
-  assert.match(all, /This costs more than is left of today's limit \(40 credits\)/);
+  assert.match(all, /This costs more than is left of today's limit \(\$0\.40\)/);
   assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/settings"), "a link to Settings");
-  assert.match(all, /2 clips, 10 seconds: about 50 credits/);
+  assert.match(all, /2 clips, 10 seconds: about \$0.50/);
   assert.match(all, /Runway takes a few minutes a clip\./);
   assert.match(all, /Made from words alone/);
   assert.match(all, /Best model/);
@@ -222,7 +222,7 @@ test("the card: Approve opens the confirm; nothing is sent until its button; the
     assert.equal(f.calls.length, 0, "opening the confirm sends nothing");
     const page = textOf(root);
     assert.match(page, /Approve Slow approach\?/);
-    assert.match(page, /Runway may charge up to 100 credits \(\$1\.00\) for its 2 clips and one retake each\. Nothing else is spent without you\./);
+    assert.match(page, /Runway may charge up to \$1\.00 for its 2 clips and one retake each\. Nothing else is spent without you\./);
     const yes = elements(root).find((e) => e.localName === "button" && textOf(e).trim() === "Approve and spend up to $1.00");
     assert.ok(yes, "the confirm button");
     assert.ok(elements(root).some((e) => e.localName === "button" && textOf(e).trim() === "Not yet"));
@@ -239,7 +239,7 @@ test("the card: Approve opens the confirm; nothing is sent until its button; the
 });
 
 test("the card: a refused approval shows the server's sentence with a link to Settings, and sends nothing again", async () => {
-  const f = stubFetch(() => ({ status: 409, body: { error: { message: "This costs more than is left of today's limit (10 credits). Raise it in Settings, or approve it tomorrow.", next: "Open Settings, then look at the card again.", code: "over_limit" } } }));
+  const f = stubFetch(() => ({ status: 409, body: { error: { message: "This costs more than is left of today's limit ($0.10). Raise it in Settings, or approve it tomorrow.", next: "Open Settings, then look at the card again.", code: "over_limit" } } }));
   try {
     const root = await showTree(sl.ShotlistCard, { item: ITEM });
     fire(buttons(root, "Approve this one and its cost")[0], "click");
@@ -247,7 +247,7 @@ test("the card: a refused approval shows the server's sentence with a link to Se
     fire(elements(root).find((e) => e.localName === "button" && /^Approve and spend/.test(textOf(e).trim())), "click");
     await settle();
     assert.equal(f.calls.length, 1);
-    assert.match(textOf(root), /This costs more than is left of today's limit \(10 credits\)/);
+    assert.match(textOf(root), /This costs more than is left of today's limit \(\$0\.10\)/);
     assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/settings"));
     assert.equal(buttons(root, "Approve this one and its cost").length, 2, "the card is still there to act on");
   } finally {

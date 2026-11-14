@@ -177,7 +177,7 @@ export const FILM_WORDS = "A film takes long and costs money. First the Artist w
 export const NO_PRICE_WORDS = "The model chosen in Settings has no price, so this job cannot start.";
 const MODEL_NAME = /^[A-Za-z0-9._-]{1,80}$/;
 // "$0.08" for 8 cents (a Runway credit is one cent).
-const dollars = (credits) => `$${(credits / 100).toFixed(2)}`;
+export const dollars = (credits) => `$${(credits / 100).toFixed(2)}`;
 const modelName = (v) => (typeof v === "string" && MODEL_NAME.test(v) ? v : null);
 
 // The models the owner chose in Settings, from the switches file read through the doors' own trust rule; K1's

@@ -29,21 +29,20 @@ export function dollarsOf(credits) {
   return credit(credits) ? `$${(Number(credits) / 100).toFixed(2)}` : "";
 }
 
-// "175 of 600 credits": what is spent against what the owner approved. A spend the ledger could not give is said so.
+// "$1.75 of $6.00": what is spent against what the owner approved. A spend the ledger could not give is said so.
 export function creditWords(spent, budget) {
   const b = credit(budget) ? Number(budget) : 0;
-  return credit(spent) ? `${Number(spent)} of ${b} credits` : `Spent so far not known, of ${b} credits`;
+  return credit(spent) ? `${dollarsOf(spent)} of ${dollarsOf(b)}` : `Spent so far not known, of ${dollarsOf(b)}`;
 }
 
-// "175 of 600 credits ($1.75 of $6.00)".
+// "$1.75 of $6.00".
 export function totalWords(spent, budget) {
-  if (!credit(spent)) return `${creditWords(spent, budget)} (${dollarsOf(credit(budget) ? budget : 0)})`;
-  return `${creditWords(spent, budget)} (${dollarsOf(spent)} of ${dollarsOf(credit(budget) ? budget : 0)})`;
+  return creditWords(spent, budget);
 }
 
-// A take's own cost: "25 credits".
+// A take's own cost: "$0.25".
 export function takeCredits(n) {
-  return credit(n) ? `${Number(n)} ${Number(n) === 1 ? "credit" : "credits"}` : "";
+  return dollarsOf(n);
 }
 
 // The share of the approved budget spent, 0 to 100, for the bar.
@@ -322,7 +321,7 @@ function Shot({ shot, number, labels }) {
       </h4>
       <span class="p-film__shot-facts">
         ${seconds ? html`<span>${seconds}</span>` : null}
-        ${takes.length ? html`<span>${takeCredits(shot.credits) || "0 credits"}</span>` : null}
+        ${takes.length ? html`<span>${takeCredits(shot.credits) || "$0.00"}</span>` : null}
       </span>
     </div>
     <div class="p-film__shot-body">
@@ -388,7 +387,7 @@ export function FilmView({ id, settled = true }) {
         <span class="p-film__total-label">Spent</span>
         <span class="p-film__total-words">${totalWords(total.spent, total.budget)}</span>
       </div>
-      <div class="p-film__bar" role="progressbar" aria-label="Credits spent of the approved budget" aria-valuemin="0" aria-valuemax=${credit(total.budget) ? Number(total.budget) : 0} aria-valuenow=${credit(total.spent) ? Number(total.spent) : 0} aria-valuetext=${creditWords(total.spent, total.budget)}>
+      <div class="p-film__bar" role="progressbar" aria-label="Money spent of the approved budget" aria-valuemin="0" aria-valuemax=${credit(total.budget) ? Number(total.budget) : 0} aria-valuenow=${credit(total.spent) ? Number(total.spent) : 0} aria-valuetext=${creditWords(total.spent, total.budget)}>
         <span class="p-film__bar-fill" style=${`width:${share}%`}></span>
       </div>
       ${anyMaking(f) ? html`<p class="p-film__charging">${STILL_CHARGING}</p>` : null}

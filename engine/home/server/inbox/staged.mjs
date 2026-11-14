@@ -184,7 +184,7 @@ const NO_LIST = "The film's list of treatments (variants.json) is missing, so th
 const NO_FILES = "The treatments' files are missing, so there is nothing to approve.";
 const PROBLEM_SUMMARY = "The treatments cannot be shown, so none can be approved. Send them back with a note.";
 
-const limitWords = (cap, spent) => `${cap} credits (${dollars(cap)}); ${spent === null ? "what was spent cannot be read" : `${spent} spent`}`;
+const limitWords = (cap, spent) => `${dollars(cap)}; ${spent === null ? "what was spent cannot be read" : `${dollars(spent)} spent`}`;
 
 // Why a treatment cannot be approved now, the first that applies, as { blocked, code } (both null when it can).
 function blockOf(gen, read, priced) {
@@ -193,10 +193,10 @@ function blockOf(gen, read, priced) {
   if (!priced.ok) return { blocked: priced.problem, code: "shotlist_problem" };
   if (!gen.ledgerOk) return { blocked: LEDGER, code: "ledger_unreadable" };
   if (priced.base > gen.dayLeft) {
-    return { blocked: `This costs more than is left of today's limit (${gen.dayLeft} credits). Raise it in Settings, or approve it tomorrow.`, code: "over_limit" };
+    return { blocked: `This costs more than is left of today's limit (${dollars(gen.dayLeft)}). Raise it in Settings, or approve it tomorrow.`, code: "over_limit" };
   }
   if (priced.base > gen.monthLeft) {
-    return { blocked: `This costs more than is left of this month's limit (${gen.monthLeft} credits). Raise it in Settings, or approve it next month.`, code: "over_limit" };
+    return { blocked: `This costs more than is left of this month's limit (${dollars(gen.monthLeft)}). Raise it in Settings, or approve it next month.`, code: "over_limit" };
   }
   return { blocked: null, code: null };
 }
@@ -413,7 +413,7 @@ async function approveShotlist(ctx, goalId, path, sl, note, done) {
   closeBatches(ctx.config, [goalId], { keep: batch.id, now: now.getTime(), log: (line) => ctx.log?.(`staged: ${line}`) });
   await thenTry(ctx, "setting the task to todo", () => ctx.board.patch(path, { status: "todo" }));
   await refreshTaste(ctx, { force: true });
-  return { message: `Approved. The Artist will make the clips; up to ${batch.budget} credits (${dollars(batch.budget)}) may be spent. You can follow it in Studio.` };
+  return { message: `Approved. The Artist will make the clips; up to ${dollars(batch.budget)} may be spent. You can follow it in Studio.` };
 }
 
 async function actOnShotlist(ctx, goalId, path, action, note) {

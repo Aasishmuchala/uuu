@@ -178,7 +178,7 @@ test("job: only the craft path of the start form turns the promised time off", (
 // PLAN-V5 C9, T45: the money words of a job that needs the generation door.
 const NONE = { ...shape("job"), generation: null };
 const FILM_JOB = { ...shape("job"), generation: { kind: "film", words: "A film takes long and costs money. First the Artist writes the shotlist, at no cost.", unit: 5, model: "gen4_turbo", ok: true } };
-const VARIATIONS_JOB = { ...shape("job"), generation: { kind: "variations", words: "Each variation costs 8 credits ($0.08) with gen4_image; three cost 24 credits ($0.24). Pressing Start approves the cost of the number you choose; nothing else is spent.", unit: 8, model: "gen4_image", ok: true } };
+const VARIATIONS_JOB = { ...shape("job"), generation: { kind: "variations", words: "Each variation costs $0.08 with gen4_image; three cost $0.24. Pressing Start approves the cost of the number you choose; nothing else is spent.", unit: 8, model: "gen4_image", ok: true } };
 const NO_PRICE = { ...shape("job"), generation: { kind: "variations", words: "The model chosen in Settings has no price, so this job cannot start.", unit: null, model: null, ok: false } };
 
 test("job: the money words are the server's, and a job without `generation` shows nothing", () => {

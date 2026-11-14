@@ -161,8 +161,8 @@ test("a blocked film after SHOTLIST READY: one item fitting shotlist-item.json, 
     assert.equal(item.title, "Approve a shotlist: A film of the lake house");
     assert.equal(item.summary, "Three treatments are ready. Approve one and its cost; nothing is sent to Runway before you do.");
     assert.deepEqual(item.details, [
-      { label: "Today's limit", value: "300 credits ($3.00); 40 spent" },
-      { label: "This month", value: "1000 credits ($10.00); 40 spent" },
+      { label: "Today's limit", value: "$3.00; $0.40 spent" },
+      { label: "This month", value: "$10.00; $0.40 spent" },
     ]);
     assert.deepEqual(item.actions.map((a) => [a.id, a.label, a.style, a.needsNote, a.takes]), [
       ["approve", "Approve this one and its cost", "primary", false, "variant"],
@@ -274,7 +274,7 @@ test("approve: the batch the door accepts (2 x base), then the record, the pick,
     };
     const r = await actAsSeen(h.url, { id: ITEM, action: "approve", variant: "b", note: "The joints, please." });
     assert.equal(r.status, 200, r.text);
-    assert.equal(r.json.message, "Approved. The Artist will make the clips; up to 340 credits ($3.40) may be spent. You can follow it in Studio.");
+    assert.equal(r.json.message, "Approved. The Artist will make the clips; up to $3.40 may be spent. You can follow it in Studio.");
     // The batch, by the door's own reader.
     const [file] = batchFiles(h);
     const id = file.slice(0, -5);
@@ -522,7 +522,7 @@ test("two answers that both found the card: the second is refused before it writ
     assert.equal(readdirSync(config.paths.batches).length, 1, "only the first wrote a batch");
     release();
     const out = await first;
-    assert.match(out.message, /^Approved\. The Artist will make the clips; up to 50 credits \(\$0\.50\) may be spent\./);
+    assert.match(out.message, /^Approved\. The Artist will make the clips; up to \$0\.50 may be spent\./);
     assert.equal(posted.length, 1);
     await assert.rejects(staged.act(ctx, ITEM, "approve", null), (e) => e.code === "already_handled", "still refused once written");
     // A new SHOTLIST READY is a new card: its answer is taken.
@@ -636,7 +636,7 @@ test("over what is left of today's or this month's limit: blocked with the sente
     const item = await itemOf(h);
     const [a, b, c] = item.variants;
     assert.equal(item.generation.dayLeft, 140);
-    assert.equal(a.blocked, "This costs more than is left of today's limit (140 credits). Raise it in Settings, or approve it tomorrow.");
+    assert.equal(a.blocked, "This costs more than is left of today's limit ($1.40). Raise it in Settings, or approve it tomorrow.");
     assert.equal(b.approvable, false);
     assert.equal(c.approvable, true);
     const before = { decisions: decisionsOf(h), board: h.board.requests.length };
@@ -649,7 +649,7 @@ test("over what is left of today's or this month's limit: blocked with the sente
     updateDoors(h.config, (st) => { st.generate.monthlyCredits = 200; });
     const item = await itemOf(h);
     assert.equal(item.generation.monthLeft, 160);
-    assert.equal(item.variants[1].blocked, "This costs more than is left of this month's limit (160 credits). Raise it in Settings, or approve it next month.");
+    assert.equal(item.variants[1].blocked, "This costs more than is left of this month's limit ($1.60). Raise it in Settings, or approve it next month.");
     assert.equal(item.variants[0].approvable, true);
     assert.match(item.variants[0].cost.words, /Retakes may stop at today's limit\.$/);
   });
@@ -659,7 +659,7 @@ test("an unreadable ledger blocks every treatment: nothing can be priced against
   await withFilm({}, async (h) => {
     writeFileSync(h.config.paths.ledger, "{torn", { flag: "a" });
     const item = await itemOf(h);
-    assert.deepEqual(item.details[0], { label: "Today's limit", value: "300 credits ($3.00); what was spent cannot be read" });
+    assert.deepEqual(item.details[0], { label: "Today's limit", value: "$3.00; what was spent cannot be read" });
     assert.equal(item.generation.dayLeft, null);
     assert.ok(item.variants.every((v) => v.blocked === "The spending ledger cannot be read, so nothing will be made. Health shows what to do."));
     const r = await act(h, { id: ITEM, action: "approve", variant: "c", version: item.version });

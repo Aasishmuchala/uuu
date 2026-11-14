@@ -146,10 +146,10 @@ function batchOf(config, goalId, a, ledger) {
   };
 }
 
-// "150 of 300 credits spent ($1.50 of $3.00)."
+// "$1.50 of $3.00 spent."
 export function totalWords(spent, budget) {
-  if (spent === null) return `What was spent cannot be read; ${budget} credits (${dollars(budget)}) were approved.`;
-  return `${spent} of ${budget} credits spent (${dollars(spent)} of ${dollars(budget)}).`;
+  if (spent === null) return `What was spent cannot be read; ${dollars(budget)} was approved.`;
+  return `${dollars(spent)} of ${dollars(budget)} spent.`;
 }
 
 // ---- the treatment ------------------------------------------------------------------------------------------
@@ -506,8 +506,8 @@ export function filmCardDetails(ctx, goal) {
   return {
     film: edit ? `${plural(edit.clips, "clip", "clips")}, ${edit.seconds} seconds` : "No edit yet",
     spent: spent === null
-      ? `Not known: the spending ledger cannot be read. Up to ${budget} credits (${dollars(budget)}) were approved.`
-      : `${spent} of ${budget} credits (${dollars(spent)} of ${dollars(budget)})`,
+      ? `Not known: the spending ledger cannot be read. Up to ${dollars(budget)} was approved.`
+      : `${dollars(spent)} of ${dollars(budget)}`,
   };
 }
 

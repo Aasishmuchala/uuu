@@ -21,14 +21,14 @@ function shape(name) {
 }
 const AWAY = ["https:", "", ["elsewhere", "example"].join(".")].join("/");
 
-test("credit words: spent of budget, in credits and dollars", () => {
-  assert.equal(m.creditWords(175, 600), "175 of 600 credits");
-  assert.equal(m.totalWords(175, 600), "175 of 600 credits ($1.75 of $6.00)");
-  assert.equal(m.totalWords(0, 220), "0 of 220 credits ($0.00 of $2.20)");
+test("credit words: spent of budget, in dollars", () => {
+  assert.equal(m.creditWords(175, 600), "$1.75 of $6.00");
+  assert.equal(m.totalWords(175, 600), "$1.75 of $6.00");
+  assert.equal(m.totalWords(0, 220), "$0.00 of $2.20");
   assert.match(m.creditWords(null, 600), /not known/);
-  assert.equal(m.totalWords(null, 600), "Spent so far not known, of 600 credits ($6.00)");
-  assert.equal(m.takeCredits(25), "25 credits");
-  assert.equal(m.takeCredits(1), "1 credit");
+  assert.equal(m.totalWords(null, 600), "Spent so far not known, of $6.00");
+  assert.equal(m.takeCredits(25), "$0.25");
+  assert.equal(m.takeCredits(1), "$0.01");
   assert.equal(m.takeCredits("x"), "");
   assert.equal(m.dollarsOf(-5), "");
   assert.equal(m.spentShare(110, 220), 50);

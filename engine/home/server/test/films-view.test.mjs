@@ -259,7 +259,7 @@ test("the film view fits films.json: two batches, a refusal, a retake, a running
       changed: "The shotlist was changed after you approved it. Each take shows what was sent to Runway.",
       notStarted: "Sent, not started by Runway",
     });
-    assert.deepEqual(f.total, { spent: 220, budget: 440, words: "220 of 440 credits spent ($2.20 of $4.40)." });
+    assert.deepEqual(f.total, { spent: 220, budget: 440, words: "$2.20 of $4.40 spent." });
     assert.deepEqual(f.edit, { identifier: KEY, name: "lake-film" });
     assert.equal(f.changedAfterApproval, false);
     assert.equal(f.problem, null);
@@ -505,7 +505,7 @@ test("the ledger unreadable: no takes, nothing spent shown, and the film says wh
     assert.equal(f.problem, "The spending ledger cannot be read, so nothing will be made. Health shows what to do.");
     assert.deepEqual(f.shots.map((s) => s.takes.length), [0, 0, 0]);
     assert.equal(f.total.spent, null);
-    assert.equal(f.total.words, "What was spent cannot be read; 440 credits ($4.40) were approved.");
+    assert.equal(f.total.words, "What was spent cannot be read; $4.40 was approved.");
     assert.ok(f.batches.every((b) => b.spent === null && b.refused === null && b.frozen === false));
   });
   await withFilm({}, async (h) => {
