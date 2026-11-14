@@ -16,18 +16,18 @@
 :root {
   color-scheme: dark;
 
-  --bg: #131316;
-  --stage: #101012;
-  --panel: #18181c;
-  --side: #0c0c0e;
-  --card: #1c1c20;
-  --raise: #222226;
-  --sel: #26262b;
-  --raise-2: #2c2c31;
+  --bg: #151518;
+  --stage: #0f0f11;
+  --panel: #1b1b1f;
+  --side: #09090b;
+  --card: #202024;
+  --raise: #26262a;
+  --sel: #2a2a2f;
+  --raise-2: #303036;
   --ctl: rgba(255,255,255,.06);
-  --field: #17171b;
-  --line: rgba(255,255,255,.07);
-  --line-2: rgba(255,255,255,.12);
+  --field: #18181b;
+  --line: rgba(255,255,255,.08);
+  --line-2: rgba(255,255,255,.13);
 
   --ink: #f4f4f5;
   --ink-2: #babac1;
@@ -81,7 +81,7 @@
   color-scheme: light;
 
   --bg: #f6f7f9;
-  --stage: #eceef1;
+  --stage: #eaecf0;
   --panel: #ffffff;
   --side: #f1f2f4;
   --card: #ffffff;
@@ -132,7 +132,7 @@
     color-scheme: light;
 
     --bg: #f6f7f9;
-    --stage: #eceef1;
+    --stage: #eaecf0;
     --panel: #ffffff;
     --side: #f1f2f4;
     --card: #ffffff;

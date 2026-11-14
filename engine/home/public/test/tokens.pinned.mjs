@@ -8,19 +8,19 @@
 // raised or chosen; in light one cool neutral family, white panels and cards on a calm cool ground. Every raised
 // thing has a 1 px edge and a real shadow in both themes.
 export const THEMED = {
-  "--bg": ["#131316", "#f6f7f9"],
-  "--stage": ["#101012", "#eceef1"],
-  "--panel": ["#18181c", "#ffffff"],
-  "--side": ["#0c0c0e", "#f1f2f4"],
-  "--card": ["#1c1c20", "#ffffff"],
-  "--raise": ["#222226", "#f1f3f6"],
-  "--sel": ["#26262b", "#eaedf1"],
-  "--raise-2": ["#2c2c31", "#e3e6eb"],
+  "--bg": ["#151518", "#f6f7f9"],
+  "--stage": ["#0f0f11", "#eaecf0"],
+  "--panel": ["#1b1b1f", "#ffffff"],
+  "--side": ["#09090b", "#f1f2f4"],
+  "--card": ["#202024", "#ffffff"],
+  "--raise": ["#26262a", "#f1f3f6"],
+  "--sel": ["#2a2a2f", "#eaedf1"],
+  "--raise-2": ["#303036", "#e3e6eb"],
   "--ctl": ["rgba(255,255,255,.06)", "rgba(16,24,40,.05)"],
-  "--field": ["#17171b", "#ffffff"],
+  "--field": ["#18181b", "#ffffff"],
   // The 1 px edge of a raised thing: 7 percent white in dark, a cool grey in light.
-  "--line": ["rgba(255,255,255,.07)", "#e4e6ea"],
-  "--line-2": ["rgba(255,255,255,.12)", "#d5d8de"],
+  "--line": ["rgba(255,255,255,.08)", "#e4e6ea"],
+  "--line-2": ["rgba(255,255,255,.13)", "#d5d8de"],
   "--ink": ["#f4f4f5", "#18181b"],
   "--ink-2": ["#babac1", "#4f4f58"],
   // Light: decision 3 b, so the third grey reads at 4.5 on every raised step and the sidebar.
