@@ -40,3 +40,14 @@ test("routines: the last run is named by its task's title, never by a ref alone 
   assert.equal(m.runLinkLabel({ taskId: "x", identifier: "STH-14", title: "Daily brief" }), "Daily brief");
   assert.equal(m.runLinkLabel({ taskId: "x", identifier: "STH-14" }), "Open the last run");
 });
+
+test("routines: the list is rows grouped by state, each with its last run as a St", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../../pages/routines.js", import.meta.url), "utf8");
+  assert.match(src, /function RoutineRow/);
+  assert.match(src, /<\$\{St\} tone=/);
+  assert.match(src, /Switch on/);
+  assert.match(src, /Run now/);
+  assert.match(src, /Not set up yet\./);
+  assert.match(src, /No run yet/);
+});

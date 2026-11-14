@@ -3,7 +3,7 @@
 import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { linkHref } from "../lib/format.js";
-import { Empty, ErrorNotice, Loading, Notice, PageHeader, Section, TextInput } from "../kit/index.js";
+import { Empty, ErrorNotice, Loading, Notice, PageHeader, TextInput } from "../kit/index.js";
 
 // How many results there are across all the groups.
 export function groupCount(groups) {
@@ -38,12 +38,13 @@ export default function Page({ route }) {
         <${TextInput} type="search" value=${text} aria-label="Search" placeholder="Search tasks, jobs, files and records"
           maxLength=${200} onInput=${(e) => setText(e.target.value)} />
       </form>
-      ${!ok ? html`<p class="p-search__hint">Type at least two letters.</p>` : null}
+      ${!ok ? html`<${Empty} icon="search" title="Type at least two letters." />` : null}
       ${ok && res.loading && !res.data ? html`<${Loading} lines=${4} label="Searching" />` : null}
       ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
       ${ok && res.data && !total ? html`<${Empty} title=${`Nothing found for "${q}".`} />` : null}
       ${groups.map((g) => html`
-        <${Section} key=${g.source} title=${groupLabel(g)} count=${g.results.length}>
+        <section key=${g.source} class="p-search__group" aria-labelledby=${`p-search-${g.source}`}>
+          <h2 class="p-search__head" id=${`p-search-${g.source}`}>${groupLabel(g)} <span class="p-search__count">${g.results.length}</span></h2>
           <ul class="p-search__list">
             ${g.results.map((r, i) => {
               const href = linkHref(r.link);
@@ -54,7 +55,7 @@ export default function Page({ route }) {
                 </li>`;
             })}
           </ul>
-        <//>`)}
+        </section>`)}
       ${notSearched.length ? html`
         <${Notice} title="Not searched this time">
           <ul class="p-search__list">

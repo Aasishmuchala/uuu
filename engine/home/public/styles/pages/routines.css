@@ -1,18 +1,39 @@
 /* Routines: one card per routine, then one routine with its runs. */
-.p-routines .p-routines__list { display: grid; gap: var(--s-4); }
 .p-routines .p-routines__card { display: grid; gap: var(--s-3); }
 .p-routines .p-routines__head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
 .p-routines .p-routines__title { margin: 0; font-size: var(--fs-title); font-weight: var(--fw-medium); }
-.p-routines .p-routines__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); color: var(--text-2); }
-.p-routines .p-routines__next, .p-routines .p-routines__last, .p-routines .p-routines__unset, .p-routines .p-routines__run-note { color: var(--text-2); font-size: var(--fs-caption); margin: 0; }
+.p-routines .p-routines__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); color: var(--ink-2); }
+.p-routines .p-routines__next, .p-routines .p-routines__last, .p-routines .p-routines__unset, .p-routines .p-routines__run-note { color: var(--ink-2); font-size: var(--fs-note); margin: 0; }
 .p-routines .p-routines__actions { display: flex; flex-wrap: wrap; gap: var(--s-2); }
-.p-routines .p-routines__message { margin: 0; color: var(--ok-text); font-size: var(--fs-caption); }
+.p-routines .p-routines__message { margin: 0; color: var(--ok-text); font-size: var(--fs-note); }
 .p-routines .p-routines__ask { white-space: pre-wrap; margin: 0; }
 .p-routines .p-routines__runs, .p-routines .p-routines__problems { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
 .p-routines .p-routines__run { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); padding: var(--s-2) 0; border-bottom: 1px solid var(--hairline); }
-.p-routines .p-routines__problems { color: var(--text-3); font-size: var(--fs-caption); }
+.p-routines .p-routines__problems { color: var(--ink-2); font-size: var(--fs-note); }
 .p-routines .p-routines__one { margin-bottom: var(--s-8); }
 .p-routines .p-routines__produces { margin: 0; padding-left: var(--s-5); }
-.p-routines .p-routines__title a { color: var(--text); text-decoration: none; }
+.p-routines .p-routines__title a { color: var(--ink); text-decoration: none; }
 .p-routines .p-routines__title a:hover { text-decoration: underline; }
-.p-routines .p-routines__ref { color: var(--text-3); font-size: var(--fs-caption); }
+.p-routines .p-routines__ref { color: var(--ink-2); font-size: var(--fs-note); }
+
+/* The list: rows on the ground parted by hairlines, no panel. */
+.p-routines .p-routines__list { display: block; margin: 0; padding: 0; list-style: none; }
+.p-routines .p-routines__row { display: grid; grid-template-columns: minmax(0, 1fr) 150px 130px auto; align-items: center; gap: var(--s-4); min-height: 56px; padding: var(--s-3); }
+.p-routines .p-routines__row + .p-routines__row { border-top: 1px solid var(--line); }
+.p-routines .p-routines__main { min-width: 0; display: grid; gap: 2px; }
+.p-routines .p-routines__name { margin: 0; font-size: var(--fs-fact); font-weight: var(--fw-medium); }
+.p-routines .p-routines__name a { color: var(--ink); text-decoration: none; }
+.p-routines .p-routines__name a:hover { text-decoration: underline; }
+.p-routines .p-routines__when { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin: 0; color: var(--ink-2); font-size: var(--fs-note); }
+.p-routines .p-routines__lastrun { display: grid; gap: 2px; justify-items: start; min-width: 0; }
+.p-routines .p-routines__last-at { color: var(--ink-2); font-size: var(--fs-note); }
+.p-routines .p-routines__next { color: var(--ink-2); font-size: var(--fs-note); text-align: right; font-variant-numeric: tabular-nums; }
+.p-routines .p-routines__actions { display: flex; gap: var(--s-2); justify-content: flex-end; }
+@media (max-width: 859px) {
+  .p-routines .p-routines__row { grid-template-columns: minmax(0, 1fr) auto; }
+  .p-routines .p-routines__row { padding-left: 0; padding-right: 0; gap: var(--s-2) var(--s-4); }
+  .p-routines .p-routines__lastrun { grid-column: 1 / -1; grid-template-columns: auto auto; justify-content: start; align-items: center; gap: var(--s-3); }
+  .p-routines .p-routines__next { text-align: left; grid-column: 1 / -1; }
+  .p-routines .p-routines__actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .p-routines .p-routines__actions .k-btn { min-height: 44px; }
+}

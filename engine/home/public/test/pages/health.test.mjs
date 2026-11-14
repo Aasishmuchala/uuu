@@ -49,3 +49,31 @@ test("health: problemLine says what was left out and what to do", () => {
   assert.match(problemLine("odd"), /Fix the file/);
   assert.match(problemLine(null), /^A job file was left out/);
 });
+
+import { overall, partAt, WORDS } from "../../pages/health.js";
+
+test("health: overall is the worst thing among the parts and the fence", () => {
+  const held = { lastProof: { result: "holds", passed: 3, failed: 0 } };
+  assert.equal(overall({ parts: [{ state: "on" }], fence: held }).tone, "good");
+  assert.equal(overall({ parts: [{ state: "on" }, { state: "off" }], fence: held }).tone, "bad");
+  assert.equal(overall({ parts: [{ state: "on" }], fence: { lastProof: { result: "broken", passed: 1, failed: 2 } } }).tone, "bad");
+  assert.equal(overall({ parts: [{ state: "not_installed" }], fence: held }).text, WORDS.overall.warn);
+  assert.equal(overall({ parts: [{ state: "on" }], fence: {} }).tone, "warn");
+  assert.equal(overall(null).tone, "warn");
+});
+
+test("health: each part has a group and an icon; an unknown one goes with the engine", () => {
+  assert.equal(partAt("gate")[0], "gate");
+  assert.equal(partAt("web")[0], "doors");
+  assert.equal(partAt("apps")[0], "apps");
+  assert.equal(partAt("books")[0], "books");
+  assert.equal(partAt("zzz")[0], "engine");
+});
+
+test("health: the page keeps the proof words and draws no card", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../../pages/health.js", import.meta.url), "utf8");
+  assert.match(src, /Run the proof now/);
+  assert.match(src, /Show technical details/);
+  assert.doesNotMatch(src, /Card/);
+});

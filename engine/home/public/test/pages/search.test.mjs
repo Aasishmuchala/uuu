@@ -26,3 +26,12 @@ test("search: the groups Jobs and Files carry the owner's words", () => {
   assert.equal(groupLabel({ source: "other", label: "Other" }), "Other");
   assert.equal(groupLabel(null), "");
 });
+
+test("search: results are rows under a heading, with the kit's empty states and no card", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../../pages/search.js", import.meta.url), "utf8");
+  assert.match(src, /Type at least two letters\./);
+  assert.match(src, /Nothing found for/);
+  assert.match(src, /Not searched this time/);
+  assert.doesNotMatch(src, /Card/);
+});

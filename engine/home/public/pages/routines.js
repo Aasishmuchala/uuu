@@ -4,7 +4,7 @@ import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { when } from "../lib/format.js";
-import { AgentChip, Button, Card, Chip, Empty, ErrorNotice, Loading, NotConnected, PageHeader, Section, StatusDot, Tag, Time } from "../kit/index.js";
+import { AgentChip, Button, Card, Chip, Empty, ErrorNotice, Loading, NotConnected, PageHeader, Section, St, StatusDot, Tag, Time } from "../kit/index.js";
 
 const LEAD = "Standing work that runs on a schedule. Routines start paused; switch one on when you want it to run by itself.";
 
@@ -49,13 +49,12 @@ function RunLink({ run }) {
   return href ? html`<a href=${href}>${runLinkLabel(run)}</a>` : null;
 }
 
-function RoutineCard({ r, onChanged, detail }) {
+// What a routine can be asked to do: pause, switch on, run now. One place for the list's rows and the one routine's card.
+function useRoutineActions(r, onChanged) {
   const { announce } = useApp();
   const [busy, setBusy] = useState("");
   const [error, setError] = useState(null);
   const [message, setMessage] = useState("");
-  const notApplied = r.state === "not_applied";
-  const isOn = r.state === "on";
 
   async function call(action) {
     setBusy(action);
@@ -76,6 +75,45 @@ function RoutineCard({ r, onChanged, detail }) {
       setBusy("");
     }
   }
+  return { busy, error, message, call };
+}
+
+// The last run's state as a St (the glyph carries the tone).
+const RUN_ST = { finished: "good", failed: "bad", working: "neutral", starting: "neutral", skipped: "neutral" };
+
+// One routine in the list: the name and when it runs, the last run's state, the next run, then its actions at the right edge.
+function RoutineRow({ r, onChanged }) {
+  const { busy, error, message, call } = useRoutineActions(r, onChanged);
+  const notApplied = r.state === "not_applied";
+  const isOn = r.state === "on";
+  const last = r.lastRun;
+  return html`<li class="p-routines__row">
+    <div class="p-routines__main">
+      <h3 class="p-routines__name"><a href=${`#/routines/${encodeURIComponent(r.id)}`}>${cap(r.title, 200)}</a></h3>
+      <p class="p-routines__when">
+        ${r.who && html`<${AgentChip} agent=${r.who} />`}
+        ${r.when && r.when.plain ? html`<span>${cap(r.when.plain, 120)}</span>` : null}
+      </p>
+      ${notApplied ? html`<p class="p-routines__unset">Not set up yet. <a href="#/health">Open Health</a></p>` : null}
+      ${message && html`<p class="p-routines__message" role="status">${message}</p>`}
+      ${error && html`<${ErrorNotice} error=${error} />`}
+    </div>
+    <div class="p-routines__lastrun">
+      ${last ? html`<${St} tone=${RUN_ST[last.state] || "neutral"}>${cap(last.plainState) || cap(last.state)}<//>
+        <span class="p-routines__last-at">${last.at ? when(last.at) : ""}</span>` : html`<span class="p-routines__last-at">No run yet</span>`}
+    </div>
+    <div class="p-routines__next">${isOn && r.when && r.when.next ? html`<span>Next run</span> <${Time} at=${r.when.next} />` : null}</div>
+    ${notApplied ? null : html`<div class="p-routines__actions">
+      <${Button} variant="plain" size="sm" busy=${busy === (isOn ? "pause" : "resume")} disabled=${!!busy} onClick=${() => call(isOn ? "pause" : "resume")}>${isOn ? "Pause" : "Switch on"}<//>
+      <${Button} variant="plain" size="sm" busy=${busy === "run"} disabled=${!!busy} onClick=${() => call("run")}>Run now<//>
+    </div>`}
+  </li>`;
+}
+
+function RoutineCard({ r, onChanged, detail }) {
+  const { busy, error, message, call } = useRoutineActions(r, onChanged);
+  const notApplied = r.state === "not_applied";
+  const isOn = r.state === "on";
 
   return html`<${Card} padding="md">
     <div class="p-routines__card">
@@ -112,10 +150,16 @@ function List() {
   if (d.connected === false) return html`<${NotConnected} reason=${d.notConnected && d.notConnected.reason} next=${d.notConnected && d.notConnected.next} />`;
   const routines = Array.isArray(d.routines) ? d.routines : [];
   const problems = Array.isArray(d.problems) ? d.problems : [];
+  const groups = [["on", "On"], ["paused", "Paused"], ["not_applied", "Not set up"]]
+    .map(([id, label]) => ({ id, label, items: routines.filter((r) => r.state === id) }));
+  const other = routines.filter((r) => !groups.some((g) => g.id === r.state));
+  if (other.length) groups.push({ id: "other", label: "Other", items: other });
   return html`
     ${routines.length === 0
       ? html`<${Empty} title="No routines yet" text="Routines appear here once they are set up." />`
-      : html`<div class="p-routines__list">${routines.map((r) => html`<${RoutineCard} key=${r.id} r=${r} onChanged=${res.refresh} />`)}</div>`}
+      : groups.filter((g) => g.items.length).map((g) => html`<${Section} key=${g.id} title=${g.label} count=${g.items.length}>
+          <ul class="p-routines__list">${g.items.map((r) => html`<${RoutineRow} key=${r.id} r=${r} onChanged=${res.refresh} />`)}</ul>
+        <//>`)}
     ${problems.length > 0 && html`<${Section} title="Left out">
       <ul class="p-routines__problems">${problems.slice(0, 20).map((p, i) => html`<li key=${i}>${cap(p.file, 120)}: ${cap(p.problem, 300)}</li>`)}</ul>
     <//>`}
