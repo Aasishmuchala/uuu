@@ -1,4 +1,4 @@
-import { Download, ExternalLink, ImageUpscale, X } from 'lucide-react';
+import { Download, ImageUpscale, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import {
@@ -13,6 +13,7 @@ import { classifyRunwayError } from './lib/runwayErrors.ts';
 import { trpc } from './trpc.ts';
 import { Alert } from './ui/Alert.tsx';
 import { Button } from './ui/Button.tsx';
+import { FullSize } from './ui/FullSize.tsx';
 import { Buy, SpendNote, useSpend } from './ui/Price.tsx';
 import { RenderingStatus } from './ui/RenderingStatus.tsx';
 import { RunwayErrorNotice } from './ui/RunwayErrorNotice.tsx';
@@ -166,13 +167,12 @@ export function UpscaleStill({ stillId, aspectRatio, name, job, onJob, earlier =
               >
                 {saver.label('Download upscaled')}
               </Button>
-              <Button
-                variant="ghost"
-                icon={<ExternalLink size={16} />}
-                onPress={() => window.open(libraryUrl('still', job.id), '_blank', 'noopener')}
-              >
-                Open full size
-              </Button>
+              <FullSize
+                src={libraryUrl('still', job.id)}
+                kind="still"
+                title={`${upscalerName(job.upscaler)}, ${job.factor}×`}
+                alt="Upscaled still"
+              />
               {earlier && (
                 <Button variant="ghost" size="sm" icon={<X size={14} />} onPress={() => onJob(null)}>
                   Dismiss

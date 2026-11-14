@@ -314,9 +314,9 @@ It is built and tested, not yet live. It goes live when the App Studio part is s
 
 Open an app.
 
-1. Click "Apps" in the menu. Each app is a tile with its picture, its name and its state: "Off", "Starting…", "On", "Stopped. It could not start.", "Not ready yet." or "This app's description is damaged.".
+1. Click "Apps" in the menu. Each app is a tile with its picture, its name and its state: "Off", "Starting…", "On", "Stopped. It could not start.", "Not ready yet." or "This app's description is damaged.". Beside "Turn on" it says: "This app's own program runs inside the fence: it cannot reach the internet or your files. Its page runs in your browser, and a page in your browser can still reach the internet, as any web page can. Turn on only an app whose code you trust." See "What an app can and cannot reach" below.
 2. Press "Turn on". The host starts the app inside its fence. It takes a few seconds; the page asks again every two seconds until the app answers. If it will not turn on, the page says why.
-3. Press "Open". The app opens inside the home screen. "Open in its own window" opens it in its own browser tab on its own address, for example `http://127.0.0.1:3171/` for Render to Film. "Turn off" ends it.
+3. Press "Open". The app opens inside the home screen. Under the bar a short line stays while it is open: "This app's page runs in your browser and can reach the internet. Its program cannot." "Open in its own window" opens it in its own browser tab on its own address, for example `http://127.0.0.1:3171/` for Render to Film. "Turn off" ends it. If the app does not answer once, the page keeps it open and says "Checking the app…"; if it still does not answer, the page says it is off.
 4. An app that stops by itself is started again after five seconds. If it stops three times in ten minutes, it says "Stopped. It could not start." and stays stopped until you turn it off and on.
 
 The bar above the app. The bar is the home screen's own. The app cannot draw over it or change it. It has the way back to Apps, the app's name and state, what the app may spend today, the model it thinks with, and "Open in its own window". This is where you decide about money, because an app's own screens cannot be trusted to ask for you.
@@ -333,11 +333,15 @@ Where an app's files live.
 - Which apps are on: `~/.paperclip/uuu-engine/apps/state.json`. What it may spend today: `doors/allowances/render-to-film.json`.
 - What it printed: `~/.paperclip/uuu-engine/logs/apps/render-to-film.log`, cut when it passes 5 MB.
 
-What an app cannot reach. It runs in a fence like the agents', built for apps. It can read only its own program, its own packages and folders, and Node. It can write only its own data. It can reach no internet and no port on this Mac, not even the board or the home screen. The only way out is one socket to the engine, which carries only what the app is allowed to ask: pictures and clips through the generation door, and thinking through the model relay. It cannot read your files, your keys or the Higgsfield sign-in, or another app's folder. No agent can reach an app either: the Artist is refused its address. Another page of yours cannot read an app, or an app the home screen, because each is its own address.
+What an app can and cannot reach. An app has two halves. Its program runs on this Mac inside a fence like the agents', built for apps. Its page, what you see and click, runs in your own browser.
+
+- The program can read only its own program, its own packages and folders, Node, and the system files a program needs. It can write only its own data. It can reach no internet and no port on this Mac, not even the board or the home screen. The only way out is one socket to the engine, which carries only what the app is allowed to ask: pictures and clips through the generation door, and thinking through the model relay. It cannot read your files, your keys, the engine's secrets or the Higgsfield sign-in, or another app's folder, and it can spend only inside the allowance you set.
+- The page cannot read your files or keys, the home screen or another app, because each is its own address. It cannot open a new window or move the home screen. But it can still reach the internet, as any web page can. So what you put into an app, and what the app makes for you, could be sent off this Mac by its page from your browser, if the app's own code or one of the packages it is built from is bad. A review on 14 November 2026 showed this can happen without a click. The engine has closed what it can; the rest cannot be closed by any setting. Turn on only an app whose code you trust.
+- No agent can reach an app either: the Artist is refused its address.
 
 An app that is sick. Health shows one line: "App Studio is on. Open: Render to Film.", or "App Studio is on. No app is switched on.", or, if one has stopped three times, "<app> stopped three times; switch it off and on in App Studio." Its log has what it printed.
 
-Known limits. There are no WebSockets or cookies in an app, and a plain form post is refused: the app sends its writes another way. A picture you give an app stays on this Mac; only the pictures it sends to a service leave it, inside your allowance. The sites the Builder makes do not appear in App Studio yet.
+Known limits. There are no WebSockets or cookies in an app, and a plain form post is refused: the app sends its writes another way. The app's program sends a picture you give it only to a service, through the engine, inside your allowance; its page could still send it elsewhere, as said above.
 
 ## Render to Film
 

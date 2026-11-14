@@ -55,9 +55,26 @@ An app makes its own socket `app.sock` in a folder it may write, so it could put
 
 ### Each app is its own origin, framed by the home screen
 
-The host serves each app on its own port on 127.0.0.1, 3171 to 3189. A different port is a different origin, so an app cannot read the home screen's pages or call its routes (every write there needs same-origin headers). The host checks every request in this order: an upgrade or tunnel is refused; a `Host` that is not its own address is refused; a `Sec-Fetch-Site` that is not the app's own is refused, except the home screen opening the app in a frame; anything but a read must carry the app's own `Origin`; a body over 40 MB is cut. No cookie or `Authorization` goes in and no `Set-Cookie` comes out. Every answer carries the host's own content policy (the app may reach only itself, and may be framed only by the home screen), `nosniff`, `no-referrer`, `same-origin` for resources, and no camera, microphone or location. A form post carries `Origin: null` under that referrer rule and is refused, so an app sends its writes with `fetch`.
+The host serves each app on its own port on 127.0.0.1, 3171 to 3189. A different port is a different origin, so an app cannot read the home screen's pages or call its routes (every write there needs same-origin headers). The host checks every request in this order: an upgrade or tunnel is refused; a `Host` that is not its own address is refused; a `Sec-Fetch-Site` that is not the app's own is refused, except the home screen opening the app in a frame; anything but a read must carry the app's own `Origin`; a body over 40 MB is cut. No cookie or `Authorization` goes in and no `Set-Cookie` comes out, and neither do the app's `Link`, `Refresh` or `Clear-Site-Data` headers. Every answer carries the host's own content policy (the app's page may load and call only its own address, and may be framed only by the home screen), `nosniff`, `no-referrer`, `same-origin` for resources, and no camera, microphone or location. A form post carries `Origin: null` under that referrer rule and is refused, so an app sends its writes with `fetch`. That policy narrows what the app's page asks for; it does not stop a page in a browser from reaching the internet (see "What the fence does not protect").
 
-The home screen opens an app in a frame under its own bar. The bar is the home screen's, not the app's, and the app cannot draw over it. It shows the app's state, what it may spend today with "Allow spending" or "Stop spending", the model it thinks with, and "Open in its own window". Only the host's address `127.0.0.1:3170` answers health, and nothing else is served there.
+The home screen opens an app in a frame under its own bar. The bar is the home screen's, not the app's, and the app cannot draw over it. It shows the app's state, what it may spend today with "Allow spending" or "Stop spending", the model it thinks with, and "Open in its own window". The frame may run scripts, keep its own address, send forms and save downloads, and nothing more: it opens no window of its own and never moves the home screen. One answer from the host that says the app is off does not take the frame away: the home screen says "Checking the app…" and believes the second. Only the host's address `127.0.0.1:3170` answers health, and nothing else is served there.
+
+### What the fence does not protect
+
+Two parts of an app run in two places. Its program, the server half, runs inside the fence. Its page, the half the owner sees, runs in the owner's own browser, like any web page. The fence holds the program. It cannot hold the page.
+
+What the fence protects. The app's program cannot reach the internet, any port on this Mac, the owner's home folder, the keys and secrets in Settings, the engine's own secrets, another app, or the money path except through an allowance the owner sets. The page, for its part, cannot read the owner's files or keys, the home screen or another app.
+
+What it does not protect. The page can still reach the internet, as any page in a browser can. So what the owner puts into an app (a render, a prompt, a picture it made, anything its program hands to its page) can be sent off this Mac by that app's page, from the owner's browser, if the app's own code or one of its packages is bad. Some of these ways need no click.
+
+The review on 14 November 2026 (T85, finding 1, by Fable) showed it with a planted package: from the app's page it sent words to a server of its own by WebRTC and by a prerender link with no click, and opened a new tab with any click. Four things were then done (T86):
+
+- **No popups.** The frame no longer has `allow-popups` or `allow-popups-to-escape-sandbox`, and Render to Film opens nothing in a new window: "Open full size" is a view inside the app, and a download stays a download.
+- **Three headers dropped.** The host stops passing the app's `Link`, `Refresh` and `Clear-Site-Data` headers.
+- **The fence's reads narrowed.** Before, an app could read some folders outside the home folder, such as other disks under `/Volumes` and `/Users/Shared`. Now it reads only its own folders, Node, and the system files a program needs.
+- **The truth in words.** App Studio says it beside every app's switch, in full while the app is off: "This app's own program runs inside the fence: it cannot reach the internet or your files. Its page runs in your browser, and a page in your browser can still reach the internet, as any web page can. Turn on only an app whose code you trust." While the app is open, a short form stays under the bar: "This app's page runs in your browser and can reach the internet. Its program cannot."
+
+The ways that remain, and cannot be closed by any rule the engine can set: WebRTC (Chrome does not obey the policy that should block it), a prerender link, and the page moving its own tab when the app is opened in its own window. Turning an app on is the owner's yes to this, and nothing is on at go-live.
 
 ### The engine socket is the app's identity
 
@@ -105,6 +122,7 @@ The Artist uses the door as before (`0014`), only inside a batch the owner appro
 ### Known limits
 
 - **A package that runs as the app.** Code inside the fence can still do what the fence allows: fill its own data folder, use up to its memory, spend inside an open allowance, ask the model relay to think up to its hourly and daily counts, and make the pictures it shows the owner say anything. The allowance, the limits and the price beside each button are what bound the money.
+- **A package in the app's page.** It runs in the owner's browser and can send what the page holds off this Mac. See "What the fence does not protect". Render to Film brought 164 packages from the public registry, and its page is built from some of them; one bad one is enough.
 - **The home screen shows the app's own pictures.** What an app draws is the app's. The bar above it is not.
 - **Uploads to Higgsfield are held.** See `0017`.
 
