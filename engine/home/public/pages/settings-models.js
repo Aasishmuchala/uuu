@@ -132,6 +132,32 @@ export function usageLine(u) {
   return `${req.toLocaleString("en")} ${req === 1 ? "call" : "calls"}, ${tok.toLocaleString("en")} ${tok === 1 ? "token" : "tokens"}`;
 }
 
+// One app's thinking in a line: "Render to Film: 3 calls today, 1 this hour." The server sends the numbers.
+export function appLine(a) {
+  const name = text(a && a.name, 40) || "An app";
+  const n = (v) => (Number.isSafeInteger(v) && v >= 0 ? v : 0);
+  const today = n(a && a.callsToday);
+  const hour = n(a && a.callsHour);
+  return `${name}: ${today.toLocaleString("en")} ${today === 1 ? "call" : "calls"} today, ${hour.toLocaleString("en")} this hour.`;
+}
+
+// The apps that asked to think (App Studio), one quiet line each, with the relay's refusal in the server's words.
+function AppsThinking({ apps }) {
+  const list = (Array.isArray(apps) ? apps : []).filter((a) => a && typeof a.slug === "string");
+  if (!list.length) return null;
+  return html`
+    <div class="p-settings__m-test">
+      <h4 class="p-settings__m-sub">Apps that think</h4>
+      <ul class="p-settings__m-answers">
+        ${list.map((a) => html`
+          <li key=${a.slug} class="p-settings__m-answer">
+            <span class="p-settings__m-text">${appLine(a)}</span>
+            ${a.refused ? html`<span class="p-settings__m-for">${text(a.refused, 200)}</span>` : null}
+          </li>`)}
+      </ul>
+    </div>`;
+}
+
 // The K8 sentence when the Art director's model is the Artist's, else "". The Artist stands for the makers.
 export function sameModelLine(view) {
   const agents = view && Array.isArray(view.agents) ? view.agents : [];
@@ -288,6 +314,7 @@ function AgentsCard({ view, busy, act, failure, technical }) {
         <//>` : null}
       ${readAt && sameModelLine(view) ? html`<${Notice} tone="warn" title=${sameModelLine(view)} />` : null}
       ${agents.length ? html`<${DataTable} columns=${columns} rows=${agents.map((a) => ({ ...a, id: a.slug }))} renderCell=${cell} />` : null}
+      <${AppsThinking} apps=${view.apps} />
     <//>`;
 }
 

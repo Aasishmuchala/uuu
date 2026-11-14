@@ -7,6 +7,7 @@ import { chmodSync, lstatSync, mkdirSync, readFileSync, renameSync, unlinkSync, 
 import { randomBytes } from "node:crypto";
 import http from "node:http";
 import { dirname, join } from "node:path";
+import { readManifests } from "../../../apps/manifest.mjs";
 import { loadCompanyFile } from "../../../company/lib/company-file.mjs";
 import { loadRanking, pickModels } from "../../../company/lib/model-picks.mjs";
 import { KEY_RE, MODEL_RE, readKey, readModelState, readSecret, trusted } from "../../../relay/state.mjs";
@@ -24,6 +25,10 @@ const PROVIDER_STATES = new Set(["ok", "refused", "limited", "unreachable"]);
 const PLAN_ROWS = 12;
 const PLAN_HIDDEN = /key|token|secret|email|id/i;
 const QUESTION = "Reply with exactly: OK";
+const HOUR_MS = 3_600_000;
+const DAY_MS = 24 * HOUR_MS;
+const KOLKATA_OFFSET_MS = 5.5 * HOUR_MS; // the owner's day starts at midnight in Kolkata (no summer time)
+const APP_LINE_RE = /^app-[a-z0-9][a-z0-9-]{0,63}$/;
 
 const nowIso = () => new Date().toISOString();
 const obj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -264,6 +269,49 @@ function usageOf(status, slug) {
   return { requests: num(a.requests) ?? 0, inputTokens: num(a.inputTokens) ?? 0, outputTokens: num(a.outputTokens) ?? 0 };
 }
 
+// Why the relay turned an app's thinking away, as the end of a sentence that starts with the app's name.
+const APP_REFUSALS = {
+  relay_app_plans: "asked to think, but Models is set to plans, so nothing was sent.",
+  relay_no_key: "asked to think, but no provider key is saved, so nothing was sent.",
+  relay_no_pick: "asked to think, but no model is chosen for it, so nothing was sent.",
+  relay_off: "asked to think, but the Models settings could not be read, so nothing was sent.",
+  relay_bad_body: "asked to think in a way the model relay does not take, so nothing was sent.",
+  relay_too_big: "asked to think with more than the model relay takes, so nothing was sent.",
+  relay_upstream_down: "asked to think, but Omega Plus did not answer.",
+  relay_key_in_answer: "asked to think, and Omega Plus's answer held your key, so the answer was withheld.",
+};
+
+// The apps that asked the relay to think (its status file's `apps`, T85 finding 4), one line each, in the order of
+// their names: { slug, name, callsToday, callsHour, refused }. Today starts at midnight in Kolkata; this hour is the
+// last 60 minutes. `refused` is a sentence when the app's last word from the relay was a refusal in the last day.
+export function appsUsage(config, status, now = Date.now()) {
+  const lines = obj(status?.apps) ? status.apps : {};
+  let names = new Map();
+  try {
+    names = new Map(readManifests(config).filter((e) => e.ok).map((e) => [`app-${e.app.slug}`, e.app.name]));
+  } catch { /* no manifests: the app is named by its slug */ }
+  const today = Math.floor((now + KOLKATA_OFFSET_MS) / DAY_MS) * DAY_MS - KOLKATA_OFFSET_MS;
+  const out = [];
+  for (const slug of Object.keys(lines).sort().slice(0, 50)) {
+    const a = lines[slug];
+    if (!APP_LINE_RE.test(slug) || !obj(a)) continue;
+    const times = (Array.isArray(a.times) ? a.times.slice(-2000) : []).filter((t) => Number.isSafeInteger(t) && t >= 0).map((t) => t * 1000);
+    const lastAt = Date.parse(a.lastAt || "") || 0;
+    const r = obj(a.refused) ? a.refused : null;
+    const refusedAt = r ? Date.parse(r.at || "") || 0 : 0;
+    const refusedNow = r && Object.hasOwn(APP_REFUSALS, r.code) && refusedAt >= lastAt && refusedAt > now - DAY_MS;
+    if (!(num(a.requests) > 0) && !refusedNow) continue;
+    const name = text(names.get(slug), 40) || slug.slice(4);
+    out.push({
+      slug, name,
+      callsToday: times.filter((t) => t >= today && t <= now).length,
+      callsHour: times.filter((t) => t > now - HOUR_MS && t <= now).length,
+      refused: refusedNow ? `${name} ${APP_REFUSALS[r.code]}` : null,
+    });
+  }
+  return out;
+}
+
 // The key's state: the newer of the last test (or the save) and the relay's last answer from the provider.
 function keyState(state, saved, status) {
   if (!saved) return "none";
@@ -324,6 +372,7 @@ export async function buildView(ctx) {
         usage: usageOf(status, a.slug),
       };
     }),
+    apps: appsUsage(config, status),
     missing, canSwitchOn: blockers.length === 0, blockers,
     lastTest: state.lastTest, problem: stateProblem || companyProblem || rankingProblem,
   };

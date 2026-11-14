@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Section, {
-  NEEDS, PROBLEMS, WORDS, blockerLines, keyStatus, missingLine, modeLine, orderOptions, problemLine, sameModelLine, sectionState, testLine, usageLine,
+  NEEDS, PROBLEMS, WORDS, appLine, blockerLines, keyStatus, missingLine, modeLine, orderOptions, problemLine, sameModelLine, sectionState, testLine, usageLine,
 } from "../../pages/settings-models.js";
 import { loadRanking, pickModels } from "../../../../company/lib/model-picks.mjs";
 
@@ -176,4 +176,15 @@ test("models: the same-model sentence needs both picks and never throws", () => 
   assert.equal(sameModelLine(two("m-1", "m-2")), "");
   assert.equal(sameModelLine(two("m-1", "m-1")), SAME);
   assert.ok(SRC.includes("sameModelLine(view)"), "the card shows it");
+});
+
+test("models: each app that asked to think is one quiet line of text: its name, calls today and this hour, and a refusal", () => {
+  assert.equal(appLine({ name: "Render to Film", callsToday: 3, callsHour: 1 }), "Render to Film: 3 calls today, 1 this hour.");
+  assert.equal(appLine({ name: "Render to Film", callsToday: 1, callsHour: 0 }), "Render to Film: 1 call today, 0 this hour.");
+  assert.equal(appLine({ name: "Render to Film", callsToday: 1200, callsHour: 60 }), "Render to Film: 1,200 calls today, 60 this hour.");
+  assert.equal(appLine({ name: "<b>x</b>", callsToday: "7", callsHour: -1 }), "<b>x</b>: 0 calls today, 0 this hour.");
+  assert.equal(appLine(null), "An app: 0 calls today, 0 this hour.");
+  assert.ok(SRC.includes("<${AppsThinking} apps=${view.apps} />"), "the agents card shows the apps");
+  assert.ok(/text\(a\.refused, 200\)/.test(SRC), "the refusal is the server's sentence, shown as text");
+  assert.ok(!/dangerouslySetInnerHTML|innerHTML/.test(SRC), "nothing is drawn as markup");
 });
