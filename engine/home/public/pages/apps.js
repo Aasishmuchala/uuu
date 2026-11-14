@@ -1,5 +1,6 @@
 // App Studio (PLAN-V5 K17, K22, K23, T80): the apps that run on this Mac, each a large tile with its picture, its
-// name, what it does and its state, with Open, Turn on and Turn off; then the sites the team made (T88).
+// name, what it does and its state, with Open, Turn on and Turn off, and beside the switch what the fence does not
+// cover (T86: in full while the app is off, short while it is on); then the sites the team made (T88).
 // Everything comes from GET /api/apps; every POST answers the whole view again, so the page shows that answer.
 // An app's name, its line and every sentence are shown as plain capped text, never as HTML. The pure helpers here
 // are shared with pages/app.js (one app opened inside).
@@ -36,6 +37,10 @@ export const WORDS = {
   badPreview: "The preview gave an address this page does not open.",
   noPicture: "No picture yet",
   badHost: "Apps open only when the home screen is opened at 127.0.0.1 or localhost.",
+  checking: "Checking the app…",
+  // What the fence does not cover (T85 finding 1, ADR 0016): in full beside Turn on, short while the app is on.
+  trust: "This app's own program runs inside the fence: it cannot reach the internet or your files. Its page runs in your browser, and a page in your browser can still reach the internet, as any web page can. Turn on only an app whose code you trust.",
+  trustShort: "This app's page runs in your browser and can reach the internet. Its program cannot.",
 };
 
 // K23's card states (the server sends the same words; these are used when it sends none).
@@ -54,7 +59,7 @@ export const SLUG = /^[a-z0-9][a-z0-9-]{0,23}$/;
 export const APP_PORTS = Object.freeze({ first: 3171, last: 3189 });
 // The two names the home screen is opened by; an app is framed by the same one (its content policy names both).
 const HOSTNAMES = ["127.0.0.1", "localhost"];
-// K22, K23: the four amounts of the allowance sheet, in cents.
+// K22, K23: the four amounts of the allowance sheet, in cents: whole dollars only, as the server takes them.
 export const AMOUNTS = Object.freeze([200, 500, 1000, 2000]);
 export const FIRST_AMOUNT = 500;
 
@@ -287,6 +292,9 @@ function Tile({ app, host, view }) {
     ${spends(app) && app.spending.open ? html`<p class="p-apps__spend"><${Icon} name="tag" size=${14} /><span>${spendingLine(app)}</span></p>` : null}
     ${shown === "failed" ? html`<p class="p-apps__hint">${WORDS.tryAgain} <a href="#/health">${WORDS.health}</a></p>` : null}
     <${Refusal} error=${error} />
+    ${app.on
+      ? html`<p class="p-apps__trust">${WORDS.trustShort}</p>`
+      : shown === "off" ? html`<p class="p-apps__trust">${WORDS.trust}</p>` : null}
     <div class="p-apps__actions">
       ${canOpen && href ? html`<${Button} variant="primary" href=${href} icon="arrow-right">${WORDS.open}<//>` : null}
       ${app.on

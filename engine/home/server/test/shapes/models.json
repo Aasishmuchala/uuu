@@ -12,6 +12,9 @@
       "usage": { "requests": 0, "inputTokens": 0, "outputTokens": 0 }
     }
   ],
+  "apps": [
+    { "slug": "app-render-to-film", "name": "Render to Film", "callsToday": 3, "callsHour": 1, "refused": "Render to Film asked to think, but Models is set to plans, so nothing was sent." }
+  ],
   "missing": [],
   "canSwitchOn": false,
   "blockers": ["no_key"],

@@ -1,4 +1,4 @@
-import { Clapperboard, Download, ExternalLink, Pencil, Sparkles, SquareDashedMousePointer, SunMedium, X } from 'lucide-react';
+import { Clapperboard, Download, Pencil, Sparkles, SquareDashedMousePointer, SunMedium, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 
 import {
@@ -47,6 +47,7 @@ import { PeopleCheck } from './PeopleCheck.tsx';
 import { trpc } from './trpc.ts';
 import { Alert } from './ui/Alert.tsx';
 import { Button } from './ui/Button.tsx';
+import { FullSize } from './ui/FullSize.tsx';
 import { ChoiceGroup } from './ui/ChoiceGroup.tsx';
 import { CompareSlider } from './ui/CompareSlider.tsx';
 import { EmptyState } from './ui/EmptyState.tsx';
@@ -800,13 +801,12 @@ export function StillsPage({ onAnimate }: StillsPageProps) {
                       Use this light for other views
                     </Button>
                   )}
-                  <Button
-                    variant="ghost"
-                    icon={<ExternalLink size={16} />}
-                    onPress={() => window.open(libraryUrl('still', shot.id), '_blank', 'noopener')}
-                  >
-                    Open full size
-                  </Button>
+                  <FullSize
+                    src={libraryUrl('still', shot.id)}
+                    kind="still"
+                    title={lookName}
+                    alt={`Photoreal ${lookName.toLowerCase()} version of the render`}
+                  />
                   <Text tone="muted" size="sm" className={styles.resultNote}>
                     {imageModelName(shot.imageModel)} at{' '}
                     {imageResolutionName(shot.imageModel, shot.resolution)}

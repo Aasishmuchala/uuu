@@ -217,19 +217,19 @@ test("finish signs in once: health, the status file and Settings' Test see it", 
   assert.ok(!readFileSync(paths.generateStatus, "utf8").includes(hf.tokens.access));
 });
 
-test("finish with another state is refused and ends the sign-in under way; a body of the wrong shape too", async () => {
+test("finish with another state, or a body of the wrong shape, is refused and leaves the sign-in under way for the real return (T85 finding 7)", async () => {
   const b = await call("/gen/owner/higgsfield/begin", "", owner());
   const back = new URL((await fetch(b.json.url, { redirect: "manual" })).headers.get("location"));
   const wrong = await call("/gen/owner/higgsfield/finish", { code: back.searchParams.get("code"), state: "0".repeat(64) }, owner());
   assert.deepEqual([wrong.status, wrong.json.code], [403, "gen_hf_sign_in"]);
   assert.equal(wrong.json.error.message, "The Higgsfield sign-in did not finish. Try again.");
-  const late = await call("/gen/owner/higgsfield/finish", { code: back.searchParams.get("code"), state: back.searchParams.get("state") }, owner());
-  assert.equal(late.json.code, "gen_hf_sign_in", "the pending sign-in is gone");
-  const b2 = await call("/gen/owner/higgsfield/begin", "", owner());
-  const back2 = new URL((await fetch(b2.json.url, { redirect: "manual" })).headers.get("location"));
-  assert.equal((await call("/gen/owner/higgsfield/finish", { code: back2.searchParams.get("code"), state: back2.searchParams.get("state"), x: 1 }, owner())).json.code, "gen_bad_request");
-  assert.equal((await call("/gen/owner/higgsfield/finish", { code: back2.searchParams.get("code"), state: back2.searchParams.get("state") }, owner())).json.code, "gen_hf_sign_in");
+  assert.equal((await call("/gen/owner/higgsfield/finish", { code: back.searchParams.get("code"), state: back.searchParams.get("state"), x: 1 }, owner())).json.code, "gen_bad_request");
   assert.equal(existsSync(paths.higgsfieldAuth), false);
+  const real = await call("/gen/owner/higgsfield/finish", { code: back.searchParams.get("code"), state: back.searchParams.get("state") }, owner());
+  assert.deepEqual(real.json, { connected: true }, "the real return still signs in");
+  const again = await call("/gen/owner/higgsfield/finish", { code: back.searchParams.get("code"), state: back.searchParams.get("state") }, owner());
+  assert.equal(again.json.code, "gen_hf_sign_in", "used once");
+  assert.equal(existsSync(paths.higgsfieldAuth), true);
 });
 
 test("forget signs out: the file is gone, health says so, and Higgsfield jobs are refused", async () => {

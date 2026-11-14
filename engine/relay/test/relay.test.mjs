@@ -538,6 +538,138 @@ test("tokens are counted from a JSON answer and from a stream; a compressed answ
   assert.equal(statSync(paths.status).mode & 0o777, 0o600);
 });
 
+// ---- apps (docs/adr/0016; T85 finding 4) -----------------------------------------------
+const APP_PICKS = { ...PICKS, "app-film": "claude-sonnet-5", "app-other": "claude-fable-5-1" };
+const appToken = (name = "app-film", e = exp()) => mintToken(SECRET, "t", name, e);
+// A relay of its own for one test, closed whatever happens (an open one keeps the file running).
+async function ownRelay(fn, extra = {}) {
+  const fresh = makeRelay(extra);
+  const p = await fresh.listen();
+  try {
+    await fn(p);
+  } finally {
+    await fresh.close();
+  }
+}
+
+test("an app's call that passes is counted under its own name: calls, tokens, times; agents' counts untouched", async () => {
+  setState("provider", APP_PICKS);
+  rmSync(paths.status, { force: true });
+  const before = Math.floor(Date.now() / 1000);
+  await ownRelay(async (p) => {
+  const call = (body, token) => request("POST", "/v1/messages", { port: p, headers: jsonAuth(token), body: JSON.stringify(body) });
+  assert.equal((await call({ max_tokens: 1, messages: [{ role: "user", content: MARKER }] }, appToken())).status, 200);
+  assert.equal((await call({ max_tokens: 1, stream: true }, appToken())).status, 200);
+  assert.equal((await call({ max_tokens: 1 }, appToken("app-other"))).status, 200);
+  assert.equal((await call({ max_tokens: 1 })).status, 200); // the Builder, an agent
+  assert.equal(JSON.parse(modelCalls()[0].body).model, "claude-sonnet-5", "the app's own pick");
+  });
+  const st = readStatus();
+  const film = st.apps["app-film"];
+  assert.deepEqual({ ...film, lastAt: null, times: null }, {
+    requests: 2, inputTokens: 2 * STUB_USAGE.input, outputTokens: 2 * STUB_USAGE.output, lastStatus: 200, lastAt: null, times: null, refused: null,
+  });
+  assert.equal(film.times.length, 2);
+  for (const t of film.times) assert.ok(Number.isInteger(t) && t >= before && t <= before + 60, String(t));
+  assert.ok(!Number.isNaN(Date.parse(film.lastAt)));
+  // Another app's line is its own.
+  assert.equal(st.apps["app-other"].requests, 1);
+  assert.equal(st.apps["app-other"].times.length, 1);
+  // The agent's count is only its own call; no app is among the agents and no agent among the apps.
+  assert.equal(st.agents.builder.requests, 1);
+  assert.deepEqual(Object.keys(st.agents), ["builder"]);
+  assert.deepEqual(Object.keys(st.apps).sort(), ["app-film", "app-other"]);
+  // The line holds no key, token, model, body or query.
+  const text = readFileSync(paths.status, "utf8");
+  for (const v of [KEY, SECRET, MARKER, appToken().slice(0, 30), "claude-", "messages", "?"]) assert.ok(!text.includes(v), v);
+});
+
+test("with Models on plans an app's thinking is refused as relay_app_plans, nothing is sent, and its line says so", async () => {
+  setState("plans", APP_PICKS);
+  rmSync(paths.status, { force: true });
+  await ownRelay(async (p) => {
+  const call = (body, token) => request("POST", "/v1/messages", { port: p, headers: jsonAuth(token), body: JSON.stringify(body) });
+  const r = await call({ max_tokens: 1 }, appToken());
+  assertRefusal(r, 403, "relay_app_plans");
+  assert.match(r.json.error.message, /^Models is set to plans, so an app's thinking is not sent\./);
+  assertRefusal(await call({ max_tokens: 1 }, appToken()), 403, "relay_app_plans");
+  // Agents keep relay_off, an owner's test of an agent still goes through on plans.
+  assertRefusal(await call({ max_tokens: 1 }), 403, "relay_off");
+  assert.equal((await call({ max_tokens: 1 }, testToken("checker"))).status, 200);
+  assert.equal(modelCalls().length, 1, "only the owner's test reached the provider");
+  // The mode comes before the key: with no key, still the plans refusal.
+  rmSync(paths.key);
+  assertRefusal(await call({ max_tokens: 1 }, appToken("app-other")), 403, "relay_app_plans");
+  });
+  const st = readStatus();
+  assert.equal(st.apps["app-film"].requests, 0);
+  assert.deepEqual(st.apps["app-film"].times, []);
+  assert.equal(st.apps["app-film"].refused.code, "relay_app_plans");
+  assert.equal(st.apps["app-film"].refused.count, 2);
+  assert.equal(st.apps["app-other"].refused.count, 1);
+  assert.deepEqual(Object.keys(st.agents), [], "no agent counted a refusal or a test");
+  assert.ok(lines.some((l) => / refused relay_app_plans$/.test(l)));
+});
+
+test("an app on the owner's key: an unreadable state is relay_off, no key relay_no_key, no pick relay_no_pick, each noted on its line", async () => {
+  setState("provider", APP_PICKS);
+  rmSync(paths.status, { force: true });
+  await ownRelay(async (p) => {
+  const call = (token) => request("POST", "/v1/messages", { port: p, headers: jsonAuth(token), body: "{}" });
+  assertRefusal(await call(appToken("app-nopick")), 403, "relay_no_pick");
+  put(paths.state, "{broken");
+  assertRefusal(await call(appToken()), 403, "relay_off");
+  setState("provider", APP_PICKS);
+  rmSync(paths.key);
+  assertRefusal(await call(appToken("app-other")), 403, "relay_no_key");
+  });
+  const st = readStatus();
+  assert.equal(st.apps["app-nopick"].refused.code, "relay_no_pick");
+  assert.equal(st.apps["app-film"].refused.code, "relay_off");
+  assert.equal(st.apps["app-other"].refused.code, "relay_no_key");
+  assert.equal(provider.seen.length, 0);
+});
+
+test("the status file keeps at most 20 app lines, the most recently heard, and only call times within a day", async () => {
+  setState("provider", APP_PICKS);
+  rmSync(paths.status, { force: true });
+  let t = Date.now() - 2 * 24 * 3600 * 1000;
+  // Tokens are checked against the relay's clock, so each is minted for the time it is sent at.
+  const tok = (name) => appToken(name, Math.floor(t / 1000) + 3600);
+  await ownRelay(async (p) => {
+    const call = (token) => request("POST", "/v1/messages", { port: p, headers: jsonAuth(token), body: "{}" });
+    assert.equal((await call(tok("app-film"))).status, 200);
+    t += 25 * 3600 * 1000; // a day and an hour later the first call is out of the line's times
+    for (let i = 0; i < 22; i += 1) assertRefusal(await call(tok(`app-many-${i}`)), 403, "relay_no_pick");
+    assert.equal((await call(tok("app-film"))).status, 200);
+  }, { now: () => t });
+  const st = readStatus();
+  assert.equal(Object.keys(st.apps).length, 20);
+  assert.ok(Object.hasOwn(st.apps, "app-film"), "the app heard last is kept");
+  // Its first line, the least recently heard, gave way to the 21st app; the line it has now is from its last call.
+  assert.equal(st.apps["app-film"].requests, 1);
+  assert.equal(st.apps["app-film"].times.length, 1);
+  assert.ok(!Object.hasOwn(st.apps, "app-many-0") && Object.hasOwn(st.apps, "app-many-21"));
+  for (const line of Object.values(st.apps)) for (const x of line.times) assert.ok(x * 1000 > t - 24 * 3600 * 1000);
+});
+
+test("an app's call times older than a day leave its line; its counts stay", async () => {
+  setState("provider", APP_PICKS);
+  rmSync(paths.status, { force: true });
+  let t = Date.now() - 2 * 24 * 3600 * 1000;
+  const tok = () => appToken("app-film", Math.floor(t / 1000) + 3600);
+  await ownRelay(async (p) => {
+    const call = () => request("POST", "/v1/messages", { port: p, headers: jsonAuth(tok()), body: "{}" });
+    assert.equal((await call()).status, 200);
+    assert.equal((await call()).status, 200);
+    t += 25 * 3600 * 1000;
+    assert.equal((await call()).status, 200);
+  }, { now: () => t });
+  const film = readStatus().apps["app-film"];
+  assert.equal(film.requests, 3);
+  assert.deepEqual(film.times, [Math.floor(t / 1000)]);
+});
+
 test("the status file is written by temp file and rename, and replaces a planted link instead of following it", async () => {
   const target = join(dir, "planted-target");
   put(target, "keep me");

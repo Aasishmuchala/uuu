@@ -383,3 +383,38 @@ test("apps team mounted: Open posts the site's preview route and opens only the 
     } finally { r.done(); }
   } finally { delete globalThis.window; }
 });
+
+// ---- T86: what the fence does not cover, and whole dollars ----
+
+const TRUST = "This app's own program runs inside the fence: it cannot reach the internet or your files. Its page runs in your browser, and a page in your browser can still reach the internet, as any web page can. Turn on only an app whose code you trust.";
+const TRUST_SHORT = "This app's page runs in your browser and can reach the internet. Its program cannot.";
+
+test("apps: the sheet's amounts are whole dollars only, as K22 and the server take them", () => {
+  assert.deepEqual([...AMOUNTS], [200, 500, 1000, 2000]);
+  assert.ok(AMOUNTS.every((c) => Number.isInteger(c) && c % 100 === 0 && c >= 100 && c <= 10000));
+  assert.ok(amountChoices(10000).every((c) => /^\$\d+$/.test(c.label)), "every choice reads as whole dollars");
+  assert.equal(FIRST_AMOUNT % 100, 0);
+});
+
+test("apps mounted: beside each app's switch, the long sentence while it is off and the short one while it is on; quiet", async () => {
+  const apps = [
+    app({ slug: "a-off", name: "Off app", state: "off", on: false, spending: NOSPEND }),
+    app({ slug: "b-on", name: "On app" }),
+    app({ slug: "c-new", name: "New app", state: "not_installed", on: false }),
+  ];
+  const m = await mount(fixed(view(apps)));
+  try {
+    const tiles = elements(m.root).filter((e) => cls(e).split(/\s+/).includes("p-apps__tile"));
+    assert.equal(tiles.length, 3);
+    const trustOf = (t) => elements(t).filter((e) => cls(e) === "p-apps__trust").map(textOf);
+    assert.deepEqual(trustOf(tiles[0]), [TRUST], "off: the long one, beside Turn on");
+    assert.equal(buttons(tiles[0], "Turn on").length, 1);
+    assert.deepEqual(trustOf(tiles[1]), [TRUST_SHORT], "on: the short one, beside Turn off");
+    assert.equal(buttons(tiles[1], "Turn off").length, 1);
+    assert.deepEqual(trustOf(tiles[2]), [], "no switch, no sentence");
+    assert.equal(WORDS.trust, TRUST);
+    assert.equal(WORDS.trustShort, TRUST_SHORT);
+    const css = readFileSync(join(PUBLIC, "styles", "pages", "apps.css"), "utf8");
+    assert.match(css, /\.p-apps \.p-apps__trust \{[^}]*color: var\(--text-2\);[^}]*font-size: var\(--fs-caption\);/, "caption size, second colour");
+  } finally { m.done(); }
+});

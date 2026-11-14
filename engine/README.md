@@ -13,7 +13,7 @@ One command, `engine/bin/engine`, with these words after it:
 - `start`: turns everything on, in order, and stops at the first part that fails. It says where to look. Running it twice starts nothing new. It ends with `Open http://127.0.0.1:3200`.
 - `stop`: turns everything off and leaves no agent running. Nothing starts by itself when the Mac starts.
 - `status`: one line per part (the board, the gate, the Model relay, the home screen and the others): `on`, `off`, `unhealthy` or `not installed`, and what to do next. A good result ends with `Everything is on.`
-- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 162 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
+- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 168 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
 - `setup`: makes the board match the company files. Safe to run again.
 - `test`: runs every test. A good result ends with `All tests passed.`
 
@@ -76,7 +76,7 @@ A job is a named piece of work an agent can start for you. There are 72, in seve
 
 - **Hand-off tags** say what is left to you: "You lead" (the agent gets things ready, you do the main part), "You approve" (the agent does the work, and it counts when you approve it), "On its own" (the agent does it to the end, it is checked, and you read the result).
 - **The build order** has four stages: Foundations (fill the company brain), Take in (jobs that read and sort what comes in), Make (jobs that produce work) and Hand on (work passed from one agent to the next, such as a call write-up, then a proposal, then an invoice draft).
-- **What can start.** On the live engine 49 jobs can start before any basics are filled. Nine wait until you fill the basics (what we sell, brand, team and the recipe log). Three stay dim with the reason shown: agents have no internet, and sending needs a connected account.
+- **What can start.** On the live engine 51 jobs can start before any basics are filled. Seven wait until you fill the basics (what we sell, brand and about the company). Eleven stay dim with the reason shown: six need the web switched on, three need Generation switched on with a Runway key, and two need a connected account for sending.
 - A job says "Takes a few minutes. It is checked before it reaches you." That is true: expect 5 to 40 minutes, as in the trials below.
 
 ## Ask the brain
@@ -177,7 +177,7 @@ The repository holds only the list, because it is on GitHub and some of the text
 
 ## Letting the Researcher use the web
 
-On 12 November 2026 you said yes to one agent reading the public internet. It is the Researcher. It was built and tested the same day. It is not live yet: it goes live with the next `engine setup` and the start of the web door. Even then the web is off until you turn it on. Until then no agent can reach the internet, and the jobs that need it stay dim.
+On 12 November 2026 you said yes to one agent reading the public internet. It is the Researcher. It was built and tested the same day, and went live on 13 November 2026. The web is off until you turn it on. Until then no agent can reach the internet, and the jobs that need it stay dim.
 
 What the Researcher can do: read a public page by its address, search, and watch a public video (it makes a transcript and takes a few pictures from it). It writes notes, with a source after every claim, in its own folder. Other agents read the notes as reference. It cannot send, post or sign in to anything. It only reads.
 
@@ -227,7 +227,7 @@ One risk is open. A video tool that a hostile video had taken over could leave i
 
 ## Turning on Generation
 
-On 12 November 2026 you said yes to one agent making video clips and pictures with Runway, a paid service, from your own renders. It is the Artist. It is built and tested against a stand-in for Runway, not yet against the real one, and it is not live yet: it goes live when the generation door is started. Even then it is off until you turn it on, and nothing is spent until you approve a cost. This is the first thing in the engine that costs money besides your plans.
+On 12 November 2026 you said yes to one agent making video clips and pictures with Runway, a paid service, from your own renders. It is the Artist. It is built and tested against a stand-in for Runway, not yet against the real one. The generation door went live on 14 November 2026. It is off until you turn it on, and nothing is spent until you approve a cost. This is the first thing in the engine that costs money besides your plans.
 
 What it can do: turn one of your renders into a short clip, make variations of a picture, and make a picture larger and sharper. The Artist cuts the clips into a film. It cannot spend money, reach Runway or read the key by itself; it can only ask the generation door, and the door checks everything.
 
@@ -314,9 +314,9 @@ It is built and tested, not yet live. It goes live when the App Studio part is s
 
 Open an app.
 
-1. Click "Apps" in the menu. Each app is a tile with its picture, its name and its state: "Off", "Starting…", "On", "Stopped. It could not start.", "Not ready yet." or "This app's description is damaged.".
+1. Click "Apps" in the menu. Each app is a tile with its picture, its name and its state: "Off", "Starting…", "On", "Stopped. It could not start.", "Not ready yet." or "This app's description is damaged.". Beside "Turn on" it says: "This app's own program runs inside the fence: it cannot reach the internet or your files. Its page runs in your browser, and a page in your browser can still reach the internet, as any web page can. Turn on only an app whose code you trust." See "What an app can and cannot reach" below.
 2. Press "Turn on". The host starts the app inside its fence. It takes a few seconds; the page asks again every two seconds until the app answers. If it will not turn on, the page says why.
-3. Press "Open". The app opens inside the home screen. "Open in its own window" opens it in its own browser tab on its own address, for example `http://127.0.0.1:3171/` for Render to Film. "Turn off" ends it.
+3. Press "Open". The app opens inside the home screen. Under the bar a short line stays while it is open: "This app's page runs in your browser and can reach the internet. Its program cannot." "Open in its own window" opens it in its own browser tab on its own address, for example `http://127.0.0.1:3171/` for Render to Film. "Turn off" ends it. If the app does not answer once, the page keeps it open and says "Checking the app…"; if it still does not answer, the page says it is off.
 4. An app that stops by itself is started again after five seconds. If it stops three times in ten minutes, it says "Stopped. It could not start." and stays stopped until you turn it off and on.
 
 The bar above the app. The bar is the home screen's own. The app cannot draw over it or change it. It has the way back to Apps, the app's name and state, what the app may spend today, the model it thinks with, and "Open in its own window". This is where you decide about money, because an app's own screens cannot be trusted to ask for you.
@@ -333,11 +333,15 @@ Where an app's files live.
 - Which apps are on: `~/.paperclip/uuu-engine/apps/state.json`. What it may spend today: `doors/allowances/render-to-film.json`.
 - What it printed: `~/.paperclip/uuu-engine/logs/apps/render-to-film.log`, cut when it passes 5 MB.
 
-What an app cannot reach. It runs in a fence like the agents', built for apps. It can read only its own program, its own packages and folders, and Node. It can write only its own data. It can reach no internet and no port on this Mac, not even the board or the home screen. The only way out is one socket to the engine, which carries only what the app is allowed to ask: pictures and clips through the generation door, and thinking through the model relay. It cannot read your files, your keys or the Higgsfield sign-in, or another app's folder. No agent can reach an app either: the Artist is refused its address. Another page of yours cannot read an app, or an app the home screen, because each is its own address.
+What an app can and cannot reach. An app has two halves. Its program runs on this Mac inside a fence like the agents', built for apps. Its page, what you see and click, runs in your own browser.
+
+- The program can read only its own program, its own packages and folders, Node, and the system files a program needs. It can write only its own data. It can reach no internet and no port on this Mac, not even the board or the home screen. The only way out is one socket to the engine, which carries only what the app is allowed to ask: pictures and clips through the generation door, and thinking through the model relay. It cannot read your files, your keys, the engine's secrets or the Higgsfield sign-in, or another app's folder, and it can spend only inside the allowance you set.
+- The page cannot read your files or keys, the home screen or another app, because each is its own address. It cannot open a new window or move the home screen. But it can still reach the internet, as any web page can. So what you put into an app, and what the app makes for you, could be sent off this Mac by its page from your browser, if the app's own code or one of the packages it is built from is bad. A review on 14 November 2026 showed this can happen without a click. The engine has closed what it can; the rest cannot be closed by any setting. Turn on only an app whose code you trust.
+- No agent can reach an app either: the Artist is refused its address.
 
 An app that is sick. Health shows one line: "App Studio is on. Open: Render to Film.", or "App Studio is on. No app is switched on.", or, if one has stopped three times, "<app> stopped three times; switch it off and on in App Studio." Its log has what it printed.
 
-Known limits. There are no WebSockets or cookies in an app, and a plain form post is refused: the app sends its writes another way. A picture you give an app stays on this Mac; only the pictures it sends to a service leave it, inside your allowance. The sites the Builder makes do not appear in App Studio yet.
+Known limits. There are no WebSockets or cookies in an app, and a plain form post is refused: the app sends its writes another way. The app's program sends a picture you give it only to a service, through the engine, inside your allowance; its page could still send it elsewhere, as said above.
 
 ## Render to Film
 

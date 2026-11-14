@@ -7,6 +7,8 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, chmodSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createRelay } from "../../../relay/relay.mjs";
+import { mintToken } from "../../../relay/token.mjs";
+import { appsUsage } from "../lib/models.mjs";
 import { OMEGA_MODELS, startProvider } from "../../../test/stubs/provider.mjs";
 import { readShape, sameShape } from "../lib/shape.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
@@ -507,6 +509,81 @@ test("the relay's newer answer from the provider changes the key's state in the 
     writeFileSync(h.config.paths.relayStatus, JSON.stringify({ provider: { state: "refused", at: earlier } }), { mode: 0o600 });
     assert.equal((await view(h)).key.state, "unknown", "an answer older than the key's save does not count");
   }, { relay: false });
+});
+
+// ---- apps that think (T85 finding 4) ---------------------------------------------------------
+// An app's call to the relay, as App Studio's host makes it: a fresh test token named `app-<slug>`.
+function appCall(h, relay, slug) {
+  const secret = readFileSync(h.config.paths.relaySecret, "utf8").trim();
+  const token = mintToken(secret, "t", `app-${slug}`, Math.floor(Date.now() / 1000) + 120);
+  return fetch(`http://127.0.0.1:${relay.port}/v1/messages`, {
+    method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({ max_tokens: 5, messages: [{ role: "user", content: "hi" }] }),
+  }).then(async (r) => ({ status: r.status, json: await r.json().catch(() => null) }));
+}
+const setAppPick = (h, slug, model) => {
+  const p = h.config.paths.modelsState;
+  const st = JSON.parse(readFileSync(p, "utf8"));
+  st.picks[`app-${slug}`] = { model, source: "owner" };
+  writeFileSync(p, JSON.stringify(st), { mode: 0o600 });
+};
+
+test("Models shows each app that asked to think: its name, calls today and this hour; on plans the refusal in plain words", async () => {
+  await withModels(async ({ h, provider, relay }) => {
+    await ready(h);
+    setAppPick(h, "render-to-film", "claude-sonnet-5");
+    assert.deepEqual((await view(h)).apps, [], "no app has asked yet");
+    // Plans: refused by the relay with its own code, nothing reaches the provider.
+    const before = provider.seen.filter((x) => x.method === "POST").length;
+    const no = await appCall(h, relay, "render-to-film");
+    assert.equal(no.status, 403);
+    assert.equal(no.json.code, "relay_app_plans");
+    assert.equal(provider.seen.filter((x) => x.method === "POST").length, before);
+    let v = await view(h);
+    assert.deepEqual(sameShape(readShape("models"), v), []);
+    assert.deepEqual(v.apps, [{
+      slug: "app-render-to-film", name: "Render to Film", callsToday: 0, callsHour: 0,
+      refused: "Render to Film asked to think, but Models is set to plans, so nothing was sent.",
+    }]);
+    // On the owner's key: it passes and is counted; the refusal is no longer the last word.
+    const st = JSON.parse(readFileSync(h.config.paths.modelsState, "utf8"));
+    st.mode = "provider";
+    writeFileSync(h.config.paths.modelsState, JSON.stringify(st), { mode: 0o600 });
+    assert.equal((await appCall(h, relay, "render-to-film")).status, 200);
+    assert.equal((await appCall(h, relay, "render-to-film")).status, 200);
+    v = await view(h);
+    assert.deepEqual(v.apps, [{ slug: "app-render-to-film", name: "Render to Film", callsToday: 2, callsHour: 2, refused: null }]);
+    // No agent's usage moved.
+    for (const a of v.agents) assert.deepEqual(a.usage, { requests: 0, inputTokens: 0, outputTokens: 0 }, a.slug);
+    assert.ok(!JSON.stringify(v.apps).includes("claude-"), "no model, key or token in the lines");
+  });
+});
+
+test("appsUsage: today from midnight in Kolkata, this hour the last 60 minutes, a refusal only as the last word of the last day", () => {
+  const config = { paths: { appsCode: "/nonexistent-apps" } };
+  const now = Date.parse("2026-11-14T08:00:00.000Z"); // 13:30 in Kolkata; the day began at 18:30 the day before, UTC
+  const sec = (iso) => Math.floor(Date.parse(iso) / 1000);
+  const status = {
+    apps: {
+      "app-film": {
+        requests: 9, lastAt: "2026-11-14T07:50:00.000Z",
+        times: [sec("2026-11-13T18:00:00.000Z"), sec("2026-11-13T18:31:00.000Z"), sec("2026-11-14T06:50:00.000Z"), sec("2026-11-14T07:50:00.000Z"), "x", -1],
+        refused: { code: "relay_app_plans", at: "2026-11-14T07:00:00.000Z", count: 1 },
+      },
+      "app-quiet": { requests: 0, times: [], refused: null },
+      "app-old": { requests: 0, times: [], refused: { code: "relay_no_key", at: "2026-11-12T07:00:00.000Z", count: 1 } },
+      "app-key": { requests: 0, times: [], refused: { code: "relay_no_key", at: "2026-11-14T07:59:00.000Z", count: 3 } },
+      "app-odd": { requests: 0, times: [], refused: { code: "made_up", at: "2026-11-14T07:59:00.000Z", count: 1 } },
+      builder: { requests: 4, times: [sec("2026-11-14T07:50:00.000Z")] },
+      "app-Bad": { requests: 1, times: [] },
+    },
+  };
+  assert.deepEqual(appsUsage(config, status, now), [
+    { slug: "app-film", name: "film", callsToday: 3, callsHour: 1, refused: null },
+    { slug: "app-key", name: "key", callsToday: 0, callsHour: 0, refused: "key asked to think, but no provider key is saved, so nothing was sent." },
+  ]);
+  assert.deepEqual(appsUsage(config, null, now), []);
+  assert.deepEqual(appsUsage(config, { apps: [1] }, now), []);
 });
 
 test("a broken state.json gives a problem and the next save repairs it in plans mode", async () => {

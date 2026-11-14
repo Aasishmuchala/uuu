@@ -1,4 +1,4 @@
-import { Clapperboard, Download, ExternalLink, ListX, Maximize2, Trash2 } from 'lucide-react';
+import { Clapperboard, Download, ListX, Maximize2, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -40,6 +40,7 @@ import { classifyRunwayError } from './lib/runwayErrors.ts';
 import { trpc } from './trpc.ts';
 import { Alert } from './ui/Alert.tsx';
 import { Button } from './ui/Button.tsx';
+import { FullSize } from './ui/FullSize.tsx';
 import { EmptyState } from './ui/EmptyState.tsx';
 import { FilterChips } from './ui/FilterChips.tsx';
 import { ImagePicker } from './ui/ImagePicker.tsx';
@@ -862,9 +863,7 @@ function TakeView({
           >
             {saver.label('Download')}
           </Button>
-          <Button variant="ghost" icon={<ExternalLink size={16} />} onPress={() => window.open(url, '_blank', 'noopener')}>
-            Open full size
-          </Button>
+          <FullSize src={url} kind="clip" title={take.title} alt={`Video: ${take.title}`} />
           <Text tone="muted" size="sm" className={styles.resultNote}>
             {take.title}
             {videoResolutionName(take.model, take.resolution) && ` at ${videoResolutionName(take.model, take.resolution)}`},{' '}

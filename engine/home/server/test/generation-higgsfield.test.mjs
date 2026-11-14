@@ -357,6 +357,31 @@ test("back: a bad or missing code or state calls nothing and writes nothing; a s
   });
 });
 
+test("back: another website's request with a wrong state first changes nothing; the owner's real return still signs in (T85 finding 7)", async () => {
+  await withHf(async ({ h, logs, doorLogs }) => {
+    const begin = await post(h, "/api/generation/higgsfield/begin");
+    assert.equal(begin.status, 200, begin.text);
+    const there = await fetch(begin.json.url, { redirect: "manual" });
+    const to = new URL(there.headers.get("location"));
+    const real = to.searchParams;
+    const wrong = real.get("state") === STATE_HEX ? "0".repeat(64) : STATE_HEX;
+    // A cross-site image tag: no Origin, no same-origin header, any code and a well-formed state.
+    for (const q of [`?code=madeup&state=${wrong}`, `?code=${real.get("code")}&state=${wrong}`]) {
+      const r = await call(h.url, "GET", `/api/generation/higgsfield/back${q}`, { headers: { "sec-fetch-site": "cross-site", "sec-fetch-dest": "image" } });
+      assert.deepEqual([r.status, r.headers.location], [303, HF_BACK_FAILED], q);
+    }
+    assert.equal(existsSync(h.config.paths.higgsfieldAuth), false, "nothing signed in by the forged return");
+    const back = await call(h.url, "GET", `${to.pathname}${to.search}`);
+    assert.deepEqual([back.status, back.headers.location], [303, HF_BACK_CONNECTED]);
+    assert.ok(existsSync(h.config.paths.higgsfieldAuth));
+    assert.equal((await view(h)).higgsfield.signedIn, true);
+    const again = await call(h.url, "GET", `${to.pathname}${to.search}`);
+    assert.equal(again.headers.location, HF_BACK_FAILED, "the real return is used once");
+    const all = [...logs, ...doorLogs].join("\n");
+    for (const v of [real.get("code"), real.get("state")]) assert.ok(!all.includes(v));
+  });
+});
+
 test("back with no door: failed, nothing called", async () => {
   await withHf(async ({ h }) => {
     const r = await call(h.url, "GET", `/api/generation/higgsfield/back?code=abc&state=${STATE_HEX}`);

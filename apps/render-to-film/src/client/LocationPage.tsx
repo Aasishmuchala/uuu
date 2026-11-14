@@ -1,4 +1,4 @@
-import { Clapperboard, Download, ExternalLink, MapPinned } from 'lucide-react';
+import { Clapperboard, Download, MapPinned } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Still } from '../api.ts';
@@ -29,6 +29,7 @@ import { isUploadFailure, uploadRender } from './lib/uploadRender.ts';
 import { trpc } from './trpc.ts';
 import { Alert } from './ui/Alert.tsx';
 import { Button } from './ui/Button.tsx';
+import { FullSize } from './ui/FullSize.tsx';
 import { CompareSlider } from './ui/CompareSlider.tsx';
 import { EmptyState } from './ui/EmptyState.tsx';
 import { ImageDropZone } from './ui/ImageDropZone.tsx';
@@ -665,13 +666,7 @@ export function LocationPage({ active, onAnimate }: LocationPageProps) {
                 >
                   {saver.label(hasUpscaleCopy ? 'Download upscaled' : 'Download')}
                 </Button>
-                <Button
-                  variant="ghost"
-                  icon={<ExternalLink size={16} />}
-                  onPress={() => window.open(libraryUrl('still', bestId), '_blank', 'noopener')}
-                >
-                  Open full size
-                </Button>
+                <FullSize src={libraryUrl('still', bestId)} kind="still" title={shownName} alt={`Location still: ${shownName}`} />
                 <Button icon={<Clapperboard size={16} />} onPress={() => onAnimate(bestId)}>
                   Make a video
                 </Button>

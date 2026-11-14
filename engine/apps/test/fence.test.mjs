@@ -9,7 +9,7 @@ import {
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import {
-  CONFIG_NAMES, MODES, REGISTRY, anyCase, appFence, configDenies, ownerHome, writeSettings,
+  CONFIG_NAMES, MODES, REGISTRY, SYSTEM_READS, TOOL_READS, anyCase, appFence, configDenies, ownerHome, writeSettings,
 } from "../fence.mjs";
 
 const ROOT = realpathSync(mkdtempSync("/private/tmp/uuu-af-"));
@@ -35,14 +35,17 @@ const APP = { slug: "demo" };
 
 // K18's table, written out. denyWrite here holds only the lines that are not program-config
 // names; those are checked apart (count, roots and samples) below.
-const DENY_READ = [HOME, "/private/tmp", "/private/tmp/claude", `/private/tmp/claude-${UID}`, "/private/var/folders",
+const DENY_READ = ["/", HOME, "/private/tmp", "/private/tmp/claude", `/private/tmp/claude-${UID}`, "/private/var/folders",
   "/tmp", "/tmp/claude", `/tmp/claude-${UID}`, "/var/folders"].sort();
+// What every mode reads of the system, the disk being denied as a whole (T85), written out.
+const SYSTEM = ["/System", "/bin", "/dev", "/etc", "/private/etc/localtime", "/private/var/db/timezone", "/private/var/select/sh",
+  "/sbin", "/usr/bin", "/usr/lib", "/usr/libexec", "/usr/sbin", "/usr/share", "/var"];
 const DENY_WRITE = [join(CODE, "READY"), join(CODE, "app.json"), "/private/tmp/claude", "/tmp/claude"].sort();
 const FIXTURE = {
   run: {
     filesystem: {
       denyRead: DENY_READ,
-      allowRead: [NODE24, CODE, join(A, "data"), join(A, "deps"), join(A, "home"), join(A, "tmp"), RUN].sort(),
+      allowRead: [NODE24, CODE, join(A, "data"), join(A, "deps"), join(A, "home"), join(A, "tmp"), RUN, ...SYSTEM].sort(),
       allowWrite: [join(A, "data"), join(A, "home"), join(A, "tmp"), RUN].sort(),
       denyWrite: DENY_WRITE,
     },
@@ -51,7 +54,7 @@ const FIXTURE = {
   build: {
     filesystem: {
       denyRead: DENY_READ,
-      allowRead: [NODE24, CODE, join(A, "deps"), join(A, "home"), join(A, "tmp")].sort(),
+      allowRead: [NODE24, CODE, join(A, "deps"), join(A, "home"), join(A, "tmp"), ...SYSTEM].sort(),
       allowWrite: [join(CODE, ".build"), join(CODE, "dist"), join(A, "home"), join(A, "tmp")].sort(),
       denyWrite: DENY_WRITE,
     },
@@ -60,7 +63,7 @@ const FIXTURE = {
   test: {
     filesystem: {
       denyRead: DENY_READ,
-      allowRead: [NODE24, CODE, join(A, "deps"), join(A, "home"), join(A, "tmp")].sort(),
+      allowRead: [NODE24, CODE, join(A, "deps"), join(A, "home"), join(A, "tmp"), ...SYSTEM].sort(),
       allowWrite: [join(A, "home"), join(A, "tmp")].sort(),
       denyWrite: DENY_WRITE,
     },
@@ -69,7 +72,7 @@ const FIXTURE = {
   install: {
     filesystem: {
       denyRead: DENY_READ,
-      allowRead: [NODE24, join(A, "deps"), join(A, "home"), join(A, "store"), join(A, "tmp")].sort(),
+      allowRead: [NODE24, join(A, "deps"), join(A, "home"), join(A, "store"), join(A, "tmp"), ...SYSTEM].sort(),
       allowWrite: [join(A, "deps"), join(A, "home"), join(A, "store"), join(A, "tmp")].sort(),
       denyWrite: DENY_WRITE,
     },
@@ -129,6 +132,38 @@ test("only the install reaches a host, only the registry; only the run reaches a
     assert.deepEqual(n.allowedDomains, mode === "install" ? ["registry.npmjs.org"] : []);
     assert.deepEqual(n.allowUnixSockets, mode === "run" ? [RUN] : []);
   }
+});
+
+// T85: /Volumes and /Users/Shared were readable, and with them every disk, other users' homes
+// and Homebrew's databases. The disk is denied as a whole; only the app's own folders, Node and
+// SYSTEM_READS (plus its tools' folders) are opened again, and nothing of these lies in those.
+const OUTSIDE = ["/Volumes", "/Volumes/Macintosh HD", "/Users", "/Users/Shared", "/Users/Guest", "/Library", "/Library/Keychains",
+  "/Applications", "/usr/local", "/usr/local/etc", "/opt", "/opt/homebrew", "/opt/homebrew/var", "/opt/homebrew/etc",
+  "/private", "/private/etc", "/private/etc/hosts", "/private/var", "/private/var/db", "/private/var/root", "/cores"];
+const opens = (list, p) => list.some((r) => p === r || p.startsWith(`${r}/`));
+for (const mode of MODES) {
+  test(`${mode}: the whole disk is denied; nothing outside the home folder is opened but the system's own folders`, () => {
+    const fs = appFence(CFG, { ...APP, tools: ["ffmpeg", "ffprobe"] }, mode).filesystem;
+    assert.ok(fs.denyRead.includes("/"));
+    for (const p of OUTSIDE) assert.equal(opens(fs.allowRead, p), false, p);
+    for (const p of OUTSIDE) assert.equal(opens(fs.allowWrite, p), false, p);
+    // What a program needs is opened again.
+    for (const p of ["/usr/lib/libSystem.B.dylib", "/System/Library", "/bin/sh", "/dev/null", "/private/var/db/timezone/zoneinfo",
+      NODE24, "/opt/homebrew/bin/ffmpeg", "/opt/homebrew/Cellar/ffmpeg"]) {
+      assert.equal(opens(fs.allowRead, p), true, p);
+    }
+  });
+}
+
+test("ffmpeg's and ffprobe's folders are opened only to an app whose manifest names them", () => {
+  const without = appFence(CFG, APP, "run").filesystem.allowRead;
+  assert.equal(without.some((p) => p.startsWith("/opt")), false);
+  const one = appFence(CFG, { ...APP, tools: ["ffprobe"] }, "run").filesystem.allowRead;
+  assert.deepEqual(one.filter((p) => p.startsWith("/opt")), ["/opt/homebrew/Cellar", "/opt/homebrew/bin/ffprobe", "/opt/homebrew/opt"]);
+  const odd = appFence(CFG, { ...APP, tools: ["constructor", "__proto__", "bash"] }, "run").filesystem.allowRead;
+  assert.equal(odd.some((p) => p.startsWith("/opt")), false);
+  assert.deepEqual([...SYSTEM_READS].sort(), SYSTEM);
+  assert.deepEqual(Object.keys(TOOL_READS), ["ffmpeg", "ffprobe"]);
 });
 
 test("pure: the environment changes nothing, and the same call gives the same settings", () => {

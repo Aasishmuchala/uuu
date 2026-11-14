@@ -32,17 +32,12 @@ export function Text({
 export type TextLinkProps = {
   href: string;
   children?: ReactNode | undefined;
-  external?: boolean | undefined;
 };
 
-export function TextLink({ href, children, external = false }: TextLinkProps) {
+/** A link inside the app. Never a new window: the home screen frames the app without popups. */
+export function TextLink({ href, children }: TextLinkProps) {
   return (
-    <Link
-      href={href}
-      target={external ? '_blank' : undefined}
-      rel={external ? 'noreferrer' : undefined}
-      className={styles.link}
-    >
+    <Link href={href} className={styles.link}>
       {children}
     </Link>
   );

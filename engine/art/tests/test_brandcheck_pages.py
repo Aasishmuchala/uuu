@@ -867,6 +867,15 @@ class SecondLookTest(PageBase):
 
 
 class CommandTest(PageBase):
+    @classmethod
+    def setUpClass(cls):
+        # The command runs with -I, as the engine runs it; a Python whose Pillow is in the user's own
+        # site folder (the Mac's /usr/bin/python3) cannot see it then.
+        r = subprocess.run([sys.executable, "-I", "-c", "import PIL.Image"], capture_output=True)
+        if r.returncode != 0:
+            raise unittest.SkipTest("this Python has no Pillow when run with -I; command tests skipped "
+                                    "(they run with the Artist's own Python)")
+
     def test_report_takes_no_value_and_the_plain_line_names_file_and_line(self):
         self.site(style__css=STYLE + ".a { color: #ff00aa; }\n")
         tool = os.path.join(self.bin, "brandcheck.py")

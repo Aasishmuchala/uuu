@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import Page, { ALLOW, POLL_STARTING_MS, SANDBOX, STARTING_FOR_MS, frameAddress } from "../../pages/app.js";
+import Page, { ALLOW, POLL_ON_MS, POLL_STARTING_MS, SANDBOX, STARTING_FOR_MS, frameAddress } from "../../pages/app.js";
 import { WORDS } from "../../pages/apps.js";
 
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -20,12 +20,14 @@ const HTTP = "http:" + "//";
 const LOOP = ["127", "0", "0", "1"].join(".");
 const NOSPEND = { open: false, budget: 0, spent: 0, left: 0, expiresAt: null, words: "This app cannot spend anything right now.", limitLeft: 640, limitWords: "What is left of today's limit: $6.40." };
 const CHOICES = [{ id: "claude-opus-5-5", name: "Claude Opus 5.5" }, { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5" }];
+const TRUST = "This app's own program runs inside the fence: it cannot reach the internet or your files. Its page runs in your browser, and a page in your browser can still reach the internet, as any web page can. Turn on only an app whose code you trust.";
+const TRUST_SHORT = "This app's page runs in your browser and can reach the internet. Its program cannot.";
 const app = (over = {}) => ({ ...clone(SHAPE.apps[0]), thinks: { model: "claude-opus-5-5", name: "Claude Opus 5.5", choices: CHOICES }, ...over });
 const view = (apps, over = {}) => ({ ...clone(SHAPE), apps, ...over });
 
-test("app: the sandbox and permissions are exactly T80's; never the top window", () => {
-  assert.equal(SANDBOX, "allow-scripts allow-same-origin allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox");
-  assert.doesNotMatch(SANDBOX, /allow-top-navigation/);
+test("app: the sandbox and permissions are exactly T86's: no popups, never the top window", () => {
+  assert.equal(SANDBOX, "allow-scripts allow-same-origin allow-forms allow-downloads");
+  assert.doesNotMatch(SANDBOX, /allow-top-navigation|allow-popups/);
   assert.equal(ALLOW, "fullscreen; clipboard-write");
   assert.equal(POLL_STARTING_MS, 2000);
   assert.equal(STARTING_FOR_MS, 60000);
@@ -312,5 +314,79 @@ test("app mounted: the model's menu posts the choice; a refusal in the bar is sh
     fire(elements(m.root).find((e) => e.getAttribute("role") === "menuitem" && textOf(e).trim() === "Claude Opus 5.5"), "click");
     await settle();
     assert.ok(elements(m.root).some((e) => e.getAttribute("role") === "alert" && /That model is not in the list\./.test(textOf(e))));
+  } finally { m.done(); }
+});
+
+test("app: the words of what the fence does not cover, and of checking, are as written", () => {
+  assert.equal(WORDS.trust, TRUST);
+  assert.equal(WORDS.trustShort, TRUST_SHORT);
+  assert.equal(WORDS.checking, "Checking the app…");
+  assert.doesNotMatch(TRUST + TRUST_SHORT, /\u2014/, "no em dash");
+});
+
+test("app mounted, off: the long sentence stands beside Turn on; no short one, no frame", async () => {
+  const m = await mount(fixed(view([app({ state: "off", on: false, spending: NOSPEND })])));
+  try {
+    const card = elements(m.root).find((e) => e.getAttribute("class") === "p-app__card");
+    assert.ok(card, "the off card");
+    assert.ok(buttons(card, "Turn on").length === 1);
+    const long = elements(card).find((e) => e.getAttribute("class") === "p-app__trust-long");
+    assert.ok(long, "the long sentence is in the card with Turn on");
+    assert.equal(textOf(long), TRUST);
+    assert.ok(!textOf(m.root).includes(TRUST_SHORT));
+  } finally { m.done(); }
+});
+
+test("app mounted, on: the short sentence stays under the bar, beside the frame; not inside the bar, and not loud", async () => {
+  const m = await mount(fixed(view([app()])));
+  try {
+    const short = elements(m.root).find((e) => e.getAttribute("class") === "p-app__trust");
+    assert.ok(short, "the short sentence");
+    assert.equal(textOf(short), TRUST_SHORT);
+    const bar = elements(m.root).find((e) => e.localName === "header");
+    assert.ok(!bar.contains(short));
+    assert.ok(!textOf(m.root).includes(TRUST), "the long one is not shown while the app is open");
+    assert.ok(!textOf(m.root).includes(WORDS.checking));
+    const css = readFileSync(join(PUBLIC, "styles", "pages", "app.css"), "utf8");
+    assert.match(css, /\.p-app \.p-app__notes \{[^}]*color: var\(--text-2\);[^}]*font-size: var\(--fs-caption\);/, "caption size, second colour");
+    assert.match(css, /\.p-app \.p-app__trust-long \{[^}]*color: var\(--text-2\);[^}]*font-size: var\(--fs-caption\);/);
+  } finally { m.done(); }
+});
+
+test("app mounted: one answer that says off keeps the frame and says 'Checking the app…'; the second takes it away", async () => {
+  const answers = [view([app()]), view([app({ state: "off" })], { host: { state: "off", sentence: "App Studio is off. Run: engine start" } }), view([app({ state: "off" })])];
+  let n = 0;
+  const m = await mount((path, method) => ({ status: 200, body: answers[Math.min(n++, answers.length - 1)] }));
+  try {
+    assert.equal(frames(m.root).length, 1);
+    const frame = frames(m.root)[0];
+    // The page asks again; this answer says App Studio is off.
+    await settle(POLL_ON_MS + 300);
+    assert.equal(frames(m.root).length, 1, "the frame is kept through one bad answer");
+    assert.equal(frames(m.root)[0], frame, "the same frame, never taken down and put back");
+    const checking = elements(m.root).find((e) => e.getAttribute("class") === "p-app__checking");
+    assert.ok(checking, "the quiet line");
+    assert.equal(textOf(checking), "Checking the app…");
+    assert.equal(checking.getAttribute("role"), "status");
+    // While checking it asks again sooner; the second answer that says off is believed.
+    await settle(POLL_STARTING_MS + 300);
+    assert.equal(frames(m.root).length, 0, "two answers in a row say off");
+    assert.ok(!textOf(m.root).includes("Checking the app…"));
+  } finally { m.done(); }
+});
+
+test("app mounted: the owner's Turn off takes the frame away at once, with no checking", async () => {
+  let current = view([app()]);
+  const m = await mount((path, method) => {
+    if (method === "POST") { current = view([app({ state: "on", on: false, spending: NOSPEND })]); return { status: 200, body: current }; }
+    return { status: 200, body: current };
+  });
+  try {
+    assert.equal(frames(m.root).length, 1);
+    fire(buttons(m.root, "Turn off")[0], "click");
+    await settle();
+    assert.equal(frames(m.root).length, 0);
+    assert.ok(textOf(m.root).includes("Render to Film is off."));
+    assert.ok(!textOf(m.root).includes("Checking the app…"));
   } finally { m.done(); }
 });

@@ -6,6 +6,9 @@
 // (always `identity`, so the answer can be scanned); in an answer it changes nothing, except
 // that an answer holding the provider key is withheld or cut before the key is passed on.
 // It never logs a header, a body, a query string, a key or a token.
+// An app (a test token whose subject is `app-<slug>`, minted only by App Studio's host) is counted
+// as carefully as an agent, under its own name, and is refused while Models is set to plans: an
+// app's thinking is never spent on a saved key the owner did not switch on (docs/adr/0016).
 import http from "node:http";
 import https from "node:https";
 import { appendFileSync, chmodSync, mkdirSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
@@ -33,6 +36,11 @@ const QUERY_RE = /^[A-Za-z0-9=&_.-]{0,200}$/;
 const BEARER = /^bearer +(\S+)$/i;
 const JSON_TYPE = /^application\/json\s*(;.*)?$/i;
 const NUMBER = /^[0-9]{1,9}$/;
+const HOUR_MS = 3_600_000;
+const DAY_MS = 24 * HOUR_MS;
+const APP_TIMES = 1000;   // an app's call times kept, the newest, all within a day
+const APP_LINES = 20;     // apps with a line in the status file, the most recently heard
+const isApp = (who) => who.kind === "t" && who.subject.startsWith("app-");
 // Request headers that never reach the provider; the relay sets host, content-length and
 // the real key itself.
 const DROP = new Set(["authorization", "x-api-key", "proxy-authorization", "cookie", "chatgpt-account-id",
@@ -45,6 +53,7 @@ const REFUSALS = {
   relay_not_found: ["not_found_error", "The model relay has no such address."],
   relay_no_token: ["authentication_error", "The model relay needs a valid agent token."],
   relay_off: ["permission_error", "The model relay is off for agents: the provider is not switched on."],
+  relay_app_plans: ["permission_error", "Models is set to plans, so an app's thinking is not sent. Switch Models to your own key in Settings to let apps think."],
   relay_no_key: ["permission_error", "No provider key is saved. Paste it in Settings on the home screen."],
   relay_no_pick: ["permission_error", "No model is picked for this agent. Open Settings on the home screen."],
   relay_bad_body: ["invalid_request_error", "The model relay takes only one JSON object with the type application/json."],
@@ -254,7 +263,7 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
   let closing = false;
 
   // ---- the status file ----------------------------------------------------
-  const status = { startedAt: null, provider: { state: "unknown", at: null, retryAfterSec: null }, agents: Object.create(null) };
+  const status = { startedAt: null, provider: { state: "unknown", at: null, retryAfterSec: null }, agents: Object.create(null), apps: Object.create(null) };
   let statusTimer = null;
   let lastWrite = 0;
   function writeStatus() {
@@ -297,6 +306,40 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
     statusChanged();
   }
 
+  // An app's line: its counts as an agent's, the times (whole seconds) of its calls in the last day,
+  // and its last refusal (a code of the relay's own, and when). Nothing it sent is kept.
+  function appLine(name) {
+    const now = clock();
+    for (const line of Object.values(status.apps)) {
+      while (line.times.length && line.times[0] * 1000 <= now - DAY_MS) line.times.shift();
+    }
+    if (!Object.hasOwn(status.apps, name)) {
+      const names = Object.keys(status.apps);
+      if (names.length >= APP_LINES) {
+        const heard = (n) => Math.max(Date.parse(status.apps[n].lastAt || "") || 0, Date.parse(status.apps[n].refused?.at || "") || 0);
+        delete status.apps[names.reduce((a, b) => (heard(b) < heard(a) ? b : a))];
+      }
+      status.apps[name] = { requests: 0, inputTokens: 0, outputTokens: 0, lastStatus: null, lastAt: null, times: [], refused: null };
+    }
+    return status.apps[name];
+  }
+  function noteApp(name, code, usage) {
+    const a = appLine(name);
+    a.requests += 1;
+    if (usage && usage.input !== null) a.inputTokens += usage.input;
+    if (usage && usage.output !== null) a.outputTokens += usage.output;
+    a.lastStatus = code;
+    a.lastAt = iso();
+    a.times.push(Math.floor(clock() / 1000));
+    if (a.times.length > APP_TIMES) a.times.splice(0, a.times.length - APP_TIMES);
+    statusChanged();
+  }
+  function noteAppRefused(name, code) {
+    const a = appLine(name);
+    a.refused = { code, at: iso(), count: (a.refused ? a.refused.count : 0) + 1 };
+    statusChanged();
+  }
+
   // ---- answers --------------------------------------------------------------
   function refuse(res, status_, code) {
     say(`${iso()} refused ${code}`);
@@ -310,7 +353,7 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
 
   // Sends the call once and passes the answer back as it comes. No retry, ever. `model` is
   // read from the object that was serialised into `body`, so the log says what was sent.
-  function forward(req, res, { path, slug, model, key, body, kind }) {
+  function forward(req, res, { path, slug, model, key, body, kind, app }) {
     const started = Date.now();
     const headers = [];
     for (let i = 0; i < req.rawHeaders.length; i += 2) {
@@ -360,6 +403,7 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
       if (how === "none") {
         if (clientGone || closing) return void res.destroy();
         noteProvider(null);
+        if (app) noteAppRefused(app, "relay_upstream_down");
         try {
           if (!res.headersSent && !res.destroyed) refuse(res, 502, "relay_upstream_down");
           else res.destroy();
@@ -370,6 +414,7 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
       }
       if (how === "withheld") {
         say(`${iso()} refused relay_key_in_answer`);
+        if (app) noteAppRefused(app, "relay_key_in_answer");
         try {
           if (!res.headersSent && !res.destroyed) sendJson(res, 502, refusalBody("relay_key_in_answer"));
           else res.destroy();
@@ -381,6 +426,7 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
       if (how === "cut") res.destroy();
       const usage = watcher ? watcher.result() : null;
       if (kind === "a") noteAgent(slug, ans.statusCode, usage);
+      else if (app) noteApp(app, ans.statusCode, usage);
       say(`${iso()} call ${slug} ${path} ${ans.statusCode} ${Date.now() - started}ms model=${typeof model === "string" && MODEL_RE.test(model) ? model : "?"}`);
     }
     // Whatever the reason, a call with no answer by now ends.
@@ -478,6 +524,7 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
   function decide(who) {
     const st = readModelState(paths.state);
     if (!st.ok || (who.kind === "a" && st.mode !== "provider")) return { status: 403, code: "relay_off" };
+    if (isApp(who) && st.mode !== "provider") return { status: 403, code: "relay_app_plans" };
     const key = readKey(paths.key);
     if (key === null) return { status: 403, code: "relay_no_key" };
     let slug = null;
@@ -513,28 +560,34 @@ export function createRelay({ listenPort, upstream, paths, log, now, limits } = 
     // 4. Exactly one bearer token that the secret accepts.
     const who = tokenOf(req);
     if (!who) return refuse(res, 401, "relay_no_token");
+    // From here an app's refusal is noted on its line too.
+    const app = isApp(who) ? who.subject : null;
+    const no = (status_, code) => {
+      if (app) noteAppRefused(app, code);
+      return refuse(res, status_, code);
+    };
     // 5 to 7, early: refuse before reading a body that could not be sent anyway.
     const early = decide(who);
-    if (early.code) return refuse(res, early.status, early.code);
+    if (early.code) return no(early.status, early.code);
     // 8 and 9. One JSON object, within the size limit.
     const types = headerValues(req.rawHeaders, "content-type");
-    if (types.length !== 1 || !JSON_TYPE.test(types[0])) return refuse(res, 400, "relay_bad_body");
+    if (types.length !== 1 || !JSON_TYPE.test(types[0])) return no(400, "relay_bad_body");
     const raw = await readBody(req, lim.bodyBytes);
     if (raw === null) return undefined;
-    if (raw === "too-big") return refuse(res, 413, "relay_too_big");
+    if (raw === "too-big") return no(413, "relay_too_big");
     let body;
     try { body = JSON.parse(raw.toString("utf8")); } catch { body = null; }
-    if (body === null || typeof body !== "object" || Array.isArray(body)) return refuse(res, 400, "relay_bad_body");
+    if (body === null || typeof body !== "object" || Array.isArray(body)) return no(400, "relay_bad_body");
     // 4 to 7 again, now that the body is in: the owner may have switched off, removed the
     // key or changed a pick while it was arriving. Only these answers decide.
     const whoNow = tokenOf(req);
     if (!whoNow) return refuse(res, 401, "relay_no_token");
     const now_ = decide(whoNow);
-    if (now_.code) return refuse(res, now_.status, now_.code);
+    if (now_.code) return no(now_.status, now_.code);
     // 10 and 11. The model is the pick, whatever the body asked for; then forward once.
     body.model = now_.pick;
     const bytes = Buffer.from(JSON.stringify(body), "utf8");
-    return forward(req, res, { path, slug: now_.slug, model: body.model, key: now_.key, body: bytes, kind: whoNow.kind });
+    return forward(req, res, { path, slug: now_.slug, model: body.model, key: now_.key, body: bytes, kind: whoNow.kind, app });
   }
 
   const server = http.createServer((req, res) => {

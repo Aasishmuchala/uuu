@@ -6,3 +6,7 @@ node_modules/
 apps/*/.build/
 apps/*/dist/
 apps/*/node_modules
+
+# The cook loop's working state (references are third parties' screens; never published)
+cook/
+cook-archive/
