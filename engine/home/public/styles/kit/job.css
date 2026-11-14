@@ -217,20 +217,11 @@ a.k-job--row:hover .k-job__go {
   color: var(--ink-3);
 }
 
-/* A job that cannot start yet: its questions are switched off and look it (M63 item 13); the sentence that says
-   why stays at full strength above them. */
+/* A job that cannot start yet: its questions are switched off and look it (M63 item 13): the fields take the kit's
+   inert look (fields.css); the sentence that says why stays at full strength above them. */
 .k-job__asks--off .k-field__label,
 .k-job__asks--off .k-field__hint {
   color: var(--ink-3);
-}
-
-.k-job__asks--off .k-input:disabled,
-.k-job__asks--off .k-textarea:disabled,
-.k-job__asks--off .k-select__control:disabled {
-  border-style: dashed;
-  border-color: var(--line-2);
-  background: transparent;
-  cursor: not-allowed;
 }
 
 /* The "can run" chip: the department's icon and the job's name, on the control fill. */

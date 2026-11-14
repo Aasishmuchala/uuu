@@ -98,20 +98,46 @@ test("an OptionCard with many boards draws one picture, the chosen board, with h
   unmount(single);
 });
 
-test("an OptionCard's title, sub and reason are one line each, cut with their full words in a title", async () => {
+test("an OptionCard reads whole: head and sub beside the picture, then the chip alone, then the reason across the card", async () => {
   installDom();
   const root = await mount(Three, { chosen: "A", say: "a long reason that runs past one line in a card of 264 px" });
   const card = radios(root)[0];
   assert.equal(byClass(card, "k-opt__title")[0].getAttribute("title"), "A · Slow approach");
   assert.equal(byClass(card, "k-opt__sub")[0].getAttribute("title"), "30 s · 6 clips");
-  assert.equal(byClass(card, "k-opt__say")[0].getAttribute("title"), "a long reason that runs past one line in a card of 264 px");
-  // Head (radio, title), sub (sub, amount), foot (chip, reason): the amount sits with the sub, the chip with the reason.
-  const [head, sub, foot] = byClass(card, "k-opt__line");
+  // Head (radio, title), sub (sub, amount), state (the chip alone), then the reason as its own line under both columns.
+  const [head, sub, state] = byClass(card, "k-opt__line");
   assert.match(head.getAttribute("class"), /k-opt__line--head/);
   assert.equal(byClass(head, "k-opt__radio").length, 1);
   assert.equal(byClass(sub, "k-opt__amount").length, 1);
-  assert.equal(byClass(foot, "k-strip__chip").length, 1);
+  assert.match(state.getAttribute("class"), /k-opt__line--state/);
+  assert.equal(byClass(state, "k-strip__chip").length, 1);
+  assert.equal(state.childNodes.length, 1, "the chip is alone on its line");
+  const say = byClass(card, "k-opt__say")[0];
+  assert.equal(say.parentNode, card, "the reason is the card's own line, not beside the chip");
+  assert.equal(byClass(state, "k-opt__say").length, 0);
+  // A reader hears the chip before the reason.
+  assert.match(textOf(card), /Over today's limita long reason/);
   unmount(root);
+});
+
+test("fitTitle: the reason's full words go in its title only when they do not fit", () => {
+  const el = (sw, cw, sh = 18, ch = 18) => {
+    const at = {};
+    return { scrollWidth: sw, clientWidth: cw, scrollHeight: sh, clientHeight: ch, at,
+      setAttribute: (k, v) => { at[k] = v; }, removeAttribute: (k) => { delete at[k]; } };
+  };
+  const fits = el(200, 230);
+  assert.equal(mod.fitTitle(fits, "52 of 70, meets the bar"), false);
+  assert.equal(fits.at.title, undefined, "a reason that fits keeps no tooltip");
+  const cut = el(400, 230);
+  assert.equal(mod.fitTitle(cut, "52 of 70, meets the bar and calm on a phone"), true);
+  assert.equal(cut.at.title, "52 of 70, meets the bar and calm on a phone");
+  const two = el(230, 230, 54, 36);
+  assert.equal(mod.fitTitle(two, "past two lines"), true, "past its two lines on a narrow window");
+  cut.scrollWidth = 200;
+  mod.fitTitle(cut, "52 of 70");
+  assert.equal(cut.at.title, undefined, "the tooltip goes when the words fit again");
+  assert.equal(mod.fitTitle(null, "x"), false);
 });
 
 test("a strip of TakeCards is a plain group of pressable buttons", async () => {
@@ -134,15 +160,17 @@ test("a strip of TakeCards is a plain group of pressable buttons", async () => {
   unmount(root);
 });
 
-test("strip.css: the chosen card is lifted with an accent edge, cards are 96 px with 16 px padding, stacked below 860 px", () => {
+test("strip.css: the chosen card is lifted with an accent edge, cards are 96 px at the least with 16 px padding, stacked below 860 px", () => {
   const sheet = css("kit/strip.css");
   assert.match(sheet, /\.k-opt \{[^}]*min-height: 96px;[^}]*padding: var\(--s-4\);[^}]*border-radius: var\(--r-3\)/);
-  // The picture spans the head and the sub (two 24 px rows, its 48 px); the foot runs under both: 110 px in all.
-  assert.match(sheet, /\.k-opt--side \{[^}]*grid-template-columns: 72px minmax\(0, 1fr\);[^}]*grid-template-rows: 24px 24px auto;[^}]*"pic head" "pic sub" "foot foot"/);
-  assert.match(sheet, /\.k-opt__line--foot \{[^}]*min-height: 20px;[^}]*margin-top: var\(--s-2\);/);
+  // The picture spans the head and the sub (two 24 px rows, its 48 px); the chip, then the reason, run under both.
+  assert.match(sheet, /\.k-opt--side \{[^}]*grid-template-columns: 72px minmax\(0, 1fr\);[^}]*grid-template-rows: 24px 24px auto auto;[^}]*"pic head" "pic sub" "state state" "say say"/);
+  assert.match(sheet, /\.k-opt__line--state \{[^}]*grid-area: state;[^}]*min-height: 20px;/);
+  assert.doesNotMatch(sheet, /\.k-opt__line--state \.k-strip__chip \{[^}]*margin-left: auto/, "the chip sits at the left");
   assert.match(sheet, /\.k-opt__title \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;[^}]*font-size: var\(--fs-ui\);[^}]*font-weight: var\(--fw-bold\)/);
   assert.match(sheet, /\.k-opt \.k-opt__amount \{[^}]*font-size: var\(--fs-fact\);[^}]*font-weight: var\(--fw-bold\);[^}]*tabular-nums/);
-  assert.match(sheet, /\.k-opt__say \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);
+  assert.match(sheet, /\.k-opt__say \{[^}]*grid-area: say;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;[^}]*font-size: var\(--fs-note\);[^}]*color: var\(--ink-2\);/);
+  assert.doesNotMatch(sheet, /order: -1/, "the reason is drawn where it is heard, after the chip");
   assert.match(sheet, /@media \(max-width: 859px\)[\s\S]*\.k-opt__say \{[^}]*-webkit-line-clamp: 2;/, "two lines only when cards stack");
   assert.match(sheet, /\.k-opt--on \{[^}]*border-color: var\(--accent\);[^}]*background: var\(--raise\);[^}]*box-shadow: 0 0 0 1px var\(--accent\)/);
   assert.match(sheet, /\.k-take__thumb \{\s*width: 96px;\s*height: 54px;/);

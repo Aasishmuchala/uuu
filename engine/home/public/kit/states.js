@@ -54,9 +54,11 @@ export function NotConnected({ reason, next, title = "Not connected yet" }) {
   </div>`;
 }
 
-// A 16 px icon, one sentence, one line under it and the way on (one button); no illustration.
-export function Empty({ title, text, icon = "inbox", children }) {
-  return html`<div class="k-empty">
+// A 16 px icon, one sentence, one line under it and the way on (one button); no illustration. `inline`: the compact
+// form for a section inside a page that has nothing yet: one left-aligned line (the icon, the sentence at 14 px, its
+// line after it in grey, then an optional link), with no padding of its own.
+export function Empty({ title, text, icon = "inbox", inline, children }) {
+  return html`<div class=${cx("k-empty", inline && "k-empty--inline")}>
     ${icon ? html`<${Icon} name=${icon} size=${16} class="k-empty__icon" />` : null}
     ${title ? html`<p class="k-empty__title">${title}</p>` : null}
     ${text ? html`<p class="k-empty__text">${text}</p>` : null}

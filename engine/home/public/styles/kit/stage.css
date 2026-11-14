@@ -414,6 +414,30 @@
   line-height: var(--lh-fact);
 }
 
+/* One line (the default in a rail): the word in its tone, then a middle dot and the grey "by" words, on one
+   baseline; a long "by" wraps under itself rather than under the mark. The dot is drawn, not read. */
+.k-verdict--inline .k-verdict__text,
+.k-rail .k-verdict:not(.k-verdict--stack) .k-verdict__text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--s-2);
+}
+
+.k-verdict--inline.k-verdict--good .k-verdict__title,
+.k-rail .k-verdict--good:not(.k-verdict--stack) .k-verdict__title { color: var(--good); }
+.k-verdict--inline.k-verdict--warn .k-verdict__title,
+.k-rail .k-verdict--warn:not(.k-verdict--stack) .k-verdict__title { color: var(--warn); }
+.k-verdict--inline.k-verdict--bad .k-verdict__title,
+.k-rail .k-verdict--bad:not(.k-verdict--stack) .k-verdict__title { color: var(--bad); }
+
+.k-verdict--inline .k-verdict__by::before,
+.k-rail .k-verdict:not(.k-verdict--stack) .k-verdict__by::before {
+  content: "\00B7" / "";
+  margin-right: var(--s-2);
+  color: var(--ink-3);
+}
+
 /* ---- A phone, or any narrow window: the phone frame alone */
 @media (max-width: 859px) {
   .k-shot__frame {

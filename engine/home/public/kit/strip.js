@@ -1,7 +1,7 @@
 // The strip under a stage (PLAN-COOK T33, from the C3 mockup's "strip", "S02" and "S04"): one set of cards to choose
 // from. OptionCards make a radio group (one is chosen; the arrows move the choice, Space and Enter take it);
 // TakeCards are a plain row of pressable cards. Every picture address arrives already checked (R3); every string is text.
-import { html, useEffect, useRef } from "../vendor/preact-htm.js";
+import { html, useEffect, useLayoutEffect, useRef } from "../vendor/preact-htm.js";
 import { Icon } from "./icon.js";
 import { cx, isEmpty } from "./util.js";
 
@@ -84,11 +84,38 @@ function Picture({ pic }) {
 // Words for a `title` attribute: only plain text and numbers (a node keeps no tooltip).
 const words = (v) => (typeof v === "string" || typeof v === "number" ? String(v) : undefined);
 
-// An option card at about 96 to 110 px: the picture at the left; beside it the radio and the title, then the grey
-// sub with the amount on the right edge; across the foot the one-line reason with the one chip on the same right
-// edge. (At 264 px a card, the title with its amount, or the sub with the chip, do not fit one line beside the
-// picture; this order keeps every title, amount, sub and chip whole and cuts only the reason.) A reader hears the
-// chip before the reason; the reason is drawn first.
+// Puts the reason's full words in its `title` only while they do not fit (cut at the end of its line, or past its two
+// lines on a narrow window); a reason that fits keeps no tooltip.
+export function fitTitle(el, text) {
+  if (!el || typeof el.setAttribute !== "function") return false;
+  const cut = typeof text === "string" && text !== ""
+    && ((el.scrollWidth || 0) - (el.clientWidth || 0) > 1 || (el.scrollHeight || 0) - (el.clientHeight || 0) > 1);
+  if (cut) el.setAttribute("title", text);
+  else el.removeAttribute?.("title");
+  return cut;
+}
+
+function Say({ say }) {
+  const ref = useRef(null);
+  const text = words(say);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const look = () => fitTitle(el, text);
+    look();
+    if (typeof ResizeObserver !== "function") return undefined;
+    const ro = new ResizeObserver(look);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+  return html`<p ref=${ref} class="k-opt__say">${say}</p>`;
+}
+
+// An option card at about 130 to 140 px (the stage measures the strip's real height): beside the 72 by 48 picture,
+// the radio and the title, then the grey sub with the amount on the right edge; under both columns the one chip alone
+// at the left, then the reason across the card's whole width (one line on a wide window, cut with its words in a title
+// only when they do not fit; up to two lines below 860 px). The reason tells the options apart, so it gets the most
+// room. A reader hears the chip before the reason.
 export function OptionCard({ checked, onPick, title, amount, sub, state, say, boards }) {
   const pic = pictureOf(boards);
   const pick = () => onPick && onPick();
@@ -110,12 +137,8 @@ export function OptionCard({ checked, onPick, title, amount, sub, state, say, bo
           ${has(amount) ? html`<span class="k-opt__amount">${amount}</span>` : null}
         </div>`
       : null}
-    ${has(say) || has(state)
-      ? html`<div class="k-opt__line k-opt__line--foot">
-          <${Chip} state=${state} />
-          ${has(say) ? html`<p class="k-opt__say" title=${words(say)}>${say}</p>` : null}
-        </div>`
-      : null}
+    ${has(state) ? html`<div class="k-opt__line k-opt__line--state"><${Chip} state=${state} /></div>` : null}
+    ${has(say) ? html`<${Say} say=${say} />` : null}
   </div>`;
 }
 

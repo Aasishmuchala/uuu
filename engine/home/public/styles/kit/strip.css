@@ -1,7 +1,7 @@
 /* kit/strip.js: the cards under a stage (PLAN-COOK T33, from C3's "strip", "S02" and "S04", with the corrections
    after round 3). A card is on the raised step with a hairline (and a soft shadow in light); the chosen one is lifted:
-   a 2 px accent edge on the raised step. Option cards 96 to 110 px tall with 16 px padding and one 72 by 48 picture;
-   titles 14 px, amounts 15 px semibold on one right edge, one chip a card at 12 px on a tint. Tokens only. */
+   a 2 px accent edge on the raised step. Option cards 96 px at the least, about 134 px with a chip and a reason, with
+   16 px padding and one 72 by 48 picture; titles 14 px, amounts 15 px semibold on one right edge, one chip a card at 12 px on a tint. Tokens only. */
 
 .k-strip {
   display: flex;
@@ -54,12 +54,13 @@
   object-fit: cover;
 }
 
-/* ---- An option card: a radio. The picture (72 by 48) at the left spans the head and the sub; the foot runs under
-   both. 16 + 48 + 8 + 20 + 16 px and the border: 110 px with a foot, 96 px without. */
+/* ---- An option card: a radio. The picture (72 by 48) at the left spans the head and the sub; the chip, then the
+   reason, run under both columns. 16 + 48 + 8 + 20 + 8 + 18 + 16 px and the border: 136 px with both, 96 px with
+   neither. */
 .k-opt {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "head" "sub" "foot";
+  grid-template-areas: "head" "sub" "state" "say";
   align-content: start;
   gap: 0 var(--s-3);
   min-height: 96px;
@@ -77,8 +78,8 @@
 
 .k-opt--side {
   grid-template-columns: 72px minmax(0, 1fr);
-  grid-template-rows: 24px 24px auto;
-  grid-template-areas: "pic head" "pic sub" "foot foot";
+  grid-template-rows: 24px 24px auto auto;
+  grid-template-areas: "pic head" "pic sub" "state state" "say say";
 }
 
 .k-opt:hover:not(.k-opt--on) {
@@ -133,8 +134,9 @@
   grid-area: sub;
 }
 
-.k-opt__line--foot {
-  grid-area: foot;
+/* The one chip, alone at the left under both columns. */
+.k-opt__line--state {
+  grid-area: state;
   min-height: 20px;
   margin-top: var(--s-2);
 }
@@ -188,21 +190,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The reason: the card's whole width, 13 px in the second ink, one line on a wide window. */
 .k-opt__say {
-  order: -1;
-  flex: 1 1 auto;
+  grid-area: say;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin: 0;
+  margin: var(--s-2) 0 0;
   font-size: var(--fs-note);
   line-height: var(--lh-note);
   color: var(--ink-2);
-}
-
-.k-opt__line--foot .k-strip__chip {
-  margin-left: auto;
 }
 
 /* ---- A take: pressable, its still at 96 by 54 */
@@ -282,6 +280,16 @@
   margin-top: var(--s-1);
 }
 
+/* A tall window gives the strip room: the reason may take two lines there too. */
+@media (min-width: 860px) and (min-height: 1000px) {
+  .k-opt__say {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+  }
+}
+
 /* ---- A phone, or any narrow window: the cards stacked */
 @media (max-width: 859px) {
   .k-strip {
@@ -294,10 +302,6 @@
   }
 
   /* A card is the full width here: its reason may take two lines. */
-  .k-opt__line--foot {
-    align-items: flex-start;
-  }
-
   .k-opt__say {
     display: -webkit-box;
     -webkit-box-orient: vertical;

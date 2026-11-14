@@ -198,6 +198,21 @@ export function StageMark({ n }) {
   </span>`;
 }
 
+// The server's sentence without a last sentence that only repeats the link's words ("... Open Settings." before the
+// link "Open Settings"): the one trim made to a server sentence. Only an exact, whole trailing sentence equal to the
+// label goes; a sentence that is nothing else, or ends any other way, is returned untouched.
+export function withoutLinkWords(text, label) {
+  const t = typeof text === "string" ? text : "";
+  if (!t || typeof label !== "string" || !label) return t;
+  const body = t.replace(/\s+$/, "");
+  for (const tail of [`${label}.`, label]) {
+    if (!body.endsWith(tail)) continue;
+    const head = body.slice(0, body.length - tail.length);
+    if (/[.!?]["'”)]?\s+$/.test(head)) return head.replace(/\s+$/, "");
+  }
+  return t;
+}
+
 // `why` is { text, link } from the server (31.4), or the sentence alone.
 export function WhyNot({ why }) {
   const text = typeof why === "string" ? why : str(why && why.text);
@@ -208,7 +223,7 @@ export function WhyNot({ why }) {
   const where = page === "health" ? "Open Health" : page === "settings" ? "Open Settings" : page === "files" && /^Fill in\b/.test(text) ? "Fill it in" : page === "files" ? "Open Files" : "Open";
   return html`<p class="k-job k-job--why">
     <${Icon} name="lock" size=${14} class="k-job__why-icon" />
-    <span>${text.slice(0, 200)}</span>
+    <span>${(href ? withoutLinkWords(text, where) : text).slice(0, 200)}</span>
     ${href ? html`<a class="k-job__why-link" href=${href}>${where}</a>` : null}
   </p>`;
 }

@@ -135,6 +135,47 @@
   margin-top: var(--s-3);
 }
 
+/* Inline: one calm left-aligned line for a section of a page that has nothing yet: the 16 px icon, the sentence at
+   14 px, its line after it in grey and the way on, all on one baseline; no padding of its own (the section gives
+   the room). It wraps rather than cuts on a narrow column. */
+.k-empty--inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  padding: 0;
+  text-align: left;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.k-empty--inline .k-empty__icon {
+  flex: none;
+  margin: 0;
+}
+
+.k-empty--inline .k-empty__title {
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.k-empty--inline .k-empty__text {
+  max-width: none;
+}
+
+.k-empty--inline .k-empty__actions {
+  justify-content: flex-start;
+  margin: 0;
+}
+
+@media (max-width: 859px) {
+  .k-empty--inline .k-empty__actions a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
 /* Loading: rows parted by hairlines, each a short quiet bar that breathes for a while, then rests
    (no animation runs for ever). */
 .k-loading {

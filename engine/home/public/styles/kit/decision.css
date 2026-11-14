@@ -437,6 +437,27 @@
   background: var(--accent-fill);
 }
 
+/* A choice that cannot be taken: plainly inert, the disabled button's look. The third ink on the inert fill with its
+   hairline, no hover, the pointer says no, and the radio a flat mark with no ring to fill. */
+.k-decision__choice:disabled,
+.k-decision__choice[aria-disabled="true"],
+.k-decision__choice:disabled:hover,
+.k-decision__choice[aria-disabled="true"]:hover {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--ink) 5%, var(--raise));
+  box-shadow: none;
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+.k-decision__choice:disabled .k-decision__radio,
+.k-decision__choice:disabled .k-decision__box,
+.k-decision__choice[aria-disabled="true"] .k-decision__radio,
+.k-decision__choice[aria-disabled="true"] .k-decision__box {
+  border: 0;
+  background: var(--line);
+}
+
 .k-decision__answer-field {
   min-height: var(--h-lg);
 }

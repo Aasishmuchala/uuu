@@ -21,8 +21,11 @@
   transition: border-color var(--t-fast) var(--ease);
 }
 
-.k-composer__box:focus-within {
-  border-color: var(--accent);
+/* The field is the only thing in the box that types: while it has focus the whole box carries the 2 px accent ring
+   with its 2 px offset (R5), and the field draws none of its own. A focused button in the box keeps its own ring. */
+.k-composer__box:has(.k-composer__field:focus) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .k-composer__context {

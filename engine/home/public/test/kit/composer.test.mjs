@@ -43,6 +43,13 @@ test("the ask box on a phone: a placeholder that fits, the hint only while in us
   assert.match(c, /text-wrap: balance;/);
 });
 
+test("T97: the box carries the 2 px accent ring with a 2 px offset while its field has focus; the field draws none", () => {
+  const c = css("kit/composer.css");
+  assert.match(c, /\.k-composer__box:has\(\.k-composer__field:focus\) \{\s*outline: 2px solid var\(--focus\);\s*outline-offset: 2px;/);
+  assert.doesNotMatch(c, /\.k-composer__box:focus-within \{[^}]*border-color: var\(--accent\)/, "no 1 px accent border for focus");
+  assert.match(c, /\.k-composer__field:focus,\s*\.k-composer__field:focus-visible \{\s*outline: none;/, "no second ring on the field");
+});
+
 // ---- The Composer's two modes (CONTRACTS-V3 28), in the small DOM (kit-v60a).
 const JOB = shape("job");
 const textarea = (root) => elements(root).find((e) => e.localName === "textarea");

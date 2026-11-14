@@ -224,6 +224,17 @@ test("a job: why-not link words, optional reads, blanks in the preview, a job th
   assert.match(textOf(why), /Fill it in/);
   const files = show(job.WhyNot, { why: { text: "The brain has no price list.", link: { page: "files", id: "x" } } });
   assert.match(textOf(files), /Open Files/);
+  // T97: a sentence that already ends with the link's words does not say them twice; any other sentence is untouched.
+  const twice = show(job.WhyNot, { why: { text: "Runway is switched off. Open Settings.", link: { page: "settings" } } });
+  assert.equal(textOf(twice), "Runway is switched off.Open Settings", "the trailing sentence goes; the link follows");
+  const once = show(job.WhyNot, { why: { text: "Runway is switched off; turn it on in Settings.", link: { page: "settings" } } });
+  assert.equal(textOf(once), "Runway is switched off; turn it on in Settings.Open Settings", "nothing changes");
+  const alone = show(job.WhyNot, { why: { text: "Runway is switched off. Open Settings.", link: null } });
+  assert.equal(textOf(alone), "Runway is switched off. Open Settings.", "no link, no trim");
+  assert.equal(job.withoutLinkWords("Today's limit is $1.40. Open Settings", "Open Settings"), "Today's limit is $1.40.");
+  assert.equal(job.withoutLinkWords("Open Settings.", "Open Settings"), "Open Settings.", "a sentence that is nothing else stays");
+  assert.equal(job.withoutLinkWords("Do not Open Settings.", "Open Settings"), "Do not Open Settings.", "only a whole sentence");
+  assert.equal(job.withoutLinkWords("It is off. open settings.", "Open Settings"), "It is off. open settings.", "only the exact words");
 
   const lead = { id: "sales/call-write-up", title: "Call write-up", text: "Write up the call with [who] from [notes]. [extra]",
     asks: [{ id: "who", label: "Who was the call with?", kind: "line", required: true }, { id: "notes", label: "Which notes?", kind: "line", required: true },

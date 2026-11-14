@@ -178,13 +178,16 @@ export function Pair({ items }) {
 
 const VERDICT = { good: "check", warn: "alert", bad: "cross" };
 
-export function Verdict({ tone = "good", title, by }) {
+// A verdict: a round mark in its tone, the word, and who said it. `inline`: one line, the word then the grey "by"
+// words after a middle dot on one baseline; `inline={false}`: the word over its "by" line. Left unset, it is one line
+// in a rail and two lines anywhere else (the sheet decides, so a page need not say).
+export function Verdict({ tone = "good", title, by, inline }) {
   const t = Object.hasOwn(VERDICT, tone) ? tone : "good";
-  return html`<div class=${cx("k-verdict", `k-verdict--${t}`)}>
+  return html`<div class=${cx("k-verdict", `k-verdict--${t}`, inline === true && "k-verdict--inline", inline === false && "k-verdict--stack")}>
     <span class="k-verdict__mark" aria-hidden="true"><${Icon} name=${VERDICT[t]} size=${16} /></span>
     <div class="k-verdict__text">
       <p class="k-verdict__title">${title}</p>
-      ${has(by) ? html`<p class="k-say">${by}</p>` : null}
+      ${has(by) ? html`<p class="k-say k-verdict__by">${by}</p>` : null}
     </div>
   </div>`;
 }

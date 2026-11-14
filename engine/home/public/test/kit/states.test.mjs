@@ -40,4 +40,22 @@ test("empty is a 16 px icon, one sentence, one line and the way on; loading is h
   assert.match(c, /\.k-loading__line \{[^}]*border-bottom: 1px solid var\(--line\);[^}]*animation: k-loading-fade[^;]*;/);
 });
 
+test("T97: Empty inline is one left-aligned line (16 px icon, the sentence at 14 px, the way on) with no padding; the default is unchanged", () => {
+  const root = show(states.Empty, { inline: true, icon: "film", title: "No films yet.", children: "Open Studio" });
+  const box = elements(root).find((e) => /\bk-empty\b/.test(e.getAttribute("class") || ""));
+  assert.match(box.getAttribute("class"), /^k-empty k-empty--inline$/);
+  assert.equal(elements(root).find((e) => e.localName === "svg").getAttribute("width"), "16");
+  assert.match(textOf(root), /^No films yet\.Open Studio$/);
+  const plain = show(states.Empty, { title: "No films yet." });
+  assert.equal(elements(plain).find((e) => /\bk-empty\b/.test(e.getAttribute("class") || "")).getAttribute("class"), "k-empty");
+  const c = css("kit/states.css");
+  const inline = /\.k-empty--inline \{([^}]*)\}/.exec(c)[1];
+  assert.match(inline, /flex-direction: row;/);
+  assert.match(inline, /padding: 0;/);
+  assert.match(inline, /text-align: left;/);
+  assert.match(inline, /font-size: var\(--fs-ui\);/);
+  assert.match(/\.k-empty--inline \.k-empty__title \{([^}]*)\}/.exec(c)[1], /font-size: var\(--fs-ui\);/, "the sentence at 14 px");
+  assert.match(/\.k-empty \{([^}]*)\}/.exec(c)[1], /padding: var\(--s-10\) var\(--s-6\);/, "the default keeps its 40 px");
+});
+
 primitiveSheetTests("states");

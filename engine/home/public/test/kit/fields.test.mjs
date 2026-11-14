@@ -61,5 +61,49 @@ test("Switch: 38 x 22, the raised track off, the accent fill on, and role switch
   unmount(root);
 });
 
+test("T97: every field, the money input's box and the switch show the 2 px accent ring with a 2 px offset", () => {
+  const s = css("kit/fields.css");
+  const ring = /\{\s*outline: 2px solid var\(--focus\);\s*outline-offset: 2px;/;
+  const plain = /\.k-input:focus-visible,\s*\.k-textarea:focus-visible,\s*\.k-select__control:focus-visible\s*(\{[^}]*\})/.exec(s);
+  assert.ok(plain, "inputs, text areas and selects draw the ring on :focus-visible");
+  assert.match(plain[1], ring);
+  assert.match(s, new RegExp(String.raw`\.k-money-input:focus-within\s*` + ring.source), "the money input's ring is on its box");
+  assert.match(s, new RegExp(String.raw`\.k-switch__control:focus-visible\s*` + ring.source), "the switch's ring is the accent, 2 px");
+  assert.doesNotMatch(s, /outline: 3px|outline: [^;]*var\(--ink\)/, "no ring in the ink colour");
+});
+
+test("T97: a disabled field is the inert fill with a solid hairline and the third ink; a disabled switch is plainly inert", () => {
+  const s = css("kit/fields.css");
+  const off = /\.k-input:disabled,\s*\.k-textarea:disabled,\s*\.k-select__control:disabled,\s*\.k-money-input--disabled\s*\{([^}]*)\}/.exec(s);
+  assert.ok(off);
+  assert.match(off[1], /border-style: solid;/);
+  assert.match(off[1], /border-color: var\(--line\);/);
+  assert.match(off[1], /background: color-mix\(in srgb, var\(--ink\) 5%, var\(--raise\)\);/, "the disabled button's inert fill");
+  assert.match(off[1], /color: var\(--ink-3\);/);
+  assert.match(off[1], /cursor: not-allowed;/);
+  assert.doesNotMatch(s, /dashed/, "no dashed edge");
+  assert.doesNotMatch(css("kit/job.css"), /\.k-input:disabled[^{]*\{[^}]*dashed/, "nor in a job's switched-off questions");
+  // The switch: the track at low contrast on the inert fill, the thumb flat, the pointer says no.
+  assert.match(/\.k-switch--disabled \.k-switch__control\s*\{([^}]*)\}/.exec(s)[1], /cursor: not-allowed;/);
+  assert.match(/\.k-switch--disabled \.k-switch__track,[^{]*\{([^}]*)\}/.exec(s)[1], /background: color-mix\(in srgb, var\(--ink\) 5%, var\(--raise\)\);/);
+  const thumb = /\.k-switch--disabled \.k-switch__thumb,[^{]*\{([^}]*)\}/.exec(s)[1];
+  assert.match(thumb, /background: var\(--line-2\);/);
+  assert.match(thumb, /box-shadow: none;/);
+  assert.match(/\.k-switch--disabled \.k-switch__state\s*\{([^}]*)\}/.exec(s)[1], /color: var\(--ink-3\);/);
+});
+
+test("T97: a disabled Switch stays reachable, says it is disabled, and does not change", async () => {
+  installDom();
+  let changed = 0;
+  const root = await mount(kit.fields.Switch, { on: false, disabled: true, label: "Make videos", explain: "Add a key first.", onChange: () => { changed++; } });
+  assert.match(root.firstChild.getAttribute("class"), /k-switch--disabled/);
+  const b = elements(root).find((e) => e.localName === "button");
+  assert.equal(b.getAttribute("aria-disabled"), "true");
+  assert.equal(b.getAttribute("disabled"), null, "still a Tab stop, so its explanation can be read");
+  fire(b, "click");
+  assert.equal(changed, 0);
+  unmount(root);
+});
+
 primitiveSheetTests("fields");
 narrowControlsTest("fields");

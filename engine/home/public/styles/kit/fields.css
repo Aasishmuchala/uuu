@@ -1,7 +1,8 @@
 /* kit/fields.js: a label above, the control, a hint or an error (with an icon, not colour alone) below.
    Inputs, text areas, selects and the money input share one look: 36 px, the control corner, a firm edge on the
    field fill, the placeholder in the third ink. The pointer firms the edge; focus turns it to the accent and the
-   2 px ring (base.css) shows outside it. Disabled is the inert raised fill with the third ink. */
+   2 px accent ring shows 2 px outside it on every ground (R5). Disabled is the disabled button's inert fill with a
+   solid hairline and the third ink: never a dashed edge, which reads as unfinished. */
 
 .k-field {
   display: flex;
@@ -74,14 +75,28 @@
   border-color: var(--accent);
 }
 
+/* The ring itself, drawn here so no ground or page sheet can leave a field with its border colour alone. */
+.k-input:focus-visible,
+.k-textarea:focus-visible,
+.k-select__control:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .k-input:disabled,
 .k-textarea:disabled,
 .k-select__control:disabled,
 .k-money-input--disabled {
+  border-style: solid;
   border-color: var(--line);
   background: color-mix(in srgb, var(--ink) 5%, var(--raise));
   color: var(--ink-3);
   cursor: not-allowed;
+}
+
+.k-input:disabled::placeholder,
+.k-textarea:disabled::placeholder {
+  color: var(--ink-3);
 }
 
 .k-input[aria-invalid="true"],
@@ -135,7 +150,7 @@
   font-weight: var(--fw-medium);
 }
 
-.k-money-input:has(.k-money-input__control:focus-visible) {
+.k-money-input:focus-within {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -186,6 +201,12 @@
   line-height: var(--lh-ui);
   text-align: left;
   cursor: pointer;
+}
+
+/* The keyboard's ring: the 2 px accent outline with a 2 px offset, like every other stop. */
+.k-switch__control:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .k-switch__label {
@@ -241,22 +262,34 @@
   background: color-mix(in srgb, var(--accent-fill) 88%, var(--accent-ink));
 }
 
+/* Switched off: plainly inert, not an Off switch. The track is the inert fill at low contrast with a hairline, the
+   thumb a flat mark in the hairline's ink, the word On or Off in the third ink; an inert switch that is on keeps its
+   thumb at the right on a faint accent. The title keeps its weight and colour; the pointer says no. */
 .k-switch--disabled .k-switch__control {
   cursor: not-allowed;
 }
 
-/* Switched off: only the track is greyed; the title keeps its weight and colour. */
+.k-switch--disabled .k-switch__state {
+  color: var(--ink-3);
+}
+
 .k-switch--disabled .k-switch__track,
+.k-switch--disabled .k-switch__control:hover .k-switch__track {
+  background: color-mix(in srgb, var(--ink) 5%, var(--raise));
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
 .k-switch--disabled.k-switch--on .k-switch__track,
 .k-switch--disabled.k-switch--on .k-switch__control:hover .k-switch__track {
-  background: var(--raise);
-  box-shadow: inset 0 0 0 1px var(--line-2);
+  background: color-mix(in srgb, var(--accent-fill) 22%, var(--raise));
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .k-switch--disabled .k-switch__thumb,
 .k-switch--disabled .k-switch__control:hover .k-switch__thumb,
 .k-switch--disabled.k-switch--on .k-switch__thumb {
-  background: var(--ink-3);
+  background: var(--line-2);
+  box-shadow: none;
 }
 
 /* The note sits just under the label: the control is taller than its line, so it is pulled up. */

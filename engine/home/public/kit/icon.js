@@ -90,6 +90,9 @@ const ICONS = {
   retake: ["M4.5 12a7.5 7.5 0 1 0 2.2-5.3", "M4.8 3.8v3.4h3.4"],
   info: [ring(12, 12, 7.8), "M12 11v5.5M12 7.8v.01"],
   "arrow-up-right": ["M7 17L17 7M8.5 7H17v8.5"],
+  // T97: Copy (and `check` for "Copied"): two offset rounded squares, the back one hidden where the front covers it.
+  copy: ["M10.5 9h8a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 9 18.5v-8A1.5 1.5 0 0 1 10.5 9z",
+    "M15 9V5.5A1.5 1.5 0 0 0 13.5 4h-8A1.5 1.5 0 0 0 4 5.5v8A1.5 1.5 0 0 0 5.5 15H9"],
 };
 
 export const ICON_NAMES = Object.freeze(Object.keys(ICONS));

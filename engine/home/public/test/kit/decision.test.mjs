@@ -506,3 +506,17 @@ test("an opened item's actions sit 24 px under its last fact, the divider betwee
 });
 
 compositeSheetTests("decision");
+
+test("T97: a choice that cannot be taken is plainly inert: the third ink, the inert fill, the pointer says no, the radio flat", () => {
+  const c = css("kit/decision.css");
+  const off = /\.k-decision__choice:disabled,\s*\.k-decision__choice\[aria-disabled="true"\],[^{]*\{([^}]*)\}/.exec(c);
+  assert.ok(off, "a disabled look for the choice row");
+  assert.match(off[1], /background: color-mix\(in srgb, var\(--ink\) 5%, var\(--raise\)\);/);
+  assert.match(off[1], /color: var\(--ink-3\);/);
+  assert.match(off[1], /cursor: not-allowed;/);
+  assert.match(off[1], /border-color: var\(--line\);/);
+  const mark = /\.k-decision__choice:disabled \.k-decision__radio,[^{]*\{([^}]*)\}/.exec(c);
+  assert.ok(mark);
+  assert.match(mark[1], /border: 0;/);
+  assert.match(mark[1], /background: var\(--line\);/);
+});

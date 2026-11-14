@@ -115,7 +115,25 @@ test("Pin, PicTag, Pair and Verdict draw what they are given", async () => {
   root = await mount(Verdict, { tone: "warn", title: "Kept, with a note", by: "The Art director" });
   assert.equal(byClass(root, "k-verdict--warn").length, 1);
   assert.equal(textOf(byClass(root, "k-verdict__title")[0]), "Kept, with a note");
+  assert.doesNotMatch(byClass(root, "k-verdict")[0].getAttribute("class"), /k-verdict--(inline|stack)/, "unset: the sheet decides");
   unmount(root);
+});
+
+test("T97: a verdict in one line: the word in its tone, then the grey by words after a middle dot; the default in a rail", async () => {
+  installDom();
+  let root = await mount(Verdict, { tone: "good", title: "Keep", by: "the Art director's verdict", inline: true });
+  const v = byClass(root, "k-verdict")[0];
+  assert.match(v.getAttribute("class"), /\bk-verdict--inline\b/);
+  assert.equal(textOf(v), "Keepthe Art director's verdict", "the dot is drawn, not read");
+  assert.equal(byClass(v, "k-verdict__by").length, 1);
+  unmount(root);
+  root = await mount(Verdict, { tone: "warn", title: "Retake", by: "the Art director's verdict", inline: false });
+  assert.match(byClass(root, "k-verdict")[0].getAttribute("class"), /\bk-verdict--stack\b/, "the two-line form stays available");
+  unmount(root);
+  const sheet = css("kit/stage.css");
+  assert.match(sheet, /\.k-verdict--inline \.k-verdict__text,\s*\.k-rail \.k-verdict:not\(\.k-verdict--stack\) \.k-verdict__text \{[^}]*display: flex;[^}]*align-items: baseline;/);
+  assert.match(sheet, /\.k-verdict--inline \.k-verdict__by::before,\s*\.k-rail \.k-verdict:not\(\.k-verdict--stack\) \.k-verdict__by::before \{[^}]*content: "\\00B7" \/ "";/);
+  assert.match(sheet, /\.k-verdict--inline\.k-verdict--warn \.k-verdict__title,[^{]*\{ color: var\(--warn\); \}/, "the word in its tone");
 });
 
 test("stage.css: pins in the gutter, a stage panel around the frames, no blur, and the phone frame alone below 860 px", () => {
