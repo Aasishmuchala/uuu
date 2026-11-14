@@ -130,9 +130,10 @@ test("every class the new parts use starts with k-, and each module's root class
   for (const r of Object.values(ROOTS)) assert.ok(seen.has(r), `the root class ${r} is used`);
 });
 
-test("the pill control fades its cut edge and drops icons on a phone (M18-29, M52 F10)", () => {
+test("the pill control marks its cut edge with a hairline and drops icons on a phone (M18-29, M52 F10)", () => {
   const s = css("kit/segmented.css");
-  assert.match(s, /\.k-seg--more\s*\{[^}]*mask-image/);
+  assert.match(s, /\.k-seg--more\s*\{[^}]*box-shadow: inset -1px 0 0 var\(--hairline-strong\)/);
+  assert.doesNotMatch(s, /mask-image|gradient\(/);
   assert.match(s, /@media \(max-width: 479px\)\s*\{\s*\.k-seg__item:has\(\.k-seg__label:not\(:empty\)\) \.k-icon\s*\{\s*display: none;/);
 });
 

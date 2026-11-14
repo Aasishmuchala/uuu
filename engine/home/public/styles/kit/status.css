@@ -17,7 +17,7 @@
   flex: none;
   width: var(--s-2);
   height: var(--s-2);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   background: var(--k-dot-colour, var(--text-2));
 }
 

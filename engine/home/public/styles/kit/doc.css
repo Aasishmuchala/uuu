@@ -32,12 +32,11 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  font-size: var(--fs-over);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: .16em;
+  letter-spacing: var(--ls-label);
   line-height: var(--lh-tight);
-  text-transform: uppercase;
-  color: var(--text-2);
+  color: var(--ink-3);
 }
 
 .k-doc__text {
@@ -215,18 +214,13 @@
   gap: var(--s-2);
 }
 
-/* A table too wide for its place scrolls inside its own box, and a shade at the edge shows there is more. */
+/* A table too wide for its place scrolls inside its own box; the box's hairline is its cut edge. */
 .k-md__table {
   max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--r-3);
-  background:
-    linear-gradient(to right, var(--bg-card) 40%, transparent) left / var(--s-8) 100% no-repeat local,
-    linear-gradient(to left, var(--bg-card) 40%, transparent) right / var(--s-8) 100% no-repeat local,
-    linear-gradient(to right, color-mix(in srgb, var(--text) 16%, transparent), transparent) left / var(--s-4) 100% no-repeat scroll,
-    linear-gradient(to left, color-mix(in srgb, var(--text) 16%, transparent), transparent) right / var(--s-4) 100% no-repeat scroll,
-    var(--bg-card);
+  background: var(--bg-card);
 }
 
 .k-md__table:focus-visible {

@@ -158,7 +158,7 @@
   flex: none;
   width: calc(var(--s-8) + var(--s-1));
   height: var(--s-5);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   background: var(--hairline-strong);
   transition: background-color var(--t-med) var(--ease);
 }
@@ -169,7 +169,7 @@
   left: 2px;
   width: calc(var(--s-5) - 4px);
   height: calc(var(--s-5) - 4px);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   background: var(--text);
   box-shadow: 0 1px 2px color-mix(in srgb, var(--canvas) 40%, transparent);
   transition: transform var(--t-med) var(--ease);

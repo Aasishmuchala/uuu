@@ -26,7 +26,7 @@ test("the warm tint lies over glass; urgent says so once; drawer cards line up (
   const d = css("kit/decision.css");
   assert.match(d, /\.k-decision--high\s*\{\s*border-color: var\(--border-warm\);/);
   assert.match(d, /\.k-decision--compact \.k-decision__details\s*\{\s*grid-template-columns: minmax\(0, 1fr\);/);
-  assert.match(d, /dd::first-letter\s*\{\s*text-transform: uppercase;/);
+  assert.match(d, /dd::first-letter\s*\{\s*text-transform: capitalize;/, "a detail still starts with a capital, without the banned uppercase rule");
 });
 
 // From "the primitives' stylesheets follow the rules of V3 27.3" (kit-a).

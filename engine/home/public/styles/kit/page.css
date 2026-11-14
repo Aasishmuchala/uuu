@@ -1,6 +1,6 @@
 /* kit/page.js: the page header and titled sections, with generous, calm spacing. The back link and the breadcrumb
-   are small glass chips; the overline sits above the title in wide-tracked capitals; a department's creature sits
-   left of the title. Text straight on the canvas uses --text or --text-2 only. */
+   are small glass chips; the overline sits above the title as a 12 px label; a department's creature sits
+   left of the title. Text straight on the ground uses --text, --text-2 or --ink-3. */
 
 .k-page-header {
   display: flex;
@@ -138,12 +138,11 @@
 }
 
 .k-page-header__over {
-  font-size: var(--fs-over);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
   line-height: var(--lh-tight);
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--text-2);
+  letter-spacing: var(--ls-label);
+  color: var(--ink-3);
 }
 
 .k-page-header__title {
@@ -191,23 +190,22 @@
   min-height: var(--h-md);
 }
 
-/* Section titles are overlines: small capitals with the count after a dot. */
+/* Section titles are 12 px labels with the count after a dot. */
 .k-section__title {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
   min-width: 0;
-  font-size: var(--fs-over);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--text-2);
+  letter-spacing: var(--ls-label);
+  color: var(--ink-3);
 }
 
 .k-section__count {
   min-width: var(--s-5);
   padding: 0 var(--s-2);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   background: var(--glass-soft);
   box-shadow: inset 0 0 0 1px var(--hairline);
   color: var(--text-2);

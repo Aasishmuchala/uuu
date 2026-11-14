@@ -42,8 +42,6 @@
   font-family: var(--font-serif);
   font-size: var(--fs-dept);
   font-weight: var(--fw-regular);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
   line-height: var(--lh-tight);
 }
 /* The title's link covers the whole card, so the card opens from anywhere; the Try again button sits above it. */
@@ -107,7 +105,7 @@
   flex: none;
   width: 6px;
   height: 6px;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   background: var(--dept);
   transform: translateY(-1px);
 }

@@ -8,7 +8,7 @@
   justify-content: center;
   width: var(--k-avatar-size);
   height: var(--k-avatar-size);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   background: var(--glass-strong);
   box-shadow: inset 0 0 0 1px var(--hairline);
   color: var(--text);
@@ -29,7 +29,7 @@
 .k-avatar__img {
   width: 100%;
   height: 100%;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   object-fit: cover;
 }
 
@@ -62,7 +62,7 @@
   bottom: -2px;
   display: inline-flex;
   padding: 2px;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   background: var(--canvas);
   line-height: 0;
 }

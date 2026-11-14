@@ -306,10 +306,10 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  font-size: var(--fs-over);
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--text-2);
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
+  color: var(--ink-3);
+  font-weight: var(--fw-medium);
 }
 
 .p-brand-kit .p-brand-kit__offer-text {
@@ -457,10 +457,10 @@
   align-items: center;
   gap: var(--s-1);
   margin-bottom: auto;
-  font-size: var(--fs-over);
-  letter-spacing: .12em;
-  text-transform: uppercase;
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
   opacity: .85;
+  font-weight: var(--fw-medium);
 }
 
 .p-brand-kit .p-brand-kit__tile-name {
@@ -571,9 +571,9 @@
 }
 
 .p-brand-kit .p-brand-kit__spec-over {
-  font-size: var(--fs-over);
-  letter-spacing: .18em;
-  text-transform: uppercase;
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
+  font-weight: var(--fw-medium);
 }
 
 .p-brand-kit .p-brand-kit__spec-display {
@@ -703,10 +703,10 @@
   position: absolute;
   top: var(--s-3);
   left: var(--s-4);
-  font-size: var(--fs-over);
-  letter-spacing: .12em;
-  text-transform: uppercase;
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
   opacity: .7;
+  font-weight: var(--fw-medium);
 }
 
 .p-brand-kit .p-brand-kit__stage-note {

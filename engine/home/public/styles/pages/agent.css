@@ -57,8 +57,9 @@
   flex-direction: column;
   gap: var(--s-2);
   padding: var(--s-3) 0 var(--s-4);
-  /* The canvas shows through above the box only: messages scroll up behind a fade, never through the words. */
-  background: linear-gradient(to bottom, transparent, var(--bg) var(--s-4));
+  /* Messages scroll up behind the box, cut by a hairline, never through the words. */
+  border-top: 1px solid var(--hairline);
+  background: var(--bg);
 }
 .p-agent .p-agent__end { display: block; height: 0; scroll-margin-bottom: 480px; }
 .p-agent .p-agent__given { margin: 0; color: var(--ok-text); }

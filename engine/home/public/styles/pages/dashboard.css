@@ -63,12 +63,12 @@
   align-items: center;
   gap: var(--s-2);
   min-height: var(--h-md);
-  color: var(--text-2);
+  color: var(--ink-3);
   text-decoration: none;
-  font-size: var(--fs-caption);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
   transition: color var(--t-fast);
+  font-weight: var(--fw-medium);
 }
 .p-dashboard .p-dashboard-open:hover { color: var(--dept); }
 
@@ -76,10 +76,10 @@
 .p-dashboard .p-dashboard-waiting { display: flex; flex-direction: column; gap: var(--s-2); margin-bottom: var(--s-4); }
 .p-dashboard .p-dashboard-waiting-title {
   margin: 0;
-  font-size: var(--fs-caption);
+  font-size: var(--fs-label);
   color: var(--warn-text);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: var(--ls-label);
+  font-weight: var(--fw-medium);
 }
 
 /* Below 860 px the closing link and the jobs link keep a 44 px target (M51 F15). */

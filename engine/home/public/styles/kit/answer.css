@@ -108,11 +108,10 @@ a.k-answer__mark-link:hover {
   gap: var(--s-2);
   list-style: none;
   padding: var(--s-2) var(--s-3);
-  color: var(--text-2);
-  font-size: var(--fs-over);
+  color: var(--ink-3);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: var(--ls-label);
   cursor: pointer;
 }
 
@@ -199,11 +198,10 @@ a.k-answer__source-link:hover {
 }
 
 .k-answer__missing-head {
-  color: var(--text-2);
-  font-size: var(--fs-over);
+  color: var(--ink-3);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: var(--ls-label);
 }
 
 .k-answer__missing-list {

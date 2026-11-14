@@ -38,11 +38,10 @@
 
 .p-map .p-map__over-line {
   margin: 0;
-  font-size: var(--fs-over);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--text-2);
+  letter-spacing: var(--ls-label);
+  color: var(--ink-3);
 }
 
 .p-map .p-map__none {
@@ -294,7 +293,7 @@
   fill: var(--text-2);
   font-size: var(--fs-over);
   font-weight: var(--fw-medium);
-  letter-spacing: .16em;
+  letter-spacing: var(--ls-label);
 }
 
 .p-map .p-map__job-disc {
@@ -352,8 +351,6 @@
   transform: translate(-50%, -50%);
   font-family: var(--font-serif);
   font-size: min(var(--fs-ghost), calc(88vw / (var(--p-map-ghost-n, 6) * .95)));
-  letter-spacing: .22em;
-  text-transform: uppercase;
   white-space: nowrap;
   color: var(--text);
   opacity: .06;
@@ -394,9 +391,9 @@
 
 .p-map .p-map__edge-name {
   writing-mode: vertical-rl;
-  font-size: var(--fs-caption);
-  letter-spacing: .22em;
-  text-transform: uppercase;
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
+  font-weight: var(--fw-medium);
 }
 
 .p-map .p-map__edge--prev .p-map__edge-name {
@@ -479,8 +476,6 @@
   font-size: var(--fs-dept);
   font-weight: var(--fw-regular);
   line-height: var(--lh-tight);
-  letter-spacing: .22em;
-  text-transform: uppercase;
   color: var(--text);
   -webkit-text-stroke: .3px currentColor;
 }
@@ -702,18 +697,19 @@
 }
 
 /* In the list the page scrolls under the box: there it stands on a strip of the canvas, the width of the window,
-   fading to clear at its top, so no two lines of text run through each other. */
+   cut by a hairline at its top, so no two lines of text run through each other. */
 .p-map.p-map--wide.p-map--list .p-map__bottom {
   left: 0;
   right: 0;
   bottom: 0;
   width: auto;
   padding: var(--s-10) max(var(--s-6), calc((100% - 640px) / 2)) var(--s-4);
-  background: linear-gradient(to top, var(--canvas) 70%, transparent);
+  border-top: 1px solid var(--hairline);
+  background: var(--canvas);
   transform: none;
 }
 
-/* The answer: a solid panel (the canvas under the glass, so nothing shows through its text) of at most about
+/* The answer: a solid panel (nothing shows through its text) of at most about
    40% of the window, scrolling inside; the drawing behind it is dimmed (opacity only) while it is open. */
 .p-map .p-map__answer {
   display: flex;
@@ -723,7 +719,7 @@
   padding: var(--s-4);
   border: 1px solid var(--hairline-strong);
   border-radius: var(--r-4);
-  background: linear-gradient(var(--glass-strong), var(--glass-strong)), var(--canvas);
+  background: var(--panel);
   box-shadow: var(--shadow-pop);
 }
 
@@ -836,8 +832,6 @@
   font-family: var(--font-serif);
   font-size: var(--fs-title);
   font-weight: var(--fw-regular);
-  letter-spacing: .18em;
-  text-transform: uppercase;
   color: var(--text);
 }
 
@@ -902,11 +896,10 @@
 
 .p-map .p-map__cluster-title {
   margin: var(--s-2) 0 var(--s-2);
-  font-size: var(--fs-over);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--text-2);
+  letter-spacing: var(--ls-label);
+  color: var(--ink-3);
 }
 
 .p-map .p-map__jobs {
@@ -972,8 +965,6 @@
 .p-map .p-map__row-title {
   font-family: var(--font-serif);
   font-size: var(--fs-title);
-  letter-spacing: .16em;
-  text-transform: uppercase;
 }
 
 .p-map .p-map__row-count {
@@ -1033,7 +1024,7 @@
     margin-top: var(--s-2);
   }
 
-  /* The box block above the tab bar: about 120 px. A solid backing from the chips down (a short fade above),
+  /* The box block above the tab bar: about 120 px. A solid backing from the chips down (a hairline above),
      the chips and the box; the hint shows only while the box has focus. */
   .p-map .p-map__bottom {
     left: 0;
@@ -1042,7 +1033,8 @@
     width: auto;
     gap: var(--s-2);
     padding: var(--s-4) var(--s-3) calc(var(--tabbar-h) + var(--s-3));
-    background: linear-gradient(to top, var(--canvas) calc(100% - var(--s-4)), transparent);
+    border-top: 1px solid var(--hairline);
+    background: var(--canvas);
     transform: none;
   }
 

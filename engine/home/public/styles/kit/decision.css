@@ -113,11 +113,10 @@
 
 .k-decision__detail dt {
   min-width: 80px;
-  font-size: var(--fs-over);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--text-2);
+  letter-spacing: var(--ls-label);
+  color: var(--ink-3);
 }
 
 .k-decision__detail dd {
@@ -129,7 +128,7 @@
 
 /* A detail the server hands on as the rest of a sentence still starts with a capital, on screen only. */
 .k-decision__detail dd::first-letter {
-  text-transform: uppercase;
+  text-transform: capitalize;
 }
 
 /* A compact card (the drawer) is narrow: each label sits on its own line above its text, so every card

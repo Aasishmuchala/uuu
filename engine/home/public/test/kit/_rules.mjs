@@ -104,12 +104,12 @@ export function primitiveSheetTests(m) {
     for (const k of keyframes) assert.ok(k.startsWith("k-"), `keyframes "${k}" are named k-...`);
   });
 
-  // 27.3: tokens only, backdrop-filter only in overlays.css, motion only on transform and opacity (colours may fade
+  // 27.3: tokens only, no backdrop-filter, motion only on transform and opacity (colours may fade
   // for at most --t-med), no endless animation but the live dot, no will-change.
   test("the primitives' stylesheets follow the rules of V3 27.3", () => {
     const ALLOWED_TRANSITION = /^(transform|opacity|color|background-color|border-color)$/;
     const css = stripComments(readFileSync(join(STYLES, `${m}.css`), "utf8"));
-    if (m !== "overlays") assert.doesNotMatch(css, /backdrop-filter/, `${m}.css has no backdrop-filter`);
+    assert.doesNotMatch(css, /backdrop-filter/, `${m}.css has no backdrop-filter`);
     assert.doesNotMatch(css, /(^|[^-])filter\s*:\s*blur/, `${m}.css has no filter: blur`);
     assert.doesNotMatch(css, /will-change/, `${m}.css has no will-change`);
     assert.doesNotMatch(css, /mix-blend-mode/, `${m}.css has no blend mode`);
@@ -141,9 +141,9 @@ export function narrowControlsTest(m) {
 // ---- A composite's sheet (kit-b): 27.3 and 11.2. ----
 
 export function compositeSheetTests(name) {
-  test("composer.css is the only composite stylesheet that blurs what is behind it (27.3)", () => {
+  test("no composite stylesheet blurs what is behind it (27.3)", () => {
     const css = readFileSync(join(PUBLIC, "styles", "kit", `${name}.css`), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-    if (name !== "composer") assert.ok(!/backdrop-filter/.test(css), `${name}.css: no backdrop-filter`);
+    assert.ok(!/backdrop-filter/.test(css), `${name}.css: no backdrop-filter`);
     assert.ok(!/filter\s*:\s*blur/.test(css), `${name}.css: no filter: blur`);
     assert.ok(!/will-change/.test(css), `${name}.css: no will-change`);
     // Nothing moves for ever here (the live dot is status.css's).

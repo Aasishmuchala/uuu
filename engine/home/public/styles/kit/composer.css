@@ -1,6 +1,5 @@
-/* Composer (kit/composer.js): the glass box at the bottom of its container, with the "/" and "@" lists above it,
-   and the map's round ask box. Tokens only. The one composite stylesheet that blurs what is behind it (27.3):
-   the box and its list float over the canvas. The blur is held in a local property, as in canvas.css. */
+/* Composer (kit/composer.js): the box at the bottom of its container, with the "/" and "@" lists above it,
+   and the map's round ask box. Tokens only. The box and its list are opaque; nothing behind them is blurred. */
 
 .k-composer {
   position: sticky;
@@ -10,17 +9,14 @@
 }
 
 .k-composer__box {
-  --k-composer-blur: blur(var(--blur-chrome));
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
   padding: var(--s-3) var(--s-3) var(--s-2) var(--s-4);
-  background: var(--glass-strong);
+  background: var(--panel);
   border: 1px solid var(--hairline-strong);
   border-radius: var(--r-5);
   box-shadow: var(--highlight);
-  -webkit-backdrop-filter: var(--k-composer-blur);
-  backdrop-filter: var(--k-composer-blur);
   transition: border-color var(--t-fast) var(--ease);
 }
 
@@ -134,29 +130,25 @@
   color: var(--bad-text);
 }
 
-/* The "/" and "@" lists: chrome glass over whatever is above the box. */
+/* The "/" and "@" lists: a floating panel over whatever is above the box. */
 .k-composer__menu {
-  --k-composer-blur: blur(var(--blur-chrome));
   margin-bottom: var(--s-2);
   max-height: 320px;
   overflow-y: auto;
   padding: var(--s-1);
-  background: var(--glass-strong);
+  background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: var(--r-4);
-  box-shadow: var(--highlight), var(--shadow-pop);
-  -webkit-backdrop-filter: var(--k-composer-blur);
-  backdrop-filter: var(--k-composer-blur);
+  box-shadow: var(--float);
 }
 
 .k-composer__menu-head {
   margin: 0;
   padding: var(--s-2) var(--s-2) var(--s-1);
-  font-size: var(--fs-over);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--text-3);
+  letter-spacing: var(--ls-label);
+  color: var(--ink-3);
 }
 
 .k-composer__option {
@@ -193,7 +185,7 @@
   flex: none;
   width: var(--s-2);
   height: var(--s-2);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   background: var(--dept, var(--text-3));
 }
 

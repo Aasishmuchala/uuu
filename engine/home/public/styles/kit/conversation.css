@@ -93,12 +93,11 @@
   border: 1px solid var(--hairline);
   border-radius: var(--r-pill);
   background: var(--glass-soft);
-  font-size: var(--fs-over);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: .16em;
+  letter-spacing: var(--ls-label);
   line-height: 1.8;
-  text-transform: uppercase;
-  color: var(--text-2);
+  color: var(--ink-3);
 }
 
 .k-convo__msg--result .k-convo__kind {

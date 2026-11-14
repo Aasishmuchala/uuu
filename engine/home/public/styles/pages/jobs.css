@@ -8,7 +8,7 @@
 .p-jobs .p-jobs__search > .k-field { flex: 1 1 280px; min-width: 0; margin: 0; }
 .p-jobs .p-jobs__search .k-switch { flex: none; }
 .p-jobs .p-jobs__chips { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
-.p-jobs .p-jobs__chips-label { flex: none; width: 88px; color: var(--text-3); font-size: var(--fs-over); font-weight: var(--fw-medium); letter-spacing: .16em; text-transform: uppercase; }
+.p-jobs .p-jobs__chips-label { flex: none; width: 88px; color: var(--ink-3); font-size: var(--fs-label); font-weight: var(--fw-medium); letter-spacing: var(--ls-label); }
 .p-jobs .p-jobs__chips-row { display: flex; flex-wrap: wrap; gap: var(--s-2); min-width: 0; }
 .p-jobs .p-jobs__chip {
   display: inline-flex; align-items: center; gap: var(--s-2); flex: none;
@@ -20,7 +20,7 @@
 .p-jobs .p-jobs__chip:hover { background: var(--glass); color: var(--text); }
 .p-jobs .p-jobs__chip--on, .p-jobs .p-jobs__chip--on:hover { background: var(--primary); color: var(--primary-text); box-shadow: none; }
 .p-jobs .p-jobs__chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.p-jobs .p-jobs__chip-dot { flex: none; display: inline-block; width: var(--s-2); height: var(--s-2); border-radius: var(--r-pill); background: var(--dept, var(--text-3)); }
+.p-jobs .p-jobs__chip-dot { flex: none; display: inline-block; width: var(--s-2); height: var(--s-2); border-radius: var(--r-round); background: var(--dept, var(--text-3)); }
 .p-jobs .p-jobs__chip-n {
   display: inline-grid; place-items: center; width: var(--s-4); height: var(--s-4); border-radius: var(--r-1);
   box-shadow: inset 0 0 0 1px currentColor; font-size: var(--fs-over); font-variant-numeric: tabular-nums;
@@ -40,8 +40,8 @@
 .p-jobs .p-jobs__dept { display: flex; flex-direction: column; gap: var(--s-4); padding: var(--s-5); min-width: 0; }
 .p-jobs .p-jobs__dept-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); min-width: 0; }
 .p-jobs .p-jobs__dept-pet { display: inline-flex; flex: none; }
-.p-jobs .p-jobs__dept-dot { width: var(--s-3); height: var(--s-3); border-radius: var(--r-pill); background: var(--dept, var(--text-3)); }
-.p-jobs .p-jobs__dept-name { margin: 0; font-size: var(--fs-title); letter-spacing: .2em; }
+.p-jobs .p-jobs__dept-dot { width: var(--s-3); height: var(--s-3); border-radius: var(--r-round); background: var(--dept, var(--text-3)); }
+.p-jobs .p-jobs__dept-name { margin: 0; font-size: var(--fs-title); }
 .p-jobs .p-jobs__dept-count { color: var(--text-2); font-size: var(--fs-caption); }
 .p-jobs .p-jobs__dept-open { margin-left: auto; color: var(--text-2); font-size: var(--fs-caption); }
 .p-jobs .p-jobs__dept-open:hover { color: var(--text); }
@@ -65,7 +65,7 @@
 .p-jobs .p-jobs__band { display: flex; flex-direction: column; gap: var(--s-4); padding: var(--s-5); min-width: 0; }
 .p-jobs .p-jobs__band-head { display: flex; align-items: center; gap: var(--s-4); min-width: 0; }
 .p-jobs .p-jobs__band-head .k-ring { flex: none; }
-.p-jobs .p-jobs__band-ring-wait { flex: none; width: 48px; height: 48px; border-radius: var(--r-pill); box-shadow: inset 0 0 0 3px var(--hairline); }
+.p-jobs .p-jobs__band-ring-wait { flex: none; width: 48px; height: 48px; border-radius: var(--r-round); box-shadow: inset 0 0 0 3px var(--hairline); }
 .p-jobs .p-jobs__band-titles { flex: 1 1 auto; min-width: 0; }
 .p-jobs .p-jobs__band-name { margin: var(--s-1) 0 0; font-size: var(--fs-heading); font-weight: var(--fw-medium); line-height: var(--lh-tight); }
 .p-jobs .p-jobs__band-about { margin: var(--s-1) 0 0; color: var(--text-2); }

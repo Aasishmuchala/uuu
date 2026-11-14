@@ -206,9 +206,9 @@
 }
 
 .p-files .p-files__tile-kind {
-  font-size: var(--fs-over);
-  letter-spacing: .16em;
-  text-transform: uppercase;
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
+  font-weight: var(--fw-medium);
 }
 
 /* Files as rows, also the recent files and the search results */

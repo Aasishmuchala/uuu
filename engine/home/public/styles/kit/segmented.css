@@ -62,7 +62,7 @@
 .k-seg__count {
   min-width: var(--s-5);
   padding: 0 var(--s-1);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   background: var(--glass-soft);
   font-size: var(--fs-caption);
   font-variant-numeric: tabular-nums;
@@ -90,10 +90,9 @@
   }
 }
 
-/* More choices than fit: the cut edge fades (M18-29). */
+/* More choices than fit: a hairline marks the cut edge (M18-29). */
 .k-seg--more {
-  -webkit-mask-image: linear-gradient(to right, var(--canvas) calc(100% - var(--s-10)), transparent);
-  mask-image: linear-gradient(to right, var(--canvas) calc(100% - var(--s-10)), transparent);
+  box-shadow: inset -1px 0 0 var(--hairline-strong);
 }
 
 /* A phone: the words carry the choice, so the icons give way and more choices fit. */

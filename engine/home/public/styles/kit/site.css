@@ -288,7 +288,7 @@ button.k-site__screen:focus-visible {
   display: block;
   width: 4px;
   height: 4px;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   background: var(--hairline-strong);
   box-shadow: 7px 0 0 var(--hairline-strong), 14px 0 0 var(--hairline-strong);
 }
@@ -407,11 +407,10 @@ button.k-site__screen:focus-visible .k-site__zoom {
   align-items: baseline;
   gap: var(--s-1) var(--s-3);
   margin: 0;
-  font-size: var(--fs-over);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--text-3);
+  letter-spacing: var(--ls-label);
+  color: var(--ink-3);
 }
 
 .k-site__report-n {

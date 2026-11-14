@@ -1,7 +1,5 @@
 /* kit/overlays.js: the action menu, the dialog and the drawer. Overlays own z-index 100 and up.
-   Each panel is chrome glass (.u-glass-chrome in canvas.css, written out here because kit classes start with k-):
-   the strong glass fill, the blur of what is behind, a hairline, the inner highlight and the pop shadow.
-   This is one of the few stylesheets 27.3 lets use backdrop-filter; overlays are small and short-lived. */
+   Each panel is opaque: the panel fill, a hairline and the float shadow. Nothing behind it is blurred. */
 
 /* Menu */
 .k-menu {
@@ -26,10 +24,8 @@
   padding: var(--s-1);
   border: 1px solid var(--hairline);
   border-radius: var(--r-4);
-  background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(var(--blur-chrome));
-  backdrop-filter: blur(var(--blur-chrome));
-  box-shadow: var(--highlight), var(--shadow-pop);
+  background: var(--panel);
+  box-shadow: var(--float);
   animation: k-overlay-in var(--t-fast) var(--ease);
 }
 
@@ -102,11 +98,9 @@
   display: flex;
   flex-direction: column;
   border: 1px solid var(--hairline);
-  background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(var(--blur-chrome));
-  backdrop-filter: blur(var(--blur-chrome));
+  background: var(--panel);
   color: var(--text);
-  box-shadow: var(--highlight), var(--shadow-pop);
+  box-shadow: var(--float);
 }
 
 .k-dialog__panel {

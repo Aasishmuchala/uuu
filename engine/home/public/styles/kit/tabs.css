@@ -43,7 +43,7 @@
 .k-tabs__count {
   min-width: var(--s-5);
   padding: 0 var(--s-1);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   background: var(--glass-soft);
   color: var(--text-2);
   font-size: var(--fs-caption);

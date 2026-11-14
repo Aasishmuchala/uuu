@@ -158,11 +158,10 @@
 
 .p-sprite-player .p-sprite-player__heading {
   margin: 0;
-  font-size: var(--fs-over);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-3);
+  letter-spacing: var(--ls-label);
+  color: var(--ink-3);
 }
 
 .p-sprite-player .p-sprite-player__strip {
