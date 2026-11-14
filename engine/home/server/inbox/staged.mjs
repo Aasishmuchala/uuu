@@ -6,7 +6,8 @@
 // Everything read here (documents, comments, shotlists) was written by an agent: it is parsed, capped and shown
 // as text only. What goes back to the board is the owner's note as typed (trimmed) and the markers this code
 // adds, `ANSWER:`, `PLAN ACCEPTED`, `SHOTLIST ACCEPTED: <a|b|c> batch <id>` and `ANOTHER ROUND`; nothing an agent
-// wrote is ever sent back or kept in a record.
+// wrote is ever sent back, and the only agent words kept in a record are an approved shotlist's renders, moves and
+// prompts, checked again as the owner read them (lib/shotlist.mjs, T48 F3).
 // Every item carries `version` (CONTRACTS 9.3a): a question its questions' hash (the one in its id), a plan
 // a hash of the plan file and its PLAN READY comment, a stop a hash of the STOPPED comment, a shotlist a hash of
 // its SHOTLIST READY comment, the treatments' files, the newest review, the shots as priced, the caps and the
@@ -22,13 +23,13 @@
 // succeeded. A later step that fails (setting the task back to "todo") never turns a success into a failure.
 import { createHash } from "node:crypto";
 import { reviewsOf } from "../lib/artreview.mjs";
-import { generationNow, removeBatch, writeBatch } from "../lib/batches.mjs";
+import { closeBatches, generationNow, removeBatch, writeBatch } from "../lib/batches.mjs";
 import { stampOf } from "../lib/brandcheck.mjs";
 import { HomeError } from "../lib/errors.mjs";
 import { versionOf } from "../lib/inbox.mjs";
 import { ANOTHER, BACK, PICK, recordPick } from "../lib/picks.mjs";
 import {
-  boardsOf, costWords, dollars, priceShotlist, readShotlist, recordApproval, shotsHash, TAKES, timeWords,
+  approvedShots, boardsOf, costWords, dollars, priceShotlist, readShotlist, recordApproval, shotsHash, TAKES, timeWords,
 } from "../lib/shotlist.mjs";
 import { MARKERS, parseBrief, parsePlan, roundsOf, ROUND_CAP, textOf } from "../lib/staged.mjs";
 import { stopTask } from "../lib/stop.mjs";
@@ -221,7 +222,7 @@ function treatmentOf(ctx, goal, pv, place, gen, allowWords) {
     time: timeWords(priced.shots.length),
   } : null;
   const shown = { ...pv, shotlist, boards, cost, approvable: blocked === null, blocked };
-  Object.defineProperty(shown, "_approve", { enumerable: false, value: { priced, code } });
+  Object.defineProperty(shown, "_approve", { enumerable: false, value: { priced, code, approved: read.ok ? approvedShots(read.shotlist, priced) : [] } });
   return shown;
 }
 
@@ -367,13 +368,16 @@ function choiceOf(sl, action, variant, note) {
 }
 
 // Approve: the batch file (the door's prices times two takes, read back by the door's own reader), the
-// `shotlist:` record, the pick, the owner's comment, the goal to todo, the taste file. When the comment cannot be
+// `shotlist:` record (with the hash of the shots as priced and as read, render and prompt included, and the render,
+// move and prompt of each shot as the owner read them, T48 F3), the pick, the owner's comment, the goal's older
+// batches closed (this approval replaces them, T48 F4), the goal to todo, the taste file. When the comment cannot be
 // written, the batch is removed first and the two records are put back as they were; nothing was approved.
 async function approveShotlist(ctx, goalId, path, sl, note, done) {
   const chosen = sl.variants.find((x) => x.id === ctx.variant);
   if (!chosen) throw ctx.fail(400, "That treatment is not one of those shown.", "Refresh the page and pick one of the treatments shown.", "bad_variant");
   const { priced, code } = chosen._approve;
-  if (!chosen.approvable || !priced.ok) {
+  const approved = Array.isArray(chosen._approve.approved) ? chosen._approve.approved : [];
+  if (!chosen.approvable || !priced.ok || approved.length !== priced.shots.length) {
     throw ctx.fail(409, chosen.blocked || "This treatment cannot be approved.",
       code === "job_not_ready" || code === "over_limit" ? "Open Settings, then look at the card again." : "Send it back with a note, or approve another treatment.",
       code || "not_approvable");
@@ -390,7 +394,8 @@ async function approveShotlist(ctx, goalId, path, sl, note, done) {
   const before = { shotlist: ctx.decisions.get(`shotlist:${goalId}`), pick: ctx.decisions.get(`pick:${goalId}`) };
   recordApproval(ctx.decisions, goalId, {
     round: sl.round, variant: chosen.id, direction: chosen.direction?.id || null,
-    batch: batch.id, budget: batch.budget, base: priced.base, shots: shotsHash(priced.shots),
+    batch: batch.id, budget: batch.budget, base: priced.base, shots: shotsHash(approved),
+    approved: approved.map(({ id, render, move, prompt }) => ({ id, render, move, prompt })),
   }, { now });
   recordPick(ctx.decisions, goalId, choiceOf(sl, PICK, chosen.id, note), { now });
   try {
@@ -404,6 +409,7 @@ async function approveShotlist(ctx, goalId, path, sl, note, done) {
     throw e;
   }
   done();
+  closeBatches(ctx.config, [goalId], { keep: batch.id, now: now.getTime(), log: (line) => ctx.log?.(`staged: ${line}`) });
   await thenTry(ctx, "setting the task to todo", () => ctx.board.patch(path, { status: "todo" }));
   await refreshTaste(ctx, { force: true });
   return { message: `Approved. The Artist will make the clips; up to ${batch.budget} credits (${dollars(batch.budget)}) may be spent. You can follow it in Studio.` };

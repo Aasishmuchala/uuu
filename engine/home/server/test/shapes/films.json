@@ -45,6 +45,8 @@
             "credits": 25,
             "result": "Made",
             "sent": "/api/studio/films/e0000000-0000-4000-8000-000000000041/sent/g0123456789abcdef0123",
+            "approvedPrompt": "The camera moves slowly towards the front door in soft morning light.",
+            "sentPrompt": "The camera moves slowly towards the front door in soft morning light.",
             "clip": "/api/view/U1RILTQxL2ZpbG0vbGFrZS1iL2NsaXBzL3MwMS10MS5tcDQ",
             "stills": ["/api/view/U1RILTQxL2ZpbG0vbGFrZS1iL2NsaXBzL3MwMS10MS9mcmFtZS0wMS5wbmc"],
             "verdict": { "verdict": "retake", "reason": "the tower's edge bends in the last two stills", "round": 1 }
@@ -56,6 +58,13 @@
     "total": { "spent": 175, "budget": 600, "words": "175 of 600 credits spent ($1.75 of $6.00)." },
     "edit": { "identifier": "STH-41", "name": "lake-film" },
     "changedAfterApproval": false,
-    "problem": null
+    "problem": null,
+    "labels": {
+      "approved": "What you approved",
+      "sentPrompt": "The prompt sent to Runway",
+      "sentPromptGone": "No longer kept: the door keeps what it sent for two days.",
+      "sentPromptNone": "The door kept no copy of this prompt.",
+      "changed": "The shotlist was changed after you approved it. Each take shows what was sent to Runway."
+    }
   }
 }

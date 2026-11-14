@@ -111,8 +111,10 @@ function canHandBack(issue, action, run) {
     && !action.evidence?.workspaceRestoreRecovery && !action.evidence?.workspaceRestoreFailure;
 }
 
-// options: board (ctx.board), ids (ctx.ids), decisions (ctx.decisions, optional), log, intervalMs, now.
-export function createUnstick({ board, ids, decisions = null, log = () => {}, intervalMs = SWEEP_MS, now = () => Date.now() }) {
+// options: board (ctx.board), ids (ctx.ids), decisions (ctx.decisions, optional), log, intervalMs, now, and
+// onIssues: called with the board's whole list of tasks once each sweep has read it (lib/app.mjs closes the
+// generation batches of finished tasks there, lib/batches.mjs closeFinishedBatches); a failure in it is logged only.
+export function createUnstick({ board, ids, decisions = null, log = () => {}, intervalMs = SWEEP_MS, now = () => Date.now(), onIssues = null }) {
   const checked = new Map(); // issue id -> time of its last check
   const tries = new Map(); // action id -> failed hand-backs
   const handbacks = new Map(); // issue id -> times (ms) of its successful hand-backs, also kept in decisions
@@ -192,6 +194,9 @@ export function createUnstick({ board, ids, decisions = null, log = () => {}, in
     if (!id?.companyId || !id?.projectId) return;
     let issues;
     try { issues = await loadIssues({ board }, id.companyId); } catch { return; }
+    if (typeof onIssues === "function") {
+      try { onIssues(issues); } catch (e) { log(`unstick: the after-sweep step failed: ${String(e?.code || e?.message || e).split("\n")[0]}`); }
+    }
     const seen = new Set();
     for (const goal of goalsOf(issues, id).filter(OPEN)) {
       for (const issue of [goal, ...descendants(issues, goal.id).filter(OPEN)]) {

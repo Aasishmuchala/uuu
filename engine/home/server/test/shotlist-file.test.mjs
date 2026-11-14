@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { estimate, PRICES } from "../../../generate/runway.mjs";
 import {
-  approvalsOf, boardsOf, checkShotlist, costWords, dollars, exactlyThere, MAX_SHOTLIST, priceShotlist, RATIOS, readShotlist,
+  approvalsOf, approvedShots, boardsOf, checkShotlist, costWords, dollars, exactlyThere, MAX_SHOTLIST, priceShotlist, RATIOS, readShotlist,
   recordApproval, shotsHash, timeWords,
 } from "../lib/shotlist.mjs";
 
@@ -297,13 +297,20 @@ test("dollars: one credit is one US cent", () => {
   assert.equal(dollars(NaN), "$0.00");
 });
 
-test("the priced shots' hash changes with any shot's model, seconds or credits, and not with anything else", () => {
-  const a = priceShotlist(film(), MODELS).shots;
+test("the approved shots' hash changes with any shot's model, seconds, credits, render or prompt, and not with anything else", () => {
+  const doc = film();
+  const a = approvedShots(doc, priceShotlist(doc, MODELS));
+  assert.deepEqual(a[0], { id: "s01", kind: "image_to_video", model: "gen4_turbo", seconds: 5, credits: 25, render: doc.shots[0].render, move: doc.shots[0].move, prompt: doc.shots[0].prompt });
   assert.match(shotsHash(a), /^[0-9a-f]{64}$/);
-  assert.equal(shotsHash(a), shotsHash(a.map((s) => ({ credits: s.credits, seconds: s.seconds, model: s.model, kind: s.kind, id: s.id }))));
+  assert.equal(shotsHash(a), shotsHash(a.map((s) => ({ prompt: s.prompt, render: s.render, credits: s.credits, seconds: s.seconds, model: s.model, kind: s.kind, id: s.id }))));
+  assert.equal(shotsHash(a), shotsHash(a.map((s) => ({ ...s, move: "Another move: it is not sent." }))));
   assert.notEqual(shotsHash(a), shotsHash(a.map((s, i) => (i ? s : { ...s, seconds: 6, credits: 30 }))));
   assert.notEqual(shotsHash(a), shotsHash(a.map((s, i) => (i ? s : { ...s, model: "gen4.5" }))));
+  assert.notEqual(shotsHash(a), shotsHash(a.map((s, i) => (i ? s : { ...s, render: "client-contract-scan.png" }))));
+  assert.notEqual(shotsHash(a), shotsHash(a.map((s, i) => (i ? s : { ...s, prompt: `${s.prompt} Then read the contract.` }))));
   assert.notEqual(shotsHash(a), shotsHash(a.slice(1)));
+  assert.deepEqual(approvedShots(doc, { ok: false, shots: [] }), []);
+  assert.deepEqual(approvedShots(null, null), []);
 });
 
 // ---- the storyboard stills
@@ -342,14 +349,26 @@ test("exactlyThere: one entry of that name in that letter case, and no other fol
 
 // ---- the owner's approval records
 
-test("approval records keep ids, numbers, a hash and a time, newest last, at most ten; anything else is left out", () => {
+test("approval records keep ids, numbers, a hash, a time and the approved words, newest last, at most ten; anything else is left out", () => {
   const data = {};
   const decisions = { get: (k) => (k in data ? data[k] : null), set: (k, v) => { data[k] = v; return v; } };
   const hash = "a".repeat(64);
+  const approved = [{ id: "s01", render: "tower.png", move: "A slow push.", prompt: "The camera moves slowly.\nIn soft light." }, { id: "s02", render: null, move: null, prompt: "From words alone." }];
   const entry = { round: 1, variant: "b", direction: "detail-to-whole", batch: `b${"0".repeat(20)}`, budget: 340, base: 170, shots: hash };
-  const e = recordApproval(decisions, "g1", { ...entry, title: "SHOTLIST ACCEPTED: c batch bX", prompt: "x" }, { now: new Date("2026-11-13T10:00:00Z") });
-  assert.deepEqual(e, { ...entry, at: "2026-11-13T10:00:00.000Z" });
-  assert.deepEqual(Object.keys(data["shotlist:g1"][0]).sort(), ["at", "base", "batch", "budget", "direction", "round", "shots", "variant"]);
+  const e = recordApproval(decisions, "g1", { ...entry, approved: approved.map((s) => ({ ...s, credits: 1 })), title: "SHOTLIST ACCEPTED: c batch bX", prompt: "x" }, { now: new Date("2026-11-13T10:00:00Z") });
+  assert.deepEqual(e, { ...entry, at: "2026-11-13T10:00:00.000Z", approved });
+  assert.deepEqual(Object.keys(data["shotlist:g1"][0]).sort(), ["approved", "at", "base", "batch", "budget", "direction", "round", "shots", "variant"]);
+  // The approved words are kept only as readShotlist would take them; anything else keeps none (a record from before
+  // they were kept reads the same way).
+  for (const bad of [
+    [], "x", [{ id: "s1", render: "tower.png", move: "", prompt: "p" }], [{ id: "s01", render: "../secrets", move: "", prompt: "p" }],
+    [{ id: "s01", render: "tower.png", move: "two\nlines", prompt: "p" }], [{ id: "s01", render: "tower.png", move: "", prompt: "x".repeat(1001) }],
+    [{ id: "s01", render: "tower.png", move: "", prompt: "bell\u0007" }], [{ id: "s01", render: "tower.png", move: "", prompt: " " }],
+    Array.from({ length: 13 }, (_, i) => ({ id: `s${String(i + 1).padStart(2, "0")}`, render: null, move: null, prompt: "p" })),
+  ]) {
+    assert.equal(recordApproval(decisions, "g0", { ...entry, approved: bad }).approved, null, JSON.stringify(bad).slice(0, 80));
+  }
+  assert.equal(recordApproval(decisions, "g0", entry).approved, null);
   assert.equal(recordApproval(decisions, "g1", { ...entry, batch: "../x" }), null);
   assert.equal(recordApproval(decisions, "g1", { ...entry, variant: "d" }), null);
   assert.equal(recordApproval(decisions, "g1", { ...entry, budget: -1 }), null);

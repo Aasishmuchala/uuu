@@ -5,7 +5,11 @@
 // how many could not be stopped. An agent can move an idle task under a goal, so a step that is itself a task the
 // owner gave (made by the owner, not by an agent and not by an agent's suggestion) is left alone, with what is
 // under it, and named in the log.
+// Before anything is sent to the board, the money: every generation batch the owner approved for the goal or one of
+// the steps it stops is closed (lib/batches.mjs, T48 F4), so a stop that fails part way never leaves the Artist able
+// to spend the rest of a stopped film's or still job's approval.
 // Every id sent is the goal's own (from a board record) or one the board listed under it.
+import { closeBatches } from "./batches.mjs";
 import { HomeError } from "./errors.mjs";
 import { loadIssues } from "./goals.mjs";
 
@@ -65,6 +69,8 @@ export async function stopTask(ctx, goalId, { issues = null } = {}) {
   if (!list) {
     try { list = await loadIssues(ctx, ctx.ids().companyId); } catch { list = null; }
   }
+  const under = list ? stepsToStop(list, goalId).steps.map((s) => s.id) : [];
+  closeBatches(ctx.config, [goalId, ...under], { log });
   await cancel(ctx, goalId);
   const goal = list?.find((i) => i.id === goalId);
   const ref = goal?.identifier || "a task";

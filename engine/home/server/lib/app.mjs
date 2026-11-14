@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { closeFinishedBatches } from "./batches.mjs";
 import { createBoard } from "./board.mjs";
 import { createBench } from "./bench.mjs";
 import { createDecisions } from "./decisions.mjs";
@@ -83,8 +84,9 @@ export async function createHome(options) {
   const moduleDirs = options.moduleDirs || [SERVER_DIR];
   const loaded = await loadModules({ dirs: moduleDirs, router, log });
 
-  // The hold sweep (lib/unstick.mjs): made here, started only by main.mjs (or a test that asks).
-  const unstick = createUnstick({ board, ids, decisions, log });
+  // The hold sweep (lib/unstick.mjs): made here, started only by main.mjs (or a test that asks). Each sweep also
+  // closes the generation batches of tasks the board shows done or cancelled (lib/batches.mjs, T48 F4).
+  const unstick = createUnstick({ board, ids, decisions, log, onIssues: (issues) => closeFinishedBatches(config, issues, { log }) });
   const home = {
     urls, prove, inboxSources: loaded.inbox, searchSources: loaded.search, modulesFailed: loaded.failed,
     port: () => listenPort, publicDir, unstick,

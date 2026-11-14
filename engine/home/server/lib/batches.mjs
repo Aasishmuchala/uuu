@@ -9,6 +9,7 @@
 // A file is written whole under a temp name (0600, never through a link) and renamed into place, in a folder of
 // this user's (0700) that is not a link, then read back with the door's own readBatch: a file the door would not
 // take is removed and the approval fails. Each write also removes files more than 30 days past their expiry.
+// The only other write is closing (closeBatches): the owner's yes taken back when its film or job ends sooner.
 // generationNow is the money as the owner's cards show it: the switch, the key's presence (never the key), the
 // caps and models from the switches file, and what the door's own ledger says was spent today and this month.
 import { randomBytes } from "node:crypto";
@@ -105,6 +106,28 @@ function sweep(dir, now) {
   }
 }
 
+// Writes `<dir>/<id>.json` whole: a new temp file of this user's (0600, never through a link), synced, then
+// renamed into place over whatever was there. -> true, or false with nothing left behind.
+function putWhole(dir, id, doc) {
+  const tmp = join(dir, `.${id}.${randomBytes(6).toString("hex")}.tmp`);
+  let fd;
+  try {
+    fd = openSync(tmp, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+    const buf = Buffer.from(`${JSON.stringify(doc, null, 2)}\n`, "utf8");
+    let off = 0;
+    while (off < buf.length) off += writeSync(fd, buf, off, buf.length - off);
+    fsyncSync(fd);
+    closeSync(fd);
+    fd = undefined;
+    renameSync(tmp, join(dir, `${id}.json`));
+    return true;
+  } catch {
+    if (fd !== undefined) try { closeSync(fd); } catch { /* closed */ }
+    try { unlinkSync(tmp); } catch { /* nothing was left */ }
+    return false;
+  }
+}
+
 // writeBatch(config, { id?, task, slug: "artist", shots: [{ id, kind, model, seconds }], takes, textToVideo, now })
 // -> { id, budget, expiresAt }. Throws a HomeError (409 folder_unsafe, 409 batch_exists, 409 no_price, 500
 // batch_not_written) or, for arguments no caller of the home server sends, an Error; nothing is left behind then.
@@ -126,22 +149,7 @@ export function writeBatch(config, { id, task, slug = "artist", shots, takes, te
   if (lstatOrNull(file)) {
     throw new HomeError(409, "An approval with this id is already there, so nothing was approved.", "Try again.", "batch_exists");
   }
-  const tmp = join(dir, `.${batchId}.${randomBytes(6).toString("hex")}.tmp`);
-  let fd;
-  try {
-    fd = openSync(tmp, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
-    const buf = Buffer.from(`${JSON.stringify(doc, null, 2)}\n`, "utf8");
-    let off = 0;
-    while (off < buf.length) off += writeSync(fd, buf, off, buf.length - off);
-    fsyncSync(fd);
-    closeSync(fd);
-    fd = undefined;
-    renameSync(tmp, file);
-  } catch {
-    if (fd !== undefined) try { closeSync(fd); } catch { /* closed */ }
-    try { unlinkSync(tmp); } catch { /* nothing was left */ }
-    throw notWritten();
-  }
+  if (!putWhole(dir, batchId, doc)) throw notWritten();
   // The door's own reading of what was written: a file it would not take approves nothing.
   const back = readBatch(dir, batchId, { slug, now: at });
   if (!back.ok || back.batch.budgetCredits !== made.budget || Object.keys(back.batch.shots).length !== Object.keys(made.shots).length) {
@@ -162,6 +170,73 @@ export function removeBatch(config, id) {
     if (e?.code === "ENOENT") return false;
     throw e;
   }
+}
+
+// ---- the owner's yes taken back (T48 F4)
+// A batch lives seven days, but the film or still job it was approved for may end sooner: the owner stops it, the
+// goal is finished or accepted, or a newer approval of the same goal replaces it. Then it is closed: written again
+// whole with `expiresAt` now (and `closedAt`), so the door's own readBatch answers "expired" from then on, while
+// Studio and Settings still read what was approved. A file that cannot be written again is removed; either way the
+// door spends nothing more on it. A file of another form, or one the trust rule refuses, is one the door refuses
+// too, and is left as it is.
+
+const timeOf = (v) => (typeof v === "string" && v.length <= 40 ? Date.parse(v) : NaN);
+
+// Closes one file when it is an open batch of one of `tasks`: "closed", "removed" or null (left as it is).
+function closeOne(dir, id, tasks, now) {
+  const path = join(dir, `${id}.json`);
+  const bytes = readTrustedBytes(path, MAX_FILE);
+  if (!Buffer.isBuffer(bytes)) return null;
+  let v;
+  try { v = JSON.parse(bytes.toString("utf8")); } catch { return null; }
+  if (!isObject(v) || v.id !== id || typeof v.task !== "string" || !tasks.has(v.task)) return null;
+  const approved = timeOf(v.approvedAt);
+  const expires = timeOf(v.expiresAt);
+  if (Number.isFinite(expires) && expires <= now) return null;               // already closed or ended
+  const at = new Date(now).toISOString();
+  // A close time that is not after the approval (a clock set back) cannot be written as an end: the file goes.
+  if (Number.isFinite(approved) && approved < now && putWhole(dir, id, { ...v, expiresAt: at, closedAt: at })) {
+    const back = readBatch(dir, id, { slug: typeof v.slug === "string" ? v.slug : "artist", now });
+    if (!back.ok) return "closed";
+  }
+  try { unlinkSync(path); } catch (e) { if (e?.code !== "ENOENT") throw e; }
+  return "removed";
+}
+
+// closeBatches(config, tasks, { keep, now, log }) -> the ids closed (or removed). Every open batch whose task is one
+// of `tasks` (ids), except the batch `keep`. Never throws: a file that can be neither closed nor removed is logged.
+export function closeBatches(config, tasks, { keep = null, now = Date.now(), log = () => {} } = {}) {
+  const want = new Set((Array.isArray(tasks) ? tasks : []).filter((t) => typeof t === "string" && TASK.test(t)));
+  const dir = config?.paths?.batches;
+  const out = [];
+  if (!want.size || typeof dir !== "string" || !dir || !Number.isFinite(now)) return out;
+  let names = [];
+  try { names = readdirSync(dir).slice(0, MAX_LISTED); } catch { return out; }
+  for (const name of names) {
+    if (!FILE.test(name)) continue;
+    const id = name.slice(0, -5);
+    if (id === keep) continue;
+    try {
+      const done = closeOne(dir, id, want, now);
+      if (done) {
+        out.push(id);
+        try { log(`batches: ${done} ${id}: its task was stopped, finished or approved again`); } catch { /* logging never fails a close */ }
+      }
+    } catch (e) {
+      try { log(`batches: ${id} could not be closed: ${String(e?.code || e?.message || e).split("\n")[0]}`); } catch { /* as above */ }
+    }
+  }
+  return out;
+}
+
+// The batches of every task the board lists as done or cancelled, closed (the hold sweep of lib/unstick.mjs calls
+// this with the board's list each minute): a film the Chief of staff finished, or a still job's task cancelled by
+// anyone, spends nothing more. -> the ids closed. Never throws.
+export function closeFinishedBatches(config, issues, opts = {}) {
+  const finished = (Array.isArray(issues) ? issues : [])
+    .filter((i) => i && typeof i.id === "string" && (i.status === "done" || i.status === "cancelled"))
+    .map((i) => i.id);
+  return closeBatches(config, finished, opts);
 }
 
 // generationNow(config, now) -> { on, key, daily, monthly, models, ledgerOk, spentDay, spentMonth, dayLeft,

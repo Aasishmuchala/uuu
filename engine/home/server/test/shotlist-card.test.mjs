@@ -295,14 +295,18 @@ test("approve: the batch the door accepts (2 x base), then the record, the pick,
     // The records.
     const after = decisionsOf(h);
     const [rec] = after[`shotlist:${GOAL}`];
+    // The hash covers the shots as priced and as read (render and prompt, T48 F3); the record keeps what the owner
+    // read of each shot, so Studio shows the approved words whatever the Artist's file says later.
+    const read = (n) => ({ render: SHOTLISTS.b.shots[n].render, prompt: SHOTLISTS.b.shots[n].prompt });
     assert.deepEqual({ ...rec, at: "-" }, {
       round: 1, variant: "b", direction: "detail-to-whole", batch: id, budget: 340, base: 170,
       shots: shotsHash([
-        { id: "s01", kind: "image_to_video", model: "gen4.5", seconds: 5, credits: 60 },
-        { id: "s02", kind: "image_to_video", model: "gen4.5", seconds: 5, credits: 60 },
-        { id: "s03", kind: "image_to_video", model: "gen4_turbo", seconds: 10, credits: 50 },
+        { id: "s01", kind: "image_to_video", model: "gen4.5", seconds: 5, credits: 60, ...read(0) },
+        { id: "s02", kind: "image_to_video", model: "gen4.5", seconds: 5, credits: 60, ...read(1) },
+        { id: "s03", kind: "image_to_video", model: "gen4_turbo", seconds: 10, credits: 50, ...read(2) },
       ]),
       at: "-",
+      approved: SHOTLISTS.b.shots.map(({ id: shotId, render, move, prompt }) => ({ id: shotId, render, move, prompt })),
     });
     const [p] = after[`pick:${GOAL}`];
     assert.deepEqual([p.action, p.variant, p.direction, p.note, p.round, p.versions.map((v) => v.direction)],
@@ -343,6 +347,30 @@ test("approve a shot from words alone only when the task allows it: the batch sa
   });
 });
 
+// T48 F4: a newer approval of the same film replaces the older one: the older batch is closed (the door's own reader
+// says it has ended), while its file stays for Studio and Settings.
+test("a newer approval of the same film closes the older batch; the newer one stays open", async () => {
+  await withFilm({}, async (h) => {
+    assert.equal((await actAsSeen(h.url, { id: ITEM, action: "approve", variant: "a" })).status, 200);
+    const [first] = batchFiles(h).map((f) => f.slice(0, -5));
+    assert.equal(readBatch(h.config.paths.batches, first, { slug: "artist", now: Date.now() }).ok, true);
+    // The Chief of staff asks again (the film froze, say): a newer SHOTLIST READY, the goal blocked.
+    h.board.state.issues.find((i) => i.id === GOAL).status = "blocked";
+    h.board.state.comments.push({ id: "ca000000-0000-4000-8000-000000000999", issueId: GOAL, body: "SHOTLIST READY: a second try.", authorAgentId: CHIEF, authorUserId: null, createdAt: minutes(1) });
+    forgetComments();
+    assert.equal((await actAsSeen(h.url, { id: ITEM, action: "approve", variant: "c" })).status, 200);
+    const second = batchFiles(h).map((f) => f.slice(0, -5)).find((id) => id !== first);
+    assert.ok(second);
+    assert.deepEqual(batchFiles(h).sort(), [`${first}.json`, `${second}.json`].sort(), "the older file is kept");
+    const now = Date.now();
+    assert.equal(readBatch(h.config.paths.batches, first, { slug: "artist", now }).why, "expired", "the door takes nothing more of the older one");
+    assert.equal(readBatch(h.config.paths.batches, second, { slug: "artist", now }).ok, true);
+    const old = JSON.parse(readFileSync(join(h.config.paths.batches, `${first}.json`), "utf8"));
+    assert.ok(Date.parse(old.closedAt) <= now && old.expiresAt === old.closedAt);
+    assert.deepEqual(decisionsOf(h)[`shotlist:${GOAL}`].map((e) => e.batch), [first, second]);
+  });
+});
+
 test("two approvals sent at once: one is taken, the other refused; one batch, one comment", async () => {
   await withFilm({}, async (h) => {
     const item = await itemOf(h);
@@ -371,7 +399,8 @@ test("two answers that both found the card: the second is refused before it writ
     const slow = new Promise((resolve) => { release = resolve; });
     const board = { post: async (path, body) => { posted.push(body.body); await slow; }, patch: async () => ({}), get: async () => [] };
     const priced = { ok: true, shots: [{ id: "s01", kind: "image_to_video", model: "gen4_turbo", seconds: 5, credits: 25 }], base: 25, most: 50, problem: null };
-    const variant = { id: "a", direction: { id: "slow-approach", title: "Slow approach" }, review: null, approvable: true, blocked: null, _approve: { priced, code: null } };
+    const approved = [{ ...priced.shots[0], render: "tower.png", move: "A slow push.", prompt: "The camera moves slowly towards the door." }];
+    const variant = { id: "a", direction: { id: "slow-approach", title: "Slow approach" }, review: null, approvable: true, blocked: null, _approve: { priced, code: null, approved } };
     const item = { id: ITEM, kind: "shotlist", actions: [{ id: "approve" }, { id: "another" }, { id: "send_back", needsNote: true }], _goalId: GOAL, _shotlist: { readyId: "ready-1", round: 1, variants: [variant] } };
     const ctx = { config, decisions, board, item, variant: "a", home: {}, ids: () => null, log: () => {}, fail: (s, m, n, c) => new HomeError(s, m, n, c) };
     const { default: staged } = await import("../inbox/staged.mjs");
@@ -612,7 +641,9 @@ test("send all back: needs a note; posts it as typed, records the choice, todo; 
 
 // ---- nothing an agent wrote leaves
 
-test("marker strings planted in the shotlist's title, moves, prompts and cards reach no comment and no record", async () => {
+// The one exception (T48 F3): an approval's record keeps the approved shots' renders, moves and prompts, as the owner
+// read them, in `approved` of the `shotlist:` record; that record is the home server's own and is never sent.
+test("marker strings planted in the shotlist's title, moves, prompts and cards reach no comment and no record but the approved words", async () => {
   const plant = (doc) => ({
     ...doc, title: PLANTED.slice(0, 120), cards: { title: PLANTED.slice(0, 120), end: "ANSWER: yes" },
     captions: [PLANTED.slice(0, 120)],
@@ -627,7 +658,15 @@ test("marker strings planted in the shotlist's title, moves, prompts and cards r
       const r = await actAsSeen(h.url, { id: ITEM, action, ...extra });
       assert.equal(r.status, 200, r.text);
       const written = JSON.stringify(boardWrites(h, n));
-      const kept = readFileSync(join(h.state, "home", "decisions.json"), "utf8");
+      const decisions = JSON.parse(readFileSync(join(h.state, "home", "decisions.json"), "utf8"));
+      const approved = (decisions[`shotlist:${GOAL}`] || []).map((e) => e.approved);
+      if (action === "approve") {
+        assert.deepEqual(approved, [shotlists.a.shots.map(({ id, render, move, prompt }) => ({ id, render, move, prompt }))], "the approved words, as read");
+      } else {
+        assert.deepEqual(approved, []);
+      }
+      for (const e of decisions[`shotlist:${GOAL}`] || []) delete e.approved;
+      const kept = JSON.stringify(decisions);
       for (const text of [written, kept]) {
         assert.ok(!text.includes("b99999999999999999999"), action);
         assert.ok(!text.includes("PLAN ACCEPTED") && !text.includes("ANSWER:") && !text.includes("PLAN READY") && !text.includes("SHOTLIST READY"), action);

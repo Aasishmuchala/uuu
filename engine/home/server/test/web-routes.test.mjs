@@ -4,6 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
+import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { ensureSecret, readDoorsState } from "../../../doors/common.mjs";
@@ -125,16 +126,20 @@ test("the switch writes the file with its modes; on is refused while the door do
     assert.equal((await post(h, "/api/web/switch", {})).status, 400);
 
     await door.close();
+    // A door that does not answer is "off" once it is installed (engine/web/READY, written by the live install of
+    // 13 November), "not installed" before; this checkout may be either.
+    const installed = existsSync(join(h.config.engineDir, "web", "READY"));
+    const down = installed ? { state: "off", next: "The web door is off. Run: engine start" } : { state: "not_installed", next: "The web door is not installed yet." };
     r = await post(h, "/api/web/switch", { on: true });
     assert.equal(r.status, 409);
     assert.deepEqual(r.json.error.blockers, ["door_off"]);
-    assert.equal(r.json.error.next, "The web door is not installed yet.");
+    assert.equal(r.json.error.next, down.next);
     r = await post(h, "/api/web/switch", { on: false });
     assert.equal(r.status, 200, "off always works");
     assert.equal(r.json.on, false);
     assert.equal(readDoorsState(h.config.paths.doorsState).web.on, false);
     assert.ok(r.json.blockers.includes("door_off"));
-    assert.equal(r.json.door.state, "not_installed");
+    assert.equal(r.json.door.state, down.state);
   }, { researcher: false });
 });
 

@@ -11,9 +11,14 @@
 //   - the shots: the newest approval's batch file, written only by the home server and read with the door's own
 //     reader (engine/generate/state.mjs readBatch, at its approval time); their seconds and kind are what the owner
 //     approved;
-//   - a shot's render, move and prompt: the approved treatment's shotlist.json through readShotlist (checked and
-//     capped there); `changedAfterApproval` when it no longer prices to the approved shots' hash;
-//   - the picture sent: the door's own job record and kept input (workStore: readJob, readInput), for a day;
+//   - a shot's render, move and prompt: what the owner approved, as the newest approval's `shotlist:` record keeps
+//     it (lib/shotlist.mjs), never the Artist's shotlist.json as it is now (T48 F3); each take also shows the
+//     prompt of its own batch's approval. `changedAfterApproval` when the approved treatment's shotlist.json (read
+//     through readShotlist) no longer prices and reads to the approved shots' hash (render and prompt included),
+//     or can no longer be read;
+//   - the picture and the prompt sent: the door's own job record and kept input (workStore: readJob, readInput),
+//     the picture for a day, the prompt as long as the door keeps the job record (two days);
+//   - `labels`: the plain words that tell the approved apart from the sent;
 //   - clips, stills and boards: the Artist's files at fixed names, by exact-name listing (a link, a folder that is a
 //     link, a name in another letter case are not shown), each checked by its first bytes, shown through /api/view;
 //   - verdicts: the Art director's clip reviews (lib/clipreview.mjs), by the board's author id only;
@@ -28,7 +33,9 @@ import { JOB_RE, readLedger, summarize } from "../../../generate/ledger.mjs";
 import { BATCH_DAYS, readBatch, workStore } from "../../../generate/state.mjs";
 import { CLIP_ID, clipReviewsOf, usableClipReview } from "../lib/clipreview.mjs";
 import { LEDGER_SENTENCES, plain, readBatchFile, resultWords } from "../lib/generation.mjs";
-import { approvalsOf, boardsOf, dollars, exactlyThere, priceShotlist, readShotlist, SHOT_ID, shotsHash } from "../lib/shotlist.mjs";
+import {
+  approvalsOf, approvedShots, boardsOf, dollars, exactlyThere, priceShotlist, readShotlist, SHOT_ID, shotsHash,
+} from "../lib/shotlist.mjs";
 import { fileResponse } from "../lib/static.mjs";
 import { fileToken, goalFolder, readTaskText } from "../lib/taskfiles.mjs";
 import { findTask, loadTaskContext, treeComments } from "../lib/tasks.mjs";
@@ -43,6 +50,16 @@ export const FROZEN = "Runway refused two pictures or prompts in this film. It n
 export const NO_BATCH_FILE = "The approval's own file is no longer kept, so the shots are listed from what was spent.";
 export const NO_TREATMENT = "The film's list of treatments (variants.json) is missing, so its clips cannot be shown.";
 export const GONE = "gone";
+// What each prompt and render on the film is, in the owner's words (T48 F3): the approved ones are the shot's
+// `render`, `move` and `prompt` and a take's `approvedPrompt`; the sent one is a take's `sentPrompt`.
+export const LABELS = Object.freeze({
+  approved: "What you approved",
+  sentPrompt: "The prompt sent to Runway",
+  sentPromptGone: "No longer kept: the door keeps what it sent for two days.",
+  sentPromptNone: "The door kept no copy of this prompt.",
+  changed: "The shotlist was changed after you approved it. Each take shows what was sent to Runway.",
+});
+const MAX_PROMPT = 1000;
 const DAY_MS = 24 * 3600_000;
 const STILLS = 6;
 const MAX_VIDEO = 300 * 1024 * 1024;          // the most /api/view shows of one video
@@ -154,19 +171,23 @@ function treatmentOf(config, identifier, a) {
   };
 }
 
-// True when the treatment's shotlist still prices to the shots the owner approved (the record's hash). The models
-// are not in the record, so each pair the approved batch used (or, with no batch file, its jobs in the ledger) is
-// tried for ordinary shots and for best ones: a model chosen later in Settings does not count as a change.
+// True when the treatment's shotlist still prices and reads to the shots the owner approved (the record's hash, the
+// renders and prompts included). The models are not in the record, so each pair the approved batch used (or, with
+// no batch file, its jobs in the ledger) is tried for ordinary shots and for best ones: a model chosen later in
+// Settings does not count as a change.
 function sameAsApproved(shotlist, models, hash) {
   const list = [...new Set(models.filter((m) => typeof m === "string"))];
   for (const video of list) {
     for (const videoBest of list) {
       const priced = priceShotlist(shotlist, { video, videoBest });
-      if (priced.ok && shotsHash(priced.shots) === hash) return true;
+      if (priced.ok && shotsHash(approvedShots(shotlist, priced)) === hash) return true;
     }
   }
   return false;
 }
+
+// The approved shots of one approval by id: Map(id -> { render, move, prompt }); empty for a record that kept none.
+const approvedOf = (a) => new Map((a && Array.isArray(a.approved) ? a.approved : []).map((s) => [s.id, s]));
 
 // ---- the Artist's files: clips, stills and the edit ---------------------------------------------------------
 
@@ -268,6 +289,22 @@ function sentOf(store, j, now, seen = new Map()) {
   return pic ? { pic } : GONE;
 }
 
+// The prompt the door sent for one job of a batch, from its own job record: the text (capped plain text: at most
+// 1000 characters, line breaks kept, tabs as spaces, other control and direction characters dropped), "gone" (the
+// door keeps a job record for two days), or null (the record keeps no prompt: a job from before the door kept
+// them, or one settled at the door's start). The door keeps it as `prompt` (engine/generate/door.mjs, T49a).
+function sentPromptOf(store, j) {
+  let rec = null;
+  try { rec = store.readJob(j.job); } catch { rec = null; }
+  if (!rec) return GONE;
+  if (rec.slug !== "artist" || rec.batch !== j.batch) return GONE;
+  const v = rec.prompt;
+  if (typeof v !== "string") return null;
+  const text = v.replace(/\r\n?/g, "\n").replace(/\t/g, " ")
+    .replace(/[\x00-\x09\x0b-\x1f\x7f-\x9f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g, "").slice(0, MAX_PROMPT);
+  return text.trim() ? text : null;
+}
+
 // ---- the film -----------------------------------------------------------------------------------------------
 
 // The state of a take from its end line in the ledger: making (no end yet), made, refused or failed.
@@ -292,7 +329,7 @@ function verdictOf(reviews, clip, from, to) {
 
 // filmOf(ctx, goal, { approvals, ledger, comments, artDirectorId, store, now, files }) -> the film as
 // GET /api/studio/films/:taskId answers it (`files: false` leaves out what needs the Artist's files and the door's
-// kept inputs: clips, stills, boards, sent; the Films list needs none of them).
+// kept records: clips, stills, boards, the picture and the prompt sent; the Films list needs none of them).
 export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirectorId = null, store = null, now = Date.now(), files = true }) {
   const { config } = ctx;
   const identifier = typeof goal.identifier === "string" ? goal.identifier : null;
@@ -303,17 +340,19 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
   const last = batches.at(-1);
   const treatment = identifier ? treatmentOf(config, identifier, newest) : { variant: newest.variant, direction: null, name: null, folder: null, rel: null, problem: NO_TREATMENT };
 
-  // The approved treatment's shotlist: what each shot is (render, move, prompt), and whether it changed since.
+  // What each shot is (render, move, prompt): what the owner approved, from the newest approval's record. The
+  // approved treatment's shotlist as it is now is read only to tell whether it changed since.
   const asked = ctx.decisions?.get?.(`asked:${goal.id}`);
   const allowWords = isObject(asked) && isObject(asked.answers) && asked.answers.fromwords === "Yes";
   const read = treatment.rel ? readShotlist(config, identifier, treatment.rel, { allowWords }) : { ok: false, shotlist: null, problem: null };
-  const listed = new Map(read.ok ? read.shotlist.shots.map((s) => [s.id, s]) : []);
+  const listed = approvedOf(newest);
   const usedModels = last._.shots ? Object.values(last._.shots).map((s) => s.model) : last._.jobs.map((j) => j.model);
-  const changedAfterApproval = read.ok && usedModels.length > 0 && !sameAsApproved(read.shotlist, usedModels, newest.shots);
+  const changedAfterApproval = !!treatment.rel
+    && (!read.ok || (usedModels.length > 0 && !sameAsApproved(read.shotlist, usedModels, newest.shots)));
 
   // The shots: the newest batch's, as the owner approved them; with no batch file, those its jobs name.
   let ids = last._.shots ? Object.keys(last._.shots) : [...new Set(last._.jobs.map((j) => j.shot))];
-  if (!ids.length && !last._.shots && read.ok) ids = [...listed.keys()];
+  if (!ids.length && !last._.shots) ids = [...listed.keys()];
   ids = ids.filter((id) => typeof id === "string" && SHOT_ID.test(id)).sort();
   const boards = files && identifier && treatment.rel ? new Map(boardsOf(config, identifier, treatment.rel, ids).map((b) => [b.shot, b.url])) : new Map();
 
@@ -334,6 +373,7 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
       const from = b._.approved;
       const to = k + 1 < batches.length ? batches[k + 1]._.approved : Infinity;
       const own = b._.jobs.filter((j) => j.shot === id && !(j.end && j.end.state === "released"));
+      const asApproved = approvedOf(b._.approval).get(id) || null;
       own.forEach((j, n) => {
         const take = `t${n + 1}`;
         const clip = `${id}-${take}`;
@@ -342,6 +382,8 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
           take, batch: b.id, job: JOB_RE.test(j.job) ? j.job : null,
           state: takeState(j), credits: j.charge, result: resultWords(j),
           sent: sent && sent !== GONE ? `/api/studio/films/${encodeURIComponent(goal.id)}/sent/${j.job}` : sent,
+          approvedPrompt: asApproved ? asApproved.prompt : null,
+          sentPrompt: files && store ? sentPromptOf(store, j) : null,
           clip: null,
           stills: [],
           verdict: CLIP_ID.test(clip) ? verdictOf(reviews, clip, from, to) : null,
@@ -365,9 +407,11 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
       id,
       render: s ? s.render : null,
       move: s ? s.move : null,
-      seconds: approved && Number.isInteger(approved.maxSeconds) ? approved.maxSeconds : s ? s.seconds : null,
+      // With no batch file, the kind the door took for this shot (it takes only the approved kind); the seconds
+      // are then not known, never the Artist's file's.
+      seconds: approved && Number.isInteger(approved.maxSeconds) ? approved.maxSeconds : null,
       prompt: s ? s.prompt : null,
-      kind: approved ? approved.kind : s ? s.kind : null,
+      kind: approved ? approved.kind : last._.jobs.find((j) => j.shot === id)?.kind ?? null,
       board: boards.get(id) || null,
       takes,
       credits: takes.reduce((n, t) => n + t.credits, 0),
@@ -388,6 +432,7 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
     edit: edit ? { identifier: edit.identifier, name: edit.name } : null,
     changedAfterApproval,
     problem,
+    labels: { ...LABELS },
   };
 }
 
