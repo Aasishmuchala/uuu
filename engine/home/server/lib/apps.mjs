@@ -10,13 +10,14 @@
 // (readLedger, totalsOf) and its status file (only whether Higgsfield is signed in), and the Models state (the
 // saved list of models and the `app-<slug>` picks the relay reads).
 import {
-  chmodSync, closeSync, constants as fsConstants, fstatSync, lstatSync, mkdirSync, openSync, readSync, renameSync, unlinkSync,
-  writeFileSync,
+  chmodSync, closeSync, fstatSync, lstatSync, mkdirSync, readSync, realpathSync, renameSync,
+  unlinkSync, writeFileSync,
 } from "node:fs";
 import { randomBytes } from "node:crypto";
 import http from "node:http";
 import { dirname, join } from "node:path";
 import { readAppsState } from "../../../apps/host.mjs";
+import { openNoLinks } from "../../../lib/nolinks.mjs";
 import { ICON_MAX_BYTES, SLUG_RE, readManifests } from "../../../apps/manifest.mjs";
 import { readLedger, totalsOf } from "../../../generate/ledger.mjs";
 import { ALLOWANCE_MAX_CENTS, readAllowance, readGenState } from "../../../generate/state.mjs";
@@ -352,16 +353,19 @@ export function saveAppModel(config, slug, model) {
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-// The manifest's icon: { bytes, type } or null. `lstat` first, then opened without following a link and checked on
-// the handle (a regular file of this user, at most 256 KB); its type by its ending, and a PNG by its first bytes.
+// The manifest's icon: { bytes, type } or null. `lstat` first, then opened with no link anywhere on its path (under
+// the apps folder's real path; lib/nolinks.mjs) and checked on the handle (a regular file of this user, at most
+// 256 KB); its type by its ending, and a PNG by its first bytes.
 export function readIcon(config, entry) {
   if (!entry.ok) return null;
-  const file = join(config.paths.appsCode, entry.slug, entry.app.icon);
+  let root;
+  try { root = realpathSync(config.paths.appsCode); } catch { return null; }
+  const file = join(root, entry.slug, entry.app.icon);
   const type = entry.app.icon.endsWith(".png") ? "image/png" : entry.app.icon.endsWith(".svg") ? "image/svg+xml" : null;
   const pre = lstatOrNull(file);
   if (type === null || !pre || !pre.isFile() || pre.size > ICON_MAX_BYTES) return null;
   let fd;
-  try { fd = openSync(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK); } catch { return null; }
+  try { fd = openNoLinks(file); } catch { return null; }
   try {
     const st = fstatSync(fd);
     if (!st.isFile() || st.uid !== process.getuid() || st.size > ICON_MAX_BYTES || st.ino !== pre.ino) return null;

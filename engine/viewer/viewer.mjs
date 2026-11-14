@@ -208,6 +208,10 @@ async function render({ entries, pages, root, program, launch, ps, lim, chromeLi
     for (const name of PERMISSIONS) await send("Browser.setPermission", { permission: { name }, setting: "denied" }, undefined, 5000).catch(() => {});
     await send("Target.setDiscoverTargets", { discover: true }, undefined, 5000);
     await send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }, undefined, 5000);
+    // T57 F3: Chrome hands one address of another program (mailto:) to the Mac per start without asking, and no
+    // more until a person touches a page. That one is used up here, on an address no program answers, before
+    // any page of the site runs (a mailto: of the site's is then refused by Chrome itself).
+    await spendOtherProgram(send, sessions, lim.renderMs);
 
     for (const page of pages) {
       const shots = [];
@@ -292,6 +296,29 @@ async function render({ entries, pages, root, program, launch, ps, lim, chromeLi
   }
   out.push({ name: "report.json", data: Buffer.from(`${JSON.stringify(report, null, 1)}\n`) });
   return { files: out, cut: renderCut, blocked: allBlocked.length };
+}
+
+// The scheme no program on any Mac answers to, opened once per Chrome start (T57 F3).
+export const SPENT_ADDRESS = "x-uuu-viewer-nothing:spent";
+
+// One tab, sent to SPENT_ADDRESS (Chrome's own rule then refuses every later address of another program until a
+// person touches a page, which never happens here), then closed. Throws when Chrome did not take it, so no page
+// runs with the rule unspent.
+async function spendOtherProgram(send, sessions, ms) {
+  const until = Date.now() + Math.min(ms, 10_000);
+  const left = () => { const n = until - Date.now(); if (n <= 0) throw new Error("time"); return n; };
+  const { targetId } = await send("Target.createTarget", { url: "about:blank" }, undefined, left());
+  try {
+    let sid = null;
+    while (!sid) {
+      for (const [k, ti] of sessions) if (ti.targetId === targetId) sid = k;
+      if (!sid) await wait(Math.min(50, left()));
+    }
+    await send("Page.navigate", { url: SPENT_ADDRESS }, sid, left());
+    await wait(Math.min(200, left()));
+  } finally {
+    await send("Target.closeTarget", { targetId }, undefined, 5000).catch(() => {});
+  }
 }
 
 function addressOf(url) {

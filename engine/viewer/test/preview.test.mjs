@@ -29,9 +29,9 @@ before(async () => {
 });
 after(async () => { await preview.close(); rmSync(dir, { recursive: true, force: true }); });
 
-function request(method, path, { headers = {}, body } = {}) {
+function request(method, path, { headers = {}, body, at = port } = {}) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: "127.0.0.1", port, method, path, headers, agent: false }, (res) => {
+    const req = http.request({ host: "127.0.0.1", port: at, method, path, headers, agent: false }, (res) => {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => {
@@ -83,29 +83,92 @@ test("the same archive rules as the viewer's", async () => {
   assert.equal(preview.loaded, false);
 });
 
-test("a loaded site: only its files, each with K15's headers, and a load replaces the last", async () => {
+test("a loaded site: only its files, each with K15's headers, on its own port, and a load replaces the last", async () => {
   const owner = mintToken(SECRET, "t", "owner", exp());
   const r = await load(owner);
   assert.equal(r.status, 200);
   assert.deepEqual(r.json, { loaded: true, files: 2, bytes: 19, url: `http://127.0.0.1:${port}/` });
-  const home = await request("GET", "/");
+  const first = preview.sitePort;
+  assert.ok(first > 0 && first !== port);
+  // The preview's own address sends the browser on; it serves nothing itself.
+  const there = await request("GET", "/");
+  assert.equal(there.status, 302);
+  assert.equal(there.headers.location, `http://127.0.0.1:${first}/`);
+  assert.equal(there.headers["clear-site-data"], '"storage"');
+  headersOk(there, "on to the site");
+  assert.equal((await request("GET", "/css/a.css")).status, 302, "no file is served at the preview's own address");
+  const home = await request("GET", "/", { at: first });
   assert.equal(home.status, 200);
   assert.equal(home.text, "<h1>Preview</h1>");
   headersOk(home, "page");
-  const css = await request("GET", "/css/a.css");
+  const css = await request("GET", "/css/a.css", { at: first });
   assert.equal(css.headers["content-type"], "text/css; charset=utf-8");
   headersOk(css, "css");
   for (const p of ["/missing.html", "/../index.html", "/preview/load"]) {
-    const x = await request("GET", p);
+    const x = await request("GET", p, { at: first });
     assert.equal(x.status, 404, p);
     headersOk(x, p);
   }
+  assert.equal((await request("POST", "/preview/load", { at: first, headers: { Authorization: `Bearer ${owner}` } })).status, 403, "only the preview's own address loads");
   await load(owner, writeTar([{ name: "index.html", data: Buffer.from("second") }]));
-  assert.equal((await request("GET", "/")).text, "second");
-  assert.equal((await request("GET", "/css/a.css")).status, 404, "one site at a time");
+  const second = preview.sitePort;
+  assert.notEqual(second, first, "each load has an origin of its own");
+  assert.equal((await request("GET", "/", { at: second })).text, "second");
+  assert.equal((await request("GET", "/css/a.css", { at: second })).status, 404, "one site at a time");
+  await assert.rejects(request("GET", "/index.html", { at: first }), /ECONNREFUSED/, "the last load's port is closed");
   const cleared = await request("POST", "/preview/clear", { headers: { Authorization: `Bearer ${owner}` } });
   assert.deepEqual(cleared.json, { loaded: false });
   assert.equal((await request("GET", "/")).status, 404);
+  await assert.rejects(request("GET", "/", { at: second }), /ECONNREFUSED/, "a cleared load's port is closed");
+});
+
+test("no worker: a service worker's script is refused, the policy forbids workers, and the first page clears what was kept", async () => {
+  const owner = mintToken(SECRET, "t", "owner", exp());
+  await load(owner, writeTar([{ name: "index.html", data: Buffer.from("<h1>w</h1>") }, { name: "sw.js", data: Buffer.from("self.onfetch=()=>{}") }]));
+  const at = preview.sitePort;
+  const sw = await request("GET", "/sw.js", { at, headers: { "Service-Worker": "script" } });
+  assert.equal(sw.status, 403);
+  headersOk(sw, "worker refused");
+  assert.match(sw.headers["content-security-policy"], /worker-src 'none'/);
+  assert.equal((await request("GET", "/sw.js", { at })).status, 200, "the same file as a plain script is served");
+  const nav = { "Sec-Fetch-Mode": "navigate" };
+  assert.equal((await request("GET", "/", { at, headers: nav })).headers["clear-site-data"], '"storage"', "the first page clears");
+  assert.equal((await request("GET", "/", { at, headers: nav })).headers["clear-site-data"], undefined, "once a load");
+  for (const host of ["evil.example", `127.0.0.1:${port}`, `evil.example:${at}`]) {
+    assert.equal((await request("GET", "/", { at, headers: { Host: host } })).status, 403, host);
+  }
+  assert.equal((await request("PUT", "/", { at })).status, 403);
+  await request("POST", "/preview/clear", { headers: { Authorization: `Bearer ${owner}` } });
+});
+
+test("the ports in turn: each load the next of the nine, a taken one passed over, and back to the first", async () => {
+  const taken = net.createServer();
+  const free = async () => { const s = net.createServer(); await new Promise((r) => s.listen(0, "127.0.0.1", r)); const n = s.address().port; await new Promise((r) => s.close(r)); return n; };
+  const ports = [await free(), await free(), await free()];
+  await new Promise((r) => taken.listen(ports[1], "127.0.0.1", r));
+  const pv = createPreview({ listenPort: 0, sitePorts: ports, paths: { viewerSecret: join(dir, "viewer-secret"), ids: join(dir, "ids.json") }, log: () => {} });
+  await pv.listen();
+  try {
+    const owner = mintToken(SECRET, "t", "owner", exp());
+    const go = () => request("POST", "/preview/load", { at: pv.port, headers: { Authorization: `Bearer ${owner}`, "Content-Type": "application/x-tar" }, body: site });
+    const seen = [];
+    for (let i = 0; i < 3; i++) { assert.equal((await go()).status, 200); seen.push(pv.sitePort); }
+    assert.deepEqual(seen, [ports[0], ports[2], ports[0]]);
+    await new Promise((r) => taken.close(r));
+    assert.equal((await go()).status, 200);
+    assert.equal(pv.sitePort, ports[1]);
+    // Every port taken: the load is refused and the site before it stays.
+    const holders = [];
+    for (const n of [ports[0], ports[2]]) { const s = net.createServer(); await new Promise((r) => s.listen(n, "127.0.0.1", r)); holders.push(s); }
+    const none = await go();
+    assert.equal(none.status, 503);
+    assert.equal(none.json.code, "view_no_port");
+    assert.equal(pv.sitePort, ports[1]);
+    for (const s of holders) await new Promise((r) => s.close(r));
+  } finally {
+    await pv.close();
+    if (taken.listening) await new Promise((r) => taken.close(r));
+  }
 });
 
 test("another Host is refused (a name pointed at this Mac by someone else's site), and so are upgrades and CONNECT", async () => {

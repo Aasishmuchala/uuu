@@ -1,7 +1,8 @@
 // Reading what agents wrote, safely (CONTRACTS-V2 16.1). Every file in a goal's folder
 // (tasks/company-work/<identifier>/) was written by an agent, so it is untrusted: a link is never
 // followed (no folder on the way and no file may be a link, and real paths must stay inside the goal's
-// folder), files are opened with O_NOFOLLOW and O_NONBLOCK (a FIFO cannot hang the server), sizes and
+// folder), files are opened with no link anywhere on the path (O_NOFOLLOW_ANY, engine/lib/nolinks.mjs: a
+// folder swapped for a link at the open is refused, not followed) and O_NONBLOCK (a FIFO cannot hang the server), sizes and
 // counts are capped, and what is read comes back as text, never as anything that runs.
 // After a file is opened, the file opened must still be the one at that place (device and inode), and
 // that place must still be inside the allowed folder, so a link swapped in between the checks and the
@@ -15,9 +16,10 @@
 // a folder of that name in company-work, are never reached. A goal with no research folder is read as before.
 // Feature tasks import this module; they never edit it.
 import {
-  closeSync, constants, fstatSync, lstatSync, opendirSync, openSync, readSync, realpathSync,
+  closeSync, fstatSync, lstatSync, opendirSync, openSync, readSync, realpathSync,
 } from "node:fs";
 import { basename, dirname, join, sep } from "node:path";
+import { READ_NO_LINKS } from "../../../lib/nolinks.mjs";
 
 const IDENTIFIER = /^[A-Za-z0-9_-]{1,64}$/;
 const RESEARCH = "@research";         // the first part of the name of a research folder's file (K10)
@@ -101,7 +103,8 @@ function partsOf(rel) {
   return parts;
 }
 
-const OPEN_FLAGS = constants.O_RDONLY | constants.O_NOFOLLOW | (constants.O_NONBLOCK || 0);
+// No link anywhere on the path (the path opened is the real parent found, joined with the name), O_NONBLOCK.
+const OPEN_FLAGS = READ_NO_LINKS;
 
 // For tests only: called with the path just before and just after a checked open, so a test can swap a
 // link in (and back out) around the open; afterPlace, once a goal's file is placed and before it is opened.
@@ -110,7 +113,7 @@ export const testHooks = { beforeOpen: null, afterOpen: null, afterPlace: null }
 const within = (p, root) => p === root || p.startsWith(root + sep);
 
 // Opens one file that must lie inside `root` (a folder; links in `root` itself are resolved once).
-// The file is opened with O_NOFOLLOW and O_NONBLOCK (a FIFO or a device cannot hang the server), must be
+// The file is opened with O_NOFOLLOW_ANY and O_NONBLOCK (a FIFO or a device cannot hang the server), must be
 // a regular file, and after the open: the path's real folder is unchanged and inside root, and the file
 // at that path is the very file opened (same device and inode).
 // -> { fd, st, real } (the caller reads from fd and closes it), or null with nothing left open.
@@ -129,8 +132,8 @@ export function openChecked(file, root) {
   if (typeof testHooks.beforeOpen === "function") testHooks.beforeOpen(path);
   let fd;
   try {
-    fd = openSync(path, OPEN_FLAGS);
-    if (typeof testHooks.afterOpen === "function") testHooks.afterOpen(path);
+    // afterOpen runs whether or not the open took the file (a link on the way is refused by the open itself).
+    try { fd = openSync(path, OPEN_FLAGS); } finally { if (typeof testHooks.afterOpen === "function") testHooks.afterOpen(path); }
     const st = fstatSync(fd);
     if (!st.isFile()) throw new Error("not a regular file");
     if (realpathSync(dirname(path)) !== realParent) throw new Error("the folder moved");

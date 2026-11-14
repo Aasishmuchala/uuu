@@ -17,7 +17,7 @@ import { mintToken } from "../../relay/token.mjs";
 import { readPs } from "../chrome.mjs";
 import { SITE_POLICY } from "../sitefiles.mjs";
 import { writeTar } from "../tar.mjs";
-import { CODES, createViewer, parseTarget } from "../viewer.mjs";
+import { CODES, SPENT_ADDRESS, createViewer, parseTarget } from "../viewer.mjs";
 
 const VIEW_SECRET = "5".repeat(64);
 const WEB_SECRET = "6".repeat(64);
@@ -76,8 +76,10 @@ function launch(program, args) {
         case "Emulation.setDeviceMetricsOverride": width = m.params.width; seen.widths.push([m.params.width, m.params.mobile]); ok(); break;
         case "Page.navigate": {
           ok({ frameId: "F" });
-          if (behaviour.hang) break;
           const url = m.params.url;
+          // An address of another program is never fetched: Chrome hands it to the Mac (T57 F3).
+          if (!/^https?:/.test(url)) { seen.spent.push(url); break; }
+          if (behaviour.hang) break;
           // fetched through the viewer's proxy, as Chrome is made to
           const r = await new Promise((resolve) => {
             http.get({ host: "127.0.0.1", port: proxyPort, path: url, agent: false }, (res) => { res.resume(); res.on("end", () => resolve(res)); })
@@ -123,7 +125,7 @@ before(async () => {
   });
   port = await viewer.listen();
 });
-beforeEach(() => { behaviour = {}; seen = { methods: [], widths: [], pages: [], args: [] }; setViewer(true); });
+beforeEach(() => { behaviour = {}; seen = { methods: [], widths: [], pages: [], args: [], spent: [] }; setViewer(true); });
 after(async () => {
   await viewer.close();
   for (const g of groups) { try { process.kill(-g, "SIGKILL"); } catch { /* gone */ } }
@@ -256,6 +258,8 @@ test("row 4: bad archives are view_bad_site and leave nothing on disk", async ()
     ["301 entries", writeTar(Array.from({ length: 301 }, (_, i) => ({ name: i ? `f${i}.txt` : "index.html", data: Buffer.from("x") })))],
     ["a gzip bomb", gzipSync(Buffer.alloc(100 * MB))],
     ["not a tar", Buffer.from("hello")],
+    // T57 F5: two folders that differ only in letter case are one folder on this disk.
+    ["folders differing in case", writeTar([{ name: "index.html", data: Buffer.from("x") }, { name: "A/x.html", data: Buffer.from("x") }, { name: "a/y.html", data: Buffer.from("x") }])],
   ].filter(([, b]) => b);
   for (const [why, body] of bad) {
     const r = await shots(body);
@@ -268,6 +272,8 @@ test("row 4: bad archives are view_bad_site and leave nothing on disk", async ()
   const big = await shots(Buffer.alloc(20 * MB + 1));
   assert.equal(big.status, 413);
   assert.equal(code(big), "view_bad_site");
+  const clash = await shots(writeTar([{ name: "index.html", data: Buffer.from("x") }, { name: "Img/a.png", data: Buffer.from("x") }, { name: "img/b.png", data: Buffer.from("x") }]));
+  assert.match(clash.json.error.message, /differ only in letter case/);
   const notThere = await shots(site(), { query: "?pages=index.html,gone.html" });
   assert.equal(notThere.status, 400);
   assert.equal(seen.methods.length, 0, "Chrome was never started for a refused archive");
@@ -293,6 +299,7 @@ test("a render: shots at both true widths, light only when the CSS asks for noth
   assert.equal(p.dark, false);
   // every page went through the proxy and came with the content policy and a fixed type
   assert.equal(seen.pages.length, 4);
+  assert.deepEqual(seen.spent, [SPENT_ADDRESS], "Chrome's one address of another program is used up first, on nothing");
   for (const s of seen.pages) {
     assert.equal(s.status, 200);
     assert.equal(s.csp, SITE_POLICY);

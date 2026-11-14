@@ -23,7 +23,7 @@ test("every ending has one fixed type, and nothing else is served", () => {
 });
 
 test("the content policy is K15's, with the other headers", () => {
-  assert.equal(SITE_POLICY, "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'self'; frame-ancestors 'none'");
+  assert.equal(SITE_POLICY, "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'self'; frame-ancestors 'none'; worker-src 'none'");
   assert.equal(SITE_HEADERS["Cross-Origin-Opener-Policy"], "same-origin");
   assert.equal(SITE_HEADERS["Cross-Origin-Resource-Policy"], "same-origin");
   assert.equal(SITE_HEADERS["Referrer-Policy"], "no-referrer");
@@ -120,4 +120,77 @@ test("writeZip makes a zip the system's unzip reads back, and refuses a bad name
   execFileSync("/usr/bin/unzip", ["-tq", join(d, "site.zip")]);
   assert.throws(() => writeZip([...files, { name: "../evil.html", data: Buffer.from("x") }]), /\.\./);
   assert.throws(() => writeZip([{ name: "a.html", data: Buffer.from("x") }]), /index\.html/);
+});
+
+// T57 F1: a process of the agent's swaps a folder of the site for a link to a folder outside it and back, as fast
+// as it can (renamex_np RENAME_SWAP, atomic). No read of the site may ever hold the outside file's bytes.
+const SWAPPER = `
+import ctypes, os, sys
+libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True)
+a, b = sys.argv[1].encode(), sys.argv[2].encode()
+os.symlink(sys.argv[3], sys.argv[2])
+while True:
+    libc.renamex_np(a, b, 2)
+`;
+test("collectSite under a folder swapped for a link and back, thousands of times, never reads outside the site", async () => {
+  const base = folder();
+  const site = join(base, "task", "site", "launch-a");
+  const outside = join(base, "owner-private");
+  mkdirSync(join(site, "data", "deep"), { recursive: true });
+  mkdirSync(join(outside, "deep"), { recursive: true });
+  writeFileSync(join(site, "index.html"), "<!doctype html><title>x</title>");
+  writeFileSync(join(site, "data", "auth.json"), "{\"decoy\":true}");
+  writeFileSync(join(site, "data", "deep", "auth.json"), "{\"decoy\":true}");
+  writeFileSync(join(outside, "auth.json"), "{\"token\":\"OWNER-ONLY-CANARY\"}");
+  writeFileSync(join(outside, "deep", "auth.json"), "{\"token\":\"OWNER-ONLY-CANARY\"}");
+  const { spawn } = await import("node:child_process");
+  const child = spawn("/usr/bin/python3", ["-I", "-c", SWAPPER, join(site, "data"), join(base, "task", "alt"), outside], { stdio: "ignore" });
+  try {
+    await new Promise((r) => setTimeout(r, 300));
+    let leaked = 0;
+    let read = 0;
+    for (let i = 0; i < 3000; i++) {
+      const r = collectSite(site);
+      if (!r.ok) continue;
+      read++;
+      for (const f of r.files) {
+        if (f.data.includes("OWNER-ONLY-CANARY")) leaked++;
+      }
+    }
+    assert.equal(leaked, 0, `${leaked} reads held the outside file`);
+    assert.ok(read > 0, "some reads of the site went through");
+  } finally {
+    child.kill("SIGKILL");
+  }
+});
+
+test("a link anywhere on the path is refused by the open itself, not only as the last part", async () => {
+  const { openNoLinks } = await import("../../lib/nolinks.mjs");
+  const { closeSync, realpathSync } = await import("node:fs");
+  const base = realpathSync(folder());
+  mkdirSync(join(base, "real"));
+  writeFileSync(join(base, "real", "f.txt"), "x");
+  symlinkSync(join(base, "real"), join(base, "link"));
+  symlinkSync(join(base, "real", "f.txt"), join(base, "real", "l.txt"));
+  closeSync(openNoLinks(join(base, "real", "f.txt")));
+  assert.throws(() => openNoLinks(join(base, "link", "f.txt")), { code: "ELOOP" });
+  assert.throws(() => openNoLinks(join(base, "real", "l.txt")), { code: "ELOOP" });
+  // collectSite takes a site whose own path passes through a system link (this Mac's /var, /tmp): it is resolved once.
+  const site = join(base, "real");
+  writeFileSync(join(site, "index.html"), "<!doctype html>");
+  const viaLinkedTmp = site.replace(/^\/private\//, "/");
+  const r = collectSite(viaLinkedTmp);
+  assert.equal(r.ok, true, r.reason);
+  assert.deepEqual(r.files.map((f) => f.name), ["f.txt", "index.html"]);
+  assert.deepEqual(r.left.map((l) => l.name), ["l.txt"]);
+});
+
+test("checkEntries refuses two folders whose names differ only in letter case (T57 F5)", () => {
+  const f = (name) => ({ name, type: "file", size: 1 });
+  const r = checkEntries([f("index.html"), f("A/x.html"), f("a/y.html")]);
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /differ only in letter case/);
+  assert.equal(checkEntries([f("index.html"), { name: "Img", type: "dir" }, { name: "img", type: "dir" }]).ok, false);
+  assert.equal(checkEntries([f("index.html"), f("x/A/b.png"), f("x/a/c.png")]).ok, false);
+  assert.equal(checkEntries([f("index.html"), { name: "img", type: "dir" }, f("img/a.png"), f("img/b.png")]).ok, true, "one spelling is one folder");
 });

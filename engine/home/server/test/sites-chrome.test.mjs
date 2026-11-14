@@ -128,11 +128,16 @@ test("the real viewer and Chrome: the home server's own pictures of a site, its 
     // The preview: the checked files loaded, the home's own address, the page served with K15's headers.
     const pv = await call(h.url, "POST", "/api/tasks/STH-2/sites/launch/preview", { body: {} });
     assert.deepEqual(pv.json, { url: `http://127.0.0.1:${preview.port}/` });
-    const page = await get(pv.json.url);
+    // The home's address sends the browser on to the load's own origin (T57 F2).
+    const there = await get(pv.json.url);
+    assert.equal(there.status, 302);
+    const siteUrl = there.headers.location;
+    assert.equal(siteUrl, `http://127.0.0.1:${preview.sitePort}/`);
+    const page = await get(siteUrl);
     assert.equal(page.status, 200);
     assert.ok(page.text.includes("Three floors of light"));
     for (const [k, v] of Object.entries(SITE_HEADERS)) assert.equal(page.headers[k.toLowerCase()], v, k);
-    assert.equal((await get(`${pv.json.url}linked.css`)).status, 404, "a link left out of the site is not served");
+    assert.equal((await get(`${siteUrl}linked.css`)).status, 404, "a link left out of the site is not served");
 
     // Nothing is left in the viewer's work folder.
     let left = [];

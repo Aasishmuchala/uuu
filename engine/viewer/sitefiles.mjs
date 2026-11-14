@@ -3,8 +3,9 @@
 // served site carries, and a folder read with the usual distrust (docs/adr/0007). Used by the
 // page viewer, the owner's preview and the home server, so all three apply the same rules.
 // Zero dependencies.
-import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, readdirSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, readSync, readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
+import { openNoLinks } from "../lib/nolinks.mjs";
 
 export const SITE_LIMITS = Object.freeze({
   sentBytes: 20 * 1024 * 1024,      // the archive as sent
@@ -40,9 +41,10 @@ export const TYPES = Object.freeze({
   webm: "video/webm",
 });
 
-// The page may reach nothing but itself (K15).
+// The page may reach nothing but itself (K15). No worker of any kind (T57 F2): a service worker
+// would outlive the page and answer for later sites served at the same address.
 export const SITE_POLICY = "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
-  "connect-src 'self'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'self'; frame-ancestors 'none'";
+  "connect-src 'self'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'self'; frame-ancestors 'none'; worker-src 'none'";
 
 export const SITE_HEADERS = Object.freeze({
   "Content-Security-Policy": SITE_POLICY,
@@ -87,16 +89,19 @@ export function shownName(name) {
 export function checkEntries(entries) {
   if (!Array.isArray(entries)) return { ok: false, reason: "the site is not a list of files" };
   if (entries.length > SITE_LIMITS.entries) return { ok: false, reason: `the site has more than ${SITE_LIMITS.entries} entries` };
-  const kinds = new Map(); // lower-case name -> "file" | "dir"
+  const kinds = new Map(); // lower-case name -> { kind: "file" | "dir", name: as spelled }
   const files = [];
   const dirs = [];
   let bytes = 0;
+  // A folder may be named again only as spelled the first time: "A/" and "a/" are one folder on this disk.
   const claim = (name, kind) => {
     const key = name.toLowerCase();
     const had = kinds.get(key);
-    if (had === undefined) { kinds.set(key, kind); return true; }
-    return had === "dir" && kind === "dir";
+    if (had === undefined) { kinds.set(key, { kind, name }); return true; }
+    if (had.kind !== "dir" || kind !== "dir") return false;
+    return had.name === name ? true : "case";
   };
+  const caseClash = (name) => ({ ok: false, reason: `two folders have names that differ only in letter case, which this Mac's disk takes as one folder: ${shownName(name)}` });
   for (const e of entries) {
     if (!e || typeof e !== "object") return { ok: false, reason: "the site is not a list of files" };
     if (e.type !== "file" && e.type !== "dir") return { ok: false, reason: `${shownName(e.name)}: only plain files and folders are taken` };
@@ -104,7 +109,9 @@ export function checkEntries(entries) {
     if (problem) return { ok: false, reason: `${problem}: ${shownName(e.name)}` };
     const parts = e.name.split("/");
     for (let i = 1; i < parts.length; i++) {
-      if (!claim(parts.slice(0, i).join("/"), "dir")) return { ok: false, reason: `a name is used for a file and a folder: ${shownName(e.name)}` };
+      const got = claim(parts.slice(0, i).join("/"), "dir");
+      if (got === "case") return caseClash(e.name);
+      if (!got) return { ok: false, reason: `a name is used for a file and a folder: ${shownName(e.name)}` };
     }
     if (e.type === "file") {
       if (!Number.isSafeInteger(e.size) || e.size < 0) return { ok: false, reason: `${shownName(e.name)}: no size` };
@@ -114,7 +121,9 @@ export function checkEntries(entries) {
       if (!claim(e.name, "file")) return { ok: false, reason: `a name is used twice: ${shownName(e.name)}` };
       files.push(e.name);
     } else {
-      if (!claim(e.name, "dir")) return { ok: false, reason: `a name is used for a file and a folder: ${shownName(e.name)}` };
+      const got = claim(e.name, "dir");
+      if (got === "case") return caseClash(e.name);
+      if (!got) return { ok: false, reason: `a name is used for a file and a folder: ${shownName(e.name)}` };
       dirs.push(e.name);
     }
   }
@@ -128,10 +137,16 @@ const lstatOrNull = (p) => { try { return lstatSync(p); } catch { return null; }
 // Reads a site folder an agent wrote: never follows a link, never opens anything but a
 // regular file, and leaves out (listing why) what can never be served: links, devices,
 // hidden files and names or endings outside the rules. The limits fail the whole site.
+// The folder is resolved to its real path once (it must be the very folder lstat saw) and every
+// folder and file under it is opened with no link anywhere on the path (lib/nolinks.mjs), so a
+// folder swapped for a link at any moment is refused at the open itself, never followed.
 // -> { ok: true, files: [{ name, data }], left: [{ name, why }], bytes } or { ok: false, reason }.
-export function collectSite(dir) {
-  const top = lstatOrNull(dir);
+export function collectSite(given) {
+  const top = lstatOrNull(given);
   if (!top || !top.isDirectory()) return { ok: false, reason: "the site folder is missing or is not a plain folder" };
+  let dir;
+  try { dir = realpathSync(given); } catch { dir = null; }
+  if (!dir || !sameNode(lstatOrNull(dir), top)) return { ok: false, reason: "the site folder is missing or is not a plain folder" };
   const files = [];
   const left = [];
   const seen = []; // [path, stat] of every folder on the way, checked again after each open
@@ -140,8 +155,12 @@ export function collectSite(dir) {
   const leave = (name, why) => { if (left.length < 50) left.push({ name: shownName(name), why }); };
 
   function walk(abs, rel, depth, chain) {
+    // The folder listed must be the one the walk saw, reached with no link on the way (checked again after).
+    const here = chain[chain.length - 1][1];
+    if (!sameFolder(abs, here)) return "the site changed while it was read";
     let names;
     try { names = readdirSync(abs); } catch { return "a folder of the site could not be read"; }
+    if (!sameFolder(abs, here)) return "the site changed while it was read";
     names.sort();
     for (const n of names) {
       const name = rel ? `${rel}/${n}` : n;
@@ -177,13 +196,20 @@ export function collectSite(dir) {
   return { ok: true, files, left, bytes };
 }
 
-// A file opened once with no-follow, checked on the open handle against what the walk saw,
-// and every folder on its way checked again afterwards (a folder swapped for a link while
-// the file was opened is caught unless it is swapped back in between; see the report).
+// A folder opened with no link anywhere on its path is still the folder `was`.
+function sameFolder(path, was) {
+  let fd;
+  try { fd = openNoLinks(path, constants.O_DIRECTORY); } catch { return false; }
+  try { return sameNode(fstatSync(fd), was); } catch { return false; } finally { closeSync(fd); }
+}
+
+// A file opened once with no link anywhere on its path (O_NOFOLLOW_ANY: a folder on the way
+// swapped for a link is refused by the open itself), checked on the open handle against what
+// the walk saw, and every folder on its way checked again afterwards.
 function readNoFollow(path, seenStat, chain) {
   let fd;
   try {
-    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    fd = openNoLinks(path);
   } catch {
     return null;
   }
@@ -213,11 +239,18 @@ function readNoFollow(path, seenStat, chain) {
 // The request handler of a served site: GET and HEAD of a listed file only, `/` and a folder
 // ending in `/` mean its index.html, a query string is ignored, nothing is decoded (a name
 // that needs decoding is not a name of the site). files: Map name -> Buffer.
+// A browser's fetch of a service worker's script (it carries a Service-Worker header) is refused,
+// so no page can leave a worker behind (T57 F2).
 // onMissing(name) is told the plain names asked for that are not there.
 export function siteHandler(getFiles, { onMissing } = {}) {
   return (req, res) => {
     req.on("error", () => {});
     res.on("error", () => {});
+    if (req.headers && req.headers["service-worker"] !== undefined) {
+      const text = "No workers.";
+      res.writeHead(403, { ...SITE_HEADERS, "Content-Type": "text/plain; charset=utf-8", "Content-Length": Buffer.byteLength(text), Connection: "close" });
+      return void res.end(req.method === "HEAD" ? undefined : text);
+    }
     const files = getFiles();
     const target = typeof req.url === "string" ? req.url : "";
     const path = target.split("?")[0];
