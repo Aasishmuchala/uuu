@@ -2,7 +2,7 @@
 
 The engine runs your company with a small team of AI agents and you. It runs on this Mac only. Nothing leaves the building: no email, message or post is sent by anything, and publishing and sending are switched off.
 
-The only things you pay for are your Claude and Codex plans. Until 12 November 2026 no paid key was allowed. On that day you asked for Omega Plus, so you can now switch on a paid outside provider in Settings. On the same day you also said yes to one more paid thing, Runway for video clips and pictures, with its own switch and limits: see "Turning on Generation". It is off by default: nothing changes until you paste a key and switch it on, and switching it off brings the plans back. While it is on, everything an agent reads and writes in a task is sent to Omega Plus. See "Using Omega Plus".
+The only things you pay for are your Claude and Codex plans. Until 12 November 2026 no paid key was allowed. On that day you asked for Omega Plus, so you can now switch on a paid outside provider in Settings. On the same day you also said yes to one more paid thing, Runway for video clips and pictures, with its own switch and limits: see "Turning on Generation". On 13 November you added a second, Higgsfield, and a place for apps that use both: see "App Studio: your apps" and "Connecting Higgsfield". Each is off by default: nothing changes until you paste a key or sign in and switch it on, and switching it off brings the plans back. While it is on, everything an agent reads and writes in a task is sent to Omega Plus. See "Using Omega Plus".
 
 It has six parts: the board (where tasks are kept), the fence around every agent, the gate between the agents and the board, the model relay (the one door to Omega Plus, closed unless you switch it on), one set of company records (books, customers, support, people), the company brain (your own files that every agent reads) and your home screen. The team has ten roles: Chief of staff, Builder, Checker, Bookkeeper, Sales, Support, People, Marketer, Drafter and Artist. Words in bold in `GLOSSARY.md` mean what they say there.
 
@@ -107,7 +107,8 @@ Both start switched off. Until the daily brief is switched on, the Map shows a b
 - **Routines**: standing work, its runs and its switch.
 - **Team** (from the menu or a creature): the ten agents. Each page says what that agent may and may not do, what it is doing, its lessons, and lets you pause it or give it a task.
 - **Health**: what is on, whether the fence holds, what is not connected. You can run the proof from here.
-- **Settings**: theme and accent, the Models section for Omega Plus, and the later options with what each would cost.
+- **Apps** (App Studio): the apps that run on this Mac, and each one opened inside the home screen. See "App Studio: your apps".
+- **Settings**: theme and accent, the Models section for Omega Plus, Generation (Runway and Higgsfield), and the later options with what each would cost.
 - **Search**: finds tasks, files, records, agents, routines and jobs.
 
 ## The Studio
@@ -236,7 +237,7 @@ Turn it on.
 2. Open Settings on the home screen and find "Generation".
 3. Paste the key into "Runway key" and press "Save key". It is kept on this Mac only, outside the fence, and is never shown again. "Remove key" deletes it.
 4. Press "Test". It asks Runway how many credits you have. It costs nothing and works while the switch is off, once a key is saved. It says "Runway says you have <n> credits." or "Runway refused this key."
-5. Check the two limits, "Most to spend in a day (credits)" and "Most to spend in a month (credits)". They start at 300 and 1,000. One credit is one US cent, so that is $3 a day and $10 a month. A limit of 0 stops all making. Days and months are by the clock in Kolkata.
+5. Check the two limits, "Most to spend in a day ($)" and "Most to spend in a month ($)". They start at $3 and $10. A limit of 0 stops all making. Days and months are by the clock in Kolkata.
 6. Check "Models". Each choice shows its price. The start is gen4_turbo for clips (5 credits a second), gen4.5 for clips marked best or made from words alone (12 a second), gen4_image for variations (8 a picture) and magnific_precision_upscaler_v2 for larger stills (25 a picture).
 7. Turn on "Let the Artist use Runway". The page says "On. Only the Artist can ask, and only inside what you approved." If it will not switch on, it says why: no key, the door is not running (run `engine start`), or the Artist is not set up (run `engine setup`).
 
@@ -305,11 +306,98 @@ Nothing is published. The preview is your own browser on this Mac, and the zip i
 
 The brand check reads every page before a reviewer sees it, from its files and by code. It sends a page back when the kit's own style file was changed, when a colour or a typeface is not your kit's, when text is smaller than your kit's smallest, when an address outside the site is in a place a page loads from, or when the logo is missing from the header. It reads text and runs nothing: a colour or typeface a script sets while it runs is only caught by the viewer's report and the Art director's own look, not by the check. A link to another site is fine.
 
+## App Studio: your apps
+
+An app is a program the company made, kept in the repository as a folder, `apps/<name>/`, that runs on this Mac only. App Studio is the page that lists them, turns them on and off, and opens one inside the home screen. The first is Render to Film. You and the Artist both use it. An app reaches Runway and Higgsfield only through the engine, so the keys never go into it and one set of limits and one record of spending cover the Artist and every app.
+
+It is built and tested, not yet live. It goes live when the App Studio part is started, after the engine has been told the first app is ready. Until then the Apps page says "Waits for App Studio." and Render to Film says "Not ready yet.". Everything below is how it works once it is on, and nothing is switched on for you.
+
+Open an app.
+
+1. Click "Apps" in the menu. Each app is a tile with its picture, its name and its state: "Off", "Starting…", "On", "Stopped. It could not start.", "Not ready yet." or "This app's description is damaged.".
+2. Press "Turn on". The host starts the app inside its fence. It takes a few seconds; the page asks again every two seconds until the app answers. If it will not turn on, the page says why.
+3. Press "Open". The app opens inside the home screen. "Open in its own window" opens it in its own browser tab on its own address, for example `http://127.0.0.1:3171/` for Render to Film. "Turn off" ends it.
+4. An app that stops by itself is started again after five seconds. If it stops three times in ten minutes, it says "Stopped. It could not start." and stays stopped until you turn it off and on.
+
+The bar above the app. The bar is the home screen's own. The app cannot draw over it or change it. It has the way back to Apps, the app's name and state, what the app may spend today, the model it thinks with, and "Open in its own window". This is where you decide about money, because an app's own screens cannot be trusted to ask for you.
+
+The daily allowance. An app cannot spend anything until you say so. While nothing is allowed, the bar says "This app cannot spend anything right now." and every spending button in the app is off with "Allow spending in the bar above.". Press "Allow spending" and pick $2, $5, $10 or $20. The box says "What is left of today's limit: $X." and an amount over that is off. It ends at midnight in Kolkata, or the moment you press "Stop spending". The bar then reads "Allowed today: $5.00. Spent: $1.20.". Inside it, each click in the app spends without asking again, and each button shows its price before you click. It is a bound, not a promise: the app can spend up to it, and the daily and monthly limits in Settings still hold on top of it. Pressing "Stop spending" ends it at once. A job already at the service is still counted.
+
+What the app thinks with. "Thinks with <model>." names the model that answers the app's own questions (its check of people in a render, its finding of close-ups, its storyboard planner and its editor's chat). It starts as the Art director's model and you can change it in the bar. It uses your model provider, so its cost is in Settings, Models, not in Generation's spending. It is held to 60 questions an hour and 300 a day for each app.
+
+Where an app's files live.
+
+- Its program and its notes: `apps/render-to-film/` in the repository. Nothing there changes when it runs except the two folders it builds, `.build` and `dist`.
+- Its packages: `~/.paperclip/uuu-engine/apps/render-to-film/deps/`, with their store in `store/` beside it. They were fetched once, with your yes of 13 November.
+- Its pictures, clips and documents: `~/.paperclip/uuu-engine/apps/render-to-film/data/`. This is the only place an app writes. `tmp/` and `home/` beside it are its scratch space.
+- Which apps are on: `~/.paperclip/uuu-engine/apps/state.json`. What it may spend today: `doors/allowances/render-to-film.json`.
+- What it printed: `~/.paperclip/uuu-engine/logs/apps/render-to-film.log`, cut when it passes 5 MB.
+
+What an app cannot reach. It runs in a fence like the agents', built for apps. It can read only its own program, its own packages and folders, and Node. It can write only its own data. It can reach no internet and no port on this Mac, not even the board or the home screen. The only way out is one socket to the engine, which carries only what the app is allowed to ask: pictures and clips through the generation door, and thinking through the model relay. It cannot read your files, your keys or the Higgsfield sign-in, or another app's folder. No agent can reach an app either: the Artist is refused its address. Another page of yours cannot read an app, or an app the home screen, because each is its own address.
+
+An app that is sick. Health shows one line: "App Studio is on. Open: Render to Film.", or "App Studio is on. No app is switched on.", or, if one has stopped three times, "<app> stopped three times; switch it off and on in App Studio." Its log has what it printed.
+
+Known limits. There are no WebSockets or cookies in an app, and a plain form post is refused: the app sends its writes another way. A picture you give an app stays on this Mac; only the pictures it sends to a service leave it, inside your allowance. The sites the Builder makes do not appear in App Studio yet.
+
+## Render to Film
+
+Render to Film turns a render into cinematic stills, clips and a finished film. It was your app on Runway's own platform. It now runs here, with no Runway sign-in, no Runway credits and no Runway storage. It has seven tabs: Director (plans a film), Stills, Video, Close-ups, Location, Edit and Library.
+
+Prices come before each button. Every button that spends shows its price before you click it, for example "About $0.40". It comes from the engine's own table, so it needs no network. A price the table does not have says "Price unknown", and nothing is made. A button is off with "Allow spending in the bar above." while no allowance is open. If a service is not ready, the button says which: "Needs a Runway key. Add it in Settings on the home screen." or "Needs Higgsfield. Switch it on and sign in from Settings on the home screen.". The header chip repeats what the bar above says.
+
+Which service makes what.
+
+- **Runway** makes most of it, through its public service and your key: Gen-4 Image, GPT Image 2, Nano Banana, Seedream and Grok Imagine for pictures, and Gen-4 Turbo, Gen-4.5, Veo 3.1, Seedance 2, Kling 3 and Hailuo 3 for clips, and the Precision upscaler for a larger still. The door always uses Runway when it offers a model.
+- **Higgsfield** makes what Runway does not: FLUX.2 Max, Wan 2.6 and its 4K upscale of a picture.
+- **This Mac** makes the cuts. Trim, join, captured frames and the final export are done by ffmpeg inside the fence.
+- **Your model provider** does the thinking, as above.
+
+What it cannot do yet. These are said on the screen, in plain words, where they come up.
+
+- **Higgsfield jobs that start from a picture.** FLUX.2 Max and Wan 2.6 both need a picture sent to Higgsfield, which is held until the upload address is known. See "Connecting Higgsfield".
+- **Two Higgsfield models have no price:** Wan 2.6 and the 4K upscale. They say "Price unknown", and nothing is made with them. Two of Runway's GPT Image variants have no price in the table either.
+- **AI grades and edits of a clip (Runway's Aleph)** and **clip upscale** are left out. The screens say "AI grades and edits of a clip are not available on this Mac yet. Use the built-in look." and "Clip upscale is not available on this Mac yet." The built-in look on the Edit tab stays.
+- **Dropped presets:** Krea Image 3 and LTX-2.5 Pro (a model no service here offers), Gen-4.5's frames in between, and negative prompts and seeds.
+- **Small things known:** the Edit tab's caption can read "8s" for a film of 7.5 seconds with fades; a label can still read "Reviewed by Claude Opus 5.5" though the model is the one you picked; and one error on saving to the library still says "Runway account".
+
+The Artist knows Render to Film's recipes, as words, in a playbook. It never opens the app and cannot spend what the app can: it makes clips and pictures only inside a batch you approved (see "Making a film").
+
+## Connecting Higgsfield
+
+Higgsfield is a second paid service for pictures and clips, beside Runway. It is not live yet, and it is off until you sign in and switch it on. Nothing is sent to it while it is off.
+
+1. Open Settings, then Generation, and find "Higgsfield".
+2. Read the warning, which is always shown: "Higgsfield's terms let it use what you send, and what it makes, to train its models unless you turn that off in your Higgsfield account. Do not send client work you may not share." Higgsfield's own pages document a way to turn this off only for its developer service, not for the way the engine signs in, so do not count on it. Keep Higgsfield off for any work that is not yours to share.
+3. Press "Sign in to Higgsfield". Higgsfield's own page opens in a new tab. Sign in there and say yes. You come back to Settings, which says "Higgsfield is connected." If it says "The Higgsfield sign-in did not finish. Try again.", press the button again. The engine keeps the sign-in in a file only the generation door can read; you never type a password or a key into it.
+4. Set the rate, "One Higgsfield credit counts as (cents)". It starts at 5. Your plan is not in Higgsfield's public price list. Plus is about 5 cents a credit; change the number to match your plan. It turns Higgsfield's credits into cents so every price you read is in dollars, and changing it does not change what you already approved.
+5. Press "Test". It asks Higgsfield how many credits you have, costs nothing and works while the switch is off. It says "Higgsfield says you have <n> credits." Waiting can take up to 75 seconds.
+6. Turn on "Use Higgsfield". The page says "On. Your apps and the Artist may use it, inside what you approve." The Artist and apps may then use a Higgsfield model: in a film or a still job, once you choose one in Settings, Models, and in Render to Film, where the button names the service.
+
+"Higgsfield asked you to sign in again." means the sign-in ran out: press "Sign in to Higgsfield" again. "Sign out of Higgsfield" deletes the sign-in. If you sign out, the switch can stay on; Settings then says "On, but not signed in." and nothing is sent.
+
+What is held. The door sends a picture to Higgsfield only to an upload address it has been told to trust, and Higgsfield names that address when it answers, which the door does not know yet. It will not guess one. Until it is known, every Higgsfield job that starts from a picture is refused with "The door does not know Higgsfield's upload address yet, so no picture can go to Higgsfield. Nothing was spent." That is FLUX.2 Max and Wan 2.6. Runway jobs are not touched. Settings does not say this yet; the refusal does. Higgsfield's first real answers are checked at your first sign-in and your first job.
+
+What it costs and how it is kept safe. A price always comes from the engine's table, never from Higgsfield's answer. Just before a job, the door asks Higgsfield its live price, and if that is higher than the table's it makes nothing ("Higgsfield's price for this is higher than the door's table, so nothing was spent."). A job that fails or is refused on safety grounds still counts as spent unless Higgsfield says it cost nothing. A refused one counts toward the same three-a-day pause as Runway's. Runway and Higgsfield share one daily and one monthly limit, in Settings, in dollars.
+
+## Cook: how visual work is made here
+
+Cook is a way of making visual work in rounds, until it holds up beside real references. It is a third party's playbook under the MIT licence, kept here word for word with its licence, and it is the default for pages and sites (the Builder), films, stills, carousels, posters and title cards (the Artist) and every review (the Art director). Its loop, in five lines:
+
+1. **Start from references.** Your own pictures and the files the task names, and the references your brand kit lists with your reasons. They are the bar, not loose inspiration.
+2. **Make a target.** The three versions are the target: one for each direction. You pick one.
+3. **Set a number.** Before building, the maker writes a score out of 10 for each of composition, light, colour, materials, detail and motion into `cook/BRIEF.md` in the task's folder, and starts a ledger, `cook/ROUNDS.md`.
+4. **Round after round.** Design first, motion second. Each round puts the reference on the left and the work on the right in one picture; the Art director, who has seen none of the build, scores it with numbers; the maker fixes the weakest part and logs it. Your picks and notes calibrate the Art director's scores.
+5. **Stop at the bar, or at the limit.** A round happens inside one step, within its time, the three tries and the batch you approved. When the time runs out first, the maker says plainly what is still below the bar. Nothing is published, and anything that spends waits for your approval.
+
+Cook's own hours and usage pacing are not used; the job's own limits are. Its helper script is not installed and its colour check, which needs a library this Mac's art tools lack, is done another way or marked "not measured". Its files are in `cook/` inside the task's folder, never in a piece's folder. They are the same for the screens of the engine itself, which are being redone this way.
+
 ## What is switched off
 
 Each is an off switch or an account step. Nothing is done for you.
 
 - **Generation.** Off until you save a Runway key and turn it on (see "Turning on Generation"). Nothing is sent to Runway and nothing is spent while it is off.
+- **Higgsfield.** Off until you sign in and turn it on (see "Connecting Higgsfield"). Nothing is sent to it while it is off.
+- **Apps.** Off until the App Studio part is started and you turn an app on (see "App Studio: your apps"). An app that is off runs nothing and spends nothing.
 - **Anything that needs the internet.** Agents have no internet, so jobs that would look things up online stay dim, with the reason shown. The one exception is the Researcher, once you switch on the web (see "Letting the Researcher use the web").
 - **Publishing and sending.** No post, email or message can go out. To turn it on, connect the account first; each page says "Connect an account to turn this on."
 - **WhatsApp and the GST portal.** Off in the same way.
@@ -379,7 +467,9 @@ None of these is built or running. Each is a choice for later. Settings lists th
 - The brand kit: `~/.paperclip/uuu-engine/knowledge/docs/brand/kit.json`, with `kit.css`, `brand.md`, your fonts in `fonts/` and the taste file `taste.md` beside it. Only the home server writes them. The brand's short public summary is `knowledge/shared/brand-public.md`.
 - Omega Plus settings: `~/.paperclip/uuu-engine/models/state.json` (the mode, the picks, the last list of models) and `relay-status.json` beside it (what the model relay has seen). The key is `secrets/provider/omega-key` and the relay's own secret is `secrets/provider/relay-secret`. Agents cannot reach any of them.
 - The web door's switches and lists: `~/.paperclip/uuu-engine/doors/state.json`, and what it opened: `doors/web-visits.jsonl`, with `web-status.json` beside it. A Brave search key, if you add one, is `secrets/doors/search-key`. Agents cannot reach any of them.
-- Generation: the switch, the limits and the models are in `~/.paperclip/uuu-engine/doors/state.json` beside the web door's. The Runway key is `secrets/doors/runway-key`. Agents cannot reach either.
+- Generation: the switch, the limits and the models are in `~/.paperclip/uuu-engine/doors/state.json` beside the web door's, with Higgsfield's switch and its cents per credit. The Runway key is `secrets/doors/runway-key`. The Higgsfield sign-in is a file in `secrets/doors/`, named `higgsfield-oauth.json`; only the generation door reads or writes it, and it is never shown here. Agents cannot reach any of them.
+- Apps: their programs are in `apps/` in the repository, one folder each. Each app's packages, data and scratch folders are in `~/.paperclip/uuu-engine/apps/<name>/` (`deps/`, `store/`, `data/`, `tmp/`, `home/`), the owner's switches in `apps/state.json` beside them, and the sockets an app uses while it runs in `run/apps/<name>/`. Only the app's own fence can reach its folders, and no agent can reach any of them.
+- What an app may spend today: `~/.paperclip/uuu-engine/doors/allowances/<name>.json`, one small file each, written only by the home screen and read by the generation door. It ends at midnight in Kolkata.
 - Your approvals for films and still jobs: `~/.paperclip/uuu-engine/doors/batches/`, one small file each, written only by the home screen. They are removed 30 days after they end.
 - What was spent: `~/.paperclip/uuu-engine/doors/generate-ledger.jsonl`, written only by the generation door, with dated copies of old months (`generate-ledger-<date>.jsonl`) beside it.
 - The generation door's work folder: `~/.paperclip/uuu-engine/doors/work/gen/`. It holds the pictures sent to Runway (for one day) and the clips and pictures Runway made (for two days), and the job records. The clips and pictures you keep are copied into the goal's folder by the Artist. Agents cannot reach this folder.
@@ -388,7 +478,7 @@ None of these is built or running. Each is a choice for later. Settings lists th
 - The home screen's pictures of pages: `~/.paperclip/uuu-engine/home/shots/`, one folder for each version's files, at most 500 MB in all, oldest removed first. Only the home server writes there; agents cannot read it.
 - The site kit: `~/.paperclip/uuu-engine/playbooks/site-kit/`, copied there by `engine/playbooks/install.sh` from `engine/site-kit/`. Every agent can read it and none can change it.
 - The Researcher's notes: `~/.paperclip/uuu-engine/tasks/research/<goal>/`. Files you shared with it: `knowledge/shared/`.
-- Logs: `~/.paperclip/uuu-engine/logs/`. One file per part, including `relay.log`, plus `gate-refusals.log`, which lists what the gate turned away.
+- Logs: `~/.paperclip/uuu-engine/logs/`. One file per part, including `relay.log`, plus `gate-refusals.log`, which lists what the gate turned away. Each app's own output is `logs/apps/<name>.log`.
 - Secrets: `~/.paperclip/uuu-engine/secrets/`, and the agents' login in `agent.env` beside it. Only you can read them. They are never in the repository and are never shown here.
 - The company's files (agents, instructions, routines, jobs): `engine/company/`.
 - Decisions and why: `docs/adr/`.

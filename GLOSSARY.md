@@ -157,7 +157,7 @@ The code that measures a piece against the brand kit and the can't-say list befo
 _Avoid_: Brand review, lint, QA
 
 **Playbook**:
-Craft advice from the owner's own skill folders on this Mac, copied into the engine's state folder where every agent can read it and none can write it. The repo holds only a list of them.
+Craft advice from the owner's own skill folders on this Mac, copied into the engine's state folder where every agent can read it and none can write it. The repo holds only a list of them, and two playbooks it keeps whole: the owner's Render to Film recipes and `cook`.
 _Avoid_: Skill, prompt, template
 
 **Version**:
@@ -193,8 +193,8 @@ The text and table files the owner marked "Fine to share with the Researcher", w
 _Avoid_: Public files, exported files
 
 **Generation door**:
-The small server that lets the Artist, and no other agent, make video clips and pictures with Runway, a paid service, from the owner's own renders. It spends only inside a batch the owner approved, keeps the spending ledger, and holds the Runway key, which no agent can read. Off until the owner switches it on in Settings.
-_Avoid_: Runway connection, video API, AI generator
+The small server that lets the Artist, and the apps in App Studio, and no other agent, make video clips and pictures with Runway and Higgsfield, two paid services, from the owner's own renders. The Artist spends only inside a batch the owner approved, and an app only inside an allowance. It keeps the spending ledger, and holds the Runway key and the Higgsfield sign-in, which no agent can read. Off until the owner switches it on in Settings.
+_Avoid_: Runway connection, Higgsfield connection, video API, AI generator
 
 **Page viewer**:
 The small server that lets the Builder and the Art director, and no other agent, see the pages the Builder made. It opens a site in a hidden Chrome that runs outside the fence, with Chrome's own sandbox on and a proxy that passes only the site, and gives back pictures at computer and phone width and a report. Off until the owner switches it on in Settings.
@@ -233,12 +233,56 @@ A second take of a shot, made when the Art director marks the first one to be re
 _Avoid_: Redo, reshoot
 
 **Credit**:
-Runway's unit of price. One credit is one US cent. A clip costs credits for each second; a picture costs a fixed number.
+A service's unit of price. One Runway credit is one US cent. A Higgsfield credit is worth the number of cents set in Settings (**cents per credit**). A clip costs credits for each second; a picture costs a fixed number.
 _Avoid_: Token, point
 
 **Spending ledger**:
-The generation door's own file, `doors/generate-ledger.jsonl`, with a line for every amount held, spent or given back. Every limit is checked against it. The door alone writes it and tidies it when it starts; if it cannot be read, nothing is made.
+The generation door's own file, `doors/generate-ledger.jsonl`, with a line for every amount held, spent or given back, for the Artist and every app together, in US cents. Every limit is checked against it. The door alone writes it and tidies it when it starts; if it cannot be read, nothing is made.
 _Avoid_: Bill, invoice, usage log
+
+**App Studio**:
+The page on the home screen, and the part of the engine behind it, where the apps the company makes live. Each app is listed with its state, switched on and off by the owner, and opened inside the home screen. Off until the engine's App Studio part is installed.
+_Avoid_: App store, marketplace, plugins
+
+**App**:
+A program the engine runs for the owner and the Artist, kept as a folder in the repository, `apps/<name>/`, and run only inside its own fence. The first is Render to Film. It reaches Runway and Higgsfield only through the engine.
+_Avoid_: Plugin, extension, tool
+
+**Manifest**:
+An app's `app.json`: its name, its port, what it starts from and which parts of the engine it may ask (the generation door, the model relay) and which programs it may use (ffmpeg). One that breaks a rule makes the app "damaged": it is listed and never started.
+_Avoid_: Config, settings file
+
+**The host**:
+The small program, `engine/apps/host.mjs`, that starts each app inside its fence, serves its pages on its own address and is the app's only way into the engine. It is the one part of App Studio that runs unfenced, and it has no dependencies.
+_Avoid_: Server, launcher, runner
+
+**App fence**:
+The limits on what an app's code, its packages and its build can reach: only its own folders and Node, no network port, and only its own sockets. It is the agents' fence built for apps; the same tool, other rules. Its install mode alone may reach the public package registry.
+_Avoid_: Sandbox (that names the tool), container
+
+**Engine socket**:
+The one door an app has into the engine: a file on this Mac that only that app's fence can reach. The host knows which app is asking by which socket it came through, so an app holds no key or secret.
+_Avoid_: API key, app token, endpoint
+
+**Allowance**:
+The owner's yes for an app to spend today: $2, $5, $10 or $20, set in the home screen's bar above the app, never more than what is left of the day's and month's limits. It ends at the next midnight in Kolkata, or when the owner presses "Stop spending". It is a file only the home screen writes.
+_Avoid_: Budget, credit line, permission
+
+**Higgsfield**:
+A second paid service, beside Runway, that makes pictures and clips. The generation door reaches it through its MCP server after the owner signs in once with his browser. Off until the owner switches it on in Settings. Its terms let it train its models on what is sent.
+_Avoid_: Higgs, HF
+
+**Cents per credit**:
+The number in Settings that says what one Higgsfield credit costs, from 1 to 50 cents. It starts at 5. Every price the owner reads is in dollars, worked out with it.
+_Avoid_: Exchange rate, conversion
+
+**Model table**:
+The door's list of every model it will pay for, from Runway and Higgsfield, with what each can do and its price. A price always comes from the table. A model with no price in it is refused, and nothing is spent.
+_Avoid_: Price list, catalogue
+
+**Cook**:
+A third party's playbook, under the MIT licence, for making visual work as a loop: references, a target, a number to reach, a round of looking and fixing, a judge who knows nothing of the build. It is the default way pages, films and stills are made and judged here.
+_Avoid_: Skill, workflow
 
 **Daily brief**:
 A short note each morning of what happened that needs no decision.

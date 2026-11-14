@@ -64,6 +64,7 @@ No rule can guarantee taste. What is done instead: real inputs (the owner's own 
 ## Rejected
 
 - Copying playbooks into the repo: some are a third party's work and the repo is on GitHub.
+  - One exception, made on 14 November 2026 at the owner's request: `cook`, a third party's loop for making visual work, is kept in the repo word for word (`engine/playbooks/own/cook/`). It is under the MIT licence, which allows this if the licence stays beside the copy, so `LICENSE.md` is kept with it, and the repo is the owner's own private one. It is installed as an own playbook with an engine note, and only its notes are copied, never its script. The owner's own Render to Film recipes are kept the same way. Every other playbook is still only listed.
 - Copying whole skill folders: some hold programs, install lines and a 514 MB virtual environment.
 - Loading playbooks through a program's own skill loading, or linking them into an agent's home: it works for one program only, depends on discovery rules the fence now restricts, and the agent's home is writable.
 - A report file written by the checking step: a file in a shared task folder can be forged by the maker.
