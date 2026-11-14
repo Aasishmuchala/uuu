@@ -60,7 +60,8 @@ test("queueHref: a shotlist on the Needs you page; a result or pick of a task op
 
 test("the shell re-exports the queue's helpers from one place, and the drawer is gone", () => {
   for (const n of ["queueGroups", "queueHref", "sortNeeds", "needsFor", "needsTitle", "SOURCE_DEPARTMENT"]) assert.equal(queue[n], lib[n], `shell/queue.js gives lib's ${n}`);
-  assert.deepEqual(queue.KIND_ICON, { shotlist: "video", pick: "layers", approval: "check", question: "reply", result: "done" });
+  assert.deepEqual(queue.KIND_ICON, { shotlist: "video", pick: "layers", approval: "check", question: "reply", result: "done", draft: "file" });
+  assert.equal(queue.KIND_ICON.draft, "file", "a draft shows the file icon in the queue, as on the Needs you page, not the warning glyph");
   assert.ok(!existsSync(join(PUBLIC, "shell", "needs-drawer.js")), "shell/needs-drawer.js is removed");
   const shell = src("shell/app-shell.js");
   assert.match(shell, /<div id="s-queue" class="s-queue-host">\s*<\$\{QueuePanel\} open=\$\{overlay === "needs"\} narrow=\$\{narrow\}/, "the Queue button's aria-controls names the panel's place");

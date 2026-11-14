@@ -1,6 +1,7 @@
 // The kit's layouts (T33 of PLAN-COOK): StageLayout, DocLayout, Group, Rows, Row and Blk.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { KIT, html, installDom, mount, unmount, elements, textOf, byClass, fire, walkDom } from "./_dom.mjs";
@@ -134,6 +135,18 @@ test("layout.css: the rail is sticky under the top bar, the stage on the deepest
   assert.match(sheet, /\.k-rail__body \{[^}]*overflow-y: auto/);
   assert.match(sheet, /@media \(max-width: 859px\)[\s\S]*\.k-rail \{\s*display: contents;/);
   assert.match(sheet, /@media \(max-width: 859px\)[\s\S]*\.k-rail__foot \{[^}]*position: sticky;[^}]*bottom: var\(--tabbar-h\)/);
+});
+
+test("T96: the stage uses its height: what is on it is centred, its real height is a variable, the rail body ends with air", () => {
+  const sheet = css("kit/layout.css");
+  const stage = /\.k-work__stage \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(stage, /--k-stage-h: calc\(100vh - var\(--topbar-h\) - var\(--k-strip-h\) - 2 \* var\(--s-5\)\);/, "the stage's inner height on the first screen");
+  assert.match(stage, /justify-content: center;/, "room left is shared above and below, not one band at the bottom");
+  assert.match(sheet, /\.k-work \{[^}]*--k-strip-h: calc\(var\(--band\) \+ 1px\);/, "the strip's height until it is measured");
+  assert.match(sheet, /\.k-work--no-strip \{\s*--k-strip-h: 0px;/);
+  assert.match(sheet, /\.k-rail__body \{[^}]*padding-bottom: var\(--s-4\);/, "16 px of air over the foot's hairline");
+  const src = readFileSync(join(KIT, "layout.js"), "utf8");
+  assert.match(src, /setProperty\("--k-strip-h"/, "layout.js tells the sheet the strip's drawn height");
 });
 
 ROOTS.layout = "k-work";

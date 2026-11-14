@@ -59,11 +59,10 @@
 .k-avatar--tint-5 { background: color-mix(in srgb, var(--dept-people) 24%, var(--raise)); }
 .k-avatar--tint-6 { background: color-mix(in srgb, var(--dept-books) 22%, var(--raise)); }
 
-/* The owner. */
+/* The owner: drawn like the agents (the raised step, ink initials), so the accent stays the primary's alone. */
 .k-avatar--you {
-  color: var(--accent-ink);
-  background: var(--accent-fill);
-  box-shadow: none;
+  color: var(--ink);
+  background: var(--raise);
 }
 
 /* A state dot at the lower right corner, ringed in the surface colour. */

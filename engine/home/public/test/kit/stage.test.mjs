@@ -128,5 +128,21 @@ test("stage.css: pins in the gutter, a stage panel around the frames, no blur, a
   assert.match(sheet, /@media \(max-width: 859px\)[\s\S]*\.k-frames__cell--desk:not\(:only-child\) \{\s*display: none;/);
 });
 
+test("T96: a shot is bounded by the stage's real height, not a raw allowance; frames that fill are bounded by their place's height", async () => {
+  const sheet = css("kit/stage.css");
+  const frame = /\.k-shot__frame \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(frame, /width: min\(100%, calc\(\(var\(--k-stage-h, 100vh - var\(--topbar-h\)\) - var\(--k-shot-room\)\) \* 16 \/ 9\)\);/);
+  assert.doesNotMatch(sheet, /176px/, "no raw allowance");
+  assert.match(sheet, /\.k-frames:not\(\.k-frames--fixed\) \{[^}]*max-width: calc\(\(100cqh - 106px\) \* var\(--k-frames-w\) \/ var\(--k-frames-h\)/);
+  installDom();
+  const root = await mount(mod.Frames, { items: [{ width: 1280 }, { width: 390, height: 900 }] });
+  const frames = byClass(root, "k-frames")[0];
+  assert.equal(frames.style.cssText || frames.getAttribute("style"), "--k-frames-w:1670;--k-frames-h:1048;--k-frames-gaps:1");
+  unmount(root);
+  const fixed = await mount(mod.Frames, { scale: 0.5, items: [{ width: 1280 }] });
+  assert.ok(!(byClass(fixed, "k-frames")[0].getAttribute("style") || ""), "a fixed scale is not bounded by height");
+  unmount(fixed);
+});
+
 ROOTS.stage = "k-shot";
 newSheetTest("stage");

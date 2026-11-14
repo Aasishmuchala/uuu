@@ -2,7 +2,7 @@
 // StageLayout: the work on a stage, a strip of choices under it, and a rail to decide in at the right.
 // DocLayout: a list of sections and one readable column of groups and rows (Settings).
 // Blk is a block of the rail; Group, Rows and Row build the column. Every string is rendered as text.
-import { html, useState } from "../vendor/preact-htm.js";
+import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { Button } from "./button.js";
 import { Icon } from "./icon.js";
 import { Dialog } from "./overlays.js";
@@ -32,11 +32,32 @@ function footParts(foot) {
   return { primary: foot, rest: null };
 }
 
+// The stage's real height on the first screen is what the strip leaves: the strip's drawn height is told to the sheet
+// as --k-strip-h (layout.css turns it into --k-stage-h, which a shot or a part on the stage is bounded by).
+function useStripHeight(ref) {
+  useEffect(() => {
+    const root = ref.current;
+    if (!root || !root.style || !root.querySelector || typeof ResizeObserver !== "function") return undefined;
+    const strip = root.querySelector(".k-work__strip");
+    if (!strip) { root.style.removeProperty("--k-strip-h"); return undefined; }
+    const look = () => {
+      const h = strip.offsetHeight;
+      if (h > 0) root.style.setProperty("--k-strip-h", `${h}px`);
+    };
+    look();
+    const ro = new ResizeObserver(look);
+    ro.observe(strip);
+    return () => ro.disconnect();
+  });
+}
+
 export function StageLayout({ kind, title, lede, stage, strip, rail, foot, more, label }) {
   const [sheet, setSheet] = useState(false);
+  const ref = useRef(null);
+  useStripHeight(ref);
   const { primary, rest } = footParts(foot);
   const hasFoot = has(primary) || has(rest);
-  return html`<div class=${cx("k-work", !has(strip) && "k-work--no-strip")}>
+  return html`<div ref=${ref} class=${cx("k-work", !has(strip) && "k-work--no-strip")}>
     <div class="k-work__first">
       <section class="k-work__stage" aria-label=${label || undefined}>${stage}</section>
       ${has(strip) ? html`<div class="k-work__strip">${strip}</div>` : null}

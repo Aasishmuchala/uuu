@@ -277,6 +277,13 @@
   padding-top: var(--s-2);
 }
 
+/* An opened item: its actions 24 px under the last fact (the card's 16 px gap, less 4, then 12 under the divider),
+   so a short card never leaves its buttons adrift. */
+.k-decision--level .k-decision__actions {
+  margin-top: calc(var(--s-3) - var(--s-4));
+  padding-top: var(--s-3);
+}
+
 /* The note, an agent's questions and a confirm open in place of the actions, under the same divider. */
 .k-decision__note,
 .k-decision__confirm {

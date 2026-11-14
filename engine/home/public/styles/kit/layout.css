@@ -5,10 +5,15 @@
 
 /* ---- StageLayout: a stage, a strip under it, a rail at the right */
 .k-work {
+  --k-strip-h: calc(var(--band) + 1px);
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--rail-w);
   grid-template-rows: auto auto;
   background: var(--bg);
+}
+
+.k-work--no-strip {
+  --k-strip-h: 0px;
 }
 
 /* The rail's ground runs the full height of the work, however far the page scrolls. */
@@ -31,11 +36,17 @@
   min-height: calc(100vh - var(--topbar-h));
 }
 
+/* The stage uses its height: what is on it is centred in it, so any room left is shared above and below, never one
+   band at the bottom. --k-stage-h is its inner height on the first screen (the window under the top bar, less the
+   strip's drawn height, which layout.js measures, less the stage's own padding): a shot is bounded by it
+   (stage.css), and a part that fills the stage takes the rest of it as a size container of its own. */
 .k-work__stage {
+  --k-stage-h: calc(100vh - var(--topbar-h) - var(--k-strip-h) - 2 * var(--s-5));
   flex: 1 0 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: var(--s-3);
   padding: var(--s-5) var(--pad);
   background: var(--stage);
@@ -117,9 +128,12 @@
   font-weight: var(--fw-bold);
 }
 
+/* The body scrolls above the foot; its last line keeps 16 px of air over the foot's hairline, so a line the foot
+   cuts reads as more to scroll, not as a fault. */
 .k-rail__body {
   flex: 1 1 auto;
   min-height: 0;
+  padding-bottom: var(--s-4);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;

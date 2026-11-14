@@ -476,13 +476,14 @@ function StageBody({ view }) {
     }
   }
 
-  // The frame's own word is the button that opens it larger: its press covers the whole frame (site.css).
+  // The frame's word in its label, and the button that opens it larger laid over the whole frame, so its own ring
+  // is drawn round the frame (site.css); the word stays in the label's flow.
   const opener = (at, url) => {
     const word = at === "desktop" ? SITE_WORDS.desktop : SITE_WORDS.phone;
     const px = at === "desktop" ? "1280 px" : "390 px";
     return html`<span class=${cx("k-site__frame", `k-site__frame--${at}`)}>${url
-      ? html`<button type="button" class="k-site__open" onClick=${() => setOpen(at)}
-          aria-label=${`${looked}, ${word.toLowerCase()} (${px}): ${SITE_WORDS.open}`}>${word}</button>`
+      ? html`<span class="k-site__word" aria-hidden="true">${word}</span><button type="button" class="k-site__open" onClick=${() => setOpen(at)}
+          aria-label=${`${looked}, ${word.toLowerCase()} (${px}): ${SITE_WORDS.open}`}><span class="k-sr">${word}</span></button>`
       : word}</span>`;
   };
   const items = [];

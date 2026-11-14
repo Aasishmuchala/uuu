@@ -21,34 +21,39 @@
   min-width: 0;
 }
 
-/* The frame's word is a button whose press covers the whole frame: the page opens larger. Its focus ring is drawn
-   round the page, where the eye is. */
+/* On a wide stage the frames take the rest of its height as a size container of their own, and sit centred in it
+   (stage.css bounds the panel by that height); a phone, or a page with no stage, keeps them in the flow. */
+@media (min-width: 860px) {
+  .k-work__stage .k-site__frames {
+    flex: 1 1 0;
+    min-height: 0;
+    container: k-site-frames / size;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* The button that opens a frame larger lies over the whole frame, and its 2 px accent ring is its own, drawn round
+   the frame where the eye is; the frame's word stays in the label. */
 .k-site__stage .k-frame {
   position: relative;
 }
 
 .k-site__open {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
   padding: 0;
   border: 0;
+  border-radius: var(--r-1);
   background: none;
   color: inherit;
   font: inherit;
   cursor: zoom-in;
 }
 
-.k-site__open::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  border-radius: var(--r-1);
-}
-
 .k-site__open:focus-visible {
-  outline: none;
-}
-
-.k-site__stage .k-frame:has(.k-site__open:focus-visible) .k-frame__page {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

@@ -348,17 +348,21 @@ function TreatmentStage({ v, at, onAt }) {
       ${v.missing ? html`<p class="k-sl__empty-next">${SHOTLIST_WORDS.missingNext}</p>` : null}</div>
       ${s ? html`<${Caption} s=${s} />` : null}`;
   }
+  // The boards take the rest of the stage's height (a size container, shotlist.css): the board with its caption and
+  // the reel are as large as that place allows, and centred in it.
   return html`${bar}
     <div class=${cx("k-sl__boards", n > 1 && "k-sl__boards--reel")}>
-      <${Shot} src=${b.url} alt=${`${name}, board ${b.shot}`} tags=${[{ text: b.shot, at: "tl" }]}>
-        ${s ? html`<${Caption} s=${s} />` : null}
-      <//>
-      ${n > 1 ? html`<div class="k-sl__reel">
-        ${boards.map((x, k) => html`<button key=${x.shot} type="button" class="k-sl__reel-board" tabindex="-1"
-          aria-label=${`${name}, board ${x.shot}`} aria-pressed=${k === i ? "true" : "false"} onClick=${() => onAt(k)}>
-          <img src=${x.url} alt="" loading="lazy" decoding="async" /><span class="k-sl__reel-id" aria-hidden="true">${x.shot}</span>
-        </button>`)}
-      </div>` : null}
+      <div class="k-sl__fit">
+        <${Shot} src=${b.url} alt=${`${name}, board ${b.shot}`} tags=${[{ text: b.shot, at: "tl" }]}>
+          ${s ? html`<${Caption} s=${s} />` : null}
+        <//>
+        ${n > 1 ? html`<div class="k-sl__reel">
+          ${boards.map((x, k) => html`<button key=${x.shot} type="button" class="k-sl__reel-board" tabindex="-1"
+            aria-label=${`${name}, board ${x.shot}`} aria-pressed=${k === i ? "true" : "false"} onClick=${() => onAt(k)}>
+            <img src=${x.url} alt="" loading="lazy" decoding="async" /><span class="k-sl__reel-id" aria-hidden="true">${x.shot}</span>
+          </button>`)}
+        </div>` : null}
+      </div>
     </div>`;
 }
 
@@ -374,10 +378,9 @@ function Caption({ s }) {
 
 // The props of one treatment's card in the strip. The strip is given OptionCards themselves (not a wrapper), so it
 // knows it is a radio group: one Tab stop, the arrows move the treatment.
-function cardProps({ item, v, checked, board, onPick, onBoard }) {
+function cardProps({ item, v, checked, board, onPick }) {
   const boards = boardRows(v).map((b, k) => ({
     src: b.url, alt: "", label: `${v.letter ? `Treatment ${v.letter}` : v.title}, board ${b.shot}`, on: checked && k === board,
-    onClick: (e) => { if (e && e.stopPropagation) e.stopPropagation(); onBoard(k); },
   }));
   const cost = v.cost && Number.isInteger(v.cost.base) ? creditsDollars(v.cost.base) : "";
   return {
@@ -467,14 +470,24 @@ export function ShotlistDone({ done, focus = true }) {
     : text(done.message)}</p>`;
   if (approved && v) {
     const name = v.letter ? `Treatment ${v.letter}` : v.title;
-    const stage = shot
-      ? html`<${Shot} src=${shot.url} alt=${`${name}, board ${shot.shot}`} tags=${[{ text: SHOTLIST_WORDS.boards, at: "tl" }]} />`
-      : html`<div class="k-sl__empty"><p>${v.title}</p></div>`;
+    // The approved board large and centred on the stage, what was approved and the way to Studio set under it.
+    const line = html`<span class="k-sl__done-line">
+      <span class="k-sl__done-choice"><${Icon} name="check" size=${16} /><span>${choice}</span></span>
+      ${done.studio ? html`<a class="k-sl__link k-sl__done-studio" href=${done.studio}>${SHOTLIST_WORDS.openStudio}</a>` : null}
+    </span>`;
+    // Its boards under it, as pictures only (nothing to choose now).
+    const all = boardRows(v);
+    const stage = html`<div class=${cx("k-sl__boards", "k-sl__boards--done", all.length > 1 && "k-sl__boards--reel")}><div class="k-sl__fit">${shot
+      ? html`<${Shot} src=${shot.url} alt=${`${name}, board ${shot.shot}`} tags=${[{ text: SHOTLIST_WORDS.boards, at: "tl" }]}>${line}<//>
+        ${all.length > 1 ? html`<div class="k-sl__reel k-sl__reel--still" aria-hidden="true">
+          ${all.map((x) => html`<span key=${x.shot} class="k-sl__reel-board"><img src=${x.url} alt="" loading="lazy" decoding="async" /><span class="k-sl__reel-id">${x.shot}</span></span>`)}
+        </div>` : null}`
+      : html`<div class="k-sl__empty"><p>${v.title}</p></div>`}</div></div>`;
     return html`<div class="k-sl k-sl--done" role="status" tabindex="-1" ref=${ref}>
       <${StageLayout} kind=${`${SHOTLIST_WORDS.approvedKind} · ${name}`} title=${done.title || v.title} label=${name} stage=${stage}
         foot=${done.studio ? html`<${Button} href=${done.studio}>${SHOTLIST_WORDS.openStudio}<//>` : null}
         rail=${html`<${Blk}>
-          <p class="k-sl__done-choice"><${Icon} name="check" size=${16} /><span>${choice}</span></p>
+          ${shot ? null : html`<p class="k-sl__done-choice"><${Icon} name="check" size=${16} /><span>${choice}</span></p>`}
           ${message}
           ${v.cost && Number.isInteger(v.cost.base) ? html`<dl class="k-sl__limits"><div class="k-sl__limit"><dt>${withLetter("costs", v.letter || "")}</dt><dd>${creditsDollars(v.cost.base)}</dd></div></dl>` : null}
         <//>`} />
@@ -630,7 +643,7 @@ export function ShotlistCard({ item = null, onDone, compact = false, focusDone =
   const strip = versions.length
     ? html`<${Strip} label=${SHOTLIST_WORDS.treatments}>
         ${versions.map((x) => html`<${OptionCard} key=${x.id} ...${cardProps({ item: shown, v: x, checked: Boolean(v && x.id === v.id), board,
-          onPick: () => choose(x.id), onBoard: (k) => { if (!v || x.id !== v.id) setChosen(x.id); setBoard(k); } })} />`)}
+          onPick: () => choose(x.id) })} />`)}
       <//>`
     : null;
 

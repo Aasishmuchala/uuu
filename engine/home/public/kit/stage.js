@@ -115,11 +115,14 @@ export function Frame({ width, height = 1048, src, alt, label, pins, selected, o
 }
 
 // Frames side by side at one scale (each grows by its true width), on a stage panel whose padding is the gutter the
-// pins sit in. `scale` (a number) fixes the scale instead of filling the stage.
+// pins sit in, as large as its place's width and height allow. `scale` (a number) fixes the scale instead.
 export function Frames({ items, scale, selected, onPin }) {
   const list = Array.isArray(items) ? items.filter((it) => it && num(it.width) > 0) : [];
   const fixed = num(scale) > 0 ? num(scale) : null;
-  return html`<div class=${cx("k-frames", fixed && "k-frames--fixed", list.length === 1 && "k-frames--one")}>
+  // What bounds the panel by its place's height (stage.css): the pages' summed width, the tallest, the gaps between.
+  const tall = list.reduce((m, it) => Math.max(m, num(it.height, 1048) || 1048), 0);
+  const fit = !fixed && list.length ? `--k-frames-w:${list.reduce((t, it) => t + num(it.width), 0)};--k-frames-h:${tall};--k-frames-gaps:${list.length - 1}` : undefined;
+  return html`<div class=${cx("k-frames", fixed && "k-frames--fixed", list.length === 1 && "k-frames--one")} style=${fit}>
     ${list.map((it, i) => html`<div key=${i} class=${cx("k-frames__cell", num(it.width) >= DESK ? "k-frames__cell--desk" : "k-frames__cell--phone")} style=${fixed ? `width:${Math.round(num(it.width) * fixed)}px` : `flex-grow:${num(it.width)}`}>
       <${Frame} ...${it} selected=${selected} onPin=${onPin} />
     </div>`)}

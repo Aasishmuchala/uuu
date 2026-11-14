@@ -40,4 +40,12 @@ test("no avatar size draws text under 12 px: the small sizes show one initial at
   assert.match(/\.k-avatar__initials \{([^}]*)\}/.exec(s)[1], /font-weight: var\(--fw-bold\);/, "weight 600");
 });
 
+test("the owner's avatar is drawn like the agents': the raised step and ink initials, never the accent", () => {
+  const you = /\.k-avatar--you \{([^}]*)\}/.exec(css("kit/avatar.css"));
+  assert.ok(you, "the owner's avatar has its rule");
+  assert.match(you[1], /background: var\(--raise\);/);
+  assert.match(you[1], /color: var\(--ink\);/);
+  assert.doesNotMatch(you[1], /accent/, "the accent is the primary's alone");
+});
+
 primitiveSheetTests("avatar");

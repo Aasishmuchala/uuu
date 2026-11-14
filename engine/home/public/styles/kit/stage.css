@@ -3,8 +3,11 @@
    on a solid scrim (nothing is blurred). Tokens only; the page's own pixels arrive as --x, --y, --w, --h and the
    drawn scale as --s. */
 
-/* ---- A shot: 16:9 on black, as wide as the stage allows without passing the first screen */
+/* ---- A shot: 16:9 on black, as large as the stage's width and its real height allow together. --k-stage-h is the
+   stage's inner height on the first screen (layout.css); --k-shot-room is what the stage shows beside the shot in
+   that height (a bar and a caption line unless the part says otherwise); outside a stage, the window's height. */
 .k-shot {
+  --k-shot-room: 96px;
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
@@ -13,7 +16,7 @@
 
 .k-shot__frame {
   position: relative;
-  width: min(100%, calc((100vh - var(--topbar-h) - var(--band) - 176px) * 16 / 9));
+  width: min(100%, calc((var(--k-stage-h, 100vh - var(--topbar-h)) - var(--k-shot-room)) * 16 / 9));
   aspect-ratio: 16 / 9;
   border-radius: var(--r-2);
   overflow: hidden;
@@ -96,6 +99,15 @@
 
 .k-frames--fixed .k-frames__cell {
   flex: none;
+}
+
+/* Frames that fill their place are bounded by its height too: Frames tells the sheet the pages' summed width
+   (--k-frames-w), the tallest page (--k-frames-h) and the gaps between them, so the panel is never wider than the
+   scale at which its tallest page, its label and its padding fit the height of the nearest size container (the
+   site's place on a stage; else the window). */
+.k-frames:not(.k-frames--fixed) {
+  width: 100%;
+  max-width: calc((100cqh - 106px) * var(--k-frames-w) / var(--k-frames-h) + var(--k-frames-gaps) * var(--s-6) + 50px);
 }
 
 .k-frame {
@@ -411,6 +423,10 @@
   .k-frames {
     gap: var(--s-4);
     padding: var(--s-6);
+  }
+
+  .k-frames:not(.k-frames--fixed) {
+    max-width: none;
   }
 
   .k-frames__cell--desk:not(:only-child) {

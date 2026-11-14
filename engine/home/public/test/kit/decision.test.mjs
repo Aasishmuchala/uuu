@@ -496,4 +496,13 @@ test("drawer cards line up: a compact card puts each label over its value; a det
   assert.match(d, /dd::first-letter\s*\{\s*text-transform: capitalize;/, "a detail still starts with a capital, without the banned uppercase rule");
 });
 
+test("an opened item's actions sit 24 px under its last fact, the divider between, not adrift in their own band", () => {
+  const d = css("kit/decision.css");
+  assert.match(d, /\.k-decision--level \{[^}]*gap: var\(--s-4\);/, "the opened card's parts are 16 px apart");
+  const rule = /\.k-decision--level \.k-decision__actions \{([^}]*)\}/.exec(d);
+  assert.ok(rule, "the opened card places its actions");
+  assert.match(rule[1], /margin-top: calc\(var\(--s-3\) - var\(--s-4\)\);/, "16 less 4: 12 px above the divider");
+  assert.match(rule[1], /padding-top: var\(--s-3\);/, "12 px under the divider: 24 px in all");
+});
+
 compositeSheetTests("decision");

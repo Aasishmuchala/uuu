@@ -476,3 +476,21 @@ test("site.css is tokens only, its selectors the kit's, and it is linked once", 
   const page = readFileSync(join(PUBLIC, "index.html"), "utf8");
   assert.equal(page.split('href="./styles/kit/site.css"').length - 1, 1);
 });
+
+test("T96: a frame's button lies over the whole frame and carries its own 2 px accent ring; its word stays in the label", async () => {
+  const css = readFileSync(join(PUBLIC, "styles", "kit", "site.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(css, /\.k-site__open \{[^}]*position: absolute;[^}]*inset: 0;/, "the button covers the frame");
+  assert.match(css, /\.k-site__open:focus-visible \{\s*outline: 2px solid var\(--accent\);\s*outline-offset: 2px;/, "the ring is the button's own");
+  assert.doesNotMatch(css, /\.k-site__open::after/, "no stand-in box");
+  assert.doesNotMatch(css, /:has\(\.k-site__open:focus-visible\)/, "the ring is not drawn through :has");
+  assert.match(css, /\.k-work__stage \.k-site__frames \{[^}]*container: k-site-frames \/ size;/, "on a stage the frames take the rest of its height");
+  const f = stubFetch(() => ({ status: 200, body: answer([READY]) }));
+  try {
+    const root = await showTree(Placed, { id: "STH-2" });
+    const desk = ofClass(root, "k-site__frame--desktop")[0];
+    assert.deepEqual(ofClass(desk, "k-site__open").map((b) => b.localName), ["button"], "the harness's hook: .k-site__frame--desktop button");
+    assert.equal(textOf(ofClass(desk, "k-site__word")[0]), "Desktop");
+  } finally {
+    f.restore();
+  }
+});

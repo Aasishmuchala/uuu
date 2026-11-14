@@ -427,3 +427,24 @@ test("T40: after approval the stage keeps the approved treatment and the rail li
   assert.ok(elements(root).some((e) => e.localName === "img" && e.getAttribute("src") === "/api/view/bc1"));
   assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/dashboards/studio?film=g1"));
 });
+
+test("T96: the boards fill the stage's height as a size container; the locked decision is tightened; the dead board handlers are gone", () => {
+  const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
+  assert.match(sheet, /\.k-work__stage \.k-sl__boards \{[^}]*flex: 1 1 0;[^}]*container: k-sl-boards \/ size;/);
+  assert.match(sheet, /width: min\(calc\(100cqw - var\(--k-sl-side\)\), calc\(\(100cqh - var\(--k-sl-cap\)\) \* 16 \/ 9\)\);/, "as large as width and height allow together");
+  assert.match(sheet, /@container k-sl-boards \(max-aspect-ratio: 3 \/ 2\)/, "a tall place runs the reel under the board");
+  assert.doesNotMatch(sheet, /176px/);
+  assert.match(sheet, /\.k-sl__primary \.k-locked__out \{\s*gap: var\(--s-1\);/, "the link directly under the primary");
+  assert.match(sheet, /\.k-sl__primary \.k-locked__out > \.k-btn--link \{[^}]*font-size: var\(--fs-note\);/, "the link at 13 px");
+  const src = readFileSync(join(KIT, "shotlist.js"), "utf8");
+  assert.doesNotMatch(src, /onBoard/, "the option cards' board buttons are gone, and so are their handlers");
+});
+
+test("T96: after approval the board is set with its one line and its link to Studio on the stage, its boards under it", async () => {
+  const v = { ...LAKE.variants[0], letter: "A", title: "Slow approach" };
+  const root = await showTree(sl.ShotlistDone, { done: { action: "approve", version: v, title: "Approve a shotlist", studio: "#/dashboards/studio?film=g1" } });
+  const stage = elements(root).find((e) => (e.getAttribute("class") || "").includes("k-work__stage"));
+  assert.match(textOf(stage), /You approved A: Slow approach/);
+  assert.ok(elements(stage).some((e) => e.localName === "a" && e.getAttribute("href") === "#/dashboards/studio?film=g1"), "the way to Studio is set with the board");
+  assert.ok(!elements(stage).some((e) => e.localName === "button"), "nothing on the stage to press but the link");
+});

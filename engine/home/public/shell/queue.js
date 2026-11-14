@@ -16,7 +16,7 @@ import { ErrorNotice, Icon, Kbd, Loading, StateIcon } from "../kit/index.js";
 export { SOURCE_DEPARTMENT, needsFor, needsTitle, queueGroups, queueHref, rowTime, sortNeeds } from "../lib/queue.js";
 
 // A row's icon by its kind. "done" is the board's Done mark (a ring with a tick), drawn by StateIcon.
-export const KIND_ICON = { shotlist: "video", pick: "layers", approval: "check", question: "reply", result: "done" };
+export const KIND_ICON = { shotlist: "video", pick: "layers", approval: "check", question: "reply", result: "done", draft: "file" };
 const iconOf = (kind) => KIND_ICON[kind] || "alert";
 const KindIcon = ({ kind }) => (iconOf(kind) === "done" ? html`<${StateIcon} column="done" label="" />` : html`<${Icon} name=${iconOf(kind)} />`);
 
