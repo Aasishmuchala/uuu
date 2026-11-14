@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 const TREE = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const studio = await import("../../pages/studio.js");
 const { thumbStyle, checkLine, studioHref, safeApi, videoWords, videoChecks, slideChecks, playable, motionNotices, studioFigures, problemsOf, roomRows } = studio;
+const { filmClips, filmStill, filmCard, offSwitches, OFF_WORDS, jumpsOf } = studio;
 const SRC = readFileSync(join(TREE, "pages", "studio.js"), "utf8");
 
 // The shapes of the home server's tests, found by walking up from this tree.
@@ -166,9 +167,12 @@ test("studio: the room lists names and sizes in words, only of the pinned ending
   assert.equal(roomRows({ files: Array.from({ length: 500 }, (_, i) => ({ name: `c${i}.mov`, size: 1 })) }).length, 200);
 });
 
-test("studio: the page uses a real video element, the pinned room line, and renders agents' words as text", () => {
+test("studio: the page plays a video in the kit's player, keeps the pinned room line, and renders agents' words as text", () => {
   const code = SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[\s;{}(),])\/\/[^\n]*/g, "$1");
-  assert.match(code, /<video class="p-studio__video" controls preload="none"/);
+  // The video opened in place is the kit's Player, given only an address that passed safeApi through playable.
+  assert.match(code, /<\$\{Player\} src=\$\{src \|\| undefined\}/);
+  assert.match(code, /const src = playable\(video\) \? safeApi\(video\.video\.viewUrl\) : null;/);
+  assert.doesNotMatch(code, /<video\b/, "no video element of the page's own");
   assert.match(code, /<details class="p-studio__where">\s*<summary class="p-studio__where-line">Where is this folder\?<\/summary>/);
   for (const url of ["/api/studio/art", "/api/departments/studio", "/api/studio/slides", "/api/studio/videos", "/api/studio/room"]) {
     assert.ok(code.includes(`"${url}", { every: EVERY }`), `${url} refreshes`);
@@ -198,4 +202,106 @@ test("studio: the room's times read as the other pages' do, not as a machine tim
   const [row] = m.roomRows({ files: [{ name: "clip.mp4", size: 10, changed: "2026-11-11T18:31:30.839Z" }] });
   assert.ok(!/T\d\d:/.test(row.changed), row.changed);
   assert.ok(row.changed.length > 0);
+});
+
+test("studio: a film's card says how many shots have a clip of how many, and how many are kept", () => {
+  assert.equal(filmClips(2, 3, 2), "2 of 3 clips, 2 kept");
+  assert.equal(filmClips(1, 1, 0), "1 of 1 clip, 0 kept");
+  assert.equal(filmClips(5, 3, 1), "3 of 3 clips, 1 kept", "never more clips than shots");
+  // Without the film's shots, the Films list's own words.
+  assert.equal(filmClips(3, null, 2), "3 clips made, 2 kept");
+  assert.equal(filmClips("x", 0, -1), "0 clips made, 0 kept");
+});
+
+test("studio: a film's first still is the first shot's newest take with stills, else its storyboard, and only the server's own", () => {
+  const shot = (takes, board = "/api/view/board-1") => ({ board, takes });
+  assert.equal(filmStill({ shots: [shot([{ stills: ["/api/view/s1"] }, { stills: ["/api/view/s2", "/api/view/s3"] }])] }), "/api/view/s2");
+  assert.equal(filmStill({ shots: [shot([{ stills: ["/api/view/s1"] }, { state: "making" }])] }), "/api/view/s1");
+  assert.equal(filmStill({ shots: [shot([])] }), "/api/view/board-1");
+  assert.equal(filmStill({ shots: [shot([{ stills: [`${AWAY}/x.png`] }], `${AWAY}/b.png`)] }), "", "another host never reaches the card");
+  assert.equal(filmStill({ shots: [shot([], "javascript:alert(1)")] }), "");
+  assert.equal(filmStill(null), "");
+  assert.equal(filmStill({ shots: "x" }), "");
+});
+
+test("studio: a film's card shows the server's figures, its state and its problem, and opens the film", () => {
+  const row = { task: { id: "e0000000-0000-4000-8000-000000000041", identifier: "STH-41", title: "A film of the lake house" },
+    budget: 220, spent: 110, clips: 2, kept: 2, state: "making", problem: null };
+  const detail = { shots: [
+    { board: "/api/view/b1", takes: [{ state: "made", stills: ["/api/view/s1"] }] },
+    { takes: [{ state: "made" }, { state: "making" }] },
+    { takes: [{ state: "making" }] },
+  ] };
+  const c = filmCard(row, detail);
+  assert.equal(c.href, "#/dashboards/studio?film=e0000000-0000-4000-8000-000000000041");
+  assert.equal(c.title, "A film of the lake house");
+  assert.equal(c.ident, "STH-41");
+  assert.equal(c.still, "/api/view/s1");
+  assert.equal(c.clips, "2 of 3 clips, 2 kept");
+  assert.equal(c.money, "$1.10 of $2.20");
+  assert.equal(c.share, 50);
+  assert.deepEqual(c.state, { tone: "neutral", icon: "clock", text: "Being made" });
+  // Before the film itself has come in: no picture yet, and the list's own words.
+  const bare = filmCard(row, null);
+  assert.equal(bare.still, "");
+  assert.equal(bare.clips, "2 clips made, 2 kept");
+  assert.deepEqual(filmCard({ ...row, state: "done" }).state, { tone: "good", icon: undefined, text: "Done" });
+  assert.equal(filmCard({ ...row, state: "needs you", problem: "P".repeat(900) }).problem.length, 300);
+  assert.equal(filmCard({ ...row, spent: null }).money, "Spent so far not known, of $2.20");
+  assert.equal(filmCard(null).href, "#/dashboards/studio");
+  assert.equal(filmCard(null).title, "A film");
+});
+
+test("studio: each switch that is off is one line, the doors with the way to their own section of Settings", () => {
+  const rows = offSwitches({ generation: { on: false }, viewer: { on: true }, web: { on: false },
+    dept: { switches: [{ id: "renderer", label: "Show parts in 3D", on: false, explain: "E".repeat(500) }, { id: "x", label: "On", on: true }] } });
+  assert.deepEqual(rows.map((r) => [r.id, r.title, r.href]), [
+    ["generation", "Generation", "#/settings?s=generation"],
+    ["web", "Web", "#/settings?s=web"],
+    ["dept-renderer", "Show parts in 3D", null],
+  ]);
+  assert.equal(rows[2].say.length, 300);
+  assert.equal(offSwitches({ viewer: { on: false } })[0].href, "#/settings?s=viewer");
+  // An answer that has not come in, or says nothing of its switch, is not called off.
+  assert.deepEqual(offSwitches({ generation: null, viewer: {}, web: { on: "no" } }), []);
+  assert.deepEqual(offSwitches(), []);
+  assert.equal(OFF_WORDS.link, "Open in Settings");
+  assert.equal(OFF_WORDS.off, "Off");
+  for (const id of ["generation", "viewer", "web"]) assert.ok(OFF_WORDS[id].say.length > 0 && !/\u2014/.test(OFF_WORDS[id].say));
+});
+
+test("studio: the row at the top jumps to each part whose list has come in, in the page's order", () => {
+  const figures = studioFigures({ art: { sprites: [{}] }, slides: shape("studio-slides"), videos: shape("studio-videos"),
+    dept: { figures: [{ id: "files", label: "Files", value: "0", hint: "" }, { id: "cad", label: "Parts", value: "1", hint: "" }] } });
+  const j = jumpsOf({ films: [{}, {}, {}], figures, images: [] });
+  assert.deepEqual(j.map((x) => [x.id, x.label, x.value]), [
+    ["films", "Films", "3"], ["videos", "Videos", "1"], ["carousels", "Carousels", "1"], ["sprites", "Sprites", "1"],
+    ["pictures", "Pictures", "0"], ["cad", "Parts", "1"], ["files", "Files", "0"],
+  ]);
+  assert.deepEqual(jumpsOf({ films: null, figures: [], images: null }), []);
+  assert.deepEqual(jumpsOf(), []);
+});
+
+test("studio: with a film opened, the film is the whole pane and the rest of Studio follows under it", () => {
+  const code = SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[\s;{}(),])\/\/[^\n]*/g, "$1");
+  const film = code.indexOf("if (filmId) {");
+  const header = code.indexOf("<${PageHeader}");
+  assert.ok(film > 0 && header > film, "the film is returned before the page's own header is drawn");
+  const branch = code.slice(film, header);
+  assert.match(branch, /<\$\{FilmView\} key=\$\{filmId\} id=\$\{filmId\} settled=\$\{settled\} more=\$\{html`<div class="p-studio__rest">\$\{parts\}<\/div>`\} \/>/);
+  assert.doesNotMatch(branch, /PageHeader|id="page-title"/, "one page title: the film's");
+  // The crumbs the page gives the top bar.
+  assert.match(code, /crumbs=\$\{\[\{ label: "Dashboards", href: "#\/dashboards" \}, \{ label: "Studio" \}\]\}/);
+  // The film's rules live in studio-film.css alone.
+  const css = readFileSync(join(TREE, "styles", "pages", "studio.css"), "utf8");
+  assert.doesNotMatch(css, /p-film\b|p-film__|p-studio__film/);
+});
+
+test("studio: a media part takes one column a card up to four, all four while loading or with a thing opened in it", async () => {
+  const { spanOf } = await import("../../pages/studio.js");
+  assert.deepEqual([0, 1, 2, 3, 4, 9].map((n) => spanOf(n)), [1, 1, 2, 3, 4, 4]);
+  assert.equal(spanOf(1, { open: true }), 4);
+  assert.equal(spanOf(1, { loaded: false }), 4);
+  assert.equal(spanOf("3"), 1);
+  assert.equal(spanOf(-2), 1);
 });

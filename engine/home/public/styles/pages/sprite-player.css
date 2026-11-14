@@ -1,26 +1,28 @@
-/* The sprite player (V19), in the glass style of version 3. Every selector starts with .p-sprite-player; tokens
-   only (CONTRACTS-V2 11.2, CONTRACTS-V3 27.3). Controls are pills; the stage keeps its checkerboard. */
+/* The sprite player (V19; PLAN-COOK T67). Every selector starts with .p-sprite-player; tokens only (CONTRACTS-V2
+   11.2, CONTRACTS-V3 27.3). It takes the kit player's transport: a round play button, the frame in tabular figures
+   with the length in the second ink, quiet square steps; the toggles are quiet controls that lift when on. The
+   stage keeps its checkerboard (the one gradient allowed), so clear pixels read as clear. The same checker, quieter,
+   sits behind a sprite's card in Studio (.p-sprite-player--tile). */
 
 .p-sprite-player {
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
   min-width: 0;
+  /* The checker's two squares: mid greys in both themes, so dark and light pixels both stay visible. */
+  --p-sprite-player-a: color-mix(in srgb, var(--ink) 14%, var(--stage));
+  --p-sprite-player-b: color-mix(in srgb, var(--ink) 22%, var(--stage));
 }
 
 .p-sprite-player .p-sprite-player__stage {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 240px;
-  padding: var(--s-4);
+  min-height: 280px;
+  padding: var(--s-6);
   overflow: auto;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
-  box-shadow: var(--highlight);
-  /* A mid-grey checkerboard in both themes, so clear pixels read as clear and dark or light pixels stay visible. */
-  --p-sprite-player-a: color-mix(in srgb, var(--text) 20%, var(--bg));
-  --p-sprite-player-b: color-mix(in srgb, var(--text) 30%, var(--bg));
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
   background-color: var(--p-sprite-player-a);
   background-image:
     linear-gradient(45deg, var(--p-sprite-player-b) 25%, transparent 25%),
@@ -29,10 +31,11 @@
     linear-gradient(-45deg, transparent 75%, var(--p-sprite-player-b) 75%);
   background-size: 16px 16px;
   background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  transition: border-color var(--t-fast) var(--ease);
 }
 
 .p-sprite-player .p-sprite-player__stage:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -48,20 +51,12 @@
   image-rendering: pixelated;
 }
 
-.p-sprite-player .p-sprite-player__where {
+/* ---- The transport: one row of playback, one quiet row of speed and zoom. */
+.p-sprite-player .p-sprite-player__transport {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-3);
-  margin: 0;
-  font-size: var(--fs-caption);
-  color: var(--text-2);
-}
-
-.p-sprite-player .p-sprite-player__frame-no {
-  font-family: var(--font-mono);
-  font-weight: var(--fw-medium);
-  color: var(--text);
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: calc(var(--s-2) * -1);
 }
 
 .p-sprite-player .p-sprite-player__controls {
@@ -69,68 +64,154 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s-2);
+  min-height: 52px;
+}
+
+.p-sprite-player .p-sprite-player__controls--quiet {
+  min-height: var(--h-sm);
+  gap: var(--s-2) var(--s-5);
+}
+
+.p-sprite-player .p-sprite-player__play {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--h-md);
+  height: var(--h-md);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--bg);
+  cursor: pointer;
+  transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+
+.p-sprite-player .p-sprite-player__play:hover:not(:disabled) {
+  opacity: .88;
+}
+
+.p-sprite-player .p-sprite-player__play:active:not(:disabled) {
+  transform: scale(.96);
+}
+
+/* The play mark is filled, as on the kit's player. */
+.p-sprite-player .p-sprite-player__play .k-icon path {
+  fill: currentColor;
+}
+
+.p-sprite-player .p-sprite-player__play[aria-label="Play"] .k-icon {
+  transform: translateX(1px);
+}
+
+.p-sprite-player .p-sprite-player__play[aria-label="Pause"] .k-icon path {
+  stroke-width: 3.6;
+}
+
+.p-sprite-player .p-sprite-player__step {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--h-md);
+  height: var(--h-md);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--fs-section);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.p-sprite-player .p-sprite-player__step--sm {
+  width: var(--h-sm);
+  height: var(--h-sm);
+}
+
+.p-sprite-player .p-sprite-player__step:hover:not(:disabled) {
+  background: var(--ctl);
+  color: var(--ink);
+}
+
+.p-sprite-player .p-sprite-player__play:disabled,
+.p-sprite-player .p-sprite-player__step:disabled,
+.p-sprite-player .p-sprite-player__toggle:disabled {
+  opacity: .4;
+  cursor: default;
+}
+
+.p-sprite-player .p-sprite-player__where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-3);
+  margin: 0;
+  padding-left: var(--s-2);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  color: var(--ink-2);
+}
+
+.p-sprite-player .p-sprite-player__frame-no {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.p-sprite-player .p-sprite-player__now {
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+}
+
+.p-sprite-player .p-sprite-player__where-tag {
+  color: var(--ink-2);
+}
+
+.p-sprite-player .p-sprite-player__gap {
+  flex: 1;
 }
 
 .p-sprite-player .p-sprite-player__label {
-  margin-left: var(--s-2);
-  font-size: var(--fs-caption);
-  color: var(--text-3);
+  font-size: var(--fs-note);
+  color: var(--ink-2);
 }
 
-.p-sprite-player .p-sprite-player__label:first-child {
-  margin-left: 0;
-}
-
+/* Loop and onion skin: quiet controls with the control corner; on, they take the raised step and the first ink. */
 .p-sprite-player .p-sprite-player__toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: var(--h-sm);
+  gap: 6px;
   height: var(--h-sm);
-  padding: 0 var(--s-3);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  background: var(--glass-soft);
-  color: var(--text-2);
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--ink-2);
   font: inherit;
-  font-size: var(--fs-caption);
+  font-size: var(--fs-note);
   cursor: pointer;
   transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
-/* Loop and onion skin sit beside the playback buttons, so they take the same height and type size. */
-.p-sprite-player .p-sprite-player__toggle--md {
-  height: var(--h-md);
-  padding: 0 var(--s-4);
-  border-radius: var(--r-pill);
-  font-size: var(--fs-body);
-}
-
 .p-sprite-player .p-sprite-player__toggle:hover:not(:disabled) {
-  background: var(--bg-subtle);
-  color: var(--text);
+  background: var(--ctl);
+  color: var(--ink);
 }
 
 .p-sprite-player .p-sprite-player__toggle.is-on {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: var(--primary-text);
+  border-color: var(--line-2);
+  background: var(--raise);
+  color: var(--ink);
   font-weight: var(--fw-medium);
 }
 
-.p-sprite-player .p-sprite-player__toggle.is-on:hover:not(:disabled) {
-  background: var(--primary-hover);
-  color: var(--primary-text);
-}
-
-.p-sprite-player .p-sprite-player__toggle:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
+.p-sprite-player .p-sprite-player__play:focus-visible,
+.p-sprite-player .p-sprite-player__step:focus-visible,
 .p-sprite-player .p-sprite-player__toggle:focus-visible,
 .p-sprite-player .p-sprite-player__thumb:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -138,18 +219,23 @@
 .p-sprite-player .p-sprite-player__zoom-group {
   display: inline-flex;
   align-items: center;
-  gap: inherit;
+  gap: var(--s-1);
   white-space: nowrap;
+}
+
+.p-sprite-player .p-sprite-player__zoom-group .p-sprite-player__label {
+  margin-right: var(--s-1);
 }
 
 .p-sprite-player .p-sprite-player__zoom {
   min-width: 2.5em;
   text-align: center;
-  font-family: var(--font-mono);
-  font-size: var(--fs-caption);
-  color: var(--text);
+  font-size: var(--fs-note);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
 }
 
+/* ---- Frames, colours and the file. */
 .p-sprite-player .p-sprite-player__part {
   display: flex;
   flex-direction: column;
@@ -161,14 +247,14 @@
   font-size: var(--fs-label);
   font-weight: var(--fw-medium);
   letter-spacing: var(--ls-label);
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
 .p-sprite-player .p-sprite-player__strip {
   display: flex;
   gap: var(--s-2);
   margin: 0;
-  padding: 0 0 var(--s-2);
+  padding: 2px 2px var(--s-2);
   overflow-x: auto;
   list-style: none;
 }
@@ -177,25 +263,26 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--s-1);
-  padding: var(--s-2);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-3);
-  background: var(--glass);
-  box-shadow: var(--highlight);
-  color: var(--text-2);
+  gap: 2px;
+  padding: 6px 6px var(--s-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--card);
+  color: var(--ink-2);
   font: inherit;
   cursor: pointer;
-  transition: border-color var(--t-fast) var(--ease);
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
 
 .p-sprite-player .p-sprite-player__thumb:hover {
-  border-color: var(--hairline-strong);
+  border-color: var(--line-2);
 }
 
+/* The current frame is lifted: the raised step and the accent edge. */
 .p-sprite-player .p-sprite-player__thumb.is-current {
-  border-color: var(--text);
-  box-shadow: 0 0 0 1px var(--text);
+  border-color: var(--accent);
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .p-sprite-player .p-sprite-player__thumb-canvas {
@@ -205,18 +292,21 @@
   object-fit: contain;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
-  background: color-mix(in srgb, var(--text) 20%, var(--bg));
+  border-radius: var(--r-xs);
+  background: var(--p-sprite-player-a);
 }
 
 .p-sprite-player .p-sprite-player__thumb-number {
-  font-family: var(--font-mono);
-  font-size: var(--fs-caption);
-  color: var(--text);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
 }
 
 .p-sprite-player .p-sprite-player__thumb-time {
-  font-size: var(--fs-caption);
-  color: var(--text-3);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
 }
 
 .p-sprite-player .p-sprite-player__palette {
@@ -236,36 +326,64 @@
 
 .p-sprite-player .p-sprite-player__swatch {
   display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-pill);
-  /* A ring round each swatch, so a colour near the card's own (near black on dark) can still be seen (M51 F26). */
-  box-shadow: 0 0 0 1px var(--bg), 0 0 0 2px var(--text-3);
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-xs);
+  /* A ring round each swatch, so a colour near the ground's own (near black on dark) can still be seen (M51 F26). */
+  box-shadow: inset 0 0 0 1px var(--line-2);
 }
 
 .p-sprite-player .p-sprite-player__hex {
   font-family: var(--font-mono);
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  font-size: var(--fs-note);
+  color: var(--ink-2);
+}
+
+/* ---- A sprite's card in Studio: its first frame on a quieter checker. */
+.p-sprite-player.p-sprite-player--tile {
+  display: grid;
+  gap: 0;
+  --p-sprite-player-a: color-mix(in srgb, var(--ink) 5%, var(--stage));
+  --p-sprite-player-b: color-mix(in srgb, var(--ink) 10%, var(--stage));
+  background-color: var(--p-sprite-player-a);
+  background-image:
+    linear-gradient(45deg, var(--p-sprite-player-b) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--p-sprite-player-b) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--p-sprite-player-b) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--p-sprite-player-b) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .p-sprite-player .p-sprite-player__play,
+  .p-sprite-player .p-sprite-player__step,
   .p-sprite-player .p-sprite-player__toggle,
   .p-sprite-player .p-sprite-player__thumb {
     transition: none;
   }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 859px) {
   .p-sprite-player .p-sprite-player__toggle,
-  .p-sprite-player .p-sprite-player__thumb {
+  .p-sprite-player .p-sprite-player__thumb,
+  .p-sprite-player .p-sprite-player__step,
+  .p-sprite-player .p-sprite-player__play {
     min-height: 44px;
   }
 
-  .p-sprite-player .p-sprite-player__toggle { min-width: 44px; }
+  .p-sprite-player .p-sprite-player__step,
+  .p-sprite-player .p-sprite-player__play {
+    min-width: 44px;
+  }
+
+  .p-sprite-player .p-sprite-player__gap {
+    flex-basis: 100%;
+    height: 0;
+  }
 
   .p-sprite-player .p-sprite-player__stage {
-    min-height: 180px;
+    min-height: 200px;
+    padding: var(--s-4);
   }
 }

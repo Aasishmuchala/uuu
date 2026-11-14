@@ -1,8 +1,10 @@
-// The sprite player: one sprite drawn from its sheet on a canvas, played frame by frame. CONTRACTS-V2 20.3.
+// The sprite player: one sprite drawn from its sheet on a canvas, played frame by frame. CONTRACTS-V2 20.3. It takes
+// the kit player's transport (PLAN-COOK T67): the round play button, the steps, the frame in tabular figures, the
+// toggles at the right; speed and zoom on a quiet row under it.
 // `frames` and `tags` come from shape `sprite`; `initialTag` and `initialFrame` come from the address through
 // the Studio page (frame numbers there count from 1, as shown here). The sheet is loaded as an image only.
 import { html, useCallback, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
-import { Button, Empty, ErrorNotice, FileCard, Loading, Tabs } from "../kit/index.js";
+import { Empty, ErrorNotice, FileCard, Icon, Loading, Segmented, Tabs } from "../kit/index.js";
 import {
   SPEEDS,
   clampZoom,
@@ -250,6 +252,8 @@ export function SpritePlayer({ sheetUrl, frames, tags, palette, title, gif, init
     const tagNameOf = target && target.tagName ? String(target.tagName).toLowerCase() : "";
     if (tagNameOf === "input" || tagNameOf === "textarea" || tagNameOf === "select") return;
     if (target && typeof target.closest === "function" && target.closest('[role="tablist"]')) return;
+    // The speed's segments move between themselves with the arrows.
+    if (target && typeof target.closest === "function" && target.closest(".k-seg")) return;
     // A focused button keeps Space for itself.
     if (action === "toggle" && (tagNameOf === "button" || tagNameOf === "a")) return;
     event.preventDefault();
@@ -271,9 +275,10 @@ export function SpritePlayer({ sheetUrl, frames, tags, palette, title, gif, init
   );
   const alt = describeFrame({ title: name, frame: frameNo, total: list.length, tag: tagName });
   const ready = sheet.state === "ready";
+  const playWord = playing ? "Pause" : "Play";
 
   return html`<div class="p-sprite-player" onKeyDown=${onKeyDown}>
-    <${Tabs} tabs=${tabs} current=${tagAt >= 0 ? tagId(tagAt) : ALL} onChange=${pickTag} label="Animations" />
+    ${named.length ? html`<${Tabs} tabs=${tabs} current=${tagAt >= 0 ? tagId(tagAt) : ALL} onChange=${pickTag} label="Animations" />` : null}
 
     <div class="p-sprite-player__stage" ref=${stageRef} tabindex="0" role="group" aria-label=${`${name} player. Space plays or pauses, the arrow keys step, the square brackets zoom.`}>
       ${sheet.state === "error"
@@ -283,36 +288,43 @@ export function SpritePlayer({ sheetUrl, frames, tags, palette, title, gif, init
           : html`<${Loading} lines=${2} label="Loading the sprite" />`}
     </div>
 
-    <p class="p-sprite-player__where">
-      <span class="p-sprite-player__frame-no">Frame ${frameNo + 1} of ${list.length}</span>
-      <span class="p-sprite-player__where-tag">${tagName || "All frames"}</span>
-      <span class="p-sprite-player__where-zoom">${zoom}×</span>
-    </p>
+    <div class="p-sprite-player__transport">
+      <div class="p-sprite-player__controls" role="group" aria-label="Playback">
+        <button type="button" class="p-sprite-player__play" aria-label=${playWord} title=${playWord} onClick=${togglePlay} disabled=${!ready}>
+          <${Icon} name=${playing ? "pause" : "play"} size=${16} />
+        </button>
+        <button type="button" class="p-sprite-player__step" aria-label="Previous frame" title="Previous frame" onClick=${() => step(-1)} disabled=${!ready}>
+          <${Icon} name="chevron-left" size=${16} />
+        </button>
+        <button type="button" class="p-sprite-player__step" aria-label="Next frame" title="Next frame" onClick=${() => step(1)} disabled=${!ready}>
+          <${Icon} name="chevron-right" size=${16} />
+        </button>
+        <p class="p-sprite-player__where">
+          <span class="p-sprite-player__frame-no"><b class="p-sprite-player__now">Frame ${frameNo + 1}</b><span class="p-sprite-player__of"> of ${list.length}</span></span>
+          <span class="p-sprite-player__where-tag">${tagName || "All frames"}</span>
+        </p>
+        <span class="p-sprite-player__gap"></span>
+        <button type="button" class=${`p-sprite-player__toggle${loop ? " is-on" : ""}`} aria-pressed=${loop ? "true" : "false"} onClick=${() => setLoop(!loop)}>
+          <${Icon} name="loop" size=${14} />Loop ${loop ? "on" : "off"}
+        </button>
+        <button type="button" class=${`p-sprite-player__toggle${onion ? " is-on" : ""}`} aria-pressed=${onion ? "true" : "false"} onClick=${() => setOnion(!onion)}>
+          <${Icon} name="layers" size=${14} />Onion skin ${onion ? "on" : "off"}
+        </button>
+      </div>
 
-    <div class="p-sprite-player__controls" role="group" aria-label="Playback">
-      <${Button} variant="plain" onClick=${() => step(-1)} disabled=${!ready}>Previous frame</${Button}>
-      <${Button} variant="primary" icon=${playing ? "pause" : "play"} onClick=${togglePlay} disabled=${!ready}>${playing ? "Pause" : "Play"}</${Button}>
-      <${Button} variant="plain" onClick=${() => step(1)} disabled=${!ready}>Next frame</${Button}>
-      <button type="button" class=${`p-sprite-player__toggle p-sprite-player__toggle--md${loop ? " is-on" : ""}`} aria-pressed=${loop ? "true" : "false"} onClick=${() => setLoop(!loop)}>
-        Loop ${loop ? "on" : "off"}
-      </button>
-      <button type="button" class=${`p-sprite-player__toggle p-sprite-player__toggle--md${onion ? " is-on" : ""}`} aria-pressed=${onion ? "true" : "false"} onClick=${() => setOnion(!onion)}>
-        Onion skin ${onion ? "on" : "off"}
-      </button>
-    </div>
-
-    <div class="p-sprite-player__controls" role="group" aria-label="Speed and zoom">
-      <span class="p-sprite-player__label">Speed</span>
-      ${SPEEDS.map(
-        (s) => html`<button type="button" class=${`p-sprite-player__toggle${speed === s ? " is-on" : ""}`} aria-pressed=${speed === s ? "true" : "false"}
-          aria-label=${`Speed ${s} times`} onClick=${() => setSpeed(s)}>${s}×</button>`,
-      )}
-      <span class="p-sprite-player__zoom-group">
-        <span class="p-sprite-player__label">Zoom</span>
-        <button type="button" class="p-sprite-player__toggle" aria-label="Zoom out" disabled=${zoom <= 1} onClick=${() => setZoom((z) => clampZoom(z - 1))}>−</button>
-        <span class="p-sprite-player__zoom">${zoom}×</span>
-        <button type="button" class="p-sprite-player__toggle" aria-label="Zoom in" disabled=${zoom >= 16} onClick=${() => setZoom((z) => clampZoom(z + 1))}>+</button>
-      </span>
+      <div class="p-sprite-player__controls p-sprite-player__controls--quiet" role="group" aria-label="Speed and zoom">
+        <span class="p-sprite-player__zoom-group">
+          <span class="p-sprite-player__label">Speed</span>
+          <${Segmented} size="sm" label="Speed" current=${speed} onChange=${setSpeed}
+            items=${SPEEDS.map((s) => ({ id: s, label: `${s}×` }))} />
+        </span>
+        <span class="p-sprite-player__zoom-group">
+          <span class="p-sprite-player__label">Zoom</span>
+          <button type="button" class="p-sprite-player__step p-sprite-player__step--sm" aria-label="Zoom out" disabled=${zoom <= 1} onClick=${() => setZoom((z) => clampZoom(z - 1))}>−</button>
+          <span class="p-sprite-player__zoom">${zoom}×</span>
+          <button type="button" class="p-sprite-player__step p-sprite-player__step--sm" aria-label="Zoom in" disabled=${zoom >= 16} onClick=${() => setZoom((z) => clampZoom(z + 1))}>+</button>
+        </span>
+      </div>
     </div>
 
     <section class="p-sprite-player__part" aria-label="Frames">

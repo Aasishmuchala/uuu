@@ -1,25 +1,30 @@
-// The Studio dashboard (CONTRACTS-V3 30, 37.3, 37.4; CONTRACTS-V2 9.6, 17.8, 20.3), at #/dashboards/studio:
-// films (a film's own view is pages/studio-film.js), videos with a real player and six stills, carousels opened large in the work panel, sprites and animations
-// with the sprite player, pictures, CAD parts and other files, the room for footage, files that could not be
-// used, and the switches that are off. Built as the other dashboards are (M51 F20): the agents and their states at
-// the top right, Jobs to start, Open the department. A link that opens a sprite or a video brings it to the top
-// of the pane and moves focus to its heading (M51 F14). Everything shown is text or a picture from a file an agent made: it is
-// capped, shown as text, and no link in it is followed. Only addresses under /api/ reach an img or a video.
+// The Studio dashboard (CONTRACTS-V3 30, 37.3, 37.4; CONTRACTS-V2 9.6, 17.8, 20.3; PLAN-COOK T67, S18), at
+// #/dashboards/studio: the full pane on one left edge, the title with the agents at the top right, a row that jumps
+// to each part, then sections of cards in the manner of a review tool's collection (the picture flush to the card's
+// top, the facts under it, one state a card): films (a card opens the film, pages/studio-film.js), videos (the kit's
+// player opened in place), carousels (opened large in the work panel), sprites and animations (the sprite player),
+// pictures, CAD parts and other files, the room for footage, files that could not be used, and the switches that are
+// off with the way to each in Settings. With ?film= the film is the whole pane and the rest of Studio follows under
+// it. A link that opens a sprite or a video brings it to the top of the pane and moves focus to its heading (M51
+// F14). Everything shown is text or a picture from a file an agent made: it is capped, shown as text, and no link in
+// it is followed. Only addresses under /api/ reach an img or a video.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { bytes, count, when } from "../lib/format.js";
 import { currentMotion } from "../lib/theme.js";
 import { AgentHead, Jobs, OpenDepartment } from "./dashboard.js";
-import { FilmRow, FilmView } from "./studio-film.js";
+import { FilmView, clipsWords, creditWords, filmStateTone, filmStateWords, spentShare, stillsOf } from "./studio-film.js";
 import {
-  BeingBuilt, DataTable, Empty, ErrorNotice, Figures, FileCard, Loading, Notice, NotConnected, PageHeader,
-  Section, Switch, Tag,
+  BeingBuilt, Card, DataTable, Empty, ErrorNotice, FileCard, Icon, Loading, Meter, Notice, NotConnected, PageHeader,
+  PicTag, Player, Row, Rows, Section, St, timeWords,
 } from "../kit/index.js";
 
 const HERE = "#/dashboards/studio";
 const EVERY = 10000;
+const SLOW = 30000;
 const THUMB = 64;
+const TILE = 120;
 const MAX_ITEMS = 200;
 const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
 const text = (v, max = 200) => (v === null || v === undefined ? "" : String(v).slice(0, max));
@@ -181,34 +186,108 @@ export function videoBox(video) {
 
 const tagNames = (sprite) => (sprite?.tags || []).map((t) => (typeof t === "string" ? t : t?.name)).filter(Boolean).slice(0, 12);
 
-function CheckLines({ lines }) {
-  return html`<ul class="p-studio__checks">
-    ${lines.map((l) => html`<li key=${l.text} class=${`p-studio__check${l.ok ? "" : " p-studio__check--warn"}`}>
-      <span class="p-studio__check-mark" aria-hidden="true">${l.ok ? "\u2713" : "!"}</span>${l.text}
-    </li>`)}
-  </ul>`;
+// ---- Films ----------------------------------------------------------------------------------------------------
+
+// "2 of 3 clips, 2 kept": the shots that have a clip made, of the film's shots, and the shots kept. When the number
+// of shots is not known, the Films list's own words ("3 clips made, 2 kept").
+export function filmClips(clips, shots, kept) {
+  if (!(Number.isInteger(shots) && shots > 0)) return clipsWords(clips, kept);
+  const c = Number.isInteger(clips) && clips >= 0 ? Math.min(clips, shots) : 0;
+  const k = Number.isInteger(kept) && kept >= 0 ? kept : 0;
+  return `${c} of ${shots} ${shots === 1 ? "clip" : "clips"}, ${k} kept`;
+}
+
+// The film's first still: the first shot's newest take that has stills, else its storyboard; "" when there is none.
+// Only the home server's own addresses (stillsOf and safeApi check them).
+export function filmStill(detail) {
+  const first = list(detail?.shots, 12)[0];
+  if (!first) return "";
+  const takes = list(first.takes, 6);
+  for (let i = takes.length - 1; i >= 0; i -= 1) {
+    const s = stillsOf(takes[i]);
+    if (s.length) return s[0];
+  }
+  return safeApi(first.board) || "";
+}
+
+// What a film's card shows, from the Films list's row and, once it has come in, the film itself (its shots and its
+// first still). Figures are the server's numbers, written by the film page's helpers.
+export function filmCard(film, detail) {
+  const f = film && typeof film === "object" ? film : {};
+  const t = f.task && typeof f.task === "object" ? f.task : {};
+  const shots = detail ? list(detail.shots, 12) : null;
+  const made = shots ? shots.filter((s) => list(s.takes, 6).some((k) => k.state === "made")).length : f.clips;
+  const tone = filmStateTone(f.state);
+  return {
+    id: text(t.id, 80),
+    href: text(t.id, 80) ? studioHref({ film: text(t.id, 80) }) : HERE,
+    title: text(t.title, 160) || "A film",
+    ident: text(t.identifier, 40),
+    still: detail ? filmStill(detail) : "",
+    clips: filmClips(made, shots ? shots.length : null, f.kept),
+    money: creditWords(f.spent, f.budget),
+    share: spentShare(f.spent, f.budget),
+    state: { tone: tone === "ok" ? "good" : tone, icon: f.state === "making" ? "clock" : undefined, text: filmStateWords(f.state) },
+    problem: text(f.problem, 300),
+  };
+}
+
+function FilmCard({ film, chosen }) {
+  const id = text(film?.task?.id, 80);
+  const res = useResource(id ? `/api/studio/films/${encodeURIComponent(id)}` : null, { every: SLOW });
+  const c = filmCard(film, res.data);
+  return html`<li class="p-studio__item">
+    <${Card} href=${c.href} padding="none" class="p-studio__card" aria-current=${chosen ? "true" : undefined}>
+      <span class="p-studio__thumb p-studio__thumb--wide">
+        ${c.still ? html`<img class="p-studio__cover" src=${c.still} alt="" decoding="async" />`
+          : html`<span class="p-studio__no-picture"><${Icon} name="film" size=${20} /></span>`}
+        ${c.ident ? html`<${PicTag} at="tl">${c.ident}<//>` : null}
+      </span>
+      <span class="p-studio__body">
+        <span class="p-studio__name">${c.title}</span>
+        <span class="p-studio__meta">${c.clips}</span>
+        <span class="p-studio__line"><${St} tone=${c.state.tone} icon=${c.state.icon}>${c.state.text}<//></span>
+        ${c.problem ? html`<span class="p-studio__problem">${c.problem}</span>` : null}
+        <span class="p-studio__spend">
+          <span class="p-studio__money">${c.money}</span>
+          <${Meter} plain shares=${{ spent: c.share }} label=${c.money} />
+        </span>
+      </span>
+    <//>
+  </li>`;
 }
 
 // ---- Sprites ------------------------------------------------------------------------------------------------
 
+function CheckLines({ lines }) {
+  return html`<ul class="p-studio__checks">
+    ${lines.map((l) => html`<li key=${l.text} class="p-studio__check">
+      <${St} tone=${l.ok ? "good" : "warn"}>${l.text}<//>
+    </li>`)}
+  </ul>`;
+}
+
 function SpriteCard({ sprite, chosen, onChoose }) {
   const line = checkLine(sprite.checks);
   const names = tagNames(sprite);
-  return html`
-    <li class=${`p-studio__sprite${chosen ? " p-studio__sprite--chosen" : ""}`}>
-      <button type="button" class="p-studio__sprite-button" aria-pressed=${chosen ? "true" : "false"} onClick=${() => onChoose(sprite.id)}>
-        <span class="p-studio__thumb-box" aria-hidden="true"><span class="p-studio__thumb" style=${thumbStyle(sprite)}></span></span>
-        <span class="p-studio__sprite-text">
-          <span class="p-studio__sprite-title">${text(sprite.title || sprite.name, 120)}</span>
-          <span class="p-studio__meta">${count(num(sprite.frames, 0), "frame")}</span>
-          ${names.length ? html`<span class="p-studio__tags">${names.map((n) => html`<${Tag} key=${n}>${text(n, 60)}<//>`)}</span>` : null}
-          <span class=${`p-studio__check${line.ok ? "" : " p-studio__check--warn"}`}>${line.ok ? "\u2713 " : ""}${line.text}</span>
-        </span>
-      </button>
-    </li>`;
+  const frames = num(sprite.frames, 0);
+  return html`<li class="p-studio__item">
+    <${Card} onClick=${() => onChoose(sprite.id)} padding="none" class="p-studio__card" aria-pressed=${chosen ? "true" : "false"}>
+      <span class="p-studio__thumb p-sprite-player p-sprite-player--tile" aria-hidden="true">
+        <span class="p-studio__sprite-frame" style=${thumbStyle(sprite, TILE)}></span>
+        ${frames ? html`<${PicTag} at="br">${count(frames, "frame")}<//>` : null}
+      </span>
+      <span class="p-studio__body">
+        <span class="p-studio__name">${text(sprite.title || sprite.name, 120)}</span>
+        <span class="p-studio__meta">${names.length ? names.map((n) => text(n, 60)).join(", ") : count(frames, "frame")}</span>
+        <span class="p-studio__state"><${St} tone=${line.ok ? "good" : "warn"}>${line.text}<//></span>
+      </span>
+    <//>
+  </li>`;
 }
 
-function Player({ id, query, settled }) {
+// The sprite opened in place: its title, Close, and the sprite player (loaded only when a sprite is opened).
+function SpriteViewer({ id, query, settled }) {
   const res = useResource(id ? `/api/studio/art/sprite?id=${encodeURIComponent(id)}` : null);
   const [mod, setMod] = useState(null);
   const [missing, setMissing] = useState(false);
@@ -220,10 +299,10 @@ function Player({ id, query, settled }) {
   const d = res.data;
   const head = useBringIntoView(id, settled && !!d);
   return html`
-    <div class="p-studio__player">
+    <div class="p-studio__open p-studio__player">
       <div class="p-studio__viewer-head">
         <h3 class="p-studio__viewer-title" tabindex="-1" ref=${head}>${text(d?.sprite?.title, 120) || "Animation"}</h3>
-        <a class="p-studio__close" href=${HERE}>Close</a>
+        <a class="p-studio__close" href=${HERE}><${Icon} name="cross" size=${14} />Close</a>
       </div>
       ${res.loading && !d ? html`<${Loading} lines=${4} label="Loading the animation" />` : null}
       ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
@@ -242,19 +321,26 @@ function VideoCard({ video, chosen }) {
   const poster = safeApi(video.poster?.viewUrl);
   const title = text(video.title || video.name, 120) || "A video";
   const ok = Boolean(video.checks?.ok);
-  return html`<li class=${`p-studio__card${chosen ? " p-studio__card--chosen" : ""}`}>
-    <a class="p-studio__card-link" href=${studioHref({ video: video.id })} aria-current=${chosen ? "true" : undefined}>
-      <span class="p-studio__frame p-studio__frame--wide">
-        ${poster ? html`<img class="p-studio__cover" src=${poster} alt="" loading="lazy" />` : html`<span class="p-studio__no-picture">No cover picture</span>`}
-        <span class="p-studio__play" aria-hidden="true">\u25B6</span>
+  const s = Number(video.seconds);
+  return html`<li class="p-studio__item">
+    <${Card} href=${studioHref({ video: video.id })} padding="none" class="p-studio__card" aria-current=${chosen ? "true" : undefined}>
+      <span class="p-studio__thumb p-studio__thumb--wide">
+        ${poster ? html`<img class="p-studio__cover" src=${poster} alt="" decoding="async" />`
+          : html`<span class="p-studio__no-picture">No cover picture</span>`}
+        <span class="p-studio__play" aria-hidden="true"><${Icon} name="play" size=${14} /></span>
+        ${Number.isFinite(s) && s > 0 && s <= 120 ? html`<${PicTag} at="br">${timeWords(Math.max(1, Math.round(s)))}<//>` : null}
       </span>
-      <span class="p-studio__card-title">${title}</span>
-      <span class="p-studio__meta">${videoWords(video) || "Size not known"}</span>
-      <span class=${`p-studio__check${ok ? "" : " p-studio__check--warn"}`}>${ok ? "\u2713 Checked from the file" : "Something is wrong with this file"}</span>
-    </a>
+      <span class="p-studio__body">
+        <span class="p-studio__name">${title}</span>
+        <span class="p-studio__meta">${videoWords(video) || "Size not known"}</span>
+        <span class="p-studio__state"><${St} tone=${ok ? "good" : "warn"}>${ok ? "Checked from the file" : "Something is wrong with this file"}<//></span>
+      </span>
+    <//>
   </li>`;
 }
 
+// The video opened in place: the kit's player on the deepest ground (its stills under it as the scrubber), and
+// beside it the size and length, the server's checks and the links.
 function VideoViewer({ video, settled }) {
   const title = text(video.title || video.name, 120) || "A video";
   const src = playable(video) ? safeApi(video.video.viewUrl) : null;
@@ -262,30 +348,26 @@ function VideoViewer({ video, settled }) {
   const download = safeApi(video.video?.url);
   const stills = list(video.stills, 6).map((f) => safeApi(f.viewUrl)).filter(Boolean);
   const head = useBringIntoView(video.id, settled);
-  return html`<div class="p-studio__viewer">
+  return html`<div class="p-studio__open p-studio__viewer">
     <div class="p-studio__viewer-head">
       <h3 class="p-studio__viewer-title" tabindex="-1" ref=${head}>${title}</h3>
-      <a class="p-studio__close" href=${HERE}>Close</a>
+      <a class="p-studio__close" href=${HERE}><${Icon} name="cross" size=${14} />Close</a>
     </div>
-    ${src
-      ? html`<video class="p-studio__video" controls preload="none" playsinline src=${src} poster=${poster || undefined} aria-label=${title}
-          style=${videoBox(video) || undefined}>
-          This browser cannot play the video. Use Download below.
-        </video>`
-      : html`<${Notice} tone="warn" title="This video cannot play here.">The file is not a video, or it is too large. Its checks are below.<//>`}
-    <p class="p-studio__meta">${videoWords(video)}</p>
-    <${CheckLines} lines=${videoChecks(video.checks)} />
-    ${stills.length ? html`
-      <h4 class="p-studio__subhead">Six stills</h4>
-      <ol class="p-studio__stills">
-        ${stills.map((s, i) => html`<li key=${s} class="p-studio__still">
-          <img class="p-studio__still-img" src=${s} alt=${`${title}, still ${i + 1} of ${stills.length}`} loading="lazy" />
-        </li>`)}
-      </ol>` : null}
-    <p class="p-studio__links">
-      ${download ? html`<a href=${download} download>Download the video</a>` : null}
-      ${video.goal ? html`<a href=${`#/tasks/${encodeURIComponent(text(video.goal, 40))}`}>Open its task</a>` : null}
-    </p>
+    <div class="p-studio__viewer-body">
+      <div class="p-studio__viewer-stage">
+        <${Player} src=${src || undefined} poster=${poster || undefined} stills=${stills.length ? stills : poster ? [poster] : []}
+          seconds=${Number(video.seconds) || 0} label=${title} />
+      </div>
+      <div class="p-studio__viewer-side">
+        ${src ? null : html`<${Notice} tone="warn" title="This video cannot play here.">The file is not a video, or it is too large. Its checks are below.<//>`}
+        <p class="p-studio__facts">${videoWords(video)}</p>
+        <${CheckLines} lines=${videoChecks(video.checks)} />
+        <p class="p-studio__links">
+          ${download ? html`<a href=${download} download><${Icon} name="download" size=${14} />Download the video</a>` : null}
+          ${video.goal ? html`<a href=${`#/tasks/${encodeURIComponent(text(video.goal, 40))}`}><${Icon} name="arrow-up-right" size=${14} />Open its task</a>` : null}
+        </p>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -295,16 +377,20 @@ function SetCard({ set, chosen }) {
   const contact = safeApi(set.contact?.viewUrl);
   const ok = Boolean(set.checks?.ok);
   const n = num(set.count, list(set.slides).length);
-  const size = set.size && whole(set.size.w, 1, 4096) && whole(set.size.h, 1, 4096) ? `, ${set.size.w} by ${set.size.h}` : "";
-  return html`<li class=${`p-studio__card${chosen ? " p-studio__card--chosen" : ""}`}>
-    <a class="p-studio__card-link" href=${studioHref({ slides: set.id })} aria-current=${chosen ? "true" : undefined}>
-      <span class="p-studio__frame">
-        ${contact ? html`<img class="p-studio__contact" src=${contact} alt="" loading="lazy" />` : html`<span class="p-studio__no-picture">No contact picture</span>`}
+  const size = set.size && whole(set.size.w, 1, 4096) && whole(set.size.h, 1, 4096) ? `${set.size.w} by ${set.size.h}` : "";
+  return html`<li class="p-studio__item">
+    <${Card} href=${studioHref({ slides: set.id })} padding="none" class="p-studio__card" aria-current=${chosen ? "true" : undefined}>
+      <span class="p-studio__thumb">
+        ${contact ? html`<img class="p-studio__contact" src=${contact} alt="" decoding="async" />`
+          : html`<span class="p-studio__no-picture">No contact picture</span>`}
+        ${n ? html`<${PicTag} at="br">${count(n, "slide")}<//>` : null}
       </span>
-      <span class="p-studio__card-title">${text(set.title || set.name, 120) || "A carousel"}</span>
-      <span class="p-studio__meta">${count(n, "slide")}${size}</span>
-      <span class=${`p-studio__check${ok ? "" : " p-studio__check--warn"}`}>${ok ? "\u2713 Checked from the pictures" : "Something is wrong with these slides"}</span>
-    </a>
+      <span class="p-studio__body">
+        <span class="p-studio__name">${text(set.title || set.name, 120) || "A carousel"}</span>
+        <span class="p-studio__meta">${[count(n, "slide"), size].filter(Boolean).join(", ")}</span>
+        <span class="p-studio__state"><${St} tone=${ok ? "good" : "warn"}>${ok ? "Checked from the pictures" : "Something is wrong with these slides"}<//></span>
+      </span>
+    <//>
   </li>`;
 }
 
@@ -330,6 +416,25 @@ function SlidesPanel({ set }) {
       ${set.goal ? html`<p class="p-studio__links"><a href=${`#/tasks/${encodeURIComponent(text(set.goal, 40))}`}>Open its task</a></p>` : null}
     </div>
   </div>`;
+}
+
+// ---- Pictures -----------------------------------------------------------------------------------------------
+
+function PictureCard({ image }) {
+  const src = safeApi(image.file?.viewUrl);
+  const title = text(image.title || image.name, 120);
+  return html`<li class="p-studio__item">
+    <${Card} padding="none" class="p-studio__card">
+      <span class="p-studio__thumb p-studio__thumb--picture">
+        ${src ? html`<img class="p-studio__picture" src=${src} alt=${title} decoding="async" />`
+          : html`<span class="p-studio__no-picture"><${Icon} name="image" size=${20} /></span>`}
+      </span>
+      <span class="p-studio__body">
+        <span class="p-studio__name">${title}</span>
+        <${FileCard} file=${image.file} />
+      </span>
+    <//>
+  </li>`;
 }
 
 // ---- Tables, the room ---------------------------------------------------------------------------------------
@@ -365,13 +470,90 @@ function Room({ res }) {
     ${res.error && !r ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
     ${r ? (rows.length
       ? html`<${DataTable} columns=${[{ key: "name", label: "File" }, { key: "size", label: "Size" }, { key: "changed", label: "Changed" }]} rows=${rows} />`
-      : html`<${Empty} title="The room is empty." text="Footage and sound you put in the folder show here." />`) : null}
+      : html`<${Empty} icon="folder" title="The room is empty." text="Footage and sound you put in the folder show here." />`) : null}
     ${r && typeof r.path === "string" && r.path ? html`
       <details class="p-studio__where">
         <summary class="p-studio__where-line">Where is this folder?</summary>
         <p class="p-studio__where-text">Open this folder in Finder: <code class="p-studio__path">${text(r.path, 400)}</code></p>
       </details>` : null}
   <//>`;
+}
+
+// ---- The switches that are off --------------------------------------------------------------------------------
+
+// The doors Studio's work rests on, each with its own section of Settings.
+export const OFF_WORDS = Object.freeze({
+  off: "Off",
+  link: "Open in Settings",
+  generation: { title: "Generation", icon: "film", say: "Runway cannot make the clips of a film until it is on." },
+  viewer: { title: "Page viewer", icon: "eye", say: "Pages an agent builds are not looked at in a browser." },
+  web: { title: "Web", icon: "globe", say: "The Researcher cannot open websites." },
+});
+
+// The switches that are off, one line each: Generation, the Page viewer and Web when their answer says off (each
+// with its address in Settings), then the department's own (with its sentence, and no address).
+export function offSwitches({ generation, viewer, web, dept } = {}) {
+  const out = [];
+  for (const [id, answer] of [["generation", generation], ["viewer", viewer], ["web", web]]) {
+    if (answer && typeof answer === "object" && answer.on === false) {
+      const w = OFF_WORDS[id];
+      out.push({ id, icon: w.icon, title: w.title, say: w.say, href: `#/settings?s=${id}` });
+    }
+  }
+  for (const s of list(dept?.switches, 20)) {
+    if (s.on === true) continue;
+    out.push({ id: `dept-${text(s.id, 40)}`, icon: "layers", title: text(s.label, 120), say: text(s.explain, 300), href: null });
+  }
+  return out;
+}
+
+// ---- The row that jumps to each part ---------------------------------------------------------------------------
+
+const JUMP_ICONS = { films: "film", videos: "video", carousels: "layers", sprites: "brush", pictures: "image", cad: "grid", files: "file" };
+
+// The parts the row jumps to, in the page's order: [{ id, label, value, hint }] for each part whose list has come in.
+export function jumpsOf({ films, figures, images } = {}) {
+  const out = [];
+  if (Array.isArray(films)) out.push({ id: "films", label: "Films", value: String(films.length), hint: "" });
+  const f = Array.isArray(figures) ? figures : [];
+  const by = (id) => f.find((x) => x.id === id);
+  for (const id of ["videos", "carousels", "sprites"]) if (by(id)) out.push(by(id));
+  if (Array.isArray(images)) out.push({ id: "pictures", label: "Pictures", value: String(images.length), hint: "" });
+  for (const id of ["cad", "files"]) if (by(id)) out.push(by(id));
+  return out;
+}
+
+const partId = (id) => `p-studio-${id}`;
+
+function Jumps({ items }) {
+  if (!items.length) return null;
+  const go = (id) => {
+    const el = typeof document !== "undefined" ? document.getElementById(partId(id)) : null;
+    if (!el) return;
+    if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "start", behavior: scrollBehaviour() });
+    if (typeof el.focus === "function") el.focus({ preventScroll: true });
+  };
+  return html`<nav class="p-studio__jumps" aria-label="Parts of Studio">
+    ${items.map((j) => html`<button key=${j.id} type="button" class="p-studio__jump" title=${j.hint || undefined} onClick=${() => go(j.id)}>
+      <${Icon} name=${JUMP_ICONS[j.id] || "layers"} size=${16} />
+      <span>${j.label}</span>
+      <span class="p-studio__jump-n">${j.value}</span>
+    </button>`)}
+  </nav>`;
+}
+
+// A part of the page the row can jump to. `span`: how many of the shelf's columns it takes (spanOf).
+function Part({ id, span, children }) {
+  return html`<div class=${`p-studio__part${span ? ` p-studio__part--span-${span}` : ""}`} id=${partId(id)} tabindex="-1">${children}</div>`;
+}
+
+// How many of the shelf's four columns a media part takes: one a card up to four, one for an empty part (its one
+// line), all four while its list has not come in or while one of its things is opened in place. Narrower panes
+// take fewer columns (studio.css).
+export function spanOf(count, { open = false, loaded = true } = {}) {
+  if (open || !loaded) return 4;
+  const n = Number.isInteger(count) && count > 0 ? count : 0;
+  return Math.min(4, Math.max(1, n));
 }
 
 // ---- The page -----------------------------------------------------------------------------------------------
@@ -385,6 +567,9 @@ export default function Page({ route }) {
   const videosRes = useResource("/api/studio/videos", { every: EVERY });
   const room = useResource("/api/studio/room", { every: EVERY });
   const filmsRes = useResource("/api/studio/films", { every: EVERY });
+  const genRes = useResource("/api/generation", { every: SLOW });
+  const viewerRes = useResource("/api/viewer", { every: SLOW });
+  const webRes = useResource("/api/web", { every: SLOW });
   const a = art.data;
   const d = dept.data;
   const sl = slidesRes.data;
@@ -406,6 +591,8 @@ export default function Page({ route }) {
   const cad = pick(d?.sections, "cad");
   const files = pick(d?.sections, "files");
   const figures = studioFigures({ art: a, dept: d, slides: sl, videos: vd });
+  const jumps = jumpsOf({ films: filmsRes.data ? films : null, figures, images: a ? images : null });
+  const off = offSwitches({ generation: genRes.data, viewer: viewerRes.data, web: webRes.data, dept: d });
 
   // ?slides= opens that set large in the work panel; leaving it closes the panel this page opened.
   const opened = useRef("");
@@ -424,32 +611,28 @@ export default function Page({ route }) {
 
   const first = (r) => r.loading && !r.data;
   const settled = [art, dept, slidesRes, videosRes, filmsRes].every((r) => r.data || r.error);
-  return html`
-    <div class="p-studio p-dashboard" data-dept="studio">
-      <${PageHeader} back=${{ label: "All dashboards", href: "#/dashboards" }} over="DASHBOARD" creature="studio" title="Studio"
-        lead="Videos, slides, drawings, animations and parts made by the Artist and the Drafter."
-        actions=${a?.agent || d?.agent ? html`<span class="p-studio__agents">
-          ${a?.agent ? html`<${AgentHead} slug="artist" agent=${{ name: "Artist", ...a.agent }} />` : null}
-          ${d?.agent ? html`<${AgentHead} slug="drafter" agent=${{ name: "Drafter", ...d.agent }} />` : null}
-        </span>` : null} />
-      ${first(art) && first(dept) ? html`<${Loading} lines=${4} label="Loading the Studio" />` : null}
-      ${art.error && !a ? html`<${ErrorNotice} error=${art.error} onRetry=${art.reload} />` : null}
-      ${dept.error && !d ? html`<${ErrorNotice} error=${dept.error} onRetry=${dept.reload} />` : null}
-      ${a?.notConnected ? html`<${NotConnected} reason=${text(a.notConnected.reason, 300)} next=${text(a.notConnected.next, 300)} />` : null}
-      ${d?.notConnected ? html`<${NotConnected} reason=${text(d.notConnected.reason, 300)} next=${text(d.notConnected.next, 300)} />` : null}
-      ${notices.map((n, i) => html`<${NotConnected} key=${i} reason=${n.reason} next=${n.next} />`)}
-      ${figures.length ? html`<div class="p-studio__figures"><${Figures} figures=${figures} /></div>` : null}
 
+  const parts = html`
+    ${first(art) && first(dept) ? html`<${Loading} lines=${4} label="Loading the Studio" />` : null}
+    ${art.error && !a ? html`<${ErrorNotice} error=${art.error} onRetry=${art.reload} />` : null}
+    ${dept.error && !d ? html`<${ErrorNotice} error=${dept.error} onRetry=${dept.reload} />` : null}
+    ${a?.notConnected ? html`<${NotConnected} reason=${text(a.notConnected.reason, 300)} next=${text(a.notConnected.next, 300)} />` : null}
+    ${d?.notConnected ? html`<${NotConnected} reason=${text(d.notConnected.reason, 300)} next=${text(d.notConnected.next, 300)} />` : null}
+    ${notices.map((n, i) => html`<${NotConnected} key=${i} reason=${n.reason} next=${n.next} />`)}
+
+    <${Part} id="films">
       <${Section} title="Films" count=${filmsRes.data ? films.length : undefined}
         hint="Films made from your renders with Runway: each shot, its takes, the Art director's verdicts and what it cost.">
-        ${filmId ? html`<${FilmView} key=${filmId} id=${filmId} settled=${settled} />` : null}
         ${first(filmsRes) ? html`<${Loading} lines=${2} label="Loading the films" />` : null}
         ${filmsRes.error && !filmsRes.data ? html`<${ErrorNotice} error=${filmsRes.error} onRetry=${filmsRes.reload} />` : null}
         ${filmsRes.data ? (films.length
-          ? html`<ul class="p-studio__films">${films.map((f) => html`<${FilmRow} key=${f.task?.id} film=${f} chosen=${f.task?.id === filmId || f.task?.identifier === filmId} />`)}</ul>`
-          : html`<${Empty} title="No films yet."><span>Start "A film from your renders" in <a href="#/jobs/studio/a-film-from-your-renders">Jobs</a>.</span><//>`) : null}
+          ? html`<ul class="p-studio__cards">${films.map((f) => html`<${FilmCard} key=${f.task?.id} film=${f} chosen=${!!filmId && (f.task?.id === filmId || f.task?.identifier === filmId)} />`)}</ul>`
+          : html`<${Empty} icon="film" title="No films yet."><span>Start "A film from your renders" in <a href="#/jobs/studio/a-film-from-your-renders">Jobs</a>.</span><//>`) : null}
       <//>
+    <//>
 
+    <div class="p-studio__shelf-wrap"><div class="p-studio__shelf">
+    <${Part} id="videos" span=${spanOf(videos.length, { open: !!(videoId && vd), loaded: !!vd })}>
       <${Section} title="Videos" count=${vd ? videos.length : undefined}>
         ${videoId && vd ? (chosenVideo
           ? html`<${VideoViewer} key=${chosenVideo.id} video=${chosenVideo} settled=${settled} />`
@@ -458,55 +641,80 @@ export default function Page({ route }) {
         ${videosRes.error && !vd ? html`<${ErrorNotice} error=${videosRes.error} onRetry=${videosRes.reload} />` : null}
         ${vd ? (videos.length
           ? html`<ul class="p-studio__cards">${videos.map((v) => html`<${VideoCard} key=${v.id} video=${v} chosen=${v.id === videoId} />`)}</ul>`
-          : html`<${Empty} title="No videos yet." text="Title cards, slow reveals and cut clips the Artist makes show here." />`) : null}
+          : html`<${Empty} icon="video" title="No videos yet." text="Title cards, slow reveals and cut clips the Artist makes show here." />`) : null}
       <//>
+    <//>
 
+    <${Part} id="carousels" span=${spanOf(sets.length, { open: !!(slidesId && sl && !chosenSet), loaded: !!sl })}>
       <${Section} title="Carousels" count=${sl ? sets.length : undefined}>
         ${slidesId && sl && !chosenSet ? html`<${Notice} tone="warn" title="That carousel is not here.">It may have been moved. <a href=${HERE}>Show all carousels</a><//>` : null}
         ${first(slidesRes) ? html`<${Loading} lines=${2} label="Loading the carousels" />` : null}
         ${slidesRes.error && !sl ? html`<${ErrorNotice} error=${slidesRes.error} onRetry=${slidesRes.reload} />` : null}
         ${sl ? (sets.length
           ? html`<ul class="p-studio__cards">${sets.map((s) => html`<${SetCard} key=${s.id} set=${s} chosen=${s.id === slidesId} />`)}</ul>`
-          : html`<${Empty} title="No carousels yet." text="Slide sets the Artist lays out for Marketing show here." />`) : null}
+          : html`<${Empty} icon="layers" title="No carousels yet." text="Slide sets the Artist lays out for Marketing show here." />`) : null}
       <//>
+    <//>
 
-      ${a ? html`
+    ${a ? html`
+      <${Part} id="sprites" span=${spanOf(sprites.length, { open: !!sprite })}>
         <${Section} title="Sprites and animations" count=${sprites.length}>
-          ${sprite ? html`<${Player} key=${sprite} id=${sprite} query=${query} settled=${settled} />` : null}
+          ${sprite ? html`<${SpriteViewer} key=${sprite} id=${sprite} query=${query} settled=${settled} />` : null}
           ${sprites.length ? html`
-            <ul class="p-studio__sprites">
+            <ul class="p-studio__cards p-studio__cards--sprites">
               ${sprites.map((s) => html`<${SpriteCard} key=${s.id} sprite=${s} chosen=${s.id === sprite} onChoose=${choose} />`)}
-            </ul>` : html`<${Empty} title="No sprites yet." text="Ask the Artist for one from a Studio job." />`}
+            </ul>` : html`<${Empty} icon="brush" title="No sprites yet." text="Ask the Artist for one from a Studio job." />`}
         <//>
+      <//>
+      <${Part} id="pictures" span=${spanOf(images.length)}>
         <${Section} title="Pictures" count=${images.length}>
           ${images.length ? html`
-            <ul class="p-studio__images">
-              ${images.map((im) => html`
-                <li key=${im.id} class="p-studio__image">
-                  ${safeApi(im.file?.viewUrl) ? html`<img class="p-studio__picture" src=${safeApi(im.file.viewUrl)} alt=${text(im.title || im.name, 120)} loading="lazy" />` : null}
-                  <p class="p-studio__image-title">${text(im.title || im.name, 120)}</p>
-                  <${FileCard} file=${im.file} />
-                </li>`)}
-            </ul>` : html`<${Empty} title="No pictures yet." text="Badges, icons and other drawings the Artist makes show here." />`}
-        <//>` : null}
+            <ul class="p-studio__cards">
+              ${images.map((im) => html`<${PictureCard} key=${im.id} image=${im} />`)}
+            </ul>` : html`<${Empty} icon="image" title="No pictures yet." text="Badges, icons and other drawings the Artist makes show here." />`}
+        <//>
+      <//>` : null}
+    </div></div>
 
-      ${d ? html`<${FilesTable} section=${cad} /><${FilesTable} section=${files} />` : null}
+    ${d ? html`<${Part} id="cad"><${FilesTable} section=${cad} /><//><${Part} id="files"><${FilesTable} section=${files} /><//>` : null}
 
-      <${Room} res=${room} />
+    <${Room} res=${room} />
 
-      ${problems.length ? html`
-        <${Section} title="Files that could not be used" count=${problems.length}>
-          <ul class="p-studio__problems">
-            ${problems.map((p) => html`<li key=${p.key}><strong>${p.name}</strong> ${p.problem}</li>`)}
-          </ul>
-        <//>` : null}
+    ${problems.length ? html`
+      <${Section} title="Files that could not be used" count=${problems.length}>
+        <${Rows}>
+          ${problems.map((p) => html`<${Row} key=${p.key} icon="alert" title=${p.name} say=${p.problem} />`)}
+        <//>
+      <//>` : null}
 
-      ${d?.switches?.length ? html`
-        <${Section} title="Switched off">
-          ${list(d.switches, 20).map((s) => html`<${Switch} key=${s.id} on=${false} disabled label=${text(s.label, 120)} explain=${text(s.explain, 300)} />`)}
-        <//>` : null}
+    ${off.length ? html`
+      <${Section} title="Switched off">
+        <${Rows}>
+          ${off.map((s) => html`<${Row} key=${s.id} icon=${s.icon} title=${s.title} state=${OFF_WORDS.off} say=${s.say}
+            control=${s.href ? html`<a class="p-studio__settings" href=${s.href} aria-label=${`${s.title}: ${OFF_WORDS.link}`}>${OFF_WORDS.link}<${Icon} name="chevron-right" size=${14} /></a>` : null} />`)}
+        <//>
+      <//>` : null}
 
-      <${Jobs} dept="studio" />
-      <${OpenDepartment} dept="studio" />
+    <${Jobs} dept="studio" />
+    <${OpenDepartment} dept="studio" />`;
+
+  // A film opened: the film is the whole pane, and the rest of Studio follows under its own rows.
+  if (filmId) {
+    return html`<div class="p-studio p-studio--film p-dashboard" data-dept="studio">
+      <${FilmView} key=${filmId} id=${filmId} settled=${settled} more=${html`<div class="p-studio__rest">${parts}</div>`} />
+    </div>`;
+  }
+
+  return html`
+    <div class="p-studio p-dashboard" data-dept="studio">
+      <${PageHeader} back=${{ label: "All dashboards", href: "#/dashboards" }} title="Studio"
+        crumbs=${[{ label: "Dashboards", href: "#/dashboards" }, { label: "Studio" }]}
+        lead="Videos, slides, drawings, animations and parts made by the Artist and the Drafter."
+        actions=${a?.agent || d?.agent ? html`<span class="p-studio__agents">
+          ${a?.agent ? html`<${AgentHead} slug="artist" agent=${{ name: "Artist", ...a.agent }} />` : null}
+          ${d?.agent ? html`<${AgentHead} slug="drafter" agent=${{ name: "Drafter", ...d.agent }} />` : null}
+        </span>` : null} />
+      <${Jumps} items=${jumps} />
+      ${parts}
     </div>`;
 }

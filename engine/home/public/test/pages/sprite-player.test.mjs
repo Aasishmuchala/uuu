@@ -121,17 +121,37 @@ test("sprite-player: loads in Node and exports the player", { skip: !existsSync(
   assert.equal(mod.default, mod.SpritePlayer);
 });
 
-test("sprite-player: the restyle makes the controls pills and the stage glass, and keeps the checkerboard", () => {
+test("sprite-player: the restyle takes the kit player's transport and its focus ring, and keeps the checkerboard", () => {
   const css = readFileSync(join(PUBLIC, "styles/pages/sprite-player.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
   const rule = (sel) => {
     const m = new RegExp(`${sel.replace(/[.]/g, "\\.")}\\s*\\{([^}]*)\\}`).exec(css);
     return m ? m[1] : "";
   };
-  assert.match(rule(".p-sprite-player .p-sprite-player__toggle"), /border-radius:\s*var\(--r-pill\)/);
-  assert.match(rule(".p-sprite-player .p-sprite-player__toggle.is-on"), /background:\s*var\(--primary\)/);
-  assert.match(rule(".p-sprite-player .p-sprite-player__toggle.is-on"), /color:\s*var\(--primary-text\)/);
-  assert.match(rule(".p-sprite-player .p-sprite-player__stage"), /border:\s*1px solid var\(--hairline\)/);
+  // The round play button in the first ink, as on the kit's player.
+  assert.match(rule(".p-sprite-player .p-sprite-player__play"), /border-radius:\s*50%/);
+  assert.match(rule(".p-sprite-player .p-sprite-player__play"), /background:\s*var\(--ink\)/);
+  // The frame and its length in tabular figures.
+  assert.match(rule(".p-sprite-player .p-sprite-player__frame-no"), /font-variant-numeric:\s*tabular-nums/);
+  // Toggles have the control corner; on, they are lifted onto the raised step.
+  assert.match(rule(".p-sprite-player .p-sprite-player__toggle"), /border-radius:\s*var\(--r-2\)/);
+  assert.match(rule(".p-sprite-player .p-sprite-player__toggle.is-on"), /background:\s*var\(--raise\)/);
+  // Every stop shows the 2 px accent ring.
+  assert.match(css, /__play:focus-visible,[^{]*__step:focus-visible,[^{]*__toggle:focus-visible,[^{]*__thumb:focus-visible\s*\{\s*outline:\s*2px solid var\(--accent\);\s*outline-offset:\s*2px;/);
+  assert.match(rule(".p-sprite-player .p-sprite-player__stage:focus-visible"), /outline:\s*2px solid var\(--accent\)/);
+  // The checkerboard stays behind a transparent sprite, on the stage and on a sprite's card.
   assert.match(rule(".p-sprite-player .p-sprite-player__stage"), /linear-gradient\(45deg/);
-  assert.match(rule(".p-sprite-player .p-sprite-player__thumb"), /background:\s*var\(--glass\)/);
-  assert.doesNotMatch(css, /backdrop-filter|will-change|filter:\s*blur/);
+  assert.match(rule(".p-sprite-player.p-sprite-player--tile"), /linear-gradient\(45deg/);
+  assert.doesNotMatch(css, /backdrop-filter|will-change|filter:\s*blur|999px|--r-round/);
+});
+
+test("sprite-player: the transport keeps its words as the buttons' names", () => {
+  const src = readFileSync(join(PUBLIC, "studio/sprite-player.js"), "utf8");
+  assert.match(src, /const playWord = playing \? "Pause" : "Play";/);
+  assert.match(src, /aria-label=\$\{playWord\}/);
+  for (const words of ['aria-label="Previous frame"', 'aria-label="Next frame"', "Loop ${loop ? \"on\" : \"off\"}", "Onion skin ${onion ? \"on\" : \"off\"}", 'aria-label="Zoom out"', 'aria-label="Zoom in"']) {
+    assert.ok(src.includes(words), words);
+  }
+  assert.match(src, /Frame \$\{frameNo \+ 1\}<\/b><span class="p-sprite-player__of"> of \$\{list\.length\}/);
+  // The speed's own arrows move between its segments; they do not step the frames.
+  assert.match(src, /target\.closest\("\.k-seg"\)\) return;/);
 });
