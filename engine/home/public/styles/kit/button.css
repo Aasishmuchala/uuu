@@ -1,6 +1,11 @@
-/* kit/button.js: every button is a pill. Primary is solid (light on the dark canvas, near-black on the light one),
-   plain is glass with a hairline, quiet has no edge, danger speaks in the problem colour, and Accept is the large
-   green one. Tokens only; colours change by a short transition, movement by transform. */
+/* kit/button.js: a button has the control corner. One system, one hierarchy: the primary is the one accent fill on
+   a screen's decision; plain is the outlined control; quiet (ghost) is words that fill on hover; link is a text link
+   for a secondary way out; danger is the outlined control in the problem colour. Every variant answers rest, hover,
+   pressed, focus (the 2 px ring from base.css) and disabled in place: colours change, nothing moves. A disabled
+   button of any variant is the same inert block (the raised step greyed by 5 percent of the ink, so it is not a
+   white button in light) with the third ink, never a faded accent.
+   The locked action is the blocked decision: inert (reduced contrast, a lock), its reason fused under it in the
+   warning colour, the way out under that. Tokens only. */
 
 .k-btn {
   display: inline-flex;
@@ -8,17 +13,19 @@
   justify-content: center;
   gap: var(--s-2);
   min-height: var(--h-md);
-  padding: 0 var(--s-4);
-  border: 1px solid transparent;
-  border-radius: var(--r-pill);
-  font-size: var(--fs-body);
+  padding: 0 14px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--field);
+  color: var(--ink);
+  font-size: var(--fs-ui);
   font-weight: var(--fw-medium);
-  line-height: var(--lh-tight);
+  line-height: var(--lh-ui);
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
   user-select: none;
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
 .k-btn .k-icon {
@@ -31,11 +38,12 @@
   text-overflow: ellipsis;
 }
 
-/* Sizes. Every size stays at least 36 px tall, so "sm" is narrower and quieter, not shorter. */
+/* Sizes: small is 28 px and 13 px words; large (a primary in a rail) is 40 px. */
 .k-btn--sm {
-  padding: 0 var(--s-3);
-  font-size: var(--fs-caption);
-  gap: var(--s-1);
+  min-height: var(--h-sm);
+  padding: 0 10px;
+  gap: 6px;
+  font-size: var(--fs-note);
 }
 
 .k-btn--lg {
@@ -48,92 +56,135 @@
   padding: 0;
 }
 
-/* Variants */
-.k-btn--primary {
-  color: var(--primary-text);
-  background: var(--primary);
-  border-color: var(--primary);
+.k-btn--sm.k-btn--icon {
+  min-width: var(--h-sm);
 }
 
-.k-btn--primary:hover:not(:disabled):not(.k-btn--off) {
-  background: var(--primary-hover);
-  border-color: var(--primary-hover);
-}
-
-.k-btn--plain {
-  color: var(--text);
-  background: var(--glass);
-  border-color: var(--hairline);
-  box-shadow: var(--highlight);
-}
-
+/* Plain: the outlined control, on the field fill (white in light, as C3 draws it, so the inert grey of a
+   disabled button is plainly different). */
 .k-btn--plain:hover:not(:disabled):not(.k-btn--off) {
-  background: var(--glass-strong);
-  border-color: var(--hairline-strong);
+  border-color: var(--ink-3);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
 }
 
-.k-btn--quiet {
-  color: var(--text-2);
-  background: transparent;
+.k-btn--plain:active:not(:disabled):not(.k-btn--off) {
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
 }
 
-.k-btn--quiet:hover:not(:disabled):not(.k-btn--off) {
-  color: var(--text);
-  background: var(--glass-soft);
+/* Primary and accept: the one accent fill. */
+.k-btn--primary,
+.k-btn--accept {
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  font-weight: var(--fw-bold);
 }
 
-.k-btn--danger {
-  color: var(--bad-text);
-  background: var(--glass);
-  border-color: var(--hairline);
-  box-shadow: var(--highlight);
+.k-btn--primary:hover:not(:disabled):not(.k-btn--off),
+.k-btn--accept:hover:not(:disabled):not(.k-btn--off) {
+  border-color: color-mix(in srgb, var(--accent-fill) 88%, var(--accent-ink));
+  background: color-mix(in srgb, var(--accent-fill) 88%, var(--accent-ink));
 }
 
-.k-btn--danger:hover:not(:disabled):not(.k-btn--off) {
-  background: var(--bad-bg);
-  border-color: var(--bad);
+.k-btn--primary:active:not(:disabled):not(.k-btn--off),
+.k-btn--accept:active:not(:disabled):not(.k-btn--off) {
+  border-color: color-mix(in srgb, var(--accent-fill) 80%, var(--black));
+  background: color-mix(in srgb, var(--accent-fill) 80%, var(--black));
 }
 
 .k-btn--accept {
-  min-height: calc(var(--h-lg) + var(--s-2));
-  padding: 0 var(--s-8);
-  font-size: var(--fs-title);
-  font-weight: var(--fw-bold);
-  color: var(--accept-text);
-  background: var(--accept);
-  border-color: var(--accept);
+  min-height: var(--h-lg);
+  padding: 0 var(--s-6);
 }
 
-.k-btn--accept:hover:not(:disabled):not(.k-btn--off) {
-  background: var(--accept-hover);
-  border-color: var(--accept-hover);
+/* Quiet (ghost): words in the second ink; the control's fill shows only under the pointer. */
+.k-btn--quiet,
+.k-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-2);
 }
 
-.k-btn:active:not(:disabled):not(.k-btn--off) {
-  transform: translateY(1px);
+.k-btn--quiet:hover:not(:disabled):not(.k-btn--off),
+.k-btn--ghost:hover:not(:disabled):not(.k-btn--off) {
+  background: var(--ctl);
+  color: var(--ink);
 }
 
-/* Disabled and busy */
-.k-btn:disabled,
-.k-btn--off {
-  cursor: default;
-  opacity: 0.5;
+.k-btn--quiet:active:not(:disabled):not(.k-btn--off),
+.k-btn--ghost:active:not(:disabled):not(.k-btn--off) {
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  color: var(--ink);
 }
 
-.k-btn--busy:disabled,
-.k-btn--busy.k-btn--off {
-  opacity: 0.8;
-  cursor: progress;
+/* Link: a text link in the accent, for the secondary way out. No box; the underline firms up under the pointer. */
+.k-btn--link {
+  padding: 0 var(--s-1);
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
-/* A switched-off primary is a solid, mixed fill, not the white pill at half strength: over a coloured light
-   that would take the light's colour and read as another button (M18-27). */
+.k-btn--link:hover:not(:disabled):not(.k-btn--off) {
+  text-decoration-color: var(--accent);
+}
+
+.k-btn--link:active:not(:disabled):not(.k-btn--off) {
+  color: var(--ink);
+  text-decoration-color: var(--ink);
+}
+
+/* Danger: the outlined control in the problem colour. */
+.k-btn--danger {
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+  color: var(--bad);
+}
+
+.k-btn--danger:hover:not(:disabled):not(.k-btn--off) {
+  border-color: var(--bad);
+  background: var(--bad-bg);
+}
+
+.k-btn--danger:active:not(:disabled):not(.k-btn--off) {
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 24%, transparent);
+}
+
+/* Disabled: one inert look for every variant (a switched-off primary is a solid fill, never a faded accent). */
+.k-btn:disabled:not(.k-btn--busy),
+.k-btn--off:not(.k-btn--busy) {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--ink) 5%, var(--raise));
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
 .k-btn--primary:disabled:not(.k-btn--busy),
 .k-btn--primary.k-btn--off:not(.k-btn--busy) {
   opacity: 1;
-  background: color-mix(in srgb, var(--primary) 22%, var(--canvas));
+  background: color-mix(in srgb, var(--ink) 5%, var(--raise));
+  border-color: var(--line);
+  color: var(--ink-3);
+}
+
+.k-btn--quiet:disabled:not(.k-btn--busy),
+.k-btn--quiet.k-btn--off:not(.k-btn--busy),
+.k-btn--ghost:disabled:not(.k-btn--busy),
+.k-btn--ghost.k-btn--off:not(.k-btn--busy),
+.k-btn--link:disabled:not(.k-btn--busy),
+.k-btn--link.k-btn--off:not(.k-btn--busy) {
   border-color: transparent;
-  color: color-mix(in srgb, var(--primary) 70%, var(--canvas));
+  background: transparent;
+  text-decoration: none;
+}
+
+/* Busy: the variant's own colours stay, so a primary at work still reads as the one being done. */
+.k-btn--busy {
+  cursor: progress;
 }
 
 /* The spinner turns for at most a minute; work that takes longer is shown by the page, not by this mark. */
@@ -143,7 +194,7 @@
   height: 1em;
   border: 2px solid currentColor;
   border-right-color: transparent;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-round);
   animation: k-btn-spin 0.75s linear 80;
 }
 
@@ -151,6 +202,76 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* The locked action: an inert block (dashed edge, a lock, the third ink) with its reason fused under it in the
+   warning colour, then the way out. */
+.k-locked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.k-locked__block {
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--ctl);
+}
+
+.k-locked__action {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--h-md);
+  padding: 0 var(--s-3);
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+.k-locked__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+}
+
+.k-locked__tag {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--bad-bg);
+  color: var(--bad);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  line-height: var(--s-5);
+}
+
+.k-locked__why {
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-top: 1px dashed var(--line);
+  color: var(--warn);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.k-locked__out {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.k-locked__out > .k-btn {
+  width: 100%;
+}
+
+.k-locked__out > .k-btn--link {
+  justify-self: center;
+  width: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -169,15 +290,17 @@
 @media (max-width: 859px) {
   .k-btn,
   .k-btn--sm,
-  .k-btn--lg {
+  .k-btn--lg,
+  .k-locked__action {
     min-height: calc(var(--h-lg) + var(--s-1));
   }
 
   .k-btn--accept {
-    min-height: calc(var(--h-lg) + var(--s-2));
+    min-height: calc(var(--h-lg) + var(--s-1));
   }
 
-  .k-btn--icon {
+  .k-btn--icon,
+  .k-btn--sm.k-btn--icon {
     min-width: calc(var(--h-lg) + var(--s-1));
   }
 }

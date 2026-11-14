@@ -1,49 +1,49 @@
-/* kit/status.js: a small coloured mark beside a word. The live mark pulses (one of the three endless animations
-   27.3 allows) unless motion is off or reduced. */
+/* kit/status.js: a 7 px coloured mark beside a word, and the state line (a 14 px glyph and words). The live mark
+   pulses (one of the three endless animations 27.3 allows) unless motion is off or reduced. */
 
 .k-dot {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
   min-width: 0;
-  font-size: var(--fs-body);
-  line-height: var(--lh-tight);
-  color: var(--text-2);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  color: var(--ink-2);
   vertical-align: middle;
 }
 
 .k-dot__mark {
   position: relative;
   flex: none;
-  width: var(--s-2);
-  height: var(--s-2);
+  width: 7px;
+  height: 7px;
   border-radius: var(--r-round);
-  background: var(--k-dot-colour, var(--text-2));
+  background: var(--k-dot-colour, var(--ink-3));
 }
 
 .k-dot__label {
   min-width: 0;
 }
 
-.k-dot--live { --k-dot-colour: var(--live); }
-.k-dot--ok { --k-dot-colour: var(--ok); }
-.k-dot--wait { --k-dot-colour: var(--text-2); }
+.k-dot--live { --k-dot-colour: var(--good); }
+.k-dot--ok { --k-dot-colour: var(--good); }
+.k-dot--wait { --k-dot-colour: var(--ink-3); }
 .k-dot--warn { --k-dot-colour: var(--warn); }
 .k-dot--bad { --k-dot-colour: var(--bad); }
 
 /* Off is an empty ring, so it differs in shape too. */
 .k-dot--off .k-dot__mark {
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--text-2);
+  box-shadow: inset 0 0 0 1.5px var(--ink-3);
 }
 
 .k-dot--warn .k-dot__label {
-  color: var(--warn-text);
+  color: var(--warn);
   font-weight: var(--fw-medium);
 }
 
 .k-dot--bad .k-dot__label {
-  color: var(--bad-text);
+  color: var(--bad);
 }
 
 .k-dot--pulse .k-dot__mark::after {
@@ -66,6 +66,35 @@
     opacity: 0;
   }
 }
+
+/* The state line: the glyph carries the tone; the words stay in the first ink unless the tone is good or bad. */
+.k-st {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-note);
+  vertical-align: middle;
+}
+
+.k-st .k-icon {
+  flex: none;
+  color: var(--ink-2);
+}
+
+.k-st__text {
+  min-width: 0;
+}
+
+.k-st--good,
+.k-st--good .k-icon { color: var(--good); }
+.k-st--bad,
+.k-st--bad .k-icon { color: var(--bad); }
+.k-st--warn .k-icon { color: var(--warn); }
+.k-st--info .k-icon { color: var(--accent); }
 
 @media (prefers-reduced-motion: reduce) {
   .k-dot--pulse .k-dot__mark::after {

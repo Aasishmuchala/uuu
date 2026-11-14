@@ -1,9 +1,11 @@
-// The one button. `primary` is the near-black one; `accept` is the large green Accept and nothing else.
-import { html } from "../vendor/preact-htm.js";
+// The one button, and the locked action. `primary` (and `accept`, the same drawing, always large) is the one accent
+// fill: one per screen, on its decision. `plain` is the outlined control; `quiet` (also called `ghost`) is words that
+// fill on hover; `link` is a text link for a secondary way out; `danger` speaks in the problem colour.
+import { html, useState } from "../vendor/preact-htm.js";
 import { Icon } from "./icon.js";
-import { cx, isEmpty, safeHref } from "./util.js";
+import { cx, isEmpty, nextId, safeHref } from "./util.js";
 
-const VARIANTS = ["primary", "plain", "quiet", "danger", "accept"];
+const VARIANTS = ["primary", "plain", "quiet", "ghost", "link", "danger", "accept"];
 const SIZES = ["sm", "md", "lg"];
 const TYPES = ["button", "submit", "reset"];
 
@@ -34,4 +36,25 @@ export function Button({ variant = "plain", size = "md", busy, disabled, type = 
     aria-busy=${busy ? "true" : undefined}
     onClick=${onClick}
   >${inner}</button>`;
+}
+
+// An action that cannot be taken yet, with its reason fused under it. Not a disabled button: a group whose label is
+// read with its reason, so a screen reader hears why. `children` is the way out (the one primary, under it).
+// `tag` is the small word beside the label; an empty tag draws none.
+export function LockedAction({ label, why, tag = "Locked", children }) {
+  const [id] = useState(() => nextId("k-locked"));
+  const hasWhy = !isEmpty(why);
+  const hasTag = !isEmpty(tag);
+  return html`<div class="k-locked" role="group" aria-label=${typeof label === "string" ? label : undefined}
+    aria-describedby=${hasWhy ? `${id}-why` : undefined}>
+    <div class="k-locked__block">
+      <div class="k-locked__action">
+        <${Icon} name="lock" size=${16} />
+        <span class="k-locked__label">${label}</span>
+        ${hasTag ? html`<span class="k-locked__tag">${tag}</span>` : null}
+      </div>
+      ${hasWhy ? html`<p class="k-locked__why" id=${`${id}-why`}>${why}</p>` : null}
+    </div>
+    ${isEmpty(children) ? null : html`<div class="k-locked__out">${children}</div>`}
+  </div>`;
 }

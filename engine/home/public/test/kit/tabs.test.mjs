@@ -14,5 +14,17 @@ test("Tabs wrap onto a second line instead of hiding tabs off the edge", () => {
   assert.doesNotMatch(row, /overflow-x:\s*auto/);
 });
 
+test("Tabs: the current tab is in the first ink with a 2 px accent line under it; the others are words", () => {
+  const css = readFileSync(join(PUBLIC, "styles", "kit", "tabs.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const tab = /\.k-tabs__tab\s*\{([^}]*)\}/.exec(css)[1];
+  assert.match(tab, /border-bottom: 2px solid transparent;/);
+  assert.match(tab, /background: transparent;/);
+  assert.match(tab, /color: var\(--ink-2\);/);
+  const on = /\.k-tabs__tab--on,[^{]*\{([^}]*)\}/.exec(css)[1];
+  assert.match(on, /color: var\(--ink\);/);
+  assert.match(on, /border-bottom-color: var\(--accent\);/);
+  assert.doesNotMatch(css, /r-pill/);
+});
+
 primitiveSheetTests("tabs");
 narrowControlsTest("tabs");

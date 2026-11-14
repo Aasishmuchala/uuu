@@ -1,4 +1,5 @@
-// The pill control: a row of choices in one glass capsule, the current one a solid pill.
+// The segmented control: a row of choices on one outlined track, the current one lifted (the raised step and the
+// accent edge).
 // Items with `href` are links (the current one carries aria-current="page"); without, buttons with aria-pressed.
 // Left and Right (and Home, End) move between the items; Enter or Space picks one.
 import { html } from "../vendor/preact-htm.js";
@@ -19,7 +20,7 @@ export function segStep(index, count, key) {
 }
 
 // Marks the control `k-seg--more` while it is wider than its box and not scrolled to its end: the cut edge
-// then fades, so the choices out of sight are known to be there (M18-29). A ref callback, not a hook, so the
+// then shows a hairline, so the choices out of sight are known to be there (M18-29). A ref callback, not a hook, so the
 // control stays a plain function that can also be called directly.
 function watchMore(el) {
   if (!el || el.__kSegMore || typeof el.scrollWidth !== "number" || !el.classList) return;

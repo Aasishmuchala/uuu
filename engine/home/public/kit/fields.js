@@ -1,4 +1,5 @@
-// Form controls. A Field gives its label, hint and error to the control inside it (TextInput, TextArea, Select).
+// Form controls. A Field gives its label, hint and error to the control inside it (TextInput, TextArea, Select,
+// MoneyInput).
 import { createContext, html, useContext, useLayoutEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { Icon } from "./icon.js";
 import { cx, nextId } from "./util.js";
@@ -70,6 +71,26 @@ export function Select({ options, ...props }) {
       ${list.map((o) => html`<option key=${o.value} value=${o.value} disabled=${o.disabled}>${o.label ?? o.value}</option>`)}
     </select>
     <${Icon} name="chevron-down" size=${16} class="k-select__chevron" />
+  </span>`;
+}
+
+// An amount of money: the currency sign, then the number right-aligned in tabular figures. It takes a string and
+// gives the string typed (`onInput(text)`), so nothing is rounded here; the page checks and converts it.
+export function MoneyInput({ value, onInput, label, currency = "$", ...props }) {
+  const p = useFieldProps(props);
+  const text = value === undefined || value === null ? "" : String(value);
+  return html`<span class=${cx("k-money-input", props.disabled && "k-money-input--disabled", props.class)}>
+    <span class="k-money-input__sign" aria-hidden="true">${currency}</span>
+    <input
+      type="text"
+      inputmode="decimal"
+      autocomplete="off"
+      aria-label=${typeof label === "string" && label ? label : undefined}
+      ...${p}
+      class="k-money-input__control"
+      value=${text}
+      onInput=${(event) => onInput && onInput(String(event.currentTarget ? event.currentTarget.value : event.target.value))}
+    />
   </span>`;
 }
 

@@ -1,5 +1,7 @@
-// A Tag is a small word with a tone (FYI, Passed); a Chip is a quiet pill with an icon (the schedule, the size)
-// or a coloured dot (a department's job, a state).
+// A Tag is a small word with a tone (FYI, Passed); a Chip is a quiet label with an icon (the schedule, the size)
+// or a coloured dot (a department's job, a state). Both are 12 px on a 5 px corner, grey by default; a tone puts the
+// words in its colour on its 12 percent tint. A chip given `onClick` is a toggle (a filter): a button whose
+// `on` state is lifted like every selected thing.
 import { html } from "../vendor/preact-htm.js";
 import { Icon } from "./icon.js";
 import { cx } from "./util.js";
@@ -23,10 +25,13 @@ function Dot({ dot }) {
 }
 
 // `icon` is an icon name (a string) or anything renderable.
-export function Chip({ icon, dot, children }) {
-  return html`<span class="k-chip">
-    ${dot !== undefined && dot !== null && dot !== false ? html`<${Dot} dot=${dot} />` : null}
+export function Chip({ icon, dot, on, onClick, children }) {
+  const inner = html`${dot !== undefined && dot !== null && dot !== false ? html`<${Dot} dot=${dot} />` : null}
     ${typeof icon === "string" ? html`<${Icon} name=${icon} size=${12} />` : icon || null}
-    <span class="k-chip__text">${children}</span>
-  </span>`;
+    <span class="k-chip__text">${children}</span>`;
+  if (typeof onClick === "function") {
+    return html`<button type="button" class=${cx("k-chip", "k-chip--toggle", on && "k-chip--on")}
+      aria-pressed=${on ? "true" : "false"} onClick=${onClick}>${inner}</button>`;
+  }
+  return html`<span class="k-chip">${inner}</span>`;
 }

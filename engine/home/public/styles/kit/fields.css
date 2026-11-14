@@ -1,92 +1,99 @@
 /* kit/fields.js: a label above, the control, a hint or an error (with an icon, not colour alone) below.
-   Controls are glass with a stronger hairline; the focused one gets the accent edge. */
+   Inputs, text areas, selects and the money input share one look: 36 px, the control corner, a firm edge on the
+   field fill, the placeholder in the third ink. The pointer firms the edge; focus turns it to the accent and the
+   2 px ring (base.css) shows outside it. Disabled is the inert raised fill with the third ink. */
 
 .k-field {
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
+  gap: 6px;
   min-width: 0;
 }
 
 .k-field__label {
-  font-size: var(--fs-body);
+  font-size: var(--fs-ui);
   font-weight: var(--fw-medium);
-  color: var(--text);
+  line-height: var(--lh-ui);
+  color: var(--ink);
 }
 
 .k-field__hint {
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
 }
 
 .k-field__error {
   display: flex;
   align-items: flex-start;
   gap: var(--s-1);
-  font-size: var(--fs-caption);
-  color: var(--bad-text);
-}
-
-.k-field__error .k-icon {
-  margin-top: 1px;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   color: var(--bad);
 }
 
-/* Text inputs, text areas and the select share one look. */
+.k-field__error .k-icon {
+  margin-top: 2px;
+  color: var(--bad);
+}
+
+/* Text inputs, text areas, the select and the money input share one look. */
 .k-input,
 .k-textarea,
-.k-select__control {
+.k-select__control,
+.k-money-input {
   width: 100%;
   min-height: var(--h-md);
   padding: 0 var(--s-3);
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-3);
-  background: var(--glass);
-  box-shadow: var(--highlight);
-  color: var(--text);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--field);
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
   transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
 
 .k-input::placeholder,
-.k-textarea::placeholder {
-  color: var(--text-3);
+.k-textarea::placeholder,
+.k-money-input__control::placeholder {
+  color: var(--ink-3);
 }
 
-.k-input:hover,
-.k-textarea:hover,
-.k-select__control:hover {
-  border-color: var(--text-3);
-  background: var(--glass-strong);
+.k-input:hover:not(:disabled),
+.k-textarea:hover:not(:disabled),
+.k-select__control:hover:not(:disabled),
+.k-money-input:hover:not(.k-money-input--disabled) {
+  border-color: var(--ink-3);
 }
 
 .k-input:focus,
 .k-textarea:focus,
-.k-select__control:focus {
-  outline: none;
-  border-color: var(--focus);
-  box-shadow: 0 0 0 1px var(--focus);
+.k-select__control:focus,
+.k-money-input:focus-within {
+  border-color: var(--accent);
 }
 
 .k-input:disabled,
 .k-textarea:disabled,
-.k-select__control:disabled {
-  color: var(--text-3);
-  background: var(--glass-soft);
-  cursor: default;
+.k-select__control:disabled,
+.k-money-input--disabled {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--ink) 5%, var(--raise));
+  color: var(--ink-3);
+  cursor: not-allowed;
 }
 
 .k-input[aria-invalid="true"],
 .k-textarea[aria-invalid="true"],
-.k-select__control[aria-invalid="true"] {
+.k-select__control[aria-invalid="true"],
+.k-money-input:has([aria-invalid="true"]) {
   border-color: var(--bad);
 }
 
 .k-textarea {
   display: block;
   padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-3);
   resize: vertical;
 }
 
@@ -114,11 +121,49 @@
   top: 50%;
   right: var(--s-3);
   transform: translateY(-50%);
-  color: var(--text-3);
+  color: var(--ink-2);
   pointer-events: none;
 }
 
-/* The switch: label at the left, the word On or Off and the track at the right. */
+/* The money input: 116 px, the sign in the third ink, the number right-aligned in tabular figures. The ring is
+   drawn around the whole box, not the bare number inside it. */
+.k-money-input {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  width: 116px;
+  font-weight: var(--fw-medium);
+}
+
+.k-money-input:has(.k-money-input__control:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.k-money-input__sign {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.k-money-input__control {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.k-money-input__control:disabled {
+  cursor: not-allowed;
+}
+
+/* The switch: label at the left, the word On or Off and the 38 x 22 track at the right. */
 .k-switch {
   display: flex;
   flex-direction: column;
@@ -134,9 +179,11 @@
   min-height: var(--h-md);
   padding: 0;
   border: 0;
+  border-radius: var(--r-2);
   background: transparent;
-  color: var(--text);
-  font-size: var(--fs-body);
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
   text-align: left;
   cursor: pointer;
 }
@@ -149,62 +196,89 @@
 
 .k-switch__state {
   flex: none;
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  font-size: var(--fs-note);
+  color: var(--ink-2);
 }
 
 .k-switch__track {
   position: relative;
   flex: none;
-  width: calc(var(--s-8) + var(--s-1));
-  height: var(--s-5);
+  width: 38px;
+  height: 22px;
   border-radius: var(--r-round);
-  background: var(--hairline-strong);
-  transition: background-color var(--t-med) var(--ease);
+  background: var(--raise-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: background-color var(--t-fast) var(--ease);
 }
 
 .k-switch__thumb {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: calc(var(--s-5) - 4px);
-  height: calc(var(--s-5) - 4px);
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
   border-radius: var(--r-round);
-  background: var(--text);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--canvas) 40%, transparent);
-  transition: transform var(--t-med) var(--ease);
+  background: var(--ink-2);
+  transition: transform var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+
+.k-switch__control:hover .k-switch__thumb {
+  background: var(--ink);
 }
 
 .k-switch--on .k-switch__track {
-  background: var(--primary);
+  background: var(--accent-fill);
+  box-shadow: none;
 }
 
-.k-switch--on .k-switch__thumb {
-  transform: translateX(calc(var(--s-8) + var(--s-1) - var(--s-5)));
-  background: var(--primary-text);
+.k-switch--on .k-switch__thumb,
+.k-switch--on .k-switch__control:hover .k-switch__thumb {
+  transform: translateX(16px);
+  background: var(--accent-ink);
+}
+
+.k-switch--on .k-switch__control:hover .k-switch__track {
+  background: color-mix(in srgb, var(--accent-fill) 88%, var(--accent-ink));
 }
 
 .k-switch--disabled .k-switch__control {
-  cursor: default;
+  cursor: not-allowed;
 }
 
 /* Switched off: only the track is greyed; the title keeps its weight and colour. */
+.k-switch--disabled .k-switch__track,
+.k-switch--disabled.k-switch--on .k-switch__track,
+.k-switch--disabled.k-switch--on .k-switch__control:hover .k-switch__track {
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
 
-.k-switch--disabled .k-switch__track {
-  opacity: 0.5;
+.k-switch--disabled .k-switch__thumb,
+.k-switch--disabled .k-switch__control:hover .k-switch__thumb,
+.k-switch--disabled.k-switch--on .k-switch__thumb {
+  background: var(--ink-3);
 }
 
 /* The note sits just under the label: the control is taller than its line, so it is pulled up. */
 .k-switch__explain {
   margin-top: calc(var(--s-2) * -1);
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-switch__thumb,
+  .k-switch__track {
+    transition: none;
+  }
 }
 
 @media (max-width: 859px) {
   .k-input,
   .k-select__control,
-  .k-switch__control {
+  .k-switch__control,
+  .k-money-input {
     min-height: calc(var(--h-lg) + var(--s-1));
   }
 

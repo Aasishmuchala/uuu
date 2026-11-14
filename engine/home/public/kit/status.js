@@ -1,5 +1,6 @@
 // A small coloured mark plus a word: how every state is shown. Never colour alone.
 import { html } from "../vendor/preact-htm.js";
+import { Icon } from "./icon.js";
 import { cx } from "./util.js";
 
 const TONES = ["live", "ok", "wait", "warn", "bad", "off"];
@@ -26,4 +27,18 @@ export function Waiting({ hideLabel } = {}) {
 // The live mark.
 export function Live({ hideLabel } = {}) {
   return html`<${StatusDot} tone="live" label="Working" hideLabel=${hideLabel} />`;
+}
+
+// A state in a line: a 14 px glyph in the tone's colour and the words beside it. The words stay in the first ink
+// unless the tone is good or bad. `icon` replaces the tone's own glyph.
+const ST_TONES = ["neutral", "good", "warn", "bad", "info"];
+const ST_ICONS = { neutral: null, good: "check", warn: "alert", bad: "cross", info: "info" };
+
+export function St({ tone = "neutral", icon, children }) {
+  const t = ST_TONES.includes(tone) ? tone : tone === "ok" ? "good" : "neutral";
+  const glyph = typeof icon === "string" ? icon : ST_ICONS[t];
+  return html`<span class=${cx("k-st", `k-st--${t}`)}>
+    ${glyph ? html`<${Icon} name=${glyph} size=${14} />` : null}
+    <span class="k-st__text">${children}</span>
+  </span>`;
 }

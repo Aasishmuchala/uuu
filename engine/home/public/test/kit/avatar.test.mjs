@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { KIT } from "./_dom.mjs";
-import { primitiveSheetTests } from "./_rules.mjs";
+import { css, primitiveSheetTests } from "./_rules.mjs";
 
 const kit = { avatar: await import(pathToFileURL(join(KIT, "avatar.js")).href) };
 
@@ -16,6 +16,15 @@ test("initials: the pinned vectors", () => {
   assert.equal(initials(""), "?");
   assert.equal(initials(undefined), "?");
   assert.equal(initials("sales agent"), "SA");
+});
+
+test("an avatar is round with a hairline edge: no ring glow, no spaced initials", () => {
+  const s = css("kit/avatar.css");
+  const root = /\.k-avatar\s*\{([^}]*)\}/.exec(s)[1];
+  assert.match(root, /border-radius: var\(--r-round\);/);
+  assert.match(root, /box-shadow: inset 0 0 0 1px var\(--line\);/);
+  for (const sh of s.matchAll(/box-shadow:\s*([^;]+);/g)) assert.doesNotMatch(sh[1], /\d+px \d+px [1-9]/, "no blurred shadow");
+  assert.doesNotMatch(s, /letter-spacing/);
 });
 
 primitiveSheetTests("avatar");
