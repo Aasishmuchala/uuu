@@ -2,10 +2,18 @@
 # Copies the craft playbooks named in engine/playbooks/manifest.json from the
 # owner's own skill folders on this Mac (~/.claude/skills) into
 # state/playbooks/<name>/, where every agent may read them and none may write.
+# A playbook whose source is "own:<folder>" is read from engine/playbooks/own/<folder>/
+# (the repo's own playbooks, .md files only) instead; that folder is only read, never removed.
 # Downloads nothing. Only reading material is copied: the named files of each
 # playbook (.md, .txt and .json only, at most 512 KB a file, 20 MB in all),
 # never a whole folder, never scripts, a .venv, a site/ folder or a program.
 # A link that leaves its playbook's folder is skipped and said.
+#
+# The site kit (PLAN-V5 K16, C18) is the one named exception: the five files of
+# engine/site-kit/ beside this folder (reset.css, layout.css, reveal.js, gallery.js
+# and README.md; .css, .js and .md only, at most 64 KB each, no link followed) are
+# copied to state/playbooks/site-kit/ and listed in index.json as the engine's own.
+# That folder is never removed as "not in the manifest".
 #
 # Usage: engine/playbooks/install.sh [--check-only]
 #   --check-only   prints "Playbooks: <n> installed" (exit 0) or "Playbooks: not installed" (exit 1)
@@ -15,30 +23,34 @@
 # removed. A missing skill folder is one plain line, never an error. Safe to run
 # again: a copy that is already right is left alone, file for file.
 #
-# For tests only: ENGINE_PLAYBOOKS_SOURCE stands in for ~/.claude/skills and
-# ENGINE_PLAYBOOKS_DEST for state/playbooks.
+# For tests only: ENGINE_PLAYBOOKS_SOURCE stands in for ~/.claude/skills,
+# ENGINE_PLAYBOOKS_OWN for engine/playbooks/own, ENGINE_SITE_KIT_SOURCE for engine/site-kit
+# and ENGINE_PLAYBOOKS_DEST for state/playbooks.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/../lib/config.sh" || { echo "engine config: could not be read" >&2; exit 1; }
 
 MANIFEST="$HERE/manifest.json"
 SOURCE_ROOT="${ENGINE_PLAYBOOKS_SOURCE:-$HOME/.claude/skills}"
+OWN_ROOT="${ENGINE_PLAYBOOKS_OWN:-$HERE/own}"
+SITE_KIT_ROOT="${ENGINE_SITE_KIT_SOURCE:-$HERE/../site-kit}"
 DEST="${ENGINE_PLAYBOOKS_DEST:-${CFG_PLAYBOOKS:-$CFG_STATE/playbooks}}"
 
 die() { echo "playbooks: $*" >&2; exit 1; }
 
 # Everything that reads JSON, matches names or copies bytes is done here, by the
-# system Python in isolated mode. Arguments: mode, manifest, source root, dest.
+# system Python in isolated mode. Arguments: mode, manifest, source root, dest, own root, site kit.
 run_py() {
   /usr/bin/python3 -I - "$@" <<'PY'
 import errno, fnmatch, json, os, re, shutil, stat, sys
 
-MODE, MANIFEST, SOURCE_ROOT, DEST = sys.argv[1:5]
+MODE, MANIFEST, SOURCE_ROOT, DEST, OWN_ROOT, SITE_KIT_ROOT = sys.argv[1:7]
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 SOURCE_RE = re.compile(r"^~/\.claude/skills/([A-Za-z0-9][A-Za-z0-9._-]{0,99})$")
+OWN_RE = re.compile(r"^own:([a-z0-9][a-z0-9-]{0,39})$")
 SLUG_RE = re.compile(r"^[a-z][a-z0-9-]{0,39}$")
 LICENCE_RE = re.compile(r"^(?:(?:LICEN[CS]E|NOTICE|COPYING)(?:\.(?:md|txt))?|SKILL\.md)$")
-KINDS = {"post", "newsletter", "carousel", "poster", "title-card", "film", "page"}
+KINDS = {"post", "newsletter", "carousel", "poster", "title-card", "film", "page", "still"}
 ENDINGS = (".md", ".txt", ".json")
 NEVER = {"scripts", "site", ".venv", "venv", "node_modules", ".git", "tests", "__pycache__"}
 NOTE_FILE = "IN-THIS-ENGINE.md"
@@ -46,6 +58,13 @@ INDEX = "index.json"
 FILE_MAX = 512 * 1024
 TOTAL_MAX = 20 * 1024 * 1024
 MANIFEST_MAX = 1024 * 1024
+# The site kit (C18): the engine's own files for pages, copied beside the playbooks under this name.
+SITE_KIT = "site-kit"
+SITE_KIT_FILES = ("reset.css", "layout.css", "reveal.js", "gallery.js", "README.md")
+SITE_KIT_ENDINGS = (".css", ".js", ".md")
+SITE_KIT_MAX = 64 * 1024
+SITE_KIT_ROW = {"origin": "own", "licence": "this engine's own", "roles": ["builder", "art-director"], "kinds": ["page"]}
+SHOWN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 
 
 def say(msg):
@@ -93,7 +112,7 @@ def bad(msg):
     die("the manifest is not right: " + msg + ". Nothing was changed.")
 
 
-def check_pattern(name, pat, licence=False):
+def check_pattern(name, pat, licence=False, own=False):
     if not isinstance(pat, str) or not pat or len(pat) > 200:
         bad("%s has an empty or overlong file entry" % name)
     if pat.startswith("/") or "\\" in pat:
@@ -105,6 +124,8 @@ def check_pattern(name, pat, licence=False):
     if licence:
         if len(segs) != 1 or not LICENCE_RE.match(pat):
             bad("%s: %s is not a licence file name" % (name, pat))
+    elif own and not segs[-1].lower().endswith(".md"):
+        bad("%s: %s does not end in .md (an own playbook holds .md files only)" % (name, pat))
     elif not segs[-1].lower().endswith(ENDINGS):
         bad("%s: %s does not end in .md, .txt or .json" % (name, pat))
 
@@ -126,9 +147,12 @@ def load_manifest():
         name = p.get("name")
         if not isinstance(name, str) or not NAME_RE.match(name) or name in seen:
             bad("a playbook name is missing, repeated or not in plain lower-case letters")
+        if name == SITE_KIT:
+            bad("%s is the name of the engine's site kit, never of a playbook" % name)
         seen.add(name)
-        if not isinstance(p.get("source"), str) or not SOURCE_RE.match(p["source"]):
-            bad("%s: the source must be ~/.claude/skills/<folder>" % name)
+        if not isinstance(p.get("source"), str) or not (SOURCE_RE.match(p["source"]) or OWN_RE.match(p["source"])):
+            bad("%s: the source must be ~/.claude/skills/<folder> or own:<folder>" % name)
+        own = bool(OWN_RE.match(p["source"]))
         if p.get("origin") not in ("own", "third-party"):
             bad("%s: the origin must be own or third-party" % name)
         if not isinstance(p.get("licence"), str) or not p["licence"].strip():
@@ -139,7 +163,7 @@ def load_manifest():
         if not p["files"]:
             bad("%s names no files" % name)
         for pat in p["files"]:
-            check_pattern(name, pat)
+            check_pattern(name, pat, own=own)
         for pat in p["licenceFiles"]:
             check_pattern(name, pat, licence=True)
         if not all(isinstance(r, str) and SLUG_RE.match(r) for r in p["roles"]):
@@ -156,7 +180,7 @@ def inside(path, root):
     return path == root or path.startswith(root + os.sep)
 
 
-def expand(name, root, pat, licence, said):
+def expand(name, root, pat, licence, said, own=False):
     """The files under root that one pattern names, as (relative path, real path).
     '*' never crosses a '/', never matches a name starting with '.', and a link is
     followed only when it stays inside root."""
@@ -205,33 +229,45 @@ def expand(name, root, pat, licence, said):
     walk(root, [], 0)
     if not licence:
         found = [f for f in found if f[0].lower().endswith(ENDINGS)]
+        if own:
+            found = [f for f in found if f[0].lower().endswith(".md")]
     return found
 
 
 def note_text(p, count):
     who = "the owner's own playbook" if p["origin"] == "own" else "a third party's playbook"
+    where = "the engine's own playbooks" if OWN_RE.match(p["source"]) else "the owner's skill folders on this Mac"
     return (
-        "# %s: in this engine\n\n%s\n\nThis is %s (licence: %s), copied from the owner's skill folders on this Mac: %s. "
+        "# %s: in this engine\n\n%s\n\nThis is %s (licence: %s), copied from %s: %s. "
         "It is read-only here, and the installer replaces this folder when the playbook changes.\n"
-        % (p["name"], p["note"], who, p["licence"], files(count))
+        % (p["name"], p["note"], who, p["licence"], where, files(count))
     ).encode("utf-8")
 
 
 def plan_one(p):
     """Returns {relative path: bytes} for one playbook, or None when there is nothing to copy."""
-    folder = SOURCE_RE.match(p["source"]).group(1)
-    src = os.path.join(SOURCE_ROOT, folder)
-    try:
-        st = os.stat(src)
-    except OSError:
-        st = None
+    own = OWN_RE.match(p["source"])
+    if own:
+        src = os.path.join(OWN_ROOT, own.group(1))
+        try:
+            st = os.lstat(src)  # an own folder must be a real folder, never a link
+        except OSError:
+            st = None
+        where = "in the engine"
+    else:
+        src = os.path.join(SOURCE_ROOT, SOURCE_RE.match(p["source"]).group(1))
+        try:
+            st = os.stat(src)
+        except OSError:
+            st = None
+        where = "on this Mac"
     if st is None or not stat.S_ISDIR(st.st_mode):
-        return None, "%s: skipped: its folder is not on this Mac (%s)." % (p["name"], p["source"])
+        return None, "%s: skipped: its folder is not %s (%s)." % (p["name"], where, p["source"])
     root = os.path.realpath(src)
     want, said = {}, set()
     for licence, pats in ((False, p["files"]), (True, p["licenceFiles"] if p["origin"] == "third-party" else [])):
         for pat in pats:
-            hits = expand(p["name"], root, pat, licence, said)
+            hits = expand(p["name"], root, pat, licence, said, bool(own))
             if not hits and not any(s.startswith(pat.split("*")[0]) for s in said):
                 say("%s: %s matched nothing in its folder." % (p["name"], pat))
             for rel, real, size in hits:
@@ -251,6 +287,51 @@ def plan_one(p):
     if not want:
         return None, "%s: skipped: none of its named files are in %s." % (p["name"], p["source"])
     want[NOTE_FILE] = note_text(p, len(want))
+    return want, None
+
+
+def plan_site_kit():
+    """Returns ({file name: bytes}, None) for the site kit, or (None, why) when there is nothing to copy. Only
+    the five named files, each a plain file (never through a link) ending .css, .js or .md, of at most 64 KB."""
+    try:
+        st = os.lstat(SITE_KIT_ROOT)  # the kit's folder must be a real folder, never a link
+    except OSError:
+        st = None
+    if st is None or not stat.S_ISDIR(st.st_mode):
+        return None, "%s: skipped: its folder is not in the engine (engine/site-kit)." % SITE_KIT
+    try:
+        names = sorted(os.listdir(SITE_KIT_ROOT))
+    except OSError:
+        return None, "%s: skipped: its folder could not be listed." % SITE_KIT
+    want = {}
+    for n in names:
+        shown = n if SHOWN_RE.match(n) else "a file with an unusual name"
+        if n not in SITE_KIT_FILES:
+            say("%s: skipped %s: the site kit holds only %s." % (SITE_KIT, shown, ", ".join(SITE_KIT_FILES)))
+            continue
+        try:
+            st = os.lstat(os.path.join(SITE_KIT_ROOT, n))
+        except OSError:
+            continue
+        if stat.S_ISLNK(st.st_mode):
+            say("%s: skipped %s: it is a link, and the installer follows no link." % (SITE_KIT, shown))
+            continue
+        if not stat.S_ISREG(st.st_mode) or not n.endswith(SITE_KIT_ENDINGS):
+            say("%s: skipped %s: it is not a plain .css, .js or .md file." % (SITE_KIT, shown))
+            continue
+        if st.st_size > SITE_KIT_MAX:
+            say("%s: skipped %s: it is over 64 KB." % (SITE_KIT, shown))
+            continue
+        data = read_capped(os.path.join(SITE_KIT_ROOT, n), SITE_KIT_MAX)
+        if data is None:
+            say("%s: skipped %s: it could not be read as a plain file of at most 64 KB." % (SITE_KIT, shown))
+            continue
+        want[n] = data
+    for n in SITE_KIT_FILES:
+        if n not in want and n not in names:
+            say("%s: %s is not in the engine's site kit." % (SITE_KIT, n))
+    if not want:
+        return None, "%s: skipped: none of its files are in the engine (engine/site-kit)." % SITE_KIT
     return want, None
 
 
@@ -334,6 +415,10 @@ def index_rows(playbooks):
             "roles": p["roles"], "kinds": p["kinds"], "files": files,
             "bytes": sum(len(tree[r]) for r in files),
         })
+    tree = read_tree(os.path.join(DEST, SITE_KIT))
+    if tree:
+        files = sorted(tree)
+        rows.append(dict({"name": SITE_KIT}, **SITE_KIT_ROW, files=files, bytes=sum(len(tree[r]) for r in files)))
     return rows
 
 
@@ -385,13 +470,19 @@ def install():
             continue
         plans.append((p, want))
         total += sum(len(b) for b in want.values())
+    kit, why = plan_site_kit()
+    if kit is None:
+        say(why if not os.path.isdir(os.path.join(DEST, SITE_KIT)) else why + " The copy installed earlier is kept.")
+    else:
+        total += sum(len(b) for b in kit.values())
     if total > TOTAL_MAX:
         die("the named files come to %s, over the 20 MB limit. Nothing was changed." % kb(total))
 
-    for p, want in plans:
+    for p, want in plans + ([({"name": SITE_KIT}, kit)] if kit else []):
         top = os.path.join(DEST, p["name"])
+        count = len(want) if p["name"] == SITE_KIT else len(want) - 1   # the site kit has no note of the engine's
         if read_tree(top) == want:
-            say("%s: already in place (%s)." % (p["name"], files(len(want) - 1)))
+            say("%s: already in place (%s)." % (p["name"], files(count)))
             continue
         new, old = os.path.join(DEST, ".new-" + p["name"]), os.path.join(DEST, ".old-" + p["name"])
         remove(new)
@@ -402,14 +493,14 @@ def install():
             os.rename(top, old)
         os.rename(new, top)
         remove(old)
-        say("%s: %s, %s (%s)." % (p["name"], "updated" if existed else "installed", files(len(want) - 1),
+        say("%s: %s, %s (%s)." % (p["name"], "updated" if existed else "installed", files(count),
                                        kb(sum(len(b) for b in want.values()))))
 
     names = {p["name"] for p in playbooks}
     for entry in sorted(os.listdir(DEST)):
         full = os.path.join(DEST, entry)
-        if entry == INDEX or entry in names:
-            continue
+        if entry == INDEX or entry in names or entry == SITE_KIT:
+            continue        # the site kit's folder is the engine's own, never "not in the manifest" (C18)
         if entry.startswith(".new-") or entry.startswith(".old-"):
             remove(full)
         elif NAME_RE.match(entry) and (os.path.islink(full) or ours(full)):
@@ -431,8 +522,9 @@ def install():
         finally:
             os.close(fd)
         os.rename(tmp, idx)
-    size = sum(r["bytes"] for r in rows)
-    say("%d of %d playbooks installed (%s of reading)." % (len(rows), len(playbooks), kb(size)))
+    books = [r for r in rows if r["name"] != SITE_KIT]
+    size = sum(r["bytes"] for r in books)
+    say("%d of %d playbooks installed (%s of reading)." % (len(books), len(playbooks), kb(size)))
     return 0
 
 
@@ -442,9 +534,9 @@ PY
 
 if [ "${1:-}" = "--check-only" ]; then
   [ $# -eq 1 ] || die "--check-only takes nothing else"
-  run_py check "$MANIFEST" "$SOURCE_ROOT" "$DEST"
+  run_py check "$MANIFEST" "$SOURCE_ROOT" "$DEST" "$OWN_ROOT" "$SITE_KIT_ROOT"
   exit $?
 fi
 [ $# -eq 0 ] || die "unknown option $1 (usage: engine/playbooks/install.sh [--check-only])"
 
-run_py install "$MANIFEST" "$SOURCE_ROOT" "$DEST"
+run_py install "$MANIFEST" "$SOURCE_ROOT" "$DEST" "$OWN_ROOT" "$SITE_KIT_ROOT"

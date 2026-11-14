@@ -50,7 +50,7 @@ async function start(home, path, body) {
   return { r, sent: posts(home).slice(seen) };
 }
 
-test("GET /api/jobs fits shape jobs: seven departments, the hand-offs, the four stages, 69 jobs", async () => {
+test("GET /api/jobs fits shape jobs: seven departments, the hand-offs, the four stages, 72 jobs", async () => {
   forgetNeeds();
   const r = await get(h, "/api/jobs");
   assert.equal(r.status, 200, r.text);
@@ -58,11 +58,11 @@ test("GET /api/jobs fits shape jobs: seven departments, the hand-offs, the four 
   assert.deepEqual(r.json.departments.map((d) => d.id), ["operations", "sales", "marketing", "studio", "support", "people", "books"]);
   assert.deepEqual(r.json.handoffs.map((x) => x.label), ["You lead", "You approve", "On its own"]);
   assert.deepEqual(r.json.stages.map((s) => [s.n, s.label]), [[1, "Foundations"], [2, "Take in"], [3, "Make"], [4, "Hand on"]]);
-  assert.equal(r.json.totals.jobs, 69);
-  assert.equal(r.json.stages.reduce((n, s) => n + s.jobs, 0), 69);
+  assert.equal(r.json.totals.jobs, 72);
+  assert.equal(r.json.stages.reduce((n, s) => n + s.jobs, 0), 72);
   assert.equal(r.json.stages.reduce((n, s) => n + s.ready, 0), r.json.totals.ready);
   const all = r.json.departments.flatMap((d) => d.clusters.flatMap((c) => c.jobs));
-  assert.equal(all.length, 69);
+  assert.equal(all.length, 72);
   assert.equal(r.json.totals.ready, all.filter((j) => j.ready).length);
   assert.deepEqual(r.json.problems, []);
   assert.deepEqual(writes(h.board), [], "reading the jobs writes nothing");
@@ -352,7 +352,7 @@ test("start: the board off is 502 and writes no record", async () => {
     assert.deepEqual(decisions(home), before0);
     const list = await get(home, "/api/jobs");
     assert.equal(list.status, 200, "the catalogue still shows with the board off");
-    assert.equal(list.json.totals.jobs, 69);
+    assert.equal(list.json.totals.jobs, 72);
   });
 });
 

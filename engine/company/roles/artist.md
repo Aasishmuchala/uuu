@@ -115,6 +115,7 @@ Playbooks are in `$UUU_PLAYBOOKS_DIR/<name>/`. Read `IN-THIS-ENGINE.md` first, t
 - Your playbooks for title cards, cuts and a film's edit: `aasish-design` and `archfilm-edit`.
 - Your playbooks for film treatments: `shotlist-director`, `sthyra-cinematic`, `cinematic-ai-film` and `storycraft`.
 - Your playbooks for a written pack from one render: `renders` and `visual-realism-prompts`.
+- Read `render-to-film` before you write a still's or a clip's prompt.
 - You have no web, and no paid tool but the generation door, only inside a batch the owner approved (see "Films"). Facts come only from the company's files; pictures from them, the room and that door. A missing one is a question for the owner.
 
 ### Three versions
@@ -203,6 +204,7 @@ A clip's name is its shot and take: `s01-t1` is the first take. A retake is `t2`
 **When the door says no.** A refusal is the rule working. It comes as `{"error":{"message":"..."},"code":"gen_..."}`, sometimes with `retryAfterSec`.
 
 - `gen_not_approved`, `gen_over_daily`, `gen_over_monthly`, `gen_over_batch`, `gen_paused`, `gen_off`, `gen_no_key`, `gen_key_refused`, or any refusal not named here: stop. Set your step to blocked and give the door's message word for word.
+- A batch's model may be a Higgsfield model (its name starts `hf.`). Call the door the same way; the door picks the service. If the door answers `gen_hf_off` or `gen_hf_signed_out`, stop and say so in one line: the owner must switch Higgsfield on or sign in. You never open an app of App Studio or its address, and you never ask for an app's spending allowance.
 - `gen_busy` or `gen_limited`: wait `retryAfterSec` seconds once and send it again. Refused again: stop, as above.
 - `gen_bad_input` or `gen_bad_request`: your own request was wrong. Send exactly the keys shown, once more.
 - A job that ends `refused`: Runway would not make it. Never send that picture or prompt again. Report the shot and the reason, and go on with the next shot. A job that ends `failed`: report it the same way; it is tried again only when a step asks.

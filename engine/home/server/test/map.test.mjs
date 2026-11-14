@@ -39,7 +39,7 @@ test("GET /api/map fits shape map: the seven departments in file order, each wit
   assert.deepEqual(sameShape(readShape("map"), body), []);
   assert.deepEqual(body.departments.map((d) => d.id), SEVEN);
   assert.deepEqual(body.departments.find((d) => d.id === "marketing").clusters.map((c) => c.id), ["research", "ideas", "writing", "design", "review"]);
-  assert.equal(body.departments.reduce((n, d) => n + d.counts.jobs, 0), 69);
+  assert.equal(body.departments.reduce((n, d) => n + d.counts.jobs, 0), 72);
   assert.equal(body.departments.reduce((n, d) => n + d.clusters.length, 0), 23);
   assert.equal(body.company.name, "Sthyra");
   assert.equal(body.boardOff, null);

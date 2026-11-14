@@ -1,0 +1,76 @@
+{
+  "id": "a-landing-page",
+  "department": "marketing",
+  "cluster": "design",
+  "title": "A landing page",
+  "summary": "One web page for one purpose, built from your brand kit and your own pictures.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "builder"
+  ],
+  "size": "M",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "must"
+    },
+    {
+      "file": "brand/cant-say.md",
+      "need": "helps"
+    },
+    {
+      "file": "references/",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "subject",
+      "label": "What is the page for?",
+      "kind": "line",
+      "required": true
+    },
+    {
+      "id": "pictures",
+      "label": "Which pictures, by name, from your files?",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "facts",
+      "label": "Which company file holds the facts?",
+      "kind": "file",
+      "required": false,
+      "folder": "company"
+    },
+    {
+      "id": "action",
+      "label": "What should a visitor do? A link or an email address:",
+      "kind": "line",
+      "required": false
+    },
+    {
+      "id": "research",
+      "label": "Research notes to learn from:",
+      "kind": "task",
+      "required": false
+    }
+  ],
+  "needs": [
+    "browser"
+  ],
+  "takes": {
+    "from": [
+      "marketing/research-a-competitors-site",
+      "marketing/research-a-swipe-file"
+    ],
+    "ask": "research",
+    "label": "Make a landing page that learns from this"
+  },
+  "text": "Make one landing page for this: [subject]. Build it as a static site of HTML, CSS and a little JavaScript, from the brand kit and the site kit only: no package, and nothing fetched from anywhere. Copy these pictures from the company's files into the site: [pictures]. Take every fact from the company's files and invent none; read this one first: [facts]. Give a visitor one clear thing to do, with this link or email address when I give one: [action]. Look at every version through the page viewer at phone and desktop width and fix what it shows, at most three times, before you report. Nothing is published; the owner picks a version. If I name research notes here, learn from their layout and examples and copy none of them: [research]",
+  "produces": [
+    "site/*/index.html"
+  ]
+}

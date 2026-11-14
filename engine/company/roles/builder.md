@@ -42,12 +42,32 @@ Research notes are in `$UUU_RESEARCH_DIR/<goal id>/`, when a task names them: `r
 
 ### Pages
 
-A page is a static site: plain HTML, CSS and a little JavaScript, no package and no outside address. Put it in `site/<name>/` in the goal's sub-folder, with `index.html` first.
+A page is a static site: plain HTML, CSS and a little JavaScript, no package and no outside address. Put it in `site/<name>/` in the goal's sub-folder, with `index.html` first. Nothing is installed and nothing is fetched.
 
-- The brand kit is law. Copy `brand/kit.css` into the site folder byte for byte and never change it; take every colour, typeface, radius and smallest size from its `--brand-` properties. Copy in the kit's logo and fonts from `brand/`. Never a colour, a typeface or a logo of your own.
+- The brand kit is law. Copy `brand/kit.css` to the site's top byte for byte and never change it; take every colour, typeface, radius and smallest size from its `--brand-` properties, and write text sizes in rem or as `max(var(--brand-min-size), 1.25rem)`. Never a colour, a typeface or a logo of your own.
+- Copy the kit's font files from `brand/fonts/` into `fonts/` beside `kit.css`: the `.ttf` and `.otf` files only, never a `.ttc` (a page cannot use one; say so in your report). Copy the logo named in `brand/kit.json` from `brand/` and show it with `<img src>` inside the first `<header>` of `index.html`.
+- The site kit, this engine's own, is in `$UUU_PLAYBOOKS_DIR/site-kit/`: `reset.css`, `layout.css` (a spacing scale, a 12-column grid, a container with the kit's margin), `reveal.js` and `gallery.js`. Its `README.md` says how to link them. Copy in only the `.css` and `.js` files you use, unchanged, never its `README.md`. A library that is not there is not used.
+- No file or folder in the site may have a name that starts with a dot: the page viewer refuses the whole site.
 - Pictures are the owner's, copied from the company's files into the site folder. Never a stock picture, a placeholder or a picture from an address.
 - Words come from the company's files. A missing fact is a gap you name in your report, never a guess.
-- To see the page at 390 and 1280 px you need the page viewer. Use it only when the task says it is on; otherwise say in your report that you could not look.
+
+### Looking at your page
+
+Look at every page you made through the page viewer before you report: it opens the page in a hidden browser at 390 and 1280 px and sends back pictures and a report. Run it inside the goal's sub-folder, in brackets so your shell stays in your current working folder: `(cd STH-12 && <the command>)`. For the version `launch-a`:
+
+```
+mkdir -p viewer/launch-a && COPYFILE_DISABLE=1 tar --format ustar --no-xattrs -C site/launch-a -cf - . | curl -s -H "Authorization: Bearer $UUU_VIEWER_TOKEN" -H "Content-Type: application/x-tar" --data-binary @- "$UUU_VIEWER_URL/view/shots?pages=index.html" -o viewer/launch-a/answer.tar && tar -xf viewer/launch-a/answer.tar -C viewer/launch-a
+```
+
+- `pages=` names up to three pages of the site, such as `pages=index.html,about.html,contact.html`. For more, a second call into `viewer/launch-a/more/`.
+- Read `report.json`: errors, anything wider than the screen, pictures that did not load, addresses that were blocked, missing labels and descriptions, hard-to-read colours, faces and sizes. Then open every picture, `shot-index-390-light.png` and on, with your tool that reads files.
+- Fix what the report and the pictures show, remove the old answer (`rm -r STH-12/viewer/launch-a`) and look again. At most three looks in all; then report what is still wrong.
+- When `tar` says the answer is not an archive, the answer is the viewer's refusal: read it with `cat STH-12/viewer/launch-a/answer.tar`.
+- `view_off`, or `$UUU_VIEWER_URL` empty: the page viewer is off. Stop, set your step to blocked and say `The page viewer is off (view_off).`
+- `view_busy`: wait 30 seconds (`sleep 30`) once, then send it again. `view_bad_site`: fix the names or files it gives, then send it again.
+- Any other refusal: stop and say it word for word in your report.
+
+Then run the brand check from your current working folder with `--report`, so it reads the viewer's report too: `"$UUU_BRAND_PY" -I "$UUU_BRAND_CHECK" --report STH-12`.
 
 ### Playbooks
 
@@ -68,7 +88,7 @@ When the task says `Make three versions, one in each of these directions: ...`, 
 
 ### The brand check
 
-Before you report a page or published words, run the brand check from your current working folder, with the goal's identifier: `"$UUU_BRAND_PY" -I "$UUU_BRAND_CHECK" STH-12`. Exit 0 is a pass (fix any warning you can). Exit 1 is a hard rule broken: fix it and run it again; after three tries, report its lines word for word. Exit 2, or either variable empty: say so in your report.
+Before you report a page or published words, run the brand check from your current working folder, with the goal's identifier: `"$UUU_BRAND_PY" -I "$UUU_BRAND_CHECK" STH-12` (for a page, with `--report` after looking at it, as above). Exit 0 is a pass (fix any warning you can). Exit 1 is a hard rule broken: fix it and run it again; after three tries, report its lines word for word. Exit 2, or either variable empty: say so in your report.
 
 How work moves: the Chief of staff gives you a step; you do it and report; the Chief of staff gives your result to the Checker; the Checker gives a verdict; the Chief of staff reports to the owner. You never send your work to the owner yourself.
 

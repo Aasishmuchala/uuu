@@ -2,7 +2,7 @@
 // every playbook named is in the manifest, the twelve entries carry exactly their values, every
 // key is a job that exists, and every job file still loads in the loader as it was at commit
 // faf7f1b and as it is at the last commit (the running home screen keeps that code and reads the
-// job files fresh: rule 11). PLAN-V5 T43 adds the film and the two still jobs.
+// job files fresh: rule 11). PLAN-V5 T43 adds the film and the two still jobs; T53 the three page jobs.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -41,15 +41,21 @@ const WANT = {
   "studio/a-badge-or-logo-mark": ["poster", "art", 1, ["aasish-design", "lightcraft"]],
   "studio/a-slow-reveal-from-pictures": ["title-card", "art", 1, ["aasish-design", "lightcraft"]],
   "studio/a-film-from-your-renders": ["film", "art", 3, ["shotlist-director", "sthyra-cinematic", "archfilm-edit", "cinematic-ai-film"]],
+  // PLAN-V5 T53: the three page jobs, each three versions with an art review.
+  "marketing/a-landing-page": ["page", "art", 3, ["aasish-design", "impeccable", "taste-skill", "sthyra-copywriting"]],
+  "marketing/a-project-page": ["page", "art", 3, ["aasish-design", "impeccable", "taste-skill", "sthyra-copywriting"]],
+  "marketing/a-small-site": ["page", "art", 3, ["aasish-design", "impeccable", "taste-skill", "frontend-ui-engineering"]],
 };
 // PLAN-V5 T43: the film has craft; the two still jobs make no piece to review, so they have none.
 const STEP3 = ["studio/a-film-from-your-renders", "studio/variations-of-a-still", "studio/a-larger-sharper-still"];
+// PLAN-V5 T53: the page jobs, in Marketing (C20).
+const STEP4 = ["marketing/a-landing-page", "marketing/a-project-page", "marketing/a-small-site"];
 
-test("the craft table has twelve entries and the loader finds no problem in it", () => {
-  assert.equal(Object.keys(craft.jobs).length, 12);
+test("the craft table has fifteen entries and the loader finds no problem in it", () => {
+  assert.equal(Object.keys(craft.jobs).length, 15);
   const c = loadCraft(CRAFT, refs);
   assert.deepEqual(c.problems, []);
-  assert.equal(c.jobs.size, 12);
+  assert.equal(c.jobs.size, 15);
   assert.ok(!("studio/variations-of-a-still" in craft.jobs) && !("studio/a-larger-sharper-still" in craft.jobs), "the still jobs have no entry");
 });
 
@@ -113,8 +119,8 @@ test("every job file, the new one included, loads in the loader as it was at faf
   })();
 });
 
-// Rule 11 for PLAN-V5 T43: the three new job files and craft.json load in the loaders of the last commit.
-test("the film and the two still jobs load in the loaders of the last commit, and so does the craft table", (t) => {
+// Rule 11 for PLAN-V5 T43 and T53: the new job files and craft.json load in the loaders of the last commit.
+test("the film, the two still jobs and the three page jobs load in the loaders of the last commit, and so does the craft table", (t) => {
   const old = (f) => execFileSync("git", ["show", `HEAD:engine/company/lib/${f}`], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
   let files;
   try { files = ["job-files.mjs", "routine-files.mjs", "department-file.mjs", "craft-files.mjs"].map((f) => [f, old(f)]); } catch { return t.skip("no last commit in this checkout"); }
@@ -128,12 +134,13 @@ test("the film and the two still jobs load in the loaders of the last commit, an
       const deps = depsMod.loadDepartmentFile(join(COMPANY, "departments.json"), roles).departments;
       const { jobs, problems } = jobsMod.loadJobFiles(join(COMPANY, "jobs"), roles, deps);
       assert.deepEqual(problems, []);
-      assert.equal(jobs.length, 69);
+      assert.equal(jobs.length, 72);
       const loaded = jobs.map((j) => j.file.replace(/\.json$/, ""));
-      for (const ref of STEP3) assert.ok(loaded.includes(ref), `${ref} loads in the old loader`);
+      for (const ref of [...STEP3, ...STEP4]) assert.ok(loaded.includes(ref), `${ref} loads in the old loader`);
       const c = craftMod.loadCraft(CRAFT, loaded);
       assert.deepEqual(c.problems, []);
-      assert.deepEqual(c.jobs.get("studio/a-film-from-your-renders"), craft.jobs["studio/a-film-from-your-renders"]);
+      assert.equal(c.jobs.size, 15);
+      for (const ref of ["studio/a-film-from-your-renders", ...STEP4]) assert.deepEqual(c.jobs.get(ref), craft.jobs[ref], ref);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

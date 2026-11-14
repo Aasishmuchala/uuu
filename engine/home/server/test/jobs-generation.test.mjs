@@ -141,7 +141,7 @@ test("moneyOf: a model with no price is ok false with the one sentence; a job th
 
 test("jobView: every job but the three has generation: null and fits the shape; generation sits just before craft", () => {
   const cat = loadCatalogue(h.config);
-  assert.equal(cat.jobs.size, 69);
+  assert.equal(cat.jobs.size, 72);
   for (const [ref, job] of cat.jobs) {
     const v = jobView(job, { needs: ALL_NEEDS, runs: new Map(), config: h.config });
     assert.deepEqual(sameShape(readShape("job"), v), [], ref);

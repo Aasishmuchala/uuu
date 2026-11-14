@@ -112,10 +112,11 @@ test("loadCraft: a missing file is an empty map; the real file loads clean when 
   const none = loadCraft(join(tmpdir(), "uuu-no-such-craft.json"), []);
   assert.equal(none.jobs.size, 0);
   assert.deepEqual(none.problems, []);
-  // With no refs every entry names an unknown job (T17 filled the table, T43 added the film); the full check is craft-table.test.mjs.
+  // With no refs every entry names an unknown job (T17 filled the table, T43 added the film, T53 the three pages); the full
+  // check is craft-table.test.mjs.
   const real = loadCraft(join(BRAND, "craft.json"), []);
   assert.equal(real.jobs.size, 0);
-  assert.equal(real.problems.length, 12);
+  assert.equal(real.problems.length, 15);
 });
 
 test("loadCraft: a good entry loads; a bad kind, a fifth playbook and an unknown job are each one sentence and left out", () => {
@@ -156,7 +157,7 @@ test("the real job files give no problem, craft.json names only jobs that exist,
   const { departments } = loadDepartmentFile(join(COMPANY, "departments.json"), roles);
   const { jobs, problems } = loadJobFiles(join(COMPANY, "jobs"), roles, departments);
   assert.deepEqual(problems, []);
-  assert.equal(jobs.length, 69);
+  assert.equal(jobs.length, 72);
   const refs = jobs.map((j) => j.file.replace(/\.json$/, ""));
   const c = loadCraft(join(BRAND, "craft.json"), refs);
   assert.deepEqual(c.problems, []);

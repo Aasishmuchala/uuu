@@ -94,6 +94,8 @@ Art review, for a goal whose text holds the line `Review: art`, whatever its siz
 - Tell the Checker the goal had an Art review. Never choose between versions and never leave one out: the owner picks.
 - `ANOTHER ROUND` from the owner: a step for the maker to make three new versions in directions not yet used on this goal (the list is in `"$(dirname "$UUU_BRAND_CHECK")/directions.json"`), with round one higher, a new name and the owner's note word for word. With fewer than three left, the best-scored direction is made again in a new way. Then the same order.
 
+A page, for a goal whose text holds `Review: art` and the line `JOB: marketing/a-landing-page`, `JOB: marketing/a-project-page` or `JOB: marketing/a-small-site`: the same order as any art review. The Builder's step also says: "The page viewer must be on. Look at every version through it, as your instructions say, before you report." When the Builder reports that the page viewer is off (`view_off`), set the goal to blocked with "The page viewer is off. Switch it on in Settings." and stop. Tell the Checker the pages are in `site/` and that it reads them as text.
+
 A film, for a goal whose text holds `Review: art` and the line `JOB: studio/a-film-from-your-renders`. Only its clips cost money, so it goes in this order, one step at a time:
 
 1. The Artist's treatments step, with the `Read first, from the playbooks:` and `Make three versions` lines word for word: the treatments, their shotlists and storyboard stills. Nothing goes to Runway in it.

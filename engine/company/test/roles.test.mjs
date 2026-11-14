@@ -1,4 +1,4 @@
-// Checks the twelve role files (CONTRACTS-V2 21.3 and section 23, CONTRACTS-V3 section 39, PLAN-V5 T16, T34, T43). A role's
+// Checks the twelve role files (CONTRACTS-V2 21.3 and section 23, CONTRACTS-V3 section 39, PLAN-V5 T16, T34, T43, T53). A role's
 // four tests skip until its file holds the {{STAGED}} line; its version 3 test skips until its file
 // holds the first new string of its row; the task that writes it shows them passing.
 import { test } from "node:test";
@@ -14,6 +14,7 @@ import { narrowRoute } from "../../gate/narrow.mjs";
 import { CODES, NOTICE } from "../../web/door.mjs";
 import { CODES as GEN_CODES, parseJob } from "../../generate/door.mjs";
 import { PRICES } from "../../generate/runway.mjs";
+import { CODES as VIEW_CODES } from "../../viewer/viewer.mjs";
 
 const companyDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 const engineDir = join(companyDir, "..");
@@ -177,7 +178,7 @@ for (const [slug, strings] of Object.entries(FORMATS_V5)) {
 }
 
 test("roles v5: every playbook a role names is in the manifest and lists that role", () => {
-  assert.equal(BOOKS.size, 16);
+  assert.equal(BOOKS.size, 17);
   for (const slug of ALL_ROLES) {
     const named = playbooksNamed(read(slug));
     for (const name of named) {
@@ -401,7 +402,9 @@ test("roles v5 (T43): the Artist's door examples send only the door's own keys, 
   assert.ok(estimate, "the estimate body");
   for (const it of JSON.parse(estimate[1]).items) assert.ok(Object.keys(it).every((k) => ["kind", "model", "seconds"].includes(k)), JSON.stringify(it));
   const named = new Set(text.match(/\bgen_[a-z_]+\b/g));
-  for (const code of named) assert.ok(Object.hasOwn(GEN_CODES, code), code);
+  // T82: the two Higgsfield refusals are the door's once T73 joins them to it; until then they are the plan's (K21).
+  const HF_CODES = ["gen_hf_off", "gen_hf_signed_out"];
+  for (const code of named) assert.ok(Object.hasOwn(GEN_CODES, code) || HF_CODES.includes(code), code);
   for (const code of ["gen_not_approved", "gen_over_daily", "gen_over_monthly", "gen_over_batch", "gen_paused", "gen_off", "gen_no_key",
     "gen_key_refused", "gen_busy", "gen_limited", "gen_no_token"]) assert.ok(named.has(code), code);
   for (const s of ["Never a third take", "never `batch: null`", "Never change `shotlist.json` now", "Never send that picture or prompt again",
@@ -473,4 +476,74 @@ test("staged v5 (T43): films and money", () => {
   const text = readFileSync(join(companyDir, "shared", "staged.md"), "utf8");
   for (const s of ["**Films and money.**", "costs nothing", "SHOTLIST READY:", "SHOTLIST ACCEPTED: <id> batch <batch id>", "only inside that batch",
     "Generation batch:", "The door refuses anything else", "A refusal is the rule working"]) assert.ok(text.includes(s), s);
+});
+
+// PLAN-V5 T82 (K22): the Artist may be given a Higgsfield model in a batch, and reads Render to Film's playbook first.
+test("roles v5 (T82): the Artist's two new lines, word for word, and the playbook it names", () => {
+  const text = read("artist");
+  const HF = "A batch's model may be a Higgsfield model (its name starts `hf.`). Call the door the same way; the door picks the service. If the door answers `gen_hf_off` or `gen_hf_signed_out`, stop and say so in one line: the owner must switch Higgsfield on or sign in. You never open an app of App Studio or its address, and you never ask for an app's spending allowance.";
+  assert.ok(text.includes(HF), "the Higgsfield paragraph");
+  assert.ok(text.includes("Read `render-to-film` before you write a still's or a clip's prompt."), "the craft line");
+  const row = BOOKS.get("render-to-film");
+  assert.ok(row, "render-to-film is in the manifest");
+  assert.ok(row.roles.includes("artist") && row.roles.includes("art-director"));
+  assert.equal(row.source, "own:render-to-film");
+  const named = text.match(/\bgen_hf_[a-z_]+\b/g) ?? [];
+  assert.deepEqual([...new Set(named)].sort(), ["gen_hf_off", "gen_hf_signed_out"]);
+});
+
+// ---- PLAN-V5 T53 (K16 with C15, C16, C19, C22): pages through the page viewer, the site kit, a page's review and check.
+
+// The viewer's call, as the plan gives it: the Builder's archive (C22), its token and address, the answer kept in the goal.
+const BUILDER_VIEW = 'mkdir -p viewer/launch-a && COPYFILE_DISABLE=1 tar --format ustar --no-xattrs -C site/launch-a -cf - . | curl -s -H "Authorization: Bearer $UUU_VIEWER_TOKEN" -H "Content-Type: application/x-tar" --data-binary @- "$UUU_VIEWER_URL/view/shots?pages=index.html" -o viewer/launch-a/answer.tar && tar -xf viewer/launch-a/answer.tar -C viewer/launch-a';
+const PAGE_OFF = "The page viewer is off. Switch it on in Settings.";
+
+test("roles v5 (T53): only the Builder's and the Art director's roles name the page viewer's address or token", () => {
+  for (const slug of ALL_ROLES) assert.equal(read(slug).includes("UUU_VIEWER_"), ["builder", "art-director"].includes(slug), slug);
+  assert.ok(!readFileSync(join(companyDir, "shared", "staged.md"), "utf8").includes("UUU_VIEWER_"), "nor the shared text");
+});
+
+test("roles v5 (T53): the Builder makes a page from the kit and the site kit, looks at it through the viewer, then checks it with --report", () => {
+  const text = read("builder");
+  const blocks = codeBlocks("builder").map((b) => b.trim());
+  assert.ok(blocks.includes(BUILDER_VIEW), "the viewer's call, word for word, as its own block");
+  for (const s of ["brand/kit.css", "byte for byte", "`fonts/`", "`.ttf` and `.otf` files only, never a `.ttc`", "`<img src>` inside the first `<header>`",
+    "$UUU_PLAYBOOKS_DIR/site-kit/", "`reset.css`", "`layout.css`", "`reveal.js`", "`gallery.js`", "never its `README.md`", "starts with a dot",
+    "max(var(--brand-min-size), 1.25rem)", "At most three looks", "report.json", "shot-index-390-light.png", "`view_busy`: wait 30 seconds",
+    "`view_bad_site`", "The page viewer is off (view_off).", '"$UUU_BRAND_PY" -I "$UUU_BRAND_CHECK" --report STH-12', "(cd STH-12 && <the command>)"]) {
+    assert.ok(text.includes(s), s);
+  }
+  assert.ok(text.indexOf(BUILDER_VIEW) < text.indexOf("--report STH-12"), "it looks before the brand check");
+});
+
+test("roles v5 (T53): the Art director asks the viewer itself into a temp folder made the fenced way, never trusting the maker's pictures", () => {
+  const text = read("art-director");
+  const call = text.split("\n").find((l) => l.startsWith("d=$(mktemp"));
+  assert.ok(call, "the Art director's call");
+  // C19 and the note after T36: a bare mktemp fails in the fence; the template is under $TMPDIR.
+  assert.ok(call.startsWith('d=$(mktemp -d "$TMPDIR/view.XXXXXX") && echo "$d" && '), call);
+  assert.ok(call.includes('COPYFILE_DISABLE=1 tar --format ustar --no-xattrs -C STH-12/site/launch-a -cf - . | curl -s -H "Authorization: Bearer $UUU_VIEWER_TOKEN" -H "Content-Type: application/x-tar" --data-binary @- "$UUU_VIEWER_URL/view/shots?pages=index.html" -o "$d/answer.tar" && tar -xf "$d/answer.tar" -C "$d"'), call);
+  assert.ok(!/mktemp(?! -d "\$TMPDIR\/)/.test(text), "no bare mktemp");
+  for (const s of ["never trusting the maker's pictures", "score `kind` as not seen, at most 5", "## Seen", "$UUU_PLAYBOOKS_DIR/site-kit/",
+    "besides the page viewer's answer in your temp folder", "anywhere else but your temp folder for the page viewer", "never name the folder in your review"]) {
+    assert.ok(text.includes(s), s);
+  }
+});
+
+test("roles v5 (T53): every page viewer refusal a role names is one the viewer sends", () => {
+  const seen = new Set();
+  for (const slug of ALL_ROLES) for (const code of read(slug).match(/\bview_[a-z_]+\b/g) ?? []) seen.add(code);
+  assert.ok(seen.size >= 3, [...seen].join(", "));
+  for (const code of seen) assert.ok(Object.hasOwn(VIEW_CODES, code), code);
+  for (const code of ["view_off", "view_busy", "view_bad_site"]) assert.ok(seen.has(code), code);
+});
+
+test("roles v5 (T53): the Chief of staff runs a page as any art review and blocks the goal when the viewer is off; the Checker reads pages as text", () => {
+  const chief = read("chief-of-staff");
+  for (const s of ["`JOB: marketing/a-landing-page`", "`JOB: marketing/a-project-page`", "`JOB: marketing/a-small-site`", "the same order as any art review",
+    "The page viewer must be on.", "(`view_off`)", `set the goal to blocked with "${PAGE_OFF}" and stop`]) assert.ok(chief.includes(s), s);
+  const checker = read("checker");
+  for (const s of ["A page: read `site/<name>/index.html` and every other `.html` file", "as text", "can't-say list",
+    "You cannot open the page viewer: say so in the reason"]) assert.ok(checker.includes(s), s);
+  assert.equal(PAGE_OFF, "The page viewer is off. Switch it on in Settings.");
 });

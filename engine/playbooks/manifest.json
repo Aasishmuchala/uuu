@@ -176,6 +176,17 @@
       "roles": ["builder"],
       "kinds": ["page"],
       "note": "In this engine: engineering basics for a page that works for everyone: keyboard use, labels, focus, empty and error states, spacing, type and colour discipline, layouts that hold at every width. Read its sections on design-system adherence, accessibility, responsive design and verification. Its component framework, typed components, utility CSS, state libraries, test files and developer tools do not apply: plain HTML, CSS and a little JavaScript with no package (never install). The accessibility checklist it links to is not here. Its breakpoint checks mean the page viewer at 390 and 1280 px when it is on, else say you could not look. Colours and type come from brand/kit.css. Its origin is not marked and no licence file was found in its folder: read it here, never copy its text into a page."
+    },
+    {
+      "name": "render-to-film",
+      "source": "own:render-to-film",
+      "origin": "own",
+      "licence": "own",
+      "files": ["SKILL.md"],
+      "licenceFiles": [],
+      "roles": ["artist", "art-director"],
+      "kinds": ["film", "still"],
+      "note": "In this engine: you make pictures and clips only through the generation door, inside a batch the owner approved. Never open Render to Film or any app."
     }
   ]
 }

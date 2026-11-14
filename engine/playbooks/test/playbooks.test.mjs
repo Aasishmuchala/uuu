@@ -1,16 +1,19 @@
-// The playbooks' manifest and installer. Every run here copies from a made-up
-// skills folder into a made-up state folder in a temp directory: the owner's
-// real skill folders and the real state folder are never touched.
+// The playbooks' manifest and installer, and the site kit it copies beside them
+// (PLAN-V5 T53, C18). Every run here copies from a made-up skills folder into a
+// made-up state folder in a temp directory: the owner's real skill folders and
+// the real state folder are never touched.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync,
-  lstatSync, readdirSync, realpathSync,
+  lstatSync, readdirSync, realpathSync, rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { homedir } from "node:os";
+import { crc32, deflateSync } from "node:zlib";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dir = join(here, "..");
@@ -70,7 +73,9 @@ function fakeSkills() {
 function run(env, ...args) {
   const r = spawnSync("/bin/bash", [INSTALL, ...args], {
     encoding: "utf8",
-    env: { ...process.env, ENGINE_PLAYBOOKS_SOURCE: env.skills, ENGINE_PLAYBOOKS_DEST: env.dest },
+    env: { ...process.env, ENGINE_PLAYBOOKS_SOURCE: env.skills, ENGINE_PLAYBOOKS_DEST: env.dest,
+      ENGINE_PLAYBOOKS_OWN: env.own ?? join(env.top ?? dirname(env.skills), "no-own"),
+      ENGINE_SITE_KIT_SOURCE: env.siteKit ?? join(env.top ?? dirname(env.skills), "no-site-kit") },
   });
   return { code: r.status, out: r.stdout, err: r.stderr };
 }
@@ -208,7 +213,8 @@ test("an empty skills folder installs nothing and still exits 0", () => {
   mkdirSync(empty);
   const r = run({ skills: empty, dest: env.dest });
   assert.equal(r.code, 0, r.err);
-  assert.equal(r.out.split("\n").filter((l) => l.includes("is not on this Mac")).length, manifest.playbooks.length);
+  assert.equal(r.out.split("\n").filter((l) => l.includes("is not on this Mac")).length,
+    manifest.playbooks.filter((p) => !p.source.startsWith("own:")).length);
   assert.match(r.out, /0 of \d+ playbooks installed/);
 });
 
@@ -260,10 +266,10 @@ test("a state folder that is a link is refused and nothing is changed", () => {
 });
 
 // The real manifest.
-const K4 = ["sthyra-copywriting", "storycraft", "aasish-design", "creative-director", "impact-3d", "renders",
+const K4 = ["render-to-film", "sthyra-copywriting", "storycraft", "aasish-design", "creative-director", "impact-3d", "renders",
   "lightcraft", "visual-realism-prompts", "shotlist-director", "sthyra-cinematic", "archfilm-edit",
   "cinematic-ai-film", "taste-skill", "hallmark", "impeccable", "frontend-ui-engineering"];
-const KINDS = ["post", "newsletter", "carousel", "poster", "title-card", "film", "page"];
+const KINDS = ["post", "newsletter", "carousel", "poster", "title-card", "film", "page", "still"];
 
 test("the real manifest: names, sources, roles, kinds and notes", () => {
   assert.equal(manifest.version, 1);
@@ -271,7 +277,7 @@ test("the real manifest: names, sources, roles, kinds and notes", () => {
   assert.deepEqual(manifest.playbooks.map((p) => p.name).sort(), [...K4].sort());
   for (const p of manifest.playbooks) {
     assert.match(p.name, /^[a-z0-9][a-z0-9-]{0,39}$/);
-    assert.match(p.source, /^~\/\.claude\/skills\/[A-Za-z0-9][A-Za-z0-9._-]*$/);
+    assert.match(p.source, /^(~\/\.claude\/skills\/[A-Za-z0-9][A-Za-z0-9._-]*|own:[a-z0-9][a-z0-9-]*)$/);
     assert.ok(["own", "third-party"].includes(p.origin), p.name);
     assert.ok(p.roles.length > 0 && p.kinds.length > 0, p.name);
     assert.ok(p.kinds.every((k) => KINDS.includes(k)), p.name);
@@ -301,4 +307,319 @@ test("the real manifest: no files entry names scripts, site, .venv or a reading-
   assert.deepEqual(byName.hallmark.files.filter((f) => !f.startsWith("references/")), []);
   assert.deepEqual(byName.impeccable.files.filter((f) => !/^reference\/[^/]+\.md$/.test(f)), []);
   assert.deepEqual(byName["archfilm-edit"].files, ["SKILL.md", "references/*.md"]);
+});
+
+// An own: source (T82): the engine's own playbooks, .md files only, read and never removed.
+function fakeOwn() {
+  const env = fakeSkills();
+  const own = join(env.top, "own");
+  const f = join(own, "render-to-film");
+  put(join(f, "SKILL.md"), "made-up own playbook\n");
+  put(join(f, "notes.txt"), "not an .md file\n");
+  put(join(f, "tool.json"), "{}\n");
+  put(join(env.top, "secret.md"), "outside the own folder\n");
+  symlinkSync(join(env.top, "secret.md"), join(f, "escape.md"));
+  return { ...env, own, folder: f };
+}
+
+test("an own: source copies its .md files only, from the engine's own folder", () => {
+  const env = fakeOwn();
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(filesUnder(join(env.dest, "render-to-film")), ["IN-THIS-ENGINE.md", "SKILL.md"]);
+  assert.equal(readFileSync(join(env.dest, "render-to-film", "SKILL.md"), "utf8"), "made-up own playbook\n");
+  const note = readFileSync(join(env.dest, "render-to-film", "IN-THIS-ENGINE.md"), "utf8");
+  assert.ok(note.includes(byName["render-to-film"].note));
+  assert.match(note, /the engine's own playbooks/);
+  assert.equal(run(env, "--check-only").out, "Playbooks: 5 installed\n");
+});
+
+test("an own: source is never removed, changed or written to", () => {
+  const env = fakeOwn();
+  const before = snapshot(env.own);
+  assert.equal(run(env).code, 0);
+  assert.equal(run(env).code, 0);
+  assert.deepEqual(snapshot(env.own), before);
+  // Even when the manifest no longer names it: the installed copy goes, the source stays.
+  assert.ok(existsSync(join(env.folder, "SKILL.md")));
+});
+
+test("a link in an own: folder that leaves it is skipped and said", () => {
+  const env = fakeOwn();
+  rmSync(join(env.folder, "SKILL.md"));
+  symlinkSync(join(env.top, "secret.md"), join(env.folder, "SKILL.md"));
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /render-to-film: skipped SKILL\.md: it is a link that leaves the playbook's folder\./);
+  assert.ok(!existsSync(join(env.dest, "render-to-film")));
+});
+
+test("an own: source that is a link, or is missing, is skipped in one plain line", () => {
+  const env = fakeOwn();
+  const elsewhere = join(env.top, "elsewhere");
+  put(join(elsewhere, "SKILL.md"), "made-up\n");
+  const linked = join(env.top, "own-linked");
+  mkdirSync(linked);
+  symlinkSync(elsewhere, join(linked, "render-to-film"));
+  let r = run({ ...env, own: linked });
+  assert.equal(r.code, 0, r.err);
+  assert.ok(!existsSync(join(env.dest, "render-to-film")));
+  assert.match(r.out, /render-to-film: skipped: its folder is not in the engine \(own:render-to-film\)\./);
+  r = run({ ...env, own: join(env.top, "nothing-here") });
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /render-to-film: skipped: its folder is not in the engine/);
+});
+
+// The installer's manifest checks, run against a made-up manifest copy of the installer.
+function withManifest(entries) {
+  const env = fakeOwn();
+  const copy = join(env.top, "playbooks");
+  mkdirSync(copy);
+  const script = readFileSync(INSTALL, "utf8");
+  writeFileSync(join(copy, "install.sh"), script);
+  writeFileSync(join(copy, "manifest.json"), JSON.stringify({ version: 1, playbooks: entries }));
+  // The installer sources ../lib/config.sh beside itself.
+  symlinkSync(join(dir, "..", "lib"), join(env.top, "lib"));
+  symlinkSync(join(dir, "..", "config.json"), join(env.top, "config.json"));
+  const r = spawnSync("/bin/bash", [join(copy, "install.sh")], {
+    encoding: "utf8",
+    env: { ...process.env, ENGINE_PLAYBOOKS_SOURCE: env.skills, ENGINE_PLAYBOOKS_DEST: env.dest, ENGINE_PLAYBOOKS_OWN: env.own },
+  });
+  return { ...env, code: r.status, out: r.stdout, err: r.stderr };
+}
+
+test("the real manifest's own entry passes the installer's checks; own:../x and odd entries are refused", () => {
+  const good = byName["render-to-film"];
+  assert.deepEqual(good.files, ["SKILL.md"]);
+  assert.equal(good.origin, "own");
+  assert.deepEqual(good.kinds, ["film", "still"]);
+  const ok = withManifest([good]);
+  assert.equal(ok.code, 0, ok.err);
+  for (const [source, files] of [["own:../x", ["SKILL.md"]], ["own:a/b", ["SKILL.md"]], ["own:", ["SKILL.md"]], ["own:Render", ["SKILL.md"]],
+    ["own:render-to-film", ["notes.txt"]], ["own:render-to-film", ["../SKILL.md"]]]) {
+    const r = withManifest([{ ...good, source, files }]);
+    assert.equal(r.code, 1, `${source} ${files}`);
+    assert.match(r.err, /the manifest is not right/, `${source} ${files}`);
+    assert.ok(!existsSync(r.dest), "nothing was changed");
+  }
+});
+
+test("the manifest may not name a playbook site-kit: that name is the engine's site kit", () => {
+  const r = withManifest([{ ...byName["render-to-film"], name: "site-kit" }]);
+  assert.equal(r.code, 1);
+  assert.match(r.err, /the manifest is not right: site-kit is the name of the engine's site kit, never of a playbook/);
+  assert.ok(!existsSync(r.dest), "nothing was changed");
+});
+
+// ---- PLAN-V5 T53 (K16, C18): the site kit, engine/site-kit/, copied to <state>/playbooks/site-kit/.
+
+const ENGINE = join(dir, "..");
+const KIT_DIR = join(ENGINE, "site-kit");
+const KIT_FILES = ["README.md", "gallery.js", "layout.css", "reset.css", "reveal.js"];
+const kitText = (n) => readFileSync(join(KIT_DIR, n), "utf8");
+// CSS with its comments taken out, so a rule is judged by what it does, not by what a comment says.
+const cssOf = (n) => kitText(n).replace(/\/\*[\s\S]*?\*\//g, "");
+
+// A made-up site kit folder: the five real files, a link that leaves it and a seventh file.
+function fakeKit() {
+  const env = fakeSkills();
+  const kit = join(env.top, "site-kit-source");
+  mkdirSync(kit);
+  for (const n of KIT_FILES) writeFileSync(join(kit, n), readFileSync(join(KIT_DIR, n)));
+  put(join(env.top, "outside.css"), "body { color: red; }\n");
+  symlinkSync(join(env.top, "outside.css"), join(kit, "extra.css"));
+  writeFileSync(join(kit, "notes.md"), "a seventh file\n");
+  return { ...env, siteKit: kit };
+}
+const siteKitRow = (dest) => JSON.parse(readFileSync(join(dest, "index.json"), "utf8")).playbooks.find((r) => r.name === "site-kit");
+
+test("the site kit: the installer copies its five files, skips a link and a seventh file, and lists its row in index.json", () => {
+  const env = fakeKit();
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  const top = join(env.dest, "site-kit");
+  assert.deepEqual(filesUnder(top), KIT_FILES);
+  for (const n of KIT_FILES) assert.ok(readFileSync(join(top, n)).equals(readFileSync(join(KIT_DIR, n))), `${n} byte for byte`);
+  assert.equal((lstatSync(top).mode & 0o777).toString(8), "755");
+  for (const n of KIT_FILES) assert.equal((lstatSync(join(top, n)).mode & 0o777).toString(8), "644", n);
+  assert.match(r.out, /site-kit: skipped extra\.css: the site kit holds only reset\.css, layout\.css, reveal\.js, gallery\.js, README\.md\./);
+  assert.match(r.out, /site-kit: skipped notes\.md: the site kit holds only/);
+  assert.match(r.out, /site-kit: installed, 5 files /);
+  assert.ok(!existsSync(join(top, "extra.css")) && !existsSync(join(top, "notes.md")));
+  assert.deepEqual(siteKitRow(env.dest), { name: "site-kit", origin: "own", licence: "this engine's own", roles: ["builder", "art-director"],
+    kinds: ["page"], files: KIT_FILES, bytes: KIT_FILES.reduce((n, f) => n + lstatSync(join(KIT_DIR, f)).size, 0) });
+  // The site kit is not a playbook: --check-only and the closing count stay the manifest's.
+  assert.equal(run(env, "--check-only").out, "Playbooks: 4 installed\n");
+  assert.match(r.out, /4 of \d+ playbooks installed/);
+});
+
+test("the site kit: one of its files that is a link, or is over 64 KB, is skipped and said; the rest are copied", () => {
+  const env = fakeKit();
+  rmSync(join(env.siteKit, "reveal.js"));
+  symlinkSync(join(env.top, "outside.css"), join(env.siteKit, "reveal.js"));
+  writeFileSync(join(env.siteKit, "layout.css"), `/* ${"x".repeat(64 * 1024)} */\n`);
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /site-kit: skipped reveal\.js: it is a link, and the installer follows no link\./);
+  assert.match(r.out, /site-kit: skipped layout\.css: it is over 64 KB\./);
+  assert.deepEqual(filesUnder(join(env.dest, "site-kit")), ["README.md", "gallery.js", "reset.css"]);
+  for (const p of filesUnder(env.dest)) assert.ok(!readFileSync(join(env.dest, p), "utf8").includes("color: red"), p);
+});
+
+test("the site kit: a second run changes nothing, and its folder is never removed as not in the manifest", () => {
+  const env = fakeKit();
+  assert.equal(run(env).code, 0);
+  const before = snapshot(env.dest);
+  let r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(snapshot(env.dest), before);
+  assert.match(r.out, /site-kit: already in place \(5 files\)\./);
+  assert.doesNotMatch(r.out, /site-kit: removed|left alone: site-kit/);
+  // With its source gone, the copy installed earlier is kept and still listed.
+  r = run({ ...env, siteKit: join(env.top, "gone") });
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /site-kit: skipped: its folder is not in the engine \(engine\/site-kit\)\. The copy installed earlier is kept\./);
+  assert.deepEqual(filesUnder(join(env.dest, "site-kit")), KIT_FILES);
+  assert.deepEqual(siteKitRow(env.dest).files, KIT_FILES);
+});
+
+test("the site kit: a source folder that is a link is skipped in one plain line", () => {
+  const env = fakeKit();
+  const linked = join(env.top, "kit-link");
+  symlinkSync(env.siteKit, linked);
+  const r = run({ ...env, siteKit: linked });
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /site-kit: skipped: its folder is not in the engine \(engine\/site-kit\)\./);
+  assert.ok(!existsSync(join(env.dest, "site-kit")));
+  assert.equal(siteKitRow(env.dest), undefined);
+});
+
+test("the site kit in the repository: the five files, the engine's own, at most 32 KB, naming no address", () => {
+  assert.deepEqual(readdirSync(KIT_DIR).sort(), KIT_FILES);
+  let total = 0;
+  for (const n of KIT_FILES) {
+    const st = lstatSync(join(KIT_DIR, n));
+    assert.ok(st.isFile() && st.size <= 64 * 1024, n);
+    total += st.size;
+    const text = kitText(n);
+    assert.doesNotMatch(text, /https?:|\/\//i, `${n} names an address`);
+    assert.match(text, /this engine's own/, `${n} says it is the engine's own`);
+  }
+  assert.ok(total <= 32 * 1024, `${total} bytes`);
+  const readme = kitText("README.md");
+  for (const n of ["reset.css", "layout.css", "reveal.js", "gallery.js"]) assert.ok(readme.includes(`\`${n}\``), `the README says what ${n} is`);
+  assert.match(readme, /Never copy this\s+`README\.md` into a site/);
+});
+
+test("the site kit's two scripts pass node --check, and neither reaches for anything", () => {
+  for (const n of ["reveal.js", "gallery.js"]) {
+    const r = spawnSync(process.execPath, ["--check", join(KIT_DIR, n)], { encoding: "utf8" });
+    assert.equal(r.status, 0, `${n}: ${r.stderr}`);
+    assert.doesNotMatch(kitText(n), /\bfetch\b|XMLHttpRequest|\bimport\s*\(|WebSocket|EventSource|sendBeacon|\bWorker\b|\beval\b|innerHTML|document\.write/, n);
+  }
+  const reveal = kitText("reveal.js");
+  for (const s of ["IntersectionObserver", "data-reveal", '"is-in"', "(prefers-reduced-motion: reduce)", "navigator.webdriver"]) assert.ok(reveal.includes(s), s);
+  const gallery = kitText("gallery.js");
+  for (const s of ['createElement("dialog")', "showModal()", "a[data-gallery]", '"ArrowLeft"', '"ArrowRight"', '"close"', "opener.focus()",
+    'getAttribute("alt")', "textContent"]) assert.ok(gallery.includes(s), s);
+});
+
+test("reset.css: no colour but inherit, currentColor and transparent; no face but the kit's body face", () => {
+  const css = cssOf("reset.css");
+  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(/i);
+  const colours = [...css.matchAll(/(?:^|[\s;{])(color|background(?:-color)?|border(?:-color)?|outline(?:-color)?|fill|stroke)\s*:\s*([^;}]+)/g)];
+  assert.ok(colours.length >= 3);
+  for (const [, prop, value] of colours) {
+    const words = value.trim().split(/\s+/).filter((w) => !/^[\d.]+(rem|em|px)?$/.test(w) && w !== "solid" && w !== "0");
+    assert.ok(words.every((w) => ["inherit", "currentColor", "transparent"].includes(w)), `${prop}: ${value}`);
+  }
+  assert.deepEqual([...css.matchAll(/font-family\s*:\s*([^;}]+)/g)].map((m) => m[1].trim()), ["var(--brand-body)"]);
+  assert.deepEqual([...css.matchAll(/(?:^|[\s;{])font\s*:\s*([^;}]+)/g)].map((m) => m[1].trim()), ["inherit"]);
+  assert.doesNotMatch(css, /\d+px/, "no size in px");
+});
+
+test("layout.css: a spacing scale in rem, a 12-column grid with breakpoints at 390, 768 and 1280 px, sizes never in px", () => {
+  const css = cssOf("layout.css");
+  for (let i = 1; i <= 8; i += 1) assert.match(css, new RegExp(`--space-${i}: [0-9.]+rem;`), `--space-${i}`);
+  assert.match(css, /\.kit-grid \{[^}]*grid-template-columns: repeat\(12, minmax\(0, 1fr\)\)/);
+  for (let i = 1; i <= 12; i += 1) assert.match(css, new RegExp(`\\.span-${i} \\{ grid-column: span ${i}; \\}`), `.span-${i}`);
+  assert.match(css, /\.kit-container \{[^}]*padding-inline: max\(var\(--space-4\), calc\(var\(--kit-margin-share\) \* 100%\)\)/);
+  assert.deepEqual([...css.matchAll(/@media \(min-width: (\d+)px\)/g)].map((m) => Number(m[1])), [390, 768, 1280]);
+  // Outside the breakpoints, no px at all; every text size goes through the kit's smallest.
+  assert.doesNotMatch(css.replace(/@media \(min-width: \d+px\)/g, ""), /\d+px/);
+  const sizes = [...css.matchAll(/font-size\s*:\s*([^;}]+)/g)].map((m) => m[1].trim());
+  assert.ok(sizes.length >= 2 && sizes.every((v) => /^max\(var\(--brand-min-size\), [0-9.]+rem\)$/.test(v)), sizes.join(" | "));
+  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(/i);
+  assert.doesNotMatch(css, /font-family/);
+});
+
+// A made-up 4 x 2 PNG of ink, the test kit's logo.
+function png() {
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body) >>> 0);
+    return Buffer.concat([len, body, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(4, 0);
+  ihdr.writeUInt32BE(2, 4);
+  ihdr.set([8, 6, 0, 0, 0], 8);
+  const ink = [0x1a, 0x3c, 0x5e, 255];
+  const row = [0, ...ink, ...ink, ...ink, ...ink];   // the filter byte, then four pixels
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(Buffer.from([...row, ...row]))), chunk("IEND", Buffer.alloc(0))]);
+}
+
+// The Artist's own Python, where the brand check runs (it needs the drawing library).
+const ART_PY = join(homedir(), ".paperclip", "uuu-engine", "art", "venv", "bin", "python");
+const noArtPy = existsSync(ART_PY) ? false : "the Artist's tools are not installed (engine/art/install.sh), so the brand check cannot run";
+
+test("the site kit, in a fixture site with a test kit, passes the brand check with no hard failure and no warning", { skip: noArtPy }, () => {
+  const top = realpathSync(mkdtempSync(join(tmpdir(), "sitekit-check-")));
+  try {
+    const state = join(top, "state");
+    const brand = join(state, "knowledge", "docs", "brand");
+    // The strictest kit: no neutrals, the logo required on pages.
+    put(join(brand, "kit.json"), JSON.stringify({ version: 1, savedAt: "2026-11-13T10:00:00.000Z", name: "Sthyra",
+      colours: [{ name: "ink", hex: "#1A3C5E", role: "main" }, { name: "sand", hex: "#E8DCC8", role: "background" }, { name: "clay", hex: "#C8553D", role: "accent" }],
+      neutrals: false,
+      type: { heading: { family: "Didot", file: null, fallback: "serif" }, body: { family: "Avenir Next", file: null, fallback: "sans-serif" }, minPx: 16, minSlidePx: 28 },
+      logo: { files: [{ file: "logo.png", on: "light" }], clearSpace: 0.5, minPx: 48, requiredOn: ["page"] },
+      layout: { radiusPx: 0, marginShare: 0.06 }, voice: { words: ["warm"], is: "", do: [], dont: [], signoff: "" },
+      references: [], filler: { block: true, allow: [] }, public: { summary: "" } }));
+    const kitCss = ":root {\n  --brand-ink: #1A3C5E;\n  --brand-sand: #E8DCC8;\n  --brand-clay: #C8553D;\n"
+      + "  --brand-heading: \"Didot\", serif;\n  --brand-body: \"Avenir Next\", sans-serif;\n  --brand-radius: 0px;\n  --brand-min-size: 16px;\n}\n";
+    put(join(brand, "kit.css"), kitCss);
+    writeFileSync(join(brand, "logo.png"), png());
+    const site = join(state, "tasks", "company-work", "STH-7", "site", "launch");
+    for (const n of KIT_FILES.filter((f) => !f.endsWith(".md"))) put(join(site, n), readFileSync(join(KIT_DIR, n)));
+    put(join(site, "kit.css"), kitCss);
+    writeFileSync(join(site, "logo.png"), png());
+    put(join(site, "pictures", "tower.png"), png());
+    put(join(site, "index.html"), `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sthyra</title>
+<link rel="stylesheet" href="reset.css"><link rel="stylesheet" href="kit.css"><link rel="stylesheet" href="layout.css"></head>
+<body>
+<header class="kit-container"><img src="logo.png" alt="Sthyra"></header>
+<main class="kit-container kit-section kit-stack">
+<h1 data-reveal>Homes that follow the sun</h1>
+<ul class="kit-grid" role="list"><li class="span-4" data-reveal><a href="pictures/tower.png" data-gallery="homes"><img src="pictures/tower.png" alt="The tower at dusk"></a></li></ul>
+</main>
+<script src="reveal.js" defer></script><script src="gallery.js" defer></script>
+</body>
+</html>
+`);
+    const r = spawnSync(ART_PY, ["-I", join(ENGINE, "art", "brandcheck.py"), "--json", "--state", state, "STH-7"],
+      { cwd: join(state, "tasks", "company-work"), encoding: "utf8", timeout: 60000 });
+    assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.kit, "present");
+    assert.deepEqual(out.pieces.map((p) => [p.kind, p.name, p.result, p.hard, p.soft]), [["site", "launch", "pass", [], []]]);
+  } finally {
+    rmSync(top, { recursive: true, force: true });
+  }
 });

@@ -1,0 +1,166 @@
+/* The site kit's layout: this engine's own, written for the pages the Builder makes, with no third party's text.
+   A spacing scale, a container that keeps the brand kit's margin, a 12-column grid with breakpoints at 390, 768
+   and 1280 px, the two states of the scroll reveal (reveal.js) and the lightbox (gallery.js).
+   Sizes are in rem, shares of the width, or max(var(--brand-min-size), ...) for text; it sets no colour of its
+   own (only inherit, currentColor and transparent), so every colour comes from the page's own var(--brand-...).
+   Link it after reset.css and kit.css, before the page's own style sheet. */
+
+:root {
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4.5rem;
+  /* The brand kit's margin as a share of the width: layout.marginShare in brand/kit.json. Set it again in the
+     page's own style sheet when the kit's is not 0.06. */
+  --kit-margin-share: 0.06;
+  --kit-gap: var(--space-5);
+  --kit-max: 80rem;
+}
+
+/* The container: the page's content, centred, with the kit's margin on both sides (never under --space-4). */
+.kit-container {
+  width: 100%;
+  max-width: var(--kit-max);
+  margin-inline: auto;
+  padding-inline: max(var(--space-4), calc(var(--kit-margin-share) * 100%));
+}
+
+/* A section: room above and below, more on wider screens. */
+.kit-section {
+  padding-block: var(--space-7);
+}
+
+/* A stack: its children one under the other, --kit-stack apart (--space-5 when not set). */
+.kit-stack > * + * {
+  margin-block-start: var(--kit-stack, var(--space-5));
+}
+
+/* The grid: 12 columns. A child without a span class takes the whole row at every width.
+   Under 390 px every span takes the whole row; from 390 px the small spans (1 to 3) go two to a row;
+   from 768 px each .span-N takes its N columns; from 1280 px the gap grows. */
+.kit-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--kit-gap);
+}
+
+.kit-grid > * {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+@media (min-width: 390px) {
+  .kit-grid > .span-1,
+  .kit-grid > .span-2,
+  .kit-grid > .span-3 {
+    grid-column: span 6;
+  }
+}
+
+@media (min-width: 768px) {
+  .kit-section { padding-block: var(--space-8); }
+  .kit-grid > .span-1 { grid-column: span 1; }
+  .kit-grid > .span-2 { grid-column: span 2; }
+  .kit-grid > .span-3 { grid-column: span 3; }
+  .kit-grid > .span-4 { grid-column: span 4; }
+  .kit-grid > .span-5 { grid-column: span 5; }
+  .kit-grid > .span-6 { grid-column: span 6; }
+  .kit-grid > .span-7 { grid-column: span 7; }
+  .kit-grid > .span-8 { grid-column: span 8; }
+  .kit-grid > .span-9 { grid-column: span 9; }
+  .kit-grid > .span-10 { grid-column: span 10; }
+  .kit-grid > .span-11 { grid-column: span 11; }
+  .kit-grid > .span-12 { grid-column: span 12; }
+}
+
+@media (min-width: 1280px) {
+  :root { --kit-gap: var(--space-6); }
+}
+
+/* The scroll reveal: reveal.js puts .kit-reveal on <html> only when it will show each part as it comes onto the
+   screen, so without it (or with less motion asked for) every part is simply there. */
+.kit-reveal [data-reveal] {
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.kit-reveal [data-reveal]:not(.is-in) {
+  opacity: 0;
+  transform: translateY(var(--space-5));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-reveal [data-reveal],
+  .kit-reveal [data-reveal]:not(.is-in) {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* The lightbox of gallery.js: the whole screen, on the page's own ground (set the ground colour on <body>). */
+.kit-lightbox {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: var(--space-5);
+  border: 0;
+  color: inherit;
+  background: inherit;
+}
+
+.kit-lightbox[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--space-4);
+}
+
+.kit-lightbox::backdrop {
+  background: transparent;
+}
+
+.kit-lightbox figure {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  min-height: 0;
+  margin: 0;
+  justify-items: center;
+}
+
+.kit-lightbox img {
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.kit-lightbox figcaption {
+  font-size: max(var(--brand-min-size), 1rem);
+  text-align: center;
+}
+
+.kit-lightbox-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.kit-lightbox button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  font-size: max(var(--brand-min-size), 1rem);
+  border: 0.0625rem solid currentColor;
+  border-radius: var(--brand-radius);
+}
+
+.kit-lightbox button[hidden] {
+  display: none;
+}

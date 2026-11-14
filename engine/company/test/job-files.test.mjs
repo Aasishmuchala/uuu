@@ -1,7 +1,7 @@
 // Tests for engine/company/lib/job-files.mjs (CONTRACTS-V3 31.2): first the loader on fixture
 // files, one valid folder and one broken folder per rule; then the shared tests of section 39 for
 // the 60 real job files of 31.5 and the Researcher's five (PLAN-V5 T34), which skip while a file does not exist;
-// then the film and the two still jobs of PLAN-V5 T43.
+// then the film and the two still jobs of PLAN-V5 T43; then the three page jobs of PLAN-V5 T53.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -240,15 +240,18 @@ for (const [id, [dep, cluster, who, handoff, stage]] of Object.entries(CATALOGUE
 
 // PLAN-V5 T43: the film from the owner's renders and the two still jobs, all made with Runway.
 const STEP3 = ["a-film-from-your-renders", "variations-of-a-still", "a-larger-sharper-still"];
+// PLAN-V5 T53: the three page jobs, in Marketing's design cluster (C20).
+const STEP4 = ["a-landing-page", "a-project-page", "a-small-site"];
 
-test("the catalogue has exactly the 60 jobs of the contract, the Researcher's five, the brand-book job and step 3's three", {
+test("the catalogue has exactly the 60 jobs of the contract, the Researcher's five, the brand-book job, step 3's three and step 4's three", {
   skip: Object.entries(CATALOGUE).every(([id, [dep]]) => existsSync(join(REAL, dep, `${id}.json`))) ? false : "not all 65 job files exist yet",
 }, () => {
   const { jobs, problems } = realCatalogue();
   assert.deepEqual(problems, []);
-  // V5 T17 adds one job to the 60 of the contract: "Read the brand book"; T34 the Researcher's five; T43 the film and two stills.
-  assert.deepEqual(jobs.map((j) => j.id).sort(), [...Object.keys(CATALOGUE), "read-the-brand-book", ...STEP3].sort());
-  assert.equal(jobs.length, 69);
+  // V5 T17 adds one job to the 60 of the contract: "Read the brand book"; T34 the Researcher's five; T43 the film and two stills;
+  // T53 the three page jobs.
+  assert.deepEqual(jobs.map((j) => j.id).sort(), [...Object.keys(CATALOGUE), "read-the-brand-book", ...STEP3, ...STEP4].sort());
+  assert.equal(jobs.length, 72);
 });
 
 // ---- PLAN-V5 K10, T34: the research jobs, and the jobs that may follow them.
@@ -295,6 +298,9 @@ const FOLLOWERS = {
   "studio/an-animated-title-card": ["research-notes-from-a-video", "research-a-swipe-file"],
   "studio/a-slow-reveal-from-pictures": ["research-notes-from-a-video", "research-a-swipe-file"],
   "studio/a-film-from-your-renders": ["research-notes-from-a-video", "research-a-swipe-file"],
+  "marketing/a-landing-page": ["research-a-competitors-site", "research-a-swipe-file"],
+  "marketing/a-project-page": ["research-a-competitors-site", "research-a-swipe-file"],
+  "marketing/a-small-site": ["research-a-competitors-site", "research-a-swipe-file"],
 };
 
 test("the jobs that may follow research take it through an optional task question at the end of their text", () => {
@@ -391,6 +397,62 @@ test("step 3's jobs read as the owner would say them: no tool, path, address or 
   }
   assert.match(PINNED["a-film-from-your-renders"].text, /nothing is sent to Runway before the owner approves a shotlist and its cost/);
   for (const id of ["variations-of-a-still", "a-larger-sharper-still"]) assert.match(PINNED[id].text, /the generation batch named in this task and nothing else/);
+});
+
+// ---- PLAN-V5 T53 (K16, C20): a landing page, a project page and a small site, made by the Builder and looked at through the page viewer.
+
+const PAGE = { department: "marketing", cluster: "design", handoff: "you-approve", stage: 3, who: ["builder"], planFirst: false,
+  reads: [{ file: "brand/brand.md", need: "must" }, { file: "brand/cant-say.md", need: "helps" }, { file: "references/", need: "helps" }],
+  needs: ["browser"], produces: ["site/*/index.html"] };
+const PICTURES = { id: "pictures", label: "Which pictures, by name, from your files?", kind: "text", required: true };
+const FACTS = { id: "facts", label: "Which company file holds the facts?", kind: "file", required: false, folder: "company" };
+const LEARN = { id: "research", label: "Research notes to learn from:", kind: "task", required: false };
+const PAGE_TAKES = (label) => ({ from: ["marketing/research-a-competitors-site", "marketing/research-a-swipe-file"], ask: "research", label });
+const PAGE_PINNED = {
+  "a-landing-page": { title: "A landing page", size: "M", takes: PAGE_TAKES("Make a landing page that learns from this"),
+    // The plan's label ends "A link or an email address." and the loader takes only a label that ends with ? or :.
+    asks: [{ id: "subject", label: "What is the page for?", kind: "line", required: true }, PICTURES, FACTS,
+      { id: "action", label: "What should a visitor do? A link or an email address:", kind: "line", required: false }, LEARN] },
+  "a-project-page": { title: "A project page for a property or a visualisation", size: "M", takes: PAGE_TAKES("Make a project page that learns from this"),
+    asks: [{ id: "project", label: "Which project is the page about?", kind: "line", required: true }, PICTURES, FACTS, LEARN] },
+  "a-small-site": { title: "A small site (up to six pages)", size: "L", takes: PAGE_TAKES("Make a small site that learns from this"),
+    // The plan's label ends "Contact." and the loader takes only a label that ends with ? or :.
+    asks: [{ id: "pages", label: "Which pages? Up to six, one per line, such as Home, Projects, About, Contact:", kind: "text", required: true },
+      PICTURES, FACTS, LEARN] },
+};
+
+test("step 4's three page jobs load and are as the plan pins them, with the keys in the order of every other job file", () => {
+  const { jobs, problems } = realCatalogue();
+  assert.deepEqual(problems, []);
+  for (const id of STEP4) {
+    const j = jobs.find((x) => x.file === `marketing/${id}.json`);
+    assert.ok(j, `${id} loads`);
+    const { file, text, summary, ...doc } = j;
+    const want = PAGE_PINNED[id];
+    assert.deepEqual(doc, { id, department: PAGE.department, cluster: PAGE.cluster, title: want.title, handoff: PAGE.handoff, stage: PAGE.stage,
+      who: PAGE.who, size: want.size, planFirst: PAGE.planFirst, reads: PAGE.reads, asks: want.asks, needs: PAGE.needs, takes: want.takes,
+      produces: PAGE.produces }, id);
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(REAL, "marketing", `${id}.json`), "utf8"))),
+      ["id", "department", "cluster", "title", "summary", "handoff", "stage", "who", "size", "planFirst", "reads", "asks", "needs", "takes", "text", "produces"],
+      `${id}: the keys in the order of every other job file`);
+  }
+});
+
+test("step 4's page jobs read as the owner would say them and say how a page is made, looked at and handed over", () => {
+  const { jobs } = realCatalogue();
+  for (const id of STEP4) {
+    const j = jobs.find((x) => x.file === `marketing/${id}.json`);
+    const all = [j.title, j.summary, j.text, ...j.asks.map((a) => a.label), j.takes.label].join(" ");
+    for (const t of TOOL_NAMES) assert.ok(!new RegExp(`\\b${t}\\b`, "i").test(all), `${id} names ${t}`);
+    assert.doesNotMatch(all, /\/Users\/|~\/|\/private\/|\/tmp\/|https?:|www\.|[`$<>{}\\]/, id);
+    assert.doesNotMatch(j.text, /^(FOR|ROUTINE|SIZE|RESULT|PLAN READY|PLAN FIRST|STOPPED|VERDICT|JOB|ASK|SHOTLIST|CLIPS|Review)\b/m, id);
+    assert.match(j.summary.trim(), /^[A-Z][^.?!]*\.$/, `${id}: the summary is one sentence`);
+    for (const s of ["a static site of HTML, CSS and a little JavaScript", "from the brand kit and the site kit only", "no package",
+      "nothing fetched", "Copy these pictures from the company's files into the site: [pictures]", "invent none", "[facts]",
+      "through the page viewer", "at most three times, before you report", "Nothing is published", "the owner picks a version"]) {
+      assert.ok(j.text.includes(s), `${id}: ${s}`);
+    }
+  }
 });
 
 // ---- {{JOBS}} in a role file (31.3), filled by loadCompanyFile from departments.json and jobs/.

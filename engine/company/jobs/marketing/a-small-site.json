@@ -1,0 +1,70 @@
+{
+  "id": "a-small-site",
+  "department": "marketing",
+  "cluster": "design",
+  "title": "A small site (up to six pages)",
+  "summary": "A small website of up to six linked pages, built from your brand kit and your own pictures.",
+  "handoff": "you-approve",
+  "stage": 3,
+  "who": [
+    "builder"
+  ],
+  "size": "L",
+  "planFirst": false,
+  "reads": [
+    {
+      "file": "brand/brand.md",
+      "need": "must"
+    },
+    {
+      "file": "brand/cant-say.md",
+      "need": "helps"
+    },
+    {
+      "file": "references/",
+      "need": "helps"
+    }
+  ],
+  "asks": [
+    {
+      "id": "pages",
+      "label": "Which pages? Up to six, one per line, such as Home, Projects, About, Contact:",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "pictures",
+      "label": "Which pictures, by name, from your files?",
+      "kind": "text",
+      "required": true
+    },
+    {
+      "id": "facts",
+      "label": "Which company file holds the facts?",
+      "kind": "file",
+      "required": false,
+      "folder": "company"
+    },
+    {
+      "id": "research",
+      "label": "Research notes to learn from:",
+      "kind": "task",
+      "required": false
+    }
+  ],
+  "needs": [
+    "browser"
+  ],
+  "takes": {
+    "from": [
+      "marketing/research-a-competitors-site",
+      "marketing/research-a-swipe-file"
+    ],
+    "ask": "research",
+    "label": "Make a small site that learns from this"
+  },
+  "text": "Make a small site with these pages, at most six, each linked from every other: [pages]. The first is the home page. Build it as a static site of HTML, CSS and a little JavaScript, from the brand kit and the site kit only: no package, and nothing fetched from anywhere. Copy these pictures from the company's files into the site: [pictures]. Take every fact from the company's files and invent none; read this one first: [facts]. Look at every version through the page viewer at phone and desktop width and fix what it shows, at most three times, before you report. Nothing is published; the owner picks a version. If I name research notes here, learn from their layout and examples and copy none of them: [research]",
+  "produces": [
+    "site/*/index.html"
+  ]
+}

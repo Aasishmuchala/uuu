@@ -12,6 +12,9 @@
     "studio/a-moving-chart-from-figures": { "kind": "title-card", "review": "art", "variants": 1, "playbooks": ["aasish-design", "impact-3d"] },
     "studio/a-badge-or-logo-mark": { "kind": "poster", "review": "art", "variants": 1, "playbooks": ["aasish-design", "lightcraft"] },
     "studio/a-slow-reveal-from-pictures": { "kind": "title-card", "review": "art", "variants": 1, "playbooks": ["aasish-design", "lightcraft"] },
-    "studio/a-film-from-your-renders": { "kind": "film", "review": "art", "variants": 3, "playbooks": ["shotlist-director", "sthyra-cinematic", "archfilm-edit", "cinematic-ai-film"] }
+    "studio/a-film-from-your-renders": { "kind": "film", "review": "art", "variants": 3, "playbooks": ["shotlist-director", "sthyra-cinematic", "archfilm-edit", "cinematic-ai-film"] },
+    "marketing/a-landing-page": { "kind": "page", "review": "art", "variants": 3, "playbooks": ["aasish-design", "impeccable", "taste-skill", "sthyra-copywriting"] },
+    "marketing/a-project-page": { "kind": "page", "review": "art", "variants": 3, "playbooks": ["aasish-design", "impeccable", "taste-skill", "sthyra-copywriting"] },
+    "marketing/a-small-site": { "kind": "page", "review": "art", "variants": 3, "playbooks": ["aasish-design", "impeccable", "taste-skill", "frontend-ui-engineering"] }
   }
 }
