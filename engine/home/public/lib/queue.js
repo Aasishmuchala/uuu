@@ -1,7 +1,7 @@
 // What needs the owner, as the queue panel and the Needs you page both read it (PLAN-COOK T21, section 4):
 // the order (urgent first, then newest), one department's share, the panel's title, the four groups and the
 // address a row opens. Pure helpers only, so a page can import them without the shell.
-import { linkHref } from "./format.js";
+import { linkHref, when } from "./format.js";
 import { DEPARTMENTS } from "../routes.js";
 
 // Which department a Needs-you item's source belongs to (CONTRACTS-V3 26.4).
@@ -15,6 +15,13 @@ const timeOf = (iso) => {
   const t = Date.parse(iso);
   return Number.isNaN(t) ? 0 : t;
 };
+
+// A row's time: the clock alone for an item of today ("14:27"), the shared helper's words for any other day,
+// nothing for an empty or broken date.
+export function rowTime(iso, now = new Date()) {
+  const at = when(iso, now);
+  return at.startsWith("today ") ? at.slice(6) : at;
+}
 
 // Urgent first, then newest first; items of the same rank keep their order.
 export function sortNeeds(items) {

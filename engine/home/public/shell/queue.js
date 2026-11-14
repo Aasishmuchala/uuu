@@ -8,12 +8,12 @@
 // you tab opens the page.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
-import { fullWhen, when } from "../lib/format.js";
-import { needsFor, needsTitle, queueGroups, queueHref, sortNeeds } from "../lib/queue.js";
+import { fullWhen } from "../lib/format.js";
+import { needsFor, needsTitle, queueGroups, queueHref, rowTime, sortNeeds } from "../lib/queue.js";
 import { ErrorNotice, Icon, Kbd, Loading, StateIcon } from "../kit/index.js";
 
 // The shell's tests read the helpers from here, with the panel.
-export { SOURCE_DEPARTMENT, needsFor, needsTitle, queueGroups, queueHref, sortNeeds } from "../lib/queue.js";
+export { SOURCE_DEPARTMENT, needsFor, needsTitle, queueGroups, queueHref, rowTime, sortNeeds } from "../lib/queue.js";
 
 // A row's icon by its kind. "done" is the board's Done mark (a ring with a tick), drawn by StateIcon.
 export const KIND_ICON = { shotlist: "video", pick: "layers", approval: "check", question: "reply", result: "done" };
@@ -136,7 +136,7 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
         <h3 class="s-queue-group-title" aria-hidden="true">${g.heading}</h3>
         ${g.items.map((item) => {
           const href = queueHref(item);
-          const at = when(item.when);
+          const at = rowTime(item.when);
           return html`
             <a key=${item.id} class="s-queue-row" href=${href} aria-current=${href === here ? "true" : undefined}
               onClick=${() => close.current?.()}>

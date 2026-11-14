@@ -39,6 +39,16 @@ test("queueGroups: to approve, to answer, to accept, to know, empty groups left 
   assert.deepEqual(lib.queueGroups([null, { kind: "result" }]), [], "an item without an id is not drawn");
 });
 
+test("rowTime: the clock alone for today, the shared words for any other day, nothing for an empty or broken date", () => {
+  const now = new Date(2026, 10, 14, 16, 0);
+  assert.equal(lib.rowTime(new Date(2026, 10, 14, 14, 27).toISOString(), now), "14:27");
+  assert.equal(lib.rowTime(new Date(2026, 10, 13, 9, 5).toISOString(), now), "yesterday 09:05");
+  assert.equal(lib.rowTime(new Date(2026, 10, 3, 9, 5).toISOString(), now), "3 Nov");
+  assert.equal(lib.rowTime("", now), "");
+  assert.equal(lib.rowTime("not a date", now), "");
+  assert.equal(lib.rowTime(undefined, now), "");
+});
+
 test("queueHref: a shotlist on the Needs you page; a result or pick of a task opens its task; anything else on the Needs you page", () => {
   assert.equal(lib.queueHref({ id: "shotlist:a b", kind: "shotlist", link: { page: "tasks", id: "t1" } }), "#/needs-you?item=shotlist%3Aa%20b");
   assert.equal(lib.queueHref({ id: "goal:1", kind: "result", link: { page: "tasks", id: "e1" } }), "#/tasks/e1");
@@ -172,6 +182,8 @@ test("the compose dialog and the work panel are on the same surfaces, and nothin
   const o = css("shell-overlays.css");
   assert.match(o, /\.s-panel \{[^}]*border-left: 1px solid var\(--line\);[^}]*background: var\(--panel\);/);
   assert.match(src("shell/compose-dialog.js"), /<\$\{Dialog\} open=\$\{open\} title="New task"/, "the compose dialog is the kit's dialog: the raised step and the float shadow");
+  assert.match(o, /\.s-cmd-scrim \{[^}]*background: var\(--scrim\);/, "the layer behind the menu is the themed scrim token");
+  assert.doesNotMatch(o, /data-theme="(light|auto)"\] \.s-cmd-scrim/, "no light-theme override of the scrim");
   assert.doesNotMatch(o, /backdrop-filter/);
   assert.doesNotMatch(o, /gradient\(/);
   assert.doesNotMatch(o, /#[0-9a-fA-F]{3,8}\b\s*;|rgba?\(|hsla?\(/, "colours come from the tokens");

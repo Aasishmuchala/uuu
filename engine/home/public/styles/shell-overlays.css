@@ -176,17 +176,8 @@
 .s-cmd-scrim {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--black) 40%, transparent);
+  background: var(--scrim);
   animation: s-fade-in var(--t-med) var(--ease);
-}
-/* In light the page dims less: the panel's shadow parts it, and the page stays legible behind it. */
-:root[data-theme="light"] .s-cmd-scrim {
-  background: color-mix(in srgb, var(--black) 16%, transparent);
-}
-@media (prefers-color-scheme: light) {
-  :root[data-theme="auto"] .s-cmd-scrim {
-    background: color-mix(in srgb, var(--black) 16%, transparent);
-  }
 }
 .s-cmd {
   position: relative;

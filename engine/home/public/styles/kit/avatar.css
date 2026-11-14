@@ -16,8 +16,8 @@
   vertical-align: middle;
 }
 
-.k-avatar--20 { --k-avatar-size: calc(var(--s-5)); font-size: calc(var(--fs-label) * 0.75); }
-.k-avatar--24 { --k-avatar-size: calc(var(--s-6)); font-size: calc(var(--fs-label) * 0.83); }
+.k-avatar--20 { --k-avatar-size: calc(var(--s-5)); font-size: var(--fs-label); }
+.k-avatar--24 { --k-avatar-size: calc(var(--s-6)); font-size: var(--fs-label); }
 .k-avatar--32 { --k-avatar-size: calc(var(--s-8)); font-size: var(--fs-label); }
 .k-avatar--48 { --k-avatar-size: calc(var(--s-12)); font-size: var(--fs-section); }
 .k-avatar--72 { --k-avatar-size: calc(var(--s-12) + var(--s-6)); font-size: var(--fs-page); }
@@ -38,6 +38,17 @@
   font-weight: var(--fw-bold);
   line-height: 1;
   user-select: none;
+}
+
+/* Two initials at 12 px do not fit a 20 or 24 px disc, and nothing draws under 12 px: those sizes show the first
+   letter alone, at weight 600 (the rest of the text is sized to nothing and the first letter put back). */
+.k-avatar--20 .k-avatar__initials,
+.k-avatar--24 .k-avatar__initials {
+  font-size: 0;
+}
+.k-avatar--20 .k-avatar__initials::first-letter,
+.k-avatar--24 .k-avatar__initials::first-letter {
+  font-size: var(--fs-label);
 }
 
 /* Six tints, picked from the slug; text stays in --ink for contrast. */

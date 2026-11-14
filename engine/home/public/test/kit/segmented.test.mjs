@@ -147,7 +147,8 @@ test("the pressed choice is lifted: the raised step with a 2 px accent edge, in 
   assert.doesNotMatch(on[1], /accent-fill|--primary/, "no longer a filled blue pill");
   assert.match(/\.k-seg\s*\{([^}]*)\}/.exec(s)[1], /border: 1px solid var\(--line-2\);[\s\S]*border-radius: var\(--r-2\);/, "one outlined track with the control corner");
   assert.match(/\.k-seg__item\s*\{([^}]*)\}/.exec(s)[1], /min-height: var\(--h-sm\);/, "28 px choices");
-  assert.match(s, /\.k-seg:has\(\.k-seg__item:focus-visible\)\s*\{\s*outline: 2px solid var\(--focus\);\s*outline-offset: 2px;/, "the keyboard's ring is drawn around the track, where scrolling cannot cut it");
+  assert.doesNotMatch(s, /\.k-seg:has\(/, "no ring round the track: the track scrolls");
+  assert.match(s, /\.k-seg__item:focus-visible \{[^}]*outline: none;[^}]*box-shadow: inset 0 0 0 2px var\(--accent\);/, "the focused choice draws its own inset 2 px ring, which scrolling cannot cut");
   assert.doesNotMatch(s, /r-pill/);
 });
 

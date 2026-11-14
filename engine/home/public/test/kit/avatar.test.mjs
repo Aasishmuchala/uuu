@@ -27,4 +27,17 @@ test("an avatar is round with a hairline edge: no ring glow, no spaced initials"
   assert.doesNotMatch(s, /letter-spacing/);
 });
 
+test("no avatar size draws text under 12 px: the small sizes show one initial at 12 px", () => {
+  const s = css("kit/avatar.css");
+  for (const n of [20, 24, 32, 48, 72]) {
+    const fs = new RegExp(`\\.k-avatar--${n} \\{[^}]*font-size: ([^;]+);`).exec(s);
+    assert.ok(fs, `size ${n} sets its type`);
+    assert.doesNotMatch(fs[1], /\*/, `size ${n} is not scaled below the label step`);
+  }
+  assert.match(s, /\.k-avatar--20 \.k-avatar__initials,\s*\.k-avatar--24 \.k-avatar__initials \{[^}]*font-size: 0;/, "the rest of the initials is sized away");
+  assert.match(s, /\.k-avatar--24 \.k-avatar__initials::first-letter \{[^}]*font-size: var\(--fs-label\);/, "the first letter is drawn at 12 px");
+  assert.match(css("tokens.css"), /--fw-bold: 600;/);
+  assert.match(/\.k-avatar__initials \{([^}]*)\}/.exec(s)[1], /font-weight: var\(--fw-bold\);/, "weight 600");
+});
+
 primitiveSheetTests("avatar");
