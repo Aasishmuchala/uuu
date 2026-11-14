@@ -245,7 +245,11 @@ test("the card: Approve opens the confirm; nothing is sent until its button; the
     fire(yes, "click");
     await settle();
     assert.deepEqual(f.calls.at(-1).body, { id: "staged:shotlist:g1", action: "approve", version: "v1", variant: "a" });
-    assert.match(textOf(root), /Approved\. The Artist will make the clips\. You can follow them in Studio\./);
+    // Fix round A2 (T101): the server's approved sentence is shown as it sent it, a text node.
+    const said = elements(root).find((e) => hasClass(e, "k-sl__done-message"));
+    assert.equal(textOf(said), "Approved. whatever the server says");
+    assert.ok(said.childNodes.every((n) => n.nodeType === 3), "as text");
+    assert.equal(got.message, "Approved. whatever the server says");
     assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/dashboards/studio?film=g1"));
     assert.equal(got.variant, "a");
     assert.equal(got.done.kind, "shotlist");
@@ -440,11 +444,57 @@ test("T96: the boards fill the stage's height as a size container; the locked de
   assert.doesNotMatch(src, /onBoard/, "the option cards' board buttons are gone, and so are their handlers");
 });
 
-test("T96: after approval the board is set with its one line and its link to Studio on the stage, its boards under it", async () => {
+test("T101: after approval the stage holds the board with its one line, nothing to press; the rail is the approved state with one primary", async () => {
   const v = { ...LAKE.variants[0], letter: "A", title: "Slow approach" };
-  const root = await showTree(sl.ShotlistDone, { done: { action: "approve", version: v, title: "Approve a shotlist", studio: "#/dashboards/studio?film=g1" } });
-  const stage = elements(root).find((e) => (e.getAttribute("class") || "").includes("k-work__stage"));
+  const at = new Date().toISOString();
+  const said = "Approved. The Artist will make the clips; up to $3.70 may be spent. You can follow it in Studio.";
+  const root = await showTree(sl.ShotlistDone, { done: { action: "approve", version: v, title: "Approve a shotlist", studio: "#/dashboards/studio?film=g1", message: said, at } });
+  const stage = elements(root).find((e) => hasClass(e, "k-work__stage"));
   assert.match(textOf(stage), /You approved A: Slow approach/);
-  assert.ok(elements(stage).some((e) => e.localName === "a" && e.getAttribute("href") === "#/dashboards/studio?film=g1"), "the way to Studio is set with the board");
-  assert.ok(!elements(stage).some((e) => e.localName === "button"), "nothing on the stage to press but the link");
+  assert.ok(!elements(stage).some((e) => e.localName === "button" || e.localName === "a"), "nothing on the stage to press");
+  // "Open Studio" once, and it is the primary.
+  const studio = elements(root).filter((e) => e.localName === "a" && e.getAttribute("href") === "#/dashboards/studio?film=g1");
+  assert.equal(studio.length, 1, "one way to Studio");
+  assert.ok(hasClass(studio[0], "k-btn--primary"), "and it is the primary");
+  assert.equal(textOf(studio[0]).trim(), "Open Studio");
+  const rail = elements(root).find((e) => hasClass(e, "k-rail"));
+  const all = textOf(rail);
+  // The mark with its time, the server's sentence as sent, what was approved from the item's own numbers.
+  assert.ok(elements(rail).some((e) => hasClass(e, "k-sl__approved") && textOf(e) === "Approved"));
+  assert.match(all, /Approvedtoday \d\d:\d\d/);
+  assert.equal(textOf(elements(rail).find((e) => hasClass(e, "k-sl__done-message"))), said);
+  assert.match(all, /TreatmentA · Slow approach/);
+  assert.match(all, /Cost(about \$\d+\.\d\d)/);
+  // What happens next is the server's time sentence, as sent.
+  if (v.cost && v.cost.time) assert.ok(all.includes(v.cost.time));
+  // The shots approved, each with its seconds and cost, and no state the item does not carry.
+  const shots = elements(rail).filter((e) => hasClass(e, "k-sl__done-shot"));
+  assert.equal(shots.length, sl.shotRows(v).length);
+  assert.doesNotMatch(all, /Waiting to start|Rendering|Done|In progress/, "nothing invented about a clip's state");
+});
+
+test("T101: wholeCut leaves the room under the last whole part, and nothing when all of it fits", () => {
+  assert.equal(sl.wholeCut(300, [100, 200, 290]), 0, "it fits");
+  assert.equal(sl.wholeCut(300, [262, 306, 350]), 38, "the row that would be cut is left out of view");
+  assert.equal(sl.wholeCut(300, [262, 300.4, 350]), 0, "a part that ends at the edge is whole");
+  assert.equal(sl.wholeCut(300, [400]), 0, "nothing whole inside: nothing is hidden");
+  assert.equal(sl.wholeCut(0, [10]), 0);
+  assert.equal(sl.wholeCut(300, []), 0);
+});
+
+test("T101: the rail's secondary lines are 44 px rows that open in place; the time sentence is behind one, as sent", async () => {
+  const root = await showTree(sl.ShotlistCard, { item: LAKE });
+  const heads = elements(root).filter((e) => hasClass(e, "k-sl__fold-head"));
+  const names = heads.map((h) => textOf(elements(h).find((e) => hasClass(e, "k-sl__fold-name")) || h));
+  assert.deepEqual(names.slice(0, 2), ["How long it takes", "Brand check"]);
+  assert.ok(names.includes("The Art director's scores") && names.includes("Shots"));
+  const v = LAKE.variants[0];
+  if (v.cost && v.cost.time) {
+    const time = elements(root).find((e) => e.localName === "details" && textOf(e).startsWith("How long it takes"));
+    assert.ok(time, "the time sentence sits behind a row");
+    assert.ok(textOf(time).includes(v.cost.time), "as sent");
+  }
+  const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
+  assert.match(/\.k-sl__fold-head \{([^}]*)\}/.exec(sheet)[1], /min-height: 44px;/);
+  assert.match(sheet, /clip-path: inset\(0 0 var\(--k-sl-cut, 0px\) 0\);/, "the body never shows a cut line");
 });

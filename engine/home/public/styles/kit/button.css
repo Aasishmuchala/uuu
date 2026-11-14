@@ -4,8 +4,8 @@
    pressed, focus (the 2 px ring from base.css) and disabled in place: colours change, nothing moves. A disabled
    button of any variant is the same inert block (the raised step greyed by 5 percent of the ink, so it is not a
    white button in light) with the third ink, never a faded accent.
-   The locked action is the blocked decision: inert (reduced contrast, a lock), its reason fused under it in the
-   warning colour, the way out under that. Tokens only. */
+   The locked action is the blocked decision: a quiet box with a lock, its reason under it in the second ink, only
+   its "Locked" tag in the problem colour, the way out under that. Tokens only. */
 
 .k-btn {
   display: inline-flex;
@@ -204,8 +204,9 @@
   }
 }
 
-/* The locked action: an inert block (dashed edge, a lock, the third ink) with its reason fused under it in the
-   warning colour, then the way out. */
+/* The locked action: a quiet box on the panel (a solid 1 px line, a lock, the action's words in the default ink) with
+   the server's reason under it in the second ink, then the way out. Only the "Locked" tag speaks in the problem
+   colour: one warning on the decision, never a second colour. Nothing in it is cut: the words wrap. */
 .k-locked {
   display: flex;
   flex-direction: column;
@@ -214,48 +215,50 @@
 }
 
 .k-locked__block {
-  border: 1px dashed var(--line-2);
+  padding: 10px var(--s-3);
+  border: 1px solid var(--line-2);
   border-radius: var(--r-2);
-  background: var(--ctl);
+  background: transparent;
 }
 
 .k-locked__action {
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  min-height: var(--h-md);
-  padding: 0 var(--s-3);
-  color: var(--ink-3);
+  min-height: var(--lh-ui);
+  color: var(--ink);
   cursor: not-allowed;
+}
+
+.k-locked__action > .k-icon {
+  flex: none;
+  color: var(--ink-2);
 }
 
 .k-locked__label {
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   font-size: var(--fs-ui);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-ui);
 }
 
 .k-locked__tag {
   flex: none;
-  padding: 0 6px;
-  border-radius: 5px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-xs);
   background: var(--bad-bg);
   color: var(--bad);
-  font-size: var(--fs-label);
+  font-size: var(--fs-note);
   font-weight: var(--fw-medium);
-  line-height: var(--s-5);
+  line-height: var(--lh-ui);
 }
 
 .k-locked__why {
-  margin: 0;
-  padding: var(--s-2) var(--s-3);
-  border-top: 1px dashed var(--line);
-  color: var(--warn);
+  margin: var(--s-1) 0 0;
+  padding: 0;
+  color: var(--ink-2);
   font-size: var(--fs-note);
   line-height: var(--lh-note);
 }
@@ -290,8 +293,7 @@
 @media (max-width: 859px) {
   .k-btn,
   .k-btn--sm,
-  .k-btn--lg,
-  .k-locked__action {
+  .k-btn--lg {
     min-height: calc(var(--h-lg) + var(--s-1));
   }
 

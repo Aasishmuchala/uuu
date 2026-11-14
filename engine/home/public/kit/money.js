@@ -33,6 +33,15 @@ export function moneyParts(n) {
   };
 }
 
+// Where the limit's label sits against its tick: centred under it; from the tick onwards when the tick is near the
+// start (so it never covers "spent"); ending at the tick's right edge when the tick is near the end (never clipped).
+export function limitAt(t) {
+  if (t === null || t === undefined) return null;
+  if (t < 40) return "k-meter__legend-limit--after";
+  if (t > 80) return "k-meter__legend-limit--end";
+  return null;
+}
+
 const share = (x) => (typeof x === "number" && Number.isFinite(x) ? Math.min(100, Math.max(0, x)) : 0);
 
 // shares = { spent, fits, over } in percent; tick = where the limit is, in percent; legend = { spent, limit } words.
@@ -52,7 +61,7 @@ export function Meter({ shares, tick, legend, plain = false, label }) {
     ${legend
       ? html`<div class="k-meter__legend" aria-hidden="true">
           <span class="k-meter__legend-spent">${legend.spent}</span>
-          ${legend.limit ? html`<span class=${cx("k-meter__legend-limit", t !== null && t < 50 && "k-meter__legend-limit--after")} style=${t !== null ? `left: ${t}%;` : undefined}>${legend.limit}</span>` : null}
+          ${legend.limit ? html`<span class=${cx("k-meter__legend-limit", limitAt(t))} style=${t !== null ? `left: ${t}%;` : undefined}>${legend.limit}</span>` : null}
         </div>`
       : null}
   </div>`;
@@ -68,7 +77,8 @@ export function Sum({ rows }) {
 }
 
 // label: "Treatment A costs". parts: moneyParts(...). words: the server's sentences, shown alone when parts is null.
-// overWords: the caller's words for the over-the-limit row. The Meter's legend is made from parts.
+// overWords: the caller's words for the over-the-limit row. The Meter's legend is made from parts. The figure and the
+// most it may cost share one line; the over row is the one place the problem colour is used, on its figure only.
 export function MoneyBlock({ label, parts, words, overWords }) {
   const lines = (Array.isArray(words) ? words : words ? [words] : []).filter((w) => typeof w === "string" && w);
   if (!parts) {
@@ -86,8 +96,8 @@ export function MoneyBlock({ label, parts, words, overWords }) {
   ].filter(Boolean);
   return html`<section class=${cx("k-money", parts.blocked && "k-money--over")}>
     ${label ? html`<h3 class="k-money__label">${label}</h3>` : null}
-    <p class="k-money__figure"><span class="k-money__about">${W.about}</span><span class="k-money__amount">${parts.figure}</span></p>
-    ${parts.upTo ? html`<p class="k-money__upto">${W.upTo} ${parts.upTo}</p>` : null}
+    <p class="k-money__figure"><span class="k-money__about">${W.about}</span><span class="k-money__amount">${parts.figure}</span>
+      ${parts.upTo ? html`<span class="k-money__upto">${W.upTo} ${parts.upTo}</span>` : null}</p>
     <${Meter} shares=${parts.shares} tick=${parts.tick} legend=${legend} />
     <${Sum} rows=${rows} />
   </section>`;

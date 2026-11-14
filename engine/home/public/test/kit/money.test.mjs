@@ -119,5 +119,33 @@ test("the figure is 40 px in tabular figures, the tick is 12 px, the track is 8 
   assert.match(c, /\.k-meter__track \{[^}]*height: 8px/);
 });
 
+test("Fix round A2 (T101): the limit's label is centred under its tick, from it near the start, ending at it near the end", async () => {
+  assert.equal(mod.limitAt(62), null, "centred");
+  assert.equal(mod.limitAt(20), "k-meter__legend-limit--after");
+  assert.equal(mod.limitAt(100), "k-meter__legend-limit--end", "never clipped at the right end");
+  assert.equal(mod.limitAt(null), null);
+  const root = await show(Meter, { shares: OVER.shares, tick: 100, legend: { spent: "$2.00 spent", limit: "limit $3.00" } });
+  assert.ok(classesOf(byClass(root, "k-meter__legend-limit")[0]).includes("k-meter__legend-limit--end"));
+  const c = css("kit/money.css");
+  assert.match(/\.k-meter__legend-limit \{([^}]*)\}/.exec(c)[1], /transform: translateX\(-50%\);/, "centred under the tick");
+});
+
+test("Fix round A2 (T101): one problem colour, on figures only; the over row's words in the default ink; values in one weight", async () => {
+  const c = css("kit/money.css");
+  assert.match(c, /\.k-money__row--bad dt \{ color: var\(--ink\); \}/);
+  assert.match(c, /\.k-money__row--bad dd \{ color: var\(--bad\); \}/);
+  assert.doesNotMatch(c, /--warn/, "no second warning colour");
+  assert.match(/\.k-meter__over \{([^}]*)\}/.exec(c)[1], /color-mix\(in srgb, var\(--bad-fill\) 60%/, "the over part at lower strength");
+  assert.match(/\.k-meter__spent \{([^}]*)\}/.exec(c)[1], /var\(--spent\)/, "spent is neutral");
+  assert.match(/\.k-meter__fits \{([^}]*)\}/.exec(c)[1], /var\(--accent-fg\)/, "this treatment is the accent");
+  const weights = [...c.matchAll(/\.k-money__row dd \{[^}]*font-weight: ([^;]+);/g)].map((m) => m[1]);
+  assert.deepEqual(weights, ["var(--fw-medium)"]);
+  assert.doesNotMatch(c, /\.k-money__row--bad [^{]*\{[^}]*font-weight/, "the over row keeps the one weight");
+  // The most it may cost sits on the figure's line.
+  const root = await show(MoneyBlock, { label: "Treatment A costs", parts: OVER, overWords: "Over by" });
+  const fig = byClass(root, "k-money__figure")[0];
+  assert.match(textOf(fig), /about\$1\.85up to \$3\.70/);
+});
+
 ROOTS.money = "k-money";
 newSheetTest("money");

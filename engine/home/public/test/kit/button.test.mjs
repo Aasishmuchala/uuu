@@ -305,10 +305,19 @@ test("LockedAction: a group named by its action, its reason read with it, the wa
   assert.doesNotMatch(textOf(bare), /Locked/, "an empty tag draws none");
   assert.equal(bare.firstChild.getAttribute("aria-describedby"), null, "no reason, nothing described");
   const b = css("kit/button.css");
-  assert.match(/\.k-locked__block\s*\{([^}]*)\}/.exec(b)[1], /border: 1px dashed var\(--line-2\);/);
-  assert.match(/\.k-locked__action\s*\{([^}]*)\}/.exec(b)[1], /color: var\(--ink-3\);/, "the blocked action is inert");
-  assert.match(/\.k-locked__why\s*\{([^}]*)\}/.exec(b)[1], /color: var\(--warn\);[\s\S]*font-size: var\(--fs-note\);/, "its reason in the warning colour at 13 px");
-  assert.match(/\.k-locked__tag\s*\{([^}]*)\}/.exec(b)[1], /background: var\(--bad-bg\);/);
+  // Fix round A2 (T101): one warning colour. A solid 1 px line box, the action and its reason in neutral inks, only
+  // the tag in the problem colour; no dashed edge, no amber, nothing cut.
+  const block = /\.k-locked__block\s*\{([^}]*)\}/.exec(b)[1];
+  assert.match(block, /border: 1px solid var\(--line-2\);/);
+  assert.doesNotMatch(b.slice(b.indexOf(".k-locked {")), /dashed|--warn/, "no dashed edge and no warning colour in the locked action");
+  assert.match(/\.k-locked__action\s*\{([^}]*)\}/.exec(b)[1], /color: var\(--ink\);/, "the action's words in the default ink");
+  assert.doesNotMatch(/\.k-locked__label\s*\{([^}]*)\}/.exec(b)[1], /ellipsis|nowrap/, "the label is never cut");
+  const reason = /\.k-locked__why\s*\{([^}]*)\}/.exec(b)[1];
+  assert.match(reason, /color: var\(--ink-2\);/, "its reason in the second ink");
+  assert.match(reason, /font-size: var\(--fs-(note|ui)\);/, "at 13 or 14 px");
+  const tag = /\.k-locked__tag\s*\{([^}]*)\}/.exec(b)[1];
+  assert.match(tag, /background: var\(--bad-bg\);/);
+  assert.match(tag, /color: var\(--bad\);/, "only the tag in the problem colour");
 });
 
 primitiveSheetTests("button");

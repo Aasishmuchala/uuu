@@ -189,7 +189,18 @@
   line-height: var(--lh-note);
 }
 
-/* ---- The rail's body */
+/* ---- The rail's body. A line is never cut at its foot: when the body cannot hold all of it, kit/shotlist.js sets
+   --k-sl-cut to the room under the last whole part, and that room is left empty (the rest is reached by scrolling,
+   and a row reached by Tab is scrolled clear of it). */
+.k-sl .k-rail__body {
+  clip-path: inset(0 0 var(--k-sl-cut, 0px) 0);
+  scroll-padding-bottom: var(--k-sl-cut, 0px);
+}
+
+.k-sl__rail {
+  padding-bottom: var(--k-sl-cut, 0px);
+}
+
 .k-sl__notice {
   padding: var(--s-4) var(--pad) 0;
 }
@@ -207,22 +218,6 @@
   font-size: var(--fs-note);
   line-height: var(--lh-note);
   overflow-wrap: anywhere;
-}
-
-.k-sl__time {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-2);
-  margin-top: var(--s-3);
-  color: var(--ink-2);
-  font-size: var(--fs-note);
-  line-height: var(--lh-note);
-}
-
-.k-sl__time .k-icon {
-  flex: none;
-  margin-top: 3px;
-  color: var(--ink-3);
 }
 
 /* The server's limit lines, when its numbers are missing: label at the left, value on the right edge. */
@@ -254,12 +249,8 @@
   overflow-wrap: anywhere;
 }
 
-/* The brand row sits in its block without its own margins. */
-.k-sl .k-blk .k-pick__brand {
-  margin: 0;
-}
-
-/* ---- Folds: the scores and the shots, a heading that opens what is under it */
+/* ---- The rows under the money: how long, the brand check, the scores and the shots, each 44 px, a line icon, its
+   name in the default ink, a short fact at the right edge in the second ink, and what it opens to under it */
 .k-sl__folds {
   border-top: 1px solid var(--line);
 }
@@ -271,23 +262,27 @@
 .k-sl__fold-head {
   display: flex;
   align-items: center;
-  gap: var(--s-2);
-  min-height: 48px;
-  padding: 0 var(--pad);
+  gap: var(--s-3);
+  min-height: 44px;
+  padding: var(--s-2) var(--pad);
   color: var(--ink);
   font-size: var(--fs-ui);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-regular);
   line-height: var(--lh-ui);
   list-style: none;
   cursor: pointer;
   transition: background-color var(--t-fast) var(--ease);
 }
 
+.k-sl__fold--still .k-sl__fold-head {
+  cursor: default;
+}
+
 .k-sl__fold-head::-webkit-details-marker {
   display: none;
 }
 
-.k-sl__fold-head:hover {
+summary.k-sl__fold-head:hover {
   background: var(--ctl);
 }
 
@@ -296,23 +291,35 @@
   outline-offset: -2px;
 }
 
+.k-sl__fold-icon {
+  flex: none;
+  color: var(--ink-2);
+}
+
 .k-sl__fold-name {
   flex: 1 1 auto;
   min-width: 0;
+  white-space: nowrap;
 }
 
 .k-sl__fold-aside {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--ink-2);
   font-size: var(--fs-note);
-  font-weight: var(--fw-regular);
+  line-height: var(--lh-note);
+  text-align: right;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .k-sl__fold-mark {
   flex: none;
-  color: var(--ink-2);
+  color: var(--ink-3);
   transition: transform var(--t-fast) var(--ease);
+}
+
+.k-sl__fold--still .k-sl__fold-aside {
+  margin-right: 28px;
 }
 
 .k-sl__fold[open] > .k-sl__fold-head .k-sl__fold-mark {
@@ -322,7 +329,19 @@
 .k-sl__fold-body {
   display: grid;
   gap: var(--s-3);
-  padding: 0 var(--pad) var(--s-4);
+  padding: 0 var(--pad) var(--s-4) calc(var(--pad) + 28px);
+}
+
+.k-sl__brand-lines {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  overflow-wrap: anywhere;
 }
 
 /* The shots: the board, the move with its prompt and facts, the cost on the right edge. */
@@ -418,12 +437,7 @@
 }
 
 /* Over a limit, the decision reads calm at true size: the locked action with the server's reason under it at 13 px
-   in the warning colour, 12 px to the way out, and the link to raise the limit directly under it at 13 px. */
-.k-sl__primary .k-locked__why {
-  padding: 10px var(--s-3) var(--s-3);
-  line-height: var(--lh-note);
-}
-
+   in the second ink, 12 px to the way out, and the link to raise the limit directly under it at 13 px. */
 .k-sl__primary .k-locked__out {
   gap: var(--s-1);
 }
@@ -562,14 +576,15 @@
   outline-offset: 2px;
 }
 
+/* Under the approved board: what was approved, with its mark. */
 .k-sl__done-choice {
   display: flex;
   align-items: center;
   gap: var(--s-2);
   color: var(--ink);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-bold);
-  line-height: var(--lh-body);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
 }
 
 .k-sl__done-choice .k-icon {
@@ -577,32 +592,154 @@
   color: var(--good);
 }
 
+/* The approved rail: the mark and its time, the server's sentence, then what was approved, what happens next and the
+   shots, as blocks; the one primary in the foot. */
+.k-sl__done-head {
+  padding: 0 var(--pad) var(--s-4);
+}
+
+.k-sl__done-mark {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.k-sl__approved {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-xs);
+  background: var(--good-bg);
+  color: var(--good);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+}
+
+.k-sl__done-at {
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  font-variant-numeric: tabular-nums;
+}
+
 .k-sl__done-message {
-  margin-top: var(--s-1);
+  margin-top: var(--s-2);
   color: var(--ink-2);
   font-size: var(--fs-ui);
   line-height: var(--lh-ui);
+  overflow-wrap: anywhere;
 }
 
-/* Under the approved board: what was approved at the left, the way to Studio on the right edge. */
-.k-sl__done-line {
+.k-sl__facts {
+  margin: 0;
+}
+
+.k-sl__fact {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--s-1) var(--s-4);
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 32px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
 }
 
-.k-sl__done-studio {
+.k-sl__fact:first-child {
+  border-top: 0;
+}
+
+.k-sl__fact dt {
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.k-sl__fact dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--ink);
   font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-ui);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.k-sl__done-shots {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.k-sl__done-shot {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 36px;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+}
+
+.k-sl__done-shot:first-child {
+  border-top: 0;
+}
+
+.k-sl__done-shot img,
+.k-sl__done-nopic {
+  display: block;
+  width: 48px;
+  height: 27px;
+  max-width: none;
+  border-radius: var(--r-xs);
+  object-fit: cover;
+  background: var(--black);
+}
+
+.k-sl__done-shot-name {
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  overflow-wrap: anywhere;
+}
+
+.k-sl__done-shot-name b {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+
+.k-sl__done-shot-facts {
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.k-sl__done-studio:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: var(--r-xs);
+/* The approved stage: the board with its boards always in a row under it. */
+.k-sl__boards--done {
+  --k-sl-cap: 44px;
+  --k-sl-side: 0px;
+  --k-sl-row: calc(56px + var(--s-3));
+}
+
+.k-sl__boards--done .k-sl__fit {
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.k-sl__boards--done .k-sl__reel.k-sl__reel--still {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 100px;
+  width: 100%;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .k-sl--done-line {
@@ -684,6 +821,10 @@
 
   .k-work__stage .k-sl__reel {
     max-height: calc(min(calc(100cqw - var(--k-sl-side)), calc((100cqh - var(--k-sl-cap)) * 16 / 9)) * 9 / 16);
+  }
+
+  .k-work__stage .k-sl__boards--done .k-sl__fit > .k-shot {
+    width: min(100cqw, calc((100cqh - var(--k-sl-cap) - var(--k-sl-row)) * 16 / 9));
   }
 
   @container k-sl-boards (max-aspect-ratio: 3 / 2) {
@@ -781,5 +922,11 @@
   .k-sl .k-rail__foot .k-locked__block,
   .k-sl .k-rail__foot .k-locked__out > .k-btn--link {
     display: none;
+  }
+}
+
+@media (max-width: 859px) {
+  .k-sl__phone-lock .k-locked {
+    gap: var(--s-1);
   }
 }
