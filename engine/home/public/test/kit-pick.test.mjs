@@ -212,9 +212,16 @@ test("the card: three page versions show their kept pictures, desktop first, and
   const item = { ...ITEM, pieceKind: "page", variants: [page("a", "Editorial", "a"), page("b", "Gallery", "b"), page("c", "Spec sheet", "c")] };
   const root = await showTree(pick.PickCard, { item });
   const srcs = elements(root).filter((e) => e.localName === "img").map((e) => e.src ?? e.getAttribute("src"));
-  assert.deepEqual(srcs, ["a", "b", "c"].flatMap((c) => [`/api/sites/shot/${key(c)}/shot-index-1280-light.png`, `/api/sites/shot/${key(c)}/shot-index-390-light.png`]));
+  // The stage: version A as its desktop and its phone picture, desktop first, at one scale in frames.
+  const framed = elements(root).filter((e) => /\bk-frame__img\b/.test(e.getAttribute("class") || "")).map((e) => e.src ?? e.getAttribute("src"));
+  assert.deepEqual(framed, [`/api/sites/shot/${key("a")}/shot-index-1280-light.png`, `/api/sites/shot/${key("a")}/shot-index-390-light.png`]);
+  // The strip: each version's desktop picture, a to c; the address with a query is never drawn.
+  assert.deepEqual([...new Set(srcs)].sort(), [...framed, ...["b", "c"].map((c) => `/api/sites/shot/${key(c)}/shot-index-1280-light.png`)].sort());
+  assert.ok(srcs.every((u) => pick.safeViewUrl(u) === u && !u.includes("?")));
+  assert.match(textOf(root), /Desktop/);
   assert.match(textOf(root), /Screens/, "the seventh axis of a page");
-  assert.equal(buttons(root, "Pick this one").length, 3);
+  assert.equal(elements(root).filter((e) => e.getAttribute("role") === "radio").length, 3);
+  assert.equal(buttons(root, "Pick A, Editorial").length, 1, "one primary, for the version on the stage");
 });
 
 test("pickBody: the version seen goes with every action, the variant only with a pick", () => {
@@ -237,31 +244,54 @@ test("isPickItem and stepAt", () => {
 
 // ---- Mounted ----
 
-test("the card: three versions in a to c order, one Pick this one each, the stepper, the note and the quieter actions", async () => {
+const radios = (root) => elements(root).filter((e) => e.getAttribute("role") === "radio");
+const choose = async (root, letter) => {
+  const card = radios(root).find((e) => textOf(e).startsWith(`${letter} · `));
+  assert.ok(card, `a card for version ${letter}`);
+  fire(card, "click");
+  await settle();
+};
+const PICK_A = "Pick A, <b>Type led</b>";
+
+test("the card: three versions in a to c order, one primary for the one on the stage, the note and the quieter actions", async () => {
   const root = await showTree(pick.PickCard, { item: ITEM });
   const all = textOf(root);
-  assert.equal(buttons(root, "Pick this one").length, 3);
+  const cards = radios(root);
+  assert.equal(cards.length, 3, "one card a version, in a radio group");
+  assert.deepEqual(cards.map((c) => c.getAttribute("aria-checked")), ["true", "false", "false"], "the first is only the one shown first");
   assert.ok(all.indexOf("Type led") < all.indexOf("Picture led") && all.indexOf("Picture led") < all.indexOf("Diagram led"));
-  assert.match(all, /Fits your brand kit/);
-  assert.match(all, /Brand check: 2 things to fix/);
-  assert.match(all, /Still checking against your brand kit/);
-  assert.match(all, /Not scored yet/);
-  assert.match(all, /52of 70/);
+  assert.equal(elements(root).filter((e) => /\bk-btn--primary\b/.test(e.getAttribute("class") || "")).length, 1, "one filled primary");
+  assert.equal(buttons(root, PICK_A).length, 1);
+  assert.match(all, /52 of 70/);
+  assert.match(all, /Meets the bar/);
   assert.match(all, /Below the bar/);
+  assert.match(all, /Not scored yet/);
+  assert.match(all, /Fits your brand kit/);
   assert.match(all, /Sequence/);
   assert.match(all, /Say why, in a few words: your agents read this next time\./);
   assert.equal(buttons(root, "Another round").length, 1);
   assert.equal(buttons(root, "Send all back").length, 1);
-  assert.equal(elements(root).filter((e) => e.getAttribute("aria-pressed") !== null && /k-pick__step\b/.test(e.getAttribute("class") || "")).length, 3);
+  const h1 = elements(root).find((e) => e.localName === "h1");
+  assert.equal(h1.getAttribute("id"), "page-title");
+  assert.equal(textOf(h1), "Pick one: Launch carousel");
+  // Choosing another card puts it on the stage, and the primary follows it.
+  await choose(root, "B");
+  assert.deepEqual(radios(root).map((c) => c.getAttribute("aria-checked")), ["false", "true", "false"]);
+  assert.match(textOf(root), /Brand check: 2 things to fix/);
+  assert.equal(buttons(root, "Pick B, Picture led").length, 1);
+  assert.equal(buttons(root, PICK_A).length, 0);
+  await choose(root, "C");
+  assert.match(textOf(root), /Still checking against your brand kit/);
 });
 
 test("the card: an agent's words are text, never markup; a picture only from the server's address", async () => {
   const root = await showTree(pick.PickCard, { item: ITEM });
   assert.match(textOf(root), /<b>Type led<\/b>/, "the title is shown as the characters it is");
-  assert.match(textOf(root), /<img src=x onerror=alert\(1\)>Plain words/);
-  assert.ok(!elements(root).some((e) => e.localName === "b"), "no element was made from an agent's words");
+  await choose(root, "C");
+  assert.match(textOf(root), /<img src=x onerror=alert\(1\)>Plain words/, "a draft is on the stage as text");
+  assert.ok(!elements(root).some((e) => (e.localName === "b" && textOf(e) === "Type led") || e.getAttribute("onerror") !== null), "no element was made from an agent's words");
   const srcs = elements(root).filter((e) => e.localName === "img").map((e) => e.src ?? e.getAttribute("src"));
-  assert.deepEqual(srcs.sort(), ["/api/view/YmJi", "/api/view/c2xpZGVz"]);
+  assert.deepEqual([...new Set(srcs)].sort(), ["/api/view/YmJi", "/api/view/c2xpZGVz"]);
   const src = readFileSync(join(KIT, "pick.js"), "utf8");
   assert.doesNotMatch(src, /dangerouslySetInnerHTML|innerHTML/);
 });
@@ -274,7 +304,7 @@ test("the card: a pick sends the version seen and the variant, then says what ha
     const note = elements(root).find((e) => e.localName === "textarea");
     fire(note, "input", { currentTarget: { value: "Warmer." } });
     await settle();
-    fire(buttons(root, "Pick this one")[0], "click");
+    fire(buttons(root, PICK_A)[0], "click");
     await settle();
     assert.deepEqual(f.calls.at(-1).body, { id: "goal:g1", action: "pick", note: "Warmer.", version: "v1", variant: "a" });
     assert.match(textOf(root), /Picked\. Your choice and note are kept for next time\./);
@@ -289,7 +319,8 @@ test("the card: a version below the bar asks once before it is picked", async ()
   const f = stubFetch(() => ({ status: 200, body: { ok: true, message: "Picked." } }));
   try {
     const root = await showTree(pick.PickCard, { item: ITEM });
-    fire(buttons(root, "Pick this one")[1], "click");
+    await choose(root, "B");
+    fire(buttons(root, "Pick B, Picture led")[0], "click");
     await settle();
     assert.equal(f.calls.length, 0, "nothing is sent yet");
     assert.match(textOf(root), /This version is below the bar the Art director holds\. Pick it anyway\?/);
@@ -326,14 +357,16 @@ test("the card: changed since you looked says so, reads the item again and shows
     : { status: 200, body: { items: [newer] } }));
   try {
     const root = await showTree(pick.PickCard, { item: ITEM });
-    fire(buttons(root, "Pick this one")[0], "click");
+    fire(buttons(root, PICK_A)[0], "click");
     await settle();
     await settle();
     assert.match(textOf(root), /These versions changed since you looked\. Read them again\./);
     assert.equal(f.calls.filter((c) => c.method === "POST").length, 1);
     assert.equal(f.calls.filter((c) => c.method === "GET").length, 1, "the item was read again");
+    await choose(root, "C");
     assert.doesNotMatch(textOf(root), /Still checking/, "the newer versions are shown");
-    fire(buttons(root, "Pick this one")[0], "click");
+    assert.match(textOf(root), /Fits your brand kit/);
+    fire(buttons(root, "Pick C, Diagram led")[0], "click");
     await settle();
     assert.equal(f.calls.filter((c) => c.method === "POST").at(-1).body.version, "v2", "the next pick sends the version now shown");
   } finally {
@@ -348,7 +381,8 @@ test("the card: a refusal is said in place with the server's words", async () =>
     fire(buttons(root, "Another round")[0], "click");
     await settle();
     assert.match(textOf(root), /The note is too long\. Keep it under 4000 characters\./);
-    assert.equal(buttons(root, "Pick this one").length, 3, "the versions are still there");
+    assert.equal(radios(root).length, 3, "the versions are still there");
+    assert.equal(buttons(root, PICK_A).length, 1);
   } finally {
     f.restore();
   }
@@ -356,15 +390,22 @@ test("the card: a refusal is said in place with the server's words", async () =>
 
 test("the card: a version with missing files is listed and cannot be picked", async () => {
   const root = await showTree(pick.PickCard, { item: { ...ITEM, variants: ITEM.variants.filter((v) => v.id !== "c"), missing: ["c"] } });
+  assert.equal(radios(root).length, 3);
+  assert.match(textOf(root), /Files missing/);
+  await choose(root, "C");
   assert.match(textOf(root), /This version's files are missing\./);
-  assert.equal(buttons(root, "Pick this one").length, 2);
+  assert.ok(elements(root).some((e) => /\bk-locked\b/.test(e.getAttribute("class") || "")), "the pick is a locked action with its reason");
+  assert.equal(elements(root).filter((e) => e.localName === "button" && /^Pick /.test(textOf(e).trim()) && e.getAttribute("disabled") === null).length, 0);
 });
 
 test("the card read-only: no buttons, the owner's pick marked", async () => {
   const root = await showTree(pick.PickCard, { pieces: { kind: "carousel", round: 1, variants: ITEM.variants, single: false, missing: [], problem: null }, readOnly: true, picked: "b" });
-  assert.equal(buttons(root, "Pick this one").length, 0);
+  assert.equal(elements(root).filter((e) => e.localName === "button" && /^Pick /.test(textOf(e).trim())).length, 0);
   assert.equal(buttons(root, "Another round").length, 0);
   assert.match(textOf(root), /You picked this one/);
+  const on = radios(root).filter((e) => e.getAttribute("aria-checked") === "true");
+  assert.equal(on.length, 1);
+  assert.match(textOf(on[0]), /^B · Picture led/, "the picked one is on the stage");
 });
 
 test("the fallback: an item without versions is the ordinary card, as today, through the kit's DecisionCard", async () => {
@@ -374,9 +415,10 @@ test("the fallback: an item without versions is the ordinary card, as today, thr
   ] };
   const root = await showTree(index.DecisionCard, { item: plain });
   assert.equal(buttons(root, "Accept").length, 1);
-  assert.equal(buttons(root, "Pick this one").length, 0);
+  assert.equal(buttons(root, PICK_A).length, 0);
   const asPick = await showTree(index.DecisionCard, { item: ITEM });
-  assert.equal(buttons(asPick, "Pick this one").length, 3, "a card of versions through the same name");
+  assert.equal(buttons(asPick, PICK_A).length, 1, "a card of versions through the same name");
+  assert.equal(radios(asPick).length, 3);
 });
 
 test("Versions on a task's page: nothing for a task without versions; a problem as one sentence", async () => {
@@ -398,4 +440,98 @@ test("pick.css is tokens only, its selectors the kit's, and it is linked", () =>
     }
   }
   assert.match(readFileSync(join(PUBLIC, "index.html"), "utf8"), /href="\.\/styles\/kit\/pick\.css"/);
+});
+
+// ---- PLAN-COOK T42: the pick on a stage ----
+
+test("pickLabel, scoreFact, stageOf, pageFrames and openHref", () => {
+  const [a, b, c] = pick.versionsOf(ITEM);
+  assert.equal(pick.pickLabel(a), "Pick A, <b>Type led</b>");
+  assert.equal(pick.pickLabel(b), "Pick B, Picture led");
+  assert.equal(pick.pickLabel(pick.versionsOf({ variants: [{ id: "piece" }] })[0]), "Pick this one");
+  assert.equal(pick.pickLabel(null), "Pick this one");
+  assert.deepEqual(pick.scoreFact(a.review), { fact: "52 of 70", tone: "good", bar: "Meets the bar", reason: "calm and exact, the type carries it" });
+  assert.equal(pick.scoreFact(b.review).bar, "Below the bar");
+  assert.equal(pick.scoreFact({ scores: {}, total: 40 }).bar, "", "no bar words when the server did not say");
+  assert.equal(pick.scoreFact(null), null);
+  assert.equal(pick.stageOf(a).type, "pictures");
+  assert.deepEqual(pick.stageOf(a).images, ["/api/view/c2xpZGVz"]);
+  assert.equal(pick.stageOf(c).type, "draft");
+  assert.equal(pick.stageOf({ id: "c", missing: true }).type, "missing");
+  assert.equal(pick.stageOf({ id: "a", preview: [{ type: "image", url: "//elsewhere.example/x.png" }] }).type, "none");
+  const key = "ab".repeat(32);
+  const shot = (p, w, s) => `/api/sites/shot/${key}/shot-${p}-${w}-${s}.png`;
+  assert.deepEqual(pick.pageFrames([shot("about-us", 390, "dark"), shot("index", 1280, "light"), shot("about-us", 1280, "dark")]),
+    [{ width: 1280, src: shot("about-us", 1280, "dark") }, { width: 390, src: shot("about-us", 390, "dark") }]);
+  assert.equal(pick.pageFrames([shot("index", 1280, "light"), "/api/view/abc"]), null, "a page and a picture are not frames");
+  assert.equal(pick.pageFrames([]), null);
+  assert.equal(pick.openHref(ITEM), "#/needs-you?item=goal%3Ag1");
+  assert.equal(pick.openHref({ ...ITEM, link: { page: "tasks", id: "t 1" } }), "#/tasks/t%201");
+  assert.equal(pick.openHref({ ...ITEM, link: { page: "elsewhere", id: "x" } }), "#/needs-you?item=goal%3Ag1");
+  assert.equal(pick.PICK_WORDS.meets, "Meets the bar");
+  assert.equal(pick.PICK_WORDS.strip, "The versions");
+});
+
+test("Scores: the total first, then the seven axes, as figures; compact draws the row alone", async () => {
+  const full = await showTree(pick.Scores, { review: review(A, true, "calm and exact"), kind: "page" });
+  const cells = elements(full).filter((e) => /\bk-pick-scores__cell\b/.test(e.getAttribute("class") || ""));
+  assert.equal(cells.length, 8);
+  assert.match(textOf(cells[0]), /^Of 7052 of 70Meets the bar$/);
+  assert.deepEqual(cells.slice(1).map((c) => textOf(c.childNodes[0])), ["Brand", "Hierarchy", "Composition", "Finish", "Idea", "Voice", "Screens"]);
+  assert.match(textOf(full), /calm and exact/);
+  const compact = await showTree(pick.Scores, { review: review(B, false, "the teal is not ours"), kind: "film", compact: true });
+  assert.equal(elements(compact).filter((e) => /\bk-pick-scores__cell\b/.test(e.getAttribute("class") || "")).length, 8);
+  assert.match(elements(compact)[1].getAttribute("class"), /k-pick-scores--compact/);
+  assert.doesNotMatch(textOf(compact), /the teal is not ours/, "the compact row has no reason");
+  assert.match(textOf(compact), /Below the bar/);
+  assert.match(textOf(compact), /Motion/);
+  assert.match(textOf(await showTree(pick.Scores, { review: null })), /Not scored yet/);
+});
+
+test("PickFoot: the foot alone acts for the version the page shows; nothing for an item that is not a pick", async () => {
+  const f = stubFetch(() => ({ status: 200, body: { ok: true, message: "Picked." } }));
+  try {
+    let got = null;
+    const root = await showTree(pick.PickFoot, { item: ITEM, chosen: "c", onDone: (r) => { got = r; } });
+    assert.equal(elements(root).filter((e) => /\bk-btn--primary\b/.test(e.getAttribute("class") || "")).length, 1);
+    assert.equal(buttons(root, "Pick C, Diagram led").length, 1);
+    assert.equal(buttons(root, "Another round").length, 1);
+    assert.equal(buttons(root, "Send all back").length, 1);
+    assert.equal(elements(root).find((e) => /\bk-pick-foot__more\b/.test(e.getAttribute("class") || "")).getAttribute("aria-haspopup"), "dialog");
+    assert.equal(radios(root).length, 0, "no strip and no stage: the page draws those");
+    fire(buttons(root, "Pick C, Diagram led")[0], "click");
+    await settle();
+    assert.deepEqual(f.calls.at(-1).body, { id: "goal:g1", action: "pick", version: "v1", variant: "c" });
+    assert.equal(got.variant, "c");
+    assert.match(textOf(root), /You picked C: Diagram led/);
+    const none = await showTree(pick.PickFoot, { item: { ...ITEM, kind: "result" }, chosen: "a" });
+    assert.equal(none.childNodes.length, 0);
+  } finally {
+    f.restore();
+  }
+});
+
+test("the card in a list (compact): the head, the versions as small pictures, and Open; nothing to decide in place", async () => {
+  const root = await showTree(pick.PickCard, { item: ITEM, compact: true });
+  assert.match(textOf(root), /3 versions to choose from · round 1/);
+  assert.match(textOf(root), /Pick one: Launch carousel/);
+  const names = elements(root).filter((e) => /\bk-pick__mini-name\b/.test(e.getAttribute("class") || "")).map(textOf);
+  assert.deepEqual(names, ["A · <b>Type led</b>", "B · Picture led", "C · Diagram led"], "a to c");
+  const pics = elements(root).filter((e) => e.localName === "img").map((e) => e.src ?? e.getAttribute("src"));
+  assert.deepEqual(pics, ["/api/view/c2xpZGVz", "/api/view/YmJi"], "a draft has its letter, not a picture");
+  const open = elements(root).find((e) => e.localName === "a" && textOf(e).trim() === "Open");
+  assert.equal(open.getAttribute("href"), "#/needs-you?item=goal%3Ag1");
+  assert.equal(elements(root).filter((e) => e.localName === "textarea" || e.getAttribute("role") === "radio").length, 0);
+  const given = await showTree(pick.PickCard, { item: ITEM, compact: true, href: "#/tasks/STH-25" });
+  assert.equal(elements(given).find((e) => e.localName === "a" && textOf(e).trim() === "Open").getAttribute("href"), "#/tasks/STH-25");
+});
+
+
+test("Versions on a task's page: the pick drawn in the page's column, without a title of its own; one primary", async () => {
+  const root = await showTree(pick.Versions, { id: "p-task-versions", item: ITEM });
+  assert.equal(elements(root).filter((e) => e.localName === "h1").length, 0, "the page has the title");
+  assert.ok(!elements(root).some((e) => e.getAttribute("id") === "page-title"));
+  assert.equal(elements(root).filter((e) => /\bk-btn--primary\b/.test(e.getAttribute("class") || "")).length, 1);
+  assert.equal(radios(root).length, 3);
+  assert.match(textOf(root), /Pick one to accept this task\./);
 });

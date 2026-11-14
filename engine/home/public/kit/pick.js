@@ -1,9 +1,11 @@
-// PickCard (PLAN-V5 K9, T20): the moment the owner chooses between versions of one piece. The versions stand side by
-// side when the card is wide enough and one at a time, with a lettered stepper and a swipe, when it is not. Each
-// shows its direction's name, the piece itself (a picture as a picture that opens larger, a draft as readable
-// text), the home server's own brand check as one line, the Art director's seven scores with the total out of 70
-// and its one-line reason, and one "Pick this one". Under them: an optional note, "Another round" and "Send all
-// back" (a note needed). The scores inform: nothing is preselected or ranked, versions stay in a to c order.
+// PickCard (PLAN-V5 K9, T20; redrawn on the stage by PLAN-COOK T42): the moment the owner chooses between versions of
+// one piece. The chosen version is on the stage, as itself: a picture in a shot (it opens larger), a page as its kept
+// pictures at one scale, a draft as readable text on a panel. Under the stage, one card per version in a to c order:
+// its letter and direction, the Art director's total out of 70, whether it meets the bar, and the one-line reason.
+// The rail says who raised it and when, the brand check and the seven scores of the version on the stage, and ends
+// with the one primary ("Pick A, Editorial"), then under a divider the note, "Another round" and "Send all back" (a
+// note needed). The scores inform: nothing is preselected as best or ranked; the first is only the one shown first.
+// PickFoot is that foot on its own, for a page that draws its own stage (a site's task page).
 // Nothing an agent wrote is ever set as HTML: a direction's title, a draft's text, a reason and a brand line are
 // text nodes; a picture comes only from the `/api/view/<token>` address the server gave, or for a page from the home
 // server's own kept picture, `/api/sites/shot/<key>/<name>` (PLAN-V5 C21).
@@ -11,13 +13,15 @@
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { when } from "../lib/format.js";
-import { Button } from "./button.js";
+import { Button, LockedAction } from "./button.js";
 import { actBody, DecisionCard, isChangedSinceSeen, reloadInboxItem } from "./decision.js";
 import { Icon } from "./icon.js";
+import { Blk, StageLayout } from "./layout.js";
 import { Dialog } from "./overlays.js";
 import { segStep } from "./segmented.js";
+import { Frames, Shot, StageBar } from "./stage.js";
 import { StatusDot } from "./status.js";
-import { Tag } from "./tag.js";
+import { OptionCard, Strip } from "./strip.js";
 import { Mono } from "./text.js";
 import { cx, nextId } from "./util.js";
 
@@ -47,6 +51,15 @@ export const PICK_WORDS = {
   pickLead: "Pick one to accept this task. Your note goes with whatever you press.",
   pickNudge: "This task is accepted by picking one of its versions.",
   goPick: "Go to the versions",
+  meets: "Meets the bar",
+  unscored: "Not scored yet",
+  filesMissing: "Files missing",
+  strip: "The versions",
+  scoresTitle: "The Art director's scores",
+  brandTitle: "Brand check",
+  openLarger: "Open larger",
+  open: "Open",
+  more: "More",
 };
 
 export const BRAND_WORDS = {
@@ -211,6 +224,59 @@ export function stepAt(scrollLeft, width, count) {
   return Math.max(0, Math.min(n - 1, Math.round((Number(scrollLeft) || 0) / w)));
 }
 
+// The words of the one primary: "Pick A, Editorial". A single piece has no letter and keeps "Pick this one".
+export function pickLabel(v) {
+  if (!v || typeof v !== "object" || !v.letter) return PICK_WORDS.pick;
+  return `Pick ${v.letter}, ${text(v.title)}`;
+}
+
+// A version's card facts: the total ("52 of 70"), whether it meets the bar (the chip's tone and words; none when
+// the server did not say), and the reason. null when there is no review.
+export function scoreFact(review) {
+  const s = scoreRows(review, null);
+  if (!s) return null;
+  return {
+    fact: `${s.total} of ${s.of}`,
+    tone: s.meets ? "good" : s.below ? "warn" : "neutral",
+    bar: s.meets ? PICK_WORDS.meets : s.below ? PICK_WORDS.below : "",
+    reason: s.reason,
+  };
+}
+
+const SHOT_PARTS = /\/shot-([A-Za-z0-9._-]{1,90})-(1280|390)-(light|dark)\.png$/;
+
+// A page's kept pictures as frames: the desktop and the phone picture of the first page and scheme it shows, desktop
+// first, each { width, src }. null unless every picture is a page's kept picture.
+export function pageFrames(images) {
+  const list = Array.isArray(images) ? images.filter((u) => safeViewUrl(u) && SHOT_URL.test(u)) : [];
+  if (!list.length || list.length !== images.length) return null;
+  const parts = (u) => u.match(SHOT_PARTS);
+  const [, page, , scheme] = parts(list[0]);
+  const at = (w) => list.find((u) => { const m = parts(u); return m[1] === page && m[2] === w && m[3] === scheme; });
+  return ["1280", "390"].map((w) => at(w)).filter(Boolean).map((src) => ({ width: Number(parts(src)[2]), src }));
+}
+
+// What the stage shows for a version: { type, images, text, frames }, type one of "missing", "page" (frames),
+// "pictures", "draft" (text only) or "none".
+export function stageOf(v) {
+  if (!v || typeof v !== "object" || v.missing) return { type: "missing", images: [], text: "", frames: null };
+  const p = previewParts(v.preview);
+  const frames = p.images.length ? pageFrames(p.images) : null;
+  if (frames && frames.length) return { type: "page", images: p.images, text: p.text, frames };
+  if (p.images.length) return { type: "pictures", images: p.images, text: p.text, frames: null };
+  if (p.text) return { type: "draft", images: [], text: p.text, frames: null };
+  return { type: "none", images: [], text: "", frames: null };
+}
+
+// Where an item opens on its own page (PLAN-COOK decision 9): its task when the server links one, else the item
+// on Needs you. A caller with the shell's own address (lib/queue.js queueHref) passes it as `href` instead.
+export function openHref(item) {
+  const link = item && item.link && typeof item.link === "object" ? item.link : null;
+  if (link && link.page === "tasks" && typeof link.id === "string" && link.id) return `#/tasks/${encodeURIComponent(link.id)}`;
+  const id = text(item && item.id);
+  return id ? `#/needs-you?item=${encodeURIComponent(id)}` : "#/needs-you";
+}
+
 // ---- Parts ----
 
 export function BrandRow({ brand }) {
@@ -226,155 +292,125 @@ export function BrandRow({ brand }) {
   </div>`;
 }
 
-export function Scores({ review, kind }) {
+// The seven scores as one row of figures, the total first (a label over a 22 px figure), then the reason.
+// `compact` draws the row alone, for a fold (the shotlist's "The Art director's scores").
+export function Scores({ review, kind, compact = false }) {
   const s = scoreRows(review, kind);
   if (!s) return html`<p class="k-pick__unscored"><${Icon} name="clock" size=${14} /><span>${PICK_WORDS.noReview}</span></p>`;
-  return html`<div class="k-pick__review">
-    <p class="k-pick__total-by">The Art director's scores</p>
-    <div class="k-pick__total">
-      <span class="k-pick__total-n">${s.total}</span>
-      <span class="k-pick__total-of">of ${s.of}</span>
-      ${s.below && html`<${Tag} tone="warn">${PICK_WORDS.below}<//>`}
-    </div>
-    ${s.reason && html`<p class="k-pick__reason">${s.reason}</p>`}
-    <dl class="k-pick__axes">
-      ${s.rows.map((r) => html`<div key=${r.key} class=${cx("k-pick__axis", r.value !== null && r.value < 6 && "k-pick__axis--low")}>
-        <dt>${r.label}</dt>
+  return html`<div class=${cx("k-pick-scores", compact && "k-pick-scores--compact")}>
+    <dl class="k-pick-scores__row">
+      <div class="k-pick-scores__cell k-pick-scores__cell--total">
+        <dt>Of ${s.of}</dt>
         <dd>
-          <span class="k-pick__bar" aria-hidden="true"><span class="k-pick__fill" style=${{ width: `${(r.value ?? 0) * 10}%` }}></span></span>
-          <span class="k-pick__n">${r.value === null ? "–" : r.value}<span class="k-sr"> of 10</span></span>
+          <span class="k-pick-scores__n">${s.total}<span class="k-sr"> of ${s.of}</span></span>
+          ${s.meets ? html`<span class="k-pick-scores__chip k-pick-scores__chip--good">${PICK_WORDS.meets}</span>`
+            : s.below ? html`<span class="k-pick-scores__chip k-pick-scores__chip--warn">${PICK_WORDS.below}</span>` : null}
         </dd>
+      </div>
+      ${s.rows.map((r) => html`<div key=${r.key} class=${cx("k-pick-scores__cell", r.value !== null && r.value < 6 && "k-pick-scores__cell--low")}>
+        <dt>${r.label}</dt>
+        <dd><span class="k-pick-scores__n">${r.value === null ? "–" : r.value}<span class="k-sr"> of 10</span></span></dd>
       </div>`)}
     </dl>
+    ${!compact && s.reason ? html`<p class="k-pick-scores__reason">${s.reason}</p>` : null}
   </div>`;
 }
 
-function Pictures({ images, label }) {
-  const [open, setOpen] = useState(-1);
-  if (!images.length) return null;
+// The larger view of a version's pictures, one at a time.
+function Larger({ images, label, at, onAt, onClose }) {
   const n = images.length;
-  const at = open < 0 ? 0 : Math.min(open, n - 1);
-  return html`<div class="k-pick__pictures">
-    <button type="button" class="k-pick__shot" onClick=${() => setOpen(0)} aria-label=${`${label}: open the picture larger`}>
-      <img src=${images[0]} alt="" decoding="async" />
-      <span class="k-pick__zoom" aria-hidden="true"><${Icon} name="external" size=${14} /></span>
-    </button>
-    ${n > 1 && html`<div class="k-pick__thumbs">
-      ${images.slice(1, 6).map((src, i) => html`<button type="button" key=${src} class="k-pick__thumb" onClick=${() => setOpen(i + 1)}
-        aria-label=${`${label}: open picture ${i + 2} of ${n} larger`}><img src=${src} alt="" loading="lazy" decoding="async" /></button>`)}
-    </div>`}
-    <${Dialog} open=${open >= 0} title=${n > 1 ? `${label}: picture ${at + 1} of ${n}` : label} size="lg" onClose=${() => setOpen(-1)}
-      footer=${n > 1 ? html`<div class="k-pick__dialog-nav">
-        <${Button} variant="plain" icon="arrow-left" disabled=${at === 0} onClick=${() => setOpen(at - 1)}>Previous<//>
-        <${Button} variant="plain" icon="arrow-right" disabled=${at === n - 1} onClick=${() => setOpen(at + 1)}>Next<//>
-      </div>` : null}>
-      <figure class="k-pick__large"><img src=${images[at]} alt=${`${label}, picture ${at + 1} of ${n}`} decoding="async" /></figure>
-    <//>
-  </div>`;
+  if (at < 0 || !n) return null;
+  const i = Math.min(at, n - 1);
+  return html`<${Dialog} open=${true} title=${n > 1 ? `${label}: picture ${i + 1} of ${n}` : label} size="lg" onClose=${onClose}
+    footer=${n > 1 ? html`<div class="k-pick__dialog-nav">
+      <${Button} variant="plain" icon="arrow-left" disabled=${i === 0} onClick=${() => onAt(i - 1)}>Previous<//>
+      <${Button} variant="plain" icon="arrow-right" disabled=${i === n - 1} onClick=${() => onAt(i + 1)}>Next<//>
+    </div>` : null}>
+    <figure class="k-pick__large"><img src=${images[i]} alt=${`${label}, picture ${i + 1} of ${n}`} decoding="async" /></figure>
+  <//>`;
 }
 
-function Words({ body, id }) {
-  const [open, setOpen] = useState(false);
-  const folds = foldsText(body);
-  return html`<div class="k-pick__words">
-    <div id=${id} class=${cx("k-pick__text", folds && !open && "k-pick__text--folded")}>${body}</div>
-    ${folds && html`<button type="button" class="k-pick__more" aria-expanded=${open ? "true" : "false"} aria-controls=${id}
-      onClick=${() => setOpen(!open)}>${open ? PICK_WORDS.readLess : PICK_WORDS.readAll}</button>`}
-  </div>`;
-}
-
-function Preview({ v, baseId }) {
-  const p = previewParts(v.preview);
-  const label = v.letter ? `Version ${v.letter}: ${v.title}` : v.title;
-  if (!p.images.length && !p.text) return html`<p class="k-pick__none">${PICK_WORDS.noPreview}</p>`;
-  return html`<div class="k-pick__preview">
-    <${Pictures} images=${p.images} label=${label} />
-    ${p.text && html`<${Words} body=${p.text} id=${`${baseId}-text`} />`}
-  </div>`;
-}
-
-function Head({ v, level, picked }) {
-  const H = `h${Math.min(Math.max(level, 2), 6)}`;
-  return html`<div class="k-pick__head">
-    ${v.letter && html`<span class="k-pick__letter" aria-hidden="true">${v.letter}</span>`}
-    <div class="k-pick__names">
-      <${H} class="k-pick__name">${v.letter ? html`<span class="k-sr">Version ${v.letter}: </span>` : null}${v.title}<//>
-    </div>
-    ${picked && html`<${Tag} tone="ok">${PICK_WORDS.youPicked}<//>`}
-  </div>`;
-}
-
-function Version({ v, kind, level, baseId, readOnly, picked, busy, stopped, confirming, onPick, onConfirm, onCancel, yesRef }) {
-  const id = `${baseId}-${v.id}`;
-  if (v.missing) {
-    return html`<li class="k-pick__version k-pick__version--missing" id=${id}>
-      <${Head} v=${v} level=${level} />
-      <p class="k-pick__none k-pick__none--missing"><${Icon} name="alert" size=${14} /><span>${PICK_WORDS.missing}</span></p>
-      <p class="k-pick__caption">${PICK_WORDS.missingNext}</p>
-    </li>`;
+// The stage: the chosen version itself. A picture in a shot with its own Previous and Next when there are many; a page
+// as its desktop and phone pictures at one scale on a stage panel; a draft as a readable column on a panel.
+function PickStage({ v }) {
+  const [at, setAt] = useState(0);
+  const [open, setOpen] = useState(-1);
+  const s = stageOf(v);
+  const label = v ? (v.letter ? `Version ${v.letter}: ${v.title}` : v.title) : PICK_WORDS.versions;
+  const big = s.type === "page" ? s.frames.map((f) => f.src) : s.images;
+  const n = s.images.length;
+  const i = Math.min(at, Math.max(n - 1, 0));
+  const name = v ? html`<b>${v.letter ? `Version ${v.letter}` : v.title}</b>${v.letter && v.title !== `Version ${v.letter}` ? html`<span class="k-pick__stage-name">${v.title}</span>` : null}` : null;
+  const larger = big.length
+    ? html`<${Button} size="sm" icon="fullscreen" class="k-pick__larger" aria-label=${PICK_WORDS.openLarger}
+        onClick=${() => setOpen(s.type === "page" ? 0 : i)}><span class="k-pick__larger-word">${PICK_WORDS.openLarger}</span><//>`
+    : null;
+  const steps = s.type === "pictures" && n > 1
+    ? html`<span class="k-pick__count">Picture ${i + 1} of ${n}</span>
+        <${Button} size="sm" icon="chevron-left" aria-label="The picture before" disabled=${i === 0} onClick=${() => setAt(i - 1)} />
+        <${Button} size="sm" icon="chevron-right" aria-label="The next picture" disabled=${i === n - 1} onClick=${() => setAt(i + 1)} />`
+    : null;
+  const bar = html`<${StageBar}>${name}<span class="k-stagebar__gap"></span>${steps}${larger}<//>`;
+  let body;
+  if (s.type === "missing") {
+    body = html`<div class="k-pick__empty k-pick__empty--missing">
+      <${Icon} name="alert" size=${20} />
+      <p class="k-pick__empty-title">${PICK_WORDS.missing}</p>
+      <p class="k-pick__empty-next">${PICK_WORDS.missingNext}</p>
+    </div>`;
+  } else if (s.type === "none") {
+    body = html`<div class="k-pick__empty"><p class="k-pick__empty-title">${PICK_WORDS.noPreview}</p></div>`;
+  } else if (s.type === "page") {
+    body = html`<${Frames} items=${s.frames.map((f) => ({ width: f.width, src: f.src, alt: "", label: f.width >= 1280 ? "Desktop" : "Phone" }))} />`;
+  } else if (s.type === "pictures") {
+    // The picture opens larger on a click; the bar's "Open larger" is the same thing in one Tab stop.
+    body = html`<div class="k-pick__shot" onClick=${() => setOpen(i)}>
+      <${Shot} src=${s.images[i]} alt=${`${label}, picture ${i + 1} of ${n}`} tags=${n > 1 ? [{ text: `${i + 1} of ${n}`, at: "br" }] : []} />
+    </div>`;
   }
-  const mine = busy && busy.action === "pick" && busy.variant === v.id;
-  return html`<li class=${cx("k-pick__version", picked && "k-pick__version--picked")} id=${id}>
-    <${Head} v=${v} level=${level} picked=${picked} />
-    <${Preview} v=${v} baseId=${id} />
-    <${BrandRow} brand=${v.brand} />
-    <${Scores} review=${v.review} kind=${kind} />
-    ${!readOnly && html`<div class="k-pick__choose">
-      ${confirming
-        ? html`<div class="k-pick__confirm" role="group" aria-label="Confirm the pick"
-            onKeyDown=${(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); } }}>
-            <p>${PICK_WORDS.belowAsk}</p>
-            <div class="k-pick__row">
-              <${Button} variant="primary" busy=${mine} disabled=${stopped} ref=${yesRef} onClick=${() => onConfirm(v)}>${PICK_WORDS.yesPick}<//>
-              <${Button} variant="quiet" disabled=${mine} onClick=${onCancel}>Cancel<//>
-            </div>
-          </div>`
-        : html`<${Button} variant="primary" class="k-pick__button" busy=${mine} disabled=${stopped}
-            aria-label=${v.letter ? `${PICK_WORDS.pick}: version ${v.letter}, ${v.title}` : undefined} onClick=${(e) => onPick(v, e)}>${PICK_WORDS.pick}<//>`}
-    </div>`}
-  </li>`;
-}
-
-// The stepper of a narrow card: one button per version, the one in view pressed. Left and Right move along.
-export function Steps({ versions, current, onStep, baseId }) {
-  const onKeyDown = (event) => {
-    const next = segStep(current, versions.length, event.key);
-    if (next < 0) return;
-    event.preventDefault();
-    onStep(next, true);
-  };
-  return html`<div class="k-pick__steps" role="group" aria-label="Versions, one at a time" onKeyDown=${onKeyDown}>
-    ${versions.map((v, i) => html`<button type="button" key=${v.id} class="k-pick__step" data-step=${i}
-      aria-pressed=${i === current ? "true" : "false"} aria-controls=${`${baseId}-${v.id}`} onClick=${() => onStep(i, false)}>
-      <span class="k-pick__step-letter" aria-hidden="true">${v.letter || i + 1}</span>
-      <span class="k-pick__step-name">${v.missing ? "Missing" : v.title}</span>
-    </button>`)}
+  const words = s.text && s.type !== "missing"
+    ? html`<article class=${cx("k-pick__draft", s.type !== "draft" && "k-pick__draft--under")} aria-label=${`${label}, its words`}>
+        <div class="k-pick__draft-text">${s.text}</div>
+      </article>`
+    : null;
+  return html`<div class=${cx("k-pick__stage", `k-pick__stage--${s.type}`)}>
+    ${bar}${body}${words}
+    <${Larger} images=${big} label=${label} at=${open} onAt=${setOpen} onClose=${() => setOpen(-1)} />
   </div>`;
 }
 
-// What the card becomes after an action: the server's message, and for a pick the version chosen.
-export function PickDone({ done, focus = true }) {
-  const ref = useRef(null);
-  useEffect(() => { if (focus && ref.current && typeof ref.current.focus === "function") ref.current.focus(); }, []);
-  if (!done) return null;
-  const v = done.version || null;
-  const shot = v ? previewParts(v.preview).images[0] || null : null;
-  return html`<div class="k-pick k-pick--done" role="status" tabindex="-1" ref=${ref}>
-    ${shot && html`<img class="k-pick__done-shot" src=${shot} alt="" loading="lazy" decoding="async" />`}
-    <div class="k-pick__done-text">
-      ${done.title && html`<p class="k-pick__done-title">${done.title}</p>`}
-      ${v && done.action === "pick" && html`<p class="k-pick__done-choice"><${Icon} name="check" size=${14} /><span>${v.letter ? `You picked ${v.letter}: ${v.title}` : `You picked ${v.title}`}</span></p>`}
-      <p class="k-pick__done-message">${text(done.message)}</p>
-    </div>
-  </div>`;
+// The strip: one card per version in a to c order. The chip says the bar (or that it is missing, unscored, or the
+// one the owner picked); the line under is the Art director's reason.
+function PickStrip({ versions, chosen, onChoose, picked }) {
+  return html`<${Strip} label=${PICK_WORDS.strip}>
+    ${versions.map((v) => {
+      const f = scoreFact(v.review);
+      const s = stageOf(v);
+      const thumb = s.type === "page" ? s.frames[0].src : s.images[0] || null;
+      const state = v.missing ? { tone: "bad", icon: "alert", text: PICK_WORDS.filesMissing }
+        : picked && picked === v.id ? { tone: "good", icon: "check", text: PICK_WORDS.youPicked }
+        : !f ? { tone: "neutral", text: PICK_WORDS.unscored }
+        : f.bar ? { tone: f.tone, text: f.bar } : null;
+      return html`<${OptionCard} key=${v.id} checked=${v.id === chosen} onPick=${() => onChoose(v.id)}
+        title=${v.letter ? `${v.letter} · ${v.title}` : v.title} amount=${f ? f.fact : null} state=${state}
+        say=${f && f.reason ? f.reason : null} boards=${thumb ? [{ src: thumb, alt: "" }] : undefined} />`;
+    })}
+  <//>`;
 }
 
-// PickCard({ item, onDone, compact, bare, level, focusDone }) for a Needs-you item of kind "pick", or
-// PickCard({ pieces, readOnly: true, picked, bare, level }) for a task's versions as GET /api/tasks/:id/pieces
-// gives them. `bare` leaves out the card's own title (the task page has one). `picked` is the id the owner chose.
-export function PickCard({ item = null, pieces = null, onDone, compact = false, bare = false, readOnly = false, picked = null, level = 4, focusDone = true }) {
-  const [baseId] = useState(() => nextId("k-pick"));
-  const [note, setNote] = useState("");
+// The rail's blocks for the version on the stage: its scores, then its brand check.
+function PickFacts({ v, kind }) {
+  if (!v || v.missing) return null;
+  return html`<${Blk} title=${PICK_WORDS.scoresTitle} aside=${v.letter ? `Version ${v.letter}` : null}>
+      <${Scores} review=${v.review} kind=${kind} />
+    <//>
+    <${Blk} title=${PICK_WORDS.brandTitle}><${BrandRow} brand=${v.brand} /><//>`;
+}
+
+// The act path, shared by the card and by PickFoot: the note, what is being sent, the one confirm, "changed since
+// you looked" (the item is read again and the newer one shown; nothing is sent again), and what it became.
+function usePickAct({ item, readOnly, onDone }) {
+  const [note, setNoteNow] = useState("");
   const [needNote, setNeedNote] = useState(false);
   const [busy, setBusy] = useState(null); // { action, variant } while the server answers
   const [error, setError] = useState(null);
@@ -383,18 +419,14 @@ export function PickCard({ item = null, pieces = null, onDone, compact = false, 
   const [fresh, setFresh] = useState(null);
   const [reloading, setReloading] = useState(false);
   const [gone, setGone] = useState(false);
-  const [current, setCurrent] = useState(0);
   const noteRef = useRef(null);
   const yesRef = useRef(null);
-  const track = useRef(null);
   const opener = useRef(null);
   const changed = isChangedSinceSeen(error);
 
   const propVersion = item ? item.version : undefined;
   useEffect(() => { setFresh(null); setGone(false); }, [propVersion]);
 
-  // "Changed since you looked": the confirm closes (the note stays) and the item is read again, so the owner sees
-  // the versions as they are now. Nothing is sent again.
   const itemId = item ? item.id : null;
   useEffect(() => {
     if (!changed || !itemId || readOnly) return undefined;
@@ -415,16 +447,12 @@ export function PickCard({ item = null, pieces = null, onDone, compact = false, 
   }, [confirmFor]);
 
   const shown = readOnly ? null : fresh && item && fresh.id === item.id ? fresh : item;
-  const src = shown || pieces;
-  if (!src) return null;
-  if (done) return html`<${PickDone} done=${done} focus=${focusDone} />`;
-
-  const kind = shown ? shown.pieceKind : pieces && pieces.kind;
-  const versions = versionsOf(src);
-  const pickable = versions.filter((v) => !v.missing);
-  const round = Number.isInteger(src.round) ? src.round : null;
   const stopped = Boolean(busy) || reloading || gone;
-  const n = versions.length;
+  const refocus = () => {
+    const o = opener.current;
+    const el = o && (o.base || o);
+    if (el && el.isConnected !== false && typeof el.focus === "function") setTimeout(() => el.focus(), 0);
+  };
 
   const send = async (action, variant) => {
     if (!shown || stopped) return;
@@ -440,102 +468,222 @@ export function PickCard({ item = null, pieces = null, onDone, compact = false, 
     try {
       const res = await api.post("/api/inbox/act", pickBody(shown, action, words, variant));
       const message = text(res && res.message) || (action === "pick" ? PICK_WORDS.picked : "Done.");
-      const version = variant ? versions.find((v) => v.id === variant) || null : null;
+      const version = variant ? versionsOf(shown).find((v) => v.id === variant) || null : null;
       const out = { action, variant: variant || null, message, version, title: cap(shown.title, 200), id: shown.id };
       setBusy(null);
       setConfirmFor(null);
-      setNote("");
+      setNoteNow("");
       setDone(out);
       if (onDone) onDone({ item: shown, action, variant: variant || null, message, done: out });
     } catch (e) {
       setBusy(null);
       setError(e);
       // Focus stays where the owner was: the button pressed is enabled again.
-      const o = opener.current;
-      const el = o && (o.base || o);
-      if (el && el.isConnected !== false && typeof el.focus === "function") setTimeout(() => el.focus(), 0);
+      refocus();
     }
   };
 
-  const onPick = (v, ev) => {
-    if (stopped) return;
-    opener.current = ev && ev.currentTarget ? ev.currentTarget : null;
-    if (belowBar(v.review)) { setConfirmFor(v.id); return; }
-    send("pick", v.id);
+  return {
+    shown, note, needNote, busy, error, changed, reloading, gone, stopped, confirmFor, done, fresh, noteRef, yesRef,
+    setNote: (value) => { setNoteNow(value); if (needNote && value.trim()) setNeedNote(false); },
+    act: (action, ev) => { opener.current = ev && ev.currentTarget ? ev.currentTarget : null; send(action); },
+    pick: (v, ev) => {
+      if (stopped || !v || v.missing) return;
+      opener.current = ev && ev.currentTarget ? ev.currentTarget : null;
+      if (belowBar(v.review)) { setConfirmFor(v.id); return; }
+      send("pick", v.id);
+    },
+    confirm: (v) => send("pick", v.id),
+    cancel: () => { setConfirmFor(null); refocus(); },
   };
-  const cancelConfirm = () => {
-    setConfirmFor(null);
-    const o = opener.current;
-    if (o && o.isConnected !== false && typeof o.focus === "function") setTimeout(() => o.focus(), 0);
-  };
+}
 
-  // The narrow strip: the stepper follows the swipe, and a step scrolls its version into view.
-  const onScroll = (e) => {
-    const el = e.currentTarget;
-    const at = stepAt(el.scrollLeft, el.clientWidth, n);
-    if (at !== current) setCurrent(at);
-  };
-  const onStep = (i, fromKeys) => {
-    setCurrent(i);
-    const el = track.current;
-    const child = el && el.children ? el.children[i] : null;
-    if (el && child && typeof el.scrollTo === "function") {
-      const still = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-      el.scrollTo({ left: child.offsetLeft - el.children[0].offsetLeft, behavior: still ? "auto" : "smooth" });
-    }
-    if (fromKeys && typeof document !== "undefined") {
-      const b = document.querySelector && document.querySelector(`#${baseId}-steps [data-step="${i}"]`);
-      if (b && typeof b.focus === "function") b.focus();
-    }
-  };
-
-  const context = shown ? [text(shown.raisedBy), when(shown.when)].filter(Boolean) : [];
+// The foot, as its two parts: `primary` (what changed, the one filled button or its confirm, a refusal in the
+// server's words) and `rest` (the note, "Another round" and "Send all back", under a divider).
+function footParts(a, v, baseId) {
   const noteId = `${baseId}-note`;
+  const mine = a.busy && a.busy.action === "pick";
+  let decide = null;
+  if (v && v.missing) {
+    decide = html`<${LockedAction} label=${pickLabel(v)} why=${`${PICK_WORDS.missing} ${PICK_WORDS.missingNext}`} tag="" />`;
+  } else if (v && a.confirmFor === v.id) {
+    decide = html`<div class="k-pick__confirm" role="group" aria-label="Confirm the pick"
+        onKeyDown=${(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); a.cancel(); } }}>
+        <p class="k-pick__confirm-ask">${PICK_WORDS.belowAsk}</p>
+        <div class="k-pick__pair">
+          <${Button} variant="quiet" disabled=${mine} onClick=${a.cancel}>Cancel<//>
+          <${Button} variant="primary" busy=${mine} disabled=${a.stopped} ref=${a.yesRef} onClick=${() => a.confirm(v)}>${PICK_WORDS.yesPick}<//>
+        </div>
+      </div>`;
+  } else if (v) {
+    decide = html`<${Button} variant="primary" size="lg" class="k-pick__button" busy=${mine} disabled=${a.stopped}
+      onClick=${(e) => a.pick(v, e)}>${pickLabel(v)}<//>`;
+  }
+  const primary = html`${a.changed ? html`<div class="k-pick__alert" role="alert">
+      <${Icon} name="alert" size=${16} />
+      <div>
+        <p class="k-pick__alert-title">${text(a.error && a.error.message) || PICK_WORDS.changed}</p>
+        <p class="k-pick__alert-next">${a.reloading ? "Reading them again…" : a.gone ? "It is no longer waiting for you." : text(a.error && a.error.next) || PICK_WORDS.changedNext}</p>
+      </div>
+    </div>` : null}
+    ${decide}
+    ${a.error && !a.changed ? html`<p class="k-pick__error" role="alert"><${Icon} name="alert" size=${14} /><span>${text(a.error.message) || "That did not work."}${a.error.next ? ` ${text(a.error.next)}` : ""}</span></p>` : null}`;
+  const rest = html`<div class=${cx("k-pick__note", a.needNote && "k-pick__note--needed")}>
+      <label class="k-sr" for=${noteId}>${PICK_WORDS.noteLabel}</label>
+      <textarea id=${noteId} ref=${a.noteRef} class="k-textarea k-pick__note-field" rows="1" maxLength=${4000}
+        aria-describedby=${`${noteId}-hint`} aria-invalid=${a.needNote ? "true" : undefined} value=${a.note} disabled=${Boolean(a.busy)}
+        placeholder=${PICK_WORDS.noteLabel} onInput=${(e) => a.setNote(e.currentTarget.value)}></textarea>
+      <p class="k-pick__hint" id=${`${noteId}-hint`}>${a.needNote ? html`<${Icon} name="alert" size=${14} /><span>${PICK_WORDS.needNote}</span>` : PICK_WORDS.noteHint}</p>
+    </div>
+    <div class="k-pick__pair">
+      <${Button} busy=${a.busy && a.busy.action === "another"} disabled=${a.stopped} onClick=${(e) => a.act("another", e)}>${PICK_WORDS.another}<//>
+      <${Button} busy=${a.busy && a.busy.action === "reopen"} disabled=${a.stopped} onClick=${(e) => a.act("reopen", e)}>${PICK_WORDS.back}<//>
+    </div>`;
+  return { primary, rest };
+}
 
-  return html`<article class=${cx("k-pick", compact && "k-pick--compact", bare && "k-pick--bare", readOnly && "k-pick--read")}
-      aria-label=${shown ? text(shown.title) : PICK_WORDS.versions} aria-busy=${busy ? "true" : undefined}>
-    ${!bare && shown && html`<header class="k-pick__top">
-      <p class="k-pick__over"><${Icon} name="layers" size=${14} /><span>${pickable.length > 1 ? `${pickable.length} versions to choose from` : "One version"}${round ? ` · round ${round}` : ""}</span></p>
+// The stepper of a narrow card: one button per version, the one in view pressed. Left and Right move along.
+// (The shotlist card still uses it; the pick card's own choice is the strip.)
+export function Steps({ versions, current, onStep, baseId }) {
+  const onKeyDown = (event) => {
+    const next = segStep(current, versions.length, event.key);
+    if (next < 0) return;
+    event.preventDefault();
+    onStep(next, true);
+  };
+  return html`<div class="k-pick__steps" role="group" aria-label="Versions, one at a time" onKeyDown=${onKeyDown}>
+    ${versions.map((v, i) => html`<button type="button" key=${v.id} class="k-pick__step" data-step=${i}
+      aria-pressed=${i === current ? "true" : "false"} aria-controls=${`${baseId}-${v.id}`} onClick=${() => onStep(i, false)}>
+      <span class="k-pick__step-letter" aria-hidden="true">${v.letter || i + 1}</span>
+      <span class="k-pick__step-name">${v.missing ? "Missing" : v.title}</span>
+    </button>`)}
+  </div>`;
+}
+
+// What the card becomes after an action: one line with what was picked, and the server's message.
+export function PickDone({ done, focus = true }) {
+  const ref = useRef(null);
+  useEffect(() => { if (focus && ref.current && typeof ref.current.focus === "function") ref.current.focus(); }, []);
+  if (!done) return null;
+  const v = done.version || null;
+  const s = v ? stageOf(v) : null;
+  const shot = s ? (s.type === "page" ? s.frames[0].src : s.images[0] || null) : null;
+  return html`<div class="k-pick k-pick--done" role="status" tabindex="-1" ref=${ref}>
+    ${shot && html`<img class="k-pick__done-shot" src=${shot} alt="" loading="lazy" decoding="async" />`}
+    <div class="k-pick__done-text">
+      ${done.title && html`<p class="k-pick__done-title">${done.title}</p>`}
+      ${v && done.action === "pick" && html`<p class="k-pick__done-choice"><${Icon} name="check" size=${14} /><span>${v.letter ? `You picked ${v.letter}: ${v.title}` : `You picked ${v.title}`}</span></p>`}
+      <p class="k-pick__done-message">${text(done.message)}</p>
+    </div>
+  </div>`;
+}
+
+// A list's use: the head, the versions as a row of small pictures, and "Open".
+function PickCompact({ shown, versions, round, href }) {
+  const pickable = versions.filter((v) => !v.missing);
+  const context = [text(shown.raisedBy), when(shown.when)].filter(Boolean);
+  return html`<article class="k-pick k-pick--compact" aria-label=${text(shown.title)}>
+    <div class="k-pick__chead">
+      <p class="k-pick__kind"><${Icon} name="layers" size=${14} /><span>${pickable.length > 1 ? `${pickable.length} versions to choose from` : "One version"}${round ? ` · round ${round}` : ""}</span></p>
       <h3 class="k-pick__title">${text(shown.title)}</h3>
       ${(context.length > 0 || shown.identifier) && html`<p class="k-pick__context">
         ${context.map((c, i) => html`${i > 0 && html`<span aria-hidden="true"> · </span>`}<span>${c}</span>`)}
         ${shown.identifier && html`${context.length > 0 && html`<span aria-hidden="true"> · </span>`}<${Mono}>${text(shown.identifier)}<//>`}
       </p>`}
-      ${!compact && shown.summary && html`<p class="k-pick__summary">${text(shown.summary)}</p>`}
-    </header>`}
-    ${changed && html`<div class="k-pick__alert" role="alert">
-      <${Icon} name="alert" />
-      <div>
-        <p class="k-pick__alert-title">${text(error && error.message) || PICK_WORDS.changed}</p>
-        <p class="k-pick__alert-next">${reloading ? "Reading them again…" : gone ? "It is no longer waiting for you." : text(error && error.next) || PICK_WORDS.changedNext}</p>
-      </div>
-    </div>`}
-    <div class="k-pick__stage">
-      ${n > 1 && html`<div id=${`${baseId}-steps`} class="k-pick__steps-wrap"><${Steps} versions=${versions} current=${current} onStep=${onStep} baseId=${baseId} /></div>`}
-      <ol class=${cx("k-pick__versions", n === 1 && "k-pick__versions--one")} style=${{ "--k-pick-n": String(Math.max(n, 1)) }}
-        ref=${track} onScroll=${n > 1 ? onScroll : undefined} aria-label=${PICK_WORDS.versions}>
-        ${versions.map((v) => html`<${Version} key=${v.id} v=${v} kind=${kind} level=${level} baseId=${baseId}
-          readOnly=${readOnly || !shown} picked=${picked && picked === v.id} busy=${busy} stopped=${stopped}
-          confirming=${confirmFor === v.id} onPick=${onPick} onConfirm=${(x) => send("pick", x.id)} onCancel=${cancelConfirm} yesRef=${yesRef} />`)}
-      </ol>
     </div>
-    ${!readOnly && shown && html`<div class="k-pick__foot"><div class="k-pick__foot-in">
-      <div class=${cx("k-pick__note", needNote && "k-pick__note--needed")}>
-        <label class="k-pick__note-label" for=${noteId}>${PICK_WORDS.noteLabel}</label>
-        <textarea id=${noteId} ref=${noteRef} class="k-textarea k-pick__note-field" rows="2" maxLength=${4000}
-          aria-describedby=${`${noteId}-hint`} aria-invalid=${needNote ? "true" : undefined} value=${note} disabled=${Boolean(busy)}
-          placeholder="Optional" onInput=${(e) => { setNote(e.currentTarget.value); if (needNote && e.currentTarget.value.trim()) setNeedNote(false); }}></textarea>
-        <p class="k-pick__hint" id=${`${noteId}-hint`}>${needNote ? html`<${Icon} name="alert" size=${14} /><span>${PICK_WORDS.needNote}</span>` : PICK_WORDS.noteHint}</p>
-      </div>
-      <div class="k-pick__rest">
-        <${Button} variant="plain" icon="loop" busy=${busy && busy.action === "another"} disabled=${stopped}
-          onClick=${(e) => { opener.current = e.currentTarget; send("another"); }}>${PICK_WORDS.another}<//>
-        <${Button} variant="quiet" icon="reply" busy=${busy && busy.action === "reopen"} disabled=${stopped}
-          onClick=${(e) => { opener.current = e.currentTarget; send("reopen"); }}>${PICK_WORDS.back}<//>
-      </div>
-    </div></div>`}
-    ${error && !changed && html`<p class="k-pick__error" role="alert"><${Icon} name="alert" /><span>${text(error.message) || "That did not work."}${error.next ? ` ${text(error.next)}` : ""}</span></p>`}
+    <ul class="k-pick__minis" aria-label=${PICK_WORDS.versions}>
+      ${versions.map((v) => {
+        const s = stageOf(v);
+        const src = s.type === "page" ? s.frames[0].src : s.images[0] || null;
+        return html`<li key=${v.id} class="k-pick__mini">
+          <span class=${cx("k-pick__mini-pic", !src && "k-pick__mini-pic--words")} aria-hidden="true">
+            ${src ? html`<img src=${src} alt="" loading="lazy" decoding="async" />` : v.letter || "·"}
+          </span>
+          <span class="k-pick__mini-name">${v.letter ? `${v.letter} · ${v.title}` : v.title}</span>
+        </li>`;
+      })}
+    </ul>
+    <div class="k-pick__copen"><${Button} href=${href || openHref(shown)}>${PICK_WORDS.open}<//></div>
   </article>`;
+}
+
+// PickCard({ item, onDone, compact, bare, level, focusDone, href }) for a Needs-you item of kind "pick", or
+// PickCard({ pieces, readOnly: true, picked, bare, level }) for a task's versions as GET /api/tasks/:id/pieces
+// gives them. On its own it is a whole stage (StageLayout, its title the page's h1); `bare` draws the same parts in
+// one column inside a page that has its own title (the task page); `compact` is a list's row. `picked` is the id
+// the owner chose. `href` is where "Open" goes in the compact use.
+export function PickCard({ item = null, pieces = null, onDone, compact = false, bare = false, readOnly = false, picked = null, level = 4, focusDone = true, href }) {
+  const [baseId] = useState(() => nextId("k-pick"));
+  const [chosenId, setChosen] = useState(null);
+  const a = usePickAct({ item, readOnly, onDone });
+  const shown = a.shown;
+  const src = shown || pieces;
+  if (!src) return null;
+  if (a.done) return html`<${PickDone} done=${a.done} focus=${focusDone} />`;
+
+  const kind = shown ? shown.pieceKind : pieces && pieces.kind;
+  const versions = versionsOf(src);
+  const round = Number.isInteger(src.round) ? src.round : null;
+  if (compact && shown) return html`<${PickCompact} shown=${shown} versions=${versions} round=${round} href=${href} />`;
+
+  const v = versions.find((x) => x.id === chosenId)
+    || (picked && versions.find((x) => x.id === picked))
+    || versions.find((x) => !x.missing) || versions[0] || null;
+  const stage = html`<${PickStage} key=${v ? v.id : "none"} v=${v} />`;
+  const strip = versions.length > 1
+    ? html`<${PickStrip} versions=${versions} chosen=${v && v.id} onChoose=${setChosen} picked=${picked} />`
+    : null;
+  const facts = html`<${PickFacts} v=${v} kind=${kind} />`;
+  const foot = !readOnly && shown ? footParts(a, v, baseId) : null;
+  const busy = a.busy ? "true" : undefined;
+
+  if (bare) {
+    return html`<div class=${cx("k-pick", "k-pick--bare", readOnly && "k-pick--read")} aria-busy=${busy} data-level=${level}>
+      <div class="k-pick__ground" role="region" aria-label=${v ? `How ${v.letter ? `version ${v.letter}` : "it"} looks` : PICK_WORDS.versions}>${stage}</div>
+      ${strip ? html`<div class="k-pick__strip">${strip}</div>` : null}
+      <div class=${cx("k-pick__panel", !foot && "k-pick__panel--facts")}>
+        <div class="k-pick__facts">${facts}</div>
+        ${foot ? html`<div class="k-pick__act">
+          <div class="k-pick__primary">${foot.primary}</div>
+          <div class="k-pick__rest">${foot.rest}</div>
+        </div>` : null}
+      </div>
+    </div>`;
+  }
+
+  const kindLine = [shown ? text(shown.raisedBy) : "", shown ? when(shown.when) : "", round ? `round ${round}` : ""].filter(Boolean).join(" · ");
+  return html`<div class=${cx("k-pick", "k-pick--stage", readOnly && "k-pick--read")} aria-busy=${busy}>
+    <${StageLayout} kind=${kindLine || null} title=${shown ? text(shown.title) : PICK_WORDS.versions}
+      lede=${shown && shown.summary ? text(shown.summary) : null}
+      label=${v ? `How ${v.letter ? `version ${v.letter}` : "it"} looks` : PICK_WORDS.versions}
+      stage=${stage} strip=${strip} rail=${facts} foot=${foot} />
+  </div>`;
+}
+
+// The foot on its own, for a page that draws its own stage and strip (a site's task page, T51): the one primary for
+// the version the page shows (`chosen`, a, b or c), then under a divider the note, "Another round" and "Send all
+// back", with the act path. On a phone the primary shows with "More", which opens the rest in a sheet. `onChanged`
+// hears the item as it is now after "changed since you looked", so the page can redraw its stage.
+export function PickFoot({ item, chosen, onDone, onChanged, focusDone = true }) {
+  const [baseId] = useState(() => nextId("k-pick"));
+  const [sheet, setSheet] = useState(false);
+  const a = usePickAct({ item: isPickItem(item) ? item : null, readOnly: false, onDone });
+  const fresh = a.fresh;
+  useEffect(() => { if (fresh && onChanged) onChanged(fresh); }, [fresh]);
+  if (!a.shown) return null;
+  if (a.done) return html`<${PickDone} done=${a.done} focus=${focusDone} />`;
+  const versions = versionsOf(a.shown);
+  const v = versions.find((x) => x.id === chosen) || versions.find((x) => !x.missing) || null;
+  const { primary, rest } = footParts(a, v, baseId);
+  return html`<div class="k-pick-foot" aria-busy=${a.busy ? "true" : undefined}>
+    <div class="k-pick-foot__primary">${primary}</div>
+    <div class="k-pick-foot__rest">${rest}</div>
+    <${Button} class="k-pick-foot__more" aria-haspopup="dialog" aria-expanded=${sheet ? "true" : "false"}
+      onClick=${() => setSheet(true)}>${PICK_WORDS.more}<//>
+    <${Dialog} open=${sheet} title=${PICK_WORDS.more} size="sm" onClose=${() => setSheet(false)}>
+      <div class="k-pick-foot__sheet">${rest}</div>
+    <//>
+  </div>`;
 }
 
 // The one approval card for any Needs-you item: a card of versions when the item is one, else DecisionCard as
