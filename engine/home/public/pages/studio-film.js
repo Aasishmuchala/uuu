@@ -1,14 +1,21 @@
-// A film in Studio (PLAN-V5 T45b, K14 step 5), at #/dashboards/studio?film=<task id>: the owner follows a film as it is
-// made. The title, the direction, what was approved, the total against the approved budget, then one card per shot:
-// the storyboard still, the picture Runway was sent, and each take with its clip, its six stills, what it cost, its
-// state and the Art director's verdict. Money, takes and states come from the door's ledger through the home server
-// (C12); a request Runway did not start is listed quietly under its shot, with what was sent (T49f N2). The Artist's
-// own words (the move, the prompt, a verdict's reason) are shown as text and nowhere else. Only
-// addresses under /api/ reach a picture or a video, each through `safeApi`; no link in agent text is followed.
-import { html, useState } from "../vendor/preact-htm.js";
+// A film in Studio (PLAN-V5 T45b, K14 step 5; PLAN-COOK T52, S04), at #/dashboards/studio?film=<task id>: the owner
+// follows a film as it is made, on a stage. The chosen take plays on the stage (the kit's Player, its stills under it);
+// the strip under it holds one card a shot (its still, its cost, its take, its state) under what the film has spent of
+// what was approved; the rail holds the film's state, title and direction, then three blocks: the take with the Art
+// director's verdict and the storyboard beside the picture Runway was sent, the prompt as sent with what changed
+// from what the owner approved, and the shot's move with the requests Runway did not start. Under the first screen,
+// every shot and every approval as rows. Money, takes and states come from the door's ledger through the home server
+// (C12); figures are the server's numbers, its sentences shown as sent (R4). The Artist's own words (the move, the
+// prompt, a verdict's reason) are shown as text and nowhere else. Only addresses under /api/ reach a picture or a
+// video, each through `safeApi`; no link in agent text is followed.
+import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
+import { useApp } from "../lib/context.js";
 import { fullWhen, when } from "../lib/format.js";
-import { Button, Dialog, ErrorNotice, Loading, Notice, Tag } from "../kit/index.js";
+import {
+  Blk, Button, DataTable, DiffText, ErrorNotice, Loading, Meter, Notice, Pair, Player, Segmented, Shot, St, StageLayout,
+  Strip, Tag, TakeCard, Verdict,
+} from "../kit/index.js";
 import { safeApi, studioHref, useBringIntoView } from "./studio.js";
 
 const EVERY = 10000;
@@ -163,6 +170,160 @@ export function editHref(edit) {
   return studioHref({ video: `${id}/${name}` });
 }
 
+
+// ---- the stage: which take is shown, and its words -----------------------------------------------------------
+
+// The page's own words on the stage, the strip and the rail (the server's sentences come in `labels`).
+export const FILM_WORDS = Object.freeze({
+  shots: "Shots",
+  spent: "Spent on this film",
+  spentOf: "Money spent of the approved budget",
+  storyboard: "Storyboard",
+  asSent: "your render, as sent",
+  sentPicture: "The picture sent to Runway",
+  byArt: "the Art director's verdict",
+  notLooked: "Not looked at yet",
+  diffApproved: "you approved, not sent",
+  diffSent: "sent, not approved",
+  move: "The move",
+  takes: "Takes of this shot",
+  noTakes: "Not made yet",
+  noTakesSay: "No clip has been made for this shot yet.",
+  noShots: "The shots of this film could not be read.",
+  allShots: "Every shot",
+  approvals: "Approvals",
+  edit: "Open the edit in Videos",
+  task: "Open its task",
+  films: "Films",
+  film: "A film",
+});
+
+// "Shot 1, take 2".
+export const takeLabel = (n, take) => `Shot ${n}, ${takeName(take && take.take).toLowerCase()}`;
+
+// "5 s" for a shot's length, or "".
+export function secondsWords(shot) {
+  const s = Number(shot && shot.seconds);
+  return Number.isFinite(s) && s > 0 ? `${s} s` : "";
+}
+
+// A take's clip, only when the home server's own address; else "" (the stage then shows its stills).
+export function clipOf(take) {
+  return take && typeof take === "object" ? safeApi(take.clip) || "" : "";
+}
+
+// A take's stills that are the home server's own addresses, at most six.
+export function stillsOf(take) {
+  const stills = take && Array.isArray(take.stills) ? take.stills : [];
+  return stills.map(safeApi).filter(Boolean).slice(0, 6);
+}
+
+// The one chip a take's card shows: { tone, text, icon }.
+export function takeChip(take) {
+  const t = take && typeof take === "object" ? take : {};
+  if (t.state === "made") {
+    const v = t.verdict && t.verdict.verdict;
+    if (v === "keep") return { tone: "good", text: "Made, kept", icon: "check" };
+    if (v === "retake") return { tone: "warn", text: "Made, to retake", icon: "retake" };
+    return { tone: "neutral", text: "Made" };
+  }
+  if (t.state === "making") return { tone: "neutral", text: "Being made", icon: "clock" };
+  if (t.state === "refused" || t.state === "failed") return { tone: "bad", text: t.state === "refused" ? "Refused" : "Failed", icon: "cross" };
+  return { tone: "neutral", text: takeStateWords(t.state) };
+}
+
+// What the rail shows of a take's prompt: "diff" (approved and sent differ), "same" (one text), or the sent prompt's
+// "gone" or "none" (sentPromptKind), with both texts as text.
+export function promptView(take) {
+  const t = take && typeof take === "object" ? take : {};
+  const approved = typeof t.approvedPrompt === "string" ? text(t.approvedPrompt, 1000).trim() : "";
+  const kind = sentPromptKind(t.sentPrompt);
+  if (kind !== "text") return { kind, approved, sent: "" };
+  const sent = text(t.sentPrompt, 1000).trim();
+  return { kind: approved && approved !== sent ? "diff" : "same", approved, sent };
+}
+
+// Whether a shot's newest take needs the owner to look: Runway refused it or it failed, the Art director asked for
+// it again, or the shotlist changed after approval and what was sent is not what was approved.
+export function needsLook(take, changed) {
+  if (!take || typeof take !== "object") return false;
+  if (take.state === "refused" || take.state === "failed") return true;
+  if (take.state === "made" && take.verdict && take.verdict.verdict === "retake") return true;
+  return changed === true && promptView(take).kind === "diff";
+}
+
+// The take shown first: { shot, take } as indexes. The first shot whose newest take needs the owner; else the newest
+// made take (the last in reading order); else the first shot's newest take, or none (take -1).
+export function defaultPick(film) {
+  const shots = items(film && film.shots, MAX_SHOTS);
+  const changed = !!film && film.changedAfterApproval === true;
+  const takesOf = (s) => items(s.takes, MAX_TAKES);
+  for (let s = 0; s < shots.length; s += 1) {
+    const takes = takesOf(shots[s]);
+    if (takes.length && needsLook(takes[takes.length - 1], changed)) return { shot: s, take: takes.length - 1 };
+  }
+  for (let s = shots.length - 1; s >= 0; s -= 1) {
+    const takes = takesOf(shots[s]);
+    for (let t = takes.length - 1; t >= 0; t -= 1) if (takes[t].state === "made") return { shot: s, take: t };
+  }
+  return { shot: 0, take: shots.length ? takesOf(shots[0]).length - 1 : -1 };
+}
+
+// ---- the top bar: crumbs, "Film 1 of 3", the task --------------------------------------------------------------
+
+const filmKey = (f) => (f && f.task ? text(f.task.identifier, 40) || text(f.task.id, 80) : "");
+
+// "Film 1 of 3" with the films before and after this one in the Films list, or null when it is not listed.
+export function filmPager(films, id) {
+  const list = items(films, 30);
+  const at = list.findIndex((f) => f.task && typeof id === "string" && id && (f.task.id === id || f.task.identifier === id));
+  if (at < 0) return null;
+  const href = (f) => (f && filmKey(f) ? studioHref({ film: filmKey(f) }) : null);
+  return { label: `Film ${at + 1} of ${list.length}`, prev: href(list[at - 1]), next: href(list[at + 1]) };
+}
+
+export function filmCrumbs(identifier) {
+  return [
+    { label: "Dashboards", href: "#/dashboards" },
+    { label: "Studio", href: HERE },
+    { label: FILM_WORDS.films },
+    { label: text(identifier, 40) || FILM_WORDS.film },
+  ];
+}
+
+// The task's page, by its identifier ("STH-41"), or null.
+export function taskHref(identifier) {
+  const id = text(identifier, 40);
+  return /^[A-Za-z0-9-]{1,40}$/.test(id) ? `#/tasks/${encodeURIComponent(id)}` : null;
+}
+
+// ---- under the first screen: every shot and every approval as rows ---------------------------------------------
+
+export function shotRows(film) {
+  return items(film && film.shots, MAX_SHOTS).map((shot, i) => {
+    const takes = items(shot.takes, MAX_TAKES);
+    const last = takes[takes.length - 1];
+    return {
+      id: `${text(shot.id, 8)}-${i}`, n: i + 1, board: safeApi(shot.board) || "", move: text(shot.move, 400),
+      takes: takes.length ? `${takes.length} ${takes.length === 1 ? "take" : "takes"}` : "None yet",
+      state: last ? takeChip(last).text : FILM_WORDS.noTakes,
+      cost: takes.length ? takeCredits(shot.credits) || "$0.00" : "",
+    };
+  });
+}
+
+export function batchRows(film, now = Date.now()) {
+  return items(film && film.batches, 20).map((b, i) => {
+    const ends = Date.parse(b.expiresAt);
+    return {
+      id: `${text(b.id, 40)}-${i}`, approved: when(b.approvedAt), ends: when(b.expiresAt),
+      budget: dollarsOf(b.budget), spent: dollarsOf(b.spent),
+      refused: Number.isInteger(b.refused) && b.refused >= 0 ? String(b.refused) : "",
+      state: b.frozen === true ? "Stopped, needs you" : Number.isFinite(ends) && ends < now ? "Ended" : "Open",
+    };
+  });
+}
+
 // ---- the Films list ------------------------------------------------------------------------------------------
 
 // One row of the Films list: a link to the film opened in place.
@@ -187,76 +348,7 @@ export function FilmRow({ film, chosen }) {
   </li>`;
 }
 
-// ---- stills --------------------------------------------------------------------------------------------------
-
-// Six small stills in a strip; each opens larger in a dialog, with Previous and Next, and the arrow keys.
-function StillsStrip({ stills, label }) {
-  const [open, setOpen] = useState(-1);
-  const list = stills.map(safeApi).filter(Boolean).slice(0, 6);
-  if (!list.length) return null;
-  const go = (n) => setOpen((i) => (i < 0 ? i : (i + n + list.length) % list.length));
-  const onKey = (e) => {
-    if (e.key === "ArrowRight") { e.preventDefault(); go(1); }
-    else if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
-  };
-  return html`<div class="p-film__stills">
-    <ul class="p-film__strip" aria-label=${`Six stills of ${label}`}>
-      ${list.map((src, i) => html`<li key=${src} class="p-film__strip-item">
-        <button type="button" class="p-film__still" aria-label=${`Open still ${i + 1} of ${list.length} of ${label} larger`} onClick=${() => setOpen(i)}>
-          <img class="p-film__still-img" src=${src} alt="" loading="lazy" />
-        </button>
-      </li>`)}
-    </ul>
-    <${Dialog} open=${open >= 0} size="lg" title=${open >= 0 ? `${label}, still ${open + 1} of ${list.length}` : ""} onClose=${() => setOpen(-1)}
-      footer=${html`<${Button} size="sm" onClick=${() => go(-1)}>Previous<//><${Button} size="sm" onClick=${() => go(1)}>Next<//>`}>
-      <div class="p-film__large" onKeyDown=${onKey}>
-        ${open >= 0 ? html`<img class="p-film__large-img" src=${list[open]} alt=${`${label}, still ${open + 1} of ${list.length}`} />` : null}
-      </div>
-    <//>
-  </div>`;
-}
-
-// ---- takes ---------------------------------------------------------------------------------------------------
-
-function Take({ take, shot, labels }) {
-  const label = `${shot.id}, ${takeName(take.take).toLowerCase()}`;
-  const clip = safeApi(take.clip);
-  const stills = Array.isArray(take.stills) ? take.stills : [];
-  const poster = safeApi(stills[0]);
-  const sent = sentKind(take.sent);
-  const state = take.state;
-  const detail = (state === "refused" || state === "failed" || state === "making") && take.result && take.result !== takeStateWords(state) ? text(take.result, 200) : "";
-  return html`<li class=${`p-film__take p-film__take--${TAKE_STATES[state] ? state : "unknown"}`}>
-    <div class="p-film__take-head">
-      <h5 class="p-film__take-name">${takeName(take.take)}</h5>
-      <${Tag} tone=${takeStateTone(state)}>${takeStateWords(state)}<//>
-      <span class="p-film__take-credits">${takeCredits(take.credits)}</span>
-    </div>
-    ${detail ? html`<p class="p-film__take-detail">${detail}</p>` : null}
-    <div class="p-film__take-body">
-    <div class="p-film__media">
-    ${clip ? html`<video class="p-film__video" controls preload="none" playsinline src=${clip} poster=${poster || undefined} aria-label=${`Clip ${label}`}>
-      This browser cannot play the clip.
-    </video>` : null}
-    ${stills.length ? html`<${StillsStrip} stills=${stills} label=${label} />` : null}
-    </div>
-    <div class="p-film__notes">
-    ${sent === "picture" ? html`<figure class="p-film__sent">
-      <img class="p-film__sent-img" src=${safeApi(take.sent)} alt=${`The picture sent to Runway for ${label}`} loading="lazy" />
-      <figcaption class="p-film__sent-cap">Sent to Runway</figcaption>
-    </figure>` : null}
-    ${sent === "gone" ? html`<p class="p-film__sent-gone">${GONE_WORDS}</p>` : null}
-    <${TakePrompts} take=${take} labels=${labels} id=${`${shot.id}-${take.batch}-${take.job}-${take.take}`} />
-    ${state === "made" ? html`<p class=${`p-film__verdict p-film__verdict--${verdictTone(take.verdict)}`}>
-      <span class="p-film__verdict-label">Art director</span>
-      <span class="p-film__verdict-text">${verdictWords(take.verdict)}</span>
-    </p>` : null}
-    </div>
-    </div>
-  </li>`;
-}
-
-// ---- shots ---------------------------------------------------------------------------------------------------
+// ---- the rail ------------------------------------------------------------------------------------------------
 
 function Prompt({ value, id, moreWords = "Show all" }) {
   const [open, setOpen] = useState(false);
@@ -264,141 +356,258 @@ function Prompt({ value, id, moreWords = "Show all" }) {
   if (!full) return null;
   const short = clampWords(full);
   const more = short !== full;
-  return html`<div class="p-film__prompt">
-    <p class="p-film__prompt-text" id=${id}>${open || !more ? full : short}</p>
-    ${more ? html`<button type="button" class="p-film__more" aria-expanded=${open ? "true" : "false"} aria-controls=${id} onClick=${() => setOpen(!open)}>${open ? "Show less" : moreWords}</button>` : null}
+  return html`<div class="p-studio-film__clamp">
+    <p class="p-studio-film__prompt" id=${id}>${open || !more ? full : short}</p>
+    ${more ? html`<button type="button" class="p-studio-film__more" aria-expanded=${open ? "true" : "false"} aria-controls=${id} onClick=${() => setOpen(!open)}>${open ? "Show less" : moreWords}</button>` : null}
   </div>`;
 }
 
-// What the owner approved for a take and what was sent to Runway, each under the server's own words.
-function TakePrompts({ take, labels, id }) {
-  const key = String(id).replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 80);
-  const approved = typeof take.approvedPrompt === "string" && take.approvedPrompt.trim() ? take.approvedPrompt : "";
-  const kind = sentPromptKind(take.sentPrompt);
-  if (!approved && take.sentPrompt === undefined) return null;
-  return html`<div class="p-film__says">
-    ${approved ? html`<section class="p-film__say" aria-labelledby=${`p-film-ap-${key}`}>
-      <h6 class="p-film__say-label" id=${`p-film-ap-${key}`}>${labels.approved}</h6>
-      <${Prompt} value=${approved} id=${`p-film-apt-${key}`} moreWords="Read all" />
-    </section>` : null}
-    <section class="p-film__say" aria-labelledby=${`p-film-sp-${key}`}>
-      <h6 class="p-film__say-label" id=${`p-film-sp-${key}`}>${labels.sentPrompt}</h6>
-      ${kind === "text" ? html`<${Prompt} value=${take.sentPrompt} id=${`p-film-spt-${key}`} moreWords="Read all" />`
-        : html`<p class="p-film__say-none">${kind === "gone" ? labels.sentPromptGone : labels.sentPromptNone}</p>`}
-    </section>
-  </div>`;
-}
-
-// The requests Runway did not start, under a shot's takes: quiet text, each with what was sent.
+// The requests Runway did not start, under a shot: quiet text, each with what was sent.
 function NotStarted({ shot, labels }) {
   const list = notStartedOf(shot);
   if (!list.length) return null;
   const id = text(shot.id, 8);
-  return html`<ul class="p-film__not-started" aria-label=${`Requests for shot ${id} that Runway did not start`}>
-    ${list.map((n, i) => html`<li key=${n.key} class="p-film__not-started-item">
-      <p class="p-film__not-started-head">
+  return html`<ul class="p-studio-film__not-started" aria-label=${`Requests for shot ${id} that Runway did not start`}>
+    ${list.map((n, i) => html`<li key=${n.key} class="p-studio-film__not-started-item">
+      <p class="p-studio-film__not-started-head">
         <span>${labels.notStarted}</span>
         ${n.when ? html`<span title=${fullWhen(n.when)}>${when(n.when)}</span>` : null}
         ${n.sent ? html`<a href=${n.sent}>The picture sent</a>` : null}
       </p>
       ${n.prompt === "gone" || n.prompt === "none"
-        ? html`<p class="p-film__say-none">${n.prompt === "gone" ? labels.sentPromptGone : labels.sentPromptNone}</p>`
-        : html`<${Prompt} value=${n.prompt} id=${`p-film-ns-${id}-${i}`} moreWords="Read all" />`}
+        ? html`<p class="p-studio-film__none">${n.prompt === "gone" ? labels.sentPromptGone : labels.sentPromptNone}</p>`
+        : html`<${Prompt} value=${n.prompt} id=${`p-studio-film-ns-${id}-${i}`} moreWords="Read all" />`}
     </li>`)}
   </ul>`;
 }
 
-function Shot({ shot, number, labels }) {
+// The Art director's verdict on a made take, or the take's state while it is not made.
+function TakeVerdict({ take }) {
+  const state = take.state;
+  if (state === "made") {
+    const v = take.verdict && take.verdict.verdict;
+    if (v !== "keep" && v !== "retake") return html`<p class="p-studio-film__state-line"><${St} icon="eye">${FILM_WORDS.notLooked}<//></p>`;
+    const why = text(take.verdict.reason, 200).trim();
+    return html`<div class="p-studio-film__verdict">
+      <${Verdict} tone=${v === "keep" ? "good" : "warn"} title=${v === "keep" ? verdictWords(take.verdict) : "Retake"} by=${FILM_WORDS.byArt} />
+      ${why ? html`<p class="p-studio-film__reason">${why}</p>` : null}
+    </div>`;
+  }
+  if (state === "refused" || state === "failed") {
+    return html`<div class="p-studio-film__verdict"><${Verdict} tone="bad" title=${takeStateWords(state)} /></div>`;
+  }
+  return html`<p class="p-studio-film__state-line"><${St} icon=${state === "making" ? "clock" : undefined}>${takeStateWords(state)}<//></p>`;
+}
+
+// The first block: the take, its verdict, and the storyboard beside the picture Runway was sent.
+function TakeBlock({ shot, take, n, takes, at, onTake, labels }) {
   const board = safeApi(shot.board);
-  const takes = items(shot.takes, MAX_TAKES);
-  const seconds = Number.isFinite(Number(shot.seconds)) && Number(shot.seconds) > 0 ? `${Number(shot.seconds)} s` : "";
-  const id = text(shot.id, 8);
-  return html`<li class="p-film__shot">
-    <div class="p-film__shot-head">
-      <h4 class="p-film__shot-title">
-        <span class="p-film__shot-no">${number}</span>
-        <span class="p-film__shot-render">${text(shot.render, 160) || "A shot"}</span>
-      </h4>
-      <span class="p-film__shot-facts">
-        ${seconds ? html`<span>${seconds}</span>` : null}
-        ${takes.length ? html`<span>${takeCredits(shot.credits) || "$0.00"}</span>` : null}
-      </span>
+  const sent = sentKind(take.sent);
+  const state = take.state;
+  const detail = (state === "refused" || state === "failed" || state === "making") && take.result && take.result !== takeStateWords(state) ? text(take.result, 200) : "";
+  const facts = [secondsWords(shot), takeCredits(take.credits)].filter(Boolean).join(" · ");
+  const pair = [
+    { src: board || "", alt: `Storyboard still for shot ${n}`, title: FILM_WORDS.storyboard, sub: labels.approved },
+    sent === "none" ? null : {
+      src: sent === "picture" ? safeApi(take.sent) : "", alt: `${FILM_WORDS.sentPicture} for ${takeLabel(n, take).toLowerCase()}`,
+      title: text(shot.render, 80) || FILM_WORDS.sentPicture, sub: sent === "gone" ? GONE_WORDS : FILM_WORDS.asSent,
+    },
+  ];
+  return html`<${Blk} title=${takeLabel(n, take)} aside=${facts}>
+    ${takes.length > 1 ? html`<div class="p-studio-film__takes">
+      <${Segmented} size="sm" label=${FILM_WORDS.takes} current=${at} onChange=${onTake}
+        items=${takes.map((t, i) => ({ id: i, label: takeName(t.take) }))} />
+    </div>` : null}
+    <${TakeVerdict} take=${take} />
+    ${detail ? html`<p class="p-studio-film__result">${detail}</p>` : null}
+    <div class="p-studio-film__pair"><${Pair} items=${pair} /></div>
+  <//>`;
+}
+
+// The second block: the prompt as sent, with what changed from what the owner approved.
+function PromptBlock({ take, labels }) {
+  const p = promptView(take);
+  return html`<${Blk} title=${labels.sentPrompt}>
+    ${p.kind === "diff"
+      ? html`<div class="p-studio-film__diff"><${DiffText} a=${p.approved} b=${p.sent} labels=${{ a: FILM_WORDS.diffApproved, b: FILM_WORDS.diffSent }} /></div>`
+      : p.kind === "same"
+        ? html`<p class="p-studio-film__prompt">${p.sent}</p>`
+        : html`<p class="p-studio-film__none">${p.kind === "gone" ? labels.sentPromptGone : labels.sentPromptNone}</p>
+          ${p.approved ? html`<p class="p-studio-film__label">${labels.approved}</p><p class="p-studio-film__prompt">${p.approved}</p>` : null}`}
+  <//>`;
+}
+
+// The third block: the shot's move, and the requests Runway did not start.
+function ShotBlock({ shot, n, labels }) {
+  const move = text(shot.move, 400);
+  if (!move && !notStartedOf(shot).length) return null;
+  return html`<${Blk} title=${FILM_WORDS.move} aside=${`Shot ${n}`}>
+    ${move ? html`<p class="p-studio-film__move">${move}</p>` : null}
+    <${NotStarted} shot=${shot} labels=${labels} />
+  <//>`;
+}
+
+// ---- the strip -----------------------------------------------------------------------------------------------
+
+function Spend({ film }) {
+  const total = film.total || {};
+  const words = creditWords(total.spent, total.budget);
+  return html`<section class="p-studio-film__spend" aria-label=${FILM_WORDS.spent}>
+    <p class="p-studio-film__spend-line">
+      <span class="p-studio-film__spend-label">${FILM_WORDS.spent}</span>
+      <span class="p-studio-film__spend-figure">${words}</span>
+    </p>
+    <div class="p-studio-film__spend-meter">
+      <${Meter} plain shares=${{ spent: spentShare(total.spent, total.budget) }} label=${`${FILM_WORDS.spentOf}: ${words}`} />
     </div>
-    <div class="p-film__shot-body">
-      <div class="p-film__shot-plan">
-        ${shot.move ? html`<p class="p-film__move">${text(shot.move, 400)}</p>` : null}
-        <${Prompt} value=${shot.prompt} id=${`p-film-prompt-${id}`} />
-        ${board
-          ? html`<figure class="p-film__board"><img class="p-film__board-img" src=${board} alt=${`Storyboard still for shot ${number}`} loading="lazy" /><figcaption class="p-film__board-cap">Storyboard</figcaption></figure>`
-          : null}
-      </div>
-      <div class="p-film__shot-takes">
-        ${takes.length
-          ? html`<ul class="p-film__takes">${takes.map((t) => html`<${Take} key=${`${t.batch}-${t.job}-${t.take}`} take=${t} shot=${shot} labels=${labels} />`)}</ul>`
-          : html`<p class="p-film__no-takes">No clip has been made for this shot yet.</p>`}
-        <${NotStarted} shot=${shot} labels=${labels} />
-      </div>
-    </div>
-  </li>`;
+    ${anyMaking(film) ? html`<p class="p-studio-film__spend-note">${STILL_CHARGING}</p>` : null}
+  </section>`;
+}
+
+function ShotCards({ shots, at, onPick }) {
+  return html`<${Strip} label=${FILM_WORDS.shots}>
+    ${shots.map((shot, i) => {
+      const takes = items(shot.takes, MAX_TAKES);
+      const take = i === at.shot && takes[at.take] ? takes[at.take] : takes[takes.length - 1];
+      const src = (take && stillsOf(take)[0]) || safeApi(shot.board) || "";
+      return html`<${TakeCard} key=${`${text(shot.id, 8)}-${i}`} pressed=${i === at.shot}
+        thumb=${{ src, alt: "", making: !!take && take.state === "making" }}
+        title=${`Shot ${i + 1}`} amount=${takes.length ? takeCredits(shot.credits) || "$0.00" : ""}
+        sub=${[take ? takeName(take.take) : FILM_WORDS.noTakes, secondsWords(shot)].filter(Boolean).join(" · ")}
+        state=${take ? takeChip(take) : null} onPick=${() => onPick({ shot: i, take: takes.length - 1 })} />`;
+    })}
+  <//>`;
+}
+
+// ---- under the first screen ----------------------------------------------------------------------------------
+
+const SHOT_COLUMNS = [
+  { key: "n", label: "Shot", align: "start" }, { key: "move", label: "Move" }, { key: "takes", label: "Takes" },
+  { key: "state", label: "State" }, { key: "cost", label: "Cost", align: "end" },
+];
+const BATCH_COLUMNS = [
+  { key: "approved", label: "Approved" }, { key: "ends", label: "Ends" }, { key: "budget", label: "Budget", align: "end" },
+  { key: "spent", label: "Spent", align: "end" }, { key: "refused", label: "Refused", align: "end" }, { key: "state", label: "State", align: "start" },
+];
+
+function shotCell(row, col) {
+  if (col.key !== "n") return undefined;
+  return html`<span class="p-studio-film__row-shot">
+    <span class="p-studio-film__row-thumb">${row.board ? html`<img src=${row.board} alt="" loading="lazy" decoding="async" />` : null}</span>
+    <span>Shot ${row.n}</span>
+  </span>`;
 }
 
 // ---- the film ------------------------------------------------------------------------------------------------
 
-export function FilmView({ id, settled = true }) {
+// `more`: what the page shows under the film's own rows (the rest of Studio, when the page gives it).
+export function FilmView({ id, settled = true, more = null }) {
+  const app = useApp() || {};
   const res = useResource(id ? `/api/studio/films/${encodeURIComponent(id)}` : null, { every: EVERY });
+  const list = useResource(id ? "/api/studio/films" : null, { every: EVERY });
+  const [pick, setPick] = useState(null);
   const f = res.data;
   const head = useBringIntoView(`film:${id}`, settled && (!!f || !!res.error));
+  const task = (f && f.task) || {};
+  const ident = text(task.identifier, 40);
+  const pager = filmPager(list.data && list.data.films, id);
+  const setTop = app.setTop;
+  const taskLink = taskHref(ident);
+  useEffect(() => {
+    if (typeof setTop !== "function") return;
+    setTop({ crumbs: filmCrumbs(ident), pager, links: taskLink ? [{ label: FILM_WORDS.task, href: taskLink }] : [] });
+  }, [setTop, ident, taskLink, pager && pager.label, pager && pager.prev, pager && pager.next]);
+  useEffect(() => () => { if (typeof setTop === "function") setTop(null); }, [setTop]);
+
   if (res.error && !f) {
     const gone = res.error && (res.error.status === 404 || res.error.code === "film_not_found");
-    return html`<div class="p-film">
+    return html`<div class="p-studio-film p-studio-film--alone" ref=${head} tabindex="-1">
       ${gone
         ? html`<${Notice} tone="warn" title="That film is not here.">It may have been moved. <a href=${HERE}>Show all films</a><//>`
         : html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`}
     </div>`;
   }
-  if (!f) return html`<div class="p-film"><${Loading} lines=${4} label="Loading the film" /></div>`;
-  const task = f.task || {};
+  if (!f) return html`<div class="p-studio-film p-studio-film--alone"><${Loading} lines=${4} label="Loading the film" /></div>`;
+
   const shots = items(f.shots, MAX_SHOTS);
-  const total = f.total || {};
-  const share = spentShare(total.spent, total.budget);
-  const banners = filmBanners(f);
+  const at = pick && shots[pick.shot] ? pick : defaultPick(f);
+  const shot = shots[at.shot] || null;
+  const takes = shot ? items(shot.takes, MAX_TAKES) : [];
+  const take = takes[at.take] || null;
+  const n = at.shot + 1;
   const labels = labelsOf(f);
+  const banners = filmBanners(f);
   const approved = items(f.batches, 20).map((b) => b.approvedAt).filter(Boolean).pop();
   const direction = f.treatment && f.treatment.direction && f.treatment.direction.title ? text(f.treatment.direction.title, 120) : "";
   const edit = editHref(f.edit);
-  const title = text(task.title, 160) || "A film";
-  return html`<article class="p-film" aria-labelledby="p-film-title">
-    <div class="p-film__head">
-      <div class="p-film__titles">
-        <h3 class="p-film__title" id="p-film-title" tabindex="-1" ref=${head}>${title}</h3>
-        <p class="p-film__sub">
-          ${direction ? html`<span>Direction: <strong>${direction}</strong></span>` : null}
-          ${approved ? html`<span title=${fullWhen(approved)}>Approved ${when(approved)}</span>` : null}
-          ${task.identifier ? html`<span>${text(task.identifier, 40)}</span>` : null}
-        </p>
-      </div>
-      <a class="p-film__close" href=${HERE}>Close</a>
-    </div>
+  const title = text(task.title, 160) || FILM_WORDS.film;
+  const listed = items(list.data && list.data.films, 30).find((x) => x.task && (x.task.id === task.id || x.task.identifier === ident));
 
-    ${banners.map((b) => html`<${Notice} key=${b.key} tone=${b.tone}>${b.text}<//>`)}
+  // The stage: the chosen take, or the shot's storyboard while nothing is made.
+  const board = shot ? safeApi(shot.board) : null;
+  const stills = take ? stillsOf(take) : [];
+  const shown = stills.length ? stills : board ? [board] : [];
+  const name = take ? takeLabel(n, take) : `Shot ${n}`;
+  const tags = take ? [name, take.state === "made" ? "" : takeStateWords(take.state)] : [name, FILM_WORDS.noTakes];
+  // A take with a clip or stills plays in the Player; with neither (not made yet, being made, refused) the stage shows
+  // the shot's storyboard as a still picture, with no time line to scrub.
+  const playable = !!clipOf(take) || stills.length > 0;
+  const stage = shot
+    ? html`<div class="p-studio-film__stage">
+        ${playable
+          ? html`<${Player} key=${`${at.shot}-${at.take}`} src=${clipOf(take) || undefined} poster=${shown[0]} stills=${shown}
+              seconds=${Number(shot.seconds) || 0} label=${name} tags=${tags} />`
+          : html`<${Shot} src=${board || ""} alt=${`Storyboard still for shot ${n}`} tags=${[tags.filter(Boolean).join(" · ")]}>
+              <span class="p-studio-film__say">${take ? `${FILM_WORDS.storyboard}. ${takeStateWords(take.state)}.` : FILM_WORDS.noTakesSay}</span>
+            <//>`}
+      </div>`
+    : html`<div class="p-studio-film__stage p-studio-film__stage--empty"><${Notice} tone="info">${FILM_WORDS.noShots}<//></div>`;
 
-    <div class="p-film__total">
-      <div class="p-film__total-line">
-        <span class="p-film__total-label">Spent</span>
-        <span class="p-film__total-words">${totalWords(total.spent, total.budget)}</span>
-      </div>
-      <div class="p-film__bar" role="progressbar" aria-label="Money spent of the approved budget" aria-valuemin="0" aria-valuemax=${credit(total.budget) ? Number(total.budget) : 0} aria-valuenow=${credit(total.spent) ? Number(total.spent) : 0} aria-valuetext=${creditWords(total.spent, total.budget)}>
-        <span class="p-film__bar-fill" style=${`width:${share}%`}></span>
-      </div>
-      ${anyMaking(f) ? html`<p class="p-film__charging">${STILL_CHARGING}</p>` : null}
-    </div>
+  const strip = shots.length
+    ? html`<div class="p-studio-film__strip">
+        <${Spend} film=${f} />
+        <${ShotCards} shots=${shots} at=${at} onPick=${setPick} />
+      </div>`
+    : null;
 
-    ${edit ? html`<p class="p-film__edit">The edit is made. <a href=${edit}>Open it in Videos</a></p>` : null}
+  const kind = listed
+    ? html`<span class="p-studio-film__kind"><${St} tone=${filmStateTone(listed.state) === "ok" ? "good" : filmStateTone(listed.state)}
+        icon=${listed.state === "making" ? "clock" : undefined}>${filmStateWords(listed.state)}<//></span>
+        <span>${clipsWords(listed.clips, listed.kept)}</span>`
+    : null;
+  const lede = direction || approved
+    ? html`${direction ? html`<span>${direction}</span>` : null}${direction && approved ? " · " : null}${approved
+        ? html`<span title=${fullWhen(approved)}>approved ${when(approved)}</span>` : null}`
+    : null;
 
-    ${shots.length
-      ? html`<ol class="p-film__shots" aria-label="Shots">${shots.map((s, i) => html`<${Shot} key=${s.id || i} shot=${s} number=${i + 1} labels=${labels} />`)}</ol>`
-      : html`<p class="p-film__no-takes">The shots of this film could not be read.</p>`}
+  const rail = html`
+    ${banners.length ? html`<div class="p-studio-film__notes">${banners.map((b) => html`<${Notice} key=${b.key} tone=${b.tone}>${b.text}<//>`)}</div>` : null}
+    ${shot && take
+      ? html`<${TakeBlock} shot=${shot} take=${take} n=${n} takes=${takes} at=${at.take} labels=${labels}
+          onTake=${(i) => setPick({ shot: at.shot, take: i })} />
+        <${PromptBlock} take=${take} labels=${labels} />`
+      : shot
+        ? html`<${Blk} title=${`Shot ${n}`} aside=${secondsWords(shot)}>
+            <p class="p-studio-film__say">${FILM_WORDS.noTakesSay}</p>
+            ${board ? html`<div class="p-studio-film__pair"><${Pair} items=${[{ src: board, alt: `Storyboard still for shot ${n}`, title: FILM_WORDS.storyboard, sub: labels.approved }]} /></div>` : null}
+          <//>`
+        : null}
+    ${shot ? html`<${ShotBlock} shot=${shot} n=${n} labels=${labels} />` : null}`;
 
-    <p class="p-film__links">${task.identifier ? html`<a href=${`#/tasks/${encodeURIComponent(text(task.identifier, 40))}`}>Open its task</a>` : null}</p>
-  </article>`;
+  const below = html`<div class="p-studio-film__below">
+    ${shots.length ? html`<section class="p-studio-film__group" aria-labelledby="p-studio-film-shots">
+      <h2 class="p-studio-film__group-title" id="p-studio-film-shots">${FILM_WORDS.allShots}</h2>
+      <${DataTable} columns=${SHOT_COLUMNS} rows=${shotRows(f)} renderCell=${shotCell} />
+    </section>` : null}
+    ${items(f.batches, 20).length ? html`<section class="p-studio-film__group" aria-labelledby="p-studio-film-batches">
+      <h2 class="p-studio-film__group-title" id="p-studio-film-batches">${FILM_WORDS.approvals}</h2>
+      <${DataTable} columns=${BATCH_COLUMNS} rows=${batchRows(f)} />
+    </section>` : null}
+    ${more}
+  </div>`;
+
+  return html`<div class="p-studio-film" ref=${head} tabindex="-1">
+    <${StageLayout} kind=${kind} title=${title} lede=${lede} label=${name} stage=${stage} strip=${strip} rail=${rail}
+      foot=${edit ? html`<${Button} href=${edit} icon="video">${FILM_WORDS.edit}<//>` : null} more=${below} />
+  </div>`;
 }

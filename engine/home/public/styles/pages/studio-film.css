@@ -1,2 +1,326 @@
-/* page studio-film: placeholder; its part fills this in. */
-.p-studio-film { }
+/* page studio-film (PLAN-COOK T52, S04): one film on a stage. The layout, the player, the cards, the money bar, the
+   difference and the rail's blocks are the kit's (layout.css, player.css, strip.css, money.css, diff.css, stage.css);
+   this sheet only places them: the player centred on the deepest ground and kept inside the first screen, the
+   spend line over the shot cards, the rail's three blocks 24 px apart, and the rows under the first screen.
+   Tokens only. */
+
+.p-studio-film {
+  min-width: 0;
+  scroll-margin-top: var(--topbar-h);
+}
+
+.p-studio-film:focus {
+  outline: none;
+}
+
+/* Loading, or a film that is not there: a plain block in the Studio page's column. */
+.p-studio-film--alone {
+  margin-bottom: var(--s-6);
+}
+
+/* ---- the stage: the player as wide as the stage allows without passing the first screen */
+.p-studio-film__stage {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: calc((100vh - var(--topbar-h) - var(--band) - 168px) * 16 / 9);
+  min-width: 0;
+  margin: 0 auto;
+}
+
+.p-studio-film__stage--empty {
+  max-width: var(--column);
+}
+
+/* ---- the strip: what the film has spent, then one card a shot */
+.p-studio-film__strip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.p-studio-film__strip .k-strip {
+  margin: -4px;
+  padding: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.p-studio-film__strip .k-take {
+  min-width: 232px;
+}
+
+.p-studio-film__spend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-4);
+  min-width: 0;
+}
+
+.p-studio-film__spend-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.p-studio-film__spend-label {
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+}
+
+.p-studio-film__spend-figure {
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.p-studio-film__spend-meter {
+  flex: 1 1 160px;
+  max-width: 280px;
+  min-width: 120px;
+}
+
+.p-studio-film__spend-note {
+  margin: 0 0 0 auto;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+/* ---- the rail */
+.p-studio-film__kind {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-1);
+  background: var(--ctl);
+}
+
+.p-studio-film__kind + span {
+  font-variant-numeric: tabular-nums;
+}
+
+.p-studio-film__notes {
+  display: grid;
+  gap: var(--s-2);
+  padding: 0 var(--pad) var(--s-6);
+}
+
+.p-studio-film__notes .k-notice {
+  margin: 0;
+}
+
+.p-studio-film .k-rail__body .k-blk {
+  padding-top: var(--s-6);
+  padding-bottom: var(--s-6);
+}
+
+.p-studio-film__takes {
+  margin-bottom: var(--s-3);
+}
+
+.p-studio-film__verdict {
+  display: grid;
+  gap: var(--s-2);
+  margin: var(--s-1) 0 var(--s-4);
+}
+
+.p-studio-film__reason,
+.p-studio-film__result,
+.p-studio-film__say {
+  margin: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.p-studio-film__result,
+.p-studio-film__say {
+  margin-bottom: var(--s-4);
+}
+
+.p-studio-film__state-line {
+  margin: var(--s-1) 0 var(--s-4);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.p-studio-film__diff,
+.p-studio-film__prompt {
+  margin: 0;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.p-studio-film__diff .k-diff__key {
+  margin-bottom: var(--s-3);
+}
+
+.p-studio-film__none,
+.p-studio-film__move {
+  margin: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.p-studio-film__move {
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  color: var(--ink);
+}
+
+.p-studio-film__label {
+  margin: var(--s-3) 0 var(--s-1);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--fw-medium);
+  color: var(--ink-2);
+}
+
+.p-studio-film__clamp {
+  display: grid;
+  justify-items: start;
+  gap: var(--s-1);
+}
+
+.p-studio-film__more {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  cursor: pointer;
+}
+
+.p-studio-film__more:hover {
+  text-decoration: underline;
+}
+
+.p-studio-film__not-started {
+  display: grid;
+  gap: var(--s-3);
+  margin: var(--s-4) 0 0;
+  padding: var(--s-3) 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.p-studio-film__not-started-item {
+  display: grid;
+  gap: var(--s-1);
+}
+
+.p-studio-film__not-started-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s-3);
+  margin: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+.p-studio-film__not-started-head a {
+  color: var(--accent);
+}
+
+.p-studio-film__not-started .p-studio-film__prompt {
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+/* ---- under the first screen: every shot and every approval */
+.p-studio-film__below {
+  display: grid;
+  gap: var(--s-8);
+  padding-top: var(--s-6);
+}
+
+.p-studio-film__group {
+  display: grid;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.p-studio-film__group-title {
+  margin: 0;
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+}
+
+.p-studio-film__row-shot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  white-space: nowrap;
+}
+
+.p-studio-film__row-thumb {
+  display: block;
+  flex: none;
+  width: 64px;
+  height: 36px;
+  border-radius: var(--r-xs);
+  overflow: hidden;
+  background: var(--black);
+}
+
+.p-studio-film__row-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---- a phone, or any narrow window */
+@media (max-width: 859px) {
+  .p-studio-film__stage {
+    max-width: none;
+  }
+
+  .p-studio-film__strip .k-strip {
+    overflow: visible;
+  }
+
+  .p-studio-film__strip .k-take {
+    min-width: 0;
+  }
+
+  .p-studio-film__spend-meter {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .p-studio-film__spend-note {
+    margin-left: 0;
+  }
+
+  .p-studio-film__notes {
+    padding: var(--s-4);
+  }
+
+  .p-studio-film .k-rail__body .k-blk {
+    padding: var(--s-5) var(--s-4);
+  }
+}

@@ -137,11 +137,138 @@ test("the page: every address passes safeApi, agent words are text, nothing outs
   for (const field of ["take.clip", "take.sent", "shot.board"]) assert.ok(code.includes(`safeApi(${field})`), field);
   assert.match(code, /stills\.map\(safeApi\)/);
   assert.match(code, /useResource\(id \? `\/api\/studio\/films\/\$\{encodeURIComponent\(id\)\}`/);
-  assert.match(code, /<video class="p-film__video" controls preload="none"/);
+  // T52: the clip plays in the kit Player (no autoplay; preload metadata), never in a <video> drawn by the page.
+  assert.match(code, /<\$\{Player\} key=\$\{`\$\{at\.shot\}-\$\{at\.take\}`\} src=\$\{clipOf\(take\) \|\| undefined\}/);
+  assert.doesNotMatch(code, /<video\b/);
   assert.match(code, /useBringIntoView\(/);
   const studio = readFileSync(join(TREE, "pages", "studio.js"), "utf8");
   assert.match(studio, /query\.get\("film"\)/);
   assert.match(studio, /"\/api\/studio\/films", \{ every: EVERY \}/);
   assert.match(studio, /No films yet\./);
   assert.match(studio, /Start "A film from your renders" in <a href="#\/jobs\/studio\/a-film-from-your-renders">Jobs<\/a>/);
+});
+
+// ---- T52 (PLAN-COOK, S04): the film on a stage ----------------------------------------------------------------
+
+const DOM = await import("../kit/_dom.mjs");
+
+// The pinned film with the take's two prompts made different, and a clip address that is not the home server's.
+function filmWith(take) {
+  const f = JSON.parse(JSON.stringify(shape("films").film));
+  Object.assign(f.shots[0].takes[0], take);
+  return f;
+}
+
+test("the take shown first: a take that needs the owner, else the newest made, else the first shot", () => {
+  const f = shape("films").film;
+  assert.deepEqual(m.defaultPick(f), { shot: 0, take: 0 }, "a retake verdict needs the owner");
+  const kept = filmWith({ verdict: { verdict: "keep", reason: "fine" } });
+  const two = { ...kept, shots: [kept.shots[0], { ...kept.shots[0], id: "s02", takes: [{ ...kept.shots[0].takes[0], take: "t1" }, { ...kept.shots[0].takes[0], take: "t2" }] }] };
+  assert.deepEqual(m.defaultPick(two), { shot: 1, take: 1 }, "else the newest made, in reading order");
+  const making = { ...two, shots: [two.shots[0], { ...two.shots[1], takes: [{ state: "refused" }] }] };
+  assert.deepEqual(m.defaultPick(making), { shot: 1, take: 0 }, "a refusal needs the owner");
+  const changed = filmWith({ verdict: { verdict: "keep" }, sentPrompt: "Another prompt." });
+  assert.deepEqual(m.defaultPick({ ...changed, changedAfterApproval: true, shots: [{ takes: [{ state: "made", verdict: { verdict: "keep" } }] }, changed.shots[0]] }), { shot: 1, take: 0 }, "changed after approval: the take whose sent prompt differs");
+  assert.equal(m.needsLook({ state: "made", verdict: { verdict: "keep" }, approvedPrompt: "a", sentPrompt: "b" }, false), false);
+  assert.deepEqual(m.defaultPick({ shots: [{ id: "s01", takes: [] }] }), { shot: 0, take: -1 });
+  assert.deepEqual(m.defaultPick(null), { shot: 0, take: -1 });
+});
+
+test("a take's chip, label and facts, and the prompt as the rail shows it", () => {
+  assert.deepEqual(m.takeChip({ state: "made", verdict: { verdict: "keep" } }), { tone: "good", text: "Made, kept", icon: "check" });
+  assert.deepEqual(m.takeChip({ state: "made", verdict: { verdict: "retake" } }), { tone: "warn", text: "Made, to retake", icon: "retake" });
+  assert.deepEqual(m.takeChip({ state: "made" }), { tone: "neutral", text: "Made" });
+  assert.deepEqual(m.takeChip({ state: "making" }), { tone: "neutral", text: "Being made", icon: "clock" });
+  assert.equal(m.takeChip({ state: "refused" }).tone, "bad");
+  assert.equal(m.takeChip({ state: "failed" }).text, "Failed");
+  assert.equal(m.takeChip(null).text, "Not known");
+  assert.equal(m.takeLabel(1, { take: "t2" }), "Shot 1, take 2");
+  assert.equal(m.secondsWords({ seconds: 5 }), "5 s");
+  assert.equal(m.secondsWords({ seconds: "x" }), "");
+  assert.deepEqual(m.promptView({ approvedPrompt: "a b", sentPrompt: "a c" }), { kind: "diff", approved: "a b", sent: "a c" });
+  assert.deepEqual(m.promptView({ approvedPrompt: "a b", sentPrompt: "a b" }), { kind: "same", approved: "a b", sent: "a b" });
+  assert.deepEqual(m.promptView({ sentPrompt: "a b" }), { kind: "same", approved: "", sent: "a b" });
+  assert.deepEqual(m.promptView({ approvedPrompt: "a", sentPrompt: "gone" }), { kind: "gone", approved: "a", sent: "" });
+  assert.equal(m.promptView({ approvedPrompt: "a" }).kind, "none");
+  assert.equal(m.promptView({ sentPrompt: "x".repeat(5000) }).sent.length, 1000);
+  assert.equal(m.FILM_WORDS.diffApproved, "you approved, not sent");
+  assert.equal(m.FILM_WORDS.diffSent, "sent, not approved");
+});
+
+test("a clip or still address outside /api/ is dropped", () => {
+  assert.equal(m.clipOf({ clip: "/api/view/abc" }), "/api/view/abc");
+  for (const bad of [`${AWAY}/x.mp4`, "//elsewhere/x.mp4", "/view/x.mp4", "javascript:alert(1)", "/api/view/a b", "/api//x", 5, null]) {
+    assert.equal(m.clipOf({ clip: bad }), "", String(bad));
+  }
+  assert.equal(m.clipOf(null), "");
+  assert.deepEqual(m.stillsOf({ stills: ["/api/view/a", `${AWAY}/b.png`, "/api/view/c", null, ...Array(9).fill("/api/view/d")] }), ["/api/view/a", "/api/view/c", "/api/view/d", "/api/view/d", "/api/view/d", "/api/view/d"]);
+  assert.deepEqual(m.stillsOf({ stills: "x" }), []);
+  assert.deepEqual(m.shotRows({ shots: [{ id: "s01", board: `${AWAY}/b.png`, takes: [] }] })[0].board, "");
+});
+
+test("the top bar: the crumbs, Film 1 of 3 and the task", () => {
+  const films = [{ task: { id: "a", identifier: "STH-41" } }, { task: { id: "b", identifier: "STH-43" } }, { task: { id: "c", identifier: "STH-42" } }];
+  assert.deepEqual(m.filmPager(films, "STH-43"), { label: "Film 2 of 3", prev: "#/dashboards/studio?film=STH-41", next: "#/dashboards/studio?film=STH-42" });
+  assert.deepEqual(m.filmPager(films, "a"), { label: "Film 1 of 3", prev: null, next: "#/dashboards/studio?film=STH-43" });
+  assert.equal(m.filmPager(films, "zz"), null);
+  assert.equal(m.filmPager(null, "a"), null);
+  assert.deepEqual(m.filmCrumbs("STH-41").map((c) => c.label), ["Dashboards", "Studio", "Films", "STH-41"]);
+  assert.equal(m.filmCrumbs("STH-41")[1].href, "#/dashboards/studio");
+  assert.equal(m.taskHref("STH-41"), "#/tasks/STH-41");
+  assert.equal(m.taskHref("../x"), null);
+});
+
+test("every shot and every approval as rows, figures from the server's numbers", () => {
+  const f = shape("films").film;
+  assert.deepEqual(m.shotRows(f).map(({ n, move, takes, state, cost }) => ({ n, move, takes, state, cost })),
+    [{ n: 1, move: "A slow push towards the door.", takes: "1 take", state: "Made, to retake", cost: "$0.50" }]);
+  assert.equal(m.shotRows(f)[0].board, f.shots[0].board);
+  const [b] = m.batchRows(f, Date.parse("2026-11-14T00:00:00Z"));
+  assert.deepEqual([b.budget, b.spent, b.refused, b.state], ["$3.00", "$1.25", "0", "Open"]);
+  assert.equal(m.batchRows(f, Date.parse("2026-12-01T00:00:00Z"))[0].state, "Ended");
+  assert.equal(m.batchRows({ batches: [{ frozen: true }] })[0].state, "Stopped, needs you");
+});
+
+// Drawn for real (the kit tests' small DOM): both prompts reach the page as text nodes, and a clip that is not the
+// home server's own never reaches a video.
+test("drawn: both prompts are text nodes, a clip address outside /api/ is dropped, the money is the server's", async () => {
+  const approved = "The camera pulls back slowly through the morning mist <b>to</b> show the pool.";
+  const sent = "The camera pulls back slowly to show the pool. <img src=x onerror=alert(1)> Soft light.";
+  const f = filmWith({ verdict: { verdict: "keep", reason: "steady" }, approvedPrompt: approved, sentPrompt: sent, clip: `${AWAY}/clip.mp4` });
+  DOM.installDom();
+  const tops = [];
+  const stub = DOM.stubFetch((path) => (path === "/api/studio/films"
+    ? { status: 200, body: shape("films").list }
+    : { status: 200, body: { ...f, changedAfterApproval: true } }));
+  let root = null;
+  try {
+    const ctx = await import("../../lib/context.js");
+    root = await DOM.mount(({ id }) => DOM.html`<${ctx.AppContext.Provider} value=${{ setTop: (t) => tops.push(t) }}><${m.FilmView} id=${id} /><//>`, { id: f.task.id });
+    await DOM.settle();
+    const all = DOM.elements(root);
+    const texts = [...DOM.walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+    // The approved words that were not sent, and the sent words that were not approved, each a text node as written.
+    assert.ok(texts.some((t) => t.includes("through the morning mist <b>to</b> ")), "the approved prompt's words are text");
+    assert.ok(texts.some((t) => t.includes("<img src=x onerror=alert(1)>")), "the sent prompt's words are text");
+    assert.ok(!all.some((e) => e.localName === "img" && e.getAttribute("src") === "x"), "no markup from a prompt");
+    assert.ok(all.some((e) => e.localName === "del") && all.some((e) => e.localName === "ins"), "removed and added words are marked");
+    // The clip from elsewhere is dropped: no video; the stage shows the take's stills instead.
+    assert.ok(!all.some((e) => e.localName === "video"), "no video for a clip outside /api/");
+    for (const e of all) for (const a of ["src", "poster", "href"]) {
+      const v = e.getAttribute(a);
+      if (typeof v === "string" && v && a !== "href") assert.ok(v.startsWith("/api/"), `${e.localName} ${a} ${v}`);
+    }
+    const words = DOM.textOf(root);
+    assert.match(words, /\$1\.75 of \$6\.00/, "the spend is the server's numbers");
+    assert.match(words, /you approved, not sent/);
+    assert.match(words, /The shotlist was changed after you approved it\./);
+    assert.ok(all.some((e) => e.getAttribute("id") === "page-title"), "the film's title is the page's h1");
+    const top = tops.filter(Boolean).pop();
+    assert.deepEqual(top.crumbs.map((c) => c.label), ["Dashboards", "Studio", "Films", "STH-41"]);
+    assert.equal(top.pager.label, "Film 1 of 1");
+    assert.deepEqual(top.links, [{ label: "Open its task", href: "#/tasks/STH-41" }]);
+  } finally {
+    if (root) DOM.unmount(root);
+    stub.restore();
+  }
 });
