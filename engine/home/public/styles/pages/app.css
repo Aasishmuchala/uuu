@@ -105,8 +105,6 @@
 .p-app .p-app__sheet-body { margin: 0; color: var(--ink-2); }
 .p-app .p-app__amount-row { position: relative; display: flex; }
 .p-app .p-app__amount-row .p-app__amount { flex: 1; min-height: var(--h-lg); font-variant-numeric: tabular-nums; font-weight: var(--fw-medium); }
-.p-app .p-app__amount-row .p-app__amount:disabled { cursor: default; color: var(--ink-3); background: transparent; border-color: var(--line); }
-.p-app .p-app__amount-row .p-app__amount:disabled .k-decision__radio { border-color: var(--raise-2); }
 .p-app .p-app__amount-why {
   position: absolute; right: var(--s-3); top: 50%; transform: translateY(-50%);
   color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); pointer-events: none;

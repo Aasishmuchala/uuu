@@ -94,7 +94,7 @@ function Command({ text }) {
   return html`${m[1]}
     <span class="p-health__cmd">
       <code class="p-health__code">${m[2]}</code>
-      <${Button} variant="quiet" size="sm" icon=${done ? "check" : "docs"} aria-label=${WORDS.copyLabel} onClick=${copy}>${done ? WORDS.copied : WORDS.copy}<//>
+      <${Button} variant="quiet" size="sm" icon=${done ? "check" : "copy"} aria-label=${WORDS.copyLabel} onClick=${copy}>${done ? WORDS.copied : WORDS.copy}<//>
     </span>`;
 }
 
