@@ -7,16 +7,18 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Section, {
-  CAPS, DOOR, MAX_CAP, MODEL_FIELDS, PROBLEMS, RESULT_TONES, WORDS, balanceLine, barTone, batchLine, blockerLines, capCheck, capFieldOf,
+  CAPS, DOOR, HF_AUTHORIZE, HF_WORDS, MAX_CAP, MODEL_FIELDS, PROBLEMS, RESULT_TONES, WORDS, balanceLine, barTone, batchLine, blockerLines, capCheck, capFieldOf,
   capHint, capsLines, clockOf, creditWords, creditsAndDollars, dayFigures, dayWords, doorState, doorWord, dollars, filmHref, filmName,
-  heroMark, isOpen, keyLine, keyMark, leftLine, ledgerLine, mergeDays, modelOptions, pausedLine, plain, problemLine, resultTone, rowWords,
+  hashWithoutReturn, heroMark, hfMark, hfReturnOf, hfSignInUrl, hfState, hfSwitchLine, hfTestResult, isOpen, keyLine, keyMark, leftLine, ledgerLine, mergeDays, modelOptions, pausedLine, plain, rateCheck, serviceName, centsText, problemLine, resultTone, rowWords,
   runningLine, sectionState, share, spentLine, spentMark, stateLines, switchLine, testResult,
 } from "../../pages/settings-generation.js";
 import Viewer from "../../pages/settings-viewer.js";
 import {
   LEDGER_SENTENCES, NOT_STARTED_WORDS, OWN_PAUSE_SENTENCE, PAUSED_SENTENCE, RESULT_WORDS, RUNNING_WORDS, dollars as serverDollars, kindWords,
 } from "../../../server/lib/generation.mjs";
-import { BLOCKER_SENTENCES, DOOR_SENTENCES, MAX_CAP as SERVER_MAX_CAP, PROBLEM_SENTENCES, TEST_SENTENCES } from "../../../server/routes/generation.mjs";
+import {
+  BLOCKER_SENTENCES, DOOR_SENTENCES, HF_SENTENCES, HF_SWITCH_REFUSED, HF_TEST_SENTENCES, MAX_CAP as SERVER_MAX_CAP, PROBLEM_SENTENCES, TEST_SENTENCES,
+} from "../../../server/routes/generation.mjs";
 
 // The same checks as pages.test.mjs, kept here so that file's tests do not run twice.
 const stripJsComments = (src) => String(src).replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[\s;{}(),])\/\/[^\n]*/g, "$1");
@@ -42,13 +44,13 @@ test("generation: the section is a component, and so is the Page viewer's (T54)"
 
 test("generation: K13's Settings words are used as written", () => {
   assert.equal(WORDS.title, "Generation");
-  assert.equal(WORDS.intro, "The Artist can make video clips and pictures with Runway, a paid service, from your own renders.");
+  assert.equal(WORDS.intro, "The Artist and your apps can make pictures and clips with Runway and Higgsfield, two paid services, from your own renders.");
   assert.equal(WORDS.sent, "When this is on, the renders and prompts you approve are sent to Runway. Runway's terms say it may use them to train its models unless you have an Enterprise agreement. Do not use it for client work you may not share.");
-  assert.equal(WORDS.money, "One credit is one US cent. Nothing is spent until you approve a shotlist and its cost.");
+  assert.equal(WORDS.money, "Runway and Higgsfield share these limits. Nothing is spent until you approve a shotlist, press Start on a job, or allow an app to spend.");
   assert.equal(WORDS.keyField, "Runway key");
-  assert.equal(WORDS.daily, "Most to spend in a day (credits)");
-  assert.equal(WORDS.monthly, "Most to spend in a month (credits)");
-  assert.deepEqual(CAPS.map((c) => c.label), ["Most to spend in a day (credits)", "Most to spend in a month (credits)"]);
+  assert.equal(WORDS.daily, "Most to spend in a day ($)");
+  assert.equal(WORDS.monthly, "Most to spend in a month ($)");
+  assert.deepEqual(CAPS.map((c) => c.label), ["Most to spend in a day ($)", "Most to spend in a month ($)"]);
   assert.deepEqual(CAPS.map((c) => c.key), ["daily", "monthly"]);
   assert.equal(WORDS.noKey, "No key yet. Paste the one from your Runway developer account.");
   assert.equal(WORDS.refused, "Runway refused this key.");
@@ -213,27 +215,33 @@ test("generation: dollars and credits", () => {
   assert.equal(batchLine({ spent: null, budget: 300 }), "Budget $3.00");
 });
 
-test("generation: a limit as typed, its dollars, and a refusal at its field", () => {
-  assert.deepEqual(capCheck("300"), { value: 300, error: "" });
-  assert.deepEqual(capCheck(" 1,000 "), { value: 1000, error: "" });
-  assert.deepEqual(capCheck("1 000"), { value: 1000, error: "" });
-  assert.deepEqual(capCheck("0"), { value: 0, error: "" });
-  assert.deepEqual(capCheck("1000000"), { value: 1_000_000, error: "" });
-  for (const bad of ["", "  ", "abc", "1.5", "-1", "3e2", "0x10", "1,00,0x", null, undefined]) {
+test("generation: a limit as typed in dollars, kept in cents, and a refusal at its field", () => {
+  const ok = (t, cents) => assert.deepEqual(capCheck(t), { value: cents, error: "" }, String(t));
+  ok("3", 300); ok("2.5", 250); ok("0.01", 1); ok("3.00", 300); ok("$3", 300); ok(" $ 2.50 ", 250); ok("1,000", 100000); ok("1 000.5", 100050);
+  ok("0", 0); ok("0.00", 0); ok(".5", 50); ok("10000", 1_000_000); ok("10000.00", 1_000_000); ok("9999.99", 999_999);
+  for (const bad of ["", "  ", "$", ".", "abc", "1.234", "-1", "3e2", "0x10", "1.", "1,00,0x", "3 dollars", null, undefined]) {
     const c = capCheck(bad);
     assert.equal(c.value, null, String(bad));
-    assert.equal(c.error, "Type a whole number of credits, such as 300.", String(bad));
+    assert.equal(c.error, WORDS.capType, String(bad));
   }
-  assert.deepEqual(capCheck("1000001"), { value: null, error: "The most is 1,000,000 credits ($10,000.00)." });
-  assert.equal(capCheck("99999999").value, null);
-  assert.equal(capHint("300"), "300 credits is $3.00");
-  assert.equal(capHint("1"), "1 credit is $0.01");
-  assert.equal(capHint("12,500"), "12,500 credits is $125.00");
+  assert.deepEqual(capCheck("10000.01"), { value: null, error: "The most is $10,000.00." });
+  assert.deepEqual(capCheck("10001"), { value: null, error: "The most is $10,000.00." });
+  assert.equal(capCheck("99999999999").value, null);
+  assert.equal(MAX_CAP, 1_000_000);
+  // And back: whole cents as the text of a field.
+  assert.equal(centsText(300), "3.00");
+  assert.equal(centsText(1), "0.01");
+  assert.equal(centsText(250), "2.50");
+  assert.equal(centsText(1_000_000), "10000.00");
+  assert.equal(centsText(0), "0.00");
+  assert.equal(centsText(null), "0.00");
+  for (const c of [0, 1, 99, 100, 250, 999_999, 1_000_000]) assert.equal(capCheck(centsText(c)).value, c);
   assert.equal(capHint("0"), "A limit of 0 stops all making.");
+  assert.equal(capHint("3"), "");
   assert.equal(capHint("x"), "");
   // The server names the field in its message (T41's bad_cap); the section shows it at that field.
-  assert.equal(capFieldOf("\"Most to spend in a day\" must be a whole number of credits from 0 to 1,000,000."), "daily");
-  assert.equal(capFieldOf("\"Most to spend in a month\" must be a whole number of credits from 0 to 1,000,000."), "monthly");
+  assert.equal(capFieldOf("\"Most to spend in a day\" must be from $0 to $10,000, in whole cents."), "daily");
+  assert.equal(capFieldOf("\"Most to spend in a month\" must be from $0 to $10,000, in whole cents."), "monthly");
   assert.equal(capFieldOf("The home screen sent something it could not read."), null);
   assert.equal(capFieldOf(undefined), null);
 });
@@ -316,9 +324,15 @@ test("generation: a damaged settings file, in the server's words first; loading,
 });
 
 test("generation: the Runway key goes nowhere but the one POST", () => {
+  // The address bar is touched in two small functions only (Higgsfield's return and its sign-in); neither takes anything typed.
+  const bars = [...CODE.matchAll(/function (\w+)\([^)]*\) \{\n([\s\S]*?)\n\}\n/g)].filter((m) => /\b(history|location)\./.test(m[2]));
+  assert.deepEqual(bars.map((m) => m[1]), ["takeReturn", "openHiggsfield"]);
+  const outside = bars.reduce((c, m) => c.replace(m[0], ""), CODE);
   for (const bad of [/localStorage/, /sessionStorage/, /indexedDB/, /document\.cookie/, /\bhistory\./, /location\./, /\bconsole\./, /caches\./, /postMessage/, /navigator\./]) {
-    assert.doesNotMatch(CODE, bad, `settings-generation.js does not use ${bad}`);
+    assert.doesNotMatch(outside, bad, `settings-generation.js does not use ${bad}`);
   }
+  for (const m of bars) assert.doesNotMatch(m[2], /typed|rate|draft|key\b/, m[1]);
+  assert.match(CODE, /function openHiggsfield\(url\) \{\n  window\.location\.assign\(url\);/);
   assert.match(CODE, /type="password" name="runway-key" autocomplete="off"/);
   // The field is only ever filled by the owner's typing, and emptied after Save.
   assert.match(CODE, /value=\$\{typed\}/);
@@ -335,10 +349,13 @@ test("generation: the Runway key goes nowhere but the one POST", () => {
 test("generation: the source names no address but its own /api/ paths, and sets nothing as HTML", () => {
   const paths = [...CODE.matchAll(/["'`](\/[^"'`\s]*)/g)].map((m) => m[1]);
   assert.ok(paths.length >= 8, String(paths));
-  for (const p of paths) assert.match(p, /^\/api\/generation(\/(key|key\/remove|switch|caps|models|test|resume|ledger))?(\?before=\$\{last\.day\})?$/, p);
+  for (const p of paths) {
+    if (p === "/oauth2/authorize") continue; // the one path of Higgsfield's address that hfSignInUrl checks
+    assert.match(p, /^\/api\/generation(\/(key|key\/remove|switch|caps|models|test|resume|ledger|higgsfield\/(switch|rate|begin|forget|test)))?(\?before=\$\{last\.day\})?$/, p);
+  }
   const hashes = [...CODE.matchAll(/["'`](#[^"'`\s]*)/g)].map((m) => m[1]);
-  for (const h of hashes) assert.ok(["#/dashboards/studio?film=${encodeURIComponent(id)}", "#/health"].includes(h), h);
-  assert.deepEqual(hostsIn(CODE), []);
+  for (const h of hashes) assert.ok(["#/dashboards/studio?film=${encodeURIComponent(id)}", "#/health", "#${path}${rest"].includes(h), h);
+  assert.deepEqual(hostsIn(CODE), [], "no host is named as an address; Higgsfield's is built from its name and checked before it is opened");
   assert.doesNotMatch(SRC, /dangerouslySetInnerHTML|innerHTML|insertAdjacentHTML|outerHTML|document\.write/);
   for (const spec of importsOf(SRC)) {
     assert.ok(spec.startsWith("../"), spec);
@@ -351,6 +368,138 @@ test("generation: the section reads the view every 10 seconds, and typing lives 
   assert.match(CODE, /useResource\("\/api\/generation", \{ every: EVERY \}\)/);
   assert.match(CODE, /useResource\("\/api\/generation\/ledger", \{ every: EVERY \}\)/);
   // The limits keep what is typed until it is saved or put back; the view only fills an untouched field.
-  assert.match(CODE, /draft\[c\.key\] !== undefined \? draft\[c\.key\] : String\(num\(caps\[c\.key\]\)\)/);
+  assert.match(CODE, /draft\[c\.key\] !== undefined \? draft\[c\.key\] : centsText\(num\(caps\[c\.key\]\)\)/);
   assert.match(CODE, /if \(ok\) setDraft\(\{\}\)/);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Higgsfield (PLAN-V5 K20, K21, K23; T81)
+
+const HF = (over = {}) => ({ on: false, signedIn: false, refused: false, centsPerCredit: 5, sentence: "Not signed in.", ...over });
+const withHf = (h) => view({ higgsfield: HF(h) });
+
+test("generation: Higgsfield's words are K23's, and the server's sentences are the same", () => {
+  assert.equal(HF_WORDS.title, "Higgsfield");
+  assert.equal(HF_WORDS.switchLabel, "Use Higgsfield");
+  assert.equal(HF_WORDS.off, "Off. Nothing is sent to Higgsfield.");
+  assert.equal(HF_WORDS.on, "On. Your apps and the Artist may use it, inside what you approve.");
+  assert.equal(HF_WORDS.signIn, "Sign in to Higgsfield");
+  assert.equal(HF_WORDS.signOut, "Sign out of Higgsfield");
+  assert.equal(HF_WORDS.connected, "Higgsfield is connected.");
+  assert.equal(HF_WORDS.notFinished, "The Higgsfield sign-in did not finish. Try again.");
+  assert.equal(HF_WORDS.rate, "One Higgsfield credit counts as (cents)");
+  assert.equal(HF_WORDS.rateHint, "Plus is about 5 cents a credit. Changing this does not change what you already approved.");
+  // The owner's answer: Higgsfield may train on what is sent unless that is turned off in the owner's own account.
+  assert.match(HF_WORDS.sent, /train its models unless you turn that off in your Higgsfield account/);
+  assert.match(HF_WORDS.sent, /Do not send client work you may not share\./);
+  assert.equal(HF_WORDS.signedOut, HF_SENTENCES.signedOut);
+  assert.equal(HF_WORDS.signedIn, HF_SENTENCES.signedIn);
+  assert.equal(HF_WORDS.refused, HF_SENTENCES.refused);
+  assert.equal(HF_WORDS.notSignedInTest, HF_TEST_SENTENCES.signed_out);
+  assert.equal(HF_WORDS.doorOff, HF_TEST_SENTENCES.door_off);
+  assert.equal(HF_WORDS.noAnswer, HF_TEST_SENTENCES.no_answer);
+  assert.equal(HF_SWITCH_REFUSED, "Sign in to Higgsfield first.");
+  // The training sentence is drawn always, with no condition around it.
+  assert.match(CODE, /<\$\{Notice\} tone="warn">\$\{HF_WORDS\.sent\}<\/\//);
+});
+
+test("generation: the sign-in address is opened only when it is Higgsfield's own authorize address", () => {
+  // Addresses are built from parts so that no file of the tree holds a host as a literal (static.test.mjs).
+  const S = `https:${"/"}${"/"}`;
+  const H = "mcp.higgsfield.ai";
+  const A = `${S}${H}/oauth2/authorize`;
+  assert.equal(HF_AUTHORIZE, `${A}?`);
+  const good = `${A}?response_type=code&client_id=abc&state=${"a".repeat(64)}`;
+  assert.equal(hfSignInUrl(good), good);
+  for (const bad of [
+    null, undefined, 5, "", A, `http:${"/"}${"/"}${H}/oauth2/authorize?x=1`,
+    `${S}${H}.evil.test/oauth2/authorize?x=1`, `${S}${H}@evil.test/oauth2/authorize?x=1`,
+    `${S}evil.test/${S}${H}/oauth2/authorize?x=1`, `${S}${H}/oauth2/token?x=1`,
+    `${S}${H}:8443/oauth2/authorize?x=1`, "javascript:alert(1)", ` ${A}?x=1`,
+    `${A}?x=1 y`, `${A}?x=1\n`, `${good}${"a".repeat(5000)}`,
+    `${S}user:pw@${H}/oauth2/authorize?x=1`,
+  ]) assert.equal(hfSignInUrl(bad), null, String(bad).slice(0, 80));
+  // The page goes there itself: no link, no new tab.
+  assert.doesNotMatch(CODE, /window\.open|target="_blank"/);
+});
+
+test("generation: the return from Higgsfield's page is read once and taken out of the address", () => {
+  assert.equal(hfReturnOf("#/settings?generation=connected"), "connected");
+  assert.equal(hfReturnOf("#/settings?generation=failed"), "failed");
+  assert.equal(hfReturnOf("#/settings?generation=other"), null);
+  assert.equal(hfReturnOf("#/settings"), null);
+  assert.equal(hfReturnOf("#/tasks?generation=connected"), null, "only on Settings");
+  assert.equal(hfReturnOf(""), null);
+  assert.equal(hashWithoutReturn("#/settings?generation=failed"), "#/settings");
+  assert.equal(hashWithoutReturn("#/settings?generation=connected&x=1"), "#/settings?x=1");
+  assert.equal(hashWithoutReturn("#/settings"), "#/settings");
+});
+
+test("generation: Higgsfield's state, its mark and its switch's sentence, a case each", () => {
+  const out = withHf();
+  assert.deepEqual(hfState(out), { key: "out", sentence: "Not signed in." });
+  assert.deepEqual(hfMark(out), { tone: "off", word: "Off" });
+  assert.equal(hfSwitchLine(out), "Off. Nothing is sent to Higgsfield.");
+  const inOff = withHf({ signedIn: true, sentence: "Signed in." });
+  assert.deepEqual(hfState(inOff), { key: "in", sentence: "Signed in." });
+  assert.deepEqual(hfMark(inOff), { tone: "off", word: "Off" });
+  const inOn = withHf({ on: true, signedIn: true, sentence: "Signed in." });
+  assert.deepEqual(hfMark(inOn), { tone: "ok", word: "On" });
+  assert.equal(hfSwitchLine(inOn), "On. Your apps and the Artist may use it, inside what you approve.");
+  const refused = withHf({ on: true, refused: true, sentence: "Higgsfield asked you to sign in again." });
+  assert.deepEqual(hfState(refused), { key: "refused", sentence: "Higgsfield asked you to sign in again." });
+  assert.deepEqual(hfMark(refused), { tone: "warn", word: "Sign in again" });
+  assert.match(hfSwitchLine(refused), /^On, but not signed in\./);
+  assert.deepEqual(hfMark(withHf({ on: true })), { tone: "warn", word: "Sign in" });
+  // An older server with no Higgsfield block: signed out and off.
+  assert.deepEqual(hfState(view({ higgsfield: undefined })), { key: "out", sentence: "Not signed in." });
+  assert.deepEqual(hfMark(null), { tone: "off", word: "Off" });
+});
+
+test("generation: the rate is a whole number of cents from 1 to 50", () => {
+  for (const [t, v] of [["5", 5], [" 7 ", 7], ["1", 1], ["50", 50], ["050", 50]]) assert.deepEqual(rateCheck(t), { value: v, error: "" }, t);
+  for (const bad of ["", "0", "51", "5.5", "-1", "abc", "1e1", "1000", null, undefined]) assert.deepEqual(rateCheck(bad), { value: null, error: HF_WORDS.rateType }, String(bad));
+});
+
+test("generation: Higgsfield's Test answer in words", () => {
+  const ok = hfTestResult({ ok: true, credits: 3896, plan: "Plus", sentence: "Higgsfield says you have 3896 credits." });
+  assert.deepEqual([ok.tone, ok.word, ok.sentence], ["ok", "Works", "Higgsfield says you have 3896 credits."]);
+  assert.equal(hfTestResult({ ok: true, credits: 1, sentence: "" }).sentence, "Higgsfield says you have 1 credit.");
+  assert.deepEqual(hfTestResult({ ok: false, sentence: "Not signed in to Higgsfield." }), { tone: "off", word: "Not signed in", sentence: "Not signed in to Higgsfield." });
+  assert.equal(hfTestResult({ ok: false, sentence: "Higgsfield asked you to sign in again." }).word, "Sign in again");
+  assert.equal(hfTestResult({ ok: false, sentence: "The generation door is off. Run: engine start" }).word, "Door off");
+  assert.deepEqual(hfTestResult({ ok: false, sentence: "" }), { tone: "warn", word: "No answer", sentence: HF_WORDS.noAnswer });
+  assert.equal(hfTestResult(null).word, "No answer");
+});
+
+test("generation: the service and an app's name in the ledger, and the models' words with their service", () => {
+  assert.equal(serviceName({ provider: "higgsfield" }), "Higgsfield");
+  assert.equal(serviceName({ provider: "runway" }), "Runway");
+  assert.equal(serviceName({}), "Runway");
+  assert.equal(serviceName(null), "Runway");
+  const app = "Render to Film: picture, Nano Banana Pro";
+  assert.equal(rowWords({ words: app, app: { slug: "render-to-film", name: "Render to Film" } }), app);
+  assert.equal(rowWords({ kind: "still_variation", app: { slug: "render-to-film", name: "Render to Film" } }), "Render to Film: Variation");
+  assert.equal(rowWords({ kind: "image_to_video", seconds: 5, app: null }), "Clip, 5 s");
+  assert.equal(resultTone("Refused by Higgsfield"), "bad");
+  assert.equal(resultTone("Higgsfield could not use the picture"), "warn");
+  const two = view({ choices: { ...GEN.choices, still: [...GEN.choices.still, { model: "hf.flux_2", provider: "higgsfield", words: "FLUX.2 Max on Higgsfield: about $0.20 a picture" }] } });
+  assert.deepEqual(modelOptions(two, "still").map((o) => o.label), ["Gen-4 Image on Runway: $0.08 a picture", "FLUX.2 Max on Higgsfield: about $0.20 a picture"]);
+});
+
+test("generation: the Higgsfield card's source holds what the owner asked", () => {
+  // Sign-in only through begin; forget behind a confirm; the switch's refusal is shown at the switch.
+  assert.match(CODE, /api\.post\("\/api\/generation\/higgsfield\/begin", \{\}\)/);
+  assert.match(CODE, /const url = hfSignInUrl\(obj\(answer\) \? answer\.url : null\);[\s\S]*?openHiggsfield\(url\);/);
+  assert.match(CODE, /<\$\{Dialog\} open=\$\{asking\} title=\$\{HF_WORDS\.signOutAsk\}/);
+  assert.match(CODE, /act\("hf-forget", "\/api\/generation\/higgsfield\/forget"/);
+  assert.match(CODE, /act\("hf-switch", "\/api\/generation\/higgsfield\/switch", \{ on: next \}/);
+  assert.match(CODE, /<\$\{Failure\} failure=\$\{failure\} where="hf-switch" \/>/);
+  assert.match(CODE, /act\("hf-rate", "\/api\/generation\/higgsfield\/rate", \{ centsPerCredit: check\.value \}/);
+  // The return notice is said once, from the address read when the section is first drawn.
+  assert.match(CODE, /const \[returned\] = useState\(takeReturn\);/);
+  // Nothing typed (the rate) goes anywhere but the one POST.
+  assert.doesNotMatch(CODE, /announce\([^)]*rateText/);
+  // No Higgsfield credential is held or named here.
+  assert.doesNotMatch(CODE, /access_token|refresh_token|Authorization|\bcode_verifier\b/i);
 });

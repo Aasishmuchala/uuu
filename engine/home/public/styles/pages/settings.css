@@ -176,6 +176,10 @@
 .p-settings .p-settings__g-cap .k-field__hint { margin: 0; font-variant-numeric: tabular-nums; }
 .p-settings .p-settings__g-cap .k-field__error { margin: 0; }
 .p-settings .p-settings__g-cap--zero .k-field__hint { color: var(--warn-text); font-weight: var(--fw-medium); }
+/* Higgsfield: its own card under Runway's; the sign-in and the rate are parts set apart by a hairline. */
+.p-settings .p-settings__h-part { display: grid; gap: var(--s-3); padding-top: var(--s-3); border-top: 1px solid var(--hairline); }
+.p-settings .p-settings__h-rate .p-settings__g-cap { max-width: 18rem; }
+.p-settings .p-settings__h-part .k-next { margin: 0; }
 /* Spent: today and this month, each a figure over a bar. */
 .p-settings .p-settings__g-meters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
 .p-settings .p-settings__g-meter { display: grid; gap: var(--s-2); min-width: 0; padding: var(--s-3) var(--s-4) var(--s-4); border-radius: var(--r-3); background: var(--bg-subtle); }
@@ -236,6 +240,7 @@
 .p-settings .p-settings__g-row:first-child { border-top: 0; }
 .p-settings .p-settings__g-row-time { color: var(--text-2); font-size: var(--fs-caption); font-variant-numeric: tabular-nums; }
 .p-settings .p-settings__g-row-model { color: var(--text-2); font-family: var(--font-mono); font-size: var(--fs-caption); overflow-wrap: anywhere; }
+.p-settings .p-settings__g-row-service { display: block; margin-top: 2px; font-family: var(--font-sans); color: var(--text-3); }
 .p-settings .p-settings__g-row-credits { font-variant-numeric: tabular-nums; }
 .p-settings .p-settings__g-row-result { min-width: 0; }
 .p-settings .p-settings__g-row-film { font-family: var(--font-mono); font-size: var(--fs-caption); }

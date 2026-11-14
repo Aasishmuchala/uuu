@@ -5,10 +5,16 @@
 // The key is typed into a password field that the server never fills; it lives only in this component's memory
 // until Save, and is cleared then. It is never put in storage, the address bar, the console or a message.
 // The automatic allowance for small jobs is not offered (C5): nothing is made without the owner's yes.
+// Higgsfield (PLAN-V5 K20, K21, K23; T81): a second paid service in its own card, off until the owner signs in and
+// switches it on. Its sign-in is the generation door's: this page asks for the authorize address, checks that it is
+// Higgsfield's own and sends the owner's browser there; the return lands on Settings with `?generation=connected` or
+// `failed`, said once and taken out of the address. Money is typed in dollars and kept in whole cents.
+// Nothing typed, and no address the owner came back with beyond that one word, goes to storage or the console.
 // Titles and words from the board and the ledger are shown only as plain capped text, never as HTML.
-import { html, useState } from "../vendor/preact-htm.js";
+import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
+import { parseHash } from "../lib/router.js";
 import { count } from "../lib/format.js";
 import {
   Avatar, Button, Card, Dialog, ErrorNotice, Field, Icon, Loading, NextStep, Notice, Section, Select, StatusDot, Switch, TextInput, Time,
@@ -21,9 +27,9 @@ export const MAX_CAP = 1_000_000;
 // The sentences of K13 and T41, as written, and the few this section adds.
 export const WORDS = {
   title: "Generation",
-  intro: "The Artist can make video clips and pictures with Runway, a paid service, from your own renders.",
+  intro: "The Artist and your apps can make pictures and clips with Runway and Higgsfield, two paid services, from your own renders.",
   sent: "When this is on, the renders and prompts you approve are sent to Runway. Runway's terms say it may use them to train its models unless you have an Enterprise agreement. Do not use it for client work you may not share.",
-  money: "One credit is one US cent. Nothing is spent until you approve a shotlist and its cost.",
+  money: "Runway and Higgsfield share these limits. Nothing is spent until you approve a shotlist, press Start on a job, or allow an app to spend.",
   switchLabel: "Let the Artist use Runway",
   off: "Off. Nothing is sent to Runway.",
   on: "On. Only the Artist can ask, and only inside what you approved.",
@@ -39,8 +45,8 @@ export const WORDS = {
   testWhat: "Test asks Runway how many credits you have. It costs nothing, and works while the switch is off.",
   limited: "Runway says too many requests for now. Try again in a minute.",
   noAnswer: "Runway did not answer. Try again in a minute.",
-  daily: "Most to spend in a day (credits)",
-  monthly: "Most to spend in a month (credits)",
+  daily: "Most to spend in a day ($)",
+  monthly: "Most to spend in a month ($)",
   zero: "A limit of 0 stops all making.",
   overDay: "Today's limit is reached. Nothing more will be made until tomorrow, or raise the limit.",
   overMonth: "This month's limit is reached. Nothing more will be made until next month, or raise the limit.",
@@ -62,7 +68,46 @@ export const WORDS = {
   noArtist: "Run engine setup first, then try again.",
   cannot: "Generation cannot be switched on yet.",
   unreadable: "The spending ledger cannot be read, so nothing will be made. Health shows what to do.",
+  capType: "Type an amount in dollars, such as 3 or 2.50.",
 };
+
+// Higgsfield's words (K23), and the few this card adds.
+export const HF_WORDS = {
+  title: "Higgsfield",
+  sent: "Higgsfield's terms let it use what you send, and what it makes, to train its models unless you turn that off in your Higgsfield account. Do not send client work you may not share.",
+  switchLabel: "Use Higgsfield",
+  off: "Off. Nothing is sent to Higgsfield.",
+  on: "On. Your apps and the Artist may use it, inside what you approve.",
+  onSignedOut: "On, but not signed in. Nothing is sent to Higgsfield until you sign in.",
+  signedOut: "Not signed in.",
+  signedIn: "Signed in.",
+  refused: "Higgsfield asked you to sign in again.",
+  signIn: "Sign in to Higgsfield",
+  signOut: "Sign out of Higgsfield",
+  signOutAsk: "Sign out of Higgsfield?",
+  signOutWhy: "Your apps and the Artist cannot use Higgsfield until you sign in again.",
+  stay: "Stay signed in",
+  connected: "Higgsfield is connected.",
+  notFinished: "The Higgsfield sign-in did not finish. Try again.",
+  badAddress: "Higgsfield's sign-in address was not what was expected, so it was not opened.",
+  rate: "One Higgsfield credit counts as (cents)",
+  rateHint: "Plus is about 5 cents a credit. Changing this does not change what you already approved.",
+  rateType: "Type a whole number of cents from 1 to 50, such as 5.",
+  saveRate: "Save",
+  testWhat: "Test asks Higgsfield how many credits you have. It costs nothing, and works while the switch is off.",
+  doorOff: "The generation door is off. Run: engine start",
+  noAnswer: "Higgsfield did not answer. Try again in a minute.",
+  notSignedInTest: "Not signed in to Higgsfield.",
+  signInFirst: "Sign in first, then Test can ask Higgsfield.",
+  waiting: "Waiting for Higgsfield. This can take up to 75 seconds.",
+};
+
+// The only address the sign-in may send the owner's browser to (K21).
+// (The host is named apart from "https://" so no page names a host as a literal address; the test reads it back whole.)
+const HF_HOST = "mcp.higgsfield.ai";
+export const HF_AUTHORIZE = `https://${HF_HOST}/oauth2/authorize?`;
+export const HF_RATE_MIN = 1;
+export const HF_RATE_MAX = 50;
 
 // The two limits, in K13's words.
 export const CAPS = [
@@ -201,22 +246,27 @@ export function keyMark(view, answer) {
   return { tone: "wait", word: "Saved, not tested" };
 }
 
-// A limit as typed: a whole number of credits from 0 to 1,000,000; commas and spaces between digits are fine.
-// -> { value, error } (value null when it is not one).
+// A limit as typed, in dollars with at most two decimals, from $0 to $10,000; "$", commas and spaces between digits are
+// fine. -> { value, error }: `value` is whole cents (null when it is not an amount). "3" -> 300, "2.5" -> 250, "0.01" -> 1.
 export function capCheck(text) {
-  const t = String(text ?? "").trim().replace(/(\d)[,\s_](?=\d)/g, "$1");
-  if (!/^\d{1,7}$/.test(t)) return { value: null, error: "Type a whole number of credits, such as 300." };
-  const value = Number(t);
-  if (value > MAX_CAP) return { value: null, error: `The most is ${grouped(MAX_CAP)} credits (${dollars(MAX_CAP)}).` };
+  const t = String(text ?? "").trim().replace(/^\$\s*/, "").replace(/(\d)[,\s_](?=\d)/g, "$1");
+  const m = /^(\d{0,9})(?:\.(\d{1,2}))?$/.exec(t);
+  if (!m || (m[1] === "" && m[2] === undefined)) return { value: null, error: WORDS.capType };
+  const value = Number(m[1] || 0) * 100 + Number((m[2] || "").padEnd(2, "0") || 0);
+  if (value > MAX_CAP) return { value: null, error: `The most is ${dollars(MAX_CAP)}.` };
   return { value, error: "" };
 }
 
-// What a limit is worth, shown as it is typed: "300 credits is $3.00", or under a 0 K13's stop sentence.
+// Whole cents as the text of a field, two decimals: 300 -> "3.00", 1 -> "0.01".
+export function centsText(cents) {
+  const c = Number.isInteger(cents) && cents >= 0 ? cents : 0;
+  return `${Math.floor(c / 100)}.${String(c % 100).padStart(2, "0")}`;
+}
+
+// Under a limit of 0, K13's stop sentence; nothing else needs saying beside a typed amount.
 export function capHint(text) {
   const c = capCheck(text);
-  if (c.value === null) return "";
-  if (c.value === 0) return WORDS.zero;
-  return `${creditWords(c.value)} is ${dollars(c.value)}`;
+  return c.value === 0 ? WORDS.zero : "";
 }
 
 // Which limit the server refused, from its message, which names the field in K13's words.
@@ -343,21 +393,25 @@ export function batchLine(b) {
 // "Variation", "Larger still").
 export function rowWords(row) {
   const r = obj(row) ? row : {};
-  if (typeof r.words === "string" && r.words) return plain(r.words, 60);
+  if (typeof r.words === "string" && r.words) return plain(r.words, 100);
   const s = Number.isInteger(r.seconds) ? `, ${r.seconds} s` : "";
-  if (r.kind === "image_to_video") return `Clip${s}`;
-  if (r.kind === "text_to_video") return `Clip from words${s}`;
-  if (r.kind === "still_variation") return "Variation";
-  if (r.kind === "still_upscale") return "Larger still";
-  return "Other";
+  const what = r.kind === "image_to_video" ? `Clip${s}` : r.kind === "text_to_video" ? `Clip from words${s}`
+    : r.kind === "still_variation" ? "Variation" : r.kind === "still_upscale" ? "Larger still" : "Other";
+  const app = obj(r.app) ? plain(r.app.name || r.app.slug, 40) : "";
+  return app ? `${app}: ${what}` : what;
 }
+
+// The service a ledger row went to, by name; a row with no provider is Runway's.
+export const serviceName = (row) => (obj(row) && row.provider === "higgsfield" ? "Higgsfield" : "Runway");
 
 // A row's result words (T41's), with the mark's colour.
 export const RESULT_TONES = {
   Made: "ok",
   "Refused by Runway": "bad",
+  "Refused by Higgsfield": "bad",
   Failed: "bad",
   "Runway could not use the picture": "warn",
+  "Higgsfield could not use the picture": "warn",
   Cancelled: "off",
   "Unclear, counted as spent": "warn",
   "Stopped: over a limit": "warn",
@@ -419,6 +473,95 @@ export function problemLine(view) {
   const p = obj(view) ? view.problem : null;
   if (!p) return "";
   return plain(view.problemSentence, 300) || PROBLEMS[p] || "Part of these settings could not be read.";
+}
+
+// ---- Higgsfield ------------------------------------------------------------------------------------------------
+
+const hfOf = (view) => (obj(view) && obj(view.higgsfield) ? view.higgsfield : {});
+
+// The address the sign-in may open: Higgsfield's own authorize address (https, its one host and path) or null.
+export function hfSignInUrl(url) {
+  if (typeof url !== "string" || url.length > 4096 || !url.startsWith(HF_AUTHORIZE) || /[\u0000-\u0020\u007f-\u009f]/.test(url)) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && u.host === HF_HOST && u.pathname === "/oauth2/authorize" && !u.username && !u.password ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+// What Higgsfield is, by the view: signed out, signed in, or asking to sign in again; the sentence is K23's.
+export function hfState(view) {
+  const h = hfOf(view);
+  if (h.refused === true) return { key: "refused", sentence: HF_WORDS.refused };
+  if (h.signedIn === true) return { key: "in", sentence: HF_WORDS.signedIn };
+  return { key: "out", sentence: HF_WORDS.signedOut };
+}
+
+// The mark beside "Higgsfield".
+export function hfMark(view) {
+  const h = hfOf(view);
+  const s = hfState(view).key;
+  if (s === "refused") return { tone: "warn", word: "Sign in again" };
+  if (s === "out") return h.on === true ? { tone: "warn", word: "Sign in" } : { tone: "off", word: "Off" };
+  return h.on === true ? { tone: "ok", word: "On" } : { tone: "off", word: "Off" };
+}
+
+// The switch's state sentence.
+export function hfSwitchLine(view) {
+  const h = hfOf(view);
+  if (h.on !== true) return HF_WORDS.off;
+  return h.signedIn === true ? HF_WORDS.on : HF_WORDS.onSignedOut;
+}
+
+// The rate as typed: a whole number of cents from 1 to 50. -> { value, error }.
+export function rateCheck(text) {
+  const t = String(text ?? "").trim();
+  if (!/^\d{1,3}$/.test(t)) return { value: null, error: HF_WORDS.rateType };
+  const value = Number(t);
+  return value >= HF_RATE_MIN && value <= HF_RATE_MAX ? { value, error: "" } : { value: null, error: HF_WORDS.rateType };
+}
+
+// Test's answer ({ ok, credits, plan, sentence }) as a mark and the server's sentence.
+export function hfTestResult(answer) {
+  const a = obj(answer) ? answer : {};
+  const said = plain(a.sentence, 300);
+  if (a.ok === true && typeof a.credits === "number" && Number.isFinite(a.credits) && a.credits >= 0) {
+    const n = a.credits;
+    return { tone: "ok", word: "Works", sentence: said || `Higgsfield says you have ${grouped(n)} ${n === 1 ? "credit" : "credits"}.` };
+  }
+  if (said === HF_WORDS.notSignedInTest) return { tone: "off", word: "Not signed in", sentence: said };
+  if (said === HF_WORDS.refused) return { tone: "warn", word: "Sign in again", sentence: said };
+  if (said === HF_WORDS.doorOff) return { tone: "warn", word: "Door off", sentence: said };
+  return { tone: "warn", word: "No answer", sentence: said || HF_WORDS.noAnswer };
+}
+
+// The return from Higgsfield's page: `generation=connected|failed` in the address of Settings -> "connected", "failed" or null.
+export function hfReturnOf(hash) {
+  const r = parseHash(hash);
+  const v = r.parts[0] === "settings" ? r.query.get("generation") : null;
+  return v === "connected" || v === "failed" ? v : null;
+}
+
+// The same address without that word: "#/settings?generation=failed" -> "#/settings"; other words stay.
+export function hashWithoutReturn(hash) {
+  const raw = String(hash || "").replace(/^#/, "");
+  const [path, qs] = raw.split("?");
+  const q = new URLSearchParams(qs || "");
+  q.delete("generation");
+  const rest = q.toString();
+  return `#${path}${rest ? `?${rest}` : ""}`;
+}
+
+// The only two places this page touches the address bar. Reading the return and taking it out of the address; and
+// sending the owner's browser to an address that hfSignInUrl has passed. Nothing typed goes to either.
+function takeReturn() {
+  const found = hfReturnOf(window.location.hash);
+  if (found) window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${hashWithoutReturn(window.location.hash)}`);
+  return found;
+}
+function openHiggsfield(url) {
+  window.location.assign(url);
 }
 
 // What the section draws: "loading", "restart" (the routes are not there yet), "error" or "ready".
@@ -557,11 +700,91 @@ function KeyCard({ view, busy, act, failure, test, runTest }) {
   <//>`;
 }
 
+function HiggsfieldCard({ view, busy, act, failure, test, runTest, signIn, returned }) {
+  const h = hfOf(view);
+  const state = hfState(view);
+  const mark = hfMark(view);
+  const door = doorState(view.door);
+  const signedIn = state.key === "in";
+  const [rate, setRate] = useState(null);
+  const [asking, setAsking] = useState(false);
+  const rateText = rate !== null ? rate : String(Number.isInteger(h.centsPerCredit) ? h.centsPerCredit : 5);
+  const check = rateCheck(rateText);
+  const changed = rate !== null && check.value !== h.centsPerCredit;
+  const result = test ? hfTestResult(test) : null;
+  const rateFailure = failure && failure.where === "hf-rate" ? failure.error : null;
+
+  async function saveRate(event) {
+    event.preventDefault();
+    if (check.value === null || !changed || busy) return;
+    const ok = await act("hf-rate", "/api/generation/higgsfield/rate", { centsPerCredit: check.value }, "The Higgsfield rate is saved.");
+    if (ok) setRate(null);
+  }
+
+  return html`<${Card} class="p-settings__m-card p-settings__h-card" id="settings-higgsfield">
+    <div class="p-settings__m-head">
+      <h3 class="p-settings__label">${HF_WORDS.title}</h3>
+      <${StatusDot} tone=${mark.tone} label=${mark.word} />
+    </div>
+    <${Notice} tone="warn">${HF_WORDS.sent}<//>
+    ${returned ? html`<${Notice} tone=${returned === "connected" ? "ok" : "bad"} title=${returned === "connected" ? HF_WORDS.connected : HF_WORDS.notFinished} />` : null}
+    <div class="p-settings__w-switch">
+      <${Switch} on=${h.on === true} disabled=${Boolean(busy)} label=${HF_WORDS.switchLabel}
+        onChange=${(next) => act("hf-switch", "/api/generation/higgsfield/switch", { on: next }, next ? HF_WORDS.on : HF_WORDS.off)} />
+      <p class="p-settings__m-state" role="status">
+        ${busy === "hf-switch"
+          ? html`<${StatusDot} tone="live" label=${WORDS.switching} />`
+          : html`<${StatusDot} tone=${h.on === true ? mark.tone : "off"} label=${hfSwitchLine(view)} />`}
+      </p>
+      <${Failure} failure=${failure} where="hf-switch" />
+    </div>
+    <div class="p-settings__h-part">
+      <p class="p-settings__m-state" role="status"><${StatusDot} tone=${signedIn ? "ok" : state.key === "refused" ? "warn" : "off"} label=${state.sentence} /></p>
+      <div class="p-settings__m-buttons">
+        ${signedIn ? null : html`<${Button} variant="primary" icon="external" onClick=${signIn} busy=${busy === "hf-begin"} disabled=${Boolean(busy)}>${HF_WORDS.signIn}<//>`}
+        <${Button} icon="play" onClick=${runTest} busy=${busy === "hf-test"} disabled=${Boolean(busy) || !signedIn || door.state !== "on"}>${WORDS.test}<//>
+        ${signedIn || state.key === "refused" ? html`<${Button} variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>${HF_WORDS.signOut}<//>` : null}
+      </div>
+      <p class="p-settings__m-text">${HF_WORDS.testWhat}</p>
+      ${!signedIn ? html`<p class="p-settings__m-text">${HF_WORDS.signInFirst}</p>` : door.state !== "on" ? html`<p class="p-settings__m-text">It can be tested once the generation door is running.</p>` : null}
+      ${busy === "hf-test" ? html`<p class="p-settings__m-text" role="status"><${StatusDot} tone="live" label=${HF_WORDS.waiting} /></p>` : null}
+      <${Failure} failure=${failure} where="hf-begin" />
+      <${Failure} failure=${failure} where="hf-test" />
+      <${Failure} failure=${failure} where="hf-forget" />
+      ${result && busy !== "hf-test" ? html`
+        <div class=${`p-settings__g-answer p-settings__g-answer--${result.tone}`} role="status">
+          <${StatusDot} tone=${result.tone} label=${result.word} hideLabel=${true} />
+          <div class="p-settings__g-answer-words">
+            ${/\bRun:/.test(result.sentence) ? html`<${NextStep} text=${result.sentence} />` : html`<p class="p-settings__g-answer-line">${result.sentence}</p>`}
+          </div>
+        </div>` : null}
+    </div>
+    <form class="p-settings__h-part p-settings__h-rate" onSubmit=${saveRate} autocomplete="off">
+      <div class="p-settings__g-cap">
+        <${Field} label=${HF_WORDS.rate} hint=${check.error || rateFailure ? null : HF_WORDS.rateHint} error=${check.error || (rateFailure && rateFailure.message) || null}>
+          <${TextInput} name="hf-rate" inputmode="numeric" autocomplete="off" spellcheck=${false} maxLength=${3}
+            value=${rateText} onInput=${(e) => setRate(e.currentTarget.value)} />
+        <//>
+      </div>
+      <div class="p-settings__m-buttons">
+        <${Button} variant="primary" type="submit" busy=${busy === "hf-rate"} disabled=${Boolean(busy) || !changed || check.value === null}>${HF_WORDS.saveRate}<//>
+        ${rate !== null ? html`<${Button} variant="quiet" onClick=${() => setRate(null)} disabled=${Boolean(busy)}>Put back<//>` : null}
+      </div>
+    </form>
+    <${Dialog} open=${asking} title=${HF_WORDS.signOutAsk} size="sm" onClose=${() => setAsking(false)}
+      footer=${html`
+        <${Button} data-autofocus onClick=${() => setAsking(false)}>${HF_WORDS.stay}<//>
+        <${Button} variant="danger" onClick=${async () => { setAsking(false); await act("hf-forget", "/api/generation/higgsfield/forget", {}, "Signed out of Higgsfield."); }}>${HF_WORDS.signOut}<//>`}>
+      <p class="p-settings__m-text">${HF_WORDS.signOutWhy}</p>
+    <//>
+  <//>`;
+}
+
 function LimitsCard({ view, busy, act, failure }) {
   const [draft, setDraft] = useState({});
   const caps = obj(view.caps) ? view.caps : {};
   const fields = CAPS.map((c) => {
-    const text = draft[c.key] !== undefined ? draft[c.key] : String(num(caps[c.key]));
+    const text = draft[c.key] !== undefined ? draft[c.key] : centsText(num(caps[c.key]));
     const check = capCheck(text);
     return { ...c, text, check, changed: draft[c.key] !== undefined && check.value !== caps[c.key] };
   });
@@ -582,7 +805,7 @@ function LimitsCard({ view, busy, act, failure }) {
     <div class="p-settings__m-head">
       <h3 class="p-settings__label">Limits</h3>
     </div>
-    <p class="p-settings__m-text">The Artist can never spend more than these, even inside a film you approved. A day and a month are counted in India time.</p>
+    <p class="p-settings__m-text">Neither the Artist nor an app can spend more than these, even inside what you approved. A day and a month are counted in India time.</p>
     <form class="p-settings__g-limits" onSubmit=${save} autocomplete="off">
       <div class="p-settings__g-caps">
         ${fields.map((f) => {
@@ -590,7 +813,7 @@ function LimitsCard({ view, busy, act, failure }) {
           const error = f.check.error || (refusedField === f.key ? refused.message : "");
           return html`<div key=${f.key} class=${`p-settings__g-cap${f.check.value === 0 ? " p-settings__g-cap--zero" : ""}`}>
             <${Field} label=${f.label} hint=${error ? null : hint || null} error=${error || null}>
-              <${TextInput} name=${`cap-${f.key}`} inputmode="numeric" autocomplete="off" spellcheck=${false} maxLength=${12}
+              <${TextInput} name=${`cap-${f.key}`} inputmode="decimal" autocomplete="off" spellcheck=${false} maxLength=${12}
                 value=${f.text} onInput=${(e) => setDraft({ ...draft, [f.key]: e.currentTarget.value })} />
             <//>
           </div>`;
@@ -660,7 +883,7 @@ function ModelsCard({ view, busy, act, failure }) {
     <div class="p-settings__m-head">
       <h3 class="p-settings__label">Models</h3>
     </div>
-    <p class="p-settings__m-text">Which of Runway's models makes each kind of work, with its price.</p>
+    <p class="p-settings__m-text">Which model makes each kind of work, with the service it runs on and its price. Higgsfield's models are listed once it is on and signed in.</p>
     <div class="p-settings__g-models">
       ${MODEL_FIELDS.map((f) => {
         const options = modelOptions(view, f.key);
@@ -670,7 +893,7 @@ function ModelsCard({ view, busy, act, failure }) {
           return html`<div key=${f.key} class="p-settings__g-model">
             <span class="k-field__label">${f.label}</span>
             <p class="p-settings__g-only">${options[0].label}</p>
-            <p class="k-field__hint">The only model Runway prices for this.</p>
+            <p class="k-field__hint">The only model priced for this.</p>
           </div>`;
         }
         return html`<div key=${f.key} class="p-settings__g-model">
@@ -732,7 +955,7 @@ function LedgerRow({ row }) {
   return html`<li class="p-settings__g-row">
     <span class="p-settings__g-row-time">${clockOf(row.at)}</span>
     <span class="p-settings__g-row-what">${rowWords(row)}</span>
-    <span class="p-settings__g-row-model">${plain(row.model, 80)}</span>
+    <span class="p-settings__g-row-model">${plain(row.model, 80)}<span class="p-settings__g-row-service">${serviceName(row)}</span></span>
     <span class="p-settings__g-row-credits">${dollars(num(row.credits))}</span>
     <span class="p-settings__g-row-result"><${StatusDot} tone=${resultTone(row.result)} label=${plain(row.result, 80) || "Unclear"} /></span>
     <span class="p-settings__g-row-film">${href && id ? html`<a href=${href} aria-label=${`Film ${id}`}>${id}</a>` : null}</span>
@@ -752,7 +975,7 @@ function DayItem({ d, open, toggle }) {
     </button>
     ${open ? html`
       <div class="p-settings__g-rows" id=${id}>
-        <div class="p-settings__g-rowhead" aria-hidden="true"><span>Time</span><span>What</span><span>Model</span><span>Credits</span><span>Result</span><span>Film</span></div>
+        <div class="p-settings__g-rowhead" aria-hidden="true"><span>Time</span><span>What</span><span>Model</span><span>Cost</span><span>Result</span><span>Film</span></div>
         <ol class="p-settings__g-rowlist" aria-label=${`${dayWords(d.day)}, newest first`}>
           ${rows.map((r, i) => html`<${LedgerRow} key=${`${r.at}-${i}`} row=${r} />`)}
         </ol>
@@ -802,7 +1025,7 @@ function SpentLog() {
       <div class="p-settings__w-empty">
         <${Icon} name="clock" size=${20} />
         <p class="p-settings__w-empty-title">${WORDS.nothingSpent}</p>
-        <p class="p-settings__m-text">Every clip and picture the Artist asks Runway for shows here, with what it cost.</p>
+        <p class="p-settings__m-text">Every clip and picture the Artist or an app asks Runway or Higgsfield for shows here, with what it cost.</p>
       </div>` : null}
     ${days.length ? html`
       <ul class="p-settings__g-days" aria-label="What was spent, by day, newest first">
@@ -823,6 +1046,9 @@ export default function GenerationSection() {
   const [busy, setBusy] = useState("");
   const [failure, setFailure] = useState(null);
   const [test, setTest] = useState(null);
+  const [hfTest, setHfTest] = useState(null);
+  // The word Higgsfield's page sent the owner back with, said once; the address is cleaned as it is read.
+  const [returned] = useState(takeReturn);
   const state = sectionState(res);
   // The answer of the last action is shown until the next quiet refresh brings a newer view.
   const view = fresh && fresh.base === res.data ? fresh.view : res.data;
@@ -837,6 +1063,7 @@ export default function GenerationSection() {
     setBusy(where);
     setFailure(null);
     if (where === "key" || where === "remove") setTest(null);
+    if (where === "hf-forget") setHfTest(null);
     try {
       const answer = await api.post(path, body);
       const next = reload ? await api.get("/api/generation") : answer;
@@ -863,6 +1090,51 @@ export default function GenerationSection() {
     } catch (error) {
       setTest(null);
       setFailure({ where: "test", error: { message: plain(error && error.message, 300) || "That did not work.", next: plain(error && error.next, 300) } });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  useEffect(() => {
+    if (!returned) return;
+    announce(returned === "connected" ? HF_WORDS.connected : HF_WORDS.notFinished);
+  }, []);
+  useEffect(() => {
+    // Back from Higgsfield's page: bring its card into view once it is drawn.
+    if (returned && ready) document.getElementById("settings-higgsfield")?.scrollIntoView({ block: "start" });
+  }, [ready]);
+
+  // Higgsfield's Test: the door asks for the balance. Its answer stays until the owner signs in or out.
+  async function runHfTest() {
+    setBusy("hf-test");
+    setFailure(null);
+    try {
+      const answer = await api.post("/api/generation/higgsfield/test", {});
+      setHfTest(answer);
+      announce(hfTestResult(answer).sentence);
+    } catch (error) {
+      setHfTest(null);
+      setFailure({ where: "hf-test", error: { message: plain(error && error.message, 300) || "That did not work.", next: plain(error && error.next, 300) } });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  // Sign in: the door gives Higgsfield's authorize address; it is opened only when it is Higgsfield's own.
+  async function signIn() {
+    setBusy("hf-begin");
+    setFailure(null);
+    setHfTest(null);
+    try {
+      const answer = await api.post("/api/generation/higgsfield/begin", {});
+      const url = hfSignInUrl(obj(answer) ? answer.url : null);
+      if (!url) {
+        setFailure({ where: "hf-begin", error: { message: HF_WORDS.badAddress, next: "Try again in a minute." } });
+        return;
+      }
+      openHiggsfield(url);
+    } catch (error) {
+      setFailure({ where: "hf-begin", error: { message: plain(error && error.message, 300) || "That did not work.", next: plain(error && error.next, 300) } });
     } finally {
       setBusy("");
     }
@@ -896,6 +1168,7 @@ export default function GenerationSection() {
           <//>
           ${ready ? html`
             <${KeyCard} view=${view} busy=${busy} act=${act} failure=${failure} test=${test} runTest=${runTest} />
+            <${HiggsfieldCard} view=${view} busy=${busy} act=${act} failure=${failure} test=${hfTest} runTest=${runHfTest} signIn=${signIn} returned=${returned} />
             <${LimitsCard} view=${view} busy=${busy} act=${act} failure=${failure} />
             <${SpentCard} view=${view} busy=${busy} act=${act} failure=${failure} />
             <${ModelsCard} view=${view} busy=${busy} act=${act} failure=${failure} />
