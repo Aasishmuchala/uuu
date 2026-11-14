@@ -48,3 +48,11 @@ export { DecisionOrShotlist as DecisionCard } from "./shotlist.js";
 // Step 4 (PLAN-V5 K15, K16, T54): a site an agent built, on its task's page: the home server's own pictures of it
 // at desktop and phone width, what the page viewer found, the preview and the zip.
 export * from "./site.js";
+
+// Redesign (PLAN-COOK T12): placeholders the kit's builders fill in.
+export * from "./layout.js";
+export * from "./stage.js";
+export * from "./strip.js";
+export * from "./money.js";
+export * from "./diff.js";
+export * from "./player.js";

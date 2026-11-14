@@ -14,19 +14,20 @@ const VENDOR = join(PUBLIC, "vendor");
 const ASSETS = join(PUBLIC, "assets");
 const SELF = fileURLToPath(import.meta.url);
 
-const KIT_SHEETS = "button icon avatar status tag card tabs fields states overlays text page decision task-card brief composer conversation table timeline checks doc agent segmented job answer ring forms upload pick shotlist site".split(" ");
-const PAGE_SHEETS = "map needs-you tasks task dashboards dashboard marketing studio sprite-player dept team agent jobs job files brain routines health settings search brand-kit apps app".split(" ");
+const KIT_SHEETS = "button icon avatar status tag card tabs fields states overlays text page decision task-card brief composer conversation table timeline checks doc agent segmented job answer ring forms upload pick shotlist site layout stage strip money diff player".split(" ");
+const PAGE_SHEETS = "map needs-you tasks task dashboards dashboard marketing studio sprite-player dept team agent jobs job files brain routines health settings search brand-kit apps app studio-film settings-generation settings-web settings-viewer settings-models".split(" ");
 const SHEETS = [
   "./styles/tokens.css",
   "./styles/base.css",
   "./styles/creature.css",
   ...KIT_SHEETS.map((k) => `./styles/kit/${k}.css`),
   "./styles/shell.css",
+  "./styles/shell-overlays.css",
   ...PAGE_SHEETS.map((p) => `./styles/pages/${p}.css`),
 ];
 
 // Where backdrop-filter may be used (CONTRACTS-V3 27.3), relative to the tree.
-const MAY_BLUR = ["styles/shell.css", "styles/kit/overlays.css", "styles/kit/composer.css"];
+const MAY_BLUR = ["styles/shell.css", "styles/kit/overlays.css", "styles/kit/composer.css", "styles/kit/stage.css"];
 
 // The vendored library as it was checked in; replacing it is a deliberate change to this list.
 const VENDOR_FILES = {
