@@ -390,7 +390,8 @@ test("generation: Higgsfield's words are K23's, and the server's sentences are t
   assert.equal(HF_WORDS.rate, "One Higgsfield credit counts as (cents)");
   assert.equal(HF_WORDS.rateHint, "Plus is about 5 cents a credit. Changing this does not change what you already approved.");
   // The owner's answer: Higgsfield may train on what is sent unless that is turned off in the owner's own account.
-  assert.match(HF_WORDS.sent, /train its models unless you turn that off in your Higgsfield account/);
+  assert.match(HF_WORDS.sent, /train its models\. Do not send client work you may not share\./);
+  assert.doesNotMatch(HF_WORDS.sent, /unless|turn that off/, "no opt-out is promised: none is documented for a plan");
   assert.match(HF_WORDS.sent, /Do not send client work you may not share\./);
   assert.equal(HF_WORDS.signedOut, HF_SENTENCES.signedOut);
   assert.equal(HF_WORDS.signedIn, HF_SENTENCES.signedIn);

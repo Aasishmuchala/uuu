@@ -74,7 +74,7 @@ export const WORDS = {
 // Higgsfield's words (K23), and the few this card adds.
 export const HF_WORDS = {
   title: "Higgsfield",
-  sent: "Higgsfield's terms let it use what you send, and what it makes, to train its models unless you turn that off in your Higgsfield account. Do not send client work you may not share.",
+  sent: "Higgsfield's terms let it use what you send, and what it makes, to train its models. Do not send client work you may not share.",
   switchLabel: "Use Higgsfield",
   off: "Off. Nothing is sent to Higgsfield.",
   on: "On. Your apps and the Artist may use it, inside what you approve.",
