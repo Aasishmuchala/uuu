@@ -59,12 +59,31 @@ test("the banners: a frozen newest batch, a changed shotlist, the server's own p
   assert.equal(m.filmBanners({ ...f, batches: [{ frozen: true }, { frozen: false }] }).length, 0, "only the newest batch counts");
   const both = m.filmBanners({ ...frozen, changedAfterApproval: true });
   assert.deepEqual(both.map((b) => b.key), ["frozen", "changed"]);
-  assert.equal(both[1].text, "The shotlist was changed after you approved it. The clips follow what you approved.");
+  assert.equal(both[1].text, "The shotlist was changed after you approved it. Each take shows what was sent to Runway.");
   assert.equal(m.filmBanners({ ...f, problem: "The ledger could not be read." })[0].text, "The ledger could not be read.");
   assert.deepEqual(m.filmBanners(null), []);
   assert.equal(m.anyMaking({ shots: [{ takes: [{ state: "made" }, { state: "making" }] }] }), true);
   assert.equal(m.anyMaking(f), false);
   assert.equal(m.STILL_CHARGING, "Runway may still charge for clips that are being made.");
+});
+
+test("the approved and sent prompts: the server's words, the gone and none sentences, the changed banner", () => {
+  const f = shape("films").film;
+  assert.deepEqual(m.labelsOf(f), f.labels);
+  assert.equal(m.labelsOf(f).approved, "What you approved");
+  assert.equal(m.labelsOf(f).sentPrompt, "The prompt sent to Runway");
+  assert.deepEqual(m.labelsOf({}), m.LABEL_WORDS, "without labels the same words stand in");
+  assert.equal(m.labelsOf({ labels: { changed: "  ", approved: 5 } }).changed, m.CHANGED_WORDS);
+  assert.equal(m.labelsOf({ labels: { approved: "Approved by you" } }).approved, "Approved by you");
+  assert.equal(m.sentPromptKind("A prompt."), "text");
+  assert.equal(m.sentPromptKind("gone"), "gone");
+  assert.equal(m.sentPromptKind(null), "none");
+  assert.equal(m.sentPromptKind("  "), "none");
+  assert.equal(m.sentPromptKind(5), "none");
+  const changed = m.filmBanners({ ...f, changedAfterApproval: true, labels: { ...f.labels, changed: "Changed: see each take." } });
+  assert.equal(changed[0].text, "Changed: see each take.");
+  assert.doesNotMatch(m.CHANGED_WORDS, /follow what you approved/);
+  assert.deepEqual(m.filmBanners({ ...f, changedAfterApproval: false }), []);
 });
 
 test("the sent picture, the prompt and the edit link", () => {

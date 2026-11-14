@@ -204,6 +204,10 @@
 .p-studio .p-film__still-img { aspect-ratio: 16 / 9; }
 .p-studio .p-film__sent { max-width: 12rem; }
 .p-studio .p-film__sent-img { aspect-ratio: 16 / 9; }
+.p-studio .p-film__says { display: grid; gap: var(--s-3); min-width: 0; }
+.p-studio .p-film__say { display: grid; gap: var(--s-1); min-width: 0; }
+.p-studio .p-film__say-label { margin: 0; color: var(--text-3); font-size: var(--fs-over); font-weight: var(--fw-medium); letter-spacing: .12em; text-transform: uppercase; }
+.p-studio .p-film__say-none { margin: 0; color: var(--text-3); font-size: var(--fs-caption); overflow-wrap: anywhere; }
 .p-studio .p-film__verdict {
   display: flex; flex-direction: column; gap: var(--s-1); margin: 0; padding-left: var(--s-3);
   border-left: 3px solid var(--hairline-strong);
