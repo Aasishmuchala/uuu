@@ -13,8 +13,11 @@
   white-space: nowrap;
 }
 
-/* One row that scrolls sideways once the takes outgrow the stage. */
+/* One row that scrolls sideways once the takes outgrow the stage. Positioned
+   too, so a hidden radio of a card scrolled out of view stays inside the row
+   instead of widening the page. */
 .row {
+  position: relative;
   display: flex;
   gap: 12px;
   padding: 2px 2px 8px;

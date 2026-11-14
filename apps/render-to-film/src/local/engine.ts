@@ -9,7 +9,8 @@
 import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { rename, unlink } from 'node:fs/promises';
-import { request } from 'node:http';
+import { request, type RequestOptions } from 'node:http';
+import type { Duplex } from 'node:stream';
 
 export const ENGINE_TIMEOUT_MS = 60_000;
 export const ENGINE_ANSWER_MAX = 2 * 1024 * 1024;
@@ -28,13 +29,22 @@ export class EngineError extends Error {
 /** A JSON answer: the status and the parsed body (null when empty). */
 export type EngineReply = { status: number; json: any };
 export type EngineStreamed = { status: number; type: string; bytes: number; json: any };
-export type EngineOptions = { socketPath?: string; timeoutMs?: number };
+/**
+ * `connect`, for tests only, hands the request a ready stream instead of the
+ * socket: the app fence's test mode lets no test open a unix socket.
+ */
+export type EngineOptions = { socketPath?: string; timeoutMs?: number; connect?: () => Duplex };
 export type JsonOptions = EngineOptions & { contentType?: string };
 
 function socketOf(opts: EngineOptions | undefined): string {
   const path = opts?.socketPath ?? process.env['ENGINE_SOCKET'];
   if (!path) throw new EngineError('The engine socket is not set.');
   return path;
+}
+
+function connection(opts: EngineOptions | undefined) {
+  const connect = opts?.connect;
+  return connect ? { createConnection: connect as unknown as NonNullable<RequestOptions['createConnection']> } : {};
 }
 
 function unreachable(err: unknown): EngineError {
@@ -75,7 +85,7 @@ export function engineJson(
       req.destroy();
       reject(err);
     };
-    const req = request({ socketPath, method, path, headers }, (res) => {
+    const req = request({ socketPath, ...connection(opts), method, path, headers }, (res) => {
       const chunks: Buffer[] = [];
       let total = 0;
       res.on('data', (c: Buffer) => {
@@ -142,7 +152,7 @@ export function engineStream(
         out.destroy();
       }
     };
-    const req = request({ socketPath, method: 'GET', path, headers: { accept: '*/*' } }, (res) => {
+    const req = request({ socketPath, ...connection(opts), method: 'GET', path, headers: { accept: '*/*' } }, (res) => {
       const status = res.statusCode ?? 0;
       const type = String(res.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
       if (status !== 200) {

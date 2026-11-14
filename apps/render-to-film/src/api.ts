@@ -1083,7 +1083,10 @@ export const AppRouter = router({
       let id: string;
       try {
         const url = await finishedUrl(ctx, parent.id, owner);
-        ({ id } = await submitStillUpscale(ctx, input.upscaler, input.factor, url, Boolean(parent.location), Math.max(parent.width, parent.height)));
+        // No size hint: the library's width and height are the render's, not the
+        // result's. The gateway reads the kept picture's real size and holds the
+        // result to 4096 px there.
+        ({ id } = await submitStillUpscale(ctx, input.upscaler, input.factor, url, Boolean(parent.location)));
       } catch (err) {
         throw toTrpcError(err);
       }

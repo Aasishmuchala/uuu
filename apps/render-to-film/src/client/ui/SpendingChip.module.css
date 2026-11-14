@@ -51,3 +51,9 @@
     max-width: 52vw;
   }
 }
+
+@media (max-width: 480px) {
+  .chip {
+    max-width: calc(100vw - 88px);
+  }
+}

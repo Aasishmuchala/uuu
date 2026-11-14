@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import {
   Tab as AriaTab,
   TabList as AriaTabList,
@@ -17,6 +17,15 @@ export type TabsProps = {
 
 /** Page-level tabs. Arrow keys move between tabs; panels keep their state. */
 export function Tabs({ selectedKey, onSelectionChange, children }: TabsProps) {
+  // On a phone the tab row scrolls sideways: keep the current tab in sight.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      document
+        .querySelector('[role=tablist] [role=tab][aria-selected=true]')
+        ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [selectedKey]);
   return (
     <AriaTabs
       className={styles.tabs}

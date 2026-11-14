@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { duplexPair } from 'node:stream';
 import { after, before, beforeEach, describe, test } from 'node:test';
 
 import { createGateway, keyOfFilesUrl, RunwayApiError, RunwayTaskError, snapAspectRatio, type GatewayDeps } from './gateway.ts';
@@ -18,6 +19,29 @@ type Reply = { status: number; json?: unknown; raw?: Buffer; type?: string };
 let dir: string;
 let sock: string;
 let server: Server;
+// The app fence's test mode opens no unix socket, so each request reaches the
+// server through an in-process stream (`sock` is never bound).
+// The client side also gets the socket's setTimeout, which the request calls.
+const connect = () => {
+  const [ours, theirs] = duplexPair();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  Object.assign(ours, {
+    setTimeout(ms: number, onTimeout?: () => void) {
+      clearTimeout(timer);
+      if (onTimeout) ours.once('timeout', onTimeout);
+      if (ms > 0) timer = setTimeout(() => ours.emit('timeout'), ms);
+      return ours;
+    },
+  });
+  // A side destroyed, as a socket cut short, ends the other side too.
+  ours.once('close', () => {
+    clearTimeout(timer);
+    theirs.destroy();
+  });
+  theirs.once('close', () => ours.destroy());
+  server.emit('connection', theirs);
+  return ours;
+};
 let calls: Call[];
 let door: (call: Call) => Reply;
 
@@ -45,7 +69,6 @@ before(async () => {
       }
     });
   });
-  await new Promise<void>((r) => server.listen(sock, r));
 });
 after(async () => {
   server.closeAllConnections();
@@ -74,8 +97,8 @@ async function make(over: Partial<GatewayDeps> = {}) {
   const tasks = createTaskStore({ docs: store.documentStore<TaskDoc>({ prefix: 'tasks' }) });
   const deps: GatewayDeps = {
     engine: {
-      json: (m, p, b, o) => engineJson(m, p, b, { socketPath: sock, ...o }),
-      stream: (p, f, max) => engineStream(p, f, max, { socketPath: sock }),
+      json: (m, p, b, o) => engineJson(m, p, b, { socketPath: sock, connect, ...o }),
+      stream: (p, f, max) => engineStream(p, f, max, { socketPath: sock, connect }),
     },
     store,
     tasks,

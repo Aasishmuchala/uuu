@@ -240,7 +240,7 @@ export function VideoPage({ active, pickedStillId, onPick, onGoToStills }: Video
     const q = statuses[i];
     if (q?.data?.done) return q.data.url ? 'ready' : 'failed';
     if (q?.error) return 'lost';
-    return q?.data?.status === 'PENDING' || q?.data?.status === 'THROTTLED' ? 'queued' : 'rendering';
+    return q?.data?.status === 'PENDING' ? 'queued' : 'rendering';
   });
   const inFlight = takeStates.filter((st) => st !== 'ready' && st !== 'failed').length;
   const full = inFlight >= MAX_IN_FLIGHT;

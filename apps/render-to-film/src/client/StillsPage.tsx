@@ -71,6 +71,8 @@ type Source = {
   height: number;
   /** Hosted URL from `/api/upload`, once uploaded — reused across takes. */
   hostedUrl?: string | undefined;
+  /** The chosen file itself: the page may not fetch its own blob: address (connect-src 'self'). */
+  file?: Blob | undefined;
 };
 
 /** What a take was made with, so a fix re-take can repeat it exactly. */
@@ -245,7 +247,7 @@ export function StillsPage({ onAnimate }: StillsPageProps) {
         if (prev.src.startsWith('blob:') && prev.src !== shotRef.current?.source.src) {
           URL.revokeObjectURL(prev.src);
         }
-        return { src, name: file.name, width: bitmap.width, height: bitmap.height };
+        return { src, name: file.name, width: bitmap.width, height: bitmap.height, file };
       });
       bitmap.close();
       // A mark belongs to the render it was drawn on.
@@ -334,7 +336,7 @@ export function StillsPage({ onAnimate }: StillsPageProps) {
       let hostedUrl = from.hostedUrl;
       if (!hostedUrl) {
         setPhase('uploading');
-        const blob = await fetch(from.src).then((r) => r.blob());
+        const blob: Blob = from.file ?? (await (await fetch(from.src)).blob());
         hostedUrl = await uploadRender(blob);
         const uploaded = { ...from, hostedUrl };
         setSource((cur) => (cur.src === from.src ? uploaded : cur));

@@ -89,6 +89,15 @@
     grid-row: 2;
     grid-column: 1 / -1;
     justify-content: stretch;
+    /* The tabs scroll sideways in their own row; the page never does. */
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav > * {
+    min-width: 0;
+    flex: 1;
   }
 
   .main {
@@ -100,4 +109,18 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+}
+
+/* Narrow phones: the mark stays and the title gives its room to the spending
+   chip, so the whole sentence (what is allowed and what is spent) shows. The
+   home screen's bar above the app already names it. */
+@media (max-width: 480px) {
+  .title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }

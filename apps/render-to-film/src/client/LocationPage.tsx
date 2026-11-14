@@ -147,7 +147,9 @@ export function LocationPage({ active, onAnimate }: LocationPageProps) {
   const [direction, setDirection] = useState('');
   const [imageModel, setImageModel] = useState<ImageModelId>('nano-banana-pro');
   const [resolution, setResolution] = useState(() => highestResolution('nano-banana-pro'));
-  const [autoUpscale, setAutoUpscale] = useState(true);
+  // Off at first: the texture upscaler (Higgsfield 4K) has no price on this Mac
+  // yet, so on by default it would hold the button for a step the owner did not ask for.
+  const [autoUpscale, setAutoUpscale] = useState(false);
   const [upscaler, setUpscaler] = useState<StillUpscalerId>('creative');
   const [factor, setFactor] = useState<UpscaleFactor>(2);
   const [take, setTake] = useState<Take | null>(readTake);

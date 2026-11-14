@@ -81,7 +81,8 @@ stage need no stage-specific CSS.
   (`--app-header`) on the surface colour, three columns: `brand` (the
   aperture mark on garden green) and title, `nav` (text tabs with an accent
   underline) centred, the spending chip (`SpendingChip`) right. Below 680px the tabs drop to their
-  own row. App.tsx passes `maxWidth="none"`: every page uses the full window.
+  own row, which scrolls sideways when they do not fit; below 480px the title is hidden (the mark
+  stays) so the chip's whole sentence shows. App.tsx passes `maxWidth="none"`: every page uses the full window.
 - Stills, Video and Edit are one edge-to-edge workspace
   (`Studio.module.css`): a 360–480px control rail on the left (the page's
   `PageHeader` at its top, then the numbered steps between hairlines, the
