@@ -120,7 +120,7 @@
 
   --tip: #18181b;
   --tip-ink: #ffffff;
-  --scrim: rgba(15,17,21,.30);
+  --scrim: rgba(15,17,21,.40);
   --pin: #f0bd4a;
   --pin-ink: #1d1503;
   --pin-line: #a8740a;
@@ -171,7 +171,7 @@
 
     --tip: #18181b;
     --tip-ink: #ffffff;
-    --scrim: rgba(15,17,21,.30);
+    --scrim: rgba(15,17,21,.40);
     --pin: #f0bd4a;
     --pin-ink: #1d1503;
     --pin-line: #a8740a;

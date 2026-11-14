@@ -47,7 +47,7 @@ export const THEMED = {
   "--tip": ["#f4f4f5", "#18181b"],
   "--tip-ink": ["#0f0f11", "#ffffff"],
   // The layer behind a dialog or a sheet.
-  "--scrim": ["rgba(0,0,0,.62)", "rgba(15,17,21,.30)"],
+  "--scrim": ["rgba(0,0,0,.62)", "rgba(15,17,21,.40)"],
   "--pin": ["#ecc068", "#f0bd4a"],
   "--pin-ink": ["#1d1503", "#1d1503"],
   "--pin-line": ["#ecc068", "#a8740a"],
