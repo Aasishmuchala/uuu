@@ -151,3 +151,20 @@ test("brain: the form's note, and nothing drawn from raw HTML", () => {
     assert.doesNotMatch(src, /https?:\/\//);
   }
 });
+
+test("brain: readiness is one Rows panel, each basic a glyph, its name and one sentence", async () => {
+  const m = await import("../../brain/readiness.js");
+  assert.deepEqual(Object.keys(m.BASIC_SAY).sort(), ["about", "brand", "cant-say", "ideal-customer", "refunds", "services", "support-promise", "team", "terms"]);
+  for (const s of Object.values(m.BASIC_SAY)) assert.match(s, /^[A-Z][^—]*\.$/, s);
+  assert.equal(m.READINESS_WORDS.title, "The basics");
+  assert.equal(m.READINESS_WORDS.lead, "The facts every agent reads before it works. Only you can fill them in.");
+  assert.equal(m.READINESS_WORDS.done, "Every basic is filled. Agents read them before they work.");
+  assert.equal(m.READINESS_WORDS.open, "Open");
+  const r = readinessOf({ basics: { items: [
+    { form: "about", state: "filled" }, { form: "terms", state: "empty" }, { form: "brand", state: "filled" }, { form: "team", state: "missing" },
+  ] } });
+  assert.deepEqual(m.shownOrder(r.items).map((i) => i.form), ["terms", "team", "about", "brand"], "what is missing comes first");
+  const src = readFileSync(new URL("../../brain/readiness.js", import.meta.url), "utf8");
+  assert.match(src, /<\$\{Rows\}>/);
+  assert.match(src, /<\$\{Row\} key=\$\{i\.form\} icon=/);
+});

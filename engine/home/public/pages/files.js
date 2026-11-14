@@ -1,17 +1,23 @@
-// Files: the company brain (CONTRACTS-V3 30, 32, 33.6). The folders, one folder's files, one file in the work panel,
-// a search over them, and what agents have learned. Adding a file (`?new=`) and the readiness panel are
-// brain/new-file.js and brain/readiness.js; until they are built the page says so.
+// Files: the company brain (CONTRACTS-V3 30, 32, 33.6): the documents every agent reads before it works.
+// PLAN-COOK T68 (R09 leads, R02 for an opened file): the kit's DocLayout, whose list of sections is the brain's
+// places (all files, the brand kit, each folder with its count, what is shared with the Researcher, what agents
+// learned; the current one lifted), and at the right the set: the title, one grey line, a toolbar (the view switch
+// and sort at the left, the search field at the far right), a count line, then the files as rows (the default) or
+// cards. Below 1100 px the places are one filter menu in the toolbar. An opened file (`?file=`) is read in place:
+// a reading column (a Markdown file through the kit's DocView) with its facts, the Researcher switch and its
+// actions in a rail. Adding a file (`?new=`) and the readiness panel are brain/new-file.js and brain/readiness.js;
+// until they are built the page says so.
 // Every name and every word of a file is shown as text, never as HTML. A picture is shown only from its own raw address.
 // A text or table file can be marked as fine to share with the Researcher (PLAN-V5 K10, T35): the switch sits in the
-// file's panel, and `?shared=1` lists what the Researcher can read.
+// file's rail, and `?shared=1` lists what the Researcher can read.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { go } from "../lib/router.js";
 import { bytes, count } from "../lib/format.js";
 import { useApp } from "../lib/context.js";
 import {
-  BeingBuilt, Button, Card, Chip, DataTable, Dialog, Empty, ErrorNotice, Field, Icon, Loading, Menu, PageHeader,
-  Ring, Section, Segmented, Select, Switch, Tag, TextInput, Time,
+  BeingBuilt, Blk, Button, DataTable, Dialog, DocLayout, DocView, Empty, ErrorNotice, Field, Group, Icon, Loading,
+  Menu, PageHeader, Row, Rows, Segmented, Select, Switch, Tag, TextInput, Time,
 } from "../kit/index.js";
 
 const EVERY = 10000;
@@ -290,8 +296,79 @@ function useBrainPart(key) {
   return part;
 }
 
+// The page's own words (PLAN-COOK T68), pinned by test/pages/files.test.mjs.
+export const FILES_WORDS = {
+  title: "Files",
+  lead: "Your company's own files. Every agent reads them before it works.",
+  all: "All files",
+  brandKit: "Brand kit",
+  lessons: "What agents learned",
+  lessonsLead: "When an agent learns something from your answers, it shows here.",
+  recent: "Recently changed",
+  places: "Places",
+  search: "Search your files",
+  sort: "Sort",
+  view: "Show as",
+  about: "About this file",
+  researcher: "The Researcher",
+  written: "Written",
+  byForm: "By you, in its form",
+  added: "Added",
+  changed: "Changed",
+  kind: "Kind",
+  size: "Size",
+  place: "In",
+};
+const SORTS = [{ id: "date", label: "Newest first" }, { id: "name", label: "Name" }];
+
+// A Markdown file as the kit's document: { sections: [{ heading, text }] }. A `#` or `##` heading starts a section
+// (a fence is never split); what comes before the first heading is a section with no heading. Deeper headings stay
+// in the text. Nothing is parsed as HTML here; the kit's Markdown builds elements from plain data.
+export function docOf(text) {
+  const lines = str(text).replace(/\r\n?/g, "\n").split("\n");
+  const sections = [];
+  let cur = { heading: "", lines: [] };
+  let fenced = false;
+  for (const line of lines) {
+    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
+    const m = fenced ? null : /^#{1,2}\s+(.+?)\s*#*\s*$/.exec(line);
+    if (m) {
+      if (cur.heading || cur.lines.join("").trim()) sections.push(cur);
+      cur = { heading: m[1], lines: [] };
+    } else cur.lines.push(line);
+  }
+  if (cur.heading || cur.lines.join("").trim()) sections.push(cur);
+  return { sections: sections.map((s) => ({ heading: s.heading, text: s.lines.join("\n").trim() })) };
+}
+
+// True for a Markdown file, which is read as a document; any other text file is shown as it is.
+export const isMarkdown = (file) => Boolean(file) && file.kind === "text" && /\.(md|markdown)$/i.test(str(file.name));
+
+// Which place of the list is current: "all", a folder's id, "shared" or "lessons".
+export function placeOf({ folder, shared, tab } = {}) {
+  if (ID.test(str(folder))) return folder;
+  if (shared) return "shared";
+  if (tab === "lessons") return "lessons";
+  return "all";
+}
+
+// The places of the brain, in order: [{ id, label, icon, count, href }]. A count is null when it is not known.
+export function placesOf(brain, { shared = null } = {}) {
+  const folders = arr(brain && brain.folders).filter((f) => f && ID.test(str(f.id)));
+  const total = brain && brain.totals && Number.isFinite(brain.totals.files) ? Math.max(0, Math.round(brain.totals.files)) : null;
+  const list = [{ id: "all", label: FILES_WORDS.all, icon: "files", count: total, href: filesHref({}) }];
+  list.push({ id: "brand-kit", label: FILES_WORDS.brandKit, icon: "spark", count: null, href: BRAND_KIT_HREF });
+  for (const f of folders) {
+    list.push({ id: f.id, label: cut(f.title, 60) || FOLDER_TITLES[f.id] || f.id, icon: "folder",
+      count: Number.isFinite(Number(f.files)) ? Math.max(0, Math.round(Number(f.files))) : null, href: filesHref({ folder: f.id }) });
+  }
+  list.push({ id: "shared", label: SHARE_WORDS.title, icon: "lock", count: Number.isFinite(shared) ? shared : null, href: filesHref({ shared: true }) });
+  list.push({ id: "lessons", label: FILES_WORDS.lessons, icon: "bulb", count: null, href: filesHref({ tab: "lessons" }) });
+  return list;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
-// One file, in the work panel.
+// One file, read in place
 
 // The owner's switch for one text or table file. Drawn only once /api/web has answered (before the home screen is
 // restarted it has no such route, and nothing is shown).
@@ -315,49 +392,59 @@ function ShareSwitch({ file }) {
       setBusy(false);
     }
   };
-  return html`<div class="p-files__share">
-    <${Switch} on=${isShared(view, file.token)} disabled=${busy} label=${SHARE_WORDS.label} explain=${SHARE_WORDS.explain} onChange=${change} />
-    ${message ? html`<p class="p-files__refusal" role="alert">${message}</p>` : null}
-  </div>`;
+  return html`<${Blk} title=${FILES_WORDS.researcher}>
+    <div class="p-files__share">
+      <${Switch} on=${isShared(view, file.token)} disabled=${busy} label=${SHARE_WORDS.label} explain=${SHARE_WORDS.explain} onChange=${change} />
+      ${message ? html`<p class="p-files__refusal" role="alert">${message}</p>` : null}
+    </div>
+  <//>`;
 }
 
 function FileBody({ data }) {
   const file = data.file || {};
   const how = viewOf(file);
   const download = safeBrainUrl(file.downloadUrl);
+  if (how === "text" && isMarkdown(file)) {
+    return html`<div class="p-files__doc">
+      <${DocView} doc=${docOf(data.text)} />
+      ${data.truncated ? html`<p class="p-files__caption">Only the start of this long file is shown. Download it to read the rest.</p>` : null}
+    </div>`;
+  }
   if (how === "text") {
-    return html`
+    return html`<div class="p-files__doc">
       <pre class="p-files__text">${str(data.text)}</pre>
-      ${data.truncated ? html`<p class="u-caption">Only the start of this long file is shown. Download it to read the rest.</p>` : null}`;
+      ${data.truncated ? html`<p class="p-files__caption">Only the start of this long file is shown. Download it to read the rest.</p>` : null}
+    </div>`;
   }
   if (how === "table") {
     const csv = readCsv(data.text);
     const t = tableOf(csv.rows);
-    return html`
+    return html`<div class="p-files__sheet">
       <div class="p-files__table" tabindex="0" role="region" aria-label="The table">
         <${DataTable} columns=${t.columns} rows=${t.rows} emptyText="This table has no rows under its headings." />
       </div>
       ${csv.moreRows || csv.moreCols || data.truncated
-        ? html`<p class="u-caption">Only the first 200 rows and 30 columns are shown. Download it to see all of it.</p>`
-        : null}`;
+        ? html`<p class="p-files__caption">Only the first 200 rows and 30 columns are shown. Download it to see all of it.</p>`
+        : null}
+    </div>`;
   }
   if (how === "image") {
-    return html`<figure class="p-files__picture">
+    return html`<figure class="p-files__picture" data-cook-picture>
       <img src=${safeBrainUrl(file.rawUrl)} alt=${cut(file.name, NAME_MAX)} loading="lazy" decoding="async" />
     </figure>`;
   }
   if (how === "pdf") {
-    return html`<${Card} tone="sunken" class="p-files__pdf">
+    return html`<div class="p-files__doc p-files__pdf">
       <span class="p-files__pdf-icon"><${Icon} name="file" size=${24} /></span>
       <span class="p-files__pdf-body">
         <strong class="u-wrap">${cut(file.name, NAME_MAX)}</strong>
-        <span class="u-caption">PDF · ${bytes(file.size)}</span>
-        <span class="u-muted">Search does not look inside PDF files.</span>
+        <span class="p-files__fact-note">PDF · ${bytes(file.size)}</span>
+        <span class="p-files__fact-note">Search does not look inside PDF files.</span>
       </span>
       ${download ? html`<${Button} size="sm" icon="download" href=${download} download=${cut(file.name, NAME_MAX)}>Download<//>` : null}
-    <//>`;
+    </div>`;
   }
-  return html`<p class="u-muted">This file cannot be shown here.</p>`;
+  return html`<div class="p-files__doc"><p class="p-files__fact-note">This file cannot be shown here.</p></div>`;
 }
 
 function FileActions({ file, folders, onMoved, onDeleted }) {
@@ -424,75 +511,89 @@ function FileActions({ file, folders, onMoved, onDeleted }) {
   </div>`;
 }
 
-// `onGone` runs when the panel closes, so the page can take `?file=` out of its address.
+// A label and its value, one line of the rail.
+function Fact({ label, children }) {
+  return html`<div class="p-files__fact"><dt>${label}</dt><dd>${children}</dd></div>`;
+}
+
 // `formHref` is set when the token names one of the basics: a basic that is not there yet leads to its form.
-function FileView({ token, folders, formHref, onMoved, onDeleted, onGone }) {
+// `onName` tells the page the file's name once it is read, for the title.
+function FileView({ token, folders, formHref, onMoved, onDeleted, onName }) {
   const res = useResource(`/api/brain/file/${encodeURIComponent(token)}`);
-  const gone = useRef(onGone);
-  gone.current = onGone;
-  useEffect(() => () => gone.current && gone.current(), []);
   const notFound = !!(res.error && res.error.code === "file_not_found");
   useEffect(() => { if (notFound && formHref) redirect(formHref); }, [notFound, formHref]);
+  const opened = (res.data && res.data.file) || null;
+  const name = cut(opened && opened.name, NAME_MAX);
+  useEffect(() => { if (onName) onName(name); }, [name]);
 
-  if (res.loading && !res.data) return html`<div class="p-files p-files--panel"><${Loading} lines=${4} label="Opening the file" /></div>`;
+  if (res.loading && !res.data) return html`<${Loading} lines=${6} label="Opening the file" />`;
   if (res.error) {
-    return html`<div class="p-files p-files--panel">
-      ${notFound && formHref
-        ? html`<${Empty} title="This has not been filled in yet."><${Button} href=${formHref} icon="form">Fill it in<//><//>`
-        : notFound
-        ? html`<${Empty} title="This file is not in your files any more." text="It may have been moved or deleted." />`
-        : html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`}
-    </div>`;
+    return notFound && formHref
+      ? html`<${Empty} title="This has not been filled in yet."><${Button} href=${formHref} icon="form">Fill it in<//><//>`
+      : notFound
+      ? html`<${Empty} title="This file is not in your files any more." text="It may have been moved or deleted.">
+          <${Button} href="#/files" icon="arrow-left">All files<//>
+        <//>`
+      : html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`;
   }
-  const file = (res.data && res.data.file) || {};
-  return html`<div class="p-files p-files--panel">
-    <p class="p-files__name u-wrap">${cut(file.name, NAME_MAX)}</p>
-    <div class="p-files__meta">
-      <${Chip} icon=${ICONS[file.kind] || "file"}>${kindLabel(file.kind)}<//>
-      <span class="u-caption">${bytes(file.size)}</span>
-      <${Time} at=${file.changedAt || file.addedAt} prefix="Changed" />
-    </div>
-    <${FileActions} key=${str(file.version)} file=${file} folders=${folders}
-      onMoved=${(moved) => onMoved(moved || file)} onDeleted=${onDeleted} />
-    <${ShareSwitch} file=${file} />
-    <${FileBody} data=${res.data} />
+  const file = opened || {};
+  const place = folders.find((x) => x && x.id === file.folder);
+  const placeTitle = cut(place && place.title, 60) || FOLDER_TITLES[file.folder] || "";
+  return html`<div class="p-files__open">
+    <article class="p-files__reading" aria-label=${name || "The file"}>
+      <${FileBody} data=${res.data} />
+    </article>
+    <aside class="p-files__rail" aria-label="About this file">
+      <${Blk} title=${FILES_WORDS.about}>
+        <dl class="p-files__facts">
+          <${Fact} label=${FILES_WORDS.kind}><span class="p-files__fact-kind"><${Icon} name=${ICONS[file.kind] || "file"} size=${16} />${kindLabel(file.kind)}</span><//>
+          <${Fact} label=${FILES_WORDS.size}><span class="p-files__num">${bytes(file.size)}</span><//>
+          ${placeTitle && ID.test(str(file.folder)) ? html`<${Fact} label=${FILES_WORDS.place}><a href=${filesHref({ folder: file.folder })}>${placeTitle}</a><//>` : null}
+          ${file.form && ID.test(str(file.form)) ? html`<${Fact} label=${FILES_WORDS.written}>${FILES_WORDS.byForm}<//>` : null}
+          ${file.addedAt ? html`<${Fact} label=${FILES_WORDS.added}><${Time} at=${file.addedAt} /><//>` : null}
+          ${file.changedAt ? html`<${Fact} label=${FILES_WORDS.changed}><${Time} at=${file.changedAt} /><//>` : null}
+        </dl>
+      <//>
+      <${ShareSwitch} file=${file} />
+      <${Blk}>
+        <${FileActions} key=${str(file.version)} file=${file} folders=${folders}
+          onMoved=${(moved) => onMoved(moved || file)} onDeleted=${onDeleted} />
+      <//>
+    </aside>
   </div>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // Lists
 
-function FileItem({ file, folder, grid }) {
+// The one grey fact of a row: its kind and size.
+const factOf = (file) => `${kindLabel(file.kind)} · ${bytes(file.size)}`;
+
+function FileItem({ file, folder, grid, shared }) {
   const name = cut(file.name, NAME_MAX);
-  const href = filesHref({ folder, file: file.token });
+  const href = filesHref({ folder, file: file.token, shared });
   const at = file.changedAt || file.addedAt;
   if (grid) {
-    // A picture shows itself (from the brain's own raw address, served with a sandbox policy); the size follows
-    // the date, as C3 30 asks (M52 F8).
+    // A picture shows itself (from the brain's own raw address, served with a sandbox policy).
     const picture = file.kind === "image" ? safeBrainUrl(file.rawUrl) : null;
     return html`<li class="p-files__tile">
-      <a class="p-files__tile-link u-glass" href=${href} title=${name}>
-        <span class="p-files__tile-name u-truncate">${name}</span>
-        <span class=${`p-files__tile-face${picture ? " p-files__tile-face--picture" : ""}`} aria-hidden="true">
+      <a class="p-files__tile-link" href=${href} title=${name}>
+        <span class=${`p-files__tile-face${picture ? " p-files__tile-face--picture" : ""}`} aria-hidden="true" data-cook-picture=${picture ? "" : undefined}>
           ${picture
             ? html`<img class="p-files__tile-img" src=${picture} alt="" loading="lazy" decoding="async" />`
-            : html`<${Icon} name=${ICONS[file.kind] || "file"} size=${24} />
-              <span class="p-files__tile-kind">${kindLabel(file.kind)}</span>`}
+            : html`<${Icon} name=${ICONS[file.kind] || "file"} size=${24} />`}
         </span>
-        <span class="p-files__tile-foot u-caption"><${Time} at=${at} prefix="Added" /> · ${bytes(file.size)}</span>
+        <span class="p-files__tile-name">${name}</span>
+        <span class="p-files__tile-foot"><span>${factOf(file)}</span><${Time} at=${at} /></span>
       </a>
     </li>`;
   }
   return html`<li class="p-files__row">
     <a class="p-files__row-link" href=${href}>
-      <span class="p-files__row-icon"><${Icon} name=${ICONS[file.kind] || "file"} /></span>
-      <span class="p-files__row-name u-truncate" title=${name}>${name}</span>
-      <span class="p-files__row-meta u-caption">
-        <span>${kindLabel(file.kind)}</span>
-        <span>${bytes(file.size)}</span>
-        <${Time} at=${at} />
-      </span>
-      <${Icon} name="chevron-right" size=${14} class="p-files__chev" />
+      <span class="p-files__row-icon"><${Icon} name=${ICONS[file.kind] || "file"} size=${16} /></span>
+      <span class="p-files__row-name" title=${name}>${name}</span>
+      <span class="p-files__row-fact">${factOf(file)}</span>
+      <span class="p-files__row-date"><${Time} at=${at} /></span>
     </a>
   </li>`;
 }
@@ -505,19 +606,27 @@ function FileList({ files, folder, grid }) {
 
 function SearchResults({ term, folder }) {
   const res = useResource(term.length >= 2 ? `/api/brain/search?q=${encodeURIComponent(term)}` : null);
-  if (term.length < 2) return html`<p class="u-muted">Type at least two letters.</p>`;
+  if (term.length < 2) return html`<p class="p-files__count">Type at least two letters.</p>`;
   if (res.loading && !res.data) return html`<${Loading} lines=${2} label="Searching your files" />`;
   if (res.error) return html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`;
   const results = arr(res.data && res.data.results).filter((r) => r && TOKEN.test(str(r.token))).slice(0, 20);
-  if (!results.length) return html`<p class="u-muted">Nothing in your files matches "${cut(term, 80)}".</p>`;
-  return html`<ul class="p-files__results">
-    ${results.map((r) => html`<li key=${r.token}>
-      <a class="p-files__result u-glass" href=${filesHref({ folder, q: term, file: r.token })}>
-        <span class="p-files__result-name u-wrap">${cut(r.name, NAME_MAX)}</span>
-        ${r.snippet ? html`<span class="p-files__result-snippet u-wrap">${cut(r.snippet, SNIPPET_MAX)}</span>` : null}
-      </a>
-    </li>`)}
-  </ul>`;
+  if (!results.length) {
+    return html`<${Empty} title=${`Nothing in your files matches "${cut(term, 80)}".`}>
+      <${Button} href=${filesHref({ folder })} variant="quiet">Clear the search<//>
+    <//>`;
+  }
+  return html`<p class="p-files__count">Found in your files: ${count(results.length, "file")}</p>
+    <ul class="p-files__rows p-files__results">
+      ${results.map((r) => html`<li key=${r.token} class="p-files__row">
+        <a class="p-files__row-link p-files__result" href=${filesHref({ folder, q: term, file: r.token })}>
+          <span class="p-files__row-icon"><${Icon} name="file" size=${16} /></span>
+          <span class="p-files__result-words">
+            <span class="p-files__row-name">${cut(r.name, NAME_MAX)}</span>
+            ${r.snippet ? html`<span class="p-files__result-snippet">${cut(r.snippet, SNIPPET_MAX)}</span>` : null}
+          </span>
+        </a>
+      </li>`)}
+    </ul>`;
 }
 
 function Lessons() {
@@ -529,93 +638,38 @@ function Lessons() {
   return html`<div class="p-files__lessons">
     ${roles.map((r) => {
       const lessons = arr(r.lessons).slice(0, 5);
-      return html`<${Card} key=${r.slug}>
-        <div class="u-spread">
-          <strong>${cut(r.name, 80)}</strong>
-          ${ID.test(str(r.slug)) ? html`<a href=${`#/team/${r.slug}?tab=lessons`}>Edit</a>` : null}
-        </div>
+      return html`<${Group} key=${r.slug} title=${cut(r.name, 80)}
+          aside=${ID.test(str(r.slug)) ? html`<a href=${`#/team/${r.slug}?tab=lessons`}>Edit</a>` : null}>
         ${lessons.length
           ? html`<ul class="p-files__lesson-list">${lessons.map((l, i) => {
               const { date, text } = splitLesson(cut(String(l ?? ""), LESSON_MAX));
-              return html`<li key=${i} class="u-wrap">${text}${date ? html` <span class="u-caption">${date}</span>` : null}</li>`;
+              return html`<li key=${i}><span class="p-files__lesson-text">${text}</span>${date ? html`<span class="p-files__lesson-date">${date}</span>` : null}</li>`;
             })}</ul>`
-          : html`<p class="u-muted">Nothing learned yet.</p>`}
+          : html`<p class="p-files__count">Nothing learned yet.</p>`}
       <//>`;
     })}
   </div>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// The top of the page: readiness and the folders
+// All files: the basics, then what changed lately
 
 function BasicsFallback({ brain }) {
-  const items = arr(brain && brain.basics && brain.basics.items);
+  const items = arr(brain && brain.basics && brain.basics.items).filter((b) => b && ID.test(str(b.form)));
   if (!items.length) return null;
-  return html`<ul class="p-files__basics">
-    ${items.map((b) => html`<li key=${b.form} class="p-files__basic">
-      <span class="u-truncate">${cut(b.title, 80)}</span>
-      ${b.state === "filled"
-        ? html`<${Tag} tone="ok">Filled<//>`
-        : ID.test(str(b.form)) ? html`<a href=${filesHref({ mode: `form:${b.form}` })}>Fill it in</a>` : null}
-    </li>`)}
-  </ul>`;
-}
-
-function ReadinessCard({ brain }) {
-  const part = useBrainPart("readiness");
-  if (part.state === "ready") return html`<div class="p-files__ready"><${part.C} brain=${brain} /></div>`;
-  const b = (brain && brain.basics) || {};
-  return html`<${Card} class="p-files__ready">
-    <div class="p-files__ready-head">
-      <${Ring} value=${b.filled} total=${b.total ?? 9} size=${48} label=${basicsLine(brain)} />
-      <div class="p-files__ready-words">
-        <p class="u-over">The basics</p>
-        <p class="p-files__ready-line">${basicsLine(brain)}</p>
-        <p class="u-caption">Agents read these before they write anything for you.</p>
-      </div>
-    </div>
-    ${part.state === "missing" ? html`<${BasicsFallback} brain=${brain} />` : null}
+  return html`<${Rows}>
+    ${items.map((b) => html`<${Row} key=${b.form} icon=${b.state === "filled" ? "check" : "form"} title=${cut(b.title, 80)}
+      state=${b.state === "filled" ? { tone: "good", text: "Filled" } : null}
+      control=${b.state === "filled" ? null : html`<${Button} size="sm" href=${filesHref({ mode: `form:${b.form}` })}>Fill it in<//>`} />`)}
   <//>`;
 }
 
-// The Brand kit, where the Brand form was: one card that reads as one sentence.
-function BrandKitCard() {
-  return html`<ul class="p-files__folders">
-    <li>
-      <${Card} href=${BRAND_KIT_HREF} class="p-files__folder" aria-label=${`Brand kit: ${BRAND_KIT_WORDS}`}>
-        <span class="p-files__folder-head">
-          <${Icon} name="spark" size=${18} />
-          <span class="p-files__folder-title u-truncate">Brand kit</span>
-        </span>
-        <span class="p-files__folder-about">${BRAND_KIT_WORDS.charAt(0).toUpperCase()}${BRAND_KIT_WORDS.slice(1)}</span>
-        <span class="u-caption">Open the brand kit</span>
-      <//>
-    </li>
-  </ul>`;
-}
-
-function Folders({ brain }) {
-  const folders = arr(brain && brain.folders).filter((f) => f && ID.test(str(f.id)));
-  if (!folders.length) return html`<${Empty} title="No folders yet." text="Add a file and its folder appears here." />`;
-  return html`<ul class="p-files__folders">
-    ${folders.map((f) => html`<li key=${f.id}>
-      <${Card} href=${filesHref({ folder: f.id })} class="p-files__folder">
-        <span class="p-files__folder-head">
-          <${Icon} name="folder" size=${18} />
-          <span class="p-files__folder-title u-truncate">${cut(f.title, 60)}</span>
-        </span>
-        <span class="p-files__folder-about">${cut(f.about, 200)}</span>
-        <span class="u-caption">${count(Number(f.files) || 0, "file")}</span>
-      <//>
-    </li>`)}
-  </ul>`;
-}
-
-// The line under the page's title: how many files the Researcher can read, leading to the list of them.
-function SharedLink() {
-  const res = useResource("/api/web");
-  if (!res.data) return null;
-  return html`<${Button} variant="quiet" size="sm" icon="lock" href=${filesHref({ shared: true })}>${sharedLine(sharedFiles(res.data).length)}<//>`;
+function ReadinessPanel({ brain }) {
+  const part = useBrainPart("readiness");
+  if (part.state === "ready") return html`<${part.C} brain=${brain} />`;
+  return html`<${Group} title="The basics" aside=${basicsLine(brain)} say="Agents read these before they write anything for you.">
+    ${part.state === "missing" ? html`<${BasicsFallback} brain=${brain} />` : html`<${Loading} lines=${3} />`}
+  <//>`;
 }
 
 // What the Researcher can read: the brand's public summary and every file the owner shared.
@@ -630,22 +684,23 @@ function SharedView() {
   const files = sharedFiles(res.data);
   const t = (res.data && res.data.sharedTotals) || {};
   if (!files.length) return html`<${Empty} title=${SHARE_WORDS.none} text=${SHARE_WORDS.noneHow} />`;
-  return html`<${Section} title="What it can read" count=${files.length}
-      hint=${`${count(files.length, "file")} of ${Number(t.maxFiles) || 50}, ${bytes(t.bytes)} of ${bytes(t.maxBytes || 5 * 1024 * 1024)}.`}>
+  return html`<p class="p-files__count">
+      ${`${count(files.length, "file")} of ${Number(t.maxFiles) || 50}, ${bytes(t.bytes)} of ${bytes(t.maxBytes || 5 * 1024 * 1024)}.`}
+    </p>
     <ul class="p-files__rows">
       ${files.map((f) => {
         const href = sharedHref(f);
-        const inner = html`<span class="p-files__row-icon"><${Icon} name=${f.source === "brand-kit" ? "spark" : "file"} /></span>
-          <span class="p-files__row-name u-truncate" title=${cut(f.title || f.name, NAME_MAX)}>${cut(f.title || f.name, NAME_MAX)}</span>
-          <span class="p-files__row-meta u-caption"><span>${SOURCE_WORDS[f.source]}</span><span>${bytes(f.size)}</span></span>`;
+        const inner = html`<span class="p-files__row-icon"><${Icon} name=${f.source === "brand-kit" ? "spark" : "file"} size=${16} /></span>
+          <span class="p-files__row-name" title=${cut(f.title || f.name, NAME_MAX)}>${cut(f.title || f.name, NAME_MAX)}</span>
+          <span class="p-files__row-fact">${SOURCE_WORDS[f.source]}</span>
+          <span class="p-files__row-date p-files__num">${bytes(f.size)}</span>`;
         return html`<li key=${f.name} class="p-files__row">
           ${href
-            ? html`<a class="p-files__row-link" href=${href}>${inner}<${Icon} name="chevron-right" size=${14} class="p-files__chev" /></a>`
+            ? html`<a class="p-files__row-link" href=${href}>${inner}</a>`
             : html`<span class="p-files__row-link">${inner}</span>`}
         </li>`;
       })}
-    </ul>
-  <//>`;
+    </ul>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -654,21 +709,16 @@ function SharedView() {
 function FolderForms({ forms, folder }) {
   const list = arr(forms).filter((f) => f && ID.test(str(f.id)));
   if (!list.length) return null;
-  return html`<${Section} title="Forms for this folder" hint="Only you know these facts. Fill them in and agents read them.">
-    <ul class="p-files__forms">
+  return html`<${Group} title="Forms for this folder" say="Only you know these facts. Fill them in and agents read them.">
+    <${Rows}>
       ${list.map((f) => (formLeadsToKit(f.id)
-        ? html`<li key=${f.id} class="p-files__form">
-            <${Icon} name="spark" />
-            <span class="u-grow u-truncate">Brand kit</span>
-            <a href=${BRAND_KIT_HREF}>Open the brand kit</a>
-          </li>`
-        : html`<li key=${f.id} class="p-files__form">
-        <${Icon} name="form" />
-        <span class="u-grow u-truncate">${cut(f.title, 80)}</span>
-        ${f.state === "filled" ? html`<${Tag} tone="ok">Filled<//>` : html`<${Tag}>Not filled in yet<//>`}
-        <a href=${filesHref({ folder, mode: `form:${f.id}` })}>${f.state === "filled" ? "Edit" : "Fill it in"}</a>
-      </li>`))}
-    </ul>
+        ? html`<${Row} key=${f.id} icon="spark" title="Brand kit" say=${`${BRAND_KIT_WORDS.charAt(0).toUpperCase()}${BRAND_KIT_WORDS.slice(1)}`}
+            control=${html`<${Button} size="sm" href=${BRAND_KIT_HREF}>Open the brand kit<//>`} />`
+        : html`<${Row} key=${f.id} icon="form" title=${cut(f.title, 80)}
+            state=${f.state === "filled" ? { tone: "good", text: "Filled" } : "Not filled in yet"}
+            control=${html`<${Button} size="sm" variant=${f.state === "filled" ? "quiet" : "plain"}
+              href=${filesHref({ folder, mode: `form:${f.id}` })}>${f.state === "filled" ? "Edit" : "Fill it in"}<//>`} />`))}
+    <//>
   <//>`;
 }
 
@@ -691,24 +741,18 @@ function Starters({ brain, onAdded }) {
       setBusy("");
     }
   };
-  return html`<${Section} title="Starter packs" hint="A page about the shape of one kind of work. Add one, then change it as you like.">
-    <ul class="p-files__starters">
-      ${list.map((s) => html`<li key=${s.id} class="p-files__starter">
-        <span class="p-files__starter-words">
-          <strong>${cut(s.title, 80)}</strong>
-          <span class="u-caption">${cut(s.about, 200)}</span>
-        </span>
-        ${s.added ? html`<${Tag} tone="ok">Added<//>` : html`<${Button} size="sm" icon="plus" busy=${busy === s.id} onClick=${() => add(s.id)}>Add<//>`}
-      </li>`)}
-    </ul>
+  return html`<${Group} title="Starter packs" say="A page about the shape of one kind of work. Add one, then change it as you like.">
+    <${Rows}>
+      ${list.map((s) => html`<${Row} key=${s.id} icon="layers" title=${cut(s.title, 80)} say=${cut(s.about, 200)}
+        state=${s.added ? { tone: "good", text: "Added" } : null}
+        control=${s.added ? null : html`<${Button} size="sm" icon="plus" busy=${busy === s.id} onClick=${() => add(s.id)}>Add<//>`} />`)}
+    <//>
     ${message ? html`<p class="p-files__refusal" role="status">${message}</p>` : null}
   <//>`;
 }
 
-function FolderView({ id, brain, onChanged }) {
+function FolderView({ id, brain, grid, by, onChanged }) {
   const res = useResource(`/api/brain/folder/${encodeURIComponent(id)}`, { every: EVERY });
-  const [grid, setGrid] = useState(true);
-  const [by, setBy] = useState("date");
   if (res.loading && !res.data) return html`<${Loading} lines=${4} label="Opening the folder" />`;
   if (res.error) {
     return res.error.code === "folder_not_found"
@@ -716,24 +760,20 @@ function FolderView({ id, brain, onChanged }) {
       : html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`;
   }
   const files = sortFiles(arr(res.data && res.data.files).filter((f) => f && TOKEN.test(str(f.token))), by);
+  const size = files.reduce((n, f) => n + (Number.isFinite(Number(f.size)) ? Number(f.size) : 0), 0);
   return html`
-    <div class="p-files__bar">
-      <span class="p-files__count u-caption">${count(files.length, "file")}</span>
-      <div class="p-files__bar-tools">
-        <${Field} label="Sort by">
-          <${Select} options=${[{ value: "date", label: "Newest first" }, { value: "name", label: "Name" }]} value=${by}
-            onChange=${(e) => setBy(e.currentTarget.value)} />
-        <//>
-        <${Segmented} size="sm" label="Show as" current=${grid ? "grid" : "list"} onChange=${(v) => setGrid(v === "grid")}
-          items=${[{ id: "list", label: "List", icon: "list" }, { id: "grid", label: "Grid", icon: "grid" }]} />
-      </div>
-    </div>
-    ${id === "brand" ? html`<${BrandKitCard} />` : null}
+    <p class="p-files__count">${count(files.length, "file")}${files.length ? html` · <span class="p-files__num">${bytes(size)}</span>` : null}</p>
     ${files.length
       ? html`<${FileList} files=${files} folder=${id} grid=${grid} />`
       : html`<${Empty} title="Nothing in this folder yet.">
           <${Button} href=${filesHref({ folder: id, mode: "paste" })} icon="plus">Paste text<//>
         <//>`}
+    ${id === "brand" && !arr(res.data && res.data.forms).some((f) => f && formLeadsToKit(f.id))
+      ? html`<${Group} title="Brand kit">
+          <${Rows}><${Row} icon="spark" title="Brand kit" say=${`${BRAND_KIT_WORDS.charAt(0).toUpperCase()}${BRAND_KIT_WORDS.slice(1)}`}
+            control=${html`<${Button} size="sm" href=${BRAND_KIT_HREF}>Open the brand kit<//>`} /><//>
+        <//>`
+      : null}
     <${FolderForms} forms=${res.data && res.data.forms} folder=${id} />
     ${id === "packs" ? html`<${Starters} brain=${brain} onAdded=${() => { res.refresh(); onChanged(); }} />` : null}`;
 }
@@ -748,7 +788,7 @@ function BrandKitHost({ route }) {
   const part = useBrainPart("brandKit");
   if (part.state === "ready") return html`<${part.C} route=${route} />`;
   return html`<div class="p-files">
-    <${PageHeader} over="Company brain" title="Brand kit" chip=${{ label: ["Files", "Brand kit"], href: "#/files", closeLabel: "Back to all files" }} />
+    <${PageHeader} title="Brand kit" chip=${{ label: ["Files", "Brand kit"], href: "#/files", closeLabel: "Back to all files" }} />
     ${part.state === "missing" ? html`<${BeingBuilt} title="The brand kit page is not ready yet." />` : html`<${Loading} lines=${4} label="Opening the brand kit" />`}
   </div>`;
 }
@@ -757,8 +797,16 @@ export default function Page({ route }) {
   return isBrandKit(route && route.parts) ? html`<${BrandKitHost} route=${route} />` : html`<${FilesPage} route=${route} />`;
 }
 
+// The label of a place in the list: its name, and its count in tabular figures at the right.
+function placeLabel(p) {
+  return html`<span class="p-files__place">
+    <span class="p-files__place-name">${p.label}</span>
+    ${p.count !== null && p.count !== undefined ? html`<span class="p-files__place-count">${p.count}</span>` : null}
+  </span>`;
+}
+
 function FilesPage({ route }) {
-  const { announce, openPanel, closePanel } = useApp();
+  const { announce, setTop } = useApp();
   const parts = arr(route && route.parts);
   const query = (route && route.query) || new URLSearchParams();
   const folder = parts.length === 2 && ID.test(parts[1]) ? parts[1] : "";
@@ -773,11 +821,15 @@ function FilesPage({ route }) {
   const routeQ = cut(query.get("q") || "", 200);
 
   const brain = useResource("/api/brain", { every: EVERY });
+  const web = useResource("/api/web");
   const newFile = useBrainPart("newFile");
   const [picking, setPicking] = useState(false);
   const [q, setQ] = useState(routeQ);
   const [term, setTerm] = useState(routeQ.trim());
   const [folderKey, setFolderKey] = useState(0);
+  const [grid, setGrid] = useState(false);
+  const [by, setBy] = useState("date");
+  const [fileName, setFileName] = useState("");
   useEffect(() => { setQ(routeQ); setTerm(routeQ.trim()); }, [routeQ]);
 
   // Searching waits for a short pause in typing; the address keeps the words without reloading the page.
@@ -797,72 +849,20 @@ function FilesPage({ route }) {
   const folders = arr(brain.data && brain.data.folders);
   const reloadAll = () => { brain.refresh(); setFolderKey((n) => n + 1); };
 
-  // The file named by ?file= opens in the work panel. It opens after the shell has finished its own work for a new
-  // address (the shell closes the panel when the address changes). Closing the panel takes ?file= out of the address.
-  const opened = useRef(null);
-  // The file a form, a paste or an upload has just saved (M52 K2): it opens in the panel even while /api/brain still
-  // lists it as missing, focus goes to the panel's title, and the page says "Saved.".
+  // The file named by ?file= is read in place. A folder's token opens the folder; a basic not there yet opens its
+  // form (that needs /api/brain, so it waits for it), unless that file was just saved (M52 K2).
   const saved = useRef("");
   const [savedName, setSavedName] = useState("");
-  const path = parts.join("/");
   const brainSettled = !!(brain.data || brain.error);
-  const foldersRef = useRef(folders);
-  foldersRef.current = folders;
+  const target = fileTok ? fileTarget(fileTok, brain.data) : null;
   useEffect(() => {
-    if (!fileTok) {
-      if (opened.current) { opened.current = null; closePanel(); }
-      return undefined;
-    }
-    const shown = typeof document === "undefined" || !!document.querySelector(".s-panel");
-    if (opened.current && opened.current.token === fileTok && opened.current.path === path && (shown || saved.current !== fileTok)) return undefined;
-    // A folder's token opens the folder; a basic not there yet opens its form (that needs /api/brain, so wait for it).
-    const target = fileTarget(fileTok, brain.data);
-    if (target.to === "folder") { redirect(target.href); return undefined; }
-    if (target.to === "file" && !brainSettled) return undefined;
-    if (target.to === "form" && saved.current !== fileTok) { redirect(target.href); return undefined; }
-    const formTarget = fileTarget(fileTok, brain.data, { missingOnly: false });
-    const formHref = formTarget.to === "form" ? formTarget.href : "";
-    const show = () => {
-      const mine = { token: fileTok, path };
-      opened.current = mine;
-      const known = arr(brain.data && brain.data.recent).find((f) => f && f.token === fileTok);
-      openPanel(html`<${FileView} key=${fileTok} token=${fileTok} folders=${foldersRef.current} formHref=${formHref}
-        onMoved=${(file) => {
-          announce && announce("File moved.");
-          reloadAll();
-          if (file && TOKEN.test(str(file.token))) go(filesHref({ folder: ID.test(str(file.folder)) ? file.folder : folder, file: file.token }));
-        }}
-        onDeleted=${() => {
-          announce && announce("File deleted.");
-          reloadAll();
-          closePanel();
-        }}
-        onGone=${() => {
-          if (opened.current === mine) opened.current = null;
-          try {
-            const h = location.hash;
-            const hp = h.replace(/^#\/?/, "").split("?")[0];
-            if (hp === mine.path && new URLSearchParams(h.split("?")[1] || "").get("file") === mine.token) {
-              history.replaceState(null, "", withoutKey(h, "file"));
-            }
-          } catch { /* the address stays as it is */ }
-        }} />`, { title: cut(known && known.name, NAME_MAX) || (saved.current === fileTok && savedName) || "File" });
-      if (saved.current === fileTok && typeof requestAnimationFrame === "function") {
-        requestAnimationFrame(() => {
-          const title = typeof document !== "undefined" ? document.querySelector(".s-panel-title") : null;
-          if (title) { title.setAttribute("tabindex", "-1"); title.focus({ preventScroll: true }); }
-        });
-      }
-    };
-    const t = setTimeout(show, 0);
-    // After a save the address moves to the file's folder, and the shell closes the panel for the new page; when that
-    // lands after ours, open the saved file again (M52 K2).
-    const again = saved.current === fileTok ? setTimeout(() => {
-      if (typeof document !== "undefined" && !document.querySelector(".s-panel")
-        && new URLSearchParams(location.hash.split("?")[1] || "").get("file") === fileTok) show();
-    }, 400) : 0;
-    return () => { clearTimeout(t); clearTimeout(again); };
-  }, [route, brainSettled]);
+    if (!target) return;
+    if (target.to === "folder") redirect(target.href);
+    else if (target.to === "form" && saved.current !== fileTok) redirect(target.href);
+  }, [fileTok, target && target.to, target && target.href]);
+  const formTarget = fileTok ? fileTarget(fileTok, brain.data, { missingOnly: false }) : null;
+  const formHref = formTarget && formTarget.to === "form" ? formTarget.href : "";
+  useEffect(() => { setFileName(""); }, [fileTok]);
 
   const folderInfo = folders.find((f) => f && f.id === folder);
   // A folder the brain does not have is "Folder not found", never the typed address (M52 F5).
@@ -870,9 +870,41 @@ function FilesPage({ route }) {
   const folderTitle = cut(folderInfo && folderInfo.title, 60) || FOLDER_TITLES[folder] || (brain.data ? "Folder not found" : "Files");
   const closeNew = () => go(filesHref({ folder, q: term, tab: tab === "lessons" ? "lessons" : "" }));
 
+  const showFile = Boolean(fileTok) && !(target && target.to === "folder");
+  const title = showFile
+    ? fileName || (saved.current === fileTok && savedName) || "File"
+    : folder || badFolder ? (unknownFolder ? "Folder not found" : folderTitle)
+    : sharedMode ? SHARE_WORDS.title
+    : tab === "lessons" ? FILES_WORDS.lessons
+    : FILES_WORDS.title;
+  const lead = showFile ? ""
+    : folder || badFolder ? (folderInfo ? cut(folderInfo.about, 200) : "")
+    : sharedMode ? SHARE_WORDS.lead
+    : tab === "lessons" ? FILES_WORDS.lessonsLead
+    : FILES_WORDS.lead;
+
+  // The top bar's crumbs: Files, the place, the file.
+  const crumbKey = `${folder}|${sharedMode}|${tab}|${showFile ? title : ""}|${unknownFolder}`;
+  useEffect(() => {
+    if (typeof setTop !== "function") return;
+    const crumbs = [{ label: FILES_WORDS.title, href: "#/files" }];
+    if (folder && !unknownFolder) crumbs.push({ label: folderTitle, href: filesHref({ folder }) });
+    else if (sharedMode) crumbs.push({ label: SHARE_WORDS.title, href: filesHref({ shared: true }) });
+    else if (tab === "lessons") crumbs.push({ label: FILES_WORDS.lessons, href: filesHref({ tab: "lessons" }) });
+    if (showFile) crumbs.push({ label: title });
+    setTop({ crumbs: crumbs.map((c, i) => (i === crumbs.length - 1 ? { label: c.label } : c)) });
+  }, [crumbKey]);
+
+  // After a save the page title takes focus, so the owner hears where they are (M52 K2).
+  useEffect(() => {
+    if (!fileTok || saved.current !== fileTok || typeof document === "undefined") return undefined;
+    const t = setTimeout(() => { const h = document.getElementById("page-title"); if (h) h.focus({ preventScroll: true }); }, 0);
+    return () => clearTimeout(t);
+  }, [fileTok]);
+
   const built = newFile.state === "ready";
   const later = built ? "" : " (being built)";
-  const menu = html`<div class="p-files__new">
+  const newMenu = html`<div class="p-files__new">
     <${Menu} label="+ New" items=${[
       { id: "form", icon: "form", label: `Fill in a form${later}`, onSelect: () => setPicking(true) },
       { id: "paste", icon: "file", label: `Paste text${later}`, onSelect: () => go(filesHref({ folder, mode: "paste" })) },
@@ -883,74 +915,99 @@ function FilesPage({ route }) {
   const basics = arr(brain.data && brain.data.basics && brain.data.basics.items).filter((b) => b && ID.test(str(b.form)));
   const formTitle = wanted && wanted.mode === "form" ? cut((basics.find((b) => b.form === wanted.form) || {}).title, 60) : "";
 
-  const header = folder || badFolder
-    ? html`<${PageHeader} over="Company brain" title=${unknownFolder ? "Folder not found" : folderTitle}
-        lead=${folderInfo ? cut(folderInfo.about, 200) : undefined}
-        chip=${{ label: unknownFolder ? ["Files"] : ["Files", folderTitle], href: "#/files", closeLabel: "Back to all files" }}
-        actions=${menu} />`
-    : sharedMode
-      ? html`<${PageHeader} over="Company brain" title=${SHARE_WORDS.title} lead=${SHARE_WORDS.lead}
-          chip=${{ label: ["Files", SHARE_WORDS.title], href: "#/files", closeLabel: "Back to all files" }} />`
-      : html`<${PageHeader} over="Company brain" title="Files"
-          lead="Your company's own files. Every agent reads them before it works." actions=${menu}><${SharedLink} /><//>`;
+  const sharedCount = web.data ? sharedFiles(web.data).length : null;
+  const places = placesOf(brain.data, { shared: sharedCount });
+  // An opened file lifts the place it is in (a file directly in the brain is in Loose files).
+  const filePath = showFile ? tokenPath(fileTok) : "";
+  const fileFolder = filePath.includes("/") ? filePath.split("/")[0] : filePath ? "loose" : "";
+  const current = placeOf({ folder: folder || (sharedMode ? "" : fileFolder), shared: sharedMode, tab });
+  const sections = places.map((p) => ({ id: p.id, icon: p.icon, label: placeLabel(p), href: p.href }));
+  const currentPlace = places.find((p) => p.id === current) || places[0];
+  // Below 1100 px the places are this one menu.
+  const placeMenu = html`<div class="p-files__places-menu">
+    <${Menu} label=${`${FILES_WORDS.places}: ${currentPlace.label}`} items=${places.map((p) => ({
+      id: p.id, label: p.count !== null && p.count !== undefined ? `${p.label} (${p.count})` : p.label,
+      current: p.id === current, onSelect: () => go(p.href),
+    }))} />
+  </div>`;
 
-  const searching = tab === "files" && q.trim().length > 0;
-
-  return html`<div class="p-files">
-    ${header}
-
-    ${savedName && saved.current && saved.current === fileTok ? html`<p class="p-files__saved" role="status"><${Icon} name="check" size=${16} />Saved. ${savedName}</p>` : null}
-    ${brain.error && !brain.data ? html`<${ErrorNotice} error=${brain.error} onRetry=${brain.reload} />` : null}
-
-    ${!folder && !badFolder && !sharedMode && brain.data ? html`<${ReadinessCard} brain=${brain.data} />` : null}
-
-    ${sharedMode ? html`<${SharedView} />` : html`<div class="p-files__tools">
-      <div class="p-files__search">
-        <${Field} label="Search your files">
-          <${TextInput} type="search" value=${q} maxLength=${200} placeholder="Search in files"
-            onInput=${(e) => setQ(e.currentTarget.value)} />
-        <//>
-      </div>
-      ${!folder && !badFolder
-        ? html`<${Segmented} label="Show" current=${tab} items=${[
-            { id: "files", label: "Folders", icon: "folder", href: filesHref({}) },
-            { id: "lessons", label: "What agents learned", icon: "spark", href: filesHref({ tab: "lessons" }) },
-          ]} />`
+  const searching = tab === "files" && !sharedMode && q.trim().length > 0;
+  const listing = !showFile && !sharedMode && !(tab === "lessons" && !folder) && !badFolder;
+  const toolbar = showFile ? html`<div class="p-files__toolbar p-files__toolbar--file">${placeMenu}</div>` : html`<div class="p-files__toolbar">
+    <div class="p-files__tools-start">
+      ${placeMenu}
+      ${listing && !searching
+        ? html`<${Segmented} size="sm" label=${FILES_WORDS.view} current=${grid ? "grid" : "list"} onChange=${(v) => setGrid(v === "grid")}
+            items=${[{ id: "list", label: "List", icon: "list" }, { id: "grid", label: "Cards", icon: "grid" }]} />
+          <div class="p-files__sort">
+            <${Menu} label=${`${FILES_WORDS.sort}: ${(SORTS.find((s) => s.id === by) || SORTS[0]).label}`}
+              items=${SORTS.map((s) => ({ id: s.id, label: s.label, current: s.id === by, onSelect: () => setBy(s.id) }))} />
+          </div>`
         : null}
-    </div>`}
+    </div>
+    ${sharedMode ? null : html`<label class="p-files__search">
+      <${Icon} name="search" size=${16} />
+      <${TextInput} type="search" value=${q} maxLength=${200} placeholder="Search in files" aria-label=${FILES_WORDS.search}
+        onInput=${(e) => setQ(e.currentTarget.value)} />
+    </label>`}
+  </div>`;
 
-    ${sharedMode ? null : searching
-      ? html`<${Section} title="Found in your files"><${SearchResults} term=${term} folder=${folder} /><//>`
-      : tab === "lessons" && !folder
-        ? html`<${Section} title="What agents have learned"><${Lessons} /><//>`
-        : badFolder
-          ? html`<${Empty} title="There is no folder of that name."><${Button} href="#/files" icon="arrow-left">All files<//><//>`
-          : folder
-            ? html`<${FolderView} key=${`${folder}-${folderKey}`} id=${folder} brain=${brain.data} onChanged=${reloadAll} />`
-            : brain.loading && !brain.data
-              ? html`<${Loading} lines=${4} label="Loading your files" />`
-              : brain.data
-                ? html`
-                  <${Section} title="Brand kit"><${BrandKitCard} /><//>
-                  <${Section} title="Folders" count=${folders.length}><${Folders} brain=${brain.data} /><//>
-                  ${arr(brain.data.recent).length
-                    ? html`<${Section} title="Recently changed">
-                        <${FileList} files=${sortFiles(arr(brain.data.recent).filter((f) => f && TOKEN.test(str(f.token)))).slice(0, 6)} folder="" grid=${false} />
-                      <//>`
-                    : null}`
-                : null}
+  const recent = sortFiles(arr(brain.data && brain.data.recent).filter((f) => f && TOKEN.test(str(f.token))), by).slice(0, 8);
+  const totals = (brain.data && brain.data.totals) || {};
+
+  let body;
+  if (showFile) {
+    body = !brainSettled || (target && target.to === "form" && saved.current !== fileTok)
+      ? html`<${Loading} lines=${6} label="Opening the file" />`
+      : html`<${FileView} key=${`${fileTok}-${folderKey}`} token=${fileTok} folders=${folders} formHref=${formHref} onName=${setFileName}
+          onMoved=${(file) => {
+            announce && announce("File moved.");
+            reloadAll();
+            if (file && TOKEN.test(str(file.token))) go(filesHref({ folder: ID.test(str(file.folder)) ? file.folder : folder, file: file.token }));
+          }}
+          onDeleted=${(file) => {
+            announce && announce("File deleted.");
+            reloadAll();
+            go(filesHref({ folder: ID.test(str(file && file.folder)) ? file.folder : folder }));
+          }} />`;
+  } else if (sharedMode) body = html`<${SharedView} />`;
+  else if (searching) body = html`<${SearchResults} term=${term} folder=${folder} />`;
+  else if (tab === "lessons" && !folder) body = html`<${Lessons} />`;
+  else if (badFolder) body = html`<${Empty} title="There is no folder of that name."><${Button} href="#/files" icon="arrow-left">All files<//><//>`;
+  else if (folder) body = html`<${FolderView} key=${`${folder}-${folderKey}`} id=${folder} brain=${brain.data} grid=${grid} by=${by} onChanged=${reloadAll} />`;
+  else if (brain.loading && !brain.data) body = html`<${Loading} lines=${4} label="Loading your files" />`;
+  else if (brain.data) {
+    body = html`
+      <p class="p-files__count">${count(Number(totals.files) || 0, "file")} in ${count(folders.length, "folder")} · <span class="p-files__num">${bytes(totals.bytes)}</span></p>
+      ${recent.length
+        ? html`<${Group} title=${FILES_WORDS.recent}><${FileList} files=${recent} folder="" grid=${grid} /><//>`
+        : html`<${Empty} title="No files yet." text="Add a file and it appears here." />`}
+      <${ReadinessPanel} brain=${brain.data} />`;
+  } else body = null;
+
+  return html`<div class=${`p-files${showFile ? " p-files--file" : ""}`}>
+    <${DocLayout} title=${title} sections=${sections} current=${current}>
+      <div class="p-files__lead">
+        ${lead ? html`<p class="p-files__lead-line">${lead}</p>` : html`<span></span>`}
+        ${showFile || sharedMode ? null : newMenu}
+      </div>
+      ${savedName && saved.current && saved.current === fileTok ? html`<p class="p-files__saved" role="status"><${Icon} name="check" size=${16} />Saved. ${savedName}</p>` : null}
+      ${brain.error && !brain.data ? html`<${ErrorNotice} error=${brain.error} onRetry=${brain.reload} />` : null}
+      ${toolbar}
+      <div class="p-files__set">${body}</div>
+    <//>
 
     <${Dialog} open=${picking} title="Fill in a form" onClose=${() => setPicking(false)}>
       ${basics.length
         ? html`<ul class="p-files__forms">
             ${basics.map((b) => html`<li key=${b.form} class="p-files__form">
               <${Icon} name="form" />
-              <span class="u-grow u-truncate">${cut(b.title, 80)}</span>
+              <span class="p-files__form-title">${cut(b.title, 80)}</span>
               ${b.state === "filled" ? html`<${Tag} tone="ok">Filled<//>` : null}
               <a href=${filesHref({ folder, mode: `form:${b.form}` })} onClick=${() => setPicking(false)}>${b.state === "filled" ? "Edit" : "Fill it in"}</a>
             </li>`)}
           </ul>`
-        : html`<p class="u-muted">The forms could not be read yet.</p>`}
+        : html`<p class="p-files__count">The forms could not be read yet.</p>`}
     <//>
 
     <${Dialog} open=${!!wanted && !toKit} size="lg" title=${wanted ? (formTitle ? `Fill in: ${formTitle}` : NEW_TITLES[wanted.mode]) : ""} onClose=${closeNew}>

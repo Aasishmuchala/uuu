@@ -164,3 +164,58 @@ test("files: a must-read basic that does not exist yet leads to its form", async
   // When the file view answers file_not_found, any basic leads to its form.
   assert.equal(mod.fileTarget(fileToken("brand/brand.md"), b, { missingOnly: false }).to, "form");
 });
+
+test("files: a Markdown file is read as the kit's document, split at its top headings", () => {
+  assert.deepEqual(mod.docOf("# Brand\n\n## Tone\n- warm\n- plain\n\n## Colours\n#1f3a34\n"), { sections: [
+    { heading: "Brand", text: "" }, { heading: "Tone", text: "- warm\n- plain" }, { heading: "Colours", text: "#1f3a34" },
+  ] });
+  assert.deepEqual(mod.docOf("Just words.\n### Deeper\nstays"), { sections: [{ heading: "", text: "Just words.\n### Deeper\nstays" }] });
+  assert.deepEqual(mod.docOf("```\n# not a heading\n```"), { sections: [{ heading: "", text: "```\n# not a heading\n```" }] });
+  assert.deepEqual(mod.docOf(""), { sections: [] });
+  assert.deepEqual(mod.docOf(null), { sections: [] });
+  assert.equal(mod.docOf("## <b>x</b>").sections[0].heading, "<b>x</b>", "a heading is kept as text, to be shown as text");
+  assert.equal(mod.isMarkdown(file), true);
+  assert.equal(mod.isMarkdown({ ...file, name: "notes.txt" }), false);
+  assert.equal(mod.isMarkdown({ ...file, kind: "table", name: "a.md" }), false);
+  assert.match(SOURCE, /<\$\{DocView\} doc=\$\{docOf\(data\.text\)\} \/>/);
+});
+
+test("files: the places are the brain's parts, each folder with its count", () => {
+  const p = mod.placesOf(brain, { shared: 2 });
+  assert.deepEqual(p.map((x) => x.id), ["all", "brand-kit", ...brain.folders.map((f) => f.id), "shared", "lessons"]);
+  assert.equal(p[0].count, brain.totals.files);
+  assert.equal(p[0].href, "#/files");
+  assert.equal(p[1].href, mod.BRAND_KIT_HREF, "the brand kit's entry hands over to #/files/brand-kit");
+  assert.equal(p.find((x) => x.id === "brand").count, 2);
+  assert.equal(p.find((x) => x.id === "brand").href, "#/files/brand");
+  assert.equal(p.find((x) => x.id === "shared").count, 2);
+  assert.equal(p.find((x) => x.id === "shared").href, "#/files?shared=1");
+  assert.equal(p.find((x) => x.id === "lessons").href, "#/files?tab=lessons");
+  assert.equal(mod.placesOf(null).find((x) => x.id === "shared").count, null);
+  assert.deepEqual(mod.placesOf({ folders: [{ id: "../x", title: "x" }] }).map((x) => x.id), ["all", "brand-kit", "shared", "lessons"]);
+  assert.equal(mod.placeOf({ folder: "brand" }), "brand");
+  assert.equal(mod.placeOf({ shared: true }), "shared");
+  assert.equal(mod.placeOf({ tab: "lessons" }), "lessons");
+  assert.equal(mod.placeOf({}), "all");
+});
+
+test("files: the page's own words", () => {
+  assert.equal(mod.FILES_WORDS.lead, "Your company's own files. Every agent reads them before it works.");
+  assert.equal(mod.FILES_WORDS.all, "All files");
+  assert.equal(mod.FILES_WORDS.lessons, "What agents learned");
+  assert.equal(mod.FILES_WORDS.lessonsLead, "When an agent learns something from your answers, it shows here.");
+  assert.equal(mod.FILES_WORDS.recent, "Recently changed");
+  assert.equal(mod.FILES_WORDS.about, "About this file");
+  assert.equal(mod.FILES_WORDS.byForm, "By you, in its form");
+  // The Researcher switch keeps its words exactly: it is a safety choice.
+  assert.equal(mod.SHARE_WORDS.label, "Fine to share with the Researcher");
+  assert.equal(mod.SHARE_WORDS.explain, "The Researcher reads nothing else of your files. Switch it off to take this file back.");
+  assert.match(SOURCE, /label=\$\{SHARE_WORDS\.label\} explain=\$\{SHARE_WORDS\.explain\}/);
+});
+
+test("files: a file's address is built only by filesHref, and its name is shown as text", () => {
+  assert.doesNotMatch(SOURCE, /href=\$\{`#\/files/);
+  assert.doesNotMatch(SOURCE, /\?file=\$\{/);
+  assert.match(SOURCE, /const href = filesHref\(\{ folder, file: file\.token, shared \}\);/);
+  assert.match(SOURCE, /<span class="p-files__row-name" title=\$\{name\}>\$\{name\}<\/span>/);
+});

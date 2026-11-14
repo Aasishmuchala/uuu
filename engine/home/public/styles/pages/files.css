@@ -1,21 +1,95 @@
-/* Files: the company brain (CONTRACTS-V3 30). Every selector starts with .p-files; tokens only (V2 11.2, V3 27.3). */
+/* Files: the company brain (CONTRACTS-V3 30; PLAN-COOK T68). The frame is the kit's DocLayout: its list of sections
+   is the brain's places, each with its count; the column is the set (a toolbar, a count line, the files as rows or
+   cards). An opened file is a reading column with its facts in a rail. Every selector starts with .p-files;
+   tokens only (V2 11.2, V3 27.3). */
 
 .p-files {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-5);
   min-width: 0;
 }
 
-.p-files.p-files--panel {
-  gap: var(--s-4);
+/* ---- the frame: the places at the left, the set wide enough for rows with their facts */
+
+.p-files .k-doc__main {
+  max-width: calc(var(--content-max) + 2 * var(--s-10));
 }
 
-/* + New: a solid pill, as the section's first action. */
+.p-files .k-doc__head {
+  min-height: var(--lh-page);
+}
+
+/* A place: its name, and its count at the right in tabular figures. */
+.p-files .p-files__place {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.p-files .p-files__place-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.p-files .p-files__place-count {
+  flex: none;
+  color: var(--ink-3);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-files .k-doc__pick[aria-current="page"] .p-files__place-count {
+  color: var(--ink-2);
+}
+
+/* The places in three parts: everything, the folders, then what others read and what agents learned. */
+.p-files .k-doc__list > li:has(> .k-doc__pick[href="#/files/brand-kit"]),
+.p-files .k-doc__list > li:has(> .k-doc__pick[href="#/files?shared=1"]) {
+  margin-bottom: var(--s-3);
+}
+
+.p-files .k-doc__list > li:has(> .k-doc__pick[href="#/files/company"]),
+.p-files .k-doc__list > li:has(> .k-doc__pick[href="#/files?shared=1"]) {
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+
+.p-files .k-doc__list > li:has(> .k-doc__pick[href="#/files?shared=1"]) {
+  margin-bottom: 0;
+}
+
+/* ---- the grey line, with + New at the right */
+
+.p-files .p-files__lead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-top: var(--s-1);
+  min-width: 0;
+}
+
+.p-files .p-files__lead-line {
+  max-width: 64ch;
+  color: var(--ink-2);
+  font-size: var(--fs-fact);
+  line-height: var(--lh-fact);
+}
+
+.p-files .p-files__new {
+  flex: none;
+  margin-top: calc(-1 * var(--s-8));
+}
+
+/* + New: the page's one filled primary. */
 .p-files .p-files__new .k-menu__trigger {
-  background: var(--primary);
-  color: var(--primary-text);
-  border-radius: var(--r-pill);
+  border-color: transparent;
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  font-weight: var(--fw-medium);
   transition: background-color var(--t-fast) var(--ease);
 }
 
@@ -23,318 +97,530 @@
   background: var(--primary-hover);
 }
 
-/* Readiness */
-.p-files .p-files__ready-head {
+.p-files .p-files__saved {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
-}
-
-.p-files .p-files__ready-words {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  min-width: 0;
-}
-
-.p-files .p-files__ready-words p {
-  margin: 0;
-}
-
-.p-files .p-files__ready-line {
-  font-size: var(--fs-title);
-  font-weight: var(--fw-medium);
-  color: var(--text);
-}
-
-.p-files .p-files__basics {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--s-1) var(--s-4);
-  margin: var(--s-4) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.p-files .p-files__basic {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: var(--s-2);
-  min-height: var(--h-md);
-  border-bottom: 1px solid var(--hairline);
-  min-width: 0;
+  margin-top: var(--s-4);
+  color: var(--good);
+  font-size: var(--fs-note);
 }
 
-/* Search and the Folders / Lessons switch */
-.p-files .p-files__tools {
+.p-files .k-doc__main > .k-notice {
+  margin-top: var(--s-4);
+}
+
+/* ---- the toolbar: the view switch and sort at the left, the search field at the far right */
+
+.p-files .p-files__toolbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
+  margin-top: var(--s-6);
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+
+.p-files .p-files__toolbar--file {
+  display: none;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.p-files .p-files__tools-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.p-files .p-files__sort .k-menu__trigger,
+.p-files .p-files__places-menu .k-menu__trigger {
+  min-height: var(--h-sm);
+  padding: 0 10px 0 var(--s-3);
+  gap: 6px;
+  border-color: var(--line);
+  background: var(--ctl);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+.p-files .p-files__sort .k-menu__trigger .k-icon,
+.p-files .p-files__places-menu .k-menu__trigger .k-icon {
+  color: var(--ink-3);
+}
+
+.p-files .p-files__sort .k-menu__trigger:hover,
+.p-files .p-files__places-menu .k-menu__trigger:hover {
+  border-color: var(--ink-3);
+}
+
+.p-files .p-files__sort .k-menu__list,
+.p-files .p-files__places-menu .k-menu__list {
+  left: 0;
+  right: auto;
+  max-height: min(60vh, calc(var(--s-12) * 9));
+  overflow-y: auto;
+}
+
+.p-files .p-files__sort .k-menu__item .k-icon,
+.p-files .p-files__places-menu .k-menu__item .k-icon {
+  color: var(--accent);
+}
+
+.p-files .p-files__places-menu {
+  display: none;
 }
 
 .p-files .p-files__search {
-  flex: 1 1 280px;
-  max-width: 520px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 1 260px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.p-files .p-files__search > .k-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.p-files .p-files__search .k-input {
+  width: 100%;
+  min-height: var(--h-sm);
+  padding-left: 34px;
+  font-size: var(--fs-body);
+}
+
+/* ---- the set */
+
+.p-files .p-files__set {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
-/* Folders */
-.p-files .p-files__folders {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--s-3);
+/* Groups in the set: 40 px apart, the first close under the count line. */
+.p-files .p-files__set > .k-group + .p-brain,
+.p-files .p-files__set > .k-group,
+.p-files .p-files__set > .p-brain + .k-group {
+  margin-top: var(--s-10);
+}
+
+.p-files .p-files__set > .k-group:first-child,
+.p-files .p-files__set > .p-files__count + .k-group,
+.p-files .p-files__set > .p-files__count + .p-brain .k-group {
+  margin-top: var(--s-2);
+}
+
+.p-files .p-files__set > .k-empty,
+.p-files .p-files__set > .k-loading {
+  margin-top: var(--s-6);
+}
+
+.p-files .p-files__count {
+  margin: var(--s-4) 0 var(--s-4);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-files .p-files__num {
+  font-variant-numeric: tabular-nums;
+}
+
+.p-files .p-files__refusal {
+  margin-top: var(--s-2);
+  color: var(--bad);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+/* Rows: the list pattern. A 16 px kind icon, the file's own name, one grey fact, the date at the right. */
+.p-files .p-files__rows {
+  display: flex;
+  flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.p-files .p-files__folders > li {
-  display: flex;
-  min-width: 0;
+.p-files .p-files__row + .p-files__row {
+  border-top: 1px solid var(--line);
 }
 
-.p-files .p-files__folder {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  width: 100%;
-  min-width: 0;
-  text-align: left;
-}
-
-.p-files .p-files__folder-head {
-  display: flex;
+.p-files .p-files__row-link {
+  display: grid;
+  grid-template-columns: 16px minmax(0, auto) minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--s-2);
-  color: var(--text);
-  min-width: 0;
+  gap: var(--s-3);
+  min-height: 48px;
+  padding: var(--s-2) var(--s-3);
+  margin: 0 calc(-1 * var(--s-3));
+  border-radius: var(--r-2);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background-color var(--t-fast) var(--ease);
 }
 
-.p-files .p-files__folder-title {
+.p-files a.p-files__row-link:hover {
+  background: var(--ctl);
+}
+
+.p-files .p-files__row-icon {
+  display: inline-flex;
+  color: var(--ink-3);
+}
+
+.p-files .p-files__row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-fact);
   font-weight: var(--fw-medium);
+  line-height: var(--lh-fact);
 }
 
-.p-files .p-files__folder-about {
-  color: var(--text-2);
-  font-size: var(--fs-caption);
-  flex: 1;
+.p-files .p-files__row-fact {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
 }
 
-/* One folder: the bar over its files */
-/* The count, Sort by and List or Grid: one row on one line (M52 F9); below 860 px the count goes on its own line above. */
-.p-files .p-files__bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-3);
-}
-
-.p-files .p-files__bar-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-3);
-}
-
-.p-files .p-files__bar-tools .k-field {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: var(--s-2);
-  margin: 0;
-}
-
-.p-files .p-files__bar-tools .k-field__label {
-  margin: 0;
+.p-files .p-files__row-date {
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
   white-space: nowrap;
 }
 
-/* Files as tiles */
+/* A search result: the name, and the words it was found in under it. */
+.p-files .p-files__result {
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  padding-top: var(--s-3);
+  padding-bottom: var(--s-3);
+}
+
+.p-files .p-files__result .p-files__row-icon {
+  margin-top: 3px;
+}
+
+.p-files .p-files__result-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.p-files .p-files__result-snippet {
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
+  overflow-wrap: anywhere;
+}
+
+/* Cards: the face flush to the card's top and sides, then the name, then one grey fact and the date. */
 .p-files .p-files__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  gap: var(--s-3);
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--s-4);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.p-files .p-files__tile {
+  display: flex;
+  min-width: 0;
 }
 
 .p-files .p-files__tile-link {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
-  padding: var(--s-3);
-  color: var(--text);
-  text-decoration: none;
-  border-radius: var(--r-3);
+  width: 100%;
   min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+  text-decoration: none;
+  overflow: hidden;
   transition: border-color var(--t-fast) var(--ease);
 }
 
 .p-files .p-files__tile-link:hover {
-  border-color: var(--hairline-strong);
-}
-
-.p-files .p-files__tile-name {
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-medium);
+  border-color: var(--line-2);
 }
 
 .p-files .p-files__tile-face {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--s-1);
-  height: 96px;
-  border-radius: var(--r-2);
-  background: var(--glass-soft);
-  color: var(--text-2);
+  aspect-ratio: 16 / 10;
+  border-bottom: 1px solid var(--line);
+  background: var(--raise-2);
+  color: var(--ink-3);
 }
 
-.p-files .p-files__tile-face--picture { padding: var(--s-2); }
+.p-files .p-files__tile-face--picture {
+  background: var(--stage);
+}
+
 .p-files .p-files__tile-img {
-  display: block;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  image-rendering: auto;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.p-files .p-files__tile-kind {
-  font-size: var(--fs-label);
-  letter-spacing: var(--ls-label);
+.p-files .p-files__tile-name {
+  padding: var(--s-3) var(--s-3) 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-body);
   font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
 }
 
-/* Files as rows, also the recent files and the search results */
-.p-files .p-files__rows,
-.p-files .p-files__results,
-.p-files .p-files__forms,
-.p-files .p-files__starters {
+.p-files .p-files__tile-foot {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   gap: var(--s-2);
+  padding: 2px var(--s-3) var(--s-3);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* What agents learned: each agent a group, its lessons one line each with the date at the right. */
+.p-files .p-files__lessons > .k-group:first-child {
+  margin-top: var(--s-6);
+}
+
+.p-files .p-files__lesson-list {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.p-files .p-files__row-link {
+.p-files .p-files__lesson-list > li {
   display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: var(--h-lg);
-  padding: var(--s-2) var(--s-3);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-3);
-  background: var(--glass);
-  color: var(--text);
-  text-decoration: none;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-fact);
+  line-height: var(--lh-fact);
+}
+
+.p-files .p-files__lesson-text {
   min-width: 0;
-  transition: border-color var(--t-fast) var(--ease);
+  overflow-wrap: anywhere;
 }
 
-.p-files .p-files__row-link:hover,
-.p-files .p-files__result:hover {
-  border-color: var(--hairline-strong);
+.p-files .p-files__lesson-date {
+  flex: none;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  font-variant-numeric: tabular-nums;
 }
 
-.p-files .p-files__row-icon {
-  display: inline-flex;
-  color: var(--text-2);
-}
-
-.p-files .p-files__row-name {
-  flex: 1;
-  min-width: 0;
-}
-
-.p-files .p-files__row-meta {
-  display: flex;
-  gap: var(--s-3);
-  flex-shrink: 0;
-}
-
-.p-files .p-files__chev {
-  color: var(--text-3);
-  flex-shrink: 0;
-}
-
-.p-files .p-files__result {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  padding: var(--s-3);
-  border-radius: var(--r-3);
-  color: var(--text);
-  text-decoration: none;
-  transition: border-color var(--t-fast) var(--ease);
-}
-
-.p-files .p-files__result-name {
-  font-weight: var(--fw-medium);
-}
-
-.p-files .p-files__result-snippet {
-  color: var(--text-2);
-  font-size: var(--fs-caption);
-}
-
-/* Forms and starter packs in a folder */
-.p-files .p-files__form,
-.p-files .p-files__starter {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: var(--h-lg);
-  padding: var(--s-2) var(--s-3);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-3);
-  background: var(--glass);
-  min-width: 0;
-}
-
-.p-files .p-files__starter-words {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  flex: 1;
-  min-width: 0;
-}
-
-/* Lessons */
-.p-files .p-files__lessons {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--s-3);
-}
-
-.p-files .p-files__lesson-list {
-  margin: var(--s-2) 0 0;
-  padding-left: var(--s-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  color: var(--text-2);
-}
-
-/* One file, in the work panel */
-.p-files .p-files__name {
+/* The forms to choose from, in the dialog. */
+.p-files .p-files__forms {
   margin: 0;
-  font-weight: var(--fw-medium);
-  color: var(--text);
+  padding: 0;
+  list-style: none;
 }
 
-.p-files .p-files__meta {
+.p-files .p-files__form {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--s-3);
+  min-height: 48px;
+  border-bottom: 1px solid var(--line);
+}
+
+.p-files .p-files__form-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- an opened file: the reading column and the rail */
+
+.p-files .p-files__open {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 264px;
+  align-items: start;
+  gap: var(--s-8);
+  margin-top: var(--s-6);
+}
+
+.p-files .p-files__reading {
+  min-width: 0;
+}
+
+.p-files .p-files__doc {
+  padding: var(--s-8) var(--s-10) var(--s-10);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+}
+
+.p-files .p-files__doc .k-doc {
+  max-width: 68ch;
+}
+
+.p-files .p-files__doc .k-doc__heading:empty {
+  display: none;
+}
+
+.p-files .p-files__doc .k-doc__section:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.p-files .p-files__text {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.p-files .p-files__caption {
+  margin-top: var(--s-4);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-files .p-files__sheet {
+  min-width: 0;
+}
+
+.p-files .p-files__table {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.p-files .p-files__picture {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: var(--s-6);
+  border-radius: var(--r-3);
+  background: var(--stage);
+}
+
+.p-files .p-files__picture img {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}
+
+.p-files .p-files__pdf {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.p-files .p-files__pdf-icon {
+  display: inline-flex;
+  color: var(--ink-3);
+}
+
+.p-files .p-files__pdf-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.p-files .p-files__fact-note {
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-files .p-files__rail {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--s-6));
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.p-files .p-files__rail > .k-blk:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.p-files .p-files__facts {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+}
+
+.p-files .p-files__fact {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: var(--s-3);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
+}
+
+.p-files .p-files__fact dt {
+  color: var(--ink-2);
+}
+
+.p-files .p-files__fact dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.p-files .p-files__fact-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.p-files .p-files__fact-kind .k-icon {
+  color: var(--ink-3);
 }
 
 .p-files .p-files__actions {
@@ -357,138 +643,97 @@
   gap: var(--s-2);
 }
 
-.p-files .p-files__move .k-field {
-  margin: 0;
-  flex: 1 1 180px;
-}
-
 .p-files .p-files__confirm {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  padding: var(--s-3);
-  border: 1px solid var(--border-warm);
-  border-radius: var(--r-3);
-  background: var(--bg-warm);
+  padding: 10px var(--s-3);
+  border-left: 2px solid var(--bad);
+  border-radius: var(--r-1);
+  background: var(--bad-bg);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
-.p-files .p-files__refusal {
-  margin: 0;
-  color: var(--bad-text);
-}
-
-.p-files .p-files__text {
-  margin: 0;
-  padding: var(--s-4);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-3);
-  background: var(--glass-soft);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: var(--fs-caption);
-  line-height: 1.6;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  max-width: 100%;
-}
-
-/* A table's cells break only at spaces, never inside a word (M63 item 5). A table too wide for the page scrolls
-   sideways inside its own box: the box is the scroller, and it can be reached and scrolled with the keyboard. */
-.p-files .p-files__table {
-  max-width: 100%;
-  overflow-x: auto;
-  border-radius: var(--r-4);
-}
-
-.p-files .p-files__table:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-/* As wide as the box, unless its longest words need more: then wider, and the box scrolls. */
-.p-files .p-files__table .k-table {
-  width: fit-content;
-  min-width: 100%;
-  overflow: visible;
-}
-
-.p-files .p-files__table .k-table__table th,
-.p-files .p-files__table .k-table__table td {
-  overflow-wrap: normal;
-  word-break: normal;
-}
-
-.p-files .p-files__picture {
-  margin: 0;
-}
-
-.p-files .p-files__picture img {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  border-radius: var(--r-3);
-  border: 1px solid var(--hairline);
-}
-
-.p-files .p-files__pdf {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-3);
-}
-
-.p-files .p-files__pdf-icon {
-  display: inline-flex;
-  color: var(--text-2);
-}
-
-.p-files .p-files__pdf-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  flex: 1 1 160px;
-  min-width: 0;
-}
-
-@media (max-width: 859px) {
-  /* Stacked into labelled rows: each row is as wide as the page, and only a word longer than its line breaks. */
-  .p-files .p-files__table .k-table {
-    width: auto;
+/* ---- below 1100 px the places are one filter menu; the set takes the width */
+@media (max-width: 1099px) {
+  .p-files .k-doc--layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .p-files .p-files__table .k-table__table td {
-    overflow-wrap: break-word;
-  }
-
-  .p-files .p-files__row-meta > span:nth-child(2) {
+  .p-files .k-doc__sections {
     display: none;
+  }
+
+  .p-files .p-files__places-menu,
+  .p-files .p-files__toolbar--file {
+    display: flex;
+  }
+
+  .p-files .p-files__toolbar--file {
+    margin-top: var(--s-4);
+  }
+
+  .p-files .p-files__open {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .p-files .p-files__rail {
+    position: static;
+  }
+}
+
+/* ---- a phone: the bar stacks and every control is 44 px tall */
+@media (max-width: 859px) {
+  .p-files .p-files__lead {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .p-files .p-files__new {
+    align-self: flex-start;
+    margin-top: var(--s-2);
+  }
+
+  .p-files .p-files__toolbar {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .p-files .p-files__search {
-    max-width: none;
-  }
-}
-
-@media (max-width: 479px) {
-  .p-files .p-files__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex: none;
+    margin-left: 0;
   }
 
-  .p-files .p-files__row-meta > span:first-child {
+  .p-files .p-files__new .k-menu__trigger,
+  .p-files .p-files__sort .k-menu__trigger,
+  .p-files .p-files__places-menu .k-menu__trigger,
+  .p-files .p-files__search .k-input,
+  .p-files .k-seg__item,
+  .p-files .p-files__actions .k-btn {
+    min-height: 44px;
+  }
+
+  .p-files .p-files__row-link {
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    min-height: 56px;
+  }
+
+  .p-files .p-files__row-fact {
     display: none;
   }
-}
 
-@media (max-width: 859px) {
-  .p-files .p-files__count { flex-basis: 100%; }
-}
+  .p-files .p-files__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s-3);
+  }
 
-/* "Saved." after a form, a paste or an upload (M52 K2). */
-.p-files .p-files__saved {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  margin: 0;
-  color: var(--ok-text);
-  font-size: var(--fs-caption);
+  .p-files .p-files__doc {
+    padding: var(--s-5) var(--s-4) var(--s-6);
+  }
+
+  .p-files .p-files__lesson-list > li {
+    flex-direction: column;
+    gap: 2px;
+  }
 }
