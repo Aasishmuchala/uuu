@@ -1,4 +1,6 @@
-// A glass card: a translucent fill, a hairline edge and the inner highlight. `ghost` is the hairline alone.
+// A card: one step up from the ground (the card fill, a hairline edge, the card shadow in light). `ghost` is
+// the hairline alone, `plain` and `warm` the card, `sunken` a well inside a card. A card inside a card loses its
+// edge and fill (no frame in a frame); a card marked aria-current or aria-pressed is lifted (the accent ring).
 // With `href` it is one link, with `onClick` one button.
 import { html } from "../vendor/preact-htm.js";
 import { cx, safeHref } from "./util.js";

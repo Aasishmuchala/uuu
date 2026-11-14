@@ -1,60 +1,108 @@
-/* DataTable and Figures (kit/table.js). The table is glass with overline heads and stacks into labelled rows below
-   860 px; Figures are stat tiles. Tokens only. */
+/* DataTable and Figures (kit/table.js), as C3's .tbl and .scores with the corrections after round 3 (4).
+   The table has no frame of its own (it sits on the ground or in a card): 12 px headings in the third grey,
+   48 px rows parted by hairlines, 14 px values, the second line 13 px in the second grey; amounts and dates at
+   the right in tabular figures, their unit small and grey; a row that opens something answers the pointer.
+   Below 860 px each row is a card of labelled lines. Figures are cells parted by hairlines in one card. */
 
 .k-table {
   width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
-  background: var(--glass);
-  box-shadow: var(--highlight);
 }
 
 .k-table--empty {
   margin: 0;
-  padding: var(--s-6) var(--s-4);
-  color: var(--text-2);
+  padding: var(--s-6) 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
   text-align: center;
 }
 
 .k-table__table {
   width: 100%;
   border-collapse: collapse;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
 }
 
 .k-table__table th,
 .k-table__table td {
-  padding: var(--s-3) var(--s-4);
+  padding: 0 var(--s-3);
   text-align: left;
-  vertical-align: top;
-  border-bottom: 1px solid var(--hairline);
   overflow-wrap: anywhere;
 }
 
+.k-table__table th:first-child,
+.k-table__table td:first-child {
+  padding-left: 0;
+}
+
+.k-table__table th:last-child,
+.k-table__table td:last-child {
+  padding-right: 0;
+}
+
 .k-table__table th {
-  padding-top: var(--s-3);
   padding-bottom: var(--s-2);
   font-size: var(--fs-label);
   font-weight: var(--fw-medium);
+  line-height: var(--lh-label);
   letter-spacing: var(--ls-label);
   color: var(--ink-3);
   white-space: nowrap;
+  vertical-align: bottom;
 }
 
-.k-table__table tbody tr:last-child td {
-  border-bottom: 0;
+.k-table__table td {
+  height: var(--s-12);
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+  color: var(--ink);
 }
 
-.k-table__table tbody tr:hover td {
-  background: var(--glass-soft);
+/* A second line under a value: a small, span or element marked as one. */
+.k-table__table td small,
+.k-table__second {
+  display: block;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
 }
 
-/* Stat tiles: an overline, a large figure, a quiet line under it. */
+/* Amounts, counts and dates: at the right, in tabular figures, on one line. */
+.k-table__table .k-table__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.k-table__unit {
+  font-size: var(--fs-label);
+  color: var(--ink-3);
+}
+
+/* A row with a link in it opens something: it answers the pointer with the control fill. */
+.k-table__table tbody tr {
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.k-table__table tbody tr:has(a[href]):hover {
+  background-color: var(--ctl);
+}
+
+/* Figures: the cells of one card, parted by hairlines. Each cell draws a line at its right and under it; the
+   card clips the ones that fall on its own edge, so an empty place in the grid stays the card's colour. */
 .k-figures {
   margin: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--s-3);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
 }
 
 .k-figures__item {
@@ -63,42 +111,51 @@
   flex-direction: column;
   gap: var(--s-1);
   padding: var(--s-4) var(--s-5);
-  background: var(--glass);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
-  box-shadow: var(--highlight);
+  box-shadow: 1px 0 0 var(--line), 0 1px 0 var(--line);
 }
 
 .k-figures__label {
   font-size: var(--fs-label);
   font-weight: var(--fw-medium);
+  line-height: var(--lh-label);
   letter-spacing: var(--ls-label);
   color: var(--ink-3);
 }
 
 .k-figures__value {
   margin: 0;
-  font-size: var(--fs-display);
+  font-size: var(--fs-stat);
   font-weight: var(--fw-medium);
-  line-height: var(--lh-tight);
-  letter-spacing: -.01em;
+  line-height: var(--lh-stat);
+  letter-spacing: var(--ls-stat);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 /* Long figures step down a size, so they stay on one line (M51 F13). */
 .k-figures__value--long {
-  font-size: var(--fs-heading);
+  font-size: var(--fs-section);
+  line-height: var(--lh-stat);
+  letter-spacing: 0;
 }
 
 .k-figures__value--longer {
-  font-size: var(--fs-title);
+  font-size: var(--fs-fact);
+  line-height: var(--lh-stat);
+  letter-spacing: 0;
 }
 
 .k-figures__hint {
   margin: 0;
-  font-size: var(--fs-caption);
-  color: var(--text-3);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+/* No frame in a frame: figures inside a card keep their hairlines and lose their outer edge. */
+.k-card .k-figures {
+  border-color: transparent;
+  box-shadow: none;
 }
 
 @media (max-width: 859px) {
@@ -110,22 +167,15 @@
     padding: var(--s-3) var(--s-4);
   }
 
-  .k-figures__value {
-    font-size: var(--fs-heading);
-  }
-
   .k-figures__value--long {
-    font-size: var(--fs-title);
+    font-size: var(--fs-fact);
   }
 
   .k-figures__value--longer {
-    font-size: var(--fs-body);
+    font-size: var(--fs-ui);
   }
 
   .k-table {
-    border: 0;
-    background: transparent;
-    box-shadow: none;
     overflow: visible;
   }
 
@@ -146,21 +196,48 @@
     white-space: nowrap;
   }
 
+  /* Each row is a card on the raised step; inside a card it is a block parted by a hairline instead. */
   .k-table__table tr {
     margin-bottom: var(--s-2);
     padding: var(--s-2) var(--s-4);
-    background: var(--glass);
-    border: 1px solid var(--hairline);
-    border-radius: var(--r-4);
-    box-shadow: var(--highlight);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-3);
+    box-shadow: var(--shadow-card);
   }
 
-  .k-table__table td {
+  .k-card .k-table__table tr {
+    margin-bottom: 0;
+    padding: var(--s-2) 0;
+    background: transparent;
+    border-width: 1px 0 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .k-card .k-table__table tr:first-child {
+    border-top: 0;
+  }
+
+  .k-table__table td,
+  .k-table__table td:first-child,
+  .k-table__table td:last-child {
     display: grid;
     grid-template-columns: minmax(96px, 35%) minmax(0, 1fr);
-    gap: var(--s-3);
+    gap: 0 var(--s-3);
+    height: auto;
     padding: var(--s-1) 0;
-    border-bottom: 0;
+    border-top: 0;
+  }
+
+  .k-table__table .k-table__num {
+    text-align: left;
+  }
+
+  /* A second line stays under its value, in the value's column. */
+  .k-table__table td > small,
+  .k-table__table td > .k-table__second {
+    grid-column: 2;
   }
 
   /* A chip or tag in a stacked cell keeps its own width instead of stretching across it (M51 F21). */
@@ -177,8 +254,8 @@
     color: var(--ink-3);
   }
 
-  .k-table__table tbody tr:hover td {
-    background: transparent;
+  .k-table__table tbody tr:has(a[href]):hover {
+    background-color: var(--card);
   }
 }
 
@@ -190,6 +267,6 @@
   }
 
   .k-figures__value--long {
-    font-size: var(--fs-heading);
+    font-size: var(--fs-section);
   }
 }

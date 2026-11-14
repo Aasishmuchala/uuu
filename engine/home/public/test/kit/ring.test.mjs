@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { KIT, isVNode } from "./_dom.mjs";
-import { newSheetTest } from "./_rules.mjs";
+import { css, newSheetTest } from "./_rules.mjs";
 
 const kit = { ring: await import(pathToFileURL(join(KIT, "ring.js")).href) };
 
@@ -22,6 +22,12 @@ test("Ring loads in Node: the count inside, the words for screen readers, the sh
   assert.equal(ringShare(-1, 9), 0);
   assert.equal(ringShare(3, 0), 0);
   assert.equal(ringShare("x", 9), 0);
+});
+
+test("ring: the share is drawn in the ink on the meter's track", () => {
+  const r = css("kit/ring.css");
+  assert.match(r, /\.k-ring__track \{\s*stroke: var\(--raise-2\);/);
+  assert.match(r, /\.k-ring__value,\s*\.k-ring--full \.k-ring__value \{\s*stroke: var\(--ink\);/);
 });
 
 newSheetTest("ring");

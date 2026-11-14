@@ -1,5 +1,5 @@
-/* kit/ring.js: a small progress ring with its count in the middle. The drawn part is the primary colour;
-   a full ring turns to the passed colour. */
+/* kit/ring.js: a small progress ring with its count in the middle, for where a share is shown as a circle.
+   The drawn part is in the ink on the meter's track; a full ring stays the same, its count says it. */
 
 .k-ring {
   position: relative;
@@ -18,15 +18,12 @@
 }
 
 .k-ring__track {
-  stroke: var(--hairline-strong);
+  stroke: var(--raise-2);
 }
 
-.k-ring__value {
-  stroke: var(--primary);
-}
-
+.k-ring__value,
 .k-ring--full .k-ring__value {
-  stroke: var(--ok);
+  stroke: var(--ink);
 }
 
 .k-ring__count {
@@ -34,8 +31,8 @@
   inset: 0;
   display: grid;
   place-items: center;
-  color: var(--text);
-  font-size: var(--fs-caption);
+  color: var(--ink);
+  font-size: var(--fs-note);
   font-weight: var(--fw-medium);
   font-variant-numeric: tabular-nums;
   line-height: 1;

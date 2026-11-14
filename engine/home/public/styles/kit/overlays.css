@@ -1,5 +1,6 @@
-/* kit/overlays.js: the action menu, the dialog and the drawer. Overlays own z-index 100 and up.
-   Each panel is opaque: the panel fill, a hairline and the float shadow. Nothing behind it is blurred. */
+/* kit/overlays.js: the action menu, the dialog and the drawer (a sheet from the right). Overlays own z-index
+   100 and up. Each panel is opaque: the panel fill and the float shadow, which draws its edge. What is behind
+   stays sharp under a dim scrim. In a dialog's foot the primary goes last, at the right. */
 
 /* Menu */
 .k-menu {
@@ -8,8 +9,8 @@
 }
 
 .k-menu--open .k-menu__trigger {
-  color: var(--text);
-  background: var(--glass-soft);
+  color: var(--ink);
+  background: var(--ctl);
 }
 
 .k-menu__list {
@@ -22,8 +23,8 @@
   min-width: calc(var(--s-12) * 4);
   max-width: min(90vw, calc(var(--s-12) * 7));
   padding: var(--s-1);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
+  border: 0;
+  border-radius: var(--r-2);
   background: var(--panel);
   box-shadow: var(--float);
   animation: k-overlay-in var(--t-fast) var(--ease);
@@ -33,24 +34,25 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  min-height: var(--h-md);
-  padding: 0 var(--s-3);
+  min-height: var(--s-8);
+  padding: 0 10px;
   border: 0;
-  border-radius: var(--r-3);
+  border-radius: var(--r-1);
   background: transparent;
-  color: var(--text);
-  font-size: var(--fs-body);
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
   text-align: left;
   cursor: pointer;
 }
 
 .k-menu__item .k-icon {
-  color: var(--text-2);
+  color: var(--ink-2);
 }
 
 .k-menu__item:hover,
 .k-menu__item:focus {
-  background: var(--glass-soft);
+  background: var(--ctl);
 }
 
 .k-menu__item:focus-visible {
@@ -59,7 +61,7 @@
 
 .k-menu__item--danger,
 .k-menu__item--danger .k-icon {
-  color: var(--bad-text);
+  color: var(--bad);
 }
 
 .k-menu__label {
@@ -88,7 +90,7 @@
 .k-drawer__backdrop {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--canvas) 60%, transparent);
+  background: color-mix(in srgb, var(--black) 40%, transparent);
   animation: k-overlay-fade var(--t-med) var(--ease);
 }
 
@@ -97,16 +99,16 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--hairline);
+  border: 0;
   background: var(--panel);
-  color: var(--text);
+  color: var(--ink);
   box-shadow: var(--float);
 }
 
 .k-dialog__panel {
   width: 100%;
   max-height: 80vh;
-  border-radius: var(--r-5);
+  border-radius: var(--r-3);
   animation: k-overlay-in var(--t-med) var(--ease);
 }
 
@@ -125,15 +127,15 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
-  padding: var(--s-3) var(--s-3) var(--s-3) var(--s-5);
-  border-bottom: 1px solid var(--hairline);
+  padding: var(--s-4) var(--s-3) var(--s-2) var(--s-6);
 }
 
 .k-dialog__title,
 .k-drawer__title {
   min-width: 0;
-  font-size: var(--fs-title);
+  font-size: var(--fs-section);
   font-weight: var(--fw-bold);
+  line-height: var(--lh-section);
   overflow-wrap: anywhere;
 }
 
@@ -142,7 +144,7 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--s-5);
+  padding: var(--s-2) var(--s-6) var(--s-5);
 }
 
 .k-dialog__foot {
@@ -150,8 +152,14 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--s-2);
-  padding: var(--s-3) var(--s-5);
-  border-top: 1px solid var(--hairline);
+  padding: var(--s-4) var(--s-6);
+  border-top: 1px solid var(--line);
+}
+
+/* The primary is the one filled button, and it goes last. */
+.k-dialog__foot .k-btn--primary,
+.k-dialog__foot .k-btn--accept {
+  order: 1;
 }
 
 /* Drawer */
@@ -169,12 +177,10 @@
 }
 
 .k-drawer--left .k-drawer__panel {
-  border-width: 0 1px 0 0;
   animation: k-drawer-left var(--t-slow) var(--ease);
 }
 
 .k-drawer--right .k-drawer__panel {
-  border-width: 0 0 0 1px;
   animation: k-drawer-right var(--t-slow) var(--ease);
 }
 
@@ -226,7 +232,7 @@
   .k-dialog__panel {
     max-width: none;
     max-height: 92vh;
-    border-radius: var(--r-5) var(--r-5) 0 0;
+    border-radius: var(--r-3) var(--r-3) 0 0;
   }
 
   .k-menu__item {

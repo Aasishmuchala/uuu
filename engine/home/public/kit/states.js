@@ -1,16 +1,18 @@
 // Every data state has a design: a notice, an error with Try again (C3 25), not connected, empty, loading, being built.
+// A notice is one quiet line: warn is a thin amber rule at the left on a faint tint, the only amber surface;
+// info, ok and bad are a plain sentence whose icon carries the tone.
 import { html } from "../vendor/preact-htm.js";
 import { Button } from "./button.js";
 import { Icon } from "./icon.js";
 import { cx } from "./util.js";
 
 const TONES = ["info", "ok", "warn", "bad"];
-const TONE_ICONS = { info: null, ok: "check", warn: "alert", bad: "alert" };
+const TONE_ICONS = { info: "info", ok: "check", warn: "alert", bad: "alert" };
 
 export function Notice({ tone = "info", title, children }) {
   const t = TONES.includes(tone) ? tone : "info";
   return html`<div class=${cx("k-notice", `k-notice--${t}`)}>
-    ${TONE_ICONS[t] ? html`<${Icon} name=${TONE_ICONS[t]} size=${16} class="k-notice__icon" />` : null}
+    <${Icon} name=${TONE_ICONS[t]} size=${16} class="k-notice__icon" />
     <div class="k-notice__body">
       ${title ? html`<p class="k-notice__title">${title}</p>` : null}
       ${children ? html`<div class="k-notice__text">${children}</div>` : null}
@@ -52,14 +54,17 @@ export function NotConnected({ reason, next, title = "Not connected yet" }) {
   </div>`;
 }
 
-export function Empty({ title, text, children }) {
+// A 16 px icon, one sentence, one line under it and the way on (one button); no illustration.
+export function Empty({ title, text, icon = "inbox", children }) {
   return html`<div class="k-empty">
+    ${icon ? html`<${Icon} name=${icon} size=${16} class="k-empty__icon" />` : null}
     ${title ? html`<p class="k-empty__title">${title}</p>` : null}
     ${text ? html`<p class="k-empty__text">${text}</p>` : null}
     ${children ? html`<div class="k-empty__actions">${children}</div>` : null}
   </div>`;
 }
 
+// Rows parted by hairlines, each with a bar that breathes in opacity for a while, then rests.
 export function Loading({ lines = 3, label }) {
   const n = Math.min(Math.max(Math.round(Number(lines)) || 3, 1), 12);
   return html`<div class="k-loading" role="status" aria-busy="true">
@@ -70,7 +75,7 @@ export function Loading({ lines = 3, label }) {
 
 export function BeingBuilt({ title }) {
   return html`<div class="k-empty k-empty--building">
-    <${Icon} name="layers" size=${24} class="k-empty__icon" />
+    <${Icon} name="layers" size=${16} class="k-empty__icon" />
     ${title ? html`<p class="k-empty__title">${title}</p>` : null}
     <p class="k-empty__text">This page is being built.</p>
   </div>`;

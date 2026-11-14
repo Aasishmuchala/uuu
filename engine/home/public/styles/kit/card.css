@@ -1,38 +1,89 @@
-/* kit/card.js: glass cards. The same recipe as .u-glass in canvas.css (a translucent fill, a hairline edge, the
-   inner highlight, no backdrop blur), written out here because kit classes start with k-. Warm is what needs the
-   owner, sunken an aside inside a card, ghost the hairline alone. */
+/* kit/card.js: a card is one step up from the ground (C3's .card and the corrections after round 3): the card
+   fill, a hairline edge and the card shadow (none in dark, soft in light, where the card is white on a grey
+   ground). Warm is a card that needs the owner, said once by an amber rule at its left; sunken a well inside a
+   card; ghost the hairline alone. A card never frames another: a nested card keeps only its spacing. */
 
 .k-card {
   display: block;
   min-width: 0;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
-  background: var(--glass);
-  box-shadow: var(--highlight);
-  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
 }
 
 .k-card--pad-none { padding: 0; }
 .k-card--pad-sm { padding: var(--s-3); }
-.k-card--pad-md { padding: var(--s-5); }
+.k-card--pad-md { padding: var(--s-4) var(--s-5); }
 .k-card--pad-lg { padding: var(--s-6); }
 
-/* The warm tint lies over glass, so a card that needs the owner looks the same over every light (M18-11). */
-.k-card--warm {
-  background: linear-gradient(var(--bg-warm), var(--bg-warm)), var(--glass);
-  border-color: var(--border-warm);
+/* Urgent says so once: an amber rule at the left edge, no tint and no amber outline. The rule and the chosen
+   ring are drawn by ::after, because the card shadow is "none" in dark and cannot share a list. */
+.k-card--warm,
+.k-card[aria-current="true"],
+.k-card[aria-current="page"],
+.k-card[aria-pressed="true"],
+.k-card[aria-checked="true"] {
+  position: relative;
+}
+
+.k-card--warm::after,
+.k-card[aria-current="true"]::after,
+.k-card[aria-current="page"]::after,
+.k-card[aria-pressed="true"]::after,
+.k-card[aria-checked="true"]::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.k-card--warm::after {
+  box-shadow: inset 2px 0 0 var(--warn);
 }
 
 .k-card--sunken {
-  background: var(--glass-soft);
+  background: var(--ctl);
   border-color: transparent;
   box-shadow: none;
-  border-radius: var(--r-3);
+  border-radius: var(--r-2);
 }
 
 .k-card--ghost {
   background: transparent;
   box-shadow: none;
+}
+
+/* No frame inside a frame: a card in a card loses its edge, its fill and its shadow, and its side spacing, so
+   its words line up with its parent's. */
+.k-card .k-card:not(.k-card--sunken) {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.k-card .k-card--warm:not(.k-card--sunken) {
+  padding-left: var(--s-3);
+}
+
+/* What is chosen is lifted: the raised step with a 2 px accent ring in place of the hairline. */
+.k-card[aria-current="true"],
+.k-card[aria-current="page"],
+.k-card[aria-pressed="true"],
+.k-card[aria-checked="true"] {
+  border-color: transparent;
+  background: var(--raise);
+}
+
+.k-card[aria-current="true"]::after,
+.k-card[aria-current="page"]::after,
+.k-card[aria-pressed="true"]::after,
+.k-card[aria-checked="true"]::after {
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 /* A card that is one link or one button: a column with its content at the top, even when a grid stretches it. */
@@ -50,17 +101,18 @@
 }
 
 .k-card--action:hover {
-  border-color: var(--hairline-strong);
+  border-color: var(--line-2);
 }
 
-.k-card--plain.k-card--action:hover {
-  background: var(--glass-strong);
+.k-card--plain.k-card--action:hover,
+.k-card--warm.k-card--action:hover {
+  background-color: color-mix(in srgb, var(--card), var(--ink) 4%);
 }
 
 .k-card--sunken.k-card--action:hover,
 .k-card--ghost.k-card--action:hover {
-  background: var(--glass-soft);
-  border-color: var(--hairline);
+  background: var(--ctl);
+  border-color: var(--line);
 }
 
 .k-card--action:active {
