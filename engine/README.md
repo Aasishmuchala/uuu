@@ -13,7 +13,7 @@ One command, `engine/bin/engine`, with these words after it:
 - `start`: turns everything on, in order, and stops at the first part that fails. It says where to look. Running it twice starts nothing new. It ends with `Open http://127.0.0.1:3200`.
 - `stop`: turns everything off and leaves no agent running. Nothing starts by itself when the Mac starts.
 - `status`: one line per part (the board, the gate, the Model relay, the home screen and the others): `on`, `off`, `unhealthy` or `not installed`, and what to do next. A good result ends with `Everything is on.`
-- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 168 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
+- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 204 checks with 0 failures. Seven more are skipped while no app is switched on, because they try an app's own sockets and there are none; they run the first time an app is on. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
 - `setup`: makes the board match the company files. Safe to run again.
 - `test`: runs every test. A good result ends with `All tests passed.`
 
@@ -76,7 +76,7 @@ A job is a named piece of work an agent can start for you. There are 72, in seve
 
 - **Hand-off tags** say what is left to you: "You lead" (the agent gets things ready, you do the main part), "You approve" (the agent does the work, and it counts when you approve it), "On its own" (the agent does it to the end, it is checked, and you read the result).
 - **The build order** has four stages: Foundations (fill the company brain), Take in (jobs that read and sort what comes in), Make (jobs that produce work) and Hand on (work passed from one agent to the next, such as a call write-up, then a proposal, then an invoice draft).
-- **What can start.** On the live engine 51 jobs can start before any basics are filled. Seven wait until you fill the basics (what we sell, brand and about the company). Eleven stay dim with the reason shown: six need the web switched on, three need Generation switched on with a Runway key, and two need a connected account for sending.
+- **What can start.** On the live engine 51 jobs can start before any basics are filled. Seven wait until you fill the basics (what we sell, brand and about the company). Fourteen stay dim with the reason shown: six need the web switched on, three need Generation switched on with a Runway key, three need the page viewer switched on, and two need a connected account for sending.
 - A job says "Takes a few minutes. It is checked before it reaches you." That is true: expect 5 to 40 minutes, as in the trials below.
 
 ## Ask the brain
@@ -285,7 +285,7 @@ Pressing Start is your yes. The job page says the cost first, for example "Each 
 
 Three jobs in Marketing make a page: "A landing page", "A project page for a property or a visualisation" and "A small site (up to six pages)". The Builder writes a static site of HTML, CSS and a little JavaScript, from your brand kit and the engine's site kit, with your own pictures copied in. Nothing is installed and nothing is fetched. You get three versions to choose from, the way you do for a carousel. The Builder, and then the Art director, look at each page in a real browser before it reaches you.
 
-The page viewer is built and tested, not yet live: it goes live when the page viewer is started. Even then it is off until you turn it on, and nothing is sent anywhere: the pages are opened on this Mac, in a hidden Chrome that can reach nothing but the page itself.
+The page viewer went live on 14 November 2026. It is off until you turn it on, and nothing is sent anywhere: the pages are opened on this Mac, in a hidden Chrome that can reach nothing but the page itself.
 
 Turn it on.
 
@@ -310,7 +310,7 @@ The brand check reads every page before a reviewer sees it, from its files and b
 
 An app is a program the company made, kept in the repository as a folder, `apps/<name>/`, that runs on this Mac only. App Studio is the page that lists them, turns them on and off, and opens one inside the home screen. The first is Render to Film. You and the Artist both use it. An app reaches Runway and Higgsfield only through the engine, so the keys never go into it and one set of limits and one record of spending cover the Artist and every app.
 
-It is built and tested, not yet live. It goes live when the App Studio part is started, after the engine has been told the first app is ready. Until then the Apps page says "Waits for App Studio." and Render to Film says "Not ready yet.". Everything below is how it works once it is on, and nothing is switched on for you.
+App Studio and Render to Film went live on 14 November 2026, with Render to Film switched off. Nothing is switched on for you: Render to Film runs only after you press "Turn on", and spends only after you allow it.
 
 Open an app.
 
@@ -368,7 +368,7 @@ The Artist knows Render to Film's recipes, as words, in a playbook. It never ope
 
 ## Connecting Higgsfield
 
-Higgsfield is a second paid service for pictures and clips, beside Runway. It is not live yet, and it is off until you sign in and switch it on. Nothing is sent to it while it is off.
+Higgsfield is a second paid service for pictures and clips, beside Runway. Its door went live on 14 November 2026, signed out and switched off. It stays off until you sign in and switch it on. Nothing is sent to it while it is off.
 
 1. Open Settings, then Generation, and find "Higgsfield".
 2. Read the warning, which is always shown: "Higgsfield's terms let it use what you send, and what it makes, to train its models. Do not send client work you may not share." Higgsfield's own pages document a way to turn this off only for its developer service, not for the way the engine signs in, so do not count on it. Keep Higgsfield off for any work that is not yours to share.
