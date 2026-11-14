@@ -5,8 +5,8 @@
 // (docs/adr/0007). An allowance is money: its amount is checked here against the door's own ledger and the owner's
 // caps, and the door checks it again at every job.
 // What is read: the apps' manifests (engine/apps/manifest.mjs, the trust rule), the switches with the host's own
-// strict reader (so both always agree), the host's status file (trust rule, capped) and its health address (one
-// second, 64 KB, Host 127.0.0.1:<port>; a null address, as in stub homes, is never called), the door's ledger
+// strict reader (so both always agree), the host's status file (trust rule, capped) and its health address (1.8
+// seconds, 64 KB, Host 127.0.0.1:<port>; a null address, as in stub homes, is never called), the door's ledger
 // (readLedger, totalsOf) and its status file (only whether Higgsfield is signed in), and the Models state (the
 // saved list of models and the `app-<slug>` picks the relay reads).
 import {
@@ -26,10 +26,14 @@ import { HomeError } from "./errors.mjs";
 import { readState, updateState } from "./models.mjs";
 import { PICK, picksOf } from "./picks.mjs";
 import { keptShots, siteInfo, sitesOf } from "./siteshots.mjs";
+import { needIds } from "./goals.mjs";
 import { loadTaskContext } from "./tasks.mjs";
 import { kindOfTask } from "../routes/pieces.mjs";
 
-export const HEALTH_TIMEOUT_MS = 1000;
+// The host's health is a tiny answer, but on a busy Mac (ffmpeg, a build) the T85 review measured 1.3 seconds. 1.8
+// seconds leaves room for that and stays under the 2 seconds the app's page waits between asks while an app starts,
+// so each answer still arrives before the next ask replaces it.
+export const HEALTH_TIMEOUT_MS = 1800;
 const HEALTH_MAX_BYTES = 64 * 1024;
 const STATUS_MAX_BYTES = 256 * 1024;
 const SWITCHES_MAX_BYTES = 64 * 1024;
@@ -227,6 +231,7 @@ export function readHostStatus(config) {
 }
 
 // The host: { state: on | off | unhealthy | not_installed, sentence, apps: Map(slug -> state) } (apps only while on).
+// One answer, as it came: the list uses steadyStates below.
 export async function hostOf(config, base) {
   const r = await probeHost(base);
   let state;
@@ -244,6 +249,44 @@ function appState(entry, host, status) {
   if (host.state !== "on") return "off";
   const s = host.apps.get(entry.slug) || status.get(entry.slug)?.state || "off";
   return s === "damaged" || s === "not_installed" ? "off" : s;
+}
+
+// One bad answer does not take an open app away (T85 finding 8). An app the owner switched on that was "on" at the
+// last answer and is "off" now (the host slow, closed, or not listing it) stays "on" for this one answer; the next
+// answer that says off is believed. An app switched off is never held. The host's own state is held with it, only
+// while it holds an app. Remembered per host address: Map(base -> { host, apps: Map(slug -> { state, held }) }).
+const steady = new Map();
+const STEADY_MAX = 50;
+
+// steadyStates(base, host, fresh, on) -> { host, states }: `fresh` is Map(slug -> state) from this answer, `on` the
+// owner's switches ({ slug: true }).
+export function steadyStates(base, host, fresh, on) {
+  const key = String(base || "");
+  const before = steady.get(key) || { host: null, apps: new Map() };
+  const apps = new Map();
+  const states = new Map();
+  let holding = false;
+  for (const [slug, state] of fresh) {
+    const last = before.apps.get(slug);
+    if (state === "off" && on[slug] === true && last && last.state === "on" && !last.held) {
+      apps.set(slug, { state: "on", held: true });
+      states.set(slug, "on");
+      holding = true;
+    } else {
+      apps.set(slug, { state, held: false });
+      states.set(slug, state);
+    }
+  }
+  const shown = holding && host.state !== "on" && before.host && before.host.state === "on" ? before.host : host;
+  steady.delete(key);
+  steady.set(key, { host: shown, apps });
+  if (steady.size > STEADY_MAX) steady.delete(steady.keys().next().value);
+  return { host: shown, states };
+}
+
+// For tests.
+export function forgetSteady() {
+  steady.clear();
 }
 
 // ---- money ---------------------------------------------------------------------------------------------------------
@@ -294,9 +337,10 @@ export function spendingOf(config, slug, caps, now = Date.now()) {
 }
 
 // Writes the owner's allowance for one app: { version: 1, id: "a" + 20 hex, app, approvedAt, expiresAt (the next
-// midnight in Asia/Kolkata), budgetCents }, 0600 in 0700 folders, a new id every time. -> the allowance written.
+// midnight in Asia/Kolkata), budgetCents (whole dollars, K22) }, 0600 in 0700 folders, a new id every time. -> the
+// allowance written.
 export function writeAllowance(config, slug, cents, now = Date.now()) {
-  if (!SLUG_RE.test(slug) || !Number.isInteger(cents) || cents < 0 || cents > ALLOWANCE_MAX_CENTS) throw new Error("writeAllowance: not an allowance");
+  if (!SLUG_RE.test(slug) || !Number.isInteger(cents) || cents < 0 || cents % 100 !== 0 || cents > ALLOWANCE_MAX_CENTS) throw new Error("writeAllowance: not an allowance");
   const allowance = {
     version: 1, id: `a${randomBytes(10).toString("hex")}`, app: slug,
     approvedAt: new Date(now).toISOString(), expiresAt: nextMidnightKolkata(now), budgetCents: cents,
@@ -459,11 +503,38 @@ export function sitesFrom(ctx, tctx) {
   return out;
 }
 
+// The board's part of the list (its tasks, agents, runs and routines: four requests) is kept a few seconds, because
+// App Studio's pages ask for the whole view every 2 to 10 seconds (T85 finding 9). Only that is kept: whether the
+// owner accepted a task is read fresh from the home screen's own decisions at every call, and the owner's switches,
+// the allowances and the host's health are never kept. Keyed by the board, the state folder and the company.
+export const SITES_BOARD_TTL_MS = 8000;
+const boardCache = new Map(); // key -> { at, value: Promise<tctx> }
+
+function boardPart(ctx) {
+  const ids = needIds(ctx);
+  const key = [ctx.home?.urls?.board || "", ctx.config?.paths?.state || "", ids.companyId, ids.projectId].join("\n");
+  const now = Date.now();
+  const hit = boardCache.get(key);
+  if (hit && now - hit.at < SITES_BOARD_TTL_MS) return hit.value;
+  const value = loadTaskContext(ctx, { withInbox: false, withComments: false });
+  boardCache.set(key, { at: now, value });
+  value.catch(() => { if (boardCache.get(key)?.value === value) boardCache.delete(key); });
+  if (boardCache.size > 20) for (const k of boardCache.keys()) { boardCache.delete(k); if (boardCache.size <= 10) break; }
+  return value;
+}
+
+// For tests.
+export function forgetSitesBoard() {
+  boardCache.clear();
+}
+
 // listSites(ctx) -> the list, or [] on any problem (the board off, the company not set up, a folder unreadable).
 export async function listSites(ctx) {
   try {
-    const tctx = await loadTaskContext(ctx, { withInbox: false, withComments: false });
-    return sitesFrom(ctx, tctx);
+    const tctx = await boardPart(ctx);
+    const decisions = ctx.decisions;
+    const accepted = (id) => !!(decisions && decisions.get(`acknowledged:goal:${id}`)) || tctx.accepted(id);
+    return sitesFrom(ctx, { ...tctx, accepted });
   } catch {
     return [];
   }
@@ -476,14 +547,17 @@ export async function buildAppsView(ctx, now = Date.now()) {
   const config = ctx.config;
   const entries = listApps(config);
   const switches = readSwitches(config);
-  const host = await hostOf(config, ctx.home?.urls?.apps);
-  const status = host.state === "on" ? readHostStatus(config) : new Map();
+  const base = ctx.home?.urls?.apps;
+  const answer = await hostOf(config, base);
+  const status = answer.state === "on" ? readHostStatus(config) : new Map();
+  const fresh = new Map(entries.filter((e) => e.ok && e.installed).map((e) => [e.slug, appState(e, answer, status)]));
+  const { host, states } = steadyStates(base, answer, fresh, switches.on);
   const caps = capsLeft(config, now);
   const ready = providersReady(config, now);
   const { state: models } = readState(config);
   const closed = { open: false, budget: 0, spent: 0, left: 0, expiresAt: null, words: SPENDING_NONE, limitLeft: 0, limitWords: null };
   const apps = entries.map((e) => {
-    const state = appState(e, host, status);
+    const state = states.get(e.slug) || appState(e, answer, status);
     const spends = e.ok && e.app.engine.includes("generate");
     return {
       slug: e.slug,

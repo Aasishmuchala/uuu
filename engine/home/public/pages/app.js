@@ -2,9 +2,11 @@
 // home screen's own bar (the app cannot draw over it): back to App Studio, the app's picture, name and state, what
 // it may spend today with "Allow spending" or "Stop spending", the model it thinks with, "Open in its own window"
 // and the switch. Under it, the app in an iframe at its own port on this Mac (from /api/apps, never from the app's
-// text), set only once the app is on; off, starting, stopped and not ready each have their own card. The allowance
-// sheet is the kit's dialog: four amounts, those over what is left of today's limit disabled.
-import { html, useEffect, useState } from "../vendor/preact-htm.js";
+// text), set only once the app is on and kept through one answer that says otherwise ("Checking the app…"); off,
+// starting, stopped and not ready each have their own card. What the fence does not cover is said in plain words: in
+// full beside Turn on, short under the bar while the app is open (T86, ADR 0016). The allowance sheet is the kit's
+// dialog: four amounts in whole dollars, those over what is left of today's limit disabled.
+import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useApp } from "../lib/context.js";
 import { Button, Dialog, ErrorNotice, Icon, Loading, Menu, NextStep, StatusDot } from "../kit/index.js";
 import {
@@ -18,9 +20,9 @@ export const STARTING_FOR_MS = 60000;
 // On: every 10 seconds, so the bar's spending and state stay true.
 export const POLL_ON_MS = 10000;
 
-// The iframe's fixed permissions (T80): scripts, its own origin, forms, downloads and windows of its own, never the
-// home screen's address bar.
-export const SANDBOX = "allow-scripts allow-same-origin allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox";
+// The iframe's fixed permissions (T80, T86): scripts, its own origin, forms and downloads. No window of its own (a
+// popup is a way off this Mac, T85 finding 1) and never the home screen's address bar.
+export const SANDBOX = "allow-scripts allow-same-origin allow-forms allow-downloads";
 export const ALLOW = "fullscreen; clipboard-write";
 
 const hostnameNow = () => (typeof location === "undefined" ? "" : String(location.hostname || ""));
@@ -80,9 +82,11 @@ function StageCard({ app, host, shown, late, busy, onTurnOn, onCheck }) {
   let title = "";
   let text = "";
   let action = null;
+  let trust = false;
   if (shown === "off") {
     title = `${name} is off.`;
     action = html`<${Button} variant="primary" busy=${busy} onClick=${onTurnOn}>${WORDS.turnOn}<//>`;
+    trust = true;
   } else if (shown === "starting") {
     title = late ? WORDS.late : `Starting ${name}…`;
     action = late
@@ -102,7 +106,26 @@ function StageCard({ app, host, shown, late, busy, onTurnOn, onCheck }) {
     <p class="p-app__card-title">${title}</p>
     ${text ? html`<p class="p-app__card-text">${text}</p>` : null}
     ${action ? html`<div class="p-app__card-actions">${action}</div>` : null}
+    ${trust ? html`<p class="p-app__trust-long">${WORDS.trust}</p>` : null}
   </div>`;
+}
+
+// Whether the frame is kept through this answer (T85 finding 8): an app that was on and is still switched on keeps its
+// frame through one answer that says otherwise, while the page says "Checking the app…" and asks again soon; the
+// next such answer is believed. The owner's own Turn off is believed at once. Worked out once per answer, during the
+// render, so the frame is never taken down and put back.
+function useHeld(slug, data, app, shown) {
+  const m = useRef({ slug: null, data: null, wasOn: false, missed: false });
+  const h = m.current;
+  if (h.slug !== slug) Object.assign(h, { slug, data: null, wasOn: false, missed: false });
+  if (h.data !== data) {
+    h.data = data;
+    if (!app || !app.on) Object.assign(h, { wasOn: false, missed: false });
+    else if (shown === "on") Object.assign(h, { wasOn: true, missed: false });
+    else if (h.wasOn && !h.missed) h.missed = true;
+    else Object.assign(h, { wasOn: false, missed: false });
+  }
+  return !!app && app.on === true && shown !== "on" && h.wasOn && h.missed;
 }
 
 // True below 860 px, where the bar is two rows, the model's menu shows only its mark, and a long state is only its
@@ -136,7 +159,9 @@ export default function AppPage({ route }) {
   const data = view.data && typeof view.data === "object" ? view.data : null;
   const host = data && data.host && typeof data.host === "object" ? data.host : { state: "off", sentence: "" };
   const app = SLUG.test(String(slug || "")) ? appsOf(data).find((a) => a.slug === slug) || null : null;
-  const shown = app ? shownState(app, host) : null;
+  const answered = app ? shownState(app, host) : null;
+  const checking = useHeld(slug, view.data, app, answered);
+  const shown = checking ? "on" : answered;
   const late = shown === "starting" && waitFrom !== null && now - waitFrom > STARTING_FOR_MS;
   const name = app ? plain(app.name, 40) || app.slug : "";
 
@@ -148,8 +173,8 @@ export default function AppPage({ route }) {
   }, [shown]);
   useEffect(() => { setNow(Date.now()); }, [view.data]);
   useEffect(() => {
-    setEvery(shown === "starting" ? (late ? 0 : POLL_STARTING_MS) : POLL_ON_MS);
-  }, [shown, late]);
+    setEvery(shown === "starting" ? (late ? 0 : POLL_STARTING_MS) : checking ? POLL_STARTING_MS : POLL_ON_MS);
+  }, [shown, late, checking]);
 
   // The window's title, as every page's header sets it.
   const company = ctx.shell?.company?.name || "";
@@ -235,6 +260,12 @@ export default function AppPage({ route }) {
         : null}
     </header>
     ${error ? html`<div class="p-app__problem"><${Refusal} error=${error} /></div>` : null}
+    ${address
+      ? html`<div class="p-app__notes">
+          ${checking ? html`<p class="p-app__checking" role="status">${WORDS.checking}</p>` : null}
+          <p class="p-app__trust">${WORDS.trustShort}</p>
+        </div>`
+      : null}
     <div class="p-app__stage">
       ${address
         ? html`<iframe

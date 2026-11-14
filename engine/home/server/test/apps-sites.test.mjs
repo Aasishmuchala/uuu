@@ -3,10 +3,11 @@
 // where it opens. Built over a stub home's folders with a made-up task list; nothing is run and nothing is fetched.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SITES_MAX, buildAppsView, listSites, sitesFrom } from "../lib/apps.mjs";
+import { SITES_BOARD_TTL_MS, SITES_MAX, buildAppsView, forgetSitesBoard, listSites, sitesFrom } from "../lib/apps.mjs";
+import { createBoard } from "../lib/board.mjs";
 import { readShape, sameShape } from "../lib/shape.mjs";
 import { forgetSiteShots, siteInfo } from "../lib/siteshots.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
@@ -227,5 +228,45 @@ test("sites: GET /api/apps carries the list and fits the shape; an accepted page
   } finally {
     await h.close();
     rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("sites: the board's part is kept a few seconds: three asks of /api/apps make its four board requests once; the owner's accept shows at once", async () => {
+  forgetSitesBoard();
+  const id = IDS_V2.issues["STH-2"];
+  const h = await startV2({ routes: ["apps", "pieces"], decisions: { [`template:${id}`]: JOB } });
+  const tmp = mkdtempSync(join(tmpdir(), "uuu-apps-sites-"));
+  try {
+    const craft = join(tmp, "craft.json");
+    writeFileSync(craft, JSON.stringify({ version: 1, jobs: { [JOB]: { kind: "page", review: "art", variants: 3, playbooks: [] } } }));
+    h.app.home.craftFile = craft;
+    const dir = join(h.state, "tasks", "company-work", "STH-2", "site", "launch");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "index.html"), "<!doctype html><html lang=\"en\"><title>x</title>");
+    const BOARD = /^\/api\/companies\/[^/]+\/(issues|agents|live-runs|routines)\b/;
+    const boardAsks = () => h.board.requests.filter((r) => BOARD.test(String(r.path || r.url || ""))).length;
+    const before = boardAsks();
+    let r = await call(h.url, "GET", "/api/apps");
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.sites, [], "not accepted yet");
+    assert.equal(boardAsks() - before, 4, "one view: the board's tasks, agents, runs and routines");
+    await call(h.url, "GET", "/api/apps");
+    await call(h.url, "GET", "/api/apps");
+    assert.equal(boardAsks() - before, 4, "three views within a few seconds: still four board requests");
+    // The owner's accept is read fresh from the decisions at every view, never from the kept part.
+    const ids = () => JSON.parse(readFileSync(h.config.paths.ids, "utf8"));
+    const board = createBoard({ baseUrl: h.board.url, ids, companyName: h.config.paperclip.companyName });
+    const decisions = new Map([[`template:${id}`, JOB], [`acknowledged:goal:${id}`, true]]);
+    const v = await buildAppsView({ config: h.config, home: h.app.home, board, decisions, ids, log: () => {} });
+    assert.equal(v.sites.length, 1, "the owner's accept shows at once");
+    assert.equal(boardAsks() - before, 4, "from the kept part");
+    assert.ok(SITES_BOARD_TTL_MS >= 2000 && SITES_BOARD_TTL_MS <= 10000, "a few seconds");
+    forgetSitesBoard();
+    await call(h.url, "GET", "/api/apps");
+    assert.equal(boardAsks() - before, 8, "once the kept part is gone, the board is asked again");
+  } finally {
+    await h.close();
+    rmSync(tmp, { recursive: true, force: true });
+    forgetSitesBoard();
   }
 });

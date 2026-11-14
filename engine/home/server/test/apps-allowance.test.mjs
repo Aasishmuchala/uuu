@@ -100,6 +100,28 @@ test("an allowance of whole cents from $1 to $100, and never more than what is l
   });
 });
 
+test("K22: whole dollars only: $2.50 is refused with a plain sentence; what is left is held down to a whole dollar", async () => {
+  await withAllowance(async ({ h }) => {
+    setCaps(h.config, 3550, 100000);
+    writeLedger(h.config, []);
+    for (const cents of [250, 150, 999, 101]) {
+      const r = await post(h, "/api/apps/film/allowance", { cents });
+      assert.equal(r.status, 400, String(cents));
+      assert.equal(r.json.error.code, "bad_amount");
+      assert.equal(r.json.error.message, "An allowance is in whole dollars.");
+      assert.equal(r.json.error.next, "Choose a whole number of dollars, up to $35.00.");
+    }
+    const over = await post(h, "/api/apps/film/allowance", { cents: 3550 });
+    assert.equal(over.status, 400, "$35.50 is left, but the most is $35");
+    assert.equal(over.json.error.next, "Choose up to $35.00, what is left of today's limit.");
+    assert.equal(existsSync(fileOf(h.config)), false, "nothing was allowed");
+    assert.throws(() => writeAllowance(h.config, "film", 250), /not an allowance/);
+    assert.equal(existsSync(fileOf(h.config)), false);
+    assert.equal((await post(h, "/api/apps/film/allowance", { cents: 3500 })).status, 200);
+    assert.equal(readAllowance(h.config.paths.allowances, "film", Date.now()).allowance.budgetCents, 3500);
+  });
+});
+
 test("the month's cap bounds it too, and $100 is the most even with larger caps", async () => {
   await withAllowance(async ({ h }) => {
     setCaps(h.config, 50000, 2000);

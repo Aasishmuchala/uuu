@@ -51,10 +51,14 @@ export default function register(app) {
     if (!caps.ok) throw ctx.fail(409, LEDGER_UNREADABLE, "Open Health to see what to do.", "ledger_unreadable");
     const ready = providersReady(ctx.config, now);
     if (!ready.runway && !ready.higgsfield) throw ctx.fail(409, "Nothing can be made yet.", NO_PROVIDER, "no_provider");
+    // K22: whole dollars from $1 to $100, never more than what is left (held down to a whole dollar).
     const cents = bodyOf(ctx).cents;
-    const most = Math.min(caps.left, ALLOWANCE_MAX_CENTS);
+    const most = Math.floor(Math.min(caps.left, ALLOWANCE_MAX_CENTS) / 100) * 100;
     if (!Number.isInteger(cents) || cents < ALLOWANCE_MIN_CENTS || cents > ALLOWANCE_MAX_CENTS || cents > most) {
       throw ctx.fail(400, "That amount cannot be allowed.", `Choose up to ${dollars(most)}, what is left of today's limit.`, "bad_amount");
+    }
+    if (cents % 100 !== 0) {
+      throw ctx.fail(400, "An allowance is in whole dollars.", `Choose a whole number of dollars, up to ${dollars(most)}.`, "bad_amount");
     }
     const a = writeAllowance(ctx.config, entry.slug, cents, now);
     ctx.log(`apps: ${entry.slug} may spend ${dollars(cents)} until ${a.expiresAt}`);

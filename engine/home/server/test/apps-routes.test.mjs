@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readAppsState } from "../../../apps/host.mjs";
 import { SERVER_DIR } from "../lib/app.mjs";
-import { APP_SENTENCES, HOST_SENTENCES, PROBLEM_SENTENCES, appPickName } from "../lib/apps.mjs";
+import { APP_SENTENCES, HEALTH_TIMEOUT_MS, HOST_SENTENCES, PROBLEM_SENTENCES, appPickName } from "../lib/apps.mjs";
 import { readAgents, readState, recompute, updateState } from "../lib/models.mjs";
 import { readShape, sameShape } from "../lib/shape.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
@@ -51,8 +51,8 @@ function makeApps(root) {
   put("broken", "{ not json");
 }
 
-// A made-up host: GET /apps/health answers as `answer()` says ({ status, body } or "hang" or "headers-only"); every
-// request it saw is kept with its Host and Authorization headers.
+// A made-up host: GET /apps/health answers as `answer()` says ({ status, body, delay } or "hang" or "headers-only");
+// every request it saw is kept with its Host and Authorization headers.
 async function fakeHost(answer) {
   const seen = [];
   const server = http.createServer((req, res) => {
@@ -60,8 +60,11 @@ async function fakeHost(answer) {
     const a = answer(req);
     if (a === "hang") return;
     if (a === "headers-only") { res.writeHead(200, { "content-type": "application/json" }); res.write("{"); return; }
-    res.writeHead(a.status, { "content-type": "application/json" });
-    res.end(typeof a.body === "string" ? a.body : JSON.stringify(a.body));
+    const send = () => {
+      res.writeHead(a.status, { "content-type": "application/json" });
+      res.end(typeof a.body === "string" ? a.body : JSON.stringify(a.body));
+    };
+    if (a.delay) setTimeout(send, a.delay); else send();
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   return {
@@ -166,7 +169,7 @@ test("the host's own state: off with no address, unhealthy when it answers oddly
     said.answer = "headers-only";
     const t0 = Date.now();
     assert.equal((await view(h)).host.state, "unhealthy", "an answer begun and never finished");
-    assert.ok(Date.now() - t0 < 3000, "one second at most");
+    assert.ok(Date.now() - t0 < HEALTH_TIMEOUT_MS + 1000, "the health limit at most");
     said.answer = null;
     said.apps = [{ slug: "film", state: "on" }];
     assert.equal(appIn(await view(h), "film").state, "on");
@@ -178,6 +181,53 @@ test("the host's own state: off with no address, unhealthy when it answers oddly
     assert.equal(appIn(v, "film").state, "off", "nothing runs while the host is not on");
     h.app.home.urls.apps = null;
     assert.deepEqual((await view(h)).host, { state: "off", sentence: "App Studio is off. Run: engine start" });
+  });
+});
+
+test("the health limit is 1.8 seconds: the host answering in 1.3 seconds, as T85 measured on a busy Mac, is on", async () => {
+  assert.equal(HEALTH_TIMEOUT_MS, 1800);
+  await withApps(async ({ h, said }) => {
+    said.answer = { ...healthy([{ slug: "film", state: "on" }]), delay: 1300 };
+    const v = await view(h);
+    assert.equal(v.host.state, "on");
+    assert.equal(appIn(v, "film").state, "on");
+  });
+});
+
+test("one bad answer does not take an app the owner switched on away; the second answer that says off is believed", async () => {
+  await withApps(async ({ h, fake, said }) => {
+    said.apps = [{ slug: "film", state: "on" }, { slug: "still", state: "on" }];
+    assert.equal((await post(h, "/api/apps/film/switch", { on: true })).status, 200);
+    let v = await view(h);
+    assert.deepEqual([v.host.state, appIn(v, "film").state, appIn(v, "still").state], ["on", "on", "on"]);
+    // The host stops listing both (or says off): film, switched on, is held once; still, switched off, is not.
+    said.apps = [{ slug: "film", state: "off" }];
+    v = await view(h);
+    assert.deepEqual([appIn(v, "film").state, appIn(v, "film").sentence, appIn(v, "still").state], ["on", "On", "off"]);
+    v = await view(h);
+    assert.equal(appIn(v, "film").state, "off", "two answers in a row say off");
+    // Back on, then the host stops answering at all: the host and the app are held for one answer, then off.
+    said.apps = [{ slug: "film", state: "on" }];
+    assert.equal(appIn(await view(h), "film").state, "on");
+    said.answer = "hang";
+    v = await view(h);
+    assert.deepEqual([v.host.state, appIn(v, "film").state], ["on", "on"], "one answer that did not come in time");
+    v = await view(h);
+    assert.notEqual(v.host.state, "on");
+    assert.equal(appIn(v, "film").state, "off");
+    // A real answer of another state is believed at once: starting, failed.
+    said.answer = null;
+    assert.equal(appIn(await view(h), "film").state, "on");
+    said.apps = [{ slug: "film", state: "failed" }];
+    assert.equal(appIn(await view(h), "film").state, "failed");
+    // The owner's own off is believed at once, and nothing is held for an app switched off.
+    said.apps = [{ slug: "film", state: "on" }];
+    assert.equal(appIn(await view(h), "film").state, "on");
+    const off = await post(h, "/api/apps/film/switch", { on: false });
+    assert.equal(appIn(off.json, "film").on, false);
+    said.apps = [];
+    assert.equal(appIn(await view(h), "film").state, "off");
+    await fake.close();
   });
 });
 

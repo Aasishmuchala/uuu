@@ -14,6 +14,8 @@
 .p-apps .p-apps__spend { display: flex; align-items: center; gap: var(--s-2); margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
 .p-apps .p-apps__hint { margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
 .p-apps .p-apps__hint a { color: var(--text); }
+/* Beside the switch: what the fence does not cover (T86), quiet. */
+.p-apps .p-apps__trust { margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
 .p-apps .p-apps__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: auto; padding-top: var(--s-2); }
 
 /* Made by the team (T88): a calm grid of the sites' tiles; the picture shows the top of the first page. */
