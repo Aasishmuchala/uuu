@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "slug": "fix",
+  "name": "Fixture <App>",
+  "about": "The App Studio host's test app.",
+  "port": 3188,
+  "entry": "server.mjs",
+  "client": "dist",
+  "engine": ["generate", "relay"],
+  "tools": ["ffmpeg", "ffprobe"],
+  "icon": "icon.svg",
+  "memoryMb": 256
+}

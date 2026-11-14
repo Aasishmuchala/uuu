@@ -301,7 +301,7 @@ do_test() {
     [ -n "$f" ] && files+=("$f")
   done <<EOF
 $(cd "$REPO_DIR" && for d in engine/lib engine/gate engine/relay engine/doors engine/web engine/generate engine/viewer \
-    engine/playbooks engine/company engine/home engine/bin engine/test; do
+    engine/apps engine/playbooks engine/company engine/home engine/bin engine/test; do
     [ -d "$d" ] && find "$d" -name '*.test.mjs' -not -path '*/node_modules/*'
   done | sort)
 EOF
