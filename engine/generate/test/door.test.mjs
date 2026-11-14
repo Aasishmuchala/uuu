@@ -4,11 +4,13 @@ import test, { after, afterEach, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import net from "node:net";
+import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mintToken } from "../../relay/token.mjs";
-import { CODES, createGenerateDoor, generateDoorOptions } from "../door.mjs";
+import { CODES, NOT_STARTED_PER_SHOT, NOT_STARTED_TO_PAUSE, createGenerateDoor, generateDoorOptions } from "../door.mjs";
+import { readLedger, totalsOf } from "../ledger.mjs";
 import { MAX_CREDITS, RUNWAY_ORIGIN } from "../runway.mjs";
 import { REAL_NET } from "../../web/fetch.mjs";
 import { OUTPUT_HOST, mp4Bytes, pngBytes, startRunway } from "../../test/stubs/runway.mjs";
@@ -74,8 +76,10 @@ const get = (path, token = agent()) => request("GET", path, { headers: { Authori
 const upload = (bytes = pngBytes(1280, 720), type = "image/png", token = agent()) => request("POST", "/gen/inputs", {
   headers: { Authorization: `Bearer ${token}`, "Content-Type": type }, body: bytes,
 });
-async function input(token) {
-  const r = await upload(pngBytes(1280, 720), "image/png", token);
+// A new picture each time (another length, so other bytes): the door knows a picture by its bytes.
+let pictures = 0;
+async function input(token, bytes = pngBytes(1280, 720, 2048 + (pictures += 1))) {
+  const r = await upload(bytes, "image/png", token);
   assert.equal(r.status, 201, r.text);
   return r.json.input;
 }
@@ -90,6 +94,16 @@ async function settled(job, ms = 5000) {
   }
 }
 const ledger = () => (existsSync(paths.ledger) ? readFileSync(paths.ledger, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []);
+const jobRecord = (job) => JSON.parse(readFileSync(join(paths.doorWork, "gen", "jobs", `${job}.json`), "utf8"));
+const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+// Waits until `check()` holds (it may be async), at most `ms`.
+async function until(check, ms = 5000) {
+  const end = Date.now() + ms;
+  while (!(await check())) {
+    if (Date.now() > end) throw new Error("the condition did not hold in time");
+    await new Promise((res) => setTimeout(res, 10));
+  }
+}
 const creates = () => rw.seen.api.filter((r) => r.method === "POST");
 const raw = (text) => new Promise((resolve) => {
   const sock = net.connect(port, "127.0.0.1");
@@ -582,6 +596,117 @@ test("two safety refusals freeze the batch; three in a day pause the door until 
   assert.equal(back.status, 202, back.text);
 });
 
+// ---- requests Runway did not start (T48 F1), pictures by their bytes (F5), what was sent (F3) ----------------------
+test("a request Runway did not start (a 4xx) is free but counted: the same one is not sent again, two refuse the shot, three in a day pause the door", async () => {
+  setGen({ autoUnderCredits: 0 });
+  batch("b1", { shots: { s01: { kind: "image_to_video", model: "gen4_turbo", maxSeconds: 5, takes: 2 },
+    s02: { kind: "image_to_video", model: "gen4_turbo", maxSeconds: 5, takes: 2 } } });
+  const bytes = pngBytes(1280, 720, 4000);
+  const pic = () => input(undefined, bytes);
+  assert.deepEqual([NOT_STARTED_PER_SHOT, NOT_STARTED_TO_PAUSE], [2, 3]);
+  behave({ create: 400 });
+  const first = await call("/gen/jobs", clip(await pic(), { batch: "b1", shot: "s01" }));
+  assert.equal(first.json.code, "gen_could_not_start", first.text);
+  // The same picture sent up again under a new id, with the same prompt: refused at the door, nothing sent.
+  const same = await call("/gen/jobs", clip(await pic(), { batch: "b1", shot: "s01" }));
+  assert.equal(same.json.code, "gen_not_approved");
+  assert.match(same.json.error.message, /did not start this same request before/);
+  assert.equal(creates().length, 1);
+  // Another prompt is another request: the shot's second goes out, a third does not.
+  assert.equal((await call("/gen/jobs", clip(await pic(), { batch: "b1", shot: "s01", promptText: `${PROMPT} 2` }))).json.code, "gen_could_not_start");
+  const third = await call("/gen/jobs", clip(await pic(), { batch: "b1", shot: "s01", promptText: `${PROMPT} 3` }));
+  assert.equal(third.json.code, "gen_not_approved");
+  assert.match(third.json.error.message, /did not start this shot twice/);
+  assert.equal(creates().length, 2);
+  // A third in the day, of another shot, pauses the whole door.
+  const spare = [await input(), await input()];
+  behave({ create: 404 });
+  assert.equal((await call("/gen/jobs", clip(await input(), { batch: "b1", shot: "s02" }))).json.code, "gen_could_not_start");
+  assert.deepEqual([ledger().at(-1).state, ledger().at(-1).verdict], ["paused", "three_not_started"]);
+  behave();
+  assert.equal((await call("/gen/jobs", clip(spare[0], { batch: "b1", shot: "s02", promptText: `${PROMPT} 4` }))).json.code, "gen_paused");
+  assert.equal((await upload()).json.code, "gen_paused");
+  assert.equal(creates().length, 3);
+  // Nothing was charged and no take was used; the ledger counts what was tried.
+  const t = totalsOf(readLedger(paths.ledger).lines, Date.now(), { batch: "b1" });
+  assert.deepEqual([t.day, t.batch, t.takes("s01"), t.takes("s02"), t.notStarted("s01"), t.notStarted("s02"), t.notStartedRecent], [0, 0, 0, 0, 2, 1, 3]);
+  assert.deepEqual(ledger().filter((l) => l.state === "released").map((l) => l.verdict), ["not_started_400", "not_started_400", "not_started_404"]);
+  // A restart clears neither the pause nor the mark on the request Runway did not start.
+  await startDoor();
+  assert.equal((await call("/gen/jobs", clip(spare[1], { batch: "b1", shot: "s02", promptText: `${PROMPT} 5` }))).json.code, "gen_paused");
+  setGen({ autoUnderCredits: 0, resumedAt: new Date().toISOString() });
+  const again = await call("/gen/jobs", clip(await pic(), { batch: "b1", shot: "s01" }));
+  assert.match(again.json.error.message, /did not start this same request before/);
+  // After Start again the counts begin again.
+  const back = await call("/gen/jobs", clip(await pic(), { batch: "b1", shot: "s01", promptText: `${PROMPT} 6` }));
+  assert.equal(back.status, 202, back.text);
+  assert.equal((await settled(back.json.job)).state, "done");
+  assert.equal(creates().length, 4);
+});
+
+test("after Runway's 429 the door says wait without calling out until the wait has passed; a 429 or a 401 is no mark on the request", async () => {
+  const id = await input();
+  behave({ create: 429, retryAfter: 1 });
+  const a = await call("/gen/jobs", clip(id));
+  assert.deepEqual([a.status, a.json.code, a.json.retryAfterSec], [403, "gen_limited", 1]);
+  const b = await call("/gen/jobs", clip(id, { promptText: "another" }));
+  assert.deepEqual([b.status, b.json.code, b.json.retryAfterSec], [403, "gen_limited", 1]);
+  assert.equal(creates().length, 1);
+  assert.equal(ledger().length, 2, "a refusal at the door writes nothing");
+  behave();
+  // Once the wait has passed, the same request goes out (the role's one resend after the wait).
+  let r;
+  await until(async () => {
+    r = await call("/gen/jobs", clip(id));
+    return r.json.code !== "gen_limited";
+  });
+  assert.equal(r.status, 202, r.text);
+  await settled(r.json.job);
+  behave({ create: 401 });
+  assert.equal((await call("/gen/jobs", clip(id, { promptText: "with the key" }))).json.code, "gen_key_refused");
+  behave();
+  const k = await call("/gen/jobs", clip(id, { promptText: "with the key" }));
+  assert.equal(k.status, 202, k.text);
+  await settled(k.json.job);
+  assert.equal(creates().length, 4);
+});
+
+test("a refused picture is known by its bytes: sent up again under a new id, with the same prompt or another, it is not sent; its job record keeps what was sent", async () => {
+  const bytes = pngBytes(1280, 720, 5000);
+  behave({ steps: ["FAILED"], failureCode: "SAFETY.INPUT.IMAGE", cost: 0 });
+  const first = await call("/gen/jobs", clip(await input(undefined, bytes)));
+  assert.equal((await settled(first.json.job)).state, "refused");
+  // What was sent, in the door's own record: the prompt as sent and the hash of each input's bytes.
+  const rec = jobRecord(first.json.job);
+  assert.deepEqual([rec.prompt, rec.inputSha256, rec.inputs.length, rec.notStarted], [PROMPT, [sha256(bytes)], 1, null]);
+  const inRec = JSON.parse(readFileSync(join(paths.doorWork, "gen", "inputs", `${rec.inputs[0]}.json`), "utf8"));
+  assert.deepEqual([inRec.sha256, inRec.refused], [sha256(bytes), true]);
+  behave();
+  const again = await call("/gen/jobs", clip(await input(undefined, bytes)));
+  assert.equal(again.json.code, "gen_not_approved");
+  assert.match(again.json.error.message, /refused this picture before/);
+  const reworded = await call("/gen/jobs", clip(await input(undefined, bytes), { promptText: "the same picture, other words" }));
+  assert.equal(reworded.json.code, "gen_not_approved");
+  assert.match(reworded.json.error.message, /refused this picture before/);
+  // Read back from the door's own records at its next start, never per request.
+  await startDoor();
+  for (const promptText of [PROMPT, "and once more in other words"]) {
+    const r = await call("/gen/jobs", clip(await input(undefined, bytes), { promptText }));
+    assert.match(r.json.error.message, /refused this picture before/);
+  }
+  // Another picture with the same prompt is another request; a still keeps its words too.
+  const other = await call("/gen/jobs", clip(await input()));
+  assert.equal(other.status, 202, other.text);
+  await settled(other.json.job);
+  const v = await call("/gen/jobs", { batch: null, kind: "still_variation", inputs: [await input(), await input()], promptText: "@ref1 at dusk", ratio: "1920:1080" });
+  await settled(v.json.job);
+  const vr = jobRecord(v.json.job);
+  assert.equal(vr.prompt, "@ref1 at dusk");
+  assert.equal(vr.inputSha256.length, 2);
+  assert.ok(vr.inputSha256.every((h) => /^[0-9a-f]{64}$/.test(h)));
+  assert.equal(creates().length, 3);
+});
+
 // ---- time, restarts, at once ---------------------------------------------------------------------
 test("a task that never ends is stopped at the job's limit, cancelled once, and counted", async () => {
   await startDoor({ limits: { pollMs: 10, jobMs: 200, downloadMs: 3000, apiMs: 2000 } });
@@ -604,10 +729,13 @@ test("Runway that stops answering clearly (5xx, endless body) ends the job, coun
 });
 
 test("a reservation left by a stopped door is settled at the next start by one question to Runway", async () => {
+  // The first door would ask about its task only after a minute: it asks nothing before it stops, so no late
+  // question of its own can reach the stand-in once the count below begins, and nothing can end the job early.
+  await startDoor({ limits: { pollMs: 60_000, jobMs: 600_000, downloadMs: 3000, apiMs: 2000 } });
   behave({ steps: "never" });
   const r = await call("/gen/jobs", clip(await input()));
   assert.equal(r.status, 202);
-  await new Promise((res) => setTimeout(res, 50));
+  await until(() => ledger().at(-1).runwayTask !== null && jobRecord(r.json.job).runwayTask !== null);
   await door.close();
   door = null;
   assert.equal(ledger().at(-1).state, "reserved");

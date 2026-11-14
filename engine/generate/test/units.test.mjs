@@ -9,7 +9,7 @@ import {
   MAX_CREDITS, RUNWAY_ORIGIN, buildRequest, checkUpstream, chosen, credits, defaultModel, errorText, estimate, failureKind,
   holdsKey, readTask, scrub,
 } from "../runway.mjs";
-import { appendLine, createLedger, dayOf, readLedger, totalsOf } from "../ledger.mjs";
+import { appendLine, createLedger, dayOf, readLedger, summarize, totalsOf } from "../ledger.mjs";
 import { readBatch, readGenState, readRunwayKey, sniffOutput, sniffPicture } from "../state.mjs";
 import { mp4Bytes, pngBytes } from "../../test/stubs/runway.mjs";
 
@@ -161,6 +161,38 @@ test("refusals, freezes and a self-pause are counted from the ledger", () => {
   assert.equal(l.totals(now).paused, true);
   assert.equal(l.totals(now, { resumedAt: now - 10 }).paused, false);
   assert.equal(l.totals(now, { resumedAt: now - 10 }).refusedRecent, 0);
+});
+
+test("requests Runway did not start are counted by shot and in the day; a folded line is read and counts nothing", () => {
+  const dir = folder();
+  const p = join(dir, "l.jsonl");
+  const l = createLedger(p);
+  const now = Date.parse("2026-11-12T10:00:00Z");
+  for (const [job, shot, status, ago] of [["n1", "s01", 400, 1000], ["n2", "s01", 429, 2000], ["n3", "s02", 401, 3000], ["n4", "s02", 404, 25 * 3600_000]]) {
+    const at = new Date(now - ago).toISOString();
+    reserve(l, at, job, 25, { batch: "b1", shot });
+    l.settle(at, l.job(job), { state: "released", credits: 0, verdict: `not_started_${status}` });
+  }
+  // A 5xx is not "not started": the door cannot know, so it is spent at its estimate; a refusal at 0 is a refusal.
+  reserve(l, new Date(now - 500).toISOString(), "n5", 25, { batch: "b1", shot: "s03" });
+  l.settle(new Date(now - 500).toISOString(), l.job("n5"), { state: "spent", credits: 25, verdict: "unknown" });
+  reserve(l, new Date(now - 400).toISOString(), "n6", 25, { batch: "b1", shot: "s03" });
+  l.settle(new Date(now - 400).toISOString(), l.job("n6"), { state: "released", credits: 0, verdict: "refused" });
+  const counts = (t) => [t.notStartedRecent, t.notStarted("s01"), t.notStarted("s02"), t.notStarted("s03"), t.takes("s01"), t.takes("s03"), t.batch, t.day, t.refusedRecent];
+  assert.deepEqual(counts(l.totals(now, { batch: "b1" })), [3, 2, 1, 0, 0, 1, 25, 25, 1]);
+  assert.deepEqual(counts(l.totals(now, { batch: "b1", resumedAt: now - 1500 })), [1, 1, 0, 0, 0, 1, 25, 25, 1]);
+  assert.equal(l.totals(now, { batch: "b2" }).notStarted("s01"), 0);
+  const folded = { at: new Date(now - 9 * 86400_000).toISOString(), job: null, batch: null, shot: null, slug: null, kind: null, model: null, seconds: null,
+    estimate: 0, state: "folded", credits: 0, runwayTask: null, verdict: "not_started", count: 12 };
+  appendLine(p, folded);
+  assert.deepEqual(counts(l.totals(now, { batch: "b1" })), [3, 2, 1, 0, 0, 1, 25, 25, 1]);
+  assert.equal(summarize(readLedger(p).lines).jobs.size, 6);
+  const good = readFileSync(p, "utf8");
+  for (const bad of [{ count: 0 }, { count: 1.5 }, { count: "12" }, { count: undefined }, { job: "g1" }, { credits: 5 }]) {
+    put(p, `${good}${JSON.stringify({ ...folded, ...bad })}\n`);
+    assert.equal(readLedger(p).ok, false, JSON.stringify(bad));
+    assert.throws(() => appendLine(join(dir, "other.jsonl"), { ...folded, ...bad }));
+  }
 });
 
 // ---- the switches, the key, batches, bytes ----------------------------------------------

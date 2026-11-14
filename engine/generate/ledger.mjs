@@ -9,12 +9,17 @@
 //   reserved  before the call leaves (credits = the door's estimate); written again, same job,
 //             when Runway's task id or a higher price is known
 //   spent     the job ended and cost `credits` (the highest of what is known)
-//   released  the job cost nothing: Runway refused to start it, or said its cost was 0
-//   paused    (job null) three refusals in a day: the door stops until the owner starts it again
+//   released  the job cost nothing: Runway refused to start it (verdict `not_started_<4xx>`), or
+//             said its cost was 0
+//   paused    (job null) three refusals, or three requests Runway did not start, in a day: the
+//             door stops until the owner starts it again
+//   folded    (job null) `count` jobs Runway did not start, more than a day old, whose lines the
+//             tidy moved to the dated file; they cost nothing and no total counts them
 // A job counts what its end line says; a job with no end counts its highest reservation.
 // Days and months are Asia/Kolkata's, and a job belongs to the day it was reserved.
 // The door tidies the file at its own start (rotateLedger, PLAN-V5 C3): old finished jobs move,
-// in order, to a dated file beside it, and nothing the totals of now depend on ever moves.
+// in order, to a dated file beside it, this month's free attempts are folded into one line, and
+// nothing the totals of now depend on ever moves.
 import { randomBytes } from "node:crypto";
 import {
   closeSync, constants, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync, renameSync, unlinkSync, writeSync,
@@ -24,8 +29,11 @@ import { basename, dirname, join } from "node:path";
 export const MAX_LEDGER_BYTES = 32 * 1024 * 1024;
 export const ROTATE_OVER_BYTES = 8 * 1024 * 1024;
 export const JOB_RE = /^[A-Za-z0-9_-]{1,64}$/;
-const STATES = new Set(["reserved", "spent", "released", "paused"]);
+const STATES = new Set(["reserved", "spent", "released", "paused", "folded"]);
 const DAY_MS = 24 * 3600_000;
+// The verdict of a job Runway answered with a 4xx and did not start (T48 F1).
+export const NOT_STARTED_RE = /^not_started_4[0-9]{2}$/;
+const MAX_FOLDED = 1_000_000_000;
 
 const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" });
 export const dayOf = (ms) => dayFmt.format(new Date(ms));
@@ -43,6 +51,7 @@ function readLine(text) {
   if (!str(v.at) || !Number.isFinite(Date.parse(v.at)) || !STATES.has(v.state)) return null;
   if (!amount(v.credits) || !amount(v.estimate)) return null;
   if (v.state === "paused") return v.job === null ? v : null;
+  if (v.state === "folded") return v.job === null && v.credits === 0 && Number.isInteger(v.count) && v.count >= 1 && v.count <= MAX_FOLDED ? v : null;
   if (!str(v.job) || !JOB_RE.test(v.job)) return null;
   for (const k of ["batch", "shot", "slug", "kind", "model", "runwayTask", "verdict"]) if (!strOrNull(v[k])) return null;
   if (!(v.seconds === null || amount(v.seconds))) return null;
@@ -113,12 +122,14 @@ export function appendLine(path, line) {
 // The jobs of a ledger's lines: Map(job -> { job, at (ms, first reservation), batch, shot,
 // slug, kind, model, seconds, estimate, reserved (highest reservation), runwayTask, end (the
 // last spent or released line, or null), charge }), and the times the door paused itself.
+// A folded line is no job and counts nothing.
 export function summarize(lines) {
   const jobs = new Map();
   const pauses = [];
   for (const l of lines) {
     const at = Date.parse(l.at);
     if (l.state === "paused") { pauses.push(at); continue; }
+    if (l.state === "folded") continue;
     let j = jobs.get(l.job);
     if (!j) {
       j = { job: l.job, at, batch: l.batch, shot: l.shot, slug: l.slug, kind: l.kind, model: l.model, seconds: l.seconds,
@@ -135,16 +146,21 @@ export function summarize(lines) {
   return { jobs, pauses };
 }
 
+// True when Runway answered this job of summarize() with a 4xx and did not start it.
+export const notStarted = (j) => !!(j && j.end && j.end.state === "released" && typeof j.end.verdict === "string" && NOT_STARTED_RE.test(j.end.verdict));
+
 // What has been spent or is held, as of `now`: { day, month, batch (for `batch`), unasked
 // (today, with no batch), takes(shot) (jobs of `batch` and that shot that were sent), batchRefused,
-// refusedRecent (moderation refusals in the last 24 hours, after `resumedAt`), paused (a pause
-// line newer than `resumedAt`), open (jobs with no end) }.
+// refusedRecent (moderation refusals in the last 24 hours, after `resumedAt`), notStartedRecent
+// (requests Runway did not start, in the same window), notStarted(shot) (those of `batch` and that
+// shot, in the same window), paused (a pause line newer than `resumedAt`), open (jobs with no end) }.
 export function totalsOf(lines, now, { batch = null, resumedAt = null } = {}) {
   const { jobs, pauses } = summarize(lines);
   const day = dayOf(now);
   const month = day.slice(0, 7);
   const since = Math.max(now - DAY_MS, resumedAt === null ? -Infinity : resumedAt);
-  const out = { day: 0, month: 0, batch: 0, unasked: 0, batchRefused: 0, refusedRecent: 0, open: [], shots: new Map() };
+  const out = { day: 0, month: 0, batch: 0, unasked: 0, batchRefused: 0, refusedRecent: 0, notStartedRecent: 0, open: [], shots: new Map() };
+  const tries = new Map();
   for (const j of jobs.values()) {
     const d = dayOf(j.at);
     if (d === day) out.day += j.charge;
@@ -152,14 +168,18 @@ export function totalsOf(lines, now, { batch = null, resumedAt = null } = {}) {
     if (d === day && j.batch === null) out.unasked += j.charge;
     const refused = j.end && j.end.verdict === "refused";
     if (refused && j.end.at > since) out.refusedRecent += 1;
+    const recentTry = notStarted(j) && j.end.at > since;
+    if (recentTry) out.notStartedRecent += 1;
     if (batch !== null && j.batch === batch) {
       out.batch += j.charge;
       if (refused) out.batchRefused += 1;
       if (!(j.end && j.end.state === "released") && typeof j.shot === "string") out.shots.set(j.shot, (out.shots.get(j.shot) || 0) + 1);
+      if (recentTry && typeof j.shot === "string") tries.set(j.shot, (tries.get(j.shot) || 0) + 1);
     }
     if (j.end === null) out.open.push(j);
   }
   out.takes = (shot) => out.shots.get(shot) || 0;
+  out.notStarted = (shot) => tries.get(shot) || 0;
   out.paused = pauses.some((t) => resumedAt === null || t > resumedAt);
   return out;
 }
@@ -237,16 +257,19 @@ function writeMoved(path, now, text) {
   throw new Error("ledger: no free name for the moved lines today");
 }
 
-// rotateLedger(path, now) -> { moved, kept } (lines). Only when the file is over 8 MB and is
-// read whole by the rule of readLedger; otherwise nothing changes and both are 0. Keeps every
-// line of a job whose first line is in this month or the one before (Asia/Kolkata), every line
-// of a job with no end line, and every pause line, so nothing the door totals as of now moves;
-// moves the rest, in order and byte for byte, to the dated file (written and synced first),
-// then writes the kept lines to a temp file in the same folder, syncs it and renames it over
-// the ledger. Synchronous: the door calls it before any request or settling can append. On a
-// failure the dated file is removed again and the ledger is as it was; the error is thrown.
+// rotateLedger(path, now) -> { moved, kept, folded } (lines, lines, jobs). Only when the file is
+// over 8 MB and is read whole by the rule of readLedger; otherwise nothing changes and all are
+// 0. Keeps every line of a job whose first line is in this month or the one before
+// (Asia/Kolkata), every line of a job with no end line, and every pause line, so nothing the
+// door totals as of now moves; moves the rest, in order and byte for byte, to the dated file.
+// Of the jobs it keeps, those Runway did not start (released, `not_started_<4xx>`) whose end is
+// more than a day old count in no total of now or later: their lines move too, and one
+// `folded` line with their number takes the place of the first. The dated file is written and
+// synced first, then the kept lines go to a temp file in the same folder, synced and renamed
+// over the ledger. Synchronous: the door calls it before any request or settling can append.
+// On a failure the dated file is removed again and the ledger is as it was; the error is thrown.
 export function rotateLedger(path, now) {
-  const none = { moved: 0, kept: 0 };
+  const none = { moved: 0, kept: 0, folded: 0 };
   let st;
   try { st = lstatSync(path); } catch { return none; }
   if (!st.isFile() || st.size <= ROTATE_OVER_BYTES) return none;
@@ -255,15 +278,32 @@ export function rotateLedger(path, now) {
   const month = monthOf(now);
   const recent = new Set([month, monthBefore(month)]);
   const { jobs } = summarize(r.lines);
+  const free = (j) => notStarted(j) && j.end.at <= now - DAY_MS;
   const keep = [];
   const move = [];
+  const folded = new Set();
+  let foldAt = -1;
+  let foldFrom = null;
   r.lines.forEach((line, i) => {
     if (line.state === "paused") return void keep.push(r.raws[i]);
+    if (line.state === "folded") return void (recent.has(monthOf(Date.parse(line.at))) ? keep : move).push(r.raws[i]);
     const j = jobs.get(line.job);
-    if (j.end === null || recent.has(monthOf(j.at))) keep.push(r.raws[i]);
-    else move.push(r.raws[i]);
+    if (j.end === null || recent.has(monthOf(j.at))) {
+      if (!free(j)) return void keep.push(r.raws[i]);
+      if (foldAt < 0) { foldAt = keep.length; foldFrom = j.at; }
+      folded.add(j.job);
+      move.push(r.raws[i]);
+    } else move.push(r.raws[i]);
   });
-  if (move.length === 0) return { moved: 0, kept: keep.length };
+  if (move.length === 0) return { moved: 0, kept: keep.length, folded: 0 };
+  if (folded.size > 0) {
+    const summary = {
+      at: new Date(foldFrom).toISOString(), job: null, batch: null, shot: null, slug: null, kind: null, model: null, seconds: null,
+      estimate: 0, state: "folded", credits: 0, runwayTask: null, verdict: "not_started", count: folded.size,
+    };
+    if (readLine(JSON.stringify(summary)) === null) throw new Error("ledger: a folded line of the wrong shape");
+    keep.splice(foldAt, 0, JSON.stringify(summary));
+  }
   const dir = dirname(path);
   const moved = writeMoved(path, now, `${move.join("\n")}\n`);
   const tmp = join(dir, `.${basename(path)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
@@ -281,5 +321,5 @@ export function rotateLedger(path, now) {
   } catch {
     // The rename is done; syncing the folder is a courtesy some systems refuse.
   }
-  return { moved: move.length, kept: keep.length };
+  return { moved: move.length, kept: keep.length, folded: folded.size };
 }
