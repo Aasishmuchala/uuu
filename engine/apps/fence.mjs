@@ -6,11 +6,18 @@
 // only looks at the disk for the real paths of the config's folders and asks the user
 // database for the owner's home. Every list is sorted. For each mode (run, build, test,
 // install) it gives K18's table, and what the agent fence's lessons add:
-//   denyRead   the owner's home. Also, as the walled agent's fence and the web door's watch do:
-//              the system's temp areas (other runs' temp folders, the owner's own TMPDIR) and
-//              the sandbox tool's and Claude Code's own temp folders.
+//   denyRead   the whole disk ("/"), so nothing outside the home folder is read either (other
+//              disks under /Volumes, /Users/Shared, other users' homes, /Library, /usr/local,
+//              Homebrew's own data such as its databases under /opt/homebrew/var; T85). Named
+//              too, as before: the owner's home; as the walled agent's fence and the web door's
+//              watch do, the system's temp areas (other runs' temp folders, the owner's own
+//              TMPDIR); and the sandbox tool's and Claude Code's own temp folders.
 //   allowRead  run: code, deps, data, run, tmp, home, Node 24; build and test: code, deps,
-//              tmp, home, Node 24; install: deps, store, tmp, home, Node 24.
+//              tmp, home, Node 24; install: deps, store, tmp, home, Node 24. In every mode, what
+//              a Node program and a build need of the system (SYSTEM_READS: its libraries and
+//              programs, /dev, the local time zone, the shell's own link), and, for an app whose
+//              manifest names ffmpeg or ffprobe, that program and the Homebrew folders its
+//              libraries live in (TOOL_READS), never the rest of /opt/homebrew.
 //   allowWrite run: data, run, tmp, home; build: code/.build, code/dist, tmp, home; test: tmp,
 //              home; install: deps, store, tmp, home.
 //   denyWrite  code/app.json and code/READY; the sandbox tool's own temp folder, which srt
@@ -49,6 +56,19 @@ const DISK_FOLDS = { s: ["\u017f"], k: ["\u212a"] };
 export const SANDBOX_OWN_TMP = Object.freeze(["/private/tmp/claude", "/tmp/claude"]);
 // The system's temp areas (fence_plan.py, TEMP_AREAS; the web door's DENY_READ).
 export const TEMP_AREAS = Object.freeze(["/private/var/folders", "/var/folders", "/private/tmp", "/tmp"]);
+// What every mode reads of the system, the disk being denied as a whole (T85): the system's own
+// libraries and programs (dyld's cache lives under /System), devices, the local time zone
+// (/etc/localtime, a link through the links /etc and /var into /private/var/db/timezone; the
+// two root links are named alone, so nothing behind them but the time zone is opened), and the
+// link /bin/sh reads to find the shell. Not /usr/local, not the rest of /private.
+export const SYSTEM_READS = Object.freeze(["/System", "/bin", "/sbin", "/dev", "/usr/bin", "/usr/lib", "/usr/libexec",
+  "/usr/sbin", "/usr/share", "/etc", "/var", "/private/etc/localtime", "/private/var/db/timezone", "/private/var/select/sh"]);
+// ffmpeg and ffprobe as app-exec names them (K18), and the Homebrew folders their libraries load
+// from (its Cellar, and opt's links into it); never Homebrew's etc or var.
+export const TOOL_READS = Object.freeze({
+  ffmpeg: ["/opt/homebrew/bin/ffmpeg", "/opt/homebrew/Cellar", "/opt/homebrew/opt"],
+  ffprobe: ["/opt/homebrew/bin/ffprobe", "/opt/homebrew/Cellar", "/opt/homebrew/opt"],
+});
 const REFUSED_EXIT = 78;
 
 // Every spelling the disk takes for `name`, as glob patterns: each letter as a two-letter set
@@ -98,12 +118,14 @@ export function appFence(cfg, app, mode) {
   const state = realOrGiven(cfg.paths.state);
   const node = realOrGiven(cfg.node24);
   const uid = process.getuid();
-  const reads = {
+  const tools = (Array.isArray(app.tools) ? app.tools : []).flatMap((t) => (Object.hasOwn(TOOL_READS, t) ? TOOL_READS[t] : []));
+  const own = {
     run: [p.code, p.deps, p.data, p.run, p.tmp, p.home, node],
     build: [p.code, p.deps, p.tmp, p.home, node],
     test: [p.code, p.deps, p.tmp, p.home, node],
     install: [p.deps, p.store, p.tmp, p.home, node],
   }[mode];
+  const reads = [...own, ...SYSTEM_READS, ...tools];
   const writes = {
     run: [p.data, p.run, p.tmp, p.home],
     build: [join(p.code, ".build"), join(p.code, "dist"), p.tmp, p.home],
@@ -119,7 +141,7 @@ export function appFence(cfg, app, mode) {
   }
   return {
     filesystem: {
-      denyRead: sorted([home, `/private/tmp/claude-${uid}`, `/tmp/claude-${uid}`, ...SANDBOX_OWN_TMP, ...TEMP_AREAS]),
+      denyRead: sorted(["/", home, `/private/tmp/claude-${uid}`, `/tmp/claude-${uid}`, ...SANDBOX_OWN_TMP, ...TEMP_AREAS]),
       allowRead: sorted(reads),
       allowWrite: sorted(writes),
       denyWrite: sorted([join(p.code, "app.json"), join(p.code, "READY"), ...SANDBOX_OWN_TMP, ...configDenies(writes)]),

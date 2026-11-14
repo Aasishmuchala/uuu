@@ -110,6 +110,16 @@ test("reads none of the system's temp areas", () => {
   assert.equal(said("var-folders", code(() => readdirSync("/private/var/folders"))), "EPERM");
   assert.equal(said("private-tmp", code(() => readdirSync("/private/tmp"))), "EPERM");
 });
+test("reads nothing outside the home folder but the system's own: other disks, shared folders, Homebrew's data", () => {
+  for (const p of T.outside) assert.equal(said("outside " + p, code(() => readdirSync(p))), "EPERM", p);
+  assert.equal(said("hosts", code(() => readFileSync("/private/etc/hosts"))), "EPERM");
+});
+test("still reads what a program needs: the system's libraries, the local time zone, the shell", () => {
+  assert.equal(said("usr-lib", code(() => readdirSync("/usr/lib"))), "ok");
+  assert.equal(said("tz", String(new Date().getTimezoneOffset())), String(T.tzOffset));
+  const sh = spawnSync("/bin/sh", ["-c", "echo shell-ok"], { encoding: "utf8" });
+  assert.equal(said("sh", sh.stdout.trim() + "|" + sh.stderr.trim()), "shell-ok|");
+});
 test("reaches no TCP port on this Mac", async () => {
   assert.equal(said("tcp-local", await reach({ host: "127.0.0.1", port: T.port })), "EPERM");
 });
@@ -179,6 +189,8 @@ test("this Mac's ffmpeg and ffprobe run inside", () => {
 const REACH_NAMES = [
   "reads nothing of the owner's home: ~/.ssh", "reads nothing of the owner's home: the engine's own config",
   "reads nothing of the engine's state but its own folders", "reads no other app", "reads none of the system's temp areas",
+  "reads nothing outside the home folder but the system's own: other disks, shared folders, Homebrew's data",
+  "still reads what a program needs: the system's libraries, the local time zone, the shell",
   "reaches no TCP port on this Mac", "reaches no TCP port elsewhere", "cannot listen on a TCP port",
   "the sandbox tool's proxy opens nothing, local or remote", "reaches no unix socket in a test run",
   "writes not its own code", "writes not its data folder in a test run", "writes its temp folder, its home and its test data",
@@ -340,7 +352,7 @@ test("--run: the fixed command, in the app's folder, through the settings fence.
   assert.equal(cwd, w.code);
   assert.equal(args[0], "-s");
   assert.match(args[1], new RegExp(`^${w.S}/fences/[0-9a-f]{20}\\.json$`));
-  assert.deepEqual(JSON.parse(readFileSync(args[1], "utf8")), appFence(w.cfg, { slug: "fix" }, "run"));
+  assert.deepEqual(JSON.parse(readFileSync(args[1], "utf8")), appFence(w.cfg, MANIFEST("fix", 3172), "run"));
   assert.deepEqual(args.slice(2), ["--", "/usr/bin/env", `TMPDIR=${w.tmp}`, NODE, "--max-old-space-size=256", ".build/index.mjs"]);
 });
 
@@ -376,7 +388,7 @@ test("--build: node scripts/build.mjs in the app's folder, without the sockets; 
   assert.equal(cwd, w.code);
   assert.ok(statSync(join(w.code, "dist")).isDirectory() && statSync(join(w.code, ".build")).isDirectory());
   assert.deepEqual(args.slice(2), ["--", "/usr/bin/env", `TMPDIR=${w.tmp}`, NODE, "scripts/build.mjs"]);
-  assert.deepEqual(JSON.parse(readFileSync(args[1], "utf8")), appFence(w.cfg, { slug: "fix" }, "build"));
+  assert.deepEqual(JSON.parse(readFileSync(args[1], "utf8")), appFence(w.cfg, MANIFEST("fix", 3172), "build"));
   assert.deepEqual(env, {
     APP_DATA: w.data, APP_TMP: w.tmp, FFMPEG: "/opt/homebrew/bin/ffmpeg", FFPROBE: "/opt/homebrew/bin/ffprobe", HOME: w.home,
     LANG: "en_US.UTF-8", NODE_ENV: "production", PATH: SAFE_PATH, TMPDIR: SRT_TMP,
@@ -388,7 +400,7 @@ test("--test: node --test with the files as given; APP_DATA is <tmp>/data, made 
   assert.equal(cwd, w.code);
   assert.deepEqual(args.slice(2), ["--", "/usr/bin/env", `TMPDIR=${w.tmp}`, NODE, "--test", "--test-reporter=tap",
     "src/reach.test.ts", "src/sub/two.test.ts"]);
-  assert.deepEqual(JSON.parse(readFileSync(args[1], "utf8")), appFence(w.cfg, { slug: "fix" }, "test"));
+  assert.deepEqual(JSON.parse(readFileSync(args[1], "utf8")), appFence(w.cfg, MANIFEST("fix", 3172), "test"));
   assert.equal(env.APP_DATA, join(w.tmp, "data"));
   assert.equal(modeOf(join(w.tmp, "data")), 0o700);
   assert.equal(env.APP_SOCKET, undefined);
@@ -401,7 +413,7 @@ test("--install: refused until the packages folder is made; then prune and fetch
   assert.equal(prune.cwd, w.deps);
   assert.deepEqual(prune.args.slice(2), ["--", "/usr/bin/env", `TMPDIR=${w.tmp}`, NODE, PNPM, "install", "--lockfile-only",
     "--ignore-scripts"]);
-  assert.deepEqual(JSON.parse(readFileSync(prune.args[1], "utf8")), appFence(w.cfg, { slug: "fix" }, "install"));
+  assert.deepEqual(JSON.parse(readFileSync(prune.args[1], "utf8")), appFence(w.cfg, MANIFEST("fix", 3172), "install"));
   assert.equal(prune.env.NODE_ENV, undefined, "pnpm would leave out devDependencies");
   assert.equal(prune.env.APP_SOCKET, undefined);
   assert.equal(modeOf(w.store), 0o755);
@@ -542,7 +554,9 @@ before(async () => {
   writeFileSync(join(r.code, "src", "targets.json"), JSON.stringify({
     port: tcp.address().port, outerSock: join(r.S, "outer.sock"), homeFile: join(ENGINE, "config.json"),
     stateSecret: join(r.S, "secrets", "planted.txt"), otherApp: join(r.root, "apps", "fresh", "app.json"),
-    data: r.data, tmp: r.tmp, home: r.home, path: SAFE_PATH,
+    data: r.data, tmp: r.tmp, home: r.home, path: SAFE_PATH, tzOffset: new Date().getTimezoneOffset(),
+    outside: ["/Volumes", "/Users", "/Users/Shared", "/Library", "/Applications", "/usr/local", "/opt/homebrew", "/opt/homebrew/var",
+      "/opt/homebrew/etc", "/private/etc", "/private/var/db"].filter((p) => existsSync(p)),
   }));
   for (const p of ["/private/tmp/claude"]) {
     if (!existsSync(p)) cleanups.push(() => { if (existsSync(p) && lstatSync(p).isDirectory()) rmSync(p, { recursive: true }); });
