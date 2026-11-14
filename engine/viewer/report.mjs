@@ -3,19 +3,99 @@
 // getComputedStyle, querySelectorAll or anything else it uses; the page can only change its
 // own DOM, which is what is reported on. Everything that comes back is the page's text, so
 // mergePage() turns it into plain capped values before it leaves the viewer.
+// What it reports is what Chrome drew, for the home server to judge against the kit (PLAN-V5
+// T58b): every colour of every element in any form Chrome writes a computed colour (rgb(),
+// color(srgb …), color(display-p3 …) and the other spaces, lab(), lch(), oklab(), oklch(),
+// each turned into sRGB), the colours inside gradients and shadows, how many elements are drawn
+// through a filter or blend mode (whose colours cannot be compared), the faces and the smallest
+// text, and whether the page held more elements or colours than it lists.
 export const CAPS = Object.freeze({
   errors: 20, errorChars: 300, wider: 20, missing: 20, blocked: 20, contrast: 20, contrastChars: 40,
-  fonts: 20, colours: 40, elements: 5000,
+  fonts: 20, colours: 120, elements: 5000,
 });
+
+// A computed colour -> { r, g, b, a } in sRGB 0 to 255 (alpha 0 to 1), or null. Out of sRGB's
+// gamut each channel is clipped, as a screen shows it. Self-contained: REPORT_SCRIPT carries
+// its source into the page.
+export function parseColour(c) {
+  const m = /^\s*(rgba?|color|lab|lch|oklab|oklch)\(\s*([^()]*)\)\s*$/i.exec(String(c || ""));
+  if (!m) return null;
+  const fn = m[1].toLowerCase();
+  const halves = m[2].split("/");
+  if (halves.length > 2) return null;
+  const parts = halves[0].split(/[\s,]+/).filter(Boolean);
+  const num = (s, full) => {
+    if (s === undefined) return NaN;
+    const t = String(s).toLowerCase();
+    if (t === "none") return 0;
+    return t.endsWith("%") ? (parseFloat(t) / 100) * full : parseFloat(t);
+  };
+  let alpha = halves.length === 2 ? num(halves[1].trim(), 1) : 1;
+  const space = fn === "color" ? String(parts.shift() || "").toLowerCase() : fn;
+  if ((fn === "rgb" || fn === "rgba") && parts.length === 4 && halves.length === 1) alpha = num(parts.pop(), 1);
+  if (parts.length !== 3) return null;
+  const mul = (M, v) => M.map((row) => row[0] * v[0] + row[1] * v[1] + row[2] * v[2]);
+  const XYZ_TO_SRGB = [[3.2409699419045226, -1.537383177570094, -0.4986107602930034], [-0.9692436362808796, 1.8759675015077202, 0.04155505740717559], [0.05563007969699366, -0.20397695888897652, 1.0569715142428786]];
+  const D50_TO_D65 = [[0.955473421488075, -0.02309845494876471, 0.06325924320057072], [-0.0283697093338637, 1.0099953980813041, 0.021041441191917323], [0.012314014864481998, -0.020507649298898964, 1.330365926242124]];
+  const signed = (v, f) => (v < 0 ? -f(-v) : f(v));
+  const srgbDecode = (v) => signed(v, (x) => (x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)));
+  let lin; // linear sRGB
+  if (space === "rgb" || space === "rgba") {
+    lin = parts.map((p) => srgbDecode(num(p, 255) / 255));
+  } else if (space === "srgb") {
+    lin = parts.map((p) => srgbDecode(num(p, 1)));
+  } else if (space === "srgb-linear") {
+    lin = parts.map((p) => num(p, 1));
+  } else if (space === "display-p3") {
+    lin = mul(XYZ_TO_SRGB, mul([[0.4865709486482162, 0.26566769316909306, 0.1982172852343625], [0.2289745640697488, 0.6917385218365064, 0.079286914093745], [0, 0.04511338185890264, 1.043944368900976]], parts.map((p) => srgbDecode(num(p, 1)))));
+  } else if (space === "a98-rgb") {
+    lin = mul(XYZ_TO_SRGB, mul([[0.5766690429101305, 0.1855582379065463, 0.1882286462349947], [0.29734497525053605, 0.6273635662554661, 0.07529145849399788], [0.02703136138641234, 0.07068885253582723, 0.9913375368376388]], parts.map((p) => signed(num(p, 1), (x) => Math.pow(x, 563 / 256)))));
+  } else if (space === "prophoto-rgb") {
+    lin = mul(XYZ_TO_SRGB, mul(D50_TO_D65, mul([[0.7977604896723027, 0.13518583717574031, 0.0313493495815248], [0.2880711282292934, 0.7118432178101014, 0.00008565396060525902], [0, 0, 0.8251046025104601]], parts.map((p) => signed(num(p, 1), (x) => (x <= 16 / 512 ? x / 16 : Math.pow(x, 1.8)))))));
+  } else if (space === "rec2020") {
+    const A = 1.09929682680944, B = 0.018053968510807;
+    lin = mul(XYZ_TO_SRGB, mul([[0.6369580483012914, 0.14461690358620832, 0.1688809751641721], [0.2627002120112671, 0.6779980715188708, 0.05930171646986196], [0, 0.028072693049087428, 1.060985057710791]], parts.map((p) => signed(num(p, 1), (x) => (x < B * 4.5 ? x / 4.5 : Math.pow((x + A - 1) / A, 1 / 0.45))))));
+  } else if (space === "xyz" || space === "xyz-d65") {
+    lin = mul(XYZ_TO_SRGB, parts.map((p) => num(p, 1)));
+  } else if (space === "xyz-d50") {
+    lin = mul(XYZ_TO_SRGB, mul(D50_TO_D65, parts.map((p) => num(p, 1))));
+  } else if (space === "lab" || space === "lch") {
+    const L = num(parts[0], 100);
+    let a = num(parts[1], 125), b = num(parts[2], 125);
+    if (space === "lch") {
+      const C = num(parts[1], 150), h = (num(parts[2], 1) * Math.PI) / 180;
+      a = C * Math.cos(h);
+      b = C * Math.sin(h);
+    }
+    const k = 24389 / 27, e = 216 / 24389;
+    const f1 = (L + 16) / 116, f0 = a / 500 + f1, f2 = f1 - b / 200;
+    const xyz = [Math.pow(f0, 3) > e ? Math.pow(f0, 3) : (116 * f0 - 16) / k, L > k * e ? Math.pow(f1, 3) : L / k, Math.pow(f2, 3) > e ? Math.pow(f2, 3) : (116 * f2 - 16) / k];
+    lin = mul(XYZ_TO_SRGB, mul(D50_TO_D65, [xyz[0] * 0.9642956764295677, xyz[1], xyz[2] * 0.8251046025104602]));
+  } else if (space === "oklab" || space === "oklch") {
+    const L = num(parts[0], 1);
+    let a = num(parts[1], 0.4), b = num(parts[2], 0.4);
+    if (space === "oklch") {
+      const C = num(parts[1], 0.4), h = (num(parts[2], 1) * Math.PI) / 180;
+      a = C * Math.cos(h);
+      b = C * Math.sin(h);
+    }
+    const l = Math.pow(L + 0.3963377774 * a + 0.2158037573 * b, 3);
+    const mm = Math.pow(L - 0.1055613458 * a - 0.0638541728 * b, 3);
+    const s = Math.pow(L - 0.0894841775 * a - 1.291485548 * b, 3);
+    lin = [4.0767416621 * l - 3.3077115913 * mm + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * mm - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * mm + 1.707614701 * s];
+  } else {
+    return null;
+  }
+  const enc = (v) => { const x = Math.max(0, Math.min(1, v)); return 255 * (x > 0.0031308 ? 1.055 * Math.pow(x, 1 / 2.4) - 0.055 : 12.92 * x); };
+  const out = lin.map(enc);
+  if (!out.every(Number.isFinite) || !Number.isFinite(alpha)) return null;
+  return { r: out[0], g: out[1], b: out[2], a: Math.max(0, Math.min(1, alpha)) };
+}
 
 export const REPORT_SCRIPT = `(() => {
   const W = innerWidth;
-  const parse = (c) => {
-    const m = /rgba?\\(([^)]+)\\)/.exec(c || "");
-    if (!m) return null;
-    const p = m[1].split(/[\\s,/]+/).filter(Boolean).map(Number);
-    return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
-  };
+  const parse = ${parseColour.toString()};
+  const COLOURS_IN = /(?:rgba?|color|lab|lch|oklab|oklch)\\([^()]*\\)/gi;
   const hex = (o) => "#" + [o.r, o.g, o.b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("").toUpperCase();
   const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
   const lum = (o) => 0.2126 * lin(o.r) + 0.7152 * lin(o.g) + 0.0722 * lin(o.b);
@@ -30,18 +110,46 @@ export const REPORT_SCRIPT = `(() => {
     for (let i = layers.length - 1; i >= 0; i--) base = over(layers[i], base);
     return base;
   };
-  const all = [...document.querySelectorAll("body, body *")].slice(0, ${CAPS.elements});
+  const every = [document.documentElement, ...document.querySelectorAll("body, body *")];
+  const all = every.slice(0, ${CAPS.elements});
   const wider = [], colours = new Set(), fonts = new Map(), contrast = [];
+  let filtered = 0;
+  const add = (c) => { if (c && c.a > 0 && colours.size < 400) colours.add(hex(c)); };
+  // Every colour an element is drawn with: its own, its borders and outline, its text's fill, stroke and
+  // decoration, an SVG shape's paint, and every colour inside its gradients and shadows (of <html>, only its
+  // background and filters: it holds no text of its own).
+  const SHAPES = new Set(["path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan", "textPath", "use"]);
+  const SVG_PAINT = { stop: ["stopColor"], feFlood: ["floodColor"], feDropShadow: ["floodColor"], feDiffuseLighting: ["lightingColor"], feSpecularLighting: ["lightingColor"] };
+  const paint = (cs, e) => {
+    const top = e === document.documentElement;
+    for (const [p, wp] of [["color"], ["backgroundColor"], ["borderTopColor", "borderTopWidth"], ["borderRightColor", "borderRightWidth"],
+      ["borderBottomColor", "borderBottomWidth"], ["borderLeftColor", "borderLeftWidth"], ["webkitTextFillColor"], ["webkitTextStrokeColor", "webkitTextStrokeWidth"]]) {
+      if ((!top || p === "backgroundColor") && (!wp || parseFloat(cs[wp]) > 0)) add(parse(cs[p]));
+    }
+    if (!top && cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) > 0) add(parse(cs.outlineColor));
+    if (!top && cs.textDecorationLine && cs.textDecorationLine !== "none") add(parse(cs.textDecorationColor));
+    if (e instanceof SVGElement) {
+      const props = SHAPES.has(e.localName) ? ["fill", "stroke"] : SVG_PAINT[e.localName] || [];
+      for (const p of props) if (cs[p] && cs[p] !== "none") add(parse(cs[p]));
+    }
+    for (const p of top ? ["backgroundImage"] : ["backgroundImage", "boxShadow", "textShadow"]) {
+      const v = cs[p];
+      if (v && v !== "none") for (const one of v.match(COLOURS_IN) || []) add(parse(one));
+    }
+    if (cs.filter !== "none" || (cs.backdropFilter && cs.backdropFilter !== "none") || cs.mixBlendMode !== "normal"
+      || String(cs.backgroundBlendMode).split(",").some((x) => x.trim() !== "normal")) filtered++;
+  };
   for (const e of all) {
     const cs = getComputedStyle(e);
     if (cs.display === "none" || cs.visibility === "hidden") continue;
+    paint(cs, e);
+    for (const pseudo of ["::before", "::after"]) {
+      const ps = getComputedStyle(e, pseudo);
+      if (ps.content && ps.content !== "none" && ps.content !== "normal") paint(ps, null);
+    }
     const r = e.getBoundingClientRect();
     if (wider.length < 40 && r.width > 0 && (r.right > W + 1 || r.left < -1) && cs.position !== "fixed")
       wider.push({ tag: e.tagName.toLowerCase(), cls: String(e.getAttribute("class") || ""), width: Math.round(r.width) });
-    for (const [p, wp] of [["color"], ["backgroundColor"], ["borderTopColor", "borderTopWidth"]]) {
-      const c = parse(cs[p]);
-      if (c && c.a > 0 && (!wp || parseFloat(cs[wp]) > 0) && colours.size < 200) colours.add(hex(c));
-    }
     const text = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join("").trim();
     if (!text || r.width === 0) continue;
     const family = cs.fontFamily.split(",")[0].trim().replace(/^["']|["']$/g, "");
@@ -79,6 +187,8 @@ export const REPORT_SCRIPT = `(() => {
     contrast: contrast.slice(0, ${CAPS.contrast}),
     fonts: [...fonts].map(([family, minPx]) => ({ family, minPx })),
     colours: [...colours].slice(0, ${CAPS.colours}),
+    filtered,
+    capped: every.length > ${CAPS.elements} || colours.size > ${CAPS.colours},
   };
 })()`;
 
@@ -89,13 +199,16 @@ const px = (v) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.
 
 // One page's report from its passes (each { width, scheme, data } where data is what
 // REPORT_SCRIPT gave, or null), plus what the viewer saw itself. -> K15's page object,
-// with `dark`, `drawn` (the faces Chrome really drew with), `shots` and `cut` added.
+// with `dark`, `drawn` (the faces Chrome really drew with), `shots` and `cut` added, and (T58b)
+// `filtered` (the most elements of any pass drawn through a filter or blend mode) and `capped` (the
+// page held more elements or colours than are listed, so not every one was reported).
 export function mergePage({ page, passes, errors, blocked, missing, drawn, shots, cut }) {
   const out = {
     page,
     errors: [], wider: [], missing: [], blocked: [],
     a11y: { noAlt: 0, noLabel: 0, noLang: false, noTitle: false, headingSkips: 0, smallTargets: 0 },
     contrast: [], fonts: [], colours: [], drawn: [], dark: false, shots: [...(shots || [])], cut: cut || null,
+    filtered: 0, capped: false,
   };
   const addUnique = (list, value, cap, key = (x) => JSON.stringify(x)) => {
     if (list.length >= cap) return;
@@ -109,6 +222,8 @@ export function mergePage({ page, passes, errors, blocked, missing, drawn, shots
   for (const { width, data } of passes || []) {
     if (!data || typeof data !== "object") continue;
     if (data.hasDark === true) out.dark = true;
+    if (data.capped === true) out.capped = true;
+    out.filtered = Math.max(out.filtered, count(data.filtered));
     for (const w of Array.isArray(data.wider) ? data.wider : []) {
       if (!w || typeof w !== "object") continue;
       addUnique(out.wider, { tag: plainText(w.tag, 20), cls: plainText(w.cls, 40), width: count(w.width), at: width }, CAPS.wider);
@@ -136,7 +251,11 @@ export function mergePage({ page, passes, errors, blocked, missing, drawn, shots
       if (!fonts.has(family) && fonts.size >= CAPS.fonts) continue;
       fonts.set(family, Math.min(fonts.has(family) ? fonts.get(family) : Infinity, size));
     }
-    for (const c of Array.isArray(data.colours) ? data.colours : []) if (HEX_RE.test(c)) addUnique(out.colours, c, CAPS.colours);
+    for (const c of Array.isArray(data.colours) ? data.colours : []) {
+      if (!HEX_RE.test(c)) continue;
+      if (out.colours.length >= CAPS.colours && !out.colours.includes(c)) out.capped = true;
+      addUnique(out.colours, c, CAPS.colours);
+    }
   }
   out.fonts = [...fonts].map(([family, minPx]) => ({ family, minPx }));
   for (const d of drawn || []) addUnique(out.drawn, plainText(d, 80), CAPS.fonts);

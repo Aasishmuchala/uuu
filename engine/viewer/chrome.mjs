@@ -59,6 +59,8 @@ export function chromeFlags({ root, proxyPort }) {
     "--hide-scrollbars",
     "--mute-audio",
     "--force-device-scale-factor=1",
+    // navigator.webdriver false, so a page cannot tell the viewer from a visitor that way (T58b); no wall rests on it
+    "--disable-blink-features=AutomationControlled",
     "--disable-features=Translate,OptimizationHints,OptimizationGuideModelDownloading,MediaRouter,DialMediaRouteProvider,AutofillServerCommunication,CertificateTransparencyComponentUpdater,InterestFeedContentSuggestions,PrivacySandboxSettings4,DnsOverHttps,NetworkTimeServiceQuerying",
     "--proxy-bypass-list=<-loopback>",
     "--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1",
@@ -382,6 +384,8 @@ export async function startChrome({
   try {
     const v = await pipe.send("Browser.getVersion", {}, undefined, lim.startMs);
     session.version = typeof v.product === "string" ? v.product.replace(/[^\x20-\x7e]/g, "").slice(0, 60) : null;
+    // the user agent the viewer gives every page instead: Chrome's own, without "HeadlessChrome" (T58b)
+    session.userAgent = typeof v.userAgent === "string" ? v.userAgent.replace(/[^\x20-\x7e]/g, "").replace(/HeadlessChrome/g, "Chrome").slice(0, 300) : null;
   } catch (err) {
     await session.end();
     throw new Error(`chrome did not answer: ${err.message}`);

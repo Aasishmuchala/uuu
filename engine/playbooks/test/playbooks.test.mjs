@@ -656,7 +656,9 @@ test("the site kit's two scripts pass node --check, and neither reaches for anyt
     assert.doesNotMatch(kitText(n), /\bfetch\b|XMLHttpRequest|\bimport\s*\(|WebSocket|EventSource|sendBeacon|\bWorker\b|\beval\b|innerHTML|document\.write/, n);
   }
   const reveal = kitText("reveal.js");
-  for (const s of ["IntersectionObserver", "data-reveal", '"is-in"', "(prefers-reduced-motion: reduce)", "navigator.webdriver"]) assert.ok(reveal.includes(s), s);
+  for (const s of ["IntersectionObserver", "data-reveal", '"is-in"', "(prefers-reduced-motion: reduce)"]) assert.ok(reveal.includes(s), s);
+  // T58b: the page viewer is not told apart by navigator.webdriver; it asks for less motion as any visitor can
+  assert.doesNotMatch(reveal, /webdriver|HeadlessChrome|userAgent/);
   const gallery = kitText("gallery.js");
   for (const s of ['createElement("dialog")', "showModal()", "a[data-gallery]", '"ArrowLeft"', '"ArrowRight"', '"close"', "opener.focus()",
     'getAttribute("alt")', "textContent"]) assert.ok(gallery.includes(s), s);

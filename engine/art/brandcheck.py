@@ -21,7 +21,13 @@ A site (site/<name>/, PLAN-V5 K16) is read as its files, with the page viewer's
 caps (300 entries, 6 names deep, 20 MB): its .html, .css, .js and .mjs files as
 text, 512 KB each and 4 MB in all, by scanners that read each text once. Its
 page rules: tokens_file_changed, colour_not_token, font_not_kit, text_too_small,
-outside_address, no_logo, and the soft font_collection. `--report` (no value)
+outside_address, no_logo, and the soft font_collection. What a page can do to
+show other colours, faces, sizes or addresses than it writes is refused or worked
+out (PLAN-V5 T58b): a filter or blend mode, color-mix() the long way round, a
+style sheet or script as a data: address, <style> and <script> inside SVG read as
+the browser reads them, an @font-face that gives a kit face another file, a
+--brand-… token set outside kit.css, sizes through var(), calc(), rem and em, a
+meta refresh, SVG animations, a logo that is hidden. `--report` (no value)
 also reads viewer/<ref>/report.json of the goal for each site/<ref>/: the
 smallest text the page viewer measured; a false report can only add failures.
 
@@ -143,6 +149,10 @@ class Problem(Exception):
 
 class PieceProblem(Exception):
     """This piece could not be checked: a hard `could_not_check` on it."""
+
+
+class Unresolved(Exception):
+    """A text size the site leaves to something it never sets."""
 
 
 class OutOfTime(Exception):
@@ -886,7 +896,8 @@ def json_strings(value, out, depth=0):
 # scripts read as text, nothing run and nothing fetched. Every scanner reads its text once, left to right, with
 # str.find and with patterns matched at one place that consume what they match (their alternatives start on
 # different characters, and the only repeat is last), so nothing is read again after a pattern stops: hostile
-# text costs time in proportion to its length, and the caps bound the length. Brackets are counted in lists,
+# text costs time in proportion to its length, and the caps bound the length. (A <style> or <script> after an
+# <svg> or <math> is read twice: as raw text and as markup.) Brackets are counted in lists,
 # never by recursion.
 
 SITE_ENTRIES = 300               # files and folders, as the page viewer takes a site
@@ -965,6 +976,28 @@ condensed semi-condensed semi-expanded expanded extra-expanded ultra-expanded"""
 FONT_SIZES = frozenset("xx-small x-small small medium large x-large xx-large xxx-large smaller larger math".split())
 SYSTEM_FONTS = ("caption", "icon", "menu", "message-box", "small-caption", "status-bar")
 ANGLES = ("deg", "rad", "grad", "turn")
+# Sizes in px: absolute units; units of the root's size (em and % taken against the root too, ex and ch as half an
+# em); the size keywords as Chrome draws them. A unit of the screen (vw, vh, ...) is not read.
+ABS_UNITS = {"px": 1.0, "pt": 4 / 3, "pc": 16.0, "in": 96.0, "cm": 96 / 2.54, "mm": 96 / 25.4, "q": 96 / 101.6}
+ROOT_UNITS = {"rem": 1.0, "em": 1.0, "%": 0.01, "ex": 0.5, "rex": 0.5, "ch": 0.5, "rch": 0.5, "cap": 0.7,
+              "rcap": 0.7, "ic": 1.0, "ric": 1.0, "lh": 1.2, "rlh": 1.2}
+SIZE_WORDS = {"xx-small": 9.0, "x-small": 10.0, "small": 13.0, "medium": 16.0, "large": 18.0, "x-large": 24.0,
+              "xx-large": 32.0, "xxx-large": 48.0}
+ROOT_PX = 16.0                   # the root's size when the site sets none
+VAR_DEPTH = 8                    # var() inside var() followed this deep
+CUSTOM_DEFS = 16                 # values of one custom property kept
+CUSTOM_NAMES = 2000
+ROOT_SELECTOR = re.compile(r"(?:^|[\s,>~+(])(?:html|:root)(?![\w-])")
+# What changes every colour a page draws, so that no colour written can be compared with the kit.
+FILTER_PROPS = ("filter", "-webkit-filter", "backdrop-filter", "-webkit-backdrop-filter")
+FILTER_SAFE = ("blur", "opacity", "drop-shadow")
+BLEND_PROPS = ("mix-blend-mode", "background-blend-mode")
+NO_EFFECT = ("none", "normal", "inherit", "initial", "unset", "revert", "revert-layer")
+LONG_HUES = ("longer", "increasing", "decreasing")       # color-mix() the long way round the hue wheel
+FILTERED = ("a filter, which changes every colour the page draws so that none can be compared with the kit; "
+            "use the brand kit's colours as they are")
+BLENDED = ("a blend mode, which mixes colours into ones the check cannot compare with the kit; use the brand kit's "
+           "colours as they are")
 
 # HTML attributes that hold an address the page fetches (href only off <a> and <area>, which are links).
 URL_ATTRS = ("src", "srcset", "poster", "data", "action", "formaction", "background", "ping", "manifest",
@@ -975,6 +1008,12 @@ LEGACY_COLOUR_TAGS = ("font", "hr", "basefont")
 BODY_COLOUR_ATTRS = ("text", "link", "vlink", "alink")
 WORD_ATTRS = ("alt", "title", "aria-label", "placeholder")
 RAW_TAGS = ("script", "style", "textarea", "title", "xmp", "noembed", "noframes", "noscript", "iframe")
+FOREIGN_TAGS = ("svg", "math")      # in them <style> and <script> are markup: references decoded, tags inside
+VOID_TAGS = frozenset("area base br col embed hr img input link meta source track wbr param keygen".split())
+SMIL_TAGS = ("set", "animate", "animatecolor", "animatemotion", "animatetransform")
+SMIL_VALUES = ("to", "from", "by", "values")
+DATA_TAGS = ("iframe", "frame", "object", "embed", "script")    # a data: address here is a page or script of its own
+HEADER_STACK = 256
 BLOCK_TAGS = frozenset("""p div br li ul ol dl dt dd h1 h2 h3 h4 h5 h6 header footer main section article aside
 nav figure figcaption blockquote pre table tr td th caption form fieldset legend label button option hr address
 details summary dialog""".split())
@@ -1106,6 +1145,154 @@ def decode_page(data):
     if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
         return data.decode("utf-16", errors="replace")
     return data.decode("utf-8-sig" if data[:3] == b"\xef\xbb\xbf" else "utf-8", errors="replace")
+
+
+REFRESH = re.compile(r"[\t\n\f\r ]*[0-9.]*[\t\n\f\r ]*[;,]?[\t\n\f\r ]*(?:[uU][rR][lL][\t\n\f\r ]*=[\t\n\f\r ]*)?")
+
+
+def refresh_url(content):
+    """The address of a meta refresh's content, as a browser reads it ("5; url='next.html'")."""
+    u = content[REFRESH.match(content).end():]
+    if u[:1] in ("'", '"'):
+        u = u[1:].split(u[0], 1)[0]
+    return u
+
+
+def is_data(url):
+    return url.translate(DROP_TAB_NL).lstrip(CONTROL)[:5].lower() == "data:"
+
+
+def data_text(url):
+    """The text a data: address holds (percent or base64), as a browser decodes it; "" when it holds none."""
+    import base64
+    import binascii
+
+    u = url.translate(DROP_TAB_NL).strip(CONTROL)
+    meta, sep, body = u[5:].partition(",")
+    if not sep:
+        return ""
+    raw = PERCENT.sub(lambda m: chr(int(m.group(1), 16)), body).encode("latin-1", errors="replace")
+    if meta.lower().replace(" ", "").endswith(";base64"):
+        b = bytes(c for c in raw if c not in b" \t\n\f\r")
+        try:
+            raw = base64.b64decode(b + b"=" * (-len(b) % 4))
+        except (binascii.Error, ValueError):
+            return ""
+    return decode_page(raw)
+
+
+def foreign_text(text, low, i, name):
+    """(the text of a <style> or <script> inside SVG or MathML from i, as the browser builds it: references
+    decoded, CDATA kept, comments and tags left out; where its end tag starts). Read once, left to right."""
+    out, n, end_tag = [], len(text), "</" + name
+    while i < n:
+        j = text.find("<", i)
+        if j < 0:
+            out.append(unescape_html(text[i:]))
+            break
+        if j > i:
+            out.append(unescape_html(text[i:j]))
+        if text.startswith("<![CDATA[", j):
+            k = text.find("]]>", j + 9)
+            out.append(text[j + 9:n if k < 0 else k])
+            i = n if k < 0 else k + 3
+        elif text.startswith("<!--", j):
+            k = text.find("-->", j + 4)
+            i = n if k < 0 else k + 3
+        elif low.startswith(end_tag, j) and (j + len(end_tag) >= n or text[j + len(end_tag)] in TAG_END):
+            return "".join(out), j
+        elif TAG_NAME.match(text, j + 1) or text[j + 1:j + 2] in ("/", "!", "?"):
+            k = text.find(">", j + 1)
+            i = n if k < 0 else k + 1
+        else:
+            out.append("<")
+            i = j + 1
+    return "".join(out), n
+
+
+def _number(v):
+    m = re.match(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)", v[:40])
+    return float(m.group()) if m else None
+
+
+def hides(name, attrs):
+    """True when an element's own attributes keep it from being seen: hidden, a width or height of at most one
+    pixel, or a style attribute that takes it away, makes it see-through or moves, clips or masks it."""
+    seen = {}
+    for a, raw, _ in attrs:
+        seen.setdefault(a, raw)
+    if "hidden" in seen:
+        return True
+    for a in ("width", "height"):
+        if a in seen:
+            v = _number(unescape_html(seen[a]).strip(" \t\n\f\r"))
+            if v is not None and v <= 1:
+                return True
+    style = seen.get("style")
+    if style is None:
+        return False
+    s = css_unescape(unescape_html(style)).translate(ASCII_LOWER)
+    parts, i = [], 0
+    while True:                          # comments out, read once
+        j = s.find("/*", i)
+        if j < 0:
+            parts.append(s[i:])
+            break
+        parts.append(s[i:j])
+        k = s.find("*/", j + 2)
+        if k < 0:
+            break
+        i = k + 2
+    for decl in "".join(parts).split(";"):
+        prop, colon, value = decl.partition(":")
+        if not colon:
+            continue
+        prop = prop.strip(" \t\n\f\r")
+        value = value.replace("!important", "").strip(" \t\n\f\r")
+        if prop == "display" and value == "none" or prop == "visibility" and value in ("hidden", "collapse") \
+                or prop == "content-visibility" and value == "hidden":
+            return True
+        if prop == "opacity":
+            v = _number(value)
+            if v is not None and (v / 100 if value.endswith("%") else v) < 0.1:
+                return True
+        if prop in ("width", "height", "max-width", "max-height", "inline-size", "block-size", "max-inline-size",
+                    "max-block-size"):
+            v = _number(value)
+            if v is not None and (v <= 0 or v <= 1 and value.lstrip("+-0123456789.") in ("", "px")):
+                return True
+        if prop == "zoom":
+            v = _number(value)
+            if v is not None and (v / 100 if value.endswith("%") else v) < 0.1:
+                return True
+        if prop in ("clip", "clip-path", "transform", "translate", "scale", "filter") or prop.startswith(
+                ("mask", "-webkit-mask")):
+            if value not in NO_EFFECT:
+                return True
+        if prop in ("left", "top", "right", "bottom", "inset", "margin", "margin-left", "margin-top",
+                    "margin-right", "margin-bottom", "text-indent") and value.startswith("-"):
+            return True
+    return False
+
+
+def interval(a, b, op):
+    """Two (smallest, largest, is a length) values put together by +, -, * or / as calc() does; None when CSS
+    would not take them (a length times a length, a length added to a number, dividing by a length or by 0)."""
+    if op in "+-":
+        if a[2] != b[2]:
+            return None
+        return (a[0] + b[0], a[1] + b[1], a[2]) if op == "+" else (a[0] - b[1], a[1] - b[0], a[2])
+    if op == "*":
+        if a[2] and b[2]:
+            return None
+        ends = [x * y for x in a[:2] for y in b[:2]]
+    else:
+        if b[2] or b[0] <= 0 <= b[1]:
+            return None
+        ends = [a[0] / b[0], a[0] / b[1], a[1] / b[0], a[1] / b[1]]
+    if any(e != e for e in ends):
+        return None
+    return (min(ends), max(ends), a[2] or b[2])
 
 
 def hex_rgb(h):
@@ -1384,7 +1571,14 @@ class SiteCheck:
         self.cache = {}
         self.texts, self.word_chars, self.words_cut = [], 0, False
         self.header, self.header_seen, self.refs, self.index_read = 0, False, [], False
+        self.header_stack = []      # elements open inside the first page's header: (name, hidden)
+        self.header_names, self.header_hidden = {}, 0
         self.steps = 0
+        # Sizes are judged once every style sheet is read: a custom property and the root's size may be set later.
+        self.custom, self.sizes, self.base, self.font_marks, self.data_depth = {}, [], "", None, 0
+        self.kit_css = None
+        if self.kit:      # the kit's own token, whatever the site writes (setting it again is refused)
+            self.custom["--brand-min-size"] = [[(0, "num", (float(self.kit.min_px), "px"))]]
 
     def step(self):
         self.steps += 1
@@ -1424,6 +1618,7 @@ class SiteCheck:
                 have = kitmod.read_capped(self.files["kit.css"][0], MAX_SMALL_JSON) or b""
             except OSError:
                 have = b""
+        self.kit_css = hashlib.sha256(want).digest()
         if have is None:
             self.found.add("tokens_file_changed", "there is no kit.css at the site's top; copy brand/kit.css into "
                            "it byte for byte")
@@ -1466,13 +1661,16 @@ class SiteCheck:
                 continue
             budget -= len(data)
             text = decode_page(data)
+            self.base = name.rsplit("/", 1)[0] if "/" in name else ""
             self.piece.tick()
             if ending == "html":
                 self.html(shown, text, index=name == "index.html")
                 self.index_read = self.index_read or name == "index.html"
             elif ending == "css":
                 lines = Lines(text)
-                self.css(shown, text, 0, len(text), lines.at, tokens=name == "kit.css")
+                # the site's kit.css, or the kit's own kit.css byte for byte anywhere: it alone sets --brand-…
+                own = name.rsplit("/", 1)[-1] == "kit.css" and hashlib.sha256(data).digest() == self.kit_css
+                self.css(shown, text, 0, len(text), lines.at, tokens=name == "kit.css" or own)
             else:
                 lines = Lines(text)
                 self.js(shown, text, 0, len(text), lines.at)
@@ -1510,6 +1708,9 @@ class SiteCheck:
         top = index and nested == 0
         low = text.translate(ASCII_LOWER)
         n, i, words = len(text), 0, []
+        # Once an <svg> or <math> is open, the rest of the page is read as if it might still be inside one (the
+        # browser's way back out is not followed): <style> and <script> are read as text and as markup.
+        foreign = False
         while i < n:
             self.step()
             j = text.find("<", i)
@@ -1531,6 +1732,8 @@ class SiteCheck:
                     name = m.group().translate(ASCII_LOWER)
                     if name in BLOCK_TAGS:
                         words.append("\n")
+                    if top and self.header > 0:
+                        self.header_close(name)
                     if top and name == "header" and self.header > 0:
                         self.header -= 1
                         if not self.header:
@@ -1543,22 +1746,55 @@ class SiteCheck:
                 continue
             name = m.group().translate(ASCII_LOWER)
             attrs, i = self.attrs(text, m.end(), n)
+            closed = text[i - 2:i] == "/>"
+            if name in FOREIGN_TAGS and not closed:
+                foreign = True
             if top and name == "header" and self.header >= 0:
                 self.header += 1
                 self.header_seen = True
-            self.start_tag(file, name, attrs, line_of, nested, words, top and self.header > 0)
+            shown = False
+            if top and self.header > 0:   # a hidden element, or one inside a hidden one, does not show the logo
+                hidden = hides(name, attrs)
+                shown = not hidden and not self.header_hidden
+                raw = name in RAW_TAGS and (not foreign or name in ("style", "script"))
+                if name not in VOID_TAGS and not raw and not (foreign and closed):
+                    self.header_open(name, hidden)
+            self.start_tag(file, name, attrs, line_of, nested, words, shown)
             if name == "plaintext":
                 words.append(text[i:])
                 break
-            if name in RAW_TAGS:
+            if name in RAW_TAGS and (not foreign or name in ("style", "script")):
                 close = low.find("</" + name, i)
                 while close >= 0 and close + 2 + len(name) < n and text[close + 2 + len(name)] not in TAG_END:
                     close = low.find("</" + name, close + 2)
                 stop = n if close < 0 else close
-                self.raw(file, name, attrs, text, i, stop, line_of, words, top and self.header > 0)
+                self.raw(file, name, attrs, text, i, stop, line_of, words, shown)
+                if foreign:
+                    decoded, _ = foreign_text(text, low, i, name)
+                    at = line_of(i)
+                    self.raw(file, name, attrs, decoded, 0, len(decoded), lambda pos, at=at: at, [], shown)
                 k = -1 if close < 0 else text.find(">", close)
                 i = n if k < 0 else k + 1
         self.add_words(file, words)
+
+    def header_open(self, name, hidden):
+        if len(self.header_stack) >= HEADER_STACK:
+            return
+        self.header_stack.append((name, hidden))
+        self.header_names[name] = self.header_names.get(name, 0) + 1
+        self.header_hidden += hidden
+
+    def header_close(self, name):
+        """An end tag inside the header closes the newest open element of its name and all opened after it (an end
+        tag of no open element is passed over, as the browser passes it over)."""
+        if not self.header_names.get(name):
+            return
+        while self.header_stack:
+            got, hidden = self.header_stack.pop()
+            self.header_names[got] -= 1
+            self.header_hidden -= hidden
+            if got == name:
+                return
 
     def start_tag(self, file, name, attrs, line_of, nested, words, in_header):
         rules = self.kit is not None
@@ -1567,12 +1803,22 @@ class SiteCheck:
             line = line_of(at)
             const = (lambda pos, line=line: line)
             if a == "style":
-                self.css(file, v, 0, len(v), const, "in a style attribute", attr=True, header=in_header)
+                self.css(file, v, 0, len(v), const, "in a style attribute", attr=True, header=in_header,
+                         root=name == "html")
             elif a in URL_ATTRS:
                 if a in ("href", "xlink:href") and name in LINK_TAGS:
                     pass
                 else:
                     self.address(file, line, a, v)
+                if a in ("src", "data") and name in DATA_TAGS and is_data(v):
+                    self.found.add("outside_address", "%s: a data: address in %s %s attribute of <%s>: a page or "
+                                   "script that is not a file of the site; %s" % (
+                                       self.at(file, line), "an" if a[0] in "aeiou" else "a", a, name, OWN_FILES))
+                    if name == "script" and self.data_depth < 2:
+                        self.data_depth += 1
+                        u = data_text(v)
+                        self.js(file, u, 0, len(u), const, "in a script given as a data: address")
+                        self.data_depth -= 1
                 if a in ("href", "src", "action", "formaction"):
                     u = v.translate(DROP_TAB_NL).lstrip(CONTROL)
                     if u[:11].lower() == "javascript:":
@@ -1588,7 +1834,7 @@ class SiteCheck:
                 self.html(file, v, nested=nested + 1, line=line)
             if not rules:
                 continue
-            if a in SVG_COLOUR_ATTRS or (a == "color" and name not in LEGACY_COLOUR_TAGS):
+            if a in SVG_COLOUR_ATTRS or a == "filter" or (a == "color" and name not in LEGACY_COLOUR_TAGS):
                 self.css(file, v, 0, len(v), const, "in a %s attribute" % a, attr=True, decl=a)
             elif a == "bgcolor" or (a == "color" and name in LEGACY_COLOUR_TAGS) \
                     or (name == "body" and a in BODY_COLOUR_ATTRS):
@@ -1596,8 +1842,49 @@ class SiteCheck:
                 if rgb is not None and not self.colour_ok(rgb):
                     self.found.add("colour_not_token", "%s: %s" % (self.at(file, line, "in a %s attribute" % a),
                                                                   self.not_kit(rgb)))
+        if name in ("meta", "link") or name in SMIL_TAGS:
+            self.carriers(file, name, attrs, line_of, rules)
         if name in BLOCK_TAGS:
             words.append("\n")
+
+    def carriers(self, file, name, attrs, line_of, rules):
+        """What a <meta>, <link> or SVG animation carries besides its plain attributes: a meta refresh's address,
+        a style sheet given as a data: address, the values an SVG <set> or <animate> gives another attribute."""
+        first = {}
+        for a, raw, at in attrs:
+            if a not in first:
+                first[a] = (unescape_html(raw), line_of(at))
+        if name == "meta":
+            if first.get("http-equiv", ("",))[0].strip(" \t\n\f\r").lower() == "refresh" and "content" in first:
+                v, line = first["content"]
+                if is_outside(refresh_url(v)):
+                    self.found.add("outside_address", "%s: a meta refresh that sends the visitor to an address outside "
+                                   "the site; %s" % (self.at(file, line), OWN_FILES))
+        elif name == "link":
+            href, line = first.get("href", ("", 0))
+            if "stylesheet" in first.get("rel", ("",))[0].lower().split() and is_data(href):
+                self.found.add("outside_address", "%s: a style sheet given as a data: address, not a file of the site; "
+                               "%s" % (self.at(file, line), OWN_FILES))
+                if self.data_depth < 2:
+                    self.data_depth += 1
+                    u = data_text(href)
+                    self.css(file, u, 0, len(u), lambda pos, line=line: line, "in a style sheet given as a data: "
+                             "address")
+                    self.data_depth -= 1
+        else:
+            target = first.get("attributename", ("",))[0].strip(" \t\n\f\r").lower()
+            for key in SMIL_VALUES:
+                if key not in first:
+                    continue
+                v, line = first[key]
+                values = v.split(";")
+                if any(is_outside(x.strip(" \t\n\f\r")) for x in values):
+                    self.found.add("outside_address", "%s: an address outside the site set by an SVG <%s>; %s"
+                                   % (self.at(file, line), name, OWN_FILES))
+                if rules and (target in SVG_COLOUR_ATTRS or target in ("color", "filter")):
+                    for x in values:
+                        self.css(file, x, 0, len(x), lambda pos, line=line: line, "in an SVG <%s>" % name, attr=True,
+                                 decl=target)
 
     def raw(self, file, name, attrs, text, start, stop, line_of, words, in_header):
         if name == "style":
@@ -1643,16 +1930,20 @@ class SiteCheck:
 
     # --- CSS
 
-    def css(self, file, text, start, end, line_of, how="", attr=False, tokens=False, header=False, decl=None):
+    def css(self, file, text, start, end, line_of, how="", attr=False, tokens=False, header=False, decl=None,
+            root=False):
         """A style sheet, a <style> block (both: rules, at-rules, declarations in blocks), a style attribute
         (`attr`: declarations at its top), or one presentation attribute's value (`decl`: its property's name).
         `tokens` is the site's kit.css: only its addresses are read. `header`: inside the first page's header,
-        where the url()s are kept for the logo."""
+        where the url()s are kept for the logo. `root`: the style attribute of <html>, whose size is the root's."""
         rules = self.kit is not None and not tokens
         depth, mode, fresh, cand, at_rule = 0, (1 if decl else 0), True, None, None
         prop, prop_at = decl, start
         stack, var_open, url_open = [], 0, 0
-        pending, font, cap = [], [], None
+        pending, font, cap, cut = [], [], None, False
+        keep = self.keeps(prop, None)
+        # where a rule's selector starts; for each open block, whether it is the root's; an @font-face being read
+        sel_from, roots, face = None, [], None
         i = start
         while i < end:
             self.step()
@@ -1683,20 +1974,30 @@ class SiteCheck:
                 tok = (float(tok) if len(tok) <= 40 else 1e40, unit)
 
             if mode == 0:
+                if sel_from is None:
+                    sel_from = pos
                 if kind == "id" and fresh:
                     cand, prop_at, fresh = tok, pos, False
                 elif kind == "other" and tok == ":" and cand is not None and (depth or attr):
                     prop, mode, cand = css_unescape(cand).lower(), 1, None
+                    keep = self.keeps(prop, face)
                 elif kind == "at" and fresh:
                     at_rule, mode, fresh = css_unescape(tok).lower(), 2, False
                 elif kind == "other" and tok in "{};":
-                    depth = depth + 1 if tok == "{" else max(0, depth - 1) if tok == "}" else depth
-                    fresh, cand = True, None
+                    if tok == "{":
+                        depth += 1
+                        roots.append(self.is_root(text, sel_from, pos, roots))
+                    elif tok == "}":
+                        depth = max(0, depth - 1)
+                        if roots:
+                            roots.pop()
+                        face = self.face_end(file, line_of, how, face, depth)
+                    fresh, cand, sel_from = True, None, None
                 else:
                     fresh, cand = False, None
                 continue
 
-            if mode == 2:       # an at-rule's prelude: only its addresses
+            if mode == 2:       # an at-rule's prelude: its addresses, and the custom property @property names
                 if kind == "fn":
                     stack.append(tok)
                     url_open += tok in URL_FUNCS
@@ -1706,32 +2007,59 @@ class SiteCheck:
                     if stack:
                         url_open -= stack.pop() in URL_FUNCS
                 elif kind == "url" or (kind == "str" and (url_open or at_rule == "@import")):
-                    if is_outside(css_unescape(tok)):
+                    url = css_unescape(tok)
+                    if is_outside(url):
                         self.found.add("outside_address", "%s: an address outside the site in %s; %s" % (
                             self.at(file, line_of(pos), how), "an @import" if at_rule == "@import" else "an at-rule",
                             OWN_FILES))
+                    elif at_rule == "@import" and is_data(url):
+                        self.data_sheet(file, line_of(pos), how, url)
+                elif kind == "id" and at_rule == "@property" and rules and not stack:
+                    self.brand_token(css_unescape(tok), self.at(file, line_of(pos), how), "@property")
                 elif kind == "other" and tok in "{};":
-                    depth = depth + 1 if tok == "{" else max(0, depth - 1) if tok == "}" else depth
-                    mode, fresh, stack, url_open = 0, True, [], 0
+                    if tok == "{":
+                        depth += 1
+                        roots.append(bool(roots and roots[-1]))
+                        if at_rule == "@font-face" and rules and face is None:
+                            face = {"depth": depth, "pos": pos, "family": None, "src": None}
+                    elif tok == "}":
+                        depth = max(0, depth - 1)
+                        if roots:
+                            roots.pop()
+                        face = self.face_end(file, line_of, how, face, depth)
+                    mode, fresh, stack, url_open, sel_from = 0, True, [], 0, None
                 continue
 
             # mode 1: a declaration's value
             if kind == "other" and (tok in "{}" or (tok == ";" and not stack)):
                 if tok == "{":      # its name and colon began a nested rule's selector, not a declaration
                     depth += 1
+                    roots.append(self.is_root(text, prop_at, pos, roots))
                 else:
                     if cap is not None:
                         self.capture(cap, pending)
-                    self.commit(file, line_of, how, prop, prop_at, pending, font, rules)
+                    self.commit(file, line_of, how, prop, prop_at, pending, font, rules, cut,
+                                (attr and root) or bool(roots and roots[-1]), face)
                     if tok == "}":
                         depth = max(0, depth - 1)
+                        if roots:
+                            roots.pop()
+                        face = self.face_end(file, line_of, how, face, depth)
                 mode, fresh, cand, stack, var_open, url_open, pending, font, cap = 0, True, None, [], 0, 0, [], [], None
+                cut, keep, sel_from = False, False, None
                 continue
             d = len(stack)
             if kind == "fn" or (kind == "other" and tok == "("):
                 name = tok if kind == "fn" else ""
-                if prop in FONT_PROPS and len(font) < FONT_TOKENS:
-                    font.append((d, "fn", name))
+                if keep:
+                    if len(font) < FONT_TOKENS:
+                        font.append((d, "fn", name))
+                    else:
+                        cut = True
+                if rules and d == 0 and prop in FILTER_PROPS and name not in FILTER_SAFE:
+                    pending.append(("colour_not_token", pos, FILTERED))
+                elif rules and d == 0 and prop in BLEND_PROPS:
+                    pending.append(("colour_not_token", pos, BLENDED))
                 if cap is not None:
                     if len(cap[2]) < CAPTURE_TOKENS:
                         cap[2].append((d - cap[1], "fn", name))
@@ -1755,8 +2083,14 @@ class SiteCheck:
                         self.capture(cap, pending)
                         cap = None
                 continue
-            if prop in FONT_PROPS and len(font) < FONT_TOKENS:
-                font.append((d, kind, tok))
+            if keep:
+                if len(font) < FONT_TOKENS:
+                    font.append((d, kind, tok))
+                else:
+                    cut = True
+            if rules and d == 0 and (prop in FILTER_PROPS or prop in BLEND_PROPS) and (
+                    kind == "url" or kind == "id" and css_unescape(tok).lower() not in NO_EFFECT):
+                pending.append(("colour_not_token", pos, FILTERED if prop in FILTER_PROPS else BLENDED))
             if kind == "url" or (kind == "str" and url_open):
                 url = css_unescape(tok)
                 if is_outside(url):
@@ -1764,6 +2098,10 @@ class SiteCheck:
                 elif header and len(self.refs) < MAX_REFS:
                     self.refs.append(url)
                 continue
+            if rules and kind == "id" and stack and stack[-1] == "color-mix" \
+                    and css_unescape(tok).lower() in LONG_HUES:
+                pending.append(("colour_not_token", pos, "a colour mixed with color-mix() the long way round the "
+                                "hue wheel, which is none of the kit's colours; %s" % KIT_COLOURS))
             if cap is not None:
                 if len(cap[2]) < CAPTURE_TOKENS:
                     cap[2].append((d - cap[1], kind, tok))
@@ -1783,7 +2121,21 @@ class SiteCheck:
         if mode == 1:
             if cap is not None:
                 self.capture(cap, pending)
-            self.commit(file, line_of, how, prop, prop_at, pending, font, rules)
+            self.commit(file, line_of, how, prop, prop_at, pending, font, rules, cut,
+                        (attr and root) or bool(roots and roots[-1]), face)
+        if face is not None:
+            self.face_end(file, line_of, how, face, -1)
+
+    @staticmethod
+    def keeps(prop, face):
+        """Whether a declaration's tokens are kept: type, a custom property, an @font-face's src."""
+        return prop is not None and (prop in FONT_PROPS or prop[:2] == "--" or (face is not None and prop == "src"))
+
+    @staticmethod
+    def is_root(text, start, stop, roots):
+        """Whether a rule's selector (text[start:stop]) is the root's: html or :root, or & inside such a rule."""
+        sel = css_unescape(text[start if start is not None else stop:stop]).translate(ASCII_LOWER)
+        return ROOT_SELECTOR.search(sel) is not None or ("&" in sel and bool(roots and roots[-1]))
 
     def capture(self, cap, pending):
         name, _, toks, pos = cap
@@ -1794,22 +2146,143 @@ class SiteCheck:
         elif rgb is not True and not self.colour_ok(rgb):
             pending.append(("colour_not_token", pos, self.not_kit(rgb)))
 
-    def commit(self, file, line_of, how, prop, prop_at, pending, font, rules):
+    def commit(self, file, line_of, how, prop, prop_at, pending, font, rules, cut=False, root=False, face=None):
         for code, pos, what in pending:
             self.found.add(code, "%s: %s" % (self.at(file, line_of(pos), how), what))
-        if rules and prop in FONT_PROPS:
-            self.font_rules(prop, font, self.at(file, line_of(prop_at), how))
+        if self.kit is None or prop is None:
+            return
+        where = self.at(file, line_of(prop_at), how)
+        if prop[:2] == "--":
+            if rules:
+                self.brand_token(prop, where, "")
+            if not prop.startswith("--brand-"):
+                self.define(prop, None if cut else font)
+        if not rules:
+            return
+        if prop in FONT_PROPS:
+            self.font_rules(prop, font, where, root, cut and prop == "font-size")
+        if face is not None:
+            if prop == "font-family":
+                face["family"] = self.face_name(font)
+            elif prop == "src":
+                face["src"] = (list(font), cut, where)
+
+    def brand_token(self, name, where, how):
+        """A --brand-… custom property set anywhere but the kit's own kit.css: refused, as the rule it would turn."""
+        if not name.lower().startswith("--brand-"):
+            return
+        n = name.lower()
+        code = "font_not_kit" if n in BRAND_FACES else "text_too_small" if n == "--brand-min-size" \
+            else "colour_not_token" if n in self.kit_names else "tokens_file_changed"
+        self.found.add(code, "%s: %s sets a brand token (--brand-…), which only the brand kit's kit.css may set; "
+                       "use the kit's tokens as they are" % (where, "an @property" if how else "the site's own style"))
+
+    def define(self, name, toks):
+        """One value of a custom property, kept for the sizes that use it (None: one the check could not read)."""
+        if name not in self.custom and len(self.custom) >= CUSTOM_NAMES:
+            return
+        defs = self.custom.setdefault(name, [])
+        if len(defs) < CUSTOM_DEFS:
+            defs.append(None if toks is None else list(toks))
+        elif defs[-1] is not None:
+            defs.append(None)       # more values than are kept: a size through it is not worked out
+
+    def data_sheet(self, file, line, how, url):
+        self.found.add("outside_address", "%s: a style sheet given as a data: address, not a file of the site; %s"
+                       % (self.at(file, line, how), OWN_FILES))
+        if self.data_depth < 2:
+            self.data_depth += 1
+            u = data_text(url)
+            self.css(file, u, 0, len(u), lambda pos: line, "in a style sheet given as a data: address")
+            self.data_depth -= 1
+
+    # --- @font-face
+
+    @staticmethod
+    def face_name(toks):
+        top = [t for t in toks if t[0] == 0]
+        if top and top[0][1] == "str":
+            name = css_unescape(top[0][2])
+        else:
+            words = []
+            for t in top:
+                if t[1] != "id":
+                    break
+                words.append(css_unescape(t[2]))
+            name = " ".join(words)
+        return " ".join(name.lower().split())
+
+    def face_end(self, file, line_of, how, face, depth):
+        """At the end of an @font-face block (when `depth` is above it no more): a kit face's name given any file
+        that is not the kit's own font, byte for byte, or any face but the kit's on this Mac, is font_not_kit."""
+        if face is None or depth >= face["depth"]:
+            return face
+        if face["family"] in self.families and face["src"] is not None:
+            toks, cut, where = face["src"]
+            ok, k = not cut, 0
+            while ok and k < len(toks):
+                d, kind, tok = toks[k]
+                k += 1
+                if d != 0 or (kind == "other" and tok == ","):
+                    continue
+                if kind == "url":
+                    ok = self.kit_font(css_unescape(tok))
+                elif kind == "fn" and tok in ("url", "local"):
+                    arg = []
+                    while k < len(toks) and toks[k][0] > 0:
+                        if toks[k][0] == 1:
+                            arg.append(toks[k])
+                        k += 1
+                    if tok == "url":
+                        ok = bool(arg) and arg[0][1] == "str" and self.kit_font(css_unescape(arg[0][2]))
+                    else:
+                        ok = self.face_name([(0,) + t[1:] for t in arg]) in self.families
+                elif kind == "fn" and tok in ("format", "tech"):
+                    continue
+                else:
+                    ok = False
+            if not ok:
+                shown = next((owner_words(f, 40) for f in self.kit.families
+                              if " ".join(f.lower().split()) == face["family"]), "the kit's face")
+                self.found.add("font_not_kit", "%s: an @font-face gives the brand kit's face %s a file that is not the "
+                               "kit's own; copy the kit's font from brand/fonts/ into the site and point at it"
+                               % (where, shown))
+        return None
+
+    def kit_font(self, ref):
+        """Whether an address in a style sheet names a file of the site that is a kit font file, byte for byte."""
+        if self.font_marks is None:
+            self.font_marks = {}
+            for role in ("heading", "body"):
+                f = self.kit.type[role].get("file")
+                if not isinstance(f, str):
+                    continue
+                try:
+                    data = kitmod.read_capped(os.path.join(self.kit.brand, "fonts", f), MAX_PICTURE_BYTES)
+                except OSError:
+                    data = None
+                if data:
+                    self.font_marks.setdefault(len(data), set()).add(hashlib.sha256(data).digest())
+        r = ref.translate(DROP_TAB_NL).strip(CONTROL)
+        name = site_ref(r if r[:1] in ("/", "\\") or not self.base else self.base + "/" + r)
+        if name not in self.files or self.files[name][1] not in self.font_marks:
+            return False
+        try:
+            data = kitmod.read_capped(self.files[name][0], MAX_PICTURE_BYTES)
+        except OSError:
+            return False
+        return bool(data) and hashlib.sha256(data).digest() in self.font_marks.get(len(data), ())
 
     # --- type
 
-    def font_rules(self, prop, toks, where):
+    def font_rules(self, prop, toks, where, root=False, cut=False):
         for k, t in enumerate(toks):           # !important is not part of the value
             if t[0] == 0 and t[1:] == ("other", "!"):
                 toks = toks[:k]
                 break
         top = [k for k, t in enumerate(toks) if t[0] == 0]
         if prop == "font-size":
-            self.size_rule(toks, top[:1], where)
+            self.size_rule(toks, top[:1], where, root, cut)
             return
         if prop == "font-family":
             if not self.family_ok(toks, top, 0):
@@ -1822,10 +2295,10 @@ class SiteCheck:
         while k < len(top) and self.font_lead(toks[top[k]], toks[top[k - 1]] if k else None):
             k += 1
         if k < len(top) and self.font_size(toks[top[k]]):
-            self.size_rule(toks, top[k:k + 1], where)
             if k == len(top) - 1 and toks[top[k]][1:] == ("fn", "var"):
                 pass            # `font: var(--brand-body)`: the one var is the face
             else:
+                self.size_rule(toks, top[k:k + 1], where, root)
                 k += 1
                 if k < len(top) and toks[top[k]][1:] == ("other", "/"):
                     k += 2
@@ -1852,38 +2325,174 @@ class SiteCheck:
             return css_unescape(tok).lower() in FONT_SIZES
         return kind == "fn"
 
-    def size_rule(self, toks, top, where):
-        """text_too_small: a size in px under the kit's smallest; in min() any px argument, in clamp() its first,
-        in max() the largest when every argument is px."""
-        if not top:
-            return
-        i = top[0]
-        d, kind, tok = toks[i]
-        px = []
-        if kind == "num" and tok[1] == "px":
-            px = [tok[0]]
-        elif kind == "fn" and tok in ("min", "clamp", "max"):
-            args, arg = [], []
-            for t in toks[i + 1:]:
-                if t[0] <= d:
-                    break
-                if t[0] == d + 1 and t[1:] == ("other", ","):
-                    args.append(arg)
-                    arg = []
+    def size_rule(self, toks, top, where, root=False, cut=False):
+        """A text size, judged when every style sheet is read (judge_sizes): `root` when it is the root's."""
+        if top:
+            self.sizes.append((toks, top[0], where, root, cut))
+
+    def judge_sizes(self):
+        """text_too_small: a size under the kit's smallest, worked out in px: rem, em and % of the root's size (the
+        smallest the site gives html or :root, else 16 px), var() through every value the site gives the custom
+        property (and its fallback), calc(), min() (any argument), clamp() (its first), max() (when every argument
+        is known). A size the check cannot work out because the site leaves it to something it does not set is
+        refused; one in units of the screen is not judged."""
+        self.var_memo, self.var_busy = {}, 0
+        bases = []
+        for toks, i, where, root, cut in self.sizes:
+            if root and not cut:
+                try:
+                    r = self.size_of(toks, i, ROOT_PX)
+                except Unresolved:
+                    r = None
+                if r is not None and r[2]:
+                    bases.append(max(0.0, r[0]))
+        base = min(bases) if bases else ROOT_PX
+        for toks, i, where, root, cut in self.sizes:
+            self.step()
+            try:
+                if cut:
+                    raise Unresolved()
+                r = self.size_of(toks, i, ROOT_PX if root else base)
+            except Unresolved:
+                self.found.add("text_too_small", "%s: a text size the check cannot work out (through a var() that "
+                               "no style of the site sets, an attr() or a value too long to read); set sizes in px "
+                               "or rem, or with var(--brand-min-size)" % where)
+                continue
+            if r is not None and r[2] and r[0] < self.kit.min_px:
+                self.found.add("text_too_small", "%s: text set at %s px; the brand kit's smallest is %d px"
+                               % (where, "%g" % round(max(0.0, r[0]), 2), self.kit.min_px))
+
+    @staticmethod
+    def args_of(toks, i):
+        """The direct arguments of the function at toks[i], split at its commas: [[index, ...], ...]."""
+        d, args, j = toks[i][0], [[]], i + 1
+        while j < len(toks) and toks[j][0] > d:
+            if toks[j][0] == d + 1:
+                if toks[j][1:] == ("other", ","):
+                    args.append([])
                 else:
-                    arg.append(t)
-            args.append(arg)
-            one = [a[0][2][0] if len(a) == 1 and a[0][1] == "num" and a[0][2][1] == "px" else None for a in args]
-            if tok == "min":
-                px = [v for v in one if v is not None]
-            elif tok == "clamp":
-                px = [one[0]] if one[0] is not None else []
-            elif one and None not in one:
-                px = [max(one)]
-        small = [v for v in px if v < self.kit.min_px]
-        if small:
-            self.found.add("text_too_small", "%s: text set at %s px; the brand kit's smallest is %d px"
-                           % (where, "%g" % min(small), self.kit.min_px))
+                    args[-1].append(j)
+            j += 1
+        return args
+
+    def size_of(self, toks, i, root):
+        """(smallest, largest, is a length) of the value at toks[i] in px, or None when it is not worked out;
+        raises Unresolved for a value the site leaves to something it never sets."""
+        _, kind, tok = toks[i]
+        if kind == "num":
+            v, u = tok
+            if u in ABS_UNITS:
+                return (v * ABS_UNITS[u], v * ABS_UNITS[u], True)
+            if u in ROOT_UNITS:
+                return (v * ROOT_UNITS[u] * root, v * ROOT_UNITS[u] * root, True)
+            return (v, v, False) if u == "" else None
+        if kind == "id":
+            w = css_unescape(tok).lower()
+            if w in SIZE_WORDS:
+                return (SIZE_WORDS[w], SIZE_WORDS[w], True)
+            return (root / 1.2, root / 1.2, True) if w == "smaller" else None
+        if kind != "fn":
+            return None
+        args = self.args_of(toks, i)
+        if tok == "var":
+            return self.var_size(toks, args, root)
+        if tok == "attr":
+            raise Unresolved()
+        if tok in ("calc", "", "-webkit-calc"):
+            return self.size_sum(toks, args[0], root) if len(args) == 1 else None
+        if tok in ("min", "max", "clamp"):
+            vals = [self.size_sum(toks, a, root) for a in args]
+            known = [v for v in vals if v is not None and v[2]]
+            if tok == "min" and known:
+                return (min(v[0] for v in known), min(v[1] for v in known), True)
+            if tok == "max" and known and len(known) == len(vals):
+                return (max(v[0] for v in known), max(v[1] for v in known), True)
+            if tok == "clamp" and len(vals) == 3 and vals[0] is not None and vals[0][2]:
+                return (vals[0][0], float("inf"), True)
+        return None
+
+    def size_sum(self, toks, idxs, root):
+        """A calc() expression of the values at idxs (+ and - of * and /), in intervals."""
+        items = [toks[j][2] if toks[j][1] == "other" and toks[j][2] in "+-*/" else j for j in idxs]
+        if not items:
+            return None
+        total, op, k = None, None, 0
+        while True:
+            if k >= len(items) or isinstance(items[k], str):
+                return None
+            prod = self.size_of(toks, items[k], root)
+            k += 1
+            while k < len(items) and items[k] in ("*", "/"):
+                times = items[k] == "*"
+                if k + 1 >= len(items) or isinstance(items[k + 1], str):
+                    return None
+                rhs = self.size_of(toks, items[k + 1], root)
+                k += 2
+                prod = None if prod is None or rhs is None else interval(prod, rhs, "*" if times else "/")
+            if op is None:
+                total = prod
+            else:
+                total = None if total is None or prod is None else interval(total, prod, op)
+            if k >= len(items):
+                return total
+            if items[k] not in ("+", "-"):
+                return None
+            op, k = items[k], k + 1
+
+    def var_size(self, toks, args, root):
+        first = args[0]
+        if not first or toks[first[0]][1] != "id":
+            return None
+        name = css_unescape(toks[first[0]][2]).lower()
+        got = self.custom_size(name, root)
+        out = [] if got is None else [got]
+        if len(args) == 2 and args[1]:
+            fall = self.size_sum(toks, args[1], root)
+            if fall is not None:
+                out.append(fall)
+        elif name not in self.custom:
+            raise Unresolved()
+        if not out:
+            return None
+        return (min(v[0] for v in out), max(v[1] for v in out), all(v[2] for v in out))
+
+    def custom_size(self, name, root):
+        """The sizes a custom property can hold, over every value the site gives it (worked out once)."""
+        key = (name, root)
+        if key in self.var_memo:
+            got = self.var_memo[key]
+            if got == "unresolved":
+                raise Unresolved()
+            return None if got == "busy" else got      # busy: a loop of var()s, which the browser drops
+        if name not in self.custom:
+            return None
+        if self.var_busy >= VAR_DEPTH:
+            self.var_memo[key] = "unresolved"
+            raise Unresolved()
+        self.var_memo[key] = "busy"
+        self.var_busy += 1
+        out = []
+        try:
+            for value in self.custom[name]:
+                if value is None:
+                    raise Unresolved()
+                for k, t in enumerate(value):
+                    if t[0] == 0 and t[1:] == ("other", "!"):
+                        value = value[:k]
+                        break
+                top = [k for k, t in enumerate(value) if t[0] == 0]
+                if len(top) == 1:
+                    r = self.size_of(value, top[0], root)
+                    if r is not None:
+                        out.append(r)
+        except Unresolved:
+            self.var_memo[key] = "unresolved"
+            raise
+        finally:
+            self.var_busy -= 1
+        got = (min(v[0] for v in out), max(v[1] for v in out), all(v[2] for v in out)) if out else None
+        self.var_memo[key] = got
+        return got
 
     def family_ok(self, toks, top, k):
         if k >= len(top):
@@ -1979,7 +2588,8 @@ class SiteCheck:
 
     def logo(self):
         """no_logo (when the kit asks for its logo on pages): no file of the site that is a kit logo file, byte for
-        byte, is shown by an <img src> or a url() inside the first <header> of index.html."""
+        byte, is shown by an <img src> or a url() inside the first <header> of index.html. A picture whose own
+        attributes, or an element's around it, keep it from being seen (hides()) does not count."""
         if "page" not in self.kit.required_on or not self.index_read:
             return
         if not self.header_seen:
@@ -2047,6 +2657,7 @@ def check_site(ctx, piece):
         sc.font_collections()
     sc.read_all()
     if ctx.kit:
+        sc.judge_sizes()
         sc.logo()
         if ctx.report:
             sc.viewer_report()

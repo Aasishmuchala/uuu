@@ -155,6 +155,11 @@ async function render({ entries, pages, root, program, launch, ps, lim, chromeLi
           sessions.set(p.sessionId, info);
           const tasks = [send("Fetch.enable", { patterns: [{ urlPattern: "*" }] }, p.sessionId).catch(() => {})];
           if (info.type === "page" || info.type === "iframe") tasks.push(send("Page.enable", {}, p.sessionId).catch(() => {}), send("Network.enable", {}, p.sessionId).catch(() => {}));
+          // T58b: the page and its workers see the user agent of a plain Chrome, not "HeadlessChrome"
+          if (session.userAgent) {
+            const how = info.type === "page" || info.type === "iframe" ? "Emulation.setUserAgentOverride" : "Network.setUserAgentOverride";
+            tasks.push(send(how, userAgentOverride(session.userAgent), p.sessionId).catch(() => {}));
+          }
           tasks.push(send("Runtime.enable", {}, p.sessionId).catch(() => {}), send("Log.enable", {}, p.sessionId).catch(() => {}));
           tasks.push(send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }, p.sessionId).catch(() => {}));
           Promise.all(tasks).then(() => send("Runtime.runIfWaitingForDebugger", {}, p.sessionId).catch(() => {}));
@@ -240,7 +245,9 @@ async function render({ entries, pages, root, program, launch, ps, lim, chromeLi
           for (const scheme of ["light", "dark"]) {
             if (scheme === "dark" && !hasDark) continue;
             await send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: false }, sid, left());
-            await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] }, sid, left());
+            // Less motion asked for, as any visitor can: a page shows every part at once for the whole-page picture
+            // (the site kit's reveal.js), with nothing that tells it the viewer is looking (T58b).
+            await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] }, sid, left());
             const loaded = new Promise((resolve) => loadWaiters.set(sid, resolve));
             await send("Page.navigate", { url: `${origin}/${page}` }, sid, left());
             let timer;
@@ -333,6 +340,14 @@ function addressOf(url) {
 }
 
 // The faces Chrome really drew with (a named face that is not on the Mac falls back).
+// The user agent override of a plain Chrome of the same version (T58b): the string and the client hints.
+function userAgentOverride(userAgent) {
+  const full = (/Chrome\/([0-9.]+)/.exec(userAgent) || [])[1] || "0";
+  const major = full.split(".")[0];
+  const brands = (v) => [{ brand: "Google Chrome", version: v }, { brand: "Chromium", version: v }, { brand: "Not.A/Brand", version: "99" }];
+  return { userAgent, userAgentMetadata: { brands: brands(major), fullVersionList: brands(full), fullVersion: full, platform: "macOS", platformVersion: "", architecture: "", model: "", mobile: false } };
+}
+
 async function drawnFonts(send, sid, left) {
   const used = new Set();
   await send("DOM.enable", {}, sid, left());
@@ -341,7 +356,13 @@ async function drawnFonts(send, sid, left) {
   const { nodeIds } = await send("DOM.querySelectorAll", { nodeId: doc.root.nodeId, selector: "h1,h2,h3,h4,p,a,button,li,label,input,span" }, sid, left());
   for (const n of (nodeIds || []).slice(0, 30)) {
     const r = await send("CSS.getPlatformFontsForNode", { nodeId: n }, sid, left());
-    for (const f of r.fonts || []) if (typeof f.familyName === "string") used.add(f.familyName);
+    // a face that draws a real share of the node's text, not one that fills in a missing glyph or two (T58b)
+    const fonts = (r.fonts || []).filter((f) => typeof f.familyName === "string");
+    const total = fonts.reduce((sum, f) => sum + (Number(f.glyphCount) || 0), 0);
+    for (const f of fonts) {
+      const g = Number(f.glyphCount);
+      if (!Number.isFinite(g) || (g >= 3 && g * 4 >= total)) used.add(f.familyName);
+    }
   }
   return [...used];
 }

@@ -9,7 +9,9 @@
 //     preview is the home server's own pictures, asked for in the background when there are none
 //     (lib/siteshots.mjs; this route never waits for them);
 //   - brand: the home server's own fenced run of the brand check (lib/brandcheck.mjs), never a report from
-//     the task folder; while it runs, or when it cannot, "unknown";
+//     the task folder; while it runs, or when it cannot, "unknown"; for a page, with the verdict of the home
+//     server's own page viewer report over it (lib/sitebrand.mjs, T58b): a measured disagreement is a fail and
+//     a version not yet measured is never "pass";
 //   - review: the Art director's newest usable review (lib/artreview.mjs; by the board's author id), with
 //     `meets` worked out from its numbers, and only when the review is newer than every file of the pieces
 //     (so a piece changed after it was scored is not shown as scored).
@@ -20,6 +22,7 @@ import { join } from "node:path";
 import { loadCraft } from "../../../company/lib/craft-files.mjs";
 import { reviewsOf, reviewView } from "../lib/artreview.mjs";
 import { brandOfAll, brandOfVariant, runBrandCheck, stampOf } from "../lib/brandcheck.mjs";
+import { measuredBrand, measuredKit, sitePlaces, withMeasured } from "../lib/sitebrand.mjs";
 import { requestShots } from "../lib/siteshots.mjs";
 import { loadCatalogue } from "../lib/jobs.mjs";
 import { findTask, loadTaskContext, treeComments } from "../lib/tasks.mjs";
@@ -78,6 +81,9 @@ export async function piecesFor(ctx, goal, comments, { artDirectorId = null } = 
   const note = complete ? null : TOO_MANY;
   const reviewed = (round) => (complete ? reviewFor(comments, artDirectorId, round, newest) : null);
 
+  const kit = kind === "page" ? measuredKit(ctx.config) : null;
+  const measured = (brand, rels) => (kind === "page" ? withMeasured(brand, measuredBrand(ctx.config, identifier, rels, { kit })) : brand);
+
   if (!v.present) {
     const review = reviewed(null);
     const piece = review ? review.pieces.find((p) => p.id === "piece") : null;
@@ -85,7 +91,7 @@ export async function piecesFor(ctx, goal, comments, { artDirectorId = null } = 
       ...out,
       complete, note,
       round: review ? review.round : null,
-      variants: [{ id: "piece", direction: null, preview: [], brand: brandOfAll(run), review: reviewView(piece) }],
+      variants: [{ id: "piece", direction: null, preview: [], brand: measured(brandOfAll(run), sitePlaces(ctx.config, identifier)), review: reviewView(piece) }],
     };
   }
 
@@ -102,7 +108,7 @@ export async function piecesFor(ctx, goal, comments, { artDirectorId = null } = 
       if (kind === "page" && !preview.some((p) => p.type === "image")) requestShots(ctx, identifier, x.reportName);
       // A version whose preview holds nothing the check measures (no slide, poster or board shot): never "fits". A page
       // is always measured: the check reads its own files (T51).
-      const brand = previewIsChecked(kind, preview) ? brandOfVariant(run, x) : { result: "unknown", lines: [NO_SLIDES] };
+      const brand = previewIsChecked(kind, preview) ? measured(brandOfVariant(run, x), [x.rel]) : { result: "unknown", lines: [NO_SLIDES] };
       return { id: x.id, direction: x.direction, preview, brand, review: reviewView(review ? review.pieces.find((p) => p.id === x.id) : null) };
     }),
   };

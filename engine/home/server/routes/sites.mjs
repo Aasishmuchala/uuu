@@ -19,6 +19,7 @@ import { callDoor } from "../lib/doors.mjs";
 import {
   SAY, findSite, kitFacts, readShot, readSite, requestShots, shotsView, siteInfo, sitesOf, takeShots, testViewer, viewerOn,
 } from "../lib/siteshots.mjs";
+import { measuredBrand, measuredKit } from "../lib/sitebrand.mjs";
 import { fileResponse } from "../lib/static.mjs";
 import { findTask, loadTaskContext } from "../lib/tasks.mjs";
 import { kindOfTask } from "./pieces.mjs";
@@ -121,6 +122,7 @@ export async function sitesView(ctx, goal) {
   const listed = sitesOf(config, goal.identifier);
   if (listed.problem) return { ...out, problem: kind === "page" ? listed.problem : null };
   const kit = kitFacts(config);
+  const judged = measuredKit(config);
   for (const s of listed.sites) {
     const info = siteInfo(config, goal.identifier, s.rel);
     let shots = shotsView(config, info, { on, kit });
@@ -132,6 +134,8 @@ export async function sitesView(ctx, goal) {
       ref: s.ref, variant: s.variant, direction: s.direction,
       files: info.files, bytes: info.bytes, left: info.left, pages: info.pages, problem: info.problem,
       shots,
+      // T58b: the brand verdict of the home server's own report of this site (lib/sitebrand.mjs); null with no kit
+      brand: (({ state, result, lines }) => (state === "done" ? { result, lines } : null))(measuredBrand(config, goal.identifier, [s.rel], { kit: judged, on })),
     });
   }
   return out;

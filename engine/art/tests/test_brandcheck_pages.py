@@ -259,8 +259,7 @@ class TypeTest(PageBase):
                                      ".b { font-family: didot; } .c { font-family: Avenir   Next; }\n"
                                      ".d { font: italic 700 1rem/1.5 var(--brand-body); } .e { font: inherit; }\n"
                                      ".f { font: var(--brand-heading); } .g { font-family: inherit !important; }\n"
-                                     ".h { font-size: clamp(1rem, 2vw, 3rem); }\n"
-                                     "@font-face { font-family: \"Didot\"; src: url(fonts/didot.otf); }\n")
+                                     ".h { font-size: clamp(1rem, 2vw, 3rem); }\n")
         code, p = self.run_site()
         self.assertEqual((code, p["hard"]), (0, []))
 
@@ -547,6 +546,207 @@ class KitAndWordsTest(PageBase):
         self.assertEqual((code, codes(p)), (1, ["banned_phrase", "filler_phrase"]))
         self.assertEqual({e["where"] for e in p["hard"]}, {"index.html"})
         self.assertEqual(len(self.details(p, "banned_phrase")), 2)
+
+
+class FooledTest(PageBase):
+    """T58b: the pages T57's review found the page rules passed (a10_brandcheck_fooled.py), each a hard entry now,
+    beside the honest page that still passes."""
+
+    def assertCaught(self, p, code, *words):
+        self.assertIn(code, codes(p), json.dumps(p["hard"]))
+        found = self.details(p, code)
+        for w in words:
+            self.assertTrue(any(w in d for d in found), "%r not in %s" % (w, found))
+
+    def test_a_colour_mixed_the_long_way_round_the_hue_wheel_fails_and_a_plain_mix_passes(self):
+        self.site("long", style__css=STYLE + "body { background: color-mix(in hsl longer hue, var(--brand-ink), "
+                                             "var(--brand-ink)); }\n")
+        self.site("short", style__css=STYLE + "body { background: color-mix(in srgb, var(--brand-ink) 40%, "
+                                              "transparent); }\n")
+        code, r = self.check()
+        self.assertCaught(self.piece(r, "long"), "colour_not_token", "style.css, line 8", "the long way round")
+        self.assertEqual(self.piece(r, "short")["hard"], [])
+
+    def test_a_filter_or_a_blend_mode_fails_and_a_blur_passes(self):
+        self.site("filter", style__css=STYLE + "html { filter: hue-rotate(180deg) saturate(4); }\n"
+                                               ".a { backdrop-filter: url(#f); }\n.b { filter: var(--f); }\n"
+                                               ".c { mix-blend-mode: difference; }\n",
+                  index__html=in_index('<svg width="0" height="0"><g filter="url(#m)"></g></svg>\n'))
+        self.site("blur", style__css=STYLE + ".a { filter: blur(4px) drop-shadow(0 0 2px var(--brand-ink)); }\n"
+                                             ".b { mix-blend-mode: normal; filter: none; }\n")
+        code, r = self.check()
+        p = self.piece(r, "filter")
+        self.assertEqual(codes(p), ["colour_not_token"])
+        self.assertEqual([d.split(":")[0] for d in self.details(p, "colour_not_token")],
+                         ["index.html, line 15, in a filter attribute", "style.css, line 8", "style.css, line 9",
+                          "style.css, line 10", "style.css, line 11"])
+        self.assertIn("a filter, which changes every colour", self.details(p, "colour_not_token")[1])
+        self.assertIn("a blend mode", self.details(p, "colour_not_token")[4])
+        self.assertEqual(self.piece(r, "blur")["hard"], [])
+
+    def test_a_style_or_script_inside_inline_svg_is_read_as_the_browser_reads_it(self):
+        self.site(index__html=in_index(
+            '<svg width="0" height="0"><style>body{background:&#x23;ff00aa}</style></svg>\n'           # line 15
+            '<svg width="0" height="0"><script>fetch(&quot;https://x/collect&quot;)</script></svg>\n'  # 16
+            '<svg><style><![CDATA[ </style> ]]>p{color:#00ff00}</style></svg>\n'))                     # 17
+        code, p = self.run_site()
+        self.assertEqual(codes(p), ["colour_not_token", "outside_address"])
+        self.assertEqual([d.split(":")[0] for d in self.details(p, "colour_not_token")],
+                         ["index.html, line 15, in a <style> block", "index.html, line 17, in a <style> block"])
+        self.assertIn("#FF00AA", self.details(p, "colour_not_token")[0])
+        self.assertIn("passed to fetch()", self.details(p, "outside_address")[0])
+
+    def test_markup_hidden_in_svg_by_a_tag_that_is_raw_text_only_in_html_is_read(self):
+        self.site(index__html=in_index('<svg><noscript><style>p{color:#ff00aa}</style></noscript></svg>\n'))
+        code, p = self.run_site()
+        self.assertFails(p, "colour_not_token", "line 15, in a <style> block: #FF00AA")
+
+    def test_a_style_sheet_given_as_a_data_address_is_refused_and_read(self):
+        self.site(index__html=in_index(head='<link rel="stylesheet" href="data:text/css,body%7Bbackground:%23ff00aa%7D">'
+                                            '\n<link rel="icon" href="data:image/png;base64,iVBORw0KGgo=">\n'),
+                  style__css='@import "data:text/css;base64,cCB7IGNvbG9yOiAjMDBmZjAwOyB9";\n' + STYLE)
+        code, p = self.run_site()
+        self.assertEqual(codes(p), ["colour_not_token", "outside_address"])
+        self.assertEqual([d.split(":")[0] for d in self.details(p, "outside_address")],
+                         ["index.html, line 8", "style.css, line 1"])
+        self.assertTrue(all("data: address" in d for d in self.details(p, "outside_address")))
+        found = self.details(p, "colour_not_token")
+        self.assertTrue(any("#FF00AA" in d for d in found) and any("#00FF00" in d for d in found), found)
+
+    def test_a_script_or_frame_given_as_a_data_address_is_refused(self):
+        self.site(index__html=in_index('<script src="data:text/javascript,fetch(%22https://x/%22)"></script>\n'
+                                       '<iframe src="data:text/html,hi"></iframe>\n'))
+        code, p = self.run_site()
+        self.assertEqual(codes(p), ["outside_address"])
+        found = self.details(p, "outside_address")
+        self.assertTrue(any("passed to fetch()" in d for d in found), found)
+        self.assertTrue(any("of <iframe>" in d for d in found), found)
+
+    def test_the_kits_face_name_given_another_file_fails_and_the_kits_own_file_passes(self):
+        kit = a_kit()
+        kit["type"]["heading"]["file"] = "didot.otf"
+        self.write_json(os.path.join(self.brand, "kit.json"), kit)
+        os.makedirs(os.path.join(self.brand, "fonts"))
+        with open(os.path.join(self.brand, "fonts", "didot.otf"), "wb") as fh:
+            fh.write(b"OTTO the kit's own face")
+        own = '@font-face { font-family: "Didot"; src: url(../fonts/didot.otf) format("opentype"); }\n'
+        self.site("own", css_x_faces__css=own, fonts_x_didot__otf=b"OTTO the kit's own face",
+                  index__html=INDEX.replace('href="style.css">', 'href="style.css">\n<link rel="stylesheet" '
+                                                                 'href="css/faces.css">'))
+        self.site("other", style__css=STYLE + '@font-face { font-family: "Avenir Next"; src: url(fonts/other.woff2); }'
+                                               '\n@font-face { font-family: didot; src: local("Comic Sans MS"); }\n',
+                  fonts_x_other__woff2=b"wOF2 not the kit's face")
+        self.site("renamed", style__css=STYLE + '@font-face { font-family: Didot; src: url(fonts/didot.otf); }\n',
+                  fonts_x_didot__otf=b"OTTO another face")
+        code, r = self.check()
+        self.assertEqual(self.piece(r, "own")["hard"], [])
+        other = self.piece(r, "other")
+        self.assertEqual(codes(other), ["font_not_kit"])
+        self.assertEqual([d.split(" a file")[0] for d in self.details(other, "font_not_kit")],
+                         ["style.css, line 8: an @font-face gives the brand kit's face Avenir Next",
+                          "style.css, line 9: an @font-face gives the brand kit's face Didot"])
+        self.assertEqual(codes(self.piece(r, "renamed")), ["font_not_kit"])
+
+    def test_a_brand_token_set_outside_kit_css_fails_as_the_rule_it_would_turn(self):
+        self.site(style__css=STYLE + ':root { --brand-body: "Comic Sans MS"; --brand-min-size: 6px; }\n'
+                                     '@property --brand-ink { syntax: "<color>"; inherits: false; '
+                                     'initial-value: #1A3C5E; }\n',
+                  index__html=in_index('<p style="--brand-clay: var(--brand-ink)">x</p>\n'))
+        code, p = self.run_site()
+        self.assertEqual(codes(p), ["colour_not_token", "font_not_kit", "text_too_small"])
+        for code_ in ("colour_not_token", "font_not_kit", "text_too_small"):
+            self.assertTrue(all("only the brand kit's kit.css may set" in d for d in self.details(p, code_)), code_)
+        self.assertEqual(len(self.details(p, "colour_not_token")), 2)
+
+    def test_sizes_through_custom_properties_and_relative_units_are_worked_out(self):
+        self.site("small", style__css=STYLE + ":root { --fine: 6px; --finer: var(--fine); }\n"
+                                              ".a { font-size: var(--fine); }\n"           # line 9
+                                              ".b { font-size: 0.3rem; }\n"                 # 10
+                                              ".c { font-size: calc(2rem - 25px); }\n"      # 11
+                                              ".d { font-size: var(--none, 0.5em); }\n"     # 12
+                                              ".e { font-size: x-small; }\n"                # 13
+                                              ".f { font: italic var(--finer) var(--brand-body); }\n")   # 14
+        self.site("fine", style__css=STYLE + ":root { --body: 1.125rem; --h: clamp(2rem, 4vw, 3rem); }\n"
+                                             "p { font-size: var(--body); } h3 { font-size: var(--h); }\n"
+                                             ".a { font-size: calc(var(--brand-min-size) * 1.5); }\n"
+                                             ".b { font-size: max(var(--brand-min-size), 0.5rem); }\n"
+                                             ".c { font-size: 2vw; } .d { font-size: var(--loop); --loop: var(--loop); }\n")
+        code, r = self.check()
+        small = self.piece(r, "small")
+        self.assertEqual(codes(small), ["text_too_small"])
+        self.assertEqual([d.split(": text set at ")[1].split(" ")[0] for d in self.details(small, "text_too_small")],
+                         ["6", "4.8", "7", "8", "10", "6"])
+        self.assertEqual(self.piece(r, "fine")["hard"], [])
+
+    def test_a_size_left_to_a_var_the_site_never_sets_is_refused(self):
+        self.site(style__css=STYLE + ".a { font-size: var(--set-by-a-script); }\n"
+                                     ".b { font-size: attr(data-size px, 16px); }\n")
+        code, p = self.run_site()
+        self.assertFails(p, "text_too_small", "style.css, line 8: a text size the check cannot work out",
+                         "style.css, line 9: a text size")
+
+    def test_the_root_size_is_the_one_the_site_gives_html(self):
+        self.site("root", style__css=STYLE + "html { font-size: 50%; }\nbody p { font-size: 1.5rem; }\n")
+        self.site("attr", index__html=INDEX.replace('<html lang="en">', '<html lang="en" style="font-size: 10px">')
+                  .replace("</main>", '<p style="font-size: 1.2rem">x</p></main>'))
+        code, r = self.check()
+        self.assertEqual([d.split(": text set at ")[1].split(" ")[0]
+                          for d in self.details(self.piece(r, "root"), "text_too_small")], ["8", "12"])
+        self.assertEqual([d.split(": text set at ")[1].split(" ")[0]
+                          for d in self.details(self.piece(r, "attr"), "text_too_small")], ["10", "12"])
+
+    def test_a_meta_refresh_to_another_site_fails_and_one_to_its_own_page_passes(self):
+        self.site("away", index__html=in_index(head='<meta http-equiv="Refresh" content="0; URL=\'https://x/landing\'">\n'))
+        self.site("home", index__html=in_index(head='<meta http-equiv="refresh" content="30;url=index.html">\n'))
+        code, r = self.check()
+        self.assertCaught(self.piece(r, "away"), "outside_address", "index.html, line 8: a meta refresh")
+        self.assertEqual(self.piece(r, "home")["hard"], [])
+
+    def test_an_svg_animation_that_sets_an_address_or_a_colour_fails(self):
+        self.site(index__html=in_index(
+            '<svg width="10" height="10"><image width="10" height="10"><set attributeName="href" '
+            'to="https://x/pixel.png"/></image>\n'                                                   # line 15
+            '<rect width="10" height="10"><animate attributeName="fill" values="#1A3C5E;#ff00aa" dur="1s"/>'
+            '</rect></svg>\n'))                                                                       # 16
+        code, p = self.run_site()
+        self.assertEqual(codes(p), ["colour_not_token", "outside_address"])
+        self.assertIn("index.html, line 15: an address outside the site set by an SVG <set>",
+                      self.details(p, "outside_address")[0])
+        self.assertIn("line 16, in an SVG <animate>: #FF00AA", self.details(p, "colour_not_token")[0])
+
+    def test_a_logo_that_is_never_seen_does_not_count(self):
+        logo = '<img src="logo.png" alt="Sthyra">'
+        for name, html in (("hidden", '<img src="logo.png" alt="" hidden width="0" height="0">'),
+                           ("none", '<img src="logo.png" alt="Sthyra" style="DISPLAY: none">'),
+                           ("clear", '<img src="logo.png" alt="Sthyra" style="opacity:0.0">'),
+                           ("away", '<img src="logo.png" alt="Sthyra" style="position:absolute; left:-9999px">'),
+                           ("clip", '<img src="logo.png" alt="Sthyra" style="clip-path: inset(50%)">'),
+                           ("tiny", '<img src="logo.png" alt="Sthyra" width="1" height="1">'),
+                           ("inside", '<div hidden><span>' + logo + '</span></div>'),
+                           ("bg", '<span style="visibility:hidden; background: url(logo.png)">Sthyra</span>')):
+            self.site(name, index__html=INDEX.replace(logo, html))
+        self.site("shown", index__html=INDEX.replace(logo, '<div hidden>Menu</div><div><span>' + logo + '</span>'
+                                                           '</div>'))
+        code, r = self.check()
+        for p in r["pieces"]:
+            if p["name"] == "shown":
+                self.assertEqual(p["hard"], [])
+            else:
+                self.assertEqual(codes(p), ["no_logo"], p["name"])
+
+    quick = DistrustTest.quick
+
+    def test_400_kb_of_the_new_cases_finishes_quickly(self):
+        for files in ({"index__html": in_index("<svg>" + "<style>&#x23;<![CDATA[<!--" * 15000 + "\n")},
+                      {"index__html": in_index("<svg>" + "<x>" * 130000 + "\n")},
+                      {"index__html": INDEX.replace('<header class="top">', '<header class="top">' + "<div hidden>" * 20000
+                                                    + "</p>" * 20000 + "</div>" * 20000)},
+                      {"style__css": STYLE + "".join(":root{--v%d:var(--v%d)}" % (k, k + 1) for k in range(16000))
+                       + ".a{font-size:var(--v0)}\n"},
+                      {"style__css": STYLE + ".a{font-size:calc(" + "1px + " * 60000 + "1px)}\n"},
+                      {"style__css": STYLE + "html{" * 100000 + "\n"}):
+            shutil.rmtree(os.path.join(self.goal, "site"), ignore_errors=True)
+            self.quick(**files)
 
 
 class CommandTest(PageBase):

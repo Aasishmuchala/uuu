@@ -271,10 +271,13 @@ function cleanPage(p) {
     contrast: list(p.contrast, 20, (c) => (obj(c) && HEX_RE.test(c.fg) && HEX_RE.test(c.bg) && px(c.ratio) !== null
       ? { text: plain(c.text, 40), fg: c.fg, bg: c.bg, ratio: px(c.ratio) } : null)),
     fonts: list(p.fonts, 20, (f) => (obj(f) && px(f.minPx) !== null ? { family: plain(f.family, 80), minPx: px(f.minPx) } : null)),
-    colours: list(p.colours, 40, (c) => (typeof c === "string" && HEX_RE.test(c) ? c : null)),
+    colours: list(p.colours, 120, (c) => (typeof c === "string" && HEX_RE.test(c) ? c : null)),
     drawn: list(p.drawn, 20, (d) => (typeof d === "string" && plain(d, 80) ? plain(d, 80) : null)),
     dark: p.dark === true,
     cut: typeof p.cut === "string" && p.cut ? (Object.hasOwn(CUTS, p.cut) ? p.cut : "other") : null,
+    // T58b: elements drawn through a filter or blend mode, and whether the page held more than the report lists
+    filtered: count(p.filtered),
+    capped: p.capped === true,
   };
 }
 

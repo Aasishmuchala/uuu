@@ -18,8 +18,8 @@ fetches anything, and they name no address. A library that is not here is not us
   columns; from 1280 px the gap grows. It also holds the two states of the scroll reveal and the lightbox's
   layout. It sets no colour of its own.
 - `reveal.js`: every element with `data-reveal` fades in as it comes onto the screen, once. Every part is shown at
-  once when the visitor asks for less motion, and when the page viewer opens the page (it takes pictures of the
-  whole page and never scrolls).
+  once when the visitor asks for less motion; the page viewer asks for less motion when it takes its pictures of
+  the whole page (it never scrolls), so they show every part.
 - `gallery.js`: a link with `data-gallery` that points at a picture of the site opens it large in a `<dialog>`,
   with the `alt` of the picture inside the link as its caption. Links with the same `data-gallery` value are one
   gallery: the arrow keys go back and next, Escape closes, and focus goes back to the link. A link to anything
