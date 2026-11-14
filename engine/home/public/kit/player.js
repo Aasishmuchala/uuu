@@ -197,7 +197,7 @@ export function Player({ src, poster, stills, seconds, label, tags }) {
       ${live
         ? html`<button class=${cx("k-player__btn", muted && "k-player__btn--off")} type="button" aria-pressed=${muted ? "true" : "false"}
             aria-label=${muted ? PLAYER_WORDS.unmute : PLAYER_WORDS.mute} title=${muted ? PLAYER_WORDS.unmute : PLAYER_WORDS.mute}
-            onClick=${toggleMute}><${Icon} name="volume" size=${16} /></button>`
+            onClick=${toggleMute}><${Icon} name=${muted ? "volume-off" : "volume"} size=${16} /></button>`
         : null}
       <button class="k-player__btn" type="button" aria-label=${full ? PLAYER_WORDS.leaveFull : PLAYER_WORDS.full}
         title=${full ? PLAYER_WORDS.leaveFull : PLAYER_WORDS.full} onClick=${toggleFull}><${Icon} name="fullscreen" size=${16} /></button>

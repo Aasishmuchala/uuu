@@ -90,7 +90,7 @@
 .k-drawer__backdrop {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--black) 40%, transparent);
+  background: var(--scrim);
   animation: k-overlay-fade var(--t-med) var(--ease);
 }
 

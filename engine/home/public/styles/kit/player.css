@@ -164,17 +164,6 @@
   color: var(--ink);
 }
 
-/* Muted: the speaker struck through. */
-.k-player__btn--off::after {
-  content: "";
-  position: absolute;
-  width: 2px;
-  height: 18px;
-  border-radius: 1px;
-  background: currentColor;
-  transform: rotate(-45deg);
-}
-
 /* ---- the scrubber: the filmstrip, the played part, the range over it, the playhead */
 .k-player__track {
   position: relative;
@@ -233,8 +222,7 @@
   z-index: 1;
   width: var(--k-player-at, 0%);
   border-radius: var(--r-xs) 0 0 var(--r-xs);
-  background: var(--black);
-  opacity: .42;
+  background: var(--played-dim);
   pointer-events: none;
 }
 

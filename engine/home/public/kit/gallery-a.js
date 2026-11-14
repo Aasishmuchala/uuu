@@ -135,7 +135,7 @@ export default function Gallery() {
       <p class="u-muted">Add ?theme=light, ?accent=blue, ?backdrop=stars, ?motion=off or ?open=dialog to the address.</p>
     <//>
 
-    <${Section} title="Buttons" hint="Every button is a pill. One solid primary per view; the green Accept only on a task's page.">
+    <${Section} title="Buttons" hint="A button has the control corner. One solid primary per view; the green Accept only on a task's page.">
       <div class="u-stack">
         <div style=${row}>
           <${Button} variant="primary">Approve<//>

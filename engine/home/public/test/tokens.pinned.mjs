@@ -6,7 +6,7 @@
 // light. Three ground steps: --stage (deepest), --bg (the page ground), the raised step (--panel, --card).
 export const THEMED = {
   "--bg": ["#0f0f11", "#f5f5f4"],
-  "--stage": ["#09090b", "#efefed"],
+  "--stage": ["#09090b", "#e9e9e6"],
   "--panel": ["#151518", "#ffffff"],
   "--side": ["#0b0b0d", "#ececea"],
   "--card": ["#17171a", "#ffffff"],
@@ -43,6 +43,8 @@ export const THEMED = {
   "--paper-shadow": ["0 0 0 1px rgba(255,255,255,.1)", "0 0 0 1px rgba(24,24,20,.12), 0 6px 18px rgba(24,24,20,.1)"],
   "--tip": ["#f4f4f5", "#18181b"],
   "--tip-ink": ["#0f0f11", "#ffffff"],
+  // The layer behind a dialog or a sheet.
+  "--scrim": ["rgba(0, 0, 0, 0.56)", "rgba(24, 24, 27, 0.28)"],
   "--pin": ["#ecc068", "#f0bd4a"],
   "--pin-ink": ["#1d1503", "#1d1503"],
   "--pin-line": ["#ecc068", "#a8740a"],
@@ -66,6 +68,7 @@ export const FIXED = {
   "--on-picture-ink": "#ffffff",
   "--paper": "#fbfaf7",
   "--black": "#000000",
+  "--played-dim": "rgba(0, 0, 0, 0.42)",
 
   "--fs-label": "12px", "--fs-note": "13px", "--fs-body": "14px", "--fs-ui": "14px", "--fs-fact": "15px",
   "--fs-section": "16px", "--fs-stat": "22px", "--fs-page": "28px", "--fs-figure": "40px",

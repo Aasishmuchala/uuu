@@ -10,7 +10,7 @@ import { primitiveSheetTests } from "./_rules.mjs";
 
 // The home screen redesign (T30 of PLAN-COOK): the names added, redrawn from the mockup's symbols.
 const COOK_ICONS =
-  "inbox sidebar more chevron-left globe film camera key power door eye chip sliders volume fullscreen retake trend horn buoy bulb info people brush arrow-up-right".split(" ");
+  "inbox sidebar more chevron-left globe film camera key power door eye chip sliders volume volume-off fullscreen retake trend horn buoy bulb info people brush arrow-up-right".split(" ");
 
 const kit = { icon: await import(pathToFileURL(join(KIT, "icon.js")).href) };
 
