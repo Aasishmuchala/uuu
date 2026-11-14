@@ -73,17 +73,44 @@ test("an OptionCard renders its words as text, one chip, and its amount at the r
   unmount(root);
 });
 
-test("an OptionCard with many boards draws two and a +n tile; a board can be chosen", async () => {
+test("an OptionCard with many boards draws one picture, the chosen board, with how many there are on its corner", async () => {
   installDom();
   let board = null;
-  const boards = [0, 1, 2, 3, 4, 5].map((i) => ({ src: `/api/view/b${i}`, alt: "", label: `s0${i + 1}`, on: i === 0, onClick: () => { board = i; } }));
+  const boards = [0, 1, 2, 3, 4, 5].map((i) => ({ src: `/api/view/b${i}`, alt: "", label: `s0${i + 1}`, on: i === 2, onClick: () => { board = i; } }));
   const root = await mount(OptionCard, { checked: true, title: "A", boards });
-  const shown = byClass(root, "k-opt__board");
-  assert.equal(shown.length, 3);
-  assert.equal(textOf(shown[2]), "+4");
-  assert.equal(shown[0].getAttribute("aria-pressed"), "true");
-  fire(shown[1], "click");
-  assert.equal(board, 1);
+  const imgs = elements(root).filter((e) => e.localName === "img");
+  assert.deepEqual(imgs.map((e) => e.src ?? e.getAttribute("src")), ["/api/view/b2"], "one picture: the chosen board");
+  assert.equal(byClass(root, "k-opt__count").length, 1);
+  assert.equal(textOf(byClass(root, "k-opt__count")[0]), "6");
+  assert.equal(byClass(root, "k-opt__board").length, 0, "no row of board buttons");
+  assert.ok(!elements(root).some((e) => e.localName === "button"), "nothing pressable inside the radio");
+  assert.match(radios(root)[0].getAttribute("class"), /\bk-opt--side\b/);
+  fire(radios(root)[0], "click");
+  assert.equal(board, null, "a board's onClick is harmless: the card never calls it");
+  unmount(root);
+  // None chosen: the first; one picture given as an object, not a list: drawn the same, with no count.
+  const first = await mount(OptionCard, { title: "B", boards: boards.map((b) => ({ ...b, on: false })) });
+  assert.deepEqual(elements(first).filter((e) => e.localName === "img").map((e) => e.src ?? e.getAttribute("src")), ["/api/view/b0"]);
+  unmount(first);
+  const single = await mount(OptionCard, { title: "C", boards: { src: "/api/view/one", alt: "" } });
+  assert.deepEqual(elements(single).filter((e) => e.localName === "img").map((e) => e.src ?? e.getAttribute("src")), ["/api/view/one"]);
+  assert.equal(byClass(single, "k-opt__count").length, 0);
+  unmount(single);
+});
+
+test("an OptionCard's title, sub and reason are one line each, cut with their full words in a title", async () => {
+  installDom();
+  const root = await mount(Three, { chosen: "A", say: "a long reason that runs past one line in a card of 264 px" });
+  const card = radios(root)[0];
+  assert.equal(byClass(card, "k-opt__title")[0].getAttribute("title"), "A · Slow approach");
+  assert.equal(byClass(card, "k-opt__sub")[0].getAttribute("title"), "30 s · 6 clips");
+  assert.equal(byClass(card, "k-opt__say")[0].getAttribute("title"), "a long reason that runs past one line in a card of 264 px");
+  // Head (radio, title), sub (sub, amount), foot (chip, reason): the amount sits with the sub, the chip with the reason.
+  const [head, sub, foot] = byClass(card, "k-opt__line");
+  assert.match(head.getAttribute("class"), /k-opt__line--head/);
+  assert.equal(byClass(head, "k-opt__radio").length, 1);
+  assert.equal(byClass(sub, "k-opt__amount").length, 1);
+  assert.equal(byClass(foot, "k-strip__chip").length, 1);
   unmount(root);
 });
 
@@ -110,6 +137,13 @@ test("a strip of TakeCards is a plain group of pressable buttons", async () => {
 test("strip.css: the chosen card is lifted with an accent edge, cards are 96 px with 16 px padding, stacked below 860 px", () => {
   const sheet = css("kit/strip.css");
   assert.match(sheet, /\.k-opt \{[^}]*min-height: 96px;[^}]*padding: var\(--s-4\);[^}]*border-radius: var\(--r-3\)/);
+  // The picture spans the head and the sub (two 24 px rows, its 48 px); the foot runs under both: 110 px in all.
+  assert.match(sheet, /\.k-opt--side \{[^}]*grid-template-columns: 72px minmax\(0, 1fr\);[^}]*grid-template-rows: 24px 24px auto;[^}]*"pic head" "pic sub" "foot foot"/);
+  assert.match(sheet, /\.k-opt__line--foot \{[^}]*min-height: 20px;[^}]*margin-top: var\(--s-2\);/);
+  assert.match(sheet, /\.k-opt__title \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;[^}]*font-size: var\(--fs-ui\);[^}]*font-weight: var\(--fw-bold\)/);
+  assert.match(sheet, /\.k-opt \.k-opt__amount \{[^}]*font-size: var\(--fs-fact\);[^}]*font-weight: var\(--fw-bold\);[^}]*tabular-nums/);
+  assert.match(sheet, /\.k-opt__say \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);
+  assert.match(sheet, /@media \(max-width: 859px\)[\s\S]*\.k-opt__say \{[^}]*-webkit-line-clamp: 2;/, "two lines only when cards stack");
   assert.match(sheet, /\.k-opt--on \{[^}]*border-color: var\(--accent\);[^}]*background: var\(--raise\);[^}]*box-shadow: 0 0 0 1px var\(--accent\)/);
   assert.match(sheet, /\.k-take__thumb \{\s*width: 96px;\s*height: 54px;/);
   assert.match(sheet, /\.k-strip__thumb \{[^}]*width: 72px;[^}]*height: 48px;/);

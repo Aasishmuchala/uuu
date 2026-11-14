@@ -251,8 +251,9 @@
   background: var(--bad);
 }
 
-/* Icons only: 40 px targets in a 56 px column; the names and the teams hidden; a count becomes a badge; the
-   row says its name in a tooltip at its right, on hover and on keyboard focus. */
+/* Icons only: 40 px targets in a 56 px column; the names and the teams hidden; a count becomes a small, calm badge
+   on the icon's corner (ink on the raised step inside a hairline, its own colours whether or not the row is the current
+   place); the row says its name in a tooltip at its right, on hover and on keyboard focus. */
 .s-side--icons {
   align-items: center;
   padding: var(--s-2) 0;
@@ -271,20 +272,23 @@
   height: 40px;
   padding: 0;
 }
-.s-side--icons .s-go-count {
+.s-side--icons .s-go-count,
+.s-side--icons .s-go.is-current .s-go-count {
   position: absolute;
-  top: -3px;
-  right: -5px;
+  top: 1px;
+  right: -2px;
   min-width: 18px;
-  height: 18px;
+  height: 16px;
   margin: 0;
-  padding: 0 5px;
+  padding: 0 4px;
   border-radius: var(--r-round);
-  background: var(--ink);
-  color: var(--bg);
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--line-2), 0 0 0 2px var(--side);
+  color: var(--ink);
   font-size: var(--fs-label);
   font-weight: var(--fw-bold);
-  line-height: 18px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
   text-align: center;
 }
 .s-side--icons .s-go-ends {

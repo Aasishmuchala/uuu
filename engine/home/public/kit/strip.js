@@ -7,7 +7,6 @@ import { cx, isEmpty } from "./util.js";
 
 const has = (v) => !isEmpty(v);
 const TONES = ["good", "warn", "bad", "neutral"];
-const MAX_BOARDS = 2;
 
 // A state is { tone, text, icon } or plain words; it is drawn as the card's one chip.
 function Chip({ state }) {
@@ -58,53 +57,65 @@ export function Strip({ label, children }) {
   </div>`;
 }
 
-// A card with one picture puts it at the left, its amount beside its chip under the title, and its sentence across the
-// card's foot; with many, the boards run along the top.
-// `boards`: one picture ({ src, alt }) drawn at the card's left, or a list of them drawn as a row on top (each with
-// `on` for the chosen one and `onClick` to choose it; past two, a "+n" tile). Anything else is drawn as given.
-function Boards({ boards }) {
-  if (!Array.isArray(boards)) return html`<div class="k-opt__boards">${boards}</div>`;
+// One picture at the card's left, always 72 by 48. `boards`: one picture ({ src, alt }), or a list of them: the
+// card shows the chosen one (`on`), else the first, with a small tag on its corner saying how many there are (the
+// stage has its own board picker, so the card draws no board buttons and a board's `onClick` is never called here).
+// Anything else (a node) is drawn in the picture's place as given.
+function pictureOf(boards) {
+  if (!has(boards)) return null;
+  if (!Array.isArray(boards)) {
+    if (typeof boards === "object" && !boards.type && "src" in boards) return { board: boards, count: 1 };
+    return { node: boards };
+  }
   const list = boards.filter((b) => b && typeof b === "object");
-  const shown = list.length > MAX_BOARDS + 1 ? list.slice(0, MAX_BOARDS) : list;
-  const extra = list.length - shown.length;
-  return html`<div class="k-opt__boards">
-    ${shown.map((b, i) => (b.onClick
-      ? html`<button key=${i} type="button" class=${cx("k-opt__board", b.on && "k-opt__board--on")} aria-label=${b.label || undefined}
-          aria-pressed=${b.on ? "true" : "false"} tabindex="-1" onClick=${b.onClick}><${Thumb} src=${b.src} alt=${b.alt} /></button>`
-      : html`<span key=${i} class=${cx("k-opt__board", b.on && "k-opt__board--on")}><${Thumb} src=${b.src} alt=${b.alt} /></span>`))}
-    ${extra > 0 ? html`<span class="k-opt__board k-opt__board--more" aria-label=${`${extra} more`}>+${extra}</span>` : null}
-  </div>`;
+  if (!list.length) return null;
+  return { board: list.find((b) => b.on) || list[0], count: list.length };
 }
 
+function Picture({ pic }) {
+  if (pic.node) return html`<span class="k-strip__thumb k-opt__thumb">${pic.node}</span>`;
+  const { board, count } = pic;
+  return html`<span class="k-opt__pic">
+    <${Thumb} src=${board.src} alt=${board.alt} cls="k-opt__thumb" />
+    ${count > 1 ? html`<span class="k-opt__count" aria-label=${`${count} boards`}>${count}</span>` : null}
+  </span>`;
+}
+
+// Words for a `title` attribute: only plain text and numbers (a node keeps no tooltip).
+const words = (v) => (typeof v === "string" || typeof v === "number" ? String(v) : undefined);
+
+// An option card at about 96 to 110 px: the picture at the left; beside it the radio and the title, then the grey
+// sub with the amount on the right edge; across the foot the one-line reason with the one chip on the same right
+// edge. (At 264 px a card, the title with its amount, or the sub with the chip, do not fit one line beside the
+// picture; this order keeps every title, amount, sub and chip whole and cuts only the reason.) A reader hears the
+// chip before the reason; the reason is drawn first.
 export function OptionCard({ checked, onPick, title, amount, sub, state, say, boards }) {
-  const one = Array.isArray(boards) && boards.filter(Boolean).length === 1 && !boards[0].onClick;
-  const many = has(boards) && !one;
+  const pic = pictureOf(boards);
   const pick = () => onPick && onPick();
   const onKeyDown = (event) => {
     if (event.target !== event.currentTarget || (event.key !== " " && event.key !== "Enter")) return;
     event.preventDefault();
     pick();
   };
-  return html`<div class=${cx("k-opt", one && "k-opt--side", many && "k-opt--top", checked && "k-opt--on")}
+  return html`<div class=${cx("k-opt", pic && "k-opt--side", checked && "k-opt--on")}
     role="radio" aria-checked=${checked ? "true" : "false"} tabindex=${checked ? "0" : "-1"} onClick=${pick} onKeyDown=${onKeyDown}>
-    ${one ? html`<${Thumb} src=${boards[0].src} alt=${boards[0].alt} cls="k-opt__thumb" />` : null}
-    ${many ? html`<${Boards} boards=${boards} />` : null}
-    <div class="k-opt__body">
-      <div class="k-opt__line">
-        <span class="k-opt__radio" aria-hidden="true"></span>
-        <span class="k-opt__title">${title}</span>
-        ${has(amount) && !one ? html`<span class="k-opt__amount">${amount}</span>` : null}
-      </div>
-      ${one && has(sub) ? html`<div class="k-opt__line k-opt__line--sub"><span class="k-opt__sub">${sub}</span></div>` : null}
-      ${has(state) || (one ? has(amount) : has(sub))
-        ? html`<div class="k-opt__line k-opt__line--sub">
-            ${one && has(amount) ? html`<span class="k-opt__amount k-opt__amount--left">${amount}</span>` : null}
-            ${!one && has(sub) ? html`<span class="k-opt__sub">${sub}</span>` : null}
-            <${Chip} state=${state} />
-          </div>`
-        : null}
+    ${pic ? html`<${Picture} pic=${pic} />` : null}
+    <div class="k-opt__line k-opt__line--head">
+      <span class="k-opt__radio" aria-hidden="true"></span>
+      <span class="k-opt__title" title=${words(title)}>${title}</span>
     </div>
-    ${has(say) ? html`<p class="k-opt__say">${say}</p>` : null}
+    ${has(sub) || has(amount)
+      ? html`<div class="k-opt__line k-opt__line--sub">
+          ${has(sub) ? html`<span class="k-opt__sub" title=${words(sub)}>${sub}</span>` : null}
+          ${has(amount) ? html`<span class="k-opt__amount">${amount}</span>` : null}
+        </div>`
+      : null}
+    ${has(say) || has(state)
+      ? html`<div class="k-opt__line k-opt__line--foot">
+          <${Chip} state=${state} />
+          ${has(say) ? html`<p class="k-opt__say" title=${words(say)}>${say}</p>` : null}
+        </div>`
+      : null}
   </div>`;
 }
 

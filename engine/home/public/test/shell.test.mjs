@@ -592,6 +592,12 @@ test("the sidebar marks the current place", () => {
   const quiet = show(side.Sidenav, { mode: "icons", routeId: "map", shell: { counts: { needsYou: 0 } }, dock: [], settings: {} });
   assert.equal(withClass(quiet, "s-go-count").length, 0, "no count at zero");
   assert.match(classOf(elements(quiet).find((e) => e.localName === "nav")), /\bs-side--icons\b/);
+  const many = show(side.Sidenav, { mode: "icons", routeId: "needs-you", shell: { counts: { needsYou: 120 } }, dock: [], settings: {} });
+  assert.equal(textOf(withClass(many, "s-go-count")[0]), "99+", "past 99 the badge says 99+");
+  // The icons-only badge keeps its own ink and ground on the current row too (the open row's "current" ink once
+  // painted the number in the badge's own colour, leaving an empty pill).
+  const sheet = readFileSync(join(PUBLIC, "styles", "shell.css"), "utf8");
+  assert.match(sheet, /\.s-side--icons \.s-go-count,\s*\.s-side--icons \.s-go\.is-current \.s-go-count \{[^}]*background: var\(--raise\);[^}]*color: var\(--ink\);[^}]*font-size: var\(--fs-label\);[^}]*font-weight: var\(--fw-bold\);[^}]*tabular-nums/);
 });
 
 test("the top bar draws the crumbs, the Queue button and the search button", () => {
