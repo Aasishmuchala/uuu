@@ -1,7 +1,7 @@
 // The frame every page lives in (PLAN-COOK T20): from 860 px up the sidebar at the left and the page column
 // (the top bar over the main pane); below 860 px the top bar's back button and crumbs, the tab bar and its More
-// sheet. Then the optional work panel, the queue (the Needs you drawer until T21 draws the panel), the command
-// menu and the compose dialog, the keys, the skip link and the aria-live line. It reads GET /api/shell every
+// sheet. Then the optional work panel, the queue panel (T21; below 860 px the Needs you page instead), the
+// command menu and the compose dialog, the keys, the skip link and the aria-live line. It reads GET /api/shell every
 // 10 seconds and gives every page the context of lib/context.js.
 import { html, useCallback, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
@@ -14,7 +14,7 @@ import { findRoute, redirectFor } from "../routes.js";
 import { CommandMenu } from "./command-menu.js";
 import { ComposeDialog } from "./compose-dialog.js";
 import { LazyPage } from "./lazy-page.js";
-import { NeedsDrawer } from "./needs-drawer.js";
+import { QueuePanel } from "./queue.js";
 import { SIDE_KEY, Sidenav, sideMode } from "./sidenav.js";
 import { TabBar } from "./tabbar.js";
 import { MenuSheet, Topbar, cleanTop } from "./topbar.js";
@@ -185,8 +185,14 @@ export function AppShell() {
     setOverlay(null);
     forgetOpen();
   }, []);
+  // Below 860 px there is no queue panel: the Needs you page opens instead.
   const openQueue = useCallback(({ department } = {}) => {
-    setNeedsFor(typeof department === "string" && department ? department : null);
+    const dep = typeof department === "string" && department ? department : null;
+    if (typeof matchMedia === "function" && matchMedia(NARROW).matches) {
+      location.hash = dep ? `#/needs-you?d=${encodeURIComponent(dep)}` : "#/needs-you";
+      return;
+    }
+    setNeedsFor(dep);
     setOverlay("needs");
   }, []);
   const openNeeds = openQueue;
@@ -219,6 +225,11 @@ export function AppShell() {
     setStored(next);
   }, []);
   const flipSide = useCallback(() => setSide(side === "open" ? "icons" : "open"), [side, setSide]);
+
+  // The queue is not drawn below 860 px: a window made narrow while it is open closes it.
+  useEffect(() => {
+    if (narrow && overlay === "needs") closeOverlay();
+  }, [narrow, overlay, closeOverlay]);
 
   // A new page: close the menu sheet and the panel, go to the top, and move focus to the page's heading
   // (it appears once the page's module has loaded, so look for it for up to two seconds).
@@ -348,8 +359,8 @@ export function AppShell() {
           <${TabBar} routeId=${routeId} needs=${shell.data?.counts?.needsYou} moreOpen=${overlay === "menu"} onMore=${() => setOverlay("menu")} />` : null}
       </div>
       <div id="s-queue" class="s-queue-host">
-        <${NeedsDrawer} open=${overlay === "needs"} department=${needsFor} stamp=${shell.data?.generatedAt || ""}
-          onClose=${closeOverlay} onDone=${(message) => { if (message) announce(message); shell.refresh(); }} />
+        <${QueuePanel} open=${overlay === "needs"} narrow=${narrow} department=${needsFor} stamp=${shell.data?.generatedAt || ""}
+          here=${typeof location === "undefined" ? "" : location.hash} onClose=${closeOverlay} />
       </div>
       <${MenuSheet} open=${overlay === "menu"} onClose=${closeOverlay} shell=${shell.data} dock=${dock}
         settings=${settings} onSaveSettings=${saveSettings} onCompose=${() => openComposer({})} onCommand=${openCommand} />

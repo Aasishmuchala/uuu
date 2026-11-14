@@ -106,8 +106,10 @@ export function ComposeDialog({ open, seed, team, queue, onClose, onSent }) {
   }
 
   return html`
-    <${Dialog} open=${open} title="New task" onClose=${onClose} size="lg"
-      footer=${html`<a class="s-compose-jobs" href="#/jobs" onClick=${onClose}>Every job</a>`}>
-      <div class="s-compose">${body}</div>
+    <${Dialog} open=${open} title="New task" onClose=${onClose} size="lg">
+      <div class="s-compose">
+        ${body}
+        <a class="s-compose-jobs" href="#/jobs" onClick=${onClose}>Every job</a>
+      </div>
     <//>`;
 }

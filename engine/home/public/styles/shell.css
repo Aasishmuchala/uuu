@@ -1,7 +1,7 @@
 /* The shell (PLAN-COOK T20, after the C3 mockup's c.css): the sidebar and the page column (the top bar over
    the main pane) from 860 px up; the top bar's back button and crumbs, the tab bar and the More sheet below;
-   the work panel, and the insides of the Needs you drawer, the command menu and the compose dialog (their
-   own task redraws them in shell-overlays.css). Classes start with s-; tokens only. Nothing blurs what is
+   the More sheet's inside. The queue, the command menu, the compose dialog and the work panel are in
+   shell-overlays.css. Classes start with s-; tokens only. Nothing blurs what is
    behind it: every surface is opaque. Three grounds part the frame: the sidebar on --side, the page on --bg
    with the top bar on the same ground, parted from it by a hairline; the current row is lifted (--raise). */
 
@@ -72,12 +72,12 @@
   padding: var(--s-2) var(--s-5) var(--s-5);
 }
 .s-content:has(.k-work),
-.s-content:has(.k-doc) {
+.s-content:has(.k-doc--layout) {
   max-width: none;
   padding: 0;
 }
 .s-content:has(.k-work) > *,
-.s-content:has(.k-doc) > * {
+.s-content:has(.k-doc--layout) > * {
   max-width: none;
 }
 .s-content:focus {
@@ -604,196 +604,6 @@ a.s-crumbs-link:hover {
   margin-left: auto;
 }
 
-/* The queue's place (aria-controls of the Queue button); the drawer inside draws itself. */
-.s-queue-host {
-  display: contents;
-}
-
-/* The work panel. */
-.s-panel {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  margin-right: var(--s-3);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4) var(--r-4) 0 0;
-  background: var(--glass-strong);
-  box-shadow: var(--highlight);
-}
-.s-panel-head {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-height: 52px;
-  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4);
-  border-bottom: 1px solid var(--hairline);
-}
-.s-panel-title {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  font-size: var(--fs-title);
-  font-weight: var(--fw-bold);
-}
-.s-panel-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--s-4);
-}
-
-.s-link-btn {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--accent);
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-/* The Needs you drawer's inside (the Drawer is the kit's). */
-.s-needs-drawer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-}
-.s-needs-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-/* The drawer is narrow: each card's actions go under its words. */
-.s-needs-list .k-decision--compact {
-  grid-template-columns: minmax(0, 1fr);
-}
-.s-needs-empty {
-  margin: 0;
-  color: var(--text-2);
-}
-.s-needs-quiet {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--text-2);
-  font-size: var(--fs-caption);
-}
-.s-needs-source {
-  font-weight: var(--fw-medium);
-}
-.s-needs-full {
-  align-self: flex-start;
-}
-
-/* The command menu's inside (the Dialog is the kit's). */
-.s-cmd {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-.s-cmd-field {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  height: var(--h-lg);
-  padding: 0 var(--s-4);
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-pill);
-  background: var(--glass-soft);
-  color: var(--text-2);
-}
-.s-cmd-field:focus-within {
-  border-color: var(--focus);
-}
-.s-cmd-input {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  outline: none;
-}
-.s-cmd-input::placeholder {
-  color: var(--text-2);
-}
-.s-cmd-list {
-  max-height: min(56vh, 420px);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-/* More below what shows (M18-14): the bottom edge fades, so the list reads as one that scrolls. */
-.s-cmd-list.has-more {
-  -webkit-mask-image: linear-gradient(var(--canvas) calc(100% - var(--s-10)), transparent);
-  mask-image: linear-gradient(var(--canvas) calc(100% - var(--s-10)), transparent);
-}
-.s-cmd-group-title {
-  margin: 0;
-  padding: var(--s-1) var(--s-2);
-  color: var(--text-3);
-  font-size: var(--fs-over);
-  font-weight: var(--fw-medium);
-}
-.s-cmd-item {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-height: 36px;
-  padding: 0 var(--s-3);
-  border-radius: var(--r-3);
-  color: var(--text);
-  cursor: pointer;
-}
-.s-cmd-item .k-icon {
-  flex: none;
-  color: var(--text-3);
-}
-.s-cmd-item.is-active {
-  background: var(--glass-soft);
-}
-.s-cmd-label {
-  flex: none;
-  max-width: 60%;
-}
-.s-cmd-hint {
-  flex: 1;
-  min-width: 0;
-  color: var(--text-3);
-  font-size: var(--fs-caption);
-}
-.s-cmd-note {
-  margin: 0;
-  padding: var(--s-1) var(--s-2);
-  color: var(--text-2);
-  font-size: var(--fs-caption);
-}
-.s-cmd-help {
-  margin: 0;
-  padding: var(--s-1) var(--s-2) 0;
-}
-
-/* The compose dialog's inside. */
-.s-compose {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-.s-compose-done p {
-  margin: 0 0 var(--s-2);
-}
-.s-compose-jobs {
-  font-size: var(--fs-caption);
-}
-
 .s-notfound p {
   color: var(--text-2);
 }
@@ -825,7 +635,7 @@ a.s-crumbs-link:hover {
   }
   .s-content--map,
   .s-content:has(.k-work),
-  .s-content:has(.k-doc) {
+  .s-content:has(.k-doc--layout) {
     padding: 0;
   }
   .s-content--fill {
@@ -834,37 +644,13 @@ a.s-crumbs-link:hover {
   .s-offline {
     margin: var(--s-3) var(--s-4) 0;
   }
-  .s-panel--sheet {
-    position: fixed;
-    inset: 0;
-    z-index: 120;
-    width: auto;
-    height: auto;
-    margin: 0;
-    border: 0;
-    border-radius: 0;
-    background: var(--bg);
-  }
-  .s-icon-btn,
-  .s-cmd-item {
-    min-height: 44px;
-  }
   .s-icon-btn {
     width: 44px;
     height: 44px;
   }
-  .s-cmd-help {
-    display: none;
-  }
   /* No key hints on a phone (M18-32). */
   .s-sheet-item .k-kbd {
     display: none;
-  }
-  /* "Open the full list" is a full-height target (M50 F9). */
-  .s-needs-full {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
   }
 }
 

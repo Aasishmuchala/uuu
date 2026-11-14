@@ -1,0 +1,184 @@
+// The queue panel and the shell's other overlays (PLAN-COOK T21): the pure helpers pinned by section 4's
+// vectors, the panel drawn from GET /api/inbox (its groups, rows, states and the row of the page being shown),
+// the command menu as a floating panel, and the sheet that draws them on the raised step with the float shadow.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { PUBLIC, elements, installDom, settle, show, stubFetch, textOf, withClass } from "./kit/_dom.mjs";
+import { css, src } from "./kit/_rules.mjs";
+
+const attrOf = (el, k) => el.getAttribute(k) ?? null;
+const load = (p) => import(pathToFileURL(join(PUBLIC, p)).href);
+const lib = await load("lib/queue.js");
+const queue = await load("shell/queue.js");
+const menu = await load("shell/command-menu.js");
+
+const item = (id, kind, extra = {}) => ({ id, kind, title: `Title ${id}`, summary: `Line ${id}`, severity: "normal", when: "2026-11-11T09:00:00.000Z", ...extra });
+
+test("queueGroups: to approve, to answer, to accept, to know, empty groups left out, each in sortNeeds order", () => {
+  const items = [
+    item("s", "shotlist", { when: "2026-11-11T08:00:00.000Z" }),
+    item("q", "question"),
+    item("r", "result"),
+    item("p", "problem"),
+    item("k", "pick", { when: "2026-11-11T10:00:00.000Z" }),
+    item("a", "approval", { severity: "high", when: "2026-11-10T09:00:00.000Z" }),
+  ];
+  const groups = lib.queueGroups(items);
+  assert.deepEqual(groups.map((g) => [g.title, g.items.map((i) => i.kind)]), [
+    ["To approve", ["approval", "pick", "shotlist"]],
+    ["To answer", ["question"]],
+    ["To accept", ["result"]],
+    ["To know", ["problem"]],
+  ]);
+  assert.deepEqual(groups.map((g) => g.heading), ["To approve · 3", "To answer · 1", "To accept · 1", "To know · 1"]);
+  assert.deepEqual(lib.queueGroups([item("x", "question")]).map((g) => g.heading), ["To answer · 1"], "empty groups are left out");
+  assert.deepEqual(lib.queueGroups(null), []);
+  assert.deepEqual(lib.queueGroups([null, { kind: "result" }]), [], "an item without an id is not drawn");
+});
+
+test("queueHref: a shotlist on the Needs you page; a result or pick of a task opens its task; anything else on the Needs you page", () => {
+  assert.equal(lib.queueHref({ id: "shotlist:a b", kind: "shotlist", link: { page: "tasks", id: "t1" } }), "#/needs-you?item=shotlist%3Aa%20b");
+  assert.equal(lib.queueHref({ id: "goal:1", kind: "result", link: { page: "tasks", id: "e1" } }), "#/tasks/e1");
+  assert.equal(lib.queueHref({ id: "pick:1", kind: "pick", link: { page: "tasks", id: "STH-4" } }), "#/tasks/STH-4");
+  assert.equal(lib.queueHref({ id: "q:1", kind: "question", link: { page: "tasks", id: "e1" } }), "#/needs-you?item=q%3A1");
+  assert.equal(lib.queueHref({ id: "r:2", kind: "result", link: { page: "files", id: "x" } }), "#/needs-you?item=r%3A2");
+  assert.equal(lib.queueHref({ id: "b:1", kind: "approval" }), "#/needs-you?item=b%3A1");
+});
+
+test("the shell re-exports the queue's helpers from one place, and the drawer is gone", () => {
+  for (const n of ["queueGroups", "queueHref", "sortNeeds", "needsFor", "needsTitle", "SOURCE_DEPARTMENT"]) assert.equal(queue[n], lib[n], `shell/queue.js gives lib's ${n}`);
+  assert.deepEqual(queue.KIND_ICON, { shotlist: "video", pick: "layers", approval: "check", question: "reply", result: "done" });
+  assert.ok(!existsSync(join(PUBLIC, "shell", "needs-drawer.js")), "shell/needs-drawer.js is removed");
+  const shell = src("shell/app-shell.js");
+  assert.match(shell, /<div id="s-queue" class="s-queue-host">\s*<\$\{QueuePanel\} open=\$\{overlay === "needs"\} narrow=\$\{narrow\}/, "the Queue button's aria-controls names the panel's place");
+  assert.doesNotMatch(shell, /NeedsDrawer/);
+});
+
+const INBOX = {
+  items: [
+    item("goal:1", "result", { title: "Finished: a walking sprite", summary: "Four frames and a GIF.", link: { page: "tasks", id: "e1" } }),
+    item("shotlist:2", "shotlist", { title: "A film of the lake house", summary: "3 treatments", severity: "high" }),
+    item("q:3", "question", { title: "2 answers before the work goes on" }),
+    item("p:4", "problem", { title: "Runway refused two pictures", summary: "" }),
+  ],
+  notConnected: [{ source: "books", reason: "Books is switched off." }],
+};
+
+async function drawQueue(answer, props = {}) {
+  installDom();
+  const calls = stubFetch((path) => (path === "/api/inbox" ? answer : { status: 404, body: {} }));
+  try {
+    const root = await show(queue.QueuePanel, { open: true, narrow: false, here: "", onClose() {}, ...props });
+    await settle();
+    return { root, calls: calls.calls };
+  } finally {
+    calls.restore();
+  }
+}
+
+test("the queue panel: a dialog that is not modal, its first line, the groups, and a row for each item", async () => {
+  const { root, calls } = await drawQueue({ status: 200, body: INBOX }, { here: "#/tasks/e1" });
+  assert.deepEqual(calls.map((c) => c.path), ["/api/inbox"]);
+  const panel = withClass(root, "s-queue")[0];
+  assert.equal(attrOf(panel, "role"), "dialog");
+  assert.equal(attrOf(panel, "aria-modal"), "false");
+  assert.equal(attrOf(panel, "aria-label"), "Needs you");
+  const head = withClass(panel, "s-queue-head")[0];
+  assert.equal(textOf(withClass(head, "s-queue-name")[0]), "Needs you");
+  assert.equal(textOf(withClass(head, "s-queue-count")[0]), "4");
+  assert.equal(textOf(withClass(head, "k-kbd")[0]), "Q");
+  assert.deepEqual(withClass(panel, "s-queue-group-title").map((h) => textOf(h)), ["To approve · 1", "To answer · 1", "To accept · 1", "To know · 1"]);
+  const rows = withClass(panel, "s-queue-row");
+  assert.deepEqual(rows.map((r) => attrOf(r, "href")), ["#/needs-you?item=shotlist%3A2", "#/needs-you?item=q%3A3", "#/tasks/e1", "#/needs-you?item=p%3A4"]);
+  assert.deepEqual(rows.map((r) => textOf(withClass(r, "s-queue-title")[0])), ["A film of the lake house", "2 answers before the work goes on", "Finished: a walking sprite", "Runway refused two pictures"]);
+  assert.equal(textOf(withClass(rows[2], "s-queue-line")[0]), "Four frames and a GIF.");
+  assert.equal(withClass(rows[3], "s-queue-line").length, 0, "no grey line when there is no summary");
+  assert.ok(withClass(rows[0], "s-queue-when")[0], "each row has its time at the right");
+  assert.equal(rows.every((r) => withClass(r, "s-queue-icon").length === 1), true, "a 16 px icon on every row");
+  assert.deepEqual(rows.map((r) => attrOf(r, "aria-current")), [null, null, "true", null], "the row of the page being shown is current");
+  const quiet = withClass(panel, "s-queue-quiet")[0];
+  assert.equal(textOf(quiet), "The books: Books is switched off.");
+  const full = withClass(panel, "s-queue-full")[0];
+  assert.equal(attrOf(full, "href"), "#/needs-you");
+  assert.equal(textOf(full), "Open the whole list");
+  // The test DOM finds no rows by selector, so the panel itself holds focus here; in a browser it is the first
+  // row (checked in Chrome for T21).
+  assert.ok(globalThis.document.activeElement === panel || globalThis.document.activeElement === rows[0], "focus moves into the panel");
+});
+
+test("the queue panel: empty, failed, closed, and below 860 px not drawn", async () => {
+  const empty = await drawQueue({ status: 200, body: { items: [], notConnected: [] } });
+  assert.equal(textOf(withClass(empty.root, "s-queue-empty")[0]), "Nothing needs you.");
+  assert.equal(withClass(empty.root, "s-queue-count").map((c) => textOf(c))[0], "0");
+  const failed = await drawQueue({ status: 503, body: {} });
+  assert.equal(withClass(failed.root, "k-notice--bad").length, 1, "the kit's ErrorNotice");
+  const closed = await drawQueue({ status: 200, body: INBOX }, { open: false });
+  assert.equal(elements(closed.root).length, 1, "nothing is drawn while closed");
+  assert.equal(closed.calls.length, 0, "and nothing is read");
+  const narrow = await drawQueue({ status: 200, body: INBOX }, { narrow: true });
+  assert.equal(withClass(narrow.root, "s-queue").length, 0);
+  const one = await drawQueue({ status: 200, body: INBOX }, { department: "people" });
+  assert.equal(attrOf(withClass(one.root, "s-queue")[0], "aria-label"), "Needs you: People");
+  assert.equal(attrOf(withClass(one.root, "s-queue-full")[0], "href"), "#/needs-you?d=people");
+});
+
+test("the queue panel's sheet: under the top bar at the page column's edge, on the raised step, floating, a 12 px corner", () => {
+  const o = css("shell-overlays.css");
+  assert.match(o, /\.s-queue \{[^}]*position: fixed;[^}]*top: calc\(var\(--topbar-h\) \+ var\(--s-2\)\);[^}]*left: calc\(var\(--side-w\) \+ var\(--s-2\)\);[^}]*width: var\(--queue-w\);[^}]*max-height: calc\(100vh - [^}]*border-radius: var\(--r-3\);[^}]*background: var\(--panel\);[^}]*box-shadow: var\(--float\);/);
+  assert.match(o, /\.s-app--icons ~ \.s-queue-host \.s-queue \{[^}]*left: calc\(var\(--side-w-icons\) \+ var\(--s-2\)\);/);
+  assert.match(o, /\.s-queue-row\[aria-current="true"\] \{[^}]*background: var\(--sel\);/, "the current row is lifted in both themes");
+  assert.match(o, /\.s-queue-group-title \{[^}]*font-size: var\(--fs-label\);/, "12 px group headings");
+  assert.match(o, /@media \(max-width: 859px\) \{[\s\S]*\.s-queue \{\s*display: none;/);
+  assert.match(o, /:root\[data-motion="off"\] \.s-queue,/);
+  assert.match(o, /prefers-reduced-motion/);
+});
+
+test("the command menu: a floating panel whose field is its head, 36 px rows, the chosen row lifted", async () => {
+  installDom();
+  const calls = stubFetch(() => ({ status: 200, body: { departments: [] } }));
+  try {
+    const root = await show(menu.CommandMenu, { open: true, onClose() {}, team: [], onCompose() {} });
+    const panel = withClass(root, "s-cmd")[0];
+    assert.equal(attrOf(panel, "role"), "dialog");
+    assert.equal(attrOf(panel, "aria-modal"), "true");
+    assert.equal(attrOf(panel, "aria-label"), "Search");
+    assert.equal(withClass(root, "k-dialog").length, 0, "no title bar over the field");
+    const input = withClass(root, "s-cmd-input")[0];
+    assert.equal(attrOf(input, "role"), "combobox");
+    assert.equal(attrOf(withClass(root, "s-cmd-list")[0], "tabindex"), "-1", "the list is not a tab stop: its rows are chosen with the arrows");
+    assert.ok(globalThis.document.activeElement === input, "focus goes to the field");
+    const rows = withClass(root, "s-cmd-item");
+    assert.equal(rows.length, menu.localItems("", []).length, "the same lists as before");
+    assert.equal(attrOf(rows[0], "aria-selected"), "true");
+    assert.deepEqual(withClass(root, "s-cmd-group-title").map((t) => textOf(t)), ["Start", "Departments", "Pages"]);
+    const closed = await show(menu.CommandMenu, { open: false, onClose() {}, team: [], onCompose() {} });
+    assert.equal(elements(closed).length, 1, "nothing is drawn while closed");
+  } finally {
+    calls.restore();
+  }
+  const o = css("shell-overlays.css");
+  assert.match(o, /\.s-cmd \{[^}]*border-radius: var\(--r-3\);[^}]*background: var\(--panel\);[^}]*box-shadow: var\(--float\);/);
+  assert.match(o, /\.s-cmd-input \{[^}]*height: 44px;/);
+  assert.match(o, /\.s-cmd-input:focus \{[^}]*outline: 2px solid var\(--accent\);/, "the field shows its focus");
+  assert.match(o, /\.s-cmd-item \{[^}]*min-height: var\(--h-md\);/);
+  assert.match(o, /\.s-cmd-item\.is-active \{[^}]*background: var\(--sel\);/);
+  assert.match(o, /\.s-cmd-group-title \{[^}]*font-size: var\(--fs-label\);/);
+});
+
+test("the compose dialog and the work panel are on the same surfaces, and nothing in the overlays blurs or fades by gradient", () => {
+  const o = css("shell-overlays.css");
+  assert.match(o, /\.s-panel \{[^}]*border-left: 1px solid var\(--line\);[^}]*background: var\(--panel\);/);
+  assert.match(src("shell/compose-dialog.js"), /<\$\{Dialog\} open=\$\{open\} title="New task"/, "the compose dialog is the kit's dialog: the raised step and the float shadow");
+  assert.doesNotMatch(o, /backdrop-filter/);
+  assert.doesNotMatch(o, /gradient\(/);
+  assert.doesNotMatch(o, /#[0-9a-fA-F]{3,8}\b\s*;|rgba?\(|hsla?\(/, "colours come from the tokens");
+  assert.doesNotMatch(o, /font-size\s*:\s*\d+px/, "sizes come from the tokens");
+  for (const sel of o.replace(/@keyframes[\s\S]*?\}\s*\}/g, "").matchAll(/(^|[{}])\s*([^{}@]+)\{/g)) {
+    for (const one of sel[2].split(",")) assert.match(one.trim(), /^(:root\[data-[a-z]+="[a-z]+"\]\s+)?\.s-/, `"${one.trim()}" starts with .s-`);
+  }
+  const shell = css("shell.css");
+  for (const gone of [".s-cmd", ".s-panel", ".s-compose", ".s-needs", ".s-queue-host"]) assert.ok(!shell.includes(`${gone}`), `${gone} moved out of shell.css`);
+});

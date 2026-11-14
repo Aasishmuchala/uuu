@@ -2,10 +2,12 @@
 // dialog with one field. Empty, it lists New task and Every job, the seven departments, then the pages. Typed
 // text finds pages, departments, agents and jobs by name at once, then what /api/search finds (after 2
 // characters, 200 ms after the last key), grouped by source. Arrows move, Enter opens, Esc closes.
+// Drawn as a floating panel over a dim page (PLAN-COOK T21): the field is its head, so it has no title bar;
+// focus stays in the field (the rows are chosen with the arrows) and goes back to the opener on close.
 import { html, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { linkHref } from "../lib/format.js";
-import { Avatar, Dialog, Icon } from "../kit/index.js";
+import { Avatar, Icon } from "../kit/index.js";
 import { DEPARTMENTS, routeById } from "../routes.js";
 import { jobsOf } from "./compose-dialog.js";
 
@@ -14,6 +16,8 @@ const PAGE_IDS = ["map", "tasks", "dashboards", "files", "apps", "needs-you", "j
 const PAGES = PAGE_IDS.map((id) => routeById(id));
 const MAX_JOBS = 8;
 
+// After the browser has drawn the change (at once where there is no browser, as in the tests).
+const later = (f) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(f) : f());
 const norm = (s) => String(s || "").toLowerCase().trim();
 const hit = (text, q) => norm(text).includes(q);
 const cap = (s, n) => {
@@ -93,6 +97,8 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
   const [active, setActive] = useState(0);
   const input = useRef(null);
   const list = useRef(null);
+  const close = useRef(onClose);
+  close.current = onClose;
   // True while the list holds more below what shows: its bottom edge then fades.
   const [more, setMore] = useState(false);
   const measure = () => {
@@ -105,10 +111,18 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
     setQuery("");
     setFound({ q: "", items: [], state: "idle" });
     setActive(0);
-    requestAnimationFrame(() => input.current?.focus());
+    const opener = typeof document === "undefined" ? null : document.activeElement;
+    later(() => input.current?.focus());
     let live = true;
     api.get("/api/jobs").then((a) => { if (live) setJobs(jobsOf(a)); }).catch(() => {});
-    return () => { live = false; };
+    return () => {
+      live = false;
+      // Back to what opened it, unless the choice moved focus somewhere else (a new page, the compose dialog).
+      later(() => {
+        const a = document.activeElement;
+        if (opener && opener.isConnected && opener !== document.body && (!a || a === document.body)) opener.focus();
+      });
+    };
   }, [open]);
 
   // Ask the server 200 ms after the last key, once there are 2 characters.
@@ -151,7 +165,15 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
   };
 
   const onKey = (e) => {
-    if (e.key === "ArrowDown") {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      close.current?.();
+    } else if (e.key === "Tab") {
+      // The field is the one stop: the rows are reached with the arrows.
+      e.preventDefault();
+      input.current?.focus();
+    } else if (e.key === "ArrowDown") {
       e.preventDefault();
       setActive((a) => (items.length ? (a + 1) % items.length : 0));
     } else if (e.key === "ArrowUp") {
@@ -163,21 +185,23 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
     }
   };
 
+  if (!open) return null;
   let n = -1;
   const groups = grouped(items);
   const q = query.trim();
   return html`
-    <${Dialog} open=${open} title="Search" onClose=${onClose} size="md">
-      <div class="s-cmd">
+    <div class="s-cmd-layer">
+      <div class="s-cmd-scrim" aria-hidden="true" onClick=${() => close.current?.()}></div>
+      <div class="s-cmd" role="dialog" aria-modal="true" aria-label="Search" onKeyDown=${onKey}>
         <div class="s-cmd-field">
-          <${Icon} name="search" />
+          <${Icon} name="search" size=${18} class="s-cmd-field-icon" />
           <input ref=${input} data-autofocus class="s-cmd-input" type="text" value=${query} autocomplete="off" spellcheck=${false}
             placeholder=${narrowNow() ? PLACEHOLDER_SHORT : PLACEHOLDER}
             role="combobox" aria-expanded="true" aria-controls="s-cmd-list" aria-label="Search"
             aria-activedescendant=${items.length ? `s-cmd-${active}` : undefined}
-            onInput=${(e) => { setQuery(e.currentTarget.value); setActive(0); }} onKeyDown=${onKey} />
+            onInput=${(e) => { setQuery(e.currentTarget.value); setActive(0); }} />
         </div>
-        <div class=${`s-cmd-list${more ? " has-more" : ""}`} id="s-cmd-list" role="listbox" aria-label="Results" ref=${list} onScroll=${measure}>
+        <div class=${`s-cmd-list${more ? " has-more" : ""}`} id="s-cmd-list" role="listbox" aria-label="Results" tabindex="-1" ref=${list} onScroll=${measure}>
           ${groups.map((g) => html`
             <div class="s-cmd-group" role="group" aria-label=${g.group}>
               <p class="s-cmd-group-title" aria-hidden="true">${g.group}</p>
@@ -198,7 +222,7 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
           ${q.length >= 2 && found.state === "failed" ? html`<p class="s-cmd-note">Search is not answering right now. Pages and agents still work.</p>` : null}
           ${q.length >= 2 && found.state === "done" && found.q === q && !found.items.length ? html`<p class="s-cmd-note">Nothing else found for "${q}".</p>` : null}
         </div>
-        <p class="s-cmd-help u-caption" aria-hidden="true">↑ ↓ to move · Enter to open · Esc to close</p>
+        <p class="s-cmd-help" aria-hidden="true">↑ ↓ to move · Enter to open · Esc to close</p>
       </div>
-    <//>`;
+    </div>`;
 }

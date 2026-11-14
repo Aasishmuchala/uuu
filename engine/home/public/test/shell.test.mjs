@@ -15,7 +15,7 @@ const format = await load("lib/format.js");
 const shellMod = await load("shell/app-shell.js");
 const side = await load("shell/sidenav.js");
 const topbar = await load("shell/topbar.js");
-const needs = await load("shell/needs-drawer.js");
+const needs = await load("shell/queue.js");
 const menu = await load("shell/command-menu.js");
 const compose = await load("shell/compose-dialog.js");
 const { html, render } = await load("vendor/preact-htm.js");
@@ -254,11 +254,12 @@ test("every shell/ and lib/ module loads in Node", async () => {
     "lib/theme-boot.js": [],
     "lib/context.js": ["AppContext", "useApp"],
     "lib/settings.js": ["loadSettings", "saveSettings", "cleanAppearance"],
+    "lib/queue.js": ["queueGroups", "queueHref", "sortNeeds", "needsFor", "needsTitle", "SOURCE_DEPARTMENT"],
     "shell/app-shell.js": ["AppShell", "keyAction", "overlayFrom", "paneOf", "isWide"],
     "shell/topbar.js": ["Topbar", "MenuSheet", "engineDot", "needsLabel", "commandKey", "switchedTheme", "defaultCrumbs", "cleanTop"],
     "shell/sidenav.js": ["Sidenav", "sideMode", "teamItems", "teamCurrent", "sideCurrent", "SIDE_KEY"],
     "shell/tabbar.js": ["TabBar", "TABS"],
-    "shell/needs-drawer.js": ["NeedsDrawer", "sortNeeds", "needsFor", "needsTitle"],
+    "shell/queue.js": ["QueuePanel", "KIND_ICON", "queueGroups", "queueHref", "sortNeeds", "needsFor", "needsTitle", "SOURCE_DEPARTMENT"],
     "shell/work-panel.js": ["WorkPanel"],
     "shell/command-menu.js": ["CommandMenu", "localItems", "searchItems"],
     "shell/compose-dialog.js": ["ComposeDialog", "goalBody", "jobsOf", "jobHref"],
@@ -418,7 +419,7 @@ test("the top bar's words: Needs you, the Health dot, the theme switch", () => {
   assert.equal(topbar.switchedTheme(undefined, false), "light", "no choice means dark, so the switch offers light");
 });
 
-test("the Needs you drawer: urgent first, then newest; one department by its agents or its dashboard", () => {
+test("the queue: urgent first, then newest; one department by its agents or its dashboard", () => {
   const items = [
     { id: "a", severity: "normal", when: "2026-11-11T08:00:00.000Z", source: "goal", agent: { slug: "sales" } },
     { id: "b", severity: "high", when: "2026-11-11T07:00:00.000Z", source: "board" },

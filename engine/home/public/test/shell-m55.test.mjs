@@ -25,7 +25,10 @@ test("the command menu leads with Start and the departments, pages last, and doe
   assert.deepEqual([...new Set(empty.map((i) => i.group))], ["Start", "Departments", "Pages"]);
   assert.doesNotMatch(menu.PLACEHOLDER, /^Search/);
   assert.ok(menu.PLACEHOLDER_SHORT.length <= 34, "the phone's placeholder fits 390 px");
-  assert.match(css("shell.css"), /\.s-cmd-list\.has-more\s*\{[^}]*mask-image/);
+  // PLAN-COOK T21: the menu's sheet is shell-overlays.css; with gradients banned, more below is a rule at the
+  // foot's rule firming instead of a fade.
+  assert.match(css("shell-overlays.css"), /\.s-cmd-list\.has-more \+ \.s-cmd-help\s*\{[^}]*border-top-color: var\(--line-2\);/);
+  assert.doesNotMatch(css("shell-overlays.css"), /gradient\(/);
 });
 
 // The dock's words on hover (M18-23, C1) carried over: in the icons-only sidebar each row says its name in a
@@ -56,7 +59,7 @@ test("the tab bar lives in the pages' layer, so a page's dialog lies over it (M5
   const shell = src("shell/app-shell.js");
   const open = shell.indexOf("<div class=${cls}>");
   const bar = shell.indexOf("<${TabBar}");
-  const drawer = shell.indexOf("<${NeedsDrawer}");
+  const drawer = shell.indexOf("<${QueuePanel}");
   const close = shell.lastIndexOf("</div>", drawer);
   assert.ok(open > 0 && bar > open && bar < close, "the TabBar is inside .s-app");
 });
