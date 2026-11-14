@@ -12,17 +12,18 @@ import { compositeSheetTests } from "./_rules.mjs";
 const load = (name) => import(join(KIT, `${name}.js`));
 const taskCard = await import(pathToFileURL(join(KIT, "task-card.js")).href);
 
-test("TaskRow: a second line with the outcome, else the stage and state; the department's dot, the time, a chevron", async () => {
+test("TaskRow: one fact with the outcome, else the stage and state; the department named, never coloured; the date at the right; no chevron", async () => {
   const { TaskRow, rowLine } = await load("task-card");
   const card = shape("task-card");
   // Without the keys of 33.2 it still reads: the stage and the state in words.
   const plain = { ...card, outcome: undefined, job: undefined, department: undefined };
   assert.equal(rowLine(plain), [card.stage.label, Number(card.round) > 0 ? `Round ${card.round}` : null, card.plainState].filter(Boolean).join(" · "));
   const bare = walk(TaskRow({ task: plain }));
-  assert.ok(bare.classes.includes("k-task-row__line") && bare.classes.includes("k-task-row__chevron") && bare.classes.includes("k-task-row__time"));
-  assert.ok(!bare.classes.includes("k-task-row__dept"), "no dot without a department");
+  assert.ok(bare.classes.includes("k-task-row__line") && bare.classes.includes("k-task-row__time") && bare.classes.includes("k-task-row__mark"));
+  assert.ok(!bare.classes.includes("k-task-row__chevron") && !bare.classes.includes("k-task-row__who"), "R03: no chevron and no face on a row");
+  assert.ok(!bare.classes.includes("k-task-row__dept"), "no department words without a department");
   assert.ok(bare.text.includes(rowLine(plain)));
-  // With them: the outcome replaces the stage and state, the job is named, the dot carries the department's colour.
+  // With them: the outcome replaces the stage and state, the job is named, the department is named for screen readers.
   const full = { ...card, live: false, waitingForYou: false, outcome: "Proposal for Asha Kitchens, 3 pages.", job: { id: "sales/proposal-from-a-call", title: "Proposal from a call write-up" }, department: "sales" };
   assert.equal(rowLine(full), "Proposal for Asha Kitchens, 3 pages.");
   // The mark is a dot only, so waiting or working is said in words on the line.
@@ -31,7 +32,7 @@ test("TaskRow: a second line with the outcome, else the stage and state; the dep
   const out = walk(TaskRow({ task: full }));
   assert.ok(out.text.includes("Proposal for Asha Kitchens, 3 pages."));
   assert.ok(out.text.includes("Proposal from a call write-up"));
-  assert.ok(out.props.some((p) => p["data-dept"] === "sales" && String(p.class).includes("k-task-row__dept")));
+  assert.ok(out.props.some((p) => p["data-dept"] === "sales" && String(p.class).includes("k-task-row__dept") && String(p.class).includes("k-sr")));
   assert.ok(out.text.includes("Sales"), "the department is named for screen readers");
   // An unknown department is not drawn; a long outcome is cut to 140 characters on one line.
   assert.ok(!walk(TaskRow({ task: { ...full, department: "<b>x" } })).props.some((p) => "data-dept" in p));
@@ -94,6 +95,22 @@ test("TaskCard: Working sits in the bottom row with the date, never squeezed bes
   assert.ok(textOf(bottom).includes("Working"));
   const css = readFileSync(join(PUBLIC, "styles", "kit", "task-card.css"), "utf8");
   assert.ok(!/k-task-card__live[^}]*text-overflow/.test(css), "Working is never cut with an ellipsis");
+});
+
+// PLAN-COOK T37 (corrections after round 3, 1 and 5): a task that needs the owner says so with its amber glyph and
+// its words; the warm tint and the amber outline are gone, and no department colour is drawn (O7).
+test("task rows and cards: needs you is the glyph and the words, never a tint or an amber outline", () => {
+  const sheet = readFileSync(join(PUBLIC, "styles", "kit", "task-card.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.doesNotMatch(sheet, /linear-gradient|--bg-warm|--warn-bg|--border-warm|--warn-line|--glass|--r-pill|var\(--dept/);
+  assert.match(sheet, /\.k-task-row__mark--warn\s*\{\s*color: var\(--warn\);/);
+  assert.match(sheet, /\.k-task-row__time\s*\{[^}]*text-align: right;[^}]*font-variant-numeric: tabular-nums;/);
+  assert.match(sheet, /\.k-task-row\s*\{[^}]*min-height: 50px;/, "a 50 px row, 51 with its hairline (R03)");
+  const row = showNow(taskCard.TaskRow, { task: { id: "t1", identifier: "STH-8", title: "Walk cycle", waitingForYou: true, column: "pending_review" } });
+  assert.ok(withClass(row, "k-task-row__mark--warn").length === 1, "the amber glyph");
+  assert.match(textOf(row), /Waiting for you/, "and the words");
+  const card = showNow(taskCard.TaskCard, { task: { id: "t1", identifier: "STH-8", title: "Walk cycle", waitingForYou: true, column: "pending_review" } });
+  assert.match(textOf(withClass(card, "k-task-card__bottom")[0]), /Waiting for you/);
+  assert.equal(withClass(card, "k-st--warn").length, 1, "said as a state line with the warning glyph");
 });
 
 compositeSheetTests("task-card");

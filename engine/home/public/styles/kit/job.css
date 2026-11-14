@@ -1,74 +1,70 @@
-/* kit/job.js: the hand-off tag, the stage mark, why a job cannot start, a job as a line and as a chip, and the
-   start form. A job's dot takes its department's colour (data-dept sets --dept). A job that cannot start yet
-   is dim, and says why in words. */
+/* kit/job.js: the hand-off tag, the stage mark, why a job cannot start, a job in a list and as a chip, and the
+   start form. Tokens only. No department colour (O7): a department is its line icon. A job that cannot start
+   yet is dim, and says why in words.
+   A job in a list is built as R12's card: the department's icon on a 32 px tile, the name at 15 px semibold,
+   one 13 px sentence, the facts as grey words with a glyph each, and one button at the right. It has no frame
+   of its own (lists of jobs sit in a page's panel); rows side by side are parted by a hairline. */
 
-.k-job {
-  --k-job-dot: var(--dept, var(--text-2));
-}
-
-/* The hand-off tag: a small pill with a mark whose shape says how much is left for the owner. */
+/* The hand-off: grey words after a 10 px mark whose fill says how much is left for the owner. */
 .k-job--handoff {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-1);
-  min-height: var(--s-5);
-  padding: 0 var(--s-2);
-  border-radius: var(--r-pill);
-  background: var(--glass-soft);
-  box-shadow: inset 0 0 0 1px var(--hairline);
-  color: var(--text-2);
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-tight);
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   white-space: nowrap;
 }
 
 .k-job__handoff-mark {
-  width: var(--s-2);
-  height: var(--s-2);
-  border-radius: var(--r-pill);
+  position: relative;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  overflow: hidden;
+  border-radius: var(--r-round);
   box-shadow: inset 0 0 0 1.5px currentColor;
 }
 
-.k-job--you-approve .k-job__handoff-mark {
-  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+.k-job--you-approve .k-job__handoff-mark::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 50%;
+  background: currentColor;
 }
 
 .k-job--on-its-own .k-job__handoff-mark {
   background: currentColor;
 }
 
-/* The stage mark: the stage's number in a small square, then its word. */
+/* The stage: grey words after the stage glyph. */
 .k-job--stage {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-1);
-  color: var(--text-2);
-  font-size: var(--fs-caption);
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   white-space: nowrap;
 }
 
-.k-job__stage-n {
-  display: inline-grid;
-  place-items: center;
-  width: var(--s-4);
-  height: var(--s-4);
-  border-radius: var(--r-1);
-  box-shadow: inset 0 0 0 1px var(--hairline-strong);
-  color: var(--text);
-  font-size: var(--fs-over);
-  font-weight: var(--fw-medium);
-  font-variant-numeric: tabular-nums;
+.k-job__stage-icon {
+  flex: none;
+  color: var(--ink-3);
 }
 
-/* Why it cannot start. */
+/* Why it cannot start: the lock in the warning colour, the server's sentence, and the way to fix it. */
 .k-job--why {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s-2);
-  color: var(--text-2);
+  color: var(--ink-2);
   font-size: var(--fs-body);
+  line-height: var(--lh-ui);
 }
 
 .k-job__why-icon {
@@ -83,114 +79,186 @@
 }
 
 .k-job__why-link {
-  color: var(--text);
+  color: var(--accent);
   font-weight: var(--fw-medium);
+  text-decoration: none;
 }
 
-/* One line. */
+.k-job__why-link:hover {
+  text-decoration: underline;
+}
+
+/* A job in a list. */
 .k-job--row {
-  position: relative;
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  min-height: var(--h-lg);
+  min-width: 0;
+  min-height: 56px;
   padding: var(--s-2) var(--s-3);
   border-radius: var(--r-2);
-  color: var(--text);
+  color: var(--ink);
   text-decoration: none;
-  min-width: 0;
   transition: background-color var(--t-fast) var(--ease);
 }
 
+.k-job--row + .k-job--row {
+  border-top: 1px solid var(--line);
+}
+
 a.k-job--row:hover {
-  background: var(--glass-soft);
+  background-color: var(--ctl);
 }
 
-.k-job__dot {
+/* The department's icon on a 32 px tile (C3's icon tile). */
+.k-job--row > .k-job__dot {
   flex: none;
-  width: var(--s-2);
-  height: var(--s-2);
-  border-radius: var(--r-round);
-  background: var(--k-job-dot);
+  display: grid;
+  place-items: center;
+  width: var(--s-8);
+  height: var(--s-8);
+  border-radius: var(--r-2);
+  background: var(--ctl);
+  color: var(--ink-2);
 }
 
-/* In a list a job's bullet is drawn as on the map, in the text colour (hollow when it cannot start): a
-   department's colour beside "needs you" or "working" would read as a state (M18-10). */
-.k-job--row {
-  --k-job-dot: var(--text);
+/* The name over its sentence at the left; the facts in fixed columns at the right, so a list's hand-offs and
+   stages line up under each other (M18-16). Two lines a job: about 60 px. */
+.k-job__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 var(--s-6);
 }
 
 .k-job__title {
-  flex: 1 1 auto;
+  grid-column: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--fs-fact);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-fact);
 }
 
-/* Two fixed columns, so the tags and stages of a list line up under each other (M18-16). */
+.k-job__sentence {
+  grid-column: 1;
+  max-width: 68ch;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
 .k-job__marks {
-  display: inline-grid;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: grid;
   grid-template-columns: 104px 112px;
   align-items: center;
-  gap: var(--s-3);
-  flex: none;
+  gap: 2px var(--s-3);
 }
 
 .k-job__marks > .k-job--handoff {
   justify-self: start;
 }
 
+.k-job__marks > .k-job__blocked {
+  grid-column: 1 / -1;
+}
+
+.k-job__blocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  white-space: nowrap;
+}
+
+.k-job__blocked .k-icon {
+  color: var(--warn);
+}
+
+/* The one button: drawn as the kit's small outlined button; the whole row is the link. */
 .k-job__go {
   flex: none;
-  color: var(--text-3);
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  height: var(--h-sm);
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  color: var(--ink);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+a.k-job--row:hover .k-job__go {
+  background-color: var(--ctl);
 }
 
 .k-job--dim .k-job__title,
 .k-job--dim .k-job__chip-text {
-  color: var(--text-2);
+  color: var(--ink-2);
 }
 
-.k-job--dim .k-job__dot {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--k-job-dot);
+.k-job--dim > .k-job__dot {
+  color: var(--ink-3);
 }
 
 /* A job that cannot start yet: its questions are switched off and look it (M63 item 13); the sentence that says
    why stays at full strength above them. */
 .k-job__asks--off .k-field__label,
 .k-job__asks--off .k-field__hint {
-  color: var(--text-3);
+  color: var(--ink-3);
 }
 
 .k-job__asks--off .k-input:disabled,
 .k-job__asks--off .k-textarea:disabled,
 .k-job__asks--off .k-select__control:disabled {
   border-style: dashed;
-  border-color: var(--hairline-strong);
+  border-color: var(--line-2);
   background: transparent;
   cursor: not-allowed;
 }
 
-/* The "can run" chip. */
+/* The "can run" chip: the department's icon and the job's name, on the control fill. */
 .k-job--chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: 6px;
   min-height: var(--h-sm);
   max-width: 100%;
-  padding: 0 var(--s-3);
-  border-radius: var(--r-pill);
-  background: var(--glass-soft);
-  box-shadow: inset 0 0 0 1px var(--hairline);
-  color: var(--text);
-  font-size: var(--fs-caption);
+  padding: 0 10px 0 var(--s-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  background: var(--ctl);
+  color: var(--ink);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
   text-decoration: none;
-  transition: background-color var(--t-fast) var(--ease);
+  transition: border-color var(--t-fast) var(--ease);
 }
 
 a.k-job--chip:hover {
-  background: var(--glass);
+  border-color: var(--line-2);
+}
+
+.k-job--chip > .k-job__dot {
+  flex: none;
+  display: inline-flex;
+  color: var(--ink-2);
 }
 
 .k-job__chip-text {
@@ -221,8 +289,8 @@ a.k-job--chip:hover {
   min-height: var(--h-md);
   padding: 0 var(--s-3);
   border-radius: var(--r-2);
-  background: var(--glass-soft);
-  color: var(--text-2);
+  background: var(--ctl);
+  color: var(--ink-2);
   overflow-wrap: anywhere;
 }
 
@@ -251,7 +319,7 @@ a.k-job--chip:hover {
 }
 
 .k-job__read--filled .k-icon {
-  color: var(--ok);
+  color: var(--good);
 }
 
 .k-job__read--missing .k-icon {
@@ -259,7 +327,7 @@ a.k-job--chip:hover {
 }
 
 .k-job__read-name {
-  color: var(--text);
+  color: var(--ink);
 }
 
 /* A file that only helps and is not there yet: a quiet dot, no warning (M51 F7). */
@@ -269,31 +337,31 @@ a.k-job--chip:hover {
   height: var(--s-2);
   margin: 0 3px;
   border-radius: var(--r-round);
-  box-shadow: inset 0 0 0 1.5px var(--text-3);
+  box-shadow: inset 0 0 0 1.5px var(--ink-3);
 }
 
 /* A task's short ref, quietly after its name. */
 .k-job__ref {
-  color: var(--text-2);
-  font-size: var(--fs-caption);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
   font-variant-numeric: tabular-nums;
 }
 
 /* A question not answered yet, in the preview: its own words, quietly. */
 .k-job__blank {
-  color: var(--text-2);
+  color: var(--ink-2);
   font-style: italic;
 }
 
 .k-job__read-state {
-  color: var(--text-2);
-  font-size: var(--fs-caption);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
 }
 
+/* What will be asked: a well on the control fill, no edge of its own. */
 .k-job__preview {
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-3);
-  background: var(--glass-soft);
+  border-radius: var(--r-2);
+  background: var(--ctl);
 }
 
 /* The kit's chevron in place of the browser's triangle, turned while open (M18-26). */
@@ -303,8 +371,8 @@ a.k-job--chip:hover {
   gap: var(--s-2);
   list-style: none;
   padding: var(--s-2) var(--s-3);
-  color: var(--text-2);
-  font-size: var(--fs-caption);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
   cursor: pointer;
 }
 
@@ -322,8 +390,11 @@ a.k-job--chip:hover {
 }
 
 .k-job__preview-text {
-  padding: 0 var(--s-3) var(--s-3);
-  color: var(--text);
+  max-width: 68ch;
+  padding: 0 var(--s-3) var(--s-3) calc(var(--s-3) + 14px + var(--s-2));
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -336,15 +407,15 @@ a.k-job--chip:hover {
 }
 
 .k-job__under {
-  color: var(--text-2);
-  font-size: var(--fs-caption);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
 }
 
 .k-job__started {
   display: flex;
   align-items: flex-start;
   gap: var(--s-2);
-  color: var(--ok-text);
+  color: var(--good);
   font-weight: var(--fw-medium);
 }
 
@@ -355,54 +426,48 @@ a.k-job--chip:hover {
 
 .k-job--started {
   padding: var(--s-4);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
-  background: var(--ok-bg);
+  border-radius: var(--r-3);
+  background: var(--good-bg);
 }
 
 @media (max-width: 859px) {
-  .k-job--row,
   .k-job--chip,
   .k-job__from {
     min-height: 44px;
   }
 
-  /* A row on a phone: the name on up to two lines, the tag and the stage on a line under it, so no name is
-     cut and the stage still shows (M18-03, M51 F11). */
+  /* A job in a list on a phone: the name on up to two lines, the sentence and the facts under it, so no name
+     is cut and the stage still shows (M18-03, M51 F11); the button gives way, the row is the link. */
   .k-job--row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    column-gap: var(--s-3);
-    row-gap: var(--s-1);
+    padding: var(--s-3) var(--s-2);
   }
 
-  .k-job--row > .k-job__dot {
-    grid-column: 1;
-    grid-row: 1;
-    align-self: center;
-  }
-
-  .k-job--row > .k-job__title {
-    grid-column: 2;
-    grid-row: 1;
+  .k-job--row .k-job__title {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     white-space: normal;
   }
 
-  .k-job--row > .k-job__marks {
-    grid-column: 2;
-    grid-row: 2;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--s-1) var(--s-3);
+  .k-job--row > .k-job__go {
+    display: none;
   }
 
-  .k-job--row > .k-job__go {
-    grid-column: 3;
-    grid-row: 1 / span 2;
-    align-self: center;
+  .k-job--row {
+    align-items: flex-start;
+  }
+
+  .k-job__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .k-job__marks {
+    grid-column: 1;
+    grid-row: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px var(--s-4);
+    margin-top: var(--s-1);
   }
 
   /* Small links get a 44 px area to tap without changing how they look (M51 F15). */
@@ -422,12 +487,5 @@ a.k-job--chip:hover {
 
   .k-job__preview-head {
     min-height: 44px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .k-job--row,
-  .k-job--chip {
-    transition: none;
   }
 }

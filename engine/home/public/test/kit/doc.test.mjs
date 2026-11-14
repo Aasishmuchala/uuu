@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { KIT, elements, textOf, tags, show } from "./_dom.mjs";
-import { compositeSheetTests } from "./_rules.mjs";
+import { css, compositeSheetTests } from "./_rules.mjs";
 
 const doc = await import(pathToFileURL(join(KIT, "doc.js")).href);
 const { parseMarkdown, parseInline, Markdown } = doc;
@@ -104,6 +104,23 @@ test("DocView shows a section's Markdown as readable text", async () => {
   assert.ok(tags(root).includes("ol"));
   assert.ok(tags(root).includes("code"));
   assert.ok(!textOf(root).includes("`"));
+});
+
+// PLAN-COOK T37: 15/24 words at most 68 characters wide, semibold headings, code in the mono face at 13 px on the
+// control fill, tables as the kit's table; Anything unclear is a warning (an amber rule on a faint tint); and the
+// sheet leaves DocLayout, which shares the root name, alone.
+test("DocView and Markdown: 15/24 words in a 68 character measure, kit-table tables, code on the control fill", () => {
+  const c = css("kit/doc.css");
+  assert.match(c, /\.k-md\s*\{[^}]*font-size: var\(--fs-fact\);[^}]*line-height: var\(--lh-section\);/);
+  assert.match(c, /\.k-md__p,\s*\.k-md__h,\s*\.k-md__list,\s*\.k-md__quote\s*\{\s*max-width: 68ch;/);
+  assert.match(c, /\.k-md__h\s*\{[^}]*font-weight: var\(--fw-bold\);/);
+  assert.match(c, /\.k-md__pre\s*\{[^}]*background: var\(--ctl\);[^}]*font-size: var\(--fs-note\);/);
+  assert.match(c, /\.k-md__table th\s*\{[^}]*color: var\(--ink-3\);[^}]*font-size: var\(--fs-label\);/);
+  assert.match(c, /\.k-md__table td\s*\{[^}]*border-top: 1px solid var\(--line\);/);
+  assert.match(c, /\.k-doc__unclear\s*\{[^}]*background: var\(--warn-bg\);[^}]*box-shadow: inset 2px 0 0 var\(--warn\);/);
+  assert.match(c, /^\.k-doc:not\(\.k-doc--layout\)\s*\{/m, "DocLayout's root is not restyled here");
+  assert.doesNotMatch(c, /^\.k-doc\s*\{/m);
+  assert.doesNotMatch(c, /--glass|--highlight|--r-pill|var\(--dept|--border-warm|--bg-card/);
 });
 
 compositeSheetTests("doc");

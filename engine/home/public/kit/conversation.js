@@ -1,11 +1,12 @@
-// A conversation between the owner and the agents, and a file as a card. CONTRACTS-V2 13.2, restyled by CONTRACTS-V3 28.
-// A message is { who, kind, text, at, files?, marker? } (17.3, 17.5); the owner's `who.slug` is "you". The owner's
-// message is a glass bubble at the right with an initials badge; an agent's message is plain text in the column under
-// its picture, name and time. `marker` ({ label, tone }) is a centred quiet line before the message, such as
-// "Brief written" or "Round 1 · Repairing"; a message with only a marker is only that line.
+// A conversation between the owner and the agents, and a file as a row. CONTRACTS-V2 13.2, restyled by CONTRACTS-V3 28
+// and redrawn by PLAN-COOK T37 (R02): one reading column. Every message, the owner's and an agent's, is an entry:
+// a 24 px picture, the speaker and the time in grey, then the words at 15/24; entries are parted by space and a
+// hairline. A message is { who, kind, text, at, files?, marker? } (17.3, 17.5); the owner's `who.slug` is "you".
+// `marker` ({ label, tone }) is a quiet trail line before the message, such as "Brief written" or "Round 1 ·
+// Repairing"; a message with only a marker is only that line.
 // Agents wrote these words: they are shown as text, never as HTML.
 // `fold: true` on an agent's message (the task page sets it on agents' comments, M63 item 28) shows only the first
-// lines of a long text, with a "Show all" button that opens the rest and "Show less" that closes it again.
+// lines of a long text, with a quiet "Read all" button that opens the rest and "Show less" that closes it again.
 import { html, useState } from "../vendor/preact-htm.js";
 import { bytes, fullWhen, when } from "../lib/format.js";
 import { Avatar } from "./avatar.js";
@@ -19,7 +20,8 @@ const KIND_LABELS = { result: "Result", verdict: "Check", ask: "Asked" };
 const MARKER_TONES = ["neutral", "ok", "warn", "bad"];
 const MARKER_MAX = 120;
 
-// `file` is a file-entry (17.1). One button: Open when the file can be viewed here, else Download.
+// `file` is a file-entry (17.1), drawn as a row: a 16 px icon, its own name, its size, and one small button: Open
+// when the file can be viewed here, else Download.
 export function FileCard({ file, onOpen }) {
   if (!file) return null;
   const name = text(file.name);
@@ -35,7 +37,7 @@ export function FileCard({ file, onOpen }) {
       ? html`<${Button} size="sm" icon="download" aria-label=${`Download ${short}`} href=${file.url} download=${short}>Download<//>`
       : null;
   return html`<div class="k-file">
-    <span class="k-file__icon"><${Icon} name=${file.kind === "image" ? "image" : "file"} /></span>
+    <span class="k-file__icon"><${Icon} name=${file.kind === "image" ? "image" : "file"} size=${16} /></span>
     <span class="k-file__body">
       <span class="k-file__name" title=${short}>${short}</span>
       <span class="k-file__meta">${Number.isFinite(Number(file.size)) && html`<span>${bytes(file.size)}</span>`}</span>
@@ -53,8 +55,12 @@ export function markerOf(message) {
   return { label, tone: MARKER_TONES.includes(m.tone) ? m.tone : "neutral" };
 }
 
+// A trail line: a glyph that carries the tone and the words in grey.
+const MARKER_ICONS = { neutral: "arrow-right", ok: "check", warn: "alert", bad: "cross" };
+
 function Marker({ marker }) {
   return html`<li class=${`k-convo__marker k-convo__marker--${marker.tone}`}>
+    <${Icon} name=${MARKER_ICONS[marker.tone]} size=${14} class="k-convo__marker-icon" />
     <span class="k-convo__marker-text">${marker.label}</span>
   </li>`;
 }
@@ -91,7 +97,7 @@ export function foldText(value) {
 
 let foldSeq = 0;
 
-// An agent's long text with its first lines showing and one real button to open or close the rest.
+// An agent's long text with its first lines showing and one quiet button to open or close the rest.
 function FoldedText({ value }) {
   const [open, setOpen] = useState(false);
   const [id] = useState(() => `k-convo-fold-${(foldSeq += 1)}`);
@@ -101,7 +107,7 @@ function FoldedText({ value }) {
     <button type="button" class=${`k-convo__fold${open ? " k-convo__fold--open" : ""}`} aria-expanded=${open ? "true" : "false"}
       aria-controls=${id} onClick=${() => setOpen(!open)}>
       <${Icon} name="chevron-down" size=${14} />
-      <span>${open ? "Show less" : "Show all"}</span>
+      <span>${open ? "Show less" : "Read all"}</span>
     </button>`;
 }
 
@@ -121,13 +127,17 @@ export function Conversation({ messages = [] }) {
     const fileList = files.length > 0 && html`<div class="k-convo__files">${files.map((f) => html`<${FileCard} file=${f} />`)}</div>`;
     if (mine) {
       out.push(html`<li class="k-convo__msg k-convo__msg--you" key=${i}>
-        <span class="u-visually-hidden">You said:</span>
-        <div class="k-convo__mine">
-          <div class="k-convo__bubble">${text(m.text)}</div>
+        <span class="k-sr">You said:</span>
+        <div class="k-convo__head k-convo__mine">
           <span class="k-convo__badge"><${Avatar} slug="you" name=${text(who.name) || "You"} size=${24} /></span>
+          <span class="k-convo__who" aria-hidden="true">You</span>
+          ${m.kind === "note" && html`<span class="k-convo__kind">Note</span>`}
+          ${stamp}
         </div>
-        ${fileList}
-        <div class="k-convo__meta k-convo__meta--you">${m.kind === "note" && html`<span>Note</span>`}${stamp}</div>
+        <div class="k-convo__content">
+          <div class="k-convo__bubble">${text(m.text)}</div>
+          ${fileList}
+        </div>
       </li>`);
       return;
     }

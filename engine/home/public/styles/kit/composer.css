@@ -1,5 +1,6 @@
-/* Composer (kit/composer.js): the box at the bottom of its container, with the "/" and "@" lists above it,
-   and the map's round ask box. Tokens only. The box and its list are opaque; nothing behind them is blurred. */
+/* Composer (kit/composer.js): one outlined box on the panel step, at the bottom of its container, with the "/"
+   and "@" lists floating above it; and the map's ask box. Tokens only. Nothing behind the box is blurred.
+   15 px words, the round send button in the accent fill, the hint at 13 px. */
 
 .k-composer {
   position: sticky;
@@ -12,74 +13,95 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  padding: var(--s-3) var(--s-3) var(--s-2) var(--s-4);
+  padding: var(--s-3) var(--s-2) var(--s-2) var(--s-4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
   background: var(--panel);
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-5);
-  box-shadow: var(--highlight);
+  box-shadow: var(--shadow-card);
   transition: border-color var(--t-fast) var(--ease);
 }
 
 .k-composer__box:focus-within {
-  border-color: var(--text-3);
+  border-color: var(--accent);
 }
 
 .k-composer__context {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-2);
+  padding-right: var(--s-2);
 }
 
+/* Who it is for, and the job it came from: 12 px chips on the control fill. */
 .k-composer__to,
 .k-composer__template {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-1);
-  padding: 2px var(--s-1) 2px var(--s-2);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  background: var(--glass-soft);
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  gap: 6px;
+  height: 24px;
+  padding: 0 2px 0 var(--s-2);
+  border-radius: var(--r-1);
+  background: var(--ctl);
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-label);
 }
 
 .k-composer__template {
   padding-right: var(--s-2);
 }
 
+.k-composer__template .k-icon {
+  width: 12px;
+  height: 12px;
+}
+
 .k-composer__to-label {
-  color: var(--text-3);
+  color: var(--ink-3);
+}
+
+.k-composer__to > span:not(.k-composer__to-label):not(.k-avatar) {
+  color: var(--ink);
 }
 
 .k-composer__clear {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--s-5);
-  height: var(--s-5);
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: 0;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-xs);
   background: transparent;
-  color: var(--text-3);
+  color: var(--ink-3);
   cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.k-composer__clear .k-icon {
+  width: 12px;
+  height: 12px;
 }
 
 .k-composer__clear:hover {
-  background: var(--glass-soft);
-  color: var(--text);
+  background: var(--ctl);
+  color: var(--ink);
 }
 
 .k-composer__field {
   width: 100%;
-  min-height: var(--h-lg);
+  min-height: var(--s-12);
   max-height: 240px;
-  padding: var(--s-1) 0;
+  padding: 0 var(--s-2) 0 0;
   border: 0;
   background: transparent;
-  color: var(--text);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-fact);
+  line-height: var(--lh-section);
   resize: none;
-  line-height: var(--lh-body);
   white-space: pre-wrap;
 }
 
@@ -89,7 +111,7 @@
 }
 
 .k-composer__field::placeholder {
-  color: var(--text-3);
+  color: var(--ink-3);
   white-space: pre;
 }
 
@@ -97,14 +119,15 @@
   display: flex;
   align-items: center;
   gap: var(--s-3);
+  min-height: var(--h-md);
 }
 
 .k-composer__plan {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
   cursor: pointer;
 }
 
@@ -112,13 +135,15 @@
   width: var(--s-4);
   height: var(--s-4);
   margin: 0;
-  accent-color: var(--primary);
+  accent-color: var(--accent-fill);
 }
 
 .k-composer__hint {
   margin-left: auto;
-  font-size: var(--fs-caption);
-  color: var(--text-3);
+  color: var(--ink-3);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  text-align: right;
 }
 
 .k-composer__error {
@@ -126,8 +151,54 @@
   display: flex;
   align-items: center;
   gap: var(--s-1);
-  font-size: var(--fs-caption);
-  color: var(--bad-text);
+  color: var(--bad);
+  font-size: var(--fs-note);
+}
+
+/* The round send button: the one accent fill in the box, inert (control fill, third grey) until there are words. */
+.k-composer__send {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--h-md);
+  height: var(--h-md);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-round);
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
+}
+
+.k-composer__send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-fill) 88%, var(--accent-ink));
+}
+
+.k-composer__send:disabled {
+  background: var(--ctl);
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.k-composer--busy .k-composer__send:disabled {
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  opacity: .6;
+}
+
+.k-composer__send:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.k-composer__bar .k-composer__send {
+  margin-left: auto;
+}
+
+.k-composer__hint + .k-composer__send {
+  margin-left: 0;
 }
 
 /* The "/" and "@" lists: a floating panel over whatever is above the box. */
@@ -135,62 +206,65 @@
   margin-bottom: var(--s-2);
   max-height: 320px;
   overflow-y: auto;
-  padding: var(--s-1);
+  padding: 6px;
+  border-radius: var(--r-3);
   background: var(--panel);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
   box-shadow: var(--float);
 }
 
 .k-composer__menu-head {
   margin: 0;
-  padding: var(--s-2) var(--s-2) var(--s-1);
+  padding: 6px var(--s-2) var(--s-1);
+  color: var(--ink-2);
   font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-label);
-  color: var(--ink-3);
+  line-height: var(--lh-label);
 }
 
 .k-composer__option {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: var(--s-3);
   min-height: var(--h-md);
   padding: var(--s-1) var(--s-2);
   border: 0;
-  border-radius: var(--r-3);
+  border-radius: var(--r-2);
   background: transparent;
-  color: var(--text);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-body);
   text-align: left;
   cursor: pointer;
 }
 
-.k-composer__option:hover,
-.k-composer__option--active {
-  background: var(--glass-soft);
+.k-composer__option:hover {
+  background: var(--ctl);
 }
 
 .k-composer__option--active {
-  box-shadow: inset 0 0 0 1px var(--hairline);
+  background: var(--sel);
 }
 
 /* A job that cannot start yet: still listed, so the page can say why. */
 .k-composer__option--dim .k-composer__option-title {
-  color: var(--text-2);
+  color: var(--ink-2);
   font-weight: var(--fw-regular);
 }
 
-.k-composer__option-dot {
+/* A job's department, by its line icon. */
+.k-composer__option-icon {
   flex: none;
-  width: var(--s-2);
-  height: var(--s-2);
-  border-radius: var(--r-round);
-  background: var(--dept, var(--text-3));
+  display: inline-flex;
+  color: var(--ink-2);
 }
 
 .k-composer__option-title {
   flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: var(--fw-medium);
 }
 
@@ -199,11 +273,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--fs-caption);
-  color: var(--text-3);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
 }
 
-/* The map's ask box: one rounded glass box with a round send button, and the hint under it. */
+/* The map's ask box: the same outlined box in one row, the round send button inside it, the hint under it. */
 .k-composer--ask {
   position: relative;
   bottom: auto;
@@ -218,50 +292,21 @@
   flex-direction: row;
   align-items: flex-end;
   gap: var(--s-2);
-  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-5);
-  border-radius: var(--r-5);
+  padding: 6px 6px 6px var(--s-4);
 }
 
 .k-composer--ask .k-composer__field {
   flex: 1 1 auto;
   min-height: var(--h-md);
-  padding: var(--s-2) 0;
-}
-
-.k-composer__send {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--h-md);
-  height: var(--h-md);
-  padding: 0;
-  border: 0;
-  border-radius: var(--r-pill);
-  background: var(--primary);
-  color: var(--primary-text);
-  cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
-}
-
-.k-composer__send:hover:not(:disabled) {
-  background: var(--primary-hover);
-}
-
-.k-composer__send:disabled {
-  opacity: .4;
-  cursor: default;
-}
-
-.k-composer--busy .k-composer__send:disabled {
-  opacity: .7;
+  padding: 6px 0;
 }
 
 .k-composer__note {
   margin: 0;
   padding: 0 var(--s-5);
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   text-align: center;
   /* No word left alone on the last line (M18-31). */
   text-wrap: balance;
@@ -276,8 +321,18 @@
     display: none;
   }
 
-  .k-composer__bar .k-btn {
+  .k-composer__hint + .k-composer__send {
     margin-left: auto;
+  }
+
+  /* A job's name whole on a phone; its sentence gives way. */
+  .k-composer__option-title {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+
+  .k-composer__option-hint {
+    display: none;
   }
 
   .k-composer__option,

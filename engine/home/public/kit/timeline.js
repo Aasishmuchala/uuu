@@ -1,8 +1,10 @@
-// The steps of a task on one shared time axis. CONTRACTS-V2 13.2.
+// The steps of a task, in order. CONTRACTS-V2 13.2, redrawn by PLAN-COOK T37: a hairline spine with a 7 px dot for
+// each step (its tone: done, working, needs you, stopped, failed), the step at 13 px with who did it and its ref,
+// and its state and how long it took at the right in tabular figures. `layout` still places steps on one shared
+// time axis for any page that wants the bars.
 // `items` are 17.3 `timeline` entries: { id, identifier, title, who, kind, state, plainState, startedAt, endedAt, durationMs }.
 import { html } from "../vendor/preact-htm.js";
 import { fullWhen, when } from "../lib/format.js";
-import { Avatar } from "./avatar.js";
 import { Icon } from "./icon.js";
 import { Mono } from "./text.js";
 
@@ -57,40 +59,36 @@ export function durationWords(value) {
 const TONES = { done: "ok", working: "live", checking: "live", needs_you: "warn", waiting: "wait", stopped: "off", failed: "bad" };
 const toneOf = (it) => TONES[it && it.state] || (it && it.endedAt ? "ok" : "live");
 
+const TONE_WORDS = { ok: "Done", live: "Working", warn: "Waiting for you", wait: "Waiting", off: "Stopped", bad: "Failed" };
+
 export function Timeline({ items = [], now }) {
   const list = Array.isArray(items) ? items : [];
   if (list.length === 0) return html`<p class="k-timeline k-timeline--empty">No steps yet.</p>`;
-  const places = layout(list, now);
   return html`<ol class="k-timeline">
     ${list.map((it, i) => {
-      const p = places[i];
       const who = it.who || null;
       const tone = toneOf(it);
       const running = !it.endedAt;
       return html`<li class=${`k-timeline__row k-timeline__row--${tone}`} key=${it.id || i}>
+        <span class=${`k-timeline__dot${running ? " k-timeline__dot--running" : ""}`} aria-hidden="true"></span>
         <div class="k-timeline__label">
-          ${who && html`<${Avatar} slug=${who.slug} name=${who.name} size=${20} />`}
           <div class="k-timeline__text">
             <span class="k-timeline__title">
-              ${it.kind === "check" && html`<${Icon} name="check" label="Check" />`}
+              ${it.kind === "check" && html`<${Icon} name="check" size=${14} label="Check" />`}
               <span>${text(it.title)}</span>
             </span>
             <span class="k-timeline__meta">
-              ${it.identifier && html`<${Mono}>${text(it.identifier)}<//>`}
               ${who && html`<span>${text(who.name)}</span>`}
+              ${it.identifier && html`<${Mono}>${text(it.identifier)}<//>`}
             </span>
           </div>
         </div>
-        <div class="k-timeline__track" aria-hidden="true">
-          <span class=${`k-timeline__bar${running ? " k-timeline__bar--running" : ""}`}
-            style=${`left:${p.leftPct}%;width:${p.widthPct}%`}></span>
-        </div>
         <div class="k-timeline__when">
-          <span class="k-timeline__state">${text(it.plainState)}</span>
+          <span class="k-timeline__state">${text(it.plainState) || TONE_WORDS[tone]}</span>
           <span class="k-timeline__duration" title=${fullWhen(it.startedAt)}>
             ${durationWords(it.durationMs)}${running ? " so far" : ""}
           </span>
-          <span class="u-visually-hidden">Started ${when(it.startedAt)}</span>
+          <span class="k-sr">Started ${when(it.startedAt)}</span>
         </div>
       </li>`;
     })}

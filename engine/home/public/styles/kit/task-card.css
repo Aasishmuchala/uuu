@@ -1,66 +1,72 @@
-/* TaskRow, TaskCard and BoardColumn (kit/task-card.js). Tokens only. */
+/* TaskRow, TaskCard and BoardColumn (kit/task-card.js), as R03's rows and C3's cards. Tokens only.
+   A row is one 50 px line (51 with the hairline between rows): a 16 px state glyph, the name at 15 px, the ref
+   quietly after it, one grey fact, and the date at the right in tabular figures. It answers the pointer with the
+   control fill. A row that needs the owner says so with its amber glyph and its words: no tint, no outline. */
 
-/* One row: mark, then the title over a quiet second line (the department's dot, the job, the outcome or the
-   stage and state), the avatar, the time and a chevron at the right. */
 .k-task-row {
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  min-height: var(--h-md);
+  min-width: 0;
+  min-height: 50px;
   padding: var(--s-2) var(--s-3);
-  border: 1px solid transparent;
-  border-radius: var(--r-3);
-  color: var(--text);
+  border-radius: var(--r-2);
+  color: var(--ink);
+  font-size: var(--fs-fact);
+  line-height: var(--lh-fact);
   text-decoration: none;
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  transition: background-color var(--t-fast) var(--ease);
 }
 
 .k-task-row:hover {
-  background: var(--glass-soft);
-  border-color: var(--hairline);
+  background-color: var(--ctl);
 }
 
+/* Rows set side by side in one parent are parted by a hairline; a page that puts each row in its own list item
+   draws the hairline between the items. */
+.k-task-row + .k-task-row {
+  border-top: 1px solid var(--line);
+}
+
+/* The state's glyph, grey by default; amber when it needs the owner, green while working, red when it failed. */
 .k-task-row__mark {
   flex: none;
   display: inline-flex;
-  align-items: center;
+  color: var(--ink-3);
 }
 
+.k-task-row__mark--warn { color: var(--warn); }
+.k-task-row__mark--live,
+.k-task-row__mark--good { color: var(--good); }
+.k-task-row__mark--bad { color: var(--bad); }
+
+/* The glyph takes the row's tone, not the column's own colour: a task waiting for review is amber only when it
+   waits for the owner. */
+.k-task-row__mark .k-state-icon,
+.k-task-card__state .k-state-icon,
+.k-board-col__head .k-state-icon {
+  color: inherit;
+}
+
+/* The name and its ref, then the fact, on one line: the name keeps its room, the fact gives way first. */
 .k-task-row__main {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: var(--s-3);
 }
 
 .k-task-row__top {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 70%;
   display: flex;
   align-items: baseline;
   gap: var(--s-2);
-  min-width: 0;
-}
-
-.k-task-row .k-mono {
-  flex: none;
-  color: var(--text-2);
-  font-size: var(--fs-caption);
-}
-
-/* The short ref, quietly after the name. */
-.k-task-row__ref {
-  flex: none;
-  display: inline-flex;
-}
-
-.k-task-row__ref .k-mono {
-  color: var(--text-3);
-  background: none;
-  padding: 0;
 }
 
 .k-task-row__title {
-  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -68,22 +74,31 @@
   font-weight: var(--fw-medium);
 }
 
-.k-task-row__line {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-width: 0;
-  font-size: var(--fs-caption);
-  color: var(--text-2);
-  white-space: nowrap;
+/* The short ref, quietly after the name, in the text's own face and tabular figures. */
+.k-task-row__ref {
+  flex: none;
+  display: inline-flex;
 }
 
-.k-task-row__dept {
-  flex: none;
-  width: var(--s-2);
-  height: var(--s-2);
-  border-radius: var(--r-pill);
-  background: var(--dept, var(--text-2));
+.k-task-row__ref .k-mono {
+  padding: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: var(--fs-note);
+  font-variant-numeric: tabular-nums;
+}
+
+.k-task-row__line {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  white-space: nowrap;
 }
 
 .k-task-row__job {
@@ -91,13 +106,12 @@
   max-width: 45%;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--text);
 }
 
 .k-task-row__job + .k-task-row__text::before {
   content: "·";
-  margin-right: var(--s-2);
-  color: var(--text-2);
+  margin-right: 6px;
+  color: var(--ink-3);
 }
 
 .k-task-row__text {
@@ -106,101 +120,73 @@
   text-overflow: ellipsis;
 }
 
-.k-task-row__who {
-  flex: none;
-  display: inline-flex;
-}
-
+/* The date: a right-hand column of its own, in tabular figures, so every row's date ends on one edge. */
 .k-task-row__time {
   flex: none;
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  min-width: 56px;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  text-align: right;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
-.k-task-row__chevron {
-  flex: none;
-  display: inline-flex;
-  color: var(--text-2);
-  opacity: .7;
-  transition: transform var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
-}
-
-.k-task-row:hover .k-task-row__chevron {
-  opacity: 1;
-  transform: translateX(2px);
-}
-
-/* A card on the board: glass with a hairline and the inner highlight. */
+/* A card on the board: one step up from the ground, a hairline edge (and the soft shadow in light), the name,
+   one fact line and a bottom row with the state and the date. */
 .k-task-card {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
-  padding: var(--s-3) var(--s-4);
-  background: var(--glass);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
-  box-shadow: var(--highlight);
-  color: var(--text);
+  gap: 6px;
+  min-width: 0;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
   text-decoration: none;
-  transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
 
 .k-task-card:hover {
-  border-color: var(--hairline-strong);
-  transform: translateY(-1px);
-}
-
-.k-task-card--waiting {
-  background: linear-gradient(var(--bg-warm), var(--bg-warm)), var(--glass);
-  border-color: var(--border-warm);
+  border-color: var(--line-2);
 }
 
 .k-task-card__top {
   display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-height: var(--s-5);
-}
-
-.k-task-card__ref .k-mono {
-  color: var(--text-3);
-  font-size: var(--fs-caption);
-  background: none;
-  padding: 0;
-}
-
-/* "Working" sits in the bottom row with "Waiting for you", where it has room and is never cut. */
-.k-task-card__live {
-  display: inline-flex;
-  white-space: nowrap;
-}
-
-.k-task-card__who {
-  flex: none;
-  margin-left: auto;
-  padding-left: var(--s-2);
-  display: inline-flex;
-}
-
-.k-task-card__title {
-  display: flex;
   align-items: flex-start;
   gap: var(--s-2);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-tight);
+  min-width: 0;
 }
 
 .k-task-card__state {
   flex: none;
   display: inline-flex;
-  padding-top: 1px;
-  color: var(--text-2);
+  padding-top: 2px;
+  color: var(--ink-3);
+}
+
+.k-task-card--waiting .k-task-card__state {
+  color: var(--warn);
+}
+
+.k-task-card__state--live,
+.k-task-card__state--good {
+  color: var(--good);
+}
+
+.k-task-card__state--bad {
+  color: var(--bad);
+}
+
+.k-task-card__title {
+  min-width: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
 }
 
 .k-task-card__title-text {
-  min-width: 0;
   overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -210,8 +196,10 @@
 }
 
 .k-task-card__stage {
-  font-size: var(--fs-caption);
-  color: var(--text-3);
+  padding-left: calc(16px + var(--s-2));
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
 /* Each part of the step line stays whole; the line breaks between parts (M50 F20). */
@@ -223,53 +211,75 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--s-2);
-  font-size: var(--fs-caption);
+  gap: 6px var(--s-2);
+  margin-top: 2px;
+  padding-left: calc(16px + var(--s-2));
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
-.k-task-card__date {
-  margin-left: auto;
-  color: var(--text-3);
-  font-size: var(--fs-caption);
+/* "Working" sits in the bottom row with "Waiting for you", where it has room and is never cut. */
+.k-task-card__live,
+.k-task-card__needs {
+  display: inline-flex;
   white-space: nowrap;
 }
 
-/* A column of the board: a quiet sunken lane with an overline head. */
+.k-task-card__live .k-dot {
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink);
+}
+
+.k-task-card__end {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.k-task-card__ref .k-mono {
+  padding: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.k-task-card__date {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A column of the board: a lane on the ground with no frame of its own, so its cards are the only raised step. */
 .k-board-col {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
   min-width: 0;
-  padding: var(--s-2);
-  background: var(--glass-soft);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
 }
 
 .k-board-col__head {
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  padding: var(--s-1) var(--s-2);
-  color: var(--text-2);
+  min-height: var(--h-sm);
+  padding: 0 var(--s-1);
+  color: var(--ink-3);
 }
 
 .k-board-col__label {
   margin: 0;
-  font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-label);
-  color: var(--ink-3);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
 }
 
 .k-board-col__count {
-  min-width: var(--s-5);
-  padding: 0 var(--s-1);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-round);
-  color: var(--text-2);
-  font-size: var(--fs-caption);
-  text-align: center;
+  color: var(--ink-3);
+  font-size: var(--fs-body);
   font-variant-numeric: tabular-nums;
 }
 
@@ -281,54 +291,51 @@
 
 .k-board-col__empty {
   margin: 0;
-  padding: var(--s-4) var(--s-2);
-  color: var(--text-2);
-  font-size: var(--fs-caption);
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--s-12);
+  padding: 0 var(--s-3);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-3);
+  color: var(--ink-3);
+  font-size: var(--fs-note);
 }
 
 @media (max-width: 859px) {
-  /* A phone: the title on up to two lines, the time under it, so neither the title nor the line under it is cut
-     to a few letters (M50 F15, M51 F12, M18-34). */
+  /* A phone: the glyph, the name on up to two lines with the date at its right, and the fact on a line under
+     it, so neither the name nor the fact is cut to a few letters (M50 F15, M51 F12, M18-34). */
   .k-task-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
-    column-gap: var(--s-2);
-    row-gap: 2px;
-    min-height: 44px;
-    padding: var(--s-2);
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    align-items: start;
+    column-gap: var(--s-3);
+    min-height: 56px;
+    padding: var(--s-3);
   }
 
   .k-task-row__mark {
     grid-column: 1;
     grid-row: 1;
-    align-self: start;
-    padding-top: 5px;
+    padding-top: 3px;
   }
 
   .k-task-row__main {
     grid-column: 2;
     grid-row: 1;
-  }
-
-  .k-task-row__who {
-    grid-column: 3;
-    grid-row: 1;
-    align-self: start;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
   }
 
   .k-task-row__time {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .k-task-row__chevron {
-    grid-column: 4;
-    grid-row: 1 / span 2;
-    align-self: center;
+    grid-column: 3;
+    grid-row: 1;
+    min-width: 0;
   }
 
   .k-task-row__top {
+    max-width: none;
     flex-wrap: wrap;
     row-gap: 0;
   }
@@ -340,14 +347,25 @@
     white-space: normal;
   }
 
-  .k-task-row__job {
-    max-width: 50%;
+  /* The fact on up to two lines under the name, the job and the outcome running on as one sentence. */
+  .k-task-row__line {
+    flex: none;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+    font-size: var(--fs-note);
+    line-height: var(--lh-note);
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .k-task-row:hover .k-task-row__chevron,
-  .k-task-card:hover {
-    transform: none;
+  .k-task-row__job,
+  .k-task-row__text {
+    display: inline;
+    max-width: none;
+  }
+
+  .k-task-row__job + .k-task-row__text::before {
+    margin: 0 6px;
   }
 }

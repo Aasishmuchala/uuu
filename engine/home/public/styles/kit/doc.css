@@ -1,30 +1,46 @@
-/* DocView (kit/doc.js): a staged document as overline headings and readable text. Tokens only. */
+/* DocView and Markdown (kit/doc.js): a staged document, and an agent's Markdown file, as readable text. Tokens only.
+   Words at 15/24, at most 68 characters wide; headings at 16 (the nearest token to 17) and 15 px semibold; code
+   in the mono face at 13 px on the control fill; tables drawn as the kit's table (12 px headings in the third
+   grey, values at 14 px, rows parted by hairlines, no frame of their own). Nothing is ever cut or runs out
+   sideways: long words break, code wraps, and only a wide table scrolls inside its own box.
+   DocLayout (kit/layout.js) shares the root name .k-doc, so its rules here leave .k-doc--layout alone. */
 
-.k-doc {
+.k-doc:not(.k-doc--layout) {
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
-  color: var(--text);
+  gap: var(--s-6);
+  min-width: 0;
+  color: var(--ink);
 }
 
+/* The file's name: a 16 px icon and the name, quietly. */
 .k-doc__name {
   margin: 0;
   display: inline-flex;
   align-items: center;
-  gap: var(--s-1);
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  gap: var(--s-2);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  overflow-wrap: anywhere;
+}
+
+.k-doc__name .k-icon {
+  flex: none;
+  color: var(--ink-3);
 }
 
 .k-doc__empty {
   margin: 0;
-  color: var(--text-2);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
 }
 
 .k-doc__section {
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
+  gap: 6px;
+  min-width: 0;
 }
 
 .k-doc__heading {
@@ -32,35 +48,43 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-label);
-  line-height: var(--lh-tight);
-  color: var(--ink-3);
+  max-width: 68ch;
+  color: var(--ink);
+  font-size: var(--fs-fact);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-fact);
 }
 
 .k-doc__text {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--text);
+  color: var(--ink);
 }
 
+/* Anything unclear: a warning, so a thin amber rule at the left on a faint tint, 13 px words; never louder. */
 .k-doc__unclear {
-  padding: var(--s-3) var(--s-4);
+  max-width: 68ch;
+  padding: 10px var(--s-3) 10px var(--s-4);
+  border-radius: var(--r-2);
   background: var(--warn-bg);
-  border: 1px solid var(--border-warm);
-  border-radius: var(--r-4);
-  box-shadow: var(--highlight);
-  color: var(--warn-text);
+  box-shadow: inset 2px 0 0 var(--warn);
 }
 
 .k-doc__unclear .k-doc__heading {
-  color: var(--warn-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
+}
+
+.k-doc__unclear .k-doc__heading .k-icon {
+  flex: none;
+  color: var(--warn);
 }
 
 .k-doc__unclear-lead {
   margin: 0;
-  font-size: var(--fs-caption);
+  color: var(--ink);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
 .k-doc__questions {
@@ -69,53 +93,70 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-1);
+  color: var(--ink);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   overflow-wrap: anywhere;
 }
 
-/* Markdown (kit/doc.js): an agent's Markdown file shown as readable text. Nothing in it is ever cut or runs out
-   sideways: long words break, code wraps, and only a wide table scrolls inside its own box. */
+/* ---- Markdown */
 
 .k-md {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
   min-width: 0;
-  color: var(--text);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
+  color: var(--ink);
+  font-size: var(--fs-fact);
+  line-height: var(--lh-section);
   overflow-wrap: anywhere;
 }
 
 .k-md--compact {
-  gap: var(--s-2);
+  gap: var(--s-3);
 }
 
 .k-md > :first-child {
   margin-top: 0;
 }
 
+/* The reading measure: words never run wider than 68 characters; a table and code may use the 720 px column. */
+.k-md__p,
+.k-md__h,
+.k-md__list,
+.k-md__quote {
+  max-width: 68ch;
+}
+
 .k-md__h {
   margin: var(--s-2) 0 0;
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-tight);
-  color: var(--text);
+  color: var(--ink);
+  font-weight: var(--fw-bold);
+}
+
+.k-md__h1,
+.k-md__h2 {
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
 }
 
 .k-md__h1 {
-  font-size: var(--fs-heading);
-}
-
-.k-md__h2 {
-  font-size: var(--fs-title);
+  margin-top: var(--s-4);
 }
 
 .k-md__h3,
 .k-md__h4 {
-  font-size: var(--fs-body);
+  font-size: var(--fs-fact);
+  line-height: var(--lh-fact);
 }
 
 .k-md__h4 {
-  color: var(--text-2);
+  color: var(--ink-2);
+}
+
+/* A heading takes the space above it and keeps its text close below. */
+.k-md__h + * {
+  margin-top: calc(-1 * var(--s-2));
 }
 
 .k-md__p {
@@ -134,8 +175,13 @@
   margin-top: var(--s-1);
 }
 
+.k-md__list > li {
+  padding-left: 2px;
+}
+
 .k-md__list > li::marker {
-  color: var(--text-3);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .k-md__item {
@@ -161,15 +207,15 @@
   justify-content: center;
   width: var(--s-4);
   height: var(--s-4);
-  margin-top: 3px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-1);
-  color: var(--ok-text);
+  margin-top: var(--s-1);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xs);
+  color: var(--good);
 }
 
 .k-md__box--done {
   border-color: transparent;
-  background: var(--ok-bg);
+  background: var(--good-bg);
 }
 
 .k-md__box .k-icon {
@@ -177,80 +223,109 @@
   height: 12px;
 }
 
+.k-md strong {
+  font-weight: var(--fw-bold);
+}
+
+.k-md del {
+  color: var(--ink-3);
+}
+
+/* A link is shown as its words only: the accent says it was one, nothing can be followed. */
+.k-md__link {
+  color: var(--accent);
+}
+
 .k-md__code {
-  padding: 1px var(--s-1);
-  border-radius: var(--r-1);
-  background: var(--glass-soft);
-  box-shadow: inset 0 0 0 1px var(--hairline);
-  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  background: var(--ctl);
+  font-size: var(--fs-note);
 }
 
 .k-md__pre {
+  max-width: var(--column);
   margin: 0;
   padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-3);
-  background: var(--glass-soft);
-  font-size: var(--fs-caption);
-  line-height: var(--lh-body);
+  border-radius: var(--r-2);
+  background: var(--ctl);
+  font-size: var(--fs-note);
+  line-height: var(--lh-ui);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .k-md__rule {
   width: 100%;
-  margin: var(--s-1) 0;
+  margin: var(--s-2) 0;
   border: 0;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
 }
 
 .k-md__quote {
   margin: 0;
-  padding: 0 0 0 var(--s-3);
-  border-left: 2px solid var(--border-strong);
-  color: var(--text-2);
+  padding: 0 0 0 var(--s-4);
+  border-left: 2px solid var(--line-2);
+  color: var(--ink-2);
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
 }
 
-/* A table too wide for its place scrolls inside its own box; the box's hairline is its cut edge. */
+/* A table, as the kit's table: no frame of its own. Too wide for its place, it scrolls inside its box. */
 .k-md__table {
-  max-width: 100%;
+  max-width: min(100%, var(--column));
   overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--r-3);
-  background: var(--bg-card);
+  border-radius: var(--r-1);
 }
 
 .k-md__table:focus-visible {
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 .k-md__table table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--fs-caption);
-  line-height: var(--lh-tight);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
+  font-variant-numeric: tabular-nums;
 }
 
 .k-md__table th,
 .k-md__table td {
-  padding: var(--s-2) var(--s-3);
-  border-bottom: 1px solid var(--border);
+  padding: 0 var(--s-3);
   text-align: left;
-  vertical-align: top;
   overflow-wrap: break-word;
 }
 
-.k-md__table th {
-  border-bottom-color: var(--border-strong);
-  color: var(--text-2);
-  font-weight: var(--fw-medium);
+.k-md__table th:first-child,
+.k-md__table td:first-child {
+  padding-left: 0;
 }
 
-.k-md__table tbody tr:last-child td {
-  border-bottom: 0;
+.k-md__table th:last-child,
+.k-md__table td:last-child {
+  padding-right: 0;
+}
+
+.k-md__table th {
+  padding-bottom: var(--s-2);
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-label);
+  letter-spacing: var(--ls-label);
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.k-md__table td {
+  height: 44px;
+  padding-top: var(--s-2);
+  padding-bottom: var(--s-2);
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
 }
 
 @media (max-width: 859px) {
@@ -264,6 +339,7 @@
 
   .k-md__table th,
   .k-md__table td {
-    padding: var(--s-2);
+    padding-left: var(--s-2);
+    padding-right: var(--s-2);
   }
 }

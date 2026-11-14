@@ -1,5 +1,8 @@
 // Jobs (shape `job`, CONTRACTS-V3 31 and 33.3): the hand-off tag, the stage mark, why a job cannot start,
 // a job as one line and as a chip, and the start form with its questions.
+// PLAN-COOK T37: a job in a list is drawn as R12's card is built (its department's line icon on a tile, the name at
+// 15 px semibold, one 13 px sentence, the facts as grey words with a glyph each, one button at the right) without
+// the card's frame, since lists of jobs sit inside a page's own panel. No department colour anywhere (O7).
 // A job's words come from the company's own job files; the server's refusals are shown as the sentences it sends.
 import { html, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
@@ -37,6 +40,9 @@ const REF = /^[A-Z][A-Z0-9]{0,9}-\d{1,7}$/;
 const ASK_ID = /^[a-z][a-z0-9-]{0,30}$/;
 const str = (v) => (typeof v === "string" ? v : "");
 const arr = (v) => (Array.isArray(v) ? v : []);
+// The departments' line icons (as the sidebar draws them).
+const DEPT_ICONS = { brain: "brain", operations: "layers", sales: "trend", marketing: "horn", studio: "film", support: "buoy", people: "team", books: "book" };
+const deptIcon = (dept) => DEPT_ICONS[dept] || "jobs";
 const deptOf = (job) => {
   const d = job && job.department;
   const id = typeof d === "string" ? d : d && typeof d.id === "string" ? d.id : "";
@@ -187,7 +193,7 @@ export function StageMark({ n }) {
   const s = Object.hasOwn(STAGES, String(n)) ? STAGES[n] : null;
   if (!s) return null;
   return html`<span class="k-job k-job--stage" title=${s.about}>
-    <span class="k-job__stage-n" aria-hidden="true">${Number(n)}</span>
+    <${Icon} name="stage" size=${14} class="k-job__stage-icon" />
     <span class="k-sr">Stage ${Number(n)}: </span>${s.label}
   </span>`;
 }
@@ -213,26 +219,31 @@ export function JobRow({ job }) {
   const href = jobHref(job);
   const dept = deptOf(job);
   const why = typeof job.why === "string" ? job.why : str(job.why && job.why.text);
-  const inner = html`<span class="k-job__dot" aria-hidden="true"></span>
-    <span class="k-job__title">${str(job.title).slice(0, 60)}</span>
+  const summary = str(job.summary).replace(/\s+/g, " ").trim().slice(0, 200);
+  const inner = html`<span class="k-job__dot" aria-hidden="true"><${Icon} name=${deptIcon(dept)} size=${16} /></span>
+    <span class="k-job__body">
+      <span class="k-job__title">${str(job.title).slice(0, 60)}</span>
+      ${summary ? html`<span class="k-job__sentence">${summary}</span>` : null}
+      <span class="k-job__marks"><${HandoffTag} id=${job.handoff} /><${StageMark} n=${job.stage} />${dim
+        ? html`<span class="k-job__blocked" aria-hidden="true"><${Icon} name="lock" size=${14} />Cannot start yet</span>` : null}</span>
+    </span>
     ${dim ? html`<span class="k-sr">. Cannot start yet${why ? `: ${why}` : "."}</span>` : null}
-    <span class="k-job__marks"><${HandoffTag} id=${job.handoff} /><${StageMark} n=${job.stage} /></span>
-    ${href ? html`<${Icon} name="chevron-right" size=${14} class="k-job__go" />` : null}`;
+    ${href ? html`<span class="k-job__go" aria-hidden="true">Open</span>` : null}`;
   const cls = cx("k-job", "k-job--row", dim && "k-job--dim");
   return href
     ? html`<a class=${cls} href=${href} data-dept=${dept || undefined} title=${dim && why ? why : undefined}>${inner}</a>`
     : html`<span class=${cls} data-dept=${dept || undefined}>${inner}</span>`;
 }
 
-// The "can run" chip on a department's page.
+// The "can run" chip on a department's page: the department's line icon and the job's name.
 export function JobChip({ job }) {
   if (!job || typeof job !== "object") return null;
   const href = jobHref(job);
   const dim = job.ready === false;
-  const inner = html`<span class="k-job__dot" aria-hidden="true"></span><span class="k-job__chip-text">${str(job.title).slice(0, 60)}</span>
+  const dept = deptOf(job) || undefined;
+  const inner = html`<span class="k-job__dot" aria-hidden="true"><${Icon} name=${dim ? "lock" : deptIcon(dept)} size=${14} /></span><span class="k-job__chip-text">${str(job.title).slice(0, 60)}</span>
     ${dim ? html`<span class="k-sr"> (cannot start yet)</span>` : null}`;
   const cls = cx("k-job", "k-job--chip", dim && "k-job--dim");
-  const dept = deptOf(job) || undefined;
   return href ? html`<a class=${cls} href=${href} data-dept=${dept}>${inner}</a>` : html`<span class=${cls} data-dept=${dept}>${inner}</span>`;
 }
 

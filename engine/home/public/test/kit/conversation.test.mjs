@@ -6,12 +6,12 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { KIT, PUBLIC, elements, textOf, withClass, showNow as show, walkVNode as walk } from "./_dom.mjs";
 import { UNTRUSTED, shape } from "./_fixtures.mjs";
-import { src, compositeSheetTests } from "./_rules.mjs";
+import { css, src, compositeSheetTests } from "./_rules.mjs";
 
 const load = (name) => import(join(KIT, `${name}.js`));
 const conversation = await import(pathToFileURL(join(KIT, "conversation.js")).href);
 
-test("Conversation: the owner's bubble has an initials badge; an agent's head; a marker is a centred quiet line", async () => {
+test("Conversation: one column; the owner's entry has an initials badge in its head; an agent's head; a marker is a quiet trail line", async () => {
   const { Conversation, markerOf } = await load("conversation");
   assert.deepEqual(markerOf({ marker: { label: "Brief  written", tone: "ok" } }), { label: "Brief written", tone: "ok" });
   assert.deepEqual(markerOf({ marker: { label: "Round 1 · Repairing", tone: "pink" } }), { label: "Round 1 · Repairing", tone: "neutral" });
@@ -55,8 +55,8 @@ test("Conversation and FileCard: the owner's bubble, Open or Download", async ()
   assert.ok(!dl.text.includes("Open"));
 });
 
-// M63 item 28: an agent's long comment folds behind a real "Show all" button; the first lines show.
-test("Conversation: a long agent message marked fold shows its first lines and a Show all button; others stay open", async () => {
+// M63 item 28, PLAN-COOK T37: an agent's long comment folds behind a quiet "Read all" button; the first lines show.
+test("Conversation: a long agent message marked fold shows its first lines and a Read all button; others stay open", async () => {
   const { Conversation, foldText, FOLD_LINES, FOLD_CHARS } = await load("conversation");
   const long = Array.from({ length: 30 }, (_, i) => `Line ${i + 1} of what the agent said.`).join("\n");
   const f = foldText(long);
@@ -132,7 +132,7 @@ const find = (root, ok) => [...miniWalk(root)].find((n) => n.nodeType === 1 && o
 const textIn = (root) => [...miniWalk(root)].filter((n) => n.nodeType === 3).map((n) => n.data).join(" ");
 
 // The fold's button in a mounted tree: a real button, closed with the first lines, opened by a click.
-test("Conversation fold: Show all opens the rest, Show less closes it, and aria-expanded follows", async () => {
+test("Conversation fold: Read all opens the rest, Show less closes it, and aria-expanded follows", async () => {
   const { Conversation } = await load("conversation");
   const { html, render } = await import(pathToFileURL(join(PUBLIC, "vendor", "preact-htm.js")).href);
   const long = Array.from({ length: 20 }, (_, i) => `Row ${i + 1}`).join("\n");
@@ -143,7 +143,7 @@ test("Conversation fold: Show all opens the rest, Show less closes it, and aria-
   assert.ok(btn, "a button");
   assert.equal(btn.getAttribute("type"), "button");
   assert.equal(btn.getAttribute("aria-expanded"), "false");
-  assert.match(textIn(root), /Show all/);
+  assert.match(textIn(root), /Read all/);
   assert.doesNotMatch(textIn(root), /Row 20/);
   assert.match(textIn(root), /Row 1\b/);
   const box = btn.getAttribute("aria-controls");
@@ -163,6 +163,23 @@ test("file cards and evidence show a file's own name, never its folder; each Ope
   const checks = src("kit/checks.js");
   assert.doesNotMatch(checks, /alt=\$\{`Evidence: \$\{name\}`\}/);
   assert.match(checks, /split\("\/"\)\.pop\(\)/);
+});
+
+// PLAN-COOK T37 (R02): one reading column; the owner's words are no bubble at the right but an entry like every
+// other; words at 15/24; entries parted by a hairline; a file is a row, not a framed card.
+test("Conversation: one column of entries parted by a hairline, words at 15/24, no bubble and no glass", () => {
+  const c = css("kit/conversation.css");
+  assert.match(c, /\.k-convo__msg \+ \.k-convo__msg\s*\{\s*border-top: 1px solid var\(--line\);/);
+  assert.match(c, /\.k-convo__text,\s*\.k-convo__bubble\s*\{[^}]*font-size: var\(--fs-fact\);[^}]*line-height: var\(--lh-section\);/);
+  assert.match(c, /\.k-convo__who\s*\{[^}]*font-size: var\(--fs-body\);[^}]*font-weight: var\(--fw-bold\);/);
+  assert.doesNotMatch(c, /--glass|--highlight|--r-pill|var\(--dept|align-items: flex-end/);
+  const root = show(conversation.Conversation, { messages: [
+    { who: { slug: "you", name: "Asha" }, kind: "note", text: "Four frames.", at: null },
+    { who: { slug: "artist", name: "Artist" }, kind: "result", text: "Done.", at: null },
+  ] });
+  const heads = withClass(root, "k-convo__head");
+  assert.equal(heads.length, 2, "both entries have a head");
+  assert.match(textOf(heads[0]), /You/);
 });
 
 compositeSheetTests("conversation");

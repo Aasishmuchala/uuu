@@ -1,13 +1,14 @@
 // Tasks as one quiet line (TaskRow), as a board card (TaskCard), and a board column (BoardColumn). CONTRACTS-V2 13.2.
 // `task` is a task-card (17.1); TaskRow also takes a Home "running" entry ({ taskId, identifier, title, who, live, plainState }).
-// CONTRACTS-V3 28: TaskRow has a second line (the outcome, else the stage and state in words), the department's dot,
-// the time at the right and a chevron. It reads the same with or without `outcome`, `job` and `department` (33.2).
+// CONTRACTS-V3 28, redrawn by PLAN-COOK T37 (R03): TaskRow is one line: the state's glyph, the name, the ref quietly
+// after it, one grey fact (the job, then the outcome, else the stage and state in words) and the date at the right.
+// It reads the same with or without `outcome`, `job` and `department` (33.2). A department has no colour (O7): it is
+// named for screen readers only. A row that needs the owner says so with its glyph and its words, never a tint.
 // A task's short ref (STH-20) is how the owner and the agents name it, so it stays, quietly after the name.
 import { html } from "../vendor/preact-htm.js";
 import { when, fullWhen } from "../lib/format.js";
-import { Avatar } from "./avatar.js";
 import { Icon, StateIcon } from "./icon.js";
-import { Live, StatusDot, Waiting } from "./status.js";
+import { Live, St } from "./status.js";
 import { Chip } from "./tag.js";
 import { Mono } from "./text.js";
 
@@ -22,15 +23,6 @@ const COLUMN_LABELS = {
   canceled: "Canceled",
 };
 
-const COLUMN_TONES = {
-  backlog: "wait",
-  in_progress: "ok",
-  pending_review: "warn",
-  done: "ok",
-  failed: "bad",
-  canceled: "off",
-};
-
 export const taskHref = (task) => {
   const id = task && (task.id || task.taskId || task.identifier);
   return id ? `#/tasks/${encodeURIComponent(id)}` : null;
@@ -39,7 +31,7 @@ export const taskHref = (task) => {
 // The words for a task's state: its plain state, else its column's label.
 const stateWords = (task) => text(task.plainState) || COLUMN_LABELS[task.column] || "";
 
-// The seven departments' names (engine/company/departments.json), for screen readers beside the coloured dot.
+// The seven departments' names (engine/company/departments.json), for screen readers.
 const DEPARTMENTS = {
   operations: "Operations", sales: "Sales", marketing: "Marketing", studio: "Studio",
   support: "Support", people: "People", books: "Books",
@@ -52,9 +44,9 @@ const deptOf = (task) => {
   return typeof id === "string" && Object.hasOwn(DEPARTMENTS, id) ? id : "";
 };
 
-// Pure. The row's second line: the task's outcome when it has one, else its stage and its state in words
-// ("Check · Round 2 · Finished"). A task that is working or waiting for the owner says so first, in words, since
-// the row's mark shows only a dot. One line: no line breaks, the outcome cut to 140 characters.
+// Pure. The row's fact: the task's outcome when it has one, else its stage and its state in words
+// ("Check · Round 2 · Finished"). A task that is working or waiting for the owner says so first, in words, beside
+// its glyph. One line: no line breaks, the outcome cut to 140 characters.
 export function rowLine(task) {
   if (!task) return "";
   // An answer's source marks ("[1]") mean nothing on one line, so they are left out (M50 F8).
@@ -69,9 +61,22 @@ export function rowLine(task) {
   return parts.join(" · ");
 }
 
+// The row's glyph: needs you (amber), working (green), done (green), failed (red), else the board column's own
+// shape in grey; amber is kept for what needs the owner. Its word is for screen readers; the fact says it on screen.
+function Glyph({ task }) {
+  if (task.waitingForYou) {
+    return html`<span class="k-task-row__mark k-task-row__mark--warn"><${StateIcon} column="pending_review" label="" /><span class="k-sr">Waiting for you</span></span>`;
+  }
+  if (task.live) {
+    return html`<span class="k-task-row__mark k-task-row__mark--live"><${StateIcon} column="in_progress" label="" /><span class="k-sr">Working</span></span>`;
+  }
+  const column = Object.hasOwn(COLUMN_LABELS, task.column) ? task.column : "backlog";
+  const tone = column === "failed" ? " k-task-row__mark--bad" : column === "done" ? " k-task-row__mark--good" : "";
+  return html`<span class=${`k-task-row__mark${tone}`}><${StateIcon} column=${column} label="" /><span class="k-sr">${stateWords(task) || COLUMN_LABELS[column]}</span></span>`;
+}
+
 export function TaskRow({ task }) {
   if (!task) return null;
-  const who = task.who || null;
   const href = taskHref(task);
   const dept = deptOf(task);
   // The job's name is left out when the title already starts with it (M51 F12).
@@ -79,60 +84,51 @@ export function TaskRow({ task }) {
   const job = jobTitle && !text(task.title).toLowerCase().startsWith(jobTitle.toLowerCase()) ? jobTitle : "";
   const line = rowLine(task);
   const date = task.updatedAt || task.since || task.createdAt;
-  // The mark's word is for screen readers here: the second line says the state in words, so the titles line up.
-  const mark = task.live
-    ? html`<${Live} hideLabel />`
-    : task.waitingForYou
-      ? html`<${Waiting} hideLabel />`
-      : html`<${StatusDot} tone=${COLUMN_TONES[task.column] || "wait"} label=${stateWords(task)} hideLabel />`;
-  return html`<a class=${`k-task-row${line || job ? " k-task-row--two" : ""}`} href=${href}>
-    <span class="k-task-row__mark">${mark}</span>
+  const who = task.who && task.who.name ? text(task.who.name) : "";
+  return html`<a class=${`k-task-row${task.waitingForYou ? " k-task-row--needs" : ""}`} href=${href}>
+    <${Glyph} task=${task} />
     <span class="k-task-row__main">
       <span class="k-task-row__top">
         <span class="k-task-row__title">${text(task.title)}</span>
         ${task.identifier && html`<span class="k-task-row__ref"><${Mono}>${text(task.identifier)}<//></span>`}
       </span>
       ${(line || job || dept) && html`<span class="k-task-row__line">
-        ${dept && html`<span class="k-task-row__dept" data-dept=${dept} aria-hidden="true"></span><span class="u-visually-hidden">${DEPARTMENTS[dept]}.</span>`}
+        ${dept && html`<span class="k-task-row__dept k-sr" data-dept=${dept}>${DEPARTMENTS[dept]}.</span>`}
         ${job && html`<span class="k-task-row__job">${job}</span>`}
         ${line && html`<span class="k-task-row__text">${line}</span>`}
       </span>`}
+      ${who && html`<span class="k-sr">${who}.</span>`}
     </span>
-    ${who && html`<span class="k-task-row__who" title=${text(who.name)}>
-      <span class="u-visually-hidden">${text(who.name)}</span><${Avatar} slug=${who.slug} name=${who.name} size=${20} />
-    </span>`}
     ${date && html`<time class="k-task-row__time" datetime=${text(date)} title=${fullWhen(date)}>${when(date)}</time>`}
-    ${href && html`<span class="k-task-row__chevron" aria-hidden="true"><${Icon} name="chevron-right" /></span>`}
   </a>`;
 }
 
 export function TaskCard({ task }) {
   if (!task) return null;
-  const who = task.who || null;
   const date = task.updatedAt || task.createdAt;
   const total = Number(task.stepsTotal) || 0;
   const steps = total > 0 ? `${Number(task.stepsDone) || 0} of ${total} ${total === 1 ? "step" : "steps"}` : "";
+  const who = task.who && task.who.name ? text(task.who.name) : "";
   return html`<a class=${`k-task-card${task.waitingForYou ? " k-task-card--waiting" : ""}`} href=${taskHref(task)}>
     <div class="k-task-card__top">
-      ${who && html`<span class="k-task-card__who" title=${text(who.name)}>
-        <span class="u-visually-hidden">${text(who.name)}</span><${Avatar} slug=${who.slug} name=${who.name} size=${20} />
-      </span>`}
+      <span class=${`k-task-card__state${task.column === "done" ? " k-task-card__state--good" : task.column === "failed" ? " k-task-card__state--bad" : task.live ? " k-task-card__state--live" : ""}`}><${StateIcon} column=${task.column} label="" /></span>
+      <span class="k-task-card__title">
+        <span class="k-task-card__title-text">${text(task.title)}</span>
+      </span>
     </div>
-    <div class="k-task-card__title">
-      <span class="k-task-card__state"><${StateIcon} column=${task.column} /></span>
-      <span class="k-task-card__title-text">${text(task.title)}</span>
-    </div>
-    <span class="u-visually-hidden">${stateWords(task)}</span>
+    <span class="k-sr">${stateWords(task)}${who ? `. ${who}` : ""}.</span>
     ${task.stage && html`<div class="k-task-card__stage">
       <span>${text(task.stage.label)}</span>${Number(task.round) > 0 && html`<span> · Round ${Number(task.round)}</span>`}${steps && html`<span> · ${steps}</span>`}
     </div>`}
     <div class="k-task-card__bottom">
+      ${task.live && html`<span class="k-task-card__live"><${Live} /></span>`}
+      ${task.waitingForYou && html`<span class="k-task-card__needs"><${St} tone="warn">Waiting for you<//></span>`}
       ${task.size && html`<${Chip}>Size ${text(task.size)}<//>`}
       ${task.schedule && html`<${Chip} icon="loop">${text(task.schedule.label)}<//>`}
-      ${task.live && html`<span class="k-task-card__live"><${Live} /></span>`}
-      ${task.waitingForYou && html`<${Waiting} />`}
-      ${date && html`<time class="k-task-card__date" datetime=${text(date)} title=${fullWhen(date)}>${when(date)}</time>`}
-      ${task.identifier && html`<span class="k-task-card__ref"><${Mono}>${text(task.identifier)}<//></span>`}
+      <span class="k-task-card__end">
+        ${task.identifier && html`<span class="k-task-card__ref"><${Mono}>${text(task.identifier)}<//></span>`}
+        ${date && html`<time class="k-task-card__date" datetime=${text(date)} title=${fullWhen(date)}>${when(date)}</time>`}
+      </span>
     </div>
   </a>`;
 }
@@ -146,12 +142,12 @@ export function BoardColumn({ column, children }) {
   const empty = !children || (Array.isArray(children) && children.length === 0);
   return html`<section class=${`k-board-col k-board-col--${text(column.id)}`} aria-labelledby=${headId}>
     <header class="k-board-col__head">
-      <${StateIcon} column=${column.id} />
+      <${StateIcon} column=${column.id} label="" />
       <h2 class="k-board-col__label" id=${headId}>${label}</h2>
       <span class="k-board-col__count" aria-label=${`${count} ${count === 1 ? "task" : "tasks"}`}>${count}</span>
     </header>
     <div class="k-board-col__cards">
-      ${empty ? html`<p class="k-board-col__empty">No tasks.</p>` : children}
+      ${empty ? html`<p class="k-board-col__empty"><${Icon} name="inbox" size=${14} /><span>No tasks.</span></p>` : children}
     </div>
   </section>`;
 }

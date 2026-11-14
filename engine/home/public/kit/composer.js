@@ -3,11 +3,12 @@
 //   jobs, "@" opens the agents and sets who it is for; Enter sends, Shift+Enter makes a new line; a "Plan first" box
 //   when allowed. onSend({ text, to, planFirst, template }) -> promise. Picking a job calls onPickJob(job) when it is
 //   given (the page opens the job); without it the job's text fills the line, as in version 2.
-// - "ask": the map's box. One rounded glass box with a round send button and the hint under it; no Plan first, no
+// - "ask": the map's box. One outlined box with the round send button and the hint under it; no Plan first, no
 //   "/" or "@" lists. onSend({ text }) -> promise.
+// PLAN-COOK T37: both modes are one outlined box on the panel step (nothing blurs), 15 px words, the round send button
+// in the accent fill, the hint at 13 px. A job in the "/" list shows its department's line icon, never a colour (O7).
 import { html, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
 import { Avatar } from "./avatar.js";
-import { Button } from "./button.js";
 import { Icon } from "./icon.js";
 import { Kbd } from "./text.js";
 
@@ -54,6 +55,9 @@ export function trigger(value, caret) {
 
 const MAX_OPTIONS = 8;
 const fold = (s) => text(s).toLowerCase();
+
+// The departments' line icons (as the sidebar draws them).
+const DEPT_ICONS = { brain: "brain", operations: "layers", sales: "trend", marketing: "horn", studio: "film", support: "buoy", people: "team", books: "book" };
 
 // A job's department id (shape `job`: { department: { id } }), or a plain id string, or "".
 const deptOf = (g) => {
@@ -271,7 +275,7 @@ function TaskComposer({
           onMouseDown=${(e) => e.preventDefault()} onClick=${() => pick(o)}>
         ${o.kind === "@"
           ? html`<${Avatar} slug=${o.value.slug} name=${o.value.name} size=${20} /><span class="k-composer__option-title">${text(o.value.name)}</span>`
-          : html`${deptOf(o.value) && html`<span class="k-composer__option-dot" data-dept=${deptOf(o.value)} aria-hidden="true"></span>`}
+          : html`<span class="k-composer__option-icon" data-dept=${deptOf(o.value) || undefined} aria-hidden="true"><${Icon} name=${DEPT_ICONS[deptOf(o.value)] || "jobs"} size=${16} /></span>
               <span class="k-composer__option-title">${text(o.value.title)}</span>
               ${o.value.summary && html`<span class="k-composer__option-hint">${text(o.value.summary)}</span>`}`}
       </button>`)}
@@ -303,7 +307,8 @@ function TaskComposer({
         ${text(hint)
           ? html`<span class="k-composer__hint">${text(hint)}</span>`
           : html`<span class="k-composer__hint" aria-hidden="true"><${Kbd}>Enter<//> to send, <${Kbd}>Shift<//> + <${Kbd}>Enter<//> for a new line</span>`}
-        <${Button} variant="primary" icon="send" busy=${isBusy} disabled=${isBusy || !value.trim()} onClick=${send}>Send<//>
+        <button type="button" class="k-composer__send" aria-label=${isBusy ? "Sending" : "Send"}
+          disabled=${isBusy || !value.trim()} onClick=${send}><${Icon} name="send" /></button>
       </div>
       ${error && html`<p class="k-composer__error" role="alert"><${Icon} name="alert" /><span>${error}</span></p>`}
     </div>

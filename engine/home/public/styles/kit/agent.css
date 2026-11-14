@@ -1,7 +1,10 @@
-/* AgentChip and AgentCard (kit/agent.js): a pill chip and a glass card. Tokens only. */
+/* AgentChip, AgentState and AgentCard (kit/agent.js). Tokens only.
+   The chip is the avatar and the name, no frame, the name taking the ink on hover. The card is C3's card: one
+   step up from the ground, a hairline edge (and the soft shadow in light), the avatar, the name at 15 px, the
+   state as a state line, one grey sentence and what it does now. */
 
 .k-agent {
-  color: var(--text);
+  color: var(--ink);
   text-decoration: none;
 }
 
@@ -10,15 +13,8 @@
   align-items: center;
   gap: var(--s-2);
   max-width: 100%;
-  padding: 2px var(--s-3) 2px 2px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  background: var(--glass-soft);
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
-}
-
-a.k-agent--chip:hover {
-  border-color: var(--hairline-strong);
+  min-height: 24px;
+  vertical-align: middle;
 }
 
 .k-agent__name {
@@ -26,24 +22,47 @@ a.k-agent--chip:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--fs-body);
   font-weight: var(--fw-medium);
+  transition: color var(--t-fast) var(--ease);
+}
+
+a.k-agent--chip .k-agent__name {
+  color: var(--ink);
+}
+
+a.k-agent--chip:hover .k-agent__name {
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+
+/* The state: a free agent's words stay grey; a state that asks something keeps the ink. */
+.k-agent__state {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.k-agent__state--quiet .k-st {
+  color: var(--ink-2);
+  font-weight: var(--fw-regular);
 }
 
 .k-agent--card {
   display: flex;
   align-items: flex-start;
   gap: var(--s-3);
-  padding: var(--s-4) var(--s-5);
-  background: var(--glass);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
-  box-shadow: var(--highlight);
-  transition: border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  min-width: 0;
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  transition: border-color var(--t-fast) var(--ease);
 }
 
 a.k-agent--card:hover {
-  border-color: var(--hairline-strong);
-  transform: translateY(-1px);
+  border-color: var(--line-2);
 }
 
 .k-agent__body {
@@ -58,44 +77,44 @@ a.k-agent--card:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s-2);
   flex-wrap: wrap;
+  gap: var(--s-1) var(--s-3);
+  min-height: var(--s-6);
 }
 
 .k-agent__title {
   margin: 0;
-  font-size: var(--fs-title);
+  font-size: var(--fs-fact);
   font-weight: var(--fw-medium);
-  line-height: var(--lh-tight);
+  line-height: var(--lh-fact);
 }
 
 .k-agent__summary {
   margin: 0;
-  color: var(--text-2);
+  max-width: 68ch;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   overflow-wrap: anywhere;
 }
 
 .k-agent__doing {
-  margin: 0;
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  margin: var(--s-1) 0 0;
   overflow: hidden;
+  color: var(--ink);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .k-agent__doing-label {
-  color: var(--text-3);
+  margin-right: var(--s-1);
+  color: var(--ink-3);
 }
 
 @media (max-width: 859px) {
   .k-agent--chip {
     min-height: 44px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  a.k-agent--card:hover {
-    transform: none;
   }
 }

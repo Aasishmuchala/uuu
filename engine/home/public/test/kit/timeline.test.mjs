@@ -2,9 +2,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { KIT } from "./_dom.mjs";
-import { shape } from "./_fixtures.mjs";
-import { compositeSheetTests } from "./_rules.mjs";
+import { KIT, textOf, withClass, showNow } from "./_dom.mjs";
+import { UNTRUSTED, shape } from "./_fixtures.mjs";
+import { css, compositeSheetTests } from "./_rules.mjs";
 
 const load = (name) => import(join(KIT, `${name}.js`));
 
@@ -30,6 +30,30 @@ test("layout: back-to-back items share the axis; an open item runs to now; width
   assert.equal(one.length, 1);
   assert.equal(one[0].widthPct, 100);
   assert.deepEqual(layout([], new Date()), []);
+});
+
+// PLAN-COOK T37: a hairline spine with a 7 px dot a step, 13 px entries, the state and the time at the right; no
+// frame, no glass, no bar drawn from a style attribute.
+test("Timeline: a hairline spine, a 7 px dot in each step's tone, 13 px entries, the duration at the right", async () => {
+  const { Timeline } = await load("timeline");
+  const c = css("kit/timeline.css");
+  assert.match(c, /\.k-timeline__row::before,\s*\.k-timeline__row::after\s*\{[^}]*width: 1px;[^}]*background: var\(--line-2\);/);
+  assert.match(c, /\.k-timeline__dot\s*\{[^}]*width: 7px;[^}]*height: 7px;/);
+  assert.match(c, /\.k-timeline__row\s*\{[^}]*font-size: var\(--fs-note\);/);
+  assert.match(c, /\.k-timeline__when\s*\{[^}]*align-items: flex-end;[^}]*font-variant-numeric: tabular-nums;/);
+  assert.doesNotMatch(c, /--glass|--highlight|--r-pill|var\(--dept/);
+  const t0 = Date.parse("2026-11-11T08:00:00.000Z");
+  const root = showNow(Timeline, { items: [
+    { id: "a", title: UNTRUSTED, who: { slug: "artist", name: "Artist" }, identifier: "STH-9", state: "done", plainState: "Done", startedAt: new Date(t0).toISOString(), endedAt: new Date(t0 + 60000).toISOString(), durationMs: 60000 },
+    { id: "b", title: "Check it", kind: "check", who: { slug: "checker", name: "Checker" }, state: "working", startedAt: new Date(t0 + 60000).toISOString(), endedAt: null, durationMs: 9 * 60000 },
+  ], now: new Date(t0 + 600000) });
+  assert.equal(withClass(root, "k-timeline__dot").length, 2);
+  assert.equal(withClass(root, "k-timeline__dot--running").length, 1, "the running step is a ring");
+  assert.ok(withClass(root, "k-timeline__row--ok").length === 1 && withClass(root, "k-timeline__row--live").length === 1);
+  assert.ok(textOf(root).includes(UNTRUSTED), "a step's title is text");
+  assert.match(textOf(root), /9 minutes so far/);
+  assert.match(textOf(root), /Working/, "a step with no plain state says its tone in words");
+  assert.equal(withClass(root, "k-timeline__bar").length, 0);
 });
 
 compositeSheetTests("timeline");

@@ -264,12 +264,34 @@ test("fold-outs use the kit's chevron, not the browser's triangle (M18-26)", () 
   assert.match(src("kit/answer.js"), /class="k-answer__fold"/);
 });
 
-test("job rows on a phone: two lines for the name, the stage kept, bullets in the text colour (M18-03, M18-10, M18-16, M51 F11)", () => {
+test("job rows on a phone: two lines for the name, the stage kept, no department colour (M18-03, M18-10, M18-16, M51 F11, O7)", () => {
   const j = css("kit/job.css");
   assert.doesNotMatch(j, /\.k-job__marks \.k-job--stage\s*\{\s*display: none;/);
-  assert.match(j, /\.k-job--row > \.k-job__title\s*\{[^}]*-webkit-line-clamp: 2;/);
-  assert.match(j, /\.k-job--row\s*\{\s*--k-job-dot: var\(--text\);/);
-  assert.match(j, /grid-template-columns: 104px 112px;/);
+  assert.match(j, /\.k-job--row \.k-job__title\s*\{[^}]*-webkit-line-clamp: 2;/);
+  // The hand-off keeps a column of its own, so a list's stages line up under each other (M18-16).
+  assert.match(j, /\.k-job__marks\s*\{[^}]*grid-template-columns: 104px 112px;/);
+  // A department is its line icon, never a hue beside "needs you" or "working" (M18-10, O7).
+  assert.doesNotMatch(j, /var\(--dept|--k-job-dot|--glass|--r-pill|gradient\(/);
+});
+
+// PLAN-COOK T37: a job in a list is built as R12's card: its department's icon, the name at 15 px semibold, one
+// 13 px sentence, the facts as grey words with a glyph each, one button; the stage is a glyph and words.
+test("JobRow: R12's construction, the department's line icon, the facts as grey words, one button", () => {
+  const root = show(job.JobRow, { job: { ...LEAD, summary: "A first message to someone you met." } });
+  const a = root.firstChild;
+  assert.equal(withClass(root, "k-job__dot").length, 1);
+  assert.ok(elements(withClass(root, "k-job__dot")[0]).some((e) => e.localName === "svg"), "the department's icon");
+  assert.match(textOf(withClass(root, "k-job__sentence")[0]), /A first message to someone you met\./);
+  assert.match(textOf(withClass(root, "k-job__go")[0]), /^Open$/);
+  assert.equal(withClass(root, "k-job__stage-n").length, 0);
+  assert.equal(withClass(root, "k-job__stage-icon").length, 1, "the stage is a glyph and words");
+  assert.equal(a.getAttribute("data-dept"), "sales");
+  const dim = show(job.JobRow, { job: { ...LEAD, ready: false, why: "No internet." } });
+  assert.match(textOf(withClass(dim, "k-job__blocked")[0]), /Cannot start yet/);
+  const j = css("kit/job.css");
+  assert.match(j, /\.k-job__title\s*\{[^}]*font-size: var\(--fs-fact\);[^}]*font-weight: var\(--fw-bold\);/);
+  assert.match(j, /\.k-job__sentence\s*\{[^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-note\);/);
+  assert.match(j, /\.k-job--stage\s*\{[^}]*color: var\(--ink-2\);/);
 });
 
 newSheetTest("job");

@@ -107,7 +107,8 @@ test("Composer in task mode: '/' lists jobs; picking one calls onPickJob and fil
   assert.ok(textOf(list).includes(JOB.title) && textOf(list).includes(dim.title));
   const options = elements(list).filter((e) => e.getAttribute("role") === "option");
   assert.ok(/k-composer__option--dim/.test(options[1].getAttribute("class")), "a job that cannot start is dim");
-  assert.ok(elements(options[0]).some((e) => e.getAttribute("data-dept") === "sales"), "the department's dot");
+  assert.ok(elements(options[0]).some((e) => e.getAttribute("data-dept") === "sales" && /k-composer__option-icon/.test(e.getAttribute("class") || "")
+    && elements(e).some((s) => s.localName === "svg")), "the department's line icon, not a coloured dot (O7)");
   fire(options[0], "click");
   await settle();
   assert.deepEqual(picked.map((j) => j.id), [JOB.id]);
@@ -149,6 +150,24 @@ test("composer: the full hint at wide sizes, the short one below 480 px, and nev
   } finally {
     if (prev === undefined) delete globalThis.matchMedia; else globalThis.matchMedia = prev;
   }
+});
+
+// PLAN-COOK T37: one outlined box on the panel step, 15 px words, the round send button in the accent fill in both
+// modes, the hint at 13 px; nothing blurs and nothing is glass.
+test("Composer: one outlined box on the panel, 15 px words, a round send button in the accent fill in both modes", async () => {
+  const c = css("kit/composer.css");
+  assert.match(c, /\.k-composer__box\s*\{[^}]*border: 1px solid var\(--line-2\);[^}]*background: var\(--panel\);/);
+  assert.match(c, /\.k-composer__field\s*\{[^}]*font-size: var\(--fs-fact\);/);
+  assert.match(c, /\.k-composer__send\s*\{[^}]*border-radius: var\(--r-round\);[^}]*background: var\(--accent-fill\);/);
+  assert.match(c, /\.k-composer__hint\s*\{[^}]*font-size: var\(--fs-note\);/);
+  assert.doesNotMatch(c, /--glass|--highlight|--r-pill|--r-5|var\(--dept|--primary/);
+  installDom();
+  const root = await showTree(composer.Composer, { onSend: async () => {} });
+  const send = elements(root).find((e) => e.localName === "button" && /k-composer__send/.test(e.getAttribute("class") || ""));
+  assert.ok(send, "task mode has the round send button too");
+  assert.equal(send.getAttribute("aria-label"), "Send");
+  assert.equal(send.getAttribute("disabled"), "true", "inert until there are words");
+  render(null, root);
 });
 
 compositeSheetTests("composer");

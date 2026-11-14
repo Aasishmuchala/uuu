@@ -1,6 +1,7 @@
-/* Conversation and FileCard (kit/conversation.js). Tokens only.
-   The owner's message is a glass bubble at the right with an initials badge; an agent's message is plain text in the
-   column under its picture, name and time; a marker is a centred quiet line between hairlines. */
+/* Conversation and FileCard (kit/conversation.js), as R02's activity: one reading column. Tokens only.
+   Every message is an entry: a 24 px picture, the speaker at 14 px semibold with the time in grey, then the words
+   at 15/24 under the name. Entries are parted by space and a hairline. A marker is a quiet trail line: a 14 px
+   glyph that carries the tone and the words in grey. A file is a row with a 16 px icon and its own name. */
 
 .k-convo {
   margin: 0;
@@ -8,39 +9,44 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--s-5);
+  max-width: var(--column);
 }
 
 .k-convo--empty {
-  color: var(--text-2);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
 }
 
-/* The owner. */
-.k-convo__msg--you {
+.k-convo__msg {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: var(--s-1);
+  gap: 6px;
+  min-width: 0;
+  padding: var(--s-4) 0;
 }
 
-.k-convo__mine {
+.k-convo__msg + .k-convo__msg {
+  border-top: 1px solid var(--line);
+}
+
+.k-convo__msg:first-child {
+  padding-top: 0;
+}
+
+.k-convo__msg:last-child {
+  padding-bottom: 0;
+}
+
+/* The head: the picture, the speaker, what kind of message it is, its ref and the time. */
+.k-convo__head {
   display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  gap: var(--s-2);
-  max-width: 100%;
-}
-
-.k-convo__bubble {
-  max-width: min(80%, 560px);
-  padding: var(--s-2) var(--s-4);
-  background: var(--glass);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4) var(--r-4) var(--r-1) var(--r-4);
-  box-shadow: var(--highlight);
-  color: var(--text);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px var(--s-2);
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-ui);
 }
 
 .k-convo__badge {
@@ -48,214 +54,204 @@
   display: inline-flex;
 }
 
-.k-convo__meta {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  font-size: var(--fs-caption);
-  color: var(--text-2);
-}
-
-.k-convo__meta--you {
-  padding-right: calc(24px + var(--s-2));
-}
-
-/* An agent: its picture, name and time on one line, the words below in the column. */
-.k-convo__msg--agent {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  min-width: 0;
-}
-
-.k-convo__head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  font-size: var(--fs-caption);
-  color: var(--text-2);
-}
-
-.k-convo__head .k-mono {
-  color: var(--text-2);
+/* Initials stay at the 12 px floor, never smaller (the kit's 24 px avatar draws them at 10). */
+.k-convo__head .k-avatar__initials {
+  font-size: var(--fs-label);
 }
 
 .k-convo__who {
+  color: var(--ink);
   font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
-  color: var(--text);
+  font-weight: var(--fw-bold);
 }
 
+.k-convo__head .k-mono {
+  padding: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.k-convo__time {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.k-convo__time::before {
+  content: "·";
+  margin-right: var(--s-2);
+}
+
+/* What kind of message: one 12 px chip on its tint; a result is the good tint. */
 .k-convo__kind {
-  padding: 0 var(--s-2);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  background: var(--glass-soft);
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: var(--ctl);
+  color: var(--ink-2);
   font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-label);
-  line-height: 1.8;
-  color: var(--ink-3);
+  line-height: var(--lh-label);
 }
 
 .k-convo__msg--result .k-convo__kind {
-  border-color: transparent;
-  background: var(--ok-bg);
-  color: var(--ok-text);
+  background: var(--good-bg);
+  color: var(--good);
 }
 
+/* The words, under the name: lined up with it, not with the picture. */
 .k-convo__content {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: var(--s-3);
   min-width: 0;
+  padding-left: calc(24px + var(--s-2));
 }
 
-.k-convo__text {
-  color: var(--text);
-  line-height: var(--lh-body);
+.k-convo__text,
+.k-convo__bubble {
+  max-width: 68ch;
+  color: var(--ink);
+  font-size: var(--fs-fact);
+  line-height: var(--lh-section);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-/* A long agent comment, folded (M63): one real button under its first lines. */
+/* A long agent comment, folded (M63): one quiet text button under its first lines. */
 .k-convo__fold {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
   gap: var(--s-1);
-  min-height: 32px;
+  height: var(--h-sm);
+  margin: calc(-1 * var(--s-2)) 0 0 calc(-1 * var(--s-2));
   padding: 0 var(--s-2);
-  margin-left: calc(-1 * var(--s-2));
   border: 0;
   border-radius: var(--r-1);
   background: none;
-  color: var(--text-2);
+  color: var(--ink-2);
   font: inherit;
-  font-size: var(--fs-caption);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
   cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
 .k-convo__fold:hover {
-  background: var(--glass-soft);
-  color: var(--text);
+  background: var(--ctl);
+  color: var(--ink);
 }
 
 .k-convo__fold:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.k-convo__fold--open svg {
+.k-convo__fold--open .k-icon {
   transform: rotate(180deg);
 }
 
 .k-convo__files {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
-  max-width: 420px;
+  max-width: 480px;
   width: 100%;
 }
 
-.k-convo__msg--you .k-convo__files {
-  padding-right: calc(24px + var(--s-2));
-}
-
-/* A marker: "Brief written", "Round 1 · Repairing". */
+/* A marker: "Brief written", "Round 1 · Repairing", as one quiet trail line in the column. */
 .k-convo__marker {
   display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  font-size: var(--fs-caption);
-  color: var(--text-2);
-  text-align: center;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding: var(--s-4) 0 var(--s-1);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-ui);
 }
 
-.k-convo__marker::before,
-.k-convo__marker::after {
-  content: "";
-  flex: 1 1 0;
-  min-width: var(--s-4);
-  border-top: 1px solid var(--hairline);
+/* A marker heads the message after it: the hairline goes above the marker, none between it and its message. */
+.k-convo__msg + .k-convo__marker {
+  border-top: 1px solid var(--line);
+}
+
+.k-convo__marker + .k-convo__msg {
+  padding-top: var(--s-1);
+}
+
+.k-convo__marker + .k-convo__marker {
+  padding-top: 0;
+}
+
+.k-convo__marker:first-child {
+  padding-top: 0;
+}
+
+.k-convo__marker-icon {
+  flex: none;
+  margin: 3px 3px 0;
+  color: var(--ink-3);
 }
 
 .k-convo__marker-text {
-  flex: 0 1 auto;
   min-width: 0;
-  padding: 2px var(--s-3);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  background: var(--glass);
   overflow-wrap: anywhere;
 }
 
-.k-convo__marker--ok .k-convo__marker-text {
-  border-color: transparent;
-  background: var(--ok-bg);
-  color: var(--ok-text);
-}
+.k-convo__marker--ok .k-convo__marker-icon { color: var(--good); }
+.k-convo__marker--warn .k-convo__marker-icon { color: var(--warn); }
+.k-convo__marker--bad .k-convo__marker-icon { color: var(--bad); }
 
-.k-convo__marker--warn .k-convo__marker-text {
-  border-color: transparent;
-  background: var(--warn-bg);
-  color: var(--warn-text);
-}
-
-.k-convo__marker--bad .k-convo__marker-text {
-  border-color: transparent;
-  background: var(--bad-bg);
-  color: var(--bad-text);
-}
-
-/* A file, as a row of glass. */
+/* A file, as a row: its 16 px icon, its own name and size, one small button at the right. Rows side by side are
+   parted by a hairline; no frame, so a list of files sits calmly in a card or on the ground. */
 .k-file {
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3);
-  background: var(--glass);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-3);
-  box-shadow: var(--highlight);
-  color: var(--text);
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--s-1) 0;
+  color: var(--ink);
+}
+
+.k-file + .k-file {
+  border-top: 1px solid var(--line);
 }
 
 .k-file__icon {
   flex: none;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--h-sm);
-  height: var(--h-sm);
-  border-radius: var(--r-2);
-  background: var(--glass-soft);
-  border: 1px solid var(--hairline);
-  color: var(--text-2);
+  color: var(--ink-2);
 }
 
 .k-file__body {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: var(--s-2);
 }
 
 .k-file__name {
-  font-weight: var(--fw-medium);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
 }
 
 .k-file__meta {
+  flex: none;
   display: flex;
   gap: var(--s-2);
-  font-size: var(--fs-caption);
-  color: var(--text-3);
-  min-width: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-note);
+  font-variant-numeric: tabular-nums;
 }
 
 .k-file__folder {
@@ -265,7 +261,11 @@
 }
 
 @media (max-width: 859px) {
-  .k-convo__bubble {
-    max-width: 85%;
+  .k-convo__content {
+    padding-left: 0;
+  }
+
+  .k-convo__fold {
+    height: 44px;
   }
 }
