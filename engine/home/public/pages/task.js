@@ -1,17 +1,21 @@
-// A task, as a conversation with its acceptance beside it (CONTRACTS-V3 30, "A task"; CONTRACTS-V2 17.3).
-// The column: the back chip, the title, a line with the agent, the size, the job it came from and the task it
-// follows, then the story in time order (the owner's words, each document as it was written, the agents'
-// comments, a marker for each check round, the result with its files). For a question task the story is the
-// answer. Beside the column when there is room (under the title when there is not): the acceptance panel with
-// the state, Accept and Send back, the other Needs-you items, the rounds and their checks, what can come next,
-// how it went, the files, a note and stop. Below 860 px a bar above the tab bar holds Accept and Send back.
-// A task of a job that makes versions (PLAN-V5 K9) shows them above the story: while it waits on the owner, the
-// card to pick one from (the pick is the acceptance, so the panel points to it in place of Accept); after, the
-// versions as they are, from GET /api/tasks/:id/pieces. When that route is not there (404, an older home server)
-// or fails, the page is as it was.
-// A task that built a site (PLAN-V5 K16, T54) shows it under the versions: the home server's own pictures of each
-// version at desktop and phone width, what the page viewer found, the preview and the zip (kit/site.js SiteView,
-// from GET /api/tasks/:id/sites). A task with no site, or an older home server, shows nothing there.
+// A task, as a conversation with its acceptance beside it (CONTRACTS-V3 30, "A task"; CONTRACTS-V2 17.3), drawn by
+// PLAN-COOK T51 in one of three layouts:
+//   A task that built a site (PLAN-V5 K16, T54) is a stage (kit/layout.js StageLayout): the site's pictures on the stage
+//   and its versions in the strip (kit/site.js, T41); the rail says what it is ("A site to accept · round 1"), the
+//   title and one line, then what the page viewer found, the acceptance facts (the state, the rounds and their checks,
+//   what can come next) and, at its foot, the acceptance: the pick while a pick waits (kit/pick.js PickFoot), else
+//   Accept with Send back and its note under a divider, and Stop in the menu. Under the first screen: the story in one
+//   reading column, the checks, the files and how it went.
+//   A task whose versions have pictures and no site is the pick card's own stage (kit/pick.js PickCard), the story
+//   and the acceptance under it.
+//   Any other task is the column: the back chip, the title, a line with the agent, the size, the job it came from and
+//   the task it follows, then the story in time order (the owner's words, each document as it was written, the
+//   agents' comments, a marker for each check round, the result with its files). For a question task the story is
+//   the answer. Beside the column when there is room (under the title when there is not): the acceptance panel with
+//   the state, Accept and Send back, the other Needs-you items, the rounds and their checks, what can come next, how
+//   it went, the files, a note and stop. Below 860 px a bar above the tab bar holds Accept and Send back.
+// The versions come from GET /api/tasks/:id/pieces and the sites from GET /api/tasks/:id/sites. When a route is not
+// there (404, an older home server) or fails, the page is the column as it was.
 // Address state: ?round=<n>, ?check=<n>, ?doc=<stage id>, ?files=1. Everything here was written by agents:
 // shown as text only, sizes capped, no link followed.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
@@ -20,9 +24,10 @@ import { useApp } from "../lib/context.js";
 import { waitingLine } from "../lib/format.js";
 import { go } from "../lib/router.js";
 import {
-  AnswerView, Avatar, Button, Chip, CheckList, Conversation, DecisionCard, DocView, Empty, ErrorNotice, Evidence,
-  FileCard, Icon, Loading, PageHeader, PickNudge, SiteView, Tabs, TextArea, Timeline, Versions, brandLine, changedText, isChangedSinceSeen,
-  isPickItem, jobHref, useInboxAct,
+  AnswerView, Avatar, Blk, Button, Chip, CheckList, Conversation, DecisionCard, DocView, Empty, ErrorNotice, Evidence,
+  FileCard, Icon, Loading, Menu, PageHeader, PickCard, PickFoot, PickNudge, Scores, SiteRail, SiteStage, SiteStrip, SiteView,
+  StageLayout, StatusDot, Tabs, TextArea, Timeline, Versions, brandLine, changedText, isChangedSinceSeen, isPickItem, jobHref,
+  stageLabel, stageOf, useInboxAct, useSiteView, versionsOf,
 } from "../kit/index.js";
 
 const BACK = { href: "#/tasks", label: "All tasks" };
@@ -194,7 +199,7 @@ export function storyOf(d) {
     if (Number.isFinite(at)) last = at;
     const who = m.who && typeof m.who === "object" ? { slug: text(m.who.slug), name: text(m.who.name) } : { slug: "", name: "" };
     const message = { who, kind: text(m.kind) || "comment", text: cap(m.text, 8000), at: m.at };
-    // A long comment of an agent folds behind "Show all" (M63 item 28); the check and the result stay open.
+    // A long comment of an agent folds behind "Read all" (M63 item 28); the check and the result stay open.
     if (message.kind === "comment" && who.slug !== YOU.slug) message.fold = true;
     if (message.kind === "verdict") {
       const hit = unused.find((u) => !u.used && u.at === at);
@@ -282,6 +287,63 @@ export function piecesStamp(d, pieces) {
   return [t.column, t.state, t.updatedAt, a.state, list(a.rounds).length, running ? d.generatedAt : ""].map(text).join("|");
 }
 
+// Which layout the task takes: "site" when the home server has a site of it to show (the stage of T41), "versions"
+// when the versions waiting on the owner (or kept after the pick) have pictures, else "column" (also for an older home
+// server, which has neither route).
+export function layoutOf({ site = null, pick = null, pieces = null } = {}) {
+  if (site && typeof site === "object") return "site";
+  const src = isPickItem(pick) ? pick : pieces && typeof pieces === "object" && !pieces.single ? pieces : null;
+  const pictured = src ? versionsOf(src).some((v) => { const s = stageOf(v); return s.type === "page" || s.type === "pictures"; }) : false;
+  return pictured ? "versions" : "column";
+}
+
+const KIND_WORDS = {
+  waiting_for_you: "A site to accept",
+  accepted: "A site, accepted",
+  sent_back: "A site, sent back",
+  stopped: "A site, stopped",
+};
+
+// The kind line of a task with a site: "A site to accept · round 1". `round` is the versions' round, else the number
+// of check rounds.
+export function stageKind(acceptance, round) {
+  const word = KIND_WORDS[acceptance && acceptance.state] || "A site in the works";
+  const n = Math.floor(Number(round));
+  return Number.isFinite(n) && n > 0 ? `${word} · round ${n}` : word;
+}
+
+// The Art director's review of each version, keyed by its letter, as the site's strip takes it:
+// { a: { total, meets, reason } }. {} when nothing was scored.
+export function scoresByLetter(src) {
+  const out = {};
+  for (const v of versionsOf(src)) {
+    const r = v.review;
+    if (v.missing || !r || typeof r !== "object" || !Number.isInteger(r.total)) continue;
+    out[v.id] = { total: r.total, meets: r.meets === true ? true : r.meets === false ? false : null, reason: cap(r.reason, 200) };
+  }
+  return out;
+}
+
+// The rounds as the rail lists them, newest last: [{ n, label, tone, checks }] where `checks` is "6 of 6 checks
+// passed" for a round with its six checks, else "".
+export function roundRows(rounds) {
+  return list(rounds).filter((r) => r && typeof r === "object").slice(-8).map((r) => {
+    const all = list(r.checks).filter((c) => c && typeof c === "object");
+    const m = roundMarker(r);
+    return { n: r.n, label: m.label, tone: m.tone, checks: r.wellFormed && all.length ? `${passedCount(r)} of ${all.length} checks passed` : "" };
+  });
+}
+
+// The one line under a site's title when no pick is waiting: who made it, the size, the job it came from.
+export function factWords(task, job) {
+  const t = task || {};
+  const parts = [];
+  if (t.who && t.who.name) parts.push(`By ${cap(t.who.name, 60)}`);
+  if (t.size) parts.push(`size ${cap(t.size, 4)}`);
+  if (job && job.title) parts.push(`from ${cap(job.title, 80)}`);
+  return parts.join(" · ");
+}
+
 // --- Layout: beside, stacked, or narrow with a bar ---------------------------------------------------------------
 
 const px = (v) => Number.parseFloat(v) || 0;
@@ -330,17 +392,15 @@ function useHeight(ref, on) {
 
 // --- Accept and Send back, or a word for the state ----------------------------------------------------------------
 
-function AcceptBar({ acceptance, onDone, onChanged }) {
+// The delivery's own act: Accept, and Send back with its note. Shared by the column's bar and the stage's foot.
+function useAccept({ acceptance, onDone, onChanged }) {
   const { act, busy, error, changed } = useInboxAct();
   const [noting, setNoting] = useState(false);
   const [note, setNote] = useState("");
-  const accept = acceptance && acceptance.accept;
   const sendBack = acceptance && acceptance.sendBack;
 
   // The task changed after the owner looked: read it again once. Nothing is sent again.
   useEffect(() => { if (changed && typeof onChanged === "function") onChanged(); }, [changed, error]);
-
-  if (!accept) return null;
 
   async function doAccept() {
     const res = await act(...actArgs(acceptance, "accept"));
@@ -353,6 +413,14 @@ function AcceptBar({ acceptance, onDone, onChanged }) {
     if (res) { setNoting(false); setNote(""); onDone(text(res.message) || "Sent back with your note."); }
   }
   const cancel = () => { setNoting(false); setNote(""); };
+  return { busy, error, noting, setNoting, note, setNote, doAccept, doSendBack, cancel, sendBack };
+}
+
+function AcceptBar({ acceptance, onDone, onChanged }) {
+  const a = useAccept({ acceptance, onDone, onChanged });
+  const { busy, error, noting, setNoting, note, setNote, doAccept, doSendBack, cancel, sendBack } = a;
+  const accept = acceptance && acceptance.accept;
+  if (!accept) return null;
 
   return html`
     <div class="p-task__accept">
@@ -388,8 +456,9 @@ function Refused({ error }) {
 }
 
 // "Stop this task": asks once, then POST /api/goals/<id>/stop.
-function StopTask({ task, onDone }) {
-  const [asking, setAsking] = useState(false);
+function StopTask({ task, onDone, open = false, onClose }) {
+  const [asking, setAskingNow] = useState(open);
+  const setAsking = (v) => { setAskingNow(v); if (!v && onClose) onClose(); };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -421,8 +490,9 @@ function StopTask({ task, onDone }) {
 }
 
 // "Send a note": a short note to the Chief of staff, POST /api/goals/<id>/note.
-function SendNote({ task, onDone }) {
-  const [open, setOpen] = useState(false);
+function SendNote({ task, onDone, open: startOpen = false, onClose }) {
+  const [open, setOpenNow] = useState(startOpen);
+  const setOpen = (v) => { setOpenNow(v); if (!v && onClose) onClose(); };
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -498,8 +568,8 @@ function Rounds({ id, acceptance, query, ask = false }) {
 
   return html`
     <div class="p-task__rounds">
-      <${Tabs} label="Check rounds" tabs=${tabs} current=${text(round.n)}
-        onChange=${(n) => go(address(id, query, { round: n, check: null }))} />
+      ${tabs.length > 1 ? html`<${Tabs} label="Check rounds" tabs=${tabs} current=${text(round.n)}
+        onChange=${(n) => go(address(id, query, { round: n, check: null }))} />` : null}
       <p class="p-task__round-line">${cap(round.label, 80)}${round.by ? html` <span class="u-caption">by ${cap(round.by, 60)}</span>` : null}</p>
       ${round.wellFormed ? html`
         <div class="u-spread">
@@ -641,8 +711,22 @@ export default function Page({ route }) {
   const lastPieces = useRef(null);
   const pieces = usePieces(id, !!d && !pickItem, piecesStamp(d, lastPieces.current));
   lastPieces.current = pieces;
+  // The task's sites, read when the task moves (kit/site.js; nothing for a task with none or an older home server).
+  const view = useSiteView({ id, stamp: piecesStamp(d, null) });
+  const mode = d ? layoutOf({ site: view.site, pick: pickItem, pieces }) : "column";
   const barred = layout.narrow && !!acceptance.accept && !pickItem;
-  const barHeight = useHeight(bar, barred);
+  const barHeight = useHeight(bar, barred && mode === "column");
+
+  // Where the owner is, in the top bar: Tasks / STH-25. The stage's own links (the preview) stay on the stage.
+  const t0 = (d && d.task) || {};
+  const crumbs = [{ label: "Tasks", href: "#/tasks" }, { label: cap(t0.identifier || id, 60) || "Task" }];
+  const crumbKey = JSON.stringify(crumbs);
+  useEffect(() => { if (typeof app.setTop === "function") app.setTop({ crumbs }); }, [crumbKey]);
+  useEffect(() => {
+    if (mode === "column" || typeof document === "undefined" || !t0.title) return;
+    const company = (app.shell && app.shell.company && app.shell.company.name) || "";
+    document.title = [cap(t0.title, 300), company].filter(Boolean).join(" · ");
+  }, [mode, t0.title]);
 
   const showFiles = () => {
     if (typeof app.openPanel === "function") app.openPanel(html`<${FilesPanel} files=${files} />`, { title: `Files (${files.length})` });
@@ -675,7 +759,7 @@ export default function Page({ route }) {
     const missing = res.error && (res.error.code === "task_not_found" || res.error.status === 404);
     return html`
       <div class="p-task" ref=${root}>
-        <${PageHeader} title=${missing ? "Task not found" : "Task"} back=${BACK} />
+        <${PageHeader} title=${missing ? "Task not found" : "Task"} back=${BACK} crumbs=${crumbs} />
         ${missing ? html`<${Empty} title="That task is not here."><a class="p-task__empty-link" href="#/tasks">All tasks</a><//>`
           : res.loading || !res.error ? html`<${Loading} lines=${6} label="Loading the task" />`
           : html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`}
@@ -694,6 +778,15 @@ export default function Page({ route }) {
   const next = nextLinks(d.next, t);
   const story = storyOf(d);
   const state = acceptance.state || "not_ready";
+
+  if (mode !== "column") {
+    const parts = {
+      id, d, t, query, view, acceptance, pickItem, pieces, pickedHere, needs, next, story, files, canStop,
+      said, saidRef, after, showFiles, onChanged: res.refresh, root,
+      onPicked: (r) => { setPickedHere(r && r.variant ? r.variant : null); after(text(r && r.message) || "Done."); },
+    };
+    return mode === "site" ? html`<${SitePage} ...${parts} />` : html`<${VersionsPage} ...${parts} />`;
+  }
 
   const panel = html`
     <aside class="p-task__panel" aria-label="Acceptance">
@@ -722,7 +815,7 @@ export default function Page({ route }) {
   return html`
     <div class=${rootClass} ref=${root} style=${rootStyle}>
       <div class="p-task__head">
-        <${PageHeader} title=${cap(t.title, 300) || "Task"} back=${BACK}>
+        <${PageHeader} title=${cap(t.title, 300) || "Task"} back=${BACK} crumbs=${crumbs}>
           <div class="p-task__meta">
             ${who ? html`<span class="p-task__who"><${Avatar} slug=${text(who.slug)} name=${text(who.name)} size=${20} /><span>${cap(who.name, 60)}</span></span>` : null}
             ${t.size ? html`<${Chip}>Size ${cap(t.size, 4)}<//>` : null}
@@ -742,11 +835,155 @@ export default function Page({ route }) {
         <${Versions} id="p-task-versions" item=${pickItem} pieces=${pieces} picked=${pickedHere}
           onDone=${(r) => { setPickedHere(r && r.variant ? r.variant : null); after(text(r && r.message) || "Done."); }} />
         <${SiteView} id=${id} stamp=${piecesStamp(d, null)} htmlId="p-task-sites" />
+        ${story.length && !askOf(d) ? html`<h2 class="p-task__h p-task__story-h">What was said</h2>` : null}
         <${Story} id=${id} items=${story} query=${query} />
       </section>
       ${barred ? html`
         <div class="p-task__bar" ref=${bar} role="region" aria-label="Accept or send back">
+          <span class="p-task__bar-state"><${StatusDot} tone=${STATE_DOTS[state] || "off"} label=${stateWord(acceptance)} pulse=${false} /></span>
           <${AcceptBar} acceptance=${acceptance} onDone=${after} onChanged=${res.refresh} />
         </div>` : null}
     </div>`;
+}
+
+// --- A task on a stage --------------------------------------------------------------------------------------------
+
+// The sections under the first screen: the story in one reading column, the checks (with ?round and ?check), the
+// files and how it went. Each is a k-sect.
+function Below({ id, d, t, query, story, files, showFiles }) {
+  const acceptance = d.acceptance || {};
+  const shown = files.slice(0, 6);
+  return html`
+    <section class="k-sect p-task__sect" aria-labelledby="p-task-story-h">
+      <h2 id="p-task-story-h">What was said</h2>
+      <div class="p-task__read"><${Story} id=${id} items=${story} query=${query} /></div>
+    </section>
+    <section class="k-sect p-task__sect" id="p-task-checks" tabindex="-1" aria-labelledby="p-task-checks-h">
+      <h2 id="p-task-checks-h">The checks <span class="p-task__count">${roundsLine(list(acceptance.rounds).length, { ask: t.ask === true })}</span></h2>
+      <div class="p-task__read"><${Rounds} id=${id} acceptance=${acceptance} query=${query} ask=${t.ask === true} /></div>
+    </section>
+    ${files.length ? html`
+      <section class="k-sect p-task__sect" aria-labelledby="p-task-files-h">
+        <h2 id="p-task-files-h">Files <span class="p-task__count">${files.length}</span></h2>
+        <div class="p-task__read">
+          <div class="p-task__files">${shown.map((f, i) => html`<${FileCard} key=${text(f.url || f.name) + i} file=${f} />`)}</div>
+          ${files.length > shown.length ? html`<div class="p-task__more-files"><${Button} variant="plain" size="sm" icon="panel" onClick=${showFiles}>All ${files.length} files<//></div>` : null}
+        </div>
+      </section>` : null}
+    <section class="k-sect p-task__sect">
+      <div class="p-task__read"><${HowItWent} stages=${d.stages} timeline=${d.timeline} now=${d.generatedAt} /></div>
+    </section>`;
+}
+
+// The acceptance facts in the rail: the state, each round with its checks (choosing one opens it under the first
+// screen), the other things waiting on the owner, and what can come next.
+function Facts({ id, query, acceptance, needs, next, after, said, saidRef }) {
+  const state = acceptance.state || "not_ready";
+  const rows = roundRows(acceptance.rounds);
+  const open = (n) => {
+    go(address(id, query, { round: n, check: null }));
+    setTimeout(() => {
+      const el = typeof document !== "undefined" ? document.getElementById("p-task-checks") : null;
+      if (el) { el.scrollIntoView({ block: "start" }); el.focus({ preventScroll: true }); }
+    }, 0);
+  };
+  return html`
+    ${said ? html`<${Blk}><p class="p-task__said" role="status" tabindex="-1" ref=${saidRef}>${said}</p><//>` : null}
+    <${Blk} title="Acceptance" aside=${html`<${StatusDot} tone=${STATE_DOTS[state] || "off"} label=${stateWord(acceptance)} pulse=${false} />`}>
+      ${rows.length ? html`<ul class="p-task__rounds-list">
+        ${rows.map((r) => html`<li key=${text(r.n)}>
+          <button type="button" class="p-task__round-row" onClick=${() => open(r.n)}>
+            <span class=${`p-task__round-mark p-task__round-mark--${r.tone}`} aria-hidden="true"><${Icon} name=${r.tone === "ok" ? "check" : r.tone === "bad" ? "cross" : "loop"} size=${14} /></span>
+            <span class="p-task__round-name">${r.label}</span>
+            ${r.checks ? html`<span class="p-task__round-checks">${r.checks}</span>` : null}
+          </button>
+        </li>`)}
+      </ul>` : html`<p class="k-say">${roundsLine(0)}.</p>`}
+    <//>
+    ${needs.length ? html`<${Blk} title="Also waiting on you">
+      <div class="p-task__needs">${needs.map((item) => html`<${DecisionCard} key=${item.id} item=${item} onDone=${() => after("Done.")} />`)}</div>
+    <//>` : null}
+    ${next.length ? html`<${Blk}><${NextUp} items=${next} /><//>` : null}`;
+}
+
+// The foot when no pick waits: Accept, then under a divider the note with Send back, and the menu (a note to the
+// Chief of staff, Stop this task). On a phone Accept shows with "More", which opens the rest.
+function useAcceptFoot({ acceptance, task, canStop, onDone, onChanged }) {
+  const a = useAccept({ acceptance, onDone, onChanged });
+  const [tool, setTool] = useState(null);
+  const accept = acceptance && acceptance.accept;
+  const closeTool = () => {
+    setTool(null);
+    setTimeout(() => {
+      const el = typeof document !== "undefined" ? document.querySelector(".p-task__menu .k-menu__trigger") : null;
+      if (el) el.focus();
+    }, 0);
+  };
+  const items = [
+    task.id ? { id: "note", label: "Send a note", icon: "reply", onSelect: () => setTool("note") } : null,
+    canStop && task.id ? { id: "stop", label: "Stop this task", icon: "cross", danger: true, onSelect: () => setTool("stop") } : null,
+  ].filter(Boolean);
+  const done = (m) => { setTool(null); onDone(m); };
+  const primary = accept ? html`
+    <${Button} variant="accept" busy=${a.busy} onClick=${a.doAccept}>${text(accept.label) || "Accept"}<//>
+    ${a.error ? html`<${Refused} error=${a.error} />` : null}` : null;
+  const rest = html`
+    ${a.sendBack ? html`<form class="p-task__sendback" onSubmit=${a.doSendBack}>
+      <${TextArea} aria-label="What should change? Needed to send it back" autoGrow rows=${1} maxLength=${4000} value=${a.note}
+        disabled=${a.busy} placeholder="What should change?" onInput=${(e) => a.setNote(e.currentTarget.value)} />
+      <div class="p-task__foot-row">
+        <${Button} type="submit" busy=${a.busy && !!a.note.trim()} disabled=${a.busy || !a.note.trim()}>${text(a.sendBack.label) || "Send back"}<//>
+        ${items.length ? html`<div class="p-task__menu"><${Menu} label="More actions" icon="more" items=${items} /></div>` : null}
+      </div>
+    </form>` : items.length ? html`<div class="p-task__foot-row"><div class="p-task__menu"><${Menu} label="More actions" icon="more" items=${items} /></div></div>` : null}
+    ${tool === "note" ? html`<${SendNote} task=${task} onDone=${done} open=${true} onClose=${closeTool} />` : null}
+    ${tool === "stop" ? html`<${StopTask} task=${task} onDone=${done} open=${true} onClose=${closeTool} />` : null}`;
+  return { primary, rest };
+}
+
+// A task that built a site: the site on the stage, its versions in the strip, the rail to decide in.
+function SitePage({ id, d, t, query, view, acceptance, pickItem, pieces, needs, next, story, files, canStop, said, saidRef, after, showFiles, onChanged, onPicked, root }) {
+  const site = view.site;
+  const src = pickItem || pieces;
+  const byLetter = src ? scoresByLetter(src) : {};
+  const letter = site && typeof site.variant === "string" ? site.variant : null;
+  const chosen = src && letter ? versionsOf(src).find((v) => v.id === letter && !v.missing && v.review) : null;
+  const kindOfPiece = pickItem ? pickItem.pieceKind : pieces && pieces.kind;
+  const round = pickItem && Number.isInteger(pickItem.round) ? pickItem.round : pieces && Number.isInteger(pieces.round) ? pieces.round : list(acceptance.rounds).length;
+  const job = d.job && typeof d.job === "object" ? d.job : t.job && typeof t.job === "object" ? t.job : null;
+  const lede = pickItem && pickItem.summary ? cap(pickItem.summary, 200) : factWords(t, job);
+  const accepting = useAcceptFoot({ acceptance, task: t, canStop, onDone: after, onChanged });
+  const foot = pickItem
+    ? html`<${PickFoot} item=${pickItem} chosen=${letter} focusDone=${false} onDone=${onPicked} onChanged=${onChanged} />`
+    : acceptance.accept ? accepting : null;
+  const scores = chosen ? html`<${Blk} title="The Art director's scores" aside=${`Version ${chosen.letter}`}>
+      <${Scores} review=${chosen.review} kind=${kindOfPiece} compact=${true} />
+    <//>` : null;
+  return html`<div class="p-task p-task--stage" ref=${root}>
+    <${StageLayout} kind=${stageKind(acceptance, round)} title=${cap(t.title, 300) || "Task"} lede=${lede || null}
+      label=${stageLabel(site)}
+      stage=${html`<div class="p-task__stage" id="p-task-sites" tabindex="-1"><${SiteStage} view=${view} /></div>`}
+      strip=${view.many ? html`<${SiteStrip} view=${view} scores=${byLetter} />` : null}
+      rail=${html`<${SiteRail} view=${view} />${scores}<${Facts} id=${id} query=${query} acceptance=${acceptance} needs=${needs} next=${next} after=${after} said=${said} saidRef=${saidRef} />
+        ${t.id && (pickItem || !acceptance.accept) ? html`<${Blk}><div class="p-task__tools p-task__tools--rail">
+          <${SendNote} task=${t} onDone=${after} />
+          ${canStop ? html`<${StopTask} task=${t} onDone=${after} />` : null}
+        </div><//>` : null}`}
+      foot=${foot}
+      more=${html`<${Below} id=${id} d=${d} t=${t} query=${query} story=${story} files=${files} showFiles=${showFiles} />`} />
+  </div>`;
+}
+
+// A task whose versions have pictures and no site: the pick card's own stage, the acceptance and the story under it.
+function VersionsPage({ id, d, t, query, acceptance, pickItem, pieces, pickedHere, needs, next, story, files, said, saidRef, after, showFiles, onPicked, root }) {
+  return html`<div class="p-task p-task--stage" ref=${root}>
+    <div id="p-task-versions" tabindex="-1">
+      ${pickItem ? html`<${PickCard} item=${pickItem} focusDone=${false} onDone=${onPicked} />`
+        : html`<${PickCard} pieces=${pieces} readOnly=${true} picked=${pickedHere} />`}
+    </div>
+    <div class="p-task__below">
+      <div class="p-task__below-facts"><${Facts} id=${id} query=${query} acceptance=${acceptance} needs=${needs} next=${next} after=${after} said=${said} saidRef=${saidRef} /></div>
+      <${Below} id=${id} d=${d} t=${t} query=${query} story=${story} files=${files} showFiles=${showFiles} />
+    </div>
+  </div>`;
 }

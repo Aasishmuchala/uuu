@@ -20,7 +20,7 @@ const SERVER = (() => {
 const shape = (name) => JSON.parse(readFileSync(resolve(SERVER, "test", "shapes", `${name}.json`), "utf8"));
 
 const mod = await import("../../pages/task.js");
-const { actArgs, roundsLine, pickRound, pickCheck, stateWord, otherNeeds, address, storyOf, askOf, nextLinks, sideLayout, roundMarker, resultFiles, pickItemOf, piecesStamp } = mod;
+const { actArgs, roundsLine, pickRound, pickCheck, stateWord, otherNeeds, address, storyOf, askOf, nextLinks, sideLayout, roundMarker, resultFiles, pickItemOf, piecesStamp, layoutOf, stageKind, scoresByLetter, roundRows, factWords } = mod;
 
 let home = null;
 const seed = {};
@@ -359,4 +359,73 @@ test("task: with no sites route (an older home server, 404) the site view draws 
   assert.equal(r.status, 404, "this stub home has no sites route");
   const { SiteView } = await import("../../kit/site.js");
   assert.equal(typeof SiteView, "function");
+});
+
+// PLAN-COOK T51: a task with a site stands on a stage; versions with pictures take the pick card's stage; anything
+// else, and every task on an older home server (no /sites, no /pieces), is the column.
+const SHOT = `/api/sites/shot/${"a".repeat(64)}/shot-index-1280-light.png`;
+const PICTURED = { ...PICK, variants: [{ ...PICK.variants[0], preview: [{ type: "image", url: "/api/view/abc123" }] }] };
+
+test("task: the layout is the stage for a site, the pick's stage for pictured versions, else the column", () => {
+  assert.equal(layoutOf({ site: { ref: "launch-a" } }), "site");
+  assert.equal(layoutOf({ site: { ref: "launch-a" }, pick: PICTURED }), "site", "a site wins: its stage shows the versions");
+  assert.equal(layoutOf({ pick: PICTURED }), "versions");
+  assert.equal(layoutOf({ pieces: { variants: [{ id: "a", preview: [{ type: "image", url: SHOT }] }] } }), "versions");
+  assert.equal(layoutOf({ pick: PICK }), "column", "a draft with no picture reads in the column");
+  assert.equal(layoutOf({ pick: { ...PICTURED, variants: [{ ...PICTURED.variants[0], preview: [{ type: "image", url: "/files/elsewhere.png" }] }] } }), "column", "an address that is not the server's own is no picture");
+  assert.equal(layoutOf({ pieces: { single: true, variants: [{ id: "piece", preview: [{ type: "image", url: "/api/view/abc123" }] }] } }), "column");
+  assert.equal(layoutOf({ site: null, pick: null, pieces: null }), "column", "an older home server");
+  assert.equal(layoutOf(), "column");
+  for (const n of [7, 8, 13, 18, 19]) assert.equal(layoutOf({ site: null, pick: pickItemOf(seed[n]), pieces: null }), "column", `STH-${n}`);
+});
+
+test("task: a site's kind line says what it is and the round", () => {
+  assert.equal(stageKind({ state: "waiting_for_you" }, 1), "A site to accept · round 1");
+  assert.equal(stageKind({ state: "accepted" }, 2), "A site, accepted · round 2");
+  assert.equal(stageKind({ state: "sent_back" }, 0), "A site, sent back");
+  assert.equal(stageKind({ state: "stopped" }, null), "A site, stopped");
+  assert.equal(stageKind(null, "x"), "A site in the works");
+});
+
+test("task: the Art director's scores go to the strip by letter, unranked, missing versions left out", () => {
+  const item = { kind: "pick", variants: [
+    { id: "b", review: { total: 49, meets: false, reason: "strong pictures" } },
+    { id: "a", review: { total: 55, meets: true, reason: "the type carries the lake" } },
+    { id: "c", review: null },
+  ], missing: ["c"] };
+  assert.deepEqual(scoresByLetter(item), {
+    a: { total: 55, meets: true, reason: "the type carries the lake" },
+    b: { total: 49, meets: false, reason: "strong pictures" },
+  });
+  assert.deepEqual(Object.keys(scoresByLetter(item)), ["a", "b"], "a to c, never by score");
+  assert.deepEqual(scoresByLetter({ variants: [{ id: "a", review: { total: "55" } }] }), {});
+  assert.deepEqual(scoresByLetter(null), {});
+});
+
+test("task: the rail lists each round with its checks; the facts line names who, the size and the job", () => {
+  const rows = roundRows(seed[8].acceptance.rounds);
+  assert.deepEqual(rows.map((r) => [r.label, r.tone]), [["Round 1 · Repairing", "warn"], ["Round 2 · Passed", "ok"]]);
+  assert.ok(rows.every((r) => r.checks === "" || /^\d of \d checks passed$/.test(r.checks)));
+  assert.deepEqual(roundRows([{ n: 1, outcome: "pass", label: "Round 1 · Passed", wellFormed: true, checks: [{ n: 1, answer: "yes" }, { n: 2, answer: "no" }] }]),
+    [{ n: 1, label: "Round 1 · Passed", tone: "ok", checks: "1 of 2 checks passed" }]);
+  assert.deepEqual(roundRows(null), []);
+  assert.equal(factWords({ who: { name: "Artist" }, size: "S" }, { title: "A landing page" }), "By Artist · size S · from A landing page");
+  assert.equal(factWords(null, null), "");
+});
+
+test("task: on a stage the site's pieces and the pick's foot share one version, and the top bar holds only the crumbs", () => {
+  const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../pages/task.js"), "utf8");
+  const stage = src.slice(src.indexOf("function SitePage("));
+  assert.match(stage, /<\$\{SiteStage\} view=\$\{view\} \/>/);
+  assert.match(stage, /<\$\{SiteStrip\} view=\$\{view\} scores=\$\{byLetter\} \/>/);
+  assert.match(stage, /<\$\{SiteRail\} view=\$\{view\} \/>/);
+  assert.match(stage, /<\$\{PickFoot\} item=\$\{pickItem\} chosen=\$\{letter\}/, "the pick follows the site on the stage");
+  assert.match(stage, /const letter = site && typeof site.variant === "string" \? site.variant : null;/);
+  assert.match(stage, /id="p-task-sites"/, "the harness and the crop find the stage");
+  assert.match(src, /app\.setTop\(\{ crumbs \}\)/);
+  assert.doesNotMatch(src, /setTop\(\{[^}]*links/, "Open the preview is not repeated in the top bar");
+  assert.doesNotMatch(src, /innerHTML|dangerouslySetInnerHTML/);
+  // One filled primary in the foot: Accept (or the pick); Send back is outlined, under the divider.
+  const foot = src.slice(src.indexOf("function useAcceptFoot("), src.indexOf("function SitePage("));
+  assert.equal((foot.match(/variant="(accept|primary)"/g) || []).length, 1);
 });

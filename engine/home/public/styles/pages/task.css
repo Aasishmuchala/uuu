@@ -1,9 +1,10 @@
 /* A task, as a conversation with its acceptance (pages/task.js). Tokens only; every selector starts with .p-task.
-   One column with the panel under the title; with room (pages/task.js measures it) the page widens past the column
-   and the panel stands beside the story and stays in view. Below 860 px a bar above the tab bar holds Accept. */
+   The column: one reading column with the acceptance rail under the title; with room (pages/task.js measures it) the
+   rail stands beside the story on the raised step and stays in view. Below 860 px a bar above the tab bar holds
+   Accept. A task with a site stands on the kit's StageLayout (.p-task--stage); the sheet only places its parts. */
 
 .p-task {
-  --p-task-panel: 340px;
+  --p-task-panel: var(--rail-w);
   display: flex;
   flex-direction: column;
   gap: var(--s-6);
@@ -15,9 +16,10 @@
   grid-template-columns: minmax(0, 1fr) var(--p-task-panel);
   grid-template-areas: "head panel" "main panel";
   grid-template-rows: auto 1fr;
-  column-gap: var(--s-6);
+  column-gap: var(--s-8);
   row-gap: var(--s-6);
   width: var(--p-task-w);
+  max-width: none;
   margin-left: calc((100% - var(--p-task-w)) / 2);
 }
 
@@ -42,7 +44,7 @@
 }
 
 .p-task.p-task--barred {
-  padding-bottom: calc(var(--p-task-bar, 96px) + var(--s-4));
+  padding-bottom: calc(var(--p-task-bar, 64px) + var(--s-4));
 }
 
 .p-task .p-task__meta {
@@ -84,17 +86,36 @@
   color: var(--text);
 }
 
-/* The acceptance panel: a glass card. */
+/* The acceptance rail: the raised step with a hairline and (light) a soft shadow; its blocks parted by rules. */
 .p-task .p-task__panel {
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
+  gap: 0;
   min-width: 0;
-  padding: var(--s-4);
-  background: var(--glass);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
-  box-shadow: var(--highlight);
+  padding: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  box-shadow: var(--sel-shadow);
+}
+
+.p-task .p-task__panel > * {
+  padding: var(--s-4) var(--s-5);
+}
+
+.p-task .p-task__panel > * + * {
+  border-top: 1px solid var(--line);
+}
+
+.p-task .p-task__panel > .p-task__state-row {
+  padding-top: var(--s-4);
+  padding-bottom: var(--s-3);
+}
+
+.p-task .p-task__panel > .p-task__state-row + .p-task__accept,
+.p-task .p-task__panel > .p-task__state-row + .k-pick-nudge {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .p-task .p-task__state-row {
@@ -106,10 +127,10 @@
 
 .p-task .p-task__over {
   margin: 0;
-  font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-label);
-  color: var(--ink-3);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+  color: var(--ink);
 }
 
 .p-task .p-task__accept {
@@ -127,6 +148,18 @@
 
 .p-task .p-task__accept-row .k-btn--accept {
   flex: 1 1 auto;
+}
+
+/* In the rail a verdict is words, not a box inside the box. */
+.p-task .p-task__panel .p-task__verdict {
+  padding: 0;
+  border: 0;
+}
+
+.p-task .p-task__story-h {
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
 }
 
 .p-task .p-task__sendback,
@@ -155,9 +188,11 @@
 .p-task .p-task__said {
   margin: 0;
   padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-2);
-  background: var(--ok-bg);
-  color: var(--ok-text);
+  border-left: 2px solid var(--good);
+  background: var(--ctl);
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
 }
 
 .p-task .p-task__needs {
@@ -406,22 +441,53 @@
   gap: var(--s-2);
 }
 
-/* Below 860 px: Accept and Send back in a bar above the tab bar while the task waits. */
+/* Below 860 px: Accept and Send back in a bar above the tab bar while the task waits: the state at the left, the
+   actions at their own width at the right (one filled primary, never a slab of colour). */
 .p-task .p-task__bar {
   position: fixed;
-  left: var(--s-2);
-  right: var(--s-2);
-  bottom: calc(var(--tabbar-h) + var(--s-2) * 2);
+  left: 0;
+  right: 0;
+  bottom: var(--tabbar-h);
   z-index: 30;
-  padding: var(--s-3);
-  background: var(--glass-strong);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
-  box-shadow: var(--shadow-pop);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
+  padding: 10px var(--s-4);
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+
+.p-task .p-task__bar-state {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-note);
+  color: var(--ink-2);
+}
+
+.p-task .p-task__bar-state .k-dot__label {
+  color: var(--ink-2);
+}
+
+.p-task .p-task__bar .p-task__accept {
+  flex: 0 1 auto;
+}
+
+.p-task .p-task__bar .p-task__accept:has(.p-task__sendback) {
+  flex: 1 1 100%;
+}
+
+.p-task .p-task__bar .p-task__accept-row {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.p-task .p-task__bar .p-task__accept-row .k-btn--accept {
+  flex: 0 0 auto;
 }
 
 .p-task .p-task__bar .p-task__accept-row .k-btn {
-  flex: 1 1 0;
+  min-height: calc(var(--h-lg) + var(--s-1));
 }
 
 /* A phone: the small controls are 44 px targets; a link that wraps a chip pads the link itself (M50 F9). */
@@ -446,5 +512,192 @@
     display: inline-flex;
     align-items: center;
     min-height: 44px;
+  }
+}
+
+/* ---- A task on a stage (StageLayout): the kit draws the stage, the strip and the rail; these place the page's
+   own parts in them. */
+.p-task.p-task--stage {
+  display: block;
+}
+
+.p-task .p-task__stage {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.p-task .p-task__stage:focus {
+  outline: none;
+}
+
+/* A frame's word opens it larger: the kit rings the frame; the word that holds focus shows the ring too, so the
+   stop itself is marked (R5). */
+.p-task .k-site__open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+
+/* The state beside a heading is words in the second ink; only its dot carries the tone. */
+.p-task .k-blk__aside .k-dot__label {
+  color: var(--ink-2);
+}
+
+/* The rounds in the rail: one row each, the mark, the label, the checks at the right in tabular figures. */
+.p-task .p-task__rounds-list {
+  display: grid;
+  gap: 2px;
+  margin: 0 calc(-1 * var(--s-2));
+  padding: 0;
+  list-style: none;
+}
+
+.p-task .p-task__round-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: var(--h-md);
+  padding: 6px var(--s-2);
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.p-task .p-task__round-row:hover {
+  background: var(--ctl);
+}
+
+.p-task .p-task__round-mark {
+  display: inline-flex;
+  color: var(--ink-3);
+}
+
+.p-task .p-task__round-mark--ok {
+  color: var(--good);
+}
+
+.p-task .p-task__round-mark--bad {
+  color: var(--bad);
+}
+
+.p-task .p-task__round-mark--warn {
+  color: var(--warn);
+}
+
+.p-task .p-task__round-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.p-task .p-task__round-checks {
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The foot's second part: the note with Send back, and the menu at the right. */
+.p-task .p-task__foot-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.p-task .p-task__foot-row > .k-btn {
+  flex: 1 1 auto;
+}
+
+.p-task .p-task__menu {
+  flex: none;
+}
+
+.p-task .p-task__tools--rail {
+  border-top: 0;
+  padding-top: 0;
+}
+
+/* Under the first screen: one reading column per section. */
+.p-task .p-task__sect {
+  padding-top: var(--s-7);
+}
+
+.p-task .p-task__sect > h2 {
+  margin-bottom: var(--s-4);
+}
+
+.p-task .p-task__count {
+  font-size: var(--fs-note);
+  font-weight: var(--fw-regular);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-task .p-task__read {
+  max-width: var(--column);
+}
+
+.p-task .p-task__more-files {
+  margin-top: var(--s-3);
+}
+
+.p-task .p-task__sect .p-task__how {
+  border-top: 0;
+  padding-top: 0;
+}
+
+/* Versions with pictures and no site: the acceptance and the story under the pick card's stage. */
+.p-task .p-task__below {
+  padding: var(--s-2) var(--pad) var(--s-12);
+  border-top: 1px solid var(--line);
+}
+
+.p-task .p-task__below-facts {
+  max-width: var(--column);
+  margin-top: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.p-task .p-task__below-facts > .k-blk:first-child {
+  border-top: 0;
+}
+
+@media (max-width: 859px) {
+  /* A phone: the site's pictures run edge to edge; the bar above them keeps the page's margin. */
+  .p-task.p-task--stage .k-work__stage {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .p-task.p-task--stage .k-stagebar {
+    padding: 0 var(--s-4);
+  }
+
+  .p-task.p-task--stage .k-frames {
+    padding: var(--s-4);
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+  }
+
+  .p-task .p-task__round-row {
+    min-height: calc(var(--h-lg) + var(--s-1));
+  }
+
+  .p-task .p-task__below {
+    padding: var(--s-2) var(--s-4) var(--s-8);
   }
 }
