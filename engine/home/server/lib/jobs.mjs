@@ -12,10 +12,12 @@ import { join } from "node:path";
 import { loadJobFiles, NEEDS } from "../../../company/lib/job-files.mjs";
 import { estimateMinutes, loadCraft, loadTiming } from "../../../company/lib/craft-files.mjs";
 import { DOORS_DEFAULTS, readDoorsState } from "../../../doors/common.mjs";
-import { estimate, PRICES, priced } from "../../../generate/runway.mjs";
+import { rowOf } from "../../../generate/registry.mjs";
+import { readGenState } from "../../../generate/state.mjs";
 import { trusted } from "../../../relay/state.mjs";
 import { loadStarters } from "../../../company/lib/brain-files.mjs";
 import { HomeError } from "./errors.mjs";
+import { priceCents } from "./generation.mjs";
 import { httpRequest, parseJson } from "./httpclient.mjs";
 import { plainState } from "./goals.mjs";
 import { booksState } from "./health.mjs";
@@ -174,7 +176,7 @@ export const FILM_WORDS = "A film takes long and costs money. First the Artist w
   + "and the checks follow: plan on one to two hours from start to finish, plus the time the shotlist waits for you.";
 export const NO_PRICE_WORDS = "The model chosen in Settings has no price, so this job cannot start.";
 const MODEL_NAME = /^[A-Za-z0-9._-]{1,80}$/;
-// "$0.08" for 8 credits: one credit is one US cent.
+// "$0.08" for 8 cents (a Runway credit is one cent).
 const dollars = (credits) => `$${(credits / 100).toFixed(2)}`;
 const modelName = (v) => (typeof v === "string" && MODEL_NAME.test(v) ? v : null);
 
@@ -186,11 +188,20 @@ export function chosenModels(config) {
   return { ...(st.ok ? st.generate.models : DOORS_DEFAULTS.generate.models) };
 }
 
-// moneyOf(job, models) -> null | { kind: "film" | "variations" | "upscale", words, unit, model, ok }: null unless the
-// job needs `generation` and is one of MONEY_JOBS. `unit` is the door's price in credits for a second of a clip
-// (film, models.video) or for one picture (models.still, models.upscale), null with no price; `ok` false means
-// the model chosen has no price in the door's table, and the job cannot start.
-export function moneyOf(job, models) {
+// The owner's Higgsfield rate (cents a credit) from the switches file, read as the generation door reads it; 5 when
+// the file cannot be used (the generation need is false then, so nothing starts).
+export function chosenRate(config) {
+  const path = config?.paths?.doorsState;
+  const gs = typeof path === "string" ? readGenState(path) : { ok: false };
+  return gs.ok ? gs.higgsfield.centsPerCredit : 5;
+}
+
+// moneyOf(job, models, { centsPerCredit }) -> null | { kind: "film" | "variations" | "upscale", words, unit, model,
+// ok }: null unless the job needs `generation` and is one of MONEY_JOBS. `unit` is the door's price in US cents for a
+// second of a clip (film, models.video; a 5-second clip's price over 5) or for one picture (models.still,
+// models.upscale), a Higgsfield model's at the owner's rate (`centsPerCredit`), null with no price; `ok` false means
+// the model chosen has no price in the door's table, and the job cannot start. The words are in dollars.
+export function moneyOf(job, models, { centsPerCredit } = {}) {
   if (!Array.isArray(job?.needs) || !job.needs.includes("generation")) return null;
   const kind = Object.hasOwn(MONEY_JOBS, jobRef(job)) ? MONEY_JOBS[jobRef(job)] : null;
   if (!kind) return null;
@@ -198,24 +209,25 @@ export function moneyOf(job, models) {
   if (kind === "film") {
     // A film's clips use models.video, and models.videoBest for shots marked best: both must have a price.
     const model = modelName(m.video);
-    const row = model && priced(model) && PRICES[model].kinds.includes("image_to_video") ? PRICES[model] : null;
+    const clip = model ? priceCents({ kind: "image_to_video", model, seconds: 5 }, { centsPerCredit }) : null;
     const best = modelName(m.videoBest);
-    const ok = row !== null && best !== null && estimate({ kind: "image_to_video", model: best, seconds: 5 }) !== null;
-    return { kind, words: ok ? FILM_WORDS : NO_PRICE_WORDS, unit: ok ? row.perSecond : null, model, ok };
+    const ok = clip !== null && best !== null && priceCents({ kind: "image_to_video", model: best, seconds: 5 }, { centsPerCredit }) !== null;
+    return { kind, words: ok ? FILM_WORDS : NO_PRICE_WORDS, unit: ok ? clip / 5 : null, model, ok };
   }
   const model = modelName(kind === "variations" ? m.still : m.upscale);
-  const unit = model ? estimate({ kind: kind === "variations" ? "still_variation" : "still_upscale", model }) : null;
+  const unit = model ? priceCents({ kind: kind === "variations" ? "still_variation" : "still_upscale", model }, { centsPerCredit }) : null;
   if (unit === null) return { kind, words: NO_PRICE_WORDS, unit: null, model, ok: false };
+  const name = rowOf(model)?.words || model;   // the model and its service: "Gen-4 Image on Runway"
   const words = kind === "variations"
-    ? `Each variation costs ${unit} credits (${dollars(unit)}) with ${model}; three cost ${3 * unit} credits (${dollars(3 * unit)}). `
+    ? `Each variation costs ${dollars(unit)} with ${name}; three cost ${dollars(3 * unit)}. `
       + "Pressing Start approves the cost of the number you choose; nothing else is spent."
-    : `A larger still costs ${unit} credits (${dollars(unit)}) with ${model}. Pressing Start approves this cost; nothing else is spent.`;
+    : `A larger still costs ${dollars(unit)} with ${name}. Pressing Start approves this cost; nothing else is spent.`;
   return { kind, words, unit, model, ok: true };
 }
 
 // The `generation` key of jobView: the switches file is read only for a job that needs the door.
 const generationView = (job, config) => (Array.isArray(job?.needs) && job.needs.includes("generation") && Object.hasOwn(MONEY_JOBS, jobRef(job))
-  ? moneyOf(job, chosenModels(config)) : null);
+  ? moneyOf(job, chosenModels(config), { centsPerCredit: chosenRate(config) }) : null);
 
 // ---- what is in place, cached 60 seconds per state folder
 const needsCache = new Map(); // state folder -> { at, value: Promise }

@@ -277,7 +277,7 @@ const noPrice = (ctx) => ctx.fail(409, NO_PRICE_WORDS, "Choose another model in 
 function stillCost(ctx, job, kind, record) {
   const gen = generationNow(ctx.config, Date.now());
   if (!gen.on || !gen.key) throw notReady(ctx, { name: "generation", text: WHY.generation[0], link: { ...WHY.generation[1] } });
-  const money = moneyOf(job, gen.models);
+  const money = moneyOf(job, gen.models, { centsPerCredit: gen.centsPerCredit });
   if (!money || !money.ok) throw noPrice(ctx);
   let count = 1;
   if (kind === "variations") {

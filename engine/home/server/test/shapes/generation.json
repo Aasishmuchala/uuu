@@ -5,17 +5,18 @@
   "canSwitchOn": false,
   "blockers": ["no_key"],
   "whyNot": "Paste your Runway key first.",
+  "higgsfield": { "on": false, "signedIn": false, "refused": false, "centsPerCredit": 5, "sentence": "Not signed in." },
   "caps": { "daily": 300, "monthly": 1000 },
   "models": { "video": "gen4_turbo", "videoBest": "gen4.5", "still": "gen4_image", "upscale": "magnific_precision_upscaler_v2" },
   "choices": {
-    "video": [{ "model": "gen4_turbo", "words": "gen4_turbo: 5 credits a second" }],
-    "videoBest": [{ "model": "gen4.5", "words": "gen4.5: 12 credits a second" }],
-    "still": [{ "model": "gen4_image", "words": "gen4_image: 8 credits a picture" }],
-    "upscale": [{ "model": "magnific_precision_upscaler_v2", "words": "magnific_precision_upscaler_v2: 25 credits a picture" }]
+    "video": [{ "model": "gen4_turbo", "provider": "runway", "words": "Gen-4 Turbo on Runway: $0.05 a second" }],
+    "videoBest": [{ "model": "gen4.5", "provider": "runway", "words": "Gen-4.5 on Runway: $0.12 a second" }],
+    "still": [{ "model": "gen4_image", "provider": "runway", "words": "Gen-4 Image on Runway: $0.08 a picture" }],
+    "upscale": [{ "model": "magnific_precision_upscaler_v2", "provider": "runway", "words": "Magnific Precision upscale on Runway: $0.25 a picture" }]
   },
   "spent": { "ok": true, "day": 0, "month": 0, "dayLeft": 300, "monthLeft": 1000, "running": 0 },
   "paused": null,
-  "example": "A 30-second film of six clips costs about 150 credits ($1.50), up to 300 with one retake each.",
+  "example": "A 30-second film of six clips costs about $1.50, up to $3.00 with one retake each.",
   "ledger": { "ok": true, "bytes": 0, "nearlyFull": false, "sentence": null },
   "batches": [
     {

@@ -29,9 +29,9 @@ const PROPOSAL = "/api/jobs/sales/proposal-from-a-call";
 const ALL_NEEDS = { books: true, quotations: true, "cad-tools": true, "artist-tools": true, slides: true, video: true, speech: true, generation: true };
 const MODELS = { ...DOORS_DEFAULTS.generate.models };
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(600, 1)]);
-const VARIATION_WORDS = "Each variation costs 8 credits ($0.08) with gen4_image; three cost 24 credits ($0.24). "
+const VARIATION_WORDS = "Each variation costs $0.08 with Gen-4 Image on Runway; three cost $0.24. "
   + "Pressing Start approves the cost of the number you choose; nothing else is spent.";
-const UPSCALE_WORDS = "A larger still costs 25 credits ($0.25) with magnific_precision_upscaler_v2. Pressing Start approves this cost; nothing else is spent.";
+const UPSCALE_WORDS = "A larger still costs $0.25 with Magnific Precision upscale on Runway. Pressing Start approves this cost; nothing else is spent.";
 const OFF_WORDS = "Generation is off or has no key yet. Open Settings.";
 const TERMS = "# Terms\n\n## When do customers pay?\nHalf when the order is confirmed, half on delivery.\n";
 
@@ -110,7 +110,7 @@ test("moneyOf: the three generation words with gen4_image (8, $0.08, 24, $0.24),
     + "would cost and approve it, and only then is anything sent to Runway. Each clip takes Runway a few minutes, and the edit and the checks "
     + "follow: plan on one to two hours from start to finish, plus the time the shotlist waits for you.");
   const turbo = moneyOf(jobOf(h.config, "studio/variations-of-a-still"), { ...MODELS, still: "gen4_image_turbo" });
-  assert.equal(turbo.words, "Each variation costs 2 credits ($0.02) with gen4_image_turbo; three cost 6 credits ($0.06). "
+  assert.equal(turbo.words, "Each variation costs $0.02 with Gen-4 Image Turbo on Runway; three cost $0.06. "
     + "Pressing Start approves the cost of the number you choose; nothing else is spent.");
   assert.equal(moneyOf(jobOf(h.config, "studio/a-film-from-your-renders"), { ...MODELS, video: "gen4.5" }).unit, 12);
 });

@@ -29,6 +29,10 @@ const BASE_HEADERS = {
 };
 const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
+// A route may send the browser on to one of the home screen's own pages (a 303 with `location`, as the Higgsfield
+// sign-in's return does, T79): only a path of this server's own, never another address.
+const OWN_PAGE = /^\/#\/[A-Za-z0-9/?=&_-]{0,200}$/;
+const seeOther = (out) => (out.status === 303 && typeof out.location === "string" && OWN_PAGE.test(out.location) ? { location: out.location } : {});
 
 // "2 MB", "3 MB", "2.5 MB", "512 KB": the limit as the owner reads it.
 function sizeWords(bytes) {
@@ -259,7 +263,7 @@ export async function createHome(options) {
     const ctx = { params: m.params, query, body, range, config, board, bench, decisions, ids, log, fail, home };
     try {
       const out = await m.handler(ctx);
-      if (out && typeof out === "object" && typeof out.status === "number" && "body" in out) return send(res, out.status, out.body);
+      if (out && typeof out === "object" && typeof out.status === "number" && "body" in out) return send(res, out.status, out.body, seeOther(out));
       if (out && typeof out === "object" && out[FILE_RESPONSE]) return streamFile(res, out[FILE_RESPONSE], { ...BASE_HEADERS, ...(out.headers || {}) }, false);
       return send(res, 200, out ?? {});
     } catch (e) {

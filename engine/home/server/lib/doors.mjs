@@ -34,6 +34,13 @@ const MAX_NUMBER = 1e9;
 const MODEL_ID = /^[A-Za-z0-9._-]{1,80}$/;
 const MODEL_KEYS = ["video", "videoBest", "still", "upscale"];
 const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+// The owner's Higgsfield block (PLAN-V5 K20): its switch, off by default, and what one of its credits counts as in
+// cents, whole from 1 to 50, 5 until the owner sets it. The door reads the same block (engine/generate/state.mjs
+// readGenState) and refuses a block with any other key, so none is ever written.
+export const HF_DEFAULTS = Object.freeze({ on: false, centsPerCredit: 5 });
+export const HF_RATE_MIN = 1;
+export const HF_RATE_MAX = 50;
+export const hfRateOk = (v) => Number.isInteger(v) && v >= HF_RATE_MIN && v <= HF_RATE_MAX;
 // Each key by its fixed name: the file it lives in and what a key of that name looks like. The search key is
 // what engine/web/search.mjs accepts; the Runway key is what engine/generate/runway.mjs accepts.
 const KEYS = Object.freeze({
@@ -69,8 +76,8 @@ const unsafe = () => new HomeError(409, "The engine's private folder for the doo
 export function freshDoors() {
   return {
     version: 1,
-    web: copy(DOORS_DEFAULTS.web), generate: copy(DOORS_DEFAULTS.generate), viewer: copy(DOORS_DEFAULTS.viewer),
-    changedAt: null,
+    web: copy(DOORS_DEFAULTS.web), generate: { ...copy(DOORS_DEFAULTS.generate), higgsfield: { ...HF_DEFAULTS } },
+    viewer: copy(DOORS_DEFAULTS.viewer), changedAt: null,
   };
 }
 
@@ -106,7 +113,8 @@ function pausedValue(v) {
 
 // The whole state, every field checked: a clean copy, or null when any field is not what the home server writes.
 // `generate.resumedAt` (the owner's "Start again") is kept when it is a time; the doors' readers ignore it
-// except the generation door, which reads it itself.
+// except the generation door, which reads it itself. `generate.higgsfield` is kept as { on, centsPerCredit } (missing:
+// off at 5 cents a credit); a block with another key or a value of the wrong kind is not one the home server writes.
 export function checkDoors(s) {
   if (!obj(s) || !obj(s.web) || !obj(s.generate) || !obj(s.viewer)) return null;
   const w = s.web;
@@ -124,9 +132,14 @@ export function checkDoors(s) {
     models[k] = m;
   }
   if (typeof s.viewer.on !== "boolean") return null;
+  const h = g.higgsfield === undefined || g.higgsfield === null ? HF_DEFAULTS : g.higgsfield;
+  if (!obj(h) || Object.keys(h).some((k) => k !== "on" && k !== "centsPerCredit")) return null;
+  if (h.on !== undefined && typeof h.on !== "boolean") return null;
+  if (h.centsPerCredit !== undefined && !hfRateOk(h.centsPerCredit)) return null;
   const generate = {
     on: g.on, dailyCredits: g.dailyCredits, monthlyCredits: g.monthlyCredits, autoUnderCredits: g.autoUnderCredits,
     paused: pausedValue(g.paused), models,
+    higgsfield: { on: h.on === true, centsPerCredit: h.centsPerCredit === undefined ? HF_DEFAULTS.centsPerCredit : h.centsPerCredit },
   };
   if (typeof g.resumedAt === "string" && ISO_TIME.test(g.resumedAt) && Number.isFinite(Date.parse(g.resumedAt))) generate.resumedAt = g.resumedAt;
   return {
@@ -184,6 +197,7 @@ export function readDoors(config) {
     changedAt: raw.changedAt,
   };
   if (obj(raw.generate) && raw.generate.resumedAt !== undefined) merged.generate.resumedAt = raw.generate.resumedAt;
+  if (obj(raw.generate) && raw.generate.higgsfield !== undefined) merged.generate.higgsfield = raw.generate.higgsfield;
   const state = checkDoors(merged);
   if (!state) return { state: freshDoors(), problem: "state_unreadable", missing: false };
   return { state, problem: null, missing: false };

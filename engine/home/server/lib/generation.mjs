@@ -1,13 +1,16 @@
-// PLAN-V5 K13 (the home server's part, T41): what the Generation section of Settings reads besides the switches.
-// Money is read only from the generation door's own ledger (engine/generate/ledger.mjs: readLedger, summarize,
-// totalsOf, dayOf) and priced only with the door's own table (engine/generate/runway.mjs: PRICES, estimate); the
-// home server never writes the ledger, and the door alone tidies it at its start (C3). The owner's approved
-// batches are the home server's own files, read back with the trust rule and checked as the door's readBatch
-// checks them. Every value that comes from a door file goes out as capped plain text.
+// PLAN-V5 K13 (the home server's part, T41) and K20 (T79): what the Generation section of Settings reads besides the
+// switches. Money is read only from the generation door's own ledger (engine/generate/ledger.mjs: readLedger,
+// summarize, totalsOf, dayOf, extrasByJob) and priced only with the door's own table (engine/generate/registry.mjs:
+// rowOf, estimateCents), in US cents: a Runway credit is a cent, a Higgsfield credit is the owner's rate in cents. The
+// home server never writes the ledger, and the door alone tidies it at its start (C3). The owner's approved batches
+// are the home server's own files, read back with the trust rule and checked as the door's readBatch checks them.
+// Every value that comes from a door file goes out as capped plain text.
 import { lstatSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { dayOf, readLedger, summarize, totalsOf } from "../../../generate/ledger.mjs";
-import { KINDS, MAX_SECONDS, MIN_SECONDS, PRICES, VIDEO_KINDS, estimate } from "../../../generate/runway.mjs";
+import { readManifests } from "../../../apps/manifest.mjs";
+import { dayOf, extrasByJob, readLedger, summarize, totalsOf } from "../../../generate/ledger.mjs";
+import { DEFAULT_CENTS_PER_CREDIT, ROWS, estimateCents, rowOf } from "../../../generate/registry.mjs";
+import { KINDS, MAX_SECONDS, MIN_SECONDS, PRICES, VIDEO_KINDS, ratioFits } from "../../../generate/runway.mjs";
 import { BATCH_DAYS, ID_RE, MAX_TAKES, SHOT_RE, trustedFolder } from "../../../generate/state.mjs";
 import { readTrustedText } from "./doors.mjs";
 
@@ -50,12 +53,59 @@ const isoTime = (ms) => new Date(ms).toISOString();
 
 // ---- prices and words ----------------------------------------------------------------------------------------
 
-// Credits as dollars: one credit is one US cent. dollars(150) -> "$1.50".
+// Cents as dollars: dollars(150) -> "$1.50". A Runway credit is one cent; every price and limit is kept in cents.
 export function dollars(credits) {
   return `$${(Number(credits) / 100).toFixed(2)}`;
 }
 
-const creditWords = (n) => `${n} credit${n === 1 ? "" : "s"}`;
+const rowIn = (model, table) => (table ? (table.find((r) => r.id === model) || null) : rowOf(model));
+const rateOk = (r) => Number.isInteger(r) && r >= 1 && r <= 50;
+
+// A row's largest size by price: the door prices an agent's Higgsfield job at it (engine/generate/door.mjs topSize).
+export function topSize(row) {
+  if (!row || row.resolutions === null) return undefined;
+  const by = row.price && row.price.byResolution;
+  if (!by) return row.resolutions[row.resolutions.length - 1];
+  return row.resolutions.reduce((best, r) => (by[r] > by[best] ? r : best), row.resolutions[0]);
+}
+
+// The price in cents of one job the Artist may be approved for, as the door prices it (engine/generate/door.mjs
+// agentPrice): step 3's five Runway models (runway.mjs PRICES) as they are, a Higgsfield row at its largest size and at
+// the owner's rate; null for any other model, or when the door has no price (then nothing is approved).
+// item: { kind, model, seconds }; opts: { centsPerCredit (the state's rate), table (tests only: rows used instead) }.
+export function priceCents({ kind, model, seconds } = {}, { centsPerCredit = DEFAULT_CENTS_PER_CREDIT, table } = {}) {
+  const row = rowIn(model, table);
+  if (row === null) return null;
+  if (row.provider === "runway" && !Object.hasOwn(PRICES, model)) return null;
+  const item = { kind, model, seconds: VIDEO_KINDS.includes(kind) ? seconds : undefined, resolution: row.provider === "higgsfield" ? topSize(row) : undefined };
+  return estimateCents(item, { centsPerCredit, table });
+}
+
+// Whether a model makes a film's ratio as the door takes it: step 3's Runway rows by runway.mjs's list; a Higgsfield
+// row as it is or by its lowest terms ("1280:720" is "16:9", engine/generate/door.mjs rowRatio).
+export function ratioOk(model, ratio, { table } = {}) {
+  const row = rowIn(model, table);
+  if (row === null || typeof ratio !== "string") return false;
+  if (row.provider === "runway") return ratioFits(model, ratio);
+  if (row.ratios === null || row.ratios.includes(ratio)) return true;
+  const m = /^([0-9]{1,5}):([0-9]{1,5})$/.exec(ratio);
+  if (!m || Number(m[1]) === 0 || Number(m[2]) === 0) return false;
+  const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+  const g = gcd(Number(m[1]), Number(m[2]));
+  return row.ratios.includes(`${Number(m[1]) / g}:${Number(m[2]) / g}`);
+}
+
+// The service a model is on, by the door's table ("runway" when the table does not know it, as for old ledger lines).
+export const providerOf = (model) => rowOf(model)?.provider || "runway";
+export const SERVICE_NAMES = Object.freeze({ runway: "Runway", higgsfield: "Higgsfield" });
+
+// A model's own name without its service: "Nano Banana Pro on Runway" -> "Nano Banana Pro"; an id the table does not
+// know, as plain text.
+export function modelWords(model) {
+  const row = rowOf(model);
+  if (row === null) return plain(model, 80);
+  return row.words.replace(/ on (Runway|Higgsfield)$/, "");
+}
 
 // Which models fit each of the owner's four choices: the kinds a model must make.
 export const CHOICE_KINDS = Object.freeze({
@@ -66,29 +116,50 @@ export const CHOICE_KINDS = Object.freeze({
 });
 export const MODEL_FIELDS = Object.freeze(Object.keys(CHOICE_KINDS));
 
-// "gen4_turbo: 5 credits a second" or "gen4_image: 8 credits a picture".
-export function priceWords(model) {
-  const row = PRICES[model];
-  return row.perSecond !== undefined ? `${model}: ${creditWords(row.perSecond)} a second` : `${model}: ${creditWords(row.perPicture)} a picture`;
+// What one second of a clip or one picture costs with this row, in cents, as the door prices the Artist's work (a
+// Higgsfield row at its largest size and the owner's rate, rounded up); null without a price.
+function unitCents(row, rate) {
+  const p = row.price;
+  if (p === null) return null;
+  const base = p.byResolution === null ? p.credits : p.byResolution[topSize(row)];
+  if (typeof base !== "number" || !Number.isFinite(base)) return null;
+  if (row.provider === "runway") return Math.ceil(base);
+  return rateOk(rate) ? Math.ceil(Math.round(base * rate * 1e6) / 1e6) : null;
 }
 
-// { video, videoBest, still, upscale: [ { model, words } ] }: the models the door's table prices for each choice.
-export function modelChoices() {
+// The model with its service and its price in dollars: "Gen-4 Turbo on Runway: $0.05 a second". A Higgsfield price
+// is "about" (its credits turned into cents at the owner's rate): "FLUX.2 Max on Higgsfield: about $0.20 a picture".
+export function priceWords(model, { centsPerCredit = DEFAULT_CENTS_PER_CREDIT } = {}) {
+  const row = rowOf(model);
+  if (row === null) return `${plain(model, 80)}: no price`;
+  const c = unitCents(row, centsPerCredit);
+  if (c === null) return `${row.words}: no price`;
+  return `${row.words}: ${row.provider === "higgsfield" ? "about " : ""}${dollars(c)} a ${row.price.per}`;
+}
+
+// { video, videoBest, still, upscale: [ { model, provider, words } ] }: the models the door prices for the Artist for
+// each choice: step 3's five Runway models, and the priced Higgsfield rows only while `higgsfield` is true (the switch
+// on and signed in).
+export function modelChoices({ centsPerCredit = DEFAULT_CENTS_PER_CREDIT, higgsfield = false } = {}) {
+  const ids = [...Object.keys(PRICES), ...(higgsfield ? ROWS.filter((r) => r.provider === "higgsfield").map((r) => r.id) : [])];
   const out = {};
   for (const [field, kinds] of Object.entries(CHOICE_KINDS)) {
-    out[field] = Object.keys(PRICES)
-      .filter((m) => kinds.every((k) => PRICES[m].kinds.includes(k)))
-      .map((model) => ({ model, words: priceWords(model) }));
+    out[field] = ids
+      .filter((m) => {
+        const row = rowOf(m);
+        return row !== null && kinds.every((k) => row.kinds.includes(k)) && unitCents(row, centsPerCredit) !== null;
+      })
+      .map((model) => ({ model, provider: providerOf(model), words: priceWords(model, { centsPerCredit }) }));
   }
   return out;
 }
 
-// What a film of six 5-second clips costs with the model chosen for clips, with one retake each.
-export function exampleSentence(models) {
-  const one = estimate({ kind: "image_to_video", model: models.video, seconds: 5 });
+// What a film of six 5-second clips costs with the model chosen for clips, with one retake each, in dollars.
+export function exampleSentence(models, { centsPerCredit = DEFAULT_CENTS_PER_CREDIT } = {}) {
+  const one = priceCents({ kind: "image_to_video", model: models.video, seconds: 5 }, { centsPerCredit });
   if (one === null) return `The door has no price for ${plain(models.video, 80)}, the model chosen in Settings.`;
   const c = one * 6;
-  return `A 30-second film of six clips costs about ${c} credits (${dollars(c)}), up to ${2 * c} with one retake each.`;
+  return `A 30-second film of six clips costs about ${dollars(c)}, up to ${dollars(2 * c)} with one retake each.`;
 }
 
 // A job's kind in words: "Clip, 5 s", "Clip from words, 5 s", "Variation", "Larger still".
@@ -101,13 +172,34 @@ export function kindWords(kind, seconds) {
   return "Other";
 }
 
-// A job of summarize() in words, by its end line's verdict; a job with no end line is still counted.
-export function resultWords(job) {
+// A job of summarize() in words, by its end line's verdict; a job with no end line is still counted. A Higgsfield
+// job's refusals name Higgsfield (`provider` from the ledger's lines; missing is Runway).
+export function resultWords(job, provider = "runway") {
   if (!job || !job.end) return RUNNING_WORDS;
   const v = job.end.verdict;
   if (typeof v === "string" && /^not_started_[0-9]{1,3}$/.test(v)) return NOT_STARTED_WORDS;
-  if (typeof v === "string" && Object.hasOwn(RESULT_WORDS, v)) return RESULT_WORDS[v];
+  if (typeof v === "string" && Object.hasOwn(RESULT_WORDS, v)) {
+    return provider === "higgsfield" ? RESULT_WORDS[v].replace("Runway", "Higgsfield") : RESULT_WORDS[v];
+  }
   return job.end.state === "released" ? NOT_STARTED_WORDS : RESULT_WORDS.unknown;
+}
+
+// An app's job in words: "Render to Film: picture, Nano Banana Pro", "Render to Film: clip, 5 s, Kling 3.0 Pro".
+export function appJobWords(name, kind, seconds, model) {
+  const s = typeof seconds === "number" && Number.isFinite(seconds) ? `, ${seconds} s` : "";
+  const what = kind === "image_to_video" ? `clip${s}` : kind === "text_to_video" ? `clip from words${s}`
+    : kind === "still_variation" ? "picture" : kind === "still_upscale" ? "larger picture" : "other";
+  return `${plain(name, 40)}: ${what}, ${modelWords(model)}`;
+}
+
+// The names of the apps in App Studio by slug, from their manifests (engine/apps/manifest.mjs); none when the apps
+// folder cannot be read. A slug with no good manifest is named by its slug.
+export function appNames(config) {
+  const out = new Map();
+  try {
+    for (const e of readManifests(config)) if (e && e.ok && e.app) out.set(e.app.slug, plain(e.app.name, 40));
+  } catch { /* no names: each app is named by its slug */ }
+  return out;
 }
 
 // ---- the ledger ----------------------------------------------------------------------------------------------
@@ -165,9 +257,18 @@ export const isDay = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(
 
 // One page of what was spent: the 14 newest days with jobs before `before` (YYYY-MM-DD, or all), newest first, each
 // with its credits, jobs and refusals, and at most 200 of its jobs, newest first. A job belongs to the day it was
-// reserved, as the door counts it. `taskOf(batch)` -> { id, identifier } or null.
-export function ledgerPage(lines, { before = null, taskOf = () => null } = {}) {
+// reserved, as the door counts it. `taskOf(batch)` -> { id, identifier } or null. Each row names its service
+// (`provider`, Runway for old lines) and, for an app's job, the app (`app` { slug, name }, its words the app's name).
+// `appNames` is Map(slug -> name).
+export function ledgerPage(lines, { before = null, taskOf = () => null, appNames = new Map() } = {}) {
   const { jobs } = summarize(lines);
+  const extras = extrasByJob(lines);
+  const appOf = (j) => {
+    const e = extras.get(j.job);
+    const slug = e && typeof e.app === "string" ? e.app
+      : typeof j.slug === "string" && /^app-[a-z0-9][a-z0-9-]{0,23}$/.test(j.slug) ? j.slug.slice(4) : null;
+    return slug === null ? null : { slug, name: appNames.get(slug) || slug };
+  };
   const byDay = new Map();
   for (const j of jobs.values()) {
     const day = dayOf(j.at);
@@ -184,17 +285,23 @@ export function ledgerPage(lines, { before = null, taskOf = () => null } = {}) {
       credits: list.reduce((s, j) => s + j.charge, 0),
       jobs: list.length,
       refused: list.filter((j) => j.end && j.end.verdict === "refused").length,
-      rows: list.slice(0, LEDGER_DAY_ROWS).map((j) => ({
-        at: isoTime(j.at),
-        kind: plain(j.kind, 40),
-        words: kindWords(j.kind, j.seconds),
-        model: plainOrNull(j.model, 80),
-        seconds: typeof j.seconds === "number" ? j.seconds : null,
-        credits: j.charge,
-        result: resultWords(j),
-        shot: plainOrNull(j.shot, 32),
-        task: j.batch === null ? null : taskOf(j.batch),
-      })),
+      rows: list.slice(0, LEDGER_DAY_ROWS).map((j) => {
+        const provider = extras.get(j.job)?.provider || "runway";
+        const app = appOf(j);
+        return {
+          at: isoTime(j.at),
+          kind: plain(j.kind, 40),
+          words: app ? appJobWords(app.name, j.kind, j.seconds, j.model) : kindWords(j.kind, j.seconds),
+          model: plainOrNull(j.model, 80),
+          seconds: typeof j.seconds === "number" ? j.seconds : null,
+          credits: j.charge,
+          provider,
+          app,
+          result: resultWords(j, provider),
+          shot: plainOrNull(j.shot, 32),
+          task: j.batch === null || app ? null : taskOf(j.batch),
+        };
+      }),
     };
   });
   return { days, more: all.length > LEDGER_PAGE_DAYS };

@@ -77,7 +77,8 @@ test("updateDoors writes the file 0600 in a 0700 folder, by temp file and rename
     assert.ok(Date.parse(file.changedAt));
     assert.deepEqual(Object.keys(file).sort(), ["changedAt", "generate", "version", "viewer", "web"]);
     assert.deepEqual(file.web, { ...DOORS_DEFAULTS.web, on: true, allow: ["example.com"] });
-    assert.deepEqual(file.generate, DOORS_DEFAULTS.generate);
+    // T79: the owner's Higgsfield block is always written (off, 5 cents a credit, until the owner changes it).
+    assert.deepEqual(file.generate, { ...DOORS_DEFAULTS.generate, higgsfield: { on: false, centsPerCredit: 5 } });
     assert.deepEqual(file.viewer, { on: false });
     assert.deepEqual(written, file);
     // The doors' own reader takes it.

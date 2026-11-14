@@ -206,7 +206,7 @@ test("the shots' seconds and the film's own seconds are checked apart: a short f
   const r = checkShotlist(film({ seconds: 5 }, [shot(1, { seconds: 10 }), shot(2, { seconds: 10 })]), { inRoom: () => true });
   assert.equal(r.ok, true);
   assert.equal(costWords(priceShotlist(r.shotlist, MODELS), { daily: 300 }),
-    "2 clips, 20 seconds: about 100 credits ($1.00), up to 200 with one retake each. Today's limit: 300.");
+    "2 clips, 20 seconds: about $1.00, up to $2.00 with one retake each. Today's limit: $3.00.");
 });
 
 test("hostile values never throw", () => {
@@ -260,24 +260,24 @@ test("no price for the model chosen in Settings: a plain problem naming the mode
 
 test("cost words: the three vectors of the plan", () => {
   const six = priceShotlist(film(), MODELS);
-  assert.equal(costWords(six, { daily: 300 }), "6 clips, 30 seconds: about 150 credits ($1.50), up to 300 with one retake each. Today's limit: 300.");
+  assert.equal(costWords(six, { daily: 300 }), "6 clips, 30 seconds: about $1.50, up to $3.00 with one retake each. Today's limit: $3.00.");
   const three = priceShotlist(film({}, [shot(1, { best: true }), shot(2, { best: true }), shot(3, { seconds: 10 })]), MODELS);
   assert.equal(three.base, 170);
   assert.equal(three.most, 340);
-  assert.equal(costWords(three, { daily: 300 }), "3 clips, 20 seconds: about 170 credits ($1.70), up to 340 with one retake each. Today's limit: 300.");
+  assert.equal(costWords(three, { daily: 300 }), "3 clips, 20 seconds: about $1.70, up to $3.40 with one retake each. Today's limit: $3.00.");
   const one = priceShotlist(film({}, [shot(1, { seconds: 2 })]), MODELS);
-  assert.equal(costWords(one, { daily: 300 }), "1 clip, 2 seconds: about 10 credits ($0.10), up to 20 with one retake. Today's limit: 300.");
+  assert.equal(costWords(one, { daily: 300 }), "1 clip, 2 seconds: about $0.10, up to $0.20 with one retake. Today's limit: $3.00.");
 });
 
 test("cost words: when only the retakes pass what is left today, or this month, it says so", () => {
   const six = priceShotlist(film(), MODELS);
   assert.equal(costWords(six, { daily: 300, dayLeft: 260, monthLeft: 960 }),
-    "6 clips, 30 seconds: about 150 credits ($1.50), up to 300 with one retake each. Today's limit: 300. Retakes may stop at today's limit.");
+    "6 clips, 30 seconds: about $1.50, up to $3.00 with one retake each. Today's limit: $3.00. Retakes may stop at today's limit.");
   assert.equal(costWords(six, { daily: 300, dayLeft: 300, monthLeft: 200 }),
-    "6 clips, 30 seconds: about 150 credits ($1.50), up to 300 with one retake each. Today's limit: 300. Retakes may stop at this month's limit.");
+    "6 clips, 30 seconds: about $1.50, up to $3.00 with one retake each. Today's limit: $3.00. Retakes may stop at this month's limit.");
   assert.equal(costWords(six, { daily: 300, dayLeft: 300, monthLeft: 300 }),
-    "6 clips, 30 seconds: about 150 credits ($1.50), up to 300 with one retake each. Today's limit: 300.");
-  assert.equal(costWords(six, { daily: 300, dayLeft: 100 }), "6 clips, 30 seconds: about 150 credits ($1.50), up to 300 with one retake each. Today's limit: 300.",
+    "6 clips, 30 seconds: about $1.50, up to $3.00 with one retake each. Today's limit: $3.00.");
+  assert.equal(costWords(six, { daily: 300, dayLeft: 100 }), "6 clips, 30 seconds: about $1.50, up to $3.00 with one retake each. Today's limit: $3.00.",
     "over even without retakes: the card says so in its own place");
 });
 

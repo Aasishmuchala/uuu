@@ -204,7 +204,7 @@ function blockOf(gen, read, priced) {
 // One treatment as the card shows it, and what the approval needs (kept off the item, not enumerable).
 function treatmentOf(ctx, goal, pv, place, gen, allowWords) {
   const read = readShotlist(ctx.config, goal.identifier, place.rel, { allowWords });
-  const priced = read.ok ? priceShotlist(read.shotlist, gen.models) : { ok: false, shots: [], base: 0, most: 0, problem: read.problem };
+  const priced = read.ok ? priceShotlist(read.shotlist, gen.models, { centsPerCredit: gen.centsPerCredit }) : { ok: false, shots: [], base: 0, most: 0, problem: read.problem };
   const boards = boardsOf(ctx.config, goal.identifier, place.rel, read.ok ? read.shotlist.shots.map((s) => s.id) : undefined);
   const { blocked, code } = blockOf(gen, read, priced);
   const price = (id) => (priced.ok ? priced.shots.find((p) => p.id === id) : null);
@@ -386,6 +386,7 @@ async function approveShotlist(ctx, goalId, path, sl, note, done) {
   const shots = priced.shots.map(({ id, kind, model, seconds }) => ({ id, kind, model, seconds }));
   const batch = writeBatch(ctx.config, {
     task: goalId, slug: "artist", shots, takes: TAKES, textToVideo: shots.some((s) => s.kind === "text_to_video"), now,
+    centsPerCredit: priced.centsPerCredit,
   });
   if (batch.budget !== priced.most) {
     removeBatch(ctx.config, batch.id);

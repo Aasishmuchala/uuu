@@ -23,12 +23,13 @@
 //   captions  optional: at most 24, each one line of at most 120 characters
 //   any other key is ignored.
 //
-// The cost is the home server's own (C10): each shot priced with the generation door's own `estimate()` and price
-// table (engine/generate/runway.mjs) and the models the owner chose in Settings, never a number from the file.
+// The cost is the home server's own (C10): each shot priced in US cents as the generation door prices it (lib/generation.mjs
+// priceCents: the door's table, engine/generate/registry.mjs estimateCents, at the owner's Higgsfield rate) with the
+// models the owner chose in Settings, never a number from the file. The owner reads it in dollars.
 import { createHash } from "node:crypto";
 import { lstatSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { estimate, ratioFits } from "../../../generate/runway.mjs";
+import { priceCents, ratioOk } from "./generation.mjs";
 import { BATCH_ID } from "./staged.mjs";
 import { fileToken, goalFolder, readChecked } from "./taskfiles.mjs";
 import { readGoalBytes, sniff } from "../routes/_images.mjs";
@@ -74,7 +75,7 @@ const oneLine = (v, min, max) => typeof v === "string" && v.length >= min && v.l
 const promptOk = (v) => typeof v === "string" && v.length >= 1 && v.length <= 1000 && v.trim() !== ""
   && !LINE_BREAKERS.test(v.replace(/\n/g, ""));
 
-// "$1.50" for 150 credits: one credit is one US cent.
+// "$1.50" for 150 cents (a Runway credit is one cent).
 export function dollars(credits) {
   const c = Number.isFinite(credits) && credits >= 0 ? Math.round(credits) : 0;
   return `$${(c / 100).toFixed(2)}`;
@@ -209,10 +210,12 @@ export function readShotlist(config, identifier, rel, { allowWords = false } = {
 // A model's name as a sentence may show it (the switches file's own, checked there; plain characters only).
 const modelName = (m) => (typeof m === "string" && /^[A-Za-z0-9._-]{1,80}$/.test(m) ? m : "no model");
 
-// priceShotlist(shotlist, models) -> { ok, shots: [{ id, kind, model, seconds, credits }], base, most, problem }.
-// A shot marked best and a shot from words alone take `models.videoBest`, every other `models.video`; each is
-// priced by the door's estimate(); `most` holds one retake a shot (two takes). Pure; never throws.
-export function priceShotlist(shotlist, models) {
+// priceShotlist(shotlist, models, { centsPerCredit, table }) -> { ok, shots: [{ id, kind, model, seconds, credits }],
+// base, most, problem, centsPerCredit (the rate given, for the batch) }, in cents. A shot marked best and a shot from words alone take `models.videoBest`, every other
+// `models.video`; each is priced as the door prices it, a Higgsfield model at the owner's rate (`centsPerCredit`, the
+// switches file's); `most` holds one retake a shot (two takes). `table` (tests only) is rows used instead of the
+// door's. Pure; never throws.
+export function priceShotlist(shotlist, models, { centsPerCredit, table } = {}) {
   const no = (problem) => ({ ok: false, shots: [], base: 0, most: 0, problem });
   try {
     if (!isObject(shotlist) || !Array.isArray(shotlist.shots) || !shotlist.shots.length) return no("There is no shotlist to price.");
@@ -221,13 +224,13 @@ export function priceShotlist(shotlist, models) {
     let base = 0;
     for (const s of shotlist.shots) {
       const model = s.best === true || s.kind === "text_to_video" ? m.videoBest : m.video;
-      const credits = VIDEO.includes(s.kind) ? estimate({ kind: s.kind, model, seconds: s.seconds }) : null;
+      const credits = VIDEO.includes(s.kind) ? priceCents({ kind: s.kind, model, seconds: s.seconds }, { centsPerCredit, table }) : null;
       if (credits === null) return no(`The door has no price for ${modelName(model)}, the model chosen in Settings.`);
-      if (!ratioFits(model, shotlist.ratio)) return no(`The model chosen in Settings, ${modelName(model)}, cannot make the ratio ${RATIOS.includes(shotlist.ratio) ? shotlist.ratio : "asked for"}.`);
+      if (!ratioOk(model, shotlist.ratio, { table })) return no(`The model chosen in Settings, ${modelName(model)}, cannot make the ratio ${RATIOS.includes(shotlist.ratio) ? shotlist.ratio : "asked for"}.`);
       shots.push({ id: s.id, kind: s.kind, model, seconds: s.seconds, credits });
       base += credits;
     }
-    return { ok: true, shots, base, most: TAKES * base, problem: null };
+    return { ok: true, shots, base, most: TAKES * base, problem: null, centsPerCredit: Number.isInteger(centsPerCredit) ? centsPerCredit : undefined };
   } catch {
     return no("The shotlist could not be priced.");
   }
@@ -262,16 +265,16 @@ export function shotsHash(shots) {
   return createHash("sha256").update(JSON.stringify(list), "utf8").digest("hex");
 }
 
-// The cost as the owner reads it: "6 clips, 30 seconds: about 150 credits ($1.50), up to 300 with one retake each.
-// Today's limit: 300." When only the retakes would pass what is left of today's (or this month's) limit, it says so.
+// The cost as the owner reads it, in dollars: "6 clips, 30 seconds: about $1.50, up to $3.00 with one retake each.
+// Today's limit: $3.00." When only the retakes would pass what is left of today's (or this month's) limit, it says so.
 export function costWords(priced, { daily = null, dayLeft = null, monthLeft = null } = {}) {
   const shots = Array.isArray(priced?.shots) ? priced.shots : [];
   const n = shots.length;
   const seconds = shots.reduce((t, s) => t + (Number.isInteger(s.seconds) ? s.seconds : 0), 0);
   const base = Number.isFinite(priced?.base) ? priced.base : 0;
   const most = Number.isFinite(priced?.most) ? priced.most : 0;
-  let out = `${n} ${n === 1 ? "clip" : "clips"}, ${seconds} seconds: about ${base} credits (${dollars(base)}), up to ${most} with one retake${n === 1 ? "" : " each"}.`;
-  if (Number.isFinite(daily)) out += ` Today's limit: ${daily}.`;
+  let out = `${n} ${n === 1 ? "clip" : "clips"}, ${seconds} seconds: about ${dollars(base)}, up to ${dollars(most)} with one retake${n === 1 ? "" : " each"}.`;
+  if (Number.isFinite(daily)) out += ` Today's limit: ${dollars(daily)}.`;
   if (Number.isFinite(dayLeft) && base <= dayLeft && most > dayLeft) out += " Retakes may stop at today's limit.";
   else if (Number.isFinite(monthLeft) && base <= monthLeft && most > monthLeft) out += " Retakes may stop at this month's limit.";
   return out;

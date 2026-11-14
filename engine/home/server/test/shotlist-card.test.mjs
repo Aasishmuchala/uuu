@@ -176,11 +176,11 @@ test("a blocked film after SHOTLIST READY: one item fitting shotlist-item.json, 
       ["a", "Slow approach", 52, true, null], ["b", "Detail to whole", 50, true, null], ["c", "Day of light", 47, true, null],
     ]);
     const [a, b, c] = item.variants;
-    assert.equal(a.cost.words, "6 clips, 30 seconds: about 150 credits ($1.50), up to 300 with one retake each. Today's limit: 300. Retakes may stop at today's limit.");
+    assert.equal(a.cost.words, "6 clips, 30 seconds: about $1.50, up to $3.00 with one retake each. Today's limit: $3.00. Retakes may stop at today's limit.");
     assert.equal(a.cost.time, "Runway takes a few minutes a clip: about 10 to 30 minutes for 6 clips, then the edit and the checks.");
     assert.deepEqual([b.cost.base, b.cost.most], [170, 340]);
-    assert.equal(b.cost.words, "3 clips, 20 seconds: about 170 credits ($1.70), up to 340 with one retake each. Today's limit: 300. Retakes may stop at today's limit.");
-    assert.equal(c.cost.words, "1 clip, 2 seconds: about 10 credits ($0.10), up to 20 with one retake. Today's limit: 300.");
+    assert.equal(b.cost.words, "3 clips, 20 seconds: about $1.70, up to $3.40 with one retake each. Today's limit: $3.00. Retakes may stop at today's limit.");
+    assert.equal(c.cost.words, "1 clip, 2 seconds: about $0.10, up to $0.20 with one retake. Today's limit: $3.00.");
     assert.deepEqual(b.shotlist.shots.map((s) => [s.id, s.model, s.credits]), [["s01", "gen4.5", 60], ["s02", "gen4.5", 60], ["s03", "gen4_turbo", 50]]);
     assert.deepEqual(a.boards.map((x) => x.shot), ["s01", "s02", "s03", "s04", "s05", "s06"]);
     for (const v of item.variants) for (const x of [...v.boards, ...v.preview]) assert.match(x.url, /^\/api\/view\/[A-Za-z0-9_-]+$/);

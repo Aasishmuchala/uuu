@@ -176,13 +176,17 @@ function treatmentOf(config, identifier, a) {
 // True when the treatment's shotlist still prices and reads to the shots the owner approved (the record's hash, the
 // renders and prompts included). The models are not in the record, so each pair the approved batch used (or, with
 // no batch file, its jobs in the ledger) is tried for ordinary shots and for best ones: a model chosen later in
-// Settings does not count as a change.
+// Settings does not count as a change. Nor does a Higgsfield rate the owner changed later (T79): with a Higgsfield model
+// among them, each whole rate from 1 to 50 is tried too.
 function sameAsApproved(shotlist, models, hash) {
   const list = [...new Set(models.filter((m) => typeof m === "string"))];
+  const rates = list.some((m) => m.startsWith("hf.")) ? Array.from({ length: 50 }, (_, i) => i + 1) : [undefined];
   for (const video of list) {
     for (const videoBest of list) {
-      const priced = priceShotlist(shotlist, { video, videoBest });
-      if (priced.ok && shotsHash(approvedShots(shotlist, priced)) === hash) return true;
+      for (const centsPerCredit of rates) {
+        const priced = priceShotlist(shotlist, { video, videoBest }, { centsPerCredit });
+        if (priced.ok && shotsHash(approvedShots(shotlist, priced)) === hash) return true;
+      }
     }
   }
   return false;

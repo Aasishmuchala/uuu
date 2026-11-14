@@ -105,7 +105,8 @@ test("the view fits shapes/generation.json with no switches file, no key and no 
     assert.deepEqual(v.models, MODELS);
     assert.deepEqual(v.spent, { ok: true, day: 0, month: 0, dayLeft: 300, monthLeft: 1000, running: 0 });
     assert.equal(v.paused, null);
-    assert.equal(v.example, "A 30-second film of six clips costs about 150 credits ($1.50), up to 300 with one retake each.");
+    assert.equal(v.example, "A 30-second film of six clips costs about $1.50, up to $3.00 with one retake each.");
+    assert.deepEqual(v.higgsfield, { on: false, signedIn: false, refused: false, centsPerCredit: 5, sentence: "Not signed in." });
     assert.deepEqual(v.ledger, { ok: true, bytes: 0, nearlyFull: false, sentence: null });
     assert.deepEqual(v.batches, []);
     assert.deepEqual([v.problem, v.problemSentence], [null, null]);
@@ -139,16 +140,17 @@ test("the choices are the door's priced models for each kind, in words; the exam
   assert.deepEqual(c.videoBest.map((x) => x.model), ["gen4.5"]);
   assert.deepEqual(c.still.map((x) => x.model), ["gen4_image", "gen4_image_turbo"]);
   assert.deepEqual(c.upscale.map((x) => x.model), ["magnific_precision_upscaler_v2"]);
-  assert.equal(c.video[0].words, "gen4_turbo: 5 credits a second");
-  assert.equal(c.still[0].words, "gen4_image: 8 credits a picture");
-  assert.equal(priceWords("magnific_precision_upscaler_v2"), "magnific_precision_upscaler_v2: 25 credits a picture");
-  assert.equal(exampleSentence(MODELS), "A 30-second film of six clips costs about 150 credits ($1.50), up to 300 with one retake each.");
+  assert.equal(c.video[0].words, "Gen-4 Turbo on Runway: $0.05 a second");
+  assert.equal(c.video[0].provider, "runway");
+  assert.equal(c.still[0].words, "Gen-4 Image on Runway: $0.08 a picture");
+  assert.equal(priceWords("magnific_precision_upscaler_v2"), "Magnific Precision upscale on Runway: $0.25 a picture");
+  assert.equal(exampleSentence(MODELS), "A 30-second film of six clips costs about $1.50, up to $3.00 with one retake each.");
   assert.equal(exampleSentence({ ...MODELS, video: "veo3.1" }), "The door has no price for veo3.1, the model chosen in Settings.");
   await withGen(async ({ h }) => {
     const r = await call(h.url, "POST", "/api/generation/models", { body: { video: "gen4.5" } });
     assert.equal(r.status, 200);
-    assert.equal(r.json.example, "A 30-second film of six clips costs about 360 credits ($3.60), up to 720 with one retake each.");
-    assert.equal(r.json.example.includes(String(6 * estimate({ kind: "image_to_video", model: "gen4.5", seconds: 5 }))), true);
+    assert.equal(r.json.example, "A 30-second film of six clips costs about $3.60, up to $7.20 with one retake each.");
+    assert.equal(r.json.example.includes(dollars(6 * estimate({ kind: "image_to_video", model: "gen4.5", seconds: 5 }))), true);
   }, { door: false });
 });
 
@@ -306,7 +308,8 @@ test("the ledger pages by before: 14 days a page, newest first, each job in word
       assert.equal(d.jobs, 1);
       assert.equal(d.rows.length, 1);
       const row = d.rows[0];
-      assert.deepEqual(Object.keys(row), ["at", "kind", "words", "model", "seconds", "credits", "result", "shot", "task"]);
+      assert.deepEqual(Object.keys(row), ["at", "kind", "words", "model", "seconds", "credits", "provider", "app", "result", "shot", "task"]);
+      assert.deepEqual([row.provider, row.app], ["runway", null], "an old line is Runway's and no app's");
       assert.equal(row.result, e.result, d.day);
       assert.equal(row.words, e.words, d.day);
       assert.equal(row.model, e.model);
