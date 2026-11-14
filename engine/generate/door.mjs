@@ -19,8 +19,8 @@ import { REAL_NET, fetchPublic } from "../web/fetch.mjs";
 import { createLedger, dayOf, rotateLedger } from "./ledger.mjs";
 import {
   API_LIMITS, KINDS, ORGANIZATION_PATH, PRICES, RUNWAY_ORIGIN, UPSCALE_MAX_SIDE, VIDEO_KINDS, buildRequest, callRunway,
-  checkUpstream, chosen, credits as creditsOf, defaultModel, errorText, estimate, failureKind, holdsKey, priced, ratioFits,
-  readTask, scrub, taskPath,
+  checkUpstream, chosen, credits as creditsOf, defaultModel, errorText, estimate, failureKind, holdsKey, pictureFailure, priced,
+  ratioFits, readTask, scrub, taskPath,
 } from "./runway.mjs";
 import {
   HASH_RE, ID_RE, INPUTS_KEPT, INPUT_MAX, INPUT_MIN, SHOT_RE, newId, readBatch, readGenState, readRunwayKey, sniffOutput, sniffPicture, workStore,
@@ -36,11 +36,13 @@ export const REFUSALS_TO_PAUSE = 3;
 // owner's "Start again", both counted in the ledger since the owner last started it again. The
 // Artist's role sends a request at most twice (once more after gen_limited's wait), so a third
 // is never its rule working; three is also the refusals' pause, whose sentence the owner already
-// sees ("Runway refused three requests in a day").
+// sees ("Runway refused three requests in a day"). A job Runway has not answered yet counts toward
+// both while it waits (T49f N3): the next request is answered gen_busy until it is known.
 export const NOT_STARTED_PER_SHOT = 2;
 export const NOT_STARTED_TO_PAUSE = 3;
 export const LIMITED_SEC = 60;            // the wait after Runway's 429 when it names none
 export const PROMPT_KEPT = 1000;          // the prompt kept in a job's record, as sent
+const WAITING = "Another request is still waiting for Runway's answer. Wait, then send it again.";
 export const GEN_LIMITS = Object.freeze({
   ...API_LIMITS,
   pollMs: 6_000,            // between two questions about one task
@@ -158,8 +160,8 @@ function doorPaths(paths) {
 }
 
 // What the door does not send again, by its pictures' bytes (their hashes, never the upload's id,
-// T48 F5): a refused job's pictures and prompt (a refused picture alone is kept in `marks`); and a
-// request Runway did not start, as it was sent (its batch, shot, pictures and prompt).
+// T48 F5): a refused job's pictures and prompt (a picture refused for itself, T49f N4, is kept in
+// `marks` alone); and a request Runway did not start, as it was sent (its batch, shot, pictures and prompt).
 const fingerprint = (kind, model, hashes, promptText) =>
   createHash("sha256").update(JSON.stringify([kind, model, [...(hashes || [])].sort(), promptText || ""])).digest("hex");
 const resendPrint = (batch, shot, kind, model, hashes, promptText) =>
@@ -198,7 +200,8 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   const controllers = new Set();
   let closing = false;
   // What Runway refused or did not start before, so it is not sent again: fingerprints of refused
-  // jobs, the byte hashes of pictures Runway refused or could not use (with any prompt), and
+  // jobs, the byte hashes of pictures Runway refused or could not use for the picture itself (with
+  // any prompt; a refusal of the words alone bars only its fingerprint), and
   // requests not started, as sent. Filled from the door's own job records at its start and as jobs
   // end, so a job request reads no other job's record. And the time before which Runway's 429 said
   // not to ask again (Date.now() ms, this run only).
@@ -327,14 +330,18 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   function failed(j, t, key) {
     const kind = failureKind(t.failureCode);
     const words = scrub(t.failure || "", key);
-    if (kind === "refused" || kind === "bad_input") {
+    // A refusal about the picture bars its bytes with any words; one of the words (or of the output)
+    // bars only this same picture with this same prompt (T49f N4).
+    const picture = pictureFailure(t.failureCode);
+    if (picture) {
       for (const id of j.inputIds) store.markInputRefused(id);
       for (const h of j.inputSha256) marks.pictures.add(h);
     }
     if (kind === "refused" && j.record && typeof j.record.fingerprint === "string") marks.refused.add(j.record.fingerprint);
     const credits = settle(j, t, kind === "refused" ? "refused" : kind, true);
     if (kind === "refused") {
-      endJob(j, "refused", { credits, reason: `Runway refused this picture or prompt. It will not be sent again.${words ? ` Runway said: ${words}` : ""}`, failureCode: t.failureCode });
+      const what = picture ? "Runway refused this picture. It will not be sent again." : "Runway refused this prompt or its result. This picture will not be sent again with this prompt.";
+      endJob(j, "refused", { credits, reason: `${what}${words ? ` Runway said: ${words}` : ""}`, failureCode: t.failureCode });
       maybePause();
       return;
     }
@@ -500,6 +507,10 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     if (!t.ok) return no(res, "gen_ledger");
     // Paused by the counts themselves, even when the pause line could not be written.
     if (t.refusedRecent >= REFUSALS_TO_PAUSE || t.notStartedRecent >= NOT_STARTED_TO_PAUSE) return no(res, "gen_paused");
+    // A job Runway has not answered yet may come back not started: it counts toward both limits now,
+    // so two jobs in flight cannot both pass at one below a limit (T49f N3). The caller waits.
+    const unanswered = [...running.values()].filter((x) => x.runwayTask === null);
+    if (t.notStartedRecent + unanswered.length >= NOT_STARTED_TO_PAUSE) return no(res, "gen_busy", WAITING, { retryAfterSec: 30 });
     let batch = null;
     let model;
     if (body.batch !== null) {
@@ -521,6 +532,8 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
       if (body.kind === "text_to_video" && !batch.textToVideo) return no(res, "gen_not_approved", "The owner did not approve video from text alone.");
       if (t.takes(body.shot) >= shot.takes) return no(res, "gen_not_approved", "This shot has had every take the owner approved.");
       if (t.notStarted(body.shot) >= NOT_STARTED_PER_SHOT) return no(res, "gen_not_approved", "Runway did not start this shot twice. It needs you.");
+      const inShot = unanswered.filter((x) => x.batch === body.batch && x.shot === body.shot).length;
+      if (t.notStarted(body.shot) + inShot >= NOT_STARTED_PER_SHOT) return no(res, "gen_busy", WAITING, { retryAfterSec: 30 });
       model = shot.model;
     } else {
       if (body.kind === "text_to_video") return no(res, "gen_not_approved", "Video from text alone needs the owner's approval.");
@@ -747,8 +760,7 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   function loadMarks() {
     for (const rec of store.listJobs()) {
       const sent = Array.isArray(rec.inputSha256) ? rec.inputSha256.filter((x) => typeof x === "string" && HASH_RE.test(x)) : [];
-      const kind = rec.state === "refused" ? "refused" : failureKind(rec.failureCode);
-      if (kind === "refused" || kind === "bad_input") for (const h of sent) marks.pictures.add(h);
+      if (pictureFailure(rec.failureCode)) for (const h of sent) marks.pictures.add(h);
       if (rec.state === "refused" && typeof rec.fingerprint === "string") marks.refused.add(rec.fingerprint);
       if (Number.isInteger(rec.notStarted) && rec.notStarted !== 401 && rec.notStarted !== 429 && typeof rec.resend === "string") marks.resend.add(rec.resend);
     }

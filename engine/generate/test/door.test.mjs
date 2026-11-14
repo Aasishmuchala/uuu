@@ -644,6 +644,63 @@ test("a request Runway did not start (a 4xx) is free but counted: the same one i
   assert.equal(creates().length, 4);
 });
 
+// T49f N3: the counts were read before the call and written after it, so two jobs in flight both passed at two.
+test("a job Runway has not answered yet counts toward the pause: at two not started, a second in flight is answered gen_busy", async () => {
+  await startDoor({ limits: { pollMs: 10, jobMs: 3000, downloadMs: 3000, apiMs: 400, pollErrors: 3 } });
+  setGen({ autoUnderCredits: 0 });
+  const SHOTS = Object.fromEntries(["s01", "s02", "s03", "s04"].map((s) => [s, { kind: "image_to_video", model: "gen4_turbo", maxSeconds: 5, takes: 2 }]));
+  batch("b1", { shots: SHOTS, budgetCredits: 1000 });
+  behave({ create: 400 });
+  for (const shot of ["s01", "s02"]) assert.equal((await call("/gen/jobs", clip(await input(), { batch: "b1", shot }))).json.code, "gen_could_not_start");
+  behave({ create: "stall" });
+  const a = call("/gen/jobs", clip(await input(), { batch: "b1", shot: "s03" }));
+  await until(() => creates().length === 3);
+  const b = await call("/gen/jobs", clip(await input(), { batch: "b1", shot: "s04" }));
+  assert.deepEqual([b.status, b.json.code, b.json.retryAfterSec], [403, "gen_busy", 30]);
+  assert.match(b.json.error.message, /still waiting for Runway's answer/);
+  assert.equal(creates().length, 3, "the second waits at the door");
+  // Runway never answered the first: its estimate is spent, it is no request Runway did not start, and the next goes out.
+  assert.equal((await a).json.code, "gen_could_not_start");
+  behave({ create: 400 });
+  assert.equal((await call("/gen/jobs", clip(await input(), { batch: "b1", shot: "s04" }))).json.code, "gen_could_not_start");
+  assert.equal(creates().length, 4);
+  assert.deepEqual([ledger().at(-1).state, ledger().at(-1).verdict], ["paused", "three_not_started"]);
+});
+
+test("a job in flight counts toward its shot's two: a second of the same shot waits; another shot does not", async () => {
+  await startDoor({ limits: { pollMs: 10, jobMs: 3000, downloadMs: 3000, apiMs: 400, pollErrors: 3 } });
+  setGen({ autoUnderCredits: 0 });
+  batch("b1", { shots: { s01: { kind: "image_to_video", model: "gen4_turbo", maxSeconds: 5, takes: 2 } }, budgetCredits: 1000 });
+  batch("b2");
+  behave({ create: 400 });
+  assert.equal((await call("/gen/jobs", clip(await input(), { batch: "b1", shot: "s01" }))).json.code, "gen_could_not_start");
+  behave({ create: "stall" });
+  const a = call("/gen/jobs", clip(await input(), { batch: "b1", shot: "s01", promptText: `${PROMPT} 2` }));
+  await until(() => creates().length === 2);
+  const same = await call("/gen/jobs", clip(await input(), { batch: "b1", shot: "s01", promptText: `${PROMPT} 3` }));
+  assert.deepEqual([same.json.code, same.json.retryAfterSec], ["gen_busy", 30]);
+  assert.equal(creates().length, 2);
+  await a;
+  behave();
+  const other = await call("/gen/jobs", clip(await input(), { batch: "b2", shot: "s01" }));
+  assert.equal(other.status, 202, other.text);
+  await settled(other.json.job);
+});
+
+test("racing: eight jobs at once, four rounds, all not started: exactly three reach Runway before the pause", async () => {
+  setGen({ autoUnderCredits: 0 });
+  const SHOTS = Object.fromEntries(["s01", "s02", "s03", "s04", "s05", "s06", "s07", "s08"].map((s) => [s, { kind: "image_to_video", model: "gen4_turbo", maxSeconds: 5, takes: 2 }]));
+  batch("b1", { shots: SHOTS, budgetCredits: 5000 });
+  const ins = [];
+  for (let k = 0; k < 8; k += 1) ins.push(await input());
+  behave({ create: 400 });
+  for (let round = 0; round < 4; round += 1) {
+    await Promise.all(ins.map((i, k) => call("/gen/jobs", clip(i, { batch: "b1", shot: `s0${k + 1}`, promptText: `r${round}k${k}` }))));
+  }
+  assert.equal(creates().length, NOT_STARTED_TO_PAUSE);
+  assert.equal(totalsOf(readLedger(paths.ledger).lines, Date.now()).notStartedRecent, 3);
+});
+
 test("after Runway's 429 the door says wait without calling out until the wait has passed; a 429 or a 401 is no mark on the request", async () => {
   const id = await input();
   behave({ create: 429, retryAfter: 1 });
@@ -704,6 +761,55 @@ test("a refused picture is known by its bytes: sent up again under a new id, wit
   assert.equal(vr.prompt, "@ref1 at dusk");
   assert.equal(vr.inputSha256.length, 2);
   assert.ok(vr.inputSha256.every((h) => /^[0-9a-f]{64}$/.test(h)));
+  assert.equal(creates().length, 3);
+});
+
+// T49f N4: only a refusal about the picture bars its bytes with any words.
+test("a refusal of the words alone bars only that picture with those words; the picture goes again with others, also after a restart", async () => {
+  const bytes = pngBytes(1280, 720, 5100);
+  for (const failureCode of ["SAFETY.INPUT.TEXT", "INPUT_PREPROCESSING.SAFETY.TEXT", "SAFETY.OUTPUT.VIDEO"]) {
+    behave({ steps: ["FAILED"], failureCode, cost: 0 });
+    const words = `words refused, ${failureCode}`;
+    const first = await call("/gen/jobs", clip(await input(undefined, bytes), { promptText: words }));
+    const end = await settled(first.json.job);
+    assert.equal(end.state, "refused", failureCode);
+    assert.match(end.reason, /will not be sent again with this prompt/);
+    const rec = jobRecord(first.json.job);
+    const inRec = JSON.parse(readFileSync(join(paths.doorWork, "gen", "inputs", `${rec.inputs[0]}.json`), "utf8"));
+    assert.equal(inRec.refused, false, "the upload is not marked");
+    behave();
+    const same = await call("/gen/jobs", clip(await input(undefined, bytes), { promptText: words }));
+    assert.equal(same.json.code, "gen_not_approved");
+    assert.match(same.json.error.message, /same picture or prompt before/);
+    const reworded = await call("/gen/jobs", clip(rec.inputs[0], { promptText: `new clean words after ${failureCode}` }));
+    assert.equal(reworded.status, 202, `${failureCode}: ${reworded.text}`);
+    await settled(reworded.json.job);
+    setGen({ resumedAt: new Date().toISOString() });   // three refusals would pause the door: Start again between kinds
+  }
+  await startDoor();
+  const after = await call("/gen/jobs", clip(await input(undefined, bytes), { promptText: "and other words after a restart" }));
+  assert.equal(after.status, 202, after.text);
+  await settled(after.json.job);
+  const again = await call("/gen/jobs", clip(await input(undefined, bytes), { promptText: "words refused, SAFETY.INPUT.TEXT" }));
+  assert.match(again.json.error.message, /same picture or prompt before/);
+});
+
+test("a refusal about the picture (an image safety code, ASSET.*) bars its bytes with any words, also after a restart", async () => {
+  for (const [n, failureCode] of [[0, "ASSET.INVALID"], [1, "INPUT_PREPROCESSING.SAFETY.IMAGE"], [2, "SAFETY.INPUT"]]) {
+    const bytes = pngBytes(1280, 720, 5200 + n);
+    behave({ steps: ["FAILED"], failureCode, cost: 0 });
+    const first = await call("/gen/jobs", clip(await input(undefined, bytes)));
+    const end = await settled(first.json.job);
+    assert.ok(["refused", "failed"].includes(end.state), failureCode);
+    behave();
+    const reworded = await call("/gen/jobs", clip(await input(undefined, bytes), { promptText: `other words ${n}` }));
+    assert.equal(reworded.json.code, "gen_not_approved", failureCode);
+    assert.match(reworded.json.error.message, /refused this picture before/);
+    setGen({ resumedAt: new Date().toISOString() });
+  }
+  await startDoor();
+  const r = await call("/gen/jobs", clip(await input(undefined, pngBytes(1280, 720, 5200)), { promptText: "after a restart" }));
+  assert.match(r.json.error.message, /refused this picture before/);
   assert.equal(creates().length, 3);
 });
 

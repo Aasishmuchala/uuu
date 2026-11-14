@@ -2,8 +2,9 @@
 // still job ends sooner than the batch's seven days. A closed batch is written again whole with `expiresAt` now, so
 // the generation door's own readBatch answers "expired", while the file stays for Studio and Settings. Closed when
 // the owner stops the task (lib/stop.mjs, before anything is sent to the board), accepts it (inbox/goals.mjs), when
-// the board shows it done or cancelled (the minute sweep, lib/unstick.mjs onIssues, wired in lib/app.mjs), and when
-// a newer approval replaces it (inbox/staged.mjs; shotlist-card.test.mjs). Temp folders, stub boards, made-up ids.
+// the board shows it cancelled (the minute sweep, lib/unstick.mjs onIssues, wired in lib/app.mjs), and when a newer
+// approval replaces it (inbox/staged.mjs; shotlist-card.test.mjs). A task the board shows done keeps its batch (T49f
+// N1): the owner may send a finished film back for a retake inside it. Temp folders, stub boards, made-up ids.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -118,15 +119,15 @@ test("closeBatches: a clock set back is removed, not left open; files the door r
   });
 });
 
-test("closeFinishedBatches closes the batches of tasks the board shows done or cancelled, and no others", () => {
+test("closeFinishedBatches closes the batches of tasks the board shows cancelled, and no others: done alone leaves it open", () => {
   withState(({ config }) => {
     const ids = { done: "e0000000-0000-4000-8000-0000000000d1", cancelled: "e0000000-0000-4000-8000-0000000000d2", blocked: "e0000000-0000-4000-8000-0000000000d3", todo: "e0000000-0000-4000-8000-0000000000d4" };
     const batch = Object.fromEntries(Object.entries(ids).map(([status, task]) => [status, film(config, task)]));
     const missing = film(config, "e0000000-0000-4000-8000-0000000000d5");
     const issues = Object.entries(ids).map(([status, id]) => ({ id, status }));
-    assert.deepEqual(closeFinishedBatches(config, [...issues, null, { status: "done" }]).sort(), [batch.done, batch.cancelled].sort());
+    assert.deepEqual(closeFinishedBatches(config, [...issues, null, { status: "done" }]), [batch.cancelled]);
     assert.deepEqual(Object.fromEntries(Object.entries(batch).map(([s, id]) => [s, doorSays(config, id)])),
-      { done: "expired", cancelled: "expired", blocked: "open", todo: "open" });
+      { done: "open", cancelled: "expired", blocked: "open", todo: "open" });
     assert.equal(doorSays(config, missing), "open", "a task the board does not list is left: the list may be cut");
     assert.deepEqual(closeFinishedBatches(config, null), []);
   });
@@ -205,7 +206,7 @@ test("the hold sweep hands the board's whole list to onIssues once a sweep; a fa
   assert.equal(got.length, 1);
 });
 
-test("the home server's own sweep closes the batches of a task the board shows done or cancelled, whoever finished it", async () => {
+test("the home server's own sweep closes the batches of a task the board shows cancelled, whoever cancelled it; done alone leaves it open", async () => {
   const h = await startV2({ routes: [], boardSeed: boardSeed() });
   try {
     const done = film(h.config, I["STH-2"]);                  // done on the board
@@ -213,10 +214,10 @@ test("the home server's own sweep closes the batches of a task the board shows d
     const blocked = film(h.config, I["STH-3"]);
     const still = writeBatch(h.config, { task: I["STH-3"], shots: STILL, takes: 1, now: Date.now() - HOUR }).id;
     await h.app.home.unstick.sweep();
-    assert.deepEqual([done, working, blocked, still].map((id) => doorSays(h.config, id)), ["expired", "open", "open", "open"]);
+    assert.deepEqual([done, working, blocked, still].map((id) => doorSays(h.config, id)), ["open", "open", "open", "open"]);
     // Someone on the board cancels the still job's task: the next sweep closes its batch.
     h.board.state.issues.find((i) => i.id === I["STH-3"]).status = "cancelled";
     await h.app.home.unstick.sweep();
-    assert.deepEqual([working, blocked, still].map((id) => doorSays(h.config, id)), ["open", "expired", "expired"]);
+    assert.deepEqual([done, working, blocked, still].map((id) => doorSays(h.config, id)), ["open", "open", "expired", "expired"]);
   } finally { await h.close(); }
 });

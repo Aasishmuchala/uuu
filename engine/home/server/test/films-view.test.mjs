@@ -257,12 +257,38 @@ test("the film view fits films.json: two batches, a refusal, a retake, a running
       approved: "What you approved", sentPrompt: "The prompt sent to Runway",
       sentPromptGone: "No longer kept: the door keeps what it sent for two days.", sentPromptNone: "The door kept no copy of this prompt.",
       changed: "The shotlist was changed after you approved it. Each take shows what was sent to Runway.",
+      notStarted: "Sent, not started by Runway",
     });
     assert.deepEqual(f.total, { spent: 220, budget: 440, words: "220 of 440 credits spent ($2.20 of $4.40)." });
     assert.deepEqual(f.edit, { identifier: KEY, name: "lake-film" });
     assert.equal(f.changedAfterApproval, false);
     assert.equal(f.problem, null);
     assert.equal(REFUSALS_TO_FREEZE, FREEZE_AT, "the film freezes where the door does");
+  });
+});
+
+// T49f N2: a request Runway did not start carried the owner's key, a picture and a prompt; the owner sees it.
+test("a request Runway did not start is listed under its shot as sent, not started, with the picture and prompt the door kept", async () => {
+  await withFilm({}, async (h) => {
+    const bytes = inputPng(13);
+    record(h, { id: "gb0000000000000000000", batch: B2, shot: "s01", input: { bytes, age: HOUR }, prompt: "Push in.\tSlowly\u202e." });
+    const f = (await film(h)).json;
+    assert.deepEqual(sameShape(readShape("films").film, f), []);
+    assert.deepEqual(f.shots.map((s) => s.notStarted.length), [1, 0, 0]);
+    const [n] = f.shots[0].notStarted;
+    assert.deepEqual(n, {
+      batch: B2, job: "gb0000000000000000000", at: at(T2 + 60_000), status: 400, result: "Sent, not started by Runway",
+      sent: `/api/studio/films/${GOAL}/sent/gb0000000000000000000`, sentPrompt: "Push in. Slowly.",
+    });
+    assert.ok(!f.shots[0].takes.some((t) => t.job === n.job), "still no take: it cost nothing and used none");
+    assert.equal(f.shots[0].credits, 50);
+    const pic = await call(h.url, "GET", n.sent);
+    assert.equal(pic.status, 200);
+    assert.ok(pic.buffer.equals(bytes), "the door's own kept copy of what it sent");
+    // No job record any more: listed all the same, what was sent is "gone".
+    rmSync(join(h.config.paths.doorWork, "gen", "jobs", "gb0000000000000000000.json"));
+    const g = (await film(h)).json;
+    assert.deepEqual([g.shots[0].notStarted[0].sent, g.shots[0].notStarted[0].sentPrompt], ["gone", "gone"]);
   });
 });
 

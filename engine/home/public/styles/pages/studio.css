@@ -208,6 +208,9 @@
 .p-studio .p-film__say { display: grid; gap: var(--s-1); min-width: 0; }
 .p-studio .p-film__say-label { margin: 0; color: var(--text-3); font-size: var(--fs-over); font-weight: var(--fw-medium); letter-spacing: .12em; text-transform: uppercase; }
 .p-studio .p-film__say-none { margin: 0; color: var(--text-3); font-size: var(--fs-caption); overflow-wrap: anywhere; }
+.p-studio .p-film__not-started { display: grid; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
+.p-studio .p-film__not-started-item { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; padding-left: var(--s-3); border-left: 1px solid var(--hairline); color: var(--text-3); font-size: var(--fs-caption); }
+.p-studio .p-film__not-started-head { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-3); margin: 0; }
 .p-studio .p-film__verdict {
   display: flex; flex-direction: column; gap: var(--s-1); margin: 0; padding-left: var(--s-3);
   border-left: 3px solid var(--hairline-strong);

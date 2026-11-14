@@ -85,7 +85,7 @@ export async function createHome(options) {
   const loaded = await loadModules({ dirs: moduleDirs, router, log });
 
   // The hold sweep (lib/unstick.mjs): made here, started only by main.mjs (or a test that asks). Each sweep also
-  // closes the generation batches of tasks the board shows done or cancelled (lib/batches.mjs, T48 F4).
+  // closes the generation batches of tasks the board shows cancelled (lib/batches.mjs, T48 F4; not done, T49f N1).
   const unstick = createUnstick({ board, ids, decisions, log, onIssues: (issues) => closeFinishedBatches(config, issues, { log }) });
   const home = {
     urls, prove, inboxSources: loaded.inbox, searchSources: loaded.search, modulesFailed: loaded.failed,

@@ -6,7 +6,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFile
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  MAX_CREDITS, RUNWAY_ORIGIN, buildRequest, checkUpstream, chosen, credits, defaultModel, errorText, estimate, failureKind,
+  MAX_CREDITS, RUNWAY_ORIGIN, buildRequest, checkUpstream, chosen, credits, defaultModel, errorText, estimate, failureKind, pictureFailure,
   holdsKey, readTask, scrub,
 } from "../runway.mjs";
 import { appendLine, createLedger, dayOf, readLedger, summarize, totalsOf } from "../ledger.mjs";
@@ -76,6 +76,14 @@ test("failure codes: moderation is refused, a bad file is bad input, the rest fa
   for (const c of ["SAFETY.INPUT.IMAGE", "SAFETY.OUTPUT.VIDEO", "INTERNAL.BAD_OUTPUT.01", "INPUT_PREPROCESSING.SAFETY.TEXT"]) assert.equal(failureKind(c), "refused", c);
   assert.equal(failureKind("ASSET.INVALID"), "bad_input");
   for (const c of ["INPUT_PREPROCESSING.INTERNAL", "THIRD_PARTY.UNAVAILABLE", "INTERNAL", null]) assert.equal(failureKind(c), "failed");
+});
+
+test("failure codes about the picture (T49f N4): image safety codes and ASSET.*; never the words or the output", () => {
+  for (const c of ["SAFETY.INPUT.IMAGE", "INPUT_PREPROCESSING.SAFETY.IMAGE", "SAFETY.INPUT.IMAGE.01", "ASSET.INVALID", "ASSET.TOO_LARGE", "SAFETY.INPUT"]) {
+    assert.equal(pictureFailure(c), true, c);
+  }
+  for (const c of ["SAFETY.INPUT.TEXT", "INPUT_PREPROCESSING.SAFETY.TEXT", "SAFETY.OUTPUT.VIDEO", "INTERNAL.BAD_OUTPUT.01", "INPUT_PREPROCESSING.INTERNAL",
+    "THIRD_PARTY.UNAVAILABLE", "INTERNAL", null, 5]) assert.equal(pictureFailure(c), false, String(c));
 });
 
 test("the key and its pieces are scrubbed from Runway's text, in any letter case", () => {
