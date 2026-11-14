@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The fence proof. Proves the fence around each agent tool (Claude Code and
 # Codex), the per-agent fence policy, the walled Researcher, the gate in
-# front of the board (the ordinary one and the narrow one), and who reaches the
-# page viewer and the owner's preview.
+# front of the board (the ordinary one and the narrow one), who reaches the
+# page viewer and the owner's preview, and that no agent reaches App Studio.
 # Prints PASS, FAIL, SKIP or NOTE per check, then RESULT. Writes
 # state/proof/last.json. Exit 0 when every check passes, 1 when the fence
 # failed, 2 when it holds but something is still to do (see the SKIP lines).
@@ -60,6 +60,11 @@ PROOF_GOAL_DIR=""; PROOF_GOAL_MADE=""; PROOF_OTHER_DIR=""
 PROOF_HOME_DIR=""; PROOF_HOME_MADE=""; PROOF_OTHER_HOME=""
 # The sandbox tool's own temp folder: was it there before the proof (it is not on this Mac)?
 SANDBOX_TMP_MADE=""; SANDBOX_TMP_WAS=""; [[ -e /private/tmp/claude || -L /private/tmp/claude ]] && SANDBOX_TMP_WAS=1
+# App Studio (PLAN-V5, K17 to K22): its folders in the engine's state, as the checks read them, and the
+# marks the proof puts in the apps' folder and the allowances' folder (made with their own mode when
+# missing, and removed again on every exit).
+APPS_DIR="$CFG_APPS"; APPS_RUN="$CFG_APPS_RUN"; ALLOWANCES="$STATE_DIR/doors/allowances"
+HF_SIGN_IN="$STATE_DIR/secrets/doors/higgsfield-oauth.json"; MADE_APPS_DIRS=""
 
 cleanup() {
   rm -f "$POLICY_FILE" "$LESSONS_FILE" "$KNOWLEDGE_MARK" "$KNOWLEDGE/.fence-proof-write" "$ENV_FILE"
@@ -70,6 +75,7 @@ cleanup() {
   [[ -n "$SANDBOX_TMP_MADE" ]] && rmdir /private/tmp/claude 2>/dev/null
   remove_door_marks
   remove_shots_mark
+  remove_apps_marks
   stand_in_stop
   remove_run_tmps
   rm -f "${STATE_DIR:?}/tasks/research/.fence-proof-research"
@@ -102,6 +108,12 @@ remove_door_marks() {
   rm -f "$DOORS_DIR/.fence-proof" "$DOOR_SECRETS/.fence-proof"
   for d in $MADE_DOOR_DIRS; do rmdir "$d" 2>/dev/null; done
   MADE_DOOR_DIRS=""
+}
+remove_apps_marks() {
+  local d
+  rm -f "$APPS_DIR/.fence-proof" "$ALLOWANCES/.fence-proof"
+  for d in $MADE_APPS_DIRS; do rmdir "$d" 2>/dev/null; done
+  MADE_APPS_DIRS=""
 }
 remove_shots_mark() {
   local d
@@ -998,6 +1010,7 @@ sys.exit(0 if isinstance(p,dict) and p.get('walled') is True else 1)" "$CFG_POLI
     allowed "be given no web door address or token while it is switched off" 'test -z "${UUU_WEB_URL+x}${UUU_WEB_TOKEN+x}"'
   fi
   stand_in_stop
+  app_studio_checks
   AS=""
   proof_task_finish
 }
@@ -1133,12 +1146,151 @@ viewer_checks() {
   remove_shots_mark
   AS=""
 }
+# App Studio (PLAN-V5, K17 to K19, K22): the host (its health on its own port), every app on its port
+# of 3171 to 3189, each app's two sockets (its own, which the host moved to run/apps/.host, and its
+# engine socket, the app's way to the generation door and the model relay), the apps' own folders, the
+# owner's allowances and the Higgsfield sign-in are for the owner, the host and the generation door
+# only: no agent's fence reaches any of them. Run for $WHO as it is set. Each port and socket must
+# answer from outside first: the host and a running app as they are; a port of the range no manifest
+# names, the proof's stand-in (never a manifest's port, which the host may want at any moment). The
+# folders are read with nothing to tell them apart from any other file: a mark the proof puts in the
+# apps' folder and the allowances' folder, every app's data folder, and the sign-in file when there is
+# one. All of it waits for App Studio's install (engine/apps/READY).
+APPS_WHY=""
+if [[ ! -f "$HERE/../apps/READY" ]]; then APPS_WHY="App Studio is not installed yet"; fi
+# The slug and port of each good manifest under the repo's apps/ folder, one "slug port" a line (the
+# manifest reader's own rules: engine/apps/manifest.mjs, run outside the fence; its first argument is a
+# placeholder, so the module never takes itself for the script being run).
+app_list() {
+  [[ -z "$APPS_WHY" ]] || return 0
+  within 30 "$CFG_NODE24/bin/node" --input-type=module -e 'const [, , manifest, config, file] = process.argv;
+const { readManifests } = await import(manifest);
+const { loadConfig } = await import(config);
+for (const e of readManifests(loadConfig({ path: file }))) if (e.ok) console.log(`${e.app.slug} ${e.app.port}`);' \
+    proof "$HERE/../apps/manifest.mjs" "$HERE/../lib/config.mjs" "$HERE/../config.json" 2>/dev/null </dev/null
+}
+# A fenced shell line that succeeds when a unix socket answers <path> with any HTTP status at all.
+reach_socket() {   # reach_socket <socket> <path>
+  printf "c=\$(curl -s -m 5 --noproxy '*' -o /dev/null -w '%%{http_code}' --unix-socket %s http://localhost%s); test -n \"\$c\" && test \"\$c\" != 000" "$1" "$2"
+}
+socket_answers() {   # socket_answers <socket> <path>: from outside
+  local c
+  [[ -S "$1" ]] || return 1
+  c="$(curl -s -m 3 --noproxy '*' -o /dev/null -w '%{http_code}' --unix-socket "$1" "http://localhost$2" 2>/dev/null)"
+  [[ -n "$c" && "$c" != 000 ]]
+}
+APPS_MARKED=0
+apps_mark() {   # the proof's marks in the apps' folder and the allowances' folder, once
+  local d
+  (( APPS_MARKED )) && return 0
+  for d in "$APPS_DIR" "$STATE_DIR/doors" "$ALLOWANCES"; do
+    if [[ ! -e "$d" && ! -L "$d" ]]; then
+      mkdir -m 700 "$d" && MADE_APPS_DIRS="$d $MADE_APPS_DIRS" || return 1
+    fi
+  done
+  [[ -d "$APPS_DIR" && ! -L "$APPS_DIR" && -d "$ALLOWANCES" && ! -L "$ALLOWANCES" ]] || return 1
+  (umask 077; echo proof > "$APPS_DIR/.fence-proof" && echo proof > "$ALLOWANCES/.fence-proof") || return 1
+  APPS_MARKED=1
+}
+app_studio_checks() {
+  local apps slug port spare="" p used cmd n=0 sock
+  if [[ -n "$APPS_WHY" ]]; then
+    say SKIP "whether $WHO can reach App Studio, an app, an app's sockets, the allowances or the Higgsfield sign-in ($APPS_WHY)"
+    return
+  fi
+  apps="$(app_list)"
+  # The host's own port.
+  stand_in "$CFG_PORT_APPS" /apps/health
+  if [[ -n "$NOT_ANSWERING" ]]; then
+    say SKIP "whether $WHO can reach App Studio (nothing answers on port $CFG_PORT_APPS, and the proof could not stand in there)"
+  else
+    blocked "reach App Studio" "$(reach "$CFG_PORT_APPS" /apps/health)"
+  fi
+  stand_in_stop
+  # Every app that answers on its own port, and one port of the range that no manifest names.
+  used=" $(printf '%s\n' "$apps" | awk '{print $2}' | tr '\n' ' ')"
+  for p in $(seq "$CFG_APP_PORT_FIRST" "$CFG_APP_PORT_LAST"); do
+    case "$used" in *" $p "*) continue ;; esac
+    if ! answers_ok "$p" /; then spare="$p"; break; fi
+  done
+  cmd=""
+  while read -r slug port; do
+    [[ -n "$port" ]] || continue
+    answers_ok "$port" / && cmd="${cmd:+$cmd || }$(reach "$port" /)"
+  done <<< "$apps"
+  if [[ -n "$spare" ]]; then
+    stand_in "$spare" /
+    [[ -z "$NOT_ANSWERING" ]] && cmd="${cmd:+$cmd || }$(reach "$spare" /)"
+  fi
+  if [[ -z "$cmd" ]]; then
+    say SKIP "whether $WHO can reach an app (no app answers on its port, and the proof could not stand in on a free port of $CFG_APP_PORT_FIRST to $CFG_APP_PORT_LAST)"
+  else
+    blocked "reach an app (every app that is on, and a free port of $CFG_APP_PORT_FIRST to $CFG_APP_PORT_LAST)" "$cmd"
+  fi
+  stand_in_stop
+  # Each running app's two sockets.
+  cmd=""
+  while read -r slug port; do
+    [[ -n "$slug" ]] || continue
+    sock="$APPS_RUN/$slug/engine.sock"
+    if socket_answers "$sock" /gen/app/models; then cmd="${cmd:+$cmd || }$(reach_socket "$sock" /gen/app/models)"; n=$((n + 1)); fi
+    sock="$APPS_RUN/.host/$slug"
+    if socket_answers "$sock" /healthz; then cmd="${cmd:+$cmd || }$(reach_socket "$sock" /healthz)"; n=$((n + 1)); fi
+  done <<< "$apps"
+  if [[ -z "$cmd" ]]; then
+    say SKIP "whether $WHO can reach an app's engine socket or its own (no app is on, so there is no socket to try)"
+  else
+    blocked "reach an app's engine socket or its own ($n sockets that answer from outside)" "$cmd"
+  fi
+  # The apps' folders, the allowances and the Higgsfield sign-in.
+  if ! apps_mark; then
+    say FAIL "could not put a mark in the apps' folder or the allowances' folder ($APPS_DIR, $ALLOWANCES)"
+    return
+  fi
+  cmd="cat $APPS_DIR/.fence-proof >/dev/null || ls $APPS_DIR >/dev/null || cat $ALLOWANCES/.fence-proof >/dev/null || ls $ALLOWANCES >/dev/null || ls $APPS_RUN >/dev/null"
+  while read -r slug port; do
+    [[ -n "$slug" ]] || continue
+    [[ -d "$APPS_DIR/$slug/data" ]] && cmd="$cmd || ls $APPS_DIR/$slug/data >/dev/null"
+    [[ -f "$ALLOWANCES/$slug.json" ]] && cmd="$cmd || cat $ALLOWANCES/$slug.json >/dev/null"
+  done <<< "$apps"
+  [[ -f "$HF_SIGN_IN" ]] && cmd="$cmd || cat $HF_SIGN_IN >/dev/null"
+  blocked "read an app's data, the allowances or the Higgsfield sign-in" "$cmd"
+}
+# Every other fence the proof runs, each as itself where it has a policy: the proof's own Claude and
+# Codex agents (no policy), the Artist, the Builder, the Art director and the Checker. (The Researcher's
+# run inside its own walled fence, for its proof task, in the Researcher's checks above.)
+app_studio_all() {
+  local slug id
+  RUN="$HERE/bin/claude"; WHO="a Claude agent"; AS=""
+  app_studio_checks
+  RUN="$HERE/bin/codex"; WHO="the Codex agent"; AS=""
+  app_studio_checks
+  for slug in artist builder art-director checker; do
+    case "$slug" in
+      artist) WHO="the Artist"; RUN="$HERE/bin/claude" ;;
+      builder) WHO="the Builder"; RUN="$HERE/bin/claude" ;;
+      art-director) WHO="the Art director"; RUN="$HERE/bin/claude" ;;
+      checker) WHO="the Checker"; RUN="$HERE/bin/codex" ;;
+    esac
+    id="$(agent_id_of "$slug")"
+    if [[ -z "$id" || ! -f "$CFG_POLICY/$id.json" ]]; then
+      say SKIP "the App Studio checks for $WHO (no ${WHO#the } with a fence policy yet: run engine setup)"; continue
+    fi
+    AS="$id"
+    app_studio_checks
+  done
+  remove_apps_marks
+  APPS_MARKED=0
+  AS=""
+}
 researcher_checks
 narrow_key_checks
 builder_web_check
 remove_test_key
 echo; echo "The page viewer and the preview (the Builder, the Art director, the Checker)"
 viewer_checks
+echo; echo "App Studio (no agent reaches the host, an app, an app's sockets, the allowances or the Higgsfield sign-in)"
+app_studio_all
 
 # The board runs git in the task folders (to see whether a folder has changes),
 # outside the fence. From inside the fence an agent lays out a made-up
