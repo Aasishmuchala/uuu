@@ -28,6 +28,8 @@ Chrome runs as the owner, so each of these is there because a page could otherwi
 - **Nothing is allowed that asks.** Every permission is denied (camera, microphone, location, notifications, the clipboard and the rest), downloads are denied, dialogs are dismissed, new windows are blocked, and background networking, component updates, sync, extensions and the first-run page are off.
 - **A memory watchdog.** The viewer measures the whole group of Chrome's processes every 200 milliseconds and ends it at 2 GB. It takes the larger of two measures: the resident memory the system lists, and the physical footprint (resident, compressed and swapped out together). The second was added after a test page held 2.4 GB while its resident memory stayed under 1 GB, because the Mac had squeezed the rest, so a cap on the resident memory alone never fired. The footprint is read by a small helper of the system's own Python, asked for the members' process ids each turn. If the helper cannot answer, the watchdog goes by the resident memory alone. The sentence the report gives, "The page used more than 2 GB of memory, so Chrome was stopped.", is the same whichever of the two measures went over.
 - **One render at a time.** A second call while one is running is refused with `view_busy`, and the home server, which asks for the owner's pictures, keeps its own single line of renders. A page gets 15 seconds, a whole render 60, and then the processes are ended and the work folder is removed. A render takes at most three pages.
+- **No link on the path.** Every reader of agent-written files opens them with no link anywhere on the path. A link that points elsewhere is refused, not followed.
+- **The viewer spends Chrome's one launch.** Chrome is kept from opening another program by its own rule of one launch per start. The viewer uses that one launch on a harmless program before any agent page runs, so a page cannot use it.
 - **The content policy.** The throwaway site is served with a content policy that lets a page reach nothing but itself (`default-src 'self' data: blob:`, no frames, no objects, no form posts, no base), `nosniff`, no cookie, and one fixed content type for each file ending. A file is served only if it was in the archive.
 - **The archive is distrusted byte for byte.** The viewer reads the tar itself. It refuses an archive over 20 MB, more than 300 entries, anything that is not a plain file or folder, a name that is absolute, has `..`, is not plain letters, digits, dot, dash and underscore, or is more than six folders deep, a file over 10 MB, an ending the viewer does not serve, and a site with no `index.html`. A query other than `pages=` with up to three page names is refused.
 
@@ -44,18 +46,19 @@ Two things remain.
 
 ### The owner's preview
 
-For the owner, a site can be opened in the owner's own browser. This is a second small server in the same part, on its own address, 127.0.0.1 port 3160, so it is another origin than the home screen, the gate, the relay and every door.
+For the owner, a site can be opened in the owner's own browser. This is a second small server in the same part. Its own address is 127.0.0.1 port 3160, and it only sends the browser on. Each load of a site is served on its own port, one of 3161 to 3169, so each is another origin than the home screen, the gate, the relay and every door.
 
-- It holds one site at a time, in memory. Only the home server can load it (with the viewer's own owner token), from a file list the home server read itself under the same rules as the viewer's.
+- Each load gets its own port, with no service workers, and its site data is cleared. The ports are used in turn, so after nine more loads one is used again.
+- It holds each site in memory. Only the home server can load it (with the viewer's own owner token), from a file list the home server read itself under the same rules as the viewer's.
 - Every answer carries the content policy above, `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`, `Referrer-Policy: no-referrer`, `nosniff`, a permissions policy that turns off the camera, microphone, location and the rest, and `no-store`. No cookie is ever set.
 - A request whose `Host` is not its own address is refused, so a name someone else's site points at 127.0.0.1 cannot read it.
 - The home screen opens it in a new tab with `noopener` and `noreferrer`. The address it opens is the home server's own, never the one the preview answers with.
-- **What remains here.** In the owner's browser a previewed page can send the browser away and so carry its own contents out. Those are the site's own files, meant to be public. It cannot read the home screen (another origin, and every write there needs same-origin headers), another preview (there is one at a time) or a door (each needs a token).
+- **What remains here.** In the owner's browser a previewed page can send the browser away and so carry its own contents out. Those are the site's own files, meant to be public. It cannot read the home screen (another origin, and every write there needs same-origin headers) or a door (each needs a token). It cannot read another preview while that preview is on a port of its own. The limit below says when that is not so.
 - **Nothing is published.** "Download as a zip" is a zip the home server builds from the same checked file list. A site goes nowhere else.
 
 ### The home server's own pictures
 
-The home server asks the viewer for the owner's pictures of a site, keeps them by a hash of the site's files in `<state>/home/shots/` (at most 500 MB, oldest removed first), and shows them on the task's page and in the pick card. It does this for agents' pages only while the switch is on. The owner's own "Test" (a page built into the engine, nothing an agent made), the preview and the zip work whatever the switch. No agent can reach the folder of pictures: the proof checks it.
+The home screen judges a page from the viewer's own measurements (the colours, the faces, the smallest text, the blocked addresses and the filters), not from the agent's check. The home server asks the viewer for the owner's pictures of a site, keeps them by a hash of the site's files in `<state>/home/shots/` (at most 500 MB, oldest removed first), and shows them on the task's page and in the pick card. It does this for agents' pages only while the switch is on. The owner's own "Test" (a page built into the engine, nothing an agent made), the preview and the zip work whatever the switch. No agent can reach the folder of pictures: the proof checks it.
 
 ### The brand check reads pages by code
 
@@ -66,6 +69,18 @@ It has known gaps, and they are the reason the pictures and the other walls exis
 ### The site kit
 
 The Builder builds from the brand kit and a small offline site kit, `engine/site-kit/`: a reset, a layout with a 12-column grid and a spacing scale, a script that fades parts in as they come on screen, and a script for a picture lightbox. They are written in this repository, so there is no third party's licence to carry, and they fetch nothing and name no address. The playbooks installer copies them, with a note, to `<state>/playbooks/site-kit/`, where the Builder and the Art director may read them and none may change them. A library that is not there is not used, and no package is installed.
+
+### Known limits
+
+These are said plainly. None is hidden.
+
+- **A tab left open while nine more sites are previewed.** The preview has nine ports. A tab of a previewed site, left open while nine more sites are previewed, shares its address with the ninth one. While the ninth is loaded, that old tab can read it. Closing the tab, or not previewing so many sites at once, avoids it.
+- **Chrome's one launch.** The viewer's Chrome is kept from opening another program only by Chrome's own rule of one launch per start. A test catches a Chrome that changes that rule. A Chrome that changes it and is not tested is not caught.
+- **The check by code runs no scripts.** The measured verdict sees only what a page shows about 300 milliseconds after it loads. A page that changes itself later (on a scroll, a timer or a visitor's input) is not measured.
+- **Only the first 5,000 elements are measured.** A page with more is "unknown", never a pass.
+- **Some places are not looked into.** Nothing inside iframes, shadow DOM or canvas is measured, and neither are the pixels of pictures and video.
+- **A hidden logo can pass.** A logo hidden by a rule in a style sheet passes the check.
+- **A hidden browser can be told apart.** A determined page can still tell that its browser is hidden, and act differently.
 
 ## Consequences
 

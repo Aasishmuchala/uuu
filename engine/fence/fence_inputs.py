@@ -275,7 +275,9 @@ def main(argv):
         "doorPorts": door_mode.doors_for(cfg, opts["agentId"]),
         # App Studio (K17): the host's port and every app port are known too.
         "doorPortsKnown": [ports[k] for k in ("gateNarrow", "web", "generate", "viewer", "preview", "apps")]
-        + list(range(cfg["appPorts"]["first"], cfg["appPorts"]["last"] + 1)),
+        + list(range(cfg["appPorts"]["first"], cfg["appPorts"]["last"] + 1))
+        # The preview serves each load on its own port, 3161 to 3169.
+        + list(range(cfg["previewPorts"]["first"], cfg["previewPorts"]["last"] + 1)),
         # Not resolved: the Codex login chain needs each link itself to be readable.
         "extraRead": [os.path.normpath(os.path.abspath(p)) for p in opts["read"]],
         "extraWrite": [os.path.normpath(os.path.abspath(p)) for p in opts["write"]],

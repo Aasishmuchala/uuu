@@ -126,6 +126,7 @@ test("App Studio: ports, paths, the optional apps list (PLAN-V5 K17)", () => {
   const s = c.stateRoot;
   assert.equal(c.ports.apps, 3170);
   assert.deepEqual(c.appPorts, { first: 3171, last: 3189 });
+  assert.deepEqual(c.previewPorts, { first: 3161, last: 3169 });
   assert.equal(c.urls.apps, "http://127.0.0.1:3170");
   const want = {
     appsCode: "", apps: "apps", appsState: "apps/state.json", appsStatus: "apps/host-status.json",

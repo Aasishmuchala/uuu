@@ -14,6 +14,7 @@ const DOOR_NAMES = ["web", "generate", "viewer"];
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 // App Studio (K17): each app's own port lies in this range (not a config key).
 const APP_PORTS = { first: 3171, last: 3189 };
+const PREVIEW_SITE_PORTS = 9;
 const APP_NAME_RE = /^[a-z0-9][a-z0-9-]{0,23}$/;
 
 function fail(what) {
@@ -113,6 +114,8 @@ export function loadConfig({ path } = {}) {
   };
   out.urls.apps = `${host}:${p.apps}`;
   out.appPorts = { ...APP_PORTS };
+  // The preview serves each load on the nine ports after its own (viewer/preview.mjs SITE_PORT_COUNT).
+  out.previewPorts = { first: p.preview + 1, last: p.preview + PREVIEW_SITE_PORTS };
   if (!("apps" in out.doors.generate)) out.doors.generate.apps = [];
   const s = out.stateRoot;
   out.paths = {

@@ -19,6 +19,7 @@ DOOR_NAMES = ["web", "generate", "viewer"]
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 # App Studio (K17): each app's own port lies in this range (not a config key).
 APP_PORTS = {"first": 3171, "last": 3189}
+PREVIEW_SITE_PORTS = 9
 APP_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,23}")
 
 
@@ -127,6 +128,8 @@ def load_config(path=None):
     }
     cfg["urls"]["apps"] = "%s:%d" % (host, p["apps"])
     cfg["appPorts"] = dict(APP_PORTS)
+    # The preview serves each load on the nine ports after its own (viewer/preview.mjs SITE_PORT_COUNT).
+    cfg["previewPorts"] = {"first": p["preview"] + 1, "last": p["preview"] + PREVIEW_SITE_PORTS}
     cfg["doors"]["generate"].setdefault("apps", [])
     s = cfg["stateRoot"]
     j = os.path.join

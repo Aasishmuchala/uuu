@@ -121,6 +121,7 @@ class ConfigTest(unittest.TestCase):
         j = os.path.join
         self.assertEqual(c["ports"]["apps"], 3170)
         self.assertEqual(c["appPorts"], {"first": 3171, "last": 3189})
+        self.assertEqual(c["previewPorts"], {"first": 3161, "last": 3169})
         self.assertIn("apps", config.PORT_KEYS)
         self.assertEqual(c["paths"]["appsCode"], os.path.normpath(j(config.ENGINE_DIR, "..", "apps")))
         for k, rel in (("apps", "apps"), ("appsState", "apps/state.json"), ("appsStatus", "apps/host-status.json"),

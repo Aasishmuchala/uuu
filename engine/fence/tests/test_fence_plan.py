@@ -559,6 +559,8 @@ class PlanTests(unittest.TestCase):
     KNOWN = [3111, 3130, 3140, 3150, 3160]
     # App Studio (K17): the host (3170) and every app port (3171 to 3189) are known too.
     APPS_KNOWN = [3170] + list(range(3171, 3190))
+    # The preview serves each load on its own port, 3161 to 3169.
+    PREVIEW_KNOWN = list(range(3161, 3170))
 
     @property
     def research(self):
@@ -688,6 +690,14 @@ class PlanTests(unittest.TestCase):
             self.refused(self.new(config=cfg, policy=self.policy(localServices=["127.0.0.1:%d" % port])),
                          "a door's port")
         plan(self.new(config=cfg, policy=self.policy(localServices=["127.0.0.1:8120"])))
+
+    def test_policy_may_not_name_a_preview_port(self):
+        known = self.KNOWN + self.APPS_KNOWN + self.PREVIEW_KNOWN
+        cfg = dict(CONFIG, policyPortsAllowed=[8120] + known + [3190])
+        for port in (3160, 3161, 3165, 3169):
+            self.refused(self.new(config=cfg, policy=self.policy(localServices=["127.0.0.1:%d" % port]),
+                                  doorPortsKnown=known), "a door's port")
+        plan(self.new(config=cfg, policy=self.policy(localServices=["127.0.0.1:3190"]), doorPortsKnown=known))
 
     def test_policy_may_not_name_an_app_port(self):
         known = self.KNOWN + self.APPS_KNOWN
