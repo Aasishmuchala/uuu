@@ -1,2 +1,605 @@
-/* kit/layout.js: placeholder; its part fills this in. */
-.k-layout { }
+/* kit/layout.js: the three layouts (PLAN-COOK T33, from C3's "the work", "below the first screen" and "S03").
+   Three ground steps: the stage on --stage (the deepest), the page on --bg, the rail and its panels on --panel (the
+   raised step) parted by a rule. Below 860 px one column: head, stage, strip, rail body, more, and the foot sticky
+   above the tab bar. Tokens only. */
+
+/* ---- StageLayout: a stage, a strip under it, a rail at the right */
+.k-work {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail-w);
+  grid-template-rows: auto auto;
+  background: var(--bg);
+}
+
+/* The rail's ground runs the full height of the work, however far the page scrolls. */
+.k-work::before {
+  content: "";
+  grid-column: 2;
+  grid-row: 1 / -1;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+}
+
+/* The first screen: the stage takes what the strip leaves of the window under the top bar. The strip is at least
+   --band high and grows for taller cards, so the strip's cards never fall below the first screen. */
+.k-work__first {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: calc(100vh - var(--topbar-h));
+}
+
+.k-work__stage {
+  flex: 1 0 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-5) var(--pad);
+  background: var(--stage);
+}
+
+.k-work__strip {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  min-height: var(--band);
+  padding: var(--s-4) var(--pad);
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.k-work__more {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  padding: var(--s-2) var(--pad) var(--s-12);
+  border-top: 1px solid var(--line);
+}
+
+.k-rail {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  align-self: start;
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--topbar-h));
+  min-width: 0;
+}
+
+.k-rail__head {
+  flex: none;
+  padding: var(--s-6) var(--pad) var(--s-5);
+}
+
+.k-rail__kind {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--s-1);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+.k-rail__title {
+  font-size: var(--fs-page);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-page);
+  letter-spacing: var(--ls-page);
+  color: var(--ink);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.k-rail__title:focus {
+  outline: none;
+}
+
+.k-rail__lede {
+  margin-top: var(--s-2);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.k-rail__lede b,
+.k-rail__lede strong {
+  color: var(--ink);
+  font-weight: var(--fw-bold);
+}
+
+.k-rail__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.k-rail__foot {
+  flex: none;
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-4) var(--pad) var(--s-5);
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.k-rail__primary,
+.k-rail__rest,
+.k-rail__sheet {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.k-rail__primary > .k-btn,
+.k-rail__rest > .k-btn,
+.k-rail__sheet > .k-btn {
+  width: 100%;
+}
+
+/* A divider between the decision and the rest (the note, the send-back actions). */
+.k-rail__foot--split .k-rail__rest {
+  margin-top: var(--s-2);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+/* The "More" button is the phone's; a wide window shows the rest in place. */
+.k-rail__more {
+  display: none;
+}
+
+/* ---- A block of the rail */
+.k-blk {
+  padding: var(--s-4) var(--pad);
+  border-top: 1px solid var(--line);
+}
+
+.k-blk__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+.k-blk__aside {
+  margin-left: auto;
+  font-size: var(--fs-note);
+  font-weight: var(--fw-regular);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A second line: 13 px in the second ink. */
+.k-say {
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* ---- Below the first screen: a titled section */
+.k-sect {
+  padding-top: var(--s-6);
+}
+
+.k-sect > h2 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-section);
+}
+
+/* ---- DocLayout: a list of sections and one readable column */
+.k-doc--layout {
+  display: grid;
+  grid-template-columns: var(--sections-w) minmax(0, 1fr);
+  gap: 0;
+  align-items: start;
+  min-height: calc(100vh - var(--topbar-h));
+  background: var(--bg);
+}
+
+.k-doc--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.k-doc__sections {
+  position: sticky;
+  top: var(--topbar-h);
+  align-self: stretch;
+  min-height: calc(100vh - var(--topbar-h));
+  padding: var(--s-4) var(--s-3);
+  border-right: 1px solid var(--line);
+  background: var(--side);
+}
+
+.k-doc__list {
+  display: grid;
+  gap: 2px;
+  list-style: none;
+}
+
+.k-doc__pick {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 2px var(--s-3);
+  width: 100%;
+  min-height: var(--h-md);
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.k-doc__pick:hover:not([aria-current]) {
+  background: var(--ctl);
+  color: var(--ink);
+}
+
+.k-doc__pick[aria-current="page"] {
+  border-color: var(--line);
+  background: var(--raise);
+  color: var(--ink);
+  box-shadow: var(--shadow-card);
+}
+
+.k-doc__pick-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--ink-2);
+}
+
+.k-doc__pick-name {
+  font-size: var(--fs-fact);
+  line-height: var(--lh-ui);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.k-doc__pick[aria-current="page"] .k-doc__pick-name {
+  font-weight: var(--fw-medium);
+}
+
+.k-doc__pick-state {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+.k-doc__pick-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-round);
+  background: var(--ink-3);
+}
+
+.k-doc__pick-state--good .k-doc__pick-dot { background: var(--good); }
+.k-doc__pick-state--warn .k-doc__pick-dot { background: var(--warn); }
+.k-doc__pick-state--bad .k-doc__pick-dot { background: var(--bad); }
+
+.k-doc__main {
+  width: 100%;
+  max-width: var(--doc-max);
+  margin: 0 auto;
+  padding: var(--s-8) var(--s-10) var(--s-12);
+  font-size: var(--fs-fact);
+  line-height: var(--lh-fact);
+}
+
+.k-doc__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.k-doc__title {
+  min-width: 0;
+  font-size: var(--fs-page);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-page);
+  letter-spacing: var(--ls-page);
+  overflow-wrap: anywhere;
+}
+
+.k-doc__title:focus {
+  outline: none;
+}
+
+.k-doc__intro {
+  margin-top: var(--s-1);
+  color: var(--ink-2);
+}
+
+/* The page's state, and a row's grey state: one chip at 12 px on a tint. */
+.k-doc__state,
+.k-rows__state {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: var(--ctl);
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-label);
+  white-space: nowrap;
+}
+
+.k-doc__state {
+  margin-left: auto;
+}
+
+.k-doc__state--good, .k-rows__state--good { background: var(--good-bg); color: var(--good); }
+.k-doc__state--warn, .k-rows__state--warn { background: var(--warn-bg); color: var(--warn); }
+.k-doc__state--bad, .k-rows__state--bad { background: var(--bad-bg); color: var(--bad); }
+
+.k-group {
+  margin-top: var(--s-10);
+}
+
+.k-doc__intro + .k-group {
+  margin-top: var(--s-6);
+}
+
+.k-group__title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-section);
+}
+
+.k-group__aside {
+  margin-left: auto;
+  font-size: var(--fs-note);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+.k-group__say {
+  margin-top: 2px;
+  max-width: 68ch;
+}
+
+.k-group__body {
+  margin-top: var(--s-3);
+}
+
+.k-group__title + .k-group__body {
+  margin-top: var(--s-3);
+}
+
+/* One panel of rows on the raised step. */
+.k-rows {
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.k-rows__row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 14px;
+  min-height: 56px;
+  padding: 10px var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+.k-rows__row:first-child {
+  border-top: 0;
+}
+
+.k-rows__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-2);
+  background: var(--ctl);
+  color: var(--ink-2);
+}
+
+.k-rows__text {
+  min-width: 0;
+}
+
+.k-rows__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px var(--s-2);
+  font-size: var(--fs-fact);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+  color: var(--ink);
+}
+
+.k-rows__control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.k-rows__warned {
+  grid-column: 2 / -1;
+  margin: var(--s-3) 0 var(--s-1);
+}
+
+/* ---- A phone, or any narrow window */
+@media (max-width: 859px) {
+  .k-work {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .k-work__first {
+    display: contents;
+  }
+
+  .k-work__stage {
+    flex: none;
+  }
+
+  .k-work::before {
+    display: none;
+  }
+
+  .k-rail {
+    display: contents;
+  }
+
+  .k-rail__head {
+    order: 1;
+    padding: var(--s-4) var(--s-4) var(--s-3);
+    background: var(--bg);
+  }
+
+  .k-rail__title {
+    font-size: var(--fs-page);
+  }
+
+  .k-work__stage {
+    order: 2;
+    padding: var(--s-3) var(--s-4) var(--s-4);
+  }
+
+  .k-work__strip {
+    order: 3;
+    padding: var(--s-3) var(--s-4);
+  }
+
+  .k-rail__body {
+    order: 4;
+    overflow: visible;
+    background: var(--panel);
+  }
+
+  .k-rail__body > .k-blk:first-child {
+    border-top: 1px solid var(--line);
+  }
+
+  .k-blk {
+    padding: var(--s-4);
+  }
+
+  .k-work__more {
+    order: 5;
+    padding: 0 var(--s-4) var(--s-8);
+  }
+
+  /* The foot stays in reach above the tab bar: the primary action, and "More" for the rest. */
+  .k-rail__foot {
+    order: 6;
+    position: sticky;
+    bottom: var(--tabbar-h);
+    z-index: 5;
+    padding: 10px var(--s-4);
+  }
+
+  .k-rail__foot--split {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .k-rail__foot--split .k-rail__rest {
+    display: none;
+  }
+
+  .k-rail__more {
+    display: inline-flex;
+    min-height: calc(var(--h-lg) + var(--s-1));
+  }
+
+  .k-doc--layout {
+    display: block;
+    min-height: 0;
+  }
+
+  .k-doc__sections {
+    position: static;
+    min-height: 0;
+    padding: var(--s-2) var(--s-4);
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .k-doc__list {
+    display: flex;
+    gap: var(--s-1);
+    width: max-content;
+  }
+
+  .k-doc__pick {
+    grid-template-columns: auto;
+    min-height: calc(var(--h-lg) + var(--s-1));
+    padding: 0 var(--s-3);
+    white-space: nowrap;
+  }
+
+  .k-doc__pick-icon,
+  .k-doc__pick-state {
+    display: none;
+  }
+
+  .k-doc__pick-name {
+    grid-column: 1;
+  }
+
+  .k-doc__main {
+    padding: var(--s-4) var(--s-4) var(--s-12);
+  }
+
+  .k-rows__row {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .k-rows__control {
+    grid-column: 2;
+    justify-content: flex-start;
+    margin-top: var(--s-2);
+  }
+}

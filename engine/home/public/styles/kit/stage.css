@@ -1,2 +1,443 @@
-/* kit/stage.js: placeholder; its part fills this in. */
-.k-stage { }
+/* kit/stage.js: what sits on a stage (PLAN-COOK T33, from C3's "S02" and "S01"). The shot on black; pages at a true
+   width on a stage panel whose 24 px padding is the gutter their pins sit in, never on the work; labels on a picture
+   on a solid scrim (nothing is blurred). Tokens only; the page's own pixels arrive as --x, --y, --w, --h and the
+   drawn scale as --s. */
+
+/* ---- A shot: 16:9 on black, as wide as the stage allows without passing the first screen */
+.k-shot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.k-shot__frame {
+  position: relative;
+  width: min(100%, calc((100vh - var(--topbar-h) - var(--band) - 176px) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-2);
+  overflow: hidden;
+  background: var(--black);
+  box-shadow: var(--shadow-lift);
+}
+
+.k-shot__img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+}
+
+.k-shot__caption {
+  min-width: 0;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  color: var(--ink);
+}
+
+/* A label on a picture: 12 px white on a near-black scrim (better than 4.5 to 1 on any picture). */
+.k-pictag {
+  position: absolute;
+  z-index: 1;
+  max-width: calc(100% - 12px);
+  padding: 1px 6px;
+  border-radius: var(--r-xs);
+  background: var(--on-picture-bg);
+  color: var(--on-picture-ink);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.k-pictag--tl { top: 8px; left: 8px; }
+.k-pictag--tr { top: 8px; right: 8px; }
+.k-pictag--bl { bottom: 8px; left: 8px; }
+.k-pictag--br { bottom: 8px; right: 8px; }
+
+/* ---- The bar above the frames */
+.k-stagebar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  min-height: var(--h-sm);
+  color: var(--ink-2);
+}
+
+.k-stagebar b {
+  color: var(--ink);
+  font-weight: var(--fw-bold);
+}
+
+.k-stagebar__gap {
+  flex: 1 1 auto;
+}
+
+/* ---- Frames: pages at one scale on a stage panel */
+.k-frames {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-6);
+  padding: var(--s-6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  box-shadow: var(--shadow-lift);
+}
+
+.k-frames__cell {
+  flex: 0 1 0;
+  min-width: 0;
+}
+
+.k-frames--fixed .k-frames__cell {
+  flex: none;
+}
+
+.k-frame {
+  min-width: 0;
+}
+
+.k-frame__wrap {
+  position: relative;
+}
+
+.k-frame__page {
+  position: relative;
+  aspect-ratio: var(--fw) / var(--fh);
+  overflow: hidden;
+  border-radius: var(--r-1);
+  background: var(--paper);
+  box-shadow: var(--paper-shadow);
+}
+
+.k-frame__img {
+  width: 100%;
+  max-width: none;
+  height: auto;
+}
+
+.k-frame__label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px var(--s-2);
+  margin-top: var(--s-3);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.k-frame__label b {
+  color: var(--ink);
+  font-weight: var(--fw-bold);
+}
+
+.k-frame__loose {
+  display: inline-flex;
+  gap: var(--s-1);
+}
+
+/* A pin: a 20 px disc in the warning colour, the number on it in --pin-ink. */
+.k-pin {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-round);
+  background: var(--pin);
+  color: var(--pin-ink);
+  font: inherit;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.k-pin[type="button"] {
+  cursor: pointer;
+}
+
+.k-pin--on {
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent);
+}
+
+/* A pin sits in the gutter beside its frame, a 1 px lead running to what it marks. */
+.k-frame__pin {
+  position: absolute;
+  z-index: 3;
+}
+
+.k-frame__pin--left {
+  left: -22px;
+  top: calc(var(--y) * var(--s, 0) * 1px - 10px);
+}
+
+.k-frame__pin--right {
+  right: -22px;
+  top: calc(var(--y) * var(--s, 0) * 1px - 10px);
+}
+
+.k-frame__pin--top {
+  top: -22px;
+  left: calc(var(--x) * var(--s, 0) * 1px - 10px);
+}
+
+.k-frame__lead {
+  position: absolute;
+  z-index: 2;
+  background: var(--pin-line);
+  pointer-events: none;
+}
+
+.k-frame__lead--left {
+  left: -2px;
+  top: calc(var(--y) * var(--s, 0) * 1px);
+  width: calc(var(--x) * var(--s, 0) * 1px + 2px);
+  height: 1px;
+}
+
+.k-frame__lead--right {
+  right: -2px;
+  top: calc(var(--y) * var(--s, 0) * 1px);
+  width: calc(var(--x) * var(--s, 0) * 1px + 2px);
+  height: 1px;
+}
+
+.k-frame__lead--top {
+  top: -2px;
+  left: calc(var(--x) * var(--s, 0) * 1px);
+  width: 1px;
+  height: calc(var(--y) * var(--s, 0) * 1px + 2px);
+}
+
+/* What a pin marks: outlined only while its finding is chosen. */
+.k-frame__mark {
+  position: absolute;
+  z-index: 1;
+  left: calc(var(--x) * var(--s, 0) * 1px);
+  top: calc(var(--y) * var(--s, 0) * 1px);
+  width: calc(var(--w) * var(--s, 0) * 1px);
+  height: calc(var(--h) * var(--s, 0) * 1px);
+  border-radius: 3px;
+  outline: 2px solid var(--pin-line);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.k-frame__mark--on {
+  opacity: 1;
+}
+
+/* Findings further down the page than the frame shows: a label on the frame's lower edge, on a solid ground. */
+.k-frame__below {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: -11px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  height: 24px;
+  padding: 0 10px 0 2px;
+  border-radius: var(--r-round);
+  background: var(--raise);
+  box-shadow: 0 0 0 1px var(--line-2), var(--shadow-card);
+  color: var(--ink);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-label);
+  white-space: nowrap;
+}
+
+.k-frame__below .k-icon {
+  color: var(--ink-2);
+}
+
+/* Pins the phone's shorter frame does not reach: in place on a wide screen, in the label on a phone. */
+.k-frame__deep-only,
+.k-frame__below--deep {
+  display: none;
+}
+
+/* ---- Findings: a numbered list; the chosen one is lifted and shows its detail */
+.k-finds {
+  display: grid;
+  gap: 2px;
+  margin: 0 calc(-1 * var(--s-3));
+  list-style: none;
+}
+
+.k-finds__row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 0 10px;
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.k-finds__row:hover:not(.k-finds__row--on) {
+  background: var(--ctl);
+}
+
+.k-finds__row--on {
+  background: var(--raise);
+  box-shadow: inset 2px 0 0 var(--accent), 0 0 0 1px var(--line);
+}
+
+.k-finds__what {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.k-finds__row--on .k-finds__what {
+  font-weight: var(--fw-bold);
+}
+
+.k-finds__detail {
+  grid-column: 2;
+  display: grid;
+  justify-items: start;
+  gap: var(--s-1);
+  margin-top: var(--s-1);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.k-finds__code {
+  padding: 1px 6px;
+  border-radius: var(--r-xs);
+  background: var(--ctl);
+  color: var(--ink);
+  font-size: var(--fs-label);
+  line-height: 18px;
+}
+
+/* ---- Two pictures as a pair */
+.k-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-2);
+}
+
+.k-pair__item {
+  min-width: 0;
+}
+
+.k-pair__pic {
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-xs);
+  overflow: hidden;
+  background: var(--black);
+}
+
+.k-pair__pic img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+}
+
+.k-pair__caption {
+  display: grid;
+  margin-top: 6px;
+}
+
+.k-pair__caption b {
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-note);
+}
+
+/* ---- A verdict: a round mark, the words at 16 px, who said it */
+.k-verdict {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.k-verdict__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-round);
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+.k-verdict--warn .k-verdict__mark { background: var(--warn-bg); color: var(--warn); }
+.k-verdict--bad .k-verdict__mark { background: var(--bad-bg); color: var(--bad); }
+
+.k-verdict__text {
+  min-width: 0;
+}
+
+.k-verdict__title {
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-fact);
+}
+
+/* ---- A phone, or any narrow window: the phone frame alone */
+@media (max-width: 859px) {
+  .k-shot__frame {
+    width: 100%;
+  }
+
+  .k-frames {
+    gap: var(--s-4);
+    padding: var(--s-6);
+  }
+
+  .k-frames__cell--desk:not(:only-child) {
+    display: none;
+  }
+
+  .k-frames__cell--phone {
+    flex: 1 1 auto;
+  }
+
+  .k-frame--phone .k-frame__page {
+    aspect-ratio: var(--fw) / var(--fcut);
+  }
+
+  .k-frame__deep {
+    display: none;
+  }
+
+  .k-frame__below--deep {
+    display: flex;
+  }
+
+  .k-frame__deep-only {
+    display: contents;
+  }
+
+  .k-stagebar {
+    gap: 6px;
+  }
+}

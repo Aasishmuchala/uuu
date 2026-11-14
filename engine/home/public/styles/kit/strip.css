@@ -1,2 +1,299 @@
-/* kit/strip.js: placeholder; its part fills this in. */
-.k-strip { }
+/* kit/strip.js: the cards under a stage (PLAN-COOK T33, from C3's "strip", "S02" and "S04", with the corrections
+   after round 3). A card is on the raised step with a hairline (and a soft shadow in light); the chosen one is lifted:
+   a 2 px accent edge on the raised step. About 96 px tall with 16 px padding; titles 14 px, amounts 16 px semibold on
+   one right edge, one chip a card at 12 px on a tint. Tokens only. */
+
+.k-strip {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.k-strip > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* The card's one chip. */
+.k-strip__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: var(--ctl);
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-label);
+  white-space: nowrap;
+}
+
+.k-strip__chip--good { background: var(--good-bg); color: var(--good); }
+.k-strip__chip--warn { background: var(--warn-bg); color: var(--warn); }
+.k-strip__chip--bad { background: var(--bad-bg); color: var(--bad); }
+
+.k-strip__thumb {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 72px;
+  height: 48px;
+  border-radius: var(--r-xs);
+  overflow: hidden;
+  background: var(--black);
+}
+
+.k-strip__thumb img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+}
+
+/* ---- An option card: a radio */
+.k-opt {
+  display: grid;
+  align-content: start;
+  gap: var(--s-1);
+  min-height: 96px;
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.k-opt--side {
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s-2) var(--s-3);
+}
+
+.k-opt--side .k-opt__say {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.k-opt:hover:not(.k-opt--on) {
+  border-color: var(--line-2);
+}
+
+.k-opt--on {
+  border-color: var(--accent);
+  background: var(--raise);
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow-lift);
+}
+
+.k-opt__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.k-opt__line {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  min-height: 22px;
+}
+
+.k-opt__radio {
+  position: relative;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--line-2);
+  border-radius: var(--r-round);
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+.k-opt--on .k-opt__radio {
+  border: 5px solid var(--accent);
+  background: var(--raise);
+}
+
+.k-opt__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+}
+
+.k-opt__amount,
+.k-take__amount {
+  margin-left: auto;
+  padding-left: var(--s-2);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-fact);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.k-opt__line--sub {
+  flex-wrap: wrap;
+  row-gap: var(--s-1);
+  min-height: 20px;
+}
+
+.k-opt__amount--left {
+  margin-left: 0;
+  padding-left: 0;
+}
+
+.k-opt--side .k-opt__line--sub .k-strip__chip {
+  margin-left: 0;
+}
+
+.k-opt__sub,
+.k-take__sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.k-opt__line--sub .k-strip__chip {
+  margin-left: auto;
+}
+
+.k-opt__say {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin-top: 2px;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+/* Its boards: a row of small pictures, the chosen one outlined. */
+.k-opt__boards {
+  display: flex;
+  gap: var(--s-1);
+  min-width: 0;
+  margin-bottom: var(--s-2);
+}
+
+.k-opt__board {
+  display: block;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: none;
+  cursor: pointer;
+}
+
+.k-opt__board--on {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.k-opt__board--more {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  background: var(--ctl);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  cursor: default;
+}
+
+/* ---- A take: pressable, its still at 96 by 54 */
+.k-take {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s-3);
+  min-height: 96px;
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.k-take:hover:not(.k-take--on) {
+  border-color: var(--line-2);
+}
+
+.k-take--on {
+  border-color: var(--accent);
+  background: var(--raise);
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow-lift);
+}
+
+.k-take__thumb {
+  width: 96px;
+  height: 54px;
+}
+
+.k-take__thumb--making img {
+  opacity: .35;
+}
+
+.k-take__body {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.k-take__line {
+  display: flex;
+  align-items: baseline;
+  width: 100%;
+  min-width: 0;
+}
+
+.k-take__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+}
+
+.k-take__body .k-strip__chip {
+  margin-top: var(--s-1);
+}
+
+/* ---- A phone, or any narrow window: the cards stacked */
+@media (max-width: 859px) {
+  .k-strip {
+    flex-direction: column;
+    gap: var(--s-2);
+  }
+
+  .k-strip > * {
+    flex: none;
+  }
+}
