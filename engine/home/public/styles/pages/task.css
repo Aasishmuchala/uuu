@@ -534,12 +534,6 @@
 
 /* A frame's word opens it larger: the kit rings the frame; the word that holds focus shows the ring too, so the
    stop itself is marked (R5). */
-.p-task .k-site__open:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: var(--r-1);
-}
-
 /* The state beside a heading is words in the second ink; only its dot carries the tone. */
 .p-task .k-blk__aside .k-dot__label {
   color: var(--ink-2);
