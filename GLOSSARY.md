@@ -196,6 +196,22 @@ _Avoid_: Public files, exported files
 The small server that lets the Artist, and no other agent, make video clips and pictures with Runway, a paid service, from the owner's own renders. It spends only inside a batch the owner approved, keeps the spending ledger, and holds the Runway key, which no agent can read. Off until the owner switches it on in Settings.
 _Avoid_: Runway connection, video API, AI generator
 
+**Page viewer**:
+The small server that lets the Builder and the Art director, and no other agent, see the pages the Builder made. It opens a site in a hidden Chrome that runs outside the fence, with Chrome's own sandbox on and a proxy that passes only the site, and gives back pictures at computer and phone width and a report. Off until the owner switches it on in Settings.
+_Avoid_: Browser, screenshot tool, web door
+
+**Preview**:
+The owner's own look at a site an agent built, in the owner's own browser, on its own address (127.0.0.1 port 3160). It holds one site at a time, from memory, and the home screen is the only thing that can load it. A page in it can reach nothing but itself. Nothing is published.
+_Avoid_: Staging, live site, publish
+
+**Site kit**:
+The few small files in `engine/site-kit/` (a reset, a layout grid, a scroll reveal and a lightbox), written in this repository for the pages the Builder makes. The playbooks installer copies them to the playbooks folder. They fetch nothing; a library that is not in the kit is not used.
+_Avoid_: Framework, template, theme
+
+**Page rules**:
+The part of the brand check that reads a site's own files as text and sends the page back to the Builder when it breaks a hard rule: the kit's tokens file changed, a colour or a typeface that is not the kit's, text smaller than the kit's smallest, an address outside the site, or no logo in the header.
+_Avoid_: Lint, style guide
+
 **Treatment**:
 One way to make a film, on paper: a direction, a shotlist and a storyboard still for every shot. A film comes as one to three treatments at no cost. The owner approves one with its cost.
 _Avoid_: Concept, pitch, version of a film

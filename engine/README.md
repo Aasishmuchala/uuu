@@ -72,7 +72,7 @@ Agents cannot write in Files. Anything they want kept comes to you as a draft.
 
 ## Jobs and the build order
 
-A job is a named piece of work an agent can start for you. There are 69, in seven departments: Operations 8, Sales 9, Marketing 17, Studio 14, Support 5, People 5 and Books 11. Open Jobs, pick one, press Start. It makes a task, and from there it is like any task.
+A job is a named piece of work an agent can start for you. There are 72, in seven departments: Operations 8, Sales 9, Marketing 20, Studio 14, Support 5, People 5 and Books 11. Open Jobs, pick one, press Start. It makes a task, and from there it is like any task.
 
 - **Hand-off tags** say what is left to you: "You lead" (the agent gets things ready, you do the main part), "You approve" (the agent does the work, and it counts when you approve it), "On its own" (the agent does it to the end, it is checked, and you read the result).
 - **The build order** has four stages: Foundations (fill the company brain), Take in (jobs that read and sort what comes in), Make (jobs that produce work) and Hand on (work passed from one agent to the next, such as a call write-up, then a proposal, then an invoice draft).
@@ -103,7 +103,7 @@ Both start switched off. Until the daily brief is switched on, the Map shows a b
 - **Dashboards**: figures first, then drafts waiting for you. Books, Customers, Support, People, Marketing and Studio.
 - **Files**: the company brain.
 - **Needs you**: the drawer and the full list.
-- **Jobs**: the 60 jobs by department, with the build order.
+- **Jobs**: the jobs by department, with the build order.
 - **Routines**: standing work, its runs and its switch.
 - **Team** (from the menu or a creature): the ten agents. Each page says what that agent may and may not do, what it is doing, its lessons, and lets you pause it or give it a task.
 - **Health**: what is on, whether the fence holds, what is not connected. You can run the proof from here.
@@ -166,7 +166,9 @@ What is remembered. The home screen writes your choice to the recipe log, and to
 
 ## Playbooks
 
-A playbook is craft advice an agent reads before a kind of work: how to write a post, lay out a carousel, light a render, cut a film, build a page. There are sixteen. Ten are your own skill folders from `~/.claude/skills/` on this Mac. Six are a third party's work, kept with their licence where there is one.
+A playbook is craft advice an agent reads before a kind of work: how to write a post, lay out a carousel, light a render, cut a film, build a page. There are eighteen, and beside them the site kit. Ten are your own skill folders from `~/.claude/skills/` on this Mac. One is your own Render to Film recipes, kept in the repo. Six are a third party's work from your skill folders, kept with their licence where there is one. One, `cook`, is a third party's loop for making visual work, under the MIT licence, kept in the repo word for word with its licence, and it is the default way visual work is made and judged here.
+
+The site kit is not a playbook. It is a few small files written in this repository for the pages the Builder makes (a reset, a layout grid, a scroll reveal and a lightbox). The installer copies them to `~/.paperclip/uuu-engine/playbooks/site-kit/` beside the playbooks, so Health counts one more.
 
 To install them, run `engine/playbooks/install.sh`. It copies only the files the list in `engine/playbooks/manifest.json` names (notes in text, Markdown or JSON, at most 512 KB each and 20 MB in all) into `~/.paperclip/uuu-engine/playbooks/`. It never copies a folder whole, a script, a picture, a font or a program. It downloads nothing. A skill folder that is not on this Mac is skipped with one line. `engine/playbooks/install.sh --check-only` says how many are installed.
 
@@ -278,6 +280,31 @@ Two small jobs, in Studio: "Variations of a still" (one to three versions of a p
 
 Pressing Start is your yes. The job page says the cost first, for example "Each variation costs 8 credits ($0.08) with gen4_image; three cost 24 credits ($0.24). Pressing Start approves the cost of the number you choose; nothing else is spent." Start then writes a batch of one try for each picture, and the Artist makes only those. If the cost is more than is left of today's or this month's limit, Start is refused and says so, and nothing is made. No small job runs without your Start.
 
+## Previewing and exporting a site
+
+Three jobs in Marketing make a page: "A landing page", "A project page for a property or a visualisation" and "A small site (up to six pages)". The Builder writes a static site of HTML, CSS and a little JavaScript, from your brand kit and the engine's site kit, with your own pictures copied in. Nothing is installed and nothing is fetched. You get three versions to choose from, the way you do for a carousel. The Builder, and then the Art director, look at each page in a real browser before it reaches you.
+
+The page viewer is built and tested, not yet live: it goes live when the page viewer is started. Even then it is off until you turn it on, and nothing is sent anywhere: the pages are opened on this Mac, in a hidden Chrome that can reach nothing but the page itself.
+
+Turn it on.
+
+1. Chrome has to be installed on this Mac. The viewer uses it and never touches your own Chrome or its profile.
+2. Open Settings on the home screen and find "Page viewer".
+3. Press "Test". It opens a page built into the engine, nothing an agent made, and says "Chrome opened a test page and took <n> pictures in <s> seconds." It works while the switch is off, once the viewer is running. If it says "No Chrome was found on this Mac.", install Chrome. If it says the viewer is off, run `engine start`.
+4. Turn on "Let pages be opened to take pictures". The page says "On. Only the Builder and the Art director can ask." If it will not switch on, it says why: the viewer is not running (run `engine start`), no Chrome was found, or the Builder and the Art director are not set up (run `engine setup`).
+
+Settings also shows which Chrome version is used and how many pages were opened and refused today. While the switch is off, the Builder and the Art director are refused at once, and a page job stops with "The page viewer is off. Switch it on in Settings."
+
+The pictures and the report on a task. Open the task of a page job. Under "How the site looks" you see each version's pages at computer width and at phone width, in light and, when the page has a dark setting, in dark. Each opens larger. Under "What the page viewer found" are plain sentences about what the page did in Chrome: errors, anything wider than a phone, pictures that did not load, addresses it tried to reach and was blocked from, missing descriptions and labels, text that is hard to read, and the typefaces and sizes it drew. With nothing to fix it says "Nothing to fix was found." Files that could not be part of the site are listed ("Left out of the site: <name> (<why>)"). "Take pictures again" asks for new ones. The pick card for three versions shows the first page of each at both widths. While the switch is off the task says "The page viewer is off, so there are no pictures of this site. Switch it on in Settings."
+
+Open the preview. On a version, press "Open the preview". The site opens in a new tab of your own browser, on its own address, `http://127.0.0.1:3160/`, which is another origin than the home screen. It shows one site at a time, so opening another replaces it. A page there can reach nothing but itself. If it is not running the home screen says "The preview is not running. Run: engine start". The preview works whatever the switch.
+
+Download as a zip. Press "Download as a zip" and the browser saves the version's files, only the files that are part of the site. It works whatever the switch.
+
+Nothing is published. The preview is your own browser on this Mac, and the zip is a file. The engine never sends a site anywhere. To put one on the internet, you take the zip.
+
+The brand check reads every page before a reviewer sees it, from its files and by code. It sends a page back when the kit's own style file was changed, when a colour or a typeface is not your kit's, when text is smaller than your kit's smallest, when an address outside the site is in a place a page loads from, or when the logo is missing from the header. It reads text and runs nothing: a colour or typeface a script sets while it runs is only caught by the viewer's report and the Art director's own look, not by the check. A link to another site is fine.
+
 ## What is switched off
 
 Each is an off switch or an account step. Nothing is done for you.
@@ -356,6 +383,10 @@ None of these is built or running. Each is a choice for later. Settings lists th
 - Your approvals for films and still jobs: `~/.paperclip/uuu-engine/doors/batches/`, one small file each, written only by the home screen. They are removed 30 days after they end.
 - What was spent: `~/.paperclip/uuu-engine/doors/generate-ledger.jsonl`, written only by the generation door, with dated copies of old months (`generate-ledger-<date>.jsonl`) beside it.
 - The generation door's work folder: `~/.paperclip/uuu-engine/doors/work/gen/`. It holds the pictures sent to Runway (for one day) and the clips and pictures Runway made (for two days), and the job records. The clips and pictures you keep are copied into the goal's folder by the Artist. Agents cannot reach this folder.
+- Page viewer: its switch is in `~/.paperclip/uuu-engine/doors/state.json` beside the other doors', and what it counted is `doors/viewer-status.json`. Agents cannot reach either.
+- The viewer's work folder: `~/.paperclip/uuu-engine/doors/work/view/`. It holds one site for the render that is running and is removed when the render ends. Agents cannot reach this folder.
+- The home screen's pictures of pages: `~/.paperclip/uuu-engine/home/shots/`, one folder for each version's files, at most 500 MB in all, oldest removed first. Only the home server writes there; agents cannot read it.
+- The site kit: `~/.paperclip/uuu-engine/playbooks/site-kit/`, copied there by `engine/playbooks/install.sh` from `engine/site-kit/`. Every agent can read it and none can change it.
 - The Researcher's notes: `~/.paperclip/uuu-engine/tasks/research/<goal>/`. Files you shared with it: `knowledge/shared/`.
 - Logs: `~/.paperclip/uuu-engine/logs/`. One file per part, including `relay.log`, plus `gate-refusals.log`, which lists what the gate turned away.
 - Secrets: `~/.paperclip/uuu-engine/secrets/`, and the agents' login in `agent.env` beside it. Only you can read them. They are never in the repository and are never shown here.
