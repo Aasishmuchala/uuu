@@ -220,3 +220,36 @@ test("job: a page's job says the viewer opens each version and must be on; no ot
   assert.ok(estimate.indexOf("${money ?") < estimate.indexOf("${page ?") && estimate.indexOf("${page ?") < estimate.indexOf("p-job__promise"),
     "the line stands under the estimate and its money, before the promise");
 });
+
+// PLAN-COOK T62: the column layout, the crumbs Jobs / <name>, the kit's money block, the preview beside from 1100 px.
+test("job: the words the page adds are pinned (T62)", () => {
+  assert.deepEqual({ ...page.JOB_WORDS }, {
+    needs: "What it needs",
+    needsLine: "Answer these questions, then start it.",
+    facts: "About this job",
+    allJobs: "Jobs",
+  });
+  assert.equal(page.BESIDE, "(min-width: 1100px)");
+});
+
+test("job: the crumbs are Jobs / <the job's name>; no chip and no creature (T62, O2)", () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "pages", "job.js"), "utf8");
+  assert.match(src, /const crumbs = \[\{ label: JOB_WORDS\.allJobs, href: "#\/jobs" \}, \{ label: text\(job\.title\) \}\];/);
+  assert.match(src, /crumbs=\$\{crumbs\}/);
+  assert.doesNotMatch(src, /creature=|chip=/);
+});
+
+test("job: the money sentence is the kit's money block in its words-only form; the shotlist's classes are not used (T62)", () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "pages", "job.js"), "utf8");
+  assert.match(src, /<\$\{MoneyBlock\} words=\$\{generation\.words\} \/>/);
+  assert.doesNotMatch(src, /k-sl__|k-site__/);
+});
+
+test("job: from 1100 px the preview stands beside the form and Start spans the foot (T62)", () => {
+  const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "styles", "pages", "job.css"), "utf8");
+  const wide = css.slice(css.indexOf("@media (min-width: 1100px)"));
+  assert.match(wide, /grid-template-columns: minmax\(0, 1fr\) minmax\(0, 340px\);/);
+  assert.match(wide, /\.k-job--start > \.k-job__preview \{\s*grid-column: 2;/);
+  assert.match(wide, /\.k-job--start > \.k-job__actions \{\s*grid-column: 1 \/ -1;/);
+  assert.doesNotMatch(css, /var\(--glass|--highlight|--hairline/);
+});

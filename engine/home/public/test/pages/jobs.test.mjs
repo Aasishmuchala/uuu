@@ -183,3 +183,55 @@ test("jobs: the narrow Filter chip counts the chip rows that are on (M51 F23)", 
   assert.equal(m.chipsOn({ d: "sales", handoff: "", stage: 0 }), 1);
   assert.equal(m.chipsOn({ d: "sales", handoff: "you-lead", stage: 3, ready: true, q: "x" }), 3, "Ready only and the search stay in sight, so they are not counted");
 });
+
+// PLAN-COOK T62: the list pattern of the Tasks page, jobs as cards, no creature and no department colour.
+test("jobs: the words the page adds are pinned (T62)", () => {
+  assert.deepEqual({ ...mod.JOBS_WORDS }, {
+    filters: "Filter the jobs",
+    department: "Department",
+    handoff: "Hand-off",
+    stage: "Stage",
+    allDepartments: "Every department",
+    anyHandoff: "Any hand-off",
+    anyStage: "Any stage",
+    views: "Show the jobs as",
+  });
+  assert.ok(Object.isFrozen(mod.JOBS_WORDS));
+});
+
+test("jobs: a department's one sentence is its clusters' own names, joined plainly (T62)", () => {
+  const deps = mod.departmentsOf(CATALOGUE);
+  assert.equal(mod.deptSentence(deps[0]), "Company brain and Planning.");
+  assert.equal(mod.deptSentence(deps[1]), "Calls.");
+  assert.equal(mod.deptSentence({ clusters: [{ title: "A" }, { title: "B" }, { title: "C" }] }), "A, B and C.");
+  assert.equal(mod.deptSentence({ clusters: [{ title: "" }] }), "");
+  assert.equal(mod.deptSentence(null), "");
+});
+
+test("jobs: a department is its line icon, as the sidebar draws it; anything else is the jobs icon (T62, O2, O7)", () => {
+  assert.deepEqual(["brain", "operations", "sales", "marketing", "studio", "support", "people", "books", "x"].map(mod.deptIcon),
+    ["brain", "layers", "trend", "horn", "film", "buoy", "team", "book", "jobs"]);
+});
+
+test("jobs: a filter menu's choices carry their address and mark the current one (T62)", () => {
+  const make = (v) => mod.address({ d: v });
+  const got = mod.menuChoices([{ value: "", label: "Every department" }, { value: "sales", label: "Sales" }], "sales", make);
+  assert.deepEqual(got, [
+    { id: "all", label: "Every department", href: "#/jobs", current: false },
+    { id: "sales", label: "Sales", href: "#/jobs?d=sales", current: true },
+  ]);
+  assert.equal(mod.menuChoices([{ value: "", label: "Any" }], "", make)[0].current, true);
+  assert.deepEqual(mod.menuChoices(null, "", make), []);
+});
+
+test("jobs: no creature, no glass and no department colour; cards are the kit's, a blocked one says why with its link (T62)", () => {
+  const src = readFileSync(new URL("../../pages/jobs.js", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../../styles/pages/jobs.css", import.meta.url), "utf8");
+  assert.doesNotMatch(src, /Creature|u-glass|u-serif|u-over|data-dept/);
+  assert.doesNotMatch(css, /--dept\b|var\(--glass|--hairline|--text\b/);
+  assert.match(src, /<\$\{Card\} padding="none"/);
+  assert.match(src, /<\$\{JobRow\} job=\$\{job\} \/>/);
+  assert.match(src, /dim && job\.why \? html`<div class="p-jobs__why"><\$\{WhyNot\} why=\$\{job\.why\} \/><\/div>`/);
+  assert.match(css, /\.p-jobs \.p-jobs__cards \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);\s*gap: var\(--s-6\);/, "two across with a 24 px gutter");
+  assert.match(css, /\.p-jobs \.p-jobs__card \.k-job--row > \.k-job__dot \{\s*display: none;/, "the department icon is drawn once, by the heading");
+});

@@ -1,46 +1,208 @@
-/* A job (pages/job.js): a centred column with the job's marks, who does it, the start form and the earlier runs. */
+/* A job (pages/job.js; PLAN-COOK T62 after R02 and R04): one reading column on the ground. The title and its
+   sentence, the job's facts as quiet label and sentence rows, then "What it needs": the kit's start form as one
+   column of rows, with the preview of what will be sent beside it on the raised step from 1100 px, and the one
+   primary, Start, at the form's foot under a hairline. A job that cannot start yet keeps Start in its place, inert,
+   with the reason and its link fused under it. Then the starter packs and the earlier runs. No glass, no creature. */
 
-.p-job { display: flex; flex-direction: column; gap: var(--s-6); }
-
-.p-job .p-job__card {
+.p-job {
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
-  padding: var(--s-5);
-  border-radius: var(--r-5);
-  background: var(--glass);
-  box-shadow: inset 0 0 0 1px var(--hairline), var(--highlight);
+  gap: var(--s-7);
   min-width: 0;
+  max-width: var(--content-max);
 }
 
-.p-job .p-job__tags { display: flex; flex-direction: column; gap: var(--s-2); }
+.p-job .k-page-header {
+  margin-bottom: 0;
+}
 
-.p-job .p-job__tag {
+/* The facts: the hand-off and the stage with their one-liners, and who does it. */
+.p-job .p-job__facts {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
   gap: var(--s-2);
+  margin-top: calc(-1 * var(--s-3));
+  padding-bottom: var(--s-6);
+  border-bottom: 1px solid var(--line);
+}
+
+.p-job .p-job__fact-list {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: var(--s-2) var(--s-4);
+  margin: 0;
+}
+
+.p-job .p-job__fact {
+  display: contents;
+}
+
+.p-job .p-job__fact dt,
+.p-job .p-job__fact dd {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.p-job .p-job__fact dt {
+  display: flex;
+  align-items: center;
+}
+
+.p-job .p-job__fact dt .k-job {
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+
+.p-job .p-job__about {
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.p-job .p-job__who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.p-job .p-job__who .k-icon {
+  flex: none;
+  color: var(--ink-3);
+}
+
+/* What it needs: a 17 px heading and one sentence, then the form. */
+.p-job .p-job__needs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
   min-width: 0;
 }
 
-.p-job .p-job__about { font-size: var(--fs-caption); color: var(--text-2); min-width: 0; overflow-wrap: anywhere; }
+.p-job .p-job__needs-head {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-section);
+}
 
-.p-job .p-job__who { margin: 0; color: var(--text); font-size: var(--fs-body); }
+.p-job .p-job__needs-line {
+  margin: calc(-1 * var(--s-4)) 0 0;
+  color: var(--ink-2);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
 
 .p-job .p-job__from {
   margin: 0;
   padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-3);
-  background: var(--glass-soft);
-  color: var(--text-2);
-  font-size: var(--fs-caption);
+  border-radius: var(--r-2);
+  background: var(--ctl);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
   overflow-wrap: anywhere;
 }
 
-.p-job .p-job__start { min-width: 0; }
+.p-job .p-job__start {
+  min-width: 0;
+}
 
-/* A job that cannot start: the reason stands in place of the button. */
-.p-job .p-job__start--blocked .k-job__actions { display: none; }
+/* The form: questions as rows, then what it reads, the versions and the foot. */
+.p-job .k-job--start {
+  gap: var(--s-6);
+}
+
+.p-job .k-job__asks {
+  gap: var(--s-5);
+}
+
+.p-job .k-job__asks .k-field__label {
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+}
+
+/* Why it cannot start yet: said once, first in the form, as the kit's warning line (a thin amber rule on a faint
+   tint), with the way to fix it at its right. */
+.p-job .k-job--start > .k-job--why {
+  padding: 10px var(--s-3);
+  border-left: 2px solid var(--warn);
+  border-radius: 0 var(--r-1) var(--r-1) 0;
+  background: var(--warn-bg);
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.p-job .k-job--start > .k-job--why .k-job__why-link {
+  flex: none;
+  margin-left: auto;
+  border-radius: var(--r-1);
+}
+
+/* The foot: Start, the one primary, under a hairline. A job that cannot start keeps it there, inert. */
+.p-job .k-job--start > .k-job__actions {
+  order: 20;
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
+.p-job .p-job__start--blocked .k-job__under {
+  display: none;
+}
+
+.p-job .p-job__start--blocked .k-job__actions .k-btn {
+  cursor: not-allowed;
+}
+
+/* The preview of what will be sent: readable text on the raised step. */
+.p-job .k-job__preview {
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.p-job .k-job__preview-head {
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-3);
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+}
+
+.p-job .k-job__preview-head .k-job__fold {
+  color: var(--ink-3);
+}
+
+.p-job .k-job__preview-text {
+  max-width: none;
+  margin: 0;
+  padding: 0 var(--s-4) var(--s-4);
+  color: var(--ink-2);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-body);
+}
+
+.p-job .k-job__preview-text .k-job__blank {
+  color: var(--ink);
+  font-style: normal;
+  text-decoration: underline dotted var(--ink-3);
+  text-underline-offset: 3px;
+}
+
+.p-job .k-job__preview-head:focus-visible,
+.p-job .p-job__link:focus-visible,
+.p-job .k-job__why-link:focus-visible,
+.p-job .k-job__read-name:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 .p-job .p-job__runs {
   list-style: none;
@@ -51,20 +213,30 @@
   gap: var(--s-1);
 }
 
-.p-job .p-job__link { color: var(--accent); }
+.p-job .p-job__link {
+  color: var(--accent);
+}
 
 /* A job that follows earlier work with nothing accepted to start from: what to run first, in place of Start. */
 .p-job .p-job__follows {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  padding: var(--s-3) var(--s-4);
-  border-radius: var(--r-3);
-  background: var(--glass-soft);
-  box-shadow: inset 0 0 0 1px var(--hairline);
+  padding: var(--s-4) 0 0;
+  border-top: 1px solid var(--line);
 }
-.p-job .p-job__follows-text { margin: 0; color: var(--text); }
-.p-job .p-job__follows-links { margin: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); }
+
+.p-job .p-job__follows-text {
+  margin: 0;
+  color: var(--ink);
+}
+
+.p-job .p-job__follows-links {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+}
 
 /* A starter pack the job reads that is not in the company's files yet: one line and one action (M63 41). */
 .p-job .p-job__packs {
@@ -73,19 +245,18 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
 }
+
 .p-job .p-job__pack {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s-2) var(--s-4);
-  padding: var(--s-3) var(--s-4);
-  border-radius: var(--r-3);
-  background: var(--glass-soft);
-  box-shadow: inset 0 0 0 1px var(--hairline);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--line);
   min-width: 0;
 }
+
 .p-job .p-job__pack-text {
   margin: 0;
   flex: 1 1 16rem;
@@ -93,45 +264,225 @@
   display: flex;
   align-items: flex-start;
   gap: var(--s-2);
-  color: var(--text-2);
-  font-size: var(--fs-caption);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
   overflow-wrap: anywhere;
 }
-.p-job .p-job__pack-text strong { color: var(--text); font-weight: 600; }
-.p-job .p-job__pack--present .p-job__pack-text { color: var(--text); }
-.p-job .p-job__pack--present .k-icon { color: var(--ok-text); flex: none; margin-top: 2px; }
-.p-job .p-job__pack-act { flex: none; }
-.p-job .p-job__pack-problem { margin: 0; flex-basis: 100%; color: var(--bad-text); font-size: var(--fs-caption); }
 
-/* Versions (K9): one piece or three, with its honest price in time. */
+.p-job .p-job__pack-text strong {
+  color: var(--ink);
+  font-weight: var(--fw-bold);
+}
+
+.p-job .p-job__pack--present .p-job__pack-text {
+  color: var(--ink);
+}
+
+.p-job .p-job__pack--present .k-icon {
+  color: var(--good);
+  flex: none;
+  margin-top: 2px;
+}
+
+.p-job .p-job__pack-act {
+  flex: none;
+}
+
+.p-job .p-job__pack-problem {
+  margin: 0;
+  flex-basis: 100%;
+  color: var(--bad);
+  font-size: var(--fs-note);
+}
+
+/* Versions (K9): one piece or three, with its honest price in time, as one row of the form. */
 .p-job .p-job__versions {
   margin: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
-  padding: var(--s-4);
+  padding: 0;
   border: 0;
-  border-radius: var(--r-4);
-  background: var(--glass-soft);
-  box-shadow: inset 0 0 0 1px var(--hairline);
 }
-.p-job .p-job__versions-head { float: left; width: 100%; margin-bottom: calc(var(--s-3) * -1); padding: 0; font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--ink-3); font-weight: var(--fw-medium); }
-.p-job .p-job__versions-only { margin: 0; color: var(--text-2); font-size: var(--fs-body); }
-.p-job .p-job__estimate { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
-.p-job .p-job__time { margin: 0; display: flex; align-items: center; gap: var(--s-2); color: var(--text); font-size: var(--fs-title); }
-.p-job .p-job__time strong { font-weight: var(--fw-bold); }
-.p-job .p-job__promise, .p-job .p-job__review, .p-job .p-job__last, .p-job .p-job__books {
-  margin: 0; color: var(--text-2); font-size: var(--fs-body); overflow-wrap: anywhere;
+
+.p-job .p-job__versions-head {
+  float: left;
+  width: 100%;
+  margin-bottom: calc(var(--s-3) * -1);
+  padding: 0;
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
 }
-.p-job .p-job__review { color: var(--text); }
-.p-job .p-job__last, .p-job .p-job__books { font-size: var(--fs-caption); color: var(--text-3); }
+
+.p-job .p-job__versions > .k-seg {
+  align-self: flex-start;
+}
+
+.p-job .p-job__versions-only {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-ui);
+}
+
+.p-job .p-job__estimate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.p-job .p-job__time {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--ink);
+  font-size: var(--fs-fact);
+  line-height: var(--lh-ui);
+}
+
+.p-job .p-job__time .k-icon,
+.p-job .p-job__page-line .k-icon {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.p-job .p-job__time strong {
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-job .p-job__label {
+  color: var(--ink-2);
+}
+
+/* The money sentence: the kit's money block in its words-only form, set off by a thin rule at its left. */
+.p-job .p-job__money .k-money {
+  padding-left: var(--s-3);
+  border-left: 2px solid var(--line-2);
+}
+
+.p-job .p-job__money .k-money__say {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-job .p-job__page-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-job .p-job__promise,
+.p-job .p-job__review,
+.p-job .p-job__last,
+.p-job .p-job__books {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  overflow-wrap: anywhere;
+}
+
+.p-job .p-job__review {
+  color: var(--ink);
+}
+
+.p-job .p-job__last,
+.p-job .p-job__books {
+  font-size: var(--fs-note);
+  color: var(--ink-3);
+}
+
+/* From 1100 px: the questions at the left, the preview beside them, Start across the foot. The preview spans every
+   row of the form down to a flexible one, so a long preview never pushes the questions apart. */
+@media (min-width: 1100px) {
+  .p-job .k-job--start:not(.k-job--started) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+    grid-template-rows: repeat(6, auto) 1fr auto auto;
+    column-gap: var(--s-8);
+    row-gap: 0;
+  }
+
+  .p-job .k-job--start:not(.k-job--started) > * {
+    grid-column: 1;
+    margin-bottom: var(--s-6);
+  }
+
+  .p-job .k-job--start > .k-job__preview {
+    grid-column: 2;
+    grid-row: 1 / 8;
+    align-self: start;
+    position: sticky;
+    top: calc(var(--topbar-h) + var(--s-4));
+  }
+
+  /* Start stays in sight at the foot of the window while the form is on screen. */
+  .p-job .k-job--start > .k-job__actions {
+    grid-column: 1 / -1;
+    grid-row: 8;
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin-bottom: 0;
+    padding-bottom: var(--s-5);
+    background: var(--bg);
+  }
+}
 
 @media (max-width: 859px) {
-  .p-job .p-job__versions .k-seg { width: 100%; }
-  .p-job .p-job__versions .k-seg__item { min-height: 44px; flex: 1 1 0; }
-  .p-job .p-job__pack-act { flex-basis: 100%; }
-  .p-job .p-job__pack-act .k-btn { min-height: 44px; }
+  .p-job {
+    gap: var(--s-7);
+  }
 
-  .p-job .p-job__link { display: inline-flex; align-items: center; min-height: 44px; }
+  .p-job .p-job__facts {
+    margin-top: calc(-1 * var(--s-2));
+  }
+
+  .p-job .p-job__fact-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-1);
+  }
+
+  .p-job .p-job__fact dd {
+    margin-bottom: var(--s-2);
+  }
+
+  .p-job .p-job__versions .k-seg {
+    width: 100%;
+  }
+
+  .p-job .p-job__versions .k-seg__item {
+    min-height: 44px;
+    flex: 1 1 0;
+  }
+
+  .p-job .k-job__actions .k-btn {
+    min-height: 44px;
+  }
+
+  .p-job .p-job__pack-act {
+    flex-basis: 100%;
+  }
+
+  .p-job .p-job__pack-act .k-btn {
+    min-height: 44px;
+  }
+
+  .p-job .p-job__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
 }

@@ -1,5 +1,7 @@
-// A job (CONTRACTS-V3 30, "A job"): the breadcrumb chip, the overline, the title, the sentence, the hand-off tag and
-// stage with their one-liners, who does it, then the start form. When it cannot start the reason stands in place of
+// A job (CONTRACTS-V3 30, "A job"; PLAN-COOK T62 after R02 and R04): the crumbs Jobs / <name> in the top bar, the
+// overline, the title, the sentence, the hand-off tag and stage with their one-liners and who does it as quiet facts,
+// then "What it needs": the start form in one column with the preview of what will be sent beside it from 1100 px,
+// and the one primary, Start, at the form's foot. When it cannot start the reason stands in place of
 // the button. Under it, the earlier runs. With ?from=, the earlier task is named above the form, as a link to it by
 // its title. A job that follows earlier work, with no accepted earlier task to pick, says which job to run first in
 // place of the button (M51 F6). A starter pack the job reads that is not in the company's files yet gets one action,
@@ -9,12 +11,12 @@
 // words stand in its place.
 // A job that makes a page (PLAN-V5 K16, T54) says under its estimate what the page viewer adds to its time.
 // The words of a job come from the company's own files; the server's refusals are shown as they come.
-import { html, useState } from "../vendor/preact-htm.js";
+import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useRoute } from "../lib/router.js";
 import {
-  Button, Empty, ErrorNotice, HANDOFFS, HandoffTag, Icon, JobStart, Loading, NotConnected, PageHeader, STAGES, Section, Segmented, StageMark,
-  TaskRow,
+  Button, Empty, ErrorNotice, HANDOFFS, HandoffTag, Icon, JobStart, Loading, MoneyBlock, NotConnected, PageHeader, STAGES, Section, Segmented,
+  StageMark, TaskRow,
 } from "../kit/index.js";
 
 const SLUG = /^[a-z][a-z0-9-]{0,50}$/;
@@ -227,9 +229,10 @@ export function moneyWords(job) {
   return g && g.ok ? g : null;
 }
 
-// The money words under the estimate; they are the server's sentence, shown as text.
+// The money words under the estimate; they are the server's sentence, shown as text in the kit's money block
+// (its sentences-only form: no figure is drawn from words).
 function Money({ generation }) {
-  return html`<p class="k-sl__money"><${Icon} name="tag" size=${16} /><span>${generation.words}</span></p>`;
+  return html`<div class="p-job__money"><${MoneyBlock} words=${generation.words} /></div>`;
 }
 
 function VersionChoice({ craft, n, onPick, job }) {
@@ -248,9 +251,9 @@ function VersionChoice({ craft, n, onPick, job }) {
       ? html`<${Segmented} items=${items} current=${n} onChange=${onPick} label="Versions" />`
       : html`<p class="p-job__versions-only">This job makes one version.</p>`}
     <div class="p-job__estimate" role="status" aria-live="polite">
-      ${words ? html`<p class="p-job__time"><${Icon} name="clock" size=${16} /><span>${label ? html`<span class="k-sl__label">${label} </span>` : null}<strong>${words}</strong></span></p>` : null}
+      ${words ? html`<p class="p-job__time"><${Icon} name="clock" size=${16} /><span>${label ? html`<span class="p-job__label">${label} </span>` : null}<strong>${words}</strong></span></p>` : null}
       ${money ? html`<${Money} generation=${money} />` : null}
-      ${page ? html`<p class="k-site__job"><${Icon} name="image" size=${16} /><span>${page}</span></p>` : null}
+      ${page ? html`<p class="p-job__page-line"><${Icon} name="image" size=${16} /><span>${page}</span></p>` : null}
       <p class="p-job__promise">${versionPromise(craft, n)}</p>
       ${review ? html`<p class="p-job__review">${review}</p>` : null}
       ${last ? html`<p class="p-job__last">${last}</p>` : null}
@@ -267,7 +270,7 @@ function StartForm({ job, from, onStarted, queue }) {
   const seen = gatedJob(job);
   if (!craft) {
     return html`<${JobStart} job=${seen} from=${from} onStarted=${onStarted} queue=${queue}
-      before=${money ? html`<div class="k-sl__price"><${Money} generation=${money} /></div>` : null} />`;
+      before=${money ? html`<div class="p-job__price"><${Money} generation=${money} /></div>` : null} />`;
   }
   const chosen = versionChoices(craft).allowed.includes(n) ? n : 1;
   return html`<${JobStart} job=${seen} from=${from} onStarted=${onStarted} queue=${queue} timed=${false}
@@ -320,6 +323,41 @@ function StarterPacks({ job, onAdded }) {
   </ul>`;
 }
 
+// The words this page adds (PLAN-COOK T62). Pinned by test/pages/job.test.mjs.
+export const JOB_WORDS = Object.freeze({
+  needs: "What it needs",
+  needsLine: "Answer these questions, then start it.",
+  facts: "About this job",
+  allJobs: "Jobs",
+});
+
+// From 1100 px the preview of what will be sent stands open beside the questions; under that it stays folded under
+// them. The kit's start form draws the preview as a fold of its own: this opens it when the form comes in or is
+// drawn again ("Start it again"), and leaves it as the owner set it after that.
+export const BESIDE = "(min-width: 1100px)";
+function useBeside(ref) {
+  useEffect(() => {
+    const root = ref.current;
+    if (!root || typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const wide = window.matchMedia(BESIDE);
+    const open = () => {
+      for (const d of root.querySelectorAll("details.k-job__preview:not([data-p-job-seen])")) {
+        d.setAttribute("data-p-job-seen", "");
+        if (wide.matches) d.open = true;
+      }
+    };
+    const turn = () => { for (const d of root.querySelectorAll("details.k-job__preview")) d.open = wide.matches; };
+    open();
+    const watch = typeof MutationObserver === "function" ? new MutationObserver(open) : null;
+    if (watch) watch.observe(root, { childList: true, subtree: true });
+    if (typeof wide.addEventListener === "function") wide.addEventListener("change", turn);
+    return () => {
+      if (watch) watch.disconnect();
+      if (typeof wide.removeEventListener === "function") wide.removeEventListener("change", turn);
+    };
+  }, []);
+}
+
 function Body({ job, recent, from, earlier, onStarted, onChanged, queue }) {
   const dept = text(job.department && job.department.id);
   const about = aboutLines(job);
@@ -327,23 +365,29 @@ function Body({ job, recent, from, earlier, onStarted, onChanged, queue }) {
   const first = followsFirst(job, from);
   const state = startState(gatedJob(job));
   const runs = list(recent).filter((t) => t && typeof t === "object");
+  const form = useRef(null);
+  useBeside(form);
   return html`
-    <div class="p-job__card">
-      <div class="p-job__tags">
-        <div class="p-job__tag"><${HandoffTag} id=${job.handoff} />${about.handoff && html`<span class="p-job__about">${about.handoff}</span>`}</div>
-        <div class="p-job__tag"><${StageMark} n=${job.stage} />${about.stage && html`<span class="p-job__about">${about.stage}</span>`}</div>
-      </div>
-      <p class="p-job__who">${whoLine(job)}</p>
+    <div class="p-job__facts">
+      <dl class="p-job__fact-list" aria-label=${JOB_WORDS.facts}>
+        <div class="p-job__fact"><dt><${HandoffTag} id=${job.handoff} /></dt>${about.handoff && html`<dd class="p-job__about">${about.handoff}</dd>`}</div>
+        <div class="p-job__fact"><dt><${StageMark} n=${job.stage} /></dt>${about.stage && html`<dd class="p-job__about">${about.stage}</dd>`}</div>
+      </dl>
+      <p class="p-job__who"><${Icon} name="team" size=${14} /><span>${whoLine(job)}</span></p>
+    </div>
+    <section class="p-job__needs" aria-labelledby="p-job-needs">
+      <h2 class="p-job__needs-head" id="p-job-needs">${JOB_WORDS.needs}</h2>
+      <p class="p-job__needs-line">${JOB_WORDS.needsLine}</p>
       ${note && html`<p class="p-job__from">${note.title
         ? html`Following the earlier task <a class="p-job__link" href=${note.href}>${note.title}</a>.`
         : html`Following an <a class="p-job__link" href=${note.href}>earlier task</a>.`}</p>`}
       ${first
         ? html`<${FollowsFirst} first=${first} />`
-        : html`<div class=${state.canStart ? "p-job__start" : "p-job__start p-job__start--blocked"} data-dept=${dept || undefined}>
+        : html`<div ref=${form} class=${state.canStart ? "p-job__start" : "p-job__start p-job__start--blocked"} data-dept=${dept || undefined}>
             <${StartForm} key=${text(job.id)} job=${job} from=${from} onStarted=${onStarted} queue=${queue} />
           </div>`}
       <${StarterPacks} key=${text(job.id)} job=${job} onAdded=${onChanged} />
-    </div>
+    </section>
     <${Section} title="Earlier runs" count=${runs.length || undefined}>
       ${runs.length
         ? html`<ul class="p-job__runs">${runs.map((t) => html`<li key=${text(t.id)}><${TaskRow} task=${t} /></li>`)}</ul>`
@@ -380,15 +424,10 @@ export default function Page() {
     </div>`;
   }
 
-  const deptId = text(job.department && job.department.id);
-  const chip = {
-    label: [text(job.department && job.department.title), text(job.title)],
-    href: SLUG.test(deptId) ? `#/departments/${deptId}` : "#/jobs",
-    closeLabel: "Close the job",
-  };
+  // Where you are, in the top bar: Jobs / <the job's name>.
+  const crumbs = [{ label: JOB_WORDS.allJobs, href: "#/jobs" }, { label: text(job.title) }];
   return html`<div class="p-job">
-    <${PageHeader} title=${text(job.title)} over=${overlineOf(job)} lead=${text(job.summary)} chip=${chip}
-      creature=${SLUG.test(deptId) ? deptId : undefined} />
+    <${PageHeader} title=${text(job.title)} over=${overlineOf(job)} lead=${text(job.summary)} crumbs=${crumbs} />
     <${Body} job=${job} recent=${d.recent} from=${from} earlier=${earlier.data && earlier.data.task}
       onStarted=${() => res.refresh()} onChanged=${() => res.refresh()} queue=${d.queue && typeof d.queue === "object" ? d.queue : null} />
   </div>`;

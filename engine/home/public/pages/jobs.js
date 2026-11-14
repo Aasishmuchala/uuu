@@ -6,8 +6,8 @@ import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { fileToken } from "../lib/format.js";
 import {
-  Creature, Empty, ErrorNotice, Field, HANDOFFS, HandoffTag, Icon, JobRow, Loading, PageHeader, Ring, Segmented,
-  STAGES, StageMark, Switch, TextInput,
+  Card, Empty, ErrorNotice, HANDOFFS, HandoffTag, Icon, JobRow, Loading, Menu, PageHeader, Ring, Segmented,
+  STAGES, StageMark, Switch, TextInput, WhyNot,
 } from "../kit/index.js";
 
 const LEAD = "Named pieces of work an agent can start for you. Starting a job makes a task.";
@@ -16,7 +16,6 @@ const DEPT_ID = /^[a-z][a-z0-9-]{1,30}$/;
 const FORM_ID = /^[a-z][a-z0-9-]{0,40}$/;
 const TOKEN = /^[A-Za-z0-9_-]{1,400}$/;
 const WORDS_MAX = 100;
-const CREATURE_DEPTS = ["operations", "sales", "marketing", "studio", "support", "people", "books"];
 
 const str = (v) => (typeof v === "string" ? v : "");
 const arr = (v) => (Array.isArray(v) ? v : []);
@@ -193,75 +192,130 @@ export function buildOrder(data, brain) {
 
 // --- The page --------------------------------------------------------------------------------------------
 
-function ChipRow({ label, items }) {
-  return html`<div class="p-jobs__chips" role="group" aria-label=${label}>
-    <span class="p-jobs__chips-label" aria-hidden="true">${label}</span>
-    <div class="p-jobs__chips-row">
-      ${items.map((it) => html`<a key=${it.id} class=${`p-jobs__chip${it.on ? " p-jobs__chip--on" : ""}`} href=${it.href}
-          aria-current=${it.on ? "true" : undefined} data-dept=${it.dept || undefined}>
-          ${it.dept ? html`<span class="p-jobs__chip-dot" aria-hidden="true"></span>` : null}
-          ${it.mark || null}<span>${it.label}</span>
-        </a>`)}
-    </div>
+// PLAN-COOK T62 (R12, R09): the list pattern the Tasks page set. The title with the view switch at its right, then
+// one bar: the department, hand-off and stage as the kit's menus, "Ready only" and the search field at the right. Then one group a
+// department under a plain 17 px heading with its count and one sentence (its clusters), and the jobs as cards two
+// across with a 24 px gutter: the name, one sentence, the facts as grey words, one outlined button. A job that
+// cannot start yet says why in words, with its link, under the card's facts. No creature and no department colour
+// (O2, O7): a department is its line icon, drawn once by its heading.
+
+// The words this page adds (T62). Pinned by test/pages/jobs.test.mjs.
+export const JOBS_WORDS = Object.freeze({
+  filters: "Filter the jobs",
+  department: "Department",
+  handoff: "Hand-off",
+  stage: "Stage",
+  allDepartments: "Every department",
+  anyHandoff: "Any hand-off",
+  anyStage: "Any stage",
+  views: "Show the jobs as",
+});
+
+// The departments' line icons, as the sidebar draws them (shell/sidenav.js teamItems).
+const DEPT_ICONS = { brain: "brain", operations: "layers", sales: "trend", marketing: "horn", studio: "film", support: "buoy", people: "team", books: "book" };
+export const deptIcon = (id) => DEPT_ICONS[id] || "jobs";
+
+// The one sentence under a department's heading: what its jobs are about, from its clusters' own names.
+// "Company brain, Documents and Planning." Pure; "" when it has no named cluster.
+export function deptSentence(d) {
+  const names = arr(d && d.clusters).map((c) => cap(c && c.title, 60)).filter(Boolean).slice(0, 6);
+  if (!names.length) return "";
+  return `${names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`}.`;
+}
+
+// The choices of one filter menu, each with its address and the current one marked: [{ id, label, href, current }].
+export function menuChoices(options, current, make) {
+  return arr(options).map((o) => ({ id: o.value || "all", label: o.label, href: make(o.value), current: o.value === (current || "") }));
+}
+
+const go = (href) => { if (href && typeof location !== "undefined") location.hash = href; };
+
+// One filter: the kit's menu, its button showing the filter's name, or its choice once one is made.
+function FilterMenu({ name, options, current, make }) {
+  const on = arr(options).find((o) => o.value && o.value === current);
+  const items = menuChoices(options, current, make).map((c) => ({
+    id: c.id, label: c.label, icon: c.current ? "check" : undefined, current: c.current ? true : undefined, onSelect: () => go(c.href),
+  }));
+  return html`<div class=${`p-jobs__filter${on ? " p-jobs__filter--on" : ""}`} role="group" aria-label=${name}>
+    <${Menu} label=${on ? on.label : name} items=${items} />
   </div>`;
 }
 
 // How many of the three chip rows have a choice on (shown on the narrow Filter chip; M51 F23).
 export const chipsOn = (f) => [f && f.d, f && f.handoff, f && f.stage].filter(Boolean).length;
 
-function Filters({ f, departments, words, onWords }) {
-  const [open, setOpen] = useState(false);
-  const on = chipsOn(f);
-  const go = (change) => address({ ...f, q: words, ...change });
-  const depts = [{ id: "all", label: "All", href: go({ d: "" }), on: !f.d },
-    ...departments.map((d) => ({ id: d.id, label: d.title, dept: d.id, href: go({ d: d.id }), on: f.d === d.id }))];
-  const handoffs = [{ id: "all", label: "Any", href: go({ handoff: "" }), on: !f.handoff },
-    ...Object.keys(HANDOFFS).map((id) => ({ id, label: HANDOFFS[id].label, href: go({ handoff: id }), on: f.handoff === id }))];
-  const stages = [{ id: "all", label: "Any", href: go({ stage: 0 }), on: !f.stage },
-    ...[1, 2, 3, 4].map((n) => ({ id: String(n), label: STAGES[n].label, mark: html`<span class="p-jobs__chip-n" aria-hidden="true">${n}</span>`, href: go({ stage: n }), on: f.stage === n }))];
-  return html`<div class="p-jobs__filters">
-    <div class="p-jobs__search">
-      <${Field} label="Search the jobs">
-        <${TextInput} type="search" value=${words} maxlength=${WORDS_MAX} placeholder="Words from a job's name or what it does"
-          onInput=${(e) => onWords(String(e.target.value))} />
-      <//>
-      <${Switch} on=${f.ready} label="Ready only" onChange=${(on) => { location.hash = go({ ready: on }); }} />
+function ViewSwitch({ f, words }) {
+  const views = [
+    { id: "list", label: "List", icon: "list", href: address({ ...f, view: "list", q: words }) },
+    { id: "order", label: "Build order", icon: "stage", href: address({ view: "order" }) },
+  ];
+  return html`<${Segmented} items=${views} current=${f.view} label=${JOBS_WORDS.views} />`;
+}
+
+function Bar({ f, departments, words, onWords }) {
+  const W = JOBS_WORDS;
+  const go2 = (change) => address({ ...f, q: words, ...change });
+  if (f.view === "order") return null;
+  const depts = [{ value: "", label: W.allDepartments }, ...departments.map((d) => ({ value: d.id, label: d.title }))];
+  const handoffs = [{ value: "", label: W.anyHandoff }, ...Object.keys(HANDOFFS).map((id) => ({ value: id, label: HANDOFFS[id].label }))];
+  const stages = [{ value: "", label: W.anyStage }, ...[1, 2, 3, 4].map((n) => ({ value: String(n), label: `${n}. ${STAGES[n].label}` }))];
+  return html`<div class="p-jobs__bar">
+    <div class="p-jobs__filters" role="group" aria-label=${W.filters}>
+      <${FilterMenu} name=${W.department} options=${depts} current=${f.d} make=${(v) => go2({ d: v })} />
+      <${FilterMenu} name=${W.handoff} options=${handoffs} current=${f.handoff} make=${(v) => go2({ handoff: v })} />
+      <${FilterMenu} name=${W.stage} options=${stages} current=${f.stage ? String(f.stage) : ""} make=${(v) => go2({ stage: Number(v) || 0 })} />
     </div>
-    <button type="button" class=${`p-jobs__fold${on ? " p-jobs__fold--on" : ""}`} aria-expanded=${open ? "true" : "false"}
-      aria-controls="p-jobs-chip-rows" onClick=${() => setOpen(!open)}>
-      <${Icon} name="filter" size=${14} />Filter${on ? html` <span class="p-jobs__fold-n">${on} on</span>` : null}
-    </button>
-    <div id="p-jobs-chip-rows" class=${`p-jobs__chip-rows${open ? " is-open" : ""}`}>
-      <${ChipRow} label="Department" items=${depts} />
-      <${ChipRow} label="Hand-off" items=${handoffs} />
-      <${ChipRow} label="Stage" items=${stages} />
+    <div class="p-jobs__find">
+      <${Switch} on=${f.ready} label="Ready only" onChange=${(on) => { location.hash = go2({ ready: on }); }} />
+      <span class="p-jobs__search">
+        <${Icon} name="search" size=${16} class="p-jobs__search-icon" />
+        <${TextInput} type="search" value=${words} maxlength=${WORDS_MAX} placeholder="Words from a job's name or what it does"
+          aria-label="Search the jobs" onInput=${(e) => onWords(String(e.target.value))} />
+      </span>
     </div>
   </div>`;
 }
 
+// One job as a card (R12): the kit's JobRow is the card's link (its name, its sentence, its facts and its Open
+// button); a job that cannot start yet adds the kit's WhyNot under it, outside the link, so its own link works.
+function JobCard({ job }) {
+  const dim = job.ready === false;
+  return html`<li class=${`p-jobs__card${dim ? " p-jobs__card--dim" : ""}`}>
+    <${Card} padding="none" class="p-jobs__card-box">
+      <${JobRow} job=${job} />
+      ${dim && job.why ? html`<div class="p-jobs__why"><${WhyNot} why=${job.why} /></div>` : null}
+    <//>
+  </li>`;
+}
+
+function Cards({ jobs }) {
+  return html`<ul class="p-jobs__cards">${jobs.map((j) => html`<${JobCard} key=${j.id} job=${j} />`)}</ul>`;
+}
+
 function Department({ d }) {
   const t = tally([d]);
-  const pet = CREATURE_DEPTS.includes(d.id) ? html`<${Creature} id=${d.id} size=${32} />` : html`<span class="p-jobs__dept-dot" aria-hidden="true"></span>`;
-  return html`<section class="p-jobs__dept u-glass" data-dept=${d.id} aria-label=${d.title}>
+  const sentence = deptSentence(d);
+  const id = `p-jobs-dept-${d.id}`;
+  return html`<section class="p-jobs__dept" aria-labelledby=${id}>
     <header class="p-jobs__dept-head">
-      <span class="p-jobs__dept-pet">${pet}</span>
-      <h2 class="p-jobs__dept-name u-serif">${d.title}</h2>
-      <span class="p-jobs__dept-count">${plural(t.jobs, "job")}${t.ready !== t.jobs ? ` · ${t.ready} ready` : ""}</span>
+      <h2 class="p-jobs__dept-name" id=${id}>
+        <${Icon} name=${deptIcon(d.id)} size=${18} class="p-jobs__dept-icon" />
+        <span>${d.title}</span>
+        <span class="p-jobs__dept-count">${plural(t.jobs, "job")}${t.ready !== t.jobs ? ` · ${t.ready} ready` : ""}</span>
+      </h2>
       <a class="p-jobs__dept-open" href=${`#/departments/${d.id}`}>Open ${d.title}</a>
     </header>
-    ${d.clusters.map((c) => html`<div key=${c.id} class="p-jobs__cluster">
-      <h3 class="p-jobs__cluster-name u-over">${c.title} · ${plural(c.jobs.length, "job")}</h3>
-      <div class="p-jobs__rows">${c.jobs.map((j) => html`<${JobRow} key=${j.id} job=${j} />`)}</div>
-    </div>`)}
+    ${sentence ? html`<p class="p-jobs__dept-about">${sentence}</p>` : null}
+    <${Cards} jobs=${allJobs([d])} />
   </section>`;
 }
 
 function Legend({ open }) {
-  return html`<details class="p-jobs__legend u-glass" open=${open}>
-    <summary class="p-jobs__legend-head">What the tags and stages mean</summary>
+  return html`<details class="p-jobs__legend" open=${open}>
+    <summary class="p-jobs__legend-head"><${Icon} name="chevron-right" size=${14} class="p-jobs__legend-fold" /><span>What the tags and stages mean</span></summary>
     <div class="p-jobs__legend-body">
       <div>
-        <p class="u-over">How much is left for you</p>
+        <p class="p-jobs__legend-title">How much is left for you</p>
         <dl class="p-jobs__legend-list">
           ${Object.keys(HANDOFFS).map((id) => html`<div key=${id} class="p-jobs__legend-item">
             <dt><${HandoffTag} id=${id} /></dt><dd>${HANDOFFS[id].about}</dd>
@@ -269,7 +323,7 @@ function Legend({ open }) {
         </dl>
       </div>
       <div>
-        <p class="u-over">The build order</p>
+        <p class="p-jobs__legend-title">The build order</p>
         <dl class="p-jobs__legend-list">
           ${[1, 2, 3, 4].map((n) => html`<div key=${n} class="p-jobs__legend-item">
             <dt><${StageMark} n=${n} /></dt><dd>${STAGES[n].about}</dd>
@@ -280,15 +334,12 @@ function Legend({ open }) {
   </details>`;
 }
 
-function ListView({ data, f, words, onWords }) {
-  const departments = departmentsOf(data);
+function ListView({ departments, f, words }) {
   const total = tally(departments);
-  const known = f.d && !departments.some((d) => d.id === f.d) ? { ...f, d: "" } : f;
-  const shown = filterJobs(departments, { ...known, q: words });
+  const shown = filterJobs(departments, { ...f, q: words });
   const now = tally(shown);
-  const narrowed = filtering({ ...known, q: words });
+  const narrowed = filtering({ ...f, q: words });
   return html`
-    <${Filters} f=${known} departments=${departments} words=${words} onWords=${onWords} />
     <div class="p-jobs__top">
       <p class="p-jobs__count" aria-live="polite">
         ${narrowed ? `Showing ${now.jobs} of ${plural(total.jobs, "job")}` : `${plural(total.jobs, "job")} · ${total.ready} ready to start`}
@@ -299,19 +350,19 @@ function ListView({ data, f, words, onWords }) {
     ${total.jobs === 0
       ? html`<${Empty} title="There are no jobs yet." text="Jobs appear here once the company's job files are in place." />`
       : shown.length === 0
-        ? html`<${Empty} title="No job matches." text="Try fewer words or another filter."><a href="#/jobs">Show every job</a><//>`
+        ? html`<${Empty} icon="search" title="No job matches." text="Try fewer words or another filter."><a class="p-jobs__every" href="#/jobs">Show every job</a><//>`
         : html`<div class="p-jobs__depts">${shown.map((d) => html`<${Department} key=${d.id} d=${d} />`)}</div>`}`;
 }
 
 function Band({ band, brainState }) {
   const groups = band.groups;
-  return html`<li class="p-jobs__band u-glass" aria-labelledby=${`p-jobs-stage-${band.n}`}>
+  return html`<li class="p-jobs__band" aria-labelledby=${`p-jobs-stage-${band.n}`}>
     <div class="p-jobs__band-head">
       ${band.ring
         ? html`<${Ring} value=${band.ring.value} total=${band.ring.total} size=${48} label=${band.ring.words} />`
         : html`<span class="p-jobs__band-ring-wait" aria-hidden="true"></span>`}
       <div class="p-jobs__band-titles">
-        <p class="u-over">Stage ${band.n}</p>
+        <p class="p-jobs__band-n">Stage ${band.n}</p>
         <h2 class="p-jobs__band-name" id=${`p-jobs-stage-${band.n}`}>${band.label}</h2>
         <p class="p-jobs__band-about">${band.about}</p>
       </div>
@@ -334,10 +385,10 @@ function Band({ band, brainState }) {
       : null}
     ${groups.length
       ? html`<div class="p-jobs__band-jobs">
-          ${band.n === 1 ? html`<p class="p-jobs__band-sub u-over">Jobs at this stage</p>` : null}
-          ${groups.map((g) => html`<div key=${g.id} class="p-jobs__band-group" data-dept=${g.id}>
-            <p class="p-jobs__band-dept"><span class="p-jobs__chip-dot" aria-hidden="true"></span>${g.title}</p>
-            <div class="p-jobs__rows">${g.jobs.map((j) => html`<${JobRow} key=${j.id} job=${j} />`)}</div>
+          ${band.n === 1 ? html`<p class="p-jobs__band-sub">Jobs at this stage</p>` : null}
+          ${groups.map((g) => html`<div key=${g.id} class="p-jobs__band-group">
+            <p class="p-jobs__band-dept"><${Icon} name=${deptIcon(g.id)} size=${16} class="p-jobs__dept-icon" />${g.title}</p>
+            <${Cards} jobs=${g.jobs} />
           </div>`)}
         </div>`
       : band.n === 1 ? null : html`<p class="p-jobs__band-empty">No jobs at this stage yet.</p>`}
@@ -360,7 +411,7 @@ export default function JobsPage({ route }) {
   const data = res.data;
 
   // The search words are typed here and written into the address as they change, without a new history
-  // entry; the address wins when it changes from outside (a chip, Back).
+  // entry; the address wins when it changes from outside (a filter, Back).
   const [words, setWords] = useState(f.q);
   useEffect(() => { setWords(f.q); }, [f.q]);
   const onWords = (v) => {
@@ -371,22 +422,25 @@ export default function JobsPage({ route }) {
     }
   };
 
-  const views = [
-    { id: "list", label: "List", icon: "list", href: address({ ...f, view: "list", q: words }) },
-    { id: "order", label: "Build order", icon: "stage", href: address({ view: "order" }) },
-  ];
+  const departments = departmentsOf(data);
+  // A department the catalogue does not hold is left out of the filters.
+  const known = f.d && !departments.some((d) => d.id === f.d) ? { ...f, d: "" } : f;
   const problems = problemLine(data && data.problems);
+  const order = f.view === "order";
 
   return html`<div class=${`p-jobs p-jobs--${f.view}`}>
-    <${PageHeader} title=${f.view === "order" ? "The build order" : "Jobs"} over="Jobs"
-      lead=${f.view === "order" ? "Four stages, from filling the company brain to work handed from one agent to the next." : LEAD}
-      actions=${html`<${Segmented} items=${views} current=${f.view} label="Show the jobs as" size="sm" />`} />
+    <${PageHeader} title=${order ? "The build order" : "Jobs"}
+      lead=${order ? "Four stages, from filling the company brain to work handed from one agent to the next." : LEAD}
+      crumbs=${order ? [{ label: "Jobs", href: "#/jobs" }, { label: "The build order" }] : undefined}
+      actions=${html`<${ViewSwitch} f=${known} words=${words} />`}>
+      ${order ? null : html`<${Bar} f=${known} departments=${departments} words=${words} onWords=${onWords} />`}
+    <//>
     ${res.loading && !data ? html`<${Loading} lines=${6} label="Loading the jobs" />` : null}
     ${res.error && !data ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
     ${data
-      ? f.view === "order"
+      ? order
         ? html`<${OrderView} data=${data} brain=${brain} />`
-        : html`<${ListView} data=${data} f=${f} words=${words} onWords=${onWords} />`
+        : html`<${ListView} departments=${departments} f=${known} words=${words} />`
       : null}
     ${problems ? html`<p class="p-jobs__problems">${problems} <a href="#/health">See Health</a></p>` : null}
   </div>`;

@@ -1,120 +1,773 @@
-/* The page jobs (CONTRACTS-V3 30, "Jobs"): every job by department and cluster, the filters, and the build
-   order as four glass bands. A department's colour comes from data-dept (it sets --dept). */
-.p-jobs { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+/* The page jobs (CONTRACTS-V3 30, "Jobs"; PLAN-COOK T62 after R12 and R09): the list pattern the Tasks page set.
+   The title with the view switch at its right, one bar (three filter menus, Ready only and the search field), then one group a
+   department: a plain 17 px heading with its count and one sentence, and the jobs as cards two across with a
+   24 px gutter on the raised step. The kit's JobRow is the card's link; its department icon is drawn once, by the
+   heading, not on every card. No glass, no creature, no department colour. The build order: four stages on the
+   ground, each with its ring and the same cards. */
 
-/* Filters */
-.p-jobs .p-jobs__filters { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
-.p-jobs .p-jobs__search { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s-4); }
-.p-jobs .p-jobs__search > .k-field { flex: 1 1 280px; min-width: 0; margin: 0; }
-.p-jobs .p-jobs__search .k-switch { flex: none; }
-.p-jobs .p-jobs__chips { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
-.p-jobs .p-jobs__chips-label { flex: none; width: 88px; color: var(--ink-3); font-size: var(--fs-label); font-weight: var(--fw-medium); letter-spacing: var(--ls-label); }
-.p-jobs .p-jobs__chips-row { display: flex; flex-wrap: wrap; gap: var(--s-2); min-width: 0; }
-.p-jobs .p-jobs__chip {
-  display: inline-flex; align-items: center; gap: var(--s-2); flex: none;
-  min-height: var(--h-sm); padding: 0 var(--s-3); border-radius: var(--r-pill);
-  background: var(--glass-soft); box-shadow: inset 0 0 0 1px var(--hairline);
-  color: var(--text-2); font-size: var(--fs-caption); text-decoration: none; white-space: nowrap;
-  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+.p-jobs {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: var(--content-max);
 }
-.p-jobs .p-jobs__chip:hover { background: var(--glass); color: var(--text); }
-.p-jobs .p-jobs__chip--on, .p-jobs .p-jobs__chip--on:hover { background: var(--primary); color: var(--primary-text); box-shadow: none; }
-.p-jobs .p-jobs__chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.p-jobs .p-jobs__chip-dot { flex: none; display: inline-block; width: var(--s-2); height: var(--s-2); border-radius: var(--r-round); background: var(--dept, var(--text-3)); }
-.p-jobs .p-jobs__chip-n {
-  display: inline-grid; place-items: center; width: var(--s-4); height: var(--s-4); border-radius: var(--r-1);
-  box-shadow: inset 0 0 0 1px currentColor; font-size: var(--fs-over); font-variant-numeric: tabular-nums;
+
+.p-jobs .k-page-header {
+  margin-bottom: var(--s-6);
 }
-.p-jobs .p-jobs__count { margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
-/* The count line with the legend beside it, at the top (M51 F23). */
-.p-jobs .p-jobs__top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--s-2) var(--s-4); }
-.p-jobs .p-jobs__top .p-jobs__count { padding-top: var(--s-3); }
-.p-jobs .p-jobs__top .p-jobs__legend { flex: 0 1 auto; min-width: 0; }
-.p-jobs .p-jobs__top .p-jobs__legend[open] { flex-basis: 100%; }
-.p-jobs .p-jobs__every { margin-left: var(--s-2); color: var(--text); }
-.p-jobs .p-jobs__chip-rows { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
-.p-jobs .p-jobs__fold { display: none; }
 
-/* The list: one glass card per department, its clusters under it */
-.p-jobs .p-jobs__depts { display: flex; flex-direction: column; gap: var(--s-4); }
-.p-jobs .p-jobs__dept { display: flex; flex-direction: column; gap: var(--s-4); padding: var(--s-5); min-width: 0; }
-.p-jobs .p-jobs__dept-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); min-width: 0; }
-.p-jobs .p-jobs__dept-pet { display: inline-flex; flex: none; }
-.p-jobs .p-jobs__dept-dot { width: var(--s-3); height: var(--s-3); border-radius: var(--r-round); background: var(--dept, var(--text-3)); }
-.p-jobs .p-jobs__dept-name { margin: 0; font-size: var(--fs-title); }
-.p-jobs .p-jobs__dept-count { color: var(--text-2); font-size: var(--fs-caption); }
-.p-jobs .p-jobs__dept-open { margin-left: auto; color: var(--text-2); font-size: var(--fs-caption); }
-.p-jobs .p-jobs__dept-open:hover { color: var(--text); }
-.p-jobs .p-jobs__cluster { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
-.p-jobs .p-jobs__cluster-name { margin: 0 0 var(--s-1); padding-left: var(--s-3); color: var(--text-3); }
-.p-jobs .p-jobs__rows { display: flex; flex-direction: column; min-width: 0; }
+.p-jobs .k-page-header__more {
+  margin-top: var(--s-5);
+}
 
-/* The legend */
-.p-jobs .p-jobs__legend { padding: 0; }
-.p-jobs .p-jobs__legend-head { padding: var(--s-3) var(--s-5); color: var(--text-2); font-size: var(--fs-caption); cursor: pointer; }
-.p-jobs .p-jobs__legend-head:hover { color: var(--text); }
-.p-jobs .p-jobs__legend-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--s-5); padding: 0 var(--s-5) var(--s-5); }
-.p-jobs .p-jobs__legend-list { display: flex; flex-direction: column; gap: var(--s-3); margin: var(--s-3) 0 0; }
-.p-jobs .p-jobs__legend-item { display: grid; grid-template-columns: 124px 1fr; align-items: baseline; gap: var(--s-3); }
-.p-jobs .p-jobs__legend-item dt { margin: 0; }
-.p-jobs .p-jobs__legend-item dd { margin: 0; color: var(--text-2); font-size: var(--fs-caption); line-height: var(--lh-body); }
+/* The bar: the filters at the left, Ready only and the search field at the right. */
+.p-jobs .p-jobs__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
 
-/* The build order */
-.p-jobs .p-jobs__order-line { color: var(--text-2); }
-.p-jobs .p-jobs__bands { display: flex; flex-direction: column; gap: var(--s-4); margin: 0; padding: 0; list-style: none; }
-.p-jobs .p-jobs__band { display: flex; flex-direction: column; gap: var(--s-4); padding: var(--s-5); min-width: 0; }
-.p-jobs .p-jobs__band-head { display: flex; align-items: center; gap: var(--s-4); min-width: 0; }
-.p-jobs .p-jobs__band-head .k-ring { flex: none; }
-.p-jobs .p-jobs__band-ring-wait { flex: none; width: 48px; height: 48px; border-radius: var(--r-round); box-shadow: inset 0 0 0 3px var(--hairline); }
-.p-jobs .p-jobs__band-titles { flex: 1 1 auto; min-width: 0; }
-.p-jobs .p-jobs__band-name { margin: var(--s-1) 0 0; font-size: var(--fs-heading); font-weight: var(--fw-medium); line-height: var(--lh-tight); }
-.p-jobs .p-jobs__band-about { margin: var(--s-1) 0 0; color: var(--text-2); }
-.p-jobs .p-jobs__band-count { flex: none; color: var(--text-2); font-size: var(--fs-caption); text-align: right; }
-.p-jobs .p-jobs__band-empty { color: var(--text-2); font-size: var(--fs-caption); }
-.p-jobs .p-jobs__band-jobs { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
-.p-jobs .p-jobs__band-sub { margin: 0; color: var(--text-3); }
-.p-jobs .p-jobs__band-group { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
-.p-jobs .p-jobs__band-dept { display: flex; align-items: center; gap: var(--s-2); margin: 0; padding-left: var(--s-3); color: var(--text-3); font-size: var(--fs-caption); }
-.p-jobs .p-jobs__forms { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--s-1) var(--s-4); margin: 0; padding: 0; list-style: none; }
-.p-jobs .p-jobs__form { display: flex; align-items: center; gap: var(--s-3); min-height: var(--h-lg); padding: var(--s-2) var(--s-3); border-radius: var(--r-2); min-width: 0; }
-.p-jobs .p-jobs__form-icon { flex: none; color: var(--warn); }
-.p-jobs .p-jobs__form--filled .p-jobs__form-icon { color: var(--ok); }
-.p-jobs .p-jobs__form-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
-.p-jobs .p-jobs__form-state { flex: none; color: var(--text-2); font-size: var(--fs-caption); }
-.p-jobs .p-jobs__form-fill { flex: none; color: var(--text); font-size: var(--fs-caption); font-weight: var(--fw-medium); }
+.p-jobs .p-jobs__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
 
-/* Problems in job files: one quiet line */
-.p-jobs .p-jobs__problems { color: var(--text-3); font-size: var(--fs-caption); }
-.p-jobs .p-jobs__problems a { color: var(--text-2); }
+/* A filter: the kit's menu, its button a quiet control; once a choice is made it is lifted to the raised step. */
+.p-jobs .p-jobs__filter .k-menu__trigger {
+  min-height: var(--h-md);
+  padding: 0 10px 0 var(--s-3);
+  gap: 6px;
+  border-color: var(--line);
+  background: var(--ctl);
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+
+.p-jobs .p-jobs__filter .k-menu__trigger .k-icon {
+  color: var(--ink-3);
+}
+
+.p-jobs .p-jobs__filter--on .k-menu__trigger {
+  border-color: var(--line-2);
+  background: var(--raise);
+  box-shadow: var(--shadow-card);
+}
+
+.p-jobs .p-jobs__filter .k-menu__trigger:hover {
+  border-color: var(--ink-3);
+}
+
+.p-jobs .p-jobs__filter .k-menu__list {
+  left: 0;
+  right: auto;
+  min-width: 200px;
+  max-height: min(60vh, calc(var(--s-12) * 9));
+  overflow-y: auto;
+}
+
+.p-jobs .p-jobs__filter .k-menu__item:not(:has(.k-icon)) {
+  padding-left: calc(10px + 16px + var(--s-2));
+}
+
+.p-jobs .p-jobs__filter .k-menu__item .k-icon {
+  color: var(--accent);
+}
+
+.p-jobs .p-jobs__find {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-left: auto;
+  min-width: 0;
+}
+
+/* Ready only: the switch and its label; the On and Off word is the track's to say. */
+.p-jobs .p-jobs__find .k-switch,
+.p-jobs .p-jobs__find .k-switch__label {
+  flex: none;
+}
+
+.p-jobs .p-jobs__find .k-switch__state {
+  display: none;
+}
+
+.p-jobs .p-jobs__find .k-switch__label {
+  white-space: nowrap;
+  color: var(--ink-2);
+  font-size: var(--fs-ui);
+}
+
+/* The search field: the kit's input with the search glyph inside its left edge. */
+.p-jobs .p-jobs__search {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 320px;
+  min-width: 0;
+}
+
+.p-jobs .p-jobs__search .k-input {
+  width: 100%;
+  min-height: var(--h-md);
+  padding-left: calc(var(--s-3) + 16px + var(--s-2));
+}
+
+.p-jobs .p-jobs__search-icon {
+  position: absolute;
+  top: 50%;
+  left: var(--s-3);
+  margin-top: -8px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+/* The count line, with the legend's quiet disclosure at its right. */
+.p-jobs .p-jobs__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+  margin-bottom: var(--s-6);
+}
+
+.p-jobs .p-jobs__count {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-jobs .p-jobs__every {
+  margin-left: var(--s-2);
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.p-jobs .p-jobs__every:hover {
+  text-decoration: underline;
+}
+
+.p-jobs .p-jobs__top .p-jobs__legend[open] {
+  flex-basis: 100%;
+}
+
+/* The legend: a quiet line that opens to two short lists. */
+.p-jobs .p-jobs__legend-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  cursor: pointer;
+  border-radius: var(--r-1);
+}
+
+.p-jobs .p-jobs__legend-head::-webkit-details-marker {
+  display: none;
+}
+
+.p-jobs .p-jobs__legend-head:hover {
+  color: var(--ink);
+}
+
+.p-jobs .p-jobs__legend-fold {
+  flex: none;
+  color: var(--ink-3);
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.p-jobs .p-jobs__legend[open] .p-jobs__legend-fold {
+  transform: rotate(90deg);
+}
+
+.p-jobs .p-jobs__legend-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--s-5) var(--s-6);
+  margin-top: var(--s-4);
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.p-jobs .p-jobs__legend-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+}
+
+.p-jobs .p-jobs__legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin: var(--s-3) 0 0;
+}
+
+.p-jobs .p-jobs__legend-item {
+  display: grid;
+  grid-template-columns: 124px 1fr;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+
+.p-jobs .p-jobs__legend-item dt,
+.p-jobs .p-jobs__legend-item dd {
+  margin: 0;
+}
+
+.p-jobs .p-jobs__legend-item dd {
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+/* The list: one group a department. */
+.p-jobs .p-jobs__depts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-10);
+}
+
+.p-jobs .p-jobs__dept {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.p-jobs .p-jobs__dept-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-1) var(--s-4);
+  min-width: 0;
+}
+
+.p-jobs .p-jobs__dept-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-section);
+}
+
+.p-jobs .p-jobs__dept-icon {
+  flex: none;
+  color: var(--ink-2);
+}
+
+.p-jobs .p-jobs__dept-count {
+  margin-left: var(--s-1);
+  color: var(--ink-3);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-jobs .p-jobs__dept-open {
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  text-decoration: none;
+  border-radius: var(--r-1);
+}
+
+.p-jobs .p-jobs__dept-open:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.p-jobs .p-jobs__dept-about {
+  margin: var(--s-1) 0 0 calc(18px + var(--s-2));
+  color: var(--ink-2);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+/* The cards: two across with a 24 px gutter. */
+.p-jobs .p-jobs__cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-6);
+  margin: var(--s-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-jobs .p-jobs__card {
+  display: flex;
+  min-width: 0;
+}
+
+.p-jobs .p-jobs__card-box {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+
+.p-jobs .p-jobs__card-box:has(> a.k-job--row:hover) {
+  border-color: var(--line-2);
+}
+
+/* The kit's row as the card's body (R12): the name and the button on one line, the sentence on up to two lines
+   under it, the facts as grey words under that. The icon tile is the heading's to show. */
+.p-jobs .p-jobs__card .k-job--row {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0 var(--s-4);
+  min-height: 0;
+  padding: var(--s-5) var(--s-5) var(--s-4);
+  border-radius: var(--r-3);
+}
+
+.p-jobs .p-jobs__card a.k-job--row:hover {
+  background-color: transparent;
+}
+
+.p-jobs .p-jobs__card .k-job--row > .k-job__dot {
+  display: none;
+}
+
+.p-jobs .p-jobs__card .k-job__body {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 100%;
+  gap: 0;
+  text-align: left;
+}
+
+.p-jobs .p-jobs__card .k-job__title {
+  font-size: var(--fs-fact);
+  line-height: var(--lh-ui);
+  padding-top: 5px;
+}
+
+.p-jobs .p-jobs__card .k-job__sentence {
+  max-width: none;
+  margin-top: var(--s-2);
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--ink-2);
+}
+
+.p-jobs .p-jobs__card .k-job__marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-5);
+  padding-top: var(--s-4);
+}
+
+.p-jobs .p-jobs__card .k-job__marks > .k-job__blocked {
+  display: none;
+}
+
+.p-jobs .p-jobs__card .k-job--row > .k-job__go {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+}
+
+.p-jobs .p-jobs__card a.k-job--row:hover > .k-job__go {
+  background-color: var(--ctl);
+  border-color: var(--ink-3);
+}
+
+/* Why a job cannot start yet: the kit's sentence with its link, under the facts, parted by a hairline. */
+.p-jobs .p-jobs__why {
+  margin: 0 var(--s-5);
+  padding: var(--s-3) 0 var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+.p-jobs .p-jobs__why .k-job--why {
+  gap: 6px var(--s-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-jobs .p-jobs__why .k-job__why-link {
+  flex: none;
+  margin-left: auto;
+  border-radius: var(--r-1);
+}
+
+/* The build order: four stages on the ground, parted by a hairline. */
+.p-jobs .p-jobs__order-line {
+  margin: 0 0 var(--s-6);
+  color: var(--ink-2);
+  font-size: var(--fs-ui);
+}
+
+.p-jobs .p-jobs__bands {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  margin: 0 0 var(--s-8);
+  padding: 0;
+  list-style: none;
+}
+
+.p-jobs .p-jobs__band {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--line);
+}
+
+.p-jobs .p-jobs__band:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.p-jobs .p-jobs__band-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.p-jobs .p-jobs__band-head .k-ring {
+  flex: none;
+}
+
+.p-jobs .p-jobs__band-ring-wait {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-round);
+  box-shadow: inset 0 0 0 3px var(--line);
+}
+
+.p-jobs .p-jobs__band-titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.p-jobs .p-jobs__band-n {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  letter-spacing: var(--ls-label);
+}
+
+.p-jobs .p-jobs__band-name {
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-section);
+}
+
+.p-jobs .p-jobs__band-about {
+  margin: 2px 0 0;
+  color: var(--ink-2);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.p-jobs .p-jobs__band-count {
+  flex: none;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.p-jobs .p-jobs__band-empty {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+}
+
+.p-jobs .p-jobs__band-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  min-width: 0;
+}
+
+.p-jobs .p-jobs__band-sub {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  letter-spacing: var(--ls-label);
+}
+
+.p-jobs .p-jobs__band-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.p-jobs .p-jobs__band-group .p-jobs__cards {
+  margin-top: var(--s-3);
+}
+
+.p-jobs .p-jobs__band-dept {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+}
+
+.p-jobs .p-jobs__forms {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0 var(--s-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-jobs .p-jobs__form {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--h-lg);
+  min-width: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.p-jobs .p-jobs__form-icon {
+  flex: none;
+  color: var(--warn);
+}
+
+.p-jobs .p-jobs__form--filled .p-jobs__form-icon {
+  color: var(--good);
+}
+
+.p-jobs .p-jobs__form-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.p-jobs .p-jobs__form-state {
+  flex: none;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+}
+
+.p-jobs .p-jobs__form-fill {
+  flex: none;
+  color: var(--accent);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+
+/* Problems in job files: one quiet line. */
+.p-jobs .p-jobs__problems {
+  margin: var(--s-8) 0 0;
+  color: var(--ink-3);
+  font-size: var(--fs-note);
+}
+
+.p-jobs .p-jobs__problems a {
+  color: var(--ink-2);
+}
+
+/* Every stop on this page shows the 2 px accent ring. */
+.p-jobs .p-jobs__card .k-job--row:focus-visible,
+.p-jobs .p-jobs__legend-head:focus-visible,
+.p-jobs .p-jobs__dept-open:focus-visible,
+.p-jobs .p-jobs__every:focus-visible,
+.p-jobs .p-jobs__why .k-job__why-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1099px) {
+  .p-jobs .p-jobs__find {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+
+  .p-jobs .p-jobs__search {
+    flex: 1 1 auto;
+    width: auto;
+  }
+}
 
 @media (max-width: 859px) {
-  /* The three chip rows fold behind one Filter chip that says how many are on (M51 F23). */
-  .p-jobs .p-jobs__fold {
-    display: inline-flex; align-items: center; align-self: flex-start; gap: var(--s-2); min-height: 44px; padding: 0 var(--s-4);
-    border: 0; border-radius: var(--r-pill); background: var(--glass-soft); box-shadow: inset 0 0 0 1px var(--hairline);
-    color: var(--text-2); font: inherit; font-size: var(--fs-caption); cursor: pointer;
+  .p-jobs .k-page-header {
+    margin-bottom: var(--s-5);
   }
-  .p-jobs .p-jobs__fold--on { color: var(--text); box-shadow: inset 0 0 0 1px var(--hairline-strong); }
-  .p-jobs .p-jobs__fold:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  .p-jobs .p-jobs__fold-n { color: var(--text-3); }
-  .p-jobs .p-jobs__chip-rows:not(.is-open) { display: none; }
-  .p-jobs .p-jobs__top .p-jobs__legend { flex-basis: 100%; }
-  .p-jobs .p-jobs__legend-head { min-height: 44px; display: flex; align-items: center; }
-  .p-jobs .p-jobs__every, .p-jobs .p-jobs__dept-open, .p-jobs .p-jobs__form-fill { display: inline-flex; align-items: center; min-height: 44px; }
-  .p-jobs .p-jobs__chips { flex-direction: column; align-items: stretch; gap: var(--s-1); }
-  .p-jobs .p-jobs__chips-label { width: auto; }
-  .p-jobs .p-jobs__chips-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: var(--s-1); scrollbar-width: none; }
-  .p-jobs .p-jobs__chip { min-height: 44px; }
-  .p-jobs .p-jobs__dept, .p-jobs .p-jobs__band { padding: var(--s-4) var(--s-3); }
-  .p-jobs .p-jobs__dept-open { margin-left: 0; flex-basis: 100%; }
-  .p-jobs .p-jobs__band-head { flex-wrap: wrap; align-items: flex-start; }
-  .p-jobs .p-jobs__band-titles { flex-basis: calc(100% - 48px - var(--s-4)); }
-  .p-jobs .p-jobs__band-count { flex-basis: 100%; padding-left: calc(48px + var(--s-4)); text-align: left; }
-  .p-jobs .p-jobs__forms { grid-template-columns: 1fr; }
-  .p-jobs .p-jobs__form { min-height: 44px; }
-  .p-jobs .p-jobs__legend-item { grid-template-columns: 1fr; gap: var(--s-1); }
+
+  /* On a phone the view switch stands under the title's sentence, above the bar, not between them. */
+  .p-jobs .k-page-header__row {
+    display: contents;
+  }
+
+  .p-jobs .k-page-header__titles {
+    flex: none;
+  }
+
+  .p-jobs .k-page-header__actions {
+    order: 2;
+    margin-top: var(--s-3);
+  }
+
+  .p-jobs .k-page-header__more {
+    order: 3;
+    margin-top: var(--s-3);
+  }
+
+  /* On a phone: the search field first, then the filters, then the view switch; one card a row. */
+  .p-jobs .p-jobs__bar {
+    gap: var(--s-2);
+  }
+
+  /* The search field across the top, the filters under it, then the view switch with Ready only at its right. */
+  .p-jobs .p-jobs__find {
+    display: contents;
+  }
+
+  .p-jobs .p-jobs__search {
+    order: -2;
+    flex: 1 1 100%;
+  }
+
+  .p-jobs .p-jobs__filters {
+    order: -1;
+  }
+
+  .p-jobs .p-jobs__find .k-switch {
+    order: 3;
+  }
+
+  .p-jobs .p-jobs__search .k-input,
+  .p-jobs .p-jobs__filter .k-menu__trigger {
+    min-height: 44px;
+  }
+
+  .p-jobs .p-jobs__filters {
+    flex: 1 1 100%;
+  }
+
+
+  .p-jobs .p-jobs__filters .p-jobs__filter {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .p-jobs .p-jobs__filters .k-menu {
+    display: block;
+  }
+
+  .p-jobs .p-jobs__filters .k-menu__trigger {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .p-jobs .p-jobs__top {
+    margin-bottom: var(--s-5);
+  }
+
+  .p-jobs .p-jobs__depts {
+    gap: var(--s-8);
+  }
+
+  .p-jobs .p-jobs__dept-about {
+    margin-left: 0;
+  }
+
+  .p-jobs .p-jobs__cards {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-3);
+    margin-top: var(--s-4);
+  }
+
+  .p-jobs .p-jobs__card .k-job--row {
+    padding: var(--s-4);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .p-jobs .p-jobs__card .k-job__marks {
+    padding-top: var(--s-3);
+    gap: 2px var(--s-4);
+  }
+
+  .p-jobs .p-jobs__why {
+    margin: 0 var(--s-4);
+    padding-bottom: var(--s-3);
+  }
+
+  .p-jobs .p-jobs__every,
+  .p-jobs .p-jobs__dept-open,
+  .p-jobs .p-jobs__form-fill,
+  .p-jobs .p-jobs__legend-head {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .p-jobs .p-jobs__band-head {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .p-jobs .p-jobs__band-titles {
+    flex-basis: calc(100% - 48px - var(--s-4));
+  }
+
+  .p-jobs .p-jobs__band-count {
+    flex-basis: 100%;
+    padding-left: calc(48px + var(--s-4));
+    text-align: left;
+  }
+
+  .p-jobs .p-jobs__forms {
+    grid-template-columns: 1fr;
+  }
+
+  .p-jobs .p-jobs__form {
+    min-height: 44px;
+  }
+
+  .p-jobs .p-jobs__legend-item {
+    grid-template-columns: 1fr;
+    gap: var(--s-1);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .p-jobs .p-jobs__chip { transition: none; }
+  .p-jobs .p-jobs__legend-fold,
+  .p-jobs .p-jobs__card-box {
+    transition: none;
+  }
 }
