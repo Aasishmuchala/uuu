@@ -118,7 +118,9 @@ export const tags = (root) => elements(root).map((e) => e.localName);
 export const isVNode = (v) => v !== null && typeof v === "object" && "type" in v && "props" in v;
 
 // Preact runs effects after a 100 ms timer when there is no requestAnimationFrame.
-export const settle = () => new Promise((r) => setTimeout(r, 110));
+// Effects run about 100 ms after a render in this stand-in DOM. On a busy machine 110 ms was not always enough
+// (a mounted test then read the page before its effects ran and failed by chance), so the wait is 300 ms.
+export const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
 
 // kit-a: renders `Component` with `props`, also capturing what the component itself returned.
 export async function probe(Component, props) {
