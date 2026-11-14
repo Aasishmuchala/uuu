@@ -1,3 +1,7 @@
 node_modules/
 .DS_Store
 .router/
+
+# The cook loop's working state (references are third parties' screens; never published)
+cook/
+cook-archive/
