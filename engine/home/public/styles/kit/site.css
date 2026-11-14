@@ -1,121 +1,168 @@
-/* SiteView (kit/site.js): a site an agent built, on its task's page, and the frames of its pictures (also used by
-   Settings for the page viewer's Test). Tokens only; every selector is the kit's. A desktop picture sits in a
-   browser window and a phone picture in a phone, side by side; their columns are in the ratio that gives the two
-   frames the same height (1280 by 800 against 390 by 844), so the pair reads as one line of screens. Each frame
-   shows the top of its page, as the screen would; opened larger, the whole page scrolls. */
+/* kit/site.js: a site an agent built, as three pieces a page lays on a stage (PLAN-COOK T41, from C3's "S01" with
+   the corrections after round 3), SiteView stacking them in one column, and ShotPair (Settings' Test pictures).
+   The pages sit at their true widths on T33's stage panel; this sheet only adds what a site needs: the frame's word
+   as the button that opens it larger, the stage when there are no pictures, the files left out, the strip's page
+   thumbnails and the findings' page names. Tokens only; every selector is the kit's. */
 
-.k-site {
+/* ---- The stage: the bar, then the pages (or the state of the pictures), then the files left out */
+.k-site__stage {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
-  padding: var(--s-4);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
-  background: var(--glass);
-  box-shadow: var(--highlight);
-  margin-bottom: var(--s-6);
-  scroll-margin-top: calc(var(--topbar-h) + var(--s-4));
+  gap: var(--s-3);
   min-width: 0;
 }
 
-.k-site:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-.k-site__top {
-  display: grid;
-  gap: var(--s-1);
-}
-
-.k-site__title {
-  margin: 0;
-  font-size: var(--fs-title);
-  font-weight: var(--fw-medium);
-}
-
-.k-site__lead {
-  margin: 0;
-  color: var(--text-2);
-  line-height: var(--lh-body);
-}
-
-.k-site__versions {
-  min-width: 0;
-}
-
-.k-site__versions .k-seg {
+.k-site__stage .k-seg {
   max-width: 100%;
 }
 
-.k-site__ver-letter {
-  font-weight: var(--fw-bold);
-}
-
-.k-site__ver-name {
-  margin-left: var(--s-2);
-}
-
-/* ---- One site ---- */
-
-.k-site__panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
+.k-site__frames {
   min-width: 0;
 }
 
-.k-site__head {
+/* The frame's word is a button whose press covers the whole frame: the page opens larger. Its focus ring is drawn
+   round the page, where the eye is. */
+.k-site__stage .k-frame {
+  position: relative;
+}
+
+.k-site__open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: zoom-in;
+}
+
+.k-site__open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: var(--r-1);
+}
+
+.k-site__open:focus-visible {
+  outline: none;
+}
+
+.k-site__stage .k-frame:has(.k-site__open:focus-visible) .k-frame__page {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.k-site__stage .k-frame:has(.k-site__open:hover) .k-frame__page {
+  box-shadow: var(--paper-shadow), 0 0 0 1px var(--line-2);
+}
+
+.k-site__stage .k-frame__loose {
+  position: relative;
+  z-index: 5;
+}
+
+/* A frame whose picture did not load takes the footprint's quiet look, not a blank page (the stage says why once). */
+.k-site__stage .k-frame__page:not(:has(img)) {
+  background: var(--ctl);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* No pictures to show: the stage panel with the footprint of the two frames (their true shapes, drawn as quiet
+   outlines), the state said in the desktop's. */
+.k-site__empty {
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-start;
-  gap: var(--s-3);
+  gap: var(--s-6);
+  padding: var(--s-6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  box-shadow: var(--shadow-lift);
 }
 
-.k-site__letter {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-pill);
-  background: var(--glass-soft);
-  color: var(--text);
-  font-size: var(--fs-title);
-  font-weight: var(--fw-medium);
-}
-
-.k-site__names {
-  display: grid;
-  gap: 2px;
-  flex: 1 1 14rem;
+.k-site__ghost {
   min-width: 0;
+  border-radius: var(--r-1);
+  background: var(--ctl);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
-.k-site__name {
+/* No padding on the outlines: their widths come from their flex alone, so both are drawn at one scale. */
+.k-site__ghost--desk {
+  flex: 1280 1 0;
+  aspect-ratio: 1280 / 1048;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--s-3);
+  text-align: center;
+}
+
+.k-site__ghost--phone {
+  flex: 390 1 0;
+  aspect-ratio: 390 / 1048;
+}
+
+.k-site__empty-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-2);
+  background: var(--raise);
+  color: var(--ink-2);
+}
+
+.k-site__empty--failed .k-site__empty-icon,
+.k-site__line--failed .k-site__empty-icon {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.k-site__empty-words {
+  max-width: 44ch;
+  padding-inline: var(--s-4);
   margin: 0;
-  font-size: var(--fs-title);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-tight);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
   overflow-wrap: anywhere;
 }
 
-.k-site__meta {
+/* With pictures already there (a new set being taken), the state is one line above them. */
+.k-site__line {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--s-3);
-  margin: 0;
-  color: var(--text-3);
-  font-size: var(--fs-caption);
-  font-variant-numeric: tabular-nums;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
 }
 
-.k-site__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
+.k-site__line .k-site__empty-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.k-site__line .k-site__empty-words {
+  flex: 1 1 16rem;
+  max-width: none;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.k-site__state {
+  margin: 0;
+}
+
+.k-site__state--live {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.k-site__left .k-notice p {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .k-site__opened,
@@ -124,21 +171,22 @@
   align-items: flex-start;
   gap: var(--s-2);
   margin: 0;
-  line-height: var(--lh-body);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
 .k-site__opened {
-  color: var(--ok-text);
+  color: var(--good);
 }
 
 .k-site__failed {
-  color: var(--bad-text);
+  color: var(--bad);
 }
 
 .k-site__opened .k-icon,
 .k-site__failed .k-icon {
   flex: none;
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 .k-site__link {
@@ -149,73 +197,140 @@
 }
 
 .k-site__link:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: var(--r-1);
 }
 
-/* The state of the pictures when they are not simply there. */
-.k-site__state {
+/* ---- The strip: a page's thumbnail shows its top, as a screen would */
+.k-site__strip {
+  min-width: 0;
+}
+
+.k-site__strip .k-strip__thumb {
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.k-site__strip .k-strip__thumb:empty {
+  background: var(--raise);
+}
+
+.k-site__strip .k-strip__thumb img {
+  object-position: top;
+}
+
+/* ---- The rail: each finding names its page under it */
+.k-site__find {
+  display: block;
+}
+
+.k-site__find-page {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-note);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+.k-site__fine {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-2) var(--s-3);
+  gap: var(--s-2);
   margin: 0;
-  padding: var(--s-3) var(--s-4);
-  border: 1px dashed var(--hairline-strong);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  color: var(--good);
+  font-weight: var(--fw-medium);
+}
+
+.k-site__drawn {
+  margin-top: var(--s-3);
+}
+
+.k-site__brand + .k-site__brand {
+  margin-top: var(--s-1);
+}
+
+.k-site__size {
+  font-variant-numeric: tabular-nums;
+}
+
+.k-say + .k-site__size {
+  margin-top: var(--s-1);
+}
+
+/* ---- SiteView: the three stacked in one column, for a page with no stage */
+.k-site {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin-bottom: var(--s-6);
+  padding: var(--s-4) 0 0;
+  border: 1px solid var(--line);
   border-radius: var(--r-3);
-  background: var(--bg-subtle);
-}
-
-.k-site__state > .k-icon {
-  flex: none;
-  align-self: flex-start;
-  margin-top: 3px;
-  color: var(--text-3);
-}
-
-.k-site__state--live {
-  padding: 0;
-  border: 0;
-  background: none;
-}
-
-.k-site__state--failed {
-  border-style: solid;
-  border-color: var(--bad);
-  background: var(--bad-bg);
-}
-
-.k-site__state--failed > .k-icon {
-  color: var(--bad-text);
-}
-
-.k-site__state-words {
-  flex: 1 1 16rem;
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+  scroll-margin-top: calc(var(--topbar-h) + var(--s-4));
   min-width: 0;
+  overflow: hidden;
+}
+
+.k-site:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.k-site__top {
+  display: grid;
+  gap: var(--s-1);
+  padding: 0 var(--s-4);
+}
+
+.k-site__title {
   margin: 0;
-  color: var(--text);
-  line-height: var(--lh-body);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-section);
 }
 
-.k-site__tools {
+.k-site__lead {
+  margin: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+.k-site__on-stage {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-2) var(--s-3);
-  min-width: 0;
+  flex-direction: column;
+  padding: var(--s-5) var(--s-4);
+  border-block: 1px solid var(--line);
+  background: var(--stage);
 }
 
-.k-site__tools .k-seg {
-  max-width: 100%;
+.k-site > .k-site__strip {
+  padding: 0 var(--s-4);
 }
 
-.k-site__again {
-  margin-left: auto;
+/* A page column is too narrow for the cards side by side: they stack, as on a phone. */
+.k-site > .k-site__strip .k-strip {
+  flex-direction: column;
+  gap: var(--s-2);
 }
 
-/* ---- The frames ---- */
+.k-site > .k-site__strip .k-strip > * {
+  flex: none;
+}
 
+.k-site > .k-site__rail .k-blk {
+  padding-inline: var(--s-4);
+}
+
+/* ---- ShotPair (Settings' Test): a desktop picture in a browser window and a phone picture in a phone, side by
+   side; their columns are in the ratio that gives the two frames the same height (1280 by 800 against 390 by 844).
+   Each frame shows the top of its page; opened larger, the whole page scrolls. */
 .k-site__pair {
   display: grid;
   grid-template-columns: minmax(0, 3.46fr) minmax(0, 1fr);
@@ -229,7 +344,7 @@
   gap: var(--s-3);
 }
 
-.k-site__frame {
+.k-site__pair .k-site__frame {
   display: grid;
   gap: var(--s-2);
   margin: 0;
@@ -244,9 +359,8 @@
   margin: 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid var(--hairline-strong);
-  background: var(--glass-strong);
-  box-shadow: var(--highlight);
+  border: 1px solid var(--line-2);
+  background: var(--panel);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -257,20 +371,20 @@ button.k-site__screen {
   cursor: zoom-in;
 }
 
-.k-site__frame--desktop .k-site__screen {
+.k-site__pair .k-site__frame--desktop .k-site__screen {
   border-radius: var(--r-2);
 }
 
-.k-site__frame--phone .k-site__screen {
-  border-radius: var(--r-4);
+.k-site__pair .k-site__frame--phone .k-site__screen {
+  border-radius: var(--r-3);
 }
 
 button.k-site__screen:hover {
-  border-color: var(--text-3);
+  border-color: var(--ink-3);
 }
 
 button.k-site__screen:focus-visible {
-  outline: 2px solid var(--focus);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -281,7 +395,7 @@ button.k-site__screen:focus-visible {
   align-items: center;
   height: 14px;
   padding: 0 7px;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--line);
 }
 
 .k-site__dots {
@@ -289,16 +403,16 @@ button.k-site__screen:focus-visible {
   width: 4px;
   height: 4px;
   border-radius: var(--r-round);
-  background: var(--hairline-strong);
-  box-shadow: 7px 0 0 var(--hairline-strong), 14px 0 0 var(--hairline-strong);
+  background: var(--line-2);
+  box-shadow: 7px 0 0 var(--line-2), 14px 0 0 var(--line-2);
 }
 
-.k-site__frame--phone .k-site__bar {
+.k-site__pair .k-site__frame--phone .k-site__bar {
   justify-content: center;
   border-bottom-color: transparent;
 }
 
-.k-site__frame--phone .k-site__dots {
+.k-site__pair .k-site__frame--phone .k-site__dots {
   width: 30%;
   max-width: 24px;
   box-shadow: none;
@@ -310,16 +424,16 @@ button.k-site__screen:focus-visible {
   height: auto;
   object-fit: cover;
   object-position: top;
-  background: var(--bg-subtle);
+  background: var(--ctl);
 }
 
-.k-site__frame--desktop .k-site__img,
-.k-site__frame--desktop .k-site__none-words {
+.k-site__pair .k-site__frame--desktop .k-site__img,
+.k-site__pair .k-site__frame--desktop .k-site__none-words {
   aspect-ratio: 1280 / 800;
 }
 
-.k-site__frame--phone .k-site__img,
-.k-site__frame--phone .k-site__none-words {
+.k-site__pair .k-site__frame--phone .k-site__img,
+.k-site__pair .k-site__frame--phone .k-site__none-words {
   aspect-ratio: 390 / 844;
 }
 
@@ -328,10 +442,10 @@ button.k-site__screen:focus-visible {
   align-items: center;
   justify-content: center;
   padding: var(--s-2);
-  color: var(--text-3);
-  font-size: var(--fs-caption);
+  color: var(--ink-3);
+  font-size: var(--fs-note);
   text-align: center;
-  background: var(--bg-subtle);
+  background: var(--ctl);
 }
 
 .k-site__zoom {
@@ -343,9 +457,9 @@ button.k-site__screen:focus-visible {
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: var(--r-pill);
-  background: var(--glass-strong);
-  color: var(--text);
+  border-radius: var(--r-2);
+  background: var(--panel);
+  color: var(--ink);
   opacity: 0;
   transition: opacity var(--t-fast) var(--ease);
 }
@@ -360,17 +474,17 @@ button.k-site__screen:focus-visible .k-site__zoom {
   flex-direction: column;
   align-items: center;
   gap: 0;
-  color: var(--text-2);
-  font-size: var(--fs-caption);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
   text-align: center;
 }
 
 .k-site__cap-px {
-  color: var(--text-3);
+  color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
 
-/* Opened larger: the whole page, scrolled in the dialog. */
+/* Opened larger (the stage's frames and ShotPair): the whole page, scrolled in the dialog. */
 .k-site__large {
   display: flex;
   justify-content: center;
@@ -382,108 +496,12 @@ button.k-site__screen:focus-visible .k-site__zoom {
   display: block;
   max-width: 100%;
   height: auto;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-2);
+  border-radius: var(--r-1);
+  box-shadow: var(--paper-shadow);
 }
 
 .k-site__large--phone img {
   width: 390px;
-}
-
-/* ---- What the page viewer found ---- */
-
-.k-site__report {
-  display: grid;
-  gap: var(--s-2);
-  padding: var(--s-3) var(--s-4);
-  border-radius: var(--r-3);
-  background: var(--bg-subtle);
-  min-width: 0;
-}
-
-.k-site__report-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-1) var(--s-3);
-  margin: 0;
-  font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-label);
-  color: var(--ink-3);
-}
-
-.k-site__report-n {
-  font-size: var(--fs-caption);
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--warn-text);
-}
-
-.k-site__lines {
-  display: grid;
-  gap: var(--s-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.k-site__line {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-2);
-  min-width: 0;
-  line-height: var(--lh-body);
-  overflow-wrap: anywhere;
-}
-
-.k-site__line .k-icon {
-  flex: none;
-  margin-top: 4px;
-  color: var(--warn-text);
-}
-
-.k-site__line--bad .k-icon {
-  color: var(--bad-text);
-}
-
-.k-site__fine {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  margin: 0;
-  color: var(--ok-text);
-  font-weight: var(--fw-medium);
-}
-
-.k-site__drawn {
-  margin: 0;
-  color: var(--text-3);
-  font-size: var(--fs-caption);
-  overflow-wrap: anywhere;
-}
-
-.k-site__left {
-  display: grid;
-  gap: var(--s-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--text-2);
-  font-size: var(--fs-caption);
-}
-
-.k-site__left li {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-2);
-  overflow-wrap: anywhere;
-}
-
-.k-site__left .k-icon {
-  flex: none;
-  margin-top: 2px;
-  color: var(--warn-text);
 }
 
 /* ---- The job page's line for a page (pages/job.js) ---- */
@@ -493,7 +511,7 @@ button.k-site__screen:focus-visible .k-site__zoom {
   align-items: flex-start;
   gap: var(--s-2);
   margin: 0;
-  color: var(--text);
+  color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
@@ -501,7 +519,7 @@ button.k-site__screen:focus-visible .k-site__zoom {
 .k-site__job .k-icon {
   flex: none;
   margin-top: 3px;
-  color: var(--text-2);
+  color: var(--ink-2);
 }
 
 /* ---- A page's pictures in the pick card (kit/pick.js, C21): a page is tall, so the card shows its top, as a
@@ -528,22 +546,26 @@ button.k-site__screen:focus-visible .k-site__zoom {
   height: auto;
 }
 
+/* ---- A phone, or any narrow window: the bar's tools as icons (their names stay as aria-labels) */
 @media (max-width: 859px) {
-  .k-site {
-    padding: var(--s-3);
+  .k-site__tool .k-btn__label {
+    display: none;
   }
 
-  .k-site__actions {
-    width: 100%;
+  .k-site__empty {
+    padding: var(--s-4);
   }
 
-  .k-site__actions .k-btn {
-    flex: 1 1 auto;
-    min-height: 44px;
+  .k-site__ghost--desk {
+    aspect-ratio: 390 / 600;
   }
 
-  .k-site__again {
-    margin-left: 0;
+  .k-site__ghost--phone {
+    display: none;
+  }
+
+  .k-site__on-stage {
+    padding: var(--s-4) var(--s-3);
   }
 
   .k-site__pair {
@@ -556,7 +578,7 @@ button.k-site__screen:focus-visible .k-site__zoom {
     height: 24px;
   }
 
-  .k-site__frame--phone .k-site__zoom {
+  .k-site__pair .k-site__frame--phone .k-site__zoom {
     display: none;
   }
 }

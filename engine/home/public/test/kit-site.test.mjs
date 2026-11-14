@@ -74,7 +74,8 @@ function installDom() {
 function* walk(node) { yield node; for (const c of node.childNodes) yield* walk(c); }
 const elements = (root) => [...walk(root)].filter((n) => n.nodeType === 1);
 const textOf = (root) => [...walk(root)].filter((n) => n.nodeType === 3).map((n) => n.data).join("");
-const settle = () => new Promise((r) => setTimeout(r, 110));
+// Preact runs effects on a 100 ms timer where there is no requestAnimationFrame (Node); a busy machine needs the margin.
+const settle = () => new Promise((r) => setTimeout(r, 250));
 async function showTree(Component, props) {
   installDom();
   const root = new FakeElement("div");
@@ -215,32 +216,35 @@ test("SiteView: nothing for a task with no sites, nor when the route is missing"
   assert.equal(typeof index.SiteView, "function", "the kit's index exports it");
 });
 
-test("SiteView: three versions behind a switch; the pictures only from kept addresses; an agent's words as text", async () => {
+test("SiteView: three versions as a radio group; the pictures only from kept addresses; an agent's words as text", async () => {
   const f = stubFetch(() => ({ status: 200, body: answer([READY, B, C]) }));
   try {
     const root = await showTree(site.SiteView, { id: "STH-2" });
     const all = textOf(root);
     assert.match(all, /How each version looks/);
     assert.match(all, /<b>Editorial<\/b>/, "the direction's title is shown as the characters it is");
-    assert.ok(!elements(root).some((e) => e.localName === "b"), "no element was made from an agent's words");
+    assert.ok(!elements(root).some((e) => e.localName === "b" && textOf(e) === "Editorial"), "no element was made from an agent's words");
     assert.match(all, /<img src=x onerror=alert\(1\)> did not load/);
     assert.ok(!elements(root).some((e) => e.localName === "img" && !/^\/api\/sites\/shot\//.test(attr(e, "src"))), "only kept pictures reach an img");
-    assert.deepEqual(elements(root).filter((e) => e.localName === "img").map((e) => attr(e, "src")), [READY.shots.images[0].url, READY.shots.images[2].url]);
-    assert.match(all, /Desktop1280 px/);
-    assert.match(all, /Phone390 px/);
-    assert.match(all, /What the page viewer found2 things to look at/);
+    const stage = elements(root).find((e) => /\bk-site__stage\b/.test(attr(e, "class") || ""));
+    assert.deepEqual(elements(stage).filter((e) => e.localName === "img").map((e) => attr(e, "src")), [READY.shots.images[0].url, READY.shots.images[2].url]);
+    assert.match(all, /Desktop1280 px wide/);
+    assert.match(all, /Phone390 px wide/);
+    assert.match(all, /The page viewer found 2 things in A/);
     assert.match(all, /Drawn with: Inter/);
-    assert.equal(buttons(root, "Dark").length, 1, "Dark is offered: the page has a dark look");
+    assert.equal(buttons(root, "Dark page").length, 1, "Dark is offered: the page has a dark look");
     assert.equal(buttons(root, "Home page").length, 1);
     assert.equal(buttons(root, "Take pictures again").length, 1);
-    const versions = elements(root).filter((e) => e.localName === "button" && /^[ABC]/.test(textOf(e)) && e.getAttribute("aria-pressed") !== null);
+    const versions = elements(root).filter((e) => e.getAttribute("role") === "radio" && /^[ABC]/.test(textOf(e)));
     assert.equal(versions.length, 3);
+    assert.deepEqual(versions.map((v) => v.getAttribute("aria-checked")), ["true", "false", "false"]);
     fire(versions[1], "click");
     await settle();
     assert.match(textOf(root), /Left out of the site: linked\.css \(a link\)/);
     const zip = elements(root).find((e) => e.localName === "a" && /\/zip$/.test(attr(e, "href")));
     assert.equal(attr(zip, "href"), "/api/tasks/STH-2/sites/launch-b/zip");
     assert.notEqual(zip.getAttribute("download") ?? zip.download, undefined, "the zip link downloads");
+    assert.equal(attr(zip, "aria-label"), "Download as a zip");
     assert.doesNotMatch(SRC, /dangerouslySetInnerHTML|innerHTML|insertAdjacentHTML|outerHTML|document\.write/);
   } finally {
     f.restore();
@@ -320,6 +324,139 @@ test("SiteView: the viewer off links to Settings; working says so; failed offers
     await settle();
     assert.ok(f.calls.some((c) => c.method === "POST" && c.path === "/api/tasks/STH-2/sites/launch-a/shots"));
     assert.equal(f.calls.at(-1).method, "GET", "the list is read again after asking");
+  } finally {
+    f.restore();
+  }
+});
+
+// ---- The three pieces on a stage (PLAN-COOK T41) ----
+
+// The three pieces as a page places them: one useSiteView, the stage, the strip and the rail.
+function Placed({ id, scores }) {
+  const view = site.useSiteView({ id });
+  return html`<div>
+    <div class="t-stage"><${site.SiteStage} view=${view} /></div>
+    <div class="t-strip"><${site.SiteStrip} view=${view} scores=${scores} /></div>
+    <div class="t-rail"><${site.SiteRail} view=${view} /></div>
+  </div>`;
+}
+const part = (root, cls) => elements(root).find((e) => attr(e, "class") === cls);
+const ofClass = (root, cls) => elements(root).filter((e) => (attr(e, "class") || "").split(" ").includes(cls));
+
+test("site: the findings numbered across pages, each frame's numbers, the heading, the scores and the stage's name", () => {
+  const two = { ...READY, shots: { ...READY.shots, report: [...READY.shots.report.slice(0, 1), { page: "about.html", lines: ["The page has no title", "Drawn with: Inter"] }] } };
+  assert.deepEqual(site.findsOf(two), [
+    { n: 1, page: "index.html", text: "Wider than the screen at 390 px: div.too.wide (700 px)", tone: "warn", width: 390 },
+    { n: 2, page: "index.html", text: "<img src=x onerror=alert(1)> did not load", tone: "warn", width: null },
+    { n: 3, page: "about.html", text: "The page has no title", tone: "warn", width: null },
+  ]);
+  assert.deepEqual(site.findsOf({ shots: { report: [{ page: "index.html", lines: ["Nothing to fix was found."] }] } }), []);
+  const finds = site.findsOf(two);
+  assert.deepEqual(site.pinsFor(finds, "index.html", 1280), [{ n: 2 }], "a sentence that names 390 px is not the desktop's");
+  assert.deepEqual(site.pinsFor(finds, "index.html", 390), [{ n: 1 }, { n: 2 }]);
+  assert.deepEqual(site.pinsFor(finds, "about.html", 390), [{ n: 3 }]);
+  assert.equal(site.foundWords(5, READY), "The page viewer found 5 things in A");
+  assert.equal(site.foundWords(1, { ref: "launch" }), "The page viewer found 1 thing in launch");
+  assert.deepEqual(site.scoreLine({ total: 55, meets: true, reason: "the type carries the lake" }), { total: "55 of 70", state: { tone: "good", text: "Meets the bar" }, reason: "the type carries the lake" });
+  assert.deepEqual(site.scoreLine({ total: 44, meets: false }).state, { tone: "warn", text: "Below the bar" });
+  for (const bad of [null, {}, { total: 71 }, { total: -1 }, { total: "55" }, { total: 5.5 }]) assert.equal(site.scoreLine(bad), null, JSON.stringify(bad));
+  assert.equal(site.stageLabel(READY), "How version A looks");
+  assert.equal(site.stageLabel({ ref: "launch" }), "How the site looks");
+  for (const k of ["lightPage", "darkPage", "meets", "below", "versions", "notLoaded"]) assert.equal(typeof site.SITE_WORDS[k], "string", k);
+  assert.equal(site.SITE_WORDS.lightPage, "Light page");
+  assert.equal(site.SITE_WORDS.darkPage, "Dark page");
+  for (const k of ["useSiteView", "SiteStage", "SiteStrip", "SiteRail"]) assert.equal(typeof index[k], "function", `the kit's index exports ${k}`);
+});
+
+test("SiteStage: the desktop and the phone frame get the same scale, each a button that opens it larger, the findings' numbers in their labels", async () => {
+  const f = stubFetch(() => ({ status: 200, body: answer([READY]) }));
+  try {
+    const root = await showTree(Placed, { id: "STH-2" });
+    const cells = ofClass(root, "k-frames__cell");
+    assert.equal(cells.length, 2);
+    const grow = cells.map((c) => Number(/flex-grow:\s*(\d+)/.exec(c.style.cssText || attr(c, "style") || "")?.[1]));
+    assert.deepEqual(grow, [1280, 390], "each frame grows by its true width, so both are drawn at one scale");
+    const opens = ofClass(root, "k-site__open");
+    assert.deepEqual(opens.map((b) => b.localName), ["button", "button"]);
+    assert.equal(attr(opens[0], "aria-label"), "Version A: <b>Editorial</b>, Home page, desktop (1280 px): open it larger");
+    const labels = ofClass(root, "k-frame__label").map((l) => ofClass(l, "k-pin").map((p) => textOf(p)));
+    assert.deepEqual(labels, [["2"], ["1", "2"]], "the 390 px finding is the phone's only");
+    fire(opens[1], "click");
+    await settle();
+    const dialogImg = elements(root).filter((e) => e.localName === "img").map((e) => attr(e, "src"));
+    assert.ok(dialogImg.includes(READY.shots.images[2].url));
+    assert.match(textOf(root), /Version A: <b>Editorial<\/b>, Home page: phone, 390 px/);
+  } finally {
+    f.restore();
+  }
+});
+
+test("SiteRail: a report line is a text node; choosing a finding on another page switches the stage to that page", async () => {
+  const two = { ...READY, shots: { ...READY.shots, report: [READY.shots.report[0], { page: "about.html", lines: ["<script>x</script> The page has no title"] }] } };
+  const f = stubFetch(() => ({ status: 200, body: answer([two]) }));
+  try {
+    const root = await showTree(Placed, { id: "STH-2" });
+    const rail = part(root, "t-rail");
+    assert.match(textOf(rail), /The page viewer found 3 things in A/);
+    const texts = [...walk(rail)].filter((n) => n.nodeType === 3).map((n) => n.data);
+    assert.ok(texts.includes("<img src=x onerror=alert(1)> did not load"), "the server's sentence is one text node, as sent");
+    assert.ok(texts.includes("<script>x</script> The page has no title"));
+    assert.ok(!elements(root).some((e) => e.localName === "script"));
+    const rows = ofClass(rail, "k-finds__row");
+    assert.equal(rows.length, 3);
+    assert.match(textOf(rows[2]), /about$/, "a row names its page");
+    const stagePage = () => elements(part(root, "t-stage")).filter((e) => e.localName === "button" && e.getAttribute("aria-pressed") === "true").map((e) => textOf(e));
+    assert.ok(stagePage().includes("Home page"));
+    fire(rows[2], "click");
+    await settle();
+    assert.ok(stagePage().includes("about"), "the stage shows the finding's page");
+    assert.equal(ofClass(root, "k-finds__row--on").length, 1);
+    assert.match(textOf(part(root, "t-rail")), /Pictures taken/);
+  } finally {
+    f.restore();
+  }
+});
+
+test("SiteStage: an address that is not the exact shot form is never rendered, on the stage or in the strip", async () => {
+  const bad = ["/files/shot-index-1280-light.png", `/api/sites/shot/${KEY}/shot-index-1280-light.png?x=1`, "http:" + "//elsewhere.example/shot-index-1280-light.png",
+    `/api/view/${KEY}`, `/api/sites/shot/${KEY}/../shot-index-390-light.png`];
+  const odd = (ref, variant) => ({ ...READY, ref, variant, shots: { ...READY.shots, images: bad.map((url, i) => ({ url, page: "index.html", width: i % 2 ? 390 : 1280, scheme: "light" })) } });
+  const f = stubFetch(() => ({ status: 200, body: answer([odd("launch-a", "a"), odd("launch-b", "b")]) }));
+  try {
+    const root = await showTree(Placed, { id: "STH-2" });
+    assert.equal(elements(root).filter((e) => e.localName === "img").length, 0);
+    assert.equal(ofClass(root, "k-frames").length, 0, "no frames without a kept picture");
+    for (const e of elements(root)) for (const v of Object.values(e.attrs)) assert.ok(!bad.includes(v), `${v} reached an attribute`);
+  } finally {
+    f.restore();
+  }
+});
+
+test("SiteStrip: one site draws no radiogroup; versions draw one, chosen first, with the Art director's scores when passed", async () => {
+  let f = stubFetch(() => ({ status: 200, body: answer([READY]) }));
+  try {
+    const root = await showTree(Placed, { id: "STH-2" });
+    assert.equal(elements(root).filter((e) => e.getAttribute("role") === "radiogroup").length, 0);
+    assert.equal(part(root, "t-strip").childNodes.length, 0);
+  } finally {
+    f.restore();
+  }
+  f = stubFetch(() => ({ status: 200, body: answer([READY, B, C]) }));
+  try {
+    const scores = { a: { total: 55, meets: true, reason: "the type carries the lake, calm on a phone" }, b: { total: 49, meets: false, reason: "strong pictures" } };
+    const root = await showTree(Placed, { id: "STH-2", scores });
+    const group = elements(root).filter((e) => e.getAttribute("role") === "radiogroup");
+    assert.equal(group.length, 1);
+    assert.equal(group[0].getAttribute("aria-label"), "The versions");
+    const radios = elements(group[0]).filter((e) => e.getAttribute("role") === "radio");
+    assert.equal(radios.filter((r) => r.getAttribute("aria-checked") === "true").length, 1);
+    assert.match(textOf(radios[0]), /^A · <b>Editorial<\/b>55 of 70Meets the barthe type carries the lake, calm on a phone$/);
+    assert.match(textOf(radios[1]), /49 of 70Below the bar/);
+    assert.match(textOf(radios[2]), /^C · Spec sheet6 files, 84 KB2 things to look at$/, "no score passed: the size and what was found");
+    fire(radios[2], "click");
+    await settle();
+    assert.equal(elements(root).filter((e) => e.getAttribute("role") === "radio")[2].getAttribute("aria-checked"), "true");
+    assert.match(textOf(part(root, "t-rail")), /The page viewer found 2 things in C/);
   } finally {
     f.restore();
   }

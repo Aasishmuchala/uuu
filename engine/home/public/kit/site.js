@@ -1,9 +1,15 @@
-// SiteView (PLAN-V5 K15's owner part, K16, T54): a site an agent built for a task, as the owner sees it on the task's
-// page. Per site (versions a to c, or the one): the home server's own pictures of each page at desktop and phone
-// width side by side (light; "Dark" when the page has a dark look too), each opening larger; what the page viewer
-// found, page by page, in the home server's sentences; "Take pictures again"; "Open the preview" (the site loaded
-// into the owner's preview, opened in a new tab with noopener and noreferrer, only at the preview's own address
-// on 127.0.0.1); "Download as a zip". From GET /api/tasks/:id/sites (routes/sites.mjs, T52).
+// A site an agent built for a task, as the owner sees it (PLAN-V5 K15, K16, T54; drawn on a stage by PLAN-COOK T41,
+// from the C3 mockup's S01). Three pieces a page places in a StageLayout, all driven by one useSiteView:
+//   SiteStage: the bar (which page, which look, Take pictures again, the zip, Open the preview) and the pictures of
+//     the chosen page at desktop and phone width side by side at one scale (each opening larger), or the state of
+//     the pictures when they are not there (being taken, the viewer off, none yet, failed), and the files left out;
+//   SiteStrip: one card per version (a to c, as the server lists them), choosing which one the stage shows; nothing
+//     for a single site;
+//   SiteRail: what the page viewer found, numbered across the site's pages (choosing one shows its page), the brand
+//     check as sent, and when the pictures were taken.
+// SiteView stacks the three in one column for a page that has no stage. From GET /api/tasks/:id/sites
+// (routes/sites.mjs, T52). "Open the preview" loads the site into the owner's preview and opens it in a new tab with
+// noopener and noreferrer, only at the preview's own address on 127.0.0.1.
 // Everything here came from an agent's folder or from the home server's reading of it: a direction's title, a page's
 // name, a report line and a left-out file's name are text nodes, capped; a picture comes only from the exact
 // /api/sites/shot/<64 hex>/<shot name> address (C21); nothing is ever set as HTML.
@@ -14,8 +20,12 @@ import { bytes, count } from "../lib/format.js";
 import { Button } from "./button.js";
 import { Icon } from "./icon.js";
 import { Dialog } from "./overlays.js";
+import { Blk } from "./layout.js";
 import { Segmented } from "./segmented.js";
+import { Finds, Frames, StageBar } from "./stage.js";
 import { StatusDot } from "./status.js";
+import { Notice } from "./states.js";
+import { OptionCard, Strip } from "./strip.js";
 import { Time } from "./text.js";
 import { cx, nextId } from "./util.js";
 
@@ -43,6 +53,19 @@ export const SITE_WORDS = {
   dark: "Dark",
   noPicture: "No picture at this width",
   open: "open it larger",
+  // The stage, the strip and the rail (PLAN-COOK T41).
+  lightPage: "Light page",
+  darkPage: "Dark page",
+  whichPage: "Which page",
+  whichLook: "The page's own colours",
+  versions: "The versions",
+  meets: "Meets the bar",
+  below: "Below the bar",
+  fine: "Nothing to fix",
+  brand: "Your brand kit",
+  notLoaded: "A picture of this page could not be loaded. Take pictures again, or open the preview.",
+  taken: "Pictures taken",
+  where: "by a hidden Chrome on this Mac. Nothing was sent anywhere.",
 };
 
 const POLL_MS = 4000;
@@ -202,11 +225,52 @@ export function siteAddress(id, ref, what) {
   return what ? `${base}/${what}` : base;
 }
 
+// The findings of a site, numbered across its pages in the server's order: [{ n, page, text, tone, width }]. `width`
+// is 1280 or 390 when the sentence names that width ("Wider than the screen at 390 px: …"), else null (both).
+export function findsOf(site) {
+  const out = [];
+  for (const r of reportLayout(site)) {
+    for (const l of r.lines) {
+      if (out.length >= 30) return out;
+      const m = /\bat (1280|390) px\b/.exec(l.text);
+      out.push({ n: out.length + 1, page: r.page, text: l.text, tone: l.tone, width: m ? Number(m[1]) : null });
+    }
+  }
+  return out;
+}
+
+// The findings a frame of one page at one width names in its label, as pins with no place (the server sends no
+// positions yet, PLAN-COOK O8): [{ n }].
+export function pinsFor(finds, page, width) {
+  return list(finds).filter((f) => obj(f) && f.page === page && (f.width === null || f.width === width)).map((f) => ({ n: f.n }));
+}
+
+// "The page viewer found 5 things in A"; a single site is named by its folder.
+export function foundWords(n, site) {
+  const name = siteName(site);
+  return `The page viewer found ${count(num(n), "thing")} in ${name.letter || name.title}`;
+}
+
+// What the stage is called: "How version A looks", or "How the site looks".
+export function stageLabel(site) {
+  const name = siteName(site);
+  return name.letter ? `How version ${name.letter} looks` : SITE_WORDS.title;
+}
+
+// A version's line from the Art director's review as the caller passes it ({ total, meets, reason }):
+// { total: "55 of 70", state: the bar's chip or null, reason }. null without a total from 0 to 70.
+export function scoreLine(review) {
+  if (!obj(review) || !Number.isInteger(review.total) || review.total < 0 || review.total > 70) return null;
+  const state = review.meets === true ? { tone: "good", text: SITE_WORDS.meets }
+    : review.meets === false ? { tone: "warn", text: SITE_WORDS.below } : null;
+  return { total: `${review.total} of 70`, state, reason: plain(review.reason, 200) };
+}
+
 // ---- Parts ----
 
 // One picture in a frame drawn like the screen it was taken on: a browser window for the desktop, a phone for the
-// phone. The frame shows the top of the page, as the screen would; pressing it opens the whole page larger.
-function Frame({ url, at, label, onOpen }) {
+// phone (ShotPair, the Settings Test's size). The frame shows the top of the page; pressing it opens the whole page.
+function PairFrame({ url, at, label, onOpen }) {
   const word = at === "desktop" ? SITE_WORDS.desktop : SITE_WORDS.phone;
   const px = at === "desktop" ? "1280 px" : "390 px";
   return html`<figure class=${cx("k-site__frame", `k-site__frame--${at}`)}>
@@ -224,6 +288,20 @@ function Frame({ url, at, label, onOpen }) {
   </figure>`;
 }
 
+// The whole page opened larger in the kit's dialog, with a switch between the two widths when there are both.
+// `desktop` and `phone` are checked addresses or null; `open` is "desktop", "phone" or null.
+function Larger({ desktop, phone, open, onOpen, label }) {
+  const shown = open === "phone" ? phone : open === "desktop" ? desktop : null;
+  return html`<${Dialog} open=${Boolean(shown)} size="lg" onClose=${() => onOpen(null)}
+    title=${`${label}: ${open === "phone" ? "phone, 390 px" : "desktop, 1280 px"}`}
+    footer=${desktop && phone ? html`<${Segmented} label="Which picture" size="sm" current=${open}
+      items=${[{ id: "desktop", label: SITE_WORDS.desktop }, { id: "phone", label: SITE_WORDS.phone }]} onChange=${onOpen} />` : null}>
+    <figure class=${cx("k-site__large", open === "phone" && "k-site__large--phone")}>
+      <img src=${shown} alt=${`${label}, the whole page at ${open === "phone" ? "phone" : "desktop"} width`} decoding="async" />
+    </figure>
+  <//>`;
+}
+
 // The desktop and the phone picture of one page side by side, each opening larger in a dialog where the whole page
 // scrolls. `small` is the Settings Test's size. `label` names what the pictures are of (built here, plain text).
 export function ShotPair({ desktop = null, phone = null, label = "The page", small = false }) {
@@ -231,19 +309,10 @@ export function ShotPair({ desktop = null, phone = null, label = "The page", sma
   const d = shotUrl(desktop);
   const p = shotUrl(phone);
   if (!d && !p) return null;
-  const shown = open === "phone" ? p : open === "desktop" ? d : null;
-  const both = Boolean(d && p);
   return html`<div class=${cx("k-site__pair", small && "k-site__pair--small")}>
-    <${Frame} url=${d} at="desktop" label=${label} onOpen=${() => setOpen("desktop")} />
-    <${Frame} url=${p} at="phone" label=${label} onOpen=${() => setOpen("phone")} />
-    <${Dialog} open=${Boolean(shown)} size="lg" onClose=${() => setOpen(null)}
-      title=${`${label}: ${open === "phone" ? "phone, 390 px" : "desktop, 1280 px"}`}
-      footer=${both ? html`<${Segmented} label="Which picture" size="sm" current=${open}
-        items=${[{ id: "desktop", label: SITE_WORDS.desktop }, { id: "phone", label: SITE_WORDS.phone }]} onChange=${setOpen} />` : null}>
-      <figure class=${cx("k-site__large", open === "phone" && "k-site__large--phone")}>
-        <img src=${shown} alt=${`${label}, the whole page at ${open === "phone" ? "phone" : "desktop"} width`} decoding="async" />
-      </figure>
-    <//>
+    <${PairFrame} url=${d} at="desktop" label=${label} onOpen=${() => setOpen("desktop")} />
+    <${PairFrame} url=${p} at="phone" label=${label} onOpen=${() => setOpen("phone")} />
+    <${Larger} desktop=${d} phone=${p} open=${open} onOpen=${setOpen} label=${label} />
   </div>`;
 }
 
@@ -252,37 +321,6 @@ function WithSettings({ sentence }) {
   const s = settingsSplit(sentence);
   if (!s.link) return html`<span>${s.before}</span>`;
   return html`<span>${s.before} <a class="k-site__link" href="#/settings">${s.link}</a></span>`;
-}
-
-// What the page viewer found on one page: what to fix, or that nothing was found, then the faces it was drawn with.
-function Report({ report, many }) {
-  const n = report.lines.length;
-  return html`<section class="k-site__report" aria-label=${many ? `${SITE_WORDS.found}: ${pageWords(report.page)}` : SITE_WORDS.found}>
-    <h4 class="k-site__report-title">${SITE_WORDS.found}${n ? html`<span class="k-site__report-n">${count(n, "thing")} to look at</span>` : null}</h4>
-    ${n
-      ? html`<ul class="k-site__lines">
-          ${report.lines.map((l, i) => html`<li key=${i} class=${cx("k-site__line", `k-site__line--${l.tone}`)}>
-            <${Icon} name="alert" size=${14} /><span>${l.text}</span>
-          </li>`)}
-        </ul>`
-      : report.fine
-        ? html`<p class="k-site__fine"><${Icon} name="check" size=${14} /><span>${SITE_WORDS.nothing}</span></p>`
-        : null}
-    ${report.drawn ? html`<p class="k-site__drawn">${report.drawn}</p>` : null}
-  </section>`;
-}
-
-// The state of the pictures when they are not simply there: being taken, the viewer off, failed, none yet.
-function StateRow({ line, busy, onAgain }) {
-  if (!line) return null;
-  if (line.state === "working") {
-    return html`<p class="k-site__state k-site__state--live" role="status"><${StatusDot} tone="live" label=${line.sentence} /></p>`;
-  }
-  return html`<div class=${cx("k-site__state", `k-site__state--${line.state}`)} role=${line.state === "failed" ? "alert" : undefined}>
-    <${Icon} name=${line.state === "failed" ? "alert" : "image"} size=${16} />
-    <p class="k-site__state-words"><${WithSettings} sentence=${line.sentence} /></p>
-    ${line.retry ? html`<${Button} size="sm" icon="loop" busy=${busy} onClick=${onAgain}>${line.retry}<//>` : null}
-  </div>`;
 }
 
 // A failed action's sentence, the server's own: "… Run: engine start" sets the command apart.
@@ -294,103 +332,22 @@ function Failed({ failure }) {
   </p>`;
 }
 
-// One site: its name and size, its two actions, the state of its pictures, the pictures of the chosen page in the
-// chosen look, what the viewer found there, and the files left out.
-function SitePanel({ id, site, viewer, headLevel, onReload }) {
-  const [page, setPage] = useState(null);
-  const [scheme, setScheme] = useState("light");
-  const [busy, setBusy] = useState("");
-  const [failure, setFailure] = useState(null);
-  const [opened, setOpened] = useState(null);
-  const [headId] = useState(() => nextId("k-site"));
-  const name = siteName(site);
-  const shots = obj(site.shots) ? site.shots : {};
-  const images = list(shots.images);
-  const pages = pagesOfSite(site);
-  const shownPage = pages.includes(page) ? page : pages[0] || null;
-  const schemes = schemesOf(images);
-  const look = schemes.includes(scheme) ? scheme : "light";
-  const pics = shownPage ? picturesOf(images, shownPage, look) : { desktop: null, phone: null };
-  const line = stateLine(site, viewer);
-  const report = shownPage ? reportOf(site, shownPage) : null;
-  const left = leftLines(site.left);
-  const problem = plain(site.problem, 300);
-  const ready = shots.state === "ready";
-  const H = `h${Math.min(Math.max(headLevel, 2), 6)}`;
-  const label = pages.length > 1 && shownPage ? `${name.label}, ${pageWords(shownPage)}` : name.label;
-  // The row over the pictures: which page, which look, and Take pictures again; drawn only when it holds one of them.
-  const tools = pages.length > 1 || schemes.length > 1 || Boolean(ready && viewer && viewer.on);
-
-  const fail = (where, error) => setFailure({ where, message: plain(error && error.message, 300) || "That did not work.", next: plain(error && error.next, 300) });
-
-  async function again() {
-    if (busy) return;
-    setBusy("again");
-    setFailure(null);
-    try {
-      await api.post(siteAddress(id, site.ref, "shots"), {});
-      onReload();
-    } catch (error) {
-      fail("again", error);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function preview() {
-    if (busy) return;
-    setBusy("preview");
-    setFailure(null);
-    setOpened(null);
-    try {
-      const answer = await api.post(siteAddress(id, site.ref, "preview"), {});
-      const url = previewAddress(answer && answer.url);
-      if (!url) { setFailure({ where: "preview", message: SITE_WORDS.badAddress, next: "" }); return; }
-      setOpened(url);
-      if (typeof window !== "undefined" && typeof window.open === "function") window.open(url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      fail("preview", error);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  return html`<div class="k-site__panel" role="group" aria-labelledby=${headId}>
-    <div class="k-site__head">
-      ${name.letter ? html`<span class="k-site__letter" aria-hidden="true">${name.letter}</span>` : null}
-      <div class="k-site__names">
-        <${H} class="k-site__name" id=${headId}>${name.letter ? html`<span class="k-sr">Version ${name.letter}: </span>` : null}${name.title}<//>
-        <p class="k-site__meta">
-          <span>${sizeWords(site)}</span>
-          ${pages.length ? html`<span>${count(pages.length, "page")}</span>` : null}
-          ${ready && shots.taken ? html`<span>Pictures taken <${Time} at=${shots.taken} /></span>` : null}
-        </p>
-      </div>
-      ${problem ? null : html`<div class="k-site__actions">
-        <${Button} icon="external" busy=${busy === "preview"} disabled=${Boolean(busy) && busy !== "preview"} onClick=${preview}>${SITE_WORDS.preview}<//>
-        <${Button} variant="quiet" icon="download" href=${siteAddress(id, site.ref, "zip")} download="">${SITE_WORDS.zip}<//>
-      </div>`}
-    </div>
-    ${opened ? html`<p class="k-site__opened" role="status"><${Icon} name="check" size=${14} />
-      <span>${SITE_WORDS.opened} <a class="k-site__link" href=${opened} target="_blank" rel="noopener noreferrer">${SITE_WORDS.openHere}</a></span></p>` : null}
-    ${failure && failure.where === "preview" ? html`<${Failed} failure=${failure} />` : null}
-    ${problem ? html`<div class="k-site__state k-site__state--failed" role="alert"><${Icon} name="alert" size=${16} /><p class="k-site__state-words">${problem}</p></div>` : null}
-    ${problem ? null : html`<${StateRow} line=${line} busy=${busy === "again"} onAgain=${again} />`}
-    ${failure && failure.where === "again" ? html`<${Failed} failure=${failure} />` : null}
-    ${pics.desktop || pics.phone ? html`
-      ${tools ? html`<div class="k-site__tools">
-        ${pages.length > 1 ? html`<${Segmented} label="Which page" size="sm" current=${shownPage}
-          items=${pages.map((p) => ({ id: p, label: pageWords(p) }))} onChange=${setPage} />` : null}
-        ${schemes.length > 1 ? html`<${Segmented} label="Light or dark" size="sm" current=${look}
-          items=${[{ id: "light", label: SITE_WORDS.light, icon: "sun" }, { id: "dark", label: SITE_WORDS.dark, icon: "moon" }]} onChange=${setScheme} />` : null}
-        ${ready && viewer && viewer.on ? html`<${Button} class="k-site__again" variant="quiet" size="sm" icon="loop" busy=${busy === "again"}
-          disabled=${Boolean(busy) && busy !== "again"} onClick=${again}>${SITE_WORDS.again}<//>` : null}
-      </div>` : null}
-      <${ShotPair} desktop=${pics.desktop} phone=${pics.phone} label=${look === "dark" ? `${label}, dark` : label} />` : null}
-    ${report && (report.lines.length || report.fine || report.drawn) ? html`<${Report} report=${report} many=${pages.length > 1} />` : null}
-    ${left.length ? html`<ul class="k-site__left" aria-label="Files left out of the site">
-      ${left.map((l, i) => html`<li key=${i}><${Icon} name="file" size=${14} /><span>${l}</span></li>`)}
-    </ul>` : null}
+// The state of the pictures when they are not simply there. With no pictures to show, it is said inside the footprint
+// of the two frames (a desktop's and a phone's outline at their true shapes), so the stage keeps its shape; with
+// pictures already there (a new set being taken), `inline` says it on one line above them.
+function NoPictures({ line, problem, busy, onAgain, inline = false }) {
+  const say = problem ? { state: "failed", sentence: problem, retry: "" } : line;
+  if (!say) return null;
+  const words = say.state === "working"
+    ? html`<p class="k-site__state k-site__state--live" role="status"><${StatusDot} tone="live" label=${say.sentence} /></p>`
+    : html`<span class="k-site__empty-icon" aria-hidden="true"><${Icon} name=${say.state === "failed" ? "alert" : "image"} size=${18} /></span>
+      <p class="k-site__empty-words">${problem ? problem : html`<${WithSettings} sentence=${say.sentence} />`}</p>
+      ${say.retry ? html`<${Button} size="sm" icon="loop" busy=${busy} onClick=${onAgain}>${say.retry}<//>` : null}`;
+  const role = say.state === "failed" ? "alert" : undefined;
+  if (inline) return html`<div class=${cx("k-site__line", `k-site__line--${say.state}`)} role=${role}>${words}</div>`;
+  return html`<div class=${cx("k-site__empty", `k-site__empty--${say.state}`)}>
+    <div class="k-site__ghost k-site__ghost--desk" role=${role}>${words}</div>
+    <div class="k-site__ghost k-site__ghost--phone" aria-hidden="true"></div>
   </div>`;
 }
 
@@ -418,26 +375,228 @@ function useSites(id, stamp) {
   return { data, reload: () => setTick((n) => n + 1) };
 }
 
-// SiteView({ id, stamp, htmlId }) on a task's page: nothing for a task with no sites. With versions, one at a time
-// behind a lettered switch, in a to c order as the server lists them.
-export function SiteView({ id, stamp = "", htmlId = "p-task-sites" }) {
+// useSiteView({ id, stamp }): the one state the three pieces share. Reads the task's sites (as SiteView always has)
+// and holds which version, which page, which look and which finding are chosen:
+// { id, sites, site, many, viewer, pages, page, schemes, scheme, pictures, finds, finding,
+//   broken, choose(ref), setPage(page), setScheme(scheme), setFinding(n), lost(event), reload() }. `site` is null for a task with no sites.
+export function useSiteView({ id, stamp = "" } = {}) {
   const { data, reload } = useSites(id, stamp);
-  const [current, setCurrent] = useState(null);
+  const [chosen, setChosen] = useState(null);
+  const [want, setWant] = useState({ page: null, scheme: "light", finding: null });
   const sites = sitesOf(data);
-  if (!sites.length) return null;
-  const viewer = obj(data.viewer) ? data.viewer : { on: false, state: "off" };
-  const site = sites.find((s) => s.ref === current) || sites[0];
-  const many = sites.length > 1;
-  const items = sites.map((s) => {
-    const n = siteName(s);
-    return { id: s.ref, label: n.letter ? html`<span class="k-site__ver-letter">${n.letter}</span><span class="k-site__ver-name">${n.title}</span>` : n.title };
-  });
+  const site = sites.find((s) => s.ref === chosen) || sites[0] || null;
+  const viewer = obj(data) && obj(data.viewer) ? data.viewer : { on: false, state: "off" };
+  const pages = site ? pagesOfSite(site) : [];
+  const page = pages.includes(want.page) ? want.page : pages[0] || null;
+  const images = site && obj(site.shots) ? list(site.shots.images) : [];
+  const schemes = schemesOf(images);
+  const scheme = schemes.includes(want.scheme) ? want.scheme : "light";
+  const finds = site ? findsOf(site) : [];
+  const finding = finds.some((f) => f.n === want.finding) ? want.finding : null;
+  // Pictures that did not load: taken off the stage and the strip, and said once (SiteStage).
+  const [broken, setBroken] = useState([]);
+  return {
+    id, sites, site, many: sites.length > 1, viewer, pages, page, schemes, scheme, finds, finding,
+    pictures: page ? picturesOf(images, page, scheme) : { desktop: null, phone: null },
+    choose: (ref) => { setChosen(ref); setWant((w) => ({ ...w, page: null, finding: null })); },
+    setPage: (p) => setWant((w) => ({ ...w, page: p, finding: null })),
+    setScheme: (s) => setWant((w) => ({ ...w, scheme: s })),
+    setFinding: (n) => {
+      const f = finds.find((x) => x.n === n);
+      if (f) setWant((w) => ({ ...w, page: f.page, finding: n }));
+    },
+    broken,
+    // An img's error event: its address joins `broken` (only a kept picture's address is ever there).
+    lost: (event) => {
+      const src = event && event.target && typeof event.target.getAttribute === "function" ? event.target.getAttribute("src") : null;
+      if (src && shotUrl(src)) setBroken((b) => (b.includes(src) ? b : [...b, src]));
+    },
+    reload: () => { setBroken([]); reload(); },
+  };
+}
+
+// SiteStage({ view }): the bar, then the pictures of the chosen page at one scale, or the state of the pictures.
+export function SiteStage({ view }) {
+  if (!view || !view.site) return null;
+  return html`<${StageBody} key=${view.site.ref} view=${view} />`;
+}
+
+function StageBody({ view }) {
+  const { id, site, viewer, pages, page, schemes, scheme, finds, finding, pictures } = view;
+  const [busy, setBusy] = useState("");
+  const [failure, setFailure] = useState(null);
+  const [opened, setOpened] = useState(null);
+  const [open, setOpen] = useState(null);
+  const broken = view.broken;
+  const name = siteName(site);
+  const shots = obj(site.shots) ? site.shots : {};
+  const ready = shots.state === "ready";
+  const problem = plain(site.problem, 300);
+  const line = stateLine(site, viewer);
+  const left = leftLines(site.left);
+  const label = pages.length > 1 && page ? `${name.label}, ${pageWords(page)}` : name.label;
+  const looked = scheme === "dark" ? `${label}, dark` : label;
+  const desk = pictures.desktop && !broken.includes(pictures.desktop) ? pictures.desktop : null;
+  const phone = pictures.phone && !broken.includes(pictures.phone) ? pictures.phone : null;
+  const lost = Boolean((pictures.desktop && !desk) || (pictures.phone && !phone));
+  const canAgain = !problem && ready && viewer && viewer.on === true;
+
+  const fail = (where, error) => setFailure({ where, message: plain(error && error.message, 300) || "That did not work.", next: plain(error && error.next, 300) });
+
+  async function again() {
+    if (busy) return;
+    setBusy("again");
+    setFailure(null);
+    try {
+      await api.post(siteAddress(id, site.ref, "shots"), {});
+      view.reload();
+    } catch (error) {
+      fail("again", error);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function preview() {
+    if (busy) return;
+    setBusy("preview");
+    setFailure(null);
+    setOpened(null);
+    try {
+      const answer = await api.post(siteAddress(id, site.ref, "preview"), {});
+      const url = previewAddress(answer && answer.url);
+      if (!url) { setFailure({ where: "preview", message: SITE_WORDS.badAddress, next: "" }); return; }
+      setOpened(url);
+      if (typeof window !== "undefined" && typeof window.open === "function") window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      fail("preview", error);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  // The frame's own word is the button that opens it larger: its press covers the whole frame (site.css).
+  const opener = (at, url) => {
+    const word = at === "desktop" ? SITE_WORDS.desktop : SITE_WORDS.phone;
+    const px = at === "desktop" ? "1280 px" : "390 px";
+    return html`<span class=${cx("k-site__frame", `k-site__frame--${at}`)}>${url
+      ? html`<button type="button" class="k-site__open" onClick=${() => setOpen(at)}
+          aria-label=${`${looked}, ${word.toLowerCase()} (${px}): ${SITE_WORDS.open}`}>${word}</button>`
+      : word}</span>`;
+  };
+  const items = [];
+  if (pictures.desktop) items.push({ width: 1280, src: desk, alt: "", label: opener("desktop", desk), pins: pinsFor(finds, page, 1280) });
+  if (pictures.phone) items.push({ width: 390, src: phone, alt: "", label: opener("phone", phone), pins: pinsFor(finds, page, 390) });
+
+  const bar = pages.length > 1 || schemes.length > 1 || !problem;
+  return html`<div class="k-site__stage">
+    ${bar ? html`<${StageBar}>
+      ${pages.length > 1 ? html`<${Segmented} label=${SITE_WORDS.whichPage} size="sm" current=${page}
+        items=${pages.map((p) => ({ id: p, label: pageWords(p) }))} onChange=${view.setPage} />` : null}
+      ${schemes.length > 1 ? html`<${Segmented} label=${SITE_WORDS.whichLook} size="sm" current=${scheme}
+        items=${[{ id: "light", label: SITE_WORDS.lightPage, icon: "sun" }, { id: "dark", label: SITE_WORDS.darkPage, icon: "moon" }]} onChange=${view.setScheme} />` : null}
+      <span class="k-stagebar__gap"></span>
+      ${canAgain ? html`<${Button} class="k-site__tool" variant="quiet" size="sm" icon="camera" aria-label=${SITE_WORDS.again} title=${SITE_WORDS.again}
+        busy=${busy === "again"} disabled=${Boolean(busy) && busy !== "again"} onClick=${again}>${SITE_WORDS.again}<//>` : null}
+      ${problem ? null : html`<${Button} class="k-site__tool" variant="quiet" size="sm" icon="download" aria-label=${SITE_WORDS.zip} title=${SITE_WORDS.zip}
+        href=${siteAddress(id, site.ref, "zip")} download="" />`}
+      ${problem ? null : html`<${Button} class="k-site__tool" size="sm" icon="external" aria-label=${SITE_WORDS.preview}
+        busy=${busy === "preview"} disabled=${Boolean(busy) && busy !== "preview"} onClick=${preview}>${SITE_WORDS.preview}<//>`}
+    <//>` : null}
+    ${opened ? html`<p class="k-site__opened" role="status"><${Icon} name="check" size=${14} />
+      <span>${SITE_WORDS.opened} <a class="k-site__link" href=${opened} target="_blank" rel="noopener noreferrer">${SITE_WORDS.openHere}</a></span></p>` : null}
+    ${failure ? html`<${Failed} failure=${failure} />` : null}
+    ${items.length && !problem
+      ? html`
+        ${line ? html`<${NoPictures} line=${line} busy=${busy === "again"} onAgain=${again} inline />` : null}
+        ${lost ? html`<${Notice} tone="bad">${SITE_WORDS.notLoaded}<//>` : null}
+        <div class="k-site__frames" onErrorCapture=${view.lost}>
+          <${Frames} items=${items} selected=${finding} onPin=${view.setFinding} />
+        </div>`
+      : html`<${NoPictures} line=${line} problem=${problem} busy=${busy === "again"} onAgain=${again} />`}
+    ${left.length ? html`<div class="k-site__left" role="group" aria-label="Files left out of the site">
+      <${Notice} tone="warn">${left.map((l, i) => html`<p key=${i}>${l}</p>`)}<//>
+    </div>` : null}
+    <${Larger} desktop=${desk} phone=${phone} open=${open} onOpen=${setOpen} label=${looked} />
+  </div>`;
+}
+
+// SiteStrip({ view, scores, label }): one card per version; choosing one shows it on the stage. `scores` (optional)
+// is the Art director's review per version, keyed by its letter ("a") or its ref: { total, meets, reason }.
+// Nothing for a single site.
+export function SiteStrip({ view, scores = null, label = SITE_WORDS.versions }) {
+  if (!view || !view.site || view.sites.length < 2) return null;
+  return html`<div class="k-site__strip" onErrorCapture=${view.lost}>
+    <${Strip} label=${label}>
+      ${view.sites.map((s) => {
+        const n = siteName(s);
+        const images = obj(s.shots) ? s.shots.images : [];
+        const first = pagesOfSite(s)[0];
+        const kept = first ? picturesOf(images, first, "light").desktop : null;
+        const thumb = kept && !view.broken.includes(kept) ? kept : null;
+        const review = obj(scores) ? scores[s.variant] || scores[s.ref] : null;
+        const sc = scoreLine(review);
+        const found = findsOf(s).length;
+        const ready = obj(s.shots) && s.shots.state === "ready";
+        const state = sc ? sc.state
+          : ready ? (found ? { tone: "warn", text: `${count(found, "thing")} to look at` } : { tone: "good", icon: "check", text: SITE_WORDS.fine })
+            : null;
+        return html`<${OptionCard} key=${s.ref} checked=${s.ref === view.site.ref} onPick=${() => view.choose(s.ref)}
+          title=${n.letter ? `${n.letter} · ${n.title}` : n.title} amount=${sc ? sc.total : undefined}
+          sub=${sc ? undefined : sizeWords(s)} state=${state} say=${sc && sc.reason ? sc.reason : undefined}
+          boards=${[{ src: thumb, alt: "" }]} />`;
+      })}
+    <//>
+  </div>`;
+}
+
+// SiteRail({ view }): what the page viewer found (one numbered row per report line, naming its page; choosing one
+// shows that page), the brand check as the server sent it, and when the pictures were taken.
+export function SiteRail({ view }) {
+  if (!view || !view.site) return null;
+  const { site, finds, finding, pages } = view;
+  const shots = obj(site.shots) ? site.shots : {};
+  const reports = reportLayout(site);
+  const fine = !finds.length && reports.some((r) => r.fine);
+  const drawn = [...new Set(reports.map((r) => r.drawn).filter(Boolean))];
+  const brand = obj(site.brand) ? list(site.brand.lines).map((l) => plain(l, 300)).filter(Boolean).slice(0, 6) : [];
+  const ready = shots.state === "ready";
+  return html`<div class="k-site__rail">
+    ${finds.length || fine || drawn.length
+      ? html`<${Blk} title=${finds.length ? foundWords(finds.length, site) : SITE_WORDS.found}>
+          ${finds.length
+            ? html`<${Finds} selected=${finding} onSelect=${view.setFinding} items=${finds.map((f) => ({
+                n: f.n,
+                title: html`<span class="k-site__find">${f.text}</span><span class="k-site__find-page">${pageWords(f.page)}${f.width ? `, at ${f.width} px` : ""}</span>`,
+              }))} />`
+            : fine ? html`<p class="k-site__fine"><${Icon} name="check" size=${16} /><span>${SITE_WORDS.nothing}</span></p>` : null}
+          ${drawn.map((d) => html`<p key=${d} class="k-say k-site__drawn">${d}</p>`)}
+        <//>`
+      : null}
+    ${brand.length
+      ? html`<${Blk} title=${SITE_WORDS.brand}>
+          ${brand.map((l, i) => html`<p key=${i} class="k-say k-site__brand">${l}</p>`)}
+        <//>`
+      : null}
+    <${Blk}>
+      ${ready && shots.taken ? html`<p class="k-say">${SITE_WORDS.taken} <${Time} at=${shots.taken} /> ${SITE_WORDS.where}</p>` : null}
+      <p class="k-say k-site__size">${sizeWords(site)}${pages.length ? `, ${count(pages.length, "page")}` : ""}</p>
+    <//>
+  </div>`;
+}
+
+// SiteView({ id, stamp, htmlId }) on a page with no stage: the three pieces stacked in one column. Nothing for a task
+// with no sites.
+export function SiteView({ id, stamp = "", htmlId = "p-task-sites" }) {
+  const view = useSiteView({ id, stamp });
+  if (!view.site) return null;
   return html`<section class="k-site" id=${htmlId} tabindex="-1" aria-labelledby=${`${htmlId}-h`}>
     <div class="k-site__top">
-      <h2 class="k-site__title" id=${`${htmlId}-h`}>${many ? SITE_WORDS.titleMany : SITE_WORDS.title}</h2>
+      <h2 class="k-site__title" id=${`${htmlId}-h`}>${view.many ? SITE_WORDS.titleMany : SITE_WORDS.title}</h2>
       <p class="k-site__lead">${SITE_WORDS.lead}</p>
     </div>
-    ${many ? html`<div class="k-site__versions"><${Segmented} label="Versions" current=${site.ref} items=${items} onChange=${setCurrent} /></div>` : null}
-    <${SitePanel} key=${site.ref} id=${id} site=${site} viewer=${viewer} headLevel=${3} onReload=${reload} />
+    <div class="k-site__on-stage" role="group" aria-label=${stageLabel(view.site)}><${SiteStage} view=${view} /></div>
+    <${SiteStrip} view=${view} />
+    <${SiteRail} view=${view} />
   </section>`;
 }
