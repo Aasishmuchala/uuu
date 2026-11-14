@@ -174,3 +174,57 @@ test("brand kit: Files hands over its address and the old brand form leads to it
   assert.equal(files.formLeadsToKit("cant-say"), false);
   assert.match(FILES_SOURCE, /brandKit: \["\.\/brand-kit\.js", "default"\]/);
 });
+
+test("brand kit: the kit's parts are the page's sections, kept in the address with the proposal", () => {
+  assert.deepEqual(m.SECTIONS.map((s) => s.label), ["Logo", "Colours", "Type", "Layout", "Pictures", "Words", "References"]);
+  assert.equal(m.sectionOf(new URLSearchParams("")), "logo");
+  assert.equal(m.sectionOf(new URLSearchParams("s=colours")), "colours");
+  assert.equal(m.sectionOf(new URLSearchParams("s=../x")), "logo");
+  assert.equal(m.sectionHref("logo"), "#/files/brand-kit");
+  assert.equal(m.sectionHref("type"), "#/files/brand-kit?s=type");
+  assert.equal(m.sectionHref("type", "STH-12"), "#/files/brand-kit?s=type&proposal=STH-12");
+  assert.equal(m.sectionHref("nope", "a&b"), "#/files/brand-kit");
+  // A refusal is shown in the section that edits its field.
+  assert.equal(m.fieldSection("colours.2.hex"), "colours");
+  assert.equal(m.fieldSection("neutrals"), "colours");
+  assert.equal(m.fieldSection("layout.radiusPx"), "layout");
+  assert.equal(m.fieldSection("references.0.note"), "pictures");
+  assert.equal(m.fieldSection("public.summary"), "words");
+  assert.equal(m.fieldSection("name"), "words");
+  assert.equal(m.fieldSection("logo.files.0.file"), "logo");
+  assert.equal(m.fieldSection(null), null);
+});
+
+test("brand kit: each section's line says what is set, what is not saved, and where to start", () => {
+  const kit = m.kitFromForm(m.formFromKit(view.kit));
+  const lines = m.sectionLines(kit, { exists: true, playbooks: view.playbooks });
+  assert.deepEqual(lines.logo, { tone: "good", text: "On light only" });
+  assert.deepEqual(lines.colours, { tone: "good", text: "2 colours" });
+  assert.deepEqual(lines.type, { tone: "good", text: "Didot and Avenir Next" });
+  assert.deepEqual(lines.layout, { tone: "good", text: "Square corners, 6% margins" });
+  assert.deepEqual(lines.pictures, { tone: "good", text: "1 example" });
+  assert.deepEqual(lines.words, { tone: "good", text: "3 words" });
+  assert.deepEqual(lines.references, { tone: "good", text: "1 playbook" });
+  const empty = m.sectionLines(m.kitFromForm(m.formFromKit(null)), { exists: false });
+  assert.deepEqual(empty.logo, { tone: "neutral", text: "Start here" });
+  assert.deepEqual(empty.colours, { tone: "neutral", text: m.SECTION_WORDS.notSet });
+  assert.equal(m.SECTION_WORDS.notSet, "Not set yet");
+  assert.deepEqual(empty.references, { tone: "neutral", text: "Nothing yet" });
+  // A change not saved yet is said beside what is set.
+  const after = { ...kit, colours: [...kit.colours, { name: "clay", hex: "#B5653A", role: "other" }], layout: { radiusPx: 8, marginShare: 0.06 } };
+  const changed = m.changedSections(kit, after);
+  assert.deepEqual(changed, ["colours", "layout"]);
+  const now = m.sectionLines(after, { exists: true, changed });
+  assert.deepEqual(now.colours, { tone: "warn", text: "3 colours, not saved" });
+  assert.equal(now.layout.text, "8 px corners, 6% margins, not saved");
+  assert.equal(m.sectionSet("logo", { ...kit, logo: { ...kit.logo, files: [{ file: "a.png", on: "light" }, { file: "b.png", on: "dark" }] } }), "On light and dark");
+});
+
+test("brand kit: the owner's colours are content, left out of the screen's own colour, and the page uses the kit's frame and picker", () => {
+  const code = stripJsComments(SOURCE);
+  assert.match(code, /DocLayout/);
+  assert.match(code, /FilePicker/);
+  for (const part of ["p-brand-kit__swatch", "p-brand-kit__ground", "p-brand-kit__specimen\"", "p-brand-kit__page\""]) {
+    assert.match(code, new RegExp(`class=[^>]*${part}[^>]*data-cook-picture|${part}[^>]*" data-cook-picture`), `${part} sits in a picture box`);
+  }
+});

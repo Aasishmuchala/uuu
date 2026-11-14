@@ -1,15 +1,19 @@
-// Files, Brand kit (PLAN-V5 K5, T14): where the owner turns a brand book into rules every tool obeys. Colours as
-// swatches, the two faces as a live sample, the logo on light and on dark with its clear space drawn, the voice as
-// do and don't, the approved work as a wall of pictures. Reached at #/files/brand-kit (the Files page hands this
-// address over); `?proposal=<task>` lays what the "Read the brand book" job proposed beside each part.
+// Files, Brand kit (PLAN-V5 K5, T14; redrawn in PLAN-COOK T69): where the owner turns a brand book into rules every
+// tool obeys. The kit's frame (kit/layout.js DocLayout): a list of its parts (Logo, Colours, Type, Layout, Pictures,
+// Words, References), each saying what is set, and one column of groups and rows for the chosen part. The owner's
+// colours as swatches in outlined tiles, the two faces in a sample, the logo on the light and the dark ground it will
+// sit on; the screen's own chrome stays quiet so the owner's colours and faces are the only colour and display type.
+// Reached at #/files/brand-kit (the Files page hands this address over); the part is in the address
+// ("#/files/brand-kit?s=colours"; no `s` is Logo); `?proposal=<task>` lays what the "Read the brand book" job
+// proposed beside each part. One Save sends the whole kit, whichever part is open.
 // Nothing an agent wrote is ever set as HTML: a proposal's values are shown as text, a colour only after it passed
 // the hex pattern, a face only after it passed the family pattern, a picture only from the brain's own raw address.
-import { html, useState } from "../vendor/preact-htm.js";
+import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { bytes, fileToken, fullWhen } from "../lib/format.js";
 import {
-  Button, Card, DataTable, Empty, ErrorNotice, Field, FilePicker, Icon, Loading, Notice, PageHeader, Ring, Section, Select,
+  Button, Card, DataTable, DocLayout, ErrorNotice, Field, FilePicker, Group, Icon, Loading, Notice, Row, Rows, Select,
   StatusDot, Switch, Tag, TextArea, TextInput,
 } from "../kit/index.js";
 
@@ -374,6 +378,138 @@ function withCurrent(options, value, label) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// The kit's parts as the sections of the page (PLAN-COOK T69), and what each section's line says is set
+
+// The sections, in order; `keys` are the kit's top-level keys each one edits.
+export const SECTIONS = [
+  { id: "logo", label: "Logo", icon: "spark", keys: ["logo"] },
+  { id: "colours", label: "Colours", icon: "brush", keys: ["colours", "neutrals"] },
+  { id: "type", label: "Type", icon: "docs", keys: ["type"] },
+  { id: "layout", label: "Layout", icon: "grid", keys: ["layout"] },
+  { id: "pictures", label: "Pictures", icon: "image", keys: ["references"] },
+  { id: "words", label: "Words", icon: "reply", keys: ["name", "voice", "filler", "public"] },
+  { id: "references", label: "References", icon: "book", keys: [] },
+];
+const SECTION_IDS = SECTIONS.map((s) => s.id);
+
+// The page's own new words (T69): section intros, group titles and the lines in the list of sections.
+export const SECTION_WORDS = {
+  notSet: "Not set yet",
+  startHere: "Start here",
+  nothingYet: "Nothing yet",
+  noPicks: "No picks yet",
+  notSaved: "not saved",
+  proposed: "Proposed",
+  layoutIntro: "Corners and margins every slide, title card and page keeps.",
+  referencesIntro: "What the agents read beside your kit: your picks between versions and the playbooks.",
+  grounds: "On its grounds",
+  logoFiles: "Your logo files",
+  placing: "How it is placed",
+  palette: "Your palette",
+  sample: "Sample",
+  faces: "Faces",
+  sizes: "Smallest sizes",
+  corners: "Corners and margins",
+  examples: "Examples of work you approve",
+  name: "Name",
+  voice: "How we sound",
+  researcher: "For the Researcher",
+  pairing: "Text on your background",
+  fillYourself: "Or fill it in yourself",
+  startColours: "Start with colours",
+  pressSave: "Press \"Save the brand kit\"",
+};
+
+// The section an address asks for: `s` when it is one, else Logo.
+export function sectionOf(query) {
+  const s = query && typeof query.get === "function" ? query.get("s") : null;
+  return SECTION_IDS.includes(s) ? s : SECTION_IDS[0];
+}
+
+// The address of a section, with the proposal being read kept.
+export function sectionHref(id, proposal) {
+  const q = [];
+  if (SECTION_IDS.includes(id) && id !== SECTION_IDS[0]) q.push(`s=${id}`);
+  if (REF.test(str(proposal))) q.push(`proposal=${encodeURIComponent(proposal)}`);
+  return `#/files/brand-kit${q.length ? `?${q.join("&")}` : ""}`;
+}
+
+// The section a refusal's field is shown in, or null.
+export function fieldSection(field) {
+  const top = str(field).split(".")[0];
+  const s = SECTIONS.find((x) => x.keys.includes(top));
+  return s ? s.id : null;
+}
+
+// The ids of the sections whose part differs between two kits, in the page's order.
+export function changedSections(before, after) {
+  const a = obj(before) ? before : {};
+  const b = obj(after) ? after : {};
+  return SECTIONS.filter((s) => s.keys.some((k) => !same(a[k], b[k]))).map((s) => s.id);
+}
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const pct = (share) => `${Math.round(Number(share) * 1000) / 10}%`;
+
+// What one section's line says is set: words, or null when nothing is set yet.
+export function sectionSet(id, kit, { exists = false, playbooks } = {}) {
+  const k = obj(kit) ? kit : emptyKit();
+  const base = emptyKit();
+  if (id === "logo") {
+    const on = new Set(arr(k.logo && k.logo.files).map((f) => f && f.on));
+    if (on.has("light") && on.has("dark")) return "On light and dark";
+    if (on.has("light")) return "On light only";
+    if (on.has("dark")) return "On dark only";
+    return null;
+  }
+  if (id === "colours") {
+    const n = arr(k.colours).filter((c) => safeHex(c && c.hex)).length;
+    return n ? plural(n, "colour", "colours") : null;
+  }
+  if (id === "type") {
+    if (!filledParts(k, exists).type) return null;
+    const h = cut(k.type && k.type.heading && k.type.heading.family, 28);
+    const b = cut(k.type && k.type.body && k.type.body.family, 28);
+    return h === b || !b ? h || null : `${h} and ${b}`;
+  }
+  if (id === "layout") {
+    const l = obj(k.layout) ? k.layout : base.layout;
+    if (!exists && same(l, base.layout)) return null;
+    const r = Number(l.radiusPx) || 0;
+    return `${r ? `${r} px corners` : "Square corners"}, ${pct(l.marginShare)} margins`;
+  }
+  if (id === "pictures") {
+    const n = arr(k.references).length;
+    return n ? plural(n, "example", "examples") : null;
+  }
+  if (id === "words") {
+    const n = arr(k.voice && k.voice.words).filter((w) => str(w).trim()).length;
+    if (n) return plural(n, "word", "words");
+    return str(k.name).trim() ? "The name only" : null;
+  }
+  if (id === "references") {
+    const n = arr(playbooks).filter((r) => r && SLUG.test(str(r.name))).length;
+    return n ? plural(n, "playbook", "playbooks") : null;
+  }
+  return null;
+}
+
+// Every section's line, { <id>: { tone, text } }: what is set (good), "not saved" beside a change (warn), and for an
+// empty kit "Start here" on the first section still empty.
+export function sectionLines(kit, { exists = false, playbooks, changed = [] } = {}) {
+  const out = {};
+  let first = true;
+  for (const s of SECTIONS) {
+    const set = sectionSet(s.id, kit, { exists, playbooks });
+    const dirty = arr(changed).includes(s.id);
+    let text = set || (s.id === "references" ? SECTION_WORDS.nothingYet : SECTION_WORDS.notSet);
+    if (!set && s.id !== "references" && !exists && first) { text = SECTION_WORDS.startHere; first = false; }
+    out[s.id] = dirty ? { tone: "warn", text: `${text}, ${SECTION_WORDS.notSaved}` } : { tone: set ? "good" : "neutral", text };
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Saving: the server's refusal names a field beside its error, so the save reads the answer itself.
 
 async function sendKit(body) {
@@ -418,23 +554,20 @@ function showFont(family, base64) {
   } catch { /* shown in its fallback */ }
 }
 
+// The field a refusal named, focused when its section is on screen; else the top of the column.
 const focusField = (field) => {
   if (typeof document === "undefined") return;
   const el = document.querySelector(`[data-field="${String(field).replace(/[^a-zA-Z0-9.]/g, "")}"]`);
   const target = el && (el.matches("input, select, textarea, button") ? el : el.querySelector("input, select, textarea, button"));
   if (target) { target.scrollIntoView({ block: "center" }); target.focus({ preventScroll: true }); return; }
-  const part = fieldPlace(field).part;
-  if (part) goToPart(part);
+  goToPart(fieldPlace(field).part);
 };
 
-function goToPart(id) {
+function goToPart() {
   if (typeof document === "undefined") return;
-  const box = document.getElementById(`bk-${id}`);
-  if (!box) return;
-  const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  box.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-  const head = box.querySelector("h2");
-  if (head) { head.setAttribute("tabindex", "-1"); head.focus({ preventScroll: true }); }
+  const head = document.getElementById("page-title");
+  if (typeof window.scrollTo === "function") window.scrollTo(0, 0);
+  if (head) head.focus({ preventScroll: true });
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -443,38 +576,42 @@ function goToPart(id) {
 // What was refused at one field, under its input.
 const errorAt = (errors, field) => (errors && errors.field === field ? errors.message : null);
 
-function PartError({ errors, part }) {
+// A refusal that names this section's part as a whole (not one input), at the top of the section.
+function PartError({ errors, section }) {
   if (!errors || !errors.field) return null;
-  const place = fieldPlace(errors.field);
-  if (place.part !== part || place.inline) return null;
+  if (fieldSection(errors.field) !== section || fieldPlace(errors.field).inline) return null;
   return html`<p class="p-brand-kit__part-error" role="alert"><${Icon} name="alert" size=${14} /><span>${errors.message}</span></p>`;
 }
 
-// One offer beside its field: what the brand book (or the old page) says, and Use this.
+// One offer as a row: what the brand book (or the old page) says, and Use this.
 function Offer({ offer, form, onUse, children }) {
   if (!offer) return null;
   const used = offerUsed(form, offer);
-  return html`<div class=${`p-brand-kit__offer${used ? " p-brand-kit__offer--used" : ""}`}>
-    <div class="p-brand-kit__offer-head">
-      <span class="p-brand-kit__offer-source"><${Icon} name=${offer.from === "book" ? "book" : "file"} size=${14} />${offer.from === "book" ? "Your brand book says" : "Your old brand page says"}</span>
-      ${used
-        ? html`<${Tag} tone="ok">In use<//>`
-        : html`<${Button} size="sm" icon="check" onClick=${() => onUse(offer)}>Use this<//>`}
-    </div>
-    <div class="p-brand-kit__offer-body">${children}</div>
-  </div>`;
+  return html`<${Row} icon=${offer.from === "book" ? "book" : "file"}
+    title=${offer.from === "book" ? "Your brand book says" : "Your old brand page says"}
+    say=${html`<span class="p-brand-kit__offer-body">${children}</span>`}
+    control=${used ? html`<${Tag} tone="ok">In use<//>` : html`<${Button} size="sm" icon="check" onClick=${() => onUse(offer)}>Use this<//>`} />`;
+}
+
+// The offers of one section, in one panel at its top.
+function Offers({ list, form, onUse }) {
+  const shown = list.filter((o) => o && o.offer);
+  if (!shown.length) return null;
+  return html`<${Group} title=${SECTION_WORDS.proposed}>
+    <${Rows}>${shown.map((o) => html`<${Offer} key=${o.offer.key} offer=${o.offer} form=${form} onUse=${onUse}>${o.body}<//>`)}<//>
+  <//>`;
 }
 
 function Swatch({ hex, size = "md", label }) {
   const h = safeHex(hex);
-  return html`<span class=${`p-brand-kit__chip p-brand-kit__chip--${size}${h ? "" : " p-brand-kit__chip--empty"}`}
+  return html`<span class=${`p-brand-kit__chip p-brand-kit__chip--${size}${h ? "" : " p-brand-kit__chip--empty"}`} data-cook-picture
     style=${h ? { background: h } : undefined} role=${label ? "img" : undefined} aria-label=${label || undefined} aria-hidden=${label ? undefined : "true"}></span>`;
 }
 
 function ColourList({ colours }) {
   return html`<ul class="p-brand-kit__offer-colours">
     ${arr(colours).map((c, i) => html`<li key=${i}><${Swatch} hex=${c.hex} size="sm" /><span>${cut(c.name, 24)}</span>
-      <span class="p-brand-kit__mono">${safeHex(c.hex) || ""}</span><span class="u-caption">${ROLE_WORDS[c.role] || ""}</span></li>`)}
+      <span class="p-brand-kit__mono">${safeHex(c.hex) || ""}</span><span class="p-brand-kit__quiet">${ROLE_WORDS[c.role] || ""}</span></li>`)}
   </ul>`;
 }
 
@@ -487,96 +624,147 @@ function Checkbox({ checked, label, onChange, field }) {
   </label>`;
 }
 
-// ---------------------------------------------------------------------------------------------------------------
-// The path: what to do first, what is still empty
+// A number typed in pixels, as a row's control.
+const pxInput = (label, field, value, onInput, errors) => html`<span class="p-brand-kit__num-wrap">
+  <${TextInput} data-field=${field} type="number" inputmode="numeric" class="p-brand-kit__num" aria-label=${label} value=${value}
+    aria-invalid=${errorAt(errors, field) ? "true" : undefined} onInput=${(e) => onInput(e.currentTarget.value)} />
+  <span class="p-brand-kit__unit" aria-hidden="true">px</span>
+</span>`;
 
-function Path({ filled, current }) {
-  const done = PARTS.filter((p) => filled[p.id]).length;
-  const next = nextPart(filled);
-  return html`<nav class="p-brand-kit__path" aria-label="The parts of the brand kit">
-    <div class="p-brand-kit__path-head">
-      <${Ring} value=${done} total=${PARTS.length} size=${44} label=${`${done} of ${PARTS.length} parts filled`} />
-      <div>
-        <p class="p-brand-kit__path-count">${done} of ${PARTS.length} parts filled</p>
-        <p class="u-caption">${next ? `Next: ${PARTS.find((p) => p.id === next).title}` : "Every part is filled."}</p>
+// The error of one field, under a row's words.
+const RowError = ({ errors, field }) => (errorAt(errors, field)
+  ? html`<span class="p-brand-kit__row-error" role="alert"><${Icon} name="alert" size=${14} /><span>${errorAt(errors, field)}</span></span>` : null);
+
+// ---------------------------------------------------------------------------------------------------------------
+// The first time: nothing saved, nothing proposed
+
+function FirstTime({ proposal }) {
+  return html`<${Group} title="Make your brand a set of rules the agents cannot break." aside=${SECTION_WORDS.startHere}>
+    <${Rows}>
+      <${Row} icon="book" title="Have a brand book?"
+        say=${html`Add it to Brand, then start the job "Read the brand book". It proposes every part below for you to accept, one part at a time.
+          <a class="p-brand-kit__link" href="#/jobs/operations/read-the-brand-book">Read the brand book</a>`}
+        control=${html`<${Button} size="sm" icon="upload" href="#/files/brand?new=upload">Add your brand book<//>`} />
+      <${Row} icon="brush" title=${SECTION_WORDS.fillYourself} say="Top to bottom. Colours first: everything else is drawn with them."
+        control=${html`<${Button} size="sm" icon="arrow-right" href=${sectionHref("colours", proposal)}>${SECTION_WORDS.startColours}<//>`} />
+      <${Row} icon="check" title=${SECTION_WORDS.pressSave} say="Until then nothing is enforced." />
+    <//>
+  <//>`;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Logo
+
+function LogoStage({ tone, ground, logo, picture, clearSpace }) {
+  const h = 56;
+  const pad = Math.round(Number(clearSpace) * h);
+  return html`<figure class="p-brand-kit__stage">
+    <div class="p-brand-kit__ground" data-cook-picture style=${{ background: ground, color: inkOn(ground) }}>
+      ${picture
+        ? html`<div class="p-brand-kit__clear" style=${{ padding: `${pad}px` }} title=${`Clear space: ${clearSpace} times the logo's height`}>
+            <img src=${picture} alt=${`Your logo on a ${tone} background: ${cut(logo, 80)}`} style=${{ height: `${h}px` }} loading="lazy" decoding="async" />
+          </div>`
+        : html`<span class="p-brand-kit__ground-none">No logo chosen for ${tone} backgrounds yet.</span>`}
+    </div>
+    <figcaption class="p-brand-kit__stage-foot">
+      <span class="p-brand-kit__stage-label">On ${tone} backgrounds</span>
+      <span class="p-brand-kit__mono p-brand-kit__quiet">${ground}</span>
+    </figcaption>
+    ${picture ? html`<p class="p-brand-kit__stage-note">${pad ? `Dashed line: the clear space, ${clearSpace} × its height` : "No clear space"}</p>` : null}
+  </figure>`;
+}
+
+function LogoSection({ form, set, errors, offers, onUse, brandPics }) {
+  const logo = form.logo;
+  const files = arr(logo.files);
+  const pics = arr(brandPics);
+  const urlOf = (name) => (pics.find((p) => p.name === name) || {}).url || null;
+  const g = stages(form.colours);
+  const pick = (on) => files.find((f) => f.on === on && urlOf(f.file));
+  const toggle = (name, on) => set({ ...form, logo: { ...logo, files: toggleLogo(files, name, on) } });
+  const putLogo = (next) => set({ ...form, logo: { ...logo, ...next } });
+  const spaces = withCurrent(CLEAR_SPACES.map((c) => ({ value: String(c), label: c ? `${c} × the logo's height` : "None" })), String(logo.clearSpace), `${logo.clearSpace} × the logo's height`);
+  const light = pick("light");
+  const dark = pick("dark");
+  const missing = files.filter((f) => !urlOf(f.file));
+  const offer = offers.logo;
+  return html`
+    <${Offers} form=${form} onUse=${onUse} list=${[{ offer, body: offer ? html`${arr(offer.value.files).map((f) => `${cut(f.file, 60)} on ${f.on}`).join(", ") || "No logo file named."}
+      Clear space ${Number(offer.value.clearSpace)} × its height; at least ${Number(offer.value.minPx)} px high.` : null }]} />
+    <${Group} title=${SECTION_WORDS.grounds} say="Choose your logo from the pictures in Brand: one that reads on light backgrounds and, if you have one, one for dark.">
+      <div class="p-brand-kit__stages">
+        <${LogoStage} tone="light" ground=${g.light} logo=${light && light.file} picture=${light && urlOf(light.file)} clearSpace=${logo.clearSpace} />
+        <${LogoStage} tone="dark" ground=${g.dark} logo=${dark && dark.file} picture=${dark && urlOf(dark.file)} clearSpace=${logo.clearSpace} />
       </div>
-    </div>
-    <ol class="p-brand-kit__steps">
-      ${PARTS.map((p, i) => html`<li key=${p.id}>
-        <button type="button" class=${`p-brand-kit__step${filled[p.id] ? " p-brand-kit__step--done" : ""}${p.id === next ? " p-brand-kit__step--next" : ""}${p.id === current ? " p-brand-kit__step--here" : ""}`}
-          onClick=${() => goToPart(p.id)} aria-label=${`${p.title}: ${filled[p.id] ? "filled" : "still empty"}`}>
-          <span class="p-brand-kit__step-mark" aria-hidden="true">${filled[p.id] ? html`<${Icon} name="check" size=${12} />` : i + 1}</span>
-          <span class="p-brand-kit__step-words">
-            <span class="p-brand-kit__step-title">${p.title}</span>
-            <span class="p-brand-kit__step-state">${filled[p.id] ? "Filled" : p.id === next ? "Start here" : "Still empty"}</span>
-          </span>
-        </button>
-      </li>`)}
-    </ol>
-  </nav>`;
-}
-
-function FirstTime() {
-  return html`<${Card} class="p-brand-kit__first">
-    <p class="u-over">Start here</p>
-    <h2 class="p-brand-kit__first-title">Make your brand a set of rules the agents cannot break.</h2>
-    <ol class="p-brand-kit__first-steps">
-      <li><strong>Have a brand book?</strong> Add it to Brand, then start the job "Read the brand book". It proposes every part below for you to accept, one part at a time.</li>
-      <li><strong>Or fill it in yourself,</strong> top to bottom. Colours first: everything else is drawn with them.</li>
-      <li><strong>Press "Save the brand kit".</strong> Until then nothing is enforced.</li>
-    </ol>
-    <div class="p-brand-kit__first-actions">
-      <${Button} icon="upload" href="#/files/brand?new=upload">Add your brand book<//>
-      <${Button} variant="quiet" icon="arrow-right" href="#/jobs/operations/read-the-brand-book">Read the brand book<//>
-    </div>
-  <//>`;
-}
-
-// One part of the page: its heading, what it changes, its offers, its body.
-function Part({ id, hint, aside, children, errors }) {
-  const p = PARTS.find((x) => x.id === id) || { title: id, changes: "" };
-  return html`<div class="p-brand-kit__part" id=${`bk-${id}`}>
-    <${Section} title=${p.title} aside=${aside}>
-      <p class="p-brand-kit__changes"><${Icon} name="spark" size=${14} /><span>${p.changes}</span></p>
-      ${hint ? html`<p class="p-brand-kit__hint">${hint}</p>` : null}
-      <${PartError} errors=${errors} part=${id} />
-      ${children}
     <//>
-  </div>`;
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Name
-
-function NamePart({ form, set, errors, offers, onUse }) {
-  return html`<${Part} id="name" errors=${errors}>
-    <${Card}>
-      <${Field} label="Your company's name, as it is written" error=${errorAt(errors, "name")}>
-        <${TextInput} data-field="name" value=${form.name} maxLength=${80} placeholder="The name on your door"
-          onInput=${(e) => set({ ...form, name: e.currentTarget.value })} />
+    <${Group} title=${SECTION_WORDS.logoFiles} aside=${pics.length ? html`<${Button} size="sm" variant="quiet" icon="upload" href="#/files/brand?new=upload">Add your logo<//>` : null}>
+      <${Rows}>
+        ${pics.length
+          ? pics.map((p) => html`<${Row} key=${p.name}
+              icon=${html`<span class="p-brand-kit__thumb" data-cook-picture style=${{ background: files.some((f) => f.file === p.name && f.on === "dark") && !files.some((f) => f.file === p.name && f.on === "light") ? g.dark : g.light }}><img src=${p.url} alt="" loading="lazy" decoding="async" /></span>`}
+              title=${html`<span class="u-truncate" title=${p.name}>${p.name}</span>`}
+              control=${html`<span class="p-brand-kit__toggles">
+                ${["light", "dark"].map((on) => {
+                  const pressed = files.some((f) => f.file === p.name && f.on === on);
+                  return html`<button key=${on} type="button" class=${`p-brand-kit__toggle${pressed ? " p-brand-kit__toggle--on" : ""}`} aria-pressed=${pressed ? "true" : "false"}
+                    aria-label=${`Use ${p.name} on ${on} backgrounds`} onClick=${() => toggle(p.name, on)}>
+                    ${pressed ? html`<${Icon} name="check" size=${14} />` : null}On ${on}</button>`;
+                })}
+              </span>`} />`)
+          : html`<${Row} icon="upload" title="No pictures in Brand yet." say="Add your logo file to the Brand folder, then choose it here."
+              control=${html`<${Button} size="sm" icon="upload" href="#/files/brand?new=upload">Add your logo<//>`} />`}
       <//>
-      <${Offer} offer=${offers.name} form=${form} onUse=${onUse}><p class="p-brand-kit__offer-text">${cut(offers.name && offers.name.value, 80)}</p><//>
+      ${missing.length ? html`<${Notice} tone="warn" title="Not in Brand any more">
+          ${missing.map((f) => html`<p key=${`${f.file}-${f.on}`}>${cut(f.file, 100)} (on ${f.on}).
+            <${Button} variant="quiet" size="sm" onClick=${() => putLogo({ files: files.filter((x) => x !== f) })}>Take it out<//></p>`)}
+        <//>` : null}
     <//>
-  <//>`;
+    <${Group} title=${SECTION_WORDS.placing}>
+      <${Rows}>
+        <${Row} icon="layers" title="Clear space around it" say=${html`The empty margin kept round the logo.<${RowError} errors=${errors} field="logo.clearSpace" />`}
+          control=${html`<${Select} data-field="logo.clearSpace" aria-label="Clear space around it" value=${String(logo.clearSpace)} options=${spaces}
+            onChange=${(e) => putLogo({ clearSpace: Number(e.currentTarget.value) })} />`} />
+        <${Row} icon="arrow-up-right" title="Smallest height, in pixels" say=${html`8 to 400. Smaller than this, the tools refuse it.<${RowError} errors=${errors} field="logo.minPx" />`}
+          control=${pxInput("Smallest height, in pixels", "logo.minPx", logo.minPx, (v) => putLogo({ minPx: v }), errors)} />
+        <${Row} icon="check" title="Where it must appear"
+          say=${html`<span class="p-brand-kit__checks" role="group" aria-label="Where it must appear">
+            ${PLACES.map((p) => html`<${Checkbox} key=${p} field=${`logo.requiredOn.${p}`} label=${PLACE_WORDS[p]} checked=${arr(logo.requiredOn).includes(p)}
+              onChange=${(on) => putLogo({ requiredOn: PLACES.filter((x) => (x === p ? on : arr(logo.requiredOn).includes(x))) })} />`)}
+          </span>`} />
+      <//>
+    <//>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // Colours
 
-function Palette({ colours }) {
-  const list = arr(colours).filter((c) => safeHex(c.hex));
-  if (!list.length) return null;
-  return html`<div class="p-brand-kit__palette" role="list" aria-label="Your palette">
-    ${list.map((c, i) => {
-      const hex = safeHex(c.hex);
-      return html`<div key=${i} role="listitem" class=${`p-brand-kit__tile${c.role === "main" ? " p-brand-kit__tile--main" : ""}`}
-        style=${{ background: hex, color: inkOn(hex) }}>
-        <span class="p-brand-kit__tile-role">${c.role === "main" ? html`<${Icon} name="spark" size=${12} />` : null}${ROLE_WORDS[c.role] || "Other"}</span>
-        <span class="p-brand-kit__tile-name">${normName(c.name) || "no name yet"}</span>
-        <span class="p-brand-kit__tile-hex">${hex}</span>
-      </div>`;
-    })}
-  </div>`;
+// One colour as an outlined tile: its swatch (a click picks the colour), its name, its value and what it is for.
+function ColourTile({ c, i, errors, edit, setRole, remove }) {
+  const hex = safeHex(c.hex);
+  return html`<li class=${`p-brand-kit__tile${c.role === "main" ? " p-brand-kit__tile--main" : ""}`}>
+    <label class=${`p-brand-kit__swatch${hex ? "" : " p-brand-kit__swatch--empty"}`} data-cook-picture style=${hex ? { background: hex, color: inkOn(hex) } : undefined}>
+      <input type="color" aria-label=${`Colour ${i + 1}, pick it`} value=${hex ? hex.toLowerCase() : "#808080"}
+        onInput=${(e) => edit(i, "hex", normHex(e.currentTarget.value))} />
+      ${hex ? null : html`<span class="p-brand-kit__swatch-none"><${Icon} name="brush" size=${16} />Pick a colour</span>`}
+    </label>
+    <div class="p-brand-kit__tile-body">
+      <${Field} label=${`Colour ${i + 1}: name`} error=${errorAt(errors, `colours.${i}.name`)}>
+        <${TextInput} data-field=${`colours.${i}.name`} class="p-brand-kit__tile-name" value=${c.name} maxLength=${24} placeholder="ink" spellcheck=${false}
+          onInput=${(e) => edit(i, "name", e.currentTarget.value)} onBlur=${(e) => edit(i, "name", normName(e.currentTarget.value))} />
+      <//>
+      <${Field} label="Hex" error=${errorAt(errors, `colours.${i}.hex`)}>
+        <${TextInput} data-field=${`colours.${i}.hex`} class="p-brand-kit__mono p-brand-kit__tile-hex" value=${c.hex} maxLength=${7} placeholder="#1A3C5E" spellcheck=${false}
+          onInput=${(e) => edit(i, "hex", e.currentTarget.value)} onBlur=${(e) => edit(i, "hex", normHex(e.currentTarget.value))} />
+      <//>
+      <${Field} label="What it is for" error=${errorAt(errors, `colours.${i}.role`)}>
+        <${Select} data-field=${`colours.${i}.role`} class="p-brand-kit__tile-role" value=${c.role} options=${ROLES.map((r) => ({ value: r, label: ROLE_WORDS[r] }))}
+          onChange=${(e) => setRole(i, e.currentTarget.value)} />
+      <//>
+    </div>
+    <span class="p-brand-kit__tile-x">
+      <${Button} variant="quiet" size="sm" icon="cross" aria-label=${`Remove colour ${i + 1}${c.name ? `, ${normName(c.name)}` : ""}`} onClick=${() => remove(i)} />
+    </span>
+  </li>`;
 }
 
 function Pairing({ colours }) {
@@ -585,66 +773,43 @@ function Pairing({ colours }) {
   if (!bg || !ink || bg === ink) return null;
   const ratio = contrast(bg, ink);
   const ok = ratio >= 4.5;
-  return html`<p class="p-brand-kit__pairing">
-    <span class="p-brand-kit__pairing-sample" style=${{ background: bg, color: ink }} aria-hidden="true">Aa</span>
-    <span>Text on your background: contrast ${ratio.toFixed(1)} to 1. ${ok ? "Easy to read." : "Hard to read at small sizes; use it for large type only."}</span>
-  </p>`;
+  return html`<${Row} icon=${html`<span class="p-brand-kit__pair" data-cook-picture style=${{ background: bg, color: ink }} aria-hidden="true">Aa</span>`}
+    title=${SECTION_WORDS.pairing} state=${ok ? { tone: "good", text: `${ratio.toFixed(1)} to 1` } : { tone: "warn", text: `${ratio.toFixed(1)} to 1` }}
+    say=${ok ? "Easy to read." : "Hard to read at small sizes; use it for large type only."} />`;
 }
 
-function ColoursPart({ form, set, errors, offers, onUse }) {
+function ColoursSection({ form, set, errors, offers, onUse }) {
   const colours = arr(form.colours);
   const put = (next) => set({ ...form, colours: next });
   const edit = (i, key, value) => put(colours.map((c, j) => (j === i ? { ...c, [key]: value } : c)));
-  return html`<${Part} id="colours" errors=${errors}
-    hint="Two to eight. Give each a short name the agents can use, such as ink or sand, and say what it is for.">
-    <${Card} class="p-brand-kit__colours">
-      ${colours.length ? html`<${Palette} colours=${colours} />` : html`<div class="p-brand-kit__empty">
-        <span class="p-brand-kit__empty-chips" aria-hidden="true"><span></span><span></span><span></span></span>
-        <p><strong>No colours yet.</strong> Add your main colour first: the one people know you by.</p>
-      </div>`}
-      ${colours.length ? html`<ul class="p-brand-kit__rows">
-        ${colours.map((c, i) => {
-          const hex = safeHex(c.hex);
-          return html`<li key=${i} class="p-brand-kit__row">
-            <label class="p-brand-kit__picker" style=${hex ? { background: hex } : undefined}>
-              <input type="color" aria-label=${`Colour ${i + 1}, pick it`} value=${hex ? hex.toLowerCase() : "#808080"}
-                onInput=${(e) => edit(i, "hex", normHex(e.currentTarget.value))} />
-            </label>
-            <div class="p-brand-kit__row-fields">
-              <${Field} label=${`Colour ${i + 1}: name`} error=${errorAt(errors, `colours.${i}.name`)}>
-                <${TextInput} data-field=${`colours.${i}.name`} value=${c.name} maxLength=${24} placeholder="ink" spellcheck=${false}
-                  onInput=${(e) => edit(i, "name", e.currentTarget.value)} onBlur=${(e) => edit(i, "name", normName(e.currentTarget.value))} />
-              <//>
-              <${Field} label="Hex" error=${errorAt(errors, `colours.${i}.hex`)}>
-                <${TextInput} data-field=${`colours.${i}.hex`} class="p-brand-kit__mono" value=${c.hex} maxLength=${7} placeholder="#1A3C5E" spellcheck=${false}
-                  onInput=${(e) => edit(i, "hex", e.currentTarget.value)} onBlur=${(e) => edit(i, "hex", normHex(e.currentTarget.value))} />
-              <//>
-              <${Field} label="What it is for" error=${errorAt(errors, `colours.${i}.role`)}>
-                <${Select} data-field=${`colours.${i}.role`} value=${c.role} options=${ROLES.map((r) => ({ value: r, label: ROLE_WORDS[r] }))}
-                  onChange=${(e) => put(withRole(colours, i, e.currentTarget.value))} />
-              <//>
-            </div>
-            <div class="p-brand-kit__row-tools">
-              <${Button} variant="quiet" size="sm" icon="cross" aria-label=${`Remove colour ${i + 1}${c.name ? `, ${normName(c.name)}` : ""}`}
-                onClick=${() => put(removeColour(colours, i))} />
-            </div>
-          </li>`;
-        })}
-      </ul>` : null}
-      <div class="p-brand-kit__more">
-        <${Button} size="sm" icon="plus" disabled=${colours.length >= LIMITS.colours[1]} onClick=${() => put(addColour(colours))}>
-          ${colours.length ? "Add a colour" : "Add your main colour"}<//>
-        <span class="u-caption">${colours.length} of ${LIMITS.colours[1]}</span>
-      </div>
-      <${Pairing} colours=${colours} />
-      <${Switch} on=${form.neutrals} label="Greys, black and white are allowed"
-        explain=${form.neutrals ? "The tools may also use greys, black and white beside your colours." : "Only your colours. A grey, black or white counts as off-brand unless it is in the list."}
-        onChange=${(on) => set({ ...form, neutrals: on })} />
-      <${Offer} offer=${offers.colours} form=${form} onUse=${onUse}><${ColourList} colours=${offers.colours && offers.colours.value} /><//>
-      ${offers.neutrals ? html`<${Offer} offer=${offers.neutrals} form=${form} onUse=${onUse}>
-        <p class="p-brand-kit__offer-text">${offers.neutrals.value ? "Greys, black and white are allowed." : "Only the listed colours."}</p><//>` : null}
+  const full = colours.length >= LIMITS.colours[1];
+  return html`
+    <${Offers} form=${form} onUse=${onUse} list=${[
+      { offer: offers.colours, body: html`<${ColourList} colours=${offers.colours && offers.colours.value} />` },
+      { offer: offers.neutrals, body: offers.neutrals ? (offers.neutrals.value ? "Greys, black and white are allowed." : "Only the listed colours.") : null },
+    ]} />
+    <${Group} title=${SECTION_WORDS.palette} aside=${`${colours.length} of ${LIMITS.colours[1]}`}
+      say="Two to eight. Give each a short name the agents can use, such as ink or sand, and say what it is for.">
+      <ul class="p-brand-kit__tiles" aria-label="Your palette">
+        ${colours.map((c, i) => html`<${ColourTile} key=${i} c=${c} i=${i} errors=${errors} edit=${edit}
+          setRole=${(j, role) => put(withRole(colours, j, role))} remove=${(j) => put(removeColour(colours, j))} />`)}
+        ${full ? null : html`<li class=${`p-brand-kit__tile p-brand-kit__tile--add${colours.length ? "" : " p-brand-kit__tile--first"}`}>
+          <button type="button" class="p-brand-kit__add" onClick=${() => put(addColour(colours))}>
+            <span class="p-brand-kit__add-mark" aria-hidden="true"><${Icon} name="plus" size=${18} /></span>
+            <span class="p-brand-kit__add-words">${colours.length ? "Add a colour" : "Add your main colour"}</span>
+          </button>
+        </li>`}
+      </ul>
+      ${colours.length ? null : html`<p class="p-brand-kit__lead"><strong>No colours yet.</strong> Add your main colour first: the one people know you by.</p>`}
     <//>
-  <//>`;
+    <${Group}>
+      <${Rows}>
+        <${Row} icon="layers" title="Greys, black and white are allowed"
+          say=${form.neutrals ? "The tools may also use greys, black and white beside your colours." : "Only your colours. A grey, black or white counts as off-brand unless it is in the list."}
+          control=${html`<${Switch} on=${form.neutrals} label="Greys, black and white are allowed" onChange=${(on) => set({ ...form, neutrals: on })} />`} />
+        <${Pairing} colours=${colours} />
+      <//>
+    <//>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -659,14 +824,16 @@ function Specimen({ form }) {
   const page = Math.min(40, Math.max(10, Number(t.minPx) || 16));
   const slide = Math.min(120, Math.max(16, Number(t.minSlidePx) || 28));
   const name = cut(form.name, 40) || "Your company";
-  return html`<figure class="p-brand-kit__specimen" style=${{ background: bg, color: ink }} aria-label="A sample of your two faces">
-    <p class="p-brand-kit__spec-over" style=${{ fontFamily: fontStack(t.body), color: accent }}>${name}</p>
-    <p class="p-brand-kit__spec-display" style=${{ fontFamily: fontStack(t.heading), color: accent }}>Light falls on the stone</p>
-    <p class="p-brand-kit__spec-slide" style=${{ fontFamily: fontStack(t.heading), fontSize: `${slide}px` }}>The smallest line on a slide</p>
-    <p class="p-brand-kit__spec-body" style=${{ fontFamily: fontStack(t.body), fontSize: `${page}px` }}>
-      Body text on a page is never smaller than this. Every caption, note and footer the tools set stays at ${page} pixels or more, so it can be read on a phone.
-    </p>
-    <figcaption class="p-brand-kit__spec-caption" style=${{ color: ink }}>
+  return html`<figure class="p-brand-kit__specimen-wrap" aria-label="A sample of your two faces">
+    <div class="p-brand-kit__specimen" data-cook-picture style=${{ background: bg, color: ink }}>
+      <p class="p-brand-kit__spec-over" style=${{ fontFamily: fontStack(t.body), color: accent }}>${name}</p>
+      <p class="p-brand-kit__spec-display" style=${{ fontFamily: fontStack(t.heading), color: accent }}>Light falls on the stone</p>
+      <p class="p-brand-kit__spec-slide" style=${{ fontFamily: fontStack(t.heading), fontSize: `${slide}px` }}>The smallest line on a slide</p>
+      <p class="p-brand-kit__spec-body" style=${{ fontFamily: fontStack(t.body), fontSize: `${page}px` }}>
+        Body text on a page is never smaller than this. Every caption, note and footer the tools set stays at ${page} pixels or more, so it can be read on a phone.
+      </p>
+    </div>
+    <figcaption class="p-brand-kit__caption">
       <span>Headings: ${cut(t.heading && t.heading.family, 60)}</span>
       <span>Body: ${cut(t.body && t.body.family, 60)}</span>
       <span>Slides from ${slide} px · pages from ${page} px</span>
@@ -674,21 +841,21 @@ function Specimen({ form }) {
   </figure>`;
 }
 
-function FaceCard({ which, label, face, options, set, errors }) {
+function FaceRow({ which, label, face, options, set, errors }) {
   const value = faceValue(face);
   const opts = withCurrent(options, value, cut(face && face.family, 60) || "Not chosen");
   const uploaded = Boolean(face && face.file);
-  return html`<div class="p-brand-kit__face">
-    <p class="p-brand-kit__face-sample" style=${{ fontFamily: fontStack(face) }} aria-hidden="true">Aa</p>
-    <${Field} label=${label} error=${errorAt(errors, `type.${which}.family`) || errorAt(errors, `type.${which}.file`)}
-      hint=${uploaded && !LOADED.has(face.family) ? "Shown here in its fallback. The tools use your file." : null}>
-      <${Select} data-field=${`type.${which}.family`} value=${value} options=${opts} onChange=${(e) => set(faceFrom(e.currentTarget.value, face))} />
-    <//>
-    <${Field} label="If it is missing, use" error=${errorAt(errors, `type.${which}.fallback`)}>
-      <${Select} data-field=${`type.${which}.fallback`} value=${face && face.fallback}
-        options=${FALLBACKS.map((f) => ({ value: f, label: FALLBACK_WORDS[f] }))} onChange=${(e) => set({ ...face, fallback: e.currentTarget.value })} />
-    <//>
-  </div>`;
+  return html`<${Row} icon=${html`<span class="p-brand-kit__face" data-cook-picture style=${{ fontFamily: fontStack(face) }}>Aa</span>`}
+    title=${label}
+    say=${html`<span class="p-brand-kit__fallback">
+        <label for=${`bk-fallback-${which}`}>If it is missing, use</label>
+        <${Select} id=${`bk-fallback-${which}`} data-field=${`type.${which}.fallback`} class="p-brand-kit__small-select" value=${face && face.fallback}
+          options=${FALLBACKS.map((f) => ({ value: f, label: FALLBACK_WORDS[f] }))} onChange=${(e) => set({ ...face, fallback: e.currentTarget.value })} />
+      </span>
+      ${uploaded && !LOADED.has(face.family) ? html`<span class="p-brand-kit__line">Shown here in its fallback. The tools use your file.</span>` : null}
+      <${RowError} errors=${errors} field=${`type.${which}.family`} /><${RowError} errors=${errors} field=${`type.${which}.file`} /><${RowError} errors=${errors} field=${`type.${which}.fallback`} />`}
+    control=${html`<${Select} data-field=${`type.${which}.family`} aria-label=${label} class="p-brand-kit__face-select" value=${value} options=${opts}
+      onChange=${(e) => set(faceFrom(e.currentTarget.value, face))} />`} />`;
 }
 
 function Fonts({ fonts, onFonts, announce }) {
@@ -725,238 +892,110 @@ function Fonts({ fonts, onFonts, announce }) {
       setBusy("");
     }
   };
-  return html`<div class="p-brand-kit__fonts">
-    <div class="p-brand-kit__fonts-head">
-      <h3 class="p-brand-kit__sub">Your font files</h3>
-      <span class="u-caption">${list.length} of ${LIMITS.fonts}</span>
-    </div>
-    ${list.length
-      ? html`<ul class="p-brand-kit__font-list">${list.map((f) => html`<li key=${f.file}>
-          <${Icon} name="file" size=${14} />
-          <span class="u-truncate">${familyFromFile(f.file)}</span>
-          <span class="u-caption">${f.file} · ${bytes(f.size)}</span>
-          <${Button} variant="quiet" size="sm" busy=${busy === f.file} disabled=${Boolean(busy)} aria-label=${`Remove the font ${f.file}`} onClick=${() => remove(f.file)}>Remove<//>
-        </li>`)}</ul>`
-      : html`<p class="u-muted">No font files yet. The fonts on this Mac are enough to start; add your own when the brand book names one.</p>`}
-    ${adding
-      ? html`<${FilePicker} accept=".ttf,.otf,.ttc" maxBytes=${LIMITS.fontBytes} busy=${busy === "add"} error=${error} onPick=${add} />`
-      : html`<span><${Button} size="sm" icon="plus" disabled=${list.length >= LIMITS.fonts} onClick=${() => { setAdding(true); setError(null); }}>Add a font file<//></span>`}
+  const addButton = html`<${Button} size="sm" icon="plus" disabled=${list.length >= LIMITS.fonts} aria-expanded=${adding ? "true" : "false"}
+    onClick=${() => { setAdding(!adding); setError(null); }}>${adding ? "Not now" : "Add a font file"}<//>`;
+  return html`<${Group} title="Your font files" aside=${`${list.length} of ${LIMITS.fonts}`}>
+    <${Rows}>
+      ${list.map((f) => html`<${Row} key=${f.file} icon="file" title=${html`<span class="u-truncate">${familyFromFile(f.file)}</span>`}
+        say=${html`<span class="p-brand-kit__mono">${f.file}</span> · ${bytes(f.size)}`}
+        control=${html`<${Button} variant="quiet" size="sm" busy=${busy === f.file} disabled=${Boolean(busy)} aria-label=${`Remove the font ${f.file}`} onClick=${() => remove(f.file)}>Remove<//>`} />`)}
+      ${list.length ? null : html`<${Row} icon="file" title="No font files yet."
+        say="The fonts on this Mac are enough to start; add your own when the brand book names one." control=${adding ? null : addButton} />`}
+      ${list.length && !adding ? html`<${Row} icon="plus" title="Add a font file" say=".ttf, .otf or .ttc, up to 5 MB." control=${addButton} />` : null}
+    <//>
+    ${adding ? html`<div class="p-brand-kit__picker">
+        <${FilePicker} accept=".ttf,.otf,.ttc" maxBytes=${LIMITS.fontBytes} busy=${busy === "add"} error=${error} onPick=${add} />
+        <span class="p-brand-kit__picker-foot">${addButton}</span>
+      </div>` : null}
     ${error && !adding ? html`<p class="p-brand-kit__part-error" role="alert"><${Icon} name="alert" size=${14} /><span>${error}</span></p>` : null}
-  </div>`;
+  <//>`;
 }
 
-const pxField = (label, hint, field, value, onInput, errors) => html`<${Field} label=${label} hint=${hint} error=${errorAt(errors, field)}>
-  <${TextInput} data-field=${field} type="number" inputmode="numeric" class="p-brand-kit__num" value=${value} onInput=${(e) => onInput(e.currentTarget.value)} />
-<//>`;
-
-function TypePart({ form, set, errors, offers, onUse, view, fonts, onFonts, announce }) {
+function TypeSection({ form, set, errors, offers, onUse, view, fonts, onFonts, announce }) {
   const t = form.type;
   const options = faceOptions(view.fontsOnThisMac, fonts);
   const setType = (next) => set({ ...form, type: { ...t, ...next } });
-  const layout = form.layout || emptyKit().layout;
-  const radii = withCurrent(RADII.map((r) => ({ value: String(r), label: r ? `${r} px` : "Square corners" })), String(layout.radiusPx), `${layout.radiusPx} px`);
-  const margins = withCurrent(MARGINS.map((m) => ({ value: String(m), label: m ? `${Math.round(m * 1000) / 10}% of the width` : "No margin" })), String(layout.marginShare), `${Math.round(Number(layout.marginShare) * 1000) / 10}% of the width`);
   const offer = offers.type && offers.type.value;
-  return html`<${Part} id="type" errors=${errors}>
-    <div class="p-brand-kit__type">
-      <${Specimen} form=${form} />
-      <${Card} class="p-brand-kit__type-controls">
-        <div class="p-brand-kit__faces">
-          <${FaceCard} which="heading" label="Headings" face=${t.heading} options=${options} errors=${errors} set=${(f) => setType({ heading: f })} />
-          <${FaceCard} which="body" label="Body text" face=${t.body} options=${options} errors=${errors} set=${(f) => setType({ body: f })} />
-        </div>
-        <div class="p-brand-kit__sizes">
-          ${pxField("Smallest text on a page, in pixels", "10 to 40. 16 is a good start.", "type.minPx", t.minPx, (v) => setType({ minPx: v }), errors)}
-          ${pxField("Smallest text on a slide, in pixels", "16 to 120. Slides are read from across a room.", "type.minSlidePx", t.minSlidePx, (v) => setType({ minSlidePx: v }), errors)}
-          <${Field} label="Corners" error=${errorAt(errors, "layout.radiusPx")}>
-            <${Select} data-field="layout.radiusPx" value=${String(layout.radiusPx)} options=${radii} onChange=${(e) => set({ ...form, layout: { ...layout, radiusPx: Number(e.currentTarget.value) } })} />
-          <//>
-          <${Field} label="Margins" error=${errorAt(errors, "layout.marginShare")}>
-            <${Select} data-field="layout.marginShare" value=${String(layout.marginShare)} options=${margins} onChange=${(e) => set({ ...form, layout: { ...layout, marginShare: Number(e.currentTarget.value) } })} />
-          <//>
-        </div>
-        <${Offer} offer=${offers.type} form=${form} onUse=${onUse}>
-          ${offer ? html`<p class="p-brand-kit__offer-text">Headings in ${cut(offer.heading && offer.heading.family, 60)}, body text in ${cut(offer.body && offer.body.family, 60)}.
-            Smallest ${Number(offer.minPx) || "?"} px on a page and ${Number(offer.minSlidePx) || "?"} px on a slide.</p>` : null}
-        <//>
-        ${offers.layout ? html`<${Offer} offer=${offers.layout} form=${form} onUse=${onUse}>
-          <p class="p-brand-kit__offer-text">Corners ${Number(offers.layout.value.radiusPx) || 0} px, margins ${Math.round(Number(offers.layout.value.marginShare) * 1000) / 10}% of the width.</p><//>` : null}
-        <${Fonts} fonts=${fonts} onFonts=${onFonts} announce=${announce} />
+  return html`
+    <${Offers} form=${form} onUse=${onUse} list=${[{ offer: offers.type, body: offer ? html`Headings in ${cut(offer.heading && offer.heading.family, 60)}, body text in ${cut(offer.body && offer.body.family, 60)}.
+      Smallest ${Number(offer.minPx) || "?"} px on a page and ${Number(offer.minSlidePx) || "?"} px on a slide.` : null }]} />
+    <${Group} title=${SECTION_WORDS.sample}><${Specimen} form=${form} /><//>
+    <${Group} title=${SECTION_WORDS.faces}>
+      <${Rows}>
+        <${FaceRow} which="heading" label="Headings" face=${t.heading} options=${options} errors=${errors} set=${(f) => setType({ heading: f })} />
+        <${FaceRow} which="body" label="Body text" face=${t.body} options=${options} errors=${errors} set=${(f) => setType({ body: f })} />
       <//>
-    </div>
-  <//>`;
+    <//>
+    <${Group} title=${SECTION_WORDS.sizes}>
+      <${Rows}>
+        <${Row} icon="docs" title="Smallest text on a page, in pixels" say=${html`10 to 40. 16 is a good start.<${RowError} errors=${errors} field="type.minPx" />`}
+          control=${pxInput("Smallest text on a page, in pixels", "type.minPx", t.minPx, (v) => setType({ minPx: v }), errors)} />
+        <${Row} icon="stage" title="Smallest text on a slide, in pixels" say=${html`16 to 120. Slides are read from across a room.<${RowError} errors=${errors} field="type.minSlidePx" />`}
+          control=${pxInput("Smallest text on a slide, in pixels", "type.minSlidePx", t.minSlidePx, (v) => setType({ minSlidePx: v }), errors)} />
+      <//>
+    <//>
+    <${Fonts} fonts=${fonts} onFonts=${onFonts} announce=${announce} />`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Logo
+// Layout
 
-function LogoStage({ tone, ground, logo, picture, clearSpace }) {
-  const h = 56;
-  const pad = Math.round(Number(clearSpace) * h);
-  return html`<figure class=${`p-brand-kit__stage p-brand-kit__stage--${tone}`} style=${{ background: ground, color: inkOn(ground) }}>
-    <figcaption class="p-brand-kit__stage-label">On ${tone} backgrounds</figcaption>
-    ${picture
-      ? html`<div class="p-brand-kit__clear" style=${{ padding: `${pad}px` }} title=${`Clear space: ${clearSpace} times the logo's height`}>
-          <img src=${picture} alt=${`Your logo on a ${tone} background: ${cut(logo, 80)}`} style=${{ height: `${h}px` }} loading="lazy" decoding="async" />
+// A page drawn in the kit's own colours with its corners and margins, the margin's edge as a dashed line.
+function LayoutSample({ form }) {
+  const colours = arr(form.colours);
+  const layout = form.layout || emptyKit().layout;
+  const bg = colourFor(colours, "background") || stages(colours).light;
+  const ink = colourFor(colours, "text") || colourFor(colours, "main") || inkOn(bg);
+  const main = colourFor(colours, "main") || ink;
+  const second = colourFor(colours, "accent") || safeHex((colours.find((c) => c.role === "other") || {}).hex) || main;
+  const r = Math.max(0, Math.min(32, Number(layout.radiusPx) || 0));
+  const m = Math.max(0, Math.min(0.15, Number(layout.marginShare) || 0));
+  const t = form.type || {};
+  return html`<figure class="p-brand-kit__specimen-wrap" aria-label="A page with your corners and margins">
+    <div class="p-brand-kit__page" data-cook-picture style=${{ background: bg, color: ink, padding: `${m * 100}%` }}>
+      ${m ? html`<span class="p-brand-kit__page-guide" aria-hidden="true" style=${{ inset: `${m * 100}% ${m * 100}% ${m * 100}% ${m * 100}%` }}></span>` : null}
+      <div class="p-brand-kit__page-grid">
+        <span class="p-brand-kit__page-block" style=${{ background: main, borderRadius: `${r}px` }}></span>
+        <div class="p-brand-kit__page-col">
+          <p class="p-brand-kit__page-head" style=${{ fontFamily: fontStack(t.heading) }}>${cut(form.name, 40) || "Your company"}</p>
+          <span class="p-brand-kit__page-bar"></span>
+          <span class="p-brand-kit__page-bar"></span>
+          <span class="p-brand-kit__page-bar p-brand-kit__page-bar--short"></span>
+          <span class="p-brand-kit__page-mark" style=${{ background: second, borderRadius: `${r}px` }}></span>
         </div>
-        <span class="p-brand-kit__stage-note">${pad ? `Dashed line: the clear space, ${clearSpace} × its height` : "No clear space"}</span>`
-      : html`<span class="p-brand-kit__stage-none">No logo chosen for ${tone} backgrounds yet.</span>`}
+      </div>
+    </div>
+    <figcaption class="p-brand-kit__caption">
+      <span>Corners: ${r ? `${r} px` : "square"}</span>
+      <span>Margins: ${m ? `${Math.round(m * 1000) / 10}% of the width` : "none"}</span>
+    </figcaption>
   </figure>`;
 }
 
-function LogoPart({ form, set, errors, offers, onUse, brandPics }) {
-  const logo = form.logo;
-  const files = arr(logo.files);
-  const pics = arr(brandPics);
-  const urlOf = (name) => (pics.find((p) => p.name === name) || {}).url || null;
-  const g = stages(form.colours);
-  const pick = (on) => files.find((f) => f.on === on && urlOf(f.file));
-  const toggle = (name, on) => {
-    set({ ...form, logo: { ...logo, files: toggleLogo(files, name, on) } });
-  };
-  const putLogo = (next) => set({ ...form, logo: { ...logo, ...next } });
-  const spaces = withCurrent(CLEAR_SPACES.map((c) => ({ value: String(c), label: c ? `${c} × the logo's height` : "None" })), String(logo.clearSpace), `${logo.clearSpace} × the logo's height`);
-  const light = pick("light");
-  const dark = pick("dark");
-  const missing = files.filter((f) => !urlOf(f.file));
-  return html`<${Part} id="logo" errors=${errors}
-    hint="Choose your logo from the pictures in Brand: one that reads on light backgrounds and, if you have one, one for dark.">
-    <${Card} class="p-brand-kit__logo">
-      <div class="p-brand-kit__stages">
-        <${LogoStage} tone="light" ground=${g.light} logo=${light && light.file} picture=${light && urlOf(light.file)} clearSpace=${logo.clearSpace} />
-        <${LogoStage} tone="dark" ground=${g.dark} logo=${dark && dark.file} picture=${dark && urlOf(dark.file)} clearSpace=${logo.clearSpace} />
-      </div>
-      ${pics.length
-        ? html`<ul class="p-brand-kit__logo-picks" aria-label="The pictures in Brand">
-            ${pics.map((p) => html`<li key=${p.name} class="p-brand-kit__logo-pick">
-              <span class="p-brand-kit__logo-thumb" style=${{ background: `linear-gradient(90deg, ${g.light} 50%, ${g.dark} 50%)` }}><img src=${p.url} alt="" loading="lazy" decoding="async" /></span>
-              <span class="p-brand-kit__logo-name u-truncate" title=${p.name}>${p.name}</span>
-              <span class="p-brand-kit__logo-use">
-                ${["light", "dark"].map((on) => {
-                  const pressed = files.some((f) => f.file === p.name && f.on === on);
-                  return html`<button key=${on} type="button" class=${`p-brand-kit__toggle${pressed ? " p-brand-kit__toggle--on" : ""}`} aria-pressed=${pressed ? "true" : "false"}
-                    aria-label=${`Use ${p.name} on ${on} backgrounds`} onClick=${() => toggle(p.name, on)}>
-                    ${pressed ? html`<${Icon} name="check" size=${12} />` : null}On ${on}</button>`;
-                })}
-              </span>
-            </li>`)}
-          </ul>`
-        : html`<div class="p-brand-kit__empty">
-            <p><strong>No pictures in Brand yet.</strong> Add your logo file to the Brand folder, then choose it here.</p>
-            <${Button} size="sm" icon="upload" href="#/files/brand?new=upload">Add your logo<//>
-          </div>`}
-      ${missing.length ? html`<${Notice} tone="warn" title="Not in Brand any more">
-          ${missing.map((f) => html`<p key=${`${f.file}-${f.on}`}>${cut(f.file, 100)} (on ${f.on}).
-            <${Button} variant="quiet" size="sm" onClick=${() => putLogo({ files: files.filter((x) => x !== f) })}>Take it out<//></p>`)}
-        <//>` : null}
-      <div class="p-brand-kit__sizes">
-        <${Field} label="Clear space around it" error=${errorAt(errors, "logo.clearSpace")}>
-          <${Select} data-field="logo.clearSpace" value=${String(logo.clearSpace)} options=${spaces} onChange=${(e) => putLogo({ clearSpace: Number(e.currentTarget.value) })} />
-        <//>
-        ${pxField("Smallest height, in pixels", "8 to 400. Smaller than this, the tools refuse it.", "logo.minPx", logo.minPx, (v) => putLogo({ minPx: v }), errors)}
-      </div>
-      <fieldset class="p-brand-kit__places">
-        <legend class="p-brand-kit__sub">Where it must appear</legend>
-        ${PLACES.map((p) => html`<${Checkbox} key=${p} field=${`logo.requiredOn.${p}`} label=${PLACE_WORDS[p]} checked=${arr(logo.requiredOn).includes(p)}
-          onChange=${(on) => putLogo({ requiredOn: PLACES.filter((x) => (x === p ? on : arr(logo.requiredOn).includes(x))) })} />`)}
-      </fieldset>
-      <${Offer} offer=${offers.logo} form=${form} onUse=${onUse}>
-        ${offers.logo ? html`<p class="p-brand-kit__offer-text">${arr(offers.logo.value.files).map((f) => `${cut(f.file, 60)} on ${f.on}`).join(", ") || "No logo file named."}
-          Clear space ${Number(offers.logo.value.clearSpace)} × its height; at least ${Number(offers.logo.value.minPx)} px high.</p>` : null}
+function LayoutSection({ form, set, errors, offers, onUse }) {
+  const layout = form.layout || emptyKit().layout;
+  const radii = withCurrent(RADII.map((r) => ({ value: String(r), label: r ? `${r} px` : "Square corners" })), String(layout.radiusPx), `${layout.radiusPx} px`);
+  const margins = withCurrent(MARGINS.map((m) => ({ value: String(m), label: m ? `${Math.round(m * 1000) / 10}% of the width` : "No margin" })), String(layout.marginShare), `${Math.round(Number(layout.marginShare) * 1000) / 10}% of the width`);
+  return html`
+    <${Offers} form=${form} onUse=${onUse} list=${[{ offer: offers.layout, body: offers.layout
+      ? `Corners ${Number(offers.layout.value.radiusPx) || 0} px, margins ${Math.round(Number(offers.layout.value.marginShare) * 1000) / 10}% of the width.` : null }]} />
+    <${Group} title=${SECTION_WORDS.sample}><${LayoutSample} form=${form} /><//>
+    <${Group} title=${SECTION_WORDS.corners}>
+      <${Rows}>
+        <${Row} icon="grid" title="Corners" say=${html`How round the corners of pictures and panels are.<${RowError} errors=${errors} field="layout.radiusPx" />`}
+          control=${html`<${Select} data-field="layout.radiusPx" aria-label="Corners" value=${String(layout.radiusPx)} options=${radii}
+            onChange=${(e) => set({ ...form, layout: { ...layout, radiusPx: Number(e.currentTarget.value) } })} />`} />
+        <${Row} icon="sidebar" title="Margins" say=${html`The empty edge round every slide and page.<${RowError} errors=${errors} field="layout.marginShare" />`}
+          control=${html`<${Select} data-field="layout.marginShare" aria-label="Margins" value=${String(layout.marginShare)} options=${margins}
+            onChange=${(e) => set({ ...form, layout: { ...layout, marginShare: Number(e.currentTarget.value) } })} />`} />
       <//>
-    <//>
-  <//>`;
+    <//>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// How we sound
+// Pictures: examples of work you approve
 
-function Words({ words, set, errors, face }) {
-  const [typedWord, setTyped] = useState("");
-  const list = arr(words);
-  const add = () => {
-    const w = typedWord.trim().slice(0, 40);
-    if (!w || list.length >= LIMITS.words || list.includes(w)) return;
-    set([...list, w]);
-    setTyped("");
-  };
-  return html`<div class="p-brand-kit__words">
-    <${Field} label="Three to five words for how you sound" hint=${`${list.length} of ${LIMITS.words}. Press Enter after each.`}
-      error=${errorAt(errors, "voice.words") || list.map((_, i) => errorAt(errors, `voice.words.${i}`)).find(Boolean)}>
-      <${TextInput} data-field="voice.words" value=${typedWord} maxLength=${40} placeholder=${list.length >= LIMITS.words ? "Five words is the most" : "warm"}
-        disabled=${list.length >= LIMITS.words}
-        onInput=${(e) => setTyped(e.currentTarget.value)} onKeyDown=${(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
-    <//>
-    ${list.length ? html`<ul class="p-brand-kit__word-list" style=${{ fontFamily: fontStack(face) }}>${list.map((w, i) => html`<li key=${i}>
-      <span>${cut(w, 40)}</span>
-      <button type="button" class="p-brand-kit__word-x" aria-label=${`Remove the word ${cut(w, 40)}`} onClick=${() => set(list.filter((_, j) => j !== i))}><${Icon} name="cross" size=${12} /></button>
-    </li>`)}</ul>` : null}
-  </div>`;
-}
-
-function DoList({ kind, list, set, errors }) {
-  const items = arr(list);
-  const shown = items.length ? items : [""];
-  const put = (next) => set(next);
-  const isDo = kind === "do";
-  return html`<div class=${`p-brand-kit__dos p-brand-kit__dos--${kind}`}>
-    <h3 class="p-brand-kit__sub"><span class="p-brand-kit__do-mark" aria-hidden="true"><${Icon} name=${isDo ? "check" : "cross"} size=${12} /></span>${isDo ? "Do" : "Don't"}</h3>
-    <ul class="p-brand-kit__do-list">
-      ${shown.map((line, i) => html`<li key=${i}>
-        <${Field} label=${`${isDo ? "Do" : "Don't"}, example ${i + 1}`} error=${errorAt(errors, `voice.${kind}.${i}`)}>
-          <${TextInput} data-field=${`voice.${kind}.${i}`} value=${line} maxLength=${200}
-            placeholder=${isDo ? "Name the street and the year it was built." : "Call a project luxurious or world-class."}
-            onInput=${(e) => put(shown.map((x, j) => (j === i ? e.currentTarget.value : x)))} />
-        <//>
-        ${items.length ? html`<${Button} variant="quiet" size="sm" icon="cross" aria-label=${`Remove ${isDo ? "do" : "don't"} example ${i + 1}`}
-          onClick=${() => put(shown.filter((_, j) => j !== i))} />` : null}
-      </li>`)}
-    </ul>
-    <${Button} size="sm" icon="plus" disabled=${shown.length >= LIMITS.items} onClick=${() => put([...shown, ""])}>${isDo ? "Add a do" : "Add a don't"}<//>
-  </div>`;
-}
-
-function VoicePart({ form, set, errors, offers, onUse, fillerCount }) {
-  const v = form.voice;
-  const putVoice = (next) => set({ ...form, voice: { ...v, ...next } });
-  const count = Number.isInteger(fillerCount) ? fillerCount : null;
-  return html`<${Part} id="voice" errors=${errors}>
-    <${Card} class="p-brand-kit__voice">
-      <${Words} words=${v.words} face=${form.type && form.type.heading} set=${(words) => putVoice({ words })} errors=${errors} />
-      <${Offer} offer=${offers["voice.words"]} form=${form} onUse=${onUse}><p class="p-brand-kit__offer-text">${arr(offers["voice.words"] && offers["voice.words"].value).map((w) => cut(w, 40)).join(", ")}</p><//>
-      <${Field} label="How you sound, in a few sentences" error=${errorAt(errors, "voice.is")}
-        hint="Write it to a new writer: who you talk to, how close, what you never pretend.">
-        <${TextArea} data-field="voice.is" autoGrow value=${v.is} maxLength=${1000} placeholder="Like an architect on site: plain, exact, warm with the client, never selling."
-          onInput=${(e) => putVoice({ is: e.currentTarget.value })} />
-      <//>
-      <${Offer} offer=${offers["voice.is"]} form=${form} onUse=${onUse}><p class="p-brand-kit__offer-text">${cut(offers["voice.is"] && offers["voice.is"].value, 1000)}</p><//>
-      <div class="p-brand-kit__do-dont">
-        <div>
-          <${DoList} kind="do" list=${v.do} set=${(list) => putVoice({ do: list })} errors=${errors} />
-          <${Offer} offer=${offers["voice.do"]} form=${form} onUse=${onUse}><${Lines} list=${offers["voice.do"] && offers["voice.do"].value} /><//>
-        </div>
-        <div>
-          <${DoList} kind="dont" list=${v.dont} set=${(list) => putVoice({ dont: list })} errors=${errors} />
-          <${Offer} offer=${offers["voice.dont"]} form=${form} onUse=${onUse}><${Lines} list=${offers["voice.dont"] && offers["voice.dont"].value} /><//>
-        </div>
-      </div>
-      <${Field} label="Sign-off" error=${errorAt(errors, "voice.signoff")} hint="How a letter or an email from you ends.">
-        <${TextInput} data-field="voice.signoff" value=${v.signoff} maxLength=${200} placeholder="With care, the Sthyra studio"
-          onInput=${(e) => putVoice({ signoff: e.currentTarget.value })} />
-      <//>
-      <${Offer} offer=${offers["voice.signoff"]} form=${form} onUse=${onUse}><p class="p-brand-kit__offer-text">${cut(offers["voice.signoff"] && offers["voice.signoff"].value, 200)}</p><//>
-      <p class="p-brand-kit__never"><${Icon} name="lock" size=${14} /><span>Words and claims you never use are kept in <a href="#/files/brand?new=form:cant-say">What we never say</a>.</span></p>
-      <${Switch} on=${form.filler && form.filler.block} label="Also block machine-sounding filler"
-        explain=${count !== null ? `Stops ${count} stock phrases, such as "elevate your" and "seamless experience", from reaching you.` : "Stops stock phrases, such as \"elevate your\" and \"seamless experience\", from reaching you."}
-        onChange=${(on) => set({ ...form, filler: { ...(form.filler || { allow: [] }), block: on } })} />
-    <//>
-  <//>`;
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Examples of work you approve
-
-function ReferencesPart({ form, set, errors, offers, onUse, refPics }) {
+function PicturesSection({ form, set, errors, offers, onUse, refPics }) {
   const refs = arr(form.references);
   const pics = arr(refPics);
   const put = (next) => set({ ...form, references: next });
@@ -969,80 +1008,166 @@ function ReferencesPart({ form, set, errors, offers, onUse, refPics }) {
   const edit = (i, next) => put(refs.map((r, j) => (j === i ? { ...r, ...next } : r)));
   const missing = refs.map((r, i) => ({ r, i })).filter(({ r }) => !pics.some((p) => p.path === r.file));
   const offered = offers.references && arr(offers.references.value);
-  return html`<${Part} id="references" errors=${errors}
-    aside=${html`<${Button} size="sm" icon="upload" href="#/files/references?new=upload">Add pictures<//>`}
-    hint="Pictures of work you are proud of. Choose which count, what each is an example of, and in one line why it is good.">
-    ${pics.length
-      ? html`<ul class="p-brand-kit__wall">
-          ${pics.map((p) => {
-            const i = at(p.path);
-            const on = i >= 0;
-            const r = on ? refs[i] : null;
-            return html`<li key=${p.path} class=${`p-brand-kit__ref${on ? " p-brand-kit__ref--on" : ""}`}>
-              <figure class="p-brand-kit__ref-pic"><img src=${p.url} alt=${cut(p.name, 100)} loading="lazy" decoding="async" /></figure>
-              <div class="p-brand-kit__ref-body">
-                <${Checkbox} field=${`references.${on ? i : "new"}.file`} checked=${on} label=${on ? "An example of good work" : "Use as an example"} onChange=${() => toggle(p.path)} />
-                ${on ? html`
-                  <fieldset class="p-brand-kit__kinds" data-field=${`references.${i}.kinds`}>
-                    <legend class="u-caption">An example for</legend>
-                    ${KINDS.map((k) => html`<${Checkbox} key=${k} field=${`references.${i}.kinds.${k}`} label=${KIND_WORDS[k]} checked=${arr(r.kinds).includes(k)}
-                      onChange=${(c) => edit(i, { kinds: KINDS.filter((x) => (x === k ? c : arr(r.kinds).includes(x))) })} />`)}
-                  </fieldset>
-                  ${errorAt(errors, `references.${i}.kinds`) ? html`<p class="p-brand-kit__part-error" role="alert"><${Icon} name="alert" size=${14} /><span>${errorAt(errors, `references.${i}.kinds`)}</span></p>` : null}
-                  <${Field} label="Why it is good" error=${errorAt(errors, `references.${i}.note`)}>
-                    <${TextInput} data-field=${`references.${i}.note`} value=${r.note} maxLength=${300} placeholder="The light on the stone; nothing else in the frame."
-                      onInput=${(e) => edit(i, { note: e.currentTarget.value })} />
-                  <//>` : null}
-              </div>
-            </li>`;
-          })}
-        </ul>`
-      : html`<${Card} class="p-brand-kit__empty p-brand-kit__empty--wall">
-          <span class="p-brand-kit__empty-wall" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
-          <p><strong>No pictures in References yet.</strong> Add work you are proud of: the Art director compares every new piece with it.</p>
-          <${Button} size="sm" icon="upload" href="#/files/references?new=upload">Add pictures<//>
-        <//>`}
-    ${missing.length ? html`<${Notice} tone="warn" title="Not in References any more">
-        ${missing.map(({ r }) => html`<p key=${r.file}>${cut(r.file, 120)}
-          <${Button} variant="quiet" size="sm" onClick=${() => put(refs.filter((x) => x !== r))}>Take it out<//></p>`)}
-      <//>` : null}
-    <${Offer} offer=${offers.references} form=${form} onUse=${onUse}>
-      ${offered ? html`<ul class="p-brand-kit__offer-lines">${offered.slice(0, 24).map((r, i) => html`<li key=${i}>${cut(r.file, 120)}${arr(r.kinds).length ? `, for ${arr(r.kinds).map((k) => (KIND_WORDS[k] || "").toLowerCase()).join(", ")}` : ""}${r.note ? `: ${cut(r.note, 200)}` : ""}</li>`)}</ul>` : null}
-    <//>
-  <//>`;
+  return html`
+    <${Offers} form=${form} onUse=${onUse} list=${[{ offer: offers.references, body: offered ? html`<ul class="p-brand-kit__offer-lines">${offered.slice(0, 24).map((r, i) => html`<li key=${i}>${cut(r.file, 120)}${arr(r.kinds).length ? `, for ${arr(r.kinds).map((k) => (KIND_WORDS[k] || "").toLowerCase()).join(", ")}` : ""}${r.note ? `: ${cut(r.note, 200)}` : ""}</li>`)}</ul>` : null }]} />
+    <${Group} title=${SECTION_WORDS.examples} aside=${pics.length ? html`<${Button} size="sm" variant="quiet" icon="upload" href="#/files/references?new=upload">Add pictures<//>` : null}
+      say="Pictures of work you are proud of. Choose which count, what each is an example of, and in one line why it is good.">
+      ${pics.length
+        ? html`<ul class="p-brand-kit__wall">
+            ${pics.map((p) => {
+              const i = at(p.path);
+              const on = i >= 0;
+              const r = on ? refs[i] : null;
+              return html`<li key=${p.path} class=${`p-brand-kit__ref${on ? " p-brand-kit__ref--on" : ""}`}>
+                <figure class="p-brand-kit__ref-pic"><img src=${p.url} alt=${cut(p.name, 100)} loading="lazy" decoding="async" /></figure>
+                <div class="p-brand-kit__ref-body">
+                  <${Checkbox} field=${`references.${on ? i : "new"}.file`} checked=${on} label=${on ? "An example of good work" : "Use as an example"} onChange=${() => toggle(p.path)} />
+                  ${on ? html`
+                    <fieldset class="p-brand-kit__kinds" data-field=${`references.${i}.kinds`}>
+                      <legend class="p-brand-kit__quiet">An example for</legend>
+                      ${KINDS.map((k) => html`<${Checkbox} key=${k} field=${`references.${i}.kinds.${k}`} label=${KIND_WORDS[k]} checked=${arr(r.kinds).includes(k)}
+                        onChange=${(c) => edit(i, { kinds: KINDS.filter((x) => (x === k ? c : arr(r.kinds).includes(x))) })} />`)}
+                    </fieldset>
+                    ${errorAt(errors, `references.${i}.kinds`) ? html`<p class="p-brand-kit__part-error" role="alert"><${Icon} name="alert" size=${14} /><span>${errorAt(errors, `references.${i}.kinds`)}</span></p>` : null}
+                    <${Field} label="Why it is good" error=${errorAt(errors, `references.${i}.note`)}>
+                      <${TextInput} data-field=${`references.${i}.note`} value=${r.note} maxLength=${300} placeholder="The light on the stone; nothing else in the frame."
+                        onInput=${(e) => edit(i, { note: e.currentTarget.value })} />
+                    <//>` : null}
+                </div>
+              </li>`;
+            })}
+          </ul>`
+        : html`<${Rows}><${Row} icon="image" title="No pictures in References yet."
+            say="Add work you are proud of: the Art director compares every new piece with it."
+            control=${html`<${Button} size="sm" icon="upload" href="#/files/references?new=upload">Add pictures<//>`} /><//>`}
+      ${missing.length ? html`<${Notice} tone="warn" title="Not in References any more">
+          ${missing.map(({ r }) => html`<p key=${r.file}>${cut(r.file, 120)}
+            <${Button} variant="quiet" size="sm" onClick=${() => put(refs.filter((x) => x !== r))}>Take it out<//></p>`)}
+        <//>` : null}
+    <//>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// What the Researcher may know, the picks, the playbooks
+// Words: the name, how we sound, what the Researcher may know
 
-function PublicPart({ form, set, errors, offers, onUse }) {
-  const s = str(form.public && form.public.summary);
-  return html`<${Part} id="public" errors=${errors}>
-    <${Card}>
-      <${Field} label="A short public summary of the company" error=${errorAt(errors, "public.summary")} hint=${`${[...s].length} of ${LIMITS.summary} characters.`}>
-        <${TextArea} data-field="public.summary" autoGrow value=${s} maxLength=${LIMITS.summary} placeholder="An architecture studio in Hyderabad that designs and builds homes and small offices."
-          onInput=${(e) => set({ ...form, public: { summary: e.currentTarget.value } })} />
-      <//>
-      <p class="p-brand-kit__shared"><${Icon} name="lock" size=${14} /><span>${WORDS.researcher}</span></p>
-      <${Offer} offer=${offers.public} form=${form} onUse=${onUse}><p class="p-brand-kit__offer-text">${cut(offers.public && offers.public.value && offers.public.value.summary, 600)}</p><//>
-    <//>
-  <//>`;
-}
-
-function Picks() {
-  const res = useResource(`/api/brain/file/${fileToken(TASTE_PATH)}`);
-  const none = res.error && (res.error.status === 404 || res.error.code === "file_not_found");
-  const lines = res.data ? tasteLines(res.data.text).slice(0, 60) : [];
-  return html`<div class="p-brand-kit__part" id="bk-picks">
-    <${Section} title="Your picks so far" hint="What you chose between versions, kept for the agents. Only your own choices and notes are written here.">
-      ${res.loading && !res.data ? html`<${Loading} lines=${2} label="Reading your picks" />`
-        : none || (res.data && !lines.length) ? html`<${Empty} title=${WORDS.noPicks} />`
-        : res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`
-        : html`<${Card} class="p-brand-kit__picks">${lines.map((l, i) => (l.kind === "head"
-            ? html`<h3 key=${i} class="p-brand-kit__sub">${l.text}</h3>`
-            : html`<p key=${i} class="p-brand-kit__pick-line">${l.text}</p>`))}<//>`}
+function VoiceWords({ words, set, errors, face }) {
+  const [typedWord, setTyped] = useState("");
+  const list = arr(words);
+  const add = () => {
+    const w = typedWord.trim().slice(0, 40);
+    if (!w || list.length >= LIMITS.words || list.includes(w)) return;
+    set([...list, w]);
+    setTyped("");
+  };
+  return html`<div class="p-brand-kit__words">
+    ${list.length ? html`<ul class="p-brand-kit__word-list" data-cook-picture style=${{ fontFamily: fontStack(face) }}>${list.map((w, i) => html`<li key=${i}>
+      <span>${cut(w, 40)}</span>
+      <button type="button" class="p-brand-kit__word-x" aria-label=${`Remove the word ${cut(w, 40)}`} onClick=${() => set(list.filter((_, j) => j !== i))}><${Icon} name="cross" size=${14} /></button>
+    </li>`)}</ul>` : null}
+    <${Field} label="Three to five words for how you sound" hint=${`${list.length} of ${LIMITS.words}. Press Enter after each.`}
+      error=${errorAt(errors, "voice.words") || list.map((_, i) => errorAt(errors, `voice.words.${i}`)).find(Boolean)}>
+      <${TextInput} data-field="voice.words" value=${typedWord} maxLength=${40} placeholder=${list.length >= LIMITS.words ? "Five words is the most" : "warm"}
+        disabled=${list.length >= LIMITS.words}
+        onInput=${(e) => setTyped(e.currentTarget.value)} onKeyDown=${(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
     <//>
   </div>`;
+}
+
+function DoList({ kind, list, set, errors }) {
+  const items = arr(list);
+  const shown = items.length ? items : [""];
+  const put = (next) => set(next);
+  const isDo = kind === "do";
+  return html`<div class=${`p-brand-kit__dos p-brand-kit__dos--${kind}`}>
+    <ul class="p-brand-kit__do-list">
+      ${shown.map((line, i) => html`<li key=${i}>
+        <${Field} label=${`${isDo ? "Do" : "Don't"}, example ${i + 1}`} error=${errorAt(errors, `voice.${kind}.${i}`)}>
+          <${TextInput} data-field=${`voice.${kind}.${i}`} value=${line} maxLength=${200}
+            placeholder=${isDo ? "Name the street and the year it was built." : "Call a project luxurious or world-class."}
+            onInput=${(e) => put(shown.map((x, j) => (j === i ? e.currentTarget.value : x)))} />
+        <//>
+        ${items.length ? html`<${Button} variant="quiet" size="sm" icon="cross" aria-label=${`Remove ${isDo ? "do" : "don't"} example ${i + 1}`}
+          onClick=${() => put(shown.filter((_, j) => j !== i))} />` : null}
+      </li>`)}
+    </ul>
+    <span><${Button} size="sm" variant="quiet" icon="plus" disabled=${shown.length >= LIMITS.items} onClick=${() => put([...shown, ""])}>${isDo ? "Add a do" : "Add a don't"}<//></span>
+  </div>`;
+}
+
+function WordsSection({ form, set, errors, offers, onUse, fillerCount }) {
+  const v = form.voice;
+  const putVoice = (next) => set({ ...form, voice: { ...v, ...next } });
+  const count = Number.isInteger(fillerCount) ? fillerCount : null;
+  const s = str(form.public && form.public.summary);
+  const text = (key, n) => cut(offers[key] && offers[key].value, n);
+  return html`
+    <${Offers} form=${form} onUse=${onUse} list=${[
+      { offer: offers.name, body: cut(offers.name && offers.name.value, 80) },
+      { offer: offers["voice.words"], body: arr(offers["voice.words"] && offers["voice.words"].value).map((w) => cut(w, 40)).join(", ") },
+      { offer: offers["voice.is"], body: text("voice.is", 1000) },
+      { offer: offers["voice.do"], body: html`<${Lines} list=${offers["voice.do"] && offers["voice.do"].value} />` },
+      { offer: offers["voice.dont"], body: html`<${Lines} list=${offers["voice.dont"] && offers["voice.dont"].value} />` },
+      { offer: offers["voice.signoff"], body: text("voice.signoff", 200) },
+      { offer: offers.public, body: cut(offers.public && offers.public.value && offers.public.value.summary, 600) },
+    ]} />
+    <${Group} title=${SECTION_WORDS.name}>
+      <${Rows}>
+        <${Row} icon="tag" title="Your company's name, as it is written" say=${html`${PARTS[0].changes}<${RowError} errors=${errors} field="name" />`}
+          control=${html`<${TextInput} data-field="name" class="p-brand-kit__name" aria-label="Your company's name, as it is written" value=${form.name} maxLength=${80}
+            placeholder="The name on your door" onInput=${(e) => set({ ...form, name: e.currentTarget.value })} />`} />
+      <//>
+    <//>
+    <${Group} title=${SECTION_WORDS.voice}>
+      <${Rows}>
+        <${Row} icon="reply" title="Your words" say=${html`<${VoiceWords} words=${v.words} face=${form.type && form.type.heading} set=${(words) => putVoice({ words })} errors=${errors} />`} />
+        <${Row} icon="docs" title="How you sound, in a few sentences"
+          say=${html`<span class="p-brand-kit__line">Write it to a new writer: who you talk to, how close, what you never pretend.</span>
+            <${Field} error=${errorAt(errors, "voice.is")}>
+              <${TextArea} data-field="voice.is" autoGrow aria-label="How you sound, in a few sentences" value=${v.is} maxLength=${1000}
+                placeholder="Like an architect on site: plain, exact, warm with the client, never selling." onInput=${(e) => putVoice({ is: e.currentTarget.value })} />
+            <//>`} />
+        <${Row} icon="check" title="Do" say=${html`<${DoList} kind="do" list=${v.do} set=${(list) => putVoice({ do: list })} errors=${errors} />`} />
+        <${Row} icon="cross" title="Don't" say=${html`<${DoList} kind="dont" list=${v.dont} set=${(list) => putVoice({ dont: list })} errors=${errors} />`} />
+        <${Row} icon="send" title="Sign-off" say=${html`How a letter or an email from you ends.<${RowError} errors=${errors} field="voice.signoff" />`}
+          control=${html`<${TextInput} data-field="voice.signoff" class="p-brand-kit__name" aria-label="Sign-off" value=${v.signoff} maxLength=${200}
+            placeholder="With care, the Sthyra studio" onInput=${(e) => putVoice({ signoff: e.currentTarget.value })} />`} />
+        <${Row} icon="filter" title="Also block machine-sounding filler"
+          say=${count !== null ? `Stops ${count} stock phrases, such as "elevate your" and "seamless experience", from reaching you.` : "Stops stock phrases, such as \"elevate your\" and \"seamless experience\", from reaching you."}
+          control=${html`<${Switch} on=${form.filler && form.filler.block} label="Also block machine-sounding filler"
+            onChange=${(on) => set({ ...form, filler: { ...(form.filler || { allow: [] }), block: on } })} />`} />
+        <${Row} icon="lock" title="What we never say"
+          say=${html`Words and claims you never use are kept in <a class="p-brand-kit__link" href="#/files/brand?new=form:cant-say">What we never say</a>.`} />
+      <//>
+    <//>
+    <${Group} title=${SECTION_WORDS.researcher} say=${PARTS.find((p) => p.id === "public").changes}>
+      <${Rows}>
+        <${Row} icon="lock" title="A short public summary of the company"
+          say=${html`<span class="p-brand-kit__line">${WORDS.researcher}</span>
+            <${Field} error=${errorAt(errors, "public.summary")} hint=${`${[...s].length} of ${LIMITS.summary} characters.`}>
+              <${TextArea} data-field="public.summary" autoGrow aria-label="A short public summary of the company" value=${s} maxLength=${LIMITS.summary}
+                placeholder="An architecture studio in Hyderabad that designs and builds homes and small offices."
+                onInput=${(e) => set({ ...form, public: { summary: e.currentTarget.value } })} />
+            <//>`} />
+      <//>
+    <//>`;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// References: the picks, the playbooks
+
+// The taste file is read only when Brand lists it, so an owner with no picks yet costs no failed request.
+function Picks({ known }) {
+  const res = useResource(known ? `/api/brain/file/${fileToken(TASTE_PATH)}` : null);
+  const none = !known || (res.error && (res.error.status === 404 || res.error.code === "file_not_found"));
+  const lines = res.data ? tasteLines(res.data.text).slice(0, 60) : [];
+  return html`<${Group} title="Your picks so far" say="What you chose between versions, kept for the agents. Only your own choices and notes are written here.">
+    ${known && res.loading && !res.data ? html`<${Loading} lines=${2} label="Reading your picks" />`
+      : none || (res.data && !lines.length) ? html`<${Rows}><${Row} icon="layers" title=${SECTION_WORDS.noPicks} say=${WORDS.noPicks} /><//>`
+      : res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`
+      : html`<${Card} class="p-brand-kit__picks">${lines.map((l, i) => (l.kind === "head"
+          ? html`<h3 key=${i} class="p-brand-kit__sub">${l.text}</h3>`
+          : html`<p key=${i} class="p-brand-kit__pick-line">${l.text}</p>`))}<//>`}
+  <//>`;
 }
 
 function Playbooks({ rows }) {
@@ -1053,39 +1178,56 @@ function Playbooks({ rows }) {
     if (c.key === "roles") return arr(r.roles).map(roleName).filter(Boolean).join(", ") || "Any agent";
     return arr(r.kinds).map((k) => KIND_WORDS[k] || roleName(k)).filter(Boolean).join(", ") || "Any work";
   };
-  return html`<div class="p-brand-kit__part" id="bk-playbooks">
-    <${Section} title="Playbooks" hint="Craft notes the agents read before they make something. They read them; they cannot change them.">
-      ${list.length
-        ? html`<div class="p-brand-kit__table"><${DataTable} columns=${columns} rows=${list.map((r) => ({ ...r, id: r.name }))} renderCell=${cell} /></div>`
-        : html`<${Empty} title=${WORDS.noPlaybooks}><${Button} size="sm" href="#/health">Open Health<//><//>`}
-    <//>
-  </div>`;
+  return html`<${Group} title="Playbooks" say="Craft notes the agents read before they make something. They read them; they cannot change them.">
+    ${list.length
+      ? html`<${Card} padding="none" class="p-brand-kit__table"><${DataTable} columns=${columns} rows=${list.map((r) => ({ ...r, id: r.name }))} renderCell=${cell} /><//>`
+      : html`<${Rows}><${Row} icon="health" title=${WORDS.noPlaybooks} control=${html`<${Button} size="sm" href="#/health">Open Health<//>`} /><//>`}
+  <//>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // The page
 
-function useFolderPictures(id) {
+function useFolder(id) {
   const res = useResource(`/api/brain/folder/${id}`, { every: 15000 });
-  const pics = arr(res.data && res.data.files)
+  const files = arr(res.data && res.data.files);
+  const pics = files
     .filter((f) => f && f.kind === "image" && /^\/api\/brain\/raw\/[A-Za-z0-9_-]{1,700}$/.test(str(f.rawUrl)))
     .map((f) => ({ name: cut(f.name, 120), path: str(f.path) || `${id}/${str(f.name)}`, url: f.rawUrl }));
-  return pics;
+  return { pics, has: (path) => files.some((f) => f && str(f.path) === path) };
+}
+
+const INTROS = {
+  logo: PARTS.find((p) => p.id === "logo").changes,
+  colours: PARTS.find((p) => p.id === "colours").changes,
+  type: PARTS.find((p) => p.id === "type").changes,
+  layout: SECTION_WORDS.layoutIntro,
+  pictures: PARTS.find((p) => p.id === "references").changes,
+  words: PARTS.find((p) => p.id === "voice").changes,
+  references: SECTION_WORDS.referencesIntro,
+};
+
+// The crumbs and the window's title for one section.
+function useTop(here, proposal) {
+  const app = useApp() || {};
+  const { setTop } = app;
+  const company = app.shell && app.shell.company && app.shell.company.name;
+  useEffect(() => {
+    if (typeof document !== "undefined") document.title = [`Brand kit, ${here.label}`, company].filter(Boolean).join(" · ");
+    if (typeof setTop === "function") {
+      setTop({ crumbs: [{ label: "Files", href: "#/files" }, { label: "Brand kit", href: sectionHref(SECTIONS[0].id, proposal) }, { label: here.label }] });
+    }
+  }, [here.id, company, setTop, proposal]);
 }
 
 function Restart() {
-  return html`<${Card} class="p-brand-kit__later">
-    <${StatusDot} tone="off" label="Not here yet" />
-    <p>This page appears after the home screen is restarted: <code class="k-next__command">engine stop</code>, then <code class="k-next__command">engine start</code>.</p>
+  return html`<${Rows}>
+    <${Row} icon=${html`<${StatusDot} tone="off" label="Not here yet" hideLabel=${true} />`} title="Not here yet"
+      say=${html`This page appears after the home screen is restarted: <code class="k-next__command">engine stop</code>, then <code class="k-next__command">engine start</code>.`} />
   <//>`;
 }
 
-function Header({ actions }) {
-  return html`<${PageHeader} over="Company brain" title="Brand kit" lead=${WORDS.lead}
-    chip=${{ label: ["Files", "Brand kit"], href: "#/files", closeLabel: "Back to all files" }} actions=${actions} />`;
-}
-
-function Editor({ view, reload }) {
+function Editor({ view, reload, section, proposalRef }) {
   const { announce } = useApp();
   const [base, setBase] = useState(() => kitFromForm(formFromKit(view.fromOldForm ? emptyKit(view.fontsOnThisMac) : view.kit)));
   const [form, setFormState] = useState(() => formFromKit(view.fromOldForm ? emptyKit(view.fontsOnThisMac) : view.kit));
@@ -1096,19 +1238,38 @@ function Editor({ view, reload }) {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState(null);
   const [outcome, setOutcome] = useState(null);
-  const brandPics = useFolderPictures("brand");
-  const refPics = useFolderPictures("references");
+  const [pending, setPending] = useState(null);
+  const brand = useFolder("brand");
+  const refs = useFolder("references");
   const offers = offersOf({ proposal: view.proposal, oldKit: view.fromOldForm ? view.kit : null, families: view.fontsOnThisMac });
   const proposal = obj(view.proposal) ? view.proposal : null;
+  const here = SECTIONS.find((s) => s.id === section) || SECTIONS[0];
+
+  // A new section starts at the top, and on a phone its name is brought into the row of names; a refusal in
+  // another section is shown once that section is drawn.
+  const first = useRef(true);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (!first.current && typeof window.scrollTo === "function") window.scrollTo(0, 0);
+    first.current = false;
+    const pick = document.querySelector(".p-brand-kit .k-doc__pick[aria-current]");
+    if (pick && typeof pick.scrollIntoView === "function") pick.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (pending && fieldSection(pending) === here.id) { const f = pending; setPending(null); setTimeout(() => focusField(f), 0); }
+  }, [here.id, pending]);
+  const show = (field) => {
+    const to = fieldSection(field);
+    if (to && to !== here.id && typeof location !== "undefined") { setPending(field); location.hash = sectionHref(to, proposalRef); return; }
+    setTimeout(() => focusField(field), 0);
+  };
 
   const set = (next) => { setFormState(next); if (outcome && outcome.kind === "saved") setOutcome(null); };
   const onUse = (offer) => { set(useOffer(form, offer.key, offer.value)); announce && announce("Used. Save the brand kit to keep it."); };
   const current = kitFromForm(form);
-  const changed = changedParts(base, current);
+  const changed = changedSections(base, current);
   const dirty = changed.length > 0;
-  const filled = filledParts(current, exists);
   const offerCount = Object.keys(offers).length;
   const unused = Object.values(offers).filter((o) => !offerUsed(form, o)).length;
+  const lines = sectionLines(current, { exists, playbooks: view.playbooks, changed });
 
   const useAll = () => {
     let next = form;
@@ -1122,7 +1283,7 @@ function Editor({ view, reload }) {
     if (local.length) {
       setErrors(local[0]);
       setOutcome({ kind: "refused", message: local[0].message, field: local[0].field });
-      setTimeout(() => focusField(local[0].field), 0);
+      show(local[0].field);
       return;
     }
     setBusy(true);
@@ -1145,96 +1306,98 @@ function Editor({ view, reload }) {
     if (res.field) {
       setErrors({ field: res.field, message: res.error.message });
       setOutcome({ kind: "refused", message: res.error.message, field: res.field });
-      setTimeout(() => focusField(res.field), 0);
+      show(res.field);
       return;
     }
     setOutcome({ kind: "failed", message: res.error.message, next: res.error.next });
   };
 
-  const saveButton = html`<${Button} variant="primary" icon="check" busy=${busy} disabled=${busy || (!dirty && exists && !view.problem)} onClick=${save}>${WORDS.save}<//>`;
   const status = view.problem && !outcome
     ? "The saved brand kit has a problem. Saving replaces it."
     : exists ? savedAt && fullWhen(savedAt) ? `Saved ${fullWhen(savedAt)}.` : "Saved." : WORDS.notSaved;
+  const changedWords = `Changed: ${changed.map((id) => SECTIONS.find((s) => s.id === id).label).join(", ")}.`;
+  const tone = view.problem && !outcome ? "bad" : exists && !dirty ? "ok" : exists ? "warn" : "off";
+  const parts = { form, set, errors, offers, onUse };
 
-  return html`<div class="p-brand-kit">
-    <${Header} actions=${saveButton} />
-    <div class="p-brand-kit__status" role="status">
-      <${StatusDot} tone=${view.problem && !outcome ? "bad" : exists && !dirty ? "ok" : exists ? "warn" : "off"} label=${dirty ? `Changed: ${changed.join(", ")}. Not saved yet.` : status} />
-    </div>
+  let body;
+  if (here.id === "logo") body = html`<${LogoSection} ...${parts} brandPics=${brand.pics} />`;
+  else if (here.id === "colours") body = html`<${ColoursSection} ...${parts} />`;
+  else if (here.id === "type") body = html`<${TypeSection} ...${parts} view=${view} fonts=${fonts} onFonts=${setFonts} announce=${announce} />`;
+  else if (here.id === "layout") body = html`<${LayoutSection} ...${parts} />`;
+  else if (here.id === "pictures") body = html`<${PicturesSection} ...${parts} refPics=${refs.pics} />`;
+  else if (here.id === "words") body = html`<${WordsSection} ...${parts} fillerCount=${view.fillerCount} />`;
+  else body = html`<${Picks} known=${brand.has(TASTE_PATH)} /><${Playbooks} rows=${view.playbooks} />`;
 
-    ${view.problem ? html`<${Notice} tone="bad" title=${PROBLEMS[view.problem] || "Part of the brand kit could not be read."} />` : null}
-    ${outcome && outcome.kind === "saved" ? html`<${Notice} tone="ok" title=${WORDS.saved} />` : null}
-    ${outcome && outcome.kind === "changed" ? html`<${Notice} tone="warn" title=${WORDS.changed}>
-        <p>Your changes are still on this page. Open the newest version to see what changed; then make your changes again.</p>
-        <div class="p-brand-kit__notice-actions"><${Button} size="sm" icon="loop" onClick=${reload}>Open the newest version<//></div>
-      <//>` : null}
-    ${outcome && outcome.kind === "refused" ? html`<${Notice} tone="bad" title="Not saved.">
-        <p>${outcome.message}</p>
-        <div class="p-brand-kit__notice-actions"><${Button} size="sm" icon="arrow-right" onClick=${() => focusField(outcome.field)}>Show me<//></div>
-      <//>` : null}
-    ${outcome && outcome.kind === "failed" ? html`<${Notice} tone="bad" title=${outcome.message}>${outcome.next || null}<//>` : null}
+  const sections = SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon, href: sectionHref(s.id, proposalRef), status: lines[s.id] }));
 
-    ${proposal ? html`<${Card} tone="warm" class="p-brand-kit__banner">
-        <span class="p-brand-kit__banner-icon" aria-hidden="true"><${Icon} name="book" size=${20} /></span>
-        <div class="p-brand-kit__banner-words">
-          <p class="p-brand-kit__banner-title">${WORDS.fromBook}</p>
-          ${proposal.problem
-            ? html`<p>${cut(proposal.problem, 200)}</p>`
-            : html`<p>${offerCount ? `${offerCount} proposed ${offerCount === 1 ? "part sits" : "parts sit"} beside the fields below. Use each one you agree with, change what you like, then save.` : "The brand book named nothing the kit can use."}
-              ${arr(proposal.dropped).length ? ` Not taken, in whole or in part, because it broke the kit's rules: ${arr(proposal.dropped).map((d) => (PARTS.find((p) => p.id === d) || {}).title || (d === "voice" ? "How we sound" : d === "all" ? "everything" : d === "other" ? "parts the kit does not know" : d)).join(", ")}.` : ""}</p>`}
-          ${/^[A-Z][A-Z0-9]{0,9}-\d{1,9}$/.test(str(proposal.from)) ? html`<p class="u-caption">Read in task <a href=${`#/tasks/${proposal.from}`}>${proposal.from}</a>.</p>` : null}
-        </div>
-        ${unused > 1 ? html`<${Button} size="sm" onClick=${useAll}>Use every proposed part<//>` : null}
-      <//>` : null}
-    ${!proposal && view.fromOldForm ? html`<${Card} tone="warm" class="p-brand-kit__banner">
-        <span class="p-brand-kit__banner-icon" aria-hidden="true"><${Icon} name="file" size=${20} /></span>
-        <div class="p-brand-kit__banner-words">
-          <p class="p-brand-kit__banner-title">${WORDS.fromOld}</p>
-          <p>What your old brand page held sits beside the fields below. Use what still fits.</p>
-        </div>
-        ${unused > 1 ? html`<${Button} size="sm" onClick=${useAll}>Use all of it<//>` : null}
-      <//>` : null}
-    ${!exists && !proposal && !view.fromOldForm ? html`<${FirstTime} />` : null}
+  return html`<div class=${`p-brand-kit p-brand-kit--${here.id}`}>
+    <${DocLayout} title=${here.label} state=${lines[here.id]} intro=${INTROS[here.id]} sections=${sections} current=${here.id}>
+      <div class="p-brand-kit__top">
+        ${view.problem ? html`<${Notice} tone="bad" title=${PROBLEMS[view.problem] || "Part of the brand kit could not be read."} />` : null}
+        ${outcome && outcome.kind === "saved" ? html`<${Notice} tone="ok" title=${WORDS.saved} />` : null}
+        ${outcome && outcome.kind === "changed" ? html`<${Notice} tone="warn" title=${WORDS.changed}>
+            <p>Your changes are still on this page. Open the newest version to see what changed; then make your changes again.</p>
+            <div class="p-brand-kit__notice-actions"><${Button} size="sm" icon="loop" onClick=${reload}>Open the newest version<//></div>
+          <//>` : null}
+        ${outcome && outcome.kind === "refused" ? html`<${Notice} tone="bad" title="Not saved.">
+            <p>${outcome.message}</p>
+            <div class="p-brand-kit__notice-actions"><${Button} size="sm" icon="arrow-right" onClick=${() => show(outcome.field)}>Show me<//></div>
+          <//>` : null}
+        ${outcome && outcome.kind === "failed" ? html`<${Notice} tone="bad" title=${outcome.message}>${outcome.next || null}<//>` : null}
+        <${PartError} errors=${errors} section=${here.id} />
 
-    <div class="p-brand-kit__layout">
-      <aside class="p-brand-kit__rail"><${Path} filled=${filled} current=${errors && fieldPlace(errors.field).part} /></aside>
-      <div class="p-brand-kit__parts">
-        <${NamePart} form=${form} set=${set} errors=${errors} offers=${offers} onUse=${onUse} />
-        <${ColoursPart} form=${form} set=${set} errors=${errors} offers=${offers} onUse=${onUse} />
-        <${TypePart} form=${form} set=${set} errors=${errors} offers=${offers} onUse=${onUse} view=${view} fonts=${fonts} onFonts=${setFonts} announce=${announce} />
-        <${LogoPart} form=${form} set=${set} errors=${errors} offers=${offers} onUse=${onUse} brandPics=${brandPics} />
-        <${VoicePart} form=${form} set=${set} errors=${errors} offers=${offers} onUse=${onUse} fillerCount=${view.fillerCount} />
-        <${ReferencesPart} form=${form} set=${set} errors=${errors} offers=${offers} onUse=${onUse} refPics=${refPics} />
-        <${PublicPart} form=${form} set=${set} errors=${errors} offers=${offers} onUse=${onUse} />
-        <${Picks} />
-        <${Playbooks} rows=${view.playbooks} />
+        ${proposal ? html`<${Rows}>
+            <${Row} icon="book" title=${WORDS.fromBook}
+              say=${html`${proposal.problem
+                ? cut(proposal.problem, 200)
+                : html`${offerCount ? `${offerCount} proposed ${offerCount === 1 ? "part sits" : "parts sit"} beside the fields below. Use each one you agree with, change what you like, then save.` : "The brand book named nothing the kit can use."}
+                  ${arr(proposal.dropped).length ? ` Not taken, in whole or in part, because it broke the kit's rules: ${arr(proposal.dropped).map((d) => (PARTS.find((p) => p.id === d) || {}).title || (d === "voice" ? "How we sound" : d === "all" ? "everything" : d === "other" ? "parts the kit does not know" : d)).join(", ")}.` : ""}`}
+                ${/^[A-Z][A-Z0-9]{0,9}-\d{1,9}$/.test(str(proposal.from)) ? html`<span class="p-brand-kit__line">Read in task <a class="p-brand-kit__link" href=${`#/tasks/${proposal.from}`}>${proposal.from}</a>.</span>` : null}`}
+              control=${unused > 1 ? html`<${Button} size="sm" onClick=${useAll}>Use every proposed part<//>` : null} />
+          <//>` : null}
+        ${!proposal && view.fromOldForm ? html`<${Rows}>
+            <${Row} icon="file" title=${WORDS.fromOld} say="What your old brand page held sits beside the fields below. Use what still fits."
+              control=${unused > 1 ? html`<${Button} size="sm" onClick=${useAll}>Use all of it<//>` : null} />
+          <//>` : null}
       </div>
-    </div>
+      ${!exists && !dirty && !proposal && !view.fromOldForm ? html`<${FirstTime} proposal=${proposalRef} />` : null}
 
-    ${dirty || !exists ? html`<div class="p-brand-kit__bar" role="region" aria-label="Save">
-      <span class="p-brand-kit__bar-words">${dirty ? `Changed: ${changed.join(", ")}.` : WORDS.notSaved}</span>
-      <span class="p-brand-kit__bar-actions">
-        ${dirty && exists ? html`<${Button} variant="quiet" size="sm" disabled=${busy} onClick=${() => { setFormState(formFromKit(base)); setErrors(null); setOutcome(null); }}>Undo my changes<//>` : null}
-        ${saveButton}
-      </span>
-    </div>` : null}
+      ${body}
+
+      <div class=${`p-brand-kit__bar${dirty ? " p-brand-kit__bar--dirty" : ""}`} role="region" aria-label="Save">
+        <span class="p-brand-kit__bar-words">
+          <${StatusDot} tone=${tone} label=${dirty ? `${changedWords} Not saved yet.` : status} />
+        </span>
+        <span class="p-brand-kit__bar-actions">
+          ${dirty && exists ? html`<${Button} variant="quiet" size="sm" disabled=${busy} onClick=${() => { setFormState(formFromKit(base)); setErrors(null); setOutcome(null); }}>Undo my changes<//>` : null}
+          <${Button} variant="primary" size="sm" icon="check" busy=${busy} disabled=${busy || (!dirty && !view.problem)} onClick=${save}>${WORDS.save}<//>
+        </span>
+      </div>
+    <//>
   </div>`;
 }
 
 export default function BrandKitPage({ route }) {
   const query = (route && route.query) || new URLSearchParams();
   const ref = str(query.get && query.get("proposal"));
+  const section = sectionOf(query);
   const address = kitAddress(ref);
   const res = useResource(address);
   const [round, setRound] = useState(0);
   const state = viewState(res);
   const reload = () => { setRound((n) => n + 1); res.reload(); };
+  const here = SECTIONS.find((s) => s.id === section) || SECTIONS[0];
+  useTop(here, ref);
 
-  if (state === "ready") return html`<${Editor} key=${`${address}-${round}-${res.data.version || "new"}`} view=${res.data} reload=${reload} />`;
+  if (state === "ready") return html`<${Editor} key=${`${address}-${round}-${res.data.version || "new"}`} view=${res.data} reload=${reload} section=${section} proposalRef=${ref} />`;
+  const sections = SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon, href: sectionHref(s.id, ref) }));
   return html`<div class="p-brand-kit">
-    <${Header} />
-    ${state === "loading" ? html`<${Loading} lines=${6} label="Opening the brand kit" />` : null}
-    ${state === "restart" ? html`<${Restart} />` : null}
-    ${state === "error" ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
+    <${DocLayout} title="Brand kit" intro=${WORDS.lead} sections=${sections} current=${section}>
+      <div class="p-brand-kit__top">
+        ${state === "loading" ? html`<${Loading} lines=${6} label="Opening the brand kit" />` : null}
+        ${state === "restart" ? html`<${Restart} />` : null}
+        ${state === "error" ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
+      </div>
+    <//>
   </div>`;
 }
