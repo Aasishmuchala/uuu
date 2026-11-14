@@ -6,7 +6,7 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeTar } from "../../../viewer/tar.mjs";
@@ -29,6 +29,16 @@ while True:
     libc.renamex_np(a, b, 2)
 `;
 
+// Ends the swapper and waits until it is gone. SIGKILL alone is not enough: a swap already inside the kernel still
+// lands after kill() returns, and on a busy Mac (the full suite) that was late enough to put a folder back while the
+// cleanup below was removing the tree (ENOTEMPTY). The exit event comes only once the process is reaped.
+function stop(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  const gone = new Promise((resolve) => child.once("exit", resolve));
+  child.kill("SIGKILL");
+  return gone;
+}
+
 // A goal folder with `inside` (a folder holding auth.json, a decoy) and an outside folder holding the canary;
 // the swapper runs while `body` does.
 async function racing(inside, body) {
@@ -42,12 +52,21 @@ async function racing(inside, body) {
   writeFileSync(join(goal, inside, "auth.json"), "{\"decoy\":true}");
   writeFileSync(join(outside, "auth.json"), `{"token":"${CANARY}"}`);
   const config = { paths: { projectFolder: project } };
-  const child = spawn("/usr/bin/python3", ["-I", "-c", SWAPPER, join(goal, inside), join(goal, "alt"), outside], { stdio: "ignore" });
+  const alt = join(goal, "alt");
+  const child = spawn("/usr/bin/python3", ["-I", "-c", SWAPPER, join(goal, inside), alt, outside], { stdio: "ignore" });
   try {
+    // The swapper's first act is the link; until it is there (Python can start slowly on a busy Mac) nothing races.
+    const until = Date.now() + 15000;
+    for (;;) {
+      try { lstatSync(alt); break; } catch { /* not yet */ }
+      assert.ok(child.exitCode === null && child.signalCode === null, "the swapper ended before it began");
+      assert.ok(Date.now() < until, "the swapper did not begin within 15 seconds");
+      await new Promise((r) => setTimeout(r, 20));
+    }
     await new Promise((r) => setTimeout(r, 300));
     return await body({ config, goal });
   } finally {
-    child.kill("SIGKILL");
+    await stop(child);
   }
 }
 
