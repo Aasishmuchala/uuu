@@ -131,7 +131,8 @@ export function sizeWords(site) {
 export function pageWords(page) {
   const p = plain(page, 100);
   if (p === "index.html") return "Home page";
-  return p.replace(/\.html$/, "") || "A page";
+  const name = p.replace(/\.html$/, "");
+  return name ? name.charAt(0).toUpperCase() + name.slice(1) : "A page";
 }
 
 // The pages of a site with pictures or a report, in the server's order (index.html first).

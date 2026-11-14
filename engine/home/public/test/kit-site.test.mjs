@@ -193,7 +193,7 @@ test("site: the pictures of a page in a look, the looks there are, the pages, th
   assert.equal(site.siteName({ ref: "launch-b", variant: "b", direction: null }).title, "Version B");
   assert.equal(site.sizeWords(READY), "6 files, 84 KB");
   assert.equal(site.pageWords("index.html"), "Home page");
-  assert.equal(site.pageWords("about.html"), "about");
+  assert.equal(site.pageWords("about.html"), "About");
   assert.deepEqual(site.sitesOf({ sites: [READY, { ...READY }, { ref: "../x" }, { ref: "Launch-A" }, null, B] }).map((s) => s.ref), ["launch-a", "launch-b"]);
   assert.equal(site.anyWorking(answer([READY, { ...B, shots: { state: "working" } }])), true);
   assert.equal(site.anyWorking(answer([READY])), false);
@@ -404,12 +404,12 @@ test("SiteRail: a report line is a text node; choosing a finding on another page
     assert.ok(!elements(root).some((e) => e.localName === "script"));
     const rows = ofClass(rail, "k-finds__row");
     assert.equal(rows.length, 3);
-    assert.match(textOf(rows[2]), /about$/, "a row names its page");
+    assert.match(textOf(rows[2]), /About$/, "a row names its page");
     const stagePage = () => elements(part(root, "t-stage")).filter((e) => e.localName === "button" && e.getAttribute("aria-pressed") === "true").map((e) => textOf(e));
     assert.ok(stagePage().includes("Home page"));
     fire(rows[2], "click");
     await settle();
-    assert.ok(stagePage().includes("about"), "the stage shows the finding's page");
+    assert.ok(stagePage().includes("About"), "the stage shows the finding's page");
     assert.equal(ofClass(root, "k-finds__row--on").length, 1);
     assert.match(textOf(part(root, "t-rail")), /Pictures taken/);
   } finally {

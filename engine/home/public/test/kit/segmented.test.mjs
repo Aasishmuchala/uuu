@@ -137,14 +137,16 @@ test("the pill control marks its cut edge with a hairline and drops icons on a p
   assert.match(s, /@media \(max-width: 479px\)\s*\{\s*\.k-seg__item:has\(\.k-seg__label:not\(:empty\)\) \.k-icon\s*\{\s*display: none;/);
 });
 
-test("the pressed choice is lifted: the raised step with a 2 px accent edge, in both themes (corrections after round 3, 1)", () => {
+test("the pressed choice is lifted: the raised step with a hairline edge and strong words; the accent ring is the keyboard's alone", () => {
   const s = css("kit/segmented.css");
   const on = /\.k-seg__item--on,[^{]*\{([^}]*)\}/.exec(s);
   assert.ok(on, "the pressed choice is drawn");
   assert.match(on[1], /background: var\(--raise\);/);
   assert.match(on[1], /color: var\(--ink\);/);
-  assert.match(on[1], /box-shadow: inset 0 0 0 2px var\(--accent\);/);
-  assert.doesNotMatch(on[1], /accent-fill|--primary/, "no longer a filled blue pill");
+  assert.match(on[1], /box-shadow: inset 0 0 0 1px var\(--line-2\);/);
+  assert.match(on[1], /font-weight: var\(--fw-bold\);/);
+  assert.doesNotMatch(on[1], /accent/, "a pressed choice has no accent ring or fill: that ring reads as a stuck focus");
+  assert.match(s, /\.k-seg__item--on:focus-visible \{\s*box-shadow: inset 0 0 0 2px var\(--accent\);\s*\}/, "a pressed choice still shows the keyboard's ring when it has focus");
   assert.match(/\.k-seg\s*\{([^}]*)\}/.exec(s)[1], /border: 1px solid var\(--line-2\);[\s\S]*border-radius: var\(--r-2\);/, "one outlined track with the control corner");
   assert.match(/\.k-seg__item\s*\{([^}]*)\}/.exec(s)[1], /min-height: var\(--h-sm\);/, "28 px choices");
   assert.doesNotMatch(s, /\.k-seg:has\(/, "no ring round the track: the track scrolls");

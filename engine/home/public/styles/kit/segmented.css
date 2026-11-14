@@ -1,5 +1,5 @@
 /* kit/segmented.js: the segmented control. One outlined track; the current choice is lifted, on the raised step with
-   a 2 px accent edge, so it reads at a glance on any ground and in both themes. The track scrolls when the choices do
+   a hairline edge and strong words, so it reads at a glance on any ground and in both themes. The track scrolls when the choices do
    not fit, which would cut a ring drawn outside a choice, so the keyboard's ring is drawn inside the focused choice
    itself (an inset 2 px ring in the accent) and the choice takes the hover fill. Colours change by a short transition; nothing moves. */
 
@@ -60,7 +60,13 @@
 .k-seg__item--on:focus-visible,
 .k-seg__item--on:active {
   color: var(--ink);
+  font-weight: var(--fw-bold);
   background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+/* The accent ring is the keyboard's alone: a pressed choice with a ring of its own read as a focus that was stuck. */
+.k-seg__item--on:focus-visible {
   box-shadow: inset 0 0 0 2px var(--accent);
 }
 
