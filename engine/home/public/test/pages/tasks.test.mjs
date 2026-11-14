@@ -198,3 +198,71 @@ test("tasks: the agent chips list everyone, then the team, keep an unknown slug,
   assert.equal(chips[1].href, "#/tasks?who=chief-of-staff&d=operations");
   assert.equal(chips[1].current, true);
 });
+
+test("tasks: the state is the list's own filter, kept in the address as ?state= and dropped on the board (T61)", () => {
+  assert.equal(mod.address({ state: "needs-you" }), "#/tasks?state=needs-you");
+  assert.equal(mod.address({ who: "artist", d: "studio", state: "finished" }), "#/tasks?who=artist&d=studio&state=finished");
+  assert.equal(mod.address({ view: "board", state: "working" }), "#/tasks?view=board");
+  assert.equal(mod.address({ state: "nonsense" }), "#/tasks");
+  assert.equal(mod.address({ state: "" }), "#/tasks");
+});
+
+test("tasks: the state filter offers every state, then the list's groups in their order (T61)", () => {
+  const opts = mod.stateOptions();
+  assert.deepEqual(opts[0], { value: "", label: "Every state" });
+  assert.deepEqual(opts.slice(1).map((o) => o.value), ["needs-you", "working", "waiting", "finished", "stopped"]);
+  assert.deepEqual(opts.slice(1).map((o) => o.label), ["Needs you", "Working", "Waiting to start", "Finished", "Stopped"]);
+  const links = mod.chipLinks(opts, "working", (state) => mod.address({ d: "sales", state }));
+  assert.equal(links[0].href, "#/tasks?d=sales");
+  assert.equal(links.find((o) => o.current).href, "#/tasks?d=sales&state=working");
+});
+
+test("tasks: inState narrows the list to one group, or keeps every group (T61)", () => {
+  const groups = mod.groupsOf(mod.columnsOf(sixColumns()));
+  assert.deepEqual(mod.inState(groups, "working").map((g) => g.id), ["working"]);
+  assert.deepEqual(mod.inState(groups, "").map((g) => g.id), groups.map((g) => g.id));
+  assert.deepEqual(mod.inState(groups, "nonsense").map((g) => g.id), groups.map((g) => g.id));
+  assert.deepEqual(mod.inState(mod.groupsOf(mod.columnsOf(sample)), "stopped"), []);
+  assert.deepEqual(mod.inState(null, "working"), []);
+});
+
+test("tasks: a filter's button names the filter until a choice is made, then shows the choice (T61, R03)", () => {
+  const depts = mod.departmentOptions([], "");
+  assert.equal(mod.filterLabel("Department", depts, ""), "Department");
+  assert.equal(mod.filterLabel("Department", depts, "sales"), "Sales");
+  assert.equal(mod.filterLabel("Agent", mod.whoOptions([], "artist"), "artist"), "artist");
+  assert.equal(mod.filterLabel("State", mod.stateOptions(), "finished"), "Finished");
+  assert.equal(mod.filterLabel("State", null, "finished"), "State");
+});
+
+test("tasks: the page's own words are one table: the filters' names and a state with nothing in it (T61)", () => {
+  const W = mod.WORDS;
+  assert.deepEqual([W.state, W.department, W.agent, W.everyState], ["State", "Department", "Agent", "Every state"]);
+  assert.equal(W.stateLabel, "Show the tasks in one state");
+  assert.equal(W.departmentLabel, "Show the tasks of one department");
+  assert.equal(W.agentLabel, "Show the tasks of one agent");
+  assert.equal(W.views, "How to show the tasks");
+  assert.equal(W.filters, "Filter the tasks");
+  assert.deepEqual(Object.keys(W.none), mod.GROUPS.map((g) => g.id));
+  assert.equal(W.none["needs-you"], "Nothing needs you right now.");
+  assert.equal(W.none.stopped, "Nothing has stopped.");
+  for (const s of Object.values(W.none)) assert.ok(!/—/.test(s), "no em dash");
+});
+
+test("tasks: the filters are the kit's menus and every group folds by its header (T61)", () => {
+  const src = readFileSync(new URL("../../pages/tasks.js", import.meta.url), "utf8");
+  assert.match(src, /<\$\{Menu\} label=\$\{filterLabel\(/);
+  assert.match(src, /class="p-tasks__fold" aria-expanded=/);
+  assert.match(src, /aria-controls=\$\{rows\}/);
+  assert.ok(!/u-glass/.test(src), "the rows sit on the ground, not on glass");
+  assert.ok(!/<\$\{Chip\}/.test(src), "no chip rows of filters");
+});
+
+test("tasks: Needs you is said by the rows' glyph and words, never by an outline or a tint (T61)", () => {
+  const css = readFileSync(new URL("../../styles/pages/tasks.css", import.meta.url), "utf8");
+  assert.ok(!/--warn|--border-warm|--bg-warm/.test(css), "no amber in the page's sheet");
+  assert.ok(!/needs-you[^{]*\{/.test(css), "no rule for the Needs you group alone");
+  assert.ok(!/k-task-row__who/.test(css), "no rule for a class the row no longer has");
+  assert.match(css, /\.p-tasks \.p-tasks__fold \{[^}]*background: var\(--raise\)/);
+  assert.match(css, /\.p-tasks \.p-tasks__list \{[^}]*max-width: var\(--content-max\)/);
+});

@@ -1,16 +1,21 @@
 // Tasks: every task as a calm list grouped by what it needs, or as the board of six columns. CONTRACTS-V3 30, "Tasks".
-// Address: #/tasks (list), #/tasks?view=board, ?who=<slug>, ?d=<department>. Data: GET /api/tasks (shape `tasks`),
-// with ?who= and ?d= passed on. The list's groups come from the cards: waiting for the owner first, then by column.
-import { html } from "../vendor/preact-htm.js";
+// Address: #/tasks (list), #/tasks?view=board, ?who=<slug>, ?d=<department>, ?state=<group> (the list only). Data:
+// GET /api/tasks (shape `tasks`), with ?who= and ?d= passed on; the state is chosen here, from the cards. The list's
+// groups come from the cards: waiting for the owner first, then by column.
+// PLAN-COOK T61 (R03): the title, then one row of filters as quiet buttons that open a menu (state, department,
+// agent) with the view switch and New task at the right; groups as one-line headers on the raised step with a count
+// and a fold arrow, the rows under each on one left edge. Needs you is said by the rows' glyph and words alone.
+import { html, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import {
   BoardColumn,
   Button,
-  Chip,
   Empty,
   ErrorNotice,
+  Icon,
   Loading,
+  Menu,
   NotConnected,
   PageHeader,
   Segmented,
@@ -77,12 +82,35 @@ const at = (t) => {
 // Health is linked instead.
 export const plainNext = (next) => (/\bRun:/i.test(String(next ?? "")) ? "" : String(next ?? "").slice(0, 200));
 
-// The page's address for a view, a person and a department. The list, everyone and every department is plain `#/tasks`.
-export function address({ view, who, d } = {}) {
+// The page's words that are not a task's own: the filters' names, their menus' first choices and the sentences of
+// a state with nothing in it.
+export const WORDS = {
+  state: "State",
+  department: "Department",
+  agent: "Agent",
+  everyState: "Every state",
+  filters: "Filter the tasks",
+  stateLabel: "Show the tasks in one state",
+  departmentLabel: "Show the tasks of one department",
+  agentLabel: "Show the tasks of one agent",
+  views: "How to show the tasks",
+  none: {
+    "needs-you": "Nothing needs you right now.",
+    working: "Nothing is being worked on right now.",
+    waiting: "Nothing is waiting to start.",
+    finished: "Nothing has finished yet.",
+    stopped: "Nothing has stopped.",
+  },
+};
+
+// The page's address for a view, a person, a department and a state. The list, everyone, every department and every
+// state is plain `#/tasks`. The state is the list's alone: the board's columns already are the states.
+export function address({ view, who, d, state } = {}) {
   const q = new URLSearchParams();
   if (view === "board") q.set("view", "board");
   if (who) q.set("who", String(who));
   if (d) q.set("d", String(d));
+  if (state && view !== "board" && GROUPS.some((g) => g.id === state)) q.set("state", String(state));
   const s = q.toString();
   return s ? `#/tasks?${s}` : "#/tasks";
 }
@@ -153,6 +181,23 @@ export function groupsOf(columns) {
   return out;
 }
 
+// The state filter's choices: every state, then each group of the list in its order.
+export function stateOptions() {
+  return [{ value: "", label: WORDS.everyState }, ...GROUPS.map((g) => ({ value: g.id, label: g.label }))];
+}
+
+// The list's groups narrowed to one state (all of them when none is chosen or the state is not one of the list's).
+export function inState(groups, state) {
+  const list = Array.isArray(groups) ? groups : [];
+  return state && GROUPS.some((g) => g.id === state) ? list.filter((g) => g && g.id === state) : list;
+}
+
+// A filter's button shows the filter's name while nothing is chosen, and the choice once one is (R03).
+export function filterLabel(name, options, current) {
+  const on = current ? (Array.isArray(options) ? options : []).find((o) => o.value === current) : null;
+  return on ? text(on.label) || name : name;
+}
+
 // A question to the company brain shows as one on its row, before the answer or the state.
 export function forRow(task) {
   if (!task || typeof task !== "object") return task;
@@ -193,7 +238,7 @@ export function chipLinks(options, current, make) {
   return (Array.isArray(options) ? options : []).map((o) => ({ ...o, href: make(o.value), current: o.value === (current || "") }));
 }
 
-const olderLine = (n) => (n > 0 ? html`<p class="p-tasks__older u-caption">and ${n} older</p>` : null);
+const olderLine = (n) => (n > 0 ? html`<p class="p-tasks__older">and ${n} older</p>` : null);
 
 function Column({ c }) {
   const slim = SLIM_WHEN_EMPTY.has(c.id) && c.count === 0;
@@ -219,30 +264,50 @@ function Board({ columns }) {
   </div>`;
 }
 
-function List({ groups }) {
-  return html`<div class="p-tasks__list">
-    ${groups.map((g) => html`<section key=${g.id} class=${`p-tasks__group p-tasks__group--${g.id}`} aria-labelledby=${`p-tasks-group-${g.id}`}>
-      <h2 class="p-tasks__group-head" id=${`p-tasks-group-${g.id}`}>
-        <span>${g.label}</span><span class="p-tasks__group-count">${g.count}</span>
-      </h2>
-      <ul class="p-tasks__rows u-glass">
+// A group: one header on the raised step (its name, its count, the fold arrow), then its rows on the ground.
+function Group({ g, open, onFold }) {
+  const head = `p-tasks-group-${g.id}`;
+  const rows = `p-tasks-rows-${g.id}`;
+  return html`<section class=${`p-tasks__group p-tasks__group--${g.id}${open ? "" : " p-tasks__group--folded"}`} aria-labelledby=${head}>
+    <h2 class="p-tasks__group-head" id=${head}>
+      <button type="button" class="p-tasks__fold" aria-expanded=${open ? "true" : "false"} aria-controls=${rows} onClick=${onFold}>
+        <span class="p-tasks__group-label">${g.label}</span>
+        <span class="p-tasks__group-count">${g.count}</span>
+        <${Icon} name="chevron-down" size=${16} class="p-tasks__fold-mark" />
+      </button>
+    </h2>
+    <div id=${rows} class="p-tasks__group-body" hidden=${!open}>
+      <ul class="p-tasks__rows">
         ${g.tasks.map((t) => html`<li key=${text(t.id || t.identifier)} class="p-tasks__row"><${TaskRow} task=${forRow(t)} /></li>`)}
       </ul>
       ${olderLine(g.older)}
-    </section>`)}
+    </div>
+  </section>`;
+}
+
+function List({ groups }) {
+  const [folded, setFolded] = useState(() => new Set());
+  const fold = (id) => setFolded((was) => {
+    const next = new Set(was);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  return html`<div class="p-tasks__list">
+    ${groups.map((g) => html`<${Group} key=${g.id} g=${g} open=${!folded.has(g.id)} onFold=${() => fold(g.id)} />`)}
   </div>`;
 }
 
-function Filters({ label, chips, dots }) {
-  return html`<nav class="p-tasks__filter" aria-label=${label}>
-    <ul class="p-tasks__chips">
-      ${chips.map((c) => html`<li key=${c.value || "all"}>
-        <a class=${`p-tasks__chip${c.current ? " p-tasks__chip--on" : ""}`} href=${c.href} aria-current=${c.current ? "page" : null}>
-          <${Chip} dot=${dots && c.value ? c.value : null}>${c.label}<//>
-        </a>
-      </li>`)}
-    </ul>
-  </nav>`;
+const go = (href) => { if (href && typeof location !== "undefined") location.hash = href; };
+
+// One filter: a quiet button that shows its name, or its choice once one is made, and opens the kit's menu of
+// choices; the current choice carries the check. A choice goes to its address.
+function Filter({ name, label, options, current, make }) {
+  const items = chipLinks(options, current, make).map((o) => ({
+    id: o.value || "all", label: o.label, icon: o.current ? "check" : undefined, onSelect: () => go(o.href),
+  }));
+  return html`<div class=${`p-tasks__filter${current ? " p-tasks__filter--on" : ""}`} role="group" aria-label=${label}>
+    <${Menu} label=${filterLabel(name, options, current)} items=${items} />
+  </div>`;
 }
 
 export default function Page({ route }) {
@@ -253,6 +318,8 @@ export default function Page({ route }) {
   const who = SLUG.test(rawWho) ? rawWho : "";
   const rawD = text(query.get("d"));
   const d = SLUG.test(rawD) ? rawD : "";
+  const rawState = text(query.get("state"));
+  const state = view === "list" && GROUPS.some((g) => g.id === rawState) ? rawState : "";
   const res = useResource(apiPath({ who, d }), { every: 10000 });
 
   const team = app.shell && Array.isArray(app.shell.team) ? app.shell.team : [];
@@ -263,20 +330,23 @@ export default function Page({ route }) {
   const deptName = (depts.find((o) => o.value === d) || {}).label || "";
   const newTask = () => { if (typeof app.openComposer === "function") app.openComposer(); };
 
-  const actions = html`<div class="p-tasks__actions">
-    <${Segmented} label="How to show the tasks" size="sm" current=${view}
-      items=${[
-        { id: "list", label: "List", icon: "list", href: address({ who, d }) },
-        { id: "board", label: "Board", icon: "grid", href: address({ view: "board", who, d }) },
-      ]} />
-    <${Button} variant="primary" icon="plus" onClick=${newTask}>New task<//>
-  </div>`;
-
-  const filters = html`<div class="p-tasks__filters">
-    <${Filters} label="Show the tasks of one department" dots=${true}
-      chips=${chipLinks(depts, d, (value) => address({ view, who, d: value }))} />
-    <${Filters} label="Show the tasks of one agent"
-      chips=${chipLinks(people, who, (value) => address({ view, who: value, d }))} />
+  const bar = html`<div class="p-tasks__bar">
+    <div class="p-tasks__filters" role="group" aria-label=${WORDS.filters}>
+      ${view === "list" && html`<${Filter} name=${WORDS.state} label=${WORDS.stateLabel} options=${stateOptions()} current=${state}
+        make=${(value) => address({ view, who, d, state: value })} />`}
+      <${Filter} name=${WORDS.department} label=${WORDS.departmentLabel} options=${depts} current=${d}
+        make=${(value) => address({ view, who, d: value, state })} />
+      <${Filter} name=${WORDS.agent} label=${WORDS.agentLabel} options=${people} current=${who}
+        make=${(value) => address({ view, who: value, d, state })} />
+    </div>
+    <div class="p-tasks__actions">
+      <${Segmented} label=${WORDS.views} current=${view}
+        items=${[
+          { id: "list", label: "List", icon: "list", href: address({ who, d, state }) },
+          { id: "board", label: "Board", icon: "grid", href: address({ view: "board", who, d }) },
+        ]} />
+      <${Button} variant="primary" icon="plus" onClick=${newTask}>New task<//>
+    </div>
   </div>`;
 
   const filtered = who || d;
@@ -311,15 +381,20 @@ export default function Page({ route }) {
             <${Button} variant="primary" icon="plus" onClick=${newTask}>New task<//>
             <a class="p-tasks__link" href="#/jobs">See the jobs</a>
           <//>`;
+    } else if (view === "board") {
+      body = html`<${Board} columns=${columns} />`;
     } else {
-      body = view === "board" ? html`<${Board} columns=${columns} />` : html`<${List} groups=${groupsOf(columns)} />`;
+      const groups = inState(groupsOf(columns), state);
+      body = groups.length
+        ? html`<${List} groups=${groups} />`
+        : html`<${Empty} title=${WORDS.none[state]}><a class="p-tasks__link" href=${address({ view, who, d })}>Show every task</a><//>`;
     }
   } else {
     body = html`<${Loading} lines=${6} label="Loading the tasks" />`;
   }
 
   return html`<div class=${`p-tasks p-tasks--${view}`}>
-    <${PageHeader} title="Tasks" actions=${actions}>${filters}<//>
+    <${PageHeader} title="Tasks">${bar}<//>
     ${body}
   </div>`;
 }

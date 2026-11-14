@@ -1,5 +1,8 @@
 /* Tasks: the list (the default) and the board. Every selector starts with .p-tasks; tokens only
-   (CONTRACTS-V2 11.2, CONTRACTS-V3 27.3). The rows are glass cards with no blur; nothing moves at rest. */
+   (CONTRACTS-V2 11.2, CONTRACTS-V3 27.3). PLAN-COOK T61 (R03): the title, one row of filters as quiet outlined
+   buttons with the view switch and New task at the right, then groups as one-line headers on the raised step and
+   the rows on the ground under them, on one left edge. Needs you is the rows' own glyph and words: no outline, no
+   tint. The board: columns with a 12 px heading and count, outlined cards, no column fills. Nothing moves at rest. */
 
 .p-tasks {
   display: flex;
@@ -7,66 +10,82 @@
   min-width: 0;
 }
 
-/* Header controls: the List/Board switch and New task. */
+.p-tasks .k-page-header {
+  margin-bottom: var(--s-4);
+}
+
+.p-tasks .k-page-header__more {
+  margin-top: var(--s-4);
+}
+
+/* The bar: the filters at the left, the view switch and New task at the right, on one line while they fit. */
+.p-tasks .p-tasks__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.p-tasks .p-tasks__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
 .p-tasks .p-tasks__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s-3);
+  margin-left: auto;
 }
 
-/* The filter chips: departments on one line, agents on the next. A line too long for the window scrolls sideways. */
-.p-tasks .p-tasks__filters {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  min-width: 0;
+/* A filter: the kit's menu, its button a quiet control (the control fill and a hairline) so it reads as one without
+   shouting; once a choice is made it is lifted to the raised step with the stronger outline. */
+.p-tasks .p-tasks__filter .k-menu__trigger {
+  min-height: var(--h-md);
+  padding: 0 10px 0 var(--s-3);
+  gap: 6px;
+  border-color: var(--line);
+  background: var(--ctl);
+  color: var(--ink);
+  font-weight: var(--fw-medium);
 }
 
-.p-tasks .p-tasks__filter {
-  min-width: 0;
+.p-tasks .p-tasks__filter .k-menu__trigger .k-icon {
+  color: var(--ink-3);
 }
 
-.p-tasks .p-tasks__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.p-tasks .p-tasks__filter--on .k-menu__trigger {
+  border-color: var(--line-2);
+  background: var(--raise);
+  box-shadow: var(--shadow-card);
 }
 
-.p-tasks .p-tasks__chip {
-  display: inline-flex;
-  border-radius: var(--r-pill);
-  color: inherit;
-  text-decoration: none;
+.p-tasks .p-tasks__filter .k-menu__trigger:hover {
+  border-color: var(--ink-3);
 }
 
-.p-tasks .p-tasks__chip .k-chip {
-  min-height: var(--h-sm);
-  cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+/* The menu opens under its button, from its left edge; a choice without the check keeps the checked one's edge. */
+.p-tasks .p-tasks__filter .k-menu__list {
+  left: 0;
+  right: auto;
+  max-height: min(60vh, calc(var(--s-12) * 9));
+  overflow-y: auto;
 }
 
-.p-tasks .p-tasks__chip:hover .k-chip {
-  color: var(--text);
-  border-color: var(--hairline-strong);
+.p-tasks .p-tasks__filter .k-menu__item:not(:has(.k-icon)) {
+  padding-left: calc(10px + 16px + var(--s-2));
 }
 
-.p-tasks .p-tasks__chip--on .k-chip,
-.p-tasks .p-tasks__chip--on:hover .k-chip {
-  color: var(--primary-text);
-  background: var(--primary);
-  border-color: var(--primary);
+.p-tasks .p-tasks__filter .k-menu__item .k-icon {
+  color: var(--accent);
 }
 
-.p-tasks .p-tasks__chip:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-/* List: one group per state, its rows in one glass card with hairlines between them. */
+/* List: one group per state. */
 .p-tasks .p-tasks__list {
   display: flex;
   flex-direction: column;
@@ -75,35 +94,65 @@
 }
 
 .p-tasks .p-tasks__group-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-2);
-  margin: 0 0 var(--s-2);
-  padding: 0 var(--s-1);
-  color: var(--ink-3);
-  font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-label);
-  line-height: var(--lh-tight);
+  margin: 0;
 }
 
-.p-tasks .p-tasks__group--needs-you .p-tasks__group-head {
-  color: var(--warn-text);
+/* The group's header: one 40 px line on the raised step; the whole line folds and unfolds its rows. Its words start
+   on the rows' glyph edge. */
+.p-tasks .p-tasks__fold {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: var(--h-lg);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--raise);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.p-tasks .p-tasks__fold:hover {
+  background: color-mix(in srgb, var(--raise) 88%, var(--ink));
+}
+
+.p-tasks .p-tasks__fold:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .p-tasks .p-tasks__group-count {
-  color: var(--text-3);
+  color: var(--ink-2);
+  font-weight: var(--fw-medium);
   font-variant-numeric: tabular-nums;
+}
+
+.p-tasks .p-tasks__fold-mark {
+  color: var(--ink-2);
+  transform: rotate(180deg);
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.p-tasks .p-tasks__group--folded .p-tasks__fold-mark {
+  transform: none;
+}
+
+.p-tasks .p-tasks__group-body {
+  margin-top: var(--s-1);
 }
 
 .p-tasks .p-tasks__rows {
   margin: 0;
-  padding: var(--s-1);
+  padding: 0;
   list-style: none;
-}
-
-.p-tasks .p-tasks__group--needs-you .p-tasks__rows {
-  border-color: var(--border-warm);
 }
 
 .p-tasks .p-tasks__row {
@@ -111,18 +160,21 @@
 }
 
 .p-tasks .p-tasks__row + .p-tasks__row {
-  border-top: 1px solid var(--hairline);
+  border-top: 1px solid var(--line);
 }
 
 .p-tasks .p-tasks__older {
   margin: 0;
-  padding: var(--s-2) var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   text-align: center;
 }
 
 .p-tasks .p-tasks__list .p-tasks__older {
+  border-top: 1px solid var(--line);
   text-align: left;
-  padding-left: var(--s-3);
 }
 
 /* The quiet links of the empty states: "See the jobs" (M50 F19), "Show every task". */
@@ -130,16 +182,42 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--h-sm);
-  color: var(--text);
+  color: var(--accent);
+  font-size: var(--fs-ui);
+  text-underline-offset: 3px;
 }
 
-/* Board: six columns side by side. The four main ones share the width; an empty Failed or Canceled stays slim. */
+.p-tasks .k-empty {
+  max-width: var(--content-max);
+}
+
+/* Board: the columns side by side on the ground. The four main ones share the width; an empty Stopped stays slim. */
 .p-tasks .p-tasks__board {
   display: flex;
   align-items: flex-start;
-  gap: var(--s-3);
+  gap: var(--s-4);
   overflow-x: auto;
   padding-bottom: var(--s-2);
+}
+
+/* A column's heading: 12 px words and count over a hairline, with no fill behind the column. */
+.p-tasks .k-board-col__head {
+  min-height: var(--s-8);
+  padding: 0 var(--s-1);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--s-1);
+}
+
+.p-tasks .k-board-col__label,
+.p-tasks .k-board-col__count {
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  letter-spacing: var(--ls-label);
+}
+
+.p-tasks .k-board-col__label {
+  color: var(--ink-2);
+  font-weight: var(--fw-bold);
 }
 
 .p-tasks .p-tasks__col {
@@ -203,31 +281,54 @@
   display: none;
 }
 
-/* Narrow window: the chips scroll sideways on one line each, the columns become stacked sections, and every
-   control is easy to touch. */
+/* Narrow window: the filters on one line and the switch with New task on the next, the columns become stacked
+   sections, and every control is easy to touch. */
 @media (max-width: 859px) {
-  /* The row keeps its title, time and chevron; the agent's face gives way so the title can be read. */
-  .p-tasks .p-tasks__row .k-task-row__who {
-    display: none;
+  .p-tasks .k-page-header {
+    margin-bottom: var(--s-4);
   }
 
-  .p-tasks .p-tasks__chips {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    padding-bottom: 2px;
+  .p-tasks .k-page-header__more {
+    margin-top: var(--s-3);
   }
 
-  .p-tasks .p-tasks__chips > li {
-    flex: none;
+  .p-tasks .p-tasks__bar {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .p-tasks .p-tasks__chip .k-chip {
-    min-height: 44px;
+  /* A filter's menu opens under the whole row of filters, as wide as the page, so the last one is never cut. */
+  .p-tasks .p-tasks__filters {
+    position: relative;
   }
 
+  .p-tasks .p-tasks__filter .k-menu {
+    position: static;
+  }
+
+  .p-tasks .p-tasks__filter .k-menu__list {
+    right: 0;
+    max-width: none;
+  }
+
+  .p-tasks .p-tasks__filter .k-menu__trigger,
+  .p-tasks .p-tasks__fold,
   .p-tasks .p-tasks__link {
     min-height: 44px;
+  }
+
+  .p-tasks .p-tasks__actions {
+    justify-content: space-between;
+    margin-left: 0;
+  }
+
+  /* The switch's track stands 44 px tall beside New task, its choices inside it. */
+  .p-tasks .p-tasks__actions .k-seg__item {
+    min-height: 38px;
+  }
+
+  .p-tasks .p-tasks__list {
+    gap: var(--s-5);
   }
 
   .p-tasks .p-tasks__board {
