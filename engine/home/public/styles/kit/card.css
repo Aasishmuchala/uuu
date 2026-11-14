@@ -1,6 +1,6 @@
-/* kit/card.js: a card is one step up from the ground (C3's .card and the corrections after round 3): the card
-   fill, a hairline edge and the card shadow (none in dark, soft in light, where the card is white on a grey
-   ground). Warm is a card that needs the owner, said once by an amber rule at its left; sunken a well inside a
+/* kit/card.js: a card is one step up from the ground (C3's .card, fix round A2): the card fill, a 1 px edge and
+   the card shadow, in both themes (a lighter step with a deep soft shadow in dark; white on a cool grey ground
+   in light). Warm is a card that needs the owner, said once by an amber rule at its left; sunken a well inside a
    card; ghost the hairline alone. A card never frames another: a nested card keeps only its spacing. */
 
 .k-card {
@@ -19,7 +19,7 @@
 .k-card--pad-lg { padding: var(--s-6); }
 
 /* Urgent says so once: an amber rule at the left edge, no tint and no amber outline. The rule and the chosen
-   ring are drawn by ::after, because the card shadow is "none" in dark and cannot share a list. */
+   ring are drawn by ::after, so the card keeps its own shadow under them. */
 .k-card--warm,
 .k-card[aria-current="true"],
 .k-card[aria-current="page"],

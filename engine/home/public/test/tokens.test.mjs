@@ -226,22 +226,48 @@ test("dark is the default, and there is one accent: no rule reads data-accent", 
   assert.doesNotMatch(stripComments(TOKENS_CSS), /data-accent/);
 });
 
-test("three ground steps in each theme: the stage is the deepest, panels and cards are raised off the page ground", () => {
-  for (const [way, index] of [[{}, 0], [{ theme: "light" }, 1]]) {
+test("depth at the root: four steps in dark, the sidebar the darkest, then the stage, the page ground, the rail and a card", () => {
+  const t = resolveTokens({});
+  const l = (name) => luminance(colourOf(t, name));
+  // Dark (fix round A2): each step is lighter than the one under it, and the raised or chosen step is above a card.
+  const steps = ["--side", "--stage", "--bg", "--panel", "--card", "--raise"];
+  for (let i = 1; i < steps.length; i++) {
+    assert.ok(l(steps[i]) > l(steps[i - 1]), `${steps[i]} is a step above ${steps[i - 1]} (dark)`);
+  }
+  // A field sits a step under the rail it is on, above the page ground.
+  assert.ok(l("--field") < l("--panel") && l("--field") > l("--bg"), "--field is between --bg and --panel (dark)");
+});
+
+test("light is one cool neutral family: white panels and cards lift off a calm cool ground", () => {
+  const t = resolveTokens({ theme: "light" });
+  const l = (name) => luminance(colourOf(t, name));
+  // The stage is the deepest of the work, under the sidebar, under the page ground; panels and cards are white.
+  assert.ok(l("--stage") < l("--side") && l("--side") < l("--bg"), "--stage, then --side, then --bg (light)");
+  for (const raised of ["--panel", "--card", "--field"]) assert.equal(computed(t, raised), "#ffffff", `${raised} is white`);
+  // The raised or chosen step and a current row are grey fills, under the white they sit on and under the ground.
+  for (const fill of ["--raise", "--sel"]) assert.ok(l(fill) < l("--bg"), `${fill} is a fill a step under the ground (light)`);
+  assert.ok(l("--sel") < l("--raise"), "a current row is a step deeper than the raised fill (light)");
+  // A cool grey ground of about 3 percent.
+  const bg = colourOf(t, "--bg");
+  const grey = 1 - (bg.r + bg.g + bg.b) / 3 / 255;
+  assert.ok(grey >= 0.025 && grey <= 0.04, `the light ground is about 3 percent grey: ${(grey * 100).toFixed(1)}`);
+  // Cool, never warm: every grey ground and line has at least as much blue as red.
+  for (const name of ["--bg", "--stage", "--side", "--raise", "--sel", "--raise-2", "--line", "--line-2"]) {
+    const c = colourOf(t, name);
+    assert.ok(c.b >= c.r && c.b - c.r <= 16, `${name} is a cool neutral (light): ${computed(t, name)}`);
+  }
+});
+
+test("every raised thing has a real shadow in both themes: the card, lift and float shadows are never none", () => {
+  for (const way of [{}, { theme: "light" }]) {
     const t = resolveTokens(way);
-    const l = (name) => luminance(colourOf(t, name));
-    // Dark: the stage is darker than the ground and the raised step lighter. Light: the stage is darker than
-    // the ground and the raised step is white, lighter still.
-    assert.ok(l("--stage") < l("--bg"), `--stage is deeper than --bg (${index ? "light" : "dark"})`);
-    for (const raised of ["--panel", "--card", "--raise"]) {
-      assert.ok(l(raised) > l("--bg"), `${raised} is raised off --bg (${index ? "light" : "dark"})`);
+    for (const name of ["--shadow-card", "--shadow-lift", "--float", "--paper-shadow"]) {
+      const v = computed(t, name);
+      assert.notEqual(v, "none", `${name} in ${JSON.stringify(way)}`);
+      // At least one shadow in the list is blurred (a soft drop, not a ring alone).
+      assert.ok(v.split(/,(?![^(]*\))/).some((part) => /^\s*-?\d+p?x?\s+\d+px\s+[1-9]\d*px/.test(part.trim())), `${name} has a soft drop: ${v}`);
     }
   }
-  // Light: a grey ground of about 4 percent under white cards.
-  const light = colourOf(resolveTokens({ theme: "light" }), "--bg");
-  const grey = 1 - (light.r + light.g + light.b) / 3 / 255;
-  assert.ok(grey >= 0.03 && grey <= 0.05, `the light ground is about 4 percent grey: ${(grey * 100).toFixed(1)}`);
-  assert.equal(THEMED["--card"][1], "#ffffff");
 });
 
 test("the kept names are aliases of the new ones in both themes", () => {

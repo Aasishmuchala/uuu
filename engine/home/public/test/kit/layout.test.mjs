@@ -131,6 +131,13 @@ test("layout.css: the rail is sticky under the top bar, the stage on the deepest
   const sheet = css("kit/layout.css");
   assert.match(sheet, /\.k-work \{[^}]*grid-template-columns: minmax\(0, 1fr\) var\(--rail-w\)/);
   assert.match(sheet, /\.k-work__stage \{[^}]*background: var\(--stage\)/);
+  // T100: the rail is parted from the stage by its own surface and a 1 px line.
+  assert.match(sheet, /\.k-work::before \{[^}]*background: var\(--panel\);[^}]*border-left: 1px solid var\(--line\);/);
+  // A current section is a neutral fill with a 2 px accent bar at its left, never a ring.
+  const current = /\.k-doc__pick\[aria-current="page"\] \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(current, /background: var\(--sel\);/);
+  assert.doesNotMatch(current, /box-shadow|outline|border/, "never a ring");
+  assert.match(sheet, /\.k-doc__pick\[aria-current="page"\]::before \{[^}]*width: 2px;[^}]*background: var\(--accent\);/, "the 2 px accent bar");
   assert.match(sheet, /\.k-rail \{[^}]*position: sticky;[^}]*top: var\(--topbar-h\)/);
   assert.match(sheet, /\.k-rail__body \{[^}]*overflow-y: auto/);
   assert.match(sheet, /@media \(max-width: 859px\)[\s\S]*\.k-rail \{\s*display: contents;/);

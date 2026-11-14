@@ -1,7 +1,7 @@
 /* kit/fields.js: a label above, the control, a hint or an error (with an icon, not colour alone) below.
    Inputs, text areas, selects and the money input share one look: 36 px, the control corner, a firm edge on the
-   field fill, the placeholder in the third ink. The pointer firms the edge; focus turns it to the accent and the
-   2 px accent ring shows 2 px outside it on every ground (R5). Disabled is the disabled button's inert fill with a
+   field fill, the placeholder in the third ink. The pointer firms the edge; focus turns it to a 1 px accent edge
+   with a 3 px ring of the accent at 25 percent round it (fix round A2); the switch keeps the 2 px accent ring. Disabled is the disabled button's inert fill with a
    solid hairline and the third ink: never a dashed edge, which reads as unfinished. */
 
 .k-field {
@@ -75,12 +75,15 @@
   border-color: var(--accent);
 }
 
-/* The ring itself, drawn here so no ground or page sheet can leave a field with its border colour alone. */
+/* The ring itself, drawn here so no ground or page sheet can leave a field with its border colour alone: a
+   3 px ring of the accent at 25 percent. The outline stays, transparent, for a screen in forced colours. */
 .k-input:focus-visible,
 .k-textarea:focus-visible,
-.k-select__control:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+.k-select__control:focus-visible,
+.k-money-input:focus-within {
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent);
 }
 
 .k-input:disabled,
@@ -148,11 +151,6 @@
   gap: var(--s-1);
   width: 116px;
   font-weight: var(--fw-medium);
-}
-
-.k-money-input:focus-within {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
 .k-money-input__sign {

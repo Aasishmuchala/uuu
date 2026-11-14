@@ -5,26 +5,29 @@
      2. The scale (not themed): type, weight, tracking, space, corners, heights, layout, motion, fonts.
      3. Compatibility: every old name points at a new one, so un-migrated sheets take the new look on day
         one. Removed by T90 when nothing reads it.
-   Three ground steps in each theme: --stage (the deepest: stages and players), --bg (the page ground) and
-   the raised step (--panel for panels and the rail, --card for cards; --raise for what is current or
-   pressed). One accent: --accent for rings, radios and links, --accent-fill under white words. */
+   Depth at the root (fix round A2, T100). Dark is four steps a screen tells apart: the sidebar (--side) is the
+   darkest, then the stage (--stage, where the work sits), the page ground (--bg: the top bar, the strip), the
+   rail and panels (--panel), and a card (--card); --raise is what is raised or chosen, --sel a current row.
+   Light is one cool neutral family: white panels and cards lift off a calm cool ground. Every raised thing
+   has a 1 px edge (--line) and a real shadow (--shadow-card; --float for what floats), in both themes.
+   One accent: --accent for rings, radios and links, --accent-fill under white words. */
 
 /* ---- 1. The palette, dark (the default) */
 :root {
   color-scheme: dark;
 
-  --bg: #0f0f11;
-  --stage: #09090b;
-  --panel: #151518;
-  --side: #0b0b0d;
-  --card: #17171a;
-  --raise: #232328;
-  --sel: #26262c;
+  --bg: #131316;
+  --stage: #101012;
+  --panel: #18181c;
+  --side: #0c0c0e;
+  --card: #1c1c20;
+  --raise: #222226;
+  --sel: #26262b;
   --raise-2: #2c2c31;
   --ctl: rgba(255,255,255,.06);
-  --field: rgba(255,255,255,.03);
-  --line: rgba(255,255,255,.1);
-  --line-2: rgba(255,255,255,.22);
+  --field: #17171b;
+  --line: rgba(255,255,255,.07);
+  --line-2: rgba(255,255,255,.12);
 
   --ink: #f4f4f5;
   --ink-2: #babac1;
@@ -46,14 +49,14 @@
   --add-bg: rgba(98,211,157,.18);
   --del-bg: rgba(255,147,165,.18);
 
-  --shadow-card: none;
-  --shadow-lift: 0 0 0 1px rgba(255,255,255,.06);
-  --float: 0 14px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.1);
-  --paper-shadow: 0 0 0 1px rgba(255,255,255,.1);
+  --shadow-card: 0 1px 2px rgba(0,0,0,.40), 0 8px 24px rgba(0,0,0,.28);
+  --shadow-lift: 0 2px 4px rgba(0,0,0,.45), 0 12px 32px rgba(0,0,0,.40);
+  --float: 0 0 0 1px rgba(255,255,255,.1), 0 16px 48px rgba(0,0,0,.50);
+  --paper-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 6px 20px rgba(0,0,0,.45);
 
   --tip: #f4f4f5;
   --tip-ink: #0f0f11;
-  --scrim: rgba(0, 0, 0, 0.56);
+  --scrim: rgba(0,0,0,.62);
   --pin: #ecc068;
   --pin-ink: #1d1503;
   --pin-line: #ecc068;
@@ -72,22 +75,23 @@
   --played-dim: rgba(0, 0, 0, 0.42);
 }
 
-/* Light, chosen: a grey ground of about 4 percent, white panels and cards, an 8 percent edge, soft shadows. */
+/* Light, chosen: a cool grey ground of about 3 percent, white panels and cards with a cool 1 px edge, soft cool
+   shadows; the raised step and a current row are cool grey fills. */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #f5f5f4;
-  --stage: #e9e9e6;
+  --bg: #f6f7f9;
+  --stage: #eceef1;
   --panel: #ffffff;
-  --side: #ececea;
+  --side: #f1f2f4;
   --card: #ffffff;
-  --raise: #ffffff;
-  --sel: #edf1fc;
-  --raise-2: #e2e2df;
-  --ctl: rgba(24,24,20,.05);
+  --raise: #f1f3f6;
+  --sel: #eaedf1;
+  --raise-2: #e3e6eb;
+  --ctl: rgba(16,24,40,.05);
   --field: #ffffff;
-  --line: rgba(24,24,20,.08);
-  --line-2: rgba(24,24,20,.28);
+  --line: #e4e6ea;
+  --line-2: #d5d8de;
 
   --ink: #18181b;
   --ink-2: #4f4f58;
@@ -109,14 +113,14 @@
   --add-bg: #d9f0e2;
   --del-bg: #fbe0e5;
 
-  --shadow-card: 0 1px 2px rgba(24,24,20,.07), 0 4px 12px rgba(24,24,20,.05);
-  --shadow-lift: 0 1px 2px rgba(24,24,20,.08), 0 8px 24px rgba(24,24,20,.08);
-  --float: 0 14px 40px rgba(24,24,20,.18), 0 0 0 1px rgba(24,24,20,.08);
-  --paper-shadow: 0 0 0 1px rgba(24,24,20,.12), 0 6px 18px rgba(24,24,20,.1);
+  --shadow-card: 0 1px 2px rgba(16,24,40,.06), 0 6px 20px rgba(16,24,40,.06);
+  --shadow-lift: 0 1px 3px rgba(16,24,40,.08), 0 10px 28px rgba(16,24,40,.10);
+  --float: 0 0 0 1px rgba(16,24,40,.08), 0 20px 60px rgba(16,24,40,.18);
+  --paper-shadow: 0 0 0 1px rgba(16,24,40,.10), 0 6px 18px rgba(16,24,40,.08);
 
   --tip: #18181b;
   --tip-ink: #ffffff;
-  --scrim: rgba(24, 24, 27, 0.28);
+  --scrim: rgba(15,17,21,.30);
   --pin: #f0bd4a;
   --pin-ink: #1d1503;
   --pin-line: #a8740a;
@@ -127,18 +131,18 @@
   :root[data-theme="auto"] {
     color-scheme: light;
 
-    --bg: #f5f5f4;
-    --stage: #e9e9e6;
+    --bg: #f6f7f9;
+    --stage: #eceef1;
     --panel: #ffffff;
-    --side: #ececea;
+    --side: #f1f2f4;
     --card: #ffffff;
-    --raise: #ffffff;
-    --sel: #edf1fc;
-    --raise-2: #e2e2df;
-    --ctl: rgba(24,24,20,.05);
+    --raise: #f1f3f6;
+    --sel: #eaedf1;
+    --raise-2: #e3e6eb;
+    --ctl: rgba(16,24,40,.05);
     --field: #ffffff;
-    --line: rgba(24,24,20,.08);
-    --line-2: rgba(24,24,20,.28);
+    --line: #e4e6ea;
+    --line-2: #d5d8de;
 
     --ink: #18181b;
     --ink-2: #4f4f58;
@@ -160,14 +164,14 @@
     --add-bg: #d9f0e2;
     --del-bg: #fbe0e5;
 
-    --shadow-card: 0 1px 2px rgba(24,24,20,.07), 0 4px 12px rgba(24,24,20,.05);
-    --shadow-lift: 0 1px 2px rgba(24,24,20,.08), 0 8px 24px rgba(24,24,20,.08);
-    --float: 0 14px 40px rgba(24,24,20,.18), 0 0 0 1px rgba(24,24,20,.08);
-    --paper-shadow: 0 0 0 1px rgba(24,24,20,.12), 0 6px 18px rgba(24,24,20,.1);
+    --shadow-card: 0 1px 2px rgba(16,24,40,.06), 0 6px 20px rgba(16,24,40,.06);
+    --shadow-lift: 0 1px 3px rgba(16,24,40,.08), 0 10px 28px rgba(16,24,40,.10);
+    --float: 0 0 0 1px rgba(16,24,40,.08), 0 20px 60px rgba(16,24,40,.18);
+    --paper-shadow: 0 0 0 1px rgba(16,24,40,.10), 0 6px 18px rgba(16,24,40,.08);
 
     --tip: #18181b;
     --tip-ink: #ffffff;
-    --scrim: rgba(24, 24, 27, 0.28);
+    --scrim: rgba(15,17,21,.30);
     --pin: #f0bd4a;
     --pin-ink: #1d1503;
     --pin-line: #a8740a;
@@ -318,9 +322,9 @@
   --dock-w: 56px;
   --font-serif: var(--font-sans);
 
-  /* The glass edge: nothing in dark, the soft card shadow in light. Always a shadow, never none, since
-     sheets list it beside another shadow. */
-  --highlight: 0 0 0 0 transparent;
+  /* The glass edge: the card shadow, in both themes. Always a shadow, never none, since sheets list it
+     beside another shadow. */
+  --highlight: var(--shadow-card);
 
   --accent-graphite: #f2f3f5;
   --accent-blue: #60a5fa;
@@ -334,8 +338,6 @@
 }
 
 :root[data-theme="light"] {
-  --highlight: 0 1px 2px rgba(24,24,20,.07), 0 4px 12px rgba(24,24,20,.05);
-
   --accent-graphite: #18181b;
   --accent-blue: #2563eb;
   --accent-green: #15803d;
@@ -349,8 +351,6 @@
 
 @media (prefers-color-scheme: light) {
   :root[data-theme="auto"] {
-    --highlight: 0 1px 2px rgba(24,24,20,.07), 0 4px 12px rgba(24,24,20,.05);
-
     --accent-graphite: #18181b;
     --accent-blue: #2563eb;
     --accent-green: #15803d;

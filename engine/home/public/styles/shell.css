@@ -2,8 +2,10 @@
    the main pane) from 860 px up; the top bar's back button and crumbs, the tab bar and the More sheet below;
    the More sheet's inside. The queue, the command menu, the compose dialog and the work panel are in
    shell-overlays.css. Classes start with s-; tokens only. Nothing blurs what is
-   behind it: every surface is opaque. Three grounds part the frame: the sidebar on --side, the page on --bg
-   with the top bar on the same ground, parted from it by a hairline; the current row is lifted (--raise). */
+   behind it: every surface is opaque. The frame's grounds are steps (fix round A2): the sidebar on --side, the
+   darkest, parted from the page by a 1 px line; the page on --bg with the top bar on the same ground, parted from
+   it by a 1 px line. In the sidebar a row has one signal (a count when something needs the owner, else a small
+   dot when working), its icon in the second ink, and the current row is a neutral fill (--sel), no ring. */
 
 /* The skip link: out of sight until it has focus. */
 .s-skip {
@@ -171,16 +173,16 @@
 }
 .s-go .k-icon {
   flex: none;
+  color: var(--ink-2);
 }
 .s-go:hover {
   background: var(--ctl);
   color: var(--ink);
 }
 .s-go.is-current {
-  background: var(--raise);
+  background: var(--sel);
   color: var(--ink);
   font-weight: var(--fw-medium);
-  box-shadow: 0 0 0 1px var(--line), var(--shadow-card);
 }
 .s-go-label {
   min-width: 0;
@@ -213,6 +215,10 @@
 }
 .s-go-ends .s-go-count {
   grid-column: 2;
+}
+/* One signal a row: a count says more than the working dot, so the dot gives way to it (its column stays). */
+.s-go-ends:has(.s-go-count) .s-dot {
+  visibility: hidden;
 }
 .s-side-team {
   display: flex;

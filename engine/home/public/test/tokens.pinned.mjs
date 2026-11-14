@@ -3,21 +3,24 @@
 // one edit in styles/tokens.css and one here.
 
 // The palette, [dark, light]. Light is chosen by data-theme="light", or by data-theme="auto" on a Mac set to
-// light. Three ground steps: --stage (deepest), --bg (the page ground), the raised step (--panel, --card).
+// light. Fix round A2 (T100): in dark four steps a screen tells apart, the sidebar (--side) under the stage
+// (--stage) under the page ground (--bg) under the rail (--panel) under a card (--card), with --raise for what is
+// raised or chosen; in light one cool neutral family, white panels and cards on a calm cool ground. Every raised
+// thing has a 1 px edge and a real shadow in both themes.
 export const THEMED = {
-  "--bg": ["#0f0f11", "#f5f5f4"],
-  "--stage": ["#09090b", "#e9e9e6"],
-  "--panel": ["#151518", "#ffffff"],
-  "--side": ["#0b0b0d", "#ececea"],
-  "--card": ["#17171a", "#ffffff"],
-  "--raise": ["#232328", "#ffffff"],
-  "--sel": ["#26262c", "#edf1fc"],
-  "--raise-2": ["#2c2c31", "#e2e2df"],
-  "--ctl": ["rgba(255,255,255,.06)", "rgba(24,24,20,.05)"],
-  "--field": ["rgba(255,255,255,.03)", "#ffffff"],
-  // Light: the edge of a white card at about 8 percent (corrections after round 3, 1).
-  "--line": ["rgba(255,255,255,.1)", "rgba(24,24,20,.08)"],
-  "--line-2": ["rgba(255,255,255,.22)", "rgba(24,24,20,.28)"],
+  "--bg": ["#131316", "#f6f7f9"],
+  "--stage": ["#101012", "#eceef1"],
+  "--panel": ["#18181c", "#ffffff"],
+  "--side": ["#0c0c0e", "#f1f2f4"],
+  "--card": ["#1c1c20", "#ffffff"],
+  "--raise": ["#222226", "#f1f3f6"],
+  "--sel": ["#26262b", "#eaedf1"],
+  "--raise-2": ["#2c2c31", "#e3e6eb"],
+  "--ctl": ["rgba(255,255,255,.06)", "rgba(16,24,40,.05)"],
+  "--field": ["#17171b", "#ffffff"],
+  // The 1 px edge of a raised thing: 7 percent white in dark, a cool grey in light.
+  "--line": ["rgba(255,255,255,.07)", "#e4e6ea"],
+  "--line-2": ["rgba(255,255,255,.12)", "#d5d8de"],
   "--ink": ["#f4f4f5", "#18181b"],
   "--ink-2": ["#babac1", "#4f4f58"],
   // Light: decision 3 b, so the third grey reads at 4.5 on every raised step and the sidebar.
@@ -37,20 +40,18 @@ export const THEMED = {
   "--spent": ["#7b7b85", "#9d9da6"],
   "--add-bg": ["rgba(98,211,157,.18)", "#d9f0e2"],
   "--del-bg": ["rgba(255,147,165,.18)", "#fbe0e5"],
-  "--shadow-card": ["none", "0 1px 2px rgba(24,24,20,.07), 0 4px 12px rgba(24,24,20,.05)"],
-  "--shadow-lift": ["0 0 0 1px rgba(255,255,255,.06)", "0 1px 2px rgba(24,24,20,.08), 0 8px 24px rgba(24,24,20,.08)"],
-  "--float": ["0 14px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.1)", "0 14px 40px rgba(24,24,20,.18), 0 0 0 1px rgba(24,24,20,.08)"],
-  "--paper-shadow": ["0 0 0 1px rgba(255,255,255,.1)", "0 0 0 1px rgba(24,24,20,.12), 0 6px 18px rgba(24,24,20,.1)"],
+  "--shadow-card": ["0 1px 2px rgba(0,0,0,.40), 0 8px 24px rgba(0,0,0,.28)", "0 1px 2px rgba(16,24,40,.06), 0 6px 20px rgba(16,24,40,.06)"],
+  "--shadow-lift": ["0 2px 4px rgba(0,0,0,.45), 0 12px 32px rgba(0,0,0,.40)", "0 1px 3px rgba(16,24,40,.08), 0 10px 28px rgba(16,24,40,.10)"],
+  "--float": ["0 0 0 1px rgba(255,255,255,.1), 0 16px 48px rgba(0,0,0,.50)", "0 0 0 1px rgba(16,24,40,.08), 0 20px 60px rgba(16,24,40,.18)"],
+  "--paper-shadow": ["0 0 0 1px rgba(255,255,255,.08), 0 6px 20px rgba(0,0,0,.45)", "0 0 0 1px rgba(16,24,40,.10), 0 6px 18px rgba(16,24,40,.08)"],
   "--tip": ["#f4f4f5", "#18181b"],
   "--tip-ink": ["#0f0f11", "#ffffff"],
   // The layer behind a dialog or a sheet.
-  "--scrim": ["rgba(0, 0, 0, 0.56)", "rgba(24, 24, 27, 0.28)"],
+  "--scrim": ["rgba(0,0,0,.62)", "rgba(15,17,21,.30)"],
   "--pin": ["#ecc068", "#f0bd4a"],
   "--pin-ink": ["#1d1503", "#1d1503"],
   "--pin-line": ["#ecc068", "#a8740a"],
-  // Compatibility (removed by T90): the glass edge is a shadow in both themes, never none, since sheets list
-  // it beside another shadow; the six old accents and the checker keep their values.
-  "--highlight": ["0 0 0 0 transparent", "0 1px 2px rgba(24,24,20,.07), 0 4px 12px rgba(24,24,20,.05)"],
+  // Compatibility (removed by T90): the six old accents and the checker keep their values.
   "--accent-graphite": ["#f2f3f5", "#18181b"],
   "--accent-blue": ["#60a5fa", "#2563eb"],
   "--accent-green": ["#4ade80", "#15803d"],
@@ -131,6 +132,8 @@ export const ALIASES = {
   "--live": "var(--good)",
   "--live-text": "var(--good)",
   "--shadow-pop": "var(--float)",
+  // The glass edge is the card shadow in both themes (never none, since sheets list it beside another shadow).
+  "--highlight": "var(--shadow-card)",
   "--bg-card": "var(--card)",
   "--bg-sidebar": "var(--side)",
   "--bg-subtle": "var(--ctl)",

@@ -39,7 +39,9 @@ test("card: no frame inside a frame; what is chosen is lifted with the accent ri
   assert.match(card, /\.k-card \.k-card:not\(\.k-card--sunken\) \{\s*border-color: transparent;\s*background: transparent;\s*box-shadow: none;/, "a nested card loses its edge and its fill");
   assert.match(card, /\.k-card\[aria-checked="true"\] \{\s*border-color: transparent;\s*background: var\(--raise\);/, "a chosen card is on the raised step");
   assert.match(card, /\.k-card\[aria-checked="true"\]::after \{\s*box-shadow: inset 0 0 0 2px var\(--accent\);/, "with a 2 px accent ring");
-  assert.doesNotMatch(card, /var\(--shadow-card\)\s*[,;][^;]*,\s*var\(--shadow-card\)|,\s*var\(--shadow-card\)|var\(--shadow-card\),/, "the card shadow is never in a list: it is none in dark");
+  // The chosen ring and the amber rule are drawn by ::after, so the card keeps its own shadow under them.
+  assert.match(card, /\.k-card\[aria-checked="true"\] \{\s*border-color: transparent;\s*background: var\(--raise\);\s*\}/, "a chosen card keeps the card shadow");
+  assert.doesNotMatch(card, /\.k-card\[aria-checked="true"\]::after \{[^}]*var\(--shadow-card\)/, "the ring does not repeat the shadow");
 });
 
 test("card: a ghost card has no fill", () => {

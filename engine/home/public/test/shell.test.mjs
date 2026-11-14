@@ -598,6 +598,14 @@ test("the sidebar marks the current place", () => {
   // painted the number in the badge's own colour, leaving an empty pill).
   const sheet = readFileSync(join(PUBLIC, "styles", "shell.css"), "utf8");
   assert.match(sheet, /\.s-side--icons \.s-go-count,\s*\.s-side--icons \.s-go\.is-current \.s-go-count \{[^}]*background: var\(--raise\);[^}]*color: var\(--ink\);[^}]*font-size: var\(--fs-label\);[^}]*font-weight: var\(--fw-bold\);[^}]*tabular-nums/);
+  // T100: the sidebar on the darkest step with a 1 px line; the current row a neutral fill with no ring; icons in
+  // the second ink; one signal a row (a count wins over the working dot, whose column stays).
+  assert.match(sheet, /\.s-side \{[^}]*border-right: 1px solid var\(--line\);[^}]*background: var\(--side\);/);
+  const currentRow = /\.s-go\.is-current \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(currentRow, /background: var\(--sel\);/, "the current row is a neutral fill");
+  assert.doesNotMatch(currentRow, /box-shadow|outline|border/, "never a ring");
+  assert.match(sheet, /\.s-go \.k-icon \{[^}]*color: var\(--ink-2\);/, "icons in the second ink");
+  assert.match(sheet, /\.s-go-ends:has\(\.s-go-count\) \.s-dot \{\s*visibility: hidden;/, "one signal a row");
 });
 
 test("the top bar draws the crumbs, the Queue button and the search button", () => {

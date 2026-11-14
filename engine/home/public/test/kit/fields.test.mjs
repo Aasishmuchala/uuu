@@ -43,7 +43,7 @@ test("inputs, text areas, selects and the money input: 36 px, the control corner
   assert.match(s, /::placeholder\s*\{\s*color: var\(--ink-3\);/);
   assert.match(/\}\s*\.k-money-input\s*\{([^}]*)\}/.exec(s)[1], /width: 116px;/);
   assert.match(/\.k-money-input__control\s*\{([^}]*)\}/.exec(s)[1], /text-align: right;[\s\S]*font-variant-numeric: tabular-nums;/);
-  assert.doesNotMatch(s, /outline: none;/, "focus keeps the 2 px ring");
+  assert.doesNotMatch(s, /outline: none;/, "focus is never taken away: the ring stays drawn");
   assert.doesNotMatch(s, /r-pill/);
 });
 
@@ -61,13 +61,14 @@ test("Switch: 38 x 22, the raised track off, the accent fill on, and role switch
   unmount(root);
 });
 
-test("T97: every field, the money input's box and the switch show the 2 px accent ring with a 2 px offset", () => {
+test("T100: a text field's focus is a 1 px accent edge with a 3 px ring of the accent at 25 percent; the switch keeps the 2 px accent ring", () => {
   const s = css("kit/fields.css");
   const ring = /\{\s*outline: 2px solid var\(--focus\);\s*outline-offset: 2px;/;
-  const plain = /\.k-input:focus-visible,\s*\.k-textarea:focus-visible,\s*\.k-select__control:focus-visible\s*(\{[^}]*\})/.exec(s);
-  assert.ok(plain, "inputs, text areas and selects draw the ring on :focus-visible");
-  assert.match(plain[1], ring);
-  assert.match(s, new RegExp(String.raw`\.k-money-input:focus-within\s*` + ring.source), "the money input's ring is on its box");
+  const fields = /\.k-input:focus-visible,\s*\.k-textarea:focus-visible,\s*\.k-select__control:focus-visible,\s*\.k-money-input:focus-within\s*(\{[^}]*\})/.exec(s);
+  assert.ok(fields, "inputs, text areas, selects and the money input's box draw the ring on focus");
+  assert.match(fields[1], /box-shadow: 0 0 0 3px color-mix\(in srgb, var\(--focus\) 25%, transparent\);/, "a 3 px ring of the accent at 25 percent");
+  assert.match(fields[1], /outline: 2px solid transparent;/, "the outline stays, transparent, for forced colours");
+  assert.match(/\.k-input:focus,\s*\.k-textarea:focus,\s*\.k-select__control:focus,\s*\.k-money-input:focus-within\s*\{([^}]*)\}/.exec(s)[1], /border-color: var\(--accent\);/, "the 1 px edge turns to the accent");
   assert.match(s, new RegExp(String.raw`\.k-switch__control:focus-visible\s*` + ring.source), "the switch's ring is the accent, 2 px");
   assert.doesNotMatch(s, /outline: 3px|outline: [^;]*var\(--ink\)/, "no ring in the ink colour");
 });

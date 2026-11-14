@@ -1,6 +1,6 @@
 /* kit/layout.js: the three layouts (PLAN-COOK T33, from C3's "the work", "below the first screen" and "S03").
-   Three ground steps: the stage on --stage (the deepest), the page on --bg, the rail and its panels on --panel (the
-   raised step) parted by a rule. Below 860 px one column: head, stage, strip, rail body, more, and the foot sticky
+   The ground steps (fix round A2): the stage on --stage, the strip on the page's --bg, the rail on --panel (the
+   raised step) parted from the stage by its own surface and a 1 px line; cards on --card above it. Below 860 px one column: head, stage, strip, rail body, more, and the foot sticky
    above the tab bar. Tokens only. */
 
 /* ---- StageLayout: a stage, a strip under it, a rail at the right */
@@ -255,6 +255,7 @@
 }
 
 .k-doc__pick {
+  position: relative;
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
   align-items: center;
@@ -278,11 +279,21 @@
   color: var(--ink);
 }
 
+/* The current section: a neutral fill with a 2 px accent bar at its left, never a ring. */
 .k-doc__pick[aria-current="page"] {
-  border-color: var(--line);
-  background: var(--raise);
+  background: var(--sel);
   color: var(--ink);
-  box-shadow: var(--shadow-card);
+}
+
+.k-doc__pick[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
 }
 
 .k-doc__pick-icon {

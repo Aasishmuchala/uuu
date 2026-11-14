@@ -139,7 +139,7 @@ test("T97: a verdict in one line: the word in its tone, then the grey by words a
 test("stage.css: pins in the gutter, a stage panel around the frames, no blur, and the phone frame alone below 860 px", () => {
   const sheet = css("kit/stage.css");
   assert.doesNotMatch(sheet, /backdrop-filter/);
-  assert.match(sheet, /\.k-frames \{[^}]*padding: var\(--s-6\);[^}]*border: 1px solid var\(--line\)/);
+  assert.match(sheet, /\.k-frames \{[^}]*padding: var\(--s-6\);[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--r-2\);[^}]*background: var\(--panel\);[^}]*box-shadow: var\(--shadow-card\)/, "the stage panel: a 1 px edge, an 8 px corner and the card shadow");
   assert.match(sheet, /\.k-frame__pin--left \{\s*left: -22px;/);
   assert.match(sheet, /\.k-pin \{[^}]*width: 20px;[^}]*background: var\(--pin\);[^}]*color: var\(--pin-ink\)/);
   assert.match(sheet, /\.k-shot__frame \{[^}]*aspect-ratio: 16 \/ 9;[^}]*background: var\(--black\)/);
