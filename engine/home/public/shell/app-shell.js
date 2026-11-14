@@ -51,11 +51,12 @@ export function overlayFrom(search) {
   }
 }
 
-// How the main pane holds a page: "map" (the whole pane), "full" (the full width: the board of tasks and
-// the Studio), "column" (one column: a task, a department, a job, an agent), or "normal" (centred, at most
-// --content-max wide).
+// How the main pane holds a page: "map" (the whole pane), "fill" (the whole window under the top bar, with a
+// small margin: an app opened inside App Studio), "full" (the full width: the board of tasks and the Studio),
+// "column" (one column: a task, a department, a job, an agent), or "normal" (centred, at most --content-max wide).
 export function paneOf(routeId, query) {
   if (routeId === "map") return "map";
+  if (routeId === "app") return "fill";
   if (routeId === "studio") return "full";
   if (routeId === "tasks" && query && typeof query.get === "function" && query.get("view") === "board") return "full";
   if (["task", "dept", "job", "agent"].includes(routeId)) return "column";

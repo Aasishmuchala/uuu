@@ -1,0 +1,17 @@
+/* The page apps (PLAN-V5 T80): App Studio's list. A grid of large tiles, each an app's picture, name, state, what
+   it does and its buttons; then the sites the team made. Tokens only, so the redesign restyles it from here. */
+.p-apps { display: flex; flex-direction: column; gap: var(--s-6); min-width: 0; }
+
+/* The launcher: tiles at least 280 px wide. */
+.p-apps .p-apps__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--s-4); }
+.p-apps .p-apps__tile { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+.p-apps .p-apps__tile-head { display: flex; align-items: center; gap: var(--s-4); min-width: 0; }
+.p-apps .p-apps__icon { flex: none; width: 56px; height: 56px; border-radius: var(--r-3); object-fit: contain; }
+.p-apps .p-apps__icon--none { display: grid; place-items: center; background: var(--glass-soft); color: var(--text-2); }
+.p-apps .p-apps__names { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.p-apps .p-apps__name { margin: 0; font-size: var(--fs-title); font-weight: var(--fw-bold); overflow-wrap: anywhere; }
+.p-apps .p-apps__about { margin: 0; color: var(--text-2); }
+.p-apps .p-apps__spend { display: flex; align-items: center; gap: var(--s-2); margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
+.p-apps .p-apps__hint { margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
+.p-apps .p-apps__hint a { color: var(--text); }
+.p-apps .p-apps__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: auto; padding-top: var(--s-2); }

@@ -15,7 +15,7 @@ const ASSETS = join(PUBLIC, "assets");
 const SELF = fileURLToPath(import.meta.url);
 
 const KIT_SHEETS = "button icon avatar status tag card tabs fields states overlays text page decision task-card brief composer conversation table timeline checks doc agent segmented job answer ring forms upload pick shotlist site".split(" ");
-const PAGE_SHEETS = "map needs-you tasks task dashboards dashboard marketing studio sprite-player dept team agent jobs job files brain routines health settings search brand-kit".split(" ");
+const PAGE_SHEETS = "map needs-you tasks task dashboards dashboard marketing studio sprite-player dept team agent jobs job files brain routines health settings search brand-kit apps app".split(" ");
 const SHEETS = [
   "./assets/fonts/fonts.css",
   "./styles/tokens.css",

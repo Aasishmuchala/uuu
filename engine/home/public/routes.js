@@ -10,8 +10,8 @@
 //   file     the module, relative to this folder, loaded with import()
 //   title    the page's plain name (the command menu, the tab while it loads)
 //   match    (parts) -> true when the address is this page's; parts are the decoded parts after "#/"
-//   section  which of the four sections of the top bar is current on it: "map" | "tasks" |
-//            "dashboards" | "files" | null
+//   section  which of the five sections of the top bar is current on it: "map" | "tasks" |
+//            "dashboards" | "files" | "apps" | null
 //   icon     a kit icon name
 
 import { fileToken } from "./lib/format.js";
@@ -42,6 +42,9 @@ export const ROUTES = [
   { id: "health", file: "./pages/health.js", title: "Health", match: only("health"), section: null, icon: "health" },
   { id: "settings", file: "./pages/settings.js", title: "Settings", match: only("settings"), section: null, icon: "settings" },
   { id: "search", file: "./pages/search.js", title: "Search", match: only("search"), section: null, icon: "search" },
+  // Step 5 (PLAN-V5 K17, K23, T80): App Studio, the apps that run on this Mac, and one app opened inside.
+  { id: "apps", file: "./pages/apps.js", title: "App Studio", match: only("apps"), section: "apps", icon: "apps" },
+  { id: "app", file: "./pages/app.js", title: "App", match: withId("apps"), section: "apps", icon: "apps" },
 ];
 
 // The first part of an old address → the new address it moves to. The rest of the old address and its
@@ -72,12 +75,14 @@ export const EXTRA_MODULES = [
   "./brain/readiness.js",
 ];
 
-// The four sections of the top bar's capsule (and of the tab bar below 860 px), in order.
+// The five sections of the top bar's capsule (and of the tab bar below 860 px), in order. `short` is the tab bar's
+// word where the capsule's is too long for a phone (App Studio is "Apps" there).
 export const SECTIONS = [
   { id: "map", title: "Map", href: "#/map", icon: "map" },
   { id: "tasks", title: "Tasks", href: "#/tasks", icon: "tasks" },
   { id: "dashboards", title: "Dashboards", href: "#/dashboards", icon: "dashboards" },
   { id: "files", title: "Files", href: "#/files", icon: "files" },
+  { id: "apps", title: "App Studio", short: "Apps", href: "#/apps", icon: "apps" },
 ];
 
 // The seven departments in the company file's order, for when the server has not answered yet.

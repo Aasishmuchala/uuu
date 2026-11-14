@@ -10,7 +10,7 @@ import { DEPARTMENTS, routeById } from "../routes.js";
 import { jobsOf } from "./compose-dialog.js";
 
 // The pages the menu offers, in this order.
-const PAGE_IDS = ["map", "tasks", "dashboards", "files", "needs-you", "jobs", "team", "routines", "health", "settings"];
+const PAGE_IDS = ["map", "tasks", "dashboards", "files", "apps", "needs-you", "jobs", "team", "routines", "health", "settings"];
 const PAGES = PAGE_IDS.map((id) => routeById(id));
 const MAX_JOBS = 8;
 

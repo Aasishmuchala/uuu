@@ -38,6 +38,8 @@ const TABLE = {
   health: "./pages/health.js",
   settings: "./pages/settings.js",
   search: "./pages/search.js",
+  apps: "./pages/apps.js",
+  app: "./pages/app.js",
 };
 
 const id = (parts) => routes.findRoute(parts)?.id ?? null;
@@ -48,12 +50,15 @@ test("every route of 26.1 is in ROUTES with its file, title, match, section and 
     assert.equal(r.file, TABLE[r.id], `${r.id} loads ${TABLE[r.id]}`);
     assert.ok(typeof r.title === "string" && r.title.length > 0);
     assert.equal(typeof r.match, "function");
-    assert.ok(["map", "tasks", "dashboards", "files", null].includes(r.section), `${r.id} has a known section`);
+    assert.ok(["map", "tasks", "dashboards", "files", "apps", null].includes(r.section), `${r.id} has a known section`);
     assert.ok(typeof r.icon === "string" && r.icon.length > 0);
   }
   assert.deepEqual(routes.SECTIONS.map((s) => [s.id, s.title, s.href]), [
     ["map", "Map", "#/map"], ["tasks", "Tasks", "#/tasks"], ["dashboards", "Dashboards", "#/dashboards"], ["files", "Files", "#/files"],
+    ["apps", "App Studio", "#/apps"],
   ]);
+  // The tab bar's word for App Studio is "Apps"; the others need no short word (PLAN-V5 T80).
+  assert.deepEqual(routes.SECTIONS.map((s) => s.short || s.title), ["Map", "Tasks", "Dashboards", "Files", "Apps"]);
   assert.deepEqual(routes.DEPARTMENTS.map((d) => d.id), ["operations", "sales", "marketing", "studio", "support", "people", "books"]);
 });
 
@@ -85,6 +90,16 @@ test("Dashboards, the four record dashboards, Marketing and the Studio", () => {
   assert.equal(id(["dashboards", "studio"]), "studio");
   assert.equal(id(["dashboards", "sales"]), null);
   assert.equal(id(["dashboards", "books", "x"]), null);
+});
+
+test("App Studio and an app opened inside, both in the App Studio section (PLAN-V5 T80)", () => {
+  assert.equal(id(["apps"]), "apps");
+  assert.equal(id(["apps", "render-to-film"]), "app");
+  assert.equal(id(["apps", "render-to-film", "x"]), null);
+  assert.equal(routes.sectionOf("apps"), "apps");
+  assert.equal(routes.sectionOf("app"), "apps");
+  assert.equal(routes.routeById("apps").title, "App Studio");
+  assert.equal(routes.routeById("apps").icon, "apps");
 });
 
 test("Files, Jobs, a job, a department, Team and an agent", () => {
@@ -300,7 +315,8 @@ test("how the main pane holds each page", () => {
   assert.equal(paneOf("tasks", q("view=board")), "full");
   assert.equal(paneOf("studio", q("")), "full");
   for (const p of ["task", "dept", "job", "agent"]) assert.equal(paneOf(p, q("")), "column", p);
-  for (const p of ["needs-you", "dashboards", "dashboard", "marketing", "files", "jobs", "team", "routines", "health", "settings", "search"]) assert.equal(paneOf(p, q("")), "normal", p);
+  for (const p of ["needs-you", "dashboards", "dashboard", "marketing", "files", "jobs", "team", "routines", "health", "settings", "search", "apps"]) assert.equal(paneOf(p, q("")), "normal", p);
+  assert.equal(paneOf("app", q("")), "fill", "an app opened inside fills the window under the top bar");
   assert.equal(isWide("tasks", q("view=board")), true);
   assert.equal(isWide("tasks", q("")), false);
 });
@@ -418,7 +434,7 @@ test("the compose dialog offers jobs and sends only what was chosen", () => {
 test("the command menu lists the pages and the seven departments, and finds jobs and agents at once", () => {
   const { localItems, searchItems } = menu;
   const empty = localItems("", []);
-  for (const [label, href] of [["Map", "#/map"], ["Tasks", "#/tasks"], ["Dashboards", "#/dashboards"], ["Files", "#/files"], ["Needs you", "#/needs-you"], ["Jobs", "#/jobs"], ["Team", "#/team"]]) {
+  for (const [label, href] of [["Map", "#/map"], ["Tasks", "#/tasks"], ["Dashboards", "#/dashboards"], ["Files", "#/files"], ["App Studio", "#/apps"], ["Needs you", "#/needs-you"], ["Jobs", "#/jobs"], ["Team", "#/team"]]) {
     assert.ok(empty.some((i) => i.label === label && i.href === href), label);
   }
   assert.deepEqual(empty.filter((i) => i.group === "Departments").map((i) => i.href), routes.DEPARTMENTS.map((d) => `#/departments/${d.id}`));
@@ -511,8 +527,9 @@ test("the top bar draws the capsule with the current section, the Needs you pill
   const shell = { company: { name: "Sthyra" }, counts: { needsYou: 5 }, engine: { board: "on", books: "off" } };
   const root = show(topbar.Topbar, { routeId: "task", shell, narrow: false, settings: { theme: "dark" }, onSaveSettings() {}, onNeeds() {}, onMenu() {} });
   const tabs = withClass(root, "s-capsule-item");
-  assert.deepEqual(tabs.map((t) => attr(t, "href")), ["#/map", "#/tasks", "#/dashboards", "#/files"]);
-  assert.deepEqual(tabs.map((t) => attr(t, "aria-current")), [null, "page", null, null]);
+  assert.deepEqual(tabs.map((t) => attr(t, "href")), ["#/map", "#/tasks", "#/dashboards", "#/files", "#/apps"]);
+  assert.deepEqual(tabs.map((t) => attr(t, "aria-current")), [null, "page", null, null, null]);
+  assert.match(textOf(tabs[4]), /^App Studio$/, "the capsule says App Studio in full");
   const pill = withClass(root, "s-needs")[0];
   assert.equal(attr(pill, "aria-label"), "Needs you, 5 waiting");
   assert.ok(classOf(pill).includes("is-warm"));
@@ -540,11 +557,17 @@ test("the dock draws a creature, a link and screen-reader words for each item", 
   assert.equal(attr(withClass(root, "s-dock-new")[0], "aria-label"), "New task");
 });
 
-test("the tab bar holds the four sections, the current one marked", async () => {
+test("the tab bar holds the five sections, the current one marked, App Studio as \"Apps\"", async () => {
   const { TabBar } = await load("shell/tabbar.js");
   const root = show(TabBar, { routeId: "dashboard" });
   const tabs = withClass(root, "s-tab");
-  assert.deepEqual(tabs.map((t) => [attr(t, "href"), attr(t, "aria-current")]), [["#/map", null], ["#/tasks", null], ["#/dashboards", "page"], ["#/files", null]]);
+  assert.deepEqual(tabs.map((t) => [attr(t, "href"), attr(t, "aria-current")]), [
+    ["#/map", null], ["#/tasks", null], ["#/dashboards", "page"], ["#/files", null], ["#/apps", null],
+  ]);
+  assert.deepEqual(withClass(root, "s-tab-word").map((w) => textOf(w)), ["Map", "Tasks", "Dashboards", "Files", "Apps"]);
+  const onApp = withClass(show(TabBar, { routeId: "app" }), "s-tab");
+  assert.equal(attr(onApp[4], "aria-current"), "page", "an app opened inside is in App Studio's section");
+  assert.match(readFileSync(join(PUBLIC, "styles", "shell.css"), "utf8"), /\.s-tabbar \{[^}]*repeat\(5,/, "five columns");
 });
 
 // M63: once a task is given, the dialog says how long it takes, unless other work is ahead in the Chief of staff's

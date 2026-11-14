@@ -18,7 +18,7 @@ const KIT = join(PUBLIC, "kit");
 const KIT_INDEX = join(KIT, "index.js");
 const routes = await import(pathToFileURL(join(PUBLIC, "routes.js")).href);
 
-const PAGE_IDS = ["map", "needs-you", "tasks", "task", "dashboards", "dashboard", "marketing", "studio", "files", "jobs", "job", "dept", "team", "agent", "routines", "health", "settings", "search"];
+const PAGE_IDS = ["map", "needs-you", "tasks", "task", "dashboards", "dashboard", "marketing", "studio", "files", "jobs", "job", "dept", "team", "agent", "routines", "health", "settings", "search", "apps", "app"];
 const EXTRA_IDS = ["sprite-player", "layout", "map-view", "map-list", "new-file", "readiness"];
 // Pages reached through another page's address (the Files page hands #/files/brand-kit over), so the route table
 // stays as it is: each is a page module with a default component and a stylesheet of its own name.

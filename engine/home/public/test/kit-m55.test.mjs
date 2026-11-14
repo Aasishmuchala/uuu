@@ -178,7 +178,9 @@ test("the dock: the briefcase at its foot, each item's words on hover, labels gi
 
 test("the top bar: the right group never slides under the capsule, and a band fades in once scrolled (M18-01, M50 F12)", () => {
   const s = css("shell.css");
-  assert.match(s, /@media \(min-width: 860px\) and \(max-width: 1259px\)\s*\{\s*\.s-topbar\s*\{\s*grid-template-columns: auto minmax\(0, 1fr\) auto;/);
+  // Up to 1399 px since the capsule holds a fifth section, App Studio (PLAN-V5 T80); 1259 px let it overlap at 1280.
+  assert.match(s, /@media \(min-width: 860px\) and \(max-width: 1399px\)\s*\{\s*\.s-topbar\s*\{\s*grid-template-columns: auto minmax\(0, 1fr\) auto;/);
+  assert.match(s, /@media \(min-width: 860px\) and \(max-width: 1099px\)\s*\{\s*\.s-topbar \.s-capsule-item \.k-icon\s*\{\s*display: none;/, "the five sections' words alone up to 1099 px");
   assert.match(s, /\.s-needs\s*\{\s*flex: none;/);
   assert.match(s, /\.s-topbar\.is-scrolled::before\s*\{\s*opacity: 1;/);
   assert.match(s, /@media \(min-width: 860px\) and \(max-width: 979px\)\s*\{\s*\.s-topbar \.s-brand-name\s*\{\s*display: none;/);

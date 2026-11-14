@@ -1,0 +1,80 @@
+/* The page app (PLAN-V5 T80): one app opened inside App Studio. It fills the window under the top bar (the shell's
+   "fill" pane): the home screen's own bar of 48 px on top, the app's frame under it, rounded and borderless. Below
+   860 px the bar's tools move to a second row. Tokens only, so the redesign restyles it from here. */
+.p-app {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+  height: calc(100dvh - var(--topbar-h) - var(--s-2) - var(--s-5));
+}
+/* Loading, a refusal to load, the restart sentence: the page as any other. */
+.p-app.p-app--plain { height: auto; width: 100%; max-width: var(--content-max); margin: var(--s-6) auto 0; }
+
+/* The trusted bar: the home screen's, never the app's. */
+.p-app .p-app__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+  min-height: 48px;
+  padding: var(--s-1) var(--s-2) var(--s-1) var(--s-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-3);
+  background: var(--glass-strong);
+  box-shadow: var(--highlight);
+}
+.p-app .p-app__who { display: flex; align-items: center; gap: var(--s-3); min-width: 0; margin-right: auto; }
+.p-app .p-app__break { display: none; }
+.p-app .p-app__back {
+  flex: none; display: inline-grid; place-items: center; width: var(--h-md); height: var(--h-md);
+  border-radius: var(--r-2); color: var(--text-2);
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.p-app .p-app__back:hover { background: var(--glass-soft); color: var(--text); }
+.p-app .p-app__back:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.p-app .p-app__icon { flex: none; width: 28px; height: 28px; border-radius: var(--r-1); object-fit: contain; }
+.p-app .p-app__icon--none { display: grid; place-items: center; background: var(--glass-soft); color: var(--text-2); }
+.p-app .p-app__name { margin: 0; font-size: var(--fs-title); font-weight: var(--fw-bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-app .p-app__name:focus { outline: none; }
+.p-app .p-app__who .k-dot { flex: none; color: var(--text-2); font-size: var(--fs-caption); }
+.p-app .p-app__spend { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
+.p-app .p-app__spend-words { color: var(--text-2); font-size: var(--fs-caption); }
+.p-app .p-app__thinks .k-menu__trigger { min-height: var(--h-sm); font-size: var(--fs-caption); }
+.p-app .p-app__thinks .k-menu__list { right: 0; left: auto; }
+.p-app .p-app__problem { flex: none; }
+
+/* The stage: the app's frame, or the card in its place. */
+.p-app .p-app__stage { flex: 1; display: flex; min-height: 0; }
+.p-app .p-app__frame { flex: 1; width: 100%; height: 100%; border: 0; border-radius: var(--r-3); background: var(--canvas); }
+.p-app .p-app__card {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-3);
+  flex: 1; padding: var(--s-8) var(--s-6);
+  border: 1px dashed var(--hairline-strong); border-radius: var(--r-3); background: var(--glass);
+  text-align: center;
+}
+.p-app .p-app__card-title { margin: 0; font-size: var(--fs-title); font-weight: var(--fw-medium); }
+.p-app .p-app__card-text { margin: 0; color: var(--text-2); }
+.p-app .p-app__card-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--s-3); }
+.p-app .p-app__link { color: var(--text); }
+
+/* The allowance sheet. */
+.p-app .p-app__sheet { display: flex; flex-direction: column; gap: var(--s-4); }
+.p-app .p-app__sheet-body { margin: 0; }
+.p-app .p-app__amounts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2); }
+.p-app .p-app__left { margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
+
+/* Below 860 px: two rows. The app's name with its own-window mark and the switch, then what it may spend and the
+   model's menu (as a mark). */
+@media (max-width: 859px) {
+  .p-app { height: calc(100dvh - var(--topbar-h) - var(--tabbar-h) - var(--s-4) - var(--s-2) - var(--s-2)); }
+  .p-app .p-app__bar { flex-wrap: wrap; gap: var(--s-1) var(--s-2); padding: var(--s-1); }
+  .p-app .p-app__who { flex: 1 1 0; gap: var(--s-2); }
+  .p-app .p-app__own { order: 1; }
+  .p-app .p-app__switch { order: 2; }
+  .p-app .p-app__break { display: block; order: 3; flex-basis: 100%; height: 0; }
+  .p-app .p-app__spend { order: 4; flex: 1 1 0; padding-left: var(--s-2); }
+  .p-app .p-app__thinks { order: 5; }
+  .p-app .p-app__own-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}

@@ -68,6 +68,13 @@
   max-width: none;
   padding: 0;
 }
+/* An app opened inside App Studio: the whole window under the top bar, a small margin round it. */
+.s-content--fill {
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+  padding: var(--s-2) var(--s-5) var(--s-5);
+}
 .s-content:focus {
   outline: none;
 }
@@ -127,8 +134,9 @@
 }
 
 /* A middle-sized window (M18-01): the capsule no longer centres on the window, so the right group keeps its
-   width and the Needs you pill is never under the capsule. The capsule centres in the space between. */
-@media (min-width: 860px) and (max-width: 1259px) {
+   width and the Needs you pill is never under the capsule. The capsule centres in the space between. Up to
+   1399 px since the capsule holds five sections (App Studio, PLAN-V5 T80). */
+@media (min-width: 860px) and (max-width: 1399px) {
   .s-topbar {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
@@ -137,6 +145,12 @@
   }
   .s-topbar-right {
     flex: none;
+  }
+}
+/* Up to 1099 px the capsule's five sections show their words alone, so they fit beside the right group. */
+@media (min-width: 860px) and (max-width: 1099px) {
+  .s-topbar .s-capsule-item .k-icon {
+    display: none;
   }
 }
 /* The narrowest of those: the company's name gives way to its mark, and the capsule's items come closer. */
@@ -601,7 +615,7 @@
   bottom: var(--s-2);
   z-index: 40;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 2px;
   height: var(--tabbar-h);
   padding: var(--s-1);
@@ -759,6 +773,9 @@
   }
   .s-content--map {
     padding: 0;
+  }
+  .s-content--fill {
+    padding: var(--s-2) var(--s-2) 0;
   }
   .s-panel--sheet {
     position: fixed;
