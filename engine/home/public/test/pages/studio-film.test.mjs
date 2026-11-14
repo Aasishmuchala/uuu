@@ -101,6 +101,30 @@ test("the sent picture, the prompt and the edit link", () => {
   assert.equal(m.editHref(null), null);
 });
 
+// T49f N2: a request Runway did not start is shown under its shot, quietly, with the picture and prompt sent.
+test("requests Runway did not start: the server's words, only an /api/ picture, the prompt as text, gone or none", () => {
+  const f = shape("films").film;
+  assert.equal(m.labelsOf(f).notStarted, "Sent, not started by Runway");
+  assert.equal(m.labelsOf({}).notStarted, "Sent, not started by Runway");
+  const [n] = m.notStartedOf(f.shots[0]);
+  assert.deepEqual(n, {
+    key: "b0123456789abcdef0123-g00000000000000000004-0", when: "2026-11-13T10:00:00.000Z",
+    sent: "/api/studio/films/e0000000-0000-4000-8000-000000000041/sent/g00000000000000000004",
+    prompt: "The camera moves slowly towards the front door in soft morning light.",
+  });
+  const odd = m.notStartedOf({ notStarted: [
+    { sent: `${AWAY}/x.png`, sentPrompt: "gone" }, { sent: "gone", sentPrompt: null }, null, "x", { sentPrompt: "y".repeat(5000), at: 5 },
+  ] });
+  assert.deepEqual(odd.map((x) => [x.sent, x.prompt.length > 10 ? x.prompt.length : x.prompt, x.when]), [["", "gone", ""], ["", "none", ""], ["", 1000, ""]]);
+  assert.deepEqual(m.notStartedOf({}), []);
+  assert.deepEqual(m.notStartedOf({ notStarted: "no" }), []);
+  assert.equal(m.notStartedOf({ notStarted: Array.from({ length: 20 }, () => ({})) }).length, 6);
+  // On the page: the words as text, the picture only through safeApi, no markup from the prompt.
+  assert.match(code, /sent: safeApi\(n\.sent\) \|\| ""/);
+  assert.match(code, /<\$\{NotStarted\} shot=\$\{shot\} labels=\$\{labels\} \/>/);
+  assert.match(code, /<span>\$\{labels\.notStarted\}<\/span>/);
+});
+
 test("studioHref opens a film by its task id", () => {
   assert.equal(studioHref({ film: "e0000000-0000-4000-8000-000000000041" }), "#/dashboards/studio?film=e0000000-0000-4000-8000-000000000041");
   assert.equal(studioHref({ film: "a&b" }), "#/dashboards/studio?film=a%26b");

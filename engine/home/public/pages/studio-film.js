@@ -2,7 +2,8 @@
 // made. The title, the direction, what was approved, the total against the approved budget, then one card per shot:
 // the storyboard still, the picture Runway was sent, and each take with its clip, its six stills, what it cost, its
 // state and the Art director's verdict. Money, takes and states come from the door's ledger through the home server
-// (C12); the Artist's own words (the move, the prompt, a verdict's reason) are shown as text and nowhere else. Only
+// (C12); a request Runway did not start is listed quietly under its shot, with what was sent (T49f N2). The Artist's
+// own words (the move, the prompt, a verdict's reason) are shown as text and nowhere else. Only
 // addresses under /api/ reach a picture or a video, each through `safeApi`; no link in agent text is followed.
 import { html, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
@@ -14,6 +15,7 @@ const EVERY = 10000;
 const HERE = "#/dashboards/studio";
 const MAX_SHOTS = 12;
 const MAX_TAKES = 6;
+const MAX_NOT_STARTED = 6;
 const PROMPT_SHOWN = 240;
 
 const text = (v, max = 200) => (v === null || v === undefined ? "" : String(v).slice(0, max));
@@ -101,6 +103,7 @@ export const LABEL_WORDS = Object.freeze({
   sentPromptGone: "No longer kept: the door keeps what it sent for two days.",
   sentPromptNone: "The door kept no copy of this prompt.",
   changed: CHANGED_WORDS,
+  notStarted: "Sent, not started by Runway",
 });
 export function labelsOf(film) {
   const l = film && film.labels && typeof film.labels === "object" ? film.labels : {};
@@ -113,6 +116,17 @@ export function labelsOf(film) {
 export function sentPromptKind(value) {
   if (value === "gone") return "gone";
   return typeof value === "string" && value.trim() ? "text" : "none";
+}
+
+// A shot's requests Runway did not start (nothing made, nothing charged), checked: [{ key, when, sent, prompt }], where
+// `sent` is the kept picture's /api/ address or "" and `prompt` the prompt sent, "gone" or "none" (sentPromptKind).
+export function notStartedOf(shot) {
+  return items(shot?.notStarted, MAX_NOT_STARTED).map((n, i) => ({
+    key: `${text(n.batch, 40)}-${text(n.job, 64)}-${i}`,
+    when: typeof n.at === "string" ? n.at.slice(0, 40) : "",
+    sent: safeApi(n.sent) || "",
+    prompt: sentPromptKind(n.sentPrompt) === "text" ? text(n.sentPrompt, 1000) : sentPromptKind(n.sentPrompt),
+  }));
 }
 
 // The banners at the top of a film, in order: a frozen newest batch, a shotlist changed after approval, then the
@@ -276,6 +290,25 @@ function TakePrompts({ take, labels, id }) {
   </div>`;
 }
 
+// The requests Runway did not start, under a shot's takes: quiet text, each with what was sent.
+function NotStarted({ shot, labels }) {
+  const list = notStartedOf(shot);
+  if (!list.length) return null;
+  const id = text(shot.id, 8);
+  return html`<ul class="p-film__not-started" aria-label=${`Requests for shot ${id} that Runway did not start`}>
+    ${list.map((n, i) => html`<li key=${n.key} class="p-film__not-started-item">
+      <p class="p-film__not-started-head">
+        <span>${labels.notStarted}</span>
+        ${n.when ? html`<span title=${fullWhen(n.when)}>${when(n.when)}</span>` : null}
+        ${n.sent ? html`<a href=${n.sent}>The picture sent</a>` : null}
+      </p>
+      ${n.prompt === "gone" || n.prompt === "none"
+        ? html`<p class="p-film__say-none">${n.prompt === "gone" ? labels.sentPromptGone : labels.sentPromptNone}</p>`
+        : html`<${Prompt} value=${n.prompt} id=${`p-film-ns-${id}-${i}`} moreWords="Read all" />`}
+    </li>`)}
+  </ul>`;
+}
+
 function Shot({ shot, number, labels }) {
   const board = safeApi(shot.board);
   const takes = items(shot.takes, MAX_TAKES);
@@ -304,6 +337,7 @@ function Shot({ shot, number, labels }) {
         ${takes.length
           ? html`<ul class="p-film__takes">${takes.map((t) => html`<${Take} key=${`${t.batch}-${t.job}-${t.take}`} take=${t} shot=${shot} labels=${labels} />`)}</ul>`
           : html`<p class="p-film__no-takes">No clip has been made for this shot yet.</p>`}
+        <${NotStarted} shot=${shot} labels=${labels} />
       </div>
     </div>
   </li>`;

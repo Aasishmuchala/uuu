@@ -467,6 +467,25 @@ test("roles v5 (T43): the Chief of staff runs a film in order, stops for the own
     "`Generation batch:` line word for word", "ANOTHER ROUND"]) assert.ok(chief.includes(s), s);
 });
 
+// T49f N1: a finished film sent back for a retake: clips in the approved batch; when its takes are used up or its
+// approval has ended, the same treatment and unchanged shotlist go back to the owner for a new batch.
+test("roles v5 (T49f): a retake of a finished film goes in its batch, or back to the owner with the same shotlist", () => {
+  const chief = read("chief-of-staff");
+  const order = ["When the owner sends a finished film back asking for a retake", "one Artist clips step for exactly the shots the owner named",
+    "inside the film's approved batch", "This shot has had every take the owner approved.", "This batch's approval has ended. Ask the owner again.",
+    "do not stop at blocked alone", "comment `SHOTLIST READY:` again for the same treatment, its `shotlist.json` unchanged",
+    "naming in that line the shots to retake", "Set the goal to blocked, and stop.", "the owner's new `SHOTLIST ACCEPTED:` (a new batch)",
+    "makes only the named shots", "Never cut or renumber `shotlist.json`", "never a third take in one batch"];
+  const from = chief.indexOf(order[0]);
+  const at = order.map((s) => chief.indexOf(s, from));
+  assert.ok(from >= 0 && at.every((i) => i >= 0), `missing: ${order.filter((_, i) => at[i] < 0).join(", ")}`);
+  assert.deepEqual([...at].sort((x, y) => x - y), at, "in this order");
+  assert.ok(chief.lastIndexOf("are the exception, below.", from) >= 0, "the blocked rule points to it");
+  const staged = readFileSync(join(companyDir, "shared", "staged.md"), "utf8");
+  for (const s of ["An approval holds until the owner accepts or stops the film, a newer approval replaces it, or its seven days end",
+    "needs `SHOTLIST READY:` again for the same shotlist and the owner's yes"]) assert.ok(staged.includes(s), s);
+});
+
 test("roles v5 (T43): the Checker checks a film's treatments, the finished film and a still", () => {
   const checker = read("checker");
   for (const s of ["A film's treatments", "Every render a shot names is in the task's list of renders", "within 5 of the seconds asked",

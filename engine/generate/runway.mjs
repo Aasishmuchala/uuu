@@ -155,6 +155,19 @@ export function failureKind(code) {
   return "failed";
 }
 
+// Whether a FAILED task's code is about the picture sent, so its bytes are not sent again with any
+// words (T49f N4): ASSET.* and Runway's image safety codes (SAFETY.INPUT.IMAGE). An input safety
+// code that names no kind counts as the picture's too (fails closed). A refusal of the words
+// (SAFETY.INPUT.TEXT, INPUT_PREPROCESSING.SAFETY.TEXT) or of the output is not: only that same
+// picture with that same prompt is barred then.
+export function pictureFailure(code) {
+  if (typeof code !== "string") return false;
+  if (/^ASSET\./.test(code)) return true;
+  if (/^(INPUT_PREPROCESSING\.)?SAFETY\./.test(code) && /\.IMAGE(\.|$)/.test(code)) return true;
+  const input = /^(?:SAFETY\.INPUT|INPUT_PREPROCESSING\.SAFETY)(?:\.([A-Za-z0-9_]+))?/.exec(code);
+  return input !== null && input[1] !== "TEXT";
+}
+
 // ---- the key, scrubbed -------------------------------------------------------------
 
 // The spellings of the key looked for in Runway's answers: the key, its JSON and percent

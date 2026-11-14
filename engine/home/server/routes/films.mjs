@@ -24,12 +24,13 @@
 //   - verdicts: the Art director's clip reviews (lib/clipreview.mjs), by the board's author id only;
 //   - the edit: a `video/<name>/manifest.json` of the goal (capped read) made by `film` from this treatment.
 // Takes are numbered per batch, as the door counts them (a take the door released, which cost nothing and does not
-// count, is left out): t1, t2 in reservation order. Nothing here writes anything. Never throws on what an agent
+// count, is left out): t1, t2 in reservation order. Such a request is listed under its shot's `notStarted` instead
+// (T49f N2): it carried the owner's key, a picture and a prompt to Runway. Nothing here writes anything. Never throws on what an agent
 // wrote; every value that comes from a file goes out as checked, capped plain text.
 import { lstatSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { directionsFor } from "../../../company/lib/craft-files.mjs";
-import { JOB_RE, readLedger, summarize } from "../../../generate/ledger.mjs";
+import { JOB_RE, notStarted as notStartedJob, readLedger, summarize } from "../../../generate/ledger.mjs";
 import { BATCH_DAYS, readBatch, workStore } from "../../../generate/state.mjs";
 import { CLIP_ID, clipReviewsOf, usableClipReview } from "../lib/clipreview.mjs";
 import { LEDGER_SENTENCES, plain, readBatchFile, resultWords } from "../lib/generation.mjs";
@@ -58,6 +59,7 @@ export const LABELS = Object.freeze({
   sentPromptGone: "No longer kept: the door keeps what it sent for two days.",
   sentPromptNone: "The door kept no copy of this prompt.",
   changed: "The shotlist was changed after you approved it. Each take shows what was sent to Runway.",
+  notStarted: "Sent, not started by Runway",
 });
 const MAX_PROMPT = 1000;
 const DAY_MS = 24 * 3600_000;
@@ -391,6 +393,21 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
         places.push({ variant: b._.approval.variant, clip });
       });
     });
+    // The requests Runway answered with a 4xx and did not start (the door's ledger verdict not_started_<status>):
+    // nothing was made or charged, but what was sent is shown, the picture and the prompt, from the door's record.
+    const notStarted = [];
+    for (const b of batches) {
+      for (const j of b._.jobs) {
+        if (j.shot !== id || !notStartedJob(j)) continue;
+        const job = JOB_RE.test(j.job) ? j.job : null;
+        const sent = files && store && job ? sentOf(store, j, now, inputs) : null;
+        notStarted.push({
+          batch: b.id, job, at: Number.isFinite(j.at) ? iso(j.at) : null, status: Number(j.end.verdict.slice(-3)), result: LABELS.notStarted,
+          sent: sent && sent !== GONE ? `/api/studio/films/${encodeURIComponent(goal.id)}/sent/${job}` : sent,
+          sentPrompt: files && store && job ? sentPromptOf(store, j) : null,
+        });
+      }
+    }
     // A clip file belongs to a take that was made, and, when two batches' takes share its name in one treatment
     // folder, to the newest of them: the file was written last for it.
     const claimed = new Set();
@@ -414,6 +431,7 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
       kind: approved ? approved.kind : last._.jobs.find((j) => j.shot === id)?.kind ?? null,
       board: boards.get(id) || null,
       takes,
+      notStarted,
       credits: takes.reduce((n, t) => n + t.credits, 0),
     };
   });

@@ -173,8 +173,10 @@ export function removeBatch(config, id) {
 }
 
 // ---- the owner's yes taken back (T48 F4)
-// A batch lives seven days, but the film or still job it was approved for may end sooner: the owner stops it, the
-// goal is finished or accepted, or a newer approval of the same goal replaces it. Then it is closed: written again
+// A batch lives seven days, but the film or still job it was approved for may end sooner: the owner accepts or picks
+// it, the owner stops it, its task is cancelled, or a newer approval of the same goal replaces it. A task the board
+// shows done is not closed by that alone (T49f N1): the owner may still send a finished film back for a retake, and
+// the yes for up to two takes a shot holds until the owner accepts or stops it, or the batch expires. Then it is closed: written again
 // whole with `expiresAt` now (and `closedAt`), so the door's own readBatch answers "expired" from then on, while
 // Studio and Settings still read what was approved. A file that cannot be written again is removed; either way the
 // door spends nothing more on it. A file of another form, or one the trust rule refuses, is one the door refuses
@@ -220,7 +222,7 @@ export function closeBatches(config, tasks, { keep = null, now = Date.now(), log
       const done = closeOne(dir, id, want, now);
       if (done) {
         out.push(id);
-        try { log(`batches: ${done} ${id}: its task was stopped, finished or approved again`); } catch { /* logging never fails a close */ }
+        try { log(`batches: ${done} ${id}: its task was accepted, stopped, cancelled or approved again`); } catch { /* logging never fails a close */ }
       }
     } catch (e) {
       try { log(`batches: ${id} could not be closed: ${String(e?.code || e?.message || e).split("\n")[0]}`); } catch { /* as above */ }
@@ -229,12 +231,13 @@ export function closeBatches(config, tasks, { keep = null, now = Date.now(), log
   return out;
 }
 
-// The batches of every task the board lists as done or cancelled, closed (the hold sweep of lib/unstick.mjs calls
-// this with the board's list each minute): a film the Chief of staff finished, or a still job's task cancelled by
-// anyone, spends nothing more. -> the ids closed. Never throws.
+// The batches of every task the board lists as cancelled, closed (the hold sweep of lib/unstick.mjs calls this with
+// the board's list each minute): a film or still job's task cancelled by anyone spends nothing more. A task shown
+// done keeps its batch until the owner accepts it (inbox/goals.mjs), stops it, or it expires (T49f N1). -> the ids
+// closed. Never throws.
 export function closeFinishedBatches(config, issues, opts = {}) {
   const finished = (Array.isArray(issues) ? issues : [])
-    .filter((i) => i && typeof i.id === "string" && (i.status === "done" || i.status === "cancelled"))
+    .filter((i) => i && typeof i.id === "string" && i.status === "cancelled")
     .map((i) => i.id);
   return closeBatches(config, finished, opts);
 }

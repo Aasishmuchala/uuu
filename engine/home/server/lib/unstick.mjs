@@ -113,7 +113,7 @@ function canHandBack(issue, action, run) {
 
 // options: board (ctx.board), ids (ctx.ids), decisions (ctx.decisions, optional), log, intervalMs, now, and
 // onIssues: called with the board's whole list of tasks once each sweep has read it (lib/app.mjs closes the
-// generation batches of finished tasks there, lib/batches.mjs closeFinishedBatches); a failure in it is logged only.
+// generation batches of cancelled tasks there, lib/batches.mjs closeFinishedBatches); a failure in it is logged only.
 export function createUnstick({ board, ids, decisions = null, log = () => {}, intervalMs = SWEEP_MS, now = () => Date.now(), onIssues = null }) {
   const checked = new Map(); // issue id -> time of its last check
   const tries = new Map(); // action id -> failed hand-backs

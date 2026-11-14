@@ -6,15 +6,21 @@
 // folder write nothing that lets the door spend. Nothing an agent wrote reaches a comment or a record.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import http from "node:http";
 import {
-  existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync,
+  chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { boardSeedV2, IDS_V2 } from "../../../test/stubs/seed.mjs";
+import { createGenerateDoor } from "../../../generate/door.mjs";
 import { appendLine } from "../../../generate/ledger.mjs";
 import { readBatch } from "../../../generate/state.mjs";
+import { mintToken } from "../../../relay/token.mjs";
+import { pngBytes, startRunway } from "../../../test/stubs/runway.mjs";
+import goalsSource from "../inbox/goals.mjs";
 import { forgetBrandChecks } from "../lib/brandcheck.mjs";
+import { closeFinishedBatches } from "../lib/batches.mjs";
 import { saveDoorKey, updateDoors } from "../lib/doors.mjs";
 import { HomeError } from "../lib/errors.mjs";
 import { SHOTLIST_CHANGED } from "../lib/inbox.mjs";
@@ -368,6 +374,111 @@ test("a newer approval of the same film closes the older batch; the newer one st
     const old = JSON.parse(readFileSync(join(h.config.paths.batches, `${first}.json`), "utf8"));
     assert.ok(Date.parse(old.closedAt) <= now && old.expiresAt === old.closedAt);
     assert.deepEqual(decisionsOf(h)[`shotlist:${GOAL}`].map((e) => e.batch), [first, second]);
+  });
+});
+
+// T49f N1: a film the board shows done keeps its batch until the owner accepts it, stops it, or a newer approval
+// replaces it: the owner approved up to two takes a shot, and may send the finished film back for a retake. The
+// generation door itself answers here (a stand-in Runway, made-up key and secret).
+async function withDoor(h, fn) {
+  const rw = await startRunway({ key: MADE_UP_KEY });
+  const p = h.config.paths;
+  const secret = "4".repeat(64);
+  mkdirSync(dirname(p.generateSecret), { recursive: true, mode: 0o700 });
+  writeFileSync(p.generateSecret, `${secret}\n`, { mode: 0o600 });
+  chmodSync(p.ids, 0o644);
+  const artist = JSON.parse(readFileSync(p.ids, "utf8")).agents.artist;
+  const door = createGenerateDoor({ listenPort: 0, upstream: rw.url, paths: p, config: { doors: { generate: { agents: ["artist"] } } }, log: () => {}, net: rw.net,
+    limits: { pollMs: 10, jobMs: 3000, downloadMs: 3000, apiMs: 2000, pollErrors: 3 } });
+  const port = await door.listen();
+  const token = mintToken(secret, "a", artist, Math.floor(Date.now() / 1000) + 3600);
+  const req = (method, path, type, body) => new Promise((resolve, reject) => {
+    const r = http.request({ host: "127.0.0.1", port, method, path, agent: false, headers: { Authorization: `Bearer ${token}`, ...(type ? { "Content-Type": type } : {}) } }, (a) => {
+      const chunks = [];
+      a.on("data", (c) => chunks.push(c));
+      a.on("end", () => { const text = Buffer.concat(chunks).toString("utf8"); let json = null; try { json = JSON.parse(text); } catch { /* bytes */ } resolve({ status: a.statusCode, text, json }); });
+    });
+    r.on("error", reject);
+    if (body !== undefined) r.write(body);
+    r.end();
+  });
+  const d = {
+    clip: async (batch, shot, n) => {
+      const input = (await req("POST", "/gen/inputs", "image/png", pngBytes(1280, 720 + n))).json.input;
+      return req("POST", "/gen/jobs", "application/json", JSON.stringify({ batch, shot, kind: "image_to_video", input, promptText: `take ${n}`, seconds: 5, ratio: "1280:720" }));
+    },
+    done: async (job) => {
+      for (let k = 0; k < 400; k += 1) {
+        const r = await req("GET", `/gen/jobs/${job}`);
+        if (["done", "failed", "refused"].includes(r.json?.state)) return r.json;
+        await new Promise((x) => setTimeout(x, 15));
+      }
+      throw new Error("the job did not end");
+    },
+  };
+  try { return await fn(d); } finally { await door.close(); await rw.close(); }
+}
+
+test("a finished film not yet accepted keeps its batch: the door makes a remaining take; Accept closes it", async () => {
+  await withFilm({}, async (h) => {
+    assert.equal((await actAsSeen(h.url, { id: ITEM, action: "approve", variant: "a" })).status, 200);
+    const [id] = batchFiles(h).map((f) => f.slice(0, -5));
+    const issue = h.board.state.issues.find((i) => i.id === GOAL);
+    issue.status = "done";
+    assert.deepEqual(closeFinishedBatches(h.config, h.board.state.issues), [], "done alone closes nothing");
+    await withDoor(h, async (d) => {
+      const first = await d.clip(id, "s02", 1);
+      assert.equal(first.status, 202, first.text);
+      assert.equal((await d.done(first.json.job)).state, "done");
+      // The owner sends the finished film back for a retake of shot 2: its second take is still approved.
+      issue.status = "todo";
+      const retake = await d.clip(id, "s02", 2);
+      assert.equal(retake.status, 202, retake.text);
+      await d.done(retake.json.job);
+      const third = await d.clip(id, "s02", 3);
+      assert.match(third.json.error.message, /every take the owner approved/, "never a third take in one batch");
+      // The owner accepts the film: its yes is taken back.
+      issue.status = "done";
+      const item = { id: `goal:${GOAL}`, kind: "result" };
+      Object.defineProperty(item, "_goalId", { value: GOAL });
+      const ctx = { config: h.config, decisions: { get: () => null, set: (_k, v) => v }, item, log() {}, board: { post: async () => ({}), patch: async () => ({}) }, fail: (s, m, n, c) => new HomeError(s, m, n, c) };
+      assert.equal((await goalsSource.act(ctx, `goal:${GOAL}`, "acknowledge", null)).message, "Accepted.");
+      const after = await d.clip(id, "s03", 4);
+      assert.deepEqual([after.json.code, after.json.error.message], ["gen_not_approved", "This batch's approval has ended. Ask the owner again."]);
+    });
+  });
+});
+
+// When the takes are used up or the approval has ended, the Chief of staff asks again with the SAME treatment and its
+// unchanged shotlist: the card comes back and its yes opens a new batch, the older one ended. A shotlist cut to the
+// shots to retake (s02 alone) is not one the card can approve: shots are numbered s01 and on with no gap, here and in
+// the art tool, which is why the role never cuts or renumbers it.
+test("a film asked again for a retake: a new SHOTLIST READY brings the card back; its yes opens a new batch, the first ends", async () => {
+  await withFilm({}, async (h, goal) => {
+    assert.equal((await actAsSeen(h.url, { id: ITEM, action: "approve", variant: "a" })).status, 200);
+    const [first] = batchFiles(h).map((f) => f.slice(0, -5));
+    const issue = h.board.state.issues.find((i) => i.id === GOAL);
+    issue.status = "blocked";
+    h.board.state.comments.push({ id: "ca000000-0000-4000-8000-000000000997", issueId: GOAL, body: "Retake shot 2: the door is crooked.", authorAgentId: null, authorUserId: "local-board", createdAt: minutes(1) });
+    h.board.state.comments.push({ id: "ca000000-0000-4000-8000-000000000998", issueId: GOAL, body: "SHOTLIST READY: treatment a again, to retake shot s02.", authorAgentId: CHIEF, authorUserId: null, createdAt: minutes(2) });
+    // Cut to shot 2 alone, treatment a cannot be approved.
+    writeShotlist(goal, "a", { ...SHOTLISTS.a, seconds: 5, shots: [shot(2)] });
+    forgetComments();
+    let a = (await itemOf(h)).variants.find((v) => v.id === "a");
+    assert.equal(a.approvable, false);
+    assert.match(a.blocked, /must have the id s01; shots are numbered s01, s02 and on, in order/);
+    // The treatment unchanged: the card offers it again.
+    writeShotlist(goal, "a", SHOTLISTS.a);
+    forgetComments();
+    a = (await itemOf(h)).variants.find((v) => v.id === "a");
+    assert.equal(a.approvable, true, a.blocked);
+    const r = await actAsSeen(h.url, { id: ITEM, action: "approve", variant: "a" });
+    assert.equal(r.status, 200, r.text);
+    const second = batchFiles(h).map((f) => f.slice(0, -5)).find((id) => id !== first);
+    assert.equal(readBatch(h.config.paths.batches, second, { slug: "artist", now: Date.now() }).ok, true);
+    assert.equal(readBatch(h.config.paths.batches, first, { slug: "artist", now: Date.now() }).why, "expired");
+    assert.deepEqual(decisionsOf(h)[`shotlist:${GOAL}`].map((e) => e.batch), [first, second]);
+    assert.ok(h.board.state.comments.some((c) => c.issueId === GOAL && c.body === `SHOTLIST ACCEPTED: a batch ${second}`));
   });
 });
 
