@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import Section, {
-  DOOR, PROBLEMS, WORDS, blockerLines, chromeOf, doorState, doorWord, heroMark, isOpen, plain, problemLine, sectionState, switchLine,
+  DOOR, PROBLEMS, WORDS, blockerLines, chromeOf, doorState, doorWord, heroMark, isOpen, plain, problemLine, sectionState, statusLine, switchLine,
   testMark, testResult, todayFigures,
 } from "../../pages/settings-viewer.js";
 import { BLOCKER_SENTENCES, DOOR_SENTENCES, PROBLEM_SENTENCES } from "../../../server/routes/viewer.mjs";
@@ -212,7 +212,8 @@ test("viewer mounted: the switch sends on; Test shows its sentence and its two p
   });
   try {
     const all = textOf(m.root);
-    assert.match(all, /Page viewer/);
+    assert.match(all, /The page viewer/, "the viewer's own row; the frame draws the section's title");
+    assert.match(all, /Opened today 0/);
     assert.match(all, /Off\. No page is opened\./);
     assert.match(all, /Chrome 142\.0\.7444\.60 is used\./);
     assert.match(all, /Opens a page built into the engine, nothing an agent made\./);
@@ -255,4 +256,32 @@ test("viewer mounted: the viewer off says so with its command; no Chrome says so
   } finally {
     m.done();
   }
+});
+
+test("viewer: its line in the list of sections is short, from what the section loads, one per state", () => {
+  const lines = {
+    off: statusLine(ready()),
+    on: statusLine(ready({ on: true, today: { renders: 0, refused: 0 } })),
+    opened: statusLine(ready({ on: true, today: { renders: 3, refused: 1 } })),
+    down: statusLine(view({ on: true, door: { state: "off", sentence: DOOR_SENTENCES.off }, chrome: { found: null, version: null } })),
+    none: statusLine(view({ on: true, chrome: { found: false, version: null } })),
+    problem: statusLine(ready({ problem: "state_unreadable" })),
+  };
+  assert.deepEqual(lines.off, { tone: "neutral", text: "Off" });
+  assert.deepEqual(lines.on, { tone: "good", text: "On, ready to open pages" });
+  assert.deepEqual(lines.opened, { tone: "good", text: "On, 3 opened today" });
+  assert.deepEqual(lines.down, { tone: "warn", text: "On, but the page viewer is not running" });
+  assert.deepEqual(lines.none, { tone: "warn", text: "On, but no Chrome was found" });
+  assert.equal(lines.problem.tone, "bad");
+  for (const l of Object.values(lines)) assert.ok(l.text.length > 0 && l.text.length <= 60, l.text);
+  assert.deepEqual(statusLine(null), { tone: "neutral", text: "Off" });
+});
+
+test("viewer: the section is groups of the kit in Settings' column: no title of its own, none of the old Web, Generation or Models classes", () => {
+  assert.match(SRC, /<div class="p-settings-viewer" id="settings-viewer">/);
+  assert.match(SRC, /<p class="k-doc__intro">\$\{WORDS\.intro\}<\/p>/);
+  assert.doesNotMatch(SRC, /p-settings__(w|g|m)-|<\$\{Section\}|<\$\{Card\}|StatusDot/);
+  const css = readFileSync(join(PUBLIC, "styles", "pages", "settings-viewer.css"), "utf8");
+  assert.doesNotMatch(css, /p-settings__/);
+  for (const sel of css.match(/^\.p-settings-viewer[^{]*(?=\{)/gm) || []) assert.match(sel.trim(), /^\.p-settings-viewer\b/);
 });

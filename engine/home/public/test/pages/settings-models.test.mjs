@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Section, {
-  NEEDS, PROBLEMS, WORDS, appLine, blockerLines, keyStatus, missingLine, modeLine, orderOptions, problemLine, sameModelLine, sectionState, testLine, usageLine,
+  NEEDS, PROBLEMS, WORDS, appLine, blockerLines, keyStatus, missingLine, modeLine, orderOptions, planLine, problemLine, sameModelLine, sectionState, statusLine, testLine, usageLine,
 } from "../../pages/settings-models.js";
 import { loadRanking, pickModels } from "../../../../company/lib/model-picks.mjs";
 
@@ -187,4 +187,38 @@ test("models: each app that asked to think is one quiet line of text: its name, 
   assert.ok(SRC.includes("<${AppsThinking} apps=${view.apps} />"), "the agents card shows the apps");
   assert.ok(/text\(a\.refused, 200\)/.test(SRC), "the refusal is the server's sentence, shown as text");
   assert.ok(!/dangerouslySetInnerHTML|innerHTML/.test(SRC), "nothing is drawn as markup");
+});
+
+test("models: the apps' lines sit under a group heading of their own, \"Apps\", drawn as quiet text", () => {
+  assert.equal(WORDS.apps, "Apps");
+  assert.match(SRC, /<\$\{Group\} title=\$\{WORDS\.apps\}>/);
+  const css = readFileSync(join(PUBLIC, "styles", "pages", "settings-models.css"), "utf8");
+  assert.match(css, /__app \{[^}]*font-size: var\(--fs-note\);[^}]*color: var\(--ink-2\)|__app \{[^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-note\)/);
+});
+
+test("models: the plan an agent runs on, in a line", () => {
+  assert.equal(planLine({ program: "claude" }, "plans"), "Runs on your Claude plan");
+  assert.equal(planLine({ program: "codex" }, "plans"), "Runs on your Codex plan");
+  assert.equal(planLine({ program: "claude" }, "provider"), "Runs on Omega Plus");
+  assert.equal(planLine(null, "plans"), "Runs on your plan");
+});
+
+test("models: its line in the list of sections is short, from what the section loads", () => {
+  assert.deepEqual(statusLine(view()), { tone: "neutral", text: "Your Claude and Codex plans" });
+  assert.deepEqual(statusLine(view({ mode: "provider", key: { saved: true, state: "ok" } })), { tone: "good", text: "Omega Plus for the agents" });
+  assert.equal(statusLine(view({ mode: "provider", key: { saved: true, state: "refused" } })).tone, "bad");
+  assert.equal(statusLine(view({ mode: "provider", relay: { state: "off" } })).tone, "warn");
+  assert.equal(statusLine(view({ problem: "state_unreadable" })).tone, "bad");
+  for (const d of [view(), view({ mode: "provider", relay: { state: "off" } }), view({ problem: "x" })]) assert.ok(statusLine(d).text.length <= 60);
+  assert.deepEqual(statusLine(null), { tone: "neutral", text: "Your Claude and Codex plans" });
+});
+
+test("models: the section is groups of the kit in Settings' column: no title of its own, none of the old classes, Save under the table", () => {
+  assert.match(SRC, /<div class="p-settings-models" id="settings-models">/);
+  assert.match(SRC, /<p class="k-doc__intro">\$\{WORDS\.intro\}<\/p>/);
+  assert.doesNotMatch(SRC, /p-settings__(w|g|m)-|<\$\{Section\}|StatusDot/);
+  assert.match(SRC, /type="submit" busy=\$\{busy === "picks"\}/);
+  const css = readFileSync(join(PUBLIC, "styles", "pages", "settings-models.css"), "utf8");
+  assert.doesNotMatch(css, /p-settings__/);
+  for (const sel of css.match(/^\.p-settings-models[^{]*(?=\{)/gm) || []) assert.match(sel.trim(), /^\.p-settings-models\b/);
 });

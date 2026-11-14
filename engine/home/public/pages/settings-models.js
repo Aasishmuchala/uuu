@@ -1,13 +1,16 @@
-// Settings: the Models section (CONTRACTS-V4 C8 and C9). The owner pastes the Omega Plus key here, tests it,
-// sees which model each agent would use, and switches the provider on or off. The key is typed into a password
-// field that the server never fills; it lives only in this component's memory until Save, and is cleared then.
+// Settings: the Models section (CONTRACTS-V4 C8 and C9; drawn as PLAN-COOK T56). The owner pastes the Omega Plus key
+// here, tests it, sees which model each agent would use, and switches the provider on or off. The settings frame
+// (pages/settings.js) draws the title and the state this module's statusLine gives; this module draws groups of the
+// kit into the column: Omega Plus (the switch with its warning, the key with Test), the model each agent uses as a
+// table with Save under it, and the apps that asked to think as quiet lines. The key is typed into a password field
+// that the server never fills; it lives only in this component's memory until Save, and is cleared then.
 // It is never put in storage, the address bar, the console or an error message.
 import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { fullWhen } from "../lib/format.js";
 import {
-  Button, Card, DataTable, Dialog, ErrorNotice, Field, Loading, Mono, NextStep, Notice, Section, Select, StatusDot, Switch, TextInput,
+  Button, Card, DataTable, Dialog, ErrorNotice, Field, Group, Loading, Mono, NextStep, Notice, Row, Rows, Select, St, Switch, TextInput,
 } from "../kit/index.js";
 
 // The sentences of C9, as written.
@@ -26,6 +29,8 @@ export const WORDS = {
   afterSwitch: "Nothing else to do. Each agent's next run uses this. Run the proof on Health to check the fence.",
   restart: "This section appears after the home screen is restarted: engine stop, then engine start.",
   switchLabel: "Use Omega Plus for the agents",
+  apps: "Apps",
+  agents: "The model each agent uses",
   // PLAN-V5 K8, as written.
   sameModel: "The Art director is on the same model as the makers. A second opinion from another model is stronger: choose one if your list has it.",
 };
@@ -141,21 +146,24 @@ export function appLine(a) {
   return `${name}: ${today.toLocaleString("en")} ${today === 1 ? "call" : "calls"} today, ${hour.toLocaleString("en")} this hour.`;
 }
 
-// The apps that asked to think (App Studio), one quiet line each, with the relay's refusal in the server's words.
-function AppsThinking({ apps }) {
-  const list = (Array.isArray(apps) ? apps : []).filter((a) => a && typeof a.slug === "string");
-  if (!list.length) return null;
-  return html`
-    <div class="p-settings__m-test">
-      <h4 class="p-settings__m-sub">Apps that think</h4>
-      <ul class="p-settings__m-answers">
-        ${list.map((a) => html`
-          <li key=${a.slug} class="p-settings__m-answer">
-            <span class="p-settings__m-text">${appLine(a)}</span>
-            ${a.refused ? html`<span class="p-settings__m-for">${text(a.refused, 200)}</span>` : null}
-          </li>`)}
-      </ul>
-    </div>`;
+// The plan an agent runs on, in a line: "Runs on your Claude plan", or Omega Plus while the switch is on.
+export function planLine(a, mode) {
+  if (mode === "provider") return "Runs on Omega Plus";
+  const program = text(a && a.program, 20);
+  return program ? `Runs on your ${program.charAt(0).toUpperCase()}${program.slice(1)} plan` : "Runs on your plan";
+}
+
+// The state line of the list of sections, from the answer of /api/models.
+export function statusLine(data) {
+  const v = data && typeof data === "object" ? data : {};
+  if (v.problem) return { tone: "bad", text: "Its settings could not be read" };
+  if (v.mode !== "provider") return { tone: "neutral", text: "Your Claude and Codex plans" };
+  const k = v.key && typeof v.key === "object" ? v.key.state : null;
+  if (k === "refused") return { tone: "bad", text: "Omega Plus refused the key" };
+  if (k === "limited") return { tone: "warn", text: "Omega Plus, its limit is reached" };
+  if (v.relay && v.relay.state !== "on") return { tone: "warn", text: "Omega Plus, but the model relay is off" };
+  if (k === "unreachable") return { tone: "warn", text: "Omega Plus is not answering" };
+  return { tone: "good", text: "Omega Plus for the agents" };
 }
 
 // The K8 sentence when the Art director's model is the Artist's, else "". The Artist stands for the makers.
@@ -176,169 +184,249 @@ export function sectionState(res) {
   return "loading";
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Parts
+// Every part is the kit's (Group, Rows, Row, DataTable, Select, Switch, St, Notice) placed into the settings column;
+// this file adds only a few lines under a row and the table's cells.
+
 // The restart sentence, with the two commands set apart. The words are C9's, unchanged.
 function RestartLine() {
-  return html`<p class="p-settings__m-restart">This section appears after the home screen is restarted: <code class="k-next__command">engine stop</code>, then <code class="k-next__command">engine start</code>.</p>`;
+  return html`<p class="p-settings-models__restart">This section appears after the home screen is restarted: <code class="k-next__command">engine stop</code>, then <code class="k-next__command">engine start</code>.</p>`;
 }
 
-// A sentence that may end in "Run: <command>".
-const Line = ({ children }) => (/\bRun:/.test(String(children)) ? html`<${NextStep} text=${children} />` : html`<p class="p-settings__m-text">${children}</p>`);
+// A sentence that may end in "Run: <command>", on a line of its own.
+const Line = ({ children }) => (/\bRun:/.test(String(children)) ? html`<${NextStep} text=${children} />` : html`<p class="p-settings-models__line">${children}</p>`);
 
-function Intro() {
+// The same inside a line of text (a row's words): the command set apart, every word kept.
+function Said({ text: t0 }) {
+  const t = String(t0 ?? "");
+  const m = /^(.*?\bRun:)\s+(.+)$/s.exec(t);
+  return m ? html`${m[1]} <code class="k-next__command">${m[2]}</code>` : t;
+}
+
+const Failure = ({ failure, where }) => (failure && failure.where === where
+  ? html`<${Notice} tone="bad" title=${failure.error.message}>${failure.error.next ? html`<${Line}>${failure.error.next}<//>` : null}<//>`
+  : null);
+
+// The helpers' tones (ok, warn, bad, off, wait, live) in the kit's.
+const TONE = { ok: "good", bad: "bad", warn: "warn" };
+const toneOf = (t) => TONE[t] || "neutral";
+
+// What follows a row inside its panel, under its words. Draws nothing when there is nothing to say.
+function More({ children }) {
+  const list = [children].flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false && c !== "");
+  return list.length ? html`<div class="p-settings-models__more">${list}</div>` : null;
+}
+
+// The apps that asked to think (App Studio), one quiet line each, with the relay's refusal in the server's words.
+function AppsThinking({ apps }) {
+  const list = (Array.isArray(apps) ? apps : []).filter((a) => a && typeof a.slug === "string");
+  if (!list.length) return null;
+  return html`<${Group} title=${WORDS.apps}>
+    <ul class="p-settings-models__apps">
+      ${list.map((a) => html`
+        <li key=${a.slug} class="p-settings-models__app">
+          <span>${appLine(a)}</span>
+          ${a.refused ? html`<span>${text(a.refused, 200)}</span>` : null}
+        </li>`)}
+    </ul>
+  <//>`;
+}
+
+// The last test: the key's verdict, what Omega Plus says about the plan, and each model asked, as lines.
+function TestResult({ test }) {
+  const plan = Array.isArray(test.plan) ? test.plan.slice(0, 12) : [];
+  const models = Array.isArray(test.models) ? test.models : [];
+  return html`<div class="p-settings-models__answer">
+    <p class="p-settings-models__line p-settings-models__answer-head">Last test${fullWhen(test.at) ? `, ${fullWhen(test.at)}` : ""}</p>
+    <p class="p-settings-models__line"><${St} tone=${test.key === "ok" ? "good" : test.key === "refused" ? "bad" : "warn"}>${testKeyLine(test.key)}<//></p>
+    ${plan.map((r, i) => html`<p key=${i} class="p-settings-models__line">${text(r.label, 80)}: ${text(r.value, 120)}</p>`)}
+    ${models.map((m) => html`<p key=${m.model} class="p-settings-models__line"><${St} tone=${m.answered ? "good" : "bad"}>${testLine(m)}${Array.isArray(m.agents) && m.agents.length ? ` For ${m.agents.map((a) => text(a, 40)).join(", ")}.` : ""}<//></p>`)}
+  </div>`;
+}
+
+function SwitchRow({ view, busy, failure, act, switched }) {
+  const on = view.mode === "provider";
+  const blockers = blockerLines(view);
+  const locked = !on && !view.canSwitchOn;
   return html`
-    <p class="p-settings__m-lead">${WORDS.intro}</p>
-    <${Notice} tone="warn">${WORDS.warning}<//>`;
+    <${Row} icon="power" title=${WORDS.switchLabel}
+      say=${html`${busy === "mode" ? WORDS.switching : modeLine(view.mode)}
+        ${locked && blockers.length ? html`<span class="p-settings-models__steps">
+          <span class="p-settings-models__line">It can be switched on when these are done:</span>
+          ${blockers.map((b, i) => html`<span key=${i} class="p-settings-models__step"><${Said} text=${b} /></span>`)}
+        </span>` : null}`}
+      control=${html`<${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
+        onChange=${(next) => act("mode", "/api/models/mode", { mode: next ? "provider" : "plans" }, next ? WORDS.on : WORDS.off, true)} />`}
+      warned=${WORDS.warning} />
+    <${More}>
+      ${switched && busy !== "mode" ? html`<${Notice} tone="ok" title=${WORDS.afterSwitch} />` : null}
+      <${Failure} failure=${failure} where="mode" />
+    <//>`;
 }
 
-function KeyCard({ view, busy, act, failure }) {
+function KeyRow({ view, busy, act, failure }) {
   const [typed, setTyped] = useState("");
   const [asking, setAsking] = useState(false);
+  const [editing, setEditing] = useState(false);
   const status = keyStatus(view.key);
   const saved = Boolean(view.key && view.key.saved);
   const t = view.lastTest;
+  const open = editing || !saved;
 
   async function save(event) {
     event.preventDefault();
     if (!typed.trim()) return;
     const ok = await act("save", "/api/models/key", { key: typed }, "The key is saved.");
     if (ok) setTyped("");
+    if (ok) setEditing(false);
+  }
+  function cancel() {
+    setTyped("");
+    setEditing(false);
   }
 
   return html`
-    <${Card} class="p-settings__m-card">
-      <div class="p-settings__m-head">
-        <h3 class="p-settings__label">Your key</h3>
-        <${StatusDot} tone=${status.tone} label=${status.word} />
-      </div>
-      <p class="p-settings__m-text">${status.sentence}</p>
-      <form class="p-settings__m-key" onSubmit=${save} autocomplete="off">
-        <${Field} label="Provider key" hint=${saved ? "Paste a new key to replace the saved one." : "It is kept on this Mac only and is never shown again."}
+    <${Row} icon="key" title="Provider key" state=${{ tone: toneOf(status.tone), text: status.word }} say=${status.sentence}
+      control=${saved ? html`
+        <${Button} size="sm" icon="play" onClick=${() => act("test", "/api/models/test", {}, "The test is done.")} busy=${busy === "test"} disabled=${Boolean(busy)}>Test<//>
+        ${editing ? null : html`<${Button} size="sm" variant="quiet" disabled=${Boolean(busy)} onClick=${() => setEditing(true)}>Replace<//>`}
+        <${Button} size="sm" variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>Remove key<//>` : null} />
+    <${More}>
+      ${open ? html`<form class="p-settings-models__key" onSubmit=${save} autocomplete="off">
+        <${Field} hint=${saved ? "Paste a new key to replace the saved one." : "It is kept on this Mac only and is never shown again."}
           error=${failure && failure.where === "save" ? failure.error : null}>
-          <${TextInput} type="password" name="provider-key" autocomplete="off" autocapitalize="off" spellcheck=${false}
-            value=${typed} onInput=${(e) => setTyped(e.currentTarget.value)} placeholder=${saved ? "A key is saved" : "Paste your key here"} />
+          <${TextInput} type="password" name="provider-key" autocomplete="off" autocapitalize="off" spellcheck=${false} aria-label="Provider key"
+            value=${typed} onInput=${(e) => setTyped(e.currentTarget.value)} placeholder=${saved ? "A key is saved" : "Paste your key here"}
+            onKeyDown=${(e) => { if (e.key === "Escape" && saved) { e.preventDefault(); cancel(); } }} />
         <//>
-        <div class="p-settings__m-buttons">
+        <span class="p-settings-models__buttons">
+          ${saved ? html`<${Button} variant="quiet" onClick=${cancel} disabled=${busy === "save"}>Cancel<//>` : null}
           <${Button} variant="primary" type="submit" busy=${busy === "save"} disabled=${Boolean(busy) || !typed.trim()}>Save key<//>
-          <${Button} onClick=${() => act("test", "/api/models/test", {}, "The test is done.")} busy=${busy === "test"} disabled=${Boolean(busy) || !saved}>Test<//>
-          <${Button} variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy) || !saved}>Remove key<//>
-        </div>
-      </form>
-      ${busy === "test" ? html`<p class="p-settings__m-text" role="status"><${StatusDot} tone="live" label="Testing the key and each picked model. This can take up to 30 seconds." /></p>` : null}
+        </span>
+      </form>` : null}
+      ${busy === "test" ? html`<p class="p-settings-models__line" role="status"><${St} icon="clock">Testing the key and each picked model. This can take up to 30 seconds.<//></p>` : null}
       ${failure && (failure.where === "test" || failure.where === "remove") ? html`<${Notice} tone="bad" title=${failure.error.message}>${failure.error.next || null}<//>` : null}
       ${t ? html`<${TestResult} test=${t} />` : null}
-      <${Dialog} open=${asking} title="Remove the key?" size="sm" onClose=${() => setAsking(false)}
-        footer=${html`
-          <${Button} data-autofocus onClick=${() => setAsking(false)}>Keep the key<//>
-          <${Button} variant="danger" onClick=${async () => { setAsking(false); await act("remove", "/api/models/key/remove", {}, "The key is removed."); }}>Remove key<//>`}>
-        <p class="p-settings__m-text">The key is deleted from this Mac.${view.mode === "provider" ? " Omega Plus is switched off first, so your agents go back to your Claude and Codex plans." : ""}</p>
-      <//>
+    <//>
+    <${Dialog} open=${asking} title="Remove the key?" size="sm" onClose=${() => setAsking(false)}
+      footer=${html`
+        <${Button} data-autofocus onClick=${() => setAsking(false)}>Keep the key<//>
+        <${Button} variant="danger" onClick=${async () => { setAsking(false); await act("remove", "/api/models/key/remove", {}, "The key is removed."); }}>Remove key<//>`}>
+      <p class="p-settings-models__line">The key is deleted from this Mac.${view.mode === "provider" ? " Omega Plus is switched off first, so your agents go back to your Claude and Codex plans." : ""}</p>
     <//>`;
 }
 
-function TestResult({ test }) {
-  const plan = Array.isArray(test.plan) ? test.plan.slice(0, 12) : [];
-  const models = Array.isArray(test.models) ? test.models : [];
-  return html`
-    <div class="p-settings__m-test">
-      <div class="p-settings__m-head">
-        <h4 class="p-settings__m-sub">Last test${fullWhen(test.at) ? `, ${fullWhen(test.at)}` : ""}</h4>
-        <${StatusDot} tone=${test.key === "ok" ? "ok" : test.key === "refused" ? "bad" : "warn"} label=${test.key === "ok" ? "Key works" : "Key problem"} />
-      </div>
-      <p class="p-settings__m-text">${testKeyLine(test.key)}</p>
-      ${plan.length ? html`
-        <dl class="p-settings__m-plan" aria-label="What Omega Plus says about your plan">
-          ${plan.map((r, i) => html`<div key=${i} class="p-settings__m-planrow"><dt>${text(r.label, 80)}</dt><dd>${text(r.value, 120)}</dd></div>`)}
-        </dl>` : null}
-      ${models.length ? html`
-        <ul class="p-settings__m-answers">
-          ${models.map((m) => html`
-            <li key=${m.model} class="p-settings__m-answer">
-              <${StatusDot} tone=${m.answered ? "ok" : "bad"} label=${testLine(m)} />
-              ${Array.isArray(m.agents) && m.agents.length ? html`<span class="p-settings__m-for">For ${m.agents.map((a) => text(a, 40)).join(", ")}</span>` : null}
-            </li>`)}
-        </ul>` : null}
-    </div>`;
+// Group 1: Omega Plus: the switch with its warning inside the panel, the key with Test, and (on request) the technical lines.
+function OmegaGroup({ view, busy, act, failure, switched, technical, setTechnical }) {
+  const aside = html`<${Button} variant="quiet" size="sm" aria-expanded=${technical ? "true" : "false"} onClick=${() => setTechnical(!technical)}>${technical ? "Hide technical details" : "Show technical details"}<//>`;
+  return html`<${Group} title="Omega Plus" aside=${aside}>
+    <${Rows}>
+      <${SwitchRow} view=${view} busy=${busy} act=${act} failure=${failure} switched=${switched} />
+      <${KeyRow} view=${view} busy=${busy} act=${act} failure=${failure} />
+      ${technical ? html`<${Row} icon="info" title="Technical details"
+        say=${html`<span class="p-settings-models__line">Provider: <${Mono}>${text(view.provider && view.provider.host, 120)}<//></span>
+          <span class="p-settings-models__line">Model relay: <${Mono}>${text(view.relay && view.relay.state, 20)}<//></span>
+          <span class="p-settings-models__line">Mode: <${Mono}>${text(view.mode, 20)}<//></span>
+          <span class="p-settings-models__line">Models in the list: <${Mono}>${Number(view.catalogue && view.catalogue.count) || 0}<//></span>`} />` : null}
+    <//>
+  <//>`;
 }
 
-function AgentsCard({ view, busy, act, failure, technical }) {
+// Group 2: the model each agent uses, one row of a table each, the model a Select, Save under the table.
+function AgentsGroup({ view, busy, act, failure, technical }) {
+  const [draft, setDraft] = useState({});
+  const [done, setDone] = useState([]);
   const readAt = view.catalogue && view.catalogue.readAt;
   const agents = Array.isArray(view.agents) ? view.agents : [];
   const missing = new Set(Array.isArray(view.missing) ? view.missing : []);
   const columns = [
-    { key: "agent", label: "Agent" },
-    { key: "needs", label: "Works on" },
-    { key: "model", label: "Model" },
-    { key: "used", label: "Used" },
+    { key: "agent", label: "Agent", align: "start" },
+    { key: "needs", label: "Works on", align: "start" },
+    { key: "model", label: "Model", align: "start" },
+    { key: "used", label: "Used", align: "end" },
   ];
+  const changed = agents.filter((a) => a && typeof a.slug === "string" && draft[a.slug] !== undefined && draft[a.slug] !== (a.pick || ""));
+  const label = (a, id) => (orderOptions(a.options).find((o) => o.value === id) || { label: "that model" }).label;
+
+  function choose(a, value) {
+    const next = { ...draft };
+    if (value === (a.pick || "")) delete next[a.slug]; else next[a.slug] = value;
+    setDraft(next);
+    setDone([]);
+  }
+  async function save(event) {
+    event.preventDefault();
+    if (!changed.length || busy) return;
+    const left = { ...draft };
+    const said = [];
+    for (const a of changed) {
+      const line = `${text(a.name, 80)} will use ${label(a, draft[a.slug])}.`;
+      const ok = await act("picks", "/api/models/pick", { agent: a.slug, model: draft[a.slug] }, line);
+      if (!ok) { setDraft(left); setDone(said); return; }
+      delete left[a.slug];
+      said.push(line);
+    }
+    setDraft({});
+    setDone(said);
+  }
+
   const cell = (a, c) => {
     if (c.key === "agent") {
-      return html`<span class="p-settings__m-agent">${text(a.name, 80)}</span>
-        ${technical ? html`<span class="p-settings__m-tech"><${Mono}>${text(a.slug, 80)}<//> on ${text(a.program, 20)}${a.plansModel ? `, ${text(a.plansModel, 40)} on the plan` : ""}</span>` : null}`;
+      return html`<span class="p-settings-models__who"><span class="p-settings-models__agent">${text(a.name, 80)}</span>
+        <span class="p-settings-models__plan">${planLine(a, view.mode)}${technical ? html` <${Mono}>${text(a.slug, 80)}<//>${a.plansModel ? `, ${text(a.plansModel, 40)} on the plan` : ""}` : ""}</span></span>`;
     }
     if (c.key === "needs") return NEEDS[a.needs] || "Nothing set";
-    if (c.key === "used") return usageLine(a.usage);
+    if (c.key === "used") return html`<span class="p-settings-models__used">${usageLine(a.usage)}</span>`;
     const opts = orderOptions(a.options);
-    if (!readAt || !opts.length) return html`<span class="p-settings__m-none">None yet</span>`;
-    const list = a.pick ? opts : [{ value: "", label: "Choose a model", disabled: true }, ...opts];
+    if (!readAt || !opts.length) return html`<span class="p-settings-models__none">None yet</span>`;
+    const shown = draft[a.slug] !== undefined ? draft[a.slug] : a.pick || "";
+    const list = shown ? opts : [{ value: "", label: "Choose a model", disabled: true }, ...opts];
     return html`
-      <div class="p-settings__m-pick">
-        <${Select} aria-label=${`Model for ${text(a.name, 80)}`} options=${list} value=${a.pick || ""}
-          disabled=${Boolean(busy)} onChange=${(e) => e.currentTarget.value && act(`pick:${a.slug}`, "/api/models/pick", { agent: a.slug, model: e.currentTarget.value }, `${a.name} will use ${e.currentTarget.selectedOptions[0]?.textContent || "that model"}.`)} />
-        ${missing.has(a.slug) ? html`<${StatusDot} tone="warn" label="No model yet" />` : null}
+      <div class="p-settings-models__pick">
+        <${Select} aria-label=${`Model for ${text(a.name, 80)}`} options=${list} value=${shown}
+          disabled=${Boolean(busy)} onChange=${(e) => e.currentTarget.value && choose(a, e.currentTarget.value)} />
+        ${missing.has(a.slug) ? html`<span class="p-settings-models__line"><${St} tone="warn">No model yet<//></span>` : null}
         ${a.source === "owner" ? html`
-          <span class="p-settings__m-chosen">Chosen by you.
+          <span class="p-settings-models__chosen">Chosen by you.
             <${Button} variant="quiet" size="sm" disabled=${Boolean(busy)}
-              onClick=${() => act(`pick:${a.slug}`, "/api/models/pick", { agent: a.slug, model: null }, `${a.name} is back on the ranked model.`)}>Use the ranked one<//></span>` : null}
-        ${technical && a.pick ? html`<span class="p-settings__m-tech"><${Mono}>${text(a.pick, 80)}<//></span>` : null}
+              onClick=${() => { choose(a, a.pick || ""); act(`pick:${a.slug}`, "/api/models/pick", { agent: a.slug, model: null }, `${a.name} is back on the ranked model.`); }}>Use the ranked one<//></span>` : null}
+        ${technical && a.pick ? html`<span class="p-settings-models__line"><${Mono}>${text(a.pick, 80)}<//></span>` : null}
       </div>`;
   };
-  return html`
-    <${Card} class="p-settings__m-card">
-      <div class="p-settings__m-head">
-        <h3 class="p-settings__label">The model each agent uses</h3>
-        ${readAt ? html`<${Button} variant="quiet" size="sm" onClick=${() => act("refresh", "/api/models/refresh", {}, "The list of models is read again.")}
-          busy=${busy === "refresh"} disabled=${Boolean(busy)}>Read the list again<//>` : null}
-      </div>
-      ${readAt
-        ? html`<p class="p-settings__m-text">The best model for each kind of work is picked for you. Change any of them here.${fullWhen(readAt) ? ` The list of ${Number(view.catalogue.count) || 0} models was read on ${fullWhen(readAt)}.` : ""}</p>`
-        : html`
-          <div class="p-settings__m-empty">
-            <p class="p-settings__m-text">${WORDS.notRead}</p>
-            <${Button} variant="primary" onClick=${() => act("refresh", "/api/models/refresh", {}, "The list of models is read.")}
-              busy=${busy === "refresh"} disabled=${Boolean(busy)}>Read the list<//>
-          </div>`}
-      ${failure && (failure.where === "refresh" || failure.where.startsWith("pick:")) ? html`<${Notice} tone="bad" title=${failure.error.message}>${failure.error.next || null}<//>` : null}
-      ${readAt && missing.size ? html`
-        <${Notice} tone="warn">
-          ${[...missing].map((s) => html`<p key=${s} class="p-settings__m-text">${missingLine((agents.find((a) => a.slug === s) || {}).name || s)}</p>`)}
-        <//>` : null}
-      ${readAt && sameModelLine(view) ? html`<${Notice} tone="warn" title=${sameModelLine(view)} />` : null}
-      ${agents.length ? html`<${DataTable} columns=${columns} rows=${agents.map((a) => ({ ...a, id: a.slug }))} renderCell=${cell} />` : null}
-      <${AppsThinking} apps=${view.apps} />
-    <//>`;
-}
 
-function SwitchCard({ view, busy, act, failure, switched }) {
-  const on = view.mode === "provider";
-  const blockers = blockerLines(view);
-  const locked = !on && !view.canSwitchOn;
-  return html`
-    <${Card} class=${`p-settings__m-card p-settings__m-switch${on ? " p-settings__m-switch--on" : ""}`}>
-      <${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
-        onChange=${(next) => act("mode", "/api/models/mode", { mode: next ? "provider" : "plans" }, next ? WORDS.on : WORDS.off, true)} />
-      <p class="p-settings__m-state" role="status">
-        ${busy === "mode"
-          ? html`<${StatusDot} tone="live" label=${WORDS.switching} />`
-          : html`<${StatusDot} tone=${on ? "ok" : "off"} label=${modeLine(view.mode)} />`}
-      </p>
-      ${locked ? html`
-        <p class="p-settings__m-text">It can be switched on when these are done:</p>
-        <ul class="p-settings__m-steps">
-          ${blockers.map((b, i) => html`<li key=${i}><${Line}>${b}<//></li>`)}
-        </ul>` : null}
-      ${switched && busy !== "mode" ? html`<${Notice} tone="ok" title=${WORDS.afterSwitch} />` : null}
-      ${failure && failure.where === "mode" ? html`<${Notice} tone="bad" title=${failure.error.message}>${failure.error.next || null}<//>` : null}
-    <//>`;
+  const aside = readAt ? html`<${Button} variant="quiet" size="sm" onClick=${() => act("refresh", "/api/models/refresh", {}, "The list of models is read again.")}
+    busy=${busy === "refresh"} disabled=${Boolean(busy)}>Read the list again<//>` : null;
+  const say = readAt
+    ? `The best model for each kind of work is picked for you. Change any of them here.${fullWhen(readAt) ? ` The list of ${Number(view.catalogue.count) || 0} models was read on ${fullWhen(readAt)}.` : ""}`
+    : null;
+  return html`<${Group} title=${WORDS.agents} aside=${aside} say=${say}>
+    ${readAt ? null : html`<${Rows}>
+      <${Row} icon="list" title=${WORDS.notRead}
+        control=${html`<${Button} variant="primary" onClick=${() => act("refresh", "/api/models/refresh", {}, "The list of models is read.")}
+          busy=${busy === "refresh"} disabled=${Boolean(busy)}>Read the list<//>`} />
+    <//>`}
+    ${failure && (failure.where === "refresh" || failure.where.startsWith("pick")) ? html`<${Notice} tone="bad" title=${failure.error.message}>${failure.error.next || null}<//>` : null}
+    ${readAt && missing.size ? html`
+      <${Notice} tone="warn">
+        ${[...missing].map((s) => html`<p key=${s} class="p-settings-models__line">${missingLine((agents.find((a) => a.slug === s) || {}).name || s)}</p>`)}
+      <//>` : null}
+    ${readAt && sameModelLine(view) ? html`<${Notice} tone="warn" title=${sameModelLine(view)} />` : null}
+    ${agents.length ? html`<${Card} padding="none" class="p-settings-models__agents">
+      <form onSubmit=${save} autocomplete="off">
+        <${DataTable} columns=${columns} rows=${agents.map((a) => ({ ...a, id: a.slug }))} renderCell=${cell} />
+        <div class="p-settings-models__foot">
+          <div class="p-settings-models__saved" role="status">
+            ${done.map((l) => html`<p key=${l} class="p-settings-models__line"><${St} tone="good">${l}<//></p>`)}
+          </div>
+          <span class="p-settings-models__buttons">
+            ${changed.length ? html`<${Button} variant="quiet" onClick=${() => setDraft({})} disabled=${Boolean(busy)}>Put back<//>` : null}
+            <${Button} variant="primary" type="submit" busy=${busy === "picks"} disabled=${Boolean(busy) || !changed.length}>Save<//>
+          </span>
+        </div>
+      </form>
+    <//>` : null}
+  <//>`;
 }
 
 export default function ModelsSection() {
@@ -373,36 +461,16 @@ export default function ModelsSection() {
     }
   }
 
-  const aside = state === "ready"
-    ? html`<${Button} variant="quiet" onClick=${() => setTechnical(!technical)}>${technical ? "Hide technical details" : "Show technical details"}<//>`
-    : null;
-
-  return html`
-    <${Section} title="Models" aside=${aside}>
-      <div class="p-settings__models">
-        <${Card} class="p-settings__m-card">
-          <div class="p-settings__m-head">
-            <h3 class="p-settings__label">Omega Plus</h3>
-            ${state === "ready" ? html`<${StatusDot} tone=${view.mode === "provider" ? "ok" : "off"} label=${view.mode === "provider" ? "On" : "Off"} />` : null}
-          </div>
-          <${Intro} />
-          ${state === "loading" ? html`<${Loading} lines=${3} label="Loading the models settings" />` : null}
-          ${state === "restart" ? html`<div class="p-settings__m-later"><${StatusDot} tone="off" label="Not here yet" /><${RestartLine} /></div>` : null}
-          ${state === "error" ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
-          ${state === "ready" && view.problem ? html`<${Notice} tone="bad"><${Line}>${problemLine(view.problem)}<//><//>` : null}
-          ${state === "ready" && view.relay && view.relay.state !== "on" ? html`<${Notice} tone="warn"><${Line}>${text(view.relay.sentence, 200) || WORDS.relayOff}<//><//>` : null}
-          ${state === "ready" && technical ? html`
-            <ul class="p-settings__m-techlist">
-              <li>Provider: <${Mono}>${text(view.provider && view.provider.host, 120)}<//></li>
-              <li>Model relay: <${Mono}>${text(view.relay && view.relay.state, 20)}<//></li>
-              <li>Mode: <${Mono}>${text(view.mode, 20)}<//></li>
-              <li>Models in the list: <${Mono}>${Number(view.catalogue && view.catalogue.count) || 0}<//></li>
-            </ul>` : null}
-        <//>
-        ${state === "ready" ? html`
-          <${KeyCard} view=${view} busy=${busy} act=${act} failure=${failure} />
-          <${AgentsCard} view=${view} busy=${busy} act=${act} failure=${failure} technical=${technical} />
-          <${SwitchCard} view=${view} busy=${busy} act=${act} failure=${failure} switched=${switched} />` : null}
-      </div>
-    <//>`;
+  return html`<div class="p-settings-models" id="settings-models">
+    <p class="k-doc__intro">${WORDS.intro}</p>
+    ${state === "loading" ? html`<div class="p-settings-models__state"><${Loading} lines=${3} label="Loading the models settings" /></div>` : null}
+    ${state === "restart" ? html`<div class="p-settings-models__state"><${St} icon="clock">Not here yet<//><${RestartLine} /></div>` : null}
+    ${state === "error" ? html`<div class="p-settings-models__state"><${ErrorNotice} error=${res.error} onRetry=${res.reload} /></div>` : null}
+    ${state === "ready" && view.problem ? html`<div class="p-settings-models__state"><${Notice} tone="bad"><${Line}>${problemLine(view.problem)}<//><//></div>` : null}
+    ${state === "ready" && view.relay && view.relay.state !== "on" ? html`<div class="p-settings-models__state"><${Notice} tone="warn"><${Line}>${text(view.relay.sentence, 200) || WORDS.relayOff}<//><//></div>` : null}
+    ${state === "ready" ? html`
+      <${OmegaGroup} view=${view} busy=${busy} act=${act} failure=${failure} switched=${switched} technical=${technical} setTechnical=${setTechnical} />
+      <${AgentsGroup} view=${view} busy=${busy} act=${act} failure=${failure} technical=${technical} />
+      <${AppsThinking} apps=${view.apps} />` : null}
+  </div>`;
 }

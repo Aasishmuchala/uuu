@@ -1,14 +1,16 @@
-// Settings: the Page viewer section (PLAN-V5 K15, T54). The switch that lets two agents, the Builder and the Art
-// director, open the pages the Builder makes in a hidden Chrome on this Mac, to take pictures of them. What it does
-// and who can ask come first, drawn as a door; then the switch, Chrome as the viewer found it, what it opened today,
-// and the owner's Test, which opens a page built into the engine (never anything an agent made) and shows its
-// pictures small. From GET /api/viewer, POST /api/viewer/switch (T52b) and POST /api/viewer/test (T52).
+// Settings: the Page viewer section (PLAN-V5 K15, T54; drawn as PLAN-COOK T56). The switch that lets two agents, the
+// Builder and the Art director, open the pages the Builder makes in a hidden Chrome on this Mac, to take pictures of
+// them. The settings frame (pages/settings.js) draws the title and the state this module's statusLine gives; this
+// module draws one panel of the kit's rows into the column: the switch with its sentence, the viewer (its state,
+// Chrome as it found it, what it opened today), and the owner's Test, which opens a page built into the engine (never
+// anything an agent made) and shows its pictures small. From GET /api/viewer, POST /api/viewer/switch (T52b) and
+// POST /api/viewer/test (T52).
 // Chrome's version and every count come from the viewer through the home server, already cut to plain text there;
 // they are shown here only as text, capped again.
 import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { Avatar, Card, ErrorNotice, Icon, Loading, NextStep, Notice, Section, ShotPair, StatusDot, Switch, Button } from "../kit/index.js";
+import { Button, ErrorNotice, Group, Icon, Loading, NextStep, Notice, Row, Rows, ShotPair, St, Switch } from "../kit/index.js";
 
 const EVERY = 10000;
 
@@ -149,114 +151,135 @@ export function sectionState(res) {
   return "loading";
 }
 
+// The state line of the list of sections, from the answer of /api/viewer.
+export function statusLine(data) {
+  const v = obj(data) ? data : {};
+  if (v.problem) return { tone: "bad", text: "Its settings could not be read" };
+  if (!v.on) return { tone: "neutral", text: "Off" };
+  if (doorState(v.door).state !== "on") return { tone: "warn", text: "On, but the page viewer is not running" };
+  if (chromeOf(v).found === false) return { tone: "warn", text: "On, but no Chrome was found" };
+  if (!isOpen(v)) return { tone: "warn", text: "On, held" };
+  const n = todayFigures(v).renders;
+  return { tone: "good", text: n ? `On, ${n} opened today` : "On, ready to open pages" };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Parts
+// Every part is the kit's (Group, Rows, Row, St, Switch, Notice, ShotPair) placed into the settings column; this file
+// adds only the drawing of the door's path.
 
 // The restart sentence, with the two commands set apart. The words are the plan's, unchanged.
 function RestartLine() {
-  return html`<p class="p-settings__m-restart">This section appears after the home screen is restarted: <code class="k-next__command">engine stop</code>, then <code class="k-next__command">engine start</code>.</p>`;
+  return html`<p class="p-settings-viewer__restart">This section appears after the home screen is restarted: <code class="k-next__command">engine stop</code>, then <code class="k-next__command">engine start</code>.</p>`;
 }
 
-// A sentence that may end in "Run: <command>".
-const Line = ({ children }) => (/\bRun:/.test(String(children)) ? html`<${NextStep} text=${children} />` : html`<p class="p-settings__m-text">${children}</p>`);
+// A sentence that may end in "Run: <command>", on a line of its own.
+const Line = ({ children }) => (/\bRun:/.test(String(children)) ? html`<${NextStep} text=${children} />` : html`<p class="p-settings-viewer__line">${children}</p>`);
+
+// The same inside a line of text (a row's words): the command set apart, every word kept.
+function Said({ text }) {
+  const t = String(text ?? "");
+  const m = /^(.*?\bRun:)\s+(.+)$/s.exec(t);
+  return m ? html`${m[1]} <code class="k-next__command">${m[2]}</code>` : t;
+}
 
 const Failure = ({ failure, where }) => (failure && failure.where === where
   ? html`<${Notice} tone="bad" title=${failure.error.message}>${failure.error.next ? html`<${Line}>${failure.error.next}<//>` : null}<//>`
   : null);
 
-// The door, drawn: the Builder and the Art director, the page viewer, a hidden Chrome. The other agents stop at the
-// door. The words around it say all of this; the drawing is for the eye only.
-function DoorMap({ view }) {
+// The helpers' tones (ok, warn, bad, off, wait, live) in the kit's.
+const TONE = { ok: "good", bad: "bad", warn: "warn" };
+const toneOf = (t) => TONE[t] || "neutral";
+
+// What follows a row inside its panel, under its words. Draws nothing when there is nothing to say.
+function More({ children }) {
+  const list = [children].flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false && c !== "");
+  return list.length ? html`<div class="p-settings-viewer__more">${list}</div>` : null;
+}
+
+// The door's path, drawn: the two agents, the page viewer, a hidden Chrome; the two lines are good when the door is
+// open. The row's sentence says the same, so the drawing is for the eye only.
+function DoorPath({ view }) {
   const open = isOpen(view);
-  const word = view ? doorWord(view) : "";
-  const chrome = view ? chromeOf(view) : { found: null };
-  return html`<div class=${`p-settings__w-map${open ? " p-settings__w-map--open" : ""}`} aria-hidden="true">
-    <span class="p-settings__w-node p-settings__w-node--agent">
-      <span class="p-settings__v-pair"><${Avatar} slug="builder" name="Builder" size=${32} /><${Avatar} name="Art director" size=${32} /></span>
-      <span class="p-settings__w-name">Builder</span>
-      <span class="p-settings__w-name p-settings__v-second">Art director</span>
-    </span>
-    <span class="p-settings__w-wire"></span>
-    <span class="p-settings__w-node p-settings__w-node--door">
-      <span class="p-settings__w-door"><${Icon} name=${open ? "check" : "lock"} size=${16} /></span>
-      <span class="p-settings__w-name">Page viewer</span>
-      ${word ? html`<span class="p-settings__w-state">${word}</span>` : null}
-    </span>
-    <span class="p-settings__w-wire p-settings__w-wire--out"></span>
-    <span class="p-settings__w-node p-settings__w-node--web">
-      <span class=${`p-settings__v-chrome${chrome.found === false ? " p-settings__v-chrome--none" : ""}`}><span class="p-settings__v-chrome-bar"></span></span>
-      <span class="p-settings__w-name">Hidden Chrome</span>
-      ${chrome.found === false ? html`<span class="p-settings__w-state">Not found</span>` : null}
-    </span>
-    <span class="p-settings__w-node p-settings__w-node--others">
-      <span class="p-settings__w-others"><${Icon} name="team" size=${16} /></span>
-      <span class="p-settings__w-name">Other agents</span>
-    </span>
-    <span class="p-settings__w-wire p-settings__w-wire--shut"><${Icon} name="cross" size=${12} /></span>
+  return html`<span class=${`p-settings-viewer__path${open ? " p-settings-viewer__path--open" : ""}`} aria-hidden="true">
+    <span class="p-settings-viewer__node"><${Icon} name="team" size=${16} />Agents</span>
+    <span class="p-settings-viewer__wire"></span>
+    <span class="p-settings-viewer__node p-settings-viewer__node--door"><${Icon} name=${open ? "check" : "lock"} size=${16} />Viewer</span>
+    <span class="p-settings-viewer__wire"></span>
+    <span class="p-settings-viewer__node"><${Icon} name="globe" size=${16} />Chrome</span>
+  </span>`;
+}
+
+// The viewer's word as a row's state: open is good; held while switched on is a look; off or closed is grey.
+function doorChip(view) {
+  const word = doorWord(view);
+  if (word === "Open") return { tone: "good", text: word };
+  const s = doorState(view.door).state;
+  return { tone: view.on && (s === "on" || s === "unhealthy") ? "warn" : "neutral", text: word };
+}
+
+// A Test's answer: the sentence with its tone's glyph and, under it, the two pictures at one size.
+function Answer({ result }) {
+  return html`<div class="p-settings-viewer__answer" role="status">
+    <p class="p-settings-viewer__line"><${St} tone=${toneOf(result.tone)}><${Said} text=${result.sentence} /><//></p>
+    ${result.desktop || result.phone ? html`<${ShotPair} desktop=${result.desktop} phone=${result.phone} label="The test page" small=${true} />` : null}
   </div>`;
 }
 
-function SwitchBlock({ view, busy, act, failure }) {
+function SwitchRow({ view, busy, act, failure }) {
   const on = Boolean(view.on);
   const locked = !on && !view.canSwitchOn;
   const reasons = blockerLines(view);
-  const mark = heroMark(view);
-  return html`<div class="p-settings__w-switch">
-    <${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
-      onChange=${(next) => act("switch", "/api/viewer/switch", { on: next }, switchLine(next))} />
-    <p class="p-settings__m-state" role="status">
-      ${busy === "switch"
-        ? html`<${StatusDot} tone="live" label=${WORDS.switching} />`
-        : html`<${StatusDot} tone=${on ? mark.tone : "off"} label=${switchLine(on)} />`}
-    </p>
-    ${locked && reasons.length ? html`
-      <p class="p-settings__m-text">It can be switched on when these are done:</p>
-      <ul class="p-settings__m-steps">
-        ${reasons.map((r, i) => html`<li key=${i}><${Line}>${r}<//></li>`)}
-      </ul>` : null}
-    <${Failure} failure=${failure} where="switch" />
-  </div>`;
+  const door = doorState(view.door);
+  // The one warning of the panel: the viewer not running while the switch is on. No Chrome is said by Chrome's row.
+  const warned = on && door.state !== "on" ? html`<${Said} text=${door.sentence} />` : null;
+  return html`
+    <${Row} icon="power" title=${WORDS.switchLabel}
+      say=${html`${busy === "switch" ? WORDS.switching : switchLine(on)}
+        ${locked && reasons.length ? html`<span class="p-settings-viewer__steps">
+          <span class="p-settings-viewer__line">It can be switched on when these are done:</span>
+          ${reasons.map((r, i) => html`<span key=${i} class="p-settings-viewer__step"><${Said} text=${r} /></span>`)}
+        </span>` : null}`}
+      control=${html`<${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
+        onChange=${(next) => act("switch", "/api/viewer/switch", { on: next }, switchLine(next))} />`}
+      warned=${warned} />
+    <${More}><${Failure} failure=${failure} where="switch" /><//>`;
 }
 
-// Chrome as found, what was opened today, and whether a page is open now. Chrome not found is said once, where it
-// is something to do: in the list under the switch while it is off, in a notice while it is on.
-function Facts({ view }) {
-  const chrome = chromeOf(view);
+// The viewer itself: its state, what was opened today, whether a page is open now, and the door's path.
+function ViewerRow({ view }) {
+  const door = doorState(view.door);
   const f = todayFigures(view);
-  return html`<div class="p-settings__v-facts">
-    ${chrome.found ? html`<p class="p-settings__v-chromeline"><${Icon} name="check" size=${16} /><span>${chrome.line}</span></p>` : null}
-    <dl class="p-settings__w-counts p-settings__v-counts" aria-label="Today">
-      ${f.tiles.map(([label, n]) => html`<div key=${label} class="p-settings__w-count"><dt>${label}</dt><dd>${n}</dd></div>`)}
-    </dl>
-    ${view.busy ? html`<p class="p-settings__m-text"><${StatusDot} tone="live" label=${WORDS.busyNow} /></p>` : null}
-  </div>`;
+  // While the switch is on and the viewer is not running, the panel's warning already says so, in the same words.
+  const said = !(view.on && door.state !== "on");
+  return html`<${Row} icon="eye" title="The page viewer" state=${doorChip(view)}
+    say=${html`${said ? html`<${Said} text=${door.sentence} />` : null}
+      <span class="p-settings-viewer__line p-settings-viewer__counts">${f.tiles.map(([label, n]) => html`<span key=${label}>${label} <b>${n}</b></span>`)}</span>
+      ${view.busy ? html`<span class="p-settings-viewer__line"><${St} icon="clock">${WORDS.busyNow}<//></span>` : null}
+      <span class="p-settings-viewer__line"><${DoorPath} view=${view} /></span>`} />`;
 }
 
-function TestCard({ view, busy, test, runTest, failure }) {
+// Chrome as the viewer found it, said once. Nothing is said while the viewer does not answer (it is not known then).
+function ChromeRow({ view }) {
+  const chrome = chromeOf(view);
+  if (chrome.found === null) return null;
+  return html`<${Row} icon="globe" title="Chrome" state=${chrome.found ? { tone: "good", text: "Found" } : { tone: "warn", text: "Not found" }}
+    say=${chrome.line} />`;
+}
+
+function TestRow({ view, busy, test, runTest, failure }) {
   const door = doorState(view.door);
   const mark = testMark(test);
   const result = test ? testResult(test) : null;
-  return html`<${Card} class="p-settings__m-card">
-    <div class="p-settings__m-head">
-      <h3 class="p-settings__label">${WORDS.test}</h3>
-      <${StatusDot} tone=${mark.tone} label=${mark.word} />
-    </div>
-    <p class="p-settings__m-text">${WORDS.testWhat}</p>
-    <div class="p-settings__m-buttons">
-      <${Button} icon="play" onClick=${runTest} busy=${busy === "test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>
-    </div>
-    ${door.state !== "on" ? html`<p class="p-settings__m-text">${WORDS.testOnce}</p>` : null}
-    ${busy === "test" ? html`<p class="p-settings__m-text" role="status"><${StatusDot} tone="live" label=${WORDS.testing} /></p>` : null}
-    <${Failure} failure=${failure} where="test" />
-    ${result && busy !== "test" ? html`
-      <div class=${`p-settings__g-answer p-settings__g-answer--${result.tone} p-settings__v-answer`} role="status">
-        <${StatusDot} tone=${result.tone} label=${result.word} hideLabel=${true} />
-        <div class="p-settings__g-answer-words">
-          ${/\bRun:/.test(result.sentence) ? html`<${NextStep} text=${result.sentence} />` : html`<p class="p-settings__g-answer-line">${result.sentence}</p>`}
-          ${result.desktop || result.phone ? html`<${ShotPair} desktop=${result.desktop} phone=${result.phone} label="The test page" small=${true} />` : null}
-        </div>
-      </div>` : null}
-  <//>`;
+  return html`
+    <${Row} icon="play" title=${WORDS.test} state=${{ tone: toneOf(mark.tone), text: mark.word }}
+      say=${html`${WORDS.testWhat}${door.state !== "on" ? html`<span class="p-settings-viewer__line">${WORDS.testOnce}</span>` : null}`}
+      control=${html`<${Button} size="sm" icon="play" onClick=${runTest} busy=${busy === "test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>`} />
+    <${More}>
+      ${busy === "test" ? html`<p class="p-settings-viewer__line" role="status"><${St} icon="clock">${WORDS.testing}<//></p>` : null}
+      <${Failure} failure=${failure} where="test" />
+      ${result && busy !== "test" ? html`<${Answer} result=${result} />` : null}
+    <//>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -273,9 +296,6 @@ export default function ViewerSection() {
   // The answer of the last action is shown until the next quiet refresh brings a newer view.
   const view = fresh && fresh.base === res.data ? fresh.view : res.data;
   const ready = state === "ready" && obj(view);
-  const on = Boolean(ready && view.on);
-  const door = ready ? doorState(view.door) : null;
-  const mark = ready ? heroMark(view) : null;
   const errorOf = (error) => ({ message: plain(error && error.message, 300) || "That did not work.", next: plain(error && error.next, 300) });
 
   async function act(where, path, body, said) {
@@ -312,32 +332,19 @@ export default function ViewerSection() {
     }
   }
 
-  return html`
-    <div class="p-settings__viewer" id="settings-viewer">
-      <${Section} title=${WORDS.title}>
-        <div class="p-settings__models">
-          <${Card} class=${`p-settings__m-card p-settings__w-hero${ready && isOpen(view) ? " p-settings__w-hero--on" : ""}${on && !isOpen(view) ? " p-settings__g-hero--held" : ""}`}>
-            <div class="p-settings__m-head">
-              <h3 class="p-settings__label">The page viewer</h3>
-              ${mark ? html`<${StatusDot} tone=${mark.tone} label=${mark.word} />` : null}
-            </div>
-            <div class="p-settings__w-intro">
-              <div class="p-settings__w-words">
-                <p class="p-settings__m-lead">${WORDS.intro}</p>
-                ${ready ? html`<${Facts} view=${view} />` : null}
-              </div>
-              <${DoorMap} view=${ready ? view : null} />
-            </div>
-            ${state === "loading" ? html`<${Loading} lines=${3} label="Loading the page viewer's settings" />` : null}
-            ${state === "restart" ? html`<div class="p-settings__m-later"><${StatusDot} tone="off" label="Not here yet" /><${RestartLine} /></div>` : null}
-            ${state === "error" ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
-            ${ready && view.problem ? html`<${Notice} tone="bad"><${Line}>${problemLine(view)}<//><//>` : null}
-            ${ready ? html`<${SwitchBlock} view=${view} busy=${busy} act=${act} failure=${failure} />` : null}
-            ${ready && on && door.state !== "on" ? html`<${Notice} tone="warn"><${Line}>${door.sentence}<//><//>` : null}
-            ${ready && on && door.state === "on" && chromeOf(view).found === false ? html`<${Notice} tone="warn" title=${WORDS.noChrome} />` : null}
-          <//>
-          ${ready ? html`<${TestCard} view=${view} busy=${busy} test=${test} runTest=${runTest} failure=${failure} />` : null}
-        </div>
+  return html`<div class="p-settings-viewer" id="settings-viewer">
+    <p class="k-doc__intro">${WORDS.intro}</p>
+    ${state === "loading" ? html`<div class="p-settings-viewer__state"><${Loading} lines=${3} label="Loading the page viewer's settings" /></div>` : null}
+    ${state === "restart" ? html`<div class="p-settings-viewer__state"><${St} icon="clock">Not here yet<//><${RestartLine} /></div>` : null}
+    ${state === "error" ? html`<div class="p-settings-viewer__state"><${ErrorNotice} error=${res.error} onRetry=${res.reload} /></div>` : null}
+    ${ready && view.problem ? html`<div class="p-settings-viewer__state"><${Notice} tone="bad"><${Line}>${problemLine(view)}<//><//></div>` : null}
+    ${ready ? html`<${Group}>
+      <${Rows}>
+        <${SwitchRow} view=${view} busy=${busy} act=${act} failure=${failure} />
+        <${ViewerRow} view=${view} />
+        <${ChromeRow} view=${view} />
+        <${TestRow} view=${view} busy=${busy} test=${test} runTest=${runTest} failure=${failure} />
       <//>
-    </div>`;
+    <//>` : null}
+  </div>`;
 }

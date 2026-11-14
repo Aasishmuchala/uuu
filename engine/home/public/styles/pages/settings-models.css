@@ -1,2 +1,277 @@
-/* page settings-models: placeholder; its part fills this in. */
-.p-settings-models { }
+/* Settings, Models (pages/settings-models.js, PLAN-COOK T56). The groups, rows, switch, table, select and notices are
+   the kit's; what is here places them in the column: the lines under a row inside its panel, the key's field in
+   place, the agents' table on a card with Save under it, and the apps as quiet lines. */
+
+.p-settings-models {
+  display: block;
+}
+
+/* The intro, a loading or a problem, before the first group. */
+.p-settings-models .p-settings-models__state {
+  margin-top: var(--s-6);
+}
+
+.p-settings-models .p-settings-models__restart {
+  margin: var(--s-2) 0 0;
+  color: var(--ink-2);
+}
+
+.p-settings-models .k-doc__intro + .k-group,
+.p-settings-models .p-settings-models__state + .k-group {
+  margin-top: var(--s-6);
+}
+
+/* The groups stack their parts 12 px apart; the column keeps 40 px between groups (the kit's). */
+.p-settings-models .k-group__body {
+  display: grid;
+  gap: var(--s-3);
+}
+
+/* ---- Lines inside a row's words and under a row */
+
+.p-settings-models .p-settings-models__line {
+  display: block;
+  margin: 0;
+  margin-top: 2px;
+}
+
+.p-settings-models .p-settings-models__steps {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--s-1);
+}
+
+.p-settings-models .p-settings-models__step {
+  display: block;
+  padding-left: var(--s-3);
+  border-left: 2px solid var(--line-2);
+}
+
+.p-settings-models .k-next__command {
+  margin-top: 0;
+}
+
+/* A state inside a row's words is said at the words' own size and weight; its glyph carries the tone. */
+.p-settings-models .p-settings-models__line .k-st,
+.p-settings-models .k-say > .k-st {
+  align-items: flex-start;
+  font-size: var(--fs-note);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-note);
+}
+
+/* What follows a row lines up under the row's words (16 + 36 + 14 px from the panel's edge). */
+.p-settings-models .p-settings-models__more {
+  display: grid;
+  gap: var(--s-2);
+  margin-top: -2px;
+  padding: 0 var(--s-4) 14px 66px;
+}
+
+.p-settings-models .p-settings-models__more .k-notice,
+.p-settings-models .p-settings-models__more .k-next {
+  margin: 0;
+}
+
+.p-settings-models .p-settings-models__answer {
+  display: grid;
+  gap: 2px;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+.p-settings-models .p-settings-models__answer .p-settings-models__line {
+  margin-top: 0;
+}
+
+.p-settings-models .p-settings-models__answer-head {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+
+/* The key's field, in place: the field and its buttons on one line, the hint under the field. */
+.p-settings-models .p-settings-models__key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+
+.p-settings-models .p-settings-models__key .k-field {
+  flex: 1 1 260px;
+  max-width: 380px;
+}
+
+.p-settings-models .p-settings-models__key .k-input {
+  min-height: var(--h-md);
+}
+
+.p-settings-models .p-settings-models__buttons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+
+/* ---- The agents: the kit's table on a card, 56 px rows, a Select in each, Save at the right under it */
+
+.p-settings-models .p-settings-models__agents .k-table {
+  padding: 0 var(--s-4);
+}
+
+.p-settings-models .p-settings-models__agents .k-table__table th {
+  padding-top: var(--s-3);
+}
+
+.p-settings-models .p-settings-models__agents .k-table__table td {
+  height: 56px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.p-settings-models .p-settings-models__agents .k-table__table th:nth-child(1),
+.p-settings-models .p-settings-models__agents .k-table__table td:nth-child(1) {
+  width: 31%;
+}
+
+.p-settings-models .p-settings-models__agents .k-table__table td:nth-child(2) {
+  white-space: nowrap;
+}
+
+.p-settings-models .p-settings-models__who {
+  display: block;
+}
+
+.p-settings-models .p-settings-models__agent {
+  display: block;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+}
+
+.p-settings-models .p-settings-models__plan {
+  display: block;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+}
+
+.p-settings-models .p-settings-models__used {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-settings-models .p-settings-models__none {
+  color: var(--ink-3);
+}
+
+.p-settings-models .p-settings-models__pick {
+  display: grid;
+  gap: var(--s-1);
+  min-width: 190px;
+}
+
+.p-settings-models .p-settings-models__pick .k-select__control {
+  min-height: var(--h-md);
+}
+
+.p-settings-models .p-settings-models__chosen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s-1);
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+}
+
+.p-settings-models .p-settings-models__chosen .k-btn {
+  margin-left: calc(var(--s-3) * -1);
+}
+
+.p-settings-models .p-settings-models__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+.p-settings-models .p-settings-models__saved {
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-settings-models .p-settings-models__foot .p-settings-models__buttons {
+  margin-left: auto;
+}
+
+/* ---- The apps: one quiet line each, 13 px in the second ink, a refusal under it */
+
+.p-settings-models .p-settings-models__apps {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-settings-models .p-settings-models__app {
+  display: grid;
+  gap: 2px;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+@media (max-width: 859px) {
+  .p-settings-models .p-settings-models__more {
+    padding-left: var(--s-4);
+  }
+
+  /* A row's warning takes the panel's whole width, so it reads in fewer lines. */
+  .p-settings-models .k-rows__warned {
+    grid-column: 1 / -1;
+  }
+
+  .p-settings-models .p-settings-models__key .k-field {
+    max-width: none;
+  }
+
+  .p-settings-models .p-settings-models__key .p-settings-models__buttons,
+  .p-settings-models .p-settings-models__foot .p-settings-models__buttons {
+    width: 100%;
+  }
+
+  .p-settings-models .p-settings-models__key .p-settings-models__buttons .k-btn,
+  .p-settings-models .p-settings-models__foot .k-btn {
+    flex: 1 1 auto;
+  }
+
+  .p-settings-models .p-settings-models__foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .p-settings-models .p-settings-models__pick {
+    min-width: 0;
+  }
+
+  .p-settings-models .p-settings-models__agents .k-table__table td {
+    height: auto;
+  }
+
+  .p-settings-models .p-settings-models__agents .k-table__table td:nth-child(1) {
+    width: auto;
+  }
+
+  .p-settings-models .p-settings-models__agents .k-table__table td:nth-child(2) {
+    white-space: normal;
+  }
+}
