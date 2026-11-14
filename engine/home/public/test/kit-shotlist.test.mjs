@@ -185,20 +185,34 @@ test("the shape file's item is a shotlist item and DecisionCard is the one card 
 
 // ---- Mounted ----
 
-test("the card: three treatments in a to c order, one approve button each but the blocked one, which says why", async () => {
+test("the card: three treatments in a to c order on one strip; one on the stage; one approve; the blocked one says why", async () => {
   const root = await showTree(sl.ShotlistCard, { item: ITEM });
   const all = textOf(root);
-  assert.equal(buttons(root, "Approve this one and its cost").length, 2);
+  const radios = elements(root).filter((e) => e.getAttribute("role") === "radio");
+  assert.equal(radios.length, 3, "one card a treatment");
+  assert.deepEqual(radios.map((r) => r.getAttribute("aria-checked")), ["true", "false", "false"], "the first is on the stage");
   assert.ok(all.indexOf("Slow approach") < all.indexOf("Details first") && all.indexOf("Details first") < all.indexOf("Day of light"));
-  assert.match(all, /This costs more than is left of today's limit \(\$0\.40\)/);
-  assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/settings"), "a link to Settings");
-  assert.match(all, /2 clips, 10 seconds: about \$0.50/);
+  assert.equal(buttons(root, "Approve A and its cost").length, 1, "one approve, for the treatment on the stage");
+  assert.equal(buttons(root, "Approve this one and its cost").length, 0);
+  // O9: with the server's numbers the money block is drawn and its cost sentence waits for the confirm.
+  assert.match(all, /Treatment A costs/);
+  assert.doesNotMatch(all, /2 clips, 10 seconds: about \$0.50/);
   assert.match(all, /Runway takes a few minutes a clip\./);
   assert.match(all, /Made from words alone/);
   assert.match(all, /Best model/);
-  assert.match(all, /s01 · 5 s/);
+  assert.match(all, /s01 · A slow push\./);
+  assert.match(all, /52 of 70, meets the bar: calm/);
   assert.equal(buttons(root, "Another round").length, 1);
   assert.equal(buttons(root, "Send all back").length, 1);
+  // B cannot be approved: choosing it puts it on the stage and locks the approval with the server's sentence.
+  fire(radios[1], "click");
+  await settle();
+  const now = textOf(root);
+  assert.equal(buttons(root, "Approve B and its cost").length, 0);
+  assert.ok(elements(root).some((e) => /\bk-locked\b/.test(e.getAttribute("class") || "")), "the approval is locked");
+  assert.match(now, /This costs more than is left of today's limit \(\$0\.40\)/);
+  assert.equal(buttons(root, "Pick A instead, it fits today").length, 1, "the way out that works");
+  assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/settings" && textOf(e).trim() === "Raise today's limit"), "a link to raise the limit");
 });
 
 test("the card: an agent's words are text, never markup; a board only from the server's address", async () => {
@@ -206,7 +220,9 @@ test("the card: an agent's words are text, never markup; a board only from the s
   const root = await showTree(sl.ShotlistCard, { item: bad });
   assert.match(textOf(root), /<b>Slow<\/b>/);
   assert.match(textOf(root), /<img src=x onerror=alert\(1\)>/);
-  assert.ok(!elements(root).some((e) => ["b", "i", "u"].includes(e.localName)));
+  // The only b, i or u elements are the kit's own empty marks (the meter's parts and its tick), never an agent's.
+  const marks = elements(root).filter((e) => ["b", "i", "u"].includes(e.localName));
+  assert.ok(marks.every((e) => textOf(e) === "" && /^k-/.test(e.getAttribute("class") || "")), JSON.stringify(marks.map((e) => e.localName)));
   const srcs = elements(root).filter((e) => e.localName === "img").map((e) => e.src ?? e.getAttribute("src"));
   assert.ok(srcs.length > 0 && srcs.every((s) => s === "/api/view/ok"), JSON.stringify(srcs));
   assert.doesNotMatch(readFileSync(join(KIT, "shotlist.js"), "utf8"), /dangerouslySetInnerHTML|innerHTML/);
@@ -217,7 +233,7 @@ test("the card: Approve opens the confirm; nothing is sent until its button; the
   try {
     let got = null;
     const root = await showTree(sl.ShotlistCard, { item: ITEM, onDone: (r) => { got = r; } });
-    fire(buttons(root, "Approve this one and its cost")[0], "click");
+    fire(buttons(root, "Approve A and its cost")[0], "click");
     await settle();
     assert.equal(f.calls.length, 0, "opening the confirm sends nothing");
     const page = textOf(root);
@@ -242,14 +258,14 @@ test("the card: a refused approval shows the server's sentence with a link to Se
   const f = stubFetch(() => ({ status: 409, body: { error: { message: "This costs more than is left of today's limit ($0.10). Raise it in Settings, or approve it tomorrow.", next: "Open Settings, then look at the card again.", code: "over_limit" } } }));
   try {
     const root = await showTree(sl.ShotlistCard, { item: ITEM });
-    fire(buttons(root, "Approve this one and its cost")[0], "click");
+    fire(buttons(root, "Approve A and its cost")[0], "click");
     await settle();
     fire(elements(root).find((e) => e.localName === "button" && /^Approve and spend/.test(textOf(e).trim())), "click");
     await settle();
     assert.equal(f.calls.length, 1);
     assert.match(textOf(root), /This costs more than is left of today's limit \(\$0\.10\)/);
     assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/settings"));
-    assert.equal(buttons(root, "Approve this one and its cost").length, 2, "the card is still there to act on");
+    assert.equal(buttons(root, "Approve A and its cost").length, 1, "the card is still there to act on");
   } finally {
     f.restore();
   }
@@ -278,6 +294,136 @@ test("the card: a problem card with no treatments says what is wrong and still o
   const root = await showTree(sl.ShotlistCard, { item: { ...ITEM, variants: [], problem: "The treatments' files are missing, so there is nothing to approve.", actions: [{ id: "send_back", label: "Send all back" }] } });
   assert.match(textOf(root), /files are missing/);
   assert.equal(buttons(root, "Approve this one and its cost").length, 0);
+  assert.equal(elements(root).filter((e) => e.localName === "button" && /^Approve/.test(textOf(e).trim())).length, 0);
   assert.equal(buttons(root, "Another round").length, 0);
   assert.equal(buttons(root, "Send all back").length, 1);
+});
+
+// ---- PLAN-COOK T40: the stage, the strip and the one decision ----
+
+const GEN = { on: true, key: true, daily: 300, monthly: 1000, dayLeft: 100, monthLeft: 630 };
+const OVER = "This costs more than is left of today's limit ($1.00). Raise it in Settings, or approve it tomorrow.";
+// A over today's limit, B over too, C fits: the numbers of section 4's first vector.
+const LAKE = {
+  ...ITEM, generation: GEN,
+  variants: [
+    variant("a", "Slow approach", { cost: { base: 185, most: 370, words: "6 clips, 30 seconds: about $1.85, up to $3.70 with one retake each.", time: "Runway takes a few minutes a clip." }, approvable: false, blocked: OVER }),
+    variant("b", "Detail to whole", { cost: { base: 240, most: 480, words: "3 clips: about $2.40.", time: "" }, approvable: false, blocked: OVER }),
+    variant("c", "Day of light", { cost: { base: 100, most: 200, words: "4 clips: about $1.00.", time: "" } }),
+  ],
+};
+const ALL_OVER = { ...LAKE, variants: LAKE.variants.map((v) => (v.id === "c" ? { ...v, cost: { ...v.cost, base: 120 }, approvable: false, blocked: OVER } : v)) };
+const hasClass = (e, c) => (e.getAttribute("class") || "").split(/\s+/).includes(c);
+const within = (root, c) => elements(root).find((e) => hasClass(e, c));
+const primaries = (root) => elements(within(root, "k-rail__foot")).filter((e) => hasClass(e, "k-btn--primary"));
+
+test("T40 words: the new labels are pinned and built from the letter", () => {
+  const W = sl.SHOTLIST_WORDS;
+  assert.equal(sl.withLetter("pickInstead", "C"), "Pick C instead, it fits today");
+  assert.equal(sl.withLetter("approveOne", "A"), "Approve A and its cost");
+  assert.equal(sl.withLetter("costs", "A"), "Treatment A costs");
+  assert.equal(sl.withLetter("overBy", "A"), "Treatment A goes over that by");
+  assert.equal(W.raise, "Raise today's limit");
+  assert.equal(W.overLimit, "Over today's limit");
+  assert.equal(W.fitsToday, "Fits today");
+  assert.equal(W.meets, "meets the bar");
+  assert.equal(W.below, "below the bar");
+  assert.equal(W.scores, "The Art director's scores");
+  assert.equal(W.notePlaceholder, "Say why, in a few words (optional)");
+  assert.equal(W.approve, "Approve this one and its cost", "the older words stay");
+});
+
+test("T40 helpers: the chip, the treatment instead, the way out, the money from the server's numbers", () => {
+  const [a, b, c] = sl.SHOTLIST_WORDS && LAKE.variants.map((v) => ({ ...v, letter: v.id.toUpperCase(), title: v.direction.title }));
+  assert.deepEqual(sl.treatmentChip(LAKE, a), { tone: "bad", icon: "lock", text: "Over today's limit" });
+  assert.deepEqual(sl.treatmentChip(LAKE, c), { tone: "good", icon: "check", text: "Fits today" });
+  assert.equal(sl.treatmentChip({}, b).text, "Locked", "no numbers: the server's blocked locks it");
+  assert.equal(sl.insteadOf(LAKE, a).id, "c");
+  assert.equal(sl.insteadOf(LAKE, c), null);
+  assert.equal(sl.insteadOf(ALL_OVER, a), null);
+  assert.deepEqual(sl.wayOut(OVER), { href: "#/settings", label: "Raise today's limit" });
+  assert.deepEqual(sl.wayOut("Generation is off or has no key yet. Open Settings."), { href: "#/settings", label: "Open Settings" });
+  assert.equal(sl.wayOut("A render is missing: dock.png."), null);
+  const m = sl.treatmentMoney(LAKE, a);
+  assert.equal(m.figure, "$1.85");
+  assert.equal(m.overBy, "$0.85");
+  assert.equal(m.tick, 77.9);
+  assert.equal(sl.treatmentMoney({}, a), null);
+  assert.equal(sl.verdictWords({ total: 41, of: 70, meets: false, reason: "short" }), "41 of 70, below the bar: short");
+  assert.equal(sl.ratioWords("1280:720"), "1280 × 720");
+  assert.equal(sl.lengthWords(variant("a", "A")), "10 s · 2 clips");
+});
+
+test("T40: the foot has one primary action at most, whatever is on the stage", async () => {
+  const root = await showTree(sl.ShotlistCard, { item: LAKE });
+  assert.equal(primaries(root).length, 1);
+  assert.equal(textOf(primaries(root)[0]).trim(), "Pick C instead, it fits today", "A is over: the way out is the primary");
+  const raise = elements(root).find((e) => e.localName === "a" && textOf(e).trim() === "Raise today's limit");
+  assert.ok(raise && hasClass(raise, "k-btn--link"), "raising the limit is a text link when a treatment fits");
+  fire(primaries(root)[0], "click");
+  await settle();
+  const radios = elements(root).filter((e) => e.getAttribute("role") === "radio");
+  assert.deepEqual(radios.map((r) => r.getAttribute("aria-checked")), ["false", "false", "true"], "choosing it puts C on the stage");
+  assert.equal(primaries(root).length, 1);
+  assert.equal(textOf(primaries(root)[0]).trim(), "Approve C and its cost");
+  const over = await showTree(sl.ShotlistCard, { item: ALL_OVER });
+  assert.equal(primaries(over).length, 1);
+  const p = primaries(over)[0];
+  assert.equal(p.localName, "a");
+  assert.equal(p.getAttribute("href"), "#/settings");
+  assert.equal(textOf(p).trim(), "Raise today's limit", "nothing fits: raising the limit is the primary");
+});
+
+test("T40: a blocked treatment is locked with the server's sentence as text, and no approve button is enabled", async () => {
+  const root = await showTree(sl.ShotlistCard, { item: LAKE });
+  const locked = within(root, "k-locked");
+  assert.ok(locked, "k-locked is drawn");
+  const why = elements(locked).find((e) => hasClass(e, "k-locked__why"));
+  assert.equal(textOf(why), OVER, "the reason is the server's sentence, as sent");
+  assert.ok(why.childNodes.every((n) => n.nodeType === 3), "as text");
+  assert.equal(elements(root).filter((e) => e.localName === "button" && /^Approve/.test(textOf(e).trim()) && e.getAttribute("disabled") === null).length, 0);
+  // The money block from the server's numbers: the figure, the one alert line, the limit.
+  const all = textOf(root);
+  assert.match(all, /about\$1\.85/);
+  assert.match(all, /Treatment A goes over that by\$0\.85/);
+  assert.doesNotMatch(all, /6 clips, 30 seconds: about \$1\.85/, "the sentence is not on the card twice (O9)");
+});
+
+test("T40: with no numbers from the server the card shows its cost sentence verbatim, and the limit lines", async () => {
+  const words = "6 clips, 30 seconds: about $1.85, up to $3.70 with one retake each. Today's limit: $3.00.";
+  const { generation, ...rest } = LAKE;
+  const item = { ...rest, details: [{ label: "Today's limit", value: "$3.00; $2.00 spent" }], variants: [variant("a", "Slow approach", { cost: { base: 185, most: 370, words } })] };
+  const root = await showTree(sl.ShotlistCard, { item });
+  const say = elements(root).filter((e) => hasClass(e, "k-money__say"));
+  assert.equal(say.length, 1);
+  assert.equal(textOf(say[0]), words);
+  assert.match(textOf(root), /Today's limit\$3\.00; \$2\.00 spent/);
+  assert.ok(!elements(root).some((e) => hasClass(e, "k-meter")), "no meter without numbers");
+});
+
+test("T40: the prompt of a shot is a text node, on the stage and in the shots table", async () => {
+  const prompt = "<script>alert(1)</script> The camera rises & turns.";
+  const item = { ...ITEM, variants: [variant("a", "A", { shotlist: { seconds: 5, ratio: "1280:720", shots: [shotOf(1, { prompt })] }, boards: [{ shot: "s01", url: img("x") }] })] };
+  const root = await showTree(sl.ShotlistCard, { item });
+  const holders = elements(root).filter((e) => e.childNodes.some((n) => n.nodeType === 3 && n.data === prompt));
+  assert.ok(holders.length >= 2, "the prompt is under the board and in the table");
+  assert.ok(!elements(root).some((e) => e.localName === "script"));
+});
+
+test("T40: the compact use draws the head, the money and one Open link to the item's own page", async () => {
+  const root = await showTree(sl.ShotlistCard, { item: LAKE, compact: true });
+  assert.ok(!elements(root).some((e) => e.getAttribute("role") === "radiogroup"), "no strip");
+  const open = elements(root).filter((e) => e.localName === "a" && textOf(e).trim() === "Open");
+  assert.equal(open.length, 1);
+  assert.equal(open[0].getAttribute("href"), "#/needs-you?item=staged%3Ashotlist%3Ag1");
+  assert.match(textOf(root), /Treatment C costsabout\$1\.00/, "the treatment that can be approved");
+});
+
+test("T40: after approval the stage keeps the approved treatment and the rail links to Studio", async () => {
+  const v = { ...LAKE.variants[2], letter: "C", title: "Day of light" };
+  const root = await showTree(sl.ShotlistDone, { done: { action: "approve", version: v, title: "Approve a shotlist: A film of the lake house", studio: "#/dashboards/studio?film=g1" } });
+  assert.match(textOf(root), /You approved C: Day of light/);
+  assert.match(textOf(root), /Approved\. The Artist will make the clips\. You can follow them in Studio\./);
+  assert.ok(elements(root).some((e) => e.localName === "img" && e.getAttribute("src") === "/api/view/bc1"));
+  assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/dashboards/studio?film=g1"));
 });

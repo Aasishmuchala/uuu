@@ -1,26 +1,37 @@
-// ShotlistCard (PLAN-V5 K14, T45): the moment the owner approves a film's shots and what they cost. A film comes
-// as one to three treatments; each stands in a column when the card is wide enough and one at a time, with a
-// numbered stepper, when it is not. A treatment shows its direction, its storyboard as a strip (each board opens
-// larger), the home server's own brand check, the Art director's scores, its shots (board, move, prompt, model,
-// credits), and at its foot the cost in words with one "Approve this one and its cost". That opens a confirm that
-// says the most Runway may charge; nothing is sent to Runway before the owner presses its button. Under the
-// treatments: the note, "Another round" and "Send all back" (a note needed). Nothing an agent wrote is ever set
-// as HTML (a title, a move, a prompt, a reason and a brand line are text nodes); a board comes only from the
-// `/api/view/<token>` address the server gave. The cost is the home server's own sum, shown as it sent it.
+// ShotlistCard (PLAN-V5 K14, T45; redrawn on the stage by PLAN-COOK T40): the moment the owner approves a film's
+// shots and what they cost. One treatment is on the stage at a time: its chosen storyboard board, large, with the
+// shot's move, prompt, render, model, length and cost under it, and the board before and after. Under the stage one
+// card per treatment in a to c order: its boards, letter and direction, cost, length and clips, whether it fits
+// today, and the Art director's total with its reason; choosing one puts it on the stage. The rail says who raised
+// it and when, then what the treatment costs against today's limit (the home server's numbers only), how long
+// Runway takes, the brand check, the seven scores and the shots, each folded. Its foot holds the one decision:
+// "Approve A and its cost", which opens a confirm that says the most Runway may charge (nothing is sent to Runway
+// before the owner presses its button); or, when the treatment cannot be approved, that action locked with the
+// server's reason under it and the one way out that works ("Pick C instead, it fits today", else the link to raise
+// the limit). Under a divider: the note, "Another round" and "Send all back" (a note needed).
+// Nothing an agent wrote is ever set as HTML (a title, a move, a prompt, a reason and a brand line are text nodes);
+// a board comes only from the `/api/view/<token>` address the server gave, through safeViewUrl. Money figures come
+// only from the server's numbers (kit/money.js moneyParts); its sentences are shown as sent.
 // Acts through POST /api/inbox/act with the item's version and, for an approval, `variant` (a, b or c).
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { when } from "../lib/format.js";
-import { Button } from "./button.js";
+import { queueHref } from "../lib/queue.js";
+import { Button, LockedAction } from "./button.js";
 import { actBody, isChangedSinceSeen, reloadInboxItem } from "./decision.js";
 import { Icon } from "./icon.js";
+import { Blk, StageLayout } from "./layout.js";
+import { MoneyBlock, moneyParts } from "./money.js";
 import { Dialog } from "./overlays.js";
-import { BrandRow, DecisionOrPick, Scores, Steps, letterOf, safeViewUrl, stepAt, versionsOf } from "./pick.js";
+import { BrandRow, DecisionOrPick, Scores, letterOf, safeViewUrl, versionsOf } from "./pick.js";
+import { Shot, StageBar } from "./stage.js";
+import { Notice } from "./states.js";
+import { OptionCard, Strip } from "./strip.js";
 import { Tag } from "./tag.js";
-import { Mono } from "./text.js";
 import { cx, nextId } from "./util.js";
 
 // ---- Words (rule 9: plain, short; the server's own sentences win where it sends them) ----
+// "%s" in a word is the treatment's letter.
 
 export const SHOTLIST_WORDS = {
   approve: "Approve this one and its cost",
@@ -50,11 +61,34 @@ export const SHOTLIST_WORDS = {
   settings: "Open Settings",
   health: "Open Health",
   gone: "It is no longer waiting for you.",
+  // PLAN-COOK T40: the stage, the strip and the rail's decision.
+  approveOne: "Approve %s and its cost",
+  pickInstead: "Pick %s instead, it fits today",
+  raise: "Raise today's limit",
+  overLimit: "Over today's limit",
+  fitsToday: "Fits today",
+  meets: "meets the bar",
+  below: "below the bar",
+  costs: "Treatment %s costs",
+  overBy: "Treatment %s goes over that by",
+  scores: "The Art director's scores",
+  brand: "Brand check",
+  notePlaceholder: "Say why, in a few words (optional)",
+  boardBefore: "The board before",
+  boardNext: "The next board",
+  open: "Open",
+  locked: "Locked",
+  approvedKind: "Approved",
+  openStudio: "Open Studio",
 };
+
+// A word with the treatment's letter in it: withLetter("approveOne", "A") is "Approve A and its cost".
+export function withLetter(key, letter) {
+  return String(SHOTLIST_WORDS[key] || "").replace("%s", text(letter));
+}
 
 const ID = /^[abc]$/;
 const GOAL_ID = /^[A-Za-z0-9-]{1,64}$/;
-const SHOTS_SHOWN = 4;
 const PROMPT_FOLD = 110;
 
 const text = (v) => (v === null || v === undefined ? "" : String(v));
@@ -214,138 +248,212 @@ export function limitLines(item) {
     .slice(0, 4).map((d) => ({ label: cap(d.label, 60), value: cap(d.value, 200) }));
 }
 
+// ---- The stage, the strip and the decision (PLAN-COOK T40) ----
+
+// The money block's parts for one treatment, from the home server's numbers only (the treatment's cost and the
+// item's generation limits), or null when they are missing (then the server's sentences are shown instead).
+export function treatmentMoney(item, v) {
+  const c = v && v.cost && typeof v.cost === "object" ? v.cost : null;
+  const g = item && item.generation && typeof item.generation === "object" ? item.generation : null;
+  if (!c || !g) return null;
+  return moneyParts({ base: c.base, most: c.most, daily: g.daily, dayLeft: g.dayLeft, monthly: g.monthly, monthLeft: g.monthLeft });
+}
+
+// Whether the server lets this treatment be approved now: it has a cost, it is approvable and nothing blocks it.
+export function canApprove(v) {
+  return Boolean(v && !v.missing && v.approvable && !v.blocked && v.cost && typeof v.cost === "object");
+}
+
+// The card's one chip: { tone, icon, text }. Over today's limit by the server's numbers, else held back by the
+// server, else it fits today.
+export function treatmentChip(item, v) {
+  if (!v) return null;
+  if (v.missing) return { tone: "bad", icon: "alert", text: SHOTLIST_WORDS.missingNext };
+  const parts = treatmentMoney(item, v);
+  if (parts && parts.blocked) return { tone: "bad", icon: "lock", text: SHOTLIST_WORDS.overLimit };
+  if (!canApprove(v)) return { tone: "bad", icon: "lock", text: SHOTLIST_WORDS.locked };
+  return { tone: "good", icon: "check", text: SHOTLIST_WORDS.fitsToday };
+}
+
+// The other treatment the owner can approve instead of `v`, in a to c order, or null.
+export function insteadOf(item, v) {
+  return versionsOf(item).find((x) => x.id !== (v && v.id) && canApprove(x)) || null;
+}
+
+// The way out of a blocked treatment: { href, label }. A sentence about today's limit raises it in Settings; one
+// about Settings or Health opens that page; anything else has none.
+export function wayOut(sentence) {
+  const t = text(sentence);
+  if (/today's limit/i.test(t)) return { href: "#/settings", label: SHOTLIST_WORDS.raise };
+  return linkFor(t);
+}
+
+// "30 s · 6 clips" for a card.
+export function lengthWords(v) {
+  const sl = v && v.shotlist;
+  if (!sl) return "";
+  const n = list(sl.shots).length;
+  return [Number.isFinite(sl.seconds) ? `${sl.seconds} s` : "", n ? clips(n) : ""].filter(Boolean).join(" · ");
+}
+
+// "52 of 70, meets the bar: calm and exact" from the Art director's review, or "".
+export function verdictWords(review) {
+  const r = review && typeof review === "object" ? review : null;
+  if (!r || !Number.isFinite(r.total) || !Number.isFinite(r.of)) return cap(r && r.reason, 200);
+  const bar = r.meets === true ? SHOTLIST_WORDS.meets : r.meets === false ? SHOTLIST_WORDS.below : "";
+  const reason = cap(r.reason, 200);
+  return `${r.total} of ${r.of}${bar ? `, ${bar}` : ""}${reason ? `: ${reason}` : ""}`;
+}
+
+// "1280 × 720" for the server's "1280:720".
+export function ratioWords(ratio) {
+  const r = cap(ratio, 20);
+  const m = /^(\d{2,5}):(\d{2,5})$/.exec(r);
+  return m ? `${m[1]} × ${m[2]}` : r;
+}
+
+// The kind line over the title: "Chief of staff · today 08:09 · round 1".
+export function shotlistKind(item) {
+  const round = Number.isInteger(item && item.round) ? `round ${item.round}` : "";
+  return [cap(item && item.raisedBy, 60), when(item && item.when), round].filter(Boolean).join(" · ");
+}
+
 // ---- Parts ----
 
-function Boards({ boards, label }) {
-  const [open, setOpen] = useState(-1);
-  if (!boards.length) return null;
+// The facts under the board on the stage: "from tower.png · gen4_turbo · 5 s".
+function shotFacts(s) {
+  return [s.wordsAlone ? SHOTLIST_WORDS.wordsAlone : s.render ? `from ${s.render}` : "", s.model,
+    s.label.includes(" · ") ? s.label.split(" · ")[1] : ""].filter(Boolean).join(" · ");
+}
+
+// The stage: the chosen board, large, the bar above it, the reel of boards beside it and the shot's words under it.
+function TreatmentStage({ v, at, onAt }) {
+  const boards = boardRows(v);
+  const rows = shotRows(v);
   const n = boards.length;
-  const at = open < 0 ? 0 : Math.min(open, n - 1);
-  return html`<div class="k-sl__boards">
-    <ul class="k-sl__strip" aria-label=${`${label}: ${SHOTLIST_WORDS.boards.toLowerCase()}`}>
-      ${boards.map((b, i) => html`<li key=${b.shot} class="k-sl__strip-item">
-        <button type="button" class="k-sl__board" onClick=${() => setOpen(i)} aria-label=${`${label}: open the board of ${b.shot} larger`}>
-          <img src=${b.url} alt="" loading="lazy" decoding="async" />
-          <span class="k-sl__board-id" aria-hidden="true">${b.shot}</span>
-        </button>
-      </li>`)}
-    </ul>
-    <${Dialog} open=${open >= 0} title=${`${label}: board ${boards[at].shot}, ${at + 1} of ${n}`} size="lg" onClose=${() => setOpen(-1)}
-      footer=${n > 1 ? html`<div class="k-pick__dialog-nav">
-        <${Button} variant="plain" icon="arrow-left" disabled=${at === 0} onClick=${() => setOpen(at - 1)}>Previous<//>
-        <${Button} variant="plain" icon="arrow-right" disabled=${at === n - 1} onClick=${() => setOpen(at + 1)}>Next<//>
-      </div>` : null}>
-      <figure class="k-pick__large"><img src=${boards[at].url} alt=${`${label}, board ${boards[at].shot}`} decoding="async" /></figure>
-    <//>
+  const i = n ? Math.min(Math.max(at, 0), n - 1) : 0;
+  const b = n ? boards[i] : null;
+  const s = (b && rows.find((r) => r.id === b.shot)) || (!n ? rows[0] : null) || null;
+  const name = v.letter ? `Treatment ${v.letter}` : v.title;
+  const ratio = ratioWords(v.shotlist && v.shotlist.ratio);
+  const bar = html`<${StageBar}>
+    <span class="k-sl__bar-name">${SHOTLIST_WORDS.boards}</span>${ratio ? html`<span class="k-sl__ratio">${ratio}</span>` : null}
+    <span class="k-stagebar__gap"></span>
+    ${n > 1 ? html`<span class="k-sl__count" aria-live="polite">${`${i + 1} of ${n}`}</span>
+      <${Button} size="sm" icon="chevron-left" aria-label=${SHOTLIST_WORDS.boardBefore} disabled=${i === 0} onClick=${() => onAt(i - 1)} />
+      <${Button} size="sm" icon="chevron-right" aria-label=${SHOTLIST_WORDS.boardNext} disabled=${i === n - 1} onClick=${() => onAt(i + 1)} />` : null}
+  <//>`;
+  if (v.missing || !n) {
+    return html`${bar}<div class="k-sl__empty"><p>${v.missing ? SHOTLIST_WORDS.missing : SHOTLIST_WORDS.noPlan}</p>
+      ${v.missing ? html`<p class="k-sl__empty-next">${SHOTLIST_WORDS.missingNext}</p>` : null}</div>
+      ${s ? html`<${Caption} s=${s} />` : null}`;
+  }
+  return html`${bar}
+    <div class=${cx("k-sl__boards", n > 1 && "k-sl__boards--reel")}>
+      <${Shot} src=${b.url} alt=${`${name}, board ${b.shot}`} tags=${[{ text: b.shot, at: "tl" }]}>
+        ${s ? html`<${Caption} s=${s} />` : null}
+      <//>
+      ${n > 1 ? html`<div class="k-sl__reel">
+        ${boards.map((x, k) => html`<button key=${x.shot} type="button" class="k-sl__reel-board" tabindex="-1"
+          aria-label=${`${name}, board ${x.shot}`} aria-pressed=${k === i ? "true" : "false"} onClick=${() => onAt(k)}>
+          <img src=${x.url} alt="" loading="lazy" decoding="async" /><span class="k-sl__reel-id" aria-hidden="true">${x.shot}</span>
+        </button>`)}
+      </div>` : null}
+    </div>`;
+}
+
+function Caption({ s }) {
+  const title = s.move ? `${s.id} · ${s.move}` : s.id;
+  return html`<div class="k-sl__caption">
+    <span class="k-sl__caption-title">${title}</span>
+    ${s.credits !== null ? html`<span class="k-sl__caption-cost">${creditsDollars(s.credits)}</span>` : html`<span></span>`}
+    ${s.prompt ? html`<span class="k-sl__caption-prompt">${s.prompt}</span>` : html`<span></span>`}
+    <span class="k-sl__caption-facts">${shotFacts(s)}</span>
   </div>`;
 }
 
-function Shot({ s, baseId }) {
-  const [open, setOpen] = useState(false);
-  const folds = foldsPrompt(s.prompt);
-  const pid = `${baseId}-${s.id}-prompt`;
-  return html`<li class="k-sl__shot">
-    <span class="k-sl__thumb" aria-hidden="true">${s.board ? html`<img src=${s.board} alt="" loading="lazy" decoding="async" />` : null}</span>
-    <div class="k-sl__shot-body">
-      <p class="k-sl__shot-top">
-        <span class="k-sl__shot-id">${s.label}</span>
-        ${s.credits !== null && html`<span class="k-sl__shot-credits">${creditsDollars(s.credits)}</span>`}
-      </p>
-      ${s.render && html`<p class="k-sl__shot-render">${s.render}</p>`}
-      ${s.move && html`<p class="k-sl__shot-move">${s.move}</p>`}
-      ${s.prompt && html`<p id=${pid} class=${cx("k-sl__shot-prompt", folds && !open && "k-sl__shot-prompt--folded")}>${s.prompt}</p>`}
-      ${folds && html`<button type="button" class="k-pick__more" aria-expanded=${open ? "true" : "false"} aria-controls=${pid}
-        onClick=${() => setOpen(!open)}>${open ? SHOTLIST_WORDS.readLess : SHOTLIST_WORDS.readAll}</button>`}
-      <p class="k-sl__shot-meta">
-        ${s.model && html`<${Mono}>${s.model}<//>`}
-        ${s.wordsAlone && html`<${Tag}>${SHOTLIST_WORDS.wordsAlone}<//>`}
-        ${s.best && html`<${Tag} tone="ok">${SHOTLIST_WORDS.bestModel}<//>`}
-      </p>
-    </div>
-  </li>`;
+// The props of one treatment's card in the strip. The strip is given OptionCards themselves (not a wrapper), so it
+// knows it is a radio group: one Tab stop, the arrows move the treatment.
+function cardProps({ item, v, checked, board, onPick, onBoard }) {
+  const boards = boardRows(v).map((b, k) => ({
+    src: b.url, alt: "", label: `${v.letter ? `Treatment ${v.letter}` : v.title}, board ${b.shot}`, on: checked && k === board,
+    onClick: (e) => { if (e && e.stopPropagation) e.stopPropagation(); onBoard(k); },
+  }));
+  const cost = v.cost && Number.isInteger(v.cost.base) ? creditsDollars(v.cost.base) : "";
+  return {
+    checked, onPick, title: v.letter ? `${v.letter} · ${v.title}` : v.title, amount: cost, sub: lengthWords(v),
+    state: treatmentChip(item, v), say: v.missing ? SHOTLIST_WORDS.missing : verdictWords(v.review), boards: boards.length ? boards : undefined,
+  };
 }
 
-function Shots({ v, baseId }) {
-  const [all, setAll] = useState(false);
+// A fold of the rail: a heading that opens what is under it.
+function Fold({ title, aside, children }) {
+  return html`<details class="k-sl__fold">
+    <summary class="k-sl__fold-head">
+      <span class="k-sl__fold-name">${title}</span>
+      ${aside ? html`<span class="k-sl__fold-aside">${aside}</span>` : null}
+      <${Icon} name="chevron-down" size=${16} class="k-sl__fold-mark" />
+    </summary>
+    <div class="k-sl__fold-body">${children}</div>
+  </details>`;
+}
+
+// The shots as a table: the board, the move with its prompt and facts, the cost on the right edge.
+function ShotTable({ v }) {
   const rows = shotRows(v);
   if (!rows.length) return null;
-  const shown = all ? rows : rows.slice(0, SHOTS_SHOWN);
-  const id = `${baseId}-shots`;
-  return html`<div class="k-sl__table">
-    <h4 class="k-sl__sub">${SHOTLIST_WORDS.shots}</h4>
-    <ol id=${id} class="k-sl__shots" aria-label=${`${SHOTLIST_WORDS.shots}, ${rows.length}`}>
-      ${shown.map((s) => html`<${Shot} key=${s.id} s=${s} baseId=${baseId} />`)}
-    </ol>
-    ${rows.length > SHOTS_SHOWN && html`<button type="button" class="k-pick__more" aria-expanded=${all ? "true" : "false"} aria-controls=${id}
-      onClick=${() => setAll(!all)}>${all ? "Show fewer shots" : `Show all ${rows.length} shots`}</button>`}
-  </div>`;
+  return html`<table class="k-sl__table">
+    <thead><tr><th scope="col"><span class="k-sr">Board</span></th><th scope="col">Shot</th><th scope="col" class="k-sl__num">Cost</th></tr></thead>
+    <tbody>
+      ${rows.map((s) => html`<tr key=${s.id}>
+        <td class="k-sl__table-pic">${s.board ? html`<img src=${s.board} alt="" loading="lazy" decoding="async" />` : null}</td>
+        <td>
+          <p class="k-sl__table-move">${s.move ? `${s.id} · ${s.move}` : s.id}</p>
+          ${s.prompt ? html`<p class="k-sl__table-prompt">${s.prompt}</p>` : null}
+          <p class="k-sl__table-facts">
+            <span>${[s.render, s.model, s.label.includes(" · ") ? s.label.split(" · ")[1] : ""].filter(Boolean).join(" · ")}</span>
+            ${s.wordsAlone ? html`<${Tag}>${SHOTLIST_WORDS.wordsAlone}<//>` : null}
+            ${s.best ? html`<${Tag} tone="ok">${SHOTLIST_WORDS.bestModel}<//>` : null}
+          </p>
+        </td>
+        <td class="k-sl__num">${s.credits !== null ? creditsDollars(s.credits) : ""}</td>
+      </tr>`)}
+    </tbody>
+  </table>`;
 }
 
-function Cost({ v, quiet }) {
-  const c = v.cost;
-  if (!c || typeof c !== "object") return quiet ? null : html`<p class="k-sl__cost-none">${SHOTLIST_WORDS.noCost}</p>`;
+// What the treatment costs: the money block from the server's numbers, or its sentences when the numbers are missing.
+function Money({ item, v }) {
+  if (v.missing) return null;
+  const c = v.cost && typeof v.cost === "object" ? v.cost : null;
+  const label = withLetter("costs", v.letter || "");
+  if (!c) return html`<${Blk}><p class="k-sl__say">${SHOTLIST_WORDS.noCost}</p><//>`;
+  const parts = treatmentMoney(item, v);
   const time = cap(c.time, 300);
-  return html`<div class="k-sl__cost">
-    <p class="k-sl__cost-words">${cap(c.words, 500)}</p>
-    ${time && html`<p class="k-sl__cost-time"><${Icon} name="clock" size=${14} /><span>${time}</span></p>`}
-  </div>`;
-}
-
-function Treatment({ v, level, baseId, shared, busy, stopped, onApprove }) {
-  const id = `${baseId}-${v.id}`;
-  const H = `h${Math.min(Math.max(level, 2), 6)}`;
-  const head = html`<div class="k-pick__head">
-    ${v.letter && html`<span class="k-pick__letter" aria-hidden="true">${v.letter}</span>`}
-    <div class="k-pick__names">
-      <${H} class="k-pick__name">${v.letter ? html`<span class="k-sr">Treatment ${v.letter}: </span>` : null}${v.title}<//>
-      ${factsOf(v) && html`<p class="k-sl__facts">${factsOf(v)}</p>`}
-    </div>
-  </div>`;
-  if (v.missing) {
-    return html`<li class="k-pick__version k-sl__version k-pick__version--missing" id=${id}>
-      ${head}
-      <p class="k-pick__none k-pick__none--missing"><${Icon} name="alert" size=${14} /><span>${SHOTLIST_WORDS.missing}</span></p>
-      <p class="k-pick__caption">${SHOTLIST_WORDS.missingNext}</p>
-    </li>`;
-  }
-  const blocked = blockedOf(v);
-  const mine = busy && busy.action === "approve" && busy.variant === v.id;
-  const label = v.letter ? `Treatment ${v.letter}: ${v.title}` : v.title;
-  return html`<li class="k-pick__version k-sl__version" id=${id}>
-    ${head}
-    ${v.shotlist && v.shotlist.title && html`<p class="k-sl__film">${cap(v.shotlist.title, 120)}</p>`}
-    <${Boards} boards=${boardRows(v)} label=${label} />
-    ${!boardRows(v).length && html`<p class="k-pick__none">${SHOTLIST_WORDS.noPlan}</p>`}
-    <${BrandRow} brand=${v.brand} />
-    <${Scores} review=${v.review} kind="film" />
-    <${Shots} v=${v} baseId=${id} />
-    <div class="k-sl__foot">
-      <${Cost} v=${v} quiet=${Boolean(blocked)} />
-      ${blocked
-        ? html`<div class="k-sl__blocked" role="note">
-            <${Icon} name="alert" size=${14} />
-            <div>
-              <p>${shared ? SHOTLIST_WORDS.shared : blocked.text}</p>
-              ${!shared && blocked.link && html`<a class="k-pick__link" href=${blocked.link.href}>${blocked.link.label}</a>`}
-            </div>
-          </div>`
-        : html`<${Button} variant="primary" class="k-pick__button" busy=${mine} disabled=${stopped || !v.approvable || !v.cost}
-            aria-label=${approveLabel(v)} onClick=${(e) => onApprove(v, e)}>${SHOTLIST_WORDS.approve}<//>`}
-    </div>
-  </li>`;
+  const limits = parts ? [] : limitLines(item);
+  return html`<${Blk}>
+    <${MoneyBlock} label=${label} parts=${parts} words=${parts ? [] : [cap(c.words, 500)]} overWords=${withLetter("overBy", v.letter || "")} />
+    ${limits.length ? html`<dl class="k-sl__limits">
+      ${limits.map((d, i) => html`<div key=${i} class="k-sl__limit"><dt>${d.label}</dt><dd>${d.value}</dd></div>`)}
+    </dl>` : null}
+    ${time ? html`<p class="k-sl__time"><${Icon} name="clock" size=${14} /><span>${time}</span></p>` : null}
+  <//>`;
 }
 
 function Confirm({ v, busy, onYes, onNo }) {
   const w = confirmWords(v);
   if (!w) return null;
+  const words = cap(v.cost && v.cost.words, 500);
   return html`<${Dialog} open=${true} title=${w.title} size="sm" onClose=${() => { if (!busy) onNo(); }}
     footer=${html`<${Button} variant="plain" data-autofocus="" disabled=${busy} onClick=${onNo}>${SHOTLIST_WORDS.notYet}<//>
       <${Button} variant="primary" busy=${busy} onClick=${onYes}>${w.button}<//>`}>
     <p class="k-sl__confirm">${w.body}</p>
+    ${words ? html`<p class="k-sl__confirm k-sl__confirm--words">${words}</p>` : null}
   <//>`;
 }
 
-// What the card becomes after an action: the server's message, and for an approval where to follow the film.
+// What the card becomes after an action: for an approval the stage with the approved treatment and a rail that says
+// so and links to Studio; otherwise the server's message on one line.
 export function ShotlistDone({ done, focus = true }) {
   const ref = useRef(null);
   useEffect(() => { if (focus && ref.current && typeof ref.current.focus === "function") ref.current.focus(); }, []);
@@ -353,20 +461,53 @@ export function ShotlistDone({ done, focus = true }) {
   const v = done.version || null;
   const shot = v ? boardRows(v)[0] : null;
   const approved = done.action === "approve";
-  return html`<div class="k-pick k-pick--done" role="status" tabindex="-1" ref=${ref}>
-    ${shot && html`<img class="k-pick__done-shot" src=${shot.url} alt="" loading="lazy" decoding="async" />`}
-    <div class="k-pick__done-text">
-      ${done.title && html`<p class="k-pick__done-title">${done.title}</p>`}
-      ${v && approved && html`<p class="k-pick__done-choice"><${Icon} name="check" size=${14} /><span>${v.letter ? `You approved ${v.letter}: ${v.title}` : `You approved ${v.title}`}</span></p>`}
-      <p class="k-pick__done-message">${approved && done.studio
-        ? html`${SHOTLIST_WORDS.approved}<a class="k-pick__link" href=${done.studio}>${SHOTLIST_WORDS.studio}</a>.`
-        : text(done.message)}</p>
+  const choice = v && approved ? (v.letter ? `You approved ${v.letter}: ${v.title}` : `You approved ${v.title}`) : "";
+  const message = html`<p class="k-sl__done-message">${approved && done.studio
+    ? html`${SHOTLIST_WORDS.approved}<a class="k-sl__link" href=${done.studio}>${SHOTLIST_WORDS.studio}</a>.`
+    : text(done.message)}</p>`;
+  if (approved && v) {
+    const name = v.letter ? `Treatment ${v.letter}` : v.title;
+    const stage = shot
+      ? html`<${Shot} src=${shot.url} alt=${`${name}, board ${shot.shot}`} tags=${[{ text: SHOTLIST_WORDS.boards, at: "tl" }]} />`
+      : html`<div class="k-sl__empty"><p>${v.title}</p></div>`;
+    return html`<div class="k-sl k-sl--done" role="status" tabindex="-1" ref=${ref}>
+      <${StageLayout} kind=${`${SHOTLIST_WORDS.approvedKind} · ${name}`} title=${done.title || v.title} label=${name} stage=${stage}
+        foot=${done.studio ? html`<${Button} href=${done.studio}>${SHOTLIST_WORDS.openStudio}<//>` : null}
+        rail=${html`<${Blk}>
+          <p class="k-sl__done-choice"><${Icon} name="check" size=${16} /><span>${choice}</span></p>
+          ${message}
+          ${v.cost && Number.isInteger(v.cost.base) ? html`<dl class="k-sl__limits"><div class="k-sl__limit"><dt>${withLetter("costs", v.letter || "")}</dt><dd>${creditsDollars(v.cost.base)}</dd></div></dl>` : null}
+        <//>`} />
+    </div>`;
+  }
+  return html`<div class="k-sl k-sl--done k-sl--done-line" role="status" tabindex="-1" ref=${ref}>
+    <${Icon} name="check" size=${16} />
+    <div class="k-sl__done-text">
+      ${done.title ? html`<p class="k-sl__done-title">${done.title}</p>` : null}
+      ${message}
     </div>
   </div>`;
 }
 
-// ShotlistCard({ item, onDone, level, focusDone }) for a Needs-you item of kind "shotlist".
-export function ShotlistCard({ item = null, onDone, level = 4, focusDone = true }) {
+// The compact use in a list: the head, what the first treatment that can be approved costs, and "Open".
+function ShotlistCompact({ item }) {
+  const versions = versionsOf(item).filter((v) => !v.missing);
+  const v = versions.find(canApprove) || versions[0] || null;
+  return html`<article class="k-sl k-sl--compact" aria-label=${text(item.title)}>
+    <p class="k-sl__kind">${shotlistKind(item)}</p>
+    <h3 class="k-sl__compact-title">${text(item.title)}</h3>
+    ${item.summary ? html`<p class="k-sl__say">${text(item.summary)}</p>` : null}
+    ${v && v.cost ? html`<div class="k-sl__compact-money">
+      <${MoneyBlock} label=${withLetter("costs", v.letter || "")} parts=${treatmentMoney(item, v)} words=${[cap(v.cost.words, 500)]}
+        overWords=${withLetter("overBy", v.letter || "")} />
+    </div>` : null}
+    <div class="k-sl__compact-foot"><${Button} href=${queueHref(item)}>${SHOTLIST_WORDS.open}<//></div>
+  </article>`;
+}
+
+// ShotlistCard({ item, onDone, compact, focusDone }) for a Needs-you item of kind "shotlist". `compact` (a list's
+// card) draws the head, the money and "Open"; otherwise the card is the whole stage.
+export function ShotlistCard({ item = null, onDone, compact = false, focusDone = true }) {
   const [baseId] = useState(() => nextId("k-sl"));
   const [note, setNote] = useState("");
   const [needNote, setNeedNote] = useState(false);
@@ -377,9 +518,11 @@ export function ShotlistCard({ item = null, onDone, level = 4, focusDone = true 
   const [fresh, setFresh] = useState(null);
   const [reloading, setReloading] = useState(false);
   const [gone, setGone] = useState(false);
-  const [current, setCurrent] = useState(0);
+  const [chosen, setChosen] = useState(null);
+  const [board, setBoard] = useState(0);
+  const [moved, setMoved] = useState(false);
   const noteRef = useRef(null);
-  const track = useRef(null);
+  const footRef = useRef(null);
   const opener = useRef(null);
   const changed = isChangedSinceSeen(error);
 
@@ -401,17 +544,25 @@ export function ShotlistCard({ item = null, onDone, level = 4, focusDone = true 
     return () => { live = false; };
   }, [changed, error]);
 
+  // After "Pick C instead" the decision stays where the owner was: focus goes to the foot's primary action.
+  useEffect(() => {
+    if (!moved) return;
+    setMoved(false);
+    const el = footRef.current;
+    const b = el && el.querySelector ? el.querySelector(".k-sl__primary .k-btn--primary") : null;
+    if (b && typeof b.focus === "function") b.focus();
+  }, [moved]);
+
   const shown = fresh && item && fresh.id === item.id ? fresh : item;
   if (!shown) return null;
   if (done) return html`<${ShotlistDone} done=${done} focus=${focusDone} />`;
+  if (compact) return html`<${ShotlistCompact} item=${shown} />`;
 
   const versions = versionsOf(shown);
-  const open = versions.filter((v) => !v.missing);
-  const n = versions.length;
+  const v = versions.find((x) => x.id === chosen) || versions[0] || null;
   const stopped = Boolean(busy) || reloading || gone;
-  const round = Number.isInteger(shown.round) ? shown.round : null;
   const shared = sharedBlock(shown);
-  const confirmV = confirmFor ? versions.find((v) => v.id === confirmFor && !v.missing) || null : null;
+  const confirmV = confirmFor ? versions.find((x) => x.id === confirmFor && !x.missing) || null : null;
   const problem = cap(shown.problem, 400);
 
   const refocus = () => {
@@ -434,7 +585,7 @@ export function ShotlistCard({ item = null, onDone, level = 4, focusDone = true 
     try {
       const res = await api.post("/api/inbox/act", shotlistBody(shown, action, words, variant));
       const message = action === "approve" ? `${SHOTLIST_WORDS.approved}${SHOTLIST_WORDS.studio}.` : text(res && res.message) || "Done.";
-      const version = variant ? versions.find((v) => v.id === variant) || null : null;
+      const version = variant ? versions.find((x) => x.id === variant) || null : null;
       const out = {
         kind: "shotlist", action, variant: variant || null, message, version, title: cap(shown.title, 200), id: shown.id,
         studio: action === "approve" ? studioHref(shown) : null,
@@ -453,94 +604,104 @@ export function ShotlistCard({ item = null, onDone, level = 4, focusDone = true 
     }
   };
 
-  const onApprove = (v, ev) => {
+  const onApprove = (x, ev) => {
     if (stopped) return;
     opener.current = ev && ev.currentTarget ? ev.currentTarget : null;
-    setConfirmFor(v.id);
+    setConfirmFor(x.id);
   };
   const cancelConfirm = () => {
     setConfirmFor(null);
     refocus();
   };
-
-  // The narrow strip: the stepper follows the swipe, and a step scrolls its treatment into view.
-  const onScroll = (e) => {
-    const el = e.currentTarget;
-    const at = stepAt(el.scrollLeft, el.clientWidth, n);
-    if (at !== current) setCurrent(at);
-  };
-  const onStep = (i, fromKeys) => {
-    setCurrent(i);
-    const el = track.current;
-    const child = el && el.children ? el.children[i] : null;
-    if (el && child && typeof el.scrollTo === "function") {
-      const still = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-      el.scrollTo({ left: child.offsetLeft - el.children[0].offsetLeft, behavior: still ? "auto" : "smooth" });
-    }
-    if (fromKeys && typeof document !== "undefined") {
-      const b = document.querySelector && document.querySelector(`#${baseId}-steps [data-step="${i}"]`);
-      if (b && typeof b.focus === "function") b.focus();
-    }
+  const choose = (id) => {
+    if (v && id === v.id) return;
+    setChosen(id);
+    setBoard(0);
   };
 
-  const context = [text(shown.raisedBy), when(shown.when)].filter(Boolean);
-  const limits = limitLines(shown);
   const noteId = `${baseId}-note`;
   const link = refusalLink(error);
+  const name = v ? (v.letter ? `Treatment ${v.letter}` : v.title) : "";
 
-  return html`<article class=${cx("k-pick", "k-sl")} aria-label=${text(shown.title)} aria-busy=${busy ? "true" : undefined}>
-    <header class="k-pick__top">
-      <p class="k-pick__over"><${Icon} name="video" size=${14} /><span>${open.length > 1 ? `${open.length} treatments to choose from` : "One treatment"}${round ? ` · round ${round}` : ""}</span></p>
-      <h3 class="k-pick__title">${text(shown.title)}</h3>
-      ${context.length > 0 && html`<p class="k-pick__context">
-        ${context.map((c, i) => html`${i > 0 && html`<span aria-hidden="true"> · </span>`}<span>${c}</span>`)}
-      </p>`}
-      ${shown.summary && html`<p class="k-pick__summary">${text(shown.summary)}</p>`}
-      ${limits.length > 0 && html`<dl class="k-sl__limits">
-        ${limits.map((d, i) => html`<div key=${i} class="k-sl__limit"><dt>${d.label}</dt><dd>${d.value}</dd></div>`)}
-      </dl>`}
-    </header>
-    ${problem && html`<p class="k-pick__none k-pick__none--missing"><${Icon} name="alert" size=${14} /><span>${problem}</span></p>`}
-    ${shared && html`<div class="k-pick__alert" role="note">
-      <${Icon} name="alert" />
-      <div>
-        <p class="k-pick__alert-title">${shared.text}</p>
-        ${shared.link && html`<p class="k-pick__alert-next"><a class="k-pick__link" href=${shared.link.href}>${shared.link.label}</a></p>`}
-      </div>
-    </div>`}
-    ${changed && html`<div class="k-pick__alert" role="alert">
-      <${Icon} name="alert" />
-      <div>
-        <p class="k-pick__alert-title">${text(error && error.message) || SHOTLIST_WORDS.changed}</p>
-        <p class="k-pick__alert-next">${reloading ? "Reading them again…" : gone ? SHOTLIST_WORDS.gone : text(error && error.next) || SHOTLIST_WORDS.changedNext}</p>
-      </div>
-    </div>`}
-    ${n > 0 && html`<div class="k-sl__stage">
-      ${n > 1 && html`<div id=${`${baseId}-steps`} class="k-sl__steps-wrap"><${Steps} versions=${versions} current=${current} onStep=${onStep} baseId=${baseId} /></div>`}
-      <ol class=${cx("k-sl__versions", n === 1 && "k-sl__versions--one")} style=${{ "--k-sl-n": String(Math.max(n, 1)) }}
-        ref=${track} onScroll=${n > 1 ? onScroll : undefined} aria-label=${SHOTLIST_WORDS.treatments}>
-        ${versions.map((v) => html`<${Treatment} key=${v.id} v=${v} level=${level} baseId=${baseId} shared=${Boolean(shared) && !v.missing}
-          busy=${busy} stopped=${stopped} onApprove=${onApprove} />`)}
-      </ol>
-    </div>`}
-    <div class="k-pick__foot"><div class="k-pick__foot-in">
-      <div class=${cx("k-pick__note", needNote && "k-pick__note--needed")}>
-        <label class="k-pick__note-label" for=${noteId}>${SHOTLIST_WORDS.noteLabel}</label>
-        <textarea id=${noteId} ref=${noteRef} class="k-textarea k-pick__note-field" rows="2" maxLength=${4000}
-          aria-describedby=${`${noteId}-hint`} aria-invalid=${needNote ? "true" : undefined} value=${note} disabled=${Boolean(busy)}
-          placeholder="Optional" onInput=${(e) => { setNote(e.currentTarget.value); if (needNote && e.currentTarget.value.trim()) setNeedNote(false); }}></textarea>
-        <p class="k-pick__hint" id=${`${noteId}-hint`}>${needNote ? html`<${Icon} name="alert" size=${14} /><span>${SHOTLIST_WORDS.needNote}</span>` : SHOTLIST_WORDS.noteHint}</p>
-      </div>
-      <div class="k-pick__rest">
-        ${cardOffers(shown, "another") && html`<${Button} variant="plain" icon="loop" busy=${busy && busy.action === "another"} disabled=${stopped}
-          onClick=${(e) => { opener.current = e.currentTarget; send("another"); }}>${SHOTLIST_WORDS.another}<//>`}
-        ${cardOffers(shown, "send_back") && html`<${Button} variant="quiet" icon="reply" busy=${busy && busy.action === "send_back"} disabled=${stopped}
-          onClick=${(e) => { opener.current = e.currentTarget; send("send_back"); }}>${SHOTLIST_WORDS.back}<//>`}
-      </div>
-    </div></div>
-    ${error && !changed && html`<p class="k-pick__error" role="alert"><${Icon} name="alert" /><span>${text(error.message) || "That did not work."}${error.next ? ` ${text(error.next)}` : ""}
-      ${link && html` <a class="k-pick__link" href=${link.href}>${link.label}</a>`}</span></p>`}
-    ${confirmV && html`<${Confirm} v=${confirmV} busy=${Boolean(busy)} onYes=${() => send("approve", confirmV.id)} onNo=${cancelConfirm} />`}
+  // ---- The stage and the strip
+  const stage = v
+    ? html`<${TreatmentStage} v=${v} at=${board} onAt=${setBoard} />`
+    : html`<div class="k-sl__empty"><p>${problem || SHOTLIST_WORDS.noPlan}</p></div>`;
+  const strip = versions.length
+    ? html`<${Strip} label=${SHOTLIST_WORDS.treatments}>
+        ${versions.map((x) => html`<${OptionCard} key=${x.id} ...${cardProps({ item: shown, v: x, checked: Boolean(v && x.id === v.id), board,
+          onPick: () => choose(x.id), onBoard: (k) => { if (!v || x.id !== v.id) setChosen(x.id); setBoard(k); } })} />`)}
+      <//>`
+    : null;
+
+  // ---- The rail's foot: the one decision, then under a divider the note and the send-back actions
+  let decision = null;
+  let phoneLock = null;
+  if (v) {
+    const approveText = withLetter("approveOne", v.letter || "");
+    if (canApprove(v)) {
+      decision = html`<${Button} variant="primary" size="lg" class="k-sl__approve" busy=${Boolean(busy) && busy.action === "approve" && busy.variant === v.id}
+        aria-label=${approveLabel(v)} disabled=${stopped} onClick=${(e) => onApprove(v, e)}>${approveText}<//>`;
+    } else {
+      const reason = v.missing ? `${SHOTLIST_WORDS.missing} ${SHOTLIST_WORDS.missingNext}`
+        : shared ? SHOTLIST_WORDS.shared
+        : cap(v.blocked, 400) || (!v.cost ? SHOTLIST_WORDS.noCost : SHOTLIST_WORDS.cannot);
+      const alt = shared ? null : insteadOf(shown, v);
+      const out = wayOut(shared ? shared.text : v.blocked);
+      decision = html`<${LockedAction} label=${approveText} why=${reason} tag=${SHOTLIST_WORDS.locked}>
+        ${alt ? html`<${Button} variant="primary" size="lg" disabled=${stopped}
+            onClick=${() => { choose(alt.id); setMoved(true); }}>${withLetter("pickInstead", alt.letter)}<//>` : null}
+        ${out ? html`<${Button} variant=${alt ? "link" : "primary"} size=${alt ? "md" : "lg"} href=${out.href}>${out.label}<//>` : null}
+      <//>`;
+      // A phone keeps only the way out in its sticky foot; the locked action and its reason read in the rail's flow.
+      phoneLock = html`<div class="k-sl__phone-lock"><${LockedAction} label=${approveText} why=${reason} tag=${SHOTLIST_WORDS.locked}>
+        ${alt && out ? html`<${Button} variant="link" href=${out.href}>${out.label}<//>` : null}
+      <//></div>`;
+    }
+  }
+  // ---- The rail's body
+  const rail = html`
+    ${problem && v ? html`<div class="k-sl__notice"><${Notice} tone="warn">${problem}<//></div>` : null}
+    ${shared ? html`<div class="k-sl__notice" role="note"><${Notice} tone="warn">${shared.text}<//></div>` : null}
+    ${changed ? html`<div class="k-sl__notice" role="alert"><${Notice} tone="warn" title=${text(error && error.message) || SHOTLIST_WORDS.changed}>
+        ${reloading ? "Reading them again…" : gone ? SHOTLIST_WORDS.gone : text(error && error.next) || SHOTLIST_WORDS.changedNext}
+      <//></div>` : null}
+    ${phoneLock}
+    ${v ? html`<${Money} item=${shown} v=${v} />` : null}
+    ${v && !v.missing ? html`<${Blk}><${BrandRow} brand=${v.brand} /><//>` : null}
+    ${v && !v.missing ? html`<div class="k-sl__folds">
+      <${Fold} title=${SHOTLIST_WORDS.scores} aside=${v.review && Number.isFinite(v.review.total) && Number.isFinite(v.review.of) ? `${v.review.total} of ${v.review.of}` : ""}>
+        <${Scores} compact review=${v.review} kind="film" />
+        ${v.review && v.review.reason ? html`<p class="k-sl__say">${cap(v.review.reason, 300)}</p>` : null}
+      <//>
+      ${shotRows(v).length ? html`<${Fold} title=${SHOTLIST_WORDS.shots} aside=${clips(shotRows(v).length)}><${ShotTable} v=${v} /><//>` : null}
+    </div>` : null}`;
+
+  const failed = error && !changed
+    ? html`<p class="k-sl__error" role="alert"><${Icon} name="alert" size=${16} /><span>${text(error.message) || "That did not work."}${error.next ? ` ${text(error.next)}` : ""}
+        ${link ? html` <a class="k-sl__link" href=${link.href}>${link.label}</a>` : null}</span></p>`
+    : null;
+  const rest = cardOffers(shown, "another") || cardOffers(shown, "send_back") ? html`
+    <div class=${cx("k-sl__note", needNote && "k-sl__note--needed")}>
+      <label class="k-sr" for=${noteId}>${SHOTLIST_WORDS.noteLabel}</label>
+      <textarea id=${noteId} ref=${noteRef} class="k-textarea k-sl__note-field" rows="1" maxLength=${4000}
+        aria-describedby=${`${noteId}-hint`} aria-invalid=${needNote ? "true" : undefined} value=${note} disabled=${Boolean(busy)}
+        placeholder=${SHOTLIST_WORDS.notePlaceholder} onInput=${(e) => { setNote(e.currentTarget.value); if (needNote && e.currentTarget.value.trim()) setNeedNote(false); }}></textarea>
+      <p class=${cx("k-sl__hint", !needNote && "k-sr")} id=${`${noteId}-hint`}>${needNote ? html`<${Icon} name="alert" size=${14} /><span>${SHOTLIST_WORDS.needNote}</span>` : SHOTLIST_WORDS.noteHint}</p>
+    </div>
+    <div class="k-sl__pair">
+      ${cardOffers(shown, "another") ? html`<${Button} icon="loop" busy=${Boolean(busy) && busy.action === "another"} disabled=${stopped}
+        onClick=${(e) => { opener.current = e.currentTarget; send("another"); }}>${SHOTLIST_WORDS.another}<//>` : null}
+      ${cardOffers(shown, "send_back") ? html`<${Button} icon="reply" busy=${Boolean(busy) && busy.action === "send_back"} disabled=${stopped}
+        onClick=${(e) => { opener.current = e.currentTarget; send("send_back"); }}>${SHOTLIST_WORDS.back}<//>` : null}
+    </div>` : null;
+  const primary = decision || failed ? html`<div class="k-sl__primary" ref=${footRef}>${failed}${decision}</div>` : null;
+
+  return html`<article class="k-sl" aria-label=${text(shown.title)} aria-busy=${busy ? "true" : undefined}>
+    <${StageLayout} kind=${shotlistKind(shown)} title=${text(shown.title)} lede=${shown.summary ? text(shown.summary) : null}
+      label=${name ? `${SHOTLIST_WORDS.boards}, ${name}` : SHOTLIST_WORDS.boards}
+      stage=${stage} strip=${strip} rail=${rail} foot=${{ primary, rest }} />
+    ${confirmV ? html`<${Confirm} v=${confirmV} busy=${Boolean(busy)} onYes=${() => send("approve", confirmV.id)} onNo=${cancelConfirm} />` : null}
   </article>`;
 }
 
