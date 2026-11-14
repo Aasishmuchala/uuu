@@ -8,6 +8,14 @@
 // then one call out. Pictures arrive as bytes and results leave as bytes: no path an agent
 // names is ever opened. Every service detail is in ./runway.mjs; money is ./ledger.mjs.
 // Log lines never hold a header, a body, a prompt, a token or a key.
+//
+// Step 5 (PLAN-V5 K19 to K22, T73): a second service, Higgsfield, through its MCP server
+// (./higgsfield.mjs, ./mcp.mjs, the owner's sign-in in ./oauth.mjs), and apps of App Studio
+// (tokens of kind `p` the App Studio host mints) on their own routes under /gen/app/, spending
+// only inside the owner's allowance for that app. One table of models (./registry.mjs), one
+// ledger in US cents, one set of caps, one pause and one running limit for the Artist and every
+// app. A Runway row takes step 3's path; a Higgsfield row takes K21's job flow (the uploads, the
+// live price as a guard, the caps again, the reservation, the call, jobs_wait).
 import http from "node:http";
 import { createHash } from "node:crypto";
 import { appendFileSync, chmodSync, createReadStream, mkdirSync, realpathSync } from "node:fs";
@@ -16,19 +24,25 @@ import { checkCaller, ensureSecret, headerValues, readBody, refuse, sendJson, st
 import { describeError } from "../relay/relay.mjs";
 import { checkAddress } from "../web/address.mjs";
 import { REAL_NET, fetchPublic } from "../web/fetch.mjs";
-import { createLedger, dayOf, rotateLedger } from "./ledger.mjs";
+import { HF_ORIGIN, createHiggsfield } from "./higgsfield.mjs";
+import { createLedger, dayOf, extrasByJob, rotateLedger, summarize } from "./ledger.mjs";
+import { createMcpClient } from "./mcp.mjs";
+import { createHfAuth } from "./oauth.mjs";
+import { APP_JOB_BYTES, DEFAULT_CENTS_PER_CREDIT, appModels, estimateCents, estimateUnits, parseAppJob, rowOf, runwayRequest, upscaleFits } from "./registry.mjs";
 import {
   API_LIMITS, KINDS, ORGANIZATION_PATH, PRICES, RUNWAY_ORIGIN, UPSCALE_MAX_SIDE, VIDEO_KINDS, buildRequest, callRunway,
   checkUpstream, chosen, credits as creditsOf, defaultModel, errorText, estimate, failureKind, holdsKey, priced, ratioFits,
   readTask, scrub, taskPath,
 } from "./runway.mjs";
 import {
-  HASH_RE, ID_RE, INPUTS_KEPT, INPUT_MAX, INPUT_MIN, SHOT_RE, newId, readBatch, readGenState, readRunwayKey, sniffOutput, sniffPicture, workStore,
+  ALLOWANCE_ID_RE, HASH_RE, ID_RE, INPUTS_KEPT, INPUTS_KEPT_APP, INPUT_MAX, INPUT_MIN, SHOT_RE, newId, readAllowance, readBatch, readGenState,
+  readRunwayKey, sniffOutput, sniffPicture, workStore,
 } from "./state.mjs";
 
 const MB = 1024 * 1024;
 export const BODY_BYTES = 8 * 1024;
-export const MAX_RUNNING = 2;
+export const MAX_RUNNING = 2;             // jobs running at once for one caller, an agent or an app
+export const MAX_RUNNING_ALL = 4;         // and for every caller together (K20)
 export const REFUSALS_TO_FREEZE = 2;
 export const REFUSALS_TO_PAUSE = 3;
 // Requests Runway answered with a 4xx and did not start cost nothing, so no cap holds them (T48
@@ -41,6 +55,8 @@ export const NOT_STARTED_PER_SHOT = 2;
 export const NOT_STARTED_TO_PAUSE = 3;
 export const LIMITED_SEC = 60;            // the wait after Runway's 429 when it names none
 export const PROMPT_KEPT = 1000;          // the prompt kept in a job's record, as sent
+// Where the owner's browser comes back after Higgsfield's sign-in: the home server's (T79).
+export const HF_RETURN_PATH = "/api/generation/higgsfield/back";
 export const GEN_LIMITS = Object.freeze({
   ...API_LIMITS,
   pollMs: 6_000,            // between two questions about one task
@@ -73,6 +89,14 @@ export const CODES = Object.freeze({
   gen_limited: [403, "Runway says too many requests for now. Wait before asking again."],
   gen_could_not_start: [403, "Runway did not start this job."],
   gen_not_ready: [403, "This job has no result to fetch."],
+  // Step 5 (K19, K21, K22).
+  gen_hf_off: [403, "Higgsfield is off. The owner can switch it on in Settings."],
+  gen_hf_signed_out: [403, "Higgsfield is not signed in. The owner can sign in from Settings."],
+  gen_hf_refused: [403, "Higgsfield asked for a new sign-in. The owner can sign in again from Settings."],
+  gen_hf_sign_in: [403, "The Higgsfield sign-in did not finish. Try again."],
+  gen_no_allowance: [403, "This app may not spend anything right now. The owner can allow it in App Studio."],
+  gen_over_allowance: [403, "This would go over what the owner allowed this app today."],
+  gen_price_changed: [403, "Higgsfield's price for this is higher than the door's table, so nothing was spent."],
 });
 
 const JOB = "([A-Za-z0-9_-]{1,64})";
@@ -83,6 +107,19 @@ const ROUTES = [
   { method: "GET", re: new RegExp(`^/gen/jobs/${JOB}$`), name: "job" },
   { method: "GET", re: new RegExp(`^/gen/jobs/${JOB}/output$`), name: "output" },
   { method: "POST", re: /^\/gen\/owner\/balance$/, name: "balance", owner: true },
+  // Apps of App Studio (K19): tokens of kind `p` only.
+  { method: "GET", re: /^\/gen\/app\/models$/, name: "appModels", app: true },
+  { method: "POST", re: /^\/gen\/app\/estimate$/, name: "appEstimate", app: true },
+  { method: "POST", re: /^\/gen\/app\/inputs$/, name: "appInputs", app: true, spends: true },
+  { method: "POST", re: /^\/gen\/app\/jobs$/, name: "appJobs", app: true, spends: true },
+  { method: "GET", re: new RegExp(`^/gen/app/jobs/${JOB}$`), name: "appJob", app: true },
+  { method: "GET", re: new RegExp(`^/gen/app/jobs/${JOB}/output$`), name: "appOutput", app: true },
+  { method: "GET", re: /^\/gen\/app\/allowance$/, name: "appAllowance", app: true },
+  // The owner's Higgsfield sign-in and balance (K21): no Runway key needed, the switch may be off.
+  { method: "POST", re: /^\/gen\/owner\/higgsfield\/begin$/, name: "hfBegin", owner: true, hf: true },
+  { method: "POST", re: /^\/gen\/owner\/higgsfield\/finish$/, name: "hfFinish", owner: true, hf: true },
+  { method: "POST", re: /^\/gen\/owner\/higgsfield\/forget$/, name: "hfForget", owner: true, hf: true },
+  { method: "POST", re: /^\/gen\/owner\/higgsfield\/balance$/, name: "hfBalance", owner: true, hf: true },
 ];
 const PICTURE_TYPES = { "image/png": "image/png", "image/jpeg": "image/jpeg", "image/jpg": "image/jpeg", "image/webp": "image/webp" };
 const JOB_KEYS = ["batch", "shot", "kind", "input", "inputs", "promptText", "seconds", "ratio", "scale"];
@@ -154,6 +191,9 @@ function doorPaths(paths) {
     work: pick("doorWork", "work"),
   };
   for (const k of Object.keys(out)) if (!out[k]) throw new Error(`createGenerateDoor: paths.${k} is needed`);
+  // Step 5's two, optional: without them no app may spend and Higgsfield is signed out.
+  out.allowances = pick("allowances") || null;
+  out.higgsfieldAuth = pick("higgsfieldAuth") || null;
   return out;
 }
 
@@ -165,7 +205,35 @@ const fingerprint = (kind, model, hashes, promptText) =>
 const resendPrint = (batch, shot, kind, model, hashes, promptText) =>
   createHash("sha256").update(JSON.stringify(["resend", batch, shot, kind, model, [...(hashes || [])].sort(), promptText || ""])).digest("hex");
 
-export function createGenerateDoor({ listenPort, upstream, paths, config, log, now, net, limits } = {}) {
+// Step 5 helpers. A model of the table that Higgsfield makes.
+const isHiggsfield = (model) => { const row = rowOf(model); return row !== null && row.provider === "higgsfield"; };
+// A row's largest size: the one an agent's job (which names none) is made and priced at.
+function topSize(row) {
+  if (row.resolutions === null) return undefined;
+  const by = row.price && row.price.byResolution;
+  if (!by) return row.resolutions[row.resolutions.length - 1];
+  return row.resolutions.reduce((best, r) => (by[r] > by[best] ? r : best), row.resolutions[0]);
+}
+// An agent's ratio in the row's own words: as it is, or by its lowest terms ("1920:1080" is "16:9").
+function rowRatio(row, ratio) {
+  if (typeof ratio !== "string") return null;
+  if (row.ratios.includes(ratio)) return ratio;
+  const m = /^([0-9]{1,5}):([0-9]{1,5})$/.exec(ratio);
+  if (!m || Number(m[1]) === 0 || Number(m[2]) === 0) return null;
+  const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+  const g = gcd(Number(m[1]), Number(m[2]));
+  const low = `${Number(m[1]) / g}:${Number(m[2]) / g}`;
+  return row.ratios.includes(low) ? low : null;
+}
+// Higgsfield credits in whole US cents at a rate (K20), rounded up; 0 when the rate is not one.
+const centsOf = (units, rate) => (Number.isInteger(rate) && rate >= 1 && rate <= 50 && typeof units === "number" && Number.isFinite(units) && units >= 0
+  ? Math.ceil(Math.round(units * rate * 1e6) / 1e6) : 0);
+const rateOf = (gs) => (gs && gs.ok && gs.higgsfield ? gs.higgsfield.centsPerCredit : DEFAULT_CENTS_PER_CREDIT);
+
+// `higgsfield` (step 5): { origin, redirectUri, net?, uploadSuffixes?, limits?, authLimits?, mcpLimits? }:
+// Higgsfield's one origin (main) or a stand-in (tests), and the home server's sign-in return address.
+// Without it the door has no Higgsfield: every Higgsfield job is refused `gen_hf_signed_out`.
+export function createGenerateDoor({ listenPort, upstream, paths, config, log, now, net, limits, higgsfield } = {}) {
   const up = checkUpstream(upstream);
   const P = doorPaths(paths);
   const theNet = net === undefined ? REAL_NET : net;
@@ -174,6 +242,8 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   }
   const agentList = config && config.doors && config.doors.generate && Array.isArray(config.doors.generate.agents)
     ? config.doors.generate.agents.filter((s) => typeof s === "string") : [];
+  const appList = config && config.doors && config.doors.generate && Array.isArray(config.doors.generate.apps)
+    ? config.doors.generate.apps.filter((s) => typeof s === "string") : [];
   const lim = { ...GEN_LIMITS, ...(limits || {}) };
   const clock = typeof now === "function" ? now : typeof now === "number" ? () => now : () => Date.now();
   const iso = () => new Date(clock()).toISOString();
@@ -205,8 +275,49 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   const marks = { refused: new Set(), pictures: new Set(), resend: new Set() };
   let limitedUntil = 0;
 
+  // ---- Higgsfield (K21): the owner's sign-in, the MCP client and the door's tools ----------------
+  if (higgsfield && !P.higgsfieldAuth) throw new Error("createGenerateDoor: paths.higgsfieldAuth is needed for Higgsfield");
+  const hf = higgsfield ? (() => {
+    const hfNet = higgsfield.net === undefined ? theNet : higgsfield.net;
+    const auth = createHfAuth({ origin: higgsfield.origin, file: P.higgsfieldAuth, redirectUri: higgsfield.redirectUri, net: hfNet, now: clock, log: say,
+      limits: higgsfield.authLimits });
+    const mcp = createMcpClient({ origin: higgsfield.origin, token: (o) => auth.token(o), net: hfNet, log: say, limits: higgsfield.mcpLimits });
+    const tools = createHiggsfield({ mcp, net: hfNet, uploadSuffixes: higgsfield.uploadSuffixes, limits: higgsfield.limits });
+    return { auth, mcp, tools };
+  })() : null;
+  const hfStatus = () => (hf ? hf.auth.status() : { signedIn: false, refused: false });
+
+  // ---- the running limit (K20): two at once for one caller, an agent or an app, and four in all.
+  // A Higgsfield job holds its place from its checks to its reservation (its uploads and price
+  // question come between), so two cannot both pass the limit only one fits.
+  const starting = new Map();   // caller -> Higgsfield jobs checked but not yet reserved
+  let startingAll = 0;
+  function busyFor(slug) {
+    let mine = starting.get(slug) || 0;
+    for (const j of running.values()) if (j.slug === slug) mine += 1;
+    if (mine >= MAX_RUNNING) return "Two jobs are already running. Wait for one to finish.";
+    if (running.size + startingAll >= MAX_RUNNING_ALL) return "Four jobs are already running in all. Wait for one to finish.";
+    return null;
+  }
+  function claim(slug) {
+    starting.set(slug, (starting.get(slug) || 0) + 1);
+    startingAll += 1;
+    let held = true;
+    return () => {
+      if (!held) return;
+      held = false;
+      const n = (starting.get(slug) || 1) - 1;
+      if (n > 0) starting.set(slug, n);
+      else starting.delete(slug);
+      startingAll -= 1;
+    };
+  }
+
   // ---- the status file ------------------------------------------------------
-  const status = { startedAt: null, on: false, key: false, running: 0, today: { day: null, jobs: 0, credits: 0, refused: 0 }, lastAt: null };
+  const status = {
+    startedAt: null, on: false, key: false, running: 0, today: { day: null, jobs: 0, credits: 0, refused: 0 }, lastAt: null,
+    higgsfield: { signedIn: false, refused: false }, apps: {},
+  };
   const statusOut = statusFile(P.status);
   function touch(what) {
     const day = dayOf(clock());
@@ -219,10 +330,30 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
       moneyStale = false;
       const t = ledger.totals(clock());
       if (t.ok) status.today.credits = t.day;
+      status.apps = appsToday();
     }
+    status.higgsfield = hfStatus();
     status.running = running.size;
     status.lastAt = iso();
     statusOut.save(status);
+  }
+
+  // Today's jobs and cents for each app, from the ledger (the status file's `apps`); {} when it
+  // cannot be read.
+  function appsToday() {
+    const r = ledger.read();
+    if (!r.ok) return {};
+    const day = dayOf(clock());
+    const extras = extrasByJob(r.lines);
+    const out = {};
+    for (const j of summarize(r.lines).jobs.values()) {
+      const app = extras.has(j.job) ? extras.get(j.job).app : undefined;
+      if (typeof app !== "string" || dayOf(j.at) !== day) continue;
+      if (!Object.hasOwn(out, app)) out[app] = { jobs: 0, cents: 0 };
+      out[app].jobs += 1;
+      out[app].cents += j.charge;
+    }
+    return out;
   }
 
   // ---- answers --------------------------------------------------------------
@@ -405,12 +536,26 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   }
 
   // ---- checks ------------------------------------------------------------------
-  const caller = (req) => checkCaller({ rawHeaders: req.rawHeaders, secretPath: P.secret, idsPath: P.ids, agents: agentList, now: clock() });
+  const caller = (req) => checkCaller({ rawHeaders: req.rawHeaders, secretPath: P.secret, idsPath: P.ids, agents: agentList, apps: appList, now: clock() });
 
   // Rows 3 and 4 for this route: a code, or { who, gs, key }.
   function admitted(req, r) {
     const who = caller(req);
     if (who === null || typeof who !== "object") return "gen_no_token";
+    // An app (K19): its own routes only, and only an app on them. It needs no Artist's switch and
+    // no Runway key here (each model's service is checked at its job); a pause holds it too.
+    if (who.kind === "p" || r.app) {
+      if (who.kind !== "p" || !r.app) return "gen_no_token";
+      const gs = readGenState(P.state, clock());
+      status.on = gs.ok && gs.on;
+      if (!gs.ok) return "gen_off";
+      if (r.spends) {
+        if (gs.paused !== null) return "gen_paused";
+        const t = ledger.totals(clock(), { resumedAt: gs.resumedAt });
+        if (t.ok && t.paused) return "gen_paused";
+      }
+      return { who, gs, key: readRunwayKey(P.key) };
+    }
     if (r.owner && who.kind !== "t") return "gen_no_token";
     if (!r.owner && !r.either && who.kind !== "a") return "gen_no_token";
     const gs = readGenState(P.state, clock());
@@ -418,14 +563,16 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     const owner = who.kind === "t";
     if (!owner && (!gs.ok || !gs.on)) return "gen_off";
     let key = null;
-    if (r.spends || r.owner) {
+    if (r.spends || (r.owner && !r.hf)) {
       if (!owner) {
         if (gs.paused !== null) return "gen_paused";
         const t = ledger.totals(clock(), { resumedAt: gs.resumedAt });
         if (t.ok && t.paused) return "gen_paused";
       }
       key = readRunwayKey(P.key);
-      if (key === null) return "gen_no_key";
+      // With Higgsfield on, an agent may work without a Runway key: a Runway job is refused at its
+      // model (doJob), a Higgsfield one goes on.
+      if (key === null && !(r.spends && !owner && gs.higgsfield.on)) return "gen_no_key";
     }
     return { who, gs, key };
   }
@@ -440,13 +587,13 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   }
 
   // ---- the routes ----------------------------------------------------------------
-  function takeInput(res, slug, raw, type) {
+  function takeInput(res, slug, raw, type, { kept = INPUTS_KEPT, full = "This agent already keeps 40 pictures from the last day." } = {}) {
     if (type === undefined || raw.length < INPUT_MIN) return no(res, "gen_bad_input");
     const pic = sniffPicture(raw);
     if (!pic || pic.type !== type) return no(res, "gen_bad_input");
     const at = clock();
     store.sweep(at);
-    if (store.countInputs(slug, at) >= INPUTS_KEPT) return no(res, "gen_bad_input", "This agent already keeps 40 pictures from the last day.");
+    if (store.countInputs(slug, at) >= kept) return no(res, "gen_bad_input", full);
     let rec;
     try {
       rec = store.saveInput(slug, pic, raw, at);
@@ -466,7 +613,7 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
       if (!KINDS.includes(it.kind)) return no(res, "gen_bad_request");
       const model = it.model === undefined ? defaultModel(it.kind, gs.ok ? gs.models : null) : it.model;
       const seconds = VIDEO_KINDS.includes(it.kind) ? it.seconds : null;
-      const credits = estimate({ kind: it.kind, model, seconds });
+      const credits = agentPrice(it.kind, model, seconds, gs);
       if (credits === null) return no(res, "gen_no_price");
       out.push({ kind: it.kind, model, seconds, credits });
     }
@@ -526,6 +673,8 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
       if (body.kind === "text_to_video") return no(res, "gen_not_approved", "Video from text alone needs the owner's approval.");
       model = defaultModel(body.kind, gs.models);
     }
+    if (isHiggsfield(model)) return hfAgentJob(res, who, body, gs, { t, batch, model, pictures, ids });   // step 5: K21's flow
+    if (key === null) return no(res, "gen_no_key");
     if (!priced(model) || !PRICES[model].kinds.includes(body.kind)) return no(res, "gen_no_price");
     if (!chosen(body.kind, model, gs.models)) return no(res, "gen_not_approved", "This model is not the one chosen in Settings.");
     if (body.kind !== "still_upscale" && !ratioFits(model, body.ratio)) return no(res, "gen_bad_request", "This shape of picture is not one this model makes.");
@@ -541,7 +690,8 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     }
     const resend = resendPrint(body.batch, body.shot, body.kind, model, hashes, body.promptText);
     if (marks.resend.has(resend)) return no(res, "gen_not_approved", "Runway did not start this same request before. The door will not send it again.");
-    if (running.size >= MAX_RUNNING) return no(res, "gen_busy", undefined, { retryAfterSec: 30 });
+    const busy = busyFor(slug);
+    if (busy) return no(res, "gen_busy", busy, { retryAfterSec: 30 });
     const over = overLimit(gs, t, cost, batch);
     if (over) return no(res, over);
     const j = {
@@ -657,13 +807,572 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     return sendJson(res, 200, { creditBalance: creditsOf(r.json.creditBalance), maxMonthlyCreditSpend: creditsOf(tier.maxMonthlyCreditSpend) });
   }
 
+  // ---- step 5: Higgsfield and apps (K19 to K22) ---------------------------------------------------
+
+  // Whether Higgsfield may be used now: null, or the code that says why not (K19 row A2).
+  function hfNotReady(gs) {
+    if (!gs || !gs.higgsfield || !gs.higgsfield.on) return "gen_hf_off";
+    if (!hf) return "gen_hf_signed_out";
+    const st = hf.auth.status();
+    if (st.refused) return "gen_hf_refused";
+    return st.signedIn ? null : "gen_hf_signed_out";
+  }
+  // A sign-in reason from Higgsfield's modules as the door's code, or null.
+  const hfCode = (why) => (why === "refused" || why === "unauthorized" ? "gen_hf_refused" : why === "signed_out" ? "gen_hf_signed_out" : null);
+
+  // An agent's price in cents (K20): step 3's five Runway rows as step 3 priced them; a Higgsfield
+  // row at its largest size, at the owner's rate. Null when the door has no price.
+  function agentPrice(kind, model, seconds, gs) {
+    const row = rowOf(model);
+    if (row === null || (row.provider === "runway" && !priced(model))) return null;
+    const item = { kind, model, seconds: VIDEO_KINDS.includes(kind) ? seconds : undefined, resolution: row.provider === "higgsfield" ? topSize(row) : undefined };
+    return estimateCents(item, { centsPerCredit: rateOf(gs) });
+  }
+
+  // `p` (the door's own kept picture) to Higgsfield and back is the same picture; these four turn
+  // an agent's job into the row's words.
+  async function hfAgentJob(res, who, body, gs, { t, batch, model, pictures, ids }) {
+    const slug = who.slug;
+    if (batch === null) return no(res, "gen_not_approved", "Higgsfield is used only inside a batch the owner approved.");
+    const nr = hfNotReady(gs);
+    if (nr) return no(res, nr);
+    const row = rowOf(model);
+    if (!row.kinds.includes(body.kind)) return no(res, "gen_no_price");
+    if (!chosen(body.kind, model, gs.models)) return no(res, "gen_not_approved", "This model is not the one chosen in Settings.");
+    const role = body.kind === "still_variation" ? "ref" : body.kind === "still_upscale" ? "image" : row.refs.roles.includes("first") ? "first" : "ref";
+    if (pictures.length > row.refs.max || (pictures.length > 0 && !row.refs.roles.includes(role))) return no(res, "gen_bad_request", "This model takes other pictures.");
+    const ratio = row.ratios === null ? null : rowRatio(row, body.ratio);
+    if (row.ratios !== null && ratio === null) return no(res, "gen_bad_request", "This shape of picture is not one this model makes.");
+    const seconds = VIDEO_KINDS.includes(body.kind) ? body.seconds : null;
+    if (seconds !== null && !(row.seconds && (row.seconds.list ? row.seconds.list.includes(seconds) : seconds >= row.seconds.min && seconds <= row.seconds.max))) {
+      return no(res, "gen_bad_request", "These seconds are not ones this model makes.");
+    }
+    if (body.kind === "still_upscale" && !upscaleFits(row, pictures[0].width, pictures[0].height, body.scale)) {
+      return no(res, "gen_bad_request", "An upscale's result must stay within the model's size.");
+    }
+    const rate = gs.higgsfield.centsPerCredit;
+    const item = { kind: body.kind, model, seconds: seconds === null ? undefined : seconds, resolution: topSize(row), refs: pictures.length };
+    const units = estimateUnits(item);
+    const cost = estimateCents(item, { centsPerCredit: rate });
+    if (units === null || cost === null) return no(res, "gen_no_price");
+    const hashes = pictures.map((p) => p.sha256);
+    const print = fingerprint(body.kind, model, hashes, body.promptText);
+    if (marks.refused.has(print)) return no(res, "gen_not_approved", "Higgsfield refused this same picture or prompt before. The door will not send it again.");
+    const resend = resendPrint(body.batch, body.shot, body.kind, model, hashes, body.promptText);
+    if (marks.resend.has(resend)) return no(res, "gen_not_approved", "Higgsfield did not start this same request before. The door will not send it again.");
+    const busy = busyFor(slug);
+    if (busy) return no(res, "gen_busy", busy, { retryAfterSec: 30 });
+    const over = overLimit(gs, t, cost, batch);
+    if (over) return no(res, over);
+    return hfRun(res, {
+      slug, app: null, row, kind: body.kind, model, seconds, prompt: body.promptText || "", ratio, resolution: topSize(row) || null,
+      pictures: pictures.map((p) => ({ ...p, role })), ids, hashes, cost, units, rate, batchId: body.batch, shot: body.shot, print, resend,
+      reply: (j) => ({ job: j.job, estimate: cost }),
+    });
+  }
+
+  // Everything checked again just before the reservation of a Higgsfield job (its uploads and
+  // price question came between): the switches, the sign-in, the pause, the ledger, the owner's
+  // batch or allowance and every cap. Null, or [code, sentence?].
+  function recheck(c) {
+    const gs = readGenState(P.state, clock());
+    if (!gs.ok || (c.app === null && !gs.on)) return ["gen_off"];
+    if (gs.paused !== null) return ["gen_paused"];
+    const nr = hfNotReady(gs);
+    if (nr) return [nr];
+    const t = ledger.totals(clock(), { batch: c.batchId, resumedAt: gs.resumedAt });
+    if (!t.ok) return ["gen_ledger"];
+    if (t.paused || t.refusedRecent >= REFUSALS_TO_PAUSE || t.notStartedRecent >= NOT_STARTED_TO_PAUSE) return ["gen_paused"];
+    if (c.app !== null) {
+      const a = readAllowance(P.allowances, c.app, clock());
+      if (!a.ok || a.allowance.id !== c.batchId) return ["gen_no_allowance"];
+      const code = overApp(gs, t, c.cost, a.allowance);
+      return code ? [code] : null;
+    }
+    const b = readBatch(P.batches, c.batchId, { slug: c.slug, now: clock() });
+    if (!b.ok) return ["gen_not_approved", "This batch's approval has ended. Ask the owner again."];
+    if (b.batch.frozen || t.batchRefused >= REFUSALS_TO_FREEZE) return ["gen_not_approved", "Runway or Higgsfield refused two pictures or prompts in this film. It needs you."];
+    const shot = b.batch.shots[c.shot];
+    if (!shot || shot.model !== c.model || shot.kind !== c.kind) return ["gen_not_approved", "This shot is not in the batch the owner approved."];
+    if (t.takes(c.shot) >= shot.takes) return ["gen_not_approved", "This shot has had every take the owner approved."];
+    if (!chosen(c.kind, c.model, gs.models)) return ["gen_not_approved", "This model is not the one chosen in Settings."];
+    const code = overLimit(gs, t, c.cost, b.batch);
+    return code ? [code] : null;
+  }
+
+  // The money for an app's job (K19 row A5): the caps shared with the Artist, then the allowance.
+  function overApp(gs, t, cost, allowance) {
+    const code = overLimit(gs, t, cost, null);
+    if (code) return code;
+    return t.batch + cost > allowance.budgetCents ? "gen_over_allowance" : null;
+  }
+
+  // A Higgsfield job, K21's flow, for an agent or an app whose checks have passed: the uploads, the
+  // live price as a guard, everything checked again, the reservation (synced), the call, and then
+  // jobs_wait until it ends. `c` carries the checked job and its price in units and cents.
+  async function hfRun(res, c) {
+    const release = claim(c.slug);
+    try {
+      const medias = [];
+      for (const p of c.pictures) {
+        const up = await hf.tools.upload({ type: p.type, bytes: p.bytes });
+        if (!up.ok) {
+          say(`${iso()} higgsfield upload not made ${up.why}`);
+          const code = hfCode(up.why);
+          if (code) return no(res, code);
+          return no(res, "gen_could_not_start", up.why === "upload_host_unknown"
+            ? "The door does not know Higgsfield's upload address yet, so no picture can go to Higgsfield. Nothing was spent."
+            : "Higgsfield did not take the picture, so nothing was spent.");
+        }
+        medias.push({ mediaId: up.mediaId, role: p.role });
+      }
+      const params = { kind: c.kind, prompt: c.prompt, ratio: c.ratio, resolution: c.resolution, seconds: c.seconds, medias };
+      if (c.kind === "still_upscale") Object.assign(params, { width: c.pictures[0].width, height: c.pictures[0].height });
+      // Higgsfield's live price: never the price, only a guard (K20).
+      const live = await hf.tools.cost(c.row, params);
+      if (!live.ok) {
+        if (live.why === "job_started") {
+          chargeStarted(c, live.jobId);
+          return no(res, "gen_could_not_start", "Higgsfield started a job when asked only for its price. Its cost is counted.");
+        }
+        say(`${iso()} higgsfield price not given ${live.why}`);
+        const code = hfCode(live.why);
+        return code ? no(res, code) : no(res, "gen_could_not_start", "Higgsfield did not say its price, so nothing was spent.");
+      }
+      if (live.credits > c.units) {
+        say(`${iso()} higgsfield price ${live.credits} over the table's ${c.units} for ${c.model}`);
+        return no(res, "gen_price_changed");
+      }
+      if (closing) return no(res, "gen_could_not_start", "The door is stopping. Nothing was spent.");
+      const again = recheck(c);
+      if (again) return no(res, again[0], again[1]);
+      const j = {
+        job: newId("g"), batch: c.batchId, shot: c.shot, slug: c.slug, kind: c.kind, model: c.model, seconds: c.seconds, estimate: c.cost,
+        known: 0, runwayTask: null, startedMs: Date.now(), inputIds: c.ids, inputSha256: c.hashes, record: null,
+        provider: "higgsfield", units: c.units, rate: c.rate, ...(c.app ? { app: c.app } : {}),
+      };
+      try {
+        ledger.reserve(iso(), {
+          job: j.job, batch: j.batch, shot: j.shot, slug: j.slug, kind: j.kind, model: j.model, seconds: j.seconds, estimate: c.cost,
+          provider: "higgsfield", units: c.units, rate: c.rate, ...(c.app ? { app: c.app } : {}),
+        });
+      } catch {
+        return no(res, "gen_ledger");
+      }
+      running.set(j.job, j);
+      release();
+      j.record = jobRecord(j, c);
+      record(j, {});
+      say(`${iso()} job ${c.slug} ${j.job} ${j.kind} ${j.model} ${j.seconds || 0}s est=${c.cost} higgsfield`);
+      touch("jobs");
+
+      // The one call out.
+      const s = await hf.tools.start(c.row, params);
+      if (s.ok) {
+        j.runwayTask = s.jobId;
+        if (s.credits !== null && s.credits > j.units) {
+          j.units = s.credits;
+          j.known = centsOf(s.credits, j.rate);
+        }
+        const held = Math.max(c.cost, j.known);
+        try {
+          ledger.note(iso(), j, { credits: held, runwayTask: j.runwayTask });
+        } catch {
+          say(`${iso()} ledger not written for ${j.job}'s task; its reservation stays counted`);
+        }
+        record(j, { runwayTask: j.runwayTask, credits: held });
+        sendJson(res, 202, c.reply(j));
+        trackHf(j);
+        return undefined;
+      }
+      // Not started. Only a clear refusal (the call never went, or Higgsfield said no) is free, and
+      // it is counted as Runway's 4xx are (T48 F1): two a shot, three a day pause the door.
+      const words = typeof s.text === "string" ? s.text.slice(0, 300) : "";
+      if (s.clear) {
+        const st = s.why === "limited" ? 429 : s.why === "unauthorized" || hfCode(s.why) ? 401 : 400;
+        try {
+          ledger.settle(iso(), j, { state: "released", credits: 0, verdict: `not_started_${st}` });
+        } catch {
+          say(`${iso()} ledger not written for ${j.job}; its reservation stays counted`);
+        }
+        endJob(j, "failed", { credits: 0, reason: words ? `Higgsfield did not start it. Higgsfield said: ${words}` : "Higgsfield did not start it.", notStarted: st });
+        if (st !== 401 && st !== 429) marks.resend.add(c.resend);
+        maybePause();
+      } else {
+        const credits = settle(j, null, "unknown", false);
+        endJob(j, "failed", { credits, reason: "Higgsfield's answer was lost on the way, so the job may have started. Its cost stays counted." });
+      }
+      const code = hfCode(s.why);
+      if (code) return no(res, code);
+      if (s.why === "limited") return no(res, "gen_limited", "Higgsfield says too many requests for now. Wait before asking again.", { retryAfterSec: LIMITED_SEC });
+      return no(res, "gen_could_not_start", words ? `Higgsfield did not start this job. Higgsfield said: ${words}` : "Higgsfield did not start this job.");
+    } finally {
+      release();
+    }
+  }
+
+  // A job record, as step 3's (what was sent, for the owner's views), with its service.
+  function jobRecord(j, c) {
+    return {
+      job: j.job, slug: j.slug, kind: j.kind, model: j.model, seconds: j.seconds, batch: j.batch, shot: j.shot, estimate: j.estimate,
+      fingerprint: c.print, state: "waiting", progress: null, credits: j.estimate, reason: null, runwayTask: null, output: null, startedAt: iso(),
+      endedAt: null, inputs: c.ids, prompt: typeof c.prompt === "string" && c.prompt !== "" ? c.prompt.slice(0, PROMPT_KEPT) : null,
+      inputSha256: c.hashes, resend: c.resend, notStarted: null, provider: j.provider || "runway", ...(c.app ? { app: c.app } : {}),
+    };
+  }
+
+  // Higgsfield answered a price question with a job: it may be spending, so it is counted at once.
+  function chargeStarted(c, jobId) {
+    const j = {
+      job: newId("g"), batch: c.batchId, shot: c.shot, slug: c.slug, kind: c.kind, model: c.model, seconds: c.seconds, estimate: c.cost,
+      runwayTask: typeof jobId === "string" ? jobId : null, provider: "higgsfield", units: c.units, rate: c.rate, ...(c.app ? { app: c.app } : {}),
+    };
+    try {
+      ledger.reserve(iso(), { job: j.job, batch: j.batch, shot: j.shot, slug: j.slug, kind: j.kind, model: j.model, seconds: j.seconds, estimate: c.cost,
+        provider: "higgsfield", units: c.units, rate: c.rate, runwayTask: j.runwayTask, ...(c.app ? { app: c.app } : {}) });
+      ledger.settle(iso(), j, { state: "spent", credits: c.cost, verdict: "job_started" });
+    } catch {
+      say(`${iso()} ledger not written for a job Higgsfield started on a price question`);
+    }
+    say(`${iso()} higgsfield started a job on a price question; ${c.cost} counted`);
+    touch();
+  }
+
+  // Ends a Higgsfield job's money: released (0) only when Higgsfield's answer said it cost 0 for a
+  // job that failed or was refused; otherwise spent at the table's price or a higher stated one.
+  function settleHf(j, w, verdict, allowZero) {
+    const zero = allowZero && w && w.costZero;
+    const amount = zero ? 0 : Math.max(j.estimate, j.known || 0);
+    try {
+      ledger.settle(iso(), j, { state: zero ? "released" : "spent", credits: amount, verdict, runwayTask: j.runwayTask });
+    } catch {
+      say(`${iso()} ledger not written for ${j.job}; its reservation stays counted`);
+    }
+    say(`${iso()} end ${j.job} ${verdict} credits=${amount}`);
+    return amount;
+  }
+
+  // Handles one jobs_wait answer; true when the job has ended.
+  async function onHf(j, w) {
+    if (w.cost !== null && w.cost > (j.units || 0)) {
+      j.units = w.cost;
+      j.known = Math.max(j.known || 0, centsOf(w.cost, j.rate));
+    }
+    if (w.state === "done") {
+      const credits = settleHf(j, w, "done", false);
+      const want = VIDEO_KINDS.includes(j.kind) ? "video" : "picture";
+      const ctl = new AbortController();
+      controllers.add(ctl);
+      let got;
+      try {
+        got = typeof w.url === "string" ? await hf.tools.output(w.url, want, { signal: ctl.signal }) : { ok: false, why: "no_address" };
+      } finally {
+        controllers.delete(ctl);
+      }
+      if (closing) return true;
+      if (!got.ok) {
+        say(`${iso()} output refused ${j.job} ${got.why}`);
+        endJob(j, "failed", { credits, progress: 1, reason: "Higgsfield made it and it is paid for, but its result was not safe to fetch, so nothing was kept." });
+        return true;
+      }
+      try {
+        store.saveOutput(j.job, got.kind.ext, got.body);
+      } catch {
+        endJob(j, "failed", { credits, progress: 1, reason: "The result could not be kept on this Mac." });
+        return true;
+      }
+      say(`${iso()} output ${j.job} ${got.host} ${got.body.length}`);
+      endJob(j, "done", { credits, progress: 1, reason: null, output: { ext: got.kind.ext, type: got.kind.type, bytes: got.body.length } });
+      return true;
+    }
+    if (w.state === "refused" || w.state === "failed") {
+      const refused = w.state === "refused";
+      const said = w.reason ? ` Higgsfield said: ${w.reason}` : "";
+      if (refused) {
+        for (const id of j.inputIds) store.markInputRefused(id);
+        for (const h of j.inputSha256) marks.pictures.add(h);
+        if (j.record && typeof j.record.fingerprint === "string") marks.refused.add(j.record.fingerprint);
+      }
+      const credits = settleHf(j, w, refused ? "refused" : "failed", true);
+      if (refused) {
+        endJob(j, "refused", { credits, reason: `Higgsfield refused this picture or prompt. It will not be sent again.${said}` });
+        maybePause();
+      } else {
+        endJob(j, "failed", { credits, reason: `Higgsfield could not make this. It may work later.${said}` });
+      }
+      return true;
+    }
+    record(j, { state: "working" });
+    return false;
+  }
+
+  function giveUpHf(j, sentence) {
+    const credits = settleHf(j, null, "unknown", false);
+    endJob(j, "failed", { credits, reason: sentence });
+  }
+
+  // Asks Higgsfield about the job every pollMs (jobs_wait, not waiting on its side) until it ends,
+  // its 20 minutes are up, or Higgsfield stops answering clearly. Closing leaves it for the next start.
+  async function trackHf(j) {
+    const ctl = new AbortController();
+    controllers.add(ctl);
+    const deadline = j.startedMs + lim.jobMs;
+    let errors = 0;
+    try {
+      for (;;) {
+        if (await wait(lim.pollMs, ctl.signal) || closing) return;
+        if (Date.now() >= deadline) return void giveUpHf(j, "Higgsfield did not finish in 20 minutes. Its cost stays counted.");
+        const w = await hf.tools.wait(j.runwayTask, 0);
+        if (closing) return;
+        if (!w.ok || w.state === "unknown") {
+          errors += 1;
+          if (errors >= lim.pollErrors) return void giveUpHf(j, "Higgsfield stopped answering clearly about this job. Its cost stays counted.");
+          continue;
+        }
+        errors = 0;
+        if (await onHf(j, w)) return;
+      }
+    } catch (err) {
+      say(`${iso()} job ${j.job} stopped: ${describeError(err)}`);
+    } finally {
+      controllers.delete(ctl);
+    }
+  }
+
+  // At start (K21): an open Higgsfield job is asked once; no clear answer, and it is spent.
+  async function settleOpenHf(j) {
+    if (!j.runwayTask || !hf) {
+      const credits = settleHf(j, null, "unknown", false);
+      endJob(j, "failed", { credits, reason: "The door stopped before Higgsfield answered. The estimate stays counted." });
+      return;
+    }
+    const w = await hf.tools.wait(j.runwayTask, 0);
+    if (closing) return;
+    running.set(j.job, j);
+    if (!w.ok || w.state === "unknown") {
+      const credits = settleHf(j, null, "unknown", false);
+      endJob(j, "failed", { credits, reason: "Higgsfield did not say how this job ended. Its cost stays counted." });
+      return;
+    }
+    if (!(await onHf(j, w))) trackHf(j);
+  }
+
+  // ---- the app routes (K19) ----
+
+  async function doAppJob(res, who, raw, gs, key) {
+    const slug = who.slug;
+    const parsed = parseAppJob(raw);
+    if (!parsed.ok) return no(res, "gen_bad_request", parsed.why);
+    const job = parsed.job;
+    const row = rowOf(job.model);
+    // A2: the model's service is ready.
+    if (row.provider === "runway" && key === null) return no(res, "gen_no_key");
+    if (row.provider === "higgsfield") {
+      const nr = hfNotReady(gs);
+      if (nr) return no(res, nr);
+    }
+    const rate = gs.higgsfield.centsPerCredit;
+    const item = {
+      kind: job.kind, model: job.model, seconds: job.seconds === null ? undefined : job.seconds, resolution: job.resolution === null ? undefined : job.resolution,
+      scale: job.scale === null ? undefined : job.scale, refs: job.inputs.length,
+    };
+    const units = estimateUnits(item);
+    const cost = estimateCents(item, { centsPerCredit: rate });
+    if (units === null || cost === null) return no(res, "gen_no_price");
+    if (row.provider === "runway") {
+      const hold = limitedUntil - Date.now();
+      if (hold > 0) return no(res, "gen_limited", undefined, { retryAfterSec: Math.ceil(hold / 1000) });
+    }
+    // A3: the pictures, only this app's, kept in the last day, never one refused before.
+    const at = clock();
+    const pictures = [];
+    for (const it of job.inputs) {
+      const pic = store.readInput(slug, it.input, at);
+      if (!pic) return no(res, "gen_bad_request", "A picture is not one this app sent in the last day.");
+      if (pic.refused || marks.pictures.has(pic.sha256)) return no(res, "gen_not_approved", "This picture was refused before. The door will not send it again.");
+      pictures.push({ ...pic, role: it.role });
+    }
+    if (job.kind === "still_upscale") {
+      const p = pictures[0];
+      const small = row.provider === "runway" && (Math.min(p.width, p.height) < 300 || Math.max(p.width, p.height) > 8000);
+      if (small || !upscaleFits(row, p.width, p.height, job.scale)) {
+        return no(res, "gen_bad_request", "An upscale needs a picture of 300 px or more a side whose result stays within 4096 px.");
+      }
+    }
+    // A4: the owner's allowance for this app, read now.
+    const a = readAllowance(P.allowances, who.app, at);
+    if (!a.ok) {
+      return no(res, "gen_no_allowance", a.why === "expired" ? "The owner's allowance for this app has ended. The owner can allow it again in App Studio." : undefined);
+    }
+    const allowance = a.allowance;
+    // A1 and A5: the pause and the money.
+    const t = ledger.totals(at, { batch: allowance.id, resumedAt: gs.resumedAt });
+    if (!t.ok) return no(res, "gen_ledger");
+    if (t.refusedRecent >= REFUSALS_TO_PAUSE || t.notStartedRecent >= NOT_STARTED_TO_PAUSE) return no(res, "gen_paused");
+    const hashes = pictures.map((p) => p.sha256);
+    const print = fingerprint(job.kind, job.model, hashes, job.prompt);
+    if (marks.refused.has(print)) return no(res, "gen_not_approved", "This same picture or prompt was refused before. The door will not send it again.");
+    const resend = resendPrint(allowance.id, null, job.kind, job.model, hashes, job.prompt);
+    if (marks.resend.has(resend)) return no(res, "gen_not_approved", "This same request was not started before. The door will not send it again.");
+    const over = overApp(gs, t, cost, allowance);
+    if (over) return no(res, over);
+    // A7: the running limit.
+    const busy = busyFor(slug);
+    if (busy) return no(res, "gen_busy", busy, { retryAfterSec: 30 });
+    const c = {
+      slug, app: who.app, row, kind: job.kind, model: job.model, seconds: job.seconds, prompt: job.prompt, ratio: job.ratio, resolution: job.resolution,
+      pictures, ids: job.inputs.map((i) => i.input), hashes, cost, units, rate, batchId: allowance.id, shot: null, print, resend,
+      reply: (j) => ({ job: j.job, cents: cost }),
+    };
+    if (row.provider === "higgsfield") return hfRun(res, c);
+    return runwayAppJob(res, c, gs, key, job, allowance);
+  }
+
+  // An app's Runway job: step 3's path (the reservation, the one call, the task followed), the
+  // body from the table's row with its pins, the money held to the allowance too.
+  async function runwayAppJob(res, c, gs, key, job, allowance) {
+    const j = {
+      job: newId("g"), batch: c.batchId, shot: null, slug: c.slug, kind: c.kind, model: c.model, seconds: c.seconds, estimate: c.cost,
+      known: 0, runwayTask: null, startedMs: Date.now(), inputIds: c.ids, inputSha256: c.hashes, record: null, provider: "runway", app: c.app,
+    };
+    try {
+      ledger.reserve(iso(), { job: j.job, batch: j.batch, shot: null, slug: j.slug, kind: j.kind, model: j.model, seconds: j.seconds, estimate: c.cost,
+        provider: "runway", app: c.app });
+    } catch {
+      return no(res, "gen_ledger");
+    }
+    running.set(j.job, j);
+    j.record = jobRecord(j, c);
+    record(j, {});
+    say(`${iso()} job ${c.slug} ${j.job} ${j.kind} ${j.model} ${j.seconds || 0}s est=${c.cost}`);
+    touch("jobs");
+
+    const req = runwayRequest(c.row, job, c.pictures);
+    const r = await callRunway(up, { method: "POST", path: req.path, key, json: req.body, limits: lim });
+    const created = r.ok && r.status >= 200 && r.status < 300 ? readTask(r.json) : null;
+    if (created && created.id) {
+      j.runwayTask = created.id;
+      j.known = created.estimated || 0;
+      try {
+        ledger.note(iso(), j, { credits: Math.max(c.cost, j.known), runwayTask: j.runwayTask });
+      } catch {
+        say(`${iso()} ledger not written for ${j.job}'s task; its reservation stays counted`);
+      }
+      record(j, { runwayTask: j.runwayTask, credits: Math.max(c.cost, j.known) });
+      if (j.known > c.cost) {
+        const again = ledger.totals(clock(), { batch: j.batch, resumedAt: gs.resumedAt });
+        const code = again.ok ? overApp(gs, again, 0, allowance) : "gen_ledger";
+        if (code) {
+          await cancel(j);
+          const credits = settle(j, created, "stopped", false);
+          endJob(j, "failed", { credits, reason: "Runway's price was higher than the door's and went over a limit, so the job was stopped." });
+          return no(res, code);
+        }
+      }
+      sendJson(res, 202, c.reply(j));
+      track(j);
+      return undefined;
+    }
+    // Not started: as an agent's (doJob), free only when Runway clearly refused it, and counted.
+    const words = r.ok ? errorText(r.json, key) : "";
+    const clear = r.ok && r.status >= 400 && r.status < 500;
+    const retrySec = r.ok && r.retryAfter !== null ? Math.max(1, Math.min(r.retryAfter, 86400)) : LIMITED_SEC;
+    if (clear) {
+      try {
+        ledger.settle(iso(), j, { state: "released", credits: 0, verdict: `not_started_${r.status}` });
+      } catch {
+        say(`${iso()} ledger not written for ${j.job}; its reservation stays counted`);
+      }
+    } else {
+      settle(j, null, "unknown", false);
+    }
+    endJob(j, "failed", { credits: clear ? 0 : c.cost, reason: words ? `Runway did not start it. Runway said: ${words}` : "Runway did not start it.", notStarted: clear ? r.status : null });
+    if (clear) {
+      if (r.status === 429) limitedUntil = Math.max(limitedUntil, Date.now() + retrySec * 1000);
+      else if (r.status !== 401) marks.resend.add(c.resend);
+      maybePause();
+    }
+    if (r.ok && r.status === 401) return no(res, "gen_key_refused");
+    if (r.ok && r.status === 429) return no(res, "gen_limited", undefined, { retryAfterSec: retrySec });
+    return no(res, "gen_could_not_start", words ? `Runway did not start this job. Runway said: ${words}` : undefined);
+  }
+
+  // K19's estimate: 1 to 20 items, priced from the table only; an item the door has no price for
+  // is `cents: null` (then `total` is null too).
+  function doAppEstimate(res, buf, gs) {
+    const v = parseObject(buf);
+    if (!v || Object.keys(v).length !== 1 || !Array.isArray(v.items) || v.items.length < 1 || v.items.length > 20) return no(res, "gen_bad_request");
+    const rate = gs.higgsfield.centsPerCredit;
+    const items = [];
+    for (const it of v.items) {
+      if (!it || typeof it !== "object" || Array.isArray(it) || !Object.keys(it).every((k) => ["model", "kind", "seconds", "resolution", "scale"].includes(k))) return no(res, "gen_bad_request");
+      if (typeof it.model !== "string" || it.model.length > 64 || !KINDS.includes(it.kind)) return no(res, "gen_bad_request");
+      if ((it.seconds !== undefined && !Number.isInteger(it.seconds)) || (it.scale !== undefined && !Number.isInteger(it.scale))
+        || (it.resolution !== undefined && (typeof it.resolution !== "string" || it.resolution.length > 8))) return no(res, "gen_bad_request");
+      const cents = estimateCents({ kind: it.kind, model: it.model, seconds: it.seconds, resolution: it.resolution, scale: it.scale }, { centsPerCredit: rate });
+      items.push({ model: it.model, cents });
+    }
+    const total = items.some((i) => i.cents === null) ? null : items.reduce((s, i) => s + i.cents, 0);
+    return sendJson(res, 200, { items, total });
+  }
+
+  // K19's allowance: { open, budget, spent, left, expiresAt } in cents; `left` is also held to what
+  // is left of today's and this month's caps.
+  function doAllowance(res, who, gs) {
+    const at = clock();
+    const a = readAllowance(P.allowances, who.app, at);
+    if (!a.ok) return sendJson(res, 200, { open: false, budget: 0, spent: 0, left: 0, expiresAt: null });
+    const t = ledger.totals(at, { batch: a.allowance.id, resumedAt: gs.resumedAt });
+    if (!t.ok) return no(res, "gen_ledger");
+    const budget = a.allowance.budgetCents;
+    const left = Math.max(0, Math.min(budget - t.batch, gs.dailyCredits - t.day, gs.monthlyCredits - t.month));
+    return sendJson(res, 200, { open: true, budget, spent: t.batch, left, expiresAt: a.allowance.expiresAt });
+  }
+
+  // ---- the owner's Higgsfield routes (K21) ----
+
+  async function doHfOwner(res, name, raw) {
+    if (!hf) return no(res, "gen_hf_signed_out");
+    if (name === "hfBegin" || name === "hfForget") {
+      const empty = raw.length === 0 || (() => { const v = parseObject(raw); return v !== null && Object.keys(v).length === 0; })();
+      if (!empty) return no(res, "gen_bad_request");
+      if (name === "hfForget") {
+        hf.auth.forget();
+        hf.mcp.reset();
+        touch();
+        return sendJson(res, 200, { connected: false });
+      }
+      const b = await hf.auth.begin();
+      if (!b.ok) return no(res, "gen_hf_sign_in");
+      return sendJson(res, 200, { url: b.url });
+    }
+    if (name === "hfFinish") {
+      const v = parseObject(raw);
+      const fits = v !== null && Object.keys(v).length === 2 && typeof v.code === "string" && typeof v.state === "string";
+      // The pending sign-in is cleared whatever happens (K21): a body of the wrong shape ends it too.
+      const f = await hf.auth.finish(fits ? { code: v.code, state: v.state } : {});
+      if (!fits) return no(res, "gen_bad_request");
+      if (!f.ok) return no(res, "gen_hf_sign_in");
+      hf.mcp.reset();
+      touch();
+      return sendJson(res, 200, { connected: true });
+    }
+    const r = await hf.tools.balance();
+    say(`${iso()} higgsfield balance owner ${r.ok ? "ok" : r.why}`);
+    if (!r.ok) {
+      const code = hfCode(r.why);
+      return code ? no(res, code) : no(res, "gen_could_not_start", "Higgsfield did not answer the balance question.");
+    }
+    return sendJson(res, 200, { credits: r.credits, plan: r.plan });
+  }
+
   async function onRequest(req, res) {
     // 1. Upgrades are never let through; then health; then the path, as sent.
     if (wantsUpgrade(req.rawHeaders)) return no(res, "gen_refused");
     const target = req.url;
     if (req.method === "GET" && target === "/gen/health") {
       const gs = readGenState(P.state, clock());
-      return sendJson(res, 200, { status: "ok", part: "generate", on: gs.ok && gs.on, key: readRunwayKey(P.key) !== null });
+      return sendJson(res, 200, { status: "ok", part: "generate", on: gs.ok && gs.on, key: readRunwayKey(P.key) !== null, higgsfield: hfStatus().signedIn });
     }
     const r = route(req.method, target);
     if (r === null) return no(res, "gen_not_found");
@@ -672,10 +1381,14 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     if (typeof ok === "string") return no(res, ok);
     if (r.name === "job") return doGetJob(res, ok.who, r.args[0]);
     if (r.name === "output") return doOutput(res, ok.who, r.args[0]);
+    if (r.name === "appJob") return doGetJob(res, ok.who, r.args[0]);
+    if (r.name === "appOutput") return doOutput(res, ok.who, r.args[0]);
+    if (r.name === "appModels") return sendJson(res, 200, { models: appModels(ok.gs, { runway: ok.key !== null, higgsfield: hfNotReady(ok.gs) === null }) });
+    if (r.name === "appAllowance") return doAllowance(res, ok.who, ok.gs);
     // 5 and 6. The body.
     let raw;
     let type;
-    if (r.name === "inputs") {
+    if (r.name === "inputs" || r.name === "appInputs") {
       const types = headerValues(req.rawHeaders, "content-type").map((v) => String(v).split(";")[0].trim().toLowerCase());
       type = types.length === 1 ? PICTURE_TYPES[types[0]] : undefined;
       raw = await readBody(req, INPUT_MAX);
@@ -686,7 +1399,7 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
         return refuse(res, 413, "gen_bad_input", CODES.gen_bad_input[1]);
       }
     } else {
-      raw = await readBody(req, BODY_BYTES);
+      raw = await readBody(req, r.name === "appJobs" ? APP_JOB_BYTES : BODY_BYTES);
       if (raw === null) return undefined;
       if (raw === "too-big") return no(res, "gen_bad_request");
     }
@@ -694,10 +1407,16 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     ok = admitted(req, r);
     if (typeof ok === "string") return no(res, ok);
     if (r.name === "inputs") return takeInput(res, ok.who.slug, raw, type);
+    if (r.name === "appInputs") return takeInput(res, ok.who.slug, raw, type, { kept: INPUTS_KEPT_APP, full: "This app already keeps 200 pictures from the last day." });
     if (r.name === "estimate") return doEstimate(res, raw, ok.gs);
+    if (r.name === "appEstimate") return doAppEstimate(res, raw, ok.gs);
+    if (r.name === "appJobs") return doAppJob(res, ok.who, raw, ok.gs, ok.key);
+    if (r.hf) return doHfOwner(res, r.name, raw);
     if (r.name === "balance") return doBalance(res, ok.key);
     const body = parseJob(raw);
     if (body === null) return no(res, "gen_bad_request");
+    // An allowance is an app's, never a batch (K22): an agent naming one is refused.
+    if (body.batch !== null && ALLOWANCE_ID_RE.test(body.batch)) return no(res, "gen_not_approved", "An app's spending allowance is not a batch. Nothing was spent.");
     return doJob(res, ok.who, body, ok.gs, ok.key);
   }
 
@@ -707,6 +1426,8 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     const gs = readGenState(P.state, clock());
     const t = ledger.totals(clock(), { resumedAt: gs.ok ? gs.resumedAt : null });
     if (!t.ok) return;
+    const read = ledger.read();
+    const extras = read.ok ? extrasByJob(read.lines) : new Map();
     for (const o of t.open) {
       if (closing) return;
       const rec = store.readJob(o.job);
@@ -719,6 +1440,11 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
           estimate: o.estimate, fingerprint: null, state: "waiting", progress: null, credits: o.reserved, reason: null,
           runwayTask: o.runwayTask, output: null, startedAt: null, endedAt: null, inputs: [], prompt: null, inputSha256: [], resend: null, notStarted: null },
       };
+      Object.assign(j, extras.get(o.job) || {});   // step 5: provider, units, rate, app
+      if (j.provider === "higgsfield") {
+        await settleOpenHf(j);
+        continue;
+      }
       const key = readRunwayKey(P.key);
       if (!j.runwayTask) {
         settle(j, null, "unknown", false);
@@ -839,6 +1565,9 @@ export function generateDoorOptions(cfg) {
     config: cfg,
     log: (line) => console.log(line),
     net: REAL_NET,
+    // Higgsfield's one origin (higgsfield.mjs) and the home server's sign-in return address.
+    higgsfield: Number.isInteger(cfg.ports && cfg.ports.home)
+      ? { origin: HF_ORIGIN, redirectUri: `http://127.0.0.1:${cfg.ports.home}${HF_RETURN_PATH}`, net: REAL_NET } : undefined,
   };
 }
 

@@ -5,7 +5,12 @@
 // Nothing is cached: every question reads the file again. Zero dependencies.
 //
 // Lines: { at, job, batch, shot, slug, kind, model, seconds, estimate, state, credits,
-// runwayTask, verdict }. `state`:
+// runwayTask, verdict }, and four fields a line may carry (K20; missing means what step 3
+// meant): `provider` ("runway" | "higgsfield"; missing is Runway), `units` (Higgsfield's own
+// credits), `rate` (the cents a Higgsfield credit counted as, whole 1 to 50) and `app` (an app's
+// name). Money is in US cents everywhere (`credits`, `estimate`): a Runway credit is one cent.
+// A Higgsfield job keeps its job id in `runwayTask` (the old name, kept so old readers read).
+// `state`:
 //   reserved  before the call leaves (credits = the door's estimate); written again, same job,
 //             when Runway's task id or a higher price is known
 //   spent     the job ended and cost `credits` (the highest of what is known)
@@ -42,6 +47,16 @@ export const monthOf = (ms) => dayOf(ms).slice(0, 7);
 const str = (v) => typeof v === "string" && v.length <= 200;
 const strOrNull = (v) => v === null || str(v);
 const amount = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0;
+export const PROVIDERS = Object.freeze(["runway", "higgsfield"]);
+export const APP_NAME_RE = /^[a-z0-9][a-z0-9-]{0,23}$/;
+const OPTIONAL = ["provider", "units", "rate", "app"];
+// K20's optional fields: each, when present, of its own kind; anything else makes the line unreadable.
+const optionalOk = (v) => (v.provider === undefined || PROVIDERS.includes(v.provider))
+  && (v.units === undefined || amount(v.units))
+  && (v.rate === undefined || (Number.isInteger(v.rate) && v.rate >= 1 && v.rate <= 50))
+  && (v.app === undefined || (typeof v.app === "string" && APP_NAME_RE.test(v.app)));
+// The optional fields a job in memory carries, for its later lines.
+const extrasOf = (j) => Object.fromEntries(OPTIONAL.filter((k) => j[k] !== undefined && j[k] !== null).map((k) => [k, j[k]]));
 
 // One line, checked; null when anything is off.
 function readLine(text) {
@@ -50,6 +65,7 @@ function readLine(text) {
   if (v === null || typeof v !== "object" || Array.isArray(v)) return null;
   if (!str(v.at) || !Number.isFinite(Date.parse(v.at)) || !STATES.has(v.state)) return null;
   if (!amount(v.credits) || !amount(v.estimate)) return null;
+  if (!optionalOk(v)) return null;
   if (v.state === "paused") return v.job === null ? v : null;
   if (v.state === "folded") return v.job === null && v.credits === 0 && Number.isInteger(v.count) && v.count >= 1 && v.count <= MAX_FOLDED ? v : null;
   if (!str(v.job) || !JOB_RE.test(v.job)) return null;
@@ -94,6 +110,18 @@ function readWhole(path) {
   } finally {
     closeSync(fd);
   }
+}
+
+// For each job, the optional fields its lines carry (the last line's word wins): Map(job ->
+// { provider, units, rate, app }, each only when present). Old lines carry none.
+export function extrasByJob(lines) {
+  const out = new Map();
+  for (const l of lines) {
+    if (typeof l.job !== "string") continue;
+    const e = extrasOf(l);
+    if (Object.keys(e).length) out.set(l.job, { ...(out.get(l.job) || {}), ...e });
+  }
+  return out;
 }
 
 // The file's lines: { ok: true, lines } (no file: no lines) or { ok: false }.
@@ -208,11 +236,12 @@ export function createLedger(path) {
     // A later reservation for the same job: the task id, or a higher price.
     note(at, j, { credits, runwayTask }) {
       appendLine(path, base({ at, job: j.job, batch: j.batch, shot: j.shot, slug: j.slug, kind: j.kind, model: j.model,
-        seconds: j.seconds, estimate: j.estimate, state: "reserved", credits, runwayTask: runwayTask || j.runwayTask || null }));
+        seconds: j.seconds, estimate: j.estimate, state: "reserved", credits, runwayTask: runwayTask || j.runwayTask || null, ...extrasOf(j) }));
     },
     settle(at, j, { state, credits, verdict, runwayTask }) {
       appendLine(path, base({ at, job: j.job, batch: j.batch, shot: j.shot, slug: j.slug, kind: j.kind, model: j.model,
-        seconds: j.seconds, estimate: j.estimate, state, credits: state === "released" ? 0 : credits, runwayTask: runwayTask || j.runwayTask || null, verdict }));
+        seconds: j.seconds, estimate: j.estimate, state, credits: state === "released" ? 0 : credits, runwayTask: runwayTask || j.runwayTask || null, verdict,
+        ...extrasOf(j) }));
     },
     pause(at, verdict) {
       appendLine(path, base({ at, state: "paused", verdict }));

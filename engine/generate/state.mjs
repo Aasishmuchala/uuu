@@ -9,6 +9,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { readDoorsState } from "../doors/common.mjs";
+import { APP_NAME_RE } from "./ledger.mjs";
+import { DEFAULT_CENTS_PER_CREDIT } from "./registry.mjs";
 import { KEY_RE, KINDS, MAX_SECONDS, MIN_SECONDS, VIDEO_KINDS } from "./runway.mjs";
 
 const MB = 1024 * 1024;
@@ -18,6 +20,7 @@ export const SHOT_RE = /^[A-Za-z0-9_-]{1,32}$/;
 export const INPUT_MIN = 512;
 export const INPUT_MAX = 3_300_000;          // a data address of it stays under Runway's 5 MB
 export const INPUTS_KEPT = 40;               // per agent, within a day
+export const INPUTS_KEPT_APP = 200;          // per app, within a day (K19)
 export const INPUT_HOURS = 24;
 export const OUTPUT_HOURS = 48;
 export const BATCH_DAYS = 7;
@@ -75,10 +78,13 @@ export function trustedFolder(path) {
 
 // ---- the switches -------------------------------------------------------------------------
 
-// { ok: true, on, dailyCredits, monthlyCredits, autoUnderCredits, paused, models, resumedAt }
-// or { ok: false }. `paused` is the owner's own pause (any value but null). `resumedAt` is when
-// the owner last pressed "Start again" (ms), read only when it is a time not in the future;
-// it clears a pause the door set itself before that time.
+// { ok: true, on, dailyCredits, monthlyCredits, autoUnderCredits, paused, models, resumedAt,
+// higgsfield: { on, centsPerCredit } } or { ok: false }. `paused` is the owner's own pause (any
+// value but null). `resumedAt` is when the owner last pressed "Start again" (ms), read only when
+// it is a time not in the future; it clears a pause the door set itself before that time.
+// `higgsfield` (K20) is the owner's switch for Higgsfield (default off) and what one of its
+// credits counts as in cents (default 5); a block with another key, or a value of the wrong
+// kind (the rate not whole from 1 to 50), makes the whole state unreadable, so nothing is spent.
 export function readGenState(path, now = Date.now()) {
   const st = readDoorsState(path);
   if (!st.ok) return { ok: false };
@@ -89,6 +95,15 @@ export function readGenState(path, now = Date.now()) {
     const t = Date.parse(raw.generate.resumedAt);
     if (Number.isFinite(t) && t <= now + 60_000) resumedAt = t;
   }
+  const higgsfield = { on: false, centsPerCredit: DEFAULT_CENTS_PER_CREDIT };
+  const h = raw && raw.generate && typeof raw.generate === "object" ? raw.generate.higgsfield : undefined;
+  if (h !== undefined && h !== null) {
+    if (typeof h !== "object" || Array.isArray(h) || Object.keys(h).some((k) => k !== "on" && k !== "centsPerCredit")) return { ok: false };
+    if (h.on !== undefined && typeof h.on !== "boolean") return { ok: false };
+    if (h.centsPerCredit !== undefined && !(Number.isInteger(h.centsPerCredit) && h.centsPerCredit >= 1 && h.centsPerCredit <= 50)) return { ok: false };
+    higgsfield.on = h.on === true;
+    if (h.centsPerCredit !== undefined) higgsfield.centsPerCredit = h.centsPerCredit;
+  }
   return {
     ok: true,
     on: g.on === true,
@@ -98,6 +113,7 @@ export function readGenState(path, now = Date.now()) {
     paused: g.paused,
     models: { ...g.models },
     resumedAt,
+    higgsfield,
   };
 }
 
@@ -143,6 +159,35 @@ export function readBatch(dir, id, { slug, now }) {
     ok: true,
     batch: { id, slug: v.slug, budgetCredits: v.budgetCredits, textToVideo: v.textToVideo === true, frozen: v.frozen === true, shots },
   };
+}
+
+// ---- the owner's allowance for an app (K22) ---------------------------------------------------
+
+export const ALLOWANCE_ID_RE = /^a[0-9a-f]{20}$/;
+export const ALLOWANCE_BYTES = 4096;
+export const ALLOWANCE_MAX_CENTS = 10_000;   // $100, the most the owner may allow in a day
+const ALLOWANCE_KEYS = ["version", "id", "app", "approvedAt", "expiresAt", "budgetCents"];
+
+// The allowance the owner opened for app `app`, read now from `<dir>/<app>.json` (written only by
+// the home server). { ok: true, allowance: { id, app, approvedAt, expiresAt, budgetCents } } or
+// { ok: false, why } with why one of missing, untrusted, shape, other_app, expired. It ends at
+// the next midnight, so it never spans more than a day.
+export function readAllowance(dir, app, now = Date.now()) {
+  if (typeof dir !== "string" || dir === "" || typeof app !== "string" || !APP_NAME_RE.test(app)) return { ok: false, why: "missing" };
+  if (!trustedFolder(dir)) return { ok: false, why: "untrusted" };
+  const v = readJson(join(dir, `${app}.json`), ALLOWANCE_BYTES);
+  if (v === "missing") return { ok: false, why: "missing" };
+  if (v === null) return { ok: false, why: "untrusted" };
+  const keys = Object.keys(v);
+  if (keys.length !== ALLOWANCE_KEYS.length || !ALLOWANCE_KEYS.every((k) => keys.includes(k))) return { ok: false, why: "shape" };
+  const approved = iso(v.approvedAt);
+  const expires = iso(v.expiresAt);
+  if (v.version !== 1 || typeof v.id !== "string" || !ALLOWANCE_ID_RE.test(v.id) || typeof v.app !== "string" || !APP_NAME_RE.test(v.app)) return { ok: false, why: "shape" };
+  if (!Number.isFinite(approved) || !Number.isFinite(expires)) return { ok: false, why: "shape" };
+  if (!Number.isInteger(v.budgetCents) || v.budgetCents < 0 || v.budgetCents > ALLOWANCE_MAX_CENTS) return { ok: false, why: "shape" };
+  if (v.app !== app) return { ok: false, why: "other_app" };
+  if (approved > now + 60_000 || expires <= now || expires - approved > 24 * HOUR + 60_000) return { ok: false, why: "expired" };
+  return { ok: true, allowance: { id: v.id, app: v.app, approvedAt: v.approvedAt, expiresAt: v.expiresAt, budgetCents: v.budgetCents } };
 }
 
 // ---- bytes ----------------------------------------------------------------------------------

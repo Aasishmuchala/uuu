@@ -115,7 +115,7 @@ test("the switch writes the file with its modes and the door sees it at once", a
     const st = readDoorsState(h.config.paths.doorsState);
     assert.deepEqual([st.ok, st.generate.on, st.web.on, st.viewer.on], [true, true, false, false]);
     const health = await call(`http://127.0.0.1:${door().port}`, "GET", "/gen/health");
-    assert.deepEqual(health.json, { status: "ok", part: "generate", on: true, key: true }, "the door sees the switch and the key");
+    assert.deepEqual(health.json, { status: "ok", part: "generate", on: true, key: true, higgsfield: false }, "the door sees the switch and the key");
     for (const bad of [{ on: "yes" }, {}, { on: 1 }]) {
       const b = await post(h, "/api/generation/switch", bad);
       assert.equal(b.status, 400);

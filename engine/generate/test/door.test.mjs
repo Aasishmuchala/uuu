@@ -165,12 +165,12 @@ afterEach(async () => {
 });
 
 // ---- rows 1 to 4: the door itself -------------------------------------------------------
-test("health says only whether it is on and whether a key is saved", async () => {
+test("health says only whether it is on, whether a key is saved and whether Higgsfield is signed in", async () => {
   const r = await request("GET", "/gen/health");
-  assert.deepEqual(r.json, { status: "ok", part: "generate", on: true, key: true });
+  assert.deepEqual(r.json, { status: "ok", part: "generate", on: true, key: true, higgsfield: false });
   rmSync(paths.runwayKey);
   setGen({ on: false });
-  assert.deepEqual((await request("GET", "/gen/health")).json, { status: "ok", part: "generate", on: false, key: false });
+  assert.deepEqual((await request("GET", "/gen/health")).json, { status: "ok", part: "generate", on: false, key: false, higgsfield: false });
 });
 
 test("row 1: upgrades and CONNECT are refused; unknown paths and any query string are 404", async () => {
