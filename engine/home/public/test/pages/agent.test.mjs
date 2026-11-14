@@ -98,3 +98,33 @@ test("agent: the header's note shows only when the board answered without the ag
   assert.equal(page.headerNote({ ...agent, applied: null }), "", "board off: not known, so nothing is said");
   assert.equal(page.headerNote(agent), "");
 });
+
+// T65: one column; the old tabs are its sections, and the address still opens each.
+test("agent: every old tab is a section the address can open", () => {
+  assert.deepEqual(page.TABS.map((t) => t.id), ["talk", "profile", "work", "instructions", "lessons"]);
+  assert.equal(page.sectionId("lessons"), "p-agent-lessons");
+  assert.equal(page.sectionId("work"), "p-agent-work");
+  assert.equal(page.sectionId("nonsense"), "p-agent-talk");
+});
+
+test("agent: the words the page adds are pinned", () => {
+  assert.deepEqual({ ...page.WORDS }, {
+    working: "Working on", recent: "Recent work", setup: "How it is set up", lessons: "Lessons", instructions: "Instructions",
+    readInstructions: "Read its standing instructions", talk: "Talk", give: "Give it a task",
+    may: "What it may do", mayNot: "What it may not do", tool: "Works with", limits: "Limits", reports: "Reports to", dept: "Works in", model: "Model",
+  });
+});
+
+test("agent: the recent work leaves out the task it is on now, shown above it", () => {
+  const { recent, agent } = shape("agent");
+  assert.deepEqual(page.recentOthers(recent, agent.doingNow), []);
+  assert.equal(page.recentOthers(recent, null).length, recent.length);
+  assert.deepEqual(page.recentOthers([{ id: "a" }, { id: "b" }, null], { taskId: "a" }).map((t) => t.id), ["b"]);
+  assert.deepEqual(page.recentOthers(undefined, null), []);
+});
+
+test("agent: one filled primary at most, and no creature", () => {
+  const src = readFileSync(new URL("../../pages/agent.js", import.meta.url), "utf8");
+  assert.doesNotMatch(src, /Creature|creature=/);
+  assert.doesNotMatch(src, /type="submit" variant="primary"/, "Add a lesson is not a second filled button");
+});

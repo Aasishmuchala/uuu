@@ -1,10 +1,11 @@
-// Team: every agent as a card, in the company file's order, each a link to its own page, with its department
-// as a chip linking to that department (CONTRACTS-V2 17.5, CONTRACTS-V3 30 "Team and an agent").
+// Team: every agent, in the company file's order, as one row of the kit's table (CONTRACTS-V2 17.5, CONTRACTS-V3
+// 30 "Team and an agent"; PLAN-COOK T65 after R06-agents): the avatar and the name (a link to its page) with its
+// department under it, what it does, its state, what it is on now (a link to the task) and the model it runs on.
 // Which department an agent is in comes from the map's answer (GET /api/map, 33.2): every agent is in exactly one.
+// The model comes from GET /api/models; without that answer the column is left out.
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
-import { useApp } from "../lib/context.js";
-import { AgentCard, Chip, Empty, ErrorNotice, Loading, NotConnected, PageHeader } from "../kit/index.js";
+import { AgentState, Avatar, DataTable, Empty, ErrorNotice, Icon, Loading, Mono, NotConnected, PageHeader } from "../kit/index.js";
 
 const SLUG = /^[a-z][a-z0-9-]{1,30}$/;
 const text = (v) => (v === null || v === undefined ? "" : String(v));
@@ -49,33 +50,81 @@ export function teamLead(agents) {
   return working ? `${all}. ${working} working now.` : `${all}. None is working right now.`;
 }
 
-// The department chip: a link to the department's page, with its colour.
+// The department's link: its line icon and its name, in grey (no colour: O7).
 export function DeptChip({ department }) {
   if (!department || !SLUG.test(text(department.id))) return null;
   return html`<a class="p-team__dept" href=${`#/departments/${department.id}`} data-dept=${department.id}
-    aria-label=${`${department.title}: open the department`}><${Chip} dot=${department.id}>${department.title}<//></a>`;
+    aria-label=${`${department.title}: open the department`}><${Icon} name=${DEPT_ICONS[department.id] || "layers"} size=${14} />${department.title}</a>`;
 }
 
-function Card({ agent, departments }) {
-  const [note] = cardNotes(agent);
-  const dept = departmentOf(agent.slug, departments);
-  return html`<li class="p-team__item">
-    <${AgentCard} agent=${agent} />
-    ${(dept || note) && html`<div class="p-team__under">
-      <${DeptChip} department=${dept} />
-      ${note && html`<p class="p-team__note">${note} <a href="#/health">Open Health</a></p>`}
-    </div>`}
-  </li>`;
+// The departments' line icons, as the sidebar draws them (shell/sidenav.js TEAM_ICONS).
+const DEPT_ICONS = { brain: "brain", operations: "layers", sales: "trend", marketing: "horn", studio: "film", support: "buoy", people: "team", books: "book" };
+
+// The words this page adds (T65): the table's headings and the empty "on now".
+export const WORDS = Object.freeze({
+  agent: "Agent",
+  role: "What it does",
+  state: "State",
+  now: "On now",
+  model: "Model",
+  nothing: "Nothing right now",
+});
+
+// The model an agent runs on, from GET /api/models: the one Omega Plus sends while that is on, else the one its
+// plan uses. "" when the answer does not name the agent. Shown as written by the server, capped.
+export function modelOf(slug, models) {
+  if (!slug || !models || typeof models !== "object") return "";
+  const a = (Array.isArray(models.agents) ? models.agents : []).find((x) => x && x.slug === slug);
+  if (!a) return "";
+  const v = models.mode === "provider" ? a.pickName || a.pick : a.plansModel;
+  return typeof v === "string" ? v.trim().slice(0, 40) : "";
+}
+
+// The table's columns; the model's only when the models' answer came.
+export function teamColumns(withModel) {
+  const cols = [
+    { key: "agent", label: WORDS.agent, align: "start" },
+    { key: "role", label: WORDS.role, align: "start" },
+    { key: "state", label: WORDS.state, align: "start" },
+    { key: "now", label: WORDS.now, align: "start" },
+  ];
+  return withModel ? [...cols, { key: "model", label: WORDS.model, align: "start" }] : cols;
+}
+
+function Cell({ agent, column, departments, models }) {
+  const a = agent;
+  if (column === "agent") {
+    const [note] = cardNotes(a);
+    const dept = departmentOf(a.slug, departments);
+    return html`<span class="p-team__who">
+      <${Avatar} slug=${a.slug} name=${a.name} size=${32} />
+      <span class="p-team__who-text">
+        <a class="p-team__name" href=${`#/team/${encodeURIComponent(a.slug)}`}>${text(a.name) || a.slug}</a>
+        ${dept && html`<${DeptChip} department=${dept} />`}
+        ${note && html`<span class="p-team__note">${note} <a href="#/health">Open Health</a></span>`}
+      </span>
+    </span>`;
+  }
+  if (column === "role") return html`<span class="p-team__role">${text(a.summary).slice(0, 300)}</span>`;
+  if (column === "state") return html`<${AgentState} agent=${a} />`;
+  if (column === "now") {
+    const now = a.doingNow && a.doingNow.title ? text(a.doingNow.title).slice(0, 120) : "";
+    const id = a.doingNow && typeof a.doingNow.taskId === "string" ? a.doingNow.taskId : "";
+    if (!now) return html`<span class="p-team__none">${WORDS.nothing}</span>`;
+    return id ? html`<a class="p-team__task" href=${`#/tasks/${encodeURIComponent(id)}`}>${now}</a>` : html`<span class="p-team__task">${now}</span>`;
+  }
+  const m = modelOf(a.slug, models);
+  return m ? html`<span class="p-team__model"><${Mono}>${m}<//></span>` : null;
 }
 
 export default function Page() {
-  const { shell } = useApp();
   const res = useResource("/api/team", { every: 10000 });
   const map = useResource("/api/map");
+  const models = useResource("/api/models");
   const d = res.data;
   const agents = (d && Array.isArray(d.agents) ? d.agents : []).filter((a) => a && a.slug);
   const departments = map.data && Array.isArray(map.data.departments) ? map.data.departments : [];
-  const company = text(shell && shell.company && shell.company.name);
+  const withModel = Boolean(models.data && Array.isArray(models.data.agents) && agents.some((a) => modelOf(a.slug, models.data)));
 
   let body;
   if (!d && res.loading) body = html`<${Loading} lines=${4} label="Loading the team" />`;
@@ -87,12 +136,13 @@ export default function Page() {
         reason=${text(d.notConnected && d.notConnected.reason) || "The board is switched off, so agents and tasks cannot be reached."}
         next=${html`<${HealthNext} text=${d.notConnected && d.notConnected.next} />`} />`}
       ${agents.length
-        ? html`<ul class="p-team__grid">${agents.map((a) => html`<${Card} key=${a.slug} agent=${a} departments=${departments} />`)}</ul>`
+        ? html`<div class="p-team__table"><${DataTable} columns=${teamColumns(withModel)} rows=${agents.map((a) => ({ ...a, id: a.slug }))}
+            renderCell=${(row, col) => html`<${Cell} agent=${row} column=${col.key} departments=${departments} models=${models.data} />`} /></div>`
         : html`<${Empty} title="No agents yet" text="The company file names no agents." />`}`;
   }
 
   return html`<div class="p-team">
-    <${PageHeader} over=${company ? `${company.slice(0, 40)} · Agents` : "Agents"} title="Team" lead=${teamLead(agents)} />
+    <${PageHeader} title="Team" lead=${teamLead(agents)} />
     ${body}
   </div>`;
 }

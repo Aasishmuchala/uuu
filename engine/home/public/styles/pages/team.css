@@ -1,58 +1,176 @@
-/* Team (pages/team.js): a grid of agent cards, each with its department as a chip under it. */
+/* Team (pages/team.js, PLAN-COOK T65 after R06-agents): the title and its line, then every agent as one row of
+   the kit's table inside --content-max: a 32 px avatar beside the name with its department in grey under it,
+   what it does in two grey lines at most, its state as a state line, what it is on now as a link, and the model
+   it runs on in the mono face. Rows answer the pointer; no cards, no chips, no department colour. */
 
-.p-team { display: flex; flex-direction: column; gap: var(--s-6); }
-
-.p-team .p-team__grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--s-4);
-}
-
-.p-team .p-team__item {
+.p-team {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  min-width: 0;
+  max-width: var(--content-max);
+}
+
+.p-team .k-page-header {
+  margin-bottom: var(--s-6);
+}
+
+.p-team .p-team__table .k-table__table td {
+  height: 64px;
+  padding-top: var(--s-3);
+  padding-bottom: var(--s-3);
+  vertical-align: middle;
+}
+
+.p-team .p-team__table .k-table__table th:nth-child(1) { width: 26%; }
+.p-team .p-team__table .k-table__table th:nth-child(2) { width: 32%; }
+.p-team .p-team__table .k-table__table th:nth-child(3) { width: 15%; }
+
+/* The agent: the avatar beside the name, the department under it. */
+.p-team .p-team__who {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
   min-width: 0;
 }
 
-.p-team .p-team__item .k-agent--card { flex: 1; }
+.p-team .p-team__who .k-avatar {
+  flex: none;
+}
 
-.p-team .p-team__under {
+.p-team .p-team__who-text {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-2);
-  padding: 0 var(--s-1);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.p-team .p-team__name {
+  border-radius: var(--r-1);
+  color: var(--ink);
+  font-size: var(--fs-fact);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+  text-decoration: none;
+}
+
+.p-team .p-team__name:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
 }
 
 .p-team .p-team__dept {
   display: inline-flex;
+  align-items: center;
+  gap: 6px;
   max-width: 100%;
-  border-radius: var(--r-pill);
-  color: inherit;
+  border-radius: var(--r-1);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   text-decoration: none;
 }
-.p-team .p-team__dept:hover .k-chip { border-color: var(--hairline-strong); color: var(--text); }
+
+.p-team .p-team__dept:hover {
+  color: var(--ink);
+}
+
+.p-team .p-team__dept .k-icon {
+  flex: none;
+  color: var(--ink-3);
+}
 
 .p-team .p-team__note {
-  margin: 0;
-  padding: var(--s-1) var(--s-2);
-  border-radius: var(--r-2);
-  font-size: var(--fs-caption);
-  color: var(--warn-text);
-  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
-@media (max-width: 859px) {
-  .p-team .p-team__grid { grid-template-columns: 1fr; gap: var(--s-3); }
+.p-team .p-team__note a,
+.p-team .p-team__next a {
+  color: inherit;
+  font-weight: var(--fw-medium);
 }
 
-.p-team .p-team__note a, .p-team .p-team__next a { color: inherit; font-weight: 600; }
+/* What it does: two grey lines at most. */
+.p-team .p-team__role {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
 
-/* Below 860 px each chip and link keeps a 44 px target without changing how it looks (M51 F15). */
+.p-team .p-team__task {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  border-radius: var(--r-1);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.p-team a.p-team__task:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+
+.p-team .p-team__none {
+  color: var(--ink-3);
+}
+
+.p-team .p-team__model {
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  white-space: nowrap;
+}
+
+/* Every stop on this page shows the 2 px accent ring. */
+.p-team .p-team__name:focus-visible,
+.p-team .p-team__dept:focus-visible,
+.p-team .p-team__task:focus-visible,
+.p-team .p-team__note a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Below 860 px the kit's table stacks each agent into a card of labelled lines; every link keeps a 44 px
+   target without changing how it looks (M51 F15). */
 @media (max-width: 859px) {
-  .p-team .p-team__dept { min-height: 44px; align-items: center; }
+  .p-team .p-team__table .k-table__table td {
+    height: auto;
+    align-items: center;
+  }
+
+  /* The agent heads its card, with no label, over a hairline. */
+  .p-team .p-team__table .k-table__table td:first-child {
+    display: block;
+    margin-bottom: var(--s-2);
+    padding: var(--s-2) 0 var(--s-3);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .p-team .p-team__table .k-table__table td:first-child::before {
+    content: none;
+  }
+
+  .p-team .p-team__name,
+  .p-team .p-team__dept,
+  .p-team .p-team__task,
+  .p-team .p-team__note a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .p-team .p-team__name + .p-team__dept {
+    margin-top: calc(var(--s-3) * -1);
+  }
 }

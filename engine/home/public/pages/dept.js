@@ -1,6 +1,7 @@
 // A department, in one column (CONTRACTS-V3 30, "A department"; data: GET /api/map/:department, 33.2).
-// Card one: who the department is, its state, and the jobs it can run. Card two: its agents. Card three: the
-// owner's tasks with it. At the bottom a composer that gives the department a task through POST /api/goals.
+// PLAN-COOK T65 (R02's reading column): the department's line icon in a tile beside its name, its line and its
+// state; then what needs the owner (opens the queue for it), its agents as rows, the owner's tasks with it as rows,
+// the jobs it can run as cards (as the Jobs page lays them), and a composer that gives it a task (POST /api/goals).
 // Not connected: this page's answer does not say when the board cannot be read, so that comes from GET /api/map's
 // `boardOff` and from the shell (boardOffOf below); the page then says so on top and stops guessing.
 // Everything here came from the server: titles and outcomes are rendered as text only, capped.
@@ -10,8 +11,8 @@ import { useApp } from "../lib/context.js";
 import { aheadLine } from "../lib/format.js";
 import { HealthNext } from "./team.js";
 import {
-  AgentCard, AgentChip, AgentState, Card, Chip, Composer, Creature, Empty, ErrorNotice, Field, Icon, JobChip,
-  Loading, NotConnected, PageHeader, Select, STARTED, TaskRow, UNDER_START, jobHref,
+  AgentCard, Card, Composer, Empty, ErrorNotice, Field, Group, Icon, JobRow, Loading, NotConnected, PageHeader,
+  STARTED, Select, St, TaskRow, UNDER_START, WhyNot, jobHref,
 } from "../kit/index.js";
 
 const SLUG = /^[a-z][a-z0-9-]{1,30}$/;
@@ -19,8 +20,34 @@ const RECENT = 10;
 // What the notice says when only the shell tells that the board is off (the map's answer carries its own words).
 const OFF_REASON = "The board is switched off, so agents and tasks cannot be reached.";
 const OFF_NEXT = "Open Health to see how to start it.";
-// Below 860 px the Can run list shows this many chips, then "Show all n" (M51 F24).
+// The Can run list shows this many jobs, then "Show all n" (M51 F24).
 export const NARROW_CHIPS = 6;
+
+// The departments' line icons, as the sidebar draws them (shell/sidenav.js TEAM_ICONS; a page does not import the
+// shell). No creature and no colour: a department is known by its icon and its name.
+const DEPT_ICONS = { brain: "brain", operations: "layers", sales: "trend", marketing: "horn", studio: "film", support: "buoy", people: "team", books: "book" };
+export const deptIcon = (id) => DEPT_ICONS[id] || "layers";
+
+// The words this page adds (T65).
+export const WORDS = Object.freeze({
+  needs: "Needs you",
+  agents: "Its agents",
+  canRun: "Can run",
+  seeAll: "See all",
+  seeJobs: "See its jobs",
+  openQueue: "Open the queue",
+  others: "Other departments",
+});
+
+// The line of the "Needs you" row: how many things wait for the owner here, from the department's counts.
+// With the board off nobody knows, so it says so instead of "nothing".
+export function needsLine(name, counts, off = null) {
+  const who = text(name) || "this department";
+  if (off) return `What needs you in ${who} cannot be shown right now.`;
+  const n = counts ? counts.needsYou : null;
+  if (!Number.isSafeInteger(n) || n <= 0) return `Nothing needs you in ${who} right now.`;
+  return `${n} ${n === 1 ? "thing needs" : "things need"} you in ${who}.`;
+}
 
 const text = (v) => (v === null || v === undefined ? "" : String(v));
 const cap = (v, n = 200) => {
@@ -124,30 +151,41 @@ export function startedLine(queue = null) {
   return ahead ? `Started. The Chief of staff has it. ${ahead} It is checked before it reaches you.` : STARTED;
 }
 
-// Waiting opens the Needs you drawer for this department; working opens the task; idle is only words.
+// The department's state as a state line (St). Waiting opens the queue for this department; working opens the
+// task; idle is only words.
+const ST_OF = { warn: { tone: "warn" }, live: { tone: "good", icon: "loop" }, off: { tone: "neutral", icon: "clock" } };
 function StateChip({ state, department, off }) {
   const { openNeeds } = useApp();
   const s = stateChip(state, off);
-  const chip = html`<${Chip} dot=${s.tone}>${s.label}<//>`;
+  const st = ST_OF[s.tone] || ST_OF.off;
+  const chip = html`<${St} tone=${st.tone} icon=${st.icon}>${s.label}<//>`;
   if (!off && state && state.id === "waiting") {
     return html`<button type="button" class="p-dept__state p-dept__state--link" onClick=${() => openNeeds({ department })}
       aria-label=${`${s.label}. Open what needs you here`}>${chip}</button>`;
   }
   return s.taskId
     ? html`<a class="p-dept__state p-dept__state--link" href=${`#/tasks/${encodeURIComponent(s.taskId)}`}>${chip}</a>`
-    : html`<span class="p-dept__state">${chip}</span>`;
+    : html`<span class=${`p-dept__state${s.tone === "off" ? " p-dept__state--quiet" : ""}`}>${chip}</span>`;
 }
 
+// A heading's count, quietly after its words.
+const Count = ({ n }) => html`<span class="p-dept__count">${n}</span>`;
+
+// The jobs as the Jobs page lays them: cards two across, the kit's JobRow as the card's link, the reason a job
+// cannot start under it. The first six, then "Show all n".
 function CanRun({ jobs }) {
   const [all, setAll] = useState(false);
   if (!jobs.length) return html`<p class="p-dept__muted">No jobs yet. Give it a task below in your own words.</p>`;
   const more = jobs.length > NARROW_CHIPS;
-  return html`<ul class=${`p-dept__jobs${more && !all ? " p-dept__jobs--some" : ""}`}>
-    ${jobs.map((j) => {
+  const shown = more && !all ? jobs.slice(0, NARROW_CHIPS) : jobs;
+  return html`<ul class="p-dept__jobs">
+    ${shown.map((j) => {
       const why = j.ready === false ? whyText(j) : "";
       return html`<li key=${j.id} class=${`p-dept__job${why ? " p-dept__job--dim" : ""}`}>
-        <${JobChip} job=${j} />
-        ${why && html`<span class="p-dept__why" role="note">${why}</span>`}
+        <${Card} padding="none" class="p-dept__job-box">
+          <${JobRow} job=${j} />
+          ${why && html`<div class="p-dept__why"><${WhyNot} why=${j.why} /></div>`}
+        <//>
       </li>`;
     })}
   </ul>
@@ -158,46 +196,38 @@ function Head({ data, off }) {
   const dep = data.department || {};
   const id = text(dep.id);
   const name = text(dep.title) || "Department";
-  const jobs = jobsInOrder(data.clusters);
-  const nb = data.neighbours || {};
-  return html`<${Card} class="p-dept__card p-dept__head" data-dept=${id}>
-    <div class="p-dept__who">
-      <span class="p-dept__creature"><${Creature} id=${id} size=${64} /></span>
-      <${PageHeader} over="Department" title=${name} lead=${cap(dep.line, 120)} />
-    </div>
-    <${StateChip} state=${dep.state} department=${id} off=${off} />
-    <div class="p-dept__can">
-      <p class="p-dept__over">Can run${jobs.length ? html` <span class="p-dept__count">· ${jobs.length}</span>` : null}</p>
-      <${CanRun} jobs=${jobs} />
-    </div>
-    <div class="p-dept__links">
-      <a class="p-dept__link" href=${`#/map/${encodeURIComponent(id)}`}><${Icon} name="map" size=${14} />See on the map</a>
-      ${SLUG.test(text(dep.dashboard)) && html`<a class="p-dept__link" href=${`#/dashboards/${encodeURIComponent(dep.dashboard)}`}>
-        <${Icon} name="dashboards" size=${14} />Open its dashboard</a>`}
-      <a class="p-dept__link" href=${`#/jobs?d=${encodeURIComponent(id)}`}><${Icon} name="jobs" size=${14} />See its jobs</a>
-    </div>
-    ${(nb.prev || nb.next) && html`<nav class="p-dept__around" aria-label="Other departments">
-      ${nb.prev && SLUG.test(text(nb.prev.id)) && html`<a class="p-dept__nb" href=${`#/departments/${nb.prev.id}`} data-dept=${nb.prev.id}>
-        <${Icon} name="arrow-left" size=${14} /><span>${cap(nb.prev.title, 40)}</span></a>`}
-      ${nb.next && SLUG.test(text(nb.next.id)) && html`<a class="p-dept__nb p-dept__nb--next" href=${`#/departments/${nb.next.id}`} data-dept=${nb.next.id}>
-        <span>${cap(nb.next.title, 40)}</span><${Icon} name="arrow-right" size=${14} /></a>`}
-    </nav>`}
+  const links = html`
+    <a class="p-dept__link" href=${`#/map/${encodeURIComponent(id)}`}><${Icon} name="map" size=${16} />See on the map</a>
+    ${SLUG.test(text(dep.dashboard)) && html`<a class="p-dept__link" href=${`#/dashboards/${encodeURIComponent(dep.dashboard)}`}>
+      <${Icon} name="dashboards" size=${16} />Open its dashboard</a>`}`;
+  return html`<div class="p-dept__head">
+    <span class="p-dept__tile" aria-hidden="true"><${Icon} name=${deptIcon(id)} size=${20} /></span>
+    <${PageHeader} title=${name} lead=${cap(dep.line, 120)} actions=${links}>
+      <${StateChip} state=${dep.state} department=${id} off=${off} />
+    <//>
+  </div>`;
+}
+
+// What needs the owner here: one row that opens the queue for this department.
+function Needs({ data, off }) {
+  const { openNeeds } = useApp();
+  const dep = data.department || {};
+  const id = text(dep.id);
+  const n = dep.counts ? dep.counts.needsYou : null;
+  const some = !off && Number.isSafeInteger(n) && n > 0;
+  return html`<${Group} title=${WORDS.needs}>
+    <button type="button" class=${`p-dept__needs${some ? " p-dept__needs--some" : ""}`} onClick=${() => openNeeds({ department: id })}>
+      <span class="p-dept__needs-icon" aria-hidden="true"><${Icon} name="inbox" size=${18} /></span>
+      <span class="p-dept__needs-text">${needsLine(dep.title, dep.counts, off)}</span>
+      <span class="p-dept__needs-go">${WORDS.openQueue}<${Icon} name="chevron-right" size=${16} /></span>
+    </button>
   <//>`;
 }
 
 function Agents({ agents }) {
   const list = arr(agents).filter((a) => a && a.slug);
   if (!list.length) return null;
-  if (list.length === 1) {
-    const a = list[0];
-    return html`<p class="p-dept__one">
-      <span class="p-dept__one-label">Its agent</span>
-      <${AgentChip} agent=${a} />
-      <${AgentState} agent=${a} />
-    </p>`;
-  }
-  return html`<${Card} class="p-dept__card">
-    <p class="p-dept__over">Its agents <span class="p-dept__count">· ${list.length}</span></p>
+  return html`<${Group} title=${html`${WORDS.agents} <${Count} n=${list.length} />`}>
     <ul class="p-dept__agents">${list.map((a) => html`<li key=${a.slug}><${AgentCard} agent=${a} /></li>`)}</ul>
   <//>`;
 }
@@ -207,15 +237,34 @@ function Tasks({ data, off }) {
   const id = text(data.department && data.department.id);
   const recent = arr(data.recent).filter((t) => t && t.id).slice(0, RECENT);
   const h = tasksHeading(name, recent, data.recentTotal);
-  return html`<${Card} class="p-dept__card">
-    <div class="p-dept__tasks-head">
-      <p class="p-dept__over">${h.label}${off && !recent.length ? null : html` <span class="p-dept__count">· ${h.count}</span>`}</p>
-      ${recent.length > 0 && html`<a class="p-dept__all" href=${`#/tasks?d=${encodeURIComponent(id)}`}>See all</a>`}
-    </div>
+  return html`<${Group} title=${html`${h.label}${off && !recent.length ? null : html` <${Count} n=${h.count} />`}`}
+    aside=${recent.length > 0 ? html`<a class="p-dept__all" href=${`#/tasks?d=${encodeURIComponent(id)}`}>${WORDS.seeAll}</a>` : null}>
     ${recent.length
-      ? html`<ul class="p-dept__rows">${recent.map((t) => html`<li key=${t.id}><${TaskRow} task=${t} /></li>`)}</ul>`
+      ? html`<ul class="p-dept__rows">${recent.map((t) => html`<li key=${t.id} class="p-dept__row"><${TaskRow} task=${t} /></li>`)}</ul>`
       : html`<p class="p-dept__muted">${noTasksLine(name, off)}</p>`}
   <//>`;
+}
+
+function Jobs({ data }) {
+  const id = text(data.department && data.department.id);
+  const jobs = jobsInOrder(data.clusters);
+  return html`<${Group} title=${html`${WORDS.canRun}${jobs.length ? html` <${Count} n=${jobs.length} />` : null}`}
+    aside=${html`<a class="p-dept__all" href=${`#/jobs?d=${encodeURIComponent(id)}`}>${WORDS.seeJobs}</a>`}>
+    <${CanRun} jobs=${jobs} />
+  <//>`;
+}
+
+function Around({ data }) {
+  const nb = data.neighbours || {};
+  const prev = nb.prev && SLUG.test(text(nb.prev.id)) ? nb.prev : null;
+  const next = nb.next && SLUG.test(text(nb.next.id)) ? nb.next : null;
+  if (!prev && !next) return null;
+  return html`<nav class="p-dept__around" aria-label=${WORDS.others}>
+    ${prev && html`<a class="p-dept__nb" href=${`#/departments/${prev.id}`} data-dept=${prev.id}>
+      <${Icon} name="arrow-left" size=${16} /><span>${cap(prev.title, 40)}</span></a>`}
+    ${next && html`<a class="p-dept__nb p-dept__nb--next" href=${`#/departments/${next.id}`} data-dept=${next.id}>
+      <span>${cap(next.title, 40)}</span><${Icon} name="arrow-right" size=${16} /></a>`}
+  </nav>`;
 }
 
 function Give({ data, off, onSent }) {
@@ -294,8 +343,11 @@ export default function Page({ route }) {
     ${off && html`<${NotConnected} title=${offTitle(d.department.title)} reason=${off.reason}
       next=${html`<${HealthNext} text=${off.next} />`} />`}
     <${Head} data=${d} off=${off} />
+    <${Needs} data=${d} off=${off} />
     <${Agents} agents=${d.agents} />
     <${Tasks} data=${d} off=${off} />
+    <${Jobs} data=${d} />
     <${Give} data=${d} off=${off} onSent=${() => res.refresh()} />
+    <${Around} data=${d} />
   </div>`;
 }

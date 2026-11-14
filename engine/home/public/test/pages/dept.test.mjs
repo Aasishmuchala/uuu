@@ -274,3 +274,62 @@ test("dept: with the board on there is no notice, and the page says what the ser
     assert.match(textOf(root), /Takes a few minutes\. It is checked before it reaches you\./);
   });
 });
+
+// T65: the page's own words, the department's line icon and the "Needs you" line.
+test("dept: the words the page adds are pinned", () => {
+  assert.deepEqual({ ...page.WORDS }, {
+    needs: "Needs you", agents: "Its agents", canRun: "Can run", seeAll: "See all", seeJobs: "See its jobs",
+    openQueue: "Open the queue", others: "Other departments",
+  });
+});
+
+test("dept: a department is drawn with the sidebar's line icon, never a creature", () => {
+  assert.equal(page.deptIcon("marketing"), "horn");
+  assert.equal(page.deptIcon("books"), "book");
+  assert.equal(page.deptIcon("brain"), "brain");
+  assert.equal(page.deptIcon("nonsense"), "layers");
+  assert.doesNotMatch(readFileSync(new URL("../../pages/dept.js", import.meta.url), "utf8"), /Creature/);
+});
+
+test("dept: the Needs you line counts what waits, and says nothing is known with the board off", () => {
+  assert.equal(page.needsLine("Marketing", { needsYou: 3 }), "3 things need you in Marketing.");
+  assert.equal(page.needsLine("Sales", { needsYou: 1 }), "1 thing needs you in Sales.");
+  assert.equal(page.needsLine("Sales", { needsYou: 0 }), "Nothing needs you in Sales right now.");
+  assert.equal(page.needsLine("Sales", { needsYou: "2" }), "Nothing needs you in Sales right now.");
+  assert.equal(page.needsLine("", null), "Nothing needs you in this department right now.");
+  assert.equal(page.needsLine("Sales", { needsYou: 2 }, { reason: "r" }), "What needs you in Sales cannot be shown right now.");
+});
+
+test("dept: Needs you opens the queue for this department", async () => {
+  const opened = [];
+  const kept = { document: globalThis.document, fetch: globalThis.fetch };
+  globalThis.document = {
+    title: "", activeElement: null, visibilityState: "visible", body: new FakeElement("body"),
+    createElement: (t) => new FakeElement(t), createElementNS: (_ns, t) => new FakeElement(t), createTextNode: (x) => new FakeText(x),
+    addEventListener() {}, removeEventListener() {},
+  };
+  globalThis.fetch = async (path) => {
+    const data = path === "/api/map/sales" ? shape("department") : path === "/api/map" ? shape("map") : null;
+    return data ? { ok: true, status: 200, json: async () => data } : { ok: false, status: 500, json: async () => ({}) };
+  };
+  const root = new FakeElement("div");
+  const nothing = () => {};
+  const ctx = { shell: shape("shell"), refreshShell: nothing, announce: nothing, openNeeds: (o) => opened.push(o), dock: [] };
+  try {
+    render(html`<${AppContext.Provider} value=${ctx}><${page.default} route=${{ parts: ["departments", "sales"] }} /><//>`, root);
+    await settle();
+    const [row] = withClass(root, "p-dept__needs");
+    assert.ok(row, "the row is drawn");
+    assert.match(textOf(row), /2 things need you in Sales\./);
+    // In this small DOM Preact names the event as written ("Click"): there is no onclick property to find.
+    for (const f of row.listeners.Click || []) f.call(row, { type: "Click" });
+    assert.deepEqual(opened, [{ department: "sales" }]);
+    assert.equal(withClass(root, "k-job--row").length, 1, "the jobs are the kit's rows, as the Jobs page lays them");
+    assert.equal(withClass(root, "k-agent--card").length, 1, "the agents are the kit's cards");
+  } finally {
+    render(null, root);
+    await settle();
+    globalThis.document = kept.document;
+    globalThis.fetch = kept.fetch;
+  }
+});

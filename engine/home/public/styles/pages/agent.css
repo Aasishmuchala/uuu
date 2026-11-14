@@ -1,115 +1,443 @@
-/* An agent's page (pages/agent.js): the header with its department chip, the tabs, and the Talk tab's composer
-   at the bottom. Glass on the canvas. */
+/* An agent's page (pages/agent.js, PLAN-COOK T65 after R02 and R05): one reading column at --doc-max, as Health
+   and a department draw it. The head: a 48 px avatar beside the name, what it does in one grey sentence and its
+   state as a state line, Pause and "Give it a task" at the right. Then groups with a 16 px heading: what it is
+   working on and its recent work (the Tasks page's rows on the ground, parted by hairlines), how it is set up
+   (label and value rows in one panel on the raised step), its lessons (rows in a panel), its standing
+   instructions (folded) and the talk with the kit's composer under it, in the flow. No glass, no colour. */
 
-.p-agent { display: flex; flex-direction: column; gap: var(--s-5); min-height: 100%; }
-
-.p-agent .p-agent__head {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-4);
-  padding: var(--s-5);
-  border-radius: var(--r-4);
-  border: 1px solid var(--hairline);
-  background: var(--glass);
-  box-shadow: var(--highlight);
-}
-
-.p-agent .p-agent__who { display: flex; flex-direction: column; gap: var(--s-2); flex: 1; min-width: 0; }
-.p-agent .p-agent__summary { margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
-.p-agent .p-agent__facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-5); }
-.p-agent .p-agent__reports { display: inline-flex; align-items: center; gap: var(--s-2); color: var(--text-2); }
-.p-agent .p-agent__actions { flex: none; }
-.p-agent .p-agent__dept { display: inline-flex; align-items: center; gap: var(--s-2); color: var(--text-2); }
-.p-agent .p-agent__dept-label { color: var(--text-2); }
-.p-agent .p-agent__dept .p-team__dept {
-  display: inline-flex;
-  border-radius: var(--r-pill);
-  color: inherit;
-  text-decoration: none;
-}
-.p-agent .p-agent__dept .p-team__dept:hover .k-chip { border-color: var(--hairline-strong); color: var(--text); }
-.p-agent .p-agent__pause { display: flex; flex-direction: column; align-items: flex-end; gap: var(--s-1); }
-
-.p-agent .p-agent__note {
-  margin: 0;
-  align-self: flex-start;
-  padding: var(--s-1) var(--s-2);
-  border-radius: var(--r-2);
-  font-size: var(--fs-caption);
-  color: var(--warn-text);
-  background: var(--warn-bg);
-}
-
-.p-agent .p-agent__error { margin: 0; font-size: var(--fs-caption); color: var(--bad-text); }
-.p-agent .p-agent__muted { margin: 0; color: var(--text-2); }
-.p-agent .p-agent__caption { margin: 0; font-size: var(--fs-caption); color: var(--text-3); }
-
-.p-agent .p-agent__panel { display: flex; flex-direction: column; gap: var(--s-5); flex: 1; min-height: 0; }
-
-/* Talk: the conversation scrolls, the composer stays at the bottom of the pane. */
-.p-agent .p-agent__talk { display: flex; flex-direction: column; gap: var(--s-4); flex: 1; min-height: 0; }
-.p-agent .p-agent__convo { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.p-agent .p-agent__compose {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
+.p-agent {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
-  padding: var(--s-3) 0 var(--s-4);
-  /* Messages scroll up behind the box, cut by a hairline, never through the words. */
-  border-top: 1px solid var(--hairline);
-  background: var(--bg);
+  min-width: 0;
+  max-width: var(--doc-max);
+  margin: 0 auto;
+  padding: 0 0 var(--s-12);
 }
-.p-agent .p-agent__end { display: block; height: 0; scroll-margin-bottom: 480px; }
-.p-agent .p-agent__given { margin: 0; color: var(--ok-text); }
 
-/* Profile and Work. The description and Reports to show in Profile below 860 px only (in the header above that). */
-.p-agent .p-agent__about { display: none; }
-.p-agent .p-agent__list { margin: 0; padding-left: var(--s-5); display: flex; flex-direction: column; gap: var(--s-1); }
-.p-agent .p-agent__list li { overflow-wrap: anywhere; }
-.p-agent .p-agent__profile p, .p-agent .p-agent__work p { margin: 0; }
-.p-agent .p-agent__profile .k-section + .k-section { margin-top: var(--s-2); }
-.p-agent .p-agent__rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+/* The head: the avatar beside the title, its top on the title's line. */
+.p-agent .p-agent__head {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: start;
+  gap: 0 var(--s-4);
+}
 
-/* Instructions: read-only Markdown, shown as readable text; the page scrolls, not the card. */
-.p-agent .p-agent__instructions { display: flex; flex-direction: column; gap: var(--s-3); }
-.p-agent .p-agent__text { min-width: 0; max-width: 72ch; color: var(--text); }
+.p-agent .p-agent__avatar {
+  display: inline-flex;
+  margin-top: -6px;
+}
 
-/* Lessons */
-.p-agent .p-agent__lessons { display: flex; flex-direction: column; gap: var(--s-3); }
-.p-agent .p-agent__lesson-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.p-agent .p-agent__head .k-page-header {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.p-agent .p-agent__head .k-page-header__row {
+  align-items: center;
+}
+
+.p-agent .p-agent__head .k-page-header__more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  margin-top: 0;
+}
+
+.p-agent .p-agent__state {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--h-sm);
+}
+
+.p-agent .p-agent__pause {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-1);
+}
+
+.p-agent .p-agent__note,
+.p-agent .p-agent__warn {
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-agent .p-agent__note a {
+  color: inherit;
+  font-weight: var(--fw-medium);
+}
+
+.p-agent .p-agent__error {
+  margin: 0;
+  color: var(--bad);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-agent .p-agent__muted {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.p-agent .p-agent__caption {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-agent .p-agent__count {
+  margin-left: var(--s-1);
+  color: var(--ink-3);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-agent .p-agent__part {
+  scroll-margin-top: var(--s-6);
+}
+
+/* Working on and recent work: the Tasks page's rows on the ground. */
+.p-agent .p-agent__rows {
+  margin: 0 calc(var(--s-3) * -1);
+  padding: 0;
+  list-style: none;
+}
+
+.p-agent .p-agent__row {
+  min-width: 0;
+}
+
+.p-agent .p-agent__row + .p-agent__row {
+  border-top: 1px solid var(--line);
+}
+
+.p-agent .p-agent__now {
+  margin: 0;
+}
+
+.p-agent .p-agent__now a {
+  color: var(--ink);
+}
+
+/* How it is set up: label and value rows in one panel, parted by hairlines. */
+.p-agent .p-agent__facts {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.p-agent .p-agent__fact {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: var(--s-1) var(--s-6);
+  padding: 14px var(--s-5);
+}
+
+.p-agent .p-agent__fact + .p-agent__fact {
+  border-top: 1px solid var(--line);
+}
+
+.p-agent .p-agent__label {
+  color: var(--ink-2);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.p-agent .p-agent__value {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  overflow-wrap: anywhere;
+}
+
+.p-agent .p-agent__value p {
+  margin: 0;
+}
+
+.p-agent .p-agent__value .k-agent--chip,
+.p-agent .p-agent__value .p-team__dept {
+  align-self: flex-start;
+}
+
+.p-agent .p-agent__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+  padding-left: var(--s-4);
+}
+
+.p-agent .p-agent__list li {
+  overflow-wrap: anywhere;
+}
+
+.p-agent .p-agent__model {
+  color: var(--ink-2);
+}
+
+.p-agent .p-team__dept {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--r-1);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.p-agent .p-team__dept:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+
+.p-agent .p-team__dept .k-icon {
+  color: var(--ink-2);
+}
+
+/* Lessons: rows in one panel, the field to add one under it. */
+.p-agent .p-agent__lessons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.p-agent .p-agent__lesson-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
 .p-agent .p-agent__lesson {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--s-2) var(--s-4);
-  padding: var(--s-3) 0;
-  border-bottom: 1px solid var(--border);
+  padding: var(--s-3) var(--s-3) var(--s-3) var(--s-5);
 }
-.p-agent .p-agent__lesson-view { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s-1); }
-.p-agent .p-agent__lesson-text { margin: 0; overflow-wrap: anywhere; }
-.p-agent .p-agent__lesson-date { margin: 0; font-size: var(--fs-caption); color: var(--text-3); }
-.p-agent .p-agent__lesson-actions { flex: none; }
-.p-agent .p-agent__lesson-edit { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s-2); }
-.p-agent .p-agent__lesson .p-agent__error { flex-basis: 100%; }
-.p-agent .p-agent__lesson-add { display: flex; gap: var(--s-2); align-items: center; }
-.p-agent .p-agent__lesson-add .k-input { flex: 1; min-width: 0; }
 
-/* Below 860 px (M51 F2, F25): the header is one line (state, department, Pause), the tabs scroll sideways on one
-   row, and the box stays above the tab bar with the conversation padded by as much at its end. */
+.p-agent .p-agent__lesson + .p-agent__lesson {
+  border-top: 1px solid var(--line);
+}
+
+.p-agent .p-agent__lesson-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.p-agent .p-agent__lesson-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.p-agent .p-agent__lesson-date {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-agent .p-agent__lesson-actions {
+  flex: none;
+}
+
+.p-agent .p-agent__lesson-edit {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.p-agent .p-agent__lesson .p-agent__error {
+  flex-basis: 100%;
+}
+
+.p-agent .p-agent__lesson-add {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.p-agent .p-agent__lesson-add .k-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Instructions: folded under one line; read-only Markdown when opened. */
+.p-agent .p-agent__instructions {
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+}
+
+.p-agent .p-agent__fold {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 48px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-3);
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+.p-agent .p-agent__fold::-webkit-details-marker {
+  display: none;
+}
+
+.p-agent .p-agent__fold-mark {
+  color: var(--ink-2);
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.p-agent .p-agent__instructions[open] .p-agent__fold-mark {
+  transform: rotate(90deg);
+}
+
+.p-agent .p-agent__fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5) var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
+.p-agent .p-agent__text {
+  min-width: 0;
+  max-width: 72ch;
+  color: var(--ink);
+}
+
+/* Talk: the conversation, then the kit's composer in the flow under it. */
+.p-agent .p-agent__talk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.p-agent .p-agent__convo {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.p-agent .p-agent__compose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.p-agent .p-agent__given {
+  margin: 0;
+  color: var(--good);
+}
+
+.p-agent .p-agent__given a {
+  color: var(--ink);
+}
+
+/* Every stop on this page shows the 2 px accent ring. */
+.p-agent .p-agent__fold:focus-visible,
+.p-agent .p-team__dept:focus-visible,
+.p-agent .p-agent__now a:focus-visible,
+.p-agent .p-agent__note a:focus-visible,
+.p-agent .p-agent__given a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Below 860 px: the avatar stays beside the title, the actions go under it; label over value; 44 px targets. */
 @media (max-width: 859px) {
-  .p-agent { gap: var(--s-4); }
-  .p-agent .p-agent__head { align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); }
-  .p-agent .p-agent__head .p-agent__avatar,
-  .p-agent .p-agent__head .p-agent__summary,
-  .p-agent .p-agent__head .p-agent__reports { display: none; }
-  .p-agent .p-agent__facts { gap: var(--s-2) var(--s-3); }
-  .p-agent .p-agent__about { display: flex; flex-direction: column; gap: var(--s-2); }
-  .p-agent .k-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * var(--s-4)); padding: 0 var(--s-4); }
-  .p-agent .k-tabs::-webkit-scrollbar { display: none; }
-  .p-agent .p-agent__compose { bottom: calc(var(--tabbar-h) + var(--s-3)); padding-bottom: var(--s-2); }
-  .p-agent .p-agent__lesson-add { flex-direction: column; align-items: stretch; }
-  .p-agent .p-agent__dept .p-team__dept, .p-agent .p-agent__reports a,
-  .p-agent .k-empty a, .p-agent .p-agent__note a, .p-agent .p-agent__given a { display: inline-flex; align-items: center; min-height: 44px; }
+  .p-agent {
+    padding-bottom: var(--s-10);
+  }
+
+  .p-agent .p-agent__head {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 0 var(--s-3);
+  }
+
+  /* The title, its line and its state first; the actions under them. */
+  .p-agent .p-agent__head .k-page-header__row {
+    display: contents;
+  }
+
+  .p-agent .p-agent__head .k-page-header__titles {
+    flex: none;
+    order: 0;
+  }
+
+  .p-agent .p-agent__head .k-page-header__lede {
+    order: 1;
+  }
+
+  .p-agent .p-agent__head .k-page-header__more {
+    order: 2;
+  }
+
+  .p-agent .p-agent__head .k-page-header__actions {
+    order: 3;
+    margin-top: var(--s-2);
+  }
+
+  .p-agent .p-agent__pause {
+    align-items: flex-start;
+  }
+
+  .p-agent .p-agent__rows {
+    margin: 0 calc(var(--s-2) * -1);
+  }
+
+  .p-agent .p-agent__fact {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--s-3) var(--s-4);
+  }
+
+  .p-agent .p-agent__lesson {
+    padding: var(--s-3) var(--s-4);
+  }
+
+  .p-agent .p-agent__lesson-add {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .p-agent .p-team__dept,
+  .p-agent .p-agent__value .k-agent--chip,
+  .p-agent .k-empty a,
+  .p-agent .p-agent__note a,
+  .p-agent .p-agent__now a,
+  .p-agent .p-agent__given a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .p-agent .p-agent__fold-mark {
+    transition: none;
+  }
 }

@@ -83,3 +83,30 @@ test("team: a next step that already says Open Health links those words, not a s
   assert.equal((flat.match(/Open Health/g) || []).length, 1);
   assert.match(flat, /to see how to start it\./);
 });
+
+// T65: the team as one kit table, with the model each agent runs on.
+test("team: the table's words are pinned, and the model column comes only with the models' answer", () => {
+  assert.deepEqual({ ...page.WORDS }, { agent: "Agent", role: "What it does", state: "State", now: "On now", model: "Model", nothing: "Nothing right now" });
+  assert.deepEqual(page.teamColumns(false).map((c) => c.key), ["agent", "role", "state", "now"]);
+  assert.deepEqual(page.teamColumns(true).map((c) => c.label), ["Agent", "What it does", "State", "On now", "Model"]);
+});
+
+test("team: the model is the plan's, or Omega Plus's pick while that is on", () => {
+  const models = shape("models");
+  assert.equal(models.mode, "plans");
+  assert.equal(page.modelOf("builder", models), "sonnet");
+  assert.equal(page.modelOf("builder", { ...models, mode: "provider" }), "Fable 5.1");
+  assert.equal(page.modelOf("builder", { mode: "provider", agents: [{ slug: "builder", pick: "x-model" }] }), "x-model");
+  assert.equal(page.modelOf("nobody", models), "");
+  assert.equal(page.modelOf("builder", null), "");
+  assert.equal(page.modelOf("", models), "");
+  assert.equal(page.modelOf("a", { mode: "plans", agents: [{ slug: "a", plansModel: "y".repeat(90) }] }).length, 40);
+});
+
+test("team: the department is a link with its line icon, not a coloured chip", () => {
+  const v = page.DeptChip({ department: { id: "marketing", title: "Marketing" } });
+  const flat = JSON.stringify(v, (k, x) => (k === "__o" || k === "_owner" ? undefined : x));
+  assert.doesNotMatch(flat, /k-chip|dot/);
+  assert.match(flat, /Marketing/);
+  assert.doesNotMatch(readFileSync(new URL("../../pages/team.js", import.meta.url), "utf8"), /Creature/);
+});
