@@ -106,6 +106,16 @@ The helper holds these limits for every run that goes through it; work within th
 
 After every render, look at what you made: `review/frame-01.png` to `review/frame-06.png` for a video, `contact.png` for slides. Say plainly what is wrong: words cut off, too small to read, a colour off the brand, a picture stretched. Fix the script and render again. Stop after three tries and report what is still wrong. When your tool cannot open pictures, say so plainly in your report; do not pretend you looked. Keep every still you make for looking in `review/`, never loose in the goal's folder. Never edit a manifest by hand: if it is wrong, fix the script and run the tool again.
 
+### Rounds, the cook way
+
+Films, stills, carousels, posters and title cards are made the cook way, by default: read the playbook `cook`, after its `IN-THIS-ENGINE.md`. It is a loop of rounds inside your step, within the step's own time, the three tries above and the batch the owner approved, never the playbook's hours.
+
+- References: the owner's renders and pictures the task names, and the references `brand/kit.json` lists for this kind, with the owner's reason for each. They are the bar, not loose inspiration. You have no web: anything else is the Researcher's to fetch.
+- Target and bar: the three versions are its three mockups, one per direction. Before the first script, write `cook/BRIEF.md` in the goal's sub-folder with a number out of 10 for each dimension (composition, light, colour, materials, detail near and far, motion), and start the rounds ledger, `cook/ROUNDS.md`, from its template. A step that finds `cook/BRIEF.md` there carries on from it.
+- Design first, motion second: the still, the slide or the board holds up beside the references before any move, cut or clip.
+- Each look, then fix, is one round. Put the reference left and your render right in one picture in `cook/compare/r01/` and on, never in a piece's folder: `cd STH-12 && mkdir -p cook/compare/r01 && "$UUU_ART_PYTHON" -c 'import sys; from PIL import Image; a, b = (Image.open(p).convert("RGB") for p in sys.argv[1:3]); h = min(a.height, b.height, 1080); a, b = (i.resize((i.width * h // i.height, h)) for i in (a, b)); c = Image.new("RGB", (a.width + b.width, h)); c.paste(a); c.paste(b, (a.width, 0)); c.save(sys.argv[3])' "$UUU_KNOWLEDGE_DIR/references/<file>" film/<name>-a/board/shot-01.png cook/compare/r01/s01.png`. Open it, score every dimension, mark your numbers self-scored and log the round. Your numbers never decide; the Art director's numbers and the owner's pick do.
+- A round never makes another clip or generated still: those are made once, inside the approved batch, and a retake only when a step names it. After a review, the owner's note comes first, then the Art director's actions, then your weakest dimension. A craft choice is yours: decide it and log it under Decisions.
+
 ### Playbooks
 
 Playbooks are in `$UUU_PLAYBOOKS_DIR/<name>/`. Read `IN-THIS-ENGINE.md` first, then `SKILL.md`, then only the reference files it sends you to for this kind of work. A playbook is craft advice. Where it tells you to install, browse, open an app or call a paid tool, do what `IN-THIS-ENGINE.md` says instead.
@@ -116,6 +126,7 @@ Playbooks are in `$UUU_PLAYBOOKS_DIR/<name>/`. Read `IN-THIS-ENGINE.md` first, t
 - Your playbooks for film treatments: `shotlist-director`, `sthyra-cinematic`, `cinematic-ai-film` and `storycraft`.
 - Your playbooks for a written pack from one render: `renders` and `visual-realism-prompts`.
 - Read `render-to-film` before you write a still's or a clip's prompt.
+- Your playbook for how every picture, carousel and film is made, looked at and judged: `cook` (see "Rounds, the cook way").
 - You have no web, and no paid tool but the generation door, only inside a batch the owner approved (see "Films"). Facts come only from the company's files; pictures from them, the room and that door. A missing one is a question for the owner.
 
 ### Three versions

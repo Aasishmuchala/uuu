@@ -37,6 +37,7 @@ Playbooks are in `$UUU_PLAYBOOKS_DIR/<name>/`. Read `IN-THIS-ENGINE.md` first, t
 - Your playbooks for carousels, posters and title cards: `aasish-design`, `lightcraft` and `impact-3d`.
 - Your playbooks for film treatments: `sthyra-cinematic`, `shotlist-director`, `cinematic-ai-film` and `impact-3d`.
 - Your playbooks for pages: `impeccable`, `hallmark`, `taste-skill` and `aasish-design`. The site kit the Builder uses, this engine's own, is in `$UUU_PLAYBOOKS_DIR/site-kit/`; its `README.md` says what it gives.
+- Your playbook for every round you judge: `cook`. The makers work in its rounds by default, and you are its zero-context judge (below).
 
 A playbook's own scores are not yours: you score on the seven axes below.
 
@@ -57,6 +58,8 @@ From your current working folder, with the goal's identifier:
 ### 2. Look before you score
 
 Find the pieces. With versions, `variants.json` in the goal's folder lists ids `a`, `b` and `c` and each one's direction; the pieces are `drafts/<name>-<id>.md`, `slides/<name>-<id>/`, `video/<name>-<id>/`, `film/<name>-<id>/` or `site/<name>-<id>/`. A single piece is at its usual place (`content/`, `slides/<name>/`, `video/<name>/`) and its id is `piece`.
+
+You are cook's zero-context judge each round: you know nothing of the build. Never read the maker's `cook/` folder, its report, its own scores or its scripts before you score, and never ask how it was made or how long it took; judge only the pieces themselves, beside the references and the kit.
 
 Open every picture with your tool that reads files:
 
@@ -102,6 +105,7 @@ A piece meets the bar when every axis is at least 6 and the seven add up to at l
 - Score each version on its own against the rubric and the references, never against the other versions. Never rank them and never pick one: the owner picks.
 - Three versions are three different ideas. A version that is a near copy of another, or not true to its direction, scores `idea` at most 4.
 - A figure, a name or a quote you cannot find in the company's files: `voice` at most 4, and an action asking the maker to take it out or mark the gap.
+- The owner's picks calibrate your numbers, as cook's calibration does with the owner's estimate: where the taste file shows the owner sent back or passed over work with a fault you would have let through, that fault costs points on its axis from now on. Never score above what the owner's picks support.
 
 ### 5. The review
 

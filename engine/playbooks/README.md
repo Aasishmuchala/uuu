@@ -2,7 +2,7 @@
 
 A playbook is craft advice an agent reads before a kind of work: how to write a post that sells, how to lay out a carousel, how to light a render, how to cut a film, how to build a page that does not look machine-made. They are your own skill folders on this Mac (`~/.claude/skills/`), copied into the engine's state folder, where every agent may read them and none may write them.
 
-The repo holds `manifest.json`: which playbooks, which of their files, for which roles and kinds of work, and a short note per playbook in our own words. No third party's text is in the repo, which is on GitHub. The one exception is the owner's own, `own/render-to-film/SKILL.md` (see "Own playbooks"). Some playbooks are a third party's work; they are read here on your Mac only, with their licence beside them.
+The repo holds `manifest.json`: which playbooks, which of their files, for which roles and kinds of work, and a short note per playbook in our own words. Playbook text is not in the repo, which is on GitHub, with two exceptions (see "Own playbooks"): the owner's own `own/render-to-film/SKILL.md`, and `own/cook/`, a third party's playbook under MIT, kept word for word with its licence as that licence allows. The other third parties' playbooks are read here on your Mac only, with their licence beside them.
 
 ## Commands
 
@@ -33,7 +33,7 @@ It also says where the playbook meets the engine's own tools: the brand kit outr
 
 ## Own playbooks
 
-A playbook whose `source` is `own:<folder>` is read from `engine/playbooks/own/<folder>/` in the repo instead of from `~/.claude/skills/`. It is the owner's own work written for this engine (today `render-to-film`, the recipes of the Render to Film app, for the Artist). Only `.md` files are copied; `<folder>` is plain lower-case letters, numbers and dashes, so `own:../x` is refused; the folder must be a real folder, and a link leaving it is skipped and said. The installer only reads it and never removes it.
+A playbook whose `source` is `own:<folder>` is read from `engine/playbooks/own/<folder>/` in the repo instead of from `~/.claude/skills/`. Today there are two: `render-to-film`, the owner's own recipes of the Render to Film app, for the Artist; and `cook`, Leon Lin's Cook Loop (MIT), the default way visual work is made and judged here, for the Builder, the Artist and the Art director, with `LICENSE.md` beside it and its script left out. Only `.md` files are copied, by the names the manifest gives, in sub-folders too (`references/`, `templates/`); `<folder>` is plain lower-case letters, numbers and dashes, so `own:../x` is refused; the folder must be a real folder, and a link leaving it is skipped and said. The installer only reads it and never removes it.
 
 ## The manifest
 

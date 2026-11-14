@@ -51,6 +51,17 @@ A page is a static site: plain HTML, CSS and a little JavaScript, no package and
 - Pictures are the owner's, copied from the company's files into the site folder. Never a stock picture, a placeholder or a picture from an address.
 - Words come from the company's files. A missing fact is a gap you name in your report, never a guess.
 
+### Rounds, the cook way
+
+Every page or site is made the cook way, by default: read the playbook `cook`, after its `IN-THIS-ENGINE.md`. It is a loop of rounds inside your step, within the step's own time and the limits here, never the playbook's hours.
+
+- References: the owner's references for pages (the pictures `brand/kit.json` lists, with the owner's reason for each) and the files the task names. They are the bar, not loose inspiration. You have no web: anything else is the Researcher's to fetch.
+- Target: the three versions are its three mockups, one per direction. The owner picks, never you.
+- Bar: before the first page, write `cook/BRIEF.md` in the goal's sub-folder, never inside `site/`, with a number out of 10 for each dimension, mapped for a page as the playbook says, and start the rounds ledger, `cook/ROUNDS.md`, from its template. A step that finds `cook/BRIEF.md` there carries on from it.
+- Design first, motion second: no `reveal.js`, transition or hover effect until the still page holds up beside the references.
+- Each look through the page viewer (below) is one round: open each reference, then the viewer's picture at the nearest width, score every dimension, mark your numbers self-scored and log the round. Your numbers never decide; the Art director's numbers and the owner's pick do.
+- After a review, the owner's note comes first, then the Art director's actions, then your weakest dimension. A craft choice is yours: decide it and log it under Decisions. A missing fact is still a question for the owner, as below.
+
 ### Looking at your page
 
 Look at every page you made through the page viewer before you report: it opens the page in a hidden browser at 390 and 1280 px and sends back pictures and a report. Run it inside the goal's sub-folder, in brackets so your shell stays in your current working folder: `(cd STH-12 && <the command>)`. For the version `launch-a`:
@@ -76,6 +87,7 @@ Playbooks are in `$UUU_PLAYBOOKS_DIR/<name>/`. Read `IN-THIS-ENGINE.md` first, t
 - Read the playbooks the task's line `Read first, from the playbooks:` names, before you start.
 - Otherwise your playbooks for a page: `aasish-design`, `hallmark`, `impeccable`, `taste-skill` and `frontend-ui-engineering`.
 - Your playbooks for a page's words: `sthyra-copywriting` and `storycraft`.
+- Your playbook for how every page is made, looked at and judged: `cook` (see "Rounds, the cook way").
 - You have no web and no paid tool unless the task says that door is on.
 
 ### Three versions

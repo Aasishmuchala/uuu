@@ -1,5 +1,5 @@
 // The playbooks' manifest and installer, and the site kit it copies beside them
-// (PLAN-V5 T53, C18). Every run here copies from a made-up skills folder into a
+// (PLAN-V5 T53, C18), and the cook playbook kept in the repo with its sub-folders (T89). Every run here copies from a made-up skills folder into a
 // made-up state folder in a temp directory: the owner's real skill folders and
 // the real state folder are never touched.
 import { test } from "node:test";
@@ -266,7 +266,7 @@ test("a state folder that is a link is refused and nothing is changed", () => {
 });
 
 // The real manifest.
-const K4 = ["render-to-film", "sthyra-copywriting", "storycraft", "aasish-design", "creative-director", "impact-3d", "renders",
+const K4 = ["render-to-film", "cook", "sthyra-copywriting", "storycraft", "aasish-design", "creative-director", "impact-3d", "renders",
   "lightcraft", "visual-realism-prompts", "shotlist-director", "sthyra-cinematic", "archfilm-edit",
   "cinematic-ai-film", "taste-skill", "hallmark", "impeccable", "frontend-ui-engineering"];
 const KINDS = ["post", "newsletter", "carousel", "poster", "title-card", "film", "page", "still"];
@@ -409,6 +409,144 @@ test("the manifest may not name a playbook site-kit: that name is the engine's s
   assert.equal(r.code, 1);
   assert.match(r.err, /the manifest is not right: site-kit is the name of the engine's site kit, never of a playbook/);
   assert.ok(!existsSync(r.dest), "nothing was changed");
+});
+
+// ---- PLAN-V5 T89: cook (MIT), a third party's playbook kept in the repo under own/cook/, with its
+// references/ and templates/ sub-folders, made the default way visual work is done here.
+
+const OWN_DIR = join(dir, "own");
+const COOK_FILES = ["SKILL.md", "references/intake.md", "references/loop-and-critics.md", "references/rules.md", "references/ship.md",
+  "references/target-and-bar.md", "templates/ROUNDS.md", "templates/brief.md"];
+
+test("the real manifest: cook is an own: source of a third party's work under MIT, for the makers of visual work and the Art director", () => {
+  const c = byName.cook;
+  assert.ok(c, "cook is in the manifest");
+  assert.deepEqual(Object.keys(c).sort(), ["files", "kinds", "licence", "licenceFiles", "name", "note", "origin", "roles", "source"]);
+  assert.equal(c.source, "own:cook");
+  assert.equal(c.origin, "third-party");
+  assert.equal(c.licence, "MIT");
+  assert.deepEqual(c.licenceFiles, ["LICENSE.md"]);
+  // Exact names, no pattern: only the reading files, never its script or its README.
+  assert.deepEqual(c.files, COOK_FILES);
+  assert.ok(c.files.every((f) => !f.includes("*") && f.endsWith(".md")));
+  assert.deepEqual([...c.roles].sort(), ["art-director", "artist", "builder"]);
+  // Every visual kind the engine makes (slides are carousels here); never posts or newsletters.
+  assert.deepEqual([...c.kinds].sort(), ["carousel", "film", "page", "poster", "still", "title-card"]);
+  assert.ok(c.note.length <= 4000, `${c.note.length} characters`);
+  for (const s of ["In this engine: the default way visual work is made and judged", "cook/ inside the goal's sub-folder",
+    "the job's own time limit", "the engine's usage limits replace its 8-hour floor and its usage pacing",
+    "the job's form and the Chief of staff's plan are the intake; never put its questions to the owner in the middle of a run",
+    "a missing company fact is still a blocked step", "the pictures brand/kit.json lists", "the files the task names",
+    "anything else is the Researcher's to fetch", "the three versions the job makes are its target mockups",
+    "write a number per dimension into cook/BRIEF.md", "the rounds ledger, cook/ROUNDS.md, beside it", "Design first, motion second",
+    "its script is not copied", "the page viewer's picture", "$UUU_ART_PYTHON, Pillow", "self-scored and never decide",
+    "The Art director is the zero-context judge each round", "knows nothing of the build",
+    "the owner's picks in brand/taste.md calibrate its scores", "nothing is published or pushed", "the pick card",
+    "anything that spends (a clip, a generated still) waits for the batch the owner approved", "a colour or typeface the brand kit names is the brand",
+    "LICENSE.md is kept beside the copy"]) assert.ok(c.note.includes(s), s);
+  // No full path, address, port or key in the note.
+  assert.doesNotMatch(c.note, /(^|[\s(])\/(Users|opt|private|var|tmp|etc|home|Volumes|Library)\/|~\/|https?:|127\.0\.0\.1|localhost|:\d{4,5}\b|\bport\s+\d/);
+});
+
+test("own/cook in the repository: exactly the named .md files and LICENSE.md with the MIT notice; never its script", () => {
+  const top = join(OWN_DIR, "cook");
+  assert.deepEqual(filesUnder(top), [...COOK_FILES, "LICENSE.md"].sort());
+  for (const [p, [kind]] of Object.entries(snapshot(top))) assert.ok(kind === "d" || kind === "f", `${p} is ${kind}`);
+  const licence = readFileSync(join(top, "LICENSE.md"), "utf8");
+  assert.match(licence, /^MIT License\n\nCopyright \(c\) 2026 Leon Lin\n/);
+  assert.match(licence, /The above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software\./);
+  assert.match(readFileSync(join(top, "SKILL.md"), "utf8"), /^---\nname: cook\n/);
+  assert.ok(!existsSync(join(top, "scripts")) && !existsSync(join(top, "README.md")));
+});
+
+test("the cook playbook installs from the repo into a temp folder: its sub-folders' files byte for byte, its licence and the note", () => {
+  const top = realpathSync(mkdtempSync(join(tmpdir(), "pbcook-")));
+  try {
+    const env = { skills: join(top, "no-skills"), dest: join(top, "state", "playbooks"), own: OWN_DIR, siteKit: join(top, "no-site-kit") };
+    mkdirSync(env.skills);
+    mkdirSync(join(top, "state"));
+    const before = snapshot(OWN_DIR);
+    const r = run(env);
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, /^playbooks: cook: installed, 9 files \(\d+ KB\)\.$/m);
+    const copy = join(env.dest, "cook");
+    assert.deepEqual(filesUnder(copy), [...COOK_FILES, "IN-THIS-ENGINE.md", "LICENSE.md"].sort());
+    for (const f of [...COOK_FILES, "LICENSE.md"]) assert.ok(readFileSync(join(copy, f)).equals(readFileSync(join(OWN_DIR, "cook", f))), `${f} byte for byte`);
+    for (const [p, [kind, mode]] of Object.entries(snapshot(copy))) assert.equal(mode, kind === "d" ? "755" : "644", p);
+    const note = readFileSync(join(copy, "IN-THIS-ENGINE.md"), "utf8");
+    assert.ok(note.includes(byName.cook.note));
+    assert.match(note, /This is a third party's playbook \(licence: MIT\), copied from the engine's own playbooks: 9 files\./);
+    const row = JSON.parse(readFileSync(join(env.dest, "index.json"), "utf8")).playbooks.find((x) => x.name === "cook");
+    assert.deepEqual(row.files, [...COOK_FILES, "LICENSE.md"].sort());
+    assert.deepEqual(row.roles, byName.cook.roles);
+    assert.deepEqual(row.kinds, byName.cook.kinds);
+    // A second run changes nothing, and the repo's folder is only read.
+    const installed = snapshot(env.dest);
+    const again = run(env);
+    assert.equal(again.code, 0, again.err);
+    assert.match(again.out, /^playbooks: cook: already in place \(9 files\)\.$/m);
+    assert.deepEqual(snapshot(env.dest), installed);
+    assert.deepEqual(snapshot(OWN_DIR), before);
+  } finally {
+    rmSync(top, { recursive: true, force: true });
+  }
+});
+
+// A made-up own/cook folder with the traps of a sub-folder: an unnamed file, a script, a text file and links.
+function fakeCook() {
+  const env = fakeSkills();
+  const own = join(env.top, "own");
+  const f = join(own, "cook");
+  for (const n of COOK_FILES) put(join(f, n), `made-up ${n}\n`);
+  put(join(f, "LICENSE.md"), "made-up licence\n");
+  put(join(f, "README.md"), "not named\n");
+  put(join(f, "references", "extra.md"), "not named\n");
+  put(join(f, "references", "notes.txt"), "not an .md file\n");
+  put(join(f, "scripts", "side-by-side.mjs"), "never copied\n");
+  put(join(env.top, "outside", "brief.md"), "outside the own folder\n");
+  return { ...env, own, folder: f };
+}
+
+test("an own: source's named files in sub-folders are copied, and nothing else in them", () => {
+  const env = fakeCook();
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /cook: installed, 9 files /);
+  assert.deepEqual(filesUnder(join(env.dest, "cook")), [...COOK_FILES, "IN-THIS-ENGINE.md", "LICENSE.md"].sort());
+  for (const n of COOK_FILES) assert.equal(readFileSync(join(env.dest, "cook", n), "utf8"), `made-up ${n}\n`);
+  const all = Object.keys(snapshot(join(env.dest, "cook")));
+  assert.ok(!all.some((p) => /scripts|README|extra|notes|\.mjs$/.test(p)), all.join(" "));
+});
+
+test("in an own: source's sub-folder, a link that leaves the folder is skipped and said; a sub-folder that is such a link too", () => {
+  let env = fakeCook();
+  rmSync(join(env.folder, "references", "rules.md"));
+  symlinkSync(join(env.top, "outside", "brief.md"), join(env.folder, "references", "rules.md"));
+  let r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /cook: skipped references\/rules\.md: it is a link that leaves the playbook's folder\./);
+  assert.ok(!existsSync(join(env.dest, "cook", "references", "rules.md")));
+  assert.match(r.out, /cook: installed, 8 files /);
+
+  env = fakeCook();
+  rmSync(join(env.folder, "templates"), { recursive: true });
+  symlinkSync(join(env.top, "outside"), join(env.folder, "templates"));
+  r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /cook: skipped templates: it is a link that leaves the playbook's folder\./);
+  assert.ok(!existsSync(join(env.dest, "cook", "templates")));
+  for (const p of filesUnder(env.dest)) assert.ok(!readFileSync(join(env.dest, p), "utf8").includes("outside the own folder"), p);
+});
+
+test("the real manifest's cook entry passes the installer's checks; a pattern or a script in its files is refused", () => {
+  const ok = withManifest([byName.cook]);
+  assert.equal(ok.code, 0, ok.err);
+  for (const files of [["scripts/side-by-side.mjs"], ["references/rules.txt"], ["../cook/SKILL.md"], ["scripts/SKILL.md"]]) {
+    const r = withManifest([{ ...byName.cook, files }]);
+    assert.equal(r.code, 1, files.join(" "));
+    assert.match(r.err, /the manifest is not right/, files.join(" "));
+    assert.ok(!existsSync(r.dest), "nothing was changed");
+  }
 });
 
 // ---- PLAN-V5 T53 (K16, C18): the site kit, engine/site-kit/, copied to <state>/playbooks/site-kit/.

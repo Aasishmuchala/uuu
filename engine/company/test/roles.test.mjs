@@ -1,10 +1,11 @@
-// Checks the twelve role files (CONTRACTS-V2 21.3 and section 23, CONTRACTS-V3 section 39, PLAN-V5 T16, T34, T43, T53). A role's
+// Checks the twelve role files (CONTRACTS-V2 21.3 and section 23, CONTRACTS-V3 section 39, PLAN-V5 T16, T34, T43, T53, T89). A role's
 // four tests skip until its file holds the {{STAGED}} line; its version 3 test skips until its file
 // holds the first new string of its row; the task that writes it shows them passing.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../../lib/config.mjs";
@@ -60,8 +61,9 @@ const FORMATS_V3 = {
   artist: ['"$UUU_ART_PYTHON" "$UUU_ART_SLIDES" <name>.py', '"$UUU_ART_PYTHON" "$UUU_ART_VIDEO"', "slides/<name>/", "video/<name>/"],
 };
 
-// The most lines a role file may have. PLAN-V5 T43 gives three roles a film's steps, its clips and the still jobs.
-const MOST_LINES = { artist: 270, "chief-of-staff": 190, "art-director": 190 };
+// The most lines a role file may have. PLAN-V5 T43 gives three roles a film's steps, its clips and the still jobs;
+// T89 gives the Artist and the Art director the cook way (five lines more each).
+const MOST_LINES = { artist: 275, "chief-of-staff": 190, "art-director": 195 };
 
 const roleFile = (slug) => join(companyDir, "roles", `${slug}.md`);
 const read = (slug) => readFileSync(roleFile(slug), "utf8");
@@ -178,7 +180,7 @@ for (const [slug, strings] of Object.entries(FORMATS_V5)) {
 }
 
 test("roles v5: every playbook a role names is in the manifest and lists that role", () => {
-  assert.equal(BOOKS.size, 17);
+  assert.equal(BOOKS.size, 18);
   for (const slug of ALL_ROLES) {
     const named = playbooksNamed(read(slug));
     for (const name of named) {
@@ -546,4 +548,93 @@ test("roles v5 (T53): the Chief of staff runs a page as any art review and block
   for (const s of ["A page: read `site/<name>/index.html` and every other `.html` file", "as text", "can't-say list",
     "You cannot open the page viewer: say so in the reason"]) assert.ok(checker.includes(s), s);
   assert.equal(PAGE_OFF, "The page viewer is off. Switch it on in Settings.");
+});
+
+// ---- PLAN-V5 T89: the cook playbook, the default way visual work is made, looked at and judged, inside each job's limits.
+
+const COOK = BOOKS.get("cook");
+
+test("roles v5 (T89): the Builder and the Artist work in cook rounds by default, inside their step's limits", () => {
+  assert.ok(COOK, "cook is in the manifest");
+  assert.deepEqual([...COOK.roles].sort(), ["art-director", "artist", "builder"]);
+  for (const slug of ["builder", "artist"]) {
+    const text = read(slug);
+    for (const s of ["### Rounds, the cook way", "read the playbook `cook`, after its `IN-THIS-ENGINE.md`", "never the playbook's hours",
+      "They are the bar, not loose inspiration.", "You have no web: anything else is the Researcher's to fetch.",
+      "the three versions are its three mockups, one per direction", "`cook/BRIEF.md` in the goal's sub-folder", "a number out of 10 for each dimension",
+      "the rounds ledger, `cook/ROUNDS.md`, from its template", "A step that finds `cook/BRIEF.md` there carries on from it.", "Design first, motion second",
+      "mark your numbers self-scored and log the round", "Your numbers never decide; the Art director's numbers and the owner's pick do.",
+      "the owner's note comes first, then the Art director's actions, then your weakest dimension",
+      "A craft choice is yours: decide it and log it under Decisions.", 'is made, looked at and judged: `cook` (see "Rounds, the cook way").']) {
+      assert.ok(text.includes(s), `${slug}: ${s}`);
+    }
+    assert.ok(text.indexOf("### Rounds, the cook way") < text.indexOf("### Playbooks"), `${slug}: the cook way comes before the playbooks list`);
+  }
+  const builder = read("builder");
+  for (const s of ["Every page or site is made the cook way, by default", "the owner's references for pages (the pictures `brand/kit.json` lists",
+    "never inside `site/`", "mapped for a page as the playbook says", "no `reveal.js`, transition or hover effect until the still page holds up",
+    "Each look through the page viewer (below) is one round", "open each reference, then the viewer's picture at the nearest width",
+    "A missing fact is still a question for the owner", "At most three looks in all"]) assert.ok(builder.includes(s), s);
+  assert.ok(builder.indexOf("### Rounds, the cook way") < builder.indexOf("### Looking at your page"), "the Builder's bar comes before its first look");
+  const artist = read("artist");
+  for (const s of ["Films, stills, carousels, posters and title cards are made the cook way, by default",
+    "the three tries above and the batch the owner approved", "(composition, light, colour, materials, detail near and far, motion)",
+    "the references `brand/kit.json` lists for this kind", "in `cook/compare/r01/` and on, never in a piece's folder",
+    "A round never makes another clip or generated still: those are made once, inside the approved batch, and a retake only when a step names it.",
+    "Stop after three tries", "Never a third take"]) assert.ok(artist.includes(s), s);
+  assert.ok(artist.indexOf("### Look, then fix") < artist.indexOf("### Rounds, the cook way"), "a round is a look, then fix");
+});
+
+// The Artist's side by side, run as the role writes it: the reference left, the render right, one height.
+const ART_PY = join(homedir(), ".paperclip", "uuu-engine", "art", "venv", "bin", "python");
+const noArtPy = existsSync(ART_PY) ? false : "the Artist's tools are not installed (engine/art/install.sh), so its Python cannot run";
+
+test("roles v5 (T89): the Artist's side-by-side line runs with the art tools' Python and puts the reference left", { skip: noArtPy }, () => {
+  const line = read("artist").split("\n").find((l) => l.includes("cook/compare/r01/s01.png"));
+  assert.ok(line, "the side-by-side line");
+  const code = /"\$UUU_ART_PYTHON" -c '([^']+)' "\$UUU_KNOWLEDGE_DIR\/references\/<file>" film\/<name>-a\/board\/shot-01\.png cook\/compare\/r01\/s01\.png`/.exec(line);
+  assert.ok(code, line);
+  assert.ok(line.includes("`cd STH-12 && mkdir -p cook/compare/r01 && "), "run from the goal's sub-folder, into its own folder");
+  const dir = mkdtempSync(join(tmpdir(), "uuu-side-"));
+  try {
+    const make = 'from PIL import Image; Image.new("RGB", (1600, 900), (200, 30, 30)).save("ref.png"); Image.new("RGBA", (800, 1000), (30, 30, 200, 255)).save("render.png")';
+    let r = spawnSync(ART_PY, ["-c", make], { cwd: dir, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    r = spawnSync(ART_PY, ["-c", code[1], "ref.png", "render.png", "side.png"], { cwd: dir, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    r = spawnSync(ART_PY, ["-c", 'from PIL import Image; i = Image.open("side.png"); print(i.size[0], i.size[1], i.getpixel((10, 10)), i.getpixel((i.size[0] - 10, 10)))'],
+      { cwd: dir, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout.trim(), "2320 900 (200, 30, 30) (30, 30, 200)");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("roles v5 (T89): the Art director judges each round as cook's zero-context judge, calibrated by the owner's picks", () => {
+  const text = read("art-director");
+  for (const s of ["Your playbook for every round you judge: `cook`.", "you are its zero-context judge (below)",
+    "You are cook's zero-context judge each round: you know nothing of the build.",
+    "Never read the maker's `cook/` folder, its report, its own scores or its scripts before you score",
+    "never ask how it was made or how long it took", "judge only the pieces themselves, beside the references and the kit",
+    "The owner's picks calibrate your numbers, as cook's calibration does with the owner's estimate",
+    "that fault costs points on its axis from now on", "Never score above what the owner's picks support."]) assert.ok(text.includes(s), s);
+  // It still looks and never changes, on the same rubric, bar and rounds.
+  for (const s of ["You look; you never change.", "never rewrite the work", "at least 52 of 70", "At most two rounds.", "Never rank them and never pick one"]) {
+    assert.ok(text.includes(s), s);
+  }
+  const judge = text.indexOf("You are cook's zero-context judge");
+  assert.ok(text.indexOf("### 2. Look before you score") < judge && judge < text.indexOf("Open every picture with your tool that reads files:"),
+    "the zero-context rule comes before any picture is opened");
+});
+
+test("roles v5 (T89): the Chief of staff plans visual work as cook rounds within the job's limits, with no questions once it runs", () => {
+  const chief = read("chief-of-staff");
+  for (const s of ["Visual work (a page, a film, a still, a carousel, a poster or a title card) is planned as cook rounds within the job's own limits, never cook's hours",
+    "the maker's rounds are its looks inside each step (at most three)", "a reviewer who knows nothing of the build", "the owner's pick ends it",
+    "Add no step for more rounds than the order here allows.", "The job's form and your plan are the intake", "ask what the work needs before the first step",
+    "a craft choice is the maker's to decide and log in `cook/ROUNDS.md`", "only a missing fact or a refusal goes to the owner",
+    "The maker's `cook/` folder is its working notes, not the work: never ask the Checker to check it.", "At most two Art director rounds",
+    "SHOTLIST ACCEPTED: <id> batch <batch id>"]) assert.ok(chief.includes(s), s);
+  assert.ok(!COOK.roles.includes("chief-of-staff"), "the playbook is the makers' and the Art director's");
 });
