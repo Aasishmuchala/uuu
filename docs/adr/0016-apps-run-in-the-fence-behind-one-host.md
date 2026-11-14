@@ -80,7 +80,7 @@ The ways that remain, and cannot be closed by any rule the engine can set: WebRT
 
 An app is known by the socket it can reach, not by a secret it holds. For each running app the host serves `<state>/run/apps/<name>/engine.sock` in a folder only that app's fence allows. For each call the host adds a fresh token (120 seconds, naming the app) keyed with the secret of the part it goes to. The app holds no key, and a package that reads every file the app can read finds no secret.
 
-The socket serves only what the manifest's `engine` names. With `generate`: the generation door's app routes (models, estimate, inputs, jobs, one job, its output, the allowance). With `relay`: the model relay's `/v1/messages`, at most 60 calls an hour and 300 a day for each app. Anything else is `app_not_found`. Only a few headers go in and a few come back, and a log line holds the time, the app, the route's name and the status, never a header, a body or a token.
+The socket serves only what the manifest's `engine` names. With `generate`: the generation door's app routes (models, estimate, inputs, jobs, one job, its output, the allowance). With `relay`: the model relay's `/v1/messages`, at most 60 calls an hour and 300 a day for each app. The relay counts each app under its own name in its status file (calls, tokens, the times of its calls in the last day, its last refusal), never among the agents. Anything else is `app_not_found`. Only a few headers go in and a few come back, and a log line holds the time, the app, the route's name and the status, never a header, a body or a token.
 
 ### Money: the allowance is the owner's yes for an app
 
@@ -114,7 +114,7 @@ The Artist uses the door as before (`0014`), only inside a batch the owner appro
 
 - One more part to run, with its own line in `engine status` and Health: "App Studio is on. Open: Render to Film.", or "App Studio is on. No app is switched on.", or "App Studio is not installed yet."
 - Nothing of this is live yet. It is built and tested: the host and the app run in the real fence, and a rehearsal against stand-in services ends with a clip made, the allowance used up, and the app unable to reach 127.0.0.1:3200 or `~/.ssh`. The live proof and the real services come at go-live. Until `apps/render-to-film/READY` and `engine/apps/READY` exist, App Studio lists the app as "Not ready yet." and nothing starts.
-- An app costs memory while it runs: up to the manifest's `memoryMb` (2 GB for Render to Film), and the app's thinking draws on the owner's model provider, shown in Settings, Models, not in Generation's spending.
+- An app costs memory while it runs: up to the manifest's `memoryMb` (2 GB for Render to Film), and the app's thinking draws on the owner's model provider only while Models is on the owner's key: with Models set to plans the model relay refuses it (`relay_app_plans`) and nothing is sent. Settings, Models shows one line for each app that asked: its calls today and this hour, and why the relay last refused it. It is not in Generation's spending.
 - The host is the one new piece that runs unfenced. A flaw in it would be a flaw in the engine, so it is small, has no dependencies, and is attacked in this step's proof and review.
 - No WebSocket, cookie, inline script or form post works in an app. The host's rules forbid them.
 - An app's data can be as large as the pictures and clips the owner makes in it. Nothing tidies it.

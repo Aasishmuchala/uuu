@@ -1362,7 +1362,7 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     if (name === "hfFinish") {
       const v = parseObject(raw);
       const fits = v !== null && Object.keys(v).length === 2 && typeof v.code === "string" && typeof v.state === "string";
-      // The pending sign-in is cleared whatever happens (K21): a body of the wrong shape ends it too.
+      // Only the matching state ends the pending sign-in (T85 finding 7): a wrong state, or a body of the wrong shape, leaves it for the real return.
       const f = await hf.auth.finish(fits ? { code: v.code, state: v.state } : {});
       if (!fits) return no(res, "gen_bad_request");
       if (!f.ok) return no(res, "gen_hf_sign_in");
