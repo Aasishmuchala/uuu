@@ -1,12 +1,12 @@
 // App Studio (PLAN-V5 K17, K22, K23, T80): the apps that run on this Mac, each a large tile with its picture, its
-// name, what it does and its state, with Open, Turn on and Turn off; then the sites the team made (step 4 fills it).
+// name, what it does and its state, with Open, Turn on and Turn off; then the sites the team made (T88).
 // Everything comes from GET /api/apps; every POST answers the whole view again, so the page shows that answer.
 // An app's name, its line and every sentence are shown as plain capped text, never as HTML. The pure helpers here
 // are shared with pages/app.js (one app opened inside).
 import { html, useCallback, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useVisibleInterval } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { Button, Card, Empty, ErrorNotice, Icon, Loading, NextStep, Notice, PageHeader, Section, StatusDot } from "../kit/index.js";
+import { Button, Card, Empty, ErrorNotice, Icon, Loading, NextStep, Notice, PageHeader, Section, StatusDot, Time, previewAddress, safeViewUrl, siteAddress } from "../kit/index.js";
 
 // K23's words, as written, and the few these pages add.
 export const WORDS = {
@@ -32,6 +32,9 @@ export const WORDS = {
   health: "Open Health",
   back: "App Studio",
   waitsForHost: "Waits for App Studio.",
+  openTask: "Open the task",
+  badPreview: "The preview gave an address this page does not open.",
+  noPicture: "No picture yet",
   badHost: "Apps open only when the home screen is opened at 127.0.0.1 or localhost.",
 };
 
@@ -153,6 +156,34 @@ export function thinksLabel(thinks) {
 // The apps of the view, the good ones only (a slug the routes accept).
 export const appsOf = (view) => arr(obj(view) ? view.apps : null).filter((a) => obj(a) && typeof a.slug === "string" && SLUG.test(a.slug));
 
+// The sites the team made (T88), the good ones only: a task the board names, a ref the sites route accepts, at most
+// 30. The picture is the home server's own address or none; the task's page is worked out here from its id.
+const TASK_ID = /^[A-Za-z0-9._-]{1,64}$/;
+const SITE_REF = /^[a-z0-9][a-z0-9-]{0,35}(-[abc])?$/;
+const SITES_SHOWN = 30;
+export function sitesOfView(view) {
+  const out = [];
+  for (const s of arr(obj(view) ? view.sites : null)) {
+    if (out.length >= SITES_SHOWN) break;
+    if (!obj(s) || !obj(s.task) || typeof s.task.id !== "string" || !TASK_ID.test(s.task.id)) continue;
+    if (typeof s.ref !== "string" || !SITE_REF.test(s.ref)) continue;
+    const identifier = typeof s.task.identifier === "string" && TASK_ID.test(s.task.identifier) ? s.task.identifier : "";
+    out.push({
+      id: s.task.id,
+      identifier,
+      title: plain(s.task.title, 120),
+      ref: s.ref,
+      name: plain(s.direction || s.name, 60) || s.ref,
+      at: typeof s.finishedAt === "string" ? s.finishedAt : null,
+      picture: safeViewUrl(s.picture),
+      sentence: plain(s.sentence, 200),
+      pages: arr(s.pages).length,
+      href: `#/tasks/${encodeURIComponent(s.task.id)}`,
+    });
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // The view, shared with pages/app.js
 
@@ -267,12 +298,50 @@ function Tile({ app, host, view }) {
   <//>`;
 }
 
+// One site the team made: its picture (the first page), its name, its task, and Open, which loads it into the preview
+// and opens that address in a new tab (only the preview's own address); the task's page holds the rest.
+function SiteTile({ site }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const open = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const answer = await api.post(siteAddress(site.identifier || site.id, site.ref, "preview"), {});
+      const url = previewAddress(answer && answer.url);
+      if (!url) setError({ message: WORDS.badPreview, next: "" });
+      else if (typeof window !== "undefined" && typeof window.open === "function") window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      setError(e);
+    }
+    setBusy(false);
+  };
+  return html`<${Card} padding="md" class="p-apps__site">
+    <div class="p-apps__shot">
+      ${site.picture
+        ? html`<img src=${site.picture} alt="" loading="lazy" />`
+        : html`<span class="p-apps__noshot">${WORDS.noPicture}</span>`}
+    </div>
+    <h3 class="p-apps__site-name">${site.name}</h3>
+    <p class="p-apps__site-task">
+      <a href=${site.href}>${site.identifier ? `${site.identifier}: ` : ""}${site.title}</a>
+      ${site.at ? html` <${Time} at=${site.at} />` : null}
+    </p>
+    <${Refusal} error=${error} />
+    <div class="p-apps__actions">
+      <${Button} variant="primary" icon="external" busy=${busy} onClick=${open}>${WORDS.open}<//>
+      ${error ? html`<${Button} variant="quiet" href=${site.href}>${WORDS.openTask}<//>` : null}
+    </div>
+  <//>`;
+}
+
 export default function AppsPage() {
   const [fast, setFast] = useState(false);
   const view = useAppsView(fast ? 2000 : 10000);
   const data = obj(view.data) ? view.data : null;
   const host = data && obj(data.host) ? data.host : { state: "off", sentence: "" };
   const apps = appsOf(data);
+  const sites = sitesOfView(data);
   const starting = apps.some((a) => shownState(a, host) === "starting");
   useEffect(() => { setFast(starting); }, [starting]);
 
@@ -292,7 +361,9 @@ export default function AppsPage() {
             : html`<${Empty} title=${WORDS.noApps} />`}
         <//>
         <${Section} title=${WORDS.team}>
-          ${arr(data.sites).length ? null : html`<${Empty} text=${WORDS.teamEmpty} />`}
+          ${sites.length
+            ? html`<div class="p-apps__sites">${sites.map((x) => html`<${SiteTile} key=${`${x.id}/${x.ref}`} site=${x} />`)}</div>`
+            : html`<${Empty} text=${WORDS.teamEmpty} />`}
         <//>`
       : null}
   </div>`;

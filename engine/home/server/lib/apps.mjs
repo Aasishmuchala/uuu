@@ -24,6 +24,10 @@ import { ALLOWANCE_MAX_CENTS, readAllowance, readGenState } from "../../../gener
 import { doorKeySaved, readDoors, readTrustedText } from "./doors.mjs";
 import { HomeError } from "./errors.mjs";
 import { readState, updateState } from "./models.mjs";
+import { PICK, picksOf } from "./picks.mjs";
+import { keptShots, siteInfo, sitesOf } from "./siteshots.mjs";
+import { loadTaskContext } from "./tasks.mjs";
+import { kindOfTask } from "../routes/pieces.mjs";
 
 export const HEALTH_TIMEOUT_MS = 1000;
 const HEALTH_MAX_BYTES = 64 * 1024;
@@ -386,9 +390,88 @@ export function readIcon(config, entry) {
   }
 }
 
+// ---- the sites the team made (T88) ----------------------------------------------------------------------------------
+
+// "Made by the team": the sites of finished and accepted page tasks, newest first, at most SITES_MAX. Read only through
+// lib/siteshots.mjs (the checked readers: a task's identifier comes from the board's own list, a site is matched only
+// against the task's own list of sites, files are read with the viewer's rules); nothing here takes a path from an
+// agent's text. The pictures are the home server's own, by their /api/sites/shot/ address; a site with none shows none.
+export const SITES_MAX = 30;
+const SITE_WORDS = {
+  ready: "Pictures ready",
+  none: "No pictures yet",
+  problem: "Cannot be shown",
+};
+const FIRST_PICTURES = ["shot-index-1280-light.png", "shot-index-1280-dark.png", "shot-index-390-light.png", "shot-index-390-dark.png"];
+
+const timeOf = (v) => {
+  const t = typeof v === "string" ? Date.parse(v) : NaN;
+  return Number.isFinite(t) ? t : 0;
+};
+
+// The one site of a task that App Studio shows: the version the owner picked, else the only site; null otherwise.
+function shownSite(ctx, goal, listed) {
+  const picks = picksOf(ctx.decisions, goal.id).filter((p) => p.action === PICK);
+  const picked = picks.length ? picks[picks.length - 1].variant : null;
+  if (picked) {
+    const s = listed.find((x) => x.variant === picked);
+    if (s) return s;
+  }
+  return listed.length === 1 ? listed[0] : null;
+}
+
+function siteEntry(ctx, goal, site) {
+  const info = siteInfo(ctx.config, goal.identifier, site.rel);
+  const kept = info.ok ? keptShots(ctx.config, info.key) : null;
+  const first = kept ? FIRST_PICTURES.find((n) => kept.names.includes(n)) || kept.names.slice().sort()[0] || null : null;
+  const state = !info.ok ? "problem" : kept ? "ready" : "none";
+  return {
+    task: { id: goal.id, identifier: goal.identifier, title: typeof goal.title === "string" ? goal.title : "" },
+    ref: site.ref,
+    name: site.variant ? site.ref.slice(0, -2) : site.ref,
+    direction: site.direction && typeof site.direction.title === "string" ? site.direction.title : null,
+    finishedAt: typeof goal.updatedAt === "string" ? goal.updatedAt : null,
+    pages: info.ok ? info.pages : [],
+    files: info.files,
+    picture: first ? `/api/sites/shot/${info.key}/${first}` : null,
+    state,
+    sentence: state === "problem" ? info.problem : SITE_WORDS[state],
+    opens: `#/tasks/${encodeURIComponent(goal.id)}`,
+  };
+}
+
+// sitesFrom(ctx, tctx) -> the list. Never throws: a task whose folder cannot be read is left out.
+export function sitesFrom(ctx, tctx) {
+  const done = (tctx.goals || [])
+    .filter((g) => g && g.status === "done" && typeof g.identifier === "string" && tctx.accepted(g.id))
+    .filter((g) => { try { return kindOfTask(ctx, g) === "page"; } catch { return false; } })
+    .sort((a, b) => timeOf(b.updatedAt) - timeOf(a.updatedAt))
+    .slice(0, SITES_MAX);
+  const out = [];
+  for (const g of done) {
+    try {
+      const listed = sitesOf(ctx.config, g.identifier);
+      if (listed.problem) continue;
+      const site = shownSite(ctx, g, listed.sites);
+      if (site) out.push(siteEntry(ctx, g, site));
+    } catch { /* one task's folder cannot break the list */ }
+  }
+  return out;
+}
+
+// listSites(ctx) -> the list, or [] on any problem (the board off, the company not set up, a folder unreadable).
+export async function listSites(ctx) {
+  try {
+    const tctx = await loadTaskContext(ctx, { withInbox: false, withComments: false });
+    return sitesFrom(ctx, tctx);
+  } catch {
+    return [];
+  }
+}
+
 // ---- the view -------------------------------------------------------------------------------------------------------
 
-// GET /api/apps: { host: { state, sentence }, apps: [ … ], sites: [], problem, problemSentence }.
+// GET /api/apps: { host: { state, sentence }, apps: [ … ], sites: [ … ], problem, problemSentence }.
 export async function buildAppsView(ctx, now = Date.now()) {
   const config = ctx.config;
   const entries = listApps(config);
@@ -420,7 +503,7 @@ export async function buildAppsView(ctx, now = Date.now()) {
   return {
     host: { state: host.state, sentence: host.sentence },
     apps,
-    sites: [],
+    sites: await listSites(ctx),
     problem,
     problemSentence: problem ? PROBLEM_SENTENCES[problem] : null,
   };

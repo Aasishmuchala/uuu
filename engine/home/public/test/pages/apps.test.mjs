@@ -9,7 +9,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import Page, {
   AMOUNTS, APP_PORTS, FIRST_AMOUNT, STATE_WORDS, WORDS, allowLabel, amountChoices, appAddress, appHref, appsOf, dollarWord, firstAmount,
-  iconHref, plain, sheetTitle, shownState, spendingLine, spends, stateSentence, stateTone, stateWord, thinksLabel,
+  iconHref, plain, sheetTitle, shownState, sitesOfView, spendingLine, spends, stateSentence, stateTone, stateWord, thinksLabel,
 } from "../../pages/apps.js";
 
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -23,7 +23,7 @@ const HTTP = "http:" + "//";
 const LOOP = ["127", "0", "0", "1"].join(".");
 const NOSPEND = { open: false, budget: 0, spent: 0, left: 0, expiresAt: null, words: "This app cannot spend anything right now.", limitLeft: 2880, limitWords: "What is left of today's limit: $28.80." };
 const app = (over = {}) => ({ ...clone(SHAPE.apps[0]), ...over });
-const view = (apps, over = {}) => ({ ...clone(SHAPE), apps, ...over });
+const view = (apps, over = {}) => ({ ...clone(SHAPE), apps, sites: [], ...over });
 
 test("apps: K23's words are used as written", () => {
   assert.equal(WORDS.title, "App Studio");
@@ -281,4 +281,105 @@ test("apps mounted: a 404 says to restart the home screen; another failure offer
     assert.match(textOf(n.root), /This could not be loaded\./);
     assert.equal(buttons(n.root, "Try again").length, 1);
   } finally { n.done(); }
+});
+
+// ---- Made by the team (T88) ----
+
+const KEY = "0123456789abcdef".repeat(4);
+const SITE = {
+  task: { id: "e0000000-0000-4000-8000-000000000002", identifier: "STH-2", title: "A landing page for the November launch" },
+  ref: "launch-a", name: "launch", direction: "Editorial", finishedAt: "2026-11-13T09:00:00.000Z", pages: ["index.html"], files: 4,
+  picture: `/api/sites/shot/${KEY}/shot-index-1280-light.png`, state: "ready", sentence: "Pictures ready", opens: "#/tasks/e0000000-0000-4000-8000-000000000002",
+};
+const site = (over = {}) => ({ ...clone(SITE), ...over });
+const imgs = (root) => elements(root).filter((e) => e.localName === "img");
+
+test("apps team: the group's helper keeps only sites with a task id and a ref the route accepts, at most 30, a picture only at the server's own address", () => {
+  assert.equal(sitesOfView(null).length, 0);
+  const good = sitesOfView({ sites: [site()] });
+  assert.equal(good.length, 1);
+  assert.equal(good[0].href, "#/tasks/e0000000-0000-4000-8000-000000000002");
+  assert.equal(good[0].name, "Editorial");
+  assert.equal(good[0].picture, SITE.picture);
+  const bad = sitesOfView({ sites: [
+    site({ ref: "../x" }), site({ ref: "A" }), site({ task: { id: "a/b", identifier: "X", title: "t" } }), site({ task: null }), null, 3,
+    site({ picture: `${HTTP}evil.test/a.png` }), site({ picture: `/api/sites/shot/${KEY}/shot-index-1280-light.png?x=1` }), site({ picture: "/api/view/../x.png" }),
+    site({ picture: "javascript:alert(1)" }),
+  ] });
+  assert.equal(bad.length, 4, "the four with a good task and ref remain");
+  assert.deepEqual(bad.map((s) => s.picture), [null, null, null, null], "every other picture address is dropped");
+  assert.equal(sitesOfView({ sites: Array.from({ length: 40 }, (_, i) => site({ task: { id: `t${i}`, identifier: `STH-${i}`, title: "t" } })) }).length, 30);
+  assert.match(SRC, /<img src=\$\{site\.picture\}/, "the group's img src is the checked picture");
+  assert.equal((SRC.match(/<img /g) || []).length, 2, "this page has two pictures: an app's icon and a site's");
+});
+
+test("apps team mounted: no sites keeps the empty sentence and renders no tile", async () => {
+  const m = await mount(fixed(view([], { sites: [] })));
+  try {
+    assert.ok(textOf(m.root).includes(WORDS.teamEmpty));
+    assert.equal(elements(m.root).filter((e) => cls(e).split(/\s+/).includes("p-apps__site")).length, 0);
+  } finally { m.done(); }
+});
+
+test("apps team mounted: two sites show their picture, name, task identifier and title, date and Open; the empty sentence is gone", async () => {
+  const two = [site(), site({ task: { id: "e0000000-0000-4000-8000-000000000009", identifier: "STH-9", title: "A small site" }, ref: "studio", name: "studio", direction: null, picture: null, sentence: "No pictures yet", state: "none" })];
+  const m = await mount(fixed(view([], { sites: two })));
+  try {
+    const all = textOf(m.root);
+    assert.ok(!all.includes(WORDS.teamEmpty));
+    assert.ok(all.includes("Editorial") && all.includes("studio"));
+    assert.ok(all.includes("STH-2: A landing page for the November launch"));
+    assert.ok(all.includes("STH-9: A small site"));
+    assert.ok(all.includes(WORDS.noPicture), "the site with no picture says so");
+    assert.equal(imgs(m.root).length, 1, "only the picture the server has taken");
+    assert.equal(imgs(m.root)[0].getAttribute("src"), SITE.picture);
+    assert.equal(buttons(m.root, "Open").length, 2);
+    const link = elements(m.root).find((e) => e.localName === "a" && textOf(e).startsWith("STH-2"));
+    assert.equal(link.getAttribute("href"), "#/tasks/e0000000-0000-4000-8000-000000000002");
+  } finally { m.done(); }
+});
+
+test("apps team mounted: agent-written words stay text; a bad picture address reaches no img", async () => {
+  const evil = site({ direction: "<img src=x onerror=alert(1)>", picture: `${HTTP}evil.test/p.png`, task: { id: "e0000000-0000-4000-8000-000000000002", identifier: "STH-2", title: "<script>1</script>" } });
+  const m = await mount(fixed(view([], { sites: [evil] })));
+  try {
+    assert.ok(textOf(m.root).includes("<img src=x onerror=alert(1)>"));
+    assert.ok(textOf(m.root).includes("<script>1</script>"));
+    assert.equal(imgs(m.root).length, 0);
+    assert.equal(elements(m.root).filter((e) => e.localName === "script").length, 0);
+  } finally { m.done(); }
+});
+
+test("apps team mounted: Open posts the site's preview route and opens only the preview's own address, in a new tab with noopener", async () => {
+  const opened = [];
+  globalThis.window = { open: (...a) => opened.push(a) };
+  try {
+    const answers = (path, method) => (method === "POST" ? { status: 200, body: { url: `${HTTP}${LOOP}:3160/` } } : { status: 200, body: view([], { sites: [site()] }) });
+    const m = await mount(answers);
+    try {
+      fire(buttons(m.root, "Open")[0], "click");
+      await settle();
+      const post = m.f.calls.find((c) => c.method === "POST");
+      assert.equal(post.path, "/api/tasks/STH-2/sites/launch-a/preview");
+      assert.deepEqual(opened, [[`${HTTP}${LOOP}:3160/`, "_blank", "noopener,noreferrer"]]);
+    } finally { m.done(); }
+    for (const url of [`${HTTP}${LOOP}:3160/?x=1`, `${HTTP}${LOOP}:3171/x`, `${HTTP}evil.test:3160/`, `https://${LOOP}:3160/`, "javascript:alert(1)"]) {
+      opened.length = 0;
+      const n = await mount((path, method) => (method === "POST" ? { status: 200, body: { url } } : { status: 200, body: view([], { sites: [site()] }) }));
+      try {
+        fire(buttons(n.root, "Open")[0], "click");
+        await settle();
+        assert.deepEqual(opened, [], `refused: ${url}`);
+        assert.ok(textOf(n.root).includes(WORDS.badPreview));
+        assert.equal(buttons(n.root, WORDS.openTask).length, 1, "the task's page is offered instead");
+      } finally { n.done(); }
+    }
+    const r = await mount((path, method) => (method === "POST" ? { status: 409, body: { error: { message: "The preview is off.", next: "Switch it on in Settings." } } } : { status: 200, body: view([], { sites: [site()] }) }));
+    try {
+      fire(buttons(r.root, "Open")[0], "click");
+      await settle();
+      assert.match(textOf(r.root), /The preview is off\./);
+      assert.equal(opened.length, 0);
+    } finally { r.done(); }
+  } finally { delete globalThis.window; }
 });

@@ -28,7 +28,21 @@
       }
     }
   ],
-  "sites": [],
+  "sites": [
+    {
+      "task": { "id": "e0000000-0000-4000-8000-000000000002", "identifier": "STH-2", "title": "A landing page for the November launch" },
+      "ref": "launch-a",
+      "name": "launch",
+      "direction": "Editorial",
+      "finishedAt": "2026-11-13T09:00:00.000Z",
+      "pages": ["index.html", "about.html"],
+      "files": 4,
+      "picture": "/api/sites/shot/0000000000000000000000000000000000000000000000000000000000000000/shot-index-1280-light.png",
+      "state": "ready",
+      "sentence": "Pictures ready",
+      "opens": "#/tasks/e0000000-0000-4000-8000-000000000002"
+    }
+  ],
   "problem": null,
   "problemSentence": null
 }
