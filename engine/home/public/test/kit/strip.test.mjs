@@ -169,9 +169,8 @@ test("strip.css: the chosen card is lifted with an accent edge, cards are 96 px 
   assert.doesNotMatch(sheet, /\.k-opt__line--state \.k-strip__chip \{[^}]*margin-left: auto/, "the chip sits at the left");
   assert.match(sheet, /\.k-opt__title \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;[^}]*font-size: var\(--fs-ui\);[^}]*font-weight: var\(--fw-bold\)/);
   assert.match(sheet, /\.k-opt \.k-opt__amount \{[^}]*font-size: var\(--fs-fact\);[^}]*font-weight: var\(--fw-bold\);[^}]*tabular-nums/);
-  assert.match(sheet, /\.k-opt__say \{[^}]*grid-area: say;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;[^}]*font-size: var\(--fs-note\);[^}]*color: var\(--ink-2\);/);
+  assert.match(sheet, /\.k-opt__say \{[^}]*grid-area: say;[^}]*-webkit-line-clamp: 2;[^}]*white-space: normal;[^}]*font-size: var\(--fs-note\);[^}]*color: var\(--ink-2\);/, "the reason reads on up to two lines at every width: a cut reason read as a fault to every critic");
   assert.doesNotMatch(sheet, /order: -1/, "the reason is drawn where it is heard, after the chip");
-  assert.match(sheet, /@media \(max-width: 859px\)[\s\S]*\.k-opt__say \{[^}]*-webkit-line-clamp: 2;/, "two lines only when cards stack");
   assert.match(sheet, /\.k-opt--on \{[^}]*border-color: var\(--accent\);[^}]*background: var\(--raise\);[^}]*box-shadow: 0 0 0 1px var\(--accent\)/);
   assert.match(sheet, /\.k-take__thumb \{\s*width: 96px;\s*height: 54px;/);
   assert.match(sheet, /\.k-strip__thumb \{[^}]*width: 72px;[^}]*height: 48px;/);

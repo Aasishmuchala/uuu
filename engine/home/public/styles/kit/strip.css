@@ -195,8 +195,10 @@
   grid-area: say;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
   margin: var(--s-2) 0 0;
   font-size: var(--fs-note);
   line-height: var(--lh-note);
@@ -278,16 +280,6 @@
 
 .k-take__body .k-strip__chip {
   margin-top: var(--s-1);
-}
-
-/* A tall window gives the strip room: the reason may take two lines there too. */
-@media (min-width: 860px) and (min-height: 1000px) {
-  .k-opt__say {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    white-space: normal;
-  }
 }
 
 /* ---- A phone, or any narrow window: the cards stacked */
