@@ -99,7 +99,7 @@ async function fakeViewer(config, answer) {
 
 // A fake preview: /preview/load only with an owner token of the viewer's secret, a tar of a site; it answers an
 // address of its own choosing (which the home server must never pass on).
-async function fakePreview(config, { status = 200 } = {}) {
+async function fakePreview(config, { status = 200, code = "view_bad_site" } = {}) {
   const loads = [];
   const server = http.createServer((req, res) => {
     const chunks = [];
@@ -110,7 +110,7 @@ async function fakePreview(config, { status = 200 } = {}) {
       if (typeof who !== "object" || who.kind !== "t") return json(res, 401, { code: "view_no_token" });
       const tar = readTar(Buffer.concat(chunks));
       loads.push({ host: req.headers.host, type: req.headers["content-type"], files: tar.ok ? tar.files.slice().sort() : null });
-      if (status !== 200) return json(res, status, { error: { message: "The site was not taken." }, code: "view_bad_site" });
+      if (status !== 200) return json(res, status, { error: { message: "The site was not taken." }, code });
       return json(res, 200, { loaded: true, files: tar.ok ? tar.files.length : 0, bytes: 1, url: "http://evil.example:3160/" });
     });
   });
@@ -444,6 +444,14 @@ test("the preview not running is 409 with its sentence; a refusal is 409; a site
     assert.equal(r.status, 409);
     assert.equal(r.json.error.code, "preview_refused");
   }, { preview: { status: 400 } });
+  // T58d N6: no place free in the preview is said as that, not as the site's fault.
+  await withSites(async ({ h }) => {
+    const r = await post(h, "/api/tasks/STH-2/sites/launch-a/preview");
+    assert.equal(r.status, 409);
+    assert.equal(r.json.error.code, "preview_full");
+    assert.equal(r.json.error.message, "All the preview's places are in use.");
+    assert.doesNotMatch(JSON.stringify(r.json), /fixed/);
+  }, { preview: { status: 503, code: "view_no_port" } });
   await withSites(async ({ h, goal, preview }) => {
     rmSync(join(goal, "site", "launch-a", "index.html"));
     const r = await post(h, "/api/tasks/STH-2/sites/launch-a/preview");

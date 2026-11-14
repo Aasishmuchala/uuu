@@ -132,7 +132,9 @@ test("the real viewer and Chrome: the home server's own pictures of a site, its 
     const there = await get(pv.json.url);
     assert.equal(there.status, 302);
     const siteUrl = there.headers.location;
-    assert.equal(siteUrl, `http://127.0.0.1:${preview.sitePort}/`);
+    // On a host of its own too (T58d): a name under .localhost that this Mac takes to the loopback by itself.
+    assert.equal(siteUrl, `http://${preview.siteHost}:${preview.sitePort}/`);
+    assert.match(siteUrl, /^http:\/\/p-[0-9a-f]{20}\.localhost:\d+\/$/);
     const page = await get(siteUrl);
     assert.equal(page.status, 200);
     assert.ok(page.text.includes("Three floors of light"));

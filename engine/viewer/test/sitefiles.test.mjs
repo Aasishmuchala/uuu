@@ -102,7 +102,18 @@ test("the served site: listed files only, fixed types, every header, a query ign
       assert.equal(r.headers["content-security-policy"], SITE_POLICY);
     }
     assert.equal((await fetch(`${base}/index.html`, { method: "POST", body: "x" })).status, 405);
-    assert.deepEqual(missing, ["x.css"]);
+    // T58d N7: a site with no favicon.ico: Chrome's own ask for it is an empty 204, with every header, not a miss.
+    const icon = await fetch(`${base}/favicon.ico`);
+    assert.equal(icon.status, 204);
+    assert.equal((await icon.arrayBuffer()).byteLength, 0);
+    for (const [k, v] of Object.entries(SITE_HEADERS)) assert.equal(icon.headers.get(k), v, k);
+    assert.equal((await fetch(`${base}/a/favicon.ico`)).status, 404, "only the top one");
+    files.set("favicon.ico", Buffer.from("ico"));
+    const own = await fetch(`${base}/favicon.ico`);
+    assert.equal(own.status, 200, "a site's own favicon is served");
+    assert.equal(await own.text(), "ico");
+    files.delete("favicon.ico");
+    assert.deepEqual(missing, ["x.css", "a/favicon.ico"]);
   } finally {
     await new Promise((r) => server.close(r));
   }

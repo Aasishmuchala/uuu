@@ -34,6 +34,7 @@ export const VIEWER_SAY = Object.freeze({
   notRunning: "The page viewer is not running, so no pictures can be taken now.",
   previewOff: "The preview is not running. Run: engine start",
   previewRefused: "The preview did not take this site.",
+  previewFull: "All the preview's places are in use.",
   testOff: "The page viewer is off. Run: engine start",
 });
 
@@ -134,7 +135,9 @@ export async function sitesView(ctx, goal) {
       ref: s.ref, variant: s.variant, direction: s.direction,
       files: info.files, bytes: info.bytes, left: info.left, pages: info.pages, problem: info.problem,
       shots,
-      // T58b: the brand verdict of the home server's own report of this site (lib/sitebrand.mjs); null with no kit
+      // T58b: the brand verdict of the home server's own report of this site (lib/sitebrand.mjs): { result: "pass" |
+      // "fail" | "unknown", lines }, its plain lines saying each disagreement and what was not measured (a filter, the
+      // element cap, pages past the cap, a page not yet measured; T58e); null with no kit
       brand: (({ state, result, lines }) => (state === "done" ? { result, lines } : null))(measuredBrand(config, goal.identifier, [s.rel], { kit: judged, on })),
     });
   }
@@ -159,6 +162,10 @@ export default function register(app) {
     const base = ctx.home?.urls?.preview;
     const r = await callDoor(ctx, "preview", "/preview/load", writeTar(read.files), { type: "application/x-tar" });
     if (!r.ok || typeof base !== "string" || !PREVIEW_ADDRESS.test(base)) throw ctx.fail(409, VIEWER_SAY.previewOff, "Then try again.", "preview_off");
+    // T58d N6: no place free is not the site's fault.
+    if (r.status === 503 && obj(r.json) && r.json.code === "view_no_port") {
+      throw ctx.fail(409, VIEWER_SAY.previewFull, "Try again in a minute. If it keeps happening, something else on this Mac is using 127.0.0.1:3161 to 3169.", "preview_full");
+    }
     if (r.status !== 200) throw ctx.fail(409, VIEWER_SAY.previewRefused, "Ask for the site to be fixed, then try again.", "preview_refused");
     // The address is the home's own, never the preview's answer.
     return { url: `${base}/` };

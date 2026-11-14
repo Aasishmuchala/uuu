@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mintToken } from "../../relay/token.mjs";
 import { CHROME_PATH, Pipe, chromeInstalled } from "../chrome.mjs";
+import { headerOverflow } from "../../lib/overflow.mjs";
 import { createPreview } from "../preview.mjs";
 import { writeTar } from "../tar.mjs";
 
@@ -139,7 +140,7 @@ self.addEventListener("fetch", (e) => { if (e.request.mode === "navigate") e.res
     const a = await tabA.evaluate("({ who: document.getElementById('who')?.textContent, sw: document.body.dataset.sw, origin: location.origin })");
     assert.equal(a.who, "SITE A");
     assert.equal(a.sw, "refused", "no worker can be registered");
-    assert.equal(a.origin, `http://127.0.0.1:${preview.sitePort}`, "the home's address sent the tab on to the load's own origin");
+    assert.equal(a.origin, `http://${preview.siteHost}:${preview.sitePort}`, "the home's address sent the tab on to the load's own origin");
 
     assert.equal(await loadSite(siteB), 200);
     await wait(1200);
@@ -160,5 +161,100 @@ self.addEventListener("fetch", (e) => { if (e.request.mode === "navigate") e.res
     assert.deepEqual(hits, [], "nothing reached another local port");
   } finally {
     await browser.close();
+  }
+});
+
+// T58d N1, N5: each load on a host of its own. A cookie bomb of a previewed page reaches neither the home screen's
+// stand-in on 127.0.0.1 nor the next load; site B reads nothing site A kept; an old tab of A reads nothing of a later
+// load, after a restart of the preview (the ports start again from the first) and after nine more loads. And a
+// browser already carrying huge cookies for 127.0.0.1 is answered 431 once, with its cookies cleared, then let in.
+test("a host of its own per load: cookies and storage stay with their load, and huge cookies for 127.0.0.1 are cleared", { skip, timeout: 180000 }, async () => {
+  const free = async () => { const s = net.createServer(); await new Promise((r) => s.listen(0, "127.0.0.1", r)); const n = s.address().port; await new Promise((r) => s.close(r)); return n; };
+  const sitePorts = []; for (let i = 0; i < 9; i++) sitePorts.push(await free());
+  const front = await free();
+  const paths = { viewerSecret: join(dir, "viewer-secret"), ids: join(dir, "ids.json") };
+  let pv = createPreview({ listenPort: front, paths, log: () => {}, sitePorts });
+  await pv.listen();
+  // The home screen's stand-in: as the home server makes its own, with the same answer to over-long headers.
+  const homeHits = [];
+  const home = http.createServer((req, res) => {
+    if (req.url !== "/favicon.ico") homeHits.push(String(req.headers.cookie || "").length);
+    if (req.url === "/bomb") {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      return void res.end("<!doctype html><title>bomb</title><link rel=icon href='data:,'><script>for (let i = 0; i < 40; i++) document.cookie = 'h' + i + '=' + 'x'.repeat(4000) + '; max-age=600; path=/';</script>");
+    }
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    res.end("<!doctype html><title>HOME</title><h1>HOME SCREEN</h1>");
+  });
+  home.on("clientError", headerOverflow);
+  await new Promise((r) => home.listen(0, "127.0.0.1", r));
+  const homePort = home.address().port;
+  const loadAt = (text) => new Promise((resolve, reject) => {
+    const req = http.request({ host: "127.0.0.1", port: front, method: "POST", path: "/preview/load", agent: false,
+      headers: { Authorization: `Bearer ${owner()}`, "Content-Type": "application/x-tar" } }, (res) => { res.resume(); res.on("end", () => resolve(res.statusCode)); });
+    req.on("error", reject);
+    req.end(writeTar([{ name: "index.html", data: Buffer.from(text) }]));
+  });
+  const browser = await ownerLikeBrowser();
+  try {
+    // A keeps a cookie and storage, and leaves a tab that keeps reading its own address.
+    assert.equal(await loadAt(`<!doctype html><title>A</title><h1>OLD SITE A</h1><script>
+      document.cookie = "kept_by_a=COOKIE-OF-A; max-age=600; path=/"; localStorage.setItem("kept_by_a", "STORAGE-OF-A");
+      window.read = [];
+      setInterval(async () => { try { const t = await (await fetch("/index.html", { cache: "no-store" })).text(); if (t.includes("<h1>") && !t.includes("OLD SITE A")) window.read.push(t.slice(0, 80)); } catch { /* closed or refused */ } }, 200);
+    </script>`), 200);
+    const tabA = await browser.tab();
+    await tabA.goto(`http://127.0.0.1:${front}/`, 1500);
+    const a = await tabA.evaluate("({ origin: location.origin, cookie: document.cookie })");
+    assert.match(a.origin, /^http:\/\/p-[0-9a-f]{20}\.localhost:\d+$/);
+    assert.equal(a.cookie, "kept_by_a=COOKIE-OF-A");
+
+    assert.equal(await loadAt("<!doctype html><title>B</title><h1>SITE B</h1><script>window.seen = { cookie: document.cookie, storage: localStorage.getItem('kept_by_a') };</script>"), 200);
+    const tabB = await browser.tab();
+    await tabB.goto(`http://127.0.0.1:${front}/`, 1200);
+    assert.deepEqual(await tabB.evaluate("window.seen"), { cookie: "", storage: null }, "B reads nothing A kept");
+
+    // The preview restarts: its ports start again from the first, so the very next load is on A's port.
+    await pv.close();
+    pv = createPreview({ listenPort: front, paths, log: () => {}, sitePorts });
+    await pv.listen();
+    assert.equal(await loadAt("<!doctype html><title>NEXT</title><h1>NEXT after the restart</h1>"), 200);
+    assert.equal(pv.sitePort, sitePorts[0]);
+    assert.equal(new URL(a.origin).port, String(sitePorts[0]), "A's tab is on the same port as the load after the restart");
+    await wait(1200);
+    assert.deepEqual(await tabA.evaluate("window.read"), [], "A's old tab read nothing after the restart");
+    for (let i = 1; i <= 9; i++) { assert.equal(await loadAt(`<!doctype html><title>LOAD ${i}</title><h1>LOAD ${i}</h1>`), 200); await wait(400); }
+    await wait(800);
+    assert.deepEqual(await tabA.evaluate("window.read"), [], "nor after nine more loads");
+
+    // A cookie bomb in a previewed page: the home's stand-in and the next load are untouched.
+    assert.equal(await loadAt("<!doctype html><title>BOMB</title><script>for (let i = 0; i < 40; i++) document.cookie = 'c' + i + '=' + 'x'.repeat(4000) + '; max-age=600; path=/'; window.len = document.cookie.length;</script>"), 200);
+    const tabD = await browser.tab();
+    await tabD.goto(`http://127.0.0.1:${front}/`, 1200);
+    assert.ok(await tabD.evaluate("window.len") > 100000, "the page did set its cookies");
+    homeHits.length = 0;
+    const tabH = await browser.tab();
+    await tabH.goto(`http://127.0.0.1:${homePort}/`, 800);
+    assert.equal(await tabH.evaluate("document.title"), "HOME");
+    assert.deepEqual(homeHits, [0], "the home's stand-in got no cookie at all");
+    assert.equal(await loadAt("<!doctype html><title>AFTER</title><script>window.c = document.cookie;</script>"), 200);
+    const tabE = await browser.tab();
+    await tabE.goto(`http://127.0.0.1:${front}/`, 1000);
+    assert.deepEqual(await tabE.evaluate("({ t: document.title, c: window.c })"), { t: "AFTER", c: "" }, "the next load is answered and reads no cookie");
+
+    // A browser that already carries huge cookies for 127.0.0.1 (set by a page there): 431 once, cleared, let in.
+    await tabH.goto(`http://127.0.0.1:${homePort}/bomb`, 800);
+    assert.ok(await tabH.evaluate("document.cookie.length") > 100000, "a page on 127.0.0.1 set huge cookies there");
+    homeHits.length = 0;
+    await tabH.goto(`http://127.0.0.1:${homePort}/`, 800);
+    assert.match(await tabH.evaluate("document.body.innerText"), /cookies for this address are cleared/);
+    assert.deepEqual(homeHits, [], "the over-long request reached no handler");
+    await tabH.goto(`http://127.0.0.1:${homePort}/`, 800);
+    assert.equal(await tabH.evaluate("document.title"), "HOME", "the next request is let in");
+    assert.deepEqual(homeHits, [0], "with no cookie left");
+  } finally {
+    await browser.close();
+    await pv.close();
+    await new Promise((r) => { home.close(() => r()); home.closeAllConnections(); });
   }
 });

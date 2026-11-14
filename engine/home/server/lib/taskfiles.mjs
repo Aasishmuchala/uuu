@@ -40,10 +40,18 @@ function lstatOrNull(p) {
   try { return lstatSync(p); } catch { return null; }
 }
 
+// The real path of the task folder of the config, resolved once (T58d N2): it is the home server's own folder, so
+// it is trusted where it is first found, and a goal's folder is joined onto that fixed real path from then on.
+const projectRoots = new Map();
 function projectRoot(config) {
   const folder = config?.paths?.projectFolder;
   if (typeof folder !== "string" || !folder) return null;
-  try { return realpathSync(folder); } catch { return null; }
+  if (projectRoots.has(folder)) return projectRoots.get(folder);
+  let real;
+  try { real = realpathSync(folder); } catch { return null; }
+  if (projectRoots.size > 64) projectRoots.clear();
+  projectRoots.set(folder, real);
+  return real;
 }
 
 // The real path of tasks/company-work/<identifier>, or null.
@@ -116,8 +124,11 @@ const within = (p, root) => p === root || p.startsWith(root + sep);
 // The file is opened with O_NOFOLLOW_ANY and O_NONBLOCK (a FIFO or a device cannot hang the server), must be
 // a regular file, and after the open: the path's real folder is unchanged and inside root, and the file
 // at that path is the very file opened (same device and inode).
+// { real: true } (T58d N2: a goal's files): `root` is a real path resolved once where it is trusted (goalFolder), and
+// it must still be its own real path, so a link swapped in for it (or for a folder above the file) is refused, never
+// taken as the root.
 // -> { fd, st, real } (the caller reads from fd and closes it), or null with nothing left open.
-export function openChecked(file, root) {
+export function openChecked(file, root, { real: rootIsReal = false } = {}) {
   if (typeof file !== "string" || typeof root !== "string" || !file || !root || file.includes("\0")) return null;
   const name = basename(file);
   if (!name || name === "." || name === "..") return null;
@@ -136,6 +147,7 @@ export function openChecked(file, root) {
     try { fd = openSync(path, OPEN_FLAGS); } finally { if (typeof testHooks.afterOpen === "function") testHooks.afterOpen(path); }
     const st = fstatSync(fd);
     if (!st.isFile()) throw new Error("not a regular file");
+    if (rootIsReal && realRoot !== root) throw new Error("the root is not its own real path");
     if (realpathSync(dirname(path)) !== realParent) throw new Error("the folder moved");
     const now = lstatSync(path);
     if (!now.isFile() || now.dev !== st.dev || now.ino !== st.ino) throw new Error("another file is there now");
@@ -148,9 +160,9 @@ export function openChecked(file, root) {
 
 // openChecked, then at most maxBytes read from the opened descriptor.
 // -> { bytes, size, mtimeMs, truncated, real, dev, ino } or null.
-export function readChecked(file, root, { maxBytes = 262144 } = {}) {
+export function readChecked(file, root, { maxBytes = 262144, real: realRoot = false } = {}) {
   const cap = Number.isInteger(maxBytes) && maxBytes >= 0 ? Math.min(maxBytes, MAX_READ) : 262144;
-  const opened = openChecked(file, root);
+  const opened = openChecked(file, root, { real: realRoot });
   if (!opened) return null;
   const { fd, st, real } = opened;
   try {
@@ -209,7 +221,7 @@ export function openTaskFile(config, identifier, rel) {
   const place = placeOf(config, identifier, rel);
   if (!place) return null;
   if (typeof testHooks.afterPlace === "function") testHooks.afterPlace(place.file);
-  const opened = openChecked(place.file, place.base);
+  const opened = openChecked(place.file, place.base, { real: true });
   if (!opened) return null;
   if (place.marks && !stillInside(place, opened.real)) {
     try { closeSync(opened.fd); } catch { /* already closed */ }
@@ -224,7 +236,7 @@ export function readTaskText(config, identifier, rel, { maxBytes = 262144 } = {}
   if (!place) return null;
   if (typeof testHooks.afterPlace === "function") testHooks.afterPlace(place.file);
   const cap = Number.isInteger(maxBytes) && maxBytes >= 0 ? Math.min(maxBytes, MAX_READ) : 262144;
-  const read = readChecked(place.file, place.base, { maxBytes: cap });
+  const read = readChecked(place.file, place.base, { maxBytes: cap, real: true });
   if (!read) return null;
   if (place.marks && !stillInside(place, read.real)) return null;
   // Bytes that are not UTF-8 become U+FFFD; a character cut by the cap is dropped, not mangled.

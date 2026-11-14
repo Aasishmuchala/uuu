@@ -190,6 +190,9 @@ test("a light-only site gets no dark shots", { skip, timeout: 120_000 }, async (
   const { files, report } = await render(viewer(), siteTar("light"));
   assert.deepEqual(Object.keys(files).filter((n) => n.endsWith(".png")).sort(), ["shot-index-1280-light.png", "shot-index-390-light.png"]);
   assert.equal(report.pages[0].dark, false);
+  // T58d N7: Chrome's own ask for /favicon.ico of a site with none is not an error in the page's console.
+  assert.deepEqual(report.pages[0].errors, []);
+  assert.deepEqual(report.pages[0].missing, []);
   nothingLeft();
 });
 

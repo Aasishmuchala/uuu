@@ -12,8 +12,17 @@
 //   - a filter or blend mode: colours that cannot be compared, so a fail as the check by code fails them.
 // A version the viewer has not measured (no pictures kept of its current files), a page cut short or one with more
 // elements or colours than the report lists is "unknown", never "pass". Every line is built here from capped values.
+// T58e: the size is the size text is DRAWN at (zoom, transforms and SVG viewBoxes included); a gradient that goes
+// round the hue wheel and a part a paint worklet draws fail as a filter does; text whose drawn size is not known and
+// an animation the viewer could not run to its steps are "unknown". So is "nothing measured": no site at all, a site
+// with more pages than were measured, a page of the site with no report, and a folder under site/ the home server
+// does not list. A face Chrome drew only the letters of another script with (Devanagari, Telugu, …) while the
+// page's own faces are the kit's is a soft line, never a fail: the kit's face has no letters for it.
+import { lstatSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { readKitFile } from "../brain/kit.mjs";
-import { keptShots, siteInfo, sitesOf, viewerOn } from "./siteshots.mjs";
+import { SHOT_LIMITS, keptShots, siteInfo, sitesOf, viewerOn } from "./siteshots.mjs";
+import { goalFolder } from "./taskfiles.mjs";
 
 const MAX_LINES = 10;
 const SHOW = 5;
@@ -24,6 +33,7 @@ export const MEASURED_SAY = Object.freeze({
   notYet: "The page viewer has not measured this version yet, so it is not marked as fitting the brand.",
   notYetOff: "The page viewer is off, so this version is not measured and not marked as fitting the brand.",
   failed: "The page viewer could not open this version, so it is not marked as fitting the brand.",
+  noSite: "There is no site the page viewer opens, so nothing was measured and it is not marked as fitting the brand.",
 });
 
 const obj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -63,17 +73,20 @@ function colourOk(kit, hex) {
   return kit.neutrals && chroma(c) <= GREY_CHROMA;
 }
 
-// One kept report page (siteshots' cleanPage shape) against the kit -> { fail: [lines], unknown: [lines] }.
+// One kept report page (siteshots' cleanPage shape) against the kit -> { fail: [lines], unknown: [lines],
+// soft: [lines] }.
 export function judgePage(page, kit) {
   const fail = [];
   const unknown = [];
-  if (!obj(page) || !kit) return { fail, unknown };
+  const soft = [];
+  if (!obj(page) || !kit) return { fail, unknown, soft };
+  const parts = (n) => (n === 1 ? "1 part" : `${n} parts`);
   const colours = (page.colours || []).filter((c) => typeof c === "string" && /^#[0-9A-F]{6}$/.test(c));
   const off = colours.filter((c) => !colourOk(kit, c));
   if (kit.colours.length && off.length) fail.push(`colours that are not in your kit: ${names(off)}`);
-  if (page.filtered > 0) {
-    fail.push(`${page.filtered === 1 ? "1 part" : `${page.filtered} parts`} drawn through a filter or blend mode, whose colours cannot be compared with your kit`);
-  }
+  if (page.filtered > 0) fail.push(`${parts(page.filtered)} drawn through a filter or blend mode, whose colours cannot be compared with your kit`);
+  if (page.turned > 0) fail.push(`${parts(page.turned)} drawn with a gradient that goes round the colour wheel, through colours that are not in your kit`);
+  if (page.painted > 0) fail.push(`${parts(page.painted)} drawn by a script in the style sheet (a paint worklet), whose colours cannot be compared with your kit`);
   if (kit.families.size) {
     const set = [...new Set((page.fonts || []).map((f) => (obj(f) ? String(f.family || "") : "")).filter(Boolean))];
     const other = set.filter((f) => !kit.families.has(norm(f)));
@@ -81,6 +94,10 @@ export function judgePage(page, kit) {
     if (!kit.uploaded) {
       const drawn = (page.drawn || []).filter((d) => typeof d === "string" && d && !kit.families.has(norm(d)) && !other.includes(d));
       if (drawn.length) fail.push(`drawn with faces that are not your kit's: ${names(drawn)}`);
+      // T58e (N4): the page asks for the kit's faces and Chrome filled in letters they have none of from the Mac's
+      // own face for that script: the Builder cannot fix that, so it is said, not failed
+      const filling = (page.fallbacks || []).filter((d) => typeof d === "string" && d && !kit.families.has(norm(d)) && !drawn.includes(d));
+      if (filling.length && !other.length) soft.push(`Some text is drawn in another face because your kit's face has no letters for it: ${names(filling)}`);
     }
   }
   const sizes = (page.fonts || []).map((f) => (obj(f) ? f.minPx : null)).filter((v) => typeof v === "number" && v > 0);
@@ -88,19 +105,51 @@ export function judgePage(page, kit) {
   const blocked = (page.blocked || []).length;
   if (blocked) fail.push(`the page tried to reach ${blocked === 1 ? "1 address" : `${blocked} addresses`} outside the site`);
   if (page.cut) unknown.push("the page did not finish in the page viewer, so it was not measured in full");
-  if (page.capped) unknown.push("the page holds more elements or colours than the page viewer lists, so not all were measured");
-  return { fail, unknown };
+  if (page.capped) unknown.push("the page holds more elements, colours or faces than the page viewer lists, so not all were measured");
+  if (page.unsized > 0) unknown.push(`the drawn size of ${page.unsized === 1 ? "1 piece" : `${page.unsized} pieces`} of text could not be worked out (a 3D transform or font-size-adjust), so it was not measured`);
+  if (page.unsettled > 0) unknown.push(`${page.unsettled === 1 ? "1 animation" : `${page.unsettled} animations`} could not be run to each of its steps (one that follows scrolling, or has more steps than the page viewer measures), so the page was not measured as it looks later`);
+  return { fail, unknown, soft };
 }
 
-// measuredBrand(config, identifier, rels, { kit, on }) -> { state: "nokit" } | { state: "done", result, lines }:
-// the verdict of the home server's own kept report of each site place in `rels` (a version's own place, or every
-// site of a single piece). result is "fail" on any disagreement, "unknown" when one is not measured, else "pass".
-export function measuredBrand(config, identifier, rels, { kit = measuredKit(config), on } = {}) {
+// The folders under a goal's site/ that are not among `rels`: plain folders only, counted up to 100.
+function unlistedFolders(config, identifier, rels) {
+  const base = goalFolder(config, identifier);
+  if (!base) return 0;
+  const folder = join(base, "site");
+  let st = null;
+  try { st = lstatSync(folder); } catch { return 0; }
+  if (!st.isDirectory()) return 0;
+  let names = [];
+  try { names = readdirSync(folder).slice(0, 1000); } catch { return 0; }
+  let n = 0;
+  for (const name of names) {
+    if (n >= 100) break;
+    let s = null;
+    try { s = lstatSync(join(folder, name)); } catch { s = null; }
+    if (s && s.isDirectory() && !rels.includes(`site/${name}`)) n++;
+  }
+  return n;
+}
+
+// measuredBrand(config, identifier, rels, { kit, on, whole }) -> { state: "nokit" } | { state: "done", result,
+// lines }: the verdict of the home server's own kept report of each site place in `rels` (a version's own place, or
+// every site of a single piece: `whole`, when a folder under site/ that is not in `rels` is not measured either).
+// result is "fail" on any disagreement, "unknown" when anything is not measured (no place at all included), else
+// "pass". Soft lines come last and change no result.
+export function measuredBrand(config, identifier, rels, { kit = measuredKit(config), on, whole = false } = {}) {
   if (!kit) return { state: "nokit" };
   const places = (Array.isArray(rels) ? rels : [rels]).filter((r) => typeof r === "string");
   const fails = [];
   const unknowns = [];
+  const softs = [];
   const label = (page) => (places.length > 1 || page !== "index.html" ? `${page}: ` : "");
+  if (!places.length) unknowns.push(MEASURED_SAY.noSite);
+  if (whole) {
+    const left = unlistedFolders(config, identifier, places);
+    if (left) {
+      unknowns.push(`${left === 1 ? "1 folder" : `${left} folders`} under site/ ${left === 1 ? "is" : "are"} not a site the page viewer opens (a site's folder is named with lower-case letters, digits and dashes, and at most ${SHOT_LIMITS.sites} are opened), so ${left === 1 ? "it was" : "they were"} not measured.`);
+    }
+  }
   for (const rel of places) {
     let info = null;
     try { info = siteInfo(config, identifier, rel); } catch { info = null; }
@@ -111,18 +160,26 @@ export function measuredBrand(config, identifier, rels, { kit = measuredKit(conf
       unknowns.push(isOn ? MEASURED_SAY.notYet : MEASURED_SAY.notYetOff);
       continue;
     }
+    const site = places.length > 1 ? `${rel.replace(/^site\//, "")}: ` : "";
+    // every page of the site, measured: one past the cap, or one whose name the viewer cannot be asked for, is not
+    const missing = info.pages.filter((pg) => !kept.pages.some((p) => p.page === pg)).length + Math.max(0, (info.htmlPages || 0) - info.pages.length);
+    if (missing > 0) {
+      unknowns.push(`Measured in the page viewer: ${site}${missing === 1 ? "1 page" : `${missing} pages`} of this site ${missing === 1 ? "was" : "were"} not measured (the page viewer measures at most ${SHOT_LIMITS.pages} pages of a site, each with a plain name), so the site is not marked as fitting the brand.`);
+    }
     for (const page of kept.pages) {
       const j = judgePage(page, kit);
       const where = places.length > 1 ? `${rel.replace(/^site\//, "")}, ${page.page}: ` : label(page.page);
       for (const l of j.fail) fails.push(`Measured in the page viewer: ${where}${l}.`);
       for (const l of j.unknown) unknowns.push(`Measured in the page viewer: ${where}${l}.`);
+      for (const l of j.soft) softs.push(`Measured in the page viewer: ${where}${l}.`);
     }
   }
   const result = fails.length ? "fail" : unknowns.length ? "unknown" : "pass";
-  return { state: "done", result, lines: [...new Set([...fails, ...unknowns])] };
+  return { state: "done", result, lines: [...new Set([...fails, ...unknowns, ...softs])] };
 }
 
-// Every site of a single page piece (no variants.json): their places.
+// Every site of a single page piece (no variants.json): their places. Measure them with { whole: true }, so a folder
+// under site/ the list leaves out is "unknown", not passed over.
 export function sitePlaces(config, identifier) {
   try { return sitesOf(config, identifier).sites.map((s) => s.rel); } catch { return []; }
 }

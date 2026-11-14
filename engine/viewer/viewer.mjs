@@ -19,7 +19,7 @@ import { checkCaller, ensureSecret, headerValues, readBody, readDoorsState, refu
 import { describeError } from "../relay/relay.mjs";
 import { CHROME_PATH, chromeInstalled, chromeVersion, defaultLaunch, prepareRoot, readPs, startChrome } from "./chrome.mjs";
 import { startProxy } from "./proxy.mjs";
-import { REPORT_SCRIPT, mergePage, pageSlug, plainText } from "./report.mjs";
+import { REPORT_SCRIPT, SETTLE_STEPS, mergePage, pageSlug, plainText, settleScript } from "./report.mjs";
 import { SITE_LIMITS, nameProblem, siteHandler } from "./sitefiles.mjs";
 import { readTar, unpack, writeTar } from "./tar.mjs";
 
@@ -224,6 +224,8 @@ async function render({ entries, pages, root, program, launch, ps, lim, chromeLi
       current = { errors: [], blocked: [], missing: [], crashed: false };
       let cut = null;
       let drawn = [];
+      let fallbacks = [];
+      let unsettled = 0;
       if (renderCut || session.gone) {
         report.pages.push(mergePage({ page, passes, errors: [], blocked: [], missing: [], drawn, shots, cut: renderCut || session.why || "chrome ended" }));
         continue;
@@ -241,33 +243,54 @@ async function render({ entries, pages, root, program, launch, ps, lim, chromeLi
         }
         if (!sid) throw new Error("time");
         let hasDark = false;
+        // The page opened afresh with the media features asked; -> its isolated world's context, once its fonts are in.
+        const open = async (scheme, motion) => {
+          await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: motion }] }, sid, left());
+          const loaded = new Promise((resolve) => loadWaiters.set(sid, resolve));
+          await send("Page.navigate", { url: `${origin}/${page}` }, sid, left());
+          let timer;
+          const timedOut = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("time")), left()); });
+          try { await Promise.race([loaded, timedOut, session.whenGone.then(() => { throw new Error("gone"); })]); } finally { clearTimeout(timer); loadWaiters.delete(sid); }
+          await wait(Math.min(lim.settleMs, left()));
+          const tree = await send("Page.getFrameTree", {}, sid, left());
+          const frame = tree.frameTree && tree.frameTree.frame;
+          if (!moved && frame && typeof frame.url === "string" && !frame.url.startsWith(`${origin}/`)) {
+            moved = true;
+            current.errors.push("The page moved away from itself, so the shot shows where it went.");
+          }
+          const world = await send("Page.createIsolatedWorld", { frameId: frame.id, worldName: "viewer-report" }, sid, left());
+          await send("Runtime.evaluate", { expression: "document.fonts.ready.then(() => true)", contextId: world.executionContextId, awaitPromise: true, returnByValue: true }, sid, Math.min(2000, left())).catch(() => {});
+          return world.executionContextId;
+        };
+        const measure = async (contextId) => {
+          const r = await send("Runtime.evaluate", { expression: REPORT_SCRIPT, contextId, returnByValue: true }, sid, left());
+          return r && r.result && r.result.value && typeof r.result.value === "object" ? r.result.value : null;
+        };
+        // T58e: the page as it looks later, with no time spent: every animation and transition put at each of its
+        // keyframes in turn (settleScript), measured each time. Only what the brand is judged by is kept of these.
+        const later = async (contextId, w, scheme) => {
+          for (let k = 0; k < SETTLE_STEPS; k++) {
+            const s = await send("Runtime.evaluate", { expression: settleScript(k), contextId, returnByValue: true }, sid, left());
+            const v = s && s.result && s.result.value && typeof s.result.value === "object" ? s.result.value : null;
+            if (!v) { unsettled = Math.max(unsettled, 1); return; }
+            unsettled = Math.max(unsettled, Number.isSafeInteger(v.unsettled) && v.unsettled > 0 ? Math.min(v.unsettled, 1_000_000) : 0);
+            if (v.any !== true) return;
+            passes.push({ width: w, scheme, data: await measure(contextId), extra: true });
+            if (v.more !== true) return;
+          }
+        };
         for (const [w, h] of SIZES) {
           for (const scheme of ["light", "dark"]) {
             if (scheme === "dark" && !hasDark) continue;
             await send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: false }, sid, left());
             // Less motion asked for, as any visitor can: a page shows every part at once for the whole-page picture
             // (the site kit's reveal.js), with nothing that tells it the viewer is looking (T58b).
-            await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] }, sid, left());
-            const loaded = new Promise((resolve) => loadWaiters.set(sid, resolve));
-            await send("Page.navigate", { url: `${origin}/${page}` }, sid, left());
-            let timer;
-            const timedOut = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("time")), left()); });
-            try { await Promise.race([loaded, timedOut, session.whenGone.then(() => { throw new Error("gone"); })]); } finally { clearTimeout(timer); loadWaiters.delete(sid); }
-            await wait(Math.min(lim.settleMs, left()));
-            const tree = await send("Page.getFrameTree", {}, sid, left());
-            const frame = tree.frameTree && tree.frameTree.frame;
-            if (!moved && frame && typeof frame.url === "string" && !frame.url.startsWith(`${origin}/`)) {
-              moved = true;
-              current.errors.push("The page moved away from itself, so the shot shows where it went.");
-            }
-            const world = await send("Page.createIsolatedWorld", { frameId: frame.id, worldName: "viewer-report" }, sid, left());
-            await send("Runtime.evaluate", { expression: "document.fonts.ready.then(() => true)", contextId: world.executionContextId, awaitPromise: true, returnByValue: true }, sid, Math.min(2000, left())).catch(() => {});
-            const r = await send("Runtime.evaluate", { expression: REPORT_SCRIPT, contextId: world.executionContextId, returnByValue: true }, sid, left());
-            const data = r && r.result && r.result.value && typeof r.result.value === "object" ? r.result.value : null;
+            const contextId = await open(scheme, "reduce");
+            const data = await measure(contextId);
             passes.push({ width: w, scheme, data });
             if (w === SIZES[0][0] && scheme === "light") {
               hasDark = !!(data && data.hasDark === true);
-              drawn = await drawnFonts(send, sid, left).catch(() => []);
+              ({ drawn, fallbacks } = await drawnFonts(send, sid, left).catch(() => ({ drawn: [], fallbacks: [] })));
             }
             const tall = data && Number.isFinite(data.height) ? data.height : h;
             const height = Math.max(1, Math.min(lim.shotMaxHeight, Math.max(h, Math.ceil(tall))));
@@ -277,6 +300,12 @@ async function render({ entries, pages, root, program, launch, ps, lim, chromeLi
             const name = `shot-${pageSlug(page)}-${w}-${scheme}.png`;
             out.push({ name, data: png });
             shots.push(name);
+            await later(contextId, w, scheme);
+            // T58e: the page as most visitors get it, who ask for nothing about motion: measured too (and later),
+            // never pictured; the report is the union of both.
+            const plain = await open(scheme, "no-preference");
+            passes.push({ width: w, scheme, data: await measure(plain), extra: true });
+            await later(plain, w, scheme);
           }
         }
       } catch {
@@ -290,7 +319,7 @@ async function render({ entries, pages, root, program, launch, ps, lim, chromeLi
         if (!closed) await session.end();
       }
       const errors = current.errors.map((e) => String(e).split(origin).join(""));
-      report.pages.push(mergePage({ page, passes, errors, blocked: current.blocked, missing: current.missing, drawn, shots, cut }));
+      report.pages.push(mergePage({ page, passes, errors, blocked: current.blocked, missing: current.missing, drawn, fallbacks, shots, cut, unsettled }));
     }
   } finally {
     clearTimeout(renderTimer);
@@ -339,7 +368,6 @@ function addressOf(url) {
   }
 }
 
-// The faces Chrome really drew with (a named face that is not on the Mac falls back).
 // The user agent override of a plain Chrome of the same version (T58b): the string and the client hints.
 function userAgentOverride(userAgent) {
   const full = (/Chrome\/([0-9.]+)/.exec(userAgent) || [])[1] || "0";
@@ -348,23 +376,42 @@ function userAgentOverride(userAgent) {
   return { userAgent, userAgentMetadata: { brands: brands(major), fullVersionList: brands(full), fullVersion: full, platform: "macOS", platformVersion: "", architecture: "", model: "", mobile: false } };
 }
 
+// The faces Chrome really drew with (a named face that is not on the Mac falls back) -> { drawn, fallbacks }.
+// T58e: a face that drew only letters of scripts other than Latin (Devanagari, Telugu, …: what the page's own face
+// has no letters for, so the Mac's own face for that script fills in) is a fallback, not a face the page drew with:
+// in a node whose text holds no Latin letter or digit, or one that drew no more glyphs than the node's other-script
+// letters and marks could make (twice their count) and its spaces. Any face that drew Latin is `drawn`.
+const LATIN = /[\p{Script=Latin}0-9]/gu;
+const OTHER_SCRIPT = /(?=[\p{L}\p{M}])[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/gu;
 async function drawnFonts(send, sid, left) {
   const used = new Set();
+  const filling = new Set();
   await send("DOM.enable", {}, sid, left());
   await send("CSS.enable", {}, sid, left());
   const doc = await send("DOM.getDocument", { depth: 0 }, sid, left());
-  const { nodeIds } = await send("DOM.querySelectorAll", { nodeId: doc.root.nodeId, selector: "h1,h2,h3,h4,p,a,button,li,label,input,span" }, sid, left());
-  for (const n of (nodeIds || []).slice(0, 30)) {
+  const { nodeIds } = await send("DOM.querySelectorAll", { nodeId: doc.root.nodeId, selector: "h1,h2,h3,h4,h5,h6,p,a,button,li,label,input,span,td,th,dt,dd,figcaption,blockquote,small,strong,em,summary" }, sid, left());
+  for (const n of (nodeIds || []).slice(0, 60)) {
     const r = await send("CSS.getPlatformFontsForNode", { nodeId: n }, sid, left());
     // a face that draws a real share of the node's text, not one that fills in a missing glyph or two (T58b)
     const fonts = (r.fonts || []).filter((f) => typeof f.familyName === "string");
     const total = fonts.reduce((sum, f) => sum + (Number(f.glyphCount) || 0), 0);
+    let text = null;
     for (const f of fonts) {
       const g = Number(f.glyphCount);
-      if (!Number.isFinite(g) || (g >= 3 && g * 4 >= total)) used.add(f.familyName);
+      if (Number.isFinite(g) && !(g >= 3 && g * 4 >= total)) continue;
+      if (text === null) {
+        const d = await send("DOM.describeNode", { nodeId: n, depth: 1 }, sid, left()).catch(() => null);
+        const kids = d && d.node && Array.isArray(d.node.children) ? d.node.children : [];
+        text = kids.filter((k) => k && k.nodeType === 3 && typeof k.nodeValue === "string").map((k) => k.nodeValue).join("").slice(0, 20000);
+      }
+      const latin = (text.match(LATIN) || []).length;
+      const other = (text.match(OTHER_SCRIPT) || []).length;
+      const spaces = (text.match(/\s/g) || []).length;
+      if (other > 0 && Number.isFinite(g) && (latin === 0 || g <= 2 * other + spaces)) filling.add(f.familyName);
+      else used.add(f.familyName);
     }
   }
-  return [...used];
+  return { drawn: [...used], fallbacks: [...filling].filter((f) => !used.has(f)) };
 }
 
 export function createViewer({ listenPort, paths, config, log, now, chrome, limits, testing } = {}) {

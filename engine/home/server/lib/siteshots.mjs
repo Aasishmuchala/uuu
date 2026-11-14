@@ -18,7 +18,7 @@ import {
   rmSync, writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { collectSite } from "../../../viewer/sitefiles.mjs";
+import { collectSite, endingOf, nameProblem } from "../../../viewer/sitefiles.mjs";
 import { writeTar } from "../../../viewer/tar.mjs";
 import { readKitFile } from "../brain/kit.mjs";
 import { callDoor, readDoors } from "./doors.mjs";
@@ -28,7 +28,7 @@ import { readVariants } from "./variants.mjs";
 const MB = 1024 * 1024;
 export const SHOT_LIMITS = Object.freeze({
   sites: 6,                 // plain folders under site/ listed when there is no variants.json
-  pages: 3,                 // index.html and up to two more pages at the site's top
+  pages: 8,                 // index.html and up to seven more pages of the site (T58e: a site with more is "unknown")
   keptBytes: 500 * MB,      // every kept picture, added up
   answerBytes: 64 * MB,     // one answer of the viewer
   callMs: 120000,           // one call to the viewer
@@ -46,8 +46,9 @@ export const REF_RE = /^[a-z0-9][a-z0-9-]{0,35}(-[abc])?$/;
 export const KEY_RE = /^[0-9a-f]{64}$/;
 export const SHOT_NAME = /^shot-[A-Za-z0-9._-]{1,90}-(1280|390)-(light|dark)\.png$/;
 const SHOT_PARTS = /^shot-([A-Za-z0-9._-]{1,90})-(1280|390)-(light|dark)\.png$/;
-// A page the home server asks for: a file at the site's top whose name makes a shot name that fits SHOT_NAME.
-const PAGE_RE = /^[A-Za-z0-9._-]{1,90}\.html$/;
+// A page the home server asks for: a file of the site whose name makes a shot name that fits SHOT_NAME (T58e: in
+// any folder of the site; its slash is "_" in the shot's name, as the viewer writes it).
+const PAGE_RE = /^[A-Za-z0-9._/-]{1,95}\.html$/;
 const HEX_RE = /^#[0-9A-F]{6}$/;
 const CUTS = { time: "it took too long to open.", memory: "it used more than 2 GB of memory.", crashed: "Chrome stopped while opening it.", "chrome ended": "Chrome stopped while opening it." };
 const SHOW_LIST = 5;
@@ -85,12 +86,29 @@ const wait = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 // ---- keys and pages --------------------------------------------------------------------------------------------
 
-// The pages pictures are taken of: index.html, then up to two more pages at the site's top, in name order.
+const isPage = (n) => typeof n === "string" && PAGE_RE.test(n) && nameProblem(n, "file") === null && /^[A-Za-z0-9._-]{1,90}$/.test(pageSlug(n));
+
+// The pages pictures are taken of (and the brand is measured on): index.html, then the site's other pages in any
+// of its folders, in name order, up to SHOT_LIMITS.pages in all. A page whose shot name would be another's is left
+// out (and so is not measured: see htmlPages).
 export function pagesOf(files) {
-  const names = (Array.isArray(files) ? files : []).map((f) => f && f.name).filter((n) => typeof n === "string" && PAGE_RE.test(n));
+  const names = (Array.isArray(files) ? files : []).map((f) => f && f.name).filter(isPage);
   if (!names.includes("index.html")) return [];
   const more = names.filter((n) => n !== "index.html").sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  return ["index.html", ...more.slice(0, SHOT_LIMITS.pages - 1)];
+  const out = ["index.html"];
+  const slugs = new Set([pageSlug("index.html")]);
+  for (const n of more) {
+    if (out.length >= SHOT_LIMITS.pages) break;
+    if (slugs.has(pageSlug(n))) continue;
+    slugs.add(pageSlug(n));
+    out.push(n);
+  }
+  return out;
+}
+
+// Every file of the site a browser opens as a page (an .html ending in any letter case), measured or not.
+export function htmlPages(files) {
+  return (Array.isArray(files) ? files : []).filter((f) => f && typeof f.name === "string" && endingOf(f.name) === "html").length;
 }
 
 // SHA-256 over the sorted lines `<name>\0<sha256 of data>\n`, then the pages asked.
@@ -102,7 +120,7 @@ export function siteKey(files, pages) {
   return h.digest("hex");
 }
 
-const pageSlug = (page) => page.replace(/\.html$/, "");
+function pageSlug(page) { return page.replace(/\.html$/, "").replace(/\//g, "_"); }
 
 // ---- the sites of a task -----------------------------------------------------------------------------------------
 
@@ -153,7 +171,9 @@ export function readSite(config, identifier, rel) {
   let real = null;
   try { real = realpathSync(chain[2]); } catch { real = null; }
   if (real !== chain[2]) return { ok: false, sentence: SAY.gone };
-  const read = collectSite(chain[2]);
+  // T58d N2: walked from the goal's real folder down with no link on any path, never resolved again.
+  const read = collectSite(chain[2], { real: true });
+  if (read.ok && read.root !== chain[2]) return { ok: false, sentence: SAY.gone };
   const after = chain.map(lstatOrNull);
   if (!before.every((s, i) => sameNode(s, after[i]) && after[i].isDirectory())) return { ok: false, sentence: "This site changed while it was read. Try again." };
   if (!read.ok) return { ok: false, sentence: `This site cannot be opened: ${plain(read.reason, 200)}.` };
@@ -187,8 +207,9 @@ function stampOf(dir) {
 
 const stamps = new Map(); // site folder -> { stamp, info }
 
-// siteInfo(config, identifier, rel) -> { ok, key, files, bytes, left, pages, problem }: what the route shows of a
-// site, and the key its pictures are kept under (null when it cannot be read).
+// siteInfo(config, identifier, rel) -> { ok, key, files, bytes, left, pages, htmlPages, problem }: what the route
+// shows of a site, the key its pictures are kept under (null when it cannot be read), and how many of its files
+// are pages (T58e: more than `pages` is a site not measured in full).
 export function siteInfo(config, identifier, rel) {
   const base = goalFolder(config, identifier);
   const dir = base && typeof rel === "string" ? join(base, rel) : null;
@@ -199,9 +220,9 @@ export function siteInfo(config, identifier, rel) {
   let info;
   if (read.ok) {
     const pages = pagesOf(read.files);
-    info = { ok: true, key: siteKey(read.files, pages), files: read.files.length, bytes: read.bytes, left: read.left.map((l) => ({ name: plain(l.name, 120), why: plain(l.why, 120) })), pages, problem: null };
+    info = { ok: true, key: siteKey(read.files, pages), files: read.files.length, bytes: read.bytes, left: read.left.map((l) => ({ name: plain(l.name, 120), why: plain(l.why, 120) })), pages, htmlPages: htmlPages(read.files), problem: null };
   } else {
-    info = { ok: false, key: null, files: 0, bytes: 0, left: [], pages: [], problem: read.sentence };
+    info = { ok: false, key: null, files: 0, bytes: 0, left: [], pages: [], htmlPages: 0, problem: read.sentence };
   }
   if (stamp && dir && stampOf(dir) === stamp) {
     stamps.delete(dir);
@@ -252,8 +273,8 @@ const list = (v, cap, each) => (Array.isArray(v) ? v : []).map(each).filter((x) 
 // One page of K15's report, as the home server keeps it: every value checked, capped and made plain. null when it
 // is not a page of that shape.
 function cleanPage(p) {
-  if (!obj(p) || typeof p.page !== "string" || !PAGE_RE.test(p.page)) return null;
-  for (const k of ["errors", "wider", "missing", "blocked", "contrast", "fonts", "colours", "drawn", "shots"]) {
+  if (!obj(p) || !isPage(p.page)) return null;
+  for (const k of ["errors", "wider", "missing", "blocked", "contrast", "fonts", "colours", "drawn", "fallbacks", "shots"]) {
     if (p[k] !== undefined && !Array.isArray(p[k])) return null;
   }
   if (p.a11y !== undefined && !obj(p.a11y)) return null;
@@ -273,11 +294,19 @@ function cleanPage(p) {
     fonts: list(p.fonts, 20, (f) => (obj(f) && px(f.minPx) !== null ? { family: plain(f.family, 80), minPx: px(f.minPx) } : null)),
     colours: list(p.colours, 120, (c) => (typeof c === "string" && HEX_RE.test(c) ? c : null)),
     drawn: list(p.drawn, 20, (d) => (typeof d === "string" && plain(d, 80) ? plain(d, 80) : null)),
+    // T58e: faces Chrome drew only letters of other scripts with (the page's own face has none of them)
+    fallbacks: list(p.fallbacks, 20, (d) => (typeof d === "string" && plain(d, 80) ? plain(d, 80) : null)),
     dark: p.dark === true,
     cut: typeof p.cut === "string" && p.cut ? (Object.hasOwn(CUTS, p.cut) ? p.cut : "other") : null,
     // T58b: elements drawn through a filter or blend mode, and whether the page held more than the report lists
     filtered: count(p.filtered),
     capped: p.capped === true,
+    // T58e: gradients round the hue wheel, parts a paint worklet draws, text whose drawn size is not known, and
+    // animations the viewer could not put at their keyframes
+    turned: count(p.turned),
+    painted: count(p.painted),
+    unsized: count(p.unsized),
+    unsettled: count(p.unsettled),
   };
 }
 
@@ -403,8 +432,18 @@ export function reportLines(page, kit = null) {
     const others = p.colours.filter((c) => !own.has(c) && !isGrey(c));
     if (others.length) lines.push(`Colours that are not in your kit: ${names(others, SHOW_COLOURS)}`);
   }
+  // T58e: what the brand verdict rests on, said here too: parts whose colours cannot be compared, and what was
+  // not measured
+  const parts = (n) => (n === 1 ? "1 part" : `${n} parts`);
+  if (p.filtered) lines.push(`${parts(p.filtered)} drawn through a filter or blend mode, whose colours cannot be compared with your kit`);
+  if (p.turned) lines.push(`${parts(p.turned)} drawn with a gradient that goes round the colour wheel, through colours that are not in your kit`);
+  if (p.painted) lines.push(`${parts(p.painted)} drawn by a script in the style sheet (a paint worklet), whose colours cannot be compared with your kit`);
+  if (p.unsized) lines.push(`Not measured: the drawn size of ${p.unsized === 1 ? "1 piece" : `${p.unsized} pieces`} of text`);
+  if (p.unsettled) lines.push(`Not measured: ${p.unsettled === 1 ? "1 animation" : `${p.unsettled} animations`} the page viewer could not run to each of its steps`);
+  if (p.capped) lines.push("Not measured in full: the page holds more elements, colours or faces than the page viewer lists");
   if (p.cut) lines.push(`This page was cut: ${CUTS[p.cut] || "it did not finish."}`);
   if (!lines.length) lines.push("Nothing to fix was found.");
+  if (p.fallbacks.length) lines.push(`Some text is drawn in another face because your kit's face has no letters for it: ${names(p.fallbacks)}`);
   if (faces.length) lines.push(`Drawn with: ${names(faces)}`);
   return lines;
 }

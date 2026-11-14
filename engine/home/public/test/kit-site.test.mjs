@@ -129,7 +129,9 @@ test("site: the preview's address is taken only when it is exactly the preview's
   assert.equal(site.previewAddress(`${LOOP}:3160/`), `${LOOP}:3160/`);
   assert.equal(site.previewAddress(`${LOOP}:41234/`), `${LOOP}:41234/`);
   for (const bad of [`${LOOP}:3160`, `${LOOP}:3160/x`, `${LOOP}:3160/?a=1`, `${LOOP}:9/`, `${LOOP}:123456/`, "https:" + "//127.0.0.1:3160/",
-    "http:" + "//localhost:3160/", "http:" + "//127.0.0.2:3160/", "javascript:alert(1)", "/preview", null, 3160]) {
+    "http:" + "//localhost:3160/", "http:" + "//127.0.0.2:3160/", "javascript:alert(1)", "/preview", null, 3160,
+    // T58d: a load's own host is reached only by the preview's redirect, never opened by the page itself.
+    "http:" + "//p-0123456789abcdef0123.localhost:3161/"]) {
     assert.equal(site.previewAddress(bad), null, String(bad));
   }
 });

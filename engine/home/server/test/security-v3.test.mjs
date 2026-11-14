@@ -9,6 +9,7 @@ import fs, {
   rmSync, symlinkSync, truncateSync, writeFileSync,
 } from "node:fs";
 import http from "node:http";
+import net from "node:net";
 import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -120,6 +121,24 @@ test("core: 40 MB sent to an unknown address is dropped, answered 404 or cut, an
   const r = await rawRequest(h, { path: "/api/nothing-here", total: 40 * 1024 * 1024 });
   assert.ok(r.reset || r.status === 404, JSON.stringify(r));
   assert.ok(r.closedAfterMs < 15000, JSON.stringify(r));
+  assert.equal((await get(h, "/healthz")).status, 200);
+});
+
+test("core: headers over Node's limit (huge cookies for 127.0.0.1) are answered 431 with the cookies cleared, then let in (T58d)", async () => {
+  const port = Number(new URL(h.url).port);
+  const raw = (text) => new Promise((resolve) => {
+    const s = net.connect(port, "127.0.0.1", () => s.write(text));
+    let got = "";
+    s.on("data", (d) => { got += d; });
+    s.on("close", () => resolve(got));
+    s.on("error", () => resolve(got));
+    setTimeout(() => s.destroy(), 3000);
+  });
+  const got = await raw(`GET / HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nCookie: c=${"x".repeat(40000)}\r\nConnection: close\r\n\r\n`);
+  assert.match(got, /^HTTP\/1\.1 431 /);
+  assert.match(got, /\r\nClear-Site-Data: "cookies"\r\n/);
+  assert.match(got, /cookies for this address are cleared/);
+  assert.match(await raw("NOT A REQUEST\r\n\r\n"), /^HTTP\/1\.1 400 /, "other broken requests as before");
   assert.equal((await get(h, "/healthz")).status, 200);
 });
 

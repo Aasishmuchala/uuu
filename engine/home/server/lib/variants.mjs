@@ -77,7 +77,7 @@ export function readVariants(config, identifier, kind, { directions = directions
     if (!st) return out;
     if (!st.isFile()) return fail("link");
     if (st.size > MAX_VARIANTS_JSON) return fail("large");
-    const read = readChecked(file, base, { maxBytes: MAX_VARIANTS_JSON });
+    const read = readChecked(file, base, { maxBytes: MAX_VARIANTS_JSON, real: true });
     if (!read) return fail("unread");
     if (read.truncated) return fail("large");
     let doc;

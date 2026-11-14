@@ -196,7 +196,7 @@ export function readShotlist(config, identifier, rel, { allowWords = false } = {
     if (!st) return no("missing");
     if (!st.isFile()) return no("link");
     if (st.size > MAX_SHOTLIST) return no("large");
-    const read = readChecked(file, base, { maxBytes: MAX_SHOTLIST });
+    const read = readChecked(file, base, { maxBytes: MAX_SHOTLIST, real: true });
     if (!read) return no("unread");
     if (read.truncated) return no("large");
     let doc;

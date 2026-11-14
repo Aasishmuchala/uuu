@@ -11,7 +11,8 @@
 //   - brand: the home server's own fenced run of the brand check (lib/brandcheck.mjs), never a report from
 //     the task folder; while it runs, or when it cannot, "unknown"; for a page, with the verdict of the home
 //     server's own page viewer report over it (lib/sitebrand.mjs, T58b): a measured disagreement is a fail and
-//     a version not yet measured is never "pass";
+//     a version not yet measured is never "pass" (T58e: nor a single piece with no site the viewer opens, or with
+//     a folder under site/ it does not open);
 //   - review: the Art director's newest usable review (lib/artreview.mjs; by the board's author id), with
 //     `meets` worked out from its numbers, and only when the review is newer than every file of the pieces
 //     (so a piece changed after it was scored is not shown as scored).
@@ -82,7 +83,7 @@ export async function piecesFor(ctx, goal, comments, { artDirectorId = null } = 
   const reviewed = (round) => (complete ? reviewFor(comments, artDirectorId, round, newest) : null);
 
   const kit = kind === "page" ? measuredKit(ctx.config) : null;
-  const measured = (brand, rels) => (kind === "page" ? withMeasured(brand, measuredBrand(ctx.config, identifier, rels, { kit })) : brand);
+  const measured = (brand, rels, whole = false) => (kind === "page" ? withMeasured(brand, measuredBrand(ctx.config, identifier, rels, { kit, whole })) : brand);
 
   if (!v.present) {
     const review = reviewed(null);
@@ -91,7 +92,7 @@ export async function piecesFor(ctx, goal, comments, { artDirectorId = null } = 
       ...out,
       complete, note,
       round: review ? review.round : null,
-      variants: [{ id: "piece", direction: null, preview: [], brand: measured(brandOfAll(run), sitePlaces(ctx.config, identifier)), review: reviewView(piece) }],
+      variants: [{ id: "piece", direction: null, preview: [], brand: measured(brandOfAll(run), sitePlaces(ctx.config, identifier), true), review: reviewView(piece) }],
     };
   }
 

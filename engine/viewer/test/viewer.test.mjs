@@ -74,6 +74,7 @@ function launch(program, args) {
           break;
         }
         case "Emulation.setDeviceMetricsOverride": width = m.params.width; seen.widths.push([m.params.width, m.params.mobile]); ok(); break;
+        case "Emulation.setEmulatedMedia": seen.motion.push((m.params.features.find((f) => f.name === "prefers-reduced-motion") || {}).value); ok(); break;
         case "Page.navigate": {
           ok({ frameId: "F" });
           const url = m.params.url;
@@ -125,7 +126,7 @@ before(async () => {
   });
   port = await viewer.listen();
 });
-beforeEach(() => { behaviour = {}; seen = { methods: [], widths: [], pages: [], args: [], spent: [] }; setViewer(true); });
+beforeEach(() => { behaviour = {}; seen = { methods: [], widths: [], pages: [], args: [], spent: [], motion: [] }; setViewer(true); });
 after(async () => {
   await viewer.close();
   for (const g of groups) { try { process.kill(-g, "SIGKILL"); } catch { /* gone */ } }
@@ -297,8 +298,11 @@ test("a render: shots at both true widths, light only when the CSS asks for noth
   assert.deepEqual(p.colours, ["#1E2A33"], "only real colours");
   assert.ok(p.errors.some((e) => /planted error at \/index\.html/.test(e)), "the site's address is taken out of errors");
   assert.equal(p.dark, false);
-  // every page went through the proxy and came with the content policy and a fixed type
-  assert.equal(seen.pages.length, 4);
+  // every page went through the proxy and came with the content policy and a fixed type; each pass opens it twice
+  // (T58e): with less motion asked (the pictures) and with nothing asked (measured only, as most visitors get it)
+  assert.equal(seen.pages.length, 8);
+  assert.deepEqual(seen.motion, ["reduce", "no-preference", "reduce", "no-preference", "reduce", "no-preference", "reduce", "no-preference"]);
+  assert.equal(p.wider.length, 2, "one at each width");
   assert.deepEqual(seen.spent, [SPENT_ADDRESS], "Chrome's one address of another program is used up first, on nothing");
   for (const s of seen.pages) {
     assert.equal(s.status, 200);

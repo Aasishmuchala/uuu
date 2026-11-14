@@ -22,6 +22,10 @@
         "report": [
           { "page": "index.html", "lines": ["Nothing to fix was found."] }
         ]
+      },
+      "brand": {
+        "result": "unknown",
+        "lines": ["Measured in the page viewer: the page holds more elements, colours or faces than the page viewer lists, so not all were measured."]
       }
     }
   ],

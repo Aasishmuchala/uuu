@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readManifests } from "../../../apps/manifest.mjs";
+import { headerOverflow } from "../../../lib/overflow.mjs";
 import { closeFinishedBatches } from "./batches.mjs";
 import { createBoard } from "./board.mjs";
 import { createBench } from "./bench.mjs";
@@ -285,6 +286,8 @@ export async function createHome(options) {
   });
   server.headersTimeout = 20000;
   server.requestTimeout = 60000;
+  // Headers over Node's limit (huge cookies a page left for 127.0.0.1) are answered 431 with the cookies cleared (T58d).
+  server.on("clientError", headerOverflow);
 
   return {
     server, home, config,

@@ -11,7 +11,8 @@ import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 import { writeTar } from "../../../viewer/tar.mjs";
 import {
-  KEY_RE, SAY, SHOT_NAME, findSite, forgetSiteShots, keptShots, pagePreview, pagesOf, pngOk, pruneShots, readShot, readShotsTar,
+  KEY_RE, SAY, SHOT_LIMITS, SHOT_NAME, findSite, forgetSiteShots, htmlPages, keptShots, pagePreview, pagesOf, pngOk, pruneShots,
+  readShot, readShotsTar,
   readSite, reportLines, siteInfo, siteKey, sitesOf, shotsView, takeShots,
 } from "../lib/siteshots.mjs";
 import { placeOf, previewIsChecked, previewOf } from "../lib/variants.mjs";
@@ -217,12 +218,19 @@ test("the key of a site folder follows its files: one byte changed, even with it
   });
 });
 
-test("pages: index.html, then up to two more at the site's top in name order; none without index.html", () => {
+test("pages: index.html, then every other page of the site in name order up to the cap; none without index.html", () => {
   const f = (...names) => names.map((name) => ({ name, data: Buffer.alloc(1) }));
   assert.deepEqual(pagesOf(f("style.css", "index.html")), ["index.html"]);
-  assert.deepEqual(pagesOf(f("index.html", "zeta.html", "about.html", "contact.html", "sub/inner.html", "UP.HTML")), ["index.html", "about.html", "contact.html"]);
+  // T58e: pages in folders too (their shot names with "_"), never an ending in other letters (the viewer is not asked
+  // for it), and one whose shot name would be another's is left out
+  assert.deepEqual(pagesOf(f("index.html", "zeta.html", "about.html", "contact.html", "sub/inner.html", "UP.HTML", "sub_inner.html")),
+    ["index.html", "about.html", "contact.html", "sub/inner.html", "zeta.html"]);
+  assert.equal(htmlPages(f("index.html", "zeta.html", "about.html", "contact.html", "sub/inner.html", "UP.HTML", "sub_inner.html", "a.css")), 7);
   assert.deepEqual(pagesOf(f("about.html")), []);
   assert.deepEqual(pagesOf(f("index.html", `${"a".repeat(91)}.html`)), ["index.html"], "a page whose shot name would not fit is not asked");
+  const many = f("index.html", ...Array.from({ length: 12 }, (_, i) => `p${String(i).padStart(2, "0")}.html`));
+  assert.equal(pagesOf(many).length, SHOT_LIMITS.pages);
+  assert.equal(SHOT_LIMITS.pages, 8);
 });
 
 test("the viewer's answer: a good one is read with its pictures and a capped, plain report", () => {

@@ -140,13 +140,26 @@ const lstatOrNull = (p) => { try { return lstatSync(p); } catch { return null; }
 // The folder is resolved to its real path once (it must be the very folder lstat saw) and every
 // folder and file under it is opened with no link anywhere on the path (lib/nolinks.mjs), so a
 // folder swapped for a link at any moment is refused at the open itself, never followed.
-// -> { ok: true, files: [{ name, data }], left: [{ name, why }], bytes } or { ok: false, reason }.
-export function collectSite(given) {
-  const top = lstatOrNull(given);
-  if (!top || !top.isDirectory()) return { ok: false, reason: "the site folder is missing or is not a plain folder" };
+// { real: true } (T58d N2): `given` is a real path the caller resolved once where it trusts it (a
+// goal's folder from the config): it is not resolved again, so a folder above it swapped for a
+// link is refused by the first open, not resolved into the walk's root. `root` in the answer is
+// the folder walked, for the caller to compare.
+// -> { ok: true, files: [{ name, data }], left: [{ name, why }], bytes, root } or { ok: false, reason }.
+export function collectSite(given, { real = false } = {}) {
+  const missing = { ok: false, reason: "the site folder is missing or is not a plain folder" };
+  if (typeof given !== "string" || !given) return missing;
   let dir;
-  try { dir = realpathSync(given); } catch { dir = null; }
-  if (!dir || !sameNode(lstatOrNull(dir), top)) return { ok: false, reason: "the site folder is missing or is not a plain folder" };
+  if (real) {
+    dir = given;
+  } else {
+    const was = lstatOrNull(given);
+    if (!was || !was.isDirectory()) return missing;
+    try { dir = realpathSync(given); } catch { dir = null; }
+    if (!dir || !sameNode(lstatOrNull(dir), was)) return missing;
+  }
+  // The walk's root as opened with no link anywhere on its path.
+  const top = statNoLinks(dir);
+  if (!top || !top.isDirectory()) return missing;
   const files = [];
   const left = [];
   const seen = []; // [path, stat] of every folder on the way, checked again after each open
@@ -193,7 +206,13 @@ export function collectSite(given) {
   if (why) return { ok: false, reason: why };
   const check = checkEntries(files.map((f) => ({ name: f.name, type: "file", size: f.data.length })));
   if (!check.ok) return { ok: false, reason: check.reason };
-  return { ok: true, files, left, bytes };
+  return { ok: true, files, left, bytes, root: dir };
+}
+
+function statNoLinks(path) {
+  let fd;
+  try { fd = openNoLinks(path, constants.O_DIRECTORY); } catch { return null; }
+  try { return fstatSync(fd); } catch { return null; } finally { closeSync(fd); }
 }
 
 // A folder opened with no link anywhere on its path is still the folder `was`.
@@ -242,6 +261,8 @@ function readNoFollow(path, seenStat, chain) {
 // A browser's fetch of a service worker's script (it carries a Service-Worker header) is refused,
 // so no page can leave a worker behind (T57 F2).
 // onMissing(name) is told the plain names asked for that are not there.
+// /favicon.ico of a site that has none is an empty 204 (T58d N7): Chrome asks for it by itself, and a 404 would put
+// an error in the page's console of every such site.
 export function siteHandler(getFiles, { onMissing } = {}) {
   return (req, res) => {
     req.on("error", () => {});
@@ -257,6 +278,10 @@ export function siteHandler(getFiles, { onMissing } = {}) {
     let name = path.startsWith("/") ? path.slice(1) : "";
     if (name === "" || name.endsWith("/")) name += "index.html";
     const data = files && (req.method === "GET" || req.method === "HEAD") && nameProblem(name, "file") === null ? files.get(name) : undefined;
+    if (!data && name === "favicon.ico" && (req.method === "GET" || req.method === "HEAD")) {
+      res.writeHead(204, { ...SITE_HEADERS });
+      return void res.end();
+    }
     if (!data) {
       if (onMissing && files && nameProblem(name, "file") === null && (req.method === "GET" || req.method === "HEAD")) onMissing(name);
       const text = "Not found.";

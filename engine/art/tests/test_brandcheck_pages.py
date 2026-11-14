@@ -14,7 +14,8 @@ import sys
 import time
 import unittest
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 from test_brandcheck import BrandCheckBase, HAVE_PIL, codes  # noqa: E402
 
 if HAVE_PIL:
@@ -745,6 +746,122 @@ class FooledTest(PageBase):
                        + ".a{font-size:var(--v0)}\n"},
                       {"style__css": STYLE + ".a{font-size:calc(" + "1px + " * 60000 + "1px)}\n"},
                       {"style__css": STYLE + "html{" * 100000 + "\n"}):
+            shutil.rmtree(os.path.join(self.goal, "site"), ignore_errors=True)
+            self.quick(**files)
+
+
+class SecondLookTest(PageBase):
+    """T58e: the pages T57's second look found both judges passed (s4_static_new_tricks.py), each a hard entry now
+    where the check by code can see it, beside the honest pages that still pass."""
+
+    assertCaught = FooledTest.assertCaught
+    quick = DistrustTest.quick
+
+    def honest(self, **files):
+        shutil.rmtree(os.path.join(self.goal, "site"), ignore_errors=True)
+        self.site(**files)
+        code, p = self.run_site()
+        self.assertEqual(p["hard"], [], json.dumps(p["hard"]))
+
+    def caught(self, code_wanted, *words, **files):
+        shutil.rmtree(os.path.join(self.goal, "site"), ignore_errors=True)
+        self.site(**files)
+        code, p = self.run_site()
+        self.assertCaught(p, code_wanted, *words)
+
+    def test_a_gradient_the_long_way_round_fails_and_a_plain_one_passes(self):
+        for css in ("body { background: linear-gradient(in hsl longer hue, var(--brand-clay), var(--brand-clay)); }",
+                    "body { border-image: conic-gradient(in hsl longer hue, var(--brand-clay), var(--brand-clay)) fill "
+                    "0 / 0 / 0 100vmax; }",
+                    ":root { --g: repeating-radial-gradient(in oklch increasing hue, var(--brand-ink), var(--brand-sand)); }"):
+            self.caught("colour_not_token", "the long way round the hue wheel", style__css=STYLE + css + "\n")
+        self.honest(style__css=STYLE + "body { background: linear-gradient(in oklch, var(--brand-ink), var(--brand-sand)); }\n")
+
+    def test_attr_outside_content_and_paint_worklets_fail_and_attr_in_content_passes(self):
+        self.caught("colour_not_token", "an attr()", index__html=in_index().replace("<body>", '<body data-tone="#ff00aa">'),
+                    style__css=STYLE + "body { background: attr(data-tone type(<color>)); }\n")
+        self.caught("colour_not_token", "a paint worklet", style__css=STYLE + "body { background: paint(flat); }\n")
+        self.caught("colour_not_token", "a paint worklet", reveal__js='CSS.paintWorklet.addModule("flat.js");\n')
+        self.caught("colour_not_token", "a paint worklet", reveal__js='CSS["paint" + "Worklet"];\nregisterPaint("x", class {});\n')
+        self.honest(style__css=STYLE + "a::after { content: \" (\" attr(href) \")\"; }\n")
+
+    def test_text_drawn_smaller_by_zoom_a_scale_or_a_matrix_fails_and_moves_and_growth_pass(self):
+        for css in (".terms { zoom: 0.3; }", ".terms { zoom: 30%; }", ".terms { zoom: var(--z); }",
+                    ".terms { transform: scale(0.3); }", ".terms { transform: translateX(1px) scaleY(.5); }",
+                    ".terms { scale: 1 0.3; }", ".terms { transform: matrix(0.3, 0, 0, 0.3, 0, 0); }",
+                    ".terms { transform: scale(var(--s)); }", ":root { --t: scale3d(1, 0.2, 1); }",
+                    ".terms { font-size-adjust: 0.1; }"):
+            self.caught("text_too_small", "smaller than", style__css=STYLE + css + "\n",
+                        index__html=in_index('<p class="terms">Terms nobody can read.</p>'))
+        self.honest(style__css=STYLE + ".card:hover { transform: scale(1.05) translateY(-2px); scale: -1 1; } "
+                                       ".z { zoom: 1.25; } .r { transform: rotate(3deg); font-size-adjust: none; }\n")
+
+    def test_text_in_an_svg_drawing_that_shrinks_it_fails_and_text_drawn_large_enough_passes(self):
+        self.caught("text_too_small", "draws at 1.6 px", index__html=in_index(
+            '<svg viewBox="0 0 3000 300" width="300" height="30"><text x="0" y="20" font-size="16">Terms.</text></svg>'))
+        self.caught("text_too_small", "<tspan>", index__html=in_index(
+            '<svg viewBox="0 0 300 30" style="width: 10px"><text><tspan>Terms.</tspan></text></svg>'))
+        self.caught("text_too_small", "<text>", pictures_x_terms__svg='<svg xmlns="http://www.w3.org/2000/svg">'
+                                                                     '<text font-size="40">Terms.</text></svg>')
+        self.honest(index__html=in_index('<svg viewBox="0 0 300 30" width="600" height="60"><text font-size="10">Big '
+                                         'enough.</text></svg><svg width="10" height="10"><text font-size="16">No box.'
+                                         '</text></svg><svg viewBox="0 0 10 10" width="5" height="5"><circle r="5" '
+                                         'fill="var(--brand-ink)"/></svg>'))
+
+    def test_an_svg_picture_the_site_holds_is_read_as_markup(self):
+        flat = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#ff00aa"/></svg>'
+        self.caught("colour_not_token", "#FF00AA", style__css=STYLE + "body { background: url(pictures/flat.svg) 0 0 / cover; }\n",
+                    pictures_x_flat__svg=flat)
+        self.caught("outside_address", "outside the site", pictures_x_out__svg='<svg xmlns="http://www.w3.org/2000/svg">'
+                                                                              '<image href="https://tracker.example/p.png"/></svg>')
+        self.caught("outside_address", "outside the site", pictures_x_js__svg='<svg xmlns="http://www.w3.org/2000/svg">'
+                                                                             '<script>fetch("https://tracker.example/");</script></svg>')
+        self.honest(pictures_x_ink__svg='<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" '
+                                        'height="10" fill="#1A3C5E"/></svg>')
+
+    def test_another_page_for_visitors_who_do_not_ask_for_less_motion_fails_and_less_movement_passes(self):
+        for css in ("@media (prefers-reduced-motion: no-preference) { main { display: none; } .other { display: block !important; } }",
+                    "@media screen and (prefers-reduced-motion: reduce) { .other { visibility: visible; } }",
+                    "@media (prefers-reduced-motion) { @supports (display: grid) { .x { content-visibility: hidden; } } }",
+                    "@import url(other.css) (prefers-reduced-motion: no-preference);"):
+            self.caught("hidden_content", "less motion", style__css=(css + "\n" + STYLE) if css.startswith("@import") else STYLE + css + "\n")
+        self.caught("hidden_content", "less motion", index__html=in_index(
+            head='<link rel="stylesheet" href="other.css" media="(prefers-reduced-motion: no-preference)">'))
+        with open(os.path.join(HERE, "..", "..", "site-kit", "reset.css")) as fh:
+            reset = fh.read()
+        with open(os.path.join(HERE, "..", "..", "site-kit", "layout.css")) as fh:
+            layout = fh.read()
+        self.honest(reset__css=reset, layout__css=layout, index__html=in_index(
+            head='<link rel="stylesheet" href="reset.css"><link rel="stylesheet" href="layout.css">'),
+            style__css=STYLE + "@media (prefers-reduced-motion: no-preference) { .card { transition: transform 0.3s; } }\n")
+
+    def test_every_block_is_read_whatever_its_query_and_keyframes_like_any_rule(self):
+        for css in ("@media (prefers-reduced-motion: no-preference) { body { color: #ff00aa; } }",
+                    "@media print { h1 { color: #ff00aa; } }", "@supports (color: red) { p { color: #ff00aa; } }",
+                    "@container (min-width: 1px) { p { color: #ff00aa; } }", "@layer x { p { color: #ff00aa; } }",
+                    "@starting-style { p { color: #ff00aa; } }", "@scope (main) { p { color: #ff00aa; } }",
+                    "@keyframes late { to { background: #ff00aa; color: #00ff00; } } body { animation: late 0s 2s forwards; }",
+                    "p { transition: color 1s 2s; } p:hover { color: #ff00aa; }"):
+            self.caught("colour_not_token", "#FF00AA", style__css=STYLE + css + "\n")
+        self.caught("text_too_small", "6 px", style__css=STYLE + "@keyframes tiny { to { font-size: 6px; } }\n")
+
+    def test_a_site_folder_the_home_server_does_not_open_is_could_not_check(self):
+        for name in ("Launch", "my_site"):
+            self.site(name)
+        code, r = self.check()
+        for name in ("Launch", "my_site"):
+            p = self.piece(r, name)
+            self.assertEqual(codes(p), ["could_not_check"])
+            self.assertIn("not one the home server opens", p["hard"][0]["detail"])
+
+    def test_400_kb_of_the_second_look_cases_finishes_quickly(self):
+        for files in ({"style__css": STYLE + ".a{transform:" + "scale(" * 60000 + "}\n"},
+                      {"style__css": STYLE + "@media (prefers-reduced-motion) {" * 20000 + ".a{display:none}\n"},
+                      {"style__css": STYLE + ".a{background:linear-gradient(" + "in hsl longer hue," * 20000 + ")}\n"},
+                      {"index__html": in_index('<svg viewBox="0 0 9 9">' * 15000 + "<text>x</text>" * 5000 + "\n")},
+                      {"index__html": in_index("</svg><svg viewBox='0 0 1 1' width=1 height=1>" * 8000 + "\n")},
+                      {"pictures_x_big__svg": "<svg><text>" * 30000 + "\n"},
+                      {"reveal__js": "paintWorklet;" * 30000 + "\n"}):
             shutil.rmtree(os.path.join(self.goal, "site"), ignore_errors=True)
             self.quick(**files)
 

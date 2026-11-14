@@ -9,14 +9,21 @@
 // Each load is served on an origin of its own (T57 F2): the next port, in turn, of nine
 // (3161-3169, which no agent's fence lets it reach); the last load's port is closed, so an open
 // tab of an earlier site reads nothing more, and nothing of it answers for a later one. GET of
-// 127.0.0.1:3160 itself sends the browser on to the loaded site's port, so the address the
-// home screen gives stays the same. The first page a load's port answers carries
-// Clear-Site-Data, so nothing an earlier site on that port kept is still there; no worker can be
-// registered at all (sitefiles.mjs). What remains: a tab of a site left open through nine more
-// loads is the same origin as the ninth, and reads it while it is loaded (ADR 0015).
+// 127.0.0.1:3160 itself sends the browser on to the loaded site's address, so the address the
+// home screen gives stays the same. Each load also has a HOST of its own (T58d N1, N5): a fresh
+// random name under .localhost (which browsers and this Mac take to the loopback without asking
+// any name server), and its port answers that one host:port only. Cookies belong to a host, not
+// a port, so nothing a page keeps reaches 127.0.0.1 (the home screen), another load, or a tab of
+// an earlier load, whatever the port: not after nine more loads, not after a restart. The first
+// page a load answers carries Clear-Site-Data for cookies and storage; no worker can be
+// registered at all (sitefiles.mjs). A request whose headers are over Node's limit (a browser
+// carrying huge cookies from before) is answered 431 with Clear-Site-Data: "cookies", so that
+// browser recovers on its next request (lib/overflow.mjs).
 import http from "node:http";
+import { randomBytes } from "node:crypto";
 import { appendFileSync } from "node:fs";
 import { checkCaller, headerValues, readBody, wantsUpgrade } from "../doors/common.mjs";
+import { headerOverflow } from "../lib/overflow.mjs";
 import { SITE_HEADERS, SITE_LIMITS, siteHandler } from "./sitefiles.mjs";
 import { readTar } from "./tar.mjs";
 
@@ -58,7 +65,7 @@ export function createPreview({ listenPort, paths, log, sitePorts } = {}) {
     }
   };
   const iso = () => new Date().toISOString();
-  let site = null; // { files: Map name -> Buffer, server, port, fresh }, or null
+  let site = null; // { files: Map name -> Buffer, server, port, host, fresh }, or null
   let turn = 0;
   let port = null;
   let loading = Promise.resolve();
@@ -82,17 +89,20 @@ export function createPreview({ listenPort, paths, log, sitePorts } = {}) {
     res.end(text);
   };
 
-  // One load's own listener: its files only, GET and HEAD, its own Host only.
+  // One load's own listener: its files only, GET and HEAD, its own host:port only (not 127.0.0.1, not an earlier
+  // load's name on the same port).
   function siteServer(held) {
     const serve = siteHandler(() => held.files);
     const server = http.createServer((req, res) => {
       req.on("error", () => {});
-      if (wantsUpgrade(req.rawHeaders) || !hostIs(req, held.port)) return void no(res, "view_refused");
+      const hosts = headerValues(req.rawHeaders, "host");
+      const own = hosts.length === 1 && String(hosts[0]).toLowerCase() === `${held.host}:${held.port}`;
+      if (wantsUpgrade(req.rawHeaders) || !own) return void no(res, "view_refused");
       if (req.method !== "GET" && req.method !== "HEAD") return void no(res, "view_refused");
-      // The first page this port shows for the load clears what an earlier site on it kept.
+      // The first page of the load clears whatever its host kept (a fresh name: nothing, unless a browser was told it).
       if (held.fresh && headerValues(req.rawHeaders, "sec-fetch-mode").includes("navigate")) {
         held.fresh = false;
-        res.setHeader("Clear-Site-Data", "\"storage\"");
+        res.setHeader("Clear-Site-Data", "\"cookies\", \"storage\"");
       }
       return void serve(req, res);
     });
@@ -110,7 +120,7 @@ export function createPreview({ listenPort, paths, log, sitePorts } = {}) {
   });
   // The files on the next free port in turn; the last load's port is closed. -> true, or false when none is free.
   async function put(files) {
-    const held = { files, server: null, port: null, fresh: true };
+    const held = { files, server: null, port: null, host: `p-${randomBytes(10).toString("hex")}.localhost`, fresh: true };
     for (let i = 0; i < turns.length; i++) {
       const at = turns[(turn + i) % turns.length];
       const server = siteServer(held);
@@ -173,7 +183,7 @@ export function createPreview({ listenPort, paths, log, sitePorts } = {}) {
     // Clear-Site-Data takes away what a site served here before T57 F2 left (a worker, storage).
     const text = "The preview is at its own address.";
     res.writeHead(302, {
-      ...SITE_HEADERS, Location: `http://127.0.0.1:${site.port}/`, "Clear-Site-Data": "\"storage\"",
+      ...SITE_HEADERS, Location: `http://${site.host}:${site.port}/`, "Clear-Site-Data": "\"storage\"",
       "Content-Type": "text/plain; charset=utf-8", "Content-Length": Buffer.byteLength(text),
     });
     return void res.end(req.method === "HEAD" ? undefined : text);
@@ -191,6 +201,7 @@ export function createPreview({ listenPort, paths, log, sitePorts } = {}) {
     server.requestTimeout = 60_000;
     server.on("upgrade", onRaw);
     server.on("connect", onRaw);
+    server.on("clientError", headerOverflow);
   }
   const server = http.createServer((req, res) => {
     req.on("error", () => {});
@@ -202,6 +213,8 @@ export function createPreview({ listenPort, paths, log, sitePorts } = {}) {
     server,
     get port() { return port; },
     get sitePort() { return site ? site.port : null; },
+    get siteHost() { return site ? site.host : null; },
+    get siteUrl() { return site ? `http://${site.host}:${site.port}/` : null; },
     get loaded() { return site !== null; },
     listen() {
       return new Promise((resolve, reject) => {

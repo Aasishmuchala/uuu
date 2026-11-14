@@ -14,9 +14,9 @@ import { ensureSecret } from "../../../doors/common.mjs";
 import { writeTar } from "../../../viewer/tar.mjs";
 import { forgetBrandChecks } from "../lib/brandcheck.mjs";
 import { updateDoors } from "../lib/doors.mjs";
-import { MEASURED_SAY, judgePage, withMeasured } from "../lib/sitebrand.mjs";
+import { MEASURED_SAY, judgePage, measuredBrand, sitePlaces, withMeasured } from "../lib/sitebrand.mjs";
 import { readShape, sameShape } from "../lib/shape.mjs";
-import { forgetSiteShots, shotsIdle } from "../lib/siteshots.mjs";
+import { SHOT_LIMITS, forgetSiteShots, readSite, shotsIdle, siteInfo } from "../lib/siteshots.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 import { call } from "../lib/testing.mjs";
 import { IDS_V2 } from "../../../test/stubs/seed.mjs";
@@ -171,7 +171,7 @@ test("a page cut short, or holding more than the report lists, is unknown; no ki
     await shotsIdle();
     const [a, b] = (await pieces(h)).variants;
     assert.deepEqual(a.brand, { result: "unknown", lines: ["Measured in the page viewer: the page did not finish in the page viewer, so it was not measured in full."] });
-    assert.deepEqual(b.brand, { result: "unknown", lines: ["Measured in the page viewer: the page holds more elements or colours than the page viewer lists, so not all were measured."] });
+    assert.deepEqual(b.brand, { result: "unknown", lines: ["Measured in the page viewer: the page holds more elements, colours or faces than the page viewer lists, so not all were measured."] });
   }, { reports: { "launch-a": { ...HONEST, cut: "time" }, "launch-b": { ...HONEST, capped: true } } });
   await withHome(async ({ h }) => {
     const r = await pieces(h);
@@ -182,9 +182,113 @@ test("a page cut short, or holding more than the report lists, is unknown; no ki
 test("judgePage: the kit's tolerance, greys only with neutrals, drawn faces only when the kit names this Mac's faces", () => {
   const kit = { colours: [[0x1a, 0x3c, 0x5e]], families: new Set(["avenir next"]), minPx: 16, neutrals: true, uploaded: false };
   const page = { colours: ["#1C3E60", "#1D3C5E", "#808080"], fonts: [{ family: "Avenir  Next", minPx: 16 }], drawn: ["Avenir Next", "Helvetica"], blocked: [] };
-  assert.deepEqual(judgePage(page, kit), { fail: ["colours that are not in your kit: #1D3C5E", "drawn with faces that are not your kit's: Helvetica"], unknown: [] });
+  assert.deepEqual(judgePage(page, kit), { fail: ["colours that are not in your kit: #1D3C5E", "drawn with faces that are not your kit's: Helvetica"], unknown: [], soft: [] });
   assert.deepEqual(judgePage(page, { ...kit, neutrals: false, uploaded: true }).fail, ["colours that are not in your kit: #1D3C5E, #808080"]);
   assert.deepEqual(withMeasured({ result: "warn", lines: ["x"] }, { state: "done", result: "pass", lines: [] }), { result: "warn", lines: ["x"] });
   assert.deepEqual(withMeasured({ result: "pass", lines: [] }, { state: "nokit" }), { result: "pass", lines: [] });
   assert.equal(withMeasured({ result: "fail", lines: [] }, { state: "done", result: "unknown", lines: ["u"] }).result, "fail");
+});
+
+test("T58e: a gradient round the hue wheel, a paint worklet, text of unknown drawn size and an animation not run", async () => {
+  await withHome(async ({ h }) => {
+    updateDoors(h.config, (s) => { s.viewer.on = true; });
+    await pieces(h);
+    await shotsIdle();
+    const [a, b] = (await pieces(h)).variants;
+    assert.deepEqual(a.brand, { result: "pass", lines: ["Measured in the page viewer: Some text is drawn in another face because your kit's face has no letters for it: Kohinoor Devanagari."] },
+      "a face that drew only another script's letters is said, never failed (N4)");
+    assert.equal(b.brand.result, "fail");
+    assert.deepEqual(b.brand.lines, [
+      "Measured in the page viewer: 1 part drawn with a gradient that goes round the colour wheel, through colours that are not in your kit.",
+      "Measured in the page viewer: 2 parts drawn by a script in the style sheet (a paint worklet), whose colours cannot be compared with your kit.",
+      "Measured in the page viewer: the drawn size of 3 pieces of text could not be worked out (a 3D transform or font-size-adjust), so it was not measured.",
+      "Measured in the page viewer: 1 animation could not be run to each of its steps (one that follows scrolling, or has more steps than the page viewer measures), so the page was not measured as it looks later.",
+    ]);
+    // the site view says the same, and its report lines say what was not measured
+    const sites = (await call(h.url, "GET", "/api/tasks/STH-2/sites")).json.sites;
+    assert.deepEqual(sites.map((x) => x.brand), [a.brand, b.brand]);
+    const said = sites[1].shots.report[0].lines;
+    for (const want of [/goes round the colour wheel/, /paint worklet/, /Not measured: the drawn size of 3 pieces of text/, /Not measured: 1 animation/]) assert.ok(said.some((l) => want.test(l)), `${want} in ${said}`);
+    assert.ok(sites[0].shots.report[0].lines.includes("Some text is drawn in another face because your kit's face has no letters for it: Kohinoor Devanagari"));
+  }, { reports: { "launch-a": { ...HONEST, fallbacks: ["Kohinoor Devanagari"] }, "launch-b": { ...HONEST, turned: 1, painted: 2, unsized: 3, unsettled: 1 } } });
+});
+
+test("T58e N4: a fallback face is soft only while the page asks for the kit's faces; a declared other face stays hard", () => {
+  const kit = { colours: [[0x1a, 0x3c, 0x5e]], families: new Set(["avenir next"]), minPx: 16, neutrals: true, uploaded: false };
+  const base = { colours: ["#1A3C5E"], fonts: [{ family: "Avenir Next", minPx: 18 }], drawn: ["Avenir Next"], fallbacks: ["Kohinoor Telugu"], blocked: [] };
+  assert.deepEqual(judgePage(base, kit), { fail: [], unknown: [], soft: ["Some text is drawn in another face because your kit's face has no letters for it: Kohinoor Telugu"] });
+  const declared = judgePage({ ...base, fonts: [...base.fonts, { family: "Kohinoor Telugu", minPx: 18 }] }, kit);
+  assert.deepEqual([declared.fail, declared.soft], [["text set in faces that are not your kit's: Kohinoor Telugu"], []]);
+  const drawnLatin = judgePage({ ...base, drawn: ["Avenir Next", "Comic Sans MS"], fallbacks: [] }, kit);
+  assert.deepEqual(drawnLatin.fail, ["drawn with faces that are not your kit's: Comic Sans MS"], "a face that drew Latin letters is drawn, not a fallback");
+});
+
+// A goal folder of our own, with kept reports written as siteshots' keep() leaves them.
+function withGoal(fn) {
+  const base = mkdtempSync(join(tmpdir(), "uuu-measured-goal-"));
+  const config = { paths: { projectFolder: join(base, "company-work"), homeData: join(base, "home") } };
+  const goal = join(base, "company-work", "STH-9");
+  mkdirSync(goal, { recursive: true });
+  const kept = (rel, pages) => {
+    const info = siteInfo(config, "STH-9", rel);
+    mkdirSync(join(base, "home", "shots", info.key), { recursive: true, mode: 0o700 });
+    writeFileSync(join(base, "home", "shots", info.key, "report.json"), JSON.stringify({ version: 1, taken: new Date().toISOString(), pages: pages.map((p) => pageReport(p, HONEST)) }));
+    return info;
+  };
+  try { return fn({ config, goal, kept }); } finally { forgetSiteShots(); rmSync(base, { recursive: true, force: true }); }
+}
+const kitJudged = { colours: [[0x1a, 0x3c, 0x5e], [0xe8, 0xdc, 0xc8]], families: new Set(["avenir next", "didot"]), minPx: 16, neutrals: true, uploaded: false };
+const page = "<!doctype html><title>x</title><p>x</p>";
+
+test("T58e N3: every page of a site is measured up to the cap; more pages, or a page with no report, is unknown", () => {
+  withGoal(({ config, goal, kept }) => {
+    const site = join(goal, "site", "launch");
+    mkdirSync(join(site, "more"), { recursive: true });
+    for (const n of ["index.html", "a.html", "b.html", "offers.html", "more/terms.html"]) writeFileSync(join(site, n), page);
+    const info = kept("site/launch", ["index.html", "a.html", "b.html", "more/terms.html", "offers.html"]);
+    assert.deepEqual(info.pages, ["index.html", "a.html", "b.html", "more/terms.html", "offers.html"], "pages in folders are asked for too");
+    assert.deepEqual(measuredBrand(config, "STH-9", ["site/launch"], { kit: kitJudged, on: true }), { state: "done", result: "pass", lines: [] });
+    forgetSiteShots();
+    const short = kept("site/launch", ["index.html", "a.html", "b.html"]);
+    assert.equal(short.key, info.key);
+    const m = measuredBrand(config, "STH-9", ["site/launch"], { kit: kitJudged, on: true });
+    assert.equal(m.result, "unknown");
+    assert.match(m.lines[0], /2 pages of this site were not measured/);
+  });
+  withGoal(({ config, goal, kept }) => {
+    const site = join(goal, "site", "launch");
+    mkdirSync(site, { recursive: true });
+    const names = ["index.html", ...Array.from({ length: SHOT_LIMITS.pages + 1 }, (_, i) => `p${i}.html`), "UP.HTML"];
+    for (const n of names) writeFileSync(join(site, n), page);
+    const info = kept("site/launch", readSite(config, "STH-9", "site/launch").ok ? siteInfo(config, "STH-9", "site/launch").pages : []);
+    assert.equal(info.pages.length, SHOT_LIMITS.pages);
+    assert.equal(info.htmlPages, names.length);
+    const m = measuredBrand(config, "STH-9", ["site/launch"], { kit: kitJudged, on: true });
+    assert.equal(m.result, "unknown", "past the cap, never pass");
+    assert.match(m.lines[0], /3 pages of this site were not measured \(the page viewer measures at most 8 pages/);
+  });
+});
+
+test("T58e N3: a single piece with no site the viewer opens, or a folder under site/ it does not list, is unknown", () => {
+  withGoal(({ config, goal, kept }) => {
+    mkdirSync(join(goal, "site", "Launch"), { recursive: true });
+    writeFileSync(join(goal, "site", "Launch", "index.html"), page);
+    assert.deepEqual(sitePlaces(config, "STH-9"), []);
+    const none = measuredBrand(config, "STH-9", sitePlaces(config, "STH-9"), { kit: kitJudged, on: true, whole: true });
+    assert.equal(none.result, "unknown");
+    assert.ok(none.lines.includes(MEASURED_SAY.noSite));
+    assert.ok(none.lines.some((l) => /1 folder under site\/ is not a site the page viewer opens/.test(l)));
+    assert.equal(withMeasured({ result: "pass", lines: [] }, none).result, "unknown", "the pick card never says it fits");
+    for (const n of ["s1", "s2", "s3", "s4", "s5", "s6", "s7"]) {
+      mkdirSync(join(goal, "site", n), { recursive: true });
+      writeFileSync(join(goal, "site", n, "index.html"), page);
+    }
+    const places = sitePlaces(config, "STH-9");
+    assert.deepEqual(places, ["site/s1", "site/s2", "site/s3", "site/s4", "site/s5", "site/s6"]);
+    for (const rel of places) kept(rel, ["index.html"]);
+    const seven = measuredBrand(config, "STH-9", places, { kit: kitJudged, on: true, whole: true });
+    assert.equal(seven.result, "unknown");
+    assert.deepEqual(seven.lines, ["2 folders under site/ are not a site the page viewer opens (a site's folder is named with lower-case letters, digits and dashes, and at most 6 are opened), so they were not measured."]);
+    assert.equal(measuredBrand(config, "STH-9", places, { kit: kitJudged, on: true }).result, "pass", "a version's own place alone is judged by itself");
+  });
 });

@@ -21,13 +21,21 @@ A site (site/<name>/, PLAN-V5 K16) is read as its files, with the page viewer's
 caps (300 entries, 6 names deep, 20 MB): its .html, .css, .js and .mjs files as
 text, 512 KB each and 4 MB in all, by scanners that read each text once. Its
 page rules: tokens_file_changed, colour_not_token, font_not_kit, text_too_small,
-outside_address, no_logo, and the soft font_collection. What a page can do to
+outside_address, no_logo, hidden_content, and the soft font_collection. What a page can do to
 show other colours, faces, sizes or addresses than it writes is refused or worked
 out (PLAN-V5 T58b): a filter or blend mode, color-mix() the long way round, a
 style sheet or script as a data: address, <style> and <script> inside SVG read as
 the browser reads them, an @font-face that gives a kit face another file, a
 --brand-… token set outside kit.css, sizes through var(), calc(), rem and em, a
-meta refresh, SVG animations, a logo that is hidden. `--report` (no value)
+meta refresh, SVG animations, a logo that is hidden; and (T58e) a gradient the long
+way round, attr() outside `content`, paint worklets, zoom, scales under 1 and
+matrices (text drawn smaller than set), text in an SVG drawing that shrinks it,
+an .svg file of the site read as markup (unless it is the kit's logo or a company
+picture, byte for byte), a folder name the home server does not open, and
+display or visibility set by whether the visitor asks for less motion
+(hidden_content: the owner's pictures are taken with less motion asked). Every
+@media, @supports, @container, @layer and @keyframes block is read like any
+rule, whatever its query. `--report` (no value)
 also reads viewer/<ref>/report.json of the goal for each site/<ref>/: the
 smallest text the page viewer measured; a false report can only add failures.
 
@@ -914,7 +922,7 @@ PER_CODE = 6                     # entries listed for one rule on one site; the 
 LISTED = 48                      # entries of one kind in a piece's answer (the home server reads at most 50)
 FONT_TOKENS = 64
 CAPTURE_TOKENS = 24
-PAGE_ENDINGS = ("html", "css", "js", "mjs")
+PAGE_ENDINGS = ("html", "css", "js", "mjs", "svg")      # T58e: an SVG picture the site holds is read as markup
 OWN_FILES = "a page may use only its own files"
 KIT_COLOURS = "use the brand kit's var(--brand-…) colours"
 
@@ -993,7 +1001,22 @@ FILTER_PROPS = ("filter", "-webkit-filter", "backdrop-filter", "-webkit-backdrop
 FILTER_SAFE = ("blur", "opacity", "drop-shadow")
 BLEND_PROPS = ("mix-blend-mode", "background-blend-mode")
 NO_EFFECT = ("none", "normal", "inherit", "initial", "unset", "revert", "revert-layer")
-LONG_HUES = ("longer", "increasing", "decreasing")       # color-mix() the long way round the hue wheel
+LONG_HUES = ("longer", "increasing", "decreasing")       # color-mix() or a gradient the long way round the hue wheel
+# T58e: what draws text smaller than it is set, what draws with a script, and what shows another page to visitors
+# who do not ask for less motion than the page viewer's pictures are taken with.
+SCALE_FUNCS = ("scale", "scalex", "scaley", "scalez", "scale3d")
+MATRIX_FUNCS = ("matrix", "matrix3d")
+TRANSFORM_PROPS = ("transform", "-webkit-transform")
+SHRINK = ("text_too_small", "%s, which draws text smaller than its size; the check does not let text be drawn "
+          "smaller than it is set")
+WORKLETS = frozenset(("paintWorklet", "animationWorklet", "layoutWorklet", "registerPaint", "registerAnimator",
+                      "registerLayout"))
+WORKLET = ("a paint worklet, which draws with a script the check does not read, so its colours cannot be compared "
+           "with the kit; %s")
+MOTION = "prefers-reduced-motion"
+SHOW_PROPS = ("display", "visibility", "content-visibility")
+SVG_TEXT = ("text", "tspan", "textpath", "foreignobject")
+SITE_FOLDER = re.compile(r"^[a-z0-9][a-z0-9-]{0,35}$")    # the home server's own rule for a site's folder
 FILTERED = ("a filter, which changes every colour the page draws so that none can be compared with the kit; "
             "use the brand kit's colours as they are")
 BLENDED = ("a blend mode, which mixes colours into ones the check cannot compare with the kit; use the brand kit's "
@@ -1643,6 +1666,8 @@ class SiteCheck:
                 continue
             path, size = self.files[name]
             shown = shown_path(name)
+            if ending == "svg" and self.owners_picture(name, path, size):
+                continue        # the owner's own picture (the kit's logo, a company picture): not the site's markup
             if size > PAGE_TEXT_BYTES:
                 self.found.add("could_not_check", "%s is more than %d KB; the check reads a page, style sheet or "
                                "script of at most %d KB" % (shown, PAGE_TEXT_BYTES // KB, PAGE_TEXT_BYTES // KB))
@@ -1666,6 +1691,8 @@ class SiteCheck:
             if ending == "html":
                 self.html(shown, text, index=name == "index.html")
                 self.index_read = self.index_read or name == "index.html"
+            elif ending == "svg":
+                self.html(shown, text, svg=True)
             elif ending == "css":
                 lines = Lines(text)
                 # the site's kit.css, or the kit's own kit.css byte for byte anywhere: it alone sets --brand-…
@@ -1701,16 +1728,19 @@ class SiteCheck:
             out.append((name, value, at))
         return out, end
 
-    def html(self, file, text, index=False, nested=0, line=None):
+    def html(self, file, text, index=False, nested=0, line=None, svg=False):
         """One page: its tags' attributes, <style> and <script> blocks, and the words it shows. `nested` is a
-        page inside an iframe's srcdoc (at most two deep), all of it on the attribute's `line`."""
+        page inside an iframe's srcdoc (at most two deep), all of it on the attribute's `line`. `svg`: an .svg
+        file of the site (T58e), drawn at a size the check does not know."""
         line_of = Lines(text).at if line is None else (lambda pos: line)
         top = index and nested == 0
         low = text.translate(ASCII_LOWER)
         n, i, words = len(text), 0, []
         # Once an <svg> or <math> is open, the rest of the page is read as if it might still be inside one (the
         # browser's way back out is not followed): <style> and <script> are read as text and as markup.
-        foreign = False
+        foreign = svg
+        # T58e: how much each open <svg> scales what it draws (None: not known), innermost last
+        svgs = [None] if svg else []
         while i < n:
             self.step()
             j = text.find("<", i)
@@ -1732,6 +1762,8 @@ class SiteCheck:
                     name = m.group().translate(ASCII_LOWER)
                     if name in BLOCK_TAGS:
                         words.append("\n")
+                    if name == "svg" and len(svgs) > (1 if svg else 0):
+                        svgs.pop()
                     if top and self.header > 0:
                         self.header_close(name)
                     if top and name == "header" and self.header > 0:
@@ -1749,6 +1781,9 @@ class SiteCheck:
             closed = text[i - 2:i] == "/>"
             if name in FOREIGN_TAGS and not closed:
                 foreign = True
+            if name == "svg" and not closed and len(svgs) < HEADER_STACK:
+                k = self.svg_scale(attrs)
+                svgs.append(None if k is None or (svgs and svgs[-1] is None) else k * (svgs[-1] if svgs else 1.0))
             if top and name == "header" and self.header >= 0:
                 self.header += 1
                 self.header_seen = True
@@ -1760,6 +1795,8 @@ class SiteCheck:
                 if name not in VOID_TAGS and not raw and not (foreign and closed):
                     self.header_open(name, hidden)
             self.start_tag(file, name, attrs, line_of, nested, words, shown)
+            if svgs and name in SVG_TEXT and self.kit is not None:
+                self.svg_text(file, name, attrs, line_of, svgs[-1])
             if name == "plaintext":
                 words.append(text[i:])
                 break
@@ -1776,6 +1813,79 @@ class SiteCheck:
                 k = -1 if close < 0 else text.find(">", close)
                 i = n if k < 0 else k + 1
         self.add_words(file, words)
+
+    @staticmethod
+    def svg_scale(attrs):
+        """How much an <svg> scales what it draws: its width and height (plain numbers or px) against its viewBox;
+        1 with no viewBox; None when it has a viewBox and no such width and height."""
+        seen = {}
+        for a, raw, _ in attrs:
+            seen.setdefault(a, unescape_html(raw).strip(" \t\n\f\r"))
+        if "viewbox" not in seen:
+            return 1.0
+        box = [_number(x) for x in seen["viewbox"].replace(",", " ").split()]
+        if len(box) != 4 or any(b is None for b in box) or box[2] <= 0 or box[3] <= 0:
+            return None
+        k = []
+        for a, b in (("width", box[2]), ("height", box[3])):
+            v = seen.get(a, "")
+            if _number(v) is None or v.lstrip("+-0123456789.") not in ("", "px"):
+                return None
+            k.append(_number(v) / b)
+        return min(k)
+
+    def svg_text(self, file, name, attrs, line_of, scale):
+        """T58e: text in an SVG drawing is drawn at its size times the drawing's scale: refused when that is under
+        the kit's smallest, or when the scale is not known (an .svg file, a viewBox with no width and height) or
+        is under 1 and the text's own size is not a plain number."""
+        if scale is not None and scale >= 1:
+            return
+        at = attrs[0][2] if attrs else 0
+        size = None
+        for a, raw, _ in attrs:
+            if a == "font-size":
+                v = unescape_html(raw).strip(" \t\n\f\r")
+                if _number(v) is not None and v.lstrip("+-0123456789.") in ("", "px"):
+                    size = _number(v)
+                break
+        if scale is not None and size is not None:
+            if size * scale >= self.kit.min_px:
+                return
+            what = "text in an SVG drawing set at %g that the drawing's viewBox draws at %s px; the brand kit's " \
+                   "smallest is %d px" % (size, "%g" % round(size * scale, 2), self.kit.min_px)
+        else:
+            what = "text in an SVG drawing (<%s>) that the drawing can draw smaller than it is set; set text in the " \
+                   "page, not in a drawing" % name
+        self.found.add("text_too_small", "%s: %s" % (self.at(file, line_of(at)), what))
+
+    def owners_picture(self, name, path, size):
+        """An .svg of the site that is the kit's logo file or a company picture of the same name, byte for byte:
+        the owner's own picture, not read as the site's markup."""
+        if self.kit is None or size > MAX_PICTURE_BYTES:
+            return False
+        try:
+            data = kitmod.read_capped(path, MAX_PICTURE_BYTES)
+        except OSError:
+            data = None
+        if not data:
+            return False
+        mark = hashlib.sha256(data).digest()
+        for f in self.kit.logo_files:
+            try:
+                own = kitmod.read_capped(os.path.join(self.kit.brand, f["file"]), MAX_PICTURE_BYTES)
+            except OSError:
+                own = None
+            if own and hashlib.sha256(own).digest() == mark:
+                return True
+        base = name.rsplit("/", 1)[-1]
+        if FILE_NAME.match(base):
+            try:
+                own = kitmod.find_picture_bytes(self.ctx.state, base, MAX_PICTURE_BYTES)
+            except (OSError, ValueError, kitmod.KitProblem):
+                own = None
+            if own and hashlib.sha256(own).digest() == mark:
+                return True
+        return False
 
     def header_open(self, name, hidden):
         if len(self.header_stack) >= HEADER_STACK:
@@ -1832,6 +1942,9 @@ class SiteCheck:
                 words.append("\n%s\n" % v)
             elif a == "srcdoc" and nested < 2:
                 self.html(file, v, nested=nested + 1, line=line)
+            elif a == "media" and rules and MOTION in v.translate(ASCII_LOWER):
+                self.found.add("hidden_content", "%s: %s" % (self.at(file, line), self.motion_words(
+                    "<%s> given" % name if name in ("link", "style", "source") else "an element given")))
             if not rules:
                 continue
             if a in SVG_COLOUR_ATTRS or a == "filter" or (a == "color" and name not in LEGACY_COLOUR_TAGS):
@@ -1944,6 +2057,9 @@ class SiteCheck:
         keep = self.keeps(prop, None)
         # where a rule's selector starts; for each open block, whether it is the root's; an @font-face being read
         sel_from, roots, face = None, [], None
+        # T58e: for each open block, whether it is inside a query on less motion (and the prelude being read names
+        # one); the depth of the arguments of a scale() being read
+        motions, motion_prelude, scaling = [], False, None
         i = start
         while i < end:
             self.step()
@@ -1987,10 +2103,13 @@ class SiteCheck:
                     if tok == "{":
                         depth += 1
                         roots.append(self.is_root(text, sel_from, pos, roots))
+                        motions.append(bool(motions and motions[-1]))
                     elif tok == "}":
                         depth = max(0, depth - 1)
                         if roots:
                             roots.pop()
+                        if motions:
+                            motions.pop()
                         face = self.face_end(file, line_of, how, face, depth)
                     fresh, cand, sel_from = True, None, None
                 else:
@@ -2016,18 +2135,26 @@ class SiteCheck:
                         self.data_sheet(file, line_of(pos), how, url)
                 elif kind == "id" and at_rule == "@property" and rules and not stack:
                     self.brand_token(css_unescape(tok), self.at(file, line_of(pos), how), "@property")
+                elif kind == "id" and css_unescape(tok).lower() == MOTION:
+                    motion_prelude = True
                 elif kind == "other" and tok in "{};":
                     if tok == "{":
                         depth += 1
                         roots.append(bool(roots and roots[-1]))
+                        motions.append(bool(motions and motions[-1]) or motion_prelude)
                         if at_rule == "@font-face" and rules and face is None:
                             face = {"depth": depth, "pos": pos, "family": None, "src": None}
                     elif tok == "}":
                         depth = max(0, depth - 1)
                         if roots:
                             roots.pop()
+                        if motions:
+                            motions.pop()
                         face = self.face_end(file, line_of, how, face, depth)
-                    mode, fresh, stack, url_open, sel_from = 0, True, [], 0, None
+                    elif motion_prelude and rules:      # an @import only for visitors by whether they ask for less motion
+                        self.found.add("hidden_content", "%s: %s" % (self.at(file, line_of(pos), how), self.motion_words(
+                            "a style sheet imported")))
+                    mode, fresh, stack, url_open, sel_from, motion_prelude = 0, True, [], 0, None, False
                 continue
 
             # mode 1: a declaration's value
@@ -2035,18 +2162,23 @@ class SiteCheck:
                 if tok == "{":      # its name and colon began a nested rule's selector, not a declaration
                     depth += 1
                     roots.append(self.is_root(text, prop_at, pos, roots))
+                    motions.append(bool(motions and motions[-1]))
                 else:
                     if cap is not None:
                         self.capture(cap, pending)
+                    if rules and prop in SHOW_PROPS and motions and motions[-1]:
+                        pending.append(("hidden_content", prop_at, self.motion_words("%s set" % prop)))
                     self.commit(file, line_of, how, prop, prop_at, pending, font, rules, cut,
                                 (attr and root) or bool(roots and roots[-1]), face)
                     if tok == "}":
                         depth = max(0, depth - 1)
                         if roots:
                             roots.pop()
+                        if motions:
+                            motions.pop()
                         face = self.face_end(file, line_of, how, face, depth)
                 mode, fresh, cand, stack, var_open, url_open, pending, font, cap = 0, True, None, [], 0, 0, [], [], None
-                cut, keep, sel_from = False, False, None
+                cut, keep, sel_from, scaling = False, False, None, None
                 continue
             d = len(stack)
             if kind == "fn" or (kind == "other" and tok == "("):
@@ -2060,6 +2192,10 @@ class SiteCheck:
                     pending.append(("colour_not_token", pos, FILTERED))
                 elif rules and d == 0 and prop in BLEND_PROPS:
                     pending.append(("colour_not_token", pos, BLENDED))
+                if rules:
+                    self.shrink_fn(prop, name, d, scaling, pos, pending)
+                    if name in SCALE_FUNCS and scaling is None and (prop in TRANSFORM_PROPS or prop[:2] == "--"):
+                        scaling = d + 1
                 if cap is not None:
                     if len(cap[2]) < CAPTURE_TOKENS:
                         cap[2].append((d - cap[1], "fn", name))
@@ -2082,7 +2218,19 @@ class SiteCheck:
                     if cap is not None and len(stack) < cap[1]:
                         self.capture(cap, pending)
                         cap = None
+                    if scaling is not None and len(stack) < scaling:
+                        scaling = None
                 continue
+            if rules and kind == "num" and ((scaling is not None and d == scaling)
+                                            or (d == 0 and prop in ("zoom", "scale"))):
+                v = tok[0] / 100 if tok[1] == "%" else tok[0]
+                if tok[1] in ("", "%") and abs(v) < 1:
+                    pending.append((SHRINK[0], pos, SHRINK[1] % ("a zoom under 1" if prop == "zoom" else "a scale under 1")))
+            elif rules and kind == "id" and d == 0 and prop == "font-size-adjust" \
+                    and css_unescape(tok).lower() not in NO_EFFECT:
+                pending.append((SHRINK[0], pos, SHRINK[1] % "font-size-adjust"))
+            if rules and kind == "num" and d == 0 and prop == "font-size-adjust":
+                pending.append((SHRINK[0], pos, SHRINK[1] % "font-size-adjust"))
             if keep:
                 if len(font) < FONT_TOKENS:
                     font.append((d, kind, tok))
@@ -2102,6 +2250,10 @@ class SiteCheck:
                     and css_unescape(tok).lower() in LONG_HUES:
                 pending.append(("colour_not_token", pos, "a colour mixed with color-mix() the long way round the "
                                 "hue wheel, which is none of the kit's colours; %s" % KIT_COLOURS))
+            elif rules and kind == "id" and stack and stack[-1].endswith("gradient") \
+                    and css_unescape(tok).lower() in LONG_HUES:
+                pending.append(("colour_not_token", pos, "a gradient drawn the long way round the hue wheel, through "
+                                "colours that are none of the kit's; %s" % KIT_COLOURS))
             if cap is not None:
                 if len(cap[2]) < CAPTURE_TOKENS:
                     cap[2].append((d - cap[1], kind, tok))
@@ -2136,6 +2288,29 @@ class SiteCheck:
         """Whether a rule's selector (text[start:stop]) is the root's: html or :root, or & inside such a rule."""
         sel = css_unescape(text[start if start is not None else stop:stop]).translate(ASCII_LOWER)
         return ROOT_SELECTOR.search(sel) is not None or ("&" in sel and bool(roots and roots[-1]))
+
+    @staticmethod
+    def motion_words(what):
+        return ("%s only for visitors by whether they ask for less motion: the owner's pictures are taken with less "
+                "motion asked, so most visitors would be shown what the owner never saw; show the same parts to "
+                "both, and change only movement for less motion" % what)
+
+    @staticmethod
+    def shrink_fn(prop, name, d, scaling, pos, pending):
+        """T58e: a function in a value that can draw text smaller than it is set: a matrix, a function inside a
+        scale() (its factor not worked out), a function as a zoom or scale, attr() outside `content`, paint()."""
+        moves = prop in TRANSFORM_PROPS or prop[:2] == "--"
+        if name in MATRIX_FUNCS and moves:
+            pending.append((SHRINK[0], pos, SHRINK[1] % "a transform matrix"))
+        elif scaling is not None and d >= scaling:
+            pending.append((SHRINK[0], pos, SHRINK[1] % "a scale() the check cannot work out"))
+        elif d == 0 and prop in ("zoom", "scale", "font-size-adjust"):
+            pending.append((SHRINK[0], pos, SHRINK[1] % ("a %s the check cannot work out" % prop)))
+        if name == "attr" and prop not in ("content",) + FONT_PROPS:
+            pending.append(("colour_not_token", pos, "an attr(), which takes a value from the page's markup that the "
+                            "check does not compare with the kit; %s" % KIT_COLOURS))
+        if name == "paint":
+            pending.append(("colour_not_token", pos, WORKLET % KIT_COLOURS))
 
     def capture(self, cap, pending):
         name, _, toks, pos = cap
@@ -2568,9 +2743,13 @@ class SiteCheck:
                         continue
             if kind == "id" and "\\" in tok:
                 tok = js_unescape(tok)
+            if kind == "id" and tok in WORKLETS and self.kit is not None:
+                self.found.add("colour_not_token", "%s: %s" % (self.at(file, line_of(pos), how), WORKLET % KIT_COLOURS))
             prev2, prev = prev, (kind, tok)
 
     def js_literal(self, file, line_of, how, pos, s, stack, prev, every):
+        if self.kit is not None and js_unescape(s) in WORKLETS:
+            self.found.add("colour_not_token", "%s: %s" % (self.at(file, line_of(pos), how), WORKLET % KIT_COLOURS))
         callee = stack[-1] if stack else None
         if every:
             what = "an import map"
@@ -2647,6 +2826,10 @@ class SiteCheck:
 
 def check_site(ctx, piece):
     found = Found(piece)
+    if not SITE_FOLDER.match(piece.name):
+        found.add("could_not_check", "the site's folder name is not one the home server opens: a site's folder is "
+                  "named with lower-case letters, digits and dashes, at most 36, so it is neither pictured nor "
+                  "measured; rename it")
     files = walk_site(piece, found)
     piece.tick()
     if "index.html" not in files:
