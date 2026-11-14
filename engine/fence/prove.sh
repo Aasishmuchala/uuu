@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The fence proof. Proves the fence around each agent tool (Claude Code and
-# Codex), the per-agent fence policy, the walled Researcher, and the gate in
-# front of the board (the ordinary one and the narrow one).
+# Codex), the per-agent fence policy, the walled Researcher, the gate in
+# front of the board (the ordinary one and the narrow one), and who reaches the
+# page viewer and the owner's preview.
 # Prints PASS, FAIL, SKIP or NOTE per check, then RESULT. Writes
 # state/proof/last.json. Exit 0 when every check passes, 1 when the fence
 # failed, 2 when it holds but something is still to do (see the SKIP lines).
@@ -45,6 +46,9 @@ HOME_PLANTS="settings.json Settings.json ſettings.json .config.json remote-sett
   tmp/.fence-proof-carry config.toml Config.toml config.toml.paperclip-backup AGENTS.md instructions.md prompts
   memories hooks.json sessions/fence-proof state_9.sqlite"
 STAND_IN=""
+# The home screen's own pictures of pages (PLAN-V5, K16): a mark the proof puts there, and the
+# folders it made for it when they were missing (removed again on every exit).
+SHOTS_DIR="$STATE_DIR/home/shots"; MADE_SHOTS_DIRS=""
 # Temp folders made for the Researcher's checks (its own and another run's), removed on every exit.
 RUN_TMPS=""
 # The Researcher's checks run for a real task on the board (its goal's folder comes from the board): a task
@@ -65,6 +69,7 @@ cleanup() {
   rm -rf /private/tmp/claude/.fence-proof-carry /private/tmp/claude/.fence-proof-x /private/tmp/claude/.fence-proof-link
   [[ -n "$SANDBOX_TMP_MADE" ]] && rmdir /private/tmp/claude 2>/dev/null
   remove_door_marks
+  remove_shots_mark
   stand_in_stop
   remove_run_tmps
   rm -f "${STATE_DIR:?}/tasks/research/.fence-proof-research"
@@ -97,6 +102,12 @@ remove_door_marks() {
   rm -f "$DOORS_DIR/.fence-proof" "$DOOR_SECRETS/.fence-proof"
   for d in $MADE_DOOR_DIRS; do rmdir "$d" 2>/dev/null; done
   MADE_DOOR_DIRS=""
+}
+remove_shots_mark() {
+  local d
+  rm -f "$SHOTS_DIR/.fence-proof"
+  for d in $MADE_SHOTS_DIRS; do rmdir "$d" 2>/dev/null; done
+  MADE_SHOTS_DIRS=""
 }
 stand_in_stop() {   # only the proof's own stand-in, by its process id
   if [[ -n "$STAND_IN" ]]; then kill "$STAND_IN" 2>/dev/null; wait "$STAND_IN" 2>/dev/null; fi
@@ -269,6 +280,27 @@ reach() {
     "$1" "$2" "$1" "$2" "$1" "$2"
 }
 
+# The owner's preview (PLAN-V5, K15) is for the owner's own browser: no fence reaches it. It
+# answers 404 "Nothing to preview" while it holds no site, so reaching it is a 2xx or that
+# sentence (a refusal by the fence's own proxy is neither). It must answer from outside first
+# (or the proof's stand-in, where nothing listens on its port).
+PREVIEW_SAYS="Nothing to preview"
+reach_preview() {
+  printf "%s || { curl -s -m 5 http://127.0.0.1:%s/; curl -s -m 5 http://localhost:%s/; curl -s -m 5 --noproxy '*' http://127.0.0.1:%s/; } 2>/dev/null | grep -q '%s'" \
+    "$(reach "$CFG_PORT_PREVIEW" /)" "$CFG_PORT_PREVIEW" "$CFG_PORT_PREVIEW" "$CFG_PORT_PREVIEW" "$PREVIEW_SAYS"
+}
+preview_check() {
+  if ! { answers_ok "$CFG_PORT_PREVIEW" / || curl -s -m 3 --noproxy '*' "http://127.0.0.1:$CFG_PORT_PREVIEW/" 2>/dev/null | grep -q "$PREVIEW_SAYS"; }; then
+    stand_in "$CFG_PORT_PREVIEW" /
+    if [[ -n "$NOT_ANSWERING" ]]; then
+      say SKIP "whether $WHO can reach the preview (nothing answers on port $CFG_PORT_PREVIEW, and the proof could not stand in there)"
+      stand_in_stop; return
+    fi
+  fi
+  blocked "reach the preview" "$(reach_preview)"
+  stand_in_stop
+}
+
 # An agent's id from ids.json, or nothing.
 agent_id_of() {
   /usr/bin/python3 -I -c "import json,re,sys
@@ -332,6 +364,7 @@ fence_checks() {
   else
     say SKIP "whether $WHO can reach the home screen (the home screen is not running)"
   fi
+  preview_check
   if (( BENCH_UP )); then
     blocked "reach the books without a fence policy (port $CFG_PORT_BENCH_WEB)" "$REACH_BENCH"
   else
@@ -952,6 +985,7 @@ sys.exit(0 if isinstance(p,dict) and p.get('walled') is True else 1)" "$CFG_POLI
       "test \"\$PAPERCLIP_API_URL\" = $NARROW && curl -s -m 6 $NARROW/gate/health | grep -q '\"narrow\":true' && test \"\$(curl -s -m 6 -o /dev/null -w '%{http_code}' $NARROW/api/agents/me)\" = 401"
   else say SKIP "whether the narrow gate turns the Researcher away without a token (the narrow gate is not running)"; fi
   blocked "reach the open internet" 'curl -s -m 8 https://example.com -o /dev/null'
+  preview_check
   case " $DOORS_ON " in *" web "*) web_on=1 ;; esac
   stand_in "$CFG_PORT_WEB" /web/health
   if [[ -n "$NOT_ANSWERING" ]]; then
@@ -1038,10 +1072,73 @@ builder_web_check() {
   stand_in_stop
   AS=""
 }
+# The page viewer (PLAN-V5, K15, K16): it serves the Builder and the Art director, and them only
+# while the owner has it switched on; the Checker never, whatever the switch. Each runs as itself
+# (its id from ids.json, its own fence policy). None of them reaches the owner's preview or reads
+# the home screen's own pictures of pages (a mark the proof puts there, in folders made with the
+# home server's mode when missing); the Builder and the Art director read the site kit.
+viewer_checks() {
+  local slug id state=off d ok=1 kit="$CFG_PLAYBOOKS/site-kit"
+  case " $DOORS_ON " in *" viewer "*) state=on ;; esac
+  for d in "$STATE_DIR/home" "$SHOTS_DIR"; do
+    if [[ ! -e "$d" && ! -L "$d" ]]; then
+      mkdir -m 700 "$d" && MADE_SHOTS_DIRS="$d $MADE_SHOTS_DIRS" || ok=0
+    fi
+  done
+  [[ -d "$SHOTS_DIR" && ! -L "$SHOTS_DIR" ]] && (umask 077; echo proof > "$SHOTS_DIR/.fence-proof") || ok=0
+  for slug in builder art-director; do
+    case "$slug" in builder) WHO="the Builder" ;; *) WHO="the Art director" ;; esac
+    id="$(agent_id_of "$slug")"
+    if [[ -z "$id" || ! -f "$CFG_POLICY/$id.json" ]]; then
+      say SKIP "the page viewer checks for $WHO (no ${WHO#the } with a fence policy yet: run engine setup)"; continue
+    fi
+    RUN="$HERE/bin/claude"; AS="$id"
+    stand_in "$CFG_PORT_VIEWER" /view/health
+    if [[ -n "$NOT_ANSWERING" ]]; then
+      say SKIP "whether $WHO can reach the page viewer (the page viewer is not running, and the proof could not stand in on port $CFG_PORT_VIEWER)"
+    elif [[ "$state" == on ]]; then
+      allowed "reach the page viewer while its switch is on, with its address and a token" \
+        "test \"\$UUU_VIEWER_URL\" = $CFG_VIEWER_URL && test -n \"\$UUU_VIEWER_TOKEN\" && { $(reach "$CFG_PORT_VIEWER" /view/health); }"
+    else
+      blocked "reach the page viewer while its switch is off" "$(reach "$CFG_PORT_VIEWER" /view/health)"
+      allowed "be given no page viewer address or token while its switch is off" 'test -z "${UUU_VIEWER_URL+x}${UUU_VIEWER_TOKEN+x}"'
+    fi
+    stand_in_stop
+    preview_check
+    if (( ok )); then
+      blocked "read the home screen's pictures of pages" "ls $SHOTS_DIR >/dev/null || cat $SHOTS_DIR/.fence-proof >/dev/null || ls $STATE_DIR/home >/dev/null"
+    else say FAIL "could not put a mark in the home screen's pictures of pages ($SHOTS_DIR)"; fi
+    if [[ ! -d "$kit" || -L "$kit" ]]; then
+      say SKIP "whether $WHO can read the site kit (not installed: run engine/playbooks/install.sh)"
+    else
+      allowed "read the site kit" \
+        'ls "$UUU_PLAYBOOKS_DIR/site-kit" >/dev/null && for f in "$UUU_PLAYBOOKS_DIR"/site-kit/*; do cat "$f" >/dev/null || exit 1; done'
+    fi
+  done
+  WHO="the Checker"
+  id="$(agent_id_of checker)"
+  if [[ -z "$id" || ! -f "$CFG_POLICY/$id.json" ]]; then
+    say SKIP "the page viewer checks for the Checker (no Checker with a fence policy yet: run engine setup)"
+  else
+    RUN="$HERE/bin/codex"; AS="$id"
+    stand_in "$CFG_PORT_VIEWER" /view/health
+    if [[ -n "$NOT_ANSWERING" ]]; then
+      say SKIP "whether the Checker can reach the page viewer (the page viewer is not running, and the proof could not stand in on port $CFG_PORT_VIEWER)"
+    else
+      blocked "reach the page viewer (its switch is $state)" "$(reach "$CFG_PORT_VIEWER" /view/health)"
+    fi
+    stand_in_stop
+    preview_check
+  fi
+  remove_shots_mark
+  AS=""
+}
 researcher_checks
 narrow_key_checks
 builder_web_check
 remove_test_key
+echo; echo "The page viewer and the preview (the Builder, the Art director, the Checker)"
+viewer_checks
 
 # The board runs git in the task folders (to see whether a folder has changes),
 # outside the fence. From inside the fence an agent lays out a made-up

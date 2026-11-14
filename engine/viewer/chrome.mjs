@@ -4,8 +4,9 @@
 // TMPDIR, the viewer's own proxy for every address (local ones included), no name lookups of
 // its own, and is driven over the debugging pipe (file descriptors 3 and 4, no port). It runs
 // in a process group of its own, watched for memory (the whole group, every 200 ms, ended at
-// 2 GB) and ended by its process id, never by a program's name: the owner's own Chrome and
-// its profile are never looked at or touched. Zero dependencies.
+// 2 GB of resident or physical footprint, whichever is more) and ended by its process id,
+// never by a program's name: the owner's own Chrome and its profile are never looked at or
+// touched. Zero dependencies (the footprint is read by the system's own Python).
 import { execFile, spawn } from "node:child_process";
 import { closeSync, constants, fstatSync, mkdirSync, openSync, readSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -212,6 +213,75 @@ export function overCap(rows, leader, capKb) {
   return groupOf(rows, leader).kb > capKb;
 }
 
+// What the members really hold: macOS's physical footprint (resident, compressed and swapped
+// out together), which `ps`'s resident size leaves out once the Mac runs short and squeezes or
+// swaps a page's memory (T55: a page held 2.4 GB while its resident size stayed under 1 GB, so
+// a cap on the resident size alone never came). Read with libproc's proc_pid_rusage, which
+// answers only for this user's own processes, by one helper of the system's Python per start,
+// asked with the members' ids each turn; it reads nothing else and is ended with the start.
+export const FOOTPRINT_PY = `import ctypes, sys
+lib = ctypes.CDLL("/usr/lib/libproc.dylib")
+class Usage(ctypes.Structure):
+    _fields_ = [("uuid", ctypes.c_uint8 * 16)] + [(n, ctypes.c_uint64) for n in (
+        "user", "system", "idle", "interrupts", "pageins", "wired", "resident", "footprint", "start", "end")]
+u = Usage()
+for line in sys.stdin:
+    kb = 0
+    for p in line.split()[:4096]:
+        if p.isdigit() and 1 < int(p) < 2 ** 31 and lib.proc_pid_rusage(int(p), 0, ctypes.byref(u)) == 0:
+            kb += u.footprint // 1024
+    sys.stdout.write("%d\\n" % kb)
+    sys.stdout.flush()
+`;
+
+// -> { measure(pids) -> Promise<KB | null>, close() }. null when the helper cannot answer
+// (the watchdog then goes by the resident size alone, as before).
+export function footprintReader({ python = "/usr/bin/python3", waitMs = 1000 } = {}) {
+  let child;
+  try {
+    child = spawn(python, ["-I", "-c", FOOTPRINT_PY], { cwd: "/", env: { PATH: "/usr/bin:/bin" }, stdio: ["pipe", "pipe", "ignore"] });
+  } catch {
+    return { measure: async () => null, close: () => {} };
+  }
+  let dead = false;
+  let held = "";
+  const waiting = [];
+  const settle = (v) => { const w = waiting.shift(); if (w) { clearTimeout(w.timer); w.resolve(v); } };
+  const stop = () => { dead = true; while (waiting.length) settle(null); };
+  child.on("error", stop);
+  child.on("exit", stop);
+  child.stdin.on("error", stop);
+  child.stdout.on("data", (d) => {
+    held += d;
+    if (held.length > 4096) { held = ""; stop(); try { child.kill("SIGKILL"); } catch { /* gone */ } return; }
+    let i;
+    while ((i = held.indexOf("\n")) >= 0) {
+      const line = held.slice(0, i);
+      held = held.slice(i + 1);
+      settle(/^\d{1,15}$/.test(line) ? Number(line) : null);
+    }
+  });
+  child.unref();
+  for (const s of [child.stdin, child.stdout]) if (s && typeof s.unref === "function") s.unref();
+  return {
+    measure(pids) {
+      if (dead) return Promise.resolve(null);
+      const list = pids.filter((p) => Number.isInteger(p) && p > 1).slice(0, 4096);
+      return new Promise((resolve) => {
+        // an answer that is late is dropped with all after it: the helper is ended
+        const timer = setTimeout(() => { stop(); try { child.kill("SIGKILL"); } catch { /* gone */ } }, waitMs);
+        waiting.push({ resolve, timer });
+        try { child.stdin.write(`${list.join(" ")}\n`); } catch { stop(); }
+      });
+    },
+    close() {
+      stop();
+      try { child.stdin.end(); } catch { /* closed */ }
+      try { child.kill("SIGKILL"); } catch { /* gone */ }
+    },
+  };
+}
+
 export function readPs() {
   return new Promise((resolve) => {
     execFile("/bin/ps", ["-A", "-o", "pid=,ppid=,pgid=,rss=,command="], { timeout: 3000, maxBuffer: 32 * 1024 * 1024, env: { PATH: "/usr/bin:/bin" } },
@@ -247,7 +317,7 @@ export async function endGroup(leader, root, { ps = readPs, withinMs = 3000 } = 
 // Starts Chrome for one render. -> a session: { pid, version, send, on, gone, why, end() }.
 // `why` says what ended it early: "memory" (the watchdog), "exited", or null.
 export async function startChrome({
-  program, root, proxyPort, launch = defaultLaunch, ps = readPs, limits = {}, log = () => {},
+  program, root, proxyPort, launch = defaultLaunch, ps = readPs, footprint = footprintReader, limits = {}, log = () => {},
 } = {}) {
   const lim = { ...CHROME_LIMITS, ...limits };
   const started = launch(program, chromeFlags({ root, proxyPort }), chromeEnv(root));
@@ -266,7 +336,9 @@ export async function startChrome({
   child.on("exit", () => { session.gone = true; if (!session.why) session.why = "exited"; pipe.close(); });
   child.on("error", () => { session.gone = true; if (!session.why) session.why = "exited"; pipe.close(); });
 
-  // The watchdog: the group's memory every 200 ms; over the cap, the group is ended.
+  // The watchdog: the group's memory every 200 ms (the more of its resident size and its
+  // physical footprint); over the cap, the group is ended.
+  const held = footprint();
   let watching = true;
   let busy = false;
   const timer = setInterval(async () => {
@@ -275,7 +347,9 @@ export async function startChrome({
     try {
       const rows = await ps();
       if (rows && watching) {
-        const { kb } = groupOf(rows, pid);
+        const { members, kb: resident } = groupOf(rows, pid);
+        const all = members.length ? await held.measure(members.map((r) => r.pid)) : null;
+        const kb = Math.max(resident, all || 0);
         session.peakKb = Math.max(session.peakKb, kb);
         if (kb > lim.memCapKb) {
           session.why = "memory";
@@ -295,6 +369,7 @@ export async function startChrome({
     ended = (async () => {
       watching = false;
       clearInterval(timer);
+      held.close();
       if (!session.gone) await pipe.send("Browser.close", {}, undefined, 1500).catch(() => {});
       for (let i = 0; i < 10 && !session.gone; i++) await wait(100);
       const left = await endGroup(pid, root, { ps });

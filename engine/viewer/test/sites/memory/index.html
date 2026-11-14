@@ -2,6 +2,15 @@
 <html lang="en"><head><meta charset="utf-8"><title>Eats memory</title></head>
 <body><h1>This page allocates without end</h1>
 <script>
+// Grows before the page has loaded, so the viewer cannot take its pictures and close it first,
+// and fills each block with numbers that do not compress, so a Mac short of memory cannot
+// squeeze the blocks out of the count (it held all ones once, and the page ended before the cap).
+// Stops by itself at 6 GB.
 window.__hold = [];
-(function grow() { if (window.__hold.length >= 60) return; const b = new Uint8Array(100 * 1024 * 1024); b.fill(1); window.__hold.push(b); setTimeout(grow, 20); })();
+let x = 2463534242;
+while (window.__hold.length < 60) {
+  const b = new Uint32Array(25 * 1024 * 1024);
+  for (let i = 0; i < b.length; i++) { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; b[i] = x; }
+  window.__hold.push(b);
+}
 </script></body></html>

@@ -205,8 +205,10 @@ test("a page that never finishes loading is cut at its time, and the next render
 });
 
 test("a page that eats memory: the watchdog ends the whole group at its cap", { skip, timeout: 150_000 }, async () => {
-  // the cap lowered for the test, so the Mac is never pushed near 2 GB of extra memory
-  const { report } = await render(viewer({ chrome: { memCapKb: 1.5 * GB } }), siteTar("memory"));
+  // the cap lowered for the test, so the Mac is never pushed near 2 GB of extra memory; the page
+  // fills its blocks before it loads and with numbers that do not compress, and the watchdog
+  // counts the footprint, so a Mac short of memory that squeezes or swaps them still sees them
+  const { report } = await render(viewer({ chrome: { memCapKb: 1 * GB } }), siteTar("memory"));
   assert.equal(report.pages[0].cut, "memory", JSON.stringify(report.pages[0]));
   assert.ok(report.pages[0].errors.some((e) => /memory/.test(e)));
   nothingLeft();

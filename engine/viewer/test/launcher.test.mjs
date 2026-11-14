@@ -10,8 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import {
-  CHROME_LIMITS, PROFILE_PREFERENCES, Pipe, chromeEnv, chromeFlags, chromeInstalled, endGroup, groupOf, overCap, parsePs,
-  prepareRoot, readPs, startChrome,
+  CHROME_LIMITS, PROFILE_PREFERENCES, Pipe, chromeEnv, chromeFlags, chromeInstalled, endGroup, footprintReader, groupOf, overCap,
+  parsePs, prepareRoot, readPs, startChrome,
 } from "../chrome.mjs";
 
 const dirs = [];
@@ -149,6 +149,43 @@ test("the watchdog ends the group when its memory passes the cap", async () => {
   assert.equal(s.why, "memory");
   assert.equal(s.gone, true);
   await s.end();
+});
+
+test("the watchdog also counts the physical footprint: a group small in ps but holding more than the cap is ended", async () => {
+  const root = join(folder(), "r");
+  let leader = 0;
+  const asked = [];
+  // ps says little; the footprint (memory squeezed or swapped out of the resident size) says 3 GB
+  const footprint = () => ({ measure: async (pids) => { asked.push(pids); return 3 * 1024 * 1024; }, close: () => {} });
+  const launch = standIn();
+  const s = await startChrome({ program: "/x", root, proxyPort: 4000, launch: (...a) => { const o = launch(...a); leader = o.child.pid; return o; }, footprint, limits: { watchEveryMs: 50 } });
+  for (let i = 0; i < 40 && !s.gone; i++) await wait(50);
+  assert.equal(s.why, "memory");
+  assert.ok(asked.length > 0 && asked[0].includes(leader), "the group's own members were measured");
+  await s.end();
+});
+
+test("the watchdog leaves a group alone when neither measure passes the cap, and a helper that cannot answer changes nothing", async () => {
+  const root = join(folder(), "r");
+  const footprint = () => ({ measure: async () => null, close: () => {} });
+  const s = await startChrome({ program: "/x", root, proxyPort: 4000, launch: standIn(), footprint, limits: { watchEveryMs: 50 } });
+  await wait(400);
+  assert.equal(s.gone, false);
+  assert.equal(s.why, null);
+  await s.end();
+});
+
+test("footprintReader: this process's own footprint, nothing for another user's process or a missing one, null once closed", async () => {
+  const r = footprintReader();
+  const mine = await r.measure([process.pid]);
+  assert.ok(Number.isInteger(mine) && mine > 1024, `got ${mine}`);
+  assert.equal(await r.measure([1, 99999999]), 0, "launchd (root) and a missing id add nothing");
+  assert.equal(await r.measure([]), 0);
+  r.close();
+  assert.equal(await r.measure([process.pid]), null);
+  const broken = footprintReader({ python: "/nonexistent/python3" });
+  assert.equal(await broken.measure([process.pid]), null);
+  broken.close();
 });
 
 test("the pipe: NUL-framed answers matched by id, split chunks joined, timeouts, closing rejects", async () => {
