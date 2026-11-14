@@ -195,16 +195,18 @@ export function createHfAuth({ origin, file, redirectUri, net, now, limits, log 
     },
 
     // Takes the code back: { ok: true } (signed in, the file written) or { ok: false, why }.
-    // The pending sign-in is cleared whatever happens, before anything else.
+    // The return address is a GET any website can make the owner's browser ask for, so a wrong
+    // or missing state changes nothing: the sign-in under way stays for the real return (T85
+    // finding 7). The matching state clears it at once, before anything else, so it is used once.
     async finish({ code, state } = {}) {
       const p = pending;
-      pending = null;
       const no = (why) => {
         say(`higgsfield sign-in refused (${why})`);
         return { ok: false, why };
       };
       if (p === null) return no("no_pending");
       if (typeof state !== "string" || !STATE_RE.test(state) || !timingSafeEqual(Buffer.from(state, "utf8"), Buffer.from(p.state, "utf8"))) return no("bad_state");
+      pending = null;
       const t = clock();
       if (!(t >= p.at && t - p.at < PENDING_MS)) return no("expired");
       if (typeof code !== "string" || !CODE_RE.test(code)) return no("bad_code");

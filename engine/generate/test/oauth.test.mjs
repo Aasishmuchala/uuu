@@ -118,8 +118,7 @@ test("finish refuses another begin's state, an 11-minute-old state, a used one a
     const b = await s.auth.begin();               // replaces a
     const backA = await browser(hf, a.url);
     assert.deepEqual(await s.auth.finish(backA), { ok: false, why: "bad_state" });
-    const backB = await browser(hf, b.url);
-    assert.deepEqual(await s.auth.finish(backB), { ok: false, why: "no_pending" });   // cleared by the refusal before
+    // The wrong state left b's sign-in alone (T85 finding 7); b is not finished here, and c replaces it.
     const c = await s.auth.begin();
     const backC = await browser(hf, c.url);
     s.add(PENDING_MS + 60_000);
@@ -139,6 +138,44 @@ test("finish refuses another begin's state, an 11-minute-old state, a used one a
     assert.deepEqual(await s.auth.finish(backF), { ok: true });
     assert.deepEqual(await s.auth.finish(backF), { ok: false, why: "no_pending" });    // used
     assert.equal(grants(hf, "authorization_code"), 1);
+  } finally { await hf.close(); }
+});
+
+test("a wrong or missing state first changes nothing: the real return still signs in, once (T85 finding 7)", async () => {
+  const hf = await startHiggsfield();
+  try {
+    const s = setup(hf);
+    const b = await s.auth.begin();
+    const back = await browser(hf, b.url);
+    const other = "0".repeat(64) === back.state ? "1".repeat(64) : "0".repeat(64);
+    // What another website can make the owner's browser ask for: any state, or none.
+    for (const forged of [{ code: back.code, state: other }, { code: "x", state: "abc" }, { code: back.code }, {}, { state: back.state.toUpperCase(), code: back.code }]) {
+      assert.equal((await s.auth.finish(forged)).why, "bad_state", JSON.stringify(Object.keys(forged)));
+    }
+    assert.equal(grants(hf, "authorization_code"), 0, "nothing was exchanged");
+    assert.equal(existsSync(s.file), false);
+    assert.deepEqual(await s.auth.finish(back), { ok: true });
+    assert.equal(fileOf(s).accessToken, hf.tokens.access);
+    // A replay of the right state does nothing.
+    assert.deepEqual(await s.auth.finish(back), { ok: false, why: "no_pending" });
+    assert.equal(grants(hf, "authorization_code"), 1);
+    // Nothing of the code, the state or a token is in a line said.
+    const said = s.lines.join("\n");
+    for (const v of [back.code, back.state, other, hf.tokens.access, hf.tokens.refresh]) assert.ok(!said.includes(v));
+  } finally { await hf.close(); }
+});
+
+test("a wrong state does not keep an expired sign-in alive: the right state after ten minutes is expired, then gone", async () => {
+  const hf = await startHiggsfield();
+  try {
+    const s = setup(hf);
+    const b = await s.auth.begin();
+    const back = await browser(hf, b.url);
+    assert.equal((await s.auth.finish({ code: back.code, state: "f".repeat(64) })).why, "bad_state");
+    s.add(PENDING_MS);
+    assert.deepEqual(await s.auth.finish(back), { ok: false, why: "expired" });
+    assert.deepEqual(await s.auth.finish(back), { ok: false, why: "no_pending" });
+    assert.equal(existsSync(s.file), false);
   } finally { await hf.close(); }
 });
 
