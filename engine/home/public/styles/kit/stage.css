@@ -155,22 +155,23 @@
   gap: var(--s-1);
 }
 
-/* A pin: a 20 px disc in the warning colour, the number on it in --pin-ink. */
+/* A pin: an 18 px disc on a 20 percent tint of the warning colour, its number in that colour, quiet beside the one
+   filled primary. */
 .k-pin {
   display: grid;
   place-items: center;
   flex: none;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: 0;
   border-radius: var(--r-round);
-  background: var(--pin);
-  color: var(--pin-ink);
+  background: color-mix(in srgb, var(--warn) 20%, transparent);
+  color: var(--warn);
   font: inherit;
   font-size: var(--fs-label);
-  font-weight: 700;
-  line-height: 20px;
+  font-weight: var(--fw-bold);
+  line-height: 18px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -186,21 +187,23 @@
 .k-frame__pin {
   position: absolute;
   z-index: 3;
+  border-radius: var(--r-round);
+  background: var(--panel);
 }
 
 .k-frame__pin--left {
   left: -22px;
-  top: calc(var(--y) * var(--s, 0) * 1px - 10px);
+  top: calc(var(--y) * var(--s, 0) * 1px - 9px);
 }
 
 .k-frame__pin--right {
   right: -22px;
-  top: calc(var(--y) * var(--s, 0) * 1px - 10px);
+  top: calc(var(--y) * var(--s, 0) * 1px - 9px);
 }
 
 .k-frame__pin--top {
   top: -22px;
-  left: calc(var(--x) * var(--s, 0) * 1px - 10px);
+  left: calc(var(--x) * var(--s, 0) * 1px - 9px);
 }
 
 .k-frame__lead {
@@ -282,20 +285,26 @@
   display: none;
 }
 
-/* ---- Findings: a numbered list; the chosen one is lifted and shows its detail */
+/* ---- Findings: a numbered list in one Tab stop; the chosen one is lifted and shows its detail. 6 px inside a
+   row, 16 px from one row's words to the next's; a long list ends on a whole row and "Show all". */
+.k-finds__box {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0 calc(-1 * var(--s-3));
+}
+
 .k-finds {
   display: grid;
-  gap: 2px;
-  margin: 0 calc(-1 * var(--s-3));
+  gap: var(--s-1);
   list-style: none;
 }
 
 .k-finds__row {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 0 10px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 0 var(--s-3);
   width: 100%;
-  padding: var(--s-2) var(--s-3);
+  padding: 6px var(--s-3);
   border: 0;
   border-radius: var(--r-2);
   background: none;
@@ -308,8 +317,17 @@
   transition: background-color var(--t-fast) var(--ease);
 }
 
+.k-finds__row .k-pin {
+  margin-top: 1px;
+}
+
 .k-finds__row:hover:not(.k-finds__row--on) {
   background: var(--ctl);
+}
+
+.k-finds__row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .k-finds__row--on {
@@ -318,12 +336,44 @@
 }
 
 .k-finds__what {
+  display: grid;
+  gap: 6px;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .k-finds__row--on .k-finds__what {
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-medium);
+}
+
+/* The last row of a long list: the rest opens in place. */
+.k-finds__more {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: var(--s-8);
+  padding: 0 var(--s-3) 0 calc(var(--s-3) + 18px + var(--s-3));
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.k-finds__more:hover {
+  background: var(--ctl);
+}
+
+.k-finds__more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .k-finds__detail {
@@ -331,7 +381,7 @@
   display: grid;
   justify-items: start;
   gap: var(--s-1);
-  margin-top: var(--s-1);
+  margin-top: 6px;
   font-size: var(--fs-note);
   line-height: var(--lh-note);
   color: var(--ink-2);

@@ -129,37 +129,59 @@ export function Frames({ items, scale, selected, onPin }) {
   </div>`;
 }
 
-// `items`: [{ n, title, detail, code }]. One row is open at a time; rows are buttons; Up and Down move.
-export function Finds({ items, selected, onSelect }) {
+// `items`: [{ n, title, detail, code }]. One row is open at a time; rows are buttons in one Tab stop (the chosen row,
+// else the first); Up and Down move and choose. With `limit`, a longer list shows that many rows and a last row,
+// `more` (its words, the caller's: "Show all 7"), that opens the rest in place; a chosen row further down opens them.
+export function Finds({ items, selected, onSelect, limit, more }) {
   const list = Array.isArray(items) ? items.filter((it) => it && has(it.n)) : [];
+  const [all, setAll] = useState(false);
+  const root = useRef(null);
+  const cap = Number.isInteger(limit) && limit > 0 && list.length > limit + 1 ? limit : null;
+  const at = list.findIndex((it) => it.n === selected);
+  const open = all || !cap || at >= cap;
+  const shown = open ? list : list.slice(0, cap);
+  const stop = shown.some((it) => it.n === selected) ? selected : shown.length ? shown[0].n : null;
   const onKeyDown = (event) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     const rows = Array.from(event.currentTarget?.querySelectorAll?.(".k-finds__row") || []);
-    const at = rows.indexOf(globalThis.document?.activeElement);
-    if (at < 0) return;
+    const here = rows.indexOf(globalThis.document?.activeElement);
+    if (here < 0) return;
     event.preventDefault();
-    const next = (at + (event.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length;
+    const next = (here + (event.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length;
     rows[next].focus();
-    if (onSelect) onSelect(list[next].n);
+    if (onSelect && shown[next]) onSelect(shown[next].n);
   };
-  return html`<ol class="k-finds" onKeyDown=${onKeyDown}>
-    ${list.map((it) => {
-      const on = it.n === selected;
-      return html`<li key=${it.n}>
-        <button type="button" class=${cx("k-finds__row", on && "k-finds__row--on")} aria-pressed=${on ? "true" : "false"}
-          onClick=${() => onSelect && onSelect(it.n)}>
-          <${Pin} n=${it.n} on=${on} />
-          <span class="k-finds__what">${it.title}</span>
-          ${on && (has(it.detail) || has(it.code))
-            ? html`<span class="k-finds__detail">
-                ${has(it.detail) ? html`<span>${it.detail}</span>` : null}
-                ${has(it.code) ? html`<code class="k-finds__code">${it.code}</code>` : null}
-              </span>`
-            : null}
-        </button>
-      </li>`;
-    })}
-  </ol>`;
+  // "Show all": the rest opens in place and focus goes to the first row it opened.
+  const showAll = () => {
+    setAll(true);
+    setTimeout(() => {
+      const rows = root.current?.querySelectorAll?.(".k-finds__row");
+      if (rows && rows[cap] && typeof rows[cap].focus === "function") rows[cap].focus();
+    }, 0);
+  };
+  return html`<div class="k-finds__box" ref=${root}>
+    <ol class="k-finds" onKeyDown=${onKeyDown}>
+      ${shown.map((it) => {
+        const on = it.n === selected;
+        return html`<li key=${it.n}>
+          <button type="button" class=${cx("k-finds__row", on && "k-finds__row--on")} aria-pressed=${on ? "true" : "false"}
+            tabindex=${it.n === stop ? "0" : "-1"} onClick=${() => onSelect && onSelect(it.n)}>
+            <${Pin} n=${it.n} on=${on} />
+            <span class="k-finds__what">${it.title}</span>
+            ${on && (has(it.detail) || has(it.code))
+              ? html`<span class="k-finds__detail">
+                  ${has(it.detail) ? html`<span>${it.detail}</span>` : null}
+                  ${has(it.code) ? html`<code class="k-finds__code">${it.code}</code>` : null}
+                </span>`
+              : null}
+          </button>
+        </li>`;
+      })}
+    </ol>
+    ${open ? null : html`<button type="button" class="k-finds__more" onClick=${showAll}>
+      <span>${has(more) ? more : `Show all ${list.length}`}</span><${Icon} name="chevron-down" size=${14} />
+    </button>`}
+  </div>`;
 }
 
 // Two captioned 16:9 pictures. `items`: [{ src, alt, title, sub }].

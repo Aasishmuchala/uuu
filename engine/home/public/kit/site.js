@@ -66,7 +66,13 @@ export const SITE_WORDS = {
   notLoaded: "A picture of this page could not be loaded. Take pictures again, or open the preview.",
   taken: "Pictures taken",
   where: "by a hidden Chrome on this Mac. Nothing was sent anywhere.",
+  // T102: a long list of findings shows this many, then "Show all 7".
+  showAll: "Show all",
+  toLook: "to look at",
 };
+
+// How many findings the rail shows before "Show all".
+const FIRST_FINDS = 4;
 
 const POLL_MS = 4000;
 const PREVIEW_ADDRESS = /^http:\/\/127\.0\.0\.1:[0-9]{2,5}\/$/;
@@ -240,6 +246,15 @@ export function findsOf(site) {
   return out;
 }
 
+// A finding's line as it is shown: when the server's line ends in a bracketed measurement ("Hard to read: \"…\"
+// (#8A8278 on #FBFAF7, 3.63 to 1)"), the words before the bracket and the bracket's contents on a line of their own:
+// { line, measure }. A display split only: every word of the line is still shown. No bracket: { line, measure: "" }.
+export function findSplit(t) {
+  const s = text(t);
+  const m = /^(.*\S)\s+\(([^()]+)\)$/s.exec(s);
+  return m ? { line: m[1], measure: m[2] } : { line: s, measure: "" };
+}
+
 // The findings a frame of one page at one width names in its label, as pins with no place (the server sends no
 // positions yet, PLAN-COOK O8): [{ n }].
 export function pinsFor(finds, page, width) {
@@ -289,13 +304,16 @@ function PairFrame({ url, at, label, onOpen }) {
   </figure>`;
 }
 
-// The whole page opened larger in the kit's dialog, with a switch between the two widths when there are both.
-// `desktop` and `phone` are checked addresses or null; `open` is "desktop", "phone" or null.
-function Larger({ desktop, phone, open, onOpen, label }) {
+// The whole page opened larger in the kit's dialog, as a viewer over the whole window: the picture as wide as the
+// dialog, the whole page scrolling in it, and the switch between the two widths in the head beside the title.
+// `desktop` and `phone` are checked addresses or null; `open` is "desktop", "phone" or null; `sub` (optional) is the
+// muted line under the title, a function of the width shown.
+function Larger({ desktop, phone, open, onOpen, label, sub }) {
   const shown = open === "phone" ? phone : open === "desktop" ? desktop : null;
-  return html`<${Dialog} open=${Boolean(shown)} size="lg" onClose=${() => onOpen(null)}
+  return html`<${Dialog} open=${Boolean(shown)} size="full" onClose=${() => onOpen(null)}
     title=${`${label}: ${open === "phone" ? "phone, 390 px" : "desktop, 1280 px"}`}
-    footer=${desktop && phone ? html`<${Segmented} label="Which picture" size="sm" current=${open}
+    sub=${typeof sub === "function" ? sub(open) : undefined}
+    tools=${desktop && phone ? html`<${Segmented} label="Which picture" size="sm" current=${open}
       items=${[{ id: "desktop", label: SITE_WORDS.desktop }, { id: "phone", label: SITE_WORDS.phone }]} onChange=${onOpen} />` : null}>
     <figure class=${cx("k-site__large", open === "phone" && "k-site__large--phone")}>
       <img src=${shown} alt=${`${label}, the whole page at ${open === "phone" ? "phone" : "desktop"} width`} decoding="async" />
@@ -416,13 +434,24 @@ export function useSiteView({ id, stamp = "" } = {}) {
   };
 }
 
-// SiteStage({ view }): the bar, then the pictures of the chosen page at one scale, or the state of the pictures.
-export function SiteStage({ view }) {
+// SiteStage({ view, scores }): the bar, then the pictures of the chosen page at one scale, or the state of the
+// pictures. `scores` (optional) is SiteStrip's: the chosen version's score is said under the larger picture's title.
+export function SiteStage({ view, scores = null }) {
   if (!view || !view.site) return null;
-  return html`<${StageBody} key=${view.site.ref} view=${view} />`;
+  return html`<${StageBody} key=${view.site.ref} view=${view} scores=${scores} />`;
 }
 
-function StageBody({ view }) {
+// The line under the larger picture's title: the version's score as the Art director gave it, and what the page
+// viewer found at that width ("55 of 70 · Meets the bar · 4 things to look at").
+export function largerLine(review, finds, page, width) {
+  const sc = scoreLine(review);
+  const n = pinsFor(finds, page, width).length;
+  const parts = sc ? [sc.total, sc.state ? sc.state.text : ""] : [];
+  parts.push(n ? `${count(n, "thing")} ${SITE_WORDS.toLook}` : SITE_WORDS.fine);
+  return parts.filter(Boolean).join(" · ");
+}
+
+function StageBody({ view, scores }) {
   const { id, site, viewer, pages, page, schemes, scheme, finds, finding, pictures } = view;
   const [busy, setBusy] = useState("");
   const [failure, setFailure] = useState(null);
@@ -519,7 +548,8 @@ function StageBody({ view }) {
     ${left.length ? html`<div class="k-site__left" role="group" aria-label="Files left out of the site">
       <${Notice} tone="warn">${left.map((l, i) => html`<p key=${i}>${l}</p>`)}<//>
     </div>` : null}
-    <${Larger} desktop=${desk} phone=${phone} open=${open} onOpen=${setOpen} label=${looked} />
+    <${Larger} desktop=${desk} phone=${phone} open=${open} onOpen=${setOpen} label=${looked}
+      sub=${(at) => largerLine(obj(scores) ? scores[site.variant] || scores[site.ref] : null, finds, page, at === "phone" ? 390 : 1280)} />
   </div>`;
 }
 
@@ -567,10 +597,14 @@ export function SiteRail({ view }) {
     ${finds.length || fine || drawn.length
       ? html`<${Blk} title=${finds.length ? foundWords(finds.length, site) : SITE_WORDS.found}>
           ${finds.length
-            ? html`<${Finds} selected=${finding} onSelect=${view.setFinding} items=${finds.map((f) => ({
-                n: f.n,
-                title: html`<span class="k-site__find">${f.text}</span><span class="k-site__find-page">${pageWords(f.page)}${f.width ? `, at ${f.width} px` : ""}</span>`,
-              }))} />`
+            ? html`<${Finds} selected=${finding} onSelect=${view.setFinding} limit=${FIRST_FINDS} more=${`${SITE_WORDS.showAll} ${finds.length}`}
+                items=${finds.map((f) => {
+                  const said = findSplit(f.text);
+                  return {
+                    n: f.n,
+                    title: html`<span class="k-site__find">${said.line}</span>${said.measure ? html`<code class="k-site__find-measure">${said.measure}</code>` : null}<span class="k-site__find-page">${pageWords(f.page)}${f.width ? `, at ${f.width} px` : ""}</span>`,
+                  };
+                })} />`
             : fine ? html`<p class="k-site__fine"><${Icon} name="check" size=${16} /><span>${SITE_WORDS.nothing}</span></p>` : null}
           ${drawn.map((d) => html`<p key=${d} class="k-say k-site__drawn">${d}</p>`)}
         <//>`

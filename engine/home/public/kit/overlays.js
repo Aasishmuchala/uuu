@@ -60,40 +60,49 @@ function useFocusTrap(panelRef, onClose, firstClose = false) {
   };
 }
 
-function OverlayHead({ id, title, onClose, cls }) {
+// The head: the title (and, in a dialog, a muted line under it), controls beside the title (`tools`), then Close.
+function OverlayHead({ id, title, sub, tools, onClose, cls }) {
   return html`<div class=${`${cls}__head`}>
-    <h2 class=${`${cls}__title`} id=${id}>${title}</h2>
+    <div class=${`${cls}__titles`}>
+      <h2 class=${`${cls}__title`} id=${id}>${title}</h2>
+      ${sub ? html`<p class=${`${cls}__sub`}>${sub}</p>` : null}
+    </div>
+    ${tools ? html`<div class=${`${cls}__tools`}>${tools}</div>` : null}
     <${Button} variant="quiet" icon="cross" aria-label="Close" class=${`${cls}__close`} data-overlay-close onClick=${() => onClose && onClose()} />
   </div>`;
 }
 
-const SIZES = ["sm", "md", "lg"];
+// "full" is a viewer (a picture opened larger): the window less the 48 px of scrim on every side, over the page's
+// own ground, so nothing of the page reads round it.
+const SIZES = ["sm", "md", "lg", "full"];
 
-function DialogPanel({ title, onClose, size, footer, children }) {
+function DialogPanel({ title, sub, tools, onClose, size, footer, children }) {
   const ref = useRef(null);
   const [id] = useState(() => nextId("k-dialog"));
   const onKeyDown = useFocusTrap(ref, onClose);
-  return html`<div class="k-dialog">
+  const at = SIZES.includes(size) ? size : "md";
+  return html`<div class=${cx("k-dialog", at === "full" && "k-dialog--full")}>
     <div class="k-dialog__backdrop" aria-hidden="true" onClick=${() => onClose && onClose()}></div>
     <div
       ref=${ref}
-      class=${cx("k-dialog__panel", `k-dialog__panel--${SIZES.includes(size) ? size : "md"}`)}
+      class=${cx("k-dialog__panel", `k-dialog__panel--${at}`)}
       role="dialog"
       aria-modal="true"
       aria-labelledby=${id}
       tabindex="-1"
       onKeyDown=${onKeyDown}
     >
-      <${OverlayHead} id=${id} title=${title} onClose=${onClose} cls="k-dialog" />
+      <${OverlayHead} id=${id} title=${title} sub=${sub} tools=${tools} onClose=${onClose} cls="k-dialog" />
       <div class="k-dialog__body" data-overlay-body>${children}</div>
       ${footer ? html`<div class="k-dialog__foot">${footer}</div>` : null}
     </div>
   </div>`;
 }
 
-export function Dialog({ open, title, onClose, size = "md", footer, children }) {
+// `sub` (optional) is a muted line under the title; `tools` (optional) are controls in the head beside the title.
+export function Dialog({ open, title, sub, tools, onClose, size = "md", footer, children }) {
   if (!open) return null;
-  return html`<${DialogPanel} title=${title} onClose=${onClose} size=${size} footer=${footer}>${children}<//>`;
+  return html`<${DialogPanel} title=${title} sub=${sub} tools=${tools} onClose=${onClose} size=${size} footer=${footer}>${children}<//>`;
 }
 
 function DrawerPanel({ side, title, onClose, children }) {

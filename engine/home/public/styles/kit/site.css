@@ -67,6 +67,16 @@
   z-index: 5;
 }
 
+/* A phone frame shows the top of its page: where it is cut, a soft inner shadow line says the page goes on. */
+.k-site__stage .k-frame--phone .k-frame__page::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: var(--s-4);
+  box-shadow: inset 0 -10px 10px -10px color-mix(in srgb, var(--black) 35%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--black) 12%, transparent);
+  pointer-events: none;
+}
+
 /* A frame whose picture did not load takes the footprint's quiet look, not a blank page (the stage says why once). */
 .k-site__stage .k-frame__page:not(:has(img)) {
   background: var(--ctl);
@@ -225,18 +235,27 @@
   object-position: top;
 }
 
-/* ---- The rail: each finding names its page under it */
+/* ---- The rail: a finding reads as a sentence; its measurement (the bracket the server ends it with) on a line of
+   its own in the mono face (a code element: base.css), and the page it is on under both, quieter still. */
 .k-site__find {
   display: block;
 }
 
+.k-site__find-measure {
+  display: block;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-label);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
 .k-site__find-page {
   display: block;
-  margin-top: 2px;
-  font-size: var(--fs-note);
+  font-size: var(--fs-label);
   font-weight: var(--fw-regular);
-  line-height: var(--lh-note);
-  color: var(--ink-2);
+  line-height: var(--lh-label);
+  color: var(--ink-3);
 }
 
 .k-site__fine {
@@ -489,17 +508,22 @@ button.k-site__screen:focus-visible .k-site__zoom {
   font-variant-numeric: tabular-nums;
 }
 
-/* Opened larger (the stage's frames and ShotPair): the whole page, scrolled in the dialog. */
+/* Opened larger (the stage's frames and ShotPair): the whole page as wide as the viewer, on the stage's ground, and
+   scrolled in the dialog's body. */
 .k-site__large {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  margin: 0;
+  min-height: 100%;
+  margin: calc(-1 * var(--s-4)) calc(-1 * var(--s-6)) calc(-1 * var(--s-5));
+  padding: var(--s-6);
+  background: var(--stage);
 }
 
 .k-site__large img {
   display: block;
-  max-width: 100%;
+  width: 100%;
+  max-width: 1280px;
   height: auto;
   border-radius: var(--r-1);
   box-shadow: var(--paper-shadow);
@@ -507,6 +531,7 @@ button.k-site__screen:focus-visible .k-site__zoom {
 
 .k-site__large--phone img {
   width: 390px;
+  max-width: 100%;
 }
 
 /* ---- The job page's line for a page (pages/job.js) ---- */
@@ -585,6 +610,11 @@ button.k-site__screen:focus-visible .k-site__zoom {
 
   .k-site__pair .k-site__frame--phone .k-site__zoom {
     display: none;
+  }
+
+  .k-site__large {
+    margin: calc(-1 * var(--s-4));
+    padding: var(--s-4);
   }
 }
 

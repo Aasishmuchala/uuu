@@ -335,7 +335,7 @@ test("SiteView: the viewer off links to Settings; working says so; failed offers
 function Placed({ id, scores }) {
   const view = site.useSiteView({ id });
   return html`<div>
-    <div class="t-stage"><${site.SiteStage} view=${view} /></div>
+    <div class="t-stage"><${site.SiteStage} view=${view} scores=${scores} /></div>
     <div class="t-strip"><${site.SiteStrip} view=${view} scores=${scores} /></div>
     <div class="t-rail"><${site.SiteRail} view=${view} /></div>
   </div>`;
@@ -490,6 +490,63 @@ test("T96: a frame's button lies over the whole frame and carries its own 2 px a
     const desk = ofClass(root, "k-site__frame--desktop")[0];
     assert.deepEqual(ofClass(desk, "k-site__open").map((b) => b.localName), ["button"], "the harness's hook: .k-site__frame--desktop button");
     assert.equal(textOf(ofClass(desk, "k-site__word")[0]), "Desktop");
+  } finally {
+    f.restore();
+  }
+});
+
+// PLAN-COOK T102: a finding reads as a sentence; a long list ends on a whole row and "Show all"; the larger picture.
+test("T102: a report line ending in a bracketed measurement is shown as its sentence and the measurement apart, every word kept", () => {
+  assert.deepEqual(site.findSplit('Hard to read: "Three floors of glass and timber on the" (#8A8278 on #FBFAF7, 3.63 to 1)'),
+    { line: 'Hard to read: "Three floors of glass and timber on the"', measure: "#8A8278 on #FBFAF7, 3.63 to 1" });
+  assert.deepEqual(site.findSplit("Wider than the screen at 390 px: div.too.wide (700 px)"), { line: "Wider than the screen at 390 px: div.too.wide", measure: "700 px" });
+  assert.deepEqual(site.findSplit("2 links or buttons are smaller than 24 px"), { line: "2 links or buttons are smaller than 24 px", measure: "" });
+  assert.deepEqual(site.findSplit("<img src=x onerror=alert(1)> did not load"), { line: "<img src=x onerror=alert(1)> did not load", measure: "" }, "a bracket not at the end stays in the line");
+  assert.deepEqual(site.findSplit("(only a bracket)"), { line: "(only a bracket)", measure: "" });
+  for (const t of ['Hard to read: "x" (#8A8278 on #FBFAF7, 3.63 to 1)', "Wider than the screen at 390 px: div.too.wide (700 px)"]) {
+    const s = site.findSplit(t);
+    assert.equal(`${s.line} (${s.measure})`, t, "nothing of the server's line is lost");
+  }
+  assert.equal(site.largerLine({ total: 55, meets: true }, [{ n: 1, page: "index.html", width: null }, { n: 2, page: "index.html", width: 390 }], "index.html", 1280), "55 of 70 · Meets the bar · 1 thing to look at");
+  assert.equal(site.largerLine(null, [], "index.html", 390), "Nothing to fix");
+  assert.equal(site.SITE_WORDS.showAll, "Show all");
+});
+
+test("T102: the rail shows four findings and Show all 7, the measurement as a code line and the page under it; the larger picture's switch is in its head", async () => {
+  const lines = [
+    "2 links or buttons are smaller than 24 px",
+    'Hard to read: "Three floors of glass and timber on the" (#8A8278 on #FBFAF7, 3.63 to 1)',
+    'Hard to read: "The north front at dusk, from the jetty." (#8A8278 on #FBFAF7, 3.63 to 1)',
+    'Hard to read: "Morning, from the east shore." (#8A8278 on #FBFAF7, 3.63 to 1)',
+    "1 link or button is smaller than 24 px",
+    'Hard to read: "We draw houses for one" (#8A8278 on #FBFAF7, 3.63 to 1)',
+    "The page has no title",
+  ];
+  const seven = { ...READY, shots: { ...READY.shots, report: [{ page: "index.html", lines }] } };
+  const f = stubFetch(() => ({ status: 200, body: answer([seven]) }));
+  try {
+    const root = await showTree(Placed, { id: "STH-2", scores: { a: { total: 55, meets: true } } });
+    const rail = part(root, "t-rail");
+    const rows = ofClass(rail, "k-finds__row");
+    assert.equal(rows.length, 4, "four findings");
+    const more = ofClass(rail, "k-finds__more")[0];
+    assert.equal(textOf(more), "Show all 7");
+    assert.equal(textOf(ofClass(rows[1], "k-site__find")[0]), 'Hard to read: "Three floors of glass and timber on the"');
+    const code = ofClass(rows[1], "k-site__find-measure")[0];
+    assert.equal(code.localName, "code");
+    assert.equal(textOf(code), "#8A8278 on #FBFAF7, 3.63 to 1");
+    assert.equal(textOf(ofClass(rows[1], "k-site__find-page")[0]), "Home page");
+    assert.equal(ofClass(rows[0], "k-site__find-measure").length, 0, "no bracket, no measurement line");
+    fire(more, "click");
+    await settle();
+    assert.equal(ofClass(part(root, "t-rail"), "k-finds__row").length, 7, "the rest opens in place");
+    fire(ofClass(root, "k-site__open")[0], "click");
+    await settle();
+    const head = ofClass(root, "k-dialog__head")[0];
+    assert.match(textOf(head), /^Version A: <b>Editorial<\/b>, Home page: desktop, 1280 px/);
+    assert.equal(ofClass(head, "k-dialog__tools").length, 1, "the switch is in the head");
+    assert.equal(ofClass(root, "k-dialog__foot").length, 0, "no foot under the picture");
+    assert.equal(textOf(ofClass(head, "k-dialog__sub")[0]), "55 of 70 · Meets the bar · 7 things to look at", "the version's score and what was found at this width");
   } finally {
     f.restore();
   }

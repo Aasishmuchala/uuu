@@ -71,7 +71,8 @@
   white-space: nowrap;
 }
 
-/* Dialog */
+/* Dialog: centred in the window with at least 48 px of scrim on every side; a 1 px border, the float shadow and a
+   12 px corner; a title line with a muted line under it; the body scrolls inside the dialog. */
 .k-dialog,
 .k-drawer {
   position: fixed;
@@ -81,9 +82,9 @@
 }
 
 .k-dialog {
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 12vh var(--s-4) var(--s-4);
+  padding: var(--s-12);
 }
 
 .k-dialog__backdrop,
@@ -92,6 +93,19 @@
   inset: 0;
   background: var(--scrim);
   animation: k-overlay-fade var(--t-med) var(--ease);
+}
+
+/* A viewer (size "full") lies over the page's own ground under the scrim, so no half words of the page read round
+   it: the 48 px all round are one calm, even dim. */
+.k-dialog--full .k-dialog__backdrop {
+  background: var(--bg);
+}
+
+.k-dialog--full .k-dialog__backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
 }
 
 .k-dialog__panel,
@@ -107,7 +121,9 @@
 
 .k-dialog__panel {
   width: 100%;
-  max-height: 80vh;
+  max-height: 100%;
+  min-height: 0;
+  border: 1px solid var(--line-2);
   border-radius: var(--r-3);
   animation: k-overlay-in var(--t-med) var(--ease);
 }
@@ -115,6 +131,7 @@
 .k-dialog__panel--sm { max-width: calc(var(--s-12) * 8); }
 .k-dialog__panel--md { max-width: calc(var(--s-12) * 11); }
 .k-dialog__panel--lg { max-width: calc(var(--s-12) * 16); }
+.k-dialog__panel--full { max-width: none; height: 100%; }
 
 .k-dialog__panel:focus,
 .k-drawer__panel:focus {
@@ -130,13 +147,67 @@
   padding: var(--s-4) var(--s-3) var(--s-2) var(--s-6);
 }
 
-.k-dialog__title,
+.k-dialog__head {
+  flex: none;
+  flex-wrap: wrap;
+  padding: var(--s-4) var(--s-4) var(--s-4) var(--s-6);
+  border-bottom: 1px solid var(--line);
+}
+
+.k-dialog__titles,
+.k-drawer__titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .k-drawer__title {
   min-width: 0;
   font-size: var(--fs-section);
   font-weight: var(--fw-bold);
   line-height: var(--lh-section);
   overflow-wrap: anywhere;
+}
+
+.k-dialog__title {
+  min-width: 0;
+  font-size: var(--fs-fact);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-fact);
+  overflow-wrap: anywhere;
+}
+
+.k-dialog__sub {
+  margin: 2px 0 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.k-dialog__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+}
+
+/* Close: a 32 px target with a quiet fill, so it reads as a control and not a stray glyph. */
+.k-dialog__close.k-btn {
+  flex: none;
+  align-self: flex-start;
+  width: var(--s-8);
+  height: var(--s-8);
+  min-height: var(--s-8);
+  padding: 0;
+  border-radius: var(--r-2);
+  background: var(--ctl);
+  color: var(--ink-2);
+}
+
+.k-dialog__close.k-btn:hover {
+  background: var(--raise);
+  color: var(--ink);
 }
 
 .k-dialog__body,
@@ -147,7 +218,12 @@
   padding: var(--s-2) var(--s-6) var(--s-5);
 }
 
+.k-dialog__body {
+  padding: var(--s-4) var(--s-6) var(--s-5);
+}
+
 .k-dialog__foot {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -226,13 +302,42 @@
 @media (max-width: 859px) {
   .k-dialog {
     align-items: flex-end;
-    padding: 0;
+    padding: var(--s-12) 0 0;
   }
 
   .k-dialog__panel {
     max-width: none;
-    max-height: 92vh;
+    max-height: 100%;
+    border-width: 1px 0 0;
     border-radius: var(--r-3) var(--r-3) 0 0;
+  }
+
+  /* The title and Close on the first row; the head's controls under them, across. */
+  .k-dialog__head {
+    padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4);
+  }
+
+  .k-dialog__titles {
+    flex: 1 1 0;
+  }
+
+  .k-dialog__tools {
+    order: 1;
+    flex: 1 1 100%;
+  }
+
+  .k-dialog__body {
+    padding: var(--s-4);
+  }
+
+  .k-dialog__foot {
+    padding: var(--s-3) var(--s-4);
+  }
+
+  .k-dialog__close.k-btn {
+    width: calc(var(--h-lg) + var(--s-1));
+    height: calc(var(--h-lg) + var(--s-1));
+    min-height: calc(var(--h-lg) + var(--s-1));
   }
 
   .k-menu__item {

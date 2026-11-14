@@ -21,10 +21,11 @@ test("overlays: overlays carry the float shadow", () => {
   assert.match(overlays, /var\(--float\)/, "overlays carry the float shadow");
 });
 
-test("overlays: a dialog has the 12 px corner, a 16 px title and its primary last; a menu has the 8 px corner and 32 px rows; the drawer is a 380 px sheet", () => {
+test("overlays: a dialog has the 12 px corner, a 15 px title and its primary last; a drawer's title is 16 px; a menu has the 8 px corner and 32 px rows; the drawer is a 380 px sheet", () => {
   const o = css("kit/overlays.css");
   assert.match(o, /\.k-dialog__panel \{[^}]*border-radius: var\(--r-3\);/);
-  assert.match(o, /\.k-dialog__title,\s*\.k-drawer__title \{[^}]*font-size: var\(--fs-section\);[^}]*font-weight: var\(--fw-bold\);/);
+  assert.match(o, /\.k-dialog__title \{[^}]*font-size: var\(--fs-fact\);[^}]*font-weight: var\(--fw-bold\);/, "the dialog's title line is 15 px, 600");
+  assert.match(o, /\.k-drawer__title \{[^}]*font-size: var\(--fs-section\);[^}]*font-weight: var\(--fw-bold\);/);
   assert.match(o, /\.k-dialog__foot \{[^}]*justify-content: flex-end;/, "the actions at the right of the foot");
   assert.match(o, /\.k-dialog__foot \.k-btn--primary,\s*\.k-dialog__foot \.k-btn--accept \{\s*order: 1;/, "the primary goes last");
   assert.match(o, /\.k-menu__list \{[^}]*border-radius: var\(--r-2\);[^}]*box-shadow: var\(--float\);/);
@@ -67,4 +68,45 @@ test("Menu: a current item is a menuitemradio, checked; focus starts on it, else
   } finally {
     FakeElement.prototype.querySelectorAll = was;
   }
+});
+
+// PLAN-COOK T102: the kit's Dialog for every caller.
+test("T102: a dialog is centred with 48 px of scrim on every side, a 1 px border, the float shadow, a muted second line, a 32 px close and a body that scrolls inside it", () => {
+  const o = css("kit/overlays.css");
+  assert.match(o, /\.k-dialog \{\s*align-items: center;\s*justify-content: center;\s*padding: var\(--s-12\);/, "centred, 48 px all round");
+  assert.match(o, /\.k-dialog__backdrop,\s*\.k-drawer__backdrop \{[^}]*background: var\(--scrim\);/, "the scrim token");
+  assert.match(o, /\.k-dialog__panel \{[^}]*max-height: 100%;[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-3\);/);
+  assert.match(o, /\.k-dialog__panel,\s*\.k-drawer__panel \{[^}]*box-shadow: var\(--float\);/);
+  assert.match(o, /\.k-dialog__sub \{[^}]*color: var\(--ink-2\);/, "the second line is muted");
+  assert.match(o, /\.k-dialog__close\.k-btn \{[^}]*width: var\(--s-8\);[^}]*height: var\(--s-8\);/, "a 32 px target");
+  assert.match(o, /\.k-dialog__body,\s*\.k-drawer__body \{[^}]*min-height: 0;[^}]*overflow-y: auto;/, "the body scrolls inside");
+  assert.match(o, /\.k-dialog--full \.k-dialog__backdrop \{\s*background: var\(--bg\);/, "a viewer hides the page under the scrim");
+  assert.match(o, /\.k-dialog--full \.k-dialog__backdrop::after \{[^}]*background: var\(--scrim\);/);
+});
+
+test("T102: Dialog draws its title, the muted line and the head's controls before Close; the foot and the body as before; an unknown size is md", async () => {
+  const { Dialog } = await import(pathToFileURL(join(KIT, "overlays.js")).href);
+  installDom();
+  const root = new FakeElement("div");
+  document.body.appendChild(root);
+  render(html`<${Dialog} open=${true} title="Opened larger" sub="55 of 70" size="full" onClose=${() => {}}
+    tools=${html`<button type="button" class="t-switch">Phone</button>`} footer=${html`<button type="button">Keep</button>`}>
+    <p>Body</p>
+  <//>`, root);
+  await settle();
+  const head = elements(root).find((e) => e.getAttribute("class") === "k-dialog__head");
+  assert.deepEqual(elements(head).filter((e) => e.localName === "h2" || e.localName === "p" || e.localName === "button").map((e) => textOf(e) || e.getAttribute("aria-label")),
+    ["Opened larger", "55 of 70", "Phone", "Close"], "title, muted line, the switch, then Close");
+  assert.ok(elements(root).some((e) => e.getAttribute("class") === "k-dialog k-dialog--full"));
+  assert.ok(elements(root).some((e) => e.getAttribute("class") === "k-dialog__panel k-dialog__panel--full"));
+  assert.equal(textOf(elements(root).find((e) => e.getAttribute("class") === "k-dialog__foot")), "Keep");
+  const panel = elements(root).find((e) => e.getAttribute("role") === "dialog");
+  assert.equal(panel.getAttribute("aria-labelledby"), elements(head).find((e) => e.localName === "h2").getAttribute("id"));
+  render(null, root);
+  const odd = new FakeElement("div");
+  render(html`<${Dialog} open=${true} title="Plain" size="huge" onClose=${() => {}}>x<//>`, odd);
+  await settle();
+  assert.ok(elements(odd).some((e) => e.getAttribute("class") === "k-dialog__panel k-dialog__panel--md"));
+  assert.ok(!elements(odd).some((e) => e.getAttribute("class") === "k-dialog__sub"), "no sub, no line");
+  render(null, odd);
 });

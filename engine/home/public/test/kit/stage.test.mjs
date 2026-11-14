@@ -136,12 +136,12 @@ test("T97: a verdict in one line: the word in its tone, then the grey by words a
   assert.match(sheet, /\.k-verdict--inline\.k-verdict--warn \.k-verdict__title,[^{]*\{ color: var\(--warn\); \}/, "the word in its tone");
 });
 
-test("stage.css: pins in the gutter, a stage panel around the frames, no blur, and the phone frame alone below 860 px", () => {
+test("stage.css: pins in the gutter as tinted 18 px discs, a stage panel around the frames, no blur, and the phone frame alone below 860 px", () => {
   const sheet = css("kit/stage.css");
   assert.doesNotMatch(sheet, /backdrop-filter/);
   assert.match(sheet, /\.k-frames \{[^}]*padding: var\(--s-6\);[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--r-2\);[^}]*background: var\(--panel\);[^}]*box-shadow: var\(--shadow-card\)/, "the stage panel: a 1 px edge, an 8 px corner and the card shadow");
   assert.match(sheet, /\.k-frame__pin--left \{\s*left: -22px;/);
-  assert.match(sheet, /\.k-pin \{[^}]*width: 20px;[^}]*background: var\(--pin\);[^}]*color: var\(--pin-ink\)/);
+  assert.match(sheet, /\.k-pin \{[^}]*width: 18px;[^}]*background: color-mix\(in srgb, var\(--warn\) 20%, transparent\);[^}]*color: var\(--warn\);/, "an 18 px disc on a 20 percent amber tint, amber numerals");
   assert.match(sheet, /\.k-shot__frame \{[^}]*aspect-ratio: 16 \/ 9;[^}]*background: var\(--black\)/);
   assert.match(sheet, /@media \(max-width: 859px\)[\s\S]*\.k-frames__cell--desk:not\(:only-child\) \{\s*display: none;/);
 });
@@ -160,6 +160,33 @@ test("T96: a shot is bounded by the stage's real height, not a raw allowance; fr
   const fixed = await mount(mod.Frames, { scale: 0.5, items: [{ width: 1280 }] });
   assert.ok(!(byClass(fixed, "k-frames")[0].getAttribute("style") || ""), "a fixed scale is not bounded by height");
   unmount(fixed);
+});
+
+test("T102: Finds with a limit shows that many rows and a Show all row that opens the rest in place; the rows are one Tab stop", async () => {
+  installDom();
+  const items = [1, 2, 3, 4, 5, 6, 7].map((n) => ({ n, title: `Finding ${n}` }));
+  let root = await mount(Finds, { items, limit: 4, more: "Show all 7" });
+  let rows = byClass(root, "k-finds__row");
+  assert.equal(rows.length, 4, "four rows");
+  assert.deepEqual(rows.map((r) => r.getAttribute("tabindex")), ["0", "-1", "-1", "-1"], "one stop: the first row");
+  const [more] = byClass(root, "k-finds__more");
+  assert.equal(more.localName, "button");
+  assert.equal(textOf(more), "Show all 7");
+  fire(more, "click");
+  await new Promise((r) => setTimeout(r, 150));
+  rows = byClass(root, "k-finds__row");
+  assert.equal(rows.length, 7, "the rest opened in place");
+  assert.equal(byClass(root, "k-finds__more").length, 0);
+  unmount(root);
+  root = await mount(Finds, { items, limit: 4, selected: 6 });
+  rows = byClass(root, "k-finds__row");
+  assert.equal(rows.length, 7, "a chosen row further down opens the list");
+  assert.deepEqual(rows.map((r) => r.getAttribute("tabindex")).indexOf("0"), 5, "the stop is the chosen row");
+  unmount(root);
+  root = await mount(Finds, { items: items.slice(0, 5), limit: 4 });
+  assert.equal(byClass(root, "k-finds__row").length, 5, "one more than the limit is shown, never Show all 1");
+  assert.equal(byClass(root, "k-finds__more").length, 0);
+  unmount(root);
 });
 
 ROOTS.stage = "k-shot";
