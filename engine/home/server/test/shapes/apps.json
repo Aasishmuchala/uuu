@@ -1,0 +1,34 @@
+{
+  "host": { "state": "on", "sentence": "App Studio is on." },
+  "apps": [
+    {
+      "slug": "render-to-film",
+      "name": "Render to Film",
+      "about": "Turn a render into cinematic stills, clips and a finished film.",
+      "icon": "/api/apps/render-to-film/icon",
+      "state": "on",
+      "sentence": "On",
+      "on": true,
+      "port": 3171,
+      "spending": {
+        "open": true,
+        "budget": 500,
+        "spent": 120,
+        "left": 380,
+        "expiresAt": "2026-11-14T18:30:00.000Z",
+        "words": "Allowed today: $5.00. Spent: $1.20.",
+        "limitLeft": 2880,
+        "limitWords": "What is left of today's limit: $28.80."
+      },
+      "ready": { "runway": true, "higgsfield": false },
+      "thinks": {
+        "model": "claude-opus-5-5",
+        "name": "Claude Opus 5.5",
+        "choices": [{ "id": "claude-opus-5-5", "name": "Claude Opus 5.5" }]
+      }
+    }
+  ],
+  "sites": [],
+  "problem": null,
+  "problemSentence": null
+}

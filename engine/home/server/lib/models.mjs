@@ -163,18 +163,25 @@ function ranking(config) {
   return loadRanking(join(config.engineDir, "company", "models.json"));
 }
 
-// Overrides whose id left the list are dropped; the picks are computed again (C7).
+// An app's pick (PLAN-V5 K19, T78): `app-<slug>`, the subject of the app's tokens, written only by App Studio's
+// routes (lib/apps.mjs). It is no agent's, so the ranking never makes or drops one.
+export const APP_PICK_RE = /^app-[a-z0-9][a-z0-9-]{0,23}$/;
+const appPicksOf = (picks, agents) => Object.fromEntries(Object.entries(picks)
+  .filter(([slug]) => APP_PICK_RE.test(slug) && !agents.some((a) => a.slug === slug)));
+
+// Overrides whose id left the list are dropped; the picks are computed again (C7). Every app's pick is kept as it is.
 export function recompute(config, state, agents) {
   const ids = state.catalogue.models.map((m) => m.id);
   const have = new Set(ids);
   for (const slug of Object.keys(state.overrides)) if (!have.has(state.overrides[slug])) delete state.overrides[slug];
   const r = pickModels({ ranking: ranking(config), agents, catalogue: ids, overrides: state.overrides });
-  state.picks = r.picks;
+  state.picks = { ...r.picks, ...appPicksOf(state.picks, agents) };
   return r;
 }
 
 // Saves a ranked pick for each agent that has none, from the list already saved; changes nothing when every
 // agent has one, when no list was ever read, or when the state or company file cannot be read. Never throws.
+// Only agents' picks are added: every app's pick is kept as it is.
 export function fillNewPicks(config) {
   try {
     const { state, problem } = readState(config);

@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readManifests } from "../../../apps/manifest.mjs";
 import { closeFinishedBatches } from "./batches.mjs";
 import { createBoard } from "./board.mjs";
 import { createBench } from "./bench.mjs";
@@ -37,6 +38,18 @@ function sizeWords(bytes) {
   return `${bytes} bytes`;
 }
 
+// The home page's content policy (PLAN-V5 K17, T78): the core's, and when App Studio has apps, `frame-src` naming
+// each good manifest's own address (127.0.0.1 and localhost) and nothing else, so the home screen may frame its apps
+// and no other page. Worked out once at start; a manifest added later is framed after the next start.
+export function contentPolicy(config) {
+  let ports = [];
+  try {
+    ports = [...new Set(readManifests(config).filter((e) => e.ok).map((e) => e.app.port))].sort((a, b) => a - b);
+  } catch { ports = []; }
+  if (!ports.length) return CSP;
+  return `${CSP}; frame-src ${ports.map((p) => `http://127.0.0.1:${p} http://localhost:${p}`).join(" ")}`;
+}
+
 function defaultLog(line) {
   process.stdout.write(`${new Date().toISOString()} ${line}\n`);
 }
@@ -58,6 +71,7 @@ export async function createHome(options) {
   const urls = { ...config.urls, ...(options.urls || {}) };
   const publicDir = options.publicDir || join(config.engineDir, "home", "public");
   const ids = () => readIds(config.paths.ids);
+  const htmlPolicy = contentPolicy(config);
   let listenPort = null;
 
   const board = createBoard({ baseUrl: urls.board, ids, companyName: config.paperclip.companyName, log });
@@ -195,11 +209,11 @@ export async function createHome(options) {
       const found = await resolveStatic(publicDir, pathname);
       const isHtml = (t) => t.startsWith("text/html");
       if (found) {
-        return streamFile(res, found, isHtml(found.type) ? { ...BASE_HEADERS, "content-security-policy": CSP } : BASE_HEADERS, method === "HEAD");
+        return streamFile(res, found, isHtml(found.type) ? { ...BASE_HEADERS, "content-security-policy": htmlPolicy } : BASE_HEADERS, method === "HEAD");
       }
       if (pathname === "/" || pathname === "/index.html") {
         const body = Buffer.from(PLACEHOLDER_HTML);
-        res.writeHead(200, { ...BASE_HEADERS, "content-security-policy": CSP, "content-type": "text/html; charset=utf-8", "content-length": body.length });
+        res.writeHead(200, { ...BASE_HEADERS, "content-security-policy": htmlPolicy, "content-type": "text/html; charset=utf-8", "content-length": body.length });
         return res.end(method === "HEAD" ? undefined : body);
       }
       return sendError(res, notFound());

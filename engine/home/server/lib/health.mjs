@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { closeSync, constants as fsConstants, existsSync, fstatSync, lstatSync, openSync, readFileSync, readSync } from "node:fs";
 import http from "node:http";
 import { join } from "node:path";
+import { readManifests } from "../../../apps/manifest.mjs";
 import { readDoorsState } from "../../../doors/common.mjs";
 import { readModelState } from "../../../relay/state.mjs";
 import { httpRequest, parseJson } from "./httpclient.mjs";
@@ -64,7 +65,7 @@ export async function relayState(env) {
 
 const DOORS = [
   { id: "web", name: "Web door", the: "The web door", path: "/web/health", part: "web", folder: "web", who: "Only the Researcher can reach it." },
-  { id: "generate", name: "Generation door", the: "The generation door", path: "/gen/health", part: "generate", folder: "generate", who: "Only the Artist can reach it." },
+  { id: "generate", name: "Generation door", the: "The generation door", path: "/gen/health", part: "generate", folder: "generate", who: "Only the Artist and your apps can reach it." },
   { id: "viewer", name: "Page viewer", the: "The page viewer", path: "/view/health", part: "viewer", folder: "viewer", who: "Only the Builder and the Art director can reach it." },
 ];
 
@@ -135,6 +136,82 @@ export function doorStates(env) {
   const path = env.config?.paths?.doorsState;
   const switches = typeof path === "string" ? readDoorsState(path) : { ok: false };
   return Promise.all(DOORS.map((d) => doorState(env, d, switches)));
+}
+
+// ---- App Studio (PLAN-V5 K17, T78) --------------------------------------------------------------------------------
+
+const APP_STATES = new Set(["off", "starting", "on", "failed", "not_installed", "damaged"]);
+const APP_SLUG = /^[a-z0-9][a-z0-9-]{0,23}$/;
+const STATUS_MAX = 256 * 1024;
+
+// The names of a list of apps as the owner reads them: "A", "A and B", "A, B and C".
+function nameList(names) {
+  return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+// Why each failed app stopped, from the host's status file (read without following a link, capped): Map(slug -> why).
+function failedWhys(path) {
+  const out = new Map();
+  if (typeof path !== "string") return out;
+  let fd;
+  try { fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK); } catch { return out; }
+  let text = null;
+  try {
+    const st = fstatSync(fd);
+    if (st.isFile() && st.uid === process.getuid() && (st.mode & 0o022) === 0 && st.size <= STATUS_MAX) {
+      const buf = Buffer.alloc(st.size);
+      let at = 0;
+      while (at < st.size) { const n = readSync(fd, buf, at, st.size - at, null); if (n === 0) break; at += n; }
+      text = buf.subarray(0, at).toString("utf8");
+    }
+  } catch { text = null; } finally { closeSync(fd); }
+  const data = parseJson(text);
+  for (const a of data && Array.isArray(data.apps) ? data.apps.slice(0, 100) : []) {
+    if (a && typeof a.slug === "string" && APP_SLUG.test(a.slug) && a.state === "failed" && typeof a.why === "string") out.set(a.slug, a.why);
+  }
+  return out;
+}
+
+// appsState(env) -> App Studio's Health line (K17): the host's own state from its health address (a null address is
+// "off" with nothing called), and while it is on, which apps are open, starting or stopped, by their names.
+export async function appsState(env) {
+  const base = env.urls?.apps || null;
+  const technical = `app studio host on ${base || "(none in stubs mode)"}`;
+  const off = { id: "apps", name: "App Studio", state: "off", sentence: "App Studio is off. Run: engine start", technical };
+  if (!base) return off;
+  const r = await probeDoor(`${base}/apps/health`);
+  if (r.offline) {
+    if (!doorInstalled(env, "apps")) return { ...off, state: "not_installed", sentence: "App Studio is not installed yet." };
+    return off;
+  }
+  const j = r.json && typeof r.json === "object" ? r.json : null;
+  if (r.status !== 200 || !j || j.part !== "apps" || !Array.isArray(j.apps)) {
+    return { id: "apps", name: "App Studio", state: "unhealthy", sentence: "App Studio answers but its check fails. Restart the engine: engine stop, then engine start.", technical: `${technical}; /apps/health answered ${r.status}` };
+  }
+  let names = new Map();
+  try {
+    names = new Map(readManifests(env.config).filter((e) => e.ok).map((e) => [e.app.slug, e.app.name]));
+  } catch { names = new Map(); }
+  const by = { on: [], starting: [], failed: [] };
+  const failedSlugs = [];
+  for (const a of j.apps.slice(0, 100)) {
+    if (!a || typeof a.slug !== "string" || !names.has(a.slug) || !APP_STATES.has(a.state) || !by[a.state]) continue;
+    by[a.state].push(names.get(a.slug));
+    if (a.state === "failed") failedSlugs.push(a.slug);
+  }
+  const parts = [];
+  if (by.on.length) parts.push(`Open: ${nameList(by.on)}.`);
+  if (by.starting.length) parts.push(`Starting: ${nameList(by.starting)}.`);
+  if (failedSlugs.length) {
+    const whys = failedWhys(env.config?.paths?.appsStatus);
+    const exits = failedSlugs.filter((s) => whys.get(s) === "exits").map((s) => names.get(s));
+    const other = failedSlugs.filter((s) => whys.get(s) !== "exits").map((s) => names.get(s));
+    const it = (list) => (list.length === 1 ? "it" : "each");
+    if (exits.length) parts.push(`${nameList(exits)} stopped three times; switch ${it(exits)} off and on in App Studio.`);
+    if (other.length) parts.push(`${nameList(other)} could not start; switch ${it(other)} off and on in App Studio.`);
+  }
+  if (!parts.length) parts.push("No app is switched on.");
+  return { id: "apps", name: "App Studio", state: "on", sentence: `App Studio is on. ${parts.join(" ")}`, technical };
 }
 
 // How many playbooks the installer put in place, from `<state>/playbooks/index.json` (read without following a

@@ -6,6 +6,7 @@ import http from "node:http";
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { contentPolicy } from "../lib/app.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
 import { call, writes } from "../lib/testing.mjs";
 
@@ -78,7 +79,9 @@ test("no CORS headers, and the safety headers on every answer", async () => {
     assert.ok(!Object.keys(r.headers).some((k) => k.startsWith("access-control-")), p);
   }
   const html = await call(h.url, "GET", "/");
-  assert.equal(html.headers["content-security-policy"], "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:");
+  // The core's policy, and App Studio's apps' own addresses in frame-src when this checkout has any (core.test.mjs).
+  assert.equal(html.headers["content-security-policy"], contentPolicy(h.config));
+  assert.ok(html.headers["content-security-policy"].startsWith("default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"));
 });
 
 test("static files: served from the public folder, no escapes", async () => {

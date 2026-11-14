@@ -1,5 +1,5 @@
 // Health (CONTRACTS 9.9): parts, fence, not connected, disk, the proof runner, /api/state; the three doors and the
-// playbooks (PLAN-V5 K12).
+// playbooks (PLAN-V5 K12); App Studio (K17, T78).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
@@ -11,7 +11,7 @@ import { createRelay } from "../../../relay/relay.mjs";
 import { startInternet } from "../../../test/stubs/internet.mjs";
 import { createWebDoor } from "../../../web/door.mjs";
 import { SERVER_DIR } from "../lib/app.mjs";
-import { doorStates, playbooksState } from "../lib/health.mjs";
+import { appsState, doorStates, playbooksState } from "../lib/health.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
 import { call } from "../lib/testing.mjs";
 
@@ -43,7 +43,7 @@ test("parts, fence, not connected and disk", async () => {
     const r = await call(h.url, "GET", "/api/health");
     assert.equal(r.status, 200);
     const d = r.json;
-    assert.deepEqual(d.parts.map((p) => p.id), ["books", "board", "gate", "relay", "web", "generate", "viewer", "playbooks", "home"]);
+    assert.deepEqual(d.parts.map((p) => p.id), ["books", "board", "gate", "relay", "web", "generate", "viewer", "apps", "playbooks", "home"]);
     const by = Object.fromEntries(d.parts.map((p) => [p.id, p]));
     assert.equal(by.books.state, "on");
     assert.equal(by.board.state, "on");
@@ -57,10 +57,11 @@ test("parts, fence, not connected and disk", async () => {
     assert.equal(by.web.sentence, "The web door is off. Run: engine start");
     assert.equal(by.generate.sentence, "The generation door is off. Run: engine start");
     assert.equal(by.viewer.sentence, "The page viewer is off. Run: engine start");
-    for (const id of ["web", "generate", "viewer"]) {
+    for (const id of ["web", "generate", "viewer", "apps"]) {
       assert.equal(by[id].state, "off");
       assert.match(by[id].technical, /none in stubs mode/);
     }
+    assert.deepEqual([by.apps.name, by.apps.sentence], ["App Studio", "App Studio is off. Run: engine start"]);
     assert.equal(by.playbooks.state, "not_installed");
     assert.equal(by.playbooks.sentence, "Playbooks are not in place. Run: engine/playbooks/install.sh");
     assert.equal(by.home.state, "on");
@@ -222,7 +223,7 @@ test("the three doors: idle while their switch is off, who may reach them when o
       writeSwitches(h.config, JSON.stringify({ version: 1, web: { on: true }, generate: { on: true }, viewer: { on: true } }));
       by = await parts();
       assert.equal(by.web.sentence, "The web door is on. Only the Researcher can reach it.");
-      assert.equal(by.generate.sentence, "The generation door is on. Only the Artist can reach it.");
+      assert.equal(by.generate.sentence, "The generation door is on. Only the Artist and your apps can reach it.");
       assert.equal(by.viewer.sentence, "The page viewer is on. Only the Builder and the Art director can reach it.");
 
       writeSwitches(h.config, JSON.stringify({ version: 1, web: { on: true } }), 0o666);
@@ -267,6 +268,80 @@ test("a door that does not answer: not installed until its READY marker exists, 
     [web] = await doorStates(env);
     assert.deepEqual([web.state, web.sentence], ["off", "The web door is off. Run: engine start"]);
   } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// App Studio's line (K17): its host's own health, the apps by their names from their manifests.
+function appsFolder(root) {
+  const dir = join(root, "apps");
+  const put = (slug, name, port) => {
+    mkdirSync(join(dir, slug), { recursive: true });
+    writeFileSync(join(dir, slug, "app.json"), JSON.stringify({
+      version: 1, slug, name, about: "An app.", port, entry: ".build/index.mjs", client: "dist", engine: [], tools: [], icon: "icon.svg", memoryMb: 512,
+    }), { mode: 0o644 });
+    writeFileSync(join(dir, slug, "icon.svg"), "<svg/>", { mode: 0o644 });
+  };
+  put("render-to-film", "Render to Film", 3171);
+  put("cut", "Quick Cut", 3172);
+  put("grade", "Grader", 3173);
+  return dir;
+}
+
+test("App Studio's line in each state: off, not installed, not answering, on with apps open, none on, stopped", async () => {
+  const root = mkdtempSync(join(tmpdir(), "uuu-health-apps-"));
+  let answer = { status: "ok", part: "apps", apps: [] };
+  const seen = [];
+  const host = http.createServer((req, res) => {
+    seen.push({ url: req.url, host: req.headers.host });
+    if (answer === null) { res.writeHead(500); res.end(); return; }
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify(answer));
+  });
+  await new Promise((r) => host.listen(0, "127.0.0.1", r));
+  const url = `http://127.0.0.1:${host.address().port}`;
+  try {
+    const statusPath = join(root, "host-status.json");
+    const env = { config: { engineDir: root, paths: { appsCode: appsFolder(root), appsStatus: statusPath } }, urls: { apps: null } };
+    let p = await appsState(env);
+    assert.deepEqual([p.id, p.name, p.state, p.sentence, p.technical], ["apps", "App Studio", "off", "App Studio is off. Run: engine start", "app studio host on (none in stubs mode)"]);
+
+    const free = http.createServer();
+    await new Promise((r) => free.listen(0, "127.0.0.1", r));
+    env.urls.apps = `http://127.0.0.1:${free.address().port}`;
+    await new Promise((r) => free.close(r));
+    p = await appsState(env);
+    assert.deepEqual([p.state, p.sentence], ["not_installed", "App Studio is not installed yet."]);
+    // engine/apps/READY (here the made-up engine folder is also the apps' folder; READY is no app's name).
+    writeFileSync(join(root, "apps", "READY"), "2026-11-14\n");
+    p = await appsState(env);
+    assert.deepEqual([p.state, p.sentence], ["off", "App Studio is off. Run: engine start"]);
+
+    env.urls.apps = url;
+    p = await appsState(env);
+    assert.deepEqual([p.state, p.sentence], ["on", "App Studio is on. No app is switched on."]);
+    assert.deepEqual(seen.at(-1), { url: "/apps/health", host: `127.0.0.1:${host.address().port}` });
+    answer.apps = [{ slug: "render-to-film", state: "on" }, { slug: "cut", state: "off" }];
+    assert.equal((await appsState(env)).sentence, "App Studio is on. Open: Render to Film.");
+    answer.apps = [{ slug: "render-to-film", state: "on" }, { slug: "cut", state: "on" }, { slug: "grade", state: "starting" }];
+    assert.equal((await appsState(env)).sentence, "App Studio is on. Open: Render to Film and Quick Cut. Starting: Grader.");
+    answer.apps = [{ slug: "render-to-film", state: "failed" }, { slug: "nobody", state: "on" }];
+    writeFileSync(statusPath, JSON.stringify({ version: 1, apps: [{ slug: "render-to-film", state: "failed", why: "exits" }] }), { mode: 0o600 });
+    assert.equal((await appsState(env)).sentence, "App Studio is on. Render to Film stopped three times; switch it off and on in App Studio.");
+    writeFileSync(statusPath, JSON.stringify({ version: 1, apps: [{ slug: "render-to-film", state: "failed", why: "no_health" }] }), { mode: 0o600 });
+    assert.equal((await appsState(env)).sentence, "App Studio is on. Render to Film could not start; switch it off and on in App Studio.");
+    answer.apps = [{ slug: "cut", state: "on" }, { slug: "render-to-film", state: "failed" }];
+    p = await appsState(env);
+    assert.equal(p.sentence, "App Studio is on. Open: Quick Cut. Render to Film could not start; switch it off and on in App Studio.");
+    assert.doesNotMatch(p.sentence, TECH);
+
+    answer = { status: "ok", part: "generate", apps: [] };
+    p = await appsState(env);
+    assert.deepEqual([p.state, p.sentence], ["unhealthy", "App Studio answers but its check fails. Restart the engine: engine stop, then engine start."]);
+    answer = null;
+    assert.equal((await appsState(env)).state, "unhealthy");
+  } finally {
+    await new Promise((r) => { host.closeAllConnections(); host.close(r); });
     rmSync(root, { recursive: true, force: true });
   }
 });

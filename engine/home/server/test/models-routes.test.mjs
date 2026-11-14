@@ -290,6 +290,38 @@ test("a pick for an unknown agent or a model not in the list is refused as bad_p
   }, { relay: false });
 });
 
+// PLAN-V5 K19, T78: an app's pick (`app-<slug>`, written by App Studio) is no agent's: a refresh, an owner's pick and
+// the fill of a new agent's pick keep it as it is, even when its model left the list; the view lists only agents.
+test("an app's pick is kept as it is by refresh, an owner's pick and the fill of new agents' picks", async () => {
+  await withModels(async ({ h }) => {
+    assert.equal((await post(h, "/api/models/refresh")).status, 200);
+    const saved = JSON.parse(readFileSync(h.config.paths.modelsState, "utf8"));
+    saved.picks["app-render-to-film"] = { model: "claude-kimi-k3", source: "owner" };
+    saved.picks["app-other"] = { model: "not-in-any-list", source: "ranked" };
+    delete saved.picks.researcher;
+    writeFileSync(h.config.paths.modelsState, JSON.stringify(saved), { mode: 0o600 });
+    const kept = () => JSON.parse(readFileSync(h.config.paths.modelsState, "utf8")).picks;
+    const v = await view(h);
+    assert.ok(!v.agents.some((a) => a.slug.startsWith("app-")), "only agents are listed");
+    assert.deepEqual(v.missing, []);
+    assert.equal(kept().researcher.model, PICKS.researcher, "the new agent's pick was filled");
+    assert.deepEqual(kept()["app-render-to-film"], { model: "claude-kimi-k3", source: "owner" });
+    assert.equal((await post(h, "/api/models/pick", { agent: "sales", model: "claude-opus-5" })).status, 200);
+    assert.deepEqual(kept()["app-render-to-film"], { model: "claude-kimi-k3", source: "owner" });
+    const fewer = await startProvider({ models: OMEGA_MODELS.data.filter((m) => m.id !== "claude-kimi-k3") });
+    try {
+      h.app.home.urls.provider = fewer.url;
+      assert.equal((await post(h, "/api/models/refresh")).status, 200);
+    } finally {
+      await fewer.close();
+    }
+    const picks = kept();
+    assert.deepEqual(picks["app-render-to-film"], { model: "claude-kimi-k3", source: "owner" }, "kept as it is");
+    assert.deepEqual(picks["app-other"], { model: "not-in-any-list", source: "ranked" });
+    assert.equal((await post(h, "/api/models/pick", { agent: "app-render-to-film", model: "claude-opus-5" })).status, 400, "no agent of that name");
+  }, { relay: false });
+});
+
 test("an override survives a refresh and is dropped when its id leaves the list", async () => {
   await withModels(async ({ h }) => {
     await post(h, "/api/models/refresh");

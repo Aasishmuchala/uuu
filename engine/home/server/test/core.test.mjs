@@ -7,8 +7,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { benchSeed } from "../../../test/stubs/seed.mjs";
-import { SERVER_DIR } from "../lib/app.mjs";
-import { startStubsHome } from "../lib/stubs.mjs";
+import { SERVER_DIR, createHome } from "../lib/app.mjs";
+import { STUB_URLS, startStubsHome } from "../lib/stubs.mjs";
 import { call } from "../lib/testing.mjs";
 
 const MAIN = join(dirname(fileURLToPath(import.meta.url)), "..", "main.mjs");
@@ -173,6 +173,48 @@ test("ctx.bench: reads the owner key at call time, never shows or logs it", asyn
     const s = (await call(off.url, "GET", "/api/state")).json;
     assert.equal(s.engine.books, "not_installed");
   } finally { await off.close(); }
+});
+
+// PLAN-V5 K17, T78: the home page may frame each good app's own address, and nothing else is added to its policy.
+test("the home page's content policy gains frame-src for each good app's port, worked out at start, and nothing else", async () => {
+  const BASE = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
+  const h = await startStubsHome({ port: 0 });
+  const apps = mkdtempSync(join(tmpdir(), "uuu-home-apps-"));
+  const mods = coreModuleDir();
+  const put = (slug, port, text) => {
+    mkdirSync(join(apps, slug));
+    writeFileSync(join(apps, slug, "app.json"), text ?? JSON.stringify({
+      version: 1, slug, name: slug, about: "An app.", port, entry: ".build/index.mjs", client: "dist", engine: [], tools: [],
+      icon: "icon.svg", memoryMb: 512,
+    }), { mode: 0o644 });
+    writeFileSync(join(apps, slug, "icon.svg"), "<svg xmlns=\"http://www.w3.org/2000/svg\"/>\n", { mode: 0o644 });
+  };
+  const policyOf = async () => {
+    const home = await createHome({ config: h.config, urls: { ...STUB_URLS }, moduleDirs: [mods], log: () => {} });
+    await home.listen(0);
+    try {
+      const page = await call(home.url, "GET", "/");
+      const api = await call(home.url, "GET", "/healthz");
+      assert.equal(api.headers["content-security-policy"], undefined, "only pages carry the policy");
+      assert.equal(page.headers["x-frame-options"], "DENY", "the home screen itself is never framed");
+      return page.headers["content-security-policy"];
+    } finally { await home.close(); }
+  };
+  try {
+    h.config.paths.appsCode = apps;
+    assert.equal(await policyOf(), BASE, "no app: the core's policy as it was");
+    put("film", 3171);
+    put("broken", 3172, "{ not json");
+    put("twin-a", 3175);
+    put("twin-b", 3175);
+    assert.equal(await policyOf(), `${BASE}; frame-src http://127.0.0.1:3171 http://localhost:3171`);
+    h.config.paths.appsCode = join(apps, "missing");
+    assert.equal(await policyOf(), BASE, "no apps folder");
+  } finally {
+    await h.close();
+    rmSync(apps, { recursive: true, force: true });
+    rmSync(mods, { recursive: true, force: true });
+  }
 });
 
 test("main.mjs --stubs serves on its own temp state and stops on TERM", async () => {
