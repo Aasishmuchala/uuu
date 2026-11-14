@@ -1,93 +1,135 @@
-/* The page app (PLAN-V5 T80): one app opened inside App Studio. It fills the window under the top bar (the shell's
-   "fill" pane): the home screen's own bar of 48 px on top, the app's frame under it, rounded and borderless. Below
-   860 px the bar's tools move to a second row. Tokens only, so the redesign restyles it from here. */
+/* The page app (PLAN-V5 T80, PLAN-COOK T60): one app opened inside App Studio. It fills the window under the top bar
+   (the shell's "fill" pane, whose margin it takes back so the bar runs edge to edge): the home screen's own bar, 48 px
+   on the shell's ground, in the shell's type, with the shell's hairline under it, every fact on one line; under it the
+   deepest ground, and on it the app's frame, a 1 px outline with a 6 px corner inset by 8 px, so the app's own drawing
+   never touches the bar. Below 860 px the bar is two rows. Tokens only. */
 .p-app {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
   min-width: 0;
-  height: calc(100dvh - var(--topbar-h) - var(--s-2) - var(--s-5));
+  margin: calc(-1 * var(--s-2)) calc(-1 * var(--s-5)) calc(-1 * var(--s-5));
+  height: calc(100dvh - var(--topbar-h));
+  background: var(--stage);
 }
 /* Loading, a refusal to load, the restart sentence: the page as any other. */
-.p-app.p-app--plain { height: auto; width: 100%; max-width: var(--content-max); margin: var(--s-6) auto 0; }
+.p-app.p-app--plain { height: auto; width: 100%; max-width: var(--content-max); margin: var(--s-6) auto 0; background: none; }
 
 /* The trusted bar: the home screen's, never the app's. */
 .p-app .p-app__bar {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--s-2) var(--s-4);
-  min-height: 48px;
-  padding: var(--s-1) var(--s-2) var(--s-1) var(--s-1);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-3);
-  background: var(--glass-strong);
-  box-shadow: var(--highlight);
+  gap: var(--s-1) var(--s-3);
+  min-height: var(--topbar-h);
+  padding: 0 var(--s-4) 0 var(--s-2);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-ui);
 }
-.p-app .p-app__who { display: flex; align-items: center; gap: var(--s-3); min-width: 0; margin-right: auto; }
+.p-app .p-app__who { flex: 1 1 auto; display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
 .p-app .p-app__break { display: none; }
 .p-app .p-app__back {
-  flex: none; display: inline-grid; place-items: center; width: var(--h-md); height: var(--h-md);
-  border-radius: var(--r-2); color: var(--text-2);
+  flex: none; display: inline-grid; place-items: center; width: var(--h-sm); height: var(--h-sm);
+  border-radius: var(--r-2); color: var(--ink-2);
   transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
-.p-app .p-app__back:hover { background: var(--glass-soft); color: var(--text); }
-.p-app .p-app__back:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.p-app .p-app__icon { flex: none; width: 28px; height: 28px; border-radius: var(--r-1); object-fit: contain; }
-.p-app .p-app__icon--none { display: grid; place-items: center; background: var(--glass-soft); color: var(--text-2); }
-.p-app .p-app__name { margin: 0; font-size: var(--fs-title); font-weight: var(--fw-bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-app .p-app__back:hover { background: var(--ctl); color: var(--ink); }
+.p-app .p-app__back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.p-app .p-app__icon { flex: none; width: 24px; height: 24px; margin-left: 2px; border-radius: var(--r-1); object-fit: contain; }
+.p-app .p-app__icon--none { display: grid; place-items: center; background: var(--raise); color: var(--ink-2); }
+.p-app .p-app__name {
+  margin: 0; min-width: 0;
+  color: var(--ink); font-size: var(--fs-ui); font-weight: var(--fw-bold); line-height: var(--lh-ui);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .p-app .p-app__name:focus { outline: none; }
-.p-app .p-app__who .k-dot { flex: none; color: var(--text-2); font-size: var(--fs-caption); }
-.p-app .p-app__spend { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
-.p-app .p-app__spend-words { color: var(--text-2); font-size: var(--fs-caption); }
-.p-app .p-app__thinks .k-menu__trigger { min-height: var(--h-sm); font-size: var(--fs-caption); }
+.p-app .p-app__state { flex: none; display: inline-flex; padding-left: var(--s-1); }
+.p-app .p-app__state .k-st { white-space: nowrap; }
+
+/* The facts at the right, each group parted from the one before by a short hairline. */
+.p-app .p-app__spend,
+.p-app .p-app__thinks { position: relative; flex: none; display: flex; align-items: center; gap: var(--s-2); padding-left: var(--s-3); }
+.p-app .p-app__own,
+.p-app .p-app__switch { flex: none; }
+.p-app .p-app__spend::before,
+.p-app .p-app__thinks::before {
+  content: ""; position: absolute; left: 0; top: 50%; width: 1px; height: 16px; margin-top: -8px; background: var(--line);
+}
+.p-app .p-app__spend-words { color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.p-app .p-app__thinks .k-menu__trigger { min-height: var(--h-sm); padding: 0 var(--s-2); gap: 6px; color: var(--ink-2); font-size: var(--fs-note); font-weight: var(--fw-regular); }
+.p-app .p-app__thinks .k-menu__trigger:hover { color: var(--ink); }
 .p-app .p-app__thinks .k-menu__list { right: 0; left: auto; }
-.p-app .p-app__problem { flex: none; }
+.p-app .p-app__own { color: var(--ink-2); }
+.p-app .p-app__own:hover { color: var(--ink); }
+/* Under 1440 px the own window is its mark alone (its name stays for screen readers and in its tooltip), so every
+   fact keeps one line. */
+@media (max-width: 1439px) {
+  .p-app .p-app__own-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+.p-app .p-app__problem { flex: none; padding: var(--s-2) var(--s-4) 0; }
 
 /* A quiet line under the bar while the app is open: "Checking the app…" through one bad answer on the left, and on the
-   right, under "Open in its own window", what the fence does not cover (T86). Caption size, second text colour. */
+   right, under "Open in its own window", what the fence does not cover (T86). Note size, second ink. */
 .p-app .p-app__notes {
   flex: none; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: 0 var(--s-4);
-  padding: 0 var(--s-2); color: var(--text-2); font-size: var(--fs-caption);
+  padding: 6px var(--s-3) 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note);
 }
 .p-app .p-app__notes p { margin: 0; }
-.p-app .p-app__notes .p-app__checking { margin-right: auto; }
+.p-app .p-app__notes .p-app__checking { margin-right: auto; color: var(--ink); }
 .p-app .p-app__trust { text-align: right; }
 
-/* The stage: the app's frame, or the card in its place. */
-.p-app .p-app__stage { flex: 1; display: flex; min-height: 0; }
-.p-app .p-app__frame { flex: 1; width: 100%; height: 100%; border: 0; border-radius: var(--r-3); background: var(--canvas); }
-.p-app .p-app__card {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-3);
-  flex: 1; padding: var(--s-8) var(--s-6);
-  border: 1px dashed var(--hairline-strong); border-radius: var(--r-3); background: var(--glass);
-  text-align: center;
+/* The stage: the app's frame, inset by 8 px, or the kit's Empty in its place. */
+.p-app .p-app__stage { flex: 1; display: flex; min-height: 0; padding: var(--s-2); }
+.p-app .p-app__frame {
+  flex: 1; display: block; width: 100%; height: 100%;
+  border: 1px solid var(--line-2); border-radius: var(--r-1); background: var(--paper);
 }
-.p-app .p-app__card-title { margin: 0; font-size: var(--fs-title); font-weight: var(--fw-medium); }
-.p-app .p-app__card-text { margin: 0; color: var(--text-2); }
-.p-app .p-app__card-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--s-3); }
-.p-app .p-app__link { color: var(--text); }
-.p-app .p-app__trust-long { margin: 0; max-width: 56ch; color: var(--text-2); font-size: var(--fs-caption); }
+/* Focus inside the app: the ring is drawn round its frame, in the stage's inset (the app cannot draw it, or hide it). */
+.p-app .p-app__frame:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.p-app .p-app__stage:focus-within,
+.p-app .p-app__stage--focus { outline: 2px solid var(--accent); outline-offset: -5px; border-radius: var(--r-2); }
+.p-app .p-app__card {
+  flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; overflow: auto;
+  border: 1px solid var(--line); border-radius: var(--r-1); background: var(--bg);
+}
+.p-app .p-app__card .k-empty { max-width: 560px; }
+.p-app .p-app__card .k-empty__actions { flex-direction: column; align-items: center; gap: var(--s-4); }
+.p-app .p-app__link { color: var(--ink); text-underline-offset: 2px; }
+.p-app .p-app__trust-long { margin: 0; max-width: 52ch; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
 
-/* The allowance sheet. */
+/* The allowance sheet: the body, the amounts as the kit's radio rows (an amount over what is left is plainly inert,
+   its reason at the row's right edge), and what is left of today's limit. */
 .p-app .p-app__sheet { display: flex; flex-direction: column; gap: var(--s-4); }
-.p-app .p-app__sheet-body { margin: 0; }
-.p-app .p-app__amounts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2); }
-.p-app .p-app__left { margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
+.p-app .p-app__sheet-body { margin: 0; color: var(--ink-2); }
+.p-app .p-app__amount-row { position: relative; display: flex; }
+.p-app .p-app__amount-row .p-app__amount { flex: 1; min-height: var(--h-lg); font-variant-numeric: tabular-nums; font-weight: var(--fw-medium); }
+.p-app .p-app__amount-row .p-app__amount:disabled { cursor: default; color: var(--ink-3); background: transparent; border-color: var(--line); }
+.p-app .p-app__amount-row .p-app__amount:disabled .k-decision__radio { border-color: var(--raise-2); }
+.p-app .p-app__amount-why {
+  position: absolute; right: var(--s-3); top: 50%; transform: translateY(-50%);
+  color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); pointer-events: none;
+}
+.p-app .p-app__left { margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
 
 /* Below 860 px: two rows. The app's name with its own-window mark and the switch, then what it may spend and the
    model's menu (as a mark). */
 @media (max-width: 859px) {
-  .p-app { height: calc(100dvh - var(--topbar-h) - var(--tabbar-h) - var(--s-4) - var(--s-2) - var(--s-2)); }
-  .p-app .p-app__bar { flex-wrap: wrap; gap: var(--s-1) var(--s-2); padding: var(--s-1); }
-  .p-app .p-app__who { flex: 1 1 0; gap: var(--s-2); }
+  .p-app { margin: calc(-1 * var(--s-2)) calc(-1 * var(--s-2)) 0; height: calc(100dvh - var(--topbar-h) - var(--tabbar-h)); }
+  .p-app .p-app__bar { flex-wrap: wrap; gap: 0 var(--s-1); padding: var(--s-1) var(--s-2) var(--s-1) var(--s-1); }
+  .p-app .p-app__who { flex: 1 1 0; gap: var(--s-1); }
+  .p-app .p-app__back { width: 44px; height: 44px; }
   .p-app .p-app__own { order: 1; }
   .p-app .p-app__switch { order: 2; }
   .p-app .p-app__break { display: block; order: 3; flex-basis: 100%; height: 0; }
   .p-app .p-app__spend { order: 4; flex: 1 1 0; padding-left: var(--s-2); }
-  .p-app .p-app__thinks { order: 5; }
-  .p-app .p-app__notes { justify-content: flex-start; padding: 0 var(--s-1); }
+  .p-app .p-app__spend::before { display: none; }
+  .p-app .p-app__spend-words { white-space: normal; }
+  .p-app .p-app__thinks { order: 5; padding-left: 0; }
+  .p-app .p-app__thinks::before { display: none; }
+  .p-app .p-app__notes { justify-content: flex-start; padding: 6px var(--s-2) 0; }
   .p-app .p-app__trust { text-align: left; }
+  .p-app .p-app__stage { padding: 6px; }
   .p-app .p-app__own-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }

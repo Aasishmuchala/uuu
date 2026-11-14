@@ -1,17 +1,19 @@
-// One app opened inside App Studio (PLAN-V5 K17, K22, K23, T80): the whole window under the top bar. On top, the
-// home screen's own bar (the app cannot draw over it): back to App Studio, the app's picture, name and state, what
-// it may spend today with "Allow spending" or "Stop spending", the model it thinks with, "Open in its own window"
-// and the switch. Under it, the app in an iframe at its own port on this Mac (from /api/apps, never from the app's
-// text), set only once the app is on and kept through one answer that says otherwise ("Checking the app…"); off,
-// starting, stopped and not ready each have their own card. What the fence does not cover is said in plain words: in
-// full beside Turn on, short under the bar while the app is open (T86, ADR 0016). The allowance sheet is the kit's
-// dialog: four amounts in whole dollars, those over what is left of today's limit disabled.
+// One app opened inside App Studio (PLAN-V5 K17, K22, K23, T80; PLAN-COOK T60): the whole window under the top bar,
+// whose crumbs say App Studio / <name>. On top, the home screen's own bar, 48 px on the shell's ground with its
+// hairline (the app cannot draw over it): back to App Studio, the app's picture, name and state, what it may spend
+// today with "Allow spending" or "Stop spending", the model it thinks with, "Open in its own window" and the switch.
+// Under it, the app in an iframe at its own port on this Mac (from /api/apps, never from the app's text), outlined
+// and inset from the bar so the app's own drawing never touches it, set only once the app is on and kept through one
+// answer that says otherwise ("Checking the app…"); off, starting, stopped, App Studio off and not ready each have
+// the kit's Empty in the frame's place. What the fence does not cover is said in plain words: in full beside Turn on,
+// short in a quiet line under the bar while the app is open (T86, ADR 0016). The allowance sheet is the kit's dialog
+// with four radio rows in whole dollars, those over what is left of today's limit disabled with the reason as text.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useApp } from "../lib/context.js";
-import { Button, Dialog, ErrorNotice, Icon, Loading, Menu, NextStep, StatusDot } from "../kit/index.js";
+import { Button, Dialog, Empty, ErrorNotice, Icon, Loading, Menu, NextStep, St, StatusDot } from "../kit/index.js";
 import {
   AppIcon, Refusal, Restart, SLUG, STATE_WORDS, WORDS, allowLabel, amountChoices, appAddress, appsOf, firstAmount, plain, postApp, sheetTitle,
-  shownState, spendingLine, spends, stateSentence, stateTone, stateWord, thinksLabel, useAppsView,
+  shownState, spendingLine, spends, stateSentence, stateSt, stateWord, thinksLabel, useAppsView,
 } from "./apps.js";
 
 // Starting: /api/apps is asked every 2 seconds for up to a minute.
@@ -36,7 +38,21 @@ export function openOwnWindow(address) {
   window.open(address, "_blank", "noopener,noreferrer");
 }
 
-// The allowance sheet (K22, K23).
+// Arrows move the choice between the sheet's radio rows that can be picked (and take it, as a radio group does);
+// Home and End go to the ends. Pure, so it is tested without a document: -> the index to move to, or -1.
+export function amountStep(choices, at, key) {
+  const open = choices.map((c, i) => (c.disabled ? -1 : i)).filter((i) => i >= 0);
+  if (!open.length) return -1;
+  const here = open.indexOf(at);
+  if (key === "Home") return open[0];
+  if (key === "End") return open[open.length - 1];
+  const step = key === "ArrowDown" || key === "ArrowRight" ? 1 : key === "ArrowUp" || key === "ArrowLeft" ? -1 : 0;
+  if (!step) return -1;
+  if (here < 0) return open[0];
+  return open[(here + step + open.length) % open.length];
+}
+
+// The allowance sheet (K22, K23): the kit's dialog, the amounts as radio rows drawn as the kit's single-choice rows.
 function AllowanceSheet({ app, onClose, onAllowed }) {
   const left = app.spending.limitLeft;
   const choices = amountChoices(left);
@@ -52,22 +68,43 @@ function AllowanceSheet({ app, onClose, onAllowed }) {
     setBusy(false);
     if (r.error) setError(r.error);
   };
+  const onKey = (ev) => {
+    const at = choices.findIndex((c) => c.cents === cents);
+    const to = amountStep(choices, at, ev.key);
+    if (to < 0) return;
+    ev.preventDefault();
+    setCents(choices[to].cents);
+    const rows = ev.currentTarget && ev.currentTarget.querySelectorAll ? [...ev.currentTarget.querySelectorAll('[role="radio"]')] : [];
+    if (rows[to] && typeof rows[to].focus === "function") rows[to].focus();
+  };
+  // One Tab stop: the chosen row, else the first that can be picked.
+  const chosen = choices.findIndex((c) => c.cents === cents);
+  const stop = chosen >= 0 ? chosen : Math.max(0, choices.findIndex((c) => !c.disabled));
   const footer = html`
     <${Button} variant="quiet" onClick=${onClose}>Cancel<//>
     <${Button} variant="primary" busy=${busy} disabled=${!cents || !ready} onClick=${allow}>${allowLabel(cents || 500)}<//>`;
   return html`<${Dialog} open=${true} title=${sheetTitle(app.name)} size="sm" onClose=${onClose} footer=${footer}>
     <div class="p-app__sheet">
       <p class="p-app__sheet-body">${WORDS.sheetBody}</p>
-      <div class="p-app__amounts" role="group" aria-label="How much it may spend today">
-        ${choices.map((c) => html`<${Button}
-          key=${c.cents}
-          variant=${c.cents === cents ? "primary" : "plain"}
-          class="p-app__amount"
-          aria-pressed=${c.cents === cents ? "true" : "false"}
-          disabled=${c.disabled}
-          data-autofocus=${c.cents === cents ? "" : undefined}
-          onClick=${() => setCents(c.cents)}
-        >${c.label}<//>`)}
+      <div class="k-decision__choices p-app__amounts" role="radiogroup" aria-label="How much it may spend today" onKeyDown=${onKey}>
+        ${choices.map((c, i) => {
+          const on = c.cents === cents;
+          const why = c.disabled ? `p-app-why-${c.cents}` : undefined;
+          return html`<div class="p-app__amount-row" key=${c.cents}>
+            <button
+              type="button"
+              role="radio"
+              class="k-decision__choice p-app__amount"
+              aria-checked=${on ? "true" : "false"}
+              aria-describedby=${why}
+              tabindex=${i === stop ? "0" : "-1"}
+              disabled=${c.disabled}
+              data-autofocus=${on ? "" : undefined}
+              onClick=${() => setCents(c.cents)}
+            ><span class="k-decision__radio" aria-hidden="true"></span><span class="k-decision__choice-text">${c.label}</span></button>
+            ${c.disabled ? html`<span class="p-app__amount-why" id=${why}>${WORDS.overLeft}</span>` : null}
+          </div>`;
+        })}
       </div>
       <p class="p-app__left">${plain(app.spending.limitWords, 120)}</p>
       ${ready ? null : html`<p class="p-app__left">${WORDS.noProvider}</p>`}
@@ -76,38 +113,39 @@ function AllowanceSheet({ app, onClose, onAllowed }) {
   <//>`;
 }
 
-// The card in place of the app while it is not on.
+// The kit's Empty in the frame's place while the app is not on: what is so in the server's words, and the way on.
 function StageCard({ app, host, shown, late, busy, onTurnOn, onCheck }) {
   const name = plain(app.name, 40) || app.slug;
-  let title = "";
-  let text = "";
-  let action = null;
-  let trust = false;
   if (shown === "off") {
-    title = `${name} is off.`;
-    action = html`<${Button} variant="primary" busy=${busy} onClick=${onTurnOn}>${WORDS.turnOn}<//>`;
-    trust = true;
-  } else if (shown === "starting") {
-    title = late ? WORDS.late : `Starting ${name}…`;
-    action = late
-      ? html`<${Button} onClick=${onCheck}>${WORDS.checkAgain}<//> <a class="p-app__link" href="#/health">${WORDS.health}</a>`
-      : html`<${StatusDot} tone="wait" pulse=${true} label=${STATE_WORDS.starting} hideLabel=${true} />`;
-  } else if (shown === "failed") {
-    title = stateSentence(shown, host);
-    text = WORDS.tryAgain;
-    action = html`<a class="p-app__link" href="#/health">${WORDS.health}</a>`;
-  } else if (shown === "host_off") {
-    return html`<div class="p-app__card" role="status"><p class="p-app__card-title">${name} cannot run right now.</p>
-      <${NextStep} text=${stateSentence(shown, host)} /></div>`;
-  } else {
-    title = stateSentence(shown, host);
+    return html`<div class="p-app__card" role="status">
+      <${Empty} icon="power" title=${`${name} is off.`}>
+        <${Button} variant="primary" busy=${busy} onClick=${onTurnOn}>${WORDS.turnOn}<//>
+        <p class="p-app__trust-long">${WORDS.trust}</p>
+      <//>
+    </div>`;
   }
-  return html`<div class="p-app__card" role="status">
-    <p class="p-app__card-title">${title}</p>
-    ${text ? html`<p class="p-app__card-text">${text}</p>` : null}
-    ${action ? html`<div class="p-app__card-actions">${action}</div>` : null}
-    ${trust ? html`<p class="p-app__trust-long">${WORDS.trust}</p>` : null}
-  </div>`;
+  if (shown === "starting") {
+    return html`<div class="p-app__card" role="status">
+      <${Empty} icon="clock" title=${late ? WORDS.late : `Starting ${name}…`}>
+        ${late
+          ? html`<${Button} onClick=${onCheck}>${WORDS.checkAgain}<//> <a class="p-app__link" href="#/health">${WORDS.health}</a>`
+          : html`<${StatusDot} tone="wait" pulse=${true} label=${STATE_WORDS.starting} hideLabel=${true} />`}
+      <//>
+    </div>`;
+  }
+  if (shown === "failed") {
+    return html`<div class="p-app__card" role="status">
+      <${Empty} icon="alert" title=${stateSentence(shown, host)} text=${WORDS.tryAgain}>
+        <a class="p-app__link" href="#/health">${WORDS.health}</a>
+      <//>
+    </div>`;
+  }
+  if (shown === "host_off") {
+    return html`<div class="p-app__card" role="status">
+      <${Empty} icon="power" title=${`${name} cannot run right now.`}><${NextStep} text=${stateSentence(shown, host)} /><//>
+    </div>`;
+  }
+  return html`<div class="p-app__card" role="status"><${Empty} icon="apps" title=${stateSentence(shown, host)} /></div>`;
 }
 
 // Whether the frame is kept through this answer (T85 finding 8): an app that was on and is still switched on keeps its
@@ -129,7 +167,7 @@ function useHeld(slug, data, app, shown) {
 }
 
 // True below 860 px, where the bar is two rows, the model's menu shows only its mark, and a long state is only its
-// mark too (the card under the bar says it in full), so the app's name keeps its room.
+// mark too (the Empty under the bar says it in full), so the app's name keeps its room.
 const NARROW = "(max-width: 859px)";
 function useNarrow() {
   const get = () => typeof matchMedia === "function" && matchMedia(NARROW).matches;
@@ -144,8 +182,41 @@ function useNarrow() {
   return narrow;
 }
 
+// The crumbs the top bar shows for an app: App Studio (a link back) and its name.
+export function appCrumbs(name) {
+  const n = plain(name, 40);
+  return n ? [{ label: WORDS.back, href: "#/apps" }, { label: n }] : [{ label: WORDS.back }];
+}
+
+// Marks the stage while the keyboard is inside the app's frame. A browser does not mark the frame :focus (or its stage
+// :focus-within) once Tab has moved into a page of another origin, so the page watches its own window lose focus to
+// the frame and draws the ring round the frame itself, where the app cannot draw it or hide it. The mark is set on
+// the element at once (no render in between), and only this hook writes it. -> a ref for the stage.
+function useFrameFocus() {
+  const stage = useRef(null);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.addEventListener !== "function" || typeof document === "undefined") return undefined;
+    const look = () => {
+      const el = stage.current;
+      if (!el || !el.classList) return;
+      const a = document.activeElement;
+      el.classList.toggle("p-app__stage--focus", !!a && a.localName === "iframe" && el.contains(a));
+    };
+    window.addEventListener("blur", look);
+    window.addEventListener("focus", look);
+    document.addEventListener("focusin", look);
+    return () => {
+      window.removeEventListener("blur", look);
+      window.removeEventListener("focus", look);
+      document.removeEventListener("focusin", look);
+    };
+  }, []);
+  return stage;
+}
+
 export default function AppPage({ route }) {
   const narrow = useNarrow();
+  const stageRef = useFrameFocus();
   const slug = route && Array.isArray(route.parts) ? route.parts[1] : "";
   const ctx = useApp() || {};
   const [every, setEvery] = useState(POLL_STARTING_MS);
@@ -184,6 +255,13 @@ export default function AppPage({ route }) {
     document.title = text;
   }, [name, company]);
 
+  // The top bar's crumbs: App Studio / <name>.
+  const setTop = ctx.setTop;
+  useEffect(() => {
+    if (typeof setTop !== "function") return;
+    setTop({ crumbs: appCrumbs(name || (SLUG.test(String(slug || "")) ? slug : "")) });
+  }, [setTop, name, slug]);
+
   const act = async (what, body, said) => {
     setBusy(what);
     setError(null);
@@ -221,6 +299,8 @@ export default function AppPage({ route }) {
   }
 
   const address = shown === "on" ? frameAddress(app) : null;
+  // A frame taken away takes its ring with it.
+  if (!address && stageRef.current && stageRef.current.classList) stageRef.current.classList.remove("p-app__stage--focus");
   const t = app.thinks && typeof app.thinks === "object" ? app.thinks : null;
   const thinkItems = t && Array.isArray(t.choices)
     ? t.choices.filter((c) => c && typeof c.id === "string").slice(0, 40).map((c) => ({
@@ -228,36 +308,44 @@ export default function AppPage({ route }) {
     }))
     : [];
 
-  return html`<div class="p-app">
+  const st = stateSt(shown);
+  const hideState = narrow && shown !== "on" && shown !== "off";
+  // Its own window and the switch: at the bar's end, or on a phone at the end of its first row (so the Tab order
+  // follows what is seen).
+  const own = html`
+    ${address
+      ? html`<${Button} size="sm" variant="quiet" icon="external" class="p-app__own" title=${WORDS.ownWindow}
+          onClick=${() => openOwnWindow(address)}><span class="p-app__own-word">${WORDS.ownWindow}</span><//>`
+      : null}
+    ${app.on
+      ? html`<${Button} size="sm" class="p-app__switch" icon="power" busy=${busy === "switch"} onClick=${() => turn(false)}>${WORDS.turnOff}<//>`
+      : null}`;
+  return html`<div class=${`p-app p-app--${shown}`}>
     <header class="p-app__bar" aria-label=${`${name}, from App Studio`}>
       <div class="p-app__who">
         <a class="p-app__back" href="#/apps" aria-label="Back to App Studio" title="Back to App Studio">
           <${Icon} name="arrow-left" size=${16} />
         </a>
-        <${AppIcon} slug=${app.slug} size=${28} cls="p-app__icon" />
+        <${AppIcon} slug=${app.slug} size=${24} cls="p-app__icon" />
         <h1 class="p-app__name" id="page-title" tabindex="-1">${name}</h1>
-        <${StatusDot} tone=${stateTone(shown)} label=${stateWord(shown)} pulse=${shown === "starting"}
-          hideLabel=${narrow && shown !== "on" && shown !== "off"} />
+        <span class=${hideState ? "p-app__state p-app__state--mark" : "p-app__state"}>
+          <${St} tone=${st.tone} icon=${st.icon}>${hideState ? html`<span class="k-sr">${stateWord(shown)}</span>` : stateWord(shown)}<//>
+        </span>
       </div>
+      ${narrow ? own : null}
       <span class="p-app__break" aria-hidden="true"></span>
       ${spends(app)
         ? html`<div class="p-app__spend">
             <span class="p-app__spend-words">${spendingLine(app)}</span>
             ${app.spending.open
               ? html`<${Button} size="sm" busy=${busy === "allowance/stop"} onClick=${stop}>${WORDS.stop}<//>`
-              : html`<${Button} size="sm" variant="primary" onClick=${() => { setError(null); setSheet(true); }}>${WORDS.allow}<//>`}
+              : html`<${Button} size="sm" onClick=${() => { setError(null); setSheet(true); }}>${WORDS.allow}<//>`}
           </div>`
         : null}
       ${t && thinkItems.length
         ? html`<div class="p-app__thinks"><${Menu} label=${thinksLabel(t)} icon=${narrow ? "brain" : undefined} items=${thinkItems} /></div>`
         : null}
-      ${address
-        ? html`<${Button} size="sm" variant="quiet" icon="external" class="p-app__own" title=${WORDS.ownWindow}
-            onClick=${() => openOwnWindow(address)}><span class="p-app__own-word">${WORDS.ownWindow}</span><//>`
-        : null}
-      ${app.on
-        ? html`<${Button} size="sm" variant="quiet" class="p-app__switch" busy=${busy === "switch"} onClick=${() => turn(false)}>${WORDS.turnOff}<//>`
-        : null}
+      ${narrow ? null : own}
     </header>
     ${error ? html`<div class="p-app__problem"><${Refusal} error=${error} /></div>` : null}
     ${address
@@ -266,7 +354,7 @@ export default function AppPage({ route }) {
           <p class="p-app__trust">${WORDS.trustShort}</p>
         </div>`
       : null}
-    <div class="p-app__stage">
+    <div class="p-app__stage" ref=${stageRef}>
       ${address
         ? html`<iframe
             key=${address}
@@ -278,7 +366,7 @@ export default function AppPage({ route }) {
             src=${address}
           ></iframe>`
         : shown === "on"
-          ? html`<div class="p-app__card" role="status"><p class="p-app__card-title">${WORDS.badHost}</p></div>`
+          ? html`<div class="p-app__card" role="status"><${Empty} icon="alert" title=${WORDS.badHost} /></div>`
           : html`<${StageCard} app=${app} host=${host} shown=${shown} late=${late} busy=${busy === "switch"}
               onTurnOn=${() => turn(true)} onCheck=${checkAgain} />`}
     </div>

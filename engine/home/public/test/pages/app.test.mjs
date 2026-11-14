@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import Page, { ALLOW, POLL_ON_MS, POLL_STARTING_MS, SANDBOX, STARTING_FOR_MS, frameAddress } from "../../pages/app.js";
+import Page, { ALLOW, POLL_ON_MS, POLL_STARTING_MS, SANDBOX, STARTING_FOR_MS, amountStep, appCrumbs, frameAddress } from "../../pages/app.js";
 import { WORDS } from "../../pages/apps.js";
 
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -89,7 +89,9 @@ function installDom() {
 function* walk(node) { yield node; for (const c of node.childNodes) yield* walk(c); }
 const elements = (root) => [...walk(root)].filter((n) => n.nodeType === 1);
 const textOf = (root) => [...walk(root)].filter((n) => n.nodeType === 3).map((n) => n.data).join("");
-const settle = (ms = 120) => new Promise((r) => setTimeout(r, ms));
+// Effects run 100 ms after the render that asks for them in this small DOM (no animation frame), so a wait of 300 ms
+// lets an answer, its render and its effects land even on a busy machine.
+const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
 function fire(el, type, extra = {}) {
   const key = Object.keys(el.listeners).find((k) => k.toLowerCase() === type);
   assert.ok(key, `${el.localName} listens for ${type}`);
@@ -238,7 +240,8 @@ test("app mounted: the allowance sheet: K23's words, four amounts with those ove
     assert.ok(d.includes("What is left of today's limit: $6.40."));
     const amounts = ["$2", "$5", "$10", "$20"].map((w) => buttons(dialog, w)[0]);
     assert.deepEqual(amounts.map((b) => b.disabled === true || b.getAttribute("disabled") !== null && b.getAttribute("disabled") !== "false"), [false, false, true, true]);
-    assert.equal(amounts[1].getAttribute("aria-pressed"), "true", "$5 is picked first");
+    assert.equal(amounts[1].getAttribute("aria-checked"), "true", "$5 is picked first");
+    assert.deepEqual(amounts.map((b) => b.getAttribute("role")), ["radio", "radio", "radio", "radio"], "the amounts are radio rows");
     fire(buttons(dialog, "Allow $5 today")[0], "click");
     await settle();
     assert.deepEqual(m.f.calls.find((c) => c.method === "POST").body, { cents: 500 });
@@ -348,8 +351,8 @@ test("app mounted, on: the short sentence stays under the bar, beside the frame;
     assert.ok(!textOf(m.root).includes(TRUST), "the long one is not shown while the app is open");
     assert.ok(!textOf(m.root).includes(WORDS.checking));
     const css = readFileSync(join(PUBLIC, "styles", "pages", "app.css"), "utf8");
-    assert.match(css, /\.p-app \.p-app__notes \{[^}]*color: var\(--text-2\);[^}]*font-size: var\(--fs-caption\);/, "caption size, second colour");
-    assert.match(css, /\.p-app \.p-app__trust-long \{[^}]*color: var\(--text-2\);[^}]*font-size: var\(--fs-caption\);/);
+    assert.match(css, /\.p-app \.p-app__notes \{[^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-note\);/, "note size (13 px), second ink");
+    assert.match(css, /\.p-app \.p-app__trust-long \{[^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-note\);/);
   } finally { m.done(); }
 });
 
@@ -389,4 +392,58 @@ test("app mounted: the owner's Turn off takes the frame away at once, with no ch
     assert.ok(textOf(m.root).includes("Render to Film is off."));
     assert.ok(!textOf(m.root).includes("Checking the app…"));
   } finally { m.done(); }
+});
+
+// ---- T60: the crumbs, the sheet's radio rows, the frame's inset ----
+
+test("app: the crumbs are App Studio / <name>; the sheet's arrows skip the amounts over what is left", () => {
+  assert.deepEqual(appCrumbs("Render to Film"), [{ label: "App Studio", href: "#/apps" }, { label: "Render to Film" }]);
+  assert.deepEqual(appCrumbs(""), [{ label: "App Studio" }]);
+  const c = [{ disabled: false }, { disabled: false }, { disabled: true }, { disabled: true }];
+  assert.equal(amountStep(c, 0, "ArrowDown"), 1);
+  assert.equal(amountStep(c, 1, "ArrowDown"), 0, "wraps past the disabled ones");
+  assert.equal(amountStep(c, 0, "ArrowUp"), 1);
+  assert.equal(amountStep(c, 1, "ArrowLeft"), 0);
+  assert.equal(amountStep(c, 0, "End"), 1);
+  assert.equal(amountStep(c, 1, "Home"), 0);
+  assert.equal(amountStep(c, 0, "a"), -1);
+  assert.equal(amountStep(c, -1, "ArrowDown"), 0);
+  assert.equal(amountStep([{ disabled: true }], 0, "ArrowDown"), -1);
+});
+
+test("app mounted: the page gives the top bar App Studio / <name>", async () => {
+  installDom();
+  const f = stubFetch(fixed(view([app()])));
+  const { AppContext } = await import(pathToFileURL(join(PUBLIC, "lib", "context.js")).href);
+  const tops = [];
+  const root = new FakeElement("div");
+  render(html`<${AppContext.Provider} value=${{ setTop: (t) => tops.push(t) }}><${Page} route=${{ id: "app", parts: ["apps", "render-to-film"], query: new URLSearchParams("") }} /><//>`, root);
+  // Effects run a frame after the render that asked for them (100 ms without a window): the answer's, then the crumbs'.
+  await settle(400);
+  try {
+    assert.deepEqual(tops.at(-1), { crumbs: [{ label: "App Studio", href: "#/apps" }, { label: "Render to Film" }] });
+  } finally { render(null, root); f.restore(); delete globalThis.location; }
+});
+
+test("app mounted: the sheet says why an amount cannot be picked, as text beside its row", async () => {
+  const m = await mount(fixed(view([app({ spending: NOSPEND })])));
+  try {
+    fire(buttons(m.root, "Allow spending")[0], "click");
+    await settle();
+    const dialog = elements(m.root).find((e) => e.getAttribute("role") === "dialog");
+    assert.ok(elements(dialog).some((e) => e.getAttribute("role") === "radiogroup"));
+    const why = elements(dialog).filter((e) => e.getAttribute("class") === "p-app__amount-why");
+    assert.deepEqual(why.map(textOf), [WORDS.overLeft, WORDS.overLeft], "$10 and $20 are over the $6.40 left");
+    const ten = buttons(dialog, "$10")[0];
+    assert.equal(ten.getAttribute("aria-describedby"), why[0].getAttribute("id"));
+    assert.equal(buttons(dialog, "$5")[0].getAttribute("tabindex"), "0", "one Tab stop: the chosen row");
+    assert.equal(buttons(dialog, "$2")[0].getAttribute("tabindex"), "-1");
+  } finally { m.done(); }
+});
+
+test("app: the frame is outlined and inset from the bar; the bar is 48 px on the shell's ground and hairline", () => {
+  const css = readFileSync(join(PUBLIC, "styles", "pages", "app.css"), "utf8");
+  assert.match(css, /\.p-app \.p-app__bar \{[^}]*min-height: var\(--topbar-h\);[^}]*border-bottom: 1px solid var\(--line\);[^}]*background: var\(--bg\);/);
+  assert.match(css, /\.p-app \.p-app__stage \{[^}]*padding: var\(--s-2\);/, "inset by 8 px");
+  assert.match(css, /\.p-app \.p-app__frame \{[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-1\);/);
 });

@@ -8,8 +8,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import Page, {
-  AMOUNTS, APP_PORTS, FIRST_AMOUNT, STATE_WORDS, WORDS, allowLabel, amountChoices, appAddress, appHref, appsOf, dollarWord, firstAmount,
-  iconHref, plain, sheetTitle, shownState, sitesOfView, spendingLine, spends, stateSentence, stateTone, stateWord, thinksLabel,
+  AMOUNTS, APP_PORTS, FILTERS, FIRST_AMOUNT, STATE_WORDS, WORDS, allowLabel, amountChoices, appAddress, appHref, appsOf, dollarWord, filterApps,
+  firstAmount, iconHref, plain, sheetTitle, shownState, sitesOfView, spendingLine, spends, stateSentence, stateSt, stateTone, stateWord, thinksLabel,
 } from "../../pages/apps.js";
 
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -152,7 +152,9 @@ function* walk(node) { yield node; for (const c of node.childNodes) yield* walk(
 const elements = (root) => [...walk(root)].filter((n) => n.nodeType === 1);
 const textOf = (root) => [...walk(root)].filter((n) => n.nodeType === 3).map((n) => n.data).join("");
 const cls = (e) => e.getAttribute("class") || e.className || "";
-const settle = () => new Promise((r) => setTimeout(r, 120));
+// Effects run 100 ms after the render that asks for them in this small DOM (no animation frame), so a wait of 300 ms
+// lets an answer, its render and its effects land even on a busy machine.
+const settle = () => new Promise((r) => setTimeout(r, 300));
 function fire(el, type, extra = {}) {
   const key = Object.keys(el.listeners).find((k) => k.toLowerCase() === type);
   assert.ok(key, `${el.localName} listens for ${type}`);
@@ -415,6 +417,74 @@ test("apps mounted: beside each app's switch, the long sentence while it is off 
     assert.equal(WORDS.trust, TRUST);
     assert.equal(WORDS.trustShort, TRUST_SHORT);
     const css = readFileSync(join(PUBLIC, "styles", "pages", "apps.css"), "utf8");
-    assert.match(css, /\.p-apps \.p-apps__trust \{[^}]*color: var\(--text-2\);[^}]*font-size: var\(--fs-caption\);/, "caption size, second colour");
+    assert.match(css, /\.p-apps \.p-apps__trust \{[^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-note\);/, "note size (13 px), second ink");
+  } finally { m.done(); }
+});
+
+// ---- T60: the filter, the state as the kit's St, one button a card ----
+
+test("apps: the filter's words and what it keeps; the state as the kit's St, starting never looking like on", () => {
+  assert.deepEqual([WORDS.show, WORDS.all, WORDS.onlyOn, WORDS.onlyOff], ["Show apps", "All", "On", "Off"]);
+  assert.equal(WORDS.noneOn, "No app is on.");
+  assert.equal(WORDS.noneOff, "Every app is on.");
+  assert.equal(WORDS.overLeft, "More than is left today");
+  assert.deepEqual([...FILTERS], ["all", "on", "off"]);
+  const list = [app({ slug: "a", on: true }), app({ slug: "b", on: false }), app({ slug: "c", on: true, state: "failed" }), null];
+  assert.deepEqual(filterApps(list, "on").map((a) => a.slug), ["a", "c"]);
+  assert.deepEqual(filterApps(list, "off").map((a) => a.slug), ["b"]);
+  assert.equal(filterApps(list, "all").length, 4);
+  assert.deepEqual(filterApps(null, "on"), []);
+  assert.equal(stateSt("on").tone, "good");
+  assert.equal(stateSt("failed").tone, "bad");
+  assert.equal(stateSt("damaged").tone, "bad");
+  assert.equal(stateSt("host_off").tone, "warn");
+  assert.notEqual(stateSt("starting").tone, stateSt("on").tone, "starting does not look like on");
+  assert.deepEqual(stateSt("made up"), stateSt("off"));
+});
+
+test("apps mounted: the filter sits in a bar under the title; On and Off keep their apps, and say so when none is left", async () => {
+  const m = await mount(fixed(view([app({ slug: "a-on", name: "On app" }), app({ slug: "b-off", name: "Off app", state: "off", on: false, spending: NOSPEND })])));
+  try {
+    const group = elements(m.root).find((e) => e.getAttribute("role") === "group" && e.getAttribute("aria-label") === "Show apps");
+    assert.ok(group, "the kit's segmented filter");
+    const seg = (w) => elements(group).find((e) => e.localName === "button" && textOf(e).startsWith(w));
+    assert.equal(seg("All").getAttribute("aria-pressed"), "true");
+    assert.equal(textOf(seg("All")), "All2");
+    fire(seg("On"), "click");
+    await settle();
+    const names = () => elements(m.root).filter((e) => cls(e) === "p-apps__name").map(textOf);
+    assert.deepEqual(names(), ["On app"]);
+    fire(seg("Off"), "click");
+    await settle();
+    assert.deepEqual(names(), ["Off app"]);
+  } finally { m.done(); }
+  const n = await mount(fixed(view([app()])));
+  try {
+    const group = elements(n.root).find((e) => e.getAttribute("aria-label") === "Show apps");
+    fire(elements(group).find((e) => e.localName === "button" && textOf(e).startsWith("Off")), "click");
+    await settle();
+    assert.ok(textOf(n.root).includes(WORDS.noneOff));
+  } finally { n.done(); }
+  const e = await mount(fixed(view([])));
+  try {
+    assert.ok(!elements(e.root).some((x) => x.getAttribute("aria-label") === "Show apps"), "no apps, no filter");
+  } finally { e.done(); }
+});
+
+test("apps mounted: each card has one button at its head: Open while it runs, Turn on while off, Turn off when stopped", async () => {
+  const apps = [
+    app({ slug: "a-on", name: "On app" }),
+    app({ slug: "b-off", name: "Off app", state: "off", on: false, spending: NOSPEND }),
+    app({ slug: "c-failed", name: "Stopped app", state: "failed", on: true }),
+    app({ slug: "d-new", name: "New app", state: "not_installed", on: false }),
+  ];
+  const m = await mount(fixed(view(apps)));
+  try {
+    const tiles = elements(m.root).filter((e) => cls(e).split(/\s+/).includes("p-apps__tile"));
+    const head = (t) => elements(t).find((e) => cls(e) === "p-apps__tile-head");
+    const mains = tiles.map((t) => elements(head(t)).filter((e) => (e.localName === "a" || e.localName === "button")).map((e) => textOf(e).trim()));
+    assert.deepEqual(mains, [["Open"], ["Turn on"], ["Turn off"], []]);
+    assert.equal(buttons(tiles[0], "Turn off").length, 1, "an open app's Turn off is a quiet word at its foot");
+    assert.ok(elements(tiles[0]).some((e) => cls(e).split(/\s+/).includes("k-st")), "the state is the kit's St");
   } finally { m.done(); }
 });

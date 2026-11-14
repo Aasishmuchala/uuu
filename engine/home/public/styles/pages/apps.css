@@ -1,29 +1,91 @@
-/* The page apps (PLAN-V5 T80): App Studio's list. A grid of large tiles, each an app's picture, name, state, what
-   it does and its buttons; then the sites the team made. Tokens only, so the redesign restyles it from here. */
-.p-apps { display: flex; flex-direction: column; gap: var(--s-6); min-width: 0; }
+/* The page apps (PLAN-V5 T80, PLAN-COOK T60): App Studio's list. The title, then one bar with the filter at the left
+   and App Studio's own state at the right; the apps as cards two or three across (the picture, the name and the
+   state beside it, the one button at the right, then what it does and what it may spend, and at the foot under a
+   hairline what the fence does not cover); then the sites the team made as a second group of cards, each its
+   picture over its name. Content on the ground inside --content-max. Tokens only. */
+.p-apps { display: flex; flex-direction: column; gap: var(--s-6); min-width: 0; max-width: var(--content-max); }
+.p-apps .k-page-header { margin-bottom: 0; }
+.p-apps .k-page-header__more { margin-top: var(--s-5); }
 
-/* The launcher: tiles at least 280 px wide. */
-.p-apps .p-apps__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--s-4); }
-.p-apps .p-apps__tile { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
-.p-apps .p-apps__tile-head { display: flex; align-items: center; gap: var(--s-4); min-width: 0; }
+/* The bar: the filter at the left, App Studio's state at the right, on one line while they fit. */
+.p-apps .p-apps__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); min-width: 0; }
+.p-apps .p-apps__host { color: var(--ink-2); }
+.p-apps .p-apps__host .k-st { color: var(--ink-2); }
+.p-apps .p-apps__host .k-st .k-icon { color: var(--good); }
+
+/* A group's head: a plain line, the count in the third ink. */
+.p-apps .k-section__head { margin-bottom: var(--s-3); }
+
+/* A group with nothing in it: its sentence in a quiet outlined well, where its cards would be. */
+.p-apps .k-section__body > .k-empty { padding: var(--s-8) var(--s-6); border: 1px solid var(--line); border-radius: var(--r-3); }
+
+/* The launcher: cards at least 296 px wide, so three across from about 1280 px and two below. */
+.p-apps .p-apps__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(296px, 1fr)); gap: var(--s-4); }
+.p-apps .p-apps__tile { display: flex; flex-direction: column; min-width: 0; }
+.p-apps .p-apps__tile-head { display: flex; align-items: center; gap: var(--s-3); min-width: 0; padding: var(--s-5) var(--s-5) 0; }
 .p-apps .p-apps__icon { flex: none; width: 56px; height: 56px; border-radius: var(--r-3); object-fit: contain; }
-.p-apps .p-apps__icon--none { display: grid; place-items: center; background: var(--glass-soft); color: var(--text-2); }
-.p-apps .p-apps__names { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
-.p-apps .p-apps__name { margin: 0; font-size: var(--fs-title); font-weight: var(--fw-bold); overflow-wrap: anywhere; }
-.p-apps .p-apps__about { margin: 0; color: var(--text-2); }
-.p-apps .p-apps__spend { display: flex; align-items: center; gap: var(--s-2); margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
-.p-apps .p-apps__hint { margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
-.p-apps .p-apps__hint a { color: var(--text); }
-/* Beside the switch: what the fence does not cover (T86), quiet. */
-.p-apps .p-apps__trust { margin: 0; color: var(--text-2); font-size: var(--fs-caption); }
-.p-apps .p-apps__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: auto; padding-top: var(--s-2); }
+.p-apps .p-apps__icon--none { display: grid; place-items: center; background: var(--raise); color: var(--ink-2); }
+.p-apps .p-apps__names { flex: 1 1 auto; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.p-apps .p-apps__name {
+  margin: 0; max-width: 100%;
+  font-size: var(--fs-fact); font-weight: var(--fw-bold); line-height: var(--lh-fact);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.p-apps .p-apps__names .k-st { max-width: 100%; line-height: var(--lh-note); }
+.p-apps .p-apps__main { flex: none; align-self: flex-start; margin-top: var(--s-1); }
 
-/* Made by the team (T88): a calm grid of the sites' tiles; the picture shows the top of the first page. */
-.p-apps .p-apps__sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--s-4); }
-.p-apps .p-apps__site { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
-.p-apps .p-apps__shot { aspect-ratio: 16 / 10; overflow: hidden; border-radius: var(--r-2); background: var(--glass-soft); display: grid; place-items: center; }
+.p-apps .p-apps__tile-body { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-4) var(--s-5) var(--s-5); min-width: 0; }
+.p-apps .p-apps__about { margin: 0; color: var(--ink-2); font-size: var(--fs-ui); line-height: var(--lh-ui); }
+/* The facts line: each fact a 14 px glyph and its words, side by side while they fit. */
+.p-apps .p-apps__facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-4); margin: var(--s-1) 0 0; font-size: var(--fs-note); line-height: var(--lh-note); }
+.p-apps .p-apps__spend,
+.p-apps .p-apps__fact { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--ink-2); }
+.p-apps .p-apps__spend { color: var(--ink); font-variant-numeric: tabular-nums; }
+.p-apps .p-apps__facts .k-icon { flex: none; color: var(--ink-3); }
+.p-apps .p-apps__hint { margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
+.p-apps .p-apps__hint a { color: var(--ink); text-underline-offset: 2px; }
+
+/* The foot: what the fence does not cover (T86), quiet, and Turn off as a quiet word while the app is open. */
+.p-apps .p-apps__foot {
+  display: flex; align-items: flex-end; gap: var(--s-3);
+  margin-top: auto; padding: var(--s-3) var(--s-5) var(--s-4);
+  border-top: 1px solid var(--line);
+}
+.p-apps .p-apps__trust { flex: 1 1 auto; min-width: 0; margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
+.p-apps .p-apps__off { flex: none; margin: -6px -10px -6px 0; color: var(--ink-2); }
+.p-apps .p-apps__off:hover { color: var(--ink); }
+.p-apps .p-apps__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+
+/* Made by the team (T88): cards, each the top of its first page over its name, its task and Open. */
+.p-apps .p-apps__sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(296px, 1fr)); gap: var(--s-4); }
+.p-apps .p-apps__site { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.p-apps .p-apps__shot {
+  aspect-ratio: 16 / 9; overflow: hidden; display: grid; place-items: center;
+  border-bottom: 1px solid var(--line); background: var(--raise);
+}
 .p-apps .p-apps__shot img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
-.p-apps .p-apps__noshot { color: var(--text-2); font-size: var(--fs-caption); }
-.p-apps .p-apps__site-name { margin: 0; font-size: var(--fs-title); font-weight: var(--fw-bold); overflow-wrap: anywhere; }
-.p-apps .p-apps__site-task { margin: 0; color: var(--text-2); font-size: var(--fs-caption); overflow-wrap: anywhere; }
-.p-apps .p-apps__site-task a { color: var(--text); }
+.p-apps .p-apps__noshot { display: inline-flex; align-items: center; gap: var(--s-2); color: var(--ink-2); font-size: var(--fs-note); }
+.p-apps .p-apps__noshot .k-icon { color: var(--ink-3); }
+.p-apps .p-apps__site-body { display: flex; flex-direction: column; gap: var(--s-1); padding: var(--s-4) var(--s-5) var(--s-5); min-width: 0; }
+.p-apps .p-apps__site-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-width: 0; }
+.p-apps .p-apps__site-name {
+  margin: 0; min-width: 0;
+  font-size: var(--fs-fact); font-weight: var(--fw-bold); line-height: var(--lh-fact);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.p-apps .p-apps__site-task { margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); overflow-wrap: anywhere; }
+.p-apps .p-apps__site-task a { color: var(--ink-2); text-decoration: none; }
+.p-apps .p-apps__site-task a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.p-apps .p-apps__site-task .k-time { color: var(--ink-3); }
+
+/* Below 860 px: one card a row, the bar's two halves stacked. */
+@media (max-width: 859px) {
+  .p-apps { gap: var(--s-6); }
+  .p-apps .p-apps__grid,
+  .p-apps .p-apps__sites { grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
+  .p-apps .p-apps__tile-head { padding: var(--s-4) var(--s-4) 0; }
+  .p-apps .p-apps__icon { width: 48px; height: 48px; }
+  .p-apps .p-apps__tile-body { padding: var(--s-3) var(--s-4) var(--s-4); }
+  .p-apps .p-apps__foot { padding: var(--s-3) var(--s-4) var(--s-3); }
+  .p-apps .p-apps__site-body { padding: var(--s-3) var(--s-4) var(--s-4); }
+}
