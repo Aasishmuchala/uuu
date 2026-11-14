@@ -1,4 +1,4 @@
-// The frame every page lives in (CONTRACTS-V3 26.2): the canvas behind everything, the top bar with the
+// The frame every page lives in (CONTRACTS-V3 26.2), on the flat ground of tokens.css: the top bar with the
 // capsule, the Needs you pill and drawer, the dock on the pages of work, the tab bar and the Menu sheet
 // below 860 px, the main pane, the optional work panel, the command menu and the compose dialog, the keys,
 // the skip link and the aria-live line. It reads GET /api/shell every 10 seconds and gives every page the
@@ -100,19 +100,6 @@ function NotFound() {
     <div class="s-notfound">
       <${PageHeader} title="There is no page here" />
       <p>The address may be old or mistyped. <a href="#/map">Go to the map</a>.</p>
-    </div>`;
-}
-
-// The canvas of CONTRACTS-V3 27.3: five soft lights and the stars, drawn once, behind everything.
-function Canvas() {
-  return html`
-    <div class="s-canvas" aria-hidden="true">
-      <span class="s-canvas__light s-canvas__light--1"></span>
-      <span class="s-canvas__light s-canvas__light--2"></span>
-      <span class="s-canvas__light s-canvas__light--3"></span>
-      <span class="s-canvas__light s-canvas__light--4"></span>
-      <span class="s-canvas__light s-canvas__light--5"></span>
-      <span class="s-canvas__stars"></span>
     </div>`;
 }
 
@@ -266,7 +253,6 @@ export function AppShell() {
   return html`
     <${AppContext.Provider} value=${ctx}>
       <a class="s-skip" href="#main" onClick=${skip}>Skip to content</a>
-      <${Canvas} />
       <div class=${cls}>
         <${Topbar} routeId=${routeId} shell=${shell.data} narrow=${narrow} settings=${settings} onSaveSettings=${saveSettings}
           onNeeds=${openNeeds} onMenu=${() => setOverlay("menu")} />

@@ -1,6 +1,6 @@
-/* Base stylesheet (CONTRACTS-V2 section 12, with CONTRACTS-V3 section 27): reset, document defaults, focus,
-   motion and the u- utilities. Tokens only; every colour, font and size comes from tokens.css. The canvas,
-   the aurora and the glass helpers live in canvas.css. */
+/* Base stylesheet (CONTRACTS-V2 section 12, with PLAN-COOK T10): reset, document defaults, focus, motion and
+   the u- utilities. Tokens only; every colour, font and size comes from tokens.css. The ground is flat: the
+   page sits on --bg, with nothing drawn behind it. */
 
 /* Reset */
 *,
@@ -69,7 +69,7 @@ html {
   font-size: var(--fs-body);
   font-weight: var(--fw-regular);
   line-height: var(--lh-body);
-  color: var(--text);
+  color: var(--ink);
   background: var(--bg);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -80,18 +80,18 @@ html {
 
 body {
   min-height: 100vh;
-  color: var(--text);
+  color: var(--ink);
   background: var(--bg);
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-weight: var(--fw-bold);
   line-height: var(--lh-tight);
-  color: var(--text);
+  color: var(--ink);
 }
 
-h1 { font-size: var(--fs-heading); font-weight: var(--fw-medium); }
-h2 { font-size: var(--fs-title); }
+h1 { font-size: var(--fs-page); font-weight: var(--fw-medium); letter-spacing: var(--ls-page); }
+h2 { font-size: var(--fs-section); }
 h3, h4, h5, h6 { font-size: var(--fs-body); }
 
 a {
@@ -111,7 +111,7 @@ pre,
 
 hr {
   border: 0;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
 }
 
 /* Focus: one ring in the accent, keyboard only. */
@@ -121,8 +121,8 @@ hr {
 }
 
 ::selection {
-  color: var(--text);
-  background: var(--border-strong);
+  color: var(--ink);
+  background: var(--line-2);
 }
 
 /* Motion off when the owner asks for less: in this app's settings, or on the Mac. Every animation runs once
@@ -188,12 +188,17 @@ hr {
 }
 
 .u-muted {
-  color: var(--text-2);
+  color: var(--ink-2);
 }
 
 .u-caption {
-  font-size: var(--fs-caption);
-  color: var(--text-3);
+  font-size: var(--fs-note);
+  color: var(--ink-2);
+}
+
+/* Figures that line up: amounts, counts, times. */
+.u-num {
+  font-variant-numeric: tabular-nums;
 }
 
 .u-truncate {
@@ -214,22 +219,28 @@ hr {
   min-width: 0;
 }
 
-/* The overline: small, wide-tracked capitals above a title. */
+/* A label: 12 px in the third grey, sentence case, above a value or heading a column. */
 .u-over {
-  font-size: var(--fs-over);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  line-height: var(--lh-tight);
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--text-2);
+  line-height: var(--lh-label);
+  letter-spacing: var(--ls-label);
+  color: var(--ink-3);
 }
 
-/* A department's name: the serif, in wide-tracked capitals. */
+/* A department's name: the stat size in the one face, as written. */
 .u-serif {
-  font-family: var(--font-serif);
-  font-size: var(--fs-dept);
-  font-weight: var(--fw-regular);
-  line-height: var(--lh-tight);
-  letter-spacing: .22em;
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: var(--fs-stat);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-stat);
+}
+
+/* A surface one step off the ground: a card or a block of rows on the page. Opaque, with a hairline edge,
+   and in light the soft card shadow. (Kept for the un-migrated pages; the kit's cards replace it.) */
+.u-glass {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--highlight);
+  border-radius: var(--r-3);
 }

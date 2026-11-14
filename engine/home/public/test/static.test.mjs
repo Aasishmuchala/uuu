@@ -17,10 +17,8 @@ const SELF = fileURLToPath(import.meta.url);
 const KIT_SHEETS = "button icon avatar status tag card tabs fields states overlays text page decision task-card brief composer conversation table timeline checks doc agent segmented job answer ring forms upload pick shotlist site".split(" ");
 const PAGE_SHEETS = "map needs-you tasks task dashboards dashboard marketing studio sprite-player dept team agent jobs job files brain routines health settings search brand-kit apps app".split(" ");
 const SHEETS = [
-  "./assets/fonts/fonts.css",
   "./styles/tokens.css",
   "./styles/base.css",
-  "./styles/canvas.css",
   "./styles/creature.css",
   ...KIT_SHEETS.map((k) => `./styles/kit/${k}.css`),
   "./styles/shell.css",
@@ -28,7 +26,7 @@ const SHEETS = [
 ];
 
 // Where backdrop-filter may be used (CONTRACTS-V3 27.3), relative to the tree.
-const MAY_BLUR = ["styles/canvas.css", "styles/shell.css", "styles/kit/overlays.css", "styles/kit/composer.css"];
+const MAY_BLUR = ["styles/shell.css", "styles/kit/overlays.css", "styles/kit/composer.css"];
 
 // The vendored library as it was checked in; replacing it is a deliberate change to this list.
 const VENDOR_FILES = {
@@ -183,14 +181,14 @@ test("no HTML file has an inline script (the server's content policy forbids it)
   }
 });
 
-test("backdrop-filter only where 27.3 allows it; no filter: blur and no will-change outside canvas.css", () => {
+test("backdrop-filter only where 27.3 allows it; no filter: blur and no will-change anywhere", () => {
   assert.ok(CSS.length >= SHEETS.length - 1, "the stylesheets were found");
   for (const file of CSS) {
     const where = relative(PUBLIC, file).split(sep).join("/");
     const css = stripCss(textOf(file) || "");
     if (!MAY_BLUR.includes(where)) assert.doesNotMatch(css, /backdrop-filter/, `${where} does not blur what is behind it`);
     assert.doesNotMatch(css, /(^|[\s;{])filter\s*:[^;}]*blur/, `${where} has no filter: blur`);
-    if (where !== "styles/canvas.css") assert.doesNotMatch(css, /will-change/, `${where} has no will-change`);
+    assert.doesNotMatch(css, /will-change/, `${where} has no will-change`);
   }
 });
 

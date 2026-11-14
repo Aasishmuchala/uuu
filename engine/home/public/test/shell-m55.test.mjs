@@ -66,7 +66,11 @@ test("drawers: full width below 860 px, focus on Close first, no paused opening 
 });
 
 test("the light theme's strong glass and the working colour for words (M18-30, M50 F10)", () => {
+  // PLAN-COOK T10: the strong glass is the opaque panel (white in light), so nothing behind a menu or dialog
+  // shows through at all; the working colour for words is the one green, dark enough to read in light.
   const t = css("tokens.css");
-  assert.match(t, /:root\[data-theme="light"\]\s*\{[^}]*--glass-strong: rgba\(255,255,255,\.97\);/);
-  assert.match(t, /--live-text: #15803d;/);
+  assert.match(t, /:root\[data-theme="light"\]\s*\{[^}]*--panel: #ffffff;/);
+  assert.match(t, /--glass-strong: var\(--panel\);/);
+  assert.match(t, /:root\[data-theme="light"\]\s*\{[^}]*--good: #17703f;/);
+  assert.match(t, /--live-text: var\(--good\);/);
 });

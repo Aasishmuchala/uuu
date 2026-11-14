@@ -5,102 +5,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tokens sample</title>
   <script src="../lib/theme-boot.js"></script>
-  <link rel="stylesheet" href="../assets/fonts/fonts.css">
   <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="base.css">
-  <link rel="stylesheet" href="canvas.css">
 </head>
 <body>
-  <!-- For looking at the tokens and the canvas, not part of the app. Add ?theme=light|dark|auto,
-       ?accent=<name>, ?backdrop=aurora|stars|plain and ?motion=on|off to the address. -->
-  <div class="s-canvas" aria-hidden="true">
-    <span class="s-canvas__light s-canvas__light--1"></span>
-    <span class="s-canvas__light s-canvas__light--2"></span>
-    <span class="s-canvas__light s-canvas__light--3"></span>
-    <span class="s-canvas__light s-canvas__light--4"></span>
-    <span class="s-canvas__light s-canvas__light--5"></span>
-    <span class="s-canvas__stars"></span>
-  </div>
-
-  <main class="u-stack" style="position: relative; z-index: 1; max-width: var(--content-max); margin: 0 auto; padding: var(--s-8) var(--s-6); gap: var(--s-8);">
+  <!-- For looking at the tokens, not part of the app. Add ?theme=light|dark|auto and ?motion=on|off to the address.
+       The three ground steps: the stage (deepest), the page ground, and the raised step for panels and cards. -->
+  <main class="u-stack" style="max-width: var(--content-max); margin: 0 auto; padding: var(--s-8) var(--pad); gap: var(--s-8);">
 
     <section class="u-stack" style="gap: var(--s-2);">
-      <p class="u-over">The canvas</p>
-      <div style="font-size: var(--fs-display); font-weight: var(--fw-medium); line-height: var(--lh-tight);">Display 32</div>
-      <h1>Heading 22</h1>
-      <div style="font-size: var(--fs-title); font-weight: var(--fw-medium);">Title 16</div>
-      <p>Body 14, straight on the canvas. <a href="#">A link in the accent</a>.</p>
-      <p class="u-muted">Secondary text on the canvas.</p>
+      <p class="u-over">The ground</p>
+      <div style="font-size: var(--fs-figure); line-height: var(--lh-figure); font-weight: var(--fw-medium); letter-spacing: var(--ls-figure);" class="u-num">$1.85</div>
+      <h1>Page title 28</h1>
+      <h2>Section 16</h2>
+      <p style="font-size: var(--fs-fact); line-height: var(--lh-fact); font-weight: var(--fw-bold);">The fact to judge, 15</p>
+      <p>Reading text 14, on the ground. <a href="#">A link in the accent</a>.</p>
+      <p class="u-caption">A second line, 13 in the second grey.</p>
+      <p class="u-over">A label, 12 in the third grey</p>
       <p class="u-mono">STH-12 mono</p>
       <p class="u-serif">Operations</p>
     </section>
 
     <section class="u-stack">
-      <h2>Text on glass</h2>
+      <h2>Raised: panels and cards</h2>
       <div class="u-row" style="flex-wrap: wrap; align-items: stretch; gap: var(--s-4);">
-        <div class="u-glass u-stack" style="padding: var(--s-5); gap: var(--s-1); flex: 1 1 260px;">
-          <span class="u-over">Glass card</span>
-          <strong style="font-size: var(--fs-title);">Send the March invoices</strong>
-          <span>Text</span>
-          <span style="color: var(--text-2);">Text 2</span>
-          <span class="u-caption">Text 3, a caption</span>
+        <div class="u-glass u-stack" style="padding: var(--s-4); gap: var(--s-1); flex: 1 1 260px;">
+          <strong style="font-size: var(--fs-fact);">Send the March invoices</strong>
+          <span>Ink</span>
+          <span style="color: var(--ink-2);">Ink 2</span>
+          <span style="color: var(--ink-3);">Ink 3, a label</span>
           <div class="u-row" style="margin-top: var(--s-3);">
-            <button type="button" style="height: var(--h-md); padding: 0 var(--s-4); border: 0; border-radius: var(--r-pill); background: var(--primary); color: var(--primary-text);">Start</button>
-            <button type="button" style="height: var(--h-md); padding: 0 var(--s-4); border: 1px solid var(--hairline-strong); border-radius: var(--r-pill); background: var(--glass-soft);">Send back</button>
-            <button type="button" style="height: var(--h-md); padding: 0 var(--s-4); border: 0; border-radius: var(--r-pill); background: var(--accept); color: var(--accept-text);">Accept</button>
+            <button type="button" style="height: var(--h-md); padding: 0 var(--s-4); border: 0; border-radius: var(--r-2); background: var(--accent-fill); color: var(--accent-ink); font-weight: var(--fw-bold);">Approve</button>
+            <button type="button" style="height: var(--h-md); padding: 0 var(--s-4); border: 1px solid var(--line-2); border-radius: var(--r-2); background: none;">Send back</button>
           </div>
         </div>
-        <div class="u-glass u-stack" style="padding: var(--s-5); gap: var(--s-1); flex: 1 1 260px; background: linear-gradient(var(--bg-warm), var(--bg-warm)), var(--glass); border-color: var(--border-warm);">
-          <span class="u-over">Needs you</span>
-          <strong style="font-size: var(--fs-title);">A card that needs you</strong>
-          <span style="color: var(--text-2);">Bookkeeper, 2 minutes ago</span>
+        <div class="u-stack" style="padding: var(--s-4); gap: var(--s-1); flex: 1 1 260px; background: var(--raise); border: 2px solid var(--accent); border-radius: var(--r-3); box-shadow: var(--shadow-card);">
+          <strong style="font-size: var(--fs-fact);">Selected</strong>
+          <span style="color: var(--ink-2);">The raised step with a 2 px accent edge</span>
         </div>
-        <div class="u-glass-chrome u-stack" style="padding: var(--s-5); gap: var(--s-1); flex: 1 1 260px; box-shadow: var(--shadow-pop);">
-          <span class="u-over">Chrome glass</span>
-          <span>For menus, dialogs and the dock</span>
-          <span class="u-caption">Blurs what is behind it</span>
+        <div class="u-stack" style="padding: var(--s-4); gap: var(--s-1); flex: 1 1 260px; background: var(--panel); border-radius: var(--r-3); box-shadow: var(--float);">
+          <strong style="font-size: var(--fs-fact);">Floating</strong>
+          <span style="color: var(--ink-2);">Menus, dialogs and the queue</span>
         </div>
       </div>
     </section>
 
-    <section class="u-glass u-stack" style="padding: var(--s-5);">
-      <h2>State colours</h2>
-      <div class="u-row" style="flex-wrap: wrap;">
-        <span style="background: var(--ok-bg); color: var(--ok-text); border-radius: var(--r-pill); padding: 0 var(--s-2);">Passed</span>
-        <span style="background: var(--warn-bg); color: var(--warn-text); border-radius: var(--r-pill); padding: 0 var(--s-2);">Waiting for you</span>
-        <span style="background: var(--bad-bg); color: var(--bad-text); border-radius: var(--r-pill); padding: 0 var(--s-2);">Failed</span>
-        <span class="u-row" style="gap: var(--s-1);"><span style="width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--live);"></span>Working</span>
-        <span class="u-row" style="gap: var(--s-1);"><span style="width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--ok);"></span>Done</span>
-        <span class="u-row" style="gap: var(--s-1);"><span style="width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--warn);"></span>Paused</span>
-        <span class="u-row" style="gap: var(--s-1);"><span style="width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--bad);"></span>Problem</span>
-      </div>
-    </section>
-
-    <section class="u-stack">
-      <h2>Departments</h2>
-      <div class="u-row" style="flex-wrap: wrap; gap: var(--s-6);">
-        <span data-dept="brain" class="u-row" style="gap: var(--s-2);"><span style="width: 12px; height: 12px; border-radius: var(--r-pill); background: var(--dept);"></span><span class="u-over" style="color: var(--dept);">Brain</span></span>
-        <span data-dept="operations" class="u-row" style="gap: var(--s-2);"><span style="width: 12px; height: 12px; border-radius: var(--r-pill); background: var(--dept);"></span><span class="u-over" style="color: var(--dept);">Operations</span></span>
-        <span data-dept="sales" class="u-row" style="gap: var(--s-2);"><span style="width: 12px; height: 12px; border-radius: var(--r-pill); background: var(--dept);"></span><span class="u-over" style="color: var(--dept);">Sales</span></span>
-        <span data-dept="marketing" class="u-row" style="gap: var(--s-2);"><span style="width: 12px; height: 12px; border-radius: var(--r-pill); background: var(--dept);"></span><span class="u-over" style="color: var(--dept);">Marketing</span></span>
-        <span data-dept="studio" class="u-row" style="gap: var(--s-2);"><span style="width: 12px; height: 12px; border-radius: var(--r-pill); background: var(--dept);"></span><span class="u-over" style="color: var(--dept);">Studio</span></span>
-        <span data-dept="support" class="u-row" style="gap: var(--s-2);"><span style="width: 12px; height: 12px; border-radius: var(--r-pill); background: var(--dept);"></span><span class="u-over" style="color: var(--dept);">Support</span></span>
-        <span data-dept="people" class="u-row" style="gap: var(--s-2);"><span style="width: 12px; height: 12px; border-radius: var(--r-pill); background: var(--dept);"></span><span class="u-over" style="color: var(--dept);">People</span></span>
-        <span data-dept="books" class="u-row" style="gap: var(--s-2);"><span style="width: 12px; height: 12px; border-radius: var(--r-pill); background: var(--dept);"></span><span class="u-over" style="color: var(--dept);">Books</span></span>
-      </div>
-    </section>
-
-    <section class="u-stack">
-      <h2>Look</h2>
-      <div class="u-row" style="flex-wrap: wrap;">
-        <a href="?theme=dark">dark</a>
-        <a href="?theme=light">light</a>
-        <a href="?theme=auto">auto</a>
-        <a href="?backdrop=stars">stars only</a>
-        <a href="?backdrop=plain">plain</a>
-        <a href="?motion=off">motion off</a>
-        <a href="?accent=blue">blue accent</a>
-      </div>
+    <section class="u-stack" style="background: var(--stage); padding: var(--pad); border-radius: var(--r-3);">
+      <h2>The stage</h2>
+      <p style="color: var(--ink-2);">The deepest step, behind a film, a site or a picture.</p>
+      <p style="padding: 9px 12px; border-left: 2px solid var(--warn); background: var(--warn-bg); font-size: var(--fs-note); border-radius: var(--r-1);">A warning: a thin amber rule on a faint tint.</p>
+      <p class="u-row" style="font-size: var(--fs-note);">
+        <span style="color: var(--good);">Passed</span>
+        <span style="color: var(--warn);">Look at this</span>
+        <span style="color: var(--bad);">Over the limit</span>
+      </p>
     </section>
 
   </main>
