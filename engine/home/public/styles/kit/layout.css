@@ -224,7 +224,8 @@
   line-height: var(--lh-section);
 }
 
-/* ---- DocLayout: a list of sections and one readable column */
+/* ---- DocLayout: a list of sections and one readable column. The list is on the page's ground behind a 1 px line,
+   so the sidebar stays the one darkest column. */
 .k-doc--layout {
   display: grid;
   grid-template-columns: var(--sections-w) minmax(0, 1fr);
@@ -245,7 +246,7 @@
   min-height: calc(100vh - var(--topbar-h));
   padding: var(--s-4) var(--s-3);
   border-right: 1px solid var(--line);
-  background: var(--side);
+  background: var(--bg);
 }
 
 .k-doc__list {
