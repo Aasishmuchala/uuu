@@ -1,19 +1,59 @@
-/* Settings page. */
-.p-settings .p-settings__group { display: grid; gap: var(--s-2); margin-bottom: var(--s-4); }
+/* Settings (pages/settings.js): the frame is the kit's DocLayout; only this page's own touches are here. */
+
+/* A switch at a row's right edge is the control alone: its name is the row's title, kept for screen readers. */
+.p-settings .k-rows__control .k-switch__label,
+.p-settings .k-rows__control .k-switch__state {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Later: the sentence, and under it, when asked, what it would cost, how and with what. */
+.p-settings .p-settings__lines {
+  display: grid;
+  gap: 2px;
+}
+.p-settings .p-settings__tech {
+  color: var(--ink-3);
+}
+.p-settings .p-settings__foot {
+  margin-top: var(--s-3);
+}
+
+/* On a phone a row's wide controls drop under its words (the kit's rule); a switch is small and stays at the right. */
+@media (max-width: 859px) {
+  .p-settings .k-rows__row:has(> .k-rows__control .k-switch) {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+  }
+  .p-settings .k-rows__row:has(> .k-rows__control .k-switch) > .k-rows__control {
+    grid-column: 3;
+    margin-top: 0;
+  }
+}
+
+/* Until Models, Web, Generation and Page viewer draw their own head (T54 to T56), the old section's title under the
+   column's title is not drawn twice. */
+.p-settings .k-doc__main > .k-section > .k-section__head > .k-section__title,
+.p-settings .k-doc__main > div > .k-section:first-child > .k-section__head > .k-section__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The door sections, as drawn before the redesign; T54 to T56 move each into its own sheet. */
 .p-settings .p-settings__label { margin: 0; font-size: var(--fs-body); font-weight: var(--fw-medium); }
-.p-settings .p-settings__themes, .p-settings .p-settings__swatches { display: flex; flex-wrap: wrap; gap: var(--s-2); }
-.p-settings .p-settings__swatch { position: relative; display: inline-flex; align-items: center; gap: var(--s-2); cursor: pointer; }
-.p-settings .p-settings__swatch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
-.p-settings .p-settings__swatch input:focus-visible + .p-settings__dot { outline: 2px solid var(--focus); outline-offset: 2px; }
-.p-settings .p-settings__swatch input:checked + .p-settings__dot { box-shadow: 0 0 0 2px var(--glass-strong), 0 0 0 4px var(--text); }
-.p-settings .p-settings__dot { display: inline-block; width: var(--s-6); height: var(--s-6); border-radius: var(--r-round); background: var(--text-3); }
-.p-settings .p-settings__later { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-3); }
-.p-settings .p-settings__item { padding: var(--s-4) var(--s-5); background: var(--glass); border: 1px solid var(--hairline); box-shadow: var(--highlight); border-radius: var(--r-4); }
-.p-settings .p-settings__sub { margin: var(--s-1) 0 0; color: var(--text-2); font-size: var(--fs-caption); }
-.p-settings .p-settings__tech { margin: var(--s-2) 0 0; padding: var(--s-2) var(--s-3); background: var(--bg-subtle); border-radius: var(--r-2); color: var(--text-2); }
-.p-settings .p-settings__swatches { gap: var(--s-2) var(--s-4); }
-.p-settings .p-settings__group:last-child { margin-bottom: 0; }
-.p-settings .p-settings__dot { flex: none; border: 1px solid var(--border-strong); }
 /* The Models section (pages/settings-models.js). */
 .p-settings .p-settings__models { display: grid; gap: var(--s-3); }
 .p-settings .p-settings__m-card { display: grid; gap: var(--s-3); }
@@ -50,8 +90,6 @@
 .p-settings .p-settings__m-steps .k-next { margin: 0; }
 .p-settings .p-settings__m-techlist { list-style: none; margin: 0; padding: var(--s-2) var(--s-3); background: var(--bg-subtle); border-radius: var(--r-2); color: var(--text-2); display: grid; gap: var(--s-1); overflow-wrap: anywhere; }
 @media (max-width: 859px) {
-  .p-settings .p-settings__item { padding: var(--s-4); }
-  .p-settings .p-settings__swatch { min-height: 44px; }
   .p-settings .p-settings__m-buttons .k-btn { flex: 1 1 auto; }
   .p-settings .p-settings__m-pick, .p-settings .p-settings__m-pick .k-select { width: 100%; }
 }
