@@ -208,3 +208,15 @@ test("job: with no price Start is off and the server's words stand in its place;
   const off = { ...NO_PRICE, ready: false, why: { text: "Generation is off or has no key yet. Open Settings.", link: null } };
   assert.equal(page.gatedJob(off), off, "an earlier reason is kept");
 });
+
+// PLAN-V5 K16, T54: a job that makes a page says, under its estimate, what the page viewer adds.
+test("job: a page's job says the viewer opens each version and must be on; no other kind says it", () => {
+  assert.equal(page.PAGE_WORDS, "Each version is opened in the page viewer and fixed up to three times, which adds a few minutes a version. The page viewer must be on.");
+  assert.equal(page.pageLine({ kind: "page", review: "art", versions: [1, 3] }), page.PAGE_WORDS);
+  for (const kind of ["carousel", "post", "film", "", undefined]) assert.equal(page.pageLine({ kind }), "", String(kind));
+  assert.equal(page.pageLine(null), "");
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "pages", "job.js"), "utf8");
+  const estimate = src.slice(src.indexOf('<div class="p-job__estimate"'), src.indexOf("</fieldset>"));
+  assert.ok(estimate.indexOf("${money ?") < estimate.indexOf("${page ?") && estimate.indexOf("${page ?") < estimate.indexOf("p-job__promise"),
+    "the line stands under the estimate and its money, before the promise");
+});

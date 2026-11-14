@@ -9,6 +9,9 @@
 // card to pick one from (the pick is the acceptance, so the panel points to it in place of Accept); after, the
 // versions as they are, from GET /api/tasks/:id/pieces. When that route is not there (404, an older home server)
 // or fails, the page is as it was.
+// A task that built a site (PLAN-V5 K16, T54) shows it under the versions: the home server's own pictures of each
+// version at desktop and phone width, what the page viewer found, the preview and the zip (kit/site.js SiteView,
+// from GET /api/tasks/:id/sites). A task with no site, or an older home server, shows nothing there.
 // Address state: ?round=<n>, ?check=<n>, ?doc=<stage id>, ?files=1. Everything here was written by agents:
 // shown as text only, sizes capped, no link followed.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
@@ -18,7 +21,7 @@ import { waitingLine } from "../lib/format.js";
 import { go } from "../lib/router.js";
 import {
   AnswerView, Avatar, Button, Chip, CheckList, Conversation, DecisionCard, DocView, Empty, ErrorNotice, Evidence,
-  FileCard, Icon, Loading, PageHeader, PickNudge, Tabs, TextArea, Timeline, Versions, brandLine, changedText, isChangedSinceSeen,
+  FileCard, Icon, Loading, PageHeader, PickNudge, SiteView, Tabs, TextArea, Timeline, Versions, brandLine, changedText, isChangedSinceSeen,
   isPickItem, jobHref, useInboxAct,
 } from "../kit/index.js";
 
@@ -738,6 +741,7 @@ export default function Page({ route }) {
       <section class="p-task__main" aria-label="What was said">
         <${Versions} id="p-task-versions" item=${pickItem} pieces=${pieces} picked=${pickedHere}
           onDone=${(r) => { setPickedHere(r && r.variant ? r.variant : null); after(text(r && r.message) || "Done."); }} />
+        <${SiteView} id=${id} stamp=${piecesStamp(d, null)} htmlId="p-task-sites" />
         <${Story} id=${id} items=${story} query=${query} />
       </section>
       ${barred ? html`

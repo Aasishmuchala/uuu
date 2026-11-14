@@ -31,10 +31,10 @@ const HTTPS = "https:" + "//";
 const HTTP = "http:" + "//";
 const view = (over = {}) => ({ ...WEB, ...over });
 
-test("web: the section and the other two are components; the Page viewer's placeholder draws nothing", () => {
+test("web: the section and the other two are components", () => {
   assert.equal(typeof Section, "function");
   assert.equal(typeof Generation, "function", "step 3 (T44) replaced its placeholder with the section");
-  assert.equal(Viewer(), null);
+  assert.equal(typeof Viewer, "function", "step 4 (T54) replaced its placeholder with the section");
 });
 
 test("web: K11's sentences are used as written", () => {

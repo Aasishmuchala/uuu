@@ -262,3 +262,19 @@
   .p-settings .p-settings__g-row-result { grid-area: result; }
   .p-settings .p-settings__g-row-film { grid-area: film; text-align: right; }
 }
+/* The Page viewer section (pages/settings-viewer.js, PLAN-V5 K15). It shares the Web section's hero, drawing, switch
+   and counts, and Generation's Test answer; what follows is its own: the two agents at the door, a hidden Chrome
+   drawn as a window, the line that says which Chrome is used, and the Test's two pictures. */
+.p-settings .p-settings__v-pair { display: inline-flex; }
+.p-settings .p-settings__v-pair .k-avatar + .k-avatar { margin-left: calc(var(--s-2) * -1); box-shadow: 0 0 0 2px var(--glass-strong); }
+.p-settings .p-settings__v-second { margin-top: -2px; }
+.p-settings .p-settings__v-chrome { box-sizing: border-box; display: block; width: var(--s-8); height: calc(var(--s-8) - 6px); margin: 3px 0; border: 1.5px solid var(--text-2); border-radius: var(--r-1); }
+.p-settings .p-settings__v-chrome-bar { display: block; height: 7px; border-bottom: 1.5px solid var(--text-2); }
+.p-settings .p-settings__v-chrome--none { border-style: dashed; opacity: .6; }
+.p-settings .p-settings__v-chrome--none .p-settings__v-chrome-bar { border-bottom-style: dashed; }
+.p-settings .p-settings__w-map--open .p-settings__v-chrome, .p-settings .p-settings__w-map--open .p-settings__v-chrome-bar { border-color: var(--ok); }
+.p-settings .p-settings__v-facts { display: grid; gap: var(--s-3); }
+.p-settings .p-settings__v-chromeline { display: flex; align-items: flex-start; gap: var(--s-2); margin: 0; color: var(--text); line-height: var(--lh-body); }
+.p-settings .p-settings__v-chromeline .k-icon { flex: none; margin-top: 3px; color: var(--ok-text); }
+.p-settings .p-settings__v-counts { margin: 0; }
+.p-settings .p-settings__v-answer .k-site__pair { margin-top: var(--s-2); }

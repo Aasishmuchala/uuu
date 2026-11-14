@@ -1,0 +1,570 @@
+/* SiteView (kit/site.js): a site an agent built, on its task's page, and the frames of its pictures (also used by
+   Settings for the page viewer's Test). Tokens only; every selector is the kit's. A desktop picture sits in a
+   browser window and a phone picture in a phone, side by side; their columns are in the ratio that gives the two
+   frames the same height (1280 by 800 against 390 by 844), so the pair reads as one line of screens. Each frame
+   shows the top of its page, as the screen would; opened larger, the whole page scrolls. */
+
+.k-site {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-4);
+  background: var(--glass);
+  box-shadow: var(--highlight);
+  margin-bottom: var(--s-6);
+  scroll-margin-top: calc(var(--topbar-h) + var(--s-4));
+  min-width: 0;
+}
+
+.k-site:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.k-site__top {
+  display: grid;
+  gap: var(--s-1);
+}
+
+.k-site__title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-medium);
+}
+
+.k-site__lead {
+  margin: 0;
+  color: var(--text-2);
+  line-height: var(--lh-body);
+}
+
+.k-site__versions {
+  min-width: 0;
+}
+
+.k-site__versions .k-seg {
+  max-width: 100%;
+}
+
+.k-site__ver-letter {
+  font-weight: var(--fw-bold);
+}
+
+.k-site__ver-name {
+  margin-left: var(--s-2);
+}
+
+/* ---- One site ---- */
+
+.k-site__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.k-site__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+
+.k-site__letter {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-pill);
+  background: var(--glass-soft);
+  color: var(--text);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-medium);
+}
+
+.k-site__names {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.k-site__name {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+}
+
+.k-site__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s-3);
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.k-site__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.k-site__opened,
+.k-site__failed {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  line-height: var(--lh-body);
+}
+
+.k-site__opened {
+  color: var(--ok-text);
+}
+
+.k-site__failed {
+  color: var(--bad-text);
+}
+
+.k-site__opened .k-icon,
+.k-site__failed .k-icon {
+  flex: none;
+  margin-top: 4px;
+}
+
+.k-site__link {
+  color: inherit;
+  font-weight: var(--fw-medium);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.k-site__link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+
+/* The state of the pictures when they are not simply there. */
+.k-site__state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--r-3);
+  background: var(--bg-subtle);
+}
+
+.k-site__state > .k-icon {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 3px;
+  color: var(--text-3);
+}
+
+.k-site__state--live {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.k-site__state--failed {
+  border-style: solid;
+  border-color: var(--bad);
+  background: var(--bad-bg);
+}
+
+.k-site__state--failed > .k-icon {
+  color: var(--bad-text);
+}
+
+.k-site__state-words {
+  flex: 1 1 16rem;
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  line-height: var(--lh-body);
+}
+
+.k-site__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  min-width: 0;
+}
+
+.k-site__tools .k-seg {
+  max-width: 100%;
+}
+
+.k-site__again {
+  margin-left: auto;
+}
+
+/* ---- The frames ---- */
+
+.k-site__pair {
+  display: grid;
+  grid-template-columns: minmax(0, 3.46fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.k-site__pair--small {
+  max-width: 24rem;
+  gap: var(--s-3);
+}
+
+.k-site__frame {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.k-site__screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--hairline-strong);
+  background: var(--glass-strong);
+  box-shadow: var(--highlight);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+button.k-site__screen {
+  cursor: zoom-in;
+}
+
+.k-site__frame--desktop .k-site__screen {
+  border-radius: var(--r-2);
+}
+
+.k-site__frame--phone .k-site__screen {
+  border-radius: var(--r-4);
+}
+
+button.k-site__screen:hover {
+  border-color: var(--text-3);
+}
+
+button.k-site__screen:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* The window's bar, and the phone's speaker: the same height, so the two frames stay level. */
+.k-site__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 14px;
+  padding: 0 7px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.k-site__dots {
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--hairline-strong);
+  box-shadow: 7px 0 0 var(--hairline-strong), 14px 0 0 var(--hairline-strong);
+}
+
+.k-site__frame--phone .k-site__bar {
+  justify-content: center;
+  border-bottom-color: transparent;
+}
+
+.k-site__frame--phone .k-site__dots {
+  width: 30%;
+  max-width: 24px;
+  box-shadow: none;
+}
+
+.k-site__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  object-position: top;
+  background: var(--bg-subtle);
+}
+
+.k-site__frame--desktop .k-site__img,
+.k-site__frame--desktop .k-site__none-words {
+  aspect-ratio: 1280 / 800;
+}
+
+.k-site__frame--phone .k-site__img,
+.k-site__frame--phone .k-site__none-words {
+  aspect-ratio: 390 / 844;
+}
+
+.k-site__none-words {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-2);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  text-align: center;
+  background: var(--bg-subtle);
+}
+
+.k-site__zoom {
+  position: absolute;
+  right: var(--s-2);
+  bottom: var(--s-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  background: var(--glass-strong);
+  color: var(--text);
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+button.k-site__screen:hover .k-site__zoom,
+button.k-site__screen:focus-visible .k-site__zoom {
+  opacity: 1;
+}
+
+.k-site__cap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  text-align: center;
+}
+
+.k-site__cap-px {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Opened larger: the whole page, scrolled in the dialog. */
+.k-site__large {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  margin: 0;
+}
+
+.k-site__large img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-2);
+}
+
+.k-site__large--phone img {
+  width: 390px;
+}
+
+/* ---- What the page viewer found ---- */
+
+.k-site__report {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-3);
+  background: var(--bg-subtle);
+  min-width: 0;
+}
+
+.k-site__report-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-3);
+  margin: 0;
+  font-size: var(--fs-over);
+  font-weight: var(--fw-medium);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.k-site__report-n {
+  font-size: var(--fs-caption);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--warn-text);
+}
+
+.k-site__lines {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.k-site__line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  min-width: 0;
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
+}
+
+.k-site__line .k-icon {
+  flex: none;
+  margin-top: 4px;
+  color: var(--warn-text);
+}
+
+.k-site__line--bad .k-icon {
+  color: var(--bad-text);
+}
+
+.k-site__fine {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  color: var(--ok-text);
+  font-weight: var(--fw-medium);
+}
+
+.k-site__drawn {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  overflow-wrap: anywhere;
+}
+
+.k-site__left {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+
+.k-site__left li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  overflow-wrap: anywhere;
+}
+
+.k-site__left .k-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--warn-text);
+}
+
+/* ---- The job page's line for a page (pages/job.js) ---- */
+
+.k-site__job {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.k-site__job .k-icon {
+  flex: none;
+  margin-top: 3px;
+  color: var(--text-2);
+}
+
+/* ---- A page's pictures in the pick card (kit/pick.js, C21): a page is tall, so the card shows its top, as a
+   screen would, and opened larger the whole page scrolls. ---- */
+
+.k-pick__shot img[src^="/api/sites/shot/"] {
+  aspect-ratio: 16 / 10;
+  max-height: none;
+  object-fit: cover;
+  object-position: top;
+}
+
+.k-pick__thumb img[src^="/api/sites/shot/"],
+.k-pick__done-shot[src^="/api/sites/shot/"] {
+  object-position: top;
+}
+
+.k-pick__large:has(img[src^="/api/sites/shot/"]) {
+  align-items: flex-start;
+}
+
+.k-pick__large img[src^="/api/sites/shot/"] {
+  max-height: none;
+  height: auto;
+}
+
+@media (max-width: 859px) {
+  .k-site {
+    padding: var(--s-3);
+  }
+
+  .k-site__actions {
+    width: 100%;
+  }
+
+  .k-site__actions .k-btn {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+
+  .k-site__again {
+    margin-left: 0;
+  }
+
+  .k-site__pair {
+    gap: var(--s-3);
+  }
+
+  .k-site__zoom {
+    opacity: 1;
+    width: 24px;
+    height: 24px;
+  }
+
+  .k-site__frame--phone .k-site__zoom {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-site__screen,
+  .k-site__zoom {
+    transition: none;
+  }
+}

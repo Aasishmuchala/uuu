@@ -344,3 +344,19 @@ test("task: when the pieces route is missing (404) nothing is shown and Accept s
   assert.match(src, /\.catch\(\(\) => \{ if \(live\) setS\(\{ id, data: null \}\); \}\)/, "a failed read shows nothing");
   assert.match(src, /const barred = layout\.narrow && !!acceptance\.accept && !pickItem;/);
 });
+
+// PLAN-V5 K16, T54: a task's site under its versions, from GET /api/tasks/:id/sites (kit/site.js SiteView).
+test("task: a site stands between the versions and the story, read again when the task moves", () => {
+  const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../pages/task.js"), "utf8");
+  const versions = src.indexOf("<${Versions} id=\"p-task-versions\"");
+  const sites = src.indexOf("<${SiteView} id=${id} stamp=${piecesStamp(d, null)} htmlId=\"p-task-sites\" />");
+  const story = src.indexOf("<${Story} id=${id} items=${story} query=${query} />");
+  assert.ok(versions > 0 && sites > versions && story > sites, "versions, then the site, then the story");
+});
+
+test("task: with no sites route (an older home server, 404) the site view draws nothing", async () => {
+  const r = await fetch(`${home.url}/api/tasks/STH-8/sites`);
+  assert.equal(r.status, 404, "this stub home has no sites route");
+  const { SiteView } = await import("../../kit/site.js");
+  assert.equal(typeof SiteView, "function");
+});

@@ -44,3 +44,7 @@ export * from "./pick.js";
 // now also shows a shotlist as one (kit/shotlist.js DecisionOrShotlist, which falls back to DecisionOrPick).
 export * from "./shotlist.js";
 export { DecisionOrShotlist as DecisionCard } from "./shotlist.js";
+
+// Step 4 (PLAN-V5 K15, K16, T54): a site an agent built, on its task's page: the home server's own pictures of it
+// at desktop and phone width, what the page viewer found, the preview and the zip.
+export * from "./site.js";

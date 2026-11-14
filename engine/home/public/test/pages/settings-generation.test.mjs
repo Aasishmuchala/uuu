@@ -35,9 +35,9 @@ const spent = (over = {}) => ({ ok: true, day: 0, month: 0, dayLeft: 300, monthL
 // A made-up key, built from parts: never a real one.
 const KEY = `key_${"0a1b2c3d".repeat(16)}`;
 
-test("generation: the section is a component; the Page viewer's placeholder still draws nothing", () => {
+test("generation: the section is a component, and so is the Page viewer's (T54)", () => {
   assert.equal(typeof Section, "function");
-  assert.equal(Viewer(), null);
+  assert.equal(typeof Viewer, "function");
 });
 
 test("generation: K13's Settings words are used as written", () => {

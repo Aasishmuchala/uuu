@@ -5,7 +5,8 @@
 // and its one-line reason, and one "Pick this one". Under them: an optional note, "Another round" and "Send all
 // back" (a note needed). The scores inform: nothing is preselected or ranked, versions stay in a to c order.
 // Nothing an agent wrote is ever set as HTML: a direction's title, a draft's text, a reason and a brand line are
-// text nodes; a picture comes only from the `/api/view/<token>` address the server gave.
+// text nodes; a picture comes only from the `/api/view/<token>` address the server gave, or for a page from the home
+// server's own kept picture, `/api/sites/shot/<key>/<name>` (PLAN-V5 C21).
 // Acts through POST /api/inbox/act with the item's version and `variant` (a, b or c) for a pick.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
@@ -165,9 +166,11 @@ function titleOf(v) {
   return v && v.id === "piece" ? "Your piece" : `Version ${letterOf(v && v.id)}`;
 }
 
-// A picture's address only when it is the server's own viewer address; anything else is not shown.
+// A picture's address only when it is the server's own viewer address, or exactly the address of a page's kept
+// picture (PLAN-V5 C21: a 64-hex key and a shot's name, nothing more); anything else is not shown.
+const SHOT_URL = /^\/api\/sites\/shot\/[0-9a-f]{64}\/shot-[A-Za-z0-9._-]{1,90}-(1280|390)-(light|dark)\.png$/;
 export function safeViewUrl(url) {
-  return typeof url === "string" && VIEW_URL.test(url) ? url : null;
+  return typeof url === "string" && (VIEW_URL.test(url) || SHOT_URL.test(url)) ? url : null;
 }
 
 // What a version shows: its pictures (server addresses only) and its text (as text).

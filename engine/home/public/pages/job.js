@@ -7,6 +7,7 @@
 // A job that needs the generation door (PLAN-V5 C9, T45) says what it costs in money under its estimate, in the
 // server's own words (`generation.words`); when the model chosen in Settings has no price, Start is off and those
 // words stand in its place.
+// A job that makes a page (PLAN-V5 K16, T54) says under its estimate what the page viewer adds to its time.
 // The words of a job come from the company's own files; the server's refusals are shown as they come.
 import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
@@ -182,6 +183,12 @@ export function reviewLine(craft) {
   return craft && craft.review === "art" ? "An art director looks at the result before you do." : "";
 }
 
+// For a page (PLAN-V5 K16): what looking at each version through the page viewer adds, under the estimate.
+export const PAGE_WORDS = "Each version is opened in the page viewer and fixed up to three times, which adds a few minutes a version. The page viewer must be on.";
+export function pageLine(craft) {
+  return craft && craft.kind === "page" ? PAGE_WORDS : "";
+}
+
 // The extra field of the start request: a NUMBER, only for a job with craft.
 export function startExtra(craft, n) {
   return craft ? { versions: n === 3 ? 3 : 1 } : null;
@@ -234,6 +241,7 @@ function VersionChoice({ craft, n, onPick, job }) {
   const review = reviewLine(craft);
   const money = moneyWords(job);
   const label = estimateLabel(job);
+  const page = pageLine(craft);
   return html`<fieldset class="p-job__versions">
     <legend class="p-job__versions-head">Versions</legend>
     ${items.length > 1
@@ -242,6 +250,7 @@ function VersionChoice({ craft, n, onPick, job }) {
     <div class="p-job__estimate" role="status" aria-live="polite">
       ${words ? html`<p class="p-job__time"><${Icon} name="clock" size=${16} /><span>${label ? html`<span class="k-sl__label">${label} </span>` : null}<strong>${words}</strong></span></p>` : null}
       ${money ? html`<${Money} generation=${money} />` : null}
+      ${page ? html`<p class="k-site__job"><${Icon} name="image" size=${16} /><span>${page}</span></p>` : null}
       <p class="p-job__promise">${versionPromise(craft, n)}</p>
       ${review ? html`<p class="p-job__review">${review}</p>` : null}
       ${last ? html`<p class="p-job__last">${last}</p>` : null}

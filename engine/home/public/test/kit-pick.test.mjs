@@ -190,6 +190,33 @@ test("previewParts and safeViewUrl: pictures only from the server's viewer, text
   assert.equal(pick.foldsText(Array.from({ length: 12 }, () => "a").join("\n")), true);
 });
 
+test("safeViewUrl: a page's kept picture exactly (C21), and nothing like it", () => {
+  const key = "0123456789abcdef".repeat(4);
+  const good = `/api/sites/shot/${key}/shot-index-1280-light.png`;
+  assert.equal(pick.safeViewUrl(good), good);
+  assert.equal(pick.safeViewUrl(`/api/sites/shot/${key}/shot-about.us-390-dark.png`), `/api/sites/shot/${key}/shot-about.us-390-dark.png`);
+  for (const bad of [`${good}?x=1`, `${good}#top`, `/api/sites/shot/${key.toUpperCase()}/shot-index-1280-light.png`, good.replace("shot-index", "SHOT-index"),
+    `/api/sites/shot/${key}/shot-index-1024-light.png`, `/api/sites/shot/${key}/shot-index-1280-dim.png`, `/api/sites/shot/${key}/shot-index-1280-light.jpg`,
+    `/api/sites/shot/${key.slice(2)}/shot-index-1280-light.png`, `/api/sites/shots/${key}/shot-index-1280-light.png`, `/api/sites/shot/${key}/x/shot-index-1280-light.png`,
+    `/api/sites/shot/${key}/shot-%2e%2e-1280-light.png`, `/files/api/sites/shot/${key}/shot-index-1280-light.png`, `//elsewhere${good}`, `${good}\n`]) {
+    assert.equal(pick.safeViewUrl(bad), null, bad);
+  }
+});
+
+test("the card: three page versions show their kept pictures, desktop first, and nothing else", async () => {
+  const key = (c) => c.repeat(64);
+  const page = (id, title, c) => ({ id, direction: { id: title.toLowerCase(), title }, brand: { result: "pass", lines: [] }, review: review(A, true, "the grid holds"),
+    preview: [{ type: "image", url: `/api/sites/shot/${key(c)}/shot-index-1280-light.png`, file: "shot-index-1280-light.png" },
+      { type: "image", url: `/api/sites/shot/${key(c)}/shot-index-390-light.png`, file: "shot-index-390-light.png" },
+      { type: "image", url: `/api/sites/shot/${key(c)}/shot-index-390-light.png?x`, file: "x" }] });
+  const item = { ...ITEM, pieceKind: "page", variants: [page("a", "Editorial", "a"), page("b", "Gallery", "b"), page("c", "Spec sheet", "c")] };
+  const root = await showTree(pick.PickCard, { item });
+  const srcs = elements(root).filter((e) => e.localName === "img").map((e) => e.src ?? e.getAttribute("src"));
+  assert.deepEqual(srcs, ["a", "b", "c"].flatMap((c) => [`/api/sites/shot/${key(c)}/shot-index-1280-light.png`, `/api/sites/shot/${key(c)}/shot-index-390-light.png`]));
+  assert.match(textOf(root), /Screens/, "the seventh axis of a page");
+  assert.equal(buttons(root, "Pick this one").length, 3);
+});
+
 test("pickBody: the version seen goes with every action, the variant only with a pick", () => {
   assert.deepEqual(pick.pickBody(ITEM, "pick", "Warmer.", "b"), { id: "goal:g1", action: "pick", note: "Warmer.", version: "v1", variant: "b" });
   assert.deepEqual(pick.pickBody(ITEM, "pick", "", "a"), { id: "goal:g1", action: "pick", version: "v1", variant: "a" });
