@@ -11,7 +11,7 @@ import { css, src } from "./kit/_rules.mjs";
 const load = (p) => import(pathToFileURL(join(TREE, p)).href);
 const topbar = await load("shell/topbar.js");
 const menu = await load("shell/command-menu.js");
-const dock = await load("shell/dock.js");
+const side = await load("shell/sidenav.js");
 
 test("the Health dot is never 'everything is on' while the gate is off (M52 F4)", () => {
   assert.deepEqual(topbar.engineDot({ board: "on", books: "on", gate: "off" }), { tone: "bad", words: "the gate is off" });
@@ -28,22 +28,28 @@ test("the command menu leads with Start and the departments, pages last, and doe
   assert.match(css("shell.css"), /\.s-cmd-list\.has-more\s*\{[^}]*mask-image/);
 });
 
-test("the dock: the briefcase at its foot, each item's words on hover, labels give way on a short window (M18-23, M18-33, C1)", () => {
-  const root = show(dock.Dock, { dock: [{ id: "sales", title: "Sales", creature: "sales", working: 1, needsYou: 2 }], current: null, onCompose() {} });
-  const item = withClass(root, "s-dock-item")[0];
-  assert.equal(item.getAttribute("title"), "Sales, 1 working, 2 need you");
-  assert.match(src("shell/dock.js"), /<\$\{Icon\} name="jobs" \/>\s*<\/a>/);
-  assert.match(css("shell.css"), /@media \(max-height: 699px\)\s*\{\s*\.s-dock-label\s*\{\s*display: none;/);
+// The dock's words on hover (M18-23, C1) carried over: in the icons-only sidebar each row says its name in a
+// tooltip, on hover and on keyboard focus; a short window scrolls the sidebar instead of hiding its foot.
+test("the sidebar: each row's words in a tooltip when it shows icons only, and it scrolls on a short window (M18-23, C1)", () => {
+  const root = show(side.Sidenav, { mode: "icons", routeId: "map", shell: null, dock: [{ id: "sales", title: "Sales", working: 1, needsYou: 2 }], settings: {} });
+  const sales = withClass(root, "s-go").find((e) => e.getAttribute("href") === "#/departments/sales");
+  assert.equal(sales.getAttribute("data-tip"), "Sales, 1 working, 2 need you");
+  assert.equal(sales.getAttribute("aria-label"), sales.getAttribute("data-tip"), "the tooltip's words are the row's name");
+  const s = css("shell.css");
+  assert.match(s, /\.s-side--icons \.s-go:hover::after,\s*\.s-side--icons \.s-go:focus-visible::after[^{]*\{[^}]*content: attr\(data-tip\);/);
+  assert.match(s, /\.s-side \{[^}]*position: sticky;[^}]*height: 100vh;[^}]*overflow-y: auto;/);
 });
 
-test("the top bar: the right group never slides under the capsule, and a band fades in once scrolled (M18-01, M50 F12)", () => {
+// The capsule's overlap (M18-01) and the scrolled band (M50 F12) are gone with the capsule: the top bar has the
+// page's own ground and a hairline, so nothing that scrolls under it reads as part of it, and the crumbs give
+// way before the buttons at its right.
+test("the top bar: opaque on the page's ground with a hairline, and its right group never gives up its width (M18-01, M50 F12)", () => {
   const s = css("shell.css");
-  // Up to 1399 px since the capsule holds a fifth section, App Studio (PLAN-V5 T80); 1259 px let it overlap at 1280.
-  assert.match(s, /@media \(min-width: 860px\) and \(max-width: 1399px\)\s*\{\s*\.s-topbar\s*\{\s*grid-template-columns: auto minmax\(0, 1fr\) auto;/);
-  assert.match(s, /@media \(min-width: 860px\) and \(max-width: 1099px\)\s*\{\s*\.s-topbar \.s-capsule-item \.k-icon\s*\{\s*display: none;/, "the five sections' words alone up to 1099 px");
-  assert.match(s, /\.s-needs\s*\{\s*flex: none;/);
-  assert.match(s, /\.s-topbar\.is-scrolled::before\s*\{\s*opacity: 1;/);
-  assert.match(s, /@media \(min-width: 860px\) and \(max-width: 979px\)\s*\{\s*\.s-topbar \.s-brand-name\s*\{\s*display: none;/);
+  assert.match(s, /\.s-top \{[^}]*position: sticky;[^}]*border-bottom: 1px solid var\(--line\);[^}]*background: var\(--bg\);/);
+  assert.match(s, /\.s-queue-btn,\s*\.s-find \{[^}]*flex: none;/);
+  assert.match(s, /\.s-crumbs \{[^}]*min-width: 0;/);
+  assert.match(s, /\.s-crumbs-here \{[^}]*text-overflow: ellipsis;/);
+  assert.doesNotMatch(s, /\.s-top[^{]*::before/, "no band behind the bar");
 });
 
 test("the tab bar lives in the pages' layer, so a page's dialog lies over it (M52 F2)", () => {

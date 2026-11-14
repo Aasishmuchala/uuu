@@ -1,7 +1,9 @@
-/* The shell (CONTRACTS-V3 26.2): the top bar with its capsule, the Needs you pill and drawer, the dock, the
-   main pane, the work panel, the tab bar and the Menu sheet below 860 px, the command menu and the compose
-   dialog's inside. The canvas behind is canvas.css. Classes start with s-; tokens only.
-   Only the chrome blurs what is behind it (.s-glass: the capsule, the dock, the tab bar); cards never do. */
+/* The shell (PLAN-COOK T20, after the C3 mockup's c.css): the sidebar and the page column (the top bar over
+   the main pane) from 860 px up; the top bar's back button and crumbs, the tab bar and the More sheet below;
+   the work panel, and the insides of the Needs you drawer, the command menu and the compose dialog (their
+   own task redraws them in shell-overlays.css). Classes start with s-; tokens only. Nothing blurs what is
+   behind it: every surface is opaque. Three grounds part the frame: the sidebar on --side, the page on --bg
+   with the top bar on the same ground, parted from it by a hairline; the current row is lifted (--raise). */
 
 /* The skip link: out of sight until it has focus. */
 .s-skip {
@@ -10,45 +12,39 @@
   top: -100px;
   z-index: 300;
   padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-pill);
-  background: var(--primary);
-  color: var(--primary-text);
+  border-radius: var(--r-2);
+  background: var(--accent-fill);
+  color: var(--accent-ink);
   text-decoration: none;
 }
 .s-skip:focus {
   top: var(--s-2);
 }
 
-/* Chrome glass, as .u-glass-chrome: the blur is held in a local property. */
-.s-glass {
-  --s-chrome-blur: blur(var(--blur-chrome));
-  background: var(--glass-strong);
-  border: 1px solid var(--hairline);
-  box-shadow: var(--highlight);
-  -webkit-backdrop-filter: var(--s-chrome-blur);
-  backdrop-filter: var(--s-chrome-blur);
-}
-
-/* Layout: the page floats on the canvas, under a top bar with no fill; the work panel sits on the right. */
+/* ---- the frame: the sidebar and the page column; the work panel, when open, is a third column. */
 .s-app {
+  --s-side-w: var(--side-w);
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: var(--s-side-w) minmax(0, 1fr);
   min-height: 100vh;
-  padding-top: var(--topbar-h);
+  background: var(--bg);
+}
+.s-app--icons {
+  --s-side-w: var(--side-w-icons);
 }
 .s-app.has-panel {
-  grid-template-columns: minmax(0, 1fr) var(--panel-w);
+  grid-template-columns: var(--s-side-w) minmax(0, 1fr) var(--panel-w);
 }
 .s-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
-.s-app--dock .s-main {
-  padding-left: calc(var(--dock-w) + var(--s-10));
-}
+
+/* The pane. A page of lists and a page of one column keep one left edge: both sit in the same centred box,
+   and a column's parts stop at --column. A page that draws work on a stage or a document fills the pane. */
 .s-content {
   width: 100%;
   max-width: calc(var(--content-max) + 2 * var(--s-10));
@@ -56,8 +52,8 @@
   padding: var(--s-8) var(--s-10) var(--s-12);
   flex: 1;
 }
-.s-content--column {
-  max-width: calc(var(--column) + 2 * var(--s-10));
+.s-content--column > * {
+  max-width: var(--column);
 }
 .s-content--full {
   max-width: none;
@@ -68,232 +64,343 @@
   max-width: none;
   padding: 0;
 }
-/* An app opened inside App Studio: the whole window under the top bar, a small margin round it. */
+/* An app opened inside App Studio: the whole pane under the top bar, a small margin round it. */
 .s-content--fill {
   display: flex;
   flex-direction: column;
   max-width: none;
   padding: var(--s-2) var(--s-5) var(--s-5);
 }
+.s-content:has(.k-work),
+.s-content:has(.k-doc) {
+  max-width: none;
+  padding: 0;
+}
+.s-content:has(.k-work) > *,
+.s-content:has(.k-doc) > * {
+  max-width: none;
+}
 .s-content:focus {
   outline: none;
 }
 
 .s-offline {
-  margin: var(--s-3) auto 0;
-  max-width: var(--content-max);
-  padding: var(--s-2) var(--s-4);
-  border: 1px solid var(--border-warm);
-  border-radius: var(--r-pill);
-  background: var(--bg-warm);
-  color: var(--text);
-  font-size: var(--fs-caption);
+  margin: var(--s-3) var(--s-10) 0;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--warn-line);
+  border-left: 2px solid var(--warn);
+  border-radius: var(--r-2);
+  background: var(--warn-bg);
+  color: var(--ink);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 .s-offline-next {
-  color: var(--text-2);
+  color: var(--ink-2);
 }
 
-/* The top bar: fixed, no fill of its own. */
-.s-topbar {
-  position: fixed;
+/* ---- the sidebar: sticky at the window's full height on its own ground, a hairline at its right. */
+.s-side {
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
-  z-index: 40;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  gap: var(--s-4);
-  height: var(--topbar-h);
-  padding: 0 var(--s-5);
+  z-index: 32;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 100vh;
+  padding: var(--s-2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  border-right: 1px solid var(--line);
+  background: var(--side);
 }
-/* Once the page is scrolled, a soft band of the canvas fades in behind the bar, so rows that scroll under it
-   do not read as part of it (M50 F12). At rest the bar stays clear, as 26.2 asks. Opacity only. */
-.s-topbar::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 calc(-1 * var(--s-5)) 0;
-  z-index: -1;
-  background: linear-gradient(var(--canvas) 62%, transparent);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--t-med) var(--ease);
-}
-.s-topbar.is-scrolled::before {
-  opacity: 1;
-}
-.s-topbar-left {
-  min-width: 0;
-}
-.s-topbar-right {
+.s-brand {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: var(--s-2);
-  min-width: 0;
-}
-
-/* A middle-sized window (M18-01): the capsule no longer centres on the window, so the right group keeps its
-   width and the Needs you pill is never under the capsule. The capsule centres in the space between. Up to
-   1399 px since the capsule holds five sections (App Studio, PLAN-V5 T80). */
-@media (min-width: 860px) and (max-width: 1399px) {
-  .s-topbar {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-  .s-topbar > .s-capsule {
-    justify-self: center;
-  }
-  .s-topbar-right {
-    flex: none;
-  }
-}
-/* Up to 1099 px the capsule's five sections show their words alone, so they fit beside the right group. */
-@media (min-width: 860px) and (max-width: 1099px) {
-  .s-topbar .s-capsule-item .k-icon {
-    display: none;
-  }
-}
-/* The narrowest of those: the company's name gives way to its mark, and the capsule's items come closer. */
-@media (min-width: 860px) and (max-width: 979px) {
-  .s-topbar .s-brand-name {
-    display: none;
-  }
-  .s-topbar .s-capsule-item {
-    padding: 0 var(--s-3);
-  }
-  .s-topbar {
-    gap: var(--s-3);
-    padding: 0 var(--s-4);
-  }
-}
-.s-topbar-gap {
-  flex: 1;
-}
-
-.s-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-3);
-  max-width: 100%;
-  min-width: 0;
-  color: var(--text);
+  gap: 10px;
+  flex: none;
+  height: 32px;
+  margin: 0 0 var(--s-3);
+  padding: 0 var(--s-1);
+  border-radius: var(--r-2);
+  color: var(--ink);
   text-decoration: none;
 }
 .s-brand-mark {
-  display: inline-grid;
+  display: grid;
   place-items: center;
   flex: none;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-2);
-  background: var(--glass);
-  box-shadow: var(--highlight);
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-bold);
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: var(--fs-fact);
+  font-weight: 700;
+  line-height: 1;
 }
 .s-brand-name {
-  font-size: var(--fs-over);
-  font-weight: var(--fw-medium);
-  letter-spacing: .16em;
-  text-transform: uppercase;
+  font-size: var(--fs-fact);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
 }
 
-/* The capsule: four sections; the current one is a solid pill. */
-.s-capsule {
-  display: inline-flex;
+/* A row: a 20 px icon, its name, and at its right a count or a dot. */
+.s-go {
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border-radius: var(--r-pill);
-}
-.s-capsule-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  height: 32px;
-  padding: 0 var(--s-4);
-  border-radius: var(--r-pill);
-  color: var(--text-2);
-  text-decoration: none;
-  font-weight: var(--fw-medium);
-  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
-}
-.s-capsule-item:hover {
-  color: var(--text);
-  background: var(--glass-soft);
-}
-.s-capsule-item.is-current {
-  background: var(--primary);
-  color: var(--primary-text);
-}
-
-/* The Needs you pill: warm while something waits. It never gives up its width. */
-.s-needs {
+  gap: 10px;
   flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  height: 32px;
-  padding: 0 var(--s-2) 0 var(--s-3);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  background: var(--glass-soft);
-  color: var(--text-2);
+  width: 100%;
+  height: var(--h-md);
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--ink-2);
   font: inherit;
-  font-weight: var(--fw-medium);
-  cursor: pointer;
-  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
-}
-.s-needs:hover {
-  border-color: var(--hairline-strong);
-  color: var(--text);
-}
-.s-needs.is-warm {
-  border-color: var(--border-warm);
-  background: var(--bg-warm);
-  color: var(--text);
-}
-.s-needs-count {
-  min-width: 20px;
-  height: 20px;
-  padding: 0 var(--s-1);
-  border-radius: var(--r-pill);
-  background: var(--glass-soft);
-  font-size: var(--fs-caption);
-  line-height: 20px;
-  text-align: center;
-}
-.s-needs.is-warm .s-needs-count {
-  background: var(--warn-bg);
-  color: var(--warn-text);
-}
-/* On the Needs you page the pill is the current place: a solid pill, as the capsule's current section. */
-.s-needs.is-current {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: var(--primary-text);
-}
-.s-needs.is-current .s-needs-count,
-.s-needs.is-current.is-warm .s-needs-count {
-  background: var(--primary-text);
-  color: var(--primary);
-}
-
-/* Quiet words and square icon buttons on the right. */
-.s-word {
-  flex: none;
-  padding: var(--s-1) var(--s-2);
-  border-radius: var(--r-pill);
-  color: var(--text-2);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  text-align: left;
   text-decoration: none;
   white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
-.s-word:hover,
-.s-word.is-current {
-  color: var(--text);
+.s-go .k-icon {
+  flex: none;
 }
-.s-square {
+.s-go:hover {
+  background: var(--ctl);
+  color: var(--ink);
+}
+.s-go.is-current {
+  background: var(--raise);
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-card);
+}
+.s-go-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.s-go-count {
+  margin-left: auto;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+}
+.s-go.is-current .s-go-count {
+  color: var(--ink);
+}
+.s-go .s-dot {
+  margin-left: auto;
+}
+.s-go-ends {
+  display: grid;
+  grid-template-columns: 7px 20px;
+  align-items: center;
+  justify-items: end;
+  gap: var(--s-2);
+  margin-left: auto;
+}
+.s-go-ends .s-dot,
+.s-go-ends .s-go-count {
+  margin-left: 0;
+}
+.s-go-ends .s-go-count {
+  grid-column: 2;
+}
+.s-side-team {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.s-side-title {
+  margin: 0;
+  padding: var(--s-4) 10px 6px;
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-label);
+}
+.s-side-gap {
+  flex: 1 0 var(--s-4);
+}
+
+/* A dot: working, or the engine's state. */
+.s-dot {
+  display: inline-block;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-round);
+  background: var(--ink-3);
+}
+.s-dot--good,
+.s-dot--ok {
+  background: var(--good);
+}
+.s-dot--warn {
+  background: var(--warn);
+}
+.s-dot--bad {
+  background: var(--bad);
+}
+
+/* Icons only: 40 px targets in a 56 px column; the names and the teams hidden; a count becomes a badge; the
+   row says its name in a tooltip at its right, on hover and on keyboard focus. */
+.s-side--icons {
+  align-items: center;
+  padding: var(--s-2) 0;
+}
+.s-side--icons .s-brand {
+  padding: 0;
+}
+.s-side--icons .s-brand-name,
+.s-side--icons .s-go-label,
+.s-side--icons .s-side-team {
+  display: none;
+}
+.s-side--icons .s-go {
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+}
+.s-side--icons .s-go-count {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0 5px;
+  border-radius: var(--r-round);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-bold);
+  line-height: 18px;
+  text-align: center;
+}
+.s-side--icons .s-go-ends {
+  display: contents;
+}
+.s-side--icons .s-go .s-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  margin: 0;
+  box-shadow: 0 0 0 2px var(--side);
+}
+.s-side--icons .s-go:hover::after,
+.s-side--icons .s-go:focus-visible::after,
+.s-side--icons .s-brand:hover::after,
+.s-side--icons .s-brand:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  z-index: 1;
+  padding: var(--s-1) 9px;
+  border-radius: var(--r-1);
+  background: var(--tip);
+  color: var(--tip-ink);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+  white-space: nowrap;
+  box-shadow: var(--float);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.s-side--icons .s-brand {
+  position: relative;
+}
+/* The tooltip leaves the sidebar's box, so the column does not clip it while it shows. */
+.s-side--icons:has(.s-go:hover, .s-go:focus-visible, .s-brand:hover, .s-brand:focus-visible) {
+  overflow: visible;
+}
+
+/* ---- the top bar: on the page's ground, a hairline under it, sticky over the page column. */
+.s-top {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+  height: var(--topbar-h);
+  padding: 0 var(--s-4) 0 var(--s-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink-2);
+}
+.s-top-gap {
+  flex: 1;
+}
+.s-crumbs {
+  display: flex;
+  line-height: var(--lh-ui);
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  margin-left: var(--s-1);
+  white-space: nowrap;
+}
+.s-crumbs-link {
+  flex: none;
+  border-radius: var(--r-1);
+  color: var(--ink-2);
+  text-decoration: none;
+  transition: color var(--t-fast) var(--ease);
+}
+a.s-crumbs-link:hover {
+  color: var(--ink);
+}
+.s-crumbs-sep {
+  flex: none;
+  color: var(--ink-3);
+}
+.s-crumbs-here {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+  text-overflow: ellipsis;
+}
+.s-pager {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  font-size: var(--fs-note);
+  white-space: nowrap;
+}
+.s-pager-at {
+  margin-right: 6px;
+}
+.s-top-link {
+  flex: none;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-1);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--t-fast) var(--ease);
+}
+.s-top-link:hover {
+  color: var(--ink);
+}
+
+/* An icon-only button in the shell (the sidebar's switch, the pager, the panel's close, the back button). */
+.s-icon-btn {
   position: relative;
   display: inline-grid;
   place-items: center;
@@ -301,78 +408,152 @@
   width: 32px;
   height: 32px;
   padding: 0;
-  border: 1px solid var(--hairline);
+  border: 0;
   border-radius: var(--r-2);
-  background: var(--glass-soft);
-  color: var(--text-2);
-  font: inherit;
+  background: transparent;
+  color: var(--ink-2);
   cursor: pointer;
-  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
-.s-square:hover,
-.s-square.is-current {
-  border-color: var(--hairline-strong);
-  color: var(--text);
+.s-icon-btn--sm {
+  width: var(--h-sm);
+  height: var(--h-sm);
 }
-.s-square-dot {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 6px;
-  height: 6px;
-  border-radius: var(--r-pill);
-  background: var(--text-2);
+.s-icon-btn:hover {
+  background: var(--ctl);
+  color: var(--ink);
 }
-.s-square-dot--ok {
-  background: var(--ok);
+.s-icon-btn.is-off {
+  color: var(--ink-3);
+  cursor: default;
+  opacity: .5;
 }
-.s-square-dot--warn {
-  background: var(--warn);
-}
-.s-square-dot--bad {
-  background: var(--bad);
+.s-icon-btn.is-off:hover {
+  background: transparent;
 }
 
-/* The dock: a floating vertical capsule at the left edge, centred. */
-.s-dock {
+/* The Queue button and "Search or jump to": 28 px, one outline, the key at the right. */
+.s-queue-btn,
+.s-find {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+  height: var(--h-sm);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  font: inherit;
+  font-size: var(--fs-note);
+  line-height: var(--lh-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.s-queue-btn {
+  padding: 0 var(--s-1) 0 10px;
+  background: transparent;
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+.s-queue-btn:hover,
+.s-queue-btn.is-open {
+  background: var(--ctl);
+}
+.s-find {
+  min-width: 200px;
+  padding: 0 var(--s-1) 0 10px;
+  background: var(--field);
+  color: var(--ink-2);
+}
+.s-find:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+.s-queue-btn .k-kbd,
+.s-find .k-kbd {
+  margin-left: auto;
+}
+.s-find .k-kbd {
+  margin-left: auto;
+  padding-left: var(--s-2);
+}
+.s-find-words {
+  margin-right: var(--s-4);
+}
+
+/* ---- the tab bar (below 860 px only): five columns on the page's ground, a hairline over it. */
+.s-tabbar {
   position: fixed;
-  left: var(--s-4);
-  top: 50%;
-  z-index: 30;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  padding: var(--s-1) 6px env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+.s-tab {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--s-2);
-  min-width: var(--dock-w);
-  max-height: calc(100vh - var(--topbar-h) - var(--s-8));
-  padding: var(--s-2) var(--s-1);
-  border-radius: var(--r-pill);
-  transform: translateY(-50%);
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-.s-dock-new,
-.s-dock-book {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  background: var(--glass-soft);
-  color: var(--text-2);
+  justify-content: flex-start;
+  gap: 2px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 5px 0 0;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--ink-2);
   font: inherit;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-label);
+  text-decoration: none;
   cursor: pointer;
-  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  transition: color var(--t-fast) var(--ease);
 }
-.s-dock-new:hover,
-.s-dock-book:hover {
-  border-color: var(--hairline-strong);
-  color: var(--text);
+.s-tab.is-current {
+  color: var(--ink);
+  font-weight: var(--fw-bold);
 }
-.s-dock-list {
+.s-tab-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.s-tab-word {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-tab-count {
+  position: absolute;
+  top: -5px;
+  left: calc(50% + 5px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-round);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-bold);
+  line-height: 18px;
+  text-align: center;
+}
+
+/* ---- the More sheet's inside (the Drawer is the kit's). */
+.s-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.s-sheet-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -380,88 +561,59 @@
   padding: 0;
   list-style: none;
 }
-.s-dock-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  width: 64px;
-  padding: var(--s-1) 0;
-  border-radius: var(--r-3);
-  color: var(--text-2);
-  text-decoration: none;
-  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+.s-sheet-list--foot {
+  margin-top: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line);
 }
-.s-dock-item:hover {
-  background: var(--glass-soft);
-  color: var(--text);
+.s-sheet-title {
+  margin: var(--s-3) 0 0;
+  padding: 0 var(--s-3);
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-label);
 }
-.s-dock-item.is-current {
-  background: var(--glass-soft);
-  color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--dept, var(--hairline-strong));
-}
-.s-dock-face {
+.s-sheet-item {
   position: relative;
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
 }
-.s-dock-label {
-  max-width: 60px;
-  overflow: hidden;
-  font-size: var(--fs-over);
-  line-height: var(--lh-tight);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.s-sheet-item:hover {
+  background: var(--ctl);
 }
-.s-dock-live,
-.s-dock-warm {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border: 2px solid var(--canvas);
-  border-radius: var(--r-pill);
-  box-sizing: content-box;
+.s-sheet-item .k-icon {
+  flex: none;
+  color: var(--ink-2);
 }
-.s-dock-live {
-  right: -3px;
-  bottom: -2px;
-  background: var(--live);
-  animation: s-live 2.4s ease-in-out infinite;
-}
-.s-dock-warm {
-  right: -3px;
-  top: -2px;
-  background: var(--warn);
+.s-sheet-item .k-kbd,
+.s-sheet-item .s-dot {
+  margin-left: auto;
 }
 
-/* A short window (M18-23): the tiny labels go (each item still says its name on hover and to a screen
-   reader), so the dock fits instead of scrolling with its end out of sight. */
-@media (max-height: 699px) {
-  .s-dock-label {
-    display: none;
-  }
-  .s-dock-item {
-    width: 48px;
-  }
-  .s-dock {
-    gap: var(--s-1);
-  }
-}
-
-/* The live mark breathes in opacity only. */
-@keyframes s-live {
-  0%, 100% { opacity: 1; }
-  50% { opacity: .45; }
+/* The queue's place (aria-controls of the Queue button); the drawer inside draws itself. */
+.s-queue-host {
+  display: contents;
 }
 
 /* The work panel. */
 .s-panel {
   position: sticky;
-  top: var(--topbar-h);
-  height: calc(100vh - var(--topbar-h));
+  top: 0;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -493,25 +645,6 @@
   padding: var(--s-4);
 }
 
-/* Icon-only buttons inside the shell (the panel's close). */
-.s-icon-btn {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: var(--h-md);
-  height: var(--h-md);
-  padding: 0;
-  border: 0;
-  border-radius: var(--r-pill);
-  background: transparent;
-  color: var(--text-2);
-  cursor: pointer;
-}
-.s-icon-btn:hover {
-  background: var(--glass-soft);
-  color: var(--text);
-}
 .s-link-btn {
   padding: 0;
   border: 0;
@@ -556,87 +689,6 @@
 }
 .s-needs-full {
   align-self: flex-start;
-}
-
-/* The Menu sheet's inside. */
-.s-sheet {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-.s-sheet-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.s-sheet-title {
-  margin: var(--s-2) 0 0;
-}
-.s-sheet-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  width: 100%;
-  min-height: 44px;
-  padding: 0 var(--s-3);
-  border: 0;
-  border-radius: var(--r-3);
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
-}
-.s-sheet-item:hover {
-  background: var(--glass-soft);
-}
-.s-sheet-item .k-icon {
-  flex: none;
-  color: var(--text-2);
-}
-.s-sheet-item .k-kbd {
-  margin-left: auto;
-}
-.s-sheet-item .s-square-dot {
-  position: static;
-  margin-left: auto;
-}
-
-/* The tab bar (below 860 px only). */
-.s-tabbar {
-  position: fixed;
-  left: var(--s-2);
-  right: var(--s-2);
-  bottom: var(--s-2);
-  z-index: 40;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 2px;
-  height: var(--tabbar-h);
-  padding: var(--s-1);
-  border-radius: var(--r-5);
-}
-.s-tab {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-height: 44px;
-  border-radius: var(--r-4);
-  color: var(--text-2);
-  text-decoration: none;
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-medium);
-}
-.s-tab.is-current {
-  background: var(--primary);
-  color: var(--primary-text);
 }
 
 /* The command menu's inside (the Dialog is the kit's). */
@@ -690,8 +742,6 @@
   color: var(--text-3);
   font-size: var(--fs-over);
   font-weight: var(--fw-medium);
-  letter-spacing: .16em;
-  text-transform: uppercase;
 }
 .s-cmd-item {
   display: flex;
@@ -748,34 +798,41 @@
   color: var(--text-2);
 }
 
-/* The narrow layout: the capsule moves to the tab bar, the dock is not shown, the panel is a sheet. */
+
+/* The narrow layout: no sidebar; the top bar is a back button and the crumbs; the tab bar at the bottom; the
+   work panel is a sheet. */
 @media (max-width: 859px) {
   .s-app,
   .s-app.has-panel {
     display: block;
-    padding-bottom: calc(var(--tabbar-h) + var(--s-4));
+    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
   }
-  .s-app--dock .s-main {
-    padding-left: 0;
+  .s-top--narrow {
+    gap: var(--s-1);
+    padding: 0 var(--s-2) 0 var(--s-1);
   }
-  .s-topbar--narrow {
-    display: flex;
-    gap: var(--s-2);
-    padding: 0 var(--s-3);
+  .s-top--narrow .s-icon-btn {
+    width: 44px;
+    height: 44px;
   }
-  .s-topbar--narrow .s-brand {
-    max-width: 50%;
+  .s-top--narrow .s-crumbs {
+    margin-left: 0;
   }
   .s-content,
   .s-content--column,
   .s-content--full {
     padding: var(--s-5) var(--s-4) var(--s-10);
   }
-  .s-content--map {
+  .s-content--map,
+  .s-content:has(.k-work),
+  .s-content:has(.k-doc) {
     padding: 0;
   }
   .s-content--fill {
     padding: var(--s-2) var(--s-2) 0;
+  }
+  .s-offline {
+    margin: var(--s-3) var(--s-4) 0;
   }
   .s-panel--sheet {
     position: fixed;
@@ -786,18 +843,12 @@
     margin: 0;
     border: 0;
     border-radius: 0;
-    background: var(--canvas);
+    background: var(--bg);
   }
-  .s-needs,
-  .s-square,
   .s-icon-btn,
   .s-cmd-item {
     min-height: 44px;
   }
-  .s-needs {
-    height: 44px;
-  }
-  .s-square,
   .s-icon-btn {
     width: 44px;
     height: 44px;
@@ -815,41 +866,28 @@
     align-items: center;
     min-height: 44px;
   }
-  /* The brand link is a full-height target (M50 F9). */
-  .s-topbar--narrow .s-brand {
-    min-height: 44px;
-  }
 }
 
-/* Phones: the Needs you pill keeps its count and drops the word. */
-@media (max-width: 479px) {
-  .s-needs-word {
-    display: none;
-  }
-}
-
-/* Motion off, by choice or by the system: the live mark stands still and nothing fades. */
-:root[data-motion="off"] .s-dock-live {
-  animation: none;
-}
-:root[data-motion="off"] .s-capsule-item,
-:root[data-motion="off"] .s-needs,
-:root[data-motion="off"] .s-square,
-:root[data-motion="off"] .s-dock-new,
-:root[data-motion="off"] .s-dock-book,
-:root[data-motion="off"] .s-dock-item {
+/* Motion off, by choice or by the system: nothing fades. */
+:root[data-motion="off"] .s-go,
+:root[data-motion="off"] .s-icon-btn,
+:root[data-motion="off"] .s-queue-btn,
+:root[data-motion="off"] .s-find,
+:root[data-motion="off"] .s-tab,
+:root[data-motion="off"] .s-sheet-item,
+:root[data-motion="off"] .s-crumbs-link,
+:root[data-motion="off"] .s-top-link {
   transition: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .s-dock-live {
-    animation: none;
-  }
-  .s-capsule-item,
-  .s-needs,
-  .s-square,
-  .s-dock-new,
-  .s-dock-book,
-  .s-dock-item {
+  .s-go,
+  .s-icon-btn,
+  .s-queue-btn,
+  .s-find,
+  .s-tab,
+  .s-sheet-item,
+  .s-crumbs-link,
+  .s-top-link {
     transition: none;
   }
 }

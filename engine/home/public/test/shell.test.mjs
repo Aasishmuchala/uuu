@@ -1,6 +1,7 @@
 // The shell, the route table and lib/ (CONTRACTS-V3 26): the table names every page and address of 26.1,
 // old addresses move to new ones, links come out right, the keys, the current section of each page, the
-// dock's marks from shell.dock, the overlays from the query, and every shell/ and lib/ module loads in Node.
+// sidebar's teams from shell.dock and its current row, the top bar's crumbs, the tab bar, the overlays from the
+// query, and every shell/ and lib/ module loads in Node.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
@@ -12,7 +13,7 @@ const load = (p) => import(pathToFileURL(join(PUBLIC, p)).href);
 const routes = await load("routes.js");
 const format = await load("lib/format.js");
 const shellMod = await load("shell/app-shell.js");
-const dockMod = await load("shell/dock.js");
+const side = await load("shell/sidenav.js");
 const topbar = await load("shell/topbar.js");
 const needs = await load("shell/needs-drawer.js");
 const menu = await load("shell/command-menu.js");
@@ -254,9 +255,9 @@ test("every shell/ and lib/ module loads in Node", async () => {
     "lib/context.js": ["AppContext", "useApp"],
     "lib/settings.js": ["loadSettings", "saveSettings", "cleanAppearance"],
     "shell/app-shell.js": ["AppShell", "keyAction", "overlayFrom", "paneOf", "isWide"],
-    "shell/topbar.js": ["Topbar", "Capsule", "NeedsPill", "MenuSheet", "engineDot", "needsLabel", "commandKey", "switchedTheme"],
-    "shell/dock.js": ["Dock", "dockItems", "dockCurrent", "showsDock", "DOCK_PAGES"],
-    "shell/tabbar.js": ["TabBar"],
+    "shell/topbar.js": ["Topbar", "MenuSheet", "engineDot", "needsLabel", "commandKey", "switchedTheme", "defaultCrumbs", "cleanTop"],
+    "shell/sidenav.js": ["Sidenav", "sideMode", "teamItems", "teamCurrent", "sideCurrent", "SIDE_KEY"],
+    "shell/tabbar.js": ["TabBar", "TABS"],
     "shell/needs-drawer.js": ["NeedsDrawer", "sortNeeds", "needsFor", "needsTitle"],
     "shell/work-panel.js": ["WorkPanel"],
     "shell/command-menu.js": ["CommandMenu", "localItems", "searchItems"],
@@ -297,6 +298,47 @@ test("the keys: c, ⌘K, Ctrl+K, / outside the map and on it, g then m t d f n j
   assert.equal(keyAction({ key: "c", metaKey: true }), null);
 });
 
+test("the keys: q opens the queue and [ shows or hides the sidebar's names, never while typing or with a modifier", () => {
+  const { keyAction } = shellMod;
+  assert.equal(keyAction({ key: "q" }), "queue");
+  assert.equal(keyAction({ key: "[" }), "side");
+  assert.equal(keyAction({ key: "q", page: "map" }), "queue");
+  for (const key of ["q", "["]) {
+    assert.equal(keyAction({ key, typing: true }), null, `${key} while typing`);
+    assert.equal(keyAction({ key, metaKey: true }), null, `⌘${key}`);
+    assert.equal(keyAction({ key, ctrlKey: true }), null, `Ctrl ${key}`);
+    assert.equal(keyAction({ key, altKey: true }), null, `Alt ${key}`);
+  }
+  assert.equal(keyAction({ key: "Q" }), null, "Shift Q is not q");
+});
+
+test("the sidebar's width: none under 860 px, the owner's choice, else icons on a stage or under 1100 px", () => {
+  const { sideMode } = side;
+  assert.equal(sideMode({ stored: "open", stage: false, width: 859 }), "none");
+  assert.equal(sideMode({ stored: null, stage: true, width: 390 }), "none");
+  assert.equal(sideMode({ stored: "open", stage: true, width: 1000 }), "open");
+  assert.equal(sideMode({ stored: "icons", stage: false, width: 1600 }), "icons");
+  assert.equal(sideMode({ stored: null, stage: true, width: 1600 }), "icons");
+  assert.equal(sideMode({ stored: null, stage: false, width: 1099 }), "icons");
+  assert.equal(sideMode({ stored: null, stage: false, width: 1100 }), "open");
+  assert.equal(sideMode({ stored: "wide", stage: false, width: 1280 }), "open", "an unknown choice is automatic");
+  assert.equal(sideMode({ stored: null, stage: false, width: 860 }), "icons");
+  assert.equal(side.SIDE_KEY, "home.side");
+});
+
+test("the top bar's crumbs of a page that gave none, from the route table", () => {
+  const { defaultCrumbs } = topbar;
+  assert.deepEqual(defaultCrumbs("task", ["tasks", "STH-25"]), [{ label: "Tasks", href: "#/tasks" }, { label: "STH-25" }]);
+  assert.deepEqual(defaultCrumbs("settings", ["settings"]), [{ label: "Settings" }]);
+  assert.deepEqual(defaultCrumbs("job", ["jobs", "studio", "a-film"]), [{ label: "Jobs", href: "#/jobs" }, { label: "Studio" }, { label: "a-film" }]);
+  assert.deepEqual(defaultCrumbs("studio", ["dashboards", "studio"]), [{ label: "Dashboards", href: "#/dashboards" }, { label: "Studio" }]);
+  assert.deepEqual(defaultCrumbs(null, []), []);
+  assert.deepEqual(defaultCrumbs(undefined), []);
+  const long = defaultCrumbs("task", ["tasks", "x".repeat(200)]);
+  assert.ok(long[1].label.length <= 60, "a label is capped at 60");
+  assert.equal(typeof long[1].label, "string");
+});
+
 test("overlays open from the query before the address", () => {
   const { overlayFrom } = shellMod;
   assert.equal(overlayFrom("?open=command"), "command");
@@ -321,18 +363,18 @@ test("how the main pane holds each page", () => {
   assert.equal(isWide("tasks", q("")), false);
 });
 
-test("the dock shows on the pages of work, with the brain and the seven departments", () => {
-  assert.deepEqual([...dockMod.DOCK_PAGES].sort(), ["agent", "dept", "job", "jobs", "needs-you", "task", "tasks", "team"]);
-  for (const p of ["map", "dashboards", "files", "settings", "health", "routines", "search", "studio"]) assert.equal(dockMod.showsDock(p), false, p);
-  const fallback = dockMod.dockItems(undefined);
+test("the sidebar's teams: the brain and the seven departments, each with its line icon", () => {
+  const fallback = side.teamItems(undefined);
   assert.deepEqual(fallback.map((i) => i.id), ["brain", "operations", "sales", "marketing", "studio", "support", "people", "books"]);
   assert.ok(fallback.every((i) => !i.live && !i.warm));
   assert.equal(fallback[0].href, "#/files");
   assert.equal(fallback[2].href, "#/departments/sales");
+  assert.deepEqual(fallback.map((i) => i.icon), ["brain", "layers", "trend", "horn", "film", "buoy", "team", "book"]);
+  assert.ok(fallback.every((i) => !("creature" in i)), "no creature in the chrome");
 });
 
-test("the dock's marks come from shell.dock", () => {
-  const items = dockMod.dockItems([
+test("the sidebar's team marks come from shell.dock", () => {
+  const items = side.teamItems([
     { id: "brain", title: "Company brain", creature: "brain", colour: "brain", working: 1, needsYou: 0 },
     { id: "sales", title: "Sales", creature: "sales", colour: "sales", working: 0, needsYou: 2 },
     { id: "books", title: "Books", creature: "books", colour: "books", working: 3, needsYou: 1 },
@@ -344,13 +386,14 @@ test("the dock's marks come from shell.dock", () => {
   assert.deepEqual([brain.live, brain.warm, brain.label], [true, false, "Company brain, 1 working"]);
   assert.deepEqual([sales.live, sales.warm, sales.label], [false, true, "Sales, 2 need you"]);
   assert.equal(books.label, "Books, 3 working, 1 needs you");
-  assert.equal(studio.creature, "studio", "an unknown creature falls back to the department's own");
+  assert.equal(studio.icon, "film", "a team's icon is its own, whatever the server's creature");
   assert.ok(studio.title.length <= 40);
   assert.deepEqual([studio.live, studio.warm], [false, false]);
+  assert.deepEqual(items.map((i) => i.count), [0, 2, 1, 0], "the count of what needs the owner");
 });
 
-test("the dock marks the department the page is about", () => {
-  const { dockCurrent } = dockMod;
+test("the sidebar knows the department the page is about", () => {
+  const dockCurrent = side.teamCurrent;
   const q = (s) => new URLSearchParams(s);
   assert.equal(dockCurrent("dept", ["departments", "sales"], q("")), "sales");
   assert.equal(dockCurrent("job", ["jobs", "books", "draft-an-invoice"], q("")), "books");
@@ -360,20 +403,7 @@ test("the dock marks the department the page is about", () => {
   assert.equal(dockCurrent("team", ["team"], q("d=sales")), null);
 });
 
-// M63 item 6: on the Needs you page the pill is the current place, and no capsule section is.
-test("the Needs you pill shows as current on the Needs you page only", () => {
-  const props = (current) => topbar.NeedsPill({ count: 2, onOpen: () => {}, current }).props;
-  assert.match(props(true).class, /\bis-current\b/);
-  assert.equal(props(true)["aria-current"], "page");
-  assert.doesNotMatch(props(false).class, /is-current/);
-  assert.equal(props(false)["aria-current"], undefined);
-  assert.equal(routes.sectionOf("needs-you"), null);
-  const flat = (routeId) => JSON.stringify(topbar.Capsule({ routeId }), (k, v) => (k === "__" || k === "_parent" || typeof v === "function" ? undefined : v));
-  assert.doesNotMatch(flat("needs-you"), /is-current/, "no section of the capsule is current");
-  assert.match(flat("tasks"), /is-current/, "on Tasks, Tasks is");
-});
-
-test("the top bar's words: the Needs you pill, the Health dot, the theme switch", () => {
+test("the top bar's words: Needs you, the Health dot, the theme switch", () => {
   assert.equal(topbar.needsLabel(5), "Needs you, 5 waiting");
   assert.equal(topbar.needsLabel(0), "Needs you, nothing waiting");
   assert.equal(topbar.needsLabel("x"), "Needs you, nothing waiting");
@@ -523,50 +553,106 @@ const attr = (el, k) => el.getAttribute(k) ?? el[k] ?? null;
 const withClass = (root, c) => elements(root).filter((e) => classOf(e).split(/\s+/).includes(c));
 const textOf = (root) => [...walk(root)].filter((n) => n.nodeType === 3).map((n) => n.data).join("");
 
-test("the top bar draws the capsule with the current section, the Needs you pill and the three squares", () => {
+// M63 item 6 carried over: on the Needs you page Needs you is the current place, and no other row is.
+test("the sidebar marks the current place", () => {
   const shell = { company: { name: "Sthyra" }, counts: { needsYou: 5 }, engine: { board: "on", books: "off" } };
-  const root = show(topbar.Topbar, { routeId: "task", shell, narrow: false, settings: { theme: "dark" }, onSaveSettings() {}, onNeeds() {}, onMenu() {} });
-  const tabs = withClass(root, "s-capsule-item");
-  assert.deepEqual(tabs.map((t) => attr(t, "href")), ["#/map", "#/tasks", "#/dashboards", "#/files", "#/apps"]);
-  assert.deepEqual(tabs.map((t) => attr(t, "aria-current")), [null, "page", null, null, null]);
-  assert.match(textOf(tabs[4]), /^App Studio$/, "the capsule says App Studio in full");
-  const pill = withClass(root, "s-needs")[0];
-  assert.equal(attr(pill, "aria-label"), "Needs you, 5 waiting");
-  assert.ok(classOf(pill).includes("is-warm"));
-  assert.equal(withClass(root, "s-square").length, 3);
-  assert.ok(withClass(root, "s-square-dot--warn").length === 1);
-  assert.deepEqual(withClass(root, "s-word").map((a) => attr(a, "href")), ["#/jobs", "#/routines"]);
-  assert.match(textOf(root), /Sthyra/);
-  const narrow = show(topbar.Topbar, { routeId: "map", shell: { counts: { needsYou: 0 } }, narrow: true, settings: {}, onNeeds() {}, onMenu() {} });
-  assert.equal(withClass(narrow, "s-capsule").length, 0, "below 860 px the sections move to the tab bar");
-  assert.equal(attr(withClass(narrow, "s-needs")[0], "aria-label"), "Needs you, nothing waiting");
-  assert.ok(elements(narrow).some((e) => attr(e, "aria-label") === "Menu"));
-});
-
-test("the dock draws a creature, a link and screen-reader words for each item", () => {
-  const dock = [{ id: "brain", title: "Company brain", creature: "brain", working: 1, needsYou: 0 }, { id: "sales", title: "Sales", creature: "sales", working: 0, needsYou: 2 }];
-  const root = show(dockMod.Dock, { dock, current: "sales", onCompose() {} });
-  const items = withClass(root, "s-dock-item");
-  assert.deepEqual(items.map((i) => [attr(i, "href"), attr(i, "aria-label"), attr(i, "aria-current")]), [
-    ["#/files", "Company brain, 1 working", null], ["#/departments/sales", "Sales, 2 need you", "page"],
+  const dock = [{ id: "brain", title: "Company brain", working: 1, needsYou: 0 }, { id: "sales", title: "Sales", working: 0, needsYou: 2 }];
+  const draw = (routeId, mode = "open", parts = []) => show(side.Sidenav, { mode, routeId, parts, query: new URLSearchParams(""), shell, dock, settings: { theme: "dark" }, onSaveSettings() {} });
+  const current = (root) => elements(root).filter((e) => attr(e, "aria-current") === "page").map((e) => attr(e, "href"));
+  assert.deepEqual(current(draw("task", "open", ["tasks", "STH-25"])), ["#/tasks"], "on a task, Tasks is current");
+  assert.deepEqual(current(draw("needs-you")), ["#/needs-you"], "on Needs you, Needs you is, and no other row");
+  assert.deepEqual(current(draw("studio")), ["#/dashboards"]);
+  assert.deepEqual(current(draw("app", "open", ["apps", "x"])), ["#/apps"]);
+  assert.deepEqual(current(draw("job", "open", ["jobs", "sales", "x"])), ["#/jobs"]);
+  assert.deepEqual(current(draw("dept", "open", ["departments", "sales"])), ["#/departments/sales"], "the open sidebar marks the department's own row");
+  assert.deepEqual(current(draw("dept", "icons", ["departments", "sales"])), ["#/map"], "the icons-only sidebar, whose teams are hidden, marks Map");
+  assert.deepEqual(current(draw("team")), [], "a page of no row marks none");
+  const root = draw("map");
+  const nav = elements(root).find((e) => e.localName === "nav");
+  assert.equal(attr(nav, "aria-label"), "Sthyra");
+  assert.match(classOf(nav), /\bs-side--open\b/);
+  const rows = withClass(root, "s-go");
+  assert.deepEqual(rows.map((r) => attr(r, "href")), [
+    "#/needs-you", "#/map", "#/tasks", "#/dashboards", "#/files", "#/apps", "#/jobs", "#/routines",
+    "#/files", "#/departments/sales", "#/health", "#/settings", null,
   ]);
-  assert.equal(withClass(root, "k-creature").length, 2);
-  assert.equal(withClass(root, "s-dock-live").length, 1);
-  assert.equal(withClass(root, "s-dock-warm").length, 1);
-  assert.equal(attr(withClass(root, "s-dock-book")[0], "href"), "#/jobs");
-  assert.equal(attr(withClass(root, "s-dock-new")[0], "aria-label"), "New task");
+  assert.equal(attr(rows[0], "aria-label"), "Needs you, 5 waiting");
+  assert.equal(textOf(withClass(rows[0], "s-go-count")[0]), "5");
+  assert.equal(attr(rows[9], "aria-label"), "Sales, 2 need you");
+  assert.equal(attr(rows[9], "data-tip"), "Sales, 2 need you", "the icons-only tooltip says the row's name");
+  assert.equal(withClass(rows[8], "s-dot--good").length, 1, "the brain works");
+  assert.equal(attr(rows[10], "aria-label"), "Health: the books are off");
+  assert.equal(withClass(rows[10], "s-dot--warn").length, 1);
+  assert.equal(attr(rows[12], "aria-label"), "Switch to light");
+  assert.equal(textOf(withClass(root, "s-side-title")[0]), "Teams");
+  assert.equal(attr(withClass(root, "s-brand")[0], "href"), "#/map");
+  assert.equal(textOf(withClass(root, "s-brand-mark")[0]), "S");
+  assert.equal(withClass(root, "k-creature").length, 0, "no creature in the chrome");
+  const quiet = show(side.Sidenav, { mode: "icons", routeId: "map", shell: { counts: { needsYou: 0 } }, dock: [], settings: {} });
+  assert.equal(withClass(quiet, "s-go-count").length, 0, "no count at zero");
+  assert.match(classOf(elements(quiet).find((e) => e.localName === "nav")), /\bs-side--icons\b/);
 });
 
-test("the tab bar holds the five sections, the current one marked, App Studio as \"Apps\"", async () => {
+test("the top bar draws the crumbs, the Queue button and the search button", () => {
+  const shell = { company: { name: "Sthyra" }, counts: { needsYou: 5 }, engine: { board: "on", books: "off" } };
+  const root = show(topbar.Topbar, { routeId: "task", parts: ["tasks", "STH-25"], shell, narrow: false, side: "icons", onSide() {}, onQueue() {}, onCommand() {} });
+  const button = elements(root).find((e) => attr(e, "aria-label") === "Show or hide the names in the sidebar");
+  assert.ok(button, "the sidebar's button comes first");
+  assert.equal(attr(button, "aria-pressed"), "false");
+  const crumbs = withClass(root, "s-crumbs")[0];
+  assert.equal(attr(crumbs, "aria-label"), "Where you are");
+  assert.deepEqual(withClass(crumbs, "s-crumbs-link").map((a) => [attr(a, "href"), textOf(a)]), [["#/tasks", "Tasks"]]);
+  const here = withClass(crumbs, "s-crumbs-here")[0];
+  assert.equal(textOf(here), "STH-25");
+  assert.equal(attr(here, "aria-current"), "page");
+  const queue = withClass(root, "s-queue-btn")[0];
+  assert.equal(attr(queue, "aria-label"), "Queue: Needs you, 5 waiting");
+  assert.equal(attr(queue, "aria-expanded"), "false");
+  assert.equal(attr(queue, "aria-controls"), "s-queue");
+  assert.doesNotMatch(textOf(queue), /5/, "the count is only in its name");
+  assert.equal(textOf(withClass(queue, "k-kbd")[0]), "Q");
+  const find = withClass(root, "s-find")[0];
+  assert.match(textOf(find), /^Search or jump to/);
+  assert.equal(textOf(withClass(find, "k-kbd")[0]), topbar.commandKey());
+  assert.equal(withClass(root, "s-pager").length, 0, "no pager unless the page gave one");
+  // What a page gives through setTop: its own crumbs, a pager and at most two links, own addresses only.
+  const top = topbar.cleanTop({
+    crumbs: [{ label: "Needs you", href: "#/needs-you" }, { label: "A shotlist to approve", href: "javascript:x" }],
+    pager: { label: "3 of 21", prev: "#/needs-you?item=a", next: "mailto:someone" },
+    links: [{ label: "Open its task", href: "#/tasks/STH-8" }, { label: "Two", href: "#/map" }, { label: "Three", href: "#/files" }],
+  });
+  const given = show(topbar.Topbar, { routeId: "needs-you", parts: ["needs-you"], shell, top, narrow: false, side: "open", onSide() {}, onQueue() {}, onCommand() {} });
+  assert.deepEqual(withClass(given, "s-crumbs-link").map((a) => attr(a, "href")), ["#/needs-you"]);
+  assert.equal(textOf(withClass(given, "s-crumbs-here")[0]), "A shotlist to approve");
+  assert.equal(textOf(withClass(given, "s-pager-at")[0]), "3 of 21");
+  const steps = elements(given).filter((e) => ["Previous", "Next"].includes(attr(e, "aria-label")));
+  assert.deepEqual(steps.map((e) => [attr(e, "aria-label"), attr(e, "href")]), [["Previous", "#/needs-you?item=a"]], "only the home screen's own addresses are followed");
+  assert.deepEqual(withClass(given, "s-top-link").map((a) => textOf(a)), ["Open its task", "Two"]);
+  // Below 860 px: a back button to the nearest crumb above with an address, and the last two crumbs; no Queue
+  // and no search. With no such crumb, Back goes back in the history.
+  const narrow = show(topbar.Topbar, { routeId: "job", parts: ["jobs", "studio", "a-film"], shell, narrow: true });
+  const back = elements(narrow).find((e) => attr(e, "aria-label") === "Back");
+  assert.equal(attr(back, "href"), "#/jobs");
+  assert.deepEqual([...withClass(narrow, "s-crumbs-link"), ...withClass(narrow, "s-crumbs-here")].map((e) => textOf(e)), ["Studio", "a-film"]);
+  assert.equal(withClass(narrow, "s-queue-btn").length + withClass(narrow, "s-find").length, 0);
+  const root1 = show(topbar.Topbar, { routeId: "tasks", parts: ["tasks"], shell, narrow: true });
+  assert.ok(elements(root1).some((e) => attr(e, "aria-label") === "Back"), "a page at the top of its section still has Back");
+});
+
+test("the tab bar holds Needs you, Tasks, Dashboards, Files and More, the current one marked", async () => {
   const { TabBar } = await load("shell/tabbar.js");
-  const root = show(TabBar, { routeId: "dashboard" });
+  const root = show(TabBar, { routeId: "dashboard", needs: 4, onMore() {} });
   const tabs = withClass(root, "s-tab");
   assert.deepEqual(tabs.map((t) => [attr(t, "href"), attr(t, "aria-current")]), [
-    ["#/map", null], ["#/tasks", null], ["#/dashboards", "page"], ["#/files", null], ["#/apps", null],
+    ["#/needs-you", null], ["#/tasks", null], ["#/dashboards", "page"], ["#/files", null], [null, null],
   ]);
-  assert.deepEqual(withClass(root, "s-tab-word").map((w) => textOf(w)), ["Map", "Tasks", "Dashboards", "Files", "Apps"]);
-  const onApp = withClass(show(TabBar, { routeId: "app" }), "s-tab");
-  assert.equal(attr(onApp[4], "aria-current"), "page", "an app opened inside is in App Studio's section");
+  assert.equal(tabs[4].localName, "button", "More opens the More sheet");
+  assert.deepEqual(withClass(root, "s-tab-word").map((w) => textOf(w)), ["Needs you", "Tasks", "Dashboards", "Files", "More"]);
+  assert.equal(attr(tabs[0], "aria-label"), "Needs you, 4 waiting");
+  assert.equal(textOf(withClass(root, "s-tab-count")[0]), "4");
+  assert.equal(withClass(show(TabBar, { routeId: "tasks", needs: 0 }), "s-tab-count").length, 0, "no count at zero");
+  assert.equal(attr(withClass(show(TabBar, { routeId: "task" }), "s-tab")[1], "aria-current"), "page", "a task is in Tasks");
+  assert.equal(attr(withClass(show(TabBar, { routeId: "needs-you" }), "s-tab")[0], "aria-current"), "page");
   assert.match(readFileSync(join(PUBLIC, "styles", "shell.css"), "utf8"), /\.s-tabbar \{[^}]*repeat\(5,/, "five columns");
 });
 

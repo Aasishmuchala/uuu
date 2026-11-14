@@ -1,19 +1,18 @@
-// The top bar (CONTRACTS-V3 26.2): the company's mark and name on the left; in the centre one glass capsule
-// with the four sections (Map, Tasks, Dashboards, Files); on the right the Needs you pill, Jobs and
-// Routines as words, and three square buttons: Health (with a dot), Settings and the light or dark switch.
-// Below 860 px it keeps the mark, the Needs you pill and a Menu button, and the Menu sheet (also here)
-// lists the rest. The bar has no fill of its own: the canvas shows through it.
-import { html, useEffect, useState } from "../vendor/preact-htm.js";
+// The top bar (PLAN-COOK T20, decision 11): 48 px over the page column, on the page's ground with a hairline
+// under it. From the left: the button that shows or hides the sidebar's names, the crumbs (where you are; the
+// page's own when it gave them through setTop, else the route table's), then at the right the pager and up to
+// two quiet links when the page gave them, the Queue button (Q) and "Search or jump to" (⌘K). Below 860 px it
+// is a back button and the last two crumbs. The Menu sheet (the tab bar's More) is here too.
+import { html } from "../vendor/preact-htm.js";
 import { Drawer, Icon, Kbd } from "../kit/index.js";
-import { Creature } from "../kit/creature.js";
-import { DEPARTMENTS, SECTIONS, sectionOf } from "../routes.js";
+import { DEPARTMENTS, routeById } from "../routes.js";
 
 const cap = (s, n) => {
   const t = String(s ?? "").replace(/\s+/g, " ").trim();
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 };
 
-// The Health button's dot from the shell's `engine` (CONTRACTS 9.2): "ok", "warn", "bad", or null when not
+// The Health row's dot from the shell's `engine` (CONTRACTS 9.2): "ok", "warn", "bad", or null when not
 // known yet, with the words a screen reader says. `gate` is read when the shell sends it: a gate that is off
 // is never "everything is on".
 export function engineDot(engine) {
@@ -24,7 +23,7 @@ export function engineDot(engine) {
   return { tone: "ok", words: "everything is on" };
 }
 
-// The Needs you pill's name for a screen reader.
+// The name of Needs you (the sidebar's row, the Queue button, the phone's tab) for a screen reader.
 export function needsLabel(n) {
   const v = Math.max(0, Math.floor(Number(n) || 0));
   return v ? `Needs you, ${v} waiting` : "Needs you, nothing waiting";
@@ -46,139 +45,163 @@ function systemDark() {
   return typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
-function ThemeSwitch({ settings, onSave, withWords }) {
-  const to = switchedTheme(settings?.theme, systemDark());
-  const words = to === "light" ? "Switch to light" : "Switch to dark";
-  return html`
-    <button type="button" class=${withWords ? "s-sheet-item" : "s-square"} onClick=${() => onSave({ theme: to })}
-      aria-label=${withWords ? undefined : words} title=${withWords ? undefined : words}>
-      <${Icon} name=${to === "light" ? "sun" : "moon"} />
-      ${withWords ? html`<span>${words}</span>` : null}
-    </button>`;
+const deptTitle = (id) => DEPARTMENTS.find((d) => d.id === id)?.title || id;
+const word = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+const crumb = (label, href) => (href ? { label: cap(label, 60), href } : { label: cap(label, 60) });
+
+// The crumbs of a page that gave none, from its route and its address parts: the section as a link, then the
+// page. `route` is a route id (or a route of the table). Labels are text, at most 60 characters.
+export function defaultCrumbs(route, parts = []) {
+  const id = typeof route === "string" ? route : route?.id;
+  if (!id) return [];
+  const p = Array.isArray(parts) ? parts : [];
+  const title = routeById(id)?.title || "";
+  switch (id) {
+    case "map": return p[1] ? [crumb("Map", "#/map"), crumb(deptTitle(p[1]))] : [crumb("Map")];
+    case "dept": return [crumb("Map", "#/map"), crumb(deptTitle(p[1]))];
+    case "task": return [crumb("Tasks", "#/tasks"), crumb(p[1])];
+    case "dashboard": return [crumb("Dashboards", "#/dashboards"), crumb(word(p[1]))];
+    case "marketing":
+    case "studio": return [crumb("Dashboards", "#/dashboards"), crumb(title)];
+    case "job": return [crumb("Jobs", "#/jobs"), crumb(deptTitle(p[1])), crumb(p[2])];
+    case "agent": return [crumb("Team", "#/team"), crumb(p[1])];
+    case "routines": return p[1] ? [crumb("Routines", "#/routines"), crumb(p[1])] : [crumb("Routines")];
+    case "files": return [crumb("Files")];
+    case "app": return [crumb("App Studio", "#/apps"), crumb(p[1])];
+    default: return title ? [crumb(title)] : [];
+  }
 }
 
-// `current`: the Needs you page is open; the pill then shows as the current place, and no section of the
-// capsule does (M63 item 6).
-export function NeedsPill({ count, onOpen, current = false }) {
-  const n = Math.max(0, Math.floor(Number(count) || 0));
-  return html`
-    <button type="button" class=${`s-needs${n ? " is-warm" : ""}${current ? " is-current" : ""}`} onClick=${() => onOpen({})}
-      aria-label=${needsLabel(n)} aria-current=${current ? "page" : undefined}>
-      <span class="s-needs-word" aria-hidden="true">Needs you</span>
-      <span class="s-needs-count" aria-hidden="true">${n}</span>
-    </button>`;
+// Only the home screen's own addresses are followed from the top bar.
+const own = (href) => (typeof href === "string" && href.startsWith("#/") ? href : null);
+
+// What a page gave through setTop, cleaned: crumbs as text with own addresses, a pager, at most two links.
+export function cleanTop(top) {
+  if (!top || typeof top !== "object") return null;
+  const crumbs = Array.isArray(top.crumbs)
+    ? top.crumbs.filter((c) => c && cap(c.label, 60)).map((c) => crumb(c.label, own(c.href))).slice(0, 5)
+    : null;
+  const pg = top.pager && typeof top.pager === "object" ? top.pager : null;
+  const pager = pg && cap(pg.label, 20) ? { label: cap(pg.label, 20), prev: own(pg.prev), next: own(pg.next) } : null;
+  const links = Array.isArray(top.links)
+    ? top.links.filter((l) => l && own(l.href) && cap(l.label, 40)).slice(0, 2).map((l) => ({ label: cap(l.label, 40), href: l.href }))
+    : [];
+  return { crumbs: crumbs && crumbs.length ? crumbs : null, pager, links };
 }
 
-function Brand({ name }) {
-  const shown = cap(name, 40) || "Home";
+function Crumbs({ list }) {
   return html`
-    <a class="s-brand" href="#/map" aria-label=${`${shown}, the map`}>
-      <span class="s-brand-mark" aria-hidden="true">${shown.slice(0, 1).toUpperCase()}</span>
-      <span class="s-brand-name u-truncate" aria-hidden="true">${shown}</span>
-    </a>`;
-}
-
-// The four sections as one capsule; the current one is a solid pill.
-export function Capsule({ routeId }) {
-  const current = sectionOf(routeId);
-  return html`
-    <nav class="s-capsule s-glass" aria-label="Sections">
-      ${SECTIONS.map((s) => html`
-        <a key=${s.id} class=${`s-capsule-item${current === s.id ? " is-current" : ""}`} href=${s.href}
-          aria-current=${current === s.id ? "page" : undefined}>
-          <${Icon} name=${s.icon} />
-          <span>${s.title}</span>
-        </a>`)}
+    <nav class="s-crumbs" aria-label="Where you are">
+      ${list.map((c, i) => {
+        const last = i === list.length - 1;
+        return html`
+          ${i ? html`<span class="s-crumbs-sep" aria-hidden="true">/</span>` : null}
+          ${last
+            ? html`<span class="s-crumbs-here" aria-current="page">${c.label}</span>`
+            : c.href ? html`<a class="s-crumbs-link" href=${c.href}>${c.label}</a>` : html`<span class="s-crumbs-link">${c.label}</span>`}`;
+      })}
     </nav>`;
 }
 
-// True once the page has scrolled away from its top: the bar then lays a soft band of the canvas behind
-// itself, so what scrolls under it does not read as part of it. The bar stays clear at rest.
-function useScrolled() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.addEventListener !== "function") return undefined;
-    const on = () => setScrolled((window.scrollY || 0) > 4);
-    on();
-    window.addEventListener("scroll", on, { passive: true });
-    return () => window.removeEventListener("scroll", on);
-  }, []);
-  return scrolled;
+function Pager({ pager }) {
+  const step = (href, icon, label) => (href
+    ? html`<a class="s-icon-btn s-icon-btn--sm" href=${href} aria-label=${label} title=${label}><${Icon} name=${icon} /></a>`
+    : html`<span class="s-icon-btn s-icon-btn--sm is-off" aria-hidden="true"><${Icon} name=${icon} /></span>`);
+  return html`
+    <div class="s-pager">
+      <span class="s-pager-at u-num">${pager.label}</span>
+      ${step(pager.prev, "chevron-left", "Previous")}
+      ${step(pager.next, "chevron-right", "Next")}
+    </div>`;
 }
 
-export function Topbar({ routeId, shell, narrow, settings, onSaveSettings, onNeeds, onMenu }) {
-  const name = shell?.company?.name || "";
-  const needs = Number(shell?.counts?.needsYou) || 0;
-  const dot = engineDot(shell?.engine);
-  const scrolled = useScrolled();
-  const cls = `s-topbar${narrow ? " s-topbar--narrow" : ""}${scrolled ? " is-scrolled" : ""}`;
+// `side` is the sidebar's width ("open" | "icons"); `queueOpen` says whether the queue is open.
+export function Topbar({ routeId, parts, shell, top, narrow, side = "open", queueOpen = false, onSide, onQueue, onCommand }) {
+  const needs = Math.max(0, Math.floor(Number(shell?.counts?.needsYou) || 0));
+  const crumbs = top?.crumbs || defaultCrumbs(routeId, parts);
 
   if (narrow) {
+    const shown = crumbs.slice(-2);
+    const parent = crumbs.slice(0, -1).reverse().find((c) => c.href)?.href || null;
+    const back = (e) => {
+      if (parent) return;
+      e.preventDefault();
+      history.back();
+    };
     return html`
-      <header class=${cls}>
-        <${Brand} name=${name} />
-        <span class="s-topbar-gap"></span>
-        <${NeedsPill} count=${needs} onOpen=${onNeeds} current=${routeId === "needs-you"} />
-        <button type="button" class="s-square" onClick=${onMenu} aria-label="Menu">
-          <${Icon} name="menu" />
-        </button>
+      <header class="s-top s-top--narrow">
+        <a class="s-icon-btn" href=${parent || "#/"} onClick=${back} aria-label="Back"><${Icon} name="chevron-left" size=${20} /></a>
+        <${Crumbs} list=${shown} />
       </header>`;
   }
 
   return html`
-    <header class=${cls}>
-      <div class="s-topbar-left"><${Brand} name=${name} /></div>
-      <${Capsule} routeId=${routeId} />
-      <div class="s-topbar-right">
-        <${NeedsPill} count=${needs} onOpen=${onNeeds} current=${routeId === "needs-you"} />
-        <a class=${`s-word${routeId === "jobs" || routeId === "job" ? " is-current" : ""}`} href="#/jobs"
-          aria-current=${routeId === "jobs" ? "page" : undefined}>Jobs</a>
-        <a class=${`s-word${routeId === "routines" ? " is-current" : ""}`} href="#/routines"
-          aria-current=${routeId === "routines" ? "page" : undefined}>Routines</a>
-        <a class=${`s-square${routeId === "health" ? " is-current" : ""}`} href="#/health"
-          aria-label=${dot ? `Health: ${dot.words}` : "Health"} aria-current=${routeId === "health" ? "page" : undefined}>
-          <${Icon} name="health" />
-          ${dot ? html`<span class=${`s-square-dot s-square-dot--${dot.tone}`} aria-hidden="true"></span>` : null}
-        </a>
-        <a class=${`s-square${routeId === "settings" ? " is-current" : ""}`} href="#/settings" aria-label="Settings"
-          aria-current=${routeId === "settings" ? "page" : undefined}>
-          <${Icon} name="settings" />
-        </a>
-        <${ThemeSwitch} settings=${settings} onSave=${onSaveSettings} />
-      </div>
+    <header class="s-top">
+      <button type="button" class="s-icon-btn" onClick=${onSide} aria-label="Show or hide the names in the sidebar"
+        aria-pressed=${side === "open" ? "true" : "false"} title="Show or hide the names in the sidebar ([)">
+        <${Icon} name="sidebar" />
+      </button>
+      <${Crumbs} list=${crumbs} />
+      <span class="s-top-gap"></span>
+      ${top?.pager ? html`<${Pager} pager=${top.pager} />` : null}
+      ${(top?.links || []).map((l) => html`<a key=${l.href} class="s-top-link" href=${l.href}>${l.label}</a>`)}
+      <button type="button" class=${`s-queue-btn${queueOpen ? " is-open" : ""}`} onClick=${onQueue}
+        aria-label=${`Queue: ${needsLabel(needs)}`} aria-expanded=${queueOpen ? "true" : "false"} aria-controls="s-queue">
+        <${Icon} name="inbox" />
+        <span aria-hidden="true">Queue</span>
+        <${Kbd}>Q<//>
+      </button>
+      <button type="button" class="s-find" onClick=${onCommand}>
+        <${Icon} name="search" />
+        <span class="s-find-words">Search or jump to</span>
+        <${Kbd}>${commandKey()}<//>
+      </button>
     </header>`;
 }
 
-// The narrow layout's Menu sheet: New task and Search, Jobs, Routines, Team, Health, Settings, the theme
-// switch and the seven departments.
+// The departments' line icons (the same as the sidebar's teams).
+const DEPT_ICONS = { operations: "layers", sales: "trend", marketing: "horn", studio: "film", support: "buoy", people: "team", books: "book" };
+
+// The phone's More sheet: New task and Search, the places that are not tabs, the teams, Health, Settings and
+// the theme switch.
 export function MenuSheet({ open, onClose, shell, dock, settings, onSaveSettings, onCompose, onCommand }) {
   const known = new Map((Array.isArray(dock) ? dock : []).map((d) => [d && d.id, d]));
   const departments = DEPARTMENTS.map((d) => ({ id: d.id, title: cap(known.get(d.id)?.title, 40) || d.title }));
   const dot = engineDot(shell?.engine);
+  const to = switchedTheme(settings?.theme, systemDark());
+  const themeWords = to === "light" ? "Switch to light" : "Switch to dark";
   const link = (href, icon, words, extra) => html`
-    <li><a class="s-sheet-item" href=${href} onClick=${onClose}><${Icon} name=${icon} /><span>${words}</span>${extra || null}</a></li>`;
+    <li><a class="s-sheet-item" href=${href} onClick=${onClose}><${Icon} name=${icon} size=${20} /><span>${words}</span>${extra || null}</a></li>`;
   return html`
-    <${Drawer} open=${open} side="right" title="Menu" onClose=${onClose}>
+    <${Drawer} open=${open} side="right" title="More" onClose=${onClose}>
       <div class="s-sheet">
         <ul class="s-sheet-list">
-          <li><button type="button" class="s-sheet-item" onClick=${onCompose}><${Icon} name="plus" /><span>New task</span></button></li>
-          <li><button type="button" class="s-sheet-item" onClick=${onCommand}><${Icon} name="search" /><span>Search</span><${Kbd}>${commandKey()}<//></button></li>
+          <li><button type="button" class="s-sheet-item" onClick=${onCompose}><${Icon} name="plus" size=${20} /><span>New task</span></button></li>
+          <li><button type="button" class="s-sheet-item" onClick=${onCommand}><${Icon} name="search" size=${20} /><span>Search</span><${Kbd}>${commandKey()}<//></button></li>
+          ${link("#/map", "map", "Map")}
+          ${link("#/apps", "apps", "App Studio")}
           ${link("#/jobs", "jobs", "Jobs")}
           ${link("#/routines", "routines", "Routines")}
           ${link("#/team", "team", "Team")}
-          ${link("#/health", "health", "Health", dot ? html`<span class=${`s-square-dot s-square-dot--${dot.tone}`} aria-hidden="true"></span>` : null)}
-          ${link("#/settings", "settings", "Settings")}
-          <li><${ThemeSwitch} settings=${settings} onSave=${onSaveSettings} withWords=${true} /></li>
         </ul>
-        <p class="s-sheet-title u-over">Departments</p>
+        <h2 class="s-sheet-title">Teams</h2>
         <ul class="s-sheet-list">
           ${departments.map((d) => html`
             <li key=${d.id}>
               <a class="s-sheet-item" href=${`#/departments/${encodeURIComponent(d.id)}`} onClick=${onClose} data-dept=${d.id}>
-                <${Creature} id=${d.id} size=${16} still=${true} />
+                <${Icon} name=${DEPT_ICONS[d.id] || "layers"} size=${20} />
                 <span>${d.title}</span>
               </a>
             </li>`)}
+        </ul>
+        <ul class="s-sheet-list s-sheet-list--foot">
+          ${link("#/health", "health", "Health", dot ? html`<span class=${`s-dot s-dot--${dot.tone}`} aria-hidden="true"></span>` : null)}
+          ${link("#/settings", "sliders", "Settings")}
+          <li>
+            <button type="button" class="s-sheet-item" onClick=${() => onSaveSettings && onSaveSettings({ theme: to })}>
+              <${Icon} name=${to === "light" ? "sun" : "moon"} size=${20} /><span>${themeWords}</span>
+            </button>
+          </li>
         </ul>
       </div>
     <//>`;

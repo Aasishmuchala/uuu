@@ -26,8 +26,8 @@ const SHEETS = [
   ...PAGE_SHEETS.map((p) => `./styles/pages/${p}.css`),
 ];
 
-// Where backdrop-filter may be used (CONTRACTS-V3 27.3), relative to the tree.
-const MAY_BLUR = ["styles/shell.css", "styles/kit/overlays.css", "styles/kit/composer.css", "styles/kit/stage.css"];
+// Where backdrop-filter may be used, relative to the tree: nowhere (PLAN-COOK T20; every surface is opaque).
+const MAY_BLUR = [];
 
 // The vendored library as it was checked in; replacing it is a deliberate change to this list.
 const VENDOR_FILES = {
@@ -211,7 +211,7 @@ test("shell.css uses the shell's own classes, tokens only, and carries the narro
   assert.match(css, /@media \(max-width: 859px\)/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /\[data-motion="off"\]/);
-  assert.match(css, /backdrop-filter/, "the chrome blurs what is behind it");
+  assert.doesNotMatch(css, /backdrop-filter/, "the chrome is opaque: nothing blurs what is behind it");
   assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b\s*;|rgba?\(|hsla?\(/, "colours come from the tokens");
   assert.doesNotMatch(css, /font-size\s*:\s*\d+px/, "sizes come from the tokens");
   assert.doesNotMatch(css, /font-family/, "the type comes from base.css");

@@ -1,8 +1,8 @@
-// The frame every page lives in (CONTRACTS-V3 26.2), on the flat ground of tokens.css: the top bar with the
-// capsule, the Needs you pill and drawer, the dock on the pages of work, the tab bar and the Menu sheet
-// below 860 px, the main pane, the optional work panel, the command menu and the compose dialog, the keys,
-// the skip link and the aria-live line. It reads GET /api/shell every 10 seconds and gives every page the
-// context of lib/context.js.
+// The frame every page lives in (PLAN-COOK T20): from 860 px up the sidebar at the left and the page column
+// (the top bar over the main pane); below 860 px the top bar's back button and crumbs, the tab bar and its More
+// sheet. Then the optional work panel, the queue (the Needs you drawer until T21 draws the panel), the command
+// menu and the compose dialog, the keys, the skip link and the aria-live line. It reads GET /api/shell every
+// 10 seconds and gives every page the context of lib/context.js.
 import { html, useCallback, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { AppContext } from "../lib/context.js";
@@ -13,22 +13,23 @@ import { PageHeader } from "../kit/index.js";
 import { findRoute, redirectFor } from "../routes.js";
 import { CommandMenu } from "./command-menu.js";
 import { ComposeDialog } from "./compose-dialog.js";
-import { Dock, dockCurrent, showsDock } from "./dock.js";
 import { LazyPage } from "./lazy-page.js";
 import { NeedsDrawer } from "./needs-drawer.js";
+import { SIDE_KEY, Sidenav, sideMode } from "./sidenav.js";
 import { TabBar } from "./tabbar.js";
-import { MenuSheet, Topbar } from "./topbar.js";
+import { MenuSheet, Topbar, cleanTop } from "./topbar.js";
 import { WorkPanel } from "./work-panel.js";
 
 const OVERLAYS = ["command", "compose", "needs", "menu"];
 const NARROW = "(max-width: 859px)";
+const MIDDLE = "(max-width: 1099px)";
 
 // "g" then one of these keys goes to that page.
 const GO = { m: "map", t: "tasks", d: "dashboards", f: "files", n: "needs-you", j: "jobs" };
 
 // What a key press means, or null. `typing` is true while focus is in a field; `pendingG` is true right
 // after a bare "g"; `page` is the current page's id and `zoomed` is true on one department of the map.
-// Returns "command" | "compose" | "box" | "map-back" | "go:<page>" | "g".
+// Returns "command" | "compose" | "queue" | "side" | "box" | "map-back" | "go:<page>" | "g".
 export function keyAction({ key, metaKey, ctrlKey, altKey, typing, page, zoomed }, pendingG = false) {
   const k = String(key || "");
   if ((metaKey || ctrlKey) && !altKey && k.toLowerCase() === "k") return "command";
@@ -36,6 +37,8 @@ export function keyAction({ key, metaKey, ctrlKey, altKey, typing, page, zoomed 
   if (pendingG && GO[k]) return `go:${GO[k]}`;
   if (k === "/") return page === "map" ? "box" : "command";
   if (k === "c") return "compose";
+  if (k === "q") return "queue";
+  if (k === "[") return "side";
   if (k === "g") return "g";
   if (k === "Escape" && page === "map" && zoomed) return "map-back";
   return null;
@@ -73,17 +76,51 @@ function mapBox() {
   return document.querySelector(".p-map [data-box] textarea, .p-map .k-composer textarea, .p-map textarea");
 }
 
-function useNarrow() {
-  const get = () => typeof matchMedia === "function" && matchMedia(NARROW).matches;
-  const [narrow, setNarrow] = useState(get);
+function useMedia(query) {
+  const get = () => typeof matchMedia === "function" && matchMedia(query).matches;
+  const [on, setOn] = useState(get);
   useEffect(() => {
     if (typeof matchMedia !== "function") return undefined;
-    const m = matchMedia(NARROW);
-    const on = () => setNarrow(m.matches);
-    m.addEventListener("change", on);
-    return () => m.removeEventListener("change", on);
-  }, []);
-  return narrow;
+    const m = matchMedia(query);
+    const change = () => setOn(m.matches);
+    m.addEventListener("change", change);
+    return () => m.removeEventListener("change", change);
+  }, [query]);
+  return on;
+}
+
+// The owner's stored width of the sidebar ("open" | "icons"), or null for automatic.
+function storedSide() {
+  try {
+    const v = localStorage.getItem(SIDE_KEY);
+    return v === "open" || v === "icons" ? v : null;
+  } catch {
+    return null;
+  }
+}
+function storeSide(v) {
+  try {
+    if (v) localStorage.setItem(SIDE_KEY, v);
+    else localStorage.removeItem(SIDE_KEY);
+  } catch {
+    // A browser that keeps nothing: the choice lasts until the page is reloaded.
+  }
+}
+
+// True while the page shows work on a stage (a .k-work in the main pane): the sidebar then shows icons only,
+// unless the owner chose otherwise. Watched, because a page draws its stage once its data has come.
+function useStage(key) {
+  const [stage, setStage] = useState(false);
+  useEffect(() => {
+    const main = typeof document !== "undefined" ? document.getElementById("main") : null;
+    if (!main || typeof MutationObserver !== "function") return undefined;
+    const look = () => setStage(!!main.querySelector(".k-work"));
+    look();
+    const watch = new MutationObserver(look);
+    watch.observe(main, { childList: true, subtree: true });
+    return () => watch.disconnect();
+  }, [key]);
+  return stage;
 }
 
 // Takes "?open=" out of the address once its overlay is closed, so a reload does not reopen it.
@@ -113,13 +150,16 @@ export function AppShell() {
   const route = findRoute(address.parts);
   const redirect = redirectFor(address.parts, address.query);
   const shell = useResource("/api/shell", { every: 10000 });
-  const narrow = useNarrow();
+  const narrow = useMedia(NARROW);
+  useMedia(MIDDLE); // draws again when the window crosses 1100 px, where the automatic sidebar changes width
   const [overlay, setOverlay] = useState(() => (typeof location === "undefined" ? null : overlayFrom(location.search)));
   const [seed, setSeed] = useState({ n: 0 });
   const [needsFor, setNeedsFor] = useState(null);
   const [panel, setPanel] = useState(null);
   const [live, setLive] = useState("");
   const [settings, setSettings] = useState(looks);
+  const [stored, setStored] = useState(storedSide);
+  const [top, setTopState] = useState(null);
   const pendingG = useRef(false);
   const gTimer = useRef(0);
   const first = useRef(true);
@@ -145,10 +185,11 @@ export function AppShell() {
     setOverlay(null);
     forgetOpen();
   }, []);
-  const openNeeds = useCallback(({ department } = {}) => {
+  const openQueue = useCallback(({ department } = {}) => {
     setNeedsFor(typeof department === "string" && department ? department : null);
     setOverlay("needs");
   }, []);
+  const openNeeds = openQueue;
   const openPanel = useCallback((content, { title } = {}) => setPanel({ content, title: title || "" }), []);
   const closePanel = useCallback(() => setPanel(null), []);
   const saveSettings = useCallback(async (s) => {
@@ -157,9 +198,30 @@ export function AppShell() {
     return next;
   }, []);
 
+  // What the page gave the top bar belongs to the page it came from: kept with its address, and shown only
+  // while that address is open, so a page change clears it without a render in between.
+  const pathKey = address.parts.join("/");
+  const pathNow = useRef(pathKey);
+  pathNow.current = pathKey;
+  const setTop = useCallback((t) => {
+    const clean = cleanTop(t);
+    const next = clean ? { ...clean, key: pathNow.current } : null;
+    setTopState((old) => (JSON.stringify(old) === JSON.stringify(next) ? old : next));
+  }, []);
+  const shownTop = top && top.key === pathKey ? top : null;
+
+  // The sidebar's width: the owner's choice, else by the window and whether the page shows a stage.
+  const stage = useStage(pathKey);
+  const side = narrow ? "none" : sideMode({ stored, stage, width: typeof innerWidth === "number" ? innerWidth : 1280 });
+  const setSide = useCallback((v) => {
+    const next = v === "open" || v === "icons" ? v : null;
+    storeSide(next);
+    setStored(next);
+  }, []);
+  const flipSide = useCallback(() => setSide(side === "open" ? "icons" : "open"), [side, setSide]);
+
   // A new page: close the menu sheet and the panel, go to the top, and move focus to the page's heading
   // (it appears once the page's module has loaded, so look for it for up to two seconds).
-  const pathKey = address.parts.join("/");
   useEffect(() => {
     if (first.current) {
       first.current = false;
@@ -195,6 +257,11 @@ export function AppShell() {
         clearTimeout(gTimer.current);
       }
       if (!what) return;
+      if (what === "queue" && overlay === "needs") {
+        e.preventDefault();
+        closeOverlay();
+        return;
+      }
       if (what !== "command" && overlay) return;
       if (what === "box") {
         const box = mapBox();
@@ -211,6 +278,10 @@ export function AppShell() {
         setOverlay((o) => (o === "command" ? null : "command"));
       } else if (what === "compose") {
         openComposer({});
+      } else if (what === "queue") {
+        openQueue({});
+      } else if (what === "side") {
+        if (!narrow) flipSide();
       } else if (what === "map-back") {
         location.hash = "#/map";
       } else if (what.startsWith("go:")) {
@@ -219,7 +290,7 @@ export function AppShell() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [overlay, openComposer, routeId, zoomed]);
+  }, [overlay, openComposer, openQueue, closeOverlay, flipSide, narrow, routeId, zoomed]);
 
   const dock = Array.isArray(shell.data?.dock) ? shell.data.dock : [];
   const ctx = useMemo(() => ({
@@ -230,12 +301,16 @@ export function AppShell() {
     openComposer,
     openPanel,
     closePanel,
+    openQueue,
     openNeeds,
     closeNeeds: closeOverlay,
+    setTop,
+    side,
+    setSide,
     dock,
     settings,
     saveSettings,
-  }), [shell.data, shell.error, shell.refresh, announce, openComposer, openPanel, closePanel, openNeeds, closeOverlay, settings, saveSettings]);
+  }), [shell.data, shell.error, shell.refresh, announce, openComposer, openPanel, closePanel, openQueue, openNeeds, closeOverlay, setTop, side, setSide, settings, saveSettings]);
 
   const skip = (e) => {
     e.preventDefault();
@@ -246,19 +321,20 @@ export function AppShell() {
   // then lies over it, and its Save is never under the bar (M52 F2).
   const team = shell.data?.team || [];
   const pane = route ? paneOf(route.id, address.query) : "normal";
-  const withDock = !narrow && route && showsDock(route.id);
   const offline = shell.error && !shell.data ? shell.error : null;
-  const cls = ["s-app", narrow ? "s-app--narrow" : "", withDock ? "s-app--dock" : "", panel && !narrow ? "has-panel" : ""].filter(Boolean).join(" ");
+  const cls = ["s-app", narrow ? "s-app--narrow" : `s-app--${side}`, panel && !narrow ? "has-panel" : ""].filter(Boolean).join(" ");
 
   return html`
     <${AppContext.Provider} value=${ctx}>
       <a class="s-skip" href="#main" onClick=${skip}>Skip to content</a>
       <div class=${cls}>
-        <${Topbar} routeId=${routeId} shell=${shell.data} narrow=${narrow} settings=${settings} onSaveSettings=${saveSettings}
-          onNeeds=${openNeeds} onMenu=${() => setOverlay("menu")} />
-        ${withDock ? html`
-          <${Dock} dock=${dock} current=${dockCurrent(route.id, address.parts, address.query)} onCompose=${() => openComposer({})} />` : null}
+        ${narrow ? null : html`
+          <${Sidenav} mode=${side} routeId=${routeId} parts=${address.parts} query=${address.query} shell=${shell.data} dock=${dock}
+            settings=${settings} onSaveSettings=${saveSettings} />`}
         <div class="s-main">
+          <${Topbar} routeId=${routeId} parts=${address.parts} shell=${shell.data} top=${shownTop} narrow=${narrow} side=${side}
+            queueOpen=${overlay === "needs"} onSide=${flipSide} onQueue=${() => (overlay === "needs" ? closeOverlay() : openQueue({}))}
+            onCommand=${openCommand} />
           ${offline ? html`
             <p class="s-offline" role="status">${offline.message}${offline.next ? html` <span class="s-offline-next">${offline.next}</span>` : null}</p>` : null}
           <main id="main" class=${`s-content s-content--${pane}`} tabindex="-1">
@@ -268,10 +344,13 @@ export function AppShell() {
           </main>
         </div>
         <${WorkPanel} panel=${panel} onClose=${closePanel} narrow=${narrow} />
-        ${narrow ? html`<${TabBar} routeId=${routeId} />` : null}
+        ${narrow ? html`
+          <${TabBar} routeId=${routeId} needs=${shell.data?.counts?.needsYou} moreOpen=${overlay === "menu"} onMore=${() => setOverlay("menu")} />` : null}
       </div>
-      <${NeedsDrawer} open=${overlay === "needs"} department=${needsFor} stamp=${shell.data?.generatedAt || ""}
-        onClose=${closeOverlay} onDone=${(message) => { if (message) announce(message); shell.refresh(); }} />
+      <div id="s-queue" class="s-queue-host">
+        <${NeedsDrawer} open=${overlay === "needs"} department=${needsFor} stamp=${shell.data?.generatedAt || ""}
+          onClose=${closeOverlay} onDone=${(message) => { if (message) announce(message); shell.refresh(); }} />
+      </div>
       <${MenuSheet} open=${overlay === "menu"} onClose=${closeOverlay} shell=${shell.data} dock=${dock}
         settings=${settings} onSaveSettings=${saveSettings} onCompose=${() => openComposer({})} onCommand=${openCommand} />
       <${CommandMenu} open=${overlay === "command"} onClose=${closeOverlay} team=${team} onCompose=${openComposer} />
