@@ -13,6 +13,7 @@
 //                  [{ label, href? }] (the last is the page), pager is { label: "3 of 21", prev, next } and
 //                  links is at most two [{ label, href }]; every href a "#/" address. Cleared on a page change.
 //   side           the sidebar's width: "open" | "icons" | "none" (below 860 px)
+//   sideChoice     what the owner chose: "open" | "icons", or null for automatic
 //   setSide        choose it: setSide("open" | "icons"), or setSide(null) for automatic; kept in this browser
 //   dock           the last shell.dock (the brain and the seven departments), or []
 //   settings       { theme, accent, backdrop, motion, accents, backdrops, saved }
@@ -34,6 +35,7 @@ export const AppContext = createContext({
   closeNeeds: nothing,
   setTop: nothing,
   side: "open",
+  sideChoice: null,
   setSide: nothing,
   dock: [],
   settings: { theme: "dark", accent: "graphite", backdrop: "aurora", motion: "on", accents: null, backdrops: null, saved: false },

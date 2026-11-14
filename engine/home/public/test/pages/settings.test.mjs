@@ -118,14 +118,16 @@ test("settings: Later is the same rows, each switch off and unusable, with its s
   assert.match(SRC, /Hide technical details/);
 });
 
-test("settings: the Sidebar row shows what the shell draws, Automatic once picked; the page never sets the width itself", () => {
-  assert.equal(sideShown("open", null), "open");
-  assert.equal(sideShown("icons", null), "icons");
-  assert.equal(sideShown("none", null), "auto");
-  assert.equal(sideShown(undefined, null), "auto");
-  assert.equal(sideShown("open", "auto"), "auto");
-  assert.equal(sideShown("open", "icons"), "icons");
-  assert.equal(sideShown("icons", "pink"), "icons");
+test("settings: the Sidebar row shows what the owner chose (Automatic when nothing); the page never sets the width itself", () => {
+  assert.equal(sideShown(null), "auto");
+  assert.equal(sideShown(undefined), "auto");
+  assert.equal(sideShown("open"), "open");
+  assert.equal(sideShown("icons"), "icons");
+  assert.equal(sideShown("pink"), "auto");
+  assert.deepEqual(SIDES.map((x) => [x.id, x.label]), [["open", "Names"], ["icons", "Icons"], ["auto", "Automatic"]]);
+  // The row reads sideChoice from the context, not the width that is drawn.
+  assert.match(SRC, /const \{ saveSettings, setTop, sideChoice, setSide \} = app;/);
+  assert.match(SRC, /sideChoice=\$\{sideShown\(sideChoice\)\}/);
   // setSide is called only from the owner's pick in the row.
   assert.equal((SRC.match(/setSide\(/g) || []).length, 1);
   assert.doesNotMatch(SRC, /localStorage|sessionStorage/);

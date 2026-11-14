@@ -20,6 +20,9 @@ function stateParts(state) {
   return { tone: "neutral", text: state };
 }
 
+// The words of a state as a tooltip (the dot alone is not explained on a phone): text only, capped.
+const stateTitle = (t) => (typeof t === "string" || typeof t === "number" ? String(t).slice(0, 120) : undefined);
+
 // The foot of the rail is either what it shows (all of it, everywhere) or { primary, rest }: then a phone shows
 // the primary and a "More" button that opens the rest in a sheet.
 function footParts(foot) {
@@ -91,7 +94,7 @@ export function DocLayout({ title, state, intro, sections, current, onPick, chil
               const inner = html`${s.icon ? html`<${Icon} name=${s.icon} size=${18} class="k-doc__pick-icon" />` : html`<span class="k-doc__pick-icon"></span>`}
                 <span class="k-doc__pick-name">${s.label}</span>
                 ${st
-                  ? html`<span class=${cx("k-doc__pick-state", `k-doc__pick-state--${st.tone}`)}>
+                  ? html`<span class=${cx("k-doc__pick-state", `k-doc__pick-state--${st.tone}`)} title=${stateTitle(st.text)}>
                       <span class="k-doc__pick-dot" aria-hidden="true"></span><span>${st.text}</span>
                     </span>`
                   : null}`;

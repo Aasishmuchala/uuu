@@ -107,14 +107,14 @@ function storeSide(v) {
   }
 }
 
-// True while the page shows work on a stage (a .k-work in the main pane): the sidebar then shows icons only,
+// True while the page shows work on a stage (a .k-work, or a .k-doc--layout such as Settings, in the main pane): the sidebar then shows icons only,
 // unless the owner chose otherwise. Watched, because a page draws its stage once its data has come.
 function useStage(key) {
   const [stage, setStage] = useState(false);
   useEffect(() => {
     const main = typeof document !== "undefined" ? document.getElementById("main") : null;
     if (!main || typeof MutationObserver !== "function") return undefined;
-    const look = () => setStage(!!main.querySelector(".k-work"));
+    const look = () => setStage(!!main.querySelector(".k-work, .k-doc--layout"));
     look();
     const watch = new MutationObserver(look);
     watch.observe(main, { childList: true, subtree: true });
@@ -317,11 +317,12 @@ export function AppShell() {
     closeNeeds: closeOverlay,
     setTop,
     side,
+    sideChoice: stored === "open" || stored === "icons" ? stored : null,
     setSide,
     dock,
     settings,
     saveSettings,
-  }), [shell.data, shell.error, shell.refresh, announce, openComposer, openPanel, closePanel, openQueue, openNeeds, closeOverlay, setTop, side, setSide, settings, saveSettings]);
+  }), [shell.data, shell.error, shell.refresh, announce, openComposer, openPanel, closePanel, openQueue, openNeeds, closeOverlay, setTop, side, stored, setSide, settings, saveSettings]);
 
   const skip = (e) => {
     e.preventDefault();

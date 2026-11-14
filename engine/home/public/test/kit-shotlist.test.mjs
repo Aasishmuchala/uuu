@@ -135,13 +135,13 @@ test("approveLabel names the treatment for a screen reader", () => {
 });
 
 test("blockedOf: the server's sentence, and a link only when it is about Settings or Health", () => {
-  assert.deepEqual(sl.blockedOf(ITEM.variants[2]), { text: ITEM.variants[2].blocked, link: { href: "#/settings", label: "Open Settings" } });
-  assert.equal(sl.blockedOf({ blocked: "Generation is off or has no key yet. Open Settings." }).link.href, "#/settings");
+  assert.deepEqual(sl.blockedOf(ITEM.variants[2]), { text: ITEM.variants[2].blocked, link: { href: "#/settings?s=generation", label: "Open Settings" } });
+  assert.equal(sl.blockedOf({ blocked: "Generation is off or has no key yet. Open Settings." }).link.href, "#/settings?s=generation");
   assert.equal(sl.blockedOf({ blocked: "The spending ledger cannot be read, so nothing will be made. Health shows what to do." }).link.href, "#/health");
   assert.equal(sl.blockedOf({ blocked: "A render is missing: dock.png." }).link, null);
   assert.equal(sl.blockedOf({ blocked: null }), null);
-  assert.equal(sl.refusalLink({ code: "over_limit" }).href, "#/settings");
-  assert.equal(sl.refusalLink({ code: "job_not_ready" }).href, "#/settings");
+  assert.equal(sl.refusalLink({ code: "over_limit" }).href, "#/settings?s=generation");
+  assert.equal(sl.refusalLink({ code: "job_not_ready" }).href, "#/settings?s=generation");
   assert.equal(sl.refusalLink({ code: "shotlist_problem" }), null);
 });
 
@@ -212,7 +212,7 @@ test("the card: three treatments in a to c order on one strip; one on the stage;
   assert.ok(elements(root).some((e) => /\bk-locked\b/.test(e.getAttribute("class") || "")), "the approval is locked");
   assert.match(now, /This costs more than is left of today's limit \(\$0\.40\)/);
   assert.equal(buttons(root, "Pick A instead, it fits today").length, 1, "the way out that works");
-  assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/settings" && textOf(e).trim() === "Raise today's limit"), "a link to raise the limit");
+  assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/settings?s=generation" && textOf(e).trim() === "Raise today's limit"), "a link to raise the limit");
 });
 
 test("the card: an agent's words are text, never markup; a board only from the server's address", async () => {
@@ -264,7 +264,7 @@ test("the card: a refused approval shows the server's sentence with a link to Se
     await settle();
     assert.equal(f.calls.length, 1);
     assert.match(textOf(root), /This costs more than is left of today's limit \(\$0\.10\)/);
-    assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/settings"));
+    assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/settings?s=generation"));
     assert.equal(buttons(root, "Approve A and its cost").length, 1, "the card is still there to act on");
   } finally {
     f.restore();
@@ -341,8 +341,8 @@ test("T40 helpers: the chip, the treatment instead, the way out, the money from 
   assert.equal(sl.insteadOf(LAKE, a).id, "c");
   assert.equal(sl.insteadOf(LAKE, c), null);
   assert.equal(sl.insteadOf(ALL_OVER, a), null);
-  assert.deepEqual(sl.wayOut(OVER), { href: "#/settings", label: "Raise today's limit" });
-  assert.deepEqual(sl.wayOut("Generation is off or has no key yet. Open Settings."), { href: "#/settings", label: "Open Settings" });
+  assert.deepEqual(sl.wayOut(OVER), { href: "#/settings?s=generation", label: "Raise today's limit" });
+  assert.deepEqual(sl.wayOut("Generation is off or has no key yet. Open Settings."), { href: "#/settings?s=generation", label: "Open Settings" });
   assert.equal(sl.wayOut("A render is missing: dock.png."), null);
   const m = sl.treatmentMoney(LAKE, a);
   assert.equal(m.figure, "$1.85");
@@ -370,7 +370,7 @@ test("T40: the foot has one primary action at most, whatever is on the stage", a
   assert.equal(primaries(over).length, 1);
   const p = primaries(over)[0];
   assert.equal(p.localName, "a");
-  assert.equal(p.getAttribute("href"), "#/settings");
+  assert.equal(p.getAttribute("href"), "#/settings?s=generation");
   assert.equal(textOf(p).trim(), "Raise today's limit", "nothing fits: raising the limit is the primary");
 });
 

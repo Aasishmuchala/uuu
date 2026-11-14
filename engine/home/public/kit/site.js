@@ -321,7 +321,7 @@ export function ShotPair({ desktop = null, phone = null, label = "The page", sma
 function WithSettings({ sentence }) {
   const s = settingsSplit(sentence);
   if (!s.link) return html`<span>${s.before}</span>`;
-  return html`<span>${s.before} <a class="k-site__link" href="#/settings">${s.link}</a></span>`;
+  return html`<span>${s.before} <a class="k-site__link" href="#/settings?s=viewer">${s.link}</a></span>`;
 }
 
 // A failed action's sentence, the server's own: "… Run: engine start" sets the command apart.

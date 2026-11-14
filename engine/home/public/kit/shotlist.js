@@ -144,7 +144,7 @@ export function blockedOf(v) {
 }
 
 function linkFor(sentence) {
-  if (/\bSettings\b/.test(sentence)) return { href: "#/settings", label: SHOTLIST_WORDS.settings };
+  if (/\bSettings\b/.test(sentence)) return { href: "#/settings?s=generation", label: SHOTLIST_WORDS.settings };
   if (/\bHealth\b/.test(sentence)) return { href: "#/health", label: SHOTLIST_WORDS.health };
   return null;
 }
@@ -153,7 +153,7 @@ function linkFor(sentence) {
 // ledger, which Health explains.
 export function refusalLink(error) {
   const code = error && error.code;
-  if (code === "over_limit" || code === "job_not_ready") return { href: "#/settings", label: SHOTLIST_WORDS.settings };
+  if (code === "over_limit" || code === "job_not_ready") return { href: "#/settings?s=generation", label: SHOTLIST_WORDS.settings };
   if (code === "ledger_unreadable") return { href: "#/health", label: SHOTLIST_WORDS.health };
   return null;
 }
@@ -284,7 +284,7 @@ export function insteadOf(item, v) {
 // about Settings or Health opens that page; anything else has none.
 export function wayOut(sentence) {
   const t = text(sentence);
-  if (/today's limit/i.test(t)) return { href: "#/settings", label: SHOTLIST_WORDS.raise };
+  if (/today's limit/i.test(t)) return { href: "#/settings?s=generation", label: SHOTLIST_WORDS.raise };
   return linkFor(t);
 }
 

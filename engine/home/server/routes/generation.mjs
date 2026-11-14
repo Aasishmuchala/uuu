@@ -38,8 +38,8 @@ export const MAX_CAP = 1_000_000;
 // K21's patterns for what Higgsfield sends back to the return address: `state` is 32 random bytes in hex.
 export const HF_CODE_RE = /^[A-Za-z0-9._~-]{1,512}$/;
 export const HF_STATE_RE = /^[0-9a-f]{64}$/;
-export const HF_BACK_CONNECTED = "/#/settings?generation=connected";
-export const HF_BACK_FAILED = "/#/settings?generation=failed";
+export const HF_BACK_CONNECTED = "/#/settings?s=generation&generation=connected";
+export const HF_BACK_FAILED = "/#/settings?s=generation&generation=failed";
 // A stand-in Higgsfield in tests listens on 127.0.0.1; anything else is Higgsfield's one origin.
 const LOOPBACK_ORIGIN = /^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/;
 

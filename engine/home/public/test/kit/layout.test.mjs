@@ -89,6 +89,8 @@ test("a DocLayout lists its sections, marks the current one, and picks by button
   const picks = byClass(root, "k-doc__pick");
   assert.equal(picks.length, 4);
   assert.deepEqual(picks.map((p) => p.getAttribute("aria-current")), [null, "page", null, null]);
+  const states = byClass(root, "k-doc__pick-state");
+  assert.deepEqual(states.map((e) => e.getAttribute("title")), ["On", "Off"], "the dot's words are also its tooltip");
   assert.equal(picks[2].localName, "a");
   assert.equal(picks[2].getAttribute("href"), "#/settings/web");
   assert.equal(picks[3].localName, "button", "an address that is not the app's own is not a link");

@@ -302,7 +302,7 @@ test("back: connected with the door's finish; the token file is the door's; the 
   await withHf(async ({ h, logs, doorLogs }) => {
     const { back, query } = await signIn(h);
     assert.equal(back.status, 303);
-    assert.equal(back.headers.location, "/#/settings?generation=connected");
+    assert.equal(back.headers.location, "/#/settings?s=generation&generation=connected");
     assert.equal(back.headers["referrer-policy"], "no-referrer");
     assert.equal(back.headers["cache-control"], "no-store");
     assert.ok(existsSync(h.config.paths.higgsfieldAuth), "the door kept its sign-in");

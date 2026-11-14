@@ -84,11 +84,10 @@ export function laterLine(later) {
 const LATER_ICONS = { local_model: "chip", chat_apps: "reply", workflow_engine: "layers", pixel_editor: "brush", aseprite_files: "image" };
 
 // ---- the sidebar's width -----------------------------------------------------------------------------------------
-// The shell keeps the owner's choice and tells pages only what it draws (side: "open", "icons" or "none"), so the row
-// shows what is drawn, and Automatic once the owner has picked it here. This page does not change the width itself.
-export function sideShown(side, picked) {
-  if (picked === "auto" || picked === "open" || picked === "icons") return picked;
-  return side === "icons" ? "icons" : side === "open" ? "open" : "auto";
+// The shell keeps the owner's choice and tells pages it as sideChoice ("open", "icons", or null for automatic), so the
+// row shows what the owner chose. This page does not change the width itself.
+export function sideShown(sideChoice) {
+  return sideChoice === "open" || sideChoice === "icons" ? sideChoice : "auto";
 }
 
 // ---- the two sections drawn here ---------------------------------------------------------------------------------
@@ -134,11 +133,10 @@ const INTRO = {
 
 export default function Page({ route }) {
   const app = useApp() || {};
-  const { saveSettings, setTop, side, setSide } = app;
+  const { saveSettings, setTop, sideChoice, setSide } = app;
   const current = sectionOf(route && route.query);
   const res = useResource("/api/settings");
   const [chosen, setChosen] = useState({});
-  const [sidePicked, setSidePicked] = useState(null);
   const d = res.data;
 
   // The doors' state lines, from what each module loads, for the modules that can say.
@@ -188,10 +186,10 @@ export default function Page({ route }) {
       ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}`;
   } else if (here.id === "later") body = html`<${Later} later=${d.later} />`;
   else {
-    body = html`<${Appearance} theme=${theme} motion=${motion} sideChoice=${sideShown(side, sidePicked)}
+    body = html`<${Appearance} theme=${theme} motion=${motion} sideChoice=${sideShown(sideChoice)}
       onTheme=${(id) => change({ theme: id })}
       onMotion=${(on) => change({ motion: on ? "on" : "off" })}
-      onSide=${(id) => { setSidePicked(id); if (typeof setSide === "function") setSide(id === "open" || id === "icons" ? id : null); }} />`;
+      onSide=${(id) => { if (typeof setSide === "function") setSide(id === "open" || id === "icons" ? id : null); }} />`;
   }
 
   return html`<div class=${`p-settings p-settings--${here.id}`}>

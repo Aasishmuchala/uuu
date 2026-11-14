@@ -300,7 +300,7 @@ test("SiteView: the viewer off links to Settings; working says so; failed offers
     const root = await showTree(site.SiteView, { id: "STH-2" });
     assert.match(textOf(root), /The page viewer is off, so there are no pictures of this site\. Switch it on in Settings\./);
     const link = elements(root).find((e) => e.localName === "a" && textOf(e) === "Switch it on in Settings.");
-    assert.equal(attr(link, "href"), "#/settings");
+    assert.equal(attr(link, "href"), "#/settings?s=viewer");
     assert.equal(elements(root).filter((e) => e.localName === "img").length, 0);
     assert.equal(buttons(root, "Take pictures again").length, 0);
     assert.equal(buttons(root, "Open the preview").length, 1, "the preview works whatever the switch (C17)");
