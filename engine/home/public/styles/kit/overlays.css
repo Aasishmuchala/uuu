@@ -195,7 +195,6 @@
 /* Close: a 32 px target with a quiet fill, so it reads as a control and not a stray glyph. */
 .k-dialog__close.k-btn {
   flex: none;
-  align-self: flex-start;
   width: var(--s-8);
   height: var(--s-8);
   min-height: var(--s-8);
@@ -335,6 +334,7 @@
   }
 
   .k-dialog__close.k-btn {
+    align-self: flex-start;
     width: calc(var(--h-lg) + var(--s-1));
     height: calc(var(--h-lg) + var(--s-1));
     min-height: calc(var(--h-lg) + var(--s-1));
