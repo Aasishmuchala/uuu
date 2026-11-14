@@ -106,7 +106,8 @@ test("needs-you: the page uses the approval card and refreshes every 10 seconds"
 test("needs-you: a card of versions is shown with the kit's PickCard; any other item keeps the approval card", () => {
   const src = readFileSync(resolve(HERE, "../../pages/needs-you.js"), "utf8");
   assert.match(src, /isPickItem\(item\)\s*\n?\s*\? html`<\$\{PickCard\}/);
-  assert.match(src, /: html`<\$\{DecisionCard\} key=\$\{item\.id\} item=\$\{item\} onDone=\$\{done\} \/>`/);
+  // PLAN-COOK T50: an ordinary item opened on this page is the approval card at the page's level.
+  assert.match(src, /: html`<\$\{DecisionCard\} key=\$\{item\.id\} item=\$\{item\} onDone=\$\{done\} level \/>`/);
 });
 
 test("needs-you: the outcome of a pick stays once its item has left the list, newest first, at most three", () => {
@@ -128,4 +129,76 @@ test("needs-you: a shotlist's settled outcome stays at the top once its item has
   const settled = [{ id: "staged:shotlist:g1", kind: "shotlist", action: "approve" }];
   assert.equal(mod.settledShown(settled, []).length, 1);
   assert.equal(mod.settledShown(settled, [{ id: "staged:shotlist:g1" }]).length, 0);
+});
+
+// PLAN-COOK T50: the list in the queue's order, one item opened, the pager and the crumbs.
+const kinds = (list) => list.map((i) => i.kind);
+const known = [
+  item("p1", { kind: "problem", when: "2026-11-11T09:00:00Z" }),
+  item("q1", { kind: "question", when: "2026-11-11T08:00:00Z" }),
+  item("s1", { kind: "shotlist", when: "2026-11-11T07:00:00Z" }),
+  item("r1", { kind: "result", when: "2026-11-11T06:00:00Z" }),
+  item("a1", { kind: "approval", severity: "high", when: "2026-11-10T00:00:00Z" }),
+  item("k1", { kind: "pick", when: "2026-11-11T05:00:00Z" }),
+];
+
+test("needs-you: the list is in the queue's order: to approve, to answer, to accept, to know", () => {
+  assert.deepEqual(mod.queueOrder(known).map((i) => i.id), ["a1", "s1", "k1", "q1", "r1", "p1"]);
+  assert.deepEqual(kinds(mod.queueOrder(known)), ["approval", "shotlist", "pick", "question", "result", "problem"]);
+  assert.deepEqual(mod.queueOrder(null), []);
+});
+
+test("needs-you: the pager gives the place and the total over the queue's order, with addresses either side", () => {
+  const order = mod.queueOrder(known);
+  assert.deepEqual(mod.pagerOf(order, "a1"), { index: 1, total: 6, label: "1 of 6", prev: null, next: "#/needs-you?item=s1" });
+  assert.deepEqual(mod.pagerOf(order, "k1"), { index: 3, total: 6, label: "3 of 6", prev: "#/needs-you?item=s1", next: "#/needs-you?item=q1" });
+  assert.deepEqual(mod.pagerOf(order, "p1"), { index: 6, total: 6, label: "6 of 6", prev: "#/needs-you?item=r1", next: null });
+  // Ids work as well as items; a department filter stays in the addresses.
+  assert.deepEqual(mod.pagerOf(["x", "y"], "x", "studio"), { index: 1, total: 2, label: "1 of 2", prev: null, next: "#/needs-you?item=y&d=studio" });
+  assert.equal(mod.pagerOf(order, "nope"), null);
+  assert.equal(mod.pagerOf(order, ""), null);
+});
+
+test("needs-you: after an action the item leaves the list and the pager steps on from where it was, only when asked", () => {
+  // k1 was third; after it is done the list has five, and next is the one that took its place.
+  const left = mod.queueOrder(known.filter((i) => i.id !== "k1"));
+  assert.deepEqual(mod.pagerOf(left, "k1", "", 2), { index: null, total: 5, label: "5 left", prev: "#/needs-you?item=s1", next: "#/needs-you?item=q1" });
+  assert.deepEqual(mod.pagerOf([], "k1", "", 0), { index: null, total: 0, label: "None left", prev: null, next: null });
+  assert.deepEqual(mod.pagerOf(["a"], "z", "", 5), { index: null, total: 1, label: "1 left", prev: "#/needs-you?item=a", next: null });
+});
+
+test("needs-you: an item's address is the queue's, with the filter kept; the address names the item opened", () => {
+  assert.equal(mod.itemAddress("staged:shotlist:g1"), "#/needs-you?item=staged%3Ashotlist%3Ag1");
+  assert.equal(mod.itemAddress("a b", "sales"), "#/needs-you?item=a%20b&d=sales");
+  assert.equal(mod.itemAddress("a", "../x"), "#/needs-you?item=a");
+  assert.equal(mod.openOf(new URLSearchParams("item=staged%3Ashotlist%3Ag1&d=studio")), "staged:shotlist:g1");
+  assert.equal(mod.openOf(new URLSearchParams("")), "");
+  assert.equal(mod.openOf(null), "");
+});
+
+test("needs-you: the crumbs name the kind of the item opened", () => {
+  assert.equal(mod.crumbWord({ kind: "shotlist" }), "A shotlist to approve");
+  assert.equal(mod.crumbWord({ kind: "pick" }), "Versions to pick from");
+  assert.equal(mod.crumbWord({ kind: "question" }), "A question");
+  assert.equal(mod.crumbWord({ kind: "result" }), "A result");
+  assert.equal(mod.crumbWord({ kind: "problem" }), "A problem");
+  assert.equal(mod.crumbWord({ kind: "approval" }), "Something to approve");
+  assert.equal(mod.crumbWord({ kind: "draft" }), "Something to approve");
+  assert.equal(mod.crumbWord({ kind: "toString" }), "Something to know");
+  assert.equal(mod.crumbWord(null), "Something to know");
+  assert.deepEqual(mod.crumbsFor({ kind: "shotlist" }), [{ label: "Needs you", href: "#/needs-you" }, { label: "A shotlist to approve" }]);
+  assert.deepEqual(mod.crumbsFor({ kind: "question" }, "sales"), [{ label: "Needs you", href: "#/needs-you?d=sales" }, { label: "A question" }]);
+  assert.deepEqual(mod.crumbsFor(null), [{ label: "Needs you" }]);
+  assert.deepEqual(mod.crumbsFor(null, "books"), [{ label: "Needs you", href: "#/needs-you" }, { label: "Books" }]);
+});
+
+test("needs-you: a shotlist or versions to pick from take the whole pane; anything else is a card", () => {
+  assert.equal(mod.isStageItem({ id: "s", kind: "shotlist" }), true);
+  assert.equal(mod.isStageItem({ id: "q", kind: "question" }), false);
+  assert.equal(mod.isStageItem(null), false);
+  const src = readFileSync(resolve(HERE, "../../pages/needs-you.js"), "utf8");
+  assert.match(src, /p-needs-you--stage/);
+  assert.match(src, /setTop\(\{ crumbs, pager/);
+  assert.doesNotMatch(src, /PageHeader/, "the stage's own title is the page's one heading");
+  assert.doesNotMatch(src, /const SOURCE_DEPARTMENT/, "the shared table from lib/queue.js");
 });

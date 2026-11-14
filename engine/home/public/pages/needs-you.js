@@ -1,24 +1,57 @@
-// Needs you: every item waiting for the owner as a full decision card, urgent first, with chips to filter by
-// department and the not-connected lines. CONTRACTS-V3 30 ("Needs you") and 26.4.
-// Address: #/needs-you, #/needs-you?d=<department>. Data: GET /api/inbox every 10 seconds; the agents of each
-// department come from GET /api/map (read once; without it items are placed by their source alone).
-// A finished task with versions (PLAN-V5 K9) is a card of versions to pick from (kit PickCard); after a pick its
-// outcome stays at the top of the list, so the owner sees what was chosen when the item leaves the list. A film's
-// shotlist (PLAN-V5 K14, T45) is a card of treatments and their cost to approve (kit ShotlistCard), settled the same way.
-import { html, useEffect, useState } from "../vendor/preact-htm.js";
+// Needs you: every item waiting for the owner, and one of them opened (PLAN-COOK T50; CONTRACTS-V3 30, 26.4).
+// Address: #/needs-you, #/needs-you?d=<department> (one department), #/needs-you?item=<id> (one item opened).
+// Data: GET /api/inbox every 10 seconds; the agents of each department come from GET /api/map (read once; without
+// it items are placed by their source alone).
+// From 1280 px the list is at the left (grouped as the queue groups it) and the item opened at the right, the first
+// one when the address names none. A film's shotlist or a task's versions to pick from (kit ShotlistCard, PickCard)
+// is a whole stage: it takes the pane, its title is the page's heading, and the list is the queue panel. Below 1280
+// px the list is the page and an item opened is a screen of its own (the top bar's back button returns to the list).
+// The top bar gets the crumbs and a pager over the list's order. After an action its outcome stays where the item
+// was until the owner moves on.
+import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
+import { fullWhen } from "../lib/format.js";
+import { SOURCE_DEPARTMENT, queueGroups, rowTime, sortNeeds } from "../lib/queue.js";
 import {
-  DecisionCard, Empty, ErrorNotice, Loading, NotConnected, PageHeader, PickCard, PickDone, ShotlistCard, ShotlistDone, isPickItem, isShotlistItem,
+  Button, DecisionCard, DecisionDone, Empty, ErrorNotice, Icon, Loading, NotConnected, Notice, PickCard, PickDone, Select,
+  ShotlistCard, ShotlistDone, StateIcon, SHOTLIST_WORDS, isPickItem, isShotlistItem,
 } from "../kit/index.js";
 
 const DEPARTMENT_IDS = ["operations", "sales", "marketing", "studio", "support", "people", "books"];
 const DEPARTMENT_TITLES = { operations: "Operations", sales: "Sales", marketing: "Marketing", studio: "Studio", support: "Support", people: "People", books: "Books" };
-// The department a dashboard's items belong to (CONTRACTS-V3 26.4): `customers` counts for sales.
-const SOURCE_DEPARTMENT = { books: "books", people: "people", support: "support", marketing: "marketing", customers: "sales" };
 const SOURCE_WORDS = { board: "The board", books: "The books", customers: "Customers", support: "Support", people: "People", marketing: "Marketing", studio: "Studio", goal: "Tasks" };
 const MAX_ITEMS = 200;
 const MAX_SETTLED = 3;
+// The list and an item side by side from here; under it the list is the page.
+const WIDE = "(min-width: 1280px)";
+
+// A row's glyph by the item's kind, as the queue draws it ("done" is the board's Done mark); a draft is a file.
+const KIND_ICON = { shotlist: "video", pick: "layers", approval: "check", question: "reply", result: "done", draft: "file" };
+
+// The top bar's last crumb for an item opened, by its kind.
+export const CRUMB_WORDS = {
+  shotlist: "A shotlist to approve",
+  pick: `Versions to pick from`,
+  approval: "Something to approve",
+  draft: "Something to approve",
+  question: "A question",
+  result: "A result",
+  problem: "A problem",
+};
+const OTHER_WORDS = "Something to know";
+
+export const PAGE_WORDS = {
+  title: "Needs you",
+  lede: "Things your team has finished or cannot go on with until you decide.",
+  empty: "Nothing needs you.",
+  emptyLine: "When your team finishes something or cannot go on without you, it waits here.",
+  openTasks: "Open Tasks",
+  filter: "Department",
+  list: "What needs you",
+  back: "Back to the list",
+  showAll: "Show everything",
+};
 
 const cap = (s, n) => {
   const t = String(s ?? "").replace(/\s+/g, " ").trim();
@@ -34,10 +67,64 @@ export function address(d) {
   return DEPARTMENT_IDS.includes(d) ? `#/needs-you?d=${d}` : "#/needs-you";
 }
 
+// The address of one item opened on this page, keeping the department filter when there is one. Without a filter
+// it is exactly the queue's address for the item, so the queue marks its row.
+export function itemAddress(id, d = "") {
+  const own = `#/needs-you?item=${encodeURIComponent(String(id ?? ""))}`;
+  return DEPARTMENT_IDS.includes(d) ? `${own}&d=${d}` : own;
+}
+
 // The filter an address asks for: one of the seven departments, else none.
 export function filterOf(query) {
   const d = query && typeof query.get === "function" ? String(query.get("d") || "") : "";
   return DEPARTMENT_IDS.includes(d) ? d : "";
+}
+
+// The item an address opens: its id, else "".
+export function openOf(query) {
+  return query && typeof query.get === "function" ? String(query.get("item") || "").slice(0, 400) : "";
+}
+
+// Pure. The top bar's word for an item by its kind.
+export function crumbWord(item) {
+  const k = item && typeof item === "object" ? item.kind : "";
+  return Object.hasOwn(CRUMB_WORDS, k) ? CRUMB_WORDS[k] : OTHER_WORDS;
+}
+
+// Pure. The crumbs: "Needs you" alone for the list; with a department, "Needs you / Sales"; with an item opened,
+// "Needs you / <its word>", the first a link back to the list (the phone's back button follows it).
+export function crumbsFor(item, d = "") {
+  const dept = DEPARTMENT_IDS.includes(d) ? d : "";
+  if (item) return [{ label: PAGE_WORDS.title, href: address(dept) }, { label: crumbWord(item) }];
+  if (dept) return [{ label: PAGE_WORDS.title, href: address("") }, { label: DEPARTMENT_TITLES[dept] }];
+  return [{ label: PAGE_WORDS.title }];
+}
+
+// Pure. The list in the queue's order: its groups (to approve, to answer, to accept, to know) one after another.
+export function queueOrder(items) {
+  return queueGroups(items).flatMap((g) => g.items);
+}
+
+// Pure. The pager over `order` (items or ids) for the item `id`: { index, total, label: "3 of 21", prev, next },
+// prev and next as addresses (none past either end). When the item has left the list (after an action) and `at`
+// is where it was, the pager says how many are left and steps from that place: next is the one that took it.
+export function pagerOf(order, id, d = "", at = null) {
+  const ids = (Array.isArray(order) ? order : []).map((i) => (i && typeof i === "object" ? i.id : i)).filter(Boolean);
+  const total = ids.length;
+  const i = id ? ids.indexOf(id) : -1;
+  if (i >= 0) {
+    return { index: i + 1, total, label: `${i + 1} of ${total}`, prev: i > 0 ? itemAddress(ids[i - 1], d) : null, next: i < total - 1 ? itemAddress(ids[i + 1], d) : null };
+  }
+  if (Number.isInteger(at) && at >= 0) {
+    const k = Math.min(at, total);
+    return { index: null, total, label: total ? `${total} left` : "None left", prev: k > 0 ? itemAddress(ids[k - 1], d) : null, next: k < total ? itemAddress(ids[k], d) : null };
+  }
+  return null;
+}
+
+// Pure. True for an item drawn as a whole stage: a film's shotlist, or versions to pick from.
+export function isStageItem(item) {
+  return isShotlistItem(item) || isPickItem(item);
 }
 
 // Pure. The department of one item: the one the home server placed it in (`department`: a task's item belongs to
@@ -58,22 +145,14 @@ export function departmentOf(item, departments) {
   return Object.hasOwn(SOURCE_DEPARTMENT, item.source) ? SOURCE_DEPARTMENT[item.source] : "";
 }
 
-const timeOf = (iso) => {
-  const t = Date.parse(iso);
-  return Number.isNaN(t) ? 0 : t;
-};
-
-// Pure. Urgent first, then newest first; items of the same rank keep their order.
+// Pure. Urgent first, then newest first; items of the same rank keep their order; bad entries are dropped.
 export function sortItems(items) {
   const list = (Array.isArray(items) ? items : []).filter((i) => i && typeof i === "object" && i.id).slice(0, MAX_ITEMS);
-  return list
-    .map((item, n) => ({ item, n, urgent: item.severity === "high" ? 0 : 1, at: timeOf(item.when) }))
-    .sort((a, b) => a.urgent - b.urgent || b.at - a.at || a.n - b.n)
-    .map((x) => x.item);
+  return sortNeeds(list);
 }
 
-// Pure. The chips: "All" first, then each department that has an item (and the one the address asks for),
-// each with its count.
+// Pure. The department choices: "All" first, then each department that has an item (and the one the address asks
+// for), each with its count.
 export function chipsFor(items, departments, current) {
   const list = Array.isArray(items) ? items : [];
   const counts = new Map();
@@ -100,20 +179,103 @@ export function quietLines(list) {
     .map((n) => ({ source: SOURCE_WORDS[n.source] || "A part", reason: cap(n.reason, 200) }));
 }
 
-// Pure. The outcomes of picks to keep showing: the newest first, at most three, and only those whose item has
-// left the list (while it is still listed, its own card says what happened).
+// Pure. The outcomes to keep: the newest first, at most three, and only those whose item has left the list (while
+// it is still listed, its own card says what happened).
 export function settledShown(settled, items) {
   const listed = new Set((Array.isArray(items) ? items : []).map((i) => i && i.id));
   return (Array.isArray(settled) ? settled : []).filter((s) => s && s.id && !listed.has(s.id)).slice(0, MAX_SETTLED);
 }
 
+function useMedia(query) {
+  const get = () => typeof matchMedia === "function" && matchMedia(query).matches;
+  const [on, setOn] = useState(get);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return undefined;
+    const m = matchMedia(query);
+    const f = () => setOn(m.matches);
+    f();
+    m.addEventListener("change", f);
+    return () => m.removeEventListener("change", f);
+  }, [query]);
+  return on;
+}
+
+const KindIcon = ({ kind }) => {
+  const name = KIND_ICON[kind] || "alert";
+  return name === "done" ? html`<${StateIcon} column="done" label="" />` : html`<${Icon} name=${name} />`;
+};
+
+// One row, as the queue draws it: the kind's glyph, the title, the time, one grey line.
+function Row({ item, href, current }) {
+  const at = rowTime(item.when);
+  return html`<a class="p-needs-you__row" href=${href} aria-current=${current ? "true" : undefined}>
+    <span class="p-needs-you__icon" aria-hidden="true"><${KindIcon} kind=${item.kind} /></span>
+    <span class="p-needs-you__title">${cap(item.title, 120)}</span>
+    ${at ? html`<time class="p-needs-you__when" datetime=${item.when} title=${fullWhen(item.when)}>${at}</time>` : null}
+    ${item.summary ? html`<span class="p-needs-you__line">${cap(item.summary, 200)}</span>` : null}
+  </a>`;
+}
+
+// The list: the department choice, then the groups. Up and Down move along the rows; Enter opens one.
+function List({ items, chips, d, openId, quiet }) {
+  const groups = queueGroups(items);
+  const onKey = (e) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
+    const rows = [...e.currentTarget.querySelectorAll(".p-needs-you__row")];
+    const at = rows.indexOf(document.activeElement);
+    if (!rows.length || at < 0) return;
+    e.preventDefault();
+    const next = e.key === "Home" ? 0 : e.key === "End" ? rows.length - 1
+      : Math.min(rows.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)));
+    rows[next].focus();
+  };
+  const go = (e) => {
+    const v = e.currentTarget.value;
+    location.hash = address(v);
+  };
+  return html`<div class="p-needs-you__list">
+    ${chips.length > 1 || d ? html`<div class="p-needs-you__filter">
+      <${Select} aria-label=${PAGE_WORDS.filter} value=${d} onChange=${go}
+        options=${chips.map((c) => ({ value: c.id, label: `${c.label} · ${c.count}` }))} />
+    </div>` : null}
+    ${items.length
+      ? html`<nav class="p-needs-you__groups" aria-label=${PAGE_WORDS.list} onKeyDown=${onKey}>
+          ${groups.map((g) => html`<section key=${g.id} class="p-needs-you__group" aria-label=${g.heading}>
+            <h2 class="p-needs-you__heading" aria-hidden="true">${g.heading}</h2>
+            ${g.items.map((item) => html`<${Row} key=${item.id} item=${item} href=${itemAddress(item.id, d)} current=${item.id === openId} />`)}
+          </section>`)}
+        </nav>`
+      : html`<${Empty} title=${`Nothing from ${DEPARTMENT_TITLES[d] || "here"} needs you.`}>
+          <a class="p-needs-you__link" href=${address("")}>${PAGE_WORDS.showAll}</a>
+        <//>`}
+    ${quiet.length ? html`<ul class="p-needs-you__quiet">
+      ${quiet.map((n, i) => html`<li key=${i}><span class="p-needs-you__source">${n.source}:</span> ${n.reason}</li>`)}
+      <li><a class="p-needs-you__link" href="#/health">Open Health</a></li>
+    </ul>` : null}
+  </div>`;
+}
+
+// What an action left, drawn where the item was: a shotlist's approval is still a stage; anything else one line.
+function Outcome({ done: s }) {
+  if (s.kind === "decision") return html`<${DecisionDone} message=${s.message} />`;
+  return s.kind === "shotlist"
+    ? html`<${ShotlistDone} key=${`done:${s.id}`} done=${s} focus=${true} />`
+    : html`<${PickDone} key=${`done:${s.id}`} done=${s} focus=${true} />`;
+}
+
+const isStageOutcome = (s) => Boolean(s && s.kind === "shotlist" && s.action === "approve" && s.version);
+
 export default function Page({ route }) {
   const app = useApp() || {};
   const query = route && route.query ? route.query : new URLSearchParams();
   const d = filterOf(query);
+  const want = openOf(query);
+  const wide = useMedia(WIDE);
   const res = useResource("/api/inbox", { every: 10000 });
   const [departments, setDepartments] = useState(null);
   const [settled, setSettled] = useState([]);
+  const was = useRef({ id: "", at: null });
+  const seen = useRef(null);
 
   // The agents of each department, once; the page works without them.
   useEffect(() => {
@@ -124,67 +286,138 @@ export default function Page({ route }) {
     return () => { live = false; };
   }, []);
 
-  // After an action the list and the shell's count are read again at once.
+  // After an action the list and the shell's count are read again at once; what happened is kept, so it stays
+  // where the item was when the item leaves the list.
   const done = (r) => {
-    if (r && r.done && r.done.id) setSettled((old) => [r.done, ...old.filter((s) => s.id !== r.done.id)].slice(0, MAX_SETTLED));
+    const out = r && r.done && r.done.id ? r.done
+      : r && r.item && r.item.id ? { id: r.item.id, kind: "decision", of: r.item.kind, action: r.action, message: String(r.message || "Done."), title: cap(r.item.title, 200) }
+        : null;
+    if (out) setSettled((old) => [out, ...old.filter((s) => s.id !== out.id)].slice(0, MAX_SETTLED));
     res.refresh();
     if (typeof app.refreshShell === "function") app.refreshShell();
     if (r && r.message && typeof app.announce === "function") app.announce(String(r.message));
   };
 
   const data = res.data;
-  let body;
-  if (!data && res.loading) body = html`<${Loading} lines=${5} label="Loading what needs you" />`;
-  else if (!data && res.error) {
-    const e = res.error;
-    body = e.offline || e.status === 502
-      ? html`<${NotConnected} title="What needs you cannot be shown right now" reason=${e.message} next=${plainNext(e.next)} />
-          <p><a class="p-needs-you__link" href="#/health">Open Health</a></p>`
-      : html`<${ErrorNotice} error=${e} onRetry=${res.reload} />`;
-  } else if (data) {
-    const all = sortItems(data.items);
-    const shown = itemsFor(data.items, departments, d);
-    const chips = chipsFor(all, departments, d);
-    const quiet = quietLines(data.notConnected);
-    const kept = settledShown(settled, all);
-    const outcomes = kept.length ? html`<div class="p-needs-you__list">
-      ${kept.map((s, i) => (s.kind === "shotlist"
-        ? html`<${ShotlistDone} key=${`done:${s.id}`} done=${s} focus=${i === 0} />`
-        : html`<${PickDone} key=${`done:${s.id}`} done=${s} focus=${i === 0} />`))}
-    </div>` : null;
-    let list;
-    if (!all.length) {
-      list = html`${outcomes}<${Empty} title="Nothing needs you.">
-        <a class="p-needs-you__link" href="#/map">Back to the map</a>
-      <//>`;
-    } else if (!shown.length) {
-      list = html`<${Empty} title=${`Nothing from ${DEPARTMENT_TITLES[d]} needs you.`}>
-        <a class="p-needs-you__link" href=${address("")}>Show everything</a>
-      <//>`;
-    } else {
-      list = html`${outcomes}<div class="p-needs-you__list">
-        ${shown.map((item) => (isShotlistItem(item)
-          ? html`<${ShotlistCard} key=${item.id} item=${item} onDone=${done} />`
-          : isPickItem(item)
-            ? html`<${PickCard} key=${item.id} item=${item} onDone=${done} />`
-            : html`<${DecisionCard} key=${item.id} item=${item} onDone=${done} />`))}
-      </div>`;
-    }
-    body = html`
-      ${all.length || d ? html`<nav class="p-needs-you__filters" aria-label="Filter by department">
-        ${chips.map((c) => html`<a key=${c.id || "all"} class="p-needs-you__filter" href=${c.href} aria-current=${c.id === d ? "page" : null}>
-          <span>${c.label}</span><span class="p-needs-you__count">${c.count}</span>
-        </a>`)}
-      </nav>` : null}
-      ${list}
-      ${quiet.length ? html`<ul class="p-needs-you__quiet">
-        ${quiet.map((n, i) => html`<li key=${i}><span class="p-needs-you__source">${n.source}:</span> ${n.reason}</li>`)}
-        <li><a class="p-needs-you__link" href="#/health">Open Health</a></li>
-      </ul>` : null}`;
-  } else body = html`<${Loading} lines=${5} label="Loading what needs you" />`;
+  const all = data ? sortItems(data.items) : [];
+  const shown = data ? itemsFor(data.items, departments, d) : [];
+  const order = queueOrder(shown);
+  const listed = want ? all.find((i) => i.id === want) || null : null;
+  const kept = want ? settled.find((s) => s.id === want) || null : null;
+  // The item opened: the one the address names; else, from 1280 px, the first in the list.
+  const opened = want ? listed : wide ? order[0] || null : null;
+  const openId = want || (opened ? opened.id : "");
+  const at = order.findIndex((i) => i.id === openId);
+  if (openId && at >= 0) was.current = { id: openId, at };
+  const pager = openId && data ? pagerOf(order, openId, d, was.current.id === openId ? was.current.at : null) : null;
+  const crumbItem = opened || (kept ? { kind: kept.kind === "decision" ? kept.of : kept.kind } : want ? {} : null);
+  const crumbs = crumbsFor(crumbItem, d);
 
-  return html`<div class="p-needs-you">
-    <${PageHeader} title="Needs you" lead="Things your team has finished or cannot go on with until you decide." />
-    ${body}
+  // The top bar: where you are, and the pager when an item is open.
+  const topKey = JSON.stringify([crumbs, pager]);
+  useEffect(() => {
+    if (typeof app.setTop === "function") app.setTop({ crumbs, pager: pager || undefined });
+  }, [topKey, app.setTop]);
+
+  // The owner moved to another item on this page: go to the top and give focus to it (a page change does this in
+  // the shell; a change of `item` is the same page).
+  const stageNow = Boolean((opened && isStageItem(opened)) || isStageOutcome(kept));
+  useEffect(() => {
+    if (seen.current === null) { seen.current = want; return; }
+    if (seen.current === want) return;
+    seen.current = want;
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+    const look = () => {
+      const target = stageNow || !wide ? document.getElementById("page-title") : document.querySelector(".p-needs-you__open");
+      if (target && typeof target.focus === "function") target.focus({ preventScroll: true });
+    };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(look);
+  }, [want]);
+
+  // ---- States before the list
+  if (!data) {
+    let body;
+    if (res.error) {
+      const e = res.error;
+      body = e.offline || e.status === 502
+        ? html`<${NotConnected} title="What needs you cannot be shown right now" reason=${e.message} next=${plainNext(e.next)} />
+            <p><a class="p-needs-you__link" href="#/health">Open Health</a></p>`
+        : html`<${ErrorNotice} error=${e} onRetry=${res.reload} />`;
+    } else body = html`<${Loading} lines=${5} label="Loading what needs you" />`;
+    return html`<div class="p-needs-you p-needs-you--alone">
+      <header class="p-needs-you__head"><h1 id="page-title" class="p-needs-you__name" tabindex="-1">${PAGE_WORDS.title}</h1></header>
+      ${body}
+    </div>`;
+  }
+
+  // ---- A whole stage: the shotlist or the versions opened, or a shotlist just approved
+  if (opened && isStageItem(opened)) {
+    return html`<div class="p-needs-you p-needs-you--stage">
+      ${isShotlistItem(opened)
+        ? html`<${ShotlistCard} key=${opened.id} item=${opened} onDone=${done} />`
+        : html`<${PickCard} key=${opened.id} item=${opened} onDone=${done} href=${itemAddress(opened.id, d)} />`}
+    </div>`;
+  }
+  if (!opened && isStageOutcome(kept)) {
+    return html`<div class="p-needs-you p-needs-you--stage">
+      ${kept.kind === "shotlist"
+        ? html`<${ShotlistDone} key=${`done:${kept.id}`} done=${kept} focus=${true} />`
+        : html`<${PickDone} key=${`done:${kept.id}`} done=${kept} focus=${true} />`}
+    </div>`;
+  }
+
+  const chips = chipsFor(all, departments, d);
+  const quiet = quietLines(data.notConnected);
+
+  // ---- The item opened (or what became of it), as a card at the page's level
+  const card = (item) => (isShotlistItem(item)
+    ? html`<${ShotlistCard} key=${item.id} item=${item} onDone=${done} />`
+    : isPickItem(item)
+      ? html`<${PickCard} key=${item.id} item=${item} onDone=${done} />`
+      : html`<${DecisionCard} key=${item.id} item=${item} onDone=${done} level />`);
+  let open = null;
+  if (opened) open = card(opened);
+  else if (kept) open = html`<${Outcome} done=${kept} />`;
+  else if (want) {
+    open = html`<div class="p-needs-you__gone"><${Notice} tone="info" title=${SHOTLIST_WORDS.gone}>
+      <a class="p-needs-you__link" href=${address(d)}>${PAGE_WORDS.back}</a>
+    <//></div>`;
+  }
+
+  // ---- Nothing waits
+  if (!all.length && !open) {
+    return html`<div class="p-needs-you p-needs-you--alone">
+      <header class="p-needs-you__head"><h1 id="page-title" class="p-needs-you__name" tabindex="-1">${PAGE_WORDS.title}</h1></header>
+      <${Empty} title=${PAGE_WORDS.empty} text=${PAGE_WORDS.emptyLine}>
+        <${Button} href="#/tasks">${PAGE_WORDS.openTasks}<//>
+      <//>
+    </div>`;
+  }
+
+  const list = html`<${List} items=${shown} chips=${chips} d=${d} openId=${openId} quiet=${quiet} />`;
+  const head = html`<header class="p-needs-you__head">
+    <h1 id="page-title" class="p-needs-you__name" tabindex="-1">${PAGE_WORDS.title}</h1>
+    <span class="p-needs-you__count u-num">${shown.length}</span>
+  </header>`;
+
+  // From 1280 px: the list at the left, the item opened at the right.
+  if (wide && open) {
+    return html`<div class="p-needs-you p-needs-you--split">
+      <div class="p-needs-you__side">${head}${list}</div>
+      <section class="p-needs-you__open" tabindex="-1" aria-label=${opened ? cap(opened.title, 120) : PAGE_WORDS.title}>${open}</section>
+    </div>`;
+  }
+  // Under 1280 px an item opened is a screen of its own; the top bar's back button returns to the list.
+  if (open) {
+    return html`<div class="p-needs-you p-needs-you--alone">
+      <header class="p-needs-you__head p-needs-you__head--item">
+        <h1 id="page-title" class="p-needs-you__kind" tabindex="-1">${crumbsFor(crumbItem, d)[1].label}</h1>
+        ${pager && pager.index ? html`<span class="p-needs-you__at u-num">${pager.label}</span>` : null}
+      </header>
+      <section class="p-needs-you__open" tabindex="-1">${open}</section>
+    </div>`;
+  }
+  return html`<div class="p-needs-you p-needs-you--list">
+    <div class="p-needs-you__side">${head}<p class="p-needs-you__lede">${PAGE_WORDS.lede}</p>${list}</div>
   </div>`;
 }
