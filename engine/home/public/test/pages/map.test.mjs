@@ -43,10 +43,11 @@ function fullMap() {
 
 test("map: the page and both map modules load and export their parts", () => {
   assert.equal(typeof page.default, "function");
-  for (const name of ["Overview", "DepartmentView", "Crown", "CountLine"]) assert.equal(typeof view[name], "function", name);
+  for (const name of ["Overview", "CountLine"]) assert.equal(typeof view[name], "function", name);
   for (const name of ["MapList", "DepartmentSection", "DepartmentRows"]) assert.equal(typeof list[name], "function", name);
+  // The zoomed drawing and the crown are gone: a department is chosen in place and its facts are in the rail (T63).
+  for (const name of ["DepartmentView", "Crown", "TITLE_CHAR", "pillX", "departmentFrame", "hubOrigin"]) assert.equal(view[name], undefined, name);
 });
-
 test("map: the count line's words for none, one and several", () => {
   assert.equal(view.countLine({ jobs: 0 }), "No jobs yet");
   assert.equal(view.countLine({ jobs: 1 }), "1 job");
@@ -62,23 +63,6 @@ test("map: the words a hub gets for a screen reader", () => {
   assert.equal(view.hubLabel(sales), "Sales, 9 jobs, 1 working, 2 need you");
   assert.equal(view.hubLabel({ ...sales, counts: { jobs: 9, working: 0, needsYou: 2 } }), "Sales, 9 jobs, 2 need you");
   assert.equal(view.hubLabel({ title: "People", counts: { jobs: 0 } }), "People, no jobs yet");
-});
-
-test("map: the words a dot gets for a screen reader", () => {
-  assert.equal(view.dotLabel({ ...job, working: 0 }), "Call write-up, On its own, ready");
-  assert.equal(view.dotLabel(job), "Call write-up, On its own, ready, being worked on");
-  assert.equal(view.dotLabel({ ...job, ready: false, working: 0, needsYou: 1, handoff: "you-approve" }), "Call write-up, You approve, cannot start yet, needs you");
-  // At work and unable to start again: the work first, then why a new one cannot start (M18-15).
-  assert.equal(view.dotLabel({ ...job, ready: false, working: 1 }), "Call write-up, On its own, being worked on, a new one cannot start yet");
-  assert.equal(view.dotLabel({ title: "x".repeat(90), handoff: "nobody" }), `${"x".repeat(60)}, ready`);
-});
-
-test("map: which marks a dot shows", () => {
-  assert.deepEqual(view.dotMarks({ ...job, working: 0 }), ["ready"]);
-  assert.deepEqual(view.dotMarks(job), ["ready", "working"]);
-  assert.deepEqual(view.dotMarks({ ready: false, working: 0, needsYou: 2 }), ["blocked", "needs-you"]);
-  assert.deepEqual(view.dotMarks({ ready: false, working: 1, needsYou: 1 }), ["blocked", "working", "needs-you"]);
-  assert.deepEqual(view.dotMarks(null), ["ready"]);
 });
 
 test("map: the brain's line and its words for a screen reader", () => {
@@ -107,65 +91,6 @@ test("map: the overview holds at most 16 dots a hub, and the seven fallback hubs
   assert.deepEqual(view.departmentsOf(null).map((d) => d.id), ["operations", "sales", "marketing", "studio", "support", "people", "books"]);
   const odd = { departments: [{ id: "../x", title: "Bad" }, { ...sales, clusters: [{ id: "calls", jobs: [{ id: "javascript:alert(1)" }, job] }] }] };
   assert.deepEqual(list.listOrder(odd), ["sales/call-write-up"]);
-});
-
-test("map: a zoomed job's label leaves room for its cluster's pill column, and the layout keeps labels apart", () => {
-  const input = view.departmentInput(fullMap().departments[6]);
-  for (const c of input.clusters) {
-    const longest = Math.max(...c.jobs.map((j) => j.title.trimEnd().length));
-    assert.equal(new Set(c.jobs.map((j) => j.title.length)).size, 1, "a cluster's labels are one width, so its pills stand in one column");
-    for (const j of c.jobs) {
-      const label = { x: 0, anchor: "start" };
-      const right = view.pillX(label, longest, view.pillWidth("You approve")) + view.pillWidth("You approve");
-      assert.ok(layout.labelWidth(j.title) >= right, `${j.title.trimEnd()} has room for the pill column`);
-      assert.ok(view.TITLE_CHAR * longest + view.PILL_GAP <= view.pillX(label, longest, 0), "the column starts past the longest title");
-    }
-  }
-  const lay = layout.layoutDepartment(input);
-  const boxes = lay.jobs.map((j) => layout.labelBox(j.label));
-  for (let i = 0; i < boxes.length; i++) {
-    for (let k = i + 1; k < boxes.length; k++) {
-      const a = boxes[i];
-      const b = boxes[k];
-      assert.ok(!(a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom), "two labels overlap");
-    }
-  }
-});
-
-test("map: the words of the zoomed drawing: the cluster's overline and a job's note", () => {
-  assert.equal(view.clusterWords("Calls", 3), "CALLS · 3");
-  assert.equal(view.jobNote({ why: { text: "Fill in \"Terms\" first." }, working: 0 }), "Fill in \"Terms\" first.");
-  assert.equal(view.jobNote({ why: { text: "Fill in \"Terms\" first." }, working: 1 }), "Being worked on. A new one cannot start yet: Fill in \"Terms\" first.");
-  assert.equal(view.jobNote({ ready: true, working: 1 }), "");
-});
-
-test("map: a zoomed department is laid out in screen pixels, fanned when it fits, else shown as its list (M18-02)", () => {
-  const input = view.departmentInput(fullMap().departments[3]);
-  // A 1280 × 900 window gives the view about 1184 × 648: one map unit is one pixel, so titles are 14 px.
-  const big = view.departmentFrame({ w: 1184, h: 648 }, input);
-  assert.equal(big.fits, true);
-  assert.equal(big.scale, 1);
-  assert.deepEqual([big.w, big.h], [1184, 648]);
-  assert.equal(big.lay.mode, "fan");
-  assert.ok(big.lay.jobs.every((j) => j.y < big.h - view.NAME_ROOM), "the drawing keeps the band under the hub for its name");
-  // Too small to fan out even at 0.9: the list, never a drawing with words under about 12.5 px.
-  const small = view.departmentFrame({ w: 420, h: 300 }, input);
-  assert.equal(small.fits, false);
-  // Before the view is measured: the layout's own 1200 × 760.
-  assert.equal(view.departmentFrame(null, input).measured, false);
-  for (const k of view.SCALES) assert.ok(k >= 0.9);
-});
-
-test("map: Tab walks a zoomed department column by column, top to bottom", () => {
-  const jobs = [
-    { id: "b1", cluster: "b", x: 800, y: 300 }, { id: "a2", cluster: "a", x: 300, y: 200 },
-    { id: "a1", cluster: "a", x: 300, y: 400 }, { id: "b0", cluster: "b", x: 800, y: 100 },
-  ];
-  assert.deepEqual(view.readingOrder(jobs).map((j) => j.id), ["a2", "a1", "b0", "b1"]);
-  const lay = layout.layoutDepartment(view.departmentInput(fullMap().departments[5]));
-  assert.equal(view.readingOrder(lay.jobs).length, lay.jobs.length);
-  const stems = view.stems(lay);
-  assert.equal(stems.length, lay.clusters.length + lay.jobs.length, "one line to each cluster and one to each job");
 });
 
 test("map: the address of each state, and reading it back", () => {
@@ -199,20 +124,20 @@ test("map: the error and the words around it are plain (M50 F16, M18-C2)", () =>
   const src = readFileSync(new URL("../../pages/map.js", import.meta.url), "utf8");
   assert.match(src, />Back to the map</);
   assert.doesNotMatch(src, />All departments</);
-  // The legend and Today are not shown over a map that could not be read.
-  assert.match(src, /narrow \|\| failed \? null : chipsRow/);
+  // A map that could not be read shows the error on the stage in place of the cards, never a drawing of nothing.
+  assert.match(src, /failed \? html`<div class="p-map__stage-error">/);
 });
-
-test("map: keyboard and screen-reader fixes (M52 K4, K9): Esc closes the two disclosures; count links say whose", () => {
+test("map: keyboard and screen-reader fixes (M52 K4, K9; T63): the chosen card says so, Esc gives focus back to it; count links say whose", () => {
   const src = readFileSync(new URL("../../pages/map.js", import.meta.url), "utf8");
-  assert.equal((src.match(/onKeyDown=\$\{closeOnEsc\}/g) || []).length, 2);
+  // Back from a department (Esc, the shell's map-back), focus returns to the card that was chosen.
+  assert.match(src, /\.p-map__node\[data-node="\$\{id\}"\]/);
   const viewSrc = readFileSync(new URL("../../map/map-view.js", import.meta.url), "utf8");
+  assert.match(viewSrc, /aria-current=\$\{on \? "true" : undefined\}/);
   assert.match(viewSrc, /aria-label=\$\{title \? `\$\{title\}: \$\{p\.text\}`/);
   const listSrc = readFileSync(new URL("../../map/map-list.js", import.meta.url), "utf8");
   assert.match(listSrc, />Open \$\{clip\(dept\.title, 40\)\}</, "\"Open\" says what it opens");
   assert.doesNotMatch(listSrc, />Open</);
 });
-
 test("map: an open question is read every 5 seconds until it is answered", () => {
   // M63: the hint and the chip never promise a time when other work is ahead (the server's count only).
   assert.equal(page.askHint({ queue: null }), "Enter to send. A real agent reads your files, so an answer takes a minute or two.");
@@ -225,26 +150,6 @@ test("map: an open question is read every 5 seconds until it is answered", () =>
   assert.equal(page.askEvery(null), 5000);
   assert.equal(page.askEvery({ ...ask, state: "reading" }), 5000);
   for (const state of ["answered", "became_task", "needs_you", "stopped"]) assert.equal(page.askEvery({ ...ask, state }), 0);
-});
-
-test("map: the Today panel reads the brief of /api/home", () => {
-  assert.deepEqual(page.briefItems(home), home.brief.items);
-  assert.deepEqual(page.briefItems(null), []);
-  assert.deepEqual(page.briefItems({ brief: { items: [null, 3, { id: "x" }] } }), [{ id: "x" }]);
-});
-
-test("map: long sentences wrap at spaces into at most four lines", () => {
-  assert.deepEqual(view.wrapWords("Agents have no internet, and this job needs it.", 20), ["Agents have no", "internet, and this", "job needs it."]);
-  assert.deepEqual(view.wrapWords("", 20), []);
-  assert.equal(view.wrapWords("word ".repeat(100), 10).length, 4);
-});
-
-test("map: a hub's name sits outward from its point", () => {
-  const lay = layout.layoutOverview(view.overviewInput(fullMap()));
-  assert.deepEqual(view.labelShift(lay.hubs[0]), { x: -50, y: -100 });
-  assert.equal(view.labelShift(lay.hubs[2]).x, 0);
-  assert.equal(view.labelShift(lay.hubs[5]).x, -100);
-  assert.equal(view.labelShift(lay.hubs[3]).y, 0);
 });
 
 test("map: the real catalogue lays out with every job once, in the list's order", { skip: !existsSync(resolve(SHAPES, "../../../../company/jobs")) && "no catalogue" }, () => {
@@ -265,5 +170,116 @@ test("map: the real catalogue lays out with every job once, in the list's order"
   }
   const data = { departments };
   assert.deepEqual(list.listOrder(data), layout.layoutOverview(view.overviewInput(data)).dots.map((d) => d.id));
-  for (const d of departments) assert.ok(layout.layoutDepartment(view.departmentInput(d)).jobs.length <= 40);
+  assert.equal(layout.layoutNodes({ ids: departments.map((d) => d.id), width: 856, height: 640 }).fits, departments.length <= 8);
+});
+
+
+// ---- T63: the map as a stage page ----
+
+const homeFull = {
+  needsYou: {
+    total: 4,
+    items: [
+      { id: "a", kind: "result", title: "Finished: a sprite", department: "studio", when: "2026-11-11T09:00:00.000Z", link: { page: "tasks", id: "STH-8" } },
+      { id: "b", kind: "approval", title: "Plan ready", department: "operations", when: "2026-11-11T10:00:00.000Z" },
+      { id: "c", kind: "problem", title: "Builder run failed", department: "operations", severity: "high", when: "2026-11-10T10:00:00.000Z", agent: { slug: "builder", name: "Builder" } },
+      { id: "d", kind: "draft", title: "New post", department: "marketing", when: "2026-11-11T08:00:00.000Z" },
+    ],
+  },
+  running: [
+    { taskId: "t1", identifier: "STH-1", title: "Write the price list", who: { slug: "builder", name: "Builder" }, live: true },
+    { taskId: "t2", identifier: "STH-15", title: "Captions", who: { slug: "marketer", name: "Marketer" }, live: true },
+    { taskId: "t3", title: "No one", who: null },
+  ],
+};
+const ops = { id: "operations", title: "Operations", agents: [{ slug: "chief-of-staff", name: "Chief of staff" }, { slug: "builder", name: "Builder" }, { slug: "../x", name: "Bad" }], counts: { jobs: 8, ready: 8, working: 1, needsYou: 7 } };
+
+test("map: the page's own words are pinned (T63)", () => {
+  assert.deepEqual({ ...page.MAP_WORDS }, {
+    company: "The whole company", department: "Department", stage: "Company map", needsYou: "Needs you", working: "Working now",
+    results: "Newest results", agents: "Agents", doing: "Being worked on", openQueue: "Open the queue", openDept: "Open the department",
+    seeJobs: "See its jobs", question: "Your question", showAs: "Show the map as", noNeeds: "Nothing needs you right now.",
+    noNeedsHere: "Nothing here needs you right now.", noWorking: "Nobody is working on anything right now.", noResults: "No new results.",
+    noAgents: "No agents yet.",
+  });
+  assert.ok(Object.isFrozen(page.MAP_WORDS));
+  for (const w of Object.values(page.MAP_WORDS)) assert.doesNotMatch(w, /\u2014/, "no em dash");
+});
+
+test("map: a card's words after its dot, and the dot's tone (T63)", () => {
+  assert.equal(view.nodeLine(sales.counts), "1 working, 2 need you");
+  assert.equal(view.nodeLine({ jobs: 5, working: 0, needsYou: 1 }), "1 needs you");
+  assert.equal(view.nodeLine({ jobs: 9, working: 1 }), "1 working");
+  assert.equal(view.nodeLine({ jobs: 9 }), "Nothing running");
+  assert.equal(view.nodeLine(null), "Nothing running");
+  assert.equal(view.nodeTone({ working: 1, needsYou: 2 }), "warn");
+  assert.equal(view.nodeTone({ working: 1 }), "live");
+  assert.equal(view.nodeTone({ jobs: 3 }), "wait");
+  assert.equal(view.nodeTone(null), "wait");
+});
+
+test("map: the jobs line, the brain's meter and each team's line icon (T63)", () => {
+  assert.equal(view.jobsLine(sales.counts), "9 jobs, 7 ready to start");
+  assert.equal(view.jobsLine({ jobs: 1, ready: 1 }), "1 job, 1 ready to start");
+  assert.equal(view.jobsLine({ jobs: 2, ready: 9 }), "2 jobs, 2 ready to start");
+  assert.equal(view.jobsLine({ jobs: 0 }), "No jobs yet");
+  assert.equal(view.basicsShare(map.brain), 44);
+  assert.equal(view.basicsShare({ basics: { filled: 12, total: 9 } }), 100);
+  assert.equal(view.basicsShare(null), 0);
+  assert.deepEqual(["brain", "operations", "sales", "marketing", "studio", "support", "people", "books"].map(view.iconOf),
+    ["brain", "layers", "trend", "horn", "film", "buoy", "team", "book"]);
+  assert.equal(view.iconOf("unknown"), "layers");
+});
+
+test("map: the line over the stage and the whole company's counts (T63)", () => {
+  assert.equal(page.stageLine(fullMap()), "7 departments, 21 jobs");
+  assert.equal(page.stageLine(map), "1 department, 9 jobs");
+  assert.equal(page.stageLine(null), "");
+  assert.deepEqual(page.companyCounts(map), { working: 2, needsYou: 5 });
+  assert.deepEqual(page.companyCounts(null), { working: 0, needsYou: 0 });
+  assert.equal(view.nodeLine(page.companyCounts(map)), "2 working, 5 need you");
+});
+
+test("map: what needs the owner, in the rail: urgent then newest, results apart, one department's share (T63)", () => {
+  const all = page.needsOf(homeFull);
+  assert.deepEqual(all.map((i) => i.id), ["c", "b", "a", "d"]);
+  assert.deepEqual(page.asksOf(all).map((i) => i.id), ["c", "b", "d"]);
+  assert.deepEqual(page.resultsOf(all).map((i) => i.id), ["a"]);
+  assert.deepEqual(page.needsOf(homeFull, "operations", [ops]).map((i) => i.id), ["c", "b"]);
+  assert.deepEqual(page.needsOf(null), []);
+  assert.deepEqual(page.needsOf(home).map((i) => i.id), home.needsYou.items.map((i) => i.id));
+  assert.equal(page.queueWords(1), "Open it in the queue");
+  assert.equal(page.queueWords(7), "Open all 7 in the queue");
+});
+
+test("map: who is working, and a department's agents with their state (T63)", () => {
+  assert.deepEqual(page.workingOf(homeFull).map((r) => r.taskId), ["t1", "t2"]);
+  assert.deepEqual(page.workingOf(homeFull, ops).map((r) => r.taskId), ["t1"]);
+  assert.deepEqual(page.workingOf(home).map((r) => r.taskId), [home.running[0].taskId]);
+  assert.deepEqual(page.workingOf(null), []);
+  const agents = page.agentsOf(ops, homeFull);
+  assert.deepEqual(agents.map((a) => [a.slug, a.state]), [["chief-of-staff", ""], ["builder", "working"]], "a bad slug is dropped");
+  assert.equal(agents[0].plainState, "Free");
+  const waiting = page.agentsOf(ops, { needsYou: { items: [{ id: "x", agent: { slug: "chief-of-staff" } }] } });
+  assert.equal(waiting[0].state, "waiting_for_you");
+  assert.deepEqual(page.agentsOf(null, homeFull), []);
+});
+
+test("map: the stage's cards fit the stage at 1280 x 900, and the arrows walk them clockwise (T63)", () => {
+  const ids = view.departmentsOf(fullMap()).map((d) => d.id);
+  const lay = layout.layoutNodes({ ids, width: 856, height: 640 });
+  assert.equal(lay.fits, true);
+  assert.deepEqual(lay.nodes.map((n) => n.id), ids);
+  assert.equal(layout.nearestHub(ids, "operations", "ArrowRight"), "sales");
+  assert.equal(layout.nearestHub(ids, "operations", "ArrowLeft"), "books");
+});
+
+test("map: the sheet has no watermark, serif, zoom timing or department colour, and moves only within --t-med (T63)", () => {
+  const css = readFileSync(new URL("../../styles/pages/map.css", import.meta.url), "utf8");
+  assert.doesNotMatch(css, /fs-ghost|font-serif|t-zoom|var\(--dept/);
+  assert.doesNotMatch(css, /text-transform|letter-spacing/);
+  for (const m of css.matchAll(/transition:\s*([^;]+);/g)) assert.match(m[1], /^none$|var\(--t-(fast|med)\)/, m[1]);
+  assert.match(css, /\.p-map__node--chosen[^{]*\{[^}]*border-color: var\(--accent\)/);
+  const viewSrc = readFileSync(new URL("../../map/map-view.js", import.meta.url), "utf8");
+  assert.doesNotMatch(viewSrc, /Creature|TITLE_CHAR|ghost/);
 });

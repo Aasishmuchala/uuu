@@ -286,6 +286,71 @@ export function layoutDepartment({ clusters = [], width = W0, height = H0 } = {}
   return { viewBox: [0, 0, width, height], hub, clusters: body.clusters, jobs: body.jobs, links, mode };
 }
 
+// ---- The map as cards (PLAN-COOK T63): the brain's card at the centre, a card per department round it ----
+// Laid out in screen pixels for the box the stage gives it, so the cards' words are drawn at their true size. The
+// brain sits at the centre of a grid of three columns and three rows; the departments take the eight places round
+// it clockwise from the top, in file order (the order the arrow keys walk): seven leave the place under the brain
+// free, so the map stands symmetric over the box that asks the brain. The columns and rows are as far apart as the
+// box allows with NODE_MARGIN round every card, and no further than NODE_REACH, so a big screen keeps the map
+// together instead of flinging it to the corners. More than eight departments sit on an ellipse instead. A line
+// runs from the brain's centre to each card's centre: the cards are drawn over it, so it shows only between them,
+// and two lines from one centre never cross. `fits` is false when two cards would come closer than NODE_GAP or a
+// card would leave the box: the page then tries the smaller card, then shows the departments as rows.
+
+export const NODE = { w: 212, h: 76 };
+export const NODE_SMALL = { w: 184, h: 76 };
+export const CORE = { w: 264, h: 104 };
+export const NODE_MARGIN = 32;
+export const NODE_GAP = 24;
+export const NODE_REACH = { x: 330, y: 180 };
+
+// The places round the brain, clockwise from the top: [column, row] from -1 to 1.
+const PLACES = { tc: [0, -1], tr: [1, -1], r: [1, 0], br: [1, 1], bc: [0, 1], bl: [-1, 1], l: [-1, 0], tl: [-1, -1] };
+const PLACES_FOR = [
+  [],
+  ["tc"],
+  ["r", "l"],
+  ["tc", "br", "bl"],
+  ["tc", "r", "bc", "l"],
+  ["tc", "r", "br", "bl", "l"],
+  ["tc", "tr", "br", "bc", "bl", "tl"],
+  ["tc", "tr", "r", "br", "bl", "l", "tl"],
+  ["tc", "tr", "r", "br", "bc", "bl", "l", "tl"],
+];
+
+const apart = (a, b) =>
+  Math.abs(a.x - b.x) >= (a.w + b.w) / 2 + NODE_GAP || Math.abs(a.y - b.y) >= (a.h + b.h) / 2 + NODE_GAP;
+
+export function layoutNodes({ ids = [], width = 0, height = 0, node = NODE, core = CORE } = {}) {
+  const list = Array.isArray(ids) ? ids : [];
+  const w = Math.max(0, Number(width) || 0);
+  const h = Math.max(0, Number(height) || 0);
+  const cx = w / 2;
+  const cy = h / 2;
+  const dx = Math.min(NODE_REACH.x, cx - NODE_MARGIN - node.w / 2);
+  const dy = Math.min(NODE_REACH.y, cy - NODE_MARGIN - node.h / 2);
+  const centre = { ...point(cx, cy), w: core.w, h: core.h };
+  const n = list.length;
+  const places = PLACES_FOR[n];
+  const nodes = list.map((id, i) => {
+    if (places) {
+      const [c, r] = PLACES[places[i]];
+      return { id, ...point(cx + c * Math.max(0, dx), cy + r * Math.max(0, dy)), w: node.w, h: node.h, place: places[i] };
+    }
+    const angle = -90 + (i * 360) / n;
+    return { id, ...point(cx + Math.max(0, dx) * Math.cos(rad(angle)), cy + Math.max(0, dy) * Math.sin(rad(angle))), w: node.w, h: node.h, place: null };
+  });
+  const lines = nodes.map((d) => ({ id: d.id, from: { x: centre.x, y: centre.y }, to: { x: d.x, y: d.y } }));
+  const inside = (b) => b.x - b.w / 2 >= NODE_MARGIN && b.x + b.w / 2 <= w - NODE_MARGIN
+    && b.y - b.h / 2 >= NODE_MARGIN && b.y + b.h / 2 <= h - NODE_MARGIN;
+  let fits = dx >= 0 && dy >= 0 && inside(centre);
+  for (let i = 0; fits && i < nodes.length; i++) {
+    if (!inside(nodes[i]) || !apart(nodes[i], centre)) fits = false;
+    for (let k = i + 1; fits && k < nodes.length; k++) if (!apart(nodes[i], nodes[k])) fits = false;
+  }
+  return { viewBox: [0, 0, w, h], core: centre, nodes, lines, fits };
+}
+
 // ---- Moving between departments ----
 
 export function neighbours(ids, id) {

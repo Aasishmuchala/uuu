@@ -1,33 +1,41 @@
-// The map: the home page (CONTRACTS-V3 29). The company brain in the middle, the seven departments around it,
-// a dot per job; one department zoomed at #/map/<department>; the list twin at ?view=list; the box at the
-// bottom that asks the company brain, with the answer above it at ?ask=<task id>.
-// Data: GET /api/map every 10 seconds; the Today chip reads GET /api/home; the box sends POST /api/ask and then
-// reads GET /api/ask/:id every 5 seconds while that question is still being read; Got it acts through
+// The map: the home page (CONTRACTS-V3 29; PLAN-COOK T63, a stage page). The company brain and the seven departments
+// as cards on the stage, joined by hairlines; the box that asks the company brain at the stage's foot; the rail at the
+// right about the whole company (what needs the owner, who is working, the newest results) or, at #/map/<department>,
+// about the department chosen (its state, what needs the owner there, its agents, and "Open the department"). The
+// list twin at ?view=list; the answer to a question at ?ask=<task id>, at the top of the rail. Below 860 px the map
+// is its rows, and one department is its facts and its jobs.
+// Data: GET /api/map every 10 seconds; the rail reads GET /api/home every 15 seconds; the box sends POST /api/ask and
+// then reads GET /api/ask/:id every 5 seconds while that question is still being read; Got it acts through
 // POST /api/inbox/act with the item's version. No timer or frame loop runs while the page is at rest.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { aheadLine, waitingLine } from "../lib/format.js";
+import { aheadLine, linkHref, waitingLine } from "../lib/format.js";
+import { needsFor, queueHref, rowTime, sortNeeds } from "../lib/queue.js";
 import {
+  AgentChip,
+  AgentState,
   AnswerView,
   ASK_HINT,
-  BriefCard,
+  Blk,
   Button,
   changedText,
   Composer,
+  Empty,
   ErrorNotice,
-  HANDOFFS,
   Icon,
   Loading,
   NextStep,
   Notice,
   PageHeader,
   Segmented,
-  STAGES,
+  StageBar,
+  StageLayout,
+  StatusDot,
   useInboxAct,
 } from "../kit/index.js";
 import { nearestHub } from "../map/layout.js";
-import { Crown, DepartmentView, departmentsOf, hubOrigin, Overview } from "../map/map-view.js";
+import { departmentsOf, iconOf, jobsLine, nodeLine, nodeTone, Overview } from "../map/map-view.js";
 import { DepartmentRows, DepartmentSection, MapList } from "../map/map-list.js";
 
 const SLUG = /^[a-z][a-z0-9-]{0,40}$/;
@@ -35,6 +43,30 @@ const ASK_ID = /^[A-Za-z0-9-]{1,64}$/;
 const NARROW = "(max-width: 859px)";
 const str = (v) => (typeof v === "string" ? v : "");
 const arr = (v) => (Array.isArray(v) ? v : []);
+const num = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.floor(Number(v)) : 0);
+const clip = (v, n) => str(v).slice(0, n);
+
+// The page's own words (PLAN-COOK T63). Pinned by test/pages/map.test.mjs.
+export const MAP_WORDS = Object.freeze({
+  company: "The whole company",
+  department: "Department",
+  stage: "Company map",
+  needsYou: "Needs you",
+  working: "Working now",
+  results: "Newest results",
+  agents: "Agents",
+  doing: "Being worked on",
+  openQueue: "Open the queue",
+  openDept: "Open the department",
+  seeJobs: "See its jobs",
+  question: "Your question",
+  showAs: "Show the map as",
+  noNeeds: "Nothing needs you right now.",
+  noNeedsHere: "Nothing here needs you right now.",
+  noWorking: "Nobody is working on anything right now.",
+  noResults: "No new results.",
+  noAgents: "No agents yet.",
+});
 
 // A next step for the owner in words: a command ("Run: ...") stays off screen outside Health (C3 25, M50 F18);
 // Health is linked instead.
@@ -95,18 +127,60 @@ export function askingChip(asking) {
   return waitingLine(asking && asking.queue) ? "Waiting its turn" : "Reading your files";
 }
 
-// The daily brief's items from /api/home, at most 12.
-export const briefItems = (home) => arr(home && home.brief && home.brief.items).filter((i) => i && typeof i === "object").slice(0, 12);
-
-// The page's heading for a screen reader, and the window's title.
 // What the map says when /api/map fails: the map is read from files, so the board is not named (C3 29.7).
 export const MAP_ERROR = "The map could not be read. Try again; if it stays, Health shows what is wrong.";
 
+// The page's heading for a screen reader, and the window's title.
 export const titleFor = (dept, data) => {
   if (!dept) return "Map";
   const d = departmentsOf(data).find((x) => x.id === dept);
   return d ? `${str(d.title).slice(0, 40)} on the map` : "Map";
 };
+
+// ---- What the rail shows (pure, tested) ----
+
+// The line over the stage: "7 departments, 72 jobs".
+export function stageLine(data) {
+  const depts = arr(data && data.departments);
+  if (!depts.length) return "";
+  const jobs = depts.reduce((n, d) => n + num(d && d.counts && d.counts.jobs), 0);
+  return `${depts.length === 1 ? "1 department" : `${depts.length} departments`}, ${jobs === 1 ? "1 job" : `${jobs} jobs`}`;
+}
+
+// The whole company's counts in the words a card uses: { working, needsYou } from /api/map's counts.
+export const companyCounts = (data) => ({ working: num(data && data.counts && data.counts.running), needsYou: num(data && data.counts && data.counts.needsYou) });
+
+// What needs the owner, most urgent and newest first: for the whole company or one department. The results to
+// accept are listed apart (resultsOf), so `asks` leaves them out.
+export function needsOf(home, dept = null, departments = []) {
+  const items = sortNeeds(arr(home && home.needsYou && home.needsYou.items));
+  return dept ? needsFor(items, dept, departments) : items;
+}
+export const asksOf = (items) => arr(items).filter((i) => i.kind !== "result");
+export const resultsOf = (items) => arr(items).filter((i) => i.kind === "result");
+
+// The work being done now: every running task, or those of one department's agents.
+export function workingOf(home, dept = null) {
+  const all = arr(home && home.running).filter((r) => r && typeof r === "object" && r.who && r.title);
+  if (!dept) return all;
+  const slugs = new Set(arr(dept.agents).map((a) => a && a.slug).filter(Boolean));
+  return all.filter((r) => slugs.has(r.who.slug));
+}
+
+// A department's agents, each with its state for the kit's AgentState: working while one of its tasks runs, waiting
+// for the owner while something of its own needs them, else free.
+export function agentsOf(dept, home) {
+  const running = arr(home && home.running);
+  const items = arr(home && home.needsYou && home.needsYou.items);
+  return arr(dept && dept.agents).filter((a) => a && SLUG.test(str(a.slug))).slice(0, 12).map((a) => {
+    const working = running.some((r) => r && r.who && r.who.slug === a.slug);
+    const waiting = items.some((i) => i && i.agent && i.agent.slug === a.slug);
+    return { slug: a.slug, name: clip(a.name, 40) || a.slug, state: working ? "working" : waiting ? "waiting_for_you" : "", plainState: "Free" };
+  });
+}
+
+// The link that opens the queue for one department: "Open it in the queue", "Open all 7 in the queue".
+export const queueWords = (n) => (num(n) === 1 ? "Open it in the queue" : `Open all ${num(n)} in the queue`);
 
 // ---- Small hooks ----
 
@@ -126,10 +200,10 @@ function useNarrow() {
 
 const isTyping = (t) => !!t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
 
-// The department the map last zoomed into, so Esc gives focus back to its hub.
+// The department last chosen, so Esc gives focus back to its card.
 let cameFrom = null;
 
-// ---- The answer above the box ----
+// ---- The answer, at the top of the rail ----
 
 function AnswerPanel({ id, onClose }) {
   const app = useApp();
@@ -163,7 +237,7 @@ function AnswerPanel({ id, onClose }) {
   const err = error ? (changed ? changedText(error) : { message: str(error.message), next: str(error.next) }) : null;
   return html`<section class="p-map__answer" aria-label="Your question to the company brain">
     <div class="p-map__answer-head">
-      <p class="p-map__over-line">Company brain</p>
+      <h2 class="p-map__answer-title">${MAP_WORDS.question}</h2>
       <button type="button" class="p-map__icon-btn" aria-label="Close the answer" onClick=${onClose}><${Icon} name="cross" size=${16} /></button>
     </div>
     <div class="p-map__answer-body">${body}</div>
@@ -174,54 +248,95 @@ function AnswerPanel({ id, onClose }) {
   </section>`;
 }
 
-// ---- Today and the legend ----
+// ---- The rail's pieces ----
 
-// Esc closes an open disclosure and gives focus back to its chip, before anything else hears the key (M52 K4).
-function closeOnEsc(e) {
-  const d = e.currentTarget;
-  if (e.key !== "Escape" || !d || !d.open) return;
-  e.preventDefault();
-  e.stopPropagation();
-  d.open = false;
-  d.querySelector("summary")?.focus();
+// One thing that needs the owner, or one result: its department's icon, its title, and where it is from and when.
+function ItemRow({ item, depts }) {
+  const d = depts.find((x) => x.id === item.department);
+  const from = [clip(d && d.title, 40), rowTime(item.when)].filter(Boolean).join(" · ");
+  return html`<li class="p-map__item">
+    <a class="p-map__item-link" href=${queueHref(item)}>
+      <span class="p-map__item-icon" aria-hidden="true"><${Icon} name=${iconOf(d ? d.id : "")} size=${16} /></span>
+      <span class="p-map__item-text">
+        <span class="p-map__item-title">${clip(item.title, 120)}</span>
+        ${from ? html`<span class="p-map__item-sub">${from}</span>` : null}
+      </span>
+    </a>
+  </li>`;
 }
 
-function Today() {
-  const [open, setOpen] = useState(false);
-  const home = useResource(open ? "/api/home" : null);
-  const items = briefItems(home.data);
-  return html`<details class="p-map__pop p-map__pop--today" onToggle=${(e) => setOpen(e.currentTarget.open)} onKeyDown=${closeOnEsc}>
-    <summary class="p-map__chip"><${Icon} name="sun" size=${14} /><span>Today</span></summary>
-    <div class="p-map__pop-body">
-      <p class="p-map__over-line">Today's brief</p>
-      ${home.loading ? html`<${Loading} lines=${2} label="Loading the brief" />`
-        : home.error ? html`<${ErrorNotice} error=${home.error} onRetry=${home.reload} />`
-        : items.length ? html`<div class="p-map__brief">${items.map((it) => html`<${BriefCard} key=${it.id} item=${it} />`)}</div>`
-        : html`<p class="p-map__none">Nothing new today.</p>`}
-    </div>
-  </details>`;
+// One task being worked on: the agent at it, and the task as a link.
+function WorkRow({ run }) {
+  const href = linkHref({ page: "tasks", id: run.identifier || run.taskId });
+  return html`<li class="p-map__item p-map__item--work">
+    <${AgentChip} agent=${run.who} />
+    ${href ? html`<a class="p-map__work-title" href=${href}>${clip(run.title, 120)}</a>` : html`<span class="p-map__work-title">${clip(run.title, 120)}</span>`}
+  </li>`;
 }
 
-function Legend() {
-  return html`<details class="p-map__pop p-map__pop--legend" onKeyDown=${closeOnEsc}>
-    <summary class="p-map__chip"><${Icon} name="tag" size=${14} /><span>What the dots mean</span></summary>
-    <div class="p-map__pop-body">
-      <ul class="p-map__legend">
-        <li><span class="p-map__key p-map__key--ready" aria-hidden="true"></span>A job that is ready to start</li>
-        <li><span class="p-map__key p-map__key--blocked" aria-hidden="true"></span>A job that cannot start yet</li>
-        <li><span class="p-map__key p-map__key--working" aria-hidden="true"></span>Being worked on now</li>
-        <li><span class="p-map__key p-map__key--warm" aria-hidden="true"></span>Something waits for you</li>
-      </ul>
-      <p class="p-map__over-line">The order to build in</p>
-      <ul class="p-map__legend">
-        ${Object.entries(STAGES).map(([n, s]) => html`<li key=${n}><strong class="p-map__legend-tag">${n} ${s.label}</strong> ${s.about}</li>`)}
-      </ul>
-      <p class="p-map__over-line">Who does the main part</p>
-      <ul class="p-map__legend">
-        ${Object.entries(HANDOFFS).map(([id, h]) => html`<li key=${id}><strong class="p-map__legend-tag">${h.label}</strong> ${h.about}</li>`)}
-      </ul>
-    </div>
-  </details>`;
+const none = (words) => html`<p class="p-map__none">${words}</p>`;
+
+// The rail about the whole company.
+function CompanyBlocks({ data, home, depts }) {
+  const items = needsOf(home.data);
+  const asks = asksOf(items);
+  const results = resultsOf(items);
+  const runs = workingOf(home.data);
+  const total = num(home.data && home.data.needsYou && home.data.needsYou.total) || items.length;
+  if (home.loading && !home.data) return html`<div class="p-map__rail-pad"><${Loading} lines=${4} label="Loading what needs you" /></div>`;
+  if (home.error && !home.data) return html`<div class="p-map__rail-pad"><${ErrorNotice} error=${home.error} onRetry=${home.reload} /></div>`;
+  return html`
+    <${Blk} title=${MAP_WORDS.needsYou} aside=${total ? String(total) : null}>
+      ${asks.length ? html`<ul class="p-map__items">${asks.slice(0, 3).map((i) => html`<${ItemRow} key=${i.id} item=${i} depts=${depts} />`)}</ul>` : none(MAP_WORDS.noNeeds)}
+    <//>
+    <${Blk} title=${MAP_WORDS.working} aside=${runs.length ? String(runs.length) : null}>
+      ${runs.length ? html`<ul class="p-map__items">${runs.slice(0, 3).map((r) => html`<${WorkRow} key=${r.taskId} run=${r} />`)}</ul>` : none(MAP_WORDS.noWorking)}
+    <//>
+    <${Blk} title=${MAP_WORDS.results} aside=${results.length ? String(results.length) : null}>
+      ${results.length ? html`<ul class="p-map__items">${results.slice(0, 2).map((i) => html`<${ItemRow} key=${i.id} item=${i} depts=${depts} />`)}</ul>` : none(MAP_WORDS.noResults)}
+    <//>`;
+}
+
+// The rail about one department: its state, what needs the owner there, its agents and the work they are doing.
+function DeptBlocks({ dept, home, depts, onNeeds }) {
+  const items = needsOf(home.data, dept.id, depts);
+  const n = num(dept.counts && dept.counts.needsYou) || items.length;
+  const runs = workingOf(home.data, dept);
+  const agents = agentsOf(dept, home.data);
+  return html`
+    <${Blk}>
+      <div class="p-map__facts">
+        <${StatusDot} tone=${nodeTone(dept.counts)} pulse=${false} label=${nodeLine(dept.counts)} />
+        <p class="p-map__fact"><${Icon} name="jobs" size=${16} /><span>${jobsLine(dept.counts)}</span>
+          <a class="p-map__link" href=${`#/jobs?d=${dept.id}`}>${MAP_WORDS.seeJobs}</a></p>
+      </div>
+    <//>
+    <${Blk} title=${MAP_WORDS.needsYou} aside=${n ? String(n) : null}>
+      ${items.length ? html`<ul class="p-map__items">${items.slice(0, 3).map((i) => html`<${ItemRow} key=${i.id} item=${i} depts=${depts} />`)}</ul>`
+        : home.data || !n ? none(MAP_WORDS.noNeedsHere) : null}
+      ${n ? html`<button type="button" class="p-map__link p-map__queue-link" onClick=${() => onNeeds(dept.id)}>${queueWords(n)}<${Icon} name="chevron-right" size=${14} /></button>` : null}
+    <//>
+    <${Blk} title=${MAP_WORDS.agents} aside=${agents.length ? String(agents.length) : null}>
+      ${agents.length ? html`<ul class="p-map__items">${agents.map((a) => html`<li key=${a.slug} class="p-map__item p-map__item--agent">
+        <${AgentChip} agent=${a} /><${AgentState} agent=${a} /></li>`)}</ul>` : none(MAP_WORDS.noAgents)}
+    <//>
+    ${runs.length ? html`<${Blk} title=${MAP_WORDS.doing} aside=${String(runs.length)}>
+      <ul class="p-map__items">${runs.map((r) => html`<${WorkRow} key=${r.taskId} run=${r} />`)}</ul>
+    <//>` : null}`;
+}
+
+// The notices about the map itself: the board switched off, or a map that could not be read again.
+function MapNotices({ map }) {
+  const data = map.data;
+  const boardOff = data && data.boardOff && typeof data.boardOff === "object" ? data.boardOff : null;
+  if (!boardOff && !(map.error && data)) return null;
+  return html`<div class="p-map__notices">
+    ${boardOff ? html`<${Notice} tone="warn" title="The board is switched off, so the map cannot show what is being worked on.">
+        ${plainNext(boardOff.next) ? html`<p class="k-next">${plainNext(boardOff.next)}</p>` : null}
+        <p class="k-next"><a href="#/health">Open Health</a></p>
+      <//>` : null}
+    ${map.error && data ? html`<${ErrorNotice} error=${MAP_ERROR} onRetry=${map.reload} />` : null}
+  </div>`;
 }
 
 // ---- The page ----
@@ -231,22 +346,24 @@ export default function MapPage({ route }) {
   const narrow = useNarrow();
   const { dept, view, ask, bad } = readAddress(route);
   const map = useResource("/api/map", { every: 10000 });
+  const home = useResource(view === "list" ? null : "/api/home", { every: 15000 });
   const data = map.data;
   const depts = data ? departmentsOf(data) : [];
   const known = !dept || !data || depts.some((d) => d.id === dept);
+  const company = clip(data && data.company && data.company.name, 60);
   const still = app.settings?.motion === "off"
     || (typeof document !== "undefined" && document.documentElement.getAttribute("data-motion") === "off");
-
-  // The last department zoomed into stays drawn while the view zooms back out.
-  const [shown, setShown] = useState(dept);
-  useEffect(() => { if (dept) setShown(dept); }, [dept]);
 
   // An address for a department that does not exist goes back to the map.
   useEffect(() => {
     if (bad || (data && dept && !known)) location.replace(mapHref({ view, ask }));
   }, [bad, data, dept, known]);
 
-  // Back from a department: focus returns to its hub (after the shell has focused the heading).
+  // The window's title: "Map · Sthyra", "Sales on the map · Sthyra".
+  const docTitle = [titleFor(dept, data), company].filter(Boolean).join(" · ");
+  useEffect(() => { if (typeof document !== "undefined") document.title = docTitle; }, [docTitle]);
+
+  // Back from a department: focus returns to its card (after the shell has focused the heading).
   const was = useRef(dept);
   useEffect(() => {
     const from = was.current;
@@ -254,11 +371,11 @@ export default function MapPage({ route }) {
     if (dept) { cameFrom = dept; return undefined; }
     if (!from || !cameFrom || narrow || view === "list") return undefined;
     const id = cameFrom;
-    const t = setTimeout(() => document.querySelector(`.p-map__hub[data-hub="${id}"]`)?.focus(), 120);
+    const t = setTimeout(() => document.querySelector(`.p-map__node[data-node="${id}"]`)?.focus(), 120);
     return () => clearTimeout(t);
   }, [dept]);
 
-  // Zoomed: the left and right arrows go to the neighbouring departments.
+  // A department chosen: the left and right arrows choose its neighbours.
   useEffect(() => {
     if (!dept || !data) return undefined;
     const ids = depts.map((d) => d.id);
@@ -275,9 +392,9 @@ export default function MapPage({ route }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [dept, data, view, ask]);
 
-  const onHubKey = (id, key) => {
+  const onNodeKey = (id, key) => {
     const next = nearestHub(depts.map((d) => d.id), id, key);
-    if (next) document.querySelector(`.p-map__hub[data-hub="${next}"]`)?.focus();
+    if (next) document.querySelector(`.p-map__node[data-node="${next}"]`)?.focus();
   };
   const onNeeds = (department) => app.openNeeds({ department });
 
@@ -296,87 +413,98 @@ export default function MapPage({ route }) {
 
   const asking = data && data.brain && data.brain.asking;
   const loading = !data && map.loading;
-  const zoomedDept = depts.find((d) => d.id === dept) || null;
-  const shownDept = depts.find((d) => d.id === (dept || shown)) || null;
-  const origin = hubOrigin(data, dept || shown);
-  const listHref = mapHref({ dept, view: "list", ask });
   const failed = !!(map.error && !data);
-  const cls = ["p-map", narrow ? "p-map--narrow" : "p-map--wide", dept ? "p-map--zoomed" : "", view === "list" ? "p-map--list" : "",
-    ask ? "p-map--asked" : "", still ? "p-map--still" : ""]
-    .filter(Boolean).join(" ");
+  const chosen = depts.find((d) => d.id === dept) || null;
+  const listHref = mapHref({ dept, view: "list", ask });
+  const closeAsk = () => { location.hash = mapHref({ dept, view }); };
+  const answer = ask ? html`<${AnswerPanel} key=${ask} id=${ask} onClose=${closeAsk} />` : null;
 
-  // The legend and Today: fixed corners on a wide window; on a phone one row under the crown (or at the top of a
-  // department's list), before the rows. Not shown while the map cannot be read: there is nothing to explain.
-  const chipsRow = html`<div class="p-map__aids">
-    <div class="p-map__corner p-map__corner--top"><${Legend} /></div>
-    <div class="p-map__corner p-map__corner--left"><${Today} /></div>
+  // The box that asks the company brain, with New task and the open question's chip over it.
+  const askBox = html`<div class="p-map__ask">
+    <div class="p-map__chips">
+      <button type="button" class="p-map__chip" onClick=${() => app.openComposer({})}><${Icon} name="plus" size=${14} /><span>New task</span></button>
+      ${asking && !ask && ASK_ID.test(str(asking.id)) ? html`<a class="p-map__chip p-map__chip--live" href=${mapHref({ dept, view, ask: asking.id })}>
+        ${waitingLine(asking.queue) ? html`<${Icon} name="clock" size=${14} />` : html`<span class="p-map__live" aria-hidden="true"></span>`}<span>${askingChip(asking)}</span></a>` : null}
+    </div>
+    <div class="p-map__box" data-box><${Composer} mode="ask" onSend=${send} hint=${askHint(data && data.brain)} /></div>
   </div>`;
 
-  let body;
-  if (failed) {
-    body = html`<div class="p-map__stage-error"><${ErrorNotice} error=${MAP_ERROR} onRetry=${map.reload} /></div>`;
-  } else if (view === "list" && !narrow) {
-    body = loading ? html`<${Loading} label="Loading the map" />` : html`<${MapList} data=${data} onNeeds=${onNeeds} />`;
-  } else if (narrow && dept) {
-    body = html`<div class="p-map__narrow">
-      <${Button} size="sm" icon="arrow-left" href=${mapHref({ view, ask })}>Back to the map<//>
-      ${chipsRow}
-      ${zoomedDept ? html`<div class="p-map__card u-glass"><${DepartmentSection} dept=${zoomedDept} level=${1} onNeeds=${onNeeds} /></div>`
-        : html`<${Loading} label="Loading the map" />`}
-    </div>`;
-  } else if (narrow && view === "list") {
-    body = loading ? html`<${Loading} label="Loading the map" />` : html`<div class="p-map__narrow">${chipsRow}<${MapList} data=${data} onNeeds=${onNeeds} /></div>`;
-  } else if (narrow) {
-    body = html`<div class="p-map__narrow">
-      <${Crown} data=${data} loading=${loading} />
-      ${chipsRow}
-      ${loading ? html`<span class="u-visually-hidden" role="status">Loading the map</span>` : html`<${DepartmentRows} data=${data} onNeeds=${onNeeds} />`}
-    </div>`;
-  } else {
-    body = html`<div class="p-map__stage">
-      <div class=${`p-map__layer p-map__layer--overview${dept ? " is-away" : ""}`} inert=${!!dept}
-        style=${`--p-map-ox: ${origin.x}; --p-map-oy: ${origin.y};`}>
-        <${Overview} data=${data} loading=${loading} onNeeds=${onNeeds} onHubKey=${onHubKey} />
-        ${loading ? html`<span class="u-visually-hidden" role="status">Loading the map</span>` : null}
+  const switcher = html`<${Segmented} size="sm" label=${MAP_WORDS.showAs} current=${view} items=${[
+    { id: "map", label: "Map", icon: "map", href: mapHref({ dept, ask }) },
+    { id: "list", label: "List", icon: "list", href: listHref },
+  ]} />`;
+
+  // The list twin, on any width: the list pattern of Tasks and Jobs.
+  if (view === "list") {
+    return html`<div class="p-map p-map--list">
+      <${PageHeader} title=${titleFor(dept, data)} />
+      <div class="p-map__bar">
+        <p class="p-map__bar-line">${stageLine(data)}</p>
+        <div class="p-map__bar-actions">${switcher}</div>
       </div>
-      <div class=${`p-map__layer p-map__layer--dept${dept ? " is-on" : ""}`} inert=${!dept}>
-        ${shownDept ? html`<${DepartmentView} dept=${shownDept} all=${depts} onNeeds=${onNeeds}
-          fallback=${html`<${DepartmentSection} dept=${shownDept} level=${1} onNeeds=${onNeeds} />`} />` : null}
-      </div>
+      <${MapNotices} map=${map} />
+      ${failed ? html`<${Empty} title=${MAP_ERROR} icon="map"><${Button} size="sm" onClick=${map.reload}>Try again<//><//>`
+        : loading ? html`<${Loading} label="Loading the map" />`
+        : html`<${MapList} data=${data} onNeeds=${onNeeds} />`}
     </div>`;
   }
 
-  const boardOff = data && data.boardOff && typeof data.boardOff === "object" ? data.boardOff : null;
+  // A phone: the map is its rows; one department is its facts, then its jobs.
+  if (narrow) {
+    if (dept) {
+      return html`<div class="p-map p-map--narrow">
+        <div class="p-map__back"><${Button} size="sm" icon="arrow-left" href=${mapHref({ ask })}>Back to the map<//></div>
+        <${PageHeader} title=${chosen ? clip(chosen.title, 40) : titleFor(dept, data)} lede=${chosen ? clip(chosen.line, 80) : null} />
+        <${MapNotices} map=${map} />
+        ${answer}
+        ${chosen ? html`<div class="p-map__phone-go"><${Button} variant="primary" href=${`#/departments/${chosen.id}`}>${MAP_WORDS.openDept}<//></div>
+          <div class="p-map__phone-rail"><${DeptBlocks} dept=${chosen} home=${home} depts=${depts} onNeeds=${onNeeds} /></div>
+          <${DepartmentSection} dept=${chosen} onNeeds=${onNeeds} links=${false} />`
+          : html`<${Loading} label="Loading the map" />`}
+      </div>`;
+    }
+    return html`<div class="p-map p-map--narrow">
+      <${PageHeader} title=${titleFor(null, data)} lede=${data ? html`<${StatusDot} tone=${nodeTone(companyCounts(data))} pulse=${false} label=${nodeLine(companyCounts(data))} />` : null} />
+      <${MapNotices} map=${map} />
+      ${answer}
+      ${askBox}
+      ${failed ? html`<${ErrorNotice} error=${MAP_ERROR} onRetry=${map.reload} />`
+        : html`<${DepartmentRows} data=${data} />${loading ? html`<span class="u-visually-hidden" role="status">Loading the map</span>` : null}`}
+      <p class="p-map__phone-list"><a class="p-map__link" href=${listHref}>Every job, as a list</a></p>
+    </div>`;
+  }
 
-  return html`<div class=${cls}>
-    ${view === "list" ? null : html`<a class="p-map__skip" href=${listHref}>Skip the map, show it as a list</a>`}
-    <div class="u-visually-hidden"><${PageHeader} title=${titleFor(dept, data)} /></div>
-    ${boardOff ? html`<div class="p-map__notice">
-      <${Notice} tone="warn" title="The board is switched off, so the map cannot show what is being worked on.">
-        ${plainNext(boardOff.next) ? html`<p class="k-next">${plainNext(boardOff.next)}</p>` : null}
-        <p class="k-next"><a href="#/health">Open Health</a></p>
-      <//>
-    </div>` : null}
-    ${map.error && data ? html`<div class="p-map__notice"><${ErrorNotice} error=${MAP_ERROR} onRetry=${map.reload} /></div>` : null}
-    ${dept && !narrow && view !== "list" ? html`<div class="p-map__back">
-      <${Button} size="sm" icon="arrow-left" href=${mapHref({ view, ask })}>Back to the map<//>
-    </div>` : null}
-    ${body}
-    ${narrow || failed ? null : chipsRow}
-    ${narrow ? null : html`<div class="p-map__corner p-map__corner--right">
-      <${Segmented} size="sm" label="Show the map as" current=${view} items=${[
-        { id: "map", label: "Map", icon: "map", href: mapHref({ dept, ask }) },
-        { id: "list", label: "List", icon: "list", href: listHref },
-      ]} />
-    </div>`}
-    <div class="p-map__bottom">
-      ${ask ? html`<${AnswerPanel} key=${ask} id=${ask} onClose=${() => { location.hash = mapHref({ dept, view }); }} />` : null}
-      <div class="p-map__chips">
-        <button type="button" class="p-map__chip" onClick=${() => app.openComposer({})}><${Icon} name="plus" size=${14} /><span>New task</span></button>
-        ${asking && !ask && ASK_ID.test(str(asking.id)) ? html`<a class="p-map__chip p-map__chip--live" href=${mapHref({ dept, view, ask: asking.id })}>
-          ${waitingLine(asking.queue) ? html`<${Icon} name="clock" size=${14} />` : html`<span class="p-map__live" aria-hidden="true"></span>`}<span>${askingChip(asking)}</span></a>` : null}
-      </div>
-      <div class="p-map__box" data-box><${Composer} mode="ask" onSend=${send} hint=${askHint(data && data.brain)} /></div>
-    </div>
+  // A wide window: the stage page.
+  const stage = html`<div class="p-map__stage">
+    <a class="p-map__skip" href=${listHref}>Skip the map, show it as a list</a>
+    <${StageBar}>
+      <b>${MAP_WORDS.stage}</b>${stageLine(data) ? html`<span>${stageLine(data)}</span>` : null}
+      <span class="k-stagebar__gap"></span>
+      ${switcher}
+    <//>
+    ${failed ? html`<div class="p-map__stage-error"><${ErrorNotice} error=${MAP_ERROR} onRetry=${map.reload} /></div>`
+      : html`<${Overview} data=${data} loading=${loading} chosen=${dept} onNodeKey=${onNodeKey}
+          fallback=${html`<${DepartmentRows} data=${data} chosen=${dept} />`} />
+        ${loading ? html`<span class="u-visually-hidden" role="status">Loading the map</span>` : null}`}
+    ${askBox}
+  </div>`;
+
+  const rail = html`<${MapNotices} map=${map} />${answer}${chosen
+    ? html`<${DeptBlocks} dept=${chosen} home=${home} depts=${depts} onNeeds=${onNeeds} />`
+    : html`<${CompanyBlocks} data=${data} home=${home} depts=${depts} />`}`;
+
+  const title = chosen
+    ? html`<span class="p-map__title"><${Icon} name=${iconOf(chosen.id)} size=${24} /><span>${clip(chosen.title, 40)}</span></span>`
+    : company || "Map";
+  const lede = chosen
+    ? clip(chosen.line, 80) || null
+    : data ? html`<${StatusDot} tone=${nodeTone(companyCounts(data))} pulse=${false} label=${nodeLine(companyCounts(data))} />` : null;
+  const foot = chosen
+    ? html`<${Button} variant="primary" size="lg" href=${`#/departments/${chosen.id}`}>${MAP_WORDS.openDept}<//>`
+    : html`<${Button} variant="primary" size="lg" icon="inbox" onClick=${() => app.openNeeds({})}>${MAP_WORDS.openQueue}<//>`;
+
+  return html`<div class=${["p-map p-map--wide", chosen ? "p-map--chosen" : "", still ? "p-map--still" : ""].filter(Boolean).join(" ")}>
+    <${StageLayout} kind=${chosen ? MAP_WORDS.department : MAP_WORDS.company} title=${title} lede=${lede}
+      label=${MAP_WORDS.stage} stage=${stage} rail=${rail} foot=${foot} />
   </div>`;
 }

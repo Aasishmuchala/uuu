@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LAYOUT = join(HERE, "..", "map", "layout.js");
-const { layoutOverview, layoutDepartment, neighbours, nearestHub } = await import(pathToFileURL(LAYOUT).href);
+const { layoutOverview, layoutDepartment, neighbours, nearestHub, layoutNodes, NODE, NODE_SMALL, CORE, NODE_MARGIN, NODE_GAP } = await import(pathToFileURL(LAYOUT).href);
 
 // The repo is the first folder above this one that holds engine/company, wherever the tree sits.
 function repoRoot() {
@@ -271,6 +271,66 @@ test("nearestHub: right and down go clockwise, left and up the other way", () =>
 test("the layout module is pure: no page, no randomness, no imports", () => {
   const src = readFileSync(LAYOUT, "utf8");
   assert.doesNotMatch(src, /document|window|Math\.random|^import /m);
+});
+
+// ---- The map as cards (PLAN-COOK T63) ----
+
+const SEVEN = ["operations", "sales", "marketing", "studio", "support", "people", "books"];
+const cardsApart = (a, b) => Math.abs(a.x - b.x) >= (a.w + b.w) / 2 + NODE_GAP || Math.abs(a.y - b.y) >= (a.h + b.h) / 2 + NODE_GAP;
+const cardInside = (b, w, h) => b.x - b.w / 2 >= NODE_MARGIN && b.x + b.w / 2 <= w - NODE_MARGIN && b.y - b.h / 2 >= NODE_MARGIN && b.y + b.h / 2 <= h - NODE_MARGIN;
+
+test("the cards' pinned points for seven departments in the stage of a 1280 x 900 window (856 x 640)", () => {
+  const lay = layoutNodes({ ids: SEVEN, width: 856, height: 640 });
+  assert.equal(lay.fits, true);
+  assert.deepEqual(lay.viewBox, [0, 0, 856, 640]);
+  assert.deepEqual(lay.core, { x: 428, y: 320, w: CORE.w, h: CORE.h });
+  assert.deepEqual(lay.nodes.map((n) => [n.id, n.x, n.y, n.place]), [
+    ["operations", 428, 140, "tc"], ["sales", 718, 140, "tr"], ["marketing", 718, 320, "r"], ["studio", 718, 500, "br"],
+    ["support", 138, 500, "bl"], ["people", 138, 320, "l"], ["books", 138, 140, "tl"],
+  ]);
+  assert.deepEqual(lay.lines.map((l) => [l.id, l.from, l.to]), lay.nodes.map((n) => [n.id, { x: 428, y: 320 }, { x: n.x, y: n.y }]));
+  for (const n of lay.nodes) assert.deepEqual([n.w, n.h], [NODE.w, NODE.h]);
+});
+
+test("the cards: seven leave the place under the brain free, so the map is symmetric about its middle", () => {
+  const lay = layoutNodes({ ids: SEVEN, width: 856, height: 640 });
+  assert.ok(!lay.nodes.some((n) => n.place === "bc"));
+  const xs = lay.nodes.map((n) => n.x - lay.core.x).sort((a, b) => a - b);
+  assert.deepEqual(xs, xs.map((x) => 0 - x + 0).sort((a, b) => a - b));
+});
+
+test("the cards hold every rule (inside the box, apart from each other and the brain) for 1 to 9 departments whenever they fit", () => {
+  for (let n = 0; n <= 9; n++) {
+    const ids = Array.from({ length: n }, (_, i) => `d${i}`);
+    for (const [w, h] of [[856, 640], [1400, 800], [760, 560], [700, 500], [400, 300]]) {
+      for (const node of [NODE, NODE_SMALL]) {
+        const lay = layoutNodes({ ids, width: w, height: h, node });
+        assert.equal(lay.nodes.length, n);
+        if (!lay.fits) continue;
+        assert.ok(cardInside(lay.core, w, h));
+        for (let i = 0; i < n; i++) {
+          assert.ok(cardInside(lay.nodes[i], w, h), `${n} at ${w} x ${h}: d${i} leaves the box`);
+          assert.ok(cardsApart(lay.nodes[i], lay.core), `${n} at ${w} x ${h}: d${i} touches the brain`);
+          for (let k = i + 1; k < n; k++) assert.ok(cardsApart(lay.nodes[i], lay.nodes[k]), `${n} at ${w} x ${h}: d${i} and d${k}`);
+        }
+      }
+    }
+  }
+  // Seven fit from about 1224 px windows; a small box says it does not, and the page shows the rows.
+  assert.equal(layoutNodes({ ids: SEVEN, width: 676, height: 640 }).fits, false);
+  assert.equal(layoutNodes({ ids: SEVEN, width: 400, height: 300 }).fits, false);
+});
+
+test("the cards stay together on a big screen, and give the same answer for the same input", () => {
+  const lay = layoutNodes({ ids: SEVEN, width: 1600, height: 1000 });
+  assert.equal(lay.fits, true);
+  for (const n of lay.nodes) {
+    assert.ok(Math.abs(n.x - 800) <= 330 && Math.abs(n.y - 500) <= 180, `${n.id} reaches too far`);
+  }
+  assert.deepEqual(layoutNodes({ ids: SEVEN, width: 900, height: 700 }), layoutNodes({ ids: SEVEN, width: 900, height: 700 }));
+  const none = layoutNodes();
+  assert.deepEqual(none.nodes, []);
+  assert.equal(none.fits, false);
 });
 
 // ---- The real catalogue ----
