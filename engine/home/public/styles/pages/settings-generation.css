@@ -1,2 +1,555 @@
-/* page settings-generation: placeholder; its part fills this in. */
-.p-settings-generation { }
+/* Settings, Generation (pages/settings-generation.js, PLAN-COOK T54). The groups, rows, tables, money input, meter
+   and switch are the kit's; what is here places them in the column: the lines under a row inside its panel, the
+   door's path, the limits' table on its card, the models, the films, and the days of every job. */
+
+.p-settings-generation {
+  display: block;
+}
+
+/* The intro, a loading or a problem, before the first group. */
+.p-settings-generation .p-settings-generation__state {
+  margin-top: var(--s-6);
+}
+
+/* The groups stack their parts 12 px apart; the column keeps 40 px between groups (the kit's). */
+.p-settings-generation .k-group__body {
+  display: grid;
+  gap: var(--s-3);
+}
+
+/* ---- Lines inside a row's words and under a row */
+
+.p-settings-generation .p-settings-generation__line {
+  display: block;
+  margin: 0;
+  margin-top: 2px;
+}
+
+.p-settings-generation .p-settings-generation__steps {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--s-1);
+}
+
+.p-settings-generation .p-settings-generation__step {
+  display: block;
+  padding-left: var(--s-3);
+  border-left: 2px solid var(--line-2);
+}
+
+/* A state inside a row's words is said at the words' own size and weight; its glyph carries the tone. */
+.p-settings-generation .p-settings-generation__line .k-st,
+.p-settings-generation .k-say > .k-st {
+  align-items: flex-start;
+  font-size: var(--fs-note);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-note);
+}
+
+.p-settings-generation .k-say .k-st .k-icon {
+  margin-top: 2px;
+}
+
+/* What follows a row in its panel lines up under the row's words (16 + 36 + 14 px from the panel's edge). */
+.p-settings-generation .p-settings-generation__more {
+  display: grid;
+  gap: var(--s-2);
+  margin-top: -2px;
+  padding: 0 var(--s-4) 14px 66px;
+}
+
+.p-settings-generation .p-settings-generation__more .k-notice,
+.p-settings-generation .p-settings-generation__more .k-next {
+  margin: 0;
+}
+
+.p-settings-generation .p-settings-generation__answer {
+  display: grid;
+  gap: 2px;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+.p-settings-generation .p-settings-generation__answer .p-settings-generation__line {
+  margin-top: 0;
+}
+
+/* The key's field, in place: the field and its two buttons on one line, the hint under the field. */
+.p-settings-generation .p-settings-generation__key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+
+.p-settings-generation .p-settings-generation__key .k-field {
+  flex: 1 1 260px;
+  max-width: 380px;
+}
+
+.p-settings-generation .p-settings-generation__key .k-input {
+  min-height: var(--h-md);
+}
+
+.p-settings-generation .p-settings-generation__buttons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+
+.p-settings-generation .p-settings-generation__error {
+  color: var(--bad);
+}
+
+.p-settings-generation .p-settings-generation__hint {
+  color: var(--ink-2);
+}
+
+/* ---- The door's path: three words with their icons, two short lines; good when the door is open */
+
+.p-settings-generation .p-settings-generation__path {
+  display: inline-flex;
+  align-items: center;
+  margin-top: var(--s-2);
+  white-space: nowrap;
+}
+
+.p-settings-generation .p-settings-generation__node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 var(--s-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-1);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+.p-settings-generation .p-settings-generation__node .k-icon {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.p-settings-generation .p-settings-generation__wire {
+  width: 16px;
+  height: 1px;
+  background: var(--ink-3);
+}
+
+.p-settings-generation .p-settings-generation__path--open .p-settings-generation__wire {
+  background: var(--good);
+}
+
+.p-settings-generation .p-settings-generation__path--open .p-settings-generation__node--door {
+  border-color: var(--good);
+  color: var(--ink);
+}
+
+.p-settings-generation .p-settings-generation__path--open .p-settings-generation__node--door .k-icon {
+  color: var(--good);
+}
+
+/* ---- The limits: the kit's table on a card, 56 px rows, every amount in tabular figures, Left at the right */
+
+.p-settings-generation .p-settings-generation__limits .k-table {
+  padding: 0 var(--s-4);
+}
+
+.p-settings-generation .p-settings-generation__limits .k-table__table th {
+  padding-top: var(--s-3);
+}
+
+.p-settings-generation .p-settings-generation__limits .k-table__table td {
+  height: 56px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.p-settings-generation .p-settings-generation__limits .k-table__table th:nth-child(2),
+.p-settings-generation .p-settings-generation__limits .k-table__table td:nth-child(2) {
+  width: 148px;
+}
+
+.p-settings-generation .p-settings-generation__limits .k-table__table th:nth-child(3),
+.p-settings-generation .p-settings-generation__limits .k-table__table td:nth-child(3) {
+  width: 44%;
+  padding-left: var(--s-6);
+}
+
+.p-settings-generation .p-settings-generation__cap {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+}
+
+.p-settings-generation .p-settings-generation__limit {
+  display: grid;
+  gap: var(--s-1);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+}
+
+.p-settings-generation .p-settings-generation__limit .k-money-input {
+  width: 124px;
+  min-height: 34px;
+}
+
+/* What was spent: the figure over its bar, the bar no wider than 200 px. */
+.p-settings-generation .p-settings-generation__spent {
+  display: grid;
+  gap: var(--s-1);
+  max-width: 200px;
+}
+
+.p-settings-generation .p-settings-generation__figure {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-settings-generation .p-settings-generation__spent .k-meter {
+  margin-top: 0;
+}
+
+.p-settings-generation .p-settings-generation__unread {
+  color: var(--ink-2);
+}
+
+.p-settings-generation .p-settings-generation__left {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-settings-generation .p-settings-generation__left--over {
+  color: var(--bad);
+}
+
+/* The lines under the table (a limit reached, jobs running) and the foot: the sentence, and Save at the right. */
+.p-settings-generation .p-settings-generation__notes {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-3) var(--s-4) 0;
+  border-top: 1px solid var(--line);
+}
+
+.p-settings-generation .p-settings-generation__notes .p-settings-generation__line {
+  margin-top: 0;
+}
+
+.p-settings-generation .p-settings-generation__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-top: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+.p-settings-generation .p-settings-generation__notes + .p-settings-generation__foot {
+  border-top: 0;
+  margin-top: 0;
+}
+
+.p-settings-generation .p-settings-generation__foot-say {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-settings-generation .p-settings-generation__foot .p-settings-generation__buttons {
+  flex: none;
+}
+
+/* The rate and its Save under the Higgsfield group. */
+.p-settings-generation .p-settings-generation__rate {
+  width: 72px;
+  min-height: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.p-settings-generation .p-settings-generation__save {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+
+.p-settings-generation .p-settings-generation__hf .k-group__body > .k-notice {
+  margin: 0;
+}
+
+/* ---- Models, films and every job: the kit's tables on the ground and on a card */
+
+.p-settings-generation .p-settings-generation__models .k-table__table th:first-child {
+  width: 36%;
+}
+
+.p-settings-generation .p-settings-generation__kind {
+  font-weight: var(--fw-medium);
+}
+
+.p-settings-generation .p-settings-generation__model {
+  font-family: var(--font-mono);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.p-settings-generation .p-settings-generation__models .k-select {
+  width: 100%;
+  max-width: 340px;
+}
+
+.p-settings-generation .p-settings-generation__price {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-settings-generation .p-settings-generation__price b {
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+}
+
+.p-settings-generation .p-settings-generation__film {
+  font-weight: var(--fw-medium);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.p-settings-generation a.p-settings-generation__film:hover {
+  text-decoration: underline;
+}
+
+.p-settings-generation .k-table__table td small.p-settings-generation__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s-3);
+}
+
+.p-settings-generation .p-settings-generation__id {
+  font-family: var(--font-mono);
+  font-size: var(--fs-note);
+}
+
+.p-settings-generation a.p-settings-generation__id {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+
+.p-settings-generation a.p-settings-generation__id:hover {
+  text-decoration-color: var(--ink);
+}
+
+.p-settings-generation .p-settings-generation__amount {
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-settings-generation .p-settings-generation__budget {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-settings-generation .p-settings-generation__time {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Every job: a day a row that opens to its jobs, on a card that clips the hover fill to its corners. */
+.p-settings-generation .p-settings-generation__days {
+  overflow: hidden;
+}
+
+.p-settings-generation .p-settings-generation__daylist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-settings-generation .p-settings-generation__day + .p-settings-generation__day {
+  border-top: 1px solid var(--line);
+}
+
+.p-settings-generation .p-settings-generation__dayhead {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto 96px;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 52px;
+  padding: 0 var(--s-4);
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.p-settings-generation .p-settings-generation__dayhead:hover {
+  background: var(--ctl);
+}
+
+.p-settings-generation .p-settings-generation__dayhead:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--r-3);
+}
+
+.p-settings-generation .p-settings-generation__chev {
+  color: var(--ink-3);
+  transition: transform var(--t-med) var(--ease);
+}
+
+.p-settings-generation .p-settings-generation__day--open .p-settings-generation__chev {
+  transform: rotate(90deg);
+}
+
+.p-settings-generation .p-settings-generation__dayname {
+  font-weight: var(--fw-medium);
+}
+
+.p-settings-generation .p-settings-generation__dayjobs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-settings-generation .p-settings-generation__dayhead .p-settings-generation__amount {
+  text-align: right;
+}
+
+.p-settings-generation .p-settings-generation__dayrows {
+  padding: 0 var(--s-4) var(--s-2);
+}
+
+.p-settings-generation .p-settings-generation__dayrows .k-table__table td {
+  height: 52px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.p-settings-generation .p-settings-generation__dayrows .k-table__table th {
+  padding-top: var(--s-1);
+}
+
+.p-settings-generation .p-settings-generation__dayrows .k-table__table td small {
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+}
+
+.p-settings-generation .p-settings-generation__dayrows > .p-settings-generation__line {
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-note);
+  color: var(--ink-2);
+}
+
+.p-settings-generation .p-settings-generation__older {
+  display: flex;
+  justify-content: center;
+}
+
+.p-settings-generation .p-settings-generation__restart {
+  margin: var(--s-2) 0 0;
+  line-height: 2;
+}
+
+/* ---- A phone, or any narrow window */
+@media (max-width: 859px) {
+  .p-settings-generation .p-settings-generation__more {
+    padding-left: var(--s-4);
+  }
+
+  /* A row's warning takes the panel's whole width, so it reads in fewer lines. */
+  .p-settings-generation .k-rows__warned {
+    grid-column: 1 / -1;
+  }
+
+  .p-settings-generation .p-settings-generation__key .k-field {
+    max-width: none;
+  }
+
+  .p-settings-generation .p-settings-generation__key .p-settings-generation__buttons {
+    width: 100%;
+  }
+
+  .p-settings-generation .p-settings-generation__key .p-settings-generation__buttons .k-btn,
+  .p-settings-generation .p-settings-generation__foot .k-btn,
+  .p-settings-generation .p-settings-generation__save .k-btn {
+    flex: 1 1 auto;
+  }
+
+  /* The limits stack: each limit is a block parted by a hairline, its name a heading over its three lines. */
+  .p-settings-generation .p-settings-generation__limits .k-table__table td,
+  .p-settings-generation .p-settings-generation__limits .k-table__table td:nth-child(2),
+  .p-settings-generation .p-settings-generation__limits .k-table__table td:nth-child(3) {
+    width: 100%;
+    height: auto;
+    padding: var(--s-1) 0;
+    align-items: center;
+  }
+
+  .p-settings-generation .p-settings-generation__limits .k-table__table td:first-child {
+    display: block;
+    padding-top: var(--s-2);
+  }
+
+  .p-settings-generation .p-settings-generation__limits .k-table__table td:first-child::before {
+    content: none;
+  }
+
+  .p-settings-generation .p-settings-generation__limits .k-table__table td:last-child {
+    padding-bottom: var(--s-2);
+  }
+
+  .p-settings-generation .p-settings-generation__foot {
+    flex-wrap: wrap;
+  }
+
+  .p-settings-generation .p-settings-generation__foot .p-settings-generation__buttons {
+    width: 100%;
+  }
+
+  .p-settings-generation .p-settings-generation__models .k-table__table th:first-child {
+    width: auto;
+  }
+
+  .p-settings-generation .p-settings-generation__models .k-table,
+  .p-settings-generation .p-settings-generation__films .k-table {
+    overflow: visible;
+  }
+
+  .p-settings-generation .p-settings-generation__dayhead {
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    grid-template-areas: "chev name amount" ". jobs jobs";
+    row-gap: 2px;
+    padding: var(--s-2) var(--s-4);
+  }
+
+  .p-settings-generation .p-settings-generation__chev { grid-area: chev; }
+  .p-settings-generation .p-settings-generation__dayname { grid-area: name; }
+  .p-settings-generation .p-settings-generation__dayjobs { grid-area: jobs; }
+  .p-settings-generation .p-settings-generation__dayhead .p-settings-generation__amount { grid-area: amount; }
+}

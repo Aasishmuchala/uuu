@@ -7,10 +7,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Section, {
-  CAPS, DOOR, HF_AUTHORIZE, HF_WORDS, MAX_CAP, MODEL_FIELDS, PROBLEMS, RESULT_TONES, WORDS, balanceLine, barTone, batchLine, blockerLines, capCheck, capFieldOf,
+  CAPS, DOOR, GROUPS, HF_AUTHORIZE, HF_WORDS, MAX_CAP, MODEL_FIELDS, PROBLEMS, RESULT_TONES, WORDS, balanceLine, barTone, batchLine, blockerLines, capCheck, capFieldOf,
   capHint, capsLines, clockOf, creditWords, creditsAndDollars, dayFigures, dayWords, doorState, doorWord, dollars, filmHref, filmName,
   hashWithoutReturn, heroMark, hfMark, hfReturnOf, hfSignInUrl, hfState, hfSwitchLine, hfTestResult, isOpen, keyLine, keyMark, leftLine, ledgerLine, mergeDays, modelOptions, pausedLine, plain, rateCheck, serviceName, centsText, problemLine, resultTone, rowWords,
-  runningLine, sectionState, share, spentLine, spentMark, stateLines, switchLine, testResult,
+  priceOf, runningLine, sectionState, share, spentLine, spentMark, stateLines, statusLine, switchLine, testResult,
 } from "../../pages/settings-generation.js";
 import Viewer from "../../pages/settings-viewer.js";
 import {
@@ -74,7 +74,16 @@ test("generation: K13's Settings words are used as written", () => {
   assert.deepEqual(MODEL_FIELDS.map((m) => m.label), ["Clips from a render", "Clips marked best, and clips from words alone", "Variations of a still", "Larger stills"]);
   assert.deepEqual(MODEL_FIELDS.map((m) => m.key), ["video", "videoBest", "still", "upscale"]);
   assert.equal(WORDS.test, "Test");
-  for (const w of ["Limits", "Spent", "Models", "Approved films", "What was spent", "Save limits"]) assert.ok(SRC.includes(`>${w}<`), w);
+  // The groups, in the order they are drawn (T54), and the labels of the limits' table.
+  assert.deepEqual(GROUPS, {
+    runway: "Runway", limits: "Limits and what was spent", higgsfield: "Higgsfield", models: "Models", films: "Films you approved",
+    ledger: "Every job", newest: "Newest first", saveLimits: "Save limits", putBack: "Put back",
+  });
+  for (const k of ["runway", "limits", "higgsfield", "models", "films", "ledger"]) assert.ok(CODE.includes(`title=\${GROUPS.${k}}`), k);
+  assert.ok(CODE.indexOf("<${RunwayGroup}") < CODE.indexOf("<${LimitsGroup}"), "the control first, then the limits");
+  for (const w of ["Limit", "Spent", "Left", "Kind of work", "Model", "Price", "Film", "Approved", "Budget", "Amount"]) assert.ok(CODE.includes(`label: "${w}"`), w);
+  assert.equal(WORDS.limitsSay, "Neither the Artist nor an app can spend more than these, even inside what you approved. A day and a month are counted in India time.");
+  assert.equal(WORDS.door, "The generation door");
 });
 
 test("generation: the server's sentences and the section's are the same (T41)", () => {
@@ -400,8 +409,10 @@ test("generation: Higgsfield's words are K23's, and the server's sentences are t
   assert.equal(HF_WORDS.doorOff, HF_TEST_SENTENCES.door_off);
   assert.equal(HF_WORDS.noAnswer, HF_TEST_SENTENCES.no_answer);
   assert.equal(HF_SWITCH_REFUSED, "Sign in to Higgsfield first.");
-  // The training sentence is drawn always, with no condition around it.
-  assert.match(CODE, /<\$\{Notice\} tone="warn">\$\{HF_WORDS\.sent\}<\/\//);
+  // The training sentence is drawn always, under its switch inside the panel (the row's one warning), with no
+  // condition around it; Runway's the same.
+  assert.match(CODE, /title=\$\{HF_WORDS\.switchLabel\}[^]*?warned=\$\{HF_WORDS\.sent\} \/>/);
+  assert.match(CODE, /title=\$\{WORDS\.switchLabel\}[^]*?warned=\$\{WORDS\.sent\} \/>/);
 });
 
 test("generation: the sign-in address is opened only when it is Higgsfield's own authorize address", () => {
@@ -503,4 +514,79 @@ test("generation: the Higgsfield card's source holds what the owner asked", () =
   assert.doesNotMatch(CODE, /announce\([^)]*rateText/);
   // No Higgsfield credential is held or named here.
   assert.doesNotMatch(CODE, /access_token|refresh_token|Authorization|\bcode_verifier\b/i);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// The section in the settings frame (PLAN-COOK T54)
+
+test("generation: the state line for the list of sections and the title, a case per state", () => {
+  const within = ready({ spent: spent({ day: 120, dayLeft: 180 }) });
+  assert.equal(isOpen(within), true);
+  assert.deepEqual(statusLine(within), { tone: "good", text: "On, within your limits" });
+  assert.deepEqual(statusLine(view()), { tone: "neutral", text: "Off" });
+  assert.deepEqual(statusLine(ready({ paused: { sentence: PAUSED_SENTENCE } })), { tone: "warn", text: "Paused" });
+  assert.deepEqual(statusLine(ready({ spent: spent({ day: 300, dayLeft: 0 }) })), { tone: "bad", text: "Over today's limit" });
+  assert.deepEqual(statusLine(ready({ spent: spent({ month: 1000, monthLeft: 0 }) })), { tone: "bad", text: "Over this month's limit" });
+  assert.deepEqual(statusLine(ready({ caps: { daily: 0, monthly: 1000 } })), { tone: "warn", text: "On, a limit of 0 stops all making" });
+  assert.deepEqual(statusLine(ready({ spent: { ok: false } })), { tone: "bad", text: "On, but spending cannot be read" });
+  assert.deepEqual(statusLine(ready({ door: { state: "off" } })), { tone: "warn", text: "On, but the generation door is not running" });
+  assert.deepEqual(statusLine(ready({ key: { saved: false } })), { tone: "warn", text: "On, but no key is saved" });
+  assert.deepEqual(statusLine(null), { tone: "neutral", text: "Off" });
+  for (const v of [within, view(), ready({ paused: {} }), ready({ spent: spent({ day: 300, dayLeft: 0 }) })]) {
+    const s = statusLine(v);
+    assert.ok(["good", "warn", "bad", "neutral"].includes(s.tone));
+    assert.ok(s.text.length <= 60, s.text);
+  }
+});
+
+test("generation: a model's words as its name and its price, every word kept", () => {
+  assert.deepEqual(priceOf("Gen-4 Turbo on Runway: $0.05 a second"), { name: "Gen-4 Turbo on Runway", price: "$0.05 a second" });
+  assert.deepEqual(priceOf("FLUX.2 Max on Higgsfield: about $0.20 a picture"), { name: "FLUX.2 Max on Higgsfield", price: "about $0.20 a picture" });
+  assert.deepEqual(priceOf("Magnific Precision upscale on Runway: $0.25 a picture"), { name: "Magnific Precision upscale on Runway", price: "$0.25 a picture" });
+  assert.deepEqual(priceOf("gen4_turbo: no price"), { name: "gen4_turbo: no price", price: "" });
+  assert.deepEqual(priceOf(""), { name: "", price: "" });
+  assert.deepEqual(priceOf(null), { name: "", price: "" });
+  for (const list of Object.values(GEN.choices)) {
+    for (const c of list) {
+      const p = priceOf(c.words);
+      assert.equal(`${p.name}: ${p.price}`, c.words, "nothing is shortened or reworded");
+    }
+  }
+});
+
+test("generation: the section is drawn with the kit's groups, rows and tables, into the frame's column", () => {
+  // The frame draws the title and the state; the section draws no title of its own.
+  assert.doesNotMatch(CODE, /<\$\{Section\}/);
+  assert.match(CODE, /class="p-settings-generation" id="settings-generation"/);
+  assert.match(CODE, /<\$\{Group\} title=\$\{GROUPS\.runway\}>\s*<\$\{Rows\}>/);
+  // The limits: a kit table on a card, a MoneyInput a row that takes and gives a string, the spent figure over a
+  // plain meter, Left at the right; Save is the primary and is enabled only when something changed.
+  assert.match(CODE, /<\$\{DataTable\} columns=\$\{LIMIT_COLUMNS\}/);
+  assert.match(CODE, /\{ key: "left", label: "Left", align: "end" \}/);
+  assert.match(CODE, /<\$\{MoneyInput\} name=\$\{`cap-\$\{f\.key\}`\} label=\$\{f\.label\} value=\$\{f\.text\}/);
+  assert.match(CODE, /onInput=\$\{\(text\) => setDraft\(\{ \.\.\.draft, \[f\.key\]: text \}\)\}/);
+  assert.match(CODE, /<\$\{Meter\} plain=\$\{true\}/);
+  assert.match(CODE, /const ready = fields\.every\(\(f\) => f\.check\.value !== null\) && fields\.some\(\(f\) => f\.changed\);/);
+  assert.match(CODE, /variant="primary" type="submit" busy=\$\{busy === "caps"\} disabled=\$\{Boolean\(busy\) \|\| !ready\}>\$\{GROUPS\.saveLimits\}/);
+  assert.match(CODE, /variant="primary" type="submit" busy=\$\{busy === "hf-rate"\} disabled=\$\{Boolean\(busy\) \|\| !changed \|\| check\.value === null\}/);
+  // The key's field is shown in place only on Replace (or when no key is saved), and emptied on Cancel and Save.
+  assert.match(CODE, /const open = editing \|\| !saved;/);
+  assert.match(CODE, /function cancel\(\) \{\n    setTyped\(""\);\n    setEditing\(false\);/);
+  // Only the over-a-limit row's Left takes the bad colour; the limit lines are said with a warn glyph, not in red.
+  assert.match(CODE, /p-settings-generation__left--over/);
+  assert.doesNotMatch(CODE, /tone=\$\{l === WORDS\.zero \? "warn" : "bad"\}/);
+  // The harness and the return from Higgsfield find the section and its group by these.
+  assert.match(CODE, /id="settings-higgsfield"/);
+});
+
+test("generation: the section's own sheet holds its classes and keeps the page rules", () => {
+  const css = readFileSync(join(PUBLIC, "styles", "pages", "settings-generation.css"), "utf8");
+  const sels = [...css.replace(/\/\*[\s\S]*?\*\//g, " ").matchAll(/(^|\})\s*([^{}@]+)\{/g)].map((m) => m[2].trim()).filter((x) => !/^\d|^from|^to/.test(x));
+  assert.ok(sels.length > 10);
+  for (const list of sels) for (const sel of list.split(",")) assert.match(sel.trim(), /^\.p-settings-generation(?![\w-])/, sel);
+  assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b|\brgba?\(|font-size:\s*[\d.]+px/);
+  // Every class the section draws for itself is in its own sheet.
+  const own = new Set([...CODE.matchAll(/p-settings-generation__[a-z-]+/g)].map((m) => m[0]));
+  for (const c of own) assert.ok(css.includes(`.${c}`), c);
+  assert.doesNotMatch(CODE, /p-settings__/);
 });

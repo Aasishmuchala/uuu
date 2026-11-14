@@ -1,11 +1,12 @@
-// Settings: the Generation section (PLAN-V5 K13, T44). The switch that lets one agent, the Artist, make clips and
-// pictures with Runway, a paid service, through the generation door. What is sent, what it costs and who can ask
-// come first; then the switch, the Runway key and its Test, the owner's two limits, what was spent today and this
-// month, the four models, the films the owner approved and every job, day by day, newest first.
+// Settings: the Generation section (PLAN-V5 K13, T44; drawn as PLAN-COOK T54). The switch that lets one agent, the
+// Artist, make clips and pictures with Runway, a paid service, through the generation door. The settings frame
+// (pages/settings.js) draws the title and the state this module's statusLine gives; this module draws groups of the
+// kit into the column, the control first: Runway (the switch with its training warning, the key, the door), the
+// limits with what was spent, Higgsfield, the four models, the films the owner approved and every job, by day.
 // The key is typed into a password field that the server never fills; it lives only in this component's memory
 // until Save, and is cleared then. It is never put in storage, the address bar, the console or a message.
 // The automatic allowance for small jobs is not offered (C5): nothing is made without the owner's yes.
-// Higgsfield (PLAN-V5 K20, K21, K23; T81): a second paid service in its own card, off until the owner signs in and
+// Higgsfield (PLAN-V5 K20, K21, K23; T81): a second paid service in its own group, off until the owner signs in and
 // switches it on. Its sign-in is the generation door's: this page asks for the authorize address, checks that it is
 // Higgsfield's own and sends the owner's browser there; the return lands on Settings with `?generation=connected` or
 // `failed`, said once and taken out of the address. Money is typed in dollars and kept in whole cents.
@@ -17,7 +18,8 @@ import { useApp } from "../lib/context.js";
 import { parseHash } from "../lib/router.js";
 import { count } from "../lib/format.js";
 import {
-  Avatar, Button, Card, Dialog, ErrorNotice, Field, Icon, Loading, NextStep, Notice, Section, Select, StatusDot, Switch, TextInput, Time,
+  Button, Card, DataTable, Dialog, Empty, ErrorNotice, Field, Group, Icon, Loading, Meter, MoneyInput, NextStep, Notice, Row, Rows, Select, St,
+  Switch, Tag, TextInput, Time,
 } from "../kit/index.js";
 
 const EVERY = 10000;
@@ -69,6 +71,28 @@ export const WORDS = {
   cannot: "Generation cannot be switched on yet.",
   unreadable: "The spending ledger cannot be read, so nothing will be made. Health shows what to do.",
   capType: "Type an amount in dollars, such as 3 or 2.50.",
+  limitsSay: "Neither the Artist nor an app can spend more than these, even inside what you approved. A day and a month are counted in India time.",
+  modelsSay: "Which model makes each kind of work, with the service it runs on and its price. Higgsfield's models are listed once it is on and signed in.",
+  filmsEmpty: "A film shows here once you approve its shotlist and its cost.",
+  ledgerEmpty: "Every clip and picture the Artist or an app asks Runway or Higgsfield for shows here, with what it cost.",
+  onlyModel: "The only model priced for this.",
+  doorTestLater: "It can be tested once the generation door is running.",
+  switchWhen: "It can be switched on when these are done:",
+  door: "The generation door",
+  replaceKey: "Replace",
+};
+
+// The groups of the section, in the order they are drawn, and the few labels of the tables.
+export const GROUPS = {
+  runway: "Runway",
+  limits: "Limits and what was spent",
+  higgsfield: "Higgsfield",
+  models: "Models",
+  films: "Films you approved",
+  ledger: "Every job",
+  newest: "Newest first",
+  saveLimits: "Save limits",
+  putBack: "Put back",
 };
 
 // Higgsfield's words (K23), and the few this card adds.
@@ -100,6 +124,7 @@ export const HF_WORDS = {
   notSignedInTest: "Not signed in to Higgsfield.",
   signInFirst: "Sign in first, then Test can ask Higgsfield.",
   waiting: "Waiting for Higgsfield. This can take up to 75 seconds.",
+  account: "Higgsfield account",
 };
 
 // The only address the sign-in may send the owner's browser to (K21).
@@ -571,218 +596,205 @@ export function sectionState(res) {
   return "loading";
 }
 
+// A model's words from the door, "Gen-4 Turbo on Runway: $0.05 a second", as the name and its price, every word
+// kept: { name: "Gen-4 Turbo on Runway", price: "$0.05 a second" }. Words with no price stay whole as the name.
+export function priceOf(words) {
+  const w = plain(words, 120);
+  const m = /^(.*\S):\s+((?:about\s+)?\$\d[\d,]*(?:\.\d+)?(?:\s.*)?)$/.exec(w);
+  return m ? { name: m[1], price: m[2] } : { name: w, price: "" };
+}
+
+// The section's state in a few words, for the list of sections and beside the title (pages/settings.js):
+// { tone, text }, from the answer of /api/generation.
+export function statusLine(data) {
+  const v = obj(data) ? data : {};
+  if (!v.on) return { tone: "neutral", text: "Off" };
+  if (v.paused) return { tone: "warn", text: "Paused" };
+  if (ledgerLost(v)) return { tone: "bad", text: "On, but spending cannot be read" };
+  const c = obj(v.caps) ? v.caps : {};
+  const s = obj(v.spent) ? v.spent : {};
+  if (c.daily === 0 || c.monthly === 0) return { tone: "warn", text: "On, a limit of 0 stops all making" };
+  if (Number.isInteger(s.day) && s.dayLeft === 0) return { tone: "bad", text: "Over today's limit" };
+  if (Number.isInteger(s.month) && s.monthLeft === 0) return { tone: "bad", text: "Over this month's limit" };
+  if (doorState(v.door).state !== "on") return { tone: "warn", text: "On, but the generation door is not running" };
+  if (!(obj(v.key) && v.key.saved)) return { tone: "warn", text: "On, but no key is saved" };
+  if (isOpen(v)) return { tone: "good", text: "On, within your limits" };
+  return { tone: "warn", text: "On, held" };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Parts
+// Every part is the kit's (Group, Rows, Row, DataTable, MoneyInput, Meter, Switch, St, Tag, Notice) placed into the
+// settings column; this file adds only the drawing of the door's path and the days of the ledger.
 
 // The restart sentence, with the two commands set apart. The words are the plan's, unchanged.
 function RestartLine() {
-  return html`<p class="p-settings__m-restart">This section appears after the home screen is restarted: <code class="k-next__command">engine stop</code>, then <code class="k-next__command">engine start</code>.</p>`;
+  return html`<p class="p-settings-generation__restart">This section appears after the home screen is restarted: <code class="k-next__command">engine stop</code>, then <code class="k-next__command">engine start</code>.</p>`;
 }
 
-// A sentence that may end in "Run: <command>".
-const Line = ({ children }) => (/\bRun:/.test(String(children)) ? html`<${NextStep} text=${children} />` : html`<p class="p-settings__m-text">${children}</p>`);
+// A sentence that may end in "Run: <command>", on a line of its own.
+const Line = ({ children }) => (/\bRun:/.test(String(children)) ? html`<${NextStep} text=${children} />` : html`<p class="p-settings-generation__line">${children}</p>`);
+
+// The same inside a line of text (a row's words): the command set apart, every word kept.
+function Said({ text }) {
+  const t = String(text ?? "");
+  const m = /^(.*?\bRun:)\s+(.+)$/s.exec(t);
+  return m ? html`${m[1]} <code class="k-next__command">${m[2]}</code>` : t;
+}
 
 const Failure = ({ failure, where }) => (failure && failure.where === where
   ? html`<${Notice} tone="bad" title=${failure.error.message}>${failure.error.next ? html`<${Line}>${failure.error.next}<//>` : null}<//>`
   : null);
 
-// A bar of how much of a limit is spent. The words beside it say the same; the bar is for the eye only.
-function Bar({ value, total, small }) {
-  const s = share(value, total);
-  return html`<span class=${`p-settings__g-bar p-settings__g-bar--${barTone(value, total)}${small ? " p-settings__g-bar--sm" : ""}`} aria-hidden="true">
-    <span class="p-settings__g-fill" style=${`transform: scaleX(${s.toFixed(4)})`}></span>
+// The helpers' tones (ok, warn, bad, off, wait, live) in the kit's: a row's state and a St, or a Tag.
+const TONE = { ok: "good", bad: "bad", warn: "warn" };
+const toneOf = (t) => TONE[t] || "neutral";
+const TAG = { ok: "ok", bad: "bad", warn: "warn" };
+const tagOf = (t) => TAG[t] || "neutral";
+
+// What follows a row inside its panel, under its words: a failure, a Test's answer, the field that takes a key.
+// Draws nothing when there is nothing to say.
+function More({ children }) {
+  const list = [children].flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false && c !== "");
+  return list.length ? html`<div class="p-settings-generation__more">${list}</div>` : null;
+}
+
+// A Test's answer: the sentence with its tone's glyph, and what to do next under it.
+function Answer({ result }) {
+  return html`<div class="p-settings-generation__answer" role="status">
+    <${St} tone=${toneOf(result.tone)}><${Said} text=${result.sentence} /><//>
+    ${result.more ? html`<p class="p-settings-generation__line">${result.more}</p>` : null}
+  </div>`;
+}
+
+// The door's path, drawn: the Artist, the door, Runway; the two lines are good when the door is open. The row's
+// sentence says the same, so the drawing is for the eye only.
+function DoorPath({ view }) {
+  const open = isOpen(view);
+  return html`<span class=${`p-settings-generation__path${open ? " p-settings-generation__path--open" : ""}`} aria-hidden="true">
+    <span class="p-settings-generation__node"><${Icon} name="brush" size=${16} />Artist</span>
+    <span class="p-settings-generation__wire"></span>
+    <span class="p-settings-generation__node p-settings-generation__node--door"><${Icon} name=${open ? "check" : view.paused ? "pause" : "lock"} size=${16} />Door</span>
+    <span class="p-settings-generation__wire"></span>
+    <span class="p-settings-generation__node"><${Icon} name="film" size=${16} />Runway</span>
   </span>`;
 }
 
-// The door, drawn: the Artist, the generation door, Runway. The other agents stop at the door. The words around
-// it say all of this; the drawing is for the eye only.
-function DoorMap({ view }) {
-  const open = isOpen(view);
-  const word = view ? doorWord(view) : "";
-  return html`<div class=${`p-settings__w-map${open ? " p-settings__w-map--open" : ""}`} aria-hidden="true">
-    <span class="p-settings__w-node p-settings__w-node--agent">
-      <${Avatar} slug="artist" name="Artist" size=${32} />
-      <span class="p-settings__w-name">Artist</span>
-    </span>
-    <span class="p-settings__w-wire"></span>
-    <span class="p-settings__w-node p-settings__w-node--door">
-      <span class="p-settings__w-door"><${Icon} name=${open ? "check" : view && view.paused ? "pause" : "lock"} size=${16} /></span>
-      <span class="p-settings__w-name">Generation door</span>
-      ${word ? html`<span class="p-settings__w-state">${word}</span>` : null}
-    </span>
-    <span class="p-settings__w-wire p-settings__w-wire--out"></span>
-    <span class="p-settings__w-node p-settings__w-node--web">
-      <span class="p-settings__g-runway"><${Icon} name="video" size=${16} /></span>
-      <span class="p-settings__w-name">Runway</span>
-    </span>
-    <span class="p-settings__w-node p-settings__w-node--others">
-      <span class="p-settings__w-others"><${Icon} name="team" size=${16} /></span>
-      <span class="p-settings__w-name">Other agents</span>
-    </span>
-    <span class="p-settings__w-wire p-settings__w-wire--shut"><${Icon} name="cross" size=${12} /></span>
-  </div>`;
+// The door's word as a row's state: open is good; held while switched on, or not answering, is a look; closed
+// because the owner switched it off is grey.
+function doorChip(view) {
+  const word = doorWord(view);
+  const s = doorState(view.door).state;
+  if (word === "Open") return { tone: "good", text: word };
+  return { tone: view.on && (s === "on" || s === "unhealthy") ? "warn" : "neutral", text: word };
 }
 
-function SwitchBlock({ view, busy, act, failure }) {
-  const on = Boolean(view.on);
-  const locked = !on && !view.canSwitchOn;
-  const reasons = blockerLines(view);
-  const mark = heroMark(view);
-  return html`<div class="p-settings__w-switch">
-    <${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
-      onChange=${(next) => act("switch", "/api/generation/switch", { on: next }, switchLine(next))} />
-    <p class="p-settings__m-state" role="status">
-      ${busy === "switch"
-        ? html`<${StatusDot} tone="live" label=${WORDS.switching} />`
-        : html`<${StatusDot} tone=${on ? mark.tone : "off"} label=${switchLine(on)} />`}
-    </p>
-    ${locked && reasons.length ? html`
-      <p class="p-settings__m-text">It can be switched on when these are done:</p>
-      <ul class="p-settings__m-steps">
-        ${reasons.map((r, i) => html`<li key=${i}><${Line}>${r}<//></li>`)}
-      </ul>` : null}
-    <${Failure} failure=${failure} where="switch" />
-  </div>`;
-}
-
-function KeyCard({ view, busy, act, failure, test, runTest }) {
+function KeyRow({ view, busy, act, failure, test, runTest }) {
   const [typed, setTyped] = useState("");
   const [asking, setAsking] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [focus, setFocus] = useState(null);
   const saved = Boolean(view.key && view.key.saved);
   const door = doorState(view.door);
   const mark = keyMark(view, test);
   const result = test ? testResult(test) : null;
+  const open = editing || !saved;
+
+  // Replace moves the focus into the field; Cancel gives it back to Replace.
+  useEffect(() => {
+    if (!focus) return;
+    document.getElementById(focus)?.focus();
+    setFocus(null);
+  }, [focus]);
 
   async function save(event) {
     event.preventDefault();
     if (!typed.trim() || busy) return;
     const ok = await act("key", "/api/generation/key", { key: typed }, "The key is saved.", { reload: true });
     if (ok) setTyped("");
+    if (ok) setEditing(false);
+  }
+  function cancel() {
+    setTyped("");
+    setEditing(false);
+    setFocus("gen-runway-replace");
   }
 
-  return html`<${Card} class="p-settings__m-card">
-    <div class="p-settings__m-head">
-      <h3 class="p-settings__label"><label for="gen-runway-key">${WORDS.keyField}</label></h3>
-      <${StatusDot} tone=${mark.tone} label=${mark.word} />
-    </div>
-    <p class="p-settings__m-text">${keyLine(view)}</p>
-    <form class="p-settings__m-key" onSubmit=${save} autocomplete="off">
-      <${Field} hint=${saved ? "Paste a new key to replace the saved one." : "It is kept on this Mac only and is never shown again."}
-        error=${failure && failure.where === "key" ? failure.error : null}>
-        <${TextInput} id="gen-runway-key" type="password" name="runway-key" autocomplete="off" autocapitalize="off" spellcheck=${false}
-          value=${typed} onInput=${(e) => setTyped(e.currentTarget.value)} placeholder=${saved ? "A key is saved" : "Paste your key here"} />
-      <//>
-      <div class="p-settings__m-buttons">
-        <${Button} variant="primary" type="submit" busy=${busy === "key"} disabled=${Boolean(busy) || !typed.trim()}>${WORDS.saveKey}<//>
-        <${Button} icon="play" onClick=${runTest} busy=${busy === "test"} disabled=${Boolean(busy) || !saved || door.state !== "on"}>${WORDS.test}<//>
-        ${saved ? html`<${Button} variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>${WORDS.removeKey}<//>` : null}
-      </div>
-    </form>
-    <p class="p-settings__m-text">${WORDS.testWhat}</p>
-    ${saved && door.state !== "on" ? html`<p class="p-settings__m-text">It can be tested once the generation door is running.</p>` : null}
-    ${busy === "test" ? html`<p class="p-settings__m-text" role="status"><${StatusDot} tone="live" label="Asking Runway. This can take up to 45 seconds." /></p>` : null}
-    <${Failure} failure=${failure} where="test" />
-    <${Failure} failure=${failure} where="remove" />
-    ${result && busy !== "test" ? html`
-      <div class=${`p-settings__g-answer p-settings__g-answer--${result.tone}`} role="status">
-        <${StatusDot} tone=${result.tone} label=${result.word} hideLabel=${true} />
-        <div class="p-settings__g-answer-words">
-          ${/\bRun:/.test(result.sentence) ? html`<${NextStep} text=${result.sentence} />` : html`<p class="p-settings__g-answer-line">${result.sentence}</p>`}
-          ${result.more ? html`<p class="p-settings__m-text">${result.more}</p>` : null}
-        </div>
-      </div>` : null}
+  return html`
+    <${Row} icon="key" title=${WORDS.keyField} state=${{ tone: toneOf(mark.tone), text: mark.word }}
+      say=${html`${saved ? WORDS.testWhat : WORDS.noKey}${saved && door.state !== "on" ? html`<span class="p-settings-generation__line">${WORDS.doorTestLater}</span>` : null}`}
+      control=${saved ? html`
+        <${Button} size="sm" icon="play" onClick=${runTest} busy=${busy === "test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>
+        ${editing ? null : html`<${Button} size="sm" variant="quiet" id="gen-runway-replace" disabled=${Boolean(busy)}
+          onClick=${() => { setEditing(true); setFocus("gen-runway-key"); }}>${WORDS.replaceKey}<//>`}
+        <${Button} size="sm" variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>${WORDS.removeKey}<//>` : null} />
+    <${More}>
+      ${open ? html`<form class="p-settings-generation__key" onSubmit=${save} autocomplete="off">
+        <${Field} hint=${saved ? "Paste a new key to replace the saved one." : "It is kept on this Mac only and is never shown again."}
+          error=${failure && failure.where === "key" ? failure.error : null}>
+          <${TextInput} id="gen-runway-key" type="password" name="runway-key" autocomplete="off" autocapitalize="off" spellcheck=${false}
+            aria-label=${WORDS.keyField} placeholder=${saved ? "A key is saved" : "Paste your key here"}
+            value=${typed} onInput=${(e) => setTyped(e.currentTarget.value)}
+            onKeyDown=${(e) => { if (e.key === "Escape" && saved) { e.preventDefault(); cancel(); } }} />
+        <//>
+        <span class="p-settings-generation__buttons">
+          ${saved ? html`<${Button} variant="quiet" onClick=${cancel} disabled=${busy === "key"}>Cancel<//>` : null}
+          <${Button} variant="primary" type="submit" busy=${busy === "key"} disabled=${Boolean(busy) || !typed.trim()}>${WORDS.saveKey}<//>
+        </span>
+      </form>` : null}
+      ${busy === "test" ? html`<p class="p-settings-generation__line" role="status"><${St} icon="clock">Asking Runway. This can take up to 45 seconds.<//></p>` : null}
+      <${Failure} failure=${failure} where="test" />
+      <${Failure} failure=${failure} where="remove" />
+      ${result && busy !== "test" ? html`<${Answer} result=${result} />` : null}
+    <//>
     <${Dialog} open=${asking} title=${WORDS.removeAsk} size="sm" onClose=${() => setAsking(false)}
       footer=${html`
         <${Button} data-autofocus onClick=${() => setAsking(false)}>Keep the key<//>
         <${Button} variant="danger" onClick=${async () => { setAsking(false); await act("remove", "/api/generation/key/remove", {}, "The key is removed.", { reload: true }); }}>${WORDS.removeKey}<//>`}>
-      <p class="p-settings__m-text">${WORDS.removeWhy}</p>
-    <//>
-  <//>`;
+      <p class="p-settings-generation__line">${WORDS.removeWhy}</p>
+    <//>`;
 }
 
-function HiggsfieldCard({ view, busy, act, failure, test, runTest, signIn, returned }) {
-  const h = hfOf(view);
-  const state = hfState(view);
-  const mark = hfMark(view);
+// Group 1: the switch with its training warning inside the panel, the key, the door.
+function RunwayGroup({ view, busy, act, failure, test, runTest }) {
+  const on = Boolean(view.on);
+  const locked = !on && !view.canSwitchOn;
+  const reasons = blockerLines(view);
+  const note = heroNote(view);
   const door = doorState(view.door);
-  const signedIn = state.key === "in";
-  const [rate, setRate] = useState(null);
-  const [asking, setAsking] = useState(false);
-  const rateText = rate !== null ? rate : String(Number.isInteger(h.centsPerCredit) ? h.centsPerCredit : 5);
-  const check = rateCheck(rateText);
-  const changed = rate !== null && check.value !== h.centsPerCredit;
-  const result = test ? hfTestResult(test) : null;
-  const rateFailure = failure && failure.where === "hf-rate" ? failure.error : null;
-
-  async function saveRate(event) {
-    event.preventDefault();
-    if (check.value === null || !changed || busy) return;
-    const ok = await act("hf-rate", "/api/generation/higgsfield/rate", { centsPerCredit: check.value }, "The Higgsfield rate is saved.");
-    if (ok) setRate(null);
-  }
-
-  return html`<${Card} class="p-settings__m-card p-settings__h-card" id="settings-higgsfield">
-    <div class="p-settings__m-head">
-      <h3 class="p-settings__label">${HF_WORDS.title}</h3>
-      <${StatusDot} tone=${mark.tone} label=${mark.word} />
-    </div>
-    <${Notice} tone="warn">${HF_WORDS.sent}<//>
-    ${returned ? html`<${Notice} tone=${returned === "connected" ? "ok" : "bad"} title=${returned === "connected" ? HF_WORDS.connected : HF_WORDS.notFinished} />` : null}
-    <div class="p-settings__w-switch">
-      <${Switch} on=${h.on === true} disabled=${Boolean(busy)} label=${HF_WORDS.switchLabel}
-        onChange=${(next) => act("hf-switch", "/api/generation/higgsfield/switch", { on: next }, next ? HF_WORDS.on : HF_WORDS.off)} />
-      <p class="p-settings__m-state" role="status">
-        ${busy === "hf-switch"
-          ? html`<${StatusDot} tone="live" label=${WORDS.switching} />`
-          : html`<${StatusDot} tone=${h.on === true ? mark.tone : "off"} label=${hfSwitchLine(view)} />`}
-      </p>
-      <${Failure} failure=${failure} where="hf-switch" />
-    </div>
-    <div class="p-settings__h-part">
-      <p class="p-settings__m-state" role="status"><${StatusDot} tone=${signedIn ? "ok" : state.key === "refused" ? "warn" : "off"} label=${state.sentence} /></p>
-      <div class="p-settings__m-buttons">
-        ${signedIn ? null : html`<${Button} variant="primary" icon="external" onClick=${signIn} busy=${busy === "hf-begin"} disabled=${Boolean(busy)}>${HF_WORDS.signIn}<//>`}
-        <${Button} icon="play" onClick=${runTest} busy=${busy === "hf-test"} disabled=${Boolean(busy) || !signedIn || door.state !== "on"}>${WORDS.test}<//>
-        ${signedIn || state.key === "refused" ? html`<${Button} variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>${HF_WORDS.signOut}<//>` : null}
-      </div>
-      <p class="p-settings__m-text">${HF_WORDS.testWhat}</p>
-      ${!signedIn ? html`<p class="p-settings__m-text">${HF_WORDS.signInFirst}</p>` : door.state !== "on" ? html`<p class="p-settings__m-text">It can be tested once the generation door is running.</p>` : null}
-      ${busy === "hf-test" ? html`<p class="p-settings__m-text" role="status"><${StatusDot} tone="live" label=${HF_WORDS.waiting} /></p>` : null}
-      <${Failure} failure=${failure} where="hf-begin" />
-      <${Failure} failure=${failure} where="hf-test" />
-      <${Failure} failure=${failure} where="hf-forget" />
-      ${result && busy !== "hf-test" ? html`
-        <div class=${`p-settings__g-answer p-settings__g-answer--${result.tone}`} role="status">
-          <${StatusDot} tone=${result.tone} label=${result.word} hideLabel=${true} />
-          <div class="p-settings__g-answer-words">
-            ${/\bRun:/.test(result.sentence) ? html`<${NextStep} text=${result.sentence} />` : html`<p class="p-settings__g-answer-line">${result.sentence}</p>`}
-          </div>
-        </div>` : null}
-    </div>
-    <form class="p-settings__h-part p-settings__h-rate" onSubmit=${saveRate} autocomplete="off">
-      <div class="p-settings__g-cap">
-        <${Field} label=${HF_WORDS.rate} hint=${check.error || rateFailure ? null : HF_WORDS.rateHint} error=${check.error || (rateFailure && rateFailure.message) || null}>
-          <${TextInput} name="hf-rate" inputmode="numeric" autocomplete="off" spellcheck=${false} maxLength=${3}
-            value=${rateText} onInput=${(e) => setRate(e.currentTarget.value)} />
-        <//>
-      </div>
-      <div class="p-settings__m-buttons">
-        <${Button} variant="primary" type="submit" busy=${busy === "hf-rate"} disabled=${Boolean(busy) || !changed || check.value === null}>${HF_WORDS.saveRate}<//>
-        ${rate !== null ? html`<${Button} variant="quiet" onClick=${() => setRate(null)} disabled=${Boolean(busy)}>Put back<//>` : null}
-      </div>
-    </form>
-    <${Dialog} open=${asking} title=${HF_WORDS.signOutAsk} size="sm" onClose=${() => setAsking(false)}
-      footer=${html`
-        <${Button} data-autofocus onClick=${() => setAsking(false)}>${HF_WORDS.stay}<//>
-        <${Button} variant="danger" onClick=${async () => { setAsking(false); await act("hf-forget", "/api/generation/higgsfield/forget", {}, "Signed out of Higgsfield."); }}>${HF_WORDS.signOut}<//>`}>
-      <p class="p-settings__m-text">${HF_WORDS.signOutWhy}</p>
+  return html`<${Group} title=${GROUPS.runway}>
+    <${Rows}>
+      <${Row} icon="power" title=${WORDS.switchLabel}
+        say=${html`${busy === "switch" ? WORDS.switching : switchLine(on)}
+          ${locked && reasons.length ? html`<span class="p-settings-generation__steps">
+            <span class="p-settings-generation__line">${WORDS.switchWhen}</span>
+            ${reasons.map((r, i) => html`<span key=${i} class="p-settings-generation__step"><${Said} text=${r} /></span>`)}
+          </span>` : null}
+          ${note ? html`<span class="p-settings-generation__line"><${St} tone="warn" icon=${view.paused ? "pause" : undefined}>${note}<//></span>` : null}`}
+        control=${html`<${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
+          onChange=${(next) => act("switch", "/api/generation/switch", { on: next }, switchLine(next))} />`}
+        warned=${WORDS.sent} />
+      <${More}><${Failure} failure=${failure} where="switch" /><//>
+      <${KeyRow} view=${view} busy=${busy} act=${act} failure=${failure} test=${test} runTest=${runTest} />
+      <${Row} icon="door" title=${WORDS.door} state=${doorChip(view)}
+        say=${html`<${Said} text=${door.sentence} /><span class="p-settings-generation__line"><${DoorPath} view=${view} /></span>`} />
     <//>
   <//>`;
 }
 
-function LimitsCard({ view, busy, act, failure }) {
+const LIMIT_COLUMNS = [
+  { key: "name", label: "", align: "start" },
+  { key: "limit", label: "Limit", align: "start" },
+  { key: "spent", label: "Spent", align: "start" },
+  { key: "left", label: "Left", align: "end" },
+];
+
+// Group 2: the two limits as a table (the limit typed in dollars, what was spent over its bar, what is left), the
+// pause and its Start again above it, the ledger's sentence, and Save under it.
+function LimitsGroup({ view, busy, act, failure }) {
   const [draft, setDraft] = useState({});
   const caps = obj(view.caps) ? view.caps : {};
+  const s = obj(view.spent) ? view.spent : {};
   const fields = CAPS.map((c) => {
     const text = draft[c.key] !== undefined ? draft[c.key] : centsText(num(caps[c.key]));
     const check = capCheck(text);
@@ -791,6 +803,10 @@ function LimitsCard({ view, busy, act, failure }) {
   const refused = failure && failure.where === "caps" ? failure.error : null;
   const refusedField = refused ? capFieldOf(refused.message) : null;
   const ready = fields.every((f) => f.check.value !== null) && fields.some((f) => f.changed);
+  const paused = pausedLine(view);
+  const ledger = ledgerLine(view);
+  const running = runningLine(s.running);
+  const lines = capsLines(view);
 
   async function save(event) {
     event.preventDefault();
@@ -801,190 +817,266 @@ function LimitsCard({ view, busy, act, failure }) {
     if (ok) setDraft({});
   }
 
-  return html`<${Card} class="p-settings__m-card">
-    <div class="p-settings__m-head">
-      <h3 class="p-settings__label">Limits</h3>
-    </div>
-    <p class="p-settings__m-text">Neither the Artist nor an app can spend more than these, even inside what you approved. A day and a month are counted in India time.</p>
-    <form class="p-settings__g-limits" onSubmit=${save} autocomplete="off">
-      <div class="p-settings__g-caps">
-        ${fields.map((f) => {
-          const hint = capHint(f.text);
-          const error = f.check.error || (refusedField === f.key ? refused.message : "");
-          return html`<div key=${f.key} class=${`p-settings__g-cap${f.check.value === 0 ? " p-settings__g-cap--zero" : ""}`}>
-            <${Field} label=${f.label} hint=${error ? null : hint || null} error=${error || null}>
-              <${TextInput} name=${`cap-${f.key}`} inputmode="decimal" autocomplete="off" spellcheck=${false} maxLength=${12}
-                value=${f.text} onInput=${(e) => setDraft({ ...draft, [f.key]: e.currentTarget.value })} />
-            <//>
-          </div>`;
-        })}
-      </div>
-      ${refused && !refusedField ? html`<${Failure} failure=${failure} where="caps" />` : null}
-      <div class="p-settings__m-buttons">
-        <${Button} variant="primary" type="submit" busy=${busy === "caps"} disabled=${Boolean(busy) || !ready}>Save limits<//>
-        ${Object.keys(draft).length ? html`<${Button} variant="quiet" onClick=${() => setDraft({})} disabled=${Boolean(busy)}>Put back<//>` : null}
-      </div>
-    </form>
+  const rows = fields.map((f) => ({
+    id: f.key,
+    f,
+    cap: caps[f.key],
+    spent: s.ok === false ? null : f.key === "daily" ? s.day : s.month,
+    left: f.key === "daily" ? s.dayLeft : s.monthLeft,
+  }));
+  function cell(r, col) {
+    const f = r.f;
+    if (col.key === "name") return html`<span class="p-settings-generation__cap">${f.short}</span>`;
+    if (col.key === "limit") {
+      const error = f.check.error || (refusedField === f.key ? refused.message : "");
+      const hint = f.changed ? capHint(f.text) : "";
+      const id = `gen-cap-${f.key}-note`;
+      return html`<span class="p-settings-generation__limit">
+        <${MoneyInput} name=${`cap-${f.key}`} label=${f.label} value=${f.text} maxLength=${12} spellcheck=${false}
+          aria-invalid=${error ? "true" : undefined} aria-describedby=${error || hint ? id : undefined}
+          onInput=${(text) => setDraft({ ...draft, [f.key]: text })} />
+        ${error ? html`<span class="p-settings-generation__error" id=${id}>${error}</span>`
+          : hint ? html`<span class="p-settings-generation__hint" id=${id}>${hint}</span>` : null}
+      </span>`;
+    }
+    const known = Number.isInteger(r.spent);
+    if (col.key === "spent") {
+      if (!known) return html`<span class="p-settings-generation__unread">${spentLine(r.spent, r.cap)}</span>`;
+      return html`<span class="p-settings-generation__spent">
+        <span class="p-settings-generation__figure">${dollars(r.spent)}</span>
+        <${Meter} plain=${true} shares=${{ spent: share(r.spent, r.cap) * 100 }} label=${spentLine(r.spent, r.cap)} />
+      </span>`;
+    }
+    if (!known) return "";
+    const over = num(r.cap) > 0 && r.left === 0;
+    return html`<span class=${`p-settings-generation__left${over ? " p-settings-generation__left--over" : ""}`}>${dollars(num(r.left))}</span>`;
+  }
+
+  return html`<${Group} title=${GROUPS.limits} say=${WORDS.limitsSay}>
+    ${paused ? html`<${Rows}>
+      <${Row} icon="pause" title=${paused}
+        say=${view.paused && view.paused.at ? html`Paused <${Time} at=${view.paused.at} />.` : null}
+        control=${html`<${Button} variant="primary" icon="play" busy=${busy === "resume"} disabled=${Boolean(busy)}
+          onClick=${() => act("resume", "/api/generation/resume", {}, "Generation is started again.")}>${WORDS.startAgain}<//>`} />
+    <//>` : null}
+    <${Failure} failure=${failure} where="resume" />
+    ${ledger ? html`<${Notice} tone=${view.ledger && view.ledger.ok === false ? "bad" : "warn"}>
+      <p class="p-settings-generation__line">${ledger}${view.ledger && view.ledger.ok === false ? html` <a href="#/health">Open Health</a>` : null}</p><//>` : null}
+    <${Card} padding="none" class="p-settings-generation__limits">
+      <form onSubmit=${save} autocomplete="off">
+        <${DataTable} columns=${LIMIT_COLUMNS} rows=${rows} renderCell=${cell} />
+        ${lines.length || running || (refused && !refusedField) ? html`<div class="p-settings-generation__notes">
+          ${lines.map((l) => html`<p key=${l} class="p-settings-generation__line"><${St} tone="warn">${l}<//></p>`)}
+          ${running ? html`<p class="p-settings-generation__line"><${St} icon="clock">${running}<//></p>` : null}
+          ${refused && !refusedField ? html`<${Failure} failure=${failure} where="caps" />` : null}
+        </div>` : null}
+        <div class="p-settings-generation__foot">
+          <p class="p-settings-generation__foot-say">${WORDS.money}</p>
+          <span class="p-settings-generation__buttons">
+            ${Object.keys(draft).length ? html`<${Button} variant="quiet" onClick=${() => setDraft({})} disabled=${Boolean(busy)}>${GROUPS.putBack}<//>` : null}
+            <${Button} variant="primary" type="submit" busy=${busy === "caps"} disabled=${Boolean(busy) || !ready}>${GROUPS.saveLimits}<//>
+          </span>
+        </div>
+      </form>
+    <//>
   <//>`;
 }
 
-function Meter({ label, spent, cap, left }) {
-  const known = Number.isInteger(spent);
-  return html`<div class="p-settings__g-meter">
-    <div class="p-settings__g-meter-head">
-      <span class="p-settings__g-meter-label">${label}</span>
-      ${known ? html`<span class="p-settings__g-meter-left">${leftLine(left)}</span>` : null}
-    </div>
-    <p class="p-settings__g-figure">
-      ${known
-        ? html`<span class="p-settings__g-figure-dollars">${dollars(spent)} of ${dollars(num(cap))}</span>`
-        : html`<span class="p-settings__g-figure-credits">Cannot be read</span>`}
-    </p>
-    ${known ? html`<${Bar} value=${spent} total=${cap} />` : null}
+// Higgsfield: its own group in the same drawing; the switch with its training warning, the sign-in with Test, the
+// rate, and Save under the group.
+function HiggsfieldGroup({ view, busy, act, failure, test, runTest, signIn, returned }) {
+  const h = hfOf(view);
+  const state = hfState(view);
+  const door = doorState(view.door);
+  const signedIn = state.key === "in";
+  const [rate, setRate] = useState(null);
+  const [asking, setAsking] = useState(false);
+  const rateText = rate !== null ? rate : String(Number.isInteger(h.centsPerCredit) ? h.centsPerCredit : 5);
+  const check = rateCheck(rateText);
+  const changed = rate !== null && check.value !== h.centsPerCredit;
+  const result = test ? hfTestResult(test) : null;
+  const rateFailure = failure && failure.where === "hf-rate" ? failure.error : null;
+  const rateError = check.error || (rateFailure && rateFailure.message) || "";
+
+  async function saveRate(event) {
+    event.preventDefault();
+    if (check.value === null || !changed || busy) return;
+    const ok = await act("hf-rate", "/api/generation/higgsfield/rate", { centsPerCredit: check.value }, "The Higgsfield rate is saved.");
+    if (ok) setRate(null);
+  }
+
+  return html`<div class="p-settings-generation__hf" id="settings-higgsfield">
+    <${Group} title=${GROUPS.higgsfield}>
+      ${returned ? html`<${Notice} tone=${returned === "connected" ? "ok" : "bad"} title=${returned === "connected" ? HF_WORDS.connected : HF_WORDS.notFinished} />` : null}
+      <form onSubmit=${saveRate} autocomplete="off">
+        <${Rows}>
+          <${Row} icon="power" title=${HF_WORDS.switchLabel} say=${busy === "hf-switch" ? WORDS.switching : hfSwitchLine(view)}
+            control=${html`<${Switch} on=${h.on === true} disabled=${Boolean(busy)} label=${HF_WORDS.switchLabel}
+              onChange=${(next) => act("hf-switch", "/api/generation/higgsfield/switch", { on: next }, next ? HF_WORDS.on : HF_WORDS.off)} />`}
+            warned=${HF_WORDS.sent} />
+          <${More}><${Failure} failure=${failure} where="hf-switch" /><//>
+          <${Row} icon="people" title=${HF_WORDS.account}
+            say=${html`<${St} tone=${signedIn ? "good" : state.key === "refused" ? "warn" : "neutral"}>${state.sentence}<//>
+              <span class="p-settings-generation__line">${HF_WORDS.testWhat}</span>
+              ${!signedIn ? html`<span class="p-settings-generation__line">${HF_WORDS.signInFirst}</span>`
+                : door.state !== "on" ? html`<span class="p-settings-generation__line">${WORDS.doorTestLater}</span>` : null}`}
+            control=${html`
+              ${signedIn ? null : html`<${Button} size="sm" variant="primary" icon="external" onClick=${signIn} busy=${busy === "hf-begin"} disabled=${Boolean(busy)}>${HF_WORDS.signIn}<//>`}
+              ${signedIn ? html`<${Button} size="sm" icon="play" onClick=${runTest} busy=${busy === "hf-test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>` : null}
+              ${signedIn || state.key === "refused" ? html`<${Button} size="sm" variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>${HF_WORDS.signOut}<//>` : null}`} />
+          <${More}>
+            ${busy === "hf-test" ? html`<p class="p-settings-generation__line" role="status"><${St} icon="clock">${HF_WORDS.waiting}<//></p>` : null}
+            <${Failure} failure=${failure} where="hf-begin" />
+            <${Failure} failure=${failure} where="hf-test" />
+            <${Failure} failure=${failure} where="hf-forget" />
+            ${result && busy !== "hf-test" ? html`<${Answer} result=${result} />` : null}
+          <//>
+          <${Row} icon="tag" title=${HF_WORDS.rate}
+            say=${rateError ? html`<span class="p-settings-generation__error" id="gen-hf-rate-note">${rateError}</span>` : HF_WORDS.rateHint}
+            control=${html`<${TextInput} class="p-settings-generation__rate" name="hf-rate" inputmode="numeric" autocomplete="off" spellcheck=${false} maxLength=${3}
+              aria-label=${HF_WORDS.rate} aria-invalid=${rateError ? "true" : undefined} aria-describedby=${rateError ? "gen-hf-rate-note" : undefined}
+              value=${rateText} onInput=${(e) => setRate(e.currentTarget.value)} />`} />
+        <//>
+        <div class="p-settings-generation__save">
+          ${rate !== null ? html`<${Button} variant="quiet" onClick=${() => setRate(null)} disabled=${Boolean(busy)}>${GROUPS.putBack}<//>` : null}
+          <${Button} variant="primary" type="submit" busy=${busy === "hf-rate"} disabled=${Boolean(busy) || !changed || check.value === null}>${HF_WORDS.saveRate}<//>
+        </div>
+      </form>
+      <${Dialog} open=${asking} title=${HF_WORDS.signOutAsk} size="sm" onClose=${() => setAsking(false)}
+        footer=${html`
+          <${Button} data-autofocus onClick=${() => setAsking(false)}>${HF_WORDS.stay}<//>
+          <${Button} variant="danger" onClick=${async () => { setAsking(false); await act("hf-forget", "/api/generation/higgsfield/forget", {}, "Signed out of Higgsfield."); }}>${HF_WORDS.signOut}<//>`}>
+        <p class="p-settings-generation__line">${HF_WORDS.signOutWhy}</p>
+      <//>
+    <//>
   </div>`;
 }
 
-function SpentCard({ view, busy, act, failure }) {
-  const s = obj(view.spent) ? view.spent : {};
-  const c = obj(view.caps) ? view.caps : {};
-  const mark = spentMark(view);
-  const paused = pausedLine(view);
-  const ledger = ledgerLine(view);
-  const running = runningLine(s.running);
-  return html`<${Card} class="p-settings__m-card">
-    <div class="p-settings__m-head">
-      <h3 class="p-settings__label">Spent</h3>
-      <${StatusDot} tone=${mark.tone} label=${mark.word} />
+const MODEL_COLUMNS = [
+  { key: "kind", label: "Kind of work", align: "start" },
+  { key: "model", label: "Model", align: "start" },
+  { key: "price", label: "Price", align: "end" },
+];
+
+// A price as the door wrote it, its figure set in the bold weight: "$0.05" and " a second".
+function Price({ text }) {
+  const m = /^((?:about\s+)?\$[\d.,]*\d)(.*)$/s.exec(text);
+  return m ? html`<span class="p-settings-generation__price"><b>${m[1]}</b>${m[2]}</span>` : html`<span class="p-settings-generation__price">${text}</span>`;
+}
+
+// Group 3: the four kinds of work, the model that makes each (a choice when there is more than one) and its price.
+function ModelsGroup({ view, busy, act, failure }) {
+  const rows = MODEL_FIELDS.map((f) => ({ id: f.key, f }));
+  function cell(r, col) {
+    const f = r.f;
+    const options = modelOptions(view, f.key);
+    const current = view.models ? view.models[f.key] : "";
+    const chosen = arr(obj(view.choices) ? view.choices[f.key] : null).find((c) => obj(c) && c.model === current);
+    const words = priceOf(chosen ? chosen.words : "");
+    const only = options.length === 1 && options[0].value === current && !options[0].disabled;
+    if (col.key === "kind") return html`<span class="p-settings-generation__kind">${f.label}</span>${only ? html`<small>${WORDS.onlyModel}</small>` : null}`;
+    if (col.key === "price") return words.price ? html`<${Price} text=${words.price} />` : "";
+    if (only || !options.length) {
+      return html`<code class="p-settings-generation__model">${plain(current, 80)}</code>${words.name ? html`<small>${words.name}</small>` : null}`;
+    }
+    const where = `model:${f.key}`;
+    return html`<${Field} error=${failure && failure.where === where ? failure.error.message : null}>
+      <${Select} options=${options} value=${current || ""} disabled=${Boolean(busy)} aria-label=${f.label}
+        onChange=${(e) => {
+          const model = e.currentTarget.value;
+          if (model && model !== current) act(where, "/api/generation/models", { [f.key]: model }, `${f.label}: ${model}.`);
+        }} />
+    <//>`;
+  }
+  return html`<${Group} title=${GROUPS.models} say=${WORDS.modelsSay}>
+    <div class="p-settings-generation__models">
+      <${DataTable} columns=${MODEL_COLUMNS} rows=${rows} renderCell=${cell} />
     </div>
-    ${paused ? html`
-      <div class="p-settings__g-paused" role="status">
-        <${Icon} name="pause" size=${16} />
-        <div class="p-settings__g-paused-words">
-          <p class="p-settings__g-paused-line">${paused}</p>
-          ${view.paused && view.paused.at ? html`<p class="p-settings__m-text">Paused <${Time} at=${view.paused.at} />.</p>` : null}
-        </div>
-        <${Button} variant="primary" icon="play" busy=${busy === "resume"} disabled=${Boolean(busy)}
-          onClick=${() => act("resume", "/api/generation/resume", {}, "Generation is started again.")}>${WORDS.startAgain}<//>
-      </div>` : null}
-    <${Failure} failure=${failure} where="resume" />
-    ${ledger ? html`<${Notice} tone=${view.ledger && view.ledger.ok === false ? "bad" : "warn"}>
-      <p class="p-settings__m-text">${ledger}${view.ledger && view.ledger.ok === false ? html` <a href="#/health">Open Health</a>` : null}</p><//>` : null}
-    <div class="p-settings__g-meters">
-      <${Meter} label="Today" spent=${s.ok === false ? null : s.day} cap=${c.daily} left=${s.dayLeft} />
-      <${Meter} label="This month" spent=${s.ok === false ? null : s.month} cap=${c.monthly} left=${s.monthLeft} />
-    </div>
-    ${capsLines(view).map((l) => html`<${Notice} key=${l} tone=${l === WORDS.zero ? "warn" : "bad"} title=${l} />`)}
-    ${running ? html`<p class="p-settings__m-text"><${StatusDot} tone="live" label=${running} /></p>` : null}
+    ${view.example ? html`<p class="p-settings-generation__foot-say">${plain(view.example, 300)}</p>` : null}
   <//>`;
 }
 
-function ModelsCard({ view, busy, act, failure }) {
-  return html`<${Card} class="p-settings__m-card">
-    <div class="p-settings__m-head">
-      <h3 class="p-settings__label">Models</h3>
-    </div>
-    <p class="p-settings__m-text">Which model makes each kind of work, with the service it runs on and its price. Higgsfield's models are listed once it is on and signed in.</p>
-    <div class="p-settings__g-models">
-      ${MODEL_FIELDS.map((f) => {
-        const options = modelOptions(view, f.key);
-        const current = view.models ? view.models[f.key] : "";
-        const where = `model:${f.key}`;
-        if (options.length === 1 && options[0].value === current && !options[0].disabled) {
-          return html`<div key=${f.key} class="p-settings__g-model">
-            <span class="k-field__label">${f.label}</span>
-            <p class="p-settings__g-only">${options[0].label}</p>
-            <p class="k-field__hint">The only model priced for this.</p>
-          </div>`;
-        }
-        return html`<div key=${f.key} class="p-settings__g-model">
-          <${Field} label=${f.label} error=${failure && failure.where === where ? failure.error.message : null}>
-            <${Select} options=${options} value=${current || ""} disabled=${Boolean(busy)}
-              onChange=${(e) => {
-                const model = e.currentTarget.value;
-                if (model && model !== current) act(where, "/api/generation/models", { [f.key]: model }, `${f.label}: ${model}.`);
-              }} />
-          <//>
-        </div>`;
-      })}
-    </div>
-    ${view.example ? html`<p class="p-settings__g-example"><${Icon} name="video" size=${16} /><span>${plain(view.example, 300)}</span></p>` : null}
-  <//>`;
-}
+const FILM_COLUMNS = [
+  { key: "film", label: "Film", align: "start" },
+  { key: "approved", label: "Approved", align: "end" },
+  { key: "spent", label: "Spent", align: "end" },
+  { key: "budget", label: "Budget", align: "end" },
+  { key: "state", label: "State", align: "start" },
+];
 
-function FilmsCard({ view }) {
+// Group 4: the films the owner approved, each a link to its shots in Studio, newest first.
+function FilmsGroup({ view }) {
   const films = arr(view.batches).filter(obj);
-  return html`<${Card} class="p-settings__m-card">
-    <div class="p-settings__m-head">
-      <h3 class="p-settings__label">Approved films</h3>
-      ${films.length ? html`<span class="p-settings__w-newest">Newest first</span>` : null}
-    </div>
-    ${films.length ? html`
-      <ul class="p-settings__g-films" aria-label="Approved films, newest first">
-        ${films.map((b, i) => {
-          const name = filmName(b.task);
-          const href = filmHref(b.task);
-          const label = html`${name.identifier ? html`<span class="p-settings__g-film-id">${name.identifier}</span>` : null}<span class="p-settings__g-film-title">${name.title}</span>`;
-          return html`<li key=${typeof b.id === "string" ? b.id : i} class="p-settings__g-film">
-            <div class="p-settings__g-film-name">
-              ${href ? html`<a class="p-settings__g-film-link" href=${href}>${label}</a>` : html`<span class="p-settings__g-film-link">${label}</span>`}
-              <span class="p-settings__g-film-dates">
-                ${Number.isInteger(b.shots) ? html`<span>${count(b.shots, "shot")}</span>` : null}
-                <span>Approved <${Time} at=${b.approvedAt} /></span>
-                <span>${b.open ? "Expires" : "Ended"} <${Time} at=${b.expiresAt} /></span>
-              </span>
-            </div>
-            <div class="p-settings__g-film-money">
-              <span class="p-settings__g-film-spent">${batchLine(b)}</span>
-              ${Number.isInteger(b.spent) ? html`<${Bar} value=${b.spent} total=${b.budget} small=${true} />` : null}
-            </div>
-            <span class="p-settings__g-film-state"><${StatusDot} tone=${b.open ? "ok" : "off"} label=${b.open ? "Open" : "Closed"} /></span>
-          </li>`;
-        })}
-      </ul>` : html`
-      <div class="p-settings__w-empty">
-        <${Icon} name="video" size=${20} />
-        <p class="p-settings__w-empty-title">${WORDS.noFilms}</p>
-        <p class="p-settings__m-text">A film shows here once you approve its shotlist and its cost.</p>
-      </div>`}
+  const rows = films.map((b, i) => ({ id: typeof b.id === "string" ? b.id : i, b }));
+  function cell(r, col) {
+    const b = r.b;
+    if (col.key === "film") {
+      const name = filmName(b.task);
+      const href = filmHref(b.task);
+      return html`${href ? html`<a class="p-settings-generation__film" href=${href}>${name.title}</a>` : html`<span class="p-settings-generation__film">${name.title}</span>`}
+        <small class="p-settings-generation__facts">
+          ${name.identifier ? html`<span class="p-settings-generation__id">${name.identifier}</span>` : null}
+          ${Number.isInteger(b.shots) ? html`<span>${count(b.shots, "shot")}</span>` : null}
+          <span>${b.open ? "Expires" : "Ended"} <${Time} at=${b.expiresAt} /></span>
+        </small>`;
+    }
+    if (col.key === "approved") return html`<${Time} at=${b.approvedAt} />`;
+    if (col.key === "spent") return Number.isInteger(b.spent) ? html`<span class="p-settings-generation__amount">${dollars(b.spent)}</span>` : "";
+    if (col.key === "budget") return html`<span class="p-settings-generation__budget">${dollars(num(b.budget))}</span>`;
+    return html`<${Tag} tone=${b.open ? "ok" : "neutral"}>${b.open ? "Open" : "Closed"}<//>`;
+  }
+  return html`<${Group} title=${GROUPS.films} aside=${films.length ? GROUPS.newest : null}>
+    ${films.length
+      ? html`<div class="p-settings-generation__films"><${DataTable} columns=${FILM_COLUMNS} rows=${rows} renderCell=${cell} /></div>`
+      : html`<${Empty} icon="video" title=${WORDS.noFilms} text=${WORDS.filmsEmpty} />`}
   <//>`;
 }
 
-function LedgerRow({ row }) {
-  const href = filmHref(row.task);
-  const id = obj(row.task) ? plain(row.task.identifier, 40) : "";
-  return html`<li class="p-settings__g-row">
-    <span class="p-settings__g-row-time">${clockOf(row.at)}</span>
-    <span class="p-settings__g-row-what">${rowWords(row)}</span>
-    <span class="p-settings__g-row-model">${plain(row.model, 80)}<span class="p-settings__g-row-service">${serviceName(row)}</span></span>
-    <span class="p-settings__g-row-credits">${dollars(num(row.credits))}</span>
-    <span class="p-settings__g-row-result"><${StatusDot} tone=${resultTone(row.result)} label=${plain(row.result, 80) || "Unclear"} /></span>
-    <span class="p-settings__g-row-film">${href && id ? html`<a href=${href} aria-label=${`Film ${id}`}>${id}</a>` : null}</span>
-  </li>`;
+const JOB_COLUMNS = [
+  { key: "time", label: "Time", align: "start" },
+  { key: "what", label: "What", align: "start" },
+  { key: "model", label: "Model", align: "start" },
+  { key: "film", label: "Film", align: "start" },
+  { key: "result", label: "Result", align: "start" },
+  { key: "amount", label: "Amount", align: "end" },
+];
+
+// One job of the ledger, a cell at a time.
+function jobCell(x, col) {
+  const row = x.r;
+  if (col.key === "time") return html`<span class="p-settings-generation__time">${clockOf(row.at)}</span>`;
+  if (col.key === "what") return rowWords(row);
+  if (col.key === "model") return html`<code class="p-settings-generation__model">${plain(row.model, 80)}</code><small>${serviceName(row)}</small>`;
+  if (col.key === "film") {
+    const href = filmHref(row.task);
+    const id = obj(row.task) ? plain(row.task.identifier, 40) : "";
+    return href && id ? html`<a class="p-settings-generation__id" href=${href} aria-label=${`Film ${id}`}>${id}</a>` : "";
+  }
+  if (col.key === "result") return html`<${Tag} tone=${tagOf(resultTone(row.result))}>${plain(row.result, 80) || "Unclear"}<//>`;
+  return html`<span class="p-settings-generation__amount">${dollars(num(row.credits))}</span>`;
 }
 
 function DayItem({ d, open, toggle }) {
   const f = dayFigures(d);
   const id = `gen-day-${d.day}`;
-  const rows = arr(d.rows).filter(obj);
-  return html`<li class=${`p-settings__g-day${open ? " p-settings__g-day--open" : ""}`}>
-    <button type="button" class="p-settings__g-dayhead" aria-expanded=${open ? "true" : "false"} aria-controls=${id} onClick=${toggle}>
-      <${Icon} name="chevron-right" size=${16} class="p-settings__g-chev" />
-      <span class="p-settings__g-dayname">${dayWords(d.day)}</span>
-      <span class="p-settings__g-daycredits">${f.credits}</span>
-      <span class="p-settings__g-dayjobs">${f.jobs}${f.refused ? html`<span class="p-settings__g-dayrefused">${f.refused}</span>` : null}</span>
+  const rows = arr(d.rows).filter(obj).map((r, i) => ({ id: `${r.at}-${i}`, r }));
+  return html`<li class=${`p-settings-generation__day${open ? " p-settings-generation__day--open" : ""}`}>
+    <button type="button" class="p-settings-generation__dayhead" aria-expanded=${open ? "true" : "false"} aria-controls=${id} onClick=${toggle}>
+      <${Icon} name="chevron-right" size=${16} class="p-settings-generation__chev" />
+      <span class="p-settings-generation__dayname">${dayWords(d.day)}</span>
+      <span class="p-settings-generation__dayjobs">${f.jobs}${f.refused ? html`<${Tag} tone="bad">${f.refused}<//>` : null}</span>
+      <span class="p-settings-generation__amount">${f.credits}</span>
     </button>
     ${open ? html`
-      <div class="p-settings__g-rows" id=${id}>
-        <div class="p-settings__g-rowhead" aria-hidden="true"><span>Time</span><span>What</span><span>Model</span><span>Cost</span><span>Result</span><span>Film</span></div>
-        <ol class="p-settings__g-rowlist" aria-label=${`${dayWords(d.day)}, newest first`}>
-          ${rows.map((r, i) => html`<${LedgerRow} key=${`${r.at}-${i}`} row=${r} />`)}
-        </ol>
-        ${num(d.jobs) > rows.length ? html`<p class="p-settings__w-none">The ${rows.length} newest of ${count(num(d.jobs), "job")} are shown.</p>` : null}
+      <div class="p-settings-generation__dayrows" id=${id}>
+        <${DataTable} columns=${JOB_COLUMNS} rows=${rows} renderCell=${jobCell} />
+        ${num(d.jobs) > rows.length ? html`<p class="p-settings-generation__line">The ${rows.length} newest of ${count(num(d.jobs), "job")} are shown.</p>` : null}
       </div>` : null}
   </li>`;
 }
 
-function SpentLog() {
+// Group 5: every job, a day a row, newest first; the newest day is open.
+function LedgerGroup() {
   const first = useResource("/api/generation/ledger", { every: EVERY });
   const [older, setOlder] = useState([]);
   const [more, setMore] = useState(null);
@@ -995,6 +1087,7 @@ function SpentLog() {
   const days = mergeDays(page && page.days, older);
   const hasMore = more === null ? Boolean(page && page.more) : more;
   const unreadable = page && page.ok === false;
+  const isOpenDay = (day, i) => (opened[day] === undefined ? i === 0 : opened[day]);
 
   async function showOlder() {
     const last = days[days.length - 1];
@@ -1011,28 +1104,21 @@ function SpentLog() {
       setLoadingOlder(false);
     }
   }
-  const toggle = (day) => setOpened({ ...opened, [day]: !opened[day] });
 
-  return html`<${Card} class="p-settings__m-card">
-    <div class="p-settings__m-head">
-      <h3 class="p-settings__label">What was spent</h3>
-      ${days.length ? html`<span class="p-settings__w-newest">Newest first</span>` : null}
-    </div>
+  return html`<${Group} title=${GROUPS.ledger} aside=${days.length ? GROUPS.newest : null}>
     ${first.loading && !page ? html`<${Loading} lines=${3} label="Loading what was spent" />` : null}
     ${first.error && !page ? html`<${ErrorNotice} error=${first.error} onRetry=${first.reload} />` : null}
     ${unreadable ? html`<${Notice} tone="bad" title=${plain(page.sentence, 300) || WORDS.unreadable} />` : null}
-    ${page && !unreadable && !days.length ? html`
-      <div class="p-settings__w-empty">
-        <${Icon} name="clock" size=${20} />
-        <p class="p-settings__w-empty-title">${WORDS.nothingSpent}</p>
-        <p class="p-settings__m-text">Every clip and picture the Artist or an app asks Runway or Higgsfield for shows here, with what it cost.</p>
-      </div>` : null}
+    ${page && !unreadable && !days.length ? html`<${Empty} icon="clock" title=${WORDS.nothingSpent} text=${WORDS.ledgerEmpty} />` : null}
     ${days.length ? html`
-      <ul class="p-settings__g-days" aria-label="What was spent, by day, newest first">
-        ${days.map((d) => html`<${DayItem} key=${d.day} d=${d} open=${Boolean(opened[d.day])} toggle=${() => toggle(d.day)} />`)}
-      </ul>` : null}
+      <${Card} padding="none" class="p-settings-generation__days">
+        <ul class="p-settings-generation__daylist" aria-label="What was spent, by day, newest first">
+          ${days.map((d, i) => html`<${DayItem} key=${d.day} d=${d} open=${isOpenDay(d.day, i)}
+            toggle=${() => setOpened({ ...opened, [d.day]: !isOpenDay(d.day, i) })} />`)}
+        </ul>
+      <//>` : null}
     ${olderError ? html`<${ErrorNotice} error=${olderError} onRetry=${showOlder} />` : null}
-    ${days.length && hasMore ? html`<div class="p-settings__w-older"><${Button} busy=${loadingOlder} onClick=${showOlder}>${WORDS.showOlder}<//></div>` : null}
+    ${days.length && hasMore ? html`<div class="p-settings-generation__older"><${Button} busy=${loadingOlder} onClick=${showOlder}>${WORDS.showOlder}<//></div>` : null}
   <//>`;
 }
 
@@ -1053,9 +1139,6 @@ export default function GenerationSection() {
   // The answer of the last action is shown until the next quiet refresh brings a newer view.
   const view = fresh && fresh.base === res.data ? fresh.view : res.data;
   const ready = state === "ready" && obj(view);
-  const on = Boolean(ready && view.on);
-  const door = ready ? doorState(view.door) : null;
-  const mark = ready ? heroMark(view) : null;
 
   // Runs one action. Errors carry the server's plain message only: nothing typed is ever put in one. An action
   // whose answer is not the view (the key) reads the view again.
@@ -1100,7 +1183,7 @@ export default function GenerationSection() {
     announce(returned === "connected" ? HF_WORDS.connected : HF_WORDS.notFinished);
   }, []);
   useEffect(() => {
-    // Back from Higgsfield's page: bring its card into view once it is drawn.
+    // Back from Higgsfield's page: bring its group into view once it is drawn.
     if (returned && ready) document.getElementById("settings-higgsfield")?.scrollIntoView({ block: "start" });
   }, [ready]);
 
@@ -1140,41 +1223,19 @@ export default function GenerationSection() {
     }
   }
 
-  return html`
-    <div class="p-settings__gen" id="settings-generation">
-      <${Section} title=${WORDS.title}>
-        <div class="p-settings__models">
-          <${Card} class=${`p-settings__m-card p-settings__w-hero${ready && isOpen(view) ? " p-settings__w-hero--on" : ""}${on && !isOpen(view) ? " p-settings__g-hero--held" : ""}`}>
-            <div class="p-settings__m-head">
-              <h3 class="p-settings__label">Runway</h3>
-              ${mark ? html`<${StatusDot} tone=${mark.tone} label=${mark.word} />` : null}
-            </div>
-            <div class="p-settings__w-intro">
-              <div class="p-settings__w-words">
-                <p class="p-settings__m-lead">${WORDS.intro}</p>
-                <${Notice} tone="warn">${WORDS.sent}<//>
-                <p class="p-settings__g-money"><${Icon} name="tag" size=${16} /><span>${WORDS.money}</span></p>
-              </div>
-              <${DoorMap} view=${ready ? view : null} />
-            </div>
-            ${state === "loading" ? html`<${Loading} lines=${3} label="Loading the generation settings" />` : null}
-            ${state === "restart" ? html`<div class="p-settings__m-later"><${StatusDot} tone="off" label="Not here yet" /><${RestartLine} /></div>` : null}
-            ${state === "error" ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
-            ${ready && view.problem ? html`<${Notice} tone="bad"><${Line}>${problemLine(view)}<//><//>` : null}
-            ${ready ? html`<${SwitchBlock} view=${view} busy=${busy} act=${act} failure=${failure} />` : null}
-            ${ready && on && door.state !== "on" ? html`<${Notice} tone="warn"><${Line}>${door.sentence}<//><//>` : null}
-            ${ready && on && !(view.key && view.key.saved) ? html`<${Notice} tone="warn" title=${WORDS.noKey} />` : null}
-            ${ready && heroNote(view) ? html`<p class="p-settings__g-note"><${Icon} name=${view.paused ? "pause" : "alert"} size=${16} /><span>${heroNote(view)}</span></p>` : null}
-          <//>
-          ${ready ? html`
-            <${KeyCard} view=${view} busy=${busy} act=${act} failure=${failure} test=${test} runTest=${runTest} />
-            <${HiggsfieldCard} view=${view} busy=${busy} act=${act} failure=${failure} test=${hfTest} runTest=${runHfTest} signIn=${signIn} returned=${returned} />
-            <${LimitsCard} view=${view} busy=${busy} act=${act} failure=${failure} />
-            <${SpentCard} view=${view} busy=${busy} act=${act} failure=${failure} />
-            <${ModelsCard} view=${view} busy=${busy} act=${act} failure=${failure} />
-            <${FilmsCard} view=${view} />
-            <${SpentLog} />` : null}
-        </div>
-      <//>
-    </div>`;
+  const parts = { view, busy, act, failure };
+  return html`<div class="p-settings-generation" id="settings-generation">
+    <p class="k-doc__intro">${WORDS.intro}</p>
+    ${state === "loading" ? html`<div class="p-settings-generation__state"><${Loading} lines=${3} label="Loading the generation settings" /></div>` : null}
+    ${state === "restart" ? html`<div class="p-settings-generation__state"><${St} icon="clock">Not here yet<//><${RestartLine} /></div>` : null}
+    ${state === "error" ? html`<div class="p-settings-generation__state"><${ErrorNotice} error=${res.error} onRetry=${res.reload} /></div>` : null}
+    ${ready && view.problem ? html`<div class="p-settings-generation__state"><${Notice} tone="bad"><${Line}>${problemLine(view)}<//><//></div>` : null}
+    ${ready ? html`
+      <${RunwayGroup} ...${parts} test=${test} runTest=${runTest} />
+      <${LimitsGroup} ...${parts} />
+      <${HiggsfieldGroup} ...${parts} test=${hfTest} runTest=${runHfTest} signIn=${signIn} returned=${returned} />
+      <${ModelsGroup} ...${parts} />
+      <${FilmsGroup} view=${view} />
+      <${LedgerGroup} />` : null}
+  </div>`;
 }
