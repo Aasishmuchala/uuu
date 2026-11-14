@@ -113,4 +113,43 @@ test("task rows and cards: needs you is the glyph and the words, never a tint or
   assert.equal(withClass(card, "k-st--warn").length, 1, "said as a state line with the warning glyph");
 });
 
+// PLAN-COOK T94: under a group headed "Needs you" a row does not repeat "Waiting for you" in its fact; the glyph and
+// the accessible words stay.
+test("TaskRow quiet=waiting: the fact leaves out 'Waiting for you'; the amber glyph and its words stay", () => {
+  const out = "Proposal for Asha Kitchens, 3 pages.";
+  const waiting = { id: "t1", identifier: "STH-8", title: "Walk cycle", column: "pending_review", waitingForYou: true, outcome: out };
+  // Every existing call keeps its answer.
+  assert.equal(taskCard.rowLine(waiting), `Waiting for you · ${out}`);
+  assert.equal(taskCard.rowLine(waiting, undefined), `Waiting for you · ${out}`);
+  // The quiet form: the outcome alone; no outcome gives the next fact or nothing, never a bare separator.
+  assert.equal(taskCard.rowLine(waiting, "waiting"), out);
+  assert.equal(taskCard.rowLine({ ...waiting, outcome: "" }, "waiting"), "Pending review", "the column's words are the next fact");
+  assert.equal(taskCard.rowLine({ waitingForYou: true }, "waiting"), "", "nothing at all when there is nothing else");
+  assert.equal(taskCard.rowLine({ ...waiting, outcome: "", stage: { label: "Check" }, round: 2 }, "waiting"), "Check · Round 2 · Pending review");
+  assert.equal(taskCard.rowLine({ ...waiting, outcome: "", plainState: "Waiting for you" }, "waiting"), "");
+  assert.ok(!/^\s*·|·\s*$/.test(taskCard.rowLine({ ...waiting, outcome: "", stage: { label: "Check" } }, "waiting")));
+  // A working task still says Working; a task that does not wait is untouched.
+  assert.equal(taskCard.rowLine({ live: true }, "waiting"), "Working");
+  assert.equal(taskCard.rowLine({ outcome: out }, "waiting"), out);
+  const row = showNow(taskCard.TaskRow, { task: waiting, quiet: "waiting" });
+  assert.equal(withClass(row, "k-task-row__mark--warn").length, 1, "the amber glyph stays");
+  assert.match(textOf(withClass(row, "k-task-row__mark")[0]), /Waiting for you/, "its words for a screen reader stay");
+  assert.equal(textOf(withClass(row, "k-task-row__text")[0]), out, "the fact is the outcome alone");
+  const loud = showNow(taskCard.TaskRow, { task: waiting });
+  assert.equal(textOf(withClass(loud, "k-task-row__text")[0]), `Waiting for you · ${out}`);
+});
+
+// PLAN-COOK T94: below 860 px a row stays short.
+test("task rows on a phone: two lines of name with the ref after it, one line of fact, the date on the first line, 44 px at least", () => {
+  const css = readFileSync(join(PUBLIC, "styles", "kit", "task-card.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const phone = css.slice(css.indexOf("@media (max-width: 859px)"));
+  assert.match(phone, /\.k-task-row\s*\{[^}]*min-height: 44px;/);
+  assert.match(phone, /\.k-task-row__top\s*\{[^}]*-webkit-line-clamp: 2;[^}]*line-clamp: 2;/, "the name and its ref run on, cut after two lines");
+  assert.match(phone, /\.k-task-row__title\s*\{[^}]*display: inline;/, "the name is inline so the ref follows its last word");
+  assert.match(phone, /\.k-task-row__ref\s*\{[^}]*display: inline;/, "the ref stays inline");
+  assert.match(phone, /\.k-task-row__line\s*\{[^}]*display: block;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/, "the fact is one line with an ellipsis");
+  assert.doesNotMatch(phone, /\.k-task-row__line\s*\{[^}]*line-clamp: 2/);
+  assert.match(phone, /\.k-task-row__time\s*\{[^}]*grid-row: 1;/, "the date stays at the right of the first line");
+});
+
 compositeSheetTests("task-card");

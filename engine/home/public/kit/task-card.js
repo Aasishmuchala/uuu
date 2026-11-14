@@ -46,18 +46,20 @@ const deptOf = (task) => {
 
 // Pure. The row's fact: the task's outcome when it has one, else its stage and its state in words
 // ("Check · Round 2 · Finished"). A task that is working or waiting for the owner says so first, in words, beside
-// its glyph. One line: no line breaks, the outcome cut to 140 characters.
-export function rowLine(task) {
+// its glyph. One line: no line breaks, the outcome cut to 140 characters. With `quiet` "waiting" (a row under a
+// group already headed "Needs you") "Waiting for you" is left out: the outcome alone, else the next most useful
+// fact, else nothing.
+export function rowLine(task, quiet) {
   if (!task) return "";
   // An answer's source marks ("[1]") mean nothing on one line, so they are left out (M50 F8).
   const outcome = text(task.outcome).replace(/\s*\[\d{1,2}\]/g, "").replace(/\s+/g, " ").trim().slice(0, 140);
-  const flag = task.live ? "Working" : task.waitingForYou ? "Waiting for you" : "";
+  const flag = task.live ? "Working" : task.waitingForYou && quiet !== "waiting" ? "Waiting for you" : "";
   if (outcome) return flag ? `${flag} · ${outcome}` : outcome;
   const parts = [];
   if (task.stage && task.stage.label) parts.push(text(task.stage.label));
   if (Number(task.round) > 0) parts.push(`Round ${Number(task.round)}`);
   const state = stateWords(task) || flag;
-  if (state && !parts.includes(state)) parts.push(state);
+  if (state && !parts.includes(state) && !(quiet === "waiting" && task.waitingForYou && !task.live && state === "Waiting for you")) parts.push(state);
   return parts.join(" · ");
 }
 
@@ -75,14 +77,14 @@ function Glyph({ task }) {
   return html`<span class=${`k-task-row__mark${tone}`}><${StateIcon} column=${column} label="" /><span class="k-sr">${stateWords(task) || COLUMN_LABELS[column]}</span></span>`;
 }
 
-export function TaskRow({ task }) {
+export function TaskRow({ task, quiet }) {
   if (!task) return null;
   const href = taskHref(task);
   const dept = deptOf(task);
   // The job's name is left out when the title already starts with it (M51 F12).
   const jobTitle = task.job && task.job.title ? text(task.job.title) : "";
   const job = jobTitle && !text(task.title).toLowerCase().startsWith(jobTitle.toLowerCase()) ? jobTitle : "";
-  const line = rowLine(task);
+  const line = rowLine(task, quiet);
   const date = task.updatedAt || task.since || task.createdAt;
   const who = task.who && task.who.name ? text(task.who.name) : "";
   return html`<a class=${`k-task-row${task.waitingForYou ? " k-task-row--needs" : ""}`} href=${href}>

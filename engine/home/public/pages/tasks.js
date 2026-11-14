@@ -278,7 +278,7 @@ function Group({ g, open, onFold }) {
     </h2>
     <div id=${rows} class="p-tasks__group-body" hidden=${!open}>
       <ul class="p-tasks__rows">
-        ${g.tasks.map((t) => html`<li key=${text(t.id || t.identifier)} class="p-tasks__row"><${TaskRow} task=${forRow(t)} /></li>`)}
+        ${g.tasks.map((t) => html`<li key=${text(t.id || t.identifier)} class="p-tasks__row"><${TaskRow} task=${forRow(t)} quiet=${g.id === "needs-you" ? "waiting" : undefined} /></li>`)}
       </ul>
       ${olderLine(g.older)}
     </div>
@@ -303,7 +303,7 @@ const go = (href) => { if (href && typeof location !== "undefined") location.has
 // choices; the current choice carries the check. A choice goes to its address.
 function Filter({ name, label, options, current, make }) {
   const items = chipLinks(options, current, make).map((o) => ({
-    id: o.value || "all", label: o.label, icon: o.current ? "check" : undefined, onSelect: () => go(o.href),
+    id: o.value || "all", label: o.label, icon: o.current ? "check" : undefined, current: o.current ? true : undefined, onSelect: () => go(o.href),
   }));
   return html`<div class=${`p-tasks__filter${current ? " p-tasks__filter--on" : ""}`} role="group" aria-label=${label}>
     <${Menu} label=${filterLabel(name, options, current)} items=${items} />

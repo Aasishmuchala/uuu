@@ -115,7 +115,8 @@ export function Drawer({ open, side = "right", title, onClose, children }) {
 }
 
 // A button that opens a short list of actions. With an icon the button shows only the icon and
-// `label` becomes its name for screen readers; without one it shows the label and a chevron.
+// `label` becomes its name for screen readers; without one it shows the label and a chevron. An item with
+// `current: true` is the chosen one: the items are then radios, and focus starts on the current one.
 export function Menu({ label = "More", icon, items }) {
   const [open, setOpen] = useState(false);
   const [id] = useState(() => nextId("k-menu"));
@@ -123,8 +124,9 @@ export function Menu({ label = "More", icon, items }) {
   const trigger = useRef(null);
   const list = useRef(null);
   const entries = Array.isArray(items) ? items.filter(Boolean) : [];
+  const hasCurrent = entries.some((item) => item.current === true);
 
-  const itemsIn = () => (list.current && list.current.querySelectorAll ? [...list.current.querySelectorAll('[role="menuitem"]')] : []);
+  const itemsIn = () => (list.current && list.current.querySelectorAll ? [...list.current.querySelectorAll('[role="menuitem"], [role="menuitemradio"]')] : []);
   const close = (refocus) => {
     setOpen(false);
     if (refocus && trigger.current) trigger.current.focus();
@@ -132,8 +134,13 @@ export function Menu({ label = "More", icon, items }) {
 
   useEffect(() => {
     if (!open) return undefined;
-    const first = itemsIn()[0];
-    if (first) first.focus();
+    // Focus starts on the current item if there is one, else on the first, scrolled into view.
+    const all = itemsIn();
+    const start = all.find((el) => el.getAttribute && el.getAttribute("aria-checked") === "true") || all[0];
+    if (start) {
+      start.focus();
+      if (typeof start.scrollIntoView === "function") start.scrollIntoView({ block: "nearest" });
+    }
     const outside = (event) => {
       if (root.current && root.current.contains && !root.current.contains(event.target)) setOpen(false);
     };
@@ -191,7 +198,8 @@ export function Menu({ label = "More", icon, items }) {
           ${entries.map((item) => html`<button
             key=${item.id}
             type="button"
-            role="menuitem"
+            role=${hasCurrent ? "menuitemradio" : "menuitem"}
+            aria-checked=${hasCurrent ? (item.current === true ? "true" : "false") : undefined}
             tabindex="-1"
             class=${cx("k-menu__item", item.danger && "k-menu__item--danger")}
             onClick=${() => pick(item)}

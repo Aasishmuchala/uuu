@@ -4,7 +4,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { STYLES } from "./_dom.mjs";
+import { STYLES, KIT, html, render, FakeElement, elements, installDom, settle, fire, textOf } from "./_dom.mjs";
+import { pathToFileURL } from "node:url";
 import { css, stripComments, primitiveSheetTests, narrowControlsTest } from "./_rules.mjs";
 
 // From "the primitives' stylesheets follow the rules of V3 27.3" (kit-a).
@@ -33,3 +34,37 @@ test("overlays: a dialog has the 12 px corner, a 16 px title and its primary las
 
 primitiveSheetTests("overlays");
 narrowControlsTest("overlays");
+
+// PLAN-COOK T94: a menu says which item is current and starts there.
+test("Menu: a current item is a menuitemradio, checked; focus starts on it, else on the first; no current item changes nothing", async () => {
+  const { Menu } = await import(pathToFileURL(join(KIT, "overlays.js")).href);
+  installDom();
+  const was = FakeElement.prototype.querySelectorAll;
+  FakeElement.prototype.querySelectorAll = function () {
+    return elements(this).filter((e) => /^menuitem/.test(e.getAttribute("role") || ""));
+  };
+  const open = async (items) => {
+    const root = new FakeElement("div");
+    document.body.appendChild(root);
+    render(html`<${Menu} label="Agent" items=${items} />`, root);
+    await settle();
+    fire(elements(root).find((e) => e.localName === "button" && e.getAttribute("aria-haspopup") === "menu"), "click");
+    await settle();
+    return root;
+  };
+  try {
+    const plain = await open([{ id: "a", label: "A" }, { id: "b", label: "B" }]);
+    const items = elements(plain).filter((e) => /^menuitem/.test(e.getAttribute("role") || ""));
+    assert.deepEqual(items.map((e) => e.getAttribute("role")), ["menuitem", "menuitem"]);
+    assert.ok(items.every((e) => e.getAttribute("aria-checked") === null));
+    assert.equal(document.activeElement, items[0], "no current item: focus starts on the first");
+    const chosen = await open([{ id: "a", label: "A" }, { id: "b", label: "B", current: true }, { id: "c", label: "C" }]);
+    const radios = elements(chosen).filter((e) => /^menuitem/.test(e.getAttribute("role") || ""));
+    assert.deepEqual(radios.map((e) => e.getAttribute("role")), ["menuitemradio", "menuitemradio", "menuitemradio"]);
+    assert.deepEqual(radios.map((e) => e.getAttribute("aria-checked")), ["false", "true", "false"]);
+    assert.equal(document.activeElement, radios[1], "focus starts on the current item");
+    assert.equal(textOf(radios[1]).trim(), "B");
+  } finally {
+    FakeElement.prototype.querySelectorAll = was;
+  }
+});

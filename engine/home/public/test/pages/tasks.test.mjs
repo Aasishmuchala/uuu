@@ -266,3 +266,11 @@ test("tasks: Needs you is said by the rows' glyph and words, never by an outline
   assert.match(css, /\.p-tasks \.p-tasks__fold \{[^}]*background: var\(--raise\)/);
   assert.match(css, /\.p-tasks \.p-tasks__list \{[^}]*max-width: var\(--content-max\)/);
 });
+
+test("tasks: the chosen item of a filter menu is current, and only Needs you's rows are quiet about waiting (T94)", () => {
+  const src = readFileSync(new URL("../../pages/tasks.js", import.meta.url), "utf8");
+  assert.match(src, /icon: o\.current \? "check" : undefined, current: o\.current \? true : undefined/, "the check stays and the item is current");
+  assert.match(src, /quiet=\$\{g\.id === "needs-you" \? "waiting" : undefined\}/, "quiet only under Needs you");
+  const items = mod.chipLinks(mod.whoOptions([{ slug: "artist", name: "Artist" }], "artist"), "artist", (v) => `#/tasks?who=${v}`);
+  assert.deepEqual(items.filter((o) => o.current).map((o) => o.value), ["artist"]);
+});
