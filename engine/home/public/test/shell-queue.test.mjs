@@ -107,6 +107,9 @@ test("the queue panel: a dialog that is not modal, its first line, the groups, a
   assert.deepEqual(rows.map((r) => textOf(withClass(r, "s-queue-title")[0])), ["A film of the lake house", "2 answers before the work goes on", "Finished: a walking sprite", "Runway refused two pictures"]);
   assert.equal(textOf(withClass(rows[2], "s-queue-line")[0]), "Four frames and a GIF.");
   assert.equal(withClass(rows[3], "s-queue-line").length, 0, "no grey line when there is no summary");
+  assert.equal(withClass(rows[0], "s-queue-line").length, 0, "one line a row: the grey line only on the current row");
+  assert.equal(withClass(panel, "s-queue-body").length, 1, "the rows scroll in their own body");
+  assert.equal(withClass(root, "s-queue-scrim").length, 1, "the page pane is dimmed under it");
   assert.ok(withClass(rows[0], "s-queue-when")[0], "each row has its time at the right");
   assert.equal(rows.every((r) => withClass(r, "s-queue-icon").length === 1), true, "a 16 px icon on every row");
   assert.deepEqual(rows.map((r) => attrOf(r, "aria-current")), [null, null, "true", null], "the row of the page being shown is current");
@@ -136,18 +139,40 @@ test("the queue panel: empty, failed, closed, and below 860 px not drawn", async
   assert.equal(attrOf(withClass(one.root, "s-queue-full")[0], "href"), "#/needs-you?d=people");
 });
 
-test("the queue panel's sheet: under the top bar at the page column's edge, on the raised step, floating, a 12 px corner", () => {
+test("the queue's popover: under its button at the right of the top bar, 380 px, at most 70 percent of the window, in the dialog family, over a scrim that takes no clicks", () => {
   const o = css("shell-overlays.css");
-  assert.match(o, /\.s-queue \{[^}]*position: fixed;[^}]*top: calc\(var\(--topbar-h\) \+ var\(--s-2\)\);[^}]*left: calc\(var\(--side-w\) \+ var\(--s-2\)\);[^}]*width: var\(--queue-w\);[^}]*max-height: calc\(100vh - [^}]*border-radius: var\(--r-3\);[^}]*background: var\(--panel\);[^}]*box-shadow: var\(--float\);/);
-  assert.match(o, /\.s-app--icons ~ \.s-queue-host \.s-queue \{[^}]*left: calc\(var\(--side-w-icons\) \+ var\(--s-2\)\);/);
-  assert.match(o, /\.s-queue-row\[aria-current="true"\] \{[^}]*background: var\(--sel\);/, "the current row is lifted in both themes");
-  assert.match(o, /\.s-queue-group-title \{[^}]*font-size: var\(--fs-label\);/, "12 px group headings");
-  assert.match(o, /@media \(max-width: 859px\) \{[\s\S]*\.s-queue \{\s*display: none;/);
+  assert.match(o, /\.s-queue \{[^}]*position: fixed;[^}]*right: var\(--s-4\);[^}]*width: min\(380px, [^}]*max-height: 70vh;[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-3\);[^}]*background: var\(--panel\);[^}]*box-shadow: var\(--float\);/);
+  assert.match(o, /\.s-queue-scrim \{[^}]*position: fixed;[^}]*top: var\(--topbar-h\);[^}]*left: var\(--side-w\);[^}]*background: var\(--scrim\);[^}]*pointer-events: none;/, "the page pane is dimmed whole and stays usable");
+  assert.match(o, /\.s-app--icons ~ \.s-queue-host \.s-queue-scrim \{[^}]*left: var\(--side-w-icons\);/);
+  assert.match(o, /\.s-queue-body \{[^}]*overflow-y: auto;/, "the rows scroll inside, between the head and the foot");
+  assert.match(o, /\.s-queue-full \{[^}]*flex: none;[^}]*border-top: 1px solid var\(--line\);/, "the foot's link is always in view");
+  assert.match(o, /\.s-queue-row\[aria-current="true"\],\s*\.s-queue-row:focus-visible \{[^}]*outline: none;[^}]*background: var\(--sel\);[^}]*box-shadow: inset 2px 0 0 var\(--accent\);/, "the current row and the row reached are a fill with a 2 px accent bar, never a ring");
+  assert.match(o, /\.s-queue-group-title \{[^}]*padding: var\(--s-4\) [^}]*font-size: var\(--fs-label\);[^}]*font-weight: var\(--fw-medium\);/, "12 px, 500 group headings with 16 px above");
+  assert.match(o, /@media \(max-width: 859px\) \{[\s\S]*\.s-queue,\s*\.s-queue-scrim \{\s*display: none;/);
   assert.match(o, /:root\[data-motion="off"\] \.s-queue,/);
   assert.match(o, /prefers-reduced-motion/);
+  const js = src("shell/queue.js");
+  assert.match(js, /r\.bottom \+ 6/, "it hangs 6 px under the button");
+  assert.match(js, /innerWidth - r\.right/, "its right edge on the button's");
 });
 
-test("the command menu: a floating panel whose field is its head, 36 px rows, the chosen row lifted", async () => {
+test("fitWholeRows: a list that holds more than its room is cut back to the foot of the last whole row; one that fits is left alone", () => {
+  const box = (top, bottom) => ({ getBoundingClientRect: () => ({ top, bottom }) });
+  const list = (rows, room, scroll) => ({
+    style: { height: "x" }, clientHeight: room, scrollHeight: scroll, scrollTop: 0,
+    getBoundingClientRect: () => ({ top: 100, bottom: 100 + room }),
+    querySelectorAll: () => rows.map(([t, b]) => box(100 + t, 100 + b)),
+  });
+  const long = list([[4, 40], [40, 76], [108, 144], [144, 180]], 160, 400);
+  queue.fitWholeRows(long, ".row");
+  assert.equal(long.style.height, "144px", "the third row ends at 144, the fourth would be cut at 160");
+  const short = list([[4, 40]], 160, 120);
+  queue.fitWholeRows(short, ".row");
+  assert.equal(short.style.height, "", "a list that fits keeps its own height");
+  assert.doesNotThrow(() => queue.fitWholeRows(null, ".row"));
+});
+
+test("the command menu: a floating panel whose field is its head, 40 px rows with each department's icon and a hint at the right, the chosen row a fill with a 2 px accent bar", async () => {
   installDom();
   const calls = stubFetch(() => ({ status: 200, body: { departments: [] } }));
   try {
@@ -165,22 +190,45 @@ test("the command menu: a floating panel whose field is its head, 36 px rows, th
     assert.equal(rows.length, menu.localItems("", []).length, "the same lists as before");
     assert.equal(attrOf(rows[0], "aria-selected"), "true");
     assert.deepEqual(withClass(root, "s-cmd-group-title").map((t) => textOf(t)), ["Start", "Departments", "Pages"]);
+    assert.equal(textOf(withClass(rows[0], "s-cmd-end")[0]), "Enter", "the chosen row says Enter at its right");
+    const tasks = rows.find((r) => textOf(withClass(r, "s-cmd-label")[0]) === "Tasks");
+    assert.equal(textOf(withClass(tasks, "s-cmd-end")[0]), "GT", "a page with keys shows them as keycaps");
+    assert.equal(withClass(tasks, "k-kbd").length, 2);
+    assert.equal(textOf(withClass(root, "s-cmd-help")[0]), "↑↓ to moveEnter to openEsc to close", "the foot's words, the keys as keycaps");
+    assert.equal(withClass(withClass(root, "s-cmd-help")[0], "k-kbd").length, 4);
     const closed = await show(menu.CommandMenu, { open: false, onClose() {}, team: [], onCompose() {} });
     assert.equal(elements(closed).length, 1, "nothing is drawn while closed");
   } finally {
     calls.restore();
   }
+  const empty = menu.localItems("", []);
+  assert.deepEqual(empty.filter((i) => i.group === "Departments").map((i) => i.icon), ["layers", "trend", "horn", "film", "buoy", "team", "book"], "each department its sidebar icon");
+  assert.deepEqual(menu.PAGE_KEYS, { map: "M", tasks: "T", dashboards: "D", files: "F", "needs-you": "N", jobs: "J" });
+  const shell = src("shell/app-shell.js");
+  for (const [k, page] of Object.entries({ m: "map", t: "tasks", d: "dashboards", f: "files", n: "needs-you", j: "jobs" })) {
+    assert.ok(shell.includes(`${k}: "${page}"`), `the shell's GO has g then ${k} for ${page}`);
+    assert.equal(menu.PAGE_KEYS[page], k.toUpperCase());
+  }
   const o = css("shell-overlays.css");
-  assert.match(o, /\.s-cmd \{[^}]*border-radius: var\(--r-3\);[^}]*background: var\(--panel\);[^}]*box-shadow: var\(--float\);/);
+  assert.match(o, /\.s-cmd-layer \{[^}]*align-items: flex-start;[^}]*justify-content: center;[^}]*padding: 18vh /, "centred on the window, its top 18 percent down");
+  assert.match(o, /\.s-cmd \{[^}]*max-width: 640px;[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-3\);[^}]*background: var\(--panel\);[^}]*box-shadow: var\(--float\);/);
   assert.match(o, /\.s-cmd-input \{[^}]*height: 44px;/);
-  assert.match(o, /\.s-cmd-input:focus \{[^}]*outline: 2px solid var\(--accent\);/, "the field shows its focus");
-  assert.match(o, /\.s-cmd-item \{[^}]*min-height: var\(--h-md\);/);
-  assert.match(o, /\.s-cmd-item\.is-active \{[^}]*background: var\(--sel\);/);
+  assert.match(o, /\.s-cmd-input:focus \{[^}]*border-color: var\(--accent\);[^}]*box-shadow: 0 0 0 3px color-mix\(in srgb, var\(--accent\) 25%, transparent\);/, "the field shows its focus as every text field");
+  assert.match(o, /\.s-cmd-item \{[^}]*min-height: var\(--h-lg\);[^}]*border-radius: var\(--r-1\);/);
+  assert.match(o, /\.s-cmd-list \{[^}]*padding: var\(--s-1\) 6px 6px;/, "the rows are inset 6 px");
+  assert.match(o, /\.s-cmd-item\.is-active \{[^}]*background: var\(--sel\);[^}]*box-shadow: inset 2px 0 0 var\(--accent\);/);
+  assert.doesNotMatch(o, /\.s-cmd-item[^{]*\{[^}]*outline: 2px/, "never a ring on a row");
   assert.match(o, /\.s-cmd-group-title \{[^}]*font-size: var\(--fs-label\);/);
+  assert.match(src("shell/command-menu.js"), /fitWholeRows\(list\.current, "\.s-cmd-item"\)/, "the list ends on a whole row, so no heading stands alone at its foot");
 });
 
 test("the compose dialog and the work panel are on the same surfaces, and nothing in the overlays blurs or fades by gradient", () => {
   const o = css("shell-overlays.css");
+  assert.match(o, /@media \(min-width: 860px\) \{\s*\.k-dialog:has\(\.s-compose\) \{[^}]*align-items: flex-start;[^}]*padding-top: 20vh;/, "the compose dialog's top 20 percent down, as tall as what it holds");
+  assert.match(o, /\.k-dialog:has\(\.s-compose\) \.k-dialog__body \{[^}]*padding-bottom: var\(--s-4\);/, "16 px under the last line");
+  assert.match(o, /\.s-compose \.k-composer__hint \{[^}]*position: absolute;[^}]*font-size: var\(--fs-label\);/, "the keys one muted 12 px line under the box");
+  assert.match(o, /\.s-compose \.k-composer__send:disabled \{[^}]*background: var\(--accent-fill\);/, "the send button is filled");
+  assert.match(o, /\.s-compose:has\(\.k-composer__bar\):not\(:has\(\.k-composer__error\)\) \.s-compose-jobs \{[^}]*position: absolute;/, "Every job on the row of Plan first");
   assert.match(o, /\.s-panel \{[^}]*border-left: 1px solid var\(--line\);[^}]*background: var\(--panel\);/);
   assert.match(src("shell/compose-dialog.js"), /<\$\{Dialog\} open=\$\{open\} title="New task"/, "the compose dialog is the kit's dialog: the raised step and the float shadow");
   assert.match(o, /\.s-cmd-scrim \{[^}]*background: var\(--scrim\);/, "the layer behind the menu is the themed scrim token");
@@ -189,8 +237,9 @@ test("the compose dialog and the work panel are on the same surfaces, and nothin
   assert.doesNotMatch(o, /gradient\(/);
   assert.doesNotMatch(o, /#[0-9a-fA-F]{3,8}\b\s*;|rgba?\(|hsla?\(/, "colours come from the tokens");
   assert.doesNotMatch(o, /font-size\s*:\s*\d+px/, "sizes come from the tokens");
+  // The kit's dialog is placed for the compose dialog only through what it holds.
   for (const sel of o.replace(/@keyframes[\s\S]*?\}\s*\}/g, "").matchAll(/(^|[{}])\s*([^{}@]+)\{/g)) {
-    for (const one of sel[2].split(",")) assert.match(one.trim(), /^(:root\[data-[a-z]+="[a-z]+"\]\s+)?\.s-/, `"${one.trim()}" starts with .s-`);
+    for (const one of sel[2].split(",")) assert.match(one.trim(), /^(:root\[data-[a-z]+="[a-z]+"\]\s+|\.k-dialog:has\(\.s-compose\)\s*)?\.s-|^\.k-dialog:has\(\.s-compose\)( \.k-dialog__body)?$/, `"${one.trim()}" starts with .s-`);
   }
   const shell = css("shell.css");
   for (const gone of [".s-cmd", ".s-panel", ".s-compose", ".s-needs", ".s-queue-host"]) assert.ok(!shell.includes(`${gone}`), `${gone} moved out of shell.css`);

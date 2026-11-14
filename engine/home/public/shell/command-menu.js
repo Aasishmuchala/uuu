@@ -2,19 +2,27 @@
 // dialog with one field. Empty, it lists New task and Every job, the seven departments, then the pages. Typed
 // text finds pages, departments, agents and jobs by name at once, then what /api/search finds (after 2
 // characters, 200 ms after the last key), grouped by source. Arrows move, Enter opens, Esc closes.
-// Drawn as a floating panel over a dim page (PLAN-COOK T21): the field is its head, so it has no title bar;
-// focus stays in the field (the rows are chosen with the arrows) and goes back to the opener on close.
+// Drawn as a floating panel over a dim page (PLAN-COOK T21, T103): centred on the window, its top 18 percent
+// down; the field is its head, so it has no title bar; focus stays in the field (the rows are chosen with the
+// arrows) and goes back to the opener on close. Each row has its icon (a department its sidebar icon) and at its
+// right a hint: what needs the owner in a department, a page's "g" keys, "Enter" on the chosen row. The list
+// ends on a whole row, so no group's heading stands alone at its foot.
 import { html, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { linkHref } from "../lib/format.js";
-import { Avatar, Icon } from "../kit/index.js";
+import { useApp } from "../lib/context.js";
+import { Avatar, Icon, Kbd } from "../kit/index.js";
 import { DEPARTMENTS, routeById } from "../routes.js";
 import { jobsOf } from "./compose-dialog.js";
+import { fitWholeRows } from "./queue.js";
+import { TEAM_ICONS } from "./sidenav.js";
 
 // The pages the menu offers, in this order.
 const PAGE_IDS = ["map", "tasks", "dashboards", "files", "apps", "needs-you", "jobs", "team", "routines", "health", "settings"];
 const PAGES = PAGE_IDS.map((id) => routeById(id));
 const MAX_JOBS = 8;
+// A page's keys: "g" then this letter (the shell's GO table in app-shell.js).
+export const PAGE_KEYS = { map: "M", tasks: "T", dashboards: "D", files: "F", "needs-you": "N", jobs: "J" };
 
 // After the browser has drawn the change (at once where there is no browser, as in the tests).
 const later = (f) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(f) : f());
@@ -26,7 +34,7 @@ const cap = (s, n) => {
 };
 
 const pageItem = (r) => ({ id: `page:${r.id}`, group: "Pages", label: r.title, icon: r.icon, href: `#/${r.id}` });
-const departmentItem = (d) => ({ id: `dept:${d.id}`, group: "Departments", label: d.title, icon: "map", href: `#/departments/${encodeURIComponent(d.id)}` });
+const departmentItem = (d) => ({ id: `dept:${d.id}`, group: "Departments", label: d.title, icon: TEAM_ICONS[d.id] || "map", href: `#/departments/${encodeURIComponent(d.id)}` });
 const jobItem = (j) => ({
   id: `job:${j.id}`, group: "Jobs", label: cap(j.title, 120), icon: "jobs",
   hint: j.ready === false ? "Cannot start yet" : cap(j.department?.title, 40), href: linkHref({ page: "jobs", id: j.id }),
@@ -105,6 +113,9 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
     const el = list.current;
     setMore(Boolean(el && el.scrollHeight - el.scrollTop - el.clientHeight > 4));
   };
+  // What needs the owner in each department, from the shell's dock (the sidebar's counts).
+  const { dock } = useApp();
+  const needs = new Map((Array.isArray(dock) ? dock : []).map((d) => [d && d.id, Math.max(0, Math.floor(Number(d && d.needsYou) || 0))]));
 
   useEffect(() => {
     if (!open) return undefined;
@@ -152,7 +163,15 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
   }, [query, team, jobs, found]);
 
   useEffect(() => { setActive((a) => Math.min(a, Math.max(0, items.length - 1))); }, [items.length]);
-  useEffect(() => { if (open) measure(); }, [open, items, found.state]);
+  // The list ends on a whole row (again when the window changes), then says whether more lies below.
+  useEffect(() => {
+    if (!open) return undefined;
+    const fit = () => { fitWholeRows(list.current, ".s-cmd-item"); measure(); };
+    fit();
+    if (typeof window === "undefined") return undefined;
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [open, items, found.state]);
   useEffect(() => {
     list.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView?.({ block: "nearest" });
   }, [active]);
@@ -185,6 +204,18 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
     }
   };
 
+  // The right end of a row: a department's count, a page's keys, or "Enter" on the chosen row.
+  const rowEnd = (it, chosen) => {
+    const count = it.id.startsWith("dept:") ? needs.get(it.id.slice(5)) || 0 : 0;
+    const keys = it.id.startsWith("page:") ? PAGE_KEYS[it.id.slice(5)] : null;
+    if (!count && !keys && !chosen) return null;
+    return html`
+      <span class="s-cmd-end" aria-hidden="true">
+        ${count ? html`<span class="s-cmd-count u-num">${count}</span>` : null}
+        ${chosen ? html`<${Kbd}>Enter<//>` : keys ? html`<span class="s-cmd-keys"><${Kbd}>G<//><${Kbd}>${keys}<//></span>` : null}
+      </span>`;
+  };
+
   if (!open) return null;
   let n = -1;
   const groups = grouped(items);
@@ -215,6 +246,7 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
                     ${it.agent ? html`<${Avatar} slug=${it.agent.slug} name=${it.agent.name} size=${20} />` : html`<${Icon} name=${it.icon || "chevron-right"} />`}
                     <span class="s-cmd-label u-truncate">${it.label}</span>
                     ${it.hint ? html`<span class="s-cmd-hint u-truncate">${it.hint}</span>` : null}
+                    ${rowEnd(it, i === active)}
                   </div>`;
               })}
             </div>`)}
@@ -222,7 +254,9 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
           ${q.length >= 2 && found.state === "failed" ? html`<p class="s-cmd-note">Search is not answering right now. Pages and agents still work.</p>` : null}
           ${q.length >= 2 && found.state === "done" && found.q === q && !found.items.length ? html`<p class="s-cmd-note">Nothing else found for "${q}".</p>` : null}
         </div>
-        <p class="s-cmd-help" aria-hidden="true">↑ ↓ to move · Enter to open · Esc to close</p>
+        <p class="s-cmd-help" aria-hidden="true">
+          <span><${Kbd}>↑<//><${Kbd}>↓<//> to move</span><span><${Kbd}>Enter<//> to open</span><span><${Kbd}>Esc<//> to close</span>
+        </p>
       </div>
     </div>`;
 }
