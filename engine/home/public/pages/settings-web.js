@@ -1,6 +1,7 @@
-// Settings: the Web section (PLAN-V5 K11, T35). The switch that lets one agent, the Researcher, read the public web
-// through the web door. What it does, what leaves this Mac and who can use it come first; then the switch, the
-// owner's three lists, how it searches, the owner's Test, and every address it opened, newest first.
+// Settings: the Web section (PLAN-V5 K11, T35; drawn as groups in Settings' column by PLAN-COOK T55). The switch
+// that lets one agent, the Researcher, read the public web through the web door comes first, with what leaves this
+// Mac under it, who may ask and the door's state; then the owner's three lists, how it searches, the owner's Test,
+// and every address it opened, newest first. The frame draws the title and the state (statusLine).
 // A search key is typed into a password field that the server never fills; it lives only in this component's
 // memory until Save, and is cleared then. It is never put in storage, the address bar, the console or a message.
 // An address, a search's words and every list entry come from the web or from typing: they are shown only as plain
@@ -10,7 +11,7 @@ import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { count, fullWhen } from "../lib/format.js";
 import {
-  Avatar, Button, Card, Dialog, ErrorNotice, Field, Icon, Loading, NextStep, Notice, Ring, Section, StatusDot, Switch, TextInput, Time,
+  Button, DataTable, Dialog, Empty, ErrorNotice, Field, Group, Icon, Loading, NextStep, Notice, Row, Rows, St, Switch, Tag, TextInput,
 } from "../kit/index.js";
 
 const EVERY = 10000;
@@ -261,22 +262,6 @@ export function sectionState(res) {
   if (res && res.error) return res.error.status === 404 ? "restart" : "error";
   return "loading";
 }
-
-// ---------------------------------------------------------------------------------------------------------------
-// Parts
-
-// The restart sentence, with the two commands set apart. The words are the plan's, unchanged.
-function RestartLine() {
-  return html`<p class="p-settings__m-restart">This section appears after the home screen is restarted: <code class="k-next__command">engine stop</code>, then <code class="k-next__command">engine start</code>.</p>`;
-}
-
-// A sentence that may end in "Run: <command>".
-const Line = ({ children }) => (/\bRun:/.test(String(children)) ? html`<${NextStep} text=${children} />` : html`<p class="p-settings__m-text">${children}</p>`);
-
-const Failure = ({ failure, where }) => (failure && failure.where === where
-  ? html`<${Notice} tone="bad" title=${failure.error.message}>${failure.error.next ? html`<${Line}>${failure.error.next}<//>` : null}<//>`
-  : null);
-
 // The word under the drawn door: open or closed while it runs (the switch), else the door's own state.
 export function doorWord(on, door) {
   const d = doorState(door);
@@ -284,68 +269,111 @@ export function doorWord(on, door) {
   return on ? "Open" : "Closed";
 }
 
-// The door, drawn: the Researcher, the door, the public web. The other agents stop at the door. The words around it
-// say all of this; the drawing is for the eye only.
-function DoorMap({ open, on, door }) {
-  const word = door ? doorWord(on, door) : "";
-  return html`<div class=${`p-settings__w-map${open ? " p-settings__w-map--open" : ""}`} aria-hidden="true">
-    <span class="p-settings__w-node p-settings__w-node--agent">
-      <${Avatar} name="Researcher" size=${32} />
-      <span class="p-settings__w-name">Researcher</span>
-    </span>
-    <span class="p-settings__w-wire"></span>
-    <span class="p-settings__w-node p-settings__w-node--door">
-      <span class="p-settings__w-door"><${Icon} name=${open ? "check" : "lock"} size=${16} /></span>
-      <span class="p-settings__w-name">Web door</span>
-      ${word ? html`<span class="p-settings__w-state">${word}</span>` : null}
-    </span>
-    <span class="p-settings__w-wire p-settings__w-wire--out"></span>
-    <span class="p-settings__w-node p-settings__w-node--web">
-      <span class="p-settings__w-globe"></span>
-      <span class="p-settings__w-name">Public web</span>
-    </span>
-    <span class="p-settings__w-node p-settings__w-node--others">
-      <span class="p-settings__w-others"><${Icon} name="team" size=${16} /></span>
-      <span class="p-settings__w-name">Other agents</span>
-    </span>
-    <span class="p-settings__w-wire p-settings__w-wire--shut"><${Icon} name="cross" size=${12} /></span>
-  </div>`;
+// The section's line in Settings' list of sections and beside its title (pages/settings.js): one short fact.
+export function statusLine(data) {
+  if (!data || typeof data !== "object") return null;
+  if (data.problem) return { tone: "bad", text: "Part of these settings could not be read." };
+  if (!data.on) return { tone: "neutral", text: WORDS.off };
+  const d = doorState(data.door);
+  if (d.state === "on") return { tone: "good", text: "On, the web door is open" };
+  return { tone: "warn", text: `On, but the web door is ${d.word.toLowerCase()}` };
 }
 
-function SwitchBlock({ view, busy, act, failure }) {
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const pad2 = (n) => String(n).padStart(2, "0");
+
+// When a visit was, for the ledger: "14:27" today, "12 Nov, 14:27" before; "" for a time that is not one.
+export function visitWhen(iso, now = new Date()) {
+  const d = new Date(typeof iso === "string" ? iso : NaN);
+  if (!Number.isFinite(d.getTime())) return "";
+  const hm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return d.toDateString() === now.toDateString() ? hm : `${d.getDate()} ${MONTHS[d.getMonth()]}, ${hm}`;
+}
+
+// Who opened it, from the visit's agent: "researcher" -> "Researcher".
+export function whoOf(slug) {
+  const s = plain(slug, 40).replace(/[-_]+/g, " ").trim();
+  return s ? s[0].toUpperCase() + s.slice(1) : "";
+}
+
+// Today's counts in one line: "10 of 300 today: 7 pages, 2 searches, 1 video, 3 refused."
+export function todayLine(view) {
+  const f = todayFigures(view);
+  return `${f.line}: ${count(f.pages, "page")}, ${count(f.searches, "search", "searches")}, ${count(f.videos, "video")}, ${f.refused} refused.`;
+}
+
+// A state tone of this module as the kit's St tone.
+const ST = { ok: "good", warn: "warn", bad: "bad", off: "neutral", live: "neutral" };
+
+// ---------------------------------------------------------------------------------------------------------------
+// Parts
+
+// The restart sentence, with the two commands set apart. The words are the plan's, unchanged.
+function RestartLine() {
+  return html`<p class="p-settings-web__restart">This section appears after the home screen is restarted: <code class="k-next__command">engine stop</code>, then <code class="k-next__command">engine start</code>.</p>`;
+}
+
+// A sentence that may end in "Run: <command>", as a block (in a notice) or inline (in a row's words).
+const Line = ({ children }) => (/\bRun:/.test(String(children)) ? html`<${NextStep} text=${children} />` : html`<p class="p-settings-web__text">${children}</p>`);
+function RunLine({ text, tone }) {
+  const s = String(text ?? "");
+  const m = /^(.*?\bRun:)\s+(.+)$/s.exec(s);
+  const inner = m ? html`${m[1]} <code class="k-next__command">${m[2]}</code>` : s;
+  return html`<span class=${`p-settings-web__line${tone ? ` p-settings-web__line--${tone}` : ""}`}>${inner}</span>`;
+}
+
+// A failed action, in the server's words: a notice under a group, or a line inside a row.
+const Failure = ({ failure, where }) => (failure && failure.where === where
+  ? html`<${Notice} tone="bad" title=${failure.error.message}>${failure.error.next ? html`<${Line}>${failure.error.next}<//>` : null}<//>`
+  : null);
+const FailLine = ({ failure, where }) => (failure && failure.where === where
+  ? html`<${RunLine} tone="bad" text=${failure.error.message} />${failure.error.next ? html`<${RunLine} text=${failure.error.next} />` : null}`
+  : null);
+
+// The door, drawn small under its sentence: the Researcher, the door, the public web. The words say the same.
+function DoorPath({ open }) {
+  return html`<span class=${`p-settings-web__path${open ? " p-settings-web__path--open" : ""}`} aria-hidden="true">
+    <span class="p-settings-web__node"><${Icon} name="search" size=${16} />Researcher</span>
+    <span class="p-settings-web__wire"></span>
+    <span class="p-settings-web__node p-settings-web__node--door"><${Icon} name=${open ? "check" : "lock"} size=${16} />Web door</span>
+    <span class="p-settings-web__wire"></span>
+    <span class="p-settings-web__node"><${Icon} name="globe" size=${16} />Public web</span>
+  </span>`;
+}
+
+// Group 1: the switch first, with its warning inside the panel; who may ask; the door's state.
+function DoorGroup({ view, busy, act, failure }) {
   const on = Boolean(view.on);
+  const door = doorState(view.door);
+  const open = on && door.state === "on";
   const locked = !on && !view.canSwitchOn;
   const reasons = blockerLines(view);
-  // On while the door is not running: the words stay K11's, the mark warns (the notice below says why).
-  const tone = on ? (doorState(view.door).state === "on" ? "ok" : "warn") : "off";
-  return html`<div class="p-settings__w-switch">
-    <${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
-      onChange=${(next) => act("switch", "/api/web/switch", { on: next }, switchLine(next))} />
-    <p class="p-settings__m-state" role="status">
-      ${busy === "switch"
-        ? html`<${StatusDot} tone="live" label=${WORDS.switching} />`
-        : html`<${StatusDot} tone=${tone} label=${switchLine(on)} />`}
-    </p>
-    ${locked ? html`
-      <p class="p-settings__m-text">It can be switched on when these are done:</p>
-      <ul class="p-settings__m-steps">
-        ${reasons.map((r, i) => html`<li key=${i}><${Line}>${r}<//></li>`)}
-      </ul>` : null}
-    <${Failure} failure=${failure} where="switch" />
-  </div>`;
-}
-
-function SharedLine({ view }) {
   const n = arr(view.shared).length;
-  return html`<p class="p-settings__w-shared">
-    <${Icon} name="lock" size=${14} />
-    <span>${sharedLine(n)}.</span>
-    <a href=${n ? "#/files?shared=1" : "#/files"}>${n ? "See them in Files" : "Choose some in Files"}</a>
-  </p>`;
+  const word = doorWord(on, view.door);
+  const doorTone = open ? "good" : on || door.state === "unhealthy" ? "warn" : "neutral";
+  return html`<${Group}>
+    <${Rows}>
+      <${Row} icon="globe" title=${WORDS.switchLabel}
+        say=${html`<span class="p-settings-web__lines">
+          <span role="status">${busy === "switch" ? WORDS.switching : switchLine(on)}</span>
+          ${locked ? html`<span>It can be switched on when these are done:</span>
+            ${reasons.map((r, i) => html`<${RunLine} key=${i} text=${r} />`)}` : null}
+          <${FailLine} failure=${failure} where="switch" />
+        </span>`}
+        control=${html`<${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
+          onChange=${(next) => act("switch", "/api/web/switch", { on: next }, switchLine(next))} />`}
+        warned=${WORDS.leaves} />
+      <${Row} icon="team" title="Who may ask"
+        say=${`Only the Researcher. ${sharedLine(n)}.`}
+        control=${html`<${Button} variant="link" size="sm" href=${n ? "#/files?shared=1" : "#/files"}>${n ? "See them in Files" : "Choose some in Files"}<//>`} />
+      <${Row} icon="door" title="The web door" state=${{ tone: doorTone, text: word }}
+        say=${html`<span class="p-settings-web__lines"><${RunLine} text=${door.sentence} /><${DoorPath} open=${open} /></span>`} />
+    <//>
+  <//>`;
 }
 
-// One of the three lists: a field to add names, and the names as chips. A name that is not a site's name is
-// shown as a refused chip, with one sentence, and is never sent.
+// One of the three lists: its sites as a kit table with a remove button each, and the add field on one line under
+// them. A name that is not a site's name is shown as a refused row, with one sentence, and is never sent.
 function HostList({ spec, hosts, busy, save, failure }) {
   const [hostText, setHostText] = useState("");
   const [refused, setRefused] = useState([]);
@@ -355,6 +383,7 @@ function HostList({ spec, hosts, busy, save, failure }) {
   const serverError = failure && failure.where === where ? failure.error.message : "";
   const last = refused[refused.length - 1];
   const sentence = last ? refusedLine(last) : full ? `${MAX_HOSTS} sites is the most for one list.` : serverError;
+  const headId = `web-list-${spec.key}`;
 
   async function add(event) {
     event.preventDefault();
@@ -372,48 +401,70 @@ function HostList({ spec, hosts, busy, save, failure }) {
     save(spec.key, list.filter((x) => x !== h), `${h} is taken off.`);
   };
 
-  return html`<div class="p-settings__w-list">
-    <form onSubmit=${add} autocomplete="off">
-      <${Field} label=${spec.label} error=${sentence || null}>
-        <div class="p-settings__w-addrow">
-          <${TextInput} value=${hostText} maxLength=${4000} placeholder=${spec.placeholder} autocapitalize="off" spellcheck=${false}
-            onInput=${(e) => setHostText(e.currentTarget.value)} />
-          <${Button} type="submit" icon="plus" busy=${busy === where} disabled=${Boolean(busy) || !hostText.trim()}>Add<//>
-        </div>
-      <//>
-    </form>
-    ${list.length || refused.length ? html`
-      <ul class="p-settings__w-chips" aria-label=${`${spec.short}: ${count(list.length, "site")}`}>
-        ${list.map((h) => html`<li key=${h} class="p-settings__w-chip">
-          <span class="p-settings__w-chip-name">${plain(h, 253)}</span>
-          <button type="button" class="p-settings__w-chip-x" aria-label=${`Take ${plain(h, 253)} off`} disabled=${Boolean(busy)}
-            onClick=${() => remove(h)}><${Icon} name="cross" size=${12} /></button>
-        </li>`)}
-        ${refused.map((t, i) => html`<li key=${`refused-${i}`} class="p-settings__w-chip p-settings__w-chip--bad">
-          <${Icon} name="alert" size=${12} />
-          <span class="p-settings__w-chip-name">${plain(t, 80)}</span>
-          <span class="k-sr">Refused, not a site name.</span>
-          <button type="button" class="p-settings__w-chip-x" aria-label=${`Clear ${plain(t, 80)}`}
-            onClick=${() => setRefused(refused.filter((_, j) => j !== i))}><${Icon} name="cross" size=${12} /></button>
-        </li>`)}
-      </ul>` : html`<p class="p-settings__w-none">${spec.empty}</p>`}
-  </div>`;
+  const rows = [
+    ...list.map((h) => ({ id: `site-${h}`, site: plain(h, 253) })),
+    ...refused.map((t, i) => ({ id: `refused-${i}`, site: plain(t, 80), refused: i })),
+  ];
+  const cell = (row, col) => {
+    if (col.key === "site") {
+      return row.refused === undefined
+        ? html`<span class="p-settings-web__site">${row.site}</span>`
+        : html`<span class="p-settings-web__site p-settings-web__site--bad">${row.site}</span> <${Tag} tone="bad">Not a site name<//>`;
+    }
+    return row.refused === undefined
+      ? html`<${Button} variant="quiet" size="sm" icon="cross" aria-label=${`Take ${row.site} off ${spec.short}`} disabled=${Boolean(busy)}
+          onClick=${() => remove(row.site)} />`
+      : html`<${Button} variant="quiet" size="sm" icon="cross" aria-label=${`Clear ${row.site}`}
+          onClick=${() => setRefused(refused.filter((_, j) => j !== row.refused))} />`;
+  };
+
+  return html`<section class="p-settings-web__list" aria-labelledby=${headId}>
+    <h3 class="p-settings-web__list-title" id=${headId}>
+      <span>${spec.label}</span>
+      <span class="p-settings-web__count">${count(list.length, "site")}</span>
+    </h3>
+    <div class="p-settings-web__panel">
+      <${DataTable} columns=${[{ key: "site", label: "Site", align: "start" }, { key: "remove", label: "Take off", align: "end" }]}
+        rows=${rows} emptyText=${spec.empty} renderCell=${cell} />
+      <form class="p-settings-web__add" onSubmit=${add} autocomplete="off">
+        <${Field} error=${sentence || null}>
+          <div class="p-settings-web__addrow">
+            <${TextInput} value=${hostText} maxLength=${4000} placeholder=${spec.placeholder} autocapitalize="off" spellcheck=${false}
+              aria-label=${`Add a site to ${spec.short}`} onInput=${(e) => setHostText(e.currentTarget.value)} />
+            <${Button} type="submit" icon="plus" busy=${busy === where} disabled=${Boolean(busy) || !hostText.trim()}>Add<//>
+          </div>
+        <//>
+      </form>
+    </div>
+  </section>`;
 }
 
-function ListsCard({ view, busy, act, failure }) {
+function ListsGroup({ view, busy, act, failure }) {
   const save = (key, list, said) => act(`list:${key}`, "/api/web/lists", { [key]: list }, said);
-  return html`<${Card} class="p-settings__m-card p-settings__w-listcard">
-    <div class="p-settings__m-head">
-      <h3 class="p-settings__label">What it may open</h3>
-    </div>
-    <p class="p-settings__m-text">${WORDS.listsHint}</p>
-    <div class="p-settings__w-lists">
+  return html`<${Group} title="What it may open" say=${WORDS.listsHint}>
+    <div class="p-settings-web__lists">
       ${LISTS.map((spec) => html`<${HostList} key=${spec.key} spec=${spec} hosts=${view[spec.key]} busy=${busy} save=${save} failure=${failure} />`)}
     </div>
   <//>`;
 }
 
-function SearchCard({ view, busy, act, failure }) {
+// Arrows move the choice between the radio rows and take it, as a radio group does; Home and End go to the ends.
+function onRadioKey(ev, ids, choose) {
+  const keys = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1, Home: "first", End: "last" };
+  if (!(ev.key in keys)) return;
+  const group = ev.currentTarget && ev.currentTarget.closest ? ev.currentTarget.closest('[role="radiogroup"]') : null;
+  const rows = group ? [...group.querySelectorAll('[role="radio"]')] : [];
+  if (!rows.length) return;
+  ev.preventDefault();
+  const at = rows.indexOf(ev.currentTarget);
+  const step = keys[ev.key];
+  const to = step === "first" ? 0 : step === "last" ? rows.length - 1 : (at + step + rows.length) % rows.length;
+  rows[to].focus();
+  choose(ids[to], { moved: true });
+}
+
+// Group 3: how it searches, as radio rows (one Tab stop; the arrows move), and the key under them when it is used.
+function SearchGroup({ view, busy, act, failure }) {
   const [wantBrave, setWantBrave] = useState(false);
   const [typed, setTyped] = useState("");
   const [asking, setAsking] = useState(false);
@@ -431,7 +482,9 @@ function SearchCard({ view, busy, act, failure }) {
     if (input) input.focus();
   }, 0);
 
-  async function choose(id) {
+  // A choice taken by the arrows leaves the focus on its row; a click on Brave without a key goes to the key field.
+  async function choose(id, { moved = false } = {}) {
+    if (busy) return;
     if (id === "keyless") {
       setWantBrave(false);
       if (view.search !== "keyless") await act("search", "/api/web/search", { search: "keyless" }, "Search now works without an account.");
@@ -442,7 +495,7 @@ function SearchCard({ view, busy, act, failure }) {
       return;
     }
     setWantBrave(true);
-    focusKey();
+    if (!moved) focusKey();
   }
   async function save(event) {
     event.preventDefault();
@@ -456,109 +509,80 @@ function SearchCard({ view, busy, act, failure }) {
     { id: "keyless", label: WORDS.keyless, sub: "Needs nothing from you. It reads a free public search page, which can change or refuse at any time." },
     { id: "brave", label: WORDS.brave, sub: saved ? "Steadier. It uses the key you saved." : "Steadier. It needs a key from your own Brave Search account." },
   ];
-  return html`<${Card} class="p-settings__m-card">
-    <div class="p-settings__m-head">
-      <h3 class="p-settings__label" id="web-search-title">Search</h3>
-      <${StatusDot} tone=${mark.tone} label=${mark.word} />
-    </div>
-    ${down ? html`<${Notice} tone="warn" title=${down}>
-      ${view.search !== "brave" ? html`<div class="p-settings__w-down"><span>A Brave key is steadier.</span>
-        <${Button} size="sm" onClick=${() => choose("brave")} disabled=${Boolean(busy)}>Use a Brave key<//></div>` : null}
-    <//>` : null}
-    <div class="p-settings__w-choices" role="radiogroup" aria-labelledby="web-search-title">
-      ${choices.map((c) => html`<label key=${c.id} class=${`p-settings__w-choice${chosen === c.id ? " p-settings__w-choice--on" : ""}`}>
-        <input type="radio" name="web-search" value=${c.id} checked=${chosen === c.id} disabled=${Boolean(busy)} onChange=${() => choose(c.id)} />
-        <span class="p-settings__w-choice-words">
-          <span class="p-settings__w-choice-title">${c.label}</span>
-          <span class="p-settings__w-choice-sub">${c.sub}</span>
-        </span>
-      </label>`)}
-    </div>
+  const ids = choices.map((c) => c.id);
+  return html`<${Group} title="Search" aside=${html`<${St} tone=${ST[mark.tone]}>${mark.word}<//>`}>
+    ${down ? html`<div class="p-settings-web__notice"><${Notice} tone="warn" title=${down}>
+      ${view.search !== "brave" ? html`A Brave key is steadier. <${Button} variant="link" size="sm" onClick=${() => choose("brave")} disabled=${Boolean(busy)}>Use a Brave key<//>` : null}
+    <//></div>` : null}
+    <${Rows}>
+      <div class="p-settings-web__radios" role="radiogroup" aria-label="Search">
+        ${choices.map((c) => {
+          const on = chosen === c.id;
+          return html`<button key=${c.id} type="button" role="radio" aria-checked=${on ? "true" : "false"} tabindex=${on ? "0" : "-1"}
+            aria-disabled=${busy ? "true" : undefined} class="k-rows__row p-settings-web__radio" data-option=${c.id}
+            onClick=${() => choose(c.id)} onKeyDown=${(ev) => onRadioKey(ev, ids, choose)}>
+            <span class="k-rows__icon p-settings-web__radio-mark" aria-hidden="true"><span class="p-settings-web__radio-dot"></span></span>
+            <span class="k-rows__text">
+              <span class="k-rows__title">${c.label}</span>
+              <span class="k-say">${c.sub}</span>
+            </span>
+          </button>`;
+        })}
+      </div>
+      ${showKey ? html`
+        <form class="p-settings-web__key" onSubmit=${save} autocomplete="off" ref=${keyBox}>
+          <${Row} icon="key" title=${WORDS.keyField}
+            say=${html`<span class="p-settings-web__lines">
+              <span>${saved ? "A key is saved. Paste a new one to replace it." : "It is kept on this Mac only and is never shown again."}</span>
+              ${wantBrave && !saved ? html`<span>Until a key is saved, search goes on without an account.</span>` : null}
+              <${FailLine} failure=${failure} where="key" />
+              <${FailLine} failure=${failure} where="remove" />
+            </span>`}
+            control=${html`
+              <${TextInput} type="password" name="search-key" autocomplete="off" autocapitalize="off" spellcheck=${false} aria-label=${WORDS.keyField}
+                value=${typed} onInput=${(e) => setTyped(e.currentTarget.value)} placeholder=${saved ? "A key is saved" : "Paste your key here"} />
+              <${Button} variant="primary" type="submit" busy=${busy === "key"} disabled=${Boolean(busy) || !typed.trim()}>${WORDS.save}<//>
+              ${saved ? html`<${Button} variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>Remove key<//>` : null}`} />
+        </form>` : null}
+    <//>
     <${Failure} failure=${failure} where="search" />
-    ${showKey ? html`
-      <form class="p-settings__m-key" onSubmit=${save} autocomplete="off" ref=${keyBox}>
-        <${Field} label=${WORDS.keyField} hint=${saved ? "A key is saved. Paste a new one to replace it." : "It is kept on this Mac only and is never shown again."}
-          error=${failure && failure.where === "key" ? failure.error : null}>
-          <${TextInput} type="password" name="search-key" autocomplete="off" autocapitalize="off" spellcheck=${false}
-            value=${typed} onInput=${(e) => setTyped(e.currentTarget.value)} placeholder=${saved ? "A key is saved" : "Paste your key here"} />
-        <//>
-        <div class="p-settings__m-buttons">
-          <${Button} variant="primary" type="submit" busy=${busy === "key"} disabled=${Boolean(busy) || !typed.trim()}>${WORDS.save}<//>
-          ${saved ? html`<${Button} variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>Remove key<//>` : null}
-        </div>
-        ${wantBrave && !saved ? html`<p class="p-settings__m-text">Until a key is saved, search goes on without an account.</p>` : null}
-      </form>` : null}
-    <${Failure} failure=${failure} where="remove" />
     <${Dialog} open=${asking} title="Remove the key?" size="sm" onClose=${() => setAsking(false)}
       footer=${html`
         <${Button} data-autofocus onClick=${() => setAsking(false)}>Keep the key<//>
         <${Button} variant="danger" onClick=${async () => { setAsking(false); await act("remove", "/api/web/search-key/remove", {}, "The key is removed."); }}>Remove key<//>`}>
-      <p class="p-settings__m-text">The key is deleted from this Mac. Search goes back to working without an account.</p>
+      <p class="p-settings-web__text">The key is deleted from this Mac. Search goes back to working without an account.</p>
     <//>
   <//>`;
 }
 
-function TestCard({ view, busy, act, failure }) {
+// Group 4: the owner's Test, and its answer as sent, in one panel.
+function TestGroup({ view, busy, act, failure }) {
   const door = doorState(view.door);
   const t = view.lastTest;
   const mark = testMark(t);
-  return html`<${Card} class="p-settings__m-card">
-    <div class="p-settings__m-head">
-      <h3 class="p-settings__label">Test</h3>
-      <${StatusDot} tone=${mark.tone} label=${mark.word} />
-    </div>
-    <p class="p-settings__m-text">${WORDS.testWhat}</p>
-    <div class="p-settings__m-buttons">
-      <${Button} icon="play" onClick=${() => act("test", "/api/web/test", {}, "The test is done.")} busy=${busy === "test"}
-        disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>
-    </div>
-    ${door.state !== "on" ? html`<p class="p-settings__m-text">It can be tested once the web door is running.</p>` : null}
-    ${busy === "test" ? html`<p class="p-settings__m-text" role="status"><${StatusDot} tone="live" label="Testing. This can take up to 45 seconds." /></p>` : null}
-    <${Failure} failure=${failure} where="test" />
-    ${t ? html`
-      <div class="p-settings__m-test">
-        <h4 class="p-settings__m-sub">Last test${fullWhen(t.at) ? `, ${fullWhen(t.at)}` : ""}</h4>
-        <ul class="p-settings__m-answers">
-          ${testRows(t).map((r, i) => html`<li key=${i} class="p-settings__m-answer"><${StatusDot} tone=${r.tone} label=${r.text} /></li>`)}
-        </ul>
-      </div>` : null}
+  const when = t ? fullWhen(t.at) : "";
+  const say = busy === "test"
+    ? "Testing. This can take up to 45 seconds."
+    : door.state !== "on" ? "It can be tested once the web door is running." : t ? `Last test${when ? `, ${when}` : ""}.` : "Not tested yet.";
+  const rows = testRows(t);
+  return html`<${Group} title="Test" aside=${html`<${St} tone=${ST[mark.tone]}>${mark.word}<//>`} say=${WORDS.testWhat}>
+    <${Rows}>
+      <${Row} icon="play" title="Open one page and search once"
+        say=${html`<span class="p-settings-web__lines">
+          <span role="status">${say}</span>
+          <${FailLine} failure=${failure} where="test" />
+        </span>`}
+        control=${html`<${Button} onClick=${() => act("test", "/api/web/test", {}, "The test is done.")} busy=${busy === "test"}
+          disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>`} />
+      ${rows.length ? html`
+        <${Row} icon="file" title="Reading a page" say=${html`<${St} tone=${ST[rows[0].tone]}>${rows[0].text}<//>`} />
+        <${Row} icon="search" title="Searching" say=${html`<${St} tone=${ST[rows[1].tone]}>${rows[1].text}<//>`} />` : null}
+    <//>
   <//>`;
 }
 
-function Today({ view }) {
-  const f = todayFigures(view);
-  const tiles = [["Pages", f.pages], ["Searches", f.searches], ["Videos", f.videos], ["Refused", f.refused]];
-  return html`<div class="p-settings__w-today">
-    <${Ring} value=${f.used} total=${f.perDay || 1} size=${44} label=${f.line} />
-    <div class="p-settings__w-today-words">
-      <p class="p-settings__w-today-line">${f.line}</p>
-      <p class="p-settings__w-today-caps">${f.caps}</p>
-    </div>
-    <dl class="p-settings__w-counts" aria-label="Today">
-      ${tiles.map(([label, n]) => html`<div key=${label} class="p-settings__w-count"><dt>${label}</dt><dd>${n}</dd></div>`)}
-    </dl>
-  </div>`;
-}
-
-function VisitRow({ v }) {
-  const r = visitResult(v);
-  const full = visitText(v);
-  return html`<li class="p-settings__w-visit">
-    <span class="p-settings__w-kind"><${Icon} name=${KIND_ICONS[v.kind] || "file"} size=${14} /><span class="p-settings__w-kind-word">${KIND_WORDS[v.kind] || "Page"}</span></span>
-    <span class="p-settings__w-addr" title=${full}>
-      <span class="p-settings__w-addr-long" aria-hidden="true">${shortAddress(full, 72)}</span>
-      <span class="p-settings__w-addr-short" aria-hidden="true">${shortAddress(full, 34)}</span>
-      <span class="k-sr">${full}</span>
-    </span>
-    <span class="p-settings__w-result">
-      <${StatusDot} tone=${r.tone} label=${r.word} />
-      ${r.why ? html`<span class="p-settings__w-why">${r.why}</span>` : null}
-    </span>
-    <span class="p-settings__w-when"><${Time} at=${v.at} /></span>
-  </li>`;
-}
-
-function VisitsCard({ view }) {
+// Group 5: what was opened, as a ledger: when, who, the site, the result; newest first.
+function VisitsGroup({ view }) {
   const first = useResource("/api/web/visits", { every: EVERY });
   const [older, setOlder] = useState([]);
   const [more, setMore] = useState(null);
@@ -583,34 +607,50 @@ function VisitsCard({ view }) {
     }
   }
 
-  return html`<${Card} class="p-settings__m-card p-settings__w-logcard">
-    <div class="p-settings__m-head">
-      <h3 class="p-settings__label">What it has opened</h3>
-      ${list.length ? html`<span class="p-settings__w-newest">Newest first</span>` : null}
-    </div>
-    <${Today} view=${view} />
+  const now = new Date();
+  const rows = list.map((v, i) => ({ id: `${v.at}-${i}`, v }));
+  const cell = (row, col) => {
+    const v = row.v;
+    if (col.key === "when") return html`<time datetime=${v.at} title=${fullWhen(v.at)}>${visitWhen(v.at, now)}</time>`;
+    if (col.key === "who") return whoOf(v.slug) || "Researcher";
+    if (col.key === "site") {
+      const full = visitText(v);
+      return html`<span class="p-settings-web__visit" title=${full}>
+        <${Icon} name=${KIND_ICONS[v.kind] || "file"} size=${14} />
+        <span class="k-sr">${KIND_WORDS[v.kind] || "Page"}: </span>
+        <span class="p-settings-web__addr">
+          <span class="p-settings-web__addr-long" aria-hidden="true">${shortAddress(full, 60)}</span>
+          <span class="p-settings-web__addr-short" aria-hidden="true">${shortAddress(full, 34)}</span>
+          <span class="k-sr">${full}</span>
+        </span>
+      </span>`;
+    }
+    const r = visitResult(v);
+    return html`<${St} tone=${ST[r.tone]}>${r.word}<//>${r.why ? html`<small>${r.why}</small>` : null}`;
+  };
+
+  return html`<${Group} title="What it has opened" aside=${list.length ? "Newest first" : null} say=${`${todayLine(view)} ${todayFigures(view).caps}`}>
     ${first.loading && !first.data ? html`<${Loading} lines=${3} label="Loading what it has opened" />` : null}
     ${first.error && !first.data ? html`<${ErrorNotice} error=${first.error} onRetry=${first.reload} />` : null}
-    ${first.data && !list.length ? html`
-      <div class="p-settings__w-empty">
-        <${Icon} name="search" size=${20} />
-        <p class="p-settings__w-empty-title">${WORDS.noVisits}</p>
-        <p class="p-settings__m-text">${view.on ? "Every page it opens, every search and every video shows here." : "Once it is switched on, every page it opens shows here."}</p>
+    ${first.data && !list.length ? html`<div class="p-settings-web__panel">
+        <${Empty} icon="globe" title=${WORDS.noVisits}
+          text=${view.on ? "Every page it opens, every search and every video shows here." : "Once it is switched on, every page it opens shows here."} />
       </div>` : null}
-    ${list.length ? html`
-      <div class="p-settings__w-log">
-        <div class="p-settings__w-loghead" aria-hidden="true"><span>What</span><span>Address</span><span>Result</span><span>When</span></div>
-        <ol class="p-settings__w-visits" aria-label="What it has opened, newest first">
-          ${list.map((v, i) => html`<${VisitRow} key=${`${v.at}-${i}`} v=${v} />`)}
-        </ol>
+    ${list.length ? html`<div class="p-settings-web__ledger">
+        <${DataTable} rows=${rows} renderCell=${cell} columns=${[
+          { key: "when", label: "When", align: "start" },
+          { key: "who", label: "Who", align: "start" },
+          { key: "site", label: "Site", align: "start" },
+          { key: "result", label: "Result", align: "start" },
+        ]} />
       </div>` : null}
     ${olderError ? html`<${ErrorNotice} error=${olderError} onRetry=${showOlder} />` : null}
-    ${list.length && hasMore ? html`<div class="p-settings__w-older"><${Button} busy=${loadingOlder} onClick=${showOlder}>Show older<//></div>` : null}
+    ${list.length && hasMore ? html`<div class="p-settings-web__older"><${Button} variant="quiet" busy=${loadingOlder} onClick=${showOlder}>Show older<//></div>` : null}
   <//>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// The section
+// The section: groups straight into Settings' column (its title and state are the frame's, from statusLine).
 
 export default function WebSection() {
   const { announce } = useApp();
@@ -622,10 +662,6 @@ export default function WebSection() {
   // The answer of the last action is shown until the next quiet refresh brings a newer view.
   const view = fresh && fresh.base === res.data ? fresh.view : res.data;
   const ready = state === "ready" && view && typeof view === "object";
-  const on = Boolean(ready && view.on);
-  const door = ready ? doorState(view.door) : null;
-  // Open: switched on and the door running. Switched on while the door is not running is on, but nothing goes out.
-  const open = Boolean(on && door && door.state === "on");
 
   // Runs one action. Errors carry the server's plain message only: nothing typed is ever put in one.
   async function act(where, path, body, said) {
@@ -645,36 +681,18 @@ export default function WebSection() {
     }
   }
 
-  return html`
-    <div class="p-settings__web" id="settings-web">
-      <${Section} title=${WORDS.title}>
-        <div class="p-settings__models">
-          <${Card} class=${`p-settings__m-card p-settings__w-hero${open ? " p-settings__w-hero--on" : ""}`}>
-            <div class="p-settings__m-head">
-              <h3 class="p-settings__label">The web door</h3>
-              ${ready ? html`<${StatusDot} tone=${open ? "ok" : on ? "warn" : "off"} label=${on ? "On" : "Off"} />` : null}
-            </div>
-            <div class="p-settings__w-intro">
-              <div class="p-settings__w-words">
-                <p class="p-settings__m-lead">${WORDS.intro}</p>
-                <${Notice} tone="warn">${WORDS.leaves}<//>
-              </div>
-              <${DoorMap} open=${open} on=${on} door=${ready ? view.door : null} />
-            </div>
-            ${state === "loading" ? html`<${Loading} lines=${3} label="Loading the web settings" />` : null}
-            ${state === "restart" ? html`<div class="p-settings__m-later"><${StatusDot} tone="off" label="Not here yet" /><${RestartLine} /></div>` : null}
-            ${state === "error" ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
-            ${ready && view.problem ? html`<${Notice} tone="bad"><${Line}>${problemLine(view)}<//><//>` : null}
-            ${ready ? html`<${SwitchBlock} view=${view} busy=${busy} act=${act} failure=${failure} />` : null}
-            ${ready && on && door.state !== "on" ? html`<${Notice} tone="warn"><${Line}>${door.sentence}<//><//>` : null}
-            ${ready ? html`<${SharedLine} view=${view} />` : null}
-          <//>
-          ${ready ? html`
-            <${ListsCard} view=${view} busy=${busy} act=${act} failure=${failure} />
-            <${SearchCard} view=${view} busy=${busy} act=${act} failure=${failure} />
-            <${TestCard} view=${view} busy=${busy} act=${act} failure=${failure} />
-            <${VisitsCard} view=${view} />` : null}
-        </div>
-      <//>
-    </div>`;
+  const parts = { view, busy, act, failure };
+  return html`<div class="p-settings-web" id="settings-web">
+    <p class="p-settings-web__intro">${WORDS.intro}</p>
+    ${state === "loading" ? html`<div class="p-settings-web__first"><${Loading} lines=${3} label="Loading the web settings" /></div>` : null}
+    ${state === "restart" ? html`<div class="p-settings-web__first p-settings-web__later"><${St} icon="clock">Not here yet<//><${RestartLine} /></div>` : null}
+    ${state === "error" ? html`<div class="p-settings-web__first"><${ErrorNotice} error=${res.error} onRetry=${res.reload} /></div>` : null}
+    ${ready && view.problem ? html`<div class="p-settings-web__first"><${Notice} tone="bad"><${Line}>${problemLine(view)}<//><//></div>` : null}
+    ${ready ? html`
+      <${DoorGroup} ...${parts} />
+      <${ListsGroup} ...${parts} />
+      <${SearchGroup} ...${parts} />
+      <${TestGroup} ...${parts} />
+      <${VisitsGroup} view=${view} />` : null}
+  </div>`;
 }

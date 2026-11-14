@@ -1,2 +1,429 @@
-/* page settings-web: placeholder; its part fills this in. */
-.p-settings-web { }
+/* Settings, Web (pages/settings-web.js, PLAN-COOK T55): groups of the kit's rows in Settings' column. What is drawn
+   here is only this section's own: the intro, the small drawing of the door, the three lists of sites (a panel each:
+   a table of sites, the add field on one line under it), the search choice as radio rows, and the ledger of what was
+   opened. The editable lists are panels on the raised step; the ledger sits on the ground, as C3's tables do. */
+
+.p-settings-web__intro {
+  margin-top: var(--s-1);
+  max-width: 68ch;
+  color: var(--ink-2);
+}
+
+.p-settings-web__intro + .k-group,
+.p-settings-web__first + .k-group {
+  margin-top: var(--s-6);
+}
+
+.p-settings-web__first {
+  margin-top: var(--s-6);
+}
+
+.p-settings-web__text {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+/* A row's words in several short lines. */
+.p-settings-web__lines {
+  display: grid;
+  gap: 2px;
+}
+
+.p-settings-web__line {
+  display: block;
+}
+
+.p-settings-web__line--bad {
+  color: var(--bad);
+}
+
+.p-settings-web .k-next__command {
+  margin-top: 0;
+}
+
+/* The door, drawn under its sentence: three words with 16 px icons and two short lines. */
+.p-settings-web__path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) 0;
+  margin-top: 6px;
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+}
+
+.p-settings-web__node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  white-space: nowrap;
+}
+
+.p-settings-web__node .k-icon {
+  color: var(--ink-3);
+}
+
+.p-settings-web__wire {
+  width: var(--s-4);
+  border-top: 1px solid var(--ink-3);
+}
+
+.p-settings-web__path--open .p-settings-web__wire {
+  border-top-color: var(--good);
+}
+
+.p-settings-web__path--open .p-settings-web__node--door {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.p-settings-web__path--open .p-settings-web__node--door .k-icon {
+  color: var(--good);
+}
+
+/* The three lists: a heading, then a panel with the sites and the add field. */
+.p-settings-web__lists {
+  display: grid;
+  gap: var(--s-5);
+}
+
+.p-settings-web__list-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin-bottom: var(--s-2);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+}
+
+.p-settings-web__count {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-settings-web__panel {
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.p-settings-web__list .k-table__table thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.p-settings-web__list .k-table__table td {
+  height: var(--s-12);
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.p-settings-web__list .k-table__table tr:first-child td {
+  border-top: 0;
+}
+
+.p-settings-web__list .k-table__table td:first-child {
+  padding-left: var(--s-4);
+}
+
+.p-settings-web__list .k-table__table td:last-child {
+  width: var(--s-12);
+  padding-right: var(--s-2);
+}
+
+.p-settings-web__list .k-table--empty {
+  padding: var(--s-3) var(--s-4);
+  text-align: left;
+}
+
+.p-settings-web__site {
+  font-size: var(--fs-body);
+  overflow-wrap: anywhere;
+}
+
+.p-settings-web__site--bad {
+  color: var(--bad);
+  text-decoration: line-through;
+}
+
+.p-settings-web__add {
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--line);
+  background: var(--ctl);
+}
+
+.p-settings-web__addrow {
+  display: flex;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.p-settings-web__addrow .k-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--panel);
+}
+
+.p-settings-web__addrow .k-btn {
+  flex: none;
+}
+
+.p-settings-web__add .k-field__error {
+  margin-top: var(--s-2);
+}
+
+/* Search: the warning above the choice, quiet; the choice as radio rows in one panel; the key as one more row. */
+.p-settings-web__notice {
+  margin-bottom: var(--s-3);
+}
+
+.p-settings-web__notice .k-btn {
+  vertical-align: baseline;
+}
+
+.p-settings-web__radio {
+  width: 100%;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.p-settings-web__radio:hover {
+  background: var(--ctl);
+}
+
+.p-settings-web__radio[aria-disabled="true"] {
+  cursor: default;
+}
+
+.p-settings-web__radio .k-rows__title,
+.p-settings-web__radio .k-say {
+  display: block;
+}
+
+.p-settings-web__radio-mark {
+  background: transparent;
+}
+
+.p-settings-web__radio-dot {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--ink-3);
+  border-radius: var(--r-round);
+  transition: border-color var(--t-fast) var(--ease);
+}
+
+.p-settings-web__radio[aria-checked="true"] .p-settings-web__radio-dot {
+  border: 5px solid var(--accent);
+  background: var(--accent-ink);
+}
+
+.p-settings-web__key {
+  border-top: 1px solid var(--line);
+}
+
+.p-settings-web__key .k-input {
+  width: 11rem;
+}
+
+/* What it has opened: a ledger on the ground in fixed columns; the address in one line, cut in the middle. */
+.p-settings-web__ledger .k-table__table {
+  table-layout: fixed;
+}
+
+.p-settings-web__ledger .k-table__table td {
+  height: 52px;
+}
+
+.p-settings-web__ledger .k-table__table th:first-child {
+  width: 7.5rem;
+}
+
+.p-settings-web__ledger .k-table__table th:nth-child(2) {
+  width: 6.5rem;
+}
+
+.p-settings-web__ledger .k-table__table th:last-child {
+  width: 12.5rem;
+}
+
+.p-settings-web__ledger .k-table__table td:first-child,
+.p-settings-web__ledger .k-table__table td:nth-child(2) {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.p-settings-web__ledger .k-table__table td:last-child small {
+  margin-top: 2px;
+}
+
+.p-settings-web__visit {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.p-settings-web__visit .k-icon {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.p-settings-web__addr {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.p-settings-web__addr-short {
+  display: none;
+}
+
+.p-settings-web__older {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--s-3);
+}
+
+.p-settings-web__panel .k-empty {
+  padding: var(--s-8) var(--s-6);
+}
+
+/* Not here yet: the restart sentence with its two commands. */
+.p-settings-web__later {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--panel);
+}
+
+.p-settings-web__restart {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.p-settings-web__restart .k-next__command {
+  white-space: nowrap;
+}
+
+@media (max-width: 859px) {
+  /* The lists stay rows of a table on a phone: a site and its remove button on one line. */
+  .p-settings-web__list .k-table__table {
+    display: table;
+  }
+
+  .p-settings-web__list .k-table__table tbody {
+    display: table-row-group;
+  }
+
+  .p-settings-web__list .k-table__table tr {
+    display: table-row;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .p-settings-web__list .k-table__table td {
+    display: table-cell;
+    width: auto;
+    height: var(--s-12);
+    padding: 6px var(--s-2) 6px var(--s-4);
+    border-top: 1px solid var(--line);
+  }
+
+  .p-settings-web__list .k-table__table td:last-child {
+    width: var(--s-12);
+    padding: 6px var(--s-2) 6px 0;
+  }
+
+  .p-settings-web__list .k-table__table tr:first-child td {
+    border-top: 0;
+  }
+
+  .p-settings-web__list .k-table__table td::before {
+    content: none;
+  }
+
+  .p-settings-web__key .k-input {
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .p-settings-web__key .k-rows__control {
+    flex-wrap: wrap;
+  }
+
+  /* The drawing of the door does not fit beside a phone's words; its sentence says the same. */
+  .p-settings-web__path {
+    display: none;
+  }
+
+  /* A visit on a phone: when and who on one line, the site under them, then the result. */
+  .p-settings-web__ledger .k-table__table tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 2px var(--s-3);
+    padding: var(--s-3) var(--s-4);
+  }
+
+  .p-settings-web__ledger .k-table__table td,
+  .p-settings-web__ledger .k-table__table td:first-child,
+  .p-settings-web__ledger .k-table__table td:last-child {
+    display: block;
+    height: auto;
+    padding: 0;
+  }
+
+  .p-settings-web__ledger .k-table__table td::before {
+    content: none;
+  }
+
+  .p-settings-web__ledger .k-table__table td:nth-child(n + 3) {
+    grid-column: 1 / -1;
+  }
+
+  .p-settings-web__ledger .k-table__table td:nth-child(3) {
+    margin-top: var(--s-1);
+  }
+
+  .p-settings-web__ledger .k-table__table td:nth-child(2) {
+    color: var(--ink-3);
+  }
+
+  .p-settings-web__addr-long {
+    display: none;
+  }
+
+  .p-settings-web__addr-short {
+    display: inline;
+  }
+}

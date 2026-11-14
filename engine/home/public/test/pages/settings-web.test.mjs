@@ -299,3 +299,105 @@ test("files: the shared list from the web view, each file leading where it shoul
   assert.equal(files.sharedHref(other), null);
   assert.equal(files.sharedHref({ source: "brain", token: "../x" }), null);
 });
+
+// ---- Drawn as groups in Settings' column (PLAN-COOK T55) ----------------------------------------------------------
+
+test("web: the section's line in Settings' list, one short fact from the state words", async () => {
+  const { statusLine } = await import("../../pages/settings-web.js");
+  assert.deepEqual(statusLine(view({ on: false })), { tone: "neutral", text: "Off. No agent can reach the internet." });
+  assert.deepEqual(statusLine(view({ on: true, door: { state: "on" } })), { tone: "good", text: "On, the web door is open" });
+  assert.deepEqual(statusLine(view({ on: true, door: { state: "off" } })), { tone: "warn", text: "On, but the web door is off" });
+  assert.deepEqual(statusLine(view({ on: true, door: { state: "unhealthy" } })), { tone: "warn", text: "On, but the web door is not answering" });
+  assert.deepEqual(statusLine(view({ problem: "state_unreadable" })), { tone: "bad", text: "Part of these settings could not be read." });
+  assert.equal(statusLine(null), null);
+  for (const v of [view({ on: false }), view({ on: true, door: { state: "not_installed" } }), view({ problem: "x" })]) {
+    assert.ok(statusLine(v).text.length <= 60, statusLine(v).text);
+  }
+});
+
+test("web: the ledger's when, who and today's line", async () => {
+  const { visitWhen, whoOf, todayLine } = await import("../../pages/settings-web.js");
+  const now = new Date(2026, 10, 14, 18, 0);
+  assert.equal(visitWhen(new Date(2026, 10, 14, 9, 5).toISOString(), now), "09:05");
+  assert.equal(visitWhen(new Date(2026, 10, 12, 14, 27).toISOString(), now), "12 Nov, 14:27");
+  assert.equal(visitWhen("not a time", now), "");
+  assert.equal(visitWhen(null, now), "");
+  assert.equal(whoOf("researcher"), "Researcher");
+  assert.equal(whoOf("page-viewer"), "Page viewer");
+  assert.equal(whoOf("a‮b"), "Ab");
+  assert.equal(whoOf(null), "");
+  assert.equal(todayLine(view({ today: { fetches: 7, searches: 2, watches: 1, refused: 3 }, caps: { perHour: 60, perDay: 300 } })),
+    "10 of 300 today: 7 pages, 2 searches, 1 video, 3 refused.");
+  assert.equal(todayLine(null), "0 today: 0 pages, 0 searches, 0 videos, 0 refused.");
+});
+
+test("web: the module draws only groups (the frame draws the title and the state), the switch first", () => {
+  const code = stripJsComments(SRC);
+  assert.doesNotMatch(code, /<\$\{Section\}/, "no Section of its own");
+  assert.doesNotMatch(code, /\bCard\b|\bRing\b|\bAvatar\b/, "no cards, ring or avatar of the old drawing");
+  assert.match(code, /export function statusLine\(data\)/);
+  assert.match(code, /class="p-settings-web" id="settings-web"/);
+  const order = ["DoorGroup} ", "ListsGroup} ", "SearchGroup} ", "TestGroup} ", "VisitsGroup} "].map((w) => code.lastIndexOf(`<\${${w}`));
+  assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), "door, lists, search, test, what was opened");
+  assert.match(code, /warned=\$\{WORDS\.leaves\}/, "the warning sits inside the switch's panel, as written");
+});
+
+// A view and visits to draw, with words from the internet that look like markup.
+const DRAWN = {
+  ...WEB, on: true, canSwitchOn: true, blockers: [], door: { state: "on" },
+  allow: ["archdaily.com", "dezeen.com"], block: [], watchHosts: ["youtube.com"],
+  lastTest: { at: AT, fetch: { ok: true, sentence: "Reading a page worked." }, search: { ok: false, sentence: "Search refused <b>you</b>." } },
+};
+const MARKUP = `${HTTPS}dezeen.com/a?q=<img src=x onerror=alert(1)>`;
+const VISITS = { visits: [
+  { at: AT, kind: "fetch", slug: "researcher", url: MARKUP, status: 200, code: null, result: "ok" },
+  { at: "2026-11-12T09:00:00.000Z", kind: "fetch", slug: "researcher", url: `${HTTPS}pinterest.com/`, status: null, code: "web_blocked", result: "refused" },
+], more: false };
+
+async function drawWeb(web, visits) {
+  const DOM = await import("../kit/_dom.mjs");
+  const ctx = await import("../../lib/context.js");
+  DOM.installDom();
+  const stub = DOM.stubFetch((path) => (path.startsWith("/api/web/visits") ? { status: 200, body: visits } : { status: 200, body: web }));
+  const root = await DOM.mount(() => DOM.html`<${ctx.AppContext.Provider} value=${{ announce() {} }}><${Section} /><//>`, {});
+  for (let i = 0; i < 20 && !DOM.textOf(root).includes("What it has opened"); i += 1) await DOM.settle();
+  await DOM.settle();
+  return { DOM, root, done: () => { DOM.unmount(root); stub.restore(); } };
+}
+
+test("drawn: groups in order, the switch first, the warning whole, each remove button names its site, one stop for the radios", async () => {
+  const { DOM, root, done } = await drawWeb(DRAWN, VISITS);
+  try {
+    const all = DOM.elements(root);
+    const texts = [...DOM.walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+    assert.ok(!all.some((e) => /\bk-section\b|\bk-doc__title\b/.test(DOM.classOf(e))), "no title of its own");
+    const groups = all.filter((e) => DOM.classesOf(e).includes("k-group"));
+    assert.deepEqual(groups.map((g) => { const h = DOM.elements(g).find((e) => e.localName === "h2"); return h ? DOM.textOf(h.childNodes[0]) : ""; }),
+      ["", "What it may open", "Search", "Test", "What it has opened"]);
+    const controls = DOM.elements(groups[0]).filter((e) => e.localName === "button" || e.localName === "a");
+    assert.equal(controls[0].getAttribute("role"), "switch", "the switch is the first control");
+    assert.ok(texts.includes(WORDS.leaves), "the warning is one text node, as written");
+    const removes = all.filter((e) => /^Take /.test(e.getAttribute("aria-label") || ""));
+    assert.deepEqual(removes.map((e) => e.getAttribute("aria-label")),
+      ["Take archdaily.com off Only these sites", "Take dezeen.com off Only these sites", "Take youtube.com off Video sites it may watch"]);
+    assert.ok(texts.includes("None yet."), "an empty list says so");
+    const radios = all.filter((e) => e.getAttribute("role") === "radio");
+    assert.equal(radios.length, 2);
+    assert.deepEqual(radios.map((r) => r.getAttribute("tabindex")), ["0", "-1"], "one Tab stop: the chosen row");
+    assert.ok(all.some((e) => e.getAttribute("role") === "radiogroup"));
+    assert.ok(texts.includes("Search refused <b>you</b>."), "the test's answer is shown as sent, as text");
+    assert.ok(texts.some((t) => t.includes("<img src=x onerror=alert(1)>")), "an address is text");
+    assert.ok(!all.some((e) => e.localName === "img" || e.localName === "b"), "no markup from the web");
+    assert.ok(texts.includes("Refused") && texts.includes(WHY.web_blocked), "a refusal, with its reason");
+  } finally { done(); }
+});
+
+test("drawn: nothing opened yet is the ledger's empty state", async () => {
+  const { DOM, root, done } = await drawWeb({ ...DRAWN, on: false }, { visits: [], more: false });
+  try {
+    const texts = [...DOM.walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+    assert.ok(texts.includes(WORDS.noVisits));
+    assert.ok(texts.includes("Once it is switched on, every page it opens shows here."));
+    assert.ok(texts.includes(WORDS.off), "the switch's line says off");
+  } finally { done(); }
+});
