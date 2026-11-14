@@ -3,7 +3,7 @@
 // and outputs). Every file is read with the relay's trust rule (a plain file of this user,
 // not a link, no write bit for group or others, capped) and nothing is cached. The bytes an
 // agent sends are judged by their first bytes, never by a name. Zero dependencies.
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, renameSync, unlinkSync, writeFileSync,
 } from "node:fs";
@@ -235,9 +235,14 @@ function writeReplace(dir, name, data) {
 }
 
 export const newId = (prefix) => `${prefix}${randomBytes(10).toString("hex")}`;
+// The hash of a picture's bytes: what "the same picture" means to the door, whatever its id.
+export const bytesHash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+export const HASH_RE = /^[0-9a-f]{64}$/;
 
 // The door's own folder `<doorWork>/gen/`: inputs/<id>.json and .bin, jobs/<job>.json and
-// the output beside it. Only the door writes here; it still reads with the trust rule.
+// the output beside it. Only the door writes here; it still reads with the trust rule. An
+// input's record holds the hash of its bytes (`sha256`); a job's record holds what was sent
+// (`prompt`, `inputSha256`) besides the input ids.
 export function workStore(root) {
   const base = join(root, "gen");
   const inputs = join(base, "inputs");
@@ -251,7 +256,10 @@ export function workStore(root) {
     saveInput(slug, pic, bytes, now) {
       ready();
       const id = newId("i");
-      const rec = { id, slug, at: new Date(now).toISOString(), type: pic.type, width: pic.width, height: pic.height, bytes: bytes.length, refused: false };
+      const rec = {
+        id, slug, at: new Date(now).toISOString(), type: pic.type, width: pic.width, height: pic.height, bytes: bytes.length,
+        sha256: bytesHash(bytes), refused: false,
+      };
       writeNew(join(inputs, `${id}.bin`), bytes);
       writeReplace(inputs, `${id}.json`, JSON.stringify(rec));
       return rec;
@@ -261,7 +269,8 @@ export function workStore(root) {
       const v = readJson(join(inputs, `${id}.json`));
       return v && v !== "missing" && v.id === id ? v : null;
     },
-    // An input this agent kept in the last day, with its bytes checked again; null otherwise.
+    // An input this agent kept in the last day, with its bytes checked again and hashed now
+    // (`sha256` is of the bytes read, never the record's word); null otherwise.
     readInput(slug, id, now) {
       const rec = typeof id === "string" ? store.inputRecord(id) : null;
       if (!rec || rec.slug !== slug || !(now - Date.parse(rec.at) < INPUT_HOURS * HOUR)) return null;
@@ -269,7 +278,7 @@ export function workStore(root) {
       if (!Buffer.isBuffer(bytes) || bytes.length !== rec.bytes) return null;
       const pic = sniffPicture(bytes);
       if (!pic || pic.type !== rec.type) return null;
-      return { ...rec, ...pic, bytes };
+      return { ...rec, ...pic, bytes, sha256: bytesHash(bytes) };
     },
     markInputRefused(id) {
       const rec = store.inputRecord(id);

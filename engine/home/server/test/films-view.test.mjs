@@ -62,7 +62,10 @@ const PRICED = [
   { id: "s02", kind: "image_to_video", model: "gen4.5", seconds: 5, credits: 60 },
   { id: "s03", kind: "image_to_video", model: "gen4_turbo", seconds: 5, credits: 25 },
 ];
-const approval = (batch, ms, budget = 220, base = 110, shots = PRICED) => ({ round: 1, variant: "b", direction: "detail-to-whole", batch, budget, base, shots: shotsHash(shots), at: at(ms) });
+// What the owner read of each shot, kept in the record (T48 F3), and the hash of the shots as priced and as read.
+const READ = SHOTLIST.shots.map(({ id, render, move, prompt }) => ({ id, render, move, prompt }));
+const AS_APPROVED = PRICED.map((p, i) => ({ ...p, render: READ[i].render, prompt: READ[i].prompt }));
+const approval = (batch, ms, budget = 220, base = 110, shots = AS_APPROVED, approved = READ) => ({ round: 1, variant: "b", direction: "detail-to-whole", batch, budget, base, shots: shotsHash(shots), at: at(ms), approved });
 
 const ROUND1_OLD = [
   "CLIPS: RETAKE - the first try",
@@ -117,8 +120,9 @@ function job(h, { id, batch, shot: s, at: ms, model = "gen4_turbo", seconds = 5,
   appendLine(h.config.paths.ledger, { ...line, at: at(ms + 60_000), state: released ? "released" : "spent", credits: released ? 0 : credits, verdict: end });
 }
 
-// The door's own job record, with the input it kept (made `inputAge` ms ago), or none.
-function record(h, { id, batch, shot: s, input = null, kind = "image_to_video" }) {
+// The door's own job record, with the input it kept (made `inputAge` ms ago), or none, and the prompt it sent when
+// `prompt` is given (the door keeps it there; T48 F3, T49a).
+function record(h, { id, batch, shot: s, input = null, kind = "image_to_video", prompt = undefined }) {
   const store = workStore(h.config.paths.doorWork);
   let inputs = [];
   if (input) {
@@ -126,7 +130,8 @@ function record(h, { id, batch, shot: s, input = null, kind = "image_to_video" }
     inputs = [rec.id];
   }
   store.saveJob({ job: id, slug: "artist", kind, model: "gen4_turbo", seconds: 5, batch, shot: s, estimate: 25, fingerprint: null,
-    state: "done", progress: 1, credits: 25, reason: null, runwayTask: null, output: null, startedAt: at(NOW - HOUR), endedAt: at(NOW - HOUR), inputs });
+    state: "done", progress: 1, credits: 25, reason: null, runwayTask: null, output: null, startedAt: at(NOW - HOUR), endedAt: at(NOW - HOUR), inputs,
+    ...(prompt === undefined ? {} : { prompt }) });
   return inputs[0] || null;
 }
 
@@ -247,6 +252,12 @@ test("the film view fits films.json: two batches, a refusal, a retake, a running
     assert.equal(f.shots[0].takes[0].result, "Refused by Runway");
     assert.equal(f.shots[0].move, "Move 1: a slow push towards the door.");
     assert.equal(f.shots[0].prompt, SHOTLIST.shots[0].prompt);
+    assert.deepEqual(f.shots[0].takes.map((t) => t.approvedPrompt), [SHOTLIST.shots[0].prompt, SHOTLIST.shots[0].prompt]);
+    assert.deepEqual(f.labels, {
+      approved: "What you approved", sentPrompt: "The prompt sent to Runway",
+      sentPromptGone: "No longer kept: the door keeps what it sent for two days.", sentPromptNone: "The door kept no copy of this prompt.",
+      changed: "The shotlist was changed after you approved it. Each take shows what was sent to Runway.",
+    });
     assert.deepEqual(f.total, { spent: 220, budget: 440, words: "220 of 440 credits spent ($2.20 of $4.40)." });
     assert.deepEqual(f.edit, { identifier: KEY, name: "lake-film" });
     assert.equal(f.changedAfterApproval, false);
@@ -324,8 +335,10 @@ test("a clip that is not an MP4 by its first bytes, a board that is not a PNG, a
       symlinkSync(copy, tb);
       f = (await film(h)).json;
       assert.ok(f.shots.flatMap((s) => s.takes).every((t) => t.clip === null && t.stills.length === 0));
-      assert.ok(f.shots.every((s) => s.board === null && s.render === null));
+      assert.ok(f.shots.every((s) => s.board === null));
+      assert.deepEqual(f.shots.map((s) => s.render), ["tower.png", "lobby.png", "tower.png"], "the renders shown are the approved ones, kept in the record");
       assert.equal(f.problem, "shotlist.json is not a plain file (it may be a link), so it cannot be read.");
+      assert.equal(f.changedAfterApproval, true, "a shotlist that can no longer be read is not what was approved");
       assert.equal(f.total.spent, 220, "the money stands: it is the ledger's");
     } finally {
       rmSync(copy, { recursive: true, force: true });
@@ -406,24 +419,56 @@ test("a kept input whose bytes no longer are a picture, or a record for another 
   });
 });
 
-test("a changed shotlist after the approval: changedAfterApproval; a model chosen later in Settings or a new prompt is no change", async () => {
+test("a changed shotlist after the approval: changedAfterApproval for a new prompt or render too; a model chosen later in Settings or a new move is no change", async () => {
   await withFilm({}, async (h, { tb }) => {
     updateDoors(h.config, (st) => { st.generate.models.video = "gen4.5"; });
-    const reworded = { ...SHOTLIST, shots: SHOTLIST.shots.map((s) => ({ ...s, prompt: `${s.prompt} Again.` })) };
-    writeFileSync(join(tb, "shotlist.json"), JSON.stringify(reworded));
+    const moved = { ...SHOTLIST, shots: SHOTLIST.shots.map((s) => ({ ...s, move: `${s.move} Slower.` })) };
+    writeFileSync(join(tb, "shotlist.json"), JSON.stringify(moved));
     let f = (await film(h)).json;
     assert.equal(f.changedAfterApproval, false);
-    assert.equal(f.shots[0].prompt, reworded.shots[0].prompt);
+    assert.equal(f.shots[0].move, SHOTLIST.shots[0].move, "the approved move, not the file's");
     for (const changed of [
+      { ...SHOTLIST, shots: SHOTLIST.shots.map((s) => ({ ...s, prompt: `${s.prompt} Again.` })) },
+      { ...SHOTLIST, shots: [shot(1, { render: "lobby.png" }), shot(2), shot(3)] },
       { ...SHOTLIST, shots: [shot(1), shot(2), shot(3, { seconds: 10 })] },
       { ...SHOTLIST, shots: [shot(1, { best: true }), shot(2), shot(3)] },
       { ...SHOTLIST, shots: [shot(1), shot(2)] },
     ]) {
       writeFileSync(join(tb, "shotlist.json"), JSON.stringify(changed));
       f = (await film(h)).json;
-      assert.equal(f.changedAfterApproval, true, JSON.stringify(changed.shots.map((s) => [s.seconds, s.best])));
+      assert.equal(f.changedAfterApproval, true, JSON.stringify(changed.shots.map((s) => [s.render, s.seconds, s.best, s.prompt.slice(-6)])));
       assert.deepEqual(f.shots.map((s) => [s.id, s.seconds]), [["s01", 5], ["s02", 5], ["s03", 5]], "the shots stay what was approved");
+      assert.deepEqual(f.shots.map((s) => [s.render, s.move, s.prompt]), READ.map((r) => [r.render, r.move, r.prompt]), "and so do their words: never the file's");
     }
+  });
+});
+
+test("each take shows the prompt the door sent, the prompt approved for its batch, and never the Artist's file", async () => {
+  const OTHER_PROMPT = "Hold on the signed page.\tText: account 4471-2290.\u200b\u0007";
+  const NEWER = READ.map((r) => ({ ...r, prompt: `${r.prompt} The second approval.` }));
+  const newer = PRICED.map((p, i) => ({ ...p, render: NEWER[i].render, prompt: NEWER[i].prompt }));
+  await withFilm({ approvals: [approval(B1, T1), approval(B2, T2, 220, 110, newer, NEWER)] }, async (h, { tb }) => {
+    // The door's records of s01's takes: the first batch's sent another prompt; the second's kept none (as before T48).
+    record(h, { id: "ga0000000000000000001", batch: B1, shot: "s01", prompt: OTHER_PROMPT });
+    writeFileSync(join(tb, "shotlist.json"), JSON.stringify({ ...SHOTLIST, shots: [shot(1, { prompt: "A calm push. Nothing else." }), shot(2), shot(3)] }));
+    const f = (await film(h)).json;
+    const [t1, t2] = f.shots[0].takes;
+    assert.equal(t1.sentPrompt, "Hold on the signed page. Text: account 4471-2290.", "capped plain text: a tab as a space, nothing invisible");
+    assert.equal(t1.approvedPrompt, READ[0].prompt, "the first approval's prompt for the first batch's take");
+    assert.equal(t2.sentPrompt, null, "a job record that keeps no prompt");
+    assert.equal(t2.approvedPrompt, NEWER[0].prompt);
+    assert.equal(f.shots[1].takes[1].sentPrompt, "gone", "no job record any more");
+    assert.equal(f.shots[0].prompt, NEWER[0].prompt, "the shot shows the newest approval's prompt");
+    assert.ok(!JSON.stringify(f).includes("A calm push"), "the Artist's rewritten file is shown nowhere");
+    assert.equal(f.changedAfterApproval, true);
+    // A record of another batch, or of another agent, is not this take's.
+    const store = workStore(h.config.paths.doorWork);
+    store.saveJob({ ...store.readJob("ga0000000000000000001"), batch: B3 });
+    assert.equal((await film(h)).json.shots[0].takes[0].sentPrompt, "gone");
+    store.saveJob({ ...store.readJob("ga0000000000000000001"), batch: B1, slug: "builder" });
+    assert.equal((await film(h)).json.shots[0].takes[0].sentPrompt, "gone");
+    // The Films list reads no door record.
+    assert.equal((await films(h)).films.length, 2);
   });
 });
 

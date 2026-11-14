@@ -75,6 +75,7 @@ function totalsNow(lines, opts) {
   return {
     day: t.day, month: t.month, batch: t.batch, unasked: t.unasked, batchRefused: t.batchRefused, refusedRecent: t.refusedRecent,
     paused: t.paused, open: t.open.map((j) => j.job).sort(), s01: t.takes("s01"), s02: t.takes("s02"),
+    notStartedRecent: t.notStartedRecent, ns01: t.notStarted("s01"), ns02: t.notStarted("s02"),
   };
 }
 const ALL_OPTS = [
@@ -196,8 +197,84 @@ test("a file under 8 MB, one the ledger's rule cannot read, a link, a missing fi
   }
   writeLines(p, recent);
   const r = rotateLedger(p, NOW);
-  assert.deepEqual(r, { moved: 0, kept: recent.length }, "nothing old: nothing moves");
+  assert.deepEqual(r, { moved: 0, kept: recent.length, folded: 0 }, "nothing old: nothing moves");
   assert.ok(!readdirSync(dir).some((n) => n.startsWith("generate-ledger-")));
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("this month's requests Runway did not start, more than a day old, are folded into one line; the totals of now are the same", () => {
+  const dir = folder();
+  const p = join(dir, "generate-ledger.jsonl");
+  const free = (job, at, status, f = {}) => [reserved(job, at, { runwayTask: null, ...f }),
+    ended(job, at + 1000, { runwayTask: null, state: "released", credits: 0, verdict: `not_started_${status}`, ...f })];
+  const b1 = (shot) => ({ batch: "b1", shot });
+  const events = [
+    // A folded line of September: it moves with its month.
+    paused(Date.parse("2026-09-12T06:00:00Z")),
+    { at: Date.parse("2026-09-13T06:00:00Z"), text: line({ at: "2026-09-13T06:00:00.000Z", job: null, state: "folded", credits: 0, estimate: 0, slug: null, kind: null, model: null, seconds: null, runwayTask: null, verdict: "not_started", count: 7 }) },
+    // This month: a spent take, a refusal that cost nothing (it freezes the batch, so it stays), one free attempt
+    // just over a day old (folded) and two within the day (kept: they count toward the shot and the pause).
+    reserved("gspent", Date.parse("2026-11-02T06:00:00Z"), b1("s01")), ended("gspent", Date.parse("2026-11-02T06:01:00Z"), b1("s01")),
+    reserved("grefused", Date.parse("2026-11-03T06:00:00Z"), b1("s02")),
+    ended("grefused", Date.parse("2026-11-03T06:01:00Z"), { ...b1("s02"), state: "released", credits: 0, verdict: "refused" }),
+    ...free("gedge", NOW - 25 * HOUR, 400, b1("s01")),
+    ...free("gfresh1", NOW - 23 * HOUR, 429, b1("s01")),
+    ...free("gfresh2", NOW - 3 * HOUR, 404, b1("s02")),
+  ];
+  // Free attempts through this month (Kolkata, from 1 November) to two days ago, past 8 MB.
+  const from = Date.parse("2026-10-31T18:30:00Z");
+  const span = NOW - 2 * DAY - from;
+  let size = events.reduce((s, e) => s + e.text.length + 1, 0);
+  const fill = [];
+  for (let i = 0; size < 8.5 * MB; i += 1) {
+    const pair = free(`gn${i}`, from, [400, 404, 429][i % 3]);
+    fill.push(i);
+    size += pair.reduce((s, e) => s + e.text.length + 1, 0);
+  }
+  fill.forEach((i) => events.push(...free(`gn${i}`, from + Math.floor((span * i) / fill.length), [400, 404, 429][i % 3], i % 2 ? b1("s03") : {})));
+  events.sort((a, b) => a.at - b.at);
+  const original = events.map((e) => e.text);
+  writeLines(p, original);
+  assert.ok(statSync(p).size > ROTATE_OVER_BYTES);
+  const before = readLedger(p);
+  assert.equal(before.ok, true);
+
+  const r = rotateLedger(p, NOW);
+  assert.equal(r.folded, fill.length + 1);
+  assert.equal(r.moved, 2 * (fill.length + 1) + 1, "every line of the folded jobs, and September's folded line");
+  assert.equal(r.moved + r.kept, original.length + 1, "one folded line was added");
+  assert.ok(statSync(p).size < 64 * 1024, String(statSync(p).size));
+  const kept = textLines(p);
+  const moved = textLines(join(dir, DATED));
+  // The moved file holds the original's lines in order, byte for byte; the kept file the rest, plus the one line.
+  const summary = kept.map((t) => JSON.parse(t)).filter((v) => v.state === "folded");
+  assert.equal(summary.length, 1);
+  assert.deepEqual([summary[0].count, summary[0].verdict, summary[0].job, summary[0].credits, monthOf(Date.parse(summary[0].at))], [fill.length + 1, "not_started", null, 0, "2026-11"]);
+  assert.equal(summary[0].at, iso(from));
+  const keptOriginal = kept.filter((t) => JSON.parse(t).state !== "folded");
+  let k = 0;
+  let m = 0;
+  for (const text of original) {
+    if (k < keptOriginal.length && keptOriginal[k] === text) k += 1;
+    else if (m < moved.length && moved[m] === text) m += 1;
+    else assert.fail(`a line out of order or lost: ${text.slice(0, 80)}`);
+  }
+  assert.deepEqual([k, m], [keptOriginal.length, moved.length]);
+  const keptJobs = new Set(keptOriginal.map((t) => JSON.parse(t).job));
+  for (const j of ["gspent", "grefused", "gfresh1", "gfresh2"]) assert.ok(keptJobs.has(j), j);
+  assert.ok(!keptJobs.has("gedge") && !keptJobs.has("gn0"));
+  assert.equal(moved.filter((t) => JSON.parse(t).state === "folded").length, 1, "September's folded line moved");
+
+  // The totals of now, and of later, are as before; a folded line is no job.
+  const after = readLedger(p);
+  assert.equal(after.ok, true);
+  for (const opts of [...ALL_OPTS, { batch: "b1", resumedAt: NOW - 20 * HOUR }]) assert.deepEqual(totalsNow(after.lines, opts), totalsNow(before.lines, opts), JSON.stringify(opts));
+  const t = totalsNow(after.lines, { batch: "b1" });
+  assert.deepEqual([t.notStartedRecent, t.ns01, t.ns02, t.batchRefused, t.s01, t.s02], [2, 1, 1, 1, 1, 0], "the case is what it says");
+  for (const later of [NOW + 2 * DAY, NOW + 40 * DAY]) {
+    assert.deepEqual({ ...totalsOf(after.lines, later, { batch: "b1" }), takes: null, notStarted: null, shots: null },
+      { ...totalsOf(before.lines, later, { batch: "b1" }), takes: null, notStarted: null, shots: null });
+  }
   rmSync(dir, { recursive: true, force: true });
 });
 

@@ -13,6 +13,8 @@
 // A finished film (PLAN-V5 K14 step 5, C7): a goal whose job makes films and that has the owner's `shotlist:`
 // record is today's item (Accept, Send back), never a pick card, with two more details hashed into its version:
 // "Film" (from the edit's manifest) and "Spent" (from the generation door's ledger only; routes/films.mjs).
+// Accepting a finished task (Accept, or a pick) closes any generation batch still open for it (lib/batches.mjs,
+// T48 F4): nothing more is spent on accepted work.
 import { agentNames, commentsOf, descendants, goalsOf, loadIssues, needIds, pickResult } from "../lib/goals.mjs";
 import { parseAnswer } from "../lib/answer.mjs";
 import { brainFor } from "../brain/store.mjs";
@@ -21,6 +23,7 @@ import { capText, plainMarks } from "../lib/format.mjs";
 import { versionOf } from "../lib/inbox.mjs";
 import { askedQuestion } from "../lib/owner-text.mjs";
 import { reviewsOf } from "../lib/artreview.mjs";
+import { closeBatches } from "../lib/batches.mjs";
 import { stampOf } from "../lib/brandcheck.mjs";
 import { ANOTHER, BACK, PICK, recordPick } from "../lib/picks.mjs";
 import { approvalsOf } from "../lib/shotlist.mjs";
@@ -290,6 +293,7 @@ async function actOnPick(ctx, goalId, action, note) {
     ctx.decisions.set(ackKey(goalId), now.toISOString());
     recordVerdict(ctx.decisions, goalId, ACCEPTED, null, { now });
     recordPick(ctx.decisions, goalId, choiceOf(pick, PICK, chosen.id, note), { now });
+    closeBatches(ctx.config, [goalId], { now: now.getTime(), log: ctx.log });
     let message = PICKED;
     if (pick.kind === "post" || pick.kind === "newsletter") {
       let added;
@@ -324,6 +328,7 @@ async function act(ctx, itemId, action, note) {
   if (action === "acknowledge") {
     ctx.decisions.set(ackKey(goalId), new Date().toISOString());
     recordVerdict(ctx.decisions, goalId, ACCEPTED);
+    closeBatches(ctx.config, [goalId], { log: ctx.log });
     return { message: "Accepted." };
   }
   if (action === "reopen") {

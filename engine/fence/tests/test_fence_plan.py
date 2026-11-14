@@ -85,7 +85,8 @@ class PlanTests(unittest.TestCase):
         self.assertIn("/tmp/claude-501", out["filesystem"]["denyRead"])
         self.assertEqual(out["filesystem"]["denyWrite"],
                          fence_plan.SANDBOX_OWN_TMP
-                         + fence_plan._deny_entries([self.task, i["agentHome"], i["innerTmp"]]))
+                         + fence_plan._deny_entries([self.task, i["agentHome"], i["innerTmp"]])
+                         + fence_plan._home_deny_entries([i["agentHome"]], fence_plan.HOME_CONFIG_NAMES["claude"]))
         self.assertEqual(out["network"]["deniedDomains"], [])
         self.assertNotIn("127.0.0.1:3100", out["network"]["allowedDomains"])
 
@@ -587,11 +588,18 @@ class PlanTests(unittest.TestCase):
         p.update(over)
         return p
 
+    def walled_home(self, agent_id="d03db636-70c7-4bac-8e29-41665aa8e9a4", goal=None):
+        return os.path.join(self.S, "claude-home", agent_id, goal or self.GOAL)
+
     def walled_inputs(self, policy=None, **over):
-        # A walled run works in one goal's folder (fence-run makes it before the sandbox starts).
+        # A walled run works in one goal's folder (fence-run makes it before the sandbox starts),
+        # with a Claude home of its own for that goal (fence-run makes that too).
         os.makedirs(self.goal, exist_ok=True)
-        base = {"taskFolder": self.goal, "gatePort": 3111,
-                "policy": policy if policy is not None else self.walled()}
+        policy = policy if policy is not None else self.walled()
+        home = self.walled_home(policy["agentId"]) if isinstance(policy, dict) \
+            and isinstance(policy.get("agentId"), str) else self.walled_home()
+        base = {"taskFolder": self.goal, "gatePort": 3111, "policy": policy,
+                "agentHome": home, "innerTmp": os.path.join(home, "tmp")}
         base.update(over)
         return self.new(**base)
 
@@ -608,6 +616,9 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(deny[:2], fence_plan.SANDBOX_OWN_TMP)
         deny = deny[2:]
         spellings = sum(len(fence_plan._any_case(n)) for n in fence_plan.CONFIG_NAMES)
+        home_names = fence_plan._home_deny_entries([i["agentHome"]], fence_plan.HOME_CONFIG_NAMES["claude"])
+        self.assertEqual(deny[len(roots) * spellings * 4:], home_names)
+        deny = deny[:len(roots) * spellings * 4]
         self.assertEqual(len(deny), len(roots) * spellings * 4)
         self.assertEqual(len(set(deny)), len(deny))
         ci = "[Cc][Ll][Aa][Uu][Dd][Ee].[Mm][Dd]"
@@ -622,10 +633,13 @@ class PlanTests(unittest.TestCase):
                     for where in ("", "a/", "a/b/"):
                         self.assertTrue(self.denied(deny, "%s/%s%s" % (root, where, spelling)), spelling)
                         self.assertTrue(self.denied(deny, "%s/%s%s/x/y" % (root, where, spelling)), spelling)
-            # Ordinary files, and the programs' own files in their homes, still write.
+            # Ordinary files, and the programs' own files in their homes, still write. (At the
+            # top of the agent home "agents" and "skills" are the program's own names, below.)
             for ok in ("notes.md", "a/b/out.txt", ".claude.json", "projects/-x-claude/s.jsonl",
                        "my.claude", "CLAUDE.md.txt", "x-AGENTS.md", "agents", "codex/x", "skills/s/SKILL.md"):
                 self.assertFalse(self.denied(deny, "%s/%s" % (root, ok)), ok)
+                if root != i["agentHome"] or ok not in ("agents", "skills/s/SKILL.md"):
+                    self.assertFalse(self.denied(out["filesystem"]["denyWrite"], "%s/%s" % (root, ok)), ok)
         # Nothing else changes: the rest of the settings are those of a planner without the list.
         for key in ("denyRead", "allowRead", "allowWrite"):
             self.assertEqual(out["filesystem"][key], plan(self.new())["filesystem"][key])
@@ -721,7 +735,8 @@ class PlanTests(unittest.TestCase):
                                            self.playbooks, self.shared])
         self.assertEqual(fs["allowWrite"], [self.goal, i["agentHome"], i["innerTmp"]])
         self.assertEqual(fs["denyWrite"],
-                         fence_plan.SANDBOX_OWN_TMP + fence_plan._deny_entries(fs["allowWrite"]))
+                         fence_plan.SANDBOX_OWN_TMP + fence_plan._deny_entries(fs["allowWrite"])
+                         + fence_plan._home_deny_entries([i["agentHome"]], fence_plan.HOME_CONFIG_NAMES["claude"]))
         self.assertEqual(out["network"]["allowedDomains"], ["api.anthropic.com", "127.0.0.1:3111", "localhost:3111"])
         for company in (self.task, os.path.join(self.S, "knowledge", "docs"), os.path.join(self.S, "lessons")):
             self.assertFalse(any(fence_plan._inside(p, company) for p in fs["allowRead"]), company)
@@ -891,7 +906,8 @@ class PlanTests(unittest.TestCase):
                 self.assertNotIn("\u017f]", e)
         # Four entries more per root for each name holding one s.
         with_s = [n for n in fence_plan.CONFIG_NAMES if "s" in n.lower()]
-        self.assertEqual(len(deny), 2 + 3 * 4 * (len(fence_plan.CONFIG_NAMES) + len(with_s)))
+        home = sum(len(fence_plan._any_case(n)) for n in fence_plan.HOME_CONFIG_NAMES["claude"])
+        self.assertEqual(len(deny), 2 + 3 * 4 * (len(fence_plan.CONFIG_NAMES) + len(with_s)) + 2 * home)
 
     def test_every_folded_spelling_of_two_letters(self):
         self.assertEqual(fence_plan._any_case("ss"),
@@ -908,7 +924,7 @@ class PlanTests(unittest.TestCase):
         run = tempfile.mkdtemp(prefix="paperclip-run-")
         self.addCleanup(shutil.rmtree, run, True)
         run = os.path.realpath(run)
-        for over in ({}, {"innerTmp": run}, {"tool": "codex", "modelMode": "provider", "relayPort": 3120}):
+        for over in ({}, {"innerTmp": run}, {"modelMode": "provider", "relayPort": 3120}):
             fs = plan(self.walled_inputs(**over))["filesystem"]
             for area in self.TEMP_AREAS:
                 self.assertIn(area, fs["denyRead"])

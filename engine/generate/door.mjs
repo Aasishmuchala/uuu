@@ -23,7 +23,7 @@ import {
   readTask, scrub, taskPath,
 } from "./runway.mjs";
 import {
-  ID_RE, INPUTS_KEPT, INPUT_MAX, INPUT_MIN, SHOT_RE, newId, readBatch, readGenState, readRunwayKey, sniffOutput, sniffPicture, workStore,
+  HASH_RE, ID_RE, INPUTS_KEPT, INPUT_MAX, INPUT_MIN, SHOT_RE, newId, readBatch, readGenState, readRunwayKey, sniffOutput, sniffPicture, workStore,
 } from "./state.mjs";
 
 const MB = 1024 * 1024;
@@ -31,6 +31,16 @@ export const BODY_BYTES = 8 * 1024;
 export const MAX_RUNNING = 2;
 export const REFUSALS_TO_FREEZE = 2;
 export const REFUSALS_TO_PAUSE = 3;
+// Requests Runway answered with a 4xx and did not start cost nothing, so no cap holds them (T48
+// F1): two for one shot of a batch refuse that shot, and three in a day pause the door until the
+// owner's "Start again", both counted in the ledger since the owner last started it again. The
+// Artist's role sends a request at most twice (once more after gen_limited's wait), so a third
+// is never its rule working; three is also the refusals' pause, whose sentence the owner already
+// sees ("Runway refused three requests in a day").
+export const NOT_STARTED_PER_SHOT = 2;
+export const NOT_STARTED_TO_PAUSE = 3;
+export const LIMITED_SEC = 60;            // the wait after Runway's 429 when it names none
+export const PROMPT_KEPT = 1000;          // the prompt kept in a job's record, as sent
 export const GEN_LIMITS = Object.freeze({
   ...API_LIMITS,
   pollMs: 6_000,            // between two questions about one task
@@ -147,8 +157,13 @@ function doorPaths(paths) {
   return out;
 }
 
-const fingerprint = (kind, model, inputs, promptText) =>
-  createHash("sha256").update(JSON.stringify([kind, model, [...(inputs || [])].sort(), promptText || ""])).digest("hex");
+// What the door does not send again, by its pictures' bytes (their hashes, never the upload's id,
+// T48 F5): a refused job's pictures and prompt (a refused picture alone is kept in `marks`); and a
+// request Runway did not start, as it was sent (its batch, shot, pictures and prompt).
+const fingerprint = (kind, model, hashes, promptText) =>
+  createHash("sha256").update(JSON.stringify([kind, model, [...(hashes || [])].sort(), promptText || ""])).digest("hex");
+const resendPrint = (batch, shot, kind, model, hashes, promptText) =>
+  createHash("sha256").update(JSON.stringify(["resend", batch, shot, kind, model, [...(hashes || [])].sort(), promptText || ""])).digest("hex");
 
 export function createGenerateDoor({ listenPort, upstream, paths, config, log, now, net, limits } = {}) {
   const up = checkUpstream(upstream);
@@ -171,20 +186,40 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     }
   };
   const ledger = createLedger(P.ledger);
+  // Every write of the door's own marks the ledger read again for the status file; an answer
+  // alone never reads it (T48 F1: a refusal must not cost a whole ledger read).
+  let moneyStale = true;
+  for (const name of ["reserve", "note", "settle", "pause"]) {
+    const write = ledger[name];
+    ledger[name] = (...args) => { moneyStale = true; return write(...args); };
+  }
   const store = workStore(P.work);
   const running = new Map();   // job -> the job in memory, while Runway works on it
   const controllers = new Set();
   let closing = false;
+  // What Runway refused or did not start before, so it is not sent again: fingerprints of refused
+  // jobs, the byte hashes of pictures Runway refused or could not use (with any prompt), and
+  // requests not started, as sent. Filled from the door's own job records at its start and as jobs
+  // end, so a job request reads no other job's record. And the time before which Runway's 429 said
+  // not to ask again (Date.now() ms, this run only).
+  const marks = { refused: new Set(), pictures: new Set(), resend: new Set() };
+  let limitedUntil = 0;
 
   // ---- the status file ------------------------------------------------------
   const status = { startedAt: null, on: false, key: false, running: 0, today: { day: null, jobs: 0, credits: 0, refused: 0 }, lastAt: null };
   const statusOut = statusFile(P.status);
   function touch(what) {
     const day = dayOf(clock());
-    if (status.today.day !== day) status.today = { day, jobs: 0, credits: 0, refused: 0 };
+    if (status.today.day !== day) {
+      status.today = { day, jobs: 0, credits: 0, refused: 0 };
+      moneyStale = true;
+    }
     if (what) status.today[what] += 1;
-    const t = ledger.totals(clock());
-    if (t.ok) status.today.credits = t.day;
+    if (moneyStale) {
+      moneyStale = false;
+      const t = ledger.totals(clock());
+      if (t.ok) status.today.credits = t.day;
+    }
     status.running = running.size;
     status.lastAt = iso();
     statusOut.save(status);
@@ -230,15 +265,17 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     if (key && j.runwayTask) await callRunway(up, { method: "DELETE", path: taskPath(j.runwayTask), key, limits: lim });
   }
 
-  // When the door has now seen three refusals in a day (since the owner last started it
-  // again), it pauses itself in the ledger.
+  // When the door has now seen three refusals, or three requests Runway did not start, in a day
+  // (since the owner last started it again), it pauses itself in the ledger.
   function maybePause() {
     const gs = readGenState(P.state, clock());
     const t = ledger.totals(clock(), { resumedAt: gs.ok ? gs.resumedAt : null });
-    if (!t.ok || t.paused || t.refusedRecent < REFUSALS_TO_PAUSE) return;
+    if (!t.ok || t.paused) return;
+    const refusals = t.refusedRecent >= REFUSALS_TO_PAUSE;
+    if (!refusals && t.notStartedRecent < NOT_STARTED_TO_PAUSE) return;
     try {
-      ledger.pause(iso(), "three_refusals");
-      say(`${iso()} paused after ${t.refusedRecent} refusals`);
+      ledger.pause(iso(), refusals ? "three_refusals" : "three_not_started");
+      say(`${iso()} paused after ${refusals ? `${t.refusedRecent} refusals` : `${t.notStartedRecent} requests Runway did not start`}`);
     } catch {
       say(`${iso()} ledger not written for a pause`);
     }
@@ -290,7 +327,11 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   function failed(j, t, key) {
     const kind = failureKind(t.failureCode);
     const words = scrub(t.failure || "", key);
-    if (kind === "refused" || kind === "bad_input") for (const id of j.inputIds) store.markInputRefused(id);
+    if (kind === "refused" || kind === "bad_input") {
+      for (const id of j.inputIds) store.markInputRefused(id);
+      for (const h of j.inputSha256) marks.pictures.add(h);
+    }
+    if (kind === "refused" && j.record && typeof j.record.fingerprint === "string") marks.refused.add(j.record.fingerprint);
     const credits = settle(j, t, kind === "refused" ? "refused" : kind, true);
     if (kind === "refused") {
       endJob(j, "refused", { credits, reason: `Runway refused this picture or prompt. It will not be sent again.${words ? ` Runway said: ${words}` : ""}`, failureCode: t.failureCode });
@@ -435,13 +476,16 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   async function doJob(res, who, body, gs, key) {
     const slug = who.slug;
     const at = clock();
+    // Runway said too many requests: nothing goes out until the wait it named has passed.
+    const hold = limitedUntil - Date.now();
+    if (hold > 0) return no(res, "gen_limited", undefined, { retryAfterSec: Math.ceil(hold / 1000) });
     // The inputs: only this agent's, kept in the last day, never one Runway refused.
     const ids = body.kind === "still_variation" ? body.inputs : body.input ? [body.input] : [];
     const pictures = [];
     for (const id of ids) {
       const pic = store.readInput(slug, id, at);
       if (!pic) return no(res, "gen_bad_request", "An input is not one this agent sent in the last day.");
-      if (pic.refused) return no(res, "gen_not_approved", "Runway refused this picture before. The door will not send it again.");
+      if (pic.refused || marks.pictures.has(pic.sha256)) return no(res, "gen_not_approved", "Runway refused this picture before. The door will not send it again.");
       pictures.push(pic);
     }
     if (body.kind === "still_upscale") {
@@ -454,6 +498,8 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     // before anything else can run, so two jobs cannot both fit a limit only one fits.
     const t = ledger.totals(at, { batch: body.batch, resumedAt: gs.resumedAt });
     if (!t.ok) return no(res, "gen_ledger");
+    // Paused by the counts themselves, even when the pause line could not be written.
+    if (t.refusedRecent >= REFUSALS_TO_PAUSE || t.notStartedRecent >= NOT_STARTED_TO_PAUSE) return no(res, "gen_paused");
     let batch = null;
     let model;
     if (body.batch !== null) {
@@ -474,6 +520,7 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
       }
       if (body.kind === "text_to_video" && !batch.textToVideo) return no(res, "gen_not_approved", "The owner did not approve video from text alone.");
       if (t.takes(body.shot) >= shot.takes) return no(res, "gen_not_approved", "This shot has had every take the owner approved.");
+      if (t.notStarted(body.shot) >= NOT_STARTED_PER_SHOT) return no(res, "gen_not_approved", "Runway did not start this shot twice. It needs you.");
       model = shot.model;
     } else {
       if (body.kind === "text_to_video") return no(res, "gen_not_approved", "Video from text alone needs the owner's approval.");
@@ -487,17 +534,20 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     if (batch === null && t.unasked + cost > gs.autoUnderCredits) {
       return no(res, "gen_not_approved", "Nothing is spent without the owner's approval of a batch.");
     }
-    const print = fingerprint(body.kind, model, ids, body.promptText);
-    if (store.listJobs().some((r) => r.state === "refused" && r.fingerprint === print)) {
+    const hashes = pictures.map((p) => p.sha256);
+    const print = fingerprint(body.kind, model, hashes, body.promptText);
+    if (marks.refused.has(print)) {
       return no(res, "gen_not_approved", "Runway refused this same picture or prompt before. The door will not send it again.");
     }
+    const resend = resendPrint(body.batch, body.shot, body.kind, model, hashes, body.promptText);
+    if (marks.resend.has(resend)) return no(res, "gen_not_approved", "Runway did not start this same request before. The door will not send it again.");
     if (running.size >= MAX_RUNNING) return no(res, "gen_busy", undefined, { retryAfterSec: 30 });
     const over = overLimit(gs, t, cost, batch);
     if (over) return no(res, over);
     const j = {
       job: newId("g"),
       batch: body.batch, shot: body.shot, slug, kind: body.kind, model, seconds: body.seconds, estimate: cost,
-      known: 0, runwayTask: null, startedMs: Date.now(), inputIds: ids, record: null,
+      known: 0, runwayTask: null, startedMs: Date.now(), inputIds: ids, inputSha256: hashes, record: null,
     };
     try {
       ledger.reserve(iso(), { job: j.job, batch: j.batch, shot: j.shot, slug, kind: j.kind, model, seconds: j.seconds, estimate: cost });
@@ -505,9 +555,12 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
       return no(res, "gen_ledger");
     }
     running.set(j.job, j);
+    // The record keeps what was sent (T48 F3): the prompt as sent and each input's byte hash, in
+    // the order of `inputs`, for the owner's film view.
     j.record = {
       job: j.job, slug, kind: j.kind, model, seconds: j.seconds, batch: j.batch, shot: j.shot, estimate: cost, fingerprint: print,
       state: "waiting", progress: null, credits: cost, reason: null, runwayTask: null, output: null, startedAt: iso(), endedAt: null, inputs: ids,
+      prompt: typeof body.promptText === "string" ? body.promptText.slice(0, PROMPT_KEPT) : null, inputSha256: hashes, resend, notStarted: null,
     };
     record(j, {});
     say(`${iso()} job ${slug} ${j.job} ${j.kind} ${model} ${j.seconds || 0}s est=${cost}`);
@@ -545,6 +598,7 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     // the door cannot see, so its estimate stays counted.
     const words = r.ok ? errorText(r.json, key) : "";
     const clear = r.ok && r.status >= 400 && r.status < 500;
+    const retrySec = r.ok && r.retryAfter !== null ? Math.max(1, Math.min(r.retryAfter, 86400)) : LIMITED_SEC;
     if (clear) {
       try {
         ledger.settle(iso(), j, { state: "released", credits: 0, verdict: `not_started_${r.status}` });
@@ -554,9 +608,17 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     } else {
       settle(j, null, "unknown", false);
     }
-    endJob(j, "failed", { credits: clear ? 0 : cost, reason: words ? `Runway did not start it. Runway said: ${words}` : "Runway did not start it." });
+    endJob(j, "failed", { credits: clear ? 0 : cost, reason: words ? `Runway did not start it. Runway said: ${words}` : "Runway did not start it.", notStarted: clear ? r.status : null });
+    if (clear) {
+      // Free, so it is counted (two a shot, three a day pause the door); a 429's wait is kept at
+      // the door; and the same request is not sent again, but after a 401 (the owner may mend the
+      // key) or a 429 (the role's one resend after the wait).
+      if (r.status === 429) limitedUntil = Math.max(limitedUntil, Date.now() + retrySec * 1000);
+      else if (r.status !== 401) marks.resend.add(resend);
+      maybePause();
+    }
     if (r.ok && r.status === 401) return no(res, "gen_key_refused");
-    if (r.ok && r.status === 429) return no(res, "gen_limited", undefined, { retryAfterSec: r.retryAfter !== null ? Math.min(r.retryAfter, 86400) : 60 });
+    if (r.ok && r.status === 429) return no(res, "gen_limited", undefined, { retryAfterSec: retrySec });
     return no(res, "gen_could_not_start", words ? `Runway did not start this job. Runway said: ${words}` : undefined);
   }
 
@@ -652,9 +714,10 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
         job: o.job, batch: o.batch, shot: o.shot, slug: o.slug, kind: o.kind, model: o.model, seconds: o.seconds,
         estimate: o.estimate, known: o.reserved, runwayTask: o.runwayTask, startedMs: rec ? Date.parse(rec.startedAt) || Date.now() : Date.now(),
         inputIds: rec && Array.isArray(rec.inputs) ? rec.inputs.filter((x) => typeof x === "string") : [],
+        inputSha256: rec && Array.isArray(rec.inputSha256) ? rec.inputSha256.filter((x) => typeof x === "string" && HASH_RE.test(x)) : [],
         record: rec || { job: o.job, slug: o.slug, kind: o.kind, model: o.model, seconds: o.seconds, batch: o.batch, shot: o.shot,
           estimate: o.estimate, fingerprint: null, state: "waiting", progress: null, credits: o.reserved, reason: null,
-          runwayTask: o.runwayTask, output: null, startedAt: null, endedAt: null, inputs: [] },
+          runwayTask: o.runwayTask, output: null, startedAt: null, endedAt: null, inputs: [], prompt: null, inputSha256: [], resend: null, notStarted: null },
       };
       const key = readRunwayKey(P.key);
       if (!j.runwayTask) {
@@ -676,6 +739,18 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
         await onTask(j, task, key);
         track(j);
       }
+    }
+  }
+
+  // At start: what the door's own job records (two days of them) say Runway refused, or did not
+  // start, read once here and never per request.
+  function loadMarks() {
+    for (const rec of store.listJobs()) {
+      const sent = Array.isArray(rec.inputSha256) ? rec.inputSha256.filter((x) => typeof x === "string" && HASH_RE.test(x)) : [];
+      const kind = rec.state === "refused" ? "refused" : failureKind(rec.failureCode);
+      if (kind === "refused" || kind === "bad_input") for (const h of sent) marks.pictures.add(h);
+      if (rec.state === "refused" && typeof rec.fingerprint === "string") marks.refused.add(rec.fingerprint);
+      if (Number.isInteger(rec.notStarted) && rec.notStarted !== 401 && rec.notStarted !== 429 && typeof rec.resend === "string") marks.resend.add(rec.resend);
     }
   }
 
@@ -721,11 +796,13 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
           status.on = gs.ok && gs.on;
           status.key = readRunwayKey(P.key) !== null;
           try { store.sweep(clock()); } catch { /* nothing to sweep yet */ }
+          try { loadMarks(); } catch (err) { say(`${iso()} job records not read: ${describeError(err)}`); }
           // The ledger is tidied here, synchronously, before any request or settling can
           // append to it (PLAN-V5 C3); a failure leaves it as it was.
           try {
             const tidy = rotateLedger(P.ledger, clock());
             if (tidy.moved > 0) say(`${iso()} ledger tidied: ${tidy.moved} old lines moved, ${tidy.kept} kept`);
+            if (tidy.folded > 0) say(`${iso()} ledger tidied: ${tidy.folded} requests Runway did not start folded into one line`);
           } catch (err) {
             say(`${iso()} ledger not tidied: ${describeError(err)}`);
           }

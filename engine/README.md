@@ -13,7 +13,7 @@ One command, `engine/bin/engine`, with these words after it:
 - `start`: turns everything on, in order, and stops at the first part that fails. It says where to look. Running it twice starts nothing new. It ends with `Open http://127.0.0.1:3200`.
 - `stop`: turns everything off and leaves no agent running. Nothing starts by itself when the Mac starts.
 - `status`: one line per part (the board, the gate, the Model relay, the home screen and the others): `on`, `off`, `unhealthy` or `not installed`, and what to do next. A good result ends with `Everything is on.`
-- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 135 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
+- `prove`: checks that the fence holds. A good result ends with `holds`. At the last run it passed 162 checks with 0 failures. One note remains: the Checker (Codex) still uses your own Codex login through a link (see "Steps only you can do"). Since 11 November it also checks that the board's git never runs a program an agent planted in its task folder, that an agent cannot widen its own fence with a planted link, and that one agent cannot touch another agent's Claude Code home.
 - `setup`: makes the board match the company files. Safe to run again.
 - `test`: runs every test. A good result ends with `All tests passed.`
 

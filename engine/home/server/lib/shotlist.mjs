@@ -233,10 +233,32 @@ export function priceShotlist(shotlist, models) {
   }
 }
 
-// The SHA-256 of the priced shots as the owner approved them (the `shotlist:` record keeps it, so a shotlist
-// changed after the approval can be told). Field by field, in the shots' order.
+// The priced shots with what the owner read of each in the shotlist they were priced from: its render, move and
+// prompt (T48 F3: the render and the prompt are part of what is approved, not only the price). [] when either is
+// missing. Pure; never throws.
+export function approvedShots(shotlist, priced) {
+  try {
+    const listed = new Map((isObject(shotlist) && Array.isArray(shotlist.shots) ? shotlist.shots : []).filter(isObject).map((s) => [s.id, s]));
+    return (priced?.ok === true && Array.isArray(priced.shots) ? priced.shots : []).map((p) => {
+      const s = listed.get(p.id) || {};
+      return {
+        ...p,
+        render: typeof s.render === "string" ? s.render : null,
+        move: typeof s.move === "string" ? s.move : null,
+        prompt: typeof s.prompt === "string" ? s.prompt : null,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+// The SHA-256 of the shots as the owner approved them (the `shotlist:` record keeps it, so a shotlist changed after
+// the approval can be told): each shot's id, kind, model, seconds and credits as priced, and its render and prompt
+// as the owner read them (approvedShots). Field by field, in the shots' order.
 export function shotsHash(shots) {
-  const list = (Array.isArray(shots) ? shots : []).map((s) => [s?.id ?? null, s?.kind ?? null, s?.model ?? null, s?.seconds ?? null, s?.credits ?? null]);
+  const list = (Array.isArray(shots) ? shots : []).map((s) => [s?.id ?? null, s?.kind ?? null, s?.model ?? null, s?.seconds ?? null, s?.credits ?? null,
+    s?.render ?? null, s?.prompt ?? null]);
   return createHash("sha256").update(JSON.stringify(list), "utf8").digest("hex");
 }
 
@@ -300,8 +322,26 @@ const HEX64 = /^[0-9a-f]{64}$/;
 const validTime = (t) => typeof t === "string" && t.length <= 40 && Number.isFinite(Date.parse(t));
 const recordKey = (goalId) => `shotlist:${goalId}`;
 
-// One approval as kept, or null: ids, a direction id from the repo's list, numbers, a hash and a time. No word an
-// agent wrote is ever kept.
+// What the owner read of each approved shot, as kept: [{ id, render, move, prompt }] (1 to 12 shots, each field
+// checked again as readShotlist checks it: a render name of its pattern or null, one line of at most 200 for the
+// move, at most 1000 characters with no control character but a line break for the prompt), or null when any of
+// it is not of that form. This is the only agent-written text kept in a record (T48 F3): the words the owner
+// approved, so Studio can show them whatever the Artist's file says later.
+function cleanApproved(v) {
+  if (!Array.isArray(v) || v.length < 1 || v.length > MAX_SHOTS) return null;
+  const out = [];
+  for (const s of v) {
+    if (!isObject(s) || typeof s.id !== "string" || !SHOT_ID.test(s.id)) return null;
+    if (!(s.render === null || (typeof s.render === "string" && RENDER.test(s.render)))) return null;
+    if (!(s.move === null || oneLine(s.move, 0, 200))) return null;
+    if (!promptOk(s.prompt)) return null;
+    out.push({ id: s.id, render: s.render, move: s.move, prompt: s.prompt });
+  }
+  return out;
+}
+
+// One approval as kept, or null: ids, a direction id from the repo's list, numbers, a hash, a time, and the
+// approved shots' render, move and prompt (cleanApproved; null for a record kept before they were).
 function cleanApproval(e) {
   if (!isObject(e) || !validTime(e.at) || typeof e.variant !== "string" || !VARIANT.test(e.variant)) return null;
   if (typeof e.batch !== "string" || !BATCH_ID.test(e.batch) || typeof e.shots !== "string" || !HEX64.test(e.shots)) return null;
@@ -311,6 +351,7 @@ function cleanApproval(e) {
     variant: e.variant,
     direction: typeof e.direction === "string" && DIRECTION.test(e.direction) ? e.direction : null,
     batch: e.batch, budget: e.budget, base: e.base, shots: e.shots, at: e.at,
+    approved: cleanApproved(e.approved),
   };
 }
 
@@ -324,8 +365,8 @@ export function approvalsOf(decisions, goalId) {
   }
 }
 
-// recordApproval(decisions, goalId, { round, variant, direction, batch, budget, base, shots }, { now }) -> the entry
-// written, or null when it is malformed (nothing is written then).
+// recordApproval(decisions, goalId, { round, variant, direction, batch, budget, base, shots, approved }, { now }) ->
+// the entry written, or null when it is malformed (nothing is written then).
 export function recordApproval(decisions, goalId, entry, { now = new Date() } = {}) {
   if (typeof goalId !== "string" || !goalId || !decisions || typeof decisions.set !== "function") return null;
   const e = cleanApproval({ ...(isObject(entry) ? entry : {}), at: now.toISOString() });
