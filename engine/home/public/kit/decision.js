@@ -1,5 +1,6 @@
-// The one approval component (CONTRACTS-V2 13.2): a warm card that shows exactly what is being approved,
-// one primary action, "Send back" with a note in place, and the rest in a menu. It acts only through
+// The one approval component (CONTRACTS-V2 13.2): a card on the raised step that shows exactly what is being
+// approved (who raised it, the title, the summary, the details as label and value rows), then one line of actions
+// with the one primary last at the right, "Send back" with a note in place, and the rest in a menu. It acts only through
 // POST /api/inbox/act, sending the version of the item the owner saw (CONTRACTS 9.3a). When the server answers
 // that the item changed since, the card says so, reads the item again and shows it; it never retries by itself.
 import { html, useCallback, useEffect, useRef, useState } from "../vendor/preact-htm.js";
@@ -9,7 +10,7 @@ import { Avatar } from "./avatar.js";
 import { Button } from "./button.js";
 import { Icon } from "./icon.js";
 import { Menu } from "./overlays.js";
-import { Mono } from "./text.js";
+import { St } from "./status.js";
 
 // ---- Versions (CONTRACTS 9.3a): an action is tied to the version of the item the owner saw. ----
 export const CHANGED_SINCE_SEEN = "changed_since_seen";
@@ -164,21 +165,65 @@ export function suggestedOf(item) {
   return item && Array.isArray(item.suggested) ? item.suggested.filter((t) => t && t.title) : [];
 }
 
-// One field per question: its words, its choices as buttons that stay pressed, and a text field when it takes words.
+// Pure. True when a detail's value is a figure (an amount, a count, a date in numbers): short, and led by a digit
+// or by a sign before one. A figure is set in tabular figures; words keep their own spacing.
+export function isFigure(value) {
+  const s = text(value).trim();
+  return s.length > 0 && s.length <= 24 && /^[^\p{L}\s]{0,3}\s?\d/u.test(s);
+}
+
+// Pure. True when a detail's value is too long to sit at the right of its label: it goes under the label instead.
+export const LONG_DETAIL = 48;
+export function isLongDetail(value) {
+  return text(value).length > LONG_DETAIL || /\n/.test(text(value));
+}
+
+// Arrows move a choice between radio rows (and take it, as a radio group does); Home and End go to the ends.
+function onRadioKey(ev, q, setPicks) {
+  const keys = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1, Home: "first", End: "last" };
+  if (!(ev.key in keys)) return;
+  const group = ev.currentTarget && ev.currentTarget.parentNode;
+  const rows = group && group.querySelectorAll ? [...group.querySelectorAll('[role="radio"]')] : [];
+  if (!rows.length) return;
+  ev.preventDefault();
+  const at = rows.indexOf(ev.currentTarget);
+  const step = keys[ev.key];
+  const to = step === "first" ? 0 : step === "last" ? rows.length - 1 : (at + step + rows.length) % rows.length;
+  const id = rows[to].getAttribute("data-option");
+  rows[to].focus();
+  setPicks((cur) => {
+    const now = pickOf(cur, q.id);
+    return now && now.optionIds.includes(id) ? cur : pickOption(cur, q, id);
+  });
+}
+
+// One field per question: its words, its choices as radio rows (one) or check rows (several), and a text field
+// when it takes words.
 function QuestionsForm({ questions, picks, setPicks, idBase, firstRef, onKeyDown }) {
   return html`<div class="k-decision__questions">
     ${questions.map((q, qi) => {
       const p = pickOf(picks, q.id) || EMPTY_PICK;
       const fieldId = `${idBase}-q${qi}`;
+      const multi = q.mode === "multi";
       const textLabel = q.mode === "text" ? "Your answer" : q.mode === "single" ? "Or write your own answer" : "Add words of your own";
+      // A radio group has one stop for Tab: the chosen row, else the first.
+      const stop = Math.max(0, q.options.findIndex((o) => p.optionIds.includes(o.id)));
       return html`<fieldset class="k-decision__question" key=${q.id}>
-        <legend class="k-decision__question-prompt">${questions.length > 1 ? `${qi + 1}. ` : ""}${text(q.prompt)}${q.required ? "" : " (you may leave this one)"}</legend>
+        <legend class="k-decision__question-prompt">${questions.length > 1 ? `${qi + 1}. ` : ""}${text(q.prompt)}${q.required ? "" : html`<span class="k-decision__optional"> (you may leave this one)</span>`}</legend>
         ${q.help && html`<p class="k-decision__question-help">${text(q.help)}</p>`}
-        ${q.options.length > 0 && html`<div class="k-decision__choices" role="group" aria-label=${q.mode === "multi" ? "Pick any" : "Pick one"}>
-          ${q.options.map((o, oi) => html`<button type="button" key=${o.id} class="k-decision__choice"
-            ref=${qi === 0 && oi === 0 ? firstRef : undefined}
-            aria-pressed=${p.optionIds.includes(o.id) ? "true" : "false"}
-            onClick=${() => setPicks((cur) => pickOption(cur, q, o.id))}>${text(o.label)}</button>`)}
+        ${q.options.length > 0 && html`<div class="k-decision__choices" role=${multi ? "group" : "radiogroup"} aria-label=${multi ? "Pick any" : "Pick one"}>
+          ${q.options.map((o, oi) => {
+            const on = p.optionIds.includes(o.id);
+            return html`<button type="button" key=${o.id} class="k-decision__choice" data-option=${o.id}
+              role=${multi ? "checkbox" : "radio"} aria-checked=${on ? "true" : "false"}
+              tabindex=${multi || oi === stop ? "0" : "-1"}
+              ref=${qi === 0 && oi === 0 ? firstRef : undefined}
+              onKeyDown=${multi ? undefined : (ev) => onRadioKey(ev, q, setPicks)}
+              onClick=${() => setPicks((cur) => (!multi && on ? cur : pickOption(cur, q, o.id)))}>
+              <span class=${multi ? "k-decision__box" : "k-decision__radio"} aria-hidden="true">${multi && on ? html`<${Icon} name="check" size=${12} />` : null}</span>
+              <span class="k-decision__choice-text">${text(o.label)}</span>
+            </button>`;
+          })}
         </div>`}
         ${q.allowText && html`<label class="k-decision__note-label" for=${fieldId}>${textLabel}</label>
           <textarea id=${fieldId} class="k-textarea k-decision__note-field k-decision__answer-field" rows="2"
@@ -190,10 +235,10 @@ function QuestionsForm({ questions, picks, setPicks, idBase, firstRef, onKeyDown
   </div>`;
 }
 
-// What a card becomes after its action: one plain line with the server's message.
+// What a card becomes after its action: one plain line with a check and the server's message.
 export function DecisionDone({ message }) {
   return html`<div class="k-decision k-decision--done" role="status">
-    <${Icon} name="check" /><span class="k-decision__done-text">${text(message)}</span>
+    <${Icon} name="check" size=${16} /><span class="k-decision__done-text">${text(message)}</span>
   </div>`;
 }
 
@@ -202,7 +247,7 @@ export function DecisionDone({ message }) {
 function Changed({ error, reloading, gone }) {
   const t = changedText(error);
   return html`<div class="k-decision__changed" role="alert">
-    <${Icon} name="alert" />
+    <${Icon} name="alert" size=${16} />
     <div class="k-decision__changed-text">
       <p class="k-decision__changed-title">${text(t.message)}</p>
       <p class="k-decision__changed-next">${reloading ? "Reading it again…" : gone ? "It is no longer waiting for you." : text(t.next)}</p>
@@ -210,7 +255,9 @@ function Changed({ error, reloading, gone }) {
   </div>`;
 }
 
-export function DecisionCard({ item, onDone, compact = false }) {
+// `compact` is a narrow list (a dashboard's column); `level` is the item opened on its own on the Needs you page,
+// where its title is the page's size.
+export function DecisionCard({ item, onDone, compact = false, level = false }) {
   const { act, busy, error, changed } = useInboxAct();
   const [noteFor, setNoteFor] = useState(null); // the action whose note field is open
   const [note, setNote] = useState("");
@@ -339,36 +386,50 @@ export function DecisionCard({ item, onDone, compact = false }) {
 
   // An item raised by an agent carries it; one raised by the board itself shows a plain mark, not made-up initials.
   const agent = shown.agent && shown.agent.slug ? shown.agent : null;
-  const context = [text(shown.raisedBy), when(shown.when)].filter(Boolean);
+  const context = [
+    { words: text(shown.raisedBy) },
+    { words: when(shown.when), title: fullWhen(shown.when) || undefined },
+    { words: text(shown.identifier), ref: true },
+  ].filter((c) => c.words);
   const details = Array.isArray(shown.details) ? shown.details : [];
   const suggested = suggestedOf(shown);
   const high = shown.severity === "high";
   const stopped = busy || reloading || gone;
+  const Title = level ? "h2" : "h3";
 
+  // The way to decide, on one line: the rest in the menu, the note actions as quiet words, the one primary last at
+  // the right. Never a row of peers.
   const actions = html`<div class="k-decision__actions">
-    ${primary && html`<${Button} variant=${primary.style === "danger" ? "danger" : "primary"} busy=${busy && !noteFor && !confirm}
-      disabled=${stopped} onClick=${(ev) => choose(primary, ev)}>${text(primary.label)}<//>`}
+    ${rest.length > 0 && !stopped && html`<${Menu} label="More actions" icon="more"
+      items=${rest.map((a) => ({ id: a.id, label: text(a.label), danger: a.style === "danger", onSelect: () => choose(a) }))} />`}
     ${withNote.map((a) => html`<${Button} variant="quiet" disabled=${stopped}
       onClick=${(ev) => choose(a, ev)}>${text(a.label)}<//>`)}
-    ${rest.length > 0 && !stopped && html`<${Menu} label="More actions" icon="chevron-down"
-      items=${rest.map((a) => ({ id: a.id, label: text(a.label), danger: a.style === "danger", onSelect: () => choose(a) }))} />`}
+    <span class="k-decision__gap" aria-hidden="true"></span>
+    ${primary && html`<${Button} variant=${primary.style === "danger" ? "danger" : "primary"} busy=${busy && !noteFor && !confirm}
+      disabled=${stopped} onClick=${(ev) => choose(primary, ev)}>${text(primary.label)}<//>`}
   </div>`;
 
-  return html`<article class=${`k-decision${compact ? " k-decision--compact" : ""}${high ? " k-decision--high" : ""}`}
+  return html`<article class=${`k-decision${compact ? " k-decision--compact" : ""}${level ? " k-decision--level" : ""}${high ? " k-decision--high" : ""}`}
       aria-label=${text(shown.title)} onKeyDown=${onCardKey}>
-    ${!compact && (agent
-      ? html`<div class="k-decision__avatar"><${Avatar} slug=${agent.slug} name=${agent.name} size=${32} /></div>`
-      : html`<div class="k-decision__avatar"><span class="k-decision__source" aria-hidden="true"><${Icon} name="tasks" /></span></div>`)}
+    <div class="k-decision__head">
+      ${!compact && (agent
+        ? html`<span class="k-decision__avatar"><${Avatar} slug=${agent.slug} name=${agent.name} size=${20} /></span>`
+        : html`<span class="k-decision__avatar"><span class="k-decision__source" aria-hidden="true"><${Icon} name="tasks" size=${12} /></span></span>`)}
+      <p class="k-decision__context">
+        ${context.map((c, i) => html`${i > 0 && html`<span class="k-decision__sep" aria-hidden="true"> · </span>`}<span class=${c.ref ? "k-decision__ref" : undefined} title=${c.title}>${c.words}</span>`)}
+      </p>
+      ${high && html`<span class="k-decision__flag"><${St} tone="bad" icon="alert">Urgent<//></span>`}
+    </div>
     <div class="k-decision__body">
       ${changed && html`<${Changed} error=${error} reloading=${reloading} gone=${gone} />`}
-      <h3 class="k-decision__title">${high && html`<span class="k-decision__flag"><${Icon} name="alert" /><span>Urgent</span></span>`}${text(shown.title)}</h3>
-      <p class="k-decision__context">
-        ${context.map((c, i) => html`${i > 0 && html`<span aria-hidden="true"> · </span>`}<span title=${i === 1 ? fullWhen(shown.when) : undefined}>${c}</span>`)}
-        ${shown.identifier && html`${context.length > 0 && html`<span aria-hidden="true"> · </span>`}<${Mono}>${text(shown.identifier)}<//>`}
-      </p>
+      <${Title} class="k-decision__title">${text(shown.title)}<//>
       ${!compact && shown.summary && html`<p class="k-decision__summary">${text(shown.summary)}</p>`}
       ${details.length > 0 && html`<dl class="k-decision__details">
-        ${details.map((d) => html`<div class="k-decision__detail"><dt>${text(d && d.label)}</dt><dd>${text(d && d.value)}</dd></div>`)}
+        ${details.map((d) => {
+          const value = d && d.value;
+          const cls = `k-decision__detail${isLongDetail(value) ? " k-decision__detail--long" : ""}${isFigure(value) ? " k-decision__detail--figure" : ""}`;
+          return html`<div class=${cls}><dt>${text(d && d.label)}</dt><dd>${text(value)}</dd></div>`;
+        })}
       </dl>`}
       ${suggested.length > 0 && html`<ol class="k-decision__tasks" aria-label="Tasks it would make">
         ${suggested.map((t, i) => html`<li class="k-decision__task" key=${i}>
@@ -376,33 +437,33 @@ export function DecisionCard({ item, onDone, compact = false }) {
           <span class="k-decision__task-who">${t.who ? `For: ${text(t.who)}` : ""}</span>
         </li>`)}
       </ol>`}
-      ${asking && html`<div class="k-decision__note">
-        <${QuestionsForm} questions=${questions} picks=${picks} setPicks=${setPicks} idBase=${`k-answer-${shown.id}`}
-          firstRef=${noteRef} onKeyDown=${onAnswerKey} />
-        <div class="k-decision__note-actions">
-          <${Button} variant="primary" icon="send" busy=${busy} disabled=${stopped || !canSendAnswers(questions, picks)}
-            onClick=${sendAnswers}>Send<//>
-          <${Button} variant="quiet" disabled=${busy} onClick=${cancelNote}>Cancel<//>
-        </div>
-      </div>`}
-      ${noteFor && !asking && html`<div class="k-decision__note">
-        <label class="k-decision__note-label" for=${`k-note-${shown.id}`}>${text(noteFor.label)}: say what should change</label>
-        <textarea id=${`k-note-${shown.id}`} ref=${noteRef} class="k-textarea k-decision__note-field" rows="3"
-          value=${note} onInput=${(e) => setNote(e.currentTarget.value)} onKeyDown=${onNoteKey}
-          placeholder="Write a short note. Esc cancels."></textarea>
-        <div class="k-decision__note-actions">
-          <${Button} variant="primary" icon="send" busy=${busy} disabled=${stopped || !note.trim()}
-            onClick=${() => run(noteFor, note.trim())}>Send<//>
-          <${Button} variant="quiet" disabled=${busy} onClick=${cancelNote}>Cancel<//>
-        </div>
-      </div>`}
-      ${confirm && html`<div class="k-decision__confirm" role="group" aria-label="Confirm" tabindex="-1" ref=${confirmRef}>
-        <span>${text(confirm.label)}? This cannot be undone here. Esc cancels.</span>
-        <${Button} variant="danger" busy=${busy} disabled=${stopped} onClick=${() => run(confirm)}>${`Yes, ${text(confirm.label).toLowerCase()}`}<//>
-        <${Button} variant="quiet" disabled=${busy} onClick=${cancelConfirm}>Cancel<//>
-      </div>`}
-      ${error && !changed && html`<p class="k-decision__error" role="alert"><${Icon} name="alert" /><span>${text(error.message)}${error.next ? ` ${text(error.next)}` : ""}</span></p>`}
     </div>
+    ${asking && html`<div class="k-decision__note">
+      <${QuestionsForm} questions=${questions} picks=${picks} setPicks=${setPicks} idBase=${`k-answer-${shown.id}`}
+        firstRef=${noteRef} onKeyDown=${onAnswerKey} />
+      <div class="k-decision__note-actions">
+        <${Button} variant="quiet" disabled=${busy} onClick=${cancelNote}>Cancel<//>
+        <${Button} variant="primary" icon="send" busy=${busy} disabled=${stopped || !canSendAnswers(questions, picks)}
+          onClick=${sendAnswers}>Send<//>
+      </div>
+    </div>`}
+    ${noteFor && !asking && html`<div class="k-decision__note">
+      <label class="k-decision__note-label" for=${`k-note-${shown.id}`}>${text(noteFor.label)}: say what should change</label>
+      <textarea id=${`k-note-${shown.id}`} ref=${noteRef} class="k-textarea k-decision__note-field" rows="3"
+        value=${note} onInput=${(e) => setNote(e.currentTarget.value)} onKeyDown=${onNoteKey}
+        placeholder="Write a short note. Esc cancels."></textarea>
+      <div class="k-decision__note-actions">
+        <${Button} variant="quiet" disabled=${busy} onClick=${cancelNote}>Cancel<//>
+        <${Button} variant="primary" icon="send" busy=${busy} disabled=${stopped || !note.trim()}
+          onClick=${() => run(noteFor, note.trim())}>Send<//>
+      </div>
+    </div>`}
+    ${confirm && html`<div class="k-decision__confirm" role="group" aria-label="Confirm" tabindex="-1" ref=${confirmRef}>
+      <span class="k-decision__confirm-text">${text(confirm.label)}? This cannot be undone here. Esc cancels.</span>
+      <${Button} variant="quiet" disabled=${busy} onClick=${cancelConfirm}>Cancel<//>
+      <${Button} variant="danger" busy=${busy} disabled=${stopped} onClick=${() => run(confirm)}>${`Yes, ${text(confirm.label).toLowerCase()}`}<//>
+    </div>`}
+    ${error && !changed && html`<p class="k-decision__error" role="alert"><${Icon} name="alert" size=${14} /><span>${text(error.message)}${error.next ? ` ${text(error.next)}` : ""}</span></p>`}
     ${!noteFor && !confirm && !gone && actions}
   </article>`;
 }

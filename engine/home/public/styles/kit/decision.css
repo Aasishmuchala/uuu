@@ -1,39 +1,53 @@
-/* DecisionCard (kit/decision.js): the warm card for something that needs the owner. Tokens only.
-   Glass in the warm tokens, a hairline and the inner highlight; the buttons are the kit's pills. No backdrop blur. */
+/* DecisionCard (kit/decision.js): the ordinary approval card, drawn as a sheet in R04's manner on C3's parts.
+   The card is on the raised step (the card fill, a hairline edge, the card shadow in light); no tint. Top to
+   bottom: who raised it and when (13 px), the title (16 px semibold; the page's size when the card is the
+   opened item), the summary, the details as label and value rows parted by hairlines, then, under a divider,
+   one line of actions with the one primary last at the right. Urgent is said once, by a state line in the bad
+   tone. Tokens only. */
 
 .k-decision {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   gap: var(--s-3);
-  align-items: start;
+  min-width: 0;
   padding: var(--s-4) var(--s-5);
-  /* The warm tint lies over glass, so it reads the same over every light of the canvas (M18-11). */
-  background: linear-gradient(var(--bg-warm), var(--bg-warm)), var(--glass);
-  border: 1px solid var(--border-warm);
-  border-radius: var(--r-4);
-  box-shadow: var(--highlight);
-  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
 }
 
-/* A full card knows its own width, so its buttons can move under the words when the card is narrow
-   (a work panel open beside it), whatever the window is. */
-.k-decision:not(.k-decision--compact) {
-  container-type: inline-size;
+/* No frame inside a frame: a card set inside a kit card keeps only its spacing. */
+.k-card .k-decision {
+  padding-left: 0;
+  padding-right: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .k-decision--compact {
-  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-2);
   padding: var(--s-3) var(--s-4);
-  border-radius: var(--r-3);
 }
 
-/* Urgent says so once, with its red chip; the card keeps the same warm edge as the others (M18-12). */
-.k-decision--high {
-  border-color: var(--border-warm);
+.k-decision--level {
+  gap: var(--s-4);
+  padding: var(--s-6);
+}
+
+/* Who raised it and when, on one line, with the urgent mark at its right. */
+.k-decision__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
 }
 
 .k-decision__avatar {
-  padding-top: 2px;
+  display: inline-flex;
+  flex: none;
 }
 
 /* An item the board raised itself: a quiet mark in place of an agent picture. */
@@ -41,87 +55,118 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  background: var(--glass);
-  box-shadow: var(--highlight);
-  color: var(--text-2);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-round);
+  background: var(--ctl);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-2);
+}
+
+.k-decision__context {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.k-decision__ref {
+  font-variant-numeric: tabular-nums;
+}
+
+.k-decision__flag {
+  flex: none;
+  margin-left: auto;
 }
 
 .k-decision__body {
-  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
+  gap: var(--s-2);
+  min-width: 0;
 }
 
 .k-decision__title {
   margin: 0;
-  font-size: var(--fs-title);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-tight);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-section);
+  text-wrap: balance;
   /* Never cut: the title is what is being approved, so it wraps in full. */
   overflow-wrap: anywhere;
 }
 
+.k-decision--level .k-decision__title {
+  font-size: var(--fs-page);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-page);
+  letter-spacing: var(--ls-page);
+}
+
 .k-decision--compact .k-decision__title {
   font-size: var(--fs-body);
-}
-
-.k-decision__flag {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  margin-right: var(--s-2);
-  padding: 0 var(--s-2);
-  border-radius: var(--r-pill);
-  background: var(--bad-bg);
-  color: var(--bad-text);
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-medium);
-  vertical-align: middle;
-}
-
-.k-decision__context {
-  margin: 0;
-  font-size: var(--fs-caption);
-  color: var(--text-2);
-  overflow-wrap: anywhere;
+  line-height: var(--lh-ui);
 }
 
 .k-decision__summary {
-  margin: var(--s-1) 0 0;
-  color: var(--text);
+  margin: 0;
+  max-width: 68ch;
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
+  color: var(--ink-2);
   overflow-wrap: anywhere;
   white-space: pre-line;
 }
 
-/* One label column for every row, so the values line up however long a label is. */
+.k-decision--level .k-decision__summary {
+  font-size: var(--fs-fact);
+  line-height: var(--lh-fact);
+}
+
+/* Label and value rows: the label at the left in the second ink, the value at the right, figures in tabular
+   figures; a value too long for the right sits under its label. Rows are parted by hairlines. */
 .k-decision__details {
-  margin: var(--s-2) 0 0;
-  display: grid;
-  grid-template-columns: fit-content(40%) minmax(0, 1fr);
-  gap: var(--s-1) var(--s-3);
-  align-items: baseline;
+  margin: var(--s-1) 0 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
 }
 
 .k-decision__detail {
-  display: contents;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-1) var(--s-6);
+  min-height: 40px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.k-decision__detail:last-child {
+  border-bottom: 0;
 }
 
 .k-decision__detail dt {
-  min-width: 80px;
-  font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--ls-label);
-  color: var(--ink-3);
+  flex: none;
+  max-width: 40%;
+  font-size: var(--fs-note);
+  line-height: var(--lh-ui);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
 }
 
 .k-decision__detail dd {
+  flex: 0 1 auto;
+  min-width: 0;
   margin: 0;
-  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
+  font-weight: var(--fw-medium);
+  color: var(--ink);
+  text-align: right;
   overflow-wrap: anywhere;
   white-space: pre-line;
 }
@@ -131,61 +176,115 @@
   text-transform: capitalize;
 }
 
-/* A compact card (the drawer) is narrow: each label sits on its own line above its text, so every card
-   lines up the same way (M18-12). */
-.k-decision--compact .k-decision__details {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
+.k-decision__detail--figure dd {
+  font-size: var(--fs-fact);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.k-decision__detail--long {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.k-decision__detail--long dt {
+  max-width: none;
+}
+
+.k-decision__detail--long dd {
+  font-weight: var(--fw-regular);
+  text-align: left;
+}
+
+/* A narrow card (a dashboard's column): each label sits over its value, so every card lines up the same way. */
+.k-decision--compact .k-decision__detail {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-height: 0;
+  padding: var(--s-2) 0;
 }
 
 .k-decision--compact .k-decision__detail dt {
-  min-width: 0;
-  margin-top: var(--s-2);
+  max-width: none;
 }
 
-.k-decision--compact .k-decision__detail:first-child dt {
-  margin-top: 0;
+.k-decision--compact .k-decision__detail dd {
+  text-align: left;
 }
 
-/* The tasks a suggestion would make, each with who it is for: all of them, wrapping on a narrow screen. */
+/* The tasks a suggestion would make, each with who it is for: rows like the details. */
 .k-decision__tasks {
-  margin: var(--s-2) 0 0;
-  padding-left: var(--s-5);
-  display: grid;
-  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+  counter-reset: k-decision-task;
 }
 
 .k-decision__task {
-  color: var(--text);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-1) var(--s-4);
+  flex-wrap: wrap;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
   overflow-wrap: anywhere;
 }
 
+.k-decision__task:last-child {
+  border-bottom: 0;
+}
+
 .k-decision__task-title {
-  display: block;
+  min-width: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
 }
 
 .k-decision__task-who {
-  display: block;
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  font-size: var(--fs-note);
+  color: var(--ink-2);
 }
 
-/* The buttons come after what is being approved: at the right, level with the last line of it. */
+/* The actions: under a divider, one line; the menu and the note actions at the left, the one primary last at
+   the right. */
 .k-decision__actions {
-  align-self: end;
   display: flex;
   align-items: center;
-  gap: var(--s-2);
-  justify-content: flex-end;
   flex-wrap: wrap;
+  gap: var(--s-2);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
 }
 
+/* Quiet words at the start of the line sit on the card's left edge, as the text above them does. */
+.k-decision__actions > .k-btn--quiet:first-child,
+.k-decision__actions > .k-menu:first-child {
+  margin-left: -10px;
+}
+
+.k-decision__gap {
+  flex: 1 1 0;
+}
+
+.k-decision--compact .k-decision__actions {
+  padding-top: var(--s-2);
+}
+
+/* The note, an agent's questions and a confirm open in place of the actions, under the same divider. */
 .k-decision__note,
 .k-decision__confirm {
-  margin-top: var(--s-3);
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
 }
 
 .k-decision__confirm:focus {
@@ -198,34 +297,37 @@
   align-items: center;
 }
 
+.k-decision__confirm-text {
+  flex: 1 1 16em;
+  min-width: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink);
+}
+
 .k-decision__note-label {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   font-weight: var(--fw-medium);
-  color: var(--text-2);
+  color: var(--ink-2);
 }
 
 .k-decision__note-field {
   width: 100%;
   min-height: calc(var(--h-lg) * 2);
-  padding: var(--s-2) var(--s-3);
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-3);
-  background: var(--glass);
-  box-shadow: var(--highlight);
-  color: var(--text);
-  resize: vertical;
-  transition: border-color var(--t-fast) var(--ease);
 }
 
-.k-decision__note-field:focus {
-  border-color: var(--text-3);
+.k-decision__note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
 }
 
-/* An agent's questions, each answered on its own: its words, its choices as buttons that stay pressed. */
+/* An agent's questions, each answered on its own: its words, then its choices as rows. */
 .k-decision__questions {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
 }
 
 .k-decision__question {
@@ -240,82 +342,132 @@
 
 .k-decision__question-prompt {
   padding: 0;
-  font-weight: var(--fw-medium);
-  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
+  font-weight: var(--fw-bold);
+  color: var(--ink);
   overflow-wrap: anywhere;
   white-space: pre-line;
 }
 
+.k-decision__optional {
+  font-weight: var(--fw-regular);
+  color: var(--ink-2);
+}
+
 .k-decision__question-help {
   margin: 0;
-  font-size: var(--fs-caption);
-  color: var(--text-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
 }
 
 .k-decision__choices {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
+  flex-direction: column;
+  gap: 6px;
 }
 
+/* A choice is a row: a drawn radio (one) or box (several) and its words. The chosen row is lifted: the raised
+   step and a 2 px accent ring. */
 .k-decision__choice {
-  min-height: var(--h-sm);
-  padding: 0 var(--s-3);
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-pill);
-  background: var(--glass-soft);
-  color: var(--text);
-  font: inherit;
-  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--h-md);
+  padding: 6px var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--field);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
   text-align: left;
+  cursor: pointer;
   overflow-wrap: anywhere;
   transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 
 .k-decision__choice:hover {
-  border-color: var(--text-3);
+  border-color: var(--line-2);
+  background: var(--ctl);
 }
 
-.k-decision__choice[aria-pressed="true"] {
+.k-decision__choice[aria-checked="true"] {
   border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.k-decision__choice-text {
+  min-width: 0;
+}
+
+.k-decision__radio,
+.k-decision__box {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--ink-3);
+  border-radius: var(--r-round);
+  color: var(--accent-ink);
+}
+
+.k-decision__box {
+  border-radius: var(--r-xs);
+}
+
+.k-decision__choice[aria-checked="true"] .k-decision__radio {
+  border: 5px solid var(--accent);
+  background: var(--accent-ink);
+}
+
+.k-decision__choice[aria-checked="true"] .k-decision__box {
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
 }
 
 .k-decision__answer-field {
   min-height: var(--h-lg);
 }
 
-.k-decision__note-actions {
-  display: flex;
-  gap: var(--s-2);
-}
-
 .k-decision__error {
-  margin: var(--s-2) 0 0;
+  margin: 0;
   display: flex;
-  align-items: center;
-  gap: var(--s-1);
-  color: var(--bad-text);
-  font-size: var(--fs-caption);
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--bad);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
-/* The item changed after the owner looked: nothing was done; the card shows it as it is now. */
+.k-decision__error .k-icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* The item changed after the owner looked: nothing was done; the card shows it as it is now. A thin amber
+   rule on a faint tint, never the loudest thing on the card. */
 .k-decision__changed {
   display: flex;
   align-items: flex-start;
-  gap: var(--s-2);
-  margin-bottom: var(--s-2);
+  gap: 10px;
   padding: var(--s-2) var(--s-3);
-  border: 1px solid var(--warn);
-  border-radius: var(--r-3);
-  background: var(--warn-bg);
-  color: var(--warn-text);
+  border-left: 2px solid var(--warn);
+  border-radius: 0 var(--r-1) var(--r-1) 0;
+  background: color-mix(in srgb, var(--warn-bg) 70%, transparent);
+  color: var(--ink);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
 .k-decision__changed .k-icon {
   flex: none;
-  margin-top: 2px;
+  margin-top: 1px;
+  color: var(--warn);
 }
 
 .k-decision__changed-text {
@@ -324,53 +476,49 @@
 
 .k-decision__changed-title {
   margin: 0;
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-bold);
 }
 
 .k-decision__changed-next {
   margin: 0;
-  font-size: var(--fs-caption);
+  color: var(--ink-2);
 }
 
+/* Done: one line with a check, on the same step as the card it replaced. */
 .k-decision--done {
-  display: flex;
+  flex-direction: row;
   align-items: center;
   gap: var(--s-2);
+  min-height: var(--s-12);
   padding: var(--s-3) var(--s-4);
-  background: var(--glass);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
-  box-shadow: var(--highlight);
-  color: var(--text-2);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
 }
 
 .k-decision--done .k-icon {
-  color: var(--ok);
+  flex: none;
+  color: var(--good);
 }
 
 .k-decision__done-text {
+  min-width: 0;
   overflow-wrap: anywhere;
-}
-
-@container (max-width: 719px) {
-  .k-decision__actions {
-    grid-column: 2 / -1;
-    justify-content: flex-start;
-  }
 }
 
 @media (max-width: 859px) {
   .k-decision {
-    grid-template-columns: auto minmax(0, 1fr);
+    padding: var(--s-4);
   }
 
-  .k-decision--compact {
-    grid-template-columns: minmax(0, 1fr);
+  .k-decision--level {
+    padding: var(--s-5) var(--s-4);
   }
 
-  .k-decision__actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
+  .k-decision--level .k-decision__title {
+    font-size: var(--fs-stat);
+    line-height: var(--lh-stat);
+    letter-spacing: var(--ls-stat);
   }
 
   .k-decision__note-field {
@@ -378,6 +526,6 @@
   }
 
   .k-decision__choice {
-    min-height: 44px;
+    min-height: calc(var(--h-lg) + var(--s-1));
   }
 }

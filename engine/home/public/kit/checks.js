@@ -1,5 +1,5 @@
-// The Checker's numbered checks with a pass or fail mark and an evidence count, and one piece of evidence shown
-// large. CONTRACTS-V2 13.2. A check is { n, question, answer: "yes"|"no", reason, evidence: [file-entry] } (17.3).
+// The Checker's numbered checks as rows in one panel (a 14 px glyph beside grey words for pass or fail, the
+// question, the reason, the evidence count at the right), and one piece of evidence shown large. CONTRACTS-V2 13.2. A check is { n, question, answer: "yes"|"no", reason, evidence: [file-entry] } (17.3).
 import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { safeHref } from "./util.js";
@@ -21,7 +21,7 @@ export function CheckList({ checks = [], selected, onSelect }) {
       const isSel = selected !== undefined && selected !== null && Number(selected) === Number(c.n);
       const inner = html`
         <span class=${`k-checks__mark k-checks__mark--${ok ? "pass" : "fail"}`}>
-          <${Icon} name=${ok ? "check" : "cross"} />
+          <${Icon} name=${ok ? "check" : "cross"} size=${14} />
           <span class="k-checks__word">${ok ? "Passed" : "Failed"}</span>
         </span>
         <span class="k-checks__body">
@@ -78,7 +78,7 @@ export function Evidence({ file }) {
       ${s.data && (MARKDOWN_NAME.test(name)
         ? html`<div class="k-evidence__doc" tabindex="0" role="region" aria-label=${name}><${Markdown} text=${text(s.data.text)} /></div>`
         : html`<pre class="k-evidence__text u-mono">${text(s.data.text)}</pre>`)}
-      ${s.data && s.data.truncated && html`<p class="k-evidence__more u-mono">Only the start of this file is shown.</p>`}
+      ${s.data && s.data.truncated && html`<p class="k-evidence__more">Only the start of this file is shown.</p>`}
       <figcaption class="k-evidence__name">${name}</figcaption>
     </figure>`;
   }

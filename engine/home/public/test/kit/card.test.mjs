@@ -21,14 +21,11 @@ test("Card: tone ghost has its own class; an unknown tone falls back to plain", 
   assert.match(root.firstChild.getAttribute("class"), /k-card--plain/);
 });
 
-test("an urgent card says so once, by its tag or its amber rule, with no tint over glass; drawer cards line up (M18-11, M18-12)", () => {
+// The decision card's half of this test (urgent, drawer cards lining up) moved to decision.test.mjs with T36.
+test("an urgent card says so once, by its amber rule, with no tint over glass (M18-11)", () => {
   const c = css("kit/card.css");
   assert.match(c, /\.k-card--warm::after\s*\{\s*box-shadow: inset 2px 0 0 var\(--warn\);\s*\}/, "the amber rule at the left");
   assert.doesNotMatch(c, /linear-gradient|--bg-warm|--warn-bg|--glass/, "no tint and no glass under a card");
-  const d = css("kit/decision.css");
-  assert.match(d, /\.k-decision--high\s*\{\s*border-color: var\(--border-warm\);/);
-  assert.match(d, /\.k-decision--compact \.k-decision__details\s*\{\s*grid-template-columns: minmax\(0, 1fr\);/);
-  assert.match(d, /dd::first-letter\s*\{\s*text-transform: capitalize;/, "a detail still starts with a capital, without the banned uppercase rule");
 });
 
 // From "the primitives' stylesheets follow the rules of V3 27.3" (kit-a); rewritten for the corrections after round 3 (1).

@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { KIT, render, installDom, elements, textOf, classOf, hasClass, settle, showTree, show, fire, buttonNamed, stubFetch } from "./_dom.mjs";
 import { COMPOSITE_PINNED, shape } from "./_fixtures.mjs";
-import { compositeSheetTests } from "./_rules.mjs";
+import { compositeSheetTests, css } from "./_rules.mjs";
 
 const PINNED = COMPOSITE_PINNED;
 const MODULES = Object.keys(PINNED);
@@ -356,7 +356,8 @@ test("DecisionCard: an item the board raised shows a plain mark; a leading dange
       assert.equal(globalThis.document.activeElement, buttonNamed(root, "New"), "the first choice has the focus");
       fire(buttonNamed(root, "Qualified"), "click");
       await settle();
-      assert.equal(buttonNamed(root, "Qualified").getAttribute("aria-pressed"), "true");
+      assert.equal(buttonNamed(root, "Qualified").getAttribute("aria-checked"), "true", "the chosen radio row is checked");
+      assert.equal(buttonNamed(root, "New").getAttribute("aria-checked"), "false");
       fire(buttonNamed(root, "Email"), "click");
       await settle();
       const notes = elements(root).filter((e) => e.localName === "textarea")[1];
@@ -398,5 +399,101 @@ test("DecisionCard: an item the board raised shows a plain mark; a leading dange
     }
   });
 }
+
+// ---- PLAN-COOK T36: the card in R04's manner on C3's parts ----
+
+test("a single-choice question is a radio group of rows; several choices are check rows; one Tab stop a group", async () => {
+  installDom();
+  const item = {
+    id: "board:q2", kind: "question", title: "Pick", raisedBy: "Sales", when: "2026-11-11T09:00:00.000Z", severity: "normal",
+    actions: [{ id: "answer", label: "Answer", style: "primary", needsNote: true }],
+    questions: [
+      { id: "stage", prompt: "Which stage?", mode: "single", required: true, options: [{ id: "new", label: "New" }, { id: "won", label: "Won" }], allowText: false },
+      { id: "how", prompt: "How?", mode: "multi", required: false, options: [{ id: "phone", label: "Phone" }, { id: "email", label: "Email" }], allowText: false },
+    ],
+  };
+  const root = await showTree(decision.DecisionCard, { item });
+  fire(buttonNamed(root, "Answer"), "click");
+  await settle();
+  const groups = elements(root).filter((e) => e.getAttribute && (e.getAttribute("role") === "radiogroup" || e.getAttribute("role") === "group"));
+  assert.ok(groups.some((g) => g.getAttribute("role") === "radiogroup" && g.getAttribute("aria-label") === "Pick one"));
+  assert.equal(buttonNamed(root, "New").getAttribute("role"), "radio");
+  assert.equal(buttonNamed(root, "Phone").getAttribute("role"), "checkbox");
+  assert.deepEqual(["New", "Won"].map((w) => buttonNamed(root, w).getAttribute("tabindex")), ["0", "-1"], "one stop: the first row");
+  fire(buttonNamed(root, "Won"), "click");
+  await settle();
+  assert.deepEqual(["New", "Won"].map((w) => buttonNamed(root, w).getAttribute("tabindex")), ["-1", "0"], "the stop follows the choice");
+  fire(buttonNamed(root, "Won"), "click");
+  await settle();
+  assert.equal(buttonNamed(root, "Won").getAttribute("aria-checked"), "true", "pressing a chosen radio keeps it chosen");
+  render(null, root);
+});
+
+test("the actions are one line: the menu and the note actions first, the one primary last", async () => {
+  installDom();
+  const item = { ...SEEN, actions: [
+    { id: "reopen", label: "Send back", style: "plain", needsNote: true },
+    { id: "acknowledge", label: "Accept", style: "primary", needsNote: false },
+    { id: "dismiss", label: "Hide", style: "plain", needsNote: false },
+  ] };
+  const root = await showTree(decision.DecisionCard, { item });
+  const row = elements(root).find((e) => hasClass(e, "k-decision__actions") && classOf(e).includes("k-decision__actions"));
+  const buttons = elements(row).filter((e) => e.localName === "button");
+  assert.equal(textOf(buttons.at(-1)).trim(), "Accept", "the primary is last");
+  assert.equal(buttons.filter((b) => classOf(b).includes("k-btn--primary")).length, 1, "one filled primary");
+  assert.ok(classOf(buttonNamed(root, "Send back")).includes("k-btn--quiet"), "Send back is quiet words");
+  assert.ok(buttons.some((b) => b.getAttribute("aria-label") === "More actions"), "the rest are in the menu");
+  render(null, root);
+});
+
+test("DecisionCard: who and when on one line, the title, details as label and value rows; level makes it the page's title", async () => {
+  installDom();
+  const item = { ...SEEN, identifier: "STH-8", details: [
+    { label: "Amount", value: "₹ 1,000.00" },
+    { label: "What you can do", value: "Stop the task, or reply. The board will not start it again by itself until you say so." },
+  ] };
+  let root = await showTree(decision.DecisionCard, { item });
+  const context = elements(root).find((e) => classOf(e).includes("k-decision__context"));
+  assert.match(textOf(context), /Chief of staff · .+ · STH-8/);
+  assert.equal(elements(root).find((e) => classOf(e).includes("k-decision__title")).localName, "h3");
+  const rows = elements(root).filter((e) => /\bk-decision__detail\b/.test(classOf(e)));
+  assert.equal(rows.length, 2);
+  assert.ok(classOf(rows[0]).includes("k-decision__detail--figure"), "an amount is a figure");
+  assert.ok(classOf(rows[1]).includes("k-decision__detail--long"), "a long sentence sits under its label");
+  render(null, root);
+  root = await showTree(decision.DecisionCard, { item, level: true });
+  assert.ok(classOf(elements(root).find((e) => e.localName === "article")).includes("k-decision--level"));
+  assert.equal(elements(root).find((e) => classOf(e).includes("k-decision__title")).localName, "h2");
+  render(null, root);
+  assert.equal(decision.isFigure("$1.85"), true);
+  assert.equal(decision.isFigure("3 of 70"), true);
+  assert.equal(decision.isFigure("Passed in round 2"), false);
+  assert.equal(decision.isFigure(""), false);
+  assert.equal(decision.isLongDetail("short"), false);
+  assert.equal(decision.isLongDetail("x".repeat(49)), true);
+});
+
+test("an urgent card says so once, with a state line in the bad tone, and is not tinted", async () => {
+  const urgent = await show(decision.DecisionCard, { item: { ...SEEN, severity: "high" } });
+  const marks = elements(urgent).filter((e) => classOf(e).includes("k-st--bad"));
+  assert.equal(marks.length, 1, "one bad state line");
+  assert.equal(textOf(marks[0]).trim(), "Urgent");
+  assert.ok(!textOf(elements(urgent).find((e) => classOf(e).includes("k-decision__title"))).includes("Urgent"), "said once, not in the title");
+  const calm = await show(decision.DecisionCard, { item: SEEN });
+  assert.ok(!elements(calm).some((e) => classOf(e).includes("k-st--bad")));
+  const d = css("kit/decision.css");
+  assert.doesNotMatch(d, /linear-gradient|--bg-warm|--border-warm|--warn-bg\)\s*,\s*var\(--glass|--glass|--highlight|--r-pill/, "no warm tint, glass or pill");
+  assert.match(d, /\.k-decision \{[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--r-3\);[^}]*background: var\(--card\);[^}]*box-shadow: var\(--shadow-card\)/, "the card on the raised step");
+  assert.doesNotMatch(d, /\.k-decision--high\s*\{/, "urgent changes no edge and no fill");
+  assert.match(d, /\.k-card \.k-decision \{[^}]*border-color: transparent;[^}]*background: transparent;/, "no frame inside a frame");
+  assert.match(d, /\.k-decision__actions \{[^}]*border-top: 1px solid var\(--line\)/, "the actions sit under a divider");
+  assert.match(d, /\.k-decision__changed \{[^}]*border-left: 2px solid var\(--warn\)/, "a change is a thin amber rule");
+});
+
+test("drawer cards line up: a compact card puts each label over its value; a detail still starts with a capital (M18-12)", () => {
+  const d = css("kit/decision.css");
+  assert.match(d, /\.k-decision--compact \.k-decision__detail\s*\{\s*flex-direction: column;/);
+  assert.match(d, /dd::first-letter\s*\{\s*text-transform: capitalize;/, "a detail still starts with a capital, without the banned uppercase rule");
+});
 
 compositeSheetTests("decision");

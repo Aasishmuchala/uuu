@@ -1,5 +1,5 @@
-// A file chosen from this Mac, by a click, the keyboard or a drop. A real <input type="file"> sits behind a glass
-// area. The size and the ending are checked first, from what the browser already knows, so a file that is too
+// A file chosen from this Mac, by a click, the keyboard or a drop. A real <input type="file"> sits behind a dashed
+// drop area. The size and the ending are checked first, from what the browser already knows, so a file that is too
 // large or of another kind is never read into memory and nothing is sent. Then `onPick({ name, base64, size })`.
 import { html, useRef, useState } from "../vendor/preact-htm.js";
 import { bytes } from "../lib/format.js";
@@ -86,7 +86,7 @@ export function FilePicker({ accept, maxBytes, onPick, busy, error }) {
     <input ref=${input} id=${id} type="file" class="k-upload__input" accept=${endings.join(",") || undefined}
       disabled=${off} aria-describedby=${`${id}-about${message ? ` ${id}-error` : ""}`} onChange=${onChange} />
     <label for=${id} class="k-upload__area">
-      <${Icon} name=${off ? "clock" : "upload"} size=${24} class="k-upload__icon" />
+      <span class="k-upload__tile" aria-hidden="true"><${Icon} name=${off ? "clock" : "upload"} size=${18} class="k-upload__icon" /></span>
       <span class="k-upload__title">${off ? "Reading the file…" : "Choose a file, or drop it here"}</span>
       <span class="k-upload__about" id=${`${id}-about`}>${limit}</span>
     </label>

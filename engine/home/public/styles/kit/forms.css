@@ -1,5 +1,6 @@
-/* kit/forms.js: a company-brain form. Fields stack; a table of rows and a set of colours sit in a fieldset with
-   the same label, hint and error as a single field. */
+/* kit/forms.js: a company-brain form. Fields stack 20 px apart, each as the kit's field (a 14 px label, the
+   36 px control, a 13 px hint, the error in the bad colour); a table of rows and a set of colours sit in a
+   fieldset with the same label, hint and error. Tokens only. */
 
 .k-form {
   display: flex;
@@ -19,29 +20,39 @@
 }
 
 .k-form__legend {
-  margin-bottom: var(--s-1);
+  margin-bottom: 2px;
   padding: 0;
-  color: var(--text);
-  font-size: var(--fs-body);
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
   font-weight: var(--fw-medium);
 }
 
 .k-form__optional {
-  color: var(--text-2);
+  color: var(--ink-2);
   font-weight: var(--fw-regular);
 }
 
 .k-form__hint {
-  color: var(--text-3);
-  font-size: var(--fs-caption);
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
 .k-form__error {
+  margin: 0;
   display: flex;
   align-items: flex-start;
   gap: var(--s-1);
-  color: var(--bad-text);
-  font-size: var(--fs-caption);
+  color: var(--bad);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.k-form__error .k-icon {
+  flex: none;
+  margin-top: 2px;
 }
 
 /* The box the rows measure themselves against. */
@@ -60,24 +71,32 @@
   overflow-x: auto;
 }
 
+/* The columns share the width; the remove button keeps only its own. */
 .k-form__row {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(84px, 1fr);
-  grid-template-columns: none;
+  grid-template-columns: repeat(var(--k-form-cols, 1), minmax(84px, 1fr)) var(--h-md);
   align-items: center;
   gap: var(--s-2);
 }
+
+.k-form__rows--c2 { --k-form-cols: 2; }
+.k-form__rows--c3 { --k-form-cols: 3; }
+.k-form__rows--c4 { --k-form-cols: 4; }
+.k-form__rows--c5 { --k-form-cols: 5; }
+.k-form__rows--c6 { --k-form-cols: 6; }
 
 /* A column's name over its box: shown only when a row is a card. */
 .k-form__cell-label {
   display: none;
 }
 
+/* The heading row: 12 px names in the second ink, as a table's headings. */
 .k-form__row--head {
-  color: var(--text-2);
-  font-size: var(--fs-caption);
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
   font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-label);
 }
 
 .k-form__cell {
@@ -94,6 +113,8 @@
 
 .k-form__row > .k-form__cell--tool {
   justify-self: end;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .k-form__more {
@@ -113,14 +134,24 @@
 }
 
 .k-form__swatch {
+  /* The colour fills the whole box. */
   flex: none;
   width: var(--h-md);
   height: var(--h-md);
   padding: 0;
-  border: 1px solid var(--hairline-strong);
+  border: 1px solid var(--line-2);
   border-radius: var(--r-2);
-  background: transparent;
+  background: var(--field);
   cursor: pointer;
+}
+
+.k-form__swatch::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+
+.k-form__swatch::-webkit-color-swatch {
+  border: 0;
+  border-radius: var(--r-xs);
 }
 
 .k-form__hex {
@@ -148,9 +179,9 @@
     grid-auto-flow: row;
     grid-template-columns: minmax(0, 1fr) auto;
     padding: var(--s-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--r-3);
-    background: var(--glass-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-2);
+    background: var(--field);
   }
 
   .k-form__rows--c2 .k-form__cell {
@@ -166,8 +197,9 @@
   .k-form__rows--c2 .k-form__cell-label {
     display: block;
     margin-bottom: var(--s-1);
-    color: var(--text-2);
-    font-size: var(--fs-caption);
+    color: var(--ink-2);
+    font-size: var(--fs-label);
+    line-height: var(--lh-label);
   }
 }
 
@@ -184,9 +216,9 @@
     grid-auto-flow: row;
     grid-template-columns: minmax(0, 1fr) auto;
     padding: var(--s-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--r-3);
-    background: var(--glass-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-2);
+    background: var(--field);
   }
 
   .k-form__rows--c3 .k-form__cell {
@@ -202,8 +234,9 @@
   .k-form__rows--c3 .k-form__cell-label {
     display: block;
     margin-bottom: var(--s-1);
-    color: var(--text-2);
-    font-size: var(--fs-caption);
+    color: var(--ink-2);
+    font-size: var(--fs-label);
+    line-height: var(--lh-label);
   }
 }
 
@@ -220,9 +253,9 @@
     grid-auto-flow: row;
     grid-template-columns: minmax(0, 1fr) auto;
     padding: var(--s-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--r-3);
-    background: var(--glass-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-2);
+    background: var(--field);
   }
 
   .k-form__rows--c4 .k-form__cell {
@@ -238,8 +271,9 @@
   .k-form__rows--c4 .k-form__cell-label {
     display: block;
     margin-bottom: var(--s-1);
-    color: var(--text-2);
-    font-size: var(--fs-caption);
+    color: var(--ink-2);
+    font-size: var(--fs-label);
+    line-height: var(--lh-label);
   }
 }
 
@@ -256,9 +290,9 @@
     grid-auto-flow: row;
     grid-template-columns: minmax(0, 1fr) auto;
     padding: var(--s-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--r-3);
-    background: var(--glass-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-2);
+    background: var(--field);
   }
 
   .k-form__rows--c5 .k-form__cell {
@@ -274,8 +308,9 @@
   .k-form__rows--c5 .k-form__cell-label {
     display: block;
     margin-bottom: var(--s-1);
-    color: var(--text-2);
-    font-size: var(--fs-caption);
+    color: var(--ink-2);
+    font-size: var(--fs-label);
+    line-height: var(--lh-label);
   }
 }
 
@@ -292,9 +327,9 @@
     grid-auto-flow: row;
     grid-template-columns: minmax(0, 1fr) auto;
     padding: var(--s-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--r-3);
-    background: var(--glass-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-2);
+    background: var(--field);
   }
 
   .k-form__rows--c6 .k-form__cell {
@@ -310,8 +345,9 @@
   .k-form__rows--c6 .k-form__cell-label {
     display: block;
     margin-bottom: var(--s-1);
-    color: var(--text-2);
-    font-size: var(--fs-caption);
+    color: var(--ink-2);
+    font-size: var(--fs-label);
+    line-height: var(--lh-label);
   }
 }
 

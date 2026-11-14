@@ -1,22 +1,41 @@
-/* BriefCard (kit/brief.js): a glass card with a hairline and the inner highlight, for something that needs no
-   decision. Tokens only. */
+/* BriefCard (kit/brief.js): something the owner should know that needs no decision. A card on the raised step
+   (the card fill, a hairline edge, the card shadow in light): who and the title on one line with the FYI tag at
+   the right, up to three grey lines, then where it came from and when. Tokens only. */
 
 .k-brief {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: 6px;
+  min-width: 0;
   padding: var(--s-4) var(--s-5);
-  background: var(--glass);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-4);
-  box-shadow: var(--highlight);
-  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+}
+
+.k-card .k-brief {
+  padding-left: 0;
+  padding-right: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .k-brief__head {
   display: flex;
   align-items: center;
   gap: var(--s-2);
+  min-width: 0;
+}
+
+.k-brief__head .k-avatar {
+  flex: none;
+}
+
+.k-brief__head .k-tag {
+  flex: none;
 }
 
 .k-brief__title {
@@ -24,14 +43,17 @@
   min-width: 0;
   margin: 0;
   font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-tight);
+  line-height: var(--lh-ui);
+  font-weight: var(--fw-bold);
   overflow-wrap: anywhere;
 }
 
 .k-brief__text {
   margin: 0;
-  color: var(--text-2);
+  max-width: 68ch;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
   overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -41,21 +63,44 @@
 }
 
 .k-brief__source {
-  margin: 0;
+  margin: var(--s-1) 0 0;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--s-1) var(--s-3);
-  font-size: var(--fs-caption);
-  color: var(--text-3);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
 .k-brief__about {
   display: inline-flex;
   align-items: center;
   gap: var(--s-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.k-brief__about .k-icon {
+  flex: none;
+}
+
+.k-brief__about a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.k-brief__about a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .k-brief__source time {
   margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 859px) {
+  .k-brief {
+    padding: var(--s-4);
+  }
 }

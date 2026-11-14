@@ -1,5 +1,7 @@
-/* kit/upload.js: a glass drop area in front of a real file input. The input stays in the page (visually hidden),
-   so it keeps the keyboard and the screen reader; the area is its label. */
+/* kit/upload.js: a dashed drop area in front of a real file input. The input stays in the page (visually hidden),
+   so it keeps the keyboard and the screen reader; the area is its label. The area is the field's fill with a
+   dashed control outline, a 36 px icon tile, one 14 px line and the limit in grey; it answers the pointer and a
+   file held over it in place. Tokens only. */
 
 .k-upload {
   display: flex;
@@ -25,23 +27,28 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--s-2);
-  min-height: 140px;
-  padding: var(--s-6) var(--s-4);
-  border: 1px dashed var(--hairline-strong);
-  border-radius: var(--r-4);
-  background: var(--glass);
-  box-shadow: var(--highlight);
-  color: var(--text);
+  gap: 6px;
+  min-height: 128px;
+  padding: var(--s-5) var(--s-4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--field);
+  color: var(--ink);
   text-align: center;
   cursor: pointer;
   transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 
-.k-upload__area:hover,
+.k-upload__area:hover {
+  border-color: var(--ink-3);
+  background: var(--ctl);
+}
+
+/* A file held over the area: the accent outline, the way a chosen thing is marked. */
 .k-upload--over .k-upload__area {
-  background: var(--glass-strong);
-  border-color: var(--text-2);
+  border-style: solid;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .k-upload__input:focus-visible + .k-upload__area {
@@ -49,22 +56,34 @@
   outline-offset: 2px;
 }
 
-.k-upload__icon {
-  color: var(--text-2);
+.k-upload__tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--h-md);
+  height: var(--h-md);
+  margin-bottom: 2px;
+  border-radius: var(--r-2);
+  background: var(--ctl);
+  color: var(--ink-2);
 }
 
 .k-upload__title {
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
   font-weight: var(--fw-medium);
 }
 
 .k-upload__about {
-  color: var(--text-3);
-  font-size: var(--fs-caption);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
 .k-upload--busy .k-upload__area {
   cursor: progress;
-  opacity: 0.7;
+  border-style: solid;
+  color: var(--ink-2);
 }
 
 .k-upload--error .k-upload__area {
@@ -72,11 +91,18 @@
 }
 
 .k-upload__error {
+  margin: 0;
   display: flex;
   align-items: flex-start;
   gap: var(--s-1);
-  color: var(--bad-text);
-  font-size: var(--fs-caption);
+  color: var(--bad);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.k-upload__error .k-icon {
+  flex: none;
+  margin-top: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
