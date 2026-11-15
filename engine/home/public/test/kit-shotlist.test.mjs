@@ -565,7 +565,7 @@ test("T113: the headline is the item's title with its one-letter words held to t
   assert.equal(textOf(h), "Approve a\u00a0shotlist: A\u00a0film of the lake house");
   const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
   const t = /\.k-sl \.k-rail__title \{([^}]*)\}/.exec(sheet)[1];
-  assert.match(t, /font-size: 24px;/);
+  assert.match(t, /font-size: var\(--fs-page\);/, "the page size, 24 px, from the tokens (fix round R6: no px type on a page)");
   assert.match(t, /font-weight: var\(--fw-bold\);/);
   assert.match(t, /text-wrap: balance;/);
 });
@@ -654,13 +654,19 @@ test("T117: approved, the stage is a sheet of every board cropped: its number on
   const open = elements(t1).find((e) => e.localName === "button");
   assert.equal(open.getAttribute("aria-label"), "Treatment A, board s01, open it larger");
   const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
-  // Fix round R5: the sheet fills the stage, two across (about 400 px each at 1280), one on a phone; the price in the
-  // third ink.
+  // Fix round R5: the sheet fills the stage, two across (about 400 px each at 1280), one on a phone. Fix round R6: the
+  // caption in the second ink, the boards 24 px apart with a 1 px edge and 8 px corners, no shadow.
   assert.match(/\.k-sl__sheet \{([^}]*)\}/.exec(sheet)[1], /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/, "two across");
   assert.match(sheet, /\.k-sl \.k-work__stage > \.k-sl__sheet \{[^}]*grid-template-columns: minmax\(0, 1fr\);/, "one on a phone");
   const facts = /\.k-sl__tile-facts \{([^}]*)\}/.exec(sheet)[1];
   assert.match(facts, /font-variant-numeric: tabular-nums;/);
-  assert.match(facts, /color: var\(--ink-3\);/);
+  assert.match(facts, /color: var\(--ink-2\);/);
+  assert.match(/\.k-sl__tile-words \{([^}]*)\}/.exec(sheet)[1], /color: var\(--ink-2\);/);
+  assert.match(/\.k-sl__sheet \{([^}]*)\}/.exec(sheet)[1], /gap: var\(--s-6\);/);
+  const pic = /\.k-sl__tile-pic \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(pic, /border: 1px solid var\(--line\);/);
+  assert.match(pic, /border-radius: var\(--r-2\);/);
+  assert.doesNotMatch(pic, /box-shadow/);
   assert.equal(sl.SHOTLIST_WORDS.openLarger, "open it larger");
   assert.equal(sl.SHOTLIST_WORDS.shotsApproved, "The shots approved", "the word stays: it names the sheet");
 });
@@ -735,7 +741,7 @@ test("R5: clipStates reads each shot's newest take from the film record; queued 
   assert.equal(sl.SHOTLIST_WORDS.clipsTitle, "The clips");
 });
 
-test("R5: approved, the rail lists each clip's state under what was approved, from GET /api/studio/films/:taskId; nothing without it", async () => {
+test("R5, R6: approved, the rail lists the clips under what was approved, from GET /api/studio/films/:taskId, their state said once in the head and a dot a row; nothing without it", async () => {
   const v = { ...variant("a", "Slow approach"), letter: "A", title: "Slow approach" };
   const done = { action: "approve", version: v, title: "Approve a shotlist", id: "staged:shotlist:g1", studio: "#/dashboards/studio?film=g1" };
   const f = stubFetch((path) => (path === "/api/studio/films/g1"
@@ -747,11 +753,14 @@ test("R5: approved, the rail lists each clip's state under what was approved, fr
     const rail = elements(root).find((e) => hasClass(e, "k-rail"));
     const clips = elements(rail).filter((e) => hasClass(e, "k-sl__clip"));
     assert.equal(clips.length, 2);
-    assert.equal(textOf(clips[0]), "s01A slow push.Made");
-    assert.ok(elements(clips[0]).some((e) => hasClass(e, "k-tag--good")));
-    assert.equal(textOf(clips[1]), "s02A slow push.Queued");
-    assert.ok(elements(clips[1]).some((e) => hasClass(e, "k-tag--neutral")));
-    assert.match(textOf(rail), /The clips1 of 2 made/);
+    // A dot a row, its words for a screen reader only; no chip.
+    assert.equal(textOf(clips[0]), "Mades01A slow push.");
+    assert.ok(elements(clips[0]).some((e) => hasClass(e, "k-dot--ok")));
+    assert.ok(elements(clips[0]).some((e) => hasClass(e, "k-sr") && textOf(e) === "Made"));
+    assert.equal(textOf(clips[1]), "Queueds02A slow push.");
+    assert.ok(elements(clips[1]).some((e) => hasClass(e, "k-dot--off")));
+    assert.ok(!elements(rail).some((e) => hasClass(e, "k-tag") && /Queued|Made/.test(textOf(e))), "no chip a row");
+    assert.match(textOf(rail), /The clips1 of 2 made, 1 queued/, "the state said once, in the head");
     // Under what was approved, before what happens next.
     const blocks = elements(rail).filter((e) => hasClass(e, "k-blk")).map((b) => textOf(elements(b).find((x) => hasClass(x, "k-blk__name"))));
     assert.deepEqual(blocks.slice(0, 2), ["What you approved", "The clips"]);
@@ -772,4 +781,36 @@ test("R5: a board opened larger is a dialog as tall as the board and its line, n
   const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
   assert.match(sheet, /\.k-dialog__panel--full:has\(\.k-sl__view\) \{\s*height: auto;/);
   assert.match(/\.k-sl__view-fig \{([^}]*)\}/.exec(sheet)[1], /width: min\(100cqw, calc\(\(100dvh - var\(--k-sl-vroom\)\) \* var\(--k-sl-vr\)\)\);/);
+});
+
+// ---- Fix round R6 ----
+
+test("R6: clipsSummary says the clips' state once", () => {
+  const rows = (...st) => ({ rows: st.map((state, i) => ({ id: `s0${i + 1}`, words: "", state })) });
+  assert.equal(sl.clipsSummary(rows("queued", "queued", "queued", "queued", "queued", "queued")), "0 of 6 made, all queued");
+  assert.equal(sl.clipsSummary(rows("made", "made")), "2 of 2 made");
+  assert.equal(sl.clipsSummary(rows("made", "making", "queued", "queued")), "1 of 4 made, 2 queued, 1 making");
+  assert.equal(sl.clipsSummary(rows("making", "refused")), "0 of 2 made, 1 making, 1 refused");
+  assert.equal(sl.SHOTLIST_WORDS.clipsAll, "all %s");
+});
+
+test("R6: the cost, its meter and its rows are the rail's one card; one primary sized to its words; the lower pair quiet", async () => {
+  const root = await showTree(sl.ShotlistCard, { item: LAKE });
+  const rail = elements(root).find((e) => hasClass(e, "k-rail"));
+  const cards = elements(rail).filter((e) => hasClass(e, "k-card"));
+  assert.equal(cards.length, 1, "one raised card in the rail");
+  assert.ok(elements(cards[0]).some((e) => hasClass(e, "k-money")), "and it holds the cost");
+  for (const words of ["Another round", "Send all back"]) {
+    const b = buttons(root, words)[0];
+    assert.ok(b && hasClass(b, "k-btn--quiet"), words);
+  }
+  const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
+  assert.match(/\.k-sl__primary > \.k-btn \{([^}]*)\}/.exec(sheet)[1], /width: auto;/, "sized to its words");
+  assert.match(/\.k-sl__pair > \.k-btn \{([^}]*)\}/.exec(sheet)[1], /width: auto;/);
+  assert.match(/\.k-sl__done-go > \.k-btn \{([^}]*)\}/.exec(sheet)[1], /flex: none;/, "the approved pair sized to their words");
+  // The scores: two fixed columns, four and three.
+  const row = /\.k-sl__fold \.k-pick-scores__row \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(row, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(row, /grid-template-rows: repeat\(4, auto\);/);
+  assert.match(row, /grid-auto-flow: column;/);
 });

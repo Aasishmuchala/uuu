@@ -20,6 +20,7 @@ import { api, useResource } from "../lib/api.js";
 import { when } from "../lib/format.js";
 import { queueHref } from "../lib/queue.js";
 import { Button } from "./button.js";
+import { Card } from "./card.js";
 import { actBody, isChangedSinceSeen, reloadInboxItem } from "./decision.js";
 import { Icon } from "./icon.js";
 import { Blk, StageLayout } from "./layout.js";
@@ -27,6 +28,7 @@ import { MoneyBlock, moneyParts } from "./money.js";
 import { Dialog } from "./overlays.js";
 import { DecisionOrPick, Scores, brandLine, BRAND_WORDS, letterOf, safeViewUrl, versionsOf } from "./pick.js";
 import { PicTag, Shot, StageBar } from "./stage.js";
+import { StatusDot } from "./status.js";
 import { Notice } from "./states.js";
 import { OptionCard, Strip, cropOf, cropVars } from "./strip.js";
 import { Tag } from "./tag.js";
@@ -98,17 +100,20 @@ export const SHOTLIST_WORDS = {
   // Fix round R5: the approved film's clips, from the home server's film record. "%n of %m made".
   clipsTitle: "The clips",
   clipsMade: "%n of %m made",
+  // Fix round R6: the clips' state said once, in the head: "0 of 6 made, all queued".
+  clipsAll: "all %s",
 };
 
 // A clip's state in the owner's words and the chip's tone: from the newest take of its shot in the home server's film
 // record (GET /api/studio/films/:taskId); a shot with no take yet is queued. A tone only where a state is not the
-// resting one (queued).
+// resting one (queued). `dot` is the row's 6 px mark (kit/status.js StatusDot): the state is said once, in the head
+// (clipsSummary), and a row carries only its dot with the words for a screen reader.
 export const CLIP_STATES = {
-  queued: { text: "Queued", tone: "neutral" },
-  making: { text: "Making", tone: "info" },
-  made: { text: "Made", tone: "good" },
-  refused: { text: "Refused", tone: "bad" },
-  failed: { text: "Failed", tone: "bad" },
+  queued: { text: "Queued", tone: "neutral", dot: "off" },
+  making: { text: "Making", tone: "info", dot: "live" },
+  made: { text: "Made", tone: "good", dot: "ok" },
+  refused: { text: "Refused", tone: "bad", dot: "bad" },
+  failed: { text: "Failed", tone: "bad", dot: "bad" },
 };
 
 // A word with the treatment's letter in it: withLetter("approveOne", "A") is "Approve A and its cost".
@@ -313,6 +318,19 @@ export function madeWords(made, of) {
   return SHOTLIST_WORDS.clipsMade.replace("%n", String(made)).replace("%m", String(of));
 }
 
+// The clips' state said once: "0 of 6 made, all queued", "2 of 6 made, 1 making, 3 queued", "6 of 6 made".
+export function clipsSummary(c) {
+  const rows = list(c && c.rows);
+  const made = rows.filter((r) => r.state === "made").length;
+  const base = madeWords(made, rows.length);
+  const rest = Object.keys(CLIP_STATES).filter((k) => k !== "made")
+    .map((k) => [k, rows.filter((r) => r.state === k).length]).filter(([, n]) => n > 0);
+  const word = (k) => CLIP_STATES[k].text.toLowerCase();
+  if (!rest.length) return base;
+  if (!made && rest.length === 1) return `${base}, ${SHOTLIST_WORDS.clipsAll.replace("%s", word(rest[0][0]))}`;
+  return [base, ...rest.map(([k, n]) => `${n} ${word(k)}`)].join(", ");
+}
+
 // ---- The stage, the strip and the decision (PLAN-COOK T40) ----
 
 // The money block's parts for one treatment, from the home server's numbers only (the treatment's cost and the
@@ -401,7 +419,7 @@ export function wholeCut(room, bottoms) {
   return inside.length ? Math.max(0, Math.floor(room - Math.max(...inside))) : 0;
 }
 
-const WHOLE = [".k-sl__rail > .k-blk", ".k-sl__rail > .k-sl__notice", ".k-sl__rail > .k-sl__done-head", ".k-sl__fold-head",
+const WHOLE = [".k-sl__rail > .k-blk", ".k-sl__rail > .k-sl__cost", ".k-sl__rail > .k-sl__notice", ".k-sl__rail > .k-sl__done-head", ".k-sl__fold-head",
   ".k-sl__fold[open] .k-sl__fold-body > *", ".k-blk__title", ".k-blk > .k-sl__say", ".k-sl__fact", ".k-pick-scores__cell"].join(", ");
 
 // Keeps the rail from cutting a line: measures where the parts of its scroller end and sets the room to leave empty
@@ -641,12 +659,13 @@ function Money({ item, v }) {
   if (!c) return html`<${Blk}><p class="k-sl__say">${SHOTLIST_WORDS.noCost}</p><//>`;
   const parts = treatmentMoney(item, v);
   const limits = parts ? [] : limitLines(item);
-  return html`<${Blk}>
+  // Fix round R6: the cost, its meter and its rows are the rail's one raised card; the rest of the rail is rows.
+  return html`<div class="k-sl__cost"><${Card} padding="md" class="k-sl__cost-card">
     <${MoneyBlock} label=${label} parts=${parts} words=${parts ? [] : [cap(c.words, 500)]} overWords=${withLetter("overBy", v.letter || "")} />
     ${limits.length ? html`<dl class="k-sl__limits">
       ${limits.map((d, i) => html`<div key=${i} class="k-sl__limit"><dt>${d.label}</dt><dd>${d.value}</dd></div>`)}
     </dl>` : null}
-  <//>`;
+  <//></div>`;
 }
 
 function Confirm({ v, busy, onYes, onNo }) {
@@ -764,11 +783,11 @@ export function ShotlistDone({ done, focus = true }) {
       <${Blk} title=${SHOTLIST_WORDS.whatApproved}>
         <dl class="k-sl__facts">${facts.map((f) => html`<div key=${f.label} class="k-sl__fact"><dt>${f.label}</dt><dd>${f.value}</dd></div>`)}</dl>
       <//>
-      ${clipsNow ? html`<${Blk} title=${SHOTLIST_WORDS.clipsTitle} aside=${madeWords(clipsNow.made, clipsNow.rows.length)}>
+      ${clipsNow ? html`<${Blk} title=${SHOTLIST_WORDS.clipsTitle} aside=${clipsSummary(clipsNow)}>
         <ul class="k-sl__clips">${clipsNow.rows.map((r) => html`<li key=${r.id} class="k-sl__clip">
+          <${StatusDot} tone=${CLIP_STATES[r.state].dot} label=${CLIP_STATES[r.state].text} hideLabel=${true} pulse=${false} />
           <span class="k-sl__clip-id">${r.id}</span>
           <span class="k-sl__clip-words" title=${r.words || undefined}>${r.words}</span>
-          <${Tag} tone=${CLIP_STATES[r.state].tone}>${CLIP_STATES[r.state].text}<//>
         </li>`)}</ul>
       <//>` : null}
       ${time ? html`<${Blk} title=${SHOTLIST_WORDS.next}><p class="k-sl__say">${time}</p><//>` : null}
@@ -1002,9 +1021,9 @@ export function ShotlistCard({ item = null, onDone, compact = false, focusDone =
       <p class=${cx("k-sl__hint", !needNote && "k-sr")} id=${`${noteId}-hint`}>${needNote ? html`<${Icon} name="alert" size=${14} /><span>${SHOTLIST_WORDS.needNote}</span>` : SHOTLIST_WORDS.noteHint}</p>
     </div>
     <div class="k-sl__pair">
-      ${cardOffers(shown, "another") ? html`<${Button} icon="loop" busy=${Boolean(busy) && busy.action === "another"} disabled=${stopped}
+      ${cardOffers(shown, "another") ? html`<${Button} variant="quiet" icon="loop" busy=${Boolean(busy) && busy.action === "another"} disabled=${stopped}
         onClick=${(e) => { opener.current = e.currentTarget; send("another"); }}>${SHOTLIST_WORDS.another}<//>` : null}
-      ${cardOffers(shown, "send_back") ? html`<${Button} icon="reply" busy=${Boolean(busy) && busy.action === "send_back"} disabled=${stopped}
+      ${cardOffers(shown, "send_back") ? html`<${Button} variant="quiet" icon="reply" busy=${Boolean(busy) && busy.action === "send_back"} disabled=${stopped}
         onClick=${(e) => { opener.current = e.currentTarget; send("send_back"); }}>${SHOTLIST_WORDS.back}<//>` : null}
     </div>` : null;
   const primary = decision || failed ? html`<div class="k-sl__primary" ref=${footRef}>${failed}${decision}</div>` : null;

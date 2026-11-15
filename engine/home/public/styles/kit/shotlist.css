@@ -9,12 +9,12 @@
   min-width: 0;
 }
 
-/* The headline: 24 px 600 in balanced lines (kit/shotlist.js joins a word of one letter to the next, so no line ends
-   on one). The scale has no 24 px step, so it is written here. */
+/* The headline: the page size (24 px) at 600 in balanced lines (kit/shotlist.js joins a word of one letter to the
+   next, so no line ends on one). */
 .k-sl .k-rail__title {
-  font-size: 24px;
+  font-size: var(--fs-page);
   font-weight: var(--fw-bold);
-  line-height: 30px;
+  line-height: var(--lh-page);
   text-wrap: balance;
 }
 
@@ -306,8 +306,19 @@
   padding-top: var(--s-2);
 }
 
-.k-sl__notice + .k-blk {
+.k-sl__notice + .k-blk,
+.k-sl__notice + .k-sl__cost {
   margin-top: var(--s-4);
+}
+
+/* The rail's one raised card (fix round R6): the cost, its meter and its three rows. Everything under it is rows
+   parted by hairlines, so the first row needs no rule of its own under the card. */
+.k-sl__cost {
+  padding: var(--s-4) var(--pad);
+}
+
+.k-sl__cost + .k-sl__folds > .k-sl__fold:first-child {
+  border-top: 0;
 }
 
 .k-sl__say {
@@ -443,12 +454,13 @@ summary.k-sl__fold-head:hover {
   padding-bottom: var(--s-2);
 }
 
-/* Each column as wide as its longest name with its figure (fix round R5: "Composition" is whole, never cut), the
-   three spread across the row. */
+/* Two fixed columns (fix round R6): four scores down the first, three down the second, each name at the left and its
+   figure right-aligned at the column's one edge. */
 .k-sl__fold .k-pick-scores__row {
-  grid-template-columns: repeat(3, max-content);
-  justify-content: space-between;
-  column-gap: var(--s-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(4, auto);
+  grid-auto-flow: column;
+  column-gap: var(--s-6);
   border-top: 0;
 }
 
@@ -566,15 +578,26 @@ summary.k-sl__fold-head:hover {
   line-height: var(--lh-label);
 }
 
-/* ---- The rail's foot: the decision, then under the divider the note and the pair of quiet actions */
+/* ---- The rail's foot: the decision, then under the divider the note and the pair of quiet actions. One filled
+   primary sized to its words with its ghost beside it (under it when the two do not fit the line), on a phone too, so
+   the blue is no larger than its words (fix round R6). */
 .k-sl__primary {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--s-2);
   min-width: 0;
 }
 
+.k-sl__primary > .k-sl__lock,
+.k-sl__primary > .k-sl__error {
+  flex: 1 0 100%;
+}
+
 .k-sl__primary > .k-btn {
-  width: 100%;
+  flex: none;
+  width: auto;
+  max-width: 100%;
 }
 
 /* Over a limit, the decision reads calm: one quiet line with a lock and the server's reason in the second ink, then
@@ -650,14 +673,16 @@ summary.k-sl__fold-head:hover {
   margin-top: 3px;
 }
 
+/* "Another round" and "Send all back": the quiet pair, each sized to its words. */
 .k-sl__pair {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--s-2);
 }
 
 .k-sl__pair > .k-btn {
-  width: 100%;
+  flex: none;
+  width: auto;
 }
 
 .k-sl__link {
@@ -816,8 +841,8 @@ summary.k-sl__fold-head:hover {
 }
 
 /* The clips of the approved film as the home server's film record gives them (fix round R5): one 36 px row a shot,
-   its number in the third ink, its words in the second, its state as the kit's chip at the right (a tone only where
-   a state differs from "queued"); the count of those made is the block's aside. */
+   its state's 6 px dot (kit/status.js), its number in the third ink, its words in the second; the state is said once,
+   in the block's aside ("0 of 6 made, all queued", fix round R6). */
 .k-sl__clips {
   margin: 0;
   padding: 0;
@@ -856,7 +881,7 @@ summary.k-sl__fold-head:hover {
   white-space: nowrap;
 }
 
-.k-sl__clip .k-tag {
+.k-sl__clip > .k-dot {
   flex: none;
 }
 
@@ -869,17 +894,17 @@ summary.k-sl__fold-head:hover {
 }
 
 .k-sl__done-go > .k-btn {
-  flex: 1 1 auto;
+  flex: none;
 }
 
 /* The approved stage: under the bar, from the top as in the other states, a sheet of every board cropped to its
-   picture that fills the stage (fix round R5): two across its width (about 400 px each at 1280; one on a phone), each a
-   button that opens it larger, with its shot's number on the picture and one caption 8 px under it: the shot's words
-   in the ink, then its seconds and price in the third ink in tabular figures. */
+   picture that fills the stage (fix round R5): two across its width (about 400 px each at 1280; one on a phone), 24 px
+   apart, each a button with a 1 px edge and 8 px corners that opens it larger, with its shot's number on the picture
+   and one caption 8 px under it in the second ink: the shot's words, then its seconds and price in tabular figures. */
 .k-sl__sheet {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s-6) var(--s-4);
+  gap: var(--s-6);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -896,11 +921,10 @@ summary.k-sl__fold-head:hover {
   display: block;
   width: 100%;
   padding: 0;
-  border: 0;
+  border: 1px solid var(--line);
   border-radius: var(--r-2);
   overflow: hidden;
   background: var(--black);
-  box-shadow: var(--shadow-card);
   cursor: zoom-in;
 }
 
@@ -938,12 +962,12 @@ summary.k-sl__fold-head:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--ink);
+  color: var(--ink-2);
 }
 
 .k-sl__tile-facts {
   flex: none;
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-size: var(--fs-note);
   line-height: var(--lh-note);
   font-variant-numeric: tabular-nums;
@@ -1160,8 +1184,10 @@ summary.k-sl__fold-head:hover {
     padding: var(--s-4) var(--s-4) 0;
   }
 
-  .k-sl__folds {
-    padding: 0 var(--s-4);
+  .k-sl__folds,
+  .k-sl__cost {
+    padding-left: var(--s-4);
+    padding-right: var(--s-4);
   }
 
   .k-sl__done-head {
