@@ -142,7 +142,7 @@ test("app mounted, on: the bar (state, spending, the model, its own window, Turn
     assert.ok(elements(bar).some((e) => cls(e).includes("k-tag") && cls(e).includes("k-tag--good") && textOf(e) === "On"), "the state is a good chip");
     const btn = (w) => elements(bar).find((e) => e.localName === "button" && textOf(e).trim() === w);
     // R5-F: Stop spending is the kit's quiet danger (the danger ink, no fill), small, beside the small ghosts.
-    assert.ok(cls(btn("Stop spending")).includes("k-btn--danger-quiet") && cls(btn("Stop spending")).includes("k-btn--sm"));
+    assert.ok(cls(btn("Stop spending")).includes("k-btn--danger-ghost") && cls(btn("Stop spending")).includes("k-btn--sm"));
     assert.ok(cls(btn("Turn off")).includes("k-btn--ghost") && cls(btn("Turn off")).includes("k-btn--sm"));
     assert.ok(cls(btn("Open in its own window")).includes("k-btn--ghost"));
     assert.ok(!barText.includes("Thinks with Claude Opus 5.5."), "no full stop in the menu's label");

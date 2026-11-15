@@ -316,7 +316,7 @@ export default function AppPage({ route }) {
     : null;
   const spendButton = spends(app)
     ? html`<span class="p-app__spend">${app.spending.open
-      ? html`<${Button} size="sm" variant="danger-quiet" busy=${busy === "allowance/stop"} onClick=${stop}>${WORDS.stop}<//>`
+      ? html`<${Button} size="sm" variant="danger-ghost" busy=${busy === "allowance/stop"} onClick=${stop}>${WORDS.stop}<//>`
       : html`<${Button} size="sm" variant="ghost" onClick=${() => { setError(null); setSheet(true); }}>${WORDS.allow}<//>`}</span>`
     : null;
   return html`<div class=${`p-app p-app--${shown}`}>
