@@ -56,15 +56,6 @@
   border: 0;
 }
 
-/* A section's head is 16 px 500 in the first ink (fix round R5): the brand kit's sections are its parts, read in
-   order, so their heads lead over the row titles. */
-.p-brand-kit .k-group__title {
-  font-size: var(--fs-section);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-section);
-  color: var(--ink);
-}
-
 /* ---- The top of the column: what happened, what is proposed */
 .p-brand-kit .p-brand-kit__top {
   display: grid;
@@ -213,7 +204,7 @@
   max-width: 100%;
 }
 
-/* ---- Logo: one card. The two grounds it sits on are tiles inset in it, each about 160 px tall with a 1 px inner line
+/* ---- Logo: one card. The two grounds it sits on are tiles inset in it, each 100 px tall (fix round R6) with a 1 px inner line
    that shows on a ground of either kind and either theme (fix round R5: the dark ground was lost on a dark card), the
    owner's ground exactly as saved, its name and value under it; the logo files follow under a hairline. */
 .p-brand-kit .p-brand-kit__logo {
@@ -238,8 +229,8 @@
 .p-brand-kit .p-brand-kit__ground {
   display: grid;
   place-items: center;
-  height: 160px;
-  padding: var(--s-4);
+  height: 100px;
+  padding: var(--s-3);
   border-radius: var(--r-2);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink-3) 45%, transparent);
 }
@@ -953,7 +944,7 @@
   }
 
   .p-brand-kit .p-brand-kit__ground {
-    height: 112px;
+    height: 100px;
     padding: var(--s-2);
   }
 

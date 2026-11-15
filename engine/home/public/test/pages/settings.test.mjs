@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import Page, {
-  NOT_KNOWN, SECTIONS, SIDES, THEMES, appearanceLine, chipOf, laterLine, sectionHref, sectionOf, sideShown, statusOf,
+  NOT_KNOWN, SECTIONS, SIDES, THEMES, alarmOnly, appearanceLine, chipOf, laterLine, sectionHref, sectionOf, sideShown, statusOf,
 } from "../../pages/settings.js";
 
 const SRC = readFileSync(new URL("../../pages/settings.js", import.meta.url), "utf8");
@@ -146,4 +146,12 @@ test("fix round B2: the head's chip is one or two words; the long line lives onc
   assert.deepEqual(chipOf({ tone: "neutral", text: "Your Claude and Codex plans" }, () => "Your plans", {}), { tone: "neutral", text: "Your plans" }, "a module may say its own");
   assert.deepEqual(chipOf({ tone: "good", text: "On" }, () => { throw new Error("x"); }, {}), { tone: "good", text: "On" });
   assert.match(SRC, /chipOf\(lines\[here\.id\], here\.mod\.stateWord/);
+});
+
+test("fix round R6: a state is said once: the head carries a chip only for the page's alarm, never one that repeats the switch", () => {
+  assert.equal(alarmOnly({ tone: "good", text: "On" }), null);
+  assert.equal(alarmOnly({ tone: "neutral", text: "Off" }), null);
+  assert.deepEqual(alarmOnly({ tone: "warn", text: "Held" }), { tone: "warn", text: "Held" });
+  assert.deepEqual(alarmOnly({ tone: "bad", text: "Not read" }), { tone: "bad", text: "Not read" });
+  assert.equal(alarmOnly(null), null);
 });

@@ -55,7 +55,7 @@
   display: grid;
   gap: var(--s-2);
   margin-top: -2px;
-  padding: 0 var(--s-4) var(--s-4) 60px;
+  padding: 0 0 var(--s-4) 44px;
 }
 
 .p-settings-viewer .p-settings-viewer__more .k-notice,
@@ -68,7 +68,7 @@
 .p-settings-viewer .p-settings-viewer__answer {
   display: grid;
   gap: var(--s-3);
-  padding: 0 var(--s-4) var(--s-4);
+  padding: 0 0 var(--s-4);
   font-size: var(--fs-note);
   line-height: var(--lh-note);
   color: var(--ink-2);
@@ -93,17 +93,27 @@
   background: var(--stage);
 }
 
-/* The pictures at most 240 px tall (fix round R5: a large pale page was the brightest thing on a dark screen): the
-   desktop frame 384 px wide (240 px at 1280 by 800), the phone in proportion beside it, the pair centred. */
+/* The pictures at most 160 px tall (fix round R6; a large pale page was the brightest thing on a dark screen): the
+   desktop frame 256 px wide (160 px at 1280 by 800), the phone in proportion beside it, the pair centred. */
 .p-settings-viewer .p-settings-viewer__well .k-site__pair {
   gap: var(--s-5);
-  max-width: calc(384px + 111px + var(--s-5));
+  max-width: calc(256px + 74px + var(--s-5));
   margin: 0 auto;
 }
 
-/* The top of each page only: never taller than 240 px, whatever the picture's own height. */
+/* Dimmed a little in dark: a veil of the well's own ground, so a white page does not glare (in light it is the pale
+   stage over a pale page, next to nothing). */
+.p-settings-viewer .p-settings-viewer__well .k-site__screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--stage) 18%, transparent);
+  pointer-events: none;
+}
+
+/* The top of each page only: never taller than 160 px, whatever the picture's own height. */
 .p-settings-viewer .p-settings-viewer__well .k-site__img {
-  max-height: 240px;
+  max-height: 160px;
   object-fit: cover;
   object-position: top;
 }
@@ -212,7 +222,7 @@
 
 @media (max-width: 859px) {
   .p-settings-viewer .p-settings-viewer__more {
-    padding-left: var(--s-4);
+    padding-left: 0;
   }
 
   .p-settings-viewer .p-settings-viewer__said {

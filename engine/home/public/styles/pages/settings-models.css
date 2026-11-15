@@ -66,7 +66,7 @@
   display: grid;
   gap: var(--s-2);
   margin-top: -2px;
-  padding: 0 var(--s-4) var(--s-4) 60px;
+  padding: 0 0 var(--s-4) 44px;
 }
 
 .p-settings-models .p-settings-models__more .k-notice,
@@ -118,8 +118,8 @@
 
 /* ---- The agents: the kit's table on a card, 56 px rows, a Select in each, Save at the right under it */
 
-/* Not read yet: the table's empty state, one 14 px 500 line at its head with Read the list beside it (fix round R5:
-   no card of its own, never louder than the controls). */
+/* Not read yet: the table's empty state, one muted line at its head with Read the list beside it (fix rounds R5 and
+   R6: no card of its own, never louder than the controls). */
 .p-settings-models .p-settings-models__unread {
   display: flex;
   flex-wrap: wrap;
@@ -132,9 +132,9 @@
 
 .p-settings-models .p-settings-models__unread-say {
   font-size: var(--fs-ui);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-regular);
   line-height: var(--lh-ui);
-  color: var(--ink);
+  color: var(--ink-2);
 }
 
 .p-settings-models .p-settings-models__agents .k-table {
@@ -252,7 +252,7 @@
 
 @media (max-width: 859px) {
   .p-settings-models .p-settings-models__more {
-    padding-left: var(--s-4);
+    padding-left: 0;
   }
 
   /* A row's warning takes the panel's whole width, so it reads in fewer lines. */

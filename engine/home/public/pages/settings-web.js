@@ -545,7 +545,7 @@ function SearchGroup({ view, busy, act, failure }) {
             control=${html`
               <${TextInput} type="password" name="search-key" autocomplete="off" autocapitalize="off" spellcheck=${false} aria-label=${WORDS.keyField}
                 value=${typed} onInput=${(e) => setTyped(e.currentTarget.value)} placeholder=${saved ? "A key is saved" : "Paste your key here"} />
-              <${Button} variant="primary" type="submit" busy=${busy === "key"} disabled=${Boolean(busy) || !typed.trim()}>${WORDS.save}<//>
+              <${Button} variant=${typed.trim() ? "primary" : "ghost"} type="submit" busy=${busy === "key"} disabled=${Boolean(busy) || !typed.trim()}>${WORDS.save}<//>
               ${saved ? html`<${Button} variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>Remove key<//>` : null}`} />
         </form>` : null}
     <//>

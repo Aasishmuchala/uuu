@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Section, {
-  NEEDS, PROBLEMS, WORDS, appLine, blockerLines, keyStatus, missingLine, modeLine, orderOptions, planLine, problemLine, sameModelLine, saidInChecklist, sectionState, stateWord, statusLine, testLine, unreadInTable, usageLine,
+  NEEDS, PROBLEMS, WORDS, appLine, blockerLines, keyStatus, missingLine, modeLine, orderOptions, planLine, problemLine, sameModelLine, saidInChecklist, sectionState, stateWord, statusLine, testLine, unreadInTable, usageLine, allBlank,
 } from "../../pages/settings-models.js";
 import { loadRanking, pickModels } from "../../../../company/lib/model-picks.mjs";
 
@@ -244,6 +244,14 @@ test("fix round R5: the list not yet read is the agents table's empty state (a 1
   assert.doesNotMatch(SRC, /<\$\{Row\} icon="list" title=\$\{WORDS\.notRead\}/, "no card or row of its own");
   assert.match(SRC, /<p class="p-settings-models__unread-say">\$\{WORDS\.notRead\}<\/p>/);
   const css = readFileSync(join(PUBLIC, "styles", "pages", "settings-models.css"), "utf8");
-  assert.match(css, /__unread-say \{[^}]*font-size: var\(--fs-ui\);[^}]*font-weight: var\(--fw-medium\);/);
+  assert.match(css, /__unread-say \{[^}]*font-size: var\(--fs-ui\);[^}]*font-weight: var\(--fw-regular\);[^}]*color: var\(--ink-2\);/, "R6: one muted line");
   assert.match(css, /__key \.k-field \{[^}]*max-width: 360px;/);
+});
+
+test("fix round R6: a table whose rows would all be empty shows its one muted line, not None yet and No calls yet on every row", () => {
+  const agents = [{ slug: "builder", usage: {} }, { slug: "checker", usage: { requests: 0 } }];
+  assert.equal(allBlank({ catalogue: { readAt: null }, agents }), true);
+  assert.equal(allBlank({ catalogue: { readAt: "2026-11-16T10:00:00Z" }, agents }), false, "read: the columns hold picks");
+  assert.equal(allBlank({ catalogue: { readAt: null }, agents: [...agents, { slug: "artist", usage: { requests: 2 } }] }), false, "a call to show");
+  assert.match(SRC, /\.\.\.\(blank \? \[\] : \[\{ key: "model"/);
 });

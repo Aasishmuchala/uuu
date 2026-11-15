@@ -1364,11 +1364,11 @@ function Editor({ view, reload, section, proposalRef }) {
                 : html`${offerCount ? `${offerCount} proposed ${offerCount === 1 ? "part sits" : "parts sit"} beside the fields below. Use each one you agree with, change what you like, then save.` : "The brand book named nothing the kit can use."}
                   ${arr(proposal.dropped).length ? ` Not taken, in whole or in part, because it broke the kit's rules: ${arr(proposal.dropped).map((d) => (PARTS.find((p) => p.id === d) || {}).title || (d === "voice" ? "How we sound" : d === "all" ? "everything" : d === "other" ? "parts the kit does not know" : d)).join(", ")}.` : ""}`}
                 ${/^[A-Z][A-Z0-9]{0,9}-\d{1,9}$/.test(str(proposal.from)) ? html`<span class="p-brand-kit__line">Read in task <a class="p-brand-kit__link" href=${`#/tasks/${proposal.from}`}>${proposal.from}</a>.</span>` : null}`}
-              control=${unused > 1 ? html`<${Button} size="sm" variant=${dirty ? "plain" : "primary"} onClick=${useAll}>Use every proposed part<//>` : null} />
+              control=${unused > 1 ? html`<${Button} size="sm" variant="ghost" onClick=${useAll}>Use every proposed part<//>` : null} />
           <//>` : null}
         ${!proposal && view.fromOldForm ? html`<${Rows}>
             <${Row} icon="file" title=${WORDS.fromOld} say="What your old brand page held sits beside the fields below. Use what still fits."
-              control=${unused > 1 ? html`<${Button} size="sm" variant=${dirty ? "plain" : "primary"} onClick=${useAll}>Use all of it<//>` : null} />
+              control=${unused > 1 ? html`<${Button} size="sm" variant="ghost" onClick=${useAll}>Use all of it<//>` : null} />
           <//>` : null}
       </div>
       ${!exists && !dirty && !proposal && !view.fromOldForm ? html`<${FirstTime} proposal=${proposalRef} />` : null}

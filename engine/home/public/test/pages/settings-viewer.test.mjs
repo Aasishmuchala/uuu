@@ -296,12 +296,13 @@ test("fix round B2: the test's pictures are large in a well (not the small pair)
   assert.match(css, /__said \.k-st \{\s*color: var\(--ink-2\);/);
 });
 
-test("fix round R5: the pictures at most 240 px tall in the framed well; the counts a strip of 22 px 500 figures over 12 px labels; the live state a chip in the row's head; green on state chips only", () => {
+test("fix rounds R5 and R6: the pictures at most 160 px tall in the framed well; the counts a strip of 22 px 500 figures over 12 px labels; the live state a chip in the row's head; green on state chips only", () => {
   const src = readFileSync(new URL("../../pages/settings-viewer.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../../styles/pages/settings-viewer.css", import.meta.url), "utf8");
-  assert.match(css, /__well \.k-site__pair \{[^}]*max-width: calc\(384px \+ 111px \+ var\(--s-5\)\);/, "384 px at 1280 by 800 is 240 px tall");
+  assert.match(css, /__well \.k-site__pair \{[^}]*max-width: calc\(256px \+ 74px \+ var\(--s-5\)\);/, "R6: 256 px at 1280 by 800 is 160 px tall");
+  assert.match(css, /__well \.k-site__screen::after \{[^}]*background: color-mix\(in srgb, var\(--stage\) 18%, transparent\);/, "dimmed a little");
   assert.match(css, /__well \{[^}]*border: 1px solid var\(--line\);/, "framed");
-  assert.match(css, /__well \.k-site__img \{[^}]*max-height: 240px;/, "never taller than 240 px");
+  assert.match(css, /__well \.k-site__img \{[^}]*max-height: 160px;/, "never taller than 160 px");
   assert.match(css, /__count b \{[^}]*font-size: var\(--fs-stat\);[^}]*font-weight: var\(--fw-medium\);[^}]*font-variant-numeric: tabular-nums;/);
   assert.match(css, /__count \{[^}]*font-size: var\(--fs-label\);/);
   assert.equal(WORDS.busyChip, "Opening a page");

@@ -692,6 +692,7 @@ function doorChip(view) {
 
 function KeyRow({ view, busy, act, failure, test, runTest }) {
   const [typed, setTyped] = useState("");
+  const filled = typed.trim() !== "";
   const [asking, setAsking] = useState(false);
   const [editing, setEditing] = useState(false);
   const [focus, setFocus] = useState(null);
@@ -745,7 +746,7 @@ function KeyRow({ view, busy, act, failure, test, runTest }) {
         <//>
         <span class="p-settings-generation__buttons">
           ${saved ? html`<${Button} variant="quiet" onClick=${cancel} disabled=${busy === "key"}>Cancel<//>` : null}
-          <${Button} variant="primary" type="submit" busy=${busy === "key"} disabled=${Boolean(busy) || !typed.trim()}>${WORDS.saveKey}<//>
+          <${Button} variant=${filled ? "primary" : "ghost"} type="submit" busy=${busy === "key"} disabled=${Boolean(busy) || !filled}>${WORDS.saveKey}<//>
         </span>
       </form>` : null}
       ${busy === "test" ? html`<p class="p-settings-generation__line" role="status"><${St} icon="clock">Asking Runway. This can take up to 45 seconds.<//></p>` : null}
@@ -878,7 +879,7 @@ function LimitsGroup({ view, busy, act, failure }) {
           <p class="p-settings-generation__foot-say">${WORDS.money}</p>
           <span class="p-settings-generation__buttons">
             ${Object.keys(draft).length ? html`<${Button} variant="quiet" onClick=${() => setDraft({})} disabled=${Boolean(busy)}>${GROUPS.putBack}<//>` : null}
-            <${Button} variant="primary" type="submit" busy=${busy === "caps"} disabled=${Boolean(busy) || !ready}>${GROUPS.saveLimits}<//>
+            <${Button} variant=${ready ? "primary" : "ghost"} type="submit" busy=${busy === "caps"} disabled=${Boolean(busy) || !ready}>${GROUPS.saveLimits}<//>
           </span>
         </div>
       </form>
@@ -943,7 +944,7 @@ function HiggsfieldGroup({ view, busy, act, failure, test, runTest, signIn, retu
         <//>
         <div class="p-settings-generation__save">
           ${rate !== null ? html`<${Button} variant="quiet" onClick=${() => setRate(null)} disabled=${Boolean(busy)}>${GROUPS.putBack}<//>` : null}
-          <${Button} variant="primary" type="submit" busy=${busy === "hf-rate"} disabled=${Boolean(busy) || !changed || check.value === null}>${HF_WORDS.saveRate}<//>
+          <${Button} variant=${changed && check.value !== null ? "primary" : "ghost"} type="submit" busy=${busy === "hf-rate"} disabled=${Boolean(busy) || !changed || check.value === null}>${HF_WORDS.saveRate}<//>
         </div>
       </form>
       <${Dialog} open=${asking} title=${HF_WORDS.signOutAsk} size="sm" onClose=${() => setAsking(false)}

@@ -347,7 +347,7 @@ test("generation: the Runway key goes nowhere but the one POST", () => {
   assert.match(CODE, /value=\$\{typed\}/);
   assert.match(CODE, /if \(ok\) setTyped\(""\)/);
   assert.doesNotMatch(CODE, /setTyped\((?!""|e\.currentTarget\.value)/);
-  assert.equal((CODE.match(/\btyped\b/g) || []).length, 5, "typed is held once and read only by the field, Save's two checks and the one POST");
+  assert.equal((CODE.match(/\btyped\b/g) || []).length, 5, "typed is held once and read only by the field, Save's check, the filled flag and the one POST");
   assert.match(CODE, /"\/api\/generation\/key", \{ key: typed \}/);
   // No message the section builds holds what was typed: failures carry the server's words only.
   assert.doesNotMatch(CODE, /announce\([^)]*typed/);
@@ -567,8 +567,8 @@ test("generation: the section is drawn with the kit's groups, rows and tables, i
   assert.match(CODE, /onInput=\$\{\(text\) => setDraft\(\{ \.\.\.draft, \[f\.key\]: text \}\)\}/);
   assert.match(CODE, /<\$\{Meter\} plain=\$\{true\}/);
   assert.match(CODE, /const ready = fields\.every\(\(f\) => f\.check\.value !== null\) && fields\.some\(\(f\) => f\.changed\);/);
-  assert.match(CODE, /variant="primary" type="submit" busy=\$\{busy === "caps"\} disabled=\$\{Boolean\(busy\) \|\| !ready\}>\$\{GROUPS\.saveLimits\}/);
-  assert.match(CODE, /variant="primary" type="submit" busy=\$\{busy === "hf-rate"\} disabled=\$\{Boolean\(busy\) \|\| !changed \|\| check\.value === null\}/);
+  assert.match(CODE, /variant=\$\{ready \? "primary" : "ghost"\} type="submit" busy=\$\{busy === "caps"\} disabled=\$\{Boolean\(busy\) \|\| !ready\}>\$\{GROUPS\.saveLimits\}/);
+  assert.match(CODE, /variant=\$\{changed && check\.value !== null \? "primary" : "ghost"\} type="submit" busy=\$\{busy === "hf-rate"\} disabled=\$\{Boolean\(busy\) \|\| !changed \|\| check\.value === null\}/);
   // The key's field is shown in place only on Replace (or when no key is saved), and emptied on Cancel and Save.
   assert.match(CODE, /const open = editing \|\| !saved;/);
   assert.match(CODE, /function cancel\(\) \{\n    setTyped\(""\);\n    setEditing\(false\);/);
@@ -601,4 +601,10 @@ test("fix round B2 and R5: the switch's list is the kit's Checklist; the key's T
   assert.match(css, /__spent \.k-meter__fill \{[^}]*background: var\(--ink-2\);/);
   assert.match(css, /__node \{[^}]*height: 28px;/, "the chain's chips are 28 px");
   assert.doesNotMatch(css, /\.k-money-input \{[^}]*width/, "no wider well than the kit's");
+});
+
+test("fix round R6: a Save with nothing to save is a ghost, never a filled grey slab", () => {
+  for (const cond of ["filled", "ready", "changed && check.value !== null"]) {
+    assert.ok(CODE.includes(`variant=\${${cond} ? "primary" : "ghost"} type="submit"`), cond);
+  }
 });

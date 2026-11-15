@@ -51,7 +51,7 @@
   display: grid;
   gap: var(--s-2);
   margin-top: -2px;
-  padding: 0 var(--s-4) var(--s-4) 60px;
+  padding: 0 0 var(--s-4) 44px;
 }
 
 .p-settings-generation .p-settings-generation__more .k-notice,
@@ -484,7 +484,7 @@
 /* ---- A phone, or any narrow window */
 @media (max-width: 859px) {
   .p-settings-generation .p-settings-generation__more {
-    padding-left: var(--s-4);
+    padding-left: 0;
   }
 
   /* A row's warning takes the panel's whole width, so it reads in fewer lines. */

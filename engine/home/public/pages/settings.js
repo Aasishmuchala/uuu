@@ -84,6 +84,9 @@ export function chipOf(line, fn, data) {
   return first && first.split(/\s+/).length <= 2 ? { tone: line.tone, text: first } : null;
 }
 
+// The head's chip only when it is the page's alarm (warn or bad); else none.
+export const alarmOnly = (chip) => (chip && (chip.tone === "warn" || chip.tone === "bad") ? chip : null);
+
 // Appearance's line: the theme's word.
 export const appearanceLine = (theme) => ({ tone: "neutral", text: (THEMES.find((t) => t.id === theme) || THEMES[2]).label });
 
@@ -191,7 +194,9 @@ export default function Page({ route }) {
   }, [current]);
 
   const sections = SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon, href: sectionHref(s.id), status: lines[s.id] }));
-  const headState = here.mod ? chipOf(lines[here.id], here.mod.stateWord, answers[here.id].data) : null;
+  // Fix round R6: a state is said once. The switch's row says On or Off, so the head carries a chip only for the
+  // page's alarm (a warning or a problem), never one that repeats the switch.
+  const headState = alarmOnly(here.mod ? chipOf(lines[here.id], here.mod.stateWord, answers[here.id].data) : null);
 
   let body;
   if (here.Body) body = html`<${here.Body} />`;

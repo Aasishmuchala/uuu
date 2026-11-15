@@ -94,6 +94,10 @@ export function blockerLines(view) {
   return out;
 }
 
+// Whether every row of the agents table would be empty in its Model and Used columns: the list not read, no calls.
+export const allBlank = (view) => unreadInTable(view)
+  && (Array.isArray(view && view.agents) ? view.agents : []).every((a) => usageLine(a && a.usage) === "No calls yet");
+
 // Whether the agents table says the list of models has not been read yet (its empty state, with Read the list).
 export const unreadInTable = (view) => !(view && view.catalogue && view.catalogue.readAt);
 
@@ -324,7 +328,7 @@ function KeyRow({ view, busy, act, failure }) {
         <//>
         <span class="p-settings-models__buttons">
           ${saved ? html`<${Button} variant="quiet" onClick=${cancel} disabled=${busy === "save"}>Cancel<//>` : null}
-          <${Button} variant="primary" type="submit" busy=${busy === "save"} disabled=${Boolean(busy) || !typed.trim()}>Save key<//>
+          <${Button} variant=${typed.trim() ? "primary" : "ghost"} type="submit" busy=${busy === "save"} disabled=${Boolean(busy) || !typed.trim()}>Save key<//>
         </span>
       </form>` : null}
       ${busy === "test" ? html`<p class="p-settings-models__line" role="status"><${St} icon="clock">Testing the key and each picked model. This can take up to 30 seconds.<//></p>` : null}
@@ -362,11 +366,13 @@ function AgentsGroup({ view, busy, act, failure, technical }) {
   const readAt = view.catalogue && view.catalogue.readAt;
   const agents = Array.isArray(view.agents) ? view.agents : [];
   const missing = new Set(Array.isArray(view.missing) ? view.missing : []);
+  // Fix round R6: while the list is not read and no agent has made a call, the Model and Used columns would be
+  // "None yet" and "No calls yet" on every row; the table's one muted line says it instead, and they are left out.
+  const blank = allBlank(view);
   const columns = [
     { key: "agent", label: "Agent", align: "start" },
     { key: "needs", label: "Works on", align: "start" },
-    { key: "model", label: "Model", align: "start" },
-    { key: "used", label: "Used", align: "end" },
+    ...(blank ? [] : [{ key: "model", label: "Model", align: "start" }, { key: "used", label: "Used", align: "end" }]),
   ];
   const changed = agents.filter((a) => a && typeof a.slug === "string" && draft[a.slug] !== undefined && draft[a.slug] !== (a.pick || ""));
   const label = (a, id) => (orderOptions(a.options).find((o) => o.value === id) || { label: "that model" }).label;
@@ -440,15 +446,15 @@ function AgentsGroup({ view, busy, act, failure, technical }) {
       ${unread}
       <form onSubmit=${save} autocomplete="off">
         <${DataTable} columns=${columns} rows=${agents.map((a) => ({ ...a, id: a.slug }))} renderCell=${cell} />
-        <div class="p-settings-models__foot">
+        ${blank && !done.length ? null : html`<div class="p-settings-models__foot">
           <div class="p-settings-models__saved" role="status">
             ${done.map((l) => html`<p key=${l} class="p-settings-models__line"><${St} tone="good">${l}<//></p>`)}
           </div>
           <span class="p-settings-models__buttons">
             ${changed.length ? html`<${Button} variant="quiet" onClick=${() => setDraft({})} disabled=${Boolean(busy)}>Put back<//>` : null}
-            <${Button} variant="primary" type="submit" busy=${busy === "picks"} disabled=${Boolean(busy) || !changed.length}>Save<//>
+            <${Button} variant=${changed.length ? "primary" : "ghost"} type="submit" busy=${busy === "picks"} disabled=${Boolean(busy) || !changed.length}>Save<//>
           </span>
-        </div>
+        </div>`}
       </form>
     <//>` : null}
   <//>`;
