@@ -41,22 +41,23 @@
 .p-app .p-app__money-words .p-money { color: var(--ink); font-weight: var(--fw-medium); }
 
 /* The controls at the right, one height (32 px): the model as a quiet text menu (its words in the second ink, no
-   edge until the pointer is on it), Allow spending and Turn off as small ghosts, then More, a quiet mark holding
-   Stop spending and its own window (R6-F). */
+   edge until the pointer is on it), Stop spending as the kit's small edged danger (or Allow spending, a ghost), Turn
+   off a small ghost, and its own window a small mark (R6-F). */
 .p-app .p-app__tools { flex: none; display: flex; align-items: center; gap: var(--s-2); margin-left: auto; }
 .p-app .p-app__thinks,
-.p-app .p-app__spend,
-.p-app .p-app__more { display: flex; }
+.p-app .p-app__spend { display: flex; }
 .p-app .p-app__thinks .k-menu__trigger {
   min-height: var(--s-8); padding: 0 var(--s-2); gap: 6px;
   color: var(--ink-2); font-size: var(--fs-note); font-weight: var(--fw-regular);
 }
 .p-app .p-app__thinks .k-menu__trigger:hover { color: var(--ink); }
 .p-app .p-app__thinks .k-menu__trigger .k-icon { color: var(--ink-3); }
-.p-app .p-app__thinks .k-menu__list,
-.p-app .p-app__more .k-menu__list { right: 0; left: auto; }
-.p-app .p-app__more .k-menu__trigger { min-height: var(--s-8); min-width: var(--s-8); }
+.p-app .p-app__thinks .k-menu__list { right: 0; left: auto; }
+.p-app .p-app__own,
 .p-app .p-app__switch { flex: none; }
+/* Its own window is its mark alone (its name stays for screen readers and in its tooltip). */
+.p-app .p-app__own { min-width: var(--s-8); padding: 0; }
+.p-app .p-app__own-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .p-app .p-app__problem { flex: none; padding: var(--s-3) var(--s-4) 0; }
 
 /* The stage: the app's window, 16 px round it, or the kit's Empty in its place. */
@@ -114,7 +115,7 @@
   .p-app .p-app__tools { flex: 1 1 100%; gap: var(--s-2); margin-left: 0; }
   .p-app .p-app__switch { margin-left: auto; }
   .p-app .p-app__thinks .k-menu__trigger { min-height: 44px; min-width: 44px; padding: 0; justify-content: center; }
-  .p-app .p-app__more .k-menu__trigger { min-height: 44px; min-width: 44px; }
+  .p-app .p-app__own { min-width: 44px; }
   .p-app .p-app__notes { align-items: flex-start; padding: var(--s-2) var(--s-3); }
   .p-app .p-app__notes-icon { margin-top: 1px; }
   .p-app .p-app__stage { padding: var(--s-2); }

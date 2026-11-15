@@ -1,8 +1,8 @@
 // One app opened inside App Studio (PLAN-V5 K17, K22, K23, T80; PLAN-COOK T60, TB2, R5-F, R6-F): the whole window
 // under the top bar, whose crumbs say App Studio / <name> (the one place the eye reads its name). On top, the home
 // screen's own bar, one 44 px row on the shell's ground with its hairline (the app cannot draw over it): the app's
-// state and what it may spend today; at the right the model it thinks with (a quiet text menu), "Allow spending" while
-// it may not, Turn off, and a "More" menu with "Stop spending" and "Open in its own window". Then the stage, and on it
+// state and what it may spend today; at the right the model it thinks with (a quiet text menu), "Stop spending" (or
+// "Allow spending"), Turn off, and "Open in its own window" as a small mark. Then the stage, and on it
 // the app's window: a 1 px edge, a 12 px corner and 16 px round it, so it reads as another program's page; its head,
 // inside that edge, a 28 px strip with what the fence does not cover, whole (T86, ADR 0016); under it the app in an
 // iframe at its own port on this Mac (from /api/apps, never from the app's text), set only once the app is on and
@@ -310,19 +310,17 @@ export default function AppPage({ route }) {
     : [];
 
   // The bar, in reading order (R6-F): the state and what it may spend today at the left; at the right the model as a
-  // quiet text menu, "Allow spending" while it may not spend, Turn off (a ghost), and a "More" menu, one click from
-  // the bar, holding "Stop spending" (in its words) and "Open in its own window". The app's name is the top bar's
-  // crumb; here it is the page's heading for a screen reader only, so the eye reads it once.
+  // quiet text menu, then "Stop spending" (the owner's way to stop money leaving: one click, in view, in the danger
+  // ink) or "Allow spending", then Turn off (a ghost), then its own window as a small mark. The app's name is the top
+  // bar's crumb; here it is the page's heading for a screen reader only, so the eye reads it once.
   const thinks = t && thinkItems.length
     ? html`<div class="p-app__thinks"><${Menu} label=${thinksShort(t)} icon=${narrow ? "brain" : undefined} items=${thinkItems} /></div>`
     : null;
-  const allowButton = spends(app) && !app.spending.open
-    ? html`<span class="p-app__spend"><${Button} size="sm" variant="ghost" onClick=${() => { setError(null); setSheet(true); }}>${WORDS.allow}<//></span>`
+  const spendButton = spends(app)
+    ? html`<span class="p-app__spend">${app.spending.open
+      ? html`<${Button} size="sm" variant="danger-ghost" busy=${busy === "allowance/stop"} onClick=${stop}>${WORDS.stop}<//>`
+      : html`<${Button} size="sm" variant="ghost" onClick=${() => { setError(null); setSheet(true); }}>${WORDS.allow}<//>`}</span>`
     : null;
-  const moreItems = [
-    spends(app) && app.spending.open ? { id: "stop", label: WORDS.stop, danger: true, onSelect: stop } : null,
-    address ? { id: "own", label: WORDS.ownWindow, icon: "external", onSelect: () => openOwnWindow(address) } : null,
-  ].filter(Boolean);
   return html`<div class=${`p-app p-app--${shown}`}>
     <header class="p-app__bar" aria-label=${`${name}, from App Studio`}>
       <h1 class="p-app__name k-sr" id="page-title" tabindex="-1">${name}</h1>
@@ -331,11 +329,14 @@ export default function AppPage({ route }) {
         ${spends(app) ? html`<div class="p-app__money"><${MoneyWords} cls="p-app__money-words" text=${spendingLine(app)} /></div>` : null}
       </div>
       <div class="p-app__tools">
-        ${thinks}${allowButton}
+        ${thinks}${spendButton}
         ${app.on
           ? html`<${Button} size="sm" variant="ghost" class="p-app__switch" icon="power" busy=${busy === "switch"} onClick=${() => turn(false)}>${WORDS.turnOff}<//>`
           : null}
-        ${moreItems.length ? html`<div class="p-app__more"><${Menu} label=${WORDS.more} icon="more" items=${moreItems} /></div>` : null}
+        ${address
+          ? html`<${Button} size="sm" variant="ghost" icon="external" class="p-app__own" title=${WORDS.ownWindow}
+              onClick=${() => openOwnWindow(address)}><span class="p-app__own-word">${WORDS.ownWindow}</span><//>`
+          : null}
       </div>
     </header>
     ${error ? html`<div class="p-app__problem"><${Refusal} error=${error} /></div>` : null}
