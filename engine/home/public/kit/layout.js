@@ -184,7 +184,8 @@ export function Row({ icon, title, state, say, control, warned }) {
 }
 
 // What must be done first, inside a row's words (fix round B2): `lead` (a line over the list), then a line an item, a
-// 16 px check when it is done or an open circle when it is not. Past three items it folds to "2 of 5 done" and opens
+// 16 px green check when it is done or a short dash when it is not (a status, never an open circle that reads as a
+// choice). Past three items it folds to "2 of 5 done" and opens
 // on a press. `items`: [{ done, text }], `text` anything renderable.
 export function Checklist({ lead, items }) {
   const list = (Array.isArray(items) ? items : []).filter((it) => it && has(it.text));
@@ -209,7 +210,7 @@ export function Checklist({ lead, items }) {
           ${list.map((it, i) => html`<span key=${i} role="listitem" class=${cx("k-checklist__item", it.done && "k-checklist__item--done")}>
             ${it.done
               ? html`<${Icon} name="done" size=${16} class="k-checklist__mark" />`
-              : html`<span class="k-checklist__mark k-checklist__mark--open" aria-hidden="true"></span>`}
+              : html`<span class="k-checklist__mark k-checklist__mark--todo" aria-hidden="true"></span>`}
             <span class="k-sr">${it.done ? "Done: " : "Not done yet: "}</span>
             <span class="k-checklist__text">${it.text}</span>
           </span>`)}

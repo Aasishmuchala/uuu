@@ -227,7 +227,8 @@
 /* ---- DocLayout: a list of sections and one readable column. The list is on the page's ground behind a 1 px line,
    so the sidebar stays the one darkest column. Fix round B2: an item is one 32 px line at 13 px, its state a 6 px
    dot at the right (the words for a screen reader and on hover); the head is the title with a one- or two-word
-   chip beside it; the column is 720 px (fix round R5); a group's head is 13 px muted so the row titles lead. */
+   chip beside it; the column is 720 px (fix round R5); a group's head is 13 px muted so the row titles lead (15 px
+   at 500, fix round R5). */
 .k-doc--layout {
   display: grid;
   grid-template-columns: var(--sections-w) minmax(0, 1fr);
@@ -507,7 +508,7 @@
   flex-wrap: wrap;
   gap: 2px var(--s-2);
   font-size: var(--fs-fact);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-fact);
   color: var(--ink);
 }
@@ -539,7 +540,8 @@
   grid-column: 1 / -1;
 }
 
-/* ---- What must be done first: a line an item, a 16 px check or an open circle; past three items it folds. */
+/* ---- What must be done first: a line an item, a green check when done or a short dash when not (fix round R5: an
+   open circle read as a radio to choose); past three items it folds. */
 .k-checklist {
   display: grid;
   gap: var(--s-1);
@@ -595,13 +597,13 @@
   color: var(--good);
 }
 
-.k-checklist__mark--open {
+.k-checklist__mark--todo {
   display: block;
-  width: 14px;
-  height: 14px;
-  margin: 2px 1px 0;
-  border: 1.5px solid var(--ink-3);
-  border-radius: var(--r-round);
+  width: 8px;
+  height: 2px;
+  margin: 9px 4px 0;
+  border-radius: 1px;
+  background: var(--ink-3);
 }
 
 .k-checklist__text {

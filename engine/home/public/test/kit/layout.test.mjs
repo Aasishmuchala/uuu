@@ -131,7 +131,7 @@ test("a Group holds Rows; a warned Row carries its warning inside the panel, und
   unmount(root);
 });
 
-test("fix round B2: a row's tile is 32 px and a row with no icon has none; section items are 32 px at 13 px with a 6 px dot; group heads 13 px muted, 32 px apart; the column 720 px, 48 px after the list", async () => {
+test("fix round B2 and R5: a row's tile is 32 px and a row with no icon has none; section items are 32 px at 13 px with a 6 px dot; group heads 13 px muted, 32 px apart; the column 720 px, 48 px after the list", async () => {
   installDom();
   const Tree = () => html`<${Rows}>
     <${Row} icon="key" title="Runway key" say="Test asks how many credits you have." />
@@ -145,7 +145,7 @@ test("fix round B2: a row's tile is 32 px and a row with no icon has none; secti
   unmount(root);
   const sheet = css("kit/layout.css");
   assert.match(/\.k-rows__icon \{([^}]*)\}/.exec(sheet)[1], /width: 32px;\s*height: 32px;/);
-  assert.match(/\.k-rows__title \{([^}]*)\}/.exec(sheet)[1], /font-size: var\(--fs-fact\);[^}]*font-weight: var\(--fw-bold\);/, "row titles 15 px 600");
+  assert.match(/\.k-rows__title \{([^}]*)\}/.exec(sheet)[1], /font-size: var\(--fs-fact\);[^}]*font-weight: var\(--fw-medium\);/, "row titles 15 px 500 (fix round R5)");
   const pick = /\.k-doc__pick \{([^}]*)\}/.exec(sheet)[1];
   assert.match(pick, /min-height: 32px;/);
   assert.match(/\.k-doc__pick-name \{([^}]*)\}/.exec(sheet)[1], /font-size: var\(--fs-note\);/);
@@ -201,3 +201,21 @@ test("T96: the stage uses its height: what is on it is centred, its real height 
 
 ROOTS.layout = "k-work";
 newSheetTest("layout");
+
+test("fix round R5: a checklist's mark is a status: a green check when done, a short dash when not, never an open circle", async () => {
+  installDom();
+  const { Checklist } = mod;
+  const root = await mount(Checklist, { lead: "It can be switched on when these are done:", items: [{ done: true, text: "A key is saved." }, { done: false, text: "The relay is off." }] });
+  const items = byClass(root, "k-checklist__item");
+  assert.equal(items.length, 2);
+  assert.equal(elements(items[0]).filter((e) => e.localName === "svg").length, 1, "done: the check");
+  assert.equal(byClass(items[1], "k-checklist__mark--todo").length, 1, "not done: the dash");
+  assert.equal(byClass(root, "k-checklist__mark--open").length, 0);
+  assert.match(textOf(items[1]), /Not done yet: /, "a screen reader hears the state");
+  unmount(root);
+  const sheet = css("kit/layout.css");
+  const dash = /\.k-checklist__mark--todo \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(dash, /width: 8px;\s*height: 2px;/);
+  assert.doesNotMatch(dash, /border:/, "no ring that reads as a radio");
+  assert.match(/\.k-checklist__mark \{([^}]*)\}/.exec(sheet)[1], /color: var\(--good\);/, "the check is green");
+});
