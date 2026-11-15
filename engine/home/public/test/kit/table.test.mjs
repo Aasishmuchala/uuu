@@ -47,4 +47,15 @@ test("amounts and dates sit at the right in tabular figures, the unit small and 
   assert.doesNotMatch(t, /\.k-table \{[^}]*(border|background)/, "the table has no frame of its own");
 });
 
+test("a column marked fit is as wide as its content; the header stands on a rule of the stronger line (round B2)", async () => {
+  installDom();
+  const root = await showTree(table.DataTable, { columns: [{ key: "n", label: "Number", fit: true }, { key: "who", label: "Party" }, { key: "amt", label: "Amount", fit: true }], rows: [{ id: 1, n: "A-1", who: "Acme", amt: "₹ 5.00" }] });
+  const cells = elements(root).filter((e) => e.localName === "td" || e.localName === "th");
+  assert.deepEqual(cells.map((e) => e.getAttribute("class") || ""), ["k-table__fit", "", "k-table__num k-table__fit", "k-table__fit", "", "k-table__num k-table__fit"]);
+  const t = css("kit/table.css");
+  assert.match(t, /\.k-table__table \.k-table__fit \{\s*width: 1%;\s*white-space: nowrap;/);
+  assert.match(t, /\.k-table__table th \{[^}]*border-bottom: 1px solid var\(--line-2\);/);
+  assert.match(t, /tbody tr:first-child td \{\s*border-top: 0;/);
+});
+
 compositeSheetTests("table");

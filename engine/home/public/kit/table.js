@@ -33,12 +33,14 @@ export function splitUnit(v) {
   return m && !DATE.test(s) ? [m[1], m[2]] : [s, ""];
 }
 
-// columns: [{ key, label, align? }]; rows: objects; renderCell(row, column) may return a node, else row[key] is
-// shown as text.
+// columns: [{ key, label, align?, fit? }]; rows: objects; renderCell(row, column) may return a node, else row[key] is
+// shown as text. A column with `fit: true` is as wide as its content and no wider, so the columns without it share
+// what is left (no empty band between a name and an amount).
 export function DataTable({ columns = [], rows = [], emptyText = "Nothing to show yet.", renderCell }) {
   const list = Array.isArray(rows) ? rows : [];
   if (list.length === 0) return html`<p class="k-table k-table--empty">${text(emptyText)}</p>`;
   const cols = (Array.isArray(columns) ? columns : []).map((c) => ({ ...c, num: numericColumn(c, list) }));
+  const cls = (c) => [c.num && "k-table__num", c.fit === true && "k-table__fit"].filter(Boolean).join(" ") || undefined;
   const cell = (row, col) => {
     if (renderCell) {
       const out = renderCell(row, col);
@@ -51,10 +53,10 @@ export function DataTable({ columns = [], rows = [], emptyText = "Nothing to sho
   };
   return html`<div class="k-table">
     <table class="k-table__table">
-      <thead><tr>${cols.map((c) => html`<th scope="col" class=${c.num ? "k-table__num" : undefined}>${text(c.label)}</th>`)}</tr></thead>
+      <thead><tr>${cols.map((c) => html`<th scope="col" class=${cls(c)}>${text(c.label)}</th>`)}</tr></thead>
       <tbody>
         ${list.map((row, i) => html`<tr key=${row && row.id !== undefined ? row.id : i}>
-          ${cols.map((c) => html`<td data-label=${text(c.label)} class=${c.num ? "k-table__num" : undefined}>${cell(row, c)}</td>`)}
+          ${cols.map((c) => html`<td data-label=${text(c.label)} class=${cls(c)}>${cell(row, c)}</td>`)}
         </tr>`)}
       </tbody>
     </table>

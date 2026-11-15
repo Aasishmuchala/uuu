@@ -1,6 +1,6 @@
 /* DataTable and Figures (kit/table.js), as C3's .tbl and .scores with the corrections after round 3 (4).
-   The table has no frame of its own (it sits on the ground or in a card): 12 px headings in the third grey,
-   48 px rows parted by hairlines, 14 px values, the second line 13 px in the second grey; amounts and dates at
+   The table has no frame of its own (it sits on the ground or in a card): 12 px headings in the third grey over
+   a rule on the stronger line, 48 px rows parted by hairlines, 14 px values, the second line 13 px in the second grey; amounts and dates at
    the right in tabular figures, their unit small and grey; a row that opens something answers the pointer.
    Below 860 px each row is a card of labelled lines. Figures are cells parted by hairlines in one card. */
 
@@ -50,6 +50,7 @@
   color: var(--ink-3);
   white-space: nowrap;
   vertical-align: bottom;
+  border-bottom: 1px solid var(--line-2);
 }
 
 .k-table__table td {
@@ -59,6 +60,18 @@
   border-top: 1px solid var(--line);
   vertical-align: middle;
   color: var(--ink);
+}
+
+/* The header's rule parts it from the first row, so that row draws no hairline of its own. */
+.k-table__table tbody tr:first-child td {
+  border-top: 0;
+}
+
+/* A column marked `fit` is as wide as its content; the others share the rest. */
+.k-table__table .k-table__fit {
+  width: 1%;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 /* A second line under a value: a small, span or element marked as one. */
@@ -232,6 +245,11 @@
 
   .k-table__table .k-table__num {
     text-align: left;
+  }
+
+  .k-table__table .k-table__fit {
+    width: 100%;
+    white-space: normal;
   }
 
   /* A second line stays under its value, in the value's column. */
