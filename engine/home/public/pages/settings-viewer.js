@@ -35,6 +35,8 @@ export const WORDS = {
   noAgents: "Run engine setup first, then try again.",
   cannot: "The page viewer cannot be switched on yet.",
   busyNow: "Opening a page now.",
+  // Fix round R5: the live state as a chip in the viewer row's head.
+  busyChip: "Opening a page",
   noPictures: "No picture came back.",
 };
 
@@ -220,11 +222,11 @@ function doorChip(view) {
   return { tone: view.on && (s === "on" || s === "unhealthy") ? "warn" : "neutral", text: word };
 }
 
-// A Test's answer: the sentence with its tone's glyph and, under it, the two pictures large enough to read their
-// page's heading (the desktop one about 480 px wide), in a well across the panel.
+// A Test's answer: the sentence with its tone's glyph (a success's check in the second ink: green is for state chips
+// only) and, under it, the two pictures at most 240 px tall in a framed well across the panel.
 function Answer({ result }) {
   return html`<div class="p-settings-viewer__answer" role="status">
-    <p class="p-settings-viewer__line p-settings-viewer__said"><${St} tone=${toneOf(result.tone)}><${Said} text=${result.sentence} /><//></p>
+    <p class="p-settings-viewer__line p-settings-viewer__said"><${St} tone=${toneOf(result.tone) === "good" ? "neutral" : toneOf(result.tone)} icon=${toneOf(result.tone) === "good" ? "check" : undefined}><${Said} text=${result.sentence} /><//></p>
     ${result.desktop || result.phone
       ? html`<div class="p-settings-viewer__well"><${ShotPair} desktop=${result.desktop} phone=${result.phone} label="The test page" /></div>`
       : null}
@@ -256,18 +258,19 @@ function ViewerRow({ view }) {
   // While the switch is on and the viewer is not running, the panel's warning already says so, in the same words;
   // while it is off and its list of what to do first says the viewer's sentence, that list says it.
   const said = !(view.on && door.state !== "on") && !(!view.on && !view.canSwitchOn && blockerLines(view).includes(door.sentence));
-  return html`<${Row} icon="eye" title="The page viewer" state=${doorChip(view)}
+  // The live state (a page being opened now) is a second chip in the row's head; the counts are a strip.
+  return html`<${Row} icon="eye" title="The page viewer" state=${[doorChip(view), view.busy ? { tone: "neutral", text: WORDS.busyChip } : null]}
     say=${html`${said ? html`<${Said} text=${door.sentence} />` : null}
       <span class="p-settings-viewer__line p-settings-viewer__counts">${f.tiles.map(([label, n]) => html`<span key=${label} class="p-settings-viewer__count"><span>${label}</span> <b>${n}</b></span>`)}</span>
-      ${view.busy ? html`<span class="p-settings-viewer__line"><${St} icon="clock">${WORDS.busyNow}<//></span>` : null}
       <span class="p-settings-viewer__line"><${DoorPath} view=${view} /></span>`} />`;
 }
 
 // Chrome as the viewer found it, said once. Nothing is said while the viewer does not answer (it is not known then).
+// Found is the usual case, so its chip is neutral; only Not found takes a colour (fix round R5).
 function ChromeRow({ view }) {
   const chrome = chromeOf(view);
   if (chrome.found === null) return null;
-  return html`<${Row} icon="globe" title="Chrome" state=${chrome.found ? { tone: "good", text: "Found" } : { tone: "warn", text: "Not found" }}
+  return html`<${Row} icon="globe" title="Chrome" state=${chrome.found ? { tone: "neutral", text: "Found" } : { tone: "warn", text: "Not found" }}
     say=${chrome.line} />`;
 }
 

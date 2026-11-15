@@ -591,12 +591,14 @@ test("generation: the section's own sheet holds its classes and keeps the page r
   assert.doesNotMatch(CODE, /p-settings__/);
 });
 
-test("fix round B2: the switch's list is the kit's Checklist; the key's Test, Replace and Remove are ghosts of one height; untested is the warn chip; the spent bar is 4 px in the second ink", () => {
+test("fix round B2 and R5: the switch's list is the kit's Checklist; the key's Test is the small filled one, Replace and Remove small ghosts of one height; untested is the warn chip; the spent bar is 4 px in the second ink; the limit is the kit's 96 px money input", () => {
   assert.match(CODE, /<\$\{Checklist\} lead=\$\{WORDS\.switchWhen\}/);
+  assert.equal((CODE.match(/size="sm" variant="primary" icon="play" onClick=\$\{runTest\}/g) || []).length, 2, "Test leads, for Runway and for Higgsfield");
   assert.equal((CODE.match(/size="sm" variant="ghost"/g) || []).length >= 3, true);
   assert.match(CODE, /mark\.tone === "wait" \? "warn"/);
   const css = readFileSync(join(PUBLIC, "styles", "pages", "settings-generation.css"), "utf8");
   assert.match(css, /__spent \.k-meter__track \{[^}]*height: 4px;[^}]*border-radius: 2px;/);
   assert.match(css, /__spent \.k-meter__fill \{[^}]*background: var\(--ink-2\);/);
   assert.match(css, /__node \{[^}]*height: 28px;/, "the chain's chips are 28 px");
+  assert.doesNotMatch(css, /\.k-money-input \{[^}]*width/, "no wider well than the kit's");
 });

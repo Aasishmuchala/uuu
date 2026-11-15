@@ -86,7 +86,7 @@ test("brand kit: colours read on their ground; the logo's two grounds come from 
   assert.equal(m.inkOn("#E8DCC8"), "#141414");
   assert.ok(m.contrast("#000000", "#FFFFFF") > 20);
   assert.deepEqual(m.stages(view.kit.colours), { light: "#E8DCC8", dark: "#1A3C5E" });
-  assert.deepEqual(m.stages([]), { light: "#FFFFFF", dark: "#141414" });
+  assert.deepEqual(m.stages([]), { light: "#F2F2F2", dark: "#141414" }, "fix round R5: a toned light ground, never pure white");
 });
 
 test("brand kit: faces, uploaded fonts and their names", () => {
@@ -237,6 +237,9 @@ test("brand kit: the save bar never floats over a row, the grounds share one car
   assert.match(rule(".p-brand-kit .p-brand-kit__bar--dirty"), /position:\s*sticky;\s*bottom:\s*0;/);
   assert.match(rule(".p-brand-kit .p-brand-kit__ground"), /height:\s*160px/);
   assert.match(rule(".p-brand-kit .k-say"), /max-width:\s*640px/);
+  // Fix round R5: the grounds' edge shows in both themes; a section's head is 16 px 500 in the first ink.
+  assert.match(rule(".p-brand-kit .p-brand-kit__ground"), /box-shadow: inset 0 0 0 1px color-mix\(in srgb, var\(--ink-3\) 45%, transparent\);/);
+  assert.match(rule(".p-brand-kit .k-group__title"), /font-size: var\(--fs-section\);[^}]*font-weight: var\(--fw-medium\);[^}]*color: var\(--ink\);/);
   const code = stripJsComments(SOURCE);
   assert.match(code, /<\$\{Card\} padding="none" class="p-brand-kit__logo">/);
   assert.match(code, /variant="primary" size="sm" icon="check" busy=\$\{busy\} disabled=\$\{busy \|\| \(!dirty && !view\.problem\)\} onClick=\$\{save\}>\$\{WORDS\.save\}/);

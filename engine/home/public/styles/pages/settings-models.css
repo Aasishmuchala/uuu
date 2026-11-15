@@ -100,8 +100,8 @@
 }
 
 .p-settings-models .p-settings-models__key .k-field {
-  flex: 1 1 260px;
-  max-width: 380px;
+  flex: 0 1 360px;
+  max-width: 360px;
 }
 
 .p-settings-models .p-settings-models__key .k-input {
@@ -117,6 +117,25 @@
 }
 
 /* ---- The agents: the kit's table on a card, 56 px rows, a Select in each, Save at the right under it */
+
+/* Not read yet: the table's empty state, one 14 px 500 line at its head with Read the list beside it (fix round R5:
+   no card of its own, never louder than the controls). */
+.p-settings-models .p-settings-models__unread {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.p-settings-models .p-settings-models__unread-say {
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+  color: var(--ink);
+}
 
 .p-settings-models .p-settings-models__agents .k-table {
   padding: 0 var(--s-4);

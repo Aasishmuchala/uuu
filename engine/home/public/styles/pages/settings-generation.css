@@ -113,16 +113,13 @@
   white-space: nowrap;
 }
 
-/* Three neutral 28 px chips joined by a hairline; only the door's 6 px dot carries a tone. */
+/* Three words with their icons joined by hairlines, no box round each (fix round R5); only the door's 6 px dot carries a tone. */
 .p-settings-generation .p-settings-generation__node {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-1);
-  background: var(--ctl);
+  padding: 0;
   font-size: var(--fs-label);
   font-weight: var(--fw-medium);
   line-height: var(--lh-label);
@@ -147,12 +144,13 @@
 
 .p-settings-generation .p-settings-generation__wire {
   width: 20px;
+  margin: 0 10px;
   height: 1px;
   background: var(--line-2);
 }
 
 /* Open: the hairlines carry a little of the good tone, so the way through reads without a green chip. */
-.p-settings-generation .p-settings-generation__path--open .p-settings-generation .p-settings-generation__wire {
+.p-settings-generation .p-settings-generation__path--open .p-settings-generation__wire {
   background: color-mix(in srgb, var(--good) 45%, var(--line-2));
 }
 
@@ -196,14 +194,10 @@
   line-height: var(--lh-label);
 }
 
-.p-settings-generation .p-settings-generation__limit .k-money-input {
-  width: 116px;
-}
-
 /* What was spent: the figure on the input's line, then its 4 px bar with round ends in the second ink. */
 .p-settings-generation .p-settings-generation__spent {
   display: grid;
-  grid-template-columns: 56px minmax(0, 180px);
+  grid-template-columns: 56px minmax(120px, 1fr);
   align-items: center;
   gap: var(--s-3);
 }

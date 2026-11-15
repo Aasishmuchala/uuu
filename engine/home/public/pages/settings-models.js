@@ -94,6 +94,9 @@ export function blockerLines(view) {
   return out;
 }
 
+// Whether the agents table says the list of models has not been read yet (its empty state, with Read the list).
+export const unreadInTable = (view) => !(view && view.catalogue && view.catalogue.readAt);
+
 // The words for why a model did not answer the test.
 export const REASONS = {
   refused: "Omega Plus refused the key",
@@ -261,7 +264,9 @@ function TestResult({ test }) {
 
 function SwitchRow({ view, busy, failure, act, switched }) {
   const on = view.mode === "provider";
-  const blockers = blockerLines(view);
+  // Each fact once: the list of models not yet read is said where it is acted on, as the agents table's empty state
+  // with Read the list beside it, so this list does not say it again.
+  const blockers = blockerLines(view).filter((b) => !(b === WORDS.notRead && unreadInTable(view)));
   const locked = !on && !view.canSwitchOn;
   return html`
     <${Row} icon="power" title=${WORDS.switchLabel}
@@ -417,12 +422,14 @@ function AgentsGroup({ view, busy, act, failure, technical }) {
   const say = readAt
     ? `The best model for each kind of work is picked for you. Change any of them here.${fullWhen(readAt) ? ` The list of ${Number(view.catalogue.count) || 0} models was read on ${fullWhen(readAt)}.` : ""}`
     : null;
+  // Not read yet: the table's own empty state, one 14 px line at its head with Read the list beside it.
+  const unread = readAt ? null : html`<div class="p-settings-models__unread">
+    <p class="p-settings-models__unread-say">${WORDS.notRead}</p>
+    <${Button} size="sm" onClick=${() => act("refresh", "/api/models/refresh", {}, "The list of models is read.")}
+      busy=${busy === "refresh"} disabled=${Boolean(busy)}>Read the list<//>
+  </div>`;
   return html`<${Group} title=${WORDS.agents} aside=${aside} say=${say}>
-    ${readAt ? null : html`<${Rows}>
-      <${Row} icon="list" title=${WORDS.notRead}
-        control=${html`<${Button} onClick=${() => act("refresh", "/api/models/refresh", {}, "The list of models is read.")}
-          busy=${busy === "refresh"} disabled=${Boolean(busy)}>Read the list<//>`} />
-    <//>`}
+    ${unread && !agents.length ? html`<${Card} padding="none" class="p-settings-models__agents">${unread}<//>` : null}
     ${failure && (failure.where === "refresh" || failure.where.startsWith("pick")) ? html`<${Notice} tone="bad" title=${failure.error.message}>${failure.error.next || null}<//>` : null}
     ${readAt && missing.size ? html`
       <${Notice} tone="warn">
@@ -430,6 +437,7 @@ function AgentsGroup({ view, busy, act, failure, technical }) {
       <//>` : null}
     ${readAt && sameModelLine(view) ? html`<${Notice} tone="warn" title=${sameModelLine(view)} />` : null}
     ${agents.length ? html`<${Card} padding="none" class="p-settings-models__agents">
+      ${unread}
       <form onSubmit=${save} autocomplete="off">
         <${DataTable} columns=${columns} rows=${agents.map((a) => ({ ...a, id: a.slug }))} renderCell=${cell} />
         <div class="p-settings-models__foot">

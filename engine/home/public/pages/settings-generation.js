@@ -729,7 +729,7 @@ function KeyRow({ view, busy, act, failure, test, runTest }) {
     <${Row} icon="key" title=${WORDS.keyField} state=${chip}
       say=${html`${saved ? WORDS.testWhat : saidAbove ? null : WORDS.noKey}${saved && door.state !== "on" ? html`<span class="p-settings-generation__line">${WORDS.doorTestLater}</span>` : null}
         ${saved ? html`<span class="p-settings-generation__actions">
-          <${Button} size="sm" variant="ghost" icon="play" onClick=${runTest} busy=${busy === "test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>
+          <${Button} size="sm" variant="primary" icon="play" onClick=${runTest} busy=${busy === "test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>
           ${editing ? null : html`<${Button} size="sm" variant="ghost" id="gen-runway-replace" disabled=${Boolean(busy)}
             onClick=${() => { setEditing(true); setFocus("gen-runway-key"); }}>${WORDS.replaceKey}<//>`}
           <${Button} size="sm" variant="ghost" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>${WORDS.removeKey}<//>
@@ -926,7 +926,7 @@ function HiggsfieldGroup({ view, busy, act, failure, test, runTest, signIn, retu
                 : door.state !== "on" ? html`<span class="p-settings-generation__line">${WORDS.doorTestLater}</span>` : null}`}
             control=${html`
               ${signedIn ? null : html`<${Button} size="sm" variant="primary" icon="external" onClick=${signIn} busy=${busy === "hf-begin"} disabled=${Boolean(busy)}>${HF_WORDS.signIn}<//>`}
-              ${signedIn ? html`<${Button} size="sm" variant="ghost" icon="play" onClick=${runTest} busy=${busy === "hf-test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>` : null}
+              ${signedIn ? html`<${Button} size="sm" variant="primary" icon="play" onClick=${runTest} busy=${busy === "hf-test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>` : null}
               ${signedIn || state.key === "refused" ? html`<${Button} size="sm" variant="ghost" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>${HF_WORDS.signOut}<//>` : null}`} />
           <${More}>
             ${busy === "hf-test" ? html`<p class="p-settings-generation__line" role="status"><${St} icon="clock">${HF_WORDS.waiting}<//></p>` : null}

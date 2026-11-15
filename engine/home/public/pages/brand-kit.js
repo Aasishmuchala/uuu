@@ -239,12 +239,13 @@ export function removeColour(colours, i) {
 // The colour a role names, or null.
 export const colourFor = (colours, role) => safeHex((arr(colours).find((c) => c && c.role === role) || {}).hex);
 
-// The two grounds the logo is shown on: the kit's own light and dark colours when it has them.
+// The two grounds the logo is shown on: the kit's own light and dark colours when it has them. Without them the light
+// ground is a toned #F2F2F2, never a pure white block (fix round R5: it was the brightest thing on a dark screen).
 export function stages(colours) {
   const list = arr(colours).map((c) => safeHex(c && c.hex)).filter(Boolean);
   const byLum = [...list].sort((a, b) => luminance(b) - luminance(a));
   const bg = colourFor(colours, "background");
-  const light = bg && luminance(bg) > 0.5 ? bg : byLum.find((h) => luminance(h) > 0.6) || "#FFFFFF";
+  const light = bg && luminance(bg) > 0.5 ? bg : byLum.find((h) => luminance(h) > 0.6) || "#F2F2F2";
   const dark = [colourFor(colours, "main"), colourFor(colours, "text"), ...byLum.slice().reverse()].find((h) => h && luminance(h) < 0.12) || "#141414";
   return { light, dark };
 }

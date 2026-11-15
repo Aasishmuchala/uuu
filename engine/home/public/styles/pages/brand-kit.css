@@ -56,6 +56,15 @@
   border: 0;
 }
 
+/* A section's head is 16 px 500 in the first ink (fix round R5): the brand kit's sections are its parts, read in
+   order, so their heads lead over the row titles. */
+.p-brand-kit .k-group__title {
+  font-size: var(--fs-section);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-section);
+  color: var(--ink);
+}
+
 /* ---- The top of the column: what happened, what is proposed */
 .p-brand-kit .p-brand-kit__top {
   display: grid;
@@ -205,7 +214,8 @@
 }
 
 /* ---- Logo: one card. The two grounds it sits on are tiles inset in it, each about 160 px tall with a 1 px inner line
-   (the owner's ground exactly as saved), its name and value under it; the logo files follow under a hairline. */
+   that shows on a ground of either kind and either theme (fix round R5: the dark ground was lost on a dark card), the
+   owner's ground exactly as saved, its name and value under it; the logo files follow under a hairline. */
 .p-brand-kit .p-brand-kit__logo {
   overflow: hidden;
 }
@@ -231,7 +241,7 @@
   height: 160px;
   padding: var(--s-4);
   border-radius: var(--r-2);
-  box-shadow: inset 0 0 0 1px var(--line-2);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink-3) 45%, transparent);
 }
 
 .p-brand-kit .p-brand-kit__ground-none {
@@ -988,18 +998,26 @@
     min-height: calc(var(--h-lg) + var(--s-1));
   }
 
+  /* One line: the words at the left, Save at the right. Docked, it is a raised strip joined to the tab bar (a dock,
+     like the tab bar, not a band laid over a row), as low as it can be, and Save without its glyph so the filled
+     button is no larger than it needs to be (fix round R5). */
   .p-brand-kit .p-brand-kit__bar {
-    flex-direction: column;
-    align-items: stretch;
     margin-top: var(--s-8);
   }
 
   .p-brand-kit .p-brand-kit__bar--dirty {
     bottom: var(--tabbar-h);
+    margin-inline: calc(var(--s-4) * -1);
+    padding: var(--s-2) var(--s-4);
+    background: var(--panel);
   }
 
-  .p-brand-kit .p-brand-kit__bar-actions {
-    justify-content: flex-end;
+  .p-brand-kit .p-brand-kit__bar-words {
+    line-height: var(--lh-note);
+  }
+
+  .p-brand-kit .p-brand-kit__bar-actions .k-btn--primary .k-icon {
+    display: none;
   }
 
   /* A switch is small and stays at the right of its row. */

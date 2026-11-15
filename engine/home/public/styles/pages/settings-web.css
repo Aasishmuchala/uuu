@@ -43,7 +43,7 @@
   margin-top: 0;
 }
 
-/* The door, drawn under its sentence: three neutral 28 px chips joined by a hairline; only the door's 6 px dot
+/* The door, drawn under its sentence: three words with their icons on one 28 px line, joined by hairlines (fix round R5: no box round each, so the row is not boxes in boxes); only the door's 6 px dot
    carries a tone. */
 .p-settings-web__path {
   display: flex;
@@ -62,10 +62,7 @@
   align-items: center;
   gap: 6px;
   height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-1);
-  background: var(--ctl);
+  padding: 0;
   white-space: nowrap;
 }
 
@@ -86,6 +83,7 @@
 
 .p-settings-web__wire {
   width: 20px;
+  margin: 0 10px;
   border-top: 1px solid var(--line-2);
 }
 
@@ -126,7 +124,7 @@
   overflow: hidden;
 }
 
-/* A site a 44 px row: a globe glyph, its name, and a muted remove button at the right. */
+/* A site a 40 px row (fix round R5): a globe glyph, its name, and a muted remove button at the right. */
 .p-settings-web__sites {
   margin: 0;
   padding: 0;
@@ -138,7 +136,7 @@
   grid-template-columns: 16px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--s-3);
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 var(--s-2) 0 var(--s-4);
 }
 

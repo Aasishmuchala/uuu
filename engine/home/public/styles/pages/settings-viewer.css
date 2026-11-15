@@ -63,8 +63,8 @@
   margin: 0;
 }
 
-/* A Test's answer: the sentence under the row's words, in the second ink with a green check; then the two
-   pictures in a well across the panel, on the deepest ground, a 1 px edge round each. */
+/* A Test's answer: the sentence under the row's words, in the second ink with its check in the second ink too; then
+   the two pictures in a framed well across the panel, on the deepest ground, a 1 px edge round each. */
 .p-settings-viewer .p-settings-viewer__answer {
   display: grid;
   gap: var(--s-3);
@@ -93,8 +93,19 @@
   background: var(--stage);
 }
 
+/* The pictures at most 240 px tall (fix round R5: a large pale page was the brightest thing on a dark screen): the
+   desktop frame 384 px wide (240 px at 1280 by 800), the phone in proportion beside it, the pair centred. */
 .p-settings-viewer .p-settings-viewer__well .k-site__pair {
   gap: var(--s-5);
+  max-width: calc(384px + 111px + var(--s-5));
+  margin: 0 auto;
+}
+
+/* The top of each page only: never taller than 240 px, whatever the picture's own height. */
+.p-settings-viewer .p-settings-viewer__well .k-site__img {
+  max-height: 240px;
+  object-fit: cover;
+  object-position: top;
 }
 
 .p-settings-viewer .p-settings-viewer__well .k-site__screen {
@@ -114,32 +125,41 @@
 
 /* ---- What was opened today: two counts on one line, the figures in tabular numbers */
 
-/* What was opened today: each count a figure (15 px 600, tabular) over its 12 px label. */
+/* What was opened today: a strip of counts (fix round R5), each a 22 px 500 figure in tabular numbers over its 12 px
+   label, parted by a hairline. */
 .p-settings-viewer .p-settings-viewer__counts {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--s-8);
+  gap: var(--s-2) 0;
   margin-top: var(--s-3);
-  margin-bottom: var(--s-1);
+  margin-bottom: var(--s-2);
 }
 
 .p-settings-viewer .p-settings-viewer__count {
   display: inline-flex;
   flex-direction: column-reverse;
+  gap: 2px;
+  padding: 0 var(--s-6);
+  border-left: 1px solid var(--line);
   font-size: var(--fs-label);
   line-height: var(--lh-label);
   color: var(--ink-2);
 }
 
+.p-settings-viewer .p-settings-viewer__count:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
 .p-settings-viewer .p-settings-viewer__count b {
-  font-size: var(--fs-fact);
-  font-weight: var(--fw-bold);
-  line-height: var(--lh-fact);
+  font-size: var(--fs-stat);
+  font-weight: var(--fw-medium);
+  line-height: 1.2;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- The door's path: three neutral 28 px chips joined by a hairline; the viewer's 6 px dot carries the tone */
+/* ---- The door's path: three words with their icons on one 28 px line, joined by hairlines (fix round R5: no box round each, so the row is not boxes in boxes); the viewer's 6 px dot carries the tone */
 
 .p-settings-viewer .p-settings-viewer__path {
   display: inline-flex;
@@ -154,10 +174,7 @@
   align-items: center;
   gap: 6px;
   height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-1);
-  background: var(--ctl);
+  padding: 0;
   font-size: var(--fs-label);
   font-weight: var(--fw-medium);
   line-height: var(--lh-label);
@@ -183,12 +200,13 @@
 
 .p-settings-viewer .p-settings-viewer__wire {
   width: 20px;
+  margin: 0 10px;
   height: 1px;
   background: var(--line-2);
 }
 
 /* Open: the hairlines carry a little of the good tone, so the way through reads without a green chip. */
-.p-settings-viewer .p-settings-viewer__path--open .p-settings-viewer .p-settings-viewer__wire {
+.p-settings-viewer .p-settings-viewer__path--open .p-settings-viewer__wire {
   background: color-mix(in srgb, var(--good) 45%, var(--line-2));
 }
 
@@ -207,11 +225,11 @@
 
   .p-settings-viewer .p-settings-viewer__node {
     gap: 4px;
-    padding: 0 6px;
   }
 
   .p-settings-viewer .p-settings-viewer__wire {
     width: 8px;
+    margin: 0 6px;
   }
 
   /* A row's warning takes the panel's whole width, so it reads in fewer lines. */
