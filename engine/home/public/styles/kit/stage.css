@@ -179,21 +179,32 @@
   padding: 0;
   border: 0;
   border-radius: var(--r-round);
-  background: var(--warn-bg);
-  color: var(--warn);
+  /* A muted numeral in a hairline ring (fix round R6): the finding's words lead, never an amber disc. */
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  color: var(--ink-2);
   font: inherit;
   font-size: var(--fs-label);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-medium);
   line-height: 18px;
   font-variant-numeric: tabular-nums;
+}
+
+/* In the list of findings the numeral stands alone, in the third ink, on the row's first line. */
+.k-finds__row .k-pin {
+  box-shadow: none;
+  color: var(--ink-3);
+  text-align: right;
 }
 
 .k-pin[type="button"] {
   cursor: pointer;
 }
 
-.k-pin--on {
-  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent);
+.k-pin--on,
+.k-finds__row .k-pin--on {
+  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--ink);
 }
 
 /* A pin sits in the gutter beside its frame, a 1 px lead running to what it marks. */
@@ -315,9 +326,11 @@
 .k-finds__row {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
-  gap: 0 var(--s-3);
+  align-content: center;
+  gap: 0 var(--s-2);
   width: 100%;
-  padding: 6px var(--s-3);
+  min-height: 40px;
+  padding: var(--s-2) var(--s-3);
   border: 0;
   border-radius: var(--r-2);
   background: none;

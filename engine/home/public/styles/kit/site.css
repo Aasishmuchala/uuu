@@ -238,6 +238,13 @@
   object-position: top;
 }
 
+/* The chosen version: a 1 px accent ring and no wash (fix round R6); the card keeps its own surface. */
+.k-site__strip .k-opt--on {
+  border-color: var(--accent);
+  background: var(--card);
+  box-shadow: none;
+}
+
 /* ---- The rail (and the viewer's): a finding is a designed row. Its plain name, the measurement as a small neutral
    chip at the right (two 12 px swatches, the ink on its ground, each with a hairline, and the ratio in tabular
    figures), the page as a tag only when it is not the page in view, and the line's other words muted under it, two
@@ -255,32 +262,42 @@
   text-wrap: pretty;
 }
 
-/* The measurement and the page's tag share one right-hand column: every row's tag ends on the rail's edge. */
+/* The page's tag and the measurement in two fixed columns at the right: the measurement always ends on the rail's
+   edge, the tag always stands just before it, so neither jumps when the other is missing. */
 .k-site__find-side {
   flex: none;
+  display: grid;
+  grid-template-columns: auto 76px;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.k-site__find-page {
   display: inline-flex;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.k-site__find-side--tag {
+  grid-template-columns: auto;
+}
+
+/* The measurement in plain words: two small swatches and the ratio in tabular figures, in the second ink. */
+.k-site__measure {
+  display: inline-flex;
+  align-items: center;
   justify-content: flex-end;
   gap: var(--s-1);
-  max-width: 60%;
-  margin-top: -1px;
-}
-
-.k-site__measure,
-.k-site__find-page {
-  flex: none;
-  display: inline-flex;
-}
-
-.k-site__measure .k-tag {
-  gap: var(--s-1);
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  line-height: var(--lh-ui);
+  white-space: nowrap;
 }
 
 .k-site__swatch {
   display: inline-block;
   flex: none;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: var(--r-xs);
   /* An edge in the ink's own tint, so a white swatch shows on a white chip and a dark one on a dark chip. */
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 30%, transparent);
@@ -291,7 +308,7 @@
 }
 
 .k-site__ratio {
-  margin-left: 2px;
+  margin-left: var(--s-1);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

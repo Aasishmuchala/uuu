@@ -433,7 +433,7 @@ export function DecisionCard({ item, onDone, compact = false, level = false }) {
       onClick=${(ev) => choose(a, ev)}>${text(a.label)}<//>`)}
     <span class="k-decision__gap" aria-hidden="true"></span>
     ${primary && primary.style === "danger" && !compact && html`<span class="k-decision__why">${DECISION_WORDS.asksOnce(text(primary.label))}</span>`}
-    ${primary && html`<${Button} variant=${primary.style === "danger" ? "danger" : "primary"} busy=${busy && !noteFor && !confirm}
+    ${primary && html`<${Button} variant=${primary.style === "danger" ? (level ? "danger-quiet" : "danger") : "primary"} busy=${busy && !noteFor && !confirm}
       disabled=${stopped} onClick=${(ev) => choose(primary, ev)}>${text(primary.label)}<//>`}
   </div>`;
 
@@ -446,7 +446,7 @@ export function DecisionCard({ item, onDone, compact = false, level = false }) {
       <p class="k-decision__context">
         ${context.map((c, i) => html`${i > 0 && html`<span class="k-decision__sep" aria-hidden="true"> · </span>`}<span class=${c.ref ? "k-decision__ref" : undefined} title=${c.title}>${c.words}</span>`)}
       </p>
-      ${high && html`<span class="k-decision__flag"><${Tag} tone="bad">Urgent<//></span>`}
+      ${high && html`<span class="k-decision__flag"><${Tag} tone="bad" quiet=${true}>Urgent<//></span>`}
     </div>
     <div class="k-decision__body">
       ${changed && html`<${Changed} error=${error} reloading=${reloading} gone=${gone} />`}

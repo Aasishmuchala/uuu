@@ -263,9 +263,9 @@ test("needs-you: the story so far is a task's whole thread with words, up to eig
 // PLAN-COOK T116 (critics of round A2 on S09: "every title is cut after about 30 characters", "groups blur"), and R5-D
 // (critics of round R4: "three solid grey 28px bars chop the list", "titles wrap because the date sits inline", "the
 // selected row uses a blue left rule, a fill and a check icon all at once").
-test("needs-you: side by side the list is a column of its own; each group under its label and count over a hairline; the date in a 64 px gutter; a title takes two lines", () => {
+test("needs-you: side by side the list is a column of its own; each group under its label and count over a hairline; the date in a 64 px gutter; a title takes one line", () => {
   const c = readFileSync(resolve(HERE, "../../styles/pages/needs-you.css"), "utf8");
-  assert.match(c, /\.p-needs-you\.p-needs-you--split \{[^}]*grid-template-columns: 400px minmax\(0, 1fr\);/);
+  assert.match(c, /\.p-needs-you\.p-needs-you--split \{[^}]*grid-template-columns: 440px minmax\(0, 1fr\);/);
   assert.match(c, /\.p-needs-you\.p-needs-you--split \{[^}]*min-height: calc\(100vh - var\(--topbar-h\)\);/);
   const h = /\.p-needs-you \.p-needs-you__heading \{([^}]*)\}/.exec(c)[1];
   assert.match(h, /border-bottom: 1px solid var\(--line\);/, "the label over a hairline");
@@ -275,8 +275,8 @@ test("needs-you: side by side the list is a column of its own; each group under 
   assert.match(c, /\.p-needs-you \.p-needs-you__row \{[^}]*grid-template-columns: 16px minmax\(0, 1fr\) 64px;/, "the date's own 64 px gutter");
   assert.doesNotMatch(c, /aria-current="true"\] \.p-needs-you__icon/, "the chosen row is the fill and the bar, no third mark");
   const t = /\.p-needs-you \.p-needs-you__title \{([^}]*)\}/.exec(c)[1];
-  assert.match(t, /-webkit-line-clamp: 2;/, "two lines a title");
-  assert.doesNotMatch(t, /white-space: nowrap/);
+  assert.match(t, /text-overflow: ellipsis;[^}]*white-space: nowrap;/, "one line a title, cut with an ellipsis (R6-D)");
+  assert.match(readFileSync(resolve(HERE, "../../pages/needs-you.js"), "utf8"), /<span class="p-needs-you__title" title=\$\{cap\(item\.title, 120\)\}>/, "its whole words on hover");
   assert.match(c, /\.p-needs-you \.p-needs-you__when \{[^}]*font-size: var\(--fs-label\);[^}]*font-variant-numeric: tabular-nums;/, "the date 12 px tabular");
   assert.match(c, /\.p-needs-you \.p-needs-you__row\[aria-current="true"\] \{[^}]*background: var\(--sel\);[^}]*box-shadow: inset 2px 0 0 var\(--accent\);/, "the chosen row: the kit's fill and bar");
 });

@@ -478,16 +478,17 @@ export function SiteStage({ view, scores = null, pick = null }) {
 // A colour code from the server's line, only as a colour: "#8A8278".
 const COLOUR = /^#[0-9A-Fa-f]{3,8}$/;
 
-// A finding's measurement as a small neutral chip: for a contrast, the ink on its ground as two swatches and the
-// ratio ("3.63 : 1"), its codes in the chip's name for a screen reader and on hover; else the bracket's words.
+// A finding's measurement in plain words, no chip ground (fix round R6): for a contrast, the ink on its ground as two
+// small swatches and the ratio in tabular figures ("3.63 : 1"), its codes in its name for a screen reader and on
+// hover; else the bracket's words in the second ink.
 function Measure({ parts }) {
   if (!parts.measure) return null;
   const sw = parts.swatch;
-  if (!sw || !COLOUR.test(sw.ink) || !COLOUR.test(sw.ground)) return html`<span class="k-site__measure"><${Tag}>${parts.measure}<//></span>`;
-  return html`<span class="k-site__measure" role="img" aria-label=${parts.measure} title=${parts.measure}><${Tag}>
+  if (!sw || !COLOUR.test(sw.ink) || !COLOUR.test(sw.ground)) return html`<span class="k-site__measure">${parts.measure}</span>`;
+  return html`<span class="k-site__measure" role="img" aria-label=${parts.measure} title=${parts.measure}>
     <span class="k-site__swatch" style=${`background:${sw.ink}`} aria-hidden="true"></span><span class="k-site__swatch" style=${`background:${sw.ground}`} aria-hidden="true"></span>
     <span class="k-site__ratio" aria-hidden="true">${sw.ratio} : 1</span>
-  <//></span>`;
+  </span>`;
 }
 
 // One finding as a row of Finds: its plain name, the measurement as a chip at the right, the line's other words
@@ -497,7 +498,11 @@ function Measure({ parts }) {
 export function findItem(f, here) {
   const p = findParts(f.text);
   const tag = f.page !== here ? html`<span class="k-site__find-page"><${Tag}>${pageWords(f.page)}<//></span>` : null;
-  const side = p.measure || tag ? html`<span class="k-site__find-side"><${Measure} parts=${p} />${tag}</span>` : null;
+  // Two fixed columns at the right: the page's tag, then the measurement on the rail's edge, so the measurement never
+  // moves when a tag is there; a row with a tag and no measurement has its tag on the edge.
+  const side = p.measure || tag
+    ? html`<span class=${cx("k-site__find-side", !p.measure && "k-site__find-side--tag")}>${p.measure ? tag || html`<span class="k-site__find-gap" aria-hidden="true"></span>` : tag}${p.measure ? html`<${Measure} parts=${p} />` : null}</span>`
+    : null;
   return {
     n: f.n,
     title: html`<span class="k-site__find-head"><span class="k-site__find">${p.title}</span>${side}</span>${p.rest ? html`<span class="k-site__find-rest" title=${p.rest}>${p.rest}</span>` : null}`,
@@ -753,9 +758,12 @@ export function SiteStrip({ view, scores = null, label = SITE_WORDS.versions }) 
         const sc = scoreLine(review);
         const found = findsOf(s).length;
         const ready = obj(s.shots) && s.shots.state === "ready";
-        const state = sc ? sc.state
+        // Quiet (fix round R6): the verdict as words in its tone with a dot, no fill (the strip draws `quiet` as the
+        // kit's quiet Tag).
+        const verdict = sc ? sc.state
           : ready ? (found ? { tone: "warn", text: `${count(found, "thing")} to look at` } : { tone: "good", icon: "check", text: SITE_WORDS.fine })
             : null;
+        const state = verdict ? { ...verdict, quiet: true } : null;
         return html`<${OptionCard} key=${s.ref} checked=${s.ref === view.site.ref} onPick=${() => view.choose(s.ref)}
           title=${n.letter ? `${n.letter} · ${n.title}` : n.title} amount=${sc ? sc.total : undefined}
           sub=${sc ? undefined : sizeWords(s)} state=${state} say=${sc && sc.reason ? sc.reason : undefined}

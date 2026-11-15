@@ -277,8 +277,15 @@
 
 /* ---- The foot: the decision, then under a divider the note and the send-back actions ---- */
 
+/* The pick sized to its words (fix round R6: one filled button a view, never a slab); a phone gives it the width. */
 .k-pick__button {
-  width: 100%;
+  justify-self: start;
+}
+
+@media (max-width: 859px) {
+  .k-pick__button {
+    width: 100%;
+  }
 }
 
 .k-pick__confirm {
@@ -414,6 +421,13 @@
   display: grid;
   gap: var(--s-2);
   min-width: 0;
+}
+
+/* The pick sized to its words at the foot's left (fix round R6); a phone gives it the bar's width. */
+@media (min-width: 860px) {
+  .k-pick-foot__primary > .k-btn {
+    justify-self: start;
+  }
 }
 
 .k-pick-foot__rest {

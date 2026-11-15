@@ -1,5 +1,5 @@
 /* Needs you: the list (grouped as the queue groups it), an item opened beside it from 1280 px, an item alone under
-   that, and a stage that takes the pane. Side by side the page fills the pane: the list a 400 px column on the
+   that, and a stage that takes the pane. Side by side the page fills the pane: the list a 440 px column on the
    ground behind a 1 px line, scrolling by itself, each group under its label and count over a hairline; the item
    opened at the top of the rest with what helps decide under it. Every selector starts with .p-needs-you; tokens only. */
 
@@ -15,11 +15,11 @@
   display: block;
 }
 
-/* Side by side: the page reaches past the pane's padding to fill it; the list at the left, 400 px (a title keeps two
-   whole lines beside its date's gutter), the item opened at the right. */
+/* Side by side: the page reaches past the pane's padding to fill it; the list at the left, 440 px (a one-line title
+   keeps most of its words beside its date's gutter), the item opened at the right. */
 .p-needs-you.p-needs-you--split {
   display: grid;
-  grid-template-columns: 400px minmax(0, 1fr);
+  grid-template-columns: 440px minmax(0, 1fr);
   gap: 0;
   align-items: start;
   min-height: calc(100vh - var(--topbar-h));
@@ -161,8 +161,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* A row: the glyph, the title on up to two lines, the time in a 64 px gutter at the right (so a title never wraps
-   for it); a grey line under only where it adds a fact, running under the gutter too. The glyph sits centred on the
+/* A row: the glyph, the title on one line, the time in a 64 px gutter at the right; one muted line under only where
+   it adds a fact, running under the gutter too. The glyph sits centred on the
    title's first line. */
 .p-needs-you .p-needs-you__row {
   display: grid;
@@ -201,19 +201,17 @@
   color: var(--ink-2);
 }
 
-/* Two lines at most: nothing is cut before the second line's end. */
+/* One line, cut with an ellipsis; the whole title on hover and in the opened card (fix round R6). */
 .p-needs-you .p-needs-you__title {
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
   overflow: hidden;
   font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-ui);
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .p-needs-you .p-needs-you__when {

@@ -3,7 +3,7 @@
    ("Round 1 · Passed") is the card's head line. An entry is a 20 px picture in its own column, the speaker at 14 px
    semibold with its kind chip (the kit's tag in the kind's own tone, T114) and the time in grey, then the words at 15
    under the name; a 1 px line joins the pictures of one card's entries. A marker alone is a quiet trail line between
-   cards. A file is a 36 px row: a 16 px icon for its kind, its own name, its size in 12 px muted tabular figures,
+   cards. The entries before the first marker stand on the ground, unboxed. A file is a 32 px row: a 16 px icon for its kind, its own name, its size in 12 px muted tabular figures,
    then two fixed columns of quiet icon buttons (Open, Download), disabled rather than missing. */
 
 .k-convo {
@@ -32,6 +32,15 @@
   border-radius: var(--r-3);
   background: var(--card);
   box-shadow: var(--shadow-card);
+}
+
+/* The entries before the first marker (the owner's ask): on the page's ground, no card, their pictures in line with
+   the cards' pictures below. */
+.k-convo__round--plain {
+  padding: 0 calc(var(--s-4) + 1px);
+  border: 0;
+  background: none;
+  box-shadow: none;
 }
 
 .k-convo__round-head,
@@ -228,7 +237,7 @@
 .k-convo__marker--warn .k-convo__marker-icon { color: var(--warn); }
 .k-convo__marker--bad .k-convo__marker-icon { color: var(--bad); }
 
-/* A file, as a 36 px row: its kind icon, its own name, its size in 12 px muted tabular figures, then two fixed
+/* A file, as a 32 px row: its kind icon, its own name, its size in 12 px muted tabular figures, then two fixed
    columns of quiet icon buttons. Rows are parted by hairlines; no frame, so a list of files sits calmly in a card or
    on the ground. */
 .k-file {
@@ -236,7 +245,7 @@
   align-items: center;
   gap: var(--s-3);
   min-width: 0;
-  min-height: var(--h-md);
+  min-height: var(--s-8);
   color: var(--ink);
 }
 
@@ -305,6 +314,10 @@
 @media (max-width: 859px) {
   .k-convo__round {
     padding: var(--s-4) var(--s-3);
+  }
+
+  .k-convo__round--plain {
+    padding: 0 calc(var(--s-3) + 1px);
   }
 
   .k-convo__fold {

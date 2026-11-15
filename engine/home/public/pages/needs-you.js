@@ -9,7 +9,7 @@
 // The top bar gets the crumbs and a pager over the list's order. After an action its outcome stays where the item
 // was until the owner moves on.
 // Side by side (T104, T116, R5-D) the page fills the pane: the list a column of its own that scrolls by itself, each
-// row a title on up to two lines with its time in a 64 px gutter at the right (its grey line only where it adds a
+// row a title on one line with its time in a 64 px gutter at the right (its grey line only where it adds a
 // fact the title does not say), each group under its label and count over a hairline; the item opened at the top of
 // the rest, and under it, on the ground, what helps decide: the other items of the same task with a way to the task,
 // then the task's story so far (its whole thread, up to eight entries, the newest first, from GET /api/tasks/:id, the
@@ -267,13 +267,13 @@ const KindIcon = ({ kind }) => {
   return name === "done" ? html`<${StateIcon} column="done" label="" />` : html`<${Icon} name=${name} />`;
 };
 
-// One row: the kind's glyph, the title on up to two lines, the time at the top right, and the grey line (one line)
+// One row: the kind's glyph, the title on one line (its whole words on hover), the time at the right, and the grey line (one line)
 // only where it adds a fact (`line` true shows it always, as under the item opened, where there is room).
 function Row({ item, href, current, line = false }) {
   const at = rowTime(item.when);
   return html`<a class="p-needs-you__row" href=${href} aria-current=${current ? "true" : undefined}>
     <span class="p-needs-you__icon" aria-hidden="true"><${KindIcon} kind=${item.kind} /></span>
-    <span class="p-needs-you__title">${cap(item.title, 120)}</span>
+    <span class="p-needs-you__title" title=${cap(item.title, 120)}>${cap(item.title, 120)}</span>
     ${at ? html`<time class="p-needs-you__when" datetime=${item.when} title=${fullWhen(item.when)}>${at}</time>` : null}
     ${item.summary && (line || addsFact(item)) ? html`<span class="p-needs-you__line">${cap(item.summary, 200)}</span>` : null}
   </a>`;

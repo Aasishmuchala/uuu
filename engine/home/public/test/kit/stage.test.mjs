@@ -137,12 +137,14 @@ test("T97: a verdict in one line: the word in its tone, then the grey by words a
   assert.match(sheet, /\.k-verdict--inline\.k-verdict--warn \.k-verdict__title,[^{]*\{ color: var\(--warn\); \}/, "the word in its tone");
 });
 
-test("stage.css: pins in the gutter as tinted 18 px discs, a stage panel around the frames, no blur, and the phone frame alone below 860 px", () => {
+test("stage.css: pins in the gutter as muted 18 px numerals, a stage panel around the frames, no blur, and the phone frame alone below 860 px", () => {
   const sheet = css("kit/stage.css");
   assert.doesNotMatch(sheet, /backdrop-filter/);
   assert.match(sheet, /\.k-frames \{[^}]*padding: var\(--s-6\);[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--r-2\);[^}]*background: var\(--panel\);[^}]*box-shadow: var\(--shadow-card\)/, "the stage panel: a 1 px edge, an 8 px corner and the card shadow");
   assert.match(sheet, /\.k-frame__pin--left \{\s*left: -22px;/);
-  assert.match(sheet, /\.k-pin \{[^}]*width: 18px;[^}]*background: var\(--warn-bg\);[^}]*color: var\(--warn\);/, "an 18 px disc on the warning tint, its numerals in the warning ink (T112)");
+  assert.match(sheet, /\.k-pin \{[^}]*width: 18px;[^}]*background: transparent;[^}]*box-shadow: inset 0 0 0 1px var\(--line-2\);[^}]*color: var\(--ink-2\);/, "an 18 px muted numeral in a hairline ring, no amber disc (R6-D)");
+  assert.match(sheet, /\.k-finds__row \.k-pin \{[^}]*box-shadow: none;[^}]*color: var\(--ink-3\);/, "in the list a bare numeral in the third ink");
+  assert.match(sheet, /\.k-finds__row \{[^}]*min-height: 40px;/, "40 px rows");
   assert.match(sheet, /\.k-shot__frame \{[^}]*aspect-ratio: 16 \/ 9;[^}]*background: var\(--black\)/);
   assert.match(sheet, /@media \(max-width: 859px\)[\s\S]*\.k-frames__cell--desk:not\(:only-child\) \{\s*display: none;/);
 });

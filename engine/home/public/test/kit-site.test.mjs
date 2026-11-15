@@ -563,7 +563,7 @@ test("T112: the rail shows four findings and Show all 7: the name, the contrast 
     assert.equal(chip.getAttribute("aria-label"), "#8A8278 on #FBFAF7, 3.63 to 1", "the server's codes, whole, in the chip's name");
     assert.equal(chip.getAttribute("title"), "#8A8278 on #FBFAF7, 3.63 to 1", "and on hover");
     assert.equal(textOf(ofClass(chip, "k-site__ratio")[0]), "3.63 : 1");
-    assert.equal(ofClass(chip, "k-tag").length, 1, "the kit's chip");
+    assert.equal(ofClass(chip, "k-tag").length, 0, "plain figures, no chip ground (R6-D)");
     const swatches = ofClass(chip, "k-site__swatch").map((e) => e.style.cssText || e.getAttribute("style"));
     assert.deepEqual(swatches, ["background:#8A8278", "background:#FBFAF7"], "the ink, then its ground");
     assert.equal(elements(rail).filter((e) => e.localName === "code").length, 0, "no monospace line");
@@ -650,7 +650,7 @@ test("T112: while a pick waits, the larger picture's foot carries the same pick 
   }
 });
 
-test("T112: site.css draws the viewer: a 320 px rail beside a well on the stage tone, the rail under the picture below 860 px; stage.css fades a cut page and keeps 12 px between findings", () => {
+test("T112: site.css draws the viewer: a 320 px rail beside a well on the stage tone, the rail under the picture below 860 px; stage.css fades a cut page and keeps findings' rows 40 px", () => {
   const css = readFileSync(join(PUBLIC, "styles", "kit", "site.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
   assert.match(css, /\.k-site__viewer \{[^}]*grid-template-columns: minmax\(0, 1fr\) 320px;/);
   assert.match(css, /\.k-site__well \{[^}]*overflow-y: auto;[^}]*padding: var\(--s-6\);[^}]*background: var\(--stage\);/);
@@ -660,7 +660,7 @@ test("T112: site.css draws the viewer: a 320 px rail beside a well on the stage 
   const stage = readFileSync(join(PUBLIC, "styles", "kit", "stage.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
   assert.match(stage, /\.k-frame__page \{[^}]*mask-image: linear-gradient\(to bottom, black calc\(100% - var\(--k-fade\)\), transparent\);/, "a cut page ends in a fade, not a slice");
   assert.match(stage, /\.k-finds \{[^}]*gap: 0;/);
-  assert.match(stage, /\.k-finds__row \{[^}]*padding: 6px var\(--s-3\);/, "6 + 6: 12 px between findings");
+  assert.match(stage, /\.k-finds__row \{[^}]*min-height: 40px;[^}]*padding: var\(--s-2\) var\(--s-3\);/, "40 px rows, 8 + 8 between findings' words (R6-D)");
 });
 
 // PLAN-COOK R5-D (critics of round R4 on S01 and S01b: "the 'The Art director's scores' heading is half-buried under
@@ -677,7 +677,7 @@ test("R5-D: the findings summed in one line by kind, in the order met; nothing f
   assert.equal(site.findsSum(null), "");
 });
 
-test("R5-D: a finding's measurement and its page share one right-hand column; a swatch has an edge in the ink's tint", async () => {
+test("R5-D, R6-D: a finding's page and measurement stand in two fixed right-hand columns; a swatch has an edge in the ink's tint", async () => {
   const about = { page: "about.html", lines: ['Hard to read: "Visits" (#8A8278 on #FBFAF7, 3.63 to 1)', "1 link or button is smaller than 24 px"] };
   const two = { ...READY, shots: { ...READY.shots, report: [{ page: "index.html", lines: SEVEN.slice(0, 2) }, about] } };
   const f = stubFetch(() => ({ status: 200, body: answer([two]) }));
@@ -688,10 +688,11 @@ test("R5-D: a finding's measurement and its page share one right-hand column; a 
     for (const r of rows.slice(2)) {
       const side = ofClass(r, "k-site__find-side")[0];
       assert.ok(side, "a right-hand column");
-      assert.equal(textOf(ofClass(side, "k-site__find-page")[0]), "About", "the page's tag in it, last");
+      assert.equal(textOf(ofClass(side, "k-site__find-page")[0]), "About", "the page's tag in it, before the measurement");
       assert.equal(ofClass(r, "k-site__find-rest").filter((e) => ofClass(e, "k-site__find-page").length).length, 0, "never in the muted line");
     }
-    assert.equal(ofClass(rows[2], "k-site__measure")[0].parentNode, ofClass(rows[2], "k-site__find-side")[0], "the chip in the same column");
+    assert.equal(ofClass(rows[2], "k-site__measure")[0].parentNode, ofClass(rows[2], "k-site__find-side")[0], "the measurement beside it");
+    assert.equal(ofClass(ofClass(rows[3], "k-site__find-side")[0], "k-site__measure").length, 0, "no measurement: the tag alone on the edge");
   } finally {
     f.restore();
   }
@@ -718,4 +719,11 @@ test("R5-D: the rail's facts are folds, closed: the caller's first (the scores),
   } finally {
     f.restore();
   }
+});
+
+test("R6-D: a version's verdict on its card is quiet, and the chosen card a 1 px accent ring with no wash", async () => {
+  const src = readFileSync(join(PUBLIC, "kit", "site.js"), "utf8");
+  assert.match(src, /const state = verdict \? \{ \.\.\.verdict, quiet: true \} : null;/);
+  const css = readFileSync(join(PUBLIC, "styles", "kit", "site.css"), "utf8");
+  assert.match(css, /\.k-site__strip \.k-opt--on \{[^}]*border-color: var\(--accent\);[^}]*background: var\(--card\);[^}]*box-shadow: none;/);
 });

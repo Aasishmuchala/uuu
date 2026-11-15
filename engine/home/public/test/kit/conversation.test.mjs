@@ -191,7 +191,9 @@ test("Conversation: rounds as cards, a marker as the card's head, a line between
   assert.deepEqual(roundsOf(msgs).map((r) => [r.marker && r.marker.label, r.messages.length]), [[null, 1], ["Round 1 · Passed", 2], ["Stopped", 0]]);
   assert.deepEqual(roundsOf(null), []);
   const root = show(conversation.Conversation, { messages: msgs });
-  assert.equal(withClass(root, "k-convo__round").length, 2, "two cards; the lone marker is a trail line");
+  assert.equal(withClass(root, "k-convo__round").length, 2, "two rounds; the lone marker is a trail line");
+  assert.equal(withClass(root, "k-convo__round--plain").length, 1, "the owner's ask before the first marker stands on the ground (R6-D)");
+  assert.match(c, /\.k-convo__round--plain \{[^}]*border: 0;[^}]*background: none;[^}]*box-shadow: none;/, "only the round's card is raised");
   assert.equal(withClass(root, "k-convo__marker").length, 2);
   const heads = withClass(root, "k-convo__head");
   assert.equal(heads.length, 3, "every entry has a head");
@@ -205,13 +207,13 @@ test("Conversation: rounds as cards, a marker as the card's head, a line between
 
 // PLAN-COOK T104, T114: a file is a 36 px row (44 on a phone) with an icon for its kind, its size at the right in
 // 12 px muted tabular figures and two fixed columns of quiet icon buttons, each with a spoken name.
-test("FileCard: a 36 px row, an icon by kind, the size at the right, two fixed button columns that say which file", () => {
+test("FileCard: a 32 px row, an icon by kind, the size at the right, two fixed button columns that say which file", () => {
   const root = show(conversation.FileCard, { file: { name: "content/launch-post.md", kind: "text", size: 168, url: "/api/files/x", viewUrl: "/api/view/x" } });
   const labels = elements(root).map((e) => e.getAttribute("aria-label")).filter(Boolean);
   assert.deepEqual(labels, ["Open launch-post.md", "Download launch-post.md"]);
   assert.ok(elements(root).filter((e) => /\bk-file__btn\b/.test(e.getAttribute("class") || "")).every((e) => /\bk-btn--quiet\b/.test(e.getAttribute("class"))));
   const c = css("kit/conversation.css");
-  assert.match(c, /\.k-file \{[^}]*min-height: var\(--h-md\);/);
+  assert.match(c, /\.k-file \{[^}]*min-height: var\(--s-8\);/, "a 32 px row (R6-D)");
   assert.match(c, /@media \(max-width: 859px\) \{[\s\S]*\.k-file \{[^}]*min-height: 44px;/, "a 44 px target on a phone");
   assert.match(c, /\.k-file__actions \{[^}]*grid-template-columns: repeat\(2, var\(--h-sm\)\);/, "two fixed columns");
   assert.match(c, /\.k-file__meta \{[^}]*font-variant-numeric: tabular-nums;/);

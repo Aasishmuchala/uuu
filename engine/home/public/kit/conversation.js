@@ -1,8 +1,9 @@
 // A conversation between the owner and the agents, and a file as a row. CONTRACTS-V2 13.2, restyled by CONTRACTS-V3 28,
 // redrawn by PLAN-COOK T37 (R02) and grouped by T104: the entries are told in rounds. A marker ("Brief written",
 // "Round 1 · Passed") opens a round; each round is a card holding its entries, the marker as the card's head line,
-// and a 1 px line joins the 20 px pictures of one card's entries. Entries before the first marker are a card with no
-// head; a marker with no entry after it stays a quiet trail line. A message is { who, kind, text, at, files?, marker? }
+// and a 1 px line joins the 20 px pictures of one card's entries. Entries before the first marker (the owner's ask)
+// stand on the page's ground with no card (fix round R6: one raised surface, the round); a marker with no entry after
+// it stays a quiet trail line. A message is { who, kind, text, at, files?, marker? }
 // (17.3, 17.5); the owner's `who.slug` is "you". What kind of message it is (Check, Result, Asked, Note) is one 12 px
 // chip of the kit's tag system in its own tone (T114): a check is info, a result good, a question warn, a note neutral.
 // Agents wrote these words: they are shown as text, never as HTML.
@@ -201,7 +202,7 @@ export function Conversation({ messages = [] }) {
   const rounds = roundsOf(list);
   return html`<ol class="k-convo">${rounds.map((r, i) => {
     if (!r.messages.length) return r.marker ? html`<${Marker} key=${`m${i}`} marker=${r.marker} />` : null;
-    return html`<li class="k-convo__round" key=${`r${i}`}>
+    return html`<li class=${`k-convo__round${r.marker ? "" : " k-convo__round--plain"}`} key=${`r${i}`}>
       ${r.marker && html`<ol class="k-convo__round-head"><${Marker} marker=${r.marker} /></ol>`}
       <ol class="k-convo__entries">${r.messages.map((m, j) => html`<${Entry} key=${j} m=${m} />`)}</ol>
     </li>`;

@@ -478,6 +478,7 @@ test("an urgent card says so once, with the bad chip, and is not tinted", async 
   const marks = elements(urgent).filter((e) => classOf(e).includes("k-tag--bad"));
   assert.equal(marks.length, 1, "one bad chip");
   assert.equal(textOf(marks[0]).trim(), "Urgent");
+  assert.ok(classOf(marks[0]).includes("k-tag--quiet"), "the quiet bad tag: its words and a dot, no fill (R6-D)");
   assert.ok(!textOf(elements(urgent).find((e) => classOf(e).includes("k-decision__title"))).includes("Urgent"), "said once, not in the title");
   const calm = await show(decision.DecisionCard, { item: SEEN });
   assert.ok(!elements(calm).some((e) => classOf(e).includes("k-tag--bad")));
@@ -543,8 +544,8 @@ test("a refusal with one other action: Hide is a ghost, Reject stands at the rig
   const buttons = elements(row).filter((e) => e.localName === "button");
   assert.deepEqual(buttons.map((b) => textOf(b).trim()), ["Hide", "Reject"], "Hide first, Reject last at the right");
   assert.ok(classOf(buttons[0]).includes("k-btn--ghost"), "on the opened item a lone other action is a ghost");
-  assert.ok(classOf(buttons[1]).includes("k-btn--danger"));
-  assert.ok(classOf(buttons[1]).includes("k-btn--md"), "the action at the default height (36 px)");
+  assert.ok(classOf(buttons[1]).split(/\s+/).includes("k-btn--danger-quiet"), "on the opened item Reject is the quiet danger: the danger ink, no fill (R6-D)");
+  assert.ok(classOf(buttons[1]).includes("k-btn--md"), "the action at the default height");
   assert.ok(!buttons.some((b) => b.getAttribute("aria-label") === "More actions"), "no menu of one");
   assert.match(textOf(row), /Reject asks you once before anything is done\./);
   // Reject still asks once and sends nothing until the owner says yes.

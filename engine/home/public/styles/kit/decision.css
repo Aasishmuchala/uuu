@@ -32,9 +32,11 @@
   padding: var(--s-3) var(--s-4);
 }
 
+/* The item opened on its own: the view's one raised surface, an edge and no shadow (fix round R6). */
 .k-decision--level {
   gap: var(--s-4);
   padding: var(--s-6);
+  box-shadow: none;
 }
 
 /* Who raised it and when, on one line, with the urgent mark at its right. */

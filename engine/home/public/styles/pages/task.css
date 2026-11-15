@@ -255,8 +255,17 @@
   flex-wrap: nowrap;
 }
 
+/* The primary sized to its words (fix round R6: one filled button a view, never a full-width slab). */
 .p-task .p-task__accept-row .k-btn--primary {
-  flex: 1 1 auto;
+  flex: none;
+}
+
+/* On a site's stage the rail's foot holds Accept at its own width too, at the foot's left (a phone: the bar's). */
+@media (min-width: 860px) {
+  .p-task .k-rail__primary > .k-btn {
+    justify-self: start;
+    width: auto;
+  }
 }
 
 .p-task .p-task__accept-row .k-btn {
