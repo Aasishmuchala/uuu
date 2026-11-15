@@ -56,6 +56,21 @@
   box-shadow: none;
 }
 
+/* Flat (fix round R6): one raised surface a view; every other group is rows between two hairlines, with no fill,
+   no side edges, no corner and no shadow, its words on the column's edges. */
+.k-card--flat {
+  border-width: 1px 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.k-card--flat.k-card--action:hover {
+  background: var(--ctl);
+}
+
 /* No frame inside a frame: a card in a card loses its edge, its fill and its shadow, and its side spacing, so
    its words line up with its parent's. */
 .k-card .k-card:not(.k-card--sunken) {

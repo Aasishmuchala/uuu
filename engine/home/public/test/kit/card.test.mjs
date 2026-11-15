@@ -10,6 +10,16 @@ import { css, stripComments, primitiveSheetTests } from "./_rules.mjs";
 
 const kit = { card: await import(pathToFileURL(join(KIT, "card.js")).href) };
 
+test("Card: flat (fix round R6) is a hairline group: no fill, no side edges, no corner, no shadow; only flat: true draws it", async () => {
+  installDom();
+  let root = await showTree(kit.card.Card, { flat: true, padding: "none", children: "Rows" });
+  assert.equal(root.firstChild.getAttribute("class"), "k-card k-card--plain k-card--pad-none k-card--flat");
+  root = await showTree(kit.card.Card, { flat: "yes", children: "x" });
+  assert.doesNotMatch(root.firstChild.getAttribute("class"), /k-card--flat/);
+  const r = /\.k-card--flat \{([^}]*)\}/.exec(css("kit/card.css"))[1];
+  for (const d of [/border-width: 1px 0;/, /border-radius: 0;/, /background: transparent;/, /box-shadow: none;/]) assert.match(r, d);
+});
+
 test("Card: tone ghost has its own class; an unknown tone falls back to plain", async () => {
   installDom();
   let root = await showTree(kit.card.Card, { tone: "ghost", children: "Quiet" });
