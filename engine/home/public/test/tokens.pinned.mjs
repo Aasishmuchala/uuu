@@ -6,48 +6,60 @@
 // light. Fix round A2 (T100): in dark four steps a screen tells apart, the sidebar (--side) under the stage
 // (--stage) under the page ground (--bg) under the rail (--panel) under a card (--card), with --raise for what is
 // raised or chosen; in light one cool neutral family, white panels and cards on a calm cool ground. Every raised
-// thing has a 1 px edge and a real shadow in both themes.
+// thing has a 1 px edge and a real shadow in both themes. Fix round A3 (T110): a card at least 4 L* off the ground
+// in both themes, every ink at 4.5 to 1 on every surface, one overlay surface for what floats, a lighter dim.
 export const THEMED = {
-  "--bg": ["#151518", "#f6f7f9"],
-  "--stage": ["#0f0f11", "#eaecf0"],
-  "--panel": ["#1b1b1f", "#ffffff"],
-  "--side": ["#09090b", "#f1f2f4"],
-  "--card": ["#202024", "#ffffff"],
-  "--raise": ["#26262a", "#f1f3f6"],
-  "--sel": ["#2a2a2f", "#eaedf1"],
-  "--raise-2": ["#303036", "#e3e6eb"],
-  "--ctl": ["rgba(255,255,255,.06)", "rgba(16,24,40,.05)"],
-  "--field": ["#18181b", "#ffffff"],
-  // The 1 px edge of a raised thing: 7 percent white in dark, a cool grey in light.
-  "--line": ["rgba(255,255,255,.08)", "#e4e6ea"],
-  "--line-2": ["rgba(255,255,255,.13)", "#d5d8de"],
+  "--bg": ["#121214", "#f1f2f5"],
+  "--stage": ["#0e0e10", "#e7e9ed"],
+  "--panel": ["#19191d", "#ffffff"],
+  "--side": ["#0a0a0c", "#eceef1"],
+  "--card": ["#1f1f24", "#ffffff"],
+  "--raise": ["#27272d", "#eceef2"],
+  "--sel": ["#2c2c32", "#e5e8ed"],
+  "--raise-2": ["#34343b", "#dcdfe5"],
+  "--ctl": ["rgba(255,255,255,.07)", "rgba(16,24,40,.06)"],
+  "--field": ["#16161a", "#ffffff"],
+  // The 1 px edge of a raised thing: 9 percent white in dark, a cool grey in light.
+  "--line": ["rgba(255,255,255,.09)", "#dfe2e7"],
+  "--line-2": ["rgba(255,255,255,.14)", "#d0d4db"],
+  // What floats (a dialog, a menu, a popover): lighter than a card in dark, white in light; its edge and shadow.
+  "--overlay": ["#26262c", "#ffffff"],
+  "--overlay-line": ["rgba(255,255,255,.14)", "#d5d8de"],
   "--ink": ["#f4f4f5", "#18181b"],
-  "--ink-2": ["#babac1", "#4f4f58"],
-  // Light: decision 3 b, so the third grey reads at 4.5 on every raised step and the sidebar.
-  "--ink-3": ["#9c9ca4", "#666872"],
+  "--ink-2": ["#c0c0c7", "#4a4b53"],
+  // Reads at 4.5 on every surface, the sidebar and the stage too, in both themes.
+  "--ink-3": ["#a1a1aa", "#5d5f68"],
   "--accent": ["#86adff", "#2459dd"],
-  // Dark: decision 3 a, so white words on the filled primary read at 4.5.
-  "--accent-fill": ["#3f6fe6", "#2459dd"],
+  // Dark: a little deeper than the link accent, so the filled primary is not the brightest thing on a screen;
+  // white words on it read at 4.5.
+  "--accent-fill": ["#3760d0", "#2459dd"],
   "--accent-ink": ["#ffffff", "#ffffff"],
+  // The info chip's tint: the accent at about 14 percent.
+  "--info-bg": ["rgba(134,173,255,.14)", "#e6edfc"],
   "--good": ["#62d39d", "#17703f"],
   "--good-bg": ["rgba(98,211,157,.14)", "#e2f2e8"],
   "--warn": ["#ecc068", "#855600"],
-  "--warn-bg": ["rgba(236,192,104,.12)", "#fbf1d8"],
+  "--warn-bg": ["rgba(236,192,104,.14)", "#fbf1d8"],
   "--warn-line": ["rgba(236,192,104,.34)", "#e8d39a"],
   "--bad": ["#ff93a5", "#b4233f"],
   "--bad-bg": ["rgba(255,147,165,.14)", "#fde8ec"],
-  "--bad-fill": ["#e9627a", "#d6455f"],
+  // A solid danger fill (a danger button under the pointer): white words on it read at 4.5.
+  "--bad-fill": ["#c93a55", "#c4304b"],
   "--spent": ["#7b7b85", "#9d9da6"],
   "--add-bg": ["rgba(98,211,157,.18)", "#d9f0e2"],
   "--del-bg": ["rgba(255,147,165,.18)", "#fbe0e5"],
-  "--shadow-card": ["0 1px 2px rgba(0,0,0,.40), 0 8px 24px rgba(0,0,0,.28)", "0 1px 2px rgba(16,24,40,.06), 0 6px 20px rgba(16,24,40,.06)"],
-  "--shadow-lift": ["0 2px 4px rgba(0,0,0,.45), 0 12px 32px rgba(0,0,0,.40)", "0 1px 3px rgba(16,24,40,.08), 0 10px 28px rgba(16,24,40,.10)"],
-  "--float": ["0 0 0 1px rgba(255,255,255,.1), 0 16px 48px rgba(0,0,0,.50)", "0 0 0 1px rgba(16,24,40,.08), 0 20px 60px rgba(16,24,40,.18)"],
+  // Dark: a 4 percent white inner top highlight, then the contact shadow and the soft drop.
+  "--shadow-card": ["inset 0 1px 0 rgba(255,255,255,.04), 0 1px 2px rgba(0,0,0,.40), 0 8px 24px rgba(0,0,0,.32)", "0 1px 2px rgba(16,24,40,.07), 0 6px 20px rgba(16,24,40,.08)"],
+  "--shadow-lift": ["0 2px 4px rgba(0,0,0,.45), 0 12px 32px rgba(0,0,0,.40)", "0 1px 3px rgba(16,24,40,.08), 0 10px 28px rgba(16,24,40,.12)"],
+  // The filled button: a 1 px inner top highlight and a small drop, so it sits in place, not a flat slab.
+  "--shadow-btn": ["inset 0 1px 0 rgba(255,255,255,.14), 0 1px 2px rgba(0,0,0,.40)", "inset 0 1px 0 rgba(255,255,255,.16), 0 1px 2px rgba(16,24,40,.16)"],
+  "--float": ["0 0 0 1px rgba(255,255,255,.1), 0 2px 6px rgba(0,0,0,.30), 0 24px 64px rgba(0,0,0,.60)", "0 0 0 1px rgba(16,24,40,.08), 0 2px 6px rgba(24,24,27,.08), 0 24px 64px rgba(24,24,27,.22)"],
+  "--overlay-shadow": ["0 2px 6px rgba(0,0,0,.30), 0 24px 64px rgba(0,0,0,.60)", "0 2px 6px rgba(24,24,27,.08), 0 24px 64px rgba(24,24,27,.22)"],
   "--paper-shadow": ["0 0 0 1px rgba(255,255,255,.08), 0 6px 20px rgba(0,0,0,.45)", "0 0 0 1px rgba(16,24,40,.10), 0 6px 18px rgba(16,24,40,.08)"],
   "--tip": ["#f4f4f5", "#18181b"],
   "--tip-ink": ["#0f0f11", "#ffffff"],
-  // The layer behind a dialog or a sheet.
-  "--scrim": ["rgba(0,0,0,.62)", "rgba(15,17,21,.40)"],
+  // The dim behind a dialog or a sheet (a menu or a popover dims nothing).
+  "--scrim": ["rgba(0,0,0,.5)", "rgba(15,17,21,.22)"],
   "--pin": ["#ecc068", "#f0bd4a"],
   "--pin-ink": ["#1d1503", "#1d1503"],
   "--pin-line": ["#ecc068", "#a8740a"],

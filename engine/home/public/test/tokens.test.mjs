@@ -247,21 +247,48 @@ test("light is one cool neutral family: white panels and cards lift off a calm c
   // The raised or chosen step and a current row are grey fills, under the white they sit on and under the ground.
   for (const fill of ["--raise", "--sel"]) assert.ok(l(fill) < l("--bg"), `${fill} is a fill a step under the ground (light)`);
   assert.ok(l("--sel") < l("--raise"), "a current row is a step deeper than the raised fill (light)");
-  // A cool grey ground of about 3 percent.
+  // A cool grey ground of about 5 percent (fix round A3: a step darker, so a white card stands on it).
   const bg = colourOf(t, "--bg");
   const grey = 1 - (bg.r + bg.g + bg.b) / 3 / 255;
-  assert.ok(grey >= 0.025 && grey <= 0.04, `the light ground is about 3 percent grey: ${(grey * 100).toFixed(1)}`);
+  assert.ok(grey >= 0.04 && grey <= 0.06, `the light ground is about 5 percent grey: ${(grey * 100).toFixed(1)}`);
   // Cool, never warm: every grey ground and line has at least as much blue as red.
-  for (const name of ["--bg", "--stage", "--side", "--raise", "--sel", "--raise-2", "--line", "--line-2"]) {
+  for (const name of ["--bg", "--stage", "--side", "--raise", "--sel", "--raise-2", "--line", "--line-2", "--overlay-line"]) {
     const c = colourOf(t, name);
     assert.ok(c.b >= c.r && c.b - c.r <= 16, `${name} is a cool neutral (light): ${computed(t, name)}`);
   }
 });
 
+// CIE L* of an opaque colour, for the steps a person sees.
+function lstar(c) {
+  const y = luminance(c);
+  return y > 0.008856 ? 116 * Math.cbrt(y) - 16 : 903.3 * y;
+}
+
+test("a card stands off the ground: at least 4 L* between --card and --bg in both themes (fix round A3)", () => {
+  for (const way of [{}, { theme: "light" }, { theme: "auto", systemLight: true }]) {
+    const t = resolveTokens(way);
+    const step = Math.abs(lstar(colourOf(t, "--card")) - lstar(colourOf(t, "--bg")));
+    assert.ok(step >= 4, `--card against --bg in ${JSON.stringify(way)}: ${step.toFixed(1)} L* < 4`);
+  }
+});
+
+test("one overlay surface: in dark lighter than a card, in light white; its edge a step firmer than a card's", () => {
+  const dark = resolveTokens({});
+  assert.ok(luminance(colourOf(dark, "--overlay")) > luminance(colourOf(dark, "--card")), "--overlay is above --card (dark)");
+  assert.ok(parseColour(computed(dark, "--overlay-line")).a >= 0.14, "the overlay's edge is at least 14 percent white (dark)");
+  assert.ok(parseColour(computed(dark, "--line")).a >= 0.09, "a card's edge is at least 9 percent white (dark)");
+  const light = resolveTokens({ theme: "light" });
+  assert.equal(computed(light, "--overlay"), "#ffffff");
+  assert.ok(luminance(colourOf(light, "--overlay-line")) < luminance(colourOf(light, "--line")), "the overlay's edge is firmer than a card's (light)");
+  // The dim is lighter than round A2's: half black in dark, about a fifth of the ink in light.
+  assert.ok(parseColour(computed(dark, "--scrim")).a <= 0.5, "the dark dim is at most half");
+  assert.ok(parseColour(computed(light, "--scrim")).a <= 0.25, "the light dim is at most a quarter");
+});
+
 test("every raised thing has a real shadow in both themes: the card, lift and float shadows are never none", () => {
   for (const way of [{}, { theme: "light" }]) {
     const t = resolveTokens(way);
-    for (const name of ["--shadow-card", "--shadow-lift", "--float", "--paper-shadow"]) {
+    for (const name of ["--shadow-card", "--shadow-lift", "--float", "--overlay-shadow", "--paper-shadow"]) {
       const v = computed(t, name);
       assert.notEqual(v, "none", `${name} in ${JSON.stringify(way)}`);
       // At least one shadow in the list is blurred (a soft drop, not a ring alone).
@@ -294,7 +321,8 @@ test("data-dept sets --dept to that department's colour, for all eight", () => {
 
 // --- tests: contrast on the opaque grounds, with translucent tints laid over a panel ---
 
-const GROUNDS = ["--bg", "--stage", "--panel", "--side", "--sel", "--raise"];
+// Every surface text is drawn on (fix round A3: the card, the field and the overlay too).
+const GROUNDS = ["--bg", "--stage", "--panel", "--side", "--card", "--field", "--sel", "--raise", "--overlay"];
 
 for (const [mode, , ways] of MODES) {
   test(`text on each ground step, in ${mode}`, () => {
@@ -304,9 +332,9 @@ for (const [mode, , ways] of MODES) {
         const ratio = contrast(colourOf(t, fg), under ?? colourOf(t, bg));
         assert.ok(ratio >= floor, `${fg} on ${bg} in ${mode} ${JSON.stringify(way)}: ${ratio.toFixed(2)} < ${floor}`);
       };
-      for (const bg of GROUNDS) for (const fg of ["--ink", "--ink-2"]) pair(fg, bg, 4.5);
-      for (const bg of GROUNDS.filter((g) => g !== "--stage")) pair("--ink-3", bg, 4.5);
+      for (const bg of GROUNDS) for (const fg of ["--ink", "--ink-2", "--ink-3", "--accent"]) pair(fg, bg, 4.5);
       pair("--accent-ink", "--accent-fill", 4.5);
+      pair("--accent-ink", "--bad-fill", 4.5);
       pair("--accent", "--bg", 3);
       pair("--tip-ink", "--tip", 4.5);
     }
@@ -325,6 +353,14 @@ for (const [mode, , ways] of MODES) {
       for (const [fg, tint] of [["--warn", "--warn-bg"], ["--bad", "--bad-bg"], ["--good", "--add-bg"]]) {
         const ratio = contrast(colourOf(t, fg), over(colourOf(t, tint), panel));
         assert.ok(ratio >= 4.5, `${fg} on ${tint} over --panel in ${mode}: ${ratio.toFixed(2)} < 4.5`);
+      }
+      // The chips (fix round A3): one system, each tone's ink on its own tint, over a card, a panel, the raised
+      // step and the overlay.
+      for (const [fg, tint] of [["--ink-2", "--ctl"], ["--good", "--good-bg"], ["--warn", "--warn-bg"], ["--bad", "--bad-bg"], ["--accent", "--info-bg"]]) {
+        for (const under of ["--card", "--panel", "--raise", "--overlay"]) {
+          const ratio = contrast(colourOf(t, fg), over(colourOf(t, tint), colourOf(t, under)));
+          assert.ok(ratio >= 4.5, `chip ${fg} on ${tint} over ${under} in ${mode}: ${ratio.toFixed(2)} < 4.5`);
+        }
       }
     }
   });
