@@ -300,9 +300,10 @@ export function Refusal({ error }) {
 
 // The app's picture at `size` px, or, when it has none or it cannot be loaded, its initials on the raised tone (never
 // an empty square). `cls` is the page's own class.
-export function AppIcon({ slug, name, size, cls }) {
+// `has: false` (the server's record says the app has no picture) draws the initials without asking for one.
+export function AppIcon({ slug, name, size, cls, has = true }) {
   const [broken, setBroken] = useState(false);
-  const src = iconHref(slug);
+  const src = has ? iconHref(slug) : null;
   if (!src || broken) {
     return html`<span class=${`${cls} ${cls}--none`} aria-hidden="true">${initials(name || slug)}</span>`;
   }
@@ -363,7 +364,7 @@ function Tile({ app, host, view }) {
   const trust = app.on ? WORDS.trustShort : shown === "off" ? WORDS.trust : "";
   return html`<${Card} padding="none" class=${`p-apps__tile p-apps__tile--${shown}`}>
     <div class="p-apps__tile-head">
-      <${AppIcon} slug=${app.slug} name=${name} size=${32} cls="p-apps__icon" />
+      <${AppIcon} slug=${app.slug} name=${name} size=${32} cls="p-apps__icon" has=${app.icon != null} />
       <div class="p-apps__names">
         <h3 class="p-apps__name">${name}</h3>
         <span class="p-apps__state"><${Tag} tone=${stateTag(shown)}>${stateWord(shown)}<//></span>

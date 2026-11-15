@@ -334,7 +334,7 @@ export default function AppPage({ route }) {
         <a class="p-app__back" href="#/apps" aria-label="Back to App Studio" title="Back to App Studio">
           <${Icon} name="arrow-left" size=${16} />
         </a>
-        <${AppIcon} slug=${app.slug} name=${name} size=${24} cls="p-app__icon" />
+        <${AppIcon} slug=${app.slug} name=${name} size=${24} cls="p-app__icon" has=${app.icon != null} />
         <h1 class="p-app__name" id="page-title" tabindex="-1">${name}</h1>
         ${hideState
           ? html`<span class="k-sr">${stateWord(shown)}</span>`

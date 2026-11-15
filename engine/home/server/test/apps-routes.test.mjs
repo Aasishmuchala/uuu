@@ -139,6 +139,7 @@ test("each app's state and K23's words: damaged, not installed, and the host's o
       assert.deepEqual([appIn(v, "film").state, appIn(v, "film").sentence], [state, APP_SENTENCES[state]], state);
       assert.deepEqual([appIn(v, "plain").state, appIn(v, "plain").sentence], ["not_installed", "Not ready yet."], "not installed wins");
       assert.deepEqual([appIn(v, "broken").state, appIn(v, "broken").sentence], ["damaged", "This app's description is damaged."]);
+      assert.equal(appIn(v, "broken").icon, null, "a damaged app has no picture to ask for: the page draws its initials");
       assert.equal(appIn(v, "broken").port, null);
       assert.equal(appIn(v, "still").state, "off", "an app the host does not list is off");
     }

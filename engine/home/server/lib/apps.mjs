@@ -563,7 +563,9 @@ export async function buildAppsView(ctx, now = Date.now()) {
       slug: e.slug,
       name: e.ok ? e.app.name : e.slug,
       about: e.ok ? e.app.about : "",
-      icon: `/api/apps/${e.slug}/icon`,
+      // An app whose folder cannot be read as an app has no picture to serve: null, so the page draws its
+      // initials and asks for nothing (the icon route would answer 404).
+      icon: e.ok ? `/api/apps/${e.slug}/icon` : null,
       state,
       sentence: APP_SENTENCES[state],
       on: switches.on[e.slug] === true,
