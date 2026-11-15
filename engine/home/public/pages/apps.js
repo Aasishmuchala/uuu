@@ -1,16 +1,16 @@
-// App Studio (PLAN-V5 K17, K22, K23, T80; PLAN-COOK T60, TB2): the apps that run on this Mac, as cards two across
-// under a bar that filters them (all, on, off): each card its 32 px tile (its own picture, else its initials), its
-// name and its state as a one-line chip, Open at the right while it runs or starts, what it does and one meta row
-// (what it may spend today, the model it thinks with); at its foot, under a rule, what the fence does not cover (T86:
-// in full while the app is off, short while it is on) beside its switch, Turn on or Turn off; then the sites the team
-// made (T88) as a second group of cards.
+// App Studio (PLAN-V5 K17, K22, K23, T80; PLAN-COOK T60, TB2, R5-F): the apps that run on this Mac, as rows in one
+// card under a bar that filters them (all, on, off): each row its 32 px tile (its own picture, else its initials), its
+// name and its state as a one-line chip, what it does and one meta row (what it may spend today, the model it thinks
+// with); at the right Open while it runs or starts and its switch, Turn on or Turn off; under them, across the row,
+// what the fence does not cover (T86: in full while the app is off, short while it is on); then the sites the team
+// made (T88) as a group of cards.
 // Everything comes from GET /api/apps; every POST answers the whole view again, so the page shows that answer.
 // An app's name, its line and every sentence are shown as plain capped text, never as HTML. The pure helpers here
 // are shared with pages/app.js (one app opened inside).
 import { html, useCallback, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useVisibleInterval } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { Button, Card, Empty, ErrorNotice, Icon, Loading, NextStep, Notice, PageHeader, Section, Segmented, St, Tag, Time, previewAddress, safeViewUrl, siteAddress } from "../kit/index.js";
+import { Button, Card, Empty, ErrorNotice, Icon, Loading, NextStep, Notice, PageHeader, Section, Segmented, St, Tag, Tile, Time, previewAddress, safeViewUrl, siteAddress, tintFor } from "../kit/index.js";
 
 // K23's words, as written, and the few these pages add.
 export const WORDS = {
@@ -298,14 +298,15 @@ export function Refusal({ error }) {
   </div>`;
 }
 
-// The app's picture at `size` px, or, when it has none or it cannot be loaded, its initials on the raised tone (never
-// an empty square). `cls` is the page's own class.
+// The app's picture at `size` px, or, when it has none or it cannot be loaded, its initials on the kit's Tile in the
+// app's own quiet tint (R5-F; never an empty square). `cls` is the page's own class.
 // `has: false` (the server's record says the app has no picture) draws the initials without asking for one.
 export function AppIcon({ slug, name, size, cls, has = true }) {
   const [broken, setBroken] = useState(false);
   const src = has ? iconHref(slug) : null;
   if (!src || broken) {
-    return html`<span class=${`${cls} ${cls}--none`} aria-hidden="true">${initials(name || slug)}</span>`;
+    const s = size === 28 ? 28 : 32;
+    return html`<span class=${`${cls} ${cls}--none`} aria-hidden="true"><${Tile} text=${initials(name || slug)} tint=${tintFor(slug)} size=${s} /></span>`;
   }
   return html`<img class=${cls} src=${src} alt="" width=${size} height=${size} onError=${() => setBroken(true)} />`;
 }
@@ -325,10 +326,11 @@ function thinksMeta(label) {
   return m ? html`<span class="k-sr">${m[1]}</span>${m[2]}` : label;
 }
 
-// One app: its tile, name and state chip on the first line with Open at the right while it runs or starts; what it
-// does; one meta row (what it may spend today, the model it thinks with); then at its foot, under a rule, what the
-// fence does not cover beside its switch.
-function Tile({ app, host, view }) {
+// One app, a row of the list (R5-F): its 32 px picture; its name and state chip, what it does and one meta row (what
+// it may spend today, the model it thinks with); at the right Open (the filled one only while it runs) and its switch,
+// a small ghost; under them, across the row's width, what the fence does not cover (T86: in full while the app is
+// off, short while it is on). A row is as tall as what it holds.
+function AppRow({ app, host, view }) {
   const { announce } = useApp() || {};
   const [busy, setBusy] = useState("");
   const [error, setError] = useState(null);
@@ -350,28 +352,25 @@ function Tile({ app, host, view }) {
   };
 
   const canOpen = shown === "on" || shown === "starting";
-  // The head's one button: Open while it runs (the filled one) or starts; its page waits for it.
+  // Open while it runs (the filled one) or starts; its page waits for it.
   const open = canOpen && href
     ? html`<${Button} size="sm" variant=${shown === "on" ? "primary" : "ghost"} href=${href} class="p-apps__main">${WORDS.open}<//>`
     : null;
-  // The switch at its foot, beside what the fence does not cover: Turn off while switched on (open, starting or
-  // stopped), Turn on while off; an app that is not ready or damaged has neither.
+  // Its switch beside Open: Turn off while switched on (open, starting or stopped), Turn on while off; an app that is
+  // not ready or damaged has neither.
   const toggle = app.on
     ? html`<${Button} variant="ghost" size="sm" class="p-apps__switch" busy=${busy === "off"} onClick=${() => turn(false)}>${WORDS.turnOff}<//>`
     : shown === "off"
       ? html`<${Button} variant="ghost" size="sm" class="p-apps__switch" busy=${busy === "on"} onClick=${() => turn(true)}>${WORDS.turnOn}<//>`
       : null;
-  const trust = app.on ? WORDS.trustShort : shown === "off" ? WORDS.trust : "";
-  return html`<${Card} padding="none" class=${`p-apps__tile p-apps__tile--${shown}`}>
-    <div class="p-apps__tile-head">
-      <${AppIcon} slug=${app.slug} name=${name} size=${32} cls="p-apps__icon" has=${app.icon != null} />
+  const trust = toggle ? (app.on ? WORDS.trustShort : WORDS.trust) : "";
+  return html`<li class=${`p-apps__tile p-apps__tile--${shown}`}>
+    <${AppIcon} slug=${app.slug} name=${name} size=${32} cls="p-apps__icon" has=${app.icon != null} />
+    <div class="p-apps__info">
       <div class="p-apps__names">
         <h3 class="p-apps__name">${name}</h3>
         <span class="p-apps__state"><${Tag} tone=${stateTag(shown)}>${stateWord(shown)}<//></span>
       </div>
-      ${open}
-    </div>
-    <div class="p-apps__tile-body">
       ${about ? html`<p class="p-apps__about">${about}</p>` : null}
       ${spending || thinks
         ? html`<p class="p-apps__facts">
@@ -382,13 +381,9 @@ function Tile({ app, host, view }) {
       ${shown === "failed" ? html`<p class="p-apps__hint">${WORDS.tryAgain} <a href="#/health">${WORDS.health}</a></p>` : null}
       <${Refusal} error=${error} />
     </div>
-    ${toggle
-      ? html`<div class="p-apps__foot">
-          ${trust ? html`<p class="p-apps__trust">${trust}</p>` : null}
-          ${toggle}
-        </div>`
-      : null}
-  <//>`;
+    ${open || toggle ? html`<div class="p-apps__acts">${open}${toggle}</div>` : null}
+    ${trust ? html`<p class="p-apps__trust">${trust}</p>` : null}
+  </li>`;
 }
 
 // One site the team made: its picture (the top of the first page), its name, its task and when, and Open, which loads
@@ -469,7 +464,7 @@ export default function AppsPage() {
         ${data.problemSentence ? html`<${Notice} tone="warn">${plain(data.problemSentence, 300)}<//>` : null}
         <${Section} title="Your apps" count=${shownApps.length || undefined}>
           ${shownApps.length
-            ? html`<div class="p-apps__grid">${shownApps.map((a) => html`<${Tile} key=${a.slug} app=${a} host=${host} view=${view} />`)}</div>`
+            ? html`<${Card} padding="none" class="p-apps__list"><ul class="p-apps__rows">${shownApps.map((a) => html`<${AppRow} key=${a.slug} app=${a} host=${host} view=${view} />`)}</ul><//>`
             : apps.length
               ? html`<${Empty} icon="apps" title=${filter === "on" ? WORDS.noneOn : WORDS.noneOff} />`
               : html`<${Empty} icon="apps" title=${WORDS.noApps} />`}

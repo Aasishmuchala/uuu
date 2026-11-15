@@ -1,9 +1,9 @@
-/* The page apps (PLAN-V5 T80, PLAN-COOK T60, TB2): App Studio's list. The title, then one bar with the filter at the
-   left and App Studio's own state at the right; the page's warning as the kit's Notice, inset; the apps as cards two
-   across, equal in a row (a 32 px tile, the name 15 px 600 and the state as a one-line chip, Open at the right; what
-   it does and one 13 px meta row in the second ink; at the foot, under a rule, what the fence does not cover at 12 px
-   in the third ink beside the switch, a small ghost); then the sites the team made as a second group of cards, each
-   its picture over its name. Content on the ground inside --content-max. Tokens only. */
+/* The page apps (PLAN-V5 T80, PLAN-COOK T60, TB2, R5-F): App Studio's list. The title, then one bar with the filter
+   at the left and App Studio's own state at the right; the page's warning as the kit's Notice, inset; the apps as
+   rows in one card (a 32 px tile, the name 15 px 600 and the state as a one-line chip; what it does and one 13 px
+   meta row in the second ink; Open and the switch, small, at the right; under them what the fence does not cover at
+   12 px in the third ink); then the sites the team made as a group of cards, each its picture over its name. Content
+   on the ground inside --content-max. Tokens only. */
 .p-apps { display: flex; flex-direction: column; gap: var(--s-6); min-width: 0; max-width: var(--content-max); }
 .p-apps .k-page-header { margin-bottom: 0; }
 .p-apps .k-page-header__more { margin-top: var(--s-5); }
@@ -23,22 +23,26 @@
 /* A group with nothing in it: its sentence in a quiet outlined well, where its cards would be. */
 .p-apps .k-section__body > .k-empty { padding: var(--s-8) var(--s-6); border: 1px solid var(--line); border-radius: var(--r-3); }
 
-/* The launcher: cards at least 400 px wide, so two across in the column; a row's cards are one height and each foot
-   sits at its card's bottom. */
-.p-apps .p-apps__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: var(--s-4); }
-.p-apps .p-apps__tile { display: flex; flex-direction: column; min-width: 0; }
-.p-apps .p-apps__tile-head { display: flex; align-items: flex-start; gap: var(--s-3); min-width: 0; padding: var(--s-5) var(--s-5) 0; }
-
-/* The tile: 32 px, the app's own picture, or its initials (15 px 600) on the raised tone with a hairline. */
-.p-apps .p-apps__icon { flex: none; width: 32px; height: 32px; border-radius: var(--r-2); object-fit: contain; }
-.p-apps .p-apps__icon--none {
-  display: grid; place-items: center;
-  border: 1px solid var(--line); background: var(--raise); color: var(--ink-2);
-  font-size: var(--fs-fact); font-weight: var(--fw-bold); line-height: 1; letter-spacing: 0;
+/* The list (R5-F): the apps as rows in one card, parted by hairlines; a row is as tall as what it holds (no row
+   stretches to match another). The 32 px tile in the first column; the name, what it does and the meta row in the
+   second; Open and the switch at the right on the name's line; what the fence does not cover under them, across the
+   second and third columns, whole. */
+.p-apps .p-apps__list { overflow: hidden; }
+.p-apps .p-apps__rows { list-style: none; margin: 0; padding: 0; }
+.p-apps .p-apps__tile {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: start;
+  column-gap: var(--s-4); row-gap: var(--s-3);
+  min-width: 0; padding: var(--s-4) var(--s-5);
 }
+.p-apps .p-apps__tile + .p-apps__tile { border-top: 1px solid var(--line); }
 
+/* The tile: 32 px, the app's own picture, or its initials on the kit's Tile in the app's own tint. */
+.p-apps .p-apps__icon { flex: none; width: 32px; height: 32px; border-radius: var(--r-2); object-fit: contain; }
+.p-apps .p-apps__icon--none { display: flex; }
+
+.p-apps .p-apps__info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 /* The name and the state chip on one line while they fit (the chip goes under the name when they do not). */
-.p-apps .p-apps__names { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-2); min-width: 0; min-height: 32px; }
+.p-apps .p-apps__names { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-2); min-width: 0; min-height: 32px; }
 .p-apps .p-apps__name {
   margin: 0; min-width: 0; max-width: 100%;
   font-size: var(--fs-fact); font-weight: var(--fw-bold); line-height: var(--lh-fact);
@@ -46,29 +50,28 @@
 }
 .p-apps .p-apps__state { display: inline-flex; max-width: 100%; min-width: 0; }
 .p-apps .p-apps__state .k-tag { white-space: nowrap; }
-.p-apps .p-apps__main { flex: none; }
 
-.p-apps .p-apps__tile-body { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-3) var(--s-5) var(--s-5); min-width: 0; }
 .p-apps .p-apps__about { margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
 /* The meta row: each fact a 14 px glyph in the third ink and its words in the second, side by side while they fit;
    the amounts in tabular figures, in the first ink. */
-.p-apps .p-apps__facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-4); margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
+.p-apps .p-apps__facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-4); margin: var(--s-1) 0 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
 .p-apps .p-apps__spend,
 .p-apps .p-apps__fact { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .p-apps .p-apps__spend { font-variant-numeric: tabular-nums; }
 .p-apps .p-apps__spend .p-money { color: var(--ink); font-weight: var(--fw-medium); }
 .p-apps .p-apps__facts .k-icon { flex: none; color: var(--ink-3); }
-.p-apps .p-apps__hint { margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
+.p-apps .p-apps__hint { margin: var(--s-1) 0 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
 .p-apps .p-apps__hint a { color: var(--ink); text-underline-offset: 2px; }
+.p-apps .p-apps__info .k-notice { margin-top: var(--s-2); }
 
-/* The foot: what the fence does not cover (T86), whole, 12 px in the third ink, beside the switch. */
-.p-apps .p-apps__foot {
-  display: flex; align-items: center; gap: var(--s-4);
-  margin-top: auto; padding: var(--s-3) var(--s-5);
-  border-top: 1px solid var(--line);
-}
-.p-apps .p-apps__trust { flex: 1 1 auto; min-width: 0; margin: 0; color: var(--ink-3); font-size: var(--fs-label); line-height: var(--lh-label); }
-.p-apps .p-apps__switch { flex: none; margin-left: auto; }
+/* At the right, on the name's line: Open, then the switch, one height. */
+.p-apps .p-apps__acts { display: flex; align-items: center; justify-content: flex-end; gap: var(--s-2); min-height: 32px; }
+.p-apps .p-apps__main,
+.p-apps .p-apps__switch { flex: none; }
+
+/* What the fence does not cover (T86), whole: 12 px in the third ink, under the row's words and its buttons, the
+   row's width from the name's edge (one or two lines). */
+.p-apps .p-apps__trust { grid-column: 2 / -1; min-width: 0; margin: 0; color: var(--ink-3); font-size: var(--fs-label); line-height: var(--lh-label); }
 .p-apps .p-apps__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
 
 /* Made by the team (T88): cards, each the top of its first page over its name, its task and Open. */
@@ -96,11 +99,11 @@
 /* Below 860 px: one card a row, the bar's two halves stacked. */
 @media (max-width: 859px) {
   .p-apps { gap: var(--s-6); }
-  .p-apps .p-apps__grid,
   .p-apps .p-apps__sites { grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
   .p-apps > .k-notice { align-self: stretch; max-width: none; }
-  .p-apps .p-apps__tile-head { padding: var(--s-4) var(--s-4) 0; }
-  .p-apps .p-apps__tile-body { padding: var(--s-3) var(--s-4) var(--s-4); }
-  .p-apps .p-apps__foot { padding: var(--s-2) var(--s-4); }
+  /* A row: the tile and its words, then the buttons and the sentence under the words. */
+  .p-apps .p-apps__tile { grid-template-columns: 32px minmax(0, 1fr); column-gap: var(--s-3); padding: var(--s-4); }
+  .p-apps .p-apps__acts { grid-column: 2; justify-content: flex-start; }
+  .p-apps .p-apps__trust { grid-column: 2; }
   .p-apps .p-apps__site-body { padding: var(--s-3) var(--s-4) var(--s-4); }
 }

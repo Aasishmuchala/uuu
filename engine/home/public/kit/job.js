@@ -3,8 +3,9 @@
 // PLAN-COOK T37: a job in a list is drawn as R12's card is built (its department's line icon on a tile, the name at
 // 15 px semibold, one 13 px sentence, the facts as grey words with a glyph each, one button at the right) without
 // the card's frame, since lists of jobs sit inside a page's own panel. No department colour anywhere (O7).
-// PLAN-COOK TB3: JobCard is a job as a card's body: a 28 px tile with its stage's line glyph, the name as the one
-// link (the whole card answers the click), two lines of sentence and the hand-off and stage as neutral chips.
+// PLAN-COOK TB3, R5-F: JobCard is a job as a card's body: the kit's 28 px Tile with its stage's line glyph in its
+// stage's tint, the name as the one link (the whole card answers the click), two lines of sentence and the hand-off
+// and stage as neutral chips.
 // A job's words come from the company's own job files; the server's refusals are shown as the sentences it sends.
 import { html, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
@@ -14,6 +15,7 @@ import { Field, Select, TextArea, TextInput } from "./fields.js";
 import { Icon } from "./icon.js";
 import { Notice, NotConnected } from "./states.js";
 import { Tag } from "./tag.js";
+import { Tile, tintFor } from "./tile.js";
 import { cx, safeHref } from "./util.js";
 
 // Section 25: the words on screen.
@@ -331,6 +333,9 @@ export function JobRow({ job }) {
 // company brain is a form, taking in is the inbox, making is a spark, handing on is sending.
 const STAGE_GLYPHS = Object.freeze({ 1: "form", 2: "inbox", 3: "spark", 4: "send" });
 export const stageGlyph = (n) => STAGE_GLYPHS[Number(n)] || "jobs";
+// R5-F: the tile's quiet tint, by its stage (the kit's tint for "stage-<n>", so each of the four stages has its own,
+// the same every time); a job with no known stage is neutral. Identity, never a state.
+export const stageTint = (n) => (Object.hasOwn(STAGES, String(Number(n))) ? tintFor(`stage-${Number(n)}`) : "neutral");
 
 // A job as a card's body (the page gives the frame): the tile, the name as the card's one link (its ::after
 // covers the card, so the whole card answers the click and the keyboard stops once, on the name), the sentence on
@@ -345,7 +350,7 @@ export function JobCard({ job }) {
   const h = Object.hasOwn(HANDOFFS, str(job.handoff)) ? HANDOFFS[job.handoff] : null;
   const s = Object.hasOwn(STAGES, String(job.stage)) ? STAGES[job.stage] : null;
   return html`<div class=${cx("k-jobcard", dim && "k-jobcard--dim")}>
-    <span class="k-jobcard__tile" aria-hidden="true"><${Icon} name=${stageGlyph(job.stage)} size=${16} /></span>
+    <span class="k-jobcard__tile"><${Tile} icon=${stageGlyph(job.stage)} tint=${stageTint(job.stage)} size=${28} /></span>
     <div class="k-jobcard__body">
       <h3 class="k-jobcard__title">${href
         ? html`<a class="k-jobcard__link" href=${href}>${title}${dim ? html`<span class="k-sr"> (cannot start yet)</span>` : null}</a>`
@@ -438,12 +443,12 @@ function AskField({ ask, value, error, disabled, onValue, fromText }) {
     placeholder=${ASK_PLACEHOLDERS.line} onInput=${set} /><//>`;
 }
 
-// PLAN-COOK TB3: the preview of what will be asked at 13 px on 20: the template's numbered steps as a list, an answer
-// in the accent ink, a question not answered yet as a neutral chip in its place; a long one held to a set height
-// with "Show all". The words are the job's own, every piece a text node.
+// PLAN-COOK TB3, R5-F: the preview of what will be asked as plain words at 13 px on 20: the template's numbered steps
+// as a list, an answer in the accent ink, a question not answered yet as its words underlined in their place (no
+// chip); a long one held to a set height with "Show all". The words are the job's own, every piece a text node.
 const PREVIEW_LONG = 360;
 const Piece = ({ p }) => p.blank !== undefined
-  ? html`<span class="k-tag k-tag--neutral k-job__blank">${p.blank}</span>`
+  ? html`<span class="k-job__blank">${p.blank}</span>`
   : p.value !== undefined ? html`<span class="k-job__value">${p.value}</span>` : p.text;
 
 function Preview({ job, answers }) {

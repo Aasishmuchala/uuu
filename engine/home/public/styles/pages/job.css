@@ -47,11 +47,11 @@
   line-height: var(--lh-ui);
 }
 
+/* R5-F: the value on its own line, its explanation in the second ink under it, so the two never run together. */
 .p-job .p-job__fact dd {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 var(--s-3);
+  flex-direction: column;
+  gap: 2px;
   font-size: var(--fs-ui);
   line-height: var(--lh-ui);
 }
@@ -64,6 +64,7 @@
 .p-job .p-job__about {
   color: var(--ink-2);
   font-size: var(--fs-note);
+  line-height: var(--lh-note);
   overflow-wrap: anywhere;
 }
 

@@ -316,6 +316,14 @@ test("JobCard: the name is the one link, the stage's glyph on a tile, the facts 
   assert.equal(links[0].getAttribute("href"), "#/jobs/sales/first-message-to-a-lead");
   assert.ok(classesOf(links[0]).includes("k-jobcard__link"));
   assert.equal(withClass(root, "k-jobcard__tile").length, 1);
+  // R5-F: the tile is the kit's Tile in its stage's tint, one tint a stage, the same every time.
+  const tile = withClass(withClass(root, "k-jobcard__tile")[0], "k-tile")[0];
+  assert.ok(tile && classesOf(tile).includes(`k-tile--${job.stageTint(3)}`), "the kit's Tile in the stage's tint");
+  const tints = [1, 2, 3, 4].map(job.stageTint);
+  assert.equal(new Set(tints).size, 4, "four stages, four tints");
+  assert.ok(tints.every((t) => t !== "neutral"));
+  assert.deepEqual(tints, [1, 2, 3, 4].map(job.stageTint), "the same every time");
+  assert.equal(job.stageTint(9), "neutral");
   assert.equal(withClass(root, "k-job__go").length, 0);
   assert.equal(withClass(root, "k-tag--neutral").length, 2, "the hand-off and the stage");
   assert.match(textOf(withClass(root, "k-jobcard__marks")[0]), /You leadStage 3: Make/);
@@ -347,11 +355,15 @@ test("previewPieces and previewBlocks: answers apart, slots as the question's wo
   assert.deepEqual(job.previewBlocks([{ text: "One line." }]), [{ kind: "para", pieces: [{ text: "One line." }] }]);
 });
 
-test("JobStart (TB3): the preview draws slots as chips and answers in the accent; a long one has Show all", () => {
+test("JobStart (TB3, R5-F): the preview is plain words with each open slot underlined (no chip) and answers in the accent; a long one has Show all", () => {
   const long = { ...LEAD, ready: true, text: `${"Write it well. ".repeat(30)}For [lead].` };
   const root = show(job.JobStart, { job: long });
   assert.equal(withClass(root, "k-job__blank").length, 1);
-  assert.ok(classesOf(withClass(root, "k-job__blank")[0]).includes("k-tag--neutral"), "the kit's neutral chip");
+  assert.deepEqual(classesOf(withClass(root, "k-job__blank")[0]), ["k-job__blank"], "a plain word in the sentence, no chip");
+  assert.equal(withClass(root, "k-tag").length, 0, "no chip in the preview");
+  const sheet = css("kit/job.css");
+  assert.match(sheet, /\.k-job__blank \{[^}]*text-decoration: underline;/, "the open slot is underlined");
+  assert.doesNotMatch(sheet, /\.k-job__blank \{[^}]*(background|padding|border)/, "no chip's fill, pad or edge");
   assert.ok(withClass(root, "k-job__preview-text--capped").length === 1);
   assert.ok(elements(root).some((e) => e.localName === "button" && textOf(e) === "Show all" && e.getAttribute("aria-expanded") === "false"));
   const short = show(job.JobStart, { job: { ...LEAD, ready: true, text: "For [lead]." } });

@@ -119,7 +119,7 @@ async function mount(answers, slug = "render-to-film") {
 }
 const fixed = (body, status = 200) => () => ({ status, body });
 
-test("app mounted, on: the bar (back, name, state, spending, the model, its own window, Turn off) above an iframe at its own port", async () => {
+test("app mounted, on: the bar (state, spending, the model, its own window, Turn off; the name for a screen reader only) above an iframe at its own port", async () => {
   const m = await mount(fixed(view([app()])));
   try {
     const all = textOf(m.root);
@@ -129,14 +129,20 @@ test("app mounted, on: the bar (back, name, state, spending, the model, its own 
     for (const w of ["Render to Film", "On", "Allowed today: $5.00. Spent: $1.20.", "Stop spending", "Thinks with Claude Opus 5.5", "Open in its own window", "Turn off"]) {
       assert.ok(barText.includes(w), w);
     }
-    assert.ok(elements(bar).some((e) => e.localName === "a" && e.getAttribute("href") === "#/apps"), "back to App Studio");
-    assert.ok(elements(bar).some((e) => e.localName === "h1" && e.getAttribute("id") === "page-title"), "the heading the shell focuses");
-    // TB2: one bar; its state a chip; Stop spending the soft danger, its own window and Turn off small ghosts; the
+    // R5-F: the app is named once to the eye (the top bar's crumb, which leads back to App Studio); the bar's heading
+    // is for a screen reader, and the bar draws no tile and no back arrow of its own.
+    const h1 = elements(bar).find((e) => e.localName === "h1" && e.getAttribute("id") === "page-title");
+    assert.ok(h1, "the heading the shell focuses");
+    assert.ok((h1.getAttribute("class") || "").split(/\s+/).includes("k-sr"), "said to a screen reader, not drawn");
+    assert.ok(!elements(bar).some((e) => e.localName === "a" && e.getAttribute("href") === "#/apps"), "no second way back beside the crumb");
+    assert.ok(!elements(bar).some((e) => e.localName === "img" || /p-app__icon/.test(e.getAttribute("class") || "")), "no tile");
+    // TB2: one bar; its state a chip; its own window and Turn off small ghosts; the
     // model's menu has no full stop in its label.
     const cls = (e) => (e.getAttribute("class") || "").split(/\s+/);
     assert.ok(elements(bar).some((e) => cls(e).includes("k-tag") && cls(e).includes("k-tag--good") && textOf(e) === "On"), "the state is a good chip");
     const btn = (w) => elements(bar).find((e) => e.localName === "button" && textOf(e).trim() === w);
-    assert.ok(cls(btn("Stop spending")).includes("k-btn--danger") && cls(btn("Stop spending")).includes("k-btn--sm"));
+    // R5-F: Stop spending is the kit's quiet danger (the danger ink, no fill), small, beside the small ghosts.
+    assert.ok(cls(btn("Stop spending")).includes("k-btn--danger-quiet") && cls(btn("Stop spending")).includes("k-btn--sm"));
     assert.ok(cls(btn("Turn off")).includes("k-btn--ghost") && cls(btn("Turn off")).includes("k-btn--sm"));
     assert.ok(cls(btn("Open in its own window")).includes("k-btn--ghost"));
     assert.ok(!barText.includes("Thinks with Claude Opus 5.5."), "no full stop in the menu's label");
@@ -451,10 +457,23 @@ test("app mounted: the sheet says why an amount cannot be picked, as text beside
   } finally { m.done(); }
 });
 
-test("app: the frame stands on the stage with a 1 px edge, a 12 px corner and 16 px round it; the bar is one 44 px row on the shell's ground and hairline", () => {
+test("app: the app's window stands on the stage with a 1 px edge, a 12 px corner and 16 px round it, its head a 28 px strip inside the edge; the bar is one 44 px row on the shell's ground and hairline", () => {
   const css = readFileSync(join(PUBLIC, "styles", "pages", "app.css"), "utf8");
   assert.match(css, /\.p-app \.p-app__bar \{[^}]*min-height: calc\(var\(--h-lg\) \+ var\(--s-1\)\);[^}]*border-bottom: 1px solid var\(--line\);[^}]*background: var\(--bg\);/);
   assert.match(css, /\.p-app \{[^}]*background: var\(--stage\);/, "the stage tone round the frame");
   assert.match(css, /\.p-app \.p-app__stage \{[^}]*padding: var\(--s-4\);/, "16 px round it");
-  assert.match(css, /\.p-app \.p-app__frame \{[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-3\);/);
+  assert.match(css, /\.p-app \.p-app__window \{[^}]*overflow: hidden;[^}]*border: 1px solid var\(--line-2\); border-radius: var\(--r-3\);/);
+  assert.match(css, /\.p-app \.p-app__notes \{[^}]*min-height: 28px;[^}]*border-bottom: 1px solid var\(--line\);/, "the strip is the window's head");
+  assert.match(css, /\.p-app \.p-app__frame \{[^}]*border: 0;/, "one edge: the window's");
+});
+
+test("app mounted, on: the sentence is the head of the app's window, inside its edge, over the frame", async () => {
+  const m = await mount(fixed(view([app()])));
+  try {
+    const win = elements(m.root).find((e) => e.getAttribute("class") === "p-app__window");
+    assert.ok(win, "the app's window");
+    const kids = win.childNodes.filter((c) => c.nodeType === 1);
+    assert.deepEqual(kids.map((c) => c.getAttribute("class")), ["p-app__notes", "p-app__frame"]);
+    assert.equal(textOf(kids[0]), TRUST_SHORT);
+  } finally { m.done(); }
 });

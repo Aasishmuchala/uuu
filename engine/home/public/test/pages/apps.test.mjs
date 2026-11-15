@@ -475,7 +475,7 @@ test("apps mounted: the filter sits in a bar under the title; On and Off keep th
   } finally { e.done(); }
 });
 
-test("apps mounted: a card's head holds Open while it runs or starts; its switch (Turn on, Turn off) is a ghost at its foot", async () => {
+test("apps mounted: a row's right holds Open while it runs or starts, then its switch (Turn on, Turn off) as a small ghost; the sentence under them", async () => {
   const apps = [
     app({ slug: "a-on", name: "On app" }),
     app({ slug: "b-off", name: "Off app", state: "off", on: false, spending: NOSPEND }),
@@ -485,12 +485,17 @@ test("apps mounted: a card's head holds Open while it runs or starts; its switch
   const m = await mount(fixed(view(apps)));
   try {
     const tiles = elements(m.root).filter((e) => cls(e).split(/\s+/).includes("p-apps__tile"));
-    const head = (t) => elements(t).find((e) => cls(e) === "p-apps__tile-head");
-    const foot = (t) => elements(t).find((e) => cls(e) === "p-apps__foot");
-    const acts = (el) => (el ? elements(el).filter((e) => (e.localName === "a" || e.localName === "button")).map((e) => textOf(e).trim()) : []);
-    assert.deepEqual(tiles.map((t) => acts(head(t))), [["Open"], [], [], []]);
-    assert.deepEqual(tiles.map((t) => acts(foot(t))), [["Turn off"], ["Turn on"], ["Turn off"], []]);
-    for (const t of tiles.slice(0, 3)) assert.match(cls(elements(foot(t)).find((e) => e.localName === "button")), /k-btn--ghost k-btn--sm/);
+    assert.ok(tiles.every((t) => t.localName === "li"), "the apps are rows of one list");
+    const acts = (t) => {
+      const el = elements(t).find((e) => cls(e) === "p-apps__acts");
+      return el ? elements(el).filter((e) => (e.localName === "a" || e.localName === "button")).map((e) => textOf(e).trim()) : [];
+    };
+    assert.deepEqual(tiles.map(acts), [["Open", "Turn off"], ["Turn on"], ["Turn off"], []]);
+    for (const t of tiles.slice(0, 3)) assert.match(cls(elements(t).find((e) => e.localName === "button")), /k-btn--ghost k-btn--sm/);
+    const open = elements(tiles[0]).find((e) => e.localName === "a");
+    assert.match(cls(open), /k-btn--primary/, "Open is the filled one on an app that is on");
+    const kids = (t) => t.childNodes.filter((c) => c.nodeType === 1).map((c) => cls(c).split(/\s+/)[0]);
+    assert.deepEqual(kids(tiles[0]).slice(-2), ["p-apps__acts", "p-apps__trust"], "the sentence comes after the buttons, across the row");
     const chip = (t) => elements(t).find((e) => cls(e).split(/\s+/).includes("k-tag"));
     assert.deepEqual(tiles.map((t) => cls(chip(t)).split(/\s+/)[1]), ["k-tag--good", "k-tag--neutral", "k-tag--bad", "k-tag--neutral"], "the state is a one-line chip in its tone");
   } finally { m.done(); }
@@ -524,16 +529,23 @@ test("apps mounted: a picture that cannot be loaded gives way to the initials, n
     const none = elements(m.root).find((e) => cls(e).includes("p-apps__icon--none"));
     assert.equal(textOf(none), "CR");
     assert.equal(none.getAttribute("aria-hidden"), "true");
+    // R5-F: the initials stand on the kit's 32 px Tile, in the app's own quiet tint (the same every time).
+    const tile = elements(none).find((e) => cls(e).split(/\s+/).includes("k-tile"));
+    assert.ok(tile, "the kit's Tile");
+    const { tintFor } = await import(pathToFileURL(join(PUBLIC, "kit", "tile.js")).href);
+    assert.ok(cls(tile).split(/\s+/).includes(`k-tile--${tintFor("colour-room")}`));
+    assert.ok(cls(tile).split(/\s+/).includes("k-tile--32"));
   } finally { m.done(); }
 });
 
-test("apps: the cards are two across and one height a row; the meta row 13 px in the second ink with the amounts in tabular figures", () => {
+test("apps: the apps are rows in one card, each as tall as it holds; the sentence spans the row; the meta row 13 px in the second ink with the amounts in tabular figures", () => {
   const css = readFileSync(join(PUBLIC, "styles", "pages", "apps.css"), "utf8");
-  assert.match(css, /\.p-apps \.p-apps__grid \{[^}]*minmax\(400px, 1fr\)/);
-  assert.match(css, /\.p-apps \.p-apps__tile \{[^}]*display: flex;[^}]*flex-direction: column;/);
-  assert.match(css, /\.p-apps \.p-apps__foot \{[^}]*margin-top: auto;[^}]*border-top: 1px solid var\(--line\);/);
+  assert.doesNotMatch(css, /p-apps__grid/, "no grid of cards");
+  assert.match(css, /\.p-apps \.p-apps__tile \{[^}]*display: grid; grid-template-columns: 32px minmax\(0, 1fr\) auto; align-items: start;/);
+  assert.doesNotMatch(css, /\.p-apps__tile \{[^}]*(height|align-items: stretch)/, "no row stretches to match another");
+  assert.match(css, /\.p-apps \.p-apps__tile \+ \.p-apps__tile \{ border-top: 1px solid var\(--line\); \}/);
+  assert.match(css, /\.p-apps \.p-apps__trust \{ grid-column: 2 \/ -1;/);
   assert.match(css, /\.p-apps \.p-apps__icon \{[^}]*width: 32px; height: 32px;/);
-  assert.match(css, /\.p-apps \.p-apps__icon--none \{[^}]*background: var\(--raise\);[^}]*font-size: var\(--fs-fact\); font-weight: var\(--fw-bold\);/);
   assert.match(css, /\.p-apps \.p-apps__facts \{[^}]*color: var\(--ink-2\); font-size: var\(--fs-note\);/);
   assert.match(css, /\.p-apps \.p-apps__spend \{[^}]*font-variant-numeric: tabular-nums;/);
 });

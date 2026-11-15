@@ -1,10 +1,10 @@
-/* The page app (PLAN-V5 T80, PLAN-COOK T60, TB2): one app opened inside App Studio. It fills the window under the top
-   bar (the shell's "fill" pane, whose margin it takes back so the bar runs edge to edge): the home screen's own bar,
-   one 44 px row on the shell's ground with the shell's hairline under it (back, the tile, the name and its state chip;
-   what it may spend today in tabular figures; at the right the model's menu, Stop spending as the soft danger, its
-   own window and Turn off, small ghosts); under it, on the stage tone, what the fence does not cover on one quiet
-   12 px line, and the app's frame with a 1 px edge, a 12 px corner and 16 px round it, so it reads as another
-   program's page. Below 860 px the bar is two rows. Tokens only. */
+/* The page app (PLAN-V5 T80, PLAN-COOK T60, TB2, R5-F): one app opened inside App Studio. It fills the window under
+   the top bar (the shell's "fill" pane, whose margin it takes back so the bar runs edge to edge): the home screen's own
+   bar, one 44 px row on the shell's ground with the shell's hairline under it (the state chip and what it may spend
+   today in tabular figures; at the right the model's menu, Stop spending, its own window and Turn off, one skin at
+   32 px); under it, on the stage tone, the app's window with a 1 px edge, a 12 px corner and 16 px round it, so it
+   reads as another program's page, its head a 28 px strip with what the fence does not cover. Below 860 px the bar
+   is two rows. Tokens only. */
 .p-app {
   display: flex;
   flex-direction: column;
@@ -16,55 +16,33 @@
 /* Loading, a refusal to load, the restart sentence: the page as any other. */
 .p-app.p-app--plain { height: auto; width: 100%; max-width: var(--content-max); margin: var(--s-6) auto 0; background: none; }
 
-/* The trusted bar: the home screen's, never the app's. One row, 44 px. */
+/* The trusted bar: the home screen's, never the app's. One row, 44 px: the state and what it may spend at the left
+   (the app's name is the top bar's crumb), the controls at the right. */
 .p-app .p-app__bar {
   flex: none;
   display: flex;
   align-items: center;
   gap: var(--s-1) var(--s-4);
   min-height: calc(var(--h-lg) + var(--s-1));
-  padding: var(--s-1) var(--s-4) var(--s-1) var(--s-2);
+  padding: var(--s-1) var(--s-4);
   border-bottom: 1px solid var(--line);
   background: var(--bg);
   color: var(--ink-2);
   font-size: var(--fs-note);
   line-height: var(--lh-ui);
 }
-.p-app .p-app__who { flex: 0 1 auto; display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
-.p-app .p-app__break { display: none; }
-.p-app .p-app__back {
-  flex: none; display: inline-grid; place-items: center; width: var(--s-8); height: var(--s-8);
-  border-radius: var(--r-2); color: var(--ink-2);
-  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-.p-app .p-app__back:hover { background: var(--ctl); color: var(--ink); }
-.p-app .p-app__back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.p-app .p-app__icon { flex: none; width: 24px; height: 24px; border-radius: var(--r-1); object-fit: contain; }
-.p-app .p-app__icon--none {
-  display: grid; place-items: center;
-  border: 1px solid var(--line); background: var(--raise); color: var(--ink-2);
-  font-size: var(--fs-label); font-weight: var(--fw-bold); line-height: 1;
-}
-.p-app .p-app__name {
-  margin: 0; min-width: 0;
-  color: var(--ink); font-size: var(--fs-fact); font-weight: var(--fw-bold); line-height: var(--lh-fact);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
 .p-app .p-app__name:focus { outline: none; }
+.p-app .p-app__who { flex: 0 1 auto; display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
 .p-app .p-app__state { flex: none; display: inline-flex; }
 .p-app .p-app__state .k-tag { white-space: nowrap; }
 
-/* What it may spend today, parted from the name by a short hairline: the server's words, the amounts in tabular
-   figures and the first ink. */
-.p-app .p-app__money { position: relative; flex: 0 1 auto; min-width: 0; padding-left: var(--s-4); }
-.p-app .p-app__money::before {
-  content: ""; position: absolute; left: 0; top: 50%; width: 1px; height: 16px; margin-top: -8px; background: var(--line-2);
-}
+/* What it may spend today: the server's words, the amounts in tabular figures and the first ink. */
+.p-app .p-app__money { flex: 0 1 auto; min-width: 0; }
 .p-app .p-app__money-words { color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .p-app .p-app__money-words .p-money { color: var(--ink); font-weight: var(--fw-medium); }
 
-/* The controls at the right: one height (32 px), two styles: the small ghost and the soft danger. The model's menu
-   is drawn as a ghost too, its label in the first ink. */
+/* The controls at the right: one height (32 px), one skin, the outlined small one; the model's menu is drawn to the
+   same height, its label in the first ink. */
 .p-app .p-app__tools { flex: none; display: flex; align-items: center; gap: var(--s-2); margin-left: auto; }
 .p-app .p-app__thinks,
 .p-app .p-app__spend { display: flex; }
@@ -77,37 +55,35 @@
 .p-app .p-app__thinks .k-menu__list { right: 0; left: auto; }
 .p-app .p-app__own,
 .p-app .p-app__switch { flex: none; }
-/* Under 1440 px its own window is its mark alone (its name stays for screen readers and in its tooltip), so every
-   fact keeps one line. */
-@media (max-width: 1439px) {
-  .p-app .p-app__own { min-width: var(--s-8); padding: 0; }
-  .p-app .p-app__own-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-}
+/* Its own window is its mark alone (its name stays for screen readers and in its tooltip). */
+.p-app .p-app__own { min-width: var(--s-8); padding: 0; }
+.p-app .p-app__own-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .p-app .p-app__problem { flex: none; padding: var(--s-3) var(--s-4) 0; }
 
-/* One quiet line under the bar while the app is open, on the stage tone, in line with the frame: what the fence does
-   not cover (T86), whole, 12 px in the third ink, and "Checking the app…" through one bad answer. */
+/* The stage: the app's window, 16 px round it, or the kit's Empty in its place. */
+.p-app .p-app__stage { flex: 1; display: flex; min-height: 0; padding: var(--s-4); }
+/* The app's window: a 1 px edge, a 12 px corner and the card's lift, so it reads as another program's page. */
+.p-app .p-app__window {
+  flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden;
+  border: 1px solid var(--line-2); border-radius: var(--r-3); background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+/* Its head, inside its edge: a 28 px strip on the card with a hairline under it; what the fence does not cover
+   (T86), whole, 12 px in the third ink, and "Checking the app…" through one bad answer. */
 .p-app .p-app__notes {
-  flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--s-2);
-  padding: var(--s-3) var(--s-4) 0; color: var(--ink-3); font-size: var(--fs-label); line-height: var(--lh-label);
+  flex: none; display: flex; align-items: center; gap: 0 var(--s-2);
+  min-height: 28px; padding: var(--s-1) var(--s-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-3); font-size: var(--fs-label); line-height: var(--lh-label);
 }
 .p-app .p-app__notes p { margin: 0; min-width: 0; }
 .p-app .p-app__notes .p-app__trust { flex: 0 1 auto; }
 .p-app .p-app__notes-icon { flex: none; color: var(--ink-3); }
-.p-app .p-app__notes .p-app__checking { margin-left: var(--s-3); color: var(--ink); font-weight: var(--fw-medium); }
-
-/* The stage: the app's frame, 16 px round it, or the kit's Empty in its place. */
-.p-app .p-app__stage { flex: 1; display: flex; min-height: 0; padding: var(--s-4); }
-.p-app .p-app__notes + .p-app__stage { padding-top: var(--s-3); }
-.p-app .p-app__frame {
-  flex: 1; display: block; width: 100%; height: 100%;
-  border: 1px solid var(--line-2); border-radius: var(--r-3); background: var(--paper);
-  box-shadow: var(--shadow-card);
-}
-/* Focus inside the app: the ring is drawn round its frame from outside (the app cannot draw it, or hide it). */
-.p-app .p-app__frame:focus,
-.p-app .p-app__stage:focus-within > .p-app__frame,
-.p-app .p-app__stage--focus > .p-app__frame { outline: 2px solid var(--accent); outline-offset: 3px; }
+.p-app .p-app__notes .p-app__checking { margin-left: auto; color: var(--ink); font-weight: var(--fw-medium); }
+.p-app .p-app__frame { flex: 1; display: block; width: 100%; min-height: 0; border: 0; background: var(--paper); }
+/* Focus inside the app: the ring is drawn round its window from outside (the app cannot draw it, or hide it). */
+.p-app .p-app__window:focus-within,
+.p-app .p-app__stage--focus > .p-app__window { outline: 2px solid var(--accent); outline-offset: 3px; }
 .p-app .p-app__card {
   flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; overflow: auto;
   border: 1px solid var(--line-2); border-radius: var(--r-3); background: var(--card); box-shadow: var(--shadow-card);
@@ -129,25 +105,19 @@
 }
 .p-app .p-app__left { margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
 
-/* Below 860 px: two rows. The app's name with its own-window mark and the switch, then what it may spend, Stop
-   spending and the model's menu (as a mark). Every control 44 px. */
+/* Below 860 px: two rows. The state and what it may spend, then the controls (the model's menu as a mark). Every
+   control 44 px; the window's head takes two lines where it needs them. */
 @media (max-width: 859px) {
   .p-app { margin: calc(-1 * var(--s-2)) calc(-1 * var(--s-2)) 0; height: calc(100dvh - var(--topbar-h) - var(--tabbar-h)); }
-  .p-app .p-app__bar { flex-wrap: wrap; gap: 0 var(--s-1); padding: var(--s-1) var(--s-2) var(--s-1) var(--s-1); }
-  .p-app .p-app__who { flex: 1 1 0; gap: var(--s-2); }
-  .p-app .p-app__back { width: 44px; height: 44px; }
-  .p-app .p-app__break { display: block; flex-basis: 100%; height: 0; }
-  .p-app .p-app__money { flex: 1 1 0; padding-left: var(--s-2); }
-  .p-app .p-app__money::before { display: none; }
+  .p-app .p-app__bar { flex-wrap: wrap; gap: var(--s-2); padding: var(--s-2); }
+  .p-app .p-app__who { flex: 1 1 100%; flex-wrap: wrap; gap: var(--s-1) var(--s-2); }
   .p-app .p-app__money-words { white-space: normal; }
-  .p-app .p-app__tools { gap: var(--s-1); }
-  .p-app .p-app__thinks .k-menu__trigger { min-height: 44px; min-width: 44px; padding: 0; }
-  .p-app .p-app__notes { flex-wrap: nowrap; align-items: flex-start; padding: var(--s-2) var(--s-2) 0; }
-  .p-app .p-app__notes .p-app__trust { flex: 1 1 0; }
-  .p-app .p-app__own { min-width: 44px; padding: 0; }
+  .p-app .p-app__tools { flex: 1 1 100%; gap: var(--s-2); margin-left: 0; }
+  .p-app .p-app__switch { margin-left: auto; }
+  .p-app .p-app__thinks .k-menu__trigger { min-height: 44px; min-width: 44px; padding: 0; justify-content: center; }
+  .p-app .p-app__own { min-width: 44px; }
+  .p-app .p-app__notes { align-items: flex-start; padding: var(--s-2) var(--s-3); }
   .p-app .p-app__notes-icon { margin-top: 1px; }
   .p-app .p-app__stage { padding: var(--s-2); }
-  .p-app .p-app__notes + .p-app__stage { padding-top: var(--s-2); }
-  .p-app .p-app__frame { border-radius: var(--r-2); }
-  .p-app .p-app__own-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .p-app .p-app__window { border-radius: var(--r-2); }
 }

@@ -272,3 +272,15 @@ test("job: the head's facts are label and value rows, a row without a value left
   const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "pages", "job.js"), "utf8");
   assert.doesNotMatch(src, /\$\{whoLine\(job\)\}/, "the 'Done by Artist.' line with no value is gone");
 });
+
+// PLAN-COOK R5-F: a fact's value on its own line with its explanation under it in the second ink; the fields no
+// wider than what they hold (a choice about 240 px, a line about 560 px).
+test("job: a fact's value over its explanation; the fields capped (R5-F)", () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const pageCss = readFileSync(join(here, "..", "..", "styles", "pages", "job.css"), "utf8");
+  assert.match(pageCss, /\.p-job \.p-job__fact dd \{[^}]*flex-direction: column;/, "the value, then its explanation under it");
+  assert.match(pageCss, /\.p-job \.p-job__about \{[^}]*color: var\(--ink-2\);/);
+  const kitCss = readFileSync(join(here, "..", "..", "styles", "kit", "job.css"), "utf8");
+  assert.match(kitCss, /\.k-job__asks \.k-select \{[^}]*min-width: 240px;[^}]*max-width: min\(100%, 560px\);/);
+  assert.match(kitCss, /\.k-job__asks \.k-input,\s*\.k-job__asks \.k-textarea \{\s*max-width: 560px;/);
+});

@@ -228,16 +228,12 @@ a.k-job--row:hover .k-job__go {
   min-width: 0;
 }
 
+/* The tile's place: the kit's 28 px Tile, in its stage's tint (R5-F), drawn by the kit. */
 .k-jobcard__tile {
   flex: none;
-  display: grid;
-  place-items: center;
+  display: flex;
   width: 28px;
   height: 28px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-2);
-  background: var(--ctl);
-  color: var(--ink-2);
 }
 
 .k-jobcard__body {
@@ -298,10 +294,6 @@ a.k-job--row:hover .k-job__go {
 
 .k-jobcard--dim .k-jobcard__title {
   color: var(--ink-2);
-}
-
-.k-jobcard--dim .k-jobcard__tile {
-  color: var(--ink-3);
 }
 
 /* Why it cannot start: under the chips, its own link above the card's. */
@@ -380,6 +372,24 @@ a.k-job--chip:hover {
   gap: var(--s-4);
 }
 
+/* R5-F: a field no wider than what it holds: a choice about 240 px (wider only for an option that needs it), a
+   number or a date the same, a line or a few lines about 560 px. */
+.k-job__asks .k-select {
+  width: fit-content;
+  min-width: 240px;
+  max-width: min(100%, 560px);
+}
+
+.k-job__asks .k-input,
+.k-job__asks .k-textarea {
+  max-width: 560px;
+}
+
+.k-job__asks .k-input[type="number"],
+.k-job__asks .k-input[type="date"] {
+  max-width: 240px;
+}
+
 .k-job__from {
   display: flex;
   align-items: center;
@@ -445,15 +455,14 @@ a.k-job--chip:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* A question not answered yet, in the preview: its own words as the kit's neutral chip, drawn inline so a long
-   question wraps with the sentence it stands in. An answer: the accent ink. */
+/* A question not answered yet, in the preview: its own words in the second ink, underlined in the third, where the
+   answer will go (no chip, so the sentence reads as one). An answer: the accent ink. */
 .k-job__blank {
-  display: inline;
-  padding: 1px 5px;
-  white-space: normal;
-  vertical-align: baseline;
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--ink-3);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
 .k-job__value {

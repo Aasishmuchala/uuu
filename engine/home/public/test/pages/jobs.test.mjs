@@ -238,15 +238,16 @@ test("jobs: no creature, no glass and no department colour; cards are the kit's 
 });
 
 // PLAN-COOK TB3: the whole card answers the click, the ring is the card's; the bar's controls at 32 px; a
-// department's head at 15 px with its Open as a small ghost.
-test("jobs: the card is the click and the ring is round the card; the bar at 32 px; the department's head (TB3)", () => {
+// department's head at 16 px (R5-F) with its Open as a small ghost; the search beside the filters (R5-F).
+test("jobs: the card is the click and the ring is round the card; the bar at 32 px with the search beside the filters; the department's head (TB3, R5-F)", () => {
   const src = readFileSync(new URL("../../pages/jobs.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../../styles/pages/jobs.css", import.meta.url), "utf8");
   assert.match(css, /\.p-jobs \.p-jobs__card-box \{\s*position: relative;/, "the frame holds the name's cover");
   assert.match(css, /\.p-jobs \.p-jobs__card-box:has\(\.k-jobcard__link:focus-visible\) \{\s*outline: 2px solid var\(--accent\);/);
   assert.match(css, /\.p-jobs \.p-jobs__filter \.k-menu__trigger \{\s*min-height: var\(--s-8\);[^}]*border-color: var\(--line-2\);\s*background: transparent;/);
   assert.match(css, /\.p-jobs \.p-jobs__search \{[^}]*width: 280px;/);
-  assert.match(css, /\.p-jobs \.p-jobs__dept-name \{[^}]*font-size: var\(--fs-fact\);[^}]*font-weight: var\(--fw-bold\);/);
+  assert.doesNotMatch(css, /\.p-jobs \.p-jobs__find \{[^}]*margin-left: auto;/, "the search beside the filters, not at the far edge");
+  assert.match(css, /\.p-jobs \.p-jobs__dept-name \{[^}]*font-size: var\(--fs-section\);[^}]*font-weight: var\(--fw-bold\);/);
   assert.match(css, /\.p-jobs \.p-jobs__dept-head \{[^}]*border-bottom: 1px solid var\(--line\);/);
   assert.match(src, /<\$\{Button\} size="sm" variant="ghost" class="p-jobs__dept-open" href=\$\{`#\/departments\/\$\{d\.id\}`\}>Open \$\{d\.title\}<\/\/>/);
   assert.match(src, /<\$\{Chip\} icon=\$\{f\.ready \? "check" : undefined\} on=\$\{f\.ready\}/, "Ready only says its state as a toggle chip");

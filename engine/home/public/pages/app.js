@@ -1,19 +1,19 @@
-// One app opened inside App Studio (PLAN-V5 K17, K22, K23, T80; PLAN-COOK T60, TB2): the whole window under the top
-// bar, whose crumbs say App Studio / <name>. On top, the home screen's own bar, one 44 px row on the shell's ground
-// with its hairline (the app cannot draw over it): back to App Studio, the app's tile, name and state chip, what it may
-// spend today; at the right the model it thinks with (a menu), "Stop spending" (the soft danger) or "Allow spending",
-// "Open in its own window" and Turn off, small ghosts. Under it, what the fence does not cover on one quiet 12 px line,
-// whole (T86, ADR 0016); then the stage, and on it the app in an iframe at its own port on this Mac (from /api/apps,
-// never from the app's text), with a 1 px edge, a 12 px corner and 16 px round it, so it reads as another program's
-// page; set only once the app is on and kept through one answer that says otherwise ("Checking the app…"); off,
-// starting, stopped, App Studio off and not ready each have the kit's Empty in the frame's place. In full, the
-// sentence stands beside Turn on. The allowance sheet is the kit's dialog with four radio rows in whole dollars, those
+// One app opened inside App Studio (PLAN-V5 K17, K22, K23, T80; PLAN-COOK T60, TB2, R5-F): the whole window under the
+// top bar, whose crumbs say App Studio / <name> (the one place the eye reads its name). On top, the home screen's own
+// bar, one 44 px row on the shell's ground with its hairline (the app cannot draw over it): the app's state chip and
+// what it may spend today; at the right the model it thinks with (a menu), "Stop spending" or "Allow spending", "Open
+// in its own window" and Turn off, small and one height. Then the stage, and on it the app's window: a 1 px edge, a
+// 12 px corner and 16 px round it, so it reads as another program's page; its head, inside that edge, a 28 px strip
+// with what the fence does not cover, whole (T86, ADR 0016); under it the app in an iframe at its own port on this Mac
+// (from /api/apps, never from the app's text), set only once the app is on and kept through one answer that says
+// otherwise ("Checking the app…"); off, starting, stopped, App Studio off and not ready each have the kit's Empty in
+// the window's place. In full, the sentence stands beside Turn on. The allowance sheet is the kit's dialog with four radio rows in whole dollars, those
 // over what is left of today's limit disabled with the reason as text.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useApp } from "../lib/context.js";
 import { Button, Dialog, Empty, ErrorNotice, Icon, Loading, Menu, NextStep, StatusDot, Tag } from "../kit/index.js";
 import {
-  AppIcon, MoneyWords, Refusal, Restart, SLUG, STATE_WORDS, WORDS, allowLabel, amountChoices, appAddress, appsOf, firstAmount, plain, postApp,
+  MoneyWords, Refusal, Restart, SLUG, STATE_WORDS, WORDS, allowLabel, amountChoices, appAddress, appsOf, firstAmount, plain, postApp,
   sheetTitle, shownState, spendingLine, spends, stateSentence, stateTag, stateWord, thinksShort, useAppsView,
 } from "./apps.js";
 
@@ -167,8 +167,7 @@ function useHeld(slug, data, app, shown) {
   return !!app && app.on === true && shown !== "on" && h.wasOn && h.missed;
 }
 
-// True below 860 px, where the bar is two rows, the model's menu shows only its mark, and a long state is said only
-// to a screen reader (the Empty under the bar says it in full), so the app's name keeps its room.
+// True below 860 px, where the bar is two rows and the model's menu shows only its mark.
 const NARROW = "(max-width: 859px)";
 function useNarrow() {
   const get = () => typeof matchMedia === "function" && matchMedia(NARROW).matches;
@@ -309,64 +308,54 @@ export default function AppPage({ route }) {
     }))
     : [];
 
-  const hideState = narrow && shown !== "on" && shown !== "off";
-  // Its own window and the switch: at the bar's end, or on a phone at the end of its first row (so the Tab order
-  // follows what is seen).
-  const own = html`
-    ${address
-      ? html`<${Button} size="sm" variant="ghost" icon="external" class="p-app__own" title=${WORDS.ownWindow}
-          onClick=${() => openOwnWindow(address)}><span class="p-app__own-word">${WORDS.ownWindow}</span><//>`
-      : null}
-    ${app.on
-      ? html`<${Button} size="sm" variant="ghost" class="p-app__switch" icon="power" busy=${busy === "switch"} onClick=${() => turn(false)}>${WORDS.turnOff}<//>`
-      : null}`;
+  // The bar, in reading order: the state, what it may spend today, then the model's menu, Stop spending (or Allow
+  // spending), its own window and the switch, one skin at one height. The app's name is the top bar's crumb; here it
+  // is the page's heading for a screen reader only, so the eye reads it once.
   const thinks = t && thinkItems.length
     ? html`<div class="p-app__thinks"><${Menu} label=${thinksShort(t)} icon=${narrow ? "brain" : undefined} items=${thinkItems} /></div>`
     : null;
   const spendButton = spends(app)
     ? html`<span class="p-app__spend">${app.spending.open
-      ? html`<${Button} size="sm" variant="danger" busy=${busy === "allowance/stop"} onClick=${stop}>${WORDS.stop}<//>`
+      ? html`<${Button} size="sm" variant="danger-quiet" busy=${busy === "allowance/stop"} onClick=${stop}>${WORDS.stop}<//>`
       : html`<${Button} size="sm" variant="ghost" onClick=${() => { setError(null); setSheet(true); }}>${WORDS.allow}<//>`}</span>`
     : null;
   return html`<div class=${`p-app p-app--${shown}`}>
     <header class="p-app__bar" aria-label=${`${name}, from App Studio`}>
+      <h1 class="p-app__name k-sr" id="page-title" tabindex="-1">${name}</h1>
       <div class="p-app__who">
-        <a class="p-app__back" href="#/apps" aria-label="Back to App Studio" title="Back to App Studio">
-          <${Icon} name="arrow-left" size=${16} />
-        </a>
-        <${AppIcon} slug=${app.slug} name=${name} size=${24} cls="p-app__icon" has=${app.icon != null} />
-        <h1 class="p-app__name" id="page-title" tabindex="-1">${name}</h1>
-        ${hideState
-          ? html`<span class="k-sr">${stateWord(shown)}</span>`
-          : html`<span class="p-app__state"><${Tag} tone=${stateTag(shown)}>${stateWord(shown)}<//></span>`}
+        <span class="p-app__state"><${Tag} tone=${stateTag(shown)}>${stateWord(shown)}<//></span>
+        ${spends(app) ? html`<div class="p-app__money"><${MoneyWords} cls="p-app__money-words" text=${spendingLine(app)} /></div>` : null}
       </div>
-      ${narrow ? own : null}
-      <span class="p-app__break" aria-hidden="true"></span>
-      ${spends(app) ? html`<div class="p-app__money"><${MoneyWords} cls="p-app__money-words" text=${spendingLine(app)} /></div>` : null}
       <div class="p-app__tools">
-        ${narrow ? html`${spendButton}${thinks}` : html`${thinks}${spendButton}`}
-        ${narrow ? null : own}
+        ${thinks}${spendButton}
+        ${address
+          ? html`<${Button} size="sm" variant="ghost" icon="external" class="p-app__own" title=${WORDS.ownWindow}
+              onClick=${() => openOwnWindow(address)}><span class="p-app__own-word">${WORDS.ownWindow}</span><//>`
+          : null}
+        ${app.on
+          ? html`<${Button} size="sm" variant="ghost" class="p-app__switch" icon="power" busy=${busy === "switch"} onClick=${() => turn(false)}>${WORDS.turnOff}<//>`
+          : null}
       </div>
     </header>
     ${error ? html`<div class="p-app__problem"><${Refusal} error=${error} /></div>` : null}
-    ${address
-      ? html`<div class="p-app__notes">
-          <${Icon} name="info" size=${14} class="p-app__notes-icon" />
-          <p class="p-app__trust">${WORDS.trustShort}</p>
-          ${checking ? html`<p class="p-app__checking" role="status">${WORDS.checking}</p>` : null}
-        </div>`
-      : null}
     <div class="p-app__stage" ref=${stageRef}>
       ${address
-        ? html`<iframe
-            key=${address}
-            class="p-app__frame"
-            title=${name}
-            sandbox=${SANDBOX}
-            referrerpolicy="no-referrer"
-            allow=${ALLOW}
-            src=${address}
-          ></iframe>`
+        ? html`<div class="p-app__window">
+            <div class="p-app__notes">
+              <${Icon} name="info" size=${14} class="p-app__notes-icon" />
+              <p class="p-app__trust">${WORDS.trustShort}</p>
+              ${checking ? html`<p class="p-app__checking" role="status">${WORDS.checking}</p>` : null}
+            </div>
+            <iframe
+              key=${address}
+              class="p-app__frame"
+              title=${name}
+              sandbox=${SANDBOX}
+              referrerpolicy="no-referrer"
+              allow=${ALLOW}
+              src=${address}
+            ></iframe>
+          </div>`
         : shown === "on"
           ? html`<div class="p-app__card" role="status"><${Empty} icon="alert" title=${WORDS.badHost} /></div>`
           : html`<${StageCard} app=${app} host=${host} shown=${shown} late=${late} busy=${busy === "switch"}

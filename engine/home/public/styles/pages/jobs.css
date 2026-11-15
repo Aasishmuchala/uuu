@@ -1,6 +1,6 @@
 /* The page jobs (CONTRACTS-V3 30, "Jobs"; PLAN-COOK T62 after R12 and R09; TB3): the list pattern the Tasks page
    set. The title with the view switch at its right, one bar (three filter menus at 32 px with their edge, Ready only
-   a toggle chip beside them, a 280 px search field at the right), then one group a department: its head at 15 px
+   a toggle chip and a 280 px search field beside them), then one group a department: its head at 16 px
    semibold with its count and a small ghost "Open <department>" on its baseline, a rule under it, and the jobs as
    cards two across with a 24 px gutter. Each card is the kit's JobCard: the name is the link and the whole card
    answers the click, the ring round the card. No glass, no creature, no department colour. The build order: four
@@ -21,7 +21,7 @@
   margin-top: var(--s-5);
 }
 
-/* The bar: the filters at the left, Ready only and the search field at the right. */
+/* The bar: the filters, Ready only and the search field, side by side from the left. */
 .p-jobs .p-jobs__bar {
   display: flex;
   flex-wrap: wrap;
@@ -93,10 +93,10 @@
   color: var(--ink);
 }
 
+/* The search beside the filters (R5-F), not pushed to the far edge. */
 .p-jobs .p-jobs__find {
   display: flex;
   align-items: center;
-  margin-left: auto;
   min-width: 0;
 }
 
@@ -246,7 +246,7 @@
   min-width: 0;
 }
 
-/* A department's head: the name 15 px semibold with its count, the small ghost on its baseline at the right, its
+/* A department's head: the name 16 px semibold with its count, the small ghost on its baseline at the right, its
    sentence under, then a rule. */
 .p-jobs .p-jobs__dept-head {
   display: flex;
@@ -273,9 +273,9 @@
   margin: 0;
   min-width: 0;
   color: var(--ink);
-  font-size: var(--fs-fact);
+  font-size: var(--fs-section);
   font-weight: var(--fw-bold);
-  line-height: var(--lh-fact);
+  line-height: var(--lh-section);
 }
 
 .p-jobs .p-jobs__dept-icon {
