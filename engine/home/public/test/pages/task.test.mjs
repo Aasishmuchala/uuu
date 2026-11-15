@@ -253,6 +253,28 @@ test("task: the panel stands beside the story only from 1080 px and with room", 
   assert.deepEqual(sideLayout(undefined, undefined), { side: false, width: null });
 });
 
+// PLAN-COOK T104 (critics of round A1 on S15: "the card floats with no anchor"): beside the story the page fills the
+// pane, takes a composed width of at most 1100 px centred in it, and the rail runs its whole height on the panel.
+test("task: beside the story the page fills the pane to a composed width and the rail runs its height", () => {
+  const { bleedOf, COMPOSED, PANEL_WORDS } = mod;
+  assert.equal(COMPOSED, 1100);
+  assert.deepEqual(bleedOf({ left: 216, right: 1280, width: 1064 }, { left: 248, right: 1248 }, { top: 32, bottom: 48 }),
+    { left: 32, right: 32, top: 32, bottom: 48, gutter: 0 });
+  assert.deepEqual(bleedOf({ left: 216, right: 1440, width: 1224 }, { left: 304, right: 1352 }, { top: 32, bottom: 48 }),
+    { left: 88, right: 88, top: 32, bottom: 48, gutter: 62 });
+  assert.deepEqual(bleedOf(null, null, null), { left: 0, right: 0, top: 0, bottom: 0, gutter: 0 });
+  assert.deepEqual(PANEL_WORDS, { acceptance: "Acceptance", checks: "The checks", also: "Also waiting on you", how: "How it went", steps: "Every step" });
+  const c = readFileSync(new URL("../../styles/pages/task.css", import.meta.url), "utf8");
+  const side = /\.p-task\.p-task--side \{([^}]*)\}/.exec(c)[1];
+  assert.match(side, /min-height: calc\(100vh - var\(--topbar-h\)\);/, "the page runs the pane's height");
+  assert.match(side, /grid-template-columns: minmax\(0, 1fr\) var\(--p-task-panel\);/);
+  const rail = /\.p-task\.p-task--side \.p-task__panel \{([^}]*)\}/.exec(c)[1];
+  assert.match(rail, /align-self: stretch;/, "the rail runs the page's height");
+  assert.match(rail, /border-left: 1px solid var\(--line\);/);
+  assert.match(c, /\.p-task \.p-task__panel \{[^}]*background: var\(--panel\);/, "on the panel surface");
+  assert.match(c, /--p-task-panel: var\(--rail-w\);/, "320 px");
+});
+
 test("task: the result's files leave out the staged documents", () => {
   const d = seed[8];
   const names = resultFiles(d.files, d.stages).map((f) => f.name);
@@ -416,7 +438,7 @@ test("task: the rail lists each round with its checks; the facts line names who,
 test("task: on a stage the site's pieces and the pick's foot share one version, and the top bar holds only the crumbs", () => {
   const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../pages/task.js"), "utf8");
   const stage = src.slice(src.indexOf("function SitePage("));
-  assert.match(stage, /<\$\{SiteStage\} view=\$\{view\} \/>/);
+  assert.match(stage, /<\$\{SiteStage\} view=\$\{view\} scores=\$\{byLetter\} \/>/, "the larger picture's line has the version's score");
   assert.match(stage, /<\$\{SiteStrip\} view=\$\{view\} scores=\$\{byLetter\} \/>/);
   assert.match(stage, /<\$\{SiteRail\} view=\$\{view\} \/>/);
   assert.match(stage, /<\$\{PickFoot\} item=\$\{pickItem\} chosen=\$\{letter\}/, "the pick follows the site on the stage");

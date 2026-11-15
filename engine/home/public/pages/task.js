@@ -11,9 +11,11 @@
 //   Any other task is the column: the back chip, the title, a line with the agent, the size, the job it came from and
 //   the task it follows, then the story in time order (the owner's words, each document as it was written, the
 //   agents' comments, a marker for each check round, the result with its files). For a question task the story is
-//   the answer. Beside the column when there is room (under the title when there is not): the acceptance panel with
-//   the state, Accept and Send back, the other Needs-you items, the rounds and their checks, what can come next, how
-//   it went, the files, a note and stop. Below 860 px a bar above the tab bar holds Accept and Send back.
+//   the answer, told in rounds (kit/conversation.js: each round a card). Beside the column when there is room (under
+//   the title when there is not): the acceptance rail with the state, Accept and Send back, the other Needs-you items,
+//   the rounds and their checks, what can come next, how it went, the files, a note and stop. Beside the column the
+//   page takes a composed width (at most 1100 px, centred in the pane) and the rail runs its whole height on the
+//   panel surface (T104). Below 860 px a bar above the tab bar holds Accept and Send back.
 // The versions come from GET /api/tasks/:id/pieces and the sites from GET /api/tasks/:id/sites. When a route is not
 // there (404, an older home server) or fails, the page is the column as it was.
 // Address state: ?round=<n>, ?check=<n>, ?doc=<stage id>, ?files=1. Everything here was written by agents:
@@ -38,6 +40,23 @@ const cap = (v, n) => { const s = text(v); return s.length > n ? `${s.slice(0, n
 const ms = (iso) => { const t = Date.parse(text(iso)); return Number.isFinite(t) ? t : NaN; };
 const NARROW = 860;
 const WIDE = 1080;
+
+// The rail's section headings.
+export const PANEL_WORDS = { acceptance: "Acceptance", checks: "The checks", also: "Also waiting on you", how: "How it went", steps: "Every step" };
+
+// Beside the column the page is at most this wide, centred in the pane, and reaches the pane's edges and its foot.
+export const COMPOSED = 1100;
+
+// Pure. How far the page reaches past the pane's padding to fill it, and the gutter that centres a composed width in
+// it: { left, right, top, bottom, gutter } in px. `pane` is the pane's box ({ left, right, width }), `content` the
+// page's own box inside the padding ({ left, right }), `pad` the padding's top and bottom.
+export function bleedOf(pane, content, pad) {
+  const n = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const left = Math.max(0, Math.round(n(content && content.left) - n(pane && pane.left)));
+  const right = Math.max(0, Math.round(n(pane && pane.right) - n(content && content.right)));
+  const gutter = Math.max(0, Math.floor((n(pane && pane.width) - COMPOSED) / 2));
+  return { left, right, top: Math.max(0, n(pad && pad.top)), bottom: Math.max(0, n(pad && pad.bottom)), gutter };
+}
 
 // --- Pure helpers (tested in test/pages/task.test.mjs) ---------------------------------------------------------
 
@@ -349,7 +368,7 @@ export function factWords(task, job) {
 const px = (v) => Number.parseFloat(v) || 0;
 
 function useLayout(ref) {
-  const [state, setState] = useState({ narrow: false, side: false, width: null });
+  const [state, setState] = useState({ narrow: false, side: false, width: null, bleed: null });
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof window === "undefined") return undefined;
@@ -358,13 +377,20 @@ function useLayout(ref) {
     const measure = () => {
       const vw = window.innerWidth;
       let room = 0;
+      let bleed = null;
       if (outer) {
         const o = getComputedStyle(outer);
         const m = getComputedStyle(main);
         room = outer.clientWidth - px(o.paddingLeft) - px(o.paddingRight) - px(m.paddingLeft) - px(m.paddingRight);
+        const ob = outer.getBoundingClientRect();
+        const mb = main.getBoundingClientRect();
+        bleed = bleedOf({ left: ob.left, right: ob.right, width: ob.width },
+          { left: mb.left + px(m.paddingLeft), right: mb.right - px(m.paddingRight) },
+          { top: px(m.paddingTop), bottom: px(m.paddingBottom) });
       }
-      const next = { narrow: vw < NARROW, ...sideLayout(vw, room) };
-      setState((s) => (s.narrow === next.narrow && s.side === next.side && s.width === next.width ? s : next));
+      const next = { narrow: vw < NARROW, ...sideLayout(vw, room), bleed };
+      const key = (b) => (b ? `${b.left}|${b.right}|${b.top}|${b.bottom}|${b.gutter}` : "");
+      setState((s) => (s.narrow === next.narrow && s.side === next.side && s.width === next.width && key(s.bleed) === key(next.bleed) ? s : next));
     };
     measure();
     const ro = typeof ResizeObserver === "function" && outer ? new ResizeObserver(measure) : null;
@@ -591,19 +617,31 @@ function Rounds({ id, acceptance, query, ask = false }) {
 
 // --- How it went: the five stages and the timeline of steps ------------------------------------------------------
 
-function HowItWent({ stages, timeline, now }) {
+function HowItWent({ stages, timeline, now, shown = false }) {
+  const list5 = html`<ol class="p-task__stages">
+    ${list(stages).filter((s) => s && s.id).map((s) => html`
+      <li key=${text(s.id)} class=${`p-task__stage p-task__stage--${text(s.state)}`}>
+        <span class="p-task__stage-name">${cap(s.label, 60)}</span>
+        <span class="u-caption">${s.state === "skipped" ? "Skipped for a small task." : STAGE_WORDS[s.state] || cap(s.state, 30)}</span>
+      </li>`)}
+  </ol>`;
+  const steps = list(timeline).length ? html`<${Timeline} items=${list(timeline).slice(0, 100)} now=${now} />`
+    : html`<p class="u-caption">No steps yet.</p>`;
+  // In the rail the five stages are in view under the heading; the steps open under them.
+  if (shown) {
+    return html`
+      <h2 class="p-task__over">${PANEL_WORDS.how}</h2>
+      ${list5}
+      <details class="p-task__how">
+        <summary class="p-task__summary">${PANEL_WORDS.steps}</summary>
+        ${steps}
+      </details>`;
+  }
   return html`
     <details class="p-task__how">
       <summary class="p-task__summary">How it went</summary>
-      <ol class="p-task__stages">
-        ${list(stages).filter((s) => s && s.id).map((s) => html`
-          <li key=${text(s.id)} class=${`p-task__stage p-task__stage--${text(s.state)}`}>
-            <span class="p-task__stage-name">${cap(s.label, 60)}</span>
-            <span class="u-caption">${s.state === "skipped" ? "Skipped for a small task." : STAGE_WORDS[s.state] || cap(s.state, 30)}</span>
-          </li>`)}
-      </ol>
-      ${list(timeline).length ? html`<${Timeline} items=${list(timeline).slice(0, 100)} now=${now} />`
-        : html`<p class="u-caption">No steps yet.</p>`}
+      ${list5}
+      ${steps}
     </details>`;
 }
 
@@ -752,7 +790,10 @@ export default function Page({ route }) {
   };
 
   const rootClass = ["p-task", layout.side ? "p-task--side" : "", barred ? "p-task--barred" : ""].filter(Boolean).join(" ");
-  const rootStyle = [layout.side && layout.width ? `--p-task-w: ${layout.width}px` : "", barred && barHeight ? `--p-task-bar: ${barHeight}px` : ""]
+  const b = layout.side ? layout.bleed : null;
+  const rootStyle = [layout.side && layout.width ? `--p-task-w: ${layout.width}px` : "",
+    b ? `--p-task-bl: ${b.left}px; --p-task-br: ${b.right}px; --p-task-bt: ${b.top}px; --p-task-bb: ${b.bottom}px; --p-task-gut: ${b.gutter}px` : "",
+    barred && barHeight ? `--p-task-bar: ${barHeight}px` : ""]
     .filter(Boolean).join("; ") || undefined;
 
   if (!d) {
@@ -790,25 +831,37 @@ export default function Page({ route }) {
 
   const panel = html`
     <aside class="p-task__panel" aria-label="Acceptance">
-      <div class="p-task__state-row">
-        <p class="p-task__over">Acceptance</p>
-        <${Chip} dot=${STATE_DOTS[state] || "off"}>${stateWord(acceptance)}<//>
-      </div>
-      ${nextOnTop(acceptance, next) ? html`<${NextUp} items=${next} />` : null}
-      ${pickItem ? html`<${PickNudge} target="p-task-versions" />`
-        : !layout.narrow ? html`<${AcceptBar} acceptance=${acceptance} onDone=${after} onChanged=${res.refresh} />` : null}
-      ${said ? html`<p class="p-task__said" role="status" tabindex="-1" ref=${saidRef}>${said}</p>` : null}
-      ${needs.length ? html`
-        <div class="p-task__needs">
-          ${needs.map((item) => html`<${DecisionCard} key=${item.id} item=${item} onDone=${() => after("Done.")} />`)}
-        </div>` : null}
-      <${Rounds} id=${id} acceptance=${acceptance} query=${query} ask=${t.ask === true} />
-      ${nextOnTop(acceptance, next) ? null : html`<${NextUp} items=${next} />`}
-      <${HowItWent} stages=${d.stages} timeline=${d.timeline} now=${d.generatedAt} />
-      <div class="p-task__tools">
-        ${files.length ? html`<${Button} variant="plain" size="sm" icon="panel" onClick=${showFiles}>Files (${files.length})<//>` : null}
-        ${t.id ? html`<${SendNote} task=${t} onDone=${after} />` : null}
-        ${canStop && t.id ? html`<${StopTask} task=${t} onDone=${after} />` : null}
+      <div class="p-task__rail">
+        <section class="p-task__sec">
+          <div class="p-task__state-row">
+            <h2 class="p-task__over">${PANEL_WORDS.acceptance}</h2>
+            <${Chip} dot=${STATE_DOTS[state] || "off"}>${stateWord(acceptance)}<//>
+          </div>
+          ${nextOnTop(acceptance, next) ? html`<${NextUp} items=${next} />` : null}
+          ${pickItem ? html`<${PickNudge} target="p-task-versions" />`
+            : !layout.narrow ? html`<${AcceptBar} acceptance=${acceptance} onDone=${after} onChanged=${res.refresh} />` : null}
+          ${said ? html`<p class="p-task__said" role="status" tabindex="-1" ref=${saidRef}>${said}</p>` : null}
+        </section>
+        ${needs.length ? html`
+          <section class="p-task__sec">
+            <h2 class="p-task__over">${PANEL_WORDS.also}</h2>
+            <div class="p-task__needs">
+              ${needs.map((item) => html`<${DecisionCard} key=${item.id} item=${item} onDone=${() => after("Done.")} />`)}
+            </div>
+          </section>` : null}
+        <section class="p-task__sec">
+          <h2 class="p-task__over">${PANEL_WORDS.checks}</h2>
+          <${Rounds} id=${id} acceptance=${acceptance} query=${query} ask=${t.ask === true} />
+        </section>
+        ${nextOnTop(acceptance, next) || !next.length ? null : html`<section class="p-task__sec"><${NextUp} items=${next} /></section>`}
+        <section class="p-task__sec">
+          <${HowItWent} stages=${d.stages} timeline=${d.timeline} now=${d.generatedAt} shown=${true} />
+        </section>
+        <div class="p-task__tools">
+          ${files.length ? html`<${Button} variant="plain" size="sm" icon="panel" onClick=${showFiles}>Files (${files.length})<//>` : null}
+          ${t.id ? html`<${SendNote} task=${t} onDone=${after} />` : null}
+          ${canStop && t.id ? html`<${StopTask} task=${t} onDone=${after} />` : null}
+        </div>
       </div>
     </aside>`;
 
@@ -962,7 +1015,7 @@ function SitePage({ id, d, t, query, view, acceptance, pickItem, pieces, needs, 
   return html`<div class="p-task p-task--stage" ref=${root}>
     <${StageLayout} kind=${stageKind(acceptance, round)} title=${cap(t.title, 300) || "Task"} lede=${lede || null}
       label=${stageLabel(site)}
-      stage=${html`<div class="p-task__stage" id="p-task-sites" tabindex="-1"><${SiteStage} view=${view} /></div>`}
+      stage=${html`<div class="p-task__stage" id="p-task-sites" tabindex="-1"><${SiteStage} view=${view} scores=${byLetter} /></div>`}
       strip=${view.many ? html`<${SiteStrip} view=${view} scores=${byLetter} />` : null}
       rail=${html`<${SiteRail} view=${view} />${scores}<${Facts} id=${id} query=${query} acceptance=${acceptance} needs=${needs} next=${next} after=${after} said=${said} saidRef=${saidRef} />
         ${t.id && (pickItem || !acceptance.accept) ? html`<${Blk}><div class="p-task__tools p-task__tools--rail">

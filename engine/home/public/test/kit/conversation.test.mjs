@@ -77,16 +77,16 @@ test("Conversation: a long agent message marked fold shows its first lines and a
   foldText("\n".repeat(2_000_000));
   assert.ok(performance.now() - t0 < 500);
 
-  // In the page: the folded one renders through its own component (with state), the check and the result as text.
+  // In the page: only the agent's comment folds (one Read all button, its last lines closed); the check and the
+  // result keep every line.
   const msgs = [
     { who: { slug: "builder", name: "Builder" }, kind: "comment", text: long, at: null, fold: true },
     { who: { slug: "checker", name: "Checker" }, kind: "verdict", text: long, at: null },
     { who: { slug: "chief-of-staff", name: "Chief of staff" }, kind: "result", text: long, at: null },
   ];
-  const tree = Conversation({ messages: msgs });
-  const src = JSON.stringify(tree, (k, v) => (typeof v === "function" ? `fn:${v.name}` : k === "__" || k === "__o" ? undefined : v));
-  assert.equal((src.match(/fn:FoldedText/g) || []).length, 1, "only the agent's comment folds");
-  assert.equal((src.match(/Line 30 of what/g) || []).length, 3, "the check and the result keep every line; the fold holds the full text to open");
+  const root = show(Conversation, { messages: msgs });
+  assert.equal(withClass(root, "k-convo__fold").length, 1, "only the agent's comment folds");
+  assert.equal((textOf(root).match(/Line 30 of what/g) || []).length, 2, "the check and the result keep every line");
 });
 
 // A very small DOM, enough for Preact to render into, for the fold's state (as in kit-f1b).
@@ -165,21 +165,49 @@ test("file cards and evidence show a file's own name, never its folder; each Ope
   assert.match(checks, /split\("\/"\)\.pop\(\)/);
 });
 
-// PLAN-COOK T37 (R02): one reading column; the owner's words are no bubble at the right but an entry like every
-// other; words at 15/24; entries parted by a hairline; a file is a row, not a framed card.
-test("Conversation: one column of entries parted by a hairline, words at 15/24, no bubble and no glass", () => {
+// PLAN-COOK T104: what was said is told in rounds. A marker opens a round; each round is a card on the card surface
+// with 16 px inside; the entries' 20 px pictures are joined by a 1 px line; the words at 15; the kind of a message is
+// the kit's one grey chip, the same for a check and a result.
+test("Conversation: rounds as cards, a marker as the card's head, a line between 20 px pictures, one grey kind chip", () => {
   const c = css("kit/conversation.css");
-  assert.match(c, /\.k-convo__msg \+ \.k-convo__msg\s*\{\s*border-top: 1px solid var\(--line\);/);
-  assert.match(c, /\.k-convo__text,\s*\.k-convo__bubble\s*\{[^}]*font-size: var\(--fs-fact\);[^}]*line-height: var\(--lh-section\);/);
-  assert.match(c, /\.k-convo__who\s*\{[^}]*font-size: var\(--fs-body\);[^}]*font-weight: var\(--fw-bold\);/);
-  assert.doesNotMatch(c, /--glass|--highlight|--r-pill|var\(--dept|align-items: flex-end/);
-  const root = show(conversation.Conversation, { messages: [
+  assert.match(c, /\.k-convo__round \{[^}]*padding: var\(--s-4\);[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--r-3\);[^}]*background: var\(--card\);[^}]*box-shadow: var\(--shadow-card\);/);
+  assert.match(c, /\.k-convo__msg \{[^}]*grid-template-columns: 20px minmax\(0, 1fr\);/);
+  assert.match(c, /\.k-convo__msg:not\(:last-child\)::before \{[^}]*width: 1px;[^}]*background: var\(--line-2\);/, "the connector");
+  assert.match(c, /\.k-convo__text,\s*\.k-convo__bubble\s*\{[^}]*font-size: var\(--fs-fact\);/);
+  assert.match(c, /\.k-convo__who\s*\{[^}]*font-weight: var\(--fw-bold\);/);
+  assert.doesNotMatch(c, /--glass|--highlight|--r-pill|var\(--dept|align-items: flex-end|--good-bg/);
+  const { roundsOf } = conversation;
+  const msgs = [
     { who: { slug: "you", name: "Asha" }, kind: "note", text: "Four frames.", at: null },
+    { who: { slug: "checker", name: "Checker" }, kind: "verdict", text: "Passed.", at: null, marker: { label: "Round 1 · Passed", tone: "ok" } },
     { who: { slug: "artist", name: "Artist" }, kind: "result", text: "Done.", at: null },
-  ] });
+    { marker: { label: "Stopped", tone: "bad" } },
+  ];
+  assert.deepEqual(roundsOf(msgs).map((r) => [r.marker && r.marker.label, r.messages.length]), [[null, 1], ["Round 1 · Passed", 2], ["Stopped", 0]]);
+  assert.deepEqual(roundsOf(null), []);
+  const root = show(conversation.Conversation, { messages: msgs });
+  assert.equal(withClass(root, "k-convo__round").length, 2, "two cards; the lone marker is a trail line");
+  assert.equal(withClass(root, "k-convo__marker").length, 2);
   const heads = withClass(root, "k-convo__head");
-  assert.equal(heads.length, 2, "both entries have a head");
+  assert.equal(heads.length, 3, "every entry has a head");
   assert.match(textOf(heads[0]), /You/);
+  const kinds = withClass(root, "k-convo__kind");
+  assert.deepEqual(kinds.map((k) => textOf(k).trim()), ["Note", "Check", "Result"]);
+  assert.ok(kinds.every((k) => /\bk-tag k-tag--neutral\b/.test(k.getAttribute("class"))), "one grey chip for every kind");
+  assert.ok(elements(root).filter((e) => /\bk-avatar--20\b/.test(e.getAttribute("class") || "")).length === 3, "20 px pictures");
+});
+
+// PLAN-COOK T104: a file is a 44 px row with its size at the right in 12 px third ink and quiet icon buttons, each
+// with a spoken name; Open where it can be viewed, Download where it can be fetched, both when both.
+test("FileCard: a 44 px row, the size at the right, quiet icon buttons that say which file", () => {
+  const root = show(conversation.FileCard, { file: { name: "content/launch-post.md", kind: "text", size: 168, url: "/api/files/x", viewUrl: "/api/view/x" } });
+  const labels = elements(root).map((e) => e.getAttribute("aria-label")).filter(Boolean);
+  assert.deepEqual(labels, ["Open launch-post.md", "Download launch-post.md"]);
+  assert.ok(elements(root).filter((e) => /\bk-file__btn\b/.test(e.getAttribute("class") || "")).every((e) => /\bk-btn--quiet\b/.test(e.getAttribute("class"))));
+  const c = css("kit/conversation.css");
+  assert.match(c, /\.k-file \{[^}]*min-height: 44px;/);
+  assert.match(c, /\.k-file__meta \{[^}]*color: var\(--ink-3\);[^}]*font-size: var\(--fs-label\);/);
+  assert.match(c, /\.k-file__name \{[^}]*flex: 1 1 auto;/, "the name takes the room, so the size sits at the right");
 });
 
 compositeSheetTests("conversation");

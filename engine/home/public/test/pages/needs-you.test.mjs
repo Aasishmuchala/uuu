@@ -202,3 +202,49 @@ test("needs-you: a shotlist or versions to pick from take the whole pane; anythi
   assert.doesNotMatch(src, /PageHeader/, "the stage's own title is the page's one heading");
   assert.doesNotMatch(src, /const SOURCE_DEPARTMENT/, "the shared table from lib/queue.js");
 });
+
+// PLAN-COOK T104 (critics of round A1 on S09: "every row is cut twice", "70 percent of the pane empty").
+test("needs-you: a row's grey line shows only where it adds a fact the title does not say", () => {
+  const approval = { title: "An agent asked for something the home screen will not approve", summary: "The Builder asked for something the home screen will not approve. It is not a plain request." };
+  assert.equal(mod.addsFact(approval), false, "it repeats the title");
+  assert.equal(mod.addsFact({ title: "Reply to request 1", summary: "Support wrote a reply to request 1. Approving it replies." }), false);
+  assert.equal(mod.addsFact({ title: "Draft invoice ACC-SINV-2026-00001", summary: "The Bookkeeper made a draft invoice for Acme Interiors of ₹ 11,800.00." }), true, "the customer and the amount");
+  assert.equal(mod.addsFact({ title: "Plan ready: Open a second showroom page on the website", summary: "The brief and the plan for the Whitefield page are ready." }), true);
+  assert.equal(mod.addsFact({ title: "A", summary: "" }), false);
+  assert.equal(mod.addsFact({ title: "", summary: "Something." }), true);
+  assert.equal(mod.addsFact(null), false);
+});
+
+test("needs-you: under the item opened, the other items of its task and what comes next, from the list the page has", () => {
+  const a = item("a", { link: { page: "goals", id: "t1" } });
+  const b = item("b", { link: { page: "tasks", id: "t2" } });
+  const c = item("c", { link: { page: "goals", id: "t1" } });
+  const d = item("d", { link: { page: "books", id: "x" } });
+  const e = item("e");
+  const order = [a, b, c, d, e];
+  assert.deepEqual(mod.taskOf(a), { href: "#/tasks/t1", id: "t1" });
+  assert.equal(mod.taskOf(d), null, "a link to the books is no task");
+  assert.equal(mod.taskOf(e), null);
+  assert.deepEqual(mod.sameTask(a, order).map((i) => i.id), ["c"]);
+  assert.deepEqual(mod.sameTask(d, order), []);
+  assert.deepEqual(mod.nextAfter(order, "a", 3, ["c"]).map((i) => i.id), ["b", "d", "e"]);
+  assert.deepEqual(mod.nextAfter(order, "d").map((i) => i.id), ["e"]);
+  assert.deepEqual(mod.nextAfter(order, "zz"), []);
+  assert.equal(mod.NEXT_SHOWN, 3);
+  assert.equal(mod.PAGE_WORDS.sameTask, "From the same task");
+  assert.equal(mod.PAGE_WORDS.openTask, "Open the task");
+  assert.equal(mod.PAGE_WORDS.upNext, "Up next");
+  const src = readFileSync(resolve(HERE, "../../pages/needs-you.js"), "utf8");
+  assert.equal((src.match(/api\.get\(/g) || []).length, 1, "no request beyond the map; the inbox is read by useResource");
+});
+
+test("needs-you: side by side the list is a 360 px column of its own and groups are parted by a hairline", () => {
+  const c = readFileSync(resolve(HERE, "../../styles/pages/needs-you.css"), "utf8");
+  assert.match(c, /\.p-needs-you\.p-needs-you--split \{[^}]*grid-template-columns: 360px minmax\(0, 1fr\);/);
+  assert.match(c, /\.p-needs-you\.p-needs-you--split \{[^}]*min-height: calc\(100vh - var\(--topbar-h\)\);/);
+  const h = /\.p-needs-you \.p-needs-you__heading \{([^}]*)\}/.exec(c)[1];
+  assert.match(h, /border-top: 1px solid var\(--line\);/);
+  assert.match(h, /font-size: var\(--fs-label\);/);
+  assert.match(h, /font-weight: var\(--fw-medium\);/);
+  assert.match(c, /\.p-needs-you \.p-needs-you__title \{[^}]*white-space: nowrap;/, "one line a title");
+});

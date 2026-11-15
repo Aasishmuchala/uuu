@@ -1,6 +1,7 @@
-/* Needs you: the list (grouped as the queue groups it, rows as the queue draws them), an item opened beside it
-   from 1280 px, an item alone under that, and a stage that takes the pane. Every selector starts with
-   .p-needs-you; tokens only. */
+/* Needs you: the list (grouped as the queue groups it), an item opened beside it from 1280 px, an item alone under
+   that, and a stage that takes the pane. Side by side the page fills the pane: the list a 360 px column on the
+   ground behind a 1 px line, scrolling by itself; the item opened at the top of the rest with what helps decide
+   under it. Every selector starts with .p-needs-you; tokens only. */
 
 .p-needs-you {
   display: flex;
@@ -14,12 +15,34 @@
   display: block;
 }
 
-/* The list at the left (27 percent, at least 320 px), the item opened at the right in a readable column. */
+/* Side by side: the page reaches past the pane's padding to fill it; the list at the left, 360 px, the item opened
+   at the right. */
 .p-needs-you.p-needs-you--split {
   display: grid;
-  grid-template-columns: minmax(320px, 27%) minmax(0, 1fr);
-  gap: var(--s-8);
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 0;
   align-items: start;
+  min-height: calc(100vh - var(--topbar-h));
+  margin: calc(-1 * var(--s-8)) calc(-1 * var(--s-10)) calc(-1 * var(--s-12));
+}
+
+.p-needs-you.p-needs-you--split .p-needs-you__side {
+  position: sticky;
+  top: var(--topbar-h);
+  height: calc(100vh - var(--topbar-h));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-8) var(--s-4) var(--s-8) var(--s-5);
+  border-right: 1px solid var(--line);
+}
+
+.p-needs-you .p-needs-you__pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  min-width: 0;
+  max-width: calc(var(--column) + 2 * var(--s-10));
+  padding: var(--s-8) var(--s-10) var(--s-12);
 }
 
 .p-needs-you.p-needs-you--list,
@@ -106,7 +129,7 @@
 .p-needs-you .p-needs-you__groups {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: var(--s-3);
   min-width: 0;
 }
 
@@ -116,21 +139,30 @@
   gap: 2px;
 }
 
+/* A group's label: 12 px, 500, with a hairline above (the first group's is the list's own edge). */
 .p-needs-you .p-needs-you__heading {
-  padding: var(--s-2) 12px var(--s-1);
+  padding: var(--s-3) 12px 6px;
+  border-top: 1px solid var(--line);
   font-size: var(--fs-label);
   font-weight: var(--fw-medium);
   line-height: var(--lh-label);
   letter-spacing: var(--ls-label);
-  color: var(--ink-2);
+  color: var(--ink);
 }
 
-/* A row: the glyph, the title on one line, the time at the right, one grey line under. */
+.p-needs-you .p-needs-you__group:first-child .p-needs-you__heading {
+  padding-top: var(--s-1);
+  border-top: 0;
+}
+
+/* A row: the glyph, the title on one line, the time at the right; a grey line under only where it adds a fact. */
 .p-needs-you .p-needs-you__row {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
   gap: 2px 10px;
   align-items: baseline;
+  align-content: center;
+  min-height: 40px;
   padding: 10px 10px 10px 12px;
   border-radius: var(--r-2);
   color: var(--ink);
@@ -143,7 +175,7 @@
 }
 
 .p-needs-you .p-needs-you__row[aria-current="true"] {
-  background: var(--sel);
+  background: var(--raise);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
@@ -197,16 +229,73 @@
   white-space: nowrap;
 }
 
-/* The item opened: it stays in view while the list scrolls beside it. */
+/* The item opened. */
 .p-needs-you .p-needs-you__open {
   min-width: 0;
   border-radius: var(--r-3);
 }
 
-.p-needs-you.p-needs-you--split .p-needs-you__open {
-  position: sticky;
-  top: calc(var(--topbar-h) + var(--s-6));
-  max-width: var(--column);
+/* What helps decide, under the item opened, on the ground: a heading line with a link at its right, then rows parted
+   by hairlines. */
+.p-needs-you .p-needs-you__helps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+  min-width: 0;
+}
+
+.p-needs-you .p-needs-you__more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.p-needs-you .p-needs-you__more-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 0 0 var(--s-2) 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.p-needs-you .p-needs-you__more-title {
+  margin: 0;
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+  color: var(--ink);
+}
+
+.p-needs-you .p-needs-you__more-count {
+  margin-left: var(--s-1);
+  font-weight: var(--fw-regular);
+  color: var(--ink-2);
+}
+
+.p-needs-you .p-needs-you__more-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  text-decoration: none;
+}
+
+.p-needs-you .p-needs-you__more-link:hover {
+  text-decoration: underline;
+}
+
+.p-needs-you .p-needs-you__more-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.p-needs-you .p-needs-you__more-rows > .p-needs-you__row + .p-needs-you__row {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  box-shadow: inset 0 1px 0 var(--line);
 }
 
 .p-needs-you .p-needs-you__quiet {

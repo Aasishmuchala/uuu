@@ -1,9 +1,10 @@
-// A conversation between the owner and the agents, and a file as a row. CONTRACTS-V2 13.2, restyled by CONTRACTS-V3 28
-// and redrawn by PLAN-COOK T37 (R02): one reading column. Every message, the owner's and an agent's, is an entry:
-// a 24 px picture, the speaker and the time in grey, then the words at 15/24; entries are parted by space and a
-// hairline. A message is { who, kind, text, at, files?, marker? } (17.3, 17.5); the owner's `who.slug` is "you".
-// `marker` ({ label, tone }) is a quiet trail line before the message, such as "Brief written" or "Round 1 ·
-// Repairing"; a message with only a marker is only that line.
+// A conversation between the owner and the agents, and a file as a row. CONTRACTS-V2 13.2, restyled by CONTRACTS-V3 28,
+// redrawn by PLAN-COOK T37 (R02) and grouped by T104: the entries are told in rounds. A marker ("Brief written",
+// "Round 1 · Passed") opens a round; each round is a card holding its entries, the marker as the card's head line,
+// and a 1 px line joins the 20 px pictures of one card's entries. Entries before the first marker are a card with no
+// head; a marker with no entry after it stays a quiet trail line. A message is { who, kind, text, at, files?, marker? }
+// (17.3, 17.5); the owner's `who.slug` is "you". What kind of message it is (Check, Result, Note) is one 12 px chip
+// of the kit's tag system, grey: colour is kept for a state.
 // Agents wrote these words: they are shown as text, never as HTML.
 // `fold: true` on an agent's message (the task page sets it on agents' comments, M63 item 28) shows only the first
 // lines of a long text, with a quiet "Read all" button that opens the rest and "Show less" that closes it again.
@@ -20,29 +21,29 @@ const KIND_LABELS = { result: "Result", verdict: "Check", ask: "Asked" };
 const MARKER_TONES = ["neutral", "ok", "warn", "bad"];
 const MARKER_MAX = 120;
 
-// `file` is a file-entry (17.1), drawn as a row: a 16 px icon, its own name, its size, and one small button: Open
-// when the file can be viewed here, else Download.
+// `file` is a file-entry (17.1), drawn as a 44 px row: an icon for its kind, its own name, its size in the third ink
+// at the right, then quiet icon buttons: Open when the file can be viewed here, Download when it can be fetched.
+// Each button's spoken name says which file it is for, so a list of files is not "Open, Open, Open" (M52 K9).
 export function FileCard({ file, onOpen }) {
   if (!file) return null;
   const name = text(file.name);
   // The file's own name only: folder paths stay off screen outside Health (C3 25, M50 F17).
   const short = name.split("/").pop() || name;
   const canView = !!file.viewUrl;
-  // Each button says which file it is for, so a list of files is not "Open, Open, Open" (M52 K9).
-  const button = canView
+  const word = (w) => html`<span class="k-sr">${w}</span>`;
+  const open = canView
     ? onOpen
-      ? html`<${Button} size="sm" icon="external" aria-label=${`Open ${short}`} onClick=${() => onOpen(file)}>Open<//>`
-      : html`<${Button} size="sm" icon="external" aria-label=${`Open ${short}`} href=${file.viewUrl}>Open<//>`
-    : file.url
-      ? html`<${Button} size="sm" icon="download" aria-label=${`Download ${short}`} href=${file.url} download=${short}>Download<//>`
-      : null;
+      ? html`<${Button} variant="quiet" size="sm" icon="external" class="k-file__btn" aria-label=${`Open ${short}`} title="Open" onClick=${() => onOpen(file)}>${word("Open")}<//>`
+      : html`<${Button} variant="quiet" size="sm" icon="external" class="k-file__btn" aria-label=${`Open ${short}`} title="Open" href=${file.viewUrl}>${word("Open")}<//>`
+    : null;
+  const download = file.url
+    ? html`<${Button} variant="quiet" size="sm" icon="download" class="k-file__btn" aria-label=${`Download ${short}`} title="Download" href=${file.url} download=${short}>${word("Download")}<//>`
+    : null;
   return html`<div class="k-file">
     <span class="k-file__icon"><${Icon} name=${file.kind === "image" ? "image" : "file"} size=${16} /></span>
-    <span class="k-file__body">
-      <span class="k-file__name" title=${short}>${short}</span>
-      <span class="k-file__meta">${Number.isFinite(Number(file.size)) && html`<span>${bytes(file.size)}</span>`}</span>
-    </span>
-    ${button}
+    <span class="k-file__name" title=${short}>${short}</span>
+    <span class="k-file__meta">${Number.isFinite(Number(file.size)) && html`<span>${bytes(file.size)}</span>`}</span>
+    ${open || download ? html`<span class="k-file__actions">${open}${download}</span>` : null}
   </div>`;
 }
 
@@ -111,50 +112,71 @@ function FoldedText({ value }) {
     </button>`;
 }
 
-export function Conversation({ messages = [] }) {
-  const list = Array.isArray(messages) ? messages : [];
-  if (list.length === 0) return html`<p class="k-convo k-convo--empty">No messages yet.</p>`;
+// Pure. The messages in rounds: [{ marker, messages }]. A message with a marker opens a new round (the marker is its
+// head); the messages before the first marker are a round with no head. A marker alone (no words, no files) heads
+// a round that may stay empty.
+export function roundsOf(messages) {
   const out = [];
-  list.forEach((m, i) => {
-    if (!m) return;
+  let cur = null;
+  for (const m of Array.isArray(messages) ? messages : []) {
+    if (!m) continue;
     const marker = markerOf(m);
-    if (marker) out.push(html`<${Marker} key=${`m${i}`} marker=${marker} />`);
+    if (marker || !cur) { cur = { marker, messages: [] }; out.push(cur); }
     const files = Array.isArray(m.files) ? m.files : [];
-    if (marker && !text(m.text) && files.length === 0) return;
-    const who = m.who || { slug: "", name: "" };
-    const mine = who.slug === "you";
-    const stamp = m.at && html`<time class="k-convo__time" datetime=${text(m.at)} title=${fullWhen(m.at)}>${when(m.at)}</time>`;
-    const fileList = files.length > 0 && html`<div class="k-convo__files">${files.map((f) => html`<${FileCard} file=${f} />`)}</div>`;
-    if (mine) {
-      out.push(html`<li class="k-convo__msg k-convo__msg--you" key=${i}>
-        <span class="k-sr">You said:</span>
-        <div class="k-convo__head k-convo__mine">
-          <span class="k-convo__badge"><${Avatar} slug="you" name=${text(who.name) || "You"} size=${24} /></span>
-          <span class="k-convo__who" aria-hidden="true">You</span>
-          ${m.kind === "note" && html`<span class="k-convo__kind">Note</span>`}
-          ${stamp}
-        </div>
-        <div class="k-convo__content">
-          <div class="k-convo__bubble">${text(m.text)}</div>
-          ${fileList}
-        </div>
-      </li>`);
-      return;
-    }
-    const label = KIND_LABELS[m.kind];
-    out.push(html`<li class=${`k-convo__msg k-convo__msg--agent${m.kind ? ` k-convo__msg--${text(m.kind)}` : ""}`} key=${i}>
-      <div class="k-convo__head">
-        <${Avatar} slug=${who.slug} name=${who.name} size=${24} />
-        <span class="k-convo__who">${text(who.name)}</span>
-        ${label && html`<span class="k-convo__kind">${label}</span>`}
-        ${m.identifier && html`<${Mono}>${text(m.identifier)}<//>`}
+    if (marker && !text(m.text) && files.length === 0) continue;
+    cur.messages.push(m);
+  }
+  return out;
+}
+
+// One entry: the 20 px picture (joined to the next one by a line), the speaker, its kind and the time, then the words.
+function Entry({ m }) {
+  const who = m.who || { slug: "", name: "" };
+  const mine = who.slug === "you";
+  const files = Array.isArray(m.files) ? m.files : [];
+  const stamp = m.at && html`<time class="k-convo__time" datetime=${text(m.at)} title=${fullWhen(m.at)}>${when(m.at)}</time>`;
+  const fileList = files.length > 0 && html`<div class="k-convo__files">${files.map((f) => html`<${FileCard} file=${f} />`)}</div>`;
+  const kind = mine ? (m.kind === "note" ? "Note" : "") : KIND_LABELS[m.kind];
+  const chip = kind && html`<span class="k-tag k-tag--neutral k-convo__kind">${kind}</span>`;
+  if (mine) {
+    return html`<li class="k-convo__msg k-convo__msg--you">
+      <span class="k-sr">You said:</span>
+      <span class="k-convo__badge"><${Avatar} slug="you" name=${text(who.name) || "You"} size=${20} /></span>
+      <div class="k-convo__head k-convo__mine">
+        <span class="k-convo__who" aria-hidden="true">You</span>
+        ${chip}
         ${stamp}
       </div>
       <div class="k-convo__content">
-        ${m.fold && foldText(m.text).long ? html`<${FoldedText} value=${m.text} />` : html`<div class="k-convo__text">${text(m.text)}</div>`}
+        <div class="k-convo__bubble">${text(m.text)}</div>
         ${fileList}
       </div>
-    </li>`);
-  });
-  return html`<ol class="k-convo">${out}</ol>`;
+    </li>`;
+  }
+  return html`<li class=${`k-convo__msg k-convo__msg--agent${m.kind ? ` k-convo__msg--${text(m.kind)}` : ""}`}>
+    <span class="k-convo__badge"><${Avatar} slug=${who.slug} name=${who.name} size=${20} /></span>
+    <div class="k-convo__head">
+      <span class="k-convo__who">${text(who.name)}</span>
+      ${chip}
+      ${m.identifier && html`<${Mono}>${text(m.identifier)}<//>`}
+      ${stamp}
+    </div>
+    <div class="k-convo__content">
+      ${m.fold && foldText(m.text).long ? html`<${FoldedText} value=${m.text} />` : html`<div class="k-convo__text">${text(m.text)}</div>`}
+      ${fileList}
+    </div>
+  </li>`;
+}
+
+export function Conversation({ messages = [] }) {
+  const list = Array.isArray(messages) ? messages : [];
+  if (list.length === 0) return html`<p class="k-convo k-convo--empty">No messages yet.</p>`;
+  const rounds = roundsOf(list);
+  return html`<ol class="k-convo">${rounds.map((r, i) => {
+    if (!r.messages.length) return r.marker ? html`<${Marker} key=${`m${i}`} marker=${r.marker} />` : null;
+    return html`<li class="k-convo__round" key=${`r${i}`}>
+      ${r.marker && html`<ol class="k-convo__round-head"><${Marker} marker=${r.marker} /></ol>`}
+      <ol class="k-convo__entries">${r.messages.map((m, j) => html`<${Entry} key=${j} m=${m} />`)}</ol>
+    </li>`;
+  })}</ol>`;
 }

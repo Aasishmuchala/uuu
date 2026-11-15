@@ -49,10 +49,10 @@ test("Chip with onClick is a toggle: a button with aria-pressed, lifted when on;
   assert.equal(clicked, 0);
 });
 
-test("tags and chips: 12 px on a 5 px corner, grey by default, a tone on its tint; a selected chip is lifted", () => {
+test("tags and chips: one system, 12 px at 500 on a 4 px corner, grey by default, a tone on its tint; a selected chip is lifted", () => {
   const s = css("kit/tag.css");
   const base = /\.k-tag,\s*\.k-chip\s*\{([^}]*)\}/.exec(s)[1];
-  assert.match(base, /border-radius: 5px;/);
+  assert.match(base, /border-radius: var\(--r-xs\);/);
   assert.match(base, /background: var\(--ctl\);/);
   assert.match(base, /color: var\(--ink-2\);/);
   assert.match(base, /font-size: var\(--fs-label\);/);

@@ -1,7 +1,10 @@
 /* A task, as a conversation with its acceptance (pages/task.js). Tokens only; every selector starts with .p-task.
-   The column: one reading column with the acceptance rail under the title; with room (pages/task.js measures it) the
-   rail stands beside the story on the raised step and stays in view. Below 860 px a bar above the tab bar holds
-   Accept. A task with a site stands on the kit's StageLayout (.p-task--stage); the sheet only places its parts. */
+   The column: one reading column with the acceptance panel under the title. With room (pages/task.js measures it)
+   the page fills the pane (it reaches past the pane's padding by what the page measured), takes a composed width of
+   at most 1100 px centred in it, and the acceptance rail (320 px, the panel surface, a 1 px line) runs the page's
+   whole height beside the story, its sections parted by rules and its content in view as the story scrolls.
+   Below 860 px a bar above the tab bar holds Accept. A task with a site stands on the kit's StageLayout
+   (.p-task--stage); the sheet only places its parts. */
 
 .p-task {
   --p-task-panel: var(--rail-w);
@@ -16,29 +19,46 @@
   grid-template-columns: minmax(0, 1fr) var(--p-task-panel);
   grid-template-areas: "head panel" "main panel";
   grid-template-rows: auto 1fr;
-  column-gap: var(--s-8);
+  column-gap: 0;
   row-gap: var(--s-6);
-  width: var(--p-task-w);
   max-width: none;
-  margin-left: calc((100% - var(--p-task-w)) / 2);
+  min-height: calc(100vh - var(--topbar-h));
+  margin: calc(-1 * var(--p-task-bt, 0px)) calc(-1 * var(--p-task-br, 0px)) calc(-1 * var(--p-task-bb, 0px)) calc(-1 * var(--p-task-bl, 0px));
+  padding: 0 var(--p-task-gut, 0px);
 }
 
 .p-task.p-task--side .p-task__head {
   grid-area: head;
   min-width: 0;
+  padding: var(--s-8) var(--s-10) 0;
+}
+
+/* The title's own margin and the grid's row gap would stack: the gap alone parts the head from the story. */
+.p-task .p-task__head .k-page-header {
+  margin-bottom: 0;
 }
 
 .p-task.p-task--side .p-task__main {
   grid-area: main;
   min-width: 0;
+  padding: 0 var(--s-10) var(--s-12);
 }
 
+/* The rail runs the page's height on the panel surface; its content stays in view while the story scrolls. */
 .p-task.p-task--side .p-task__panel {
   grid-area: panel;
-  align-self: start;
+  align-self: stretch;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.p-task.p-task--side .p-task__rail {
   position: sticky;
-  top: calc(var(--topbar-h) + var(--s-4));
-  max-height: calc(100vh - var(--topbar-h) - var(--s-8));
+  top: var(--topbar-h);
+  max-height: calc(100vh - var(--topbar-h));
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -86,36 +106,32 @@
   color: var(--text);
 }
 
-/* The acceptance rail: the raised step with a hairline and (light) a soft shadow; its blocks parted by rules. */
+/* The acceptance panel: the panel surface with its 1 px edge and the card shadow (under the title on a narrow
+   page; beside the story it becomes the rail, above); its sections parted by rules. */
 .p-task .p-task__panel {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
   min-width: 0;
   padding: 0;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-3);
-  box-shadow: var(--sel-shadow);
+  box-shadow: var(--shadow-card);
 }
 
-.p-task .p-task__panel > * {
-  padding: var(--s-4) var(--s-5);
+.p-task .p-task__rail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
-.p-task .p-task__panel > * + * {
+.p-task .p-task__rail > * {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-5);
+}
+
+.p-task .p-task__rail > * + * {
   border-top: 1px solid var(--line);
-}
-
-.p-task .p-task__panel > .p-task__state-row {
-  padding-top: var(--s-4);
-  padding-bottom: var(--s-3);
-}
-
-.p-task .p-task__panel > .p-task__state-row + .p-task__accept,
-.p-task .p-task__panel > .p-task__state-row + .k-pick-nudge {
-  padding-top: 0;
-  border-top: 0;
 }
 
 .p-task .p-task__state-row {
@@ -131,6 +147,35 @@
   font-weight: var(--fw-bold);
   line-height: var(--lh-ui);
   color: var(--ink);
+}
+
+.p-task .p-task__rail .p-task__how {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.p-task .p-task__rail .p-task__stages {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A stage in the rail: its name at the left, its state at the right, one line. */
+.p-task .p-task__rail .p-task__stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--s-3);
+}
+
+.p-task .p-task__rail .p-task__stage .u-caption {
+  white-space: nowrap;
+  color: var(--ink-3);
+}
+
+.p-task .p-task__rail .p-task__summary {
+  color: var(--ink-2);
+  font-size: var(--fs-note);
 }
 
 .p-task .p-task__accept {
@@ -373,8 +418,11 @@
 .p-task .p-task__stage {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: var(--s-2);
   padding: var(--s-1) 0;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
 }
 
 .p-task .p-task__stage--skipped .p-task__stage-name,
@@ -393,6 +441,11 @@
   gap: var(--s-2);
   border-top: 1px solid var(--hairline);
   padding-top: var(--s-3);
+}
+
+.p-task .p-task__rail > .p-task__tools {
+  flex-direction: row;
+  padding-top: var(--s-4);
 }
 
 /* The story. */

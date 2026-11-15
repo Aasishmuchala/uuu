@@ -446,7 +446,7 @@ test("the actions are one line: the menu and the note actions first, the one pri
   render(null, root);
 });
 
-test("DecisionCard: who and when on one line, the title, details as label and value rows; level makes it the page's title", async () => {
+test("DecisionCard: who and when on one line, the title, details each a label over its value; level makes it the page's title", async () => {
   installDom();
   const item = { ...SEEN, identifier: "STH-8", details: [
     { label: "Amount", value: "₹ 1,000.00" },
@@ -496,16 +496,57 @@ test("drawer cards line up: a compact card puts each label over its value; a det
   assert.match(d, /dd::first-letter\s*\{\s*text-transform: capitalize;/, "a detail still starts with a capital, without the banned uppercase rule");
 });
 
-test("an opened item's actions sit 24 px under its last fact, the divider between, not adrift in their own band", () => {
+// PLAN-COOK T104 (critics of round A1 on S09: "a lone outlined Reject and an orphan ... row"; "a debug table").
+test("an opened item's actions are the card's footer: a band on the raised step under the divider, the primary at the right", () => {
   const d = css("kit/decision.css");
   assert.match(d, /\.k-decision--level \{[^}]*gap: var\(--s-4\);/, "the opened card's parts are 16 px apart");
   const rule = /\.k-decision--level \.k-decision__actions \{([^}]*)\}/.exec(d);
   assert.ok(rule, "the opened card places its actions");
-  assert.match(rule[1], /margin-top: calc\(var\(--s-3\) - var\(--s-4\)\);/, "16 less 4: 12 px above the divider");
-  assert.match(rule[1], /padding-top: var\(--s-3\);/, "12 px under the divider: 24 px in all");
+  assert.match(rule[1], /margin: var\(--s-2\) calc\(-1 \* var\(--s-6\)\) calc\(-1 \* var\(--s-6\)\);/, "across the card's foot, edge to edge");
+  assert.match(rule[1], /background: var\(--raise\);/, "on the raised step");
+  assert.match(d, /\.k-decision__gap \{\s*flex: 1 1 0;/, "the primary pushed to the right");
 });
 
-compositeSheetTests("decision");
+test("details: a label (12 px, third ink) over its value (14 px), never a label at one edge and its value at the other", () => {
+  const d = css("kit/decision.css");
+  const dt = /\.k-decision__detail dt \{([^}]*)\}/.exec(d)[1];
+  const dd = /\.k-decision__detail dd \{([^}]*)\}/.exec(d)[1];
+  assert.match(dt, /font-size: var\(--fs-label\);/);
+  assert.match(dt, /color: var\(--ink-3\);/);
+  assert.match(dd, /font-size: var\(--fs-ui\);/);
+  assert.doesNotMatch(dd, /text-align: right/);
+  assert.match(d, /\.k-decision__detail \{[^}]*flex-direction: column;/);
+  assert.doesNotMatch(d, /\.k-decision__detail \{[^}]*justify-content: space-between/);
+});
+
+test("a refusal with one other action: Hide is quiet words, Reject stands at the right with its reason; nothing is a menu of one", async () => {
+  installDom();
+  assert.equal(decision.loneRest({ withNote: [], rest: [{ id: "dismiss" }] }), true);
+  assert.equal(decision.loneRest({ withNote: [{ id: "answer" }], rest: [{ id: "dismiss" }] }), false);
+  assert.equal(decision.loneRest({ withNote: [], rest: [{ id: "a" }, { id: "b" }] }), false);
+  assert.equal(decision.loneRest({ withNote: [], rest: [] }), false);
+  assert.equal(decision.DECISION_WORDS.asksOnce("Reject"), "Reject asks you once before anything is done.");
+  const item = { ...SEEN, kind: "approval", actions: [
+    { id: "reject", label: "Reject", style: "danger", needsNote: false },
+    { id: "dismiss", label: "Hide", style: "plain", needsNote: false },
+  ] };
+  const root = await showTree(decision.DecisionCard, { item, level: true });
+  const row = elements(root).find((e) => hasClass(e, "k-decision__actions"));
+  const buttons = elements(row).filter((e) => e.localName === "button");
+  assert.deepEqual(buttons.map((b) => textOf(b).trim()), ["Hide", "Reject"], "Hide first, Reject last at the right");
+  assert.ok(classOf(buttons[0]).includes("k-btn--quiet"));
+  assert.ok(classOf(buttons[1]).includes("k-btn--danger"));
+  assert.ok(!buttons.some((b) => b.getAttribute("aria-label") === "More actions"), "no menu of one");
+  assert.match(textOf(row), /Reject asks you once before anything is done\./);
+  // Reject still asks once and sends nothing until the owner says yes.
+  const net = stubFetch(() => ({ status: 200, body: { ok: true, message: "Rejected." } }));
+  fire(buttons[1], "click");
+  await settle();
+  assert.equal(net.calls.length, 0, "nothing sent before the confirm");
+  assert.match(textOf(root), /Reject\? This cannot be undone here\./);
+  net.restore();
+  render(null, root);
+});
 
 test("T97: a choice that cannot be taken is plainly inert: the third ink, the inert fill, the pointer says no, the radio flat", () => {
   const c = css("kit/decision.css");

@@ -1,7 +1,9 @@
-/* Conversation and FileCard (kit/conversation.js), as R02's activity: one reading column. Tokens only.
-   Every message is an entry: a 24 px picture, the speaker at 14 px semibold with the time in grey, then the words
-   at 15/24 under the name. Entries are parted by space and a hairline. A marker is a quiet trail line: a 14 px
-   glyph that carries the tone and the words in grey. A file is a row with a 16 px icon and its own name. */
+/* Conversation and FileCard (kit/conversation.js), told in rounds (PLAN-COOK T104). Tokens only.
+   Each round is a card (the card surface, a 1 px edge, the card shadow, 16 px inside) holding its entries; its marker
+   ("Round 1 · Passed") is the card's head line. An entry is a 20 px picture in its own column, the speaker at 14 px
+   semibold with its kind chip and the time in grey, then the words at 15 under the name; a 1 px line joins the
+   pictures of one card's entries. A marker alone is a quiet trail line between cards. A file is a 44 px row: a 16 px
+   kind icon, its own name, its size in the third ink at the right, quiet icon buttons. */
 
 .k-convo {
   margin: 0;
@@ -9,6 +11,7 @@
   list-style: none;
   display: flex;
   flex-direction: column;
+  gap: var(--s-3);
   max-width: var(--column);
 }
 
@@ -17,28 +20,68 @@
   font-size: var(--fs-body);
 }
 
-.k-convo__msg {
+/* A round: one card. */
+.k-convo__round {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--s-3);
   min-width: 0;
-  padding: var(--s-4) 0;
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
 }
 
-.k-convo__msg + .k-convo__msg {
-  border-top: 1px solid var(--line);
+.k-convo__round-head,
+.k-convo__entries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.k-convo__msg:first-child {
-  padding-top: 0;
+.k-convo__entries {
+  display: flex;
+  flex-direction: column;
+}
+
+/* An entry: the picture in a 20 px column; the head and the words beside it. */
+.k-convo__msg {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: var(--s-3);
+  row-gap: var(--s-1);
+  min-width: 0;
+  padding-bottom: var(--s-5);
 }
 
 .k-convo__msg:last-child {
   padding-bottom: 0;
 }
 
+/* The line between the pictures of one card's entries: from under one picture to just above the next. */
+.k-convo__msg:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 9.5px;
+  top: 26px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--line-2);
+}
+
+.k-convo__badge {
+  grid-column: 1;
+  grid-row: 1;
+  display: inline-flex;
+  align-self: center;
+}
+
 /* The head: the picture, the speaker, what kind of message it is, its ref and the time. */
 .k-convo__head {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -49,19 +92,14 @@
   line-height: var(--lh-ui);
 }
 
-.k-convo__badge {
-  flex: none;
-  display: inline-flex;
-}
-
-/* Initials stay at the 12 px floor, never smaller (the kit's 24 px avatar draws them at 10). */
-.k-convo__head .k-avatar__initials {
+/* Initials stay at the 12 px floor, never smaller (the kit's small avatars draw them at 10). */
+.k-convo__badge .k-avatar__initials {
   font-size: var(--fs-label);
 }
 
 .k-convo__who {
   color: var(--ink);
-  font-size: var(--fs-body);
+  font-size: var(--fs-ui);
   font-weight: var(--fw-bold);
 }
 
@@ -83,32 +121,18 @@
   margin-right: var(--s-2);
 }
 
-/* What kind of message: one 12 px chip on its tint; a result is the good tint. */
+/* What kind of message: the kit's tag (styles/kit/tag.css), grey; the head only places it. */
 .k-convo__kind {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 7px;
-  border-radius: 5px;
-  background: var(--ctl);
-  color: var(--ink-2);
-  font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-label);
-}
-
-.k-convo__msg--result .k-convo__kind {
-  background: var(--good-bg);
-  color: var(--good);
+  flex: none;
 }
 
 /* The words, under the name: lined up with it, not with the picture. */
 .k-convo__content {
+  grid-column: 2;
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
   min-width: 0;
-  padding-left: calc(24px + var(--s-2));
 }
 
 .k-convo__text,
@@ -116,7 +140,7 @@
   max-width: 68ch;
   color: var(--ink);
   font-size: var(--fs-fact);
-  line-height: var(--lh-section);
+  line-height: var(--lh-fact);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -158,41 +182,32 @@
 .k-convo__files {
   display: flex;
   flex-direction: column;
-  max-width: 480px;
   width: 100%;
+  border-top: 1px solid var(--line);
 }
 
-/* A marker: "Brief written", "Round 1 · Repairing", as one quiet trail line in the column. */
+/* A marker: "Brief written", "Round 1 · Repairing". Alone it is one quiet trail line between cards; at the head of
+   a round it is the card's first line, its words in the first ink. */
 .k-convo__marker {
   display: flex;
   align-items: flex-start;
   gap: var(--s-2);
-  padding: var(--s-4) 0 var(--s-1);
+  padding: var(--s-1) var(--s-4);
   color: var(--ink-2);
   font-size: var(--fs-note);
   line-height: var(--lh-ui);
 }
 
-/* A marker heads the message after it: the hairline goes above the marker, none between it and its message. */
-.k-convo__msg + .k-convo__marker {
-  border-top: 1px solid var(--line);
-}
-
-.k-convo__marker + .k-convo__msg {
-  padding-top: var(--s-1);
-}
-
-.k-convo__marker + .k-convo__marker {
-  padding-top: 0;
-}
-
-.k-convo__marker:first-child {
-  padding-top: 0;
+.k-convo__round-head .k-convo__marker {
+  padding: 0;
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
 }
 
 .k-convo__marker-icon {
   flex: none;
-  margin: 3px 3px 0;
+  margin: 3px 3px 0 0;
   color: var(--ink-3);
 }
 
@@ -205,15 +220,14 @@
 .k-convo__marker--warn .k-convo__marker-icon { color: var(--warn); }
 .k-convo__marker--bad .k-convo__marker-icon { color: var(--bad); }
 
-/* A file, as a row: its 16 px icon, its own name and size, one small button at the right. Rows side by side are
-   parted by a hairline; no frame, so a list of files sits calmly in a card or on the ground. */
+/* A file, as a 44 px row: its kind icon, its own name, its size in the third ink at the right, then quiet icon
+   buttons. Rows are parted by hairlines; no frame, so a list of files sits calmly in a card or on the ground. */
 .k-file {
   display: flex;
   align-items: center;
   gap: var(--s-3);
   min-width: 0;
   min-height: 44px;
-  padding: var(--s-1) 0;
   color: var(--ink);
 }
 
@@ -224,23 +238,16 @@
 .k-file__icon {
   flex: none;
   display: inline-flex;
-  color: var(--ink-2);
-}
-
-.k-file__body {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-2);
+  color: var(--ink-3);
 }
 
 .k-file__name {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--fs-body);
+  font-size: var(--fs-ui);
   font-weight: var(--fw-medium);
   line-height: var(--lh-ui);
 }
@@ -250,8 +257,30 @@
   display: flex;
   gap: var(--s-2);
   color: var(--ink-3);
-  font-size: var(--fs-note);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
   font-variant-numeric: tabular-nums;
+}
+
+/* Room for both buttons on every row, so the sizes keep one right edge when a file has only one. */
+.k-file__actions {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: calc(2 * var(--h-sm) + 2px);
+}
+
+/* An icon button: a square quiet target, its name spoken, its word only for a screen reader. */
+.k-file__btn.k-btn {
+  width: var(--h-sm);
+  padding: 0;
+  justify-content: center;
+  color: var(--ink-2);
+}
+
+.k-file__btn.k-btn:hover {
+  color: var(--ink);
 }
 
 .k-file__folder {
@@ -261,11 +290,20 @@
 }
 
 @media (max-width: 859px) {
-  .k-convo__content {
-    padding-left: 0;
+  .k-convo__round {
+    padding: var(--s-4) var(--s-3);
   }
 
   .k-convo__fold {
     height: 44px;
+  }
+
+  .k-file__btn.k-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .k-file__actions {
+    min-width: calc(88px + 2px);
   }
 }

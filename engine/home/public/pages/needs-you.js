@@ -8,10 +8,14 @@
 // px the list is the page and an item opened is a screen of its own (the top bar's back button returns to the list).
 // The top bar gets the crumbs and a pager over the list's order. After an action its outcome stays where the item
 // was until the owner moves on.
+// Side by side (T104) the page fills the pane: the list a 360 px column of its own that scrolls by itself, each row
+// one line (its grey second line only where it adds a fact the title does not say), groups parted by a hairline;
+// the item opened at the top of the rest, and under it, on the ground, what helps decide from what the page already
+// has: the other items of the same task with a way to the task, and what comes next in the list. No other request.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { fullWhen } from "../lib/format.js";
+import { fullWhen, linkHref } from "../lib/format.js";
 import { SOURCE_DEPARTMENT, queueGroups, rowTime, sortNeeds } from "../lib/queue.js";
 import {
   Button, DecisionCard, DecisionDone, Empty, ErrorNotice, Icon, Loading, NotConnected, Notice, PickCard, PickDone, Select,
@@ -51,7 +55,13 @@ export const PAGE_WORDS = {
   list: "What needs you",
   back: "Back to the list",
   showAll: "Show everything",
+  sameTask: "From the same task",
+  openTask: "Open the task",
+  upNext: "Up next",
 };
+
+// How many of the next items show under the item opened.
+export const NEXT_SHOWN = 3;
 
 const cap = (s, n) => {
   const t = String(s ?? "").replace(/\s+/g, " ").trim();
@@ -120,6 +130,44 @@ export function pagerOf(order, id, d = "", at = null) {
     return { index: null, total, label: total ? `${total} left` : "None left", prev: k > 0 ? itemAddress(ids[k - 1], d) : null, next: k < total ? itemAddress(ids[k], d) : null };
   }
   return null;
+}
+
+const words = (v) => new Set(String(v ?? "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4));
+
+// Pure. True when an item's summary adds a fact its title does not say: its first sentence does not repeat most of
+// the title's words. A row shows its grey second line only then.
+export function addsFact(item) {
+  if (!item || typeof item !== "object") return false;
+  const summary = String(item.summary ?? "").trim();
+  if (!summary) return false;
+  const title = words(item.title);
+  if (!title.size) return true;
+  const first = words(summary.split(/(?<=[.!?])\s/)[0]);
+  let same = 0;
+  for (const w of title) if (first.has(w)) same += 1;
+  return same / title.size < 0.6;
+}
+
+// Pure. The task an item belongs to, as { href }, when its link is to a task; else null.
+export function taskOf(item) {
+  const link = item && typeof item === "object" ? item.link : null;
+  if (!link || (link.page !== "tasks" && link.page !== "goals") || !link.id) return null;
+  return { href: linkHref(link), id: String(link.id) };
+}
+
+// Pure. The other items of `items` that belong to the same task as `item`, in the list's order.
+export function sameTask(item, items) {
+  const own = taskOf(item);
+  if (!own) return [];
+  return (Array.isArray(items) ? items : []).filter((i) => i && i.id && i.id !== item.id && taskOf(i) && taskOf(i).id === own.id);
+}
+
+// Pure. The items after `id` in `order`, at most `n`, leaving out those in `skip` (ids).
+export function nextAfter(order, id, n = NEXT_SHOWN, skip = []) {
+  const list = Array.isArray(order) ? order : [];
+  const at = list.findIndex((i) => i && i.id === id);
+  const out = new Set(skip);
+  return (at < 0 ? [] : list.slice(at + 1)).filter((i) => i && !out.has(i.id)).slice(0, n);
 }
 
 // Pure. True for an item drawn as a whole stage: a film's shotlist, or versions to pick from.
@@ -205,15 +253,43 @@ const KindIcon = ({ kind }) => {
   return name === "done" ? html`<${StateIcon} column="done" label="" />` : html`<${Icon} name=${name} />`;
 };
 
-// One row, as the queue draws it: the kind's glyph, the title, the time, one grey line.
-function Row({ item, href, current }) {
+// One row: the kind's glyph, the title on one line, the time at the right, and the grey line only where it adds a
+// fact (`line` true shows it always, as under the item opened, where there is room).
+function Row({ item, href, current, line = false }) {
   const at = rowTime(item.when);
   return html`<a class="p-needs-you__row" href=${href} aria-current=${current ? "true" : undefined}>
     <span class="p-needs-you__icon" aria-hidden="true"><${KindIcon} kind=${item.kind} /></span>
     <span class="p-needs-you__title">${cap(item.title, 120)}</span>
     ${at ? html`<time class="p-needs-you__when" datetime=${item.when} title=${fullWhen(item.when)}>${at}</time>` : null}
-    ${item.summary ? html`<span class="p-needs-you__line">${cap(item.summary, 200)}</span>` : null}
+    ${item.summary && (line || addsFact(item)) ? html`<span class="p-needs-you__line">${cap(item.summary, 200)}</span>` : null}
   </a>`;
+}
+
+// Under the item opened: the other items of its task with a way to the task, then what comes next in the list.
+function Helps({ item, items, order, d }) {
+  const task = taskOf(item);
+  const same = sameTask(item, items);
+  const next = nextAfter(order, item.id, NEXT_SHOWN, same.map((i) => i.id));
+  if (!task && !next.length) return null;
+  return html`<div class="p-needs-you__helps">
+    ${task ? html`<section class="p-needs-you__more" aria-labelledby="p-needs-you-same">
+      <div class="p-needs-you__more-head">
+        <h2 id="p-needs-you-same" class="p-needs-you__more-title">${PAGE_WORDS.sameTask}${same.length ? html` <span class="p-needs-you__more-count u-num">${same.length}</span>` : null}</h2>
+        <a class="p-needs-you__link p-needs-you__more-link" href=${task.href}>${PAGE_WORDS.openTask}<${Icon} name="arrow-right" size=${14} /></a>
+      </div>
+      ${same.length ? html`<div class="p-needs-you__more-rows">
+        ${same.map((i) => html`<${Row} key=${i.id} item=${i} href=${itemAddress(i.id, d)} line=${true} />`)}
+      </div>` : null}
+    </section>` : null}
+    ${next.length ? html`<section class="p-needs-you__more" aria-labelledby="p-needs-you-next">
+      <div class="p-needs-you__more-head">
+        <h2 id="p-needs-you-next" class="p-needs-you__more-title">${PAGE_WORDS.upNext}</h2>
+      </div>
+      <div class="p-needs-you__more-rows">
+        ${next.map((i) => html`<${Row} key=${i.id} item=${i} href=${itemAddress(i.id, d)} line=${true} />`)}
+      </div>
+    </section>` : null}
+  </div>`;
 }
 
 // The list: the department choice, then the groups. Up and Down move along the rows; Enter opens one.
@@ -404,7 +480,10 @@ export default function Page({ route }) {
   if (wide && open) {
     return html`<div class="p-needs-you p-needs-you--split">
       <div class="p-needs-you__side">${head}${list}</div>
-      <section class="p-needs-you__open" tabindex="-1" aria-label=${opened ? cap(opened.title, 120) : PAGE_WORDS.title}>${open}</section>
+      <div class="p-needs-you__pane">
+        <section class="p-needs-you__open" tabindex="-1" aria-label=${opened ? cap(opened.title, 120) : PAGE_WORDS.title}>${open}</section>
+        ${opened ? html`<${Helps} item=${opened} items=${order} order=${order} d=${d} />` : null}
+      </div>
     </div>`;
   }
   // Under 1280 px an item opened is a screen of its own; the top bar's back button returns to the list.

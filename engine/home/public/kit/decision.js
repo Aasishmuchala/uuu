@@ -1,6 +1,8 @@
 // The one approval component (CONTRACTS-V2 13.2): a card on the raised step that shows exactly what is being
-// approved (who raised it, the title, the summary, the details as label and value rows), then one line of actions
-// with the one primary last at the right, "Send back" with a note in place, and the rest in a menu. It acts only through
+// approved (who raised it, the title, the summary, the details each as a label over its value), then the card's
+// footer: one line of actions with the one primary last at the right, "Send back" with a note in place, and the rest
+// in a menu (a lone other action with nothing else beside the primary is quiet words, not a menu of one). A primary
+// that refuses (a danger action) stands with its reason: it asks once before anything is done (PLAN-COOK T104). It acts only through
 // POST /api/inbox/act, sending the version of the item the owner saw (CONTRACTS 9.3a). When the server answers
 // that the item changed since, the card says so, reads the item again and shows it; it never retries by itself.
 import { html, useCallback, useEffect, useRef, useState } from "../vendor/preact-htm.js";
@@ -48,6 +50,17 @@ export async function reloadInboxItem(id) {
   const data = await api.get("/api/inbox");
   const items = data && Array.isArray(data.items) ? data.items : [];
   return items.find((it) => it && it.id === id) || null;
+}
+
+// The card's own words.
+export const DECISION_WORDS = {
+  asksOnce: (label) => `${label} asks you once before anything is done.`,
+};
+
+// Pure. True when the actions other than the primary are one action that needs no note: it is shown as quiet
+// words beside the primary, not as a menu holding one thing.
+export function loneRest({ withNote, rest }) {
+  return Array.isArray(rest) && rest.length === 1 && (!Array.isArray(withNote) || withNote.length === 0);
 }
 
 // Pure. The first action with style "primary" (else the first action) is the primary one; of the others, those
@@ -270,6 +283,8 @@ export function DecisionCard({ item, onDone, compact = false, level = false }) {
   const noteRef = useRef(null);
   const confirmRef = useRef(null);
   const openerRef = useRef(null);
+  const openerWords = useRef("");
+  const cardRef = useRef(null);
 
   useEffect(() => {
     if (noteFor && noteRef.current) noteRef.current.focus();
@@ -310,9 +325,16 @@ export function DecisionCard({ item, onDone, compact = false, level = false }) {
   const shown = fresh && fresh.id === item.id ? fresh : item;
   const { primary, withNote, rest } = splitActions(shown.actions);
 
+  // Back to the button that opened the note or the confirm. The actions are drawn again when it closes, so the
+  // button may be a new one: then the one with the same words.
   const restoreFocus = () => {
-    const opener = openerRef.current;
-    if (opener && opener.isConnected) opener.focus();
+    setTimeout(() => {
+      const opener = openerRef.current;
+      if (opener && opener.isConnected) { opener.focus(); return; }
+      const card = cardRef.current;
+      const again = card && card.querySelectorAll ? [...card.querySelectorAll("button")].find((b) => b.textContent.trim() === openerWords.current) : null;
+      if (again) again.focus();
+    }, 0);
   };
 
   const run = async (action, noteText) => {
@@ -330,6 +352,7 @@ export function DecisionCard({ item, onDone, compact = false, level = false }) {
   const choose = (action, ev) => {
     if (busy || reloading || gone) return;
     openerRef.current = ev && ev.currentTarget ? ev.currentTarget : null;
+    openerWords.current = text(action.label);
     if (action.needsNote) {
       setConfirm(null);
       setNoteFor(action);
@@ -397,20 +420,23 @@ export function DecisionCard({ item, onDone, compact = false, level = false }) {
   const stopped = busy || reloading || gone;
   const Title = level ? "h2" : "h3";
 
-  // The way to decide, on one line: the rest in the menu, the note actions as quiet words, the one primary last at
-  // the right. Never a row of peers.
+  // The way to decide, on one line in the card's footer: the rest in the menu, the note actions as quiet words, the
+  // one primary last at the right. Never a row of peers.
+  const lone = loneRest({ withNote, rest });
   const actions = html`<div class="k-decision__actions">
-    ${rest.length > 0 && !stopped && html`<${Menu} label="More actions" icon="more"
+    ${rest.length > 0 && !stopped && !lone && html`<${Menu} label="More actions" icon="more"
       items=${rest.map((a) => ({ id: a.id, label: text(a.label), danger: a.style === "danger", onSelect: () => choose(a) }))} />`}
+    ${lone && html`<${Button} variant="quiet" disabled=${stopped} onClick=${(ev) => choose(rest[0], ev)}>${text(rest[0].label)}<//>`}
     ${withNote.map((a) => html`<${Button} variant="quiet" disabled=${stopped}
       onClick=${(ev) => choose(a, ev)}>${text(a.label)}<//>`)}
     <span class="k-decision__gap" aria-hidden="true"></span>
+    ${primary && primary.style === "danger" && !compact && html`<span class="k-decision__why">${DECISION_WORDS.asksOnce(text(primary.label))}</span>`}
     ${primary && html`<${Button} variant=${primary.style === "danger" ? "danger" : "primary"} busy=${busy && !noteFor && !confirm}
       disabled=${stopped} onClick=${(ev) => choose(primary, ev)}>${text(primary.label)}<//>`}
   </div>`;
 
   return html`<article class=${`k-decision${compact ? " k-decision--compact" : ""}${level ? " k-decision--level" : ""}${high ? " k-decision--high" : ""}`}
-      aria-label=${text(shown.title)} onKeyDown=${onCardKey}>
+      aria-label=${text(shown.title)} onKeyDown=${onCardKey} ref=${cardRef}>
     <div class="k-decision__head">
       ${!compact && (agent
         ? html`<span class="k-decision__avatar"><${Avatar} slug=${agent.slug} name=${agent.name} size=${20} /></span>`

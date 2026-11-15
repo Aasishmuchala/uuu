@@ -1,6 +1,7 @@
-/* kit/tag.js: small labels, 20 px tall, 12 px words, a 5 px corner. Grey by default; a tone puts the words in its
-   colour on its 12 percent tint (one status chip a card). A toggle chip is lifted when on: the raised step and a
-   2 px accent edge, like every selected thing. */
+/* kit/tag.js: small labels, 20 px tall, 12 px words at 500 on a 4 px corner: one chip system for every list and
+   card. Grey by default; colour only for a state: a tone puts the words in its colour on its 12 percent tint (one
+   status chip a card). A toggle chip is lifted when on: the raised step and a 2 px accent edge, like every selected
+   thing. */
 
 .k-tag,
 .k-chip {
@@ -11,7 +12,7 @@
   max-width: 100%;
   padding: 0 7px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   background: var(--ctl);
   color: var(--ink-2);
   font: inherit;

@@ -1,9 +1,9 @@
 /* DecisionCard (kit/decision.js): the ordinary approval card, drawn as a sheet in R04's manner on C3's parts.
-   The card is on the raised step (the card fill, a hairline edge, the card shadow in light); no tint. Top to
-   bottom: who raised it and when (13 px), the title (16 px semibold; the page's size when the card is the
-   opened item), the summary, the details as label and value rows parted by hairlines, then, under a divider,
-   one line of actions with the one primary last at the right. Urgent is said once, by a state line in the bad
-   tone. Tokens only. */
+   The card is on the raised step (the card fill, a 1 px edge, the card shadow); no tint. Top to bottom: who raised
+   it and when (13 px), the title (17 px semibold; the page's size when the card is the opened item), the summary,
+   the details each as a label (12 px, third ink) over its value (14 px), then the card's footer: under a divider,
+   one line of actions with the one primary last at the right (on the opened item a footer band of its own). Urgent
+   is said once, by a state line in the bad tone. Tokens only. */
 
 .k-decision {
   display: flex;
@@ -126,47 +126,38 @@
   line-height: var(--lh-fact);
 }
 
-/* Label and value rows: the label at the left in the second ink, the value at the right, figures in tabular
-   figures; a value too long for the right sits under its label. Rows are parted by hairlines. */
+/* The details: each a label over its value, never a label at one edge and its value at the other. Labels 12 px in
+   the third ink, values 14 px in the first; figures in tabular figures. In a wide card short values sit two to a
+   row; a long one takes the whole row. */
 .k-decision__details {
   margin: var(--s-1) 0 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--s-4) var(--s-6);
+  padding-top: var(--s-4);
   border-top: 1px solid var(--line);
 }
 
 .k-decision__detail {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-1) var(--s-6);
-  min-height: 40px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.k-decision__detail:last-child {
-  border-bottom: 0;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .k-decision__detail dt {
-  flex: none;
-  max-width: 40%;
-  font-size: var(--fs-note);
-  line-height: var(--lh-ui);
-  color: var(--ink-2);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  color: var(--ink-3);
   overflow-wrap: anywhere;
 }
 
 .k-decision__detail dd {
-  flex: 0 1 auto;
   min-width: 0;
   margin: 0;
-  font-size: var(--fs-body);
+  font-size: var(--fs-ui);
   line-height: var(--lh-ui);
-  font-weight: var(--fw-medium);
   color: var(--ink);
-  text-align: right;
   overflow-wrap: anywhere;
   white-space: pre-line;
 }
@@ -177,41 +168,23 @@
 }
 
 .k-decision__detail--figure dd {
-  font-size: var(--fs-fact);
   font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .k-decision__detail--long {
-  flex-direction: column;
-  align-items: stretch;
+  grid-column: 1 / -1;
 }
 
-.k-decision__detail--long dt {
-  max-width: none;
+/* A narrow card (a dashboard's column): one detail a row, so every card lines up the same way. */
+.k-decision--compact .k-decision__details {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-2);
+  padding-top: var(--s-2);
 }
 
-.k-decision__detail--long dd {
-  font-weight: var(--fw-regular);
-  text-align: left;
-}
-
-/* A narrow card (a dashboard's column): each label sits over its value, so every card lines up the same way. */
 .k-decision--compact .k-decision__detail {
   flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
-  min-height: 0;
-  padding: var(--s-2) 0;
-}
-
-.k-decision--compact .k-decision__detail dt {
-  max-width: none;
-}
-
-.k-decision--compact .k-decision__detail dd {
-  text-align: left;
 }
 
 /* The tasks a suggestion would make, each with who it is for: rows like the details. */
@@ -277,11 +250,27 @@
   padding-top: var(--s-2);
 }
 
-/* An opened item: its actions 24 px under the last fact (the card's 16 px gap, less 4, then 12 under the divider),
-   so a short card never leaves its buttons adrift. */
+/* A refusing primary stands with its reason, beside it at the right. */
+.k-decision__why {
+  min-width: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  text-align: right;
+}
+
+/* An opened item: the actions are the card's footer, a band of their own on the raised step across the card's foot,
+   under its divider, the primary at the right. */
 .k-decision--level .k-decision__actions {
-  margin-top: calc(var(--s-3) - var(--s-4));
-  padding-top: var(--s-3);
+  margin: var(--s-2) calc(-1 * var(--s-6)) calc(-1 * var(--s-6));
+  padding: var(--s-4) var(--s-6);
+  border-radius: 0 0 calc(var(--r-3) - 1px) calc(var(--r-3) - 1px);
+  background: var(--raise);
+}
+
+.k-decision--level .k-decision__actions > .k-btn--quiet:first-child,
+.k-decision--level .k-decision__actions > .k-menu:first-child {
+  margin-left: -10px;
 }
 
 /* The note, an agent's questions and a confirm open in place of the actions, under the same divider. */
@@ -541,6 +530,17 @@
 
   .k-decision--level {
     padding: var(--s-5) var(--s-4);
+  }
+
+  .k-decision--level .k-decision__actions {
+    margin: var(--s-2) calc(-1 * var(--s-4)) calc(-1 * var(--s-5));
+    padding: var(--s-3) var(--s-4);
+  }
+
+  .k-decision__why {
+    flex: 1 1 100%;
+    order: -1;
+    text-align: left;
   }
 
   .k-decision--level .k-decision__title {
