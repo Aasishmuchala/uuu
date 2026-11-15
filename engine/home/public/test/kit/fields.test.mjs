@@ -41,7 +41,7 @@ test("inputs, text areas, selects and the money input: 36 px, the control corner
   assert.match(shared[1], /border: 1px solid var\(--line-2\);/);
   assert.match(shared[1], /font-size: var\(--fs-ui\);/);
   assert.match(s, /::placeholder\s*\{\s*color: var\(--ink-3\);/);
-  assert.match(/\}\s*\.k-money-input\s*\{([^}]*)\}/.exec(s)[1], /width: 116px;/);
+  assert.match(/\}\s*\.k-money-input\s*\{([^}]*)\}/.exec(s)[1], /width: 96px;/, "fix round R5: as wide as what it holds");
   assert.match(/\.k-money-input__control\s*\{([^}]*)\}/.exec(s)[1], /text-align: right;[\s\S]*font-variant-numeric: tabular-nums;/);
   assert.doesNotMatch(s, /outline: none;/, "focus is never taken away: the ring stays drawn");
   assert.doesNotMatch(s, /r-pill/);
@@ -54,11 +54,11 @@ test("fix round A3: a text area shows no resize grip, in the kit and in base.css
   assert.match(css("base.css"), /(^|\})\s*textarea\s*\{\s*resize: none;\s*\}/);
 });
 
-test("Switch: 38 x 22, the raised track off, the accent fill on, and role switch", async () => {
+test("Switch: 38 x 22, a solid third-ink track off, the accent fill on, and role switch", async () => {
   const s = css("kit/fields.css");
   const track = /\.k-switch__track\s*\{([^}]*)\}/.exec(s)[1];
   assert.match(track, /width: 38px;\s*height: 22px;/);
-  assert.match(track, /background: var\(--raise-2\);/);
+  assert.match(track, /background: color-mix\(in srgb, var\(--ink-3\) 70%, var\(--card\)\);/);
   assert.match(/\.k-switch--on \.k-switch__track\s*\{([^}]*)\}/.exec(s)[1], /background: var\(--accent-fill\);/);
   installDom();
   const root = await mount(kit.fields.Switch, { on: true, label: "Let the Artist use Runway" });
@@ -68,9 +68,23 @@ test("Switch: 38 x 22, the raised track off, the accent fill on, and role switch
   unmount(root);
 });
 
-test("fix round B2: an off switch's track stands on the stronger line in both themes; the money sign sits just before its number", () => {
+test("fix round R5: an off switch's track is at least 3 to 1 against its card in both themes, its thumb white; the money sign sits just before its number", () => {
   const s = css("kit/fields.css");
-  assert.match(/\.k-switch__track\s*\{([^}]*)\}/.exec(s)[1], /box-shadow: inset 0 0 0 1px var\(--line-2\);/);
+  const tokens = css("tokens.css");
+  const hex = (block, name) => new RegExp(`${name}: (#[0-9a-f]{6});`).exec(block)[1];
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const lum = (c) => c.map((v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; })
+    .reduce((a, x, i) => a + x * [0.2126, 0.7152, 0.0722][i], 0);
+  const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+  const dark = tokens.slice(tokens.indexOf(":root {"));
+  const light = tokens.slice(tokens.indexOf(':root[data-theme="light"] {'));
+  for (const block of [dark, light]) {
+    const card = rgb(hex(block, "--card"));
+    const ink3 = rgb(hex(block, "--ink-3"));
+    const track = ink3.map((v, i) => v * 0.7 + card[i] * 0.3);
+    assert.ok(ratio(track, card) >= 3, `the off track is ${ratio(track, card).toFixed(2)} to 1 against the card`);
+  }
+  assert.match(/\.k-switch__thumb\s*\{([^}]*)\}/.exec(s)[1], /background: var\(--accent-ink\);/, "a white thumb off as on");
   assert.match(/\.k-switch--disabled \.k-switch__track,[^{]*\{([^}]*)\}/.exec(s)[1], /box-shadow: inset 0 0 0 1px var\(--line-2\);/);
   const box = /\}\s*\.k-money-input\s*\{([^}]*)\}/.exec(s)[1];
   assert.match(box, /justify-content: flex-end;/, "the sign and the number held together at the right");

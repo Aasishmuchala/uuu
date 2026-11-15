@@ -144,7 +144,7 @@
   pointer-events: none;
 }
 
-/* The money input: 116 px, the number right-aligned in tabular figures with the sign in the third ink just before
+/* The money input: 96 px (fix round R5: as wide as what it holds), the number right-aligned in tabular figures with the sign in the third ink just before
    it (fix round B2: never the box's width away from its number). The control is as wide as what is typed; a click
    anywhere in the box reaches it. The ring is drawn around the whole box, not the bare number inside it. */
 .k-money-input {
@@ -152,7 +152,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 2px;
-  width: 116px;
+  width: 96px;
   font-weight: var(--fw-medium);
   cursor: text;
 }
@@ -289,15 +289,16 @@
   color: var(--ink-2);
 }
 
-/* Off, the track stands on the stronger line so it reads in both themes (fix round B2). */
+/* Off (fix round R5): a solid track of the third ink mixed into the card, at least 3 to 1 against the card in both
+   themes, with a white thumb, so an off switch reads as a live control set to off, never as a disabled one (a pale
+   track on the stronger line read as disabled in light). */
 .k-switch__track {
   position: relative;
   flex: none;
   width: 38px;
   height: 22px;
   border-radius: var(--r-round);
-  background: var(--raise-2);
-  box-shadow: inset 0 0 0 1px var(--line-2);
+  background: color-mix(in srgb, var(--ink-3) 70%, var(--card));
   transition: background-color var(--t-fast) var(--ease);
 }
 
@@ -308,17 +309,16 @@
   width: 16px;
   height: 16px;
   border-radius: var(--r-round);
-  background: var(--ink-2);
+  background: var(--accent-ink);
   transition: transform var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
 
-.k-switch__control:hover .k-switch__thumb {
-  background: var(--ink);
+.k-switch__control:hover .k-switch__track {
+  background: color-mix(in srgb, var(--ink-3) 85%, var(--card));
 }
 
 .k-switch--on .k-switch__track {
   background: var(--accent-fill);
-  box-shadow: none;
 }
 
 .k-switch--on .k-switch__thumb,
