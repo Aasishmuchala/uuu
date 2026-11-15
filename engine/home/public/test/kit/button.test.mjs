@@ -297,6 +297,22 @@ test("Button: a quiet danger (fix round R5) is the problem ink with no fill, the
   assert.match(b, /\.k-btn--danger-quiet\.k-btn--off:not\(\.k-btn--busy\) \{[^}]*background: transparent;/, "off, it stays bare");
 });
 
+test("Button: a ghost danger (fix round R5) is the problem ink on the ghost's 1 px edge at rest, no fill; the quiet danger stays edgeless", async () => {
+  installDom();
+  const root = await showTree(kit.button.Button, { variant: "danger-ghost", size: "sm", children: "Stop spending" });
+  assert.match(root.firstChild.getAttribute("class"), /k-btn--danger-ghost k-btn--sm/);
+  const b = css("kit/button.css");
+  const rest = /\.k-btn--danger-ghost \{([^}]*)\}/.exec(b)[1];
+  const ghost = /\.k-btn--ghost \{([^}]*)\}/.exec(b)[1];
+  assert.match(rest, /border-color: var\(--line-2\);/, "the ghost's edge at rest");
+  assert.match(ghost, /border-color: var\(--line-2\);/, "the same edge as the ghost");
+  assert.match(rest, /background: transparent;/);
+  assert.match(rest, /color: var\(--bad\);/);
+  assert.match(/\.k-btn--danger-ghost:hover:not\(:disabled\):not\(\.k-btn--off\) \{([^}]*)\}/.exec(b)[1], /border-color: var\(--bad\);/);
+  assert.match(b, /\.k-btn--danger-ghost:active:not\(:disabled\)/);
+  assert.match(/\.k-btn--danger-quiet \{([^}]*)\}/.exec(b)[1], /border-color: transparent;/, "the quiet danger has no edge at rest");
+});
+
 test("Button: ghost and link are variants of their own; an unknown one is plain", async () => {
   installDom();
   const { Button } = kit.button;

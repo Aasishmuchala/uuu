@@ -191,6 +191,25 @@
   background: color-mix(in srgb, var(--ink) 12%, transparent);
 }
 
+/* Danger, ghost: the problem ink on the ghost's own skin (its 1 px edge at rest, no fill), so a danger among ghost
+   buttons shares their shape ("Stop spending"); under the pointer the edge firms to the problem ink on the control
+   fill. */
+.k-btn--danger-ghost {
+  border-color: var(--line-2);
+  background: transparent;
+  color: var(--bad);
+}
+
+.k-btn--danger-ghost:hover:not(:disabled):not(.k-btn--off) {
+  border-color: var(--bad);
+  background: var(--ctl);
+}
+
+.k-btn--danger-ghost:active:not(:disabled):not(.k-btn--off) {
+  border-color: var(--bad);
+  background: var(--bad-bg);
+}
+
 /* Disabled: one inert look for every variant (a switched-off primary is a solid fill, never a faded accent). */
 .k-btn:disabled:not(.k-btn--busy),
 .k-btn--off:not(.k-btn--busy) {
@@ -217,6 +236,8 @@
 .k-btn--quiet.k-btn--off:not(.k-btn--busy),
 .k-btn--ghost:disabled:not(.k-btn--busy),
 .k-btn--ghost.k-btn--off:not(.k-btn--busy),
+.k-btn--danger-ghost:disabled:not(.k-btn--busy),
+.k-btn--danger-ghost.k-btn--off:not(.k-btn--busy),
 .k-btn--link:disabled:not(.k-btn--busy),
 .k-btn--link.k-btn--off:not(.k-btn--busy),
 .k-btn--danger-quiet:disabled:not(.k-btn--busy),

@@ -2,12 +2,13 @@
 // fill: one per screen, on its decision. `plain` is the outlined control; `ghost` the same edge with no fill;
 // `quiet` is words that fill on hover; `link` is a text link for a secondary way out; `danger` is soft, the problem
 // colour's tint and ink; `danger-quiet` is the problem ink alone, no fill, the ghost's edge under the pointer (a
-// last, rarely used way out such as "Stop this task": fix round R5). Sizes: `sm` 32 px; `md` and `lg` both 36 px (`lg` only wider at its sides).
+// last, rarely used way out such as "Stop this task": fix round R5); `danger-ghost` is the same ink with the ghost's
+// 1 px edge at rest, for a danger that stands among ghost buttons ("Stop spending" in an app's bar). Sizes: `sm` 32 px; `md` and `lg` both 36 px (`lg` only wider at its sides).
 import { html, useState } from "../vendor/preact-htm.js";
 import { Icon } from "./icon.js";
 import { cx, isEmpty, nextId, safeHref } from "./util.js";
 
-const VARIANTS = ["primary", "plain", "quiet", "ghost", "link", "danger", "danger-quiet", "accept"];
+const VARIANTS = ["primary", "plain", "quiet", "ghost", "link", "danger", "danger-quiet", "danger-ghost", "accept"];
 const SIZES = ["sm", "md", "lg"];
 const TYPES = ["button", "submit", "reset"];
 

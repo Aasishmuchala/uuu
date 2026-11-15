@@ -106,7 +106,7 @@ test("a viewer starts with the keyboard on the dialog itself, which draws no rin
   render(null, root);
   const src = readFileSync(join(KIT, "overlays.js"), "utf8");
   assert.match(src, /useFocusTrap\(ref, onClose, size === "full" \? "panel" : ""\)/);
-  assert.match(src, /useFocusTrap\(ref, onClose, "close"\)/, "a drawer still starts on Close");
+  assert.match(src, /useFocusTrap\(ref, onClose, true\)/, "a drawer still starts on Close");
   // From the panel the browser's own Tab order goes to the first control; the trap sends Shift+Tab to the last.
   assert.match(src, /event\.shiftKey && \(now === first \|\| now === panel\)/);
   assert.match(css("kit/overlays.css"), /\.k-dialog__panel:focus,\s*\.k-drawer__panel:focus \{\s*outline: none;/, "no ring on the panel");

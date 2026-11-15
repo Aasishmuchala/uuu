@@ -13,7 +13,7 @@ const activeElement = () => (typeof document === "undefined" ? null : document.a
 
 // Focus moves in on open (to an element marked data-autofocus, else the first control of the body,
 // else the panel), is kept inside on Tab, and goes back to the opener when the overlay goes away.
-// `start` changes the first place: "close" (a drawer) starts on its Close button, since its body is a long list
+// `start` changes the first place: true (a drawer) starts on its Close button, since its body is a long list
 // that is often still loading and its first control could be far down, out of sight (M52 K1); "panel" (a viewer,
 // fix round R5) starts on the dialog itself, which draws no ring, so nothing looks chosen at rest and the first Tab
 // reaches the first control.
@@ -27,7 +27,7 @@ function useFocusTrap(panelRef, onClose, start = "") {
       const pick =
         (panel.querySelector && panel.querySelector("[data-autofocus]")) ||
         (start === "panel" && panel) ||
-        (start === "close" && panel.querySelector && panel.querySelector("[data-overlay-close]")) ||
+        (start === true && panel.querySelector && panel.querySelector("[data-overlay-close]")) ||
         focusables(panel.querySelector && panel.querySelector("[data-overlay-body]"))[0] ||
         panel;
       if (pick && typeof pick.focus === "function") pick.focus();
@@ -114,7 +114,7 @@ export function Dialog({ open, title, sub, tools, onClose, size = "md", footer, 
 function DrawerPanel({ side, title, onClose, children }) {
   const ref = useRef(null);
   const [id] = useState(() => nextId("k-drawer"));
-  const onKeyDown = useFocusTrap(ref, onClose, "close");
+  const onKeyDown = useFocusTrap(ref, onClose, true);
   return html`<div class=${cx("k-drawer", `k-drawer--${side === "left" ? "left" : "right"}`)}>
     <div class="k-drawer__backdrop" aria-hidden="true" onClick=${() => onClose && onClose()}></div>
     <div ref=${ref} class="k-drawer__panel" role="dialog" aria-modal="true" aria-labelledby=${id} tabindex="-1" onKeyDown=${onKeyDown}>
