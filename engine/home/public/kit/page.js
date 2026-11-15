@@ -51,7 +51,9 @@ export function headerCrumbs({ crumbs, chip } = {}) {
 // Sets the window's title to "<title> · <company>". `over` is the kind line above the title; `lede` (or the
 // older `lead`) is the sentence under it. `chip`, `crumbs` and `back` say where you are: the crumbs go to
 // the top bar through the shell's setTop, when the shell has one. `creature` is accepted and not drawn.
-export function PageHeader({ title, lede, lead, back, actions, over, creature, chip, crumbs, children }) {
+// `state` (optional, fix round R5) is drawn beside the title, on its line: a chip of one or two words (the kit's Tag)
+// for the page's state. `actions` sit at the right on the title's baseline.
+export function PageHeader({ title, lede, lead, back, actions, over, creature, chip, crumbs, state, children }) {
   const app = useApp() || {};
   const company = app.shell?.company?.name || app.state?.company?.name || "";
   const name = typeof title === "string" ? title : "";
@@ -71,7 +73,12 @@ export function PageHeader({ title, lede, lead, back, actions, over, creature, c
     <div class="k-page-header__row">
       <div class="k-page-header__titles">
         ${filled(over) ? html`<p class="k-page-header__over">${kindLine(over)}</p>` : null}
-        <h1 id="page-title" class="k-page-header__title" tabindex="-1">${title}</h1>
+        ${filled(state)
+          ? html`<div class="k-page-header__name">
+              <h1 id="page-title" class="k-page-header__title" tabindex="-1">${title}</h1>
+              <span class="k-page-header__state">${state}</span>
+            </div>`
+          : html`<h1 id="page-title" class="k-page-header__title" tabindex="-1">${title}</h1>`}
       </div>
       ${actions ? html`<div class="k-page-header__actions">${actions}</div>` : null}
     </div>

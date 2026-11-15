@@ -13,9 +13,11 @@ const activeElement = () => (typeof document === "undefined" ? null : document.a
 
 // Focus moves in on open (to an element marked data-autofocus, else the first control of the body,
 // else the panel), is kept inside on Tab, and goes back to the opener when the overlay goes away.
-// A drawer (`firstClose`) starts on its Close button instead: its body is a long list that is often still
-// loading, and its first control could be far down, out of sight (M52 K1).
-function useFocusTrap(panelRef, onClose, firstClose = false) {
+// `start` changes the first place: "close" (a drawer) starts on its Close button, since its body is a long list
+// that is often still loading and its first control could be far down, out of sight (M52 K1); "panel" (a viewer,
+// fix round R5) starts on the dialog itself, which draws no ring, so nothing looks chosen at rest and the first Tab
+// reaches the first control.
+function useFocusTrap(panelRef, onClose, start = "") {
   const close = useRef(onClose);
   close.current = onClose;
   useEffect(() => {
@@ -24,7 +26,8 @@ function useFocusTrap(panelRef, onClose, firstClose = false) {
     if (panel) {
       const pick =
         (panel.querySelector && panel.querySelector("[data-autofocus]")) ||
-        (firstClose && panel.querySelector && panel.querySelector("[data-overlay-close]")) ||
+        (start === "panel" && panel) ||
+        (start === "close" && panel.querySelector && panel.querySelector("[data-overlay-close]")) ||
         focusables(panel.querySelector && panel.querySelector("[data-overlay-body]"))[0] ||
         panel;
       if (pick && typeof pick.focus === "function") pick.focus();
@@ -79,9 +82,10 @@ const SIZES = ["sm", "md", "lg", "full"];
 function DialogPanel({ title, sub, tools, onClose, size, footer, children }) {
   const ref = useRef(null);
   const [id] = useState(() => nextId("k-dialog"));
-  // A viewer ("full") starts on its Close button, as a drawer does: its body is a picture that scrolls, and a
-  // ring round the whole picture reads as a selection, not as the keyboard's place.
-  const onKeyDown = useFocusTrap(ref, onClose, size === "full");
+  // A viewer ("full") starts on the dialog itself (fix round R5): a ring on Close at rest read as a chosen button,
+  // and a ring round the whole picture as a selection. The panel draws no ring; the first Tab reaches the first
+  // control, Shift+Tab the last.
+  const onKeyDown = useFocusTrap(ref, onClose, size === "full" ? "panel" : "");
   const at = SIZES.includes(size) ? size : "md";
   return html`<div class=${cx("k-dialog", at === "full" && "k-dialog--full")}>
     <div class="k-dialog__backdrop" aria-hidden="true" onClick=${() => onClose && onClose()}></div>
@@ -110,7 +114,7 @@ export function Dialog({ open, title, sub, tools, onClose, size = "md", footer, 
 function DrawerPanel({ side, title, onClose, children }) {
   const ref = useRef(null);
   const [id] = useState(() => nextId("k-drawer"));
-  const onKeyDown = useFocusTrap(ref, onClose, true);
+  const onKeyDown = useFocusTrap(ref, onClose, "close");
   return html`<div class=${cx("k-drawer", `k-drawer--${side === "left" ? "left" : "right"}`)}>
     <div class="k-drawer__backdrop" aria-hidden="true" onClick=${() => onClose && onClose()}></div>
     <div ref=${ref} class="k-drawer__panel" role="dialog" aria-modal="true" aria-labelledby=${id} tabindex="-1" onKeyDown=${onKeyDown}>

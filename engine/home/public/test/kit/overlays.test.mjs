@@ -93,6 +93,25 @@ test("T102: a dialog is centred with 48 px of scrim on every side, a 1 px border
   assert.match(o, /\.k-dialog--full \.k-dialog__backdrop::after \{[^}]*background: var\(--scrim\);/);
 });
 
+test("a viewer starts with the keyboard on the dialog itself, which draws no ring; the first Tab reaches its first control (fix round R5)", async () => {
+  const { Dialog } = await import(pathToFileURL(join(KIT, "overlays.js")).href);
+  installDom();
+  const root = new FakeElement("div");
+  document.body.appendChild(root);
+  render(html`<${Dialog} open=${true} title="Opened larger" size="full" onClose=${() => {}}><button type="button">Desktop</button><//>`, root);
+  await settle();
+  const panel = elements(root).find((e) => e.getAttribute("role") === "dialog");
+  assert.equal(document.activeElement, panel, "the dialog itself has the keyboard, not Close");
+  assert.equal(panel.getAttribute("tabindex"), "-1", "reached by script, never a Tab stop of its own");
+  render(null, root);
+  const src = readFileSync(join(KIT, "overlays.js"), "utf8");
+  assert.match(src, /useFocusTrap\(ref, onClose, size === "full" \? "panel" : ""\)/);
+  assert.match(src, /useFocusTrap\(ref, onClose, "close"\)/, "a drawer still starts on Close");
+  // From the panel the browser's own Tab order goes to the first control; the trap sends Shift+Tab to the last.
+  assert.match(src, /event\.shiftKey && \(now === first \|\| now === panel\)/);
+  assert.match(css("kit/overlays.css"), /\.k-dialog__panel:focus,\s*\.k-drawer__panel:focus \{\s*outline: none;/, "no ring on the panel");
+});
+
 test("T102: Dialog draws its title, the muted line and the head's controls before Close; the foot and the body as before; an unknown size is md", async () => {
   const { Dialog } = await import(pathToFileURL(join(KIT, "overlays.js")).href);
   installDom();

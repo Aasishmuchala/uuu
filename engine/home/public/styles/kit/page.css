@@ -1,5 +1,6 @@
 /* kit/page.js: the page header and titled sections (the C3 mockup's .kind, .name, .lede and .sect).
-   The kind line is 13 px in the second grey above a 28 px title; a lede in the second grey under it; the
+   The kind line is 13 px in the second grey above a 28 px title at 600 (--fw-page, fix round R5); beside the title,
+   when the page gives one, its state as a chip on the title's line; a lede in the second grey under it; the
    actions at the right, on the title's baseline. Where you are is the top bar's, not the header's.
    A section is a 16 px heading with an aside at its right and one 13 px sentence. */
 
@@ -36,12 +37,32 @@
 .k-page-header__title {
   min-width: 0;
   font-size: var(--fs-page);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-page);
   line-height: var(--lh-page);
   letter-spacing: var(--ls-page);
   color: var(--ink);
   text-wrap: balance;
   overflow-wrap: anywhere;
+}
+
+/* The title with its state chip: one line while it fits, the chip centred on the title's first line. */
+.k-page-header__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-3);
+  min-width: 0;
+}
+
+.k-page-header__name > .k-page-header__title {
+  flex: 0 1 auto;
+}
+
+.k-page-header__state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-2);
 }
 
 .k-page-header__title:focus {

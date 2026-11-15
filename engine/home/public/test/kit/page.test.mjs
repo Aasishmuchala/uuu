@@ -3,6 +3,7 @@
 // stylesheet's rules. Split out of kit-a (T01 of PLAN-COOK).
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { KIT, PUBLIC, html, render, installDom, elements, textOf, showTree } from "./_dom.mjs";
@@ -87,9 +88,34 @@ test("PageHeader: the crumbs go to the top bar through setTop, from the chip or 
 test("page: the title is the page size, balanced; the kind line 13 px in the second grey; a section heading is 16 px semibold", () => {
   const p = css("kit/page.css");
   assert.match(p, /\.k-page-header__title \{[^}]*font-size: var\(--fs-page\);[^}]*text-wrap: balance;/);
+  // Fix round R5: 28 px at 600, through a token.
+  assert.match(p, /\.k-page-header__title \{[^}]*font-weight: var\(--fw-page\);/);
+  assert.match(readFileSync(join(PUBLIC, "styles", "tokens.css"), "utf8"), /--fs-page: 28px;[\s\S]*--fw-page: 600;/);
   assert.match(p, /\.k-page-header__over \{[^}]*font-size: var\(--fs-note\);[^}]*color: var\(--ink-2\);/);
   assert.match(p, /\.k-section__title \{[^}]*font-size: var\(--fs-section\);[^}]*font-weight: var\(--fw-bold\);/);
   assert.doesNotMatch(p, /k-page-header__(chip|back|crumb)/, "no chip and no back chip are styled");
+});
+
+test("PageHeader: a state chip beside the title on its line, only when given; the actions keep their place (fix round R5)", async () => {
+  installDom();
+  const cls = (e) => (e.getAttribute("class") || "").split(" ");
+  let root = await showTree(kit.page.PageHeader, { title: "Runway", state: html`<span class="k-tag k-tag--good">On</span>`, actions: html`<button type="button">Test</button>` });
+  let all = elements(root);
+  const name = all.find((e) => cls(e).includes("k-page-header__name"));
+  assert.ok(name, "the title and its state share a line");
+  const h1 = elements(name).find((e) => e.localName === "h1");
+  const state = elements(name).find((e) => cls(e).includes("k-page-header__state"));
+  assert.equal(h1.getAttribute("id"), "page-title");
+  assert.equal(textOf(state), "On");
+  assert.ok(elements(name).indexOf(h1) < elements(name).indexOf(state), "the state follows the title");
+  assert.ok(all.some((e) => cls(e).includes("k-page-header__actions")), "the actions as before");
+  render(null, root);
+  root = await showTree(kit.page.PageHeader, { title: "Tasks" });
+  all = elements(root);
+  assert.ok(!all.some((e) => cls(e).includes("k-page-header__name") || cls(e).includes("k-page-header__state")), "no state, no wrapper: the title stands as before");
+  render(null, root);
+  const p = css("kit/page.css");
+  assert.match(p, /\.k-page-header__name \{[^}]*display: flex;[^}]*align-items: center;/);
 });
 
 primitiveSheetTests("page");
