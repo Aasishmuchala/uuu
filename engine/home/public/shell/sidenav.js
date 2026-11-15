@@ -1,7 +1,8 @@
 // The sidebar (PLAN-COOK T20, decision 8): from 860 px up, the left column of every page. The brand row; Needs
 // you with its count; the places (Map, Tasks, Dashboards, Files, App Studio, Jobs, Routines); "Teams": the
-// brain and the seven departments from shell.dock, each its line icon, a dot while it works and a count when
-// something needs the owner; then, at the foot, Health with the engine's dot, Settings and the theme switch.
+// brain and the seven departments from shell.dock, each its line icon and, at the right, a count when something
+// needs the owner; then, at the foot under a rule, Health, Settings and the theme switch. A dot means one thing
+// only: red, something is wrong there (the engine's Health row); "working" has no dot, the Map shows who works.
 // Two widths: open (names beside the icons) and icons (names hidden, each row says its name in a tooltip).
 // The department creatures are retired from the chrome; the icons are the kit's line icons.
 import { html } from "../vendor/preact-htm.js";
@@ -103,16 +104,19 @@ function systemDark() {
   return typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
-// One row. `label` is its name for a screen reader and its tooltip when the sidebar shows icons only.
-// A team's row keeps its dot and its count in two fixed columns (`ends`), so the marks line up down the list.
-function Go({ href, icon, title, label, current, count, mark, ends, onClick }) {
-  const n = count ? html`<span class="s-go-count u-num" aria-hidden="true">${count > 99 ? "99+" : count}</span>` : null;
+// One row. `label` is its name for a screen reader and its tooltip when the sidebar shows icons only. `count` is a
+// number in the right-hand column; `chip` makes it the kit's chip (Needs you); `mark` is a dot, red only.
+function Go({ href, icon, title, label, current, count, chip, mark, onClick }) {
+  const text = count > 99 ? "99+" : count;
+  const n = count
+    ? chip
+      ? html`<span class="k-tag s-go-count s-go-count--chip u-num" aria-hidden="true">${text}</span>`
+      : html`<span class="s-go-count u-num" aria-hidden="true">${text}</span>`
+    : null;
   const inner = html`
-    <${Icon} name=${icon} size=${20} />
+    <${Icon} name=${icon} size=${18} />
     <span class="s-go-label">${title}</span>
-    ${ends
-      ? html`<span class="s-go-ends">${mark || html`<span></span>`}${n}</span>`
-      : html`${mark || null}${n}`}`;
+    ${mark || null}${n}`;
   if (!href) {
     return html`<button type="button" class="s-go" onClick=${onClick} aria-label=${label} data-tip=${label}>${inner}</button>`;
   }
@@ -135,20 +139,21 @@ export function Sidenav({ mode = "open", routeId, parts, query, shell, dock, set
         <span class="s-brand-mark" aria-hidden="true">${name.slice(0, 1).toUpperCase()}</span>
         <span class="s-brand-name u-truncate" aria-hidden="true">${name}</span>
       </a>
-      <${Go} href="#/needs-you" icon="inbox" title="Needs you" label=${needsLabel(needs)} current=${here === "needs-you"} count=${needs} />
+      <${Go} href="#/needs-you" icon="inbox" title="Needs you" label=${needsLabel(needs)} current=${here === "needs-you"} count=${needs} chip=${true} />
       ${PLACES.map((p) => html`
         <${Go} key=${p.id} href=${p.href} icon=${p.icon} title=${p.title} label=${p.title} current=${here === p.id} />`)}
       <div class="s-side-team">
         <h2 class="s-side-title">Teams</h2>
         ${teamItems(dock).map((t) => html`
           <${Go} key=${t.id} href=${t.href} icon=${t.icon} title=${t.id === "brain" ? "Brain" : t.title} label=${t.label}
-            current=${team === t.id} count=${t.count} ends=${true}
-            mark=${t.live ? html`<span class="s-dot s-dot--good" aria-hidden="true"></span>` : null} />`)}
+            current=${team === t.id} count=${t.count} />`)}
       </div>
       <span class="s-side-gap"></span>
-      <${Go} href="#/health" icon="health" title="Health" label=${dot ? `Health: ${dot.words}` : "Health"} current=${here === "health"} ends=${true}
-        mark=${dot ? html`<span class=${`s-dot s-dot--${dot.tone}`} aria-hidden="true"></span>` : null} />
-      <${Go} href="#/settings" icon="sliders" title="Settings" label="Settings" current=${here === "settings"} />
-      <${Go} icon=${to === "light" ? "sun" : "moon"} title=${themeWords} label=${themeWords} onClick=${() => onSaveSettings && onSaveSettings({ theme: to })} />
+      <div class="s-side-foot">
+        <${Go} href="#/health" icon="health" title="Health" label=${dot ? `Health: ${dot.words}` : "Health"} current=${here === "health"}
+          mark=${dot?.tone === "bad" ? html`<span class="s-dot s-dot--bad" title=${dot.words} aria-hidden="true"></span>` : null} />
+        <${Go} href="#/settings" icon="sliders" title="Settings" label="Settings" current=${here === "settings"} />
+        <${Go} icon=${to === "light" ? "sun" : "moon"} title=${themeWords} label=${themeWords} onClick=${() => onSaveSettings && onSaveSettings({ theme: to })} />
+      </div>
     </nav>`;
 }

@@ -182,62 +182,76 @@
 .s-go.is-current {
   background: var(--sel);
   color: var(--ink);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-bold);
+}
+.s-go.is-current .k-icon {
+  color: var(--ink);
+}
+/* The page in view: the tile above and a 2 px accent bar at the sidebar's own edge. */
+.s-go.is-current::before {
+  content: "";
+  position: absolute;
+  left: calc(-1 * var(--s-2));
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
 }
 .s-go-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Counts sit in one right-hand column: 12 px muted tabular figures, right-aligned to the same edge. */
 .s-go-count {
   margin-left: auto;
   color: var(--ink-2);
-  font-size: var(--fs-note);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
+  line-height: var(--lh-label);
+  font-variant-numeric: tabular-nums;
 }
 .s-go.is-current .s-go-count {
   color: var(--ink);
 }
+/* Needs you: the kit's chip; the accent tint when there is something to do. */
+.s-go-count--chip,
+.s-go.is-current .s-go-count--chip {
+  margin-right: -4px;
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+  font-weight: var(--fw-bold);
+}
 .s-go .s-dot {
   margin-left: auto;
-}
-.s-go-ends {
-  display: grid;
-  grid-template-columns: 7px 20px;
-  align-items: center;
-  justify-items: end;
-  gap: var(--s-2);
-  margin-left: auto;
-}
-.s-go-ends .s-dot,
-.s-go-ends .s-go-count {
-  margin-left: 0;
-}
-.s-go-ends .s-go-count {
-  grid-column: 2;
-}
-/* One signal a row: a count says more than the working dot, so the dot gives way to it (its column stays). */
-.s-go-ends:has(.s-go-count) .s-dot {
-  visibility: hidden;
 }
 .s-side-team {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  margin-top: var(--s-4);
 }
 .s-side-title {
   margin: 0;
-  padding: var(--s-4) 10px 6px;
+  padding: var(--s-2) 10px 6px;
   color: var(--ink-2);
   font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-bold);
   line-height: var(--lh-label);
 }
 .s-side-gap {
   flex: 1 0 var(--s-4);
 }
+.s-side-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line-2);
+}
 
-/* A dot: working, or the engine's state. */
+/* A dot means one thing: red, something is wrong there. */
 .s-dot {
   display: inline-block;
   flex: none;
@@ -274,15 +288,18 @@
 }
 .s-side--icons .s-go {
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   padding: 0;
+}
+.s-side--icons .s-go.is-current::before {
+  left: -10px;
 }
 .s-side--icons .s-go-count,
 .s-side--icons .s-go.is-current .s-go-count {
   position: absolute;
-  top: 1px;
-  right: -2px;
+  top: -3px;
+  right: -5px;
   min-width: 18px;
   height: 16px;
   margin: 0;
@@ -297,13 +314,20 @@
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
-.s-side--icons .s-go-ends {
-  display: contents;
+.s-side--icons .s-go-count--chip,
+.s-side--icons .s-go.is-current .s-go-count--chip {
+  background: var(--accent-fill);
+  color: var(--accent-ink);
+}
+.s-side--icons .s-side-foot {
+  align-items: center;
+  width: 36px;
+  margin: 0 auto;
 }
 .s-side--icons .s-go .s-dot {
   position: absolute;
-  top: 7px;
-  right: 7px;
+  top: 6px;
+  right: 6px;
   margin: 0;
   box-shadow: 0 0 0 2px var(--side);
 }
@@ -574,7 +598,7 @@ a.s-crumbs-link:hover {
 .s-sheet-list--foot {
   margin-top: var(--s-2);
   padding-top: var(--s-2);
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--line-2);
 }
 .s-sheet-title {
   margin: var(--s-3) 0 0;

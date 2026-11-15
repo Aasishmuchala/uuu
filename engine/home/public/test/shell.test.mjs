@@ -581,9 +581,16 @@ test("the sidebar marks the current place", () => {
   assert.equal(textOf(withClass(rows[0], "s-go-count")[0]), "5");
   assert.equal(attr(rows[9], "aria-label"), "Sales, 2 need you");
   assert.equal(attr(rows[9], "data-tip"), "Sales, 2 need you", "the icons-only tooltip says the row's name");
-  assert.equal(withClass(rows[8], "s-dot--good").length, 1, "the brain works");
+  assert.equal(withClass(root, "s-dot--good").length, 0, "no green working dot: the Map shows who works");
+  assert.equal(withClass(rows[0], "k-tag").length, 1, "the count on Needs you is the kit's chip");
+  assert.equal(withClass(rows[9], "k-tag").length, 0, "a team's count is plain muted figures");
   assert.equal(attr(rows[10], "aria-label"), "Health: the books are off");
-  assert.equal(withClass(rows[10], "s-dot--warn").length, 1);
+  assert.equal(withClass(rows[10], "s-dot").length, 0, "a dot is red only: the books being off is in the row's words, not a dot");
+  const sick = show(side.Sidenav, { mode: "open", routeId: "map", shell: { counts: {}, engine: { board: "off" } }, dock: [], settings: {} });
+  const sickDot = withClass(sick, "s-dot--bad");
+  assert.equal(sickDot.length, 1, "the engine off: one red dot on Health");
+  assert.equal(attr(sickDot[0], "title"), "the engine is off", "the dot says why on hover");
+  assert.equal(withClass(root, "s-side-foot").length, 1, "Health, Settings and the theme sit in a foot group");
   assert.equal(attr(rows[12], "aria-label"), "Switch to light");
   assert.equal(textOf(withClass(root, "s-side-title")[0]), "Teams");
   assert.equal(attr(withClass(root, "s-brand")[0], "href"), "#/map");
@@ -605,7 +612,10 @@ test("the sidebar marks the current place", () => {
   assert.match(currentRow, /background: var\(--sel\);/, "the current row is a neutral fill");
   assert.doesNotMatch(currentRow, /box-shadow|outline|border/, "never a ring");
   assert.match(sheet, /\.s-go \.k-icon \{[^}]*color: var\(--ink-2\);/, "icons in the second ink");
-  assert.match(sheet, /\.s-go-ends:has\(\.s-go-count\) \.s-dot \{\s*visibility: hidden;/, "one signal a row");
+  assert.match(sheet, /\.s-go\.is-current::before \{[^}]*width: 2px;[^}]*background: var\(--accent\);/, "the current row has a 2 px accent bar");
+  assert.match(sheet, /\.s-side-foot \{[^}]*border-top: 1px solid var\(--line-2\);/, "the foot group stands under a rule");
+  assert.match(sheet, /\.s-side-title \{[^}]*font-weight: var\(--fw-bold\);/);
+  assert.match(sheet, /\.s-side-team \{[^}]*margin-top: var\(--s-4\);/, "16 px above Teams");
 });
 
 test("the top bar draws the crumbs, the Queue button and the search button", () => {
