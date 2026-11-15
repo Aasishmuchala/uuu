@@ -1,0 +1,36 @@
+/* kit/tile.js: the small landmark at a row's or a card's left (fix round R5). A 28 or 32 px square on an 8 px
+   corner with a line glyph or one or two letters at 12 px 600. Neutral: the raised step, a hairline edge and the
+   second ink. A tint: the tint's ink on its own fill of about 14 percent, no edge (the fill is the edge). Six tints,
+   named and fixed in tokens.css; identity only, never a state. */
+
+.k-tile {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--k-tile-size);
+  height: var(--k-tile-size);
+  border-radius: var(--r-2);
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.k-tile--28 { --k-tile-size: var(--s-7); }
+.k-tile--32 { --k-tile-size: var(--s-8); }
+
+.k-tile__text {
+  white-space: nowrap;
+}
+
+.k-tile--blue { color: var(--tint-blue); background: var(--tint-blue-bg); box-shadow: none; }
+.k-tile--green { color: var(--tint-green); background: var(--tint-green-bg); box-shadow: none; }
+.k-tile--violet { color: var(--tint-violet); background: var(--tint-violet-bg); box-shadow: none; }
+.k-tile--orange { color: var(--tint-orange); background: var(--tint-orange-bg); box-shadow: none; }
+.k-tile--rose { color: var(--tint-rose); background: var(--tint-rose-bg); box-shadow: none; }
+.k-tile--teal { color: var(--tint-teal); background: var(--tint-teal-bg); box-shadow: none; }

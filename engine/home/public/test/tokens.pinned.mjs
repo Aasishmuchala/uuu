@@ -63,13 +63,23 @@ export const THEMED = {
   "--pin": ["#ecc068", "#f0bd4a"],
   "--pin-ink": ["#1d1503", "#1d1503"],
   "--pin-line": ["#ecc068", "#a8740a"],
-  // Compatibility (removed by T90): the six old accents and the checker keep their values.
+  // Fix round R5: six quiet tints for identity on a small tile or an avatar (never a state), each its ink on its own
+  // fill of about 14 percent, at 4.5 to 1 over a card, a panel and the overlay.
+  "--tint-blue": ["#86b6fb", "#1e56d6"],
+  "--tint-blue-bg": ["rgba(134,182,251,.14)", "rgba(30,86,214,.12)"],
+  "--tint-green": ["#6fd99a", "#16703d"],
+  "--tint-green-bg": ["rgba(111,217,154,.14)", "rgba(22,112,61,.12)"],
+  "--tint-violet": ["#b8a4fb", "#6d34d8"],
+  "--tint-violet-bg": ["rgba(184,164,251,.14)", "rgba(109,52,216,.12)"],
+  "--tint-orange": ["#f5a66b", "#a8420e"],
+  "--tint-orange-bg": ["rgba(245,166,107,.14)", "rgba(168,66,14,.12)"],
+  "--tint-rose": ["#f892a4", "#b31440"],
+  "--tint-rose-bg": ["rgba(248,146,164,.14)", "rgba(179,20,64,.12)"],
+  "--tint-teal": ["#5ccfc0", "#0e6c64"],
+  "--tint-teal-bg": ["rgba(92,207,192,.14)", "rgba(14,108,100,.12)"],
+  // Compatibility (removed by T90): the graphite accent and the checker keep their values (the other five old
+  // accents are the tints' aliases, below).
   "--accent-graphite": ["#f2f3f5", "#18181b"],
-  "--accent-blue": ["#60a5fa", "#2563eb"],
-  "--accent-green": ["#4ade80", "#15803d"],
-  "--accent-violet": ["#a78bfa", "#7c3aed"],
-  "--accent-orange": ["#fb923c", "#c2410c"],
-  "--accent-rose": ["#fb7185", "#be123c"],
   "--checker-a": ["#d4d4d8", "#f4f4f5"],
   "--checker-b": ["#b4b4bc", "#e4e4e7"],
   "--avatar-backing": ["#b4b4bc", "#f4f4f5"],
@@ -170,4 +180,10 @@ export const ALIASES = {
   "--r-pill": "var(--r-2)",
   "--sidebar-w": "var(--side-w)",
   "--font-serif": "var(--font-sans)",
+  // Fix round R5: the avatar's five hues are the tiles' tints.
+  "--accent-blue": "var(--tint-blue)",
+  "--accent-green": "var(--tint-green)",
+  "--accent-violet": "var(--tint-violet)",
+  "--accent-orange": "var(--tint-orange)",
+  "--accent-rose": "var(--tint-rose)",
 };

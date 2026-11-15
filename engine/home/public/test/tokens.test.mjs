@@ -20,6 +20,8 @@ const BOOT_JS = readFileSync(join(PUBLIC, "lib", "theme-boot.js"), "utf8");
 const DEPTS = ["operations", "sales", "marketing", "studio", "support", "people", "books", "brain"];
 // The six accents the old picker offered; the attribute is still set by theme-boot.js, and nothing reads it.
 const OLD_ACCENTS = ["graphite", "blue", "green", "violet", "orange", "rose"];
+// The six quiet tints for identity (fix round R5; kit/tile.js names them in the same order).
+const TINTS = ["blue", "green", "violet", "orange", "rose", "teal"];
 
 const ROOT_PINNED = new Set([...Object.keys(THEMED), ...Object.keys(FIXED), ...Object.keys(ALIASES)]);
 const PINNED = new Set([...ROOT_PINNED, "--dept"]);
@@ -360,6 +362,13 @@ for (const [mode, , ways] of MODES) {
         for (const under of ["--card", "--panel", "--raise", "--overlay"]) {
           const ratio = contrast(colourOf(t, fg), over(colourOf(t, tint), colourOf(t, under)));
           assert.ok(ratio >= 4.5, `chip ${fg} on ${tint} over ${under} in ${mode}: ${ratio.toFixed(2)} < 4.5`);
+        }
+      }
+      // The tints (fix round R5): each ink on its own fill, over a card, a panel and the overlay.
+      for (const tint of TINTS) {
+        for (const under of ["--card", "--panel", "--overlay"]) {
+          const ratio = contrast(colourOf(t, `--tint-${tint}`), over(colourOf(t, `--tint-${tint}-bg`), colourOf(t, under)));
+          assert.ok(ratio >= 4.5, `tint ${tint} on its fill over ${under} in ${mode}: ${ratio.toFixed(2)} < 4.5`);
         }
       }
     }

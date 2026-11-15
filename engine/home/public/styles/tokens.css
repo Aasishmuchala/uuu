@@ -72,6 +72,21 @@
   --pin-ink: #1d1503;
   --pin-line: #ecc068;
 
+  /* Six quiet tints for identity (a file's kind, a job's stage, a department) on a small tile or an avatar, never a
+     state: each ink reads at 4.5 to 1 on its own fill over a card, a panel and the overlay (fix round R5). */
+  --tint-blue: #86b6fb;
+  --tint-blue-bg: rgba(134,182,251,.14);
+  --tint-green: #6fd99a;
+  --tint-green-bg: rgba(111,217,154,.14);
+  --tint-violet: #b8a4fb;
+  --tint-violet-bg: rgba(184,164,251,.14);
+  --tint-orange: #f5a66b;
+  --tint-orange-bg: rgba(245,166,107,.14);
+  --tint-rose: #f892a4;
+  --tint-rose-bg: rgba(248,146,164,.14);
+  --tint-teal: #5ccfc0;
+  --tint-teal-bg: rgba(92,207,192,.14);
+
   /* The mockup's own names for three of the steps above, so its rules port as written. */
   --card-2: var(--raise);
   --track: var(--raise-2);
@@ -140,6 +155,19 @@
   --pin: #f0bd4a;
   --pin-ink: #1d1503;
   --pin-line: #a8740a;
+
+  --tint-blue: #1e56d6;
+  --tint-blue-bg: rgba(30,86,214,.12);
+  --tint-green: #16703d;
+  --tint-green-bg: rgba(22,112,61,.12);
+  --tint-violet: #6d34d8;
+  --tint-violet-bg: rgba(109,52,216,.12);
+  --tint-orange: #a8420e;
+  --tint-orange-bg: rgba(168,66,14,.12);
+  --tint-rose: #b31440;
+  --tint-rose-bg: rgba(179,20,64,.12);
+  --tint-teal: #0e6c64;
+  --tint-teal-bg: rgba(14,108,100,.12);
 }
 
 /* Auto, on a Mac set to light: the same values as light. */
@@ -196,6 +224,19 @@
     --pin: #f0bd4a;
     --pin-ink: #1d1503;
     --pin-line: #a8740a;
+
+    --tint-blue: #1e56d6;
+    --tint-blue-bg: rgba(30,86,214,.12);
+    --tint-green: #16703d;
+    --tint-green-bg: rgba(22,112,61,.12);
+    --tint-violet: #6d34d8;
+    --tint-violet-bg: rgba(109,52,216,.12);
+    --tint-orange: #a8420e;
+    --tint-orange-bg: rgba(168,66,14,.12);
+    --tint-rose: #b31440;
+    --tint-rose-bg: rgba(179,20,64,.12);
+    --tint-teal: #0e6c64;
+    --tint-teal-bg: rgba(14,108,100,.12);
   }
 }
 
@@ -348,11 +389,12 @@
   --highlight: var(--shadow-card);
 
   --accent-graphite: #f2f3f5;
-  --accent-blue: #60a5fa;
-  --accent-green: #4ade80;
-  --accent-violet: #a78bfa;
-  --accent-orange: #fb923c;
-  --accent-rose: #fb7185;
+  /* The avatar's five hues are the tiles' tints, so an agent and a tile of the same key share a family. */
+  --accent-blue: var(--tint-blue);
+  --accent-green: var(--tint-green);
+  --accent-violet: var(--tint-violet);
+  --accent-orange: var(--tint-orange);
+  --accent-rose: var(--tint-rose);
   --checker-a: #d4d4d8;
   --checker-b: #b4b4bc;
   --avatar-backing: #b4b4bc;
@@ -360,11 +402,6 @@
 
 :root[data-theme="light"] {
   --accent-graphite: #18181b;
-  --accent-blue: #2563eb;
-  --accent-green: #15803d;
-  --accent-violet: #7c3aed;
-  --accent-orange: #c2410c;
-  --accent-rose: #be123c;
   --checker-a: #f4f4f5;
   --checker-b: #e4e4e7;
   --avatar-backing: #f4f4f5;
@@ -373,11 +410,6 @@
 @media (prefers-color-scheme: light) {
   :root[data-theme="auto"] {
     --accent-graphite: #18181b;
-    --accent-blue: #2563eb;
-    --accent-green: #15803d;
-    --accent-violet: #7c3aed;
-    --accent-orange: #c2410c;
-    --accent-rose: #be123c;
     --checker-a: #f4f4f5;
     --checker-b: #e4e4e7;
     --avatar-backing: #f4f4f5;

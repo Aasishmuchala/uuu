@@ -13,6 +13,8 @@ export * from "./states.js";
 export * from "./overlays.js";
 export * from "./text.js";
 export * from "./page.js";
+// Fix round R5: the small landmark at a row's or a card's left, neutral or one of six quiet tints.
+export * from "./tile.js";
 
 // Composites (CONTRACTS-V2 13.2)
 export * from "./decision.js";

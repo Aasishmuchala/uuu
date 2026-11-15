@@ -14,7 +14,7 @@ const VENDOR = join(PUBLIC, "vendor");
 const ASSETS = join(PUBLIC, "assets");
 const SELF = fileURLToPath(import.meta.url);
 
-const KIT_SHEETS = "button icon avatar status tag card tabs fields states overlays text page decision task-card brief composer conversation table timeline checks doc agent segmented job answer ring forms upload pick shotlist site layout stage strip money diff player".split(" ");
+const KIT_SHEETS = "button icon avatar status tag tile card tabs fields states overlays text page decision task-card brief composer conversation table timeline checks doc agent segmented job answer ring forms upload pick shotlist site layout stage strip money diff player".split(" ");
 const PAGE_SHEETS = "map needs-you tasks task dashboards dashboard marketing studio sprite-player dept team agent jobs job files brain routines health settings search brand-kit apps app studio-film settings-generation settings-web settings-viewer settings-models".split(" ");
 const SHEETS = [
   "./styles/tokens.css",
