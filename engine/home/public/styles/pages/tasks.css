@@ -4,7 +4,9 @@
    the rows on the ground under them, on one left edge. Needs you is the rows' own glyph and words: no outline, no
    tint. The board: columns with a 12 px heading and count, outlined cards, no column fills. Nothing moves at rest.
    Fix round B2 (TB5a): the filters edged at 32 px; the group bars flat, a step off the ground (a tint of the ink,
-   so the step holds on the white pane in light), 8 px corners; a row two lines with the date in its own column. */
+   so the step holds on the white pane in light), 8 px corners; a row two lines with the date in its own column.
+   Fix round R5 (R5-H): a row is one line at about 52 px (glyph, title, then the state's chip, the ID and the date at
+   the right); a second line only for the row's own words; a group's head is its label and count over a hairline. */
 
 .p-tasks {
   display: flex;
@@ -106,8 +108,8 @@
   margin: 0;
 }
 
-/* The group's header: one 36 px line a step off the ground, flat (no edge, no shadow), 8 px corners; the whole line
-   folds and unfolds its rows. Its words start on the rows' glyph edge. */
+/* The group's head: its label and count over a hairline, no filled band; the whole line folds and unfolds its rows.
+   Its words start on the rows' glyph edge. */
 .p-tasks .p-tasks__fold {
   display: flex;
   align-items: center;
@@ -116,8 +118,9 @@
   min-height: var(--h-md);
   padding: 0 var(--s-3);
   border: 0;
-  border-radius: var(--r-2);
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  border-bottom: 1px solid var(--line-2);
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
   color: var(--ink);
   font: inherit;
@@ -130,7 +133,7 @@
 }
 
 .p-tasks .p-tasks__fold:hover {
-  background: color-mix(in srgb, var(--ink) 9%, transparent);
+  background: var(--ctl);
 }
 
 .p-tasks .p-tasks__fold:focus-visible {
@@ -154,10 +157,6 @@
   transform: none;
 }
 
-.p-tasks .p-tasks__group-body {
-  margin-top: var(--s-1);
-}
-
 .p-tasks .p-tasks__rows {
   margin: 0;
   padding: 0;
@@ -172,16 +171,15 @@
   border-top: 1px solid var(--line);
 }
 
-/* A row: the 16 px glyph, the title and its ID over the state's sentence, the date in its own right-hand column.
-   It answers the pointer with the control fill. */
+/* A row: the 16 px glyph, the title, and at the right the state's chip, the ID and the date, each on the title's
+   line; 14 px above and below make one line about 52 px. It answers the pointer with the control fill. */
 .p-tasks .p-tasks__line {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
   align-items: start;
   column-gap: var(--s-3);
-  min-height: 56px;
-  padding: 9px var(--s-3);
-  border-radius: var(--r-2);
+  min-height: 52px;
+  padding: 14px var(--s-3);
   color: var(--ink);
   text-decoration: none;
   transition: background-color var(--t-fast) var(--ease);
@@ -196,10 +194,11 @@
   outline-offset: -2px;
 }
 
-/* The glyph is grey unless the state asks for the eye: waiting for the owner, working, finished, failed. */
+/* The glyph is in the third ink; the warn tone only on a row that is stuck. */
 .p-tasks .p-tasks__mark {
   display: inline-flex;
-  padding-top: 2px;
+  align-items: center;
+  height: 24px;
   color: var(--ink-3);
 }
 
@@ -208,21 +207,11 @@
 }
 
 .p-tasks .p-tasks__mark--warn { color: var(--warn); }
-.p-tasks .p-tasks__mark--info { color: var(--accent); }
-.p-tasks .p-tasks__mark--good { color: var(--good); }
-.p-tasks .p-tasks__mark--bad { color: var(--bad); }
 
 .p-tasks .p-tasks__main {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 0;
-}
-
-.p-tasks .p-tasks__top {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-2);
   min-width: 0;
 }
 
@@ -233,25 +222,10 @@
   white-space: nowrap;
   font-size: var(--fs-body);
   font-weight: var(--fw-medium);
-  line-height: var(--lh-ui);
+  line-height: 24px;
 }
 
-/* The ID: 12 px in the mono face and the third ink, quietly after the title. */
-.p-tasks .p-tasks__id {
-  flex: none;
-  display: inline-flex;
-}
-
-.p-tasks .p-tasks__id .k-mono {
-  padding: 0;
-  background: none;
-  color: var(--ink-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
-}
-
-/* The state's sentence: one 13 px line in the second ink, cut with an ellipsis. */
+/* The row's own words: one 13 px line in the second ink, cut with an ellipsis. */
 .p-tasks .p-tasks__say {
   min-width: 0;
   overflow: hidden;
@@ -262,10 +236,41 @@
   line-height: var(--lh-note);
 }
 
-/* The date: 12 px in the third ink and tabular figures, on the title's line, every row's ending on one edge. */
+/* The right-hand group on the title's line: the chip, then the ID and the date in fixed columns, so every row's ID
+   and date stand on one edge. */
+.p-tasks .p-tasks__meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-3);
+  min-height: 24px;
+}
+
+.p-tasks .p-tasks__chip {
+  display: inline-flex;
+}
+
+/* The ID: 12 px in the mono face and the third ink. */
+.p-tasks .p-tasks__id {
+  flex: none;
+  display: inline-flex;
+  width: 52px;
+}
+
+.p-tasks .p-tasks__id .k-mono {
+  padding: 0;
+  background: none;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The date: 12 px in the third ink and tabular figures. */
 .p-tasks .p-tasks__when {
-  min-width: 104px;
-  padding-top: 2px;
+  flex: none;
+  min-width: 80px;
   color: var(--ink-3);
   font-size: var(--fs-label);
   line-height: var(--lh-label);
@@ -428,34 +433,40 @@
     min-height: 44px;
   }
 
-  /* A row on a phone: the title on up to two lines, the date a narrow column at the right of its first line. */
+  /* A row on a phone: the title on up to two lines, then the chip, the ID and the date on a line of their own. */
   .p-tasks .p-tasks__line {
+    grid-template-columns: 16px minmax(0, 1fr);
+    row-gap: var(--s-1);
     min-height: 44px;
-    padding: var(--s-2) var(--s-2);
+    padding: var(--s-3) var(--s-2);
   }
 
-  .p-tasks .p-tasks__top {
+  .p-tasks .p-tasks__title {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     line-clamp: 2;
-    overflow: hidden;
+    white-space: normal;
+    line-height: var(--lh-ui);
   }
 
-  .p-tasks .p-tasks__title {
-    display: inline;
-    overflow: visible;
-    white-space: normal;
+  .p-tasks .p-tasks__mark {
+    height: var(--lh-ui);
+  }
+
+  .p-tasks .p-tasks__meta {
+    grid-column: 2;
+    justify-content: flex-start;
+    gap: var(--s-2);
   }
 
   .p-tasks .p-tasks__id {
-    display: inline;
-    margin-left: var(--s-2);
-    white-space: nowrap;
+    width: auto;
   }
 
   .p-tasks .p-tasks__when {
     min-width: 0;
+    margin-left: auto;
   }
 
   .p-tasks .p-tasks__actions {

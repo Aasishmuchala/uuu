@@ -9,6 +9,11 @@
 // with its ID, the state's sentence under it, and the date in a right-hand column, relative while it is recent. The
 // group bars are flat, a step off the ground; the filters edged and 32 px. The page stands on the white pane in light
 // (k-page--plain, styles/shell.css).
+// Fix round R5 (R5-H): a row is one line at about 52 px: the state's glyph in the third ink (the warn tone only on a
+// row that is stuck), the title, then at the right the state as a small chip (the row's own words shortened by the
+// pinned table CHIP_WORDS, left out where it only repeats its group's name), the ID and the date. The whole state
+// sentence stays the row's spoken words and its hover. A second line only for words of the row's own (an answer, a
+// result's sentence). A group's head is its label and count over a hairline, no filled band.
 import { html, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
@@ -26,6 +31,7 @@ import {
   Mono,
   Segmented,
   StateIcon,
+  Tag,
   TaskCard,
   rowLine,
   taskHref,
@@ -245,16 +251,77 @@ export function chipLinks(options, current, make) {
   return (Array.isArray(options) ? options : []).map((o) => ({ ...o, href: make(o.value), current: o.value === (current || "") }));
 }
 
-// A row's glyph: its column's own shape, and a tone only when the state asks for the eye: waiting for the owner
-// warn, working info, finished good, failed bad; every other state neutral. `word` is for screen readers. Pure.
+// A row's glyph: its column's own shape, in the third ink; the warn tone only on a row that is stuck ("Stuck, needs
+// you"), so amber marks the rows that differ from their neighbours and never every row of a group (R5-H). `word` is
+// the state in words, for screen readers. Pure.
 const COLUMN_WORDS = { backlog: "Backlog", in_progress: "In progress", pending_review: "Pending review", done: "Done", failed: "Failed", canceled: "Canceled" };
+const STUCK = "Stuck, needs you";
 export function glyphOf(task) {
   const t = task && typeof task === "object" ? task : {};
   const column = COLUMN_IDS.includes(t.column) ? t.column : "backlog";
-  if (t.waitingForYou === true) return { column, tone: "warn", word: "Waiting for you" };
-  if (t.live === true) return { column: "in_progress", tone: "info", word: "Working" };
-  const word = text(t.plainState) || COLUMN_WORDS[column];
-  return { column, tone: column === "done" ? "good" : column === "failed" ? "bad" : "", word };
+  const tone = text(t.plainState) === STUCK ? "warn" : "";
+  if (t.live === true) return { column: "in_progress", tone, word: "Working" };
+  if (t.waitingForYou === true && !tone) return { column, tone, word: "Waiting for you" };
+  return { column, tone, word: text(t.plainState) || COLUMN_WORDS[column] };
+}
+
+// The short state chip, made from the words the row already has: the pinned table below, read in order (stuck first,
+// then working, then the plain state, then waiting for the owner, then the board column's own word). Nothing is
+// invented: every chip is a word or two of the sentence it stands for.
+export const CHIP_WORDS = {
+  "Stuck, needs you": "Stuck",
+  Working: "Working",
+  "Being worked on": "Working",
+  "Being checked": "Checking",
+  "Waiting to start": "Waiting",
+  "Waiting its turn": "Waiting",
+  Finished: "Finished",
+  Stopped: "Stopped",
+  "Waiting for you": "Needs you",
+  Backlog: "Backlog",
+  "In progress": "In progress",
+  "Pending review": "Review",
+  Done: "Done",
+  Failed: "Failed",
+  Canceled: "Canceled",
+};
+// A group's own name as a chip says it: a row's chip equal to it is left out (the group's head already says it).
+export const GROUP_CHIP = { "needs-you": "Needs you", working: "Working", waiting: "Waiting", finished: "Finished", stopped: "Stopped" };
+
+// The whole state sentence of a row, without its outcome: the job, waiting for the owner or working when the row's
+// own words do not say it already, then the stage, the round and the state ("Brief: waiting for you · Stuck, needs
+// you"). It is the row's spoken words and its hover. Pure.
+export function stateSentence(task) {
+  const t = forRow(task);
+  if (!t || typeof t !== "object") return "";
+  const jobTitle = t.job && t.job.title ? text(t.job.title) : "";
+  const job = jobTitle && !text(t.title).toLowerCase().startsWith(jobTitle.toLowerCase()) ? jobTitle : "";
+  const rest = rowLine({ ...t, outcome: null }, "waiting");
+  const waiting = t.waitingForYou === true && !/waiting for you|needs you/i.test(rest) ? "Waiting for you" : "";
+  const working = t.live === true && !/\bworking\b|being worked on/i.test(rest) ? "Working" : "";
+  return [job, waiting, working, rest].filter(Boolean).join(" · ");
+}
+
+// The chip's word for a row, by the pinned table; "" when the row has no state words at all. Pure.
+export function chipOf(task) {
+  const t = task && typeof task === "object" ? task : {};
+  const plain = text(t.plainState);
+  const column = COLUMN_IDS.includes(t.column) ? t.column : "";
+  if (plain === STUCK) return CHIP_WORDS[STUCK];
+  if (t.live === true) return CHIP_WORDS.Working;
+  if (Object.hasOwn(CHIP_WORDS, plain)) return CHIP_WORDS[plain];
+  if (t.waitingForYou === true) return CHIP_WORDS["Waiting for you"];
+  return column ? CHIP_WORDS[COLUMN_WORDS[column]] : "";
+}
+
+// A row's second line: only words of its own, an answer or a result's sentence (the job's name before it when the
+// title does not start with it). "" for a row whose state words are all it has. Pure.
+export function ownWords(task) {
+  const t = forRow(task);
+  if (!t || typeof t !== "object" || !text(t.outcome).trim()) return "";
+  const jobTitle = t.job && t.job.title ? text(t.job.title) : "";
+  const job = jobTitle && !text(t.title).toLowerCase().startsWith(jobTitle.toLowerCase()) ? jobTitle : "";
+  return [job, rowLine({ ...t, live: false, waitingForYou: false })].filter(Boolean).join(" · ");
 }
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -281,31 +348,34 @@ export function rowWhen(iso, now = new Date()) {
   return when(iso, now);
 }
 
-// One task on the list: the glyph, the title (14 px 500) with its ID, the state's sentence on a second line, the
-// date at the right. The job's name is left out when the title already starts with it. With `quiet` "waiting" (under
-// Needs you) the sentence does not repeat "Waiting for you". The department and the agent are named for screen
-// readers only.
-function Line({ task, quiet }) {
+// One task on the list: the glyph, the title (14 px 500), then at the right the state's chip, the ID and the date;
+// under the title only the row's own words (an answer, a result's sentence). The whole state sentence is the row's
+// spoken words and its hover. Under a group the chip is left out when it only says the group's name. The
+// department and the agent are named for screen readers only.
+function Line({ task, group }) {
   if (!task) return null;
   const g = glyphOf(task);
-  const jobTitle = task.job && task.job.title ? text(task.job.title) : "";
-  const job = jobTitle && !text(task.title).toLowerCase().startsWith(jobTitle.toLowerCase()) ? jobTitle : "";
-  const say = [job, rowLine(task, quiet)].filter(Boolean).join(" · ");
+  const sentence = stateSentence(task);
+  const own = ownWords(task);
+  const chip = chipOf(task);
+  const showChip = chip && chip !== GROUP_CHIP[group] ? chip : "";
   const date = task.updatedAt || task.since || task.createdAt;
   const dept = typeof task.department === "string" ? DEPARTMENTS.find((x) => x.id === task.department) : null;
   const who = task.who && task.who.name ? text(task.who.name) : "";
-  return html`<a class="p-tasks__line" href=${taskHref(task)}>
-    <span class=${`p-tasks__mark${g.tone ? ` p-tasks__mark--${g.tone}` : ""}`}><${StateIcon} column=${g.column} label="" /><span class="k-sr">${g.word}.</span></span>
+  return html`<a class=${`p-tasks__line${own ? " p-tasks__line--two" : ""}`} href=${taskHref(task)} title=${sentence || undefined}>
+    <span class=${`p-tasks__mark${g.tone ? ` p-tasks__mark--${g.tone}` : ""}`} aria-hidden="true"><${StateIcon} column=${g.column} label="" /></span>
     <span class="p-tasks__main">
-      <span class="p-tasks__top">
-        <span class="p-tasks__title">${text(task.title)}</span>
-        ${task.identifier && html`<span class="p-tasks__id"><${Mono}>${text(task.identifier)}<//></span>`}
-      </span>
-      ${say && html`<span class="p-tasks__say">${say}</span>`}
+      <span class="p-tasks__title">${text(task.title)}</span>
+      ${sentence && html`<span class="k-sr">. ${sentence}.</span>`}
+      ${own && html`<span class="p-tasks__say">${own}</span>`}
       ${dept && html`<span class="k-sr">${dept.title}.</span>`}
       ${who && html`<span class="k-sr">${who}.</span>`}
     </span>
-    ${date && html`<time class="p-tasks__when" datetime=${text(date)} title=${fullWhen(date)}>${rowWhen(date)}</time>`}
+    <span class="p-tasks__meta">
+      ${showChip && html`<span class="p-tasks__chip" aria-hidden="true"><${Tag}>${showChip}<//></span>`}
+      ${task.identifier && html`<span class="p-tasks__id"><${Mono}>${text(task.identifier)}<//></span>`}
+      ${date && html`<time class="p-tasks__when" datetime=${text(date)} title=${fullWhen(date)}>${rowWhen(date)}</time>`}
+    </span>
   </a>`;
 }
 
@@ -335,7 +405,7 @@ function Board({ columns }) {
   </div>`;
 }
 
-// A group: one header on the raised step (its name, its count, the fold arrow), then its rows on the ground.
+// A group: its head is the label and count over a hairline (the whole line folds), then its rows on the ground.
 function Group({ g, open, onFold }) {
   const head = `p-tasks-group-${g.id}`;
   const rows = `p-tasks-rows-${g.id}`;
@@ -349,7 +419,7 @@ function Group({ g, open, onFold }) {
     </h2>
     <div id=${rows} class="p-tasks__group-body" hidden=${!open}>
       <ul class="p-tasks__rows">
-        ${g.tasks.map((t) => html`<li key=${text(t.id || t.identifier)} class="p-tasks__row"><${Line} task=${forRow(t)} quiet=${g.id === "needs-you" ? "waiting" : undefined} /></li>`)}
+        ${g.tasks.map((t) => html`<li key=${text(t.id || t.identifier)} class="p-tasks__row"><${Line} task=${forRow(t)} group=${g.id} /></li>`)}
       </ul>
       ${olderLine(g.older)}
     </div>

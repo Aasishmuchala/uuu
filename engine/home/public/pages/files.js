@@ -10,6 +10,9 @@
 // Every name and every word of a file is shown as text, never as HTML. A picture is shown only from its own raw address.
 // A text or table file can be marked as fine to share with the Researcher (PLAN-V5 K10, T35): the switch sits in the
 // file's rail, and `?shared=1` lists what the Researcher can read.
+// Fix round R5 (R5-H): a row's tile is the kit's Tile in the quiet tint the kit gives the file's kind (identity, never
+// a state); the size short ("250 B") and the time in one right-hand group that follows the names (the card as wide as
+// its rows, at most 760 px), so no band opens in the middle of a row; a place's count stands beside its name.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { go } from "../lib/router.js";
@@ -17,7 +20,7 @@ import { bytes, count, fullWhen, when } from "../lib/format.js";
 import { useApp } from "../lib/context.js";
 import {
   BeingBuilt, Blk, Button, DataTable, Dialog, DocLayout, DocView, Empty, ErrorNotice, Field, Group, Icon, Loading,
-  Card, FILE_ICONS, fileKind, Menu, PageHeader, Row, Rows, Segmented, Select, Switch, Tag, TextInput, Time,
+  Card, FILE_ICONS, fileKind, Menu, PageHeader, Row, Rows, Segmented, Select, Switch, Tag, TextInput, Tile, Time, tintFor,
 } from "../kit/index.js";
 
 const EVERY = 10000;
@@ -130,6 +133,17 @@ const ICONS = { text: "file", table: "list", image: "image", pdf: "file" };
 
 // The kit's glyph for a file, from its name's ending (the same glyphs a task's files carry).
 export const glyphOf = (file) => FILE_ICONS[fileKind(str(file && file.name))] || FILE_ICONS.file;
+
+// A file's size, short, for a row or a card: "250 B" under a kilobyte, else as the kit writes it ("1.2 KB"). The
+// number is the server's; only the unit's word is shortened. Pure.
+export function sizeShort(n) {
+  const v = Number(n) || 0;
+  return v < 1024 ? `${v} B` : bytes(v);
+}
+
+// The tint of a file's tile: the kit's tint for its kind (from the name's ending; a picture is a picture), the same
+// tint for the same kind everywhere. Pure.
+export const tintOf = (file) => tintFor(file && file.kind === "image" ? "picture" : fileKind(str(file && file.name)));
 
 // How long ago, for a row's time column: "just now", "12 min ago", "3 h ago", "yesterday", "4 days ago", then the
 // date as the kit writes it. "" for no time. The full time stays on the element's title.
@@ -598,7 +612,7 @@ function FileView({ token, folders, formHref, onMoved, onDeleted, onName }) {
 // Lists
 
 // The one grey fact of a card: its kind and size.
-const factOf = (file) => `${kindLabel(file.kind)} · ${bytes(file.size)}`;
+const factOf = (file) => `${kindLabel(file.kind)} · ${sizeShort(file.size)}`;
 
 // A time as "3 h ago", the full time on hover and for a screen reader's own reading of the element.
 function Ago({ at }) {
@@ -607,8 +621,8 @@ function Ago({ at }) {
   return html`<time class="p-files__ago" datetime=${new Date(at).toISOString()} title=${fullWhen(at)}>${text}</time>`;
 }
 
-// The 28 px tile with the kit's glyph for the file's kind.
-const Glyph = ({ name }) => html`<span class="p-files__row-icon" aria-hidden="true"><${Icon} name=${name} size=${16} /></span>`;
+// The kit's 28 px Tile with its glyph for the file's kind, in the tint for that kind.
+const Glyph = ({ name, tint }) => html`<span class="p-files__row-icon" aria-hidden="true"><${Tile} icon=${name} tint=${tint || "neutral"} /></span>`;
 
 function FileItem({ file, folder, grid, shared, brain }) {
   const name = cut(file.name, NAME_MAX);
@@ -632,12 +646,12 @@ function FileItem({ file, folder, grid, shared, brain }) {
   const line = rowLine(file, brain, { inFolder: Boolean(folder) });
   return html`<li class="p-files__row">
     <a class="p-files__row-link" href=${href}>
-      <${Glyph} name=${glyphOf(file)} />
+      <${Glyph} name=${glyphOf(file)} tint=${tintOf(file)} />
       <span class="p-files__row-words">
         <span class="p-files__row-name" title=${name}>${name}</span>
         ${line ? html`<span class="p-files__row-line">${line}</span>` : null}
       </span>
-      <span class="p-files__row-size">${bytes(file.size)}</span>
+      <span class="p-files__row-size">${sizeShort(file.size)}</span>
       <span class="p-files__row-date"><${Ago} at=${at} /></span>
     </a>
   </li>`;
@@ -673,7 +687,7 @@ function SearchResults({ term, folder }) {
       <ul class="p-files__rows p-files__results">
         ${results.map((r) => html`<li key=${r.token} class="p-files__row">
           <a class="p-files__row-link p-files__result" href=${filesHref({ folder, q: term, file: r.token })}>
-            <${Glyph} name=${glyphOf(r)} />
+            <${Glyph} name=${glyphOf(r)} tint=${tintOf(r)} />
             <span class="p-files__result-words">
               <span class="p-files__row-name">${cut(r.name, NAME_MAX)}</span>
               ${r.snippet ? html`<span class="p-files__result-snippet">${cut(r.snippet, SNIPPET_MAX)}</span>` : null}
@@ -746,12 +760,12 @@ function SharedView() {
       <ul class="p-files__rows">
         ${files.map((f) => {
           const href = sharedHref(f);
-          const inner = html`<${Glyph} name=${f.source === "brand-kit" ? "spark" : glyphOf(f)} />
+          const inner = html`<${Glyph} name=${f.source === "brand-kit" ? "spark" : glyphOf(f)} tint=${f.source === "brand-kit" ? "neutral" : tintOf(f)} />
             <span class="p-files__row-words">
               <span class="p-files__row-name" title=${cut(f.title || f.name, NAME_MAX)}>${cut(f.title || f.name, NAME_MAX)}</span>
               <span class="p-files__row-line">${SOURCE_WORDS[f.source]}</span>
             </span>
-            <span class="p-files__row-size">${bytes(f.size)}</span>
+            <span class="p-files__row-size">${sizeShort(f.size)}</span>
             <span class="p-files__row-date"></span>`;
           return html`<li key=${f.name} class="p-files__row">
             ${href
@@ -860,7 +874,7 @@ export default function Page({ route }) {
 // A place's count is shown only when it says something: an empty place shows none.
 export const shownCount = (p) => Boolean(p) && Number.isFinite(p.count) && p.count > 0;
 
-// The label of a place in the list: its name, and its count in muted tabular figures at the right.
+// The label of a place in the list: its name, and its count beside it in muted tabular figures.
 function placeLabel(p) {
   return html`<span class="p-files__place">
     <span class="p-files__place-name">${p.label}</span>

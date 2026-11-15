@@ -79,3 +79,9 @@ test("each card wears its department's line icon and no creature or department c
   const css = readFileSync(new URL("../../styles/pages/dashboards.css", import.meta.url), "utf8");
   assert.doesNotMatch(css, /--dept\b|--font-serif/);
 });
+
+test("dashboards: a card's icon stands in the kit's Tile, in the tint of its department (R5-H)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../../pages/dashboards.js", import.meta.url), "utf8");
+  assert.match(src, /<\$\{Tile\} icon=\$\{d\.icon\} tint=\$\{tintFor\(d\.dept\)\} size=\$\{32\} \/>/);
+});

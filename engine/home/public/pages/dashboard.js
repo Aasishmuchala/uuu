@@ -5,13 +5,16 @@
 // columns as wide as their content. Drafts waiting for the owner stay as rows and open in Needs you; money that came
 // in or is owed to you is in the good ink, what failed or is late in the bad. Every value is shown as the books send
 // it. Then what is being worked on, jobs to start, the switches that are off, and the department's link.
+// Fix round R5 (R5-H): a column in which every row of its table says the same thing is not drawn, and its fact is
+// said once in the section's head line ("Made by: Bookkeeper"); a document's type is a chip in the kit's quiet tint
+// for that type (tintFor); a table's section is as wide as its columns, so no band opens between two of them.
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { HealthNext } from "./team.js";
 import {
   AgentChip, Avatar, Button, Card, DataTable, ErrorNotice, Icon, JobRow, Live, Loading, Menu, NotConnected, PageHeader, Row,
-  Rows, Section, St, StatusDot, Tag, Waiting,
+  Rows, Section, St, StatusDot, Tag, tintFor, Waiting,
 } from "../kit/index.js";
 
 const TITLES = { books: "Books", customers: "Customers", support: "Support", people: "People" };
@@ -191,8 +194,8 @@ export function partyKey(section) {
 
 // The columns of a section as the dashboard draws them, in the order a ledger is read: the row's number, the
 // party, other words, the state, dates and counts, then money. Each keeps its key, label and values; a column is
-// marked `fit` (as wide as its content) unless it is the one that takes the room left (the party, else the column
-// with the longest words) or its words are long enough to wrap. Pure.
+// marked `fit` (as wide as its content, the room left shared evenly among them) unless its words are long enough to
+// wrap, so no one column takes all the room and opens a band in the middle of the table (R5-H). Pure.
 export function ledgerColumns(section) {
   const columns = (Array.isArray(section?.columns) ? section.columns : []).filter((c) => c && c.key !== undefined);
   const rows = Array.isArray(section?.rows) ? section.rows : [];
@@ -210,9 +213,30 @@ export function ledgerColumns(section) {
     return 2;
   };
   const ranked = columns.map((c, i) => ({ c, i, r: rank(c, i) })).sort((a, b) => a.r - b.r || a.i - b.i);
-  const words = ranked.filter((x) => x.r < 3);
-  const grow = party || (words.length ? words.reduce((a, b) => (longest(b.c) > longest(a.c) ? b : a)).c.key : null);
-  return ranked.map(({ c }) => ({ ...c, fit: c.key !== grow && longest(c) <= FIT_MAX }));
+  return ranked.map(({ c }) => ({ ...c, fit: longest(c) <= FIT_MAX }));
+}
+
+// The columns of a section in which every row says the same thing (two rows or more): each is left out of the table
+// and said once in the section's head line, as { key, label, value } with the value as the books send it. Never the
+// row's number (the first column) or money. Pure.
+export function sameColumns(section) {
+  const columns = (Array.isArray(section?.columns) ? section.columns : []).filter((c) => c && c.key !== undefined);
+  const rows = (Array.isArray(section?.rows) ? section.rows : []).filter((r) => r && typeof r === "object");
+  if (rows.length < 2) return [];
+  const out = [];
+  columns.forEach((c, i) => {
+    if (i === 0) return;
+    const values = rows.map((r) => String(r[c.key] ?? "").replace(/\s+/g, " ").trim());
+    if (!values[0] || values.some((v) => v !== values[0])) return;
+    if (values.some((v) => moneyParts(v))) return;
+    out.push({ key: c.key, label: String(c.label ?? c.key), value: values[0].slice(0, TEXT_MAX) });
+  });
+  return out;
+}
+
+// The section's head line for the columns left out: "Made by: Bookkeeper · Valid until: 16 Dec 2026". Pure.
+export function sameLine(same) {
+  return (Array.isArray(same) ? same : []).map((c) => `${c.label}: ${c.value}`).join(" · ");
 }
 
 // The filters of the address: ?s=<list id>&st=<status, in small letters>. Pure.
@@ -285,23 +309,31 @@ function Party({ value }) {
   return html`<span class="p-dashboard-party"><${Avatar} name=${String(value)} size=${24} /><span class="p-dashboard-party-name">${text(value)}</span></span>`;
 }
 
+// A document's type ("invoice", "bill"): the kit's chip in the quiet tint the kit gives that word, the same tint for
+// the same type on every page; identity, never a state.
+function Kind({ value }) {
+  const word = text(value);
+  return html`<span class="p-dashboard-kind" data-tint=${tintFor(word.toLowerCase())}><${Tag}>${word}<//></span>`;
+}
+
 // The cells of one section's table.
 const cellsFor = (section) => {
   const party = partyKey(section);
   const owed = OWED_SECTIONS.includes(section?.id);
   return (row, col) => {
     if (CHIP_KEYS.includes(col.key) || col.key === STATUS_KEY) return html`<${StatusWords} value=${row[col.key]} />`;
-    if (KIND_KEYS.includes(col.key) && String(row[col.key] ?? "").trim()) return html`<${Tag}>${text(row[col.key])}<//>`;
+    if (KIND_KEYS.includes(col.key) && String(row[col.key] ?? "").trim()) return html`<${Kind} value=${row[col.key]} />`;
     if (col.key === party) return html`<${Party} value=${row[col.key]} />`;
     if (moneyParts(row[col.key])) return html`<${Amount} value=${row[col.key]} failed=${rowFailed(row)} cameIn=${rowCameIn(row) || owed} />`;
     return undefined;
   };
 };
 
-// One section's table on a card.
-function Ledger({ section, emptyText }) {
+// One section's table on a card, without the columns every row says the same of (`same`, said in the head line).
+function Ledger({ section, emptyText, same = [] }) {
+  const out = new Set(same.map((c) => c.key));
   return html`<${Card} padding="none" class="p-dashboard-sheet">
-    <${DataTable} columns=${ledgerColumns(section)} rows=${section.rows || []} emptyText=${emptyText} renderCell=${cellsFor(section)} />
+    <${DataTable} columns=${ledgerColumns(section).filter((c) => !out.has(c.key))} rows=${section.rows || []} emptyText=${emptyText} renderCell=${cellsFor(section)} />
   <//>`;
 }
 
@@ -394,10 +426,11 @@ function Bar({ id, f, lists, statuses }) {
 // Drafts waiting for the owner: rows as the server words them, and the way into Needs you.
 function DraftSection({ section, dept }) {
   const rows = section.rows || [];
+  const same = sameColumns(section);
   return html`
-    <${Section} title=${section.title || "Drafts waiting for you"} count=${rows.length}
+    <${Section} title=${section.title || "Drafts waiting for you"} count=${rows.length} hint=${sameLine(same) || undefined}
       aside=${rows.length ? html`<${QueueLink} dept=${dept} />` : null}>
-      <${Ledger} section=${section} emptyText=${section.emptyText || "Nothing waiting."} />
+      <${Ledger} section=${section} same=${same} emptyText=${section.emptyText || "Nothing waiting."} />
     <//>`;
 }
 
@@ -437,13 +470,14 @@ export default function DashboardPage({ route }) {
         ${drafts.map((s) => html`<${DraftSection} key=${s.id} section=${s} dept=${dept} />`)}
         ${shown.map((s) => {
           const waiting = waitingItems(s, inbox.data);
+          const same = sameColumns(s);
           return html`
-            <${Section} key=${s.id} title=${s.title} count=${(s.rows || []).length}
+            <${Section} key=${s.id} title=${s.title} count=${(s.rows || []).length} hint=${sameLine(same) || undefined}
               aside=${waiting.length ? html`<${QueueLink} dept=${dept} />` : null}>
               ${waiting.length ? html`<p class="p-dashboard-waits">
                 <${St} icon="inbox">${waiting.length === 1 ? DASHBOARD_WORDS.waitsOne : DASHBOARD_WORDS.waitsMany(waiting.length)}<//>
               </p>` : null}
-              <${Ledger} section=${s} emptyText=${f.st ? DASHBOARD_WORDS.noRows : s.emptyText || "Nothing here yet."} />
+              <${Ledger} section=${s} same=${same} emptyText=${f.st ? DASHBOARD_WORDS.noRows : s.emptyText || "Nothing here yet."} />
             <//>`;
         })}
         ${!filtered && (d.inFlight || []).length ? html`

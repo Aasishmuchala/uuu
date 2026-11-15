@@ -210,7 +210,7 @@ test("a ledger on cards (round B2): the small part split, never rounded; the par
   assert.equal(partyKey(unpaid), "party");
   const out = ledgerColumns(unpaid);
   assert.deepEqual(out.map((c) => c.label), ["Number", "Customer", "Status", "Due", "Amount left"]);
-  assert.deepEqual(out.map((c) => c.fit), [true, false, true, true, true]);
+  assert.deepEqual(out.map((c) => c.fit), [true, true, true, true, true], "no column takes all the room (R5-H)");
   const drafts = { id: "drafts", columns: cols([["name", "Number"], ["type", "Type"], ["party", "Party"], ["amount", "Amount"], ["madeBy", "Made by"]]),
     rows: [{ name: "A-1", type: "invoice", party: "Acme Interiors", amount: "₹ 11,800.00", madeBy: "Bookkeeper" }] };
   assert.deepEqual(ledgerColumns(drafts).map((c) => c.key), ["name", "party", "type", "madeBy", "amount"]);
@@ -227,4 +227,33 @@ test("a ledger on cards (round B2): the small part split, never rounded; the par
   assert.match(src, /<\$\{Button\} variant="ghost" size="sm" icon="inbox" class="p-dashboard-queue"/, "the way into Needs you is a small ghost");
   const css = readFileSync(new URL("../../styles/pages/dashboard.css", import.meta.url), "utf8");
   assert.match(css, /\.p-dashboard-cents \{ font-size: max\(0\.75em, var\(--fs-label\)\); \}/);
+});
+
+test("a column in which every row says the same thing is left out and said once in the section's head line (R5-H)", async () => {
+  const { sameColumns, sameLine } = await import("../../pages/dashboard.js");
+  const cols = (pairs) => pairs.map(([key, label]) => ({ key, label }));
+  const drafts = { id: "drafts", columns: cols([["name", "Number"], ["type", "Type"], ["party", "Party"], ["amount", "Amount"], ["madeBy", "Made by"]]),
+    rows: [
+      { name: "A-1", type: "invoice", party: "Acme Interiors", amount: "₹ 11,800.00", madeBy: "Bookkeeper" },
+      { name: "A-2", type: "bill", party: "Timber Supply Co", amount: "₹ 11,800.00", madeBy: "Bookkeeper" },
+    ] };
+  assert.deepEqual(sameColumns(drafts), [{ key: "madeBy", label: "Made by", value: "Bookkeeper" }], "money and the number are never left out");
+  assert.equal(sameLine(sameColumns(drafts)), "Made by: Bookkeeper");
+  const quotes = { id: "quotations", columns: cols([["name", "Number"], ["party", "Customer"], ["valid", "Valid until"], ["status", "Status"]]),
+    rows: [{ name: "Q-1", party: "Asha Kitchens", valid: "16 Dec 2026", status: "Draft" }, { name: "Q-2", party: "Acme Interiors", valid: "16 Dec 2026", status: "Final" }] };
+  assert.equal(sameLine(sameColumns(quotes)), "Valid until: 16 Dec 2026", "the value as the books send it");
+  assert.deepEqual(sameColumns({ ...drafts, rows: drafts.rows.slice(0, 1) }), [], "one row says nothing about its column");
+  assert.deepEqual(sameColumns({ ...drafts, rows: [{ ...drafts.rows[0], madeBy: "" }, { ...drafts.rows[1], madeBy: "" }] }), [], "an empty column is not a fact");
+  assert.deepEqual(sameColumns(null), []);
+  assert.equal(sameLine([]), "");
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../../pages/dashboard.js", import.meta.url), "utf8");
+  assert.match(src, /hint=\$\{sameLine\(same\) \|\| undefined\}/, "the fact in the section's head line");
+  assert.match(src, /columns=\$\{ledgerColumns\(section\)\.filter\(\(c\) => !out\.has\(c\.key\)\)\}/, "and not as a column");
+  assert.match(src, /data-tint=\$\{tintFor\(word\.toLowerCase\(\)\)\}><\$\{Tag\}>/, "a type's chip in the kit's tint for it");
+  const css = readFileSync(new URL("../../styles/pages/dashboard.css", import.meta.url), "utf8");
+  assert.match(css, /\.p-dashboard\.p-dashboard--records \.k-section \{ margin-bottom: var\(--s-6\); \}/, "sections 24 px apart");
+  assert.match(css, /\.p-dashboard-sheet \.k-table__table td \{ height: var\(--s-10\);/, "rows 40 px");
+  assert.match(css, /\.p-dashboard\.p-dashboard--records \.k-section:has\(\.p-dashboard-sheet\) \{ width: fit-content; max-width: 100%; \}/, "a table's section as wide as its columns");
+  assert.match(/\.p-dashboard \.p-dashboard-filter \.k-menu__trigger \{([^}]*)\}/.exec(css)[1], /border-color: var\(--line-2\);[\s\S]*background: var\(--card\)/, "Show and Status edged on the card's surface");
 });

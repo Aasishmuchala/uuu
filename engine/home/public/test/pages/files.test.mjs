@@ -257,3 +257,21 @@ test("files: an empty place shows no count", () => {
   assert.equal(mod.shownCount(p.find((x) => x.id === "brand")), true);
   assert.equal(mod.shownCount(p.find((x) => x.id === "lessons")), false);
 });
+
+test("files: a row's tile is the kit's Tile in its kind's tint, its size short, its facts one group after the names (R5-H)", async () => {
+  const { tintFor } = await import("../../kit/index.js");
+  assert.equal(mod.tintOf({ name: "about.md", kind: "text" }), tintFor("text"));
+  assert.equal(mod.tintOf({ name: "prices.csv", kind: "table" }), tintFor("data"));
+  assert.equal(mod.tintOf({ name: "logo", kind: "image" }), tintFor("picture"), "a picture is a picture, whatever its name");
+  assert.equal(mod.tintOf({ name: "about.md" }), mod.tintOf({ name: "brand.md" }), "the same tint for the same kind");
+  assert.equal(mod.sizeShort(250), "250 B");
+  assert.equal(mod.sizeShort(1), "1 B");
+  assert.equal(mod.sizeShort(0), "0 B");
+  assert.equal(mod.sizeShort(3174), "3.1 KB", "a kilobyte and over as the kit writes it");
+  assert.match(SOURCE, /<\$\{Tile\} icon=\$\{name\} tint=\$\{tint \|\| "neutral"\} \/>/);
+  assert.match(SOURCE, /<span class="p-files__row-size">\$\{sizeShort\(file\.size\)\}<\/span>/);
+  const css = readFileSync(new URL("../../styles/pages/files.css", import.meta.url), "utf8");
+  assert.match(css, /\.p-files \.p-files__card \{\s*overflow: hidden;\s*width: fit-content;\s*max-width: min\(100%, 760px\);/, "the card as wide as its rows, at most 760 px");
+  assert.match(css, /grid-template-columns: 4px 28px minmax\(0, max-content\) minmax\(var\(--s-10\), 160px\) auto auto 4px;/, "the facts 40 to 160 px after the longest name");
+  assert.match(/\.p-files \.p-files__place-name \{([^}]*)\}/.exec(css)[1], /flex: 0 1 auto;/, "a place's count beside its name");
+});

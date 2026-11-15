@@ -1,10 +1,11 @@
 // Dashboards (CONTRACTS-V3 30): the figures and records of each department, as six cards two or three across on
 // the raised step (R12). Each card reads its own GET /api/departments/<id>, so one card that cannot be read or is
 // not connected shows that by itself and never fails the page. A card is a line icon, the name, one sentence and
-// two facts as label and value; no creature and no department colour (O2, O7).
+// two facts as label and value; no creature and no department colour (O2, O7). Fix round R5 (R5-H): the icon stands
+// in the kit's Tile, in the quiet tint the kit gives the dashboard's department (identity, never a state).
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
-import { Button, Card, glueValue, Icon, PageHeader } from "../kit/index.js";
+import { Button, Card, glueValue, Icon, PageHeader, Tile, tintFor } from "../kit/index.js";
 import { figureSplit, moneyParts, OWED_TO_YOU } from "./dashboard.js";
 
 // A fact's value: an amount's symbol and the small part after its point at three quarters size on the digits'
@@ -96,7 +97,7 @@ function DashboardCard({ d }) {
     <li class="p-dashboards-item">
       <${Card} class="p-dashboards-card" padding="none" aria-busy=${state === "loading" ? "true" : undefined}>
         <div class="p-dashboards-head">
-          <span class="p-dashboards-tile" aria-hidden="true"><${Icon} name=${d.icon} size=${20} /></span>
+          <span class="p-dashboards-tile"><${Tile} icon=${d.icon} tint=${tintFor(d.dept)} size=${32} /></span>
           <h2 class="p-dashboards-name"><a class="p-dashboards-link" href=${href}>${d.title}</a></h2>
           <${Icon} name="chevron-right" size=${16} class="p-dashboards-go" />
         </div>

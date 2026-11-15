@@ -1,7 +1,10 @@
 /* Files: the company brain (CONTRACTS-V3 30; PLAN-COOK T68). The frame is the kit's DocLayout: its list of sections
    is the brain's places, each with its count; the column is the set (a toolbar, a count line, the files as rows or
    cards). An opened file is a reading column with its facts in a rail. Every selector starts with .p-files;
-   tokens only (V2 11.2, V3 27.3). */
+   tokens only (V2 11.2, V3 27.3).
+   Fix round R5 (R5-H): a row's tile is the kit's Tile in its kind's tint; the list's card is as wide as its rows
+   (at most 760 px), the names one column as wide as the longest and the size and the time one group 40 to 160 px
+   after it; a place's count stands beside its name. */
 
 .p-files {
   min-width: 0;
@@ -17,7 +20,7 @@
   min-height: var(--lh-page);
 }
 
-/* A place: its name, and its count at the right in tabular figures. */
+/* A place: its name, and its count beside it in tabular figures (never floating at the list's far edge). */
 .p-files .p-files__place {
   display: flex;
   align-items: baseline;
@@ -26,7 +29,7 @@
 }
 
 .p-files .p-files__place-name {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -247,10 +250,43 @@
   line-height: var(--lh-note);
 }
 
-/* Rows: on one card, parted by hairlines. A 28 px tile with the kit's glyph for the file's kind, the name over one
-   line of what the brain says of it, then the size and how long ago in two right-hand columns of tabular figures. */
+/* Rows: on one card, parted by hairlines. The kit's 28 px Tile in the tint of the file's kind, the name over one
+   line of what the brain says of it, then the size and how long ago in one group of tabular figures. The card is
+   as wide as its rows (at most 760 px): the rows share one grid (each row a subgrid of it), the names' column as
+   wide as the longest, then a gap of 40 to 160 px, so the group follows the names and never floats far from them. */
 .p-files .p-files__card {
   overflow: hidden;
+  width: fit-content;
+  max-width: min(100%, 760px);
+}
+
+/* The two 4 px end tracks with the 12 px gaps make the rows' 16 px inside the card (a subgrid's own padding would not
+   widen the tracks), so the hover fill still runs the card's width. */
+.p-files .p-files__card .p-files__rows:not(.p-files__results) {
+  display: grid;
+  grid-template-columns: 4px 28px minmax(0, max-content) minmax(var(--s-10), 160px) auto auto 4px;
+  column-gap: var(--s-3);
+}
+
+.p-files .p-files__card .p-files__rows:not(.p-files__results) > .p-files__row,
+.p-files .p-files__card .p-files__rows:not(.p-files__results) .p-files__row-link {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+.p-files .p-files__card .p-files__rows:not(.p-files__results) .p-files__row-link {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.p-files .p-files__card .p-files__rows:not(.p-files__results) .p-files__row-icon { grid-column: 2; }
+.p-files .p-files__card .p-files__rows:not(.p-files__results) .p-files__row-words { grid-column: 3; }
+.p-files .p-files__card .p-files__rows:not(.p-files__results) .p-files__row-size { grid-column: 5; }
+
+.p-files .p-files__card .p-files__rows:not(.p-files__results) .p-files__row-date {
+  grid-column: 6;
+  min-width: 72px;
 }
 
 .p-files .p-files__rows {
@@ -287,13 +323,7 @@
 }
 
 .p-files .p-files__row-icon {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r-2);
-  background: var(--raise);
-  color: var(--ink-2);
+  display: inline-flex;
 }
 
 .p-files .p-files__row-words {
@@ -784,6 +814,34 @@
   .p-files .k-seg__item,
   .p-files .p-files__actions .k-btn {
     min-height: 44px;
+  }
+
+  .p-files .p-files__card {
+    width: auto;
+    max-width: none;
+  }
+
+  /* A phone: each row its own grid again (the tile, the words, the time), the card the page's width. */
+  .p-files .p-files__card .p-files__rows:not(.p-files__results) {
+    display: flex;
+  }
+
+  .p-files .p-files__card .p-files__rows:not(.p-files__results) > .p-files__row {
+    display: block;
+  }
+
+  .p-files .p-files__card .p-files__rows:not(.p-files__results) .p-files__row-link {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    padding-left: var(--s-3);
+    padding-right: var(--s-3);
+  }
+
+  .p-files .p-files__card .p-files__rows:not(.p-files__results) .p-files__row-link > * {
+    grid-column: auto;
+  }
+
+  .p-files .p-files__card .p-files__rows:not(.p-files__results) .p-files__row-date {
+    min-width: 0;
   }
 
   .p-files .p-files__row-link {

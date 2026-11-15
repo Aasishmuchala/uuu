@@ -30,18 +30,7 @@
 }
 
 .p-dashboards .p-dashboards-head { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
-.p-dashboards .p-dashboards-tile {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--h-md);
-  height: var(--h-md);
-  border-radius: var(--r-2);
-  background: var(--ctl);
-  box-shadow: inset 0 0 0 1px var(--line);
-  color: var(--ink-2);
-}
+.p-dashboards .p-dashboards-tile { flex: none; display: inline-flex; }
 .p-dashboards .p-dashboards-name {
   flex: 1;
   min-width: 0;

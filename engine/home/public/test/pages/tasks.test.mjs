@@ -267,40 +267,84 @@ test("tasks: Needs you is said by the rows' glyph and words, never by an outline
   assert.match(css, /\.p-tasks \.p-tasks__list \{[^}]*max-width: var\(--content-max\)/);
 });
 
-test("tasks: a group bar is flat, a step off the ground with 8 px corners; the filters are edged and 32 px (TB5a)", () => {
+test("tasks: a group's head is its label and count over a hairline, no filled band; the filters are edged and 32 px (R5-H)", () => {
   const css = readFileSync(new URL("../../styles/pages/tasks.css", import.meta.url), "utf8");
   const fold = /\.p-tasks \.p-tasks__fold \{([^}]*)\}/.exec(css)[1];
-  assert.match(fold, /background: color-mix\(in srgb, var\(--ink\) 5%, transparent\)/, "a tint of the ink: a step lighter in dark, a step darker on the white pane");
+  assert.match(fold, /background: transparent/, "no filled band");
+  assert.match(fold, /border-bottom: 1px solid var\(--line-2\)/, "a hairline under the label and count");
   assert.match(fold, /box-shadow: none/);
-  assert.match(fold, /border: 0/);
-  assert.match(fold, /border-radius: var\(--r-2\)/);
+  assert.match(fold, /border-radius: 0/);
   const trigger = /\.p-tasks \.p-tasks__filter \.k-menu__trigger \{([^}]*)\}/.exec(css)[1];
   assert.match(trigger, /min-height: var\(--s-8\)/);
   assert.match(trigger, /border-color: var\(--line-2\)/);
   assert.match(trigger, /background: transparent/);
 });
 
-test("tasks: a row is the state's glyph, the title with its ID, the state's sentence under it and the date at the right (TB5a)", () => {
+test("tasks: a row is one line: the glyph, the title, then the state's chip, the ID and the date at the right; a second line only for its own words (R5-H)", () => {
   const src = readFileSync(new URL("../../pages/tasks.js", import.meta.url), "utf8");
   assert.match(src, /class="p-tasks__title"/);
   assert.match(src, /class="p-tasks__id"><\$\{Mono\}/);
-  assert.match(src, /class="p-tasks__say"/);
+  assert.match(src, /\$\{own && html`<span class="p-tasks__say">\$\{own\}<\/span>`\}/, "the second line only for the row's own words");
   assert.match(src, /class="p-tasks__when" datetime=/);
+  assert.match(src, /<\$\{Tag\}>\$\{showChip\}<\/\/>/, "the state as the kit's neutral chip");
+  assert.match(src, /title=\$\{sentence \|\| undefined\}/, "the whole sentence on hover");
+  assert.match(src, /<span class="k-sr">\. \$\{sentence\}\.<\/span>/, "and in the row's spoken words");
   const css = readFileSync(new URL("../../styles/pages/tasks.css", import.meta.url), "utf8");
+  const line = /\.p-tasks \.p-tasks__line \{([^}]*)\}/.exec(css)[1];
+  assert.match(line, /min-height: 52px/, "one line about 52 px");
   assert.match(/\.p-tasks \.p-tasks__title \{([^}]*)\}/.exec(css)[1], /font-size: var\(--fs-body\);[\s\S]*font-weight: var\(--fw-medium\)/, "title 14 px 500");
   assert.match(/\.p-tasks \.p-tasks__id \.k-mono \{([^}]*)\}/.exec(css)[1], /color: var\(--ink-3\);[\s\S]*font-family: var\(--font-mono\);[\s\S]*font-size: var\(--fs-label\)/, "ID 12 px mono, third ink");
-  assert.match(/\.p-tasks \.p-tasks__say \{([^}]*)\}/.exec(css)[1], /color: var\(--ink-2\);[\s\S]*font-size: var\(--fs-note\)/, "sentence 13 px, second ink");
+  assert.match(/\.p-tasks \.p-tasks__say \{([^}]*)\}/.exec(css)[1], /color: var\(--ink-2\);[\s\S]*font-size: var\(--fs-note\)/, "own words 13 px, second ink");
 });
 
-test("tasks: glyphOf is neutral unless the state asks for the eye (TB5a)", () => {
-  assert.deepEqual(mod.glyphOf({ ...card, waitingForYou: true }), { column: "pending_review", tone: "warn", word: "Waiting for you" });
-  assert.deepEqual(mod.glyphOf({ ...card, waitingForYou: false, live: true }), { column: "in_progress", tone: "info", word: "Working" });
-  assert.equal(mod.glyphOf({ ...card, waitingForYou: false, column: "done" }).tone, "good");
-  assert.equal(mod.glyphOf({ ...card, waitingForYou: false, column: "failed", plainState: "" }).tone, "bad");
-  assert.equal(mod.glyphOf({ ...card, waitingForYou: false, column: "backlog" }).tone, "");
-  assert.equal(mod.glyphOf({ ...card, waitingForYou: false, column: "in_progress" }).tone, "", "in progress but not running: neutral");
+test("tasks: glyphOf is in the third ink, the warn tone only on a row that is stuck (R5-H)", () => {
+  assert.deepEqual(mod.glyphOf({ ...card, waitingForYou: true, plainState: "Finished" }), { column: "pending_review", tone: "", word: "Waiting for you" });
+  assert.deepEqual(mod.glyphOf({ ...card, waitingForYou: true, plainState: "Stuck, needs you" }), { column: "pending_review", tone: "warn", word: "Stuck, needs you" });
+  assert.deepEqual(mod.glyphOf({ ...card, waitingForYou: false, live: true }), { column: "in_progress", tone: "", word: "Working" });
+  assert.equal(mod.glyphOf({ ...card, waitingForYou: false, column: "done" }).tone, "");
+  assert.equal(mod.glyphOf({ ...card, waitingForYou: false, column: "failed", plainState: "" }).tone, "");
+  assert.equal(mod.glyphOf({ ...card, waitingForYou: true, column: "failed", plainState: "Stuck, needs you" }).tone, "warn");
   assert.equal(mod.glyphOf({ ...card, waitingForYou: true, column: "failed" }).column, "failed", "the column's own shape");
   assert.deepEqual(mod.glyphOf(null), { column: "backlog", tone: "", word: "Backlog" });
+});
+
+test("tasks: the state's chip is the row's own words shortened by one pinned table (R5-H)", () => {
+  assert.deepEqual(mod.CHIP_WORDS, {
+    "Stuck, needs you": "Stuck", Working: "Working", "Being worked on": "Working", "Being checked": "Checking",
+    "Waiting to start": "Waiting", "Waiting its turn": "Waiting", Finished: "Finished", Stopped: "Stopped",
+    "Waiting for you": "Needs you", Backlog: "Backlog", "In progress": "In progress", "Pending review": "Review",
+    Done: "Done", Failed: "Failed", Canceled: "Canceled",
+  });
+  assert.deepEqual(mod.GROUP_CHIP, { "needs-you": "Needs you", working: "Working", waiting: "Waiting", finished: "Finished", stopped: "Stopped" });
+  const stuck = { ...card, outcome: null, job: null, live: false, waitingForYou: true, plainState: "Stuck, needs you", stage: { id: "brief", label: "Brief: waiting for you" }, round: 0 };
+  assert.equal(mod.chipOf(stuck), "Stuck");
+  assert.equal(mod.stateSentence(stuck), "Brief: waiting for you · Stuck, needs you", "the whole sentence, said once");
+  assert.equal(mod.ownWords(stuck), "", "no second line: the state words are all the row has");
+  assert.equal(mod.chipOf({ ...stuck, live: true }), "Stuck", "stuck before working");
+  assert.equal(mod.chipOf({ ...card, live: true, plainState: "Being worked on" }), "Working");
+  assert.equal(mod.chipOf({ ...card, live: false, waitingForYou: true, plainState: "Finished" }), "Finished");
+  assert.equal(mod.chipOf({ ...card, live: false, waitingForYou: true, plainState: "" }), "Needs you");
+  assert.equal(mod.chipOf({ ...card, live: false, waitingForYou: false, plainState: "", column: "pending_review" }), "Review");
+  assert.equal(mod.chipOf({ ...card, live: false, waitingForYou: false, plainState: "Waiting its turn" }), "Waiting");
+  assert.equal(mod.chipOf(null), "");
+  for (const [long, short] of Object.entries(mod.CHIP_WORDS)) {
+    const words = long.toLowerCase();
+    assert.ok(short.toLowerCase().split(" ").every((w) => words.includes(w.slice(0, 4))) || long === "Waiting for you" || long === "Pending review",
+      `${short} is made from ${long}`);
+  }
+});
+
+test("tasks: a row keeps a second line only for its own words, an answer or a result's sentence (R5-H)", () => {
+  const done = { ...card, waitingForYou: true, live: false, job: null };
+  assert.equal(mod.ownWords(done), card.outcome, "the result's sentence, without the state");
+  assert.equal(mod.ownWords({ ...done, job: { id: "x", title: "A small animated character" } }), `A small animated character · ${card.outcome}`);
+  const q = { ...card, ask: true, job: null, stage: null, round: 0, waitingForYou: true, live: false, plainState: "Finished", outcome: "Customers can return an unused item [1]." };
+  assert.equal(mod.ownWords(q), "A question · Customers can return an unused item.");
+  assert.equal(mod.stateSentence(q), "A question · Waiting for you · Finished");
+  assert.equal(mod.ownWords({ ...q, outcome: "" }), "");
+  assert.equal(mod.stateSentence({ ...card, outcome: null, job: null, waitingForYou: true, live: true, stage: { id: "work", label: "Work" }, round: 0, plainState: "Being worked on" }),
+    "Waiting for you · Work · Being worked on");
+  assert.equal(mod.stateSentence(null), "");
 });
 
 test("tasks: rowWhen is relative while recent, then the plain date (TB5a)", () => {
@@ -333,10 +377,11 @@ test("tasks: the page stands on the white pane: its root carries k-page--plain, 
   assert.ok(!/data-theme="dark"[^{]*k-page--plain/.test(shell), "dark does not change");
 });
 
-test("tasks: the chosen item of a filter menu is current, and only Needs you's rows are quiet about waiting (T94)", () => {
+test("tasks: the chosen item of a filter menu is current, and a row's chip is left out where it only says its group's name (T94, R5-H)", () => {
   const src = readFileSync(new URL("../../pages/tasks.js", import.meta.url), "utf8");
   assert.match(src, /icon: o\.current \? "check" : undefined, current: o\.current \? true : undefined/, "the check stays and the item is current");
-  assert.match(src, /quiet=\$\{g\.id === "needs-you" \? "waiting" : undefined\}/, "quiet only under Needs you");
+  assert.match(src, /<\$\{Line\} task=\$\{forRow\(t\)\} group=\$\{g\.id\} \/>/, "each row knows its group");
+  assert.match(src, /const showChip = chip && chip !== GROUP_CHIP\[group\] \? chip : "";/);
   const items = mod.chipLinks(mod.whoOptions([{ slug: "artist", name: "Artist" }], "artist"), "artist", (v) => `#/tasks?who=${v}`);
   assert.deepEqual(items.filter((o) => o.current).map((o) => o.value), ["artist"]);
 });

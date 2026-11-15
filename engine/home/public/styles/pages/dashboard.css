@@ -4,7 +4,10 @@
    with the symbol and the small part at three quarters size. Money that came in or is owed to you is in the good
    ink; a failed amount is struck through.
    `.p-dashboard` is shared with Studio and Marketing (the agent, the jobs, the closing link); what only the four
-   record dashboards draw sits under `.p-dashboard--records`. */
+   record dashboards draw sits under `.p-dashboard--records`.
+   Fix round R5 (R5-H): sections 24 px apart and rows 40 px; a table's section as wide as its columns, 40 px apart,
+   so no band opens between two columns; the row's number in the second ink so the party leads; a document's type in the kit's tint for it; the
+   filters edged on the card's surface; the figures with 20 px inside. */
 .p-dashboard { display: flex; flex-direction: column; gap: var(--s-6); }
 .p-dashboard .p-dashboard-agent { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--s-3); }
 
@@ -44,22 +47,24 @@
 /* ---- The four record dashboards ---- */
 .p-dashboard.p-dashboard--records { gap: 0; }
 .p-dashboard.p-dashboard--records .k-page-header { margin-bottom: var(--s-5); }
-.p-dashboard.p-dashboard--records .k-section { margin-bottom: var(--s-8); }
+.p-dashboard.p-dashboard--records .k-section { margin-bottom: var(--s-6); }
 .p-dashboard.p-dashboard--records > .k-notice { margin-bottom: var(--s-6); }
 
 /* The filters: the list pattern's menus, a quiet control each, lifted once a choice is made. */
 .p-dashboard .p-dashboard-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); min-width: 0; }
+/* Edged on the card's surface (white in light), so they read as controls and never as disabled. */
 .p-dashboard .p-dashboard-filter .k-menu__trigger {
-  min-height: var(--h-md);
+  min-height: var(--s-8);
   padding: 0 10px 0 var(--s-3);
   gap: 6px;
-  border-color: var(--line);
-  background: var(--ctl);
+  border-color: var(--line-2);
+  background: var(--card);
   color: var(--ink);
+  font-size: var(--fs-note);
   font-weight: var(--fw-medium);
 }
 .p-dashboard .p-dashboard-filter .k-menu__trigger .k-icon { color: var(--ink-3); }
-.p-dashboard .p-dashboard-filter--on .k-menu__trigger { border-color: var(--line-2); background: var(--raise); box-shadow: var(--shadow-card); }
+.p-dashboard .p-dashboard-filter--on .k-menu__trigger { border-color: var(--ink-3); }
 .p-dashboard .p-dashboard-filter .k-menu__trigger:hover { border-color: var(--ink-3); }
 .p-dashboard .p-dashboard-filter .k-menu__list { left: 0; right: auto; min-width: 220px; max-height: min(60vh, calc(var(--s-12) * 9)); overflow-y: auto; }
 .p-dashboard .p-dashboard-filter .k-menu__item:not(:has(.k-icon)) { padding-left: calc(10px + 16px + var(--s-2)); }
@@ -67,7 +72,7 @@
 
 /* The figures: one card, its cells parted by hairlines; a 12 px label in the third ink over the value at 24 px
    500 in tabular figures, the symbol at three quarters of the digits on their baseline, the hint in the third ink. */
-.p-dashboard .p-dashboard-strip { margin-bottom: var(--s-8); overflow: hidden; }
+.p-dashboard .p-dashboard-strip { margin-bottom: var(--s-6); overflow: hidden; }
 .p-dashboard .p-dashboard-totals {
   margin: 0;
   display: grid;
@@ -78,7 +83,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-1);
-  padding: var(--s-4) var(--s-5);
+  padding: var(--s-5);
   box-shadow: -1px 0 0 var(--line);
 }
 .p-dashboard .p-dashboard-total dd { margin: 0; }
@@ -113,19 +118,33 @@
 .p-dashboard .p-dashboard-amount--in { color: var(--good); }
 .p-dashboard s.p-dashboard-amount { color: var(--ink-2); text-decoration-thickness: 1px; }
 
-/* A table on a card: 16 px inside the card's edge at both ends; the header row 12 px above its rule. */
+/* A table on a card: a section that holds one is as wide as its table (and its head), never wider than the page, so
+   the columns stand 40 px apart and no band opens between two of them; 16 px inside the card's edge at both ends;
+   the header row 12 px above its rule; rows 40 px. */
+.p-dashboard.p-dashboard--records .k-section:has(.p-dashboard-sheet) { width: fit-content; max-width: 100%; }
 .p-dashboard .p-dashboard-sheet { overflow: hidden; }
+.p-dashboard .p-dashboard-sheet .k-table__table th,
+.p-dashboard .p-dashboard-sheet .k-table__table td { padding-left: var(--s-5); padding-right: var(--s-5); }
+.p-dashboard .p-dashboard-sheet .k-table__table td { height: var(--s-10); padding-top: 6px; padding-bottom: 6px; }
 .p-dashboard .p-dashboard-sheet .k-table__table th { padding-top: var(--s-3); }
 .p-dashboard .p-dashboard-sheet .k-table__table th:first-child,
 .p-dashboard .p-dashboard-sheet .k-table__table td:first-child { padding-left: var(--s-4); }
 .p-dashboard .p-dashboard-sheet .k-table__table th:last-child,
 .p-dashboard .p-dashboard-sheet .k-table__table td:last-child { padding-right: var(--s-4); }
-.p-dashboard .p-dashboard-sheet .k-table__table td:first-child { font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+.p-dashboard .p-dashboard-sheet .k-table__table td:first-child { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+/* A document's type: the kit's chip in the quiet tint the kit gives its word (identity, never a state). */
+.p-dashboard .p-dashboard-kind[data-tint="blue"] .k-tag { color: var(--tint-blue); background: var(--tint-blue-bg); }
+.p-dashboard .p-dashboard-kind[data-tint="green"] .k-tag { color: var(--tint-green); background: var(--tint-green-bg); }
+.p-dashboard .p-dashboard-kind[data-tint="violet"] .k-tag { color: var(--tint-violet); background: var(--tint-violet-bg); }
+.p-dashboard .p-dashboard-kind[data-tint="orange"] .k-tag { color: var(--tint-orange); background: var(--tint-orange-bg); }
+.p-dashboard .p-dashboard-kind[data-tint="rose"] .k-tag { color: var(--tint-rose); background: var(--tint-rose-bg); }
+.p-dashboard .p-dashboard-kind[data-tint="teal"] .k-tag { color: var(--tint-teal); background: var(--tint-teal-bg); }
 .p-dashboard .p-dashboard-sheet .k-table--empty { padding: var(--s-6) var(--s-4); }
 
 /* A party: its initials disc 8 px before its name. */
 .p-dashboard .p-dashboard-party { display: inline-flex; align-items: center; gap: var(--s-2); min-width: 0; vertical-align: middle; }
-.p-dashboard .p-dashboard-party-name { min-width: 0; }
+.p-dashboard .p-dashboard-party-name { min-width: 0; color: var(--ink); }
 
 /* Rows that wait for the owner: one quiet line above the table; the table's own status says which. */
 .p-dashboard .p-dashboard-waits { margin: 0 0 var(--s-3); font-size: var(--fs-note); line-height: var(--lh-note); color: var(--ink-2); }
@@ -140,11 +159,13 @@
   .p-dashboard .k-section__aside a { display: inline-flex; align-items: center; min-height: 44px; }
   .p-dashboard .k-section__aside .k-btn { min-height: 44px; }
   .p-dashboard .p-dashboard-filter .k-menu__trigger { min-height: 44px; }
-  .p-dashboard .p-dashboard-strip { margin-bottom: var(--s-6); }
+  .p-dashboard.p-dashboard--records .k-section:has(.p-dashboard-sheet) { width: auto; }
+  .p-dashboard .p-dashboard-sheet .k-table__table td { height: auto; }
   .p-dashboard .p-dashboard-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .p-dashboard .p-dashboard-total { padding: var(--s-3) var(--s-4); box-shadow: -1px 0 0 var(--line), 0 -1px 0 var(--line); }
   .p-dashboard .p-dashboard-total-value { white-space: normal; flex-wrap: wrap; font-size: var(--fs-stat); }
   .p-dashboard .p-dashboard-sheet .k-table__table tr { padding: var(--s-2) var(--s-4); }
+  .p-dashboard .p-dashboard-sheet .k-table__table td,
   .p-dashboard .p-dashboard-sheet .k-table__table td:first-child,
   .p-dashboard .p-dashboard-sheet .k-table__table td:last-child { padding-left: 0; padding-right: 0; }
 }
