@@ -227,3 +227,15 @@ test("fix round R5: a Row's state may be a list (a live state beside the standin
   assert.equal(byClass(root, "k-rows__state--good").length, 1);
   unmount(root);
 });
+
+test("fix round R5: a row's named icon is the kit's neutral 32 px Tile; the page title takes the page weight token", async () => {
+  installDom();
+  const root = await mount(Row, { icon: "key", title: "Runway key" });
+  const [place] = byClass(root, "k-rows__icon");
+  assert.match(place.getAttribute("class"), /k-rows__icon--tile/);
+  assert.equal(byClass(place, "k-tile--32").length, 1);
+  assert.equal(byClass(place, "k-tile--neutral").length, 1);
+  unmount(root);
+  const sheet = css("kit/layout.css");
+  assert.match(/\.k-doc__title \{([^}]*)\}/.exec(sheet)[1], /font-weight: var\(--fw-page\);/);
+});

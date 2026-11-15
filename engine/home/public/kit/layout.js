@@ -8,6 +8,7 @@ import { Button } from "./button.js";
 import { Icon } from "./icon.js";
 import { Dialog } from "./overlays.js";
 import { Notice } from "./states.js";
+import { Tile } from "./tile.js";
 import { cx, isEmpty, nextId, safeHref } from "./util.js";
 
 const has = (v) => !isEmpty(v);
@@ -171,7 +172,11 @@ export function Row({ icon, title, state, say, control, warned }) {
   const states = (Array.isArray(state) ? state : [state]).map(stateParts).filter(Boolean);
   const tile = has(icon);
   return html`<div class=${cx("k-rows__row", !tile && "k-rows__row--bare", has(warned) && "k-rows__row--warned")}>
-    ${tile ? html`<span class="k-rows__icon" aria-hidden="true">${typeof icon === "string" ? html`<${Icon} name=${icon} size=${16} />` : icon}</span>` : null}
+    ${tile
+      ? typeof icon === "string"
+        ? html`<span class="k-rows__icon k-rows__icon--tile" aria-hidden="true"><${Tile} icon=${icon} size=${32} /></span>`
+        : html`<span class="k-rows__icon" aria-hidden="true">${icon}</span>`
+      : null}
     <div class="k-rows__text">
       <p class="k-rows__title">
         <span>${title}</span>
