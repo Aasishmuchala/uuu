@@ -8,17 +8,19 @@
 // px the list is the page and an item opened is a screen of its own (the top bar's back button returns to the list).
 // The top bar gets the crumbs and a pager over the list's order. After an action its outcome stays where the item
 // was until the owner moves on.
-// Side by side (T104) the page fills the pane: the list a 360 px column of its own that scrolls by itself, each row
-// one line (its grey second line only where it adds a fact the title does not say), groups parted by a hairline;
-// the item opened at the top of the rest, and under it, on the ground, what helps decide from what the page already
-// has: the other items of the same task with a way to the task, and what comes next in the list. No other request.
+// Side by side (T104, T116) the page fills the pane: the list a 360 px column of its own that scrolls by itself, each
+// row a title on up to two lines with its time at the top right (its grey line only where it adds a fact the title
+// does not say), each group under a tinted band with its count; the item opened at the top of the rest, and under it,
+// on the ground, what helps decide: the other items of the same task with a way to the task, then the task's story
+// so far (its last three entries, from GET /api/tasks/:id, the route the task page reads: one request a task, kept
+// while the page lives). The list beside it already says what comes next; alone (under 1280 px) one line names it.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { fullWhen, linkHref } from "../lib/format.js";
 import { SOURCE_DEPARTMENT, queueGroups, rowTime, sortNeeds } from "../lib/queue.js";
 import {
-  Button, DecisionCard, DecisionDone, Empty, ErrorNotice, Icon, Loading, NotConnected, Notice, PickCard, PickDone, Select,
+  Avatar, Button, DecisionCard, DecisionDone, Empty, ErrorNotice, Icon, Loading, NotConnected, Notice, PickCard, PickDone, Select,
   ShotlistCard, ShotlistDone, StateIcon, SHOTLIST_WORDS, isPickItem, isShotlistItem,
 } from "../kit/index.js";
 
@@ -58,7 +60,12 @@ export const PAGE_WORDS = {
   sameTask: "From the same task",
   openTask: "Open the task",
   upNext: "Up next",
+  next: "Next",
+  story: "The story so far",
 };
+
+// How many of the task's latest entries show as its story so far.
+export const STORY_SHOWN = 3;
 
 // How many of the next items show under the item opened.
 export const NEXT_SHOWN = 3;
@@ -170,6 +177,12 @@ export function nextAfter(order, id, n = NEXT_SHOWN, skip = []) {
   return (at < 0 ? [] : list.slice(at + 1)).filter((i) => i && !out.has(i.id)).slice(0, n);
 }
 
+// Pure. The last `n` entries of a task's conversation (GET /api/tasks/:id), oldest first, each with words to show.
+export function storyOf(task, n = STORY_SHOWN) {
+  const list = task && typeof task === "object" && Array.isArray(task.conversation) ? task.conversation : [];
+  return list.filter((m) => m && typeof m === "object" && typeof m.text === "string" && m.text.trim()).slice(-n);
+}
+
 // Pure. True for an item drawn as a whole stage: a film's shotlist, or versions to pick from.
 export function isStageItem(item) {
   return isShotlistItem(item) || isPickItem(item);
@@ -253,8 +266,8 @@ const KindIcon = ({ kind }) => {
   return name === "done" ? html`<${StateIcon} column="done" label="" />` : html`<${Icon} name=${name} />`;
 };
 
-// One row: the kind's glyph, the title on one line, the time at the right, and the grey line only where it adds a
-// fact (`line` true shows it always, as under the item opened, where there is room).
+// One row: the kind's glyph, the title on up to two lines, the time at the top right, and the grey line (one line)
+// only where it adds a fact (`line` true shows it always, as under the item opened, where there is room).
 function Row({ item, href, current, line = false }) {
   const at = rowTime(item.when);
   return html`<a class="p-needs-you__row" href=${href} aria-current=${current ? "true" : undefined}>
@@ -265,11 +278,42 @@ function Row({ item, href, current, line = false }) {
   </a>`;
 }
 
-// Under the item opened: the other items of its task with a way to the task, then what comes next in the list.
-function Helps({ item, items, order, d }) {
+// The story of a task, read once a task while the page lives: { [taskId]: { conversation } | null }. One request a
+// task; nothing when the item belongs to none, while it is read, or when it cannot be read.
+function useStory(task, cache) {
+  const id = task ? task.id : "";
+  const [, bump] = useState(0);
+  useEffect(() => {
+    if (!id || Object.hasOwn(cache.current, id)) return;
+    cache.current[id] = undefined;
+    // Drawn again when it arrives, even after the owner moved on and back: the answer is kept either way.
+    api.get(`/api/tasks/${encodeURIComponent(id)}`)
+      .then((t) => { cache.current[id] = t && typeof t === "object" ? { conversation: t.conversation } : null; })
+      .catch(() => { cache.current[id] = null; })
+      .finally(() => bump((n) => n + 1));
+  }, [id]);
+  return id && cache.current[id] ? storyOf(cache.current[id]) : [];
+}
+
+// One entry of the story: who, when, and what was said (agent-written words stay text).
+function Entry({ m }) {
+  const who = m.who && typeof m.who === "object" ? m.who : {};
+  const at = rowTime(m.at);
+  return html`<li class="p-needs-you__entry">
+    <span class="p-needs-you__entry-avatar" aria-hidden="true"><${Avatar} slug=${who.slug || undefined} name=${String(who.name || "")} size=${20} /></span>
+    <span class="p-needs-you__entry-who">${cap(who.name, 60)}</span>
+    ${at ? html`<time class="p-needs-you__when" datetime=${m.at} title=${fullWhen(m.at)}>${at}</time>` : null}
+    <span class="p-needs-you__entry-text">${cap(m.text, 600)}</span>
+  </li>`;
+}
+
+// Under the item opened: the other items of its task with a way to the task, then the task's story so far. Alone
+// (no list beside it), one line names what comes next.
+function Helps({ item, items, order, d, wide, cache }) {
   const task = taskOf(item);
   const same = sameTask(item, items);
-  const next = nextAfter(order, item.id, NEXT_SHOWN, same.map((i) => i.id));
+  const story = useStory(task, cache);
+  const next = wide ? [] : nextAfter(order, item.id, 1);
   if (!task && !next.length) return null;
   return html`<div class="p-needs-you__helps">
     ${task ? html`<section class="p-needs-you__more" aria-labelledby="p-needs-you-same">
@@ -281,14 +325,16 @@ function Helps({ item, items, order, d }) {
         ${same.map((i) => html`<${Row} key=${i.id} item=${i} href=${itemAddress(i.id, d)} line=${true} />`)}
       </div>` : null}
     </section>` : null}
-    ${next.length ? html`<section class="p-needs-you__more" aria-labelledby="p-needs-you-next">
+    ${story.length ? html`<section class="p-needs-you__more" aria-labelledby="p-needs-you-story">
       <div class="p-needs-you__more-head">
-        <h2 id="p-needs-you-next" class="p-needs-you__more-title">${PAGE_WORDS.upNext}</h2>
+        <h2 id="p-needs-you-story" class="p-needs-you__more-title">${PAGE_WORDS.story}</h2>
       </div>
-      <div class="p-needs-you__more-rows">
-        ${next.map((i) => html`<${Row} key=${i.id} item=${i} href=${itemAddress(i.id, d)} line=${true} />`)}
-      </div>
+      <ol class="p-needs-you__story">${story.map((m, i) => html`<${Entry} key=${i} m=${m} />`)}</ol>
     </section>` : null}
+    ${next.length ? html`<p class="p-needs-you__next">
+      <span class="p-needs-you__next-label">${PAGE_WORDS.next}:</span>
+      <a class="p-needs-you__link" href=${itemAddress(next[0].id, d)}>${cap(next[0].title, 120)}</a>
+    </p>` : null}
   </div>`;
 }
 
@@ -317,7 +363,7 @@ function List({ items, chips, d, openId, quiet }) {
     ${items.length
       ? html`<nav class="p-needs-you__groups" aria-label=${PAGE_WORDS.list} onKeyDown=${onKey}>
           ${groups.map((g) => html`<section key=${g.id} class="p-needs-you__group" aria-label=${g.heading}>
-            <h2 class="p-needs-you__heading" aria-hidden="true">${g.heading}</h2>
+            <h2 class="p-needs-you__heading" aria-hidden="true"><span>${g.title}</span><span class="p-needs-you__heading-count u-num">${g.items.length}</span></h2>
             ${g.items.map((item) => html`<${Row} key=${item.id} item=${item} href=${itemAddress(item.id, d)} current=${item.id === openId} />`)}
           </section>`)}
         </nav>`
@@ -352,6 +398,7 @@ export default function Page({ route }) {
   const [settled, setSettled] = useState([]);
   const was = useRef({ id: "", at: null });
   const seen = useRef(null);
+  const stories = useRef(Object.create(null));
 
   // The agents of each department, once; the page works without them.
   useEffect(() => {
@@ -482,7 +529,7 @@ export default function Page({ route }) {
       <div class="p-needs-you__side">${head}${list}</div>
       <div class="p-needs-you__pane">
         <section class="p-needs-you__open" tabindex="-1" aria-label=${opened ? cap(opened.title, 120) : PAGE_WORDS.title}>${open}</section>
-        ${opened ? html`<${Helps} item=${opened} items=${order} order=${order} d=${d} />` : null}
+        ${opened ? html`<${Helps} item=${opened} items=${order} order=${order} d=${d} wide=${true} cache=${stories} />` : null}
       </div>
     </div>`;
   }
@@ -494,6 +541,7 @@ export default function Page({ route }) {
         ${pager && pager.index ? html`<span class="p-needs-you__at u-num">${pager.label}</span>` : null}
       </header>
       <section class="p-needs-you__open" tabindex="-1">${open}</section>
+      ${opened ? html`<${Helps} item=${opened} items=${order} order=${order} d=${d} wide=${false} cache=${stories} />` : null}
     </div>`;
   }
   return html`<div class="p-needs-you p-needs-you--list">

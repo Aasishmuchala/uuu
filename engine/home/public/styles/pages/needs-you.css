@@ -1,7 +1,7 @@
 /* Needs you: the list (grouped as the queue groups it), an item opened beside it from 1280 px, an item alone under
    that, and a stage that takes the pane. Side by side the page fills the pane: the list a 360 px column on the
-   ground behind a 1 px line, scrolling by itself; the item opened at the top of the rest with what helps decide
-   under it. Every selector starts with .p-needs-you; tokens only. */
+   ground behind a 1 px line, scrolling by itself, each group under a tinted band; the item opened at the top of the
+   rest with what helps decide under it. Every selector starts with .p-needs-you; tokens only. */
 
 .p-needs-you {
   display: flex;
@@ -129,7 +129,7 @@
 .p-needs-you .p-needs-you__groups {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
   min-width: 0;
 }
 
@@ -139,28 +139,37 @@
   gap: 2px;
 }
 
-/* A group's label: 12 px, 500, with a hairline above (the first group's is the list's own edge). */
+/* A group's head: a 28 px band on the raised tone with a 6 px corner, its label 12 px 600 and its count; no
+   hairline between groups. */
 .p-needs-you .p-needs-you__heading {
-  padding: var(--s-3) 12px 6px;
-  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 28px;
+  margin-bottom: var(--s-1);
+  padding: 0 12px;
+  border-radius: var(--r-1);
+  background: var(--raise);
   font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-bold);
   line-height: var(--lh-label);
   letter-spacing: var(--ls-label);
   color: var(--ink);
 }
 
-.p-needs-you .p-needs-you__group:first-child .p-needs-you__heading {
-  padding-top: var(--s-1);
-  border-top: 0;
+.p-needs-you .p-needs-you__heading-count {
+  font-weight: var(--fw-medium);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
 }
 
-/* A row: the glyph, the title on one line, the time at the right; a grey line under only where it adds a fact. */
+/* A row: the glyph, the title on up to two lines, the time at the top right; a grey line under only where it adds
+   a fact. The glyph sits centred on the title's first line. */
 .p-needs-you .p-needs-you__row {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
   gap: 2px 10px;
-  align-items: baseline;
+  align-items: start;
   align-content: center;
   min-height: 40px;
   padding: 10px 10px 10px 12px;
@@ -175,7 +184,7 @@
 }
 
 .p-needs-you .p-needs-you__row[aria-current="true"] {
-  background: var(--raise);
+  background: var(--sel);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
@@ -185,10 +194,11 @@
 
 .p-needs-you .p-needs-you__icon {
   display: flex;
+  align-items: center;
+  justify-content: center;
   grid-column: 1;
   grid-row: 1;
-  align-self: start;
-  margin-top: 2px;
+  height: var(--lh-ui);
   color: var(--ink-2);
 }
 
@@ -196,21 +206,25 @@
   color: var(--ink);
 }
 
+/* Two lines at most: nothing is cut before the second line's end. */
 .p-needs-you .p-needs-you__title {
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
   font-size: var(--fs-ui);
   line-height: var(--lh-ui);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .p-needs-you .p-needs-you__when {
   grid-column: 3;
   grid-row: 1;
-  font-size: var(--fs-note);
+  font-size: var(--fs-label);
   line-height: var(--lh-ui);
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
@@ -276,6 +290,7 @@
 
 .p-needs-you .p-needs-you__more-link {
   display: inline-flex;
+  align-self: center;
   align-items: center;
   gap: var(--s-1);
   font-size: var(--fs-note);
@@ -296,6 +311,88 @@
   border-top-left-radius: 0;
   border-top-right-radius: 0;
   box-shadow: inset 0 1px 0 var(--line);
+}
+
+/* The task's story so far: its last entries, each who and when over what was said (three lines at most). */
+.p-needs-you .p-needs-you__story {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-needs-you .p-needs-you__entry {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: var(--s-1) 10px;
+  align-items: center;
+  /* 8 px in from the left, so the words start where a row's title does (12 + 16 + 10). */
+  padding: var(--s-3) 10px var(--s-3) var(--s-2);
+}
+
+.p-needs-you .p-needs-you__entry + .p-needs-you__entry {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+
+.p-needs-you .p-needs-you__entry-avatar {
+  display: flex;
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.p-needs-you .p-needs-you__entry-who {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-note);
+  color: var(--ink);
+}
+
+.p-needs-you .p-needs-you__entry .p-needs-you__when {
+  line-height: var(--lh-note);
+}
+
+.p-needs-you .p-needs-you__entry-text {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+/* Alone, what comes next: one line. */
+.p-needs-you .p-needs-you__next {
+  display: flex;
+  gap: var(--s-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0 12px;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.p-needs-you .p-needs-you__next-label {
+  flex: none;
+  color: var(--ink-2);
+}
+
+.p-needs-you .p-needs-you__next .p-needs-you__link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
 }
 
 .p-needs-you .p-needs-you__quiet {
@@ -336,5 +433,18 @@
 
   .p-needs-you .p-needs-you__filter .k-select__control {
     min-height: 44px;
+  }
+
+  .p-needs-you .p-needs-you__more-head {
+    align-items: center;
+    padding-bottom: 0;
+  }
+
+  .p-needs-you .p-needs-you__next {
+    line-height: 44px;
+  }
+
+  .p-needs-you .p-needs-you__next .p-needs-you__link {
+    display: block;
   }
 }

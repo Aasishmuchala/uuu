@@ -215,7 +215,7 @@ test("needs-you: a row's grey line shows only where it adds a fact the title doe
   assert.equal(mod.addsFact(null), false);
 });
 
-test("needs-you: under the item opened, the other items of its task and what comes next, from the list the page has", () => {
+test("needs-you: under the item opened, the other items of its task, its story so far, and (alone) what comes next", () => {
   const a = item("a", { link: { page: "goals", id: "t1" } });
   const b = item("b", { link: { page: "tasks", id: "t2" } });
   const c = item("c", { link: { page: "goals", id: "t1" } });
@@ -234,17 +234,42 @@ test("needs-you: under the item opened, the other items of its task and what com
   assert.equal(mod.PAGE_WORDS.sameTask, "From the same task");
   assert.equal(mod.PAGE_WORDS.openTask, "Open the task");
   assert.equal(mod.PAGE_WORDS.upNext, "Up next");
+  assert.equal(mod.PAGE_WORDS.next, "Next");
+  assert.equal(mod.PAGE_WORDS.story, "The story so far");
   const src = readFileSync(resolve(HERE, "../../pages/needs-you.js"), "utf8");
-  assert.equal((src.match(/api\.get\(/g) || []).length, 1, "no request beyond the map; the inbox is read by useResource");
+  // PLAN-COOK T116: the map, and a task's story from the route the task page reads; nothing else.
+  const gets = (src.match(/api\.get\([^\n]*/g) || []).sort();
+  assert.equal(gets.length, 2, "no request beyond the map and the task");
+  assert.ok(gets[0].startsWith('api.get("/api/map")'));
+  assert.ok(gets[1].startsWith("api.get(`/api/tasks/${encodeURIComponent(id)}`)"));
+  assert.match(src, /Object\.hasOwn\(cache\.current, id\)\) return;/, "one request a task, kept while the page lives");
+  assert.doesNotMatch(src, /PAGE_WORDS\.upNext\}/, "Up next goes: the list beside the card says it");
 });
 
-test("needs-you: side by side the list is a 360 px column of its own and groups are parted by a hairline", () => {
+test("needs-you: the story so far is a task's last three entries with words, oldest first", () => {
+  const conversation = [1, 2, 3, 4, 5].map((n) => ({ who: { slug: "builder", name: "Builder" }, kind: "comment", text: `entry ${n}`, at: null }));
+  assert.deepEqual(mod.storyOf({ conversation }).map((m) => m.text), ["entry 3", "entry 4", "entry 5"]);
+  assert.deepEqual(mod.storyOf({ conversation: [...conversation.slice(0, 2), { text: "  " }, null] }).map((m) => m.text), ["entry 1", "entry 2"]);
+  assert.deepEqual(mod.storyOf(null), []);
+  assert.deepEqual(mod.storyOf({ conversation: "x" }), []);
+  assert.equal(mod.STORY_SHOWN, 3);
+});
+
+// PLAN-COOK T116 (critics of round A2 on S09: "every title is cut after about 30 characters", "groups blur").
+test("needs-you: side by side the list is a 360 px column of its own; each group under a tinted 28 px band; a title takes two lines", () => {
   const c = readFileSync(resolve(HERE, "../../styles/pages/needs-you.css"), "utf8");
   assert.match(c, /\.p-needs-you\.p-needs-you--split \{[^}]*grid-template-columns: 360px minmax\(0, 1fr\);/);
   assert.match(c, /\.p-needs-you\.p-needs-you--split \{[^}]*min-height: calc\(100vh - var\(--topbar-h\)\);/);
   const h = /\.p-needs-you \.p-needs-you__heading \{([^}]*)\}/.exec(c)[1];
-  assert.match(h, /border-top: 1px solid var\(--line\);/);
+  assert.match(h, /min-height: 28px;/);
+  assert.match(h, /border-radius: var\(--r-1\);/);
+  assert.match(h, /background: var\(--raise\);/);
   assert.match(h, /font-size: var\(--fs-label\);/);
-  assert.match(h, /font-weight: var\(--fw-medium\);/);
-  assert.match(c, /\.p-needs-you \.p-needs-you__title \{[^}]*white-space: nowrap;/, "one line a title");
+  assert.match(h, /font-weight: var\(--fw-bold\);/);
+  assert.doesNotMatch(h, /border-top/, "no hairline between groups");
+  const t = /\.p-needs-you \.p-needs-you__title \{([^}]*)\}/.exec(c)[1];
+  assert.match(t, /-webkit-line-clamp: 2;/, "two lines a title");
+  assert.doesNotMatch(t, /white-space: nowrap/);
+  assert.match(c, /\.p-needs-you \.p-needs-you__when \{[^}]*font-size: var\(--fs-label\);[^}]*font-variant-numeric: tabular-nums;/, "the date 12 px tabular");
+  assert.match(c, /\.p-needs-you \.p-needs-you__row\[aria-current="true"\] \{[^}]*background: var\(--sel\);[^}]*box-shadow: inset 2px 0 0 var\(--accent\);/, "the chosen row: the kit's fill and bar");
 });

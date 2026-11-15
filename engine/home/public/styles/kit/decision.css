@@ -2,8 +2,8 @@
    The card is on the raised step (the card fill, a 1 px edge, the card shadow); no tint. Top to bottom: who raised
    it and when (13 px), the title (17 px semibold; the page's size when the card is the opened item), the summary,
    the details each as a label (12 px, third ink) over its value (14 px), then the card's footer: under a divider,
-   one line of actions with the one primary last at the right (on the opened item a footer band of its own). Urgent
-   is said once, by a state line in the bad tone. Tokens only. */
+   one line of actions with the one primary last at the right (on the opened item a footer across the card's foot,
+   on its own surface under a rule). Urgent is said once, by the bad chip. Tokens only. */
 
 .k-decision {
   display: flex;
@@ -100,10 +100,11 @@
 }
 
 .k-decision--level .k-decision__title {
-  font-size: var(--fs-page);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-page);
-  letter-spacing: var(--ls-page);
+  max-width: 30em;
+  font-size: var(--fs-stat);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-stat);
+  letter-spacing: var(--ls-stat);
 }
 
 .k-decision--compact .k-decision__title {
@@ -143,6 +144,16 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+}
+
+/* The opened item: the details in two columns, a label 4 px over its value, 16 px between rows. */
+.k-decision--level .k-decision__details {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4) var(--s-6);
+}
+
+.k-decision--level .k-decision__detail {
+  gap: var(--s-1);
 }
 
 .k-decision__detail dt {
@@ -259,18 +270,20 @@
   text-align: right;
 }
 
-/* An opened item: the actions are the card's footer, a band of their own on the raised step across the card's foot,
-   under its divider, the primary at the right. */
+/* An opened item: the actions are the card's footer across its foot, on the card's own surface under a rule (no
+   band of another tone), a ghost at the left with its edge in line with the text, the primary at the right. */
 .k-decision--level .k-decision__actions {
   margin: var(--s-2) calc(-1 * var(--s-6)) calc(-1 * var(--s-6));
   padding: var(--s-4) var(--s-6);
   border-radius: 0 0 calc(var(--r-3) - 1px) calc(var(--r-3) - 1px);
-  background: var(--raise);
+  background: transparent;
+  gap: var(--s-3);
 }
 
 .k-decision--level .k-decision__actions > .k-btn--quiet:first-child,
+.k-decision--level .k-decision__actions > .k-btn--ghost:first-child,
 .k-decision--level .k-decision__actions > .k-menu:first-child {
-  margin-left: -10px;
+  margin-left: 0;
 }
 
 /* The note, an agent's questions and a confirm open in place of the actions, under the same divider. */
@@ -547,6 +560,10 @@
     font-size: var(--fs-stat);
     line-height: var(--lh-stat);
     letter-spacing: var(--ls-stat);
+  }
+
+  .k-decision--level .k-decision__details {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .k-decision__note-field {

@@ -2,7 +2,9 @@
 // approved (who raised it, the title, the summary, the details each as a label over its value), then the card's
 // footer: one line of actions with the one primary last at the right, "Send back" with a note in place, and the rest
 // in a menu (a lone other action with nothing else beside the primary is quiet words, not a menu of one). A primary
-// that refuses (a danger action) stands with its reason: it asks once before anything is done (PLAN-COOK T104). It acts only through
+// that refuses (a danger action) stands with its reason: it asks once before anything is done (PLAN-COOK T104). Urgent
+// is said once, as the bad chip. On the opened item (T116) the footer is on the card's own surface under a rule, a
+// lone other action a ghost at its left. It acts only through
 // POST /api/inbox/act, sending the version of the item the owner saw (CONTRACTS 9.3a). When the server answers
 // that the item changed since, the card says so, reads the item again and shows it; it never retries by itself.
 import { html, useCallback, useEffect, useRef, useState } from "../vendor/preact-htm.js";
@@ -12,7 +14,7 @@ import { Avatar } from "./avatar.js";
 import { Button } from "./button.js";
 import { Icon } from "./icon.js";
 import { Menu } from "./overlays.js";
-import { St } from "./status.js";
+import { Tag } from "./tag.js";
 
 // ---- Versions (CONTRACTS 9.3a): an action is tied to the version of the item the owner saw. ----
 export const CHANGED_SINCE_SEEN = "changed_since_seen";
@@ -426,7 +428,7 @@ export function DecisionCard({ item, onDone, compact = false, level = false }) {
   const actions = html`<div class="k-decision__actions">
     ${rest.length > 0 && !stopped && !lone && html`<${Menu} label="More actions" icon="more"
       items=${rest.map((a) => ({ id: a.id, label: text(a.label), danger: a.style === "danger", onSelect: () => choose(a) }))} />`}
-    ${lone && html`<${Button} variant="quiet" disabled=${stopped} onClick=${(ev) => choose(rest[0], ev)}>${text(rest[0].label)}<//>`}
+    ${lone && html`<${Button} variant=${level ? "ghost" : "quiet"} disabled=${stopped} onClick=${(ev) => choose(rest[0], ev)}>${text(rest[0].label)}<//>`}
     ${withNote.map((a) => html`<${Button} variant="quiet" disabled=${stopped}
       onClick=${(ev) => choose(a, ev)}>${text(a.label)}<//>`)}
     <span class="k-decision__gap" aria-hidden="true"></span>
@@ -444,7 +446,7 @@ export function DecisionCard({ item, onDone, compact = false, level = false }) {
       <p class="k-decision__context">
         ${context.map((c, i) => html`${i > 0 && html`<span class="k-decision__sep" aria-hidden="true"> · </span>`}<span class=${c.ref ? "k-decision__ref" : undefined} title=${c.title}>${c.words}</span>`)}
       </p>
-      ${high && html`<span class="k-decision__flag"><${St} tone="bad" icon="alert">Urgent<//></span>`}
+      ${high && html`<span class="k-decision__flag"><${Tag} tone="bad">Urgent<//></span>`}
     </div>
     <div class="k-decision__body">
       ${changed && html`<${Changed} error=${error} reloading=${reloading} gone=${gone} />`}

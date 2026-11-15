@@ -473,14 +473,14 @@ test("DecisionCard: who and when on one line, the title, details each a label ov
   assert.equal(decision.isLongDetail("x".repeat(49)), true);
 });
 
-test("an urgent card says so once, with a state line in the bad tone, and is not tinted", async () => {
+test("an urgent card says so once, with the bad chip, and is not tinted", async () => {
   const urgent = await show(decision.DecisionCard, { item: { ...SEEN, severity: "high" } });
-  const marks = elements(urgent).filter((e) => classOf(e).includes("k-st--bad"));
-  assert.equal(marks.length, 1, "one bad state line");
+  const marks = elements(urgent).filter((e) => classOf(e).includes("k-tag--bad"));
+  assert.equal(marks.length, 1, "one bad chip");
   assert.equal(textOf(marks[0]).trim(), "Urgent");
   assert.ok(!textOf(elements(urgent).find((e) => classOf(e).includes("k-decision__title"))).includes("Urgent"), "said once, not in the title");
   const calm = await show(decision.DecisionCard, { item: SEEN });
-  assert.ok(!elements(calm).some((e) => classOf(e).includes("k-st--bad")));
+  assert.ok(!elements(calm).some((e) => classOf(e).includes("k-tag--bad")));
   const d = css("kit/decision.css");
   assert.doesNotMatch(d, /linear-gradient|--bg-warm|--border-warm|--warn-bg\)\s*,\s*var\(--glass|--glass|--highlight|--r-pill/, "no warm tint, glass or pill");
   assert.match(d, /\.k-decision \{[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--r-3\);[^}]*background: var\(--card\);[^}]*box-shadow: var\(--shadow-card\)/, "the card on the raised step");
@@ -497,14 +497,22 @@ test("drawer cards line up: a compact card puts each label over its value; a det
 });
 
 // PLAN-COOK T104 (critics of round A1 on S09: "a lone outlined Reject and an orphan ... row"; "a debug table").
-test("an opened item's actions are the card's footer: a band on the raised step under the divider, the primary at the right", () => {
+// T116 (round A2: "the footer strip is a plain grey block", "a 28px headline over 11-12px body text", "a form dump").
+test("an opened item's actions are the card's footer: on the card's own surface under a rule, the primary at the right", () => {
   const d = css("kit/decision.css");
   assert.match(d, /\.k-decision--level \{[^}]*gap: var\(--s-4\);/, "the opened card's parts are 16 px apart");
   const rule = /\.k-decision--level \.k-decision__actions \{([^}]*)\}/.exec(d);
   assert.ok(rule, "the opened card places its actions");
   assert.match(rule[1], /margin: var\(--s-2\) calc\(-1 \* var\(--s-6\)\) calc\(-1 \* var\(--s-6\)\);/, "across the card's foot, edge to edge");
-  assert.match(rule[1], /background: var\(--raise\);/, "on the raised step");
+  assert.match(rule[1], /background: transparent;/, "on the card's own surface, not a grey block");
+  assert.match(d, /\.k-decision__actions \{[^}]*border-top: 1px solid var\(--line\)/, "under a rule");
   assert.match(d, /\.k-decision__gap \{\s*flex: 1 1 0;/, "the primary pushed to the right");
+  const title = /\.k-decision--level \.k-decision__title \{([^}]*)\}/.exec(d)[1];
+  assert.match(title, /font-size: var\(--fs-stat\);/, "the headline 22 px");
+  assert.match(title, /font-weight: var\(--fw-bold\);/, "at 600");
+  assert.match(d, /\.k-decision__title \{[^}]*text-wrap: balance;/, "balanced lines");
+  assert.match(d, /\.k-decision--level \.k-decision__details \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[^}]*gap: var\(--s-4\) var\(--s-6\);/, "two columns, 16 px between rows");
+  assert.match(d, /\.k-decision--level \.k-decision__detail \{\s*gap: var\(--s-1\);/, "a label 4 px over its value");
 });
 
 test("details: a label (12 px, third ink) over its value (14 px), never a label at one edge and its value at the other", () => {
@@ -519,7 +527,7 @@ test("details: a label (12 px, third ink) over its value (14 px), never a label 
   assert.doesNotMatch(d, /\.k-decision__detail \{[^}]*justify-content: space-between/);
 });
 
-test("a refusal with one other action: Hide is quiet words, Reject stands at the right with its reason; nothing is a menu of one", async () => {
+test("a refusal with one other action: Hide is a ghost, Reject stands at the right with its reason; nothing is a menu of one", async () => {
   installDom();
   assert.equal(decision.loneRest({ withNote: [], rest: [{ id: "dismiss" }] }), true);
   assert.equal(decision.loneRest({ withNote: [{ id: "answer" }], rest: [{ id: "dismiss" }] }), false);
@@ -534,8 +542,9 @@ test("a refusal with one other action: Hide is quiet words, Reject stands at the
   const row = elements(root).find((e) => hasClass(e, "k-decision__actions"));
   const buttons = elements(row).filter((e) => e.localName === "button");
   assert.deepEqual(buttons.map((b) => textOf(b).trim()), ["Hide", "Reject"], "Hide first, Reject last at the right");
-  assert.ok(classOf(buttons[0]).includes("k-btn--quiet"));
+  assert.ok(classOf(buttons[0]).includes("k-btn--ghost"), "on the opened item a lone other action is a ghost");
   assert.ok(classOf(buttons[1]).includes("k-btn--danger"));
+  assert.ok(classOf(buttons[1]).includes("k-btn--md"), "the action at the default height (36 px)");
   assert.ok(!buttons.some((b) => b.getAttribute("aria-label") === "More actions"), "no menu of one");
   assert.match(textOf(row), /Reject asks you once before anything is done\./);
   // Reject still asks once and sends nothing until the owner says yes.
