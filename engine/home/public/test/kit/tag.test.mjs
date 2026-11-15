@@ -52,7 +52,23 @@ test("Tag: dot: true leads with a 6 px dot in the tag's ink, hidden from a scree
     root = await showTree(kit.tag.Tag, { dot: bad, children: "x" });
     assert.ok(!elements(root).some((e) => (e.getAttribute("class") || "") === "k-tag__dot"), `no dot for ${String(bad)}`);
   }
-  assert.match(/\.k-tag__dot\s*\{([^}]*)\}/.exec(css("kit/tag.css"))[1], /width: 6px;\s*height: 6px;[\s\S]*background: currentColor;/);
+  assert.match(/(?:^|\n)\.k-tag__dot\s*\{([^}]*)\}/.exec(css("kit/tag.css"))[1], /width: 6px;\s*height: 6px;[\s\S]*background: currentColor;/);
+});
+
+test("Tag: quiet (fix round R6) is the tone's words with a 6 px dot and no fill; only quiet: true draws it", async () => {
+  installDom();
+  let root = await showTree(kit.tag.Tag, { tone: "warn", quiet: true, children: "Stuck" });
+  const el = root.firstChild;
+  assert.equal(el.getAttribute("class"), "k-tag k-tag--warn k-tag--quiet");
+  assert.equal(el.firstChild.getAttribute("class"), "k-tag__dot");
+  assert.match(textOf(root), /Stuck/);
+  root = await showTree(kit.tag.Tag, { tone: "warn", quiet: "yes", children: "x" });
+  assert.doesNotMatch(root.firstChild.getAttribute("class"), /k-tag--quiet/);
+  const s = css("kit/tag.css");
+  const q = /\.k-tag--quiet,[^{]*\.k-tag--quiet\.k-tag--info \{([^}]*)\}/.exec(s);
+  assert.ok(q, "every tone has its quiet form");
+  assert.match(q[1], /background: transparent;/);
+  assert.match(q[1], /padding: 0;/);
 });
 
 test("Chip with onClick is a toggle: a button with aria-pressed, lifted when on; without, a plain label", async () => {

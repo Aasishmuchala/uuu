@@ -12,9 +12,12 @@ const TONES = ["neutral", "ok", "good", "warn", "bad", "info"];
 const DEPARTMENTS = ["brain", "operations", "sales", "marketing", "studio", "support", "people", "books"];
 const DOT_TONES = ["live", "ok", "warn", "bad", "off"];
 
-export function Tag({ tone = "neutral", dot, children }) {
+// `quiet` (fix round R6): a state on a row, the tone's words with a 6 px dot and no fill; the filled form is kept
+// for what must take the eye (the page's alarm, an urgent item).
+export function Tag({ tone = "neutral", dot, quiet, children }) {
   const t = TONES.includes(tone) ? tone : "neutral";
-  return html`<span class=${cx("k-tag", `k-tag--${t}`)}>${dot === true ? html`<span class="k-tag__dot" aria-hidden="true"></span>` : null}${children}</span>`;
+  const q = quiet === true;
+  return html`<span class=${cx("k-tag", `k-tag--${t}`, q && "k-tag--quiet")}>${dot === true || q ? html`<span class="k-tag__dot" aria-hidden="true"></span>` : null}${children}</span>`;
 }
 
 // `dot`: true for the colour of the nearest `data-dept`, a department id for that department's colour,

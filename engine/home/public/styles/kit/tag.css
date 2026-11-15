@@ -96,6 +96,22 @@
   cursor: not-allowed;
 }
 
+/* Quiet (fix round R6): the tone's words with its 6 px dot, no fill and no sides, so a state on every row stays calm.
+   Neutral is the second ink with a dot in the third. */
+.k-tag--quiet,
+.k-tag--quiet.k-tag--ok,
+.k-tag--quiet.k-tag--good,
+.k-tag--quiet.k-tag--warn,
+.k-tag--quiet.k-tag--bad,
+.k-tag--quiet.k-tag--info {
+  padding: 0;
+  background: transparent;
+}
+
+.k-tag--quiet.k-tag--neutral .k-tag__dot {
+  background: var(--ink-3);
+}
+
 /* A tag's dot: 6 px in the tag's own ink. */
 .k-tag__dot {
   flex: none;
