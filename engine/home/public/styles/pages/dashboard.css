@@ -1,6 +1,8 @@
 /* Books, Customers, Support and People (CONTRACTS-V3 30), as a ledger (R07): the title with the agent at the top
-   right, one row of filter menus, the totals in a row between hairlines, then each list as the kit's table edge to
-   edge of the column. Nothing is coloured but money that came in, a failed amount and a late or lost row.
+   right, one row of filter menus, the figures on one edged strip with dividers, then each list as the kit's table
+   on a card: 16 px inside its edge, a party with its initials disc, states as the kit's chips, money at the right
+   with the symbol and the small part at three quarters size. Money that came in or is owed to you is in the good
+   ink; a failed amount is struck through.
    `.p-dashboard` is shared with Studio and Marketing (the agent, the jobs, the closing link); what only the four
    record dashboards draw sits under `.p-dashboard--records`. */
 .p-dashboard { display: flex; flex-direction: column; gap: var(--s-6); }
@@ -63,83 +65,86 @@
 .p-dashboard .p-dashboard-filter .k-menu__item:not(:has(.k-icon)) { padding-left: calc(10px + 16px + var(--s-2)); }
 .p-dashboard .p-dashboard-filter .k-menu__item .k-icon { color: var(--accent); }
 
-/* The totals: a 13 px label over the figure at the stat size, in a row between hairlines (R07). */
+/* The figures: one card, its cells parted by hairlines; a 12 px label in the third ink over the value at 24 px
+   500 in tabular figures, the symbol at three quarters of the digits on their baseline, the hint in the third ink. */
+.p-dashboard .p-dashboard-strip { margin-bottom: var(--s-8); overflow: hidden; }
 .p-dashboard .p-dashboard-totals {
-  margin: 0 0 var(--s-8);
-  padding: var(--s-5) 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-5) var(--s-12);
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
-.p-dashboard .p-dashboard-total { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.p-dashboard .p-dashboard-total {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-4) var(--s-5);
+  box-shadow: -1px 0 0 var(--line);
+}
 .p-dashboard .p-dashboard-total dd { margin: 0; }
-.p-dashboard .p-dashboard-total-label { font-size: var(--fs-note); line-height: var(--lh-note); color: var(--ink-2); }
+.p-dashboard .p-dashboard-total-label {
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--fw-medium);
+  color: var(--ink-3);
+}
 .p-dashboard .p-dashboard-total-value {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--s-2);
-  font-size: var(--fs-stat);
+  font-size: calc(var(--fs-section) * 1.5);
   line-height: var(--lh-stat);
   letter-spacing: var(--ls-stat);
   font-weight: var(--fw-medium);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.p-dashboard .p-dashboard-total-value .p-dashboard-unit { font-size: var(--fs-ui); }
+.p-dashboard .p-dashboard-total-value .k-tag { align-self: center; }
 .p-dashboard .p-dashboard-total-hint { font-size: var(--fs-label); line-height: var(--lh-label); color: var(--ink-3); }
 
-/* An amount: the unit small and grey beside the figure; money that came in in the good colour; a failed one
+/* An amount: the sign and the symbol at three quarters of the digits (never under 12 px), on their baseline and in the same ink, and
+   the small part after the point the same; money that came in or is owed to you in the good ink; a failed one
    struck through. */
 .p-dashboard .p-dashboard-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.p-dashboard .p-dashboard-unit {
-  margin-right: 0.2em;
-  font-size: var(--fs-label);
-  font-weight: var(--fw-regular);
-  color: var(--ink-3);
-}
-.p-dashboard .p-dashboard-amount--in,
-.p-dashboard .p-dashboard-amount--in .p-dashboard-unit { color: var(--good); }
+.p-dashboard .p-dashboard-sign,
+.p-dashboard .p-dashboard-unit,
+.p-dashboard .p-dashboard-cents { font-size: max(0.75em, var(--fs-label)); }
+.p-dashboard .p-dashboard-unit { margin-right: 0.15em; }
+.p-dashboard .p-dashboard-amount--in { color: var(--good); }
 .p-dashboard s.p-dashboard-amount { color: var(--ink-2); text-decoration-thickness: 1px; }
 
-.p-dashboard .p-dashboard-status { color: var(--ink-2); }
+/* A table on a card: 16 px inside the card's edge at both ends; the header row 12 px above its rule. */
+.p-dashboard .p-dashboard-sheet { overflow: hidden; }
+.p-dashboard .p-dashboard-sheet .k-table__table th { padding-top: var(--s-3); }
+.p-dashboard .p-dashboard-sheet .k-table__table th:first-child,
+.p-dashboard .p-dashboard-sheet .k-table__table td:first-child { padding-left: var(--s-4); }
+.p-dashboard .p-dashboard-sheet .k-table__table th:last-child,
+.p-dashboard .p-dashboard-sheet .k-table__table td:last-child { padding-right: var(--s-4); }
+.p-dashboard .p-dashboard-sheet .k-table__table td:first-child { font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+.p-dashboard .p-dashboard-sheet .k-table--empty { padding: var(--s-6) var(--s-4); }
+
+/* A party: its initials disc 8 px before its name. */
+.p-dashboard .p-dashboard-party { display: inline-flex; align-items: center; gap: var(--s-2); min-width: 0; vertical-align: middle; }
+.p-dashboard .p-dashboard-party-name { min-width: 0; }
 
 /* Rows that wait for the owner: one quiet line above the table; the table's own status says which. */
 .p-dashboard .p-dashboard-waits { margin: 0 0 var(--s-3); font-size: var(--fs-note); line-height: var(--lh-note); color: var(--ink-2); }
 .p-dashboard .p-dashboard-waits .k-icon { color: var(--ink-3); }
 
-/* The way into Needs you: a quiet text button at the right of a section's heading. */
-.p-dashboard .p-dashboard-queue {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  min-height: var(--h-sm);
-  padding: 0 var(--s-1) 0 var(--s-2);
-  margin-right: calc(var(--s-1) * -1);
-  border: 0;
-  border-radius: var(--r-2);
-  background: transparent;
-  color: var(--accent);
-  font: inherit;
-  font-size: var(--fs-note);
-  font-weight: var(--fw-medium);
-  cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease);
-}
-.p-dashboard .p-dashboard-queue:hover { background: var(--ctl); }
+/* A section's head: its link a small ghost button standing on the title's line. */
+.p-dashboard .k-section__head { align-items: center; min-height: var(--h-sm); }
 
 /* Below 860 px every control and link keeps a 44 px target (M51 F15). */
 @media (max-width: 859px) {
   .p-dashboard .p-dashboard-open { min-height: 44px; }
   .p-dashboard .k-section__aside a { display: inline-flex; align-items: center; min-height: 44px; }
-  .p-dashboard .p-dashboard-queue { min-height: 44px; }
+  .p-dashboard .k-section__aside .k-btn { min-height: 44px; }
   .p-dashboard .p-dashboard-filter .k-menu__trigger { min-height: 44px; }
-  .p-dashboard .p-dashboard-totals {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--s-4);
-    margin-bottom: var(--s-6);
-  }
-  .p-dashboard .p-dashboard-total-value { white-space: normal; flex-wrap: wrap; }
+  .p-dashboard .p-dashboard-strip { margin-bottom: var(--s-6); }
+  .p-dashboard .p-dashboard-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .p-dashboard .p-dashboard-total { padding: var(--s-3) var(--s-4); box-shadow: -1px 0 0 var(--line), 0 -1px 0 var(--line); }
+  .p-dashboard .p-dashboard-total-value { white-space: normal; flex-wrap: wrap; font-size: var(--fs-stat); }
+  .p-dashboard .p-dashboard-sheet .k-table__table tr { padding: var(--s-2) var(--s-4); }
+  .p-dashboard .p-dashboard-sheet .k-table__table td:first-child,
+  .p-dashboard .p-dashboard-sheet .k-table__table td:last-child { padding-left: 0; padding-right: 0; }
 }

@@ -1,16 +1,17 @@
 // One page for Books, Customers, Support and People (CONTRACTS 9.6, CONTRACTS-V3 30), at #/dashboards/<id>, in the
 // manner of a ledger (R07): the title with the agent and its state at the top right, a row of filters (the list
-// pattern's menus), the figures as totals in a row, then each list as the kit's table edge to edge of the column.
-// Drafts waiting for the owner stay as rows and open in Needs you; nothing is coloured but money that came in and
-// what failed or is late. Then what is being worked on, jobs to start, the switches that are off, and the
-// department's link.
+// pattern's menus), the figures on one edged strip, then each list as the kit's table on a card: the party with its
+// initials disc, a state as a chip, money at the right with its sign and its small part at three quarters size, the
+// columns as wide as their content. Drafts waiting for the owner stay as rows and open in Needs you; money that came
+// in or is owed to you is in the good ink, what failed or is late in the bad. Every value is shown as the books send
+// it. Then what is being worked on, jobs to start, the switches that are off, and the department's link.
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { HealthNext } from "./team.js";
 import {
-  AgentChip, DataTable, ErrorNotice, Icon, JobRow, Live, Loading, Menu, NotConnected, PageHeader, Row, Rows, Section,
-  St, StatusDot, Tag, Waiting,
+  AgentChip, Avatar, Button, Card, DataTable, ErrorNotice, Icon, JobRow, Live, Loading, Menu, NotConnected, PageHeader, Row,
+  Rows, Section, St, StatusDot, Tag, Waiting,
 } from "../kit/index.js";
 
 const TITLES = { books: "Books", customers: "Customers", support: "Support", people: "People" };
@@ -22,6 +23,16 @@ const DRAFT_SECTIONS = ["drafts", "draft_replies"];
 const DUE_SECTIONS = ["unpaid_invoices", "unpaid_bills"];
 // Columns whose words are shown as chips.
 const CHIP_KEYS = ["status", "stage"];
+// Columns whose words are a kind (an invoice, a bill), shown as a neutral chip.
+const KIND_KEYS = ["type"];
+// The column that names the party of a row (a customer, a supplier, a person), by section where the key alone
+// does not say so. That column carries an initials disc and takes the room the other columns leave.
+const PARTY_KEYS = ["party", "who"];
+const PARTY_BY_SECTION = { staff: "name", leads: "name", deals: "name", lead_notes: "name" };
+// Sections whose money is owed to you (drawn in the good ink, as the figure "You are owed" is).
+const OWED_SECTIONS = ["unpaid_invoices"];
+// A text column with a value longer than this wraps instead of fitting its content.
+const FIT_MAX = 40;
 const STATUS_KEY = "_status";
 const MAX_JOBS = 3;
 const TEXT_MAX = 200;
@@ -142,6 +153,8 @@ export const DASHBOARD_WORDS = {
 
 // Figures whose money came in (drawn in the good colour). Every other figure stays in the first ink.
 export const MONEY_IN = ["money_in", "received", "received_month", "paid_month", "payments_in"];
+// Figures of money owed to you: in the good ink too.
+export const OWED_TO_YOU = ["owed_to_you"];
 // Status words that mean a row's money did not move: its amount is struck through.
 const FAILED = ["failed", "bounced", "returned", "cancelled"];
 // Status words that mean a row's money came in.
@@ -158,6 +171,48 @@ export const figureTone = (f) => (f && f.failed === true ? "failed" : f && MONEY
 export function moneyParts(v) {
   const m = /^([-+−]?)\s*([₹$€£]|Rs\.?)\s*(\d[\d,]*(?:\.\d+)?)$/.exec(String(v ?? "").trim());
   return m ? { sign: m[1] === "-" ? "−" : m[1], unit: m[2], figure: m[3] } : null;
+}
+
+// An amount's figure split at its decimal point, so the small part can be drawn smaller: "1,18,000.00" →
+// ["1,18,000", ".00"]. Nothing is rounded or recomputed. Pure.
+export function figureSplit(figure) {
+  const s = String(figure ?? "");
+  const m = /^(.*\d)(\.\d+)$/.exec(s);
+  return m ? [m[1], m[2]] : [s, ""];
+}
+
+// The party column of a section: by its section, else the first column whose key names a party. Null when none.
+export function partyKey(section) {
+  const keys = (Array.isArray(section?.columns) ? section.columns : []).map((c) => c && c.key);
+  const by = PARTY_BY_SECTION[section?.id];
+  if (by && keys.includes(by)) return by;
+  return PARTY_KEYS.find((k) => keys.includes(k)) || null;
+}
+
+// The columns of a section as the dashboard draws them, in the order a ledger is read: the row's number, the
+// party, other words, the state, dates and counts, then money. Each keeps its key, label and values; a column is
+// marked `fit` (as wide as its content) unless it is the one that takes the room left (the party, else the column
+// with the longest words) or its words are long enough to wrap. Pure.
+export function ledgerColumns(section) {
+  const columns = (Array.isArray(section?.columns) ? section.columns : []).filter((c) => c && c.key !== undefined);
+  const rows = Array.isArray(section?.rows) ? section.rows : [];
+  const longest = (c) => Math.max(0, ...rows.map((r) => String(r?.[c.key] ?? "").length));
+  const money = (c) => rows.some((r) => moneyParts(r?.[c.key]));
+  const chip = (c) => CHIP_KEYS.includes(c.key) || c.key === STATUS_KEY;
+  const party = partyKey(section);
+  const figure = (c) => rows.length > 0 && rows.every((r) => { const v = String(r?.[c.key] ?? "").trim(); return v === "" || /^\d[\d,.]*$/.test(v) || dayOf(v) !== null; });
+  const rank = (c, i) => {
+    if (c.key === party) return 1;
+    if (i === 0) return 0;
+    if (money(c)) return 5;
+    if (chip(c)) return 3;
+    if (figure(c)) return 4;
+    return 2;
+  };
+  const ranked = columns.map((c, i) => ({ c, i, r: rank(c, i) })).sort((a, b) => a.r - b.r || a.i - b.i);
+  const words = ranked.filter((x) => x.r < 3);
+  const grow = party || (words.length ? words.reduce((a, b) => (longest(b.c) > longest(a.c) ? b : a)).c.key : null);
+  return ranked.map(({ c }) => ({ ...c, fit: c.key !== grow && longest(c) <= FIT_MAX }));
 }
 
 // The filters of the address: ?s=<list id>&st=<status, in small letters>. Pure.
@@ -200,27 +255,55 @@ export function filterTables(tables, f = {}) {
   return list;
 }
 
-// A status in a table: late, lost or failed is a tag in the bad colour; every other word stays grey.
+// The kit's chip tone of a status word's tone: a draft neutral, final or paid good, unpaid warn, late or lost bad,
+// an open stage of a lead the info tone.
+const TAG_TONES = { ok: "good", warn: "warn", bad: "bad", off: "neutral", sales: "info" };
+
+// A status in a table: the kit's chip in its tone, with the words as the books give them.
 function StatusWords({ value }) {
   const c = statusChip(value);
   if (!c) return text(value);
-  return c.tone === "bad" ? html`<${Tag} tone="bad">${c.label}<//>` : html`<span class="p-dashboard-status">${c.label}</span>`;
+  return html`<${Tag} tone=${TAG_TONES[c.tone] || "neutral"}>${c.label}<//>`;
 }
 
-// An amount: the unit small and grey, the figure in tabular figures; struck through when its row failed, in the
-// good colour when its money came in.
+// An amount: the sign and the currency's symbol at three quarters size on the baseline, the figure in tabular
+// figures with its small part at three quarters size; struck through when its row failed, in the good colour when
+// its money came in or is owed to you.
 export function Amount({ value, failed, cameIn }) {
   const m = moneyParts(value);
-  const body = m ? html`${m.sign}<span class="p-dashboard-unit">${m.unit}</span>${m.figure}` : text(value);
+  const [whole, small] = m ? figureSplit(m.figure) : ["", ""];
+  const body = m
+    ? html`${m.sign ? html`<span class="p-dashboard-sign">${m.sign}</span>` : null}<span class="p-dashboard-unit">${m.unit}</span>${whole}${small ? html`<span class="p-dashboard-cents">${small}</span>` : null}`
+    : text(value);
   const cls = `p-dashboard-amount${cameIn && !failed ? " p-dashboard-amount--in" : ""}`;
   return failed ? html`<s class=${cls}>${body}</s>` : html`<span class=${cls}>${body}</span>`;
 }
 
-const renderCell = (row, col) => {
-  if (CHIP_KEYS.includes(col.key) || col.key === STATUS_KEY) return html`<${StatusWords} value=${row[col.key]} />`;
-  if (moneyParts(row[col.key])) return html`<${Amount} value=${row[col.key]} failed=${rowFailed(row)} cameIn=${rowCameIn(row)} />`;
-  return undefined;
+// A party: a 24 px disc with the initials of its own name, then the name.
+function Party({ value }) {
+  if (value === null || value === undefined || String(value).trim() === "") return text(value);
+  return html`<span class="p-dashboard-party"><${Avatar} name=${String(value)} size=${24} /><span class="p-dashboard-party-name">${text(value)}</span></span>`;
+}
+
+// The cells of one section's table.
+const cellsFor = (section) => {
+  const party = partyKey(section);
+  const owed = OWED_SECTIONS.includes(section?.id);
+  return (row, col) => {
+    if (CHIP_KEYS.includes(col.key) || col.key === STATUS_KEY) return html`<${StatusWords} value=${row[col.key]} />`;
+    if (KIND_KEYS.includes(col.key) && String(row[col.key] ?? "").trim()) return html`<${Tag}>${text(row[col.key])}<//>`;
+    if (col.key === party) return html`<${Party} value=${row[col.key]} />`;
+    if (moneyParts(row[col.key])) return html`<${Amount} value=${row[col.key]} failed=${rowFailed(row)} cameIn=${rowCameIn(row) || owed} />`;
+    return undefined;
+  };
 };
+
+// One section's table on a card.
+function Ledger({ section, emptyText }) {
+  return html`<${Card} padding="none" class="p-dashboard-sheet">
+    <${DataTable} columns=${ledgerColumns(section)} rows=${section.rows || []} emptyText=${emptyText} renderCell=${cellsFor(section)} />
+  <//>`;
+}
 
 export function AgentState({ agent }) {
   if (!agent) return null;
@@ -248,38 +331,39 @@ export function Jobs({ dept }) {
   const jobs = jobsToStart(res.data);
   if (!jobs.length) return null;
   return html`
-    <${Section} title="Jobs to start" aside=${html`<a href=${`#/jobs?d=${encodeURIComponent(dept)}`}>Every job</a>`}>
+    <${Section} title="Jobs to start" aside=${html`<${Button} variant="ghost" size="sm" href=${`#/jobs?d=${encodeURIComponent(dept)}`}>Every job<//>`}>
       <div class="p-dashboard-jobs">
         ${jobs.map((j) => html`<${JobRow} key=${j.id} job=${j} />`)}
       </div>
     <//>`;
 }
 
-// The figures as totals in a row (R07): a 13 px label over the figure at the stat size, its unit small and grey,
-// the server's hint under it.
+// The figures on one edged strip with dividers (R07): a 12 px label in the third ink over the figure at 24 px, its
+// currency's symbol at three quarters size on the baseline, the server's hint under it; money that came in or is
+// owed to you in the good ink.
 export function Totals({ figures }) {
   const list = (Array.isArray(figures) ? figures : []).filter((f) => f && f.label !== undefined && f.value !== undefined);
   if (!list.length) return null;
-  return html`<dl class="p-dashboard-totals">
+  return html`<${Card} padding="none" class="p-dashboard-strip"><dl class="p-dashboard-totals">
     ${list.map((f, i) => {
       const tone = figureTone(f);
       return html`<div class="p-dashboard-total" key=${f.id ?? i}>
         <dt class="p-dashboard-total-label">${text(f.label)}</dt>
         <dd class="p-dashboard-total-value">
-          <${Amount} value=${f.value} failed=${tone === "failed"} cameIn=${tone === "in"} />
+          <${Amount} value=${f.value} failed=${tone === "failed"} cameIn=${tone === "in" || OWED_TO_YOU.includes(String(f.id))} />
           ${tone === "failed" ? html`<${Tag} tone="bad">${DASHBOARD_WORDS.failed}<//>` : null}
         </dd>
         ${f.hint ? html`<dd class="p-dashboard-total-hint">${text(f.hint)}</dd>` : null}
       </div>`;
     })}
-  </dl>`;
+  </dl><//>`;
 }
 
 // The way into Needs you, filtered to the department.
 export function QueueLink({ dept }) {
   const app = useApp() || {};
   const open = () => { if (typeof app.openNeeds === "function") app.openNeeds({ department: dept }); };
-  return html`<button type="button" class="p-dashboard-queue" onClick=${open}>${DASHBOARD_WORDS.queue}<${Icon} name="chevron-right" size=${14} /></button>`;
+  return html`<${Button} variant="ghost" size="sm" icon="inbox" class="p-dashboard-queue" onClick=${open}>${DASHBOARD_WORDS.queue}<//>`;
 }
 
 const go = (href) => { if (href && typeof location !== "undefined") location.hash = href; };
@@ -313,8 +397,7 @@ function DraftSection({ section, dept }) {
   return html`
     <${Section} title=${section.title || "Drafts waiting for you"} count=${rows.length}
       aside=${rows.length ? html`<${QueueLink} dept=${dept} />` : null}>
-      <${DataTable} columns=${section.columns || []} rows=${rows} emptyText=${section.emptyText || "Nothing waiting."}
-        renderCell=${renderCell} />
+      <${Ledger} section=${section} emptyText=${section.emptyText || "Nothing waiting."} />
     <//>`;
 }
 
@@ -360,8 +443,7 @@ export default function DashboardPage({ route }) {
               ${waiting.length ? html`<p class="p-dashboard-waits">
                 <${St} icon="inbox">${waiting.length === 1 ? DASHBOARD_WORDS.waitsOne : DASHBOARD_WORDS.waitsMany(waiting.length)}<//>
               </p>` : null}
-              <${DataTable} columns=${s.columns || []} rows=${s.rows || []}
-                emptyText=${f.st ? DASHBOARD_WORDS.noRows : s.emptyText || "Nothing here yet."} renderCell=${renderCell} />
+              <${Ledger} section=${s} emptyText=${f.st ? DASHBOARD_WORDS.noRows : s.emptyText || "Nothing here yet."} />
             <//>`;
         })}
         ${!filtered && (d.inFlight || []).length ? html`

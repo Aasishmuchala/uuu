@@ -197,3 +197,34 @@ test("the record dashboard: agents at the top right, filters as menus, drafts as
   assert.match(css, /font-variant-numeric: tabular-nums/);
   assert.doesNotMatch(css, /--dept\b|--glass|--warn-text/);
 });
+
+test("a ledger on cards (round B2): the small part split, never rounded; the party column found; columns in reading order, as wide as their content", async () => {
+  const { figureSplit, partyKey, ledgerColumns, OWED_TO_YOU } = await import("../../pages/dashboard.js");
+  assert.deepEqual(figureSplit("1,18,000.00"), ["1,18,000", ".00"]);
+  assert.deepEqual(figureSplit("500"), ["500", ""]);
+  assert.deepEqual(figureSplit("12.5"), ["12", ".5"]);
+  assert.deepEqual(OWED_TO_YOU, ["owed_to_you"]);
+  const cols = (pairs) => pairs.map(([key, label]) => ({ key, label }));
+  const unpaid = { id: "unpaid_invoices", columns: [...cols([["name", "Number"], ["party", "Customer"], ["due", "Due"], ["left", "Amount left"]]), { key: "_status", label: "Status" }],
+    rows: [{ name: "ACC-SINV-2026-00004", party: "Northwind Traders", due: "16 Dec 2026", left: "₹ 1,18,000.00", _status: "Unpaid" }] };
+  assert.equal(partyKey(unpaid), "party");
+  const out = ledgerColumns(unpaid);
+  assert.deepEqual(out.map((c) => c.label), ["Number", "Customer", "Status", "Due", "Amount left"]);
+  assert.deepEqual(out.map((c) => c.fit), [true, false, true, true, true]);
+  const drafts = { id: "drafts", columns: cols([["name", "Number"], ["type", "Type"], ["party", "Party"], ["amount", "Amount"], ["madeBy", "Made by"]]),
+    rows: [{ name: "A-1", type: "invoice", party: "Acme Interiors", amount: "₹ 11,800.00", madeBy: "Bookkeeper" }] };
+  assert.deepEqual(ledgerColumns(drafts).map((c) => c.key), ["name", "party", "type", "madeBy", "amount"]);
+  assert.equal(partyKey({ id: "staff", columns: cols([["name", "Name"], ["job", "Job"]]) }), "name");
+  assert.equal(partyKey({ id: "open_requests", columns: cols([["subject", "Subject"], ["from", "From"]]) }), null);
+  const replies = { id: "draft_replies", columns: cols([["request", "Request"], ["reply", "Reply"]]),
+    rows: [{ request: "#1 Delivery is late", reply: "We are sorry for the delay. Your order ships on Friday, and we will write again." }] };
+  assert.deepEqual(ledgerColumns(replies).map((c) => [c.key, c.fit]), [["request", true], ["reply", false]]);
+  assert.deepEqual(ledgerColumns(null), []);
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../../pages/dashboard.js", import.meta.url), "utf8");
+  assert.match(src, /<\$\{Card\} padding="none" class="p-dashboard-sheet">/, "a table stands on a card");
+  assert.match(src, /<\$\{Avatar\} name=\$\{String\(value\)\} size=\$\{24\} \/>/, "a party has a 24 px initials disc from its own name");
+  assert.match(src, /<\$\{Button\} variant="ghost" size="sm" icon="inbox" class="p-dashboard-queue"/, "the way into Needs you is a small ghost");
+  const css = readFileSync(new URL("../../styles/pages/dashboard.css", import.meta.url), "utf8");
+  assert.match(css, /\.p-dashboard-cents \{ font-size: max\(0\.75em, var\(--fs-label\)\); \}/);
+});

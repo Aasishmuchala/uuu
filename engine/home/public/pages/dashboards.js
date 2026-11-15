@@ -5,12 +5,15 @@
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { Button, Card, glueValue, Icon, PageHeader } from "../kit/index.js";
-import { moneyParts } from "./dashboard.js";
+import { figureSplit, moneyParts, OWED_TO_YOU } from "./dashboard.js";
 
-// A fact's value: an amount's unit small and grey beside its figure, anything else as written.
+// A fact's value: an amount's symbol and the small part after its point at three quarters size on the digits'
+// baseline, as the record dashboards draw them; anything else as written.
 function Value({ value }) {
   const m = moneyParts(value);
-  return m ? html`${m.sign}<span class="p-dashboards-unit">${m.unit}</span>${m.figure}` : glueValue(value);
+  if (!m) return glueValue(value);
+  const [whole, small] = figureSplit(m.figure);
+  return html`${m.sign}<span class="p-dashboards-unit">${m.unit}</span>${whole}${small ? html`<span class="p-dashboards-cents">${small}</span>` : null}`;
 }
 
 // The six dashboards, in the order of the shelf. `dept` names the department the dashboard belongs to (Customers
@@ -109,7 +112,7 @@ function DashboardCard({ d }) {
               ${figures.map((f) => html`
                 <div class="p-dashboards-figure" key=${f.id}>
                   <dt class="p-dashboards-label">${f.label}</dt>
-                  <dd class="p-dashboards-value"><${Value} value=${f.value} /></dd>
+                  <dd class=${`p-dashboards-value${OWED_TO_YOU.includes(f.id) ? " p-dashboards-value--in" : ""}`}><${Value} value=${f.value} /></dd>
                 </div>`)}
             </dl>` : html`<p class="p-dashboards-quiet">No figures yet.</p>`}
           <p class="p-dashboards-waits">${waits}</p>` : null}

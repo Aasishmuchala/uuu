@@ -84,8 +84,9 @@
 }
 .p-dashboards .p-dashboards-value {
   margin: 0;
-  font-size: var(--fs-section);
-  line-height: var(--lh-section);
+  font-size: calc(var(--fs-section) * 1.25);
+  line-height: var(--lh-stat);
+  letter-spacing: var(--ls-stat);
   font-weight: var(--fw-medium);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -93,7 +94,10 @@
   text-overflow: ellipsis;
 }
 
-.p-dashboards .p-dashboards-unit { margin-right: 0.2em; font-size: var(--fs-note); font-weight: var(--fw-regular); color: var(--ink-3); }
+/* An amount: the symbol and the small part at three quarters of the digits (never under 12 px), in their ink. */
+.p-dashboards .p-dashboards-unit,
+.p-dashboards .p-dashboards-cents { font-size: max(0.75em, var(--fs-label)); }
+.p-dashboards .p-dashboards-unit { margin-right: 0.15em; }
 
 .p-dashboards .p-dashboards-figures--wait { gap: var(--s-4); }
 .p-dashboards .p-dashboards-ghost {
@@ -110,10 +114,18 @@
   line-height: var(--lh-note);
   color: var(--ink-2);
 }
+/* What waits: the card's foot, under a hairline. */
+.p-dashboards .p-dashboards-value--in { color: var(--good); }
 .p-dashboards .p-dashboards-waits {
   margin-top: auto;
   padding-top: var(--s-4);
 }
+.p-dashboards .p-dashboards-card > .p-dashboards-waits {
+  margin-top: auto;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+.p-dashboards .p-dashboards-figures { margin-bottom: var(--s-5); }
 .p-dashboards .p-dashboards-figures + .p-dashboards-waits,
 .p-dashboards .p-dashboards-quiet + .p-dashboards-waits { margin-top: auto; }
 .p-dashboards .p-dashboards-card > .p-dashboards-quiet { margin-top: var(--s-5); }
