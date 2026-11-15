@@ -102,7 +102,7 @@
 
 .k-rail__title {
   font-size: var(--fs-page);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-page);
   line-height: var(--lh-page);
   letter-spacing: var(--ls-page);
   color: var(--ink);
@@ -389,7 +389,8 @@
   color: var(--ink-2);
 }
 
-/* The page's state, and a row's state: the kit's chip, 22 px, 12 px 500, 8 px sides, 6 px corner, on its tint. */
+/* The page's state, and a row's state: the kit's chip, 22 px, 12 px 500, 8 px sides, 6 px corner, on its tint (a
+   neutral one on the kit's chip fill, so it stands off its card). */
 .k-doc__state,
 .k-rows__state {
   display: inline-flex;
@@ -397,7 +398,7 @@
   height: 22px;
   padding: 0 var(--s-2);
   border-radius: var(--r-1);
-  background: var(--ctl);
+  background: var(--chip);
   color: var(--ink-2);
   font-size: var(--fs-label);
   font-weight: var(--fw-medium);

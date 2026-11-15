@@ -238,4 +238,6 @@ test("fix round R5: a row's named icon is the kit's neutral 32 px Tile; the page
   unmount(root);
   const sheet = css("kit/layout.css");
   assert.match(/\.k-doc__title \{([^}]*)\}/.exec(sheet)[1], /font-weight: var\(--fw-page\);/);
+  assert.match(/\.k-rail__title \{([^}]*)\}/.exec(sheet)[1], /font-size: var\(--fs-page\);\s*font-weight: var\(--fw-page\);/, "the stage's title is the same title");
+  assert.match(/\.k-doc__state,\s*\.k-rows__state \{([^}]*)\}/.exec(sheet)[1], /background: var\(--chip\);/, "a neutral chip on the kit's chip fill");
 });
