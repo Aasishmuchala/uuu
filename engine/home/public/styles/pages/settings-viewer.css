@@ -33,18 +33,6 @@
   margin-top: 2px;
 }
 
-.p-settings-viewer .p-settings-viewer__steps {
-  display: grid;
-  gap: 2px;
-  margin-top: var(--s-1);
-}
-
-.p-settings-viewer .p-settings-viewer__step {
-  display: block;
-  padding-left: var(--s-3);
-  border-left: 2px solid var(--line-2);
-}
-
 .p-settings-viewer .k-next__command {
   margin-top: 0;
 }
@@ -62,12 +50,12 @@
   margin-top: 2px;
 }
 
-/* What follows a row lines up under the row's words (16 + 36 + 14 px from the panel's edge). */
+/* What follows a row lines up under the row's words (16 + 32 + 12 px from the panel's edge). */
 .p-settings-viewer .p-settings-viewer__more {
   display: grid;
   gap: var(--s-2);
   margin-top: -2px;
-  padding: 0 var(--s-4) 14px 66px;
+  padding: 0 var(--s-4) var(--s-4) 60px;
 }
 
 .p-settings-viewer .p-settings-viewer__more .k-notice,
@@ -75,9 +63,12 @@
   margin: 0;
 }
 
+/* A Test's answer: the sentence under the row's words, in the second ink with a green check; then the two
+   pictures in a well across the panel, on the deepest ground, a 1 px edge round each. */
 .p-settings-viewer .p-settings-viewer__answer {
   display: grid;
   gap: var(--s-3);
+  padding: 0 var(--s-4) var(--s-4);
   font-size: var(--fs-note);
   line-height: var(--lh-note);
   color: var(--ink-2);
@@ -87,21 +78,68 @@
   margin-top: 0;
 }
 
+.p-settings-viewer .p-settings-viewer__said {
+  padding-left: 44px;
+}
+
+.p-settings-viewer .p-settings-viewer__said .k-st {
+  color: var(--ink-2);
+}
+
+.p-settings-viewer .p-settings-viewer__well {
+  padding: var(--s-5) var(--s-5) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--stage);
+}
+
+.p-settings-viewer .p-settings-viewer__well .k-site__pair {
+  gap: var(--s-5);
+}
+
+.p-settings-viewer .p-settings-viewer__well .k-site__screen {
+  border-color: var(--line-2);
+  box-shadow: var(--shadow-card);
+}
+
+/* A caption is one 12 px line: the width's word and its size. */
+.p-settings-viewer .p-settings-viewer__well .k-site__cap {
+  flex-direction: row;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  white-space: nowrap;
+}
+
 /* ---- What was opened today: two counts on one line, the figures in tabular numbers */
 
+/* What was opened today: each count a figure (15 px 600, tabular) over its 12 px label. */
 .p-settings-viewer .p-settings-viewer__counts {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--s-4);
+  gap: 0 var(--s-8);
+  margin-top: var(--s-3);
+  margin-bottom: var(--s-1);
+}
+
+.p-settings-viewer .p-settings-viewer__count {
+  display: inline-flex;
+  flex-direction: column-reverse;
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  color: var(--ink-2);
+}
+
+.p-settings-viewer .p-settings-viewer__count b {
+  font-size: var(--fs-fact);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-fact);
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
-.p-settings-viewer .p-settings-viewer__counts b {
-  font-weight: var(--fw-medium);
-  color: var(--ink);
-}
-
-/* ---- The door's path: three words with their icons, two short lines; good when the viewer is open */
+/* ---- The door's path: three neutral 28 px chips joined by a hairline; the viewer's 6 px dot carries the tone */
 
 .p-settings-viewer .p-settings-viewer__path {
   display: inline-flex;
@@ -115,44 +153,56 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 26px;
-  padding: 0 var(--s-2);
+  height: 28px;
+  padding: 0 10px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-1);
-  font-size: var(--fs-note);
+  background: var(--ctl);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  line-height: var(--lh-note);
-  color: var(--ink-2);
+  line-height: var(--lh-label);
+  color: var(--ink);
   white-space: nowrap;
 }
 
 .p-settings-viewer .p-settings-viewer__node .k-icon {
   flex: none;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
-.p-settings-viewer .p-settings-viewer__wire {
-  width: 16px;
-  height: 1px;
+.p-settings-viewer .p-settings-viewer__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-round);
   background: var(--ink-3);
 }
 
-.p-settings-viewer .p-settings-viewer__path--open .p-settings-viewer__wire {
-  background: var(--good);
+.p-settings-viewer .p-settings-viewer__dot--good { background: var(--good); }
+.p-settings-viewer .p-settings-viewer__dot--warn { background: var(--warn); }
+
+.p-settings-viewer .p-settings-viewer__wire {
+  width: 20px;
+  height: 1px;
+  background: var(--line-2);
 }
 
-.p-settings-viewer .p-settings-viewer__path--open .p-settings-viewer__node--door {
-  border-color: var(--good);
-  color: var(--ink);
-}
-
-.p-settings-viewer .p-settings-viewer__path--open .p-settings-viewer__node--door .k-icon {
-  color: var(--good);
+/* Open: the hairlines carry a little of the good tone, so the way through reads without a green chip. */
+.p-settings-viewer .p-settings-viewer__path--open .p-settings-viewer .p-settings-viewer__wire {
+  background: color-mix(in srgb, var(--good) 45%, var(--line-2));
 }
 
 @media (max-width: 859px) {
   .p-settings-viewer .p-settings-viewer__more {
     padding-left: var(--s-4);
+  }
+
+  .p-settings-viewer .p-settings-viewer__said {
+    padding-left: 0;
+  }
+
+  .p-settings-viewer .p-settings-viewer__well {
+    padding: var(--s-3);
   }
 
   .p-settings-viewer .p-settings-viewer__node {

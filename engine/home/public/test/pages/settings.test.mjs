@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import Page, {
-  NOT_KNOWN, SECTIONS, SIDES, THEMES, appearanceLine, laterLine, sectionHref, sectionOf, sideShown, statusOf,
+  NOT_KNOWN, SECTIONS, SIDES, THEMES, appearanceLine, chipOf, laterLine, sectionHref, sectionOf, sideShown, statusOf,
 } from "../../pages/settings.js";
 
 const SRC = readFileSync(new URL("../../pages/settings.js", import.meta.url), "utf8");
@@ -136,4 +136,14 @@ test("settings: the Sidebar row shows what the owner chose (Automatic when nothi
 test("settings: the sheet keeps to this page's own touches, and a switch in a row shows the control alone", () => {
   assert.match(CSS, /\.p-settings \.k-rows__control \.k-switch__label/);
   assert.doesNotMatch(CSS, /\.p-settings__(group|swatch|swatches|dot|themes|later|item|sub)\b/);
+});
+
+test("fix round B2: the head's chip is one or two words; the long line lives once (in the list's dot, for a screen reader and on hover)", () => {
+  assert.deepEqual(chipOf({ tone: "good", text: "On, within your limits" }), { tone: "good", text: "On" });
+  assert.deepEqual(chipOf({ tone: "neutral", text: "Off. No agent can reach the internet." }), { tone: "neutral", text: "Off" });
+  assert.deepEqual(chipOf({ tone: "bad", text: "Over today's limit" }), null, "three words: no chip");
+  assert.equal(chipOf({ tone: "neutral", text: NOT_KNOWN }), null);
+  assert.deepEqual(chipOf({ tone: "neutral", text: "Your Claude and Codex plans" }, () => "Your plans", {}), { tone: "neutral", text: "Your plans" }, "a module may say its own");
+  assert.deepEqual(chipOf({ tone: "good", text: "On" }, () => { throw new Error("x"); }, {}), { tone: "good", text: "On" });
+  assert.match(SRC, /chipOf\(lines\[here\.id\], here\.mod\.stateWord/);
 });

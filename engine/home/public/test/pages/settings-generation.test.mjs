@@ -590,3 +590,13 @@ test("generation: the section's own sheet holds its classes and keeps the page r
   for (const c of own) assert.ok(css.includes(`.${c}`), c);
   assert.doesNotMatch(CODE, /p-settings__/);
 });
+
+test("fix round B2: the switch's list is the kit's Checklist; the key's Test, Replace and Remove are ghosts of one height; untested is the warn chip; the spent bar is 4 px in the second ink", () => {
+  assert.match(CODE, /<\$\{Checklist\} lead=\$\{WORDS\.switchWhen\}/);
+  assert.equal((CODE.match(/size="sm" variant="ghost"/g) || []).length >= 3, true);
+  assert.match(CODE, /mark\.tone === "wait" \? "warn"/);
+  const css = readFileSync(join(PUBLIC, "styles", "pages", "settings-generation.css"), "utf8");
+  assert.match(css, /__spent \.k-meter__track \{[^}]*height: 4px;[^}]*border-radius: 2px;/);
+  assert.match(css, /__spent \.k-meter__fill \{[^}]*background: var\(--ink-2\);/);
+  assert.match(css, /__node \{[^}]*height: 28px;/, "the chain's chips are 28 px");
+});

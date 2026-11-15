@@ -14,6 +14,11 @@
   border: 0;
 }
 
+/* Green is for chips and glyphs: a good sentence is said in the second ink, its check alone in green. */
+.p-settings .k-st--good {
+  color: var(--ink-2);
+}
+
 /* Later: the sentence, and under it, when asked, what it would cost, how and with what. */
 .p-settings .p-settings__lines {
   display: grid;
@@ -29,7 +34,7 @@
 /* On a phone a row's wide controls drop under its words (the kit's rule); a switch is small and stays at the right. */
 @media (max-width: 859px) {
   .p-settings .k-rows__row:has(> .k-rows__control .k-switch) {
-    grid-template-columns: 36px minmax(0, 1fr) auto;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
   }
   .p-settings .k-rows__row:has(> .k-rows__control .k-switch) > .k-rows__control {
     grid-column: 3;

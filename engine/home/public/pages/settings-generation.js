@@ -18,8 +18,8 @@ import { useApp } from "../lib/context.js";
 import { parseHash } from "../lib/router.js";
 import { count } from "../lib/format.js";
 import {
-  Button, Card, DataTable, Dialog, Empty, ErrorNotice, Field, Group, Icon, Loading, Meter, MoneyInput, NextStep, Notice, Row, Rows, Select, St,
-  Switch, Tag, TextInput, Time,
+  Button, Card, Checklist, DataTable, Dialog, Empty, ErrorNotice, Field, Group, Icon, Loading, Meter, MoneyInput, NextStep, Notice, Row, Rows,
+  Select, St, Switch, Tag, TextInput, Time,
 } from "../kit/index.js";
 
 const EVERY = 10000;
@@ -667,16 +667,17 @@ function Answer({ result }) {
   </div>`;
 }
 
-// The door's path, drawn: the Artist, the door, Runway; the two lines are good when the door is open. The row's
-// sentence says the same, so the drawing is for the eye only.
+// The door's path, drawn: the Artist, the door, Runway, as three neutral chips joined by a hairline; the door's
+// chip carries a 6 px dot in its state's tone. The row's sentence says the same, so the drawing is for the eye only.
 function DoorPath({ view }) {
   const open = isOpen(view);
+  const dot = open ? "good" : view.on ? "warn" : "neutral";
   return html`<span class=${`p-settings-generation__path${open ? " p-settings-generation__path--open" : ""}`} aria-hidden="true">
-    <span class="p-settings-generation__node"><${Icon} name="brush" size=${16} />Artist</span>
+    <span class="p-settings-generation__node"><${Icon} name="brush" size=${14} />Artist</span>
     <span class="p-settings-generation__wire"></span>
-    <span class="p-settings-generation__node p-settings-generation__node--door"><${Icon} name=${open ? "check" : view.paused ? "pause" : "lock"} size=${16} />Door</span>
+    <span class="p-settings-generation__node"><span class=${`p-settings-generation__dot p-settings-generation__dot--${dot}`}></span>Door</span>
     <span class="p-settings-generation__wire"></span>
-    <span class="p-settings-generation__node"><${Icon} name="film" size=${16} />Runway</span>
+    <span class="p-settings-generation__node"><${Icon} name="film" size=${14} />Runway</span>
   </span>`;
 }
 
@@ -720,14 +721,19 @@ function KeyRow({ view, busy, act, failure, test, runTest }) {
     setFocus("gen-runway-replace");
   }
 
+  // Each fact once: while the switch's list of what to do first asks for the key, this row does not say it again.
+  const saidAbove = !saved && !view.on && !view.canSwitchOn && arr(view.blockers).includes("no_key");
+  // A saved key not yet tested is a look (the warn chip), not a grey word.
+  const chip = { tone: mark.tone === "wait" ? "warn" : toneOf(mark.tone), text: mark.word };
   return html`
-    <${Row} icon="key" title=${WORDS.keyField} state=${{ tone: toneOf(mark.tone), text: mark.word }}
-      say=${html`${saved ? WORDS.testWhat : WORDS.noKey}${saved && door.state !== "on" ? html`<span class="p-settings-generation__line">${WORDS.doorTestLater}</span>` : null}`}
-      control=${saved ? html`
-        <${Button} size="sm" icon="play" onClick=${runTest} busy=${busy === "test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>
-        ${editing ? null : html`<${Button} size="sm" variant="quiet" id="gen-runway-replace" disabled=${Boolean(busy)}
-          onClick=${() => { setEditing(true); setFocus("gen-runway-key"); }}>${WORDS.replaceKey}<//>`}
-        <${Button} size="sm" variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>${WORDS.removeKey}<//>` : null} />
+    <${Row} icon="key" title=${WORDS.keyField} state=${chip}
+      say=${html`${saved ? WORDS.testWhat : saidAbove ? null : WORDS.noKey}${saved && door.state !== "on" ? html`<span class="p-settings-generation__line">${WORDS.doorTestLater}</span>` : null}
+        ${saved ? html`<span class="p-settings-generation__actions">
+          <${Button} size="sm" variant="ghost" icon="play" onClick=${runTest} busy=${busy === "test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>
+          ${editing ? null : html`<${Button} size="sm" variant="ghost" id="gen-runway-replace" disabled=${Boolean(busy)}
+            onClick=${() => { setEditing(true); setFocus("gen-runway-key"); }}>${WORDS.replaceKey}<//>`}
+          <${Button} size="sm" variant="ghost" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>${WORDS.removeKey}<//>
+        </span>` : null}`} />
     <${More}>
       ${open ? html`<form class="p-settings-generation__key" onSubmit=${save} autocomplete="off">
         <${Field} hint=${saved ? "Paste a new key to replace the saved one." : "It is kept on this Mac only and is never shown again."}
@@ -766,10 +772,8 @@ function RunwayGroup({ view, busy, act, failure, test, runTest }) {
     <${Rows}>
       <${Row} icon="power" title=${WORDS.switchLabel}
         say=${html`${busy === "switch" ? WORDS.switching : switchLine(on)}
-          ${locked && reasons.length ? html`<span class="p-settings-generation__steps">
-            <span class="p-settings-generation__line">${WORDS.switchWhen}</span>
-            ${reasons.map((r, i) => html`<span key=${i} class="p-settings-generation__step"><${Said} text=${r} /></span>`)}
-          </span>` : null}
+          ${locked && reasons.length ? html`<${Checklist} lead=${WORDS.switchWhen}
+            items=${reasons.map((r) => ({ done: false, text: html`<${Said} text=${r} />` }))} />` : null}
           ${note ? html`<span class="p-settings-generation__line"><${St} tone="warn" icon=${view.paused ? "pause" : undefined}>${note}<//></span>` : null}`}
         control=${html`<${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
           onChange=${(next) => act("switch", "/api/generation/switch", { on: next }, switchLine(next))} />`}
@@ -922,8 +926,8 @@ function HiggsfieldGroup({ view, busy, act, failure, test, runTest, signIn, retu
                 : door.state !== "on" ? html`<span class="p-settings-generation__line">${WORDS.doorTestLater}</span>` : null}`}
             control=${html`
               ${signedIn ? null : html`<${Button} size="sm" variant="primary" icon="external" onClick=${signIn} busy=${busy === "hf-begin"} disabled=${Boolean(busy)}>${HF_WORDS.signIn}<//>`}
-              ${signedIn ? html`<${Button} size="sm" icon="play" onClick=${runTest} busy=${busy === "hf-test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>` : null}
-              ${signedIn || state.key === "refused" ? html`<${Button} size="sm" variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>${HF_WORDS.signOut}<//>` : null}`} />
+              ${signedIn ? html`<${Button} size="sm" variant="ghost" icon="play" onClick=${runTest} busy=${busy === "hf-test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>` : null}
+              ${signedIn || state.key === "refused" ? html`<${Button} size="sm" variant="ghost" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>${HF_WORDS.signOut}<//>` : null}`} />
           <${More}>
             ${busy === "hf-test" ? html`<p class="p-settings-generation__line" role="status"><${St} icon="clock">${HF_WORDS.waiting}<//></p>` : null}
             <${Failure} failure=${failure} where="hf-begin" />

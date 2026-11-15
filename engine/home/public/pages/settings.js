@@ -70,6 +70,20 @@ export function statusOf(fn, data) {
   return fallback;
 }
 
+// The page head's chip (fix round B2): one or two words beside the title, the long line living once on the page.
+// A module may say its own (stateWord(data) -> words); else the line's first clause when it is one or two words
+// ("On, within your limits" -> "On"); else no chip.
+export function chipOf(line, fn, data) {
+  if (!line || line.text === NOT_KNOWN) return null;
+  if (typeof fn === "function" && data !== null && data !== undefined) {
+    let said;
+    try { said = fn(data); } catch { said = null; }
+    if (typeof said === "string" && said.trim()) return { tone: line.tone, text: said.trim().slice(0, 24) };
+  }
+  const first = String(line.text).split(/[,.]/)[0].trim();
+  return first && first.split(/\s+/).length <= 2 ? { tone: line.tone, text: first } : null;
+}
+
 // Appearance's line: the theme's word.
 export const appearanceLine = (theme) => ({ tone: "neutral", text: (THEMES.find((t) => t.id === theme) || THEMES[2]).label });
 
@@ -177,7 +191,7 @@ export default function Page({ route }) {
   }, [current]);
 
   const sections = SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon, href: sectionHref(s.id), status: lines[s.id] }));
-  const headState = here.mod && lines[here.id].text !== NOT_KNOWN ? lines[here.id] : null;
+  const headState = here.mod ? chipOf(lines[here.id], here.mod.stateWord, answers[here.id].data) : null;
 
   let body;
   if (here.Body) body = html`<${here.Body} />`;

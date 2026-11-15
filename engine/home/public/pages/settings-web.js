@@ -11,7 +11,7 @@ import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { count, fullWhen } from "../lib/format.js";
 import {
-  Button, DataTable, Dialog, Empty, ErrorNotice, Field, Group, Icon, Loading, NextStep, Notice, Row, Rows, St, Switch, Tag, TextInput,
+  Button, Checklist, DataTable, Dialog, Empty, ErrorNotice, Field, Group, Icon, Loading, NextStep, Notice, Row, Rows, St, Switch, Tag, TextInput,
 } from "../kit/index.js";
 
 const EVERY = 10000;
@@ -330,14 +330,15 @@ const FailLine = ({ failure, where }) => (failure && failure.where === where
   ? html`<${RunLine} tone="bad" text=${failure.error.message} />${failure.error.next ? html`<${RunLine} text=${failure.error.next} />` : null}`
   : null);
 
-// The door, drawn small under its sentence: the Researcher, the door, the public web. The words say the same.
-function DoorPath({ open }) {
+// The door, drawn small under its sentence: the Researcher, the door, the public web, as three neutral chips joined
+// by a hairline; the door's chip carries a 6 px dot in its state's tone. The words say the same.
+function DoorPath({ open, tone }) {
   return html`<span class=${`p-settings-web__path${open ? " p-settings-web__path--open" : ""}`} aria-hidden="true">
-    <span class="p-settings-web__node"><${Icon} name="search" size=${16} />Researcher</span>
+    <span class="p-settings-web__node"><${Icon} name="search" size=${14} />Researcher</span>
     <span class="p-settings-web__wire"></span>
-    <span class="p-settings-web__node p-settings-web__node--door"><${Icon} name=${open ? "check" : "lock"} size=${16} />Web door</span>
+    <span class="p-settings-web__node"><span class=${`p-settings-web__dot p-settings-web__dot--${tone || "neutral"}`}></span>Web door</span>
     <span class="p-settings-web__wire"></span>
-    <span class="p-settings-web__node"><${Icon} name="globe" size=${16} />Public web</span>
+    <span class="p-settings-web__node"><${Icon} name="globe" size=${14} />Public web</span>
   </span>`;
 }
 
@@ -351,13 +352,16 @@ function DoorGroup({ view, busy, act, failure }) {
   const n = arr(view.shared).length;
   const word = doorWord(on, view.door);
   const doorTone = open ? "good" : on || door.state === "unhealthy" ? "warn" : "neutral";
+  // Each fact once: when the list of what must be done first already says the door's sentence (with its command),
+  // the door's row shows its chip and its path only.
+  const saidAbove = locked && reasons.includes(door.sentence);
   return html`<${Group}>
     <${Rows}>
       <${Row} icon="globe" title=${WORDS.switchLabel}
         say=${html`<span class="p-settings-web__lines">
           <span role="status">${busy === "switch" ? WORDS.switching : switchLine(on)}</span>
-          ${locked ? html`<span>It can be switched on when these are done:</span>
-            ${reasons.map((r, i) => html`<${RunLine} key=${i} text=${r} />`)}` : null}
+          ${locked && reasons.length ? html`<${Checklist} lead="It can be switched on when these are done:"
+            items=${reasons.map((r) => ({ done: false, text: html`<${RunLine} text=${r} />` }))} />` : null}
           <${FailLine} failure=${failure} where="switch" />
         </span>`}
         control=${html`<${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
@@ -365,9 +369,9 @@ function DoorGroup({ view, busy, act, failure }) {
         warned=${WORDS.leaves} />
       <${Row} icon="team" title="Who may ask"
         say=${`Only the Researcher. ${sharedLine(n)}.`}
-        control=${html`<${Button} variant="link" size="sm" href=${n ? "#/files?shared=1" : "#/files"}>${n ? "See them in Files" : "Choose some in Files"}<//>`} />
+        control=${html`<${Button} variant="ghost" size="sm" href=${n ? "#/files?shared=1" : "#/files"}>${n ? "See them in Files" : "Choose some in Files"}<//>`} />
       <${Row} icon="door" title="The web door" state=${{ tone: doorTone, text: word }}
-        say=${html`<span class="p-settings-web__lines"><${RunLine} text=${door.sentence} /><${DoorPath} open=${open} /></span>`} />
+        say=${html`<span class="p-settings-web__lines">${saidAbove ? null : html`<${RunLine} text=${door.sentence} />`}<${DoorPath} open=${open} tone=${doorTone} /></span>`} />
     <//>
   <//>`;
 }
@@ -405,18 +409,6 @@ function HostList({ spec, hosts, busy, save, failure }) {
     ...list.map((h) => ({ id: `site-${h}`, site: plain(h, 253) })),
     ...refused.map((t, i) => ({ id: `refused-${i}`, site: plain(t, 80), refused: i })),
   ];
-  const cell = (row, col) => {
-    if (col.key === "site") {
-      return row.refused === undefined
-        ? html`<span class="p-settings-web__site">${row.site}</span>`
-        : html`<span class="p-settings-web__site p-settings-web__site--bad">${row.site}</span> <${Tag} tone="bad">Not a site name<//>`;
-    }
-    return row.refused === undefined
-      ? html`<${Button} variant="quiet" size="sm" icon="cross" aria-label=${`Take ${row.site} off ${spec.short}`} disabled=${Boolean(busy)}
-          onClick=${() => remove(row.site)} />`
-      : html`<${Button} variant="quiet" size="sm" icon="cross" aria-label=${`Clear ${row.site}`}
-          onClick=${() => setRefused(refused.filter((_, j) => j !== row.refused))} />`;
-  };
 
   return html`<section class="p-settings-web__list" aria-labelledby=${headId}>
     <h3 class="p-settings-web__list-title" id=${headId}>
@@ -424,8 +416,20 @@ function HostList({ spec, hosts, busy, save, failure }) {
       <span class="p-settings-web__count">${count(list.length, "site")}</span>
     </h3>
     <div class="p-settings-web__panel">
-      <${DataTable} columns=${[{ key: "site", label: "Site", align: "start" }, { key: "remove", label: "Take off", align: "end" }]}
-        rows=${rows} emptyText=${spec.empty} renderCell=${cell} />
+      ${rows.length
+        ? html`<ul class="p-settings-web__sites" aria-labelledby=${headId}>
+            ${rows.map((row) => html`<li key=${row.id} class=${`p-settings-web__siterow${row.refused === undefined ? "" : " p-settings-web__siterow--bad"}`}>
+              <${Icon} name="globe" size=${16} class="p-settings-web__glyph" />
+              <span class=${`p-settings-web__site${row.refused === undefined ? "" : " p-settings-web__site--bad"}`}>${row.site}</span>
+              ${row.refused === undefined ? null : html`<${Tag} tone="bad">Not a site name<//>`}
+              ${row.refused === undefined
+                ? html`<${Button} variant="quiet" size="sm" icon="cross" class="p-settings-web__remove" aria-label=${`Take ${row.site} off ${spec.short}`}
+                    disabled=${Boolean(busy)} onClick=${() => remove(row.site)} />`
+                : html`<${Button} variant="quiet" size="sm" icon="cross" class="p-settings-web__remove" aria-label=${`Clear ${row.site}`}
+                    onClick=${() => setRefused(refused.filter((_, j) => j !== row.refused))} />`}
+            </li>`)}
+          </ul>`
+        : html`<p class="p-settings-web__none">${spec.empty}</p>`}
       <form class="p-settings-web__add" onSubmit=${add} autocomplete="off">
         <${Field} error=${sentence || null}>
           <div class="p-settings-web__addrow">

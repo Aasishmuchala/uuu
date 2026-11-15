@@ -10,7 +10,7 @@
 import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { Button, ErrorNotice, Group, Icon, Loading, NextStep, Notice, Row, Rows, ShotPair, St, Switch } from "../kit/index.js";
+import { Button, Checklist, ErrorNotice, Group, Icon, Loading, NextStep, Notice, Row, Rows, ShotPair, St, Switch } from "../kit/index.js";
 
 const EVERY = 10000;
 
@@ -197,16 +197,18 @@ function More({ children }) {
   return list.length ? html`<div class="p-settings-viewer__more">${list}</div>` : null;
 }
 
-// The door's path, drawn: the two agents, the page viewer, a hidden Chrome; the two lines are good when the door is
-// open. The row's sentence says the same, so the drawing is for the eye only.
+// The door's path, drawn: the two agents, the page viewer, a hidden Chrome, as three neutral 28 px chips joined by a
+// hairline; the viewer's chip carries a 6 px dot in its state's tone. The row's sentence says the same, so the
+// drawing is for the eye only.
 function DoorPath({ view }) {
   const open = isOpen(view);
+  const dot = open ? "good" : view.on ? "warn" : "neutral";
   return html`<span class=${`p-settings-viewer__path${open ? " p-settings-viewer__path--open" : ""}`} aria-hidden="true">
-    <span class="p-settings-viewer__node"><${Icon} name="team" size=${16} />Agents</span>
+    <span class="p-settings-viewer__node"><${Icon} name="team" size=${14} />Agents</span>
     <span class="p-settings-viewer__wire"></span>
-    <span class="p-settings-viewer__node p-settings-viewer__node--door"><${Icon} name=${open ? "check" : "lock"} size=${16} />Viewer</span>
+    <span class="p-settings-viewer__node"><span class=${`p-settings-viewer__dot p-settings-viewer__dot--${dot}`}></span>Viewer</span>
     <span class="p-settings-viewer__wire"></span>
-    <span class="p-settings-viewer__node"><${Icon} name="globe" size=${16} />Chrome</span>
+    <span class="p-settings-viewer__node"><${Icon} name="globe" size=${14} />Chrome</span>
   </span>`;
 }
 
@@ -218,11 +220,14 @@ function doorChip(view) {
   return { tone: view.on && (s === "on" || s === "unhealthy") ? "warn" : "neutral", text: word };
 }
 
-// A Test's answer: the sentence with its tone's glyph and, under it, the two pictures at one size.
+// A Test's answer: the sentence with its tone's glyph and, under it, the two pictures large enough to read their
+// page's heading (the desktop one about 480 px wide), in a well across the panel.
 function Answer({ result }) {
   return html`<div class="p-settings-viewer__answer" role="status">
-    <p class="p-settings-viewer__line"><${St} tone=${toneOf(result.tone)}><${Said} text=${result.sentence} /><//></p>
-    ${result.desktop || result.phone ? html`<${ShotPair} desktop=${result.desktop} phone=${result.phone} label="The test page" small=${true} />` : null}
+    <p class="p-settings-viewer__line p-settings-viewer__said"><${St} tone=${toneOf(result.tone)}><${Said} text=${result.sentence} /><//></p>
+    ${result.desktop || result.phone
+      ? html`<div class="p-settings-viewer__well"><${ShotPair} desktop=${result.desktop} phone=${result.phone} label="The test page" /></div>`
+      : null}
   </div>`;
 }
 
@@ -236,10 +241,8 @@ function SwitchRow({ view, busy, act, failure }) {
   return html`
     <${Row} icon="power" title=${WORDS.switchLabel}
       say=${html`${busy === "switch" ? WORDS.switching : switchLine(on)}
-        ${locked && reasons.length ? html`<span class="p-settings-viewer__steps">
-          <span class="p-settings-viewer__line">It can be switched on when these are done:</span>
-          ${reasons.map((r, i) => html`<span key=${i} class="p-settings-viewer__step"><${Said} text=${r} /></span>`)}
-        </span>` : null}`}
+        ${locked && reasons.length ? html`<${Checklist} lead="It can be switched on when these are done:"
+          items=${reasons.map((r) => ({ done: false, text: html`<${Said} text=${r} />` }))} />` : null}`}
       control=${html`<${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
         onChange=${(next) => act("switch", "/api/viewer/switch", { on: next }, switchLine(next))} />`}
       warned=${warned} />
@@ -250,11 +253,12 @@ function SwitchRow({ view, busy, act, failure }) {
 function ViewerRow({ view }) {
   const door = doorState(view.door);
   const f = todayFigures(view);
-  // While the switch is on and the viewer is not running, the panel's warning already says so, in the same words.
-  const said = !(view.on && door.state !== "on");
+  // While the switch is on and the viewer is not running, the panel's warning already says so, in the same words;
+  // while it is off and its list of what to do first says the viewer's sentence, that list says it.
+  const said = !(view.on && door.state !== "on") && !(!view.on && !view.canSwitchOn && blockerLines(view).includes(door.sentence));
   return html`<${Row} icon="eye" title="The page viewer" state=${doorChip(view)}
     say=${html`${said ? html`<${Said} text=${door.sentence} />` : null}
-      <span class="p-settings-viewer__line p-settings-viewer__counts">${f.tiles.map(([label, n]) => html`<span key=${label}>${label} <b>${n}</b></span>`)}</span>
+      <span class="p-settings-viewer__line p-settings-viewer__counts">${f.tiles.map(([label, n]) => html`<span key=${label} class="p-settings-viewer__count"><span>${label}</span> <b>${n}</b></span>`)}</span>
       ${view.busy ? html`<span class="p-settings-viewer__line"><${St} icon="clock">${WORDS.busyNow}<//></span>` : null}
       <span class="p-settings-viewer__line"><${DoorPath} view=${view} /></span>`} />`;
 }
@@ -274,12 +278,12 @@ function TestRow({ view, busy, test, runTest, failure }) {
   return html`
     <${Row} icon="play" title=${WORDS.test} state=${{ tone: toneOf(mark.tone), text: mark.word }}
       say=${html`${WORDS.testWhat}${door.state !== "on" ? html`<span class="p-settings-viewer__line">${WORDS.testOnce}</span>` : null}`}
-      control=${html`<${Button} size="sm" icon="play" onClick=${runTest} busy=${busy === "test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>`} />
+      control=${html`<${Button} size="sm" variant="ghost" icon="play" onClick=${runTest} busy=${busy === "test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>`} />
     <${More}>
       ${busy === "test" ? html`<p class="p-settings-viewer__line" role="status"><${St} icon="clock">${WORDS.testing}<//></p>` : null}
       <${Failure} failure=${failure} where="test" />
-      ${result && busy !== "test" ? html`<${Answer} result=${result} />` : null}
-    <//>`;
+    <//>
+    ${result && busy !== "test" ? html`<${Answer} result=${result} />` : null}`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -10,7 +10,7 @@ import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { fullWhen } from "../lib/format.js";
 import {
-  Button, Card, DataTable, Dialog, ErrorNotice, Field, Group, Loading, Mono, NextStep, Notice, Row, Rows, Select, St, Switch, TextInput,
+  Button, Card, Checklist, DataTable, Dialog, ErrorNotice, Field, Group, Loading, Mono, NextStep, Notice, Row, Rows, Select, St, Switch, TextInput,
 } from "../kit/index.js";
 
 // The sentences of C9, as written.
@@ -70,6 +70,13 @@ export const modeLine = (mode) => (mode === "provider" ? WORDS.on : WORDS.off);
 
 // "No model is available for Builder. Choose one from the list."
 export const missingLine = (name) => `No model is available for ${text(name, 80)}. Choose one from the list.`;
+
+// Whether the switch's list of what to do first is drawn and says this sentence.
+export function saidInChecklist(view, sentence) {
+  const v = view && typeof view === "object" ? view : {};
+  const locked = v.mode !== "provider" && !v.canSwitchOn;
+  return locked && blockerLines(v).includes(sentence);
+}
 
 // Why the switch cannot be turned on, one sentence per blocker, in the order the server gives them.
 export function blockerLines(view) {
@@ -166,6 +173,13 @@ export function statusLine(data) {
   return { tone: "good", text: "Omega Plus for the agents" };
 }
 
+// The head's chip: one or two words (the line above says the rest, in the list of sections).
+export function stateWord(data) {
+  const v = data && typeof data === "object" ? data : {};
+  if (v.problem) return "Not read";
+  return v.mode === "provider" ? "Omega Plus" : "Your plans";
+}
+
 // The K8 sentence when the Art director's model is the Artist's, else "". The Artist stands for the makers.
 export function sameModelLine(view) {
   const agents = view && Array.isArray(view.agents) ? view.agents : [];
@@ -252,10 +266,8 @@ function SwitchRow({ view, busy, failure, act, switched }) {
   return html`
     <${Row} icon="power" title=${WORDS.switchLabel}
       say=${html`${busy === "mode" ? WORDS.switching : modeLine(view.mode)}
-        ${locked && blockers.length ? html`<span class="p-settings-models__steps">
-          <span class="p-settings-models__line">It can be switched on when these are done:</span>
-          ${blockers.map((b, i) => html`<span key=${i} class="p-settings-models__step"><${Said} text=${b} /></span>`)}
-        </span>` : null}`}
+        ${locked && blockers.length ? html`<${Checklist} lead="It can be switched on when these are done:"
+          items=${blockers.map((b) => ({ done: false, text: html`<${Said} text=${b} />` }))} />` : null}`}
       control=${html`<${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
         onChange=${(next) => act("mode", "/api/models/mode", { mode: next ? "provider" : "plans" }, next ? WORDS.on : WORDS.off, true)} />`}
       warned=${WORDS.warning} />
@@ -273,6 +285,9 @@ function KeyRow({ view, busy, act, failure }) {
   const saved = Boolean(view.key && view.key.saved);
   const t = view.lastTest;
   const open = editing || !saved;
+  // Each fact once: while the switch's list of what to do first says there is no key yet, this row does not say it
+  // again (its chip and the field do).
+  const saidAbove = !saved && saidInChecklist(view, WORDS.noKey);
 
   async function save(event) {
     event.preventDefault();
@@ -287,11 +302,13 @@ function KeyRow({ view, busy, act, failure }) {
   }
 
   return html`
-    <${Row} icon="key" title="Provider key" state=${{ tone: toneOf(status.tone), text: status.word }} say=${status.sentence}
-      control=${saved ? html`
-        <${Button} size="sm" icon="play" onClick=${() => act("test", "/api/models/test", {}, "The test is done.")} busy=${busy === "test"} disabled=${Boolean(busy)}>Test<//>
-        ${editing ? null : html`<${Button} size="sm" variant="quiet" disabled=${Boolean(busy)} onClick=${() => setEditing(true)}>Replace<//>`}
-        <${Button} size="sm" variant="quiet" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>Remove key<//>` : null} />
+    <${Row} icon="key" title="Provider key" state=${{ tone: status.tone === "wait" ? "warn" : toneOf(status.tone), text: status.word }}
+      say=${html`${saidAbove ? null : status.sentence}
+        ${saved ? html`<span class="p-settings-models__actions">
+          <${Button} size="sm" variant="ghost" icon="play" onClick=${() => act("test", "/api/models/test", {}, "The test is done.")} busy=${busy === "test"} disabled=${Boolean(busy)}>Test<//>
+          ${editing ? null : html`<${Button} size="sm" variant="ghost" disabled=${Boolean(busy)} onClick=${() => setEditing(true)}>Replace<//>`}
+          <${Button} size="sm" variant="ghost" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>Remove key<//>
+        </span>` : null}`} />
     <${More}>
       ${open ? html`<form class="p-settings-models__key" onSubmit=${save} autocomplete="off">
         <${Field} hint=${saved ? "Paste a new key to replace the saved one." : "It is kept on this Mac only and is never shown again."}
@@ -403,7 +420,7 @@ function AgentsGroup({ view, busy, act, failure, technical }) {
   return html`<${Group} title=${WORDS.agents} aside=${aside} say=${say}>
     ${readAt ? null : html`<${Rows}>
       <${Row} icon="list" title=${WORDS.notRead}
-        control=${html`<${Button} variant="primary" onClick=${() => act("refresh", "/api/models/refresh", {}, "The list of models is read.")}
+        control=${html`<${Button} onClick=${() => act("refresh", "/api/models/refresh", {}, "The list of models is read.")}
           busy=${busy === "refresh"} disabled=${Boolean(busy)}>Read the list<//>`} />
     <//>`}
     ${failure && (failure.where === "refresh" || failure.where.startsWith("pick")) ? html`<${Notice} tone="bad" title=${failure.error.message}>${failure.error.next || null}<//>` : null}
@@ -467,7 +484,8 @@ export default function ModelsSection() {
     ${state === "restart" ? html`<div class="p-settings-models__state"><${St} icon="clock">Not here yet<//><${RestartLine} /></div>` : null}
     ${state === "error" ? html`<div class="p-settings-models__state"><${ErrorNotice} error=${res.error} onRetry=${res.reload} /></div>` : null}
     ${state === "ready" && view.problem ? html`<div class="p-settings-models__state"><${Notice} tone="bad"><${Line}>${problemLine(view.problem)}<//><//></div>` : null}
-    ${state === "ready" && view.relay && view.relay.state !== "on" ? html`<div class="p-settings-models__state"><${Notice} tone="warn"><${Line}>${text(view.relay.sentence, 200) || WORDS.relayOff}<//><//></div>` : null}
+    ${state === "ready" && view.relay && view.relay.state !== "on" && !saidInChecklist(view, WORDS.relayOff)
+      ? html`<div class="p-settings-models__state"><${Notice} tone="warn"><${Line}>${text(view.relay.sentence, 200) || WORDS.relayOff}<//><//></div>` : null}
     ${state === "ready" ? html`
       <${OmegaGroup} view=${view} busy=${busy} act=${act} failure=${failure} switched=${switched} technical=${technical} setTechnical=${setTechnical} />
       <${AgentsGroup} view=${view} busy=${busy} act=${act} failure=${failure} technical=${technical} />

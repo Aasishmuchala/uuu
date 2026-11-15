@@ -25,16 +25,12 @@
   margin-top: 2px;
 }
 
-.p-settings-generation .p-settings-generation__steps {
-  display: grid;
-  gap: 2px;
-  margin-top: var(--s-1);
-}
-
-.p-settings-generation .p-settings-generation__step {
-  display: block;
-  padding-left: var(--s-3);
-  border-left: 2px solid var(--line-2);
+/* The key's three actions: ghosts of one height on a line of their own under the row's words. */
+.p-settings-generation .p-settings-generation__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
 }
 
 /* A state inside a row's words is said at the words' own size and weight; its glyph carries the tone. */
@@ -50,12 +46,12 @@
   margin-top: 2px;
 }
 
-/* What follows a row in its panel lines up under the row's words (16 + 36 + 14 px from the panel's edge). */
+/* What follows a row in its panel lines up under the row's words (16 + 32 + 12 px from the panel's edge). */
 .p-settings-generation .p-settings-generation__more {
   display: grid;
   gap: var(--s-2);
   margin-top: -2px;
-  padding: 0 var(--s-4) 14px 66px;
+  padding: 0 var(--s-4) var(--s-4) 60px;
 }
 
 .p-settings-generation .p-settings-generation__more .k-notice,
@@ -117,42 +113,47 @@
   white-space: nowrap;
 }
 
+/* Three neutral 28 px chips joined by a hairline; only the door's 6 px dot carries a tone. */
 .p-settings-generation .p-settings-generation__node {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 26px;
-  padding: 0 var(--s-2);
+  height: 28px;
+  padding: 0 10px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-1);
-  font-size: var(--fs-note);
+  background: var(--ctl);
+  font-size: var(--fs-label);
   font-weight: var(--fw-medium);
-  line-height: var(--lh-note);
-  color: var(--ink-2);
+  line-height: var(--lh-label);
+  color: var(--ink);
 }
 
 .p-settings-generation .p-settings-generation__node .k-icon {
   flex: none;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
-.p-settings-generation .p-settings-generation__wire {
-  width: 16px;
-  height: 1px;
+.p-settings-generation .p-settings-generation__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-round);
   background: var(--ink-3);
 }
 
-.p-settings-generation .p-settings-generation__path--open .p-settings-generation__wire {
-  background: var(--good);
+.p-settings-generation .p-settings-generation__dot--good { background: var(--good); }
+.p-settings-generation .p-settings-generation__dot--warn { background: var(--warn); }
+
+.p-settings-generation .p-settings-generation__wire {
+  width: 20px;
+  height: 1px;
+  background: var(--line-2);
 }
 
-.p-settings-generation .p-settings-generation__path--open .p-settings-generation__node--door {
-  border-color: var(--good);
-  color: var(--ink);
-}
-
-.p-settings-generation .p-settings-generation__path--open .p-settings-generation__node--door .k-icon {
-  color: var(--good);
+/* Open: the hairlines carry a little of the good tone, so the way through reads without a green chip. */
+.p-settings-generation .p-settings-generation__path--open .p-settings-generation .p-settings-generation__wire {
+  background: color-mix(in srgb, var(--good) 45%, var(--line-2));
 }
 
 /* ---- The limits: the kit's table on a card, 56 px rows, every amount in tabular figures, Left at the right */
@@ -173,12 +174,12 @@
 
 .p-settings-generation .p-settings-generation__limits .k-table__table th:nth-child(2),
 .p-settings-generation .p-settings-generation__limits .k-table__table td:nth-child(2) {
-  width: 148px;
+  width: 132px;
 }
 
 .p-settings-generation .p-settings-generation__limits .k-table__table th:nth-child(3),
 .p-settings-generation .p-settings-generation__limits .k-table__table td:nth-child(3) {
-  width: 44%;
+  width: 48%;
   padding-left: var(--s-6);
 }
 
@@ -196,15 +197,25 @@
 }
 
 .p-settings-generation .p-settings-generation__limit .k-money-input {
-  width: 124px;
-  min-height: 34px;
+  width: 116px;
 }
 
-/* What was spent: the figure over its bar, the bar no wider than 200 px. */
+/* What was spent: the figure on the input's line, then its 4 px bar with round ends in the second ink. */
 .p-settings-generation .p-settings-generation__spent {
   display: grid;
-  gap: var(--s-1);
-  max-width: 200px;
+  grid-template-columns: 56px minmax(0, 180px);
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.p-settings-generation .p-settings-generation__spent .k-meter__track {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.p-settings-generation .p-settings-generation__spent .k-meter__fill {
+  border-radius: 2px;
+  background: var(--ink-2);
 }
 
 .p-settings-generation .p-settings-generation__figure {

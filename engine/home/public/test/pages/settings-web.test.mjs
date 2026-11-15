@@ -401,3 +401,18 @@ test("drawn: nothing opened yet is the ledger's empty state", async () => {
     assert.ok(texts.includes(WORDS.off), "the switch's line says off");
   } finally { done(); }
 });
+
+test("fix round B2: what must be done first is the kit's Checklist; the door's command is said once; sites are 44 px rows with a globe; Choose some in Files a small ghost", async () => {
+  assert.match(SRC, /<\$\{Checklist\} lead="It can be switched on when these are done:"/);
+  assert.match(SRC, /const saidAbove = locked && reasons\.includes\(door\.sentence\);/);
+  assert.match(SRC, /variant="ghost" size="sm" href=/);
+  const css = readFileSync(join(PUBLIC, "styles", "pages", "settings-web.css"), "utf8");
+  assert.match(/\.p-settings-web__siterow \{([^}]*)\}/.exec(css)[1], /min-height: 44px;/);
+  assert.match(/\.p-settings-web__add \{([^}]*)\}/.exec(css)[1], /padding: var\(--s-3\)[^;]*;\s*border-top: 1px solid var\(--line-2\);/, "parted from the list by a rule and 12 px");
+  const { DOM, root, done } = await drawWeb({ ...DRAWN, on: false, canSwitchOn: false, blockers: ["door_off"], door: { state: "off" } }, { visits: [], more: false });
+  try {
+    const all = DOM.textOf(root);
+    assert.equal(all.split("engine start").length - 1, 1, "engine start appears once");
+    assert.ok(DOM.elements(root).some((e) => DOM.classesOf(e).includes("k-checklist")));
+  } finally { done(); }
+});

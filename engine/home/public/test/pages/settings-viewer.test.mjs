@@ -285,3 +285,14 @@ test("viewer: the section is groups of the kit in Settings' column: no title of 
   assert.doesNotMatch(css, /p-settings__/);
   for (const sel of css.match(/^\.p-settings-viewer[^{]*(?=\{)/gm) || []) assert.match(sel.trim(), /^\.p-settings-viewer\b/);
 });
+
+test("fix round B2: the test's pictures are large in a well (not the small pair), captions one 12 px line, counts a 15 px figure over a 12 px label, the success line in the second ink", () => {
+  const src = readFileSync(new URL("../../pages/settings-viewer.js", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../../styles/pages/settings-viewer.css", import.meta.url), "utf8");
+  assert.doesNotMatch(src, /small=\$\{true\}/);
+  assert.match(src, /p-settings-viewer__well/);
+  assert.match(css, /__well \{[^}]*background: var\(--stage\);/);
+  assert.match(css, /__well \.k-site__cap \{[^}]*flex-direction: row;[^}]*font-size: var\(--fs-label\);/);
+  assert.match(css, /__count b \{[^}]*font-size: var\(--fs-fact\);[^}]*font-weight: var\(--fw-bold\);[^}]*font-variant-numeric: tabular-nums;/);
+  assert.match(css, /__said \.k-st \{\s*color: var\(--ink-2\);/);
+});

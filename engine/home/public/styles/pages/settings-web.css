@@ -4,8 +4,10 @@
    opened. The editable lists are panels on the raised step; the ledger sits on the ground, as C3's tables do. */
 
 .p-settings-web__intro {
-  margin-top: var(--s-1);
-  max-width: 68ch;
+  margin-top: var(--s-2);
+  max-width: 64ch;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
   color: var(--ink-2);
 }
 
@@ -41,15 +43,17 @@
   margin-top: 0;
 }
 
-/* The door, drawn under its sentence: three words with 16 px icons and two short lines. */
+/* The door, drawn under its sentence: three neutral 28 px chips joined by a hairline; only the door's 6 px dot
+   carries a tone. */
 .p-settings-web__path {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s-1) 0;
-  margin-top: 6px;
-  color: var(--ink-2);
+  margin-top: var(--s-2);
+  color: var(--ink);
   font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-label);
 }
 
@@ -57,33 +61,37 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 26px;
-  padding: 0 var(--s-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-2);
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-1);
+  background: var(--ctl);
   white-space: nowrap;
 }
 
 .p-settings-web__node .k-icon {
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
+
+.p-settings-web__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-round);
+  background: var(--ink-3);
+}
+
+.p-settings-web__dot--good { background: var(--good); }
+.p-settings-web__dot--warn { background: var(--warn); }
 
 .p-settings-web__wire {
-  width: var(--s-4);
-  border-top: 1px solid var(--ink-3);
+  width: 20px;
+  border-top: 1px solid var(--line-2);
 }
 
+/* Open: the hairlines carry a little of the good tone, so the way through reads without a green chip. */
 .p-settings-web__path--open .p-settings-web__wire {
-  border-top-color: var(--good);
-}
-
-.p-settings-web__path--open .p-settings-web__node--door {
-  border-color: var(--good);
-  color: var(--good);
-}
-
-.p-settings-web__path--open .p-settings-web__node--door .k-icon {
-  color: var(--good);
+  border-top-color: color-mix(in srgb, var(--good) 45%, var(--line-2));
 }
 
 /* The three lists: a heading, then a panel with the sites and the add field. */
@@ -118,37 +126,44 @@
   overflow: hidden;
 }
 
-.p-settings-web__list .k-table__table thead {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
+/* A site a 44 px row: a globe glyph, its name, and a muted remove button at the right. */
+.p-settings-web__sites {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.p-settings-web__list .k-table__table td {
-  height: var(--s-12);
-  padding-top: 6px;
-  padding-bottom: 6px;
+.p-settings-web__siterow {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 44px;
+  padding: 0 var(--s-2) 0 var(--s-4);
 }
 
-.p-settings-web__list .k-table__table tr:first-child td {
-  border-top: 0;
+.p-settings-web__siterow + .p-settings-web__siterow {
+  border-top: 1px solid var(--line);
 }
 
-.p-settings-web__list .k-table__table td:first-child {
-  padding-left: var(--s-4);
+.p-settings-web__glyph {
+  color: var(--ink-3);
 }
 
-.p-settings-web__list .k-table__table td:last-child {
-  width: var(--s-12);
-  padding-right: var(--s-2);
+.p-settings-web__siterow:not(.p-settings-web__siterow--bad) {
+  grid-template-columns: 16px minmax(0, 1fr) auto;
 }
 
-.p-settings-web__list .k-table--empty {
+.p-settings-web__remove {
+  color: var(--ink-3);
+}
+
+.p-settings-web__none {
+  margin: 0;
   padding: var(--s-3) var(--s-4);
-  text-align: left;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
 .p-settings-web__site {
@@ -161,10 +176,11 @@
   text-decoration: line-through;
 }
 
+/* The add field, parted from the list by a rule and 12 px, on the panel's own ground. */
 .p-settings-web__add {
-  padding: var(--s-3) var(--s-4);
-  border-top: 1px solid var(--line);
-  background: var(--ctl);
+  margin-top: 0;
+  padding: var(--s-3) var(--s-4) var(--s-4);
+  border-top: 1px solid var(--line-2);
 }
 
 .p-settings-web__addrow {
@@ -176,7 +192,6 @@
 .p-settings-web__addrow .k-input {
   flex: 1 1 auto;
   min-width: 0;
-  background: var(--panel);
 }
 
 .p-settings-web__addrow .k-btn {
@@ -332,44 +347,8 @@
 }
 
 @media (max-width: 859px) {
-  /* The lists stay rows of a table on a phone: a site and its remove button on one line. */
-  .p-settings-web__list .k-table__table {
-    display: table;
-  }
-
-  .p-settings-web__list .k-table__table tbody {
-    display: table-row-group;
-  }
-
-  .p-settings-web__list .k-table__table tr {
-    display: table-row;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-
-  .p-settings-web__list .k-table__table td {
-    display: table-cell;
-    width: auto;
-    height: var(--s-12);
-    padding: 6px var(--s-2) 6px var(--s-4);
-    border-top: 1px solid var(--line);
-  }
-
-  .p-settings-web__list .k-table__table td:last-child {
-    width: var(--s-12);
-    padding: 6px var(--s-2) 6px 0;
-  }
-
-  .p-settings-web__list .k-table__table tr:first-child td {
-    border-top: 0;
-  }
-
-  .p-settings-web__list .k-table__table td::before {
-    content: none;
+  .p-settings-web__siterow {
+    min-height: 48px;
   }
 
   .p-settings-web__key .k-input {
