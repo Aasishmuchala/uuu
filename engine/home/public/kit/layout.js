@@ -191,16 +191,17 @@ export function Row({ icon, title, state, say, control, warned }) {
 
 // What must be done first, inside a row's words (fix round B2): `lead` (a line over the list), then a line an item, a
 // 16 px green check when it is done or a short dash when it is not (a status, never an open circle that reads as a
-// choice). Past three items it folds to "2 of 5 done" and opens
-// on a press. `items`: [{ done, text }], `text` anything renderable.
+// choice). Fix round R6: it is one line, the lead and "0 of 2 done", and the items open behind that fold on a press
+// (they stay in the page, hidden, so what they say is said once). `items`: [{ done, text }], `text` anything
+// renderable.
 export function Checklist({ lead, items }) {
   const list = (Array.isArray(items) ? items : []).filter((it) => it && has(it.text));
   const [open, setOpen] = useState(false);
   const [id] = useState(() => nextId("k-checklist"));
   if (!list.length) return null;
   const done = list.filter((it) => it.done).length;
-  const folds = list.length > 3;
-  const shown = !folds || open;
+  const folds = true;
+  const shown = open;
   return html`<span class="k-checklist">
     ${has(lead) || folds
       ? html`<span class="k-checklist__lead">
@@ -211,8 +212,8 @@ export function Checklist({ lead, items }) {
             : null}
         </span>`
       : null}
-    ${shown
-      ? html`<span class="k-checklist__list" id=${id} role="list">
+    ${list.length
+      ? html`<span class="k-checklist__list" id=${id} role="list" hidden=${!shown}>
           ${list.map((it, i) => html`<span key=${i} role="listitem" class=${cx("k-checklist__item", it.done && "k-checklist__item--done")}>
             ${it.done
               ? html`<${Icon} name="done" size=${16} class="k-checklist__mark" />`

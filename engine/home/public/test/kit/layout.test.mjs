@@ -131,7 +131,7 @@ test("a Group holds Rows; a warned Row carries its warning inside the panel, und
   unmount(root);
 });
 
-test("fix round B2 and R5: a row's tile is 32 px and a row with no icon has none; section items are 32 px at 13 px with a 6 px dot; group heads 13 px muted, 32 px apart; the column 720 px, 48 px after the list", async () => {
+test("fix round B2 and R5: a row's tile is 32 px and a row with no icon has none; section items are 32 px at 13 px with a 6 px dot; group heads 13 px muted, 32 px apart; the column up to 1040 px, 48 px after the list", async () => {
   installDom();
   const Tree = () => html`<${Rows}>
     <${Row} icon="key" title="Runway key" say="Test asks how many credits you have." />
@@ -153,9 +153,9 @@ test("fix round B2 and R5: a row's tile is 32 px and a row with no icon has none
   const head = /\.k-group__title \{([^}]*)\}/.exec(sheet)[1];
   assert.match(head, /font-size: var\(--fs-note\);[^}]*font-weight: var\(--fw-bold\);[^}]*color: var\(--ink-2\);/);
   assert.match(/\.k-group \{([^}]*)\}/.exec(sheet)[1], /margin-top: var\(--s-8\);/);
-  // Fix round R5: the column is 720 px and starts 48 px after the section list; what is left is at the right.
+  // Fix round R5: the column starts 48 px after the section list; R6: as wide as its pane up to 1040 px.
   const main = /\.k-doc__main \{([^}]*)\}/.exec(sheet)[1];
-  assert.match(main, /max-width: calc\(720px \+ var\(--s-12\) \+ var\(--s-10\)\);/);
+  assert.match(main, /max-width: calc\(1040px \+ var\(--s-12\) \+ var\(--s-10\)\);/);
   assert.match(main, /margin: 0;/, "not centred: no band between the list and the column");
   assert.match(main, /padding: var\(--s-8\) var\(--s-10\) var\(--s-12\) var\(--s-12\);/, "48 px after the list");
   assert.doesNotMatch(/\.k-doc__state \{([^}]*)\}/.exec(sheet)?.[1] || "", /margin-left: auto/, "the chip sits beside the title");
@@ -240,4 +240,25 @@ test("fix round R5: a row's named icon is the kit's neutral 32 px Tile; the page
   assert.match(/\.k-doc__title \{([^}]*)\}/.exec(sheet)[1], /font-weight: var\(--fw-page\);/);
   assert.match(/\.k-rail__title \{([^}]*)\}/.exec(sheet)[1], /font-size: var\(--fs-page\);\s*font-weight: var\(--fw-page\);/, "the stage's title is the same title");
   assert.match(/\.k-doc__state,\s*\.k-rows__state \{([^}]*)\}/.exec(sheet)[1], /background: var\(--chip\);/, "a neutral chip on the kit's chip fill");
+});
+
+test("fix round R6: in a settings-like column a group is flat rows between hairlines under a 15 px 600 head; a checklist is one line with its items behind a fold", async () => {
+  const sheet = css("kit/layout.css");
+  const rows = /\.k-doc__main \.k-rows \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(rows, /border: 0;[^}]*border-top: 1px solid var\(--line\);[^}]*border-bottom: 1px solid var\(--line\);[^}]*background: none;[^}]*box-shadow: none;/, "no panel");
+  assert.match(/\.k-doc__main \.k-rows__row \{([^}]*)\}/.exec(sheet)[1], /padding-inline: 0;/);
+  assert.match(/\.k-doc__main \.k-group__title \{([^}]*)\}/.exec(sheet)[1], /font-size: var\(--fs-section\);[^}]*color: var\(--ink\);/);
+  installDom();
+  const { Checklist } = mod;
+  const root = await mount(Checklist, { lead: "It can be switched on when these are done:", items: [{ done: false, text: "The relay is off. Run: engine start" }, { done: true, text: "A key is saved." }] });
+  const [fold] = byClass(root, "k-checklist__fold");
+  assert.equal(textOf(fold).trim(), "1 of 2 done");
+  assert.equal(fold.getAttribute("aria-expanded"), "false");
+  const [list] = byClass(root, "k-checklist__list");
+  assert.ok(list.getAttribute("hidden") !== null, "the items wait behind the fold");
+  assert.match(textOf(list), /Run: engine start/, "still in the page, so it is said once");
+  fire(fold, "click");
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(byClass(root, "k-checklist__list")[0].getAttribute("hidden"), null);
+  unmount(root);
 });
