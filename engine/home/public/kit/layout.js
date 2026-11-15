@@ -165,16 +165,17 @@ export function Rows({ children }) {
 }
 
 // `icon` is an icon name or anything renderable; `warned` (words) puts a warning under the row, inside the panel.
-// A row without an icon is a secondary row: no tile, its words start at the panel's edge.
+// A row without an icon is a secondary row: no tile, its words start at the panel's edge. `state` is one state or a
+// list of them (a live state beside the standing one), each a chip after the title.
 export function Row({ icon, title, state, say, control, warned }) {
-  const st = stateParts(state);
+  const states = (Array.isArray(state) ? state : [state]).map(stateParts).filter(Boolean);
   const tile = has(icon);
   return html`<div class=${cx("k-rows__row", !tile && "k-rows__row--bare", has(warned) && "k-rows__row--warned")}>
     ${tile ? html`<span class="k-rows__icon" aria-hidden="true">${typeof icon === "string" ? html`<${Icon} name=${icon} size=${16} />` : icon}</span>` : null}
     <div class="k-rows__text">
       <p class="k-rows__title">
         <span>${title}</span>
-        ${st ? html`<span class=${cx("k-rows__state", `k-rows__state--${st.tone}`)}>${st.text}</span>` : null}
+        ${states.map((st, i) => html`<span key=${i} class=${cx("k-rows__state", `k-rows__state--${st.tone}`)}>${st.text}</span>`)}
       </p>
       ${has(say) ? html`<p class="k-say">${say}</p>` : null}
     </div>

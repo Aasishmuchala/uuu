@@ -219,3 +219,11 @@ test("fix round R5: a checklist's mark is a status: a green check when done, a s
   assert.doesNotMatch(dash, /border:/, "no ring that reads as a radio");
   assert.match(/\.k-checklist__mark \{([^}]*)\}/.exec(sheet)[1], /color: var\(--good\);/, "the check is green");
 });
+
+test("fix round R5: a Row's state may be a list (a live state beside the standing one), each a chip after the title", async () => {
+  installDom();
+  const root = await mount(Row, { icon: "eye", title: "The page viewer", state: [{ tone: "good", text: "Open" }, null, { tone: "neutral", text: "Opening a page" }] });
+  assert.deepEqual(byClass(root, "k-rows__state").map(textOf), ["Open", "Opening a page"]);
+  assert.equal(byClass(root, "k-rows__state--good").length, 1);
+  unmount(root);
+});
