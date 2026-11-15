@@ -2,8 +2,9 @@
    A stage page: the company brain and the departments as cards on a faint dot grid over the page's ground (a step
    lighter than the stage in light), joined by 1.5 px connectors that end in 4 px dots on the cards' edges. Edges and
    connectors are neutral (the ink at about 14 percent), so the map stays calm when most departments need the owner:
-   what one needs of the owner is its warn count chip alone; a good edge marks one at work, a bad edge and connector
-   one that is stuck (R5-G). The box that asks the brain is one bar 24 px from the stage's foot, its hint inside it; the rail about the whole company or the department
+   what one needs of the owner is its warn count chip; a 6 px dot beside it marks one at work (good) or stuck (bad),
+   whose connector is bad too; no stripe (R5-G, R6-G). The brain is the larger card, on the raised step with an
+   accent edge. The box that asks the brain is one bar 24 px from the stage's foot, its hint inside it; the rail about the whole company or the department
    chosen, its groups headed by count chips and its rows parted by hairlines. Choosing a department changes the map in place: its card is lifted (a 2 px accent edge on the selected
    step) within --t-med. The list twin is the list pattern of Tasks and Jobs; a phone shows the map as its rows.
    Nothing moves at rest except the dot of a question being read, which breathes in opacity. */
@@ -68,7 +69,7 @@
 
 .p-map .p-map__grid-dot {
   fill: var(--ink);
-  fill-opacity: .07;
+  fill-opacity: .1;
 }
 
 /* The drawing: its box is measured and the cards are laid out in it in pixels (map/layout.js layoutNodes). */
@@ -131,7 +132,7 @@
   justify-content: center;
   gap: 2px;
   min-width: 0;
-  padding: 0 var(--s-3) 0 14px;
+  padding: 0 var(--s-4);
   border: 1px solid var(--line);
   border-radius: var(--r-3);
   background: var(--card);
@@ -145,13 +146,28 @@
   border-color: var(--line-2);
 }
 
-/* State at the card's left edge: bad while the department is stuck, good while someone works; none otherwise. */
-.p-map .p-map__node--bad {
-  box-shadow: inset 2px 0 0 var(--bad), var(--shadow-card);
+/* A card's state beside its count, no stripe: a 6 px dot, bad while the department is stuck, good while someone
+   works; none otherwise. */
+.p-map .p-map__node-state {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-left: auto;
 }
 
-.p-map .p-map__node--live {
-  box-shadow: inset 2px 0 0 var(--good), var(--shadow-card);
+.p-map .p-map__node-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-round);
+}
+
+.p-map .p-map__node-dot--live {
+  background: var(--good);
+}
+
+.p-map .p-map__node-dot--bad {
+  background: var(--bad);
 }
 
 .p-map .p-map__node:focus-visible {
@@ -175,9 +191,7 @@
 }
 
 .p-map .p-map__node-needs {
-  flex: none;
   display: inline-flex;
-  margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
 
@@ -234,7 +248,8 @@
   justify-content: flex-start;
   gap: 14px;
   padding: 0 var(--s-5) 0 var(--s-4);
-  border-color: var(--line-2);
+  border-color: var(--accent);
+  background: var(--raise);
 }
 
 .p-map .p-map__node-name {
@@ -438,6 +453,18 @@
 }
 
 /* ---- The rail */
+/* The rail's one primary is sized to its words, at the rail's right edge (R6-G); full width only on a phone. */
+@media (min-width: 860px) {
+  .p-map .k-rail__foot,
+  .p-map .k-rail__foot .k-rail__primary {
+    justify-items: end;
+  }
+
+  .p-map .k-rail__foot .k-btn {
+    width: auto;
+  }
+}
+
 .p-map .p-map__title {
   display: inline-flex;
   align-items: center;

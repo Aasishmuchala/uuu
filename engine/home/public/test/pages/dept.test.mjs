@@ -369,7 +369,9 @@ test("dept: every count is one muted figure; what needs you is neutral rows with
   assert.doesNotMatch(src, /tone="warn" \/>/, "no warm count");
   assert.match(css, /\.p-dept \.p-dept__count \{[^}]*color: var\(--ink-3\);/);
   assert.doesNotMatch(css, /warn-bg|var\(--warn\)/, "the warn tone only on the state's line, drawn by the kit");
-  assert.match(src, /<ul class="p-dept__rows p-dept__list">/, "Your tasks in a panel like the sections above");
+  assert.match(src, /<ul class="p-dept__list p-dept__list--needs">/, "what needs you is the one raised panel");
+  assert.match(css, /\.p-dept \.p-dept__agents,\s*\.p-dept \.p-dept__rows \{[^}]*border-top: 1px solid var\(--line\);/, "the agents and the tasks flat under hairlines (R6-G)");
+  assert.doesNotMatch(/\.p-dept \.p-dept__agents,\s*\.p-dept \.p-dept__rows \{([^}]*)\}/.exec(css)[1], /background|box-shadow/);
   assert.equal(page.whoOf({ agent: { name: "Marketer" }, raisedBy: "Chief of staff" }), "Marketer");
   assert.equal(page.whoOf({ raisedBy: "Chief of staff" }), "Chief of staff");
   assert.equal(page.whoOf({}), "");

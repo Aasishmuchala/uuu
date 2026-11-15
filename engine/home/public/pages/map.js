@@ -518,8 +518,8 @@ export default function MapPage({ route }) {
     ? clip(chosen.line, 80) || null
     : data ? html`<${StatusDot} tone=${nodeTone(companyCounts(data))} pulse=${false} label=${nodeLine(companyCounts(data))} />` : null;
   const foot = chosen
-    ? html`<${Button} variant="primary" size="lg" href=${`#/departments/${chosen.id}`}>${MAP_WORDS.openDept}<//>`
-    : html`<${Button} variant="primary" size="lg" icon="inbox" onClick=${() => app.openNeeds({})}>${MAP_WORDS.openQueue}<//>`;
+    ? html`<${Button} variant="primary" href=${`#/departments/${chosen.id}`}>${MAP_WORDS.openDept}<//>`
+    : html`<${Button} variant="primary" icon="inbox" onClick=${() => app.openNeeds({})}>${MAP_WORDS.openQueue}<//>`;
 
   return html`<div class=${["p-map p-map--wide", chosen ? "p-map--chosen" : "", still ? "p-map--still" : ""].filter(Boolean).join(" ")}>
     <${StageLayout} kind=${chosen ? MAP_WORDS.department : MAP_WORDS.company} title=${title} lede=${lede}

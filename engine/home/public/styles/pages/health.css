@@ -1,10 +1,11 @@
-/* Health page: one column at --doc-max. Fix round B2 (TB5a) and R5-G: the overall state a chip beside the title; a
-   strip of 64 px count cells on top (the figure, then its label over one muted 12 px line where the answer gives
-   one); groups headed with a count, 32 px apart; rows on one raised panel a group, parted by hairlines: a 32 px
-   tile, the name (14 px 600) with its state's chip 8 px after it and its facts (12 px, third ink), over its sentence
+/* Health page: one column at --doc-max. Fix round B2 (TB5a), R5-G and R6-G: the overall state a chip beside the
+   title; a strip of 64 px count cells on top, the view's one raised surface (the figure, then its label over one
+   muted 12 px line where the answer gives one); groups headed with a count, 32 px apart, flat: rows of about 60 px
+   parted by hairlines under a hairline: a 32 px tile, the name with its state 8 px after it as quiet words in its
+   tone with a dot (the kit's quiet Tag) and its facts (12 px, third ink), over its sentence
    (13 px, second ink) with the command as a 12 px mono chip on the text's baseline that holds its own Copy; at the
    row's right only its button, in one column of equal small ghosts. */
-.p-health { max-width: var(--doc-max); margin: 0 auto; padding: 0 0 var(--s-12); }
+.p-health { max-width: 1040px; /* R6 rule 5 */ margin: 0 auto; padding: 0 0 var(--s-12); }
 
 /* The head: the kit's page head, the overall chip in its state slot beside the title, the details switch at the
    right, the sentence under them. */
@@ -108,10 +109,8 @@
   line-height: var(--lh-note);
 }
 .p-health .p-health__rows {
-  border: 1px solid var(--line);
-  border-radius: var(--r-3);
-  background: var(--card);
-  box-shadow: var(--shadow-card);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
 /* A row: tile, words (the state by the name), the buttons' column. */
@@ -120,7 +119,8 @@
   grid-template-columns: 32px minmax(0, 1fr) auto;
   align-items: start;
   column-gap: var(--s-4);
-  padding: var(--s-4) var(--s-4);
+  min-height: 60px;
+  padding: 10px 0;
 }
 .p-health .p-health__row + .p-health__row { border-top: 1px solid var(--line); }
 .p-health .p-health__tile {
@@ -135,7 +135,7 @@
   align-items: center;
   column-gap: var(--s-2);
   row-gap: 2px;
-  min-height: 24px;
+  min-height: var(--lh-ui);
   margin: 0;
   color: var(--ink);
   font-size: var(--fs-body);
@@ -215,7 +215,7 @@
   .p-health .p-health__tiles-cell:nth-child(-n+2) { border-top: 0; }
   .p-health .p-health__tiles-cell + .p-health__tiles-cell { border-left: 0; }
   .p-health .p-health__tiles-cell:nth-child(2n) { border-left: 1px solid var(--line); }
-  .p-health .p-health__row { grid-template-columns: 32px minmax(0, 1fr); row-gap: var(--s-2); padding: var(--s-3); column-gap: var(--s-3); }
+  .p-health .p-health__row { grid-template-columns: 32px minmax(0, 1fr); row-gap: var(--s-2); padding: var(--s-3) 0; column-gap: var(--s-3); }
   .p-health .p-health__act { grid-column: 2 / -1; grid-row: 2; width: auto; flex-direction: row; }
   .p-health .p-health__warned { grid-column: 2 / -1; }
   .p-health .p-health__run { white-space: normal; }

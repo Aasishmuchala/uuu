@@ -142,7 +142,7 @@ function PauseButton({ agent, onChanged }) {
   }
 
   return html`<div class="p-agent__pause">
-    <${Button} variant="ghost" size="sm" busy=${busy} onClick=${go}>
+    <${Button} variant="ghost" busy=${busy} onClick=${go}>
       ${verb === "pause" ? "Pause" : "Resume"}
     <//>
     ${error && html`<p class="p-agent__error" role="alert">${text(error.message)}</p>`}
@@ -181,7 +181,7 @@ function Header({ data, onChanged }) {
       crumbs=${[{ label: "Team", href: "#/team" }, { label: name }]}
       state=${html`<span class="p-agent__state"><${AgentState} agent=${a} chip /></span>`}
       actions=${html`<span class="p-agent__acts">
-          <${Button} variant="primary" size="sm" icon="send" onClick=${toComposer}>${WORDS.give}<//>
+          <${Button} variant="primary" icon="send" onClick=${toComposer}>${WORDS.give}<//>
           <${PauseButton} agent=${a} onChanged=${onChanged} />
         </span>`}>
       ${note && html`<p class="p-agent__note">${note} <a href="#/health">Open Health</a></p>`}

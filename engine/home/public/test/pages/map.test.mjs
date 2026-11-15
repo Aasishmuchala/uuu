@@ -292,7 +292,7 @@ test("map: a card's line is its jobs and who is working; what needs you is its w
   assert.equal(view.cardLine({ jobs: 9, working: 1 }, true), "1 working", "the smaller card leaves the jobs out");
   const src = readFileSync(new URL("../../map/map-view.js", import.meta.url), "utf8");
   assert.match(src, /<\$\{Tag\} tone="warn">\$\{needs\}<\/\/>/, "the count of what needs you is a warn chip");
-  assert.match(src, /p-map__node--\$\{edge\}/);
+  assert.match(src, /p-map__node-dot p-map__node-dot--\$\{edge\}/, "the state a 6 px dot beside the count (R6-G)");
   assert.doesNotMatch(src, /p-map__node--warn|p-map__line--warn/, "waiting on the owner gives no edge and no tinted line (R5-G)");
   assert.match(src, /class="p-map__port" cx=\$\{l\.end\.x\}/, "a connector ends in a dot on the card's edge");
 });
@@ -316,15 +316,18 @@ test("map: an edge only for a department at work (good) or stuck (bad); stuck is
 test("map: the sheet draws the TB4 map: a dot grid, 1.5 px connectors with 4 px dots, state edges, a 6 px brain bar, one foot bar", () => {
   const css = readFileSync(new URL("../../styles/pages/map.css", import.meta.url), "utf8");
   assert.match(css, /\.p-map \.k-work__stage \{\s*background: var\(--bg\);/, "the canvas a step lighter than the stage in light");
-  assert.match(css, /\.p-map__grid-dot \{\s*fill: var\(--ink\);\s*fill-opacity: \.0\d;/);
+  assert.match(css, /\.p-map__grid-dot \{\s*fill: var\(--ink\);\s*fill-opacity: \.1;/, "the grid a little clearer (R6-G)");
   assert.match(readFileSync(new URL("../../pages/map.js", import.meta.url), "utf8"), /<pattern id="p-map-dots" width="16" height="16"/, "16 px apart");
   assert.match(css, /\.p-map__wire \{[^}]*stroke-width: 1\.5;/);
   assert.match(readFileSync(new URL("../../map/map-view.js", import.meta.url), "utf8"), /class="p-map__port"[^/]*r="2"/, "4 px dots");
   assert.match(css, /\.p-map \.p-map__line \{\s*--p-map-wire: color-mix\(in srgb, var\(--ink\) 14%, transparent\);/, "lines neutral, the ink at 14 percent (R5-G)");
   assert.match(css, /\.p-map__line--bad \{[^}]*var\(--bad\)/, "the connector of a department that is stuck is tinted");
-  assert.doesNotMatch(css, /p-map__line--warn|p-map__node--warn/);
-  assert.match(css, /\.p-map__node--bad \{\s*box-shadow: inset 2px 0 0 var\(--bad\), var\(--shadow-card\);/);
-  assert.match(css, /\.p-map__node--live \{\s*box-shadow: inset 2px 0 0 var\(--good\), var\(--shadow-card\);/);
+  assert.doesNotMatch(css, /p-map__line--warn|p-map__node--warn|p-map__node--(live|bad)/, "no stripe on a card (R6-G)");
+  assert.doesNotMatch(/\.p-map \.p-map__node \{([^}]*)\}/.exec(css)[1], /inset/);
+  assert.match(css, /\.p-map \.p-map__node-dot \{\s*width: 6px;\s*height: 6px;/);
+  assert.match(css, /\.p-map__node-dot--bad \{\s*background: var\(--bad\);/);
+  assert.match(css, /\.p-map__node-dot--live \{\s*background: var\(--good\);/);
+  assert.match(css, /\.p-map \.p-map__node--brain \{[^}]*border-color: var\(--accent\);/, "the brain edged in the accent (R6-G)");
   assert.match(css, /\.p-map__meter \{[^}]*height: 6px;/);
   assert.match(css, /\.p-map \.p-map__ask::before \{[^}]*grid-row: 1 \/ 3;[^}]*background: var\(--card\);[^}]*box-shadow: var\(--shadow-card\);/, "the foot is one bar, its hint inside it (R5-G)");
   assert.match(css, /\.p-map \.p-map__ask \{[^}]*margin: 0 auto calc\(var\(--s-6\) - var\(--s-5\)\);/, "the bar 24 px from the stage's foot (R5-G)");

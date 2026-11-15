@@ -148,6 +148,10 @@ test("health: a row's state chip stands 8 px after its name and the row's right 
   assert.match(css, /\.p-health \.p-health__title \{[^}]*display: flex;[^}]*column-gap: var\(--s-2\);/, "8 px after the name");
   assert.match(css, /\.p-health \.p-health__row \{[^}]*grid-template-columns: 32px minmax\(0, 1fr\) auto;/, "tile, words, the button");
   assert.match(css, /\.p-health \.p-health__tiles-cell \{[^}]*min-height: 64px;/, "64 px cells");
+  // R6-G: the groups flat with hairlines between rows of about 60 px; a row's state quiet words in its tone.
+  assert.doesNotMatch(/\.p-health \.p-health__rows \{([^}]*)\}/.exec(css)[1], /background|box-shadow|border-radius/);
+  assert.match(css, /\.p-health \.p-health__row \{[^}]*min-height: 60px;/);
+  assert.match(src, /<\$\{Tag\} tone=\$\{state\.tone\} quiet>/);
 });
 
 test("health: the line under a count names those parts, from the answer alone (R5-G)", () => {

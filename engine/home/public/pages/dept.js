@@ -2,8 +2,8 @@
 // PLAN-COOK T65, TB4, R5-G (R02's reading column, one left edge): the department's line icon in a tile inside the
 // title, its links as a button group on the title's line, its line and its state under it (the one warn line on the
 // page when it waits); then what needs the owner (its items as rows, from GET /api/home, with who raised each and
-// its age, and "Open the queue"), its agents as rows, the owner's tasks with it as two-line rows in a card; every
-// heading's count one muted figure; the jobs it can run as cards (as the Jobs page lays them), and a composer that gives it a task
+// its age, and "Open the queue"; the one raised panel of the page), its agents as rows and the owner's tasks with it
+// as two-line rows, both flat under hairlines (R6-G); every heading's count one muted figure; the jobs it can run as cards (as the Jobs page lays them), and a composer that gives it a task
 // (POST /api/goals).
 // Not connected: this page's answer does not say when the board cannot be read, so that comes from GET /api/map's
 // `boardOff` and from the shell (boardOffOf below); the page then says so on top and stops guessing.
@@ -291,7 +291,7 @@ function Tasks({ data, off }) {
   return html`<${Section} title=${html`${h.label}${off && !recent.length ? null : html` <${Count} n=${h.count} />`}`}
     aside=${recent.length > 0 ? html`<${Button} variant="ghost" size="sm" href=${`#/tasks?d=${encodeURIComponent(id)}`}>${WORDS.seeAll}<//>` : null}>
     ${recent.length
-      ? html`<ul class="p-dept__rows p-dept__list">${recent.map((t) => html`<li key=${t.id} class="p-dept__row"><${TaskRow} task=${t} /></li>`)}</ul>`
+      ? html`<ul class="p-dept__rows">${recent.map((t) => html`<li key=${t.id} class="p-dept__row"><${TaskRow} task=${t} /></li>`)}</ul>`
       : html`<p class="p-dept__muted">${noTasksLine(name, off)}</p>`}
   <//>`;
 }

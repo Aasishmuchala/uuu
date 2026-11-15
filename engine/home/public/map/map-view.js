@@ -1,13 +1,14 @@
 // The map's drawing (CONTRACTS-V3 29.1, 29.3, 29.5; PLAN-COOK T63, TB4, R5-G): the company brain as a card at the
 // centre and each department as a card round it on a faint dot grid, joined to the brain by a 1.5 px connector that
 // ends in a 4 px dot on each card's edge. Edges and lines are neutral, so the map stays calm when most departments
-// need the owner: what a department needs of the owner is its count, a warn chip, alone; a good edge marks one at
-// work and a bad edge and line one that is stuck (a problem of its own waits on the owner). The cards are real links (a
+// need the owner: what a department needs of the owner is its count, a warn chip; beside it a 6 px dot, green for
+// one at work and red for one that is stuck (a problem of its own waits on the owner), whose line is red too; no
+// stripe on a card (R6-G). The brain is the larger card at the centre, edged in the accent. The cards are real links (a
 // department's chooses it at #/map/<department>; the brain's opens Files) with a name for screen readers; the lines
 // are hidden from them. Laid out by map/layout.js in screen pixels for the box the stage gives the drawing, so every
 // word is drawn at its true size; when the cards do not fit the box, the departments are shown as rows instead.
 // Nothing moves by script: choosing a department lifts its card in place (styles/pages/map.css). Every tile is the
-// kit's neutral Tile: with the edges kept for work and trouble, a tint on the tiles would be one colour too many.
+// kit's neutral Tile: with the dots kept for work and trouble, a tint on the tiles would be one colour too many.
 // Every word a department shows comes from the company's own files, through the home server; it is shown as text
 // and cut to a fixed length.
 import { html, useLayoutEffect, useRef, useState } from "../vendor/preact-htm.js";
@@ -65,8 +66,8 @@ export function nodeTone(counts) {
   return num(c.needsYou) ? "warn" : num(c.working) ? "live" : "wait";
 }
 
-// The edge of a card (R5-G): "bad" for a department that is stuck, "live" for one at work, else none. Waiting on the
-// owner is said by the card's count chip alone, so it gives no edge.
+// The state of a card (R5-G, R6-G: its 6 px dot): "bad" for a department that is stuck, "live" for one at work, else
+// none. Waiting on the owner is said by the card's count chip alone, so it gives no dot.
 export function edgeTone(counts, stuck = false) {
   const c = counts && typeof counts === "object" ? counts : {};
   return stuck ? "bad" : num(c.working) ? "live" : "";
@@ -245,14 +246,17 @@ export function Overview({ data, loading = false, chosen = null, onNodeKey, fall
           const on = n.id === chosen;
           const edge = d.counts && !loading ? edgeTone(d.counts, stuckIds.has(n.id)) : "";
           const needs = num(d.counts && d.counts.needsYou);
-          const cls = ["p-map__node", edge ? `p-map__node--${edge}` : "", on ? "p-map__node--chosen" : ""].filter(Boolean).join(" ");
+          const cls = ["p-map__node", on ? "p-map__node--chosen" : ""].filter(Boolean).join(" ");
           return html`<li key=${n.id} class="p-map__slot" style=${place(n)}>
             <a class=${cls} data-node=${n.id} data-dept=${n.id}
               href=${`#/map/${n.id}`} aria-current=${on ? "true" : undefined} aria-label=${hubLabel(d)}>
               <span class="p-map__node-head">
                 <${Tile} icon=${iconOf(n.id)} size=${28} />
                 <span class="p-map__node-name">${clip(d.title, 40)}</span>
-                ${needs && !loading ? html`<span class="p-map__node-needs" aria-hidden="true"><${Tag} tone="warn">${needs}<//></span>` : null}
+                ${edge || (needs && !loading) ? html`<span class="p-map__node-state" aria-hidden="true">
+                  ${edge ? html`<span class=${`p-map__node-dot p-map__node-dot--${edge}`}></span>` : null}
+                  ${needs && !loading ? html`<span class="p-map__node-needs"><${Tag} tone="warn">${needs}<//></span>` : null}
+                </span>` : null}
               </span>
               <span class="p-map__node-line">${d.counts && !loading ? cardLine(d.counts, small) : " "}</span>
             </a>

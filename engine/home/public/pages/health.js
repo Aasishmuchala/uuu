@@ -2,8 +2,9 @@
 // The only page where technical names appear, and only behind "Show technical details".
 // Fix round B2 (TB5a) and R5-G: the overall state a chip beside the title; a strip of 64 px count cells on top (on,
 // off, not installed, the last proof: only what the answer gives), each figure with one muted line under it when the
-// answer gives one (the names of those parts, the proof's date); groups headed with a count ("2 of 4 on"), 32 px
-// apart; each row a 32 px tile, its name with its state's chip 8 px after it (and the facts the answer gives), its
+// answer gives one (the names of those parts, the proof's date), the one raised surface; groups headed with a count
+// ("2 of 4 on"), 32 px apart, flat with hairlines between rows of about 60 px (R6-G); each row a 32 px tile, its name
+// with its state 8 px after it as quiet words in its tone with a dot (and the facts the answer gives), its
 // sentence with the command as a 12 px mono chip that holds its own Copy, and at the row's right only its button. A
 // time or a count is drawn only when the answer gives it. Commands stay exact.
 import { html, useState } from "../vendor/preact-htm.js";
@@ -197,7 +198,7 @@ function Line({ icon, title, say, state, facts, act, warned, tone }) {
     <span class="p-health__tile"><${Tile} icon=${icon} size=${32} /></span>
     <div class="p-health__text">
       <p class="p-health__title"><span class="p-health__name">${title}</span>${state || list.length ? html`<span class="p-health__meta">
-        ${state ? html`<${Tag} tone=${state.tone}>${state.text}<//>` : null}
+        ${state ? html`<${Tag} tone=${state.tone} quiet>${state.text}<//>` : null}
         ${list.map((f, i) => html`<span key=${i} class="p-health__fact">${f}</span>`)}
       </span>` : null}</p>
       ${say ? html`<p class="p-health__say">${say}</p>` : null}

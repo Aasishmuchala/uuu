@@ -134,8 +134,8 @@ test("agent: the head is one row with the 40 px avatar, the state as a chip, Giv
   const src = readFileSync(new URL("../../pages/agent.js", import.meta.url), "utf8");
   assert.match(src, /<\$\{Avatar\} slug=\$\{a\.slug\} name=\$\{a\.name\} size=\$\{40\} \/>/);
   assert.match(src, /<\$\{AgentState\} agent=\$\{a\} chip \/>/);
-  assert.match(src, /<\$\{Button\} variant="primary" size="sm" icon="send" onClick=\$\{toComposer\}>\$\{WORDS\.give\}/, "the primary at 32 px (R5-G)");
-  assert.match(src, /<\$\{Button\} variant="ghost" size="sm" busy=\$\{busy\} onClick=\$\{go\}>/, "Pause and Resume are ghosts, so one primary");
+  assert.match(src, /<\$\{Button\} variant="primary" icon="send" onClick=\$\{toComposer\}>\$\{WORDS\.give\}/, "the primary at the default 32 px (R6-A, R6-G)");
+  assert.match(src, /<\$\{Button\} variant="ghost" busy=\$\{busy\} onClick=\$\{go\}>/, "Pause and Resume are ghosts, so one primary");
   assert.equal((src.match(/variant="primary"/g) || []).length, 2, "Give it a task, and Save in a lesson's own edit row");
   assert.match(src, /function Work\(/, "Working on and Recent work are one list");
   const css = readFileSync(new URL("../../styles/pages/agent.css", import.meta.url), "utf8");
@@ -146,13 +146,15 @@ test("agent: the head is one row with the 40 px avatar, the state as a chip, Giv
 });
 
 // PLAN-COOK R5-G: group labels over a hairline, a long line ends in an ellipsis, the links read as links.
-test("agent: the work's group labels sit over a hairline with no band; a long line ends in an ellipsis; Reports to and Works in are links (R5-G)", () => {
+test("agent: the work's group labels sit over a hairline with no band; a long line ends in an ellipsis; Reports to and Works in are links (R5-G, R6-G)", () => {
   const css = readFileSync(new URL("../../styles/pages/agent.css", import.meta.url), "utf8");
   const head = /\.p-agent \.p-agent__group-title \{([^}]*)\}/.exec(css)[1];
   assert.match(head, /border-bottom: 1px solid var\(--line\);/);
   assert.doesNotMatch(head, /background/, "no filled band");
   assert.match(css, /\.p-agent__rows \.k-task-row__line \{[^}]*overflow: hidden;[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/);
-  assert.match(css, /a\.k-agent--chip \.k-agent__name,[^{]*a\.p-team__dept \.p-team__dept-name \{[^}]*text-decoration: underline;/);
+  assert.match(css, /a\.k-agent--chip:hover \.k-agent__name,[^{]*a\.p-team__dept:hover \.p-team__dept-name \{[^}]*text-decoration: underline;/, "underlined on hover only (R6-G)");
+  assert.doesNotMatch(css, /a\.k-agent--chip \.k-agent__name[,\s{]/, "no underline at rest");
+  assert.doesNotMatch(/\.p-agent \.p-agent__facts \{([^}]*)\}/.exec(css)[1], /background|box-shadow/, "the set-up flat under hairlines (R6-G)");
   const src = readFileSync(new URL("../../pages/agent.js", import.meta.url), "utf8");
   assert.match(src, /const Count = \(\{ n \}\) => \(n \? html`<span class="p-agent__count">\$\{n\}<\/span>`/, "a count is a muted figure");
 });

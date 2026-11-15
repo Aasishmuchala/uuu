@@ -3,15 +3,15 @@
    "Give it a task" (the 32 px primary) and Pause (a ghost); what it does under it, running up to 560 px. Then
    sections 32 px apart with a 16 px heading: its work as one panel with two group labels over hairlines (two-line
    task rows, a long line ending in an ellipsis before the date), how it is set up (rows on one padding parted by
-   hairlines; a 160 px label column at 12 px 500 in the third ink on the value's first line, values at 14 px, the
-   model as a chip, "Reports to" and "Works in" as links, lists as plain lines), its lessons, its
+   hairlines, flat; a 160 px label column at 12 px 500 in the third ink on the value's first line, values at 14 px,
+   the model as a chip, "Reports to" and "Works in" links underlined on hover, lists as plain lines), its lessons, its
    standing instructions (folded) and the talk with the kit's composer under it, in the flow. */
 
 .p-agent {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  max-width: var(--doc-max);
+  max-width: 1040px; /* R6 rule 5: as wide as the pane allows, up to 1040 px */
   margin: 0 auto;
   padding: 0 0 var(--s-12);
 }
@@ -263,21 +263,19 @@
   color: var(--ink);
 }
 
-/* How it is set up: label and value rows in one panel, parted by hairlines. */
+/* How it is set up: label and value rows flat on the ground, parted by hairlines under a hairline (R6-G: the work
+   is the view's one raised panel). */
 .p-agent .p-agent__facts {
   margin: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-3);
-  background: var(--card);
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
 .p-agent .p-agent__fact {
   display: grid;
   grid-template-columns: 160px minmax(0, 1fr);
   gap: var(--s-1) var(--s-4);
-  padding: 12px var(--s-4);
+  padding: 12px 0;
 }
 
 .p-agent .p-agent__fact + .p-agent__fact {
@@ -313,18 +311,12 @@
   min-height: var(--lh-ui);
 }
 
-/* "Reports to" and "Works in" read as links: the name underlined in a quiet line, the ink's on hover. */
-.p-agent .p-agent__value a.k-agent--chip .k-agent__name,
-.p-agent .p-agent__value a.p-team__dept .p-team__dept-name {
+/* "Reports to" and "Works in" are links: the name underlined on hover only (R6-G). */
+.p-agent .p-agent__value a.k-agent--chip:hover .k-agent__name,
+.p-agent .p-agent__value a.p-team__dept:hover .p-team__dept-name {
   text-decoration: underline;
   text-decoration-color: var(--line-2);
   text-underline-offset: 3px;
-  transition: text-decoration-color var(--t-fast) var(--ease);
-}
-
-.p-agent .p-agent__value a.k-agent--chip:hover .k-agent__name,
-.p-agent .p-agent__value a.p-team__dept:hover .p-team__dept-name {
-  text-decoration-color: currentColor;
 }
 
 .p-agent .p-agent__list {
@@ -569,7 +561,7 @@
 
   .p-agent .p-agent__fact {
     grid-template-columns: minmax(0, 1fr);
-    padding: var(--s-3) var(--s-4);
+    padding: var(--s-3) 0;
   }
 
   .p-agent .p-agent__lesson {
