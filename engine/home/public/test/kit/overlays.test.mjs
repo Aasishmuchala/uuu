@@ -110,6 +110,7 @@ test("a viewer starts with the keyboard on the dialog itself, which draws no rin
   // From the panel the browser's own Tab order goes to the first control; the trap sends Shift+Tab to the last.
   assert.match(src, /event\.shiftKey && \(now === first \|\| now === panel\)/);
   assert.match(css("kit/overlays.css"), /\.k-dialog__panel:focus,\s*\.k-drawer__panel:focus \{\s*outline: none;/, "no ring on the panel");
+  assert.match(css("kit/overlays.css"), /\.k-dialog--full \{\s*padding: var\(--s-4\);/, "a viewer 16 px from the window's edges (fix round R6)");
 });
 
 test("T102: Dialog draws its title, the muted line and the head's controls before Close; the foot and the body as before; an unknown size is md", async () => {

@@ -88,9 +88,9 @@ test("PageHeader: the crumbs go to the top bar through setTop, from the chip or 
 test("page: the title is the page size, balanced; the kind line 13 px in the second grey; a section heading is 16 px semibold", () => {
   const p = css("kit/page.css");
   assert.match(p, /\.k-page-header__title \{[^}]*font-size: var\(--fs-page\);[^}]*text-wrap: balance;/);
-  // Fix round R5: 28 px at 600, through a token.
+  // Fix rounds R5 and R6: 24 px at 600, through tokens.
   assert.match(p, /\.k-page-header__title \{[^}]*font-weight: var\(--fw-page\);/);
-  assert.match(readFileSync(join(PUBLIC, "styles", "tokens.css"), "utf8"), /--fs-page: 28px;[\s\S]*--fw-page: 600;/);
+  assert.match(readFileSync(join(PUBLIC, "styles", "tokens.css"), "utf8"), /--fs-page: 24px;[\s\S]*--fw-page: 600;/);
   assert.match(p, /\.k-page-header__over \{[^}]*font-size: var\(--fs-note\);[^}]*color: var\(--ink-2\);/);
   assert.match(p, /\.k-section__title \{[^}]*font-size: var\(--fs-section\);[^}]*font-weight: var\(--fw-bold\);/);
   assert.doesNotMatch(p, /k-page-header__(chip|back|crumb)/, "no chip and no back chip are styled");

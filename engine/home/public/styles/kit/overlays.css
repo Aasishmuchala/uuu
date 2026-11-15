@@ -106,6 +106,11 @@
 
 /* A viewer (size "full") lies over the page's own ground under the scrim, so no half words of the page read round
    it: the 48 px all round are one calm, even dim. */
+/* A viewer stands 16 px from the window's edges (fix round R6), so the picture has the room. */
+.k-dialog--full {
+  padding: var(--s-4);
+}
+
 .k-dialog--full .k-dialog__backdrop {
   background: var(--bg);
 }
