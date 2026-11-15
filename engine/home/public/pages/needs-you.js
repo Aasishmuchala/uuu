@@ -8,12 +8,13 @@
 // px the list is the page and an item opened is a screen of its own (the top bar's back button returns to the list).
 // The top bar gets the crumbs and a pager over the list's order. After an action its outcome stays where the item
 // was until the owner moves on.
-// Side by side (T104, T116) the page fills the pane: the list a 360 px column of its own that scrolls by itself, each
-// row a title on up to two lines with its time at the top right (its grey line only where it adds a fact the title
-// does not say), each group under a tinted band with its count; the item opened at the top of the rest, and under it,
-// on the ground, what helps decide: the other items of the same task with a way to the task, then the task's story
-// so far (its last three entries, from GET /api/tasks/:id, the route the task page reads: one request a task, kept
-// while the page lives). The list beside it already says what comes next; alone (under 1280 px) one line names it.
+// Side by side (T104, T116, R5-D) the page fills the pane: the list a column of its own that scrolls by itself, each
+// row a title on up to two lines with its time in a 64 px gutter at the right (its grey line only where it adds a
+// fact the title does not say), each group under its label and count over a hairline; the item opened at the top of
+// the rest, and under it, on the ground, what helps decide: the other items of the same task with a way to the task,
+// then the task's story so far (its whole thread, up to eight entries, the newest first, from GET /api/tasks/:id, the
+// route the task page reads: one request a task, kept while the page lives). The list beside it already says what
+// comes next; alone (under 1280 px) one line names it.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
@@ -64,8 +65,8 @@ export const PAGE_WORDS = {
   story: "The story so far",
 };
 
-// How many of the task's latest entries show as its story so far.
-export const STORY_SHOWN = 3;
+// How many of the task's latest entries show as its story so far (its whole thread, up to this many).
+export const STORY_SHOWN = 8;
 
 // How many of the next items show under the item opened.
 export const NEXT_SHOWN = 3;
@@ -177,10 +178,10 @@ export function nextAfter(order, id, n = NEXT_SHOWN, skip = []) {
   return (at < 0 ? [] : list.slice(at + 1)).filter((i) => i && !out.has(i.id)).slice(0, n);
 }
 
-// Pure. The last `n` entries of a task's conversation (GET /api/tasks/:id), oldest first, each with words to show.
+// Pure. The last `n` entries of a task's conversation (GET /api/tasks/:id), newest first, each with words to show.
 export function storyOf(task, n = STORY_SHOWN) {
   const list = task && typeof task === "object" && Array.isArray(task.conversation) ? task.conversation : [];
-  return list.filter((m) => m && typeof m === "object" && typeof m.text === "string" && m.text.trim()).slice(-n);
+  return list.filter((m) => m && typeof m === "object" && typeof m.text === "string" && m.text.trim()).slice(-n).reverse();
 }
 
 // Pure. True for an item drawn as a whole stage: a film's shotlist, or versions to pick from.

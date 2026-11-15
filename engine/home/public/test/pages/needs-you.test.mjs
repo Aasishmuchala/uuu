@@ -246,27 +246,34 @@ test("needs-you: under the item opened, the other items of its task, its story s
   assert.doesNotMatch(src, /PAGE_WORDS\.upNext\}/, "Up next goes: the list beside the card says it");
 });
 
-test("needs-you: the story so far is a task's last three entries with words, oldest first", () => {
-  const conversation = [1, 2, 3, 4, 5].map((n) => ({ who: { slug: "builder", name: "Builder" }, kind: "comment", text: `entry ${n}`, at: null }));
-  assert.deepEqual(mod.storyOf({ conversation }).map((m) => m.text), ["entry 3", "entry 4", "entry 5"]);
-  assert.deepEqual(mod.storyOf({ conversation: [...conversation.slice(0, 2), { text: "  " }, null] }).map((m) => m.text), ["entry 1", "entry 2"]);
+// PLAN-COOK R5-D (critics of round R4 on S09: "about 45-55% of the pane is empty below 'The story so far'").
+test("needs-you: the story so far is a task's whole thread with words, up to eight entries, newest first", () => {
+  const conversation = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => ({ who: { slug: "builder", name: "Builder" }, kind: "comment", text: `entry ${n}`, at: null }));
+  assert.deepEqual(mod.storyOf({ conversation }).map((m) => m.text), ["entry 10", "entry 9", "entry 8", "entry 7", "entry 6", "entry 5", "entry 4", "entry 3"]);
+  assert.deepEqual(mod.storyOf({ conversation: conversation.slice(0, 5) }).map((m) => m.text), ["entry 5", "entry 4", "entry 3", "entry 2", "entry 1"], "a thread of five: all five");
+  assert.deepEqual(mod.storyOf({ conversation: [...conversation.slice(0, 2), { text: "  " }, null] }).map((m) => m.text), ["entry 2", "entry 1"]);
   assert.deepEqual(mod.storyOf(null), []);
   assert.deepEqual(mod.storyOf({ conversation: "x" }), []);
-  assert.equal(mod.STORY_SHOWN, 3);
+  assert.deepEqual(mod.storyOf({ conversation: [] }), [], "nothing given, nothing drawn");
+  assert.equal(mod.STORY_SHOWN, 8);
+  const c = readFileSync(resolve(HERE, "../../styles/pages/needs-you.css"), "utf8");
+  assert.match(c, /\.p-needs-you \.p-needs-you__entry-text \{[^}]*-webkit-line-clamp: 2;/, "its words in two lines at most");
 });
 
-// PLAN-COOK T116 (critics of round A2 on S09: "every title is cut after about 30 characters", "groups blur").
-test("needs-you: side by side the list is a 360 px column of its own; each group under a tinted 28 px band; a title takes two lines", () => {
+// PLAN-COOK T116 (critics of round A2 on S09: "every title is cut after about 30 characters", "groups blur"), and R5-D
+// (critics of round R4: "three solid grey 28px bars chop the list", "titles wrap because the date sits inline", "the
+// selected row uses a blue left rule, a fill and a check icon all at once").
+test("needs-you: side by side the list is a column of its own; each group under its label and count over a hairline; the date in a 64 px gutter; a title takes two lines", () => {
   const c = readFileSync(resolve(HERE, "../../styles/pages/needs-you.css"), "utf8");
-  assert.match(c, /\.p-needs-you\.p-needs-you--split \{[^}]*grid-template-columns: 360px minmax\(0, 1fr\);/);
+  assert.match(c, /\.p-needs-you\.p-needs-you--split \{[^}]*grid-template-columns: 400px minmax\(0, 1fr\);/);
   assert.match(c, /\.p-needs-you\.p-needs-you--split \{[^}]*min-height: calc\(100vh - var\(--topbar-h\)\);/);
   const h = /\.p-needs-you \.p-needs-you__heading \{([^}]*)\}/.exec(c)[1];
-  assert.match(h, /min-height: 28px;/);
-  assert.match(h, /border-radius: var\(--r-1\);/);
-  assert.match(h, /background: var\(--raise\);/);
+  assert.match(h, /border-bottom: 1px solid var\(--line\);/, "the label over a hairline");
+  assert.doesNotMatch(h, /background/, "no filled band");
   assert.match(h, /font-size: var\(--fs-label\);/);
   assert.match(h, /font-weight: var\(--fw-bold\);/);
-  assert.doesNotMatch(h, /border-top/, "no hairline between groups");
+  assert.match(c, /\.p-needs-you \.p-needs-you__row \{[^}]*grid-template-columns: 16px minmax\(0, 1fr\) 64px;/, "the date's own 64 px gutter");
+  assert.doesNotMatch(c, /aria-current="true"\] \.p-needs-you__icon/, "the chosen row is the fill and the bar, no third mark");
   const t = /\.p-needs-you \.p-needs-you__title \{([^}]*)\}/.exec(c)[1];
   assert.match(t, /-webkit-line-clamp: 2;/, "two lines a title");
   assert.doesNotMatch(t, /white-space: nowrap/);

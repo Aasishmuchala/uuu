@@ -441,7 +441,10 @@ test("task: on a stage the site's pieces and the pick's foot share one version, 
   assert.match(stage, /<\$\{SiteStage\} view=\$\{view\} scores=\$\{byLetter\} pick=\$\{pickItem \? \{ item: pickItem, onDone: onPicked, onChanged \} : null\} \/>/, "the larger picture's line has the version's score, and its foot the pick while one waits");
   assert.match(stage, /<div class="p-task__site" id="p-task-sites"/, "the site's place has its own class: a stage row in the rail is another thing");
   assert.match(stage, /<\$\{SiteStrip\} view=\$\{view\} scores=\$\{byLetter\} \/>/);
-  assert.match(stage, /<\$\{SiteRail\} view=\$\{view\} \/>/);
+  assert.match(stage, /<\$\{SiteRail\} view=\$\{view\}>\$\{scores\}<\/\/>/, "the Art director's scores are the rail's first fold, under the findings");
+  assert.match(stage, /const scores = chosen \? html`<\$\{SiteFold\} title="The Art director's scores"/, "a fold, closed at first");
+  assert.match(stage, /saidRef=\$\{saidRef\} fold=\$\{true\}\n\s+tools=/, "on a stage the acceptance is a fold too, its note and Stop inside it, so the rail's first screen ends above the foot");
+  assert.match(src, /<\$\{SiteFold\} title="Acceptance" aside=\$\{dot\}>\$\{roundList\}\$\{tools\}<\/\/>/);
   assert.match(stage, /<\$\{PickFoot\} item=\$\{pickItem\} chosen=\$\{letter\}/, "the pick follows the site on the stage");
   assert.match(stage, /const letter = site && typeof site.variant === "string" \? site.variant : null;/);
   assert.match(stage, /id="p-task-sites"/, "the harness and the crop find the stage");
@@ -480,7 +483,8 @@ test("task: the result's first md or txt file is read when the round passed and 
   const c = readFileSync(new URL("../../styles/pages/task.css", import.meta.url), "utf8");
   assert.match(c, /\.p-task \.p-task__read \{[^}]*max-height: 320px;/);
   assert.match(c, /\.p-task \.p-task__fact dt \{[^}]*white-space: nowrap;/, "a label stays on one line");
-  assert.match(c, /\.p-task \.p-task__fact \{[^}]*grid-template-columns: max-content minmax\(0, 1fr\);/);
+  assert.match(c, /\.p-task \.p-task__fact \{[^}]*grid-template-columns: 88px minmax\(0, 1fr\);/, "each value within 120 px of its label");
+  assert.match(c, /\.p-task \.p-task__fact dd \{[^}]*text-align: left;/, "never pushed to the rail's far edge");
   assert.match(c, /\.p-task \.p-task__main \.k-convo \{[^}]*max-width: none;/, "the column runs to the rail's gutter");
 });
 
@@ -496,5 +500,5 @@ test("task: how it went gives only the facts the task has; Accept and Send back 
   const bar = src.slice(src.indexOf("function AcceptBar("), src.indexOf("function Refused("));
   assert.match(bar, /<\$\{Button\} variant="primary" busy=\$\{busy\} onClick=\$\{doAccept\}>/);
   assert.match(bar, /<\$\{Button\} variant="ghost" onClick=\$\{\(\) => setNoting\(true\)\}/);
-  assert.match(src, /variant="danger" size="sm" icon="cross" class="p-task__stop"/);
+  assert.match(src, /variant="danger-quiet" size="sm" icon="cross" class="p-task__stop"/, "Stop this task is the kit's quiet danger: the problem ink, no fill");
 });

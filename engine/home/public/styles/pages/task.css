@@ -173,10 +173,11 @@
   list-style: none;
 }
 
-/* A stage in the rail: its name at the left in the ink at 13 px, its state at the right, muted at 12, one line. */
+/* A stage in the rail: its name in the ink at 13 px in the label column, its state beside it, muted at 12, one line
+   (the same 88 px column as the facts above, so every value starts on one edge near its label). */
 .p-task .p-task__rail .p-task__stage {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: 88px minmax(0, 1fr);
   align-items: baseline;
   column-gap: var(--s-3);
   padding: 3px 0;
@@ -190,7 +191,7 @@
 
 .p-task .p-task__rail .p-task__stage .u-caption {
   min-width: 0;
-  text-align: right;
+  text-align: left;
   color: var(--ink-2);
   font-size: var(--fs-label);
 }
@@ -200,8 +201,8 @@
   font-size: var(--fs-note);
 }
 
-/* How it went, the facts the task gives: label in the ink at 13 px, value muted at 12 at the right, then the
-   stages under a hairline. */
+/* How it went, the facts the task gives: label in the ink at 13 px in an 88 px column, the value muted at 12 beside
+   it (within 120 px of its label, never pushed to the rail's far edge), then the stages under a hairline. */
 .p-task .p-task__facts {
   display: flex;
   flex-direction: column;
@@ -212,7 +213,7 @@
 
 .p-task .p-task__fact {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: 88px minmax(0, 1fr);
   align-items: baseline;
   column-gap: var(--s-3);
   padding: 3px 0;
@@ -225,14 +226,14 @@
   line-height: var(--lh-ui);
 }
 
-/* The value keeps its words whole: it wraps only at a space, right-aligned, never one word a line. */
+/* The value keeps its words whole: it wraps only at a space, never one word a line. */
 .p-task .p-task__fact dd {
   min-width: 0;
   margin: 0;
   color: var(--ink-2);
   font-size: var(--fs-label);
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: left;
   overflow-wrap: normal;
 }
 

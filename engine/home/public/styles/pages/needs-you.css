@@ -1,7 +1,7 @@
 /* Needs you: the list (grouped as the queue groups it), an item opened beside it from 1280 px, an item alone under
-   that, and a stage that takes the pane. Side by side the page fills the pane: the list a 360 px column on the
-   ground behind a 1 px line, scrolling by itself, each group under a tinted band; the item opened at the top of the
-   rest with what helps decide under it. Every selector starts with .p-needs-you; tokens only. */
+   that, and a stage that takes the pane. Side by side the page fills the pane: the list a 400 px column on the
+   ground behind a 1 px line, scrolling by itself, each group under its label and count over a hairline; the item
+   opened at the top of the rest with what helps decide under it. Every selector starts with .p-needs-you; tokens only. */
 
 .p-needs-you {
   display: flex;
@@ -15,11 +15,11 @@
   display: block;
 }
 
-/* Side by side: the page reaches past the pane's padding to fill it; the list at the left, 360 px, the item opened
-   at the right. */
+/* Side by side: the page reaches past the pane's padding to fill it; the list at the left, 400 px (a title keeps two
+   whole lines beside its date's gutter), the item opened at the right. */
 .p-needs-you.p-needs-you--split {
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
+  grid-template-columns: 400px minmax(0, 1fr);
   gap: 0;
   align-items: start;
   min-height: calc(100vh - var(--topbar-h));
@@ -139,17 +139,15 @@
   gap: 2px;
 }
 
-/* A group's head: a 28 px band on the raised tone with a 6 px corner, its label 12 px 600 and its count; no
-   hairline between groups. */
+/* A group's head: its label 12 px 600 and its count over a hairline, no filled band (R5 rule 4). */
 .p-needs-you .p-needs-you__heading {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--s-2);
   min-height: 28px;
   margin-bottom: var(--s-1);
-  padding: 0 12px;
-  border-radius: var(--r-1);
-  background: var(--raise);
+  padding: 0 12px var(--s-2);
+  border-bottom: 1px solid var(--line);
   font-size: var(--fs-label);
   font-weight: var(--fw-bold);
   line-height: var(--lh-label);
@@ -163,11 +161,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* A row: the glyph, the title on up to two lines, the time at the top right; a grey line under only where it adds
-   a fact. The glyph sits centred on the title's first line. */
+/* A row: the glyph, the title on up to two lines, the time in a 64 px gutter at the right (so a title never wraps
+   for it); a grey line under only where it adds a fact, running under the gutter too. The glyph sits centred on the
+   title's first line. */
 .p-needs-you .p-needs-you__row {
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
+  grid-template-columns: 16px minmax(0, 1fr) 64px;
   gap: 2px 10px;
   align-items: start;
   align-content: center;
@@ -202,10 +201,6 @@
   color: var(--ink-2);
 }
 
-.p-needs-you .p-needs-you__row[aria-current="true"] .p-needs-you__icon {
-  color: var(--ink);
-}
-
 /* Two lines at most: nothing is cut before the second line's end. */
 .p-needs-you .p-needs-you__title {
   grid-column: 2;
@@ -224,6 +219,7 @@
 .p-needs-you .p-needs-you__when {
   grid-column: 3;
   grid-row: 1;
+  justify-self: end;
   font-size: var(--fs-label);
   line-height: var(--lh-ui);
   color: var(--ink-2);
@@ -313,7 +309,8 @@
   box-shadow: inset 0 1px 0 var(--line);
 }
 
-/* The task's story so far: its last entries, each who and when over what was said (three lines at most). */
+/* The task's story so far: its whole thread, the newest first, each who and when over what was said (two lines at
+   most). */
 .p-needs-you .p-needs-you__story {
   display: flex;
   flex-direction: column;
@@ -361,8 +358,8 @@
   min-width: 0;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
   font-size: var(--fs-body);
   line-height: var(--lh-ui);

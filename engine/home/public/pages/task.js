@@ -31,7 +31,7 @@ import { bytes, fullWhen, waitingLine, when } from "../lib/format.js";
 import { go } from "../lib/router.js";
 import {
   AnswerView, Avatar, Blk, Button, Card, Chip, CheckList, Conversation, DecisionCard, DocView, Empty, ErrorNotice, Evidence,
-  FILE_ICONS, FileCard, Icon, Loading, Markdown, Menu, PageHeader, PickCard, PickFoot, PickNudge, Scores, SiteRail, SiteStage, SiteStrip, SiteView,
+  FILE_ICONS, FileCard, Icon, Loading, Markdown, Menu, PageHeader, PickCard, PickFoot, PickNudge, Scores, SiteFold, SiteRail, SiteStage, SiteStrip, SiteView,
   StageLayout, StatusDot, Tabs, TextArea, Timeline, Versions, brandLine, changedText, durationWords, fileKind, frontMatter,
   isChangedSinceSeen, isPickItem, jobHref, stageLabel, stageOf, useInboxAct, useSiteView, versionsOf,
 } from "../kit/index.js";
@@ -548,7 +548,7 @@ function StopTask({ task, onDone, open = false, onClose }) {
     }
   }
 
-  if (!asking) return html`<${Button} variant="danger" size="sm" icon="cross" class="p-task__stop" onClick=${() => setAsking(true)}>Stop this task<//>`;
+  if (!asking) return html`<${Button} variant="danger-quiet" size="sm" icon="cross" class="p-task__stop" onClick=${() => setAsking(true)}>Stop this task<//>`;
   return html`
     <div class="p-task__confirm" role="group" aria-label="Stop this task?"
       onKeyDown=${(e) => { if (e.key === "Escape") { e.stopPropagation(); setAsking(false); } }}>
@@ -1048,8 +1048,10 @@ function Below({ id, d, t, query, story, files, showFiles }) {
 }
 
 // The acceptance facts in the rail: the state, each round with its checks (choosing one opens it under the first
-// screen), the other things waiting on the owner, and what can come next.
-function Facts({ id, query, acceptance, needs, next, after, said, saidRef }) {
+// screen), the other things waiting on the owner, and what can come next. `fold` (a site's rail): the state and its
+// rounds are a fold like the scores above them, the state on its row, so the rail's first screen ends above the foot;
+// `tools` (a note to the Chief of staff, Stop this task) open in it under the rounds.
+function Facts({ id, query, acceptance, needs, next, after, said, saidRef, fold = false, tools = null }) {
   const state = acceptance.state || "not_ready";
   const rows = roundRows(acceptance.rounds);
   const open = (n) => {
@@ -1059,9 +1061,8 @@ function Facts({ id, query, acceptance, needs, next, after, said, saidRef }) {
       if (el) { el.scrollIntoView({ block: "start" }); el.focus({ preventScroll: true }); }
     }, 0);
   };
-  return html`
-    ${said ? html`<${Blk}><p class="p-task__said" role="status" tabindex="-1" ref=${saidRef}>${said}</p><//>` : null}
-    <${Blk} title="Acceptance" aside=${html`<${StatusDot} tone=${STATE_DOTS[state] || "off"} label=${stateWord(acceptance)} pulse=${false} />`}>
+  const dot = html`<${StatusDot} tone=${STATE_DOTS[state] || "off"} label=${stateWord(acceptance)} pulse=${false} />`;
+  const roundList = html`
       ${rows.length ? html`<ul class="p-task__rounds-list">
         ${rows.map((r) => html`<li key=${text(r.n)}>
           <button type="button" class="p-task__round-row" onClick=${() => open(r.n)}>
@@ -1070,8 +1071,12 @@ function Facts({ id, query, acceptance, needs, next, after, said, saidRef }) {
             ${r.checks ? html`<span class="p-task__round-checks">${r.checks}</span>` : null}
           </button>
         </li>`)}
-      </ul>` : html`<p class="k-say">${roundsLine(0)}.</p>`}
-    <//>
+      </ul>` : html`<p class="k-say">${roundsLine(0)}.</p>`}`;
+  return html`
+    ${said ? html`<${Blk}><p class="p-task__said" role="status" tabindex="-1" ref=${saidRef}>${said}</p><//>` : null}
+    ${fold
+      ? html`<div class="k-site__folds"><${SiteFold} title="Acceptance" aside=${dot}>${roundList}${tools}<//></div>`
+      : html`<${Blk} title="Acceptance" aside=${dot}>${roundList}<//>`}
     ${needs.length ? html`<${Blk} title="Also waiting on you">
       <div class="p-task__needs">${needs.map((item) => html`<${DecisionCard} key=${item.id} item=${item} onDone=${() => after("Done.")} />`)}</div>
     <//>` : null}
@@ -1128,7 +1133,8 @@ function SitePage({ id, d, t, query, view, acceptance, pickItem, pieces, needs, 
   const foot = pickItem
     ? html`<${PickFoot} item=${pickItem} chosen=${letter} focusDone=${false} onDone=${onPicked} onChanged=${onChanged} />`
     : acceptance.accept ? accepting : null;
-  const scores = chosen ? html`<${Blk} title="The Art director's scores" aside=${`Version ${chosen.letter}`}>
+  // The Art director's scores as a fold under the findings, closed, so the rail's first screen ends above the foot.
+  const scores = chosen ? html`<${SiteFold} title="The Art director's scores" aside=${`Version ${chosen.letter}`}>
       <${Scores} review=${chosen.review} kind=${kindOfPiece} compact=${true} />
     <//>` : null;
   return html`<div class="p-task p-task--stage" ref=${root}>
@@ -1136,11 +1142,11 @@ function SitePage({ id, d, t, query, view, acceptance, pickItem, pieces, needs, 
       label=${stageLabel(site)}
       stage=${html`<div class="p-task__site" id="p-task-sites" tabindex="-1"><${SiteStage} view=${view} scores=${byLetter} pick=${pickItem ? { item: pickItem, onDone: onPicked, onChanged } : null} /></div>`}
       strip=${view.many ? html`<${SiteStrip} view=${view} scores=${byLetter} />` : null}
-      rail=${html`<${SiteRail} view=${view} />${scores}<${Facts} id=${id} query=${query} acceptance=${acceptance} needs=${needs} next=${next} after=${after} said=${said} saidRef=${saidRef} />
-        ${t.id && (pickItem || !acceptance.accept) ? html`<${Blk}><div class="p-task__tools p-task__tools--rail">
+      rail=${html`<${SiteRail} view=${view}>${scores}<//><${Facts} id=${id} query=${query} acceptance=${acceptance} needs=${needs} next=${next} after=${after} said=${said} saidRef=${saidRef} fold=${true}
+        tools=${t.id && (pickItem || !acceptance.accept) ? html`<div class="p-task__tools p-task__tools--rail">
           <${SendNote} task=${t} onDone=${after} />
           ${canStop ? html`<${StopTask} task=${t} onDone=${after} />` : null}
-        </div><//>` : null}`}
+        </div>` : null} />`}
       foot=${foot}
       more=${html`<${Below} id=${id} d=${d} t=${t} query=${query} story=${story} files=${files} showFiles=${showFiles} />`} />
   </div>`;

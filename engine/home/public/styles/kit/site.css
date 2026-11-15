@@ -19,6 +19,17 @@
   max-width: 100%;
 }
 
+/* The bar's controls at one height: the two switches and the buttons all 32 px with 13 px words. */
+@media (min-width: 860px) {
+  .k-site__stage .k-stagebar .k-seg--sm .k-seg__item {
+    min-height: 26px;
+  }
+
+  .k-site__stage .k-stagebar {
+    gap: var(--s-3);
+  }
+}
+
 .k-site__frames {
   min-width: 0;
 }
@@ -233,23 +244,32 @@
    lines at most. */
 .k-site__find-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 2px var(--s-2);
+  gap: var(--s-2);
   min-width: 0;
 }
 
 .k-site__find {
-  flex: 1 1 8rem;
+  flex: 1 1 auto;
   min-width: 0;
   text-wrap: pretty;
+}
+
+/* The measurement and the page's tag share one right-hand column: every row's tag ends on the rail's edge. */
+.k-site__find-side {
+  flex: none;
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-1);
+  max-width: 60%;
+  margin-top: -1px;
 }
 
 .k-site__measure,
 .k-site__find-page {
   flex: none;
   display: inline-flex;
-  margin-top: -1px;
 }
 
 .k-site__measure .k-tag {
@@ -262,22 +282,18 @@
   width: 12px;
   height: 12px;
   border-radius: var(--r-xs);
-  box-shadow: inset 0 0 0 1px var(--line-2);
+  /* An edge in the ink's own tint, so a white swatch shows on a white chip and a dark one on a dark chip. */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 30%, transparent);
 }
 
 .k-site__swatch + .k-site__swatch {
-  margin-left: -2px;
+  margin-left: -1px;
 }
 
 .k-site__ratio {
   margin-left: 2px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-.k-site__find-rest .k-site__find-page {
-  margin: 0 var(--s-2) 0 0;
-  vertical-align: 1px;
 }
 
 .k-site__find-rest {
@@ -304,6 +320,106 @@
 
 .k-site__drawn {
   margin-top: var(--s-3);
+}
+
+.k-site__fold-body > .k-site__drawn:first-child {
+  margin-top: 0;
+}
+
+/* The line that sums the findings, under the last one: the rail's own words, quiet, parted by a hairline. */
+.k-site__sum {
+  margin: var(--s-4) 0 0;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- The rail's folds (the shotlist's 44 px row, drawn for a site): the name, a short fact at the right ending 8 px
+   before the 20 px chevron column, a hairline above; closed at first, opening in place. */
+.k-site__folds {
+  padding: 0 var(--pad);
+  border-top: 1px solid var(--line);
+}
+
+.k-site__folds:empty {
+  display: none;
+}
+
+.k-site__fold + .k-site__fold {
+  border-top: 1px solid var(--line);
+}
+
+.k-site__fold-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 44px;
+  margin: 0 calc(-1 * var(--s-2));
+  padding: var(--s-2);
+  border-radius: var(--r-2);
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+  list-style: none;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.k-site__fold--still .k-site__fold-head {
+  cursor: default;
+}
+
+.k-site__fold-head::-webkit-details-marker {
+  display: none;
+}
+
+.k-site__fold:not(.k-site__fold--still) > .k-site__fold-head:hover {
+  background: var(--ctl);
+}
+
+.k-site__fold-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.k-site__fold-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.k-site__fold-aside {
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-note);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.k-site__fold-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-left: calc(var(--s-2) - var(--s-3));
+  color: var(--ink-3);
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.k-site__fold[open] > .k-site__fold-head .k-site__fold-mark {
+  transform: rotate(180deg);
+}
+
+.k-site__fold-body {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-1) 0 var(--s-4);
 }
 
 .k-site__brand + .k-site__brand {
@@ -685,6 +801,8 @@ button.k-site__screen:focus-visible .k-site__zoom {
 }
 
 .k-site__viewer-rail {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   overflow-y: auto;
   padding: var(--s-5) var(--s-5) var(--s-6);
@@ -696,6 +814,37 @@ button.k-site__screen:focus-visible .k-site__zoom {
   font-size: var(--fs-ui);
   font-weight: var(--fw-bold);
   line-height: var(--lh-ui);
+}
+
+/* In the viewer every finding has the room the rail gives: rows parted by hairlines, 10 px more air round each. */
+.k-site__viewer-rail .k-finds__row {
+  padding-block: var(--s-3);
+}
+
+.k-site__viewer-rail .k-finds > li + li {
+  position: relative;
+}
+
+/* The hairline spans the row's words, not the 12 px each row reaches past them for its hover fill. */
+.k-site__viewer-rail .k-finds > li + li::before {
+  content: "";
+  position: absolute;
+  inset: 0 var(--s-3) auto;
+  height: 1px;
+  background: var(--line);
+}
+
+.k-site__viewer-rail .k-site__facts {
+  margin-top: var(--s-3);
+}
+
+/* The line that sums the findings stands at the rail's foot, just above the dialog's foot, so the rail ends on it. */
+.k-site__viewer-rail .k-site__sum {
+  margin-top: auto;
+}
+
+.k-site__viewer-rail > :has(+ .k-site__sum) {
+  margin-bottom: var(--s-4);
 }
 
 /* The foot: back to the versions at the left, the pick at the right. */

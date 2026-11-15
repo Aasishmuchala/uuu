@@ -603,6 +603,7 @@ test("T112: the larger picture: the version's name, score and verdict chips, the
     const side = ofClass(dialog(), "k-site__viewer-rail")[0];
     assert.match(textOf(side), /^The page viewer found 7 things in A/);
     assert.equal(ofClass(side, "k-finds__row").length, 7, "every finding, no Show all");
+    assert.equal(textOf(ofClass(side, "k-site__sum")[0]), "7 things: 2 small targets, 4 hard to read, 1 other", "the rail ends on one line that sums it");
     assert.equal(ofClass(dialog(), "k-frame__pin").length, 0, "no disc on the picture: the server gives no place");
     const foot = ofClass(dialog(), "k-dialog__foot")[0];
     assert.deepEqual(elements(foot).filter((e) => e.localName === "button").map((b) => textOf(b).trim()), ["Back to the versions"], "no pick unless the page passes one");
@@ -660,4 +661,61 @@ test("T112: site.css draws the viewer: a 320 px rail beside a well on the stage 
   assert.match(stage, /\.k-frame__page \{[^}]*mask-image: linear-gradient\(to bottom, black calc\(100% - var\(--k-fade\)\), transparent\);/, "a cut page ends in a fade, not a slice");
   assert.match(stage, /\.k-finds \{[^}]*gap: 0;/);
   assert.match(stage, /\.k-finds__row \{[^}]*padding: 6px var\(--s-3\);/, "6 + 6: 12 px between findings");
+});
+
+// PLAN-COOK R5-D (critics of round R4 on S01 and S01b: "the 'The Art director's scores' heading is half-buried under
+// the fade", "the 'About' tags sit in different places", "in light, the white half of each swatch disappears on white",
+// "about 120px of the findings column is empty above the footer").
+test("R5-D: the findings summed in one line by kind, in the order met; nothing for none", () => {
+  const f = (text) => ({ text });
+  assert.equal(site.findsSum(SEVEN.slice(0, 6).concat(['Hard to read: "Visits" (#8A8278 on #FBFAF7, 3.63 to 1)']).map(f)),
+    "7 things: 2 small targets, 5 hard to read");
+  assert.equal(site.findsSum([f("Hard to read: \"x\" (#000 on #FFF, 3 to 1)")]), "1 thing: 1 hard to read");
+  assert.equal(site.findsSum([f("Wider than the screen at 390 px: div (700 px)"), f("The page has no title"), f("The page has no title")]),
+    "3 things: 1 too wide, 2 other");
+  assert.equal(site.findsSum([]), "");
+  assert.equal(site.findsSum(null), "");
+});
+
+test("R5-D: a finding's measurement and its page share one right-hand column; a swatch has an edge in the ink's tint", async () => {
+  const about = { page: "about.html", lines: ['Hard to read: "Visits" (#8A8278 on #FBFAF7, 3.63 to 1)', "1 link or button is smaller than 24 px"] };
+  const two = { ...READY, shots: { ...READY.shots, report: [{ page: "index.html", lines: SEVEN.slice(0, 2) }, about] } };
+  const f = stubFetch(() => ({ status: 200, body: answer([two]) }));
+  try {
+    const root = await showTree(Placed, { id: "STH-2" });
+    const rows = ofClass(part(root, "t-rail"), "k-finds__row");
+    assert.equal(rows.length, 4);
+    for (const r of rows.slice(2)) {
+      const side = ofClass(r, "k-site__find-side")[0];
+      assert.ok(side, "a right-hand column");
+      assert.equal(textOf(ofClass(side, "k-site__find-page")[0]), "About", "the page's tag in it, last");
+      assert.equal(ofClass(r, "k-site__find-rest").filter((e) => ofClass(e, "k-site__find-page").length).length, 0, "never in the muted line");
+    }
+    assert.equal(ofClass(rows[2], "k-site__measure")[0].parentNode, ofClass(rows[2], "k-site__find-side")[0], "the chip in the same column");
+  } finally {
+    f.restore();
+  }
+  const css = readFileSync(join(PUBLIC, "styles", "kit", "site.css"), "utf8");
+  assert.match(css, /\.k-site__swatch \{[^}]*box-shadow: inset 0 0 0 1px color-mix\(in srgb, var\(--ink\) 30%, transparent\);/);
+  assert.match(css, /\.k-site__viewer-rail \.k-site__sum \{[^}]*margin-top: auto;/, "the sum stands at the viewer rail's foot");
+});
+
+test("R5-D: the rail's facts are folds, closed: the caller's first (the scores), then the pictures' facts with the size on the row", async () => {
+  const f = stubFetch(() => ({ status: 200, body: answer([READY]) }));
+  try {
+    function WithFold({ id }) {
+      const view = site.useSiteView({ id });
+      return html`<div class="t-rail"><${site.SiteRail} view=${view}><${site.SiteFold} title="The Art director's scores" aside="Version A"><p>scores</p><//><//></div>`;
+    }
+    const root = await showTree(WithFold, { id: "STH-2" });
+    const rail = part(root, "t-rail");
+    const folds = ofClass(rail, "k-site__fold");
+    assert.deepEqual(folds.map((d) => textOf(ofClass(d, "k-site__fold-name")[0])), ["The Art director's scores", "About the pictures"]);
+    assert.ok(folds.every((d) => d.localName === "details" && !d.open && attr(d, "open") == null), "closed at first");
+    assert.match(textOf(ofClass(folds[1], "k-site__fold-aside")[0]), /^[0-9]+ files?, .*, 2 pages$/);
+    assert.match(textOf(ofClass(folds[1], "k-site__fold-body")[0]), /Pictures taken/);
+    assert.equal(ofClass(rail, "k-blk__title").filter((h) => /Pictures taken/.test(textOf(h))).length, 0);
+  } finally {
+    f.restore();
+  }
 });

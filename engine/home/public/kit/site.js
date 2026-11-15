@@ -77,6 +77,8 @@ export const SITE_WORDS = {
   after: "The next version",
   whichWidth: "Which picture",
   whole: "The whole page; it scrolls",
+  // R5-D: the pictures' facts as a fold in the rail.
+  pictures: "About the pictures",
 };
 
 // How many findings the rail shows before "Show all".
@@ -495,10 +497,59 @@ function Measure({ parts }) {
 export function findItem(f, here) {
   const p = findParts(f.text);
   const tag = f.page !== here ? html`<span class="k-site__find-page"><${Tag}>${pageWords(f.page)}<//></span>` : null;
+  const side = p.measure || tag ? html`<span class="k-site__find-side"><${Measure} parts=${p} />${tag}</span>` : null;
   return {
     n: f.n,
-    title: html`<span class="k-site__find-head"><span class="k-site__find">${p.title}</span><${Measure} parts=${p} />${p.rest ? null : tag}</span>${p.rest ? html`<span class="k-site__find-rest" title=${p.rest}>${tag}${p.rest}</span>` : null}`,
+    title: html`<span class="k-site__find-head"><span class="k-site__find">${p.title}</span>${side}</span>${p.rest ? html`<span class="k-site__find-rest" title=${p.rest}>${p.rest}</span>` : null}`,
   };
+}
+
+// What a finding is called in the one line that sums them, by its plain name: "small target", "hard to read".
+const KINDS = [
+  [/^[0-9]+ links? or buttons? (is|are) smaller than/, "small target", "small targets"],
+  [/^Hard to read$/, "hard to read", "hard to read"],
+  [/^Wider than the screen/, "too wide", "too wide"],
+  [/^Pictures that did not load|did not load$/, "picture not loaded", "pictures not loaded"],
+  [/^This page was cut/, "page cut", "pages cut"],
+];
+
+// The line that sums a site's findings, by kind, in the order met: "7 things: 2 small targets,
+// 5 hard to read". A kind it has no short word for is counted as "other". "" with no findings.
+export function findsSum(finds) {
+  const all = list(finds).filter((f) => obj(f) && typeof f.text === "string");
+  if (!all.length) return "";
+  const kinds = new Map();
+  for (const f of all) {
+    const title = findParts(f.text).title;
+    const k = KINDS.find(([re]) => re.test(title));
+    const key = k ? k[1] : "other";
+    const got = kinds.get(key) || { n: 0, one: key, many: k ? k[2] : "other" };
+    got.n += 1;
+    kinds.set(key, got);
+  }
+  const parts = [...kinds.values()].map((k) => `${k.n} ${k.n === 1 ? k.one : k.many}`);
+  return `${count(all.length, "thing")}: ${parts.join(", ")}`;
+}
+
+// A row of the rail that opens in place (the shotlist's fold, drawn for a site): its name, a short fact at the right,
+// and a chevron; closed at first. Its body is the caller's.
+export function SiteFold({ title, aside, children }) {
+  const kids = Array.isArray(children) ? children.filter(Boolean) : children;
+  if (!kids || (Array.isArray(kids) && !kids.length)) {
+    return html`<div class="k-site__fold k-site__fold--still"><div class="k-site__fold-head">
+      <span class="k-site__fold-name">${title}</span>
+      ${aside ? html`<span class="k-site__fold-aside">${aside}</span>` : null}
+      <span class="k-site__fold-mark" aria-hidden="true"></span>
+    </div></div>`;
+  }
+  return html`<details class="k-site__fold">
+    <summary class="k-site__fold-head">
+      <span class="k-site__fold-name">${title}</span>
+      ${aside ? html`<span class="k-site__fold-aside">${aside}</span>` : null}
+      <span class="k-site__fold-mark" aria-hidden="true"><${Icon} name="chevron-down" size=${16} /></span>
+    </summary>
+    <div class="k-site__fold-body">${children}</div>
+  </details>`;
 }
 
 // The larger picture, a place to look and decide: the kit's Dialog at the window's size. The head: the version's
@@ -534,6 +585,8 @@ function Viewer({ view, open, onOpen, scores, pick }) {
   const close = () => onOpen(null);
   const reports = reportLayout(site);
   const drawn = [...new Set(reports.map((r) => r.drawn).filter(Boolean))];
+  const shots = obj(site.shots) ? site.shots : {};
+  const size = `${sizeWords(site)}${pages.length ? `, ${count(pages.length, "page")}` : ""}`;
   const foot = view.many || waiting ? html`
     ${view.many ? html`<${Button} variant="ghost" class="k-site__back" onClick=${close}>${SITE_WORDS.back}<//>` : null}
     ${waiting ? html`<${PickPrimary} item=${pick.item} chosen=${site.variant} onChanged=${pick.onChanged}
@@ -567,6 +620,8 @@ function Viewer({ view, open, onOpen, scores, pick }) {
           ? html`<${Finds} selected=${finding} onSelect=${view.setFinding} items=${finds.map((f) => findItem(f, page))} />`
           : reports.some((r) => r.fine) ? html`<p class="k-site__fine"><${Icon} name="check" size=${16} /><span>${SITE_WORDS.nothing}</span></p>` : null}
         ${drawn.map((d) => html`<p key=${d} class="k-say k-site__drawn">${d}</p>`)}
+        ${shots.state === "ready" && shots.taken ? html`<p class="k-say k-site__facts">${SITE_WORDS.taken} <${Time} at=${shots.taken} /> ${SITE_WORDS.where} ${size}.</p>` : null}
+        ${finds.length > 1 ? html`<p class="k-site__sum">${findsSum(finds)}</p>` : null}
       </section>
     </div>
   <//>`;
@@ -657,9 +712,9 @@ function StageBody({ view, onOpen }) {
       ${schemes.length > 1 ? html`<${Segmented} label=${SITE_WORDS.whichLook} size="sm" current=${scheme}
         items=${[{ id: "light", label: SITE_WORDS.lightPage, icon: "sun" }, { id: "dark", label: SITE_WORDS.darkPage, icon: "moon" }]} onChange=${view.setScheme} />` : null}
       <span class="k-stagebar__gap"></span>
-      ${canAgain ? html`<${Button} class="k-site__tool" variant="quiet" size="sm" icon="camera" aria-label=${SITE_WORDS.again} title=${SITE_WORDS.again}
+      ${canAgain ? html`<${Button} class="k-site__tool" variant="ghost" size="sm" icon="camera" aria-label=${SITE_WORDS.again} title=${SITE_WORDS.again}
         busy=${busy === "again"} disabled=${Boolean(busy) && busy !== "again"} onClick=${again}>${SITE_WORDS.again}<//>` : null}
-      ${problem ? null : html`<${Button} class="k-site__tool" variant="quiet" size="sm" icon="download" aria-label=${SITE_WORDS.zip} title=${SITE_WORDS.zip}
+      ${problem ? null : html`<${Button} class="k-site__tool" variant="ghost" size="sm" icon="download" aria-label=${SITE_WORDS.zip} title=${SITE_WORDS.zip}
         href=${siteAddress(id, site.ref, "zip")} download="" />`}
       ${problem ? null : html`<${Button} class="k-site__tool" size="sm" icon="external" aria-label=${SITE_WORDS.preview}
         busy=${busy === "preview"} disabled=${Boolean(busy) && busy !== "preview"} onClick=${preview}>${SITE_WORDS.preview}<//>`}
@@ -710,9 +765,11 @@ export function SiteStrip({ view, scores = null, label = SITE_WORDS.versions }) 
   </div>`;
 }
 
-// SiteRail({ view }): what the page viewer found (one numbered row per report line, naming its page; choosing one
-// shows that page), the brand check as the server sent it, and when the pictures were taken.
-export function SiteRail({ view }) {
+// SiteRail({ view, children }): what the page viewer found (one numbered row per report line, naming its page;
+// choosing one shows that page; four, then "Show all"), the brand check as the server sent it, then the folds, closed:
+// the caller's (`children`: the Art director's scores) and the pictures' facts (when they were taken, the fonts, the
+// size).
+export function SiteRail({ view, children }) {
   if (!view || !view.site) return null;
   const { site, finds, finding, pages } = view;
   const shots = obj(site.shots) ? site.shots : {};
@@ -721,14 +778,14 @@ export function SiteRail({ view }) {
   const drawn = [...new Set(reports.map((r) => r.drawn).filter(Boolean))];
   const brand = obj(site.brand) ? list(site.brand.lines).map((l) => plain(l, 300)).filter(Boolean).slice(0, 6) : [];
   const ready = shots.state === "ready";
+  const size = `${sizeWords(site)}${pages.length ? `, ${count(pages.length, "page")}` : ""}`;
   return html`<div class="k-site__rail">
-    ${finds.length || fine || drawn.length
+    ${finds.length || fine
       ? html`<${Blk} title=${finds.length ? foundWords(finds.length, site) : SITE_WORDS.found}>
           ${finds.length
             ? html`<${Finds} selected=${finding} onSelect=${view.setFinding} limit=${FIRST_FINDS} more=${`${SITE_WORDS.showAll} ${finds.length}`}
                 items=${finds.map((f) => findItem(f, view.page))} />`
-            : fine ? html`<p class="k-site__fine"><${Icon} name="check" size=${16} /><span>${SITE_WORDS.nothing}</span></p>` : null}
-          ${drawn.map((d) => html`<p key=${d} class="k-say k-site__drawn">${d}</p>`)}
+            : html`<p class="k-site__fine"><${Icon} name="check" size=${16} /><span>${SITE_WORDS.nothing}</span></p>`}
         <//>`
       : null}
     ${brand.length
@@ -736,10 +793,15 @@ export function SiteRail({ view }) {
           ${brand.map((l, i) => html`<p key=${i} class="k-say k-site__brand">${l}</p>`)}
         <//>`
       : null}
-    <${Blk}>
-      ${ready && shots.taken ? html`<p class="k-say">${SITE_WORDS.taken} <${Time} at=${shots.taken} /> ${SITE_WORDS.where}</p>` : null}
-      <p class="k-say k-site__size">${sizeWords(site)}${pages.length ? `, ${count(pages.length, "page")}` : ""}</p>
-    <//>
+    <div class="k-site__folds">
+      ${children}
+      <${SiteFold} title=${SITE_WORDS.pictures} aside=${size}>
+        ${[
+          ready && shots.taken ? html`<p key="taken" class="k-say">${SITE_WORDS.taken} <${Time} at=${shots.taken} /> ${SITE_WORDS.where}</p>` : null,
+          ...drawn.map((d) => html`<p key=${d} class="k-say k-site__drawn">${d}</p>`),
+        ]}
+      <//>
+    </div>
   </div>`;
 }
 
