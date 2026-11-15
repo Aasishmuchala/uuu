@@ -1,5 +1,5 @@
 /* kit/states.js: notices, empty, loading and "being built" (the corrections after round 3, 5; fix round B2).
-   A warning or a problem is a 1 px hairline in its tone on a faint tint (about 6 percent of the tone), a 14 px icon,
+   A warning or a problem is a 3 px rule at its left in its tone with no fill (fix round R5), a 14 px icon in the tone,
    13 px words in the second ink, inset in its column and never the loudest thing on a screen; its one action is a
    small ghost at the right. Info and ok are a plain 13 px sentence whose icon alone carries the tone. Empty is an
    icon, a sentence, a line and a button. */
@@ -49,31 +49,29 @@
 
 .k-notice--ok .k-notice__icon { color: var(--good); }
 
-/* Warn and bad: the hairline in the tone, the faint tint, the words in the second ink. */
+/* Warn and bad (fix round R5): a 3 px rule at the left in the tone, on whatever surface the notice stands on (no
+   fill, no box: a tinted box inside a card read as boxes in boxes and as the loudest thing in it); the icon in the
+   tone, the words in the second ink. */
 .k-notice--warn,
 .k-notice--bad {
-  padding: var(--s-2) var(--s-3);
-  border: 1px solid;
-  border-radius: var(--r-2);
+  padding: 2px 0 2px var(--s-3);
+  border: 0;
+  border-left: 3px solid;
+  border-radius: 0;
+  background: none;
 }
 
-.k-notice--warn {
-  border-color: color-mix(in srgb, var(--warn) 26%, transparent);
-  background: color-mix(in srgb, var(--warn) 6%, transparent);
-}
+.k-notice--warn { border-left-color: var(--warn); }
 
 .k-notice--warn .k-notice__icon { color: var(--warn); }
 
-.k-notice--bad {
-  border-color: color-mix(in srgb, var(--bad) 26%, transparent);
-  background: color-mix(in srgb, var(--bad) 6%, transparent);
-}
+.k-notice--bad { border-left-color: var(--bad); }
 
 .k-notice--bad .k-notice__icon { color: var(--bad); }
 
 /* Not connected: the title on its own line, the reason and the next step under it. */
 .k-notice--block {
-  padding: var(--s-3) var(--s-4);
+  padding: var(--s-1) 0 var(--s-1) var(--s-3);
 }
 
 .k-notice--block .k-notice__body {

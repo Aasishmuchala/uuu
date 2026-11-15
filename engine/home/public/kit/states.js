@@ -1,6 +1,6 @@
 // Every data state has a design: a notice, an error with Try again (C3 25), not connected, empty, loading, being built.
-// A notice (fix round B2): warn and bad are a hairline in their tone on a faint tint (about 6 percent), inset in the
-// column, a 14 px icon and the body in the second ink; info and ok are a plain sentence whose icon carries the tone.
+// A notice (fix round R5): warn and bad are a 3 px rule at the left in their tone on the surface they stand on (no
+// fill, no box), inset in the column, a 14 px icon in the tone and the body in the second ink; info and ok are a plain sentence whose icon carries the tone.
 // `action` is its one way on, drawn at the right as the caller's small ghost button.
 import { html } from "../vendor/preact-htm.js";
 import { Button } from "./button.js";

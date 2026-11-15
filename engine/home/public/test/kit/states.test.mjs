@@ -15,17 +15,20 @@ test("one name for one button: the error notice says Try again (M51 F18, C3 25)"
   assert.doesNotMatch(textOf(root), /Retry/);
 });
 
-test("fix round B2: a warning or a problem is a hairline in its tone on a 6 percent tint, a 14 px icon, the body in the second ink, the server's words as sent; info and ok are a plain sentence", () => {
+test("fix round R5: a warning or a problem is a 3 px rule at its left in its tone with no fill, a 14 px icon, the body in the second ink, the server's words as sent; info and ok are a plain sentence", () => {
   const words = "Renders and prompts you approve go to Runway, which may train its models on them.";
   const root = show(states.Notice, { tone: "warn", title: "Training.", children: words });
   assert.match(textOf(root), new RegExp(words.replace(/[.,]/g, "\\$&")), "the words are shown as sent");
   assert.equal(elements(root).find((e) => e.localName === "svg").getAttribute("width"), "14", "a 14 px icon");
   const c = css("kit/states.css");
   assert.match(c, /\.k-notice \{[^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-note\);/, "13 px words in the second ink");
-  assert.match(c, /\.k-notice--warn,\s*\.k-notice--bad \{[^}]*border: 1px solid;[^}]*border-radius: var\(--r-2\);/, "a hairline round it, inset");
-  assert.match(c, /\.k-notice--warn \{[^}]*border-color: color-mix\(in srgb, var\(--warn\) 26%, transparent\);[^}]*background: color-mix\(in srgb, var\(--warn\) 6%, transparent\);/, "the warn hairline on a 6 percent tint");
-  assert.match(c, /\.k-notice--bad \{[^}]*background: color-mix\(in srgb, var\(--bad\) 6%, transparent\);/);
-  assert.doesNotMatch(c, /border-left: 2px/, "no amber bar at the left: it read as a quote");
+  // Fix round R5: a 3 px rule at the left in the tone, no fill and no box (a tinted box in a card was boxes in boxes).
+  const both = /\.k-notice--warn,\s*\.k-notice--bad \{([^}]*)\}/.exec(c)[1];
+  assert.match(both, /border: 0;[^}]*border-left: 3px solid;[^}]*background: none;/, "a 3 px rule at the left, no fill");
+  assert.match(c, /\.k-notice--warn \{ border-left-color: var\(--warn\); \}/, "the rule in the warn tone");
+  assert.match(c, /\.k-notice--bad \{ border-left-color: var\(--bad\); \}/);
+  assert.match(c, /\.k-notice--warn \.k-notice__icon \{ color: var\(--warn\); \}/, "the icon in the tone");
+  assert.doesNotMatch(c, /\.k-notice--(warn|bad) \{[^}]*color-mix/, "no tint");
   assert.match(c, /\.k-notice__title \{[^}]*display: inline;/, "the title runs on into its words, one line where it can be");
   assert.doesNotMatch(c, /\.k-notice--(info|ok) \{[^}]*background/, "info and ok have no tint");
 });
