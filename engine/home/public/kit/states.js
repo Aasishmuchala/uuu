@@ -1,6 +1,7 @@
 // Every data state has a design: a notice, an error with Try again (C3 25), not connected, empty, loading, being built.
-// A notice is one quiet line: warn is a thin amber rule at the left on a faint tint, the only amber surface;
-// info, ok and bad are a plain sentence whose icon carries the tone.
+// A notice (fix round B2): warn and bad are a hairline in their tone on a faint tint (about 6 percent), inset in the
+// column, a 14 px icon and the body in the second ink; info and ok are a plain sentence whose icon carries the tone.
+// `action` is its one way on, drawn at the right as the caller's small ghost button.
 import { html } from "../vendor/preact-htm.js";
 import { Button } from "./button.js";
 import { Icon } from "./icon.js";
@@ -9,14 +10,15 @@ import { cx } from "./util.js";
 const TONES = ["info", "ok", "warn", "bad"];
 const TONE_ICONS = { info: "info", ok: "check", warn: "alert", bad: "alert" };
 
-export function Notice({ tone = "info", title, children }) {
+export function Notice({ tone = "info", title, action, children }) {
   const t = TONES.includes(tone) ? tone : "info";
   return html`<div class=${cx("k-notice", `k-notice--${t}`)}>
-    <${Icon} name=${TONE_ICONS[t]} size=${16} class="k-notice__icon" />
+    <${Icon} name=${TONE_ICONS[t]} size=${14} class="k-notice__icon" />
     <div class="k-notice__body">
       ${title ? html`<p class="k-notice__title">${title}</p>` : null}
       ${children ? html`<div class="k-notice__text">${children}</div>` : null}
     </div>
+    ${action ? html`<div class="k-notice__actions">${action}</div>` : null}
   </div>`;
 }
 
@@ -27,12 +29,12 @@ const message = (error) =>
 export function ErrorNotice({ error, onRetry }) {
   if (error === null || error === undefined || error === false || error === "") return null;
   return html`<div class="k-notice k-notice--bad" role="alert">
-    <${Icon} name="alert" size=${16} class="k-notice__icon" />
+    <${Icon} name="alert" size=${14} class="k-notice__icon" />
     <div class="k-notice__body">
       <p class="k-notice__title">This could not be loaded.</p>
       <div class="k-notice__text">${message(error)}</div>
     </div>
-    ${onRetry ? html`<div class="k-notice__actions"><${Button} size="sm" onClick=${onRetry}>Try again<//></div>` : null}
+    ${onRetry ? html`<div class="k-notice__actions"><${Button} variant="ghost" size="sm" onClick=${onRetry}>Try again<//></div>` : null}
   </div>`;
 }
 
@@ -45,7 +47,7 @@ export function NextStep({ text }) {
 
 export function NotConnected({ reason, next, title = "Not connected yet" }) {
   return html`<div class="k-notice k-notice--warn k-notice--block">
-    <${Icon} name="alert" size=${16} class="k-notice__icon" />
+    <${Icon} name="alert" size=${14} class="k-notice__icon" />
     <div class="k-notice__body">
       <p class="k-notice__title">${title}</p>
       ${reason ? html`<div class="k-notice__text">${reason}</div>` : null}

@@ -15,17 +15,30 @@ test("one name for one button: the error notice says Try again (M51 F18, C3 25)"
   assert.doesNotMatch(textOf(root), /Retry/);
 });
 
-test("a warning is a thin amber rule on a faint tint, 13 px, the server's words as sent; other tones are a plain sentence (corrections after round 3, 5)", () => {
+test("fix round B2: a warning or a problem is a hairline in its tone on a 6 percent tint, a 14 px icon, the body in the second ink, the server's words as sent; info and ok are a plain sentence", () => {
   const words = "Renders and prompts you approve go to Runway, which may train its models on them.";
   const root = show(states.Notice, { tone: "warn", title: "Training.", children: words });
   assert.match(textOf(root), new RegExp(words.replace(/[.,]/g, "\\$&")), "the words are shown as sent");
+  assert.equal(elements(root).find((e) => e.localName === "svg").getAttribute("width"), "14", "a 14 px icon");
   const c = css("kit/states.css");
-  assert.match(c, /\.k-notice \{[^}]*font-size: var\(--fs-note\);/, "13 px words");
-  assert.match(c, /\.k-notice--warn \{[^}]*border-left: 2px solid var\(--warn\);[^}]*background: color-mix\(in srgb, var\(--warn-bg\) 70%, transparent\);/, "the amber rule on a faint tint");
-  assert.doesNotMatch(c, /\.k-notice--(warn|bad|ok) \{[^}]*border: 1px/, "no boxed callout");
+  assert.match(c, /\.k-notice \{[^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-note\);/, "13 px words in the second ink");
+  assert.match(c, /\.k-notice--warn,\s*\.k-notice--bad \{[^}]*border: 1px solid;[^}]*border-radius: var\(--r-2\);/, "a hairline round it, inset");
+  assert.match(c, /\.k-notice--warn \{[^}]*border-color: var\(--warn-line\);[^}]*background: color-mix\(in srgb, var\(--warn\) 6%, transparent\);/, "the warn hairline on a 6 percent tint");
+  assert.match(c, /\.k-notice--bad \{[^}]*background: color-mix\(in srgb, var\(--bad\) 6%, transparent\);/);
+  assert.doesNotMatch(c, /border-left: 2px/, "no amber bar at the left: it read as a quote");
   assert.match(c, /\.k-notice__title \{[^}]*display: inline;/, "the title runs on into its words, one line where it can be");
-  assert.doesNotMatch(c, /\.k-notice--(info|ok|bad) \{[^}]*background/, "only the warning has a tint");
-  assert.equal((c.match(/var\(--warn/g) || []).length, 3, "amber appears only in the warning's rule, tint and icon");
+  assert.doesNotMatch(c, /\.k-notice--(info|ok) \{[^}]*background/, "info and ok have no tint");
+});
+
+test("fix round B2: a notice's one action sits at its right; the error notice's Try again is a small ghost", () => {
+  const root = show(states.Notice, { tone: "warn", title: "The relay is off.", action: "Open Health" });
+  const box = elements(root).find((e) => /\bk-notice__actions\b/.test(e.getAttribute("class") || ""));
+  assert.ok(box, "the action has its place");
+  assert.equal(textOf(box), "Open Health");
+  const err = show(states.ErrorNotice, { error: "No answer.", onRetry() {} });
+  const b = elements(err).find((e) => e.localName === "button");
+  assert.match(b.getAttribute("class"), /k-btn--ghost/);
+  assert.match(b.getAttribute("class"), /k-btn--sm/);
 });
 
 test("empty is a 16 px icon, one sentence, one line and the way on; loading is hairline rows that rest when motion is off", () => {

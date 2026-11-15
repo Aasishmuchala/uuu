@@ -1,21 +1,22 @@
-/* kit/states.js: notices, empty, loading and "being built" (the corrections after round 3, 5).
-   A warning is a thin amber rule at the left on a faint tint, 13 px words, one line where it can be, and never
-   the loudest thing on a screen; it is the only amber surface in the product. Info, ok and bad are a plain
-   13 px sentence whose 16 px icon alone carries the tone. Empty is an icon, a sentence, a line and a button. */
+/* kit/states.js: notices, empty, loading and "being built" (the corrections after round 3, 5; fix round B2).
+   A warning or a problem is a 1 px hairline in its tone on a faint tint (about 6 percent of the tone), a 14 px icon,
+   13 px words in the second ink, inset in its column and never the loudest thing on a screen; its one action is a
+   small ghost at the right. Info and ok are a plain 13 px sentence whose icon alone carries the tone. Empty is an
+   icon, a sentence, a line and a button. */
 
 .k-notice {
   display: flex;
   align-items: flex-start;
-  gap: var(--s-2) 10px;
+  gap: var(--s-2);
   padding: var(--s-1) 0;
-  color: var(--ink);
+  color: var(--ink-2);
   font-size: var(--fs-note);
   line-height: var(--lh-note);
 }
 
 .k-notice__icon {
   flex: none;
-  margin-top: 1px;
+  margin-top: 2px;
   color: var(--ink-3);
 }
 
@@ -29,7 +30,7 @@
 .k-notice__title {
   display: inline;
   margin-right: var(--s-1);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-medium);
   color: var(--ink);
 }
 
@@ -41,28 +42,34 @@
 .k-notice__actions {
   flex: none;
   align-self: center;
+  display: flex;
+  gap: var(--s-2);
+  margin: calc(var(--s-1) * -1) 0;
 }
 
 .k-notice--ok .k-notice__icon { color: var(--good); }
-.k-notice--bad .k-notice__icon { color: var(--bad); }
 
-.k-notice--bad .k-notice__text {
-  color: var(--ink);
+/* Warn and bad: the hairline in the tone, the faint tint, the words in the second ink. */
+.k-notice--warn,
+.k-notice--bad {
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid;
+  border-radius: var(--r-2);
 }
 
-/* Warn: the amber rule on a faint tint, the server's own words in full ink. */
 .k-notice--warn {
-  padding: var(--s-2) var(--s-3);
-  border-left: 2px solid var(--warn);
-  border-radius: 0 var(--r-1) var(--r-1) 0;
-  background: color-mix(in srgb, var(--warn-bg) 70%, transparent);
+  border-color: var(--warn-line);
+  background: color-mix(in srgb, var(--warn) 6%, transparent);
 }
 
 .k-notice--warn .k-notice__icon { color: var(--warn); }
 
-.k-notice--warn .k-notice__text {
-  color: var(--ink);
+.k-notice--bad {
+  border-color: color-mix(in srgb, var(--bad) 34%, transparent);
+  background: color-mix(in srgb, var(--bad) 6%, transparent);
 }
+
+.k-notice--bad .k-notice__icon { color: var(--bad); }
 
 /* Not connected: the title on its own line, the reason and the next step under it. */
 .k-notice--block {
