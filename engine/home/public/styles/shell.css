@@ -215,13 +215,11 @@
 .s-go.is-current .s-go-count {
   color: var(--ink);
 }
-/* Needs you: the kit's chip; the accent tint when there is something to do. */
+/* Needs you: the kit's info chip (the accent's ink on its tint), so the count is seen without being the
+   heaviest mark in the sidebar. */
 .s-go-count--chip,
 .s-go.is-current .s-go-count--chip {
   margin-right: -4px;
-  background: var(--accent-fill);
-  color: var(--accent-ink);
-  font-weight: var(--fw-bold);
 }
 .s-go .s-dot {
   margin-left: auto;
@@ -313,11 +311,6 @@
   line-height: 16px;
   font-variant-numeric: tabular-nums;
   text-align: center;
-}
-.s-side--icons .s-go-count--chip,
-.s-side--icons .s-go.is-current .s-go-count--chip {
-  background: var(--accent-fill);
-  color: var(--accent-ink);
 }
 .s-side--icons .s-side-foot {
   align-items: center;

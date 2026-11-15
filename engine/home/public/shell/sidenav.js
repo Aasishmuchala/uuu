@@ -110,7 +110,7 @@ function Go({ href, icon, title, label, current, count, chip, mark, onClick }) {
   const text = count > 99 ? "99+" : count;
   const n = count
     ? chip
-      ? html`<span class="k-tag s-go-count s-go-count--chip u-num" aria-hidden="true">${text}</span>`
+      ? html`<span class="k-tag k-tag--info s-go-count s-go-count--chip u-num" aria-hidden="true">${text}</span>`
       : html`<span class="s-go-count u-num" aria-hidden="true">${text}</span>`
     : null;
   const inner = html`
