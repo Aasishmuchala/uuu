@@ -1,15 +1,16 @@
-// App Studio (PLAN-V5 K17, K22, K23, T80; PLAN-COOK T60): the apps that run on this Mac, as cards two or three
-// across under a bar that filters them (all, on, off): each card its picture, its name, its state, what it does and
-// one button (Open, Turn on, or Turn off for a stopped app), with Turn off as a quiet word at its foot while it is
-// open, and there what the fence does not cover (T86: in full while the app is off, short while it is on); then the
-// sites the team made (T88) as a second group of cards.
+// App Studio (PLAN-V5 K17, K22, K23, T80; PLAN-COOK T60, TB2): the apps that run on this Mac, as cards two across
+// under a bar that filters them (all, on, off): each card its 32 px tile (its own picture, else its initials), its
+// name and its state as a one-line chip, Open at the right while it runs or starts, what it does and one meta row
+// (what it may spend today, the model it thinks with); at its foot, under a rule, what the fence does not cover (T86:
+// in full while the app is off, short while it is on) beside its switch, Turn on or Turn off; then the sites the team
+// made (T88) as a second group of cards.
 // Everything comes from GET /api/apps; every POST answers the whole view again, so the page shows that answer.
 // An app's name, its line and every sentence are shown as plain capped text, never as HTML. The pure helpers here
 // are shared with pages/app.js (one app opened inside).
 import { html, useCallback, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useVisibleInterval } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { Button, Card, Empty, ErrorNotice, Icon, Loading, NextStep, Notice, PageHeader, Section, Segmented, St, Time, previewAddress, safeViewUrl, siteAddress } from "../kit/index.js";
+import { Button, Card, Empty, ErrorNotice, Icon, Loading, NextStep, Notice, PageHeader, Section, Segmented, St, Tag, Time, previewAddress, safeViewUrl, siteAddress } from "../kit/index.js";
 
 // K23's words, as written, and the few these pages add.
 export const WORDS = {
@@ -144,6 +145,29 @@ const ST_OF = {
 };
 export const stateSt = (shown) => ST_OF[shown] || ST_OF.off;
 
+// The same state as the kit's Tag, a one-line chip (TB2): on good, starting info, off and not ready neutral, stopped
+// and damaged bad, waiting for App Studio warn.
+const TAG_OF = { on: "good", starting: "info", off: "neutral", failed: "bad", not_installed: "neutral", damaged: "bad", host_off: "warn" };
+export const stateTag = (shown) => TAG_OF[shown] || TAG_OF.off;
+
+// The tile's words when an app has no picture: the first letters of its first and last words ("Render to Film" ->
+// "RF", "broken-app" -> "BA", "Storyboard" -> "S"), or "?" for no name.
+export function initials(name) {
+  const words = plain(name, 60).split(/[\s_-]+/).filter(Boolean);
+  const ends = words.length > 1 ? [words[0], words[words.length - 1]] : words;
+  const out = ends.map((w) => Array.from(w)[0] || "").join("").toUpperCase();
+  return out || "?";
+}
+
+// A money sentence as sent, cut into its words and its amounts, so the amounts can be set in tabular figures without
+// a word changing: "Allowed today: $5.00. Spent: $1.20." -> [{ text: "Allowed today: " }, { text: "$5.00", money: true }, …].
+export function moneyParts(text) {
+  return String(text ?? "").split(/(\$[0-9][0-9,]*(?:\.[0-9]+)?)/).filter((t) => t !== "").map((t) => (/^\$[0-9]/.test(t) ? { text: t, money: true } : { text: t }));
+}
+export function MoneyWords({ text, cls }) {
+  return html`<span class=${cls}>${moneyParts(text).map((p) => (p.money ? html`<span class="p-money">${p.text}</span>` : p.text))}</span>`;
+}
+
 // The list's filter: "all", "on" (switched on) or "off". -> the apps it keeps.
 export const FILTERS = Object.freeze(["all", "on", "off"]);
 export function filterApps(apps, filter) {
@@ -185,6 +209,9 @@ export function thinksLabel(thinks) {
   const name = plain(t.name || t.model, 60);
   return name ? `Thinks with ${name}.` : "Choose how it thinks";
 }
+
+// The same as a control's label or a meta fact: no full stop (TB2). "Thinks with Claude Opus 5.5".
+export const thinksShort = (thinks) => thinksLabel(thinks).replace(/\.$/, "");
 
 // The apps of the view, the good ones only (a slug the routes accept).
 export const appsOf = (view) => arr(obj(view) ? view.apps : null).filter((a) => obj(a) && typeof a.slug === "string" && SLUG.test(a.slug));
@@ -271,12 +298,13 @@ export function Refusal({ error }) {
   </div>`;
 }
 
-// The app's picture at `size` px, or the kit's apps mark when it cannot be loaded. `cls` is the page's own class.
-export function AppIcon({ slug, size, cls }) {
+// The app's picture at `size` px, or, when it has none or it cannot be loaded, its initials on the raised tone (never
+// an empty square). `cls` is the page's own class.
+export function AppIcon({ slug, name, size, cls }) {
   const [broken, setBroken] = useState(false);
   const src = iconHref(slug);
   if (!src || broken) {
-    return html`<span class=${`${cls} ${cls}--none`} aria-hidden="true"><${Icon} name="apps" size=${Math.round(size / 2)} /></span>`;
+    return html`<span class=${`${cls} ${cls}--none`} aria-hidden="true">${initials(name || slug)}</span>`;
   }
   return html`<img class=${cls} src=${src} alt="" width=${size} height=${size} onError=${() => setBroken(true)} />`;
 }
@@ -289,8 +317,16 @@ export function Restart() {
 // ---------------------------------------------------------------------------------------------------------------
 // The list
 
-// One app: its picture, name and state on the first line with its one button at the right; what it does; what it may
-// spend; then at its foot, under a hairline, what the fence does not cover, and Turn off while it is open.
+// The model in the meta row: its name, "Thinks with " said to a screen reader and on hover (the glyph says it to the
+// eye), so the row stays one line beside what it may spend.
+function thinksMeta(label) {
+  const m = /^(Thinks with )(.+)$/.exec(label);
+  return m ? html`<span class="k-sr">${m[1]}</span>${m[2]}` : label;
+}
+
+// One app: its tile, name and state chip on the first line with Open at the right while it runs or starts; what it
+// does; one meta row (what it may spend today, the model it thinks with); then at its foot, under a rule, what the
+// fence does not cover beside its switch.
 function Tile({ app, host, view }) {
   const { announce } = useApp() || {};
   const [busy, setBusy] = useState("");
@@ -299,10 +335,9 @@ function Tile({ app, host, view }) {
   const name = plain(app.name, 40) || app.slug;
   const about = plain(app.about, 120);
   const href = appHref(app.slug);
-  const st = stateSt(shown);
-  // The facts line: what it may spend today while it may, and the model it thinks with once one is picked.
+  // The meta row: what it may spend today while it may, and the model it thinks with once one is picked.
   const spending = spends(app) && app.spending.open;
-  const thinks = obj(app.thinks) && (app.thinks.name || app.thinks.model) ? thinksLabel(app.thinks) : "";
+  const thinks = obj(app.thinks) && (app.thinks.name || app.thinks.model) ? thinksShort(app.thinks) : "";
 
   const turn = async (on) => {
     setBusy(on ? "on" : "off");
@@ -314,41 +349,42 @@ function Tile({ app, host, view }) {
   };
 
   const canOpen = shown === "on" || shown === "starting";
-  // The card's one button: Open while it runs or starts, Turn on while it is off, Turn off when it stopped.
-  const main = canOpen && href
-    ? html`<${Button} size="sm" href=${href} icon="arrow-right" class="p-apps__main">${WORDS.open}<//>`
-    : app.on
-      ? html`<${Button} size="sm" busy=${busy === "off"} class="p-apps__main" onClick=${() => turn(false)}>${WORDS.turnOff}<//>`
-      : shown === "off"
-        ? html`<${Button} size="sm" busy=${busy === "on"} class="p-apps__main" onClick=${() => turn(true)}>${WORDS.turnOn}<//>`
-        : null;
+  // The head's one button: Open while it runs (the filled one) or starts; its page waits for it.
+  const open = canOpen && href
+    ? html`<${Button} size="sm" variant=${shown === "on" ? "primary" : "ghost"} href=${href} class="p-apps__main">${WORDS.open}<//>`
+    : null;
+  // The switch at its foot, beside what the fence does not cover: Turn off while switched on (open, starting or
+  // stopped), Turn on while off; an app that is not ready or damaged has neither.
+  const toggle = app.on
+    ? html`<${Button} variant="ghost" size="sm" class="p-apps__switch" busy=${busy === "off"} onClick=${() => turn(false)}>${WORDS.turnOff}<//>`
+    : shown === "off"
+      ? html`<${Button} variant="ghost" size="sm" class="p-apps__switch" busy=${busy === "on"} onClick=${() => turn(true)}>${WORDS.turnOn}<//>`
+      : null;
   const trust = app.on ? WORDS.trustShort : shown === "off" ? WORDS.trust : "";
   return html`<${Card} padding="none" class=${`p-apps__tile p-apps__tile--${shown}`}>
     <div class="p-apps__tile-head">
-      <${AppIcon} slug=${app.slug} size=${56} cls="p-apps__icon" />
+      <${AppIcon} slug=${app.slug} name=${name} size=${32} cls="p-apps__icon" />
       <div class="p-apps__names">
         <h3 class="p-apps__name">${name}</h3>
-        <${St} tone=${st.tone} icon=${st.icon}>${stateWord(shown)}<//>
+        <span class="p-apps__state"><${Tag} tone=${stateTag(shown)}>${stateWord(shown)}<//></span>
       </div>
-      ${main}
+      ${open}
     </div>
     <div class="p-apps__tile-body">
       ${about ? html`<p class="p-apps__about">${about}</p>` : null}
       ${spending || thinks
         ? html`<p class="p-apps__facts">
-            ${spending ? html`<span class="p-apps__spend"><${Icon} name="tag" size=${14} /><span>${spendingLine(app)}</span></span>` : null}
-            ${thinks ? html`<span class="p-apps__fact"><${Icon} name="brain" size=${14} /><span>${thinks}</span></span>` : null}
+            ${spending ? html`<span class="p-apps__spend"><${Icon} name="tag" size=${14} /><${MoneyWords} text=${spendingLine(app)} /></span>` : null}
+            ${thinks ? html`<span class="p-apps__fact" title=${thinks}><${Icon} name="brain" size=${14} /><span>${thinksMeta(thinks)}</span></span>` : null}
           </p>`
         : null}
       ${shown === "failed" ? html`<p class="p-apps__hint">${WORDS.tryAgain} <a href="#/health">${WORDS.health}</a></p>` : null}
       <${Refusal} error=${error} />
     </div>
-    ${trust || (canOpen && app.on)
+    ${toggle
       ? html`<div class="p-apps__foot">
           ${trust ? html`<p class="p-apps__trust">${trust}</p>` : null}
-          ${canOpen && app.on
-            ? html`<${Button} variant="quiet" size="sm" class="p-apps__off" busy=${busy === "off"} onClick=${() => turn(false)}>${WORDS.turnOff}<//>`
-            : null}
+          ${toggle}
         </div>`
       : null}
   <//>`;

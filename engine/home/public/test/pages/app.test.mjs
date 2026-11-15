@@ -126,11 +126,20 @@ test("app mounted, on: the bar (back, name, state, spending, the model, its own 
     const bar = elements(m.root).find((e) => e.localName === "header");
     assert.ok(bar, "the home screen's own bar");
     const barText = textOf(bar);
-    for (const w of ["Render to Film", "On", "Allowed today: $5.00. Spent: $1.20.", "Stop spending", "Thinks with Claude Opus 5.5.", "Open in its own window", "Turn off"]) {
+    for (const w of ["Render to Film", "On", "Allowed today: $5.00. Spent: $1.20.", "Stop spending", "Thinks with Claude Opus 5.5", "Open in its own window", "Turn off"]) {
       assert.ok(barText.includes(w), w);
     }
     assert.ok(elements(bar).some((e) => e.localName === "a" && e.getAttribute("href") === "#/apps"), "back to App Studio");
     assert.ok(elements(bar).some((e) => e.localName === "h1" && e.getAttribute("id") === "page-title"), "the heading the shell focuses");
+    // TB2: one bar; its state a chip; Stop spending the soft danger, its own window and Turn off small ghosts; the
+    // model's menu has no full stop in its label.
+    const cls = (e) => (e.getAttribute("class") || "").split(/\s+/);
+    assert.ok(elements(bar).some((e) => cls(e).includes("k-tag") && cls(e).includes("k-tag--good") && textOf(e) === "On"), "the state is a good chip");
+    const btn = (w) => elements(bar).find((e) => e.localName === "button" && textOf(e).trim() === w);
+    assert.ok(cls(btn("Stop spending")).includes("k-btn--danger") && cls(btn("Stop spending")).includes("k-btn--sm"));
+    assert.ok(cls(btn("Turn off")).includes("k-btn--ghost") && cls(btn("Turn off")).includes("k-btn--sm"));
+    assert.ok(cls(btn("Open in its own window")).includes("k-btn--ghost"));
+    assert.ok(!barText.includes("Thinks with Claude Opus 5.5."), "no full stop in the menu's label");
     const f = frames(m.root);
     assert.equal(f.length, 1);
     assert.equal(f[0].getAttribute("src"), `${HTTP}${LOOP}:3171/`);
@@ -303,16 +312,16 @@ test("app mounted: the model's menu posts the choice; a refusal in the bar is sh
     return { status: 200, body: current };
   });
   try {
-    const trigger = buttons(m.root, "Thinks with Claude Opus 5.5.")[0];
+    const trigger = buttons(m.root, "Thinks with Claude Opus 5.5")[0];
     fire(trigger, "click");
     await settle();
     const item = elements(m.root).find((e) => e.getAttribute("role") === "menuitem" && textOf(e).trim() === "Claude Sonnet 5.5");
     fire(item, "click");
     await settle();
     assert.deepEqual(m.f.calls.find((c) => c.method === "POST").body, { model: "claude-sonnet-5-5" });
-    assert.equal(buttons(m.root, "Thinks with Claude Sonnet 5.5.").length, 1);
+    assert.equal(buttons(m.root, "Thinks with Claude Sonnet 5.5").length, 1);
     refuse = true;
-    fire(buttons(m.root, "Thinks with Claude Sonnet 5.5.")[0], "click");
+    fire(buttons(m.root, "Thinks with Claude Sonnet 5.5")[0], "click");
     await settle();
     fire(elements(m.root).find((e) => e.getAttribute("role") === "menuitem" && textOf(e).trim() === "Claude Opus 5.5"), "click");
     await settle();
@@ -351,7 +360,8 @@ test("app mounted, on: the short sentence stays under the bar, beside the frame;
     assert.ok(!textOf(m.root).includes(TRUST), "the long one is not shown while the app is open");
     assert.ok(!textOf(m.root).includes(WORDS.checking));
     const css = readFileSync(join(PUBLIC, "styles", "pages", "app.css"), "utf8");
-    assert.match(css, /\.p-app \.p-app__notes \{[^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-note\);/, "note size (13 px), second ink");
+    assert.match(css, /\.p-app \.p-app__notes \{[^}]*color: var\(--ink-3\);[^}]*font-size: var\(--fs-label\);/, "12 px, third ink: quieter, still whole");
+    assert.doesNotMatch(css, /\.p-app__trust[^{]*\{[^}]*(display: none|text-overflow|-webkit-line-clamp|visibility: hidden)/, "never cut or hidden");
     assert.match(css, /\.p-app \.p-app__trust-long \{[^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-note\);/);
   } finally { m.done(); }
 });
@@ -441,9 +451,10 @@ test("app mounted: the sheet says why an amount cannot be picked, as text beside
   } finally { m.done(); }
 });
 
-test("app: the frame is outlined and inset from the bar; the bar is 48 px on the shell's ground and hairline", () => {
+test("app: the frame stands on the stage with a 1 px edge, a 12 px corner and 16 px round it; the bar is one 44 px row on the shell's ground and hairline", () => {
   const css = readFileSync(join(PUBLIC, "styles", "pages", "app.css"), "utf8");
-  assert.match(css, /\.p-app \.p-app__bar \{[^}]*min-height: var\(--topbar-h\);[^}]*border-bottom: 1px solid var\(--line\);[^}]*background: var\(--bg\);/);
-  assert.match(css, /\.p-app \.p-app__stage \{[^}]*padding: var\(--s-2\);/, "inset by 8 px");
-  assert.match(css, /\.p-app \.p-app__frame \{[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-1\);/);
+  assert.match(css, /\.p-app \.p-app__bar \{[^}]*min-height: calc\(var\(--h-lg\) \+ var\(--s-1\)\);[^}]*border-bottom: 1px solid var\(--line\);[^}]*background: var\(--bg\);/);
+  assert.match(css, /\.p-app \{[^}]*background: var\(--stage\);/, "the stage tone round the frame");
+  assert.match(css, /\.p-app \.p-app__stage \{[^}]*padding: var\(--s-4\);/, "16 px round it");
+  assert.match(css, /\.p-app \.p-app__frame \{[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-3\);/);
 });

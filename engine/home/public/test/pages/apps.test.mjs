@@ -9,7 +9,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import Page, {
   AMOUNTS, APP_PORTS, FILTERS, FIRST_AMOUNT, STATE_WORDS, WORDS, allowLabel, amountChoices, appAddress, appHref, appsOf, dollarWord, filterApps,
-  firstAmount, iconHref, plain, sheetTitle, shownState, sitesOfView, spendingLine, spends, stateSentence, stateSt, stateTone, stateWord, thinksLabel,
+  firstAmount, iconHref, initials, moneyParts, plain, sheetTitle, shownState, sitesOfView, spendingLine, spends, stateSentence, stateSt, stateTag,
+  stateTone, stateWord, thinksLabel, thinksShort,
 } from "../../pages/apps.js";
 
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -194,7 +195,7 @@ test("apps mounted: the intro, the tiles' root class, and the team's group with 
   } finally { m.done(); }
 });
 
-test("apps mounted: an app that is on has its picture at 56 px, its line, its state, Open to its page and Turn off", async () => {
+test("apps mounted: an app that is on has its picture at 32 px, its line, its state, Open to its page and Turn off", async () => {
   const m = await mount(fixed(view([app()])));
   try {
     const all = textOf(m.root);
@@ -204,9 +205,11 @@ test("apps mounted: an app that is on has its picture at 56 px, its line, its st
     assert.ok(all.includes("Allowed today: $5.00. Spent: $1.20."));
     const img = elements(m.root).find((e) => e.localName === "img");
     assert.equal(img.getAttribute("src"), "/api/apps/render-to-film/icon");
-    assert.equal(img.getAttribute("width"), "56");
+    assert.equal(img.getAttribute("width"), "32");
     assert.equal(img.getAttribute("alt"), "");
     assert.equal(buttons(m.root, "Open")[0].getAttribute("href"), "#/apps/render-to-film");
+    assert.match(cls(buttons(m.root, "Open")[0]), /k-btn--primary/, "Open is the filled one on an app that is on");
+    assert.match(cls(buttons(m.root, "Turn off")[0]), /k-btn--ghost/, "Turn off a small ghost");
     assert.equal(buttons(m.root, "Turn off").length, 1);
     assert.equal(buttons(m.root, "Turn on").length, 0);
   } finally { m.done(); }
@@ -417,7 +420,8 @@ test("apps mounted: beside each app's switch, the long sentence while it is off 
     assert.equal(WORDS.trust, TRUST);
     assert.equal(WORDS.trustShort, TRUST_SHORT);
     const css = readFileSync(join(PUBLIC, "styles", "pages", "apps.css"), "utf8");
-    assert.match(css, /\.p-apps \.p-apps__trust \{[^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-note\);/, "note size (13 px), second ink");
+    assert.match(css, /\.p-apps \.p-apps__trust \{[^}]*color: var\(--ink-3\);[^}]*font-size: var\(--fs-label\);/, "12 px, third ink: quieter, still whole");
+    assert.doesNotMatch(css, /\.p-apps__trust[^{]*\{[^}]*(display: none|text-overflow|-webkit-line-clamp|visibility: hidden)/, "never cut or hidden");
   } finally { m.done(); }
 });
 
@@ -471,7 +475,7 @@ test("apps mounted: the filter sits in a bar under the title; On and Off keep th
   } finally { e.done(); }
 });
 
-test("apps mounted: each card has one button at its head: Open while it runs, Turn on while off, Turn off when stopped", async () => {
+test("apps mounted: a card's head holds Open while it runs or starts; its switch (Turn on, Turn off) is a ghost at its foot", async () => {
   const apps = [
     app({ slug: "a-on", name: "On app" }),
     app({ slug: "b-off", name: "Off app", state: "off", on: false, spending: NOSPEND }),
@@ -482,9 +486,54 @@ test("apps mounted: each card has one button at its head: Open while it runs, Tu
   try {
     const tiles = elements(m.root).filter((e) => cls(e).split(/\s+/).includes("p-apps__tile"));
     const head = (t) => elements(t).find((e) => cls(e) === "p-apps__tile-head");
-    const mains = tiles.map((t) => elements(head(t)).filter((e) => (e.localName === "a" || e.localName === "button")).map((e) => textOf(e).trim()));
-    assert.deepEqual(mains, [["Open"], ["Turn on"], ["Turn off"], []]);
-    assert.equal(buttons(tiles[0], "Turn off").length, 1, "an open app's Turn off is a quiet word at its foot");
-    assert.ok(elements(tiles[0]).some((e) => cls(e).split(/\s+/).includes("k-st")), "the state is the kit's St");
+    const foot = (t) => elements(t).find((e) => cls(e) === "p-apps__foot");
+    const acts = (el) => (el ? elements(el).filter((e) => (e.localName === "a" || e.localName === "button")).map((e) => textOf(e).trim()) : []);
+    assert.deepEqual(tiles.map((t) => acts(head(t))), [["Open"], [], [], []]);
+    assert.deepEqual(tiles.map((t) => acts(foot(t))), [["Turn off"], ["Turn on"], ["Turn off"], []]);
+    for (const t of tiles.slice(0, 3)) assert.match(cls(elements(foot(t)).find((e) => e.localName === "button")), /k-btn--ghost k-btn--sm/);
+    const chip = (t) => elements(t).find((e) => cls(e).split(/\s+/).includes("k-tag"));
+    assert.deepEqual(tiles.map((t) => cls(chip(t)).split(/\s+/)[1]), ["k-tag--good", "k-tag--neutral", "k-tag--bad", "k-tag--neutral"], "the state is a one-line chip in its tone");
   } finally { m.done(); }
+});
+
+// ---- TB2: the tile's initials, the state's chip, the money's figures, the model's label ----
+
+test("apps: an app with no picture shows its initials; the state's chip tones; amounts cut out without a word changing", () => {
+  assert.equal(initials("Render to Film"), "RF");
+  assert.equal(initials("broken-app"), "BA");
+  assert.equal(initials("Storyboard"), "S");
+  assert.equal(initials("  "), "?");
+  assert.equal(initials(null), "?");
+  assert.deepEqual(["on", "starting", "off", "failed", "not_installed", "damaged", "host_off", "made up"].map(stateTag),
+    ["good", "info", "neutral", "bad", "neutral", "bad", "warn", "neutral"]);
+  const parts = moneyParts("Allowed today: $5.00. Spent: $1.20.");
+  assert.deepEqual(parts.filter((p) => p.money).map((p) => p.text), ["$5.00", "$1.20"]);
+  assert.equal(parts.map((p) => p.text).join(""), "Allowed today: $5.00. Spent: $1.20.", "shown as sent");
+  assert.equal(moneyParts("This app cannot spend anything right now.").length, 1);
+  assert.equal(thinksShort({ name: "Claude Opus 5.5" }), "Thinks with Claude Opus 5.5");
+  assert.equal(thinksShort(null), "Choose how it thinks");
+});
+
+test("apps mounted: a picture that cannot be loaded gives way to the initials, never an empty square", async () => {
+  const m = await mount(fixed(view([app({ slug: "colour-room", name: "Colour Room" })])));
+  try {
+    const img = elements(m.root).find((e) => e.localName === "img");
+    fire(img, "error");
+    await settle();
+    assert.equal(elements(m.root).filter((e) => e.localName === "img").length, 0);
+    const none = elements(m.root).find((e) => cls(e).includes("p-apps__icon--none"));
+    assert.equal(textOf(none), "CR");
+    assert.equal(none.getAttribute("aria-hidden"), "true");
+  } finally { m.done(); }
+});
+
+test("apps: the cards are two across and one height a row; the meta row 13 px in the second ink with the amounts in tabular figures", () => {
+  const css = readFileSync(join(PUBLIC, "styles", "pages", "apps.css"), "utf8");
+  assert.match(css, /\.p-apps \.p-apps__grid \{[^}]*minmax\(400px, 1fr\)/);
+  assert.match(css, /\.p-apps \.p-apps__tile \{[^}]*display: flex;[^}]*flex-direction: column;/);
+  assert.match(css, /\.p-apps \.p-apps__foot \{[^}]*margin-top: auto;[^}]*border-top: 1px solid var\(--line\);/);
+  assert.match(css, /\.p-apps \.p-apps__icon \{[^}]*width: 32px; height: 32px;/);
+  assert.match(css, /\.p-apps \.p-apps__icon--none \{[^}]*background: var\(--raise\);[^}]*font-size: var\(--fs-fact\); font-weight: var\(--fw-bold\);/);
+  assert.match(css, /\.p-apps \.p-apps__facts \{[^}]*color: var\(--ink-2\); font-size: var\(--fs-note\);/);
+  assert.match(css, /\.p-apps \.p-apps__spend \{[^}]*font-variant-numeric: tabular-nums;/);
 });
