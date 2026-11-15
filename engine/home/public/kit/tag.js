@@ -1,12 +1,12 @@
 // A Tag is a small word with a tone (FYI, Passed); a Chip is a quiet label with an icon (the schedule, the size)
-// or a coloured dot (a department's job, a state). Both are 12 px on a 5 px corner, grey by default; a tone puts the
-// words in its colour on its 12 percent tint. A chip given `onClick` is a toggle (a filter): a button whose
-// `on` state is lifted like every selected thing.
+// or a coloured dot (a department's job, a state). Both are 22 px, 12 px words on a 6 px corner, grey by default; a
+// tone (good, warn, bad, info; `ok` is good) puts the words in its colour on its 14 percent tint. A chip given
+// `onClick` is a toggle (a filter): a button whose `on` state is lifted like every selected thing.
 import { html } from "../vendor/preact-htm.js";
 import { Icon } from "./icon.js";
 import { cx } from "./util.js";
 
-const TONES = ["neutral", "ok", "warn", "bad"];
+const TONES = ["neutral", "ok", "good", "warn", "bad", "info"];
 const DEPARTMENTS = ["brain", "operations", "sales", "marketing", "studio", "support", "people", "books"];
 const DOT_TONES = ["live", "ok", "warn", "bad", "off"];
 

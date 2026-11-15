@@ -1,6 +1,8 @@
-/* kit/tag.js: small labels, 20 px tall, 12 px words at 500 on a 4 px corner: one chip system for every list and
-   card. Grey by default; colour only for a state: a tone puts the words in its colour on its 12 percent tint (one
-   status chip a card). A toggle chip is lifted when on: the raised step and a 2 px accent edge, like every selected
+/* kit/tag.js: small labels, 22 px tall, 12 px words at 500, 8 px sides on a 6 px corner: one chip system for every
+   list, card, rail and overlay (fix round A3). Five tones: neutral (the second ink on the control fill), good, warn,
+   bad and info (the accent), each its ink on its own tint of about 14 percent, every one at 4.5 to 1 over a card, a
+   panel, the raised step and the overlay in both themes (tokens.test.mjs computes it). Colour only for a state; one
+   status chip a card. A toggle chip is lifted when on: the raised step and a 2 px accent edge, like every selected
    thing. */
 
 .k-tag,
@@ -8,11 +10,11 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: var(--s-5);
+  min-height: 22px;
   max-width: 100%;
-  padding: 0 7px;
+  padding: 0 var(--s-2);
   border: 0;
-  border-radius: var(--r-xs);
+  border-radius: var(--r-1);
   background: var(--ctl);
   color: var(--ink-2);
   font: inherit;
@@ -23,7 +25,8 @@
   vertical-align: middle;
 }
 
-.k-tag--ok {
+.k-tag--ok,
+.k-tag--good {
   color: var(--good);
   background: var(--good-bg);
 }
@@ -36,6 +39,11 @@
 .k-tag--bad {
   color: var(--bad);
   background: var(--bad-bg);
+}
+
+.k-tag--info {
+  color: var(--accent);
+  background: var(--info-bg);
 }
 
 .k-chip .k-icon {
@@ -90,8 +98,8 @@
 /* The dot: the department's colour from the nearest data-dept, or a state colour. */
 .k-chip__dot {
   flex: none;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: var(--r-round);
   background: var(--dept, var(--ink-3));
 }

@@ -37,7 +37,7 @@ test("St: a 14 px glyph for its tone and the words on one line; the words keep t
   assert.match(s, /\.k-st--bad,\s*\.k-st--bad \.k-icon \{ color: var\(--bad\); \}/);
   assert.match(s, /\.k-st--warn \.k-icon \{ color: var\(--warn\); \}/);
   const mark = /\.k-dot__mark\s*\{([^}]*)\}/.exec(s)[1];
-  assert.match(mark, /width: 7px;\s*height: 7px;/, "the dot is 7 px");
+  assert.match(mark, /width: 6px;\s*height: 6px;/, "the dot is 6 px (fix round A3: one dot size)");
 });
 
 primitiveSheetTests("status");

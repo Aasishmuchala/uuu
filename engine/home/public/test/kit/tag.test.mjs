@@ -32,6 +32,15 @@ test("Chip: dot takes a department, a state tone or true; anything else draws no
   assert.ok(kinds.indexOf("span") < kinds.indexOf("svg"), "the dot comes before the icon");
 });
 
+test("Tag: five tones (ok is good's old name and keeps its class); anything else is neutral", async () => {
+  installDom();
+  for (const [tone, cls] of [["good", "k-tag--good"], ["ok", "k-tag--ok"], ["warn", "k-tag--warn"], ["bad", "k-tag--bad"], ["info", "k-tag--info"], ["purple", "k-tag--neutral"]]) {
+    const root = await showTree(kit.tag.Tag, { tone, children: "Passed" });
+    assert.equal(root.firstChild.getAttribute("class"), `k-tag ${cls}`, tone);
+    assert.match(textOf(root), /Passed/);
+  }
+});
+
 test("Chip with onClick is a toggle: a button with aria-pressed, lifted when on; without, a plain label", async () => {
   installDom();
   let clicked = 0;
@@ -49,16 +58,18 @@ test("Chip with onClick is a toggle: a button with aria-pressed, lifted when on;
   assert.equal(clicked, 0);
 });
 
-test("tags and chips: one system, 12 px at 500 on a 4 px corner, grey by default, a tone on its tint; a selected chip is lifted", () => {
+test("tags and chips: one system (fix round A3), 22 px, 12 px at 500, 8 px sides on a 6 px corner, grey by default, five tones each on its tint; a selected chip is lifted; one 6 px dot", () => {
   const s = css("kit/tag.css");
   const base = /\.k-tag,\s*\.k-chip\s*\{([^}]*)\}/.exec(s)[1];
-  assert.match(base, /border-radius: var\(--r-xs\);/);
+  assert.match(base, /border-radius: var\(--r-1\);/);
+  assert.match(base, /min-height: 22px;/);
+  assert.match(base, /padding: 0 var\(--s-2\);/);
   assert.match(base, /background: var\(--ctl\);/);
   assert.match(base, /color: var\(--ink-2\);/);
   assert.match(base, /font-size: var\(--fs-label\);/);
   assert.match(base, /font-weight: var\(--fw-medium\);/);
-  for (const [t, ink, bg] of [["ok", "good", "good-bg"], ["warn", "warn", "warn-bg"], ["bad", "bad", "bad-bg"]]) {
-    const r = new RegExp(`\\.k-tag--${t}\\s*\\{([^}]*)\\}`).exec(s)[1];
+  for (const [t, ink, bg] of [["ok", "good", "good-bg"], ["good", "good", "good-bg"], ["warn", "warn", "warn-bg"], ["bad", "bad", "bad-bg"], ["info", "accent", "info-bg"]]) {
+    const r = new RegExp(`\\.k-tag--${t}(?:,\\s*\\.k-tag--good)?\\s*\\{([^}]*)\\}`).exec(s)[1];
     assert.match(r, new RegExp(`color: var\\(--${ink}\\);`));
     assert.match(r, new RegExp(`background: var\\(--${bg}\\);`));
   }
@@ -66,6 +77,7 @@ test("tags and chips: one system, 12 px at 500 on a 4 px corner, grey by default
   assert.match(on, /background: var\(--raise\);/);
   assert.match(on, /border-color: var\(--accent\);/);
   assert.doesNotMatch(s, /r-pill/);
+  assert.match(/\.k-chip__dot\s*\{([^}]*)\}/.exec(s)[1], /width: 6px;\s*height: 6px;/, "one dot size");
 });
 
 primitiveSheetTests("tag");
