@@ -247,6 +247,7 @@ test("fix round R6: in a settings-like column a group is flat rows between hairl
   const rows = /\.k-doc__main \.k-rows \{([^}]*)\}/.exec(sheet)[1];
   assert.match(rows, /border: 0;[^}]*border-top: 1px solid var\(--line\);[^}]*border-bottom: 1px solid var\(--line\);[^}]*background: none;[^}]*box-shadow: none;/, "no panel");
   assert.match(/\.k-doc__main \.k-rows__row \{([^}]*)\}/.exec(sheet)[1], /padding-inline: 0;/);
+  assert.match(/\.k-doc__main \.k-card \.k-rows__row \{([^}]*)\}/.exec(sheet)[1], /padding-inline: var\(--s-4\);/, "inside the one card, the card's inset");
   assert.match(/\.k-doc__main \.k-group__title \{([^}]*)\}/.exec(sheet)[1], /font-size: var\(--fs-section\);[^}]*color: var\(--ink\);/);
   installDom();
   const { Checklist } = mod;

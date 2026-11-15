@@ -452,6 +452,15 @@
   padding-inline: 0;
 }
 
+/* Rows inside the page's one card keep the card's inset. */
+.k-doc__main .k-card .k-rows__row {
+  padding-inline: var(--s-4);
+}
+
+.k-doc__main .k-card .k-rows {
+  border-bottom: 0;
+}
+
 .k-group__aside {
   margin-left: auto;
   font-size: var(--fs-note);
