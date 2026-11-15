@@ -14,6 +14,9 @@
 // pinned table CHIP_WORDS, left out where it only repeats its group's name), the ID and the date. The whole state
 // sentence stays the row's spoken words and its hover. A second line only for words of the row's own (an answer, a
 // result's sentence). A group's head is its label and count over a hairline, no filled band.
+// Fix round R6 (R6-H): every row one height: the row's own words follow its title on the same line in the second
+// ink, cut with an ellipsis; the state quiet words with a dot (the kit's Tag, only Stuck in the warn tone and
+// Working in the info tone); a group's head a quiet filled band (32 px, 6 px corner, the raised tone).
 import { html, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
@@ -285,6 +288,9 @@ export const CHIP_WORDS = {
   Failed: "Failed",
   Canceled: "Canceled",
 };
+// The tone of a chip: only a stuck row takes the warn tone and a working one the info tone; every other state is
+// neutral words.
+export const CHIP_TONES = { Stuck: "warn", Working: "info" };
 // A group's own name as a chip says it: a row's chip equal to it is left out (the group's head already says it).
 export const GROUP_CHIP = { "needs-you": "Needs you", working: "Working", waiting: "Waiting", finished: "Finished", stopped: "Stopped" };
 
@@ -348,8 +354,8 @@ export function rowWhen(iso, now = new Date()) {
   return when(iso, now);
 }
 
-// One task on the list: the glyph, the title (14 px 500), then at the right the state's chip, the ID and the date;
-// under the title only the row's own words (an answer, a result's sentence). The whole state sentence is the row's
+// One task on the list, one line: the glyph, the title (14 px 500) and after it the row's own words (an answer, a
+// result's sentence) in the second ink, then at the right the state's quiet chip, the ID and the date. The whole state sentence is the row's
 // spoken words and its hover. Under a group the chip is left out when it only says the group's name. The
 // department and the agent are named for screen readers only.
 function Line({ task, group }) {
@@ -362,17 +368,17 @@ function Line({ task, group }) {
   const date = task.updatedAt || task.since || task.createdAt;
   const dept = typeof task.department === "string" ? DEPARTMENTS.find((x) => x.id === task.department) : null;
   const who = task.who && task.who.name ? text(task.who.name) : "";
-  return html`<a class=${`p-tasks__line${own ? " p-tasks__line--two" : ""}`} href=${taskHref(task)} title=${sentence || undefined}>
+  return html`<a class="p-tasks__line" href=${taskHref(task)} title=${sentence || undefined}>
     <span class=${`p-tasks__mark${g.tone ? ` p-tasks__mark--${g.tone}` : ""}`} aria-hidden="true"><${StateIcon} column=${g.column} label="" /></span>
     <span class="p-tasks__main">
-      <span class="p-tasks__title">${text(task.title)}</span>
+      <span class="p-tasks__title" title=${text(task.title)}>${text(task.title)}</span>
       ${sentence && html`<span class="k-sr">. ${sentence}.</span>`}
       ${own && html`<span class="p-tasks__say">${own}</span>`}
       ${dept && html`<span class="k-sr">${dept.title}.</span>`}
       ${who && html`<span class="k-sr">${who}.</span>`}
     </span>
     <span class="p-tasks__meta">
-      ${showChip && html`<span class="p-tasks__chip" aria-hidden="true"><${Tag}>${showChip}<//></span>`}
+      ${showChip && html`<span class="p-tasks__chip" aria-hidden="true"><${Tag} tone=${CHIP_TONES[showChip] || "neutral"} dot=${true} quiet=${true}>${showChip}<//></span>`}
       ${task.identifier && html`<span class="p-tasks__id"><${Mono}>${text(task.identifier)}<//></span>`}
       ${date && html`<time class="p-tasks__when" datetime=${text(date)} title=${fullWhen(date)}>${rowWhen(date)}</time>`}
     </span>

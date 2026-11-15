@@ -267,34 +267,40 @@ test("tasks: Needs you is said by the rows' glyph and words, never by an outline
   assert.match(css, /\.p-tasks \.p-tasks__list \{[^}]*max-width: var\(--content-max\)/);
 });
 
-test("tasks: a group's head is its label and count over a hairline, no filled band; the filters are edged and 32 px (R5-H)", () => {
+test("tasks: a group's head is a quiet filled band, 32 px on a 6 px corner in the raised tone; the filters are edged and 32 px (R6-H)", () => {
   const css = readFileSync(new URL("../../styles/pages/tasks.css", import.meta.url), "utf8");
   const fold = /\.p-tasks \.p-tasks__fold \{([^}]*)\}/.exec(css)[1];
-  assert.match(fold, /background: transparent/, "no filled band");
-  assert.match(fold, /border-bottom: 1px solid var\(--line-2\)/, "a hairline under the label and count");
+  assert.match(fold, /min-height: var\(--s-8\)/, "32 px");
+  assert.match(fold, /border-radius: var\(--r-1\)/, "a 6 px corner");
+  assert.match(fold, /background: var\(--raise\)/, "the raised tone");
+  assert.match(fold, /border: 0/);
   assert.match(fold, /box-shadow: none/);
-  assert.match(fold, /border-radius: 0/);
   const trigger = /\.p-tasks \.p-tasks__filter \.k-menu__trigger \{([^}]*)\}/.exec(css)[1];
   assert.match(trigger, /min-height: var\(--s-8\)/);
   assert.match(trigger, /border-color: var\(--line-2\)/);
   assert.match(trigger, /background: transparent/);
 });
 
-test("tasks: a row is one line: the glyph, the title, then the state's chip, the ID and the date at the right; a second line only for its own words (R5-H)", () => {
+test("tasks: every row is one line of one height: the glyph, the title with its own words after it, then the state's quiet chip, the ID and the date (R6-H)", () => {
   const src = readFileSync(new URL("../../pages/tasks.js", import.meta.url), "utf8");
   assert.match(src, /class="p-tasks__title"/);
   assert.match(src, /class="p-tasks__id"><\$\{Mono\}/);
-  assert.match(src, /\$\{own && html`<span class="p-tasks__say">\$\{own\}<\/span>`\}/, "the second line only for the row's own words");
+  assert.match(src, /\$\{own && html`<span class="p-tasks__say">\$\{own\}<\/span>`\}/, "the row's own words only when it has them");
   assert.match(src, /class="p-tasks__when" datetime=/);
-  assert.match(src, /<\$\{Tag\}>\$\{showChip\}<\/\/>/, "the state as the kit's neutral chip");
+  assert.match(src, /<\$\{Tag\} tone=\$\{CHIP_TONES\[showChip\] \|\| "neutral"\} dot=\$\{true\} quiet=\$\{true\}>\$\{showChip\}<\/\/>/, "the state as quiet words with a dot");
+  assert.deepEqual(mod.CHIP_TONES, { Stuck: "warn", Working: "info" }, "only Stuck warn and Working info");
   assert.match(src, /title=\$\{sentence \|\| undefined\}/, "the whole sentence on hover");
   assert.match(src, /<span class="k-sr">\. \$\{sentence\}\.<\/span>/, "and in the row's spoken words");
   const css = readFileSync(new URL("../../styles/pages/tasks.css", import.meta.url), "utf8");
   const line = /\.p-tasks \.p-tasks__line \{([^}]*)\}/.exec(css)[1];
-  assert.match(line, /min-height: 52px/, "one line about 52 px");
+  assert.match(line, /min-height: 44px/, "one height");
+  assert.match(line, /padding: 0 var\(--s-3\)/);
+  assert.match(/\.p-tasks \.p-tasks__main \{([^}]*)\}/.exec(css)[1], /display: flex;\s*align-items: baseline;/, "the own words on the title's line");
   assert.match(/\.p-tasks \.p-tasks__title \{([^}]*)\}/.exec(css)[1], /font-size: var\(--fs-body\);[\s\S]*font-weight: var\(--fw-medium\)/, "title 14 px 500");
   assert.match(/\.p-tasks \.p-tasks__id \.k-mono \{([^}]*)\}/.exec(css)[1], /color: var\(--ink-3\);[\s\S]*font-family: var\(--font-mono\);[\s\S]*font-size: var\(--fs-label\)/, "ID 12 px mono, third ink");
-  assert.match(/\.p-tasks \.p-tasks__say \{([^}]*)\}/.exec(css)[1], /color: var\(--ink-2\);[\s\S]*font-size: var\(--fs-note\)/, "own words 13 px, second ink");
+  const say = /\.p-tasks \.p-tasks__say \{([^}]*)\}/.exec(css)[1];
+  assert.match(say, /color: var\(--ink-2\);[\s\S]*font-size: var\(--fs-note\)/, "own words 13 px, second ink");
+  assert.match(say, /text-overflow: ellipsis/, "cut with an ellipsis");
 });
 
 test("tasks: glyphOf is in the third ink, the warn tone only on a row that is stuck (R5-H)", () => {

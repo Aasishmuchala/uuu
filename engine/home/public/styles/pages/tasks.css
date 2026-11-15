@@ -5,6 +5,8 @@
    tint. The board: columns with a 12 px heading and count, outlined cards, no column fills. Nothing moves at rest.
    Fix round B2 (TB5a): the filters edged at 32 px; the group bars flat, a step off the ground (a tint of the ink,
    so the step holds on the white pane in light), 8 px corners; a row two lines with the date in its own column.
+   Fix round R6 (R6-H): every row one height (44 px), its own words after the title; the state quiet words with a
+   dot; a group's head a quiet filled band (32 px, 6 px corner, the raised tone).
    Fix round R5 (R5-H): a row is one line at about 52 px (glyph, title, then the state's chip, the ID and the date at
    the right); a second line only for the row's own words; a group's head is its label and count over a hairline. */
 
@@ -108,19 +110,18 @@
   margin: 0;
 }
 
-/* The group's head: its label and count over a hairline, no filled band; the whole line folds and unfolds its rows.
-   Its words start on the rows' glyph edge. */
+/* The group's head: a quiet filled band (32 px, a 6 px corner, the raised tone; no edge, no shadow), its label and
+   count; the whole band folds and unfolds its rows. Its words start on the rows' glyph edge. */
 .p-tasks .p-tasks__fold {
   display: flex;
   align-items: center;
   gap: var(--s-2);
   width: 100%;
-  min-height: var(--h-md);
+  min-height: var(--s-8);
   padding: 0 var(--s-3);
   border: 0;
-  border-bottom: 1px solid var(--line-2);
-  border-radius: 0;
-  background: transparent;
+  border-radius: var(--r-1);
+  background: var(--raise);
   box-shadow: none;
   color: var(--ink);
   font: inherit;
@@ -133,7 +134,7 @@
 }
 
 .p-tasks .p-tasks__fold:hover {
-  background: var(--ctl);
+  background: var(--sel);
 }
 
 .p-tasks .p-tasks__fold:focus-visible {
@@ -171,15 +172,15 @@
   border-top: 1px solid var(--line);
 }
 
-/* A row: the 16 px glyph, the title, and at the right the state's chip, the ID and the date, each on the title's
-   line; 14 px above and below make one line about 52 px. It answers the pointer with the control fill. */
+/* A row: one line of one height (44 px): the 16 px glyph, the title and its own words after it, and at the right
+   the state's quiet chip, the ID and the date. It answers the pointer with the control fill. */
 .p-tasks .p-tasks__line {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
-  align-items: start;
+  align-items: center;
   column-gap: var(--s-3);
-  min-height: 52px;
-  padding: 14px var(--s-3);
+  min-height: 44px;
+  padding: 0 var(--s-3);
   color: var(--ink);
   text-decoration: none;
   transition: background-color var(--t-fast) var(--ease);
@@ -198,7 +199,6 @@
 .p-tasks .p-tasks__mark {
   display: inline-flex;
   align-items: center;
-  height: 24px;
   color: var(--ink-3);
 }
 
@@ -210,23 +210,25 @@
 
 .p-tasks .p-tasks__main {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: var(--s-3);
   min-width: 0;
 }
 
 .p-tasks .p-tasks__title {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--fs-body);
   font-weight: var(--fw-medium);
-  line-height: 24px;
+  line-height: var(--lh-ui);
 }
 
-/* The row's own words: one 13 px line in the second ink, cut with an ellipsis. */
+/* The row's own words: after the title on its line, 13 px in the second ink, cut with an ellipsis. */
 .p-tasks .p-tasks__say {
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -243,7 +245,6 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--s-3);
-  min-height: 24px;
 }
 
 .p-tasks .p-tasks__chip {
@@ -433,9 +434,21 @@
     min-height: 44px;
   }
 
-  /* A row on a phone: the title on up to two lines, then the chip, the ID and the date on a line of their own. */
+  /* A row on a phone: the title on up to two lines, its own words under it, then the chip, the ID and the date on a
+     line of their own. */
+  .p-tasks .p-tasks__main {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+
+  .p-tasks .p-tasks__say {
+    flex: none;
+  }
+
   .p-tasks .p-tasks__line {
     grid-template-columns: 16px minmax(0, 1fr);
+    align-items: start;
     row-gap: var(--s-1);
     min-height: 44px;
     padding: var(--s-3) var(--s-2);

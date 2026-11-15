@@ -198,7 +198,7 @@ test("the record dashboard: agents at the top right, filters as menus, drafts as
   assert.doesNotMatch(css, /--dept\b|--glass|--warn-text/);
 });
 
-test("a ledger on cards (round B2): the small part split, never rounded; the party column found; columns in reading order, as wide as their content", async () => {
+test("a ledger, flat (round B2, R6): the small part split, never rounded; the party column found; columns in reading order, as wide as their content", async () => {
   const { figureSplit, partyKey, ledgerColumns, OWED_TO_YOU } = await import("../../pages/dashboard.js");
   assert.deepEqual(figureSplit("1,18,000.00"), ["1,18,000", ".00"]);
   assert.deepEqual(figureSplit("500"), ["500", ""]);
@@ -222,7 +222,8 @@ test("a ledger on cards (round B2): the small part split, never rounded; the par
   assert.deepEqual(ledgerColumns(null), []);
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("../../pages/dashboard.js", import.meta.url), "utf8");
-  assert.match(src, /<\$\{Card\} padding="none" class="p-dashboard-sheet">/, "a table stands on a card");
+  assert.match(src, /<div class="p-dashboard-sheet">/, "a table stands flat on the ground, no card (R6)");
+  assert.doesNotMatch(src, /<\$\{Card\} padding="none" class="p-dashboard-sheet">/);
   assert.match(src, /<\$\{Avatar\} name=\$\{String\(value\)\} size=\$\{24\} \/>/, "a party has a 24 px initials disc from its own name");
   assert.match(src, /<\$\{Button\} variant="ghost" size="sm" icon="inbox" class="p-dashboard-queue"/, "the way into Needs you is a small ghost");
   const css = readFileSync(new URL("../../styles/pages/dashboard.css", import.meta.url), "utf8");
@@ -250,11 +251,12 @@ test("a column in which every row says the same thing is left out and said once 
   const src = readFileSync(new URL("../../pages/dashboard.js", import.meta.url), "utf8");
   assert.match(src, /hint=\$\{sameLine\(same\) \|\| undefined\}/, "the fact in the section's head line");
   assert.match(src, /columns=\$\{ledgerColumns\(section\)\.filter\(\(c\) => !out\.has\(c\.key\)\)\}/, "and not as a column");
-  assert.match(src, /data-tint=\$\{tintFor\(word\.toLowerCase\(\)\)\}><\$\{Tag\}>/, "a type's chip in the kit's tint for it");
+  assert.match(src, /<span class="p-dashboard-kind"><\$\{Tag\}>\$\{text\(value\)\}<\/\/><\/span>/, "a type's chip the kit's one neutral chip (R6)");
+  assert.doesNotMatch(src, /tintFor/, "no tint per type");
   const css = readFileSync(new URL("../../styles/pages/dashboard.css", import.meta.url), "utf8");
   assert.match(css, /\.p-dashboard\.p-dashboard--records \.k-section \{ margin-bottom: var\(--s-6\); \}/, "sections 24 px apart");
   assert.match(css, /\.p-dashboard-sheet \.k-table__table td \{ height: var\(--s-10\);/, "rows 40 px");
-  assert.match(css, /\.p-dashboard\.p-dashboard--records \{ gap: 0; max-width: 760px; \}/, "one 760 px column: every block on its two edges");
+  assert.match(css, /\.p-dashboard\.p-dashboard--records \{ gap: 0; max-width: 1040px; \}/, "one column as wide as the pane up to 1040 px: every block on its two edges (R6)");
   assert.doesNotMatch(css, /width: fit-content/, "no table as wide as its own columns: each at the column's whole width");
   assert.match(css, /\.p-dashboard \.p-dashboard-sheet \.k-table__table \.k-table__fit \{ width: auto; \}/, "the slack shared among the columns");
   assert.match(/\.p-dashboard \.p-dashboard-filter \.k-menu__trigger \{([^}]*)\}/.exec(css)[1], /border-color: var\(--line-2\);[\s\S]*background: var\(--card\)/, "Show and Status edged on the card's surface");

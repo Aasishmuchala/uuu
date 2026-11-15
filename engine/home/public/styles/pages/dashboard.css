@@ -5,7 +5,9 @@
    ink; a failed amount is struck through.
    `.p-dashboard` is shared with Studio and Marketing (the agent, the jobs, the closing link); what only the four
    record dashboards draw sits under `.p-dashboard--records`.
-   Fix round R5 (R5-H): one measure a page: the column 760 px, every block (the head, the figures, each section's
+   Fix round R6 (R6-H): the column as wide as the pane up to 1040 px; tables flat; the figures the one raised surface;
+   a type one neutral chip; a party's disc pale.
+   Fix round R5 (R5-H): one measure a page: the column, every block (the head, the figures, each section's
    head and its table) on its two edges; sections 24 px apart and rows 40 px; a table's slack shared among its
    columns, so no band between two passes 160 px; the row's number in the second ink so the party leads; a document's type in the kit's tint for it; the
    filters edged on the card's surface; the figures with 20 px inside. */
@@ -46,7 +48,7 @@
 .p-dashboard .p-dashboard-open:hover { color: var(--ink); }
 
 /* ---- The four record dashboards ---- */
-.p-dashboard.p-dashboard--records { gap: 0; max-width: 760px; }
+.p-dashboard.p-dashboard--records { gap: 0; max-width: 1040px; }
 .p-dashboard.p-dashboard--records .k-page-header { margin-bottom: var(--s-5); }
 .p-dashboard.p-dashboard--records .k-section { margin-bottom: var(--s-6); }
 .p-dashboard.p-dashboard--records > .k-notice { margin-bottom: var(--s-6); }
@@ -71,8 +73,8 @@
 .p-dashboard .p-dashboard-filter .k-menu__item:not(:has(.k-icon)) { padding-left: calc(10px + 16px + var(--s-2)); }
 .p-dashboard .p-dashboard-filter .k-menu__item .k-icon { color: var(--accent); }
 
-/* The figures: one card, its cells parted by hairlines; a 12 px label in the third ink over the value at 24 px
-   500 in tabular figures, the symbol at three quarters of the digits on their baseline, the hint in the third ink. */
+/* The figures: one card, the page's one raised surface, its cells parted by hairlines; a 12 px label in the third ink
+   over the value at the stat size, 500 in tabular figures, the symbol at three quarters of the digits on their baseline, the hint in the third ink. */
 .p-dashboard .p-dashboard-strip { margin-bottom: var(--s-6); overflow: hidden; }
 .p-dashboard .p-dashboard-totals {
   margin: 0;
@@ -98,7 +100,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: var(--s-2);
-  font-size: calc(var(--fs-section) * 1.5);
+  font-size: var(--fs-stat);
   line-height: var(--lh-stat);
   letter-spacing: var(--ls-stat);
   font-weight: var(--fw-medium);
@@ -119,32 +121,26 @@
 .p-dashboard .p-dashboard-amount--in { color: var(--good); }
 .p-dashboard s.p-dashboard-amount { color: var(--ink-2); text-decoration-thickness: 1px; }
 
-/* A table on a card at the column's whole width: the room its columns leave is shared among all of them in
-   proportion to their content (no one column takes it all, the last still at the right), so no band between two
-   columns passes 160 px; 16 px inside the card's edge at both ends; the header row 12 px above its rule; rows 40 px. */
-.p-dashboard .p-dashboard-sheet { overflow: hidden; }
+/* A table flat on the ground at the column's whole width (fix round R6: a head row over a rule, hairlines between
+   rows, no card): the room its columns leave is shared among all of them in proportion to their content (no one
+   column takes it all, the last still at the right); 20 px each side of a cell, none at the table's two ends; rows
+   40 px. The row's number 13 px in the second ink, tabular, so the party leads. */
 .p-dashboard .p-dashboard-sheet .k-table__table .k-table__fit { width: auto; }
 .p-dashboard .p-dashboard-sheet .k-table__table th,
 .p-dashboard .p-dashboard-sheet .k-table__table td { padding-left: var(--s-5); padding-right: var(--s-5); }
 .p-dashboard .p-dashboard-sheet .k-table__table td { height: var(--s-10); padding-top: 6px; padding-bottom: 6px; }
-.p-dashboard .p-dashboard-sheet .k-table__table th { padding-top: var(--s-3); }
+.p-dashboard .p-dashboard-sheet .k-table__table tbody tr:last-child td { border-bottom: 1px solid var(--line); }
 .p-dashboard .p-dashboard-sheet .k-table__table th:first-child,
-.p-dashboard .p-dashboard-sheet .k-table__table td:first-child { padding-left: var(--s-4); }
+.p-dashboard .p-dashboard-sheet .k-table__table td:first-child { padding-left: 0; }
 .p-dashboard .p-dashboard-sheet .k-table__table th:last-child,
-.p-dashboard .p-dashboard-sheet .k-table__table td:last-child { padding-right: var(--s-4); }
-.p-dashboard .p-dashboard-sheet .k-table__table td:first-child { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.p-dashboard .p-dashboard-sheet .k-table__table td:last-child { padding-right: 0; }
+.p-dashboard .p-dashboard-sheet .k-table__table td:first-child { color: var(--ink-2); font-size: var(--fs-note); font-variant-numeric: tabular-nums; }
 
-/* A document's type: the kit's chip in the quiet tint the kit gives its word (identity, never a state). */
-.p-dashboard .p-dashboard-kind[data-tint="blue"] .k-tag { color: var(--tint-blue); background: var(--tint-blue-bg); }
-.p-dashboard .p-dashboard-kind[data-tint="green"] .k-tag { color: var(--tint-green); background: var(--tint-green-bg); }
-.p-dashboard .p-dashboard-kind[data-tint="violet"] .k-tag { color: var(--tint-violet); background: var(--tint-violet-bg); }
-.p-dashboard .p-dashboard-kind[data-tint="orange"] .k-tag { color: var(--tint-orange); background: var(--tint-orange-bg); }
-.p-dashboard .p-dashboard-kind[data-tint="rose"] .k-tag { color: var(--tint-rose); background: var(--tint-rose-bg); }
-.p-dashboard .p-dashboard-kind[data-tint="teal"] .k-tag { color: var(--tint-teal); background: var(--tint-teal-bg); }
-.p-dashboard .p-dashboard-sheet .k-table--empty { padding: var(--s-6) var(--s-4); }
+.p-dashboard .p-dashboard-sheet .k-table--empty { padding: var(--s-6) 0; border-top: 1px solid var(--line-2); }
 
-/* A party: its initials disc 8 px before its name. */
+/* A party: its initials disc, pale (the raised step and the second ink, no hue), 8 px before its name. */
 .p-dashboard .p-dashboard-party { display: inline-flex; align-items: center; gap: var(--s-2); min-width: 0; vertical-align: middle; }
+.p-dashboard .p-dashboard-party .k-avatar { background: var(--raise); color: var(--ink-2); }
 .p-dashboard .p-dashboard-party-name { min-width: 0; color: var(--ink); }
 
 /* Rows that wait for the owner: one quiet line above the table; the table's own status says which. */
@@ -164,7 +160,8 @@
   .p-dashboard .p-dashboard-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .p-dashboard .p-dashboard-total { padding: var(--s-3) var(--s-4); box-shadow: -1px 0 0 var(--line), 0 -1px 0 var(--line); }
   .p-dashboard .p-dashboard-total-value { white-space: normal; flex-wrap: wrap; font-size: var(--fs-stat); }
-  .p-dashboard .p-dashboard-sheet .k-table__table tr { padding: var(--s-2) var(--s-4); }
+  /* Stacked rows stay flat: blocks parted by hairlines, never a card each. */
+  .p-dashboard .p-dashboard-sheet .k-table__table tr { margin-bottom: 0; padding: var(--s-2) 0; background: transparent; border-width: 1px 0 0; border-radius: 0; box-shadow: none; }
   .p-dashboard .p-dashboard-sheet .k-table__table td,
   .p-dashboard .p-dashboard-sheet .k-table__table td:first-child,
   .p-dashboard .p-dashboard-sheet .k-table__table td:last-child { padding-left: 0; padding-right: 0; }

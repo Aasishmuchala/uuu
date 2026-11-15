@@ -11,8 +11,9 @@
 // A text or table file can be marked as fine to share with the Researcher (PLAN-V5 K10, T35): the switch sits in the
 // file's rail, and `?shared=1` lists what the Researcher can read.
 // Fix round R5 (R5-H): a row's tile is the kit's Tile in the quiet tint the kit gives the file's kind (identity, never
-// a state); the size short ("250 B") and the time in one right-hand group; every block of the set in one 760 px
-// column; a place's count stands beside its name.
+// a state); the size short ("250 B") and the time in one right-hand group; every block of the set in one column
+// as wide as the pane up to 1040 px; a place's count stands beside its name. Fix round R6: the list is flat (rows of
+// 48 px between hairlines on the ground, no card).
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { go } from "../lib/router.js";
@@ -20,7 +21,7 @@ import { bytes, count, fullWhen, when } from "../lib/format.js";
 import { useApp } from "../lib/context.js";
 import {
   BeingBuilt, Blk, Button, DataTable, Dialog, DocLayout, DocView, Empty, ErrorNotice, Field, Group, Icon, Loading,
-  Card, FILE_ICONS, fileKind, Menu, PageHeader, Row, Rows, Segmented, Select, Switch, Tag, TextInput, Tile, Time, tintFor,
+  FILE_ICONS, fileKind, Menu, PageHeader, Row, Rows, Segmented, Select, Switch, Tag, TextInput, Tile, Time, tintFor,
 } from "../kit/index.js";
 
 const EVERY = 10000;
@@ -657,18 +658,18 @@ function FileItem({ file, folder, grid, shared, brain }) {
   </li>`;
 }
 
-// Rows stand on one card; cards stand on the ground.
+// Rows stand in a flat list on the ground (a rule above, hairlines between: no card, R6); cards stand on the ground.
 function FileList({ files, folder, grid, brain }) {
   if (grid) {
     return html`<ul class="p-files__grid">
       ${files.map((f) => html`<${FileItem} key=${f.token} file=${f} folder=${folder} grid=${true} brain=${brain} />`)}
     </ul>`;
   }
-  return html`<${Card} padding="none" class="p-files__card">
+  return html`<div class="p-files__card">
     <ul class="p-files__rows">
       ${files.map((f) => html`<${FileItem} key=${f.token} file=${f} folder=${folder} brain=${brain} />`)}
     </ul>
-  <//>`;
+  </div>`;
 }
 
 function SearchResults({ term, folder }) {
@@ -683,7 +684,7 @@ function SearchResults({ term, folder }) {
     <//>`;
   }
   return html`<p class="p-files__count">Found in your files: ${count(results.length, "file")}</p>
-    <${Card} padding="none" class="p-files__card">
+    <div class="p-files__card">
       <ul class="p-files__rows p-files__results">
         ${results.map((r) => html`<li key=${r.token} class="p-files__row">
           <a class="p-files__row-link p-files__result" href=${filesHref({ folder, q: term, file: r.token })}>
@@ -695,7 +696,7 @@ function SearchResults({ term, folder }) {
           </a>
         </li>`)}
       </ul>
-    <//>`;
+    </div>`;
 }
 
 function Lessons() {
@@ -710,10 +711,10 @@ function Lessons() {
       return html`<${Group} key=${r.slug} title=${cut(r.name, 80)}
           aside=${ID.test(str(r.slug)) ? html`<a href=${`#/team/${r.slug}?tab=lessons`}>Edit</a>` : null}>
         ${lessons.length
-          ? html`<${Card} padding="none" class="p-files__card"><ul class="p-files__lesson-list">${lessons.map((l, i) => {
+          ? html`<div class="p-files__card"><ul class="p-files__lesson-list">${lessons.map((l, i) => {
               const { date, text } = splitLesson(cut(String(l ?? ""), LESSON_MAX));
               return html`<li key=${i}><span class="p-files__lesson-text">${text}</span>${date ? html`<span class="p-files__lesson-date">${date}</span>` : null}</li>`;
-            })}</ul><//>`
+            })}</ul></div>`
           : html`<p class="p-files__count">Nothing learned yet.</p>`}
       <//>`;
     })}
@@ -756,7 +757,7 @@ function SharedView() {
   return html`<p class="p-files__count">
       ${`${count(files.length, "file")} of ${Number(t.maxFiles) || 50}, ${bytes(t.bytes)} of ${bytes(t.maxBytes || 5 * 1024 * 1024)}.`}
     </p>
-    <${Card} padding="none" class="p-files__card">
+    <div class="p-files__card">
       <ul class="p-files__rows">
         ${files.map((f) => {
           const href = sharedHref(f);
@@ -774,7 +775,7 @@ function SharedView() {
           </li>`;
         })}
       </ul>
-    <//>`;
+    </div>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -6,16 +6,16 @@
 // in or is owed to you is in the good ink, what failed or is late in the bad. Every value is shown as the books send
 // it. Then what is being worked on, jobs to start, the switches that are off, and the department's link.
 // Fix round R5 (R5-H): a column in which every row of its table says the same thing is not drawn, and its fact is
-// said once in the section's head line ("Made by: Bookkeeper"); a document's type is a chip in the kit's quiet tint
-// for that type (tintFor); one 760 px column a page, each table at its whole width with the room left shared among
-// its columns, so no band opens between two of them.
+// said once in the section's head line ("Made by: Bookkeeper"). Fix round R6 (R6-H): one column as wide as the pane
+// up to 1040 px; each table flat at its whole width with the room left shared among its columns; a document's type
+// the kit's one neutral chip; the figures the page's one raised surface.
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { HealthNext } from "./team.js";
 import {
   AgentChip, Avatar, Button, Card, DataTable, ErrorNotice, Icon, JobRow, Live, Loading, Menu, NotConnected, PageHeader, Row,
-  Rows, Section, St, StatusDot, Tag, tintFor, Waiting,
+  Rows, Section, St, StatusDot, Tag, Waiting,
 } from "../kit/index.js";
 
 const TITLES = { books: "Books", customers: "Customers", support: "Support", people: "People" };
@@ -310,11 +310,10 @@ function Party({ value }) {
   return html`<span class="p-dashboard-party"><${Avatar} name=${String(value)} size=${24} /><span class="p-dashboard-party-name">${text(value)}</span></span>`;
 }
 
-// A document's type ("invoice", "bill"): the kit's chip in the quiet tint the kit gives that word, the same tint for
-// the same type on every page; identity, never a state.
+// A document's type ("invoice", "bill"): the kit's one neutral chip, the words as the books send them (fix round R6:
+// one chip style for every type, colour kept for states).
 function Kind({ value }) {
-  const word = text(value);
-  return html`<span class="p-dashboard-kind" data-tint=${tintFor(word.toLowerCase())}><${Tag}>${word}<//></span>`;
+  return html`<span class="p-dashboard-kind"><${Tag}>${text(value)}<//></span>`;
 }
 
 // The cells of one section's table.
@@ -330,12 +329,13 @@ const cellsFor = (section) => {
   };
 };
 
-// One section's table on a card, without the columns every row says the same of (`same`, said in the head line).
+// One section's table, flat on the ground (a head row over a rule, hairlines between rows; no card: the figures are
+// the page's one raised surface), without the columns every row says the same of (`same`, said in the head line).
 function Ledger({ section, emptyText, same = [] }) {
   const out = new Set(same.map((c) => c.key));
-  return html`<${Card} padding="none" class="p-dashboard-sheet">
+  return html`<div class="p-dashboard-sheet">
     <${DataTable} columns=${ledgerColumns(section).filter((c) => !out.has(c.key))} rows=${section.rows || []} emptyText=${emptyText} renderCell=${cellsFor(section)} />
-  <//>`;
+  </div>`;
 }
 
 export function AgentState({ agent }) {
