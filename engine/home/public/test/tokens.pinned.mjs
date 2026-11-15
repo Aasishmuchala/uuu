@@ -18,6 +18,8 @@ export const THEMED = {
   "--sel": ["#303342", "#e1e5eb"],
   "--raise-2": ["#393d4e", "#d6dae2"],
   "--ctl": ["rgba(255,255,255,.07)", "rgba(16,24,40,.06)"],
+  // Fix round R5: the neutral chip's fill, opaque, so a chip reads on a card (at least 1.3 to 1 against it).
+  "--chip": ["#3d4250", "#dadee6"],
   "--field": ["#191b22", "#ffffff"],
   // The 1 px edge of a raised thing: 9 percent white in dark, a cool grey in light.
   "--line": ["rgba(255,255,255,.09)", "#dcdfe5"],
@@ -30,9 +32,10 @@ export const THEMED = {
   // Reads at 4.5 on every surface, the sidebar and the stage too, in both themes.
   "--ink-3": ["#a3a7b3", "#5a5e69"],
   "--accent": ["#86adff", "#2459dd"],
-  // Dark: a little deeper than the link accent, so the filled primary is not the brightest thing on a screen;
+  // Fix round R5: a touch deeper and less saturated in both themes, so it sits with the palette and is not a
+  // borrowed bright blue. Dark: a little deeper than the link accent, so the filled primary is not the brightest thing on a screen;
   // white words on it read at 4.5.
-  "--accent-fill": ["#3760d0", "#2459dd"],
+  "--accent-fill": ["#3a5bb6", "#2e58c2"],
   "--accent-ink": ["#ffffff", "#ffffff"],
   // The info chip's tint: the accent at about 14 percent.
   "--info-bg": ["rgba(134,173,255,.12)", "#e6edfc"],
@@ -54,7 +57,7 @@ export const THEMED = {
   // The filled button: a 1 px inner top highlight and a small drop, so it sits in place, not a flat slab.
   "--shadow-btn": ["inset 0 1px 0 rgba(255,255,255,.14), 0 1px 2px rgba(0,0,0,.40)", "inset 0 1px 0 rgba(255,255,255,.16), 0 1px 2px rgba(16,24,40,.16)"],
   "--float": ["0 0 0 1px rgba(255,255,255,.1), 0 2px 6px rgba(0,0,0,.30), 0 24px 64px rgba(0,0,0,.60)", "0 0 0 1px rgba(16,24,40,.08), 0 2px 6px rgba(24,24,27,.08), 0 24px 64px rgba(24,24,27,.22)"],
-  "--overlay-shadow": ["0 2px 6px rgba(0,0,0,.30), 0 24px 64px rgba(0,0,0,.60)", "0 2px 6px rgba(24,24,27,.08), 0 24px 64px rgba(24,24,27,.22)"],
+  "--overlay-shadow": ["inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.30), 0 24px 64px rgba(0,0,0,.60)", "0 2px 6px rgba(24,24,27,.08), 0 24px 64px rgba(24,24,27,.22)"],
   "--paper-shadow": ["0 0 0 1px rgba(255,255,255,.08), 0 6px 20px rgba(0,0,0,.45)", "0 0 0 1px rgba(16,24,40,.10), 0 6px 18px rgba(16,24,40,.08)"],
   "--tip": ["#f4f4f5", "#18181b"],
   "--tip-ink": ["#0f0f11", "#ffffff"],
@@ -97,7 +100,7 @@ export const FIXED = {
   "--fs-section": "16px", "--fs-stat": "22px", "--fs-page": "28px", "--fs-figure": "40px",
   "--lh-label": "16px", "--lh-note": "18px", "--lh-body": "1.43", "--lh-ui": "20px", "--lh-fact": "22px",
   "--lh-section": "24px", "--lh-stat": "28px", "--lh-page": "34px", "--lh-figure": "46px", "--lh-tight": "1.3",
-  "--fw-regular": "400", "--fw-medium": "500", "--fw-bold": "600",
+  "--fw-regular": "400", "--fw-medium": "500", "--fw-bold": "600", "--fw-page": "600",
   "--ls-page": "-.018em", "--ls-figure": "-.02em", "--ls-stat": "-.01em", "--ls-label": ".1px",
   "--s-1": "4px", "--s-2": "8px", "--s-3": "12px", "--s-4": "16px", "--s-5": "20px", "--s-6": "24px", "--s-7": "28px",
   "--s-8": "32px", "--s-10": "40px", "--s-12": "48px",

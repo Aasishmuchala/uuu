@@ -2,7 +2,8 @@
    a screen's decision, a little deeper than the link accent in dark, with a 1 px inner top highlight and a small
    drop (--shadow-btn) so it sits in place and is never the heaviest slab on a screen; plain is the outlined control
    on the field fill; ghost is the same edge with no fill; quiet is words that fill on hover; link is a text link for
-   a secondary way out; danger is soft (its tint, the problem ink; solid under the pointer). One height a size (fix
+   a secondary way out; danger is soft (its tint, the problem ink; solid under the pointer); the quiet danger is the
+   problem ink alone with the ghost's edge under the pointer (fix round R5). One height a size (fix
    round A3): 32 px small, 36 px for the rest, the large and the accept sizes too, so nothing in a rail or a
    dialog's foot stands taller. Width is the caller's: no variant fills its row. Every variant answers rest, hover,
    pressed, focus (the 2 px ring from base.css) and disabled in place: colours change, nothing moves. A disabled
@@ -172,6 +173,24 @@
   color: var(--accent-ink);
 }
 
+/* Danger, quiet: the problem ink and nothing else, for a last way out that should not shout ("Stop this task"); under
+   the pointer the ghost's edge and the control fill, the ink unchanged. */
+.k-btn--danger-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--bad);
+}
+
+.k-btn--danger-quiet:hover:not(:disabled):not(.k-btn--off) {
+  border-color: var(--line-2);
+  background: var(--ctl);
+}
+
+.k-btn--danger-quiet:active:not(:disabled):not(.k-btn--off) {
+  border-color: var(--ink-3);
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+
 /* Disabled: one inert look for every variant (a switched-off primary is a solid fill, never a faded accent). */
 .k-btn:disabled:not(.k-btn--busy),
 .k-btn--off:not(.k-btn--busy) {
@@ -199,7 +218,9 @@
 .k-btn--ghost:disabled:not(.k-btn--busy),
 .k-btn--ghost.k-btn--off:not(.k-btn--busy),
 .k-btn--link:disabled:not(.k-btn--busy),
-.k-btn--link.k-btn--off:not(.k-btn--busy) {
+.k-btn--link.k-btn--off:not(.k-btn--busy),
+.k-btn--danger-quiet:disabled:not(.k-btn--busy),
+.k-btn--danger-quiet.k-btn--off:not(.k-btn--busy) {
   border-color: transparent;
   background: transparent;
   text-decoration: none;

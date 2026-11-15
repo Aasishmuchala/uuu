@@ -283,6 +283,20 @@ test("button: one system of variants (fix round A3): outlined plain at 36 px, th
   }
 });
 
+test("Button: a quiet danger (fix round R5) is the problem ink with no fill, the ghost's edge under the pointer, bare when off", async () => {
+  installDom();
+  const root = await showTree(kit.button.Button, { variant: "danger-quiet", icon: "cross", children: "Stop this task" });
+  assert.match(root.firstChild.getAttribute("class"), /k-btn--danger-quiet k-btn--md/);
+  const b = css("kit/button.css");
+  const rest = /\.k-btn--danger-quiet \{([^}]*)\}/.exec(b)[1];
+  assert.match(rest, /border-color: transparent;/);
+  assert.match(rest, /background: transparent;/);
+  assert.match(rest, /color: var\(--bad\);/);
+  assert.match(/\.k-btn--danger-quiet:hover:not\(:disabled\):not\(\.k-btn--off\) \{([^}]*)\}/.exec(b)[1], /border-color: var\(--line-2\);/, "the ghost's edge under the pointer");
+  assert.match(b, /\.k-btn--danger-quiet:active:not\(:disabled\)/);
+  assert.match(b, /\.k-btn--danger-quiet\.k-btn--off:not\(\.k-btn--busy\) \{[^}]*background: transparent;/, "off, it stays bare");
+});
+
 test("Button: ghost and link are variants of their own; an unknown one is plain", async () => {
   installDom();
   const { Button } = kit.button;

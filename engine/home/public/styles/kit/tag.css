@@ -1,5 +1,6 @@
 /* kit/tag.js: small labels, 22 px tall, 12 px words at 500, 8 px sides on a 6 px corner: one chip system for every
-   list, card, rail and overlay (fix round A3). Five tones: neutral (the second ink on the control fill), good, warn,
+   list, card, rail and overlay (fix round A3). Five tones: neutral (the second ink on the opaque chip fill, which
+   stands off a card: fix round R5), good, warn,
    bad and info (the accent), each its ink on its own tint of about 14 percent, every one at 4.5 to 1 over a card, a
    panel, the raised step and the overlay in both themes (tokens.test.mjs computes it). Colour only for a state; one
    status chip a card. A toggle chip is lifted when on: the raised step and a 2 px accent edge, like every selected
@@ -15,7 +16,7 @@
   padding: 0 var(--s-2);
   border: 0;
   border-radius: var(--r-1);
-  background: var(--ctl);
+  background: var(--chip);
   color: var(--ink-2);
   font: inherit;
   font-size: var(--fs-label);
@@ -93,6 +94,15 @@
   background: transparent;
   box-shadow: none;
   cursor: not-allowed;
+}
+
+/* A tag's dot: 6 px in the tag's own ink. */
+.k-tag__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-round);
+  background: currentColor;
 }
 
 /* The dot: the department's colour from the nearest data-dept, or a state colour. */

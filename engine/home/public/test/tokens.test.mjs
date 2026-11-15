@@ -378,11 +378,16 @@ for (const [mode, , ways] of MODES) {
       }
       // The chips (fix round A3): one system, each tone's ink on its own tint, over a card, a panel, the raised
       // step and the overlay.
-      for (const [fg, tint] of [["--ink-2", "--ctl"], ["--good", "--good-bg"], ["--warn", "--warn-bg"], ["--bad", "--bad-bg"], ["--accent", "--info-bg"]]) {
+      for (const [fg, tint] of [["--ink-2", "--ctl"], ["--ink-2", "--chip"], ["--good", "--good-bg"], ["--warn", "--warn-bg"], ["--bad", "--bad-bg"], ["--accent", "--info-bg"]]) {
         for (const under of ["--card", "--panel", "--raise", "--overlay"]) {
           const ratio = contrast(colourOf(t, fg), over(colourOf(t, tint), colourOf(t, under)));
           assert.ok(ratio >= 4.5, `chip ${fg} on ${tint} over ${under} in ${mode}: ${ratio.toFixed(2)} < 4.5`);
         }
+      }
+      // The neutral chip (fix round R5) stands off a card and a panel: its fill at least 1.3 to 1 against them.
+      for (const under of ["--card", "--panel"]) {
+        const ratio = contrast(colourOf(t, "--chip"), colourOf(t, under));
+        assert.ok(ratio >= 1.3, `--chip against ${under} in ${mode}: ${ratio.toFixed(2)} < 1.3`);
       }
       // The tints (fix round R5): each ink on its own fill, over a card, a panel and the overlay.
       for (const tint of TINTS) {

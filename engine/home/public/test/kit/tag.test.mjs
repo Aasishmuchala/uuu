@@ -41,6 +41,20 @@ test("Tag: five tones (ok is good's old name and keeps its class); anything else
   }
 });
 
+test("Tag: dot: true leads with a 6 px dot in the tag's ink, hidden from a screen reader; anything else draws none", async () => {
+  installDom();
+  let root = await showTree(kit.tag.Tag, { tone: "warn", dot: true, children: "Waiting" });
+  const dot = root.firstChild.firstChild;
+  assert.equal(dot.getAttribute("class"), "k-tag__dot");
+  assert.equal(dot.getAttribute("aria-hidden"), "true");
+  assert.match(textOf(root), /Waiting/);
+  for (const bad of [undefined, false, "warn", 1]) {
+    root = await showTree(kit.tag.Tag, { dot: bad, children: "x" });
+    assert.ok(!elements(root).some((e) => (e.getAttribute("class") || "") === "k-tag__dot"), `no dot for ${String(bad)}`);
+  }
+  assert.match(/\.k-tag__dot\s*\{([^}]*)\}/.exec(css("kit/tag.css"))[1], /width: 6px;\s*height: 6px;[\s\S]*background: currentColor;/);
+});
+
 test("Chip with onClick is a toggle: a button with aria-pressed, lifted when on; without, a plain label", async () => {
   installDom();
   let clicked = 0;
@@ -64,7 +78,7 @@ test("tags and chips: one system (fix round A3), 22 px, 12 px at 500, 8 px sides
   assert.match(base, /border-radius: var\(--r-1\);/);
   assert.match(base, /min-height: 22px;/);
   assert.match(base, /padding: 0 var\(--s-2\);/);
-  assert.match(base, /background: var\(--ctl\);/);
+  assert.match(base, /background: var\(--chip\);/, "the neutral fill is opaque and stands off a card (fix round R5)");
   assert.match(base, /color: var\(--ink-2\);/);
   assert.match(base, /font-size: var\(--fs-label\);/);
   assert.match(base, /font-weight: var\(--fw-medium\);/);
