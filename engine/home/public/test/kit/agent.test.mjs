@@ -36,4 +36,23 @@ test("AgentState is a state line in words; AgentCard is the kit's card with the 
   assert.doesNotMatch(c, /--glass|--highlight|--r-pill|var\(--dept|translateY/);
 });
 
+// PLAN-COOK TB4: a header carries the state as the kit's chip, in the state's tone.
+test("AgentState as a chip: the kit's Tag in the state's tone, the same words", () => {
+  const card = shape("agent-card");
+  const cases = [
+    [{ ...card, state: "working" }, "k-tag--good", "Working"],
+    [{ ...card, waitingForYou: true }, "k-tag--warn", "Waiting for you"],
+    [{ ...card, state: "problem", plainState: "Stuck" }, "k-tag--bad", "Stuck"],
+    [{ ...card, state: "paused", plainState: "Paused" }, "k-tag--neutral", "Paused"],
+    [{ ...card, state: "free", plainState: "" }, "k-tag--neutral", "Free"],
+  ];
+  for (const [a, cls, words] of cases) {
+    const root = show(agent.AgentState, { agent: a, chip: true });
+    assert.equal(withClass(root, cls).length, 1, `${words}: ${cls}`);
+    assert.equal(textOf(root).trim(), words);
+    assert.deepEqual(agent.agentStateOf(a).words, words);
+  }
+  assert.equal(agent.agentStateOf(null), null);
+});
+
 compositeSheetTests("agent");

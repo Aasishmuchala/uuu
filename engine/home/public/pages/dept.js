@@ -1,18 +1,21 @@
 // A department, in one column (CONTRACTS-V3 30, "A department"; data: GET /api/map/:department, 33.2).
-// PLAN-COOK T65 (R02's reading column): the department's line icon in a tile beside its name, its line and its
-// state; then what needs the owner (opens the queue for it), its agents as rows, the owner's tasks with it as rows,
-// the jobs it can run as cards (as the Jobs page lays them), and a composer that gives it a task (POST /api/goals).
+// PLAN-COOK T65, TB4 (R02's reading column, one left edge): the department's line icon in a tile inside the title,
+// its links as a button group on the title's line, its line and its state under it; then what needs the owner (its
+// items as rows, from GET /api/home, with "Open the queue"), its agents as rows, the owner's tasks with it as
+// two-line rows, the jobs it can run as cards (as the Jobs page lays them), and a composer that gives it a task
+// (POST /api/goals).
 // Not connected: this page's answer does not say when the board cannot be read, so that comes from GET /api/map's
 // `boardOff` and from the shell (boardOffOf below); the page then says so on top and stops guessing.
 // Everything here came from the server: titles and outcomes are rendered as text only, capped.
-import { html, useState } from "../vendor/preact-htm.js";
+import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { aheadLine } from "../lib/format.js";
+import { needsFor, queueHref, rowTime, sortNeeds } from "../lib/queue.js";
 import { HealthNext } from "./team.js";
 import {
-  AgentCard, Card, Composer, Empty, ErrorNotice, Field, Group, Icon, JobRow, Loading, NotConnected, PageHeader,
-  STARTED, Select, St, TaskRow, UNDER_START, WhyNot, jobHref,
+  AgentCard, Button, Card, Composer, Empty, ErrorNotice, Field, Icon, JobRow, Loading, NotConnected, PageHeader,
+  STARTED, Select, St, Tag, TaskRow, UNDER_START, WhyNot, jobHref,
 } from "../kit/index.js";
 
 const SLUG = /^[a-z][a-z0-9-]{1,30}$/;
@@ -168,8 +171,29 @@ function StateChip({ state, department, off }) {
     : html`<span class=${`p-dept__state${s.tone === "off" ? " p-dept__state--quiet" : ""}`}>${chip}</span>`;
 }
 
-// A heading's count, quietly after its words.
-const Count = ({ n }) => html`<span class="p-dept__count">${n}</span>`;
+// A heading's count: a chip after its words, warm for what waits on the owner.
+const Count = ({ n, tone = "neutral" }) => html`<span class="p-dept__count"><${Tag} tone=${tone}>${n}<//></span>`;
+
+// A section of the column: its heading (with its count) and, on the heading's line, its one link or button.
+const Section = ({ title, aside, children }) => html`<section class="p-dept__section">
+  <div class="p-dept__section-head">
+    <h2 class="p-dept__section-title">${title}</h2>
+    ${aside ? html`<div class="p-dept__section-aside">${aside}</div>` : null}
+  </div>
+  ${children}
+</section>`;
+
+// The glyph of a thing that waits on the owner, by its kind (as the queue draws it).
+const KIND_ICON = { shotlist: "video", pick: "layers", approval: "check", question: "reply", result: "check", draft: "file" };
+export const needIcon = (kind) => KIND_ICON[kind] || "inbox";
+
+// What waits on the owner in this department, most urgent and newest first: GET /api/home's items of this
+// department (the queue's own rule), or null while they cannot be read.
+export function needsHere(home, id, departments) {
+  const items = home && home.needsYou && Array.isArray(home.needsYou.items) ? home.needsYou.items : null;
+  if (!items) return null;
+  return needsFor(sortNeeds(items), id, departments);
+}
 
 // The jobs as the Jobs page lays them: cards two across, the kit's JobRow as the card's link, the reason a job
 // cannot start under it. The first six, then "Show all n".
@@ -196,28 +220,47 @@ function Head({ data, off }) {
   const dep = data.department || {};
   const id = text(dep.id);
   const name = text(dep.title) || "Department";
-  const links = html`
-    <a class="p-dept__link" href=${`#/map/${encodeURIComponent(id)}`}><${Icon} name="map" size=${16} />See on the map</a>
-    ${SLUG.test(text(dep.dashboard)) && html`<a class="p-dept__link" href=${`#/dashboards/${encodeURIComponent(dep.dashboard)}`}>
-      <${Icon} name="dashboards" size=${16} />Open its dashboard</a>`}`;
+  const links = html`<div class="p-dept__actions" role="group" aria-label="This department elsewhere">
+    <${Button} variant="ghost" size="sm" icon="map" href=${`#/map/${encodeURIComponent(id)}`}>See on the map<//>
+    ${SLUG.test(text(dep.dashboard)) && html`<${Button} variant="ghost" size="sm" icon="dashboards" href=${`#/dashboards/${encodeURIComponent(dep.dashboard)}`}>Open its dashboard<//>`}
+  </div>`;
+  const title = html`<span class="p-dept__title"><span class="p-dept__tile" aria-hidden="true"><${Icon} name=${deptIcon(id)} size=${18} /></span><span>${name}</span></span>`;
   return html`<div class="p-dept__head">
-    <span class="p-dept__tile" aria-hidden="true"><${Icon} name=${deptIcon(id)} size=${20} /></span>
-    <${PageHeader} title=${name} lead=${cap(dep.line, 120)} actions=${links}>
+    <${PageHeader} title=${title} lead=${cap(dep.line, 120)} actions=${links}>
       <${StateChip} state=${dep.state} department=${id} off=${off} />
     <//>
   </div>`;
 }
 
-// What needs the owner here: one row that opens the queue for this department.
-function Needs({ data, off }) {
+// What needs the owner here: its items as rows (glyph, title, age), "Open the queue" on the heading's line. Until
+// the items can be read, or with the board off, one row says how many and opens the queue for this department.
+function Needs({ data, off, items }) {
   const { openNeeds } = useApp();
   const dep = data.department || {};
   const id = text(dep.id);
   const n = dep.counts ? dep.counts.needsYou : null;
   const some = !off && Number.isSafeInteger(n) && n > 0;
-  return html`<${Group} title=${WORDS.needs}>
-    <button type="button" class=${`p-dept__needs${some ? " p-dept__needs--some" : ""}`} onClick=${() => openNeeds({ department: id })}>
-      <span class="p-dept__needs-icon" aria-hidden="true"><${Icon} name="inbox" size=${18} /></span>
+  const rows = !off && Array.isArray(items) ? items.slice(0, 5) : null;
+  const open = () => openNeeds({ department: id });
+  const title = html`${WORDS.needs}${some ? html` <${Count} n=${n} tone="warn" />` : null}`;
+  if (rows && rows.length) {
+    return html`<${Section} title=${title}
+      aside=${html`<${Button} variant="ghost" size="sm" onClick=${open}>${WORDS.openQueue}<//>`}>
+      <ul class="p-dept__list p-dept__list--needs">${rows.map((i) => html`<li key=${i.id}>
+        <a class="p-dept__need" href=${queueHref(i)}>
+          <span class="p-dept__need-icon" aria-hidden="true"><${Icon} name=${needIcon(i.kind)} size=${16} /></span>
+          <span class="p-dept__need-title">${cap(i.title, 160)}</span>
+          ${i.when ? html`<time class="p-dept__need-when" datetime=${text(i.when)}>${rowTime(i.when)}</time>` : null}
+        </a>
+      </li>`)}</ul>
+    <//>`;
+  }
+  if (rows && !rows.length && !some) {
+    return html`<${Section} title=${title}><p class="p-dept__muted">${needsLine(dep.title, dep.counts, off)}</p><//>`;
+  }
+  return html`<${Section} title=${title}>
+    <button type="button" class=${`p-dept__needs${some ? " p-dept__needs--some" : ""}`} onClick=${open}>
+      <span class="p-dept__needs-icon" aria-hidden="true"><${Icon} name="inbox" size=${16} /></span>
       <span class="p-dept__needs-text">${needsLine(dep.title, dep.counts, off)}</span>
       <span class="p-dept__needs-go">${WORDS.openQueue}<${Icon} name="chevron-right" size=${16} /></span>
     </button>
@@ -227,7 +270,7 @@ function Needs({ data, off }) {
 function Agents({ agents }) {
   const list = arr(agents).filter((a) => a && a.slug);
   if (!list.length) return null;
-  return html`<${Group} title=${html`${WORDS.agents} <${Count} n=${list.length} />`}>
+  return html`<${Section} title=${html`${WORDS.agents} <${Count} n=${list.length} />`}>
     <ul class="p-dept__agents">${list.map((a) => html`<li key=${a.slug}><${AgentCard} agent=${a} /></li>`)}</ul>
   <//>`;
 }
@@ -237,8 +280,8 @@ function Tasks({ data, off }) {
   const id = text(data.department && data.department.id);
   const recent = arr(data.recent).filter((t) => t && t.id).slice(0, RECENT);
   const h = tasksHeading(name, recent, data.recentTotal);
-  return html`<${Group} title=${html`${h.label}${off && !recent.length ? null : html` <${Count} n=${h.count} />`}`}
-    aside=${recent.length > 0 ? html`<a class="p-dept__all" href=${`#/tasks?d=${encodeURIComponent(id)}`}>${WORDS.seeAll}</a>` : null}>
+  return html`<${Section} title=${html`${h.label}${off && !recent.length ? null : html` <${Count} n=${h.count} />`}`}
+    aside=${recent.length > 0 ? html`<${Button} variant="ghost" size="sm" href=${`#/tasks?d=${encodeURIComponent(id)}`}>${WORDS.seeAll}<//>` : null}>
     ${recent.length
       ? html`<ul class="p-dept__rows">${recent.map((t) => html`<li key=${t.id} class="p-dept__row"><${TaskRow} task=${t} /></li>`)}</ul>`
       : html`<p class="p-dept__muted">${noTasksLine(name, off)}</p>`}
@@ -248,8 +291,8 @@ function Tasks({ data, off }) {
 function Jobs({ data }) {
   const id = text(data.department && data.department.id);
   const jobs = jobsInOrder(data.clusters);
-  return html`<${Group} title=${html`${WORDS.canRun}${jobs.length ? html` <${Count} n=${jobs.length} />` : null}`}
-    aside=${html`<a class="p-dept__all" href=${`#/jobs?d=${encodeURIComponent(id)}`}>${WORDS.seeJobs}</a>`}>
+  return html`<${Section} title=${html`${WORDS.canRun}${jobs.length ? html` <${Count} n=${jobs.length} />` : null}`}
+    aside=${html`<${Button} variant="ghost" size="sm" href=${`#/jobs?d=${encodeURIComponent(id)}`}>${WORDS.seeJobs}<//>`}>
     <${CanRun} jobs=${jobs} />
   <//>`;
 }
@@ -320,9 +363,18 @@ export default function Page({ route }) {
   const { shell } = useApp();
   const id = deptIdOf(route);
   const res = useResource(id ? `/api/map/${id}` : null, { every: 10000 });
-  // Read only for `boardOff`: whether this page's figures are real, or zeros because the board cannot be read.
+  // Read for `boardOff` (whether this page's figures are real, or zeros because the board cannot be read) and for
+  // the departments' agents, which tell the queue's items apart.
   const map = useResource(id ? "/api/map" : null, { every: 10000 });
+  // What waits on the owner, as the queue has it: this department's items are listed under Needs you.
+  const home = useResource(id ? "/api/home" : null, { every: 15000 });
   const d = res.data;
+  const docName = d && d.department ? cap(d.department.title, 40) : "";
+  const company = shell && shell.company ? cap(shell.company.name, 60) : "";
+  // The title is drawn with its tile, so the window's title is set here: "Marketing · Sthyra".
+  useEffect(() => {
+    if (docName && typeof document !== "undefined") document.title = [docName, company].filter(Boolean).join(" · ");
+  }, [docName, company]);
 
   if (!d || !d.department) {
     let body;
@@ -343,7 +395,7 @@ export default function Page({ route }) {
     ${off && html`<${NotConnected} title=${offTitle(d.department.title)} reason=${off.reason}
       next=${html`<${HealthNext} text=${off.next} />`} />`}
     <${Head} data=${d} off=${off} />
-    <${Needs} data=${d} off=${off} />
+    <${Needs} data=${d} off=${off} items=${needsHere(home.data, id, map.data && map.data.departments)} />
     <${Agents} agents=${d.agents} />
     <${Tasks} data=${d} off=${off} />
     <${Jobs} data=${d} />

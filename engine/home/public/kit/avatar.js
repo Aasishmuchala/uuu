@@ -1,10 +1,14 @@
-// An agent's picture in a circle; initials on a tinted disc when there is no picture (and always for "you").
-import { html, useState } from "../vendor/preact-htm.js";
+// An agent as one flat disc: its glyph (a line icon, when the caller names one) or its initials, on one of six
+// quiet tints picked from the slug, the same for a slug every time; the owner ("you") on the raised step. One
+// avatar style everywhere (PLAN-COOK TB4): no picture is drawn, so no page asks the server for a file that may
+// not be there.
+import { html } from "../vendor/preact-htm.js";
+import { Icon } from "./icon.js";
 import { StatusDot } from "./status.js";
 import { cx } from "./util.js";
 
-const SIZES = [20, 24, 32, 48, 72];
-const SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const SIZES = [20, 24, 32, 40, 48, 72];
+const GLYPH = { 20: 12, 24: 14, 32: 16, 40: 20, 48: 24, 72: 32 };
 
 // "Chief of staff" → "CS", "Artist" → "A", "" → "?". Small words such as "of" are skipped.
 export function initials(name) {
@@ -19,30 +23,22 @@ export function initials(name) {
 }
 
 // One of six tints, the same for a slug every time.
-function tint(key) {
+export function avatarTint(key) {
   let h = 0;
   for (const ch of String(key ?? "")) h = (h * 31 + ch.codePointAt(0)) >>> 0;
   return (h % 6) + 1;
 }
 
-export function Avatar({ slug, name, size = 24, state }) {
-  const [failed, setFailed] = useState(null);
+// Two initials at 12 px do not fit a 20 or 24 px disc, and nothing draws under 12 px: those sizes show the first
+// initial alone. `icon`: a line icon's name, drawn instead of the initials. `state`: a status dot's tone at the lower right.
+export function Avatar({ slug, name, size = 24, state, icon }) {
   const s = SIZES.includes(Number(size)) ? Number(size) : 24;
   const you = slug === "you";
-  const picture = !you && typeof slug === "string" && SLUG.test(slug) && failed !== slug;
-  return html`<span class=${cx("k-avatar", `k-avatar--${s}`, picture ? "k-avatar--picture" : you ? "k-avatar--you" : `k-avatar--tint-${tint(slug || name)}`)}>
-    ${picture
-      ? html`<img
-          class="k-avatar__img"
-          src=${`/assets/avatars/${slug}.png`}
-          alt=""
-          width=${s}
-          height=${s}
-          decoding="async"
-          draggable="false"
-          onError=${() => setFailed(slug)}
-        />`
-      : html`<span class="k-avatar__initials" aria-hidden="true">${initials(name || (you ? "You" : slug))}</span>`}
+  const glyph = typeof icon === "string" && icon ? icon : "";
+  return html`<span class=${cx("k-avatar", `k-avatar--${s}`, you ? "k-avatar--you" : `k-avatar--tint-${avatarTint(slug || name)}`)}>
+    ${glyph
+      ? html`<${Icon} name=${glyph} size=${GLYPH[s]} />`
+      : html`<span class="k-avatar__initials" aria-hidden="true">${s <= 24 ? [...initials(name || (you ? "You" : slug))][0] : initials(name || (you ? "You" : slug))}</span>`}
     ${state ? html`<span class="k-avatar__state"><${StatusDot} tone=${state} hideLabel /></span>` : null}
   </span>`;
 }

@@ -1,5 +1,7 @@
-// The map's drawing (CONTRACTS-V3 29.1, 29.3, 29.5; PLAN-COOK T63): the company brain as a card at the centre and
-// each department as an outlined card round it, joined to the brain by a hairline. The cards are real links (a
+// The map's drawing (CONTRACTS-V3 29.1, 29.3, 29.5; PLAN-COOK T63, TB4): the company brain as a card at the centre
+// and each department as a card round it on a faint dot grid, joined to the brain by a 1.5 px connector that ends in
+// a 4 px dot on each card's edge (warm for a department that needs the owner). A card that needs the owner carries a
+// warn edge at its left and its count as a warn chip; one at work a good edge. The cards are real links (a
 // department's chooses it at #/map/<department>; the brain's opens Files) with a name for screen readers; the lines
 // are hidden from them. Laid out by map/layout.js in screen pixels for the box the stage gives the drawing, so every
 // word is drawn at its true size; when the cards do not fit the box, the departments are shown as rows instead.
@@ -7,7 +9,7 @@
 // Every word a department shows comes from the company's own files, through the home server; it is shown as text
 // and cut to a fixed length.
 import { html, useLayoutEffect, useRef, useState } from "../vendor/preact-htm.js";
-import { Icon, StatusDot } from "../kit/index.js";
+import { Icon, Tag } from "../kit/index.js";
 import { DEPARTMENTS } from "../routes.js";
 import { CORE, NODE, NODE_SMALL, layoutNodes } from "./layout.js";
 
@@ -59,6 +61,14 @@ export function nodeLine(counts) {
 export function nodeTone(counts) {
   const c = counts && typeof counts === "object" ? counts : {};
   return num(c.needsYou) ? "warn" : num(c.working) ? "live" : "wait";
+}
+
+// The line under a card's name: its jobs and who is at work, "20 jobs · 1 working"; what needs the owner is the
+// card's warn chip, so it is not said twice. The smaller card leaves the jobs out when someone is working.
+export function cardLine(counts, small = false) {
+  const parts = countParts(counts).filter((p) => p.kind !== "needs");
+  const shown = small && parts.length > 1 ? parts.slice(1) : parts;
+  return shown.map((p) => p.text).join(" · ");
 }
 
 // The jobs on a card and in the rail: "9 jobs, 7 ready to start".
@@ -191,13 +201,21 @@ export function Overview({ data, loading = false, chosen = null, onNodeKey, fall
   if (lay && !lay.fits) body = html`<div class="p-map__fallback">${fallback}</div>`;
   else if (lay) {
     body = html`<svg class="p-map__lines" viewBox=${lay.viewBox.join(" ")} width=${size.w} height=${size.h} aria-hidden="true" focusable="false">
-        ${lay.lines.map((l) => html`<line key=${l.id} class=${l.id === chosen ? "p-map__line p-map__line--chosen" : "p-map__line"}
-          x1=${l.from.x} y1=${l.from.y} x2=${l.to.x} y2=${l.to.y} />`)}
+        ${lay.lines.map((l) => {
+          const d = byId.get(l.id) || {};
+          const tone = loading ? "wait" : nodeTone(d.counts);
+          const cls = ["p-map__line", tone === "warn" ? "p-map__line--warn" : "", l.id === chosen ? "p-map__line--chosen" : ""].filter(Boolean).join(" ");
+          return html`<g key=${l.id} class=${cls}>
+            <line class="p-map__wire" x1=${l.start.x} y1=${l.start.y} x2=${l.end.x} y2=${l.end.y} />
+            <circle class="p-map__port" cx=${l.start.x} cy=${l.start.y} r="2" />
+            <circle class="p-map__port" cx=${l.end.x} cy=${l.end.y} r="2" />
+          </g>`;
+        })}
       </svg>
       <ul class="p-map__nodes" role="list" aria-label="Company map" onKeyDown=${onKeyDown}>
         <li class="p-map__slot" style=${place(c)}>
           <a class="p-map__node p-map__node--brain" href="#/files" aria-label=${loading ? "Company brain" : brainLabel(brain)}>
-            <span class="p-map__tile" aria-hidden="true"><${Icon} name="brain" size=${20} /></span>
+            <span class="p-map__tile p-map__tile--brain" aria-hidden="true"><${Icon} name="brain" size=${18} /></span>
             <span class="p-map__node-text">
               <span class="p-map__node-name">Company brain</span>
               <span class="p-map__node-line">${loading ? " " : brainLine(brain)}</span>
@@ -208,17 +226,18 @@ export function Overview({ data, loading = false, chosen = null, onNodeKey, fall
         ${lay.nodes.map((n) => {
           const d = byId.get(n.id) || {};
           const on = n.id === chosen;
+          const tone = d.counts && !loading ? nodeTone(d.counts) : "wait";
+          const needs = num(d.counts && d.counts.needsYou);
+          const cls = ["p-map__node", tone === "warn" ? "p-map__node--warn" : tone === "live" ? "p-map__node--live" : "", on ? "p-map__node--chosen" : ""].filter(Boolean).join(" ");
           return html`<li key=${n.id} class="p-map__slot" style=${place(n)}>
-            <a class=${on ? "p-map__node p-map__node--chosen" : "p-map__node"} data-node=${n.id} data-dept=${n.id}
+            <a class=${cls} data-node=${n.id} data-dept=${n.id}
               href=${`#/map/${n.id}`} aria-current=${on ? "true" : undefined} aria-label=${hubLabel(d)}>
               <span class="p-map__node-head">
-                <${Icon} name=${iconOf(n.id)} size=${20} />
+                <span class="p-map__tile" aria-hidden="true"><${Icon} name=${iconOf(n.id)} size=${16} /></span>
                 <span class="p-map__node-name">${clip(d.title, 40)}</span>
-                ${d.counts && !small ? html`<span class="p-map__node-jobs">${countParts(d.counts)[0].text}</span>` : null}
+                ${needs && !loading ? html`<span class="p-map__node-needs" aria-hidden="true"><${Tag} tone="warn">${needs}<//></span>` : null}
               </span>
-              ${d.counts && !loading
-                ? html`<span class="p-map__node-state"><${StatusDot} tone=${nodeTone(d.counts)} pulse=${false} label=${nodeLine(d.counts)} /></span>`
-                : html`<span class="p-map__node-state"> </span>`}
+              <span class="p-map__node-line">${d.counts && !loading ? cardLine(d.counts, small) : " "}</span>
             </a>
           </li>`;
         })}

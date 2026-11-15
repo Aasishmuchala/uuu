@@ -1,7 +1,9 @@
-/* The map (pages/map.js, map/map-view.js, map/map-list.js; CONTRACTS-V3 29; PLAN-COOK T63). Tokens only.
-   A stage page: the company brain and the departments as outlined cards on the stage's deep ground, joined by
-   hairlines; the box that asks the brain at the stage's foot; the rail about the whole company or the department
-   chosen. Choosing a department changes the map in place: its card is lifted (a 2 px accent edge on the selected
+/* The map (pages/map.js, map/map-view.js, map/map-list.js; CONTRACTS-V3 29; PLAN-COOK T63, TB4). Tokens only.
+   A stage page: the company brain and the departments as cards on a faint dot grid over the page's ground (a step
+   lighter than the stage in light), joined by 1.5 px connectors that end in 4 px dots on the cards' edges; a card
+   that needs the owner has a warn edge at its left and its count as a warn chip, one at work a good edge; the box
+   that asks the brain is one bar at the stage's foot; the rail about the whole company or the department
+   chosen, its groups headed by count chips and its rows parted by hairlines. Choosing a department changes the map in place: its card is lifted (a 2 px accent edge on the selected
    step) within --t-med. The list twin is the list pattern of Tasks and Jobs; a phone shows the map as its rows.
    Nothing moves at rest except the dot of a question being read, which breathes in opacity. */
 
@@ -10,6 +12,10 @@
 }
 
 /* ---- The stage */
+.p-map .k-work__stage {
+  background: var(--bg);
+}
+
 .p-map .p-map__stage {
   position: relative;
   flex: 1 1 auto;
@@ -44,9 +50,24 @@
 }
 
 .p-map .k-stagebar {
+  position: relative;
   flex: none;
   font-size: var(--fs-ui);
   line-height: var(--lh-ui);
+}
+
+/* The canvas's dot grid: the ink at about 5 percent, 16 px apart, over the whole stage and under everything on it. */
+.p-map .p-map__grid {
+  position: absolute;
+  inset: calc(-1 * var(--s-5)) calc(-1 * var(--pad));
+  width: calc(100% + 2 * var(--pad));
+  height: calc(100% + 2 * var(--s-5));
+  pointer-events: none;
+}
+
+.p-map .p-map__grid-dot {
+  fill: var(--ink);
+  fill-opacity: .07;
 }
 
 /* The drawing: its box is measured and the cards are laid out in it in pixels (map/layout.js layoutNodes). */
@@ -63,14 +84,28 @@
 }
 
 .p-map .p-map__line {
-  stroke: var(--line-2);
-  stroke-width: 1;
+  --p-map-wire: color-mix(in srgb, var(--ink-3) 55%, transparent);
+  color: var(--p-map-wire);
+}
+
+.p-map .p-map__wire {
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
   fill: none;
-  transition: stroke var(--t-med) var(--ease);
+}
+
+.p-map .p-map__port {
+  fill: currentColor;
+}
+
+/* A department that needs the owner: its connector in the warn hue. The one chosen: the accent. */
+.p-map .p-map__line--warn {
+  --p-map-wire: color-mix(in srgb, var(--warn) 75%, transparent);
 }
 
 .p-map .p-map__line--chosen {
-  stroke: var(--accent);
+  --p-map-wire: var(--accent);
 }
 
 .p-map .p-map__nodes {
@@ -86,15 +121,16 @@
   display: flex;
 }
 
-/* A card: outlined, on the raised step, its words at their true size. */
+/* A card: the card surface with its edge and shadow, a 28 px tile beside the name (15 px 600) and its line (13 px,
+   the second ink) under the name. */
 .p-map .p-map__node {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 6px;
+  gap: 2px;
   min-width: 0;
-  padding: 0 var(--s-4);
+  padding: 0 var(--s-3) 0 14px;
   border: 1px solid var(--line);
   border-radius: var(--r-3);
   background: var(--card);
@@ -106,6 +142,15 @@
 
 .p-map .p-map__node:hover {
   border-color: var(--line-2);
+}
+
+/* State at the card's left edge: warn while something waits on the owner, good while someone works. */
+.p-map .p-map__node--warn {
+  box-shadow: inset 2px 0 0 var(--warn), var(--shadow-card);
+}
+
+.p-map .p-map__node--live {
+  box-shadow: inset 2px 0 0 var(--good), var(--shadow-card);
 }
 
 .p-map .p-map__node:focus-visible {
@@ -128,13 +173,23 @@
   min-width: 0;
 }
 
-.p-map .p-map__node-head .k-icon {
-  flex: none;
+.p-map .p-map__node .p-map__tile {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-2);
+  background: var(--raise);
   color: var(--ink-2);
 }
 
-.p-map .p-map__node--chosen .p-map__node-head .k-icon {
+.p-map .p-map__node--chosen .p-map__tile {
   color: var(--accent);
+}
+
+.p-map .p-map__node-needs {
+  flex: none;
+  display: inline-flex;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 .p-map .p-map__node-name {
@@ -147,23 +202,14 @@
   text-overflow: ellipsis;
 }
 
-.p-map .p-map__node-jobs {
-  flex: none;
-  margin-left: auto;
-  color: var(--ink-3);
-  font-size: var(--fs-note);
-  line-height: var(--lh-note);
-  font-variant-numeric: tabular-nums;
-}
-
-.p-map .p-map__node-state {
-  display: flex;
-  min-width: 0;
+.p-map .p-map__node > .p-map__node-line {
+  overflow: hidden;
   min-height: var(--lh-note);
-  padding-left: 30px; /* the name's edge: the 20 px icon and its 10 px gap */
+  padding-left: 38px; /* the name's edge: the 28 px tile and its 10 px gap */
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.p-map .p-map__node-state .k-dot,
 .p-map .p-map__row-state .k-dot,
 .p-map .p-map__facts .k-dot,
 .p-map .k-rail__lede .k-dot,
@@ -173,7 +219,6 @@
   color: var(--ink-2);
 }
 
-.p-map .p-map__node-state .k-dot__label,
 .p-map .p-map__row-state .k-dot__label,
 .p-map .p-map__facts .k-dot__label,
 .p-map .k-rail__lede .k-dot__label,
@@ -192,7 +237,7 @@
   line-height: var(--lh-ui);
 }
 
-/* The brain: one more card, at the centre and a size larger, its icon on a tile and its basics as a meter. */
+/* The brain: one more card, at the centre and a size larger, its icon on a 32 px tile and its basics as a meter. */
 .p-map .p-map__node--brain {
   flex-direction: row;
   align-items: center;
@@ -206,10 +251,20 @@
   flex: none;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--r-2);
-  background: var(--ctl);
+  background: var(--raise);
+  color: var(--ink);
+}
+
+.p-map .p-map__node-name {
+  color: var(--ink);
+}
+
+.p-map .p-map__node--brain .p-map__tile {
+  width: 32px;
+  height: 32px;
   color: var(--ink);
 }
 
@@ -230,9 +285,9 @@
 
 .p-map .p-map__meter {
   display: block;
-  height: 4px;
+  height: 6px;
   margin-top: 8px;
-  border-radius: var(--r-xs);
+  border-radius: var(--r-round);
   background: var(--raise-2);
   overflow: hidden;
 }
@@ -240,6 +295,7 @@
 .p-map .p-map__meter-fill {
   display: block;
   height: 100%;
+  border-radius: var(--r-round);
   background: var(--accent);
 }
 
@@ -259,43 +315,119 @@
   place-items: center;
 }
 
-/* ---- The box at the stage's foot */
+/* ---- The box at the stage's foot: one bar (New task, the open question's chip, a 44 px field and send) on the
+   card surface, the hint under it. The kit's composer is laid into the bar's grid: its box takes the bar's second
+   column and its hint the row under the bar; the bar's surface is drawn behind the first row. */
 .p-map .p-map__ask {
+  position: relative;
   flex: none;
   display: grid;
-  gap: var(--s-2);
-  width: min(100%, 680px);
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-2) 0;
+  width: min(100%, 760px);
   margin: 0 auto;
 }
 
+.p-map .p-map__ask::before {
+  content: "";
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: stretch;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+
+.p-map .p-map__box,
+.p-map .p-map__box .k-composer {
+  display: contents;
+}
+
+.p-map .p-map__box .k-composer__box {
+  position: relative;
+  grid-row: 1;
+  grid-column: 2;
+  align-items: center;
+  padding: 6px 6px 6px var(--s-3);
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.p-map .p-map__box .k-composer__box:has(.k-composer__field:focus) {
+  outline: none;
+}
+
+.p-map .p-map__box .k-composer__field {
+  min-height: 44px;
+  padding: 12px var(--s-1);
+  border-radius: var(--r-1);
+}
+
+/* The field's own 2 px ring while it has focus, inside the bar. */
+.p-map .p-map__box .k-composer__field:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
+.p-map .p-map__box .k-composer__note {
+  grid-row: 2;
+  grid-column: 1 / -1;
+}
+
+.p-map .p-map__box .k-composer__error {
+  grid-row: 3;
+  grid-column: 1 / -1;
+}
+
 .p-map .p-map__chips {
+  position: relative;
+  grid-row: 1;
+  grid-column: 1;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--s-2);
+  align-items: center;
+  gap: var(--s-1);
+  padding-left: var(--s-2);
+}
+
+/* A hairline parts the chips from the field. */
+.p-map .p-map__chips::after {
+  content: "";
+  width: 1px;
+  height: 24px;
+  margin-left: var(--s-2);
+  background: var(--line-2);
 }
 
 .p-map .p-map__chip {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  min-height: var(--h-sm);
-  padding: 0 var(--s-3);
-  border: 1px solid var(--line);
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
   border-radius: var(--r-2);
-  background: var(--panel);
-  color: var(--ink-2);
+  background: none;
+  color: var(--ink);
   font: inherit;
   font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-note);
+  white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
-  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
 
 .p-map .p-map__chip:hover {
-  border-color: var(--line-2);
-  color: var(--ink);
+  background: var(--ctl);
+}
+
+.p-map .p-map__chip .k-icon {
+  color: var(--ink-2);
 }
 
 .p-map .p-map__chip:focus-visible {
@@ -304,7 +436,14 @@
 }
 
 .p-map .p-map__chip--live {
-  color: var(--ink);
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+.p-map .p-map__chip--live:hover {
+  background: var(--good-bg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .p-map .p-map__live {
@@ -337,17 +476,20 @@
 
 .p-map .p-map__items {
   display: grid;
-  gap: 2px;
   margin: 0 calc(-1 * var(--s-2));
   padding: 0;
   list-style: none;
+}
+
+.p-map .p-map__items > li + li {
+  border-top: 1px solid var(--line);
 }
 
 .p-map .p-map__item-link {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 6px var(--s-2);
+  padding: 10px var(--s-2);
   border-radius: var(--r-2);
   color: var(--ink);
   text-decoration: none;
@@ -359,7 +501,6 @@
 }
 
 .p-map .p-map__item-link:focus-visible,
-.p-map .p-map__work-title:focus-visible,
 .p-map .p-map__link:focus-visible,
 .p-map .p-map__row:focus-visible,
 .p-map .p-map__icon-btn:focus-visible {
@@ -371,7 +512,11 @@
   flex: none;
   display: flex;
   padding-top: 2px;
-  color: var(--ink-3);
+  color: var(--ink-2);
+}
+
+.p-map .p-map__item-icon--who {
+  padding-top: 0;
 }
 
 .p-map .p-map__item-text {
@@ -383,6 +528,7 @@
   display: -webkit-box;
   overflow: hidden;
   font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-ui);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -390,36 +536,11 @@
 }
 
 .p-map .p-map__item-sub {
-  color: var(--ink-2);
-  font-size: var(--fs-note);
-  line-height: var(--lh-note);
+  margin-top: 2px;
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
   font-variant-numeric: tabular-nums;
-}
-
-/* Someone at work: the agent, then the task under its name. */
-.p-map .p-map__item--work {
-  display: grid;
-  gap: 2px;
-  padding: 6px var(--s-2);
-}
-
-.p-map .p-map__work-title {
-  display: -webkit-box;
-  overflow: hidden;
-  padding-left: 28px; /* under the agent's name, past its 20 px avatar */
-  color: var(--ink-2);
-  font-size: var(--fs-note);
-  line-height: var(--lh-note);
-  text-decoration: none;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow-wrap: anywhere;
-}
-
-.p-map a.p-map__work-title:hover {
-  color: var(--ink);
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 .p-map .p-map__item--agent {
@@ -778,11 +899,39 @@
 }
 
 .p-map.p-map--narrow .p-map__ask {
+  grid-template-columns: minmax(0, 1fr);
   width: 100%;
 }
 
+.p-map.p-map--narrow .p-map__ask::before {
+  grid-row: 2;
+}
+
 .p-map.p-map--narrow .p-map__chips {
-  justify-content: flex-start;
+  grid-row: 1;
+  padding-left: 0;
+}
+
+.p-map.p-map--narrow .p-map__chips::after {
+  display: none;
+}
+
+.p-map.p-map--narrow .p-map__box .k-composer__box {
+  grid-row: 2;
+  grid-column: 1;
+}
+
+.p-map.p-map--narrow .p-map__box .k-composer__note {
+  grid-row: 3;
+}
+
+.p-map.p-map--narrow .p-map__box .k-composer__error {
+  grid-row: 4;
+}
+
+.p-map.p-map--narrow .p-map__chip {
+  border: 1px solid var(--line);
+  background: var(--card);
 }
 
 .p-map.p-map--narrow .p-map__notices,
@@ -839,8 +988,7 @@
   }
 }
 
-.p-map.p-map--still .p-map__node,
-.p-map.p-map--still .p-map__line {
+.p-map.p-map--still .p-map__node {
   transition: none;
 }
 
@@ -850,7 +998,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .p-map .p-map__node,
-  .p-map .p-map__line,
   .p-map .p-map__fold-mark {
     transition: none;
   }

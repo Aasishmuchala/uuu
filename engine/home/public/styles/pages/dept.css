@@ -1,9 +1,10 @@
-/* A department (pages/dept.js, PLAN-COOK T65): one reading column at --doc-max, as Health draws it (R02, R05).
-   The head: the department's line icon in a 36 px tile beside its name, its line and its state. Then groups with
-   a 16 px heading and a quiet count: what needs the owner (one row on the raised step that opens the queue), its
-   agents (the kit's AgentCard as rows in one panel, parted by hairlines), the owner's tasks with it (TaskRows on
-   the ground, as the Tasks page), the jobs it can run (cards two across, as the Jobs page), the composer, and the
-   departments either side. No creature, no serif, no department colour, no glass. */
+/* A department (pages/dept.js, PLAN-COOK T65, TB4): one reading column at --doc-max with one left edge. The head:
+   the department's line icon in a 32 px tile inside the title, its two links as a button group on the title's line,
+   its line and its state under it at the column's edge. Then sections 32 px apart, each with a 17 px heading and a
+   count chip, its link as a small ghost on the heading's line: what needs the owner (its items as rows: glyph,
+   title, age), its agents (the kit's AgentCard as rows in one panel, parted by hairlines), the owner's tasks with it
+   (two-line rows: title over the state's sentence, the date and the ID in a right-hand column), the jobs it can run
+   (cards two across, as the Jobs page), the composer, and the departments either side. */
 
 .p-dept {
   display: flex;
@@ -14,23 +15,50 @@
   padding: 0 0 var(--s-12);
 }
 
-/* The head: the tile beside the title, its top on the title's line. */
+/* The head: the tile inside the title, so the line and the state under it start at the column's edge. */
 .p-dept .p-dept__head {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  align-items: start;
-  gap: 0 var(--s-4);
+  min-width: 0;
+}
+
+.p-dept .p-dept__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
 }
 
 .p-dept .p-dept__tile {
+  flex: none;
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: 1px solid var(--line);
   border-radius: var(--r-2);
-  background: var(--panel);
+  background: var(--card);
   color: var(--ink-2);
+}
+
+/* The two links as one button group: the ghosts joined, one edge between them. */
+.p-dept .p-dept__actions {
+  display: inline-flex;
+}
+
+.p-dept .p-dept__actions .k-btn + .k-btn {
+  margin-left: -1px;
+}
+
+.p-dept .p-dept__actions .k-btn:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.p-dept .p-dept__actions .k-btn:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.p-dept .p-dept__actions .k-btn:focus-visible {
+  position: relative;
 }
 
 .p-dept .p-dept__head .k-page-header {
@@ -42,16 +70,20 @@
   align-items: center;
 }
 
-.p-dept .p-dept__head .k-page-header__lede {
-  margin-top: calc(var(--s-1) * -1);
+/* The line and the state on one line under the title, at the column's edge. */
+.p-dept .p-dept__head .k-page-header {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+}
+
+.p-dept .p-dept__head .k-page-header__row {
+  flex: 1 1 100%;
 }
 
 .p-dept .p-dept__head .k-page-header__more {
   margin-top: 0;
-}
-
-.p-dept .p-dept__head .k-page-header__actions {
-  gap: var(--s-1) var(--s-5);
 }
 
 .p-dept .p-dept__link {
@@ -99,12 +131,42 @@
   color: var(--ink-2);
 }
 
-/* A heading's count: quiet, after its words. */
+/* A section: its heading and its link on one line, 32 px above it. */
+.p-dept .p-dept__section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-top: var(--s-8);
+}
+
+.p-dept .p-dept__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 32px;
+  margin-bottom: var(--s-3);
+}
+
+.p-dept .p-dept__section-title {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-section);
+}
+
+.p-dept .p-dept__section-aside {
+  display: inline-flex;
+  flex: none;
+}
+
+/* A heading's count: a chip after its words. */
 .p-dept .p-dept__count {
-  margin-left: var(--s-1);
-  color: var(--ink-3);
-  font-size: var(--fs-ui);
-  font-weight: var(--fw-regular);
+  display: inline-flex;
+  margin-left: var(--s-2);
   font-variant-numeric: tabular-nums;
 }
 
@@ -125,14 +187,75 @@
   text-underline-offset: 3px;
 }
 
-/* What needs the owner: one row on the raised step, as Health's rows. */
+/* What needs the owner: its items as rows in one panel, parted by hairlines: a 28 px tile with the kind's glyph,
+   the title at 14 px 500, the age in a right-hand column of tabular figures. */
+.p-dept .p-dept__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.p-dept .p-dept__list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.p-dept .p-dept__need {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 var(--s-3);
+  min-height: 48px;
+  padding: 10px var(--s-4);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.p-dept .p-dept__need:hover {
+  background: var(--ctl);
+}
+
+.p-dept .p-dept__need-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-2);
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.p-dept .p-dept__need-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.p-dept .p-dept__need-when {
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Until the items can be read: one row that says how many and opens the queue. */
 .p-dept .p-dept__needs {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0 14px;
+  gap: 0 var(--s-3);
   width: 100%;
-  min-height: 56px;
+  min-height: 48px;
   padding: 10px var(--s-4);
   border: 1px solid var(--line);
   border-radius: var(--r-3);
@@ -140,7 +263,7 @@
   box-shadow: var(--shadow-card);
   color: var(--ink-2);
   font: inherit;
-  font-size: var(--fs-fact);
+  font-size: var(--fs-ui);
   line-height: var(--lh-ui);
   text-align: left;
   cursor: pointer;
@@ -159,8 +282,8 @@
 .p-dept .p-dept__needs-icon {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--r-2);
   background: var(--ctl);
   color: var(--ink-2);
@@ -193,7 +316,7 @@
   list-style: none;
   border: 1px solid var(--line);
   border-radius: var(--r-3);
-  background: var(--panel);
+  background: var(--card);
   box-shadow: var(--shadow-card);
   overflow: hidden;
 }
@@ -221,11 +344,18 @@
   min-height: 32px;
 }
 
+.p-dept .p-dept__agents .k-agent__title {
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+}
+
 .p-dept .p-dept__agents .k-agent__summary {
   max-width: 64ch;
 }
 
-/* The owner's tasks: the Tasks page's rows on the ground, parted by hairlines. */
+/* The owner's tasks: the kit's TaskRow as two lines on the ground, parted by hairlines: the glyph, the title (14 px
+   500) over the state's sentence (13 px, the second ink); the date over the ID (12 px mono, the third ink) in a
+   right-hand column. */
 .p-dept .p-dept__rows {
   margin: 0 calc(var(--s-3) * -1);
   padding: 0;
@@ -238,6 +368,62 @@
 
 .p-dept .p-dept__row + .p-dept__row {
   border-top: 1px solid var(--line);
+}
+
+.p-dept .p-dept__rows .k-task-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: baseline;
+  gap: 2px var(--s-3);
+  min-height: 60px;
+  padding: 10px var(--s-3);
+}
+
+.p-dept .p-dept__rows .k-task-row__mark {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+}
+
+.p-dept .p-dept__rows .k-task-row__main,
+.p-dept .p-dept__rows .k-task-row__top {
+  display: contents;
+}
+
+.p-dept .p-dept__rows .k-task-row__title {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.p-dept .p-dept__rows .k-task-row__line {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-dept .p-dept__rows .k-task-row__time {
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-ui);
+}
+
+.p-dept .p-dept__rows .k-task-row__ref {
+  grid-column: 3;
+  grid-row: 2;
+  justify-content: flex-end;
+}
+
+.p-dept .p-dept__rows .k-task-row__ref .k-mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  line-height: var(--lh-note);
 }
 
 /* The jobs: cards two across, as the Jobs page lays them; the kit's JobRow is the card's link. */
@@ -372,12 +558,12 @@
   color: var(--ink);
 }
 
-/* The composer, in the flow under the groups, so it never covers a row. */
+/* The composer, in the flow under the sections, so it never covers a row. */
 .p-dept .p-dept__give {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  margin-top: var(--s-10);
+  margin-top: var(--s-8);
 }
 
 .p-dept .p-dept__for {
@@ -453,6 +639,7 @@
 .p-dept .p-dept__state--link:focus-visible,
 .p-dept .p-dept__all:focus-visible,
 .p-dept .p-dept__needs:focus-visible,
+.p-dept .p-dept__need:focus-visible,
 .p-dept .p-dept__agents .k-agent--card:focus-visible,
 .p-dept .p-dept__job .k-job--row:focus-visible,
 .p-dept .p-dept__why .k-job__why-link:focus-visible,
@@ -469,11 +656,6 @@
 @media (max-width: 859px) {
   .p-dept {
     padding-bottom: var(--s-10);
-  }
-
-  .p-dept .p-dept__head {
-    grid-template-columns: 36px minmax(0, 1fr);
-    gap: 0 var(--s-3);
   }
 
   /* The title, its line and its state first; the actions under them. */
@@ -500,8 +682,28 @@
   }
 
   .p-dept .p-dept__needs {
-    grid-template-columns: 36px minmax(0, 1fr);
+    grid-template-columns: 28px minmax(0, 1fr);
     padding: var(--s-3);
+  }
+
+  .p-dept .p-dept__need {
+    min-height: 56px;
+    padding: var(--s-2) var(--s-3);
+  }
+
+  .p-dept .p-dept__need-title {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .p-dept .p-dept__section-head .k-btn {
+    min-height: 44px;
+  }
+
+  .p-dept .p-dept__actions {
+    flex-wrap: wrap;
   }
 
   .p-dept .p-dept__needs-go {

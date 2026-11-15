@@ -333,3 +333,30 @@ test("dept: Needs you opens the queue for this department", async () => {
     globalThis.fetch = kept.fetch;
   }
 });
+
+// PLAN-COOK TB4: one left edge, the items that need you as rows, two-line task rows, 32 px between sections.
+test("dept: what needs you here is the queue's items of this department, most urgent first; unknown until home answers", () => {
+  const items = [
+    { id: "a", title: "A", department: "sales", when: "2026-11-10T09:00:00.000Z" },
+    { id: "b", title: "B", department: "books", when: "2026-11-11T09:00:00.000Z" },
+    { id: "c", title: "C", department: "sales", when: "2026-11-11T09:00:00.000Z", severity: "high" },
+  ];
+  assert.deepEqual(page.needsHere({ needsYou: { items } }, "sales", []).map((i) => i.id), ["c", "a"]);
+  assert.equal(page.needsHere(null, "sales", []), null);
+  assert.equal(page.needsHere({ needsYou: {} }, "sales", []), null);
+  assert.equal(page.needIcon("question"), "reply");
+  assert.equal(page.needIcon("nonsense"), "inbox");
+});
+
+test("dept: the sheet keeps one left edge, 32 px between sections and two-line task rows (TB4)", () => {
+  const css = readFileSync(new URL("../../styles/pages/dept.css", import.meta.url), "utf8");
+  const src = readFileSync(new URL("../../pages/dept.js", import.meta.url), "utf8");
+  assert.match(src, /<span class="p-dept__title"><span class="p-dept__tile"/, "the tile is inside the title, so the line under it starts at the column's edge");
+  assert.match(src, /class="p-dept__actions" role="group"/, "the head's links are one button group");
+  assert.match(css, /\.p-dept__section \{[^}]*margin-top: var\(--s-8\);/);
+  assert.match(css, /\.p-dept__rows \.k-task-row__title \{[^}]*font-size: var\(--fs-ui\);/);
+  assert.match(css, /\.p-dept__rows \.k-task-row__line \{[^}]*grid-row: 2;[^}]*font-size: var\(--fs-note\);/);
+  assert.match(css, /\.p-dept__rows \.k-task-row__ref \.k-mono \{[^}]*font-family: var\(--font-mono\);[^}]*font-size: var\(--fs-label\);/);
+  assert.match(css, /\.p-dept__rows \.k-task-row__time \{[^}]*grid-column: 3;/, "the date in a right-hand column");
+  assert.doesNotMatch(src, /\bGroup\b/, "the sections are the page's own, one edge");
+});

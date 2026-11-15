@@ -212,7 +212,8 @@ test("pinned behaviour: accept is always large, busy disables, a link button is 
   assert.equal(h1.getAttribute("id"), "page-title");
   assert.equal(globalThis.document.title, "Tasks");
   root = await showTree(kit.avatar.Avatar, { slug: "builder", name: "Builder", size: 32 });
-  assert.equal(elements(root).find((e) => e.localName === "img").getAttribute("src"), "/assets/avatars/builder.png");
+  assert.equal(elements(root).some((e) => e.localName === "img"), false, "an agent is a flat disc: no picture is asked for (TB4)");
+  assert.match(textOf(root), /^B/);
   root = await showTree(kit.avatar.Avatar, { slug: "you", name: "You" });
   assert.equal(elements(root).some((e) => e.localName === "img"), false);
   assert.match(textOf(root), /^Y/);

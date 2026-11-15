@@ -5,6 +5,7 @@
 import { html } from "../vendor/preact-htm.js";
 import { Avatar } from "./avatar.js";
 import { St } from "./status.js";
+import { Tag } from "./tag.js";
 
 const text = (v) => (v === null || v === undefined ? "" : String(v));
 const agentHref = (slug) => (slug && slug !== "you" ? `#/team/${encodeURIComponent(slug)}` : null);
@@ -18,9 +19,24 @@ export function AgentChip({ agent, size = 20 }) {
     : html`<span class="k-agent k-agent--chip">${inner}</span>`;
 }
 
-// The agent's state as a glyph and words: working, waiting for the owner, a problem, paused, or its plain state.
-export function AgentState({ agent }) {
+// The state's words and the tone of its chip: working (good), waiting for the owner (warn), a problem (bad),
+// paused or its plain state (neutral).
+export function agentStateOf(agent) {
   if (!agent) return null;
+  if (agent.state === "working" || agent.live) return { words: "Working", tone: "good" };
+  if (agent.waitingForYou || agent.state === "waiting_for_you") return { words: "Waiting for you", tone: "warn" };
+  const words = text(agent.plainState) || "Free";
+  return { words, tone: agent.state === "problem" ? "bad" : "neutral" };
+}
+
+// The agent's state as a glyph and words: working, waiting for the owner, a problem, paused, or its plain state.
+// `chip`: the same words as the kit's Tag in the state's tone, for a header that carries the state (TB4).
+export function AgentState({ agent, chip = false }) {
+  if (!agent) return null;
+  if (chip) {
+    const s = agentStateOf(agent);
+    return html`<span class="k-agent__state k-agent__state--chip"><${Tag} tone=${s.tone}>${s.words}<//></span>`;
+  }
   if (agent.state === "working" || agent.live) return html`<span class="k-agent__state k-agent__state--live"><${St} tone="good" icon="loop">Working<//></span>`;
   if (agent.waitingForYou || agent.state === "waiting_for_you") return html`<span class="k-agent__state"><${St} tone="warn">Waiting for you<//></span>`;
   const words = text(agent.plainState) || "Free";

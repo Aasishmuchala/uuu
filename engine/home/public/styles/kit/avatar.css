@@ -1,5 +1,5 @@
-/* kit/avatar.js: a picture in a circle, or initials on one of six soft tints. Round, with a hairline edge and no
-   ring or glow. */
+/* kit/avatar.js: one flat disc for every agent, its glyph or initials on one of six quiet tints (PLAN-COOK TB4).
+   Round, with a hairline edge and no ring, glow or picture. */
 
 .k-avatar {
   position: relative;
@@ -19,20 +19,9 @@
 .k-avatar--20 { --k-avatar-size: calc(var(--s-5)); font-size: var(--fs-label); }
 .k-avatar--24 { --k-avatar-size: calc(var(--s-6)); font-size: var(--fs-label); }
 .k-avatar--32 { --k-avatar-size: calc(var(--s-8)); font-size: var(--fs-label); }
+.k-avatar--40 { --k-avatar-size: calc(var(--s-10)); font-size: var(--fs-ui); }
 .k-avatar--48 { --k-avatar-size: calc(var(--s-12)); font-size: var(--fs-section); }
 .k-avatar--72 { --k-avatar-size: calc(var(--s-12) + var(--s-6)); font-size: var(--fs-page); }
-
-/* A picture sits on a light disc, so a near-black character still shows on dark surfaces. */
-.k-avatar--picture {
-  background: var(--avatar-backing);
-}
-
-.k-avatar__img {
-  width: 100%;
-  height: 100%;
-  border-radius: var(--r-round);
-  object-fit: cover;
-}
 
 .k-avatar__initials {
   font-weight: var(--fw-bold);
@@ -40,24 +29,24 @@
   user-select: none;
 }
 
-/* Two initials at 12 px do not fit a 20 or 24 px disc, and nothing draws under 12 px: those sizes show the first
-   letter alone, at weight 600 (the rest of the text is sized to nothing and the first letter put back). */
-.k-avatar--20 .k-avatar__initials,
-.k-avatar--24 .k-avatar__initials {
-  font-size: 0;
-}
-.k-avatar--20 .k-avatar__initials::first-letter,
-.k-avatar--24 .k-avatar__initials::first-letter {
-  font-size: var(--fs-label);
-}
+/* Six quiet tints, picked from the slug: the hue at 20 percent over the raised step, the initials or glyph in the
+   ink drawn a third of the way toward the hue, so they read at 4.5 to 1 in both themes. */
+.k-avatar--tint-1 { --k-avatar-hue: var(--accent-blue); }
+.k-avatar--tint-2 { --k-avatar-hue: var(--accent-green); }
+.k-avatar--tint-3 { --k-avatar-hue: var(--accent-violet); }
+.k-avatar--tint-4 { --k-avatar-hue: var(--accent-orange); }
+.k-avatar--tint-5 { --k-avatar-hue: var(--accent-rose); }
+.k-avatar--tint-6 { --k-avatar-hue: color-mix(in srgb, var(--accent-blue) 50%, var(--accent-green)); }
 
-/* Six tints, picked from the slug; text stays in --ink for contrast. */
-.k-avatar--tint-1 { background: color-mix(in srgb, var(--dept-operations) 26%, var(--raise)); }
-.k-avatar--tint-2 { background: color-mix(in srgb, var(--dept-sales) 24%, var(--raise)); }
-.k-avatar--tint-3 { background: color-mix(in srgb, var(--dept-marketing) 24%, var(--raise)); }
-.k-avatar--tint-4 { background: color-mix(in srgb, var(--dept-studio) 22%, var(--raise)); }
-.k-avatar--tint-5 { background: color-mix(in srgb, var(--dept-people) 24%, var(--raise)); }
-.k-avatar--tint-6 { background: color-mix(in srgb, var(--dept-books) 22%, var(--raise)); }
+.k-avatar--tint-1,
+.k-avatar--tint-2,
+.k-avatar--tint-3,
+.k-avatar--tint-4,
+.k-avatar--tint-5,
+.k-avatar--tint-6 {
+  background: color-mix(in srgb, var(--k-avatar-hue) 20%, var(--raise));
+  color: color-mix(in srgb, var(--k-avatar-hue) 35%, var(--ink));
+}
 
 /* The owner: drawn like the agents (the raised step, ink initials), so the accent stays the primary's alone. */
 .k-avatar--you {

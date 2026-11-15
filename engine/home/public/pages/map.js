@@ -17,6 +17,7 @@ import {
   AgentState,
   AnswerView,
   ASK_HINT,
+  Avatar,
   Blk,
   Button,
   changedText,
@@ -32,6 +33,7 @@ import {
   StageBar,
   StageLayout,
   StatusDot,
+  Tag,
   useInboxAct,
 } from "../kit/index.js";
 import { nearestHub } from "../map/layout.js";
@@ -265,14 +267,22 @@ function ItemRow({ item, depts }) {
   </li>`;
 }
 
-// One task being worked on: the agent at it, and the task as a link.
+// One task being worked on: the agent's avatar, the task as the row's link, and the agent's name under it.
 function WorkRow({ run }) {
   const href = linkHref({ page: "tasks", id: run.identifier || run.taskId });
+  const who = run.who || {};
+  const inner = html`<span class="p-map__item-icon p-map__item-icon--who" aria-hidden="true"><${Avatar} slug=${who.slug} name=${who.name} size=${24} /></span>
+    <span class="p-map__item-text">
+      <span class="p-map__item-title">${clip(run.title, 120)}</span>
+      <span class="p-map__item-sub">${clip(who.name, 40)}</span>
+    </span>`;
   return html`<li class="p-map__item p-map__item--work">
-    <${AgentChip} agent=${run.who} />
-    ${href ? html`<a class="p-map__work-title" href=${href}>${clip(run.title, 120)}</a>` : html`<span class="p-map__work-title">${clip(run.title, 120)}</span>`}
+    ${href ? html`<a class="p-map__item-link" href=${href}>${inner}</a>` : html`<span class="p-map__item-link">${inner}</span>`}
   </li>`;
 }
+
+// A group's count in the rail's heads: a chip, warm for what waits on the owner.
+const countChip = (n, tone = "neutral") => (n ? html`<${Tag} tone=${tone}>${String(n)}<//>` : null);
 
 const none = (words) => html`<p class="p-map__none">${words}</p>`;
 
@@ -286,13 +296,13 @@ function CompanyBlocks({ data, home, depts }) {
   if (home.loading && !home.data) return html`<div class="p-map__rail-pad"><${Loading} lines=${4} label="Loading what needs you" /></div>`;
   if (home.error && !home.data) return html`<div class="p-map__rail-pad"><${ErrorNotice} error=${home.error} onRetry=${home.reload} /></div>`;
   return html`
-    <${Blk} title=${MAP_WORDS.needsYou} aside=${total ? String(total) : null}>
+    <${Blk} title=${MAP_WORDS.needsYou} aside=${countChip(total, "warn")}>
       ${asks.length ? html`<ul class="p-map__items">${asks.slice(0, 3).map((i) => html`<${ItemRow} key=${i.id} item=${i} depts=${depts} />`)}</ul>` : none(MAP_WORDS.noNeeds)}
     <//>
-    <${Blk} title=${MAP_WORDS.working} aside=${runs.length ? String(runs.length) : null}>
+    <${Blk} title=${MAP_WORDS.working} aside=${countChip(runs.length)}>
       ${runs.length ? html`<ul class="p-map__items">${runs.slice(0, 3).map((r) => html`<${WorkRow} key=${r.taskId} run=${r} />`)}</ul>` : none(MAP_WORDS.noWorking)}
     <//>
-    <${Blk} title=${MAP_WORDS.results} aside=${results.length ? String(results.length) : null}>
+    <${Blk} title=${MAP_WORDS.results} aside=${countChip(results.length)}>
       ${results.length ? html`<ul class="p-map__items">${results.slice(0, 2).map((i) => html`<${ItemRow} key=${i.id} item=${i} depts=${depts} />`)}</ul>` : none(MAP_WORDS.noResults)}
     <//>`;
 }
@@ -311,16 +321,16 @@ function DeptBlocks({ dept, home, depts, onNeeds }) {
           <a class="p-map__link" href=${`#/jobs?d=${dept.id}`}>${MAP_WORDS.seeJobs}</a></p>
       </div>
     <//>
-    <${Blk} title=${MAP_WORDS.needsYou} aside=${n ? String(n) : null}>
+    <${Blk} title=${MAP_WORDS.needsYou} aside=${countChip(n, "warn")}>
       ${items.length ? html`<ul class="p-map__items">${items.slice(0, 3).map((i) => html`<${ItemRow} key=${i.id} item=${i} depts=${depts} />`)}</ul>`
         : home.data || !n ? none(MAP_WORDS.noNeedsHere) : null}
       ${n ? html`<button type="button" class="p-map__link p-map__queue-link" onClick=${() => onNeeds(dept.id)}>${queueWords(n)}<${Icon} name="chevron-right" size=${14} /></button>` : null}
     <//>
-    <${Blk} title=${MAP_WORDS.agents} aside=${agents.length ? String(agents.length) : null}>
+    <${Blk} title=${MAP_WORDS.agents} aside=${countChip(agents.length)}>
       ${agents.length ? html`<ul class="p-map__items">${agents.map((a) => html`<li key=${a.slug} class="p-map__item p-map__item--agent">
         <${AgentChip} agent=${a} /><${AgentState} agent=${a} /></li>`)}</ul>` : none(MAP_WORDS.noAgents)}
     <//>
-    ${runs.length ? html`<${Blk} title=${MAP_WORDS.doing} aside=${String(runs.length)}>
+    ${runs.length ? html`<${Blk} title=${MAP_WORDS.doing} aside=${countChip(runs.length)}>
       <ul class="p-map__items">${runs.map((r) => html`<${WorkRow} key=${r.taskId} run=${r} />`)}</ul>
     <//>` : null}`;
 }
@@ -419,7 +429,8 @@ export default function MapPage({ route }) {
   const closeAsk = () => { location.hash = mapHref({ dept, view }); };
   const answer = ask ? html`<${AnswerPanel} key=${ask} id=${ask} onClose=${closeAsk} />` : null;
 
-  // The box that asks the company brain, with New task and the open question's chip over it.
+  // The box that asks the company brain: one bar with New task, the open question's chip, the field and send; the
+  // hint under the bar. The composer's box and hint are laid into the bar's grid (styles/pages/map.css).
   const askBox = html`<div class="p-map__ask">
     <div class="p-map__chips">
       <button type="button" class="p-map__chip" onClick=${() => app.openComposer({})}><${Icon} name="plus" size=${14} /><span>New task</span></button>
@@ -428,6 +439,12 @@ export default function MapPage({ route }) {
     </div>
     <div class="p-map__box" data-box><${Composer} mode="ask" onSend=${send} hint=${askHint(data && data.brain)} /></div>
   </div>`;
+
+  // The canvas's faint dot grid, 16 px apart, under the drawing.
+  const grid = html`<svg class="p-map__grid" aria-hidden="true" focusable="false">
+    <defs><pattern id="p-map-dots" width="16" height="16" patternUnits="userSpaceOnUse"><circle class="p-map__grid-dot" cx="1" cy="1" r="1" /></pattern></defs>
+    <rect width="100%" height="100%" fill="url(#p-map-dots)" />
+  </svg>`;
 
   const switcher = html`<${Segmented} size="sm" label=${MAP_WORDS.showAs} current=${view} items=${[
     { id: "map", label: "Map", icon: "map", href: mapHref({ dept, ask }) },
@@ -476,6 +493,7 @@ export default function MapPage({ route }) {
 
   // A wide window: the stage page.
   const stage = html`<div class="p-map__stage">
+    ${grid}
     <a class="p-map__skip" href=${listHref}>Skip the map, show it as a list</a>
     <${StageBar}>
       <b>${MAP_WORDS.stage}</b>${stageLine(data) ? html`<span>${stageLine(data)}</span>` : null}

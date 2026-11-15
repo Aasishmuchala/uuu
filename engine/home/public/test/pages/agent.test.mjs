@@ -128,3 +128,19 @@ test("agent: one filled primary at most, and no creature", () => {
   assert.doesNotMatch(src, /Creature|creature=/);
   assert.doesNotMatch(src, /type="submit" variant="primary"/, "Add a lesson is not a second filled button");
 });
+
+// PLAN-COOK TB4: the head one row, the work one list, a 160 px label column.
+test("agent: the head is one row with the 40 px avatar, the state as a chip, Give it a task the one primary and Pause a ghost", () => {
+  const src = readFileSync(new URL("../../pages/agent.js", import.meta.url), "utf8");
+  assert.match(src, /<\$\{Avatar\} slug=\$\{a\.slug\} name=\$\{a\.name\} size=\$\{40\} \/>/);
+  assert.match(src, /<\$\{AgentState\} agent=\$\{a\} chip \/>/);
+  assert.match(src, /<\$\{Button\} variant="primary" icon="send" onClick=\$\{toComposer\}>\$\{WORDS\.give\}/);
+  assert.match(src, /<\$\{Button\} variant="ghost" busy=\$\{busy\} onClick=\$\{go\}>/, "Pause and Resume are ghosts, so one primary");
+  assert.equal((src.match(/variant="primary"/g) || []).length, 2, "Give it a task, and Save in a lesson's own edit row");
+  assert.match(src, /function Work\(/, "Working on and Recent work are one list");
+  const css = readFileSync(new URL("../../styles/pages/agent.css", import.meta.url), "utf8");
+  assert.match(css, /\.p-agent__fact \{[^}]*grid-template-columns: 160px minmax\(0, 1fr\);/);
+  assert.match(css, /\.p-agent__label \{[^}]*color: var\(--ink-3\);[^}]*font-size: var\(--fs-note\);/);
+  assert.match(css, /\.p-agent__list \{[^}]*list-style: none;/, "lists as plain lines");
+  assert.match(css, /\.k-page-header__lede \{[^}]*text-wrap: balance;/, "the description in balanced lines");
+});

@@ -1,7 +1,8 @@
 // An agent's page in one column (CONTRACTS-V2 17.5, CONTRACTS-V3 30 "Team and an agent"; PLAN-COOK T65 after
-// R02 and R05): the avatar, the name, what it does and its state, with Pause and "Give it a task" at the right;
-// then what it is working on (a TaskRow), its recent work, how it is set up (label and value rows: what it may and
-// may not do as written), its lessons, its standing instructions (folded) and the talk with its composer.
+// R02 and R05, TB4): the head is one row (the 40 px avatar, the name, its state as a chip, then "Give it a task" and
+// Pause) with what it does under it; then its work as one list with two group labels (what it is working on, its
+// recent work: TaskRows), how it is set up (label and value rows: what it may and may not do as written, the model
+// as a chip), its lessons, its standing instructions (folded) and the talk with its composer.
 // The five parts of the old tabs (Talk, Profile, Work, Instructions, Lessons) are sections now; the address keeps
 // `?tab=` (`#/team/<slug>?tab=lessons`) and opens the page at that section. The department comes from the map's
 // answer (GET /api/map); the jobs the composer offers from that department's answer; the model from GET /api/models.
@@ -12,8 +13,8 @@ import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { DeptChip, HealthNext, departmentOf, modelOf } from "./team.js";
 import {
-  AgentChip, AgentState, Avatar, Button, Composer, Conversation, Empty, ErrorNotice, Group, Icon, Loading, Markdown,
-  Mono, NotConnected, Notice, PageHeader, STARTED, TaskRow, TextInput, jobHref,
+  AgentChip, AgentState, Avatar, Button, Composer, Conversation, Empty, ErrorNotice, Icon, Loading, Markdown,
+  NotConnected, Notice, PageHeader, STARTED, Tag, TaskRow, TextInput, jobHref,
 } from "../kit/index.js";
 
 export const TABS = [
@@ -141,7 +142,7 @@ function PauseButton({ agent, onChanged }) {
   }
 
   return html`<div class="p-agent__pause">
-    <${Button} variant=${verb === "resume" ? "primary" : "plain"} busy=${busy} onClick=${go}>
+    <${Button} variant="ghost" busy=${busy} onClick=${go}>
       ${verb === "pause" ? "Pause" : "Resume"}
     <//>
     ${error && html`<p class="p-agent__error" role="alert">${text(error.message)}</p>`}
@@ -168,18 +169,21 @@ function toComposer() {
   if (box) box.focus({ preventScroll: true });
 }
 
-// The top: the avatar beside the name, what it does, and its state; Pause and "Give it a task" at the right.
+// The top, one row: the avatar inside the title, the state as a chip beside it, then "Give it a task" (the one
+// primary) and Pause; what it does under the row, in balanced lines.
 function Header({ data, onChanged }) {
   const a = data.agent;
   const note = headerNote(a);
   const name = text(a.name) || "Agent";
+  const title = html`<span class="p-agent__title"><${Avatar} slug=${a.slug} name=${a.name} size=${40} /><span>${name}</span></span>`;
   return html`<div class="p-agent__head">
-    <span class="p-agent__avatar"><${Avatar} slug=${a.slug} name=${a.name} size=${48} /></span>
-    <${PageHeader} title=${name} lead=${cap(a.summary, 400)}
+    <${PageHeader} title=${title} lead=${cap(a.summary, 400)}
       crumbs=${[{ label: "Team", href: "#/team" }, { label: name }]}
-      actions=${html`<${PauseButton} agent=${a} onChanged=${onChanged} />
-        <${Button} variant="plain" icon="send" onClick=${toComposer}>${WORDS.give}<//>`}>
-      <div class="p-agent__state"><${AgentState} agent=${a} /></div>
+      actions=${html`<span class="p-agent__state"><${AgentState} agent=${a} chip /></span>
+        <span class="p-agent__acts">
+          <${Button} variant="primary" icon="send" onClick=${toComposer}>${WORDS.give}<//>
+          <${PauseButton} agent=${a} onChanged=${onChanged} />
+        </span>`}>
       ${note && html`<p class="p-agent__note">${note} <a href="#/health">Open Health</a></p>`}
     <//>
   </div>`;
@@ -254,7 +258,7 @@ function Setup({ data, dept, model }) {
       ${tool.installed === false && html`<p class="p-agent__warn">Not installed yet.</p>`}
     <//>`}
     <${Fact} label=${WORDS.limits}><p>${limitsSentence(p.limits)}</p><//>
-    ${model && html`<${Fact} label=${WORDS.model}><span class="p-agent__model"><${Mono}>${model}<//></span><//>`}
+    ${model && html`<${Fact} label=${WORDS.model}><span class="p-agent__model"><${Tag}>${model}<//></span><//>`}
     <${Fact} label=${WORDS.reports}><${Reports} agent=${a} /><//>
     ${dept && html`<${Fact} label=${WORDS.dept}><${DeptChip} department=${dept} /><//>`}
   </dl>`;
@@ -265,7 +269,7 @@ function Working({ data }) {
   const recent = (data.recent || []).filter((t) => t && t.id);
   const nowId = a.doingNow && a.doingNow.taskId;
   const doing = nowId ? recent.find((t) => t.id === nowId) : null;
-  if (doing) return html`<div class="p-agent__rows"><${TaskRow} task=${doing} /></div>`;
+  if (doing) return html`<ul class="p-agent__rows"><li class="p-agent__row"><${TaskRow} task=${doing} /></li></ul>`;
   if (a.doingNow && a.doingNow.title) {
     return html`<p class="p-agent__now">${nowId
       ? html`<a href=${`#/tasks/${encodeURIComponent(nowId)}`}>${cap(a.doingNow.title, 200)}</a>`
@@ -422,14 +426,33 @@ function Lessons({ data, onChanged }) {
   </div>`;
 }
 
-// A section of the column, found by the address's `?tab=`.
-const Part = ({ tab, title, aside, children }) => html`<div class="p-agent__part" id=${sectionId(tab)}>
-  <${Group} title=${title} aside=${aside}>${children}<//>
-</div>`;
+// A section of the column, found by the address's `?tab=`: its 17 px heading, then its body.
+const Part = ({ tab, title, aside, children }) => html`<section class="p-agent__part" id=${sectionId(tab)}>
+  <div class="p-agent__part-head">
+    <h2 class="p-agent__part-title">${title}</h2>
+    ${aside ? html`<div class="p-agent__part-aside">${aside}</div>` : null}
+  </div>
+  ${children}
+</section>`;
 
-const Count = ({ n }) => (n ? html` <span class="p-agent__count">${n}</span>` : null);
+const Count = ({ n }) => (n ? html`<span class="p-agent__count"><${Tag}>${n}<//></span>` : null);
+
+// What it is working on and its recent work: one list in one panel, each part under a group label.
+function Work({ data, recent, onlyNow }) {
+  return html`<section class="p-agent__part p-agent__work" id=${sectionId("work")} aria-label="Its work">
+    <div class="p-agent__group">
+      <h2 class="p-agent__group-title">${WORDS.working}</h2>
+      <${Working} data=${data} />
+    </div>
+    ${!onlyNow && html`<div class="p-agent__group">
+      <h2 class="p-agent__group-title">${WORDS.recent}<${Count} n=${recent} /></h2>
+      <${Recent} data=${data} />
+    </div>`}
+  </section>`;
+}
 
 export default function Page({ route }) {
+  const { shell } = useApp();
   // The address is `#/team/<slug>`, so the slug is the second part.
   const parts = (route && route.parts) || [];
   const slug = text(parts[0] === "team" ? parts[1] : parts[0]);
@@ -451,6 +474,13 @@ export default function Page({ route }) {
     if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "start", behavior: "auto" });
   }, [ready, asked, slug, tab]);
 
+  // The title is drawn with its avatar, so the window's title is set here: "Marketer · Sthyra".
+  const docName = d && d.agent ? text(d.agent.name).slice(0, 40) || "Agent" : "";
+  const company = shell && shell.company ? text(shell.company.name).slice(0, 60) : "";
+  useEffect(() => {
+    if (docName && typeof document !== "undefined") document.title = [docName, company].filter(Boolean).join(" · ");
+  }, [docName, company]);
+
   if (!d) {
     let body;
     if (res.error && res.error.status === 404) {
@@ -467,6 +497,7 @@ export default function Page({ route }) {
 
   const a = d.agent || {};
   const lessons = (d.lessons || []).length;
+
   const recent = recentOthers(d.recent, a.doingNow).length;
   // With nothing but the task it is on now, the recent work is that task, already shown above.
   const onlyNow = !recent && (d.recent || []).some((t) => t && t.id && a.doingNow && t.id === a.doingNow.taskId);
@@ -477,8 +508,7 @@ export default function Page({ route }) {
       reason=${text(d.notConnected && d.notConnected.reason) || "The board is switched off, so agents and tasks cannot be reached."}
       next=${html`<${HealthNext} text=${d.notConnected && d.notConnected.next} />`} />`}
     <${Header} data=${d} onChanged=${refresh} />
-    <${Part} tab="work" title=${WORDS.working}><${Working} data=${d} /><//>
-    ${!onlyNow && html`<${Group} title=${html`${WORDS.recent}<${Count} n=${recent} />`}><${Recent} data=${d} /><//>`}
+    <${Work} data=${d} recent=${recent} onlyNow=${onlyNow} />
     <${Part} tab="profile" title=${WORDS.setup}><${Setup} data=${d} dept=${dept} model=${modelOf(a.slug, models.data)} /><//>
     <${Part} tab="lessons" title=${html`${WORDS.lessons}<${Count} n=${lessons} />`}><${Lessons} data=${d} onChanged=${refresh} /><//>
     <${Part} tab="instructions" title=${WORDS.instructions}><${Instructions} data=${d} open=${tab === "instructions"} /><//>
