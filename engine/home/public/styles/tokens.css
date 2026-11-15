@@ -16,35 +16,40 @@
    darker so a white card shows). Every ink reaches 4.5 to 1 on every surface. What floats (a dialog, a menu, a
    popover) is one overlay surface: --overlay with its --overlay-line edge and --overlay-shadow; the dim behind a
    dialog (--scrim) is lighter, and a menu or popover dims nothing. --info-bg is the info chip's tint (the accent at
-   14 percent); --shadow-btn the filled button's inner top highlight and small drop. */
+   14 percent); --shadow-btn the filled button's inner top highlight and small drop.
+   Third pass (fix round R5, R5-A): the dark ramp is one quiet cool grey (hue about 228, low chroma), its steps
+   wider (a card 7.5 L* off the ground, the overlay 5.7 L* above a card with a 16 percent edge); light's ground a
+   shade deeper (#eef0f4) under white cards with a #dcdfe5 edge. The dim is a cool near-black at 64 percent in dark
+   and in light a pale wash of the ground's own colour, so the page behind fades pale, never grey. Six quiet tints
+   (--tint-*) give identity to a small tile or an avatar, never a state. */
 
 /* ---- 1. The palette, dark (the default) */
 :root {
   color-scheme: dark;
 
-  --bg: #121214;
-  --stage: #0e0e10;
-  --panel: #19191d;
-  --side: #0a0a0c;
-  --card: #1f1f24;
-  --raise: #27272d;
-  --sel: #2c2c32;
-  --raise-2: #34343b;
+  --bg: #15171d;
+  --stage: #111318;
+  --panel: #1b1e26;
+  --side: #0c0d10;
+  --card: #232630;
+  --raise: #2a2e3a;
+  --sel: #303342;
+  --raise-2: #393d4e;
   --ctl: rgba(255,255,255,.07);
-  --field: #16161a;
+  --field: #191b22;
   --line: rgba(255,255,255,.09);
   --line-2: rgba(255,255,255,.14);
-  --overlay: #26262c;
-  --overlay-line: rgba(255,255,255,.14);
+  --overlay: #2f3240;
+  --overlay-line: rgba(255,255,255,.16);
 
-  --ink: #f4f4f5;
-  --ink-2: #c0c0c7;
-  --ink-3: #a1a1aa;
+  --ink: #f4f5f7;
+  --ink-2: #c3c6cf;
+  --ink-3: #a3a7b3;
 
   --accent: #86adff;
   --accent-fill: #3760d0;
   --accent-ink: #ffffff;
-  --info-bg: rgba(134,173,255,.14);
+  --info-bg: rgba(134,173,255,.12);
 
   --good: #62d39d;
   --good-bg: rgba(98,211,157,.14);
@@ -54,7 +59,7 @@
   --bad: #ff93a5;
   --bad-bg: rgba(255,147,165,.14);
   --bad-fill: #c93a55;
-  --spent: #7b7b85;
+  --spent: #7c808d;
   --add-bg: rgba(98,211,157,.18);
   --del-bg: rgba(255,147,165,.18);
 
@@ -67,7 +72,7 @@
 
   --tip: #f4f4f5;
   --tip-ink: #0f0f11;
-  --scrim: rgba(0,0,0,.5);
+  --scrim: rgba(6,7,10,.64);
   --pin: #ecc068;
   --pin-ink: #1d1503;
   --pin-line: #ecc068;
@@ -106,24 +111,24 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #f1f2f5;
-  --stage: #e7e9ed;
+  --bg: #eef0f4;
+  --stage: #e4e7ec;
   --panel: #ffffff;
-  --side: #eceef1;
+  --side: #e9ecf0;
   --card: #ffffff;
-  --raise: #eceef2;
-  --sel: #e5e8ed;
-  --raise-2: #dcdfe5;
+  --raise: #e8ebf0;
+  --sel: #e1e5eb;
+  --raise-2: #d6dae2;
   --ctl: rgba(16,24,40,.06);
   --field: #ffffff;
-  --line: #dfe2e7;
-  --line-2: #d0d4db;
+  --line: #dcdfe5;
+  --line-2: #ccd1d9;
   --overlay: #ffffff;
-  --overlay-line: #d5d8de;
+  --overlay-line: #d0d4dc;
 
-  --ink: #18181b;
-  --ink-2: #4a4b53;
-  --ink-3: #5d5f68;
+  --ink: #17181c;
+  --ink-2: #474a54;
+  --ink-3: #5a5e69;
 
   --accent: #2459dd;
   --accent-fill: #2459dd;
@@ -151,7 +156,7 @@
 
   --tip: #18181b;
   --tip-ink: #ffffff;
-  --scrim: rgba(15,17,21,.22);
+  --scrim: rgba(238,240,244,.72);
   --pin: #f0bd4a;
   --pin-ink: #1d1503;
   --pin-line: #a8740a;
@@ -175,24 +180,24 @@
   :root[data-theme="auto"] {
     color-scheme: light;
 
-    --bg: #f1f2f5;
-    --stage: #e7e9ed;
+    --bg: #eef0f4;
+    --stage: #e4e7ec;
     --panel: #ffffff;
-    --side: #eceef1;
+    --side: #e9ecf0;
     --card: #ffffff;
-    --raise: #eceef2;
-    --sel: #e5e8ed;
-    --raise-2: #dcdfe5;
+    --raise: #e8ebf0;
+    --sel: #e1e5eb;
+    --raise-2: #d6dae2;
     --ctl: rgba(16,24,40,.06);
     --field: #ffffff;
-    --line: #dfe2e7;
-    --line-2: #d0d4db;
+    --line: #dcdfe5;
+    --line-2: #ccd1d9;
     --overlay: #ffffff;
-    --overlay-line: #d5d8de;
+    --overlay-line: #d0d4dc;
 
-    --ink: #18181b;
-    --ink-2: #4a4b53;
-    --ink-3: #5d5f68;
+    --ink: #17181c;
+    --ink-2: #474a54;
+    --ink-3: #5a5e69;
 
     --accent: #2459dd;
     --accent-fill: #2459dd;
@@ -220,7 +225,7 @@
 
     --tip: #18181b;
     --tip-ink: #ffffff;
-    --scrim: rgba(15,17,21,.22);
+    --scrim: rgba(238,240,244,.72);
     --pin: #f0bd4a;
     --pin-ink: #1d1503;
     --pin-line: #a8740a;

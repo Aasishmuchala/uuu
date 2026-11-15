@@ -9,33 +9,33 @@
 // thing has a 1 px edge and a real shadow in both themes. Fix round A3 (T110): a card at least 4 L* off the ground
 // in both themes, every ink at 4.5 to 1 on every surface, one overlay surface for what floats, a lighter dim.
 export const THEMED = {
-  "--bg": ["#121214", "#f1f2f5"],
-  "--stage": ["#0e0e10", "#e7e9ed"],
-  "--panel": ["#19191d", "#ffffff"],
-  "--side": ["#0a0a0c", "#eceef1"],
-  "--card": ["#1f1f24", "#ffffff"],
-  "--raise": ["#27272d", "#eceef2"],
-  "--sel": ["#2c2c32", "#e5e8ed"],
-  "--raise-2": ["#34343b", "#dcdfe5"],
+  "--bg": ["#15171d", "#eef0f4"],
+  "--stage": ["#111318", "#e4e7ec"],
+  "--panel": ["#1b1e26", "#ffffff"],
+  "--side": ["#0c0d10", "#e9ecf0"],
+  "--card": ["#232630", "#ffffff"],
+  "--raise": ["#2a2e3a", "#e8ebf0"],
+  "--sel": ["#303342", "#e1e5eb"],
+  "--raise-2": ["#393d4e", "#d6dae2"],
   "--ctl": ["rgba(255,255,255,.07)", "rgba(16,24,40,.06)"],
-  "--field": ["#16161a", "#ffffff"],
+  "--field": ["#191b22", "#ffffff"],
   // The 1 px edge of a raised thing: 9 percent white in dark, a cool grey in light.
-  "--line": ["rgba(255,255,255,.09)", "#dfe2e7"],
-  "--line-2": ["rgba(255,255,255,.14)", "#d0d4db"],
+  "--line": ["rgba(255,255,255,.09)", "#dcdfe5"],
+  "--line-2": ["rgba(255,255,255,.14)", "#ccd1d9"],
   // What floats (a dialog, a menu, a popover): lighter than a card in dark, white in light; its edge and shadow.
-  "--overlay": ["#26262c", "#ffffff"],
-  "--overlay-line": ["rgba(255,255,255,.14)", "#d5d8de"],
-  "--ink": ["#f4f4f5", "#18181b"],
-  "--ink-2": ["#c0c0c7", "#4a4b53"],
+  "--overlay": ["#2f3240", "#ffffff"],
+  "--overlay-line": ["rgba(255,255,255,.16)", "#d0d4dc"],
+  "--ink": ["#f4f5f7", "#17181c"],
+  "--ink-2": ["#c3c6cf", "#474a54"],
   // Reads at 4.5 on every surface, the sidebar and the stage too, in both themes.
-  "--ink-3": ["#a1a1aa", "#5d5f68"],
+  "--ink-3": ["#a3a7b3", "#5a5e69"],
   "--accent": ["#86adff", "#2459dd"],
   // Dark: a little deeper than the link accent, so the filled primary is not the brightest thing on a screen;
   // white words on it read at 4.5.
   "--accent-fill": ["#3760d0", "#2459dd"],
   "--accent-ink": ["#ffffff", "#ffffff"],
   // The info chip's tint: the accent at about 14 percent.
-  "--info-bg": ["rgba(134,173,255,.14)", "#e6edfc"],
+  "--info-bg": ["rgba(134,173,255,.12)", "#e6edfc"],
   "--good": ["#62d39d", "#17703f"],
   "--good-bg": ["rgba(98,211,157,.14)", "#e2f2e8"],
   "--warn": ["#ecc068", "#855600"],
@@ -45,7 +45,7 @@ export const THEMED = {
   "--bad-bg": ["rgba(255,147,165,.14)", "#fde8ec"],
   // A solid danger fill (a danger button under the pointer): white words on it read at 4.5.
   "--bad-fill": ["#c93a55", "#c4304b"],
-  "--spent": ["#7b7b85", "#9d9da6"],
+  "--spent": ["#7c808d", "#9d9da6"],
   "--add-bg": ["rgba(98,211,157,.18)", "#d9f0e2"],
   "--del-bg": ["rgba(255,147,165,.18)", "#fbe0e5"],
   // Dark: a 4 percent white inner top highlight, then the contact shadow and the soft drop.
@@ -59,7 +59,7 @@ export const THEMED = {
   "--tip": ["#f4f4f5", "#18181b"],
   "--tip-ink": ["#0f0f11", "#ffffff"],
   // The dim behind a dialog or a sheet (a menu or a popover dims nothing).
-  "--scrim": ["rgba(0,0,0,.5)", "rgba(15,17,21,.22)"],
+  "--scrim": ["rgba(6,7,10,.64)", "rgba(238,240,244,.72)"],
   "--pin": ["#ecc068", "#f0bd4a"],
   "--pin-ink": ["#1d1503", "#1d1503"],
   "--pin-line": ["#ecc068", "#a8740a"],

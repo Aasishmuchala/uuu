@@ -266,11 +266,23 @@ function lstar(c) {
   return y > 0.008856 ? 116 * Math.cbrt(y) - 16 : 903.3 * y;
 }
 
-test("a card stands off the ground: at least 4 L* between --card and --bg in both themes (fix round A3)", () => {
-  for (const way of [{}, { theme: "light" }, { theme: "auto", systemLight: true }]) {
+test("a card stands off the ground: at least 5 L* in dark and 4 in light between --card and --bg (fix rounds A3 and R5)", () => {
+  for (const [way, floor] of [[{}, 5], [{ theme: "light" }, 4], [{ theme: "auto", systemLight: true }, 4]]) {
     const t = resolveTokens(way);
     const step = Math.abs(lstar(colourOf(t, "--card")) - lstar(colourOf(t, "--bg")));
-    assert.ok(step >= 4, `--card against --bg in ${JSON.stringify(way)}: ${step.toFixed(1)} L* < 4`);
+    assert.ok(step >= floor, `--card against --bg in ${JSON.stringify(way)}: ${step.toFixed(1)} L* < ${floor}`);
+  }
+});
+
+test("the dark neutrals carry a slight cool tint: blue above red, hue about 220 to 235, low chroma (fix round R5)", () => {
+  const t = resolveTokens({});
+  for (const name of ["--side", "--stage", "--bg", "--field", "--panel", "--card", "--raise", "--sel", "--raise-2", "--overlay"]) {
+    const { r, g, b } = colourOf(t, name);
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    assert.ok(b === max && r === min && max - min >= 3 && max - min <= 24, `${name} is a quiet cool grey: ${computed(t, name)}`);
+    const d = max - min;
+    const hue = 60 * ((r - g) / d + 4);
+    assert.ok(hue >= 220 && hue <= 235, `${name}'s hue is about 228: ${hue.toFixed(0)}`);
   }
 });
 
@@ -282,9 +294,17 @@ test("one overlay surface: in dark lighter than a card, in light white; its edge
   const light = resolveTokens({ theme: "light" });
   assert.equal(computed(light, "--overlay"), "#ffffff");
   assert.ok(luminance(colourOf(light, "--overlay-line")) < luminance(colourOf(light, "--line")), "the overlay's edge is firmer than a card's (light)");
-  // The dim is lighter than round A2's: half black in dark, about a fifth of the ink in light.
-  assert.ok(parseColour(computed(dark, "--scrim")).a <= 0.5, "the dark dim is at most half");
-  assert.ok(parseColour(computed(light, "--scrim")).a <= 0.25, "the light dim is at most a quarter");
+  // Fix round R5: the overlay a clear step above a card in dark (at least 4 L*) with its edge at 16 percent white.
+  assert.ok(lstar(colourOf(dark, "--overlay")) - lstar(colourOf(dark, "--card")) >= 4, "the overlay is a clear step above a card (dark)");
+  assert.ok(parseColour(computed(dark, "--overlay-line")).a >= 0.16, "the overlay's edge is at least 16 percent white (dark)");
+  // The dim (fix round R5): in dark a cool near-black at about two thirds; in light a pale wash toward the ground,
+  // so the page behind fades pale and never grey.
+  const dimDark = parseColour(computed(dark, "--scrim"));
+  assert.ok(dimDark.a >= 0.6 && dimDark.a <= 0.7 && dimDark.b >= dimDark.r && dimDark.r + dimDark.g + dimDark.b < 40, "the dark dim is a cool near-black at about two thirds");
+  const dimLight = parseColour(computed(light, "--scrim"));
+  const ground = colourOf(light, "--bg");
+  assert.ok(dimLight.a >= 0.6 && dimLight.a <= 0.8, "the light dim is a wash of about three quarters");
+  assert.deepEqual([dimLight.r, dimLight.g, dimLight.b], [ground.r, ground.g, ground.b], "the light dim is the ground's own colour");
 });
 
 test("every raised thing has a real shadow in both themes: the card, lift and float shadows are never none", () => {
