@@ -33,35 +33,56 @@ export function moneyParts(n) {
   };
 }
 
-// Where the limit's label sits against its tick: centred under it; from the tick onwards when the tick is near the
-// start (so it never covers "spent"); ending at the tick's right edge when the tick is near the end (never clipped).
+// Where the limit's label sits against its tick: ending at the tick (it reads "up to here"), or from the tick onwards
+// when the tick is near the start (so it never covers "spent"). It is held inside the bar's ends either way.
 export function limitAt(t) {
   if (t === null || t === undefined) return null;
-  if (t < 40) return "k-meter__legend-limit--after";
-  if (t > 80) return "k-meter__legend-limit--end";
-  return null;
+  return t < 40 ? "k-meter__legend-limit--after" : "k-meter__legend-limit--end";
+}
+
+// Whether the limit is the bar's own end (the treatment fits: the whole bar is today's limit). Then no tick is drawn
+// past the round end; the label ends at the bar's end.
+export const tickAtEnd = (t) => typeof t === "number" && t >= 99.5;
+
+// The tick's left edge, held inside the bar: at 0 percent it starts at the bar's start, at 100 it ends at its end.
+export function tickLeft(t) {
+  return `calc(${t}% - ${Math.round(t * 2) / 100}px)`;
 }
 
 const share = (x) => (typeof x === "number" && Number.isFinite(x) ? Math.min(100, Math.max(0, x)) : 0);
 
 // shares = { spent, fits, over } in percent; tick = where the limit is, in percent; legend = { spent, limit } words.
 // The plain form (`plain`) is one --ink part, for "spent of approved": its width is shares.spent.
+// Two tones and the over part: what is spent, then this treatment from where spent ends, then the part over the limit
+// drawn from the tick onwards only. Each part is laid at its own place (never pushed by a gap), so the over part
+// starts at the tick exactly.
 export function Meter({ shares, tick, legend, plain = false, label }) {
   const s = shares || {};
-  const parts = plain
-    ? [["k-meter__fill", share(s.spent)]]
-    : [["k-meter__spent", share(s.spent)], ["k-meter__fits", share(s.fits)], ["k-meter__over", share(s.over)]];
+  const sp = share(s.spent);
+  const fi = share(s.fits);
+  const ov = share(s.over);
   const t = !plain && typeof tick === "number" && Number.isFinite(tick) ? share(tick) : null;
+  const parts = plain
+    ? [["k-meter__fill", 0, sp]]
+    : [["k-meter__spent", 0, sp], ["k-meter__fits", sp, fi], ["k-meter__over", t !== null && ov > 0 ? t : sp + fi, ov]];
+  const at = (c, x, w) => (x > 0 && c !== "k-meter__over"
+    ? `left: calc(${x}% + 2px); width: max(0px, calc(${w}% - 2px));`
+    : `left: ${x}%; width: ${w}%;`);
+  const end = tickAtEnd(t);
   const name = label || (legend ? [legend.spent, legend.limit].filter(Boolean).join(", ") : undefined);
+  const where = limitAt(t);
+  const labelAt = t === null ? undefined
+    : end ? "left: 100%;"
+    : where === "k-meter__legend-limit--end" ? `left: calc(${tickLeft(t)} + 2px);` : `left: ${tickLeft(t)};`;
   return html`<div class=${cx("k-meter", plain && "k-meter--plain")} role="img" aria-label=${name}>
     <div class="k-meter__track">
-      ${parts.filter(([, w]) => w > 0).map(([c, w]) => html`<i class=${c} style=${`width: ${w}%;`}></i>`)}
+      ${parts.filter(([, , w]) => w > 0).map(([c, x, w]) => html`<i class=${c} style=${at(c, x, w)}></i>`)}
     </div>
-    ${t !== null ? html`<b class="k-meter__tick" style=${`left: ${t}%;`}></b>` : null}
+    ${t !== null && !end ? html`<b class="k-meter__tick" style=${`left: ${tickLeft(t)};`}></b>` : null}
     ${legend
       ? html`<div class="k-meter__legend" aria-hidden="true">
           <span class="k-meter__legend-spent">${legend.spent}</span>
-          ${legend.limit ? html`<span class=${cx("k-meter__legend-limit", limitAt(t))} style=${t !== null ? `left: ${t}%;` : undefined}>${legend.limit}</span>` : null}
+          ${legend.limit ? html`<span class=${cx("k-meter__legend-limit", where)} style=${labelAt}>${legend.limit}</span>` : null}
         </div>`
       : null}
   </div>`;

@@ -244,7 +244,11 @@ test("the card: Approve opens the confirm; nothing is sent until its button; the
     assert.ok(elements(root).some((e) => e.localName === "button" && textOf(e).trim() === "Not yet"));
     fire(yes, "click");
     await settle();
-    assert.deepEqual(f.calls.at(-1).body, { id: "staged:shotlist:g1", action: "approve", version: "v1", variant: "a" });
+    const sent = f.calls.filter((c) => c.method === "POST");
+    assert.equal(sent.length, 1, "one approval sent");
+    assert.deepEqual(sent[0].body, { id: "staged:shotlist:g1", action: "approve", version: "v1", variant: "a" });
+    // Fix round R5: then the approved film's record is read once, for its clips' states (nothing else is sent).
+    assert.deepEqual(f.calls.filter((c) => c.method !== "POST").map((c) => [c.method, c.path]), [["GET", "/api/studio/films/g1"]]);
     // Fix round A2 (T101): the server's approved sentence is shown as it sent it, a text node.
     const said = elements(root).find((e) => hasClass(e, "k-sl__done-message"));
     assert.equal(textOf(said), "Approved. whatever the server says");
@@ -511,7 +515,7 @@ test("T101: wholeCut leaves the room under the last whole part, and nothing when
   assert.equal(sl.wholeCut(300, []), 0);
 });
 
-test("T101: the rail's secondary lines are 44 px rows that open in place; the time sentence is behind one, as sent", async () => {
+test("T101, R5: the rail's secondary lines are 36 px rows that open in place, the money rows' pitch; the time sentence is behind one, as sent", async () => {
   const root = await showTree(sl.ShotlistCard, { item: LAKE });
   const heads = elements(root).filter((e) => hasClass(e, "k-sl__fold-head"));
   const names = heads.map((h) => textOf(elements(h).find((e) => hasClass(e, "k-sl__fold-name")) || h));
@@ -524,7 +528,12 @@ test("T101: the rail's secondary lines are 44 px rows that open in place; the ti
     assert.ok(textOf(time).includes(v.cost.time), "as sent");
   }
   const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
-  assert.match(/\.k-sl__fold-head \{([^}]*)\}/.exec(sheet)[1], /min-height: 44px;/);
+  // Fix round R5: one pitch down the rail, the money's rows and these: 36 px, a label in the second ink, its value in the ink.
+  const head = /\.k-sl__fold-head \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(head, /min-height: 36px;/);
+  assert.match(head, /color: var\(--ink-2\);/);
+  assert.match(/\.k-sl__fold-aside \{([^}]*)\}/.exec(sheet)[1], /color: var\(--ink\);/);
+  assert.match(readFileSync(join(PUBLIC, "styles", "kit", "money.css"), "utf8"), /\.k-money__row \{[^}]*min-height: 36px;/);
   assert.match(sheet, /clip-path: inset\(0 0 var\(--k-sl-cut, 0px\) 0\);/, "the body never shows a cut line");
 });
 
@@ -645,9 +654,13 @@ test("T117: approved, the stage is a sheet of every board cropped: its number on
   const open = elements(t1).find((e) => e.localName === "button");
   assert.equal(open.getAttribute("aria-label"), "Treatment A, board s01, open it larger");
   const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
-  assert.match(/\.k-sl__sheet \{([^}]*)\}/.exec(sheet)[1], /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/, "three across");
-  assert.match(sheet, /\.k-sl \.k-work__stage > \.k-sl__sheet \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/, "two on a phone");
-  assert.match(/\.k-sl__tile-facts \{([^}]*)\}/.exec(sheet)[1], /font-variant-numeric: tabular-nums;/);
+  // Fix round R5: the sheet fills the stage, two across (about 400 px each at 1280), one on a phone; the price in the
+  // third ink.
+  assert.match(/\.k-sl__sheet \{([^}]*)\}/.exec(sheet)[1], /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/, "two across");
+  assert.match(sheet, /\.k-sl \.k-work__stage > \.k-sl__sheet \{[^}]*grid-template-columns: minmax\(0, 1fr\);/, "one on a phone");
+  const facts = /\.k-sl__tile-facts \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(facts, /font-variant-numeric: tabular-nums;/);
+  assert.match(facts, /color: var\(--ink-3\);/);
   assert.equal(sl.SHOTLIST_WORDS.openLarger, "open it larger");
   assert.equal(sl.SHOTLIST_WORDS.shotsApproved, "The shots approved", "the word stays: it names the sheet");
 });
@@ -675,4 +688,88 @@ test("T117: a board of the sheet opens larger in the kit's full-size viewer, wit
   fire(elements(root).find((e) => e.getAttribute("aria-label") === "Close"), "click");
   await settle();
   assert.ok(!within(root, "k-dialog"));
+});
+
+// ---- Fix round R5 ----
+
+test("R5: the rail is one flow: the body as tall as what it holds, the foot under the last row, held at the bottom only when full", () => {
+  const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
+  const body = /\.k-sl:not\(\.k-sl--done\) \.k-rail__body \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(body, /flex: 0 1 auto;/, "no taller than what it holds, and gives way when the rail is full");
+  assert.match(body, /padding-bottom: 0;/, "the foot's rule is the last row's hairline");
+  assert.match(/\.k-sl:not\(\.k-sl--done\) \.k-sl__rail \{([^}]*)\}/.exec(sheet)[1], /flex: 0 1 auto;/);
+  assert.match(/\.k-sl:not\(\.k-sl--done\) \.k-sl__rail > \.k-sl__folds \{([^}]*)\}/.exec(sheet)[1], /flex: 0 1 auto;/, "the rows never stretch into a band");
+});
+
+test("R5: the reel's boards share the stage's width and stand 24 px over the cards; the stage tells the sheet how many", async () => {
+  const root = await showTree(sl.ShotlistCard, { item: LAKE });
+  const boards = elements(root).find((e) => hasClass(e, "k-sl__boards"));
+  assert.match(styleOf(boards), /--k-sl-n: \d+;/);
+  const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
+  assert.match(sheet, /--k-sl-tw: clamp\(100px, calc\(\(100cqw - \(var\(--k-sl-n, 6\) - 1\) \* var\(--s-2\)\) \/ var\(--k-sl-n, 6\)\), 160px\);/);
+  assert.match(sheet, /grid-auto-columns: var\(--k-sl-tw\);/);
+  assert.match(sheet, /\.k-work__stage:has\(\.k-sl__boards--reel\) \{\s*padding-bottom: var\(--s-2\);/, "8 px, the strip's rule and its 16 px");
+});
+
+test("R5: clipStates reads each shot's newest take from the film record; queued with none; null when there are no shots", () => {
+  const rows = [{ id: "s01", move: "A slow push." }, { id: "s02", move: "Drift." }, { id: "s03", move: "Rise." }];
+  const film = { shots: [
+    { id: "s02", move: "x", takes: [{ state: "refused" }, { state: "made" }] },
+    { id: "s01", move: "x", takes: [{ state: "making" }] },
+    { id: "s03", move: "x", takes: [] },
+    { id: "s04", move: "Extra.", takes: [{ state: "<b>odd</b>" }] },
+    { id: "../x", takes: [{ state: "made" }] },
+  ] };
+  const got = sl.clipStates(film, rows);
+  assert.deepEqual(got.rows, [
+    { id: "s01", words: "A slow push.", state: "making" },
+    { id: "s02", words: "Drift.", state: "made" },
+    { id: "s03", words: "Rise.", state: "queued" },
+    { id: "s04", words: "Extra.", state: "queued" },
+  ]);
+  assert.equal(got.made, 1);
+  assert.equal(sl.madeWords(got.made, got.rows.length), "1 of 4 made");
+  for (const none of [null, {}, { shots: [] }, { shots: "x" }, { shots: [{ id: "x" }] }]) assert.equal(sl.clipStates(none, rows), null, JSON.stringify(none));
+  assert.deepEqual(Object.keys(sl.CLIP_STATES), ["queued", "making", "made", "refused", "failed"]);
+  assert.equal(sl.CLIP_STATES.queued.tone, "neutral", "the resting state takes no colour");
+  assert.equal(sl.SHOTLIST_WORDS.clipsTitle, "The clips");
+});
+
+test("R5: approved, the rail lists each clip's state under what was approved, from GET /api/studio/films/:taskId; nothing without it", async () => {
+  const v = { ...variant("a", "Slow approach"), letter: "A", title: "Slow approach" };
+  const done = { action: "approve", version: v, title: "Approve a shotlist", id: "staged:shotlist:g1", studio: "#/dashboards/studio?film=g1" };
+  const f = stubFetch((path) => (path === "/api/studio/films/g1"
+    ? { status: 200, body: { shots: [{ id: "s01", takes: [{ state: "made" }] }, { id: "s02", takes: [] }] } }
+    : { status: 404, body: {} }));
+  try {
+    const root = await showTree(sl.ShotlistDone, { done });
+    assert.deepEqual(f.calls.map((c) => [c.method, c.path]), [["GET", "/api/studio/films/g1"]], "one read");
+    const rail = elements(root).find((e) => hasClass(e, "k-rail"));
+    const clips = elements(rail).filter((e) => hasClass(e, "k-sl__clip"));
+    assert.equal(clips.length, 2);
+    assert.equal(textOf(clips[0]), "s01A slow push.Made");
+    assert.ok(elements(clips[0]).some((e) => hasClass(e, "k-tag--good")));
+    assert.equal(textOf(clips[1]), "s02A slow push.Queued");
+    assert.ok(elements(clips[1]).some((e) => hasClass(e, "k-tag--neutral")));
+    assert.match(textOf(rail), /The clips1 of 2 made/);
+    // Under what was approved, before what happens next.
+    const blocks = elements(rail).filter((e) => hasClass(e, "k-blk")).map((b) => textOf(elements(b).find((x) => hasClass(x, "k-blk__name"))));
+    assert.deepEqual(blocks.slice(0, 2), ["What you approved", "The clips"]);
+  } finally {
+    f.restore();
+  }
+  const g = stubFetch(() => ({ status: 404, body: { error: "no film" } }));
+  try {
+    const root = await showTree(sl.ShotlistDone, { done });
+    assert.ok(!elements(root).some((e) => hasClass(e, "k-sl__clip")), "no record: no clip is listed");
+    assert.doesNotMatch(textOf(root), /The clips|made$/);
+  } finally {
+    g.restore();
+  }
+});
+
+test("R5: a board opened larger is a dialog as tall as the board and its line, no band above or below", () => {
+  const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
+  assert.match(sheet, /\.k-dialog__panel--full:has\(\.k-sl__view\) \{\s*height: auto;/);
+  assert.match(/\.k-sl__view-fig \{([^}]*)\}/.exec(sheet)[1], /width: min\(100cqw, calc\(\(100dvh - var\(--k-sl-vroom\)\) \* var\(--k-sl-vr\)\)\);/);
 });

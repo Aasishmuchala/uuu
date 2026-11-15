@@ -93,8 +93,26 @@ test("Meter: three parts, a tick, a legend, and an aria-label made of the legend
   assert.equal(meter.getAttribute("role"), "img");
   assert.equal(meter.getAttribute("aria-label"), "$2.00 spent, limit $3.00");
   for (const c of ["k-meter__spent", "k-meter__fits", "k-meter__over", "k-meter__tick"]) assert.equal(byClass(root, c).length, 1, c);
-  assert.match(byClass(root, "k-meter__tick")[0].style.cssText, /left: 77\.9%/);
-  assert.match(byClass(root, "k-meter__spent")[0].style.cssText, /width: 51\.9%/);
+  assert.match(byClass(root, "k-meter__tick")[0].style.cssText, /left: calc\(77\.9% - 1\.56px\);/, "held inside the bar's ends");
+  assert.match(byClass(root, "k-meter__spent")[0].style.cssText, /left: 0%; width: 51\.9%;/);
+  // Fix round R5: this treatment from where spent ends, 2 px apart; the over part from the tick exactly, never before.
+  assert.match(byClass(root, "k-meter__fits")[0].style.cssText, /left: calc\(51\.9% \+ 2px\); width: max\(0px, calc\(26% - 2px\)\);/);
+  assert.match(byClass(root, "k-meter__over")[0].style.cssText, /^left: 77\.9%; width: 22\.1%;$/);
+});
+
+test("Fix round R5: a treatment that fits fills the bar to its limit at the end: no tick past the round end, the label ends at the end", async () => {
+  const fits = moneyParts({ base: 185, most: 370, daily: 300, dayLeft: 260 });
+  assert.equal(fits.tick, 100);
+  assert.equal(mod.tickAtEnd(100), true);
+  assert.equal(mod.tickAtEnd(77.9), false);
+  assert.equal(mod.tickLeft(0), "calc(0% - 0px)");
+  assert.equal(mod.tickLeft(100), "calc(100% - 2px)");
+  const root = await show(Meter, { shares: fits.shares, tick: fits.tick, legend: { spent: "$0.40 spent", limit: "limit $3.00" } });
+  assert.equal(byClass(root, "k-meter__tick").length, 0);
+  const label = byClass(root, "k-meter__legend-limit")[0];
+  assert.ok(classesOf(label).includes("k-meter__legend-limit--end"));
+  assert.match(label.style.cssText, /left: 100%;/);
+  assert.equal(byClass(root, "k-meter__over").length, 0, "nothing over");
 });
 
 test("Meter: the plain form is one part and has no tick", async () => {
@@ -111,30 +129,34 @@ test("Sum: right-aligned values, and nothing for an empty value", async () => {
   assert.match(css("kit/money.css"), /\.k-money__row dd \{[^}]*text-align: right/);
 });
 
-test("the figure is 40 px at 500 in tabular figures, the track is 6 px, the 2 px tick in the ink stands 3 px proud (fix round A3)", () => {
+test("the figure is 40 px at 500 in tabular figures, the track is 6 px with round ends, the 2 px tick in the ink stands 2 px proud (fix rounds A3, R5)", () => {
   const c = css("kit/money.css");
   assert.match(c, /\.k-money__amount \{[^}]*var\(--fs-figure\)[^}]*font-weight: var\(--fw-medium\)/);
   assert.match(c, /\.k-money__figure \{[^}]*tabular-nums/);
   const tick = /\.k-meter__tick \{([^}]*)\}/.exec(c)[1];
-  assert.match(tick, /top: -3px;/);
+  assert.match(tick, /top: -2px;/);
   assert.match(tick, /width: 2px;/);
-  assert.match(tick, /height: 12px;/);
+  assert.match(tick, /height: 10px;/);
   assert.match(tick, /background: var\(--ink\);/);
-  assert.match(c, /\.k-meter__track \{[^}]*height: 6px/);
+  assert.doesNotMatch(tick, /margin-left/, "kit/money.js holds it inside the bar");
+  assert.match(c, /\.k-meter__track \{[^}]*height: 6px; border-radius: 3px;[^}]*overflow: hidden;/);
   // "about", the amount and "up to" on one baseline, as one unit: nothing pushes "up to" to the far edge.
   assert.match(/\.k-money__figure \{([^}]*)\}/.exec(c)[1], /align-items: baseline;/);
   assert.doesNotMatch(/\.k-money__upto \{([^}]*)\}/.exec(c)[1], /margin[^;]*auto/);
 });
 
-test("Fix round A2 (T101): the limit's label is centred under its tick, from it near the start, ending at it near the end", async () => {
-  assert.equal(mod.limitAt(62), null, "centred");
+test("Fix round R5: the limit's label stands at its tick: ending at it, or from it near the start; never past the bar's end", async () => {
+  assert.equal(mod.limitAt(62), "k-meter__legend-limit--end", "it ends at the tick, never floats mid-bar");
   assert.equal(mod.limitAt(20), "k-meter__legend-limit--after");
   assert.equal(mod.limitAt(100), "k-meter__legend-limit--end", "never clipped at the right end");
   assert.equal(mod.limitAt(null), null);
-  const root = await show(Meter, { shares: OVER.shares, tick: 100, legend: { spent: "$2.00 spent", limit: "limit $3.00" } });
-  assert.ok(classesOf(byClass(root, "k-meter__legend-limit")[0]).includes("k-meter__legend-limit--end"));
+  const root = await show(Meter, { shares: OVER.shares, tick: OVER.tick, legend: { spent: "$2.00 spent", limit: "limit $3.00" } });
+  const label = byClass(root, "k-meter__legend-limit")[0];
+  assert.ok(classesOf(label).includes("k-meter__legend-limit--end"));
+  assert.match(label.style.cssText, /left: calc\(calc\(77\.9% - 1\.56px\) \+ 2px\);/, "its end on the tick's right edge");
   const c = css("kit/money.css");
-  assert.match(/\.k-meter__legend-limit \{([^}]*)\}/.exec(c)[1], /transform: translateX\(-50%\);/, "centred under the tick");
+  assert.match(/\.k-meter__legend-limit--end \{([^}]*)\}/.exec(c)[1], /transform: translateX\(-100%\);/);
+  assert.doesNotMatch(/\.k-meter__legend-limit \{([^}]*)\}/.exec(c)[1], /translateX\(-50%\)/, "no longer centred under the tick");
 });
 
 test("Fix round A2 (T101): one problem colour, on figures only; the over row's words in the default ink; values in one weight", async () => {

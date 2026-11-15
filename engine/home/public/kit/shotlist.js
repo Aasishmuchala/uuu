@@ -16,7 +16,7 @@
 // only from the server's numbers (kit/money.js moneyParts); its sentences are shown as sent.
 // Acts through POST /api/inbox/act with the item's version and, for an approval, `variant` (a, b or c).
 import { html, useEffect, useLayoutEffect, useRef, useState } from "../vendor/preact-htm.js";
-import { api } from "../lib/api.js";
+import { api, useResource } from "../lib/api.js";
 import { when } from "../lib/format.js";
 import { queueHref } from "../lib/queue.js";
 import { Button } from "./button.js";
@@ -95,6 +95,20 @@ export const SHOTLIST_WORDS = {
   backNeeds: "Back to Needs you",
   // Fix round A3 (T117): a board of the approved sheet opens larger.
   openLarger: "open it larger",
+  // Fix round R5: the approved film's clips, from the home server's film record. "%n of %m made".
+  clipsTitle: "The clips",
+  clipsMade: "%n of %m made",
+};
+
+// A clip's state in the owner's words and the chip's tone: from the newest take of its shot in the home server's film
+// record (GET /api/studio/films/:taskId); a shot with no take yet is queued. A tone only where a state is not the
+// resting one (queued).
+export const CLIP_STATES = {
+  queued: { text: "Queued", tone: "neutral" },
+  making: { text: "Making", tone: "info" },
+  made: { text: "Made", tone: "good" },
+  refused: { text: "Refused", tone: "bad" },
+  failed: { text: "Failed", tone: "bad" },
 };
 
 // A word with the treatment's letter in it: withLetter("approveOne", "A") is "Approve A and its cost".
@@ -103,6 +117,7 @@ export function withLetter(key, letter) {
 }
 
 const ID = /^[abc]$/;
+const SHOT_ID = /^s\d{2,3}$/;
 const GOAL_ID = /^[A-Za-z0-9-]{1,64}$/;
 const PROMPT_FOLD = 110;
 
@@ -268,6 +283,34 @@ export function limitLines(item) {
 // joined to the next by a no-break space. Only spaces change; every word stays as sent.
 export function keepShort(title) {
   return text(title).replace(/(^|\s)(\S)\s+(?=\S)/g, "$1$2\u00a0");
+}
+
+// The clips of an approved film, in the order of the approved shots: { rows: [{ id, words, state }], made } from the
+// film record's shots (`state` a key of CLIP_STATES: the newest take's, "queued" with none); null when the record has
+// no shots (nothing is guessed then). `rows` are the approved treatment's shots (shotRows), for the order and the
+// words; a shot of the record that is not among them is still listed, after them.
+export function clipStates(film, rows) {
+  const shots = list(film && film.shots).filter((s) => s && typeof s === "object" && SHOT_ID.test(text(s.id)));
+  if (!shots.length) return null;
+  const byId = new Map(shots.map((s) => [text(s.id), s]));
+  const mine = list(rows).filter((r) => r && byId.has(r.id));
+  const out = [];
+  const seen = new Set();
+  for (const id of [...mine.map((r) => r.id), ...shots.map((s) => text(s.id))]) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const s = byId.get(id);
+    const takes = list(s.takes).filter((t) => t && typeof t === "object");
+    const last = takes.length ? text(takes[takes.length - 1].state) : "";
+    const row = mine.find((r) => r.id === id);
+    out.push({ id, words: (row && row.move) || cap(s.move, 200), state: Object.hasOwn(CLIP_STATES, last) ? last : "queued" });
+  }
+  return { rows: out, made: out.filter((r) => r.state === "made").length };
+}
+
+// "0 of 6 made".
+export function madeWords(made, of) {
+  return SHOTLIST_WORDS.clipsMade.replace("%n", String(made)).replace("%m", String(of));
 }
 
 // ---- The stage, the strip and the decision (PLAN-COOK T40) ----
@@ -503,7 +546,7 @@ function TreatmentStage({ v, at, onAt }) {
   // shows; the reel's boards take the same shape, each its own box covering it.
   const vars = cropVars(b.crop);
   return html`${bar}
-    <div class=${cx("k-sl__boards", n > 1 && "k-sl__boards--reel")}>
+    <div class=${cx("k-sl__boards", n > 1 && "k-sl__boards--reel")} style=${n > 1 ? `--k-sl-n: ${n};` : undefined}>
       <div class=${cx("k-sl__fit", vars && "k-sl__fit--crop")} style=${vars ? `--k-sl-ar: ${b.crop.ratio}; ${vars}` : undefined}>
         <${Shot} src=${b.url} alt=${`${name}, board ${b.shot}`} tags=${[{ text: b.shot, at: "tl" }]}>
           ${s ? html`<${Caption} s=${s} />` : null}
@@ -659,14 +702,17 @@ function BoardViewer({ name, rows, at, onAt, onClose }) {
 // the top as in the other states, then every board cropped to its picture, three across (two on a phone), each with its
 // shot's number on the picture and one line under it (the shot's words, then its seconds and cost); a board opens
 // larger in the kit's viewer. The rail says it is approved and when, what was approved (the treatment, its length and
-// clips, its cost from the server's numbers), what happens next in the server's words, then "Open Studio" (the one
-// primary) with "Back to Needs you" beside it; the shots are on the sheet, so the rail does not list them again (only
-// what the item carried: no state of a clip is guessed here; the film's page in Studio is where progress lives).
-// Anything else is the server's message on one line.
+// clips, its cost from the server's numbers), the clips as the home server's film record gives them (fix round R5: one
+// row a shot with its state, "0 of 6 made"; one read of GET /api/studio/films/:taskId when the card is drawn, and
+// nothing at all when that record has no shots: no state of a clip is guessed here), what happens next in the server's
+// words, then "Open Studio" (the one primary) with "Back to Needs you" beside it. Anything else is the server's message
+// on one line.
 export function ShotlistDone({ done, focus = true }) {
   const ref = useRef(null);
   const railRef = useRef(null);
   const [open, setOpen] = useState(null);
+  const film = goalIdOf({ id: done && done.id });
+  const record = useResource(done && done.action === "approve" && done.version && film ? `/api/studio/films/${encodeURIComponent(film)}` : null);
   useEffect(() => { if (focus && ref.current && typeof ref.current.focus === "function") ref.current.focus(); }, []);
   useWholeLines(railRef);
   if (!done) return null;
@@ -706,6 +752,7 @@ export function ShotlistDone({ done, focus = true }) {
         ? [`about ${creditsDollars(c.base)}`, Number.isInteger(c.most) && c.most > c.base ? `up to ${creditsDollars(c.most)}` : ""].filter(Boolean).join(", ") : "" },
     ].filter((f) => f.value);
     const time = c ? cap(c.time, 300) : "";
+    const clipsNow = clipStates(record.data, rows);
     const rail = html`<div class="k-sl__rail" ref=${railRef}>
       <div class="k-sl__done-head">
         <p class="k-sl__done-mark">
@@ -717,6 +764,13 @@ export function ShotlistDone({ done, focus = true }) {
       <${Blk} title=${SHOTLIST_WORDS.whatApproved}>
         <dl class="k-sl__facts">${facts.map((f) => html`<div key=${f.label} class="k-sl__fact"><dt>${f.label}</dt><dd>${f.value}</dd></div>`)}</dl>
       <//>
+      ${clipsNow ? html`<${Blk} title=${SHOTLIST_WORDS.clipsTitle} aside=${madeWords(clipsNow.made, clipsNow.rows.length)}>
+        <ul class="k-sl__clips">${clipsNow.rows.map((r) => html`<li key=${r.id} class="k-sl__clip">
+          <span class="k-sl__clip-id">${r.id}</span>
+          <span class="k-sl__clip-words" title=${r.words || undefined}>${r.words}</span>
+          <${Tag} tone=${CLIP_STATES[r.state].tone}>${CLIP_STATES[r.state].text}<//>
+        </li>`)}</ul>
+      <//>` : null}
       ${time ? html`<${Blk} title=${SHOTLIST_WORDS.next}><p class="k-sl__say">${time}</p><//>` : null}
       ${done.studio ? html`<div class="k-sl__done-go">
         <${Button} variant="primary" href=${done.studio}>${SHOTLIST_WORDS.openStudio}<//>

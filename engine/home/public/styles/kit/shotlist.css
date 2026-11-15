@@ -260,16 +260,21 @@
   padding-bottom: var(--k-sl-cut, 0px);
 }
 
-/* A wide window: what is above the rows (a notice, the money) holds still and never shrinks; the rows under it are
-   the rail's scroller, cut only between whole parts in the same way (--k-sl-fcut). */
+/* A wide window: the rail is one flow with no dead band (fix round R5): the cost, its rows, then the foot (the notice
+   and the actions) straight under the last row, its rule the rows' last hairline. The body is as tall as what it holds
+   and gives way only when the rail is full: then the foot is held at the rail's bottom and the rows under the money are
+   the scroller, cut only between whole parts (--k-sl-fcut); what is above them (a notice, the money) holds still and
+   never shrinks. */
 @media (min-width: 860px) {
   .k-sl:not(.k-sl--done) .k-rail__body {
     display: flex;
     flex-direction: column;
+    flex: 0 1 auto;
+    padding-bottom: 0;
   }
 
   .k-sl:not(.k-sl--done) .k-sl__rail {
-    flex: 1 1 0;
+    flex: 0 1 auto;
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -280,8 +285,8 @@
   }
 
   .k-sl:not(.k-sl--done) .k-sl__rail > .k-sl__folds {
-    flex: 1 1 auto;
-    min-height: 88px;
+    flex: 0 1 auto;
+    min-height: 72px;
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
@@ -341,9 +346,10 @@
   overflow-wrap: anywhere;
 }
 
-/* ---- The rows under the money: how long, the brand check, the scores and the shots, each 44 px, a line icon, its
-   name in the default ink, a short fact in the second ink that ends 8 px before one 20 px chevron column (kept empty on
-   a row that does not open), and what it opens to under it. The rules start at the content's edge. */
+/* ---- The rows under the money: how long, the brand check, the scores and the shots, each 36 px, the pitch of the
+   money's rows above them (fix round R5: one rhythm down the rail): a line icon, its name as a label in the second ink,
+   a short fact as its value in the ink that ends 8 px before one 20 px chevron column (kept empty on a row that does
+   not open), and what it opens to under it. The rules start at the content's edge. */
 .k-sl__folds {
   padding: 0 var(--pad);
 }
@@ -357,14 +363,14 @@
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  min-height: 44px;
+  min-height: 36px;
   margin: 0 calc(-1 * var(--s-2));
-  padding: var(--s-2);
+  padding: 7px var(--s-2);
   border-radius: var(--r-2);
-  color: var(--ink);
-  font-size: var(--fs-ui);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
   font-weight: var(--fw-regular);
-  line-height: var(--lh-ui);
+  line-height: var(--lh-note);
   list-style: none;
   cursor: pointer;
   transition: background-color var(--t-fast) var(--ease);
@@ -401,9 +407,9 @@ summary.k-sl__fold-head:hover {
 .k-sl__fold-aside {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--ink-2);
-  font-size: var(--fs-note);
-  line-height: var(--lh-note);
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -437,8 +443,11 @@ summary.k-sl__fold-head:hover {
   padding-bottom: var(--s-2);
 }
 
+/* Each column as wide as its longest name with its figure (fix round R5: "Composition" is whole, never cut), the
+   three spread across the row. */
 .k-sl__fold .k-pick-scores__row {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, max-content);
+  justify-content: space-between;
   column-gap: var(--s-4);
   border-top: 0;
 }
@@ -779,8 +788,8 @@ summary.k-sl__fold-head:hover {
   justify-content: space-between;
   align-items: center;
   gap: var(--s-3);
-  min-height: 32px;
-  padding: 6px 0;
+  min-height: 36px;
+  padding: 7px 0;
   border-top: 1px solid var(--line);
 }
 
@@ -806,6 +815,51 @@ summary.k-sl__fold-head:hover {
   overflow-wrap: anywhere;
 }
 
+/* The clips of the approved film as the home server's film record gives them (fix round R5): one 36 px row a shot,
+   its number in the third ink, its words in the second, its state as the kit's chip at the right (a tone only where
+   a state differs from "queued"); the count of those made is the block's aside. */
+.k-sl__clips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.k-sl__clip {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 36px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+
+.k-sl__clip:first-child {
+  border-top: 0;
+}
+
+.k-sl__clip-id {
+  flex: none;
+  color: var(--ink-3);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  font-variant-numeric: tabular-nums;
+}
+
+.k-sl__clip-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.k-sl__clip .k-tag {
+  flex: none;
+}
+
 /* After what was approved, 16 px on: "Open Studio" and "Back to Needs you", side by side at one height. */
 .k-sl__done-go {
   display: flex;
@@ -819,12 +873,13 @@ summary.k-sl__fold-head:hover {
 }
 
 /* The approved stage: under the bar, from the top as in the other states, a sheet of every board cropped to its
-   picture, three across the stage's width (two on a phone), each a button that opens it larger, with its shot's
-   number on the picture and one line under it: the shot's words, then its seconds and cost in tabular figures. */
+   picture that fills the stage (fix round R5): two across its width (about 400 px each at 1280; one on a phone), each a
+   button that opens it larger, with its shot's number on the picture and one caption 8 px under it: the shot's words
+   in the ink, then its seconds and price in the third ink in tabular figures. */
 .k-sl__sheet {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--s-5) var(--s-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-6) var(--s-4);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -873,8 +928,8 @@ summary.k-sl__fold-head:hover {
   align-items: baseline;
   gap: var(--s-3);
   min-width: 0;
-  font-size: var(--fs-note);
-  line-height: var(--lh-note);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
 }
 
 .k-sl__tile-words {
@@ -888,7 +943,9 @@ summary.k-sl__fold-head:hover {
 
 .k-sl__tile-facts {
   flex: none;
-  color: var(--ink-2);
+  color: var(--ink-3);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -907,28 +964,29 @@ summary.k-sl__fold-head:hover {
   min-width: 0;
 }
 
-/* A board opened larger: the kit's full-size Dialog, the board as large as the body allows (--k-sl-vr is its picture
-   box's shape) with its line under it; the board before and the next in the head. */
+/* A board opened larger: the kit's full-size Dialog, the board as large as the window allows (--k-sl-vr is its
+   picture box's shape) with its line under it; the board before and the next in the head. The dialog is as tall as
+   the board and its line (fix round R5): no band above or below the picture. --k-sl-vroom is what the window keeps
+   besides the picture: the dialog's margins, its head, the body's padding and the line. */
+.k-dialog__panel--full:has(.k-sl__view) {
+  height: auto;
+}
+
 .k-dialog__panel:has(.k-sl__view) .k-dialog__body {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .k-sl__view {
   --k-sl-vr: 1.7778;
-  flex: 1 1 0;
-  min-height: 0;
-  container-type: size;
-  display: grid;
-  place-items: center;
+  --k-sl-vroom: 248px;
+  container-type: inline-size;
 }
 
 .k-sl__view-fig {
   display: grid;
   gap: var(--s-3);
-  width: min(100cqw, calc((100cqh - 32px) * var(--k-sl-vr)));
-  margin: 0;
+  width: min(100cqw, calc((100dvh - var(--k-sl-vroom)) * var(--k-sl-vr)));
+  margin: 0 auto;
 }
 
 .k-sl__view-frame {
@@ -1014,7 +1072,10 @@ summary.k-sl__fold-head:hover {
 /* ---- A wide stage: the boards are a size container that takes what the bar leaves of the stage's height. The board
    is bounded by that height less its caption, and by the width less the reel's column; the reel is as tall as the
    board. When the place is tall for its width (the board would be held by the width with room to spare under it),
-   the reel runs as a row under the caption instead, and the board takes the whole width. */
+   the reel runs as a row under the caption instead, and the board takes the whole width. Then (fix round R5) the reel's
+   boards share the stage's width (100 to 160 px each; --k-sl-n is their count, kit/shotlist.js), the reel stands at
+   the foot of the stage 24 px over the option cards, and what room is left is shared above and below the board, so no
+   band opens between the reel and the cards. */
 @media (min-width: 860px) {
   .k-work__stage .k-sl__boards {
     flex: 1 1 0;
@@ -1035,23 +1096,34 @@ summary.k-sl__fold-head:hover {
     width: 100%;
   }
 
+  /* The reel 24 px over the option cards: 8 px of the stage, the strip's rule and its 16 px. */
+  @media (min-width: 1100px) {
+    .k-sl:not(.k-sl--done) .k-work__stage:has(.k-sl__boards--reel) {
+      padding-bottom: var(--s-2);
+    }
+  }
+
   .k-work__stage .k-sl__reel {
     max-height: calc(min(calc(100cqw - var(--k-sl-side)), calc((100cqh - var(--k-sl-cap)) * var(--k-sl-ar))) / var(--k-sl-ar));
   }
 
   @container k-sl-boards (max-aspect-ratio: 3 / 2) {
     .k-sl__boards--reel .k-sl__fit {
+      --k-sl-tw: clamp(100px, calc((100cqw - (var(--k-sl-n, 6) - 1) * var(--s-2)) / var(--k-sl-n, 6)), 160px);
+      --k-sl-row: calc(var(--k-sl-tw) / var(--k-sl-ar) + var(--s-3));
       flex-direction: column;
       gap: var(--s-3);
+      height: 100cqh;
     }
 
     .k-sl__boards--reel .k-sl__fit > .k-shot {
       width: min(100cqw, calc((100cqh - var(--k-sl-cap) - var(--k-sl-row)) * var(--k-sl-ar)));
+      margin-block: auto;
     }
 
     .k-sl__boards--reel .k-sl__reel {
       grid-auto-flow: column;
-      grid-auto-columns: 100px;
+      grid-auto-columns: var(--k-sl-tw);
       width: 100%;
       max-height: none;
       overflow-x: auto;
@@ -1066,7 +1138,8 @@ summary.k-sl__fold-head:hover {
     display: none;
   }
 
-  .k-sl__boards--reel {
+  .k-sl__boards--reel,
+  .k-sl__boards--reel .k-sl__fit {
     --k-sl-side: 0px;
     --k-sl-row: 0px;
   }
@@ -1089,6 +1162,14 @@ summary.k-sl__fold-head:hover {
 
   .k-sl__folds {
     padding: 0 var(--s-4);
+  }
+
+  .k-sl__done-head {
+    padding: var(--s-4) var(--s-4);
+  }
+
+  .k-sl__done-go {
+    padding: var(--s-4) var(--s-4) var(--s-5);
   }
 
   .k-sl__note-field {
@@ -1122,26 +1203,12 @@ summary.k-sl__fold-head:hover {
     border-radius: 0;
   }
 
-  /* The approved sheet: two across, inside the phone's gutter. */
+  /* The approved sheet: one across, inside the phone's gutter. */
   .k-sl .k-work__stage > .k-sl__sheet {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--s-4) var(--s-3);
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-5);
     padding-left: var(--s-4);
     padding-right: var(--s-4);
-  }
-
-  /* Two across leave no room for the words beside the figures: the words take up to two lines, the figures under. */
-  .k-sl__sheet .k-sl__tile-line {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-  }
-
-  .k-sl__sheet .k-sl__tile-words {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    white-space: normal;
   }
 
   .k-sl__phone-lock {
