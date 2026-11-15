@@ -158,6 +158,14 @@ test("fix round B2: a row's tile is 32 px and a row with no icon has none; secti
   assert.doesNotMatch(/\.k-doc__state \{([^}]*)\}/.exec(sheet)?.[1] || "", /margin-left: auto/, "the chip sits beside the title");
 });
 
+test("layout.css: a settings-like page's section list stays in view under the top bar while the page scrolls", () => {
+  const sheet = readFileSync(join(KIT, "..", "styles", "kit", "layout.css"), "utf8");
+  assert.match(sheet, /\.k-doc__list \{[^}]*position: sticky;[^}]*top: var\(--topbar-h\)/, "the list sticks");
+  const col = /\.k-doc__sections \{([^}]*)\}/.exec(sheet);
+  assert.ok(col && !/position: sticky/.test(col[1]), "the column is as tall as the page, so it cannot be the part that sticks");
+  assert.match(sheet, /@media \(max-width: 859px\)[\s\S]*\.k-doc__list \{[^}]*position: static;/, "on a phone the list is a row at the top, not stuck");
+});
+
 test("layout.css: the rail is sticky under the top bar, the stage on the deepest ground, one column below 860 px", () => {
   const sheet = css("kit/layout.css");
   assert.match(sheet, /\.k-work \{[^}]*grid-template-columns: minmax\(0, 1fr\) var\(--rail-w\)/);

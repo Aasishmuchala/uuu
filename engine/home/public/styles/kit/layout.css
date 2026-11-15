@@ -244,19 +244,23 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* The column runs the page's height (its rule and ground beside a long page); the list inside it is what stays in
+   view under the top bar while the page scrolls. (A column as tall as its row has no room to stick: the list
+   scrolled away with the page.) */
 .k-doc__sections {
-  position: sticky;
-  top: var(--topbar-h);
   align-self: stretch;
   min-height: calc(100vh - var(--topbar-h));
-  padding: var(--s-6) var(--s-3);
+  padding: 0 var(--s-3);
   border-right: 1px solid var(--line);
   background: var(--bg);
 }
 
 .k-doc__list {
+  position: sticky;
+  top: var(--topbar-h);
   display: grid;
   gap: 2px;
+  padding: var(--s-6) 0;
   list-style: none;
 }
 
@@ -705,9 +709,11 @@
   }
 
   .k-doc__list {
+    position: static;
     display: flex;
     gap: var(--s-1);
     width: max-content;
+    padding: 0;
   }
 
   .k-doc__pick {
