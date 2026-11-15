@@ -339,7 +339,7 @@
   width: 6px;
   height: 6px;
   border-radius: var(--r-round);
-  background: var(--ink-3);
+  background: color-mix(in srgb, var(--ink-3) 55%, transparent);
 }
 
 .k-doc__pick-state--good .k-doc__pick-dot { background: var(--good); }

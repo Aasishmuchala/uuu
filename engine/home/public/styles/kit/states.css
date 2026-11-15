@@ -58,14 +58,14 @@
 }
 
 .k-notice--warn {
-  border-color: var(--warn-line);
+  border-color: color-mix(in srgb, var(--warn) 26%, transparent);
   background: color-mix(in srgb, var(--warn) 6%, transparent);
 }
 
 .k-notice--warn .k-notice__icon { color: var(--warn); }
 
 .k-notice--bad {
-  border-color: color-mix(in srgb, var(--bad) 34%, transparent);
+  border-color: color-mix(in srgb, var(--bad) 26%, transparent);
   background: color-mix(in srgb, var(--bad) 6%, transparent);
 }
 

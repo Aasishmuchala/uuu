@@ -23,7 +23,7 @@ test("fix round B2: a warning or a problem is a hairline in its tone on a 6 perc
   const c = css("kit/states.css");
   assert.match(c, /\.k-notice \{[^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-note\);/, "13 px words in the second ink");
   assert.match(c, /\.k-notice--warn,\s*\.k-notice--bad \{[^}]*border: 1px solid;[^}]*border-radius: var\(--r-2\);/, "a hairline round it, inset");
-  assert.match(c, /\.k-notice--warn \{[^}]*border-color: var\(--warn-line\);[^}]*background: color-mix\(in srgb, var\(--warn\) 6%, transparent\);/, "the warn hairline on a 6 percent tint");
+  assert.match(c, /\.k-notice--warn \{[^}]*border-color: color-mix\(in srgb, var\(--warn\) 26%, transparent\);[^}]*background: color-mix\(in srgb, var\(--warn\) 6%, transparent\);/, "the warn hairline on a 6 percent tint");
   assert.match(c, /\.k-notice--bad \{[^}]*background: color-mix\(in srgb, var\(--bad\) 6%, transparent\);/);
   assert.doesNotMatch(c, /border-left: 2px/, "no amber bar at the left: it read as a quote");
   assert.match(c, /\.k-notice__title \{[^}]*display: inline;/, "the title runs on into its words, one line where it can be");
