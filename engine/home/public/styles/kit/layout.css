@@ -520,6 +520,12 @@
   gap: var(--s-2);
 }
 
+/* A tall row (a warning or a list under its words) keeps its control on the title's line. */
+.k-rows__row--warned > .k-rows__control,
+.k-rows__row:has(.k-checklist) > .k-rows__control {
+  align-self: start;
+}
+
 .k-rows__warned {
   grid-column: 2 / -1;
   margin: var(--s-3) 0 var(--s-1);
