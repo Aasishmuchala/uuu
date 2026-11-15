@@ -5,7 +5,7 @@
 // brain, choose a department, open a job, see the work, open Needs you.
 import { html, useState } from "../vendor/preact-htm.js";
 import { Icon, JobRow, StatusDot } from "../kit/index.js";
-import { brainLine, CountLine, countParts, departmentsOf, iconOf, nodeLine, nodeTone } from "./map-view.js";
+import { brainLine, CountLine, countParts, departmentsOf, edgeTone, iconOf, nodeLine } from "./map-view.js";
 
 const str = (v) => (typeof v === "string" ? v : "");
 const arr = (v) => (Array.isArray(v) ? v : []);
@@ -108,8 +108,11 @@ export function MapList({ data, onNeeds }) {
 }
 
 // The brain and each department as one row of the kit's rows panel: its line icon, its name, its dot and words.
-// A department's row chooses it (#/map/<department>); `chosen` marks the one chosen.
-export function DepartmentRows({ data, chosen = null }) {
+// A department's row chooses it (#/map/<department>); `chosen` marks the one chosen. A row's dot follows the cards'
+// rule (edgeTone): red for a department that is stuck (`stuck`: their ids), green for one at work, else neutral;
+// waiting on the owner is said by the row's words, not by an amber dot on every row.
+export function DepartmentRows({ data, chosen = null, stuck = [] }) {
+  const stuckIds = Array.isArray(stuck) ? stuck : [];
   const brain = data && data.brain;
   return html`<ul class="k-rows p-map__rows" role="list">
     <li>
@@ -127,7 +130,7 @@ export function DepartmentRows({ data, chosen = null }) {
         <span class="k-rows__icon" aria-hidden="true"><${Icon} name=${iconOf(d.id)} size=${18} /></span>
         <span class="k-rows__text">
           <span class="k-rows__title"><span>${clip(d.title, 40)}</span>${d.counts ? html`<span class="k-rows__state">${countParts(d.counts)[0].text}</span>` : null}</span>
-          ${d.counts ? html`<span class="p-map__row-state"><${StatusDot} tone=${nodeTone(d.counts)} pulse=${false} label=${nodeLine(d.counts)} /></span>` : null}
+          ${d.counts ? html`<span class="p-map__row-state"><${StatusDot} tone=${edgeTone(d.counts, stuckIds.includes(d.id)) || "wait"} pulse=${false} label=${nodeLine(d.counts)} /></span>` : null}
         </span>
         <${Icon} name="chevron-right" size=${16} class="p-map__row-mark" />
       </a>

@@ -486,7 +486,7 @@ export default function MapPage({ route }) {
       ${answer}
       ${askBox}
       ${failed ? html`<${ErrorNotice} error=${MAP_ERROR} onRetry=${map.reload} />`
-        : html`<${DepartmentRows} data=${data} />${loading ? html`<span class="u-visually-hidden" role="status">Loading the map</span>` : null}`}
+        : html`<${DepartmentRows} data=${data} stuck=${stuckOf(needsOf(home.data))} />${loading ? html`<span class="u-visually-hidden" role="status">Loading the map</span>` : null}`}
       <p class="p-map__phone-list"><a class="p-map__link" href=${listHref}>Every job, as a list</a></p>
     </div>`;
   }
@@ -502,7 +502,7 @@ export default function MapPage({ route }) {
     <//>
     ${failed ? html`<div class="p-map__stage-error"><${ErrorNotice} error=${MAP_ERROR} onRetry=${map.reload} /></div>`
       : html`<${Overview} data=${data} loading=${loading} chosen=${dept} onNodeKey=${onNodeKey} stuck=${stuckOf(needsOf(home.data))}
-          fallback=${html`<${DepartmentRows} data=${data} chosen=${dept} />`} />
+          fallback=${html`<${DepartmentRows} data=${data} chosen=${dept} stuck=${stuckOf(needsOf(home.data))} />`} />
         ${loading ? html`<span class="u-visually-hidden" role="status">Loading the map</span>` : null}`}
     ${askBox}
   </div>`;
