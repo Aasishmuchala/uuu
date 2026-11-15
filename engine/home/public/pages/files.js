@@ -11,8 +11,8 @@
 // A text or table file can be marked as fine to share with the Researcher (PLAN-V5 K10, T35): the switch sits in the
 // file's rail, and `?shared=1` lists what the Researcher can read.
 // Fix round R5 (R5-H): a row's tile is the kit's Tile in the quiet tint the kit gives the file's kind (identity, never
-// a state); the size short ("250 B") and the time in one right-hand group that follows the names (the card as wide as
-// its rows, at most 760 px), so no band opens in the middle of a row; a place's count stands beside its name.
+// a state); the size short ("250 B") and the time in one right-hand group; every block of the set in one 760 px
+// column; a place's count stands beside its name.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { go } from "../lib/router.js";

@@ -5,8 +5,9 @@
    ink; a failed amount is struck through.
    `.p-dashboard` is shared with Studio and Marketing (the agent, the jobs, the closing link); what only the four
    record dashboards draw sits under `.p-dashboard--records`.
-   Fix round R5 (R5-H): sections 24 px apart and rows 40 px; a table's section as wide as its columns, 40 px apart,
-   so no band opens between two columns; the row's number in the second ink so the party leads; a document's type in the kit's tint for it; the
+   Fix round R5 (R5-H): one measure a page: the column 760 px, every block (the head, the figures, each section's
+   head and its table) on its two edges; sections 24 px apart and rows 40 px; a table's slack shared among its
+   columns, so no band between two passes 160 px; the row's number in the second ink so the party leads; a document's type in the kit's tint for it; the
    filters edged on the card's surface; the figures with 20 px inside. */
 .p-dashboard { display: flex; flex-direction: column; gap: var(--s-6); }
 .p-dashboard .p-dashboard-agent { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--s-3); }
@@ -45,7 +46,7 @@
 .p-dashboard .p-dashboard-open:hover { color: var(--ink); }
 
 /* ---- The four record dashboards ---- */
-.p-dashboard.p-dashboard--records { gap: 0; }
+.p-dashboard.p-dashboard--records { gap: 0; max-width: 760px; }
 .p-dashboard.p-dashboard--records .k-page-header { margin-bottom: var(--s-5); }
 .p-dashboard.p-dashboard--records .k-section { margin-bottom: var(--s-6); }
 .p-dashboard.p-dashboard--records > .k-notice { margin-bottom: var(--s-6); }
@@ -118,11 +119,11 @@
 .p-dashboard .p-dashboard-amount--in { color: var(--good); }
 .p-dashboard s.p-dashboard-amount { color: var(--ink-2); text-decoration-thickness: 1px; }
 
-/* A table on a card: a section that holds one is as wide as its table (and its head), never wider than the page, so
-   the columns stand 40 px apart and no band opens between two of them; 16 px inside the card's edge at both ends;
-   the header row 12 px above its rule; rows 40 px. */
-.p-dashboard.p-dashboard--records .k-section:has(.p-dashboard-sheet) { width: fit-content; max-width: 100%; }
+/* A table on a card at the column's whole width: the room its columns leave is shared among all of them in
+   proportion to their content (no one column takes it all, the last still at the right), so no band between two
+   columns passes 160 px; 16 px inside the card's edge at both ends; the header row 12 px above its rule; rows 40 px. */
 .p-dashboard .p-dashboard-sheet { overflow: hidden; }
+.p-dashboard .p-dashboard-sheet .k-table__table .k-table__fit { width: auto; }
 .p-dashboard .p-dashboard-sheet .k-table__table th,
 .p-dashboard .p-dashboard-sheet .k-table__table td { padding-left: var(--s-5); padding-right: var(--s-5); }
 .p-dashboard .p-dashboard-sheet .k-table__table td { height: var(--s-10); padding-top: 6px; padding-bottom: 6px; }
@@ -159,7 +160,6 @@
   .p-dashboard .k-section__aside a { display: inline-flex; align-items: center; min-height: 44px; }
   .p-dashboard .k-section__aside .k-btn { min-height: 44px; }
   .p-dashboard .p-dashboard-filter .k-menu__trigger { min-height: 44px; }
-  .p-dashboard.p-dashboard--records .k-section:has(.p-dashboard-sheet) { width: auto; }
   .p-dashboard .p-dashboard-sheet .k-table__table td { height: auto; }
   .p-dashboard .p-dashboard-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .p-dashboard .p-dashboard-total { padding: var(--s-3) var(--s-4); box-shadow: -1px 0 0 var(--line), 0 -1px 0 var(--line); }

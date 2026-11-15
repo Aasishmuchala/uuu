@@ -254,6 +254,8 @@ test("a column in which every row says the same thing is left out and said once 
   const css = readFileSync(new URL("../../styles/pages/dashboard.css", import.meta.url), "utf8");
   assert.match(css, /\.p-dashboard\.p-dashboard--records \.k-section \{ margin-bottom: var\(--s-6\); \}/, "sections 24 px apart");
   assert.match(css, /\.p-dashboard-sheet \.k-table__table td \{ height: var\(--s-10\);/, "rows 40 px");
-  assert.match(css, /\.p-dashboard\.p-dashboard--records \.k-section:has\(\.p-dashboard-sheet\) \{ width: fit-content; max-width: 100%; \}/, "a table's section as wide as its columns");
+  assert.match(css, /\.p-dashboard\.p-dashboard--records \{ gap: 0; max-width: 760px; \}/, "one 760 px column: every block on its two edges");
+  assert.doesNotMatch(css, /width: fit-content/, "no table as wide as its own columns: each at the column's whole width");
+  assert.match(css, /\.p-dashboard \.p-dashboard-sheet \.k-table__table \.k-table__fit \{ width: auto; \}/, "the slack shared among the columns");
   assert.match(/\.p-dashboard \.p-dashboard-filter \.k-menu__trigger \{([^}]*)\}/.exec(css)[1], /border-color: var\(--line-2\);[\s\S]*background: var\(--card\)/, "Show and Status edged on the card's surface");
 });

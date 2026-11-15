@@ -258,7 +258,7 @@ test("files: an empty place shows no count", () => {
   assert.equal(mod.shownCount(p.find((x) => x.id === "lessons")), false);
 });
 
-test("files: a row's tile is the kit's Tile in its kind's tint, its size short, its facts one group after the names (R5-H)", async () => {
+test("files: a row's tile is the kit's Tile in its kind's tint, its size short, its facts one group at the right of a card on the column's width (R5-H)", async () => {
   const { tintFor } = await import("../../kit/index.js");
   assert.equal(mod.tintOf({ name: "about.md", kind: "text" }), tintFor("text"));
   assert.equal(mod.tintOf({ name: "prices.csv", kind: "table" }), tintFor("data"));
@@ -271,7 +271,8 @@ test("files: a row's tile is the kit's Tile in its kind's tint, its size short, 
   assert.match(SOURCE, /<\$\{Tile\} icon=\$\{name\} tint=\$\{tint \|\| "neutral"\} \/>/);
   assert.match(SOURCE, /<span class="p-files__row-size">\$\{sizeShort\(file\.size\)\}<\/span>/);
   const css = readFileSync(new URL("../../styles/pages/files.css", import.meta.url), "utf8");
-  assert.match(css, /\.p-files \.p-files__card \{\s*overflow: hidden;\s*width: fit-content;\s*max-width: min\(100%, 760px\);/, "the card as wide as its rows, at most 760 px");
-  assert.match(css, /grid-template-columns: 4px 28px minmax\(0, max-content\) minmax\(var\(--s-10\), 160px\) auto auto 4px;/, "the facts 40 to 160 px after the longest name");
+  assert.match(css, /\.p-files:not\(\.p-files--file\) \.k-doc__main \{\s*max-width: calc\(760px \+ var\(--s-12\) \+ var\(--s-10\)\);/, "one 760 px column for every block of the set");
+  assert.match(css, /\.p-files \.p-files__card \{\s*overflow: hidden;\s*\}/, "the list card at the column's whole width");
+  assert.match(css, /grid-template-columns: 4px 28px minmax\(0, max-content\) minmax\(var\(--s-10\), 1fr\) auto auto 4px;/, "the size and the time one group at the card's right edge");
   assert.match(/\.p-files \.p-files__place-name \{([^}]*)\}/.exec(css)[1], /flex: 0 1 auto;/, "a place's count beside its name");
 });

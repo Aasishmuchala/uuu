@@ -7,7 +7,8 @@
 // it. Then what is being worked on, jobs to start, the switches that are off, and the department's link.
 // Fix round R5 (R5-H): a column in which every row of its table says the same thing is not drawn, and its fact is
 // said once in the section's head line ("Made by: Bookkeeper"); a document's type is a chip in the kit's quiet tint
-// for that type (tintFor); a table's section is as wide as its columns, so no band opens between two of them.
+// for that type (tintFor); one 760 px column a page, each table at its whole width with the room left shared among
+// its columns, so no band opens between two of them.
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";

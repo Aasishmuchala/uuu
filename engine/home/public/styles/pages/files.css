@@ -2,9 +2,8 @@
    is the brain's places, each with its count; the column is the set (a toolbar, a count line, the files as rows or
    cards). An opened file is a reading column with its facts in a rail. Every selector starts with .p-files;
    tokens only (V2 11.2, V3 27.3).
-   Fix round R5 (R5-H): a row's tile is the kit's Tile in its kind's tint; the list's card is as wide as its rows
-   (at most 760 px), the names one column as wide as the longest and the size and the time one group 40 to 160 px
-   after it; a place's count stands beside its name. */
+   Fix round R5 (R5-H): a row's tile is the kit's Tile in its kind's tint; one 760 px column for every block of the
+   set; the size and the time one group at the card's right edge; a place's count stands beside its name. */
 
 .p-files {
   min-width: 0;
@@ -14,6 +13,13 @@
 
 .p-files .k-doc__main {
   max-width: calc(var(--content-max) + 2 * var(--s-10));
+}
+
+/* One measure a page: the set's column is 760 px (inside the layout's own 48 px and 40 px sides), and every block in
+   it (the title and + New, the toolbar with the search, the count line, the list card, the basics) stands on its
+   two edges. An opened file keeps its own frame. */
+.p-files:not(.p-files--file) .k-doc__main {
+  max-width: calc(760px + var(--s-12) + var(--s-10));
 }
 
 .p-files .k-doc__head {
@@ -250,21 +256,19 @@
   line-height: var(--lh-note);
 }
 
-/* Rows: on one card, parted by hairlines. The kit's 28 px Tile in the tint of the file's kind, the name over one
-   line of what the brain says of it, then the size and how long ago in one group of tabular figures. The card is
-   as wide as its rows (at most 760 px): the rows share one grid (each row a subgrid of it), the names' column as
-   wide as the longest, then a gap of 40 to 160 px, so the group follows the names and never floats far from them. */
+/* Rows: on one card at the column's width, parted by hairlines. The kit's 28 px Tile in the tint of the file's kind,
+   the name over one line of what the brain says of it, then the size and how long ago in one group of tabular
+   figures at the card's right edge. The rows share one grid (each row a subgrid of it), so every row's size and
+   time stand in the same two columns. */
 .p-files .p-files__card {
   overflow: hidden;
-  width: fit-content;
-  max-width: min(100%, 760px);
 }
 
 /* The two 4 px end tracks with the 12 px gaps make the rows' 16 px inside the card (a subgrid's own padding would not
    widen the tracks), so the hover fill still runs the card's width. */
 .p-files .p-files__card .p-files__rows:not(.p-files__results) {
   display: grid;
-  grid-template-columns: 4px 28px minmax(0, max-content) minmax(var(--s-10), 160px) auto auto 4px;
+  grid-template-columns: 4px 28px minmax(0, max-content) minmax(var(--s-10), 1fr) auto auto 4px;
   column-gap: var(--s-3);
 }
 
@@ -814,11 +818,6 @@
   .p-files .k-seg__item,
   .p-files .p-files__actions .k-btn {
     min-height: 44px;
-  }
-
-  .p-files .p-files__card {
-    width: auto;
-    max-width: none;
   }
 
   /* A phone: each row its own grid again (the tile, the words, the time), the card the page's width. */
