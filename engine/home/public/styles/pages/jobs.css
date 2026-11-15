@@ -93,9 +93,10 @@
   color: var(--ink);
 }
 
-/* The search beside the filters (R5-F), not pushed to the far edge. */
+/* The search beside the filters (R5-F), running on to the column's right edge (R6-F). */
 .p-jobs .p-jobs__find {
   display: flex;
+  flex: 1 1 280px;
   align-items: center;
   min-width: 0;
 }
@@ -104,7 +105,7 @@
 .p-jobs .p-jobs__search {
   position: relative;
   display: block;
-  flex: none;
+  flex: 1 1 auto;
   width: 280px;
   min-width: 0;
 }

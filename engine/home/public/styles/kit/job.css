@@ -284,11 +284,12 @@ a.k-job--row:hover .k-job__go {
   line-clamp: 2;
 }
 
+/* The chips directly under the words (R6-F), not pushed to the card's foot. */
 .k-jobcard__marks {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: auto 0 0;
+  margin: 0;
   padding-top: var(--s-3);
 }
 

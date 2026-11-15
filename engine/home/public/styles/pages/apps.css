@@ -31,7 +31,7 @@
 .p-apps .p-apps__rows { list-style: none; margin: 0; padding: 0; }
 .p-apps .p-apps__tile {
   display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: start;
-  column-gap: var(--s-4); row-gap: var(--s-3);
+  column-gap: var(--s-4); row-gap: var(--s-2);
   min-width: 0; padding: var(--s-4) var(--s-5);
 }
 .p-apps .p-apps__tile + .p-apps__tile { border-top: 1px solid var(--line); }
@@ -40,7 +40,11 @@
 .p-apps .p-apps__icon { flex: none; width: 32px; height: 32px; border-radius: var(--r-2); object-fit: contain; }
 .p-apps .p-apps__icon--none { display: flex; }
 
-.p-apps .p-apps__info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* The words: the name and state on the first line; what it does and the meta row on the second, side by side where
+   they fit, a stopped app's hint after them (R6-F); a refusal on a line of its own. */
+.p-apps .p-apps__info { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--s-4); min-width: 0; }
+.p-apps .p-apps__names,
+.p-apps .p-apps__info .k-notice { flex: 1 1 100%; }
 /* The name and the state chip on one line while they fit (the chip goes under the name when they do not). */
 .p-apps .p-apps__names { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-2); min-width: 0; min-height: 32px; }
 .p-apps .p-apps__name {
@@ -51,16 +55,16 @@
 .p-apps .p-apps__state { display: inline-flex; max-width: 100%; min-width: 0; }
 .p-apps .p-apps__state .k-tag { white-space: nowrap; }
 
-.p-apps .p-apps__about { margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
+.p-apps .p-apps__about { flex: 0 1 auto; min-width: 0; margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
 /* The meta row: each fact a 14 px glyph in the third ink and its words in the second, side by side while they fit;
    the amounts in tabular figures, in the first ink. */
-.p-apps .p-apps__facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-4); margin: var(--s-1) 0 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
+.p-apps .p-apps__facts { display: flex; flex: 0 1 auto; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-4); margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
 .p-apps .p-apps__spend,
 .p-apps .p-apps__fact { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .p-apps .p-apps__spend { font-variant-numeric: tabular-nums; }
 .p-apps .p-apps__spend .p-money { color: var(--ink); font-weight: var(--fw-medium); }
 .p-apps .p-apps__facts .k-icon { flex: none; color: var(--ink-3); }
-.p-apps .p-apps__hint { margin: var(--s-1) 0 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
+.p-apps .p-apps__hint { flex: 0 1 auto; margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
 .p-apps .p-apps__hint a { color: var(--ink); text-underline-offset: 2px; }
 .p-apps .p-apps__info .k-notice { margin-top: var(--s-2); }
 

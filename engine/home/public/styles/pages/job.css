@@ -1,6 +1,7 @@
 /* A job (pages/job.js; PLAN-COOK T62 after R02 and R04, TB3): one reading column on the ground. The title and its
    sentence, the job's facts as a label and value list, then "What it needs": the kit's start form as one column of
-   rows, with the preview of what will be sent beside it on the raised step from 1100 px, and the one primary, Start,
+   rows, with the preview of what will be sent in a column at the page's right from 1100 px, its top level with the
+   title (R6-F), and the one primary, Start,
    at the right of the form's foot under a hairline. A job that cannot start yet says why first, as the kit's
    Notice, and keeps Start in its place, inert. Then the starter packs and the earlier runs. No glass, no creature. */
 
@@ -383,38 +384,35 @@
   color: var(--ink-3);
 }
 
-/* From 1100 px: the questions at the left, the preview beside them, Start across the foot. The preview spans every
-   row of the form down to a flexible one, so a long preview never pushes the questions apart. */
+/* From 1100 px (R6-F): the preview of what will be asked stands in a 340 px column at the page's right, its top
+   level with the title block; everything else (the title, the facts, the questions, Start's bar, the earlier runs)
+   fills the column at its left up to 32 px from it. Start's bar is the questions' width and stays in sight at the
+   foot of the window while the form is on screen. */
 @media (min-width: 1100px) {
-  .p-job .k-job--start:not(.k-job--started) {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
-    grid-template-rows: repeat(6, auto) 1fr auto auto;
-    column-gap: var(--s-8);
-    row-gap: 0;
-  }
-
-  .p-job .k-job--start:not(.k-job--started) > * {
-    grid-column: 1;
-    margin-bottom: var(--s-6);
+  .p-job:has(.k-job__preview) {
+    position: relative;
+    padding-right: calc(340px + var(--s-8));
   }
 
   .p-job .k-job--start > .k-job__preview {
-    grid-column: 2;
-    grid-row: 1 / 8;
-    align-self: start;
-    position: sticky;
-    top: calc(var(--topbar-h) + var(--s-4));
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 340px;
+    max-height: calc(100dvh - var(--topbar-h) - var(--s-12));
+    overflow-y: auto;
   }
 
-  /* Start stays in sight at the foot of the window while the form is on screen, at the right of the questions. */
+  /* The questions fill their column. */
+  .p-job .k-job__asks .k-input,
+  .p-job .k-job__asks .k-textarea {
+    max-width: none;
+  }
+
   .p-job .k-job--start > .k-job__actions {
-    grid-column: 1;
-    grid-row: 8;
     position: sticky;
     bottom: 0;
     z-index: 1;
-    margin-bottom: 0;
     padding-bottom: var(--s-5);
     background: var(--bg);
   }

@@ -98,6 +98,13 @@ function fire(el, type, extra = {}) {
   for (const f of el.listeners[key]) f.call(el, { type: key, target: el, currentTarget: el, preventDefault() {}, stopPropagation() {}, ...extra });
 }
 const buttons = (root, words) => elements(root).filter((e) => (e.localName === "button" || e.localName === "a") && textOf(e).trim() === words);
+// R6-F: the bar's "More" menu, opened with one click; -> its items once open.
+const more = (root) => elements(root).find((e) => e.localName === "button" && e.getAttribute("aria-label") === "More");
+async function openMore(root) {
+  fire(more(root), "click");
+  await settle();
+  return elements(root).find((e) => e.getAttribute("role") === "menu" && e.getAttribute("aria-label") === "More");
+}
 const frames = (root) => elements(root).filter((e) => e.localName === "iframe");
 function stubFetch(answers) {
   const calls = [];
@@ -119,16 +126,26 @@ async function mount(answers, slug = "render-to-film") {
 }
 const fixed = (body, status = 200) => () => ({ status, body });
 
-test("app mounted, on: the bar (state, spending, the model, its own window, Turn off; the name for a screen reader only) above an iframe at its own port", async () => {
+test("app mounted, on: the bar (state, spending, the model, Turn off, and More with Stop spending and its own window; the name for a screen reader only) above an iframe at its own port", async () => {
   const m = await mount(fixed(view([app()])));
   try {
     const all = textOf(m.root);
     const bar = elements(m.root).find((e) => e.localName === "header");
     assert.ok(bar, "the home screen's own bar");
-    const barText = textOf(bar);
-    for (const w of ["Render to Film", "On", "Allowed today: $5.00. Spent: $1.20.", "Stop spending", "Thinks with Claude Opus 5.5", "Open in its own window", "Turn off"]) {
+    let barText = textOf(bar);
+    for (const w of ["Render to Film", "On", "Allowed today: $5.00. Spent: $1.20.", "Thinks with Claude Opus 5.5", "Turn off"]) {
       assert.ok(barText.includes(w), w);
     }
+    // R6-F: Stop spending and its own window wait in the bar's More menu, one click away, in their own words.
+    assert.ok(!barText.includes("Stop spending") && !barText.includes("Open in its own window"), "not on the bar itself");
+    assert.ok(bar.contains(more(m.root)), "More is on the bar");
+    const menu = await openMore(m.root);
+    assert.ok(menu && bar.contains(menu), "one click opens it");
+    const items = elements(menu).filter((e) => e.getAttribute("role") === "menuitem");
+    assert.deepEqual(items.map((e) => textOf(e).trim()), ["Stop spending", "Open in its own window"]);
+    assert.ok((items[0].getAttribute("class") || "").includes("k-menu__item--danger"), "Stop spending in the danger ink");
+    assert.equal(WORDS.more, "More");
+    barText = textOf(bar);
     // R5-F: the app is named once to the eye (the top bar's crumb, which leads back to App Studio); the bar's heading
     // is for a screen reader, and the bar draws no tile and no back arrow of its own.
     const h1 = elements(bar).find((e) => e.localName === "h1" && e.getAttribute("id") === "page-title");
@@ -136,15 +153,11 @@ test("app mounted, on: the bar (state, spending, the model, its own window, Turn
     assert.ok((h1.getAttribute("class") || "").split(/\s+/).includes("k-sr"), "said to a screen reader, not drawn");
     assert.ok(!elements(bar).some((e) => e.localName === "a" && e.getAttribute("href") === "#/apps"), "no second way back beside the crumb");
     assert.ok(!elements(bar).some((e) => e.localName === "img" || /p-app__icon/.test(e.getAttribute("class") || "")), "no tile");
-    // TB2: one bar; its state a chip; its own window and Turn off small ghosts; the
-    // model's menu has no full stop in its label.
+    // TB2: one bar; its state a chip; Turn off a small ghost; the model's menu has no full stop in its label.
     const cls = (e) => (e.getAttribute("class") || "").split(/\s+/);
     assert.ok(elements(bar).some((e) => cls(e).includes("k-tag") && cls(e).includes("k-tag--good") && textOf(e) === "On"), "the state is a good chip");
     const btn = (w) => elements(bar).find((e) => e.localName === "button" && textOf(e).trim() === w);
-    // R5-F: Stop spending is the kit's quiet danger (the danger ink, no fill), small, beside the small ghosts.
-    assert.ok(cls(btn("Stop spending")).includes("k-btn--danger-ghost") && cls(btn("Stop spending")).includes("k-btn--sm"));
     assert.ok(cls(btn("Turn off")).includes("k-btn--ghost") && cls(btn("Turn off")).includes("k-btn--sm"));
-    assert.ok(cls(btn("Open in its own window")).includes("k-btn--ghost"));
     assert.ok(!barText.includes("Thinks with Claude Opus 5.5."), "no full stop in the menu's label");
     const f = frames(m.root);
     assert.equal(f.length, 1);
@@ -163,7 +176,8 @@ test("app mounted, on: its own window opens the same address with noopener and n
   globalThis.window = { open: (...a) => { opened.push(a); return null; } };
   const m = await mount(fixed(view([app()])));
   try {
-    fire(buttons(m.root, "Open in its own window")[0], "click");
+    const menu = await openMore(m.root);
+    fire(buttons(menu, "Open in its own window")[0], "click");
     assert.deepEqual(opened, [[`${HTTP}${LOOP}:3171/`, "_blank", "noopener,noreferrer"]]);
   } finally { m.done(); delete globalThis.window; }
 });
@@ -262,7 +276,7 @@ test("app mounted: the allowance sheet: K23's words, four amounts with those ove
     assert.deepEqual(m.f.calls.find((c) => c.method === "POST").body, { cents: 500 });
     assert.equal(elements(m.root).filter((e) => e.getAttribute("role") === "dialog").length, 0, "the sheet closes");
     assert.ok(textOf(m.root).includes("Allowed today: $5.00. Spent: $0.00."), "the bar shows the new words");
-    assert.equal(buttons(m.root, "Stop spending").length, 1);
+    assert.equal(buttons(await openMore(m.root), "Stop spending").length, 1);
   } finally { m.done(); }
 });
 
@@ -298,7 +312,7 @@ test("app mounted: a refused allowance stays in the sheet; Esc and Cancel close 
     return { status: 200, body: current };
   });
   try {
-    fire(buttons(n.root, "Stop spending")[0], "click");
+    fire(buttons(await openMore(n.root), "Stop spending")[0], "click");
     await settle();
     assert.equal(n.f.calls.find((c) => c.method === "POST").path, "/api/apps/render-to-film/allowance/stop");
     assert.ok(textOf(n.root).includes("This app cannot spend anything right now."));

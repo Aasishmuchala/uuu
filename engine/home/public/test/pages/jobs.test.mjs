@@ -247,6 +247,7 @@ test("jobs: the card is the click and the ring is round the card; the bar at 32 
   assert.match(css, /\.p-jobs \.p-jobs__filter \.k-menu__trigger \{\s*min-height: var\(--s-8\);[^}]*border-color: var\(--line-2\);\s*background: transparent;/);
   assert.match(css, /\.p-jobs \.p-jobs__search \{[^}]*width: 280px;/);
   assert.doesNotMatch(css, /\.p-jobs \.p-jobs__find \{[^}]*margin-left: auto;/, "the search beside the filters, not at the far edge");
+  assert.match(css, /\.p-jobs \.p-jobs__find \{[^}]*flex: 1 1 280px;/, "R6-F: and on to the column's right edge");
   assert.match(css, /\.p-jobs \.p-jobs__dept-name \{[^}]*font-size: var\(--fs-section\);[^}]*font-weight: var\(--fw-bold\);/);
   assert.match(css, /\.p-jobs \.p-jobs__dept-head \{[^}]*border-bottom: 1px solid var\(--line\);/);
   assert.match(src, /<\$\{Button\} size="sm" variant="ghost" class="p-jobs__dept-open" href=\$\{`#\/departments\/\$\{d\.id\}`\}>Open \$\{d\.title\}<\/\/>/);

@@ -248,12 +248,13 @@ test("job: the money sentence is the kit's money block in its words-only form; t
   assert.doesNotMatch(src, /k-sl__|k-site__/);
 });
 
-test("job: from 1100 px the preview stands beside the form and Start stands at the questions' foot (T62, TB3)", () => {
+test("job: from 1100 px the preview stands in a 340 px column at the right, its top level with the title; the questions fill to 32 px from it with Start's bar their width (T62, TB3, R6-F)", () => {
   const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "styles", "pages", "job.css"), "utf8");
   const wide = css.slice(css.indexOf("@media (min-width: 1100px)"));
-  assert.match(wide, /grid-template-columns: minmax\(0, 1fr\) minmax\(0, 340px\);/);
-  assert.match(wide, /\.k-job--start > \.k-job__preview \{\s*grid-column: 2;/);
-  assert.match(wide, /\.k-job--start > \.k-job__actions \{\s*grid-column: 1;/);
+  assert.match(wide, /\.p-job:has\(\.k-job__preview\) \{\s*position: relative;\s*padding-right: calc\(340px \+ var\(--s-8\)\);/);
+  assert.match(wide, /\.k-job--start > \.k-job__preview \{\s*position: absolute;\s*top: 0;\s*right: 0;\s*width: 340px;/);
+  assert.match(wide, /\.k-job__asks \.k-input,\s*\.p-job \.k-job__asks \.k-textarea \{\s*max-width: none;/);
+  assert.match(wide, /\.k-job--start > \.k-job__actions \{\s*position: sticky;/);
   assert.doesNotMatch(css, /var\(--glass|--highlight|--hairline/);
 });
 

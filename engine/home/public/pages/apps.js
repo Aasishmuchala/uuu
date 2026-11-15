@@ -20,6 +20,8 @@ export const WORDS = {
   turnOn: "Turn on",
   turnOff: "Turn off",
   ownWindow: "Open in its own window",
+  // The menu on an app's bar that holds Stop spending and its own window (R6-F).
+  more: "More",
   noSpending: "This app cannot spend anything right now.",
   allow: "Allow spending",
   stop: "Stop spending",

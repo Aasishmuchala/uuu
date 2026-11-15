@@ -1,8 +1,7 @@
 /* The page app (PLAN-V5 T80, PLAN-COOK T60, TB2, R5-F): one app opened inside App Studio. It fills the window under
    the top bar (the shell's "fill" pane, whose margin it takes back so the bar runs edge to edge): the home screen's own
    bar, one 44 px row on the shell's ground with the shell's hairline under it (the state chip and what it may spend
-   today in tabular figures; at the right the model's menu, Stop spending, its own window and Turn off, one skin at
-   32 px); under it, on the stage tone, the app's window with a 1 px edge, a 12 px corner and 16 px round it, so it
+   today in tabular figures; at the right the model as a quiet text menu, Turn off and More, at 32 px); under it, on the stage tone, the app's window with a 1 px edge, a 12 px corner and 16 px round it, so it
    reads as another program's page, its head a 28 px strip with what the fence does not cover. Below 860 px the bar
    is two rows. Tokens only. */
 .p-app {
@@ -41,23 +40,23 @@
 .p-app .p-app__money-words { color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .p-app .p-app__money-words .p-money { color: var(--ink); font-weight: var(--fw-medium); }
 
-/* The controls at the right: one height (32 px), one skin, the outlined small one; the model's menu is drawn to the
-   same height, its label in the first ink. */
+/* The controls at the right, one height (32 px): the model as a quiet text menu (its words in the second ink, no
+   edge until the pointer is on it), Allow spending and Turn off as small ghosts, then More, a quiet mark holding
+   Stop spending and its own window (R6-F). */
 .p-app .p-app__tools { flex: none; display: flex; align-items: center; gap: var(--s-2); margin-left: auto; }
 .p-app .p-app__thinks,
-.p-app .p-app__spend { display: flex; }
+.p-app .p-app__spend,
+.p-app .p-app__more { display: flex; }
 .p-app .p-app__thinks .k-menu__trigger {
-  min-height: var(--s-8); padding: 0 var(--s-2) 0 var(--s-3); gap: 6px;
-  border-color: var(--line-2); color: var(--ink); font-size: var(--fs-note); font-weight: var(--fw-medium);
+  min-height: var(--s-8); padding: 0 var(--s-2); gap: 6px;
+  color: var(--ink-2); font-size: var(--fs-note); font-weight: var(--fw-regular);
 }
-.p-app .p-app__thinks .k-menu__trigger:hover { border-color: var(--ink-3); }
+.p-app .p-app__thinks .k-menu__trigger:hover { color: var(--ink); }
 .p-app .p-app__thinks .k-menu__trigger .k-icon { color: var(--ink-3); }
-.p-app .p-app__thinks .k-menu__list { right: 0; left: auto; }
-.p-app .p-app__own,
+.p-app .p-app__thinks .k-menu__list,
+.p-app .p-app__more .k-menu__list { right: 0; left: auto; }
+.p-app .p-app__more .k-menu__trigger { min-height: var(--s-8); min-width: var(--s-8); }
 .p-app .p-app__switch { flex: none; }
-/* Its own window is its mark alone (its name stays for screen readers and in its tooltip). */
-.p-app .p-app__own { min-width: var(--s-8); padding: 0; }
-.p-app .p-app__own-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .p-app .p-app__problem { flex: none; padding: var(--s-3) var(--s-4) 0; }
 
 /* The stage: the app's window, 16 px round it, or the kit's Empty in its place. */
@@ -115,7 +114,7 @@
   .p-app .p-app__tools { flex: 1 1 100%; gap: var(--s-2); margin-left: 0; }
   .p-app .p-app__switch { margin-left: auto; }
   .p-app .p-app__thinks .k-menu__trigger { min-height: 44px; min-width: 44px; padding: 0; justify-content: center; }
-  .p-app .p-app__own { min-width: 44px; }
+  .p-app .p-app__more .k-menu__trigger { min-height: 44px; min-width: 44px; }
   .p-app .p-app__notes { align-items: flex-start; padding: var(--s-2) var(--s-3); }
   .p-app .p-app__notes-icon { margin-top: 1px; }
   .p-app .p-app__stage { padding: var(--s-2); }
