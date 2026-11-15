@@ -388,10 +388,10 @@
 
 /* ---- the compose dialog: the kit's Dialog, 640 px, its top 16 percent down and as tall as what it holds. One
    composer, no box in a box: a small "New task" label and Close on the dialog's own surface (no band, no rule),
-   the text area as the dialog's body (no edge, 20 px in, at least 120 px tall, growing to 40 percent of the
-   window), and one foot row: Plan first, Every job, the "/" and "@" keys, then "Enter to send" and Send. The
-   Composer's own box and bar give their parts to the dialog's grid (display: contents); its own hint and round
-   send are not drawn (the foot's Send stands for it). */
+   the text area as the dialog's body (the Composer's bare look: no edge, the 2 px accent bar while it has focus;
+   20 px in, at least 120 px tall, growing to 40 percent of the window through the Composer's maxHeight), and one
+   foot row: Plan first, Every job, the "/" and "@" keys, then "Enter to send" and Send, all the Composer's own row
+   (T118). Here only the dialog's sizes and spacing. */
 @media (min-width: 860px) {
   .k-dialog:has(.s-compose) {
     align-items: flex-start;
@@ -420,120 +420,39 @@
   flex-direction: column;
   gap: var(--s-3);
 }
-.s-compose:has(.k-composer__bar) {
-  display: grid;
-  grid-template-columns: auto auto auto auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 0 var(--s-1);
-}
-.s-compose .k-composer,
-.s-compose .k-composer__box,
-.s-compose .k-composer__bar {
-  display: contents;
-}
-/* The kit's box draws the field's ring; here the box is not drawn (display: contents), so its outline would only be
-   a computed value that shows nothing: it is set to none so a measure reads the truth. The text area runs to the
-   dialog's edges and, while it has focus, shows the 2 px accent bar at its left, as a chosen row does. */
-.s-compose .k-composer__box:has(.k-composer__field:focus) {
-  outline: none;
-}
 .s-compose .k-composer__context {
-  grid-column: 1 / -1;
-  grid-row: 1;
   padding: var(--s-2) 0 0;
 }
+/* The text area runs to the dialog's edges, so its focus bar stands at the dialog's left. */
 .s-compose .k-composer__field {
-  grid-column: 1 / -1;
-  grid-row: 2;
   width: calc(100% + 2 * var(--s-5));
-  height: auto !important;
   min-height: 120px;
-  max-height: 40vh;
   margin: 0 calc(-1 * var(--s-5)) var(--s-3);
   padding: var(--s-2) var(--s-5);
-  overflow-y: auto;
-  font-size: var(--fs-fact);
   line-height: var(--lh-fact);
-  field-sizing: content;
-}
-.s-compose .k-composer__field:focus {
-  box-shadow: inset 2px 0 0 var(--accent);
 }
 .s-compose .k-composer__field::placeholder {
   white-space: normal;
 }
-/* The "/" and "@" lists open under the words, in the dialog's flow, under a rule. */
 .s-compose .k-composer__menu {
-  grid-column: 1 / -1;
-  grid-row: 3;
   max-height: 264px;
   margin: 0 0 var(--s-3);
-  padding: var(--s-2) 0 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
 }
 .s-compose .k-composer__error {
-  grid-column: 1 / -1;
-  grid-row: 4;
   margin-bottom: var(--s-3);
 }
-.s-compose .k-composer__hint,
-.s-compose .k-composer__send {
-  display: none;
-}
-/* Plan first: a 16 px check with a 1.5 px edge in the second ink; the accent fill and a white tick when on. */
-.s-compose .k-composer__plan {
-  grid-column: 1;
-  grid-row: 5;
+/* The foot row: 32 px controls 4 px apart; 8 px more after Plan first and before Send. */
+.s-compose .k-composer__bar {
+  gap: var(--s-1);
   min-height: var(--h-sm);
+}
+.s-compose .k-composer__plan {
   margin-right: var(--s-2);
   color: var(--ink-2);
   font-size: var(--fs-note);
 }
-.s-compose .k-composer__plan input {
-  position: relative;
-  flex: none;
-  width: var(--s-4);
-  height: var(--s-4);
-  margin: 0;
-  border: 1.5px solid var(--ink-2);
-  border-radius: var(--r-xs);
-  background: transparent;
-  appearance: none;
-  cursor: pointer;
-}
-.s-compose .k-composer__plan input:checked {
-  border-color: var(--accent-fill);
-  background: var(--accent-fill);
-}
-.s-compose .k-composer__plan input:checked::after {
-  content: "";
-  position: absolute;
-  top: 1px;
-  left: 4px;
-  width: 4px;
-  height: 8px;
-  border: solid var(--accent-ink);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-.s-compose .k-composer__plan input:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-.s-compose-jobs {
-  grid-column: 2;
-  grid-row: 5;
-}
-.s-compose-key--jobs {
-  grid-column: 3;
-  grid-row: 5;
-}
-.s-compose-key--who {
-  grid-column: 4;
-  grid-row: 5;
+.s-compose .k-composer__keys {
+  margin-right: var(--s-2);
 }
 .s-compose-key .k-btn__label {
   display: inline-flex;
@@ -544,22 +463,6 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-}
-.s-compose-keys {
-  display: inline-flex;
-  grid-column: 6;
-  grid-row: 5;
-  align-items: center;
-  gap: 6px;
-  margin-right: var(--s-2);
-  color: var(--ink-2);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
-  white-space: nowrap;
-}
-.s-compose-send {
-  grid-column: 7;
-  grid-row: 5;
 }
 .s-compose-done {
   padding: var(--s-4);
@@ -647,15 +550,10 @@
   .s-cmd-end .k-kbd {
     display: none;
   }
-  /* A phone: the keys give way; Plan first, Every job and Send are 44 px targets. */
-  .s-compose-key,
-  .s-compose-keys {
+  /* A phone: the keys give way (the Composer hides its keys hint); Plan first, Every job and Send are the kit's
+     44 px targets. */
+  .s-compose-key {
     display: none;
-  }
-  .s-compose .k-composer__plan,
-  .s-compose-jobs,
-  .s-compose-send {
-    min-height: 44px;
   }
   .s-compose .k-composer__field {
     min-height: 96px;

@@ -94,6 +94,22 @@ export function MoneyInput({ value, onInput, label, currency = "$", ...props }) 
   </span>`;
 }
 
+// A check box with its label beside it: a native checkbox drawn as the kit's 16 px box, so Space toggles it and a
+// screen reader hears a checkbox. `onChange(nextChecked)` is called when it changes. `class` is added to the kit's.
+export function Checkbox({ checked, disabled, label, onChange, class: extra, ...rest }) {
+  return html`<label class=${cx("k-check", disabled && "k-check--disabled", extra)}>
+    <input
+      type="checkbox"
+      ...${rest}
+      class="k-check__box"
+      checked=${Boolean(checked)}
+      disabled=${Boolean(disabled)}
+      onChange=${(event) => onChange && onChange(Boolean((event.currentTarget || event.target).checked))}
+    />
+    <span class="k-check__label">${label}</span>
+  </label>`;
+}
+
 // An on/off switch with its label, the word On or Off, and an optional explanation under it.
 // `onChange(nextOn)` is called on a click. A disabled switch stays reachable so its explanation can be read.
 export function Switch({ on, disabled, label, explain, onChange }) {

@@ -177,6 +177,70 @@
   cursor: not-allowed;
 }
 
+/* The check box: a 16 px box with a 1.5 px edge in the second ink (a control's edge needs 3 to 1 on every surface;
+   the stronger hairline is too faint for a box this small), the accent fill with a white tick when on, the 2 px
+   accent ring on keyboard focus, the label beside it on one line. */
+.k-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--h-sm);
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  cursor: pointer;
+}
+
+.k-check__box {
+  position: relative;
+  flex: none;
+  width: var(--s-4);
+  height: var(--s-4);
+  margin: 0;
+  border: 1.5px solid var(--ink-2);
+  border-radius: var(--r-xs);
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.k-check__box:checked {
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+}
+
+.k-check__box:checked::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--accent-ink);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.k-check__box:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.k-check--disabled,
+.k-check--disabled .k-check__box {
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+.k-check--disabled .k-check__box {
+  border-color: var(--line-2);
+}
+
+.k-check--disabled .k-check__box:checked {
+  background: color-mix(in srgb, var(--accent-fill) 22%, var(--raise));
+}
+
 /* The switch: label at the left, the word On or Off and the 38 x 22 track at the right. */
 .k-switch {
   display: flex;
@@ -310,6 +374,7 @@
   .k-input,
   .k-select__control,
   .k-switch__control,
+  .k-check,
   .k-money-input {
     min-height: calc(var(--h-lg) + var(--s-1));
   }

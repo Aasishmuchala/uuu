@@ -7,8 +7,20 @@
 //   "/" or "@" lists. onSend({ text }) -> promise.
 // PLAN-COOK T37: both modes are one outlined box on the panel step (nothing blurs), 15 px words, the round send button
 // in the accent fill, the hint at 13 px. A job in the "/" list shows its department's line icon, never a colour (O7).
+// PLAN-COOK T118: a host can draw its own foot without reaching inside. In task mode:
+// - `bare`: no box of its own (no edge, no fill: the host's surface shows); while the field has focus a 2 px accent
+//   bar at its left; the "/" and "@" lists open under the words, in the flow; Plan first is the kit's Checkbox.
+// - `sendLabel`: the send button is the kit's small primary with this word instead of the round icon button.
+// - `controls`: the host's own controls, in the foot row after Plan first (the left side). Either nodes, or a
+//   function ({ edit }) -> nodes, where edit((text, caret) => ({ text, caret })) changes the words as if typed (the
+//   lists open, the field takes focus with the caret where it says).
+// - `keys`: the keys hint the host draws, at the right of the foot row before Send (in place of the default hint).
+// `maxHeight` (both modes): the largest height the field grows to, in px (a number or "320px") or a share of the
+// window ("40vh"); without it, 240 px as before.
 import { html, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
 import { Avatar } from "./avatar.js";
+import { Button } from "./button.js";
+import { Checkbox } from "./fields.js";
 import { Icon } from "./icon.js";
 import { Kbd } from "./text.js";
 
@@ -84,14 +96,28 @@ function optionsFor(t, templates, agents) {
 
 let seq = 0;
 
-// Grows the text area with what is typed, up to 240 px.
-function useGrow(area, value) {
+// Pure. The host's largest height as a CSS length: a number of px, "<n>px", or "<n>vh" (a share of the window);
+// anything else is null (the 240 px default holds).
+export function heightLimit(max) {
+  if (typeof max === "number") return Number.isFinite(max) && max > 0 ? `${max}px` : null;
+  if (typeof max === "string" && /^\d+(\.\d+)?(px|vh|dvh|svh)$/.test(max.trim()) && parseFloat(max) > 0) return max.trim();
+  return null;
+}
+
+// Grows the text area with what is typed, up to 240 px, or up to the host's limit when it gives one.
+function useGrow(area, value, max) {
+  const limit = heightLimit(max);
   useEffect(() => {
     const el = area.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
-  }, [value]);
+    if (limit) {
+      el.style.maxHeight = limit;
+      el.style.height = `${el.scrollHeight}px`;
+    } else {
+      el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+    }
+  }, [value, limit]);
 }
 
 const later = (fn) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(fn) : setTimeout(fn, 0));
@@ -101,14 +127,14 @@ export function Composer(props) {
 }
 
 // The map's box: a question for the company brain or a request, sent as the owner typed it.
-function AskBox({ placeholder, hint, onSend, busy = false, autoFocus = false, initialText = "" }) {
+function AskBox({ placeholder, hint, onSend, busy = false, autoFocus = false, initialText = "", maxHeight }) {
   const [value, setValue] = useState(text(initialText));
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const area = useRef(null);
   const ids = useMemo(() => { seq += 1; return { field: `k-composer-field-${seq}`, hint: `k-composer-hint-${seq}` }; }, []);
   useEffect(() => { if (autoFocus && area.current) area.current.focus(); }, [autoFocus]);
-  useGrow(area, value);
+  useGrow(area, value, maxHeight);
   const phone = usePhone();
   const isBusy = busy || sending;
 
@@ -156,7 +182,7 @@ function AskBox({ placeholder, hint, onSend, busy = false, autoFocus = false, in
 
 function TaskComposer({
   placeholder = DEFAULT_PLACEHOLDER, onSend, onPickJob, hint, to = null, agents = [], templates = [], allowPlanFirst = true,
-  busy = false, autoFocus = false, initialText = "",
+  busy = false, autoFocus = false, initialText = "", bare = false, sendLabel = "", controls = null, keys = null, maxHeight,
 }) {
   const [value, setValue] = useState(text(initialText));
   const [who, setWho] = useState(to || null);
@@ -173,7 +199,7 @@ function TaskComposer({
 
   useEffect(() => { setWho(to || null); }, [to]);
   useEffect(() => { if (autoFocus && area.current) area.current.focus(); }, [autoFocus]);
-  useGrow(area, value);
+  useGrow(area, value, maxHeight);
 
   const t = closed ? null : trigger(value, caret);
   const options = optionsFor(t, templates, agents);
@@ -194,6 +220,25 @@ function TaskComposer({
     later(() => {
       const el = area.current;
       if (el) { el.focus(); el.setSelectionRange(pos, pos); }
+    });
+  };
+
+  // The host's change to the words, as if typed: the lists open again and the field takes focus at the new caret.
+  const edit = (change) => {
+    if (typeof change !== "function" || isBusy) return;
+    const el = area.current;
+    const at = el && Number.isInteger(el.selectionStart) ? el.selectionStart : caret;
+    const next = change(value, at) || {};
+    const words = text(next.text);
+    const pos = Number.isInteger(next.caret) ? Math.max(0, Math.min(next.caret, words.length)) : words.length;
+    setValue(words);
+    setCaret(pos);
+    setClosed(false);
+    setActive(0);
+    if (error) setError("");
+    later(() => {
+      const f = area.current;
+      if (f) { f.focus(); f.setSelectionRange(pos, pos); }
     });
   };
 
@@ -265,8 +310,7 @@ function TaskComposer({
     if (error) setError("");
   };
 
-  return html`<div class=${`k-composer${isBusy ? " k-composer--busy" : ""}`}>
-    ${open && html`<div class="k-composer__menu" id=${ids.list} role="listbox"
+  const menu = open && html`<div class="k-composer__menu" id=${ids.list} role="listbox"
         aria-label=${t.kind === "/" ? "Jobs" : "Agents"}>
       <p class="k-composer__menu-head">${t.kind === "/" ? "Jobs" : "Give it to"}</p>
       ${options.map((o, i) => html`<button type="button" role="option" tabindex="-1" key=${o.key}
@@ -279,7 +323,13 @@ function TaskComposer({
               <span class="k-composer__option-title">${text(o.value.title)}</span>
               ${o.value.summary && html`<span class="k-composer__option-hint">${text(o.value.summary)}</span>`}`}
       </button>`)}
-    </div>`}
+    </div>`;
+  const errorLine = error && html`<p class="k-composer__error" role="alert"><${Icon} name="alert" /><span>${error}</span></p>`;
+  const canSend = !isBusy && Boolean(value.trim());
+  const hostControls = typeof controls === "function" ? controls({ edit }) : controls;
+
+  return html`<div class=${`k-composer${bare ? " k-composer--bare" : ""}${isBusy ? " k-composer--busy" : ""}`}>
+    ${!bare && menu}
     <div class="k-composer__box">
       ${(whoAgent || template) && html`<div class="k-composer__context">
         ${whoAgent && html`<span class="k-composer__to">
@@ -298,19 +348,28 @@ function TaskComposer({
         aria-controls=${open ? ids.list : undefined}
         aria-activedescendant=${open ? `${ids.list}-${current}` : undefined}
         onInput=${onInput} onKeyDown=${onKeyDown} onKeyUp=${track} onClick=${track}></textarea>
+      ${bare && menu}
+      ${bare && errorLine}
       <div class="k-composer__bar">
-        ${allowPlanFirst && html`<label class="k-composer__plan">
+        ${allowPlanFirst && (bare
+          ? html`<${Checkbox} class="k-composer__plan" label="Plan first" checked=${planFirst} disabled=${isBusy} onChange=${setPlanFirst} />`
+          : html`<label class="k-composer__plan">
           <input type="checkbox" checked=${planFirst} disabled=${isBusy}
             onChange=${(e) => setPlanFirst(e.currentTarget.checked)} />
           <span>Plan first</span>
-        </label>`}
-        ${text(hint)
-          ? html`<span class="k-composer__hint">${text(hint)}</span>`
-          : html`<span class="k-composer__hint" aria-hidden="true"><${Kbd}>Enter<//> to send, <${Kbd}>Shift<//> + <${Kbd}>Enter<//> for a new line</span>`}
-        <button type="button" class="k-composer__send" aria-label=${isBusy ? "Sending" : "Send"}
-          disabled=${isBusy || !value.trim()} onClick=${send}><${Icon} name="send" /></button>
+        </label>`)}
+        ${hostControls && html`<span class="k-composer__controls">${hostControls}</span>`}
+        ${keys
+          ? html`<span class="k-composer__hint k-composer__keys" aria-hidden="true">${keys}</span>`
+          : text(hint)
+            ? html`<span class="k-composer__hint">${text(hint)}</span>`
+            : html`<span class="k-composer__hint" aria-hidden="true"><${Kbd}>Enter<//> to send, <${Kbd}>Shift<//> + <${Kbd}>Enter<//> for a new line</span>`}
+        ${text(sendLabel)
+          ? html`<${Button} variant="primary" size="sm" class="k-composer__send-word" disabled=${!canSend && !isBusy} busy=${isBusy} onClick=${send}>${text(sendLabel)}<//>`
+          : html`<button type="button" class="k-composer__send" aria-label=${isBusy ? "Sending" : "Send"}
+          disabled=${!canSend} onClick=${send}><${Icon} name="send" /></button>`}
       </div>
-      ${error && html`<p class="k-composer__error" role="alert"><${Icon} name="alert" /><span>${error}</span></p>`}
+      ${!bare && errorLine}
     </div>
   </div>`;
 }

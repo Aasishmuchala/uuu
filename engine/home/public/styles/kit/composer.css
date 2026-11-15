@@ -204,6 +204,31 @@
   margin-left: 0;
 }
 
+/* A host's foot (T118): its controls take the row's flow as if they were the row's own; the keys hint it draws sits
+   at the right before Send, in 12 px second ink; the worded Send is the kit's small primary, at the right. */
+.k-composer__controls {
+  display: contents;
+}
+
+.k-composer__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  white-space: nowrap;
+}
+
+.k-composer__bar .k-composer__send-word {
+  flex: none;
+  margin-left: auto;
+}
+
+.k-composer__hint + .k-composer__send-word {
+  margin-left: 0;
+}
+
 /* The "/" and "@" lists: a floating panel over whatever is above the box. */
 .k-composer__menu {
   margin-bottom: var(--s-2);
@@ -315,6 +340,41 @@
   text-wrap: balance;
 }
 
+/* The bare look (T118): no box of its own, so the host's surface shows: no edge, no fill, no shadow, no ring round
+   it. While the field has focus a 2 px accent bar stands at its left, as a chosen row does. The "/" and "@" lists
+   open under the words, in the flow, under a rule, not floating. */
+.k-composer--bare {
+  position: relative;
+  bottom: auto;
+  z-index: auto;
+  padding-bottom: 0;
+}
+
+.k-composer--bare .k-composer__box {
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.k-composer--bare .k-composer__box:has(.k-composer__field:focus) {
+  outline: none;
+}
+
+.k-composer--bare .k-composer__field:focus {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.k-composer--bare .k-composer__menu {
+  padding: var(--s-2) 0 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .k-composer--ask .k-composer__error {
   justify-content: center;
 }
@@ -324,7 +384,8 @@
     display: none;
   }
 
-  .k-composer__hint + .k-composer__send {
+  .k-composer__hint + .k-composer__send,
+  .k-composer__hint + .k-composer__send-word {
     margin-left: auto;
   }
 

@@ -5,9 +5,9 @@
 // The Composer is loaded the same lazy way as a page, so this dialog works before it exists.
 // Drawn as one composer (PLAN-COOK T111): a small "New task" label and Close on the dialog's own surface, the text
 // area as the dialog's body (no box of its own), and one foot row: Plan first, Every job, the "/" and "@" keys as
-// quiet buttons, then "Enter to send" and the Send button, which stands for the Composer's own (hidden) send and
-// is enabled exactly when that one is.
-import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
+// quiet buttons, then "Enter to send" and the Send button. PLAN-COOK T118: all of it through the Composer's own
+// props (bare, sendLabel, controls, keys, maxHeight); nothing reaches inside it.
+import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { aheadLine, linkHref } from "../lib/format.js";
 import { BeingBuilt, Button, Dialog, Icon, Kbd, Loading, SHORT_PLACEHOLDER } from "../kit/index.js";
@@ -81,8 +81,6 @@ export function ComposeDialog({ open, seed, team, queue, onClose, onSent }) {
   const [jobs, setJobs] = useState([]);
   const [sent, setSent] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [canSend, setCanSend] = useState(false);
-  const box = useRef(null);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -109,36 +107,6 @@ export function ComposeDialog({ open, seed, team, queue, onClose, onSent }) {
     }
   };
 
-  // The foot's Send follows the Composer's own send button: enabled when it is (there are words, nothing is sent).
-  useEffect(() => {
-    const root = box.current;
-    if (!open || !root || typeof root.querySelector !== "function") return undefined;
-    const read = () => {
-      const b = root.querySelector(".k-composer__send");
-      setCanSend(Boolean(b && !b.disabled));
-    };
-    read();
-    if (typeof MutationObserver !== "function") return undefined;
-    const watch = new MutationObserver(read);
-    watch.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["disabled"] });
-    return () => watch.disconnect();
-  }, [open, Composer, sent]);
-
-  const field = () => box.current?.querySelector?.(".k-composer__field") || null;
-  const sendNow = () => box.current?.querySelector?.(".k-composer__send")?.click();
-  // "/" or "@" into the text, as if typed, so the Composer opens its list of jobs or agents.
-  const putKey = (key) => {
-    const el = field();
-    if (!el) return;
-    const next = withKey(el.value, el.selectionStart, key);
-    const set = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")?.set;
-    if (set) set.call(el, next.text);
-    else el.value = next.text;
-    el.focus();
-    el.setSelectionRange?.(next.caret, next.caret);
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-  };
-
   const pickJob = (job) => {
     const href = jobHref(job);
     onClose();
@@ -148,7 +116,6 @@ export function ComposeDialog({ open, seed, team, queue, onClose, onSent }) {
   const agents = (Array.isArray(team) ? team : []).filter((a) => a.slug !== "chief-of-staff");
   const s = seed || {};
   let body;
-  let foot = null;
   if (sent) {
     body = html`
       <div class="s-compose-done" role="status">
@@ -161,28 +128,28 @@ export function ComposeDialog({ open, seed, team, queue, onClose, onSent }) {
   } else if (!Composer) {
     body = html`<${BeingBuilt} />`;
   } else {
-    body = html`
-      <${Composer} key=${s.n || 0} onSend=${send} agents=${agents} templates=${jobs} onPickJob=${pickJob} busy=${busy} autoFocus=${true}
-        initialText=${s.text || ""} to=${s.to || undefined} placeholder=${WORDS.placeholder} />`;
-    foot = html`
+    // "/" or "@" put in at the caret, as if typed, so the Composer opens its list of jobs or agents.
+    const controls = ({ edit }) => html`
       <${Button} variant="ghost" size="sm" href="#/jobs" class="s-compose-jobs" onClick=${onClose}>
         ${WORDS.jobs}<${Icon} name="chevron-right" size=${14} />
       <//>
-      <${Button} variant="quiet" size="sm" class="s-compose-key s-compose-key--jobs" aria-label=${WORDS.slashLabel} onClick=${() => putKey("/")}>
+      <${Button} variant="quiet" size="sm" class="s-compose-key s-compose-key--jobs" aria-label=${WORDS.slashLabel} onClick=${() => edit((v, c) => withKey(v, c, "/"))}>
         <${Kbd}>/<//>${WORDS.slash}
       <//>
-      <${Button} variant="quiet" size="sm" class="s-compose-key s-compose-key--who" aria-label=${WORDS.atLabel} onClick=${() => putKey("@")}>
+      <${Button} variant="quiet" size="sm" class="s-compose-key s-compose-key--who" aria-label=${WORDS.atLabel} onClick=${() => edit((v, c) => withKey(v, c, "@"))}>
         <${Kbd}>@<//>${WORDS.at}
-      <//>
-      <span class="s-compose-keys" aria-hidden="true"><${Kbd}>Enter<//> ${WORDS.enter}</span>
-      <${Button} variant="primary" size="sm" class="s-compose-send" disabled=${!canSend} busy=${busy} onClick=${sendNow}>${WORDS.send}<//>`;
+      <//>`;
+    body = html`
+      <${Composer} key=${s.n || 0} onSend=${send} agents=${agents} templates=${jobs} onPickJob=${pickJob} busy=${busy} autoFocus=${true}
+        initialText=${s.text || ""} to=${s.to || undefined} placeholder=${WORDS.placeholder}
+        bare=${true} maxHeight="40vh" sendLabel=${WORDS.send} controls=${controls}
+        keys=${html`<${Kbd}>Enter<//> ${WORDS.enter}`} />`;
   }
 
   return html`
     <${Dialog} open=${open} title="New task" onClose=${onClose} size="lg">
-      <div class="s-compose" ref=${box}>
+      <div class="s-compose">
         ${body}
-        ${foot}
       </div>
     <//>`;
 }

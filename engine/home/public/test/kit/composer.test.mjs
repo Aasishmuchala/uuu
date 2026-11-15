@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { KIT, FakeElement, render, installDom, elements, textOf, settle, show, showTree, fire } from "./_dom.mjs";
+import { KIT, FakeElement, html, render, installDom, elements, textOf, settle, show, showTree, fire } from "./_dom.mjs";
 import { shape } from "./_fixtures.mjs";
 import { css, compositeSheetTests } from "./_rules.mjs";
 
@@ -175,6 +175,70 @@ test("Composer: one outlined box on the panel, 15 px words, a round send button 
   assert.equal(send.getAttribute("aria-label"), "Send");
   assert.equal(send.getAttribute("disabled"), "true", "inert until there are words");
   render(null, root);
+});
+
+// ---- T118: what a host needs to draw its own foot without reaching inside.
+
+test("heightLimit: px or a share of the window, else the 240 px default", () => {
+  assert.equal(composer.heightLimit(320), "320px");
+  assert.equal(composer.heightLimit("320px"), "320px");
+  assert.equal(composer.heightLimit("40vh"), "40vh");
+  for (const bad of [undefined, null, 0, -5, NaN, "", "40%", "calc(1px)", "red", "0vh"]) assert.equal(composer.heightLimit(bad), null, String(bad));
+});
+
+test("Composer, a host's foot: the bare look, a worded Send, the host's controls at the left and its keys before Send", async () => {
+  installDom();
+  const sent = [];
+  let edit = null;
+  const root = await showTree(composer.Composer, {
+    onSend: async (b) => { sent.push(b); }, agents: [{ slug: "artist", name: "Artist" }], bare: true, sendLabel: "Send", maxHeight: "40vh",
+    keys: "Enter to send",
+    controls: (api) => { edit = api.edit; return html`<button type="button" class="host-key">key</button>`; },
+  });
+  const outer = elements(root).find((e) => /\bk-composer\b/.test(e.getAttribute("class") || ""));
+  assert.match(outer.getAttribute("class"), /k-composer--bare/);
+  assert.ok(!elements(root).some((e) => /k-composer__send(\s|$)/.test(e.getAttribute("class") || "")), "no round send button");
+  const bar = elements(root).find((e) => /k-composer__bar/.test(e.getAttribute("class") || ""));
+  const order = elements(bar).map((e) => e.getAttribute("class") || "").filter((c) => /k-check |k-check$|host-key|k-composer__keys|k-composer__send-word/.test(c));
+  assert.equal(order.length, 4, order.join(" | "));
+  assert.match(order[0], /k-check/, "Plan first, the kit's check box, first");
+  assert.match(order[1], /host-key/, "then the host's controls");
+  assert.match(order[2], /k-composer__keys/, "then the keys hint");
+  assert.match(order[3], /k-btn--primary/, "then Send, the kit's primary");
+  assert.match(order[3], /k-btn--sm/);
+  const send = elements(bar).find((e) => /k-composer__send-word/.test(e.getAttribute("class") || ""));
+  assert.equal(textOf(send), "Send");
+  assert.ok(send.getAttribute("disabled") === "true" || send.disabled === true, "disabled with nothing typed");
+  assert.ok(textOf(bar).includes("Enter to send"));
+  assert.ok(!textOf(bar).includes("for a new line"), "the host's keys in place of the default hint");
+  const field = textarea(root);
+  assert.equal(field.style.maxHeight, "40vh", "the host's largest height");
+  // The host's edit puts words in as if typed: the "@" list opens.
+  field.selectionStart = 0;
+  edit((v, c) => ({ text: `${v.slice(0, c)}@${v.slice(c)}`, caret: c + 1 }));
+  await settle();
+  const list = elements(root).find((e) => e.getAttribute("role") === "listbox");
+  assert.ok(list, "the list opens");
+  const box = elements(root).find((e) => /k-composer__box/.test(e.getAttribute("class") || ""));
+  assert.ok(elements(box).includes(list), "in the bare look the list is in the flow, under the words");
+  type(textarea(root), "Draft the price list");
+  await settle();
+  const ready = elements(root).find((e) => /k-composer__send-word/.test(e.getAttribute("class") || ""));
+  assert.ok(!(ready.getAttribute("disabled") === "true" || ready.disabled === true), "enabled once there are words");
+  fire(ready, "click");
+  await settle();
+  assert.deepEqual(sent, [{ text: "Draft the price list", to: null, planFirst: false, template: null }]);
+  render(null, root);
+});
+
+test("Composer: the bare look is the kit's: no edge, no fill, no ring round it, a 2 px accent bar at the field's left", () => {
+  const c = css("kit/composer.css");
+  const box = /\.k-composer--bare \.k-composer__box \{([^}]*)\}/.exec(c)[1];
+  assert.match(box, /border: 0;/);
+  assert.match(box, /background: transparent;/);
+  assert.match(box, /box-shadow: none;/);
+  assert.match(c, /\.k-composer--bare \.k-composer__box:has\(\.k-composer__field:focus\) \{\s*outline: none;/);
+  assert.match(c, /\.k-composer--bare \.k-composer__field:focus \{\s*box-shadow: inset 2px 0 0 var\(--accent\);/);
 });
 
 compositeSheetTests("composer");

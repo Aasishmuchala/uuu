@@ -113,5 +113,32 @@ test("T97: a disabled Switch stays reachable, says it is disabled, and does not 
   unmount(root);
 });
 
+test("Checkbox: a 16 px box with a 1.5 px edge, the accent fill with a white tick when on, the 2 px accent ring on focus", async () => {
+  const s = css("kit/fields.css");
+  const box = /\.k-check__box \{([^}]*)\}/.exec(s)[1];
+  assert.match(box, /width: var\(--s-4\);\s*height: var\(--s-4\);/);
+  assert.match(box, /border: 1\.5px solid var\(--ink-2\);/);
+  assert.match(box, /appearance: none;/);
+  assert.match(/\.k-check__box:checked \{([^}]*)\}/.exec(s)[1], /background: var\(--accent-fill\);/);
+  assert.match(/\.k-check__box:checked::after \{([^}]*)\}/.exec(s)[1], /border: solid var\(--accent-ink\);/);
+  assert.match(s, /\.k-check__box:focus-visible \{\s*outline: 2px solid var\(--focus\);\s*outline-offset: 2px;/);
+  installDom();
+  const got = [];
+  const root = await mount(kit.fields.Checkbox, { checked: false, label: "Plan first", class: "extra", onChange: (v) => got.push(v) });
+  const label = root.firstChild;
+  assert.equal(label.localName, "label", "the label holds the box, so a click on the words toggles it");
+  assert.match(label.getAttribute("class"), /^k-check extra$/);
+  const input = elements(root).find((e) => e.localName === "input");
+  assert.equal(input.getAttribute("type"), "checkbox", "a native check box: Space toggles it");
+  assert.equal(elements(root).find((e) => e.getAttribute("class") === "k-check__label").firstChild.data, "Plan first");
+  input.checked = true;
+  fire(input, "change");
+  assert.deepEqual(got, [true]);
+  unmount(root);
+  const off = await mount(kit.fields.Checkbox, { checked: true, disabled: true, label: "x" });
+  assert.match(off.firstChild.getAttribute("class"), /k-check--disabled/);
+  unmount(off);
+});
+
 primitiveSheetTests("fields");
 narrowControlsTest("fields");
