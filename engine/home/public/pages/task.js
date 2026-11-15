@@ -13,23 +13,27 @@
 //   agents' comments, a marker for each check round, the result with its files). For a question task the story is
 //   the answer, told in rounds (kit/conversation.js: each round a card). Beside the column when there is room (under
 //   the title when there is not): the acceptance rail with the state, Accept and Send back, the other Needs-you items,
-//   the rounds and their checks, what can come next, how it went, the files, a note and stop. Beside the column the
-//   page takes a composed width (at most 1100 px, centred in the pane) and the rail runs its whole height on the
-//   panel surface (T104). Below 860 px a bar above the tab bar holds Accept and Send back.
+//   the rounds and their checks, what can come next, how it went (the facts the task gives, then its stages), the
+//   files, a note and stop. Beside the column the page takes a composed width (at most 1100 px, centred in the pane)
+//   and the rail runs its whole height on the panel surface (T104). When the round passed and the task waits on the
+//   owner, the first text file of the result (md or txt) is read under the story in a card (T114): what the owner is
+//   accepting, on the page. Below 860 px a bar above the tab bar holds Accept and Send back.
 // The versions come from GET /api/tasks/:id/pieces and the sites from GET /api/tasks/:id/sites. When a route is not
 // there (404, an older home server) or fails, the page is the column as it was.
 // Address state: ?round=<n>, ?check=<n>, ?doc=<stage id>, ?files=1. Everything here was written by agents:
-// shown as text only, sizes capped, no link followed.
+// shown as text only, sizes capped, no link followed. A result file's text is read once through GET /api/view/<token>
+// (the reader kit/checks.js Evidence uses: the server answers text only as JSON, never as a page) and drawn by the
+// kit's Markdown as elements, never set as HTML.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { waitingLine } from "../lib/format.js";
+import { bytes, fullWhen, waitingLine, when } from "../lib/format.js";
 import { go } from "../lib/router.js";
 import {
-  AnswerView, Avatar, Blk, Button, Chip, CheckList, Conversation, DecisionCard, DocView, Empty, ErrorNotice, Evidence,
-  FileCard, Icon, Loading, Menu, PageHeader, PickCard, PickFoot, PickNudge, Scores, SiteRail, SiteStage, SiteStrip, SiteView,
-  StageLayout, StatusDot, Tabs, TextArea, Timeline, Versions, brandLine, changedText, isChangedSinceSeen, isPickItem, jobHref,
-  stageLabel, stageOf, useInboxAct, useSiteView, versionsOf,
+  AnswerView, Avatar, Blk, Button, Card, Chip, CheckList, Conversation, DecisionCard, DocView, Empty, ErrorNotice, Evidence,
+  FILE_ICONS, FileCard, Icon, Loading, Markdown, Menu, PageHeader, PickCard, PickFoot, PickNudge, Scores, SiteRail, SiteStage, SiteStrip, SiteView,
+  StageLayout, StatusDot, Tabs, TextArea, Timeline, Versions, brandLine, changedText, durationWords, fileKind, frontMatter,
+  isChangedSinceSeen, isPickItem, jobHref, stageLabel, stageOf, useInboxAct, useSiteView, versionsOf,
 } from "../kit/index.js";
 
 const BACK = { href: "#/tasks", label: "All tasks" };
@@ -43,6 +47,12 @@ const WIDE = 1080;
 
 // The rail's section headings.
 export const PANEL_WORDS = { acceptance: "Acceptance", checks: "The checks", also: "Also waiting on you", how: "How it went", steps: "Every step" };
+
+// How it went: the facts the task gives, each only when the data has it.
+export const HOW_WORDS = { started: "Started", took: "Took", who: "Done by", rounds: "Rounds" };
+
+// The result's text file read on the page.
+export const READ_WORDS = { open: "Open", label: "What you are accepting", part: "Only the start of this file is shown." };
 
 // Beside the column the page is at most this wide, centred in the pane, and reaches the pane's edges and its foot.
 export const COMPOSED = 1100;
@@ -261,6 +271,42 @@ export function storyOf(d) {
   return out.map((e) => e.item);
 }
 
+// The result's file whose text the page reads (T114): when the newest round passed and the task waits on the owner,
+// of the result's files that are text (md or txt) and viewable through /api/view, the first whose name shares a word
+// of four or more letters with the result's words ("a launch post" → launch-post.md), else the first; else null.
+// One file.
+const READABLE = /\.(md|txt)$/i;
+const wordsOf = (v) => new Set(text(v).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4));
+export function readableOf(d) {
+  if (!d || typeof d !== "object") return null;
+  const a = d.acceptance || {};
+  if (a.state !== "waiting_for_you") return null;
+  const rounds = list(a.rounds).filter((r) => r && typeof r === "object");
+  const newest = rounds.length ? rounds.reduce((b, r) => (Number(r.n) > Number(b.n) ? r : b), rounds[rounds.length - 1]) : null;
+  if (!newest || newest.outcome !== "pass") return null;
+  const texts = resultFiles(d.files, d.stages).slice(0, STORY_FILES).filter((f) => READABLE.test(text(f.name))
+    && typeof f.viewUrl === "string" && f.viewUrl.startsWith("/api/view/"));
+  const said = wordsOf(d.result && d.result.text);
+  const named = texts.find((f) => [...wordsOf((text(f.name).split("/").pop() || "").replace(READABLE, ""))].some((w) => said.has(w)));
+  return named || texts[0] || null;
+}
+
+// How it went, as facts the page already has: [{ id, label, value, title? }]: when the task started, how long it took
+// to its result, who did it and how many check rounds. Nothing is shown that the data does not give.
+export function howFacts(d) {
+  if (!d || typeof d !== "object") return [];
+  const t = d.task || {};
+  const out = [];
+  const start = ms(t.createdAt);
+  if (Number.isFinite(start)) out.push({ id: "started", label: HOW_WORDS.started, value: when(t.createdAt), title: fullWhen(t.createdAt) });
+  const end = ms(d.result && d.result.at);
+  if (Number.isFinite(start) && Number.isFinite(end) && end >= start) out.push({ id: "took", label: HOW_WORDS.took, value: durationWords(end - start) });
+  if (t.who && text(t.who.name)) out.push({ id: "who", label: HOW_WORDS.who, value: cap(t.who.name, 60) });
+  const n = list(d.acceptance && d.acceptance.rounds).length;
+  if (n > 0) out.push({ id: "rounds", label: HOW_WORDS.rounds, value: String(n) });
+  return out;
+}
+
 // "What can come next" (33.4 `next`) as links to the job, told which task they follow.
 export function nextLinks(next, task) {
   const from = text(task && (task.identifier || task.id));
@@ -462,8 +508,8 @@ function AcceptBar({ acceptance, onDone, onChanged }) {
           </div>
         </form>` : html`
         <div class="p-task__accept-row">
-          <${Button} variant="accept" size="lg" busy=${busy} onClick=${doAccept}>${text(accept.label) || "Accept"}<//>
-          ${sendBack ? html`<${Button} variant="plain" onClick=${() => setNoting(true)} disabled=${busy}>${text(sendBack.label) || "Send back"}<//>` : null}
+          <${Button} variant="primary" busy=${busy} onClick=${doAccept}>${text(accept.label) || "Accept"}<//>
+          ${sendBack ? html`<${Button} variant="ghost" onClick=${() => setNoting(true)} disabled=${busy}>${text(sendBack.label) || "Send back"}<//>` : null}
         </div>`}
       ${error ? html`<${Refused} error=${error} />` : null}
     </div>`;
@@ -502,7 +548,7 @@ function StopTask({ task, onDone, open = false, onClose }) {
     }
   }
 
-  if (!asking) return html`<${Button} variant="quiet" size="sm" icon="cross" onClick=${() => setAsking(true)}>Stop this task<//>`;
+  if (!asking) return html`<${Button} variant="danger" size="sm" icon="cross" class="p-task__stop" onClick=${() => setAsking(true)}>Stop this task<//>`;
   return html`
     <div class="p-task__confirm" role="group" aria-label="Stop this task?"
       onKeyDown=${(e) => { if (e.key === "Escape") { e.stopPropagation(); setAsking(false); } }}>
@@ -617,7 +663,7 @@ function Rounds({ id, acceptance, query, ask = false }) {
 
 // --- How it went: the five stages and the timeline of steps ------------------------------------------------------
 
-function HowItWent({ stages, timeline, now, shown = false }) {
+function HowItWent({ stages, timeline, now, shown = false, facts = [] }) {
   const list5 = html`<ol class="p-task__stages">
     ${list(stages).filter((s) => s && s.id).map((s) => html`
       <li key=${text(s.id)} class=${`p-task__stage p-task__stage--${text(s.state)}`}>
@@ -631,6 +677,12 @@ function HowItWent({ stages, timeline, now, shown = false }) {
   if (shown) {
     return html`
       <h2 class="p-task__over">${PANEL_WORDS.how}</h2>
+      ${facts.length ? html`<dl class="p-task__facts">
+        ${facts.map((f) => html`<div key=${f.id} class="p-task__fact">
+          <dt>${f.label}</dt>
+          <dd title=${f.title || undefined}>${f.value}</dd>
+        </div>`)}
+      </dl>` : null}
       ${list5}
       <details class="p-task__how">
         <summary class="p-task__summary">${PANEL_WORDS.steps}</summary>
@@ -708,6 +760,71 @@ function Story({ id, items, query }) {
   }
   flush();
   return html`<div class="p-task__story">${blocks}</div>`;
+}
+
+// The result's text file, read on the page (T114): its kind icon, its name and size and Open in the card's head; its
+// leading facts (title, channel, planned) as label and value; then its text, held to the card's height with a fade
+// when there is more. One request for the one file; nothing is drawn while it is read, when it fails or when it has
+// no text. Open shows the whole text already read in the work panel (or in place when there is none).
+function useFileText(url) {
+  const [s, setS] = useState({ url: null, data: null });
+  useEffect(() => {
+    if (!url) return undefined;
+    let live = true;
+    api.get(url)
+      .then((data) => { if (live) setS({ url, data: data && typeof data === "object" ? data : null }); })
+      .catch(() => { if (live) setS({ url, data: null }); });
+    return () => { live = false; };
+  }, [url]);
+  return s.url === url ? s.data : null;
+}
+
+function ReadText({ fields, body, truncated }) {
+  return html`
+    ${fields.length ? html`<dl class="p-task__read-facts">
+      ${fields.map(([k, v], i) => html`<div key=${i} class="p-task__read-fact"><dt>${k}</dt><dd>${v}</dd></div>`)}
+    </dl>` : null}
+    ${body.trim() ? html`<div class="p-task__read-text"><${Markdown} text=${body} /></div>` : null}
+    ${truncated ? html`<p class="u-caption">${READ_WORDS.part}</p>` : null}`;
+}
+
+function Reader({ file, openPanel }) {
+  const data = useFileText(file ? file.viewUrl : null);
+  const body = useRef(null);
+  const [more, setMore] = useState(false);
+  const [wide, setWide] = useState(false);
+  const read = data ? frontMatter(cap(data.text, 262144)) : { fields: [], body: "" };
+  const has = read.fields.length > 0 || read.body.trim() !== "";
+  useEffect(() => {
+    const el = body.current;
+    if (!el) return undefined;
+    const measure = () => setMore(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+    if (ro) ro.observe(el);
+    return () => { if (ro) ro.disconnect(); };
+  }, [has, wide, data && data.text]);
+  if (!file || !data || !has) return null;
+  const name = text(file.name).split("/").pop() || text(file.name);
+  const kind = fileKind(name);
+  const open = () => {
+    if (typeof openPanel === "function") {
+      openPanel(html`<div class="p-task"><div class="p-task__read-whole"><${ReadText} ...${read} truncated=${data.truncated === true} /></div></div>`, { title: name });
+    } else setWide(!wide);
+  };
+  return html`
+    <${Card} padding="none" class="p-task__read" role="region" aria-label=${`${READ_WORDS.label}: ${name}`}>
+      <div class="p-task__read-head">
+        <span class="p-task__read-icon"><${Icon} name=${FILE_ICONS[kind]} size=${16} /></span>
+        <h2 class="p-task__read-name" title=${name}>${name}</h2>
+        ${Number.isFinite(Number(file.size)) ? html`<span class="p-task__read-size">${bytes(file.size)}</span>` : null}
+        <${Button} variant="ghost" size="sm" icon="external" class="p-task__read-open" aria-label=${`${READ_WORDS.open} ${name}`}
+          aria-expanded=${typeof openPanel === "function" ? undefined : wide ? "true" : "false"} onClick=${open}>${READ_WORDS.open}<//>
+      </div>
+      <div class=${`p-task__read-body${more && !wide ? " p-task__read-body--more" : ""}${wide ? " p-task__read-body--whole" : ""}`} ref=${body}>
+        <${ReadText} ...${read} truncated=${data.truncated === true} />
+      </div>
+    <//>`;
 }
 
 function FilesPanel({ files }) {
@@ -819,6 +936,7 @@ export default function Page({ route }) {
   const next = nextLinks(d.next, t);
   const story = storyOf(d);
   const state = acceptance.state || "not_ready";
+  const readable = askOf(d) ? null : readableOf(d);
 
   if (mode !== "column") {
     const parts = {
@@ -855,12 +973,12 @@ export default function Page({ route }) {
         </section>
         ${nextOnTop(acceptance, next) || !next.length ? null : html`<section class="p-task__sec"><${NextUp} items=${next} /></section>`}
         <section class="p-task__sec">
-          <${HowItWent} stages=${d.stages} timeline=${d.timeline} now=${d.generatedAt} shown=${true} />
+          <${HowItWent} stages=${d.stages} timeline=${d.timeline} now=${d.generatedAt} shown=${true} facts=${howFacts(d)} />
         </section>
         <div class="p-task__tools">
           ${files.length ? html`<${Button} variant="plain" size="sm" icon="panel" onClick=${showFiles}>Files (${files.length})<//>` : null}
           ${t.id ? html`<${SendNote} task=${t} onDone=${after} />` : null}
-          ${canStop && t.id ? html`<${StopTask} task=${t} onDone=${after} />` : null}
+          ${canStop && t.id ? html`<div class="p-task__tools-end"><${StopTask} task=${t} onDone=${after} /></div>` : null}
         </div>
       </div>
     </aside>`;
@@ -890,6 +1008,7 @@ export default function Page({ route }) {
         <${SiteView} id=${id} stamp=${piecesStamp(d, null)} htmlId="p-task-sites" />
         ${story.length && !askOf(d) ? html`<h2 class="p-task__h p-task__story-h">What was said</h2>` : null}
         <${Story} id=${id} items=${story} query=${query} />
+        ${readable ? html`<${Reader} key=${readable.viewUrl} file=${readable} openPanel=${app.openPanel} />` : null}
       </section>
       ${barred ? html`
         <div class="p-task__bar" ref=${bar} role="region" aria-label="Accept or send back">

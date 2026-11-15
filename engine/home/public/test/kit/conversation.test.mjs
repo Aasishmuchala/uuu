@@ -50,9 +50,14 @@ test("Conversation and FileCard: the owner's bubble, Open or Download", async ()
   assert.ok(out.classes.includes("k-convo__bubble"));
   assert.ok(out.classes.includes("k-file"));
   assert.ok(out.text.includes("Open"));
-  const dl = walk(FileCard({ file: { ...file, viewUrl: null } }));
-  assert.ok(dl.text.includes("Download"));
-  assert.ok(!dl.text.includes("Open"));
+  // PLAN-COOK T114: a file that cannot be viewed here keeps its Open column, disabled, and says why.
+  const dl = show(FileCard, { file: { ...file, name: "cad/bracket.step", viewUrl: null } });
+  const btns = elements(dl).filter((e) => /\bk-file__btn\b/.test(e.getAttribute("class") || ""));
+  assert.equal(btns.length, 2, "Open and Download, always");
+  const off = (e) => e.disabled === true || e.getAttribute("disabled") !== null;
+  assert.ok(off(btns[0]), "Open is disabled");
+  assert.match(btns[0].getAttribute("aria-label"), /^Open bracket\.step: this kind of file cannot be shown here/);
+  assert.ok(!off(btns[1]) && btns[1].getAttribute("aria-label") === "Download bracket.step");
 });
 
 // M63 item 28, PLAN-COOK T37: an agent's long comment folds behind a quiet "Read all" button; the first lines show.
@@ -166,9 +171,9 @@ test("file cards and evidence show a file's own name, never its folder; each Ope
 });
 
 // PLAN-COOK T104: what was said is told in rounds. A marker opens a round; each round is a card on the card surface
-// with 16 px inside; the entries' 20 px pictures are joined by a 1 px line; the words at 15; the kind of a message is
-// the kit's one grey chip, the same for a check and a result.
-test("Conversation: rounds as cards, a marker as the card's head, a line between 20 px pictures, one grey kind chip", () => {
+// with 16 px inside; the entries' 20 px pictures are joined by a 1 px line; the words at 15. T114: the kind of a
+// message is the kit's chip in its own tone: a check info, a result good, a question warn, a note neutral.
+test("Conversation: rounds as cards, a marker as the card's head, a line between 20 px pictures, each kind in its tone", () => {
   const c = css("kit/conversation.css");
   assert.match(c, /\.k-convo__round \{[^}]*padding: var\(--s-4\);[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--r-3\);[^}]*background: var\(--card\);[^}]*box-shadow: var\(--shadow-card\);/);
   assert.match(c, /\.k-convo__msg \{[^}]*grid-template-columns: 20px minmax\(0, 1fr\);/);
@@ -193,19 +198,29 @@ test("Conversation: rounds as cards, a marker as the card's head, a line between
   assert.match(textOf(heads[0]), /You/);
   const kinds = withClass(root, "k-convo__kind");
   assert.deepEqual(kinds.map((k) => textOf(k).trim()), ["Note", "Check", "Result"]);
-  assert.ok(kinds.every((k) => /\bk-tag k-tag--neutral\b/.test(k.getAttribute("class"))), "one grey chip for every kind");
+  assert.deepEqual(kinds.map((k) => /\bk-tag k-tag--(\w+)\b/.exec(k.getAttribute("class"))[1]), ["neutral", "info", "ok"], "each kind in its tone");
+  assert.deepEqual(conversation.KIND_TONES, { verdict: "info", result: "ok", ask: "warn" });
   assert.ok(elements(root).filter((e) => /\bk-avatar--20\b/.test(e.getAttribute("class") || "")).length === 3, "20 px pictures");
 });
 
-// PLAN-COOK T104: a file is a 44 px row with its size at the right in 12 px third ink and quiet icon buttons, each
-// with a spoken name; Open where it can be viewed, Download where it can be fetched, both when both.
-test("FileCard: a 44 px row, the size at the right, quiet icon buttons that say which file", () => {
+// PLAN-COOK T104, T114: a file is a 36 px row (44 on a phone) with an icon for its kind, its size at the right in
+// 12 px muted tabular figures and two fixed columns of quiet icon buttons, each with a spoken name.
+test("FileCard: a 36 px row, an icon by kind, the size at the right, two fixed button columns that say which file", () => {
   const root = show(conversation.FileCard, { file: { name: "content/launch-post.md", kind: "text", size: 168, url: "/api/files/x", viewUrl: "/api/view/x" } });
   const labels = elements(root).map((e) => e.getAttribute("aria-label")).filter(Boolean);
   assert.deepEqual(labels, ["Open launch-post.md", "Download launch-post.md"]);
   assert.ok(elements(root).filter((e) => /\bk-file__btn\b/.test(e.getAttribute("class") || "")).every((e) => /\bk-btn--quiet\b/.test(e.getAttribute("class"))));
   const c = css("kit/conversation.css");
-  assert.match(c, /\.k-file \{[^}]*min-height: 44px;/);
+  assert.match(c, /\.k-file \{[^}]*min-height: var\(--h-md\);/);
+  assert.match(c, /@media \(max-width: 859px\) \{[\s\S]*\.k-file \{[^}]*min-height: 44px;/, "a 44 px target on a phone");
+  assert.match(c, /\.k-file__actions \{[^}]*grid-template-columns: repeat\(2, var\(--h-sm\)\);/, "two fixed columns");
+  assert.match(c, /\.k-file__meta \{[^}]*font-variant-numeric: tabular-nums;/);
+  const { fileKind, FILE_ICONS } = conversation;
+  assert.deepEqual(["a/launch-post.md", "notes.TXT", "bracket.py", "bracket.json", "data.csv", "walker.png", "bracket.step", "part.stl", "take.mp4", "README", "x.zip"].map(fileKind),
+    ["text", "text", "code", "data", "data", "picture", "model", "model", "video", "file", "file"]);
+  for (const k of ["text", "code", "data", "picture", "model", "video", "file"]) assert.equal(typeof FILE_ICONS[k], "string", k);
+  const icons = (name) => elements(show(conversation.FileCard, { file: { name, size: 1, url: "/api/files/x" } })).filter((e) => /\bk-file__icon--/.test(e.getAttribute("class") || "")).map((e) => /k-file__icon--(\w+)/.exec(e.getAttribute("class"))[1]);
+  assert.deepEqual(icons("cad/bracket.py"), ["code"]);
   assert.match(c, /\.k-file__meta \{[^}]*color: var\(--ink-3\);[^}]*font-size: var\(--fs-label\);/);
   assert.match(c, /\.k-file__name \{[^}]*flex: 1 1 auto;/, "the name takes the room, so the size sits at the right");
 });

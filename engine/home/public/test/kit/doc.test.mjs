@@ -123,4 +123,23 @@ test("DocView and Markdown: 15/24 words in a 68 character measure, kit-table tab
   assert.doesNotMatch(c, /--glass|--highlight|--r-pill|var\(--dept|--border-warm|--bg-card/);
 });
 
+// PLAN-COOK T114: a Markdown file's leading block of facts is taken out as plain fields; anything else is left whole.
+test("frontMatter: a leading block of plain fields comes out as key and value; anything unusual stays in the text", () => {
+  const { frontMatter } = doc;
+  const post = "---\ntitle: Our kitchen range is here\nchannel: post\nplanned: 2026-11-12\n---\nThe new kitchen range is in the workshop.\n";
+  assert.deepEqual(frontMatter(post), {
+    fields: [["title", "Our kitchen range is here"], ["channel", "post"], ["planned", "2026-11-12"]],
+    body: "The new kitchen range is in the workshop.\n",
+  });
+  const plain = "# A heading\n\nWords.";
+  assert.deepEqual(frontMatter(plain), { fields: [], body: plain });
+  const odd = "---\n<script>x</script>\n---\nWords.";
+  assert.deepEqual(frontMatter(odd), { fields: [], body: odd }, "a line that is not a field leaves the file whole");
+  const open = "---\ntitle: x\nno end";
+  assert.deepEqual(frontMatter(open), { fields: [], body: open });
+  assert.deepEqual(frontMatter(null), { fields: [], body: "" });
+  const long = `---\n${Array.from({ length: 13 }, (_, i) => `k${i}: v`).join("\n")}\n---\nx`;
+  assert.deepEqual(frontMatter(long).fields, [], "at most 12 fields");
+});
+
 compositeSheetTests("doc");

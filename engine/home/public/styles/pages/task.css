@@ -2,8 +2,9 @@
    The column: one reading column with the acceptance panel under the title. With room (pages/task.js measures it)
    the page fills the pane (it reaches past the pane's padding by what the page measured), takes a composed width of
    at most 1100 px centred in it, and the acceptance rail (320 px, the panel surface, a 1 px line) runs the page's
-   whole height beside the story, its sections parted by rules and its content in view as the story scrolls.
-   Below 860 px a bar above the tab bar holds Accept. A task with a site stands on the kit's StageLayout
+   whole height beside the story, its sections parted by rules and its content in view as the story scrolls. The
+   reading column runs to the rail with the page's gutter, and under the story the result's text file is read in a
+   card (T114). Below 860 px a bar above the tab bar holds Accept. A task with a site stands on the kit's StageLayout
    (.p-task--stage); the sheet only places its parts. */
 
 .p-task {
@@ -30,7 +31,7 @@
 .p-task.p-task--side .p-task__head {
   grid-area: head;
   min-width: 0;
-  padding: var(--s-8) var(--s-10) 0;
+  padding: var(--s-8) var(--s-8) 0;
 }
 
 /* The title's own margin and the grid's row gap would stack: the gap alone parts the head from the story. */
@@ -41,7 +42,19 @@
 .p-task.p-task--side .p-task__main {
   grid-area: main;
   min-width: 0;
-  padding: 0 var(--s-10) var(--s-12);
+  padding: 0 var(--s-8) var(--s-12);
+}
+
+/* The story and what is read under it: one column to the rail's gutter, no stray band at its right. */
+.p-task .p-task__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.p-task .p-task__main .k-convo {
+  max-width: none;
 }
 
 /* The rail runs the page's height on the panel surface; its content stays in view while the story scrolls. */
@@ -155,27 +168,72 @@
 }
 
 .p-task .p-task__rail .p-task__stages {
-  margin: 0;
+  margin: var(--s-1) 0 0;
   padding: 0;
   list-style: none;
 }
 
-/* A stage in the rail: its name at the left, its state at the right, one line. */
+/* A stage in the rail: its name at the left in the ink at 13 px, its state at the right, muted at 12, one line. */
 .p-task .p-task__rail .p-task__stage {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: baseline;
   column-gap: var(--s-3);
+  padding: 3px 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-ui);
+}
+
+.p-task .p-task__rail .p-task__stage-name {
+  color: var(--ink);
 }
 
 .p-task .p-task__rail .p-task__stage .u-caption {
-  white-space: nowrap;
-  color: var(--ink-3);
+  min-width: 0;
+  text-align: right;
+  color: var(--ink-2);
+  font-size: var(--fs-label);
 }
 
 .p-task .p-task__rail .p-task__summary {
-  color: var(--ink-2);
+  color: var(--ink);
   font-size: var(--fs-note);
+}
+
+/* How it went, the facts the task gives: label in the ink at 13 px, value muted at 12 at the right, then the
+   stages under a hairline. */
+.p-task .p-task__facts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.p-task .p-task__fact {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: var(--s-3);
+  padding: 3px 0;
+}
+
+.p-task .p-task__fact dt {
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: var(--fs-note);
+  line-height: var(--lh-ui);
+}
+
+/* The value keeps its words whole: it wraps only at a space, right-aligned, never one word a line. */
+.p-task .p-task__fact dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: normal;
 }
 
 .p-task .p-task__accept {
@@ -191,8 +249,17 @@
   gap: var(--s-2);
 }
 
-.p-task .p-task__accept-row .k-btn--accept {
+/* Accept (the primary) and Send back (a ghost) side by side at one height. */
+.p-task .p-task__accept-row {
+  flex-wrap: nowrap;
+}
+
+.p-task .p-task__accept-row .k-btn--primary {
   flex: 1 1 auto;
+}
+
+.p-task .p-task__accept-row .k-btn {
+  min-height: var(--h-md);
 }
 
 /* In the rail a verdict is words, not a box inside the box. */
@@ -202,7 +269,7 @@
 }
 
 .p-task .p-task__story-h {
-  margin: 0 0 var(--s-2);
+  margin: 0;
   font-size: var(--fs-section);
   line-height: var(--lh-section);
 }
@@ -448,6 +515,14 @@
   padding-top: var(--s-4);
 }
 
+/* Stop this task comes last, on its own line, at its own width. */
+.p-task .p-task__tools-end {
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 /* The story. */
 .p-task .p-task__story {
   display: flex;
@@ -491,7 +566,116 @@
 .p-task .p-task__files {
   display: flex;
   flex-direction: column;
+}
+
+/* The result's text file, read on the page: a card (the kit's) with a head row (its kind icon, its name, its size,
+   Open) over a hairline, then its leading facts and its text, held to 320 px with a fade when there is more. */
+.p-task .p-task__read {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow: hidden;
+}
+
+.p-task .p-task__read:has(.p-task__read-body--whole) {
+  max-height: none;
+}
+
+.p-task .p-task__read-head {
+  flex: none;
+  display: flex;
+  align-items: center;
   gap: var(--s-2);
+  min-height: 44px;
+  padding: var(--s-1) var(--s-2) var(--s-1) var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.p-task .p-task__read-icon {
+  display: inline-flex;
+  color: var(--ink-2);
+}
+
+.p-task .p-task__read-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+}
+
+.p-task .p-task__read-size {
+  flex: 1 1 auto;
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.p-task .p-task__read-open {
+  flex: none;
+}
+
+.p-task .p-task__read-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5) var(--s-5);
+  overflow: hidden;
+}
+
+.p-task .p-task__read-body--more {
+  mask-image: linear-gradient(to bottom, black calc(100% - var(--s-12)), transparent);
+}
+
+.p-task .p-task__read-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--s-1) var(--s-4);
+  margin: 0;
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.p-task .p-task__read-fact {
+  display: contents;
+}
+
+.p-task .p-task__read-fact dt {
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  line-height: var(--lh-ui);
+}
+
+.p-task .p-task__read-fact dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--fs-note);
+  line-height: var(--lh-ui);
+  overflow-wrap: anywhere;
+}
+
+.p-task .p-task__read-text {
+  max-width: 68ch;
+  color: var(--ink);
+  font-size: var(--fs-fact);
+  line-height: var(--lh-fact);
+  overflow-wrap: anywhere;
+}
+
+/* The whole text, in the work panel. */
+.p-task .p-task__read-whole {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
 }
 
 /* Below 860 px: Accept and Send back in a bar above the tab bar while the task waits: the state at the left, the

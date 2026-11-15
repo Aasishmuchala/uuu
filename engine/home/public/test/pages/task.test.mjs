@@ -20,14 +20,14 @@ const SERVER = (() => {
 const shape = (name) => JSON.parse(readFileSync(resolve(SERVER, "test", "shapes", `${name}.json`), "utf8"));
 
 const mod = await import("../../pages/task.js");
-const { actArgs, roundsLine, pickRound, pickCheck, stateWord, otherNeeds, address, storyOf, askOf, nextLinks, sideLayout, roundMarker, resultFiles, pickItemOf, piecesStamp, layoutOf, stageKind, scoresByLetter, roundRows, factWords } = mod;
+const { actArgs, roundsLine, pickRound, pickCheck, stateWord, otherNeeds, address, storyOf, askOf, nextLinks, sideLayout, roundMarker, resultFiles, pickItemOf, piecesStamp, layoutOf, stageKind, scoresByLetter, roundRows, factWords, readableOf, howFacts } = mod;
 
 let home = null;
 const seed = {};
 before(async () => {
   const { startV2 } = await import(pathToFileURL(join(SERVER, "lib", "testing-v2.mjs")).href);
   home = await startV2({ routes: ["task.mjs", "inbox.mjs"], inbox: ["goals.mjs", "staged.mjs"], search: [] });
-  for (const n of [7, 8, 13, 18, 19]) {
+  for (const n of [2, 7, 8, 13, 18, 19]) {
     const r = await fetch(`${home.url}/api/tasks/STH-${n}`);
     assert.equal(r.status, 200, `STH-${n}`);
     seed[n] = await r.json();
@@ -450,4 +450,50 @@ test("task: on a stage the site's pieces and the pick's foot share one version, 
   // One filled primary in the foot: Accept (or the pick); Send back is outlined, under the divider.
   const foot = src.slice(src.indexOf("function useAcceptFoot("), src.indexOf("function SitePage("));
   assert.equal((foot.match(/variant="(accept|primary)"/g) || []).length, 1);
+});
+
+// PLAN-COOK T114 (critics of round A2 on S15: "the lower 40 percent of the main column is dead space: fill it with the
+// draft content"): when the round passed and the task waits on the owner, the first text file of the result is read
+// on the page; one file, through /api/view, drawn as text.
+test("task: the result's first md or txt file is read when the round passed and the task waits on the owner", () => {
+  const d = seed[2];
+  assert.equal(readableOf(d).name, "content/launch-post.md", "the text file named by the result's words (a launch post)");
+  assert.equal(readableOf({ ...d, result: { ...d.result, text: "All done." } }).name, "content/bad-header.md", "else the first text file");
+  assert.match(readableOf(d).viewUrl, /^\/api\/view\//);
+  const waiting = { ...d.acceptance, state: "accepted" };
+  assert.equal(readableOf({ ...d, acceptance: waiting }), null, "only while it waits on the owner");
+  const failed = { ...d.acceptance, rounds: [{ ...d.acceptance.rounds[0], outcome: "fail" }] };
+  assert.equal(readableOf({ ...d, acceptance: failed }), null, "only when the newest round passed");
+  assert.equal(readableOf({ ...d, acceptance: { ...d.acceptance, rounds: [] } }), null);
+  const noText = d.files.filter((f) => !/\.(md|txt)$/.test(f.name));
+  assert.equal(readableOf({ ...d, files: noText }), null, "no text file: nothing is read");
+  const unviewable = d.files.map((f) => ({ ...f, viewUrl: /\.md$/.test(f.name) ? "/assets/x.md" : f.viewUrl }));
+  assert.equal(readableOf({ ...d, files: unviewable }), null, "only through the home's own reader");
+  assert.equal(readableOf(null), null);
+  const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../pages/task.js"), "utf8");
+  const reader = src.slice(src.indexOf("function useFileText("), src.indexOf("function FilesPanel("));
+  assert.equal((reader.match(/api\.get\(/g) || []).length, 1, "one request");
+  assert.match(reader, /<\$\{Markdown\} text=\$\{body\} \/>/, "the text is drawn by the kit's Markdown, as elements");
+  assert.match(reader, /if \(!file \|\| !data \|\| !has\) return null;/, "nothing is drawn with no text");
+  assert.deepEqual(mod.READ_WORDS, { open: "Open", label: "What you are accepting", part: "Only the start of this file is shown." });
+  const c = readFileSync(new URL("../../styles/pages/task.css", import.meta.url), "utf8");
+  assert.match(c, /\.p-task \.p-task__read \{[^}]*max-height: 320px;/);
+  assert.match(c, /\.p-task \.p-task__fact dt \{[^}]*white-space: nowrap;/, "a label stays on one line");
+  assert.match(c, /\.p-task \.p-task__fact \{[^}]*grid-template-columns: max-content minmax\(0, 1fr\);/);
+  assert.match(c, /\.p-task \.p-task__main \.k-convo \{[^}]*max-width: none;/, "the column runs to the rail's gutter");
+});
+
+test("task: how it went gives only the facts the task has; Accept and Send back stand side by side, Stop last", () => {
+  const facts = howFacts(seed[2]);
+  assert.deepEqual(facts.map((f) => [f.label, f.value]).filter(([l]) => l !== "Started"),
+    [["Took", "7 hours 58 minutes"], ["Done by", "Chief of staff"], ["Rounds", "1"]]);
+  assert.equal(facts[0].label, "Started");
+  assert.deepEqual(howFacts({ task: {} }), [], "nothing invented");
+  assert.deepEqual(howFacts(null), []);
+  assert.deepEqual(mod.HOW_WORDS, { started: "Started", took: "Took", who: "Done by", rounds: "Rounds" });
+  const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../pages/task.js"), "utf8");
+  const bar = src.slice(src.indexOf("function AcceptBar("), src.indexOf("function Refused("));
+  assert.match(bar, /<\$\{Button\} variant="primary" busy=\$\{busy\} onClick=\$\{doAccept\}>/);
+  assert.match(bar, /<\$\{Button\} variant="ghost" onClick=\$\{\(\) => setNoting\(true\)\}/);
+  assert.match(src, /variant="danger" size="sm" icon="cross" class="p-task__stop"/);
 });

@@ -1,9 +1,10 @@
 /* Conversation and FileCard (kit/conversation.js), told in rounds (PLAN-COOK T104). Tokens only.
    Each round is a card (the card surface, a 1 px edge, the card shadow, 16 px inside) holding its entries; its marker
    ("Round 1 · Passed") is the card's head line. An entry is a 20 px picture in its own column, the speaker at 14 px
-   semibold with its kind chip and the time in grey, then the words at 15 under the name; a 1 px line joins the
-   pictures of one card's entries. A marker alone is a quiet trail line between cards. A file is a 44 px row: a 16 px
-   kind icon, its own name, its size in the third ink at the right, quiet icon buttons. */
+   semibold with its kind chip (the kit's tag in the kind's own tone, T114) and the time in grey, then the words at 15
+   under the name; a 1 px line joins the pictures of one card's entries. A marker alone is a quiet trail line between
+   cards. A file is a 36 px row: a 16 px icon for its kind, its own name, its size in 12 px muted tabular figures,
+   then two fixed columns of quiet icon buttons (Open, Download), disabled rather than missing. */
 
 .k-convo {
   margin: 0;
@@ -92,6 +93,13 @@
   line-height: var(--lh-ui);
 }
 
+/* The owner's picture reads at its size: a solid disc in the second ink with the initial in the card's tone. */
+.k-convo__badge .k-avatar--you {
+  background: var(--ink-3);
+  box-shadow: none;
+  color: var(--card);
+}
+
 /* Initials stay at the 12 px floor, never smaller (the kit's small avatars draw them at 10). */
 .k-convo__badge .k-avatar__initials {
   font-size: var(--fs-label);
@@ -121,7 +129,7 @@
   margin-right: var(--s-2);
 }
 
-/* What kind of message: the kit's tag (styles/kit/tag.css), grey; the head only places it. */
+/* What kind of message: the kit's tag (styles/kit/tag.css) in the kind's tone; the head only places it. */
 .k-convo__kind {
   flex: none;
 }
@@ -220,14 +228,15 @@
 .k-convo__marker--warn .k-convo__marker-icon { color: var(--warn); }
 .k-convo__marker--bad .k-convo__marker-icon { color: var(--bad); }
 
-/* A file, as a 44 px row: its kind icon, its own name, its size in the third ink at the right, then quiet icon
-   buttons. Rows are parted by hairlines; no frame, so a list of files sits calmly in a card or on the ground. */
+/* A file, as a 36 px row: its kind icon, its own name, its size in 12 px muted tabular figures, then two fixed
+   columns of quiet icon buttons. Rows are parted by hairlines; no frame, so a list of files sits calmly in a card or
+   on the ground. */
 .k-file {
   display: flex;
   align-items: center;
   gap: var(--s-3);
   min-width: 0;
-  min-height: 44px;
+  min-height: var(--h-md);
   color: var(--ink);
 }
 
@@ -238,7 +247,7 @@
 .k-file__icon {
   flex: none;
   display: inline-flex;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
 .k-file__name {
@@ -248,7 +257,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--fs-ui);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-regular);
   line-height: var(--lh-ui);
 }
 
@@ -262,13 +271,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Room for both buttons on every row, so the sizes keep one right edge when a file has only one. */
+/* Two fixed columns, Open and Download, on every row: a button that cannot act is disabled, never missing. */
 .k-file__actions {
   flex: none;
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: repeat(2, var(--h-sm));
   gap: 2px;
-  min-width: calc(2 * var(--h-sm) + 2px);
 }
 
 /* An icon button: a square quiet target, its name spoken, its word only for a screen reader. */
@@ -279,8 +287,13 @@
   color: var(--ink-2);
 }
 
-.k-file__btn.k-btn:hover {
+.k-file__btn.k-btn:hover:not(:disabled) {
   color: var(--ink);
+}
+
+/* A button that cannot act here is plainly inert: the same column, the mark faint. */
+.k-file__btn.k-btn:disabled {
+  opacity: .4;
 }
 
 .k-file__folder {
@@ -303,7 +316,11 @@
     height: 44px;
   }
 
+  .k-file {
+    min-height: 44px;
+  }
+
   .k-file__actions {
-    min-width: calc(88px + 2px);
+    grid-template-columns: repeat(2, 44px);
   }
 }

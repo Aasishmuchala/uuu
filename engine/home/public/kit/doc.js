@@ -293,6 +293,26 @@ function Blocks({ blocks, tight }) {
   });
 }
 
+// Pure. A Markdown file's leading block of facts ("---", lines "key: value", "---"), as { fields: [[key, value]],
+// body }: at most 12 plain fields, each key a short word. When the file has no such block, or any line in it is not
+// a plain field, nothing is taken out: { fields: [], body: source }. The words stay text.
+const FIELD = /^([A-Za-z][A-Za-z0-9 _-]{0,39}):[ \t]*(.*)$/;
+export function frontMatter(source) {
+  const all = text(source);
+  const none = { fields: [], body: all };
+  const lines = all.replace(/^﻿/, "").split(/\r?\n/);
+  if (lines[0].trim() !== "---") return none;
+  const end = lines.findIndex((l, i) => i > 0 && l.trim() === "---");
+  if (end < 2 || end > 13) return none;
+  const fields = [];
+  for (const line of lines.slice(1, end)) {
+    const m = FIELD.exec(line);
+    if (!m) return none;
+    fields.push([m[1].trim(), m[2].trim().slice(0, 300)]);
+  }
+  return { fields, body: lines.slice(end + 1).join("\n").replace(/^\s*\n/, "") };
+}
+
 // Markdown text shown as readable text. `compact` is for short pieces inside another document.
 export function Markdown({ text: source, compact = false }) {
   const blocks = parseMarkdown(source);

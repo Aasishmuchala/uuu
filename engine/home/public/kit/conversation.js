@@ -3,8 +3,8 @@
 // "Round 1 · Passed") opens a round; each round is a card holding its entries, the marker as the card's head line,
 // and a 1 px line joins the 20 px pictures of one card's entries. Entries before the first marker are a card with no
 // head; a marker with no entry after it stays a quiet trail line. A message is { who, kind, text, at, files?, marker? }
-// (17.3, 17.5); the owner's `who.slug` is "you". What kind of message it is (Check, Result, Note) is one 12 px chip
-// of the kit's tag system, grey: colour is kept for a state.
+// (17.3, 17.5); the owner's `who.slug` is "you". What kind of message it is (Check, Result, Asked, Note) is one 12 px
+// chip of the kit's tag system in its own tone (T114): a check is info, a result good, a question warn, a note neutral.
 // Agents wrote these words: they are shown as text, never as HTML.
 // `fold: true` on an agent's message (the task page sets it on agents' comments, M63 item 28) shows only the first
 // lines of a long text, with a quiet "Read all" button that opens the rest and "Show less" that closes it again.
@@ -18,32 +18,58 @@ import { Mono } from "./text.js";
 const text = (v) => (v === null || v === undefined ? "" : String(v));
 
 const KIND_LABELS = { result: "Result", verdict: "Check", ask: "Asked" };
+// The tone of each kind's chip (T114); a kind not listed is neutral.
+export const KIND_TONES = { verdict: "info", result: "ok", ask: "warn" };
 const MARKER_TONES = ["neutral", "ok", "warn", "bad"];
 const MARKER_MAX = 120;
 
-// `file` is a file-entry (17.1), drawn as a 44 px row: an icon for its kind, its own name, its size in the third ink
-// at the right, then quiet icon buttons: Open when the file can be viewed here, Download when it can be fetched.
-// Each button's spoken name says which file it is for, so a list of files is not "Open, Open, Open" (M52 K9).
+// Pure. What kind of file a name is, by its ending: "text", "code", "data", "picture", "model", "video" or "file".
+const ENDINGS = {
+  text: ["md", "markdown", "txt", "rtf", "pdf", "doc", "docx", "log"],
+  code: ["py", "js", "mjs", "cjs", "ts", "tsx", "jsx", "sh", "rb", "go", "rs", "java", "c", "h", "cpp", "css", "html", "scad"],
+  data: ["json", "csv", "tsv", "yaml", "yml", "xml", "toml", "sqlite", "xlsx"],
+  picture: ["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"],
+  model: ["step", "stp", "stl", "obj", "3mf", "glb", "gltf", "f3d", "dxf"],
+  video: ["mp4", "mov", "webm"],
+};
+export function fileKind(name) {
+  const base = text(name).split("/").pop();
+  const dot = base.lastIndexOf(".");
+  if (dot <= 0) return "file";
+  const ext = base.slice(dot + 1).toLowerCase();
+  for (const [kind, exts] of Object.entries(ENDINGS)) if (exts.includes(ext)) return kind;
+  return "file";
+}
+
+// The kit's line icon for each kind of file.
+export const FILE_ICONS = { text: "docs", code: "chip", data: "grid", picture: "image", model: "layers", video: "video", file: "file" };
+
+// `file` is a file-entry (17.1), drawn as a 36 px row: an icon for its kind (from the name's ending), its own name,
+// its size in 12 px muted tabular figures, then two fixed columns of quiet icon buttons, Open and Download. A file
+// that cannot be viewed here (or fetched) shows that button disabled, its spoken name saying why, so the columns
+// never skip. Each button's spoken name says which file it is for, so a list of files is not "Open, Open, Open"
+// (M52 K9).
 export function FileCard({ file, onOpen }) {
   if (!file) return null;
   const name = text(file.name);
   // The file's own name only: folder paths stay off screen outside Health (C3 25, M50 F17).
   const short = name.split("/").pop() || name;
   const canView = !!file.viewUrl;
+  const kind = file.kind === "image" ? "picture" : fileKind(short);
   const word = (w) => html`<span class="k-sr">${w}</span>`;
   const open = canView
     ? onOpen
       ? html`<${Button} variant="quiet" size="sm" icon="external" class="k-file__btn" aria-label=${`Open ${short}`} title="Open" onClick=${() => onOpen(file)}>${word("Open")}<//>`
       : html`<${Button} variant="quiet" size="sm" icon="external" class="k-file__btn" aria-label=${`Open ${short}`} title="Open" href=${file.viewUrl}>${word("Open")}<//>`
-    : null;
+    : html`<${Button} variant="quiet" size="sm" icon="external" class="k-file__btn" disabled aria-label=${`Open ${short}: this kind of file cannot be shown here, download it instead`} title="Cannot be shown here">${word("Open")}<//>`;
   const download = file.url
     ? html`<${Button} variant="quiet" size="sm" icon="download" class="k-file__btn" aria-label=${`Download ${short}`} title="Download" href=${file.url} download=${short}>${word("Download")}<//>`
-    : null;
+    : html`<${Button} variant="quiet" size="sm" icon="download" class="k-file__btn" disabled aria-label=${`Download ${short}: it cannot be fetched`} title="Cannot be fetched">${word("Download")}<//>`;
   return html`<div class="k-file">
-    <span class="k-file__icon"><${Icon} name=${file.kind === "image" ? "image" : "file"} size=${16} /></span>
+    <span class=${`k-file__icon k-file__icon--${kind}`}><${Icon} name=${FILE_ICONS[kind]} size=${16} /></span>
     <span class="k-file__name" title=${short}>${short}</span>
     <span class="k-file__meta">${Number.isFinite(Number(file.size)) && html`<span>${bytes(file.size)}</span>`}</span>
-    ${open || download ? html`<span class="k-file__actions">${open}${download}</span>` : null}
+    <span class="k-file__actions">${open}${download}</span>
   </div>`;
 }
 
@@ -137,7 +163,8 @@ function Entry({ m }) {
   const stamp = m.at && html`<time class="k-convo__time" datetime=${text(m.at)} title=${fullWhen(m.at)}>${when(m.at)}</time>`;
   const fileList = files.length > 0 && html`<div class="k-convo__files">${files.map((f) => html`<${FileCard} file=${f} />`)}</div>`;
   const kind = mine ? (m.kind === "note" ? "Note" : "") : KIND_LABELS[m.kind];
-  const chip = kind && html`<span class="k-tag k-tag--neutral k-convo__kind">${kind}</span>`;
+  const tone = mine ? "neutral" : KIND_TONES[m.kind] || "neutral";
+  const chip = kind && html`<span class=${`k-tag k-tag--${tone} k-convo__kind`}>${kind}</span>`;
   if (mine) {
     return html`<li class="k-convo__msg k-convo__msg--you">
       <span class="k-sr">You said:</span>
