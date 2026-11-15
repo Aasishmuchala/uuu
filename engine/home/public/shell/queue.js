@@ -1,13 +1,14 @@
-// The queue (PLAN-COOK T21, T103, CONTRACTS-V3 26.2): what needs the owner, as a popover anchored under the
-// Queue button at the right of the top bar (their right edges aligned), opened by the button, the key "q" and
-// openQueue({ department }) from any page. Not modal: the page stays usable beside it, dimmed whole under a
-// scrim so that no word of it reads cut by the popover's edge. The items in four groups (to approve, to answer,
-// to accept, to know), one line a row (the grey line only on the current row), each row opening the item's own
-// page; then the not-connected lines; the list scrolls inside, ends on a whole row, and over the foot's link to
-// the whole list. It reads GET /api/inbox when it opens and again each time the shell refreshes while open.
-// Focus goes to the first row; Up and Down move, Enter follows; Esc, a click outside and a second "q" close it
-// and give focus back to the Queue button; a page change closes it. Below 860 px it is not drawn: the Needs
-// you tab opens the page.
+// The queue (PLAN-COOK T21, T103, T111, CONTRACTS-V3 26.2): what needs the owner, as a popover anchored 8 px
+// under the Queue button at the right of the top bar (their right edges aligned), opened by the button, the key
+// "q" and openQueue({ department }) from any page. Not modal and no dim: the page stays as it is beside it. The
+// items in four groups (to approve, to answer, to accept, to know), each showing its first rows and then one
+// line "and 8 more" to the whole list; a row's title on up to two lines with the date at its top right (the grey
+// line only on the current row), each row opening the item's own page; then the not-connected lines; the list
+// scrolls inside, ends on a whole row, over the foot's row to the whole list. It reads GET /api/inbox when it
+// opens and again each time the shell refreshes while open. Focus goes to the first row; Up and Down move (the
+// "more" lines and the foot too), Enter follows; Esc, a click outside and a second "q" close it and give focus
+// back to the Queue button; a page change closes it. Below 860 px it is not drawn: the Needs you tab opens the
+// page.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { fullWhen } from "../lib/format.js";
@@ -32,6 +33,11 @@ const cap = (s, n) => {
 const later = (f) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(f) : f());
 const hashNow = () => (typeof location === "undefined" ? "" : location.hash);
 const rowsIn = (el) => (el && el.querySelectorAll ? [...el.querySelectorAll(".s-queue-row")] : []);
+const stopsIn = (el) => (el && el.querySelectorAll ? [...el.querySelectorAll(".s-queue-row, .s-queue-more, .s-queue-full")] : []);
+
+// How many rows a group shows before its "and N more" line.
+export const GROUP_ROWS = 3;
+export const moreWords = (n) => `and ${n} more`;
 
 // A scrolling list's height cut back to the foot of the last row that shows whole (its CSS max-height is the
 // room it has), so it never ends on part of a row or on a heading with no row under it: the cut lands on a row's
@@ -57,7 +63,7 @@ function anchorOf() {
   if (!btn || typeof btn.getBoundingClientRect !== "function" || typeof innerWidth !== "number") return null;
   const r = btn.getBoundingClientRect();
   if (!r.width) return null;
-  return { top: Math.round(r.bottom + 6), right: Math.max(8, Math.round(innerWidth - r.right)) };
+  return { top: Math.round(r.bottom + 8), right: Math.max(8, Math.round(innerWidth - r.right)) };
 }
 
 // `here` is the address being shown ("#/..."); its row is marked current.
@@ -139,7 +145,7 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
   // The list ends on a whole row above the foot.
   useEffect(() => {
     if (!shown) return undefined;
-    const fit = () => fitWholeRows(scroller.current, ".s-queue-row, .s-queue-quiet li");
+    const fit = () => fitWholeRows(scroller.current, ".s-queue-row, .s-queue-more, .s-queue-quiet li");
     fit();
     if (typeof window === "undefined") return undefined;
     window.addEventListener("resize", fit);
@@ -161,7 +167,7 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
       return;
     }
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-    const rows = rowsIn(ref.current);
+    const rows = stopsIn(ref.current);
     if (!rows.length) return;
     e.preventDefault();
     const at = rows.indexOf(document.activeElement);
@@ -183,7 +189,7 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
     body = groups.map((g) => html`
       <section key=${g.id} class="s-queue-group" aria-label=${g.heading}>
         <h3 class="s-queue-group-title" aria-hidden="true">${g.heading}</h3>
-        ${g.items.map((item) => {
+        ${g.items.slice(0, GROUP_ROWS).map((item) => {
           const href = queueHref(item);
           const time = rowTime(item.when);
           const current = href === here;
@@ -196,12 +202,13 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
               ${current && item.summary ? html`<span class="s-queue-line">${cap(item.summary, 200)}</span>` : null}
             </a>`;
         })}
+        ${g.items.length > GROUP_ROWS ? html`
+          <a class="s-queue-more" href=${full} onClick=${() => close.current?.()}>${moreWords(g.items.length - GROUP_ROWS)}</a>` : null}
       </section>`);
   }
 
   const place = at ? `top: ${at.top}px; right: ${at.right}px;` : undefined;
   return html`
-    <div class="s-queue-scrim" aria-hidden="true"></div>
     <div class="s-queue" role="dialog" aria-modal="false" aria-label=${title} tabindex="-1" ref=${ref} onKeyDown=${onKey} style=${place}>
       <p class="s-queue-head">
         <span class="s-queue-name">${title}</span>
@@ -216,6 +223,6 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
               <li key=${i}><span class="s-queue-source">${SOURCE_WORDS[n && n.source] || "A part"}:</span> ${cap(n && n.reason, 200)}</li>`)}
           </ul>` : null}
       </div>
-      <a class="s-queue-full" href=${full} onClick=${() => close.current?.()}>Open the whole list</a>
+      <a class="s-queue-full" href=${full} onClick=${() => close.current?.()}><span>Open the whole list</span><${Icon} name="arrow-right" /></a>
     </div>`;
 }

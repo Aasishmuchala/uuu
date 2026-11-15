@@ -2,16 +2,18 @@
 // dialog with one field. Empty, it lists New task and Every job, the seven departments, then the pages. Typed
 // text finds pages, departments, agents and jobs by name at once, then what /api/search finds (after 2
 // characters, 200 ms after the last key), grouped by source. Arrows move, Enter opens, Esc closes.
-// Drawn as a floating panel over a dim page (PLAN-COOK T21, T103): centred on the window, its top 18 percent
-// down; the field is its head, so it has no title bar; focus stays in the field (the rows are chosen with the
-// arrows) and goes back to the opener on close. Each row has its icon (a department its sidebar icon) and at its
-// right a hint: what needs the owner in a department, a page's "g" keys, "Enter" on the chosen row. The list
-// ends on a whole row, so no group's heading stands alone at its foot.
+// Drawn as a floating panel over a dim page (PLAN-COOK T21, T103, T111): at most 640 px, centred on the window,
+// its top 14 percent down, ending at least 48 px above the window's foot; the field is its head (one 52 px row with
+// no box of its own), so it has no title bar; focus stays in the field (the rows are chosen with the arrows, the
+// marked row is the keyboard's place) and goes back to the opener on close. Each row has its icon (a department
+// its sidebar icon), its label, a muted hint where the data has one (a department's working agents, how many jobs
+// there are), and at its right what needs the owner in a department as a small chip, a page's "g" keys, "Enter" on
+// the chosen row. The list ends on a whole row, so no group's heading stands alone at its foot.
 import { html, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { linkHref } from "../lib/format.js";
 import { useApp } from "../lib/context.js";
-import { Avatar, Icon, Kbd } from "../kit/index.js";
+import { Avatar, Icon, Kbd, Tag } from "../kit/index.js";
 import { DEPARTMENTS, routeById } from "../routes.js";
 import { jobsOf } from "./compose-dialog.js";
 import { fitWholeRows } from "./queue.js";
@@ -23,6 +25,11 @@ const PAGES = PAGE_IDS.map((id) => routeById(id));
 const MAX_JOBS = 8;
 // A page's keys: "g" then this letter (the shell's GO table in app-shell.js).
 export const PAGE_KEYS = { map: "M", tasks: "T", dashboards: "D", files: "F", "needs-you": "N", jobs: "J" };
+// The muted hint of a row that has none of its own, from what the shell and the jobs already say.
+export const HINT_WORDS = {
+  working: (n) => `${n} working`,
+  jobs: (n) => `${n} ${n === 1 ? "job" : "jobs"}`,
+};
 
 // After the browser has drawn the change (at once where there is no browser, as in the tests).
 const later = (f) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(f) : f());
@@ -115,7 +122,20 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
   };
   // What needs the owner in each department, from the shell's dock (the sidebar's counts).
   const { dock } = useApp();
-  const needs = new Map((Array.isArray(dock) ? dock : []).map((d) => [d && d.id, Math.max(0, Math.floor(Number(d && d.needsYou) || 0))]));
+  const whole = (n) => Math.max(0, Math.floor(Number(n) || 0));
+  const docked = (Array.isArray(dock) ? dock : []).filter(Boolean);
+  const needs = new Map(docked.map((d) => [d.id, whole(d.needsYou)]));
+  const working = new Map(docked.map((d) => [d.id, whole(d.working)]));
+  // A row's muted hint: its own, else a department's working agents, else how many jobs "Every job" opens.
+  const hintOf = (it) => {
+    if (it.hint) return it.hint;
+    if (it.id.startsWith("dept:")) {
+      const n = working.get(it.id.slice(5)) || 0;
+      return n ? HINT_WORDS.working(n) : "";
+    }
+    if (it.id === "act:jobs" && jobs.length) return HINT_WORDS.jobs(jobs.length);
+    return "";
+  };
 
   useEffect(() => {
     if (!open) return undefined;
@@ -204,14 +224,14 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
     }
   };
 
-  // The right end of a row: a department's count, a page's keys, or "Enter" on the chosen row.
+  // The right end of a row: a department's count as a small chip, a page's keys, or "Enter" on the chosen row.
   const rowEnd = (it, chosen) => {
     const count = it.id.startsWith("dept:") ? needs.get(it.id.slice(5)) || 0 : 0;
     const keys = it.id.startsWith("page:") ? PAGE_KEYS[it.id.slice(5)] : null;
     if (!count && !keys && !chosen) return null;
     return html`
       <span class="s-cmd-end" aria-hidden="true">
-        ${count ? html`<span class="s-cmd-count u-num">${count}</span>` : null}
+        ${count ? html`<span class="s-cmd-count u-num"><${Tag}>${count}<//></span>` : null}
         ${chosen ? html`<${Kbd}>Enter<//>` : keys ? html`<span class="s-cmd-keys"><${Kbd}>G<//><${Kbd}>${keys}<//></span>` : null}
       </span>`;
   };
@@ -245,7 +265,7 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
                     onMouseMove=${() => { if (i !== active) setActive(i); }} onClick=${() => choose(it)}>
                     ${it.agent ? html`<${Avatar} slug=${it.agent.slug} name=${it.agent.name} size=${20} />` : html`<${Icon} name=${it.icon || "chevron-right"} />`}
                     <span class="s-cmd-label u-truncate">${it.label}</span>
-                    ${it.hint ? html`<span class="s-cmd-hint u-truncate">${it.hint}</span>` : null}
+                    ${hintOf(it) ? html`<span class="s-cmd-hint u-truncate">${hintOf(it)}</span>` : null}
                     ${rowEnd(it, i === active)}
                   </div>`;
               })}

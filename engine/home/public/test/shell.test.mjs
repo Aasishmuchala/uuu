@@ -462,6 +462,22 @@ test("the compose dialog offers jobs and sends only what was chosen", () => {
   assert.deepEqual(compose.goalBody({ text: "x", to: "artist", planFirst: true, template: "studio/walk" }), { text: "x", to: "artist", planFirst: true, template: "studio/walk" });
 });
 
+test("the compose dialog's foot: its words, and the / and @ keys put in where the Composer opens its lists", () => {
+  assert.deepEqual(compose.WORDS, {
+    placeholder: "Say what you want done.", jobs: "Every job", slash: "jobs", slashLabel: "Pick a job",
+    at: "who", atLabel: "Pick who it is for", enter: "to send", send: "Send",
+  });
+  assert.deepEqual(compose.withKey("", 0, "/"), { text: "/", caret: 1 });
+  assert.deepEqual(compose.withKey("Draft it", 8, "/"), { text: "Draft it\n/", caret: 10 }, "a job starts its own line");
+  assert.deepEqual(compose.withKey("Draft it\n", 9, "/"), { text: "Draft it\n/", caret: 10 });
+  assert.deepEqual(compose.withKey("Draft it", 8, "@"), { text: "Draft it @", caret: 10 }, "a name starts its own word");
+  assert.deepEqual(compose.withKey("Draft it ", 9, "@"), { text: "Draft it @", caret: 10 });
+  assert.deepEqual(compose.withKey("ab", 1, "@"), { text: "a @b", caret: 3 }, "at the caret");
+  const js = readFileSync(join(PUBLIC, "shell", "compose-dialog.js"), "utf8");
+  assert.match(js, /<\$\{Button\} variant="primary" size="sm" class="s-compose-send" disabled=\$\{!canSend\}/, "Send is the kit's primary with its word, disabled with nothing typed");
+  assert.match(js, /<\$\{Button\} variant="ghost" size="sm" href="#\/jobs" class="s-compose-jobs"/, "Every job a small ghost button");
+});
+
 test("the command menu lists the pages and the seven departments, and finds jobs and agents at once", () => {
   const { localItems, searchItems } = menu;
   const empty = localItems("", []);

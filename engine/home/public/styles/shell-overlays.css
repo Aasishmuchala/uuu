@@ -1,43 +1,30 @@
-/* The shell's overlays (PLAN-COOK T21 and T103, after the C3 mockup's c.css and the corrections after round 3):
-   the queue, the command menu, the compose dialog's inside and the work panel. Everything that floats is in the
-   kit's dialog family: the raised step (--panel), a 1 px edge, the float shadow and a 12 px corner, over a
-   uniform scrim; the row that is chosen or current is lifted onto --sel with a 2 px accent bar at its left,
-   never a ring. Nothing blurs what is behind it. */
+/* The shell's overlays (PLAN-COOK T21, T103 and T111): the queue, the command menu, the compose dialog's inside
+   and the work panel. What floats is on the overlay surface (--overlay, its --overlay-line edge and
+   --overlay-shadow) with a 12 px corner; the command menu and the dialog lie over the dim (--scrim), the queue is
+   a popover and dims nothing. The row that is chosen or current is a clear neutral fill with a 2 px accent bar at
+   its left, never a ring. Nothing blurs what is behind it. */
 
-/* ---- the queue: a popover under its button at the right of the top bar (the panel sets top and right from the
-   button; these are the same numbers for the first frame), 380 px wide, at most 70 percent of the window's
-   height. The page pane under it is dimmed whole by the scrim, which takes no clicks: the page stays usable. */
+/* ---- the queue: a popover hung 8 px under its button at the right of the top bar (the panel sets top and right
+   from the button; these are the same numbers for the first frame), 400 px wide (the window less 16 px at most),
+   on the overlay surface with its edge and shadow. A popover dims nothing: the page stays as it is. */
 .s-queue-host {
   display: contents;
-}
-.s-queue-scrim {
-  position: fixed;
-  z-index: 44;
-  top: var(--topbar-h);
-  right: 0;
-  bottom: 0;
-  left: var(--side-w);
-  background: var(--scrim);
-  pointer-events: none;
-  animation: s-fade-in var(--t-med) var(--ease);
-}
-.s-app--icons ~ .s-queue-host .s-queue-scrim {
-  left: var(--side-w-icons);
 }
 .s-queue {
   position: fixed;
   z-index: 45;
-  top: calc(var(--topbar-h) - var(--s-1));
+  top: calc(var(--topbar-h) + var(--s-2));
   right: var(--s-4);
   display: flex;
   flex-direction: column;
-  width: min(380px, calc(100vw - var(--side-w) - var(--s-8)));
-  max-height: 70vh;
-  border: 1px solid var(--line-2);
+  width: min(400px, calc(100vw - var(--s-4)));
+  max-height: calc(100vh - var(--topbar-h) - var(--s-8));
+  overflow: hidden;
+  border: 1px solid var(--overlay-line);
   border-radius: var(--r-3);
-  background: var(--panel);
+  background: var(--overlay);
   color: var(--ink);
-  box-shadow: var(--float);
+  box-shadow: var(--overlay-shadow);
   animation: s-float-in var(--t-med) var(--ease);
 }
 .s-queue:focus {
@@ -48,8 +35,9 @@
   flex: none;
   align-items: center;
   gap: var(--s-2);
+  height: 48px;
   margin: 0;
-  padding: var(--s-3) var(--s-3) var(--s-2) var(--s-4);
+  padding: 0 var(--s-3) 0 var(--s-4);
   border-bottom: 1px solid var(--line);
 }
 .s-queue-name {
@@ -69,33 +57,32 @@
 .s-queue-body {
   flex: none;
   min-height: 0;
-  max-height: calc(70vh - 96px);
+  max-height: calc(100vh - var(--topbar-h) - var(--s-8) - 90px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0 6px var(--s-1);
+  padding: 0 6px 6px;
 }
 .s-queue-group {
   display: flex;
   flex-direction: column;
 }
+/* Group labels as in the command menu: 12 px, 500, muted, 12 px above. */
 .s-queue-group-title {
   margin: 0;
-  padding: var(--s-4) 10px var(--s-1);
+  padding: var(--s-3) 10px var(--s-1);
   color: var(--ink-2);
   font-size: var(--fs-label);
   font-weight: var(--fw-medium);
   line-height: var(--lh-label);
 }
-.s-queue-group:first-child .s-queue-group-title {
-  padding-top: var(--s-3);
-}
-/* A row: one line, the icon, the title and the date at the right; the current row adds its grey line. */
+/* A row: the icon, the title on up to two lines and the date at its top right; the current row adds its grey
+   line. */
 .s-queue-row {
   position: relative;
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
   gap: 2px 10px;
-  align-items: center;
+  align-items: start;
   min-height: var(--h-md);
   padding: var(--s-2) 10px;
   border-radius: var(--r-1);
@@ -103,37 +90,42 @@
   text-decoration: none;
   transition: background-color var(--t-fast) var(--ease);
 }
-.s-queue-row:hover {
+.s-queue-row:hover,
+.s-queue-more:hover {
   background: var(--ctl);
 }
-/* The current row, and the row the arrows have reached: the chosen step with a 2 px accent bar at its left,
+/* The current row, and the row the arrows have reached: a clear neutral fill with a 2 px accent bar at its left,
    never a ring (the bar is the focus mark too). */
 .s-queue-row[aria-current="true"],
-.s-queue-row:focus-visible {
+.s-queue-row:focus-visible,
+.s-queue-more:focus-visible {
   outline: none;
-  background: var(--sel);
+  background: color-mix(in srgb, var(--ink) 9%, transparent);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 .s-queue-icon {
   display: flex;
   grid-column: 1;
   grid-row: 1;
+  padding-top: 2px;
   color: var(--ink-2);
 }
 .s-queue-title {
+  display: -webkit-box;
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
   overflow: hidden;
   font-size: var(--fs-ui);
   line-height: var(--lh-ui);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 .s-queue-when {
   grid-column: 3;
   grid-row: 1;
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-size: var(--fs-label);
   line-height: var(--lh-ui);
   font-variant-numeric: tabular-nums;
@@ -149,6 +141,18 @@
   line-height: var(--lh-note);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* A group's rest: one quiet line under its first rows, set in from the icon column, to the whole list. */
+.s-queue-more {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px 0 36px;
+  border-radius: var(--r-1);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  text-decoration: none;
 }
 .s-queue-state {
   padding: var(--s-3) 10px;
@@ -175,19 +179,24 @@
   color: var(--ink);
   font-weight: var(--fw-medium);
 }
-/* The foot: the way to the whole list, under a rule, always in view. */
+/* The foot: one 40 px row to the whole list, under a rule, always in view, with its arrow at the right. */
 .s-queue-full {
   display: flex;
   flex: none;
   align-items: center;
-  min-height: 44px;
+  justify-content: space-between;
+  gap: var(--s-2);
+  height: 40px;
   padding: 0 var(--s-4);
   border-top: 1px solid var(--line);
-  border-radius: 0 0 var(--r-3) var(--r-3);
-  color: var(--accent);
+  color: var(--ink);
   font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-ui);
   text-decoration: none;
+}
+.s-queue-full .k-icon {
+  color: var(--ink-2);
 }
 .s-queue-full:hover {
   background: var(--ctl);
@@ -196,9 +205,10 @@
   outline-offset: -2px;
 }
 
-/* ---- the command menu: a floating panel over a uniform scrim, centred on the window, its top 18 percent down,
-   in the kit's dialog family (a 1 px edge, the float shadow, a 12 px corner, the raised step); the field is its
-   head. */
+/* ---- the command menu: a floating panel over the dim, at most 640 px, centred on the window, its top 14 percent
+   down and its foot at least 48 px above the window's (the list scrolls inside), on the overlay surface with its
+   edge and shadow. The field is its head: one 52 px row with the search icon, no box and no ring of its own (the
+   marked row is the keyboard's place), a hairline under it. */
 .s-cmd-layer {
   position: fixed;
   inset: 0;
@@ -206,7 +216,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 18vh var(--s-4) var(--s-12);
+  padding: 14vh var(--s-4) var(--s-12);
 }
 .s-cmd-scrim {
   position: absolute;
@@ -220,54 +230,52 @@
   flex-direction: column;
   width: 100%;
   max-width: 640px;
-  max-height: calc(82vh - var(--s-12));
-  border: 1px solid var(--line-2);
+  max-height: calc(86vh - var(--s-12));
+  overflow: hidden;
+  border: 1px solid var(--overlay-line);
   border-radius: var(--r-3);
-  background: var(--panel);
+  background: var(--overlay);
   color: var(--ink);
-  box-shadow: var(--float);
+  box-shadow: var(--overlay-shadow);
   animation: s-float-in var(--t-med) var(--ease);
 }
-/* The field is the panel's head: a 44 px well with the search icon laid in it; with focus (always, while the
-   menu is open) a 1 px accent edge and a soft 3 px accent ring, as every text field. */
 .s-cmd-field {
-  position: relative;
+  display: flex;
   flex: none;
-  padding: var(--s-2);
+  align-items: center;
+  gap: var(--s-3);
+  height: 52px;
+  padding: 0 var(--s-4);
   border-bottom: 1px solid var(--line);
 }
 .s-cmd-field-icon {
-  position: absolute;
-  top: 21px;
-  left: 20px;
+  flex: none;
   color: var(--ink-2);
   pointer-events: none;
 }
 .s-cmd-input {
-  display: block;
-  width: 100%;
-  height: 44px;
-  padding: 0 var(--s-3) 0 40px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-2);
-  background: var(--field);
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: var(--fs-body);
+  font-size: var(--fs-fact);
 }
-.s-cmd-input:focus {
+.s-cmd-input:focus,
+.s-cmd-input:focus-visible {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 .s-cmd-input::placeholder {
   color: var(--ink-3);
 }
-/* The list: as tall as the window allows, cut back to a whole row by the menu. */
+/* The list: as tall as the window allows (the head is 52 px, the foot 40), cut back to a whole row by the menu. */
 .s-cmd-list {
   flex: none;
   min-height: 0;
-  max-height: calc(82vh - var(--s-12) - 112px);
+  max-height: calc(86vh - var(--s-12) - 94px);
   overflow-y: auto;
   overscroll-behavior: contain;
   display: flex;
@@ -291,13 +299,15 @@
   font-weight: var(--fw-medium);
   line-height: var(--lh-label);
 }
+/* A row: 36 px, the icon, the label, a muted hint, then at the right a count chip and keycaps; 16 px clear at
+   the right so nothing is cut. */
 .s-cmd-item {
   position: relative;
   display: flex;
   flex: none;
   align-items: center;
   gap: 10px;
-  min-height: var(--h-lg);
+  min-height: var(--h-md);
   padding: 0 10px 0 var(--s-3);
   border-radius: var(--r-1);
   color: var(--ink);
@@ -309,9 +319,9 @@
   flex: none;
   color: var(--ink-2);
 }
-/* The chosen row: the chosen step with a 2 px accent bar at its left, never a ring. */
+/* The marked row: a clear neutral fill with a 2 px accent bar at its left, never a ring. */
 .s-cmd-item.is-active {
-  background: var(--sel);
+  background: color-mix(in srgb, var(--ink) 9%, transparent);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 .s-cmd-item.is-active .k-icon {
@@ -319,16 +329,16 @@
 }
 .s-cmd-label {
   flex: 0 1 auto;
+  min-width: 0;
   max-width: 60%;
 }
 .s-cmd-hint {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   color: var(--ink-2);
   font-size: var(--fs-note);
-  text-align: right;
 }
-/* The row's right end: a count, a page's keys or "Enter", as small keycaps. */
+/* The row's right end: a count chip, a page's keys or "Enter", as small keycaps. */
 .s-cmd-end {
   display: inline-flex;
   flex: none;
@@ -338,17 +348,14 @@
   color: var(--ink-2);
   font-size: var(--fs-note);
 }
-.s-cmd-hint + .s-cmd-end {
-  margin-left: 0;
+.s-cmd-count {
+  display: inline-flex;
 }
 .s-cmd-keys {
   display: inline-flex;
   gap: var(--s-1);
 }
 .s-cmd-end .k-kbd {
-  color: var(--ink-3);
-}
-.s-cmd-item.is-active .s-cmd-end .k-kbd {
   color: var(--ink-2);
 }
 .s-cmd-note {
@@ -357,16 +364,19 @@
   color: var(--ink-2);
   font-size: var(--fs-note);
 }
-/* The foot: the keys as small keycaps, each with its few words. */
+/* The foot: a tinted strip under a rule, the keys as small keycaps, each with its few words. */
 .s-cmd-help {
   display: flex;
   flex: none;
   flex-wrap: wrap;
-  gap: var(--s-1) var(--s-4);
+  align-items: center;
+  gap: var(--s-1) var(--s-5);
+  min-height: 40px;
   margin: 0;
   padding: var(--s-2) var(--s-4);
   border-top: 1px solid var(--line);
-  color: var(--ink-3);
+  background: var(--ctl);
+  color: var(--ink-2);
   font-size: var(--fs-label);
   line-height: var(--lh-label);
 }
@@ -376,17 +386,33 @@
   gap: var(--s-1);
 }
 
-/* ---- the compose dialog: the kit's Dialog, its top 20 percent down and as tall as what it holds (16 px under
-   the last line); "Plan first" and "Every job" on one row, the filled send at its end, the keys one muted line
-   under the box. */
+/* ---- the compose dialog: the kit's Dialog, 640 px, its top 16 percent down and as tall as what it holds. One
+   composer, no box in a box: a small "New task" label and Close on the dialog's own surface (no band, no rule),
+   the text area as the dialog's body (no edge, 20 px in, at least 120 px tall, growing to 40 percent of the
+   window), and one foot row: Plan first, Every job, the "/" and "@" keys, then "Enter to send" and Send. The
+   Composer's own box and bar give their parts to the dialog's grid (display: contents); its own hint and round
+   send are not drawn (the foot's Send stands for it). */
 @media (min-width: 860px) {
   .k-dialog:has(.s-compose) {
     align-items: flex-start;
-    padding-top: 20vh;
+    padding: 16vh var(--s-4) var(--s-12);
   }
 }
+.k-dialog:has(.s-compose) .k-dialog__panel {
+  max-width: 640px;
+}
+.k-dialog:has(.s-compose) .k-dialog__head {
+  padding: var(--s-3) var(--s-3) 0 var(--s-5);
+  border-bottom: 0;
+}
+.k-dialog:has(.s-compose) .k-dialog__title {
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-note);
+}
 .k-dialog:has(.s-compose) .k-dialog__body {
-  padding-bottom: var(--s-4);
+  padding: 0 var(--s-5) var(--s-4);
 }
 .s-compose {
   position: relative;
@@ -394,32 +420,146 @@
   flex-direction: column;
   gap: var(--s-3);
 }
-.s-compose .k-composer {
-  position: relative;
-  padding-bottom: 26px;
+.s-compose:has(.k-composer__bar) {
+  display: grid;
+  grid-template-columns: auto auto auto auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0 var(--s-1);
 }
-.s-compose .k-composer__hint {
-  position: absolute;
-  bottom: 0;
-  left: 2px;
+.s-compose .k-composer,
+.s-compose .k-composer__box,
+.s-compose .k-composer__bar {
+  display: contents;
+}
+/* The kit's box draws the field's ring; here the box is not drawn (display: contents), so its outline would only be
+   a computed value that shows nothing: it is set to none so a measure reads the truth. The text area runs to the
+   dialog's edges and, while it has focus, shows the 2 px accent bar at its left, as a chosen row does. */
+.s-compose .k-composer__box:has(.k-composer__field:focus) {
+  outline: none;
+}
+.s-compose .k-composer__context {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  padding: var(--s-2) 0 0;
+}
+.s-compose .k-composer__field {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: calc(100% + 2 * var(--s-5));
+  height: auto !important;
+  min-height: 120px;
+  max-height: 40vh;
+  margin: 0 calc(-1 * var(--s-5)) var(--s-3);
+  padding: var(--s-2) var(--s-5);
+  overflow-y: auto;
+  font-size: var(--fs-fact);
+  line-height: var(--lh-fact);
+  field-sizing: content;
+}
+.s-compose .k-composer__field:focus {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.s-compose .k-composer__field::placeholder {
+  white-space: normal;
+}
+/* The "/" and "@" lists open under the words, in the dialog's flow, under a rule. */
+.s-compose .k-composer__menu {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  max-height: 264px;
+  margin: 0 0 var(--s-3);
+  padding: var(--s-2) 0 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.s-compose .k-composer__error {
+  grid-column: 1 / -1;
+  grid-row: 4;
+  margin-bottom: var(--s-3);
+}
+.s-compose .k-composer__hint,
+.s-compose .k-composer__send {
+  display: none;
+}
+/* Plan first: a 16 px check with a 1.5 px edge in the second ink; the accent fill and a white tick when on. */
+.s-compose .k-composer__plan {
+  grid-column: 1;
+  grid-row: 5;
+  min-height: var(--h-sm);
+  margin-right: var(--s-2);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+}
+.s-compose .k-composer__plan input {
+  position: relative;
+  flex: none;
+  width: var(--s-4);
+  height: var(--s-4);
   margin: 0;
-  color: var(--ink-3);
+  border: 1.5px solid var(--ink-2);
+  border-radius: var(--r-xs);
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+.s-compose .k-composer__plan input:checked {
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+}
+.s-compose .k-composer__plan input:checked::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--accent-ink);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.s-compose .k-composer__plan input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.s-compose-jobs {
+  grid-column: 2;
+  grid-row: 5;
+}
+.s-compose-key--jobs {
+  grid-column: 3;
+  grid-row: 5;
+}
+.s-compose-key--who {
+  grid-column: 4;
+  grid-row: 5;
+}
+.s-compose-key .k-btn__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.s-compose-jobs .k-btn__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.s-compose-keys {
+  display: inline-flex;
+  grid-column: 6;
+  grid-row: 5;
+  align-items: center;
+  gap: 6px;
+  margin-right: var(--s-2);
+  color: var(--ink-2);
   font-size: var(--fs-label);
   line-height: var(--lh-label);
-  text-align: left;
+  white-space: nowrap;
 }
-.s-compose .k-composer__hint .k-kbd {
-  min-width: 0;
-  height: 18px;
-  padding: 0 4px;
-}
-.s-compose .k-composer__send {
-  margin-left: auto;
-}
-.s-compose .k-composer__send:disabled {
-  background: var(--accent-fill);
-  color: var(--accent-ink);
-  opacity: .45;
+.s-compose-send {
+  grid-column: 7;
+  grid-row: 5;
 }
 .s-compose-done {
   padding: var(--s-4);
@@ -429,23 +569,6 @@
 .s-compose-done p {
   margin: 0 0 var(--s-2);
   line-height: var(--lh-body);
-}
-/* The way to every job: in the box's bar, just before the send button, while the box is drawn. */
-.s-compose-jobs {
-  align-self: flex-end;
-  color: var(--accent);
-  font-size: var(--fs-note);
-  line-height: var(--lh-ui);
-  text-decoration: none;
-}
-.s-compose:has(.k-composer__bar):not(:has(.k-composer__error)) .s-compose-jobs {
-  position: absolute;
-  z-index: 21;
-  right: calc(var(--s-2) + var(--h-md) + var(--s-3) + 1px);
-  bottom: calc(26px + 1px + var(--s-2) + (var(--h-md) - 20px) / 2);
-}
-.s-compose-jobs:hover {
-  text-decoration: underline;
 }
 .s-link-btn {
   padding: 0;
@@ -504,8 +627,7 @@
 /* Below 860 px: no queue (the Needs you tab opens the page); the menu fills the width from the top; the work
    panel is a sheet over the page; every row is a 44 px target. */
 @media (max-width: 859px) {
-  .s-queue,
-  .s-queue-scrim {
+  .s-queue {
     display: none;
   }
   .s-cmd-layer {
@@ -525,17 +647,18 @@
   .s-cmd-end .k-kbd {
     display: none;
   }
-  /* The composer hides its keys on a phone: the box keeps its own foot, and "Every job" is a 44 px target
-     beside the 44 px send. */
-  .s-compose .k-composer {
-    padding-bottom: var(--s-3);
+  /* A phone: the keys give way; Plan first, Every job and Send are 44 px targets. */
+  .s-compose-key,
+  .s-compose-keys {
+    display: none;
   }
-  .s-compose:has(.k-composer__bar):not(:has(.k-composer__error)) .s-compose-jobs {
-    display: inline-flex;
-    align-items: center;
+  .s-compose .k-composer__plan,
+  .s-compose-jobs,
+  .s-compose-send {
     min-height: 44px;
-    right: calc(var(--s-2) + 44px + var(--s-2) + 1px);
-    bottom: calc(var(--s-3) + 1px + var(--s-2));
+  }
+  .s-compose .k-composer__field {
+    min-height: 96px;
   }
   .s-panel--sheet {
     position: fixed;
@@ -552,7 +675,6 @@
 
 /* Motion off, by choice or by the system: nothing slides or fades. */
 :root[data-motion="off"] .s-queue,
-:root[data-motion="off"] .s-queue-scrim,
 :root[data-motion="off"] .s-cmd,
 :root[data-motion="off"] .s-cmd-scrim {
   animation: none;
@@ -562,7 +684,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .s-queue,
-  .s-queue-scrim,
   .s-cmd,
   .s-cmd-scrim {
     animation: none;
