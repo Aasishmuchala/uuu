@@ -1,10 +1,11 @@
 // The queue (PLAN-COOK T21, T103, T111, R5-B, CONTRACTS-V3 26.2): what needs the owner, as a panel at the window's
 // right under the top bar (the kit's Drawer: 420 px, the window's height, on the overlay surface with its edge at
 // the left, over the standard dim), opened by the Queue button, the key "q" and openQueue({ department }) from any
-// page. The items in four groups (to approve, to answer, to accept, to know), each showing its first rows and then
-// one line "and 8 more" to the whole list; a row's title on up to two lines with the date at its top right (the
-// grey line only on the current row), each row opening the item's own page; then the not-connected lines; the
-// list scrolls inside, ends on a whole row, over the foot's row to the whole list. It reads GET /api/inbox when it
+// page. The items in four groups (to approve, to answer, to accept, to know), each showing as many of its first rows
+// as the panel has room for (so no band stands empty above the foot) and then one line "and 8 more" in the accent
+// ink to the whole list; a row is one line, the title cut with an ellipsis (its whole words on hover) and the date
+// at its right (the grey line only on the current row), each row opening the item's own page; then the
+// not-connected lines; the list scrolls inside, ends on a whole row, over the foot's row to the whole list. It reads GET /api/inbox when it
 // opens and again each time the shell refreshes while open. Focus goes to the first row; Up and Down move (the
 // "more" lines and the foot too), Enter follows, Tab stays inside; Esc, a click on the dim or outside, Close and a
 // second "q" close it and give focus back to the Queue button; a page change closes it. Below 860 px it is not
@@ -35,9 +36,30 @@ const hashNow = () => (typeof location === "undefined" ? "" : location.hash);
 const rowsIn = (el) => (el && el.querySelectorAll ? [...el.querySelectorAll(".s-queue-row")] : []);
 const stopsIn = (el) => (el && el.querySelectorAll ? [...el.querySelectorAll(".s-queue-row, .s-queue-more, .s-queue-full")] : []);
 
-// How many rows a group shows before its "and N more" line.
+// How many rows a group shows before its "and N more" line where there is no layout to measure (the tests, the
+// first frame).
 export const GROUP_ROWS = 3;
 export const moreWords = (n) => `and ${n} more`;
+
+// How many rows each group shows so the groups fill `room` px and no more: every group at least one row, then a row
+// more to each in turn while it fits; a group shown whole drops its "and N more" line. `sizes` are the groups'
+// lengths; `row` and `more` the heights of a row and of the "more" line. Without a room it is GROUP_ROWS a group.
+export function fitGroups(sizes, room, { row, more } = {}) {
+  const n = Array.isArray(sizes) ? sizes.map((x) => Math.max(0, Math.floor(Number(x) || 0))) : [];
+  if (!(room > 0) || !(row > 0) || !(more >= 0)) return n.map((x) => Math.min(x, GROUP_ROWS));
+  const counts = n.map((x) => Math.min(x, 1));
+  const cost = (c) => c.reduce((t, k, i) => t + k * row + (k < n[i] ? more : 0), 0);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (let i = 0; i < n.length; i++) {
+      if (counts[i] >= n[i]) continue;
+      counts[i] += 1;
+      if (cost(counts) <= room + 0.5) grew = true;
+      else counts[i] -= 1;
+    }
+  }
+  return counts;
+}
 
 // A scrolling list's height cut back to the foot of the last row that shows whole (its CSS max-height is the
 // room it has), so it never ends on part of a row or on a heading with no row under it: the cut lands on a row's
@@ -65,6 +87,7 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
   const ref = useRef(null);
   const scroller = useRef(null);
   const opener = useRef(null);
+  const [per, setPer] = useState(null);
   const close = useRef(onClose);
   close.current = onClose;
   const shown = open && !narrow;
@@ -131,6 +154,37 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
 
   const items = needsFor(sortNeeds(s.data?.items), department, map);
   const ready = !!s.data;
+  const groups = queueGroups(items);
+  const sizes = groups.map((g) => g.items.length);
+  const shownOf = (i) => (per && per.length === sizes.length ? per[i] : Math.min(sizes[i], GROUP_ROWS));
+
+  // As many rows a group as the panel has room for: measured from what is drawn (a one-line row, a "more" line,
+  // the room above the foot less what is not a row), then drawn again only if the counts change.
+  useEffect(() => {
+    if (!shown || !ready) return undefined;
+    const measure = () => {
+      const wrap = ref.current;
+      const body = scroller.current;
+      const foot = wrap?.querySelector?.(".s-queue-full");
+      if (!wrap || !body || !foot || typeof body.getBoundingClientRect !== "function") return;
+      const rows = rowsIn(body);
+      const mores = [...body.querySelectorAll(".s-queue-more")];
+      if (!rows.length) return;
+      const heights = rows.map((r) => r.getBoundingClientRect().height);
+      const row = Math.min(...heights);
+      const more = mores.length ? mores[0].getBoundingClientRect().height : 28;
+      const drawn = heights.reduce((t, h) => t + h, 0) + mores.reduce((t, m) => t + m.getBoundingClientRect().height, 0);
+      const room = wrap.clientHeight - foot.getBoundingClientRect().height - (body.scrollHeight - drawn) - (heights.reduce((t, h) => t + h - row, 0));
+      const next = fitGroups(sizes, room, { row, more });
+      const now = sizes.map((_, i) => shownOf(i));
+      if (next.some((k, i) => k !== now[i])) setPer(next);
+    };
+    measure();
+    if (typeof window === "undefined") return undefined;
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [shown, s.data, department, map, per]);
+
   // The list ends on a whole row above the foot.
   useEffect(() => {
     if (!shown) return undefined;
@@ -139,7 +193,7 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
     if (typeof window === "undefined") return undefined;
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
-  }, [shown, s.data, s.error, department, map]);
+  }, [shown, s.data, s.error, department, map, per]);
   useEffect(() => {
     if (!shown || !ready) return;
     const panel = ref.current;
@@ -165,7 +219,6 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
     rows[next].focus();
   };
 
-  const groups = queueGroups(items);
   const notConnected = (Array.isArray(s.data?.notConnected) ? s.data.notConnected : []).slice(0, 10);
   const full = department ? `#/needs-you?d=${encodeURIComponent(department)}` : "#/needs-you";
   const title = needsTitle(department, map);
@@ -175,10 +228,10 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
   else if (!s.data) body = html`<div class="s-queue-state"><${Loading} lines=${3} label="Loading what needs you" /></div>`;
   else if (!items.length) body = html`<p class="s-queue-empty">Nothing needs you.</p>`;
   else {
-    body = groups.map((g) => html`
+    body = groups.map((g, gi) => html`
       <section key=${g.id} class="s-queue-group" aria-label=${g.heading}>
         <h3 class="s-queue-group-title" aria-hidden="true">${g.heading}</h3>
-        ${g.items.slice(0, GROUP_ROWS).map((item) => {
+        ${g.items.slice(0, shownOf(gi)).map((item) => {
           const href = queueHref(item);
           const time = rowTime(item.when);
           const current = href === here;
@@ -191,8 +244,8 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
               ${current && item.summary ? html`<span class="s-queue-line">${cap(item.summary, 200)}</span>` : null}
             </a>`;
         })}
-        ${g.items.length > GROUP_ROWS ? html`
-          <a class="s-queue-more" href=${full} onClick=${() => close.current?.()}>${moreWords(g.items.length - GROUP_ROWS)}</a>` : null}
+        ${g.items.length > shownOf(gi) ? html`
+          <a class="s-queue-more" href=${full} onClick=${() => close.current?.()}>${moreWords(g.items.length - shownOf(gi))}</a>` : null}
       </section>`);
   }
 

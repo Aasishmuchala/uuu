@@ -7,13 +7,13 @@
 // no box of its own), so it has no title bar; focus stays in the field (the rows are chosen with the arrows, the
 // marked row is the keyboard's place) and goes back to the opener on close. Each row has its icon (a department
 // its sidebar icon), its label, a muted hint where the data has one (a department's working agents, how many jobs
-// there are), and at its right what needs the owner in a department as a small chip, a page's "g" keys, "Enter" on
+// there are), and at its right what needs the owner in a department as a plain muted figure (R6-B), a page's "g" keys, "Enter" on
 // the chosen row. The list ends on a whole row, so no group's heading stands alone at its foot.
 import { html, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { linkHref } from "../lib/format.js";
 import { useApp } from "../lib/context.js";
-import { Avatar, Icon, Kbd, Tag } from "../kit/index.js";
+import { Avatar, Icon, Kbd } from "../kit/index.js";
 import { DEPARTMENTS, routeById } from "../routes.js";
 import { jobsOf } from "./compose-dialog.js";
 import { fitWholeRows } from "./queue.js";
@@ -231,7 +231,7 @@ export function CommandMenu({ open, onClose, team, onCompose }) {
     if (!count && !keys && !chosen) return null;
     return html`
       <span class="s-cmd-end" aria-hidden="true">
-        ${count ? html`<span class="s-cmd-count u-num"><${Tag}>${count}<//></span>` : null}
+        ${count ? html`<span class="s-cmd-count u-num">${count}</span>` : null}
         ${chosen ? html`<${Kbd}>Enter<//>` : keys ? html`<span class="s-cmd-keys"><${Kbd}>G<//><${Kbd}>${keys}<//></span>` : null}
       </span>`;
   };

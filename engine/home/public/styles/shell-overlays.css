@@ -1,7 +1,8 @@
 /* The shell's overlays (PLAN-COOK T21, T103, T111 and R5-B): the queue, the command menu, the compose dialog's
    inside and the work panel. What floats is on the overlay surface (--overlay, its --overlay-line edge and
    --overlay-shadow); the command menu, the dialog and the queue's panel lie over the dim (--scrim). The row that
-   is chosen or current is a clear neutral fill with a 2 px accent bar at its left, never a ring. Nothing blurs
+   is current in the queue is a clear neutral fill with a 2 px accent bar at its left; the command menu's marked row
+   is the fill alone; never a ring. Nothing blurs
    what is behind it. */
 
 /* ---- the queue: the kit's Drawer at the window's right, under the top bar (the top bar and its Queue button stay
@@ -77,8 +78,7 @@
   font-weight: var(--fw-medium);
   line-height: var(--lh-label);
 }
-/* A row: the icon, the title on up to two lines and the date at its top right; the current row adds its grey
-   line. */
+/* A row: the icon, the title on one line and the date at its right; the current row adds its grey line. */
 .s-queue-row {
   position: relative;
   display: grid;
@@ -112,17 +112,16 @@
   padding-top: 2px;
   color: var(--ink-2);
 }
+/* One line: the title cut with an ellipsis (its whole words in the row's title, on hover). */
 .s-queue-title {
-  display: -webkit-box;
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
   overflow: hidden;
   font-size: var(--fs-ui);
   line-height: var(--lh-ui);
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .s-queue-when {
   grid-column: 3;
@@ -144,14 +143,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* A group's rest: one quiet line under its first rows, set in from the icon column, to the whole list. */
+/* A group's rest: one line in the accent ink under its first rows, set in from the icon column, to the whole list. */
 .s-queue-more {
   display: flex;
   align-items: center;
   min-height: 28px;
   padding: 0 10px 0 36px;
   border-radius: var(--r-1);
-  color: var(--ink-2);
+  color: var(--accent);
   font-size: var(--fs-note);
   line-height: var(--lh-note);
   text-decoration: none;
@@ -324,10 +323,9 @@
   flex: none;
   color: var(--ink-2);
 }
-/* The marked row: a clear neutral fill with a 2 px accent bar at its left, never a ring. */
+/* The marked row: a clear neutral fill alone, no bar and never a ring (R6-B). */
 .s-cmd-item.is-active {
   background: color-mix(in srgb, var(--ink) 9%, transparent);
-  box-shadow: inset 2px 0 0 var(--accent);
 }
 .s-cmd-item.is-active .k-icon {
   color: var(--ink);
@@ -353,8 +351,14 @@
   color: var(--ink-2);
   font-size: var(--fs-note);
 }
+/* What needs the owner in a department: a plain muted figure, no chip (R6-B). */
 .s-cmd-count {
   display: inline-flex;
+  min-width: var(--s-4);
+  justify-content: flex-end;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  font-variant-numeric: tabular-nums;
 }
 .s-cmd-keys {
   display: inline-flex;
@@ -391,13 +395,13 @@
   gap: var(--s-1);
 }
 
-/* ---- the compose dialog: the kit's Dialog, 640 px, its top 22 percent down and as tall as what it holds. A small
+/* ---- the compose dialog: the kit's Dialog, 640 px, its top 22 percent down and as tall as what it holds. A 15 px 500
    "New task" label and Close on the dialog's own surface (no band, no rule); the text area framed as the kit's
-   fields are (the stronger line on the field fill, the pointer firming the edge, focus the 1 px accent edge and the
-   3 px ring at 25 percent: no lone bar), three lines at rest, growing to 40 percent of the window through the
-   Composer's maxHeight; then one foot row in two styles: small ghost chips at the left (Plan first, Every job, the
-   "/" and "@" keys), "Enter to send" as a quiet line and the filled Send at the right (T118: the Composer's own
-   row). Here only the dialog's sizes and spacing, and the field's frame from the kit's field tokens. */
+   fields are (the stronger line on the field fill, the pointer firming the edge, focus the 1 px accent edge with no
+   glow: no lone bar), two lines at rest, growing to 40 percent of the window through the Composer's maxHeight;
+   then one foot row in two styles: small ghost chips at the left with no edge until hover (Plan first, Every job,
+   the "/" and "@" keys), "Enter to send" as a quiet line and the filled Send at the right (T118: the Composer's
+   own row). Here only the dialog's sizes and spacing, and the field's frame from the kit's field tokens. */
 @media (min-width: 860px) {
   .k-dialog:has(.s-compose) {
     align-items: flex-start;
@@ -412,10 +416,10 @@
   border-bottom: 0;
 }
 .k-dialog:has(.s-compose) .k-dialog__title {
-  color: var(--ink-2);
-  font-size: var(--fs-note);
+  color: var(--ink);
+  font-size: var(--fs-section);
   font-weight: var(--fw-medium);
-  line-height: var(--lh-note);
+  line-height: var(--lh-section);
 }
 .k-dialog:has(.s-compose) .k-dialog__body {
   padding: 0 var(--s-5) var(--s-5);
@@ -429,9 +433,9 @@
 .s-compose .k-composer__context {
   padding: 0 0 var(--s-2);
 }
-/* The field: three 22 px lines and 12 px in, inside the kit's field edge. */
+/* The field: two lines at rest and 12 px in, inside the kit's field edge. */
 .s-compose .k-composer__field {
-  min-height: calc(3 * var(--lh-fact) + 2 * var(--s-3) + 2px);
+  min-height: calc(2 * var(--lh-fact) + 2 * var(--s-3) + 2px);
   margin: 0 0 var(--s-4);
   padding: var(--s-3) var(--s-3);
   border: 1px solid var(--line-2);
@@ -443,9 +447,13 @@
 .s-compose .k-composer--bare .k-composer__field:hover {
   border-color: var(--ink-3);
 }
+/* Focus: the 1 px accent edge alone, no glow; the outline stays, transparent, for a screen in forced colours, as the
+   kit's fields keep it. */
 .s-compose .k-composer--bare .k-composer__field:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent);
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow: none;
 }
 .s-compose .k-composer__field::placeholder {
   white-space: normal;
@@ -462,11 +470,15 @@
   gap: 6px;
   min-height: var(--s-8);
 }
-/* Plan first as one of the chips: the kit's check box inside the ghost's edge, height and corner. */
+/* The chips: ghosts with no edge until the pointer is on them (the kit's ghost hover brings the edge and the
+   fill back). Plan first is one of them: the kit's check box inside the ghost's height and corner. */
+.s-compose .k-composer__bar .k-btn--ghost {
+  border-color: transparent;
+}
 .s-compose .k-composer__plan {
   min-height: var(--s-8);
   padding: 0 var(--s-3) 0 10px;
-  border: 1px solid var(--line-2);
+  border: 1px solid transparent;
   border-radius: var(--r-2);
   color: var(--ink);
   font-size: var(--fs-note);

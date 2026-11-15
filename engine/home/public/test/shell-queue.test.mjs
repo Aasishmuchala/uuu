@@ -160,6 +160,20 @@ test("the queue: a group shows its first rows, then one line to the whole list w
   assert.deepEqual(withClass(panel, "s-queue-group-title").map((h) => textOf(h)), ["To know · 11"], "the label keeps the group's whole count");
 });
 
+test("fitGroups: each group as many rows as the room holds, one at least, in turn; a group shown whole drops its more line", () => {
+  const f = queue.fitGroups;
+  assert.deepEqual(f([2, 2, 5, 11], NaN, { row: 36, more: 28 }), [2, 2, 3, 3], "without a room, three a group");
+  assert.deepEqual(f([2, 2, 5, 11], 2000, { row: 36, more: 28 }), [2, 2, 5, 11], "room for all: every row, no more line");
+  // 4 groups at one row: 4 x 36 + 4 more lines x 28 = 256; each further row 36, a group's last row 36 - 28.
+  assert.deepEqual(f([2, 2, 5, 11], 256, { row: 36, more: 28 }), [1, 1, 1, 1]);
+  assert.deepEqual(f([2, 2, 5, 11], 400, { row: 36, more: 28 }), [2, 2, 3, 2], "in turn, the short groups shown whole");
+  assert.deepEqual(f([2, 2, 5, 11], 488, { row: 36, more: 28 }), [2, 2, 4, 4]);
+  assert.deepEqual(f([2, 2, 5, 11], 100, { row: 36, more: 28 }), [1, 1, 1, 1], "one row a group at least, the list then scrolls");
+  assert.deepEqual(f([], 400, { row: 36, more: 28 }), []);
+  const js = src("shell/queue.js");
+  assert.match(js, /fitGroups\(sizes, room, \{ row, more \}\)/, "the panel measures its room and fits the groups to it");
+});
+
 test("the queue's panel: the kit's Drawer under the top bar, the window's height, 420 px, the kit's surface, edge and dim", () => {
   const o = css("shell-overlays.css");
   assert.match(o, /\.k-drawer:has\(\.s-queue\) \{[^}]*top: var\(--topbar-h\);/, "under the top bar: the Queue button stays in view over the dim");
@@ -171,7 +185,8 @@ test("the queue's panel: the kit's Drawer under the top bar, the window's height
   assert.match(o, /\.s-queue-full \{[^}]*flex: none;[^}]*margin-top: auto;[^}]*height: 40px;[^}]*border-top: 1px solid var\(--line\);/, "the foot is one 40 px row under a rule at the panel's foot, always in view");
   assert.doesNotMatch(o, /\.s-queue-full \{[^}]*color: var\(--accent\)/, "not a lone blue link");
   assert.match(o, /\.s-queue-row\[aria-current="true"\],\s*\.s-queue-row:focus-visible,\s*\.s-queue-more:focus-visible \{[^}]*outline: none;[^}]*background: color-mix\(in srgb, var\(--ink\) 9%, transparent\);[^}]*box-shadow: inset 2px 0 0 var\(--accent\);/, "the current row and the row reached are a clear fill with a 2 px accent bar, never a ring");
-  assert.match(o, /\.s-queue-title \{[^}]*-webkit-line-clamp: 2;/, "a title on up to two lines");
+  assert.match(o, /\.s-queue-title \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/, "a row is one line: the title cut with an ellipsis");
+  assert.match(o, /\.s-queue-more \{[^}]*color: var\(--accent\);/, "\"and N more\" in the accent ink");
   assert.match(o, /\.s-queue-when \{[^}]*color: var\(--ink-2\);[^}]*font-variant-numeric: tabular-nums;/, "the date muted, in tabular figures");
   assert.match(o, /\.s-queue-group-title \{[^}]*padding: var\(--s-3\) [^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-label\);[^}]*font-weight: var\(--fw-medium\);/, "12 px, 500, muted group labels with 12 px above, as in the menu");
   assert.match(o, /@media \(max-width: 859px\) \{[\s\S]*\.k-drawer:has\(\.s-queue\) \{\s*display: none;/);
@@ -248,9 +263,11 @@ test("the command menu: a floating panel whose field is its head, 36 px rows wit
   assert.match(o, /\.s-cmd-input:focus,\s*\.s-cmd-input:focus-visible \{\s*outline: none;\s*\}/, "and no ring: the marked row shows the keyboard's place");
   assert.match(o, /\.s-cmd-item \{[^}]*min-height: var\(--h-md\);[^}]*border-radius: var\(--r-1\);/, "36 px rows");
   assert.match(o, /\.s-cmd-list \{[^}]*padding: var\(--s-1\) 6px 6px;/, "the rows are inset 6 px");
-  assert.match(o, /\.s-cmd-item\.is-active \{[^}]*background: color-mix\(in srgb, var\(--ink\) 9%, transparent\);[^}]*box-shadow: inset 2px 0 0 var\(--accent\);/, "the marked row a fill of at least 8 percent with the bar");
+  assert.match(o, /\.s-cmd-item\.is-active \{[^}]*background: color-mix\(in srgb, var\(--ink\) 9%, transparent\);/, "the marked row a fill of at least 8 percent");
+  assert.doesNotMatch(o, /\.s-cmd-item\.is-active \{[^}]*box-shadow/, "the fill alone: no bar");
   assert.match(o, /\.s-cmd-help \{[^}]*border-top: 1px solid var\(--line\);[^}]*background: var\(--ctl\);/, "the foot a tinted strip under a rule");
-  assert.match(src("shell/command-menu.js"), /<span class="s-cmd-count u-num"><\$\{Tag\}>\$\{count\}<\/\/><\/span>/, "a count is a small neutral chip");
+  assert.match(src("shell/command-menu.js"), /<span class="s-cmd-count u-num">\$\{count\}<\/span>/, "a count is a plain figure, no chip");
+  assert.match(o, /\.s-cmd-count \{[^}]*color: var\(--ink-2\);[^}]*font-variant-numeric: tabular-nums;/, "muted, in tabular figures");
   assert.doesNotMatch(o, /\.s-cmd-item[^{]*\{[^}]*outline: 2px/, "never a ring on a row");
   assert.match(o, /\.s-cmd-group-title \{[^}]*padding: var\(--s-3\) [^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-label\);[^}]*font-weight: var\(--fw-medium\);/, "12 px, 500, muted labels with 12 px above");
   assert.match(src("shell/command-menu.js"), /fitWholeRows\(list\.current, "\.s-cmd-item"\)/, "the list ends on a whole row, so no heading stands alone at its foot");
@@ -265,10 +282,12 @@ test("the compose dialog and the work panel are on the same surfaces, and nothin
   const dialog = src("shell/compose-dialog.js");
   assert.match(dialog, /bare=\$\{true\}/, "one composer, no box in a box: the Composer's bare look");
   assert.doesNotMatch(o, /k-composer[^{]*\{[^}]*display: contents/, "the Composer's box is not taken apart from outside");
-  assert.match(o, /\.s-compose \.k-composer__field \{[^}]*min-height: calc\(3 \* var\(--lh-fact\) \+ 2 \* var\(--s-3\) \+ 2px\);[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-2\);[^}]*background: var\(--field\);/, "the field framed as the kit's fields are, three lines tall at rest");
-  assert.match(o, /\.s-compose \.k-composer--bare \.k-composer__field:focus \{[^}]*border-color: var\(--accent\);[^}]*box-shadow: 0 0 0 3px color-mix\(in srgb, var\(--focus\) 25%, transparent\);/, "focus is the kit's field ring, not a lone accent bar");
+  assert.match(o, /\.s-compose \.k-composer__field \{[^}]*min-height: calc\(2 \* var\(--lh-fact\) \+ 2 \* var\(--s-3\) \+ 2px\);[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-2\);[^}]*background: var\(--field\);/, "the field framed as the kit's fields are, two lines tall at rest");
+  assert.match(o, /\.s-compose \.k-composer--bare \.k-composer__field:focus \{[^}]*border-color: var\(--accent\);[^}]*outline: 2px solid transparent;[^}]*box-shadow: none;/, "focus a 1 px accent edge and no glow, not a lone accent bar; the outline kept for forced colours");
+  assert.match(o, /\.k-dialog:has\(\.s-compose\) \.k-dialog__title \{[^}]*font-size: var\(--fs-section\);[^}]*font-weight: var\(--fw-medium\);/, "\"New task\" 15 px 500");
+  assert.match(o, /\.s-compose \.k-composer__bar \.k-btn--ghost \{\s*border-color: transparent;\s*\}/, "the chips ghosts with no edge until hover");
   assert.doesNotMatch(o, /\.s-compose[^{]*\{[^}]*inset 2px 0 0/, "no bar at the field's left");
-  assert.match(o, /\.s-compose \.k-composer__plan \{[^}]*min-height: var\(--s-8\);[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-2\);/, "Plan first one of the ghost chips: the ghost's edge, height and corner");
+  assert.match(o, /\.s-compose \.k-composer__plan \{[^}]*min-height: var\(--s-8\);[^}]*border: 1px solid transparent;[^}]*border-radius: var\(--r-2\);/, "Plan first one of the ghost chips: the ghost's height and corner");
   assert.match(dialog, /maxHeight="40vh"/, "growing to 40 percent of the window, through the Composer's own limit");
   assert.doesNotMatch(o, /!important|field-sizing/, "no override of the Composer's growth");
   assert.doesNotMatch(o, /\.k-composer__(send|hint)\b[^{]*\{[^}]*display: none;/, "nothing of the Composer's is hidden: its own Send and keys are the foot's");

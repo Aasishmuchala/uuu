@@ -3,10 +3,10 @@
 // calls POST /api/goals and then says "Given to the Chief of staff." with a link to the task. Its "/" list
 // holds jobs (GET /api/jobs): picking one opens that job's page, where it is started.
 // The Composer is loaded the same lazy way as a page, so this dialog works before it exists.
-// Drawn as one composer (PLAN-COOK T111, R5-B): a small "New task" label and Close on the dialog's own surface, the
-// text area framed as the kit's fields are (their edge, their focus ring; three lines at rest), and one foot row
-// in two styles only: at the left small ghost chips (Plan first, Every job, the "/" and "@" keys), at the right
-// "Enter to send" as a quiet line and the filled Send. PLAN-COOK T118: all of it through the Composer's own props
+// Drawn as one composer (PLAN-COOK T111, R5-B, R6-B): a 15 px "New task" label and Close on the dialog's own surface,
+// the text area framed as the kit's fields are (their edge; on focus a 1 px accent edge and no glow; two lines at
+// rest), and one foot row in two styles only: at the left small ghost chips with no edge until hover (Plan first,
+// Every job, the "/" and "@" keys), at the right "Enter to send" as a quiet line and the filled Send. PLAN-COOK T118: all of it through the Composer's own props
 // (bare, sendLabel, controls, keys, maxHeight); nothing reaches inside it.
 import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
