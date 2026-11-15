@@ -1,19 +1,19 @@
-// The queue (PLAN-COOK T21, T103, T111, CONTRACTS-V3 26.2): what needs the owner, as a popover anchored 8 px
-// under the Queue button at the right of the top bar (their right edges aligned), opened by the button, the key
-// "q" and openQueue({ department }) from any page. Not modal and no dim: the page stays as it is beside it. The
-// items in four groups (to approve, to answer, to accept, to know), each showing its first rows and then one
-// line "and 8 more" to the whole list; a row's title on up to two lines with the date at its top right (the grey
-// line only on the current row), each row opening the item's own page; then the not-connected lines; the list
-// scrolls inside, ends on a whole row, over the foot's row to the whole list. It reads GET /api/inbox when it
+// The queue (PLAN-COOK T21, T103, T111, R5-B, CONTRACTS-V3 26.2): what needs the owner, as a panel at the window's
+// right under the top bar (the kit's Drawer: 420 px, the window's height, on the overlay surface with its edge at
+// the left, over the standard dim), opened by the Queue button, the key "q" and openQueue({ department }) from any
+// page. The items in four groups (to approve, to answer, to accept, to know), each showing its first rows and then
+// one line "and 8 more" to the whole list; a row's title on up to two lines with the date at its top right (the
+// grey line only on the current row), each row opening the item's own page; then the not-connected lines; the
+// list scrolls inside, ends on a whole row, over the foot's row to the whole list. It reads GET /api/inbox when it
 // opens and again each time the shell refreshes while open. Focus goes to the first row; Up and Down move (the
-// "more" lines and the foot too), Enter follows; Esc, a click outside and a second "q" close it and give focus
-// back to the Queue button; a page change closes it. Below 860 px it is not drawn: the Needs you tab opens the
-// page.
-import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
+// "more" lines and the foot too), Enter follows, Tab stays inside; Esc, a click on the dim or outside, Close and a
+// second "q" close it and give focus back to the Queue button; a page change closes it. Below 860 px it is not
+// drawn: the Needs you tab opens the page.
+import { html, useEffect, useLayoutEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { fullWhen } from "../lib/format.js";
 import { needsFor, needsTitle, queueGroups, queueHref, rowTime, sortNeeds } from "../lib/queue.js";
-import { ErrorNotice, Icon, Kbd, Loading, StateIcon } from "../kit/index.js";
+import { Drawer, ErrorNotice, Icon, Loading, StateIcon } from "../kit/index.js";
 
 // The shell's tests read the helpers from here, with the panel.
 export { SOURCE_DEPARTMENT, needsFor, needsTitle, queueGroups, queueHref, rowTime, sortNeeds } from "../lib/queue.js";
@@ -57,15 +57,6 @@ export function fitWholeRows(el, selector) {
   if (end > 0) el.style.height = `${Math.floor(end)}px`;
 }
 
-// Where the popover hangs: under the Queue button, its right edge on the button's. Null without a layout.
-function anchorOf() {
-  const btn = typeof document === "undefined" ? null : document.querySelector?.(".s-queue-btn");
-  if (!btn || typeof btn.getBoundingClientRect !== "function" || typeof innerWidth !== "number") return null;
-  const r = btn.getBoundingClientRect();
-  if (!r.width) return null;
-  return { top: Math.round(r.bottom + 8), right: Math.max(8, Math.round(innerWidth - r.right)) };
-}
-
 // `here` is the address being shown ("#/..."); its row is marked current.
 export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
   const [s, setS] = useState({ data: null, error: null });
@@ -73,7 +64,7 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
   const seq = useRef(0);
   const ref = useRef(null);
   const scroller = useRef(null);
-  const [at, setAt] = useState(null);
+  const opener = useRef(null);
   const close = useRef(onClose);
   close.current = onClose;
   const shown = open && !narrow;
@@ -106,9 +97,15 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
     return () => { live = false; };
   }, [shown, department]);
 
-  // Open: focus the panel at once, and the first row as soon as there is one. Closed by Esc, "q" or a click
-  // on nothing: focus goes back to the Queue button. Closed by a page change or a click on something that
-  // takes focus: focus stays where that put it.
+  // Where the keyboard was when the panel opened, taken before the Drawer moves it in (the Drawer gives it back
+  // there when it goes).
+  useLayoutEffect(() => {
+    if (shown && typeof document !== "undefined") opener.current = document.activeElement;
+  }, [shown]);
+
+  // Open: focus the panel at once, and the first row as soon as there is one. Closed by Esc, the dim, Close, "q"
+  // or a click on nothing: focus goes back to the Queue button. Closed by a page change or a click on something
+  // that takes focus: focus stays where that put it.
   useEffect(() => {
     if (!shown) return undefined;
     const from = hashNow();
@@ -117,7 +114,8 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
     (first || panel)?.focus?.();
     const outside = (e) => {
       const btn = document.querySelector?.(".s-queue-btn");
-      if (ref.current?.contains(e.target) || btn?.contains(e.target)) return;
+      const drawer = panel?.closest?.(".k-drawer__panel");
+      if ((drawer || panel)?.contains(e.target) || btn?.contains(e.target)) return;
       close.current?.();
     };
     document.addEventListener("pointerdown", outside);
@@ -125,19 +123,10 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
       document.removeEventListener("pointerdown", outside);
       later(() => {
         const a = document.activeElement;
-        if (hashNow() !== from || (a && a !== document.body && a.isConnected)) return;
+        if (hashNow() !== from || (a && a !== document.body && a !== opener.current && a.isConnected)) return;
         document.querySelector?.(".s-queue-btn")?.focus();
       });
     };
-  }, [shown]);
-
-  // Hang under the button, and keep there when the window changes.
-  useEffect(() => {
-    if (!shown || typeof window === "undefined") return undefined;
-    const place = () => setAt(anchorOf());
-    place();
-    window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
   }, [shown]);
 
   const items = needsFor(sortNeeds(s.data?.items), department, map);
@@ -207,22 +196,19 @@ export function QueuePanel({ open, narrow, department, stamp, here, onClose }) {
       </section>`);
   }
 
-  const place = at ? `top: ${at.top}px; right: ${at.right}px;` : undefined;
+  const head = html`<span class="s-queue-name">${title}</span>${ready ? html` <span class="s-queue-count u-num">${items.length}</span>` : null}`;
   return html`
-    <div class="s-queue" role="dialog" aria-modal="false" aria-label=${title} tabindex="-1" ref=${ref} onKeyDown=${onKey} style=${place}>
-      <p class="s-queue-head">
-        <span class="s-queue-name">${title}</span>
-        ${ready ? html`<span class="s-queue-count u-num">${items.length}</span>` : null}
-        <${Kbd}>Q<//>
-      </p>
-      <div class="s-queue-body" ref=${scroller}>
-        ${body}
-        ${notConnected.length ? html`
-          <ul class="s-queue-quiet">
-            ${notConnected.map((n, i) => html`
-              <li key=${i}><span class="s-queue-source">${SOURCE_WORDS[n && n.source] || "A part"}:</span> ${cap(n && n.reason, 200)}</li>`)}
-          </ul>` : null}
+    <${Drawer} open=${true} side="right" title=${head} onClose=${() => close.current?.()}>
+      <div class="s-queue" tabindex="-1" ref=${ref} onKeyDown=${onKey}>
+        <div class="s-queue-body" ref=${scroller}>
+          ${body}
+          ${notConnected.length ? html`
+            <ul class="s-queue-quiet">
+              ${notConnected.map((n, i) => html`
+                <li key=${i}><span class="s-queue-source">${SOURCE_WORDS[n && n.source] || "A part"}:</span> ${cap(n && n.reason, 200)}</li>`)}
+            </ul>` : null}
+        </div>
+        <a class="s-queue-full" href=${full} onClick=${() => close.current?.()}><span>Open the whole list</span><${Icon} name="arrow-right" /></a>
       </div>
-      <a class="s-queue-full" href=${full} onClick=${() => close.current?.()}><span>Open the whole list</span><${Icon} name="arrow-right" /></a>
-    </div>`;
+    <//>`;
 }

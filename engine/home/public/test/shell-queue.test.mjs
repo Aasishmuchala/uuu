@@ -90,17 +90,22 @@ async function drawQueue(answer, props = {}) {
   }
 }
 
-test("the queue panel: a dialog that is not modal, its first line, the groups, and a row for each item", async () => {
+test("the queue panel: the kit's Drawer at the right, its title and count, the groups, and a row for each item", async () => {
   const { root, calls } = await drawQueue({ status: 200, body: INBOX }, { here: "#/tasks/e1" });
   assert.deepEqual(calls.map((c) => c.path), ["/api/inbox"]);
-  const panel = withClass(root, "s-queue")[0];
-  assert.equal(attrOf(panel, "role"), "dialog");
-  assert.equal(attrOf(panel, "aria-modal"), "false");
-  assert.equal(attrOf(panel, "aria-label"), "Needs you");
-  const head = withClass(panel, "s-queue-head")[0];
+  const drawer = withClass(root, "k-drawer")[0];
+  assert.ok(drawer, "a panel: the kit's Drawer");
+  assert.equal(withClass(root, "k-drawer--right").length, 1, "at the window's right");
+  assert.equal(withClass(root, "k-drawer__backdrop").length, 1, "over the standard dim");
+  const dialog = withClass(root, "k-drawer__panel")[0];
+  assert.equal(attrOf(dialog, "role"), "dialog");
+  assert.equal(attrOf(dialog, "aria-modal"), "true");
+  const head = withClass(root, "k-drawer__title")[0];
+  assert.equal(attrOf(dialog, "aria-labelledby"), attrOf(head, "id"), "named by its title");
   assert.equal(textOf(withClass(head, "s-queue-name")[0]), "Needs you");
   assert.equal(textOf(withClass(head, "s-queue-count")[0]), "4");
-  assert.equal(textOf(withClass(head, "k-kbd")[0]), "Q");
+  assert.equal(withClass(root, "k-drawer__close").length, 1, "and the kit's Close");
+  const panel = withClass(root, "s-queue")[0];
   assert.deepEqual(withClass(panel, "s-queue-group-title").map((h) => textOf(h)), ["To approve · 1", "To answer · 1", "To accept · 1", "To know · 1"]);
   const rows = withClass(panel, "s-queue-row");
   assert.deepEqual(rows.map((r) => attrOf(r, "href")), ["#/needs-you?item=shotlist%3A2", "#/needs-you?item=q%3A3", "#/tasks/e1", "#/needs-you?item=p%3A4"]);
@@ -109,7 +114,6 @@ test("the queue panel: a dialog that is not modal, its first line, the groups, a
   assert.equal(withClass(rows[3], "s-queue-line").length, 0, "no grey line when there is no summary");
   assert.equal(withClass(rows[0], "s-queue-line").length, 0, "one line a row: the grey line only on the current row");
   assert.equal(withClass(panel, "s-queue-body").length, 1, "the rows scroll in their own body");
-  assert.equal(withClass(root, "s-queue-scrim").length, 0, "a popover dims nothing: the page stays as it is");
   assert.ok(withClass(rows[0], "s-queue-when")[0], "each row has its time at the right");
   assert.equal(rows.every((r) => withClass(r, "s-queue-icon").length === 1), true, "a 16 px icon on every row");
   assert.deepEqual(rows.map((r) => attrOf(r, "aria-current")), [null, null, "true", null], "the row of the page being shown is current");
@@ -136,8 +140,9 @@ test("the queue panel: empty, failed, closed, and below 860 px not drawn", async
   assert.equal(closed.calls.length, 0, "and nothing is read");
   const narrow = await drawQueue({ status: 200, body: INBOX }, { narrow: true });
   assert.equal(withClass(narrow.root, "s-queue").length, 0);
+  assert.equal(withClass(narrow.root, "k-drawer").length, 0, "no panel and no dim on a phone");
   const one = await drawQueue({ status: 200, body: INBOX }, { department: "people" });
-  assert.equal(attrOf(withClass(one.root, "s-queue")[0], "aria-label"), "Needs you: People");
+  assert.equal(textOf(withClass(withClass(one.root, "k-drawer__title")[0], "s-queue-name")[0]), "Needs you: People");
   assert.equal(attrOf(withClass(one.root, "s-queue-full")[0], "href"), "#/needs-you?d=people");
 });
 
@@ -155,23 +160,26 @@ test("the queue: a group shows its first rows, then one line to the whole list w
   assert.deepEqual(withClass(panel, "s-queue-group-title").map((h) => textOf(h)), ["To know · 11"], "the label keeps the group's whole count");
 });
 
-test("the queue's popover: 8 px under its button, right edges in line, 400 px, on the overlay surface, and it dims nothing", () => {
+test("the queue's panel: the kit's Drawer under the top bar, the window's height, 420 px, the kit's surface, edge and dim", () => {
   const o = css("shell-overlays.css");
-  assert.match(o, /\.s-queue \{[^}]*position: fixed;[^}]*right: var\(--s-4\);[^}]*width: min\(400px, calc\(100vw - var\(--s-4\)\)\);[^}]*border: 1px solid var\(--overlay-line\);[^}]*border-radius: var\(--r-3\);[^}]*background: var\(--overlay\);[^}]*box-shadow: var\(--overlay-shadow\);/);
-  assert.doesNotMatch(o, /\.s-queue-scrim/, "no dim under a popover");
+  assert.match(o, /\.k-drawer:has\(\.s-queue\) \{[^}]*top: var\(--topbar-h\);/, "under the top bar: the Queue button stays in view over the dim");
+  assert.match(o, /\.k-drawer:has\(\.s-queue\) \.k-drawer__panel \{[^}]*width: min\(420px, 100vw\);/, "420 px wide");
+  assert.doesNotMatch(o, /\.s-queue[^{]*\{[^}]*(background|box-shadow|border-left)\s*:[^;]*(--overlay|--scrim)/, "the surface, edge, shadow and dim are the kit's");
+  assert.doesNotMatch(o, /\.s-queue-scrim/, "the dim is the Drawer's own");
+  assert.match(css("kit/overlays.css"), /\.k-drawer--right \.k-drawer__panel \{ border-left: 1px solid var\(--overlay-line\); \}/, "the kit's 1 px edge at its left");
   assert.match(o, /\.s-queue-body \{[^}]*overflow-y: auto;/, "the rows scroll inside, between the head and the foot");
-  assert.match(o, /\.s-queue-full \{[^}]*flex: none;[^}]*height: 40px;[^}]*border-top: 1px solid var\(--line\);/, "the foot is one 40 px row under a rule, always in view");
+  assert.match(o, /\.s-queue-full \{[^}]*flex: none;[^}]*margin-top: auto;[^}]*height: 40px;[^}]*border-top: 1px solid var\(--line\);/, "the foot is one 40 px row under a rule at the panel's foot, always in view");
   assert.doesNotMatch(o, /\.s-queue-full \{[^}]*color: var\(--accent\)/, "not a lone blue link");
   assert.match(o, /\.s-queue-row\[aria-current="true"\],\s*\.s-queue-row:focus-visible,\s*\.s-queue-more:focus-visible \{[^}]*outline: none;[^}]*background: color-mix\(in srgb, var\(--ink\) 9%, transparent\);[^}]*box-shadow: inset 2px 0 0 var\(--accent\);/, "the current row and the row reached are a clear fill with a 2 px accent bar, never a ring");
   assert.match(o, /\.s-queue-title \{[^}]*-webkit-line-clamp: 2;/, "a title on up to two lines");
   assert.match(o, /\.s-queue-when \{[^}]*color: var\(--ink-2\);[^}]*font-variant-numeric: tabular-nums;/, "the date muted, in tabular figures");
   assert.match(o, /\.s-queue-group-title \{[^}]*padding: var\(--s-3\) [^}]*color: var\(--ink-2\);[^}]*font-size: var\(--fs-label\);[^}]*font-weight: var\(--fw-medium\);/, "12 px, 500, muted group labels with 12 px above, as in the menu");
-  assert.match(o, /@media \(max-width: 859px\) \{[\s\S]*\.s-queue \{\s*display: none;/);
-  assert.match(o, /:root\[data-motion="off"\] \.s-queue,/);
+  assert.match(o, /@media \(max-width: 859px\) \{[\s\S]*\.k-drawer:has\(\.s-queue\) \{\s*display: none;/);
+  assert.match(o, /:root\[data-motion="off"\] \.s-queue-row \{/);
   assert.match(o, /prefers-reduced-motion/);
   const js = src("shell/queue.js");
-  assert.match(js, /r\.bottom \+ 8/, "it hangs 8 px under the button");
-  assert.match(js, /innerWidth - r\.right/, "its right edge on the button's");
+  assert.match(js, /<\$\{Drawer\} open=\$\{true\} side="right"/, "the kit's Drawer, at the right");
+  assert.match(js, /a !== opener\.current/, "Esc, the dim and Close give the keyboard back to the Queue button, not to where it was before");
 });
 
 test("fitWholeRows: a list that holds more than its room is cut back to the foot of the last whole row; one that fits is left alone", () => {
@@ -233,7 +241,8 @@ test("the command menu: a floating panel whose field is its head, 36 px rows wit
   }
   const o = css("shell-overlays.css");
   assert.match(o, /\.s-cmd-layer \{[^}]*align-items: flex-start;[^}]*justify-content: center;[^}]*padding: 14vh var\(--s-4\) var\(--s-12\);/, "centred on the window, its top 14 percent down, 48 px clear at the foot");
-  assert.match(o, /\.s-cmd \{[^}]*max-width: 640px;[^}]*max-height: calc\(86vh - var\(--s-12\)\);[^}]*border: 1px solid var\(--overlay-line\);[^}]*border-radius: var\(--r-3\);[^}]*background: var\(--overlay\);[^}]*box-shadow: var\(--overlay-shadow\);/);
+  assert.match(o, /\.s-cmd \{[^}]*max-width: 560px;[^}]*max-height: min\(560px, calc\(86vh - var\(--s-12\)\)\);[^}]*border: 1px solid var\(--overlay-line\);[^}]*border-radius: var\(--r-3\);[^}]*background: var\(--overlay\);[^}]*box-shadow: var\(--overlay-shadow\);/, "560 px, so a rail's words at the right stand whole beside it; at most 560 px tall, so it ends above a composer at a page's foot");
+  assert.match(o, /\.s-cmd-list \{[^}]*max-height: min\(466px, /, "the list as tall as the menu allows, less its head and foot");
   assert.match(o, /\.s-cmd-field \{[^}]*height: 52px;[^}]*border-bottom: 1px solid var\(--line\);/, "the head is one 52 px row over a hairline");
   assert.match(o, /\.s-cmd-input \{[^}]*border: 0;[^}]*background: transparent;/, "the field has no box of its own");
   assert.match(o, /\.s-cmd-input:focus,\s*\.s-cmd-input:focus-visible \{\s*outline: none;\s*\}/, "and no ring: the marked row shows the keyboard's place");
@@ -249,14 +258,17 @@ test("the command menu: a floating panel whose field is its head, 36 px rows wit
 
 test("the compose dialog and the work panel are on the same surfaces, and nothing in the overlays blurs or fades by gradient", () => {
   const o = css("shell-overlays.css");
-  assert.match(o, /@media \(min-width: 860px\) \{\s*\.k-dialog:has\(\.s-compose\) \{[^}]*align-items: flex-start;[^}]*padding: 16vh /, "the compose dialog's top 16 percent down, as tall as what it holds");
+  assert.match(o, /@media \(min-width: 860px\) \{\s*\.k-dialog:has\(\.s-compose\) \{[^}]*align-items: flex-start;[^}]*padding: 22vh /, "the compose dialog's top 22 percent down, as tall as what it holds");
   assert.match(o, /\.k-dialog:has\(\.s-compose\) \.k-dialog__panel \{[^}]*max-width: 640px;/, "640 px wide");
   assert.match(o, /\.k-dialog:has\(\.s-compose\) \.k-dialog__head \{[^}]*border-bottom: 0;/, "no band and no rule under the label");
-  assert.match(o, /\.k-dialog:has\(\.s-compose\) \.k-dialog__body \{[^}]*padding: 0 var\(--s-5\) var\(--s-4\);/, "20 px in, 16 px under the foot row");
+  assert.match(o, /\.k-dialog:has\(\.s-compose\) \.k-dialog__body \{[^}]*padding: 0 var\(--s-5\) var\(--s-5\);/, "20 px in, 20 px under the foot row");
   const dialog = src("shell/compose-dialog.js");
   assert.match(dialog, /bare=\$\{true\}/, "one composer, no box in a box: the Composer's bare look");
   assert.doesNotMatch(o, /k-composer[^{]*\{[^}]*display: contents/, "the Composer's box is not taken apart from outside");
-  assert.match(o, /\.s-compose \.k-composer__field \{[^}]*min-height: 120px;/, "the text area at least 120 px");
+  assert.match(o, /\.s-compose \.k-composer__field \{[^}]*min-height: calc\(3 \* var\(--lh-fact\) \+ 2 \* var\(--s-3\) \+ 2px\);[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-2\);[^}]*background: var\(--field\);/, "the field framed as the kit's fields are, three lines tall at rest");
+  assert.match(o, /\.s-compose \.k-composer--bare \.k-composer__field:focus \{[^}]*border-color: var\(--accent\);[^}]*box-shadow: 0 0 0 3px color-mix\(in srgb, var\(--focus\) 25%, transparent\);/, "focus is the kit's field ring, not a lone accent bar");
+  assert.doesNotMatch(o, /\.s-compose[^{]*\{[^}]*inset 2px 0 0/, "no bar at the field's left");
+  assert.match(o, /\.s-compose \.k-composer__plan \{[^}]*min-height: var\(--s-8\);[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-2\);/, "Plan first one of the ghost chips: the ghost's edge, height and corner");
   assert.match(dialog, /maxHeight="40vh"/, "growing to 40 percent of the window, through the Composer's own limit");
   assert.doesNotMatch(o, /!important|field-sizing/, "no override of the Composer's growth");
   assert.doesNotMatch(o, /\.k-composer__(send|hint)\b[^{]*\{[^}]*display: none;/, "nothing of the Composer's is hidden: its own Send and keys are the foot's");
@@ -271,9 +283,9 @@ test("the compose dialog and the work panel are on the same surfaces, and nothin
   assert.doesNotMatch(o, /gradient\(/);
   assert.doesNotMatch(o, /#[0-9a-fA-F]{3,8}\b\s*;|rgba?\(|hsla?\(/, "colours come from the tokens");
   assert.doesNotMatch(o, /font-size\s*:\s*\d+px/, "sizes come from the tokens");
-  // The kit's dialog is placed for the compose dialog only through what it holds.
+  // The kit's dialog and drawer are placed for the compose dialog and the queue only through what they hold.
   for (const sel of o.replace(/@keyframes[\s\S]*?\}\s*\}/g, "").matchAll(/(^|[{}])\s*([^{}@]+)\{/g)) {
-    for (const one of sel[2].split(",")) assert.match(one.trim(), /^(:root\[data-[a-z]+="[a-z]+"\]\s+|\.k-dialog:has\(\.s-compose\)\s*)?\.s-|^\.k-dialog:has\(\.s-compose\)( \.k-dialog__(body|head|panel|title))?$/, `"${one.trim()}" starts with .s-`);
+    for (const one of sel[2].split(",")) assert.match(one.trim(), /^(:root\[data-[a-z]+="[a-z]+"\]\s+|\.k-dialog:has\(\.s-compose\)\s*)?\.s-|^\.k-dialog:has\(\.s-compose\)( \.k-dialog__(body|head|panel|title))?$|^\.k-drawer:has\(\.s-queue\)( \.k-drawer__(body|head|panel|title))?$/, `"${one.trim()}" starts with .s-`);
   }
   const shell = css("shell.css");
   for (const gone of [".s-cmd", ".s-panel", ".s-compose", ".s-needs", ".s-queue-host"]) assert.ok(!shell.includes(`${gone}`), `${gone} moved out of shell.css`);

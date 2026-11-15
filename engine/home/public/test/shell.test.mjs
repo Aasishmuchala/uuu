@@ -475,7 +475,10 @@ test("the compose dialog's foot: its words, and the / and @ keys put in where th
   assert.deepEqual(compose.withKey("ab", 1, "@"), { text: "a @b", caret: 3 }, "at the caret");
   const js = readFileSync(join(PUBLIC, "shell", "compose-dialog.js"), "utf8");
   assert.match(js, /sendLabel=\$\{WORDS\.send\}/, "Send is the Composer's worded send: the kit's primary with its word, disabled with nothing typed");
-  assert.match(js, /keys=\$\{html`<\$\{Kbd\}>Enter<\/\/> \$\{WORDS\.enter\}`\}/, "Enter to send in keycaps, before Send");
+  assert.match(js, /keys=\$\{`Enter \$\{WORDS\.enter\}`\}/, "Enter to send as a quiet line before Send, not a keycap: the foot has two styles only");
+  assert.match(js, /<\$\{Button\} variant="ghost" size="sm" class="s-compose-key s-compose-key--jobs"/, "the / key a small ghost chip");
+  assert.match(js, /<\$\{Button\} variant="ghost" size="sm" class="s-compose-key s-compose-key--who"/, "the @ key a small ghost chip");
+  assert.doesNotMatch(js, /variant="quiet"|Kbd/, "no third style in the foot");
   assert.match(js, /edit\(\(v, c\) => withKey\(v, c, "\/"\)\)/, "the / key goes in through the Composer's edit");
   assert.match(js, /<\$\{Button\} variant="ghost" size="sm" href="#\/jobs" class="s-compose-jobs"/, "Every job a small ghost button");
 });

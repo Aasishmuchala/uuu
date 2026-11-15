@@ -3,14 +3,15 @@
 // calls POST /api/goals and then says "Given to the Chief of staff." with a link to the task. Its "/" list
 // holds jobs (GET /api/jobs): picking one opens that job's page, where it is started.
 // The Composer is loaded the same lazy way as a page, so this dialog works before it exists.
-// Drawn as one composer (PLAN-COOK T111): a small "New task" label and Close on the dialog's own surface, the text
-// area as the dialog's body (no box of its own), and one foot row: Plan first, Every job, the "/" and "@" keys as
-// quiet buttons, then "Enter to send" and the Send button. PLAN-COOK T118: all of it through the Composer's own
-// props (bare, sendLabel, controls, keys, maxHeight); nothing reaches inside it.
+// Drawn as one composer (PLAN-COOK T111, R5-B): a small "New task" label and Close on the dialog's own surface, the
+// text area framed as the kit's fields are (their edge, their focus ring; three lines at rest), and one foot row
+// in two styles only: at the left small ghost chips (Plan first, Every job, the "/" and "@" keys), at the right
+// "Enter to send" as a quiet line and the filled Send. PLAN-COOK T118: all of it through the Composer's own props
+// (bare, sendLabel, controls, keys, maxHeight); nothing reaches inside it.
 import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { aheadLine, linkHref } from "../lib/format.js";
-import { BeingBuilt, Button, Dialog, Icon, Kbd, Loading, SHORT_PLACEHOLDER } from "../kit/index.js";
+import { BeingBuilt, Button, Dialog, Icon, Loading, SHORT_PLACEHOLDER } from "../kit/index.js";
 import { loadModule } from "./lazy-page.js";
 
 const MAX_JOBS = 500;
@@ -133,17 +134,17 @@ export function ComposeDialog({ open, seed, team, queue, onClose, onSent }) {
       <${Button} variant="ghost" size="sm" href="#/jobs" class="s-compose-jobs" onClick=${onClose}>
         ${WORDS.jobs}<${Icon} name="chevron-right" size=${14} />
       <//>
-      <${Button} variant="quiet" size="sm" class="s-compose-key s-compose-key--jobs" aria-label=${WORDS.slashLabel} onClick=${() => edit((v, c) => withKey(v, c, "/"))}>
-        <${Kbd}>/<//>${WORDS.slash}
+      <${Button} variant="ghost" size="sm" class="s-compose-key s-compose-key--jobs" aria-label=${WORDS.slashLabel} onClick=${() => edit((v, c) => withKey(v, c, "/"))}>
+        <span class="s-compose-glyph" aria-hidden="true">/</span>${WORDS.slash}
       <//>
-      <${Button} variant="quiet" size="sm" class="s-compose-key s-compose-key--who" aria-label=${WORDS.atLabel} onClick=${() => edit((v, c) => withKey(v, c, "@"))}>
-        <${Kbd}>@<//>${WORDS.at}
+      <${Button} variant="ghost" size="sm" class="s-compose-key s-compose-key--who" aria-label=${WORDS.atLabel} onClick=${() => edit((v, c) => withKey(v, c, "@"))}>
+        <span class="s-compose-glyph" aria-hidden="true">@</span>${WORDS.at}
       <//>`;
     body = html`
       <${Composer} key=${s.n || 0} onSend=${send} agents=${agents} templates=${jobs} onPickJob=${pickJob} busy=${busy} autoFocus=${true}
         initialText=${s.text || ""} to=${s.to || undefined} placeholder=${WORDS.placeholder}
         bare=${true} maxHeight="40vh" sendLabel=${WORDS.send} controls=${controls}
-        keys=${html`<${Kbd}>Enter<//> ${WORDS.enter}`} />`;
+        keys=${`Enter ${WORDS.enter}`} />`;
   }
 
   return html`

@@ -1,66 +1,68 @@
-/* The shell's overlays (PLAN-COOK T21, T103 and T111): the queue, the command menu, the compose dialog's inside
-   and the work panel. What floats is on the overlay surface (--overlay, its --overlay-line edge and
-   --overlay-shadow) with a 12 px corner; the command menu and the dialog lie over the dim (--scrim), the queue is
-   a popover and dims nothing. The row that is chosen or current is a clear neutral fill with a 2 px accent bar at
-   its left, never a ring. Nothing blurs what is behind it. */
+/* The shell's overlays (PLAN-COOK T21, T103, T111 and R5-B): the queue, the command menu, the compose dialog's
+   inside and the work panel. What floats is on the overlay surface (--overlay, its --overlay-line edge and
+   --overlay-shadow); the command menu, the dialog and the queue's panel lie over the dim (--scrim). The row that
+   is chosen or current is a clear neutral fill with a 2 px accent bar at its left, never a ring. Nothing blurs
+   what is behind it. */
 
-/* ---- the queue: a popover hung 8 px under its button at the right of the top bar (the panel sets top and right
-   from the button; these are the same numbers for the first frame), 400 px wide (the window less 16 px at most),
-   on the overlay surface with its edge and shadow. A popover dims nothing: the page stays as it is. */
+/* ---- the queue: the kit's Drawer at the window's right, under the top bar (the top bar and its Queue button stay
+   in view over the dim), the window's height, 420 px, on the overlay surface with its 1 px edge at the left. Here
+   only its place, its width, and its head and body laid out for the rows; the dim, the surface, the edge and the
+   shadow are the kit's. */
 .s-queue-host {
   display: contents;
 }
-.s-queue {
-  position: fixed;
-  z-index: 45;
-  top: calc(var(--topbar-h) + var(--s-2));
-  right: var(--s-4);
+.k-drawer:has(.s-queue) {
+  top: var(--topbar-h);
+}
+.k-drawer:has(.s-queue) .k-drawer__panel {
+  width: min(420px, 100vw);
+}
+.k-drawer:has(.s-queue) .k-drawer__head {
+  flex: none;
+  height: 52px;
+  padding: 0 var(--s-3) 0 var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+.k-drawer:has(.s-queue) .k-drawer__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin: 0;
+}
+.k-drawer:has(.s-queue) .k-drawer__body {
   display: flex;
   flex-direction: column;
-  width: min(400px, calc(100vw - var(--s-4)));
-  max-height: calc(100vh - var(--topbar-h) - var(--s-8));
+  padding: 0;
   overflow: hidden;
-  border: 1px solid var(--overlay-line);
-  border-radius: var(--r-3);
-  background: var(--overlay);
+}
+.s-queue {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
   color: var(--ink);
-  box-shadow: var(--overlay-shadow);
-  animation: s-float-in var(--t-med) var(--ease);
 }
 .s-queue:focus {
   outline: none;
 }
-.s-queue-head {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--s-2);
-  height: 48px;
-  margin: 0;
-  padding: 0 var(--s-3) 0 var(--s-4);
-  border-bottom: 1px solid var(--line);
-}
 .s-queue-name {
-  font-size: var(--fs-body);
+  font-size: var(--fs-section);
   font-weight: var(--fw-bold);
-  line-height: var(--lh-ui);
+  line-height: var(--lh-section);
 }
 .s-queue-count {
   color: var(--ink-2);
-  font-size: var(--fs-body);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-ui);
-}
-.s-queue-head .k-kbd {
-  margin-left: auto;
 }
 /* The rows scroll here, between the head and the foot; the panel cuts this list back to a whole row. */
 .s-queue-body {
-  flex: none;
+  flex: 0 1 auto;
   min-height: 0;
-  max-height: calc(100vh - var(--topbar-h) - var(--s-8) - 90px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0 6px 6px;
+  padding: var(--s-1) var(--s-2) var(--s-2);
 }
 .s-queue-group {
   display: flex;
@@ -183,11 +185,12 @@
 .s-queue-full {
   display: flex;
   flex: none;
+  margin-top: auto;
   align-items: center;
   justify-content: space-between;
   gap: var(--s-2);
   height: 40px;
-  padding: 0 var(--s-4);
+  padding: 0 var(--s-5) 0 var(--s-4);
   border-top: 1px solid var(--line);
   color: var(--ink);
   font-size: var(--fs-ui);
@@ -205,10 +208,12 @@
   outline-offset: -2px;
 }
 
-/* ---- the command menu: a floating panel over the dim, at most 640 px, centred on the window, its top 14 percent
-   down and its foot at least 48 px above the window's (the list scrolls inside), on the overlay surface with its
-   edge and shadow. The field is its head: one 52 px row with the search icon, no box and no ring of its own (the
-   marked row is the keyboard's place), a hairline under it. */
+/* ---- the command menu: a floating panel over the dim, at most 560 px (so on a page with a rail at its right, the
+   rail's words stand whole beside it under the dim), centred on the window, its top 14 percent down, and at most
+   560 px tall with its foot at least 48 px above the window's (the list scrolls inside), so it ends above a
+   composer pinned at the foot of a page rather than half over it; on the overlay surface with its edge and
+   shadow. The field is its head: one 52 px row with the search icon, no box and no ring of its own (the marked row
+   is the keyboard's place), a hairline under it. */
 .s-cmd-layer {
   position: fixed;
   inset: 0;
@@ -229,8 +234,8 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 640px;
-  max-height: calc(86vh - var(--s-12));
+  max-width: 560px;
+  max-height: min(560px, calc(86vh - var(--s-12)));
   overflow: hidden;
   border: 1px solid var(--overlay-line);
   border-radius: var(--r-3);
@@ -275,7 +280,7 @@
 .s-cmd-list {
   flex: none;
   min-height: 0;
-  max-height: calc(86vh - var(--s-12) - 94px);
+  max-height: min(466px, calc(86vh - var(--s-12) - 94px));
   overflow-y: auto;
   overscroll-behavior: contain;
   display: flex;
@@ -386,23 +391,24 @@
   gap: var(--s-1);
 }
 
-/* ---- the compose dialog: the kit's Dialog, 640 px, its top 16 percent down and as tall as what it holds. One
-   composer, no box in a box: a small "New task" label and Close on the dialog's own surface (no band, no rule),
-   the text area as the dialog's body (the Composer's bare look: no edge, the 2 px accent bar while it has focus;
-   20 px in, at least 120 px tall, growing to 40 percent of the window through the Composer's maxHeight), and one
-   foot row: Plan first, Every job, the "/" and "@" keys, then "Enter to send" and Send, all the Composer's own row
-   (T118). Here only the dialog's sizes and spacing. */
+/* ---- the compose dialog: the kit's Dialog, 640 px, its top 22 percent down and as tall as what it holds. A small
+   "New task" label and Close on the dialog's own surface (no band, no rule); the text area framed as the kit's
+   fields are (the stronger line on the field fill, the pointer firming the edge, focus the 1 px accent edge and the
+   3 px ring at 25 percent: no lone bar), three lines at rest, growing to 40 percent of the window through the
+   Composer's maxHeight; then one foot row in two styles: small ghost chips at the left (Plan first, Every job, the
+   "/" and "@" keys), "Enter to send" as a quiet line and the filled Send at the right (T118: the Composer's own
+   row). Here only the dialog's sizes and spacing, and the field's frame from the kit's field tokens. */
 @media (min-width: 860px) {
   .k-dialog:has(.s-compose) {
     align-items: flex-start;
-    padding: 16vh var(--s-4) var(--s-12);
+    padding: 22vh var(--s-4) var(--s-12);
   }
 }
 .k-dialog:has(.s-compose) .k-dialog__panel {
   max-width: 640px;
 }
 .k-dialog:has(.s-compose) .k-dialog__head {
-  padding: var(--s-3) var(--s-3) 0 var(--s-5);
+  padding: var(--s-3) var(--s-3) var(--s-2) var(--s-5);
   border-bottom: 0;
 }
 .k-dialog:has(.s-compose) .k-dialog__title {
@@ -412,7 +418,7 @@
   line-height: var(--lh-note);
 }
 .k-dialog:has(.s-compose) .k-dialog__body {
-  padding: 0 var(--s-5) var(--s-4);
+  padding: 0 var(--s-5) var(--s-5);
 }
 .s-compose {
   position: relative;
@@ -421,15 +427,25 @@
   gap: var(--s-3);
 }
 .s-compose .k-composer__context {
-  padding: var(--s-2) 0 0;
+  padding: 0 0 var(--s-2);
 }
-/* The text area runs to the dialog's edges, so its focus bar stands at the dialog's left. */
+/* The field: three 22 px lines and 12 px in, inside the kit's field edge. */
 .s-compose .k-composer__field {
-  width: calc(100% + 2 * var(--s-5));
-  min-height: 120px;
-  margin: 0 calc(-1 * var(--s-5)) var(--s-3);
-  padding: var(--s-2) var(--s-5);
+  min-height: calc(3 * var(--lh-fact) + 2 * var(--s-3) + 2px);
+  margin: 0 0 var(--s-4);
+  padding: var(--s-3) var(--s-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--field);
   line-height: var(--lh-fact);
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+.s-compose .k-composer--bare .k-composer__field:hover {
+  border-color: var(--ink-3);
+}
+.s-compose .k-composer--bare .k-composer__field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent);
 }
 .s-compose .k-composer__field::placeholder {
   white-space: normal;
@@ -441,28 +457,44 @@
 .s-compose .k-composer__error {
   margin-bottom: var(--s-3);
 }
-/* The foot row: 32 px controls 4 px apart; 8 px more after Plan first and before Send. */
+/* The foot row: 32 px chips 6 px apart, the quiet keys line 12 px before Send. */
 .s-compose .k-composer__bar {
-  gap: var(--s-1);
-  min-height: var(--h-sm);
+  gap: 6px;
+  min-height: var(--s-8);
 }
+/* Plan first as one of the chips: the kit's check box inside the ghost's edge, height and corner. */
 .s-compose .k-composer__plan {
-  margin-right: var(--s-2);
-  color: var(--ink-2);
+  min-height: var(--s-8);
+  padding: 0 var(--s-3) 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  color: var(--ink);
   font-size: var(--fs-note);
+  font-weight: var(--fw-medium);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.s-compose .k-composer__plan:hover {
+  border-color: var(--ink-3);
+  background: var(--ctl);
 }
 .s-compose .k-composer__keys {
   margin-right: var(--s-2);
+  color: var(--ink-3);
 }
-.s-compose-key .k-btn__label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
+.s-compose-key .k-btn__label,
 .s-compose-jobs .k-btn__label {
   display: inline-flex;
   align-items: center;
+}
+.s-compose-key .k-btn__label {
+  gap: 6px;
+}
+.s-compose-jobs .k-btn__label {
   gap: 2px;
+}
+.s-compose-glyph {
+  color: var(--ink-2);
+  font-weight: var(--fw-bold);
 }
 .s-compose-done {
   padding: var(--s-4);
@@ -530,7 +562,7 @@
 /* Below 860 px: no queue (the Needs you tab opens the page); the menu fills the width from the top; the work
    panel is a sheet over the page; every row is a 44 px target. */
 @media (max-width: 859px) {
-  .s-queue {
+  .k-drawer:has(.s-queue) {
     display: none;
   }
   .s-cmd-layer {
@@ -555,8 +587,8 @@
   .s-compose-key {
     display: none;
   }
-  .s-compose .k-composer__field {
-    min-height: 96px;
+  .s-compose .k-composer__plan {
+    min-height: 44px;
   }
   .s-panel--sheet {
     position: fixed;
@@ -572,7 +604,6 @@
 }
 
 /* Motion off, by choice or by the system: nothing slides or fades. */
-:root[data-motion="off"] .s-queue,
 :root[data-motion="off"] .s-cmd,
 :root[data-motion="off"] .s-cmd-scrim {
   animation: none;
@@ -581,7 +612,6 @@
   transition: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .s-queue,
   .s-cmd,
   .s-cmd-scrim {
     animation: none;
