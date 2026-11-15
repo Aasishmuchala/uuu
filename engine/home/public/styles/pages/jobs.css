@@ -1,9 +1,10 @@
-/* The page jobs (CONTRACTS-V3 30, "Jobs"; PLAN-COOK T62 after R12 and R09): the list pattern the Tasks page set.
-   The title with the view switch at its right, one bar (three filter menus, Ready only and the search field), then one group a
-   department: a plain 17 px heading with its count and one sentence, and the jobs as cards two across with a
-   24 px gutter on the raised step. The kit's JobRow is the card's link; its department icon is drawn once, by the
-   heading, not on every card. No glass, no creature, no department colour. The build order: four stages on the
-   ground, each with its ring and the same cards. */
+/* The page jobs (CONTRACTS-V3 30, "Jobs"; PLAN-COOK T62 after R12 and R09; TB3): the list pattern the Tasks page
+   set. The title with the view switch at its right, one bar (three filter menus at 32 px with their edge, Ready only
+   a toggle chip beside them, a 280 px search field at the right), then one group a department: its head at 15 px
+   semibold with its count and a small ghost "Open <department>" on its baseline, a rule under it, and the jobs as
+   cards two across with a 24 px gutter. Each card is the kit's JobCard: the name is the link and the whole card
+   answers the click, the ring round the card. No glass, no creature, no department colour. The build order: four
+   stages on the ground, each with its ring and the same cards. */
 
 .p-jobs {
   display: flex;
@@ -37,14 +38,16 @@
   min-width: 0;
 }
 
-/* A filter: the kit's menu, its button a quiet control; once a choice is made it is lifted to the raised step. */
+/* A filter: the kit's menu, its button drawn as the kit's small ghost (32 px, the stronger edge, no fill), so it
+   reads as a control in both themes; once a choice is made it is lifted to the raised step. */
 .p-jobs .p-jobs__filter .k-menu__trigger {
-  min-height: var(--h-md);
+  min-height: var(--s-8);
   padding: 0 10px 0 var(--s-3);
   gap: 6px;
-  border-color: var(--line);
-  background: var(--ctl);
+  border-color: var(--line-2);
+  background: transparent;
   color: var(--ink);
+  font-size: var(--fs-note);
   font-weight: var(--fw-medium);
 }
 
@@ -53,13 +56,14 @@
 }
 
 .p-jobs .p-jobs__filter--on .k-menu__trigger {
-  border-color: var(--line-2);
   background: var(--raise);
-  box-shadow: var(--shadow-card);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  border-color: var(--accent);
 }
 
 .p-jobs .p-jobs__filter .k-menu__trigger:hover {
   border-color: var(--ink-3);
+  background: var(--ctl);
 }
 
 .p-jobs .p-jobs__filter .k-menu__list {
@@ -78,28 +82,22 @@
   color: var(--accent);
 }
 
-.p-jobs .p-jobs__find {
+/* Ready only: the kit's toggle chip beside the filters, at their height; on, it is lifted with the accent edge
+   and a check. */
+.p-jobs .p-jobs__ready {
   display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  margin-left: auto;
-  min-width: 0;
-}
-
-/* Ready only: the switch and its label; the On and Off word is the track's to say. */
-.p-jobs .p-jobs__find .k-switch,
-.p-jobs .p-jobs__find .k-switch__label {
   flex: none;
 }
 
-.p-jobs .p-jobs__find .k-switch__state {
-  display: none;
+.p-jobs .p-jobs__ready .k-chip--toggle {
+  color: var(--ink);
 }
 
-.p-jobs .p-jobs__find .k-switch__label {
-  white-space: nowrap;
-  color: var(--ink-2);
-  font-size: var(--fs-ui);
+.p-jobs .p-jobs__find {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  min-width: 0;
 }
 
 /* The search field: the kit's input with the search glyph inside its left edge. */
@@ -107,13 +105,14 @@
   position: relative;
   display: block;
   flex: none;
-  width: 320px;
+  width: 280px;
   min-width: 0;
 }
 
 .p-jobs .p-jobs__search .k-input {
   width: 100%;
-  min-height: var(--h-md);
+  min-height: var(--s-8);
+  font-size: var(--fs-note);
   padding-left: calc(var(--s-3) + 16px + var(--s-2));
 }
 
@@ -238,7 +237,7 @@
 .p-jobs .p-jobs__depts {
   display: flex;
   flex-direction: column;
-  gap: var(--s-10);
+  gap: var(--s-8);
 }
 
 .p-jobs .p-jobs__dept {
@@ -247,10 +246,21 @@
   min-width: 0;
 }
 
+/* A department's head: the name 15 px semibold with its count, the small ghost on its baseline at the right, its
+   sentence under, then a rule. */
 .p-jobs .p-jobs__dept-head {
   display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.p-jobs .p-jobs__dept-row {
+  display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--s-1) var(--s-4);
   min-width: 0;
@@ -263,9 +273,9 @@
   margin: 0;
   min-width: 0;
   color: var(--ink);
-  font-size: var(--fs-section);
+  font-size: var(--fs-fact);
   font-weight: var(--fw-bold);
-  line-height: var(--lh-section);
+  line-height: var(--lh-fact);
 }
 
 .p-jobs .p-jobs__dept-icon {
@@ -276,28 +286,16 @@
 .p-jobs .p-jobs__dept-count {
   margin-left: var(--s-1);
   color: var(--ink-3);
-  font-size: var(--fs-ui);
+  font-size: var(--fs-note);
   font-weight: var(--fw-regular);
   font-variant-numeric: tabular-nums;
 }
 
-.p-jobs .p-jobs__dept-open {
+.p-jobs .p-jobs__dept-about {
+  margin: 0 0 0 calc(16px + var(--s-2));
   color: var(--ink-2);
   font-size: var(--fs-note);
-  text-decoration: none;
-  border-radius: var(--r-1);
-}
-
-.p-jobs .p-jobs__dept-open:hover {
-  color: var(--ink);
-  text-decoration: underline;
-}
-
-.p-jobs .p-jobs__dept-about {
-  margin: var(--s-1) 0 0 calc(18px + var(--s-2));
-  color: var(--ink-2);
-  font-size: var(--fs-ui);
-  line-height: var(--lh-ui);
+  line-height: var(--lh-note);
 }
 
 /* The cards: two across with a 24 px gutter. */
@@ -305,7 +303,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s-6);
-  margin: var(--s-5) 0 0;
+  margin: var(--s-4) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -315,103 +313,35 @@
   min-width: 0;
 }
 
+/* The card is the click: the name's link covers it (kit/job.css), so the frame holds it and shows the hover and
+   the keyboard's ring. */
 .p-jobs .p-jobs__card-box {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
+  padding: var(--s-4) var(--s-5) var(--s-4) var(--s-4);
+  cursor: pointer;
   transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
 
-.p-jobs .p-jobs__card-box:has(> a.k-job--row:hover) {
+.p-jobs .p-jobs__card-box > .k-jobcard {
+  flex: 1 1 auto;
+}
+
+.p-jobs .p-jobs__card-box:hover {
   border-color: var(--line-2);
 }
 
-/* The kit's row as the card's body (R12): the name and the button on one line, the sentence on up to two lines
-   under it, the facts as grey words under that. The icon tile is the heading's to show. */
-.p-jobs .p-jobs__card .k-job--row {
-  flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 0 var(--s-4);
-  min-height: 0;
-  padding: var(--s-5) var(--s-5) var(--s-4);
-  border-radius: var(--r-3);
+.p-jobs .p-jobs__card-box:hover .k-jobcard__link {
+  text-decoration: underline;
+  text-decoration-color: var(--ink-3);
+  text-underline-offset: 3px;
 }
 
-.p-jobs .p-jobs__card a.k-job--row:hover {
-  background-color: transparent;
-}
-
-.p-jobs .p-jobs__card .k-job--row > .k-job__dot {
-  display: none;
-}
-
-.p-jobs .p-jobs__card .k-job__body {
-  grid-column: 1;
-  grid-row: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  min-height: 100%;
-  gap: 0;
-  text-align: left;
-}
-
-.p-jobs .p-jobs__card .k-job__title {
-  font-size: var(--fs-fact);
-  line-height: var(--lh-ui);
-  padding-top: 5px;
-}
-
-.p-jobs .p-jobs__card .k-job__sentence {
-  max-width: none;
-  margin-top: var(--s-2);
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  color: var(--ink-2);
-}
-
-.p-jobs .p-jobs__card .k-job__marks {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-1) var(--s-5);
-  padding-top: var(--s-4);
-}
-
-.p-jobs .p-jobs__card .k-job__marks > .k-job__blocked {
-  display: none;
-}
-
-.p-jobs .p-jobs__card .k-job--row > .k-job__go {
-  grid-column: 2;
-  grid-row: 1;
-  align-self: start;
-}
-
-.p-jobs .p-jobs__card a.k-job--row:hover > .k-job__go {
-  background-color: var(--ctl);
-  border-color: var(--ink-3);
-}
-
-/* Why a job cannot start yet: the kit's sentence with its link, under the facts, parted by a hairline. */
-.p-jobs .p-jobs__why {
-  margin: 0 var(--s-5);
-  padding: var(--s-3) 0 var(--s-4);
-  border-top: 1px solid var(--line);
-}
-
-.p-jobs .p-jobs__why .k-job--why {
-  gap: 6px var(--s-2);
-  font-size: var(--fs-note);
-  line-height: var(--lh-note);
-}
-
-.p-jobs .p-jobs__why .k-job__why-link {
-  flex: none;
-  margin-left: auto;
-  border-radius: var(--r-1);
+.p-jobs .p-jobs__card-box:has(.k-jobcard__link:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* The build order: four stages on the ground, parted by a hairline. */
@@ -601,12 +531,10 @@
   color: var(--ink-2);
 }
 
-/* Every stop on this page shows the 2 px accent ring. */
-.p-jobs .p-jobs__card .k-job--row:focus-visible,
+/* Every stop on this page shows the 2 px accent ring (a card's is drawn round the card, above). */
 .p-jobs .p-jobs__legend-head:focus-visible,
-.p-jobs .p-jobs__dept-open:focus-visible,
 .p-jobs .p-jobs__every:focus-visible,
-.p-jobs .p-jobs__why .k-job__why-link:focus-visible {
+.p-jobs .k-jobcard__why .k-job__why-link:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -647,12 +575,11 @@
     margin-top: var(--s-3);
   }
 
-  /* On a phone: the search field first, then the filters, then the view switch; one card a row. */
+  /* On a phone: the search field across the top, the filters under it, then Ready only; one card a row. */
   .p-jobs .p-jobs__bar {
     gap: var(--s-2);
   }
 
-  /* The search field across the top, the filters under it, then the view switch with Ready only at its right. */
   .p-jobs .p-jobs__find {
     display: contents;
   }
@@ -664,10 +591,6 @@
 
   .p-jobs .p-jobs__filters {
     order: -1;
-  }
-
-  .p-jobs .p-jobs__find .k-switch {
-    order: 3;
   }
 
   .p-jobs .p-jobs__search .k-input,
@@ -712,23 +635,15 @@
     margin-top: var(--s-4);
   }
 
-  .p-jobs .p-jobs__card .k-job--row {
+  .p-jobs .p-jobs__card-box {
     padding: var(--s-4);
-    grid-template-columns: minmax(0, 1fr);
   }
 
-  .p-jobs .p-jobs__card .k-job__marks {
-    padding-top: var(--s-3);
-    gap: 2px var(--s-4);
-  }
-
-  .p-jobs .p-jobs__why {
-    margin: 0 var(--s-4);
-    padding-bottom: var(--s-3);
+  .p-jobs .p-jobs__dept-open {
+    min-height: 44px;
   }
 
   .p-jobs .p-jobs__every,
-  .p-jobs .p-jobs__dept-open,
   .p-jobs .p-jobs__form-fill,
   .p-jobs .p-jobs__legend-head {
     display: inline-flex;

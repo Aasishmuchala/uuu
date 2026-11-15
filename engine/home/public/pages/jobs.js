@@ -6,8 +6,8 @@ import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { fileToken } from "../lib/format.js";
 import {
-  Card, Empty, ErrorNotice, HANDOFFS, HandoffTag, Icon, JobRow, Loading, Menu, PageHeader, Ring, Segmented,
-  STAGES, StageMark, Switch, TextInput, WhyNot,
+  Button, Card, Chip, Empty, ErrorNotice, HANDOFFS, HandoffTag, Icon, JobCard, Loading, Menu, PageHeader, Ring, Segmented,
+  STAGES, StageMark, TextInput,
 } from "../kit/index.js";
 
 const LEAD = "Named pieces of work an agent can start for you. Starting a job makes a task.";
@@ -192,12 +192,13 @@ export function buildOrder(data, brain) {
 
 // --- The page --------------------------------------------------------------------------------------------
 
-// PLAN-COOK T62 (R12, R09): the list pattern the Tasks page set. The title with the view switch at its right, then
-// one bar: the department, hand-off and stage as the kit's menus, "Ready only" and the search field at the right. Then one group a
-// department under a plain 17 px heading with its count and one sentence (its clusters), and the jobs as cards two
-// across with a 24 px gutter: the name, one sentence, the facts as grey words, one outlined button. A job that
-// cannot start yet says why in words, with its link, under the card's facts. No creature and no department colour
-// (O2, O7): a department is its line icon, drawn once by its heading.
+// PLAN-COOK T62 (R12, R09), TB3: the list pattern the Tasks page set. The title with the view switch at its right,
+// then one bar: the department, hand-off and stage as the kit's menus (32 px, edged) with "Ready only" a toggle chip
+// beside them, and a 280 px search field at the right. Then one group a department: its head 15 px semibold with
+// its count and "Open <department>" a small ghost on its baseline, a rule under, its one sentence (its clusters);
+// and the jobs as cards two across with a 24 px gutter, each the kit's JobCard: a tile with its stage's glyph, the
+// name as the card's one link, two lines of sentence, the hand-off and stage as neutral chips. A job that cannot
+// start yet says why in words, with its link, under its chips. No creature and no department colour (O2, O7).
 
 // The words this page adds (T62). Pinned by test/pages/jobs.test.mjs.
 export const JOBS_WORDS = Object.freeze({
@@ -209,6 +210,9 @@ export const JOBS_WORDS = Object.freeze({
   anyHandoff: "Any hand-off",
   anyStage: "Any stage",
   views: "Show the jobs as",
+  ready: "Ready only",
+  search: "Search jobs",
+  searchLabel: "Search the jobs",
 });
 
 // The departments' line icons, as the sidebar draws them (shell/sidenav.js teamItems).
@@ -265,31 +269,30 @@ function Bar({ f, departments, words, onWords }) {
       <${FilterMenu} name=${W.handoff} options=${handoffs} current=${f.handoff} make=${(v) => go2({ handoff: v })} />
       <${FilterMenu} name=${W.stage} options=${stages} current=${f.stage ? String(f.stage) : ""} make=${(v) => go2({ stage: Number(v) || 0 })} />
     </div>
+    <div class=${`p-jobs__ready${f.ready ? " p-jobs__ready--on" : ""}`}>
+      <${Chip} icon=${f.ready ? "check" : undefined} on=${f.ready} onClick=${() => { location.hash = go2({ ready: !f.ready }); }}>${W.ready}<//>
+    </div>
     <div class="p-jobs__find">
-      <${Switch} on=${f.ready} label="Ready only" onChange=${(on) => { location.hash = go2({ ready: on }); }} />
       <span class="p-jobs__search">
         <${Icon} name="search" size=${16} class="p-jobs__search-icon" />
-        <${TextInput} type="search" value=${words} maxlength=${WORDS_MAX} placeholder="Words from a job's name or what it does"
-          aria-label="Search the jobs" onInput=${(e) => onWords(String(e.target.value))} />
+        <${TextInput} type="search" value=${words} maxlength=${WORDS_MAX} placeholder=${W.search}
+          aria-label=${W.searchLabel} onInput=${(e) => onWords(String(e.target.value))} />
       </span>
     </div>
   </div>`;
 }
 
-// One job as a card (R12): the kit's JobRow is the card's link (its name, its sentence, its facts and its Open
-// button); a job that cannot start yet adds the kit's WhyNot under it, outside the link, so its own link works.
-function JobCard({ job }) {
+// One job as a card (R12, TB3): the kit's frame with the kit's JobCard in it; the name is the one link and the
+// whole card answers the click. A job that cannot start yet says why under its chips, its own link on top.
+function CardItem({ job }) {
   const dim = job.ready === false;
   return html`<li class=${`p-jobs__card${dim ? " p-jobs__card--dim" : ""}`}>
-    <${Card} padding="none" class="p-jobs__card-box">
-      <${JobRow} job=${job} />
-      ${dim && job.why ? html`<div class="p-jobs__why"><${WhyNot} why=${job.why} /></div>` : null}
-    <//>
+    <${Card} padding="none" class="p-jobs__card-box"><${JobCard} job=${job} /><//>
   </li>`;
 }
 
 function Cards({ jobs }) {
-  return html`<ul class="p-jobs__cards">${jobs.map((j) => html`<${JobCard} key=${j.id} job=${j} />`)}</ul>`;
+  return html`<ul class="p-jobs__cards">${jobs.map((j) => html`<${CardItem} key=${j.id} job=${j} />`)}</ul>`;
 }
 
 function Department({ d }) {
@@ -298,14 +301,16 @@ function Department({ d }) {
   const id = `p-jobs-dept-${d.id}`;
   return html`<section class="p-jobs__dept" aria-labelledby=${id}>
     <header class="p-jobs__dept-head">
-      <h2 class="p-jobs__dept-name" id=${id}>
-        <${Icon} name=${deptIcon(d.id)} size=${18} class="p-jobs__dept-icon" />
-        <span>${d.title}</span>
-        <span class="p-jobs__dept-count">${plural(t.jobs, "job")}${t.ready !== t.jobs ? ` · ${t.ready} ready` : ""}</span>
-      </h2>
-      <a class="p-jobs__dept-open" href=${`#/departments/${d.id}`}>Open ${d.title}</a>
+      <div class="p-jobs__dept-row">
+        <h2 class="p-jobs__dept-name" id=${id}>
+          <${Icon} name=${deptIcon(d.id)} size=${16} class="p-jobs__dept-icon" />
+          <span>${d.title}</span>
+          <span class="p-jobs__dept-count">${plural(t.jobs, "job")}${t.ready !== t.jobs ? ` · ${t.ready} ready` : ""}</span>
+        </h2>
+        <${Button} size="sm" variant="ghost" class="p-jobs__dept-open" href=${`#/departments/${d.id}`}>Open ${d.title}<//>
+      </div>
+      ${sentence ? html`<p class="p-jobs__dept-about">${sentence}</p>` : null}
     </header>
-    ${sentence ? html`<p class="p-jobs__dept-about">${sentence}</p>` : null}
     <${Cards} jobs=${allJobs([d])} />
   </section>`;
 }

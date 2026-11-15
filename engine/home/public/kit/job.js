@@ -3,6 +3,8 @@
 // PLAN-COOK T37: a job in a list is drawn as R12's card is built (its department's line icon on a tile, the name at
 // 15 px semibold, one 13 px sentence, the facts as grey words with a glyph each, one button at the right) without
 // the card's frame, since lists of jobs sit inside a page's own panel. No department colour anywhere (O7).
+// PLAN-COOK TB3: JobCard is a job as a card's body: a 28 px tile with its stage's line glyph, the name as the one
+// link (the whole card answers the click), two lines of sentence and the hand-off and stage as neutral chips.
 // A job's words come from the company's own job files; the server's refusals are shown as the sentences it sends.
 import { html, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
@@ -11,6 +13,7 @@ import { Button } from "./button.js";
 import { Field, Select, TextArea, TextInput } from "./fields.js";
 import { Icon } from "./icon.js";
 import { Notice, NotConnected } from "./states.js";
+import { Tag } from "./tag.js";
 import { cx, safeHref } from "./util.js";
 
 // Section 25: the words on screen.
@@ -27,6 +30,8 @@ export const STAGES = Object.freeze({
 });
 export const STARTED = "Started. The Chief of staff has it. It takes a few minutes and is checked before it reaches you.";
 export const UNDER_START = "Takes a few minutes. It is checked before it reaches you.";
+// Beside a Start that is off: the reason stands at the head of the form, so this only says it (PLAN-COOK TB3).
+export const CANNOT_START = "Cannot start yet: see the note above.";
 // Under Start when other work is ahead in the Chief of staff's line (`queue` from the server, M63): no time is
 // promised. "3 tasks are ahead, so it waits its turn. It is checked before it reaches you."
 // `timed` false (a job with craft, whose estimate is shown above Start) never promises a time.
@@ -94,8 +99,9 @@ export function fillPreview(job, answers) {
   return fill(job, answers, null);
 }
 
-// `blank(id)` marks an unanswered required question (for previewParts); null leaves it as [id].
-function fill(job, answers, blank) {
+// `blank(id)` marks an unanswered required question (for previewParts); null leaves it as [id]. `mark(words)`, when
+// given, wraps each answer as it is put in (for previewPieces).
+function fill(job, answers, blank, mark = (v) => v) {
   const given = answers && typeof answers === "object" ? answers : {};
   const byId = new Map(asksOf(job).map((a) => [a.id, a]));
   const out = str(job && job.text).replace(/\[([a-z][a-z0-9-]{0,30})\]/g, (whole, id) => {
@@ -103,13 +109,13 @@ function fill(job, answers, blank) {
     if (!ask) return whole;
     const value = str(given[id]).trim();
     if (!value) return ask.required ? (blank ? blank(id) : whole) : "";
-    if (ask.kind === "file") return `the company file ${value}`;
-    if (ask.kind === "media") return `the file ${value} in the room`;
+    if (ask.kind === "file") return mark(`the company file ${value}`);
+    if (ask.kind === "media") return mark(`the file ${value} in the room`);
     if (ask.kind === "task") {
       const ident = identifierOf(ask, value);
-      return ident ? `the sub-folder ${ident} of your current working folder` : "the sub-folder of the earlier task";
+      return mark(ident ? `the sub-folder ${ident} of your current working folder` : "the sub-folder of the earlier task");
     }
-    return value;
+    return mark(value);
   });
   return out.replace(/[ \t]{2,}/g, " ").replace(/ +([.,;:!?])/g, "$1").trim();
 }
@@ -120,15 +126,71 @@ function fill(job, answers, blank) {
 // Answers are never read for blanks: the marks are private-use characters taken out of every answer first.
 const MARK_OPEN = "\uE000";
 const MARK_CLOSE = "\uE001";
+const VALUE_OPEN = "\uE002";
+const VALUE_CLOSE = "\uE003";
+// A question's words as a slot: without the question mark or colon it ends on.
+const slotWords = (ask, id) => str(ask && ask.label).replace(/[?:]\s*$/, "") || id;
+const cleanAnswers = (answers) => {
+  const given = {};
+  for (const [k, v] of Object.entries(answers && typeof answers === "object" ? answers : {})) given[k] = str(v).replace(/[\uE000-\uE003]/g, "");
+  return given;
+};
 export function previewParts(job, answers) {
   const byId = new Map(asksOf(job).map((a) => [a.id, a]));
-  const given = {};
-  for (const [k, v] of Object.entries(answers && typeof answers === "object" ? answers : {})) given[k] = str(v).replace(/[\uE000\uE001]/g, "");
-  const text = fill(job, given, (id) => `${MARK_OPEN}${id}${MARK_CLOSE}`);
+  const text = fill(job, cleanAnswers(answers), (id) => `${MARK_OPEN}${id}${MARK_CLOSE}`);
   const out = [];
   for (const [i, piece] of text.split(/\uE000|\uE001/).entries()) {
-    if (i % 2) out.push({ blank: str(byId.get(piece)?.label).replace(/\?\s*$/, "") || piece });
+    if (i % 2) out.push({ blank: slotWords(byId.get(piece), piece) });
     else if (piece) out.push({ text: piece });
+  }
+  return out;
+}
+
+// PLAN-COOK TB3: the preview as pieces for the screen, an answer kept apart so it can be drawn in the accent ink:
+// [{ text } | { value } | { blank }]. The same words as previewParts, in the same order.
+export function previewPieces(job, answers) {
+  const byId = new Map(asksOf(job).map((a) => [a.id, a]));
+  const text = fill(job, cleanAnswers(answers), (id) => `${MARK_OPEN}${id}${MARK_CLOSE}`, (v) => `${VALUE_OPEN}${v}${VALUE_CLOSE}`);
+  const out = [];
+  for (const piece of text.split(/(\uE000[^\uE001]*\uE001|\uE002[^\uE003]*\uE003)/)) {
+    if (!piece) continue;
+    if (piece[0] === MARK_OPEN) out.push({ blank: slotWords(byId.get(piece.slice(1, -1)), piece.slice(1, -1)) });
+    else if (piece[0] === VALUE_OPEN) out.push({ value: piece.slice(1, -1) });
+    else out.push({ text: piece });
+  }
+  return out;
+}
+
+// The pieces in blocks: a line that starts "1." or "1)" is a numbered step (the template's own number, its marker
+// taken off), consecutive steps one list; any other lines a paragraph, an empty line ending it. Pure.
+// → [{ kind: "steps", items: [{ n, pieces }] } | { kind: "para", pieces }]
+export function previewBlocks(pieces) {
+  const lines = [[]];
+  for (const p of arr(pieces)) {
+    if (p && typeof p.text === "string") {
+      p.text.split("\n").forEach((t, i) => {
+        if (i) lines.push([]);
+        if (t) lines[lines.length - 1].push({ text: t });
+      });
+    } else if (p) lines[lines.length - 1].push(p);
+  }
+  const out = [];
+  let para = null;
+  for (const line of lines) {
+    const head = line[0] && typeof line[0].text === "string" ? /^\s*(\d{1,2})[.)]\s+/.exec(line[0].text) : null;
+    const empty = line.every((p) => typeof p.text === "string" && !p.text.trim());
+    if (empty) { para = null; continue; }
+    if (head) {
+      para = null;
+      const rest = line[0].text.slice(head[0].length);
+      const item = { n: Number(head[1]), pieces: [...(rest ? [{ text: rest }] : []), ...line.slice(1)] };
+      const last = out[out.length - 1];
+      if (last && last.kind === "steps") last.items.push(item);
+      else out.push({ kind: "steps", items: [item] });
+      continue;
+    }
+    if (para) para.pieces.push({ text: "\n" }, ...line);
+    else { para = { kind: "para", pieces: [...line] }; out.push(para); }
   }
   return out;
 }
@@ -213,19 +275,34 @@ export function withoutLinkWords(text, label) {
   return t;
 }
 
-// `why` is { text, link } from the server (31.4), or the sentence alone.
-export function WhyNot({ why }) {
+// `why` is { text, link } from the server (31.4), or the sentence alone. → { text, href, where } or null.
+function whyOf(why) {
   const text = typeof why === "string" ? why : str(why && why.text);
   if (!text) return null;
   const href = why && typeof why === "object" ? linkHref(why.link) : null;
   const page = why && why.link ? why.link.page : "";
   // A form that must be filled in first opens that form, so the link says so (M51 F26).
   const where = page === "health" ? "Open Health" : page === "settings" ? "Open Settings" : page === "files" && /^Fill in\b/.test(text) ? "Fill it in" : page === "files" ? "Open Files" : "Open";
+  return { text: (href ? withoutLinkWords(text, where) : text).slice(0, 200), href, where };
+}
+
+export function WhyNot({ why }) {
+  const w = whyOf(why);
+  if (!w) return null;
   return html`<p class="k-job k-job--why">
     <${Icon} name="lock" size=${14} class="k-job__why-icon" />
-    <span>${(href ? withoutLinkWords(text, where) : text).slice(0, 200)}</span>
-    ${href ? html`<a class="k-job__why-link" href=${href}>${where}</a>` : null}
+    <span>${w.text}</span>
+    ${w.href ? html`<a class="k-job__why-link" href=${w.href}>${w.where}</a>` : null}
   </p>`;
+}
+
+// PLAN-COOK TB3: why a job cannot start, at the head of its form, as the kit's warning Notice with the way to fix
+// it as its action, a small ghost button.
+export function WhyNotice({ why }) {
+  const w = whyOf(why);
+  if (!w) return null;
+  return html`<div class="k-job__notice"><${Notice} tone="warn"
+    action=${w.href ? html`<${Button} size="sm" variant="ghost" href=${w.href}>${w.where}<//>` : null}>${w.text}<//></div>`;
 }
 
 export function JobRow({ job }) {
@@ -248,6 +325,39 @@ export function JobRow({ job }) {
   return href
     ? html`<a class=${cls} href=${href} data-dept=${dept || undefined} title=${dim && why ? why : undefined}>${inner}</a>`
     : html`<span class=${cls} data-dept=${dept || undefined}>${inner}</span>`;
+}
+
+// PLAN-COOK TB3: a job's tile glyph, by its stage (the build order the owner reads in the legend): filling the
+// company brain is a form, taking in is the inbox, making is a spark, handing on is sending.
+const STAGE_GLYPHS = Object.freeze({ 1: "form", 2: "inbox", 3: "spark", 4: "send" });
+export const stageGlyph = (n) => STAGE_GLYPHS[Number(n)] || "jobs";
+
+// A job as a card's body (the page gives the frame): the tile, the name as the card's one link (its ::after
+// covers the card, so the whole card answers the click and the keyboard stops once, on the name), the sentence on
+// two lines, the hand-off and the stage as neutral chips, and, for a job that cannot start yet, why, with its own
+// link standing above the card's.
+export function JobCard({ job }) {
+  if (!job || typeof job !== "object") return null;
+  const dim = job.ready === false;
+  const href = jobHref(job);
+  const title = str(job.title).slice(0, 60);
+  const summary = str(job.summary).replace(/\s+/g, " ").trim().slice(0, 200);
+  const h = Object.hasOwn(HANDOFFS, str(job.handoff)) ? HANDOFFS[job.handoff] : null;
+  const s = Object.hasOwn(STAGES, String(job.stage)) ? STAGES[job.stage] : null;
+  return html`<div class=${cx("k-jobcard", dim && "k-jobcard--dim")}>
+    <span class="k-jobcard__tile" aria-hidden="true"><${Icon} name=${stageGlyph(job.stage)} size=${16} /></span>
+    <div class="k-jobcard__body">
+      <h3 class="k-jobcard__title">${href
+        ? html`<a class="k-jobcard__link" href=${href}>${title}${dim ? html`<span class="k-sr"> (cannot start yet)</span>` : null}</a>`
+        : html`<span>${title}</span>`}</h3>
+      ${summary ? html`<p class="k-jobcard__sentence">${summary}</p>` : null}
+      ${h || s ? html`<p class="k-jobcard__marks">
+        ${h ? html`<${Tag}>${h.label}<//>` : null}
+        ${s ? html`<${Tag}><span class="k-sr">Stage ${Number(job.stage)}: </span>${s.label}<//>` : null}
+      </p>` : null}
+      ${dim && job.why ? html`<div class="k-jobcard__why"><${WhyNot} why=${job.why} /></div>` : null}
+    </div>
+  </div>`;
 }
 
 // The "can run" chip on a department's page: the department's line icon and the job's name.
@@ -292,6 +402,12 @@ const EMPTY_OPTIONS = {
   choice: "There is nothing to pick from.",
 };
 
+// PLAN-COOK TB3: what an empty question shows, by its kind (a job's file gives no example of its own).
+export const ASK_PLACEHOLDERS = Object.freeze({
+  text: "Write it as you would say it. A few lines are enough.",
+  line: "One short line",
+});
+
 function AskField({ ask, value, error, disabled, onValue, fromText }) {
   const label = ask.required ? ask.label : `${ask.label} (optional)`;
   const set = (e) => onValue(String(e.target.value));
@@ -299,7 +415,8 @@ function AskField({ ask, value, error, disabled, onValue, fromText }) {
     return html`<${Field} label=${label}><p class="k-job__from"><${Icon} name="link" size=${14} /><span>${fromText}</span></p><//>`;
   }
   if (ask.kind === "text") {
-    return html`<${Field} label=${label} error=${error}><${TextArea} autoGrow maxlength=${2000} value=${value} disabled=${disabled} onInput=${set} /><//>`;
+    return html`<${Field} label=${label} error=${error}><${TextArea} autoGrow maxlength=${2000} value=${value} disabled=${disabled}
+      placeholder=${ASK_PLACEHOLDERS.text} onInput=${set} /><//>`;
   }
   if (ask.kind === "date") {
     return html`<${Field} label=${label} error=${error}><${TextInput} type="date" value=${value} disabled=${disabled} onInput=${set} /><//>`;
@@ -317,7 +434,35 @@ function AskField({ ask, value, error, disabled, onValue, fromText }) {
       <${Select} value=${value} disabled=${disabled} onChange=${set} options=${[{ value: "", label: "Pick one" }, ...shown]} />
     <//>`;
   }
-  return html`<${Field} label=${label} error=${error}><${TextInput} maxlength=${200} value=${value} disabled=${disabled} onInput=${set} /><//>`;
+  return html`<${Field} label=${label} error=${error}><${TextInput} maxlength=${200} value=${value} disabled=${disabled}
+    placeholder=${ASK_PLACEHOLDERS.line} onInput=${set} /><//>`;
+}
+
+// PLAN-COOK TB3: the preview of what will be asked at 13 px on 20: the template's numbered steps as a list, an answer
+// in the accent ink, a question not answered yet as a neutral chip in its place; a long one held to a set height
+// with "Show all". The words are the job's own, every piece a text node.
+const PREVIEW_LONG = 360;
+const Piece = ({ p }) => p.blank !== undefined
+  ? html`<span class="k-tag k-tag--neutral k-job__blank">${p.blank}</span>`
+  : p.value !== undefined ? html`<span class="k-job__value">${p.value}</span>` : p.text;
+
+function Preview({ job, answers }) {
+  const [all, setAll] = useState(false);
+  const pieces = previewPieces(job, answers);
+  const blocks = previewBlocks(pieces);
+  const long = pieces.reduce((t, p) => t + str(p.text || p.value || p.blank).length, 0) > PREVIEW_LONG;
+  const pieceList = (list) => list.map((p, i) => html`<${Piece} key=${i} p=${p} />`);
+  return html`<details class="k-job__preview">
+    <summary class="k-job__preview-head"><${Icon} name="chevron-right" size=${14} class="k-job__fold" /><span>What will be asked</span></summary>
+    <div class=${cx("k-job__preview-text", long && !all && "k-job__preview-text--capped")}>
+      ${blocks.map((b, i) => b.kind === "steps"
+        ? html`<ol key=${i} class="k-job__steps">${b.items.map((it, j) => html`<li key=${j} value=${it.n}>${pieceList(it.pieces)}</li>`)}</ol>`
+        : html`<p key=${i} class="k-job__para">${pieceList(b.pieces)}</p>`)}
+    </div>
+    ${long ? html`<div class="k-job__preview-more">
+      <${Button} size="sm" variant="quiet" aria-expanded=${all ? "true" : "false"} onClick=${() => setAll(!all)}>${all ? "Show less" : "Show all"}<//>
+    </div>` : null}
+  </details>`;
 }
 
 const offline = (e) => Boolean(e && (e.offline || e.code === "not_set_up" || Number(e.status) >= 502));
@@ -411,19 +556,13 @@ export function JobStart({ job, from, onStarted, queue = null, extra = null, bef
 
   const off = !ready || !!blocked;
   return html`<form ref=${form} class=${cx("k-job", "k-job--start", off && "k-job--dim")} onSubmit=${start} novalidate>
-    ${!ready ? html`<${WhyNot} why=${job.why} />` : null}
+    ${!ready ? html`<${WhyNotice} why=${job.why} />` : null}
     ${asks.length
       ? html`<div class=${cx("k-job__asks", off && "k-job__asks--off")}>${asks.map((a) => html`<${AskField} key=${a.id} ask=${a} value=${str(answers[a.id])} error=${errors[a.id]}
           disabled=${off || sending} fromText=${fromAsk && a.id === fromAsk.id ? fromText : null} onValue=${(v) => setOne(a.id, v)} />`)}</div>`
       : null}
     <${Reads} reads=${job.reads} />
-    ${str(job.text)
-      ? html`<details class="k-job__preview">
-          <summary class="k-job__preview-head"><${Icon} name="chevron-right" size=${14} class="k-job__fold" /><span>What will be asked</span></summary>
-          <p class="k-job__preview-text">${previewParts(job, previewAnswers).map((p, i) =>
-            p.blank ? html`<span key=${i} class="k-job__blank">[${p.blank}]</span>` : p.text)}</p>
-        </details>`
-      : null}
+    ${str(job.text) ? html`<${Preview} job=${job} answers=${previewAnswers} />` : null}
     ${phase.id === "missing" ? html`<${Notice} tone="warn" title=${phase.text} />` : null}
     ${phase.id === "refused"
       ? html`<${Notice} tone="bad" title=${str(phase.text) || "It could not be started."}>${phase.next ? str(phase.next) : null}<//>`
@@ -437,8 +576,8 @@ export function JobStart({ job, from, onStarted, queue = null, extra = null, bef
           ${follows.href ? html`<a class="k-job__why-link" href=${follows.href}>Open that job</a>` : null}
         </p>`
       : html`${before}<div class="k-job__actions">
+          <p class="k-job__under">${!ready ? CANNOT_START : sending ? "Sending…" : underStart(queue, timed)}</p>
           <${Button} type="submit" variant="primary" icon="play" busy=${sending} disabled=${!ready || !href}>Start<//>
-          <p class="k-job__under">${sending ? "Sending…" : underStart(queue, timed)}</p>
         </div>`}
   </form>`;
 }

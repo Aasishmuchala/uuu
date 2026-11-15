@@ -1,8 +1,8 @@
-/* A job (pages/job.js; PLAN-COOK T62 after R02 and R04): one reading column on the ground. The title and its
-   sentence, the job's facts as quiet label and sentence rows, then "What it needs": the kit's start form as one
-   column of rows, with the preview of what will be sent beside it on the raised step from 1100 px, and the one
-   primary, Start, at the form's foot under a hairline. A job that cannot start yet keeps Start in its place, inert,
-   with the reason and its link fused under it. Then the starter packs and the earlier runs. No glass, no creature. */
+/* A job (pages/job.js; PLAN-COOK T62 after R02 and R04, TB3): one reading column on the ground. The title and its
+   sentence, the job's facts as a label and value list, then "What it needs": the kit's start form as one column of
+   rows, with the preview of what will be sent beside it on the raised step from 1100 px, and the one primary, Start,
+   at the right of the form's foot under a hairline. A job that cannot start yet says why first, as the kit's
+   Notice, and keeps Start in its place, inert. Then the starter packs and the earlier runs. No glass, no creature. */
 
 .p-job {
   display: flex;
@@ -16,11 +16,9 @@
   margin-bottom: 0;
 }
 
-/* The facts: the hand-off and the stage with their one-liners, and who does it. */
+/* The facts: a list of label and value, the label 12 px in the third ink in a column of its own, the value 14 px
+   in the ink with its one-liner after it in the second ink. */
 .p-job .p-job__facts {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
   margin-top: calc(-1 * var(--s-3));
   padding-bottom: var(--s-6);
   border-bottom: 1px solid var(--line);
@@ -28,7 +26,7 @@
 
 .p-job .p-job__fact-list {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
+  grid-template-columns: 96px minmax(0, 1fr);
   gap: var(--s-2) var(--s-4);
   margin: 0;
 }
@@ -41,38 +39,32 @@
 .p-job .p-job__fact dd {
   margin: 0;
   min-width: 0;
+}
+
+.p-job .p-job__fact dt {
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  line-height: var(--lh-ui);
+}
+
+.p-job .p-job__fact dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s-3);
   font-size: var(--fs-ui);
   line-height: var(--lh-ui);
 }
 
-.p-job .p-job__fact dt {
-  display: flex;
-  align-items: center;
-}
-
-.p-job .p-job__fact dt .k-job {
-  font-size: var(--fs-ui);
+.p-job .p-job__value {
   color: var(--ink);
+  font-weight: var(--fw-medium);
 }
 
 .p-job .p-job__about {
   color: var(--ink-2);
+  font-size: var(--fs-note);
   overflow-wrap: anywhere;
-}
-
-.p-job .p-job__who {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  color: var(--ink);
-  font-size: var(--fs-ui);
-  line-height: var(--lh-ui);
-}
-
-.p-job .p-job__who .k-icon {
-  flex: none;
-  color: var(--ink-3);
 }
 
 /* What it needs: a 17 px heading and one sentence, then the form. */
@@ -127,40 +119,23 @@
   font-weight: var(--fw-medium);
 }
 
-/* Why it cannot start yet: said once, first in the form, as the kit's warning line (a thin amber rule on a faint
-   tint), with the way to fix it at its right. */
-.p-job .k-job--start > .k-job--why {
-  padding: 10px var(--s-3);
-  border-left: 2px solid var(--warn);
-  border-radius: 0 var(--r-1) var(--r-1) 0;
-  background: var(--warn-bg);
-  color: var(--ink);
-  font-size: var(--fs-ui);
-  line-height: var(--lh-ui);
+/* A long answer's field opens 80 px tall. */
+.p-job .k-job__asks .k-textarea {
+  min-height: 80px;
 }
 
-.p-job .k-job--start > .k-job--why .k-job__why-link {
-  flex: none;
-  margin-left: auto;
-  border-radius: var(--r-1);
-}
-
-/* The foot: Start, the one primary, under a hairline. A job that cannot start keeps it there, inert. */
+/* The foot: Start, the one primary, at the right under a hairline, the line about what happens next beside it. */
 .p-job .k-job--start > .k-job__actions {
   order: 20;
   padding-top: var(--s-5);
   border-top: 1px solid var(--line);
 }
 
-.p-job .p-job__start--blocked .k-job__under {
-  display: none;
-}
-
 .p-job .p-job__start--blocked .k-job__actions .k-btn {
   cursor: not-allowed;
 }
 
-/* The preview of what will be sent: readable text on the raised step. */
+/* The preview of what will be sent: on the raised step, 13 px on 20. */
 .p-job .k-job__preview {
   border: 1px solid var(--line);
   border-radius: var(--r-3);
@@ -185,15 +160,18 @@
   margin: 0;
   padding: 0 var(--s-4) var(--s-4);
   color: var(--ink-2);
-  font-size: var(--fs-ui);
-  line-height: var(--lh-body);
 }
 
-.p-job .k-job__preview-text .k-job__blank {
-  color: var(--ink);
-  font-style: normal;
-  text-decoration: underline dotted var(--ink-3);
-  text-underline-offset: 3px;
+.p-job .k-job__preview-text--capped {
+  padding-bottom: 0;
+}
+
+.p-job .k-job__preview-more {
+  padding: var(--s-1) var(--s-4) var(--s-3);
+}
+
+.p-job .k-job__preview-more .k-btn {
+  margin-left: calc(-1 * var(--s-3));
 }
 
 .p-job .k-job__preview-head:focus-visible,
@@ -428,9 +406,9 @@
     top: calc(var(--topbar-h) + var(--s-4));
   }
 
-  /* Start stays in sight at the foot of the window while the form is on screen. */
+  /* Start stays in sight at the foot of the window while the form is on screen, at the right of the questions. */
   .p-job .k-job--start > .k-job__actions {
-    grid-column: 1 / -1;
+    grid-column: 1;
     grid-row: 8;
     position: sticky;
     bottom: 0;
@@ -451,12 +429,8 @@
   }
 
   .p-job .p-job__fact-list {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--s-1);
-  }
-
-  .p-job .p-job__fact dd {
-    margin-bottom: var(--s-2);
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: var(--s-2) var(--s-3);
   }
 
   .p-job .p-job__versions .k-seg {

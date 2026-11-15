@@ -1,5 +1,6 @@
-// A job (CONTRACTS-V3 30, "A job"; PLAN-COOK T62 after R02 and R04): the crumbs Jobs / <name> in the top bar, the
-// overline, the title, the sentence, the hand-off tag and stage with their one-liners and who does it as quiet facts,
+// A job (CONTRACTS-V3 30, "A job"; PLAN-COOK T62 after R02 and R04, TB3): the crumbs Jobs / <name> in the top bar, the
+// overline, the title, the sentence, the hand-off, the stage and who does it as a list of label and value (a row
+// without a value is left out),
 // then "What it needs": the start form in one column with the preview of what will be sent beside it from 1100 px,
 // and the one primary, Start, at the form's foot. When it cannot start the reason stands in place of
 // the button. Under it, the earlier runs. With ?from=, the earlier task is named above the form, as a link to it by
@@ -15,8 +16,8 @@ import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useRoute } from "../lib/router.js";
 import {
-  Button, Empty, ErrorNotice, HANDOFFS, HandoffTag, Icon, JobStart, Loading, MoneyBlock, NotConnected, PageHeader, STAGES, Section, Segmented,
-  StageMark, TaskRow,
+  Button, Empty, ErrorNotice, HANDOFFS, Icon, JobStart, Loading, MoneyBlock, NotConnected, PageHeader, STAGES, Section, Segmented,
+  TaskRow,
 } from "../kit/index.js";
 
 const SLUG = /^[a-z][a-z0-9-]{0,50}$/;
@@ -46,6 +47,27 @@ export function whoLine(job) {
   if (names.length === 0) return "The Chief of staff plans it.";
   if (names.length === 1) return `Done by ${names[0]}.`;
   return `Done by ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}. The Chief of staff plans it.`;
+}
+
+// PLAN-COOK TB3: who does it as the value of the head's "Done by" row: { value, about }. One agent: its name. Two or
+// three: their names, and the Chief of staff plans it. None: the Chief of staff, who plans it.
+export function whoFact(job) {
+  const names = list(job && job.who).map((w) => text(typeof w === "string" ? w : w && (w.name || w.slug))).filter(Boolean);
+  if (names.length === 0) return { value: "The Chief of staff", about: "It plans the work." };
+  if (names.length === 1) return { value: names[0], about: "" };
+  return { value: `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`, about: "The Chief of staff plans it." };
+}
+
+// The head's facts as label and value rows; a row with no value is left out: [{ label, value, about }].
+export function factRows(job) {
+  const h = Object.hasOwn(HANDOFFS, text(job && job.handoff)) ? HANDOFFS[job.handoff] : null;
+  const s = Object.hasOwn(STAGES, text(job && job.stage)) ? STAGES[job.stage] : null;
+  const who = whoFact(job);
+  return [
+    h ? { label: JOB_WORDS.handoff, value: h.label, about: h.about } : null,
+    s ? { label: JOB_WORDS.stage, value: `${Number(job.stage)}. ${s.label}`, about: s.about } : null,
+    who.value ? { label: JOB_WORDS.who, value: who.value, about: who.about } : null,
+  ].filter(Boolean);
 }
 
 // The one-liners of the hand-off tag and the stage, in the words of section 25.
@@ -329,6 +351,9 @@ export const JOB_WORDS = Object.freeze({
   needsLine: "Answer these questions, then start it.",
   facts: "About this job",
   allJobs: "Jobs",
+  handoff: "Hand-off",
+  stage: "Stage",
+  who: "Done by",
 });
 
 // From 1100 px the preview of what will be sent stands open beside the questions; under that it stays folded under
@@ -360,7 +385,7 @@ function useBeside(ref) {
 
 function Body({ job, recent, from, earlier, onStarted, onChanged, queue }) {
   const dept = text(job.department && job.department.id);
-  const about = aboutLines(job);
+  const facts = factRows(job);
   const note = fromNote(job, from, earlier);
   const first = followsFirst(job, from);
   const state = startState(gatedJob(job));
@@ -370,10 +395,11 @@ function Body({ job, recent, from, earlier, onStarted, onChanged, queue }) {
   return html`
     <div class="p-job__facts">
       <dl class="p-job__fact-list" aria-label=${JOB_WORDS.facts}>
-        <div class="p-job__fact"><dt><${HandoffTag} id=${job.handoff} /></dt>${about.handoff && html`<dd class="p-job__about">${about.handoff}</dd>`}</div>
-        <div class="p-job__fact"><dt><${StageMark} n=${job.stage} /></dt>${about.stage && html`<dd class="p-job__about">${about.stage}</dd>`}</div>
+        ${facts.map((f) => html`<div key=${f.label} class="p-job__fact">
+          <dt>${f.label}</dt>
+          <dd><span class="p-job__value">${f.value}</span>${f.about ? html`<span class="p-job__about">${f.about}</span>` : null}</dd>
+        </div>`)}
       </dl>
-      <p class="p-job__who"><${Icon} name="team" size=${14} /><span>${whoLine(job)}</span></p>
     </div>
     <section class="p-job__needs" aria-labelledby="p-job-needs">
       <h2 class="p-job__needs-head" id="p-job-needs">${JOB_WORDS.needs}</h2>

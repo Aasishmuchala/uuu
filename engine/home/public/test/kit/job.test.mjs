@@ -306,3 +306,70 @@ test("JobRow: R12's construction, the department's line icon, the facts as grey 
 });
 
 newSheetTest("job");
+
+// PLAN-COOK TB3: a job as a card: a 28 px tile with its stage's glyph, the name the one link, the facts as the kit's
+// neutral chips, no separate Open button; why it cannot start under them with its own link.
+test("JobCard: the name is the one link, the stage's glyph on a tile, the facts as neutral chips, no Open button (TB3)", () => {
+  const root = show(job.JobCard, { job: { ...LEAD, summary: "A first message to someone you met." } });
+  const links = elements(root).filter((e) => e.localName === "a");
+  assert.equal(links.length, 1, "one stop for the keyboard");
+  assert.equal(links[0].getAttribute("href"), "#/jobs/sales/first-message-to-a-lead");
+  assert.ok(classesOf(links[0]).includes("k-jobcard__link"));
+  assert.equal(withClass(root, "k-jobcard__tile").length, 1);
+  assert.equal(withClass(root, "k-job__go").length, 0);
+  assert.equal(withClass(root, "k-tag--neutral").length, 2, "the hand-off and the stage");
+  assert.match(textOf(withClass(root, "k-jobcard__marks")[0]), /You leadStage 3: Make/);
+  assert.deepEqual([1, 2, 3, 4, 9].map(job.stageGlyph), ["form", "inbox", "spark", "send", "jobs"]);
+  const dim = show(job.JobCard, { job: { ...LEAD, ready: false, why: { text: "The books are not connected.", link: { page: "settings" } } } });
+  assert.match(textOf(dim), /cannot start yet/);
+  assert.match(textOf(withClass(dim, "k-jobcard__why")[0]), /The books are not connected\.Open Settings/);
+  const j = css("kit/job.css");
+  assert.match(j, /\.k-jobcard__tile \{[^}]*width: 28px;\s*height: 28px;/);
+  assert.match(j, /\.k-jobcard__link::after \{\s*content: "";\s*position: absolute;\s*inset: 0;/, "the whole card answers the click");
+  assert.match(j, /\.k-jobcard__why \.k-job__why-link \{\s*position: relative;\s*z-index: 1;/, "the reason's own link stays on top");
+});
+
+test("previewPieces and previewBlocks: answers apart, slots as the question's words, numbered steps (TB3)", () => {
+  const lead = { id: "sales/call-write-up", text: "Write up the call with [who] from [notes]. [extra]",
+    asks: [{ id: "who", label: "Who was the call with?", kind: "line", required: true }, { id: "notes", label: "Which notes:", kind: "line", required: true },
+      { id: "extra", label: "Anything else?", kind: "text", required: false }] };
+  assert.deepEqual(job.previewPieces(lead, { notes: "the [who] file" }), [
+    { text: "Write up the call with " }, { blank: "Who was the call with" }, { text: " from " }, { value: "the [who] file" }, { text: "." },
+  ]);
+  assert.deepEqual(job.previewParts(lead, {})[3], { blank: "Which notes" }, "a slot ends on neither ? nor :");
+  assert.equal(job.previewPieces(lead, { who: "x" }).filter((p) => p.value).length, 1, "an answer cannot plant a mark");
+  const steps = job.previewBlocks([{ text: "Do this:\n1. Read " }, { value: "a.md" }, { text: "\n2) Write it\n\nThen stop." }]);
+  assert.deepEqual(steps, [
+    { kind: "para", pieces: [{ text: "Do this:" }] },
+    { kind: "steps", items: [{ n: 1, pieces: [{ text: "Read " }, { value: "a.md" }] }, { n: 2, pieces: [{ text: "Write it" }] }] },
+    { kind: "para", pieces: [{ text: "Then stop." }] },
+  ]);
+  assert.deepEqual(job.previewBlocks([{ text: "One line." }]), [{ kind: "para", pieces: [{ text: "One line." }] }]);
+});
+
+test("JobStart (TB3): the preview draws slots as chips and answers in the accent; a long one has Show all", () => {
+  const long = { ...LEAD, ready: true, text: `${"Write it well. ".repeat(30)}For [lead].` };
+  const root = show(job.JobStart, { job: long });
+  assert.equal(withClass(root, "k-job__blank").length, 1);
+  assert.ok(classesOf(withClass(root, "k-job__blank")[0]).includes("k-tag--neutral"), "the kit's neutral chip");
+  assert.ok(withClass(root, "k-job__preview-text--capped").length === 1);
+  assert.ok(elements(root).some((e) => e.localName === "button" && textOf(e) === "Show all" && e.getAttribute("aria-expanded") === "false"));
+  const short = show(job.JobStart, { job: { ...LEAD, ready: true, text: "For [lead]." } });
+  assert.equal(withClass(short, "k-job__preview-more").length, 0, "a short preview shows whole");
+  assert.equal(job.ASK_PLACEHOLDERS.text, "Write it as you would say it. A few lines are enough.");
+  assert.equal(job.ASK_PLACEHOLDERS.line, "One short line");
+  assert.ok(elements(root).some((e) => e.localName === "input" && e.getAttribute("placeholder") === "One short line"));
+});
+
+test("JobStart (TB3): a job that cannot start says why as the kit's warning Notice with a small ghost; Start says it is off", () => {
+  const root = show(job.JobStart, { job: { ...LEAD, ready: false, why: { text: "Generation is off or has no key yet. Open Settings.", link: { page: "settings" } } } });
+  const notice = withClass(root, "k-notice--warn")[0];
+  assert.ok(notice, "the kit's warning Notice");
+  assert.equal(textOf(notice), "Generation is off or has no key yet.Open Settings");
+  const go = elements(notice).find((e) => e.localName === "a");
+  assert.ok(classesOf(go).includes("k-btn--ghost") && classesOf(go).includes("k-btn--sm"));
+  assert.equal(textOf(withClass(root, "k-job__under")[0]), job.CANNOT_START);
+  const foot = withClass(root, "k-job__actions")[0];
+  assert.equal(elements(foot).filter((e) => e.localName === "button" || e.localName === "p")[0].localName, "p", "the line first, Start at the right");
+  assert.match(css("kit/job.css"), /\.k-job__actions \{[^}]*justify-content: flex-end;/);
+});

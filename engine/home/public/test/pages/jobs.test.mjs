@@ -195,6 +195,9 @@ test("jobs: the words the page adds are pinned (T62)", () => {
     anyHandoff: "Any hand-off",
     anyStage: "Any stage",
     views: "Show the jobs as",
+    ready: "Ready only",
+    search: "Search jobs",
+    searchLabel: "Search the jobs",
   });
   assert.ok(Object.isFrozen(mod.JOBS_WORDS));
 });
@@ -224,14 +227,28 @@ test("jobs: a filter menu's choices carry their address and mark the current one
   assert.deepEqual(mod.menuChoices(null, "", make), []);
 });
 
-test("jobs: no creature, no glass and no department colour; cards are the kit's, a blocked one says why with its link (T62)", () => {
+test("jobs: no creature, no glass and no department colour; cards are the kit's JobCard in the kit's frame (T62, TB3)", () => {
   const src = readFileSync(new URL("../../pages/jobs.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../../styles/pages/jobs.css", import.meta.url), "utf8");
   assert.doesNotMatch(src, /Creature|u-glass|u-serif|u-over|data-dept/);
   assert.doesNotMatch(css, /--dept\b|var\(--glass|--hairline|--text\b/);
-  assert.match(src, /<\$\{Card\} padding="none"/);
-  assert.match(src, /<\$\{JobRow\} job=\$\{job\} \/>/);
-  assert.match(src, /dim && job\.why \? html`<div class="p-jobs__why"><\$\{WhyNot\} why=\$\{job\.why\} \/><\/div>`/);
+  assert.match(src, /<\$\{Card\} padding="none" class="p-jobs__card-box"><\$\{JobCard\} job=\$\{job\} \/><\/\/>/);
+  assert.doesNotMatch(src, /JobRow|k-job__go/, "no separate Open button on a card");
   assert.match(css, /\.p-jobs \.p-jobs__cards \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);\s*gap: var\(--s-6\);/, "two across with a 24 px gutter");
-  assert.match(css, /\.p-jobs \.p-jobs__card \.k-job--row > \.k-job__dot \{\s*display: none;/, "the department icon is drawn once, by the heading");
+});
+
+// PLAN-COOK TB3: the whole card answers the click, the ring is the card's; the bar's controls at 32 px; a
+// department's head at 15 px with its Open as a small ghost.
+test("jobs: the card is the click and the ring is round the card; the bar at 32 px; the department's head (TB3)", () => {
+  const src = readFileSync(new URL("../../pages/jobs.js", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../../styles/pages/jobs.css", import.meta.url), "utf8");
+  assert.match(css, /\.p-jobs \.p-jobs__card-box \{\s*position: relative;/, "the frame holds the name's cover");
+  assert.match(css, /\.p-jobs \.p-jobs__card-box:has\(\.k-jobcard__link:focus-visible\) \{\s*outline: 2px solid var\(--accent\);/);
+  assert.match(css, /\.p-jobs \.p-jobs__filter \.k-menu__trigger \{\s*min-height: var\(--s-8\);[^}]*border-color: var\(--line-2\);\s*background: transparent;/);
+  assert.match(css, /\.p-jobs \.p-jobs__search \{[^}]*width: 280px;/);
+  assert.match(css, /\.p-jobs \.p-jobs__dept-name \{[^}]*font-size: var\(--fs-fact\);[^}]*font-weight: var\(--fw-bold\);/);
+  assert.match(css, /\.p-jobs \.p-jobs__dept-head \{[^}]*border-bottom: 1px solid var\(--line\);/);
+  assert.match(src, /<\$\{Button\} size="sm" variant="ghost" class="p-jobs__dept-open" href=\$\{`#\/departments\/\$\{d\.id\}`\}>Open \$\{d\.title\}<\/\/>/);
+  assert.match(src, /<\$\{Chip\} icon=\$\{f\.ready \? "check" : undefined\} on=\$\{f\.ready\}/, "Ready only says its state as a toggle chip");
+  assert.match(src, /placeholder=\$\{W\.search\}/);
 });

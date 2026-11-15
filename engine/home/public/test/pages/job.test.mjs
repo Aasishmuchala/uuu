@@ -228,6 +228,9 @@ test("job: the words the page adds are pinned (T62)", () => {
     needsLine: "Answer these questions, then start it.",
     facts: "About this job",
     allJobs: "Jobs",
+    handoff: "Hand-off",
+    stage: "Stage",
+    who: "Done by",
   });
   assert.equal(page.BESIDE, "(min-width: 1100px)");
 });
@@ -245,11 +248,27 @@ test("job: the money sentence is the kit's money block in its words-only form; t
   assert.doesNotMatch(src, /k-sl__|k-site__/);
 });
 
-test("job: from 1100 px the preview stands beside the form and Start spans the foot (T62)", () => {
+test("job: from 1100 px the preview stands beside the form and Start stands at the questions' foot (T62, TB3)", () => {
   const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "styles", "pages", "job.css"), "utf8");
   const wide = css.slice(css.indexOf("@media (min-width: 1100px)"));
   assert.match(wide, /grid-template-columns: minmax\(0, 1fr\) minmax\(0, 340px\);/);
   assert.match(wide, /\.k-job--start > \.k-job__preview \{\s*grid-column: 2;/);
-  assert.match(wide, /\.k-job--start > \.k-job__actions \{\s*grid-column: 1 \/ -1;/);
+  assert.match(wide, /\.k-job--start > \.k-job__actions \{\s*grid-column: 1;/);
   assert.doesNotMatch(css, /var\(--glass|--highlight|--hairline/);
+});
+
+// PLAN-COOK TB3: the head's facts are label and value rows; no label is left without a value.
+test("job: the head's facts are label and value rows, a row without a value left out (TB3)", () => {
+  assert.deepEqual(page.factRows({ handoff: "you-approve", stage: 3, who: ["Artist"] }), [
+    { label: "Hand-off", value: "You approve", about: "The agent does the work. It counts only when you approve it." },
+    { label: "Stage", value: "3. Make", about: "Jobs that produce work." },
+    { label: "Done by", value: "Artist", about: "" },
+  ]);
+  assert.deepEqual(page.factRows({ handoff: "nope", stage: 9, who: [{ name: "Sales" }, { name: "Artist" }] }), [
+    { label: "Done by", value: "Sales and Artist", about: "The Chief of staff plans it." },
+  ]);
+  assert.deepEqual(page.whoFact({ who: [] }), { value: "The Chief of staff", about: "It plans the work." });
+  assert.ok(page.factRows({}).every((f) => f.value), "every row has its value");
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "pages", "job.js"), "utf8");
+  assert.doesNotMatch(src, /\$\{whoLine\(job\)\}/, "the 'Done by Artist.' line with no value is gone");
 });

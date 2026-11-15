@@ -217,6 +217,113 @@ a.k-job--row:hover .k-job__go {
   color: var(--ink-3);
 }
 
+/* PLAN-COOK TB3: a job as a card's body. A 28 px tile with the stage's glyph at the name's left; the name 15 px
+   semibold is the one link and its ::after covers the frame the page gives (position: relative), so the whole card
+   answers the click and the ring is the card's; the sentence 13 px in the second ink on two lines; the hand-off and
+   the stage as the kit's neutral chips. */
+.k-jobcard {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.k-jobcard__tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--ctl);
+  color: var(--ink-2);
+}
+
+.k-jobcard__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100%;
+}
+
+.k-jobcard__title {
+  margin: 0;
+  padding-top: 3px;
+  color: var(--ink);
+  font-size: var(--fs-fact);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-fact);
+  overflow-wrap: anywhere;
+}
+
+.k-jobcard__link {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* The ring is drawn round the card by the page (a frame :has the focused name); the name keeps a transparent
+   2 px outline, so forced colours still draw one. */
+.k-jobcard__link:focus-visible {
+  outline: 2px solid transparent;
+}
+
+.k-jobcard__link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.k-jobcard__sentence {
+  margin: var(--s-1) 0 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.k-jobcard__marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: auto 0 0;
+  padding-top: var(--s-3);
+}
+
+.k-jobcard--dim .k-jobcard__title {
+  color: var(--ink-2);
+}
+
+.k-jobcard--dim .k-jobcard__tile {
+  color: var(--ink-3);
+}
+
+/* Why it cannot start: under the chips, its own link above the card's. */
+.k-jobcard__why {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+
+.k-jobcard__why .k-job--why {
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.k-jobcard__why .k-job__why-link {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  margin-left: auto;
+  border-radius: var(--r-1);
+}
+
 /* A job that cannot start yet: its questions are switched off and look it (M63 item 13): the fields take the kit's
    inert look (fields.css); the sentence that says why stays at full strength above them. */
 .k-job__asks--off .k-field__label,
@@ -338,10 +445,20 @@ a.k-job--chip:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* A question not answered yet, in the preview: its own words, quietly. */
+/* A question not answered yet, in the preview: its own words as the kit's neutral chip, drawn inline so a long
+   question wraps with the sentence it stands in. An answer: the accent ink. */
 .k-job__blank {
-  color: var(--ink-2);
-  font-style: italic;
+  display: inline;
+  padding: 1px 5px;
+  white-space: normal;
+  vertical-align: baseline;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.k-job__value {
+  color: var(--accent);
+  font-weight: var(--fw-medium);
 }
 
 .k-job__read-state {
@@ -381,25 +498,70 @@ a.k-job--chip:hover {
 }
 
 .k-job__preview-text {
+  position: relative;
   max-width: 68ch;
   padding: 0 var(--s-3) var(--s-3) calc(var(--s-3) + 14px + var(--s-2));
   color: var(--ink);
-  font-size: var(--fs-body);
+  font-size: var(--fs-note);
   line-height: var(--lh-ui);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
+.k-job__para {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.k-job__para + .k-job__para,
+.k-job__para + .k-job__steps,
+.k-job__steps + .k-job__para {
+  margin-top: var(--s-3);
+}
+
+.k-job__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding-left: var(--s-5);
+}
+
+.k-job__steps > li::marker {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A long preview held to ten whole lines, with Show all under it. */
+.k-job__preview-text--capped {
+  max-height: calc(var(--lh-ui) * 10);
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.k-job__preview-more {
+  padding: 0 var(--s-3) var(--s-3);
+}
+
+/* The foot: the line about what happens next, then Start at the right. */
 .k-job__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-3);
+  justify-content: flex-end;
+  gap: var(--s-3) var(--s-4);
 }
 
 .k-job__under {
+  margin: 0;
+  min-width: 0;
   color: var(--ink-2);
   font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+/* The warning at the head of a form: the kit's Notice, with its action. */
+.k-job__notice {
+  min-width: 0;
 }
 
 .k-job__started {
