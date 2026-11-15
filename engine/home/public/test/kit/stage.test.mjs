@@ -1,6 +1,7 @@
 // The kit's stage parts (T33 of PLAN-COOK): Shot, Frames, Frame, StageBar, Pin, Finds, PicTag, Pair and Verdict.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { KIT, installDom, mount, unmount, elements, textOf, byClass, fire, walkDom } from "./_dom.mjs";
@@ -141,7 +142,7 @@ test("stage.css: pins in the gutter as tinted 18 px discs, a stage panel around 
   assert.doesNotMatch(sheet, /backdrop-filter/);
   assert.match(sheet, /\.k-frames \{[^}]*padding: var\(--s-6\);[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--r-2\);[^}]*background: var\(--panel\);[^}]*box-shadow: var\(--shadow-card\)/, "the stage panel: a 1 px edge, an 8 px corner and the card shadow");
   assert.match(sheet, /\.k-frame__pin--left \{\s*left: -22px;/);
-  assert.match(sheet, /\.k-pin \{[^}]*width: 18px;[^}]*background: color-mix\(in srgb, var\(--warn\) 20%, transparent\);[^}]*color: var\(--warn\);/, "an 18 px disc on a 20 percent amber tint, amber numerals");
+  assert.match(sheet, /\.k-pin \{[^}]*width: 18px;[^}]*background: var\(--warn-bg\);[^}]*color: var\(--warn\);/, "an 18 px disc on the warning tint, its numerals in the warning ink (T112)");
   assert.match(sheet, /\.k-shot__frame \{[^}]*aspect-ratio: 16 \/ 9;[^}]*background: var\(--black\)/);
   assert.match(sheet, /@media \(max-width: 859px\)[\s\S]*\.k-frames__cell--desk:not\(:only-child\) \{\s*display: none;/);
 });
@@ -187,6 +188,37 @@ test("T102: Finds with a limit shows that many rows and a Show all row that open
   assert.equal(byClass(root, "k-finds__row").length, 5, "one more than the limit is shown, never Show all 1");
   assert.equal(byClass(root, "k-finds__more").length, 0);
   unmount(root);
+});
+
+// T112: the discs' amber reads: the warning ink on the warning tint, laid on every surface a disc sits on (the rail,
+// a chosen row, a card, a dialog), reaches 4.5 to 1 in each theme's block of tokens.css.
+test("T112: a finding's disc, the warning ink on its tint, reaches 4.5 to 1 on every surface in both themes", () => {
+  const tokens = readFileSync(join(KIT, "..", "styles", "tokens.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const rgba = (v) => {
+    const h = /^#([0-9a-f]{6})$/i.exec(v);
+    if (h) return [0, 2, 4].map((i) => parseInt(h[1].slice(i, i + 2), 16)).concat(1);
+    const m = /^rgba?\(([^)]+)\)$/.exec(v);
+    if (m) { const p = m[1].split(",").map(Number); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; }
+    return null;
+  };
+  const over = (top, under) => [0, 1, 2].map((i) => top[i] * top[3] + under[i] * (1 - top[3])).concat(1);
+  const lum = (c) => { const l = c.slice(0, 3).map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  let blocks = 0;
+  for (const m of tokens.matchAll(/([^{}]+)\{([^{}]*--warn-bg:[^{}]*)\}/g)) {
+    const vars = Object.fromEntries([...m[2].matchAll(/(--[a-z0-9-]+):\s*([^;]+);/g)].map((x) => [x[1], x[2].trim()]));
+    const ink = rgba(vars["--warn"]);
+    const tint = rgba(vars["--warn-bg"]);
+    assert.ok(ink && tint, `${m[1].trim()}: --warn and --warn-bg are colours`);
+    for (const name of ["--panel", "--card", "--raise", "--overlay"]) {
+      const ground = rgba(vars[name] || "");
+      if (!ground) continue;
+      const r = ratio(ink, over(tint, ground));
+      assert.ok(r >= 4.5, `${m[1].trim()}: the disc on ${name} is ${r.toFixed(2)} to 1`);
+    }
+    blocks++;
+  }
+  assert.ok(blocks >= 2, "dark and light are both checked");
 });
 
 ROOTS.stage = "k-shot";

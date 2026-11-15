@@ -5,8 +5,10 @@
    thumbnails and the findings' page names. Tokens only; every selector is the kit's. */
 
 /* ---- The stage: the bar, then the pages (or the state of the pictures), then the files left out */
+/* It takes its place's whole width whatever the place aligns (a page's stage wrapper may align its items). */
 .k-site__stage {
   flex: 1 1 auto;
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
@@ -58,23 +60,13 @@
   outline-offset: 2px;
 }
 
-.k-site__stage .k-frame:has(.k-site__open:hover) .k-frame__page {
-  box-shadow: var(--paper-shadow), 0 0 0 1px var(--line-2);
+.k-site__stage .k-frame:has(.k-site__open:hover) .k-frame__page::before {
+  box-shadow: inset 0 0 0 1px var(--line-2);
 }
 
 .k-site__stage .k-frame__loose {
   position: relative;
   z-index: 5;
-}
-
-/* A phone frame shows the top of its page: where it is cut, a soft inner shadow line says the page goes on. */
-.k-site__stage .k-frame--phone .k-frame__page::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0;
-  height: var(--s-4);
-  box-shadow: inset 0 -10px 10px -10px color-mix(in srgb, var(--black) 35%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--black) 12%, transparent);
-  pointer-events: none;
 }
 
 /* A frame whose picture did not load takes the footprint's quiet look, not a blank page (the stage says why once). */
@@ -235,27 +227,68 @@
   object-position: top;
 }
 
-/* ---- The rail: a finding reads as a sentence; its measurement (the bracket the server ends it with) on a line of
-   its own in the mono face (a code element: base.css), and the page it is on under both, quieter still. */
+/* ---- The rail (and the viewer's): a finding is a designed row. Its plain name, the measurement as a small neutral
+   chip at the right (two 12 px swatches, the ink on its ground, each with a hairline, and the ratio in tabular
+   figures), the page as a tag only when it is not the page in view, and the line's other words muted under it, two
+   lines at most. */
+.k-site__find-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 2px var(--s-2);
+  min-width: 0;
+}
+
 .k-site__find {
-  display: block;
+  flex: 1 1 8rem;
+  min-width: 0;
+  text-wrap: pretty;
 }
 
-.k-site__find-measure {
-  display: block;
-  font-size: var(--fs-label);
-  font-weight: var(--fw-regular);
-  line-height: var(--lh-label);
-  color: var(--ink-2);
-  font-variant-numeric: tabular-nums;
-}
-
+.k-site__measure,
 .k-site__find-page {
-  display: block;
-  font-size: var(--fs-label);
+  flex: none;
+  display: inline-flex;
+  margin-top: -1px;
+}
+
+.k-site__measure .k-tag {
+  gap: var(--s-1);
+}
+
+.k-site__swatch {
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-xs);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+.k-site__swatch + .k-site__swatch {
+  margin-left: -2px;
+}
+
+.k-site__ratio {
+  margin-left: 2px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.k-site__find-rest .k-site__find-page {
+  margin: 0 var(--s-2) 0 0;
+  vertical-align: 1px;
+}
+
+.k-site__find-rest {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--fs-note);
   font-weight: var(--fw-regular);
-  line-height: var(--lh-label);
-  color: var(--ink-3);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
 }
 
 .k-site__fine {
@@ -534,6 +567,152 @@ button.k-site__screen:focus-visible .k-site__zoom {
   max-width: 100%;
 }
 
+/* ---- The larger picture of a stage's frame (Viewer, T112): the kit's Dialog at the window's size. The head on one
+   row: the version's name (14 px 600) with its score and verdict chips, then the page tabs, the width switch and
+   "A of 3". The body: the whole page in a well on the stage's tone (24 px round it, scrolling, a fade at its foot
+   while more is below) beside a 320 px rail on the dialog's own surface, parted by a rule; two tones, never three. */
+.k-dialog__panel:has(.k-site__viewer) .k-dialog__titles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-3);
+}
+
+.k-dialog__panel:has(.k-site__viewer) .k-dialog__title {
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.k-dialog__panel:has(.k-site__viewer) .k-dialog__sub {
+  margin: 0;
+}
+
+.k-site__chips {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.k-site__viewer-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+}
+
+/* The chosen part of a switch here is clearly filled: a firm tint of the ink, in both themes. */
+.k-site__viewer-tools .k-seg__item--on {
+  background: color-mix(in srgb, var(--ink) 13%, transparent);
+  box-shadow: none;
+}
+
+.k-site__viewer-tools .k-seg__item--on:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.k-site__pager {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.k-site__pager-at {
+  min-width: 4.5em;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.k-dialog__panel:has(.k-site__viewer) .k-dialog__body {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+
+.k-site__viewer {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.k-site__well-box {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.k-site__well {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s-6);
+  background: var(--stage);
+}
+
+.k-site__well:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.k-site__whole {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+}
+
+.k-site__whole img {
+  display: block;
+  width: 100%;
+  max-width: 1280px;
+  height: auto;
+  border-radius: var(--r-1);
+  box-shadow: var(--paper-shadow);
+}
+
+.k-site__viewer--phone .k-site__whole img {
+  width: 390px;
+  max-width: 100%;
+}
+
+.k-site__well-fade {
+  position: absolute;
+  inset: auto 0 0;
+  height: var(--s-12);
+  background: linear-gradient(to bottom, transparent, var(--stage));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.k-site__well-box--more .k-site__well-fade {
+  opacity: 1;
+}
+
+.k-site__viewer-rail {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s-5) var(--s-5) var(--s-6);
+  border-left: 1px solid var(--line);
+}
+
+.k-site__viewer-h {
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+}
+
+/* The foot: back to the versions at the left, the pick at the right. */
+.k-site__back {
+  margin-right: auto;
+}
+
 /* ---- The job page's line for a page (pages/job.js) ---- */
 
 .k-site__job {
@@ -615,6 +794,29 @@ button.k-site__screen:focus-visible .k-site__zoom {
   .k-site__large {
     margin: calc(-1 * var(--s-4));
     padding: var(--s-4);
+  }
+
+  /* The viewer on a phone: the sheet scrolls as one; the picture's well keeps its own scroll at about two thirds
+     of the window, and the rail goes under it. */
+  .k-dialog__panel:has(.k-site__viewer) .k-dialog__body {
+    display: block;
+    overflow-y: auto;
+  }
+
+  .k-site__viewer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .k-site__well {
+    max-height: 62vh;
+    padding: var(--s-4);
+  }
+
+  .k-site__viewer-rail {
+    overflow: visible;
+    padding: var(--s-4);
+    border-left: 0;
+    border-top: 1px solid var(--line);
   }
 }
 

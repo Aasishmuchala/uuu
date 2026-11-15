@@ -111,6 +111,7 @@
 }
 
 .k-frame {
+  --k-fade: 40px;
   min-width: 0;
 }
 
@@ -118,13 +119,25 @@
   position: relative;
 }
 
+/* A page is cut at its frame's height: its last 40 px fade into the panel, so what is cut there (a button) reads as
+   going on, not sliced. The mask would clip an outer shadow, so the page's edge is an inner 1 px line. */
 .k-frame__page {
   position: relative;
   aspect-ratio: var(--fw) / var(--fh);
   overflow: hidden;
   border-radius: var(--r-1);
   background: var(--paper);
-  box-shadow: var(--paper-shadow);
+  mask-image: linear-gradient(to bottom, black calc(100% - var(--k-fade)), transparent);
+}
+
+.k-frame__page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--line);
+  pointer-events: none;
 }
 
 .k-frame__img {
@@ -155,8 +168,8 @@
   gap: var(--s-1);
 }
 
-/* A pin: an 18 px disc on a 20 percent tint of the warning colour, its number in that colour, quiet beside the one
-   filled primary. */
+/* A pin: an 18 px disc on the warning tint, its number in the warning ink (4.5 to 1 on the tint in both themes,
+   pinned), quiet beside the one filled primary. */
 .k-pin {
   display: grid;
   place-items: center;
@@ -166,7 +179,7 @@
   padding: 0;
   border: 0;
   border-radius: var(--r-round);
-  background: color-mix(in srgb, var(--warn) 20%, transparent);
+  background: var(--warn-bg);
   color: var(--warn);
   font: inherit;
   font-size: var(--fs-label);
@@ -286,7 +299,7 @@
 }
 
 /* ---- Findings: a numbered list in one Tab stop; the chosen one is lifted and shows its detail. 6 px inside a
-   row, 16 px from one row's words to the next's; a long list ends on a whole row and "Show all". */
+   row's edge, so 12 px from one row's words to the next's; a long list ends on a whole row and "Show all". */
 .k-finds__box {
   display: grid;
   gap: var(--s-1);
@@ -295,7 +308,7 @@
 
 .k-finds {
   display: grid;
-  gap: var(--s-1);
+  gap: 0;
   list-style: none;
 }
 
@@ -337,7 +350,7 @@
 
 .k-finds__what {
   display: grid;
-  gap: 6px;
+  gap: 2px;
   min-width: 0;
   overflow-wrap: anywhere;
 }

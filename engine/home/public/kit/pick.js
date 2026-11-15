@@ -499,8 +499,9 @@ function usePickAct({ item, readOnly, onDone }) {
 }
 
 // The foot, as its two parts: `primary` (what changed, the one filled button or its confirm, a refusal in the
-// server's words) and `rest` (the note, "Another round" and "Send all back", under a divider).
-function footParts(a, v, baseId) {
+// server's words) and `rest` (the note, "Another round" and "Send all back", under a divider). `inline`: the
+// primary at the default height and its own width, for a dialog's foot (PickPrimary).
+function footParts(a, v, baseId, inline = false) {
   const noteId = `${baseId}-note`;
   const mine = a.busy && a.busy.action === "pick";
   let decide = null;
@@ -516,7 +517,7 @@ function footParts(a, v, baseId) {
         </div>
       </div>`;
   } else if (v) {
-    decide = html`<${Button} variant="primary" size="lg" class="k-pick__button" busy=${mine} disabled=${a.stopped}
+    decide = html`<${Button} variant="primary" size=${inline ? "md" : "lg"} class=${inline ? undefined : "k-pick__button"} busy=${mine} disabled=${a.stopped}
       onClick=${(e) => a.pick(v, e)}>${pickLabel(v)}<//>`;
   }
   const primary = html`${a.changed ? html`<div class="k-pick__alert" role="alert">
@@ -684,6 +685,21 @@ export function PickFoot({ item, chosen, onDone, onChanged, focusDone = true }) 
       <div class="k-pick-foot__sheet">${rest}</div>
     <//>
   </div>`;
+}
+
+// The pick's one primary alone, for the larger picture's foot (PLAN-COOK T112): the same act path as PickFoot's for
+// the version shown (`chosen`), its confirm below the bar and a refusal in place; no note and no quieter actions
+// (they stay in the rail). Nothing for an item that is not a pick, a version it does not list, or once it is done
+// (`onDone` hears it, as from PickFoot).
+export function PickPrimary({ item, chosen, onDone, onChanged }) {
+  const [baseId] = useState(() => nextId("k-pick"));
+  const a = usePickAct({ item: isPickItem(item) ? item : null, readOnly: false, onDone });
+  const fresh = a.fresh;
+  useEffect(() => { if (fresh && onChanged) onChanged(fresh); }, [fresh]);
+  if (!a.shown || a.done) return null;
+  const v = versionsOf(a.shown).find((x) => x.id === chosen) || null;
+  if (!v) return null;
+  return html`<div class="k-pick-primary" aria-busy=${a.busy ? "true" : undefined}>${footParts(a, v, baseId, true).primary}</div>`;
 }
 
 // The one approval card for any Needs-you item: a card of versions when the item is one, else DecisionCard as

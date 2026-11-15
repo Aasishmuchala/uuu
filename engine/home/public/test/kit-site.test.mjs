@@ -332,10 +332,10 @@ test("SiteView: the viewer off links to Settings; working says so; failed offers
 // ---- The three pieces on a stage (PLAN-COOK T41) ----
 
 // The three pieces as a page places them: one useSiteView, the stage, the strip and the rail.
-function Placed({ id, scores }) {
+function Placed({ id, scores, pick }) {
   const view = site.useSiteView({ id });
   return html`<div>
-    <div class="t-stage"><${site.SiteStage} view=${view} scores=${scores} /></div>
+    <div class="t-stage"><${site.SiteStage} view=${view} scores=${scores} pick=${pick} /></div>
     <div class="t-strip"><${site.SiteStrip} view=${view} scores=${scores} /></div>
     <div class="t-rail"><${site.SiteRail} view=${view} /></div>
   </div>`;
@@ -385,7 +385,9 @@ test("SiteStage: the desktop and the phone frame get the same scale, each a butt
     await settle();
     const dialogImg = elements(root).filter((e) => e.localName === "img").map((e) => attr(e, "src"));
     assert.ok(dialogImg.includes(READY.shots.images[2].url));
-    assert.match(textOf(root), /Version A: <b>Editorial<\/b>, Home page: phone, 390 px/);
+    const dialog = elements(root).find((e) => e.getAttribute("role") === "dialog");
+    assert.equal(textOf(ofClass(dialog, "k-dialog__title")[0]), "Version A: <b>Editorial</b>", "the larger picture is named by its version, as text");
+    assert.ok(elements(dialog).some((e) => e.localName === "img" && e.getAttribute("alt") === "Version A: <b>Editorial</b>, Home page, the whole page at phone width"));
   } finally {
     f.restore();
   }
@@ -512,17 +514,40 @@ test("T102: a report line ending in a bracketed measurement is shown as its sent
   assert.equal(site.SITE_WORDS.showAll, "Show all");
 });
 
-test("T102: the rail shows four findings and Show all 7, the measurement as a code line and the page under it; the larger picture's switch is in its head", async () => {
-  const lines = [
-    "2 links or buttons are smaller than 24 px",
-    'Hard to read: "Three floors of glass and timber on the" (#8A8278 on #FBFAF7, 3.63 to 1)',
-    'Hard to read: "The north front at dusk, from the jetty." (#8A8278 on #FBFAF7, 3.63 to 1)',
-    'Hard to read: "Morning, from the east shore." (#8A8278 on #FBFAF7, 3.63 to 1)',
-    "1 link or button is smaller than 24 px",
-    'Hard to read: "We draw houses for one" (#8A8278 on #FBFAF7, 3.63 to 1)',
-    "The page has no title",
-  ];
-  const seven = { ...READY, shots: { ...READY.shots, report: [{ page: "index.html", lines }] } };
+// PLAN-COOK T112: a finding is a designed row; the larger picture is a place to look and decide.
+const SEVEN = [
+  "2 links or buttons are smaller than 24 px",
+  'Hard to read: "Three floors of glass and timber on the" (#8A8278 on #FBFAF7, 3.63 to 1)',
+  'Hard to read: "The north front at dusk, from the jetty." (#8A8278 on #FBFAF7, 3.63 to 1)',
+  'Hard to read: "Morning, from the east shore." (#8A8278 on #FBFAF7, 3.63 to 1)',
+  "1 link or button is smaller than 24 px",
+  'Hard to read: "We draw houses for one" (#8A8278 on #FBFAF7, 3.63 to 1)',
+  "The page has no title",
+];
+// The line a row's parts make again: every word the server sent, in its order.
+const joined = (p) => `${p.title}${p.rest ? `: ${p.rest}` : ""}${p.measure ? ` (${p.measure})` : ""}`;
+
+test("T112: a finding's parts: the plain name, the quoted words apart, the contrast as two colours and a ratio; every word of the line kept", () => {
+  assert.deepEqual(site.findParts('Hard to read: "Three floors of glass and timber on the" (#8A8278 on #FBFAF7, 3.63 to 1)'), {
+    title: "Hard to read", rest: '"Three floors of glass and timber on the"', measure: "#8A8278 on #FBFAF7, 3.63 to 1",
+    swatch: { ink: "#8A8278", ground: "#FBFAF7", ratio: "3.63" },
+  });
+  assert.deepEqual(site.findParts("Wider than the screen at 390 px: div.too.wide (700 px)"),
+    { title: "Wider than the screen at 390 px", rest: "div.too.wide", measure: "700 px", swatch: null });
+  assert.deepEqual(site.findParts("2 links or buttons are smaller than 24 px"), { title: "2 links or buttons are smaller than 24 px", rest: "", measure: "", swatch: null });
+  assert.deepEqual(site.findParts('Said: "a: b" here'), { title: "Said", rest: '"a: b" here', measure: "", swatch: null });
+  assert.equal(site.findParts('He said "x: y"').rest, "", "a head with a quote in it is not split");
+  // Every form the server writes (lib/siteshots.mjs), and hostile ones: the parts give the line back whole.
+  const forms = [...SEVEN, "Wider than the screen at 390 px: div.too.wide (700 px)", "1 error in the page's console: x is not defined",
+    "Pictures that did not load: a.png, b.png", "This page was cut: it took too long.", "Smallest text: 11 px; your kit's smallest is 12 px",
+    "<img src=x onerror=alert(1)> did not load", "(only a bracket)", 'Hard to read: "x" (red on #FFF, 3 to 1)', 'Hard to read: "x" (#zzz on #FFF, 3 to 1)', ""];
+  for (const t of forms) assert.equal(joined(site.findParts(t)), t, `nothing of "${t}" is lost`);
+  assert.equal(site.findParts('Hard to read: "x" (red on #FFF, 3 to 1)').swatch, null, "only colour codes become swatches");
+});
+
+test("T112: the rail shows four findings and Show all 7: the name, the contrast chip with its codes for a screen reader, the quoted words muted, the page only when it is not in view", async () => {
+  const about = { page: "about.html", lines: ['Hard to read: "Visits" (#8A8278 on #FBFAF7, 3.63 to 1)'] };
+  const seven = { ...READY, shots: { ...READY.shots, report: [{ page: "index.html", lines: SEVEN.slice(0, 6) }, about] } };
   const f = stubFetch(() => ({ status: 200, body: answer([seven]) }));
   try {
     const root = await showTree(Placed, { id: "STH-2", scores: { a: { total: 55, meets: true } } });
@@ -531,23 +556,108 @@ test("T102: the rail shows four findings and Show all 7, the measurement as a co
     assert.equal(rows.length, 4, "four findings");
     const more = ofClass(rail, "k-finds__more")[0];
     assert.equal(textOf(more), "Show all 7");
-    assert.equal(textOf(ofClass(rows[1], "k-site__find")[0]), 'Hard to read: "Three floors of glass and timber on the"');
-    const code = ofClass(rows[1], "k-site__find-measure")[0];
-    assert.equal(code.localName, "code");
-    assert.equal(textOf(code), "#8A8278 on #FBFAF7, 3.63 to 1");
-    assert.equal(textOf(ofClass(rows[1], "k-site__find-page")[0]), "Home page");
-    assert.equal(ofClass(rows[0], "k-site__find-measure").length, 0, "no bracket, no measurement line");
+    assert.equal(textOf(ofClass(rows[1], "k-site__find")[0]), "Hard to read");
+    assert.equal(textOf(ofClass(rows[1], "k-site__find-rest")[0]), '"Three floors of glass and timber on the"');
+    const chip = ofClass(rows[1], "k-site__measure")[0];
+    assert.equal(chip.getAttribute("role"), "img");
+    assert.equal(chip.getAttribute("aria-label"), "#8A8278 on #FBFAF7, 3.63 to 1", "the server's codes, whole, in the chip's name");
+    assert.equal(chip.getAttribute("title"), "#8A8278 on #FBFAF7, 3.63 to 1", "and on hover");
+    assert.equal(textOf(ofClass(chip, "k-site__ratio")[0]), "3.63 : 1");
+    assert.equal(ofClass(chip, "k-tag").length, 1, "the kit's chip");
+    const swatches = ofClass(chip, "k-site__swatch").map((e) => e.style.cssText || e.getAttribute("style"));
+    assert.deepEqual(swatches, ["background:#8A8278", "background:#FBFAF7"], "the ink, then its ground");
+    assert.equal(elements(rail).filter((e) => e.localName === "code").length, 0, "no monospace line");
+    assert.equal(ofClass(rows[0], "k-site__measure").length, 0, "no bracket, no chip");
+    assert.equal(ofClass(rail, "k-site__find-page").length, 0, "the page in view is not named on its rows");
     fire(more, "click");
     await settle();
-    assert.equal(ofClass(part(root, "t-rail"), "k-finds__row").length, 7, "the rest opens in place");
-    fire(ofClass(root, "k-site__open")[0], "click");
-    await settle();
-    const head = ofClass(root, "k-dialog__head")[0];
-    assert.match(textOf(head), /^Version A: <b>Editorial<\/b>, Home page: desktop, 1280 px/);
-    assert.equal(ofClass(head, "k-dialog__tools").length, 1, "the switch is in the head");
-    assert.equal(ofClass(root, "k-dialog__foot").length, 0, "no foot under the picture");
-    assert.equal(textOf(ofClass(head, "k-dialog__sub")[0]), "55 of 70 · Meets the bar · 7 things to look at", "the version's score and what was found at this width");
+    const all = ofClass(part(root, "t-rail"), "k-finds__row");
+    assert.equal(all.length, 7, "the rest opens in place");
+    assert.equal(textOf(ofClass(all[6], "k-site__find-page")[0]), "About", "a finding on another page names it as a tag");
   } finally {
     f.restore();
   }
+});
+
+test("T112: the larger picture: the version's name, score and verdict chips, the page tabs, the width switch and A of 3 in its head; the picture in a well beside every finding", async () => {
+  const seven = { ...READY, shots: { ...READY.shots, report: [{ page: "index.html", lines: SEVEN }] } };
+  const f = stubFetch(() => ({ status: 200, body: answer([seven, B, C]) }));
+  try {
+    const root = await showTree(Placed, { id: "STH-2", scores: { a: { total: 55, meets: true }, b: { total: 49, meets: false } } });
+    fire(ofClass(root, "k-site__open")[0], "click");
+    await settle();
+    const dialog = () => elements(root).find((e) => e.getAttribute("role") === "dialog");
+    const head = ofClass(dialog(), "k-dialog__head")[0];
+    assert.equal(textOf(ofClass(head, "k-dialog__title")[0]), "Version A: <b>Editorial</b>");
+    assert.deepEqual(ofClass(head, "k-tag").map((t) => textOf(t)), ["55 of 70", "Meets the bar"]);
+    const tools = ofClass(head, "k-dialog__tools")[0];
+    const groups = elements(tools).filter((e) => e.getAttribute("role") === "group").map((g) => g.getAttribute("aria-label"));
+    assert.deepEqual(groups, ["Which page", "Which picture", "The versions"]);
+    assert.equal(textOf(ofClass(tools, "k-site__pager-at")[0]), "A of 3");
+    const pager = elements(tools).filter((e) => e.localName === "button" && /version/.test(e.getAttribute("aria-label") || ""));
+    assert.deepEqual(pager.map((b) => [b.getAttribute("aria-label"), Boolean(b.disabled || b.getAttribute("disabled") !== null)]),
+      [["The version before", true], ["The next version", false]], "the first version has none before it");
+    const well = ofClass(dialog(), "k-site__well")[0];
+    assert.equal(well.getAttribute("tabindex"), "0", "the well scrolls by keyboard too");
+    assert.equal(ofClass(dialog(), "k-site__well-fade").length, 1, "the fade at the foot of the well");
+    const side = ofClass(dialog(), "k-site__viewer-rail")[0];
+    assert.match(textOf(side), /^The page viewer found 7 things in A/);
+    assert.equal(ofClass(side, "k-finds__row").length, 7, "every finding, no Show all");
+    assert.equal(ofClass(dialog(), "k-frame__pin").length, 0, "no disc on the picture: the server gives no place");
+    const foot = ofClass(dialog(), "k-dialog__foot")[0];
+    assert.deepEqual(elements(foot).filter((e) => e.localName === "button").map((b) => textOf(b).trim()), ["Back to the versions"], "no pick unless the page passes one");
+    fire(pager[1], "click");
+    await settle();
+    assert.ok(dialog(), "the viewer stays open on the next version");
+    assert.equal(textOf(ofClass(dialog(), "k-dialog__title")[0]), "Version B: Gallery");
+    assert.deepEqual(ofClass(ofClass(dialog(), "k-dialog__head")[0], "k-tag").map((t) => textOf(t)), ["49 of 70", "Below the bar"]);
+    assert.equal(textOf(ofClass(dialog(), "k-site__pager-at")[0]), "B of 3");
+    fire(elements(foot).find((e) => e.localName === "button"), "click");
+    await settle();
+    assert.equal(dialog(), undefined, "Back to the versions closes it");
+  } finally {
+    f.restore();
+  }
+});
+
+test("T112: while a pick waits, the larger picture's foot carries the same pick for the version shown, and it acts", async () => {
+  const item = { id: "inbox-9", kind: "pick", version: 3, title: "A landing page", variants: [
+    { id: "a", direction: { title: "Editorial" }, review: { total: 55, meets: true } },
+    { id: "b", direction: { title: "Gallery" }, review: { total: 49, meets: false } },
+    { id: "c", direction: { title: "Spec sheet" }, review: { total: 44, meets: false } }] };
+  let done = null;
+  const f = stubFetch((path, method) => (method === "POST" ? { status: 200, body: { message: "Picked A." } } : { status: 200, body: answer([READY, B, C]) }));
+  try {
+    const root = await showTree(Placed, { id: "STH-2", pick: { item, onDone: (r) => { done = r; } } });
+    fire(ofClass(root, "k-site__open")[0], "click");
+    await settle();
+    const foot = ofClass(root, "k-dialog__foot")[0];
+    const words = elements(foot).filter((e) => e.localName === "button").map((b) => textOf(b).trim());
+    assert.deepEqual(words, ["Back to the versions", "Pick A, Editorial"]);
+    const primary = elements(foot).find((e) => e.localName === "button" && textOf(e).trim() === "Pick A, Editorial");
+    assert.match(primary.getAttribute("class"), /k-btn--primary/);
+    assert.doesNotMatch(primary.getAttribute("class"), /k-btn--lg/, "a dialog's foot holds nothing taller than the default");
+    fire(primary, "click");
+    await settle();
+    const sent = f.calls.find((c) => c.method === "POST");
+    assert.equal(sent.path, "/api/inbox/act");
+    assert.equal(sent.body.variant, "a");
+    assert.equal(done && done.variant, "a", "the page hears the pick");
+    assert.equal(elements(root).find((e) => e.getAttribute("role") === "dialog"), undefined, "the viewer closes after the pick");
+  } finally {
+    f.restore();
+  }
+});
+
+test("T112: site.css draws the viewer: a 320 px rail beside a well on the stage tone, the rail under the picture below 860 px; stage.css fades a cut page and keeps 12 px between findings", () => {
+  const css = readFileSync(join(PUBLIC, "styles", "kit", "site.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(css, /\.k-site__viewer \{[^}]*grid-template-columns: minmax\(0, 1fr\) 320px;/);
+  assert.match(css, /\.k-site__well \{[^}]*overflow-y: auto;[^}]*padding: var\(--s-6\);[^}]*background: var\(--stage\);/);
+  assert.match(css, /\.k-site__viewer-rail \{[^}]*border-left: 1px solid var\(--line\);/, "the rail is the dialog's own surface, parted from the well by a rule");
+  assert.doesNotMatch(css.match(/\.k-site__viewer-rail \{[^}]*\}/)[0], /background/, "no third tone");
+  assert.match(css, /@media \(max-width: 859px\)[\s\S]*\.k-site__viewer \{\s*grid-template-columns: minmax\(0, 1fr\);/);
+  const stage = readFileSync(join(PUBLIC, "styles", "kit", "stage.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(stage, /\.k-frame__page \{[^}]*mask-image: linear-gradient\(to bottom, black calc\(100% - var\(--k-fade\)\), transparent\);/, "a cut page ends in a fade, not a slice");
+  assert.match(stage, /\.k-finds \{[^}]*gap: 0;/);
+  assert.match(stage, /\.k-finds__row \{[^}]*padding: 6px var\(--s-3\);/, "6 + 6: 12 px between findings");
 });

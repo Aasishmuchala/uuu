@@ -385,6 +385,27 @@
   margin-top: 3px;
 }
 
+/* PickPrimary in a dialog's foot (T112): the one button at its own width, its confirm or a refusal beside it. */
+.k-pick-primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-2) var(--s-3);
+  min-width: 0;
+}
+
+.k-pick-primary .k-pick__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+}
+
+.k-pick-primary .k-pick__pair {
+  display: flex;
+}
+
 /* PickFoot on its own: the same parts, a divider between; on a phone the rest goes behind "More". */
 .k-pick-foot,
 .k-pick-foot__primary,
