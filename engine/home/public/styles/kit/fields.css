@@ -1,6 +1,6 @@
 /* kit/fields.js: a label above, the control, a hint or an error (with an icon, not colour alone) below.
-   Inputs, text areas, selects and the money input share one look: 36 px, the control corner, a firm edge on the
-   field fill, the placeholder in the third ink. The pointer firms the edge; focus turns it to a 1 px accent edge
+   Inputs, text areas, selects and the money input share one look: 36 px, the control corner, the stronger line
+   (--line-2) as the edge on the field fill, the placeholder in the third ink. The pointer firms the edge; focus turns it to a 1 px accent edge
    with a 3 px ring of the accent at 25 percent round it (fix round A2); the switch keeps the 2 px accent ring. Disabled is the disabled button's inert fill with a
    solid hairline and the third ink: never a dashed edge, which reads as unfinished. */
 
@@ -109,10 +109,11 @@
   border-color: var(--bad);
 }
 
+/* No resize grip (fix round A3: it read as unfinished); a text area that grows does so with its text. */
 .k-textarea {
   display: block;
   padding: var(--s-2) var(--s-3);
-  resize: vertical;
+  resize: none;
 }
 
 .k-textarea--grow {

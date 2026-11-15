@@ -47,6 +47,13 @@ test("inputs, text areas, selects and the money input: 36 px, the control corner
   assert.doesNotMatch(s, /r-pill/);
 });
 
+test("fix round A3: a text area shows no resize grip, in the kit and in base.css for every other text area", () => {
+  const s = css("kit/fields.css");
+  assert.match(/\}\s*\.k-textarea\s*\{([^}]*)\}/.exec(s)[1], /resize: none;/);
+  assert.doesNotMatch(s, /resize: (vertical|both|horizontal)/);
+  assert.match(css("base.css"), /(^|\})\s*textarea\s*\{\s*resize: none;\s*\}/);
+});
+
 test("Switch: 38 x 22, the raised track off, the accent fill on, and role switch", async () => {
   const s = css("kit/fields.css");
   const track = /\.k-switch__track\s*\{([^}]*)\}/.exec(s)[1];
