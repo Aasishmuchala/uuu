@@ -85,6 +85,20 @@
 .s-content:focus {
   outline: none;
 }
+/* The white pane (fix round B2): in light, a page that is rows on the ground (its root carries k-page--plain)
+   stands on the panel surface, white, under the top bar and above the tab bar too; dark keeps its ground. */
+:root[data-theme="light"] .s-app:has(.k-page--plain),
+:root[data-theme="light"] .s-app:has(.k-page--plain) .s-top,
+:root[data-theme="light"] .s-app:has(.k-page--plain) .s-tabbar {
+  background: var(--panel);
+}
+@media (prefers-color-scheme: light) {
+  :root[data-theme="auto"] .s-app:has(.k-page--plain),
+  :root[data-theme="auto"] .s-app:has(.k-page--plain) .s-top,
+  :root[data-theme="auto"] .s-app:has(.k-page--plain) .s-tabbar {
+    background: var(--panel);
+  }
+}
 
 .s-offline {
   margin: var(--s-3) var(--s-10) 0;

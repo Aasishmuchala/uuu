@@ -258,13 +258,79 @@ test("tasks: the filters are the kit's menus and every group folds by its header
   assert.ok(!/<\$\{Chip\}/.test(src), "no chip rows of filters");
 });
 
-test("tasks: Needs you is said by the rows' glyph and words, never by an outline or a tint (T61)", () => {
+test("tasks: Needs you is said by the rows' glyph and words, never by an outline or a tint (T61, TB5a)", () => {
   const css = readFileSync(new URL("../../styles/pages/tasks.css", import.meta.url), "utf8");
-  assert.ok(!/--warn|--border-warm|--bg-warm/.test(css), "no amber in the page's sheet");
+  const amber = css.replace(/\.p-tasks \.p-tasks__mark--warn \{ color: var\(--warn\); \}/, "");
+  assert.ok(!/--warn|--border-warm|--bg-warm/.test(amber), "amber only on the glyph of a row that waits for the owner");
   assert.ok(!/needs-you[^{]*\{/.test(css), "no rule for the Needs you group alone");
   assert.ok(!/k-task-row__who/.test(css), "no rule for a class the row no longer has");
-  assert.match(css, /\.p-tasks \.p-tasks__fold \{[^}]*background: var\(--raise\)/);
   assert.match(css, /\.p-tasks \.p-tasks__list \{[^}]*max-width: var\(--content-max\)/);
+});
+
+test("tasks: a group bar is flat, a step off the ground with 8 px corners; the filters are edged and 32 px (TB5a)", () => {
+  const css = readFileSync(new URL("../../styles/pages/tasks.css", import.meta.url), "utf8");
+  const fold = /\.p-tasks \.p-tasks__fold \{([^}]*)\}/.exec(css)[1];
+  assert.match(fold, /background: color-mix\(in srgb, var\(--ink\) 5%, transparent\)/, "a tint of the ink: a step lighter in dark, a step darker on the white pane");
+  assert.match(fold, /box-shadow: none/);
+  assert.match(fold, /border: 0/);
+  assert.match(fold, /border-radius: var\(--r-2\)/);
+  const trigger = /\.p-tasks \.p-tasks__filter \.k-menu__trigger \{([^}]*)\}/.exec(css)[1];
+  assert.match(trigger, /min-height: var\(--s-8\)/);
+  assert.match(trigger, /border-color: var\(--line-2\)/);
+  assert.match(trigger, /background: transparent/);
+});
+
+test("tasks: a row is the state's glyph, the title with its ID, the state's sentence under it and the date at the right (TB5a)", () => {
+  const src = readFileSync(new URL("../../pages/tasks.js", import.meta.url), "utf8");
+  assert.match(src, /class="p-tasks__title"/);
+  assert.match(src, /class="p-tasks__id"><\$\{Mono\}/);
+  assert.match(src, /class="p-tasks__say"/);
+  assert.match(src, /class="p-tasks__when" datetime=/);
+  const css = readFileSync(new URL("../../styles/pages/tasks.css", import.meta.url), "utf8");
+  assert.match(/\.p-tasks \.p-tasks__title \{([^}]*)\}/.exec(css)[1], /font-size: var\(--fs-body\);[\s\S]*font-weight: var\(--fw-medium\)/, "title 14 px 500");
+  assert.match(/\.p-tasks \.p-tasks__id \.k-mono \{([^}]*)\}/.exec(css)[1], /color: var\(--ink-3\);[\s\S]*font-family: var\(--font-mono\);[\s\S]*font-size: var\(--fs-label\)/, "ID 12 px mono, third ink");
+  assert.match(/\.p-tasks \.p-tasks__say \{([^}]*)\}/.exec(css)[1], /color: var\(--ink-2\);[\s\S]*font-size: var\(--fs-note\)/, "sentence 13 px, second ink");
+});
+
+test("tasks: glyphOf is neutral unless the state asks for the eye (TB5a)", () => {
+  assert.deepEqual(mod.glyphOf({ ...card, waitingForYou: true }), { column: "pending_review", tone: "warn", word: "Waiting for you" });
+  assert.deepEqual(mod.glyphOf({ ...card, waitingForYou: false, live: true }), { column: "in_progress", tone: "info", word: "Working" });
+  assert.equal(mod.glyphOf({ ...card, waitingForYou: false, column: "done" }).tone, "good");
+  assert.equal(mod.glyphOf({ ...card, waitingForYou: false, column: "failed", plainState: "" }).tone, "bad");
+  assert.equal(mod.glyphOf({ ...card, waitingForYou: false, column: "backlog" }).tone, "");
+  assert.equal(mod.glyphOf({ ...card, waitingForYou: false, column: "in_progress" }).tone, "", "in progress but not running: neutral");
+  assert.equal(mod.glyphOf({ ...card, waitingForYou: true, column: "failed" }).column, "failed", "the column's own shape");
+  assert.deepEqual(mod.glyphOf(null), { column: "backlog", tone: "", word: "Backlog" });
+});
+
+test("tasks: rowWhen is relative while recent, then the plain date (TB5a)", () => {
+  const now = new Date(2026, 10, 16, 15, 0);
+  const at = (d, h, m = 0) => new Date(2026, 10, d, h, m).toISOString();
+  assert.equal(mod.rowWhen(new Date(now.getTime() - 20000).toISOString(), now), "Just now");
+  assert.equal(mod.rowWhen(at(16, 14, 48), now), "12 min ago");
+  assert.equal(mod.rowWhen(at(16, 12, 0), now), "3 h ago");
+  assert.equal(mod.rowWhen(at(16, 8, 5), now), "Today 08:05");
+  assert.equal(mod.rowWhen(at(15, 9, 10), now), "Yesterday 09:10");
+  assert.equal(mod.rowWhen(at(11, 14, 5), now), "Wed 14:05");
+  assert.equal(mod.rowWhen(at(3, 14, 5), now), "3 Nov");
+  assert.equal(mod.rowWhen(new Date(2025, 10, 3).toISOString(), now), "3 Nov 2025");
+  assert.equal(mod.rowWhen("", now), "");
+  assert.equal(mod.rowWhen("nonsense", now), "");
+});
+
+test("tasks: the page stands on the white pane: its root carries k-page--plain, painted in light by shell.css (TB5a)", () => {
+  const src = readFileSync(new URL("../../pages/tasks.js", import.meta.url), "utf8");
+  assert.match(src, /class=\$\{`p-tasks p-tasks--\$\{view\} k-page--plain`\}/);
+  const shell = readFileSync(new URL("../../styles/shell.css", import.meta.url), "utf8");
+  for (const theme of ["light", "auto"]) {
+    for (const part of ["", " .s-top", " .s-tabbar"]) {
+      const sel = `:root[data-theme="${theme}"] .s-app:has(.k-page--plain)${part}`;
+      assert.ok(shell.includes(sel), `shell.css paints ${sel}`);
+    }
+  }
+  assert.match(shell, /:root\[data-theme="light"\] \.s-app:has\(\.k-page--plain\) \.s-tabbar \{\s*background: var\(--panel\);/);
+  assert.match(shell, /@media \(prefers-color-scheme: light\) \{\s*:root\[data-theme="auto"\] \.s-app:has\(\.k-page--plain\)/, "auto follows the system's light");
+  assert.ok(!/data-theme="dark"[^{]*k-page--plain/.test(shell), "dark does not change");
 });
 
 test("tasks: the chosen item of a filter menu is current, and only Needs you's rows are quiet about waiting (T94)", () => {

@@ -1,10 +1,15 @@
 // Health: is each part on, does the fence hold, what is not connected yet, and free disk.
 // The only page where technical names appear, and only behind "Show technical details".
+// Fix round B2 (TB5a): the overall state a chip beside the title; a strip of count tiles on top (on, off, not
+// installed, the last proof: only what the answer gives); groups headed with a count ("2 of 4 on"), 32 px apart;
+// each row a 32 px tile, its name, its sentence with the command as a mono chip on the text's baseline and Copy as a
+// ghost icon button, then a right-hand column with the state and the facts the answer gives, and one column of equal
+// small ghost buttons. A time or a count is drawn only when the answer gives it. Commands stay exact.
 import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { fullWhen } from "../lib/format.js";
-import { Button, ErrorNotice, Group, Loading, Mono, PageHeader, Row, Rows, St } from "../kit/index.js";
+import { fullWhen, when } from "../lib/format.js";
+import { Button, ErrorNotice, Icon, Loading, Mono, PageHeader, Tag } from "../kit/index.js";
 
 const cap = (v, n = 300) => (v === null || v === undefined ? "" : String(v)).slice(0, n);
 
@@ -51,11 +56,13 @@ const PART = {
   not_installed: { tone: "neutral", word: "Not installed" },
 };
 
-// The words the page adds to the engine's own (the group names, the overall state, the copy button).
+// The words the page adds to the engine's own (the group names, the overall state, the copy button, the tiles).
 export const WORDS = {
   groups: { engine: "The engine", gate: "The gate and the fence", books: "The books", doors: "The doors", apps: "App Studio" },
   overall: { good: "Everything is on", warn: "Something is not set up", bad: "Something is not working" },
   copy: "Copy", copied: "Copied", copyLabel: "Copy the command",
+  tiles: { label: "The engine at a glance", on: "On", off: "Off", unhealthy: "Not working", notInstalled: "Not installed", proof: "Last proof", notRun: "Not run yet" },
+  partsOn: (on, all) => `${on} of ${all} on`,
 };
 
 // Which group a part sits in, and its icon tile. An unknown part goes with the engine.
@@ -79,8 +86,48 @@ export function overall(d) {
   return { tone: "good", text: WORDS.overall.good };
 }
 
-// A sentence that ends "Run: <command>" is shown as the words, then the command in the mono face with a copy button.
+// How long ago, in words, for the last proof's tile: "Just now", "12 min ago", "3 h ago", "Yesterday", "5 days ago",
+// then the plain date. Empty for a missing or broken time. Pure.
+export function ago(iso, now = new Date()) {
+  const t = Date.parse(String(iso ?? ""));
+  if (!Number.isFinite(t)) return "";
+  const mins = Math.floor((now.getTime() - t) / 60000);
+  if (mins < 0) return when(iso, now);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  if (mins < 24 * 60) return `${Math.floor(mins / 60)} h ago`;
+  const days = Math.floor(mins / (24 * 60));
+  if (days === 1) return "Yesterday";
+  if (days < 14) return `${days} days ago`;
+  return when(iso, now);
+}
+
+// The strip on top: how many parts are on, off, not working and not installed, and when the proof last ran. A
+// count of nothing is left out, except On and Off; a tile is drawn only from what the answer gives. Pure.
+export function tilesOf(d, now = new Date()) {
+  const parts = (d && Array.isArray(d.parts) ? d.parts : []).filter((x) => x && typeof x === "object");
+  const n = (state) => parts.filter((x) => x.state === state).length;
+  const out = [];
+  if (parts.length) {
+    out.push({ id: "on", tone: "good", label: WORDS.tiles.on, value: String(n("on")) });
+    out.push({ id: "off", tone: "bad", label: WORDS.tiles.off, value: String(n("off")) });
+    if (n("unhealthy")) out.push({ id: "unhealthy", tone: "warn", label: WORDS.tiles.unhealthy, value: String(n("unhealthy")) });
+    if (n("not_installed")) out.push({ id: "not_installed", tone: "neutral", label: WORDS.tiles.notInstalled, value: String(n("not_installed")) });
+  }
+  const p = d && d.fence ? d.fence.lastProof : undefined;
+  if (d && d.fence) {
+    const ran = p && typeof p === "object" ? ago(p.ranAt, now) : "";
+    out.push(p && typeof p === "object"
+      ? { id: "proof", tone: proofHolds(p) ? "good" : "bad", label: WORDS.tiles.proof, value: ran || (proofHolds(p) ? "Held" : "Did not hold"), foot: ran ? fullWhen(p.ranAt) : "" }
+      : { id: "proof", tone: "neutral", label: WORDS.tiles.proof, value: WORDS.tiles.notRun, foot: "" });
+  }
+  return out;
+}
+
+// A sentence that ends "Run: <command>" is shown as the words, then the command as a mono chip on the text's
+// baseline with a ghost icon button that copies it. The command is shown exactly as sent.
 function Command({ text }) {
+  const { announce } = useApp() || {};
   const [done, setDone] = useState(false);
   const m = /^(.*?\bRun:)\s+(.+)$/s.exec(String(text ?? ""));
   if (!m) return html`${text}`;
@@ -88,14 +135,16 @@ function Command({ text }) {
     try {
       await navigator.clipboard.writeText(m[2]);
       setDone(true);
+      if (typeof announce === "function") announce(WORDS.copied);
       setTimeout(() => setDone(false), 1600);
     } catch { /* the command stays on the screen to copy by hand */ }
   }
-  return html`${m[1]}
-    <span class="p-health__cmd">
+  // "Run:" stays on one line with its command, so the chip never starts a line alone.
+  const before = m[1].slice(0, -"Run:".length);
+  return html`${before}<span class="p-health__run">Run:${" "}<span class="p-health__cmd">
       <code class="p-health__code">${m[2]}</code>
-      <${Button} variant="quiet" size="sm" icon=${done ? "check" : "copy"} aria-label=${WORDS.copyLabel} onClick=${copy}>${done ? WORDS.copied : WORDS.copy}<//>
-    </span>`;
+      <${Button} variant="ghost" size="sm" icon=${done ? "check" : "copy"} aria-label=${done ? WORDS.copied : WORDS.copyLabel} title=${WORDS.copyLabel} onClick=${copy} />
+    </span></span>`;
 }
 
 const Say = ({ text, tech }) => html`<${Command} text=${text} />${tech ? html`<span class="p-health__tech"><${Mono}>${tech}<//></span>` : null}`;
@@ -111,11 +160,49 @@ export function proofLine(lastProof) {
   return `${result}${when}: ${sum}.`;
 }
 
+// The checks of the last proof, for the fence row's facts: "3 checks passed", "1 check passed, 2 failed"; empty
+// when there was no proof. Pure.
+export function checksLine(lastProof) {
+  if (!lastProof || typeof lastProof !== "object") return "";
+  const failed = Number(lastProof.failed) || 0;
+  const passed = Number(lastProof.passed) || 0;
+  return `${passed} ${passed === 1 ? "check" : "checks"} passed` + (failed ? `, ${failed} failed` : "");
+}
+
 // Free disk against the floor, in words.
 export function diskLine(disk) {
   if (!disk || disk.freeGb == null) return "Free space on this Mac is not known.";
   const floor = disk.floorGb == null ? "" : ` The engine keeps at least ${disk.floorGb} GB free.`;
   return `${disk.freeGb} GB free.${floor}`;
+}
+
+// One row: the 32 px tile, the name and its sentence, then the state and its facts, then the row's buttons.
+// `facts` are short lines of what the answer gives (never made up); `act` the row's buttons.
+function Line({ icon, title, say, state, facts, act, warned, tone }) {
+  const list = (facts || []).filter(Boolean);
+  return html`<div class=${`p-health__row${tone ? ` p-health__row--${tone}` : ""}`}>
+    <span class="p-health__tile" aria-hidden="true"><${Icon} name=${icon} size=${16} /></span>
+    <div class="p-health__text">
+      <p class="p-health__title">${title}</p>
+      ${say ? html`<p class="p-health__say">${say}</p>` : null}
+    </div>
+    ${state || list.length ? html`<div class="p-health__meta">
+      ${state ? html`<${Tag} tone=${state.tone}>${state.text}<//>` : null}
+      ${list.map((f, i) => html`<span key=${i} class="p-health__fact">${f}</span>`)}
+    </div>` : null}
+    ${act ? html`<div class="p-health__act">${act}</div>` : null}
+    ${warned ? html`<div class="p-health__warned">${warned}</div>` : null}
+  </div>`;
+}
+
+// A group: its head (the name, and a count when it has one), a sentence under it, and its rows in one panel.
+// `acts` says a row of the group has buttons, so every row keeps the buttons' column and the states line up.
+function Section({ title, count, say, acts, children }) {
+  return html`<section class=${`p-health__group${acts ? " p-health__group--acts" : ""}`}>
+    <h2 class="p-health__head"><span>${title}</span>${count ? html`<span class="p-health__count">${count}</span>` : null}</h2>
+    ${say ? html`<p class="p-health__lede">${say}</p>` : null}
+    ${children}
+  </section>`;
 }
 
 function FenceRow({ fence, technical, onRun, running, runError }) {
@@ -125,12 +212,23 @@ function FenceRow({ fence, technical, onRun, running, runError }) {
     : p ? { tone: bad ? "bad" : "good", text: bad ? "Did not hold" : "Held" }
       : { tone: "neutral", text: "Not checked yet" };
   const lines = technical && p && Array.isArray(p.lines) ? p.lines.slice(0, 50) : [];
-  return html`<${Row} icon="lock" title="The fence" state=${state}
-    say=${html`${fence && fence.sentence} ${proofLine(p)}
+  return html`<${Line} icon="lock" title="The fence" state=${state} facts=${[checksLine(p)]}
+    say=${html`${fence && fence.sentence}
       ${lines.map((l, i) => html`<span key=${i} class="p-health__tech"><${Mono}>${String(l.status)}<//> ${String(l.text)}</span>`)}
       ${running ? html`<span role="status" class="p-health__status">The proof is running.</span>` : null}`}
-    control=${html`<${Button} onClick=${onRun} busy=${running} disabled=${running}>Run the proof now<//>`}
-    warned=${runError ? html`<${ErrorNotice} error=${runError} />` : bad ? proofLine(p) : null} />`;
+    act=${html`<${Button} variant="ghost" size="sm" onClick=${onRun} busy=${running} disabled=${running}>Run the proof now<//>`}
+    warned=${runError ? html`<${ErrorNotice} error=${runError} />` : bad ? html`<p class="p-health__bad">${proofLine(p)}</p>` : null} />`;
+}
+
+function Tiles({ tiles }) {
+  if (!tiles.length) return null;
+  return html`<dl class="p-health__tiles" aria-label=${WORDS.tiles.label}>
+    ${tiles.map((t) => html`<div key=${t.id} class="p-health__tiles-cell">
+      <dt class="p-health__tiles-label"><span class=${`p-health__dot p-health__dot--${t.tone}`} aria-hidden="true"></span>${t.label}</dt>
+      <dd class="p-health__tiles-value">${t.value}</dd>
+      ${t.foot ? html`<dd class="p-health__tiles-foot">${t.foot}</dd>` : null}
+    </div>`)}
+  </dl>`;
 }
 
 export default function Page() {
@@ -160,6 +258,7 @@ export default function Page() {
   // Once the answer's proof is newer than the one we started from, the run is over.
   const running = started && !(d && d.fence && d.fence.running === false);
   const lead = "Whether the engine is on, whether the fence holds, and what is not connected yet.";
+  const techButton = html`<${Button} variant="quiet" size="sm" onClick=${() => setTechnical(!technical)}>${technical ? "Hide technical details" : "Show technical details"}<//>`;
 
   if (!d) {
     return html`
@@ -175,18 +274,23 @@ export default function Page() {
   for (const p of d.parts || []) at[partAt(p.id)[0]].push(p);
   const partRow = (p) => {
     const s = PART[p.state] || PART.unhealthy;
-    return html`<${Row} key=${p.id} icon=${partAt(p.id)[1]} title=${p.name} state=${{ tone: s.tone, text: s.word }}
+    return html`<${Line} key=${p.id} icon=${partAt(p.id)[1]} title=${p.name} state=${{ tone: s.tone, text: s.word }}
       say=${html`<${Say} text=${p.sentence} tech=${technical ? p.technical : null} />`} />`;
   };
   const groupOf = (id, extra) => at[id].length || extra
-    ? html`<${Group} title=${WORDS.groups[id]}><${Rows}>${at[id].map(partRow)}${extra}<//><//>` : null;
+    ? html`<${Section} title=${WORDS.groups[id]} count=${at[id].length ? WORDS.partsOn(at[id].filter((p) => p.state === "on").length, at[id].length) : ""} acts=${Boolean(extra)}>
+        <div class="p-health__rows">${at[id].map(partRow)}${extra}</div>
+      <//>` : null;
+  const waitingJobs = waiting.reduce((n, w) => n + w.count, 0);
+  const nc = d.notConnected || [];
 
   return html`
     <div class="p-health">
-      <${PageHeader} title="Health" lead=${lead}
-        actions=${html`<${Button} variant="quiet" onClick=${() => setTechnical(!technical)}>${technical ? "Hide technical details" : "Show technical details"}<//>`}>
-        <${St} tone=${all.tone}>${all.text}<//>
+      <${PageHeader} title="Health" lead=${lead} actions=${techButton}>
+        <${Tag} tone=${all.tone}>${all.text}<//>
       <//>
+
+      <${Tiles} tiles=${tilesOf(d)} />
 
       ${groupOf("engine")}
       ${groupOf("gate", html`<${FenceRow} fence=${d.fence} technical=${technical} onRun=${runProof} running=${running} runError=${runError} />`)}
@@ -194,32 +298,34 @@ export default function Page() {
       ${groupOf("doors")}
       ${groupOf("apps")}
 
-      <${Group} title="Jobs that are waiting" say="These jobs cannot start yet. Each one needs something on this Mac first.">
+      <${Section} title="Jobs that are waiting" count=${waitingJobs ? `${waitingJobs} ${waitingJobs === 1 ? "job" : "jobs"}` : ""}
+        say="These jobs cannot start yet. Each one needs something on this Mac first.">
         ${jobsRes.error && !jobsRes.data ? html`<${ErrorNotice} error=${jobsRes.error} onRetry=${jobsRes.reload} />` : null}
         ${jobsRes.loading && !jobsRes.data ? html`<${Loading} lines=${2} label="Checking the jobs" />` : null}
         ${jobsRes.data && !waiting.length && !problems.length ? html`<p class="p-health__none">No job is waiting for a tool.</p>` : null}
-        ${waiting.length || problems.length ? html`<${Rows}>
-          ${waiting.map((w) => html`<${Row} key=${w.text} icon="clock" title=${w.text} state=${{ tone: "warn", text: "Waiting" }}
+        ${waiting.length || problems.length ? html`<div class="p-health__rows">
+          ${waiting.map((w) => html`<${Line} key=${w.text} icon="clock" title=${w.text} state=${{ tone: "warn", text: "Waiting" }}
             say=${html`${w.count} ${w.count === 1 ? "job is" : "jobs are"} waiting${w.titles.length ? `: ${w.titles.join(", ")}${w.count > w.titles.length ? " and more" : ""}` : ""}. <${Command} text=${w.step} />`} />`)}
-          ${problems.map((p, i) => html`<${Row} key=${`p${i}`} icon="alert" title=${problemLine(p)} state=${{ tone: "bad", text: "Left out" }} />`)}
-        <//>` : null}
+          ${problems.map((p, i) => html`<${Line} key=${`p${i}`} icon="alert" title=${problemLine(p)} state=${{ tone: "bad", text: "Left out" }} />`)}
+        </div>` : null}
       <//>
 
-      <${Group} title="Not connected yet" say="These are off on purpose. Nothing leaves the company until you connect it.">
-        <${Rows}>
-          ${(d.notConnected || []).map((n) => html`<${Row} key=${n.id} icon="link" title=${n.label} state=${{ tone: "neutral", text: "Not connected yet" }}
+      <${Section} title="Not connected yet" count=${nc.length ? String(nc.length) : ""}
+        say="These are off on purpose. Nothing leaves the company until you connect it.">
+        <div class="p-health__rows">
+          ${nc.map((n) => html`<${Line} key=${n.id} icon="link" title=${n.label}
             say=${html`${n.explain} <${Command} text=${n.how} />`} />`)}
-        <//>
+        </div>
       <//>
 
-      <${Group} title="Disk">
-        <${Rows}>
-          <${Row} icon="folder" title=${diskLine(d.disk)} state=${d.disk && d.disk.ok ? { tone: "good", text: "Enough room" } : { tone: "warn", text: "Nearly full" }} />
-        <//>
+      <${Section} title="Disk">
+        <div class="p-health__rows">
+          <${Line} icon="folder" title=${diskLine(d.disk)} state=${d.disk && d.disk.ok ? { tone: "good", text: "Enough room" } : { tone: "warn", text: "Nearly full" }} />
+        </div>
       <//>
 
       ${technical && d.modulesFailed && d.modulesFailed.length ? html`
-        <${Group} title="Parts of the home screen that did not load">
+        <${Section} title="Parts of the home screen that did not load">
           <ul class="p-health__techlist">${d.modulesFailed.slice(0, 50).map((m, i) => html`<li key=${i}>${typeof m === "string" ? m : JSON.stringify(m)}</li>`)}</ul>
         <//>` : null}
     </div>`;

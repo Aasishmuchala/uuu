@@ -5,9 +5,14 @@
 // PLAN-COOK T61 (R03): the title, then one row of filters as quiet buttons that open a menu (state, department,
 // agent) with the view switch and New task at the right; groups as one-line headers on the raised step with a count
 // and a fold arrow, the rows under each on one left edge. Needs you is said by the rows' glyph and words alone.
+// Fix round B2 (TB5a): a row is two lines: the state's glyph (neutral unless the state asks for the eye), the title
+// with its ID, the state's sentence under it, and the date in a right-hand column, relative while it is recent. The
+// group bars are flat, a step off the ground; the filters edged and 32 px. The page stands on the white pane in light
+// (k-page--plain, styles/shell.css).
 import { html, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
+import { fullWhen, when } from "../lib/format.js";
 import {
   BoardColumn,
   Button,
@@ -18,10 +23,12 @@ import {
   Menu,
   NotConnected,
   PageHeader,
+  Mono,
   Segmented,
+  StateIcon,
   TaskCard,
-  TaskRow,
   rowLine,
+  taskHref,
 } from "../kit/index.js";
 
 const COLUMN_IDS = ["backlog", "in_progress", "pending_review", "done", "failed", "canceled"];
@@ -205,7 +212,7 @@ export function forRow(task) {
   return task;
 }
 
-// The words of a row's second line, as TaskRow shows them: the job (or "A question"), then the outcome, or the
+// The words of a row's second line, as the list shows them: the job (or "A question"), then the outcome, or the
 // stage and the state in words.
 export function rowWords(task) {
   const t = forRow(task);
@@ -236,6 +243,70 @@ export function whoOptions(team, who) {
 // The filter chips: one link each, the current one marked. `make(value)` gives the address of a chip.
 export function chipLinks(options, current, make) {
   return (Array.isArray(options) ? options : []).map((o) => ({ ...o, href: make(o.value), current: o.value === (current || "") }));
+}
+
+// A row's glyph: its column's own shape, and a tone only when the state asks for the eye: waiting for the owner
+// warn, working info, finished good, failed bad; every other state neutral. `word` is for screen readers. Pure.
+const COLUMN_WORDS = { backlog: "Backlog", in_progress: "In progress", pending_review: "Pending review", done: "Done", failed: "Failed", canceled: "Canceled" };
+export function glyphOf(task) {
+  const t = task && typeof task === "object" ? task : {};
+  const column = COLUMN_IDS.includes(t.column) ? t.column : "backlog";
+  if (t.waitingForYou === true) return { column, tone: "warn", word: "Waiting for you" };
+  if (t.live === true) return { column: "in_progress", tone: "info", word: "Working" };
+  const word = text(t.plainState) || COLUMN_WORDS[column];
+  return { column, tone: column === "done" ? "good" : column === "failed" ? "bad" : "", word };
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const pad = (n) => String(n).padStart(2, "0");
+const dayStart = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+
+// A row's date, relative while it is recent: "Just now", "12 min ago", "3 h ago" (under six hours), "Today 09:10",
+// "Yesterday 14:05", "Wed 14:05" (this past week), then the plain date ("3 Nov", "3 Nov 2025"). Empty for a missing
+// or broken time. Pure.
+export function rowWhen(iso, now = new Date()) {
+  const t = Date.parse(text(iso));
+  if (!Number.isFinite(t)) return "";
+  const d = new Date(t);
+  const mins = Math.floor((now.getTime() - t) / 60000);
+  if (mins < 0) return when(iso, now);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  if (mins < 360) return `${Math.floor(mins / 60)} h ago`;
+  const days = Math.round((dayStart(now) - dayStart(d)) / 86400000);
+  const clock = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (days === 0) return `Today ${clock}`;
+  if (days === 1) return `Yesterday ${clock}`;
+  if (days < 7) return `${WEEKDAYS[d.getDay()]} ${clock}`;
+  return when(iso, now);
+}
+
+// One task on the list: the glyph, the title (14 px 500) with its ID, the state's sentence on a second line, the
+// date at the right. The job's name is left out when the title already starts with it. With `quiet` "waiting" (under
+// Needs you) the sentence does not repeat "Waiting for you". The department and the agent are named for screen
+// readers only.
+function Line({ task, quiet }) {
+  if (!task) return null;
+  const g = glyphOf(task);
+  const jobTitle = task.job && task.job.title ? text(task.job.title) : "";
+  const job = jobTitle && !text(task.title).toLowerCase().startsWith(jobTitle.toLowerCase()) ? jobTitle : "";
+  const say = [job, rowLine(task, quiet)].filter(Boolean).join(" · ");
+  const date = task.updatedAt || task.since || task.createdAt;
+  const dept = typeof task.department === "string" ? DEPARTMENTS.find((x) => x.id === task.department) : null;
+  const who = task.who && task.who.name ? text(task.who.name) : "";
+  return html`<a class="p-tasks__line" href=${taskHref(task)}>
+    <span class=${`p-tasks__mark${g.tone ? ` p-tasks__mark--${g.tone}` : ""}`}><${StateIcon} column=${g.column} label="" /><span class="k-sr">${g.word}.</span></span>
+    <span class="p-tasks__main">
+      <span class="p-tasks__top">
+        <span class="p-tasks__title">${text(task.title)}</span>
+        ${task.identifier && html`<span class="p-tasks__id"><${Mono}>${text(task.identifier)}<//></span>`}
+      </span>
+      ${say && html`<span class="p-tasks__say">${say}</span>`}
+      ${dept && html`<span class="k-sr">${dept.title}.</span>`}
+      ${who && html`<span class="k-sr">${who}.</span>`}
+    </span>
+    ${date && html`<time class="p-tasks__when" datetime=${text(date)} title=${fullWhen(date)}>${rowWhen(date)}</time>`}
+  </a>`;
 }
 
 const olderLine = (n) => (n > 0 ? html`<p class="p-tasks__older">and ${n} older</p>` : null);
@@ -278,7 +349,7 @@ function Group({ g, open, onFold }) {
     </h2>
     <div id=${rows} class="p-tasks__group-body" hidden=${!open}>
       <ul class="p-tasks__rows">
-        ${g.tasks.map((t) => html`<li key=${text(t.id || t.identifier)} class="p-tasks__row"><${TaskRow} task=${forRow(t)} quiet=${g.id === "needs-you" ? "waiting" : undefined} /></li>`)}
+        ${g.tasks.map((t) => html`<li key=${text(t.id || t.identifier)} class="p-tasks__row"><${Line} task=${forRow(t)} quiet=${g.id === "needs-you" ? "waiting" : undefined} /></li>`)}
       </ul>
       ${olderLine(g.older)}
     </div>
@@ -345,7 +416,7 @@ export default function Page({ route }) {
           { id: "list", label: "List", icon: "list", href: address({ who, d, state }) },
           { id: "board", label: "Board", icon: "grid", href: address({ view: "board", who, d }) },
         ]} />
-      <${Button} variant="primary" icon="plus" onClick=${newTask}>New task<//>
+      <${Button} variant="primary" size="sm" icon="plus" onClick=${newTask}>New task<//>
     </div>
   </div>`;
 
@@ -393,7 +464,7 @@ export default function Page({ route }) {
     body = html`<${Loading} lines=${6} label="Loading the tasks" />`;
   }
 
-  return html`<div class=${`p-tasks p-tasks--${view}`}>
+  return html`<div class=${`p-tasks p-tasks--${view} k-page--plain`}>
     <${PageHeader} title="Tasks">${bar}<//>
     ${body}
   </div>`;
