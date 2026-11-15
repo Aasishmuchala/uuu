@@ -529,6 +529,75 @@
   grid-column: 1 / -1;
 }
 
+/* ---- What must be done first: a line an item, a 16 px check or an open circle; past three items it folds. */
+.k-checklist {
+  display: grid;
+  gap: var(--s-1);
+  margin-top: var(--s-2);
+}
+
+.k-checklist__lead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-2);
+}
+
+.k-checklist__fold {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: var(--ctl);
+  color: var(--ink);
+  font: inherit;
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+
+.k-checklist__fold:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.k-checklist__list {
+  display: grid;
+  gap: var(--s-1);
+}
+
+.k-checklist__item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s-2);
+  color: var(--ink);
+}
+
+.k-checklist__item--done {
+  color: var(--ink-2);
+}
+
+.k-checklist__mark {
+  margin-top: 1px;
+  color: var(--good);
+}
+
+.k-checklist__mark--open {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 2px 1px 0;
+  border: 1.5px solid var(--ink-3);
+  border-radius: var(--r-round);
+}
+
+.k-checklist__text {
+  min-width: 0;
+}
+
 /* ---- A phone, or any narrow window */
 @media (max-width: 859px) {
   .k-work {

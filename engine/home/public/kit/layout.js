@@ -1,13 +1,14 @@
 // The three layouts the hero screens stand on (PLAN-COOK T33, from the C3 mockup's "the work" and "S03").
 // StageLayout: the work on a stage, a strip of choices under it, and a rail to decide in at the right.
 // DocLayout: a list of sections and one readable column of groups and rows (Settings).
-// Blk is a block of the rail; Group, Rows and Row build the column. Every string is rendered as text.
+// Blk is a block of the rail; Group, Rows and Row build the column; Checklist is what must be done first, inside a row's
+// words. Every string is rendered as text.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { Button } from "./button.js";
 import { Icon } from "./icon.js";
 import { Dialog } from "./overlays.js";
 import { Notice } from "./states.js";
-import { cx, isEmpty, safeHref } from "./util.js";
+import { cx, isEmpty, nextId, safeHref } from "./util.js";
 
 const has = (v) => !isEmpty(v);
 const TONES = ["good", "warn", "bad", "neutral"];
@@ -179,4 +180,39 @@ export function Row({ icon, title, state, say, control, warned }) {
     ${has(control) ? html`<div class="k-rows__control">${control}</div>` : null}
     ${has(warned) ? html`<div class="k-rows__warned"><${Notice} tone="warn">${warned}<//></div>` : null}
   </div>`;
+}
+
+// What must be done first, inside a row's words (fix round B2): `lead` (a line over the list), then a line an item, a
+// 16 px check when it is done or an open circle when it is not. Past three items it folds to "2 of 5 done" and opens
+// on a press. `items`: [{ done, text }], `text` anything renderable.
+export function Checklist({ lead, items }) {
+  const list = (Array.isArray(items) ? items : []).filter((it) => it && has(it.text));
+  const [open, setOpen] = useState(false);
+  const [id] = useState(() => nextId("k-checklist"));
+  if (!list.length) return null;
+  const done = list.filter((it) => it.done).length;
+  const folds = list.length > 3;
+  const shown = !folds || open;
+  return html`<span class="k-checklist">
+    ${has(lead) || folds
+      ? html`<span class="k-checklist__lead">
+          ${has(lead) ? html`<span>${lead}</span>` : null}
+          ${folds
+            ? html`<button type="button" class="k-checklist__fold" aria-expanded=${open ? "true" : "false"} aria-controls=${id}
+                onClick=${() => setOpen(!open)}>${done} of ${list.length} done<${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${14} /></button>`
+            : null}
+        </span>`
+      : null}
+    ${shown
+      ? html`<span class="k-checklist__list" id=${id} role="list">
+          ${list.map((it, i) => html`<span key=${i} role="listitem" class=${cx("k-checklist__item", it.done && "k-checklist__item--done")}>
+            ${it.done
+              ? html`<${Icon} name="done" size=${16} class="k-checklist__mark" />`
+              : html`<span class="k-checklist__mark k-checklist__mark--open" aria-hidden="true"></span>`}
+            <span class="k-sr">${it.done ? "Done: " : "Not done yet: "}</span>
+            <span class="k-checklist__text">${it.text}</span>
+          </span>`)}
+        </span>`
+      : null}
+  </span>`;
 }
