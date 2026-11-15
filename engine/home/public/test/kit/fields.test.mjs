@@ -68,6 +68,15 @@ test("Switch: 38 x 22, the raised track off, the accent fill on, and role switch
   unmount(root);
 });
 
+test("fix round B2: an off switch's track stands on the stronger line in both themes; the money sign sits just before its number", () => {
+  const s = css("kit/fields.css");
+  assert.match(/\.k-switch__track\s*\{([^}]*)\}/.exec(s)[1], /box-shadow: inset 0 0 0 1px var\(--line-2\);/);
+  assert.match(/\.k-switch--disabled \.k-switch__track,[^{]*\{([^}]*)\}/.exec(s)[1], /box-shadow: inset 0 0 0 1px var\(--line-2\);/);
+  const box = /\}\s*\.k-money-input\s*\{([^}]*)\}/.exec(s)[1];
+  assert.match(box, /justify-content: flex-end;/, "the sign and the number held together at the right");
+  assert.match(/\.k-money-input__control\s*\{([^}]*)\}/.exec(s)[1], /field-sizing: content;/, "the number is as wide as what is typed");
+});
+
 test("T100: a text field's focus is a 1 px accent edge with a 3 px ring of the accent at 25 percent; the switch keeps the 2 px accent ring", () => {
   const s = css("kit/fields.css");
   const ring = /\{\s*outline: 2px solid var\(--focus\);\s*outline-offset: 2px;/;
@@ -95,7 +104,7 @@ test("T97: a disabled field is the inert fill with a solid hairline and the thir
   assert.match(/\.k-switch--disabled \.k-switch__control\s*\{([^}]*)\}/.exec(s)[1], /cursor: not-allowed;/);
   assert.match(/\.k-switch--disabled \.k-switch__track,[^{]*\{([^}]*)\}/.exec(s)[1], /background: color-mix\(in srgb, var\(--ink\) 5%, var\(--raise\)\);/);
   const thumb = /\.k-switch--disabled \.k-switch__thumb,[^{]*\{([^}]*)\}/.exec(s)[1];
-  assert.match(thumb, /background: var\(--line-2\);/);
+  assert.match(thumb, /background: color-mix\(in srgb, var\(--ink-3\) 55%, transparent\);/, "fix round B2: a mark that can be seen on white");
   assert.match(thumb, /box-shadow: none;/);
   assert.match(/\.k-switch--disabled \.k-switch__state\s*\{([^}]*)\}/.exec(s)[1], /color: var\(--ink-3\);/);
 });

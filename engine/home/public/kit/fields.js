@@ -74,12 +74,22 @@ export function Select({ options, ...props }) {
   </span>`;
 }
 
-// An amount of money: the currency sign, then the number right-aligned in tabular figures. It takes a string and
-// gives the string typed (`onInput(text)`), so nothing is rounded here; the page checks and converts it.
+// An amount of money: the currency sign, then the number right-aligned in tabular figures, the sign just before it.
+// It takes a string and gives the string typed (`onInput(text)`), so nothing is rounded here; the page checks and
+// converts it. A press anywhere in the box puts the caret in the number.
+const focusInside = (event) => {
+  const box = event.currentTarget;
+  const input = box && box.querySelector ? box.querySelector("input") : null;
+  if (input && event.target !== input && !input.disabled && typeof input.focus === "function") {
+    event.preventDefault();
+    input.focus();
+  }
+};
+
 export function MoneyInput({ value, onInput, label, currency = "$", ...props }) {
   const p = useFieldProps(props);
   const text = value === undefined || value === null ? "" : String(value);
-  return html`<span class=${cx("k-money-input", props.disabled && "k-money-input--disabled", props.class)}>
+  return html`<span class=${cx("k-money-input", props.disabled && "k-money-input--disabled", props.class)} onMouseDown=${focusInside}>
     <span class="k-money-input__sign" aria-hidden="true">${currency}</span>
     <input
       type="text"

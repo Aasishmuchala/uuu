@@ -144,14 +144,17 @@
   pointer-events: none;
 }
 
-/* The money input: 116 px, the sign in the third ink, the number right-aligned in tabular figures. The ring is
-   drawn around the whole box, not the bare number inside it. */
+/* The money input: 116 px, the number right-aligned in tabular figures with the sign in the third ink just before
+   it (fix round B2: never the box's width away from its number). The control is as wide as what is typed; a click
+   anywhere in the box reaches it. The ring is drawn around the whole box, not the bare number inside it. */
 .k-money-input {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-1);
+  justify-content: flex-end;
+  gap: 2px;
   width: 116px;
   font-weight: var(--fw-medium);
+  cursor: text;
 }
 
 .k-money-input__sign {
@@ -160,9 +163,11 @@
 }
 
 .k-money-input__control {
-  flex: 1 1 auto;
-  width: 100%;
-  min-width: 0;
+  flex: 0 1 auto;
+  field-sizing: content;
+  width: auto;
+  min-width: 2ch;
+  max-width: 100%;
   padding: 0;
   border: 0;
   outline: 0;
@@ -284,6 +289,7 @@
   color: var(--ink-2);
 }
 
+/* Off, the track stands on the stronger line so it reads in both themes (fix round B2). */
 .k-switch__track {
   position: relative;
   flex: none;
@@ -291,7 +297,7 @@
   height: 22px;
   border-radius: var(--r-round);
   background: var(--raise-2);
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--line-2);
   transition: background-color var(--t-fast) var(--ease);
 }
 
@@ -325,8 +331,8 @@
   background: color-mix(in srgb, var(--accent-fill) 88%, var(--accent-ink));
 }
 
-/* Switched off: plainly inert, not an Off switch. The track is the inert fill at low contrast with a hairline, the
-   thumb a flat mark in the hairline's ink, the word On or Off in the third ink; an inert switch that is on keeps its
+/* Switched off: plainly inert, not an Off switch. The track is the inert fill with the stronger line, the
+   thumb a flat mark in the third ink at half strength, the word On or Off in the third ink; an inert switch that is on keeps its
    thumb at the right on a faint accent. The title keeps its weight and colour; the pointer says no. */
 .k-switch--disabled .k-switch__control {
   cursor: not-allowed;
@@ -339,7 +345,7 @@
 .k-switch--disabled .k-switch__track,
 .k-switch--disabled .k-switch__control:hover .k-switch__track {
   background: color-mix(in srgb, var(--ink) 5%, var(--raise));
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--line-2);
 }
 
 .k-switch--disabled.k-switch--on .k-switch__track,
@@ -348,10 +354,11 @@
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
+/* The inert thumb: the third ink at half strength, plain on both grounds without reading as a live control. */
 .k-switch--disabled .k-switch__thumb,
 .k-switch--disabled .k-switch__control:hover .k-switch__thumb,
 .k-switch--disabled.k-switch--on .k-switch__thumb {
-  background: var(--line-2);
+  background: color-mix(in srgb, var(--ink-3) 55%, transparent);
   box-shadow: none;
 }
 
