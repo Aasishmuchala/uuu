@@ -1,6 +1,10 @@
 /* kit/button.js: a button has the control corner. One system, one hierarchy: the primary is the one accent fill on
-   a screen's decision; plain is the outlined control; quiet (ghost) is words that fill on hover; link is a text link
-   for a secondary way out; danger is the outlined control in the problem colour. Every variant answers rest, hover,
+   a screen's decision, a little deeper than the link accent in dark, with a 1 px inner top highlight and a small
+   drop (--shadow-btn) so it sits in place and is never the heaviest slab on a screen; plain is the outlined control
+   on the field fill; ghost is the same edge with no fill; quiet is words that fill on hover; link is a text link for
+   a secondary way out; danger is soft (its tint, the problem ink; solid under the pointer). One height a size (fix
+   round A3): 32 px small, 36 px for the rest, the large and the accept sizes too, so nothing in a rail or a
+   dialog's foot stands taller. Width is the caller's: no variant fills its row. Every variant answers rest, hover,
    pressed, focus (the 2 px ring from base.css) and disabled in place: colours change, nothing moves. A disabled
    button of any variant is the same inert block (the raised step greyed by 5 percent of the ink, so it is not a
    white button in light) with the third ink, never a faded accent.
@@ -38,17 +42,17 @@
   text-overflow: ellipsis;
 }
 
-/* Sizes: small is 28 px and 13 px words; large (a primary in a rail) is 40 px. */
+/* Sizes: small is 32 px and 13 px words; large (a primary in a rail) is the default 36 px with wider sides. */
 .k-btn--sm {
-  min-height: var(--h-sm);
-  padding: 0 10px;
+  min-height: var(--s-8);
+  padding: 0 var(--s-3);
   gap: 6px;
   font-size: var(--fs-note);
 }
 
 .k-btn--lg {
-  min-height: var(--h-lg);
-  padding: 0 var(--s-5);
+  min-height: var(--h-md);
+  padding: 0 18px;
 }
 
 .k-btn--icon {
@@ -57,7 +61,7 @@
 }
 
 .k-btn--sm.k-btn--icon {
-  min-width: var(--h-sm);
+  min-width: var(--s-8);
 }
 
 /* Plain: the outlined control, on the field fill (white in light, as C3 draws it, so the inert grey of a
@@ -71,13 +75,14 @@
   background: color-mix(in srgb, var(--ink) 10%, transparent);
 }
 
-/* Primary and accept: the one accent fill. */
+/* Primary and accept: the one accent fill, its edge a shade deeper, a 1 px inner top highlight and a small drop. */
 .k-btn--primary,
 .k-btn--accept {
-  border-color: var(--accent-fill);
+  border-color: color-mix(in srgb, var(--accent-fill) 82%, var(--black));
   background: var(--accent-fill);
   color: var(--accent-ink);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-medium);
+  box-shadow: var(--shadow-btn);
 }
 
 .k-btn--primary:hover:not(:disabled):not(.k-btn--off),
@@ -93,22 +98,32 @@
 }
 
 .k-btn--accept {
-  min-height: var(--h-lg);
-  padding: 0 var(--s-6);
+  min-height: var(--h-md);
+  padding: 0 var(--s-5);
 }
 
-/* Quiet (ghost): words in the second ink; the control's fill shows only under the pointer. */
-.k-btn--quiet,
-.k-btn--ghost {
+/* Quiet: words in the second ink; the control's fill shows only under the pointer. */
+.k-btn--quiet {
   border-color: transparent;
   background: transparent;
   color: var(--ink-2);
+}
+
+/* Ghost: the outlined control with no fill of its own, words in the first ink; the edge is always visible. */
+.k-btn--ghost {
+  border-color: var(--line-2);
+  background: transparent;
+  color: var(--ink);
 }
 
 .k-btn--quiet:hover:not(:disabled):not(.k-btn--off),
 .k-btn--ghost:hover:not(:disabled):not(.k-btn--off) {
   background: var(--ctl);
   color: var(--ink);
+}
+
+.k-btn--ghost:hover:not(:disabled):not(.k-btn--off) {
+  border-color: var(--ink-3);
 }
 
 .k-btn--quiet:active:not(:disabled):not(.k-btn--off),
@@ -138,20 +153,23 @@
   text-decoration-color: var(--ink);
 }
 
-/* Danger: the outlined control in the problem colour. */
+/* Danger, soft: the problem colour's tint with its ink; solid under the pointer, white words on the danger fill. */
 .k-btn--danger {
-  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+  border-color: transparent;
+  background: var(--bad-bg);
   color: var(--bad);
 }
 
 .k-btn--danger:hover:not(:disabled):not(.k-btn--off) {
-  border-color: var(--bad);
-  background: var(--bad-bg);
+  border-color: var(--bad-fill);
+  background: var(--bad-fill);
+  color: var(--accent-ink);
 }
 
 .k-btn--danger:active:not(:disabled):not(.k-btn--off) {
-  border-color: var(--bad);
-  background: color-mix(in srgb, var(--bad) 24%, transparent);
+  border-color: color-mix(in srgb, var(--bad-fill) 82%, var(--black));
+  background: color-mix(in srgb, var(--bad-fill) 82%, var(--black));
+  color: var(--accent-ink);
 }
 
 /* Disabled: one inert look for every variant (a switched-off primary is a solid fill, never a faded accent). */
@@ -164,11 +182,16 @@
 }
 
 .k-btn--primary:disabled:not(.k-btn--busy),
-.k-btn--primary.k-btn--off:not(.k-btn--busy) {
+.k-btn--primary.k-btn--off:not(.k-btn--busy),
+.k-btn--accept:disabled:not(.k-btn--busy),
+.k-btn--accept.k-btn--off:not(.k-btn--busy),
+.k-btn--danger:disabled:not(.k-btn--busy),
+.k-btn--danger.k-btn--off:not(.k-btn--busy) {
   opacity: 1;
   background: color-mix(in srgb, var(--ink) 5%, var(--raise));
   border-color: var(--line);
   color: var(--ink-3);
+  box-shadow: none;
 }
 
 .k-btn--quiet:disabled:not(.k-btn--busy),
@@ -263,18 +286,12 @@
   line-height: var(--lh-note);
 }
 
+/* The way out, under the box: each button as wide as its words (full width is the caller's choice). */
 .k-locked__out {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--s-2);
-}
-
-.k-locked__out > .k-btn {
-  width: 100%;
-}
-
-.k-locked__out > .k-btn--link {
-  justify-self: center;
-  width: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {

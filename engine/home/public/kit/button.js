@@ -1,6 +1,7 @@
 // The one button, and the locked action. `primary` (and `accept`, the same drawing, always large) is the one accent
-// fill: one per screen, on its decision. `plain` is the outlined control; `quiet` (also called `ghost`) is words that
-// fill on hover; `link` is a text link for a secondary way out; `danger` speaks in the problem colour.
+// fill: one per screen, on its decision. `plain` is the outlined control; `ghost` the same edge with no fill;
+// `quiet` is words that fill on hover; `link` is a text link for a secondary way out; `danger` is soft, the problem
+// colour's tint and ink. Sizes: `sm` 32 px; `md` and `lg` both 36 px (`lg` only wider at its sides).
 import { html, useState } from "../vendor/preact-htm.js";
 import { Icon } from "./icon.js";
 import { cx, isEmpty, nextId, safeHref } from "./util.js";

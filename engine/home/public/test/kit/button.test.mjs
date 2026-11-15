@@ -239,7 +239,7 @@ test("button: a button has the control corner", () => {
   assert.match(button, /\.k-btn \{[^}]*border-radius: var\(--r-2\)/, "a button has the control corner");
 });
 
-test("button: one system of variants (C3): outlined plain at 36 px, the one accent fill, quiet words, a text link, 28 px small", () => {
+test("button: one system of variants (fix round A3): outlined plain at 36 px, the one accent fill with its highlight, a ghost with an edge, quiet words, a text link, a soft danger, 32 px small, nothing taller than 36 px", () => {
   const b = css("kit/button.css");
   // The body of the rule whose selector list starts with `sel` exactly.
   const rule = (sel) => { const at = b.search(new RegExp("(^\\s*|\\}\\s*)" + sel.split("").map((c) => (/[.()\\-]/.test(c) ? "\\" + c : c)).join(""))); assert.ok(at >= 0, `${sel} is drawn`); const open = b.indexOf("{", at); return b.slice(open + 1, b.indexOf("}", open)); };
@@ -253,15 +253,28 @@ test("button: one system of variants (C3): outlined plain at 36 px, the one acce
   const fill = rule(".k-btn--primary,\n.k-btn--accept {");
   assert.match(fill, /background: var\(--accent-fill\);/);
   assert.match(fill, /color: var\(--accent-ink\);/);
-  assert.match(fill, /font-weight: var\(--fw-bold\);/);
-  assert.match(rule(".k-btn--accept {"), /min-height: var\(--h-lg\);/);
-  assert.match(rule(".k-btn--quiet,\n.k-btn--ghost {"), /color: var\(--ink-2\);/);
+  assert.match(fill, /font-weight: var\(--fw-medium\);/);
+  assert.match(fill, /box-shadow: var\(--shadow-btn\);/, "an inner top highlight and a small drop");
+  assert.match(rule(".k-btn--accept {"), /min-height: var\(--h-md\);/);
+  assert.match(rule(".k-btn--lg {"), /min-height: var\(--h-md\);/);
+  assert.match(rule(".k-btn--quiet {"), /color: var\(--ink-2\);/);
+  const ghost = rule(".k-btn--ghost {");
+  assert.match(ghost, /border-color: var\(--line-2\);/, "a ghost has a visible edge");
+  assert.match(ghost, /background: transparent;/);
+  // Outside the narrow block, no button rule is taller than 36 px and none fills its row by default.
+  const wide = b.slice(0, b.indexOf("@media (max-width: 859px)"));
+  assert.doesNotMatch(wide, /min-height: var\(--h-lg\)/, "nothing 40 px tall");
+  assert.doesNotMatch(wide.slice(0, wide.indexOf(".k-locked")), /width: 100%/, "full width is the caller's choice");
+  assert.doesNotMatch(/\.k-locked__out\s*\{([^}]*)\}/.exec(b)[1] + (/\.k-locked__out > \.k-btn\s*\{([^}]*)\}/.exec(b)?.[1] ?? ""), /width: 100%/);
   const link = rule(".k-btn--link {");
   assert.match(link, /color: var\(--accent\);/);
   assert.match(link, /text-decoration: underline;/);
-  assert.match(rule(".k-btn--danger {"), /color: var\(--bad\);/);
+  const danger = rule(".k-btn--danger {");
+  assert.match(danger, /color: var\(--bad\);/);
+  assert.match(danger, /background: var\(--bad-bg\);/, "a soft danger: its tint");
+  assert.match(b, /\.k-btn--danger:hover:not\(:disabled\):not\(\.k-btn--off\) \{[^}]*background: var\(--bad-fill\);[^}]*color: var\(--accent-ink\);/, "solid under the pointer");
   const sm = rule(".k-btn--sm {");
-  assert.match(sm, /min-height: var\(--h-sm\);/);
+  assert.match(sm, /min-height: var\(--s-8\);/);
   assert.match(sm, /font-size: var\(--fs-note\);/);
   for (const v of ["plain", "primary", "quiet", "ghost", "link", "danger"]) {
     assert.match(b, new RegExp(`\\.k-btn--${v}:hover:not\\(:disabled\\)`), `${v} answers the pointer`);
