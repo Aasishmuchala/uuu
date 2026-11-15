@@ -13,6 +13,8 @@ const COOK_ICONS =
   "inbox sidebar more chevron-left globe film camera key power door eye chip sliders volume volume-off fullscreen retake trend horn buoy bulb info people brush arrow-up-right".split(" ");
 // T97: the Copy button's own icon (with `check` for "Copied").
 const T97_ICONS = ["copy"];
+// File kinds on a task page (round A3): a code file and a 3D model.
+const A3_ICONS = ["code", "cube"];
 
 const kit = { icon: await import(pathToFileURL(join(KIT, "icon.js")).href) };
 
@@ -39,7 +41,7 @@ test("ICON_NAMES holds every icon name of V3 28, and every icon draws at least o
 
 test("the full icon name list is pinned: every older name is kept and the cook names are added, nothing else", () => {
   const { ICON_NAMES } = kit.icon;
-  const want = [...PINNED_ICONS, ...V3_ICONS, "apps", ...COOK_ICONS, ...T97_ICONS].sort();
+  const want = [...PINNED_ICONS, ...V3_ICONS, "apps", ...COOK_ICONS, ...T97_ICONS, ...A3_ICONS].sort();
   assert.deepEqual([...ICON_NAMES].sort(), want);
 });
 

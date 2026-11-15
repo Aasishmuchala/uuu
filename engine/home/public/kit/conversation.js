@@ -42,7 +42,7 @@ export function fileKind(name) {
 }
 
 // The kit's line icon for each kind of file.
-export const FILE_ICONS = { text: "docs", code: "chip", data: "grid", picture: "image", model: "layers", video: "video", file: "file" };
+export const FILE_ICONS = { text: "docs", code: "code", data: "grid", picture: "image", model: "cube", video: "video", file: "file" };
 
 // `file` is a file-entry (17.1), drawn as a 36 px row: an icon for its kind (from the name's ending), its own name,
 // its size in 12 px muted tabular figures, then two fixed columns of quiet icon buttons, Open and Download. A file
