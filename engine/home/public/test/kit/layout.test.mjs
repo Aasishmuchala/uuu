@@ -190,8 +190,8 @@ test("T96: the stage uses its height: what is on it is centred, its real height 
   assert.match(stage, /justify-content: center;/, "room left is shared above and below, not one band at the bottom");
   assert.match(sheet, /\.k-work \{[^}]*--k-strip-h: calc\(var\(--band\) \+ 1px\);/, "the strip's height until it is measured");
   assert.match(sheet, /\.k-work--no-strip \{\s*--k-strip-h: 0px;/);
-  assert.match(sheet, /\.k-rail__body \{[^}]*padding-bottom: calc\(var\(--s-4\) \* 2\);/, "32 px of air at the body's end");
-  assert.match(sheet, /\.k-rail__body \{[^}]*mask-image: linear-gradient\(to bottom, black calc\(100% - var\(--s-4\) \* 2\), transparent\);/, "what the foot would cut fades out: more to scroll, not a sliced line");
+  assert.match(sheet, /\.k-rail__body \{[^}]*padding-bottom: var\(--s-4\);/, "16 px of air at the body's end");
+  assert.doesNotMatch(/\.k-rail__body \{([^}]*)\}/.exec(sheet)[1], /mask-image/, "nothing in the rail fades: a faded line reads as a fault");
   const src = readFileSync(join(KIT, "layout.js"), "utf8");
   assert.match(src, /setProperty\("--k-strip-h"/, "layout.js tells the sheet the strip's drawn height");
 });
