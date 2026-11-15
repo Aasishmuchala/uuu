@@ -16,7 +16,7 @@ function Chip({ state }) {
   const s = typeof state === "object" && !Array.isArray(state) && !state.type ? state : { text: state };
   const tone = TONES.includes(s.tone) ? s.tone : "neutral";
   return html`<span class=${cx("k-strip__chip", `k-strip__chip--${tone}`)}>
-    <${Tag} tone=${tone}>${typeof s.icon === "string" ? html`<${Icon} name=${s.icon} size=${12} />` : null}<span>${s.text}</span><//>
+    <${Tag} tone=${tone} quiet=${s.quiet === true}>${typeof s.icon === "string" ? html`<${Icon} name=${s.icon} size=${12} />` : null}<span>${s.text}</span><//>
   </span>`;
 }
 
