@@ -275,7 +275,8 @@ test("button: one system of variants (fix round A3): outlined plain at 36 px, th
   assert.match(danger, /background: var\(--bad-bg\);/, "a soft danger: its tint");
   assert.match(b, /\.k-btn--danger:hover:not\(:disabled\):not\(\.k-btn--off\) \{[^}]*background: var\(--bad-fill\);[^}]*color: var\(--accent-ink\);/, "solid under the pointer");
   const sm = rule(".k-btn--sm {");
-  assert.match(sm, /min-height: var\(--s-8\);/);
+  assert.match(sm, /min-height: var\(--h-sm\);/, "small is 28 px (fix round R6)");
+  assert.match(base, /border-radius: var\(--r-2\);/, "an 8 px corner");
   assert.match(sm, /font-size: var\(--fs-note\);/);
   for (const v of ["plain", "primary", "quiet", "ghost", "link", "danger"]) {
     assert.match(b, new RegExp(`\\.k-btn--${v}:hover:not\\(:disabled\\)`), `${v} answers the pointer`);
