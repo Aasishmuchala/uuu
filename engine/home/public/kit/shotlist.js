@@ -5,20 +5,21 @@
 // today, and the Art director's total with its reason; choosing one puts it on the stage. The rail says who raised
 // it and when, then what the treatment costs against today's limit (the home server's numbers only), then how long
 // Runway takes, the brand check, the seven scores and the shots, each a 44 px row that opens in place (so the body
-// fits the first screen and no line is ever cut). Its foot holds the one decision:
-// "Approve A and its cost", which opens a confirm that says the most Runway may charge (nothing is sent to Runway
-// before the owner presses its button); or, when the treatment cannot be approved, that action locked with the
-// server's reason under it and the one way out that works ("Pick C instead, it fits today", else the link to raise
-// the limit). Under a divider: the note, "Another round" and "Send all back" (a note needed).
+// fits the first screen and no line is ever cut; the scores stand open when the body has room for them). Its foot,
+// held at the rail's bottom, holds the one decision: "Approve A and its cost", which opens a confirm that says the
+// most Runway may charge (nothing is sent to Runway before the owner presses its button); or, when the treatment
+// cannot be approved, one quiet line with a lock and the server's reason, then the one way out that works ("Pick C
+// instead, it fits today") with "Raise today's limit" as a quiet button of the same height beside it (that one the
+// primary when nothing fits). Under a divider: the note, "Another round" and "Send all back" (a note needed).
 // Nothing an agent wrote is ever set as HTML (a title, a move, a prompt, a reason and a brand line are text nodes);
 // a board comes only from the `/api/view/<token>` address the server gave, through safeViewUrl. Money figures come
 // only from the server's numbers (kit/money.js moneyParts); its sentences are shown as sent.
 // Acts through POST /api/inbox/act with the item's version and, for an approval, `variant` (a, b or c).
-import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
+import { html, useEffect, useLayoutEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { when } from "../lib/format.js";
 import { queueHref } from "../lib/queue.js";
-import { Button, LockedAction } from "./button.js";
+import { Button } from "./button.js";
 import { actBody, isChangedSinceSeen, reloadInboxItem } from "./decision.js";
 import { Icon } from "./icon.js";
 import { Blk, StageLayout } from "./layout.js";
@@ -90,6 +91,8 @@ export const SHOTLIST_WORDS = {
   cost: "Cost",
   next: "What happens next",
   shotsApproved: "The shots approved",
+  // Fix round A3 (T113): the way back after an approval.
+  backNeeds: "Back to Needs you",
 };
 
 // A word with the treatment's letter in it: withLetter("approveOne", "A") is "Approve A and its cost".
@@ -258,6 +261,12 @@ export function limitLines(item) {
     .slice(0, 4).map((d) => ({ label: cap(d.label, 60), value: cap(d.value, 200) }));
 }
 
+// A headline whose lines never end on a word of one letter ("Approve a shotlist: A / film of ..."): such a word is
+// joined to the next by a no-break space. Only spaces change; every word stays as sent.
+export function keepShort(title) {
+  return text(title).replace(/(^|\s)(\S)\s+(?=\S)/g, "$1$2\u00a0");
+}
+
 // ---- The stage, the strip and the decision (PLAN-COOK T40) ----
 
 // The money block's parts for one treatment, from the home server's numbers only (the treatment's cost and the
@@ -283,6 +292,14 @@ export function treatmentChip(item, v) {
   if (parts && parts.blocked) return { tone: "bad", icon: "lock", text: SHOTLIST_WORDS.overLimit };
   if (!canApprove(v)) return { tone: "bad", icon: "lock", text: SHOTLIST_WORDS.locked };
   return { tone: "good", icon: "check", text: SHOTLIST_WORDS.fitsToday };
+}
+
+// The cards' chips, one a treatment in the strip's order: each card's chip only when the treatments differ in it
+// (three "Fits today" say nothing the money block does not); else none at all.
+export function stripChips(item, versions) {
+  const chips = list(versions).map((v) => treatmentChip(item, v));
+  const words = new Set(chips.map((c) => (c ? `${c.tone} ${c.text}` : "")));
+  return words.size > 1 ? chips : chips.map(() => null);
 }
 
 // The other treatment the owner can approve instead of `v`, in a to c order, or null.
@@ -339,32 +356,105 @@ export function wholeCut(room, bottoms) {
 }
 
 const WHOLE = [".k-sl__rail > .k-blk", ".k-sl__rail > .k-sl__notice", ".k-sl__rail > .k-sl__done-head", ".k-sl__fold-head",
-  ".k-sl__fold[open] .k-sl__fold-body > *", ".k-blk__title", ".k-blk > .k-sl__say", ".k-sl__fact", ".k-sl__done-shot"].join(", ");
+  ".k-sl__fold[open] .k-sl__fold-body > *", ".k-blk__title", ".k-blk > .k-sl__say", ".k-sl__fact", ".k-sl__done-shot", ".k-pick-scores__cell"].join(", ");
 
-// Keeps the rail's body from cutting a line: measures where its parts end and sets --k-sl-cut on the body (see
-// shotlist.css), again whenever the body or its parts change size or a row opens or closes.
+// Keeps the rail from cutting a line: measures where the parts of its scroller end and sets the room to leave empty
+// under the last whole one (see shotlist.css), again whenever the scroller or its parts change size or a row opens or
+// closes. On a wide window the scroller is the rows under the money (.k-sl__folds, so the money and what is above it
+// never move or clip: --k-sl-fcut); else, and after an approval, the rail's body (--k-sl-cut).
+function scrollerOf(wrap) {
+  const folds = wrap && wrap.querySelector ? wrap.querySelector(".k-sl__folds") : null;
+  const body = wrap && wrap.parentElement;
+  if (folds && typeof getComputedStyle === "function" && /auto|scroll/.test(getComputedStyle(folds).overflowY || "")) {
+    return { el: folds, name: "--k-sl-fcut" };
+  }
+  return body ? { el: body, name: "--k-sl-cut" } : null;
+}
+
 function useWholeLines(ref) {
   useEffect(() => {
     const wrap = ref.current;
     const body = wrap && wrap.parentElement;
     if (!body || !body.style || typeof ResizeObserver !== "function") return undefined;
+    let was = null;
     const look = () => {
-      const top = body.getBoundingClientRect().top - body.scrollTop;
-      const bottoms = [...wrap.querySelectorAll(WHOLE)].map((e) => e.getBoundingClientRect())
+      const s = scrollerOf(wrap);
+      if (was && (!s || was.el !== s.el)) was.el.style.removeProperty(was.name);
+      was = s;
+      if (!s || !s.el.style) return;
+      const top = s.el.getBoundingClientRect().top - s.el.scrollTop;
+      const bottoms = [...s.el.querySelectorAll(WHOLE)].map((e) => e.getBoundingClientRect())
         .filter((r) => r.height > 0).map((r) => r.bottom - top);
-      const cut = wholeCut(body.clientHeight, bottoms);
-      if (cut > 0) body.style.setProperty("--k-sl-cut", `${cut}px`); else body.style.removeProperty("--k-sl-cut");
+      const cut = wholeCut(s.el.clientHeight, bottoms);
+      if (cut > 0) s.el.style.setProperty(s.name, `${cut}px`); else s.el.style.removeProperty(s.name);
     };
     look();
     const ro = new ResizeObserver(look);
     ro.observe(body);
     ro.observe(wrap);
-    wrap.addEventListener("toggle", look, true);
-    return () => { ro.disconnect(); wrap.removeEventListener("toggle", look, true); body.style.removeProperty("--k-sl-cut"); };
+    const folds = wrap.querySelector ? wrap.querySelector(".k-sl__folds") : null;
+    if (folds) ro.observe(folds);
+    // A row opened in the scroller is brought into view whole, as far as its head can go to the top.
+    const opened = (e) => {
+      const d = e.target;
+      const s = scrollerOf(wrap);
+      if (d && d.open && s && s.el !== body && s.el.contains(d) && typeof s.el.scrollBy === "function") {
+        const box = s.el.getBoundingClientRect();
+        const r = d.getBoundingClientRect();
+        const by = Math.min(r.bottom - box.bottom, r.top - box.top);
+        if (by > 0) s.el.scrollBy({ top: by });
+      }
+      look();
+    };
+    wrap.addEventListener("toggle", opened, true);
+    wrap.addEventListener("scroll", look, true);
+    return () => {
+      ro.disconnect();
+      wrap.removeEventListener("toggle", opened, true);
+      wrap.removeEventListener("scroll", look, true);
+      body.style.removeProperty("--k-sl-cut");
+      if (was && was.el.style) was.el.style.removeProperty(was.name);
+    };
   });
 }
 
+// The scores stand open when the rows under the money have room for them (a wide window: those rows are the rail's
+// scroller there), so the band above the foot is used and nothing is cut; else they wait behind their row. Decided once a treatment on the stage, as soon as the body has its height; the owner's own opening and closing
+// is kept after that.
+function useRoomForScores(railRef, scoresRef, key) {
+  useLayoutEffect(() => {
+    const wrap = railRef.current;
+    const body = wrap && wrap.parentElement;
+    if (!body || typeof window === "undefined" || typeof window.matchMedia !== "function" || typeof ResizeObserver !== "function") return undefined;
+    let decided = false;
+    const look = () => {
+      const d = scoresRef.current;
+      const s = scrollerOf(wrap);
+      const el = s && s.el;
+      if (decided || !d || !el || !(el.clientHeight > 0)) return;
+      if (!window.matchMedia("(min-width: 860px)").matches) return;
+      decided = true;
+      if (d.open || el.scrollHeight > el.clientHeight + 1) return;
+      d.open = true;
+      if (el.scrollHeight > el.clientHeight + 1) d.open = false;
+    };
+    look();
+    const ro = new ResizeObserver(look);
+    ro.observe(body);
+    return () => ro.disconnect();
+  }, [key]);
+}
+
 // ---- Parts ----
+
+// What stands in place of an approval that cannot be given: one quiet line, a lock and the reason as sent. Read as a
+// group named by the action, so a screen reader hears what is locked and why.
+function LockLine({ id, label, why }) {
+  return html`<div class="k-sl__lock" role="group" aria-label=${label} aria-describedby=${id}>
+    <${Icon} name="lock" size=${14} />
+    <p class="k-sl__lock-why" id=${id}>${why}</p>
+  </div>`;
+}
 
 // The facts under the board on the stage: "from tower.png · gen4_turbo · 5 s".
 function shotFacts(s) {
@@ -424,26 +514,29 @@ function Caption({ s }) {
 
 // The props of one treatment's card in the strip. The strip is given OptionCards themselves (not a wrapper), so it
 // knows it is a radio group: one Tab stop, the arrows move the treatment.
-function cardProps({ item, v, checked, board, onPick }) {
+function cardProps({ item, v, checked, board, chip, onPick }) {
   const boards = boardRows(v).map((b, k) => ({
     src: b.url, alt: "", label: `${v.letter ? `Treatment ${v.letter}` : v.title}, board ${b.shot}`, on: checked && k === board,
   }));
   const cost = v.cost && Number.isInteger(v.cost.base) ? creditsDollars(v.cost.base) : "";
   return {
     checked, onPick, title: v.letter ? `${v.letter} · ${v.title}` : v.title, amount: cost, sub: lengthWords(v),
-    state: treatmentChip(item, v), say: v.missing ? SHOTLIST_WORDS.missing : verdictWords(v.review), boards: boards.length ? boards : undefined,
+    state: chip, say: v.missing ? SHOTLIST_WORDS.missing : verdictWords(v.review), boards: boards.length ? boards : undefined,
   };
 }
 
-// A row of the rail, 44 px, that opens in place: a line icon, its name, a short fact at the right edge. With nothing
-// under it, it is a plain row (nothing to open).
-function Fold({ title, aside, icon, children }) {
+// A row of the rail, 44 px, that opens in place: a line icon, its name, a short fact that ends 8 px before the 20 px
+// chevron column at the right. With nothing under it, it is a plain row (nothing to open) and its chevron column is
+// kept empty, so every row's fact ends on one edge. `dref` is the row's <details>.
+function Fold({ title, aside, icon, dref, children }) {
   const head = html`${icon ? html`<${Icon} name=${icon} size=${16} class="k-sl__fold-icon" />` : null}
     <span class="k-sl__fold-name">${title}</span>
     ${aside ? html`<span class="k-sl__fold-aside">${aside}</span>` : null}`;
-  if (!children) return html`<div class="k-sl__fold k-sl__fold--still"><div class="k-sl__fold-head">${head}</div></div>`;
-  return html`<details class="k-sl__fold">
-    <summary class="k-sl__fold-head">${head}<${Icon} name="chevron-down" size=${16} class="k-sl__fold-mark" /></summary>
+  if (!children) {
+    return html`<div class="k-sl__fold k-sl__fold--still"><div class="k-sl__fold-head">${head}<span class="k-sl__fold-mark" aria-hidden="true"></span></div></div>`;
+  }
+  return html`<details class="k-sl__fold" ref=${dref}>
+    <summary class="k-sl__fold-head">${head}<span class="k-sl__fold-mark" aria-hidden="true"><${Icon} name="chevron-down" size=${16} /></span></summary>
     <div class="k-sl__fold-body">${children}</div>
   </details>`;
 }
@@ -509,11 +602,13 @@ function Confirm({ v, busy, onYes, onNo }) {
   <//>`;
 }
 
-// What the card becomes after an action. An approval keeps the stage: the approved board large with the treatment's
-// boards under it, and a rail that says it is approved and when, what was approved (the treatment, its length and
-// clips, its cost from the server's numbers), what happens next in the server's words, and the shots approved with
-// their seconds and cost (only what the item carried: no state of a clip is guessed here; the film's page in Studio
-// is where progress lives), then one primary, "Open Studio". Anything else is the server's message on one line.
+// What the card becomes after an action. An approval keeps the stage as the other states draw it: the bar at the top,
+// the approved board large with its one line under it, and the treatment's boards as a row as wide as the board. The
+// rail says it is approved and when, what was approved (the treatment, its length and clips, its cost from the
+// server's numbers), what happens next in the server's words, and the shots approved with their seconds and cost
+// (only what the item carried: no state of a clip is guessed here; the film's page in Studio is where progress
+// lives), then, after the list, "Open Studio" (the one primary) with "Back to Needs you" beside it. Anything else is
+// the server's message on one line.
 export function ShotlistDone({ done, focus = true }) {
   const ref = useRef(null);
   const railRef = useRef(null);
@@ -531,10 +626,15 @@ export function ShotlistDone({ done, focus = true }) {
     const rows = shotRows(v);
     const c = v.cost && typeof v.cost === "object" ? v.cost : null;
     const at = when(done.at);
-    // The stage: the approved board, its one line under it, and the treatment's boards as pictures in a row.
+    const ratio = ratioWords(v.shotlist && v.shotlist.ratio);
+    // The stage: the bar, the approved board with its one line under it, the treatment's boards as pictures in a row.
     const line = html`<span class="k-sl__done-choice"><${Icon} name="check" size=${16} /><span>${choice}</span></span>`;
-    const stage = html`<div class=${cx("k-sl__boards", "k-sl__boards--done", all.length > 1 && "k-sl__boards--reel")}><div class="k-sl__fit">${shot
-      ? html`<${Shot} src=${shot.url} alt=${`${name}, board ${shot.shot}`} tags=${[{ text: SHOTLIST_WORDS.boards, at: "tl" }]}>${line}<//>
+    const bar = html`<${StageBar}>
+      <span class="k-sl__bar-name">${SHOTLIST_WORDS.boards}</span>${ratio ? html`<span class="k-sl__ratio">${ratio}</span>` : null}
+    <//>`;
+    const stage = html`${bar}<div class=${cx("k-sl__boards", "k-sl__boards--done", all.length > 1 && "k-sl__boards--reel")}
+      style=${all.length > 1 ? `--k-sl-n: ${all.length};` : undefined}><div class="k-sl__fit">${shot
+      ? html`<${Shot} src=${shot.url} alt=${`${name}, board ${shot.shot}`} tags=${[{ text: shot.shot, at: "tl" }]}>${line}<//>
         ${all.length > 1 ? html`<div class="k-sl__reel k-sl__reel--still" aria-hidden="true">
           ${all.map((x) => html`<span key=${x.shot} class="k-sl__reel-board"><img src=${x.url} alt="" loading="lazy" decoding="async" /><span class="k-sl__reel-id">${x.shot}</span></span>`)}
         </div>` : null}`
@@ -549,7 +649,7 @@ export function ShotlistDone({ done, focus = true }) {
     const rail = html`<div class="k-sl__rail" ref=${railRef}>
       <div class="k-sl__done-head">
         <p class="k-sl__done-mark">
-          <span class="k-sl__approved"><${Icon} name="check" size=${14} /><span>${SHOTLIST_WORDS.approvedMark}</span></span>
+          <span class="k-sl__approved"><${Tag} tone="good"><${Icon} name="check" size=${12} />${SHOTLIST_WORDS.approvedMark}<//></span>
           ${at ? html`<span class="k-sl__done-at">${at}</span>` : null}
         </p>
         <p class="k-sl__done-message">${said}</p>
@@ -560,18 +660,23 @@ export function ShotlistDone({ done, focus = true }) {
       ${time ? html`<${Blk} title=${SHOTLIST_WORDS.next}><p class="k-sl__say">${time}</p><//>` : null}
       ${rows.length ? html`<${Blk} title=${SHOTLIST_WORDS.shotsApproved} aside=${clips(rows.length)}>
         <ol class="k-sl__done-shots">
-          ${rows.map((r) => html`<li key=${r.id} class="k-sl__done-shot">
-            ${r.board ? html`<img src=${r.board} alt="" loading="lazy" decoding="async" />` : html`<span class="k-sl__done-nopic"></span>`}
-            <span class="k-sl__done-shot-name"><b>${r.id}</b>${r.move ? html` ${r.move}` : null}</span>
-            <span class="k-sl__done-shot-facts">${[r.label.includes(" · ") ? r.label.split(" · ")[1] : "", r.credits !== null ? creditsDollars(r.credits) : ""].filter(Boolean).join(" · ")}</span>
-          </li>`)}
+          ${rows.map((r) => {
+            const words = r.move ? `${r.id} ${r.move}` : r.id;
+            return html`<li key=${r.id} class="k-sl__done-shot">
+              ${r.board ? html`<img src=${r.board} alt="" loading="lazy" decoding="async" />` : html`<span class="k-sl__done-nopic"></span>`}
+              <span class="k-sl__done-shot-name" title=${words}><b>${r.id}</b>${r.move ? html` ${r.move}` : null}</span>
+              <span class="k-sl__done-shot-facts">${[r.label.includes(" · ") ? r.label.split(" · ")[1] : "", r.credits !== null ? creditsDollars(r.credits) : ""].filter(Boolean).join(" · ")}</span>
+            </li>`;
+          })}
         </ol>
       <//>` : null}
+      ${done.studio ? html`<div class="k-sl__done-go">
+        <${Button} variant="primary" href=${done.studio}>${SHOTLIST_WORDS.openStudio}<//>
+        <${Button} variant="ghost" href="#/needs-you">${SHOTLIST_WORDS.backNeeds}<//>
+      </div>` : null}
     </div>`;
     return html`<div class="k-sl k-sl--done" role="status" tabindex="-1" ref=${ref}>
-      <${StageLayout} title=${done.title || v.title} label=${name} stage=${stage}
-        foot=${done.studio ? html`<${Button} variant="primary" size="lg" href=${done.studio}>${SHOTLIST_WORDS.openStudio}<//>` : null}
-        rail=${rail} />
+      <${StageLayout} title=${keepShort(done.title || v.title)} label=${name} stage=${stage} rail=${rail} />
     </div>`;
   }
   return html`<div class="k-sl k-sl--done k-sl--done-line" role="status" tabindex="-1" ref=${ref}>
@@ -619,8 +724,10 @@ export function ShotlistCard({ item = null, onDone, compact = false, focusDone =
   const footRef = useRef(null);
   const opener = useRef(null);
   const railRef = useRef(null);
+  const scoresRef = useRef(null);
   const changed = isChangedSinceSeen(error);
   useWholeLines(railRef);
+  useRoomForScores(railRef, scoresRef, chosen);
 
   const propVersion = item ? item.version : undefined;
   useEffect(() => { setFresh(null); setGone(false); }, [propVersion]);
@@ -725,10 +832,11 @@ export function ShotlistCard({ item = null, onDone, compact = false, focusDone =
   const stage = v
     ? html`<${TreatmentStage} v=${v} at=${board} onAt=${setBoard} />`
     : html`<div class="k-sl__empty"><p>${problem || SHOTLIST_WORDS.noPlan}</p></div>`;
+  const chips = stripChips(shown, versions);
   const strip = versions.length
     ? html`<${Strip} label=${SHOTLIST_WORDS.treatments}>
-        ${versions.map((x) => html`<${OptionCard} key=${x.id} ...${cardProps({ item: shown, v: x, checked: Boolean(v && x.id === v.id), board,
-          onPick: () => choose(x.id) })} />`)}
+        ${versions.map((x, k) => html`<${OptionCard} key=${x.id} ...${cardProps({ item: shown, v: x, checked: Boolean(v && x.id === v.id), board,
+          chip: chips[k], onPick: () => choose(x.id) })} />`)}
       <//>`
     : null;
 
@@ -738,7 +846,7 @@ export function ShotlistCard({ item = null, onDone, compact = false, focusDone =
   if (v) {
     const approveText = withLetter("approveOne", v.letter || "");
     if (canApprove(v)) {
-      decision = html`<${Button} variant="primary" size="lg" class="k-sl__approve" busy=${Boolean(busy) && busy.action === "approve" && busy.variant === v.id}
+      decision = html`<${Button} variant="primary" class="k-sl__approve" busy=${Boolean(busy) && busy.action === "approve" && busy.variant === v.id}
         aria-label=${approveLabel(v)} disabled=${stopped} onClick=${(e) => onApprove(v, e)}>${approveText}<//>`;
     } else {
       const reason = v.missing ? `${SHOTLIST_WORDS.missing} ${SHOTLIST_WORDS.missingNext}`
@@ -746,15 +854,15 @@ export function ShotlistCard({ item = null, onDone, compact = false, focusDone =
         : cap(v.blocked, 400) || (!v.cost ? SHOTLIST_WORDS.noCost : SHOTLIST_WORDS.cannot);
       const alt = shared ? null : insteadOf(shown, v);
       const out = wayOut(shared ? shared.text : v.blocked);
-      decision = html`<${LockedAction} label=${approveText} why=${reason} tag=${SHOTLIST_WORDS.locked}>
-        ${alt ? html`<${Button} variant="primary" size="lg" disabled=${stopped}
+      const second = alt && out ? html`<${Button} variant="ghost" class="k-sl__second" href=${out.href}>${out.label}<//>` : null;
+      decision = html`<${LockLine} id=${`${baseId}-why`} label=${approveText} why=${reason} />
+        ${alt ? html`<${Button} variant="primary" disabled=${stopped}
             onClick=${() => { choose(alt.id); setMoved(true); }}>${withLetter("pickInstead", alt.letter)}<//>` : null}
-        ${out ? html`<${Button} variant=${alt ? "link" : "primary"} size=${alt ? "md" : "lg"} href=${out.href}>${out.label}<//>` : null}
-      <//>`;
-      // A phone keeps only the way out in its sticky foot; the locked action and its reason read in the rail's flow.
-      phoneLock = html`<div class="k-sl__phone-lock"><${LockedAction} label=${approveText} why=${reason} tag=${SHOTLIST_WORDS.locked}>
-        ${alt && out ? html`<${Button} variant="link" href=${out.href}>${out.label}<//>` : null}
-      <//></div>`;
+        ${out && !alt ? html`<${Button} variant="primary" href=${out.href}>${out.label}<//>` : null}
+        ${second}`;
+      // A phone keeps only the way out in its sticky foot; the lock line and the second way read in the rail's flow.
+      phoneLock = html`<div class="k-sl__phone-lock"><${LockLine} id=${`${baseId}-why-phone`} label=${approveText} why=${reason} />
+        ${alt && out ? html`<${Button} variant="ghost" href=${out.href}>${out.label}<//>` : null}</div>`;
     }
   }
   // ---- The rail's body
@@ -771,9 +879,8 @@ export function ShotlistCard({ item = null, onDone, compact = false, focusDone =
         <p class="k-sl__say">${cap(v.cost.time, 300)}</p>
       <//>` : null}
       <${BrandFold} brand=${v.brand} />
-      <${Fold} icon="trend" title=${SHOTLIST_WORDS.scores} aside=${v.review && Number.isFinite(v.review.total) && Number.isFinite(v.review.of) ? `${v.review.total} of ${v.review.of}` : ""}>
+      <${Fold} icon="trend" dref=${scoresRef} title=${SHOTLIST_WORDS.scores} aside=${v.review && Number.isFinite(v.review.total) && Number.isFinite(v.review.of) ? `${v.review.total} of ${v.review.of}` : ""}>
         <${Scores} compact review=${v.review} kind="film" />
-        ${v.review && v.review.reason ? html`<p class="k-sl__say">${cap(v.review.reason, 300)}</p>` : null}
       <//>
       ${shotRows(v).length ? html`<${Fold} icon="film" title=${SHOTLIST_WORDS.shots} aside=${clips(shotRows(v).length)}><${ShotTable} v=${v} /><//>` : null}
     </div>` : null}
@@ -800,7 +907,7 @@ export function ShotlistCard({ item = null, onDone, compact = false, focusDone =
   const primary = decision || failed ? html`<div class="k-sl__primary" ref=${footRef}>${failed}${decision}</div>` : null;
 
   return html`<article class="k-sl" aria-label=${text(shown.title)} aria-busy=${busy ? "true" : undefined}>
-    <${StageLayout} kind=${shotlistKind(shown)} title=${text(shown.title)} lede=${shown.summary ? text(shown.summary) : null}
+    <${StageLayout} kind=${shotlistKind(shown)} title=${keepShort(shown.title)} lede=${shown.summary ? text(shown.summary) : null}
       label=${name ? `${SHOTLIST_WORDS.boards}, ${name}` : SHOTLIST_WORDS.boards}
       stage=${stage} strip=${strip} rail=${rail} foot=${{ primary, rest }} />
     ${confirmV ? html`<${Confirm} v=${confirmV} busy=${Boolean(busy)} onYes=${() => send("approve", confirmV.id)} onNo=${cancelConfirm} />` : null}

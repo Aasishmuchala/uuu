@@ -1,13 +1,14 @@
 /* kit/money.js: the money block (the figure, the meter, the sum). Numbers sit on one right edge in tabular figures.
    A calm review card: one amount, quiet labels, even rows, one problem colour used on figures only (the over row's
-   figure and the meter's over part), every value in one weight. Three sizes besides the figure: 13 px labels, 14 px
-   values and the block's name. */
+   figure and the meter's over part, both the one --bad hue), every value in one weight. Three sizes besides the
+   figure: 13 px labels, 14 px values and the block's name. "about", the amount and "up to" read as one unit on one
+   baseline (fix round A3, T113). */
 .k-money { display: block; }
 .k-money__label { margin: 0; font-size: var(--fs-ui); line-height: var(--lh-ui); font-weight: var(--fw-bold); color: var(--ink); }
-.k-money__figure { display: flex; align-items: baseline; gap: var(--s-2); margin: 2px 0 0; font-variant-numeric: tabular-nums; }
+.k-money__figure { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--s-2); margin: var(--s-1) 0 0; font-variant-numeric: tabular-nums; }
 .k-money__about { font-size: var(--fs-ui); line-height: var(--lh-ui); font-weight: var(--fw-regular); color: var(--ink-2); }
-.k-money__amount { font-size: var(--fs-figure); line-height: var(--lh-figure); font-weight: var(--fw-medium); letter-spacing: var(--ls-figure); color: var(--ink); margin: -3px 0; }
-.k-money__upto { margin: 0 0 0 auto; font-size: var(--fs-note); line-height: var(--lh-note); color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.k-money__amount { font-size: var(--fs-figure); line-height: var(--lh-figure); font-weight: var(--fw-medium); letter-spacing: var(--ls-figure); color: var(--ink); }
+.k-money__upto { font-size: var(--fs-ui); line-height: var(--lh-ui); color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .k-money__say { margin: var(--s-2) 0 0; font-size: var(--fs-note); line-height: var(--lh-note); color: var(--ink); }
 .k-money__sum { margin: var(--s-2) 0 0; padding: 0; }
 .k-money__row { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); min-height: 30px; padding: 5px 0; border-top: 1px solid var(--line); }
@@ -18,20 +19,21 @@
 .k-money__row--bad dd { color: var(--bad); }
 .k-money__row--quiet dt, .k-money__row--quiet dd { color: var(--ink-2); }
 
-/* the meter: an 8 px track, a tick at the limit with its label centred under it (from the tick near the start,
-   ending at it near the end, so it is never clipped); spent is neutral, this treatment the accent, the part over the
-   limit the problem colour at 60 percent strength */
+/* the meter: a 6 px neutral track; what is spent a stronger neutral, this treatment the accent, the part over the
+   limit a tint of the one danger hue (never full red). The limit is a 2 px tick in the ink that stands 3 px proud of
+   the track on both sides, its label centred under it (from the tick near the start, ending at it near the end, so it
+   is held inside the bar's ends and never clipped). */
 .k-meter { position: relative; margin-top: var(--s-3); }
-.k-meter__track { display: flex; gap: 2px; height: 8px; border-radius: var(--r-xs); background: var(--track); overflow: hidden; }
+.k-meter__track { display: flex; gap: 2px; height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
 .k-meter__track i { display: block; height: 100%; }
 .k-meter__spent { background: var(--spent); }
 .k-meter__fits { background: var(--accent-fg); }
-.k-meter__over { background: color-mix(in srgb, var(--bad-fill) 60%, var(--track)); }
+.k-meter__over { background: color-mix(in srgb, var(--bad) 38%, var(--track)); }
 .k-meter__fill { background: var(--ink); }
-.k-meter__tick { position: absolute; top: -2px; width: 2px; height: 12px; margin-left: -1px; border-radius: 1px; background: var(--ink); }
+.k-meter__tick { position: absolute; top: -3px; width: 2px; height: 12px; margin-left: -1px; border-radius: 1px; background: var(--ink); }
 .k-meter__legend { position: relative; height: var(--lh-note); margin-top: 6px; font-size: var(--fs-note); line-height: var(--lh-note); font-weight: var(--fw-regular); color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .k-meter__legend-spent { position: absolute; left: 0; top: 0; white-space: nowrap; }
-.k-meter__legend-limit { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; color: var(--ink-2); }
+.k-meter__legend-limit { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; color: var(--ink); }
 .k-meter__legend-limit--after { transform: none; margin-left: -1px; }
 .k-meter__legend-limit--end { transform: translateX(-100%); margin-left: 1px; }
 .k-meter--plain .k-meter__track { height: 6px; }

@@ -209,7 +209,7 @@ test("the card: three treatments in a to c order on one strip; one on the stage;
   await settle();
   const now = textOf(root);
   assert.equal(buttons(root, "Approve B and its cost").length, 0);
-  assert.ok(elements(root).some((e) => /\bk-locked\b/.test(e.getAttribute("class") || "")), "the approval is locked");
+  assert.ok(elements(root).some((e) => /\bk-sl__lock\b/.test(e.getAttribute("class") || "")), "the approval is locked: one quiet line with a lock");
   assert.match(now, /This costs more than is left of today's limit \(\$0\.40\)/);
   assert.equal(buttons(root, "Pick A instead, it fits today").length, 1, "the way out that works");
   assert.ok(elements(root).some((e) => e.localName === "a" && e.getAttribute("href") === "#/settings?s=generation" && textOf(e).trim() === "Raise today's limit"), "a link to raise the limit");
@@ -363,7 +363,9 @@ test("T40: the foot has one primary action at most, whatever is on the stage", a
   assert.equal(primaries(root).length, 1);
   assert.equal(textOf(primaries(root)[0]).trim(), "Pick C instead, it fits today", "A is over: the way out is the primary");
   const raise = elements(root).find((e) => e.localName === "a" && textOf(e).trim() === "Raise today's limit");
-  assert.ok(raise && hasClass(raise, "k-btn--link"), "raising the limit is a text link when a treatment fits");
+  // Fix round A3 (T113): never an underlined link; a ghost of the primary's height under it.
+  assert.ok(raise && hasClass(raise, "k-btn--ghost"), "raising the limit is a ghost button when a treatment fits");
+  assert.ok(!hasClass(raise, "k-btn--link") && !hasClass(raise, "k-btn--lg") && !hasClass(primaries(root)[0], "k-btn--lg"), "one height for both");
   fire(primaries(root)[0], "click");
   await settle();
   const radios = elements(root).filter((e) => e.getAttribute("role") === "radio");
@@ -380,11 +382,16 @@ test("T40: the foot has one primary action at most, whatever is on the stage", a
 
 test("T40: a blocked treatment is locked with the server's sentence as text, and no approve button is enabled", async () => {
   const root = await showTree(sl.ShotlistCard, { item: LAKE });
-  const locked = within(root, "k-locked");
-  assert.ok(locked, "k-locked is drawn");
-  const why = elements(locked).find((e) => hasClass(e, "k-locked__why"));
+  // Fix round A3 (T113): no bordered card and no pill: one quiet line with a lock, a group named by the action.
+  const locked = within(within(root, "k-rail__foot"), "k-sl__lock");
+  assert.ok(locked, "the lock line is drawn");
+  assert.equal(locked.getAttribute("role"), "group");
+  assert.equal(locked.getAttribute("aria-label"), "Approve A and its cost");
+  const why = elements(locked).find((e) => hasClass(e, "k-sl__lock-why"));
+  assert.equal(locked.getAttribute("aria-describedby"), why.getAttribute("id"), "a reader hears why");
   assert.equal(textOf(why), OVER, "the reason is the server's sentence, as sent");
   assert.ok(why.childNodes.every((n) => n.nodeType === 3), "as text");
+  assert.ok(!elements(root).some((e) => hasClass(e, "k-locked") || hasClass(e, "k-locked__tag")), "no locked card, no Locked pill");
   assert.equal(elements(root).filter((e) => e.localName === "button" && /^Approve/.test(textOf(e).trim()) && e.getAttribute("disabled") === null).length, 0);
   // The money block from the server's numbers: the figure, the one alert line, the limit.
   const all = textOf(root);
@@ -438,8 +445,11 @@ test("T96: the boards fill the stage's height as a size container; the locked de
   assert.match(sheet, /width: min\(calc\(100cqw - var\(--k-sl-side\)\), calc\(\(100cqh - var\(--k-sl-cap\)\) \* 16 \/ 9\)\);/, "as large as width and height allow together");
   assert.match(sheet, /@container k-sl-boards \(max-aspect-ratio: 3 \/ 2\)/, "a tall place runs the reel under the board");
   assert.doesNotMatch(sheet, /176px/);
-  assert.match(sheet, /\.k-sl__primary \.k-locked__out \{\s*gap: var\(--s-1\);/, "the link directly under the primary");
-  assert.match(sheet, /\.k-sl__primary \.k-locked__out > \.k-btn--link \{[^}]*font-size: var\(--fs-note\);/, "the link at 13 px");
+  // Fix round A3 (T113): the lock line is 13 px in the second ink, no border of its own.
+  const lock = /\.k-sl__lock \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(lock, /color: var\(--ink-2\);/);
+  assert.doesNotMatch(lock, /border/);
+  assert.match(/\.k-sl__lock-why \{([^}]*)\}/.exec(sheet)[1], /font-size: var\(--fs-note\);/);
   const src = readFileSync(join(KIT, "shotlist.js"), "utf8");
   assert.doesNotMatch(src, /onBoard/, "the option cards' board buttons are gone, and so are their handlers");
 });
@@ -457,6 +467,20 @@ test("T101: after approval the stage holds the board with its one line, nothing 
   assert.equal(studio.length, 1, "one way to Studio");
   assert.ok(hasClass(studio[0], "k-btn--primary"), "and it is the primary");
   assert.equal(textOf(studio[0]).trim(), "Open Studio");
+  assert.equal(elements(root).filter((e) => textOf(e).trim() === "Open Studio" && (e.localName === "a" || e.localName === "button")).length, 1, "the words once");
+  // Fix round A3 (T113): it follows the list in the rail's body, with a ghost back to Needs you beside it; no foot.
+  const go = elements(root).find((e) => hasClass(e, "k-sl__done-go"));
+  assert.ok(go && elements(go).includes(studio[0]));
+  const back = elements(go).find((e) => e.localName === "a" && e.getAttribute("href") === "#/needs-you");
+  assert.ok(back && hasClass(back, "k-btn--ghost") && textOf(back).trim() === "Back to Needs you");
+  assert.ok(!elements(root).some((e) => hasClass(e, "k-rail__foot")));
+  // The stage starts with its bar, as in the other states; the board's tag is its shot.
+  assert.ok(elements(stage).some((e) => hasClass(e, "k-stagebar")));
+  const boards = elements(stage).find((e) => hasClass(e, "k-sl__boards--done"));
+  const style = `${boards.getAttribute("style") || ""} ${(boards.style && boards.style.cssText) || ""}`;
+  assert.ok(style.includes(`--k-sl-n: ${sl.boardRows(v).length}`), "the row of boards as wide as the board: one column a board");
+  // "Approved" is the kit's good chip.
+  assert.ok(elements(root).some((e) => hasClass(e, "k-tag--good") && textOf(e) === "Approved"));
   const rail = elements(root).find((e) => hasClass(e, "k-rail"));
   const all = textOf(rail);
   // The mark with its time, the server's sentence as sent, what was approved from the item's own numbers.
@@ -497,4 +521,58 @@ test("T101: the rail's secondary lines are 44 px rows that open in place; the ti
   const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
   assert.match(/\.k-sl__fold-head \{([^}]*)\}/.exec(sheet)[1], /min-height: 44px;/);
   assert.match(sheet, /clip-path: inset\(0 0 var\(--k-sl-cut, 0px\) 0\);/, "the body never shows a cut line");
+});
+
+// ---- Fix round A3 (T113) ----
+
+test("T113: keepShort joins a word of one letter to the next, so no headline line ends on one; every word stays", () => {
+  assert.equal(sl.keepShort("Approve a shotlist: A film of the lake house"), "Approve a\u00a0shotlist: A\u00a0film of the lake house");
+  assert.equal(sl.keepShort("A film"), "A\u00a0film");
+  assert.equal(sl.keepShort("Nothing short here"), "Nothing short here");
+  assert.equal(sl.keepShort("ends in a"), "ends in a");
+  assert.equal(sl.keepShort(null), "");
+  assert.equal(sl.keepShort("Approve a shotlist: A film").replace(/\u00a0/g, " "), "Approve a shotlist: A film");
+});
+
+test("T113: the cards' chips show only when the treatments differ in them", async () => {
+  const lake = sl.stripChips(LAKE, LAKE.variants);
+  assert.deepEqual(lake.map((c) => c && c.text), ["Over today's limit", "Over today's limit", "Fits today"]);
+  const fits = { ...LAKE, generation: { ...GEN, dayLeft: 900 }, variants: LAKE.variants.map((v) => ({ ...v, approvable: true, blocked: null })) };
+  assert.deepEqual(sl.stripChips(fits, fits.variants), [null, null, null], "three Fits today say nothing");
+  const root = await showTree(sl.ShotlistCard, { item: fits });
+  assert.equal(elements(root).filter((e) => hasClass(e, "k-strip__chip")).length, 0);
+  const over = await showTree(sl.ShotlistCard, { item: LAKE });
+  assert.equal(elements(over).filter((e) => hasClass(e, "k-strip__chip")).length, 3);
+});
+
+test("T113: the headline is the item's title with its one-letter words held to the next", async () => {
+  const root = await showTree(sl.ShotlistCard, { item: { ...LAKE, title: "Approve a shotlist: A film of the lake house" } });
+  const h = elements(root).find((e) => e.getAttribute("id") === "page-title");
+  assert.equal(textOf(h), "Approve a\u00a0shotlist: A\u00a0film of the lake house");
+  const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
+  const t = /\.k-sl \.k-rail__title \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(t, /font-size: 24px;/);
+  assert.match(t, /font-weight: var\(--fw-bold\);/);
+  assert.match(t, /text-wrap: balance;/);
+});
+
+test("T113: every fold row keeps one 20 px chevron column, empty on a row that does not open", async () => {
+  const root = await showTree(sl.ShotlistCard, { item: LAKE });
+  const heads = elements(root).filter((e) => hasClass(e, "k-sl__fold-head"));
+  assert.ok(heads.length >= 3);
+  for (const h of heads) assert.equal(elements(h).filter((e) => hasClass(e, "k-sl__fold-mark")).length, 1, textOf(h));
+  const still = elements(root).find((e) => hasClass(e, "k-sl__fold--still"));
+  if (still) assert.equal(textOf(elements(still).find((e) => hasClass(e, "k-sl__fold-mark"))), "");
+  const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
+  const mark = /\.k-sl__fold-mark \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(mark, /width: 20px;/);
+  assert.doesNotMatch(sheet, /\.k-sl__fold--still \.k-sl__fold-aside \{/, "no per-row margin: one column for all");
+});
+
+test("T113: on a wide window the money holds still and the rows under it scroll, cut only between whole parts", () => {
+  const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
+  const folds = /\.k-sl:not\(\.k-sl--done\) \.k-sl__rail > \.k-sl__folds \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(folds, /overflow-y: auto;/);
+  assert.match(folds, /clip-path: inset\(0 0 var\(--k-sl-fcut, 0px\) 0\);/);
+  assert.match(sheet, /\.k-sl:not\(\.k-sl--done\) \.k-sl__rail > \* \{\s*flex: none;/, "the money never shrinks");
 });

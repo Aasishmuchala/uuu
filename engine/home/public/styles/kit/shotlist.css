@@ -9,6 +9,15 @@
   min-width: 0;
 }
 
+/* The headline: 24 px 600 in balanced lines (kit/shotlist.js joins a word of one letter to the next, so no line ends
+   on one). The scale has no 24 px step, so it is written here. */
+.k-sl .k-rail__title {
+  font-size: 24px;
+  font-weight: var(--fw-bold);
+  line-height: 30px;
+  text-wrap: balance;
+}
+
 /* ---- The stage: the bar, the shot with its reel of boards, the caption */
 .k-sl__bar-name {
   color: var(--ink);
@@ -201,6 +210,39 @@
   padding-bottom: var(--k-sl-cut, 0px);
 }
 
+/* A wide window: what is above the rows (a notice, the money) holds still and never shrinks; the rows under it are
+   the rail's scroller, cut only between whole parts in the same way (--k-sl-fcut). */
+@media (min-width: 860px) {
+  .k-sl:not(.k-sl--done) .k-rail__body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .k-sl:not(.k-sl--done) .k-sl__rail {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .k-sl:not(.k-sl--done) .k-sl__rail > * {
+    flex: none;
+  }
+
+  .k-sl:not(.k-sl--done) .k-sl__rail > .k-sl__folds {
+    flex: 1 1 auto;
+    min-height: 88px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    padding-bottom: var(--k-sl-fcut, 0px);
+    clip-path: inset(0 0 var(--k-sl-fcut, 0px) 0);
+    scroll-padding-bottom: var(--k-sl-fcut, 0px);
+    scroll-snap-type: y proximity;
+  }
+
+}
+
 .k-sl__notice {
   padding: var(--s-4) var(--pad) 0;
 }
@@ -250,13 +292,15 @@
 }
 
 /* ---- The rows under the money: how long, the brand check, the scores and the shots, each 44 px, a line icon, its
-   name in the default ink, a short fact at the right edge in the second ink, and what it opens to under it */
+   name in the default ink, a short fact in the second ink that ends 8 px before one 20 px chevron column (kept empty on
+   a row that does not open), and what it opens to under it. The rules start at the content's edge. */
 .k-sl__folds {
-  border-top: 1px solid var(--line);
+  padding: 0 var(--pad);
 }
 
-.k-sl__fold + .k-sl__fold {
+.k-sl__fold {
   border-top: 1px solid var(--line);
+  scroll-snap-align: start;
 }
 
 .k-sl__fold-head {
@@ -264,7 +308,9 @@
   align-items: center;
   gap: var(--s-3);
   min-height: 44px;
-  padding: var(--s-2) var(--pad);
+  margin: 0 calc(-1 * var(--s-2));
+  padding: var(--s-2);
+  border-radius: var(--r-2);
   color: var(--ink);
   font-size: var(--fs-ui);
   font-weight: var(--fw-regular);
@@ -314,12 +360,13 @@ summary.k-sl__fold-head:hover {
 
 .k-sl__fold-mark {
   flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-left: calc(var(--s-2) - var(--s-3));
   color: var(--ink-3);
   transition: transform var(--t-fast) var(--ease);
-}
-
-.k-sl__fold--still .k-sl__fold-aside {
-  margin-right: 28px;
 }
 
 .k-sl__fold[open] > .k-sl__fold-head .k-sl__fold-mark {
@@ -329,7 +376,46 @@ summary.k-sl__fold-head:hover {
 .k-sl__fold-body {
   display: grid;
   gap: var(--s-3);
-  padding: 0 var(--pad) var(--s-4) calc(var(--pad) + 28px);
+  padding: 0 0 var(--s-4) 28px;
+}
+
+/* The scores in their row, compact: the total is on the row itself, so under it the seven scores sit three to a row,
+   each a 12 px label with its figure at the right on one 24 px line, about 80 px in all, so they can stand open in the
+   band above the foot. */
+
+.k-sl__fold-body:has(> .k-pick-scores) {
+  padding-bottom: var(--s-2);
+}
+
+.k-sl__fold .k-pick-scores__row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: var(--s-4);
+  border-top: 0;
+}
+
+.k-sl__fold .k-pick-scores__cell {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+  min-height: 24px;
+  padding: 2px 0;
+  border: 0;
+}
+
+.k-sl__fold .k-pick-scores__cell.k-pick-scores__cell--total {
+  display: none;
+}
+
+.k-sl__fold .k-pick-scores__cell dd {
+  flex: none;
+  margin: 0;
+}
+
+.k-sl__fold .k-pick-scores__n {
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+  letter-spacing: 0;
 }
 
 .k-sl__brand-lines {
@@ -436,16 +522,26 @@ summary.k-sl__fold-head:hover {
   width: 100%;
 }
 
-/* Over a limit, the decision reads calm at true size: the locked action with the server's reason under it at 13 px
-   in the second ink, 12 px to the way out, and the link to raise the limit directly under it at 13 px. */
-.k-sl__primary .k-locked__out {
-  gap: var(--s-1);
+/* Over a limit, the decision reads calm: one quiet line with a lock and the server's reason in the second ink, then
+   the way out (the primary) and the second way of the same height. */
+.k-sl__lock {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-bottom: var(--s-1);
+  color: var(--ink-2);
 }
 
-.k-sl__primary .k-locked__out > .k-btn--link {
-  min-height: var(--h-sm);
+.k-sl__lock .k-icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.k-sl__lock-why {
+  min-width: 0;
   font-size: var(--fs-note);
   line-height: var(--lh-note);
+  overflow-wrap: anywhere;
 }
 
 .k-sl__error {
@@ -604,17 +700,13 @@ summary.k-sl__fold-head:hover {
   gap: var(--s-2);
 }
 
+/* "Approved" is the kit's good chip with its check; the time beside it. */
 .k-sl__approved {
   display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  padding: 0 var(--s-2);
-  border-radius: var(--r-xs);
-  background: var(--good-bg);
-  color: var(--good);
-  font-size: var(--fs-note);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-ui);
+}
+
+.k-sl__approved .k-icon {
+  flex: none;
 }
 
 .k-sl__done-at {
@@ -661,7 +753,7 @@ summary.k-sl__fold-head:hover {
   min-width: 0;
   color: var(--ink);
   font-size: var(--fs-ui);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-regular);
   line-height: var(--lh-ui);
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -674,13 +766,15 @@ summary.k-sl__fold-head:hover {
   list-style: none;
 }
 
+/* The shots approved: 48 px rows, a 64 by 36 picture, the shot on one line (whole wherever it fits, its words in a
+   title when cut), its seconds and cost in their own column. */
 .k-sl__done-shot {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--s-3);
-  min-height: 36px;
-  padding: 4px 0;
+  min-height: 48px;
+  padding: 6px 0;
   border-top: 1px solid var(--line);
 }
 
@@ -691,20 +785,22 @@ summary.k-sl__fold-head:hover {
 .k-sl__done-shot img,
 .k-sl__done-nopic {
   display: block;
-  width: 48px;
-  height: 27px;
+  width: 64px;
+  height: 36px;
   max-width: none;
-  border-radius: var(--r-xs);
+  border-radius: 6px;
   object-fit: cover;
   background: var(--black);
 }
 
 .k-sl__done-shot-name {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--ink-2);
   font-size: var(--fs-note);
   line-height: var(--lh-note);
-  overflow-wrap: anywhere;
 }
 
 .k-sl__done-shot-name b {
@@ -717,14 +813,29 @@ summary.k-sl__fold-head:hover {
   font-size: var(--fs-note);
   line-height: var(--lh-note);
   font-variant-numeric: tabular-nums;
+  text-align: right;
   white-space: nowrap;
 }
 
-/* The approved stage: the board with its boards always in a row under it. */
+/* After the list, 16 px on: "Open Studio" and "Back to Needs you", side by side at one height. */
+.k-sl__done-go {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  padding: var(--s-4) var(--pad) var(--s-5);
+}
+
+.k-sl__done-go > .k-btn {
+  flex: 1 1 auto;
+}
+
+/* The approved stage: under the bar, from the top as in the other states, the board with its boards in a row under
+   it as wide as the board (--k-sl-n of them, set by kit/shotlist.js). */
 .k-sl__boards--done {
   --k-sl-cap: 44px;
   --k-sl-side: 0px;
-  --k-sl-row: calc(56px + var(--s-3));
+  --k-sl-n: 1;
+  align-items: flex-start;
 }
 
 .k-sl__boards--done .k-sl__fit {
@@ -734,12 +845,11 @@ summary.k-sl__fold-head:hover {
 
 .k-sl__boards--done .k-sl__reel.k-sl__reel--still {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 100px;
+  grid-auto-flow: row;
+  grid-template-columns: repeat(var(--k-sl-n), minmax(0, 1fr));
   width: 100%;
   max-height: none;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
 }
 
 .k-sl--done-line {
@@ -823,8 +933,10 @@ summary.k-sl__fold-head:hover {
     max-height: calc(min(calc(100cqw - var(--k-sl-side)), calc((100cqh - var(--k-sl-cap)) * 16 / 9)) * 9 / 16);
   }
 
+  /* The board and the row of boards under it share the height: the row is the board's width over n at 16 to 9, so
+     the board is (the height less the caption and a gap) at 16 to 9, times n over n + 1. */
   .k-work__stage .k-sl__boards--done .k-sl__fit > .k-shot {
-    width: min(100cqw, calc((100cqh - var(--k-sl-cap) - var(--k-sl-row)) * 16 / 9));
+    width: min(100cqw, calc((100cqh - var(--k-sl-cap) - var(--s-3)) * 16 / 9 * var(--k-sl-n) / (var(--k-sl-n) + 1)));
   }
 
   @container k-sl-boards (max-aspect-ratio: 3 / 2) {
@@ -875,12 +987,8 @@ summary.k-sl__fold-head:hover {
     padding: var(--s-4) var(--s-4) 0;
   }
 
-  .k-sl__fold-head {
+  .k-sl__folds {
     padding: 0 var(--s-4);
-  }
-
-  .k-sl__fold-body {
-    padding: 0 var(--s-4) var(--s-4);
   }
 
   .k-sl__note-field {
@@ -919,14 +1027,17 @@ summary.k-sl__fold-head:hover {
     padding: var(--s-4) var(--s-4) 0;
   }
 
-  .k-sl .k-rail__foot .k-locked__block,
-  .k-sl .k-rail__foot .k-locked__out > .k-btn--link {
+  .k-sl .k-rail__foot .k-sl__lock,
+  .k-sl .k-rail__foot .k-sl__second {
     display: none;
   }
-}
 
-@media (max-width: 859px) {
-  .k-sl__phone-lock .k-locked {
-    gap: var(--s-1);
+  .k-sl__phone-lock {
+    display: grid;
+    gap: var(--s-2);
+  }
+
+  .k-sl__phone-lock > .k-btn {
+    width: 100%;
   }
 }

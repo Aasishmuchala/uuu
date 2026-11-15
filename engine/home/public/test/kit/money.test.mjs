@@ -111,12 +111,19 @@ test("Sum: right-aligned values, and nothing for an empty value", async () => {
   assert.match(css("kit/money.css"), /\.k-money__row dd \{[^}]*text-align: right/);
 });
 
-test("the figure is 40 px in tabular figures, the tick is 12 px, the track is 8 px", () => {
+test("the figure is 40 px at 500 in tabular figures, the track is 6 px, the 2 px tick in the ink stands 3 px proud (fix round A3)", () => {
   const c = css("kit/money.css");
-  assert.match(c, /\.k-money__amount \{[^}]*var\(--fs-figure\)/);
+  assert.match(c, /\.k-money__amount \{[^}]*var\(--fs-figure\)[^}]*font-weight: var\(--fw-medium\)/);
   assert.match(c, /\.k-money__figure \{[^}]*tabular-nums/);
-  assert.match(c, /\.k-meter__tick \{[^}]*height: 12px/);
-  assert.match(c, /\.k-meter__track \{[^}]*height: 8px/);
+  const tick = /\.k-meter__tick \{([^}]*)\}/.exec(c)[1];
+  assert.match(tick, /top: -3px;/);
+  assert.match(tick, /width: 2px;/);
+  assert.match(tick, /height: 12px;/);
+  assert.match(tick, /background: var\(--ink\);/);
+  assert.match(c, /\.k-meter__track \{[^}]*height: 6px/);
+  // "about", the amount and "up to" on one baseline, as one unit: nothing pushes "up to" to the far edge.
+  assert.match(/\.k-money__figure \{([^}]*)\}/.exec(c)[1], /align-items: baseline;/);
+  assert.doesNotMatch(/\.k-money__upto \{([^}]*)\}/.exec(c)[1], /margin[^;]*auto/);
 });
 
 test("Fix round A2 (T101): the limit's label is centred under its tick, from it near the start, ending at it near the end", async () => {
@@ -135,7 +142,8 @@ test("Fix round A2 (T101): one problem colour, on figures only; the over row's w
   assert.match(c, /\.k-money__row--bad dt \{ color: var\(--ink\); \}/);
   assert.match(c, /\.k-money__row--bad dd \{ color: var\(--bad\); \}/);
   assert.doesNotMatch(c, /--warn/, "no second warning colour");
-  assert.match(/\.k-meter__over \{([^}]*)\}/.exec(c)[1], /color-mix\(in srgb, var\(--bad-fill\) 60%/, "the over part at lower strength");
+  assert.match(/\.k-meter__over \{([^}]*)\}/.exec(c)[1], /color-mix\(in srgb, var\(--bad\) \d+%, var\(--track\)\)/, "the over part a tint of the one danger hue, never full red");
+  assert.doesNotMatch(c, /--bad-fill/, "one danger tone everywhere");
   assert.match(/\.k-meter__spent \{([^}]*)\}/.exec(c)[1], /var\(--spent\)/, "spent is neutral");
   assert.match(/\.k-meter__fits \{([^}]*)\}/.exec(c)[1], /var\(--accent-fg\)/, "this treatment is the accent");
   const weights = [...c.matchAll(/\.k-money__row dd \{[^}]*font-weight: ([^;]+);/g)].map((m) => m[1]);

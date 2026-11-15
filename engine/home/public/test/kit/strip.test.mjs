@@ -98,19 +98,23 @@ test("an OptionCard with many boards draws one picture, the chosen board, with h
   unmount(single);
 });
 
-test("an OptionCard reads whole: head and sub beside the picture, then the chip alone, then the reason across the card", async () => {
+test("an OptionCard reads whole: the head across the card with the amount on the title's line, the sub and the chip beside the picture, then the reason", async () => {
   installDom();
   const root = await mount(Three, { chosen: "A", say: "a long reason that runs past one line in a card of 264 px" });
   const card = radios(root)[0];
   assert.equal(byClass(card, "k-opt__title")[0].getAttribute("title"), "A · Slow approach");
   assert.equal(byClass(card, "k-opt__sub")[0].getAttribute("title"), "30 s · 6 clips");
-  // Head (radio, title), sub (sub, amount), state (the chip alone), then the reason as its own line under both columns.
+  // Head (radio, title, amount: fix round A3, the amount on the title's baseline), sub, state (the chip alone), then
+  // the reason as its own line under both columns.
   const [head, sub, state] = byClass(card, "k-opt__line");
   assert.match(head.getAttribute("class"), /k-opt__line--head/);
   assert.equal(byClass(head, "k-opt__radio").length, 1);
-  assert.equal(byClass(sub, "k-opt__amount").length, 1);
+  assert.equal(byClass(head, "k-opt__amount").length, 1, "the amount sits on the title's line");
+  assert.equal(byClass(sub, "k-opt__amount").length, 0);
+  assert.match(sub.getAttribute("class"), /k-opt__line--sub/);
   assert.match(state.getAttribute("class"), /k-opt__line--state/);
   assert.equal(byClass(state, "k-strip__chip").length, 1);
+  assert.equal(byClass(state, "k-tag--bad").length, 1, "the chip is the kit's Tag in its tone (one chip system)");
   assert.equal(state.childNodes.length, 1, "the chip is alone on its line");
   const say = byClass(card, "k-opt__say")[0];
   assert.equal(say.parentNode, card, "the reason is the card's own line, not beside the chip");
@@ -163,15 +167,21 @@ test("a strip of TakeCards is a plain group of pressable buttons", async () => {
 test("strip.css: the chosen card is lifted with an accent edge, cards are 96 px at the least with 16 px padding, stacked below 860 px", () => {
   const sheet = css("kit/strip.css");
   assert.match(sheet, /\.k-opt \{[^}]*min-height: 96px;[^}]*padding: var\(--s-4\);[^}]*border-radius: var\(--r-3\)/);
-  // The picture spans the head and the sub (two 24 px rows, its 48 px); the chip, then the reason, run under both.
-  assert.match(sheet, /\.k-opt--side \{[^}]*grid-template-columns: 72px minmax\(0, 1fr\);[^}]*grid-template-rows: 24px 24px auto auto;[^}]*"pic head" "pic sub" "state state" "say say"/);
+  // Fix round A3: the head runs the card's width (the title whole, the amount on its line); the picture under it with the
+  // sub and the chip beside it; the reason under both.
+  assert.match(sheet, /\.k-opt--side \{[^}]*grid-template-columns: 72px minmax\(0, 1fr\);[^}]*"head head" "pic sub" "pic state" "say say"/);
+  assert.match(sheet, /\.k-opt__line--head \{[^}]*align-items: baseline;/, "the amount on the title's baseline");
+  assert.match(sheet, /\.k-opt__say::first-letter \{\s*text-transform: uppercase;/, "the reason starts with a capital at display");
+  assert.match(sheet, /\.k-opt__say \{[^}]*min-height: calc\(2 \* var\(--lh-note\)\);/, "it holds two lines");
   assert.match(sheet, /\.k-opt__line--state \{[^}]*grid-area: state;[^}]*min-height: 20px;/);
   assert.doesNotMatch(sheet, /\.k-opt__line--state \.k-strip__chip \{[^}]*margin-left: auto/, "the chip sits at the left");
   assert.match(sheet, /\.k-opt__title \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;[^}]*font-size: var\(--fs-ui\);[^}]*font-weight: var\(--fw-bold\)/);
   assert.match(sheet, /\.k-opt \.k-opt__amount \{[^}]*font-size: var\(--fs-fact\);[^}]*font-weight: var\(--fw-bold\);[^}]*tabular-nums/);
   assert.match(sheet, /\.k-opt__say \{[^}]*grid-area: say;[^}]*-webkit-line-clamp: 2;[^}]*white-space: normal;[^}]*font-size: var\(--fs-note\);[^}]*color: var\(--ink-2\);/, "the reason reads on up to two lines at every width: a cut reason read as a fault to every critic");
   assert.doesNotMatch(sheet, /order: -1/, "the reason is drawn where it is heard, after the chip");
-  assert.match(sheet, /\.k-opt--on \{[^}]*border-color: var\(--accent\);[^}]*background: var\(--raise\);[^}]*box-shadow: 0 0 0 1px var\(--accent\)/);
+  // The chosen card: a 2 px accent ring (the edge and 1 px round it) on a faint accent fill.
+  assert.match(sheet, /\.k-opt--on \{[^}]*border-color: var\(--accent\);[^}]*background: color-mix\(in srgb, var\(--accent\) \d+%, var\(--raise\)\);[^}]*box-shadow: 0 0 0 1px var\(--accent\)/);
+  assert.doesNotMatch(sheet, /\.k-strip__chip--(good|warn|bad) \{/, "no chip colours of the strip's own: the kit's Tag draws them");
   assert.match(sheet, /\.k-take__thumb \{\s*width: 96px;\s*height: 54px;/);
   assert.match(sheet, /\.k-strip__thumb \{[^}]*width: 72px;[^}]*height: 48px;/);
   assert.match(sheet, /@media \(max-width: 859px\)[\s\S]*\.k-strip \{\s*flex-direction: column;/);

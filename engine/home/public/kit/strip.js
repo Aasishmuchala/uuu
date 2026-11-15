@@ -3,18 +3,20 @@
 // TakeCards are a plain row of pressable cards. Every picture address arrives already checked (R3); every string is text.
 import { html, useEffect, useLayoutEffect, useRef } from "../vendor/preact-htm.js";
 import { Icon } from "./icon.js";
+import { Tag } from "./tag.js";
 import { cx, isEmpty } from "./util.js";
 
 const has = (v) => !isEmpty(v);
 const TONES = ["good", "warn", "bad", "neutral"];
 
-// A state is { tone, text, icon } or plain words; it is drawn as the card's one chip.
+// A state is { tone, text, icon } or plain words; it is drawn as the card's one chip: the kit's Tag in its tone (one
+// chip system), held in a k-strip__chip that places it.
 function Chip({ state }) {
   if (!has(state)) return null;
   const s = typeof state === "object" && !Array.isArray(state) && !state.type ? state : { text: state };
   const tone = TONES.includes(s.tone) ? s.tone : "neutral";
   return html`<span class=${cx("k-strip__chip", `k-strip__chip--${tone}`)}>
-    ${typeof s.icon === "string" ? html`<${Icon} name=${s.icon} size=${12} />` : null}<span>${s.text}</span>
+    <${Tag} tone=${tone}>${typeof s.icon === "string" ? html`<${Icon} name=${s.icon} size=${12} />` : null}<span>${s.text}</span><//>
   </span>`;
 }
 
@@ -111,10 +113,11 @@ function Say({ say }) {
   return html`<p ref=${ref} class="k-opt__say">${say}</p>`;
 }
 
-// An option card at about 130 to 140 px (the stage measures the strip's real height): beside the 72 by 48 picture,
-// the radio and the title, then the grey sub with the amount on the right edge; under both columns the one chip alone
-// at the left, then the reason across the card's whole width (one line on a wide window, cut with its words in a title
-// only when they do not fit; up to two lines below 860 px). The reason tells the options apart, so it gets the most
+// An option card at about 96 to 136 px (the stage measures the strip's real height): beside the 72 by 48 picture,
+// the radio, the title and the amount (a price or a score) on the title's baseline at the right edge, then the grey
+// sub; under both columns the one chip alone at the left (when the caller gives one), then the reason across the
+// card's whole width on up to two lines, its first letter shown as a capital (strip.css; its words are not changed),
+// cut with its words in a title only when they do not fit. The reason tells the options apart, so it gets the most
 // room. A reader hears the chip before the reason.
 export function OptionCard({ checked, onPick, title, amount, sub, state, say, boards }) {
   const pic = pictureOf(boards);
@@ -130,13 +133,9 @@ export function OptionCard({ checked, onPick, title, amount, sub, state, say, bo
     <div class="k-opt__line k-opt__line--head">
       <span class="k-opt__radio" aria-hidden="true"></span>
       <span class="k-opt__title" title=${words(title)}>${title}</span>
+      ${has(amount) ? html`<span class="k-opt__amount">${amount}</span>` : null}
     </div>
-    ${has(sub) || has(amount)
-      ? html`<div class="k-opt__line k-opt__line--sub">
-          ${has(sub) ? html`<span class="k-opt__sub" title=${words(sub)}>${sub}</span>` : null}
-          ${has(amount) ? html`<span class="k-opt__amount">${amount}</span>` : null}
-        </div>`
-      : null}
+    ${has(sub) ? html`<div class="k-opt__line k-opt__line--sub"><span class="k-opt__sub" title=${words(sub)}>${sub}</span></div>` : null}
     ${has(state) ? html`<div class="k-opt__line k-opt__line--state"><${Chip} state=${state} /></div>` : null}
     ${has(say) ? html`<${Say} say=${say} />` : null}
   </div>`;
