@@ -92,6 +92,11 @@ test("a DocLayout lists its sections, marks the current one, and picks by button
   assert.deepEqual(picks.map((p) => p.getAttribute("aria-current")), [null, "page", null, null]);
   const states = byClass(root, "k-doc__pick-state");
   assert.deepEqual(states.map((e) => e.getAttribute("title")), ["On", "Off"], "the dot's words are also its tooltip");
+  // Fix round B2: one line an item; the state is a dot, its words for a screen reader only.
+  for (const st of states) {
+    assert.equal(byClass(st, "k-doc__pick-dot").length, 1);
+    assert.equal(byClass(st, "k-sr").length, 1, "the words are the screen reader's");
+  }
   assert.equal(picks[2].localName, "a");
   assert.equal(picks[2].getAttribute("href"), "#/settings/web");
   assert.equal(picks[3].localName, "button", "an address that is not the app's own is not a link");
@@ -125,6 +130,32 @@ test("a Group holds Rows; a warned Row carries its warning inside the panel, und
   assert.equal(textOf(byClass(items[1], "k-rows__state")[0]), "Saved, not tested");
   assert.equal(textOf(byClass(root, "k-group__aside")[0]), "Newest first");
   unmount(root);
+});
+
+test("fix round B2: a row's tile is 32 px and a row with no icon has none; section items are 32 px at 13 px with a 6 px dot; group heads 13 px muted, 32 px apart; the column about 640 px", async () => {
+  installDom();
+  const Tree = () => html`<${Rows}>
+    <${Row} icon="key" title="Runway key" say="Test asks how many credits you have." />
+    <${Row} title="Who may ask" say="Only the Researcher." />
+  <//>`;
+  const root = await mount(Tree, {});
+  const rows = byClass(root, "k-rows__row");
+  assert.equal(byClass(rows[0], "k-rows__icon").length, 1);
+  assert.equal(byClass(rows[1], "k-rows__icon").length, 0, "a secondary row has no tile");
+  assert.match(rows[1].getAttribute("class"), /k-rows__row--bare/);
+  unmount(root);
+  const sheet = css("kit/layout.css");
+  assert.match(/\.k-rows__icon \{([^}]*)\}/.exec(sheet)[1], /width: 32px;\s*height: 32px;/);
+  assert.match(/\.k-rows__title \{([^}]*)\}/.exec(sheet)[1], /font-size: var\(--fs-fact\);[^}]*font-weight: var\(--fw-bold\);/, "row titles 15 px 600");
+  const pick = /\.k-doc__pick \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(pick, /min-height: 32px;/);
+  assert.match(/\.k-doc__pick-name \{([^}]*)\}/.exec(sheet)[1], /font-size: var\(--fs-note\);/);
+  assert.match(/\.k-doc__pick-dot \{([^}]*)\}/.exec(sheet)[1], /width: 6px;\s*height: 6px;/);
+  const head = /\.k-group__title \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(head, /font-size: var\(--fs-note\);[^}]*font-weight: var\(--fw-bold\);[^}]*color: var\(--ink-2\);/);
+  assert.match(/\.k-group \{([^}]*)\}/.exec(sheet)[1], /margin-top: var\(--s-8\);/);
+  assert.match(/\.k-doc__main \{([^}]*)\}/.exec(sheet)[1], /max-width: calc\(640px \+ 2 \* var\(--s-10\)\);/);
+  assert.doesNotMatch(/\.k-doc__state \{([^}]*)\}/.exec(sheet)?.[1] || "", /margin-left: auto/, "the chip sits beside the title");
 });
 
 test("layout.css: the rail is sticky under the top bar, the stage on the deepest ground, one column below 860 px", () => {

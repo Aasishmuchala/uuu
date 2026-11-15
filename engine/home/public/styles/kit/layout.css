@@ -228,7 +228,9 @@
 }
 
 /* ---- DocLayout: a list of sections and one readable column. The list is on the page's ground behind a 1 px line,
-   so the sidebar stays the one darkest column. */
+   so the sidebar stays the one darkest column. Fix round B2: an item is one 32 px line at 13 px, its state a 6 px
+   dot at the right (the words for a screen reader and on hover); the head is the title with a one- or two-word
+   chip beside it; the column is about 640 px; a group's head is 13 px muted so the row titles lead. */
 .k-doc--layout {
   display: grid;
   grid-template-columns: var(--sections-w) minmax(0, 1fr);
@@ -247,7 +249,7 @@
   top: var(--topbar-h);
   align-self: stretch;
   min-height: calc(100vh - var(--topbar-h));
-  padding: var(--s-4) var(--s-3);
+  padding: var(--s-6) var(--s-3);
   border-right: 1px solid var(--line);
   background: var(--bg);
 }
@@ -261,14 +263,14 @@
 .k-doc__pick {
   position: relative;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 2px var(--s-3);
+  gap: 0 10px;
   width: 100%;
-  min-height: var(--h-md);
-  padding: 7px 10px;
+  min-height: 32px;
+  padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: var(--r-2);
+  border-radius: var(--r-1);
   background: none;
   color: var(--ink-2);
   font: inherit;
@@ -301,14 +303,18 @@
 }
 
 .k-doc__pick-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--ink-2);
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3);
+}
+
+.k-doc__pick[aria-current="page"] .k-doc__pick-icon {
+  color: var(--ink);
 }
 
 .k-doc__pick-name {
-  font-size: var(--fs-fact);
-  line-height: var(--lh-ui);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -319,20 +325,19 @@
   font-weight: var(--fw-medium);
 }
 
+/* The state: a dot alone, in the state's tone; a plain state is the third ink, so only what needs a look has colour. */
 .k-doc__pick-state {
-  grid-column: 2;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--fs-note);
-  line-height: var(--lh-note);
-  color: var(--ink-2);
+  grid-column: 3;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
 }
 
 .k-doc__pick-dot {
   flex: none;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: var(--r-round);
   background: var(--ink-3);
 }
@@ -343,17 +348,19 @@
 
 .k-doc__main {
   width: 100%;
-  max-width: var(--doc-max);
+  max-width: calc(640px + 2 * var(--s-10));
   margin: 0 auto;
   padding: var(--s-8) var(--s-10) var(--s-12);
   font-size: var(--fs-fact);
   line-height: var(--lh-fact);
 }
 
+/* The title, and the state beside it as a small chip on the title's middle. */
 .k-doc__head {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
 }
 
 .k-doc__title {
@@ -370,18 +377,21 @@
 }
 
 .k-doc__intro {
-  margin-top: var(--s-1);
+  margin-top: var(--s-2);
+  max-width: 64ch;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
   color: var(--ink-2);
 }
 
-/* The page's state, and a row's grey state: one chip at 12 px on a tint. */
+/* The page's state, and a row's state: the kit's chip, 22 px, 12 px 500, 8 px sides, 6 px corner, on its tint. */
 .k-doc__state,
 .k-rows__state {
   display: inline-flex;
   align-items: center;
-  height: 20px;
-  padding: 0 7px;
-  border-radius: 5px;
+  height: 22px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-1);
   background: var(--ctl);
   color: var(--ink-2);
   font-size: var(--fs-label);
@@ -390,19 +400,17 @@
   white-space: nowrap;
 }
 
-.k-doc__state {
-  margin-left: auto;
-}
-
 .k-doc__state--good, .k-rows__state--good { background: var(--good-bg); color: var(--good); }
 .k-doc__state--warn, .k-rows__state--warn { background: var(--warn-bg); color: var(--warn); }
 .k-doc__state--bad, .k-rows__state--bad { background: var(--bad-bg); color: var(--bad); }
 
+/* 32 px between groups; a group's head is 13 px 600 in the second ink, so the row titles lead. */
 .k-group {
-  margin-top: var(--s-10);
+  margin-top: var(--s-8);
 }
 
-.k-doc__intro + .k-group {
+.k-doc__intro + .k-group,
+.k-doc__head + .k-group {
   margin-top: var(--s-6);
 }
 
@@ -410,9 +418,10 @@
   display: flex;
   align-items: baseline;
   gap: 10px;
-  font-size: var(--fs-section);
+  font-size: var(--fs-note);
   font-weight: var(--fw-bold);
-  line-height: var(--lh-section);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
 }
 
 .k-group__aside {
@@ -429,10 +438,14 @@
 }
 
 .k-group__body {
-  margin-top: var(--s-3);
+  margin-top: var(--s-2);
 }
 
 .k-group__title + .k-group__body {
+  margin-top: var(--s-2);
+}
+
+.k-group__say + .k-group__body {
   margin-top: var(--s-3);
 }
 
@@ -445,13 +458,14 @@
   overflow: hidden;
 }
 
+/* A row: a 32 px tile, the words, and the controls in one right-hand column. */
 .k-rows__row {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0 14px;
-  min-height: 56px;
-  padding: 10px var(--s-4);
+  gap: 0 var(--s-3);
+  min-height: 60px;
+  padding: var(--s-3) var(--s-4);
   border-top: 1px solid var(--line);
 }
 
@@ -459,14 +473,24 @@
   border-top: 0;
 }
 
+/* A secondary row: no tile. */
+.k-rows__row--bare {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .k-rows__icon {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  align-self: start;
+  width: 32px;
+  height: 32px;
   border-radius: var(--r-2);
   background: var(--ctl);
   color: var(--ink-2);
+}
+
+.k-rows__row:not(:has(.k-rows__text > .k-say)) > .k-rows__icon {
+  align-self: center;
 }
 
 .k-rows__text {
@@ -479,21 +503,30 @@
   flex-wrap: wrap;
   gap: 2px var(--s-2);
   font-size: var(--fs-fact);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-ui);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-fact);
   color: var(--ink);
+}
+
+.k-rows__text > .k-say {
+  margin-top: 2px;
+  max-width: 62ch;
 }
 
 .k-rows__control {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: var(--s-2);
 }
 
 .k-rows__warned {
   grid-column: 2 / -1;
   margin: var(--s-3) 0 var(--s-1);
+}
+
+.k-rows__row--bare > .k-rows__warned {
+  grid-column: 1 / -1;
 }
 
 /* ---- A phone, or any narrow window */
@@ -603,19 +636,29 @@
   }
 
   .k-doc__pick {
-    grid-template-columns: auto;
+    grid-template-columns: auto auto;
+    gap: 0 6px;
     min-height: calc(var(--h-lg) + var(--s-1));
     padding: 0 var(--s-3);
     white-space: nowrap;
   }
 
-  .k-doc__pick-icon,
-  .k-doc__pick-state {
+  .k-doc__pick-icon {
     display: none;
   }
 
   .k-doc__pick-name {
     grid-column: 1;
+    font-size: var(--fs-ui);
+  }
+
+  .k-doc__pick-state {
+    grid-column: 2;
+    width: 6px;
+  }
+
+  .k-doc__pick-state--neutral {
+    display: none;
   }
 
   .k-doc__main {
@@ -623,12 +666,21 @@
   }
 
   .k-rows__row {
-    grid-template-columns: 36px minmax(0, 1fr);
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .k-rows__row--bare {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .k-rows__control {
     grid-column: 2;
     justify-content: flex-start;
+    flex-wrap: wrap;
     margin-top: var(--s-2);
+  }
+
+  .k-rows__row--bare > .k-rows__control {
+    grid-column: 1;
   }
 }
