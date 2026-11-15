@@ -314,7 +314,7 @@
 .k-pick__note-field {
   width: 100%;
   min-height: var(--h-md);
-  resize: vertical;
+  resize: none;
 }
 
 .k-pick__hint {

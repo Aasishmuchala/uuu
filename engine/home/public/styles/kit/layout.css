@@ -128,12 +128,15 @@
   font-weight: var(--fw-bold);
 }
 
-/* The body scrolls above the foot; its last line keeps 16 px of air over the foot's hairline, so a line the foot
-   cuts reads as more to scroll, not as a fault. */
+/* The body scrolls above the foot. What the foot would cut fades out over the body's last 32 px, so it reads as
+   more to scroll, not as a line sliced in two; the body ends with 32 px of air, so at the end of the scroll
+   nothing real is under the fade. */
 .k-rail__body {
   flex: 1 1 auto;
   min-height: 0;
-  padding-bottom: var(--s-4);
+  padding-bottom: calc(var(--s-4) * 2);
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - var(--s-4) * 2), transparent);
+  mask-image: linear-gradient(to bottom, black calc(100% - var(--s-4) * 2), transparent);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;

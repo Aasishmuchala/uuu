@@ -79,7 +79,9 @@ const SIZES = ["sm", "md", "lg", "full"];
 function DialogPanel({ title, sub, tools, onClose, size, footer, children }) {
   const ref = useRef(null);
   const [id] = useState(() => nextId("k-dialog"));
-  const onKeyDown = useFocusTrap(ref, onClose);
+  // A viewer ("full") starts on its Close button, as a drawer does: its body is a picture that scrolls, and a
+  // ring round the whole picture reads as a selection, not as the keyboard's place.
+  const onKeyDown = useFocusTrap(ref, onClose, size === "full");
   const at = SIZES.includes(size) ? size : "md";
   return html`<div class=${cx("k-dialog", at === "full" && "k-dialog--full")}>
     <div class="k-dialog__backdrop" aria-hidden="true" onClick=${() => onClose && onClose()}></div>

@@ -1134,7 +1134,7 @@ function SitePage({ id, d, t, query, view, acceptance, pickItem, pieces, needs, 
   return html`<div class="p-task p-task--stage" ref=${root}>
     <${StageLayout} kind=${stageKind(acceptance, round)} title=${cap(t.title, 300) || "Task"} lede=${lede || null}
       label=${stageLabel(site)}
-      stage=${html`<div class="p-task__stage" id="p-task-sites" tabindex="-1"><${SiteStage} view=${view} scores=${byLetter} /></div>`}
+      stage=${html`<div class="p-task__site" id="p-task-sites" tabindex="-1"><${SiteStage} view=${view} scores=${byLetter} pick=${pickItem ? { item: pickItem, onDone: onPicked, onChanged } : null} /></div>`}
       strip=${view.many ? html`<${SiteStrip} view=${view} scores=${byLetter} />` : null}
       rail=${html`<${SiteRail} view=${view} />${scores}<${Facts} id=${id} query=${query} acceptance=${acceptance} needs=${needs} next=${next} after=${after} said=${said} saidRef=${saidRef} />
         ${t.id && (pickItem || !acceptance.accept) ? html`<${Blk}><div class="p-task__tools p-task__tools--rail">

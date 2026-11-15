@@ -758,14 +758,14 @@
   display: block;
 }
 
-.p-task .p-task__stage {
+.p-task .p-task__site {
   flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-.p-task .p-task__stage:focus {
+.p-task .p-task__site:focus {
   outline: none;
 }
 

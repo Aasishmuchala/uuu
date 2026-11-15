@@ -141,7 +141,7 @@ test("the pressed choice is lifted: the raised step with a hairline edge and str
   const s = css("kit/segmented.css");
   const on = /\.k-seg__item--on,[^{]*\{([^}]*)\}/.exec(s);
   assert.ok(on, "the pressed choice is drawn");
-  assert.match(on[1], /background: var\(--raise\);/);
+  assert.match(on[1], /background: color-mix\(in srgb, var\(--ink\) 11%, transparent\);/, "a tint of the ink, so it shows on every surface, an overlay included");
   assert.match(on[1], /color: var\(--ink\);/);
   assert.match(on[1], /box-shadow: inset 0 0 0 1px var\(--line-2\);/);
   assert.match(on[1], /font-weight: var\(--fw-bold\);/);

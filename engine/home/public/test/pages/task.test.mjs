@@ -438,7 +438,8 @@ test("task: the rail lists each round with its checks; the facts line names who,
 test("task: on a stage the site's pieces and the pick's foot share one version, and the top bar holds only the crumbs", () => {
   const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../pages/task.js"), "utf8");
   const stage = src.slice(src.indexOf("function SitePage("));
-  assert.match(stage, /<\$\{SiteStage\} view=\$\{view\} scores=\$\{byLetter\} \/>/, "the larger picture's line has the version's score");
+  assert.match(stage, /<\$\{SiteStage\} view=\$\{view\} scores=\$\{byLetter\} pick=\$\{pickItem \? \{ item: pickItem, onDone: onPicked, onChanged \} : null\} \/>/, "the larger picture's line has the version's score, and its foot the pick while one waits");
+  assert.match(stage, /<div class="p-task__site" id="p-task-sites"/, "the site's place has its own class: a stage row in the rail is another thing");
   assert.match(stage, /<\$\{SiteStrip\} view=\$\{view\} scores=\$\{byLetter\} \/>/);
   assert.match(stage, /<\$\{SiteRail\} view=\$\{view\} \/>/);
   assert.match(stage, /<\$\{PickFoot\} item=\$\{pickItem\} chosen=\$\{letter\}/, "the pick follows the site on the stage");
