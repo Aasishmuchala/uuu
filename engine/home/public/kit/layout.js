@@ -113,13 +113,14 @@ export function DocLayout({ title, state, intro, sections, current, onPick, chil
             ${list.map((s) => {
               const on = s.id === current;
               const st = stateParts(s.status);
-              // One line an item: the state is a dot at the right in its tone; its words are for a screen reader
-              // and on hover, so the list never reads as a paragraph and the state is said on the page itself.
+              // One line an item: a state that needs a look is a dot at the right in its tone; a plain state draws
+              // nothing (seven grey dots read as noise). Its words are for a screen reader and on hover either way,
+              // so the list never reads as a paragraph and the state is said on the page itself.
               const inner = html`${s.icon ? html`<${Icon} name=${s.icon} size=${16} class="k-doc__pick-icon" />` : html`<span class="k-doc__pick-icon"></span>`}
                 <span class="k-doc__pick-name">${s.label}</span>
                 ${st
                   ? html`<span class=${cx("k-doc__pick-state", `k-doc__pick-state--${st.tone}`)} title=${stateTitle(st.text)}>
-                      <span class="k-doc__pick-dot" aria-hidden="true"></span><span class="k-sr">${st.text}</span>
+                      ${st.tone !== "neutral" ? html`<span class="k-doc__pick-dot" aria-hidden="true"></span>` : null}<span class="k-sr">${st.text}</span>
                     </span>`
                   : null}`;
               const link = s.href !== undefined && s.href !== null ? safeHref(s.href) : undefined;

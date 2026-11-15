@@ -227,7 +227,7 @@
 /* ---- DocLayout: a list of sections and one readable column. The list is on the page's ground behind a 1 px line,
    so the sidebar stays the one darkest column. Fix round B2: an item is one 32 px line at 13 px, its state a 6 px
    dot at the right (the words for a screen reader and on hover); the head is the title with a one- or two-word
-   chip beside it; the column is about 640 px; a group's head is 13 px muted so the row titles lead. */
+   chip beside it; the column is 720 px (fix round R5); a group's head is 13 px muted so the row titles lead. */
 .k-doc--layout {
   display: grid;
   grid-template-columns: var(--sections-w) minmax(0, 1fr);
@@ -326,7 +326,8 @@
   font-weight: var(--fw-medium);
 }
 
-/* The state: a dot alone, in the state's tone; a plain state is the third ink, so only what needs a look has colour. */
+/* The state: a dot alone, in the state's tone; a plain state draws no dot (layout.js), so only what needs a look
+   is marked. */
 .k-doc__pick-state {
   grid-column: 3;
   display: grid;
@@ -340,18 +341,20 @@
   width: 6px;
   height: 6px;
   border-radius: var(--r-round);
-  background: color-mix(in srgb, var(--ink-3) 55%, transparent);
+  background: var(--ink-3);
 }
 
 .k-doc__pick-state--good .k-doc__pick-dot { background: var(--good); }
 .k-doc__pick-state--warn .k-doc__pick-dot { background: var(--warn); }
 .k-doc__pick-state--bad .k-doc__pick-dot { background: var(--bad); }
 
+/* Fix round R5: one 720 px column that starts 48 px after the section list, so no empty band parts them; what the
+   window has left over is at the right. */
 .k-doc__main {
   width: 100%;
-  max-width: calc(640px + 2 * var(--s-10));
-  margin: 0 auto;
-  padding: var(--s-8) var(--s-10) var(--s-12);
+  max-width: calc(720px + var(--s-12) + var(--s-10));
+  margin: 0;
+  padding: var(--s-8) var(--s-10) var(--s-12) var(--s-12);
   font-size: var(--fs-fact);
   line-height: var(--lh-fact);
 }

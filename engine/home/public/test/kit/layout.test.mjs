@@ -92,11 +92,10 @@ test("a DocLayout lists its sections, marks the current one, and picks by button
   assert.deepEqual(picks.map((p) => p.getAttribute("aria-current")), [null, "page", null, null]);
   const states = byClass(root, "k-doc__pick-state");
   assert.deepEqual(states.map((e) => e.getAttribute("title")), ["On", "Off"], "the dot's words are also its tooltip");
-  // Fix round B2: one line an item; the state is a dot, its words for a screen reader only.
-  for (const st of states) {
-    assert.equal(byClass(st, "k-doc__pick-dot").length, 1);
-    assert.equal(byClass(st, "k-sr").length, 1, "the words are the screen reader's");
-  }
+  // Fix round B2: one line an item; the state is a dot, its words for a screen reader only. Fix round R5: a plain
+  // state draws no dot (a dot on every item is noise); its words stay.
+  assert.deepEqual(states.map((st) => byClass(st, "k-doc__pick-dot").length), [1, 0], "a dot only where the state is not neutral");
+  for (const st of states) assert.equal(byClass(st, "k-sr").length, 1, "the words are the screen reader's");
   assert.equal(picks[2].localName, "a");
   assert.equal(picks[2].getAttribute("href"), "#/settings/web");
   assert.equal(picks[3].localName, "button", "an address that is not the app's own is not a link");
@@ -132,7 +131,7 @@ test("a Group holds Rows; a warned Row carries its warning inside the panel, und
   unmount(root);
 });
 
-test("fix round B2: a row's tile is 32 px and a row with no icon has none; section items are 32 px at 13 px with a 6 px dot; group heads 13 px muted, 32 px apart; the column about 640 px", async () => {
+test("fix round B2: a row's tile is 32 px and a row with no icon has none; section items are 32 px at 13 px with a 6 px dot; group heads 13 px muted, 32 px apart; the column 720 px, 48 px after the list", async () => {
   installDom();
   const Tree = () => html`<${Rows}>
     <${Row} icon="key" title="Runway key" say="Test asks how many credits you have." />
@@ -154,7 +153,11 @@ test("fix round B2: a row's tile is 32 px and a row with no icon has none; secti
   const head = /\.k-group__title \{([^}]*)\}/.exec(sheet)[1];
   assert.match(head, /font-size: var\(--fs-note\);[^}]*font-weight: var\(--fw-bold\);[^}]*color: var\(--ink-2\);/);
   assert.match(/\.k-group \{([^}]*)\}/.exec(sheet)[1], /margin-top: var\(--s-8\);/);
-  assert.match(/\.k-doc__main \{([^}]*)\}/.exec(sheet)[1], /max-width: calc\(640px \+ 2 \* var\(--s-10\)\);/);
+  // Fix round R5: the column is 720 px and starts 48 px after the section list; what is left is at the right.
+  const main = /\.k-doc__main \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(main, /max-width: calc\(720px \+ var\(--s-12\) \+ var\(--s-10\)\);/);
+  assert.match(main, /margin: 0;/, "not centred: no band between the list and the column");
+  assert.match(main, /padding: var\(--s-8\) var\(--s-10\) var\(--s-12\) var\(--s-12\);/, "48 px after the list");
   assert.doesNotMatch(/\.k-doc__state \{([^}]*)\}/.exec(sheet)?.[1] || "", /margin-left: auto/, "the chip sits beside the title");
 });
 
