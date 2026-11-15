@@ -1,4 +1,5 @@
-// The kit's overlays (CONTRACTS-V2 13.1, V3 27.3): an opaque panel with the float shadow, and the stylesheet's rules.
+// The kit's overlays (CONTRACTS-V2 13.1, V3 27.3): the one overlay surface with its edge and shadow, and the
+// stylesheet's rules.
 // Split out of kit-a (T01 of PLAN-COOK). The drawers' M55 test is the shell's (shell-m55.test.mjs).
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -9,16 +10,24 @@ import { pathToFileURL } from "node:url";
 import { css, stripComments, primitiveSheetTests, narrowControlsTest } from "./_rules.mjs";
 
 // From "the primitives' stylesheets follow the rules of V3 27.3" (kit-a).
-test("overlays: an overlay is an opaque panel and blurs nothing behind it", () => {
+test("overlays: an overlay is the one overlay surface and blurs nothing behind it (fix round A3)", () => {
   const overlays = stripComments(readFileSync(join(STYLES, "overlays.css"), "utf8"));
-  assert.match(overlays, /\.k-menu__list \{[^}]*background: var\(--panel\)/, "the menu is an opaque panel");
-  assert.match(overlays, /\.k-drawer__panel \{[^}]*background: var\(--panel\)/, "the dialog and the drawer are opaque panels");
+  assert.match(overlays, /\.k-menu__list \{[^}]*border: 1px solid var\(--overlay-line\);[^}]*background: var\(--overlay\)/, "the menu is the overlay surface with its edge");
+  assert.match(overlays, /\.k-drawer__panel \{[^}]*background: var\(--overlay\)/, "the dialog and the drawer are the overlay surface");
   assert.doesNotMatch(overlays, /backdrop-filter/, "an overlay blurs nothing behind it");
 });
 
-test("overlays: overlays carry the float shadow", () => {
+test("overlays: overlays carry the overlay shadow; a menu dims nothing", () => {
   const overlays = stripComments(readFileSync(join(STYLES, "overlays.css"), "utf8"));
-  assert.match(overlays, /var\(--float\)/, "overlays carry the float shadow");
+  assert.match(overlays, /var\(--overlay-shadow\)/, "overlays carry the overlay shadow");
+  assert.doesNotMatch(overlays, /\.k-menu[^{]*\{[^}]*var\(--scrim\)/, "no menu rule lays the dim");
+});
+
+test("overlays: a radio menu's current item is the chosen fill with a 2 px accent bar, never a ring", () => {
+  const o = css("kit/overlays.css");
+  const cur = /\.k-menu__item\[aria-checked="true"\] \{([^}]*)\}/.exec(o)[1];
+  assert.match(cur, /background: var\(--sel\);/);
+  assert.match(cur, /box-shadow: inset 2px 0 0 var\(--accent\);/);
 });
 
 test("overlays: a dialog has the 12 px corner, a 15 px title and its primary last; a drawer's title is 16 px; a menu has the 8 px corner and 32 px rows; the drawer is a 380 px sheet", () => {
@@ -28,7 +37,7 @@ test("overlays: a dialog has the 12 px corner, a 15 px title and its primary las
   assert.match(o, /\.k-drawer__title \{[^}]*font-size: var\(--fs-section\);[^}]*font-weight: var\(--fw-bold\);/);
   assert.match(o, /\.k-dialog__foot \{[^}]*justify-content: flex-end;/, "the actions at the right of the foot");
   assert.match(o, /\.k-dialog__foot \.k-btn--primary,\s*\.k-dialog__foot \.k-btn--accept \{\s*order: 1;/, "the primary goes last");
-  assert.match(o, /\.k-menu__list \{[^}]*border-radius: var\(--r-2\);[^}]*box-shadow: var\(--float\);/);
+  assert.match(o, /\.k-menu__list \{[^}]*border-radius: var\(--r-2\);[^}]*box-shadow: var\(--overlay-shadow\);/);
   assert.match(o, /\.k-menu__item \{[^}]*min-height: var\(--s-8\);/, "32 px rows");
   assert.match(o, /\.k-drawer__panel \{\s*width: min\(88vw, var\(--panel-w\)\);/);
 });
@@ -71,12 +80,12 @@ test("Menu: a current item is a menuitemradio, checked; focus starts on it, else
 });
 
 // PLAN-COOK T102: the kit's Dialog for every caller.
-test("T102: a dialog is centred with 48 px of scrim on every side, a 1 px border, the float shadow, a muted second line, a 32 px close and a body that scrolls inside it", () => {
+test("T102: a dialog is centred with 48 px of scrim on every side, a 1 px border, the overlay shadow, a muted second line, a 32 px close and a body that scrolls inside it", () => {
   const o = css("kit/overlays.css");
   assert.match(o, /\.k-dialog \{\s*align-items: center;\s*justify-content: center;\s*padding: var\(--s-12\);/, "centred, 48 px all round");
   assert.match(o, /\.k-dialog__backdrop,\s*\.k-drawer__backdrop \{[^}]*background: var\(--scrim\);/, "the scrim token");
-  assert.match(o, /\.k-dialog__panel \{[^}]*max-height: 100%;[^}]*border: 1px solid var\(--line-2\);[^}]*border-radius: var\(--r-3\);/);
-  assert.match(o, /\.k-dialog__panel,\s*\.k-drawer__panel \{[^}]*box-shadow: var\(--float\);/);
+  assert.match(o, /\.k-dialog__panel \{[^}]*max-height: 100%;[^}]*border: 1px solid var\(--overlay-line\);[^}]*border-radius: var\(--r-3\);/);
+  assert.match(o, /\.k-dialog__panel,\s*\.k-drawer__panel \{[^}]*box-shadow: var\(--overlay-shadow\);/);
   assert.match(o, /\.k-dialog__sub \{[^}]*color: var\(--ink-2\);/, "the second line is muted");
   assert.match(o, /\.k-dialog__close\.k-btn \{[^}]*width: var\(--s-8\);[^}]*height: var\(--s-8\);/, "a 32 px target");
   assert.match(o, /\.k-dialog__body,\s*\.k-drawer__body \{[^}]*min-height: 0;[^}]*overflow-y: auto;/, "the body scrolls inside");
