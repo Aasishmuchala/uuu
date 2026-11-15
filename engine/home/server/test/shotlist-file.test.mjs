@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { estimate, PRICES } from "../../../generate/runway.mjs";
 import {
-  approvalsOf, approvedShots, boardsOf, checkShotlist, costWords, dollars, exactlyThere, MAX_SHOTLIST, priceShotlist, RATIOS, readShotlist,
+  approvalsOf, approvedShots, boardsOf, boxOf, checkShotlist, costWords, dollars, exactlyThere, MAX_BOARD_MANIFEST, MAX_SHOTLIST, priceShotlist, RATIOS, readShotlist,
   recordApproval, shotsHash, timeWords,
 } from "../lib/shotlist.mjs";
 
@@ -338,6 +338,94 @@ test("boards: shot-NN.png in exactly that letter case and starting as a PNG, for
     symlinkSync(join(goal, "other-board"), board);
     assert.deepEqual(boardsOf(config, "STH-26", REL), []);
   });
+});
+
+// A PNG's first bytes with its IHDR saying w by h (what pngSize reads), then zeros.
+const pngOf = (w, h) => {
+  const b = Buffer.alloc(64);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]).copy(b, 0);
+  b.write("IHDR", 12, "ascii");
+  b.writeUInt32BE(w, 16);
+  b.writeUInt32BE(h, 20);
+  return b;
+};
+
+test("boards: the picture box from the tool's manifest is passed on only when it is four whole numbers inside the board and at least half of it", () => {
+  withState(({ config, goal }) => {
+    const board = join(goal, REL, "board");
+    mkdirSync(board, { recursive: true });
+    for (const n of [1, 2, 3, 4, 5, 6, 7, 8, 9]) writeFileSync(join(board, `shot-0${n}.png`), pngOf(1280, 720));
+    const manifest = join(goal, REL, "manifest.json");
+    const pictures = [
+      { frame: "shot-01", box: [0, 0, 1280, 619], source: "tower.png" },     // the tool's own: good
+      { frame: "shot-02", box: [0, 0, 1281, 619], source: "x" },             // larger than the board
+      { frame: "shot-03", box: [-1, 0, 1280, 619], source: "x" },            // a negative number
+      { frame: "shot-04", box: ["0", "0", "1280", "619"], source: "x" },     // strings
+      { frame: "shot-05", box: "../../../secrets/agent.env", source: "x" },  // a path
+      { frame: "shot-06", box: [0, 0, 1280, 300], source: "x" },             // less than half the board
+      { frame: "shot-07", box: [0, 0, 1280.5, 619], source: "x" },           // not whole
+      { frame: "shot-08", box: [0, 619, 1280, 0], source: "x" },             // upside down
+      { frame: "../shot-09", box: [0, 0, 1280, 619], source: "x" },          // a frame that is not a board's name
+    ];
+    const write = (doc) => writeFileSync(manifest, typeof doc === "string" ? doc : JSON.stringify(doc));
+    const got = (ids = ["s01", "s02", "s03", "s04", "s05", "s06", "s07", "s08", "s09"]) => boardsOf(config, "STH-26", REL, ids);
+    write({ kind: "board", made_by: "board", title: "t", ratio: "1280:720", shots: 9, pictures, logo: [] });
+    const all = got();
+    assert.deepEqual(all.map((b) => b.shot), ["s01", "s02", "s03", "s04", "s05", "s06", "s07", "s08", "s09"]);
+    assert.deepEqual(all[0], { shot: "s01", url: all[0].url, box: [0, 0, 1280, 619], size: [1280, 720] });
+    for (const b of all.slice(1)) assert.deepEqual([b.shot, b.box, b.size], [b.shot, null, null], b.shot);
+    // A box only ever holds the four numbers: nothing else the file says is passed on.
+    assert.deepEqual(Object.keys(all[0]), ["shot", "url", "box", "size"]);
+    // Against the board's own size: the same box on a smaller board is too large.
+    writeFileSync(join(board, "shot-01.png"), pngOf(1000, 619));
+    assert.equal(got(["s01"])[0].box, null);
+    writeFileSync(join(board, "shot-01.png"), pngOf(1280, 720));
+    // A frame named twice keeps no box.
+    write({ kind: "board", pictures: [pictures[0], { ...pictures[0], box: [0, 0, 1280, 700] }] });
+    assert.equal(got(["s01"])[0].box, null);
+    // Each broken manifest means no box, and the boards are still shown.
+    const none = () => { const b = got(["s01"]); assert.deepEqual([b.length, b[0].box, b[0].size], [1, null, null]); };
+    write("{ not json");
+    none();
+    write(JSON.stringify({ kind: "board", pictures }).replace("{", "ÿ{"));
+    none();
+    writeFileSync(manifest, Buffer.from([0xff, 0xfe, 0x7b, 0x7d]));                // not UTF-8
+    none();
+    write({ kind: "video", pictures });                                             // not a board's manifest
+    none();
+    write({ kind: "board", pictures: { "shot-01": [0, 0, 1280, 619] } });
+    none();
+    write([pictures]);
+    none();
+    write({ kind: "board", pictures, pad: "x".repeat(MAX_BOARD_MANIFEST) });         // larger than the cap
+    none();
+    rmSync(manifest);                                                               // missing
+    none();
+    // A manifest that is a link, or named in another letter case, is not read.
+    writeFileSync(join(goal, "elsewhere.json"), JSON.stringify({ kind: "board", pictures }));
+    symlinkSync(join(goal, "elsewhere.json"), manifest);
+    none();
+    rmSync(manifest);
+    writeFileSync(join(goal, REL, "MANIFEST.json"), JSON.stringify({ kind: "board", pictures }));
+    none();
+    rmSync(join(goal, REL, "MANIFEST.json"));
+    // A board whose header gives no size keeps no box.
+    write({ kind: "board", pictures });
+    writeFileSync(join(board, "shot-01.png"), PNG);
+    none();
+  });
+});
+
+test("boxOf: four whole numbers, 0 <= x0 < x1 <= w, 0 <= y0 < y1 <= h, at least half the board's area", () => {
+  const size = { w: 1280, h: 720 };
+  assert.deepEqual(boxOf([0, 0, 1280, 619], size), [0, 0, 1280, 619]);
+  assert.deepEqual(boxOf([0, 0, 1280, 360], size), [0, 0, 1280, 360], "exactly half");
+  for (const bad of [[0, 0, 1280, 359], [0, 0, 1280, 721], [0, 0, 1281, 720], [-1, 0, 1280, 619], [0, -1, 1280, 619], [10, 0, 10, 619],
+    [0, 0, 1280], [0, 0, 1280, 619, 1], ["0", 0, 1280, 619], [0, 0, 1280, NaN], [0, 0, Infinity, 619], [0, 0, 1280, null], null, "0,0,1280,619", {}]) {
+    assert.equal(boxOf(bad, size), null, JSON.stringify(bad));
+  }
+  assert.equal(boxOf([0, 0, 1280, 619], null), null);
+  assert.equal(boxOf([0, 0, 1280, 619], { w: "1280", h: 720 }), null);
 });
 
 test("exactlyThere: one entry of that name in that letter case, and no other folding to it", () => {

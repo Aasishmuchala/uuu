@@ -40,6 +40,32 @@
   object-fit: cover;
 }
 
+/* A board's picture box only (kit/strip.js cropOf): the box covers the thumb, centred, and the board is laid in it that
+   large and that far up and left, so the band of words the tool draws under the render stays outside. */
+.k-strip__thumb--crop {
+  container-type: size;
+}
+
+.k-strip__crop {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100cqw, calc(100cqh * var(--k-crop-r)));
+  height: max(100cqh, calc(100cqw / var(--k-crop-r)));
+  overflow: hidden;
+  transform: translate(-50%, -50%);
+}
+
+.k-strip__thumb .k-strip__crop img {
+  position: absolute;
+  left: var(--k-crop-x);
+  top: var(--k-crop-y);
+  width: var(--k-crop-w);
+  height: var(--k-crop-h);
+  max-width: none;
+  object-fit: fill;
+}
+
 /* ---- An option card: a radio. The picture (72 by 48) at the left spans the head and the sub; the chip, then the
    reason, run under both columns. 16 + 48 + 8 + 20 + 8 + 18 + 16 px and the border: 136 px with both, 96 px with
    neither. */

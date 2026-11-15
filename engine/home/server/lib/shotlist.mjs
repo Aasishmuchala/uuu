@@ -32,7 +32,7 @@ import { join } from "node:path";
 import { priceCents, ratioOk } from "./generation.mjs";
 import { BATCH_ID } from "./staged.mjs";
 import { fileToken, goalFolder, readChecked } from "./taskfiles.mjs";
-import { readGoalBytes, sniff } from "../routes/_images.mjs";
+import { pngSize, readGoalBytes, sniff } from "../routes/_images.mjs";
 
 export const MAX_SHOTLIST = 32 * 1024;
 export const RATIOS = Object.freeze(["1280:720", "720:1280", "1104:832", "832:1104", "960:960", "1584:672"]);
@@ -290,9 +290,48 @@ export function timeWords(n) {
   return `Runway takes a few minutes a clip: ${span} for ${count} ${count === 1 ? "clip" : "clips"}, then the edit and the checks.`;
 }
 
+// The picture boxes the Artist's tool noted for a treatment's boards (video.py `board` writes `manifest.json` beside
+// shotlist.json: `pictures: [{ frame: "shot-01", box: [x0, y0, x1, y1], source }]`, the box being where the render sits
+// on the board, above the band of words it draws under it). The file is an agent's, so it is untrusted: read as the
+// shotlist is (in exactly that letter case, no link on the way or at the file, inside the goal's folder, at most
+// 64 KB, UTF-8 JSON) and only a frame's box is taken from it, as numbers (boxOf checks them against the board). No
+// value in it is ever used as a path or shown. -> Map(frame -> the box as written, or null when written twice), or
+// an empty Map when the file is missing or broken.
+export const MAX_BOARD_MANIFEST = 64 * 1024;
+
+function boardBoxes(config, identifier, parts, top) {
+  const none = new Map();
+  if (!exactlyThere(top, "manifest.json")) return none;
+  const read = readGoalBytes(config, identifier, `${parts.join("/")}/manifest.json`, { maxBytes: MAX_BOARD_MANIFEST });
+  if (!read || read.tooLarge || !read.bytes || read.size > MAX_BOARD_MANIFEST) return none;
+  let doc;
+  try { doc = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(read.bytes)); } catch { return none; }
+  if (!isObject(doc) || doc.kind !== "board" || !Array.isArray(doc.pictures)) return none;
+  const out = new Map();
+  for (const p of doc.pictures.slice(0, 100)) {
+    if (!isObject(p) || typeof p.frame !== "string" || !/^shot-(0[1-9]|1[0-2])$/.test(p.frame)) continue;
+    out.set(p.frame, out.has(p.frame) ? null : p.box);
+  }
+  return out;
+}
+
+// A board's picture box as the page may use it: four whole numbers [x0, y0, x1, y1] with 0 <= x0 < x1 <= the board's
+// width and 0 <= y0 < y1 <= its height, covering at least half the board; anything else is null (the whole board is
+// shown). `size` is the board's own { w, h }, from its PNG header.
+export function boxOf(box, size) {
+  if (!size || !Number.isInteger(size.w) || !Number.isInteger(size.h) || size.w < 1 || size.h < 1) return null;
+  if (!Array.isArray(box) || box.length !== 4 || !box.every((v) => Number.isInteger(v))) return null;
+  const [x0, y0, x1, y1] = box;
+  if (!(x0 >= 0 && x0 < x1 && x1 <= size.w && y0 >= 0 && y0 < y1 && y1 <= size.h)) return null;
+  if ((x1 - x0) * (y1 - y0) * 2 < size.w * size.h) return null;
+  return [x0, y0, x1, y1];
+}
+
 // The storyboard stills of a treatment: `board/shot-01.png` to `shot-12.png` for the shots named (all twelve when
 // none are), each there in exactly that letter case, a regular file of at most 20 MB that starts as a PNG, shown
-// through /api/view. -> [{ shot, url }]. Never throws.
+// through /api/view. Each comes with its picture box when the tool's manifest gives a good one (boardBoxes, boxOf),
+// and then the board's own size from its PNG header, so the page can show the picture without the band under it.
+// -> [{ shot, url, box: [x0, y0, x1, y1] | null, size: [w, h] | null }]. Never throws.
 export function boardsOf(config, identifier, rel, shotIds = BOARD_IDS) {
   try {
     const base = goalFolder(config, identifier);
@@ -301,14 +340,18 @@ export function boardsOf(config, identifier, rel, shotIds = BOARD_IDS) {
     const top = namesIn(join(base, ...parts));
     if (!exactlyThere(top, "board")) return [];
     const names = namesIn(join(base, ...parts, "board"));
+    let boxes = null;
     const out = [];
     for (const id of (Array.isArray(shotIds) ? shotIds : []).filter((x) => SHOT_ID.test(x))) {
       const name = `shot-${id.slice(1)}.png`;
       if (!exactlyThere(names, name)) continue;
       const path = `${parts.join("/")}/board/${name}`;
-      const head = readGoalBytes(config, identifier, path, { maxBytes: 16, readOver: true });
+      const head = readGoalBytes(config, identifier, path, { maxBytes: 24, readOver: true });
       if (!head || head.tooLarge || head.size > MAX_BOARD || sniff(head.bytes) !== "png") continue;
-      out.push({ shot: id, url: `/api/view/${fileToken(`${identifier}/${path}`)}` });
+      if (!boxes) boxes = boardBoxes(config, identifier, parts, top);
+      const size = pngSize(head.bytes);
+      const box = boxOf(boxes.get(`shot-${id.slice(1)}`), size);
+      out.push({ shot: id, url: `/api/view/${fileToken(`${identifier}/${path}`)}`, box, size: box ? [size.w, size.h] : null });
     }
     return out;
   } catch {

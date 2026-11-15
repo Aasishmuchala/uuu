@@ -53,7 +53,7 @@
         "cards": null
       },
       "boards": [
-        { "shot": "s01", "url": "/api/view/U1RILTI2L2ZpbG0vbGFrZS1hL2JvYXJkL3Nob3QtMDEucG5n" }
+        { "shot": "s01", "url": "/api/view/U1RILTI2L2ZpbG0vbGFrZS1hL2JvYXJkL3Nob3QtMDEucG5n", "box": null, "size": null }
       ],
       "cost": {
         "base": 150,

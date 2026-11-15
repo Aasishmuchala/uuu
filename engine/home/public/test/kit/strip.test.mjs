@@ -98,6 +98,43 @@ test("an OptionCard with many boards draws one picture, the chosen board, with h
   unmount(single);
 });
 
+// Fix round A3 (T117): the Artist's tool draws a band of words under every board; the server passes the picture's box.
+test("cropOf reads a board's checked picture box as a crop, and anything else as none; cropVars sets it for the sheet", () => {
+  assert.deepEqual(mod.cropOf({ box: [0, 0, 1280, 619], size: [1280, 720] }), { ratio: 2.0679, w: 100, h: 116.3166, x: 0, y: 0 });
+  assert.deepEqual(mod.cropOf({ box: [0, 0, 720, 1101], size: [720, 1280] }), { ratio: 0.654, w: 100, h: 116.2579, x: 0, y: 0 }, "an upright film");
+  for (const bad of [{ box: [0, 0, 1281, 619], size: [1280, 720] }, { box: [-1, 0, 1280, 619], size: [1280, 720] }, { box: ["0", "0", "1280", "619"], size: [1280, 720] },
+    { box: "/etc/passwd", size: [1280, 720] }, { box: [0, 0, 1280, 359], size: [1280, 720] }, { box: [0, 0, 1280, 619.5], size: [1280, 720] },
+    { box: [5, 0, 5, 619], size: [1280, 720] }, { box: [0, 0, 1280, 619], size: null }, { box: [0, 0, 1280, 619] }, null, {}]) {
+    assert.equal(mod.cropOf(bad), null, JSON.stringify(bad));
+  }
+  assert.equal(mod.cropVars(mod.cropOf({ box: [0, 0, 1280, 619], size: [1280, 720] })),
+    "--k-crop-r: 2.0679; --k-crop-w: 100%; --k-crop-h: 116.3166%; --k-crop-x: 0%; --k-crop-y: 0%;");
+  assert.equal(mod.cropVars(null), undefined);
+  assert.equal(mod.cropVars({ ratio: "2; background: url(x)", w: 1, h: 1, x: 0, y: 0 }), undefined, "numbers only");
+});
+
+test("an OptionCard draws a board with a crop as only its picture box, covering the 72 by 48; one without, whole", async () => {
+  installDom();
+  const crop = mod.cropOf({ box: [0, 0, 1280, 619], size: [1280, 720] });
+  const root = await mount(OptionCard, { checked: true, title: "A", boards: [{ src: "/api/view/b0", alt: "", crop }] });
+  const [thumb] = byClass(root, "k-opt__thumb");
+  assert.match(thumb.getAttribute("class"), /\bk-strip__thumb--crop\b/);
+  const style = `${thumb.getAttribute("style") || ""} ${(thumb.style && thumb.style.cssText) || ""}`;
+  assert.match(style, /--k-crop-r: 2\.0679;/);
+  const [inner] = byClass(thumb, "k-strip__crop");
+  assert.ok(inner && elements(inner).some((e) => e.localName === "img"), "the picture inside the crop");
+  unmount(root);
+  const whole = await mount(OptionCard, { checked: true, title: "B", boards: [{ src: "/api/view/b1", alt: "" }] });
+  const [t] = byClass(whole, "k-opt__thumb");
+  assert.doesNotMatch(t.getAttribute("class"), /k-strip__thumb--crop/);
+  assert.equal(byClass(t, "k-strip__crop").length, 0);
+  unmount(whole);
+  const sheet = css("kit/strip.css");
+  const c = /\.k-strip__crop \{([^}]*)\}/.exec(sheet)[1];
+  assert.match(c, /width: max\(100cqw, calc\(100cqh \* var\(--k-crop-r\)\)\);/, "the box covers the thumb");
+  assert.match(/\.k-strip__thumb \.k-strip__crop img \{([^}]*)\}/.exec(sheet)[1], /height: var\(--k-crop-h\);/);
+});
+
 test("an OptionCard reads whole: the head across the card with the amount on the title's line, the sub and the chip beside the picture, then the reason", async () => {
   installDom();
   const root = await mount(Three, { chosen: "A", say: "a long reason that runs past one line in a card of 264 px" });

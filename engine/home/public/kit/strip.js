@@ -20,9 +20,39 @@ function Chip({ state }) {
   </span>`;
 }
 
-function Thumb({ src, alt, cls }) {
-  return html`<span class=${cx("k-strip__thumb", cls)}>
-    ${typeof src === "string" && src ? html`<img src=${src} alt=${typeof alt === "string" ? alt : ""} decoding="async" />` : null}
+// A board's picture box as the page draws it (PLAN-COOK T117): the Artist's tool draws a band of words under the render
+// on every board, and the home server passes the render's box ([x0, y0, x1, y1], checked against the board's own
+// [w, h]) so only the picture is shown. -> { ratio, w, h, x, y }: the box's width over its height, and the board's
+// size and place in percent of the box (the picture is laid that large and that far up and left in a frame of the
+// box's shape); null when there is no good box (the whole board is drawn). Checked again here: numbers only.
+export function cropOf(board) {
+  const box = board && board.box;
+  const size = board && board.size;
+  if (!Array.isArray(box) || box.length !== 4 || !Array.isArray(size) || size.length !== 2) return null;
+  if (![...box, ...size].every((n) => Number.isInteger(n) && n >= 0)) return null;
+  const [x0, y0, x1, y1] = box;
+  const [w, h] = size;
+  if (!(x0 < x1 && x1 <= w && y0 < y1 && y1 <= h)) return null;
+  if ((x1 - x0) * (y1 - y0) * 2 < w * h) return null;
+  const bw = x1 - x0;
+  const bh = y1 - y0;
+  const r = (n) => Math.round(n * 10000) / 10000 || 0;
+  return { ratio: r(bw / bh), w: r((w / bw) * 100), h: r((h / bh) * 100), x: r((-x0 / bw) * 100), y: r((-y0 / bh) * 100) };
+}
+
+// The crop as the custom properties the sheets read (--k-crop-r, -w, -h, -x, -y), or undefined for none.
+export function cropVars(crop) {
+  const c = crop && typeof crop === "object" ? crop : null;
+  if (!c || !["ratio", "w", "h", "x", "y"].every((k) => Number.isFinite(c[k])) || !(c.ratio > 0)) return undefined;
+  return `--k-crop-r: ${c.ratio}; --k-crop-w: ${c.w}%; --k-crop-h: ${c.h}%; --k-crop-x: ${c.x}%; --k-crop-y: ${c.y}%;`;
+}
+
+// A picture in its frame; with a crop, only the box shows, covering the frame (strip.css .k-strip__crop).
+function Thumb({ src, alt, cls, crop }) {
+  const vars = cropVars(crop);
+  const img = typeof src === "string" && src ? html`<img src=${src} alt=${typeof alt === "string" ? alt : ""} decoding="async" />` : null;
+  return html`<span class=${cx("k-strip__thumb", cls, vars && img && "k-strip__thumb--crop")} style=${vars && img ? vars : undefined}>
+    ${vars && img ? html`<span class="k-strip__crop">${img}</span>` : img}
   </span>`;
 }
 
@@ -59,9 +89,10 @@ export function Strip({ label, children }) {
   </div>`;
 }
 
-// One picture at the card's left, always 72 by 48. `boards`: one picture ({ src, alt }), or a list of them: the
+// One picture at the card's left, always 72 by 48. `boards`: one picture ({ src, alt, crop }), or a list of them: the
 // card shows the chosen one (`on`), else the first, with a small tag on its corner saying how many there are (the
 // stage has its own board picker, so the card draws no board buttons and a board's `onClick` is never called here).
+// A board's `crop` (cropOf) shows only its picture box, covering the 72 by 48.
 // Anything else (a node) is drawn in the picture's place as given.
 function pictureOf(boards) {
   if (!has(boards)) return null;
@@ -78,7 +109,7 @@ function Picture({ pic }) {
   if (pic.node) return html`<span class="k-strip__thumb k-opt__thumb">${pic.node}</span>`;
   const { board, count } = pic;
   return html`<span class="k-opt__pic">
-    <${Thumb} src=${board.src} alt=${board.alt} cls="k-opt__thumb" />
+    <${Thumb} src=${board.src} alt=${board.alt} cls="k-opt__thumb" crop=${board.crop} />
     ${count > 1 ? html`<span class="k-opt__count" aria-label=${`${count} boards`}>${count}</span>` : null}
   </span>`;
 }

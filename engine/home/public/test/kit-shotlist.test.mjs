@@ -156,7 +156,7 @@ test("shotRows: each shot with its board, words alone and best marked; only the 
   const v = variant("a", "A", { boards: [{ shot: "s01", url: img("x") }, { shot: "s02", url: "/files/x.png" }] });
   const rows = sl.shotRows(v);
   assert.deepEqual(rows.map((r) => [r.label, r.credits, r.wordsAlone, r.best, r.board]), [["s01 · 5 s", 25, false, false, "/api/view/x"], ["s02 · 5 s", 25, true, true, ""]]);
-  assert.deepEqual(sl.boardRows(v), [{ shot: "s01", url: "/api/view/x" }]);
+  assert.deepEqual(sl.boardRows(v), [{ shot: "s01", url: "/api/view/x", crop: null }]);
   assert.equal(sl.foldsPrompt("x".repeat(200)), true);
   assert.equal(sl.foldsPrompt("short"), false);
   assert.equal(sl.factsOf(variant("a", "A")), "10 s · 2 clips · 1280:720");
@@ -442,7 +442,8 @@ test("T40: after approval the stage keeps the approved treatment and the rail li
 test("T96: the boards fill the stage's height as a size container; the locked decision is tightened; the dead board handlers are gone", () => {
   const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
   assert.match(sheet, /\.k-work__stage \.k-sl__boards \{[^}]*flex: 1 1 0;[^}]*container: k-sl-boards \/ size;/);
-  assert.match(sheet, /width: min\(calc\(100cqw - var\(--k-sl-side\)\), calc\(\(100cqh - var\(--k-sl-cap\)\) \* 16 \/ 9\)\);/, "as large as width and height allow together");
+  // Fix round A3 (T117): at the board's own shape, 16 to 9 or its picture box's.
+  assert.match(sheet, /width: min\(calc\(100cqw - var\(--k-sl-side\)\), calc\(\(100cqh - var\(--k-sl-cap\)\) \* var\(--k-sl-ar\)\)\);/, "as large as width and height allow together");
   assert.match(sheet, /@container k-sl-boards \(max-aspect-ratio: 3 \/ 2\)/, "a tall place runs the reel under the board");
   assert.doesNotMatch(sheet, /176px/);
   // Fix round A3 (T113): the lock line is 13 px in the second ink, no border of its own.
@@ -454,31 +455,32 @@ test("T96: the boards fill the stage's height as a size container; the locked de
   assert.doesNotMatch(src, /onBoard/, "the option cards' board buttons are gone, and so are their handlers");
 });
 
-test("T101: after approval the stage holds the board with its one line, nothing to press; the rail is the approved state with one primary", async () => {
+test("T101: after approval the stage holds the sheet of boards; the rail is the approved state with one primary", async () => {
   const v = { ...LAKE.variants[0], letter: "A", title: "Slow approach" };
   const at = new Date().toISOString();
   const said = "Approved. The Artist will make the clips; up to $3.70 may be spent. You can follow it in Studio.";
   const root = await showTree(sl.ShotlistDone, { done: { action: "approve", version: v, title: "Approve a shotlist", studio: "#/dashboards/studio?film=g1", message: said, at } });
   const stage = elements(root).find((e) => hasClass(e, "k-work__stage"));
   assert.match(textOf(stage), /You approved A: Slow approach/);
-  assert.ok(!elements(stage).some((e) => e.localName === "button" || e.localName === "a"), "nothing on the stage to press");
+  // Fix round A3 (T117): the only things on the stage to press are the sheet's boards, each opening it larger.
+  const pressable = elements(stage).filter((e) => e.localName === "button" || e.localName === "a");
+  assert.ok(pressable.length > 0 && pressable.every((e) => hasClass(e, "k-sl__tile-pic")), "only the boards, to open larger");
   // "Open Studio" once, and it is the primary.
   const studio = elements(root).filter((e) => e.localName === "a" && e.getAttribute("href") === "#/dashboards/studio?film=g1");
   assert.equal(studio.length, 1, "one way to Studio");
   assert.ok(hasClass(studio[0], "k-btn--primary"), "and it is the primary");
   assert.equal(textOf(studio[0]).trim(), "Open Studio");
   assert.equal(elements(root).filter((e) => textOf(e).trim() === "Open Studio" && (e.localName === "a" || e.localName === "button")).length, 1, "the words once");
-  // Fix round A3 (T113): it follows the list in the rail's body, with a ghost back to Needs you beside it; no foot.
+  // Fix round A3 (T113): it follows what was approved in the rail's body, with a ghost back to Needs you beside it; no foot.
   const go = elements(root).find((e) => hasClass(e, "k-sl__done-go"));
   assert.ok(go && elements(go).includes(studio[0]));
   const back = elements(go).find((e) => e.localName === "a" && e.getAttribute("href") === "#/needs-you");
   assert.ok(back && hasClass(back, "k-btn--ghost") && textOf(back).trim() === "Back to Needs you");
   assert.ok(!elements(root).some((e) => hasClass(e, "k-rail__foot")));
-  // The stage starts with its bar, as in the other states; the board's tag is its shot.
+  // The stage starts with its bar, as in the other states.
   assert.ok(elements(stage).some((e) => hasClass(e, "k-stagebar")));
-  const boards = elements(stage).find((e) => hasClass(e, "k-sl__boards--done"));
-  const style = `${boards.getAttribute("style") || ""} ${(boards.style && boards.style.cssText) || ""}`;
-  assert.ok(style.includes(`--k-sl-n: ${sl.boardRows(v).length}`), "the row of boards as wide as the board: one column a board");
+  const order = elements(stage).filter((e) => hasClass(e, "k-stagebar") || hasClass(e, "k-sl__sheet"));
+  assert.deepEqual(order.map((e) => hasClass(e, "k-stagebar")), [true, false], "the bar, then the sheet");
   // "Approved" is the kit's good chip.
   assert.ok(elements(root).some((e) => hasClass(e, "k-tag--good") && textOf(e) === "Approved"));
   const rail = elements(root).find((e) => hasClass(e, "k-rail"));
@@ -491,10 +493,13 @@ test("T101: after approval the stage holds the board with its one line, nothing 
   assert.match(all, /Cost(about \$\d+\.\d\d)/);
   // What happens next is the server's time sentence, as sent.
   if (v.cost && v.cost.time) assert.ok(all.includes(v.cost.time));
-  // The shots approved, each with its seconds and cost, and no state the item does not carry.
-  const shots = elements(rail).filter((e) => hasClass(e, "k-sl__done-shot"));
-  assert.equal(shots.length, sl.shotRows(v).length);
-  assert.doesNotMatch(all, /Waiting to start|Rendering|Done|In progress/, "nothing invented about a clip's state");
+  // Fix round A3 (T117): the shots are on the sheet, one board each with its seconds and cost; the rail does not list
+  // them again; and no state the item does not carry.
+  const tiles = elements(stage).filter((e) => hasClass(e, "k-sl__tile"));
+  assert.equal(tiles.length, sl.shotRows(v).length);
+  assert.ok(!elements(rail).some((e) => hasClass(e, "k-sl__done-shot") || hasClass(e, "k-sl__tile")), "no per-shot rows in the rail");
+  assert.doesNotMatch(all, /The shots approved/);
+  assert.doesNotMatch(textOf(root), /Waiting to start|Rendering|Done|In progress/, "nothing invented about a clip's state");
 });
 
 test("T101: wholeCut leaves the room under the last whole part, and nothing when all of it fits", () => {
@@ -575,4 +580,99 @@ test("T113: on a wide window the money holds still and the rows under it scroll,
   assert.match(folds, /overflow-y: auto;/);
   assert.match(folds, /clip-path: inset\(0 0 var\(--k-sl-fcut, 0px\) 0\);/);
   assert.match(sheet, /\.k-sl:not\(\.k-sl--done\) \.k-sl__rail > \* \{\s*flex: none;/, "the money never shrinks");
+});
+
+// ---- Fix round A3 (T117): a board is shown without its band; the approved sheet ----
+
+// The tool's boards: 1280 by 720, the render in [0, 0, 1280, 619] above a band of 101 px.
+const BOX = { box: [0, 0, 1280, 619], size: [1280, 720] };
+const boxed = (id) => [{ shot: "s01", url: img(`b${id}1`), ...BOX }, { shot: "s02", url: img(`b${id}2`), box: null, size: null }];
+const styleOf = (e) => `${e.getAttribute("style") || ""} ${(e.style && e.style.cssText) || ""}`;
+
+test("T117: a board's picture box becomes a crop: the box's shape, the board laid so only the box shows; anything else is the whole board", () => {
+  const v = variant("a", "A", { boards: boxed("a") });
+  const [one, two] = sl.boardRows(v);
+  assert.deepEqual(one.crop, { ratio: 2.0679, w: 100, h: 116.3166, x: 0, y: 0 });
+  assert.equal(two.crop, null, "no box: the whole board");
+  assert.deepEqual(sl.shotRows(v).map((r) => [r.board, r.crop && r.crop.ratio]), [["/api/view/ba1", 2.0679], ["/api/view/ba2", null]]);
+  // Checked again on the page: numbers only, inside the board, at least half of it.
+  for (const bad of [{ box: [0, 0, 1281, 619], size: [1280, 720] }, { box: [-1, 0, 1280, 619], size: [1280, 720] }, { box: ["0", 0, 1280, 619], size: [1280, 720] },
+    { box: "../x.png", size: [1280, 720] }, { box: [0, 0, 1280, 300], size: [1280, 720] }, { box: [0, 0, 1280, 619] }, { box: [0, 0, 1280, 619], size: ["1280", 720] }, {}]) {
+    assert.equal(sl.boardRows(variant("a", "A", { boards: [{ shot: "s01", url: img("x"), ...bad }] }))[0].crop, null, JSON.stringify(bad));
+  }
+  const inner = sl.boardRows(variant("a", "A", { boards: [{ shot: "s01", url: img("x"), box: [100, 50, 1180, 670], size: [1280, 720] }] }))[0].crop;
+  assert.deepEqual([inner.x, inner.y], [-9.2593, -8.0645], "laid up and left by the box's corner");
+});
+
+test("T117: the stage, the reel, the option card and the table each draw a boxed board cropped, and an unboxed one whole", async () => {
+  const item = { ...ITEM, variants: [variant("a", "Slow approach", { boards: boxed("a") }), variant("b", "B", { boards: boxed("b") })] };
+  const root = await showTree(sl.ShotlistCard, { item });
+  const fit = within(root, "k-sl__fit");
+  assert.ok(hasClass(fit, "k-sl__fit--crop"), "the stage's board is cropped");
+  assert.match(styleOf(fit), /--k-sl-ar: 2\.0679;/);
+  assert.match(styleOf(fit), /--k-crop-h: 116\.3166%;/);
+  // The reel and the table: the boxed board in a crop, the other whole.
+  const pics = elements(root).filter((e) => hasClass(e, "k-sl__pic"));
+  assert.ok(pics.some((e) => hasClass(e, "k-sl__pic--crop") && elements(e).some((x) => hasClass(x, "k-sl__crop"))));
+  assert.ok(pics.some((e) => !hasClass(e, "k-sl__pic--crop") && e.childNodes.some((x) => x.localName === "img")));
+  // The option cards' small pictures: the chosen board (the first) cropped.
+  const thumbs = elements(root).filter((e) => hasClass(e, "k-opt__thumb"));
+  assert.equal(thumbs.length, 2);
+  for (const t of thumbs) {
+    assert.ok(hasClass(t, "k-strip__thumb--crop"));
+    assert.match(styleOf(t), /--k-crop-r: 2\.0679;/);
+  }
+  // Moving to the unboxed board draws it whole.
+  fire(buttons(root, "").find((b) => b.getAttribute("aria-label") === "The next board"), "click");
+  await settle();
+  assert.ok(!hasClass(within(root, "k-sl__fit"), "k-sl__fit--crop"));
+  const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
+  assert.match(/\.k-sl__fit--crop > \.k-shot \.k-shot__frame \{([^}]*)\}/.exec(sheet)[1], /aspect-ratio: var\(--k-sl-ar\);/);
+  const crop = /\.k-sl__crop > img \{([^}]*)\}/.exec(sheet)[1];
+  for (const k of ["left: var(--k-crop-x)", "top: var(--k-crop-y)", "width: var(--k-crop-w)", "height: var(--k-crop-h)"]) assert.ok(crop.includes(k), k);
+});
+
+test("T117: approved, the stage is a sheet of every board cropped: its number on the picture, its words and 5 s · $0.25 under it", async () => {
+  const v = { ...variant("a", "Slow approach", { boards: boxed("a") }), letter: "A", title: "Slow approach" };
+  const root = await showTree(sl.ShotlistDone, { done: { action: "approve", version: v, title: "Approve a shotlist", studio: "#/dashboards/studio?film=g1" } });
+  const tiles = elements(root).filter((e) => hasClass(e, "k-sl__tile"));
+  assert.equal(tiles.length, 2);
+  const [t1] = tiles;
+  assert.equal(textOf(elements(t1).find((e) => hasClass(e, "k-pictag"))), "s01", "the shot's number on the picture");
+  assert.equal(textOf(elements(t1).find((e) => hasClass(e, "k-sl__tile-words"))), "A slow push.");
+  assert.equal(textOf(elements(t1).find((e) => hasClass(e, "k-sl__tile-facts"))), "5 s · $0.25");
+  assert.ok(elements(t1).some((e) => hasClass(e, "k-sl__pic--crop")), "cropped to its picture");
+  const open = elements(t1).find((e) => e.localName === "button");
+  assert.equal(open.getAttribute("aria-label"), "Treatment A, board s01, open it larger");
+  const sheet = readFileSync(join(PUBLIC, "styles", "kit", "shotlist.css"), "utf8");
+  assert.match(/\.k-sl__sheet \{([^}]*)\}/.exec(sheet)[1], /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/, "three across");
+  assert.match(sheet, /\.k-sl \.k-work__stage > \.k-sl__sheet \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/, "two on a phone");
+  assert.match(/\.k-sl__tile-facts \{([^}]*)\}/.exec(sheet)[1], /font-variant-numeric: tabular-nums;/);
+  assert.equal(sl.SHOTLIST_WORDS.openLarger, "open it larger");
+  assert.equal(sl.SHOTLIST_WORDS.shotsApproved, "The shots approved", "the word stays: it names the sheet");
+});
+
+test("T117: a board of the sheet opens larger in the kit's full-size viewer, with its line and the board before and the next", async () => {
+  const v = { ...variant("a", "Slow approach", { boards: boxed("a") }), letter: "A", title: "Slow approach" };
+  const root = await showTree(sl.ShotlistDone, { done: { action: "approve", version: v, title: "Approve a shotlist", studio: "#/dashboards/studio?film=g1" } });
+  assert.ok(!within(root, "k-dialog"));
+  fire(elements(root).find((e) => e.getAttribute("aria-label") === "Treatment A, board s01, open it larger"), "click");
+  await settle();
+  const dialog = within(root, "k-dialog");
+  assert.ok(dialog && hasClass(dialog, "k-dialog--full"), "the full-size Dialog");
+  assert.match(textOf(dialog), /Treatment A, board s01/);
+  assert.match(textOf(dialog), /A slow push\.5 s · \$0\.25/, "the same line under it");
+  assert.match(textOf(dialog), /1 of 2/);
+  const view = within(dialog, "k-sl__view");
+  assert.match(styleOf(view), /--k-sl-vr: 2\.0679;/, "at its picture box's shape");
+  const before = elements(dialog).find((e) => e.getAttribute("aria-label") === "The board before");
+  assert.ok(before.getAttribute("disabled") !== null);
+  fire(elements(dialog).find((e) => e.getAttribute("aria-label") === "The next board"), "click");
+  await settle();
+  assert.match(textOf(within(root, "k-dialog")), /Treatment A, board s02/);
+  assert.match(textOf(within(root, "k-dialog")), /2 of 2/);
+  assert.equal(styleOf(within(root, "k-sl__view")).trim(), "", "a board with no box: the whole board at 16 to 9");
+  fire(elements(root).find((e) => e.getAttribute("aria-label") === "Close"), "click");
+  await settle();
+  assert.ok(!within(root, "k-dialog"));
 });

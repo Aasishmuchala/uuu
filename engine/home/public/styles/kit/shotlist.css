@@ -41,8 +41,10 @@
 
 /* The boards take the rest of the stage's height as a size container of their own (on a wide stage; see the end of
    this sheet), and the board, its caption and the reel are centred in it, as large as its width and height allow
-   together: --k-sl-cap is the caption's room under the board, --k-sl-side the reel's column beside it. */
+   together: --k-sl-cap is the caption's room under the board, --k-sl-side the reel's column beside it, --k-sl-ar the
+   board's shape (16 to 9, or its picture box's when the server gave one: kit/shotlist.js sets it on .k-sl__fit). */
 .k-sl__boards {
+  --k-sl-ar: 1.7778;
   --k-sl-cap: 68px;
   --k-sl-side: 0px;
   display: flex;
@@ -70,6 +72,62 @@
   min-width: 0;
 }
 
+/* A board with a picture box: the frame takes the box's shape and the board is laid in it that large and that far up
+   and left (--k-crop-*, kit/strip.js cropVars), so the band of words the Artist's tool draws under it is not shown. */
+.k-sl__fit--crop > .k-shot .k-shot__frame {
+  aspect-ratio: var(--k-sl-ar);
+}
+
+.k-sl__fit--crop > .k-shot .k-shot__img {
+  position: absolute;
+  left: var(--k-crop-x);
+  top: var(--k-crop-y);
+  width: var(--k-crop-w);
+  height: var(--k-crop-h);
+  object-fit: fill;
+}
+
+/* A board in a frame the sheet sizes (the reel, the table, the approved sheet, the viewer): with a picture box only
+   the box shows, centred and covering the frame; without one the whole board, as before. */
+.k-sl__pic {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--black);
+}
+
+.k-sl__pic > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+}
+
+.k-sl__pic--crop {
+  container-type: size;
+}
+
+.k-sl__crop {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100cqw, calc(100cqh * var(--k-crop-r)));
+  height: max(100cqh, calc(100cqw / var(--k-crop-r)));
+  overflow: hidden;
+  transform: translate(-50%, -50%);
+}
+
+.k-sl__crop > img {
+  position: absolute;
+  left: var(--k-crop-x);
+  top: var(--k-crop-y);
+  width: var(--k-crop-w);
+  height: var(--k-crop-h);
+  max-width: none;
+  object-fit: fill;
+}
+
 .k-sl__reel {
   flex: none;
   display: grid;
@@ -84,7 +142,7 @@
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: var(--k-sl-ar);
   padding: 0;
   border: 0;
   border-radius: var(--r-xs);
@@ -105,17 +163,9 @@
   outline-offset: -2px;
 }
 
-/* After an approval the reel is the film's boards as pictures, nothing to press. */
-.k-sl__reel--still .k-sl__reel-board {
-  cursor: default;
-  opacity: 1;
-}
-
-.k-sl__reel-board img {
+.k-sl__reel-board > .k-sl__pic {
   width: 100%;
   height: 100%;
-  max-width: none;
-  object-fit: cover;
 }
 
 .k-sl__reel-id {
@@ -474,14 +524,10 @@ summary.k-sl__fold-head:hover {
   padding-right: var(--s-3);
 }
 
-.k-sl__table-pic img {
-  display: block;
+.k-sl__table-pic .k-sl__pic {
   width: 64px;
   height: 36px;
-  max-width: none;
   border-radius: var(--r-xs);
-  object-fit: cover;
-  background: var(--black);
 }
 
 .k-sl__table-move {
@@ -760,64 +806,7 @@ summary.k-sl__fold-head:hover {
   overflow-wrap: anywhere;
 }
 
-.k-sl__done-shots {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* The shots approved: 48 px rows, a 64 by 36 picture, the shot on one line (whole wherever it fits, its words in a
-   title when cut), its seconds and cost in their own column. */
-.k-sl__done-shot {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: 48px;
-  padding: 6px 0;
-  border-top: 1px solid var(--line);
-}
-
-.k-sl__done-shot:first-child {
-  border-top: 0;
-}
-
-.k-sl__done-shot img,
-.k-sl__done-nopic {
-  display: block;
-  width: 64px;
-  height: 36px;
-  max-width: none;
-  border-radius: 6px;
-  object-fit: cover;
-  background: var(--black);
-}
-
-.k-sl__done-shot-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ink-2);
-  font-size: var(--fs-note);
-  line-height: var(--lh-note);
-}
-
-.k-sl__done-shot-name b {
-  color: var(--ink);
-  font-weight: var(--fw-medium);
-}
-
-.k-sl__done-shot-facts {
-  color: var(--ink-2);
-  font-size: var(--fs-note);
-  line-height: var(--lh-note);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  white-space: nowrap;
-}
-
-/* After the list, 16 px on: "Open Studio" and "Back to Needs you", side by side at one height. */
+/* After what was approved, 16 px on: "Open Studio" and "Back to Needs you", side by side at one height. */
 .k-sl__done-go {
   display: flex;
   flex-wrap: wrap;
@@ -829,27 +818,144 @@ summary.k-sl__fold-head:hover {
   flex: 1 1 auto;
 }
 
-/* The approved stage: under the bar, from the top as in the other states, the board with its boards in a row under
-   it as wide as the board (--k-sl-n of them, set by kit/shotlist.js). */
-.k-sl__boards--done {
-  --k-sl-cap: 44px;
-  --k-sl-side: 0px;
-  --k-sl-n: 1;
-  align-items: flex-start;
-}
-
-.k-sl__boards--done .k-sl__fit {
-  flex-direction: column;
-  gap: var(--s-3);
-}
-
-.k-sl__boards--done .k-sl__reel.k-sl__reel--still {
+/* The approved stage: under the bar, from the top as in the other states, a sheet of every board cropped to its
+   picture, three across the stage's width (two on a phone), each a button that opens it larger, with its shot's
+   number on the picture and one line under it: the shot's words, then its seconds and cost in tabular figures. */
+.k-sl__sheet {
   display: grid;
-  grid-auto-flow: row;
-  grid-template-columns: repeat(var(--k-sl-n), minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-5) var(--s-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.k-sl__tile {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.k-sl__tile-pic {
+  position: relative;
+  display: block;
   width: 100%;
-  max-height: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2);
   overflow: hidden;
+  background: var(--black);
+  box-shadow: var(--shadow-card);
+  cursor: zoom-in;
+}
+
+.k-sl__tile-pic--none {
+  cursor: default;
+}
+
+.k-sl__tile-pic > .k-sl__pic {
+  width: 100%;
+  aspect-ratio: var(--k-crop-r, 16 / 9);
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.k-sl__tile-pic:hover > .k-sl__pic {
+  opacity: .88;
+}
+
+.k-sl__tile-pic:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.k-sl__tile-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  min-width: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.k-sl__tile-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.k-sl__tile-facts {
+  flex: none;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The approved stage starts at the top, as the other states do (their boards take the stage's height); the bar holds
+   what was approved at its right. */
+.k-sl--done .k-work__stage {
+  justify-content: flex-start;
+}
+
+.k-sl--done .k-stagebar {
+  margin-bottom: var(--s-1);
+}
+
+.k-sl--done .k-stagebar .k-sl__done-choice {
+  min-width: 0;
+}
+
+/* A board opened larger: the kit's full-size Dialog, the board as large as the body allows (--k-sl-vr is its picture
+   box's shape) with its line under it; the board before and the next in the head. */
+.k-dialog__panel:has(.k-sl__view) .k-dialog__body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.k-sl__view {
+  --k-sl-vr: 1.7778;
+  flex: 1 1 0;
+  min-height: 0;
+  container-type: size;
+  display: grid;
+  place-items: center;
+}
+
+.k-sl__view-fig {
+  display: grid;
+  gap: var(--s-3);
+  width: min(100cqw, calc((100cqh - 32px) * var(--k-sl-vr)));
+  margin: 0;
+}
+
+.k-sl__view-frame {
+  position: relative;
+  display: block;
+  border-radius: var(--r-2);
+  overflow: hidden;
+}
+
+.k-sl__view-frame > .k-sl__pic {
+  width: 100%;
+  aspect-ratio: var(--k-sl-vr);
+}
+
+.k-sl__view-fig .k-sl__tile-line {
+  font-size: var(--fs-ui);
+  line-height: var(--lh-ui);
+}
+
+.k-sl__view-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.k-sl__view-pager .k-sl__count {
+  margin: 0 var(--s-1);
 }
 
 .k-sl--done-line {
@@ -922,7 +1028,7 @@ summary.k-sl__fold-head:hover {
 
   .k-work__stage .k-sl__fit > .k-shot {
     flex: none;
-    width: min(calc(100cqw - var(--k-sl-side)), calc((100cqh - var(--k-sl-cap)) * 16 / 9));
+    width: min(calc(100cqw - var(--k-sl-side)), calc((100cqh - var(--k-sl-cap)) * var(--k-sl-ar)));
   }
 
   .k-work__stage .k-sl__fit .k-shot__frame {
@@ -930,13 +1036,7 @@ summary.k-sl__fold-head:hover {
   }
 
   .k-work__stage .k-sl__reel {
-    max-height: calc(min(calc(100cqw - var(--k-sl-side)), calc((100cqh - var(--k-sl-cap)) * 16 / 9)) * 9 / 16);
-  }
-
-  /* The board and the row of boards under it share the height: the row is the board's width over n at 16 to 9, so
-     the board is (the height less the caption and a gap) at 16 to 9, times n over n + 1. */
-  .k-work__stage .k-sl__boards--done .k-sl__fit > .k-shot {
-    width: min(100cqw, calc((100cqh - var(--k-sl-cap) - var(--s-3)) * 16 / 9 * var(--k-sl-n) / (var(--k-sl-n) + 1)));
+    max-height: calc(min(calc(100cqw - var(--k-sl-side)), calc((100cqh - var(--k-sl-cap)) * var(--k-sl-ar))) / var(--k-sl-ar));
   }
 
   @container k-sl-boards (max-aspect-ratio: 3 / 2) {
@@ -946,7 +1046,7 @@ summary.k-sl__fold-head:hover {
     }
 
     .k-sl__boards--reel .k-sl__fit > .k-shot {
-      width: min(100cqw, calc((100cqh - var(--k-sl-cap) - var(--k-sl-row)) * 16 / 9));
+      width: min(100cqw, calc((100cqh - var(--k-sl-cap) - var(--k-sl-row)) * var(--k-sl-ar)));
     }
 
     .k-sl__boards--reel .k-sl__reel {
@@ -1020,6 +1120,28 @@ summary.k-sl__fold-head:hover {
 
   .k-sl .k-work__stage .k-shot__frame {
     border-radius: 0;
+  }
+
+  /* The approved sheet: two across, inside the phone's gutter. */
+  .k-sl .k-work__stage > .k-sl__sheet {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s-4) var(--s-3);
+    padding-left: var(--s-4);
+    padding-right: var(--s-4);
+  }
+
+  /* Two across leave no room for the words beside the figures: the words take up to two lines, the figures under. */
+  .k-sl__sheet .k-sl__tile-line {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .k-sl__sheet .k-sl__tile-words {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
   }
 
   .k-sl__phone-lock {

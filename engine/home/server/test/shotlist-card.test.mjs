@@ -191,6 +191,37 @@ test("a blocked film after SHOTLIST READY: one item fitting shotlist-item.json, 
   });
 });
 
+// The tool's boards: 1280 by 720 by their PNG header, the render's box above a band of 101 px.
+const boardPng = () => {
+  const b = Buffer.alloc(64);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]).copy(b, 0);
+  b.write("IHDR", 12, "ascii");
+  b.writeUInt32BE(1280, 16);
+  b.writeUInt32BE(720, 20);
+  return b;
+};
+
+test("each board carries the picture box the tool's manifest gives, checked against the board, so the page can leave out the band; a bad box or none is null", async () => {
+  await withFilm({}, async (h, goal) => {
+    const a = join(goal, "film", "lake-a");
+    for (const n of [1, 2, 3]) writeFileSync(join(a, "board", `shot-0${n}.png`), boardPng());
+    writeFileSync(join(a, "manifest.json"), JSON.stringify({ kind: "board", made_by: "board", title: "The lake house at dawn", ratio: "1280:720", shots: 6,
+      pictures: [{ frame: "shot-01", box: [0, 0, 1280, 619], source: "tower.png" }, { frame: "shot-02", box: [0, 0, 1280, 9999], source: "lobby.png" },
+        { frame: "shot-03", box: "<img src=x onerror=alert(1)>", source: "tower.png" }], logo: [] }));
+    const item = await itemOf(h);
+    assert.deepEqual(sameShape(readShape("shotlist-item"), item), []);
+    const [va, vb] = item.variants;
+    assert.deepEqual(va.boards.slice(0, 4).map((x) => [x.shot, x.box, x.size]), [
+      ["s01", [0, 0, 1280, 619], [1280, 720]], ["s02", null, null], ["s03", null, null], ["s04", null, null],
+    ]);
+    // A treatment without a manifest shows its whole boards, as before.
+    assert.ok(vb.boards.length && vb.boards.every((x) => x.box === null && x.size === null));
+    // A manifest larger than the cap is not read at all.
+    writeFileSync(join(a, "manifest.json"), JSON.stringify({ kind: "board", pictures: [{ frame: "shot-01", box: [0, 0, 1280, 619] }], pad: "x".repeat(70 * 1024) }));
+    assert.equal((await itemOf(h)).variants[0].boards[0].box, null);
+  });
+});
+
 test("the card waits for the owner: an owner comment after SHOTLIST READY removes it; a new READY brings it back", async () => {
   await withFilm({}, async (h) => {
     assert.ok(await itemOf(h));

@@ -26,9 +26,9 @@ import { Blk, StageLayout } from "./layout.js";
 import { MoneyBlock, moneyParts } from "./money.js";
 import { Dialog } from "./overlays.js";
 import { DecisionOrPick, Scores, brandLine, BRAND_WORDS, letterOf, safeViewUrl, versionsOf } from "./pick.js";
-import { Shot, StageBar } from "./stage.js";
+import { PicTag, Shot, StageBar } from "./stage.js";
 import { Notice } from "./states.js";
-import { OptionCard, Strip } from "./strip.js";
+import { OptionCard, Strip, cropOf, cropVars } from "./strip.js";
 import { Tag } from "./tag.js";
 import { cx, nextId } from "./util.js";
 
@@ -93,6 +93,8 @@ export const SHOTLIST_WORDS = {
   shotsApproved: "The shots approved",
   // Fix round A3 (T113): the way back after an approval.
   backNeeds: "Back to Needs you",
+  // Fix round A3 (T117): a board of the approved sheet opens larger.
+  openLarger: "open it larger",
 };
 
 // A word with the treatment's letter in it: withLetter("approveOne", "A") is "Approve A and its cost".
@@ -181,13 +183,11 @@ export function sharedBlock(item) {
 }
 
 // The shots of a treatment as the table shows them: [{ id, label: "s01 · 5 s", render, move, prompt, model,
-// credits, wordsAlone, best, board }], `board` the server's viewer address for that shot's storyboard or "".
+// credits, wordsAlone, best, board, crop }], `board` the server's viewer address for that shot's storyboard or "",
+// `crop` its picture box as kit/strip.js cropOf reads it, or null.
 export function shotRows(v) {
   const boards = new Map();
-  for (const b of list(v && v.boards)) {
-    const url = b && safeViewUrl(b.url);
-    if (url && typeof b.shot === "string" && !boards.has(b.shot)) boards.set(b.shot, url);
-  }
+  for (const b of boardRows(v)) boards.set(b.shot, b);
   return list(v && v.shotlist && v.shotlist.shots).filter((s) => s && typeof s === "object" && s.id).map((s) => {
     const secs = Number.isFinite(s.seconds) ? ` · ${s.seconds} s` : "";
     return {
@@ -200,18 +200,21 @@ export function shotRows(v) {
       credits: Number.isInteger(s.credits) ? s.credits : null,
       wordsAlone: s.kind === "text_to_video",
       best: s.best === true,
-      board: boards.get(text(s.id)) || "",
+      board: boards.has(text(s.id)) ? boards.get(text(s.id)).url : "",
+      crop: boards.has(text(s.id)) ? boards.get(text(s.id)).crop : null,
     };
   });
 }
 
-// The boards of a treatment for its strip, in the order of its shots: [{ shot, url }].
+// The boards of a treatment for its strip, in the order of its shots: [{ shot, url, crop }], `crop` the picture box
+// the server checked (kit/strip.js cropOf), so the band of words the Artist's tool draws under it is left out; null
+// when there is none, and then the whole board is drawn.
 export function boardRows(v) {
   const out = [];
   const seen = new Set();
   for (const b of list(v && v.boards)) {
     const url = b && safeViewUrl(b.url);
-    if (url && typeof b.shot === "string" && !seen.has(b.shot)) { seen.add(b.shot); out.push({ shot: b.shot, url }); }
+    if (url && typeof b.shot === "string" && !seen.has(b.shot)) { seen.add(b.shot); out.push({ shot: b.shot, url, crop: cropOf(b) }); }
   }
   return out;
 }
@@ -356,7 +359,7 @@ export function wholeCut(room, bottoms) {
 }
 
 const WHOLE = [".k-sl__rail > .k-blk", ".k-sl__rail > .k-sl__notice", ".k-sl__rail > .k-sl__done-head", ".k-sl__fold-head",
-  ".k-sl__fold[open] .k-sl__fold-body > *", ".k-blk__title", ".k-blk > .k-sl__say", ".k-sl__fact", ".k-sl__done-shot", ".k-pick-scores__cell"].join(", ");
+  ".k-sl__fold[open] .k-sl__fold-body > *", ".k-blk__title", ".k-blk > .k-sl__say", ".k-sl__fact", ".k-pick-scores__cell"].join(", ");
 
 // Keeps the rail from cutting a line: measures where the parts of its scroller end and sets the room to leave empty
 // under the last whole one (see shotlist.css), again whenever the scroller or its parts change size or a row opens or
@@ -447,6 +450,16 @@ function useRoomForScores(railRef, scoresRef, key) {
 
 // ---- Parts ----
 
+// A board in a frame the sheet sizes: with a crop only its picture box shows, covering the frame (shotlist.css
+// .k-sl__crop); without one the whole board, as before.
+function Pic({ src, crop, cls, alt = "" }) {
+  const vars = src ? cropVars(crop) : undefined;
+  const img = src ? html`<img src=${src} alt=${alt} loading="lazy" decoding="async" />` : null;
+  return html`<span class=${cx("k-sl__pic", cls, vars && "k-sl__pic--crop")} style=${vars}>
+    ${vars ? html`<span class="k-sl__crop">${img}</span>` : img}
+  </span>`;
+}
+
 // What stands in place of an approval that cannot be given: one quiet line, a lock and the reason as sent. Read as a
 // group named by the action, so a screen reader hears what is locked and why.
 function LockLine({ id, label, why }) {
@@ -486,16 +499,19 @@ function TreatmentStage({ v, at, onAt }) {
   }
   // The boards take the rest of the stage's height (a size container, shotlist.css): the board with its caption and
   // the reel are as large as that place allows, and centred in it.
+  // A board with a picture box is drawn in a frame of the box's shape (--k-sl-ar), the picture laid so only the box
+  // shows; the reel's boards take the same shape, each its own box covering it.
+  const vars = cropVars(b.crop);
   return html`${bar}
     <div class=${cx("k-sl__boards", n > 1 && "k-sl__boards--reel")}>
-      <div class="k-sl__fit">
+      <div class=${cx("k-sl__fit", vars && "k-sl__fit--crop")} style=${vars ? `--k-sl-ar: ${b.crop.ratio}; ${vars}` : undefined}>
         <${Shot} src=${b.url} alt=${`${name}, board ${b.shot}`} tags=${[{ text: b.shot, at: "tl" }]}>
           ${s ? html`<${Caption} s=${s} />` : null}
         <//>
         ${n > 1 ? html`<div class="k-sl__reel">
           ${boards.map((x, k) => html`<button key=${x.shot} type="button" class="k-sl__reel-board" tabindex="-1"
             aria-label=${`${name}, board ${x.shot}`} aria-pressed=${k === i ? "true" : "false"} onClick=${() => onAt(k)}>
-            <img src=${x.url} alt="" loading="lazy" decoding="async" /><span class="k-sl__reel-id" aria-hidden="true">${x.shot}</span>
+            <${Pic} src=${x.url} crop=${x.crop} /><span class="k-sl__reel-id" aria-hidden="true">${x.shot}</span>
           </button>`)}
         </div>` : null}
       </div>
@@ -516,7 +532,7 @@ function Caption({ s }) {
 // knows it is a radio group: one Tab stop, the arrows move the treatment.
 function cardProps({ item, v, checked, board, chip, onPick }) {
   const boards = boardRows(v).map((b, k) => ({
-    src: b.url, alt: "", label: `${v.letter ? `Treatment ${v.letter}` : v.title}, board ${b.shot}`, on: checked && k === board,
+    src: b.url, crop: b.crop, alt: "", label: `${v.letter ? `Treatment ${v.letter}` : v.title}, board ${b.shot}`, on: checked && k === board,
   }));
   const cost = v.cost && Number.isInteger(v.cost.base) ? creditsDollars(v.cost.base) : "";
   return {
@@ -558,7 +574,7 @@ function ShotTable({ v }) {
     <thead><tr><th scope="col"><span class="k-sr">Board</span></th><th scope="col">Shot</th><th scope="col" class="k-sl__num">Cost</th></tr></thead>
     <tbody>
       ${rows.map((s) => html`<tr key=${s.id}>
-        <td class="k-sl__table-pic">${s.board ? html`<img src=${s.board} alt="" loading="lazy" decoding="async" />` : null}</td>
+        <td class="k-sl__table-pic">${s.board ? html`<${Pic} src=${s.board} crop=${s.crop} />` : null}</td>
         <td>
           <p class="k-sl__table-move">${s.move ? `${s.id} · ${s.move}` : s.id}</p>
           ${s.prompt ? html`<p class="k-sl__table-prompt">${s.prompt}</p>` : null}
@@ -602,43 +618,87 @@ function Confirm({ v, busy, onYes, onNo }) {
   <//>`;
 }
 
-// What the card becomes after an action. An approval keeps the stage as the other states draw it: the bar at the top,
-// the approved board large with its one line under it, and the treatment's boards as a row as wide as the board. The
-// rail says it is approved and when, what was approved (the treatment, its length and clips, its cost from the
-// server's numbers), what happens next in the server's words, and the shots approved with their seconds and cost
-// (only what the item carried: no state of a clip is guessed here; the film's page in Studio is where progress
-// lives), then, after the list, "Open Studio" (the one primary) with "Back to Needs you" beside it. Anything else is
-// the server's message on one line.
+// The line under a board of the approved sheet: the shot's words, then "5 s · $0.25".
+function tileFacts(r) {
+  return [r.label.includes(" · ") ? r.label.split(" · ")[1] : "", r.credits !== null ? creditsDollars(r.credits) : ""].filter(Boolean).join(" · ");
+}
+
+function TileLine({ r }) {
+  return html`<p class="k-sl__tile-line">
+    <span class="k-sl__tile-words" title=${r.move || undefined}>${r.move || r.id}</span>
+    <span class="k-sl__tile-facts">${tileFacts(r)}</span>
+  </p>`;
+}
+
+// A board of the approved sheet opened larger: the kit's full-size Dialog (a viewer starts on its Close button), the
+// board as large as the window allows with its line under it, and the board before and the next in the head.
+function BoardViewer({ name, rows, at, onAt, onClose }) {
+  const r = rows[at];
+  if (!r) return null;
+  const n = rows.length;
+  const vars = cropVars(r.crop);
+  return html`<${Dialog} open=${true} size="full" title=${`${name}, board ${r.id}`} onClose=${onClose}
+    tools=${n > 1 ? html`<div class="k-sl__view-pager">
+      <${Button} variant="quiet" size="sm" icon="chevron-left" aria-label=${SHOTLIST_WORDS.boardBefore} disabled=${at === 0} onClick=${() => onAt(at - 1)} />
+      <span class="k-sl__count" aria-live="polite">${`${at + 1} of ${n}`}</span>
+      <${Button} variant="quiet" size="sm" icon="chevron-right" aria-label=${SHOTLIST_WORDS.boardNext} disabled=${at === n - 1} onClick=${() => onAt(at + 1)} />
+    </div>` : undefined}>
+    <div class="k-sl__view" style=${vars ? `--k-sl-vr: ${r.crop.ratio};` : undefined}>
+      <figure class="k-sl__view-fig">
+        <span class="k-sl__view-frame">
+          <${Pic} src=${r.board} crop=${r.crop} alt=${`${name}, board ${r.id}`} />
+          <${PicTag} at="tl">${r.id}<//>
+        </span>
+        <figcaption><${TileLine} r=${r} /></figcaption>
+      </figure>
+    </div>
+  <//>`;
+}
+
+// What the card becomes after an action. An approval shows what was approved as a sheet of all its boards: the bar at
+// the top as in the other states, then every board cropped to its picture, three across (two on a phone), each with its
+// shot's number on the picture and one line under it (the shot's words, then its seconds and cost); a board opens
+// larger in the kit's viewer. The rail says it is approved and when, what was approved (the treatment, its length and
+// clips, its cost from the server's numbers), what happens next in the server's words, then "Open Studio" (the one
+// primary) with "Back to Needs you" beside it; the shots are on the sheet, so the rail does not list them again (only
+// what the item carried: no state of a clip is guessed here; the film's page in Studio is where progress lives).
+// Anything else is the server's message on one line.
 export function ShotlistDone({ done, focus = true }) {
   const ref = useRef(null);
   const railRef = useRef(null);
+  const [open, setOpen] = useState(null);
   useEffect(() => { if (focus && ref.current && typeof ref.current.focus === "function") ref.current.focus(); }, []);
   useWholeLines(railRef);
   if (!done) return null;
   const v = done.version || null;
-  const shot = v ? boardRows(v)[0] : null;
   const approved = done.action === "approve";
   const choice = v && approved ? (v.letter ? `You approved ${v.letter}: ${v.title}` : `You approved ${v.title}`) : "";
   const said = text(done.message) || (approved ? `${SHOTLIST_WORDS.approved}${SHOTLIST_WORDS.studio}.` : "");
   if (approved && v) {
     const name = v.letter ? `Treatment ${v.letter}` : v.title;
-    const all = boardRows(v);
     const rows = shotRows(v);
+    const shown = rows.filter((r) => r.board);
     const c = v.cost && typeof v.cost === "object" ? v.cost : null;
     const at = when(done.at);
     const ratio = ratioWords(v.shotlist && v.shotlist.ratio);
-    // The stage: the bar, the approved board with its one line under it, the treatment's boards as pictures in a row.
-    const line = html`<span class="k-sl__done-choice"><${Icon} name="check" size=${16} /><span>${choice}</span></span>`;
+    // The stage: the bar with what was approved, then the sheet of boards.
     const bar = html`<${StageBar}>
       <span class="k-sl__bar-name">${SHOTLIST_WORDS.boards}</span>${ratio ? html`<span class="k-sl__ratio">${ratio}</span>` : null}
+      <span class="k-stagebar__gap"></span>
+      <span class="k-sl__done-choice"><${Icon} name="check" size=${16} /><span>${choice}</span></span>
     <//>`;
-    const stage = html`${bar}<div class=${cx("k-sl__boards", "k-sl__boards--done", all.length > 1 && "k-sl__boards--reel")}
-      style=${all.length > 1 ? `--k-sl-n: ${all.length};` : undefined}><div class="k-sl__fit">${shot
-      ? html`<${Shot} src=${shot.url} alt=${`${name}, board ${shot.shot}`} tags=${[{ text: shot.shot, at: "tl" }]}>${line}<//>
-        ${all.length > 1 ? html`<div class="k-sl__reel k-sl__reel--still" aria-hidden="true">
-          ${all.map((x) => html`<span key=${x.shot} class="k-sl__reel-board"><img src=${x.url} alt="" loading="lazy" decoding="async" /><span class="k-sl__reel-id">${x.shot}</span></span>`)}
-        </div>` : null}`
-      : html`<div class="k-sl__empty"><p>${v.title}</p></div>`}</div></div>`;
+    const sheet = rows.length ? html`<ol class="k-sl__sheet" aria-label=${SHOTLIST_WORDS.shotsApproved}>
+      ${rows.map((r) => {
+        const k = shown.indexOf(r);
+        const pic = html`<${Pic} src=${r.board} crop=${r.crop} /><${PicTag} at="tl">${r.id}<//>`;
+        return html`<li key=${r.id} class="k-sl__tile">
+          ${k >= 0 ? html`<button type="button" class="k-sl__tile-pic" aria-label=${`${name}, board ${r.id}, ${SHOTLIST_WORDS.openLarger}`}
+            onClick=${() => setOpen(k)}>${pic}</button>` : html`<span class="k-sl__tile-pic k-sl__tile-pic--none">${pic}</span>`}
+          <${TileLine} r=${r} />
+        </li>`;
+      })}
+    </ol>` : html`<div class="k-sl__empty"><p>${v.title}</p></div>`;
+    const stage = html`${bar}${sheet}`;
     const facts = [
       { label: SHOTLIST_WORDS.treatment, value: v.letter ? `${v.letter} · ${v.title}` : v.title },
       { label: SHOTLIST_WORDS.length, value: lengthWords(v) },
@@ -658,18 +718,6 @@ export function ShotlistDone({ done, focus = true }) {
         <dl class="k-sl__facts">${facts.map((f) => html`<div key=${f.label} class="k-sl__fact"><dt>${f.label}</dt><dd>${f.value}</dd></div>`)}</dl>
       <//>
       ${time ? html`<${Blk} title=${SHOTLIST_WORDS.next}><p class="k-sl__say">${time}</p><//>` : null}
-      ${rows.length ? html`<${Blk} title=${SHOTLIST_WORDS.shotsApproved} aside=${clips(rows.length)}>
-        <ol class="k-sl__done-shots">
-          ${rows.map((r) => {
-            const words = r.move ? `${r.id} ${r.move}` : r.id;
-            return html`<li key=${r.id} class="k-sl__done-shot">
-              ${r.board ? html`<img src=${r.board} alt="" loading="lazy" decoding="async" />` : html`<span class="k-sl__done-nopic"></span>`}
-              <span class="k-sl__done-shot-name" title=${words}><b>${r.id}</b>${r.move ? html` ${r.move}` : null}</span>
-              <span class="k-sl__done-shot-facts">${[r.label.includes(" · ") ? r.label.split(" · ")[1] : "", r.credits !== null ? creditsDollars(r.credits) : ""].filter(Boolean).join(" · ")}</span>
-            </li>`;
-          })}
-        </ol>
-      <//>` : null}
       ${done.studio ? html`<div class="k-sl__done-go">
         <${Button} variant="primary" href=${done.studio}>${SHOTLIST_WORDS.openStudio}<//>
         <${Button} variant="ghost" href="#/needs-you">${SHOTLIST_WORDS.backNeeds}<//>
@@ -677,6 +725,7 @@ export function ShotlistDone({ done, focus = true }) {
     </div>`;
     return html`<div class="k-sl k-sl--done" role="status" tabindex="-1" ref=${ref}>
       <${StageLayout} title=${keepShort(done.title || v.title)} label=${name} stage=${stage} rail=${rail} />
+      ${open !== null && shown[open] ? html`<${BoardViewer} name=${name} rows=${shown} at=${open} onAt=${setOpen} onClose=${() => setOpen(null)} />` : null}
     </div>`;
   }
   return html`<div class="k-sl k-sl--done k-sl--done-line" role="status" tabindex="-1" ref=${ref}>
