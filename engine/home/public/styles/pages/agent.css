@@ -1,8 +1,10 @@
-/* An agent's page (pages/agent.js, PLAN-COOK T65 after R02 and R05, TB4): one reading column at --doc-max with one
-   left edge. The head is one row: the 40 px avatar inside the title, the state as a chip beside it, then "Give it a
-   task" (the primary) and Pause (a ghost); what it does under it in balanced lines. Then sections 32 px apart with
-   a 17 px heading: its work as one panel with two group labels (two-line task rows), how it is set up (a 160 px
-   label column in the third ink, values at 14 px, the model as a chip, lists as plain lines), its lessons, its
+/* An agent's page (pages/agent.js, PLAN-COOK T65 after R02 and R05, TB4, R5-G): one reading column at --doc-max
+   with one left edge. The head is one row: the 40 px avatar inside the title, the state as a chip beside it, then
+   "Give it a task" (the 32 px primary) and Pause (a ghost); what it does under it, running up to 560 px. Then
+   sections 32 px apart with a 16 px heading: its work as one panel with two group labels over hairlines (two-line
+   task rows, a long line ending in an ellipsis before the date), how it is set up (rows on one padding parted by
+   hairlines; a 160 px label column at 12 px 500 in the third ink on the value's first line, values at 14 px, the
+   model as a chip, "Reports to" and "Works in" as links, lists as plain lines), its lessons, its
    standing instructions (folded) and the talk with the kit's composer under it, in the flow. */
 
 .p-agent {
@@ -36,17 +38,18 @@
 }
 
 .p-agent .p-agent__head .k-page-header__titles {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .p-agent .p-agent__head .k-page-header__actions {
-  flex: 1 1 auto;
+  flex: none;
   align-items: center;
 }
 
 .p-agent .p-agent__head .k-page-header__lede {
-  max-width: 64ch;
-  text-wrap: balance;
+  max-width: 560px;
+  text-wrap: pretty;
 }
 
 .p-agent .p-agent__head .k-page-header__more {
@@ -56,7 +59,6 @@
 .p-agent .p-agent__state {
   display: inline-flex;
   align-items: center;
-  margin-right: auto;
 }
 
 .p-agent .p-agent__acts {
@@ -107,6 +109,8 @@
 .p-agent .p-agent__count {
   display: inline-flex;
   margin-left: var(--s-2);
+  color: var(--ink-3);
+  font-weight: var(--fw-regular);
   font-variant-numeric: tabular-nums;
 }
 
@@ -137,7 +141,7 @@
   line-height: var(--lh-section);
 }
 
-/* Its work: one panel, each part under a group label on the raised step. */
+/* Its work: one panel, each part under a group label over a hairline (no filled band). */
 .p-agent .p-agent__work {
   border: 1px solid var(--line);
   border-radius: var(--r-3);
@@ -147,21 +151,20 @@
 }
 
 .p-agent .p-agent__group + .p-agent__group {
-  border-top: 1px solid var(--line);
+  margin-top: var(--s-1);
 }
 
 .p-agent .p-agent__group-title {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   min-height: 36px;
-  margin: 0;
-  padding: 0 var(--s-4);
+  margin: 0 var(--s-4);
+  padding: 0 0 var(--s-2);
   border-bottom: 1px solid var(--line);
-  background: var(--raise);
   color: var(--ink-2);
-  font-size: var(--fs-note);
+  font-size: var(--fs-label);
   font-weight: var(--fw-bold);
-  line-height: var(--lh-note);
+  line-height: var(--lh-label);
 }
 
 .p-agent .p-agent__work .k-empty {
@@ -214,15 +217,21 @@
 .p-agent .p-agent__rows .k-task-row__title {
   grid-column: 2;
   grid-row: 1;
+  min-width: 0;
   font-size: var(--fs-ui);
   line-height: var(--lh-ui);
 }
 
+/* A long line ends in an ellipsis before the date's column. */
 .p-agent .p-agent__rows .k-task-row__line {
   grid-column: 2;
   grid-row: 2;
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--fs-note);
   line-height: var(--lh-note);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .p-agent .p-agent__rows .k-task-row__time {
@@ -277,7 +286,8 @@
 
 .p-agent .p-agent__label {
   color: var(--ink-3);
-  font-size: var(--fs-note);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
   line-height: var(--lh-ui);
 }
 
@@ -300,12 +310,27 @@
 .p-agent .p-agent__value .k-agent--chip,
 .p-agent .p-agent__value .p-team__dept {
   align-self: flex-start;
+  min-height: var(--lh-ui);
+}
+
+/* "Reports to" and "Works in" read as links: the name underlined in a quiet line, the ink's on hover. */
+.p-agent .p-agent__value a.k-agent--chip .k-agent__name,
+.p-agent .p-agent__value a.p-team__dept .p-team__dept-name {
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-fast) var(--ease);
+}
+
+.p-agent .p-agent__value a.k-agent--chip:hover .k-agent__name,
+.p-agent .p-agent__value a.p-team__dept:hover .p-team__dept-name {
+  text-decoration-color: currentColor;
 }
 
 .p-agent .p-agent__list {
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;

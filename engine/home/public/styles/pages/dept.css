@@ -1,9 +1,10 @@
 /* A department (pages/dept.js, PLAN-COOK T65, TB4): one reading column at --doc-max with one left edge. The head:
-   the department's line icon in a 32 px tile inside the title, its two links as a button group on the title's line,
-   its line and its state under it at the column's edge. Then sections 32 px apart, each with a 17 px heading and a
-   count chip, its link as a small ghost on the heading's line: what needs the owner (its items as rows: glyph,
-   title, age), its agents (the kit's AgentCard as rows in one panel, parted by hairlines), the owner's tasks with it
-   (two-line rows: title over the state's sentence, the date and the ID in a right-hand column), the jobs it can run
+   the department's line icon in the kit's neutral 32 px Tile inside the title, its two links as a button group on
+   the title's line, its line and its state under it at the column's edge. Then sections 32 px apart, each with a 16 px heading and its
+   count as one muted figure (R5-G), its link as a small ghost on the heading's line: what needs the owner (its items
+   as rows: a neutral glyph, the title, who raised it and its age at the right), its agents (the kit's AgentCard as
+   rows in one panel, parted by hairlines, the words running the panel's width), the owner's tasks with it (two-line
+   rows in a panel like the two above: title over the state's sentence, the date and the ID in a right-hand column), the jobs it can run
    (cards two across, as the Jobs page), the composer, and the departments either side. */
 
 .p-dept {
@@ -28,14 +29,7 @@
 
 .p-dept .p-dept__tile {
   flex: none;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-2);
-  background: var(--card);
-  color: var(--ink-2);
+  display: inline-flex;
 }
 
 /* The two links as one button group: the ghosts joined, one edge between them. */
@@ -145,7 +139,7 @@
   justify-content: space-between;
   gap: var(--s-3);
   min-height: 32px;
-  margin-bottom: var(--s-3);
+  margin-bottom: var(--s-2);
 }
 
 .p-dept .p-dept__section-title {
@@ -163,10 +157,14 @@
   flex: none;
 }
 
-/* A heading's count: a chip after its words. */
+/* A heading's count: a muted figure after its words, one style for every count. */
 .p-dept .p-dept__count {
   display: inline-flex;
   margin-left: var(--s-2);
+  color: var(--ink-3);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-ui);
   font-variant-numeric: tabular-nums;
 }
 
@@ -187,8 +185,9 @@
   text-underline-offset: 3px;
 }
 
-/* What needs the owner: its items as rows in one panel, parted by hairlines: a 28 px tile with the kind's glyph,
-   the title at 14 px 500, the age in a right-hand column of tabular figures. */
+/* What needs the owner: its items as rows in one panel, parted by hairlines: a 28 px neutral tile with the kind's
+   glyph, the title at 14 px 500, who raised it and its age in a right-hand column (12 px, the third ink). The same
+   panel holds the owner's tasks. */
 .p-dept .p-dept__list {
   margin: 0;
   padding: 0;
@@ -209,8 +208,8 @@
   grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 0 var(--s-3);
-  min-height: 48px;
-  padding: 10px var(--s-4);
+  min-height: 44px;
+  padding: var(--s-2) var(--s-4);
   color: var(--ink);
   text-decoration: none;
   transition: background-color var(--t-fast) var(--ease);
@@ -218,16 +217,6 @@
 
 .p-dept .p-dept__need:hover {
   background: var(--ctl);
-}
-
-.p-dept .p-dept__need-icon {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r-2);
-  background: var(--warn-bg);
-  color: var(--warn);
 }
 
 .p-dept .p-dept__need-title {
@@ -240,6 +229,14 @@
   text-overflow: ellipsis;
 }
 
+.p-dept .p-dept__need-meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.p-dept .p-dept__need-who,
 .p-dept .p-dept__need-when {
   color: var(--ink-3);
   font-size: var(--fs-label);
@@ -289,11 +286,6 @@
   color: var(--ink-2);
 }
 
-.p-dept .p-dept__needs--some .p-dept__needs-icon {
-  background: var(--warn-bg);
-  color: var(--warn);
-}
-
 .p-dept .p-dept__needs-text {
   min-width: 0;
 }
@@ -327,7 +319,7 @@
 
 .p-dept .p-dept__agents .k-agent--card {
   align-items: flex-start;
-  padding: 14px var(--s-4);
+  padding: var(--s-3) var(--s-4);
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -350,16 +342,14 @@
 }
 
 .p-dept .p-dept__agents .k-agent__summary {
-  max-width: 64ch;
+  max-width: none;
 }
 
 /* The owner's tasks: the kit's TaskRow as two lines on the ground, parted by hairlines: the glyph, the title (14 px
    500) over the state's sentence (13 px, the second ink); the date over the ID (12 px mono, the third ink) in a
    right-hand column. */
 .p-dept .p-dept__rows {
-  margin: 0 calc(var(--s-3) * -1);
-  padding: 0;
-  list-style: none;
+  margin: 0;
 }
 
 .p-dept .p-dept__row {
@@ -376,8 +366,8 @@
   grid-template-rows: auto auto;
   align-items: baseline;
   gap: 2px var(--s-3);
-  min-height: 60px;
-  padding: 10px var(--s-3);
+  min-height: 56px;
+  padding: var(--s-2) var(--s-4);
 }
 
 .p-dept .p-dept__rows .k-task-row__mark {
@@ -401,8 +391,12 @@
 .p-dept .p-dept__rows .k-task-row__line {
   grid-column: 2;
   grid-row: 2;
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--fs-note);
   line-height: var(--lh-note);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .p-dept .p-dept__rows .k-task-row__time {
@@ -691,6 +685,11 @@
     padding: var(--s-2) var(--s-3);
   }
 
+  /* A phone keeps the title and its age; who raised it is in the queue. */
+  .p-dept .p-dept__need-who {
+    display: none;
+  }
+
   .p-dept .p-dept__need-title {
     white-space: normal;
     display: -webkit-box;
@@ -714,8 +713,8 @@
     padding: var(--s-3);
   }
 
-  .p-dept .p-dept__rows {
-    margin: 0 calc(var(--s-2) * -1);
+  .p-dept .p-dept__rows .k-task-row {
+    padding: 10px var(--s-3);
   }
 
   .p-dept .p-dept__jobs {

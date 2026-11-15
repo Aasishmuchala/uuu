@@ -360,3 +360,18 @@ test("dept: the sheet keeps one left edge, 32 px between sections and two-line t
   assert.match(css, /\.p-dept__rows \.k-task-row__time \{[^}]*grid-column: 3;/, "the date in a right-hand column");
   assert.doesNotMatch(src, /\bGroup\b/, "the sections are the page's own, one edge");
 });
+
+// PLAN-COOK R5-G: one style for every count, the warn tone only on the line that waits, the tasks in a card.
+test("dept: every count is one muted figure; what needs you is neutral rows with who raised it; the tasks sit in a panel (R5-G)", () => {
+  const css = readFileSync(new URL("../../styles/pages/dept.css", import.meta.url), "utf8");
+  const src = readFileSync(new URL("../../pages/dept.js", import.meta.url), "utf8");
+  assert.match(src, /const Count = \(\{ n \}\) => html`<span class="p-dept__count">\$\{n\}<\/span>`;/);
+  assert.doesNotMatch(src, /tone="warn" \/>/, "no warm count");
+  assert.match(css, /\.p-dept \.p-dept__count \{[^}]*color: var\(--ink-3\);/);
+  assert.doesNotMatch(css, /warn-bg|var\(--warn\)/, "the warn tone only on the state's line, drawn by the kit");
+  assert.match(src, /<ul class="p-dept__rows p-dept__list">/, "Your tasks in a panel like the sections above");
+  assert.equal(page.whoOf({ agent: { name: "Marketer" }, raisedBy: "Chief of staff" }), "Marketer");
+  assert.equal(page.whoOf({ raisedBy: "Chief of staff" }), "Chief of staff");
+  assert.equal(page.whoOf({}), "");
+  assert.match(css, /\.p-dept \.p-dept__agents \.k-agent__summary \{\s*max-width: none;/, "the agents' words run the panel's width");
+});

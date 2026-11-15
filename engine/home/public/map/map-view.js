@@ -1,15 +1,17 @@
-// The map's drawing (CONTRACTS-V3 29.1, 29.3, 29.5; PLAN-COOK T63, TB4): the company brain as a card at the centre
-// and each department as a card round it on a faint dot grid, joined to the brain by a 1.5 px connector that ends in
-// a 4 px dot on each card's edge (warm for a department that needs the owner). A card that needs the owner carries a
-// warn edge at its left and its count as a warn chip; one at work a good edge. The cards are real links (a
+// The map's drawing (CONTRACTS-V3 29.1, 29.3, 29.5; PLAN-COOK T63, TB4, R5-G): the company brain as a card at the
+// centre and each department as a card round it on a faint dot grid, joined to the brain by a 1.5 px connector that
+// ends in a 4 px dot on each card's edge. Edges and lines are neutral, so the map stays calm when most departments
+// need the owner: what a department needs of the owner is its count, a warn chip, alone; a good edge marks one at
+// work and a bad edge and line one that is stuck (a problem of its own waits on the owner). The cards are real links (a
 // department's chooses it at #/map/<department>; the brain's opens Files) with a name for screen readers; the lines
 // are hidden from them. Laid out by map/layout.js in screen pixels for the box the stage gives the drawing, so every
 // word is drawn at its true size; when the cards do not fit the box, the departments are shown as rows instead.
-// Nothing moves by script: choosing a department lifts its card in place (styles/pages/map.css).
+// Nothing moves by script: choosing a department lifts its card in place (styles/pages/map.css). Every tile is the
+// kit's neutral Tile: with the edges kept for work and trouble, a tint on the tiles would be one colour too many.
 // Every word a department shows comes from the company's own files, through the home server; it is shown as text
 // and cut to a fixed length.
 import { html, useLayoutEffect, useRef, useState } from "../vendor/preact-htm.js";
-import { Icon, Tag } from "../kit/index.js";
+import { Icon, Tag, Tile } from "../kit/index.js";
 import { DEPARTMENTS } from "../routes.js";
 import { CORE, NODE, NODE_SMALL, layoutNodes } from "./layout.js";
 
@@ -61,6 +63,19 @@ export function nodeLine(counts) {
 export function nodeTone(counts) {
   const c = counts && typeof counts === "object" ? counts : {};
   return num(c.needsYou) ? "warn" : num(c.working) ? "live" : "wait";
+}
+
+// The edge of a card (R5-G): "bad" for a department that is stuck, "live" for one at work, else none. Waiting on the
+// owner is said by the card's count chip alone, so it gives no edge.
+export function edgeTone(counts, stuck = false) {
+  const c = counts && typeof counts === "object" ? counts : {};
+  return stuck ? "bad" : num(c.working) ? "live" : "";
+}
+
+// The departments that are stuck: those with a problem of their own (a failed run, a stopped task) waiting on the
+// owner, from /api/home's items.
+export function stuckOf(items) {
+  return [...new Set(arr(items).filter((i) => i && i.kind === "problem" && SLUG.test(str(i.department))).map((i) => i.department))];
 }
 
 // The line under a card's name: its jobs and who is at work, "20 jobs · 1 working"; what needs the owner is the
@@ -174,8 +189,9 @@ const place = (b) => `left: ${b.x - b.w / 2}px; top: ${b.y - b.h / 2}px; width: 
 // ---- The overview: the brain and the departments as cards ----
 
 // `chosen` is the department chosen at #/map/<department> (its card is lifted); `onNodeKey(id, key)` moves focus
-// between the cards on the arrow keys; `fallback` is what the stage shows when the cards do not fit its box.
-export function Overview({ data, loading = false, chosen = null, onNodeKey, fallback = null }) {
+// between the cards on the arrow keys; `fallback` is what the stage shows when the cards do not fit its box; `stuck`
+// the ids of the departments that are stuck (stuckOf).
+export function Overview({ data, loading = false, chosen = null, onNodeKey, fallback = null, stuck = [] }) {
   const ref = useRef(null);
   const size = useBoxSize(ref);
   const depts = departmentsOf(data);
@@ -187,6 +203,7 @@ export function Overview({ data, loading = false, chosen = null, onNodeKey, fall
   const byId = new Map(depts.map((d) => [d.id, d]));
   const brain = data && data.brain;
   const c = lay && lay.core;
+  const stuckIds = new Set(arr(stuck));
 
   const onKeyDown = (e) => {
     const node = e.target && e.target.closest ? e.target.closest("[data-node]") : null;
@@ -203,8 +220,8 @@ export function Overview({ data, loading = false, chosen = null, onNodeKey, fall
     body = html`<svg class="p-map__lines" viewBox=${lay.viewBox.join(" ")} width=${size.w} height=${size.h} aria-hidden="true" focusable="false">
         ${lay.lines.map((l) => {
           const d = byId.get(l.id) || {};
-          const tone = loading ? "wait" : nodeTone(d.counts);
-          const cls = ["p-map__line", tone === "warn" ? "p-map__line--warn" : "", l.id === chosen ? "p-map__line--chosen" : ""].filter(Boolean).join(" ");
+          const bad = !loading && stuckIds.has(l.id);
+          const cls = ["p-map__line", bad ? "p-map__line--bad" : "", l.id === chosen ? "p-map__line--chosen" : ""].filter(Boolean).join(" ");
           return html`<g key=${l.id} class=${cls}>
             <line class="p-map__wire" x1=${l.start.x} y1=${l.start.y} x2=${l.end.x} y2=${l.end.y} />
             <circle class="p-map__port" cx=${l.start.x} cy=${l.start.y} r="2" />
@@ -215,7 +232,7 @@ export function Overview({ data, loading = false, chosen = null, onNodeKey, fall
       <ul class="p-map__nodes" role="list" aria-label="Company map" onKeyDown=${onKeyDown}>
         <li class="p-map__slot" style=${place(c)}>
           <a class="p-map__node p-map__node--brain" href="#/files" aria-label=${loading ? "Company brain" : brainLabel(brain)}>
-            <span class="p-map__tile p-map__tile--brain" aria-hidden="true"><${Icon} name="brain" size=${18} /></span>
+            <${Tile} icon="brain" size=${32} />
             <span class="p-map__node-text">
               <span class="p-map__node-name">Company brain</span>
               <span class="p-map__node-line">${loading ? " " : brainLine(brain)}</span>
@@ -226,14 +243,14 @@ export function Overview({ data, loading = false, chosen = null, onNodeKey, fall
         ${lay.nodes.map((n) => {
           const d = byId.get(n.id) || {};
           const on = n.id === chosen;
-          const tone = d.counts && !loading ? nodeTone(d.counts) : "wait";
+          const edge = d.counts && !loading ? edgeTone(d.counts, stuckIds.has(n.id)) : "";
           const needs = num(d.counts && d.counts.needsYou);
-          const cls = ["p-map__node", tone === "warn" ? "p-map__node--warn" : tone === "live" ? "p-map__node--live" : "", on ? "p-map__node--chosen" : ""].filter(Boolean).join(" ");
+          const cls = ["p-map__node", edge ? `p-map__node--${edge}` : "", on ? "p-map__node--chosen" : ""].filter(Boolean).join(" ");
           return html`<li key=${n.id} class="p-map__slot" style=${place(n)}>
             <a class=${cls} data-node=${n.id} data-dept=${n.id}
               href=${`#/map/${n.id}`} aria-current=${on ? "true" : undefined} aria-label=${hubLabel(d)}>
               <span class="p-map__node-head">
-                <span class="p-map__tile" aria-hidden="true"><${Icon} name=${iconOf(n.id)} size=${16} /></span>
+                <${Tile} icon=${iconOf(n.id)} size=${28} />
                 <span class="p-map__node-name">${clip(d.title, 40)}</span>
                 ${needs && !loading ? html`<span class="p-map__node-needs" aria-hidden="true"><${Tag} tone="warn">${needs}<//></span>` : null}
               </span>

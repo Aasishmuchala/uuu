@@ -91,7 +91,6 @@ a.k-agent--card:hover {
 
 .k-agent__summary {
   margin: 0;
-  max-width: 68ch;
   color: var(--ink-2);
   font-size: var(--fs-note);
   line-height: var(--lh-note);
@@ -101,7 +100,7 @@ a.k-agent--card:hover {
 .k-agent__doing {
   margin: var(--s-1) 0 0;
   overflow: hidden;
-  color: var(--ink);
+  color: var(--ink-3);
   font-size: var(--fs-note);
   line-height: var(--lh-note);
   text-overflow: ellipsis;
@@ -111,6 +110,11 @@ a.k-agent--card:hover {
 .k-agent__doing-label {
   margin-right: var(--s-1);
   color: var(--ink-3);
+}
+
+.k-agent__doing-task {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
 }
 
 @media (max-width: 859px) {

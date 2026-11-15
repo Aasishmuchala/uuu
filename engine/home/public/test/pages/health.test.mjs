@@ -78,7 +78,7 @@ test("health: the page keeps the proof words and draws no card", async () => {
   assert.doesNotMatch(src, /Card/);
 });
 
-import { tilesOf, ago, checksLine } from "../../pages/health.js";
+import { tilesOf, ago, checksLine, namesLine } from "../../pages/health.js";
 
 test("health: the tiles count the parts and say when the proof ran, from the answer alone (TB5a)", () => {
   const now = new Date("2026-11-16T09:00:00.000Z");
@@ -122,13 +122,15 @@ test("health: the page's layout keeps its promises (TB5a)", async () => {
   const src = readFileSync(new URL("../../pages/health.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../../styles/pages/health.css", import.meta.url), "utf8");
   // The overall state is the kit's chip beside the title.
-  assert.match(src, /<\$\{PageHeader\} title="Health"[^>]*>\s*<\$\{Tag\} tone=\$\{all\.tone\}>\$\{all\.text\}<\/\/>/);
-  assert.match(css, /\.p-health \.k-page-header__more \{ grid-column: 2; grid-row: 1;/);
+  assert.match(src, /<\$\{PageHeader\} title="Health"[^>]*state=\$\{html`<\$\{Tag\} tone=\$\{all\.tone\}>\$\{all\.text\}<\/\/>`\} \/>/, "in the page head's state slot (R5-A, R5-G)");
   // The fence's sentence once: the server's sentence, no second line saying the same.
   assert.doesNotMatch(src, /\$\{fence && fence\.sentence\} \$\{proofLine/);
-  // Copy is a ghost icon button beside the command's mono chip, and the chip is 12.5 px.
-  assert.match(src, /<code class="p-health__code">\$\{m\[2\]\}<\/code>\s*<\$\{Button\} variant="ghost" size="sm" icon=/);
-  assert.match(css, /\.p-health \.p-health__code \{[^}]*font-family: var\(--font-mono\);[^}]*font-size: calc\(var\(--fs-label\) \+ \.5px\);/, "12.5 px");
+  // Copy sits inside the command's mono chip with no box of its own, and the chip is 12 px (R5-G).
+  assert.match(src, /<span class="p-health__cmd">\s*<code class="p-health__code">\$\{m\[2\]\}<\/code>\s*<\$\{Button\} variant="quiet" size="sm" icon=/);
+  assert.match(css, /\.p-health \.p-health__cmd \{[^}]*border: 1px solid var\(--line-2\);[^}]*background: var\(--ctl\);/, "the chip is the one box");
+  const code = /\.p-health \.p-health__code \{([^}]*)\}/.exec(css)[1];
+  assert.match(code, /font-family: var\(--font-mono\);[^}]*font-size: var\(--fs-label\);/, "12 px");
+  assert.doesNotMatch(code, /border|background/, "the command has no box of its own inside the chip");
   // 32 px tiles, 32 px between groups, a count beside a group's name.
   assert.match(css, /\.p-health \.p-health__tile \{[^}]*width: 32px;[^}]*height: 32px;/);
   assert.match(css, /\.p-health \.p-health__group \+ \.p-health__group \{ margin-top: var\(--s-8\); \}/);
@@ -136,4 +138,25 @@ test("health: the page's layout keeps its promises (TB5a)", async () => {
   // The proof's button is a small ghost in the buttons' column, whose width every such button shares.
   assert.match(src, /act=\$\{html`<\$\{Button\} variant="ghost" size="sm" onClick=\$\{onRun\}/);
   assert.match(css, /\.p-health \.p-health__act \{[^}]*width: 152px;/);
+});
+
+test("health: a row's state chip stands 8 px after its name and the row's right holds only its button (R5-G)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../../pages/health.js", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../../styles/pages/health.css", import.meta.url), "utf8");
+  assert.match(src, /<p class="p-health__title"><span class="p-health__name">\$\{title\}<\/span>\$\{state \|\| list\.length \? html`<span class="p-health__meta">/);
+  assert.match(css, /\.p-health \.p-health__title \{[^}]*display: flex;[^}]*column-gap: var\(--s-2\);/, "8 px after the name");
+  assert.match(css, /\.p-health \.p-health__row \{[^}]*grid-template-columns: 32px minmax\(0, 1fr\) auto;/, "tile, words, the button");
+  assert.match(css, /\.p-health \.p-health__tiles-cell \{[^}]*min-height: 64px;/, "64 px cells");
+});
+
+test("health: the line under a count names those parts, from the answer alone (R5-G)", () => {
+  const now = new Date("2026-11-16T09:00:00.000Z");
+  const parts = [{ state: "on", name: "Board" }, { state: "on", name: "Home screen" }, { state: "off", name: "Model relay" }, { state: "off" }, { state: "not_installed", name: "Playbooks" }];
+  const t = tilesOf({ parts }, now);
+  assert.deepEqual(t.map((x) => [x.id, x.value, x.foot]), [["on", "2", "Board and 1 more"], ["off", "2", "Model relay"], ["not_installed", "1", "Playbooks"]]);
+  assert.equal(namesLine([{ name: "A" }, { name: "B" }, { name: "C" }, { name: "D" }, { name: "E" }]), "A and 4 more");
+  assert.equal(namesLine([{ name: "A" }, { name: "B" }], 2), "A, B");
+  assert.equal(namesLine([{}, null]), "", "no name in the answer: no line");
+  assert.equal(tilesOf({ parts: [{ state: "on" }] }, now)[0].foot, "");
 });

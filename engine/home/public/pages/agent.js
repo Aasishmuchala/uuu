@@ -1,5 +1,5 @@
 // An agent's page in one column (CONTRACTS-V2 17.5, CONTRACTS-V3 30 "Team and an agent"; PLAN-COOK T65 after
-// R02 and R05, TB4): the head is one row (the 40 px avatar, the name, its state as a chip, then "Give it a task" and
+// R02 and R05, TB4, R5-G): the head is one row (the 40 px avatar, the name, its state as a chip, then "Give it a task" and
 // Pause) with what it does under it; then its work as one list with two group labels (what it is working on, its
 // recent work: TaskRows), how it is set up (label and value rows: what it may and may not do as written, the model
 // as a chip), its lessons, its standing instructions (folded) and the talk with its composer.
@@ -142,7 +142,7 @@ function PauseButton({ agent, onChanged }) {
   }
 
   return html`<div class="p-agent__pause">
-    <${Button} variant="ghost" busy=${busy} onClick=${go}>
+    <${Button} variant="ghost" size="sm" busy=${busy} onClick=${go}>
       ${verb === "pause" ? "Pause" : "Resume"}
     <//>
     ${error && html`<p class="p-agent__error" role="alert">${text(error.message)}</p>`}
@@ -170,7 +170,7 @@ function toComposer() {
 }
 
 // The top, one row: the avatar inside the title, the state as a chip beside it, then "Give it a task" (the one
-// primary) and Pause; what it does under the row, in balanced lines.
+// primary, 32 px) and Pause; what it does under the row, running up to 560 px.
 function Header({ data, onChanged }) {
   const a = data.agent;
   const note = headerNote(a);
@@ -179,9 +179,9 @@ function Header({ data, onChanged }) {
   return html`<div class="p-agent__head">
     <${PageHeader} title=${title} lead=${cap(a.summary, 400)}
       crumbs=${[{ label: "Team", href: "#/team" }, { label: name }]}
-      actions=${html`<span class="p-agent__state"><${AgentState} agent=${a} chip /></span>
-        <span class="p-agent__acts">
-          <${Button} variant="primary" icon="send" onClick=${toComposer}>${WORDS.give}<//>
+      state=${html`<span class="p-agent__state"><${AgentState} agent=${a} chip /></span>`}
+      actions=${html`<span class="p-agent__acts">
+          <${Button} variant="primary" size="sm" icon="send" onClick=${toComposer}>${WORDS.give}<//>
           <${PauseButton} agent=${a} onChanged=${onChanged} />
         </span>`}>
       ${note && html`<p class="p-agent__note">${note} <a href="#/health">Open Health</a></p>`}
@@ -435,7 +435,8 @@ const Part = ({ tab, title, aside, children }) => html`<section class="p-agent__
   ${children}
 </section>`;
 
-const Count = ({ n }) => (n ? html`<span class="p-agent__count"><${Tag}>${n}<//></span>` : null);
+// A heading's count: a muted figure after its words (R5-G), as the department's page draws it.
+const Count = ({ n }) => (n ? html`<span class="p-agent__count">${n}</span>` : null);
 
 // What it is working on and its recent work: one list in one panel, each part under a group label.
 function Work({ data, recent, onlyNow }) {

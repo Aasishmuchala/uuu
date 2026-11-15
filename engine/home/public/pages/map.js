@@ -37,7 +37,7 @@ import {
   useInboxAct,
 } from "../kit/index.js";
 import { nearestHub } from "../map/layout.js";
-import { departmentsOf, iconOf, jobsLine, nodeLine, nodeTone, Overview } from "../map/map-view.js";
+import { departmentsOf, iconOf, jobsLine, nodeLine, nodeTone, Overview, stuckOf } from "../map/map-view.js";
 import { DepartmentRows, DepartmentSection, MapList } from "../map/map-list.js";
 
 const SLUG = /^[a-z][a-z0-9-]{0,40}$/;
@@ -501,7 +501,7 @@ export default function MapPage({ route }) {
       ${switcher}
     <//>
     ${failed ? html`<div class="p-map__stage-error"><${ErrorNotice} error=${MAP_ERROR} onRetry=${map.reload} /></div>`
-      : html`<${Overview} data=${data} loading=${loading} chosen=${dept} onNodeKey=${onNodeKey}
+      : html`<${Overview} data=${data} loading=${loading} chosen=${dept} onNodeKey=${onNodeKey} stuck=${stuckOf(needsOf(home.data))}
           fallback=${html`<${DepartmentRows} data=${data} chosen=${dept} />`} />
         ${loading ? html`<span class="u-visually-hidden" role="status">Loading the map</span>` : null}`}
     ${askBox}

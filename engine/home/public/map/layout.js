@@ -292,7 +292,8 @@ export function layoutDepartment({ clusters = [], width = W0, height = H0 } = {}
 // clockwise from the top, in file order (the order the arrow keys walk). Seven leave no hole: three over the brain,
 // one either side of it, and the last two under it half a column in from the corners, so the ring is balanced about
 // its middle. The columns and rows are as far apart as the box allows with NODE_MARGIN round every card, and no
-// further than NODE_REACH, so the ring stays pulled in on a big screen. More than eight departments sit on an
+// further than NODE_REACH, so the ring stays pulled in on a big screen; the rows reach far enough (R5-G) that the
+// ring fills the stage between its head and the bar, with no empty floor under it. More than eight departments sit on an
 // ellipse instead. A line runs from the brain to each card: `from` and `to` are the two centres, `start` and `end`
 // where that line leaves the brain's edge and meets the card's edge, so a connector ends on the edges and two
 // lines from one centre never cross. `fits` is false when two cards would come closer than NODE_GAP or a card
@@ -303,7 +304,7 @@ export const NODE_SMALL = { w: 184, h: 76 };
 export const CORE = { w: 256, h: 104 };
 export const NODE_MARGIN = 32;
 export const NODE_GAP = 24;
-export const NODE_REACH = { x: 270, y: 165 };
+export const NODE_REACH = { x: 270, y: 200 };
 
 // The places round the brain, clockwise from the top: [column, row] from -1 to 1 (bl2 and br2 half a column in).
 const PLACES = {

@@ -1,15 +1,16 @@
 // Health: is each part on, does the fence hold, what is not connected yet, and free disk.
 // The only page where technical names appear, and only behind "Show technical details".
-// Fix round B2 (TB5a): the overall state a chip beside the title; a strip of count tiles on top (on, off, not
-// installed, the last proof: only what the answer gives); groups headed with a count ("2 of 4 on"), 32 px apart;
-// each row a 32 px tile, its name, its sentence with the command as a mono chip on the text's baseline and Copy as a
-// ghost icon button, then a right-hand column with the state and the facts the answer gives, and one column of equal
-// small ghost buttons. A time or a count is drawn only when the answer gives it. Commands stay exact.
+// Fix round B2 (TB5a) and R5-G: the overall state a chip beside the title; a strip of 64 px count cells on top (on,
+// off, not installed, the last proof: only what the answer gives), each figure with one muted line under it when the
+// answer gives one (the names of those parts, the proof's date); groups headed with a count ("2 of 4 on"), 32 px
+// apart; each row a 32 px tile, its name with its state's chip 8 px after it (and the facts the answer gives), its
+// sentence with the command as a 12 px mono chip that holds its own Copy, and at the row's right only its button. A
+// time or a count is drawn only when the answer gives it. Commands stay exact.
 import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { fullWhen, when } from "../lib/format.js";
-import { Button, ErrorNotice, Icon, Loading, Mono, PageHeader, Tag } from "../kit/index.js";
+import { Button, ErrorNotice, Loading, Mono, PageHeader, Tag, Tile } from "../kit/index.js";
 
 const cap = (v, n = 300) => (v === null || v === undefined ? "" : String(v)).slice(0, n);
 
@@ -102,17 +103,28 @@ export function ago(iso, now = new Date()) {
   return when(iso, now);
 }
 
+// The names of some parts, for the line under a count: "Board", "Gate and 5 more", "Board, Home screen" with
+// `most` 2; empty when the answer names none. One name by default, so the line fits its cell whole. Pure.
+export function namesLine(parts, most = 1) {
+  const names = (Array.isArray(parts) ? parts : []).map((x) => cap(x && x.name, 40).trim()).filter(Boolean);
+  if (!names.length) return "";
+  const shown = names.slice(0, most).join(", ");
+  return names.length > most ? `${shown} and ${names.length - most} more` : shown;
+}
+
 // The strip on top: how many parts are on, off, not working and not installed, and when the proof last ran. A
-// count of nothing is left out, except On and Off; a tile is drawn only from what the answer gives. Pure.
+// count of nothing is left out, except On and Off; a tile is drawn only from what the answer gives, and so is the
+// line under its figure (`foot`: the names of those parts, or the proof's date). Pure.
 export function tilesOf(d, now = new Date()) {
   const parts = (d && Array.isArray(d.parts) ? d.parts : []).filter((x) => x && typeof x === "object");
-  const n = (state) => parts.filter((x) => x.state === state).length;
+  const of = (state) => parts.filter((x) => x.state === state);
+  const n = (state) => of(state).length;
   const out = [];
   if (parts.length) {
-    out.push({ id: "on", tone: "good", label: WORDS.tiles.on, value: String(n("on")) });
-    out.push({ id: "off", tone: "bad", label: WORDS.tiles.off, value: String(n("off")) });
-    if (n("unhealthy")) out.push({ id: "unhealthy", tone: "warn", label: WORDS.tiles.unhealthy, value: String(n("unhealthy")) });
-    if (n("not_installed")) out.push({ id: "not_installed", tone: "neutral", label: WORDS.tiles.notInstalled, value: String(n("not_installed")) });
+    out.push({ id: "on", tone: "good", label: WORDS.tiles.on, value: String(n("on")), foot: namesLine(of("on")) });
+    out.push({ id: "off", tone: "bad", label: WORDS.tiles.off, value: String(n("off")), foot: namesLine(of("off")) });
+    if (n("unhealthy")) out.push({ id: "unhealthy", tone: "warn", label: WORDS.tiles.unhealthy, value: String(n("unhealthy")), foot: namesLine(of("unhealthy")) });
+    if (n("not_installed")) out.push({ id: "not_installed", tone: "neutral", label: WORDS.tiles.notInstalled, value: String(n("not_installed")), foot: namesLine(of("not_installed")) });
   }
   const p = d && d.fence ? d.fence.lastProof : undefined;
   if (d && d.fence) {
@@ -125,7 +137,7 @@ export function tilesOf(d, now = new Date()) {
 }
 
 // A sentence that ends "Run: <command>" is shown as the words, then the command as a mono chip on the text's
-// baseline with a ghost icon button that copies it. The command is shown exactly as sent.
+// baseline that holds its own Copy (a quiet icon button with no box of its own). The command is shown exactly as sent.
 function Command({ text }) {
   const { announce } = useApp() || {};
   const [done, setDone] = useState(false);
@@ -143,7 +155,7 @@ function Command({ text }) {
   const before = m[1].slice(0, -"Run:".length);
   return html`${before}<span class="p-health__run">Run:${" "}<span class="p-health__cmd">
       <code class="p-health__code">${m[2]}</code>
-      <${Button} variant="ghost" size="sm" icon=${done ? "check" : "copy"} aria-label=${done ? WORDS.copied : WORDS.copyLabel} title=${WORDS.copyLabel} onClick=${copy} />
+      <${Button} variant="quiet" size="sm" icon=${done ? "check" : "copy"} aria-label=${done ? WORDS.copied : WORDS.copyLabel} title=${WORDS.copyLabel} onClick=${copy} />
     </span></span>`;
 }
 
@@ -176,27 +188,28 @@ export function diskLine(disk) {
   return `${disk.freeGb} GB free.${floor}`;
 }
 
-// One row: the 32 px tile, the name and its sentence, then the state and its facts, then the row's buttons.
-// `facts` are short lines of what the answer gives (never made up); `act` the row's buttons.
+// One row: the 32 px tile, the name with its state's chip 8 px after it and its facts, the sentence under them,
+// then the row's buttons at its right. `facts` are short lines of what the answer gives (never made up); `act` the
+// row's buttons.
 function Line({ icon, title, say, state, facts, act, warned, tone }) {
   const list = (facts || []).filter(Boolean);
   return html`<div class=${`p-health__row${tone ? ` p-health__row--${tone}` : ""}`}>
-    <span class="p-health__tile" aria-hidden="true"><${Icon} name=${icon} size=${16} /></span>
+    <span class="p-health__tile"><${Tile} icon=${icon} size=${32} /></span>
     <div class="p-health__text">
-      <p class="p-health__title">${title}</p>
+      <p class="p-health__title"><span class="p-health__name">${title}</span>${state || list.length ? html`<span class="p-health__meta">
+        ${state ? html`<${Tag} tone=${state.tone}>${state.text}<//>` : null}
+        ${list.map((f, i) => html`<span key=${i} class="p-health__fact">${f}</span>`)}
+      </span>` : null}</p>
       ${say ? html`<p class="p-health__say">${say}</p>` : null}
     </div>
-    ${state || list.length ? html`<div class="p-health__meta">
-      ${state ? html`<${Tag} tone=${state.tone}>${state.text}<//>` : null}
-      ${list.map((f, i) => html`<span key=${i} class="p-health__fact">${f}</span>`)}
-    </div>` : null}
     ${act ? html`<div class="p-health__act">${act}</div>` : null}
     ${warned ? html`<div class="p-health__warned">${warned}</div>` : null}
   </div>`;
 }
 
 // A group: its head (the name, and a count when it has one), a sentence under it, and its rows in one panel.
-// `acts` says a row of the group has buttons, so every row keeps the buttons' column and the states line up.
+// `acts` says a row of the group has buttons (the group's class says so; the states stand by their names, so no
+// column is kept for them).
 function Section({ title, count, say, acts, children }) {
   return html`<section class=${`p-health__group${acts ? " p-health__group--acts" : ""}`}>
     <h2 class="p-health__head"><span>${title}</span>${count ? html`<span class="p-health__count">${count}</span>` : null}</h2>
@@ -223,10 +236,10 @@ function FenceRow({ fence, technical, onRun, running, runError }) {
 function Tiles({ tiles }) {
   if (!tiles.length) return null;
   return html`<dl class="p-health__tiles" aria-label=${WORDS.tiles.label}>
-    ${tiles.map((t) => html`<div key=${t.id} class="p-health__tiles-cell">
+    ${tiles.map((t) => html`<div key=${t.id} class=${`p-health__tiles-cell${t.id === "proof" ? " p-health__tiles-cell--wide" : ""}`}>
       <dt class="p-health__tiles-label"><span class=${`p-health__dot p-health__dot--${t.tone}`} aria-hidden="true"></span>${t.label}</dt>
       <dd class="p-health__tiles-value">${t.value}</dd>
-      ${t.foot ? html`<dd class="p-health__tiles-foot">${t.foot}</dd>` : null}
+      ${t.foot ? html`<dd class="p-health__tiles-foot" title=${t.foot}>${t.foot}</dd>` : null}
     </div>`)}
   </dl>`;
 }
@@ -286,9 +299,7 @@ export default function Page() {
 
   return html`
     <div class="p-health">
-      <${PageHeader} title="Health" lead=${lead} actions=${techButton}>
-        <${Tag} tone=${all.tone}>${all.text}<//>
-      <//>
+      <${PageHeader} title="Health" lead=${lead} actions=${techButton} state=${html`<${Tag} tone=${all.tone}>${all.text}<//>`} />
 
       <${Tiles} tiles=${tilesOf(d)} />
 

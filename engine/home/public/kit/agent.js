@@ -1,7 +1,8 @@
 // An agent as a small chip (avatar and name, a link to its page) and as a card. CONTRACTS-V2 13.2.
 // `agent` is a who ({ slug, name }) for the chip, and an agent-card (17.1) for the card.
 // PLAN-COOK T37: an avatar, the name at 15 px (14 in the chip), the state as a state line (St); an agent's
-// department has no colour (O7).
+// department has no colour (O7). R5-G: the card's sentence runs its width; "Now:" in the third ink before the task
+// at 13 px 500.
 import { html } from "../vendor/preact-htm.js";
 import { Avatar } from "./avatar.js";
 import { St } from "./status.js";
@@ -57,7 +58,7 @@ export function AgentCard({ agent }) {
         <${AgentState} agent=${agent} />
       </div>
       ${agent.summary && html`<p class="k-agent__summary">${text(agent.summary)}</p>`}
-      ${doing && html`<p class="k-agent__doing"><span class="k-agent__doing-label">Now:</span> ${doing}</p>`}
+      ${doing && html`<p class="k-agent__doing"><span class="k-agent__doing-label">Now:</span> <span class="k-agent__doing-task">${doing}</span></p>`}
     </div>
   </a>`;
 }

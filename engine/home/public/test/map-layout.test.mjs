@@ -285,8 +285,8 @@ test("the cards' pinned points for seven departments in the stage of a 1280 x 90
   assert.deepEqual(lay.viewBox, [0, 0, 856, 640]);
   assert.deepEqual(lay.core, { x: 428, y: 320, w: CORE.w, h: CORE.h });
   assert.deepEqual(lay.nodes.map((n) => [n.id, n.x, n.y, n.place]), [
-    ["operations", 428, 155, "tc"], ["sales", 698, 155, "tr"], ["marketing", 698, 320, "r"], ["studio", 563, 485, "br2"],
-    ["support", 293, 485, "bl2"], ["people", 158, 320, "l"], ["books", 158, 155, "tl"],
+    ["operations", 428, 120, "tc"], ["sales", 698, 120, "tr"], ["marketing", 698, 320, "r"], ["studio", 563, 520, "br2"],
+    ["support", 293, 520, "bl2"], ["people", 158, 320, "l"], ["books", 158, 120, "tl"],
   ]);
   assert.deepEqual(lay.lines.map((l) => [l.id, l.from, l.to]), lay.nodes.map((n) => [n.id, { x: 428, y: 320 }, { x: n.x, y: n.y }]));
   for (const n of lay.nodes) assert.deepEqual([n.w, n.h], [NODE.w, NODE.h]);
@@ -314,7 +314,7 @@ test("a connector ends on the edges: it leaves the brain's edge and meets the ca
     assert.ok(Math.abs(cross) < 400, `${l.id}: on the line between the centres`);
   }
   const ops = lay.lines.find((l) => l.id === "operations");
-  assert.deepEqual([ops.start, ops.end], [{ x: 428, y: 268 }, { x: 428, y: 193 }]);
+  assert.deepEqual([ops.start, ops.end], [{ x: 428, y: 268 }, { x: 428, y: 158 }]);
   assert.deepEqual(edgePoint({ x: 0, y: 0, w: 10, h: 10 }, 0, 0), { x: 0, y: 0 });
 });
 
@@ -344,7 +344,7 @@ test("the cards stay together on a big screen, and give the same answer for the 
   const lay = layoutNodes({ ids: SEVEN, width: 1600, height: 1000 });
   assert.equal(lay.fits, true);
   for (const n of lay.nodes) {
-    assert.ok(Math.abs(n.x - 800) <= 270 && Math.abs(n.y - 500) <= 165, `${n.id} reaches too far`);
+    assert.ok(Math.abs(n.x - 800) <= 270 && Math.abs(n.y - 500) <= 200, `${n.id} reaches too far`);
   }
   assert.deepEqual(layoutNodes({ ids: SEVEN, width: 900, height: 700 }), layoutNodes({ ids: SEVEN, width: 900, height: 700 }));
   const none = layoutNodes();

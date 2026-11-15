@@ -54,7 +54,7 @@ export function teamLead(agents) {
 export function DeptChip({ department }) {
   if (!department || !SLUG.test(text(department.id))) return null;
   return html`<a class="p-team__dept" href=${`#/departments/${department.id}`} data-dept=${department.id}
-    aria-label=${`${department.title}: open the department`}><${Icon} name=${DEPT_ICONS[department.id] || "layers"} size=${14} />${department.title}</a>`;
+    aria-label=${`${department.title}: open the department`}><${Icon} name=${DEPT_ICONS[department.id] || "layers"} size=${14} /><span class="p-team__dept-name">${department.title}</span></a>`;
 }
 
 // The departments' line icons, as the sidebar draws them (shell/sidenav.js TEAM_ICONS).

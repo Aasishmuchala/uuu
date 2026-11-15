@@ -292,9 +292,25 @@ test("map: a card's line is its jobs and who is working; what needs you is its w
   assert.equal(view.cardLine({ jobs: 9, working: 1 }, true), "1 working", "the smaller card leaves the jobs out");
   const src = readFileSync(new URL("../../map/map-view.js", import.meta.url), "utf8");
   assert.match(src, /<\$\{Tag\} tone="warn">\$\{needs\}<\/\/>/, "the count of what needs you is a warn chip");
-  assert.match(src, /p-map__node--warn/);
-  assert.match(src, /p-map__node--live/);
+  assert.match(src, /p-map__node--\$\{edge\}/);
+  assert.doesNotMatch(src, /p-map__node--warn|p-map__line--warn/, "waiting on the owner gives no edge and no tinted line (R5-G)");
   assert.match(src, /class="p-map__port" cx=\$\{l\.end\.x\}/, "a connector ends in a dot on the card's edge");
+});
+
+test("map: an edge only for a department at work (good) or stuck (bad); stuck is a problem of its own waiting (R5-G)", () => {
+  assert.equal(view.edgeTone({ working: 1, needsYou: 3 }), "live", "at work, even while it needs the owner");
+  assert.equal(view.edgeTone({ jobs: 11, needsYou: 5 }), "", "waiting on the owner alone: a neutral edge");
+  assert.equal(view.edgeTone({ working: 1, needsYou: 2 }, true), "bad");
+  assert.equal(view.edgeTone(null), "");
+  assert.deepEqual(view.stuckOf([
+    { kind: "problem", department: "operations" }, { kind: "problem", department: "operations" },
+    { kind: "decision", department: "marketing" }, { kind: "result", department: "studio" },
+    { kind: "problem", department: "Bad Slug" }, { kind: "problem" }, null,
+  ]), ["operations"]);
+  assert.deepEqual(view.stuckOf(null), []);
+  // Six of seven waiting on the owner still draw six neutral edges and lines.
+  const src = readFileSync(new URL("../../pages/map.js", import.meta.url), "utf8");
+  assert.match(src, /stuck=\$\{stuckOf\(needsOf\(home\.data\)\)\}/);
 });
 
 test("map: the sheet draws the TB4 map: a dot grid, 1.5 px connectors with 4 px dots, state edges, a 6 px brain bar, one foot bar", () => {
@@ -304,11 +320,14 @@ test("map: the sheet draws the TB4 map: a dot grid, 1.5 px connectors with 4 px 
   assert.match(readFileSync(new URL("../../pages/map.js", import.meta.url), "utf8"), /<pattern id="p-map-dots" width="16" height="16"/, "16 px apart");
   assert.match(css, /\.p-map__wire \{[^}]*stroke-width: 1\.5;/);
   assert.match(readFileSync(new URL("../../map/map-view.js", import.meta.url), "utf8"), /class="p-map__port"[^/]*r="2"/, "4 px dots");
-  assert.match(css, /\.p-map__line--warn \{[^}]*var\(--warn\)/, "the connector of a department that needs you is tinted");
-  assert.match(css, /\.p-map__node--warn \{\s*box-shadow: inset 2px 0 0 var\(--warn\), var\(--shadow-card\);/);
+  assert.match(css, /\.p-map \.p-map__line \{\s*--p-map-wire: color-mix\(in srgb, var\(--ink\) 14%, transparent\);/, "lines neutral, the ink at 14 percent (R5-G)");
+  assert.match(css, /\.p-map__line--bad \{[^}]*var\(--bad\)/, "the connector of a department that is stuck is tinted");
+  assert.doesNotMatch(css, /p-map__line--warn|p-map__node--warn/);
+  assert.match(css, /\.p-map__node--bad \{\s*box-shadow: inset 2px 0 0 var\(--bad\), var\(--shadow-card\);/);
   assert.match(css, /\.p-map__node--live \{\s*box-shadow: inset 2px 0 0 var\(--good\), var\(--shadow-card\);/);
   assert.match(css, /\.p-map__meter \{[^}]*height: 6px;/);
-  assert.match(css, /\.p-map \.p-map__ask::before \{[^}]*background: var\(--card\);[^}]*box-shadow: var\(--shadow-card\);/, "the foot is one bar");
+  assert.match(css, /\.p-map \.p-map__ask::before \{[^}]*grid-row: 1 \/ 3;[^}]*background: var\(--card\);[^}]*box-shadow: var\(--shadow-card\);/, "the foot is one bar, its hint inside it (R5-G)");
+  assert.match(css, /\.p-map \.p-map__ask \{[^}]*margin: 0 auto calc\(var\(--s-6\) - var\(--s-5\)\);/, "the bar 24 px from the stage's foot (R5-G)");
   assert.match(css, /\.p-map__box \.k-composer__field \{\s*min-height: 44px;/, "a 44 px field");
   assert.match(css, /\.p-map__items > li \+ li \{\s*border-top: 1px solid var\(--line\);/, "hairlines between the rail's rows");
   assert.match(css, /\.p-map__item-title \{[^}]*font-size: var\(--fs-ui\);[^}]*font-weight: var\(--fw-medium\);/, "titles 14 px 500");

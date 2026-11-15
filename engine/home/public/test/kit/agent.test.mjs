@@ -56,3 +56,15 @@ test("AgentState as a chip: the kit's Tag in the state's tone, the same words", 
 });
 
 compositeSheetTests("agent");
+
+// PLAN-COOK R5-G: the card's sentence runs its width; "Now:" in the third ink before the task at 13 px 500.
+test("AgentCard: the sentence runs the card's width and the task after Now: is 13 px 500", () => {
+  const card = shape("agent-card");
+  const root = show(agent.AgentCard, { agent: { ...card, doingNow: { title: "Write the three captions" } } });
+  assert.equal(withClass(root, "k-agent__doing-task").length, 1);
+  assert.match(textOf(withClass(root, "k-agent__doing-task")[0]), /Write the three captions/);
+  const sheet = css("kit/agent.css");
+  assert.doesNotMatch(/\.k-agent__summary \{([^}]*)\}/.exec(sheet)[1], /max-width/);
+  assert.match(sheet, /\.k-agent__doing \{[^}]*color: var\(--ink-3\);/);
+  assert.match(sheet, /\.k-agent__doing-task \{[^}]*color: var\(--ink\);[^}]*font-weight: var\(--fw-medium\);/);
+});
