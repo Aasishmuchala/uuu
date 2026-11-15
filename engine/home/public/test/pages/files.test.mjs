@@ -219,3 +219,41 @@ test("files: a file's address is built only by filesHref, and its name is shown 
   assert.match(SOURCE, /const href = filesHref\(\{ folder, file: file\.token, shared \}\);/);
   assert.match(SOURCE, /<span class="p-files__row-name" title=\$\{name\}>\$\{name\}<\/span>/);
 });
+
+test("files: a row's second line is what /api/brain already says of the file, and no more", () => {
+  const about = { name: "about.md", path: "company/about.md", folder: "company", form: "about" };
+  const b = { ...brain, basics: { ...brain.basics, items: [{ form: "about", title: "About the company", file: "company/about.md", state: "filled" }] } };
+  assert.equal(mod.rowLine(about, b), "About the company · Company basics");
+  assert.equal(mod.rowLine(about, b, { inFolder: true }), "About the company", "in a folder the place is the page's own title");
+  assert.equal(mod.rowLine({ name: "notes.md", folder: "calls" }, b), "Calls and meetings");
+  assert.equal(mod.rowLine({ name: "notes.md", folder: "calls" }, b, { inFolder: true }), "");
+  assert.equal(mod.rowLine({ name: "x.md", folder: "brand", form: "brand" }, { folders: [{ id: "brand", title: "Brand" }], basics: { items: [{ form: "brand", title: "Brand" }] } }), "Brand", "a fact is said once");
+  assert.equal(mod.rowLine(null, b), "");
+  // The server sends no heading or first words in a list, so the page reads no file to make one up.
+  assert.doesNotMatch(SOURCE, /useResource\(`\/api\/brain\/file\/\$\{encodeURIComponent\(f/);
+});
+
+test("files: a row's time says how long ago, and its glyph is the kit's for the file's kind", () => {
+  const now = new Date(2026, 10, 16, 12, 0);
+  const at = (ms) => new Date(now.getTime() - ms).toISOString();
+  assert.equal(mod.ago(at(10 * 1000), now), "just now");
+  assert.equal(mod.ago(at(12 * 60000), now), "12 min ago");
+  assert.equal(mod.ago(at(3 * 3600000), now), "3 h ago");
+  assert.equal(mod.ago(new Date(2026, 10, 15, 9, 0).toISOString(), now), "yesterday");
+  assert.equal(mod.ago(new Date(2026, 10, 12, 9, 0).toISOString(), now), "4 days ago");
+  assert.equal(mod.ago(new Date(2026, 9, 2, 9, 0).toISOString(), now), "2 Oct");
+  assert.equal(mod.ago("", now), "");
+  assert.equal(mod.ago("not a time", now), "");
+  assert.equal(mod.glyphOf({ name: "about.md" }), "docs");
+  assert.equal(mod.glyphOf({ name: "prices.csv" }), "grid");
+  assert.equal(mod.glyphOf({ name: "logo.png" }), "image");
+  assert.equal(mod.glyphOf({ name: "noending" }), "file");
+  assert.match(SOURCE, /FILE_ICONS, fileKind,[^}]*\} from "\.\.\/kit\/index\.js";/, "the kit's own glyphs, through kit/index.js");
+});
+
+test("files: an empty place shows no count", () => {
+  const p = mod.placesOf({ ...brain, folders: [{ id: "people", title: "People", files: 0 }, { id: "brand", title: "Brand", files: 2 }] });
+  assert.equal(mod.shownCount(p.find((x) => x.id === "people")), false);
+  assert.equal(mod.shownCount(p.find((x) => x.id === "brand")), true);
+  assert.equal(mod.shownCount(p.find((x) => x.id === "lessons")), false);
+});

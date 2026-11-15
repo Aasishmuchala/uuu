@@ -228,3 +228,16 @@ test("brand kit: the owner's colours are content, left out of the screen's own c
     assert.match(code, new RegExp(`class=[^>]*${part}[^>]*data-cook-picture|${part}[^>]*" data-cook-picture`), `${part} sits in a picture box`);
   }
 });
+
+test("brand kit: the save bar never floats over a row, the grounds share one card, and copy stays within 640 px", () => {
+  const sheet = readFileSync(new URL("../../styles/pages/brand-kit.css", import.meta.url), "utf8");
+  const rule = (sel) => (sheet.match(new RegExp(`(?:^|\\n)${sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\{([^}]*)\\}`)) || [])[1] || "";
+  // With nothing changed the bar is in its place at the column's end; once changed it docks to the window's foot.
+  assert.doesNotMatch(rule(".p-brand-kit .p-brand-kit__bar"), /position:\s*sticky/);
+  assert.match(rule(".p-brand-kit .p-brand-kit__bar--dirty"), /position:\s*sticky;\s*bottom:\s*0;/);
+  assert.match(rule(".p-brand-kit .p-brand-kit__ground"), /height:\s*160px/);
+  assert.match(rule(".p-brand-kit .k-say"), /max-width:\s*640px/);
+  const code = stripJsComments(SOURCE);
+  assert.match(code, /<\$\{Card\} padding="none" class="p-brand-kit__logo">/);
+  assert.match(code, /variant="primary" size="sm" icon="check" busy=\$\{busy\} disabled=\$\{busy \|\| \(!dirty && !view\.problem\)\} onClick=\$\{save\}>\$\{WORDS\.save\}/);
+});

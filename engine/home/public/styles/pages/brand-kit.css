@@ -204,30 +204,34 @@
   max-width: 100%;
 }
 
-/* ---- Logo: the two grounds it sits on, each an outlined tile */
+/* ---- Logo: one card. The two grounds it sits on are tiles inset in it, each about 160 px tall with a 1 px inner line
+   (the owner's ground exactly as saved), its name and value under it; the logo files follow under a hairline. */
+.p-brand-kit .p-brand-kit__logo {
+  overflow: hidden;
+}
+
 .p-brand-kit .p-brand-kit__stages {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s-4);
+  gap: var(--s-3);
+  padding: var(--s-4);
 }
 
 .p-brand-kit .p-brand-kit__stage {
   display: flex;
   flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
   margin: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-3);
-  background: var(--panel);
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
 }
 
 .p-brand-kit .p-brand-kit__ground {
   display: grid;
   place-items: center;
-  aspect-ratio: 2 / 1;
-  padding: var(--s-5);
-  border-bottom: 1px solid var(--line);
+  height: 160px;
+  padding: var(--s-4);
+  border-radius: var(--r-2);
+  box-shadow: inset 0 0 0 1px var(--line-2);
 }
 
 .p-brand-kit .p-brand-kit__ground-none {
@@ -264,9 +268,9 @@
   align-items: baseline;
   justify-content: space-between;
   gap: var(--s-3);
-  padding: 10px var(--s-4);
-  font-size: var(--fs-note);
-  line-height: var(--lh-note);
+  padding: 0 2px;
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
 }
 
 .p-brand-kit .p-brand-kit__stage-label {
@@ -275,10 +279,40 @@
 }
 
 .p-brand-kit .p-brand-kit__stage-note {
-  padding: 0 var(--s-4) var(--s-3);
+  padding: 0 2px;
   color: var(--ink-2);
   font-size: var(--fs-note);
   line-height: var(--lh-note);
+}
+
+/* The logo files share the card: its rows lose their own panel and start under one hairline. */
+.p-brand-kit .p-brand-kit__logo-files {
+  border-top: 1px solid var(--line);
+}
+
+.p-brand-kit .p-brand-kit__logo-files .k-rows {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.p-brand-kit .p-brand-kit__logo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4) 0;
+}
+
+.p-brand-kit .p-brand-kit__logo-head .p-brand-kit__sub {
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  font-weight: var(--fw-bold);
+}
+
+.p-brand-kit .p-brand-kit__logo-files > .k-notice {
+  margin: 0 var(--s-4) var(--s-4);
 }
 
 .p-brand-kit .p-brand-kit__thumb {
@@ -856,21 +890,24 @@
   overflow-x: auto;
 }
 
-/* ---- Save: one bar at the foot of the column, held in view while the page is long */
+/* ---- Save: the column's foot. With nothing changed it is the last row of the page, in its place; once something
+   changed it docks to the window's foot under the scrolling column, on the page's ground with a rule above, so it
+   never floats over a row and the last row still scrolls clear of it. */
 .p-brand-kit .p-brand-kit__bar {
-  position: sticky;
-  bottom: var(--s-4);
-  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
   margin-top: var(--s-10);
-  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-3);
-  background: var(--raise);
-  box-shadow: var(--shadow-lift);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--line);
+}
+
+.p-brand-kit .p-brand-kit__bar--dirty {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: var(--bg);
 }
 
 .p-brand-kit .p-brand-kit__bar-words {
@@ -886,6 +923,12 @@
   flex: none;
 }
 
+/* No line of copy wider than 640 px. */
+.p-brand-kit .k-doc__intro,
+.p-brand-kit .k-say {
+  max-width: 640px;
+}
+
 @media (hover: none) {
   .p-brand-kit .p-brand-kit__tile-x {
     opacity: 1;
@@ -895,8 +938,18 @@
 /* ---- A phone, or any narrow window */
 @media (max-width: 859px) {
   .p-brand-kit .p-brand-kit__stages {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--s-3);
+    gap: var(--s-2);
+    padding: var(--s-3);
+  }
+
+  .p-brand-kit .p-brand-kit__ground {
+    height: 112px;
+    padding: var(--s-2);
+  }
+
+  .p-brand-kit .p-brand-kit__stage-foot {
+    flex-direction: column;
+    gap: 0;
   }
 
   .p-brand-kit .p-brand-kit__tiles {
@@ -936,16 +989,13 @@
   }
 
   .p-brand-kit .p-brand-kit__bar {
-    position: static;
     flex-direction: column;
     align-items: stretch;
     margin-top: var(--s-8);
-    padding: var(--s-3);
   }
 
   .p-brand-kit .p-brand-kit__bar--dirty {
-    position: sticky;
-    bottom: calc(var(--tabbar-h) + var(--s-3));
+    bottom: var(--tabbar-h);
   }
 
   .p-brand-kit .p-brand-kit__bar-actions {

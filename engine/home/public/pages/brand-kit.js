@@ -655,6 +655,8 @@ function FirstTime({ proposal }) {
 // ---------------------------------------------------------------------------------------------------------------
 // Logo
 
+// One ground as a tile inset in the logo's card: the owner's ground exactly as saved, a 1 px inner line, its name and
+// value under it.
 function LogoStage({ tone, ground, logo, picture, clearSpace }) {
   const h = 56;
   const pad = Math.round(Number(clearSpace) * h);
@@ -692,12 +694,16 @@ function LogoSection({ form, set, errors, offers, onUse, brandPics }) {
     <${Offers} form=${form} onUse=${onUse} list=${[{ offer, body: offer ? html`${arr(offer.value.files).map((f) => `${cut(f.file, 60)} on ${f.on}`).join(", ") || "No logo file named."}
       Clear space ${Number(offer.value.clearSpace)} × its height; at least ${Number(offer.value.minPx)} px high.` : null }]} />
     <${Group} title=${SECTION_WORDS.grounds} say="Choose your logo from the pictures in Brand: one that reads on light backgrounds and, if you have one, one for dark.">
+      <${Card} padding="none" class="p-brand-kit__logo">
       <div class="p-brand-kit__stages">
         <${LogoStage} tone="light" ground=${g.light} logo=${light && light.file} picture=${light && urlOf(light.file)} clearSpace=${logo.clearSpace} />
         <${LogoStage} tone="dark" ground=${g.dark} logo=${dark && dark.file} picture=${dark && urlOf(dark.file)} clearSpace=${logo.clearSpace} />
       </div>
-    <//>
-    <${Group} title=${SECTION_WORDS.logoFiles} aside=${pics.length ? html`<${Button} size="sm" variant="quiet" icon="upload" href="#/files/brand?new=upload">Add your logo<//>` : null}>
+      <div class="p-brand-kit__logo-files">
+      ${pics.length ? html`<div class="p-brand-kit__logo-head">
+          <h3 class="p-brand-kit__sub">${SECTION_WORDS.logoFiles}</h3>
+          <${Button} size="sm" variant="quiet" icon="upload" href="#/files/brand?new=upload">Add your logo<//>
+        </div>` : null}
       <${Rows}>
         ${pics.length
           ? pics.map((p) => html`<${Row} key=${p.name}
@@ -718,6 +724,8 @@ function LogoSection({ form, set, errors, offers, onUse, brandPics }) {
           ${missing.map((f) => html`<p key=${`${f.file}-${f.on}`}>${cut(f.file, 100)} (on ${f.on}).
             <${Button} variant="quiet" size="sm" onClick=${() => putLogo({ files: files.filter((x) => x !== f) })}>Take it out<//></p>`)}
         <//>` : null}
+      </div>
+      <//>
     <//>
     <${Group} title=${SECTION_WORDS.placing}>
       <${Rows}>
@@ -1271,6 +1279,8 @@ function Editor({ view, reload, section, proposalRef }) {
   const unused = Object.values(offers).filter((o) => !offerUsed(form, o)).length;
   const lines = sectionLines(current, { exists, playbooks: view.playbooks, changed });
 
+  // Before anything changed, taking what is proposed is the one next step: its button is the primary while Save
+  // stays grey; once something changed, Save is.
   const useAll = () => {
     let next = form;
     for (const o of Object.values(offers)) next = useOffer(next, o.key, o.value);
@@ -1353,11 +1363,11 @@ function Editor({ view, reload, section, proposalRef }) {
                 : html`${offerCount ? `${offerCount} proposed ${offerCount === 1 ? "part sits" : "parts sit"} beside the fields below. Use each one you agree with, change what you like, then save.` : "The brand book named nothing the kit can use."}
                   ${arr(proposal.dropped).length ? ` Not taken, in whole or in part, because it broke the kit's rules: ${arr(proposal.dropped).map((d) => (PARTS.find((p) => p.id === d) || {}).title || (d === "voice" ? "How we sound" : d === "all" ? "everything" : d === "other" ? "parts the kit does not know" : d)).join(", ")}.` : ""}`}
                 ${/^[A-Z][A-Z0-9]{0,9}-\d{1,9}$/.test(str(proposal.from)) ? html`<span class="p-brand-kit__line">Read in task <a class="p-brand-kit__link" href=${`#/tasks/${proposal.from}`}>${proposal.from}</a>.</span>` : null}`}
-              control=${unused > 1 ? html`<${Button} size="sm" onClick=${useAll}>Use every proposed part<//>` : null} />
+              control=${unused > 1 ? html`<${Button} size="sm" variant=${dirty ? "plain" : "primary"} onClick=${useAll}>Use every proposed part<//>` : null} />
           <//>` : null}
         ${!proposal && view.fromOldForm ? html`<${Rows}>
             <${Row} icon="file" title=${WORDS.fromOld} say="What your old brand page held sits beside the fields below. Use what still fits."
-              control=${unused > 1 ? html`<${Button} size="sm" onClick=${useAll}>Use all of it<//>` : null} />
+              control=${unused > 1 ? html`<${Button} size="sm" variant=${dirty ? "plain" : "primary"} onClick=${useAll}>Use all of it<//>` : null} />
           <//>` : null}
       </div>
       ${!exists && !dirty && !proposal && !view.fromOldForm ? html`<${FirstTime} proposal=${proposalRef} />` : null}

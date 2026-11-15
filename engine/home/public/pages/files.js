@@ -13,11 +13,11 @@
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { go } from "../lib/router.js";
-import { bytes, count } from "../lib/format.js";
+import { bytes, count, fullWhen, when } from "../lib/format.js";
 import { useApp } from "../lib/context.js";
 import {
   BeingBuilt, Blk, Button, DataTable, Dialog, DocLayout, DocView, Empty, ErrorNotice, Field, Group, Icon, Loading,
-  Menu, PageHeader, Row, Rows, Segmented, Select, Switch, Tag, TextInput, Time,
+  Card, FILE_ICONS, fileKind, Menu, PageHeader, Row, Rows, Segmented, Select, Switch, Tag, TextInput, Time,
 } from "../kit/index.js";
 
 const EVERY = 10000;
@@ -127,6 +127,37 @@ export function kindLabel(kind) {
 }
 
 const ICONS = { text: "file", table: "list", image: "image", pdf: "file" };
+
+// The kit's glyph for a file, from its name's ending (the same glyphs a task's files carry).
+export const glyphOf = (file) => FILE_ICONS[fileKind(str(file && file.name))] || FILE_ICONS.file;
+
+// How long ago, for a row's time column: "just now", "12 min ago", "3 h ago", "yesterday", "4 days ago", then the
+// date as the kit writes it. "" for no time. The full time stays on the element's title.
+export function ago(iso, now = new Date()) {
+  const t = Date.parse(str(iso));
+  if (!Number.isFinite(t)) return "";
+  const min = Math.floor((now.getTime() - t) / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min ago`;
+  if (min < 24 * 60) return `${Math.floor(min / 60)} h ago`;
+  const days = Math.round((new Date(now).setHours(0, 0, 0, 0) - new Date(t).setHours(0, 0, 0, 0)) / 86400000);
+  if (days <= 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  return when(iso, now);
+}
+
+// The second line of a file's row, from what /api/brain already says of it (it sends no heading or first words, so
+// none is drawn): the basic it holds when it came from a form ("About the company"), then its place when the list
+// mixes places ("Company basics"). "" when there is nothing to add.
+export function rowLine(file, brain, { inFolder = false } = {}) {
+  if (!file || typeof file !== "object") return "";
+  const items = arr(brain && brain.basics && brain.basics.items);
+  const basic = items.find((b) => b && ((str(file.form) && b.form === file.form) || (str(file.path) && b.file === file.path)));
+  const folder = arr(brain && brain.folders).find((f) => f && f.id === file.folder);
+  const place = inFolder ? "" : cut(folder && folder.title, 60) || FOLDER_TITLES[file.folder] || "";
+  const title = cut(basic && basic.title, 80);
+  return [title, place].filter((x, i, all) => x && all.indexOf(x) === i).join(" · ");
+}
 
 // How a file is shown: "text", "table", "image" (only with a raw address of the brain's own), "pdf", else "none".
 export function viewOf(file) {
@@ -566,10 +597,20 @@ function FileView({ token, folders, formHref, onMoved, onDeleted, onName }) {
 // ---------------------------------------------------------------------------------------------------------------
 // Lists
 
-// The one grey fact of a row: its kind and size.
+// The one grey fact of a card: its kind and size.
 const factOf = (file) => `${kindLabel(file.kind)} · ${bytes(file.size)}`;
 
-function FileItem({ file, folder, grid, shared }) {
+// A time as "3 h ago", the full time on hover and for a screen reader's own reading of the element.
+function Ago({ at }) {
+  const text = ago(at);
+  if (!text) return null;
+  return html`<time class="p-files__ago" datetime=${new Date(at).toISOString()} title=${fullWhen(at)}>${text}</time>`;
+}
+
+// The 28 px tile with the kit's glyph for the file's kind.
+const Glyph = ({ name }) => html`<span class="p-files__row-icon" aria-hidden="true"><${Icon} name=${name} size=${16} /></span>`;
+
+function FileItem({ file, folder, grid, shared, brain }) {
   const name = cut(file.name, NAME_MAX);
   const href = filesHref({ folder, file: file.token, shared });
   const at = file.changedAt || file.addedAt;
@@ -581,27 +622,39 @@ function FileItem({ file, folder, grid, shared }) {
         <span class=${`p-files__tile-face${picture ? " p-files__tile-face--picture" : ""}`} aria-hidden="true" data-cook-picture=${picture ? "" : undefined}>
           ${picture
             ? html`<img class="p-files__tile-img" src=${picture} alt="" loading="lazy" decoding="async" />`
-            : html`<${Icon} name=${ICONS[file.kind] || "file"} size=${24} />`}
+            : html`<${Icon} name=${glyphOf(file)} size=${24} />`}
         </span>
         <span class="p-files__tile-name">${name}</span>
-        <span class="p-files__tile-foot"><span>${factOf(file)}</span><${Time} at=${at} /></span>
+        <span class="p-files__tile-foot"><span>${factOf(file)}</span><${Ago} at=${at} /></span>
       </a>
     </li>`;
   }
+  const line = rowLine(file, brain, { inFolder: Boolean(folder) });
   return html`<li class="p-files__row">
     <a class="p-files__row-link" href=${href}>
-      <span class="p-files__row-icon"><${Icon} name=${ICONS[file.kind] || "file"} size=${16} /></span>
-      <span class="p-files__row-name" title=${name}>${name}</span>
-      <span class="p-files__row-fact">${factOf(file)}</span>
-      <span class="p-files__row-date"><${Time} at=${at} /></span>
+      <${Glyph} name=${glyphOf(file)} />
+      <span class="p-files__row-words">
+        <span class="p-files__row-name" title=${name}>${name}</span>
+        ${line ? html`<span class="p-files__row-line">${line}</span>` : null}
+      </span>
+      <span class="p-files__row-size">${bytes(file.size)}</span>
+      <span class="p-files__row-date"><${Ago} at=${at} /></span>
     </a>
   </li>`;
 }
 
-function FileList({ files, folder, grid }) {
-  return html`<ul class=${grid ? "p-files__grid" : "p-files__rows"}>
-    ${files.map((f) => html`<${FileItem} key=${f.token} file=${f} folder=${folder} grid=${grid} />`)}
-  </ul>`;
+// Rows stand on one card; cards stand on the ground.
+function FileList({ files, folder, grid, brain }) {
+  if (grid) {
+    return html`<ul class="p-files__grid">
+      ${files.map((f) => html`<${FileItem} key=${f.token} file=${f} folder=${folder} grid=${true} brain=${brain} />`)}
+    </ul>`;
+  }
+  return html`<${Card} padding="none" class="p-files__card">
+    <ul class="p-files__rows">
+      ${files.map((f) => html`<${FileItem} key=${f.token} file=${f} folder=${folder} brain=${brain} />`)}
+    </ul>
+  <//>`;
 }
 
 function SearchResults({ term, folder }) {
@@ -616,17 +669,19 @@ function SearchResults({ term, folder }) {
     <//>`;
   }
   return html`<p class="p-files__count">Found in your files: ${count(results.length, "file")}</p>
-    <ul class="p-files__rows p-files__results">
-      ${results.map((r) => html`<li key=${r.token} class="p-files__row">
-        <a class="p-files__row-link p-files__result" href=${filesHref({ folder, q: term, file: r.token })}>
-          <span class="p-files__row-icon"><${Icon} name="file" size=${16} /></span>
-          <span class="p-files__result-words">
-            <span class="p-files__row-name">${cut(r.name, NAME_MAX)}</span>
-            ${r.snippet ? html`<span class="p-files__result-snippet">${cut(r.snippet, SNIPPET_MAX)}</span>` : null}
-          </span>
-        </a>
-      </li>`)}
-    </ul>`;
+    <${Card} padding="none" class="p-files__card">
+      <ul class="p-files__rows p-files__results">
+        ${results.map((r) => html`<li key=${r.token} class="p-files__row">
+          <a class="p-files__row-link p-files__result" href=${filesHref({ folder, q: term, file: r.token })}>
+            <${Glyph} name=${glyphOf(r)} />
+            <span class="p-files__result-words">
+              <span class="p-files__row-name">${cut(r.name, NAME_MAX)}</span>
+              ${r.snippet ? html`<span class="p-files__result-snippet">${cut(r.snippet, SNIPPET_MAX)}</span>` : null}
+            </span>
+          </a>
+        </li>`)}
+      </ul>
+    <//>`;
 }
 
 function Lessons() {
@@ -641,10 +696,10 @@ function Lessons() {
       return html`<${Group} key=${r.slug} title=${cut(r.name, 80)}
           aside=${ID.test(str(r.slug)) ? html`<a href=${`#/team/${r.slug}?tab=lessons`}>Edit</a>` : null}>
         ${lessons.length
-          ? html`<ul class="p-files__lesson-list">${lessons.map((l, i) => {
+          ? html`<${Card} padding="none" class="p-files__card"><ul class="p-files__lesson-list">${lessons.map((l, i) => {
               const { date, text } = splitLesson(cut(String(l ?? ""), LESSON_MAX));
               return html`<li key=${i}><span class="p-files__lesson-text">${text}</span>${date ? html`<span class="p-files__lesson-date">${date}</span>` : null}</li>`;
-            })}</ul>`
+            })}</ul><//>`
           : html`<p class="p-files__count">Nothing learned yet.</p>`}
       <//>`;
     })}
@@ -687,20 +742,25 @@ function SharedView() {
   return html`<p class="p-files__count">
       ${`${count(files.length, "file")} of ${Number(t.maxFiles) || 50}, ${bytes(t.bytes)} of ${bytes(t.maxBytes || 5 * 1024 * 1024)}.`}
     </p>
-    <ul class="p-files__rows">
-      ${files.map((f) => {
-        const href = sharedHref(f);
-        const inner = html`<span class="p-files__row-icon"><${Icon} name=${f.source === "brand-kit" ? "spark" : "file"} size=${16} /></span>
-          <span class="p-files__row-name" title=${cut(f.title || f.name, NAME_MAX)}>${cut(f.title || f.name, NAME_MAX)}</span>
-          <span class="p-files__row-fact">${SOURCE_WORDS[f.source]}</span>
-          <span class="p-files__row-date p-files__num">${bytes(f.size)}</span>`;
-        return html`<li key=${f.name} class="p-files__row">
-          ${href
-            ? html`<a class="p-files__row-link" href=${href}>${inner}</a>`
-            : html`<span class="p-files__row-link">${inner}</span>`}
-        </li>`;
-      })}
-    </ul>`;
+    <${Card} padding="none" class="p-files__card">
+      <ul class="p-files__rows">
+        ${files.map((f) => {
+          const href = sharedHref(f);
+          const inner = html`<${Glyph} name=${f.source === "brand-kit" ? "spark" : glyphOf(f)} />
+            <span class="p-files__row-words">
+              <span class="p-files__row-name" title=${cut(f.title || f.name, NAME_MAX)}>${cut(f.title || f.name, NAME_MAX)}</span>
+              <span class="p-files__row-line">${SOURCE_WORDS[f.source]}</span>
+            </span>
+            <span class="p-files__row-size">${bytes(f.size)}</span>
+            <span class="p-files__row-date"></span>`;
+          return html`<li key=${f.name} class="p-files__row">
+            ${href
+              ? html`<a class="p-files__row-link" href=${href}>${inner}</a>`
+              : html`<span class="p-files__row-link">${inner}</span>`}
+          </li>`;
+        })}
+      </ul>
+    <//>`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -764,7 +824,7 @@ function FolderView({ id, brain, grid, by, onChanged }) {
   return html`
     <p class="p-files__count">${count(files.length, "file")}${files.length ? html` · <span class="p-files__num">${bytes(size)}</span>` : null}</p>
     ${files.length
-      ? html`<${FileList} files=${files} folder=${id} grid=${grid} />`
+      ? html`<${FileList} files=${files} folder=${id} grid=${grid} brain=${brain} />`
       : html`<${Empty} title="Nothing in this folder yet.">
           <${Button} href=${filesHref({ folder: id, mode: "paste" })} icon="plus">Paste text<//>
         <//>`}
@@ -797,11 +857,14 @@ export default function Page({ route }) {
   return isBrandKit(route && route.parts) ? html`<${BrandKitHost} route=${route} />` : html`<${FilesPage} route=${route} />`;
 }
 
-// The label of a place in the list: its name, and its count in tabular figures at the right.
+// A place's count is shown only when it says something: an empty place shows none.
+export const shownCount = (p) => Boolean(p) && Number.isFinite(p.count) && p.count > 0;
+
+// The label of a place in the list: its name, and its count in muted tabular figures at the right.
 function placeLabel(p) {
   return html`<span class="p-files__place">
     <span class="p-files__place-name">${p.label}</span>
-    ${p.count !== null && p.count !== undefined ? html`<span class="p-files__place-count">${p.count}</span>` : null}
+    ${shownCount(p) ? html`<span class="p-files__place-count">${p.count}</span>` : null}
   </span>`;
 }
 
@@ -926,7 +989,7 @@ function FilesPage({ route }) {
   // Below 1100 px the places are this one menu.
   const placeMenu = html`<div class="p-files__places-menu">
     <${Menu} label=${`${FILES_WORDS.places}: ${currentPlace.label}`} items=${places.map((p) => ({
-      id: p.id, label: p.count !== null && p.count !== undefined ? `${p.label} (${p.count})` : p.label,
+      id: p.id, label: shownCount(p) ? `${p.label} (${p.count})` : p.label,
       current: p.id === current, onSelect: () => go(p.href),
     }))} />
   </div>`;
@@ -980,7 +1043,7 @@ function FilesPage({ route }) {
     body = html`
       <p class="p-files__count">${count(Number(totals.files) || 0, "file")} in ${count(folders.length, "folder")} · <span class="p-files__num">${bytes(totals.bytes)}</span></p>
       ${recent.length
-        ? html`<${Group} title=${FILES_WORDS.recent}><${FileList} files=${recent} folder="" grid=${grid} /><//>`
+        ? html`<${Group} title=${FILES_WORDS.recent}><${FileList} files=${recent} folder="" grid=${grid} brain=${brain.data} /><//>`
         : html`<${Empty} title="No files yet." text="Add a file and it appears here." />`}
       <${ReadinessPanel} brain=${brain.data} />`;
   } else body = null;

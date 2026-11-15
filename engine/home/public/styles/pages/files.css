@@ -119,15 +119,11 @@
   justify-content: space-between;
   gap: var(--s-3);
   margin-top: var(--s-6);
-  padding-bottom: var(--s-4);
-  border-bottom: 1px solid var(--line);
   min-width: 0;
 }
 
 .p-files .p-files__toolbar--file {
   display: none;
-  padding-bottom: 0;
-  border-bottom: 0;
 }
 
 .p-files .p-files__tools-start {
@@ -138,15 +134,21 @@
   min-width: 0;
 }
 
+/* List or Cards, Sort and the places menu: one 32 px height and one outlined style, the segmented track's. */
+.p-files .p-files__toolbar .k-seg--sm .k-seg__item {
+  min-height: 26px;
+}
+
 .p-files .p-files__sort .k-menu__trigger,
 .p-files .p-files__places-menu .k-menu__trigger {
-  min-height: var(--h-sm);
+  min-height: 32px;
   padding: 0 10px 0 var(--s-3);
   gap: 6px;
-  border-color: var(--line);
-  background: var(--ctl);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: transparent;
   color: var(--ink);
-  font-size: var(--fs-body);
+  font-size: var(--fs-note);
   font-weight: var(--fw-medium);
 }
 
@@ -195,7 +197,8 @@
 
 .p-files .p-files__search .k-input {
   width: 100%;
-  min-height: var(--h-sm);
+  height: 32px;
+  min-height: 32px;
   padding-left: 34px;
   font-size: var(--fs-body);
 }
@@ -227,7 +230,7 @@
 }
 
 .p-files .p-files__count {
-  margin: var(--s-4) 0 var(--s-4);
+  margin: var(--s-5) 0 var(--s-3);
   color: var(--ink-2);
   font-size: var(--fs-note);
   line-height: var(--lh-note);
@@ -244,7 +247,12 @@
   line-height: var(--lh-note);
 }
 
-/* Rows: the list pattern. A 16 px kind icon, the file's own name, one grey fact, the date at the right. */
+/* Rows: on one card, parted by hairlines. A 28 px tile with the kit's glyph for the file's kind, the name over one
+   line of what the brain says of it, then the size and how long ago in two right-hand columns of tabular figures. */
+.p-files .p-files__card {
+  overflow: hidden;
+}
+
 .p-files .p-files__rows {
   display: flex;
   flex-direction: column;
@@ -259,13 +267,11 @@
 
 .p-files .p-files__row-link {
   display: grid;
-  grid-template-columns: 16px minmax(0, auto) minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr) 72px 88px;
   align-items: center;
   gap: var(--s-3);
-  min-height: 48px;
-  padding: var(--s-2) var(--s-3);
-  margin: 0 calc(-1 * var(--s-3));
-  border-radius: var(--r-2);
+  min-height: 56px;
+  padding: var(--s-2) var(--s-4);
   color: var(--ink);
   text-decoration: none;
   transition: background-color var(--t-fast) var(--ease);
@@ -275,9 +281,26 @@
   background: var(--ctl);
 }
 
+.p-files a.p-files__row-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .p-files .p-files__row-icon {
-  display: inline-flex;
-  color: var(--ink-3);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-2);
+  background: var(--raise);
+  color: var(--ink-2);
+}
+
+.p-files .p-files__row-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .p-files .p-files__row-name {
@@ -285,24 +308,26 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--fs-fact);
+  font-size: var(--fs-body);
   font-weight: var(--fw-medium);
-  line-height: var(--lh-fact);
+  line-height: var(--lh-ui);
 }
 
-.p-files .p-files__row-fact {
+.p-files .p-files__row-line {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--ink-2);
-  font-size: var(--fs-body);
-  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
 }
 
+.p-files .p-files__row-size,
 .p-files .p-files__row-date {
-  color: var(--ink-2);
-  font-size: var(--fs-body);
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
@@ -310,14 +335,14 @@
 
 /* A search result: the name, and the words it was found in under it. */
 .p-files .p-files__result {
-  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-columns: 28px minmax(0, 1fr);
   align-items: start;
   padding-top: var(--s-3);
   padding-bottom: var(--s-3);
 }
 
 .p-files .p-files__result .p-files__row-icon {
-  margin-top: 3px;
+  margin-top: 0;
 }
 
 .p-files .p-files__result-words {
@@ -410,6 +435,50 @@
   white-space: nowrap;
 }
 
+/* The basics (brain/readiness.js, drawn here): how far they are as a ring in the accent on a visible track, the
+   figures beside it; each basic still to fill a numbered step, each filled one its check. */
+.p-files .p-brain .k-group__title {
+  align-items: center;
+}
+
+.p-files .p-brain__ready-count .k-ring__track {
+  stroke: var(--line-2);
+}
+
+.p-files .p-brain__ready-count .k-ring__value {
+  stroke: var(--accent);
+}
+
+.p-files .p-brain__ready-count .k-ring__count {
+  display: none;
+}
+
+.p-files .p-brain__ready-count {
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+}
+
+.p-files .p-brain .k-rows {
+  counter-reset: basic;
+}
+
+.p-files .p-brain .k-rows__row {
+  counter-increment: basic;
+}
+
+.p-files .p-brain .p-brain__glyph:not(.p-brain__glyph--filled) {
+  border: 1.5px solid var(--line-2);
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.p-files .p-brain .p-brain__glyph:not(.p-brain__glyph--filled)::before {
+  content: counter(basic);
+}
+
 /* What agents learned: each agent a group, its lessons one line each with the date at the right. */
 .p-files .p-files__lessons > .k-group:first-child {
   margin-top: var(--s-6);
@@ -426,10 +495,13 @@
   align-items: baseline;
   justify-content: space-between;
   gap: var(--s-4);
-  padding: var(--s-3) 0;
-  border-bottom: 1px solid var(--line);
-  font-size: var(--fs-fact);
-  line-height: var(--lh-fact);
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
+}
+
+.p-files .p-files__lesson-list > li + li {
+  border-top: 1px solid var(--line);
 }
 
 .p-files .p-files__lesson-text {
@@ -439,8 +511,8 @@
 
 .p-files .p-files__lesson-date {
   flex: none;
-  color: var(--ink-2);
-  font-size: var(--fs-note);
+  color: var(--ink-3);
+  font-size: var(--fs-label);
   font-variant-numeric: tabular-nums;
 }
 
@@ -715,11 +787,17 @@
   }
 
   .p-files .p-files__row-link {
-    grid-template-columns: 16px minmax(0, 1fr) auto;
-    min-height: 56px;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    min-height: 60px;
+    padding: var(--s-2) var(--s-3);
   }
 
-  .p-files .p-files__row-fact {
+  .p-files .p-files__result {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  /* A phone keeps the time; the size is one tap away, in the file's facts. */
+  .p-files .p-files__row-size {
     display: none;
   }
 
