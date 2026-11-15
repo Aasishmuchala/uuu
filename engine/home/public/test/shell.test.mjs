@@ -585,7 +585,10 @@ test("the sidebar marks the current place", () => {
   assert.equal(withClass(rows[0], "k-tag").length, 1, "the count on Needs you is the kit's chip");
   assert.equal(withClass(rows[9], "k-tag").length, 0, "a team's count is plain muted figures");
   assert.equal(attr(rows[10], "aria-label"), "Health: the books are off");
-  assert.equal(withClass(rows[10], "s-dot").length, 0, "a dot is red only: the books being off is in the row's words, not a dot");
+  const offDot = withClass(rows[10], "s-dot--warn");
+  assert.equal(offDot.length, 1, "a dot stands on Health only: amber when a part is off, red when the engine is broken");
+  assert.equal(attr(offDot[0], "title"), "the books are off", "the amber dot says why on hover");
+  assert.equal(withClass(root, "s-dot").length, 1, "no other row carries a dot");
   const sick = show(side.Sidenav, { mode: "open", routeId: "map", shell: { counts: {}, engine: { board: "off" } }, dock: [], settings: {} });
   const sickDot = withClass(sick, "s-dot--bad");
   assert.equal(sickDot.length, 1, "the engine off: one red dot on Health");

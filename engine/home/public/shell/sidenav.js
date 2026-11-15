@@ -151,7 +151,7 @@ export function Sidenav({ mode = "open", routeId, parts, query, shell, dock, set
       <span class="s-side-gap"></span>
       <div class="s-side-foot">
         <${Go} href="#/health" icon="health" title="Health" label=${dot ? `Health: ${dot.words}` : "Health"} current=${here === "health"}
-          mark=${dot?.tone === "bad" ? html`<span class="s-dot s-dot--bad" title=${dot.words} aria-hidden="true"></span>` : null} />
+          mark=${dot && (dot.tone === "bad" || dot.tone === "warn") ? html`<span class=${`s-dot s-dot--${dot.tone}`} title=${dot.words} aria-hidden="true"></span>` : null} />
         <${Go} href="#/settings" icon="sliders" title="Settings" label="Settings" current=${here === "settings"} />
         <${Go} icon=${to === "light" ? "sun" : "moon"} title=${themeWords} label=${themeWords} onClick=${() => onSaveSettings && onSaveSettings({ theme: to })} />
       </div>
