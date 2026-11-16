@@ -8,7 +8,12 @@
    Fix round R6 (R6-H): every row one height (44 px), its own words after the title; the state quiet words with a
    dot; a group's head a quiet filled band (32 px, 6 px corner, the raised tone).
    Fix round R5 (R5-H): a row is one line at about 52 px (glyph, title, then the state's chip, the ID and the date at
-   the right); a second line only for the row's own words; a group's head is its label and count over a hairline. */
+   the right); a second line only for the row's own words; a group's head is its label and count over a hairline.
+   PLAN-3D-ALL U5: the title and the bar stand in the room header, the desk's glimpse behind them (kit/room.css).
+   The band rises into the pane's top margin and keeps a short gap under it, so the first row stands no more than
+   48 px lower than before the band (40 on a phone; D9). The rows stay on the ground. States follow the lamps (D5):
+   a working row's glyph is lit (the lamp's tone in its pool), a stuck one amber, a finished row's title quiet; a
+   row under the pointer or the keyboard stands in the lamp's pool. */
 
 .p-tasks {
   display: flex;
@@ -17,6 +22,12 @@
 }
 
 .p-tasks .k-page-header {
+  margin-bottom: var(--s-4);
+}
+
+/* The room header: 24 px up into the pane's top margin, 16 px over the first group. */
+.p-tasks .k-room {
+  margin-top: calc(-1 * var(--s-6));
   margin-bottom: var(--s-4);
 }
 
@@ -186,8 +197,9 @@
   transition: background-color var(--t-fast) var(--ease);
 }
 
-.p-tasks .p-tasks__line:hover {
-  background-color: var(--ctl);
+.p-tasks .p-tasks__line:hover,
+.p-tasks .p-tasks__line:focus-visible {
+  background-color: var(--lamp-pool);
 }
 
 .p-tasks .p-tasks__line:focus-visible {
@@ -207,6 +219,17 @@
 }
 
 .p-tasks .p-tasks__mark--warn { color: var(--warn); }
+
+/* A working row's glyph is lit: the lamp's tone in a small pool of its light. */
+.p-tasks .p-tasks__mark--lamp {
+  color: var(--accent);
+}
+
+.p-tasks .p-tasks__mark--lamp .k-state-icon {
+  border-radius: var(--r-round);
+  background: var(--info-bg);
+  box-shadow: 0 0 0 3px var(--info-bg);
+}
 
 .p-tasks .p-tasks__main {
   display: flex;
@@ -278,6 +301,12 @@
   text-align: right;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+/* A finished row is quiet: its title in the second ink at the regular weight. */
+.p-tasks .p-tasks__group--finished .p-tasks__title {
+  color: var(--ink-2);
+  font-weight: var(--fw-regular);
 }
 
 .p-tasks .p-tasks__older {
@@ -402,6 +431,11 @@
    sections, and every control is easy to touch. */
 @media (max-width: 859px) {
   .p-tasks .k-page-header {
+    margin-bottom: var(--s-4);
+  }
+
+  .p-tasks .k-room {
+    margin-top: calc(-1 * var(--s-2));
     margin-bottom: var(--s-4);
   }
 

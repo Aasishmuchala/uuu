@@ -391,3 +391,141 @@ test("tasks: the chosen item of a filter menu is current, and a row's chip is le
   const items = mod.chipLinks(mod.whoOptions([{ slug: "artist", name: "Artist" }], "artist"), "artist", (v) => `#/tasks?who=${v}`);
   assert.deepEqual(items.filter((o) => o.current).map((o) => o.value), ["artist"]);
 });
+
+// ---- Mounted in the test DOM with a fake fetch (PLAN-3D-ALL U5). ----
+const { FakeElement, html, render, installDom, elements, classesOf, walkDom } = await import("../kit/_dom.mjs");
+const { AppContext } = await import("../../lib/context.js");
+
+async function mountTasks(data, { query = "", status = 200 } = {}) {
+  installDom();
+  globalThis.document.visibilityState = "visible";
+  globalThis.location = { hash: `#/tasks${query ? `?${query}` : ""}`, href: `/#/tasks${query ? `?${query}` : ""}`, search: "" };
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts = {}) => {
+    calls.push(`${opts.method || "GET"} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}`);
+    return { ok: status < 400, status, json: async () => data };
+  };
+  const tops = [];
+  const ctx = { shell: { team: shape("shell").team, dock: [] }, setTop: (t) => tops.push(t), announce() {}, openComposer() {}, settings: { motion: "off", theme: "dark" } };
+  const root = new FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${mod.default} route=${{ id: "tasks", parts: ["tasks"], query: new URLSearchParams(query) }} /><//>`, root);
+  await new Promise((r) => setTimeout(r, 300));
+  return { root, calls, tops, done: () => { render(null, root); root.remove(); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+test("tasks: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  for (const [data, query] of [[sample, ""], [sixColumns(), ""], [sixColumns(), "view=board"], [sixColumns(), "who=artist&d=studio&state=working"], [{ columns: [] }, "d=sales"]]) {
+    const m = await mountTasks(data, { query });
+    try { seen.push(...m.calls); } finally { m.done(); }
+  }
+  // Recorded on the page before PLAN-3D-ALL U5 changed it.
+  const RECORDED = ["GET /api/tasks", "GET /api/tasks", "GET /api/tasks", "GET /api/tasks?who=artist&d=studio", "GET /api/tasks?d=sales"];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});
+
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const byCls = (root, c) => elements(root).filter((e) => classesOf(e).includes(c));
+const LIVE_STUCK = () => ({
+  columns: [
+    { id: "in_progress", count: 2, tasks: [cardIn("in_progress", 2, { live: true, plainState: "Being worked on", outcome: null }), cardIn("in_progress", 3, { waitingForYou: true, plainState: "Stuck, needs you", outcome: null })] },
+    { id: "done", count: 1, tasks: [cardIn("done", 4, { plainState: "Finished" })] },
+  ],
+});
+
+test("tasks: the title and the bar stand in the room header with the desk's glimpse; one h1, crumbs as before (PLAN-3D-ALL U5)", async () => {
+  const m = await mountTasks(sixColumns());
+  try {
+    const band = elements(m.root).filter((e) => e.localName === "header" && classesOf(e).includes("k-room"));
+    assert.equal(band.length, 1);
+    assert.equal(band[0].getAttribute("data-glimpse"), "desk");
+    const h1 = elements(m.root).filter((e) => e.localName === "h1");
+    assert.equal(h1.length, 1);
+    assert.equal(h1[0].getAttribute("id"), "page-title");
+    assert.ok(classesOf(h1[0]).includes("k-page-header__title"));
+    assert.equal(byCls(band[0], "p-tasks__bar").length, 1, "the filters and the actions are in the band");
+    const img = elements(m.root).filter((e) => e.localName === "img");
+    assert.equal(img.length, 1, "one picture: the band's");
+    assert.equal(img[0].getAttribute("src"), glimpseSrc("desk", { theme: "dark", width: 1280 }));
+    assert.equal(img[0].getAttribute("alt"), "");
+    assert.equal(img[0].getAttribute("aria-hidden"), "true");
+    assert.equal(elements(m.root).filter((e) => e.localName === "canvas").length, 0, "a surface screen has no canvas");
+    assert.equal(byCls(m.root, "k-page-header").length, 0, "PageHeader is replaced");
+  } finally { m.done(); }
+  const off = await mountTasks(sixColumns(), { query: "glimpse=off" });
+  try {
+    assert.equal(elements(off.root).filter((e) => e.localName === "img").length, 0, "glimpse=off: the band alone");
+    assert.equal(byCls(off.root, "k-room--bare").length, 1);
+  } finally { off.done(); }
+});
+
+test("tasks: states follow the lamps: a working glyph lit, a stuck one amber, a finished row quiet (PLAN-3D-ALL U5, D5)", async () => {
+  const m = await mountTasks(LIVE_STUCK());
+  try {
+    const marks = byCls(m.root, "p-tasks__mark");
+    assert.equal(byCls(m.root, "p-tasks__mark--lamp").length, 1, "the working row's glyph is lit");
+    assert.equal(byCls(m.root, "p-tasks__mark--warn").length, 1, "the stuck row's glyph is amber");
+    assert.equal(marks.length, 3);
+    assert.ok(byCls(m.root, "p-tasks__mark--lamp").every((e) => !classesOf(e).includes("p-tasks__mark--warn")));
+    assert.equal(byCls(m.root, "p-tasks__group--finished").length, 1);
+  } finally { m.done(); }
+  const css = readFileSync(new URL("../../styles/pages/tasks.css", import.meta.url), "utf8");
+  assert.match(/\.p-tasks \.p-tasks__mark--lamp \{([^}]*)\}/.exec(css)[1], /color: var\(--accent\)/, "the lamp's tone");
+  assert.match(css, /\.p-tasks \.p-tasks__group--finished \.p-tasks__title \{[^}]*color: var\(--ink-2\)/, "a finished row quiet");
+  // The quiet look's control fill under the pointer was replaced by the lamp's pool (PLAN-3D-ALL U5).
+  assert.match(css, /\.p-tasks \.p-tasks__line:hover,\s*\.p-tasks \.p-tasks__line:focus-visible \{\s*background-color: var\(--lamp-pool\);/);
+  assert.match(css, /\.p-tasks \.p-tasks__line:focus-visible \{\s*outline: 2px solid var\(--accent\);/, "the 2 px ring");
+  const kit = readFileSync(new URL("../../styles/kit/task-card.css", import.meta.url), "utf8");
+  assert.match(kit, /\.k-task-card__state--live \{\s*color: var\(--accent\);/, "a working card's glyph in the lamp's tone, not green");
+  assert.match(kit, /\.k-task-row__mark--live \{ color: var\(--accent\); \}/);
+  assert.match(kit, /\.k-task-row:hover \{\s*background-color: var\(--lamp-pool\);/);
+});
+
+test("tasks: the band keeps the first row near the top: up into the pane's margin, 16 px over the first group (PLAN-3D-ALL U5, D9)", () => {
+  const css = readFileSync(new URL("../../styles/pages/tasks.css", import.meta.url), "utf8");
+  const [wide, phone] = [...css.matchAll(/\.p-tasks \.k-room \{([^}]*)\}/g)].map((x) => x[1]);
+  assert.match(wide, /margin-top: calc\(-1 \* var\(--s-6\)\);\s*margin-bottom: var\(--s-4\);/);
+  assert.match(phone, /margin-top: calc\(-1 \* var\(--s-2\)\);\s*margin-bottom: var\(--s-4\);/);
+  assert.ok(!/paper/.test(css), "no paper on this page");
+  const src = readFileSync(new URL("../../pages/tasks.js", import.meta.url), "utf8");
+  assert.ok(!/data-surface|<\$\{Sheet\}/.test(src), "no paper on this page");
+});
+
+test("tasks: hostile server text stays text: no script, img, iframe or object beyond the band's; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const tags = (root) => ["script", "img", "iframe", "object"].map((t) => elements(root).filter((e) => e.localName === t).length);
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const hostile = () => ({
+    columns: ["backlog", "in_progress", "pending_review", "done", "failed", "canceled"].map((id, c) => ({
+      id, label: bad(c), count: 3, tasks: [0, 1, 2].map((n) => cardIn(id, c * 3 + n, {
+        title: bad(c + n), plainState: bad(c + n + 1), outcome: bad(c + n + 2), identifier: bad(c + n + 3),
+        job: { id: bad(n), title: bad(c + n + 4) }, who: { slug: "artist", name: bad(c + n + 5) }, department: bad(c),
+        stage: { id: "x", label: bad(c + n + 6) }, live: n === 0, waitingForYou: n === 1, updatedAt: bad(n), ask: n === 2,
+      })),
+    })),
+    connected: true,
+  });
+  for (const query of ["", "view=board"]) {
+    const s = await mountTasks(sixColumns(), { query });
+    let base;
+    try { base = tags(s.root); } finally { s.done(); }
+    const m = await mountTasks(hostile(), { query });
+    try {
+      assert.deepEqual(tags(m.root), base, query);
+      for (const e of elements(m.root)) {
+        for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+        for (const h of HOSTILE) {
+          for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+        }
+        if (e.localName === "img") {
+          assert.ok(GLIMPSES.some((k) => [1280, 390].some((w) => ["dark", "light"].some((theme) => glimpseSrc(k, { theme, width: w }) === e.getAttribute("src")))), "the band's picture is a table key's");
+        }
+      }
+      const nodes = [...walkDom(m.root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+      if (!query) assert.ok(nodes.includes(bad(0)), "a hostile title is a text node");
+    } finally { m.done(); }
+  }
+});

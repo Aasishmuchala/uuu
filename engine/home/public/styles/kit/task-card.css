@@ -1,7 +1,9 @@
 /* TaskRow, TaskCard and BoardColumn (kit/task-card.js), as R03's rows and C3's cards. Tokens only.
    A row is one 50 px line (51 with the hairline between rows): a 16 px state glyph, the name at 15 px, the ref
    quietly after it, one grey fact, and the date at the right in tabular figures. It answers the pointer with the
-   control fill. A row that needs the owner says so with its amber glyph and its words: no tint, no outline. */
+   control fill. A row that needs the owner says so with its amber glyph and its words: no tint, no outline.
+   PLAN-3D-ALL U5: states follow the lamps (D5). Working is the lamp's tone (the accent), a finished task quiet ink,
+   a failed one red; a row under the pointer stands in the lamp's pool. */
 
 .k-task-row {
   display: flex;
@@ -19,7 +21,7 @@
 }
 
 .k-task-row:hover {
-  background-color: var(--ctl);
+  background-color: var(--lamp-pool);
 }
 
 /* Rows set side by side in one parent are parted by a hairline; a page that puts each row in its own list item
@@ -28,7 +30,8 @@
   border-top: 1px solid var(--line);
 }
 
-/* The state's glyph, grey by default; amber when it needs the owner, green while working, red when it failed. */
+/* The state's glyph, grey by default; amber when it needs the owner, the lamp's tone while working, red when it
+   failed; finished stays grey. */
 .k-task-row__mark {
   flex: none;
   display: inline-flex;
@@ -36,8 +39,8 @@
 }
 
 .k-task-row__mark--warn { color: var(--warn); }
-.k-task-row__mark--live,
-.k-task-row__mark--good { color: var(--good); }
+.k-task-row__mark--live { color: var(--accent); }
+.k-task-row__mark--good { color: var(--ink-3); }
 .k-task-row__mark--bad { color: var(--bad); }
 
 /* The glyph takes the row's tone, not the column's own colour: a task waiting for review is amber only when it
@@ -170,9 +173,12 @@
   color: var(--warn);
 }
 
-.k-task-card__state--live,
+.k-task-card__state--live {
+  color: var(--accent);
+}
+
 .k-task-card__state--good {
-  color: var(--good);
+  color: var(--ink-3);
 }
 
 .k-task-card__state--bad {

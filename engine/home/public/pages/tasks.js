@@ -17,6 +17,9 @@
 // Fix round R6 (R6-H): every row one height: the row's own words follow its title on the same line in the second
 // ink, cut with an ellipsis; the state quiet words with a dot (the kit's Tag, only Stuck in the warn tone and
 // Working in the info tone); a group's head a quiet filled band (32 px, 6 px corner, the raised tone).
+// PLAN-3D-ALL U5: the studio's language. The title and the bar sit in the room header (kit/room.js), the desk's
+// glimpse behind them; the rows stay on the ground. States follow the lamps (D5): a working row's glyph is lit
+// (the lamp's tone in its pool of light), a stuck one amber, a finished row quiet; shape and words as before.
 import { html, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
@@ -30,12 +33,13 @@ import {
   Loading,
   Menu,
   NotConnected,
-  PageHeader,
   Mono,
+  RoomHeader,
   Segmented,
   StateIcon,
   Tag,
   TaskCard,
+  glimpseFor,
   rowLine,
   taskHref,
 } from "../kit/index.js";
@@ -361,6 +365,8 @@ export function rowWhen(iso, now = new Date()) {
 function Line({ task, group }) {
   if (!task) return null;
   const g = glyphOf(task);
+  // A working row's glyph is lit; amber (a stuck row) wins over it.
+  const tone = g.tone || (task.live === true ? "lamp" : "");
   const sentence = stateSentence(task);
   const own = ownWords(task);
   const chip = chipOf(task);
@@ -369,7 +375,7 @@ function Line({ task, group }) {
   const dept = typeof task.department === "string" ? DEPARTMENTS.find((x) => x.id === task.department) : null;
   const who = task.who && task.who.name ? text(task.who.name) : "";
   return html`<a class="p-tasks__line" href=${taskHref(task)} title=${sentence || undefined}>
-    <span class=${`p-tasks__mark${g.tone ? ` p-tasks__mark--${g.tone}` : ""}`} aria-hidden="true"><${StateIcon} column=${g.column} label="" /></span>
+    <span class=${`p-tasks__mark${tone ? ` p-tasks__mark--${tone}` : ""}`} aria-hidden="true"><${StateIcon} column=${g.column} label="" /></span>
     <span class="p-tasks__main">
       <span class="p-tasks__title" title=${text(task.title)}>${text(task.title)}</span>
       ${sentence && html`<span class="k-sr">. ${sentence}.</span>`}
@@ -541,7 +547,7 @@ export default function Page({ route }) {
   }
 
   return html`<div class=${`p-tasks p-tasks--${view} k-page--plain`}>
-    <${PageHeader} title="Tasks">${bar}<//>
+    <${RoomHeader} glimpse=${glimpseFor("tasks")} title="Tasks">${bar}<//>
     ${body}
   </div>`;
 }
