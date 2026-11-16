@@ -440,6 +440,28 @@ a.s-crumbs-link:hover {
   color: var(--ink);
 }
 
+/* A page's one quiet line in the bar (the money line): whole, never an ellipsis; the links before it give way first. */
+.s-top-note {
+  flex: none;
+  padding: 0 var(--s-2);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.s-top-link {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.s-sheet-note {
+  margin: 0;
+  padding: 0 var(--s-3);
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  font-variant-numeric: tabular-nums;
+}
+
 /* An icon-only button in the shell (the sidebar's switch, the pager, the panel's close, the back button). */
 .s-icon-btn {
   position: relative;

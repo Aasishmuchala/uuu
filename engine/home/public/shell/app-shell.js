@@ -89,6 +89,9 @@ function useMedia(query) {
   return on;
 }
 
+// The two routes drawn as a lit studio show the sidebar as icons until the owner chooses (PLAN-3D D15).
+export const iconsRoute = (routeId) => routeId === "map" || routeId === "needs-you";
+
 // The owner's stored width of the sidebar ("open" | "icons"), or null for automatic.
 function storedSide() {
   try {
@@ -218,7 +221,7 @@ export function AppShell() {
 
   // The sidebar's width: the owner's choice, else by the window and whether the page shows a stage.
   const stage = useStage(pathKey);
-  const side = narrow ? "none" : sideMode({ stored, stage, width: typeof innerWidth === "number" ? innerWidth : 1280 });
+  const side = narrow ? "none" : sideMode({ stored, stage: stage || iconsRoute(routeId), width: typeof innerWidth === "number" ? innerWidth : 1280 });
   const setSide = useCallback((v) => {
     const next = v === "open" || v === "icons" ? v : null;
     storeSide(next);
@@ -363,7 +366,7 @@ export function AppShell() {
         <${QueuePanel} open=${overlay === "needs"} narrow=${narrow} department=${needsFor} stamp=${shell.data?.generatedAt || ""}
           here=${typeof location === "undefined" ? "" : location.hash} onClose=${closeOverlay} />
       </div>
-      <${MenuSheet} open=${overlay === "menu"} onClose=${closeOverlay} shell=${shell.data} dock=${dock}
+      <${MenuSheet} open=${overlay === "menu"} onClose=${closeOverlay} shell=${shell.data} dock=${dock} note=${shownTop?.note || null}
         settings=${settings} onSaveSettings=${saveSettings} onCompose=${() => openComposer({})} onCommand=${openCommand} />
       <${CommandMenu} open=${overlay === "command"} onClose=${closeOverlay} team=${team} onCompose=${openComposer} />
       <${ComposeDialog} open=${overlay === "compose"} seed=${seed} team=${team} queue=${shell.data?.queue || null} onClose=${closeOverlay}

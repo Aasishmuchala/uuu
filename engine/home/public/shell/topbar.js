@@ -2,7 +2,8 @@
 // under it. From the left: the button that shows or hides the sidebar's names, the crumbs (where you are; the
 // page's own when it gave them through setTop, else the route table's), then at the right the pager and up to
 // two quiet links when the page gave them, the Queue button (Q) and "Search or jump to" (⌘K). Below 860 px it
-// is a back button and the last two crumbs. The Menu sheet (the tab bar's More) is here too.
+// is a back button and the last two crumbs. A page's one-line note (the money line) sits before the Queue button, or
+// first in the Menu sheet below 860 px. The Menu sheet (the tab bar's More) is here too.
 import { html } from "../vendor/preact-htm.js";
 import { Drawer, Icon, Kbd } from "../kit/index.js";
 import { DEPARTMENTS, routeById } from "../routes.js";
@@ -86,7 +87,10 @@ export function cleanTop(top) {
   const links = Array.isArray(top.links)
     ? top.links.filter((l) => l && own(l.href) && cap(l.label, 40)).slice(0, 2).map((l) => ({ label: cap(l.label, 40), href: l.href }))
     : [];
-  return { crumbs: crumbs && crumbs.length ? crumbs : null, pager, links };
+  // One quiet line a page may show (the Map's and Needs you's money line, the server's sentence): text, at most 120 characters, else dropped.
+  const raw = typeof top.note === "string" ? top.note.replace(/\s+/g, " ").trim() : "";
+  const note = raw && raw.length <= 120 ? raw : null;
+  return { crumbs: crumbs && crumbs.length ? crumbs : null, pager, links, note };
 }
 
 function Crumbs({ list }) {
@@ -145,6 +149,7 @@ export function Topbar({ routeId, parts, shell, top, narrow, side = "open", queu
       <span class="s-top-gap"></span>
       ${top?.pager ? html`<${Pager} pager=${top.pager} />` : null}
       ${(top?.links || []).map((l) => html`<a key=${l.href} class="s-top-link" href=${l.href}>${l.label}</a>`)}
+      ${top?.note ? html`<span class="s-top-note u-num">${top.note}</span>` : null}
       <button type="button" class=${`s-queue-btn${queueOpen ? " is-open" : ""}`} onClick=${onQueue}
         aria-label=${`Queue: ${needsLabel(needs)}`} aria-expanded=${queueOpen ? "true" : "false"} aria-controls="s-queue">
         <${Icon} name="inbox" />
@@ -164,7 +169,7 @@ const DEPT_ICONS = { operations: "layers", sales: "trend", marketing: "horn", st
 
 // The phone's More sheet: New task and Search, the places that are not tabs, the teams, Health, Settings and
 // the theme switch.
-export function MenuSheet({ open, onClose, shell, dock, settings, onSaveSettings, onCompose, onCommand }) {
+export function MenuSheet({ open, onClose, shell, dock, note, settings, onSaveSettings, onCompose, onCommand }) {
   const known = new Map((Array.isArray(dock) ? dock : []).map((d) => [d && d.id, d]));
   const departments = DEPARTMENTS.map((d) => ({ id: d.id, title: cap(known.get(d.id)?.title, 40) || d.title }));
   const dot = engineDot(shell?.engine);
@@ -175,6 +180,7 @@ export function MenuSheet({ open, onClose, shell, dock, settings, onSaveSettings
   return html`
     <${Drawer} open=${open} side="right" title="More" onClose=${onClose}>
       <div class="s-sheet">
+        ${note ? html`<p class="s-sheet-note u-num">${note}</p>` : null}
         <ul class="s-sheet-list">
           <li><button type="button" class="s-sheet-item" onClick=${onCompose}><${Icon} name="plus" size=${20} /><span>New task</span></button></li>
           <li><button type="button" class="s-sheet-item" onClick=${onCommand}><${Icon} name="search" size=${20} /><span>Search</span><${Kbd}>${commandKey()}<//></button></li>
