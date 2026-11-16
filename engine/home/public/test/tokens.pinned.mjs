@@ -36,7 +36,7 @@ export const THEMED = {
   // PLAN-3D-ALL U1 (D5): the accent is lamplight, not blue. The filled primary is lamplight under dark ink in both
   // themes: in dark a little deeper than the link accent; in light deep enough to part 3 to 1 from the ground while
   // the dark ink still reads at 4.5 on it; and at least 15 apart from --warn in Lab, so a primary is never a warning.
-  "--accent-fill": ["#e9b46f", "#b67a35"],
+  "--accent-fill": ["#e9b46f", "#bd772a"],
   "--accent-ink": ["#1d1a17", "#1d1a17"],
   // The info chip's tint: working is the lamp (D5), so the lamp at about 12 percent.
   "--info-bg": ["rgba(242,196,135,.12)", "#f6e9d5"],
