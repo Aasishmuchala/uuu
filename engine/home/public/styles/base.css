@@ -92,6 +92,11 @@ h1, h2, h3, h4, h5, h6 {
 
 h1 { font-size: var(--fs-page); font-weight: var(--fw-medium); letter-spacing: var(--ls-page); }
 h2 { font-size: var(--fs-section); }
+
+/* Titles in the display face (PLAN-3D-ALL D5); everything read or typed stays on the system face. */
+h1, h2 {
+  font-family: var(--font-display);
+}
 h3, h4, h5, h6 { font-size: var(--fs-body); }
 
 a {
@@ -129,6 +134,18 @@ textarea {
 ::selection {
   color: var(--ink);
   background: var(--line-2);
+}
+
+/* A page arriving (PLAN-3D-ALL D8): its content rises 8 px and fades in over 180 ms, once, on transform and
+   opacity, and keeps nothing after (no transform left behind to hold a fixed child). Not the Map, whose scene is
+   the page, and not an app's frame. Off with the rest below. */
+.s-content:not(.s-content--map):not(.s-content--fill) > * {
+  animation: u-page-enter 180ms var(--ease);
+}
+
+@keyframes u-page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 
 /* Motion off when the owner asks for less: in this app's settings, or on the Mac. Every animation runs once

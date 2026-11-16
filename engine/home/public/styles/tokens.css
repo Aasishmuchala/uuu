@@ -1,82 +1,101 @@
-/* Design tokens: C+ at the root (PLAN-COOK section 1, the C3 mockup's c.css and the corrections after round 3).
-   The only file with colours and fonts. Three blocks:
+/* Design tokens: the studio's materials at the root (PLAN-3D-ALL U1, D3 to D5; before it PLAN-COOK section 1).
+   The only file with colours and fonts. Blocks:
      1. The palette, in the three places a theme is chosen: dark on :root (the default), light on
         [data-theme="light"], and data-theme="auto" under prefers-color-scheme: light.
+     1b. Two surfaces as scopes: [data-surface="paper"] and [data-surface="over"] re-point the core names.
      2. The scale (not themed): type, weight, tracking, space, corners, heights, layout, motion, fonts.
-     3. Compatibility: every old name points at a new one, so un-migrated sheets take the new look on day
-        one. Removed by T90 when nothing reads it.
-   Depth at the root (fix round A2, T100). Dark is four steps a screen tells apart: the sidebar (--side) is the
-   darkest, then the stage (--stage, where the work sits), the page ground (--bg: the top bar, the strip), the
-   rail and panels (--panel), and a card (--card); --raise is what is raised or chosen, --sel a current row.
-   Light is one cool neutral family: white panels and cards lift off a calm cool ground. Every raised thing
-   has a 1 px edge (--line) and a real shadow (--shadow-card; --float for what floats), in both themes.
-   One accent: --accent for rings, radios and links, --accent-fill under white words.
-   Second pass (fix round A3, T110): a card stands at least 4 L* off the ground in both themes (dark: a wider
-   step, a 9 percent white edge and a 4 percent inner top highlight inside --shadow-card; light: the ground a step
-   darker so a white card shows). Every ink reaches 4.5 to 1 on every surface. What floats (a dialog, a menu, a
-   popover) is one overlay surface: --overlay with its --overlay-line edge and --overlay-shadow; the dim behind a
-   dialog (--scrim) is lighter, and a menu or popover dims nothing. --info-bg is the info chip's tint (the accent at
-   14 percent); --shadow-btn the filled button's inner top highlight and small drop.
-   Fourth pass (fix round R6, R6-A): neutral near-black surfaces with small steps in dark (the R5 cool tint read as
-   a navy cast), a near-white ground (#f3f3f5 since fix round R7) under white cards with a #e4e4e8 edge and a 6 percent shadow in light;
-   the dim black at 60 percent in dark and a near-black at 28 percent in light; type one size down (ui 13, fact 14,
-   section 15, stat 20, page 24 at 600, figure 36) and controls 32 px (small 28); a softer indigo primary. Six quiet
-   tints (--tint-*) give identity to a small tile or an avatar, never a state. */
+     3. Compatibility and the aliases, re-read on every surface so a kit part on paper takes paper's values.
+     4. The studio's own picture tokens (PLAN-3D T7).
+   Every screen lives in the studio (D1). Dark is dusk, light is golden morning, auto follows the Mac. Three
+   materials (D3): the ground (--side, --stage, --bg) is plaster in the room's light, a warm near-black at dusk and
+   a warm off-white in the morning; a panel (--panel, --card, --raise, --sel, --overlay) is an oak board a step
+   lighter, with a 1 px warm edge (--line) and a real shadow (--shadow-card; --float for what floats); paper
+   (--paper and its family) is for what the owner reads and decides, used only through the paper scope (D4).
+   Dark keeps its steps in order, the sidebar the darkest: --side, --stage, --bg, --panel, --card, --raise.
+   Every ground, panel and edge is warm: red at least blue, by at most 14 in dark and 24 in light.
+   One warm light (D5): the accent is lamplight. --accent for links, rings and the current row's mark; the filled
+   primary is lamplight (--accent-fill) under dark ink (--accent-ink); --lamp is the lamp glyph's tone and
+   --lamp-pool its pool on a table's head, hover and current row. States follow the lamps: working is the lamp
+   (--info-bg is its tint), waiting for you amber (--warn), a problem red (--bad), on or passed a muted green
+   (--good), finished or off quiet ink. Titles are set in --font-display; everything read or typed stays on
+   --font-sans. The R6 names and scale stay; their cool greys, blue accent and white panels were replaced on
+   16 November 2026. Six quiet tints (--tint-*) give identity to a small tile or an avatar, never a state. */
 
-/* ---- 1. The palette, dark (the default) */
+/* ---- 1. The palette, dark: dusk (the default) */
 :root {
   color-scheme: dark;
 
-  --bg: #131417;
-  --stage: #0f1013;
-  --panel: #191a1e;
-  --side: #0b0c0e;
-  --card: #1f2025;
-  --raise: #26272d;
-  --sel: #2c2d34;
-  --raise-2: #34353d;
-  --ctl: rgba(255,255,255,.07);
-  --chip: #37383f;
-  --field: #16171b;
-  --line: rgba(255,255,255,.08);
-  --line-2: rgba(255,255,255,.13);
-  --overlay: #26272e;
-  --overlay-line: rgba(255,255,255,.16);
+  --bg: #151210;
+  --stage: #100e0c;
+  --panel: #1b1815;
+  --side: #0d0b0a;
+  --card: #221e1a;
+  --raise: #2a2520;
+  --sel: #322c26;
+  --raise-2: #3a332c;
+  --ctl: rgba(255,236,214,.07);
+  --chip: #3b342d;
+  --field: #181512;
+  --line: rgba(255,236,214,.09);
+  --line-2: rgba(255,236,214,.14);
+  --overlay: #2b2621;
+  --overlay-line: rgba(255,240,224,.16);
 
-  --ink: #f4f4f5;
-  --ink-2: #c0c0c7;
-  --ink-3: #a1a1aa;
+  --ink: #f1ede6;
+  --ink-2: #c9c1b6;
+  --ink-3: #a59c90;
 
-  --accent: #86adff;
-  --accent-fill: #4c63d2;
-  --accent-ink: #ffffff;
-  --info-bg: rgba(134,173,255,.12);
+  --accent: #f2c487;
+  --accent-fill: #e9b46f;
+  --accent-ink: #1d1a17;
+  --info-bg: rgba(242,196,135,.12);
 
-  --good: #62d39d;
-  --good-bg: rgba(98,211,157,.14);
-  --warn: #ecc068;
-  --warn-bg: rgba(236,192,104,.14);
-  --warn-line: rgba(236,192,104,.34);
-  --bad: #ff93a5;
-  --bad-bg: rgba(255,147,165,.14);
-  --bad-fill: #c93a55;
-  --spent: #7b7b85;
-  --add-bg: rgba(98,211,157,.18);
-  --del-bg: rgba(255,147,165,.18);
+  --good: #8cc79b;
+  --good-bg: rgba(140,199,155,.14);
+  --warn: #ff9f45;
+  --warn-bg: rgba(255,159,69,.14);
+  --warn-line: rgba(255,159,69,.34);
+  --bad: #ff7a62;
+  --bad-bg: rgba(255,122,98,.12);
+  --bad-fill: #ef6f55;
+  --spent: #7d756b;
+  --add-bg: rgba(140,199,155,.18);
+  --del-bg: rgba(255,122,98,.18);
 
-  --shadow-card: inset 0 1px 0 rgba(255,255,255,.04), 0 1px 2px rgba(0,0,0,.40), 0 8px 24px rgba(0,0,0,.32);
+  --shadow-card: inset 0 1px 0 rgba(255,236,214,.04), 0 1px 2px rgba(0,0,0,.45), 0 8px 24px rgba(0,0,0,.35);
   --shadow-lift: 0 2px 4px rgba(0,0,0,.45), 0 12px 32px rgba(0,0,0,.40);
-  --shadow-btn: inset 0 1px 0 rgba(255,255,255,.14), 0 1px 2px rgba(0,0,0,.40);
-  --float: 0 0 0 1px rgba(255,255,255,.1), 0 2px 6px rgba(0,0,0,.30), 0 24px 64px rgba(0,0,0,.60);
-  --overlay-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.30), 0 20px 60px rgba(0,0,0,.55);
-  --paper-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 6px 20px rgba(0,0,0,.45);
+  --shadow-btn: inset 0 1px 0 rgba(255,255,255,.24), 0 1px 2px rgba(0,0,0,.40);
+  --float: 0 0 0 1px rgba(255,236,214,.1), 0 2px 6px rgba(0,0,0,.30), 0 24px 64px rgba(0,0,0,.60);
+  --overlay-shadow: inset 0 1px 0 rgba(255,236,214,.05), 0 2px 6px rgba(0,0,0,.30), 0 20px 60px rgba(0,0,0,.55);
+  --paper-shadow: 0 0 0 1px rgba(255,236,214,.06), 0 2px 4px rgba(0,0,0,.30), 0 18px 40px rgba(0,0,0,.45);
 
-  --tip: #f4f4f5;
-  --tip-ink: #0f0f11;
-  --scrim: rgba(0,0,0,.6);
+  --tip: #f1ede6;
+  --tip-ink: #1b1916;
+  --scrim: rgba(8,6,4,.6);
   --pin: #ecc068;
   --pin-ink: #1d1503;
   --pin-line: #ecc068;
+
+  /* Paper (D4): a cream sheet in both themes, for a decision, a document being read, the brief and a dialog that
+     carries a money or safety sentence; read through [data-surface="paper"] below, never laid on by hand. */
+  --paper: #efe9df;
+  --paper-2: #e6dfd3;
+  --paper-ink: #211d18;
+  --paper-ink-2: #4f473e;
+  --paper-ink-3: #645b51;
+  --paper-line: rgba(70,48,26,.16);
+  --paper-accent: #7f480a;
+  --paper-field: #f8f4ed;
+
+  /* The lamp (D5): the glyph's tone, and its pool on a table's head row, hover and current row. */
+  --lamp: #f2c487;
+  --lamp-pool: rgba(242,196,135,.08);
+  /* The room header's scrim (D6): -0 under the title, -1 where the picture shows clear. */
+  --room-scrim-0: rgba(21,18,16,.86);
+  --room-scrim-1: rgba(21,18,16,.2);
+  /* A panel laid over a scene: opaque, no blur (D4). */
+  --over: #1c1916;
+  --over-line: rgba(255,236,214,.14);
 
   /* Six quiet tints for identity (a file's kind, a job's stage, a department) on a small tile or an avatar, never a
      state: each ink reads at 4.5 to 1 on its own fill over a card, a panel and the overlay (fix round R5). */
@@ -93,75 +112,84 @@
   --tint-teal: #5ccfc0;
   --tint-teal-bg: rgba(92,207,192,.14);
 
-  /* The mockup's own names for three of the steps above, so its rules port as written. */
-  --card-2: var(--raise);
-  --track: var(--raise-2);
-  --accent-fg: var(--accent);
-  --sel-shadow: var(--shadow-card);
-
   /* Not themed: labels laid on a picture, a frame before its page loads, the ground behind film. */
   --on-picture-bg: rgba(9,9,11,.78);
   --on-picture-ink: #ffffff;
-  --paper: #fbfaf7;
   --black: #000000;
   --played-dim: rgba(0, 0, 0, 0.42);
 }
 
-/* Light, chosen: a cool grey ground of about 5 percent, white panels and cards with a cool 1 px edge, soft cool
-   shadows; the raised step and a current row are cool grey fills. */
+/* Light, chosen: golden morning. A warm off-white plaster ground, oak panels and cards a step lighter with a warm
+   1 px edge and soft warm shadows; the raised step and a current row are warm fills under the ground. */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #f3f3f5;
-  --stage: #e9e9ed;
-  --panel: #ffffff;
-  --side: #eeeef1;
-  --card: #ffffff;
-  --raise: #f0f0f2;
-  --sel: #e9e9ed;
-  --raise-2: #dedee3;
-  --ctl: rgba(16,24,40,.06);
-  --chip: #e0e0e5;
-  --field: #ffffff;
-  --line: #e4e4e8;
-  --line-2: #d4d4da;
-  --overlay: #ffffff;
-  --overlay-line: #d4d4da;
+  --bg: #f3eee5;
+  --stage: #e9e2d6;
+  --panel: #fbf8f2;
+  --side: #ece6db;
+  --card: #fffdf8;
+  --raise: #ebe4d8;
+  --sel: #e2dacc;
+  --raise-2: #ddd5c8;
+  --ctl: rgba(80,52,24,.06);
+  --chip: #ddd4c5;
+  --field: #fffdf9;
+  --line: #e5ddd0;
+  --line-2: #d8cfc1;
+  --overlay: #fffdf8;
+  --overlay-line: #d3cabd;
 
-  --ink: #18181b;
-  --ink-2: #4a4b53;
-  --ink-3: #5d5f68;
+  --ink: #1b1916;
+  --ink-2: #4d463d;
+  --ink-3: #665e53;
 
-  --accent: #2459dd;
-  --accent-fill: #3f5bd6;
-  --accent-ink: #ffffff;
-  --info-bg: #e6edfc;
+  --accent: #8a4f0c;
+  --accent-fill: #b67a35;
+  --accent-ink: #1d1a17;
+  --info-bg: #f6e9d5;
 
-  --good: #17703f;
-  --good-bg: #e2f2e8;
-  --warn: #855600;
-  --warn-bg: #fbf1d8;
-  --warn-line: #e8d39a;
-  --bad: #b4233f;
-  --bad-bg: #fde8ec;
-  --bad-fill: #c4304b;
-  --spent: #9d9da6;
-  --add-bg: #d9f0e2;
-  --del-bg: #fbe0e5;
+  --good: #2e6b3c;
+  --good-bg: #e3efe2;
+  --warn: #a64b00;
+  --warn-bg: #fbead6;
+  --warn-line: #ebcaa0;
+  --bad: #b3261e;
+  --bad-bg: #fbe4dc;
+  --bad-fill: #e5654a;
+  --spent: #a39a8e;
+  --add-bg: #d9ecd9;
+  --del-bg: #fadcd4;
 
-  --shadow-card: 0 1px 2px rgba(16,24,40,.06);
-  --shadow-lift: 0 1px 3px rgba(16,24,40,.08), 0 10px 28px rgba(16,24,40,.12);
-  --shadow-btn: inset 0 1px 0 rgba(255,255,255,.16), 0 1px 2px rgba(16,24,40,.16);
-  --float: 0 0 0 1px rgba(16,24,40,.08), 0 2px 6px rgba(24,24,27,.08), 0 24px 64px rgba(24,24,27,.22);
-  --overlay-shadow: 0 2px 6px rgba(24,24,27,.08), 0 24px 64px rgba(24,24,27,.22);
-  --paper-shadow: 0 0 0 1px rgba(16,24,40,.10), 0 6px 18px rgba(16,24,40,.08);
+  --shadow-card: 0 1px 2px rgba(60,40,20,.07), 0 6px 16px rgba(60,40,20,.06);
+  --shadow-lift: 0 1px 3px rgba(60,40,20,.10), 0 10px 28px rgba(60,40,20,.14);
+  --shadow-btn: inset 0 1px 0 rgba(255,255,255,.22), 0 1px 2px rgba(60,40,20,.20);
+  --float: 0 0 0 1px rgba(60,40,20,.08), 0 2px 6px rgba(60,40,20,.08), 0 24px 64px rgba(60,40,20,.20);
+  --overlay-shadow: 0 2px 6px rgba(60,40,20,.08), 0 24px 64px rgba(60,40,20,.20);
+  --paper-shadow: 0 0 0 1px rgba(60,40,20,.10), 0 2px 4px rgba(60,40,20,.06), 0 12px 28px rgba(60,40,20,.12);
 
-  --tip: #18181b;
-  --tip-ink: #ffffff;
-  --scrim: rgba(20,20,24,.28);
+  --tip: #1b1916;
+  --tip-ink: #fffdf8;
+  --scrim: rgba(27,22,16,.28);
   --pin: #f0bd4a;
   --pin-ink: #1d1503;
   --pin-line: #a8740a;
+
+  --paper: #fdfbf6;
+  --paper-2: #f3eee5;
+  --paper-ink: #1b1916;
+  --paper-ink-2: #4d463d;
+  --paper-ink-3: #645b51;
+  --paper-line: rgba(70,48,26,.14);
+  --paper-accent: #7f480a;
+  --paper-field: #fffefb;
+
+  --lamp: #b8742a;
+  --lamp-pool: rgba(184,116,42,.10);
+  --room-scrim-0: rgba(243,238,229,.88);
+  --room-scrim-1: rgba(243,238,229,.16);
+  --over: #fbf8f2;
+  --over-line: #e2d9cb;
 
   --tint-blue: #1e56d6;
   --tint-blue-bg: rgba(30,86,214,.12);
@@ -182,56 +210,72 @@
   :root[data-theme="auto"] {
     color-scheme: light;
 
-    --bg: #f3f3f5;
-    --stage: #e9e9ed;
-    --panel: #ffffff;
-    --side: #eeeef1;
-    --card: #ffffff;
-    --raise: #f0f0f2;
-    --sel: #e9e9ed;
-    --raise-2: #dedee3;
-    --ctl: rgba(16,24,40,.06);
-    --chip: #e0e0e5;
-    --field: #ffffff;
-    --line: #e4e4e8;
-    --line-2: #d4d4da;
-    --overlay: #ffffff;
-    --overlay-line: #d4d4da;
+    --bg: #f3eee5;
+    --stage: #e9e2d6;
+    --panel: #fbf8f2;
+    --side: #ece6db;
+    --card: #fffdf8;
+    --raise: #ebe4d8;
+    --sel: #e2dacc;
+    --raise-2: #ddd5c8;
+    --ctl: rgba(80,52,24,.06);
+    --chip: #ddd4c5;
+    --field: #fffdf9;
+    --line: #e5ddd0;
+    --line-2: #d8cfc1;
+    --overlay: #fffdf8;
+    --overlay-line: #d3cabd;
 
-    --ink: #18181b;
-    --ink-2: #4a4b53;
-    --ink-3: #5d5f68;
+    --ink: #1b1916;
+    --ink-2: #4d463d;
+    --ink-3: #665e53;
 
-    --accent: #2459dd;
-    --accent-fill: #3f5bd6;
-    --accent-ink: #ffffff;
-    --info-bg: #e6edfc;
+    --accent: #8a4f0c;
+    --accent-fill: #b67a35;
+    --accent-ink: #1d1a17;
+    --info-bg: #f6e9d5;
 
-    --good: #17703f;
-    --good-bg: #e2f2e8;
-    --warn: #855600;
-    --warn-bg: #fbf1d8;
-    --warn-line: #e8d39a;
-    --bad: #b4233f;
-    --bad-bg: #fde8ec;
-    --bad-fill: #c4304b;
-    --spent: #9d9da6;
-    --add-bg: #d9f0e2;
-    --del-bg: #fbe0e5;
+    --good: #2e6b3c;
+    --good-bg: #e3efe2;
+    --warn: #a64b00;
+    --warn-bg: #fbead6;
+    --warn-line: #ebcaa0;
+    --bad: #b3261e;
+    --bad-bg: #fbe4dc;
+    --bad-fill: #e5654a;
+    --spent: #a39a8e;
+    --add-bg: #d9ecd9;
+    --del-bg: #fadcd4;
 
-    --shadow-card: 0 1px 2px rgba(16,24,40,.06);
-    --shadow-lift: 0 1px 3px rgba(16,24,40,.08), 0 10px 28px rgba(16,24,40,.12);
-    --shadow-btn: inset 0 1px 0 rgba(255,255,255,.16), 0 1px 2px rgba(16,24,40,.16);
-    --float: 0 0 0 1px rgba(16,24,40,.08), 0 2px 6px rgba(24,24,27,.08), 0 24px 64px rgba(24,24,27,.22);
-    --overlay-shadow: 0 2px 6px rgba(24,24,27,.08), 0 24px 64px rgba(24,24,27,.22);
-    --paper-shadow: 0 0 0 1px rgba(16,24,40,.10), 0 6px 18px rgba(16,24,40,.08);
+    --shadow-card: 0 1px 2px rgba(60,40,20,.07), 0 6px 16px rgba(60,40,20,.06);
+    --shadow-lift: 0 1px 3px rgba(60,40,20,.10), 0 10px 28px rgba(60,40,20,.14);
+    --shadow-btn: inset 0 1px 0 rgba(255,255,255,.22), 0 1px 2px rgba(60,40,20,.20);
+    --float: 0 0 0 1px rgba(60,40,20,.08), 0 2px 6px rgba(60,40,20,.08), 0 24px 64px rgba(60,40,20,.20);
+    --overlay-shadow: 0 2px 6px rgba(60,40,20,.08), 0 24px 64px rgba(60,40,20,.20);
+    --paper-shadow: 0 0 0 1px rgba(60,40,20,.10), 0 2px 4px rgba(60,40,20,.06), 0 12px 28px rgba(60,40,20,.12);
 
-    --tip: #18181b;
-    --tip-ink: #ffffff;
-    --scrim: rgba(20,20,24,.28);
+    --tip: #1b1916;
+    --tip-ink: #fffdf8;
+    --scrim: rgba(27,22,16,.28);
     --pin: #f0bd4a;
     --pin-ink: #1d1503;
     --pin-line: #a8740a;
+
+    --paper: #fdfbf6;
+    --paper-2: #f3eee5;
+    --paper-ink: #1b1916;
+    --paper-ink-2: #4d463d;
+    --paper-ink-3: #645b51;
+    --paper-line: rgba(70,48,26,.14);
+    --paper-accent: #7f480a;
+    --paper-field: #fffefb;
+
+    --lamp: #b8742a;
+    --lamp-pool: rgba(184,116,42,.10);
+    --room-scrim-0: rgba(243,238,229,.88);
+    --room-scrim-1: rgba(243,238,229,.16);
+    --over: #fbf8f2;
+    --over-line: #e2d9cb;
 
     --tint-blue: #1e56d6;
     --tint-blue-bg: rgba(30,86,214,.12);
@@ -246,6 +290,71 @@
     --tint-teal: #0e6c64;
     --tint-teal-bg: rgba(14,108,100,.12);
   }
+}
+
+/* ---- 1b. Two surfaces (D4). A scope re-points the core names, so any kit part placed on it reads right with no
+   change to its sheet. Paper is light in both themes: its values are the paper family above (themed) and, for the
+   states, the tints and the filled primary, one light set written here. On paper the filled primary is a deep
+   lamp-brown under cream words (as the approved e2 sheet), since a lamplight fill does not part from cream.
+   "Over" is a panel laid over a scene: the ground and panel are --over, the edges --over-line. The aliases of
+   block 3 are declared on [data-surface] too, so --focus, --text, --border and the rest follow the scope. */
+[data-surface="paper"] {
+  color-scheme: light;
+
+  --bg: var(--paper);
+  --stage: var(--paper-2);
+  --panel: var(--paper);
+  --card: var(--paper);
+  --raise: var(--paper-2);
+  --sel: var(--paper-2);
+  --raise-2: #d9cfbf;
+  --overlay: var(--paper);
+  --field: var(--paper-field);
+  --ctl: rgba(70,48,26,.06);
+  --chip: #d6cbb9;
+  --line: var(--paper-line);
+  --line-2: rgba(70,48,26,.26);
+
+  --ink: var(--paper-ink);
+  --ink-2: var(--paper-ink-2);
+  --ink-3: var(--paper-ink-3);
+
+  --accent: var(--paper-accent);
+  --accent-fill: #8a5520;
+  --accent-ink: #fffaf2;
+  --info-bg: rgba(154,84,19,.10);
+  --lamp-pool: rgba(154,84,19,.08);
+
+  --good: #2e6b3c;
+  --good-bg: #e3efe2;
+  --warn: #9a4500;
+  --warn-bg: #f6e2c8;
+  --warn-line: #dfb98a;
+  --bad: #a52a1c;
+  --bad-bg: #f7dcd3;
+  --bad-fill: #b3261e;
+  --spent: #9d9387;
+  --add-bg: #d6e8d4;
+  --del-bg: #f5d6cc;
+
+  --tint-blue: #1a4cc0;
+  --tint-blue-bg: rgba(30,86,214,.12);
+  --tint-green: #146436;
+  --tint-green-bg: rgba(22,112,61,.12);
+  --tint-violet: #6230c4;
+  --tint-violet-bg: rgba(109,52,216,.12);
+  --tint-orange: #983b0c;
+  --tint-orange-bg: rgba(168,66,14,.12);
+  --tint-rose: #a3123a;
+  --tint-rose-bg: rgba(179,20,64,.12);
+  --tint-teal: #0c6159;
+  --tint-teal-bg: rgba(14,108,100,.12);
+}
+
+[data-surface="over"] {
+  --bg: var(--over);
+  --panel: var(--over);
+  --line: var(--over-line);
 }
 
 /* ---- 2. The scale (not themed) */
@@ -329,12 +438,21 @@
 
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
-
-  --focus: var(--accent);
+  /* Titles only (h1, h2; D5): faces already on the Mac and the iPhone, then the system stack. No font file. */
+  --font-display: "Avenir Next", "Avenir", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* ---- 3. Compatibility: the old names, each pointing at a new one. Removed by T90. */
-:root {
+/* ---- 3. The aliases: the mockup's names for three steps, the focus ring, and the old names (removed by T90),
+   each pointing at a new one. Declared on every surface as well as the root, so on paper or over a scene they
+   point at the scope's values (a custom property's var() is read where it is declared). */
+:root,
+[data-surface] {
+  --card-2: var(--raise);
+  --track: var(--raise-2);
+  --accent-fg: var(--accent);
+  --sel-shadow: var(--shadow-card);
+  --focus: var(--accent);
+
   --canvas: var(--bg);
   --glass: var(--card);
   --glass-strong: var(--panel);
@@ -383,28 +501,33 @@
   --fs-heading: var(--fs-page);
   --fs-display: var(--fs-page);
   --fs-dept: var(--fs-stat);
-  --fs-ghost: clamp(72px, 14vw, 180px);
   --r-4: var(--r-3);
   --r-5: var(--r-3);
   --r-pill: var(--r-2);
-  --blur-chrome: 0px;
-  --t-zoom: 420ms;
   --sidebar-w: var(--side-w);
-  /* The dock stays until the new shell (T20) replaces it, and the pages are padded clear of it. */
-  --dock-w: 56px;
   --font-serif: var(--font-sans);
 
   /* The glass edge: the card shadow, in both themes. Always a shadow, never none, since sheets list it
      beside another shadow. */
   --highlight: var(--shadow-card);
 
-  --accent-graphite: #f2f3f5;
   /* The avatar's five hues are the tiles' tints, so an agent and a tile of the same key share a family. */
   --accent-blue: var(--tint-blue);
   --accent-green: var(--tint-green);
   --accent-violet: var(--tint-violet);
   --accent-orange: var(--tint-orange);
   --accent-rose: var(--tint-rose);
+}
+
+/* Compatibility values that are not an alias (removed by T90). */
+:root {
+  --fs-ghost: clamp(72px, 14vw, 180px);
+  --blur-chrome: 0px;
+  --t-zoom: 420ms;
+  /* The dock stays until the new shell (T20) replaces it, and the pages are padded clear of it. */
+  --dock-w: 56px;
+
+  --accent-graphite: #f2f3f5;
   --checker-a: #d4d4d8;
   --checker-b: #b4b4bc;
   --avatar-backing: #b4b4bc;
@@ -439,9 +562,10 @@
 /* ---- 4. The studio (PLAN-3D T7): the Map and Needs you as the lit studio.
    The picture's palette (the sky, the forest, the building, the lamps of the drawn fallback) is the approved dusk
    key in both themes until the golden morning is approved (D5, T12), so its light values equal its dark ones and
-   T12 changes values only. The DOM over the stage follows the theme: the paper sheet and its ink, the scrim's two
-   stops behind the rail, a tag's ground, edge and inks. Lamps: on warm, amber waiting on the owner, red stuck,
-   off a hollow ring, down (switched off) a low line. */
+   T12 changes values only. The DOM over the stage follows the theme: the paper sheet and its ink (aliases of
+   --paper and --paper-ink since PLAN-3D-ALL U1, D4), the scrim's two stops behind the rail, a tag's ground, edge
+   and inks. Lamps: on warm, amber waiting on the owner, red stuck, off a hollow ring, down (switched off) a low
+   line. */
 :root {
   --w-sky-0: #161c2c;
   --w-sky-1: #4a3a4e;
@@ -471,8 +595,8 @@
   --w-lamp-down: #6e635a;
   --w-pool: #ffd2a0;
 
-  --w-paper: #efe9df;
-  --w-paper-ink: #211d18;
+  --w-paper: var(--paper);
+  --w-paper-ink: var(--paper-ink);
   --w-scrim-0: rgba(12,11,10,.88);
   --w-scrim-1: rgba(12,11,10,0);
   --w-tag: rgba(20,17,15,.86);
@@ -510,8 +634,6 @@
   --w-lamp-down: #6e635a;
   --w-pool: #ffd2a0;
 
-  --w-paper: #fdfbf6;
-  --w-paper-ink: #1b1916;
   --w-scrim-0: rgba(243,243,245,.94);
   --w-scrim-1: rgba(243,243,245,0);
   --w-tag: rgba(255,255,255,.94);
@@ -550,8 +672,6 @@
     --w-lamp-down: #6e635a;
     --w-pool: #ffd2a0;
 
-    --w-paper: #fdfbf6;
-    --w-paper-ink: #1b1916;
     --w-scrim-0: rgba(243,243,245,.94);
     --w-scrim-1: rgba(243,243,245,0);
     --w-tag: rgba(255,255,255,.94);
