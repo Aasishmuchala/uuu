@@ -18,7 +18,7 @@ const RUNNING = new Set(["in_progress", "in_review"]);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const stamp = (s) => Date.parse(s) || 0;
-const cut = (s, n) => {
+export const cut = (s, n) => {
   const t = String(s || "").replace(/\s+/g, " ").trim();
   return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t;
 };
@@ -40,7 +40,7 @@ export function whenWords(iso, now = Date.now()) {
 }
 
 // The task model, or { boardOff } when the board cannot be read (off, or the company not set up).
-async function taskModel(ctx) {
+export async function taskModel(ctx) {
   try {
     return { tctx: await loadTaskContext(ctx, { withInbox: true, withComments: "open" }), boardOff: null };
   } catch (e) {
@@ -49,7 +49,7 @@ async function taskModel(ctx) {
   }
 }
 
-async function companyName(ctx, tctx) {
+export async function companyName(ctx, tctx) {
   if (tctx?.ids?.companyId) {
     try {
       const c = await ctx.board.get(`/api/companies/${encodeURIComponent(tctx.ids.companyId)}`);

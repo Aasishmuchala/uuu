@@ -29,6 +29,12 @@ const BASE_HEADERS = {
   "referrer-policy": "no-referrer",
 };
 const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
+// The world's pictures and three.js (PLAN-3D D18) are kept by the browser for a year instead of `no-store`: about
+// 11 MB would otherwise be read and decoded again on every visit. A file in these folders is never edited in place:
+// a changed asset set is a new folder (v2), and the manifest test pins every file's SHA-256. Every page, every other
+// file and every API answer stays `no-store`.
+const KEPT_FOLDERS = /^\/assets\/world\/v\d+\/|^\/vendor\/three-[0-9.]+\//;
+const KEPT_HEADERS = { ...BASE_HEADERS, "cache-control": "private, max-age=31536000, immutable" };
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
 // A route may send the browser on to one of the home screen's own pages (a 303 with `location`, as the Higgsfield
 // sign-in's return does, T79): only a path of this server's own, never another address.
@@ -214,7 +220,9 @@ export async function createHome(options) {
       const found = await resolveStatic(publicDir, pathname);
       const isHtml = (t) => t.startsWith("text/html");
       if (found) {
-        return streamFile(res, found, isHtml(found.type) ? { ...BASE_HEADERS, "content-security-policy": htmlPolicy } : BASE_HEADERS, method === "HEAD");
+        const headers = isHtml(found.type) ? { ...BASE_HEADERS, "content-security-policy": htmlPolicy }
+          : KEPT_FOLDERS.test(pathname) ? KEPT_HEADERS : BASE_HEADERS;
+        return streamFile(res, found, headers, method === "HEAD");
       }
       if (pathname === "/" || pathname === "/index.html") {
         const body = Buffer.from(PLACEHOLDER_HTML);

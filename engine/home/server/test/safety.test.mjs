@@ -78,6 +78,38 @@ test("no CORS headers, and the safety headers on every answer", async () => {
     assert.equal(r.headers["x-content-type-options"], "nosniff", p);
     assert.ok(!Object.keys(r.headers).some((k) => k.startsWith("access-control-")), p);
   }
+  // PLAN-3D D18, changed on purpose: the world's pictures (/assets/world/v<digits>/) and three.js (/vendor/three-<version>/)
+  // are kept by the browser for a year, since about 11 MB would otherwise be read and decoded again on every visit. It is
+  // safe because a file in those folders is never edited in place: a changed asset set is a new folder (v2), and the
+  // manifest test pins every file's SHA-256. Every other path above, and the near misses here, stay no-store.
+  mkdirSync(join(pub, "assets", "world", "v1", "tex"), { recursive: true });
+  mkdirSync(join(pub, "vendor", "three-0.169.0", "jsm"), { recursive: true });
+  mkdirSync(join(pub, "vendor", "other"), { recursive: true });
+  writeFileSync(join(pub, "assets", "world", "v1", "tex", "wood.webp"), "RIFF");
+  writeFileSync(join(pub, "assets", "world", "v1", "manifest.json"), "{}\n");
+  writeFileSync(join(pub, "assets", "world", "v1", "fern.gltf"), "{}\n");
+  writeFileSync(join(pub, "assets", "world", "v1", "fern.bin"), "0");
+  writeFileSync(join(pub, "assets", "world", "v1", "dusk.hdr"), "#?RADIANCE\n");
+  writeFileSync(join(pub, "assets", "world", "NOTICE.md"), "notice\n");
+  writeFileSync(join(pub, "vendor", "three-0.169.0", "jsm", "GLTFLoader.js"), "export const x = 1;\n");
+  writeFileSync(join(pub, "vendor", "other", "x.js"), "export const x = 1;\n");
+  for (const [p, type] of [["/assets/world/v1/tex/wood.webp", "image/webp"], ["/assets/world/v1/manifest.json", "application/json; charset=utf-8"],
+    ["/assets/world/v1/fern.gltf", "model/gltf+json"], ["/assets/world/v1/fern.bin", "application/octet-stream"],
+    ["/assets/world/v1/dusk.hdr", "application/octet-stream"],
+    ["/vendor/three-0.169.0/jsm/GLTFLoader.js", "text/javascript; charset=utf-8"]]) {
+    const r = await call(h.url, "GET", p);
+    assert.equal(r.status, 200, p);
+    assert.equal(r.headers["content-type"], type, p);
+    assert.equal(r.headers["cache-control"], "private, max-age=31536000, immutable", p);
+    assert.equal(r.headers["x-content-type-options"], "nosniff", p);
+    assert.equal(r.headers["x-frame-options"], "DENY", p);
+    assert.equal(r.headers["referrer-policy"], "no-referrer", p);
+  }
+  for (const p of ["/assets/world/NOTICE.md", "/vendor/other/x.js", "/assets/world/v1/missing.webp", "/assets/world/v1/../../index.html"]) {
+    const r = await call(h.url, "GET", p);
+    assert.equal(r.headers["cache-control"], "no-store", p);
+    assert.equal(r.headers["x-content-type-options"], "nosniff", p);
+  }
   const html = await call(h.url, "GET", "/");
   // The core's policy, and App Studio's apps' own addresses in frame-src when this checkout has any (core.test.mjs).
   assert.equal(html.headers["content-security-policy"], contentPolicy(h.config));

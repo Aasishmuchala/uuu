@@ -81,21 +81,37 @@ function todayOf(config) {
   return { fetches: count(t.fetches), searches: count(t.searches), watches: count(t.watches), refused: count(t.refused), lastAt };
 }
 
-export async function buildWebView(ctx) {
+// The switch alone: whether it is on, the door, and why it cannot be switched on. It reads and writes nothing else, so
+// the Map's door (routes/world.mjs) reads it without the shared folder being put right as the whole view does.
+export async function webSwitchOf(ctx) {
   const config = ctx.config;
   const { state, problem } = readDoors(config);
-  const w = state.web;
-  const [door, shared] = await Promise.all([doorOf(ctx), Promise.resolve(listShared(config))]);
+  const door = await doorOf(ctx);
   const blockers = [];
   if (!researcherSetUp(config)) blockers.push("no_researcher");
   if (door.state !== "on") blockers.push("door_off");
-  const code = problem || shared.problem || null;
   return {
-    on: problem ? false : w.on,
+    state, problem,
+    on: problem ? false : state.web.on,
     door,
     canSwitchOn: blockers.length === 0,
     blockers,
     whyNot: blockers.includes("no_researcher") ? NO_RESEARCHER : blockers.length ? door.sentence : null,
+  };
+}
+
+export async function buildWebView(ctx) {
+  const config = ctx.config;
+  const [sw, shared] = await Promise.all([webSwitchOf(ctx), Promise.resolve(listShared(config))]);
+  const { state, problem, door, blockers } = sw;
+  const w = state.web;
+  const code = problem || shared.problem || null;
+  return {
+    on: sw.on,
+    door,
+    canSwitchOn: sw.canSwitchOn,
+    blockers,
+    whyNot: sw.whyNot,
     search: w.search,
     searchKeySaved: doorKeySaved(config, "search"),
     allow: [...w.allow],

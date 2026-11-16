@@ -9,6 +9,8 @@ const TYPES = {
   ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml",
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".ico": "image/x-icon",
   ".txt": "text/plain; charset=utf-8", ".woff2": "font/woff2", ".map": "application/json; charset=utf-8",
+  // The world of the Map and Needs you (PLAN-3D T4): its pictures, its models and their buffers, and its skies.
+  ".webp": "image/webp", ".gltf": "model/gltf+json", ".bin": "application/octet-stream", ".hdr": "application/octet-stream",
 };
 
 export const PLACEHOLDER_HTML = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
