@@ -50,9 +50,12 @@
   pointer-events: auto;
 }
 
+/* Once the world shows, the drawn studio leaves the page for eyes, pointers and readers alike (after its fade). */
 .w-stage[data-world="ready"] .w-fallback {
   opacity: 0;
   pointer-events: none;
+  visibility: hidden;
+  transition: opacity 400ms var(--ease), visibility 0s linear 400ms;
 }
 
 /* ---- the progress line: 2 px of the accent along the top edge while the world loads ---- */
