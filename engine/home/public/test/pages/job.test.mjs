@@ -285,3 +285,12 @@ test("job: a fact's value over its explanation; the fields capped (R5-F)", () =>
   assert.match(kitCss, /\.k-job__asks \.k-select \{[^}]*min-width: 240px;[^}]*max-width: min\(100%, 560px\);/);
   assert.match(kitCss, /\.k-job__asks \.k-input,\s*\.k-job__asks \.k-textarea \{\s*max-width: 560px;/);
 });
+
+// PLAN-COOK R7-F: the sticky Start bar is a solid band of the page's ground (a 1 px rule above, 16 px inside), so the
+// form never shows sliced through it; the page ends with room as tall as the bar, so the last block clears it.
+test("job: the Start bar is a solid band with a rule above and 16 px inside; the page leaves the bar's height under it (R7-F)", () => {
+  const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "styles", "pages", "job.css"), "utf8");
+  const wide = css.slice(css.indexOf("@media (min-width: 1100px)"));
+  assert.match(wide, /\.k-job--start > \.k-job__actions \{\s*position: sticky;\s*bottom: 0;\s*z-index: 1;\s*padding: var\(--s-4\) 0;\s*border-top: 1px solid var\(--line\);\s*background: var\(--bg\);/);
+  assert.match(wide, /\.p-job:has\(\.k-job__actions\) \{\s*padding-bottom: calc\(var\(--h-md\) \+ 2 \* var\(--s-4\) \+ 1px\);/);
+});

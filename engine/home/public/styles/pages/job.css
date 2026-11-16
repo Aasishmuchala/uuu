@@ -409,12 +409,20 @@
     max-width: none;
   }
 
+  /* R7-F: the bar is a solid band of the page's ground with a 1 px rule above and 16 px inside, so nothing shows
+     through it while the form scrolls under it; the page ends with room as tall as the bar, so its last block can
+     clear it. */
   .p-job .k-job--start > .k-job__actions {
     position: sticky;
     bottom: 0;
     z-index: 1;
-    padding-bottom: var(--s-5);
+    padding: var(--s-4) 0;
+    border-top: 1px solid var(--line);
     background: var(--bg);
+  }
+
+  .p-job:has(.k-job__actions) {
+    padding-bottom: calc(var(--h-md) + 2 * var(--s-4) + 1px);
   }
 }
 
