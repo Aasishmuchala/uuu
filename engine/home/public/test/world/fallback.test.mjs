@@ -200,7 +200,9 @@ test("world.css: the stage's classes, tokens only, no blur, transitions on trans
   for (const m of CSS.matchAll(/transition\s*:\s*([^;}]+)/g)) {
     for (const item of m[1].split(",")) {
       const prop = item.trim().split(/\s+/)[0];
-      assert.ok(["transform", "opacity", "none"].includes(prop), `moves only transform and opacity ("${item.trim()}")`);
+      // visibility is allowed only as a delayed switch (0s): it animates nothing, it takes the faded fallback out of the page.
+      const switched = prop === "visibility" && /^visibility\s+0s\b/.test(item.trim());
+      assert.ok(["transform", "opacity", "none"].includes(prop) || switched, `moves only transform and opacity ("${item.trim()}")`);
     }
   }
   for (const m of CSS.matchAll(/var\((--[\w-]+)\)/g)) assert.ok(!m[1].startsWith("--w-") || THEMED[m[1]], `${m[1]} is a pinned token`);
