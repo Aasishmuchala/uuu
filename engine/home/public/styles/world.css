@@ -73,7 +73,8 @@
   transition: transform var(--t-med) var(--ease), opacity var(--t-med) var(--ease);
 }
 
-.w-stage[data-world="loading"] .w-line {
+.w-stage[data-world="loading"] .w-line,
+.w-stage:has(canvas[data-sky="loading"]) .w-line {
   opacity: 1;
 }
 

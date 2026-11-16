@@ -7,7 +7,7 @@
 // Nothing here knows a name or a title: the plan and the SceneState give ids, enums and numbers only (D9).
 import * as THREE from "../../vendor/three-0.169.0/three.module.min.js";
 import { col, ease, rng } from "./dusk.js";
-import { CARRY, NR, LAMP_COLOURS, OFF_GLOW, WARM, ZB, ZF, lampGeos, lampRig, makeRoomLight, roomLit } from "./lamps.js";
+import { CARRY, NR, LAMP_COLOURS, OFF_GLOW, WARM, ZB, ZF, SHADE_DAY, lampGeos, lampRig, makeRoomLight, roomLit, shadeLit, shadeOf } from "./lamps.js";
 
 // ---------- geometry helpers: uv in world metres, boxes, chamfered boxes, soft boxes, one merge per material ----------
 export const boxUV = (S) => (p, n) => {
@@ -480,11 +480,13 @@ export function makeBuilding(A, plan, { small = false } = {}) {
   const glowMats = [new THREE.MeshBasicMaterial({ color: WHITE, side: THREE.BackSide }), new THREE.MeshBasicMaterial({ color: WHITE })];
   for (const m of glowMats) owned.mats.add(m);
   const chairFab = keyed(lit(new THREE.MeshStandardMaterial({ color: WHITE, roughness: 0.95, envMapIntensity: 0.1 })), "b-plain");
-  owned.mats.add(chairFab);
+  // the arm lamps' shades: painted per lamp, dark lacquer at dusk, the state's colour in the morning (T12)
+  const lampShadeM = keyed(lit(shadeLit(new THREE.MeshStandardMaterial({ color: WHITE, roughness: 0.45, metalness: 0.3, envMapIntensity: 0.4 }))), "b-lampshade");
+  owned.mats.add(chairFab); owned.mats.add(lampShadeM);
   let lampMeshes = [], chairMeshes = [];
   const rigRoot = new THREE.Object3D();
   if (N) {
-    lampMeshes = lampGeos().map((g, i) => { const im = new THREE.InstancedMesh(g, i === 4 ? shadeM : i === 5 ? glowMats[0] : i === 6 ? glowMats[1] : steel, N); root.add(im); return im; });
+    lampMeshes = lampGeos().map((g, i) => { if (i === 4) g.setAttribute("aGlow", new THREE.InstancedBufferAttribute(new Float32Array(N), 1)); const im = new THREE.InstancedMesh(g, i === 4 ? lampShadeM : i === 5 ? glowMats[0] : i === 6 ? glowMats[1] : steel, N); root.add(im); return im; });
     for (const im of [lampMeshes[5], lampMeshes[6]]) for (let k = 0; k < N; k++) im.setColorAt(k, OFF_GLOW);
     for (const ag of AG) { ag.rig = lampRig(); ag.rig.g.position.copy(ag.lampAt); ag.rig.g.rotation.y = -0.35; ag.rig.g.scale.setScalar(LAMP_SCALE); rigRoot.add(ag.rig.g); }
     const chairGeos = [new THREE.BoxGeometry(0.48, 0.08, 0.46), new THREE.BoxGeometry(0.46, 0.46, 0.07), new THREE.CylinderGeometry(0.025, 0.025, 0.42, 8), new THREE.CylinderGeometry(0.25, 0.27, 0.03, 20)];
@@ -572,7 +574,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
   RL.uSolidA.value[2].set(X1, -0.2, ZB - 0.3); RL.uSolidB.value[2].set(DX1 + 0.2, yOf(1) - SLAB + 0.36, ZF + 0.3);
   RL.uSpill.value.set(X0 - 4.5, DX1 + 4.5);
 
-  let dark = false, asking = false;
+  let dark = false, asking = false, day = false;
   function applyRoom(rm) {
     let lit2 = 0; const warm = new THREE.Color(0, 0, 0);
     for (const ag of rm.agents) { lit2 += ag.light; warm.add((LAMP_COLOURS[ag.colourKind] || LAMP_COLOURS.on).clone().multiplyScalar(ag.light)); }
@@ -594,6 +596,11 @@ export function makeBuilding(A, plan, { small = false } = {}) {
     lampMeshes[5].setColorAt(ag.i, c && k > 0 ? c.clone().multiplyScalar(1.3 * k) : OFF_GLOW);
     lampMeshes[6].setColorAt(ag.i, c && k > 0 ? c.clone().multiplyScalar(3 * k) : OFF_GLOW);
     lampMeshes[5].instanceColor.needsUpdate = lampMeshes[6].instanceColor.needsUpdate = true;
+    // the shade: in the morning its paint follows the light from pale toward the state's colour, and glows with it
+    const lk = Math.min(1, ag.light / 0.85), [paint, glow] = shadeOf(c ? ag.colourKind : "off", day);
+    lampMeshes[4].setColorAt(ag.i, day ? SHADE_DAY.off.clone().lerp(paint, lk) : paint);
+    lampMeshes[4].instanceColor.needsUpdate = true;
+    const ga = lampMeshes[4].geometry.attributes.aGlow; ga.array[ag.i] = glow * lk; ga.needsUpdate = true;
     const L = RL.uLamp.value[ag.slot];
     if (c && k > 0) { L.set(ag.head.x, ag.head.y - 0.08, ag.head.z, 1); RL.uLampCol.value[ag.slot].set(c.r, c.g, c.b).multiplyScalar(5 * k); }
     else L.w = 0;
@@ -748,6 +755,8 @@ export function makeBuilding(A, plan, { small = false } = {}) {
     lit: (m, spill) => roomLit(m, RL, spill),
     setLamp, setDoor, setApps,
     setDark(v) { if (dark === !!v) return false; dark = !!v; for (const rm of roomList) applyRoom(rm); for (const id in doors) applyDoor(doors[id]); applyDoors(); applyBenches(); applyCore(); return true; },
+    // the morning's lamps (T12): shades painted by state; nothing else changes here
+    setDay(v) { if (day === !!v) return false; day = !!v; for (const ag of AG) applyAgent(ag); return true; },
     setAsking(v) { if (asking === !!v) return false; asking = !!v; applyCore(); return true; },
     setHover(id, still) { let ch = false; for (const k in rooms) { const t = k === id ? 1 : 0; if (rooms[k].hoverT !== t) { rooms[k].hoverT = t; ch = true; if (still) { rooms[k].hover = t; applyRoom(rooms[k]); } } } return ch; },
     setOpen(id, still) { let ch = false; for (const k in rooms) { const t = k === id ? 1 : 0; if (rooms[k].openT !== t) { rooms[k].openT = t; ch = true; if (still) { rooms[k].open = t; applyRoom(rooms[k]); } } } return ch; },

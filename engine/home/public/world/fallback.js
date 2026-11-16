@@ -38,6 +38,14 @@ const scatter = (i) => {
 
 let seq = 0;
 
+// The drawn studio in the golden morning (T12): a pale sky warming to the horizon, daylit rooms, the firs in sun.
+const MORNING = Object.freeze({
+  "--w-sky-0": "#86a9c8", "--w-sky-1": "#c4d3db", "--w-sky-2": "#f2dcbd", "--w-glow": "#ffd49a", "--w-hill": "#97a5a4",
+  "--w-trees-far": "#617467", "--w-trees": "#34463a", "--w-ground": "#7b7858", "--w-forecourt": "#a49d8b", "--w-deck": "#9a7354",
+  "--w-stone": "#bfb7aa", "--w-shell": "#efe9df", "--w-shell-2": "#c8bfb2", "--w-frame": "#3b3631", "--w-room": "#d6cbbb",
+  "--w-room-lit": "#f2b56e", "--w-glass": "#b7c7cf", "--w-desk": "#b98d63", "--w-door": "#5a4a3e", "--w-shrub": "#4f603f",
+});
+
 export function drawFallback(svgHost, options = {}) {
   const o = obj(options) ? options : {};
   const mode = o.mode === "desk" ? "desk" : "map";
@@ -64,6 +72,8 @@ export function drawFallback(svgHost, options = {}) {
   while (svgHost && svgHost.firstChild) svgHost.removeChild(svgHost.firstChild);
   const svg = el("svg", { class: `w-fb w-fb--${mode}`, "data-theme": theme, preserveAspectRatio: "xMidYMid meet", focusable: "false", "aria-hidden": "true" });
   if (svgHost) svgHost.appendChild(svg);
+  // the morning (T12): the drawing's own light values, constants only, over the stylesheet's dusk
+  if (theme === "light" && svg.style && typeof svg.style.setProperty === "function") for (const k in MORNING) svg.style.setProperty(k, MORNING[k]);
 
   // ---- shared paints: the sky, the glow at the horizon, a lit room's wash, a lamp's pool ----
   const defs = el("defs", {}, svg);

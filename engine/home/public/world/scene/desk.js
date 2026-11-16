@@ -50,9 +50,9 @@ function makeFirRing(fog) {
   const onRing = (d, y) => (eye + (y - eye) * RING_R / d).toFixed(2);
   const ringM = new THREE.ShaderMaterial({
     side: THREE.BackSide, fog: false, transparent: false,
-    uniforms: { uFog: { value: fog.clone() }, uDark: { value: col("#0e1411") }, uGlow: { value: col("#c98f6e") } },
+    uniforms: { uFog: { value: fog.clone() }, uDark: { value: col("#0e1411") }, uGlow: { value: col("#c98f6e") }, uHaze: { value: new THREE.Color(0.3, 0.31, 0.36) } },
     vertexShader: "varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }",
-    fragmentShader: `uniform vec3 uFog, uDark, uGlow; varying vec3 vP;
+    fragmentShader: `uniform vec3 uFog, uDark, uGlow, uHaze; varying vec3 vP;
       float h1(float n){ return fract(sin(n * 91.345) * 47453.5453); }
       // a fir in a row of cells: u in cells, y in metres on the ring, the row standing from y0 with tips up to y1
       float fir(float u, float y, float seed, float y0, float y1){
@@ -69,7 +69,7 @@ function makeFirRing(fog) {
         float horizon = ${eye.toFixed(2)};
         // the evening low over the valley: warm near the horizon, falling to the haze below
         float lift = smoothstep(horizon - 26., horizon + 2., y);
-        vec3 haze = mix(uFog, vec3(.3, .31, .36), .45);
+        vec3 haze = mix(uFog, uHaze, .45);
         vec3 c = mix(haze * .42, mix(haze, uGlow, .38) * .9, lift * lift);
         float far = fir(a * 34., y, 7., ${onRing(140, 0)}, ${onRing(140, 15)});
         c = mix(c, mix(uDark, haze, .68), far);
@@ -108,7 +108,8 @@ export function makeDesk(A, plan, { fog } = {}) {
   const sill = new THREE.Mesh(new THREE.BoxGeometry(6, 0.06, 0.3), sillM); sill.position.set(0, -0.1, -1.25); g.add(sill);
   for (const x of [-2.4, -1.2, 0, 1.2, 2.4]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 3, 0.08), steel); m.position.set(x + 0.35, 1.4, -1.36); g.add(m); }
   { const m = new THREE.Mesh(new THREE.BoxGeometry(6, 0.05, 0.08), steel); m.position.set(0, -0.05, -1.36); g.add(m); }
-  if (fog) { const ring = makeFirRing(fog); ring.position.set(0, -DESK_AT.y, 0); g.add(ring); owned.push(...ring.userData.mats); }
+  let ringM = null;
+  if (fog) { const ring = makeFirRing(fog); ring.position.set(0, -DESK_AT.y, 0); g.add(ring); owned.push(...ring.userData.mats); ringM = ring.userData.mats[0]; }
   // the lamp and the light it throws
   const lamp = makeLamp({ steel, shade: own(keyed(new THREE.MeshStandardMaterial({ color: col("#26302c"), roughness: 0.5, metalness: 0.35 }), "d-std")) });
   lamp.group.position.set(-0.2, 0, -0.62); lamp.group.rotation.y = -1.0; lamp.group.scale.setScalar(1.15);
@@ -257,6 +258,11 @@ export function makeDesk(A, plan, { fog } = {}) {
     roomWorld(id) { return g.localToWorld(roomPoint(id)); },
     focusPoint() { return g.localToWorld(new THREE.Vector3(0.16, 0.02, -0.5)); },
     sync(sunDir) { g.updateMatrixWorld(true); b.sync(sunDir); },
+    // the view out of the window in the key's colours (dusk.js lookAt's numbers), and the model's lamps (T12)
+    look(L, day) {
+      if (ringM) { const u = ringM.uniforms; u.uFog.value.copy(L.fog); u.uDark.value.copy(L.ringDark); u.uGlow.value.copy(L.ringGlow); u.uHaze.value.copy(L.ringHaze); }
+      b.setDay(day);
+    },
     dispose() {
       b.dispose();
       g.traverse((o) => { if (o.geometry) o.geometry.dispose(); });

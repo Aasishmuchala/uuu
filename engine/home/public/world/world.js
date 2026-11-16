@@ -18,7 +18,7 @@ import { loadManifest, assetUrl, familyOf, bytesOf, entryOf, fetchBytes, fetchJs
 import { decodeHDR } from "./hdr.js";
 import { benchOn } from "./support.js";
 import { planBuilding } from "./layout.js";
-import { makeRenderer, makeDusk, makeEnvironment, makeRidges, makeTerrain, makeForest, hdrTexture } from "./scene/dusk.js";
+import { KEYS, ease, makeRenderer, makeDusk, makeEnvironment, makeRidges, makeTerrain, makeForest, hdrTexture, orient, lookAt } from "./scene/dusk.js";
 import { makeBuilding } from "./scene/building.js";
 import { makeForecourt } from "./scene/forecourt.js";
 import { makeDesk, DESK_AT } from "./scene/desk.js";
@@ -38,10 +38,12 @@ const BUILDING_TEX = [
 ];
 const GROUND_TEX = [["forest_ground_04", ["diff", "nor"]], ["forrest_ground_01", ["diff"]], ["wood_floor_deck", ["diff", "nor"]]];
 const PRINTS = ["hero", "materials", "visit", "interior", "trees"];
-function needsOf(mode) {
+const SKY_OF = { dark: "dusk", light: "morning" }; // one sky per theme (D5, D20): only the theme's own is loaded
+const skyNeeds = (theme) => [{ key: `sky.${SKY_OF[theme]}.jpg`, kind: "sky", theme }, { key: `sky.${SKY_OF[theme]}.hdr`, kind: "hdr", theme }];
+function needsOf(mode, theme) {
   const tex = (list) => list.flatMap(([n, maps]) => maps.map((m) => ({ key: `tex.${n}.${m}`, kind: "tex", name: `${n}_${m}`, srgb: m === "diff" })));
   const out = [...tex(BUILDING_TEX), ...PRINTS.map((n) => ({ key: `print.${n}`, kind: "print", name: n })),
-    { key: "sky.dusk.jpg", kind: "sky" }, { key: "sky.dusk.hdr", kind: "hdr" }, { key: "model.fern_02", kind: "model", name: "fern_02" }];
+    ...skyNeeds(theme), { key: "model.fern_02", kind: "model", name: "fern_02" }];
   if (mode === "map") {
     out.push(...tex(GROUND_TEX), { key: "trees.color", kind: "trees", name: "treesColor", srgb: true }, { key: "trees.normal", kind: "trees", name: "treesNormal", srgb: false },
       { key: "trees.info", kind: "json" }, ...["grass_medium_01", "modern_arm_chair_01", "modern_coffee_table_01"].map((n) => ({ key: `model.${n}`, kind: "model", name: n })));
@@ -52,7 +54,7 @@ function needsOf(mode) {
 // ---------- the singleton ----------
 let W = null;
 
-function emptyAssets() { return { tex: {}, prints: {}, models: {}, sky: null, hdr: null, treesColor: null, treesNormal: null, treesInfo: null, loaded: new Set(), textures: [] }; }
+function emptyAssets() { return { tex: {}, prints: {}, models: {}, skies: { dark: {}, light: {} }, treesColor: null, treesNormal: null, treesInfo: null, loaded: new Set(), textures: [] }; }
 
 function createWorld(tier) {
   const canvas = document.createElement("canvas");
@@ -62,7 +64,7 @@ function createWorld(tier) {
   const w = {
     canvas, renderer, tier, cap, ratio: Math.min(globalThis.devicePixelRatio || 1, cap), steps: STEPS.filter((s) => s < cap),
     scene: new THREE.Scene(), camera: new THREE.PerspectiveCamera(30, 1, 0.05, 5000),
-    A: emptyAssets(), mode: null, dusk: null, env: null, ridges: null, map: null, desk: null,
+    A: emptyAssets(), mode: null, dusk: null, looks: {}, lit: null, L: null, day: false, sunI: 0, fadeL: null, themeSeq: 0, ridges: null, map: null, desk: null,
     handles: new Set(), active: null, releaseTimer: 0, raf: 0, last: 0, frames: 0, ready: false, lost: false, disposed: false,
     scn: null, focus: null, hover: null, pointer: null, safe: null, still: false, theme: "dark", size: { w: 0, h: 0 },
     glide: makeGlide(), viewMode: null, fading: false, intervals: [], frameFns: new Set(), ro: null, building: null,
@@ -96,7 +98,7 @@ function disposeWorld(w) {
   if (w.desk) w.desk.dispose();
   if (w.ridges) w.ridges.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
   if (w.dusk) { w.dusk.sky.geometry.dispose(); w.dusk.sky.material.dispose(); }
-  if (w.env) w.env.dispose();
+  for (const t in w.looks) w.looks[t].env.dispose();
   for (const t of w.A.textures) { t.dispose(); if (t.image && typeof t.image.close === "function") t.image.close(); }
   for (const g of Object.values(w.A.models)) g.scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { for (const k of ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap"]) if (o.material[k]) o.material[k].dispose(); o.material.dispose(); } });
   try { w.renderer.dispose(); } catch { /* gone */ }
@@ -107,11 +109,12 @@ function disposeWorld(w) {
 }
 
 // ---------- loading ----------
-async function loadMode(w, mode, onProgress) {
+// Everything a mode needs in the current theme; with `skyOnly`, only the theme's sky (a theme change, T12).
+async function loadMode(w, mode, onProgress, { skyOnly = false } = {}) {
   await loadManifest();
-  const where = { tier: w.tier, mode, theme: "dark" }; // dusk in both themes until the morning is approved (D5, T12)
-  const needs = needsOf(mode);
-  const total = Math.max(1, bytesOf(where));
+  const where = { tier: w.tier, mode, theme: w.theme };
+  const needs = skyOnly ? skyNeeds(w.theme) : needsOf(mode, w.theme);
+  const total = Math.max(1, skyOnly ? needs.reduce((s, n) => s + (entryOf(n.key, where).bytes | 0), 0) : bytesOf(where));
   let done = 0;
   const count = (key, model) => {
     done += (model ? familyOf(key, where) : [entryOf(key, where)]).reduce((s, f) => s + (f.bytes | 0), 0);
@@ -135,18 +138,20 @@ async function loadMode(w, mode, onProgress) {
     } else if (n.kind === "json") {
       A.treesInfo = await fetchJson(n.key, where);
     } else if (n.kind === "hdr") {
-      A.hdr = hdrTexture(decodeHDR(await fetchBytes(n.key, where)));
-      A.textures.push(A.hdr);
+      const t = hdrTexture(decodeHDR(await fetchBytes(n.key, where)));
+      A.skies[n.theme].hdr = t;
+      A.textures.push(t);
     } else {
       const bmp = await fetchPicture(n.key, where);
       if (n.kind === "tex") A.tex[n.name] = texOf(bmp, { srgb: n.srgb, repeat: true });
       else if (n.kind === "print") A.prints[n.name] = texOf(bmp, { srgb: true, repeat: false });
-      else if (n.kind === "sky") A.sky = texOf(bmp, { srgb: true, repeat: true });
+      else if (n.kind === "sky") A.skies[n.theme].sky = texOf(bmp, { srgb: true, repeat: true });
       else if (n.kind === "trees") A[n.name] = texOf(bmp, { srgb: n.srgb, repeat: false });
     }
     A.loaded.add(n.key);
     count(n.key, n.kind === "model");
   }));
+  if (skyOnly) return;
   if (!A.treesInfo && mode === "map") throw new Error("no trees");
   const info = A.treesInfo;
   if (mode === "map" && !(info && Number.isFinite(info.frames) && Array.isArray(info.types) && info.types.length)) throw new Error("bad trees");
@@ -155,12 +160,80 @@ async function loadMode(w, mode, onProgress) {
 // A plan with one room and one desk, so every shader the building uses is compiled before the first frame.
 const WARM_PLAN = planBuilding([{ id: "warm", agents: ["warm"] }]);
 
+// ---------- the light: dusk in the dark theme, morning in the light (D5, T12) ----------
+// A look is a key with its photograph, its HDR, their turn and the environment prefiltered from them, made once per
+// theme and kept while the world lives.
+function lookOf(w, theme) {
+  if (w.looks[theme]) return w.looks[theme];
+  const s = w.A.skies[theme];
+  if (!s || !s.sky || !s.hdr) return null;
+  const key = KEYS[theme];
+  const { rot, sunDir } = orient(key, s.hdr);
+  const look = { theme, key, sky: s.sky, hdr: s.hdr, rot, sunDir };
+  look.env = makeEnvironment(w.renderer, look, { phone: w.tier === "phone" });
+  return (w.looks[theme] = look);
+}
+// The light part way from look a to look b; the environment, the lamps' paint and the desk's window change halfway.
+function applyLook(w, a, b, f) {
+  const L = lookAt(w.dusk, a, b, f);
+  w.L = L; w.sunI = w.dusk.sun.intensity;
+  w.renderer.toneMappingExposure = w.dusk.exp;
+  const at = f < 0.5 ? a : b;
+  w.scene.environment = at.env.texture;
+  w.day = at.theme === "light";
+  if (w.ridges) for (const m of w.ridges.children) { m.material.uniforms.uFog.value.copy(L.fog); m.material.uniforms.uDark.value.copy(L.ridge).multiplyScalar(0.6); }
+  dress(w);
+}
+// A building made or re-made takes the light that stands now.
+function dress(w) {
+  const L = w.L;
+  if (!L) return;
+  for (const b of [w.map && w.map.building, w.desk && w.desk.building]) if (b) { b.RL.uDay.value.set(L.dim, L.lampK, L.sunIn); b.setDay(w.day); }
+  if (w.map) { w.map.building.sync(w.dusk.sunDir); if (w.map.forecourt.userData.look) w.map.forecourt.userData.look(L.paths); }
+  if (w.desk) { w.desk.look(L, w.day); w.desk.sync(w.dusk.sunDir); }
+  sunFor(w);
+}
+// At dusk the sun is behind the firs at the desk: only the lamp and the sky light it (e2's look, without a shadow map).
+// In the morning it comes in low over the owner's shoulder, softer than outside.
+function sunFor(w) {
+  if (!w.dusk || !w.L) return;
+  const desk = w.mode === "desk";
+  w.dusk.sun.visible = !desk || w.L.deskSun > 0.001;
+  w.dusk.sun.intensity = w.sunI * (desk ? w.L.deskSun : 1);
+}
+
 function buildShared(w) {
   if (w.dusk) return;
-  w.dusk = makeDusk(w.scene, w.A);
-  w.env = makeEnvironment(w.renderer, w.scene, w.dusk, { phone: w.tier === "phone" });
+  const look = lookOf(w, w.theme);
+  w.dusk = makeDusk(w.scene, look);
   w.ridges = makeRidges(w.dusk.fog);
   w.scene.add(w.ridges);
+  w.lit = w.theme;
+  applyLook(w, look, look, 1);
+}
+
+// The theme changed: the other sky is loaded on demand behind the progress line, then the light cross-fades in
+// 400 ms (at once in still mode or a hidden tab). A failed load keeps the light that stands.
+async function switchTheme(w, theme) {
+  const seq = ++w.themeSeq;
+  if (!w.ready || !w.dusk || w.disposed) return;
+  if (w.fadeL) { applyLook(w, w.fadeL.a, w.fadeL.b, 1); w.lit = w.fadeL.b.theme; w.fadeL = null; }
+  if (w.lit === theme) { invalidate(w); return; }
+  let look = lookOf(w, theme);
+  if (!look) {
+    const h = w.active, progress = h && typeof h._opts.onProgress === "function" ? h._opts.onProgress : null;
+    w.canvas.setAttribute("data-sky", "loading");
+    try { await loadMode(w, w.mode, progress, { skyOnly: true }); } catch { /* the light that stands stays */ }
+    w.canvas.removeAttribute("data-sky");
+    if (seq !== w.themeSeq || w.disposed || w.theme !== theme) return;
+    look = lookOf(w, theme);
+    if (!look) return;
+    if (w.fadeL) { applyLook(w, w.fadeL.a, w.fadeL.b, 1); w.lit = w.fadeL.b.theme; w.fadeL = null; }
+  }
+  const from = w.looks[w.lit];
+  if (w.still || (typeof document !== "undefined" && document.hidden)) { applyLook(w, from, look, 1); w.lit = theme; invalidate(w); return; }
+  w.fadeL = { a: from, b: look, t: 0 };
+  invalidate(w);
 }
 
 function buildMap(w, plan) {
@@ -180,17 +253,17 @@ function buildMap(w, plan) {
   group.add(terrain);
   if (!forest) { forest = makeForest(w.A, { phone: w.tier === "phone", sunDir: w.dusk.sunDir }); group.add(forest); }
   if (!old) w.scene.add(group);
-  building.sync(w.dusk.sunDir);
   w.map = { group, building, forecourt, terrain, forest, plan, planKey: JSON.stringify(plan) };
+  dress(w);
 }
 
 function buildDesk(w, plan) {
   if (w.desk) w.desk.dispose();
   const d = makeDesk(w.A, plan, { fog: w.dusk.fog });
   w.scene.add(d.group, d.lights);
-  d.sync(w.dusk.sunDir);
   d.planKey = JSON.stringify(plan);
   w.desk = d;
+  dress(w);
 }
 
 function showMode(w, mode) {
@@ -198,8 +271,7 @@ function showMode(w, mode) {
   if (w.map) w.map.group.visible = mode === "map";
   if (w.desk) { w.desk.group.visible = mode === "desk"; w.desk.lights.visible = mode === "desk"; }
   w.building = mode === "map" ? (w.map && w.map.building) : (w.desk && w.desk.building);
-  // at the desk the sun is behind the firs: only the lamp and the sky light it (e2's look, without a shadow map)
-  if (w.dusk) w.dusk.sun.visible = mode === "map";
+  sunFor(w);
 }
 
 // ---------- the scene's state (ids, enums, numbers only) ----------
@@ -288,6 +360,12 @@ function tick(w, now) {
   if (w.last) stepDown(w, now - w.last);
   w.last = now;
   let moving = w.glide.step(dt);
+  if (w.fadeL) {
+    const F = w.fadeL;
+    F.t = Math.min(1, F.t + dt / 400);
+    applyLook(w, F.a, F.b, ease(F.t));
+    if (F.t >= 1) { w.lit = F.b.theme; w.fadeL = null; } else moving = true;
+  }
   if (w.mode === "map" && w.map) moving = w.map.building.update(dt) || moving;
   if (w.mode === "desk" && w.desk) moving = w.desk.update(dt) || moving;
   draw(w);
@@ -426,6 +504,8 @@ export async function acquire(host, opts = {}) {
     await loadMode(w, mode, opts.onProgress);
     if (w.disposed || !handle._alive) throw new Error("released");
     buildShared(w);
+    // a world already lit in the other theme takes this page's at once (its sky was loaded above)
+    if (w.lit !== w.theme && lookOf(w, w.theme)) { const from = w.looks[w.lit]; w.fadeL = null; applyLook(w, from, w.looks[w.theme], 1); w.lit = w.theme; }
     w.mode = mode;
     if (mode === "map" && !w.map) buildMap(w, w.scn ? planOf(w.scn) : WARM_PLAN);
     if (mode === "desk" && !w.desk) buildDesk(w, w.scn ? planOf(w.scn) : WARM_PLAN);
@@ -453,7 +533,7 @@ export async function acquire(host, opts = {}) {
 
 function makeHandle(w, opts) {
   const h = {
-    _opts: { onPick: opts.onPick, onHover: opts.onHover, onLost: opts.onLost },
+    _opts: { onPick: opts.onPick, onHover: opts.onHover, onLost: opts.onLost, onProgress: opts.onProgress },
     _alive: true,
     _lost() { if (!h._alive) return; h._alive = false; w.handles.delete(h); if (typeof opts.onLost === "function") opts.onLost(); },
     get frames() { return w.frames; },
@@ -489,7 +569,13 @@ function makeHandle(w, opts) {
       reframe(w, false);
       invalidate(w);
     },
-    setTheme(t) { if (h._alive) w.theme = t === "light" ? "light" : "dark"; }, // dusk in both themes for now (D5; T12)
+    setTheme(t) {
+      if (!h._alive || w !== W) return;
+      const theme = t === "light" ? "light" : "dark";
+      if (theme === w.theme && !w.fadeL && w.lit === theme) return;
+      w.theme = theme;
+      switchTheme(w, theme);
+    },
     setStill(b) {
       if (!h._alive) return;
       const s = b === true;

@@ -20,6 +20,13 @@ const col = (h) => new THREE.Color(h);
 export const LAMP_COLOURS = { on: col("#ffcf96"), amber: col("#ff9a36"), red: col("#ff4f36") };
 export const OFF_GLOW = col("#2b2622");
 export const WARM = col("#ffb070");
+// In the morning (T12) a lamp's state has to read without darkness: the shade itself takes the state's colour and
+// glows a little (on, amber, red); off is a pale shade; down is a pale shade on the folded arm. At dusk every shade
+// stays the dark lacquer it has always had, and only the light inside it speaks.
+export const SHADE_DUSK = col("#2f3a35");
+// (the paints are kept below white, so the tone mapping cannot wash amber and red to the same pale yellow)
+export const SHADE_DAY = { on: col("#e3a43a"), amber: col("#d4520a"), red: col("#b01a10"), off: col("#d9d3c9") };
+export const SHADE_GLOW = { on: 0.3, amber: 0.45, red: 0.5, off: 0 };
 
 export function makeRoomLight() {
   return {
@@ -34,13 +41,15 @@ export function makeRoomLight() {
     uSolidA: { value: Array.from({ length: 3 }, () => new THREE.Vector3(0, -100, 0)) },
     uSolidB: { value: Array.from({ length: 3 }, () => new THREE.Vector3(0, -99, 0)) },
     uSpill: { value: new THREE.Vector2(-14, 15) },
+    // the key's inside (dusk.js): x how far an unlit room's daylight falls, y a lamp pool's strength, z the sun into the rooms
+    uDay: { value: new THREE.Vector3(0.35, 1, 0) },
   };
 }
 
 const RL_HEAD = `
 uniform mat4 uBInv; uniform vec4 uRoomBox[${NR}]; uniform vec3 uRoomPos[${NR}]; uniform vec3 uRoomCol[${NR}]; uniform vec2 uRoomInfo[${NR}];
 uniform vec4 uLamp[${NL}]; uniform vec3 uLampCol[${NL}];
-uniform vec3 uSunL; uniform vec3 uSolidA[3]; uniform vec3 uSolidB[3]; uniform vec2 uSpill;
+uniform vec3 uSunL; uniform vec3 uSolidA[3]; uniform vec3 uSolidB[3]; uniform vec2 uSpill; uniform vec3 uDay;
 varying vec3 vRW;
 int roomOf(vec3 p){
   int ri = -1;
@@ -48,7 +57,16 @@ int roomOf(vec3 p){
   return ri;
 }
 float sunVis(vec3 p, int ri){
-  if (ri >= 0) return 0.;
+  // inside a room the sun reaches only what sees it through the open front: the ray toward the sun must leave the
+  // room's box through the cut before it meets the ceiling or an end wall (the morning's sun patches, T12)
+  if (ri >= 0) {
+    if (uDay.z < .01 || uSunL.z <= 0.) return 0.;
+    vec4 b = uRoomBox[ri];
+    float tz = (${ZF.toFixed(2)} - p.z) / uSunL.z;
+    float tx = uSunL.x > 0. ? (b.y - p.x) / uSunL.x : uSunL.x < 0. ? (b.x - p.x) / uSunL.x : 1e5;
+    float ty = uSunL.y > 0. ? (b.z + b.w - .3 - p.y) / uSunL.y : 1e5;
+    return (tz < tx + .02 && tz < ty) ? uDay.z : 0.;
+  }
   vec3 inv = 1. / (uSunL + vec3(1e-5));
   for (int i = 0; i < 3; i++) {
     vec3 t0 = (uSolidA[i] - p) * inv, t1 = (uSolidB[i] - p) * inv;
@@ -80,7 +98,7 @@ vec3 roomLight(vec3 p, vec3 n, int ri, float spill){
       if (k >= m) break;
       vec4 l = uLamp[s + k]; if (l.w < .5) continue;
       vec3 Lj = l.xyz - p; float e2 = dot(Lj, Lj); vec3 Ld = Lj * inversesqrt(e2);
-      acc += uLampCol[s + k] * max(dot(n, Ld), 0.) * smoothstep(.42, .72, Ld.y) / (1. + e2 * 1.8);
+      acc += uLampCol[s + k] * uDay.y * max(dot(n, Ld), 0.) * smoothstep(.42, .72, Ld.y) / (1. + e2 * 1.8);
     }
   } else if (spill > .5 && p.z > ${(ZF - 0.3).toFixed(2)} && p.z < ${(ZF + 16).toFixed(2)} && p.x > uSpill.x && p.x < uSpill.y) {
     for (int i = 0; i < ${NR}; i++) { vec4 b = uRoomBox[i]; if (b.y < b.x || b.z > 1.) continue;
@@ -108,12 +126,31 @@ export function roomLit(mat, RL, spill = 0) {
         reflectedLight.directDiffuse *= sv; reflectedLight.directSpecular *= sv;
         // a room whose lamps are off falls dim: the sky's light inside it follows the room's own glow
         float ao = 1.;
-        if (ri >= 0) { ao = roomAO(bp, ri); float k = mix(.35, 1., clamp(length(uRoomCol[ri]) * .5, 0., 1.)) * ao; reflectedLight.indirectDiffuse *= k; reflectedLight.indirectSpecular *= k; }
+        if (ri >= 0) { ao = roomAO(bp, ri); float k = mix(uDay.x, 1., clamp(length(uRoomCol[ri]) * .5, 0., 1.)) * ao; reflectedLight.indirectDiffuse *= k; reflectedLight.indirectSpecular *= k; }
         reflectedLight.directDiffuse += roomLight(bp, bn, ri, ${spill.toFixed(1)}) * diffuseColor.rgb * ao; }`);
   };
   const key = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => "";
   mat.customProgramCacheKey = () => `rl${spill}|${key()}`;
   return mat;
+}
+
+// The shade of the instanced lamps: the instance colour is the shade's paint, and `aGlow` (one number a lamp) how
+// much of it glows. Its own program key, since the shader differs from the plain one.
+export function shadeLit(mat) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nattribute float aGlow; varying float vGlow;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvGlow = aGlow;");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying float vGlow;").replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+      #ifdef USE_COLOR
+      totalEmissiveRadiance += vColor * vGlow;
+      #endif`);
+  };
+  return mat;
+}
+export function shadeOf(kind, day) {
+  if (!day) return [SHADE_DUSK, 0];
+  return [SHADE_DAY[kind] || SHADE_DAY.off, SHADE_GLOW[kind] || 0];
 }
 
 // ---------- the desk lamp: an articulated arm lamp ----------

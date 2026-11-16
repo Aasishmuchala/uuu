@@ -126,6 +126,8 @@ export function makeForecourt(A, building, plan, { phone = false } = {}) {
   });
   pools.renderOrder = 1;
   g.add(posts, caps, pools);
+  // the pools fade by day (T12): in the morning sun a path light is a small warm cap, not a pool on the grass
+  g.userData.look = (k) => { poolM.color.set("#ffb36b").multiplyScalar(k); };
   g.userData.foot = { x0: dx0 - 0.3, x1: DX1 + 0.3, z0: -4.1, z1: ZF + 0.7, yard, path };
   g.userData.dispose = () => {
     g.traverse((o) => { if (o.geometry) o.geometry.dispose(); });

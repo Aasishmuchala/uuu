@@ -28,8 +28,16 @@ export function vnoise(x, z) {
 }
 export function fbm(x, z) { let s = 0, a = 0.5, f = 1; for (let i = 0; i < 4; i++) { s += a * vnoise(x * f, z * f); f *= 2.03; a *= 0.5; } return s; }
 
-// The lake-house's first key, the sky turned so the sunset glows behind the building, to the left.
-export const DUSK = { sunAz: -128, skyExp: 0.8, tint: "#ffd6bd", envExp: 0.5, sunCol: "#ff9a62", sunI: 1.25, hemiS: "#4d6383", hemiG: "#1c1712", hemiI: 0.06, exp: 1.0, fog: "#5d4c4c", fogD: 0.0055 };
+// The two keys of the light (D5). Dusk: the lake-house's first key, the sky turned so the sunset glows behind the
+// building, to the left. Morning (T12): the Lake House p10 key, a low sun from the east raking across the front from
+// the right, a pale blue sky with a warm cast, cool shade; inside, daylight with sun patches through the open fronts.
+// Beside the sky's numbers each key carries the inside's: how far an unlit room's daylight falls (`dim`), how strong a
+// lamp's pool is (`lampK`), whether the sun reaches into the rooms (`sunIn`), and what the desk's window shows.
+export const DUSK = { theme: "dark", sunAz: -128, sunEl: 16, skyExp: 0.8, tint: "#ffd6bd", envExp: 0.5, sunCol: "#ff9a62", sunI: 1.25, hemiS: "#4d6383", hemiG: "#1c1712", hemiI: 0.06, exp: 1.0, fog: "#5d4c4c", fogD: 0.0055,
+  envGround: 0.09, ridge: "#1c2a24", dim: 0.35, lampK: 1, sunIn: 0, deskSun: 0, ringDark: "#0e1411", ringGlow: "#c98f6e", ringHaze: [0.3, 0.31, 0.36], paths: 0.55 };
+export const MORNING = { theme: "light", sunAz: 26, sunEl: 13, skyExp: 1.0, tint: "#fff0dc", envExp: 0.62, sunCol: "#ffc386", sunI: 6.0, hemiS: "#9fbcdc", hemiG: "#4b4535", hemiI: 0.3, exp: 1.0, fog: "#c3c4bf", fogD: 0.0019,
+  envGround: 0.22, ridge: "#33453a", dim: 0.6, lampK: 1.7, sunIn: 1, deskSun: 0.4, ringDark: "#1a2820", ringGlow: "#f6dcb8", ringHaze: [0.5, 0.57, 0.66], paths: 0.1 };
+export const KEYS = { dark: DUSK, light: MORNING };
 
 export function makeRenderer(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance", stencil: false, preserveDrawingBuffer: false });
@@ -67,16 +75,19 @@ vec4 eqSample(sampler2D t, vec3 d, float rot){
   dx.x -= floor(dx.x + .5); dy.x -= floor(dy.x + .5);
   return textureGrad(t, uv, dx, dy);
 }`;
+// The sky: one photograph, or while the theme changes two, mixed by uMix (the second is read only then).
 function makeSkyMat(hdr, tex, rot, exp, tint, fog) {
   return new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false, toneMapped: hdr,
-    uniforms: { tA: { value: tex }, uRot: { value: rot }, uExp: { value: exp }, uTint: { value: col(tint) }, uFog: { value: fog.clone() } },
+    uniforms: { tA: { value: tex }, uRot: { value: rot }, uExp: { value: exp }, uTint: { value: col(tint) }, uFog: { value: fog.clone() },
+      tB: { value: tex }, uRotB: { value: rot }, uExpB: { value: exp }, uTintB: { value: col(tint) }, uMix: { value: 0 } },
     vertexShader: "varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; gl_Position.z = gl_Position.w; }",
-    fragmentShader: `uniform sampler2D tA; uniform float uRot, uExp; uniform vec3 uTint, uFog; varying vec3 vW;
+    fragmentShader: `uniform sampler2D tA, tB; uniform float uRot, uExp, uRotB, uExpB, uMix; uniform vec3 uTint, uTintB, uFog; varying vec3 vW;
     ${EQ_GLSL}
     void main(){
       vec3 d = normalize(vW - cameraPosition);
       vec3 c = eqSample(tA, d, uRot).rgb * uExp * uTint;
+      if (uMix > 0.) c = mix(c, eqSample(tB, d, uRotB).rgb * uExpB * uTintB, uMix);
       ${hdr ? "c = min(c, vec3(10.));" : ""}
       c = mix(c, uFog, 1. - smoothstep(-.08, .03, d.y));
       gl_FragColor = vec4(c, 1.);
@@ -86,42 +97,79 @@ function makeSkyMat(hdr, tex, rot, exp, tint, fog) {
   });
 }
 
-// The sky, the sun and the hemisphere; returns what the other parts need (the sun's direction, the sky's turn).
-export function makeDusk(scene, A) {
-  const fog = col(DUSK.fog);
-  scene.fog = new THREE.FogExp2(fog, DUSK.fogD);
-  const hs = A.hdr.userData.sun;
-  const rot = DUSK.sunAz * DEG - Math.atan2(hs.z, hs.x);
+// A key's sky turned so its photographed sun stands at the key's azimuth, and the sun's light a little higher than the
+// photographed sun, so it rakes across the slabs instead of skimming the ground.
+export function orient(key, hdr) {
+  const hs = hdr.userData.sun;
+  const rot = key.sunAz * DEG - Math.atan2(hs.z, hs.x);
   const c = Math.cos(rot), s = Math.sin(rot);
-  const sunW = new THREE.Vector3(c * hs.x - s * hs.z, hs.y, s * hs.x + c * hs.z);
-  // the light stands a little higher than the photographed sun, so it rakes across the slabs instead of skimming the ground
-  const sunDir = sunW.clone();
-  { const a = Math.atan2(sunDir.z, sunDir.x), e = 16 * DEG; sunDir.set(Math.cos(e) * Math.cos(a), Math.sin(e), Math.cos(e) * Math.sin(a)); }
+  const sunDir = new THREE.Vector3(c * hs.x - s * hs.z, hs.y, s * hs.x + c * hs.z);
+  { const a = Math.atan2(sunDir.z, sunDir.x), e = key.sunEl * DEG; sunDir.set(Math.cos(e) * Math.cos(a), Math.sin(e), Math.cos(e) * Math.sin(a)); }
+  return { rot, sunDir };
+}
 
+// The sky, the sun and the hemisphere, lit by one key: `look` = { key, sky, hdr, rot, sunDir } (the key's photograph
+// and HDR, turned). lookAt() moves them from one look to another.
+export function makeDusk(scene, look) {
+  const K = look.key;
+  const fog = col(K.fog);
+  scene.fog = new THREE.FogExp2(fog.clone(), K.fogD);
   const group = new THREE.Group();
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(2400, 48, 24), makeSkyMat(false, A.sky, rot, DUSK.skyExp, DUSK.tint, fog));
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(2400, 48, 24), makeSkyMat(false, look.sky, look.rot, K.skyExp, K.tint, fog));
   sky.frustumCulled = false; sky.renderOrder = -10;
   sky.onBeforeRender = (r, sc, cam) => { sky.position.copy(cam.position); sky.updateMatrixWorld(); };
-  const hemi = new THREE.HemisphereLight(col(DUSK.hemiS), col(DUSK.hemiG), DUSK.hemiI);
-  const sun = new THREE.DirectionalLight(col(DUSK.sunCol), DUSK.sunI);
+  const hemi = new THREE.HemisphereLight(col(K.hemiS), col(K.hemiG), K.hemiI);
+  const sun = new THREE.DirectionalLight(col(K.sunCol), K.sunI);
+  const sunDir = look.sunDir.clone();
   sun.position.copy(sunDir).multiplyScalar(90);
   sun.target.position.set(0, 0, 0);
   group.add(sky, hemi, sun, sun.target);
   scene.add(group);
-  return { group, sky, sun, hemi, sunDir, rot, fog, skyHdr: makeSkyMat(true, A.hdr, rot, DUSK.envExp, DUSK.tint, fog.clone().multiplyScalar(DUSK.envExp * 0.22)) };
+  return { group, sky, sun, hemi, sunDir, rot: look.rot, fog, scene, exp: K.exp, key: K };
 }
 
-// The light from the sky: the photographed sunset, prefiltered once into the scene's environment.
-export function makeEnvironment(renderer, scene, dusk, { phone = false, centre = new THREE.Vector3(0, 0, 0) } = {}) {
+const ca = new THREE.Color(), cb = new THREE.Color();
+const lerpCol = (out, a, b, f) => out.copy(ca.set(a)).lerp(cb.set(b), f);
+// The light part way (f from 0 to 1) from look `a` to look `b`: the two photographs mixed, the sun, the hemisphere,
+// the fog and the exposure in between. Returns the key's numbers at f, for the inside (lamps.js) and the desk.
+export function lookAt(d, a, b, f) {
+  const A = a.key, B = b.key, m = (x, y) => x + (y - x) * f;
+  const u = d.sky.material.uniforms;
+  u.tA.value = a.sky; u.uRot.value = a.rot; u.uExp.value = A.skyExp; u.uTint.value.set(A.tint);
+  u.tB.value = b.sky; u.uRotB.value = b.rot; u.uExpB.value = B.skyExp; u.uTintB.value.set(B.tint);
+  u.uMix.value = f >= 1 ? 0 : f;
+  if (f >= 1) { u.tA.value = b.sky; u.uRot.value = b.rot; u.uExp.value = B.skyExp; u.uTint.value.set(B.tint); }
+  lerpCol(d.fog, A.fog, B.fog, f);
+  d.scene.fog.color.copy(d.fog); d.scene.fog.density = m(A.fogD, B.fogD);
+  u.uFog.value.copy(d.fog);
+  lerpCol(d.sun.color, A.sunCol, B.sunCol, f); d.sun.intensity = m(A.sunI, B.sunI);
+  lerpCol(d.hemi.color, A.hemiS, B.hemiS, f); lerpCol(d.hemi.groundColor, A.hemiG, B.hemiG, f); d.hemi.intensity = m(A.hemiI, B.hemiI);
+  // the sun swings through the sky between the two, never through the ground
+  d.sunDir.copy(a.sunDir).lerp(b.sunDir, f);
+  if (d.sunDir.lengthSq() < 1e-4) d.sunDir.copy(f < 0.5 ? a.sunDir : b.sunDir);
+  d.sunDir.y = Math.max(d.sunDir.y, 0.08); d.sunDir.normalize();
+  d.sun.position.copy(d.sunDir).multiplyScalar(90);
+  d.exp = m(A.exp, B.exp);
+  d.key = f < 0.5 ? A : B;
+  return { dim: m(A.dim, B.dim), lampK: m(A.lampK, B.lampK), sunIn: m(A.sunIn, B.sunIn), deskSun: m(A.deskSun, B.deskSun), paths: m(A.paths, B.paths),
+    ridge: lerpCol(new THREE.Color(), A.ridge, B.ridge, f), ringDark: lerpCol(new THREE.Color(), A.ringDark, B.ringDark, f),
+    ringGlow: lerpCol(new THREE.Color(), A.ringGlow, B.ringGlow, f), ringHaze: new THREE.Color(...A.ringHaze.map((v, i) => m(v, B.ringHaze[i]))), fog: d.fog };
+}
+
+// The light from the sky: a look's photographed sky, prefiltered once into an environment (one per theme, kept).
+export function makeEnvironment(renderer, look, { phone = false, centre = new THREE.Vector3(0, 0, 0) } = {}) {
+  const K = look.key;
+  const fog = col(K.fog);
+  const skyHdr = makeSkyMat(true, look.hdr, look.rot, K.envExp, K.tint, fog.clone().multiplyScalar(K.envExp * 0.22));
   const cubeRT = new THREE.WebGLCubeRenderTarget(phone ? 128 : 256, { type: THREE.HalfFloatType, generateMipmaps: false });
   const cubeCam = new THREE.CubeCamera(0.5, 3000, cubeRT);
   cubeCam.position.copy(centre).add(new THREE.Vector3(0, 4, 10));
   const envScene = new THREE.Scene();
   const sphere = new THREE.SphereGeometry(100, 48, 24);
-  const envSky = new THREE.Mesh(sphere, dusk.skyHdr);
+  const envSky = new THREE.Mesh(sphere, skyHdr);
   envSky.position.copy(cubeCam.position);
   const disc = new THREE.CircleGeometry(400, 32);
-  const discM = new THREE.MeshBasicMaterial({ color: col(DUSK.fog).multiplyScalar(0.09), side: THREE.DoubleSide });
+  const discM = new THREE.MeshBasicMaterial({ color: fog.clone().multiplyScalar(K.envGround), side: THREE.DoubleSide });
   const envGround = new THREE.Mesh(disc, discM);
   envGround.rotation.x = -Math.PI / 2; envGround.position.y = cubeCam.position.y - 4;
   envScene.add(envSky, envGround);
@@ -130,8 +178,7 @@ export function makeEnvironment(renderer, scene, dusk, { phone = false, centre =
   renderer.toneMapping = tm;
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envRT = pmrem.fromCubemap(cubeRT.texture);
-  scene.environment = envRT.texture;
-  pmrem.dispose(); cubeRT.dispose(); sphere.dispose(); disc.dispose(); discM.dispose(); dusk.skyHdr.dispose();
+  pmrem.dispose(); cubeRT.dispose(); sphere.dispose(); disc.dispose(); discM.dispose(); skyHdr.dispose();
   return envRT;
 }
 
