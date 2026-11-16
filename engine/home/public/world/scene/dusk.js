@@ -36,7 +36,7 @@ export function fbm(x, z) { let s = 0, a = 0.5, f = 1; for (let i = 0; i < 4; i+
 export const DUSK = { theme: "dark", sunAz: -128, sunEl: 16, skyExp: 0.8, tint: "#ffd6bd", envExp: 0.5, sunCol: "#ff9a62", sunI: 1.25, hemiS: "#4d6383", hemiG: "#1c1712", hemiI: 0.06, exp: 1.0, fog: "#5d4c4c", fogD: 0.0055,
   envGround: 0.09, ridge: "#1c2a24", dim: 0.35, lampK: 1, sunIn: 0, deskSun: 0, ringDark: "#0e1411", ringGlow: "#c98f6e", ringHaze: [0.3, 0.31, 0.36], paths: 0.55 };
 export const MORNING = { theme: "light", sunAz: 26, sunEl: 13, skyExp: 1.0, tint: "#fff0dc", envExp: 0.62, sunCol: "#ffc386", sunI: 6.0, hemiS: "#9fbcdc", hemiG: "#4b4535", hemiI: 0.3, exp: 1.0, fog: "#c3c4bf", fogD: 0.0019,
-  envGround: 0.22, ridge: "#33453a", dim: 0.6, lampK: 1.7, sunIn: 1, deskSun: 0.4, ringDark: "#1a2820", ringGlow: "#f6dcb8", ringHaze: [0.5, 0.57, 0.66], paths: 0.1 };
+  envGround: 0.22, ridge: "#33453a", dim: 0.6, lampK: 1.7, sunIn: 1, deskSun: 0.4, ringDark: "#21402b", ringGlow: "#ffe0b0", ringHaze: [0.4, 0.5, 0.62], paths: 0.1 };
 export const KEYS = { dark: DUSK, light: MORNING };
 
 export function makeRenderer(canvas) {
