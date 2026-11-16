@@ -118,7 +118,8 @@ export function WorldStage(props) {
     const size = sizeOf(stageRef.current) || DEFAULT_SIZE;
     const s = latest.current.safeRect;
     const bounds = obj(s) && fin(s.w) && fin(s.h) && s.w > 0 && s.h > 0 ? { x: s.x || 0, y: s.y || 0, w: s.w, h: s.h } : { x: 0, y: 0, w: size.width, h: size.height };
-    const els = arr(layer.childNodes).filter((c) => c.nodeType === 1);
+    // childNodes is a NodeList in a browser (not an Array), so it is copied, not passed through arr().
+    const els = Array.from(layer.childNodes || []).filter((c) => c.nodeType === 1);
     const boxes = [];
     const away = [];
     for (const el of els) {
