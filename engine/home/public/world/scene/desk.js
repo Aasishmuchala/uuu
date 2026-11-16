@@ -69,14 +69,15 @@ function makeFirRing(fog) {
         float horizon = ${eye.toFixed(2)};
         // the evening low over the valley: warm near the horizon, falling to the haze below
         float lift = smoothstep(horizon - 26., horizon + 2., y);
-        vec3 c = mix(uFog * .5, mix(uFog, uGlow, .32) * .95, lift * lift);
+        vec3 haze = mix(uFog, vec3(.3, .31, .36), .45);
+        vec3 c = mix(haze * .42, mix(haze, uGlow, .38) * .9, lift * lift);
         float far = fir(a * 34., y, 7., ${onRing(140, 0)}, ${onRing(140, 15)});
-        c = mix(c, mix(uDark, uFog, .74), far);
+        c = mix(c, mix(uDark, haze, .68), far);
         float mid = fir(a * 17., y, 19., ${onRing(70, 0)}, ${onRing(70, 15)});
-        c = mix(c, mix(uDark, uFog, .48), mid);
+        c = mix(c, mix(uDark, haze, .4), mid);
         float near = fir(a * 8.5, y, 3., ${onRing(34, 0)}, ${onRing(34, 14)});
         float rim = near * (1. - fir(a * 8.5 + .012, y - .25, 3., ${onRing(34, 0)}, ${onRing(34, 14)}));
-        c = mix(c, mix(uDark, uFog, .2) + uGlow * .05 * rim, near);
+        c = mix(c, mix(uDark, haze, .12) + uGlow * .06 * rim, near);
         gl_FragColor = vec4(c, 1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
