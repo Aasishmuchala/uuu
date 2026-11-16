@@ -20,11 +20,12 @@
 
 /* ---- The desk, from 1280 px. The page reaches past the pane's padding and its centred width to the whole page
    column (the window less the sidebar, --s-side-w), the top bar's height under it, and scrolls nowhere itself: the
-   sheet and the list scroll on their own. Columns: the sheet (at most 640 px), the free area, the list (320 px). */
+   sheet and the list scroll on their own. Columns: the sheet (at most 640 px), the free area (at least 320 px, so the
+   desk model is never squeezed under the list's edge: at 1280 the sheet gives way), the list (320 px). */
 .p-needs-you.p-needs-you--desk {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 640px) minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 640px) minmax(320px, 1fr) 320px;
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "sheet free side";
   gap: 0;
@@ -92,7 +93,7 @@
   align-self: stretch;
   max-height: none;
   height: 100%;
-  padding: 0;
+  padding: var(--s-5) var(--s-6) 0;
 }
 
 /* Loading, a notice and nothing waiting: a small sheet. */
@@ -103,6 +104,22 @@
 
 .p-needs-you .p-needs-you__sheet:focus:not(:focus-visible) {
   outline: none;
+}
+
+/* The item's card lies flat on the sheet: the sheet is its surface, so the card drops its own edge, ground and inset
+   and its footer runs to the sheet's edge as a rule. */
+.p-needs-you .p-needs-you__sheet > .k-decision--level {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.p-needs-you .p-needs-you__sheet > .k-decision--level .k-decision__actions {
+  margin: var(--s-2) 0 0;
+  padding: var(--s-4) 0 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 /* The keys line at the sheet's foot (D23 weak point 1): on the sheet, 13 px (--fs-note), the second ink. */
@@ -151,6 +168,20 @@
   line-height: var(--lh-label);
   white-space: nowrap;
   pointer-events: none;
+}
+
+.p-needs-you .p-needs-you__more-chip--corner {
+  top: auto;
+  left: auto;
+  right: var(--s-3);
+  bottom: var(--s-3);
+}
+
+/* The drawn desk's own "+N" counts (SVG text in the picture's units, unreadable at the desk's scale) give way to
+   the page's chip, which says the same in DOM text at the chip's size. */
+.p-needs-you .p-needs-you__stage .w-fb-more,
+.p-needs-you .p-needs-you__strip .w-fb-more {
+  display: none;
 }
 
 /* ---- Below 1280 px: the desk as a strip over the list (240 px; 200 px on a phone, D16), edge to edge. */

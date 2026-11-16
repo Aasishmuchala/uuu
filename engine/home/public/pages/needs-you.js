@@ -657,17 +657,22 @@ export default function Page({ route }) {
   const deskShown = wide && !!data;
   const safe = useSafeRect(rootRef, deskShown && !stageNow, `${openId}|${shown.length}|${Boolean(kept)}`);
   // The stage: aria-hidden (stage.js); its label, "28 more" when the stack cannot hold every item, is spoken beside it.
-  const stage = (cls) => html`<div class=${cls}>
-    <${WorldStage} mode="desk" state=${ws} safeRect=${safe} theme=${theme} still=${still} events=${events} label=${more ? moreWords(more) : ""} />
+  // The phone's strip frames the desk a little to the right of centre, so the lamp at the model's left stays whole
+  // (T6's framing put the model at the strip's left edge with the lamp cut off).
+  const stripSafe = phone && typeof innerWidth === "number" && innerWidth > 0 ? { x: 28, y: 0, w: Math.round(innerWidth), h: 200 } : null;
+  const stage = (cls, extra = null) => html`<div class=${cls}>
+    <${WorldStage} mode="desk" state=${ws} safeRect=${cls === "p-needs-you__strip" ? stripSafe : safe} theme=${theme} still=${still} events=${events} label=${more ? moreWords(more) : ""} />
+    ${extra}
   </div>`;
   // The chip by the stack: placed in the free rectangle, under the model and the stack it frames.
   const chip = more && safe && safe.w > 0
     ? html`<span class="p-needs-you__more-chip u-num" aria-hidden="true"
-        style=${`transform: translate(${Math.round(safe.x + safe.w / 2)}px, ${Math.round(safe.y + safe.h * 0.86)}px) translateX(-50%)`}>${moreWords(more)}</span>`
+        style=${`transform: translate(${Math.round(safe.x + safe.w / 2)}px, ${Math.round(safe.y + safe.h * 0.63)}px) translateX(-50%)`}>${moreWords(more)}</span>`
     : null;
   const keysLine = html`<p class="p-needs-you__keys">${WORDS.keys}</p>`;
   const moneyLine = phone && note ? html`<p class="p-needs-you__money u-num">${note}</p>` : null;
-  const strip = stage("p-needs-you__strip");
+  // The strip says "N more" in its corner (no free rectangle to place it by the stack).
+  const strip = stage("p-needs-you__strip", more ? html`<span class="p-needs-you__more-chip p-needs-you__more-chip--corner u-num" aria-hidden="true">${moreWords(more)}</span>` : null);
 
   // ---- States before the list: today's words on a sheet over the desk
   if (!data) {
@@ -726,7 +731,7 @@ export default function Page({ route }) {
           aria-label=${opened ? cap(opened.title, 120) : PAGE_WORDS.title}>${stageCard}</section>
       </div>`;
     }
-    return html`<div class="p-needs-you p-needs-you--stage">${stageCard}</div>`;
+    return html`<div class="p-needs-you p-needs-you--stage">${phone ? strip : null}${stageCard}</div>`;
   }
 
   // ---- The item opened (or what became of it), as a card at the page's level
@@ -773,9 +778,11 @@ export default function Page({ route }) {
       </section>` : null}
     </div>`;
   }
-  // Under 1280 px an item opened is the paper sheet alone; the top bar's back button returns to the list.
+  // Under 1280 px an item opened is the sheet alone (on a phone under the desk strip, as e2's phone shows it, with
+  // nothing of the desk behind the sheet); the top bar's back button returns to the list.
   if (open) {
     return html`<div class="p-needs-you p-needs-you--alone">
+      ${phone ? strip : null}
       <header class="p-needs-you__head p-needs-you__head--item">
         <h1 id="page-title" class="p-needs-you__kind" tabindex="-1">${crumbsFor(crumbItem, d)[1].label}</h1>
         ${pager && pager.index ? html`<span class="p-needs-you__at u-num">${pager.label}</span>` : null}

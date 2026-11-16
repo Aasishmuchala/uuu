@@ -270,7 +270,7 @@ test("needs-you: on the desk the sheet is at most 640 px and the list a 320 px c
   const c = readFileSync(resolve(HERE, "../../styles/pages/needs-you.css"), "utf8");
   const src = readFileSync(resolve(HERE, "../../pages/needs-you.js"), "utf8");
   const desk = /\.p-needs-you\.p-needs-you--desk \{([^}]*)\}/.exec(c)[1];
-  assert.match(desk, /grid-template-columns: minmax\(0, 640px\) minmax\(0, 1fr\) 320px;/, "the sheet at most 640 px, the list 320 px");
+  assert.match(desk, /grid-template-columns: minmax\(0, 640px\) minmax\(320px, 1fr\) 320px;/, "the sheet at most 640 px, the list 320 px, the desk model at least 320 px between them (e2 weak point 6)");
   assert.match(desk, /height: calc\(100vh - var\(--topbar-h\)\);/, "the desk fills the page column under the top bar");
   const sheet = /\.p-needs-you \.p-needs-you__sheet \{([^}]*)\}/.exec(c)[1];
   assert.match(sheet, /background: var\(--panel\);/, "the sheet is the kit's panel surface, so the kit's cards keep their ink");
