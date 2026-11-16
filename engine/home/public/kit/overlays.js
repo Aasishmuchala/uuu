@@ -79,7 +79,7 @@ function OverlayHead({ id, title, sub, tools, onClose, cls }) {
 // own ground, so nothing of the page reads round it.
 const SIZES = ["sm", "md", "lg", "full"];
 
-function DialogPanel({ title, sub, tools, onClose, size, footer, children }) {
+function DialogPanel({ title, sub, tools, onClose, size, footer, paper, children }) {
   const ref = useRef(null);
   const [id] = useState(() => nextId("k-dialog"));
   // A viewer ("full") starts on the dialog itself (fix round R5): a ring on Close at rest read as a chosen button,
@@ -96,6 +96,7 @@ function DialogPanel({ title, sub, tools, onClose, size, footer, children }) {
       aria-modal="true"
       aria-labelledby=${id}
       tabindex="-1"
+      data-surface=${paper ? "paper" : undefined}
       onKeyDown=${onKeyDown}
     >
       <${OverlayHead} id=${id} title=${title} sub=${sub} tools=${tools} onClose=${onClose} cls="k-dialog" />
@@ -106,9 +107,11 @@ function DialogPanel({ title, sub, tools, onClose, size, footer, children }) {
 }
 
 // `sub` (optional) is a muted line under the title; `tools` (optional) are controls in the head beside the title.
-export function Dialog({ open, title, sub, tools, onClose, size = "md", footer, children }) {
+// `paper` (PLAN-3D-ALL U2) puts the panel on paper (data-surface="paper"): for a dialog that carries a money or
+// safety sentence. It changes nothing else.
+export function Dialog({ open, title, sub, tools, onClose, size = "md", footer, paper = false, children }) {
   if (!open) return null;
-  return html`<${DialogPanel} title=${title} sub=${sub} tools=${tools} onClose=${onClose} size=${size} footer=${footer}>${children}<//>`;
+  return html`<${DialogPanel} title=${title} sub=${sub} tools=${tools} onClose=${onClose} size=${size} footer=${footer} paper=${paper === true}>${children}<//>`;
 }
 
 function DrawerPanel({ side, title, onClose, children }) {

@@ -53,7 +53,14 @@ export function headerCrumbs({ crumbs, chip } = {}) {
 // the top bar through the shell's setTop, when the shell has one. `creature` is accepted and not drawn.
 // `state` (optional, fix round R5) is drawn beside the title, on its line: a chip of one or two words (the kit's Tag)
 // for the page's state. `actions` sit at the right on the title's baseline.
-export function PageHeader({ title, lede, lead, back, actions, over, creature, chip, crumbs, state, children }) {
+export function PageHeader(props) {
+  return html`<header class="k-page-header">${usePageHeader(props)}</header>`;
+}
+
+// What a page's header does and draws inside its root, shared by PageHeader and the room header (kit/room.js,
+// PLAN-3D-ALL U2): it sets the window's title and gives the shell its crumbs, and returns the kind line, the one
+// h1#page-title with its state, the actions, the lede and the children. A hook: call it once per render.
+export function usePageHeader({ title, lede, lead, actions, over, chip, crumbs, state, children }) {
   const app = useApp() || {};
   const company = app.shell?.company?.name || app.state?.company?.name || "";
   const name = typeof title === "string" ? title : "";
@@ -69,8 +76,7 @@ export function PageHeader({ title, lede, lead, back, actions, over, creature, c
     if (setTop && trail.length) setTop({ crumbs: trail });
   }, [key, setTop]);
   const sentence = filled(lede) ? lede : lead;
-  return html`<header class="k-page-header">
-    <div class="k-page-header__row">
+  return html`<div class="k-page-header__row">
       <div class="k-page-header__titles">
         ${filled(over) ? html`<p class="k-page-header__over">${kindLine(over)}</p>` : null}
         ${filled(state)
@@ -83,8 +89,7 @@ export function PageHeader({ title, lede, lead, back, actions, over, creature, c
       ${actions ? html`<div class="k-page-header__actions">${actions}</div>` : null}
     </div>
     ${filled(sentence) ? html`<p class="k-page-header__lede k-page-header__lead">${short(sentence)}</p>` : null}
-    ${children ? html`<div class="k-page-header__more">${children}</div>` : null}
-  </header>`;
+    ${children ? html`<div class="k-page-header__more">${children}</div>` : null}`;
 }
 
 export function Section({ title, hint, count, aside, children }) {

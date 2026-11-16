@@ -1,0 +1,39 @@
+/* kit/sheet.js: a sheet of paper (PLAN-3D-ALL D4, U2). The element carries data-surface="paper", whose scope in
+   tokens.css re-points the core inks, lines, fields and accent at paper's values, so a kit part on the sheet reads
+   right with no rule of its own here. The sheet itself: paper with a faint fall of light from its top edge (one of
+   the four sheets that may hold a gradient, D8), a hairline edge, the paper's shadow, and a reading measure unless
+   it is wide. It is placed once, in 220 ms, on transform and opacity; motion off shows it at once (base.css). */
+
+.k-sheet {
+  position: relative;
+  max-width: var(--doc-max);
+  padding: var(--s-8) var(--s-8) var(--s-7);
+  border: 1px solid var(--paper-line, var(--line));
+  border-radius: var(--r-1);
+  color: var(--ink);
+  background:
+    linear-gradient(to bottom, var(--paper) 0%, color-mix(in srgb, var(--paper) 96%, var(--paper-ink, var(--ink))) 100%);
+  box-shadow: var(--paper-shadow);
+  animation: k-sheet-place 220ms var(--ease) both;
+}
+
+.k-sheet--wide {
+  max-width: none;
+}
+
+@keyframes k-sheet-place {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 859px) {
+  .k-sheet {
+    padding: var(--s-5) var(--s-4);
+  }
+}

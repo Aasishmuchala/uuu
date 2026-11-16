@@ -1,0 +1,120 @@
+/* kit/room.js: the room header and the lamp (PLAN-3D-ALL D6, U2).
+   The band is a surface screen's header: the page's title, lede, state and actions laid over one baked
+   photograph of its part of the studio. It keeps its height whether or not the picture comes (152 px from
+   1280 px, 120 px from 860 px, 96 px below), so nothing moves when it arrives. The picture sits under a scrim
+   that is dense at the left, where the title is, and clears towards the right; without a picture the band is the
+   ground with a lamp's pool of light alone. One of the four sheets that may hold a gradient (D8).
+   The lamp is the Map's glyph: on a disc, amber a disc in a ring, red a thick ring, off a hollow ring, down a low
+   line; the state tones follow the lamps (D5). */
+
+.k-room {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 152px;
+  margin-bottom: var(--s-6);
+  padding: var(--s-6) var(--s-7) var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background:
+    radial-gradient(70% 150% at 82% -10%, var(--lamp-pool, var(--raise)) 0%, transparent 70%),
+    var(--stage);
+  box-shadow: var(--shadow-card);
+}
+
+/* The picture and its scrim, under the words. The band clips the picture, never the words. */
+.k-room__band {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.k-room__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 60% 45%;
+}
+
+.k-room__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to top, var(--room-scrim-0, var(--w-scrim-0)) 0%, var(--room-scrim-1, var(--w-scrim-1)) 75%),
+    linear-gradient(to right, var(--room-scrim-0, var(--w-scrim-0)) 0%, var(--room-scrim-0, var(--w-scrim-0)) 30%, var(--room-scrim-1, var(--w-scrim-1)) 82%);
+}
+
+.k-room--bare .k-room__scrim {
+  display: none;
+}
+
+.k-room__head {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.k-room__head .k-page-header__lede {
+  color: var(--ink-2);
+}
+
+@media (max-width: 1279px) {
+  .k-room {
+    min-height: 120px;
+  }
+}
+
+@media (max-width: 859px) {
+  .k-room {
+    min-height: 96px;
+    margin-bottom: var(--s-5);
+    padding: var(--s-4);
+    border-radius: var(--r-2);
+  }
+
+  .k-room__head .k-page-header__actions .k-btn {
+    min-height: calc(var(--h-lg) + var(--s-1));
+  }
+}
+
+/* The lamp: 10 px, its shape and its tone together say the state. */
+.k-lamp {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-round);
+  vertical-align: middle;
+}
+
+.k-lamp--disc {
+  background: var(--lamp, var(--w-lamp-on));
+  box-shadow: 0 0 0 3px var(--lamp-pool, transparent);
+}
+
+.k-lamp--halo {
+  background: radial-gradient(circle, var(--warn) 0 2.5px, transparent 3px);
+  box-shadow: inset 0 0 0 1.5px var(--warn);
+}
+
+.k-lamp--ring {
+  box-shadow: inset 0 0 0 2.5px var(--bad);
+}
+
+.k-lamp--hollow {
+  box-shadow: inset 0 0 0 1.5px var(--ink-3);
+}
+
+.k-lamp--line {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink-3);
+}

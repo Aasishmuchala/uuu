@@ -58,3 +58,7 @@ export * from "./strip.js";
 export * from "./money.js";
 export * from "./diff.js";
 export * from "./player.js";
+
+// Every screen in the studio's language (PLAN-3D-ALL U2): the room header, the lamp and a sheet of paper.
+export * from "./room.js";
+export * from "./sheet.js";

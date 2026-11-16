@@ -42,6 +42,32 @@ test("overlays: a dialog has the 12 px corner, a 15 px title and its primary las
   assert.match(o, /\.k-drawer__panel \{\s*width: min\(88vw, var\(--panel-w\)\);/);
 });
 
+test("Dialog paper (PLAN-3D-ALL U2): the panel takes data-surface=\"paper\" and nothing else changes; off by default", async () => {
+  const { Dialog } = await import(pathToFileURL(join(KIT, "overlays.js")).href);
+  installDom();
+  const draw = async (props) => {
+    const root = new FakeElement("div");
+    document.body.appendChild(root);
+    render(html`<${Dialog} open=${true} title="Spend $4.80 now?" sub="Today" onClose=${() => {}} footer=${html`<button type="button">Confirm</button>`} ...${props}><p>Body</p><//>`, root);
+    await settle();
+    const shape = elements(root).map((e) => [e.localName, { ...e.attrs, id: undefined, "aria-labelledby": undefined }, e.childNodes.filter((n) => n.nodeType === 3).map((n) => n.data).join("")]);
+    const panel = elements(root).find((e) => e.getAttribute("role") === "dialog");
+    const surface = panel.getAttribute("data-surface");
+    render(null, root);
+    root.remove();
+    return { shape, surface };
+  };
+  const plain = await draw({});
+  const unasked = await draw({ paper: false });
+  const paper = await draw({ paper: true });
+  assert.equal(plain.surface, null, "no paper unless asked");
+  assert.equal(unasked.surface, null);
+  assert.equal(paper.surface, "paper");
+  const without = (shape) => shape.map(([tag, attrs, text]) => [tag, Object.fromEntries(Object.entries(attrs).filter(([k]) => k !== "data-surface")), text]);
+  assert.deepEqual(without(paper.shape), plain.shape, "the same elements, classes, attributes and words");
+  assert.match(css("kit/overlays.css"), /\.k-dialog__panel\[data-surface="paper"\] \{[^}]*background: var\(--paper\);/, "the panel is paper, so paper's inks read on it");
+});
+
 primitiveSheetTests("overlays");
 narrowControlsTest("overlays");
 

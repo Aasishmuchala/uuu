@@ -47,3 +47,11 @@ test("kit/index.js re-exports the new modules and creature.js, and exposes every
     assert.equal(typeof index[n], "function", `index.js exports ${n}`);
   }
 });
+
+// PLAN-3D-ALL U2: the room header, its picture's address, the lamp and paper.
+test("kit/index.js re-exports room.js and sheet.js with their new names", async () => {
+  const src = readFileSync(join(KIT, "index.js"), "utf8");
+  for (const m of ["room", "sheet"]) assert.ok(src.includes(`export * from "./${m}.js";`), `index.js re-exports ${m}.js`);
+  const index = await import(pathToFileURL(join(KIT, "index.js")).href);
+  for (const n of ["RoomHeader", "glimpseFor", "glimpseSrc", "Lamp", "Sheet", "usePageHeader"]) assert.equal(typeof index[n], "function", `index.js exports ${n}`);
+});
