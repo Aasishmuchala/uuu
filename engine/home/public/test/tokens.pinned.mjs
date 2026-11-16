@@ -9,10 +9,10 @@
 // thing has a 1 px edge and a real shadow in both themes. Fix round A3 (T110): a card at least 4 L* off the ground
 // in both themes, every ink at 4.5 to 1 on every surface, one overlay surface for what floats, a lighter dim.
 export const THEMED = {
-  "--bg": ["#131417", "#f7f7f8"],
-  "--stage": ["#0f1013", "#eeeef1"],
+  "--bg": ["#131417", "#f3f3f5"],
+  "--stage": ["#0f1013", "#e9e9ed"],
   "--panel": ["#191a1e", "#ffffff"],
-  "--side": ["#0b0c0e", "#f2f2f4"],
+  "--side": ["#0b0c0e", "#eeeef1"],
   "--card": ["#1f2025", "#ffffff"],
   "--raise": ["#26272d", "#f0f0f2"],
   "--sel": ["#2c2d34", "#e9e9ed"],
@@ -52,12 +52,12 @@ export const THEMED = {
   "--add-bg": ["rgba(98,211,157,.18)", "#d9f0e2"],
   "--del-bg": ["rgba(255,147,165,.18)", "#fbe0e5"],
   // Dark: a 4 percent white inner top highlight, then the contact shadow and the soft drop.
-  "--shadow-card": ["inset 0 1px 0 rgba(255,255,255,.04), 0 1px 2px rgba(0,0,0,.40), 0 8px 24px rgba(0,0,0,.32)", "0 1px 2px rgba(16,24,40,.04)"],
+  "--shadow-card": ["inset 0 1px 0 rgba(255,255,255,.04), 0 1px 2px rgba(0,0,0,.40), 0 8px 24px rgba(0,0,0,.32)", "0 1px 2px rgba(16,24,40,.06)"],
   "--shadow-lift": ["0 2px 4px rgba(0,0,0,.45), 0 12px 32px rgba(0,0,0,.40)", "0 1px 3px rgba(16,24,40,.08), 0 10px 28px rgba(16,24,40,.12)"],
   // The filled button: a 1 px inner top highlight and a small drop, so it sits in place, not a flat slab.
   "--shadow-btn": ["inset 0 1px 0 rgba(255,255,255,.14), 0 1px 2px rgba(0,0,0,.40)", "inset 0 1px 0 rgba(255,255,255,.16), 0 1px 2px rgba(16,24,40,.16)"],
   "--float": ["0 0 0 1px rgba(255,255,255,.1), 0 2px 6px rgba(0,0,0,.30), 0 24px 64px rgba(0,0,0,.60)", "0 0 0 1px rgba(16,24,40,.08), 0 2px 6px rgba(24,24,27,.08), 0 24px 64px rgba(24,24,27,.22)"],
-  "--overlay-shadow": ["inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.30), 0 24px 64px rgba(0,0,0,.60)", "0 2px 6px rgba(24,24,27,.08), 0 24px 64px rgba(24,24,27,.22)"],
+  "--overlay-shadow": ["inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.30), 0 20px 60px rgba(0,0,0,.55)", "0 2px 6px rgba(24,24,27,.08), 0 24px 64px rgba(24,24,27,.22)"],
   "--paper-shadow": ["0 0 0 1px rgba(255,255,255,.08), 0 6px 20px rgba(0,0,0,.45)", "0 0 0 1px rgba(16,24,40,.10), 0 6px 18px rgba(16,24,40,.08)"],
   "--tip": ["#f4f4f5", "#18181b"],
   "--tip-ink": ["#0f0f11", "#ffffff"],

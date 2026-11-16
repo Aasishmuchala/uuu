@@ -249,10 +249,10 @@ test("light is one cool neutral family: white panels and cards lift off a calm c
   // The raised or chosen step and a current row are grey fills, under the white they sit on and under the ground.
   for (const fill of ["--raise", "--sel"]) assert.ok(l(fill) < l("--bg"), `${fill} is a fill a step under the ground (light)`);
   assert.ok(l("--sel") < l("--raise"), "a current row is a step deeper than the raised fill (light)");
-  // A near-white ground of about 3 percent grey (fix round R6: white cards with a 1 px edge on it).
+  // A near-white ground of 3 to 5 percent grey (fix rounds R6 and R7: white cards with a 1 px edge stand on it).
   const bg = colourOf(t, "--bg");
   const grey = 1 - (bg.r + bg.g + bg.b) / 3 / 255;
-  assert.ok(grey >= 0.02 && grey <= 0.04, `the light ground is about 3 percent grey: ${(grey * 100).toFixed(1)}`);
+  assert.ok(grey >= 0.03 && grey <= 0.05, `the light ground is 3 to 5 percent grey: ${(grey * 100).toFixed(1)}`);
   // Cool, never warm: every grey ground and line has at least as much blue as red.
   for (const name of ["--bg", "--stage", "--side", "--raise", "--sel", "--raise-2", "--line", "--line-2", "--overlay-line"]) {
     const c = colourOf(t, name);
@@ -266,8 +266,8 @@ function lstar(c) {
   return y > 0.008856 ? 116 * Math.cbrt(y) - 16 : 903.3 * y;
 }
 
-test("a card stands off the ground: at least 5 L* in dark, and in light a white card 2.5 L* off a near-white ground with its 1 px edge (fix rounds A3, R5 and R6)", () => {
-  for (const [way, floor] of [[{}, 5], [{ theme: "light" }, 2.5], [{ theme: "auto", systemLight: true }, 2.5]]) {
+test("a card stands off the ground: at least 5 L* in dark, and in light a white card 3.5 L* off the ground with its 1 px edge (fix rounds A3, R5, R6 and R7)", () => {
+  for (const [way, floor] of [[{}, 5], [{ theme: "light" }, 3.5], [{ theme: "auto", systemLight: true }, 3.5]]) {
     const t = resolveTokens(way);
     const step = Math.abs(lstar(colourOf(t, "--card")) - lstar(colourOf(t, "--bg")));
     assert.ok(step >= floor, `--card against --bg in ${JSON.stringify(way)}: ${step.toFixed(1)} L* < ${floor}`);
@@ -299,8 +299,10 @@ test("one overlay surface: in dark lighter than a card, in light white; its edge
   assert.ok(dimDark.a >= 0.55 && dimDark.a <= 0.65 && dimDark.r + dimDark.g + dimDark.b < 30, "the dark dim is a near-black at about 60 percent");
   const dimLight = parseColour(computed(light, "--scrim"));
   assert.ok(dimLight.a >= 0.2 && dimLight.a <= 0.35 && dimLight.r + dimLight.g + dimLight.b < 90, "the light dim is a near-black at about a quarter");
-  // Fix round R6: in light a card has next to no shadow (its 1 px edge parts it).
-  assert.equal(computed(light, "--shadow-card"), "0 1px 2px rgba(16,24,40,.04)");
+  // Fix rounds R6 and R7: in light a card's shadow is one small drop at 6 percent (its 1 px edge parts it).
+  assert.equal(computed(light, "--shadow-card"), "0 1px 2px rgba(16,24,40,.06)");
+  // Fix round R7: in dark what floats has a deep drop beside its edge (0 20px 60px at 55 percent black).
+  assert.match(computed(dark, "--overlay-shadow"), /0 20px 60px rgba\(0,0,0,\.55\)/);
 });
 
 test("every raised thing has a real shadow in both themes: the card, lift and float shadows are never none", () => {
