@@ -754,7 +754,7 @@ function KeyRow({ view, busy, act, failure, test, runTest }) {
       <${Failure} failure=${failure} where="remove" />
       ${result && busy !== "test" ? html`<${Answer} result=${result} />` : null}
     <//>
-    <${Dialog} open=${asking} title=${WORDS.removeAsk} size="sm" onClose=${() => setAsking(false)}
+    <${Dialog} open=${asking} title=${WORDS.removeAsk} size="sm" paper onClose=${() => setAsking(false)}
       footer=${html`
         <${Button} data-autofocus onClick=${() => setAsking(false)}>Keep the key<//>
         <${Button} variant="danger" onClick=${async () => { setAsking(false); await act("remove", "/api/generation/key/remove", {}, "The key is removed.", { reload: true }); }}>${WORDS.removeKey}<//>`}>
@@ -947,7 +947,7 @@ function HiggsfieldGroup({ view, busy, act, failure, test, runTest, signIn, retu
           <${Button} variant=${changed && check.value !== null ? "primary" : "ghost"} type="submit" busy=${busy === "hf-rate"} disabled=${Boolean(busy) || !changed || check.value === null}>${HF_WORDS.saveRate}<//>
         </div>
       </form>
-      <${Dialog} open=${asking} title=${HF_WORDS.signOutAsk} size="sm" onClose=${() => setAsking(false)}
+      <${Dialog} open=${asking} title=${HF_WORDS.signOutAsk} size="sm" paper onClose=${() => setAsking(false)}
         footer=${html`
           <${Button} data-autofocus onClick=${() => setAsking(false)}>${HF_WORDS.stay}<//>
           <${Button} variant="danger" onClick=${async () => { setAsking(false); await act("hf-forget", "/api/generation/higgsfield/forget", {}, "Signed out of Higgsfield."); }}>${HF_WORDS.signOut}<//>`}>

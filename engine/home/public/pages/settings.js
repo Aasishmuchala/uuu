@@ -2,11 +2,16 @@
 // are drawn here; Models, Web, Generation and Page viewer are each their own module (pages/settings-models.js,
 // settings-web.js, settings-generation.js, settings-viewer.js), drawn inside the column. The chosen section is in the
 // address: "#/settings?s=generation"; no `s` is Appearance.
+// PLAN-3D-ALL U4: a surface screen. The room header (kit/room.js, the annex's picture) runs above both the list and
+// the column and holds the one h1#page-title, the section's name, and the alarm's chip; the section's intro and every
+// sentence stay in the column on the panels, never over the picture.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { currentMotion, currentTheme } from "../lib/theme.js";
-import { Button, DocLayout, ErrorNotice, Group, Loading, Row, Rows, Segmented, Switch } from "../kit/index.js";
+import {
+  Button, DocLayout, ErrorNotice, Group, Loading, RoomHeader, Row, Rows, Segmented, Switch, Tag, glimpseFor,
+} from "../kit/index.js";
 import ModelsSection, * as models from "./settings-models.js";
 import WebSection, * as web from "./settings-web.js";
 import GenerationSection, * as generation from "./settings-generation.js";
@@ -212,7 +217,9 @@ export default function Page({ route }) {
   }
 
   return html`<div class=${`p-settings p-settings--${here.id}`}>
-    <${DocLayout} title=${here.label} state=${headState} intro=${INTRO[here.id]} sections=${sections} current=${here.id}>
+    <${RoomHeader} glimpse=${glimpseFor("settings")} title=${here.label}
+      state=${headState ? html`<${Tag} tone=${headState.tone}>${headState.text}<//>` : null} />
+    <${DocLayout} intro=${INTRO[here.id]} sections=${sections} current=${here.id}>
       ${body}
     <//>
   </div>`;

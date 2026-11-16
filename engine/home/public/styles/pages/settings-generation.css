@@ -157,7 +157,9 @@
 /* ---- The limits: the kit's table on a card, 56 px rows, every amount in tabular figures, Left at the right */
 
 .p-settings-generation .p-settings-generation__limits .k-table {
-  padding: 0 var(--s-4);
+  /* PLAN-3D-ALL U4: the kit's table keeps 8 px inside its first and last cells (U2), so the card adds 8 more: the
+     words stay 16 px in, level with the card's foot, and the head's pool of light runs nearly to the card's edge. */
+  padding: 0 var(--s-2);
 }
 
 .p-settings-generation .p-settings-generation__limits .k-table__table th {

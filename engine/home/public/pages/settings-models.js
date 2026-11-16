@@ -335,7 +335,7 @@ function KeyRow({ view, busy, act, failure }) {
       ${failure && (failure.where === "test" || failure.where === "remove") ? html`<${Notice} tone="bad" title=${failure.error.message}>${failure.error.next || null}<//>` : null}
       ${t ? html`<${TestResult} test=${t} />` : null}
     <//>
-    <${Dialog} open=${asking} title="Remove the key?" size="sm" onClose=${() => setAsking(false)}
+    <${Dialog} open=${asking} title="Remove the key?" size="sm" paper onClose=${() => setAsking(false)}
       footer=${html`
         <${Button} data-autofocus onClick=${() => setAsking(false)}>Keep the key<//>
         <${Button} variant="danger" onClick=${async () => { setAsking(false); await act("remove", "/api/models/key/remove", {}, "The key is removed."); }}>Remove key<//>`}>

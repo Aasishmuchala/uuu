@@ -287,7 +287,8 @@
   color: var(--ink);
 }
 
-/* The current section: a neutral fill with a 2 px accent bar at its left, never a ring. */
+/* The current section: a neutral fill with a 2 px accent bar at its left, never a ring. PLAN-3D-ALL U4: the bar is
+   the lamp's mark, lit, with its pool of light round it. */
 .k-doc__pick[aria-current="page"] {
   background: var(--sel);
   color: var(--ink);
@@ -302,6 +303,7 @@
   width: 2px;
   border-radius: 2px;
   background: var(--accent);
+  box-shadow: 0 0 0 2px var(--lamp-pool), 0 0 10px 2px var(--lamp-pool);
 }
 
 .k-doc__pick-icon {

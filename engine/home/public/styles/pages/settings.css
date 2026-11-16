@@ -1,5 +1,33 @@
 /* Settings (pages/settings.js): the frame is the kit's DocLayout; only this page's own touches are here. */
 
+/* PLAN-3D-ALL U4: the room header (kit/room.css, the annex) runs above both the list and the column, inset from the
+   pane's edges; the frame under it fills what is left of the window, so a short section does not scroll by the
+   band's height. The list and the column start level, 24 px under the band. */
+.p-settings {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--topbar-h));
+}
+.p-settings > .k-room {
+  margin: var(--s-3) var(--s-5) 0;
+}
+.p-settings > .k-doc--layout {
+  flex: 1;
+  min-height: 0;
+}
+.p-settings .k-doc__sections {
+  min-height: 0;
+}
+.p-settings .k-doc__list {
+  padding-top: var(--s-6);
+}
+.p-settings .k-doc__main {
+  padding-top: var(--s-6);
+}
+.p-settings .k-doc__main > .k-doc__intro:first-child {
+  margin-top: 0;
+}
+
 /* A switch at a row's right edge is the control alone: its name is the row's title, kept for screen readers. */
 .p-settings .k-rows__control .k-switch__label,
 .p-settings .k-rows__control .k-switch__state {
@@ -33,6 +61,16 @@
 
 /* On a phone a row's wide controls drop under its words (the kit's rule); a switch is small and stays at the right. */
 @media (max-width: 859px) {
+  .p-settings > .k-room {
+    margin: var(--s-2) var(--s-3) 0;
+  }
+  .p-settings .k-doc__sections {
+    margin-top: var(--s-2);
+  }
+  .p-settings .k-doc__main {
+    padding-top: var(--s-4);
+  }
+
   .p-settings .k-rows__row:has(> .k-rows__control .k-switch) {
     grid-template-columns: 32px minmax(0, 1fr) auto;
   }

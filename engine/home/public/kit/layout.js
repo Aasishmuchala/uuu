@@ -104,6 +104,8 @@ export function Blk({ title, aside, children }) {
 
 // `sections`: [{ id, label, icon, status: { tone, text } or words, href }]. A row with an href is a link;
 // without, a button that calls onPick(id). The current one carries aria-current="page".
+// With no `title` the column draws no head: the page draws its own above the whole frame (Settings' room header,
+// PLAN-3D-ALL U4), so the one h1#page-title is the page's.
 export function DocLayout({ title, state, intro, sections, current, onPick, children }) {
   const list = Array.isArray(sections) ? sections.filter((s) => s && s.id !== undefined && s.id !== null) : [];
   const chip = stateParts(state);
@@ -137,10 +139,12 @@ export function DocLayout({ title, state, intro, sections, current, onPick, chil
         </nav>`
       : null}
     <div class="k-doc__main">
-      <div class="k-doc__head">
-        <h1 id="page-title" class="k-doc__title" tabindex="-1">${title}</h1>
-        ${chip ? html`<span class=${cx("k-doc__state", `k-doc__state--${chip.tone}`)}>${chip.text}</span>` : null}
-      </div>
+      ${has(title)
+        ? html`<div class="k-doc__head">
+            <h1 id="page-title" class="k-doc__title" tabindex="-1">${title}</h1>
+            ${chip ? html`<span class=${cx("k-doc__state", `k-doc__state--${chip.tone}`)}>${chip.text}</span>` : null}
+          </div>`
+        : null}
       ${has(intro) ? html`<p class="k-doc__intro">${intro}</p>` : null}
       ${children}
     </div>
