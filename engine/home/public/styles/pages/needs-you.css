@@ -1,7 +1,10 @@
-/* Needs you: the list (grouped as the queue groups it), an item opened beside it from 1280 px, an item alone under
-   that, and a stage that takes the pane. Side by side the page fills the pane: the list a 440 px column on the
-   ground behind a 1 px line, scrolling by itself, each group under its label and count over a hairline; the item
-   opened at the top of the rest with what helps decide under it. Every selector starts with .p-needs-you; tokens only. */
+/* Needs you on the owner's desk (PLAN-3D T10, D10, D15, D16): from 1280 px the studio's desk fills the page column
+   and over it the paper sheet at the left (the kit's card for the item opened, what helps decide, the keys line at its
+   foot) and the "Waiting" list, a 320 px column at the right on a scrim; a shotlist or versions to pick
+   from is a wide sheet over the whole free area with the desk dimmed. Below 1280 px the list is the page over a short
+   desk strip and an item opened is the paper sheet alone; below 860 px the strip is 200 px tall and every row and
+   link 44 px. The list keeps its rows (T104, T116, R5-D, R6). Every selector starts with .p-needs-you; tokens only
+   (the --w-* tokens for the scrim and the chip). */
 
 .p-needs-you {
   display: flex;
@@ -10,39 +13,152 @@
   min-width: 0;
 }
 
-/* A stage: the kit's work fills the pane; the page adds nothing round it. */
+/* A stage below 1280 px: the kit's work fills the pane; the page adds nothing round it. */
 .p-needs-you.p-needs-you--stage {
   display: block;
 }
 
-/* Side by side: the page reaches past the pane's padding to fill it; the list at the left, 440 px (a one-line title
-   keeps most of its words beside its date's gutter), the item opened at the right. */
-.p-needs-you.p-needs-you--split {
+/* ---- The desk, from 1280 px. The page reaches past the pane's padding and its centred width to the whole page
+   column (the window less the sidebar, --s-side-w), the top bar's height under it, and scrolls nowhere itself: the
+   sheet and the list scroll on their own. Columns: the sheet (at most 640 px), the free area, the list (320 px). */
+.p-needs-you.p-needs-you--desk {
+  position: relative;
   display: grid;
-  grid-template-columns: 440px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 640px) minmax(0, 1fr) 320px;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "sheet free side";
   gap: 0;
   align-items: start;
-  min-height: calc(100vh - var(--topbar-h));
-  margin: calc(-1 * var(--s-8)) calc(-1 * var(--s-10)) calc(-1 * var(--s-12));
-}
-
-.p-needs-you.p-needs-you--split .p-needs-you__side {
-  position: sticky;
-  top: var(--topbar-h);
+  width: calc(100vw - var(--s-side-w));
   height: calc(100vh - var(--topbar-h));
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: var(--s-8) var(--s-4) var(--s-8) var(--s-5);
-  border-right: 1px solid var(--line);
+  margin: calc(-1 * var(--s-8)) 0 calc(-1 * var(--s-12)) calc((100% - 100vw + var(--s-side-w)) / 2);
+  padding: var(--s-6) 0 0 var(--s-8);
+  overflow: hidden;
+  isolation: isolate;
 }
 
-.p-needs-you .p-needs-you__pane {
+/* A whole stage (the kit's StageLayout) sets the pane's padding to nothing itself. */
+.p-needs-you.p-needs-you--desk.p-needs-you--wide-sheet {
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-areas: "sheet side";
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: var(--s-4) 0 var(--s-4) var(--s-4);
+}
+
+.p-needs-you .p-needs-you__stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* Behind a whole stage the desk is dimmed (and the model is under the sheet). */
+.p-needs-you .p-needs-you__dim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--w-scrim-0);
+  pointer-events: none;
+}
+
+/* The sheet: the item opened on the kit's panel surface, its own scroll, lifted off the desk by the paper's shadow.
+   (The kit's cards read their ink from the theme's tokens, and a page may not re-point them, so the sheet takes the
+   theme's panel rather than the --w-paper cream: in light the two are nearly one; in dark the cream would put the
+   kit's light ink on light paper.) */
+.p-needs-you .p-needs-you__sheet {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--s-8);
+  gap: var(--s-7);
   min-width: 0;
-  max-width: calc(var(--column) + 2 * var(--s-10));
-  padding: var(--s-8) var(--s-10) var(--s-12);
+  padding: var(--s-8) var(--s-8) var(--s-6);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--paper-shadow);
+}
+
+.p-needs-you.p-needs-you--desk .p-needs-you__sheet {
+  grid-area: sheet;
+  align-self: start;
+  max-height: calc(100% - var(--s-6));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* A whole stage on its sheet: the kit's StageLayout inside, as wide as the free area. */
+.p-needs-you.p-needs-you--desk .p-needs-you__sheet--wide {
+  align-self: stretch;
+  max-height: none;
+  height: 100%;
+  padding: 0;
+}
+
+/* Loading, a notice and nothing waiting: a small sheet. */
+.p-needs-you.p-needs-you--desk .p-needs-you__sheet--small {
+  max-width: 520px;
+  gap: var(--s-4);
+}
+
+.p-needs-you .p-needs-you__sheet:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* The keys line at the sheet's foot (D23 weak point 1): on the sheet, 13 px (--fs-note), the second ink. */
+.p-needs-you .p-needs-you__keys {
+  margin: 0;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+}
+
+/* The "Waiting" column at the desk's right, on the scrim, scrolling by itself. */
+.p-needs-you.p-needs-you--desk .p-needs-you__side {
+  grid-area: side;
+  position: relative;
+  z-index: 1;
+  align-self: stretch;
+  height: calc(100% + var(--s-6));
+  margin-top: calc(-1 * var(--s-6));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-6) var(--s-4) var(--s-8) var(--s-5);
+  background: var(--w-scrim-0);
+  box-shadow: inset 1px 0 0 var(--w-tag-line);
+}
+
+.p-needs-you.p-needs-you--wide-sheet .p-needs-you__side {
+  height: calc(100% + 2 * var(--s-4));
+  margin-top: calc(-1 * var(--s-4));
+  margin-left: var(--s-4);
+}
+
+/* The chip by the stack: "28 more", on the tag's ground. */
+.p-needs-you .p-needs-you__more-chip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  padding: 2px var(--s-2);
+  border-radius: var(--r-2);
+  background: var(--w-tag);
+  box-shadow: 0 0 0 1px var(--w-tag-line);
+  color: var(--w-tag-ink);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ---- Below 1280 px: the desk as a strip over the list (240 px; 200 px on a phone, D16), edge to edge. */
+.p-needs-you .p-needs-you__strip {
+  position: relative;
+  height: 240px;
+  margin: calc(-1 * var(--s-8)) calc(-1 * var(--s-10)) 0;
+  overflow: hidden;
 }
 
 .p-needs-you.p-needs-you--list,
@@ -413,8 +529,42 @@
   color: var(--accent);
 }
 
-/* A phone: the list is the page; each row and link is a 44 px target. */
+/* The "Waiting" heading at the desk: the section size, beside its count. */
+.p-needs-you .p-needs-you__name--desk {
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-section);
+  letter-spacing: normal;
+}
+
+/* Today's money line on a phone (the narrow top bar has no room for it): one whole line, never cut. */
+.p-needs-you .p-needs-you__money {
+  margin: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* A phone: the list is the page under a 200 px desk strip; each row and link is a 44 px target; an item opened is
+   the paper sheet at full width. */
 @media (max-width: 859px) {
+  .p-needs-you .p-needs-you__strip {
+    height: 200px;
+    margin: calc(-1 * var(--s-5)) calc(-1 * var(--s-4)) 0;
+  }
+
+  .p-needs-you .p-needs-you__sheet {
+    margin: 0 calc(-1 * var(--s-2));
+    padding: var(--s-5) var(--s-4) var(--s-5);
+  }
+
+  .p-needs-you .p-needs-you__row,
+  .p-needs-you .p-needs-you__more-rows > .p-needs-you__row {
+    min-height: 56px;
+  }
+
   .p-needs-you .p-needs-you__row {
     min-height: 56px;
     padding: 10px var(--s-3);

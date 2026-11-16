@@ -242,6 +242,8 @@ test("the card: Approve opens the confirm; nothing is sent until its button; the
     const yes = elements(root).find((e) => e.localName === "button" && textOf(e).trim() === "Approve and spend up to $1.00");
     assert.ok(yes, "the confirm button");
     assert.ok(elements(root).some((e) => e.localName === "button" && textOf(e).trim() === "Not yet"));
+    // PLAN-3D T10: the yes is inert for its first 600 ms, so the press waits past it.
+    await new Promise((r) => setTimeout(r, 700));
     fire(yes, "click");
     await settle();
     const sent = f.calls.filter((c) => c.method === "POST");
@@ -262,12 +264,49 @@ test("the card: Approve opens the confirm; nothing is sent until its button; the
   }
 });
 
+// PLAN-3D T10 (D10): the confirm takes focus on its words, not on yes; its yes is aria-disabled and ignores a press
+// for its first 600 ms, then sends exactly once.
+test("the card: the confirm takes focus on its words; its yes is inert for 600 ms, then sends once", async () => {
+  const f = stubFetch(() => ({ status: 200, body: { ok: true, message: "Approved." } }));
+  try {
+    const root = await showTree(sl.ShotlistCard, { item: ITEM, onDone: () => {} });
+    const opened = Date.now();
+    fire(buttons(root, "Approve A and its cost")[0], "click");
+    await settle();
+    const text = elements(root).find((e) => hasClass(e, "k-sl__confirm-text"));
+    assert.ok(text, "the confirm's words are one block");
+    assert.equal(text.getAttribute("data-autofocus"), "", "the dialog's first focus is its words");
+    assert.equal(text.getAttribute("tabindex"), "-1");
+    const yes = elements(root).find((e) => e.localName === "button" && textOf(e).trim() === "Approve and spend up to $1.00");
+    assert.equal(yes.getAttribute("data-autofocus"), null, "never focused by default");
+    assert.ok(elements(root).filter((e) => e.localName === "button").every((b) => b.getAttribute("data-autofocus") === null), "no button takes the first focus");
+    assert.equal(yes.getAttribute("aria-disabled"), "true", "inert at first");
+    fire(yes, "click"); // Enter and Space on a button arrive as this click
+    assert.ok(Date.now() - opened < 600);
+    await new Promise((r) => setTimeout(r, Math.max(0, 300 - (Date.now() - opened))));
+    fire(yes, "click");
+    await settle(20);
+    assert.equal(f.calls.filter((c) => c.method === "POST").length, 0, "nothing sent before 600 ms");
+    await new Promise((r) => setTimeout(r, Math.max(0, 700 - (Date.now() - opened))));
+    assert.equal(yes.getAttribute("aria-disabled"), null, "armed after 600 ms");
+    fire(yes, "click");
+    await settle();
+    const sent = f.calls.filter((c) => c.method === "POST");
+    assert.equal(sent.length, 1, "exactly one approval after 600 ms");
+    assert.deepEqual(sent[0].body, { id: "staged:shotlist:g1", action: "approve", version: "v1", variant: "a" });
+    assert.equal(sl.CONFIRM_INERT_MS, 600);
+  } finally {
+    f.restore();
+  }
+});
+
 test("the card: a refused approval shows the server's sentence with a link to Settings, and sends nothing again", async () => {
   const f = stubFetch(() => ({ status: 409, body: { error: { message: "This costs more than is left of today's limit ($0.10). Raise it in Settings, or approve it tomorrow.", next: "Open Settings, then look at the card again.", code: "over_limit" } } }));
   try {
     const root = await showTree(sl.ShotlistCard, { item: ITEM });
     fire(buttons(root, "Approve A and its cost")[0], "click");
     await settle();
+    await new Promise((r) => setTimeout(r, 700)); // PLAN-3D T10: past the yes's first 600 ms
     fire(elements(root).find((e) => e.localName === "button" && /^Approve and spend/.test(textOf(e).trim())), "click");
     await settle();
     assert.equal(f.calls.length, 1);

@@ -1,29 +1,44 @@
-// Needs you: every item waiting for the owner, and one of them opened (PLAN-COOK T50; CONTRACTS-V3 30, 26.4).
+// Needs you: every item waiting for the owner, and one of them opened (PLAN-COOK T50; CONTRACTS-V3 30, 26.4), on the
+// owner's desk in the lit studio (PLAN-3D T10, D10, D15, D16).
 // Address: #/needs-you, #/needs-you?d=<department> (one department), #/needs-you?item=<id> (one item opened).
 // Data: GET /api/inbox every 10 seconds; the agents of each department come from GET /api/map (read once; without
-// it items are placed by their source alone).
-// From 1280 px the list is at the left (grouped as the queue groups it) and the item opened at the right, the first
-// one when the address names none. A film's shotlist or a task's versions to pick from (kit ShotlistCard, PickCard)
-// is a whole stage: it takes the pane, its title is the page's heading, and the list is the queue panel. Below 1280
-// px the list is the page and an item opened is a screen of its own (the top bar's back button returns to the list).
-// The top bar gets the crumbs and a pager over the list's order. After an action its outcome stays where the item
-// was until the owner moves on.
-// Side by side (T104, T116, R5-D) the page fills the pane: the list a column of its own that scrolls by itself, each
-// row a title on one line with its time in a 64 px gutter at the right (its grey line only where it adds a
-// fact the title does not say), each group under its label and count over a hairline; the item opened at the top of
-// the rest, and under it, on the ground, what helps decide: the other items of the same task with a way to the task,
-// then the task's story so far (its whole thread, up to eight entries, the newest first, from GET /api/tasks/:id, the
-// route the task page reads: one request a task, kept while the page lives). The list beside it already says what
-// comes next; alone (under 1280 px) one line names it.
-import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
+// it items are placed by their source alone); GET /api/world every 10 seconds for the desk model and today's money
+// line, which goes to the top bar (`setTop({ note })`) and, on a phone, stands whole above the list.
+// From 1280 px the studio's desk fills the page column (world/stage.js, mode "desk"): the item opened is a paper sheet
+// at the left (today's kit card inside it, unchanged, so every action goes over the wire as before), what helps
+// decide under it on the same sheet, and the keys line at its foot, ink on paper; the "Waiting" list is a 320 px
+// column at the right. The desk model stands in the free rectangle between them (`safeRect`, the queue's panel left
+// out when it is open), and the stack on the desk holds one blank sheet a waiting item, twelve at most ("N more"
+// beside it). A film's shotlist or versions to pick from (kit ShotlistCard, PickCard) is a wide sheet over the whole
+// free area with the desk dimmed behind; its title is the page's heading. Approved, accepted, picked or answered,
+// the top sheet travels into its department's room in the model; anything else slides to the tray. No Undo.
+// Below 1280 px the list is the page over a short desk strip and an item opened is the paper sheet alone (the top
+// bar's back button returns to the list); below 860 px the strip is 390 x 200 and the money line is on the page.
+// Keys, when focus is in no field: J and Down the pager's next address, K and Up the one before, Enter on the sheet
+// the story so far, A the card's primary button, D its send-back or decline control. No key acts: Enter or Space on
+// the focused button does. A shotlist's approval keeps the kit's second confirm with its money sentences whole.
+// The top bar gets the crumbs, a pager over the list's order and the money line. After an action its outcome stays
+// where the item was until the owner moves on.
+// The list (T104, T116, R5-D): each row a title on one line with its time in a 64 px gutter at the right (its grey
+// line only where it adds a fact the title does not say), each group under its label and count over a hairline.
+// Under the item opened: the other items of the same task with a way to the task, then the task's story so far (its
+// whole thread, up to eight entries, the newest first, from GET /api/tasks/:id, the route the task page reads: one
+// request a task, kept while the page lives). The list beside it already says what comes next; alone one line
+// names it.
+import { html, useEffect, useLayoutEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { fullWhen, linkHref } from "../lib/format.js";
 import { SOURCE_DEPARTMENT, queueGroups, rowTime, sortNeeds } from "../lib/queue.js";
 import {
   Avatar, Button, DecisionCard, DecisionDone, Empty, ErrorNotice, Icon, Loading, NotConnected, Notice, PickCard, PickDone, Select,
-  ShotlistCard, ShotlistDone, StateIcon, SHOTLIST_WORDS, isPickItem, isShotlistItem,
+  ShotlistCard, ShotlistDone, StateIcon, SHOTLIST_WORDS, isPickItem, isShotlistItem, splitActions,
 } from "../kit/index.js";
+import { diffWorld } from "../world/diff.js";
+import { WorldStage } from "../world/stage.js";
+import { worldState } from "../world/state.js";
+import { stillOf } from "../world/support.js";
+import { WORDS } from "../world/words.js";
 
 const DEPARTMENT_IDS = ["operations", "sales", "marketing", "studio", "support", "people", "books"];
 const DEPARTMENT_TITLES = { operations: "Operations", sales: "Sales", marketing: "Marketing", studio: "Studio", support: "Support", people: "People", books: "Books" };
@@ -32,6 +47,8 @@ const MAX_ITEMS = 200;
 const MAX_SETTLED = 3;
 // The list and an item side by side from here; under it the list is the page.
 const WIDE = "(min-width: 1280px)";
+// A phone: the desk is a 390 x 200 strip and the money line stands on the page (D16).
+const PHONE = "(max-width: 859px)";
 
 // A row's glyph by the item's kind, as the queue draws it ("done" is the board's Done mark); a draft is a file.
 const KIND_ICON = { shotlist: "video", pick: "layers", approval: "check", question: "reply", result: "done", draft: "file" };
@@ -248,6 +265,44 @@ export function settledShown(settled, items) {
   return (Array.isArray(settled) ? settled : []).filter((s) => s && s.id && !listed.has(s.id)).slice(0, MAX_SETTLED);
 }
 
+// Pure. The words beside the desk's stack when more wait than it holds: "28 more".
+export const moreWords = (n) => `${n} more`;
+
+// Pure. What the desk does with the top sheet after the owner acted (PLAN-3D D10): approved, accepted, picked or
+// answered, it travels into the room of the item's department in the model (`room` null: off the desk's far edge);
+// anything else (send back, decline, reject, hide, another round) slides it to the tray.
+const FORWARD = new Set(["approve", "accept", "pick", "answer"]);
+export function deskEvent(r, departments) {
+  const action = r && typeof r === "object" ? String(r.action || "") : "";
+  if (FORWARD.has(action)) return { type: "approve", room: departmentOf(r.item, departments) || null, animate: true };
+  return { type: "aside", animate: true };
+}
+
+// Pure. The action ids a card's "send back or decline" control stands for, in the order D looks for them.
+export const DECLINE_IDS = ["send_back", "reject", "decline", "another"];
+
+// Pure. The words of the primary and of the send-back or decline control of an item: { primary, decline } (either
+// "" when the item has none).
+export function keyTargets(item) {
+  const actions = item && typeof item === "object" && Array.isArray(item.actions) ? item.actions : [];
+  const { primary } = splitActions(actions);
+  const decline = DECLINE_IDS.map((id) => actions.find((a) => a && a.id === id)).find(Boolean) || null;
+  return { primary: primary ? String(primary.label || "") : "", decline: decline ? String(decline.label || "") : "" };
+}
+
+// Pure. What a key press asks of the page, or null: { go: address } for J/K and the arrows, { focus: "story" |
+// "primary" | "decline" } for Enter on the sheet, A and D. `onSheet` is true when focus is on the sheet itself.
+export function keyIntent(key, { pager = null, onSheet = false, opened = false } = {}) {
+  const k = String(key || "");
+  if ((k === "j" || k === "J" || k === "ArrowDown") && pager && pager.next) return { go: pager.next };
+  if ((k === "k" || k === "K" || k === "ArrowUp") && pager && pager.prev) return { go: pager.prev };
+  if (!opened) return null;
+  if (k === "Enter" && onSheet) return { focus: "story" };
+  if (k === "a" || k === "A") return { focus: "primary" };
+  if (k === "d" || k === "D") return { focus: "decline" };
+  return null;
+}
+
 function useMedia(query) {
   const get = () => typeof matchMedia === "function" && matchMedia(query).matches;
   const [on, setOn] = useState(get);
@@ -317,7 +372,7 @@ function Helps({ item, items, order, d, wide, cache }) {
   const next = wide ? [] : nextAfter(order, item.id, 1);
   if (!task && !next.length) return null;
   return html`<div class="p-needs-you__helps">
-    ${task ? html`<section class="p-needs-you__more" aria-labelledby="p-needs-you-same">
+    ${task ? html`<section class="p-needs-you__more p-needs-you__same-block" tabindex="-1" aria-labelledby="p-needs-you-same">
       <div class="p-needs-you__more-head">
         <h2 id="p-needs-you-same" class="p-needs-you__more-title">${PAGE_WORDS.sameTask}${same.length ? html` <span class="p-needs-you__more-count u-num">${same.length}</span>` : null}</h2>
         <a class="p-needs-you__link p-needs-you__more-link" href=${task.href}>${PAGE_WORDS.openTask}<${Icon} name="arrow-right" size=${14} /></a>
@@ -326,7 +381,7 @@ function Helps({ item, items, order, d, wide, cache }) {
         ${same.map((i) => html`<${Row} key=${i.id} item=${i} href=${itemAddress(i.id, d)} line=${true} />`)}
       </div>` : null}
     </section>` : null}
-    ${story.length ? html`<section class="p-needs-you__more" aria-labelledby="p-needs-you-story">
+    ${story.length ? html`<section class="p-needs-you__more p-needs-you__story-block" tabindex="-1" aria-labelledby="p-needs-you-story">
       <div class="p-needs-you__more-head">
         <h2 id="p-needs-you-story" class="p-needs-you__more-title">${PAGE_WORDS.story}</h2>
       </div>
@@ -388,18 +443,111 @@ function Outcome({ done: s }) {
 
 const isStageOutcome = (s) => Boolean(s && s.kind === "shotlist" && s.action === "approve" && s.version);
 
+
+// ---- The desk around the cards
+
+// Walks the elements under `root` (the page's own DOM; a NodeList or an array of children) for the first that `f`
+// accepts.
+function findIn(root, f) {
+  const kids = root && root.childNodes ? root.childNodes : [];
+  for (const c of kids) {
+    if (!c || c.nodeType !== 1) continue;
+    if (f(c)) return c;
+    const deeper = findIn(c, f);
+    if (deeper) return deeper;
+  }
+  return null;
+}
+const wordsIn = (n) => (n && n.nodeType === 3 ? String(n.data || "") : n && n.childNodes ? [...n.childNodes].map(wordsIn).join("") : "");
+const classesOf = (el) => String((el && typeof el.getAttribute === "function" && el.getAttribute("class")) || "").split(/\s+/);
+const usable = (el) => el && el.localName === "button" && !el.disabled && el.getAttribute("disabled") === null;
+
+// The button A or D moves focus to: the one whose words are the item's primary (or send-back) action, else, for the
+// primary, the card's one filled primary (a shotlist's "Approve A and its cost").
+function keyButton(sheet, item, which) {
+  const t = keyTargets(item);
+  const words = which === "primary" ? t.primary : t.decline;
+  const byWords = words ? findIn(sheet, (el) => usable(el) && wordsIn(el).trim() === words) : null;
+  if (byWords || which !== "primary") return byWords;
+  return findIn(sheet, (el) => usable(el) && classesOf(el).includes("k-btn--primary"));
+}
+
+const typing = (t) => !!t && (/^(INPUT|TEXTAREA|SELECT)$/i.test(String(t.tagName || t.localName || "")) || t.isContentEditable === true);
+const inside = (t, sel) => !!(t && typeof t.closest === "function" && t.closest(sel));
+const modalOpen = () => {
+  const d = globalThis.document;
+  return !!(d && typeof d.querySelector === "function" && d.querySelector('[aria-modal="true"], [role="alertdialog"]'));
+};
+
+// The theme the desk is drawn in: the owner's choice, "auto" as the system says.
+function themeOf(settings) {
+  const t = settings && settings.theme;
+  if (t === "light" || t === "dark") return t;
+  return typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+const rectOf = (el) => (el && typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null);
+const GUTTER = 24;
+
+// The free rectangle of the desk (D15): the stage less the sheet at the left, the list at the right and the shell's
+// queue when it is open over the page, in the stage's own pixels. Measured again when any of them changes size and
+// when the queue opens or shuts. Null until it can be measured (the test DOM, a stage not shown).
+function useSafeRect(rootRef, on, key) {
+  const [rect, setRect] = useState(null);
+  useLayoutEffect(() => {
+    if (!on) { setRect(null); return undefined; }
+    const root = rootRef.current;
+    if (!root || typeof root.getBoundingClientRect !== "function") return undefined;
+    let timer = 0;
+    const measure = () => {
+      const r = root.getBoundingClientRect();
+      if (!r || !(r.width > 0) || !(r.height > 0)) return;
+      let left = 0;
+      let right = r.width;
+      const sheet = rectOf(root.querySelector(".p-needs-you__sheet"));
+      const side = rectOf(root.querySelector(".p-needs-you__side"));
+      const queue = rectOf(document.querySelector("#s-queue .k-drawer__panel"));
+      if (sheet && sheet.width > 0) left = Math.max(left, sheet.right - r.left);
+      if (side && side.width > 0) right = Math.min(right, side.left - r.left);
+      if (queue && queue.width > 0 && queue.left < r.right) right = Math.min(right, queue.left - r.left);
+      const x = Math.round(left + GUTTER);
+      const next = { x, y: 0, w: Math.max(0, Math.round(right - GUTTER) - x), h: Math.round(r.height) };
+      setRect((old) => (old && old.x === next.x && old.y === next.y && old.w === next.w && old.h === next.h ? old : next));
+    };
+    const later = () => { clearTimeout(timer); measure(); timer = setTimeout(measure, 320); };
+    measure();
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(later) : null;
+    if (ro) {
+      ro.observe(root);
+      for (const sel of [".p-needs-you__sheet", ".p-needs-you__side"]) { const el = root.querySelector(sel); if (el) ro.observe(el); }
+    }
+    const host = document.getElementById("s-queue");
+    const mo = host && typeof MutationObserver === "function" ? new MutationObserver(later) : null;
+    if (mo) mo.observe(host, { childList: true, subtree: true });
+    return () => { clearTimeout(timer); if (ro) ro.disconnect(); if (mo) mo.disconnect(); };
+  }, [on, key]);
+  return rect;
+}
+
 export default function Page({ route }) {
   const app = useApp() || {};
   const query = route && route.query ? route.query : new URLSearchParams();
   const d = filterOf(query);
   const want = openOf(query);
   const wide = useMedia(WIDE);
+  const phone = useMedia(PHONE);
   const res = useResource("/api/inbox", { every: 10000 });
+  const world = useResource("/api/world", { every: 10000 });
   const [departments, setDepartments] = useState(null);
   const [settled, setSettled] = useState([]);
+  const [events, setEvents] = useState(null);
   const was = useRef({ id: "", at: null });
   const seen = useRef(null);
   const stories = useRef(Object.create(null));
+  const rootRef = useRef(null);
+  const sheetRef = useRef(null);
+  const prevWorld = useRef(null);
+  const keys = useRef({});
 
   // The agents of each department, once; the page works without them.
   useEffect(() => {
@@ -411,12 +559,13 @@ export default function Page({ route }) {
   }, []);
 
   // After an action the list and the shell's count are read again at once; what happened is kept, so it stays
-  // where the item was when the item leaves the list.
+  // where the item was when the item leaves the list. The desk's top sheet goes into its room or to the tray.
   const done = (r) => {
     const out = r && r.done && r.done.id ? r.done
       : r && r.item && r.item.id ? { id: r.item.id, kind: "decision", of: r.item.kind, action: r.action, message: String(r.message || "Done."), title: cap(r.item.title, 200) }
         : null;
     if (out) setSettled((old) => [out, ...old.filter((s) => s.id !== out.id)].slice(0, MAX_SETTLED));
+    if (r && typeof r === "object") setEvents([deskEvent(r, departments)]);
     res.refresh();
     if (typeof app.refreshShell === "function") app.refreshShell();
     if (r && r.message && typeof app.announce === "function") app.announce(String(r.message));
@@ -437,10 +586,24 @@ export default function Page({ route }) {
   const crumbItem = opened || (kept ? { kind: kept.kind === "decision" ? kept.of : kept.kind } : want ? {} : null);
   const crumbs = crumbsFor(crumbItem, d);
 
-  // The top bar: where you are, and the pager when an item is open.
-  const topKey = JSON.stringify([crumbs, pager]);
+  // The studio's state for the desk: the model from /api/world (or the map's departments), the stack from the list
+  // shown. Only ids, enums and numbers reach the world (D9); the money line is the server's sentence, whole.
+  const worldData = world.data && typeof world.data === "object" ? world.data : null;
+  const ws = worldState({ world: worldData, map: departments ? { departments } : null, inbox: { items: shown } });
+  const note = ws.money && ws.money.line ? ws.money.line : "";
+  const sceneKey = JSON.stringify(ws.scene);
   useEffect(() => {
-    if (typeof app.setTop === "function") app.setTop({ crumbs, pager: pager || undefined });
+    const prev = prevWorld.current;
+    prevWorld.current = ws;
+    if (!prev) return;
+    const ev = diffWorld(prev, ws, { visible: !(typeof document !== "undefined" && document.hidden) });
+    if (ev.length) setEvents(ev);
+  }, [sceneKey]);
+
+  // The top bar: where you are, the pager when an item is open, and today's money line.
+  const topKey = JSON.stringify([crumbs, pager, note]);
+  useEffect(() => {
+    if (typeof app.setTop === "function") app.setTop({ crumbs, pager: pager || undefined, note: note || undefined });
   }, [topKey, app.setTop]);
 
   // The owner moved to another item on this page: go to the top and give focus to it (a page change does this in
@@ -458,7 +621,55 @@ export default function Page({ route }) {
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(look);
   }, [want]);
 
-  // ---- States before the list
+  // The keys (D10). They move between items and move focus; none of them acts.
+  keys.current = { pager, opened };
+  useEffect(() => {
+    const doc = typeof document !== "undefined" ? document : null;
+    if (!doc || typeof doc.addEventListener !== "function") return undefined;
+    const onKey = (e) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      const t = e.target;
+      if (typing(t) || modalOpen()) return;
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && inside(t, '[role="radiogroup"], [role="menu"], [role="listbox"], [role="tablist"], .p-needs-you__groups')) return;
+      const sheet = sheetRef.current;
+      const cur = keys.current;
+      const intent = keyIntent(e.key, { pager: cur.pager, onSheet: !!sheet && t === sheet, opened: !!cur.opened && !!sheet });
+      if (!intent) return;
+      if (intent.go) {
+        e.preventDefault();
+        location.hash = intent.go;
+        return;
+      }
+      const el = intent.focus === "story"
+        ? findIn(sheet, (x) => classesOf(x).includes("p-needs-you__story-block")) || findIn(sheet, (x) => classesOf(x).includes("p-needs-you__same-block"))
+        : keyButton(sheet, cur.opened, intent.focus);
+      if (!el || typeof el.focus !== "function") return;
+      e.preventDefault();
+      el.focus();
+    };
+    doc.addEventListener("keydown", onKey);
+    return () => doc.removeEventListener("keydown", onKey);
+  }, []);
+
+  const theme = themeOf(app.settings);
+  const still = stillOf();
+  const more = ws.stack ? ws.stack.more : 0;
+  const deskShown = wide && !!data;
+  const safe = useSafeRect(rootRef, deskShown && !stageNow, `${openId}|${shown.length}|${Boolean(kept)}`);
+  // The stage: aria-hidden (stage.js); its label, "28 more" when the stack cannot hold every item, is spoken beside it.
+  const stage = (cls) => html`<div class=${cls}>
+    <${WorldStage} mode="desk" state=${ws} safeRect=${safe} theme=${theme} still=${still} events=${events} label=${more ? moreWords(more) : ""} />
+  </div>`;
+  // The chip by the stack: placed in the free rectangle, under the model and the stack it frames.
+  const chip = more && safe && safe.w > 0
+    ? html`<span class="p-needs-you__more-chip u-num" aria-hidden="true"
+        style=${`transform: translate(${Math.round(safe.x + safe.w / 2)}px, ${Math.round(safe.y + safe.h * 0.86)}px) translateX(-50%)`}>${moreWords(more)}</span>`
+    : null;
+  const keysLine = html`<p class="p-needs-you__keys">${WORDS.keys}</p>`;
+  const moneyLine = phone && note ? html`<p class="p-needs-you__money u-num">${note}</p>` : null;
+  const strip = stage("p-needs-you__strip");
+
+  // ---- States before the list: today's words on a sheet over the desk
   if (!data) {
     let body;
     if (res.error) {
@@ -468,30 +679,55 @@ export default function Page({ route }) {
             <p><a class="p-needs-you__link" href="#/health">Open Health</a></p>`
         : html`<${ErrorNotice} error=${e} onRetry=${res.reload} />`;
     } else body = html`<${Loading} lines=${5} label="Loading what needs you" />`;
-    return html`<div class="p-needs-you p-needs-you--alone">
-      <header class="p-needs-you__head"><h1 id="page-title" class="p-needs-you__name" tabindex="-1">${PAGE_WORDS.title}</h1></header>
-      ${body}
-    </div>`;
-  }
-
-  // ---- A whole stage: the shotlist or the versions opened, or a shotlist just approved
-  if (opened && isStageItem(opened)) {
-    return html`<div class="p-needs-you p-needs-you--stage">
-      ${isShotlistItem(opened)
-        ? html`<${ShotlistCard} key=${opened.id} item=${opened} onDone=${done} />`
-        : html`<${PickCard} key=${opened.id} item=${opened} onDone=${done} href=${itemAddress(opened.id, d)} />`}
-    </div>`;
-  }
-  if (!opened && isStageOutcome(kept)) {
-    return html`<div class="p-needs-you p-needs-you--stage">
-      ${kept.kind === "shotlist"
-        ? html`<${ShotlistDone} key=${`done:${kept.id}`} done=${kept} focus=${true} />`
-        : html`<${PickDone} key=${`done:${kept.id}`} done=${kept} focus=${true} />`}
-    </div>`;
+    const titled = html`<header class="p-needs-you__head"><h1 id="page-title" class="p-needs-you__name" tabindex="-1">${PAGE_WORDS.title}</h1></header>
+      ${body}`;
+    if (wide) {
+      return html`<div class="p-needs-you p-needs-you--desk" ref=${rootRef}>
+        ${stage("p-needs-you__stage")}
+        <section class="p-needs-you__sheet p-needs-you__sheet--small">${titled}</section>
+      </div>`;
+    }
+    return html`<div class="p-needs-you p-needs-you--alone">${strip}${titled}</div>`;
   }
 
   const chips = chipsFor(all, departments, d);
   const quiet = quietLines(data.notConnected);
+  const list = html`<${List} items=${shown} chips=${chips} d=${d} openId=${openId} quiet=${quiet} />`;
+
+  // The "Waiting" column at the desk's right: its heading is the page's h1, except under a whole stage, whose own
+  // title is the page's one heading.
+  const waiting = (h1) => html`<aside class="p-needs-you__side" aria-label=${PAGE_WORDS.list}>
+    <header class="p-needs-you__head">
+      ${h1
+        ? html`<h1 id="page-title" class="p-needs-you__name p-needs-you__name--desk" tabindex="-1"><span class="u-visually-hidden">${PAGE_WORDS.title}: </span>${WORDS.waiting}</h1>`
+        : html`<h2 class="p-needs-you__name p-needs-you__name--desk"><span class="u-visually-hidden">${PAGE_WORDS.title}: </span>${WORDS.waiting}</h2>`}
+      <span class="p-needs-you__count u-num">${shown.length}</span>
+    </header>
+    ${list}
+  </aside>`;
+
+  // ---- A whole stage: the shotlist or the versions opened, or a shotlist just approved
+  const stageCard = opened && isStageItem(opened)
+    ? (isShotlistItem(opened)
+      ? html`<${ShotlistCard} key=${opened.id} item=${opened} onDone=${done} />`
+      : html`<${PickCard} key=${opened.id} item=${opened} onDone=${done} href=${itemAddress(opened.id, d)} />`)
+    : !opened && isStageOutcome(kept)
+      ? (kept.kind === "shotlist"
+        ? html`<${ShotlistDone} key=${`done:${kept.id}`} done=${kept} focus=${true} />`
+        : html`<${PickDone} key=${`done:${kept.id}`} done=${kept} focus=${true} />`)
+      : null;
+  if (stageCard) {
+    if (wide) {
+      return html`<div class="p-needs-you p-needs-you--desk p-needs-you--wide-sheet" ref=${rootRef}>
+        ${stage("p-needs-you__stage")}
+        <div class="p-needs-you__dim" aria-hidden="true"></div>
+        ${waiting(false)}
+        <section class="p-needs-you__open p-needs-you__sheet p-needs-you__sheet--wide" tabindex="-1" ref=${sheetRef}
+          aria-label=${opened ? cap(opened.title, 120) : PAGE_WORDS.title}>${stageCard}</section>
+      </div>`;
+    }
+    return html`<div class="p-needs-you p-needs-you--stage">${stageCard}</div>`;
+  }
 
   // ---- The item opened (or what became of it), as a card at the page's level
   const card = (item) => (isShotlistItem(item)
@@ -508,44 +744,55 @@ export default function Page({ route }) {
     <//></div>`;
   }
 
-  // ---- Nothing waits
+  // ---- Nothing waits: the desk with an empty tray, the existing words and "Open Tasks" on a small sheet
   if (!all.length && !open) {
-    return html`<div class="p-needs-you p-needs-you--alone">
-      <header class="p-needs-you__head"><h1 id="page-title" class="p-needs-you__name" tabindex="-1">${PAGE_WORDS.title}</h1></header>
+    const nothing = html`<header class="p-needs-you__head"><h1 id="page-title" class="p-needs-you__name" tabindex="-1">${PAGE_WORDS.title}</h1></header>
       <${Empty} title=${PAGE_WORDS.empty} text=${PAGE_WORDS.emptyLine}>
         <${Button} href="#/tasks">${PAGE_WORDS.openTasks}<//>
-      <//>
-    </div>`;
+      <//>`;
+    if (wide) {
+      return html`<div class="p-needs-you p-needs-you--desk p-needs-you--empty" ref=${rootRef}>
+        ${stage("p-needs-you__stage")}
+        <section class="p-needs-you__sheet p-needs-you__sheet--small">${nothing}</section>
+      </div>`;
+    }
+    return html`<div class="p-needs-you p-needs-you--alone">${strip}${moneyLine}${nothing}</div>`;
   }
 
-  const list = html`<${List} items=${shown} chips=${chips} d=${d} openId=${openId} quiet=${quiet} />`;
-  const head = html`<header class="p-needs-you__head">
-    <h1 id="page-title" class="p-needs-you__name" tabindex="-1">${PAGE_WORDS.title}</h1>
-    <span class="p-needs-you__count u-num">${shown.length}</span>
-  </header>`;
-
-  // From 1280 px: the list at the left, the item opened at the right.
-  if (wide && open) {
-    return html`<div class="p-needs-you p-needs-you--split">
-      <div class="p-needs-you__side">${head}${list}</div>
-      <div class="p-needs-you__pane">
-        <section class="p-needs-you__open" tabindex="-1" aria-label=${opened ? cap(opened.title, 120) : PAGE_WORDS.title}>${open}</section>
+  // From 1280 px: the desk, the sheet at the left, the list at the right.
+  if (wide) {
+    return html`<div class="p-needs-you p-needs-you--desk" ref=${rootRef}>
+      ${stage("p-needs-you__stage")}
+      ${chip}
+      ${waiting(true)}
+      ${open ? html`<section class="p-needs-you__open p-needs-you__sheet" tabindex="-1" ref=${sheetRef}
+          aria-label=${opened ? cap(opened.title, 120) : PAGE_WORDS.title}>
+        ${open}
         ${opened ? html`<${Helps} item=${opened} items=${order} order=${order} d=${d} wide=${true} cache=${stories} />` : null}
-      </div>
+        ${opened ? keysLine : null}
+      </section>` : null}
     </div>`;
   }
-  // Under 1280 px an item opened is a screen of its own; the top bar's back button returns to the list.
+  // Under 1280 px an item opened is the paper sheet alone; the top bar's back button returns to the list.
   if (open) {
     return html`<div class="p-needs-you p-needs-you--alone">
       <header class="p-needs-you__head p-needs-you__head--item">
         <h1 id="page-title" class="p-needs-you__kind" tabindex="-1">${crumbsFor(crumbItem, d)[1].label}</h1>
         ${pager && pager.index ? html`<span class="p-needs-you__at u-num">${pager.label}</span>` : null}
       </header>
-      <section class="p-needs-you__open" tabindex="-1">${open}</section>
-      ${opened ? html`<${Helps} item=${opened} items=${order} order=${order} d=${d} wide=${false} cache=${stories} />` : null}
+      <section class="p-needs-you__open p-needs-you__sheet" tabindex="-1" ref=${sheetRef}>
+        ${open}
+        ${opened ? html`<${Helps} item=${opened} items=${order} order=${order} d=${d} wide=${false} cache=${stories} />` : null}
+        ${opened && !phone ? keysLine : null}
+      </section>
     </div>`;
   }
+  const head = html`<header class="p-needs-you__head">
+    <h1 id="page-title" class="p-needs-you__name" tabindex="-1">${PAGE_WORDS.title}</h1>
+    <span class="p-needs-you__count u-num">${shown.length}</span>
+  </header>`;
   return html`<div class="p-needs-you p-needs-you--list">
-    <div class="p-needs-you__side">${head}<p class="p-needs-you__lede">${PAGE_WORDS.lede}</p>${list}</div>
+    ${strip}
+    <div class="p-needs-you__side">${moneyLine}${head}<p class="p-needs-you__lede">${PAGE_WORDS.lede}</p>${list}</div>
   </div>`;
 }

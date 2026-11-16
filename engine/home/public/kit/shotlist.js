@@ -668,15 +668,31 @@ function Money({ item, v }) {
   <//></div>`;
 }
 
+// How long the confirm's yes stays inert after the confirm appears (PLAN-3D D10): a second press that lands at once
+// (a double click, Enter held down) spends nothing.
+export const CONFIRM_INERT_MS = 600;
+
+// The confirm takes focus on its words, not on a button (PLAN-3D T10): the owner reads what is spent first, and
+// neither Enter nor Space can act before Tab reaches a button. Its yes is aria-disabled and ignores clicks, Enter
+// and Space for its first 600 ms.
 function Confirm({ v, busy, onYes, onNo }) {
   const w = confirmWords(v);
+  const [armed, setArmed] = useState(false);
+  // From the moment it is drawn (a layout effect: not a frame later).
+  useLayoutEffect(() => {
+    const t = setTimeout(() => setArmed(true), CONFIRM_INERT_MS);
+    return () => clearTimeout(t);
+  }, []);
   if (!w) return null;
   const words = cap(v.cost && v.cost.words, 500);
+  const yes = () => { if (armed) onYes(); };
   return html`<${Dialog} open=${true} title=${w.title} size="sm" onClose=${() => { if (!busy) onNo(); }}
-    footer=${html`<${Button} variant="plain" data-autofocus="" disabled=${busy} onClick=${onNo}>${SHOTLIST_WORDS.notYet}<//>
-      <${Button} variant="primary" busy=${busy} onClick=${onYes}>${w.button}<//>`}>
-    <p class="k-sl__confirm">${w.body}</p>
-    ${words ? html`<p class="k-sl__confirm k-sl__confirm--words">${words}</p>` : null}
+    footer=${html`<${Button} variant="plain" disabled=${busy} onClick=${onNo}>${SHOTLIST_WORDS.notYet}<//>
+      <${Button} variant="primary" busy=${busy} aria-disabled=${armed ? undefined : "true"} onClick=${yes}>${w.button}<//>`}>
+    <div class="k-sl__confirm-text" tabindex="-1" data-autofocus="">
+      <p class="k-sl__confirm">${w.body}</p>
+      ${words ? html`<p class="k-sl__confirm k-sl__confirm--words">${words}</p>` : null}
+    </div>
   <//>`;
 }
 

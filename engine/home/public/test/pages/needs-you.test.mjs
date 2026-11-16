@@ -263,10 +263,32 @@ test("needs-you: the story so far is a task's whole thread with words, up to eig
 // PLAN-COOK T116 (critics of round A2 on S09: "every title is cut after about 30 characters", "groups blur"), and R5-D
 // (critics of round R4: "three solid grey 28px bars chop the list", "titles wrap because the date sits inline", "the
 // selected row uses a blue left rule, a fill and a check icon all at once").
-test("needs-you: side by side the list is a column of its own; each group under its label and count over a hairline; the date in a 64 px gutter; a title takes one line", () => {
+// PLAN-3D T10: the 440 px split with its 64 px gutter round the pane is replaced by the desk (D15): the sheet at the
+// left, at most 640 px, the "Waiting" list a 320 px column at the right, the keys line inside the sheet at 13 px
+// (weak point 1 of e2: it was unreadable under the sheet), and 44 px targets under 860 px. The list's own pins stay.
+test("needs-you: on the desk the sheet is at most 640 px and the list a 320 px column; the keys line is inside the sheet at 13 px; each group under its label over a hairline; the date in a 64 px gutter; a title takes one line", () => {
   const c = readFileSync(resolve(HERE, "../../styles/pages/needs-you.css"), "utf8");
-  assert.match(c, /\.p-needs-you\.p-needs-you--split \{[^}]*grid-template-columns: 440px minmax\(0, 1fr\);/);
-  assert.match(c, /\.p-needs-you\.p-needs-you--split \{[^}]*min-height: calc\(100vh - var\(--topbar-h\)\);/);
+  const src = readFileSync(resolve(HERE, "../../pages/needs-you.js"), "utf8");
+  const desk = /\.p-needs-you\.p-needs-you--desk \{([^}]*)\}/.exec(c)[1];
+  assert.match(desk, /grid-template-columns: minmax\(0, 640px\) minmax\(0, 1fr\) 320px;/, "the sheet at most 640 px, the list 320 px");
+  assert.match(desk, /height: calc\(100vh - var\(--topbar-h\)\);/, "the desk fills the page column under the top bar");
+  const sheet = /\.p-needs-you \.p-needs-you__sheet \{([^}]*)\}/.exec(c)[1];
+  assert.match(sheet, /background: var\(--panel\);/, "the sheet is the kit's panel surface, so the kit's cards keep their ink");
+  assert.match(sheet, /box-shadow: var\(--paper-shadow\);/, "lifted off the desk");
+  assert.match(c, /\.p-needs-you\.p-needs-you--desk \.p-needs-you__sheet \{[^}]*overflow-y: auto;/, "its own scroll");
+  const keys = /\.p-needs-you \.p-needs-you__keys \{([^}]*)\}/.exec(c)[1];
+  assert.match(keys, /font-size: var\(--fs-note\);/, "13 px by its token");
+  const tokens = readFileSync(resolve(HERE, "../../styles/tokens.css"), "utf8");
+  assert.ok(Number(/--fs-note: (\d+)px;/.exec(tokens)[1]) >= 13, "--fs-note is not smaller than 13 px");
+  assert.match(keys, /color: var\(--ink-2\);/, "the second ink, on the sheet");
+  // The keys line is drawn inside the sheet, after the card and what helps decide.
+  assert.match(src, /<section class="p-needs-you__open p-needs-you__sheet"(?:(?!<\/section>)[\s\S]){0,400}\$\{open\}(?:(?!<\/section>)[\s\S]){0,300}\$\{opened \? keysLine : null\}\s*<\/section>/);
+  assert.match(src, /const keysLine = html`<p class="p-needs-you__keys">\$\{WORDS\.keys\}<\/p>`;/);
+  const phone = c.slice(c.indexOf("@media (max-width: 859px)"));
+  assert.match(phone, /\.p-needs-you \.p-needs-you__row,\s*\.p-needs-you \.p-needs-you__more-rows > \.p-needs-you__row \{[^}]*min-height: 56px;/, "rows at least 44 px");
+  assert.match(phone, /\.p-needs-you \.p-needs-you__link \{[^}]*min-height: 44px;/, "links 44 px");
+  assert.match(phone, /\.p-needs-you \.p-needs-you__filter \.k-select__control \{[^}]*min-height: 44px;/);
+  assert.match(phone, /\.p-needs-you \.p-needs-you__strip \{[^}]*height: 200px;/, "the phone's desk strip is 200 px (D16)");
   const h = /\.p-needs-you \.p-needs-you__heading \{([^}]*)\}/.exec(c)[1];
   assert.match(h, /border-bottom: 1px solid var\(--line\);/, "the label over a hairline");
   assert.doesNotMatch(h, /background/, "no filled band");
@@ -276,7 +298,8 @@ test("needs-you: side by side the list is a column of its own; each group under 
   assert.doesNotMatch(c, /aria-current="true"\] \.p-needs-you__icon/, "the chosen row is the fill and the bar, no third mark");
   const t = /\.p-needs-you \.p-needs-you__title \{([^}]*)\}/.exec(c)[1];
   assert.match(t, /text-overflow: ellipsis;[^}]*white-space: nowrap;/, "one line a title, cut with an ellipsis (R6-D)");
-  assert.match(readFileSync(resolve(HERE, "../../pages/needs-you.js"), "utf8"), /<span class="p-needs-you__title" title=\$\{cap\(item\.title, 120\)\}>/, "its whole words on hover");
+  assert.match(src, /<span class="p-needs-you__title" title=\$\{cap\(item\.title, 120\)\}>/, "its whole words on hover");
   assert.match(c, /\.p-needs-you \.p-needs-you__when \{[^}]*font-size: var\(--fs-label\);[^}]*font-variant-numeric: tabular-nums;/, "the date 12 px tabular");
   assert.match(c, /\.p-needs-you \.p-needs-you__row\[aria-current="true"\] \{[^}]*background: var\(--sel\);[^}]*box-shadow: inset 2px 0 0 var\(--accent\);/, "the chosen row: the kit's fill and bar");
+  assert.doesNotMatch(c, /blur/, "nothing blurs");
 });
