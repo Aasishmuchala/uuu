@@ -25,7 +25,9 @@
   min-width: 0;
 }
 
-.k-dot--live { --k-dot-colour: var(--good); }
+/* Working is the lamp's tone, the accent, so a state reads the same in the scene, a list and a tag (PLAN-3D-ALL
+   D5, U2); on or passed stays the muted green. */
+.k-dot--live { --k-dot-colour: var(--accent); }
 .k-dot--ok { --k-dot-colour: var(--good); }
 .k-dot--wait { --k-dot-colour: var(--ink-3); }
 .k-dot--warn { --k-dot-colour: var(--warn); }

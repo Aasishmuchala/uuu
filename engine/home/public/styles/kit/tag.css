@@ -130,7 +130,8 @@
   background: var(--dept, var(--ink-3));
 }
 
-.k-chip__dot--live { background: var(--good); }
+/* Working in the lamp's tone (PLAN-3D-ALL D5, U2). */
+.k-chip__dot--live { background: var(--accent); }
 .k-chip__dot--ok { background: var(--good); }
 .k-chip__dot--warn { background: var(--warn); }
 .k-chip__dot--bad { background: var(--bad); }

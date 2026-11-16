@@ -5,6 +5,7 @@ import { html, useState } from "../vendor/preact-htm.js";
 import {
   AnswerView, Card, FilePicker, FormFields, HandoffTag, JobChip, JobRow, JobStart, Ring, Section, Segmented,
   StageMark, WhyNot, checkForm, Creature, PageHeader,
+  RoomHeader, Sheet, Lamp, Button, Field, TextInput, Tag, DataTable, Notice,
 } from "./index.js";
 
 const row = "display:flex;flex-wrap:wrap;align-items:center;gap:12px";
@@ -141,11 +142,56 @@ function Pickers() {
   </div>`;
 }
 
+// PLAN-3D-ALL U2: the room header with three pictures and with none, a sheet of paper holding the kit's common
+// parts, and the five lamps. The pictures are baked by U3; until then each band shows its material alone.
+const SHEET_ROWS = [
+  { id: "a", item: "Kitchen survey", when: "12 Nov", amount: "₹ 2,500" },
+  { id: "b", item: "Drawings, two rounds", when: "14 Nov", amount: "₹ 18,000" },
+  { id: "c", item: "Site visit", when: "20 Nov", amount: "₹ 3,200" },
+];
+const LAMPS = [["on", "Working"], ["amber", "Waiting for you"], ["red", "Stuck"], ["off", "Free"], ["down", "Switched off"]];
+
+function Language() {
+  return html`
+    <${Section} title="Room headers" hint="A surface screen's band: one picture of its part of the studio, the page's words over it.">
+      <div class="u-stack" style="gap:16px">
+        <${RoomHeader} glimpse="desk" over="Tasks" title="Tasks" lede="What the agents are doing, and what waits for you."
+          actions=${html`<${Button} variant="primary" icon="plus">New task<//>`} />
+        <${RoomHeader} glimpse="room-books" title="Books" state=${html`<${Tag} tone="good" dot>On<//>`}
+          lede="Invoices, quotations and what has been paid." />
+        <${RoomHeader} glimpse="annex" title="Settings" lede="The doors, the models and what may be spent." />
+        <${RoomHeader} title="No picture" lede="The band keeps its height with its material alone." />
+      </div>
+    <//>
+
+    <${Section} title="Paper" hint="For what the owner reads and decides. Every part on it takes paper's inks through the scope.">
+      <${Sheet} as="section" label="A quotation to approve">
+        <div class="u-stack" style="gap:16px">
+          <div style=${row}><${Tag} tone="warn" dot>Waiting for you<//><${Tag} tone="info">Books<//><${Tag}>Draft<//></div>
+          <h2 style="font-size:var(--fs-page);line-height:var(--lh-page);font-weight:var(--fw-page)">Approve the quotation for Meera Iyer's villa</h2>
+          <p style="color:var(--ink-2)">Three lines from your price list. The Bookkeeper checked the sums against last month's quotation.</p>
+          <${DataTable} columns=${[{ key: "item", label: "Item" }, { key: "when", label: "When" }, { key: "amount", label: "Amount", align: "end" }]} rows=${SHEET_ROWS} />
+          <${Notice} tone="warn" title="This sends the quotation to the customer.">Once sent, it cannot be taken back. You can send a corrected one.<//>
+          <${Field} label="A note for the Bookkeeper" hint="Optional."><${TextInput} value="" placeholder="Anything to change first?" /><//>
+          <div style=${row}><${Button} variant="primary">Approve and send<//><${Button}>Decline<//><${Button} variant="link">The story so far<//></div>
+        </div>
+      <//>
+    <//>
+
+    <${Section} title="Lamps" hint="The Map's glyph: shape and tone together, always beside words.">
+      <div style=${row}>
+        ${LAMPS.map(([state, words]) => html`<span key=${state} style="display:inline-flex;align-items:center;gap:8px"><${Lamp} state=${state} /><span>${words}</span></span>`)}
+      </div>
+    <//>`;
+}
+
 export default function Gallery() {
   const [seg, setSeg] = useState("list");
   return html`<main style=${page}>
     <${PageHeader} over="Kit · New parts" title="The new parts"
       lead="Creatures, the pill control, jobs, answers, rings, forms and the file picker, on sample data." />
+
+    <${Language} />
 
     <${Section} title="Creatures">
       <div style=${row}>

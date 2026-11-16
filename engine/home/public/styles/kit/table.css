@@ -96,13 +96,42 @@
   color: var(--ink-3);
 }
 
-/* A row with a link in it opens something: it answers the pointer with the control fill. */
+/* The head row, a row with a link in it under the pointer, and the current row stand in the lamp's pool of light
+   (PLAN-3D-ALL U2). The cells keep their places: the first and last cells carry the pool a step past the text
+   with a shadow, so the words stay aligned with the page. */
 .k-table__table tbody tr {
   transition: background-color var(--t-fast) var(--ease);
 }
 
-.k-table__table tbody tr:has(a[href]):hover {
-  background-color: var(--ctl);
+.k-table__table thead th {
+  padding-top: var(--s-2);
+  background-color: var(--lamp-pool);
+}
+
+.k-table__table thead th:first-child {
+  box-shadow: calc(var(--s-2) * -1) 0 0 var(--lamp-pool);
+}
+
+.k-table__table thead th:last-child {
+  box-shadow: var(--s-2) 0 0 var(--lamp-pool);
+}
+
+.k-table__table tbody tr:has(a[href]):hover,
+.k-table__table tbody tr[aria-current="true"],
+.k-table__table tbody tr[aria-current="page"] {
+  background-color: var(--lamp-pool);
+}
+
+.k-table__table tbody tr:has(a[href]):hover > :first-child,
+.k-table__table tbody tr[aria-current="true"] > :first-child,
+.k-table__table tbody tr[aria-current="page"] > :first-child {
+  box-shadow: calc(var(--s-2) * -1) 0 0 var(--lamp-pool);
+}
+
+.k-table__table tbody tr:has(a[href]):hover > :last-child,
+.k-table__table tbody tr[aria-current="true"] > :last-child,
+.k-table__table tbody tr[aria-current="page"] > :last-child {
+  box-shadow: var(--s-2) 0 0 var(--lamp-pool);
 }
 
 /* Figures: the cells of one card, parted by hairlines. Each cell draws a line at its right and under it; the

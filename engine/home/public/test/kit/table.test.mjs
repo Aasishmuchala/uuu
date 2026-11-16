@@ -43,7 +43,10 @@ test("amounts and dates sit at the right in tabular figures, the unit small and 
   assert.match(t, /\.k-table__table \{[^}]*font-size: var\(--fs-ui\);/);
   assert.match(t, /\.k-table__table \.k-table__num \{\s*text-align: right;\s*font-variant-numeric: tabular-nums;/);
   assert.match(t, /\.k-table__unit \{[^}]*color: var\(--ink-3\);/);
-  assert.match(t, /tr:has\(a\[href\]\):hover \{\s*background-color: var\(--ctl\);/, "a row that opens something answers the pointer");
+  // The grey control fill under the pointer belonged to the quiet look, rejected on 16 November 2026: a row that
+  // opens something, the head row and the current row stand in the lamp's pool (PLAN-3D-ALL U2).
+  assert.match(t, /tr:has\(a\[href\]\):hover,[^{]*\{\s*background-color: var\(--lamp-pool\);/, "a row that opens something answers the pointer");
+  assert.match(t, /\.k-table__table thead th \{[^}]*background-color: var\(--lamp-pool\);/, "the head row in the pool");
   assert.doesNotMatch(t, /\.k-table \{[^}]*(border|background)/, "the table has no frame of its own");
 });
 

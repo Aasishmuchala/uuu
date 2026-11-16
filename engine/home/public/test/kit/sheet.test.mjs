@@ -48,12 +48,12 @@ test("Sheet: children are placed as given; hostile words stay text", async () =>
   render(null, root);
 });
 
-test("Sheet's sheet: paper with a fall of light, a hairline edge and the paper's shadow; placed once in 220 ms on transform and opacity", () => {
+test("Sheet's sheet: paper with a fall of light, the paper's shadow for its edge; placed once in 220 ms on transform and opacity", () => {
   const c = readFileSync(join(PUBLIC, "styles", "kit", "sheet.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
   const root = /\.k-sheet \{([^}]*)\}/.exec(c)[1];
   assert.match(root, /background:[^;]*linear-gradient\([^;]*var\(--paper\)/);
   assert.match(root, /box-shadow: var\(--paper-shadow\);/);
-  assert.match(root, /border: 1px solid var\(--paper-line/);
+  assert.doesNotMatch(root, /border:/, "the paper's shadow draws its edge; a border beside it read as a double line");
   assert.match(root, /animation: k-sheet-place 220ms var\(--ease\) both;/);
   assert.doesNotMatch(root, /overflow|height|line-clamp|text-overflow/, "a sentence on paper is never cut");
   const frames = /@keyframes k-sheet-place \{([\s\S]*?)\n\}/.exec(c)[1];
