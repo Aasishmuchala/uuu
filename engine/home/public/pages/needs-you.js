@@ -660,7 +660,8 @@ export default function Page({ route }) {
   // The phone's strip frames the desk a little to the right of centre, so the lamp at the model's left stays whole
   // (T6's framing put the model at the strip's left edge with the lamp cut off).
   const stripSafe = phone && typeof innerWidth === "number" && innerWidth > 0 ? { x: 28, y: 0, w: Math.round(innerWidth), h: 200 } : null;
-  const stage = (cls, extra = null) => html`<div class=${cls}>
+  // The strip is a picture (the harness's measures leave it out of the page's own colour, as the Map's phone stage).
+  const stage = (cls, extra = null) => html`<div class=${cls} data-cook-picture=${cls === "p-needs-you__strip" ? "" : undefined}>
     <${WorldStage} mode="desk" state=${ws} safeRect=${cls === "p-needs-you__strip" ? stripSafe : safe} theme=${theme} still=${still} events=${events} label=${more ? moreWords(more) : ""} />
     ${extra}
   </div>`;
