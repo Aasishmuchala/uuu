@@ -435,3 +435,128 @@
 [data-dept="people"] { --dept: var(--dept-people); }
 [data-dept="books"] { --dept: var(--dept-books); }
 [data-dept="brain"] { --dept: var(--dept-brain); }
+
+/* ---- 4. The studio (PLAN-3D T7): the Map and Needs you as the lit studio.
+   The picture's palette (the sky, the forest, the building, the lamps of the drawn fallback) is the approved dusk
+   key in both themes until the golden morning is approved (D5, T12), so its light values equal its dark ones and
+   T12 changes values only. The DOM over the stage follows the theme: the paper sheet and its ink, the scrim's two
+   stops behind the rail, a tag's ground, edge and inks. Lamps: on warm, amber waiting on the owner, red stuck,
+   off a hollow ring, down (switched off) a low line. */
+:root {
+  --w-sky-0: #161c2c;
+  --w-sky-1: #4a3a4e;
+  --w-sky-2: #b77a5a;
+  --w-glow: #f0a66a;
+  --w-hill: #2a2530;
+  --w-trees-far: #1f2227;
+  --w-trees: #101512;
+  --w-ground: #181612;
+  --w-forecourt: #25211c;
+  --w-deck: #5c4232;
+  --w-stone: #6d655c;
+  --w-shell: #b9b3aa;
+  --w-shell-2: #8f8981;
+  --w-frame: #1e1b19;
+  --w-room: #2a2420;
+  --w-room-lit: #c8925f;
+  --w-glass: #2b3140;
+  --w-desk: #a9825e;
+  --w-door: #3a2f29;
+  --w-door-light: #ffb36b;
+  --w-shrub: #18211a;
+  --w-lamp-on: #ffcf96;
+  --w-lamp-amber: #ff9a36;
+  --w-lamp-red: #ff5a3c;
+  --w-lamp-off: #8c7f73;
+  --w-lamp-down: #6e635a;
+  --w-pool: #ffd2a0;
+
+  --w-paper: #efe9df;
+  --w-paper-ink: #211d18;
+  --w-scrim-0: rgba(12,11,10,.88);
+  --w-scrim-1: rgba(12,11,10,0);
+  --w-tag: rgba(20,17,15,.86);
+  --w-tag-line: rgba(255,226,196,.16);
+  --w-tag-ink: #f6f1ea;
+  --w-tag-ink-2: #d9c9b8;
+}
+
+:root[data-theme="light"] {
+  --w-sky-0: #161c2c;
+  --w-sky-1: #4a3a4e;
+  --w-sky-2: #b77a5a;
+  --w-glow: #f0a66a;
+  --w-hill: #2a2530;
+  --w-trees-far: #1f2227;
+  --w-trees: #101512;
+  --w-ground: #181612;
+  --w-forecourt: #25211c;
+  --w-deck: #5c4232;
+  --w-stone: #6d655c;
+  --w-shell: #b9b3aa;
+  --w-shell-2: #8f8981;
+  --w-frame: #1e1b19;
+  --w-room: #2a2420;
+  --w-room-lit: #c8925f;
+  --w-glass: #2b3140;
+  --w-desk: #a9825e;
+  --w-door: #3a2f29;
+  --w-door-light: #ffb36b;
+  --w-shrub: #18211a;
+  --w-lamp-on: #ffcf96;
+  --w-lamp-amber: #ff9a36;
+  --w-lamp-red: #ff5a3c;
+  --w-lamp-off: #8c7f73;
+  --w-lamp-down: #6e635a;
+  --w-pool: #ffd2a0;
+
+  --w-paper: #fdfbf6;
+  --w-paper-ink: #1b1916;
+  --w-scrim-0: rgba(243,243,245,.94);
+  --w-scrim-1: rgba(243,243,245,0);
+  --w-tag: rgba(255,255,255,.94);
+  --w-tag-line: rgba(16,24,40,.12);
+  --w-tag-ink: #18181b;
+  --w-tag-ink-2: #4a4b53;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="auto"] {
+    --w-sky-0: #161c2c;
+    --w-sky-1: #4a3a4e;
+    --w-sky-2: #b77a5a;
+    --w-glow: #f0a66a;
+    --w-hill: #2a2530;
+    --w-trees-far: #1f2227;
+    --w-trees: #101512;
+    --w-ground: #181612;
+    --w-forecourt: #25211c;
+    --w-deck: #5c4232;
+    --w-stone: #6d655c;
+    --w-shell: #b9b3aa;
+    --w-shell-2: #8f8981;
+    --w-frame: #1e1b19;
+    --w-room: #2a2420;
+    --w-room-lit: #c8925f;
+    --w-glass: #2b3140;
+    --w-desk: #a9825e;
+    --w-door: #3a2f29;
+    --w-door-light: #ffb36b;
+    --w-shrub: #18211a;
+    --w-lamp-on: #ffcf96;
+    --w-lamp-amber: #ff9a36;
+    --w-lamp-red: #ff5a3c;
+    --w-lamp-off: #8c7f73;
+    --w-lamp-down: #6e635a;
+    --w-pool: #ffd2a0;
+
+    --w-paper: #fdfbf6;
+    --w-paper-ink: #1b1916;
+    --w-scrim-0: rgba(243,243,245,.94);
+    --w-scrim-1: rgba(243,243,245,0);
+    --w-tag: rgba(255,255,255,.94);
+    --w-tag-line: rgba(16,24,40,.12);
+    --w-tag-ink: #18181b;
+    --w-tag-ink-2: #4a4b53;
+  }
+}

@@ -23,6 +23,8 @@ const SHEETS = [
   ...KIT_SHEETS.map((k) => `./styles/kit/${k}.css`),
   "./styles/shell.css",
   "./styles/shell-overlays.css",
+  // The studio's stage, the drawn fallback and the tags over the Map and Needs you (PLAN-3D T7).
+  "./styles/world.css",
   ...PAGE_SHEETS.map((p) => `./styles/pages/${p}.css`),
 ];
 

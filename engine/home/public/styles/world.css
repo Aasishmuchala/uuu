@@ -1,0 +1,289 @@
+/* The studio's stage (PLAN-3D T7, D2, D3, D7): the stage, the drawn fallback, the canvas host, the tag layer over the
+   picture, the 2 px progress line and the scrim behind a rail. Colours are the --w-* tokens only (tokens.css,
+   section 4); nothing blurs; only transform and opacity move. The drawn picture's strokes are given in screen
+   pixels (non-scaling), so a line stays a line at 390 and at 1440. */
+
+/* ---- the stage ---- */
+.w-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--w-sky-0);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.w-fallback,
+.w-canvas,
+.w-tags {
+  position: absolute;
+  inset: 0;
+}
+
+.w-fallback {
+  transition: opacity 400ms var(--ease);
+}
+
+.w-fallback > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The canvas stays hidden until the world has drawn one whole frame, then crosses over in 400 ms (D3). */
+.w-canvas {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 400ms var(--ease);
+}
+
+.w-canvas > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.w-stage[data-world="ready"] .w-canvas {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.w-stage[data-world="ready"] .w-fallback {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- the progress line: 2 px of the accent along the top edge while the world loads ---- */
+.w-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--t-med) var(--ease), opacity var(--t-med) var(--ease);
+}
+
+.w-stage[data-world="loading"] .w-line {
+  opacity: 1;
+}
+
+/* ---- the tags: names over the picture, DOM text, placed by the stage ---- */
+.w-tags {
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.w-tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+  padding: 3px 8px;
+  border-radius: var(--r-xs);
+  background: var(--w-tag);
+  box-shadow: 0 0 0 1px var(--w-tag-line);
+  color: var(--w-tag-ink);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.w-tag[data-placed="hidden"] {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.w-tag__name {
+  font-weight: var(--fw-bold);
+}
+
+.w-tag__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--w-tag-ink-2);
+}
+
+.w-tag__lamp {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-round);
+  background: var(--w-lamp-on);
+}
+
+.w-tag__lamp--amber {
+  background: var(--w-lamp-amber);
+}
+
+.w-tag__lamp--red {
+  background: var(--w-lamp-red);
+}
+
+.w-tag__lamp--off,
+.w-tag__lamp--down {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--w-lamp-off);
+}
+
+/* ---- the scrim behind a rail at the stage's left (the page places it) ---- */
+.w-scrim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 560px;
+  max-width: 100%;
+  pointer-events: none;
+  background: linear-gradient(to right, var(--w-scrim-0) 0, var(--w-scrim-0) 340px, var(--w-scrim-1) 100%);
+}
+
+/* ---- the drawn studio (world/fallback.js) ---- */
+.w-fb-sky-0 { stop-color: var(--w-sky-0); }
+.w-fb-sky-1 { stop-color: var(--w-sky-1); }
+.w-fb-sky-2 { stop-color: var(--w-sky-2); }
+.w-fb-glow-0 { stop-color: var(--w-glow); stop-opacity: .42; }
+.w-fb-glow-1 { stop-color: var(--w-glow); stop-opacity: 0; }
+.w-fb-wash-0 { stop-color: var(--w-room-lit); stop-opacity: .95; }
+.w-fb-wash-1 { stop-color: var(--w-room-lit); stop-opacity: .14; }
+.w-fb-pool-on { stop-color: var(--w-pool); stop-opacity: .78; }
+.w-fb-pool-amber { stop-color: var(--w-lamp-amber); stop-opacity: .72; }
+.w-fb-pool-red { stop-color: var(--w-lamp-red); stop-opacity: .5; }
+.w-fb-spill-0 { stop-color: var(--w-door-light); stop-opacity: .5; }
+.w-fb-spill-1 { stop-color: var(--w-door-light); stop-opacity: 0; }
+.w-fb-stop-clear { stop-opacity: 0; }
+
+.w-fb path,
+.w-fb rect,
+.w-fb circle,
+.w-fb ellipse {
+  vector-effect: non-scaling-stroke;
+}
+
+.w-fb-hill { fill: var(--w-hill); fill-opacity: .9; }
+.w-fb-trees-far { fill: var(--w-trees-far); }
+.w-fb-trees { fill: var(--w-trees); }
+.w-fb-ground { fill: var(--w-ground); }
+.w-fb-forecourt { fill: var(--w-forecourt); }
+.w-fb-deck { fill: var(--w-deck); }
+.w-fb-seam { fill: none; stroke: var(--w-frame); stroke-opacity: .5; stroke-width: 1px; }
+.w-fb-path { fill: var(--w-stone); fill-opacity: .6; }
+.w-fb-plinth { fill: var(--w-shell-2); }
+.w-fb-outline { fill: none; stroke: var(--w-shell-2); stroke-width: 1.5px; }
+
+.w-fb-core-wall { fill: var(--w-room); }
+.w-fb-stair { fill: none; stroke: var(--w-shell-2); stroke-opacity: .55; stroke-width: 1.5px; }
+.w-fb-core.is-on .w-fb-core-wall { fill: var(--w-room-lit); fill-opacity: .7; }
+
+.w-fb-room { cursor: pointer; transition: opacity var(--t-med) var(--ease); }
+.w-fb--desk .w-fb-room { cursor: default; }
+.w-fb-room.is-away { opacity: .38; }
+.w-fb-room-back { fill: var(--w-room); }
+.w-fb-room-back.is-dark,
+.w-fb-room.is-dark .w-fb-room-back { fill: var(--w-frame); }
+.w-fb-glass { fill: var(--w-glass); }
+.w-fb-mullion { fill: none; stroke: var(--w-frame); stroke-width: 1.5px; }
+.w-fb-shelf { fill: var(--w-frame); }
+.w-fb-books { fill: var(--w-deck); }
+.w-fb-board { fill: var(--w-desk); fill-opacity: .5; }
+.w-fb-print { fill: var(--w-paper); fill-opacity: .7; }
+.w-fb-cord { fill: none; stroke: var(--w-frame); stroke-width: 1px; }
+.w-fb-pendant { fill: var(--w-frame); }
+.w-fb-pendant.is-on { fill: var(--w-lamp-on); }
+.w-fb-floor { fill: var(--w-desk); fill-opacity: .35; }
+.w-fb-slab,
+.w-fb-cap { fill: var(--w-shell); }
+.w-fb-column { fill: none; stroke: var(--w-frame); stroke-width: 3px; }
+.w-fb-hit { fill: none; stroke: none; pointer-events: all; }
+.w-fb-room:hover .w-fb-hit,
+.w-fb-room.is-hover .w-fb-hit,
+.w-fb-room.is-focus .w-fb-hit { stroke: var(--w-lamp-on); stroke-opacity: .85; stroke-width: 2px; }
+.w-fb-more { fill: var(--w-pool); font-weight: var(--fw-bold); }
+
+.w-fb-chair { fill: none; stroke: var(--w-frame); stroke-width: 1.5px; }
+.w-fb-desk { fill: var(--w-desk); }
+.w-fb-leg { fill: none; stroke: var(--w-frame); stroke-width: 1.5px; }
+
+/* the lamp glyphs (D7): on a filled warm disc with a pool, amber a ringed disc, red a ringed disc with a bar, off
+   hollow, down a short low line */
+.w-lamp__arm { fill: none; stroke: var(--w-frame); stroke-width: 1.6px; stroke-linecap: round; }
+.w-lamp__shade { fill: var(--w-frame); }
+.w-lamp__disc { fill: var(--w-lamp-on); }
+.w-lamp--amber .w-lamp__disc { fill: var(--w-lamp-amber); }
+.w-lamp--red .w-lamp__disc { fill: var(--w-lamp-red); }
+.w-lamp--off .w-lamp__disc { fill: none; stroke: var(--w-lamp-off); stroke-width: 1.5px; }
+.w-lamp__ring { fill: none; stroke-width: 1.5px; }
+.w-lamp--amber .w-lamp__ring { stroke: var(--w-lamp-amber); }
+.w-lamp--red .w-lamp__ring { stroke: var(--w-lamp-red); }
+.w-lamp__bar { fill: var(--w-lamp-red); }
+.w-lamp__line { fill: none; stroke: var(--w-lamp-down); stroke-width: 2.5px; stroke-linecap: round; }
+
+.w-fb-pavilion { fill: var(--w-glass); fill-opacity: .85; }
+.w-fb-bench-top { fill: var(--w-desk); }
+.w-fb-bench.is-on .w-fb-bench-top { fill: var(--w-lamp-on); }
+.w-fb-allowance { fill: var(--w-lamp-amber); }
+.w-fb-rail { fill: none; stroke: var(--w-shell); stroke-opacity: .7; stroke-width: 1.5px; }
+.w-fb-post-line { fill: none; stroke: var(--w-shell-2); stroke-width: 1px; }
+.w-fb-planter { fill: var(--w-shell-2); }
+.w-fb-shrub { fill: var(--w-shrub); }
+
+.w-fb-annex-wall { fill: var(--w-shell); }
+.w-door { cursor: pointer; }
+.w-fb--desk .w-door { cursor: default; }
+.w-door__frame { fill: var(--w-frame); }
+.w-door__light { fill: var(--w-door-light); }
+.w-door__leaf { fill: var(--w-door); }
+.w-door__handle { fill: var(--w-shell-2); }
+.w-door__mark { fill: var(--w-lamp-amber); }
+
+.w-fb-post { fill: var(--w-frame); }
+.w-fb-post-light { fill: var(--w-lamp-on); }
+
+/* the desk (Needs you) */
+.w-fb-office { fill: var(--w-room); }
+.w-fb-sash { fill: none; stroke: var(--w-frame); stroke-width: 6px; }
+.w-fb-sash-line { fill: none; stroke: var(--w-frame); stroke-width: 3px; }
+.w-fb-desk-edge { fill: var(--w-deck); }
+.w-fb-bulb { fill: var(--w-lamp-on); }
+.w-fb-sheet { fill: var(--w-paper); }
+.w-fb-sheet-edge { fill: var(--w-shell-2); }
+.w-fb-sheet-spot { fill: none; stroke: var(--w-deck); stroke-width: 1.5px; stroke-dasharray: 4 4; }
+.w-fb-rule { fill: none; stroke: var(--w-shell); stroke-width: 1px; }
+.w-fb-tray { fill: var(--w-frame); fill-opacity: .55; }
+.w-fb-tray-edge { fill: var(--w-frame); }
+
+/* ---- reduced motion (D6): the cross-over is instant; the picture is still drawn ---- */
+:root[data-motion="off"] .w-fallback,
+:root[data-motion="off"] .w-canvas,
+:root[data-motion="off"] .w-line,
+:root[data-motion="off"] .w-tag,
+:root[data-motion="off"] .w-fb-room {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .w-fallback,
+  .w-canvas,
+  .w-line,
+  .w-tag,
+  .w-fb-room {
+    transition: none;
+  }
+}
+
+/* ---- the gallery of fixtures (world/gallery.html): the stage full window ---- */
+.w-gallery {
+  position: fixed;
+  inset: 0;
+}
