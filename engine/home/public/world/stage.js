@@ -16,6 +16,8 @@
 // - state: a result of worldState() (state.js). The world gets only its `scene`; the tags get names and words.
 // - onPick(roomId | "door:<id>"), onHover(roomId | "door:<id>" | null): from the picture, drawn or 3D.
 // - load: how ./world.js is fetched (the tests give their own); by default import("./world.js").
+// - events: what the world should play (diffWorld's, or the desk's approve and set-aside, 2.4); each new array is
+//   handed to handle.play once, and only to a world that is ready (the drawn picture has nothing to animate).
 import { html, useEffect, useLayoutEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { nodeLine } from "../map/map-view.js";
 import { drawFallback, DEFAULT_SIZE } from "./fallback.js";
@@ -231,6 +233,8 @@ export function WorldStage(props) {
   useEffect(() => { if (safeRect) tell((h) => h.setSafeRect(safeRect)); }, [safeKey, world]);
   useEffect(() => tell((h) => h.setTheme(theme)), [theme, world]);
   useEffect(() => tell((h) => h.setStill(still)), [still, world]);
+  const events = Array.isArray(p.events) ? p.events : null;
+  useEffect(() => { if (events && events.length) tell((h) => h.play(events)); }, [events]);
 
   // A stage that changes size frames again.
   useEffect(() => {
