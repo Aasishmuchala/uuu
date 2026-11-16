@@ -1025,3 +1025,886 @@
   0%, 100% { opacity: 1; }
   50% { opacity: .35; }
 }
+
+/* ==== The studio (PLAN-3D T9, D15, D16) ====
+   The building at dusk fills the page column (world/stage.js); over it a 340 px rail on the stage's scrim at the
+   left, the box that asks the brain at the foot of the free area with the hovered room's one line above it, and,
+   with a room or a door chosen, a 392 px panel at the right. Tokens only (the --w-* ones of world.css for what lies
+   on the picture); no blur; only transform and opacity move. Below 860 px the studio is a picture above the rows,
+   and a door's panel is a full-width sheet with every control 44 px tall. */
+
+.p-map.p-map--studio {
+  position: relative;
+  height: calc(100vh - var(--topbar-h));
+  min-height: 560px;
+  overflow: hidden;
+  background: var(--w-sky-0);
+}
+
+.p-map .p-map__world {
+  position: absolute;
+  inset: 0;
+}
+
+.p-map .p-map__scrim {
+  z-index: 1;
+}
+
+/* Every stop over the picture shows the 2 px accent ring. */
+.p-map .p-map__room:focus-visible,
+.p-map .p-map__agent:focus-visible,
+.p-map .p-map__door:focus-visible,
+.p-map .p-map__app-open:focus-visible,
+.p-map .p-map__close:focus-visible,
+.p-map .p-map__panel-title:focus-visible,
+.p-map .p-map__confirm-text:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---- The rail */
+.p-map .p-map__rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  width: 340px;
+  padding: var(--s-6) var(--s-5) var(--s-10) var(--s-7);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  color: var(--ink);
+}
+
+.p-map .p-map__head {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.p-map .p-map__head .k-page-header {
+  margin: 0;
+}
+
+.p-map .p-map__counts,
+.p-map .p-map__summary,
+.p-map .p-map__brain {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-map .p-map__summary {
+  color: var(--ink);
+  font-size: var(--fs-body);
+}
+
+.p-map .p-map__brain {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--ink-3);
+}
+
+.p-map .p-map__head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+.p-map .p-map__list {
+  display: grid;
+  gap: var(--s-6);
+}
+
+/* A room's section: its heading as a link with its count words, then a row per agent. */
+.p-map .p-map__rooms,
+.p-map .p-map__agents,
+.p-map .p-map__doors,
+.p-map .p-map__apps,
+.p-map .p-map__who,
+.p-map .p-map__tasks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.p-map .p-map__rooms {
+  display: grid;
+  gap: var(--s-5);
+}
+
+.p-map .p-map__room-sec {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0 calc(-1 * var(--s-2));
+  padding: 0 var(--s-2);
+  border-radius: var(--r-2);
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.p-map .p-map__room-sec.is-marked,
+.p-map .p-map__room-sec.is-chosen {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.p-map .p-map__room {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 32px;
+  padding: var(--s-1) 0;
+  border-radius: var(--r-1);
+  color: var(--ink);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+  text-decoration: none;
+}
+
+.p-map .p-map__room-name {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.p-map .p-map__room-count {
+  flex: none;
+  max-width: 50%;
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-regular);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.p-map .p-map__room-count.is-warn {
+  color: var(--warn);
+}
+
+.p-map .p-map__room-note {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+}
+
+.p-map .p-map__agent {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  column-gap: var(--s-3);
+  row-gap: 2px;
+  padding: 6px 0;
+  border-radius: var(--r-1);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
+  text-decoration: none;
+}
+
+.p-map .p-map__agent:hover .p-map__agent-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.p-map .p-map__agent .p-map__lamp {
+  grid-row: 1;
+  align-self: center;
+}
+
+.p-map .p-map__agent-name {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.p-map .p-map__agent-state {
+  max-width: 130px;
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  text-align: right;
+}
+
+.p-map .p-map__agent-state--amber {
+  color: var(--warn);
+}
+
+.p-map .p-map__agent-state--red {
+  color: var(--bad);
+}
+
+.p-map .p-map__agent-state--off,
+.p-map .p-map__agent-state--down {
+  color: var(--ink-3);
+}
+
+.p-map .p-map__agent-task {
+  grid-column: 2 / -1;
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* A lamp glyph, as the studio draws it: on a warm disc, amber a disc in a ring, red a ring, off a hollow ring,
+   down a short low line. */
+.p-map .p-map__lamp {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-round);
+  background: var(--w-lamp-on);
+}
+
+.p-map .p-map__lamp--amber {
+  background: var(--w-lamp-amber);
+}
+
+.p-map .p-map__lamp--red {
+  background: transparent;
+  box-shadow: inset 0 0 0 2.5px var(--w-lamp-red);
+}
+
+.p-map .p-map__lamp--off {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--ink-3);
+}
+
+.p-map .p-map__lamp--down {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink-3);
+}
+
+/* Doors and App Studio: a heading, then rows whose sentences are shown whole. */
+.p-map .p-map__group {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.p-map .p-map__group-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+}
+
+.p-map .p-map__group-line {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+}
+
+.p-map .p-map__doors,
+.p-map .p-map__apps {
+  display: grid;
+  gap: 2px;
+}
+
+.p-map .p-map__door {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  column-gap: var(--s-3);
+  row-gap: 2px;
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 6px var(--s-2);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-body);
+  line-height: var(--lh-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
+}
+
+.p-map .p-map__door:hover,
+.p-map .p-map__door.is-chosen {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.p-map .p-map__door .p-map__door-mark {
+  align-self: center;
+}
+
+.p-map .p-map__door-state {
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+}
+
+.p-map .p-map__door-line {
+  grid-column: 2 / -1;
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* A door's mark: open a lit leaf, shut a dark one, blocked a dark one with a small amber mark. */
+.p-map .p-map__door-mark {
+  display: inline-block;
+  flex: none;
+  width: 9px;
+  height: 13px;
+  border-radius: 1px;
+  background: var(--w-door);
+  box-shadow: inset 0 0 0 1px var(--ink-3);
+}
+
+.p-map .p-map__door-mark--open {
+  background: var(--w-door-light);
+  box-shadow: none;
+}
+
+.p-map .p-map__door-mark--blocked {
+  box-shadow: inset 0 0 0 1px var(--ink-3), 3px -3px 0 -1px var(--warn);
+}
+
+.p-map .p-map__app {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  column-gap: var(--s-3);
+  align-items: start;
+  padding: 6px var(--s-2);
+}
+
+.p-map .p-map__app-mark {
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1.5px var(--ink-3);
+}
+
+.p-map .p-map__app-mark.is-on {
+  background: var(--w-lamp-on);
+  box-shadow: none;
+}
+
+.p-map .p-map__app-mark.is-open {
+  box-shadow: 0 0 0 2px var(--w-lamp-amber);
+}
+
+.p-map .p-map__app-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.p-map .p-map__app-name {
+  overflow-wrap: anywhere;
+  font-size: var(--fs-body);
+}
+
+.p-map .p-map__app-line {
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  overflow-wrap: anywhere;
+}
+
+.p-map .p-map__blocks .k-blk {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* ---- The foot of the free area: the hovered room's line, then the box */
+.p-map .p-map__foot {
+  position: absolute;
+  left: 340px;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-6) var(--s-2);
+  pointer-events: none;
+}
+
+.p-map .p-map__foot > * {
+  pointer-events: auto;
+}
+
+.p-map .p-map__foot--side {
+  right: calc(392px + var(--s-4));
+}
+
+.p-map .p-map__foot .p-map__ask {
+  width: min(100%, 640px);
+}
+
+.p-map .p-map__strip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2);
+  max-width: min(100%, 640px);
+  margin: 0;
+  padding: 5px var(--s-3);
+  border-radius: var(--r-2);
+  background: var(--w-tag);
+  box-shadow: 0 0 0 1px var(--w-tag-line);
+  color: var(--w-tag-ink);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+.p-map .p-map__strip span {
+  color: var(--w-tag-ink-2);
+}
+
+/* ---- The panel at the right: a room, a door, or the answer */
+.p-map .p-map__side {
+  position: absolute;
+  top: var(--s-4);
+  right: var(--s-4);
+  bottom: var(--s-4);
+  z-index: 3;
+  width: 392px;
+}
+
+.p-map .p-map__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  box-shadow: var(--shadow-lift);
+  color: var(--ink);
+}
+
+.p-map .p-map__panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-5) var(--s-5) var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.p-map .p-map__panel-titles {
+  display: grid;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.p-map .p-map__panel-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--fs-stat);
+  font-weight: var(--fw-bold);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.p-map .p-map__panel-line {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  overflow-wrap: anywhere;
+}
+
+.p-map .p-map__close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 32px;
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--fs-ui);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.p-map .p-map__close:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.p-map .p-map__esc {
+  padding: 0 5px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xs);
+  color: var(--ink-3);
+  font-family: inherit;
+  font-size: var(--fs-label);
+}
+
+.p-map .p-map__panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--s-5) var(--s-4);
+}
+
+.p-map .p-map__panel-body .k-blk {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.p-map .p-map__panel-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
+.p-map .p-map__panel > .p-map__answer {
+  max-height: 45%;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--line);
+}
+
+/* "Who is here": a lamp, the name, the server's state words and the task; the switch at the right. */
+.p-map .p-map__who-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  column-gap: var(--s-3);
+  align-items: start;
+  padding: var(--s-3) 0;
+}
+
+.p-map .p-map__who-row + .p-map__who-row,
+.p-map .p-map__task + .p-map__task {
+  border-top: 1px solid var(--line);
+}
+
+.p-map .p-map__who-row .p-map__lamp {
+  margin-top: 5px;
+}
+
+.p-map .p-map__who-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.p-map .p-map__who-name {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+
+.p-map .p-map__who-state,
+.p-map .p-map__who-task {
+  color: var(--ink-3);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  overflow-wrap: anywhere;
+}
+
+.p-map .p-map__who-state {
+  color: var(--ink-2);
+}
+
+.p-map .p-map__switch {
+  display: grid;
+  justify-items: end;
+  gap: var(--s-1);
+}
+
+.p-map .p-map__task {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-3) 0;
+}
+
+.p-map .p-map__task-title {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+
+.p-map .p-map__task-sub {
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+}
+
+.p-map .p-map__task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}
+
+.p-map .p-map__ask-once {
+  display: grid;
+  gap: var(--s-2);
+  grid-column: 1 / -1;
+  margin-top: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--card);
+}
+
+.p-map .p-map__ask-once p {
+  margin: 0;
+  font-size: var(--fs-note);
+}
+
+.p-map .p-map__ask-once-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.p-map .p-map__failure,
+.p-map .p-map__door-failure {
+  margin: 0;
+  color: var(--bad);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  overflow-wrap: anywhere;
+}
+
+/* ---- A door's panel and its confirm: every sentence whole, wrapped, never cut */
+.p-map .p-map__door-word {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+}
+
+.p-map .p-map__door-sentence {
+  margin: var(--s-4) 0 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
+}
+
+.p-map .p-map__door-failure {
+  display: grid;
+  gap: var(--s-1);
+  margin-top: var(--s-3);
+}
+
+.p-map .p-map__door-settings {
+  margin-right: auto;
+  order: -1;
+}
+
+.p-map .p-map__confirm-back {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--scrim);
+}
+
+.p-map .p-map__confirm {
+  position: absolute;
+  left: var(--s-3);
+  right: var(--s-3);
+  bottom: var(--s-3);
+  z-index: 41;
+  display: grid;
+  gap: var(--s-4);
+  max-height: calc(100% - 2 * var(--s-3));
+  overflow-y: auto;
+  padding: var(--s-5);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-pop);
+  color: var(--ink);
+}
+
+.p-map .p-map__confirm-title {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+  overflow-wrap: anywhere;
+}
+
+.p-map .p-map__confirm-text {
+  display: grid;
+  gap: var(--s-3);
+  border-radius: var(--r-1);
+}
+
+.p-map .p-map__confirm-warning,
+.p-map .p-map__confirm-line {
+  margin: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.p-map .p-map__confirm-warning {
+  padding: var(--s-3);
+  border-radius: var(--r-2);
+  background: var(--warn-bg);
+  color: var(--ink);
+}
+
+.p-map .p-map__confirm-line--state {
+  color: var(--ink-2);
+}
+
+.p-map .p-map__confirm-limits {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0;
+}
+
+.p-map .p-map__confirm-limit {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-map .p-map__confirm-limit dt {
+  color: var(--ink-3);
+}
+
+.p-map .p-map__confirm-limit dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.p-map .p-map__confirm-left {
+  color: var(--ink-2);
+  text-align: right;
+}
+
+.p-map .p-map__confirm-refused {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-2);
+  background: var(--bad-bg);
+}
+
+.p-map .p-map__confirm-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+
+.p-map .p-map__confirm-foot [aria-disabled="true"] {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+/* ---- Below 860 px: the studio as a picture above the rows; a door's panel a full-width sheet */
+.p-map.p-map--studio-narrow .p-map__phone-stage {
+  position: relative;
+  height: 300px;
+  margin: calc(-1 * var(--s-5)) calc(-1 * var(--s-4)) 0;
+}
+
+.p-map.p-map--studio-narrow .p-map__phone-stage--room {
+  height: 240px;
+}
+
+.p-map .p-map__money {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-map .p-map__list--phone {
+  gap: var(--s-5);
+}
+
+.p-map .p-map__sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  display: flex;
+  max-height: 88vh;
+}
+
+.p-map .p-map__sheet .p-map__panel {
+  width: 100%;
+  height: auto;
+  max-height: 88vh;
+  border-radius: var(--r-3) var(--r-3) 0 0;
+}
+
+.p-map .p-map__sheet .p-map__confirm {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 88vh;
+  border-radius: var(--r-3) var(--r-3) 0 0;
+}
+
+@media (max-width: 859px) {
+  .p-map .p-map__door,
+  .p-map .p-map__close,
+  .p-map .p-map__app-open,
+  .p-map .p-map__sheet .k-btn,
+  .p-map .p-map__ask-once .k-btn,
+  .p-map .p-map__switch .k-btn,
+  .p-map .p-map__task-actions .k-btn,
+  .p-map .p-map__task-actions .p-map__link {
+    min-height: 44px;
+  }
+
+  .p-map .p-map__app-open,
+  .p-map .p-map__task-actions .p-map__link {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .p-map .p-map__confirm-foot .k-btn {
+    flex: 1 1 0;
+  }
+}
+
+.p-map.p-map--still .p-map__room-sec,
+.p-map.p-map--still .p-map__door {
+  transition: none;
+}

@@ -127,10 +127,16 @@ test("map: the error and the words around it are plain (M50 F16, M18-C2)", () =>
   // A map that could not be read shows the error on the stage in place of the cards, never a drawing of nothing.
   assert.match(src, /failed \? html`<div class="p-map__stage-error">/);
 });
-test("map: keyboard and screen-reader fixes (M52 K4, K9; T63): the chosen card says so, Esc gives focus back to it; count links say whose", () => {
+// Rewritten for PLAN-3D T9: the department's heading in the studio's list takes the focus back, not the old card.
+test("map: keyboard and screen-reader fixes (M52 K4, K9; T63; PLAN-3D T9): Esc gives focus back to the room's heading in the list; count links say whose", () => {
   const src = readFileSync(new URL("../../pages/map.js", import.meta.url), "utf8");
-  // Back from a department (Esc, the shell's map-back), focus returns to the card that was chosen.
-  assert.match(src, /\.p-map__node\[data-node="\$\{id\}"\]/);
+  // Back from a department (Esc, the shell's map-back), focus returns to the heading of the room that was chosen.
+  assert.match(src, /\.p-map__room\[data-node="\$\{id\}"\]/);
+  assert.match(src, /class="p-map__room" href=\$\{mapHref\(\{ dept: r\.id \}\)\} data-node=\$\{r\.id\}/, "the heading is a link to #/map/<id> carrying data-node");
+  assert.match(src, /aria-current=\$\{chosen === r\.id \? "true" : undefined\}/, "the chosen room's heading says so");
+  assert.match(src, /role="list" aria-label=\$\{STUDIO_WORDS\.rooms\}/, "the list has its label");
+  // The studio is never in the Tab order: the stage is aria-hidden and the page puts nothing focusable in it.
+  assert.doesNotMatch(src, /w-stage[^`]*tabindex/);
   const viewSrc = readFileSync(new URL("../../map/map-view.js", import.meta.url), "utf8");
   assert.match(viewSrc, /aria-current=\$\{on \? "true" : undefined\}/);
   assert.match(viewSrc, /aria-label=\$\{title \? `\$\{title\}: \$\{p\.text\}`/);
@@ -274,14 +280,26 @@ test("map: the stage's cards fit the stage at 1280 x 900, and the arrows walk th
   assert.equal(layout.nearestHub(ids, "operations", "ArrowLeft"), "books");
 });
 
-test("map: the sheet has no watermark, serif, zoom timing or department colour, and moves only within --t-med (T63)", () => {
+// Replaced for PLAN-3D T9: the T63 and TB4 sheet pins described the rejected card drawing. The studio's sheet: a
+// 340 px rail and a 392 px panel over the picture, 44 px controls below 860 px, the accent ring on every stop over the
+// picture, no blur, no serif, no department colour, and moves only in transform, opacity or colour within --t-med.
+test("map: the studio's sheet: a 340 px rail, a 392 px panel, 44 px controls on a phone, the focus ring, no blur (PLAN-3D T9)", () => {
   const css = readFileSync(new URL("../../styles/pages/map.css", import.meta.url), "utf8");
+  const rule = (sel) => { const m = new RegExp(`(^|\\n)${sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\{([^}]*)\\}`).exec(css); assert.ok(m, sel); return m[2]; };
+  assert.match(rule(".p-map .p-map__rail"), /width: 340px;/);
+  assert.match(rule(".p-map .p-map__side"), /width: 392px;/);
+  assert.match(rule(".p-map .p-map__foot"), /left: 340px;/, "the foot starts where the rail ends");
+  assert.match(rule(".p-map .p-map__foot--side"), /right: calc\(392px \+ var\(--s-4\)\);/, "and stops at the panel");
+  const phone = /@media \(max-width: 859px\) \{\s*\.p-map \.p-map__door,[^{]*\{\s*min-height: 44px;/.exec(css);
+  assert.ok(phone, "every control 44 px tall under 860 px");
+  for (const c of ["p-map__door", "p-map__close", "p-map__app-open", "p-map__sheet .k-btn", "p-map__switch .k-btn", "p-map__task-actions .k-btn"]) assert.ok(phone[0].includes(`.p-map .${c}`), c);
+  const ring = /\.p-map \.p-map__room:focus-visible,[^{]*\{\s*outline: 2px solid var\(--focus\);/.exec(css);
+  assert.ok(ring, "the 2 px accent ring");
+  for (const c of ["p-map__room", "p-map__agent", "p-map__door", "p-map__close", "p-map__confirm-text"]) assert.ok(ring[0].includes(`.p-map .${c}:focus-visible`), c);
+  assert.doesNotMatch(css, /backdrop-filter|blur\(/);
   assert.doesNotMatch(css, /fs-ghost|font-serif|t-zoom|var\(--dept/);
   assert.doesNotMatch(css, /text-transform|letter-spacing/);
   for (const m of css.matchAll(/transition:\s*([^;]+);/g)) assert.match(m[1], /^none$|var\(--t-(fast|med)\)/, m[1]);
-  assert.match(css, /\.p-map__node--chosen[^{]*\{[^}]*border-color: var\(--accent\)/);
-  const viewSrc = readFileSync(new URL("../../map/map-view.js", import.meta.url), "utf8");
-  assert.doesNotMatch(viewSrc, /Creature|TITLE_CHAR|ghost/);
 });
 
 // PLAN-COOK TB4: the cards, the connectors, the canvas and the foot.
@@ -311,29 +329,4 @@ test("map: an edge only for a department at work (good) or stuck (bad); stuck is
   // Six of seven waiting on the owner still draw six neutral edges and lines.
   const src = readFileSync(new URL("../../pages/map.js", import.meta.url), "utf8");
   assert.match(src, /stuck=\$\{stuckOf\(needsOf\(home\.data\)\)\}/);
-});
-
-test("map: the sheet draws the TB4 map: a dot grid, 1.5 px connectors with 4 px dots, state edges, a 6 px brain bar, one foot bar", () => {
-  const css = readFileSync(new URL("../../styles/pages/map.css", import.meta.url), "utf8");
-  assert.match(css, /\.p-map \.k-work__stage \{\s*background: var\(--bg\);/, "the canvas a step lighter than the stage in light");
-  assert.match(css, /\.p-map__grid-dot \{\s*fill: var\(--ink\);\s*fill-opacity: \.1;/, "the grid a little clearer (R6-G)");
-  assert.match(readFileSync(new URL("../../pages/map.js", import.meta.url), "utf8"), /<pattern id="p-map-dots" width="16" height="16"/, "16 px apart");
-  assert.match(css, /\.p-map__wire \{[^}]*stroke-width: 1\.5;/);
-  assert.match(readFileSync(new URL("../../map/map-view.js", import.meta.url), "utf8"), /class="p-map__port"[^/]*r="2"/, "4 px dots");
-  assert.match(css, /\.p-map \.p-map__line \{\s*--p-map-wire: color-mix\(in srgb, var\(--ink\) 14%, transparent\);/, "lines neutral, the ink at 14 percent (R5-G)");
-  assert.match(css, /\.p-map__line--bad \{[^}]*var\(--bad\)/, "the connector of a department that is stuck is tinted");
-  assert.doesNotMatch(css, /p-map__line--warn|p-map__node--warn|p-map__node--(live|bad)/, "no stripe on a card (R6-G)");
-  assert.doesNotMatch(/\.p-map \.p-map__node \{([^}]*)\}/.exec(css)[1], /inset/);
-  assert.match(css, /\.p-map \.p-map__node-dot \{\s*width: 6px;\s*height: 6px;/);
-  assert.match(css, /\.p-map__node-dot--bad \{\s*background: var\(--bad\);/);
-  assert.match(css, /\.p-map__node-dot--live \{\s*background: var\(--good\);/);
-  assert.match(css, /\.p-map \.p-map__node--brain \{[^}]*border-color: var\(--accent\);/, "the brain edged in the accent (R6-G)");
-  assert.match(css, /\.p-map__meter \{[^}]*height: 6px;/);
-  assert.match(css, /\.p-map \.p-map__ask::before \{[^}]*grid-row: 1 \/ 3;[^}]*background: var\(--card\);[^}]*box-shadow: var\(--shadow-card\);/, "the foot is one bar, its hint inside it (R5-G)");
-  assert.match(css, /\.p-map \.p-map__ask \{[^}]*margin: 0 auto calc\(var\(--s-6\) - var\(--s-5\)\);/, "the bar 24 px from the stage's foot (R5-G)");
-  assert.match(css, /\.p-map__box \.k-composer__field \{\s*min-height: 44px;/, "a 44 px field");
-  assert.match(css, /\.p-map__items > li \+ li \{\s*border-top: 1px solid var\(--line\);/, "hairlines between the rail's rows");
-  assert.match(css, /\.p-map__item-title \{[^}]*font-size: var\(--fs-ui\);[^}]*font-weight: var\(--fw-medium\);/, "titles 14 px 500");
-  assert.match(css, /\.p-map__item-sub \{[^}]*font-size: var\(--fs-label\);/, "a 12 px line");
-  assert.match(readFileSync(new URL("../../pages/map.js", import.meta.url), "utf8"), /aside=\$\{countChip\(total, "warn"\)\}/, "group heads carry count chips");
 });
