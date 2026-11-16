@@ -787,7 +787,7 @@ export default function MapPage({ route }) {
   if (narrow) {
     if (dept) {
       return html`<div class="p-map p-map--narrow p-map--studio-narrow">
-        <div class="p-map__phone-stage p-map__phone-stage--room">${stage(dept)}</div>
+        <div class="p-map__phone-stage p-map__phone-stage--room" data-cook-picture>${stage(dept)}</div>
         <div class="p-map__back"><${Button} size="sm" icon="arrow-left" href=${mapHref({ ask })}>Back to the map<//></div>
         <${PageHeader} title=${chosen ? clip(chosen.title, 40) : titleFor(dept, data)} lede=${chosen ? clip(chosen.line, 80) : null} />
         ${moneyLine}
@@ -801,7 +801,7 @@ export default function MapPage({ route }) {
       </div>`;
     }
     return html`<div class="p-map p-map--narrow p-map--studio-narrow">
-      <div class="p-map__phone-stage">${stage(null)}</div>
+      <div class="p-map__phone-stage" data-cook-picture>${stage(null)}</div>
       <${PageHeader} title=${company || titleFor(null, data)} lede=${data ? html`<${StatusDot} tone=${nodeTone(companyCounts(data))} pulse=${false} label=${nodeLine(companyCounts(data))} />` : null} />
       ${moneyLine}
       ${ws.summary ? html`<p class="p-map__summary">${ws.summary}</p>` : null}
@@ -848,7 +848,7 @@ export default function MapPage({ route }) {
 
   return html`<div class=${["p-map p-map--studio", side ? "p-map--chosen" : "", still ? "p-map--still" : ""].filter(Boolean).join(" ")} ref=${rootRef}>
     <a class="p-map__skip" href=${listHref}>${STUDIO_WORDS.skip}</a>
-    <div class="p-map__world">${stage(dept)}</div>
+    <div class="p-map__world" data-cook-picture>${stage(dept)}</div>
     <div class="w-scrim p-map__scrim" aria-hidden="true"></div>
     <div class="p-map__rail" ref=${railRef}>
       <div class="p-map__head">

@@ -1761,7 +1761,9 @@
 .p-map .p-map__confirm-text {
   display: grid;
   gap: var(--s-3);
-  border-radius: var(--r-1);
+  margin: calc(-1 * var(--s-2));
+  padding: var(--s-2);
+  border-radius: var(--r-2);
 }
 
 .p-map .p-map__confirm-warning,
@@ -1907,4 +1909,39 @@
 .p-map.p-map--still .p-map__room-sec,
 .p-map.p-map--still .p-map__door {
   transition: none;
+}
+
+/* With the panel open the foot is narrower: the box stacks as on a phone, its chips over the field and the hint under
+   it, so the field keeps its width. */
+.p-map .p-map__foot--side .p-map__ask {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.p-map .p-map__foot--side .p-map__ask::before {
+  grid-row: 1 / 4;
+}
+
+.p-map .p-map__foot--side .p-map__chips {
+  grid-row: 1;
+  padding: var(--s-2) var(--s-3) 0;
+}
+
+.p-map .p-map__foot--side .p-map__chips::after {
+  display: none;
+}
+
+.p-map .p-map__foot--side .p-map__box .k-composer__box {
+  grid-row: 2;
+  grid-column: 1;
+}
+
+.p-map .p-map__foot--side .p-map__box .k-composer__note {
+  grid-row: 3;
+  grid-column: 1;
+}
+
+/* On a phone the room's primary is sized to its words (still 44 px tall), so the picture above it stays the loudest
+   thing on the first screen. */
+.p-map.p-map--studio-narrow .p-map__phone-go .k-btn {
+  width: auto;
 }
