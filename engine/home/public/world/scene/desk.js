@@ -8,7 +8,8 @@ import { keyed, makeBuilding } from "./building.js";
 import { makeLamp } from "./lamps.js";
 import { STACK_MAX } from "../state.js";
 
-export const DESK_AT = new THREE.Vector3(0, 4.4, 14);
+// The desk stands in an upper room high on the hill (T11), so its window looks over the firs, not into their trunks.
+export const DESK_AT = new THREE.Vector3(0, 16, 14);
 const SW = 0.21, SL = 0.297, STEP = 0.0026;
 
 // A soft dark blot for the contact shade under things on the desk (no shadow maps: D21).
@@ -37,42 +38,54 @@ function ruledTexture() {
   return t;
 }
 
-// Beyond the window: a ring of fir silhouettes and the ground under them, drawn from numbers in the shader (desk mode
-// loads no tree or ground file, D20). Dark against the dusk, hazed toward the fog.
+// Beyond the window (T11): the room stands high on the hill, so the owner looks out over the tops of the firs into
+// the dusk haze of the valley. Three layers of firs at three distances, drawn from numbers in the shader on one
+// cylinder (desk mode loads no tree or ground file, D20): the near crowns dark with tiered branches, the farther ones
+// paler into the haze, and between them the glow of the evening low over the valley. Edges are smoothed per pixel.
+const RING_R = 60, RING_H = 60;
 function makeFirRing(fog) {
   const g = new THREE.Group();
+  const eye = DESK_AT.y + 0.6;
+  // a tree at true distance d and true height y appears on the ring at eye + (y - eye) * RING_R / d
+  const onRing = (d, y) => (eye + (y - eye) * RING_R / d).toFixed(2);
   const ringM = new THREE.ShaderMaterial({
     side: THREE.BackSide, fog: false, transparent: false,
-    uniforms: { uFog: { value: fog.clone() }, uDark: { value: col("#161b18") } },
+    uniforms: { uFog: { value: fog.clone() }, uDark: { value: col("#0e1411") }, uGlow: { value: col("#c98f6e") } },
     vertexShader: "varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }",
-    fragmentShader: `uniform vec3 uFog, uDark; varying vec3 vP;
+    fragmentShader: `uniform vec3 uFog, uDark, uGlow; varying vec3 vP;
       float h1(float n){ return fract(sin(n * 91.345) * 47453.5453); }
-      float fir(float u, float y, float seed, float H){
-        float c = floor(u), f = fract(u) - .5 + (h1(c + seed) - .5) * .5;
-        float h = H * (.55 + .45 * h1(c * 1.7 + seed));
-        if (y > h) return 0.;
-        float t = y / h;
-        float w = .3 * (1. - t) * (.78 + .22 * sin(y * 2.3 + c)) + .05 * (1. - t) * step(.5, fract(y * 1.1 + h1(c)));
-        return max(step(abs(f), w) * step(h * .03, y), step(abs(f), .015) * step(y, h * .3));
+      // a fir in a row of cells: u in cells, y in metres on the ring, the row standing from y0 with tips up to y1
+      float fir(float u, float y, float seed, float y0, float y1){
+        float c = floor(u), f = fract(u) - .5 + (h1(c + seed) - .5) * .55;
+        float top = mix(mix(y0, y1, .62), y1, h1(c * 1.7 + seed));
+        float t = clamp((top - y) / max(top - y0, .01), 0., 1.);
+        float tiers = fract(t * (6. + 4. * h1(c * 3.1 + seed)) + h1(c + seed * 2.));
+        float w = .46 * pow(t, .8) * (.68 + .32 * tiers) + .02;
+        float aa = fwidth(u) * 1.3 + .004;
+        return (1. - smoothstep(w - aa, w + aa, abs(f))) * (1. - smoothstep(top - .05, top + .25, y));
       }
       void main(){
-        float a = atan(vP.z, vP.x), y = vP.y + 20.; // the cylinder's own heights run from -20 to 20
-        float near = max(fir(a * 30., y, 3., 11.), fir(a * 30. + .5, y, 11., 9.));
-        float far = max(fir(a * 52., y, 7., 15.), fir(a * 52. + .5, y, 19., 17.));
-        if (near < .5 && far < .5) discard;
-        vec3 c = near > .5 ? mix(uDark, uFog, .4) : mix(uDark, uFog, .62);
+        float a = atan(vP.z, vP.x), y = vP.y + ${(RING_H / 2).toFixed(1)};
+        float horizon = ${eye.toFixed(2)};
+        // the evening low over the valley: warm near the horizon, falling to the haze below
+        float lift = smoothstep(horizon - 26., horizon + 2., y);
+        vec3 c = mix(uFog * .5, mix(uFog, uGlow, .32) * .95, lift * lift);
+        float far = fir(a * 34., y, 7., ${onRing(140, 0)}, ${onRing(140, 15)});
+        c = mix(c, mix(uDark, uFog, .74), far);
+        float mid = fir(a * 17., y, 19., ${onRing(70, 0)}, ${onRing(70, 15)});
+        c = mix(c, mix(uDark, uFog, .48), mid);
+        float near = fir(a * 8.5, y, 3., ${onRing(34, 0)}, ${onRing(34, 14)});
+        float rim = near * (1. - fir(a * 8.5 + .012, y - .25, 3., ${onRing(34, 0)}, ${onRing(34, 14)}));
+        c = mix(c, mix(uDark, uFog, .2) + uGlow * .05 * rim, near);
         gl_FragColor = vec4(c, 1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
   });
-  const ring = new THREE.Mesh(new THREE.CylinderGeometry(22, 22, 40, 160, 1, true), ringM);
-  ring.position.y = 20; ring.renderOrder = -7;
-  const groundM = new THREE.MeshBasicMaterial({ color: col("#2a211c"), fog: true });
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(60, 48), groundM);
-  ground.rotation.x = -Math.PI / 2; ground.position.y = 0.02;
-  g.add(ring, ground);
-  g.userData.mats = [ringM, groundM];
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(RING_R, RING_R, RING_H, 220, 1, true), ringM);
+  ring.position.y = RING_H / 2; ring.renderOrder = -7;
+  g.add(ring);
+  g.userData.mats = [ringM];
   return g;
 }
 
@@ -84,9 +97,10 @@ export function makeDesk(A, plan, { fog } = {}) {
   const tex = A.tex;
 
   const top = own(keyed(new THREE.MeshStandardMaterial({ map: tex.wood_floor_diff, normalMap: tex.wood_floor_nor, roughnessMap: tex.wood_floor_rough, roughness: 1, envMapIntensity: 0.6, color: col("#e9cfb0") }), "d-std"));
-  const dg = new THREE.BoxGeometry(3.2, 0.045, 1.5);
-  { const uv = dg.attributes.uv, p = dg.attributes.position; for (let i = 0; i < uv.count; i++) uv.setXY(i, (p.getX(i) + 1.6) / 2.6, (p.getZ(i) + 0.75) / 2.6); }
-  const deskTop = new THREE.Mesh(dg, top); deskTop.position.set(0, -0.0225, -0.15); g.add(deskTop);
+  // the top runs on toward the owner past the stage's lower edge, so no dark band shows under it (T11)
+  const dg = new THREE.BoxGeometry(4.4, 0.045, 3.2);
+  { const uv = dg.attributes.uv, p = dg.attributes.position; for (let i = 0; i < uv.count; i++) uv.setXY(i, (p.getX(i) + 2.2) / 2.6, (p.getZ(i) + 1.6) / 2.6); }
+  const deskTop = new THREE.Mesh(dg, top); deskTop.position.set(0, -0.0225, 0.7); g.add(deskTop);
   // the window behind the desk: dark steel mullions, a concrete sill, the dusk beyond
   const steel = own(keyed(new THREE.MeshStandardMaterial({ color: col("#1f1c1a"), roughness: 0.45, metalness: 0.6 }), "d-std"));
   const sillM = own(keyed(new THREE.MeshStandardMaterial({ map: tex.concrete_floor_02_diff, roughness: 0.9, color: col("#bdb6ad") }), "d-std"));

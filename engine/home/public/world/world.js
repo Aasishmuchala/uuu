@@ -168,7 +168,7 @@ function buildMap(w, plan) {
   const group = old ? old.group : new THREE.Group();
   if (old) { old.building.dispose(); old.forecourt.userData.dispose(); old.forecourt.removeFromParent(); }
   const building = makeBuilding(w.A, plan);
-  const forecourt = makeForecourt(w.A, building, plan);
+  const forecourt = makeForecourt(w.A, building, plan, { phone: w.tier === "phone" });
   building.root.add(forecourt);
   group.add(building.root);
   let forest = old && old.forest;
@@ -529,6 +529,7 @@ function anchorPoint(w, id) {
   const world = (v) => b.root.localToWorld(v.clone());
   if (id === "stack" || id === "tray") return w.mode === "desk" && w.desk ? w.desk.anchor(id) : null;
   if (id.startsWith("agent:")) { const ag = b.agents[id.slice(6)]; return ag ? world(ag.tag) : null; }
+  if (id === "doors") { const a = b.annexBox; return world(new THREE.Vector3(a.min.x + 0.25, a.max.y - 0.15, a.max.z - 0.4)); } // the annex's top-left
   if (id.startsWith("door:")) { const d = b.doors[id.slice(5)]; return d ? world(new THREE.Vector3(d.x, d.box.max.y + 0.45, d.box.max.z - 0.3)) : null; }
   const rm = b.rooms[id];
   return rm ? world(rm.label) : null;

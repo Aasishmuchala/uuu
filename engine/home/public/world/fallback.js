@@ -348,6 +348,7 @@ export function drawFallback(svgHost, options = {}) {
     const top = groundY + floorH - 0.3;
     rect(x0, groundY, x1, top, "w-fb-annex-wall", g);
     rect(x0 - 0.05, top, x1 + 0.15, top + 0.3, "w-fb-slab", g);
+    anchors.set("doors", { x: x0 + 0.15, y: top - 0.15 }); // the doors' one tag, at the annex's top-left (T11)
     const doorState = new Map(arr(scene.doors).filter((d) => obj(d) && typeof d.id === "string").map((d) => [d.id.replace(/^door:/, ""), DOOR_STATES.includes(d.state) ? d.state : "shut"]));
     const places = new Map(arr(annex.doors).filter((d) => obj(d)).map((d) => [d.id, fin(d.x)]));
     DOORS.forEach((id, i) => {
@@ -380,8 +381,9 @@ export function drawFallback(svgHost, options = {}) {
 
   // ---- the desk (Needs you): the owner's desk drawn flat, the stack, the elevation small in the window ----
   function desk(root) {
-    rect(-40, -0.6, 40, 30, "w-fb-room-back w-fb-office", root);
-    rect(-40, -0.6, 40, 30, "w-fb-wash", root, { fill: WASH, opacity: 0.45 });
+    // the room and the desk run past every edge of the stage, so the drawing fills it however it is framed (T11)
+    rect(-200, -0.6, 200, 200, "w-fb-room-back w-fb-office", root);
+    rect(-200, -0.6, 200, 200, "w-fb-wash", root, { fill: WASH, opacity: 0.45 });
     // the window and the studio beyond it
     const W = { x0: -4.8, x1: 4.8, y0: 3.3, y1: 8.4 };
     const clip = el("clipPath", { id: `${uid}-win` }, defs);
@@ -399,8 +401,9 @@ export function drawFallback(svgHost, options = {}) {
     rect(W.x0 - 0.35, W.y0 - 0.3, W.x1 + 0.35, W.y0 - 0.12, "w-fb-slab", root);
 
     // the desk's top, seen from the chair, and its front edge
-    el("path", { d: `${pathOf([[-8.6, 2.3], [8.6, 2.3], [9.4, 0], [-9.4, 0]])} Z`, class: "w-fb-desk" }, root);
-    rect(-9.4, -0.55, 9.4, 0, "w-fb-desk-edge", root);
+    el("path", { d: `${pathOf([[-200, 2.3], [200, 2.3], [200, 0], [-200, 0]])} Z`, class: "w-fb-desk" }, root);
+    rect(-200, -0.55, 200, 0, "w-fb-desk-edge", root);
+    rect(-200, -200, 200, -0.55, "w-fb-desk-edge", root, { opacity: 0.85 });
     // the lamp at the left, its pool on the desk
     el("ellipse", { cx: -3.2, cy: Y(1.05), rx: 4.4, ry: 1.25, fill: POOL.on, class: "w-lamp__pool" }, root);
     el("path", { d: `${pathOf([[-6.6, 1.25], [-5.6, 1.25]])} ${pathOf([[-6.1, 1.25], [-6.5, 3.6], [-4.7, 4.1]])}`, class: "w-lamp__arm w-fb-desk-lamp" }, root);
@@ -463,7 +466,8 @@ export function drawFallback(svgHost, options = {}) {
     const r = mode === "map" && typeof f.focus === "string" ? rooms.get(f.focus) : null;
     const B = r ? { x: r.x0 - 1.0, y: r.y - 0.8, w: r.x1 - r.x0 + 2.0, h: r.h + 1.8 } : whole;
     const pad = Math.min(S.w, S.h) < 360 ? 0.04 : 0.07;
-    const k = Math.max(0.0001, Math.min(S.w / B.w, S.h / B.h) * (1 - 2 * pad));
+    // the desk fills the free area by its height and may run under the sheet and the list beside it (T11)
+    const k = Math.max(0.0001, Math.min(mode === "desk" ? (S.w / B.w) * 1.9 : S.w / B.w, S.h / B.h) * (1 - 2 * pad));
     // the box's centre lands on the free rectangle's centre
     const cx = B.x + B.w / 2;
     const cy = -(B.y + B.h / 2);

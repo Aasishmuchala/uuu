@@ -58,13 +58,23 @@ float sunVis(vec3 p, int ri){
   }
   return 1.;
 }
+// The corners of a room fall dark (T11, analytic, no shadow map): of the distances to the room's floor or ceiling,
+// its two ends and its back wall, the smallest is the surface's own plane; the second smallest is the nearest corner.
+// The far ends of a long room fall off a little too, so the light pools at its middle and under its lamps.
+float roomAO(vec3 p, int ri){
+  vec4 b = uRoomBox[ri];
+  float dx = min(p.x - b.x, b.y - p.x), dy = min(p.y - b.z, b.z + b.w - p.y), dz = p.z - ${ZB.toFixed(2)};
+  float s2 = max(min(dx, dy), min(max(dx, dy), dz));
+  float ends = smoothstep(.3, .5, abs(p.x - (b.x + b.y) * .5) / max(b.y - b.x, 1.));
+  return mix(.42, 1., smoothstep(.0, .85, s2)) * (1. - .3 * ends);
+}
 vec3 roomLight(vec3 p, vec3 n, int ri, float spill){
   vec3 acc = vec3(0.);
   // the sheet in flight carries its own light, everywhere
   vec4 c = uLamp[${CARRY}];
   if (c.w > .5) { vec3 L = c.xyz - p; float d2 = dot(L, L); acc += uLampCol[${CARRY}] * max(dot(n, L * inversesqrt(d2)), 0.) / (1. + d2 * 1.2); }
   if (ri >= 0) {
-    vec3 L = uRoomPos[ri] - p; float d2 = dot(L, L); acc += uRoomCol[ri] * (max(dot(n, L * inversesqrt(d2)), 0.) * .7 + .3) / (1. + d2 * .06);
+    vec3 L = uRoomPos[ri] - p; float d2 = dot(L, L); acc += uRoomCol[ri] * (max(dot(n, L * inversesqrt(d2)), 0.) * .7 + .3) / (1. + d2 * .09);
     int s = int(uRoomInfo[ri].x + .5), m = int(uRoomInfo[ri].y + .5);
     for (int k = 0; k < ${MAX_DESKS}; k++) {
       if (k >= m) break;
@@ -97,8 +107,9 @@ export function roomLit(mat, RL, spill = 0) {
         int ri = roomOf(bp); float sv = sunVis(bp, ri);
         reflectedLight.directDiffuse *= sv; reflectedLight.directSpecular *= sv;
         // a room whose lamps are off falls dim: the sky's light inside it follows the room's own glow
-        if (ri >= 0) { float k = mix(.35, 1., clamp(length(uRoomCol[ri]) * .5, 0., 1.)); reflectedLight.indirectDiffuse *= k; reflectedLight.indirectSpecular *= k; }
-        reflectedLight.directDiffuse += roomLight(bp, bn, ri, ${spill.toFixed(1)}) * diffuseColor.rgb; }`);
+        float ao = 1.;
+        if (ri >= 0) { ao = roomAO(bp, ri); float k = mix(.35, 1., clamp(length(uRoomCol[ri]) * .5, 0., 1.)) * ao; reflectedLight.indirectDiffuse *= k; reflectedLight.indirectSpecular *= k; }
+        reflectedLight.directDiffuse += roomLight(bp, bn, ri, ${spill.toFixed(1)}) * diffuseColor.rgb * ao; }`);
   };
   const key = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => "";
   mat.customProgramCacheKey = () => `rl${spill}|${key()}`;

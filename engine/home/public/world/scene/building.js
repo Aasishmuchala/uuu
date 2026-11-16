@@ -77,6 +77,21 @@ export function grade(mat, sat, gain = 1, contrast = 1, tint = "#ffffff") {
   };
   return mat;
 }
+// A soft dark blot as a small data texture (no canvas, no file): the contact shade under furniture.
+export function blotTexture() {
+  const S = 64, d = new Uint8Array(S * S * 4);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    // a rounded rectangle, dense at its heart and soft at its rim
+    const u = Math.abs(x - S / 2 + 0.5) / (S / 2), v = Math.abs(y - S / 2 + 0.5) / (S / 2);
+    const r = Math.min(1, Math.pow(Math.pow(u, 4) + Math.pow(v, 4), 0.25));
+    const a = 1 - r;
+    d[(y * S + x) * 4 + 3] = Math.round(255 * Math.min(1, a * 1.6) * Math.min(1, a * 1.6) * (3 - 2 * Math.min(1, a * 1.6)) * 0.5 + 255 * 0.5 * a * a);
+  }
+  const t = new THREE.DataTexture(d, S, S, THREE.RGBAFormat);
+  t.needsUpdate = true; t.magFilter = t.minFilter = THREE.LinearFilter;
+  return t;
+}
+
 // Programs are shared between materials whose shaders are the same: the key names the shader, never the material.
 export const keyed = (mat, key) => { mat.customProgramCacheKey = () => key; mat.dithering = true; return mat; };
 
@@ -118,7 +133,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
           diffuseColor.rgb *= 1. - vert * (seam * .14 + (band - .5) * .05); }`);
   };
   keyed(lit(grade(concrete, 0.2, 1.4, 0.5), 1), "b-concrete");
-  const plaster = keyed(lit(grade(new THREE.MeshStandardMaterial({ vertexColors: true, map: tex.white_plaster_02_diff, normalMap: tex.white_plaster_02_nor, normalScale: new THREE.Vector2(0.35, 0.35), roughness: 0.95, envMapIntensity: 0.05 }), 0.25, 1.35, 0.35, "#ece4d8")), "b-plaster");
+  const plaster = keyed(lit(grade(new THREE.MeshStandardMaterial({ vertexColors: true, map: tex.white_plaster_02_diff, normalMap: tex.white_plaster_02_nor, normalScale: new THREE.Vector2(0.35, 0.35), roughness: 0.95, envMapIntensity: 0.05 }), 0.3, 1.22, 0.5, "#e9d4bb")), "b-plaster");
   const timber = keyed(lit(grade(new THREE.MeshStandardMaterial({ vertexColors: true, map: tex.planks_brown_10_diff, normalMap: tex.planks_brown_10_nor, roughnessMap: tex.planks_brown_10_rough, roughness: 0.85, envMapIntensity: 0.05 }), 0.7, 1.1, 1.0, "#e8c7a0")), "b-timber");
   const oak = keyed(lit(grade(new THREE.MeshStandardMaterial({ vertexColors: true, map: tex.wood_floor_diff, normalMap: tex.wood_floor_nor, roughnessMap: tex.wood_floor_rough, roughness: 1, envMapIntensity: 0.05 }), 0.85, 1.05, 1.0, "#f4dcc0")), "b-oak");
   const deskOak = keyed(lit(grade(new THREE.MeshStandardMaterial({ vertexColors: true, map: tex.planks_brown_10_diff, normalMap: tex.planks_brown_10_nor, roughnessMap: tex.planks_brown_10_rough, roughness: 0.75, envMapIntensity: 0.15 }), 0.7, 1.3, 1.05, "#f1cfa6")), "b-deskoak");
@@ -128,7 +143,10 @@ export function makeBuilding(A, plan, { small = false } = {}) {
   const shadeM = keyed(lit(new THREE.MeshStandardMaterial({ color: col("#2f3a35"), roughness: 0.45, metalness: 0.3, envMapIntensity: 0.4 })), "b-plain");
   const paperM = keyed(lit(new THREE.MeshStandardMaterial({ color: col("#efe9de"), roughness: 0.9, envMapIntensity: 0.15 })), "b-plain");
   const glass = keyed(new THREE.MeshStandardMaterial({ color: col("#9fb2b8"), roughness: 0.06, metalness: 0, envMapIntensity: 1.2, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }), "b-glass");
-  for (const m of [concrete, plaster, timber, oak, deskOak, steel, fabric, paint, shadeM, paperM, glass]) owned.mats.add(m);
+  const glazing = keyed(new THREE.MeshStandardMaterial({ color: col("#c9d3d2"), roughness: 0.04, metalness: 0, envMapIntensity: 1.5, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide }), "b-glass");
+  const blotT = blotTexture();
+  const blotM = new THREE.MeshBasicMaterial({ map: blotT, color: col("#000000"), transparent: true, opacity: 0.62, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  for (const m of [concrete, plaster, timber, oak, deskOak, steel, fabric, paint, shadeM, paperM, glass, glazing, blotM]) owned.mats.add(m);
 
   const cp = [], pp = [], tp = [], op = [], fp = [], fab = [], pnt = [], dk = [], pap = [];
   // plinth, slabs, roof: chamfered so their edges catch a line of light
@@ -138,14 +156,25 @@ export function makeBuilding(A, plan, { small = false } = {}) {
   cp.push(cbx(X0 - 0.35, terBeside ? T.x0 + 0.2 : X1 + 0.35, roofY - SLAB, roofY + 0.12, -4.1, 4.25, 0.03, "#ffffff", cUV));
   if (storeys > 1) cp.push(cbx(X1 - 0.1, DX1 + 0.2, yOf(1) - SLAB, yOf(1) - SLAB + 0.36, -3.95, 4.05, 0.02, "#ffffff", cUV)); // over the doors
   else cp.push(cbx(X1, DX1 + 0.2, roofY - SLAB, roofY + 0.06, -3.95, 4.05, 0.02, "#ffffff", cUV));
-  // end walls, back walls
-  for (let f = 0; f <= topF; f++) { const y = yOf(f); cp.push(bx(X0 - 0.2, X0, y, y + H - SLAB, ZB - 0.3, ZF - 0.1, "#f2efea", cUV)); }
+  // end walls with a long window each (T11: side windows on the two end walls), back walls
+  const gp = []; // every pane of glass in the building, one draw
+  const endWall = (xa, xb, y, outward) => {
+    const h = H - SLAB, w0 = ZB + 0.9, w1 = ZF - 1.0, s0 = y + 0.85, s1 = y + 2.45;
+    cp.push(bx(xa, xb, y, s0, ZB - 0.3, ZF - 0.1, "#f2efea", cUV), bx(xa, xb, s1, y + h, ZB - 0.3, ZF - 0.1, "#f2efea", cUV));
+    cp.push(bx(xa, xb, s0, s1, ZB - 0.3, w0, "#f2efea", cUV), bx(xa, xb, s0, s1, w1, ZF - 0.1, "#f2efea", cUV));
+    const xm = (xa + xb) / 2, n = Math.max(2, Math.round((w1 - w0) / 1.3));
+    gp.push({ geo: new THREE.PlaneGeometry(w1 - w0, s1 - s0), m: at(xm, (s0 + s1) / 2, (w0 + w1) / 2, Math.PI / 2) });
+    for (let k = 0; k <= n; k++) { const z = w0 + k * (w1 - w0) / n; op.push(bx(xm - 0.03, xm + 0.03, s0, s1, z - 0.025, z + 0.025)); }
+    for (const yy of [s0, s1]) op.push(bx(xm - 0.03, xm + 0.03, yy - 0.025, yy + 0.025, w0, w1));
+    cp.push(bx(Math.min(xa, xb) - (outward < 0 ? 0.06 : 0), Math.max(xa, xb) + (outward > 0 ? 0.06 : 0), s0 - 0.06, s0, w0 - 0.05, w1 + 0.05, "#d9d4cc", cUV)); // the sill
+  };
+  for (let f = 0; f <= topF; f++) endWall(X0 - 0.2, X0, yOf(f), -1);
   cp.push(bx(DX1, DX1 + 0.2, Y0, yOf(1) - SLAB, ZB - 0.3, ZF - 0.1, "#f2efea", cUV));
   for (let f = 0; f <= topF; f++) {
     const y = yOf(f), xe = f === topF && terBeside ? T.x0 : f === 0 ? DX1 : X1;
     pp.push(bx(X0, xe, y, y + H - SLAB, ZB - 0.3, ZB, "#ffffff", cUV));
   }
-  for (let f = 1; f <= topF; f++) if (!(f === topF && terBeside)) cp.push(bx(X1, X1 + 0.2, yOf(f), yOf(f) + H - SLAB, ZB - 0.3, ZF - 0.1, "#f2efea", cUV));
+  for (let f = 1; f <= topF; f++) if (!(f === topF && terBeside)) endWall(X1, X1 + 0.2, yOf(f), 1);
   pp.push(bx(X1 - 0.07, X1 + 0.07, Y0, Y0 + H - SLAB, ZB, ZF - 0.35, "#ffffff", cUV));
   // the terrace: beside the top floor's rooms behind a parapet, or on the roof
   let terY = null;
@@ -154,16 +183,33 @@ export function makeBuilding(A, plan, { small = false } = {}) {
     const t0 = T.x0, t1 = T.x1;
     if (terBeside) pp.push(bx(t0, t0 + 0.14, terY, terY + H - SLAB, ZB, ZF - 0.35, "#ffffff", cUV));
     cp.push(bx(t0, t1 + 0.2, terY, terY + 1.0, ZB - 0.3, ZB - 0.1, "#f2efea", cUV));
-    cp.push(bx(t1, t1 + 0.2, terY, terY + 1.0, ZB - 0.3, ZF + 0.2, "#f2efea", cUV));
-    cp.push(bx(t0 + (terBeside ? 0.14 : 0), t1 + 0.2, terY, terY + 1.0, ZF, ZF + 0.2, "#f2efea", cUV));
+    // the side and the front: a low kerb and a glass balustrade with a steel rail, so the pavilion reads from below
+    const k0 = t0 + (terBeside ? 0.14 : 0), KH = 0.28, RH = 1.0;
+    cp.push(bx(t1, t1 + 0.2, terY, terY + KH, ZB - 0.3, ZF + 0.2, "#f2efea", cUV));
+    cp.push(bx(k0, t1 + 0.2, terY, terY + KH, ZF, ZF + 0.2, "#f2efea", cUV));
+    gp.push({ geo: new THREE.PlaneGeometry(t1 + 0.1 - k0, RH - KH), m: at((k0 + t1 + 0.1) / 2, terY + (KH + RH) / 2, ZF + 0.1) });
+    gp.push({ geo: new THREE.PlaneGeometry(ZF + 0.1 - (ZB - 0.1), RH - KH), m: at(t1 + 0.1, terY + (KH + RH) / 2, (ZF + ZB) / 2, Math.PI / 2) });
+    op.push(bx(k0, t1 + 0.2, terY + RH - 0.04, terY + RH, ZF + 0.06, ZF + 0.14), bx(t1 + 0.06, t1 + 0.14, terY + RH - 0.04, terY + RH, ZB - 0.1, ZF + 0.14));
+    for (let x = k0 + 0.05; x < t1 + 0.15; x += 1.2) op.push(bx(x - 0.02, x + 0.02, terY + KH, terY + RH, ZF + 0.08, ZF + 0.12));
   }
   // partitions, stopped short of the cut so their thickness reads; slim steel columns at the cut, at every room edge
-  const cols = new Set();
+  // between two rooms a doorway near the back, with a dark frame on both faces (T11)
+  const DW0 = ZB + 0.5, DW1 = ZB + 1.45, DH = 2.15;
+  const withDoorway = (list, xa, xb, y, c, uv) => {
+    list.push(bx(xa, xb, y, y + H - SLAB, ZB, DW0, c, uv), bx(xa, xb, y, y + H - SLAB, DW1, ZF - 0.35, c, uv), bx(xa, xb, y + DH, y + H - SLAB, DW0, DW1, c, uv));
+  };
+  const cols = new Set(), walls = new Set();
   for (const r of plan.rooms) {
     for (const x of [r.x0, r.x1]) {
       const y = yOf(r.floor);
       cols.add(`${r.floor}:${x}`);
-      if (x > X0 + 0.01 && x < X1 - 0.01 && !(terBeside && r.floor === topF && Math.abs(x - T.x0) < 0.01)) pp.push(bx(x - 0.07, x + 0.07, y, y + H - SLAB, ZB, ZF - 0.35, "#ffffff", cUV));
+      if (walls.has(`${r.floor}:${x}`)) continue;
+      walls.add(`${r.floor}:${x}`);
+      if (x > X0 + 0.01 && x < X1 - 0.01 && !(terBeside && r.floor === topF && Math.abs(x - T.x0) < 0.01)) {
+        withDoorway(pp, x - 0.07, x + 0.07, y, "#ffffff", cUV);
+        for (const z of [DW0 - 0.03, DW1 + 0.03]) pnt.push(bx(x - 0.1, x + 0.1, y, y + DH + 0.05, z - 0.04, z + 0.04, "#3b322b"));
+        pnt.push(bx(x - 0.1, x + 0.1, y + DH, y + DH + 0.07, DW0 - 0.07, DW1 + 0.07, "#3b322b"));
+      }
     }
   }
   for (const k of cols) { const [f, xs] = k.split(":"); const x = Math.min(X1 + 0.1, Math.max(X0 - 0.1, +xs)); const y = yOf(+f); op.push(bx(x - 0.07, x + 0.07, y, y + H - SLAB, ZF - 0.25, ZF - 0.11)); }
@@ -183,16 +229,21 @@ export function makeBuilding(A, plan, { small = false } = {}) {
   const rooms = {}, agents = {}, pendants = [];
   const prints = [];
   const print = (n, x, y, z, w, h, rx = 0) => { prints.push({ n, x, y, z, w, h, rx }); if (!rx) pnt.push(bx(x - w / 2 - 0.03, x + w / 2 + 0.03, y - h / 2 - 0.03, y + h / 2 + 0.03, z - 0.02, z + 0.005, "#f4f1ea")); };
+  // contact shade: a soft dark blot on the floor under each thing that stands on it (no shadow maps: D21)
+  const blots = [];
+  const blot = (x, y, z, w, d, ry = 0) => blots.push([x, y, z, w, d, ry]);
   const chairAt = (x, y, z, ry) => { // a plain oak chair, static
+    blot(x, y, z, 0.75, 0.72, ry);
     const m = (lx, lz) => { const c = Math.cos(ry), s = Math.sin(ry); return [x + lx * c + lz * s, z - lx * s + lz * c]; };
     for (const [lx, lz, h] of [[-0.19, 0.18, 0.45], [0.19, 0.18, 0.45], [-0.19, -0.18, 0.85], [0.19, -0.18, 0.85]]) { const [px, pz] = m(lx, lz); dk.push({ geo: new THREE.BoxGeometry(0.035, h, 0.035), m: at(px, y + h / 2, pz, ry), c: WHITE, uv: boxUV(1.2) }); }
     dk.push({ geo: new THREE.BoxGeometry(0.44, 0.04, 0.42), m: at(x, y + 0.46, z, ry), c: WHITE, uv: boxUV(1.2) });
     const [bx2, bz2] = m(0, -0.19); dk.push({ geo: new THREE.BoxGeometry(0.42, 0.12, 0.03), m: at(bx2, y + 0.76, bz2, ry), c: WHITE, uv: boxUV(1.2) });
   };
   const fernSpots = [], chairSpots = [], coffeeSpots = [];
-  const pot = (x, y, z, s = 1) => { pnt.push({ geo: new THREE.CylinderGeometry(0.2 * s, 0.16 * s, 0.42 * s, 20), m: at(x, y + 0.21 * s, z), c: col("#cfc6ba") }); fernSpots.push([x, y + 0.38 * s, z, 1.1 * s]); };
-  const table = (x0, x1, y, z0, z1) => { dk.push(bx(x0, x1, y + 0.72, y + 0.76, z0, z1, "#ffffff", boxUV(1.2))); for (const lx of [x0 + 0.1, x1 - 0.1]) op.push(bx(lx - 0.03, lx + 0.03, y, y + 0.72, z0 + 0.1, z1 - 0.1)); };
+  const pot = (x, y, z, s = 1) => { blot(x, y, z, 0.75 * s, 0.75 * s); pnt.push({ geo: new THREE.CylinderGeometry(0.2 * s, 0.16 * s, 0.42 * s, 20), m: at(x, y + 0.21 * s, z), c: col("#cfc6ba") }); fernSpots.push([x, y + 0.38 * s, z, 1.1 * s]); };
+  const table = (x0, x1, y, z0, z1) => { blot((x0 + x1) / 2, y, (z0 + z1) / 2, x1 - x0 + 0.5, z1 - z0 + 0.5); dk.push(bx(x0, x1, y + 0.72, y + 0.76, z0, z1, "#ffffff", boxUV(1.2))); for (const lx of [x0 + 0.1, x1 - 0.1]) op.push(bx(lx - 0.03, lx + 0.03, y, y + 0.72, z0 + 0.1, z1 - 0.1)); };
   const roundTable = (x, y, z, r, n) => {
+    blot(x, y, z, 2 * r + 0.5, 2 * r + 0.5);
     dk.push({ geo: new THREE.CylinderGeometry(r, r, 0.045, 40), m: at(x, y + 0.74, z), c: WHITE, uv: boxUV(1.2) });
     op.push({ geo: new THREE.CylinderGeometry(0.04, 0.04, 0.72, 10), m: at(x, y + 0.36, z), c: WHITE });
     op.push({ geo: new THREE.CylinderGeometry(0.32, 0.34, 0.03, 24), m: at(x, y + 0.015, z), c: WHITE });
@@ -209,6 +260,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
       for (let c = 0; c < nc; c++) for (let k = 0; k < 4; k++) if (rc() > 0.2) pnt.push(bx(b0 + 0.15 + c * 0.64, b0 + 0.15 + c * 0.64 + 0.42, y + 2.25 - k * 0.32 - 0.22, y + 2.25 - k * 0.32, bw + 0.03, bw + 0.035, ["#f4efe4", "#f2d79a", "#e9b5a1", "#cfe0d3"][Math.floor(rc() * 4)]));
       const L = Math.min(5, w - 2.2), t0 = cx - L / 2 + 0.4;
       if (L > 1.2) {
+        blot(t0 + L / 2, y, 1.75, L + 0.5, 1.5);
         dk.push(bx(t0, t0 + L, y + 0.72, y + 0.77, 1.25, 2.25, "#ffffff", boxUV(1.2)));
         for (const lx of [t0 + 0.2, t0 + L - 0.2]) op.push(bx(lx - 0.03, lx + 0.03, y, y + 0.72, 1.35, 2.15));
         const n = Math.max(1, Math.floor(L / 1.2));
@@ -220,6 +272,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
       ["hero", "materials", "visit"].slice(0, np).forEach((n, i) => print(n, cx + (i - (np - 1) / 2) * 1.55, y + 1.75, bw, 1.25, 1.12));
       // a drawing board on a trestle, tilted towards the room; the model table with a white study model
       const bx0 = x0 + 1.3, bz0 = 1.4;
+      blot(bx0, y, bz0, 1.7, 1.2);
       for (const sd of [-1, 1]) op.push({ geo: new THREE.BoxGeometry(0.04, 0.95, 0.04), m: at(bx0 + sd * 0.6, y + 0.47, bz0, 0, 0.12), c: WHITE });
       dk.push({ geo: new THREE.BoxGeometry(1.4, 0.035, 0.95), m: at(bx0, y + 1.0, bz0 + 0.05, 0, 0.42), c: col("#f6f1e8"), uv: boxUV(1.2) });
       pap.push({ geo: new THREE.BoxGeometry(0.84, 0.004, 0.6), m: at(bx0 - 0.1, y + 1.03, bz0 + 0.05, 0, 0.42) });
@@ -240,12 +293,14 @@ export function makeBuilding(A, plan, { small = false } = {}) {
       ["interior", "trees", "hero", "materials"].slice(0, np).forEach((n, i) => print(n, cx + (i - (np - 1) / 2) * 1.0, y + 1.9, bw, 0.8, 1.1));
       // an easel with the next poster, a worktable
       const ex = x1 - 1.1;
+      blot(ex, y, 1.7, 1.0, 0.8);
       for (const sd of [-1, 1]) op.push({ geo: new THREE.BoxGeometry(0.035, 1.7, 0.035), m: at(ex + sd * 0.32, y + 0.85, 1.7, 0, -0.12, sd * 0.12), c: WHITE });
       print("visit", ex, y + 1.15, 1.62, 0.7, 0.62, -0.12);
       if (w > 4.6) { const t0 = x0 + 0.6, t1 = Math.min(t0 + 1.7, ex - 0.8); table(t0, t1, y, 1.3, 2.1); chairAt((t0 + t1) / 2, y, 2.55, Math.PI); }
     } else if (kind === "shelves") {
       // shelves along the back wall, full of ledgers and binders
       const rc = rng(9), s1 = x1 - 0.4, s0 = Math.max(x0 + 0.4, s1 - 2.25);
+      blot((s0 + s1) / 2, y, ZB + 0.25, s1 - s0 + 0.5, 0.75);
       for (let k = 0; k < 5; k++) dk.push(bx(s0, s1, y + 0.3 + k * 0.5, y + 0.33 + k * 0.5, ZB + 0.03, ZB + 0.4, "#ffffff", boxUV(1.2)));
       for (const sx of [s0, s1]) dk.push(bx(sx - 0.02, sx + 0.02, y, y + 2.4, ZB + 0.03, ZB + 0.4, "#ffffff", boxUV(1.2)));
       for (let k = 0; k < 4; k++) { let x = s0 + 0.06; while (x < s1 - 0.1) { const t = 0.05 + rc() * 0.05, h = 0.3 + rc() * 0.12; if (rc() > 0.08) pnt.push(bx(x, x + t, y + 0.33 + k * 0.5, y + 0.33 + k * 0.5 + h, ZB + 0.07, ZB + 0.36, ["#6b2f24", "#2f4a3a", "#2a3550", "#b28a52", "#efe8da", "#4a4038"][Math.floor(rc() * 6)])); x += t + 0.006; } }
@@ -254,7 +309,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
       pap.push({ geo: new THREE.BoxGeometry(0.45, 0.05, 0.32), m: at(t0 + 0.6, y + 0.785, 1.7, 0.1) }); pnt.push({ geo: new THREE.BoxGeometry(0.3, 0.05, 0.42), m: at(t0 + 1.0, y + 0.79, 1.6, -0.3), c: col("#6b2f24") });
     } else if (kind === "lounge") {
       // a sofa corner with a low table and a rug
-      const S = (cx2, cy, cz, w2, h, d, rr, ry = 0, c = "#cfc7bb") => fab.push({ geo: rbox(w2, h, d, rr), m: at(cx2, y + cy, cz, ry), c: col(c), uv: boxUV(0.4) });
+      const S = (cx2, cy, cz, w2, h, d, rr, ry = 0, c = "#cfc7bb") => (cy < 0.3 && blot(cx2, y, cz, w2 + 0.45, d + 0.45, ry), fab.push({ geo: rbox(w2, h, d, rr), m: at(cx2, y + cy, cz, ry), c: col(c), uv: boxUV(0.4) }));
       const sw = Math.min(2.6, w - 2.2), sx = x0 + 0.5 + 0.45 + sw / 2 + 0.1;
       pnt.push(bx(x0 + 0.4, Math.min(x1 - 0.4, x0 + 4.1), y + 0.025, y + 0.035, 0.4, 2.9, "#7b6a58"));
       S(sx, 0.25, 1.05, sw, 0.22, 0.9, 0.05); S(sx, 0.62, 0.66, sw, 0.45, 0.22, 0.07);
@@ -275,7 +330,35 @@ export function makeBuilding(A, plan, { small = false } = {}) {
     const y = r.y, cx = (r.x0 + r.x1) / 2, w = r.x1 - r.x0, kind = kindOf(r.id, ri), walls = TIMBER.has(kind) ? "timber" : "plaster";
     fp.push(bx(r.x0 + 0.07, r.x1 - 0.07, y, y + 0.025, ZB, ZF - 0.05, "#ffffff", (p) => [p.x / 1.6, p.z / 1.6]));
     (walls === "timber" ? tp : pp).push(bx(r.x0 + 0.07, r.x1 - 0.07, y, y + H - SLAB, ZB, ZB + 0.03, "#ffffff", walls === "timber" ? (p) => [p.y / 2.2, p.x / 2.2] : cUV));
-    if (walls === "timber") { tp.push(bx(r.x0 + 0.07, r.x0 + 0.1, y, y + H - SLAB, ZB, ZF - 0.35, "#ffffff", (p) => [p.y / 2.2, p.z / 2.2])); tp.push(bx(r.x1 - 0.1, r.x1 - 0.07, y, y + H - SLAB, ZB, ZF - 0.35, "#ffffff", (p) => [p.y / 2.2, p.z / 2.2])); }
+    const inner = (x) => x > X0 + 0.01 && x < X1 - 0.01 && !(terBeside && r.floor === topF && Math.abs(x - T.x0) < 0.01); // a partition with a doorway
+    if (walls === "timber") {
+      const tuv = (p) => [p.y / 2.2, p.z / 2.2];
+      for (const [xa, xb, x] of [[r.x0 + 0.07, r.x0 + 0.1, r.x0], [r.x1 - 0.1, r.x1 - 0.07, r.x1]]) {
+        if (inner(x)) withDoorway(tp, xa, xb, y, "#ffffff", tuv); else tp.push(bx(xa, xb, y, y + H - SLAB, ZB, ZF - 0.35, "#ffffff", tuv));
+      }
+    }
+    // skirting: a dark timber line along the back wall and both ends, broken at a doorway
+    const SK = "#46392f", e0 = r.x0 + (walls === "timber" ? 0.1 : 0.07), e1 = r.x1 - (walls === "timber" ? 0.1 : 0.07);
+    pnt.push(bx(e0, e1, y + 0.02, y + 0.13, ZB + 0.03, ZB + 0.055, SK));
+    for (const [xa, xb, x] of [[e0, e0 + 0.025, r.x0], [e1 - 0.025, e1, r.x1]]) {
+      if (inner(x)) pnt.push(bx(xa, xb, y + 0.02, y + 0.13, ZB + 0.03, DW0 - 0.07, SK), bx(xa, xb, y + 0.02, y + 0.13, DW1 + 0.07, ZF - 0.4, SK));
+      else pnt.push(bx(xa, xb, y + 0.02, y + 0.13, ZB + 0.03, ZF - 0.4, SK));
+    }
+    // the front's glazing: mullioned sliding panes parked at both ends of the cut, so the room still reads (T11)
+    {
+      const pw = Math.min(0.95, (r.x1 - r.x0) * 0.15), top = y + H - SLAB - 0.14, g0 = y + 0.04;
+      for (const [side, xe] of [[1, r.x0 + 0.1], [-1, r.x1 - 0.1]]) {
+        for (let k = 0; k < 1; k++) {
+          const xa = xe + side * k * pw * 0.82, xb = xa + side * pw, z = ZF - 0.22 + k * 0.06;
+          const x0p = Math.min(xa, xb), x1p = Math.max(xa, xb), xm = (x0p + x1p) / 2;
+          gp.push({ geo: new THREE.PlaneGeometry(x1p - x0p, top - g0), m: at(xm, (g0 + top) / 2, z) });
+          op.push(bx(x0p, x0p + 0.035, g0, top, z - 0.015, z + 0.015), bx(x1p - 0.035, x1p, g0, top, z - 0.015, z + 0.015));
+          op.push(bx(x0p, x1p, g0, g0 + 0.06, z - 0.015, z + 0.015), bx(x0p, x1p, top - 0.035, top, z - 0.015, z + 0.015));
+        }
+      }
+      op.push(bx(r.x0 + 0.07, r.x1 - 0.07, top, top + 0.06, ZF - 0.27, ZF - 0.1)); // the head track
+      op.push(bx(r.x0 + 0.07, r.x1 - 0.07, y + 0.025, y + 0.04, ZF - 0.27, ZF - 0.1)); // the floor track
+    }
     // a ceiling line: a shallow bulkhead along the front, and pendants over the room
     const ceil = y + H - SLAB;
     pp.push(bx(r.x0 + 0.07, r.x1 - 0.07, ceil - 0.12, ceil, ZF - 0.7, ZF - 0.35, "#ffffff", cUV));
@@ -287,6 +370,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
     rooms[r.id] = room;
     r.desks.forEach((d, i) => {
       const dx = d.x, dz = d.z, dy = y + 0.025;
+      blot(dx, y, dz, 1.95, 1.15); blot(dx + 0.1, y, dz - 0.85, 0.75, 0.75);
       dk.push(bx(dx - 0.75, dx + 0.75, dy + 0.71, dy + 0.75, dz - 0.4, dz + 0.4, "#ffffff", boxUV(1.2)));
       for (const sd of [-1, 1]) op.push(bx(dx + sd * 0.68 - 0.02, dx + sd * 0.68 + 0.02, dy, dy + 0.71, dz - 0.36, dz + 0.36));
       pap.push({ geo: new THREE.BoxGeometry(0.3, 0.006, 0.42), m: at(dx + 0.2, dy + 0.755, dz + 0.08, 0.14 + i * 0.3) });
@@ -294,7 +378,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
       dk.push(bx(dx + 0.32, dx + 0.64, dy + 0.75, dy + 0.8, dz + 0.33, dz + 0.39, "#c9a27a", boxUV(1.2))); // name plate, blank
       const ag = { slug: d.slug, i: Object.keys(agents).length, room, light: 0, target: 0, lightFrom: 0, colourKind: "off", fold: 0, foldTarget: 0, foldFrom: 0, t: 1, wait: 0, boost: 0,
         desk: new THREE.Vector3(dx, dy + 0.78, dz), chair: { x: dx + 0.1, y: dy, z: dz - 0.85, ry: i % 2 ? 0.18 : -0.14 },
-        tag: new THREE.Vector3(dx, dy + 1.95, dz), lampAt: new THREE.Vector3(dx - 0.58, dy + 0.75, dz - 0.22) };
+        tag: new THREE.Vector3(dx + 0.3, dy + 1.25, dz + 0.3), lampAt: new THREE.Vector3(dx - 0.58, dy + 0.75, dz - 0.22) };
       agents[d.slug] = ag; room.agents.push(ag);
     });
     furnish(kind, r, y);
@@ -333,6 +417,16 @@ export function makeBuilding(A, plan, { small = false } = {}) {
   // merge the static parts, one draw per material
   const add = (parts, mat) => { if (!parts.length) return null; const m = new THREE.Mesh(merge(parts), mat); root.add(m); return m; };
   add(cp, concrete); add(pp, plaster); add(tp, timber); add(fp, oak); add(op, steel); add(dk, deskOak); add(fab, fabric); add(pnt, paint); add(pap, paperM);
+  // the glazing: plain alpha with the sky's reflection, no transmission (D21); drawn after the rooms behind it
+  { const gm = add(gp, glazing); if (gm) gm.renderOrder = 2; }
+  // the contact shade, one instanced draw: a blot just over the floor under every desk, chair, table and pot
+  if (blots.length) {
+    const bm = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), blotM, blots.length);
+    const q = new THREE.Quaternion(), s = new THREE.Vector3(), e = new THREE.Euler();
+    blots.forEach(([x, y, z, w, d, ry], i) => bm.setMatrixAt(i, new THREE.Matrix4().compose(new THREE.Vector3(x, y + 0.029, z), q.setFromEuler(e.set(-Math.PI / 2, ry, 0, "YXZ")), s.set(w, d, 1))));
+    bm.renderOrder = 1;
+    root.add(bm);
+  }
   const printMats = {};
   const printMat = (n) => printMats[n] || (printMats[n] = keyed(lit(new THREE.MeshStandardMaterial({ map: A.prints[n], roughness: 0.7, envMapIntensity: 0.15 })), "b-print"));
   for (const p of prints) { if (!A.prints[p.n]) continue; const m = new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.h), printMat(p.n)); m.position.set(p.x, p.y, p.z + 0.008); if (p.rx) m.rotation.x = p.rx; root.add(m); }
@@ -519,7 +613,8 @@ export function makeBuilding(A, plan, { small = false } = {}) {
   function setLamp(slug, lamp, { animate = false, delay = 0 } = {}) {
     const ag = agents[slug]; if (!ag) return false;
     const [light, fold, kind] = LAMP[lamp] || LAMP.off;
-    if (ag.target === light && ag.foldTarget === fold && ag.colourKind === kind && ag.t >= 1) return false;
+    // already there, or already on its way there: a scene that arrives while the lamp animates leaves it to finish
+    if (ag.target === light && ag.foldTarget === fold && (ag.pendingKind || ag.colourKind) === kind) return false;
     // a lamp going dark keeps its colour while it fades
     if (light > 0 || ag.light <= 0 || !animate) { ag.colourKind = kind; ag.pendingKind = null; } else ag.pendingKind = kind;
     ag.lightFrom = ag.light; ag.foldFrom = ag.fold; ag.target = light; ag.foldTarget = fold;
@@ -669,6 +764,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
       if (pathMesh) owned.geos.add(pathMesh.geometry);
       for (const g of owned.geos) g.dispose();
       for (const m of owned.mats) m.dispose();
+      blotT.dispose();
       for (const im of [...lampMeshes, ...chairMeshes]) im.dispose();
       root.removeFromParent();
     },

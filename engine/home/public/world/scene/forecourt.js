@@ -20,7 +20,7 @@ function poolTexture() {
   return t;
 }
 
-export function makeForecourt(A, building, plan) {
+export function makeForecourt(A, building, plan, { phone = false } = {}) {
   const g = new THREE.Group();
   const lit = building.lit;
   const owned = [];
@@ -50,12 +50,26 @@ export function makeForecourt(A, building, plan) {
   g.add(new THREE.Mesh(merge(pv), pm));
   // planting: a long bed in front of the deck, grasses and ferns
   const bedM = keyed(lit(new THREE.MeshStandardMaterial({ map: A.tex.forest_ground_04_diff, color: col("#8a7663"), roughness: 1 }), 1), "f-bed");
-  g.add(new THREE.Mesh(merge([bx(dx0, dx1, -0.05, 0.12, 6.9, 8.9, "#ffffff", boxUV(2)), bx(dx0 - 0.1, dx1 + 0.1, -0.05, 0.2, 8.9, 9.05, "#9a958d", boxUV(2))]), bedM));
+  // the beds: along the deck, round the left end of the studio, and beside the path; each with a stone kerb (T11)
+  const lx0 = dx0 - 2.6, lx1 = dx0 - 0.15, rx0 = px1 + 0.45, rx1 = px1 + 2.5;
+  const beds = [[dx0, dx1, 6.9, 8.9], [lx0, lx1, -3.4, 8.9], [rx0, rx1, 4.6, 10.4]];
+  const bedParts = [];
+  for (const [a, b, c, d] of beds) {
+    bedParts.push(bx(a, b, -0.05, 0.12, c, d, "#ffffff", boxUV(2)));
+    bedParts.push(bx(a - 0.1, b + 0.1, -0.05, 0.2, d, d + 0.15, "#9a958d", boxUV(2)));
+  }
+  bedParts.push(bx(lx0 - 0.15, lx0, -0.05, 0.2, -3.4, 9.05, "#9a958d", boxUV(2)), bx(rx1, rx1 + 0.15, -0.05, 0.2, 4.6, 10.55, "#9a958d", boxUV(2)));
+  g.add(new THREE.Mesh(merge(bedParts), bedM));
   owned.push(deckM, pm, bedM);
   const nodesOf = (gltf, re) => { const out = []; if (!gltf) return out; gltf.scene.updateMatrixWorld(true); gltf.scene.traverse((o) => { if (o.isMesh && (!re || re.test(o.name))) out.push(o); }); return out; };
-  const spots = (nodes, count, zr, sc, seed, tint, key) => {
+  // where a plant goes: inside a box [x0, x1, z0, z1], or a function that gives a spot or null
+  const spots = (nodes, count, where, sc, seed, tint, key) => {
     const rr = rng(seed), by = nodes.map(() => []);
-    for (let i = 0; i < count; i++) { const x = dx0 + 0.2 + rr() * (dx1 - dx0 - 0.4), z = zr[0] + rr() * (zr[1] - zr[0]); by[i % nodes.length].push(new THREE.Matrix4().compose(new THREE.Vector3(x, 0.1, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rr() * 6.28, 0)), new THREE.Vector3().setScalar(sc * (0.8 + rr() * 0.5)))); }
+    const pick = typeof where === "function" ? () => where(rr) : () => [where[0] + rr() * (where[1] - where[0]), where[2] + rr() * (where[3] - where[2])];
+    for (let i = 0, guard = 0; i < count && guard < count * 20; guard++) {
+      const at2 = pick(); if (!at2) continue; const [x, z] = at2; i++;
+      const y = where.ground ? 0 : 0.1;
+      by[i % nodes.length].push(new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rr() * 6.28, 0)), new THREE.Vector3().setScalar(sc * (0.8 + rr() * 0.5)))); }
     nodes.forEach((n, k) => {
       if (!by[k].length) return;
       const mat = n.material.clone(); mat.color.copy(tint); mat.side = THREE.DoubleSide; mat.envMapIntensity = 0.4; keyed(lit(mat, 1), key); owned.push(mat);
@@ -67,9 +81,31 @@ export function makeForecourt(A, building, plan) {
   };
   const span = (dx1 - dx0) / 17.8;
   const grass = nodesOf(A.models.grass_medium_01, /tall|mid/);
-  if (grass.length) spots(grass, Math.round(90 * span), [7.0, 8.8], 2.0, 21, col("#a8ad74"), "f-model");
   const ferns = nodesOf(A.models.fern_02);
-  if (ferns.length) spots(ferns, Math.round(30 * span), [7.1, 8.7], 1.9, 22, col("#7f8f58"), "f-model");
+  const bedSpots = (bi) => (rr) => { const [a, b, c, d] = beds[bi]; return [a + 0.2 + rr() * (b - a - 0.4), c + 0.15 + rr() * (d - c - 0.3)]; };
+  if (grass.length) {
+    spots(grass, Math.round(90 * span), [dx0 + 0.2, dx1 - 0.2, 7.0, 8.8], 2.0, 21, col("#a8ad74"), "f-model");
+    spots(grass, 26, bedSpots(1), 2.1, 25, col("#a3a870"), "f-model");
+    spots(grass, 14, bedSpots(2), 2.0, 26, col("#a3a870"), "f-model");
+  }
+  if (ferns.length) {
+    spots(ferns, Math.round(30 * span), [dx0 + 0.3, dx1 - 0.3, 7.1, 8.7], 1.9, 22, col("#7f8f58"), "f-model");
+    spots(ferns, 12, bedSpots(1), 2.2, 27, col("#7b8a55"), "f-model");
+    spots(ferns, 6, bedSpots(2), 2.0, 28, col("#7b8a55"), "f-model");
+  }
+  // the meadow beyond: tufts of the small grasses and a few ferns, thick by the yard and thinning out, never on the
+  // gravel margin or the path, so no flat plane shows from either camera
+  const yard = [lx0 - 0.15, rx1 + 0.15, -4.3, 10.55], path = [px0 - 0.1, px1 + 0.1, 4.3, 24];
+  const out = (r, x, z, m) => x < r[0] - m || x > r[1] + m || z < r[2] - m || z > r[3] + m;
+  const meadow = (near) => Object.assign((rr) => {
+    const x = X0 - 18 + rr() * (DX1 - X0 + 36), z = -9 + rr() * 34;
+    if (!out(yard, x, z, 1.6) || !out(path, x, z, 1.2)) return null;
+    const d = Math.min(Math.abs(x - (X0 + DX1) / 2) / 14, Math.hypot(Math.max(0, x - yard[1], yard[0] - x), Math.max(0, z - yard[3])) / 9);
+    return rr() < (near ? 1.1 - d : 0.9 - d * 0.6) ? [x, z] : null;
+  }, { ground: true });
+  const tufts = nodesOf(A.models.grass_medium_01, /small_a|mid_a|mid_b|large_a/);
+  if (tufts.length) spots(tufts, phone ? 110 : 320, meadow(true), 2.9, 31, col("#9aa06a"), "f-model");
+  if (ferns.length) spots(ferns.slice(0, 2), phone ? 24 : 70, meadow(false), 2.6, 32, col("#76854f"), "f-model");
 
   // path lights: low posts along both sides of the path, each with a small pool on the ground
   const at = [];
@@ -90,7 +126,7 @@ export function makeForecourt(A, building, plan) {
   });
   pools.renderOrder = 1;
   g.add(posts, caps, pools);
-  g.userData.foot = { x0: dx0 - 0.3, x1: DX1 + 0.3, z0: -4.1, z1: ZF + 0.7 };
+  g.userData.foot = { x0: dx0 - 0.3, x1: DX1 + 0.3, z0: -4.1, z1: ZF + 0.7, yard, path };
   g.userData.dispose = () => {
     g.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
     for (const x of owned) x.dispose();

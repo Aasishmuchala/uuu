@@ -5,8 +5,9 @@
 // shows; a load that fails, or a world that loses its context, leaves the drawn picture in place, once, silently.
 //
 // The tag layer: the names over the picture are DOM text nodes (D9), never drawn into the world. At overview, each
-// room's title with its count words and every agent who needs the owner; with a room chosen, that room and every
-// agent in it and no other room's tags. Each is placed by the world's `project` after a frame, or by the drawn
+// room's title with its count words at its own top-left corner, every agent who needs the owner, and one tag at the
+// doors when any is shut; a hovered room adds all its agents; with a room chosen, that room and every agent in it and
+// no other room's tags. Each is placed by the world's `project` after a frame, or by the drawn
 // picture's own geometry, and the boxes go through placeTags so no two cross.
 //
 // The whole stage is aria-hidden and nothing in it takes focus; `label` is spoken by a visually hidden line beside
@@ -23,7 +24,7 @@ import { nodeLine } from "../map/map-view.js";
 import { drawFallback, DEFAULT_SIZE } from "./fallback.js";
 import { cut, TAG_MAX } from "./state.js";
 import { placeTags } from "./tags.js";
-import { WORDS } from "./words.js";
+import { WORDS, TAG_WORDS, doorsTagLine } from "./words.js";
 
 export const MIN_WIDTH = 240;
 export const PHONE_BELOW = 860;
@@ -45,6 +46,27 @@ export function worldAllowed({ webgl2, query, width, saveData } = {}) {
   return webgl2 === true && !worldOff(query) && fin(width) && width >= MIN_WIDTH && saveData !== true;
 }
 
+// WebGL2 that can really draw: the constructor alone is not enough (a Chrome with no GPU has it and then refuses the
+// context, and three.js would log that refusal before the stage fell back). One small canvas asks once; the answer is
+// kept and the probe's context let go at once. Where a canvas has no getContext (the test DOM) the constructor decides.
+let glProbe = null;
+function canDrawGL() {
+  const g = globalThis;
+  if (typeof g.WebGL2RenderingContext !== "function") return false;
+  if (glProbe !== null) return glProbe;
+  try {
+    const c = g.document && typeof g.document.createElement === "function" ? g.document.createElement("canvas") : null;
+    if (!c || typeof c.getContext !== "function") return true;
+    const gl = c.getContext("webgl2");
+    glProbe = !!gl;
+    const lose = gl && typeof gl.getExtension === "function" ? gl.getExtension("WEBGL_lose_context") : null;
+    if (lose) lose.loseContext();
+  } catch {
+    glProbe = false;
+  }
+  return glProbe;
+}
+
 // The facts, read from the page.
 function envOf(width) {
   const g = globalThis;
@@ -52,7 +74,7 @@ function envOf(width) {
   const hash = typeof loc.hash === "string" ? loc.hash : "";
   const query = `${typeof loc.search === "string" ? loc.search : ""}&${hash.includes("?") ? hash.slice(hash.indexOf("?") + 1) : ""}`;
   const conn = g.navigator && g.navigator.connection;
-  return { webgl2: typeof g.WebGL2RenderingContext === "function", query, width, saveData: !!(conn && conn.saveData === true) };
+  return { webgl2: canDrawGL(), query, width, saveData: !!(conn && conn.saveData === true) };
 }
 
 function sizeOf(el) {
@@ -66,15 +88,27 @@ function sizeOf(el) {
 
 // The tags for a state: [{ id, kind, text, sub, title, lamp }]. Text is the DOM's (cut to TAG_MAX, the whole name in
 // `title`); ids are the anchors the world and the drawn picture know.
-export function tagsOf(state, { mode = "map", focus = null } = {}) {
+// At overview the rooms come first, so each room's tag holds its own top-left corner, then one small tag at the doors
+// when any is shut, then a tag per agent who is stuck (red, the server's word) or waits on an approval. A hovered room
+// shows all its agents, as a chosen one does; an amber agent reads "Needs you" there, whatever its server word (the
+// server marks every agent with an item in the queue as waiting, team.mjs, and its state may still say "Free").
+export function tagsOf(state, { mode = "map", focus = null, hover = null } = {}) {
   if (mode !== "map" || !obj(state)) return [];
   const rooms = arr(state.rooms).filter((r) => obj(r) && r.inPlan === true);
   const roomTag = (r) => ({ id: r.anchor || r.id, kind: "room", text: cut(r.title, TAG_MAX), sub: nodeLine(r.counts), title: r.title, lamp: null });
-  const agentTag = (a) => ({ id: a.anchor || `agent:${a.slug}`, kind: "agent", text: a.tag || cut(a.name, TAG_MAX), sub: a.plainState || "", title: a.name, lamp: a.lamp });
+  const agentTag = (a) => ({ id: a.anchor || `agent:${a.slug}`, kind: "agent", text: a.tag || cut(a.name, TAG_MAX),
+    sub: a.lamp === "amber" ? TAG_WORDS.needsYou : a.plainState || "", title: a.name, lamp: a.lamp });
   const chosen = typeof focus === "string" ? rooms.find((r) => r.id === focus) : null;
   if (chosen) return [roomTag(chosen), ...arr(chosen.agents).filter(obj).map(agentTag)];
-  const needs = rooms.flatMap((r) => arr(r.agents).filter((a) => obj(a) && a.needsYou === true)).map(agentTag);
-  return [...needs, ...rooms.map(roomTag)];
+  const pointed = typeof hover === "string" ? rooms.find((r) => r.id === hover) : null;
+  // at overview only the agents who are stuck or wait on an approval; one with only an item in the queue shows its
+  // amber lamp and its room's count, and its tag on hover or open
+  const urgent = (a) => a.lamp === "red" || a.state === "waiting_for_you";
+  const needs = rooms.flatMap((r) => arr(r.agents).filter((a) => obj(a) && (urgent(a) || r === pointed))).map(agentTag);
+  const doors = arr(state.doors).filter(obj);
+  const line = doors.length ? doorsTagLine(doors) : "";
+  const door = line ? [{ id: "doors", kind: "door", text: WORDS.doors, sub: line, title: WORDS.doors, lamp: null }] : [];
+  return [...rooms.map(roomTag), ...door, ...needs];
 }
 
 const rectKey = (r) => (obj(r) ? [r.x, r.y, r.w, r.h].map((v) => (fin(v) ? Math.round(v) : 0)).join(",") : "");
@@ -105,7 +139,7 @@ export function WorldStage(props) {
 
   const sceneKey = scene ? JSON.stringify(scene) : "";
   const safeKey = rectKey(safeRect);
-  const tags = tagsOf(state, { mode, focus });
+  const tags = tagsOf(state, { mode, focus, hover });
   const tagKey = tags.map((t) => t.id).join(" ");
 
   const pick = (id) => { const f = latest.current.onPick; if (typeof f === "function") f(id); };
@@ -133,7 +167,7 @@ export function WorldStage(props) {
       const w = el.offsetWidth > 0 ? el.offsetWidth : Math.min(260, 16 + 6.4 * (el.getAttribute("data-chars") | 0));
       const h = el.offsetHeight > 0 ? el.offsetHeight : TAG_H;
       if (!at || at.visible === false || !fin(at.x) || !fin(at.y)) { away.push(el); continue; }
-      const room = el.getAttribute("data-kind") === "room";
+      const room = el.getAttribute("data-kind") !== "agent"; // rooms and the doors hang from their top-left corner
       boxes.push({ id, el, x: room ? at.x : at.x - w / 2, y: room ? at.y : at.y - h - 4, w, h });
     }
     for (const el of away) el.setAttribute("data-placed", "hidden");
@@ -249,7 +283,7 @@ export function WorldStage(props) {
   const status = world === "loading" ? (mode === "desk" ? WORDS.lightingDesk : WORDS.lightingStudio) : "";
   return html`
     <div class=${`w-stage w-stage--${mode}`} ref=${stageRef} aria-hidden="true" data-world=${world} data-mode=${mode} data-theme-stage=${theme}>
-      <div class="w-fallback" ref=${fbRef}></div>
+      <div class="w-fallback" ref=${fbRef} data-cook-picture></div>
       <div class="w-canvas" ref=${canvasRef}></div>
       <div class="w-tags" ref=${tagsRef}>
         ${tags.map((t) => html`<span key=${t.id} class=${`w-tag w-tag--${t.kind}`} data-tag=${t.id} data-kind=${t.kind}

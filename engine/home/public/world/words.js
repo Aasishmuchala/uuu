@@ -20,6 +20,29 @@ export const WORDS = Object.freeze({
   keys: "Keys: J and K move, Enter the story so far, A and D go to the buttons.",
 });
 
+// The tag over the studio: an agent with something in the queue reads "Needs you" there (its server state word may
+// be "Free": what it waits on is the owner, not work), and the one small tag at the doors names the doors that are
+// shut (T11). Labels only, pinned by test/world/stage.test.mjs.
+export const TAG_WORDS = Object.freeze({
+  needsYou: "Needs you",
+  shut: "shut",
+  allShut: "All shut",
+  door: Object.freeze({ web: "Web", generation: "Generation", higgsfield: "Higgsfield" }),
+});
+
+// The doors' tag line from the doors' states: "" when every door is open, "All shut", or "Web, Higgsfield shut".
+export function doorsTagLine(doors) {
+  const list = Array.isArray(doors) ? doors : [];
+  const ids = Object.keys(TAG_WORDS.door);
+  const shut = ids.filter((id) => {
+    const d = list.find((x) => x !== null && typeof x === "object" && x.id === id);
+    return !d || d.state !== "open";
+  });
+  if (!shut.length) return "";
+  if (shut.length === ids.length) return TAG_WORDS.allShut;
+  return `${shut.map((id) => TAG_WORDS.door[id]).join(", ")} ${TAG_WORDS.shut}`;
+}
+
 // The Settings section each door's sentences live in: the addresses of pages/settings.js `sectionHref` (the Web
 // section for the web door; Runway and Higgsfield share the Generation section). Kept here, not imported, so this
 // file stays free of Preact; test/world/state.test.mjs checks them against settings.js.

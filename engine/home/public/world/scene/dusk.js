@@ -188,11 +188,18 @@ export function makeTerrain(A, { phone = false, foot }) {
   tg.computeVertexNormals();
   const gm = new THREE.MeshStandardMaterial({ vertexColors: true, map: A.tex.forest_ground_04_diff, normalMap: A.tex.forest_ground_04_nor, normalScale: new THREE.Vector2(0.5, 0.5), roughness: 0.95, metalness: 0 });
   const tGrass = A.tex.forrest_ground_01_diff;
+  // the yard (deck and beds) and the path, as rectangles x0, x1, z0, z1: gravel meets them, grass beyond, then the
+  // forest floor, each edge broken by noise (T11)
+  const yard = foot.yard || [foot.x0, foot.x1, foot.z0, foot.z1], path = foot.path || [0, 0, 0, 0];
   gm.onBeforeCompile = (sh) => {
     sh.uniforms.tGrass = { value: tGrass };
+    sh.uniforms.tGravel = { value: A.tex.concrete_floor_02_diff || A.tex.forest_ground_04_diff };
+    sh.uniforms.uYard = { value: new THREE.Vector4(...yard.map((v) => +v || 0)) };
+    sh.uniforms.uPath = { value: new THREE.Vector4(...path.map((v) => +v || 0)) };
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vGW;").replace("#include <project_vertex>", "#include <project_vertex>\nvGW = (modelMatrix * vec4(transformed, 1.)).xyz;");
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>
-      uniform sampler2D tGrass; varying vec3 vGW;
+      uniform sampler2D tGrass, tGravel; uniform vec4 uYard, uPath; varying vec3 vGW;
+      float sdr(vec2 p, vec4 r){ vec2 c = vec2(r.x + r.y, r.z + r.w) * .5, h = abs(vec2(r.y - r.x, r.w - r.z)) * .5; vec2 q = abs(p - c) - h; return length(max(q, 0.)) + min(max(q.x, q.y), 0.); }
       float gh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float gn(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.-2.*f); return mix(mix(gh(i), gh(i+vec2(1,0)), u.x), mix(gh(i+vec2(0,1)), gh(i+vec2(1,1)), u.x), u.y); }`)
       .replace("#include <map_fragment>", `#ifdef USE_MAP
@@ -200,7 +207,14 @@ export function makeTerrain(A, { phone = false, foot }) {
       vec3 grass = mix(texture2D(tGrass, vMapUv * .9).rgb, texture2D(tGrass, vMapUv * .23 + vec2(.2, .6)).rgb, .4) * vec3(.62, .7, .56);
       float n = gn(vGW.xz * .06) * .6 + gn(vGW.xz * .17) * .4;
       float w = clamp(smoothstep(.35, .7, n) * 1.2, 0., 1.);
-      diffuseColor.rgb *= mix(soil, grass, w) * vec3(.62, .6, .52);
+      float dy = min(sdr(vGW.xz, uYard), sdr(vGW.xz, uPath));
+      float en = gn(vGW.xz * 1.7) * .55 + gn(vGW.xz * .45) * .45;
+      // near the yard: a gravel margin, then a mown meadow; far off: the forest floor, in drifts
+      float gravel = 1. - smoothstep(.5, 1.5, dy + (en - .5) * 1.4);
+      float far = smoothstep(12., 32., dy + (n - .5) * 14.);
+      w = mix(clamp(.55 + w * .6 + (en - .5) * .5, 0., 1.), w * .55, far);
+      vec3 grav = texture2D(tGravel, vGW.xz * .7).rgb * vec3(.92, .86, .78) * (.72 + .5 * gh(floor(vGW.xz * 16.)));
+      diffuseColor.rgb *= mix(mix(soil, grass, w) * vec3(.62, .6, .52), grav * .62, gravel);
       #endif`);
   };
   gm.customProgramCacheKey = () => "terrain";
@@ -230,6 +244,20 @@ export function makeForest(A, { phone = false, sunDir }) {
   const F = Math.max(1, Math.min(64, info.frames | 0)), types = info.types.slice(0, 4), NT = types.length;
   const r = rng(7), N = phone ? 80 : 170, list = [];
   let guard = 0;
+  // the nearest ring first (T11): firs close round the sides of the clearing and just behind the studio, each varied
+  // in size, kind and tone, kept out of the cameras' line to the building
+  const rc = rng(13), NC = phone ? 16 : 34;
+  for (let k = 0; list.length < NC && k < 4000; k++) {
+    const side = rc() < 0.5 ? -1 : 1;
+    const behind = rc() < 0.35;
+    const x = behind ? (rc() - 0.5) * 52 : side * (17 + rc() * 22);
+    const z = behind ? -11 - rc() * 12 : -12 + rc() * (side > 0 ? 14 : 22);
+    if (list.some((t) => Math.hypot(t.x - x, t.z - z) < 3.2)) continue;
+    const type = Math.min(NT - 1, rc() < 0.3 ? 2 : rc() < 0.5 ? 0 : 1);
+    const sc = [0.62, 0.85, 1.0][type] * (0.75 + rc() * 0.75);
+    const v = 0.45 + rc() * 0.5, hue = rc();
+    list.push({ x, y: -0.25, z, s: sc, yaw: rc() * 6.283, type, mirror: rc() < 0.5 ? -1 : 1, tone: [v * (0.78 + hue * 0.2), v, v * (0.95 - hue * 0.15)] });
+  }
   while (list.length < N && guard++ < 60000) {
     const near = r() < 0.5;
     // backdrop only: the trees the camera sees behind and beside the studio, fewer and larger

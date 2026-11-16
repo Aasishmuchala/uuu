@@ -12,7 +12,8 @@ const PUBLIC = join(HERE, "..", "..");
 const load = (f) => import(pathToFileURL(join(PUBLIC, "world", f)).href);
 const { WorldStage, worldAllowed, worldOff, tagsOf } = await load("stage.js");
 const { worldState } = await load("state.js");
-const { WORDS } = await load("words.js");
+const WORDS_MOD = await load("words.js");
+const { WORDS } = WORDS_MOD;
 const { galleryChoice } = await load("gallery.boot.js");
 const F = await load("fixtures.js");
 
@@ -185,13 +186,16 @@ test("the stage's parts: the fallback, the canvas host, the tag layer, the progr
   render(null, root);
 });
 
-test("tags at overview: every room's title with its count words, and every agent who needs the owner", async () => {
+// T11 changed this deliberately: every agent with an item in the queue was tagged (the server marks each as waiting),
+// thirteen tags over seven rooms in the seed. At overview only the stuck and those waiting on an approval are tagged;
+// the rest show their amber lamp and their room's count, and their tag on hover or open.
+test("tags at overview: every room's title with its count words, and every agent who is stuck or waits on an approval", async () => {
   const tags = tagsOf(SEED, { mode: "map" });
   const rooms = tags.filter((t) => t.kind === "room");
   assert.deepEqual(rooms.map((t) => t.id), SEED.rooms.map((r) => r.id));
   assert.equal(rooms.find((t) => t.id === "operations").sub, "3 working, 1 needs you");
   const agents = tags.filter((t) => t.kind === "agent").map((t) => t.id).sort();
-  assert.deepEqual(agents, ["agent:artist", "agent:bookkeeper", "agent:builder"]);
+  assert.deepEqual(agents, ["agent:builder"]);
   const root = await mountStage({ mode: "map", state: SEED });
   const spans = elements(root).filter((e) => classesOf(e).includes("w-tag"));
   assert.equal(spans.length, tags.length);
@@ -202,6 +206,34 @@ test("tags at overview: every room's title with its count words, and every agent
   assert.ok(spans.filter((s) => s.getAttribute("data-placed") === "shown").length >= 7, "the drawn picture places them");
   for (const s of spans.filter((x) => x.getAttribute("data-placed") === "shown")) assert.match(s.style.transform, /^translate\(-?\d+px, -?\d+px\)$/);
   render(null, root);
+});
+
+// T11: the overview was crowded and an agent with something in the queue read "Free". Rooms come first so each holds
+// its own corner; an amber agent reads "Needs you"; a red one keeps the server's word; free and plain working agents
+// get no tag; a hovered room shows all its agents; one tag at the doors names the shut ones, none when all are open.
+test("tags at overview: rooms first, amber reads Needs you, the doors' one tag, a hovered room's agents", () => {
+  const { TAG_WORDS, doorsTagLine } = WORDS_MOD;
+  assert.deepEqual(TAG_WORDS, { needsYou: "Needs you", shut: "shut", allShut: "All shut", door: { web: "Web", generation: "Generation", higgsfield: "Higgsfield" } });
+  const tags = tagsOf(SEED, { mode: "map" });
+  const kinds = tags.map((t) => t.kind);
+  assert.equal(kinds.lastIndexOf("room"), SEED.rooms.length - 1, "every room's tag before any other");
+  assert.ok(!tags.some((t) => t.kind === "door"), "every door open in the seed: no door tag");
+  const amber = SEED.rooms.flatMap((r) => r.agents).find((a) => a.lamp === "amber" && a.state === "free");
+  assert.ok(!tags.some((t) => t.id === `agent:${amber.slug}`), "an agent with only an item in the queue: no tag at overview");
+  const room = SEED.rooms.find((r) => r.agents.includes(amber));
+  assert.equal(tagsOf(SEED, { mode: "map", hover: room.id }).find((t) => t.id === `agent:${amber.slug}`).sub, "Needs you");
+  assert.equal(tags.find((t) => t.id === "agent:builder").sub, "Has a problem");
+  const free = SEED.rooms.flatMap((r) => r.agents).filter((a) => a.lamp === "on" || a.lamp === "off");
+  for (const a of free) assert.ok(!tags.some((t) => t.id === `agent:${a.slug}`), a.slug);
+  const hovered = tagsOf(SEED, { mode: "map", hover: "operations" });
+  for (const a of SEED.rooms.find((r) => r.id === "operations").agents) assert.ok(hovered.some((t) => t.id === `agent:${a.slug}`), a.slug);
+  const off = tagsOf(worldState(F.doorOff), { mode: "map" });
+  const d = off.find((t) => t.kind === "door");
+  assert.deepEqual([d.id, d.text, d.sub], ["doors", "Doors", "Web shut"]);
+  assert.equal(doorsTagLine([{ id: "web", state: "shut" }, { id: "generation", state: "blocked" }, { id: "higgsfield", state: "open" }]), "Web, Generation shut");
+  assert.equal(doorsTagLine([{ id: "web", state: "shut" }, { id: "generation", state: "shut" }, { id: "higgsfield", state: "blocked" }]), "All shut");
+  assert.equal(doorsTagLine(["web", "generation", "higgsfield"].map((id) => ({ id, state: "open" }))), "");
+  assert.ok(!tagsOf(worldState(F.empty), { mode: "map" }).some((t) => t.kind === "door"), "no doors read: no door tag");
 });
 
 test("tags in a chosen room: that room and every agent in it, no other room's tags; none in desk mode", () => {

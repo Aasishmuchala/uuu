@@ -56,10 +56,11 @@ export function deskView(at, size, safe, tier, { empty = false } = {}) {
     : (phone ? { x: 0.1, y: 0.62, z: 0.56, tx: 0.26, ty: 0, tz: -0.38, fov: 42 } : { x: -0.02, y: 0.6, z: 0.86, tx: 0.16, ty: 0.02, tz: -0.5, fov: 38 });
   const look = new THREE.Vector3(at.x + v.tx, at.y + v.ty, at.z + v.tz);
   const pos = new THREE.Vector3(at.x + v.x, at.y + v.y, at.z + v.z);
-  // the model and the stack (about 0.8 m across) fit inside the free rectangle: step back when it is narrow
+  // the model and the stack (about 0.65 m across) fit inside the free rectangle: step back when it is narrow; the
+  // lamp and the tray may run under the sheet and the list (T11: at 1280 the 0.85 m fit left the model small)
   const d = pos.distanceTo(look), t = Math.tan(v.fov * DEG / 2);
   const across = 2 * d * t * s.w / H;
-  const need = phone ? 0.6 : 0.85;
+  const need = phone ? 0.6 : 0.66;
   if (across < need) pos.sub(look).multiplyScalar(Math.min(2.2, need / across)).add(look);
   return view(pos, look, v.fov, s.x + s.w / 2, s.y + s.h / 2);
 }
