@@ -168,3 +168,72 @@ test("brain: readiness is one Rows panel, each basic a glyph, its name and one s
   assert.match(src, /<\$\{Rows\}>/);
   assert.match(src, /<\$\{Row\} key=\$\{i\.form\} icon=/);
 });
+
+// ---- Mounted in the test DOM with a fake fetch (PLAN-3D-ALL U9). ----
+const { FakeElement, html, render, installDom, elements, classesOf, walkDom, fire } = await import("../kit/_dom.mjs");
+const { AppContext } = await import("../../lib/context.js");
+const FACTS = {
+  folders: [{ id: "company", title: "Company basics" }, { id: "brand", title: "Brand" }],
+  basics: { filled: 1, total: 2, items: [{ form: "about", title: "About the company", file: "company/about.md", state: "filled" }, { form: "brand", title: "Brand", file: "brand/brand.md", state: "missing" }] },
+  limits: LIMITS,
+};
+const FORM = { form: { id: "about", title: "About the company", folder: "company", file: "about.md", fields: [{ id: "what", label: "What the company does", kind: "text", required: true }] }, exists: false, values: {} };
+
+async function mountBrain(props, answer = (p) => (String(p).startsWith("/api/brain/forms/") ? FORM : String(p) === "/api/brain" ? FACTS : { file: { token: "Y29tcGFueS9ub3Rlcy5tZA", name: "notes.md", folder: "company" } })) {
+  installDom();
+  globalThis.document.visibilityState = "visible";
+  globalThis.document.querySelector = () => null;
+  globalThis.document.getElementById = () => null;
+  globalThis.location = { hash: "#/files", href: "/#/files", search: "", replace() {} };
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts = {}) => {
+    calls.push(`${opts.method || "GET"} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}`);
+    const data = answer(path);
+    return { ok: true, status: 200, json: async () => data };
+  };
+  const ctx = { shell: { dock: [] }, setTop() {}, announce() {}, settings: { motion: "off", theme: "dark" } };
+  const root = new FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${props.C || NewFile} ...${props} /><//>`, root);
+  await new Promise((r) => setTimeout(r, 400));
+  return { root, calls, done: () => { render(null, root); root.remove(); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+test("brain: a new file sends what it sent before: opening each way, and saving pasted text (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  for (const mode of ["", "paste", "upload", "form", "form:about"]) {
+    const b = await mountBrain({ mode, folder: "company", onDone() {} });
+    try { seen.push(`# ${mode}`, ...b.calls); } finally { b.done(); }
+  }
+  const b = await mountBrain({ mode: "paste", folder: "company", onDone() {} });
+  try {
+    const [name] = elements(b.root).filter((e) => e.localName === "input" && e.getAttribute("type") !== "hidden");
+    const [text] = elements(b.root).filter((e) => e.localName === "textarea");
+    name.value = "Call notes"; fire(name, "input");
+    await new Promise((r) => setTimeout(r, 50));
+    text.value = "Asha wants the oak range."; fire(text, "input");
+    await new Promise((r) => setTimeout(r, 50));
+    fire(elements(b.root).find((e) => e.localName === "form"), "submit");
+    await new Promise((r) => setTimeout(r, 400));
+    seen.push("# paste, saved", ...b.calls);
+  } finally { b.done(); }
+  // Recorded on the page before PLAN-3D-ALL U9 changed it.
+  const RECORDED = [
+    "# ",
+    "GET /api/brain",
+    "# paste",
+    "GET /api/brain",
+    "# upload",
+    "GET /api/brain",
+    "# form",
+    "GET /api/brain",
+    "# form:about",
+    "GET /api/brain/forms/about",
+    "GET /api/brain",
+    "# paste, saved",
+    "GET /api/brain",
+    "POST /api/brain/files {\"folder\":\"company\",\"name\":\"Call notes.md\",\"text\":\"Asha wants the oak range.\"}",
+  ];
+  assert.deepEqual(seen, RECORDED);
+});

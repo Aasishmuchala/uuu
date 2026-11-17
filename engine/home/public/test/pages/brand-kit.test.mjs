@@ -245,3 +245,115 @@ test("brand kit: the save bar never floats over a row, the grounds share one car
   assert.match(code, /<\$\{Card\} padding="none" class="p-brand-kit__logo">/);
   assert.match(code, /variant="primary" size="sm" icon="check" busy=\$\{busy\} disabled=\$\{busy \|\| \(!dirty && !view\.problem\)\} onClick=\$\{save\}>\$\{WORDS\.save\}/);
 });
+
+// ---- Mounted in the test DOM with a fake fetch (PLAN-3D-ALL U9). ----
+const { FakeElement, html, render, installDom, elements, classesOf, walkDom } = await import("../kit/_dom.mjs");
+const { AppContext } = await import("../../lib/context.js");
+const brainShape = shape("brain");
+const FOLDER = { files: [
+  { token: "YnJhbmQvbG9nby5wbmc", name: "logo.png", path: "brand/logo.png", folder: "brand", kind: "image", size: 2048, rawUrl: "/api/brain/raw/YnJhbmQvbG9nby5wbmc" },
+], forms: [] };
+const kitAnswers = (kit = view, folder = FOLDER) => (path) => {
+  const p = String(path);
+  if (p.startsWith("/api/brand/kit")) return kit;
+  if (p.startsWith("/api/brain/folder/")) return folder;
+  if (p === "/api/brain") return brainShape;
+  return {};
+};
+
+async function mountKit(query = "", answer = kitAnswers()) {
+  installDom();
+  globalThis.document.visibilityState = "visible";
+  globalThis.document.querySelector = () => null;
+  globalThis.document.getElementById = () => null;
+  const hash = `#/files/brand-kit${query ? `?${query}` : ""}`;
+  globalThis.location = { hash, href: `/${hash}`, search: "", replace() {} };
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts = {}) => {
+    calls.push(`${opts.method || "GET"} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}`);
+    const data = answer(path);
+    return { ok: true, status: 200, json: async () => data };
+  };
+  const tops = [];
+  const ctx = { shell: { team: shape("shell").team, dock: [] }, setTop: (t) => tops.push(t), announce() {}, openComposer() {}, settings: { motion: "off", theme: "dark" } };
+  const root = new FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${files.default} route=${{ id: "files", parts: ["files", "brand-kit"], query: new URLSearchParams(query) }} /><//>`, root);
+  await new Promise((r) => setTimeout(r, 400));
+  return { root, calls, tops, done: () => { render(null, root); root.remove(); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+const KIT_STATES = ["", "s=colours", "s=type", "s=layout", "s=pictures", "s=words", "s=references", "proposal=STH-12"];
+
+test("brand kit: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  for (const query of KIT_STATES) {
+    const k = await mountKit(query);
+    try { seen.push(`# ${query}`, ...k.calls); } finally { k.done(); }
+  }
+  // Recorded on the page before PLAN-3D-ALL U9 changed it.
+  const RECORDED = [
+    "# ",
+    "GET /api/brand/kit",
+    "GET /api/brain/folder/brand",
+    "GET /api/brain/folder/references",
+    "# s=colours",
+    "GET /api/brand/kit",
+    "GET /api/brain/folder/brand",
+    "GET /api/brain/folder/references",
+    "# s=type",
+    "GET /api/brand/kit",
+    "GET /api/brain/folder/brand",
+    "GET /api/brain/folder/references",
+    "# s=layout",
+    "GET /api/brand/kit",
+    "GET /api/brain/folder/brand",
+    "GET /api/brain/folder/references",
+    "# s=pictures",
+    "GET /api/brand/kit",
+    "GET /api/brain/folder/brand",
+    "GET /api/brain/folder/references",
+    "# s=words",
+    "GET /api/brand/kit",
+    "GET /api/brain/folder/brand",
+    "GET /api/brain/folder/references",
+    "# s=references",
+    "GET /api/brand/kit",
+    "GET /api/brain/folder/brand",
+    "GET /api/brain/folder/references",
+    "# proposal=STH-12",
+    "GET /api/brand/kit?proposal=STH-12",
+    "GET /api/brain/folder/brand",
+    "GET /api/brain/folder/references",
+  ];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});
+
+const { fire, textOf } = await import("../kit/_dom.mjs");
+const settle = () => new Promise((r) => setTimeout(r, 400));
+const buttonWith = (root, words) => elements(root).find((e) => e.localName === "button" && textOf(e).trim() === words);
+
+test("brand kit: Save sends what it sent before, and is enabled only once something changed (PLAN-3D-ALL)", async () => {
+  const k = await mountKit("s=words");
+  try {
+    const save = buttonWith(k.root, m.WORDS.save);
+    assert.ok(save, "the Save button");
+    assert.ok(save.getAttribute("disabled") !== null || save.disabled === true, "Save waits for a change");
+    const name = elements(k.root).find((e) => e.localName === "input" && e.getAttribute("data-field") === "name");
+    name.value = "Sthyra Studio";
+    fire(name, "input");
+    await settle();
+    const ready = buttonWith(k.root, m.WORDS.save);
+    assert.ok(!(ready.getAttribute("disabled") !== null || ready.disabled === true), "Save is enabled after a change");
+    fire(ready, "click");
+    await settle();
+    const posts = k.calls.filter((c) => c.startsWith("POST "));
+    // Recorded on the page before PLAN-3D-ALL U9 changed it.
+  const RECORDED = [
+    "POST /api/brand/kit {\"kit\":{\"name\":\"Sthyra Studio\",\"colours\":[{\"name\":\"ink\",\"hex\":\"#1A3C5E\",\"role\":\"main\"},{\"name\":\"sand\",\"hex\":\"#E8DCC8\",\"role\":\"background\"}],\"neutrals\":true,\"type\":{\"heading\":{\"family\":\"Didot\",\"file\":null,\"fallback\":\"serif\"},\"body\":{\"family\":\"Avenir Next\",\"file\":null,\"fallback\":\"sans-serif\"},\"minPx\":16,\"minSlidePx\":28},\"logo\":{\"files\":[{\"file\":\"logo.png\",\"on\":\"light\"}],\"clearSpace\":0.5,\"minPx\":48,\"requiredOn\":[\"carousel-last\",\"poster\",\"title-card\",\"end-card\",\"page\"]},\"layout\":{\"radiusPx\":0,\"marginShare\":0.06},\"voice\":{\"words\":[\"warm\",\"plain\",\"exact\"],\"is\":\"\",\"do\":[],\"dont\":[],\"signoff\":\"\"},\"references\":[{\"file\":\"references/tower-dusk.jpg\",\"kinds\":[\"carousel\",\"film\"],\"note\":\"The light on the stone.\"}],\"filler\":{\"block\":true,\"allow\":[]},\"public\":{\"summary\":\"\"}},\"version\":\"k1794472200000-b1794472200000\"}",
+  ];
+  assert.deepEqual(posts, RECORDED);
+  } finally { k.done(); }
+});

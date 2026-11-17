@@ -278,3 +278,126 @@ test("files: a row's tile is the kit's Tile in its kind's tint, its size short, 
   assert.match(css, /grid-template-columns: 0 28px minmax\(0, max-content\) minmax\(var\(--s-10\), 1fr\) auto auto 0;/, "the size and the time one group at the list's right edge");
   assert.match(/\.p-files \.p-files__place-name \{([^}]*)\}/.exec(css)[1], /flex: 0 1 auto;/, "a place's count beside its name");
 });
+
+// ---- Mounted in the test DOM with a fake fetch (PLAN-3D-ALL U9). ----
+const { FakeElement, html, render, installDom, elements, classesOf, walkDom } = await import("../kit/_dom.mjs");
+const { AppContext } = await import("../../lib/context.js");
+const LESSONS = { roles: [{ slug: "writer", name: "Writer", lessons: ["2026-11-09: Say the price before the offer.", "Keep a caption under twelve words."] }] };
+const DOC = "# Brand\n\nWe sound calm and plain.\n\n## Colours\n\nInk and sand.";
+// The answers by path, from the pinned shapes (a folder's answer is the brain's recent files and no forms).
+export function filesAnswers({ brainData = brain, fileData = file, text = DOC, lessons = LESSONS, web = shape("web"), kit = shape("brand-kit") } = {}) {
+  return (path) => {
+    const p = String(path);
+    if (p === "/api/brain") return brainData;
+    if (p === "/api/web") return web;
+    if (p.startsWith("/api/brain/file/")) return { file: fileData, text, truncated: false };
+    if (p.startsWith("/api/brain/folder/")) return { files: brainData.recent, forms: [] };
+    if (p.startsWith("/api/brain/search")) return { results: brainData.recent.map((f) => ({ ...f, snippet: f.name })) };
+    if (p.startsWith("/api/brain/forms/")) return { form: { id: "about", title: "About the company", folder: "company", file: "about.md", fields: [] }, exists: false, values: {} };
+    if (p === "/api/lessons") return lessons;
+    if (p.startsWith("/api/brand/kit")) return kit;
+    return {};
+  };
+}
+
+export async function mountFiles(parts, query = "", answer = filesAnswers()) {
+  installDom();
+  globalThis.document.visibilityState = "visible";
+  const hash = `#/${parts.join("/")}${query ? `?${query}` : ""}`;
+  globalThis.location = { hash, href: `/${hash}`, search: "", replace() {} };
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts = {}) => {
+    calls.push(`${opts.method || "GET"} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}`);
+    const data = answer(path);
+    return { ok: true, status: 200, json: async () => data };
+  };
+  const tops = [];
+  const ctx = { shell: { team: shape("shell").team, dock: [] }, setTop: (t) => tops.push(t), announce() {}, openComposer() {}, settings: { motion: "off", theme: "dark" } };
+  const root = new FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${mod.default} route=${{ id: "files", parts, query: new URLSearchParams(query) }} /><//>`, root);
+  await new Promise((r) => setTimeout(r, 400));
+  return { root, calls, tops, done: () => { render(null, root); root.remove(); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+export const FILES_STATES = [
+  [["files"], ""], [["files", "brand"], ""], [["files"], `file=${file.token}`], [["files"], "tab=lessons"], [["files"], "shared=1"],
+  [["files"], "q=brand"], [["files"], "new=paste"], [["files", "brand"], "new=upload"], [["files"], "new=form:about"],
+];
+
+test("files: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  for (const [parts, query] of FILES_STATES) {
+    const m = await mountFiles(parts, query);
+    try { seen.push(`# ${parts.join("/")}?${query}`, ...m.calls); } finally { m.done(); }
+  }
+  // Recorded on the page before PLAN-3D-ALL U9 changed it.
+  const RECORDED = [
+    "# files?",
+    "GET /api/brain",
+    "GET /api/web",
+    "# files/brand?",
+    "GET /api/brain/folder/brand",
+    "GET /api/brain",
+    "GET /api/web",
+    "# files?file=YnJhbmQvYnJhbmQubWQ",
+    "GET /api/brain",
+    "GET /api/web",
+    "GET /api/brain/file/YnJhbmQvYnJhbmQubWQ",
+    "GET /api/web",
+    "# files?tab=lessons",
+    "GET /api/lessons",
+    "GET /api/brain",
+    "GET /api/web",
+    "# files?shared=1",
+    "GET /api/web",
+    "GET /api/brain",
+    "GET /api/web",
+    "# files?q=brand",
+    "GET /api/brain/search?q=brand",
+    "GET /api/brain",
+    "GET /api/web",
+    "# files?new=paste",
+    "GET /api/brain",
+    "GET /api/web",
+    "GET /api/brain",
+    "# files/brand?new=upload",
+    "GET /api/brain/folder/brand",
+    "GET /api/brain",
+    "GET /api/web",
+    "GET /api/brain",
+    "# files?new=form:about",
+    "GET /api/brain",
+    "GET /api/web",
+    "GET /api/brain/forms/about",
+    "GET /api/brain",
+  ];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});
+
+const { fire, textOf } = await import("../kit/_dom.mjs");
+const settle = () => new Promise((r) => setTimeout(r, 400));
+const buttonWith = (root, words) => elements(root).find((e) => e.localName === "button" && textOf(e).trim() === words);
+
+test("files: an opened file's actions send what they sent before: share, move, delete (PLAN-3D-ALL)", async () => {
+  const sent = [];
+  for (const act of ["share", "move", "delete"]) {
+    const m = await mountFiles(["files"], `file=${file.token}`);
+    try {
+      if (act === "share") fire(elements(m.root).find((e) => e.localName === "button" && e.getAttribute("role") === "switch"), "click");
+      if (act === "move") { fire(buttonWith(m.root, "Move to..."), "click"); await settle(); fire(buttonWith(m.root, "Move"), "click"); }
+      if (act === "delete") { fire(buttonWith(m.root, "Delete"), "click"); await settle(); fire(buttonWith(m.root, "Delete"), "click"); }
+      await settle();
+      sent.push(...m.calls.filter((c) => !c.startsWith("GET ")));
+    } finally { m.done(); }
+  }
+  // Recorded on the page before PLAN-3D-ALL U9 changed it.
+  const RECORDED = [
+    "POST /api/web/share {\"token\":\"YnJhbmQvYnJhbmQubWQ\",\"share\":true}",
+    "POST /api/brain/move {\"token\":\"YnJhbmQvYnJhbmQubWQ\",\"folder\":\"company\",\"version\":\"1794472200000\"}",
+    "DELETE /api/brain/file/YnJhbmQvYnJhbmQubWQ?version=1794472200000 {}",
+  ];
+  assert.deepEqual(sent, RECORDED);
+});
