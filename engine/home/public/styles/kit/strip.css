@@ -15,25 +15,18 @@
   min-width: 0;
 }
 
-/* The card's one chip: the kit's Tag (tag.css draws it); this only places it. It may wrap and is never cut: on a
-   narrow card (three in the wide shotlist sheet) "Over today's limit" is a money chip and is shown whole on two lines
-   rather than run past the card's edge (PLAN-3D-ALL U16). */
+/* The card's one chip: the kit's Tag (tag.css draws it); this only places it. It is never cut: it may wrap between
+   words, and is never squeezed narrower than its longest word (PLAN-3D-ALL U16). */
 .k-strip__chip {
   display: inline-flex;
   flex: 0 1 auto;
-  min-width: 0;
+  min-width: min-content;
   max-width: 100%;
 }
 
 .k-strip__chip .k-tag {
-  min-width: 0;
   padding-block: 2px;
   white-space: normal;
-}
-
-.k-strip__chip .k-tag > span:not(.k-tag__dot) {
-  min-width: 0;
-  overflow-wrap: break-word;
 }
 
 .k-strip__thumb {
@@ -109,6 +102,16 @@
   grid-template-columns: 72px minmax(0, 1fr);
   grid-template-rows: 24px auto minmax(0, 1fr) auto;
   grid-template-areas: "head head" "pic sub" "pic state" "say say";
+}
+
+/* Cards side by side (a wide window) are narrow, three to a sheet: the chip runs under the picture across the card,
+   so a money chip ("Over today's limit") is whole on one line, never squeezed beside the picture or cut at the
+   card's edge (PLAN-3D-ALL U16). A phone's full-width card keeps it beside the picture (below). */
+@media (min-width: 860px) {
+  .k-strip .k-opt--side {
+    grid-template-rows: 24px auto auto auto;
+    grid-template-areas: "head head" "pic sub" "state state" "say say";
+  }
 }
 
 .k-opt:hover:not(.k-opt--on) {

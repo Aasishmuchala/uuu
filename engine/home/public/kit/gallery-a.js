@@ -145,14 +145,14 @@ export default function Gallery() {
           <${Button} variant="accept" icon="check">Accept<//>
         </div>
         <div style=${row}>
-          <${Button} variant="primary" size="sm">Small<//>
+          <${Button} size="sm">Small<//>
           <${Button} size="sm" icon="download">Download<//>
           <${Button} size="lg" icon="send">Large<//>
           <${Button} variant="quiet" icon="panel" aria-label="Show the work panel" />
           <${Button} href="#/tasks" icon="external">A link that looks like a button<//>
         </div>
         <div style=${row}>
-          <${Button} variant="primary" busy>Saving<//>
+          <${Button} busy>Saving<//>
           <${Button} busy=${busy} onClick=${() => { setBusy(true); setTimeout(() => setBusy(false), 1500); }}>Try busy<//>
           <${Button} disabled>Disabled<//>
           <${Button} variant="primary" disabled>Disabled primary<//>
