@@ -131,6 +131,18 @@ test("the list fits shapes/apps.json: every app in its folder's order, off with 
   });
 });
 
+test("the view sends the range of app ports from the engine's config, the one the manifests are held to (18 Nov 2026)", async () => {
+  await withApps(async ({ h }) => {
+    assert.deepEqual((await view(h)).appPorts, { first: 3171, last: 3189 });
+    assert.deepEqual(h.config.appPorts, { first: 3171, last: 3189 }, "the config's own range");
+    // A config with another range (as the Mac app's stand-in rehearsal uses) sends that one, and nothing else decides it.
+    h.config.appPorts = { first: 4171, last: 4189 };
+    const v = await view(h);
+    assert.deepEqual(v.appPorts, { first: 4171, last: 4189 });
+    assert.equal(appIn(v, "film").port, null, "an app whose port is outside the config's range is damaged, as before");
+  });
+});
+
 test("each app's state and K23's words: damaged, not installed, and the host's own word for the good ones", async () => {
   await withApps(async ({ h, said }) => {
     for (const state of ["off", "starting", "on", "failed"]) {

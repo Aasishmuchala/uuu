@@ -18,7 +18,7 @@ import http from "node:http";
 import { dirname, join } from "node:path";
 import { readAppsState } from "../../../apps/host.mjs";
 import { openNoLinks } from "../../../lib/nolinks.mjs";
-import { ICON_MAX_BYTES, SLUG_RE, readManifests } from "../../../apps/manifest.mjs";
+import { DEFAULT_PORTS, ICON_MAX_BYTES, SLUG_RE, readManifests } from "../../../apps/manifest.mjs";
 import { readLedger, totalsOf } from "../../../generate/ledger.mjs";
 import { ALLOWANCE_MAX_CENTS, readAllowance, readGenState } from "../../../generate/state.mjs";
 import { doorKeySaved, readDoors, readTrustedText } from "./doors.mjs";
@@ -542,7 +542,15 @@ export async function listSites(ctx) {
 
 // ---- the view -------------------------------------------------------------------------------------------------------
 
-// GET /api/apps: { host: { state, sentence }, apps: [ … ], sites: [ … ], problem, problemSentence }.
+// The range of ports apps are served and framed at: the one the manifest reader holds an app's port to (the engine's
+// config, lib/config.mjs, else K17's 3171 to 3189). Read only: nothing an app or agent writes decides it.
+export function appPortsOf(config) {
+  const p = (config && config.appPorts) || DEFAULT_PORTS;
+  return { first: p.first, last: p.last };
+}
+
+// GET /api/apps: { host: { state, sentence }, apps: [ … ], sites: [ … ], appPorts: { first, last }, problem,
+// problemSentence }. The page frames an app only at a port inside appPorts.
 export async function buildAppsView(ctx, now = Date.now()) {
   const config = ctx.config;
   const entries = listApps(config);
@@ -580,6 +588,7 @@ export async function buildAppsView(ctx, now = Date.now()) {
     host: { state: host.state, sentence: host.sentence },
     apps,
     sites: await listSites(ctx),
+    appPorts: appPortsOf(config),
     problem,
     problemSentence: problem ? PROBLEM_SENTENCES[problem] : null,
   };

@@ -43,6 +43,7 @@
       "opens": "#/tasks/e0000000-0000-4000-8000-000000000002"
     }
   ],
+  "appPorts": { "first": 3171, "last": 3189 },
   "problem": null,
   "problemSentence": null
 }

@@ -35,7 +35,7 @@ const ENGINE_PARTS = ["generate", "relay"];
 const TOOLS = ["ffmpeg", "ffprobe"];
 const PATH_RE = /^[A-Za-z0-9._/-]{1,80}$/;
 const ICON_RE = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,75}\.(svg|png)$/;
-const DEFAULT_PORTS = { first: 3171, last: 3189 };
+export const DEFAULT_PORTS = { first: 3171, last: 3189 };
 const REFUSED_EXIT = 78;
 
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);

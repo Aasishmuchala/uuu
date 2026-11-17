@@ -36,16 +36,22 @@ test("app: the sandbox and permissions are exactly T86's: no popups, never the t
   assert.match(SRC, /referrerpolicy="no-referrer"/);
 });
 
-test("app: the frame's address follows this page's hostname and only the app's port", () => {
+test("app: the frame's address follows this page's hostname and only the app's port, inside the server's range", () => {
+  // The range is the server's (the view's appPorts), 18 Nov 2026: the page no longer holds 3171 to 3189 itself.
+  const PORTS = SHAPE.appPorts;
+  assert.deepEqual(PORTS, { first: 3171, last: 3189 });
   globalThis.location = { hostname: LOOP };
-  assert.equal(frameAddress({ port: 3171 }), `${HTTP}${LOOP}:3171/`);
+  assert.equal(frameAddress({ port: 3171 }, PORTS), `${HTTP}${LOOP}:3171/`);
+  assert.equal(frameAddress({ port: 3171 }, null), null, "no range from the server: no frame");
   globalThis.location = { hostname: "localhost" };
-  assert.equal(frameAddress({ port: 3171 }), `${HTTP}localhost:3171/`);
-  assert.equal(frameAddress({ port: 3200 }), null);
+  assert.equal(frameAddress({ port: 3171 }, PORTS), `${HTTP}localhost:3171/`);
+  assert.equal(frameAddress({ port: 3200 }, PORTS), null);
+  globalThis.location = { hostname: "localhost", port: "3171" };
+  assert.equal(frameAddress({ port: 3171 }, PORTS), null, "never the home screen's own port");
   globalThis.location = { hostname: "evil.test" };
-  assert.equal(frameAddress({ port: 3171 }), null);
+  assert.equal(frameAddress({ port: 3171 }, PORTS), null);
   delete globalThis.location;
-  assert.equal(frameAddress({ port: 3171 }), null);
+  assert.equal(frameAddress({ port: 3171 }, PORTS), null);
 });
 
 // ---- Mounted ----
@@ -584,8 +590,11 @@ test("app: the frame's lines in the source are exactly as before: the SANDBOX li
               allow=\${ALLOW}
               src=\${address}
             ></iframe>`), "the frame, line for line");
-  assert.ok(SRC.includes("const address = shown === \"on\" ? frameAddress(app) : null;"));
-  assert.ok(SRC.includes("export const frameAddress = (app) => appAddress(hostnameNow(), app && app.port);"));
+  // The address rule is the same (this page's hostname, the app's port from /api/apps, nothing from the app's text);
+  // since 18 Nov 2026 the range of ports is the server's, sent in the same view, so the two lines take it.
+  assert.ok(SRC.includes("const address = shown === \"on\" ? frameAddress(app, ports) : null;"));
+  assert.ok(SRC.includes("const ports = portsOf(data);"));
+  assert.ok(SRC.includes("export const frameAddress = (app, ports) => appAddress(hostnameNow(), app && app.port, ports, portNow());"));
   assert.equal((SRC.match(/<iframe/g) || []).length, 1, "one frame");
   assert.equal((SRC.match(/sandbox=/g) || []).length, 1);
 });
@@ -670,4 +679,47 @@ test("app: hostile server text stays text in the bar, the sheet and the cards: n
       }
     } finally { m.done(); }
   }
+});
+
+// ---- the ports an app may be framed at come from the server (simulation run 1, 18 Nov 2026) ----
+
+test("app mounted, on: the range of ports is the server's: a port inside the view's appPorts is framed, attributes unchanged", async () => {
+  const m = await mount(fixed(view([app({ port: 4175 })], { appPorts: { first: 4171, last: 4189 } })));
+  try {
+    const f = frames(m.root);
+    assert.equal(f.length, 1);
+    assert.deepEqual(f[0].attrs, {
+      class: "p-app__frame", title: "Render to Film", sandbox: SANDBOX, referrerpolicy: "no-referrer", allow: ALLOW, src: `${HTTP}${LOOP}:4175/`,
+    });
+  } finally { m.done(); }
+});
+
+test("app mounted, on: a port outside the server's range is not framed, with the port's sentence, not the hostname's", async () => {
+  for (const [port, ports] of [[3171, { first: 4171, last: 4189 }], [3190, SHAPE.appPorts], [3171, undefined], [3171, { first: 1, last: 99999 }]]) {
+    const m = await mount(fixed(view([app({ port })], { appPorts: ports })));
+    try {
+      assert.equal(frames(m.root).length, 0, `${port} outside ${JSON.stringify(ports)}`);
+      const all = textOf(m.root);
+      assert.ok(all.includes(WORDS.badPort), "the port's sentence");
+      assert.ok(!all.includes(WORDS.badHost), "not the hostname's");
+      const nodes = [...walk(m.root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+      const range = ports && ports.first === 4171 ? "App Studio opens apps on ports 4171 to 4189." : ports && ports.last === 3189 ? "App Studio opens apps on ports 3171 to 3189." : "App Studio has not said which ports it opens.";
+      assert.ok(nodes.includes(`It asks for port ${port}. ${range}`), "the numbers, whole");
+      assert.equal(buttons(m.root, "Open in its own window").length, 0);
+    } finally { m.done(); }
+  }
+});
+
+test("app mounted, on: opened at another hostname, the hostname's sentence", async () => {
+  installDom();
+  globalThis.location = { hostname: "evil.test" };
+  const f = stubFetch(fixed(view([app()])));
+  const root = new FakeElement("div");
+  render(html`<${Page} route=${{ id: "app", parts: ["apps", "render-to-film"], query: new URLSearchParams("") }} />`, root);
+  await settle();
+  try {
+    assert.equal(frames(root).length, 0);
+    assert.ok(textOf(root).includes(WORDS.badHost));
+    assert.ok(!textOf(root).includes(WORDS.badPort));
+  } finally { render(null, root); f.restore(); delete globalThis.location; }
 });

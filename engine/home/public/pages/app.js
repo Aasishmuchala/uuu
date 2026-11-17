@@ -17,8 +17,8 @@ import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useApp } from "../lib/context.js";
 import { Button, Dialog, Empty, ErrorNotice, Icon, Loading, Menu, NextStep, StatusDot, Tag } from "../kit/index.js";
 import {
-  MoneyWords, Refusal, Restart, SLUG, STATE_WORDS, WORDS, allowLabel, amountChoices, appAddress, appsOf, firstAmount, plain, postApp,
-  sheetTitle, shownState, spendingLine, spends, stateSentence, stateTag, stateWord, thinksShort, useAppsView,
+  MoneyWords, Refusal, Restart, SLUG, STATE_WORDS, WORDS, allowLabel, amountChoices, appAddress, appsOf, firstAmount, frameRefusal, plain,
+  portsOf, postApp, sheetTitle, shownState, spendingLine, spends, stateSentence, stateTag, stateWord, thinksShort, useAppsView,
 } from "./apps.js";
 
 // Starting: /api/apps is asked every 2 seconds for up to a minute.
@@ -33,9 +33,10 @@ export const SANDBOX = "allow-scripts allow-same-origin allow-forms allow-downlo
 export const ALLOW = "fullscreen; clipboard-write";
 
 const hostnameNow = () => (typeof location === "undefined" ? "" : String(location.hostname || ""));
+const portNow = () => (typeof location === "undefined" ? "" : String(location.port || ""));
 
-// The address of the app's frame from this page's hostname, or null.
-export const frameAddress = (app) => appAddress(hostnameNow(), app && app.port);
+// The address of the app's frame from this page's hostname and the server's range of app ports, or null.
+export const frameAddress = (app, ports) => appAddress(hostnameNow(), app && app.port, ports, portNow());
 
 // Opens the app in a window of its own, with no way back to this one.
 export function openOwnWindow(address) {
@@ -303,7 +304,9 @@ export default function AppPage({ route }) {
     </div>`;
   }
 
-  const address = shown === "on" ? frameAddress(app) : null;
+  const ports = portsOf(data);
+  const address = shown === "on" ? frameAddress(app, ports) : null;
+  const refused = shown === "on" && !address ? frameRefusal(hostnameNow(), app.port, ports) : null;
   // A frame taken away takes its ring with it.
   if (!address && stageRef.current && stageRef.current.classList) stageRef.current.classList.remove("p-app__stage--focus");
   const t = app.thinks && typeof app.thinks === "object" ? app.thinks : null;
@@ -363,7 +366,7 @@ export default function AppPage({ route }) {
             ></iframe>
           </div>`
         : shown === "on"
-          ? html`<div class="p-app__card" role="status"><${Empty} icon="alert" title=${WORDS.badHost} /></div>`
+          ? html`<div class="p-app__card" role="status"><${Empty} icon="alert" title=${refused.title} text=${refused.text} /></div>`
           : html`<${StageCard} app=${app} host=${host} shown=${shown} late=${late} busy=${busy === "switch"}
               onTurnOn=${() => turn(true)} onCheck=${checkAgain} />`}
     </div>

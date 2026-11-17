@@ -8,7 +8,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import Page, {
-  AMOUNTS, APP_PORTS, FILTERS, FIRST_AMOUNT, STATE_WORDS, WORDS, allowLabel, amountChoices, appAddress, appHref, appsOf, dollarWord, filterApps,
+  AMOUNTS, FILTERS, FIRST_AMOUNT, STATE_WORDS, WORDS, allowLabel, amountChoices, appAddress, appHref, appsOf, dollarWord, filterApps, frameRefusal, portsOf,
   firstAmount, iconHref, initials, moneyParts, plain, sheetTitle, shownState, sitesOfView, spendingLine, spends, stateSentence, stateSt, stateTag,
   stateTone, stateWord, thinksLabel, thinksShort,
 } from "../../pages/apps.js";
@@ -50,12 +50,29 @@ test("apps: K23's words are used as written", () => {
   assert.equal(thinksLabel({ model: "claude-opus-5-5", name: "Claude Opus 5.5" }), "Thinks with Claude Opus 5.5.");
 });
 
-test("apps: the frame's address is the home's own hostname and the app's own port, 3171 to 3189, nothing else", () => {
+test("apps: the frame's address is the home's own hostname and the app's own port, inside the server's range, nothing else", () => {
+  // Since 18 Nov 2026 the range is the server's (the view's appPorts, the engine's config), not a constant here.
+  const APP_PORTS = portsOf({ appPorts: { first: 3171, last: 3189 } });
   assert.deepEqual(APP_PORTS, { first: 3171, last: 3189 });
-  assert.equal(appAddress(LOOP, 3171), `${HTTP}${LOOP}:3171/`);
-  assert.equal(appAddress("localhost", 3189), `${HTTP}localhost:3189/`);
-  for (const port of [3170, 3190, 3100, 80, 0, -1, 3171.5, "3171", null, undefined, NaN]) assert.equal(appAddress(LOOP, port), null, String(port));
-  for (const host of ["", "evil.test", "127.0.0.2", "[::1]", "LOCALHOST", `${LOOP}.evil.test`, null]) assert.equal(appAddress(host, 3171), null, String(host));
+  assert.equal(appAddress(LOOP, 3171, APP_PORTS), `${HTTP}${LOOP}:3171/`);
+  assert.equal(appAddress("localhost", 3189, APP_PORTS), `${HTTP}localhost:3189/`);
+  for (const port of [3170, 3190, 3100, 80, 0, -1, 3171.5, "3171", null, undefined, NaN]) assert.equal(appAddress(LOOP, port, APP_PORTS), null, String(port));
+  for (const host of ["", "evil.test", "127.0.0.2", "[::1]", "LOCALHOST", `${LOOP}.evil.test`, null]) assert.equal(appAddress(host, 3171, APP_PORTS), null, String(host));
+  assert.equal(appAddress(LOOP, 3171), null, "no range: no address");
+  assert.equal(appAddress(LOOP, 3171, APP_PORTS, "3171"), null, "never the home screen's own port");
+  assert.equal(appAddress(LOOP, 3175, APP_PORTS, "3200"), `${HTTP}${LOOP}:3175/`);
+  // The range is taken only as whole ports from 1024 to 65535, first to last, at most 64 of them.
+  assert.deepEqual(portsOf({ appPorts: { first: 4171, last: 4189 } }), { first: 4171, last: 4189 });
+  for (const bad of [undefined, null, {}, { first: "3171", last: 3189 }, { first: 3189, last: 3171 }, { first: 80, last: 90 },
+    { first: 3171, last: 70000 }, { first: 3000, last: 3100 }, { first: 3171.5, last: 3189 }, [3171, 3189]]) {
+    assert.equal(portsOf({ appPorts: bad }), null, JSON.stringify(bad));
+  }
+  assert.equal(portsOf(null), null);
+  // Why an app that is on is not framed: the port's sentence with the numbers, or the hostname's.
+  assert.deepEqual(frameRefusal(LOOP, 3195, APP_PORTS), { title: WORDS.badPort, text: "It asks for port 3195. App Studio opens apps on ports 3171 to 3189." });
+  assert.deepEqual(frameRefusal("evil.test", 3171, APP_PORTS), { title: WORDS.badHost, text: "" });
+  assert.equal(WORDS.badPort, "This app's port is not one App Studio opens, so it is not shown here.");
+  assert.equal(WORDS.badHost, "Apps open only when the home screen is opened at 127.0.0.1 or localhost.");
   assert.equal(appHref("render-to-film"), "#/apps/render-to-film");
   assert.equal(appHref("../x"), null);
   assert.equal(appHref("Render"), null);

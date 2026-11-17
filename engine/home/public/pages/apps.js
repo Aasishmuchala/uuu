@@ -4,7 +4,8 @@
 // with); at the right Open while it runs or starts and its switch, Turn on or Turn off; under them, across the row,
 // what the fence does not cover (T86: in full while the app is off, short while it is on); then the sites the team
 // made (T88) as a group of cards.
-// Everything comes from GET /api/apps; every POST answers the whole view again, so the page shows that answer.
+// Everything comes from GET /api/apps; every POST answers the whole view again, so the page shows that answer. The
+// ports an app may be framed at come from it too (`appPorts`, the engine's config), never from an app's own text.
 // An app's name, its line and every sentence are shown as plain capped text, never as HTML. The pure helpers here
 // are shared with pages/app.js (one app opened inside).
 // PLAN-3D-ALL U14: a surface screen. The title, its line and the bar stand in the room header (kit/room.js) with
@@ -43,6 +44,7 @@ export const WORDS = {
   badPreview: "The preview gave an address this page does not open.",
   noPicture: "No picture yet",
   badHost: "Apps open only when the home screen is opened at 127.0.0.1 or localhost.",
+  badPort: "This app's port is not one App Studio opens, so it is not shown here.",
   checking: "Checking the app…",
   // What the fence does not cover (T85 finding 1, ADR 0016): in full beside Turn on, short while the app is on.
   trust: "This app's own program runs inside the fence: it cannot reach the internet or your files. Its page runs in your browser, and a page in your browser can still reach the internet, as any web page can. Turn on only an app whose code you trust.",
@@ -70,8 +72,9 @@ export const STATE_WORDS = {
 const STATE_TONES = { off: "off", starting: "wait", on: "ok", failed: "bad", not_installed: "wait", damaged: "bad", host_off: "warn" };
 
 export const SLUG = /^[a-z0-9][a-z0-9-]{0,23}$/;
-// K17: an app's port is its manifest's, 3171 to 3189.
-export const APP_PORTS = Object.freeze({ first: 3171, last: 3189 });
+// K17: an app's port is its manifest's, inside the range the engine's config names (3171 to 3189), which the server
+// sends with the view. The page takes the range only from there: a view without one frames no app.
+export const MAX_APP_PORTS = 64;
 // The two names the home screen is opened by; an app is framed by the same one (its content policy names both).
 const HOSTNAMES = ["127.0.0.1", "localhost"];
 // K22, K23: the four amounts of the allowance sheet, in cents: whole dollars only, as the server takes them.
@@ -89,12 +92,32 @@ export const plain = (v, n = 200) => String(v ?? "")
 // ---------------------------------------------------------------------------------------------------------------
 // Pure helpers (tested in test/pages/apps.test.mjs and test/pages/app.test.mjs)
 
-// The address an app is framed at: the home's own hostname and the app's own port, or null for any other hostname
-// or a port outside 3171 to 3189. Never an address from an app's own text.
-export function appAddress(hostname, port) {
+// The range of ports apps may be framed at, from the server's view: { first, last }, or null when the view has none
+// or one that is not whole ports from 1024 to 65535, first to last, at most MAX_APP_PORTS of them.
+export function portsOf(view) {
+  const p = obj(view) && obj(view.appPorts) ? view.appPorts : null;
+  if (!p || !Number.isInteger(p.first) || !Number.isInteger(p.last)) return null;
+  if (p.first < 1024 || p.last > 65535 || p.first > p.last || p.last - p.first >= MAX_APP_PORTS) return null;
+  return { first: p.first, last: p.last };
+}
+
+// The address an app is framed at: the home's own hostname and the app's own port, or null for any other hostname,
+// a port outside `ports` (the server's range, portsOf) or the home screen's own port. Never an address from an
+// app's own text.
+export function appAddress(hostname, port, ports, ownPort = null) {
   if (!HOSTNAMES.includes(hostname)) return null;
-  if (!Number.isInteger(port) || port < APP_PORTS.first || port > APP_PORTS.last) return null;
+  if (!obj(ports) || !Number.isInteger(port) || port < ports.first || port > ports.last) return null;
+  if (String(port) === String(ownPort)) return null;
   return `http:${"//"}${hostname}:${port}/`;
+}
+
+// Why an app that is on is not framed: the hostname's sentence, or the port's with the numbers.
+// -> { title, text } (text "" when there is nothing more to say).
+export function frameRefusal(hostname, port, ports) {
+  if (!HOSTNAMES.includes(hostname)) return { title: WORDS.badHost, text: "" };
+  const asks = Number.isInteger(port) ? `It asks for port ${port}. ` : "";
+  const range = obj(ports) ? `App Studio opens apps on ports ${ports.first} to ${ports.last}.` : "App Studio has not said which ports it opens.";
+  return { title: WORDS.badPort, text: `${asks}${range}` };
 }
 
 // "#/apps/<slug>" for a good slug, else null.
