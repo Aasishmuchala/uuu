@@ -35,7 +35,9 @@ export const SHADE_DAY = { on: col("#e3a43a"), amber: col("#d4520a"), red: col("
 export const SHADE_GLOW = { on: 0.3, amber: 0.45, red: 0.5, off: 0 };
 // At dusk (REAL-1) a lit lamp's shade is opal glass that glows in the state's colour, so the state reads from above
 // and from across the forecourt, with the camera's bloom round it; an unlit shade is the dark lacquer.
-export const SHADE_NIGHT = { on: 2.4, amber: 3.4, red: 3.6, off: 0 };
+// (amber and red glow less than white does: brighter, the film curve would wash both toward the same pale cream)
+export const SHADE_NIGHT = { on: 2.2, amber: 1.5, red: 1.3, off: 0 };
+export const GLOW_K = { on: 1, amber: 0.42, red: 0.36 };
 
 export function makeRoomLight() {
   return {
@@ -65,6 +67,8 @@ uniform sampler2D uFloorTex; uniform mat4 uFloorMat[${MAX_FLOORS}]; uniform vec4
 varying vec3 vRW;
 int roomOf(vec3 p){
   int ri = -1;
+  // (most of the picture is ground and trees: outside the building's own box no room is asked)
+  if (p.x < uSpill.x + 4. || p.x > uSpill.y - 4. || p.y < 0. || p.z < ${(ZB - 0.45).toFixed(2)} || p.z > ${(ZF + 0.3).toFixed(2)}) return ri;
   for (int i = 0; i < ${NR}; i++) { vec4 b = uRoomBox[i]; if (p.x > b.x - .09 && p.x < b.y + .09 && p.y > b.z - .06 && p.y < b.z + b.w && p.z > ${(ZB - 0.45).toFixed(2)} && p.z < ${(ZF + 0.3).toFixed(2)}) ri = i; }
   return ri;
 }
@@ -76,12 +80,12 @@ float floorVis(vec3 p, vec3 n, int ri){
   if (fl < 0. || fl > ${(MAX_FLOORS - 0.5).toFixed(1)}) return 1.;
   vec4 q = uFloorMat[int(fl)] * vec4(p + n * .035, 1.);
   float z = q.z - .004, a = (rlNoise(gl_FragCoord.xy) + uFloorSoft.w) * 6.2831853, s = 0.;
-  for (int i = 0; i < 5; i++) {
-    float t = sqrt((float(i) + .5) / 5.), b = a + float(i) * 2.3999632;
+  for (int i = 0; i < 4; i++) {
+    float t = sqrt((float(i) + .5) / 4.), b = a + float(i) * 2.3999632;
     vec2 u = clamp(q.xy + vec2(cos(b), sin(b)) * t * uFloorSoft.xy, vec2(.002), vec2(.998));
     s += step(z, texture2D(uFloorTex, vec2(u.x, (u.y + fl) * ${(1 / MAX_FLOORS).toFixed(4)})).x);
   }
-  return mix(uFloorSoft.z, 1., s / 5.);
+  return mix(uFloorSoft.z, 1., s / 4.);
 }
 // The corners of a room fall a little dark (analytic): of the distances to the room's floor or ceiling, its two ends
 // and its back wall, the smallest is the surface's own plane; the second smallest is the nearest corner.
@@ -102,7 +106,7 @@ vec3 roomLight(vec3 p, vec3 n, int ri, float spill){
     // the ceiling's soft light: floors and table tops take it whole, walls less; the back wall is washed from above
     float up = clamp((p.y - b.z) / b.w, 0., 1.);
     float wash = (n.z > .5 && p.z < ${(ZB + 0.6).toFixed(2)}) ? .7 + 1.1 * up * up * (.95 + .05 * cos(p.x * 5.2)) : 1.;
-    acc += rc * ((.62 + .38 * max(n.y, 0.)) * V * wash + .16);
+    acc += rc * ((.78 + .22 * max(n.y, 0.)) * V * wash + .16);
     // a pool under each pendant
     float nP = max(2., floor(w / 2.6 + .5));
     for (int i = 0; i < 6; i++) {
@@ -160,7 +164,7 @@ export function makeFloorShade(size = 2048) {
   const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
   cam.layers.set(SHADE_LAYER);
   const depthM = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide });
-  const plane = new THREE.Plane(), L = new THREE.Vector3(), C = new THREE.Vector3(), P = new THREE.Vector3(), up = new THREE.Vector3();
+  const plane = new THREE.Plane(), under = new THREE.Plane(), L = new THREE.Vector3(), C = new THREE.Vector3(), P = new THREE.Vector3(), up = new THREE.Vector3();
   const BIAS = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
   const tile = size / MAX_FLOORS;
   return {
@@ -184,8 +188,10 @@ export function makeFloorShade(size = 2048) {
         }
         cam.left = x0; cam.right = x1; cam.bottom = y0; cam.top = y1; cam.near = -z1 - (z1 - z0) * 0.02; cam.far = -z0 + (z1 - z0) * 0.02;
         cam.updateProjectionMatrix();
+        // cut just under the slab above, and just over the floor: the floor takes the shadow and throws none
         plane.set(P.set(0, -1, 0), f.y1).applyMatrix4(MW);
-        renderer.clippingPlanes = [plane];
+        under.set(P.set(0, 1, 0), -(f.y0 + 0.05)).applyMatrix4(MW);
+        renderer.clippingPlanes = [plane, under];
         rt.viewport.set(0, i * tile, size, tile); rt.scissor.set(0, i * tile, size, tile); rt.scissorTest = true;
         renderer.setRenderTarget(rt);
         renderer.render(scene, cam);

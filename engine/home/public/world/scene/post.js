@@ -24,24 +24,27 @@ varying vec2 vUv;
 vec3 posAt(vec2 uv){ float d = texture2D(tDepth, uv).x; vec4 c = uProjInv * vec4(uv * 2. - 1., d * 2. - 1., 1.); return c.xyz / c.w; }
 float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(.06711056, .00583715)))); }
 void main(){
-  float d0 = texture2D(tDepth, vUv).x;
+  // this pass is half the depth's size: read from the middle of one of the depth's own pixels, so the point and its
+  // four neighbours are five different pixels (from a corner the normal comes out in bands)
+  vec2 c0 = (floor(vUv / uTexel) + .5) * uTexel;
+  float d0 = texture2D(tDepth, c0).x;
   if (d0 >= .99999) { gl_FragColor = vec4(1.); return; }
-  vec3 p = posAt(vUv);
-  vec3 l = p - posAt(vUv - vec2(uTexel.x, 0.)), r = posAt(vUv + vec2(uTexel.x, 0.)) - p;
-  vec3 dn = p - posAt(vUv - vec2(0., uTexel.y)), up = posAt(vUv + vec2(0., uTexel.y)) - p;
+  vec3 p = posAt(c0);
+  vec3 l = p - posAt(c0 - vec2(uTexel.x, 0.)), r = posAt(c0 + vec2(uTexel.x, 0.)) - p;
+  vec3 dn = p - posAt(c0 - vec2(0., uTexel.y)), up = posAt(c0 + vec2(0., uTexel.y)) - p;
   vec3 n = normalize(cross(abs(l.z) < abs(r.z) ? l : r, abs(dn.z) < abs(up.z) ? dn : up));
   float R = uRadius, R2 = R * R;
   float rpx = min(uScale * R / max(-p.z, .001), .12);
   float a0 = (ign(gl_FragCoord.xy) + uTurn) * 6.2831853, sum = 0.;
-  for (int i = 0; i < 10; i++) {
-    float t = (float(i) + .5) / 10., a = a0 + float(i) * 2.3999632;
-    vec2 uv = vUv + vec2(cos(a) * uTexel.x / uTexel.y, sin(a)) * t * rpx;
+  for (int i = 0; i < 8; i++) {
+    float t = (float(i) + .5) / 8., a = a0 + float(i) * 2.3999632;
+    vec2 uv = c0 + vec2(cos(a) * uTexel.x / uTexel.y, sin(a)) * t * rpx;
     vec3 v = posAt(uv) - p;
     float vv = dot(v, v), vn = dot(v, n) - .012 * R - .002 * -p.z;
     float f = max(R2 - vv, 0.);
     sum += f * f * f * max(vn / (vv + .0001 * R2), 0.);
   }
-  float ao = max(0., 1. - sum * 5. / (10. * R2 * R2 * R2) * R);
+  float ao = max(0., 1. - sum * 5. / (8. * R2 * R2 * R2) * R);
   gl_FragColor = vec4(vec3(ao), 1.);
 }`;
 

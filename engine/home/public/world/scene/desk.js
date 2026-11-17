@@ -49,7 +49,7 @@ function makeFirRing(fog) {
         float t = clamp((top - y) / max(top - y0, .01), 0., 1.);
         float tiers = fract(t * (6. + 4. * h1(c * 3.1 + seed)) + h1(c + seed * 2.));
         float w = .46 * pow(t, .8) * (.68 + .32 * tiers) + .02;
-        float aa = fwidth(u) * 1.3 + .004;
+        float aa = fwidth(u) * 1.3 + .05;
         return (1. - smoothstep(w - aa, w + aa, abs(f))) * (1. - smoothstep(top - .05, top + .25, y));
       }
       void main(){
@@ -60,12 +60,12 @@ function makeFirRing(fog) {
         vec3 haze = mix(uFog, uHaze, .45);
         vec3 c = mix(haze * .42, mix(haze, uGlow, .38) * .9, lift * lift);
         float far = fir(a * 34., y, 7., ${onRing(140, 0)}, ${onRing(140, 15)});
-        c = mix(c, mix(uDark, haze, .68), far);
+        c = mix(c, mix(uDark, haze, .86), far * .8);
         float mid = fir(a * 17., y, 19., ${onRing(70, 0)}, ${onRing(70, 15)});
-        c = mix(c, mix(uDark, haze, .4), mid);
+        c = mix(c, mix(uDark, haze, .66), mid * .9);
         float near = fir(a * 8.5, y, 3., ${onRing(34, 0)}, ${onRing(34, 14)});
         float rim = near * (1. - fir(a * 8.5 + .012, y - .25, 3., ${onRing(34, 0)}, ${onRing(34, 14)}));
-        c = mix(c, mix(uDark, haze, .12) + uGlow * .06 * rim, near);
+        c = mix(c, mix(uDark, haze, .36) + uGlow * .04 * rim, near);
         gl_FragColor = vec4(c, 1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -104,7 +104,7 @@ export function makeDesk(A, plan, { fog } = {}) {
   lamp.setPose(0); lamp.setLight("on", 1); g.add(lamp.group);
   g.updateMatrixWorld(true);
   const head = new THREE.Vector3(); lamp.head.getWorldPosition(head);
-  const spot = new THREE.SpotLight(new THREE.Color().setRGB(1, 0.8, 0.56), 3.2, 3.4, 1.0, 0.6, 1.7);
+  const spot = new THREE.SpotLight(new THREE.Color().setRGB(1, 0.8, 0.56), 1.9, 3.4, 1.0, 0.6, 1.7);
   spot.position.copy(head).add(new THREE.Vector3(0, -0.05, 0));
   const spotAt = spot.position.clone();
   spot.castShadow = true; spot.shadow.mapSize.set(1024, 1024); spot.shadow.camera.near = 0.08; spot.shadow.camera.far = 3.4; spot.shadow.bias = -0.0008; spot.shadow.normalBias = 0.002; spot.shadow.radius = 3;

@@ -8,7 +8,7 @@
 // Nothing here knows a name or a title: the plan and the SceneState give ids, enums and numbers only (D9).
 import * as THREE from "../../vendor/three-0.169.0/three.module.min.js";
 import { col, ease, rng } from "./dusk.js";
-import { CARRY, NR, LAMP_COLOURS, OFF_GLOW, WARM, ZB, ZF, SHADE_DAY, SHADE_DUSK, SHADE_LAYER, lampGeos, lampRig, makeRoomLight, roomLit, shadeLit, shadeOf } from "./lamps.js";
+import { CARRY, NR, LAMP_COLOURS, OFF_GLOW, WARM, ZB, ZF, SHADE_DAY, SHADE_DUSK, SHADE_LAYER, GLOW_K, lampGeos, lampRig, makeRoomLight, roomLit, shadeLit, shadeOf } from "./lamps.js";
 
 // ---------- geometry helpers: uv in world metres, boxes, chamfered boxes, soft boxes, one merge per material ----------
 export const boxUV = (S) => (p, n) => {
@@ -137,7 +137,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
           diffuseColor.rgb *= 1. - vert * (seam * .22 + (band - .5) * .07 + (run - .5) * .05); }`);
   };
   keyed(lit(grade(concrete, 0.12, 1.0, 0.8), 1), "b-concrete");
-  const plaster = keyed(lit(grade(std({ vertexColors: true, map: tex.white_plaster_02_diff, normalMap: tex.white_plaster_02_nor, normalScale: new THREE.Vector2(0.3, 0.3), roughness: 0.93, envMapIntensity: 0.3 }), 0.25, 0.96, 0.6, "#f4efe6")), "b-plaster");
+  const plaster = keyed(lit(grade(std({ vertexColors: true, map: tex.white_plaster_02_diff, normalMap: tex.white_plaster_02_nor, normalScale: new THREE.Vector2(0.3, 0.3), roughness: 0.93, envMapIntensity: 0.3 }), 0.25, 1.0, 0.6, "#f7ecdb")), "b-plaster");
   // cladding: weathered boards run upright on the end walls and the annex (real board width, about 15 cm)
   const cladTex = tex.weathered_brown_planks_diff ? ["weathered_brown_planks_diff", "weathered_brown_planks_nor", "weathered_brown_planks_rough"] : ["planks_brown_10_diff", "planks_brown_10_nor", "planks_brown_10_rough"];
   const clad = keyed(lit(grade(std({ vertexColors: true, map: tex[cladTex[0]], normalMap: tex[cladTex[1]], roughnessMap: tex[cladTex[2]], normalScale: new THREE.Vector2(1.2, 1.2), roughness: 1, envMapIntensity: 0.6 }), 0.85, 1.25, 1.05, "#e2b78d"), 1), "b-clad");
@@ -154,6 +154,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
   for (const m of [concrete, plaster, clad, timber, oak, deskOak, steel, fabric, paint, shadeM, paperM, glass, glazing]) owned.mats.add(m);
 
   const cp = [], pp = [], wp = [], tp = [], op = [], fp = [], fab = [], pnt = [], dk = [], pap = [];
+  const fr = []; // the glazing's slim frames: steel, but they do not hide the ceiling's light (forty thin shadows would show)
   const gp = []; // every pane of glass in the building, one draw
   const wUV = (p, n) => (Math.abs(n.x) >= Math.abs(n.z) ? [p.y / 2.2, p.z / 2.2] : [p.y / 2.2, p.x / 2.2]); // boards upright
   const C_SLAB = "#c9c7c3", C_WALL = "#bdbbb7", C_BASE = "#8f8d89", DARK = "#141516";
@@ -382,8 +383,8 @@ export function makeBuilding(A, plan, { small = false } = {}) {
     {
       const top = y + H - SLAB, g0 = r.x0 + 0.13, g1 = r.x1 - 0.13, n = Math.max(2, Math.round((g1 - g0) / 1.5));
       gp.push({ geo: new THREE.PlaneGeometry(g1 - g0, top - y - 0.1), m: at((g0 + g1) / 2, (y + top) / 2, GZ) });
-      op.push(bx(g0, g1, top - 0.07, top, GZ - 0.06, GZ + 0.06), bx(g0, g1, y + 0.02, y + 0.07, GZ - 0.06, GZ + 0.06));
-      for (let k = 0; k <= n; k++) { const x = g0 + k * (g1 - g0) / n, e = k === 0 || k === n; op.push(bx(x - (e ? 0.03 : 0.022), x + (e ? 0.03 : 0.022), y + 0.07, top - 0.07, GZ - 0.055, GZ + 0.055)); }
+      fr.push(bx(g0, g1, top - 0.07, top, GZ - 0.06, GZ + 0.06), bx(g0, g1, y + 0.02, y + 0.07, GZ - 0.06, GZ + 0.06));
+      for (let k = 0; k <= n; k++) { const x = g0 + k * (g1 - g0) / n, e = k === 0 || k === n; fr.push(bx(x - (e ? 0.03 : 0.022), x + (e ? 0.03 : 0.022), y + 0.07, top - 0.07, GZ - 0.055, GZ + 0.055)); }
     }
     const ceil = y + H - SLAB;
     const nP = Math.max(2, Math.round(w / 2.6));
@@ -445,7 +446,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
 
   // merge the static parts, one draw per material
   const add = (parts, mat) => { if (!parts.length) return null; const m = new THREE.Mesh(merge(parts), mat); root.add(m); return m; };
-  add(cp, concrete); add(pp, plaster); add(wp, clad); add(tp, timber); add(fp, oak); add(op, steel); add(dk, deskOak); add(fab, fabric); add(pnt, paint); add(pap, paperM);
+  add(cp, concrete); add(pp, plaster); add(wp, clad); add(tp, timber); add(fp, oak); add(op, steel); { const m = add(fr, steel); if (m) m.userData.noShade = true; } add(dk, deskOak); add(fab, fabric); add(pnt, paint); add(pap, paperM);
   // the glazing: drawn after the rooms behind it
   { const gm = add(gp, glazing); if (gm) gm.renderOrder = 2; }
   const printMats = {};
@@ -647,8 +648,9 @@ export function makeBuilding(A, plan, { small = false } = {}) {
     placeLamp(ag);
     const c = LAMP_COLOURS[ag.colourKind];
     const k = ag.light * (1 + ag.boost * 1.4);
-    lampMeshes[5].setColorAt(ag.i, c && k > 0 ? c.clone().multiplyScalar(2.4 * k) : OFF_GLOW);
-    lampMeshes[6].setColorAt(ag.i, c && k > 0 ? c.clone().multiplyScalar(10 * k) : OFF_GLOW);
+    const gk = GLOW_K[ag.colourKind] || 1;
+    lampMeshes[5].setColorAt(ag.i, c && k > 0 ? c.clone().multiplyScalar(2.4 * k * gk) : OFF_GLOW);
+    lampMeshes[6].setColorAt(ag.i, c && k > 0 ? c.clone().multiplyScalar(10 * k * gk) : OFF_GLOW);
     lampMeshes[5].instanceColor.needsUpdate = lampMeshes[6].instanceColor.needsUpdate = true;
     // the shade: in the morning its paint follows the light from pale toward the state's colour, and glows with it
     const lk = Math.min(1, ag.light / 0.85), [paint, glow] = shadeOf(c ? ag.colourKind : "off", day);
@@ -805,7 +807,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
     const m = Array.isArray(o.material) ? o.material[0] : o.material;
     const solid = !o.userData.glow && !(m && (m.transparent || m.isMeshBasicMaterial));
     o.castShadow = solid; o.receiveShadow = solid;
-    if (solid) o.layers.enable(SHADE_LAYER);
+    if (solid && !o.userData.noShade) o.layers.enable(SHADE_LAYER);
   });
   // what the ceiling's shadow map covers: the building's footprint, a storey at a time, cut just under the slab above
   const vol = { x0: X0 - 0.3, x1: DX1 + 0.3, z0: ZB - 0.35, z1: ZF + 0.5, floors: Array.from({ length: storeys }, (_, f) => ({ y0: yOf(f), y1: yOf(f) + H - SLAB - 0.03 })) };

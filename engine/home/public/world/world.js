@@ -46,6 +46,9 @@ const FURNITURE = ["dining_chair_02", "wooden_table_02", "sofa_02", "mid_century
 const SETTLE = { desktop: 40, phone: 16 };
 const LENS = { map: 0.085, desk: 0.0055 };
 const SUN_R = 0.022;
+// While something moves the picture is drawn a little smaller and stretched (as games do); the first frame at rest
+// is drawn whole again, and the settled picture is all at full size.
+const MOVING = { desktop: 0.84, phone: 0.84 };
 const GROUND_TEX = [["forest_ground_04", ["diff", "nor"]], ["forrest_ground_01", ["diff"]], ["wood_floor_deck", ["diff", "nor"]]];
 const PRINTS = ["hero", "materials", "visit", "interior", "trees"];
 const SKY_OF = { dark: "dusk", light: "morning" }; // one sky per theme (D5, D20): only the theme's own is loaded
@@ -203,8 +206,7 @@ function dress(w) {
   const L = w.L;
   if (!L) return;
   for (const b of [w.map && w.map.building, w.desk && w.desk.building]) if (b) { b.RL.uDay.value.set(L.dim, L.lampK, L.sunIn); b.setDay(w.day); }
-  // (in the morning the firs to the east would keep the whole house in shade: the sun is let through)
-  if (w.map) { w.map.building.sync(); w.map.forest.userData.setSun(w.dusk.sunDir); w.map.forest.castShadow = !w.day; if (w.map.forecourt.userData.look) w.map.forecourt.userData.look(L.paths, w.day); }
+  if (w.map) { w.map.building.sync(); w.map.forest.userData.setSun(w.dusk.sunDir); if (w.map.forecourt.userData.look) w.map.forecourt.userData.look(L.paths, w.day); }
   if (w.desk) { w.desk.look(L, w.day); w.desk.sync(); }
   w.lights = true;
   sunFor(w);
@@ -233,7 +235,7 @@ function lightsFor(w, n) {
   if (b && holder && holder.shade) {
     if (hair) { const u = halton(n, 5), v = halton(n, 7) * 6.2831853, r = Math.sqrt(u) * 0.86; DIR.set(r * Math.cos(v), Math.sqrt(1 - r * r), r * Math.sin(v)); }
     else DIR.copy(UPISH);
-    holder.shade.render(w.renderer, w.scene, b.root, b.RL, b.vol, DIR, hair ? 0.03 : 0.17, hair ? 0 : 0.36, hair ? halton(n, 11) : 0);
+    holder.shade.render(w.renderer, w.scene, b.root, b.RL, b.vol, DIR, hair ? 0.09 : 0.17, hair ? 0 : 0.36, hair ? halton(n, 11) : 0);
   }
   w.lights = false; w.haired = hair;
 }
@@ -441,23 +443,24 @@ function draw(w) {
   const size = sizeOf(w);
   if (size.w !== w.size.w || size.h !== w.size.h) reframe(w, false);
   applyView(w.camera, w.glide.cur, w.size);
-  shoot(w, 1);
-  w.acc = 1;
+  shoot(w, 1, MOVING[w.tier] || 1);
+  w.acc = 1; w.small = true;
   for (const fn of w.frameFns) { try { fn(); } catch { /* a page's tag layer */ } }
 }
 // One more frame of the settled picture: the same view through another hair of the pixel, the lens and the lights.
 function settle(w) {
   if (w.disposed) return;
+  if (w.small) { w.small = false; applyView(w.camera, w.glide.cur, w.size); shoot(w, 1); return; } // the same frame, whole
   const n = ++w.acc;
   const [lx, ly] = disc(halton(n, 2), halton(n, 3)), a = LENS[w.mode] || 0;
   applyView(w.camera, w.glide.cur, w.size, { px: halton(n, 2) - 0.5, py: halton(n, 3) - 0.5, lx: lx * a, ly: ly * a });
   shoot(w, n);
   if (n >= w.settle) applyView(w.camera, w.glide.cur, w.size); // the tags and the pointer read the plain view
 }
-function shoot(w, n) {
+function shoot(w, n, scale = 1) {
   w.renderer.info.reset();
   lightsFor(w, n);
-  w.post.setSize(w.canvas.width, w.canvas.height);
+  w.post.setSize(Math.round(w.canvas.width * scale), Math.round(w.canvas.height * scale));
   w.post.render(w.scene, w.camera, n);
   w.frames++;
 }
@@ -540,7 +543,7 @@ function bench(w) {
   const once = (i) => {
     base.pos.copy(pos).add(new THREE.Vector3(Math.sin(i * 0.05) * 0.02, 0, 0));
     applyView(w.camera, base, w.size);
-    shoot(w, 1);
+    shoot(w, 1, MOVING[w.tier] || 1);
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
   };
   for (let i = 0; i < 20; i++) once(i);
@@ -550,7 +553,7 @@ function bench(w) {
   const calls = w.renderer.info.render.calls;
   draw(w); schedule(w);
   times.sort((a, b) => a - b);
-  return { mean: times.reduce((a, b) => a + b, 0) / times.length, median: times[120], p95: times[228], calls, ratio: w.ratio, width: w.canvas.width, height: w.canvas.height };
+  return { mean: times.reduce((a, b) => a + b, 0) / times.length, median: times[120], p95: times[228], calls, ratio: w.ratio, moving: MOVING[w.tier] || 1, width: w.canvas.width, height: w.canvas.height };
 }
 
 // ---------- acquire and release ----------

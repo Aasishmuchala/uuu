@@ -36,9 +36,9 @@ export function fbm(x, z) { let s = 0, a = 0.5, f = 1; for (let i = 0; i < 4; i+
 // lamp's pool is (`lampK`), whether the sun reaches into the rooms (`sunIn`), and what the desk's window shows.
 // (REAL-1: the camera's white balance sits between the lamps and the sky, so at dusk the sky's light reads cool and
 // the rooms warm, as in a photograph of a house at blue hour; the haze is the sky's blue-grey, not brown.)
-export const DUSK = { theme: "dark", sunAz: -128, sunEl: 14, skyExp: 0.72, tint: "#d3d6ee", envExp: 1.3, sunCol: "#ffa878", sunI: 1.3, hemiS: "#5f7fb4", hemiG: "#1b1e22", hemiI: 0.42, exp: 1.0, fog: "#434d5e", fogD: 0.0052,
+export const DUSK = { theme: "dark", sunAz: -128, sunEl: 14, skyExp: 0.72, tint: "#dcdcea", envExp: 1.3, sunCol: "#ffa878", sunI: 1.3, hemiS: "#7389ab", hemiG: "#1d1e20", hemiI: 0.36, exp: 1.0, fog: "#434d5e", fogD: 0.0052,
   envGround: 0.09, ridge: "#141d24", dim: 0.3, lampK: 1, sunIn: 0, deskSun: 0, ringDark: "#0a0f12", ringGlow: "#b98f80", ringHaze: [0.27, 0.31, 0.4], paths: 0.9 };
-export const MORNING = { theme: "light", sunAz: 26, sunEl: 17, skyExp: 1.5, tint: "#fff3e4", envExp: 0.7, sunCol: "#ffc994", sunI: 5.5, hemiS: "#9fbcdc", hemiG: "#4b4535", hemiI: 0.3, exp: 0.85, fog: "#c3c4bf", fogD: 0.0019,
+export const MORNING = { theme: "light", sunAz: 36, sunEl: 19, skyExp: 1.5, tint: "#fff3e4", envExp: 0.55, sunCol: "#ffc48a", sunI: 10.0, hemiS: "#9fbcdc", hemiG: "#4b4535", hemiI: 0.22, exp: 0.95, fog: "#c9cdd0", fogD: 0.0013,
   envGround: 0.22, ridge: "#33453a", dim: 0.6, lampK: 1.7, sunIn: 1, deskSun: 0.4, ringDark: "#21402b", ringGlow: "#ffe0b0", ringHaze: [0.4, 0.5, 0.62], paths: 0.1 };
 export const KEYS = { dark: DUSK, light: MORNING };
 
