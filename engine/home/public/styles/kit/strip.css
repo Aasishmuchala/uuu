@@ -15,11 +15,25 @@
   min-width: 0;
 }
 
-/* The card's one chip: the kit's Tag (tag.css draws it); this only places it. */
+/* The card's one chip: the kit's Tag (tag.css draws it); this only places it. It may wrap and is never cut: on a
+   narrow card (three in the wide shotlist sheet) "Over today's limit" is a money chip and is shown whole on two lines
+   rather than run past the card's edge (PLAN-3D-ALL U16). */
 .k-strip__chip {
   display: inline-flex;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   max-width: 100%;
+}
+
+.k-strip__chip .k-tag {
+  min-width: 0;
+  padding-block: 2px;
+  white-space: normal;
+}
+
+.k-strip__chip .k-tag > span:not(.k-tag__dot) {
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .k-strip__thumb {

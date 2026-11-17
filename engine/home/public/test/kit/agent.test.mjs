@@ -68,3 +68,22 @@ test("AgentCard: the sentence runs the card's width and the task after Now: is 1
   assert.match(sheet, /\.k-agent__doing \{[^}]*color: var\(--ink-3\);/);
   assert.match(sheet, /\.k-agent__doing-task \{[^}]*color: var\(--ink\);[^}]*font-weight: var\(--fw-medium\);/);
 });
+
+// PLAN-3D-ALL U16: the words follow the Map's lamp (world/state.js lampOf): paused, then a problem, then waiting, then
+// working. A paused agent with something waiting showed the switched-off lamp beside "Waiting for you" (shot S13g).
+test("AgentState: paused and a problem win over waiting and working, as the lamp does", async () => {
+  const { lampOf } = await import(pathToFileURL(join(KIT, "..", "world", "state.js")).href);
+  const card = shape("agent-card");
+  const cases = [
+    [{ ...card, state: "paused", plainState: "Paused", waitingForYou: true }, "neutral", "Paused", "down"],
+    [{ ...card, state: "paused", plainState: "", live: true }, "neutral", "Paused", "down"],
+    [{ ...card, state: "problem", plainState: "Stuck", waitingForYou: true }, "bad", "Stuck", "red"],
+    [{ ...card, state: "working", waitingForYou: true }, "warn", "Waiting for you", "amber"],
+    [{ ...card, state: "working" }, "good", "Working", "on"],
+  ];
+  for (const [a, tone, words, lamp] of cases) {
+    assert.deepEqual(agent.agentStateOf(a), { words, tone });
+    assert.equal(lampOf(a), lamp);
+    for (const chip of [false, true]) assert.equal(textOf(show(agent.AgentState, { agent: a, chip })).trim(), words);
+  }
+});

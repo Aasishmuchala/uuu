@@ -21,13 +21,22 @@ export function AgentChip({ agent, size = 20 }) {
 }
 
 // The state's words and the tone of its chip: working (good), waiting for the owner (warn), a problem (bad),
-// paused or its plain state (neutral).
+// paused or its plain state (neutral). Checked in the order of the Map's lamp (world/state.js lampOf): paused, then a
+// problem, then waiting, then working, so the lamp beside the words never says another thing (PLAN-3D-ALL U16: a
+// paused agent with something waiting showed the switched-off lamp beside "Waiting for you").
+const isPaused = (a) => a.state === "paused";
+const isProblem = (a) => a.state === "problem";
+const isWaiting = (a) => a.waitingForYou === true || a.state === "waiting_for_you";
+const isWorking = (a) => a.state === "working" || Boolean(a.live);
+
 export function agentStateOf(agent) {
   if (!agent) return null;
-  if (agent.state === "working" || agent.live) return { words: "Working", tone: "good" };
-  if (agent.waitingForYou || agent.state === "waiting_for_you") return { words: "Waiting for you", tone: "warn" };
   const words = text(agent.plainState) || "Free";
-  return { words, tone: agent.state === "problem" ? "bad" : "neutral" };
+  if (isPaused(agent)) return { words: text(agent.plainState) || "Paused", tone: "neutral" };
+  if (isProblem(agent)) return { words, tone: "bad" };
+  if (isWaiting(agent)) return { words: "Waiting for you", tone: "warn" };
+  if (isWorking(agent)) return { words: "Working", tone: "good" };
+  return { words, tone: "neutral" };
 }
 
 // The agent's state as a glyph and words: working, waiting for the owner, a problem, paused, or its plain state.
@@ -38,11 +47,11 @@ export function AgentState({ agent, chip = false }) {
     const s = agentStateOf(agent);
     return html`<span class="k-agent__state k-agent__state--chip"><${Tag} tone=${s.tone}>${s.words}<//></span>`;
   }
-  if (agent.state === "working" || agent.live) return html`<span class="k-agent__state k-agent__state--live"><${St} tone="good" icon="loop">Working<//></span>`;
-  if (agent.waitingForYou || agent.state === "waiting_for_you") return html`<span class="k-agent__state"><${St} tone="warn">Waiting for you<//></span>`;
   const words = text(agent.plainState) || "Free";
-  if (agent.state === "problem") return html`<span class="k-agent__state"><${St} tone="bad">${words}<//></span>`;
-  if (agent.state === "paused") return html`<span class="k-agent__state"><${St} icon="pause">${words}<//></span>`;
+  if (isPaused(agent)) return html`<span class="k-agent__state"><${St} icon="pause">${text(agent.plainState) || "Paused"}<//></span>`;
+  if (isProblem(agent)) return html`<span class="k-agent__state"><${St} tone="bad">${words}<//></span>`;
+  if (isWaiting(agent)) return html`<span class="k-agent__state"><${St} tone="warn">Waiting for you<//></span>`;
+  if (isWorking(agent)) return html`<span class="k-agent__state k-agent__state--live"><${St} tone="good" icon="loop">Working<//></span>`;
   return html`<span class="k-agent__state k-agent__state--quiet"><${St} icon="clock">${words}<//></span>`;
 }
 
