@@ -526,10 +526,9 @@
     margin-left: 0;
   }
 
-  /* Each choice of the switch is a 44 px target, as the kit's on a phone (PLAN-3D-ALL U17: 38 px inside a 44 px
-     track missed by a thumb on the track's edge). */
+  /* The switch's track stands 44 px tall beside New task, its choices inside it. */
   .p-tasks .p-tasks__actions .k-seg__item {
-    min-height: 44px;
+    min-height: 38px;
   }
 
   .p-tasks .p-tasks__list {

@@ -701,12 +701,6 @@ a.s-crumbs-link:hover {
   .s-top--narrow .s-crumbs {
     margin-left: 0;
   }
-  /* A crumb is a 44 px target on a phone, its words where they were (PLAN-3D-ALL U17: 18 px). */
-  .s-top--narrow .s-crumbs-link {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-  }
   .s-content,
   .s-content--column,
   .s-content--full {

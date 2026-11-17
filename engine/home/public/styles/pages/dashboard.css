@@ -186,8 +186,6 @@
   .p-dashboard .p-dashboard-open { min-height: 44px; }
   .p-dashboard .k-section__aside a { display: inline-flex; align-items: center; min-height: 44px; }
   .p-dashboard .k-section__aside .k-btn { min-height: 44px; }
-  /* A task in flight is a 44 px target on its own line (PLAN-3D-ALL U17: 18 px on Marketing's phone). */
-  .p-dashboard .p-dashboard-flight a { display: inline-flex; align-items: center; min-height: 44px; }
   .p-dashboard .p-dashboard-filter .k-menu__trigger { min-height: 44px; }
   .p-dashboard .p-dashboard-sheet .k-table__table td { height: auto; }
   .p-dashboard .p-dashboard-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
