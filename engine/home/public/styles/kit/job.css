@@ -456,8 +456,8 @@ a.k-job--chip:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* A question not answered yet, in the preview: its own words in the second ink, underlined in the third, where the
-   answer will go (no chip, so the sentence reads as one). An answer: the accent ink. */
+/* A question not answered yet, in the preview: an empty gap underlined in the third ink, where the answer will go
+   (no chip and not the question's words, so the sentence reads as one). An answer: the accent ink. */
 .k-job__blank {
   color: var(--ink-2);
   text-decoration: underline;

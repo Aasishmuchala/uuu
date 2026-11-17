@@ -373,6 +373,22 @@ test("JobStart (TB3, R5-F): the preview is plain words with each open slot under
   assert.ok(elements(root).some((e) => e.localName === "input" && e.getAttribute("placeholder") === "One short line"));
 });
 
+test("JobStart: an unanswered question is an empty underlined gap in the preview, never its label read as the answer", () => {
+  const page = { ...LEAD, ready: true, text: "Make one landing page for this: [lead].",
+    asks: [{ id: "lead", label: "What is the page for?", kind: "line", required: true, options: null }] };
+  const root = show(job.JobStart, { job: page });
+  const preview = withClass(root, "k-job__preview-text")[0];
+  assert.ok(preview, "the preview is there");
+  assert.ok(!textOf(preview).includes("What is the page for"), textOf(preview));
+  const blank = withClass(preview, "k-job__blank");
+  assert.equal(blank.length, 1);
+  const gap = elements(blank[0]).find((e) => e.getAttribute && e.getAttribute("aria-hidden") === "true");
+  assert.ok(gap && textOf(gap) === job.BLANK_GAP && !textOf(gap).trim(), "the gap is spaces only, hidden from a screen reader");
+  assert.equal(textOf(withClass(blank[0], "k-sr")[0]), job.BLANK_SAID, "a screen reader hears that it is not answered yet");
+  // Once answered, the answer stands in the gap's place in the accent ink.
+  assert.deepEqual(job.previewPieces(page, { lead: "the spring open house" }).map((p) => p.value).filter(Boolean), ["the spring open house"]);
+});
+
 test("JobStart (TB3): a job that cannot start says why as the kit's warning Notice with a small ghost; Start says it is off", () => {
   const root = show(job.JobStart, { job: { ...LEAD, ready: false, why: { text: "Generation is off or has no key yet. Open Settings.", link: { page: "settings" } } } });
   const notice = withClass(root, "k-notice--warn")[0];

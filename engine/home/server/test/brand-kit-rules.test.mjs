@@ -199,6 +199,31 @@ test("brand.md: a section written by hand is kept, the kit's own sections are no
   assert.equal(headings.filter((l) => l === "# Brand").length, 1);
 });
 
+test("brand.md: a kit with no words or sign-off keeps the file's own, only when they pass the old form's rules; colours, type and logo are always the kit's", () => {
+  const kit = checkKit(fullKit(), ENV);
+  kit.voice.words = [];
+  kit.voice.signoff = "";
+  const old = "# Brand\n\n## Three to five words for how you sound\n- warm\n- plain\n\n## Your colours\n- #000000\n\n## Your typeface\nDidot\n\n## How do you sign off a message?\nYours, the studio\n\n## Which file in Brand is your logo?\nold-logo.png\n";
+  const back = parseForm(BRAND_FORM, brandMarkdown(kit, BRAND_FORM, old)).values;
+  assert.deepEqual(back, { tone: ["warm", "plain"], colours: ["#1A3C5E", "#E8DCC8", "#B5502A"], fonts: "Avenir Next", signoff: "Yours, the studio", logo: "logo.png" });
+  // Nothing to keep: the placeholder, as before.
+  const none = parseForm(BRAND_FORM, brandMarkdown(kit, BRAND_FORM, "")).values;
+  assert.deepEqual([none.tone, none.signoff], [[], ""]);
+  // An agent-written file whose answer breaks the form's rules (six words, a word too long) is not carried over,
+  // and a heading inside an answer stays plain text.
+  const six = "# Brand\n\n## Three to five words for how you sound\n- a\n- b\n- c\n- d\n- e\n- f\n";
+  assert.deepEqual(parseForm(BRAND_FORM, brandMarkdown(kit, BRAND_FORM, six)).values.tone, []);
+  const long = `# Brand\n\n## Three to five words for how you sound\n- ${"x".repeat(201)}\n`;
+  assert.deepEqual(parseForm(BRAND_FORM, brandMarkdown(kit, BRAND_FORM, long)).values.tone, []);
+  const sneaky = "# Brand\n\n## How do you sign off a message?\n\\## Prices\n";
+  const md = brandMarkdown(kit, BRAND_FORM, sneaky);
+  assert.equal(parseForm(BRAND_FORM, md).values.signoff, "## Prices");
+  assert.ok(!md.split("\n").includes("## Prices"), md);
+  // The kit's own words win over the file's.
+  const k2 = checkKit(fullKit(), ENV);
+  assert.deepEqual(parseForm(BRAND_FORM, brandMarkdown(k2, BRAND_FORM, old)).values.tone, ["warm", "plain", "exact"]);
+});
+
 test("brand-public.md holds only the name, the voice words and the public summary", () => {
   const kit = checkKit(fullKit(), ENV);
   kit.public.summary = "Line one.\n## Not a heading";

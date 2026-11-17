@@ -4,7 +4,8 @@
 //   - checkKit holds every rule of K5; anything else is refused with one sentence naming the field;
 //   - a save writes four files from the kit alone: kit.json and kit.css (temp file, then rename, 0644, the
 //     folder and the target checked by lstat first and after), brand.md through the brain store's `replace`
-//     (so its index and version stay right; the old form still reads it), and
+//     (so its index and version stay right; the old form still reads it; its tone and sign-off stay when the
+//     kit has none, so a save never empties the Brand basic), and
 //     state/knowledge/shared/brand-public.md (only the name, the voice words and the public summary);
 //   - fonts are uploaded by the owner, checked by their first bytes, never replaced, at most six;
 //   - a proposal (brand-proposal.json in a task's folder) was written by an agent: it is opened once with no
@@ -19,7 +20,7 @@ import { join } from "node:path";
 import { readChecked, readTaskText } from "../lib/taskfiles.mjs";
 import { stripInvisible } from "../lib/owner-text.mjs";
 import { noteLine } from "../lib/verdicts.mjs";
-import { parseForm, readForm, renderForm } from "./forms.mjs";
+import { checkValues, parseForm, readForm, renderForm } from "./forms.mjs";
 
 export const KINDS = ["post", "newsletter", "carousel", "poster", "title-card", "film", "page"];
 export const ROLES = ["main", "accent", "background", "text", "other"];
@@ -386,14 +387,28 @@ export function brandValues(kit, form) {
 
 const extendedForm = (form) => ({ ...form, fields: [...form.fields, ...EXTRA_FIELDS] });
 
+// The old form's voice answers a kit may leave empty (no words, no sign-off: the page offers the old answers
+// beside its fields and the owner may not use them). The file's own answer stays then, so a save never turns
+// a filled Brand basic back to empty; the kit's colours, type and logo always say something and always win.
+const KEPT_WHEN_KIT_EMPTY = ["tone", "signoff"];
+
 // brandMarkdown(kit, form, current) -> brand.md: the old form's headings and the four new sections. What a file
-// that is there holds beyond them (an intro, a section written by hand) is kept, as a form save keeps it.
+// that is there holds beyond them (an intro, a section written by hand) is kept, as a form save keeps it, and
+// so is its tone or sign-off when the kit has none, if that answer still passes the old form's own rules.
 export function brandMarkdown(kit, form, current = "") {
   const ext = extendedForm(form);
   const parsed = parseForm(ext, current || "");
   const ours = new Set(ext.fields.flatMap((f) => [f.label, f.heading || ""].filter(Boolean).map((s) => s.replace(/\s+/g, " ").trim().toLowerCase().replace(/\s*\?$/, ""))));
   const unknown = parsed.unknown.filter((u) => !ours.has(String(u.heading).replace(/\s+/g, " ").trim().toLowerCase().replace(/\s*\?$/, "")));
-  return renderForm(ext, brandValues(kit, form), { intro: parsed.intro, unknown });
+  const values = brandValues(kit, form);
+  const empty = (v) => v === "" || (Array.isArray(v) && v.length === 0);
+  for (const id of KEPT_WHEN_KIT_EMPTY) {
+    const field = form.fields.find((f) => f.id === id);
+    const old = parsed.values[id];
+    if (!field || !empty(values[id]) || empty(old)) continue;
+    if (checkValues({ ...form, fields: [field] }, { [id]: old }).length === 0) values[id] = old;
+  }
+  return renderForm(ext, values, { intro: parsed.intro, unknown });
 }
 
 const PUBLIC_INTRO = "What the Researcher may know about the company. Written by the home server from the brand kit.";

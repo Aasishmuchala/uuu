@@ -188,6 +188,35 @@ test("with no kit.json and the old brand.md, GET offers its tone, colours, typef
   assert.deepEqual(r.json.fontsUploaded, []);
 }));
 
+// The simulation's week: the basics filled, then the kit saved from the page with the logo, colours, type, the
+// name and a paragraph, but the old page's words and sign-off left beside the fields unused.
+test("saving a kit that leaves the old page's words unused keeps Brand filled: the file's own tone and sign-off stay", () => withHome(async (h) => {
+  const brandOf = async () => (await get(h, "/api/brain")).json.basics.items.find((b) => b.form === "brand");
+  assert.equal((await brandOf()).state, "filled");
+  await setUp(h);
+  const kit = { ...kitBody(), voice: { words: [], is: "Like an architect on site: plain, exact, warm with the client.", do: [], dont: [], signoff: "" } };
+  const r = await save(h, kit);
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(r.json.kit.voice.words, []);
+  assert.equal((await brandOf()).state, "filled");
+  const md = readFileSync(brand("brand.md"), "utf8");
+  const values = parseForm(BRAND_FORM, md).values;
+  assert.deepEqual(values.tone, ["warm", "plain", "exact"]);
+  assert.equal(values.signoff, "With care, from the workshop");
+  assert.deepEqual(values.colours, ["#1A3C5E", "#E8DCC8"]);
+  assert.ok(!md.includes("(not filled in yet)"), md);
+  // The kept words are not the kit's: brand-public.md (for the Researcher) still holds only what the kit says.
+  const pub = readFileSync(join(h.config.paths.state, "knowledge", "shared", "brand-public.md"), "utf8");
+  for (const w of ["warm", "plain", "exact"]) assert.ok(!pub.includes(w), w);
+  // A second save the same way changes nothing of them; words written in the kit replace them.
+  assert.equal((await save(h, kit)).status, 200);
+  assert.deepEqual(parseForm(BRAND_FORM, readFileSync(brand("brand.md"), "utf8")).values.tone, ["warm", "plain", "exact"]);
+  assert.equal((await save(h, { ...kit, voice: { ...kit.voice, words: ["calm", "exact"], signoff: "Yours" } })).status, 200);
+  const now = parseForm(BRAND_FORM, readFileSync(brand("brand.md"), "utf8")).values;
+  assert.deepEqual([now.tone, now.signoff], [["calm", "exact"], "Yours"]);
+  assert.equal((await brandOf()).state, "filled");
+}));
+
 test("nothing is written by a GET, with or without a proposal", () => withHome(async (h) => {
   await setUp(h);
   const goal = join(h.config.paths.state, "tasks", "company-work", "STH-12");

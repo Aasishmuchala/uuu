@@ -444,18 +444,22 @@ function AskField({ ask, value, error, disabled, onValue, fromText }) {
 }
 
 // PLAN-COOK TB3, R5-F: the preview of what will be asked as plain words at 13 px on 20: the template's numbered steps
-// as a list, an answer in the accent ink, a question not answered yet as its words underlined in their place (no
-// chip); a long one held to a set height with "Show all". The words are the job's own, every piece a text node.
+// as a list, an answer in the accent ink, a question not answered yet as an empty underlined gap in its place (no
+// chip; its question is asked by the field above, so the sentence never reads the question as if it were the
+// answer: "Make one landing page for this: ____."); a long one held to a set height with "Show all". The words
+// are the job's own, every piece a text node.
 const PREVIEW_LONG = 360;
+export const BLANK_GAP = " ".repeat(8);
+export const BLANK_SAID = "not answered yet";
 const Piece = ({ p }) => p.blank !== undefined
-  ? html`<span class="k-job__blank">${p.blank}</span>`
+  ? html`<span class="k-job__blank"><span aria-hidden="true">${BLANK_GAP}</span><span class="k-sr">${BLANK_SAID}</span></span>`
   : p.value !== undefined ? html`<span class="k-job__value">${p.value}</span>` : p.text;
 
 function Preview({ job, answers }) {
   const [all, setAll] = useState(false);
   const pieces = previewPieces(job, answers);
   const blocks = previewBlocks(pieces);
-  const long = pieces.reduce((t, p) => t + str(p.text || p.value || p.blank).length, 0) > PREVIEW_LONG;
+  const long = pieces.reduce((t, p) => t + str(p.text || p.value || (p.blank !== undefined ? BLANK_GAP : "")).length, 0) > PREVIEW_LONG;
   const pieceList = (list) => list.map((p, i) => html`<${Piece} key=${i} p=${p} />`);
   return html`<details class="k-job__preview">
     <summary class="k-job__preview-head"><${Icon} name="chevron-right" size=${14} class="k-job__fold" /><span>What will be asked</span></summary>
