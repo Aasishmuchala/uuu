@@ -74,6 +74,14 @@
   color: var(--ink-2);
 }
 
+/* Over the picture a control with no fill of its own (the view switch, a ghost button) stands on the panel, so its
+   edge and words hold where the picture is bright (PLAN-3D-ALL U16; Jobs, a department and an agent each drew it).
+   Hover and the chosen state keep their own fills. */
+.k-room .k-seg,
+.k-room .k-btn--ghost {
+  background: var(--panel);
+}
+
 @media (max-width: 1279px) {
   .k-room {
     min-height: 120px;
@@ -123,8 +131,10 @@
   box-shadow: 0 0 0 3px var(--lamp-pool, transparent);
 }
 
+/* A small disc inside a ring with a clear gap between them (PLAN-3D-ALL U16: with a 0.5 px gap the halo read as the
+   working disc at 10 px). */
 .k-lamp--halo {
-  background: radial-gradient(circle, var(--warn) 0 2.5px, transparent 3px);
+  background: radial-gradient(circle, var(--warn) 0 1.75px, transparent 2.25px);
   box-shadow: inset 0 0 0 1.5px var(--warn);
 }
 
