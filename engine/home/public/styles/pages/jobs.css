@@ -570,6 +570,12 @@
 }
 
 @media (max-width: 859px) {
+  /* A card's small link reaches 44 px to tap: the kit's area (26 px and 8 px above and below) grown by one pixel more
+     each way, how it looks unchanged (PLAN-3D-ALL U17: 42 px). */
+  .p-jobs .k-job__why-link::before {
+    inset: -9px calc(-1 * var(--s-1));
+  }
+
   .p-jobs .k-room {
     margin-bottom: var(--s-4);
   }

@@ -36,6 +36,8 @@
   .p-routines .p-routines__next { text-align: left; grid-column: 1 / -1; }
   .p-routines .p-routines__actions { grid-column: 1 / -1; justify-content: flex-start; }
   .p-routines .p-routines__actions .k-btn { min-height: 44px; }
+  /* A routine's name and a run are 44 px targets on a phone (PLAN-3D-ALL U17: 17 and 20 px). */
+  .p-routines .p-routines__name a, .p-routines .p-routines__title a, .p-routines .p-routines__run > a { display: inline-flex; align-items: center; min-height: 44px; }
 }
 
 /* The room header: 16 px over the first group; the kit's `pull` and layer put it in the pane's margin, above the rows
@@ -46,15 +48,15 @@
 @media (min-width: 860px) {
   .p-routines .k-room { min-height: 120px; }
 }
-.p-routines .k-room .k-btn, .p-routines .k-room .k-field, .p-routines .k-room input { background: var(--ctl); }
+/* A button over the picture stands on the panel and a field keeps the kit's own fill: on the translucent control
+   fill a quiet button's words stood at 1.5 to 1 over the morning picture (PLAN-3D-ALL U17). */
+.p-routines .k-room .k-btn:not(.k-btn--primary) { background: var(--panel); }
 
 /* Rows on the ground, one 44 px row at least, a hairline between; the pointer and the keyboard stand in the lamp's pool. */
 .p-routines .p-routines__row { min-height: 44px; transition: background-color var(--t-fast) var(--ease); }
 .p-routines .p-routines__row:hover, .p-routines .p-routines__row:focus-within { background-color: var(--lamp-pool); }
 .p-routines .p-routines__name a:focus-visible, .p-routines .p-routines__title a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* The picture must show behind the title at dusk: the scrim thinned to 0.8 (as Files does). */
-.p-routines .k-room .k-room__scrim { opacity: 0.8; }
 
 /* On a phone the line under the title would sit over the picture and hurt legibility: the band is the kit's title
    strip, which asks for no picture (PLAN-3D-ALL U17). */

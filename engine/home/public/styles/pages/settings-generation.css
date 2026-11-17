@@ -485,6 +485,17 @@
 
 /* ---- A phone, or any narrow window */
 @media (max-width: 859px) {
+  /* The rate and a film's name are 44 px targets on a phone (PLAN-3D-ALL U17: 34 and 36 px). */
+  .p-settings-generation .p-settings-generation__rate {
+    min-height: 44px;
+  }
+
+  .p-settings-generation .p-settings-generation__film {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
   .p-settings-generation .p-settings-generation__more {
     padding-left: 0;
   }

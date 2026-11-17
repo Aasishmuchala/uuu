@@ -601,6 +601,7 @@
   }
 
   .p-agent .p-team__dept,
+  .p-agent .p-agent__value .p-team__dept,
   .p-agent .p-agent__value .k-agent--chip,
   .p-agent .k-empty a,
   .p-agent .p-agent__note a,

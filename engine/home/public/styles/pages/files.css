@@ -872,6 +872,7 @@
   .p-files .p-files__places-menu .k-menu__trigger,
   .p-files .p-files__search .k-input,
   .p-files .k-seg__item,
+  .p-files .p-files__toolbar .k-seg--sm .k-seg__item,
   .p-files .p-files__actions .k-btn {
     min-height: 44px;
   }

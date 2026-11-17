@@ -261,7 +261,9 @@ test("health: safety and state sentences stay whole, as sent, and no sheet cuts 
       assert.ok(!/text-overflow|line-clamp|overflow: hidden|(^|[;\s])height:/.test(m2[1]), `${cls}: ${m2[1]}`);
     }
   }
-  assert.match(css, /\.p-health \.k-room \.k-room__scrim \{ opacity: 0\.8; \}/);
+  // PLAN-3D-ALL U17: the thinner scrim ("opacity: 0.8") is gone: with the kit's morning scrim (0.8, U16) it left the
+  // words under the title at 4.3 to 1 in the morning; the kit's own scrim holds 4.5 in both themes.
+  assert.doesNotMatch(css, /\.p-health \.k-room \.k-room__scrim \{/);
 });
 
 test("health: hostile server text stays text (PLAN-3D-ALL U15)", async () => {

@@ -20,7 +20,9 @@
 /* The room header: 16 px over the first group; the kit's `pull` and layer put it in the pane's margin, above the rows
    (PLAN-3D-ALL U16, U17). A control over the picture keeps its own fill. */
 .p-search .k-room { margin-bottom: var(--s-4); }
-.p-search .k-room .k-btn, .p-search .k-room .k-field, .p-search .k-room input { background: var(--ctl); }
+/* A button over the picture stands on the panel and a field keeps the kit's own fill: on the translucent control
+   fill a quiet button's words stood at 1.5 to 1 over the morning picture (PLAN-3D-ALL U17). */
+.p-search .k-room .k-btn:not(.k-btn--primary) { background: var(--panel); }
 
 /* A result: one row at least 44 px, the pointer and the keyboard in the lamp's pool, the 2 px ring on a link. */
 .p-search .p-search__item { min-height: 44px; transition: background-color var(--t-fast) var(--ease); }

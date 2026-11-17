@@ -226,13 +226,13 @@
 /* The room header: 16 px over the first group; the kit's `pull` and layer put it in the pane's margin, above the rows
    (PLAN-3D-ALL U16, U17). A control over the picture keeps its own fill. */
 .p-health .k-room { margin-bottom: var(--s-4); }
-.p-health .k-room .k-btn, .p-health .k-room .k-field, .p-health .k-room input { background: var(--ctl); }
+/* A button over the picture stands on the panel and a field keeps the kit's own fill: on the translucent control
+   fill a quiet button's words stood at 1.5 to 1 over the morning picture (PLAN-3D-ALL U17). */
+.p-health .k-room .k-btn:not(.k-btn--primary) { background: var(--panel); }
 
 /* The lamp stands before the part's name (the kit's glyph, by shape and tone); the words stay beside it. */
 .p-health .p-health__lamp { display: inline-flex; align-items: center; margin-right: var(--s-2); }
 
-/* The picture must show behind the title at dusk: the scrim thinned to 0.8 (as Files does). */
-.p-health .k-room .k-room__scrim { opacity: 0.8; }
 
 /* On a phone the line under the title would sit over the picture and hurt legibility: the band is the kit's title
    strip, which asks for no picture (PLAN-3D-ALL U17). */

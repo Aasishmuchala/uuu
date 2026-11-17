@@ -120,7 +120,9 @@ test("routines: the title and its line stand in the room header with the facade;
   // "margin-top: calc(-1 * var(--s-6)); … z-index: 1".
   assert.match(css, /\.p-routines \.k-room \{ margin-bottom: var\(--s-4\); \}/);
   assert.match((await import("node:fs")).readFileSync(new URL("../../pages/routines.js", import.meta.url), "utf8"), /<\$\{RoomHeader\} glimpse=\$\{glimpseFor\("routines"\)\} pull\b/);
-  assert.match(css, /\.p-routines \.k-room \.k-room__scrim \{ opacity: 0\.8; \}/);
+  // PLAN-3D-ALL U17: the thinner scrim ("opacity: 0.8") is gone: with the kit's morning scrim (0.8, U16) it left the
+  // words under the title at 4.3 to 1 in the morning; the kit's own scrim holds 4.5 in both themes.
+  assert.doesNotMatch(css, /\.p-routines \.k-room \.k-room__scrim \{/);
 });
 
 test("routines: hostile server text stays text (PLAN-3D-ALL U15)", async () => {
