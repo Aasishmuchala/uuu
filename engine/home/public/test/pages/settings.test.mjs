@@ -235,7 +235,24 @@ test("PLAN-3D-ALL U4: every section is under the annex's band: one h1, the secti
   assert.match(band[1], /min-height: 96px;/);
   const top = CSS.slice(0, CSS.indexOf("@media"));
   assert.ok(top.includes(band[0]), "not inside a width query");
-  for (const [, body] of CSS.matchAll(/\.p-settings > \.k-room \{([^}]*)\}/g)) assert.doesNotMatch(body, /min-height: (?!96px)/);
+  // Below 860 px it is a 56 px title strip (the orchestrator's decision on U4).
+  const phone = CSS.slice(CSS.indexOf("@media (max-width: 859px)"));
+  assert.match(/\.p-settings > \.k-room \{([^}]*)\}/.exec(phone)[1], /min-height: 56px;/);
+});
+
+test("PLAN-3D-ALL U4: on a phone the band is a title strip and the page asks for no picture", async () => {
+  globalThis.matchMedia = (q) => ({ media: q, matches: false, addEventListener() {}, removeEventListener() {} });
+  try {
+    const m = await drawPage("generation");
+    try {
+      const all = m.DOM.elements(m.root);
+      const band = all.find((e) => e.localName === "header" && m.DOM.classesOf(e).includes("k-room"));
+      assert.equal(band.getAttribute("data-glimpse"), "none");
+      assert.equal(all.filter((e) => e.localName === "img").length, 0, "no picture");
+      assert.equal(m.DOM.textOf(all.find((e) => e.localName === "h1")), "Generation");
+      assert.ok(!m.wire.some((w) => /\/assets\/glimpse\//.test(w)), "no picture asked for");
+    } finally { m.done(); }
+  } finally { delete globalThis.matchMedia; }
 });
 
 // Every string in an answer replaced by one of PLAN-3D's hostile set, in turn.

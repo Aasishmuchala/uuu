@@ -67,8 +67,12 @@
 
 /* On a phone a row's wide controls drop under its words (the kit's rule); a switch is small and stays at the right. */
 @media (max-width: 859px) {
+  /* A phone: the band is a 56 px title strip with no picture (settings.js asks for none below 860 px). */
   .p-settings > .k-room {
+    min-height: 56px;
     margin: var(--s-2) var(--s-3) 0;
+    padding: var(--s-2) var(--s-4);
+    justify-content: center;
   }
   .p-settings .k-doc__main {
     padding-top: var(--s-3);

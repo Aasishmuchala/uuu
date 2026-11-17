@@ -4,7 +4,8 @@
 // address: "#/settings?s=generation"; no `s` is Appearance.
 // PLAN-3D-ALL U4: a surface screen. The room header (kit/room.js, the annex's picture) runs above both the list and
 // the column and holds the one h1#page-title, the section's name, and the alarm's chip; the section's intro and every
-// sentence stay in the column on the panels, never over the picture.
+// sentence stay in the column on the panels, never over the picture. The orchestrator's decision (17 Nov): below
+// 860 px the band is a 56 px title strip with no picture, so a phone asks for no image here.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
@@ -112,6 +113,22 @@ export function sideShown(sideChoice) {
   return sideChoice === "open" || sideChoice === "icons" ? sideChoice : "auto";
 }
 
+// True while the window is 860 px wide or more: only then does the band ask for its picture. Read at once, so a
+// phone never asks for it, and kept up with the window.
+const WIDE = "(min-width: 860px)";
+function useWide() {
+  const read = () => typeof matchMedia !== "function" || matchMedia(WIDE).matches === true;
+  const [wide, setWide] = useState(read);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return undefined;
+    const mq = matchMedia(WIDE);
+    const again = () => setWide(mq.matches === true);
+    if (mq.addEventListener) mq.addEventListener("change", again);
+    return () => { if (mq.removeEventListener) mq.removeEventListener("change", again); };
+  }, []);
+  return wide;
+}
+
 // ---- the two sections drawn here ---------------------------------------------------------------------------------
 function Appearance({ theme, motion, sideChoice, onTheme, onMotion, onSide }) {
   return html`<${Group}>
@@ -157,6 +174,7 @@ export default function Page({ route }) {
   const app = useApp() || {};
   const { saveSettings, setTop, sideChoice, setSide } = app;
   const current = sectionOf(route && route.query);
+  const wide = useWide();
   const res = useResource("/api/settings");
   const [chosen, setChosen] = useState({});
   const d = res.data;
@@ -217,7 +235,7 @@ export default function Page({ route }) {
   }
 
   return html`<div class=${`p-settings p-settings--${here.id}`}>
-    <${RoomHeader} glimpse=${glimpseFor("settings")} title=${here.label}
+    <${RoomHeader} glimpse=${wide ? glimpseFor("settings") : null} title=${here.label}
       state=${headState ? html`<${Tag} tone=${headState.tone}>${headState.text}<//>` : null} />
     <${DocLayout} intro=${INTRO[here.id]} sections=${sections} current=${here.id}>
       ${body}
