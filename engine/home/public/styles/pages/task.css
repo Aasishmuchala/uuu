@@ -119,6 +119,11 @@
   padding-bottom: calc(var(--p-task-bar, 64px) + var(--s-4));
 }
 
+/* A stop that Tab reaches is scrolled clear of the bar laid over the page's foot (PLAN-3D-ALL U17). */
+.p-task.p-task--barred :is(a[href], button, input, select, textarea, [tabindex]) {
+  scroll-margin-bottom: calc(var(--p-task-bar, 64px) + var(--s-2));
+}
+
 .p-task .p-task__meta {
   display: flex;
   flex-wrap: wrap;

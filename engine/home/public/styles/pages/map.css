@@ -1276,9 +1276,11 @@
   -webkit-line-clamp: 2;
 }
 
+/* The state's words a step stronger than a quiet line (PLAN-3D-ALL U17): at the rail's right edge the morning
+   picture shows through the scrim and the second and third inks stood at 4.48 and 4.47 to 1. */
 .p-map .p-map__agent-state {
   max-width: 130px;
-  color: var(--ink-2);
+  color: var(--ink);
   font-size: var(--fs-label);
   text-align: right;
 }
@@ -1293,7 +1295,7 @@
 
 .p-map .p-map__agent-state--off,
 .p-map .p-map__agent-state--down {
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
 /* "Waiting for you" under the name when the amber lamp's state words say otherwise (PLAN-3D-ALL U17). */
