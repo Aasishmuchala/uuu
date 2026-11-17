@@ -549,3 +549,58 @@ test("apps: the apps are rows in one card, each as tall as it holds; the sentenc
   assert.match(css, /\.p-apps \.p-apps__facts \{[^}]*color: var\(--ink-2\); font-size: var\(--fs-note\);/);
   assert.match(css, /\.p-apps \.p-apps__spend \{[^}]*font-variant-numeric: tabular-nums;/);
 });
+
+// ---- PLAN-3D-ALL U14: the room header, the wire, hostile text, whole sentences ----
+
+const wire = (calls) => calls.map((c) => `${c.method || "GET"} ${c.path}${c.body == null ? "" : ` ${JSON.stringify(c.body)}`}`);
+
+test("apps: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  // As seeded: none, one on, one off, and the team's sites.
+  for (const v of [view([]), view([app()]), view([app({ slug: "a-off", name: "Off app", state: "off", on: false, spending: NOSPEND })]), view([], { sites: [site()] })]) {
+    const m = await mount(fixed(v));
+    try { seen.push(...wire(m.f.calls)); } finally { m.done(); }
+  }
+  // Turn on, then Turn off, the answers shown.
+  let current = view([app({ state: "off", on: false, sentence: "Off", spending: NOSPEND })]);
+  const s = await mount((path, method) => {
+    if (method === "POST") current = view([app({ state: "starting", on: true, sentence: "Starting…", spending: NOSPEND })]);
+    return { status: 200, body: current };
+  });
+  try {
+    fire(buttons(s.root, "Turn on")[0], "click");
+    await settle();
+    fire(buttons(s.root, "Turn off")[0], "click");
+    await settle();
+    seen.push(...wire(s.f.calls));
+  } finally { s.done(); }
+  // A site's Open: its preview route, then a new tab.
+  globalThis.window = { open() {} };
+  try {
+    const o = await mount((path, method) => (method === "POST" ? { status: 200, body: { url: `${HTTP}${LOOP}:3160/` } } : { status: 200, body: view([], { sites: [site()] }) }));
+    try {
+      fire(buttons(o.root, "Open")[0], "click");
+      await settle();
+      seen.push(...wire(o.f.calls));
+    } finally { o.done(); }
+  } finally { delete globalThis.window; }
+  // Not answered, then failed: the 404 and Try again.
+  for (const status of [404, 500]) {
+    const f = await mount(fixed({ error: { message: "No." } }, status));
+    try {
+      const again = buttons(f.root, "Try again")[0];
+      if (again) { fire(again, "click"); await settle(); }
+      seen.push(...wire(f.f.calls));
+    } finally { f.done(); }
+  }
+  // Recorded on the page before PLAN-3D-ALL U14 changed it.
+  const RECORDED = [
+    "GET /api/apps", "GET /api/apps", "GET /api/apps", "GET /api/apps",
+    "GET /api/apps", 'POST /api/apps/render-to-film/switch {"on":true}', 'POST /api/apps/render-to-film/switch {"on":false}',
+    "GET /api/apps", "POST /api/tasks/STH-2/sites/launch-a/preview {}",
+    "GET /api/apps",
+    "GET /api/apps", "GET /api/apps",
+  ];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});

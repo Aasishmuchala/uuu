@@ -484,3 +484,87 @@ test("app mounted, on: the sentence is the head of the app's window, inside its 
     assert.equal(textOf(kids[0]), TRUST_SHORT);
   } finally { m.done(); }
 });
+
+// ---- PLAN-3D-ALL U14: the bar on the new tokens; the frame, the wire and the sentences exactly as before ----
+
+const wire = (calls) => calls.map((c) => `${c.method || "GET"} ${c.path}${c.body == null ? "" : ` ${JSON.stringify(c.body)}`}`);
+
+test("app: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  // As seeded: on, off, starting, failed, App Studio off, not ready, an unknown app.
+  for (const [v, slug] of [
+    [view([app()])], [view([app({ state: "off", on: false, spending: NOSPEND })])], [view([app({ state: "starting" })])],
+    [view([app({ state: "failed" })])], [view([app()], { host: { state: "off", sentence: "App Studio is off. Run: engine apps on" } })],
+    [view([app({ state: "not_installed", on: false })])], [view([app()]), "no-such-app"],
+  ]) {
+    const m = await mount(fixed(v), slug);
+    try { seen.push(...wire(m.f.calls)); } finally { m.done(); }
+  }
+  // Off: Turn on. On: the model's menu, Allow spending (the sheet: Cancel, then Allow $5 today), Stop spending, Turn off.
+  let current = view([app({ state: "off", on: false, spending: NOSPEND })]);
+  const s = await mount((path, method, body) => {
+    if (method === "POST" && path.endsWith("/switch")) current = view([app(body.on ? { spending: NOSPEND } : { state: "off", on: false, spending: NOSPEND })]);
+    if (method === "POST" && path.endsWith("/thinks")) current = view([app({ spending: NOSPEND, thinks: { model: body.model, name: "Claude Sonnet 5.5", choices: CHOICES } })]);
+    if (method === "POST" && path.endsWith("/allowance")) current = view([app({ spending: { ...NOSPEND, open: true, budget: body.cents, words: "Allowed today: $5.00. Spent: $0.00." } })]);
+    if (method === "POST" && path.endsWith("/allowance/stop")) current = view([app({ spending: NOSPEND })]);
+    return { status: 200, body: current };
+  });
+  try {
+    fire(buttons(s.root, "Turn on")[0], "click");
+    await settle();
+    fire(buttons(s.root, "Thinks with Claude Opus 5.5")[0], "click");
+    await settle();
+    fire(elements(s.root).find((e) => e.getAttribute("role") === "menuitem" && textOf(e).trim() === "Claude Sonnet 5.5"), "click");
+    await settle();
+    fire(buttons(s.root, "Allow spending")[0], "click");
+    await settle();
+    fire(buttons(s.root, "Cancel")[0], "click");
+    await settle();
+    fire(buttons(s.root, "Allow spending")[0], "click");
+    await settle();
+    fire(buttons(s.root, "Allow $5 today")[0], "click");
+    await settle();
+    fire(buttons(s.root, "Stop spending")[0], "click");
+    await settle();
+    fire(buttons(s.root, "Turn off")[0], "click");
+    await settle();
+    seen.push(...wire(s.f.calls));
+  } finally { s.done(); }
+  // Not answered, then failed: the 404 and Try again.
+  for (const status of [404, 500]) {
+    const f = await mount(fixed({ error: { message: "No." } }, status));
+    try {
+      const again = buttons(f.root, "Try again")[0];
+      if (again) { fire(again, "click"); await settle(); }
+      seen.push(...wire(f.f.calls));
+    } finally { f.done(); }
+  }
+  // Recorded on the page before PLAN-3D-ALL U14 changed it.
+  const RECORDED = [
+    "GET /api/apps", "GET /api/apps", "GET /api/apps", "GET /api/apps", "GET /api/apps", "GET /api/apps", "GET /api/apps",
+    "GET /api/apps",
+    'POST /api/apps/render-to-film/switch {"on":true}', 'POST /api/apps/render-to-film/thinks {"model":"claude-sonnet-5-5"}',
+    'POST /api/apps/render-to-film/allowance {"cents":500}', "POST /api/apps/render-to-film/allowance/stop {}",
+    'POST /api/apps/render-to-film/switch {"on":false}',
+    "GET /api/apps",
+    "GET /api/apps", "GET /api/apps",
+  ];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});
+
+test("app: the frame is what it was: its sandbox is SANDBOX, SANDBOX is S2's string, and its address and attributes are unchanged (PLAN-3D-ALL U14, S2)", async () => {
+  assert.equal(SANDBOX, "allow-scripts allow-same-origin allow-forms allow-downloads");
+  const m = await mount(fixed(view([app()])));
+  try {
+    const f = frames(m.root);
+    assert.equal(f.length, 1);
+    // Recorded on the page before PLAN-3D-ALL U14 changed it.
+    const RECORDED = {
+      class: "p-app__frame", title: "Render to Film", sandbox: "allow-scripts allow-same-origin allow-forms allow-downloads",
+      referrerpolicy: "no-referrer", allow: "fullscreen; clipboard-write", src: `${HTTP}${LOOP}:3171/`,
+    };
+    assert.deepEqual(f[0].attrs, RECORDED);
+    assert.equal(f[0].getAttribute("sandbox"), SANDBOX);
+  } finally { m.done(); }
+});
