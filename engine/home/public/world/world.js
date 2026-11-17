@@ -43,7 +43,7 @@ const BUILDING_TEX = [
 const FURNITURE = ["dining_chair_02", "wooden_table_02", "sofa_02", "mid_century_lounge_chair", "modern_wooden_cabinet", "modern_ceiling_lamp_01"];
 // The settled picture (REAL-1): how many frames are averaged once nothing moves, the lens's radius in metres and the
 // sun's in radians. After them nothing is drawn (D4).
-const SETTLE = { desktop: 40, phone: 16 };
+const SETTLE = { desktop: 32, phone: 16 };
 const LENS = { map: 0.085, desk: 0.0055 };
 const SUN_R = 0.022;
 // While something moves the picture is drawn a little smaller and stretched (as games do); the first frame at rest
@@ -81,7 +81,7 @@ function createWorld(tier) {
     handles: new Set(), active: null, releaseTimer: 0, raf: 0, last: 0, frames: 0, ready: false, lost: false, disposed: false,
     scn: null, focus: null, hover: null, pointer: null, safe: null, still: false, theme: "dark", size: { w: 0, h: 0 },
     glide: makeGlide(), viewMode: null, fading: false, intervals: [], frameFns: new Set(), ro: null, building: null,
-    post: makePost(renderer, { phone: tier === "phone" }), settle: SETTLE[tier] || 40, acc: 0, dirty: false, lights: true, haired: false,
+    post: makePost(renderer, { phone: tier === "phone" }), settle: SETTLE[tier] || 32, acc: 0, dirty: false, lights: true, haired: false,
   };
   renderer.setPixelRatio(w.ratio);
   canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); lose(w); }, false);
@@ -404,8 +404,9 @@ function invalidate(w) {
 function tick(w, now) {
   w.raf = 0;
   if (w.disposed) return;
-  // (with motion off the settled picture comes in a few steps, not one frame at a time)
-  if (!w.dirty) { for (let k = w.still ? 8 : 1; k > 0 && w.acc < w.settle; k--) settle(w); if (w.acc < w.settle) schedule(w); return; }
+  // (the settled picture comes two frames at a time, so it is done in about half a second and the page is at rest;
+  // with motion off, in a few steps)
+  if (!w.dirty) { for (let k = w.still ? 8 : 2; k > 0 && w.acc < w.settle; k--) settle(w); if (w.acc < w.settle) schedule(w); return; }
   w.dirty = false;
   const dt = w.last ? Math.min(100, now - w.last) : 16;
   if (w.last) stepDown(w, now - w.last);
