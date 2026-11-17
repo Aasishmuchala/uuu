@@ -203,8 +203,8 @@ test("team: the title and its line stand in the room header with the façade's g
   } finally { await off.done(); }
   const css = readFileSync(new URL("../../styles/pages/team.css", import.meta.url), "utf8");
   const [wide, phone] = [...css.matchAll(/\.p-team \.k-room \{([^}]*)\}/g)].map((x) => x[1]);
-  assert.match(wide, /z-index: 1;\s*margin-top: calc\(-1 \* var\(--s-6\)\);\s*margin-bottom: var\(--s-4\);/, "up into the pane's margin (D9)");
-  assert.match(phone, /margin-top: calc\(-1 \* var\(--s-2\)\);/);
+  assert.match(wide, /z-index: 1;\s*min-height: 120px;\s*margin-top: calc\(-1 \* var\(--s-6\)\);\s*margin-bottom: var\(--s-4\);/, "up into the pane's margin (D9)");
+  assert.match(phone, /min-height: 96px;\s*margin-top: calc\(-1 \* var\(--s-2\)\);/);
   assert.ok(!/data-surface|k-sheet/.test(css) && !/data-surface|<\$\{Sheet\}/.test(readFileSync(new URL("../../pages/team.js", import.meta.url), "utf8")), "nothing on paper here");
 });
 

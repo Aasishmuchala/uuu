@@ -14,9 +14,12 @@
   max-width: var(--content-max);
 }
 
-/* The room header: 24 px up into the pane's top margin, 16 px over the table; one layer above the rows. */
+/* The room header: 24 px up into the pane's top margin, 16 px over the table; one layer above the rows. It holds
+   only the title and its line, so it stands 120 px tall from 860 px (the kit's 152 held the first row 72 px lower
+   than before the band: over D9's 48). */
 .p-team .k-room {
   z-index: 1;
+  min-height: 120px;
   margin-top: calc(-1 * var(--s-6));
   margin-bottom: var(--s-4);
 }
@@ -186,6 +189,7 @@
   }
 
   .p-team .k-room {
+    min-height: 96px;
     margin-top: calc(-1 * var(--s-2));
   }
 

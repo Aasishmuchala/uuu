@@ -63,6 +63,7 @@
 /* The room header: 24 px up into the pane's top margin; the first section's 32 px under it. One layer above. */
 .p-dept .p-dept__head .k-room {
   z-index: 1;
+  min-height: 144px;
   min-width: 0;
   margin-top: calc(-1 * var(--s-6));
   margin-bottom: 0;
@@ -73,6 +74,11 @@
 }
 
 /* The line and the state on one line under the title, at the column's edge. */
+/* The first section stands 24 px under the band, so the first row keeps D9's 48 px (40 on a phone). */
+.p-dept .p-dept__head + .p-dept__section {
+  margin-top: var(--s-6);
+}
+
 /* Over the picture the two links keep a fill, so their edge and words hold where it is bright. */
 .p-dept .k-room .p-dept__actions .k-btn--ghost {
   background: var(--panel);
@@ -685,7 +691,10 @@
   }
 
   .p-dept .p-dept__head .k-room {
+    min-height: 96px;
     margin-top: calc(-1 * var(--s-2));
+    padding-top: var(--s-3);
+    padding-bottom: var(--s-3);
   }
 
   /* The title, its line and its state first; the actions under them. */
@@ -708,7 +717,6 @@
 
   .p-dept .p-dept__head .k-page-header__actions {
     order: 3;
-    margin-top: var(--s-2);
   }
 
   .p-dept .p-dept__needs {
