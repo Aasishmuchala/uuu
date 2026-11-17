@@ -15,6 +15,8 @@ const COOK_ICONS =
 const T97_ICONS = ["copy"];
 // File kinds on a task page (round A3): a code file and a 3D model.
 const A3_ICONS = ["code", "cube"];
+// PLAN-3D-ALL U16: a door open or shut beside its words (Settings asked for them).
+const U16_ICONS = ["door-open", "door-shut"];
 
 const kit = { icon: await import(pathToFileURL(join(KIT, "icon.js")).href) };
 
@@ -26,7 +28,7 @@ test("ICON_NAMES holds every icon name of 13.1, and each draws something", () =>
 test("ICON_NAMES holds every icon name of V3 28, and every icon draws at least one stroke", async () => {
   const { ICON_NAMES } = kit.icon;
   for (const n of V3_ICONS) assert.ok(ICON_NAMES.includes(n), `icon ${n}`);
-  for (const n of [...COOK_ICONS, ...T97_ICONS]) assert.ok(ICON_NAMES.includes(n), `icon ${n}`);
+  for (const n of [...COOK_ICONS, ...T97_ICONS, ...U16_ICONS]) assert.ok(ICON_NAMES.includes(n), `icon ${n}`);
   assert.equal(new Set(ICON_NAMES).size, ICON_NAMES.length, "no name twice");
   installDom();
   for (const n of ICON_NAMES) {
@@ -41,7 +43,7 @@ test("ICON_NAMES holds every icon name of V3 28, and every icon draws at least o
 
 test("the full icon name list is pinned: every older name is kept and the cook names are added, nothing else", () => {
   const { ICON_NAMES } = kit.icon;
-  const want = [...PINNED_ICONS, ...V3_ICONS, "apps", ...COOK_ICONS, ...T97_ICONS, ...A3_ICONS].sort();
+  const want = [...PINNED_ICONS, ...V3_ICONS, "apps", ...COOK_ICONS, ...T97_ICONS, ...A3_ICONS, ...U16_ICONS].sort();
   assert.deepEqual([...ICON_NAMES].sort(), want);
 });
 
