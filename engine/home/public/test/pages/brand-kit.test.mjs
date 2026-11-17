@@ -377,7 +377,8 @@ test("brand kit: the part's name and its line stand in the room header with the 
       assert.equal(textOf(h1[0]), m.SECTIONS.find((s) => s.id === m.sectionOf(new URLSearchParams(query))).label);
       assert.equal(byCls(band[0], "k-tag").length, 1, "the part's line is the band's state");
       assert.equal(byCls(k.root, "k-doc__head").length, 0, "DocLayout draws no head");
-      assert.equal(byCls(k.root, "k-doc__intro").length, 1, "the part's intro stays in the column");
+      assert.equal(byCls(k.root, "k-doc__intro").length, 0, "the part's intro is the band's lede, so the column starts with the form (D9)");
+      assert.equal(textOf(byCls(band[0], "k-page-header__lede")[0]), { logo: m.PARTS[3].changes, colours: m.PARTS[1].changes, references: m.SECTION_WORDS.referencesIntro }[m.sectionOf(new URLSearchParams(query))]);
       const band0 = elements(band[0]).filter((e) => e.localName === "img");
       assert.equal(band0.length, 1);
       assert.equal(band0[0].getAttribute("src"), glimpseSrc("shelves", { theme: "dark", width: 1280 }));

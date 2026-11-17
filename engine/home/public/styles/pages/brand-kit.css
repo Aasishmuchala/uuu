@@ -4,9 +4,10 @@
    passed the kit's patterns, and only inside the boxes that show them (swatches, grounds, samples): the screen's own
    chrome stays grey and in the system face, so the owner's colours are the only colour on it. */
 
-/* PLAN-3D-ALL U9: the part's name and its line stand in the room header (kit/room.css), the book wall's glimpse
-   behind them, above the list of parts and the column, as Settings' band stands above its frame: the kit's smallest
-   band (96 px), so the form stays as quick to reach as before. The form, the swatches, the grounds and the pickers
+/* PLAN-3D-ALL U9: the part's name, its line and what it changes (one sentence, no money or safety words) stand in
+   the room header (kit/room.css), the book wall's glimpse behind them, above the list of parts and the column, as
+   Settings' band stands above its frame: the kit's smallest band (96 px), and the column starts with the form, so
+   it stays as quick to reach as before. The form, the swatches, the grounds and the pickers
    stay on the ground and panels: no paper, no tint, no scrim over an owner's colour. */
 .p-brand-kit {
   display: flex;
@@ -39,8 +40,8 @@
   padding-top: var(--s-6);
 }
 
-.p-brand-kit .k-doc__main > .k-doc__intro:first-child {
-  margin-top: 0;
+.p-brand-kit > .k-room .k-page-header__lede {
+  max-width: 640px;
 }
 
 .p-brand-kit p {
@@ -108,6 +109,13 @@
 
 .p-brand-kit .p-brand-kit__top:empty + .k-group {
   margin-top: var(--s-6);
+}
+
+/* The column starts with the form (PLAN-3D-ALL U9): the part's sentence now stands in the band, so nothing above
+   the first block keeps the gap it had under that sentence. */
+.p-brand-kit .k-doc__main > .p-brand-kit__top:first-child,
+.p-brand-kit .k-doc__main > .p-brand-kit__top:first-child:empty + * {
+  margin-top: 0;
 }
 
 .p-brand-kit .p-brand-kit__notice-actions {

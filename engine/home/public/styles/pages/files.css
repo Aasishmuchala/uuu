@@ -28,6 +28,16 @@
   padding-bottom: var(--s-5);
 }
 
+/* An opened file's band holds its name alone: the kit's smallest band, so its facts and actions stay as quick to
+   reach as before (D9). */
+@media (min-width: 860px) {
+  .p-files.p-files--file > .k-room {
+    min-height: 96px;
+    padding-top: var(--s-4);
+    padding-bottom: var(--s-4);
+  }
+}
+
 .p-files > .k-room .k-room__img {
   object-position: 70% 40%;
 }
@@ -545,7 +555,7 @@
 }
 
 .p-files .p-files__lessons > .k-group:first-child {
-  margin-top: var(--s-6);
+  margin-top: var(--s-4);
 }
 
 .p-files .p-files__lesson-list {
