@@ -36,7 +36,7 @@ export const SHADE_GLOW = { on: 0.3, amber: 0.45, red: 0.5, off: 0 };
 // At dusk (REAL-1) a lit lamp's shade is opal glass that glows in the state's colour, so the state reads from above
 // and from across the forecourt, with the camera's bloom round it; an unlit shade is the dark lacquer.
 // (amber and red glow less than white does: brighter, the film curve would wash both toward the same pale cream)
-export const SHADE_NIGHT = { on: 2.2, amber: 1.5, red: 1.3, off: 0 };
+export const SHADE_NIGHT = { on: 2.2, amber: 2.6, red: 2.6, off: 0 };
 export const GLOW_K = { on: 1, amber: 0.42, red: 0.36 };
 
 export function makeRoomLight() {
