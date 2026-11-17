@@ -110,3 +110,67 @@ test("team: the department is a link with its line icon, not a coloured chip", (
   assert.match(flat, /Marketing/);
   assert.doesNotMatch(readFileSync(new URL("../../pages/team.js", import.meta.url), "utf8"), /Creature/);
 });
+
+// ---- Mounted in the shared test DOM with a fake fetch (PLAN-3D-ALL U10). ----
+const dom = await import("../kit/_dom.mjs");
+const { html, render } = dom;
+const { AppContext } = await import("../../lib/context.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const byCls = (root, c) => dom.elements(root).filter((e) => dom.classesOf(e).includes(c));
+
+// Mounts #/team with `answers(path)` (undefined: never answered); every request is recorded as `METHOD path`.
+async function mountTeam(answers, { query = "" } = {}) {
+  dom.installDom();
+  globalThis.document.visibilityState = "visible";
+  const hash = `#/team${query ? `?${query}` : ""}`;
+  globalThis.location = { hash, href: `/${hash}`, search: "" };
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts = {}) => {
+    const m = opts.method || "GET";
+    calls.push(`${m} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}${m === "GET" ? "" : ` ${JSON.stringify(opts.headers)}`}`);
+    const data = answers(String(path), m);
+    if (data === undefined) return new Promise(() => {});
+    return data ? { ok: true, status: 200, json: async () => data } : { ok: false, status: 500, json: async () => ({}) };
+  };
+  const tops = [];
+  const nothing = () => {};
+  const ctx = { shell: shape("shell"), refreshShell: nothing, announce: nothing, openComposer: nothing, openNeeds: nothing, dock: [], setTop: (t) => tops.push(t), settings: { motion: "off", theme: "dark" } };
+  const root = new dom.FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${page.default} route=${{ id: "team", parts: ["team"], query: new URLSearchParams(query) }} /><//>`, root);
+  await dom.settle();
+  return { root, calls, tops, done: async () => { render(null, root); root.remove(); await dom.settle(50); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+const SEEDED = (over = {}) => (path) => {
+  const all = { "/api/team": shape("team"), "/api/map": shape("map"), "/api/models": shape("models"), ...over };
+  return Object.hasOwn(all, path) ? all[path] : null;
+};
+
+test("team: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  const off = { ...shape("team"), connected: false, notConnected: { reason: "The board is switched off, so agents and tasks cannot be reached.", next: "Open Health to see how to start it." } };
+  for (const answers of [SEEDED(), SEEDED({ "/api/team": off }), SEEDED({ "/api/team": undefined }), SEEDED({ "/api/team": null })]) {
+    const m = await mountTeam(answers);
+    try { seen.push(...m.calls); } finally { await m.done(); }
+  }
+  // Recorded on the page before PLAN-3D-ALL U10 changed it.
+  const RECORDED = [
+    "GET /api/team",
+    "GET /api/map",
+    "GET /api/models",
+    "GET /api/team",
+    "GET /api/map",
+    "GET /api/models",
+    "GET /api/team",
+    "GET /api/map",
+    "GET /api/models",
+    "GET /api/team",
+    "GET /api/map",
+    "GET /api/models",
+  ];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});

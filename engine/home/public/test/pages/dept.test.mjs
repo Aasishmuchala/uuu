@@ -377,3 +377,91 @@ test("dept: every count is one muted figure; what needs you is neutral rows with
   assert.equal(page.whoOf({}), "");
   assert.match(css, /\.p-dept \.p-dept__agents \.k-agent__summary \{\s*max-width: none;/, "the agents' words run the panel's width");
 });
+
+// ---- Mounted in the shared test DOM with a fake fetch (PLAN-3D-ALL U10). ----
+const dom = await import("../kit/_dom.mjs");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const byCls = (root, c) => dom.elements(root).filter((e) => dom.classesOf(e).includes(c));
+const fire = (el, type, ev = {}) => { for (const f of el.listeners[type] || []) f.call(el, { type, preventDefault() {}, stopPropagation() {}, ...ev }); };
+
+// Mounts #/departments/<id> with `answers(path)` (undefined: never answered); every request is recorded as
+// `METHOD path body headers` (the body and headers only when there are any to send).
+async function mountDept(answers, { id = "sales", query = "", shell = shape("shell"), opened = [] } = {}) {
+  dom.installDom();
+  globalThis.document.visibilityState = "visible";
+  const hash = `#/departments/${id}${query ? `?${query}` : ""}`;
+  globalThis.location = { hash, href: `/${hash}`, search: "" };
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts = {}) => {
+    const m = opts.method || "GET";
+    calls.push(`${m} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}${m === "GET" ? "" : ` ${JSON.stringify(opts.headers)}`}`);
+    const data = answers(String(path), m);
+    if (data === undefined) return new Promise(() => {});
+    return data ? { ok: true, status: 200, json: async () => data } : { ok: false, status: 404, json: async () => ({ error: { code: "not_found", message: "Not found" } }) };
+  };
+  const tops = [];
+  const nothing = () => {};
+  const ctx = {
+    shell, shellError: null, refreshShell: nothing, announce: nothing, openComposer: nothing, openPanel: nothing, closePanel: nothing,
+    openNeeds: (o) => opened.push(o), closeNeeds: nothing, dock: [], setTop: (t) => tops.push(t), settings: { motion: "off", theme: "dark" },
+  };
+  const root = new dom.FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${page.default} route=${{ id: "dept", parts: ["departments", id], query: new URLSearchParams(query) }} /><//>`, root);
+  await dom.settle();
+  return { root, calls, tops, done: async () => { render(null, root); root.remove(); await dom.settle(50); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+const SEEDED = (over = {}) => (path, method) => {
+  if (method === "POST" && path === "/api/goals") return { goal: { id: "e0000000-0000-4000-8000-000000000099", identifier: "STH-99" } };
+  const all = { "/api/map/sales": shape("department"), "/api/map": shape("map"), "/api/home": shape("home"), ...over };
+  return Object.hasOwn(all, path) ? all[path] : null;
+};
+
+test("dept: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  // The department as seeded; the board off; a department that is not there; the board's answer not in yet.
+  for (const [answers, opts] of [
+    [SEEDED(), {}],
+    [SEEDED({ "/api/map/sales": departmentWithBoardOff(), "/api/map": { ...shape("map"), boardOff: { reason: "r", next: "n" } } }), {}],
+    [SEEDED(), { id: "nowhere" }],
+    [SEEDED({ "/api/map/sales": undefined }), {}],
+  ]) {
+    const m = await mountDept(answers, opts);
+    try { seen.push(...m.calls); } finally { await m.done(); }
+  }
+  // Giving it a task from the composer: the words typed, then Enter.
+  const m = await mountDept(SEEDED());
+  try {
+    const [box] = dom.elements(m.root).filter((e) => e.localName === "textarea");
+    fire(box, "Input", { currentTarget: { value: "Write to Asha.", selectionStart: 14 } });
+    await dom.settle(50);
+    fire(box, "KeyDown", { key: "Enter", shiftKey: false });
+    await dom.settle();
+    seen.push(...m.calls);
+  } finally { await m.done(); }
+  // Recorded on the page before PLAN-3D-ALL U10 changed it.
+  const RECORDED = [
+    "GET /api/map/sales",
+    "GET /api/map",
+    "GET /api/home",
+    "GET /api/map/sales",
+    "GET /api/map",
+    "GET /api/home",
+    "GET /api/map/nowhere",
+    "GET /api/map",
+    "GET /api/home",
+    "GET /api/map/sales",
+    "GET /api/map",
+    "GET /api/home",
+    "GET /api/map/sales",
+    "GET /api/map",
+    "GET /api/home",
+    `POST /api/goals {"text":"Write to Asha.","to":"artist"} {"Accept":"application/json","Content-Type":"application/json","X-Engine":"1"}`,
+    "GET /api/map/sales",
+  ];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});

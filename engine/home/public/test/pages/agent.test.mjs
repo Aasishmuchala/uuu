@@ -158,3 +158,143 @@ test("agent: the work's group labels sit over a hairline with no band; a long li
   const src = readFileSync(new URL("../../pages/agent.js", import.meta.url), "utf8");
   assert.match(src, /const Count = \(\{ n \}\) => \(n \? html`<span class="p-agent__count">\$\{n\}<\/span>`/, "a count is a muted figure");
 });
+
+// ---- Mounted in the shared test DOM with a fake fetch (PLAN-3D-ALL U10). ----
+const dom = await import("../kit/_dom.mjs");
+const { html, render } = dom;
+const { AppContext } = await import("../../lib/context.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const byCls = (root, c) => dom.elements(root).filter((e) => dom.classesOf(e).includes(c));
+const fire = (el, type, ev = {}) => { for (const f of el.listeners[type] || []) f.call(el, { type, preventDefault() {}, stopPropagation() {}, ...ev }); };
+const button = (root, words) => dom.elements(root).find((e) => e.localName === "button" && dom.textOf(e).trim() === words);
+
+// Mounts #/team/<slug> with `answers(path, method)` (undefined: never answered); every request is recorded as
+// `METHOD path body headers` (the body and headers only when there are any to send).
+async function mountAgent(answers, { slug = "artist", query = "" } = {}) {
+  dom.installDom();
+  globalThis.document.visibilityState = "visible";
+  globalThis.document.getElementById = () => null;
+  const hash = `#/team/${slug}${query ? `?${query}` : ""}`;
+  globalThis.location = { hash, href: `/${hash}`, search: "" };
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts = {}) => {
+    const m = opts.method || "GET";
+    calls.push(`${m} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}${m === "GET" ? "" : ` ${JSON.stringify(opts.headers)}`}`);
+    const data = answers(String(path), m);
+    if (data === undefined) return new Promise(() => {});
+    return data ? { ok: true, status: 200, json: async () => data } : { ok: false, status: 404, json: async () => ({ error: { code: "not_found", message: "Not found" } }) };
+  };
+  const tops = [];
+  const said = [];
+  const nothing = () => {};
+  const ctx = { shell: shape("shell"), refreshShell: nothing, announce: (s) => said.push(s), openComposer: nothing, openNeeds: nothing, dock: [], setTop: (t) => tops.push(t), settings: { motion: "off", theme: "dark" } };
+  const root = new dom.FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${page.default} route=${{ id: "agent", parts: ["team", slug], query: new URLSearchParams(query) }} /><//>`, root);
+  await dom.settle();
+  return { root, calls, tops, said, done: async () => { render(null, root); root.remove(); await dom.settle(50); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+const agentWith = (over = {}) => { const d = shape("agent"); return { ...d, agent: { ...d.agent, ...over } }; };
+const SEEDED = (over = {}) => (path, method) => {
+  if (method !== "GET") return path === "/api/goals" ? { goal: { id: "e0000000-0000-4000-8000-000000000099", identifier: "STH-99" } } : { ok: true };
+  const all = { "/api/team/artist": shape("agent"), "/api/map": shape("map"), "/api/models": shape("models"), "/api/map/sales": shape("department"), ...over };
+  return Object.hasOwn(all, path) ? all[path] : null;
+};
+
+test("agent: the page sends what it sent before: the reads, Pause, Resume, a lesson and a task (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  for (const [answers, opts] of [
+    [SEEDED(), {}],
+    [SEEDED({ "/api/team/artist": { ...shape("agent"), connected: false, notConnected: { reason: "r", next: "n" } } }), {}],
+    [SEEDED(), { slug: "nobody" }],
+    [SEEDED({ "/api/team/artist": undefined }), {}],
+    [SEEDED(), { query: "tab=lessons" }],
+  ]) {
+    const m = await mountAgent(answers, opts);
+    try { seen.push(...m.calls); } finally { await m.done(); }
+  }
+  // Pause, as the owner clicks it.
+  let m = await mountAgent(SEEDED({ "/api/team/artist": agentWith({ state: "working", plainState: "Working" }) }));
+  try {
+    fire(button(m.root, "Pause"), "Click");
+    await dom.settle();
+    seen.push(...m.calls);
+  } finally { await m.done(); }
+  // Resume, on a paused agent and on a stuck one.
+  for (const state of ["paused", "problem"]) {
+    m = await mountAgent(SEEDED({ "/api/team/artist": agentWith({ state, plainState: state === "paused" ? "Paused" : "Stuck: it needs the books switched on." }) }));
+    try {
+      fire(button(m.root, "Resume"), "Click");
+      await dom.settle();
+      seen.push(...m.calls);
+    } finally { await m.done(); }
+  }
+  // A lesson added, and a task given from the composer.
+  m = await mountAgent(SEEDED());
+  try {
+    const field = dom.elements(m.root).find((e) => e.localName === "input" && e.getAttribute("aria-label") === "A new lesson");
+    fire(field, "Input", { currentTarget: { value: "Keep the frames square." } });
+    await dom.settle(50);
+    const form = dom.elements(m.root).find((e) => e.localName === "form");
+    fire(form, "Submit");
+    await dom.settle();
+    const [box] = dom.elements(m.root).filter((e) => e.localName === "textarea");
+    fire(box, "Input", { currentTarget: { value: "Draw a cat.", selectionStart: 11 } });
+    await dom.settle(50);
+    fire(box, "KeyDown", { key: "Enter", shiftKey: false });
+    await dom.settle();
+    seen.push(...m.calls);
+  } finally { await m.done(); }
+  // Recorded on the page before PLAN-3D-ALL U10 changed it.
+  const RECORDED = [
+    "GET /api/team/artist",
+    "GET /api/map",
+    "GET /api/models",
+    "GET /api/map/sales",
+    "GET /api/team/artist",
+    "GET /api/map",
+    "GET /api/models",
+    "GET /api/map/sales",
+    "GET /api/team/nobody",
+    "GET /api/map",
+    "GET /api/models",
+    "GET /api/team/artist",
+    "GET /api/map",
+    "GET /api/models",
+    "GET /api/team/artist",
+    "GET /api/map",
+    "GET /api/models",
+    "GET /api/map/sales",
+    "GET /api/team/artist",
+    "GET /api/map",
+    "GET /api/models",
+    "GET /api/map/sales",
+    `POST /api/company/agents/a0000000-0000-4000-8000-000000000010/pause {} {"Accept":"application/json","Content-Type":"application/json","X-Engine":"1"}`,
+    "GET /api/team/artist",
+    "GET /api/team/artist",
+    "GET /api/map",
+    "GET /api/models",
+    "GET /api/map/sales",
+    `POST /api/company/agents/a0000000-0000-4000-8000-000000000010/resume {} {"Accept":"application/json","Content-Type":"application/json","X-Engine":"1"}`,
+    "GET /api/team/artist",
+    "GET /api/team/artist",
+    "GET /api/map",
+    "GET /api/models",
+    "GET /api/map/sales",
+    `POST /api/company/agents/a0000000-0000-4000-8000-000000000010/resume {} {"Accept":"application/json","Content-Type":"application/json","X-Engine":"1"}`,
+    "GET /api/team/artist",
+    "GET /api/team/artist",
+    "GET /api/map",
+    "GET /api/models",
+    "GET /api/map/sales",
+    `POST /api/team/artist/lessons {"text":"Keep the frames square."} {"Accept":"application/json","Content-Type":"application/json","X-Engine":"1"}`,
+    "GET /api/team/artist",
+    `POST /api/goals {"text":"Draw a cat.","to":"artist"} {"Accept":"application/json","Content-Type":"application/json","X-Engine":"1"}`,
+    "GET /api/team/artist",
+  ];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});
