@@ -305,3 +305,67 @@ test("studio: a media part takes one column a card up to four, all four while lo
   assert.equal(spanOf("3"), 1);
   assert.equal(spanOf(-2), 1);
 });
+
+// ---- Mounted in the test DOM with a fake fetch (PLAN-3D-ALL U13). ----
+const { FakeElement, html, render, installDom, elements, classesOf, walkDom } = await import("../kit/_dom.mjs");
+const { AppContext } = await import("../../lib/context.js");
+const FILM_ID = "e0000000-0000-4000-8000-000000000041";
+const ROOM = { path: "/Users/someone/Studio room", limits: { clipBytes: 2147483648 }, files: [{ name: "lake.mp4", size: 1048576, changed: "2026-11-12T10:00:00.000Z" }] };
+
+// The server's answer for each path: the pinned shapes, the room above, and every door off.
+function studioAnswers(over = {}) {
+  const films = shape("films");
+  const base = {
+    "/api/studio/art": shape("studio-art"), "/api/departments/studio": shape("department"),
+    "/api/studio/slides": shape("studio-slides"), "/api/studio/videos": shape("studio-videos"), "/api/studio/room": ROOM,
+    "/api/studio/films": films.list, [`/api/studio/films/${FILM_ID}`]: films.film,
+    "/api/generation": { ...shape("generation"), on: false }, "/api/viewer": { ...shape("viewer"), on: false }, "/api/web": { ...shape("web"), on: false },
+    "/api/map/studio": shape("map"), "/api/studio/art/sprite?id=STH-8%2Fwalker": shape("sprite"),
+  };
+  return { ...base, ...over };
+}
+
+async function mountStudio(answers, { query = "" } = {}) {
+  installDom();
+  globalThis.document.visibilityState = "visible";
+  const hash = `#/dashboards/studio${query ? `?${query}` : ""}`;
+  globalThis.location = { hash, href: `/${hash}`, search: "" };
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts = {}) => {
+    calls.push(`${opts.method || "GET"} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}`);
+    const body = Object.hasOwn(answers, path) ? answers[path] : null;
+    return { ok: !!body, status: body ? 200 : 404, json: async () => body || { error: { message: "Not here.", code: "not_found" } } };
+  };
+  const tops = [];
+  const ctx = { shell: { team: shape("shell").team, dock: [] }, setTop: (t) => tops.push(t), announce() {}, openComposer() {}, openPanel() {}, closePanel() {}, settings: { motion: "off", theme: "dark" } };
+  const root = new FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${studio.default} route=${{ id: "studio", parts: ["dashboards", "studio"], query: new URLSearchParams(query) }} /><//>`, root);
+  // Every answer, then the films' own and an opened sprite's, have come in.
+  for (let i = 0, n = -1; i < 8 && n !== calls.length; i += 1) { n = calls.length; await new Promise((r) => setTimeout(r, 250)); }
+  return { root, calls, tops, done: () => { render(null, root); root.remove(); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+test("studio: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  for (const query of ["", "video=STH-25%2Ftitle", "sprite=STH-8%2Fwalker", "slides=STH-24%2Flaunch", `film=${FILM_ID}`]) {
+    const m = await mountStudio(studioAnswers(), { query });
+    try { seen.push(`# ${query || "plain"}`, ...[...m.calls].sort()); } finally { m.done(); }
+  }
+  // Recorded on the page before PLAN-3D-ALL U13 changed it (each mount's requests sorted: the order of answers in
+  // flight is the machine's, not the page's).
+  const READS = ["GET /api/departments/studio", "GET /api/generation", "GET /api/map/studio", "GET /api/studio/art"];
+  const LISTS = ["GET /api/studio/room", "GET /api/studio/slides", "GET /api/studio/videos", "GET /api/viewer", "GET /api/web"];
+  const FILMS = "GET /api/studio/films";
+  const FILM = `GET /api/studio/films/${FILM_ID}`;
+  const RECORDED = [
+    "# plain", ...READS, FILMS, FILM, ...LISTS,
+    "# video=STH-25%2Ftitle", ...READS, FILMS, FILM, ...LISTS,
+    "# sprite=STH-8%2Fwalker", ...READS, "GET /api/studio/art/sprite?id=STH-8%2Fwalker", FILMS, FILM, ...LISTS,
+    "# slides=STH-24%2Flaunch", ...READS, FILMS, FILM, ...LISTS,
+    `# film=${FILM_ID}`, ...READS, FILMS, FILMS, FILM, FILM, ...LISTS,
+  ];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});
