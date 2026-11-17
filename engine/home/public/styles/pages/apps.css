@@ -19,6 +19,8 @@
 /* Over the picture App Studio's own state keeps its first ink, so it holds where the picture is bright; the filter
    stands on the panel by the kit's own rule (PLAN-3D-ALL U16). */
 .p-apps > .k-room .p-apps__host .k-st { color: var(--ink); }
+/* App Studio's own sentence stands on a plate of the panel, never on the picture (S1; PLAN-3D-ALL U17). */
+.p-apps > .k-room .p-apps__host { padding: var(--s-1) var(--s-2); border-radius: var(--r-1); background: var(--panel); }
 
 /* The bar: the filter at the left, App Studio's state at the right, on one line while they fit. */
 .p-apps .p-apps__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); min-width: 0; }

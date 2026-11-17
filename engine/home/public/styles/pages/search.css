@@ -15,6 +15,8 @@
 .p-search .k-notice .p-search__list li { padding: 2px 0; }
 @media (max-width: 859px) {
   .p-search .p-search__item { padding: var(--s-3) var(--s-2); }
+  /* A result's name is a 44 px target on a phone (PLAN-3D-ALL U17: 20 px). */
+  .p-search a.p-search__title { display: inline-flex; align-items: center; min-height: 44px; }
 }
 
 /* The room header: 16 px over the first group; the kit's `pull` and layer put it in the pane's margin, above the rows

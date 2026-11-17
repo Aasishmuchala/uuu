@@ -111,6 +111,8 @@
 /* Below 860 px: two rows. The state and what it may spend, then the controls (the model's menu as a mark). Every
    control 44 px; the window's head takes two lines where it needs them. */
 @media (max-width: 859px) {
+  /* Each amount of the allowance sheet is a 44 px target on a phone (PLAN-3D-ALL U17: 40 px). */
+  .p-app .p-app__amount-row .p-app__amount { min-height: 44px; }
   .p-app { margin: calc(-1 * var(--s-2)) calc(-1 * var(--s-2)) 0; height: calc(100dvh - var(--topbar-h) - var(--tabbar-h)); }
   .p-app .p-app__bar { flex-wrap: wrap; gap: var(--s-2); padding: var(--s-2); }
   .p-app .p-app__who { flex: 1 1 100%; flex-wrap: wrap; gap: var(--s-1) var(--s-2); }

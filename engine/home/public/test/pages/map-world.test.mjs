@@ -131,6 +131,28 @@ test("each agent row's state is the server's plainState, whole; doors' and apps'
   } finally { m.done(); }
 });
 
+// PLAN-3D-ALL U17: the lamp and the words agree. An agent with something in the queue is amber while the server's
+// state reads "Free" or "Working"; its row keeps the server's words whole and says "Waiting for you" too.
+test("an amber lamp's row says Waiting for you when the server's state words do not; no other row does", async () => {
+  const fx = { ...F.seed, world: { ...F.seed.world, rooms: F.seed.world.rooms.map((r, i) => (i === 0
+    ? { ...r, agents: r.agents.map((a, j) => (j === 0 ? { ...a, state: "free", plainState: "Free", waitingForYou: true } : { ...a, waitingForYou: false })) }
+    : r)) } };
+  const m = await mountMap(fx);
+  try {
+    const rows = withClass(m.root, "p-map__agent");
+    assert.ok(rows.length > 1);
+    let amber = 0;
+    for (const row of rows) {
+      const lamp = withClass(row, "p-map__lamp")[0];
+      const words = withClass(row, "p-map__agent-state").map(onlyText)[0] || "";
+      const wait = withClass(row, "p-map__agent-wait").map(onlyText);
+      if (classesOf(lamp).includes("p-map__lamp--amber") && !/wait/i.test(words)) { amber++; assert.deepEqual(wait, ["Waiting for you"]); }
+      else assert.deepEqual(wait, [], "only an amber lamp whose words say otherwise");
+    }
+    assert.ok(amber >= 1, "the queued agent is amber and says so");
+  } finally { m.done(); }
+});
+
 test("the money line goes to the top bar whole; under 860 px it is also the page's own line, whole", async () => {
   const m = await mountMap(F.seed);
   try {

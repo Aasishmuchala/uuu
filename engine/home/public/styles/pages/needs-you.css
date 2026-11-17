@@ -18,6 +18,13 @@
   display: block;
 }
 
+/* There the pane has no padding for the desk's strip to reach past: it keeps to the pane's width, so the page is not
+   16 px wider than a phone (PLAN-3D-ALL U17: the shotlist's confirm ran off the screen's right edge). */
+.p-needs-you.p-needs-you--stage .p-needs-you__strip {
+  margin-right: 0;
+  margin-left: 0;
+}
+
 /* ---- The desk, from 1280 px. The page reaches past the pane's padding and its centred width to the whole page
    column (the window less the sidebar, --s-side-w), the top bar's height under it, and scrolls nowhere itself: the
    sheet and the list scroll on their own. Columns: the sheet (at most 640 px), the free area (at least 320 px, so the
