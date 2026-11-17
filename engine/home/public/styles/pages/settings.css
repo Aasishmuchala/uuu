@@ -74,6 +74,10 @@
     padding: var(--s-2) var(--s-4);
     justify-content: center;
   }
+  /* The row of names keeps the kit's phone spacing (the wide list's 24 px top is for the column beside it). */
+  .p-settings .k-doc__list {
+    padding-top: 0;
+  }
   .p-settings .k-doc__main {
     padding-top: var(--s-3);
   }
