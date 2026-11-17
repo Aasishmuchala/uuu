@@ -24,6 +24,12 @@
 // shown as text only, sizes capped, no link followed. A result file's text is read once through GET /api/view/<token>
 // (the reader kit/checks.js Evidence uses: the server answers text only as JSON, never as a page) and drawn by the
 // kit's Markdown as elements, never set as HTML.
+// PLAN-3D-ALL U8: a surface screen. The column's title, its line of facts and its turn stand in the room header
+// (kit/room.js), the picture of the task's department's room (else the desk); the conversation, the rail, the
+// checks and the composer stay on the ground and the panels. On paper (kit/sheet.js) only what the owner reads and
+// decides: a document of the story (the brief, the plan, the summary), the result's text being read, a question's
+// answer, each other thing waiting on the owner, and the pick (its foot on a site's stage, the whole card while it
+// waits). A site's stage and strip are never on paper and its pictures never tinted; the stage keeps its own title.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
@@ -31,9 +37,9 @@ import { bytes, fullWhen, waitingLine, when } from "../lib/format.js";
 import { go } from "../lib/router.js";
 import {
   AnswerView, Avatar, Blk, Button, Card, Chip, CheckList, Conversation, DecisionCard, DocView, Empty, ErrorNotice, Evidence,
-  FILE_ICONS, FileCard, Icon, Loading, Markdown, Menu, PageHeader, PickCard, PickFoot, PickNudge, Scores, SiteFold, SiteRail, SiteStage, SiteStrip, SiteView,
-  StageLayout, StatusDot, Tabs, TextArea, Timeline, Versions, brandLine, changedText, durationWords, fileKind, frontMatter,
-  isChangedSinceSeen, isPickItem, jobHref, stageLabel, stageOf, useInboxAct, useSiteView, versionsOf,
+  FILE_ICONS, FileCard, Icon, Loading, Markdown, Menu, PickCard, PickFoot, PickNudge, Scores, SiteFold, SiteRail, SiteStage, SiteStrip, SiteView,
+  RoomHeader, Sheet, StageLayout, StatusDot, Tabs, TextArea, Timeline, Versions, brandLine, changedText, durationWords, fileKind, frontMatter,
+  glimpseFor, isChangedSinceSeen, isPickItem, jobHref, stageLabel, stageOf, useInboxAct, useSiteView, versionsOf,
 } from "../kit/index.js";
 
 const BACK = { href: "#/tasks", label: "All tasks" };
@@ -729,14 +735,14 @@ function DocItem({ item, open, onToggle }) {
   return html`
     <div class="p-task__docitem">
       <${Conversation} messages=${[{ marker: item.marker }]} />
-      <div class="p-task__docbox">
+      <${Sheet} as="article" label=${cap(item.label, 40) || "A document"}><div class="p-task__docbox">
         <button type="button" class="p-task__doc-toggle" aria-expanded=${open ? "true" : "false"} aria-controls=${box}
           onClick=${onToggle}>
           <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${14} />
           <span>${open ? "Hide" : "Read"} the ${cap(item.label, 40).toLowerCase() || "document"}</span>
         </button>
         ${open ? html`<div class="p-task__doc" id=${box}><${DocView} doc=${item.doc} unclear=${item.unclear} /></div>` : null}
-      </div>
+      </div><//>
     </div>`;
 }
 
@@ -751,7 +757,7 @@ function Story({ id, items, query }) {
   for (const it of items) {
     if (it.kind === "message") { run.push(it.message); continue; }
     flush();
-    if (it.kind === "answer") blocks.push(html`<${AnswerView} key="answer" ask=${it.ask} />`);
+    if (it.kind === "answer") blocks.push(html`<div key="answer" class="p-task__paper"><${Sheet} wide=${true}><${AnswerView} ask=${it.ask} /><//></div>`);
     else if (it.kind === "doc") {
       const open = query.get("doc") === it.id;
       blocks.push(html`<${DocItem} key=${`d${it.id}`} item=${it} open=${open}
@@ -812,7 +818,7 @@ function Reader({ file, openPanel }) {
       openPanel(html`<div class="p-task"><div class="p-task__read-whole"><${ReadText} ...${read} truncated=${data.truncated === true} /></div></div>`, { title: name });
     } else setWide(!wide);
   };
-  return html`
+  return html`<div class="p-task__paper p-task__paper--read"><${Sheet} wide=${true}>
     <${Card} padding="none" class="p-task__read" role="region" aria-label=${`${READ_WORDS.label}: ${name}`}>
       <div class="p-task__read-head">
         <span class="p-task__read-icon"><${Icon} name=${FILE_ICONS[kind]} size=${16} /></span>
@@ -824,7 +830,8 @@ function Reader({ file, openPanel }) {
       <div class=${`p-task__read-body${more && !wide ? " p-task__read-body--more" : ""}${wide ? " p-task__read-body--whole" : ""}`} ref=${body}>
         <${ReadText} ...${read} truncated=${data.truncated === true} />
       </div>
-    <//>`;
+    <//>
+  <//></div>`;
 }
 
 function FilesPanel({ files }) {
@@ -917,7 +924,7 @@ export default function Page({ route }) {
     const missing = res.error && (res.error.code === "task_not_found" || res.error.status === 404);
     return html`
       <div class="p-task" ref=${root}>
-        <${PageHeader} title=${missing ? "Task not found" : "Task"} back=${BACK} crumbs=${crumbs} />
+        <${RoomHeader} glimpse=${res.error ? glimpseFor("task") : null} title=${missing ? "Task not found" : "Task"} back=${BACK} crumbs=${crumbs} />
         ${missing ? html`<${Empty} title="That task is not here."><a class="p-task__empty-link" href="#/tasks">All tasks</a><//>`
           : res.loading || !res.error ? html`<${Loading} lines=${6} label="Loading the task" />`
           : html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`}
@@ -964,7 +971,7 @@ export default function Page({ route }) {
           <section class="p-task__sec">
             <h2 class="p-task__over">${PANEL_WORDS.also}</h2>
             <div class="p-task__needs">
-              ${needs.map((item) => html`<${DecisionCard} key=${item.id} item=${item} onDone=${() => after("Done.")} />`)}
+              ${needs.map((item) => html`<${Sheet} key=${item.id} wide=${true}><${DecisionCard} item=${item} onDone=${() => after("Done.")} /><//>`)}
             </div>
           </section>` : null}
         <section class="p-task__sec">
@@ -983,10 +990,14 @@ export default function Page({ route }) {
       </div>
     </aside>`;
 
+  // The versions: on paper while the owner's pick waits (a decision), on the ground once picked.
+  const versions = html`<${Versions} id="p-task-versions" item=${pickItem} pieces=${pieces} picked=${pickedHere}
+    onDone=${(r) => { setPickedHere(r && r.variant ? r.variant : null); after(text(r && r.message) || "Done."); }} />`;
+
   return html`
     <div class=${rootClass} ref=${root} style=${rootStyle}>
       <div class="p-task__head">
-        <${PageHeader} title=${cap(t.title, 300) || "Task"} back=${BACK} crumbs=${crumbs}>
+        <${RoomHeader} glimpse=${glimpseFor("task", dept)} title=${cap(t.title, 300) || "Task"} back=${BACK} crumbs=${crumbs}>
           <div class="p-task__meta">
             ${who ? html`<span class="p-task__who"><${Avatar} slug=${text(who.slug)} name=${text(who.name)} size=${20} /><span>${cap(who.name, 60)}</span></span>` : null}
             ${t.size ? html`<${Chip}>Size ${cap(t.size, 4)}<//>` : null}
@@ -1003,8 +1014,7 @@ export default function Page({ route }) {
       </div>
       ${panel}
       <section class="p-task__main" aria-label="What was said">
-        <${Versions} id="p-task-versions" item=${pickItem} pieces=${pieces} picked=${pickedHere}
-          onDone=${(r) => { setPickedHere(r && r.variant ? r.variant : null); after(text(r && r.message) || "Done."); }} />
+        ${pickItem ? html`<${Sheet} wide=${true}>${versions}<//>` : versions}
         <${SiteView} id=${id} stamp=${piecesStamp(d, null)} htmlId="p-task-sites" />
         ${story.length && !askOf(d) ? html`<h2 class="p-task__h p-task__story-h">What was said</h2>` : null}
         <${Story} id=${id} items=${story} query=${query} />
@@ -1028,22 +1038,22 @@ function Below({ id, d, t, query, story, files, showFiles }) {
   return html`
     <section class="k-sect p-task__sect" aria-labelledby="p-task-story-h">
       <h2 id="p-task-story-h">What was said</h2>
-      <div class="p-task__read"><${Story} id=${id} items=${story} query=${query} /></div>
+      <div class="p-task__col"><${Story} id=${id} items=${story} query=${query} /></div>
     </section>
     <section class="k-sect p-task__sect" id="p-task-checks" tabindex="-1" aria-labelledby="p-task-checks-h">
       <h2 id="p-task-checks-h">The checks <span class="p-task__count">${roundsLine(list(acceptance.rounds).length, { ask: t.ask === true })}</span></h2>
-      <div class="p-task__read"><${Rounds} id=${id} acceptance=${acceptance} query=${query} ask=${t.ask === true} /></div>
+      <div class="p-task__col"><${Rounds} id=${id} acceptance=${acceptance} query=${query} ask=${t.ask === true} /></div>
     </section>
     ${files.length ? html`
       <section class="k-sect p-task__sect" aria-labelledby="p-task-files-h">
         <h2 id="p-task-files-h">Files <span class="p-task__count">${files.length}</span></h2>
-        <div class="p-task__read">
+        <div class="p-task__col">
           <div class="p-task__files">${shown.map((f, i) => html`<${FileCard} key=${text(f.url || f.name) + i} file=${f} />`)}</div>
           ${files.length > shown.length ? html`<div class="p-task__more-files"><${Button} variant="plain" size="sm" icon="panel" onClick=${showFiles}>All ${files.length} files<//></div>` : null}
         </div>
       </section>` : null}
     <section class="k-sect p-task__sect">
-      <div class="p-task__read"><${HowItWent} stages=${d.stages} timeline=${d.timeline} now=${d.generatedAt} /></div>
+      <div class="p-task__col"><${HowItWent} stages=${d.stages} timeline=${d.timeline} now=${d.generatedAt} /></div>
     </section>`;
 }
 
@@ -1078,7 +1088,7 @@ function Facts({ id, query, acceptance, needs, next, after, said, saidRef, fold 
       ? html`<div class="k-site__folds"><${SiteFold} title="Acceptance" aside=${dot}>${roundList}${tools}<//></div>`
       : html`<${Blk} title="Acceptance" aside=${dot}>${roundList}<//>`}
     ${needs.length ? html`<${Blk} title="Also waiting on you">
-      <div class="p-task__needs">${needs.map((item) => html`<${DecisionCard} key=${item.id} item=${item} onDone=${() => after("Done.")} />`)}</div>
+      <div class="p-task__needs">${needs.map((item) => html`<${Sheet} key=${item.id} wide=${true}><${DecisionCard} item=${item} onDone=${() => after("Done.")} /><//>`)}</div>
     <//>` : null}
     ${next.length ? html`<${Blk}><${NextUp} items=${next} /><//>` : null}`;
 }
@@ -1131,7 +1141,7 @@ function SitePage({ id, d, t, query, view, acceptance, pickItem, pieces, needs, 
   const lede = pickItem && pickItem.summary ? cap(pickItem.summary, 200) : factWords(t, job);
   const accepting = useAcceptFoot({ acceptance, task: t, canStop, onDone: after, onChanged });
   const foot = pickItem
-    ? html`<${PickFoot} item=${pickItem} chosen=${letter} focusDone=${false} onDone=${onPicked} onChanged=${onChanged} />`
+    ? html`<${Sheet} label="Your pick"><${PickFoot} item=${pickItem} chosen=${letter} focusDone=${false} onDone=${onPicked} onChanged=${onChanged} /><//>`
     : acceptance.accept ? accepting : null;
   // The Art director's scores as a fold under the findings, closed, so the rail's first screen ends above the foot.
   const scores = chosen ? html`<${SiteFold} title="The Art director's scores" aside=${`Version ${chosen.letter}`}>
@@ -1156,7 +1166,7 @@ function SitePage({ id, d, t, query, view, acceptance, pickItem, pieces, needs, 
 function VersionsPage({ id, d, t, query, acceptance, pickItem, pieces, pickedHere, needs, next, story, files, said, saidRef, after, showFiles, onPicked, root }) {
   return html`<div class="p-task p-task--stage" ref=${root}>
     <div id="p-task-versions" tabindex="-1">
-      ${pickItem ? html`<${PickCard} item=${pickItem} focusDone=${false} onDone=${onPicked} />`
+      ${pickItem ? html`<${Sheet} wide=${true}><${PickCard} item=${pickItem} focusDone=${false} onDone=${onPicked} /><//>`
         : html`<${PickCard} pieces=${pieces} readOnly=${true} picked=${pickedHere} />`}
     </div>
     <div class="p-task__below">

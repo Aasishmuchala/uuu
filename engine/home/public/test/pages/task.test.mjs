@@ -600,3 +600,204 @@ test("task: the page sends what it sent before (PLAN-3D-ALL)", async () => {
   assert.deepEqual(seen, RECORDED);
   for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
 });
+
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const byCls = (root, c) => elements(root).filter((e) => classesOf(e).includes(c));
+const paperOf = (el) => { for (let x = el; x; x = x.parentNode) if (x.getAttribute && x.getAttribute("data-surface") === "paper") return x; return null; };
+const textNodes = (root) => [...walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+const bands = (root) => elements(root).filter((e) => e.localName === "header" && classesOf(e).includes("k-room"));
+
+test("task: the column's title stands in the room header of its department's room, else the desk; one h1, crumbs as before (PLAN-3D-ALL U8)", async () => {
+  for (const [n, key] of [[18, "room-books"], [2, "room-operations"]]) {
+    const m = await mountTask(seed[n]);
+    try {
+      const band = bands(m.root);
+      assert.equal(band.length, 1, `STH-${n}`);
+      assert.equal(band[0].getAttribute("data-glimpse"), key);
+      const h1 = elements(m.root).filter((e) => e.localName === "h1");
+      assert.equal(h1.length, 1);
+      assert.equal(h1[0].getAttribute("id"), "page-title");
+      assert.ok(paperOf(h1[0]) === null, "the title is not on paper");
+      assert.ok(byCls(band[0], "p-task__meta").length === 1, "the line of facts is in the band");
+      const img = elements(m.root).filter((e) => e.localName === "img" && classesOf(e).includes("k-room__img"));
+      assert.equal(img.length, 1);
+      assert.equal(img[0].getAttribute("src"), glimpseSrc(key, { theme: "dark", width: 1280 }));
+      assert.equal(img[0].getAttribute("alt"), "");
+      assert.equal(img[0].getAttribute("aria-hidden"), "true");
+      assert.equal(elements(m.root).filter((e) => e.localName === "canvas").length, 0, "a surface screen has no canvas");
+      assert.deepEqual(m.tops.at(-1).crumbs, [{ label: "Tasks", href: "#/tasks" }, { label: `STH-${n}` }]);
+    } finally { m.done(); }
+  }
+  // A task with no department, and a task not found: the desk. No picture while the task is read.
+  const none = await mountTask({ ...seed[2], job: null, task: { ...seed[2].task, department: undefined } });
+  try { assert.equal(bands(none.root)[0].getAttribute("data-glimpse"), "desk"); } finally { none.done(); }
+  const lost = await mountTask(null, { id: "STH-404", status: 404 });
+  try {
+    assert.equal(bands(lost.root)[0].getAttribute("data-glimpse"), "desk");
+    assert.ok(textNodes(lost.root).includes("Task not found"));
+  } finally { lost.done(); }
+  const off = await mountTask(seed[2], { query: "glimpse=off" });
+  try {
+    assert.equal(elements(off.root).filter((e) => e.localName === "img" && classesOf(e).includes("k-room__img")).length, 0, "glimpse=off: the band alone");
+    assert.equal(byCls(off.root, "k-room--bare").length, 1);
+  } finally { off.done(); }
+  const src = readFileSync(new URL("../../pages/task.js", import.meta.url), "utf8");
+  assert.doesNotMatch(src, /PageHeader/, "PageHeader is replaced");
+  assert.match(src, /<\$\{RoomHeader\} glimpse=\$\{res\.error \? glimpseFor\("task"\) : null\}/, "no picture asked for while the task is read: at most one a page");
+});
+
+test("task: a site's stage and a versions' stage keep their own title and draw no band (PLAN-3D-ALL U8)", async () => {
+  for (const [d, opts] of [[picking(seed[8]), { sites: SITES }], [picking(seed[8]), {}]]) {
+    const m = await mountTask(d, opts);
+    try {
+      assert.equal(bands(m.root).length, 0);
+      const h1 = elements(m.root).filter((e) => e.localName === "h1");
+      assert.equal(h1.length, 1);
+      assert.equal(h1[0].getAttribute("id"), "page-title");
+      assert.ok(classesOf(h1[0]).includes("k-rail__title"));
+    } finally { m.done(); }
+  }
+});
+
+test("task: on paper only the documents, the result being read, the answer, what else waits and the pick; the conversation, the stage and the rail stay on the ground (PLAN-3D-ALL U8, D4)", async () => {
+  // The brief, opened, and a question waiting: each on a sheet.
+  let m = await mountTask(seed[13], { query: "doc=brief" });
+  try {
+    const doc = byCls(m.root, "p-task__docbox");
+    assert.equal(doc.length, 1);
+    assert.ok(paperOf(doc[0]), "the brief is on paper");
+    assert.equal(paperOf(doc[0]).localName, "article");
+    const decisions = byCls(m.root, "p-task__needs").flatMap((n) => n.childNodes);
+    assert.ok(decisions.length >= 1 && decisions.every((s) => s.getAttribute("data-surface") === "paper"), "each other thing waiting is on its sheet");
+    for (const c of [...byCls(m.root, "k-convo"), ...byCls(m.root, "p-task__panel"), ...byCls(m.root, "p-task__rail")]) assert.equal(paperOf(c), null, "the conversation and the rail are not on paper");
+  } finally { m.done(); }
+  // The result's text being read.
+  m = await mountTask(seed[2]);
+  try {
+    const read = byCls(m.root, "p-task__read");
+    assert.equal(read.length, 1);
+    assert.ok(paperOf(read[0]));
+    assert.equal(elements(m.root).filter((e) => e.getAttribute("data-surface") === "paper").length, 1, "nothing else on paper here");
+  } finally { m.done(); }
+  // A question's answer.
+  m = await mountTask({ ...seed[19], answer: shape("ask").answer });
+  try {
+    const papers = elements(m.root).filter((e) => e.getAttribute("data-surface") === "paper");
+    assert.equal(papers.length, 1);
+    assert.ok(byCls(papers[0], "k-answer").length > 0 || classesOf(papers[0].childNodes[0]).some((c) => c.startsWith("k-answer")), "the answer is on the sheet");
+  } finally { m.done(); }
+  // A site with a pick waiting: the pick in the rail's foot is on paper; the stage, the strip and the rail's findings are not.
+  m = await mountTask(picking(seed[8]), { sites: SITES });
+  try {
+    const foot = byCls(m.root, "k-rail__primary");
+    assert.equal(foot.length, 1);
+    assert.equal(foot[0].childNodes[0].getAttribute("data-surface"), "paper");
+    for (const c of [...byCls(m.root, "k-work__stage"), ...byCls(m.root, "k-site__rail"), ...byCls(m.root, "k-rail__head")]) {
+      assert.equal(paperOf(c), null);
+      assert.equal(elements(c).filter((e) => e.getAttribute("data-surface")).length, 0);
+    }
+  } finally { m.done(); }
+  // Versions with pictures: the pick card on paper while it waits; once picked, read-only on the ground.
+  m = await mountTask(picking(seed[8]));
+  try {
+    const v = elements(m.root).find((e) => e.getAttribute("id") === "p-task-versions");
+    assert.equal(v.childNodes[0].getAttribute("data-surface"), "paper");
+  } finally { m.done(); }
+  m = await mountTask(seed[8], { pieces: { ...PIECES, variants: PIECES.variants.map((x) => ({ ...x, preview: [{ type: "image", url: "/api/view/abc123" }] })) } });
+  try {
+    const v = elements(m.root).find((e) => e.getAttribute("id") === "p-task-versions");
+    assert.equal(elements(v).filter((e) => e.getAttribute("data-surface") === "paper").length + (paperOf(v) ? 1 : 0), 0, "versions already picked are not a decision");
+  } finally { m.done(); }
+});
+
+// Money and safety sentences (PLAN-3D-ALL section 1, S1): a stuck task's what-I-need, the page viewer's refusals and
+// its brand lines, each one text node exactly as sent, and no box of this page's sheets clips one.
+test("task: a stuck task's need and the page viewer's sentences are whole, as sent, one text node each (PLAN-3D-ALL U8, S1)", async () => {
+  const stuck = otherNeeds(seed[18].needsYou, seed[18].acceptance).find((i) => i.kind === "problem");
+  const why = stuck.details.find((x) => x.label === "Why").value;
+  let m = await mountTask(seed[18]);
+  try {
+    const nodes = textNodes(m.root);
+    assert.ok(nodes.includes(stuck.summary), stuck.summary);
+    assert.ok(nodes.includes(why), why);
+  } finally { m.done(); }
+  const refusal = "The page viewer did not open this site: it holds 412 files, more than the 300 it opens. Nothing was sent anywhere.";
+  const problem = "This site could not be read: its index.html is missing. Ask for another round.";
+  const s0 = SITES.sites[0];
+  const failed = { ...SITES, sites: [{ ...s0, shots: { ...s0.shots, state: "failed", sentence: refusal, images: [] } }] };
+  m = await mountTask(seed[8], { sites: failed });
+  try { assert.ok(textNodes(m.root).includes(refusal), "the viewer's refusal"); } finally { m.done(); }
+  m = await mountTask(seed[8], { sites: { ...SITES, sites: [{ ...s0, problem }] } });
+  try { assert.ok(textNodes(m.root).includes(problem), "the site's problem"); } finally { m.done(); }
+  m = await mountTask(seed[8], { sites: SITES });
+  try { for (const l of s0.brand.lines) assert.ok(textNodes(m.root).includes(l), l); } finally { m.done(); }
+  const css = readFileSync(new URL("../../styles/pages/task.css", import.meta.url), "utf8");
+  for (const [, sel, body] of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+    if (!/k-sheet|p-task__needs|p-task__col|p-task__docbox|k-rail__primary|k-site|k-decision|p-task__said|p-task__confirm|k-room/.test(sel)) continue;
+    assert.doesNotMatch(body, /text-overflow|line-clamp|overflow:\s*hidden|(^|[^-])height:\s*\d/, `${sel.trim()} clips nothing`);
+  }
+});
+
+test("task: the reading column under a stage is its own class, held to no height: the story and the checks were cut at 320 px (PLAN-3D-ALL U8)", () => {
+  const src = readFileSync(new URL("../../pages/task.js", import.meta.url), "utf8");
+  const below = src.slice(src.indexOf("function Below("), src.indexOf("function Facts("));
+  assert.equal((below.match(/class="p-task__col"/g) || []).length, 4);
+  assert.doesNotMatch(below, /p-task__read/);
+  const css = readFileSync(new URL("../../styles/pages/task.css", import.meta.url), "utf8");
+  assert.match(css, /\.p-task \.p-task__col \{\s*max-width: var\(--column\);\s*\}/);
+  assert.equal((css.match(/\.p-task \.p-task__read \{/g) || []).length, 1, "the 320 px hold is the result card's alone");
+  // The quiet look's control fill under the pointer is the lamp's pool now, with the 2 px ring.
+  assert.match(css, /\.p-task \.p-task__round-row:hover \{\s*background: var\(--lamp-pool\);/);
+  assert.match(css, /\.p-task \.p-task__round-row:focus-visible \{\s*outline: 2px solid var\(--accent\);/);
+  // The band rises into the pane's margin, as Tasks', so the story and the rail start near where they did (D9).
+  assert.match(css, /\.p-task > \.k-room,\s*\.p-task \.p-task__head \.k-room \{\s*z-index: 1;\s*margin-top: calc\(-1 \* var\(--s-6\)\);/);
+});
+
+test("task: hostile server text stays text: no script, img, iframe or object beyond the band's and the kept pictures; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const tagCount = (root) => ["script", "iframe", "object"].map((t) => elements(root).filter((e) => e.localName === t).length);
+  const SHOT = /^\/api\/sites\/shot\/[0-9a-f]{64}\/shot-[A-Za-z0-9._-]{1,90}-(1280|390)-(light|dark)\.png$/;
+  const hostileTask = (d) => {
+    const t = d.task;
+    return {
+      ...d, text: bad(0),
+      task: { ...t, title: bad(1), plainState: bad(2), who: { slug: bad(3), name: bad(4) }, size: bad(5), department: bad(6), schedule: { label: bad(0) }, queue: { ahead: bad(1) } },
+      job: { id: bad(2), title: bad(3), department: bad(4) },
+      // An identifier is the server's key, not its words: it goes into the link encoded, so it stays a key here.
+      follows: { identifier: "STH-7", title: bad(6) },
+      conversation: list(d.conversation).map((c, i) => ({ ...c, text: bad(i), who: { slug: bad(i + 1), name: bad(i + 2) } })),
+      result: d.result ? { ...d.result, text: bad(3), by: bad(4) } : d.result,
+      files: list(d.files).map((f, i) => ({ ...f, name: bad(i), url: bad(i + 1), viewUrl: bad(i + 2) })),
+      stages: list(d.stages).map((s, i) => ({ ...s, label: bad(i), doc: s.doc ? { ...s.doc, text: bad(i + 1), name: bad(i + 2) } : s.doc, unclear: list(s.unclear).map((u, k) => bad(k)) })),
+      acceptance: { ...d.acceptance, rounds: list(d.acceptance && d.acceptance.rounds).map((r, i) => ({ ...r, label: bad(i), by: bad(i + 1), reason: bad(i + 2), actions: [bad(i + 3)], checks: list(r.checks).map((c, k) => ({ ...c, question: bad(k), reason: bad(k + 1), evidence: [{ name: bad(k), url: bad(k + 2) }] })) })) },
+      needsYou: list(d.needsYou).map((n, i) => ({ ...n, title: bad(i), summary: bad(i + 1), raisedBy: bad(i + 2), details: list(n.details).map((x, k) => ({ label: bad(k), value: bad(k + 1) })) })),
+      next: [{ jobId: bad(0), title: bad(1), label: bad(2), why: bad(3) }],
+      timeline: list(d.timeline).map((x, i) => ({ ...x, text: bad(i), title: bad(i + 1) })),
+    };
+  };
+  const s0 = SITES.sites[0];
+  const hostileSites = { ...SITES, sites: [0, 1, 2].map((k) => ({ ...s0, ref: `launch-${"abc"[k]}`, variant: "abc"[k], direction: { id: bad(k), title: bad(k + 1) }, pages: ["index.html", bad(k)],
+    left: [{ name: bad(k), why: bad(k + 1) }], brand: { result: "warn", lines: [bad(k), bad(k + 2)] },
+    shots: { ...s0.shots, sentence: bad(k), report: [{ page: "index.html", lines: [bad(k), bad(k + 3)] }], images: [...s0.shots.images, { url: bad(k), page: "index.html", width: 1280, scheme: "light" }] } })) };
+  for (const [d, opts] of [[seed[8], {}], [seed[13], { query: "doc=brief" }], [seed[18], {}], [picking(seed[8]), { sites: hostileSites }]]) {
+    const plainRun = await mountTask(d, opts);
+    let base;
+    try { base = tagCount(plainRun.root); } finally { plainRun.done(); }
+    const h = hostileTask(d);
+    const m = await mountTask(h, { ...opts, id: d.task.identifier });
+    try {
+      assert.deepEqual(tagCount(m.root), base);
+      for (const e of elements(m.root)) {
+        for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+        for (const x of HOSTILE) for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(x), `${a} holds no fixture text: <${e.localName} class="${e.getAttribute("class")}" ${a}="${String(e.getAttribute(a)).slice(0, 80)}">`);
+        if (e.localName === "img") {
+          const s = e.getAttribute("src");
+          const glimpse = GLIMPSES.some((k) => [1280, 390].some((w) => ["dark", "light"].some((theme) => glimpseSrc(k, { theme, width: w }) === s)));
+          assert.ok(glimpse || SHOT.test(s), `an img is the band's or a kept picture's: ${s}`);
+        }
+      }
+      if (!opts.sites) assert.ok(textNodes(m.root).includes(bad(1)), "a hostile title is a text node");
+    } finally { m.done(); }
+  }
+});

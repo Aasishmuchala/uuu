@@ -5,7 +5,13 @@
    whole height beside the story, its sections parted by rules and its content in view as the story scrolls. The
    reading column runs to the rail with the page's gutter, and under the story the result's text file is read in a
    card (T114). Below 860 px a bar above the tab bar holds Accept. A task with a site stands on the kit's StageLayout
-   (.p-task--stage); the sheet only places its parts. */
+   (.p-task--stage); the sheet only places its parts.
+   PLAN-3D-ALL U8: the column's title, its facts and its turn stand in the room header (kit/room.css), the band
+   rising into the pane's top margin so the story and the rail start near where they did. The conversation, the
+   rail, the checks and the composer stay on the ground and the panel. On paper (kit/sheet.css) only what the owner
+   reads and decides: a document of the story, the result's text being read, a question's answer, each other thing
+   waiting on the owner, and the pick; this sheet only places those sheets. A row under the pointer stands in the
+   lamp's pool. A site's stage keeps its own title and its pictures are never tinted. */
 
 .p-task {
   --p-task-panel: var(--rail-w);
@@ -37,6 +43,41 @@
 /* The title's own margin and the grid's row gap would stack: the gap alone parts the head from the story. */
 .p-task .p-task__head .k-page-header {
   margin-bottom: 0;
+}
+
+/* The room header: 24 px up into the pane's top margin (beside the rail, 20 px under the page's top), the gap alone
+   under it. It stands a layer above the story, so nothing of the story's draws over it. */
+.p-task > .k-room,
+.p-task .p-task__head .k-room {
+  z-index: 1;
+  margin-top: calc(-1 * var(--s-6));
+  margin-bottom: 0;
+}
+
+.p-task.p-task--side .p-task__head .k-room {
+  margin-top: calc(-1 * var(--s-3));
+}
+
+/* The title and its facts keep to the band's left two thirds, where the scrim is dense; the picture shows clear at
+   the right. */
+@media (min-width: 860px) {
+  .p-task .k-room__head {
+    max-width: 66%;
+  }
+}
+
+/* Over the picture a chip keeps its own fill and the facts their first ink, so they hold where the picture is bright. */
+.p-task .k-room .p-task__meta,
+.p-task .k-room .p-task__turn {
+  color: var(--ink-2);
+}
+
+.p-task .k-room .p-task__who {
+  color: var(--ink);
+}
+
+.p-task .k-room .k-chip {
+  background: var(--chip);
 }
 
 .p-task.p-task--side .p-task__main {
@@ -553,6 +594,48 @@
   background: var(--glass-soft);
 }
 
+/* A document of the story is a slip of paper (PLAN-3D-ALL U8): the sheet holds the toggle and, open, the document;
+   the box draws no edge of its own on it. */
+.p-task .p-task__docitem > .k-sheet {
+  max-width: none;
+  padding: var(--s-1) var(--s-2);
+}
+
+.p-task .p-task__docitem > .k-sheet > .p-task__docbox {
+  border: 0;
+  background: none;
+}
+
+/* The result's text being read, a question's answer, the pick and each other thing waiting on the owner: on paper,
+   the sheet's own inset where the part inside has none. */
+.p-task .p-task__paper--read > .k-sheet {
+  padding: 0;
+}
+
+.p-task .p-task__paper--read .p-task__read {
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  box-shadow: none;
+}
+
+.p-task .p-task__paper > .k-sheet {
+  max-width: none;
+}
+
+.p-task .p-task__needs > .k-sheet {
+  padding: 0;
+}
+
+.p-task .p-task__main > .k-sheet,
+.p-task #p-task-versions > .k-sheet {
+  padding: 0;
+}
+
+.p-task .k-rail__primary > .k-sheet {
+  padding: var(--s-4);
+}
+
 .p-task .p-task__doc-toggle {
   display: flex;
   align-items: center;
@@ -760,6 +843,17 @@
     align-items: center;
     min-height: 44px;
   }
+
+  /* The pick on paper in the phone's foot: a slim inset, so the foot stays one row above the tab bar. */
+  .p-task .k-rail__primary > .k-sheet {
+    padding: var(--s-2);
+  }
+
+  /* The band on a phone: 8 px up into the pane's margin, as Tasks. */
+  .p-task > .k-room,
+  .p-task .p-task__head .k-room {
+    margin-top: calc(-1 * var(--s-2));
+  }
 }
 
 /* ---- A task on a stage (StageLayout): the kit draws the stage, the strip and the rail; these place the page's
@@ -816,7 +910,13 @@
 }
 
 .p-task .p-task__round-row:hover {
-  background: var(--ctl);
+  background: var(--lamp-pool);
+}
+
+.p-task .p-task__round-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--lamp-pool);
 }
 
 .p-task .p-task__round-mark {
@@ -884,7 +984,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-.p-task .p-task__read {
+/* The reading column under a stage. It is its own class: the result's card above (.p-task__read) is held to 320 px,
+   and the story, the checks and the files under a stage were held with it until PLAN-3D-ALL U8 parted the two. */
+.p-task .p-task__col {
   max-width: var(--column);
 }
 
