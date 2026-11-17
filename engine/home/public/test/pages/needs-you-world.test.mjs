@@ -230,6 +230,7 @@ test("the keys line is inside the sheet, after the card, in the words of world/w
   const sheet = elements(root).find((e) => classesOf(e).includes("p-needs-you__sheet"));
   const keys = elements(sheet).find((e) => classesOf(e).includes("p-needs-you__keys"));
   assert.ok(keys, "inside the sheet");
+  assert.equal(sheet.getAttribute("data-surface"), "paper", "the sheet is the kit's paper scope");
   assert.equal(textOf(keys), WORDS.keys);
   assert.equal(sheet.childNodes.filter((n) => n.nodeType === 1).at(-1), keys, "at the sheet's foot");
 });

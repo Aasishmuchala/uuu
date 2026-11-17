@@ -273,7 +273,9 @@ test("needs-you: on the desk the sheet is at most 640 px and the list a 320 px c
   assert.match(desk, /grid-template-columns: minmax\(0, 640px\) minmax\(320px, 1fr\) 320px;/, "the sheet at most 640 px, the list 320 px, the desk model at least 320 px between them (e2 weak point 6)");
   assert.match(desk, /height: calc\(100vh - var\(--topbar-h\)\);/, "the desk fills the page column under the top bar");
   const sheet = /\.p-needs-you \.p-needs-you__sheet \{([^}]*)\}/.exec(c)[1];
-  assert.match(sheet, /background: var\(--panel\);/, "the sheet is the kit's panel surface, so the kit's cards keep their ink");
+  assert.match(sheet, /background: var\(--paper\);/, "the sheet is paper; the paper scope gives the kit's cards their ink on it");
+  assert.doesNotMatch(sheet, /--panel|--ink:/, "no token re-pointed by the page");
+  for (const m of src.matchAll(/<section class="[^"]*p-needs-you__sheet[^"]*"([^>]*)>/g)) assert.match(m[1], /^ data-surface="paper"/, "every sheet is in the paper scope");
   assert.match(sheet, /box-shadow: var\(--paper-shadow\);/, "lifted off the desk");
   assert.match(c, /\.p-needs-you\.p-needs-you--desk \.p-needs-you__sheet \{[^}]*overflow-y: auto;/, "its own scroll");
   const keys = /\.p-needs-you \.p-needs-you__keys \{([^}]*)\}/.exec(c)[1];

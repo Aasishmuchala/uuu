@@ -690,7 +690,7 @@ export default function Page({ route }) {
     if (wide) {
       return html`<div class="p-needs-you p-needs-you--desk" ref=${rootRef}>
         ${stage("p-needs-you__stage")}
-        <section class="p-needs-you__sheet p-needs-you__sheet--small">${titled}</section>
+        <section class="p-needs-you__sheet p-needs-you__sheet--small" data-surface="paper">${titled}</section>
       </div>`;
     }
     return html`<div class="p-needs-you p-needs-you--alone">${strip}${titled}</div>`;
@@ -728,7 +728,7 @@ export default function Page({ route }) {
         ${stage("p-needs-you__stage")}
         <div class="p-needs-you__dim" aria-hidden="true"></div>
         ${waiting(false)}
-        <section class="p-needs-you__open p-needs-you__sheet p-needs-you__sheet--wide" tabindex="-1" ref=${sheetRef}
+        <section class="p-needs-you__open p-needs-you__sheet p-needs-you__sheet--wide" data-surface="paper" tabindex="-1" ref=${sheetRef}
           aria-label=${opened ? cap(opened.title, 120) : PAGE_WORDS.title}>${stageCard}</section>
       </div>`;
     }
@@ -759,7 +759,7 @@ export default function Page({ route }) {
     if (wide) {
       return html`<div class="p-needs-you p-needs-you--desk p-needs-you--empty" ref=${rootRef}>
         ${stage("p-needs-you__stage")}
-        <section class="p-needs-you__sheet p-needs-you__sheet--small">${nothing}</section>
+        <section class="p-needs-you__sheet p-needs-you__sheet--small" data-surface="paper">${nothing}</section>
       </div>`;
     }
     return html`<div class="p-needs-you p-needs-you--alone">${strip}${moneyLine}${nothing}</div>`;
@@ -771,7 +771,7 @@ export default function Page({ route }) {
       ${stage("p-needs-you__stage")}
       ${chip}
       ${waiting(true)}
-      ${open ? html`<section class="p-needs-you__open p-needs-you__sheet" tabindex="-1" ref=${sheetRef}
+      ${open ? html`<section class="p-needs-you__open p-needs-you__sheet" data-surface="paper" tabindex="-1" ref=${sheetRef}
           aria-label=${opened ? cap(opened.title, 120) : PAGE_WORDS.title}>
         ${open}
         ${opened ? html`<${Helps} item=${opened} items=${order} order=${order} d=${d} wide=${true} cache=${stories} />` : null}
@@ -788,7 +788,7 @@ export default function Page({ route }) {
         <h1 id="page-title" class="p-needs-you__kind" tabindex="-1">${crumbsFor(crumbItem, d)[1].label}</h1>
         ${pager && pager.index ? html`<span class="p-needs-you__at u-num">${pager.label}</span>` : null}
       </header>
-      <section class="p-needs-you__open p-needs-you__sheet" tabindex="-1" ref=${sheetRef}>
+      <section class="p-needs-you__open p-needs-you__sheet" data-surface="paper" tabindex="-1" ref=${sheetRef}>
         ${open}
         ${opened ? html`<${Helps} item=${opened} items=${order} order=${order} d=${d} wide=${false} cache=${stories} />` : null}
         ${opened && !phone ? keysLine : null}

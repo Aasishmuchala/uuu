@@ -4,7 +4,7 @@
    from is a wide sheet over the whole free area with the desk dimmed. Below 1280 px the list is the page over a short
    desk strip and an item opened is the paper sheet alone; below 860 px the strip is 200 px tall and every row and
    link 44 px. The list keeps its rows (T104, T116, R5-D, R6). Every selector starts with .p-needs-you; tokens only
-   (the --w-* tokens for the scrim and the chip). */
+   (the --w-* tokens for the scrim and the chip; the sheet is the kit's paper scope). */
 
 .p-needs-you {
   display: flex;
@@ -62,10 +62,9 @@
   pointer-events: none;
 }
 
-/* The sheet: the item opened on the kit's panel surface, its own scroll, lifted off the desk by the paper's shadow.
-   (The kit's cards read their ink from the theme's tokens, and a page may not re-point them, so the sheet takes the
-   theme's panel rather than the --w-paper cream: in light the two are nearly one; in dark the cream would put the
-   kit's light ink on light paper.) */
+/* The sheet: the item opened on paper (data-surface="paper": tokens.css re-points the kit's inks, lines, accent,
+   warn, focus and filled primary inside that scope, so today's cards read on cream in both themes with no rule of
+   their own here), its own scroll, lifted off the desk by the paper's shadow. */
 .p-needs-you .p-needs-you__sheet {
   position: relative;
   z-index: 1;
@@ -75,7 +74,7 @@
   min-width: 0;
   padding: var(--s-8) var(--s-8) var(--s-6);
   border-radius: var(--r-3);
-  background: var(--panel);
+  background: var(--paper);
   color: var(--ink);
   box-shadow: var(--paper-shadow);
 }
