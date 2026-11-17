@@ -20,6 +20,13 @@ globalThis.fetch = async (path) => {
   return json(201, { goal: GOAL, message: "Started. The Chief of staff has it. It takes a few minutes and is checked before it reaches you." });
 };
 
+// The room header's picture address is relative to the home page (./assets/glimpse/v1/, pinned in PLAN-3D-ALL 4.2);
+// this page lives one folder down, so the gallery resolves the pictures it draws from the home's folder (PLAN-3D-ALL
+// U16: they were 404s from /kit/gallery-c.html). The sheets and scripts above are already loaded by then.
+const base = document.createElement("base");
+base.href = new URL("../", import.meta.url).href;
+document.head.prepend(base);
+
 render(html`<${Gallery} />`, document.getElementById("gallery"));
 
 if (params.get("press") === "1") {

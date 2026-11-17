@@ -102,14 +102,18 @@ function useLook() {
 }
 
 // PageHeader's props plus `glimpse` (a key of GLIMPSES; anything else draws the band without a picture).
-export function RoomHeader({ glimpse, ...props }) {
+// PLAN-3D-ALL U16, two options the pages each copied: `pull` lifts the band into the page's top margin (a list page's
+// band starts where the column does); `strip` makes it a 56 px title strip with no picture below 860 px, and a phone
+// then never asks for the picture.
+export function RoomHeader({ glimpse, pull, strip, ...props }) {
   const body = usePageHeader(props);
   const look = useLook();
   const [failed, setFailed] = useState(null);
   const key = typeof glimpse === "string" && GLIMPSES.includes(glimpse) ? glimpse : null;
-  const src = key && !pictureOff() ? glimpseSrc(key, look) : null;
+  const bare = strip === true && look.width === 780;
+  const src = key && !bare && !pictureOff() ? glimpseSrc(key, look) : null;
   const show = src && failed !== src;
-  return html`<header class=${cx("k-room", !show && "k-room--bare")} data-glimpse=${key || "none"}>
+  return html`<header class=${cx("k-room", !show && "k-room--bare", pull === true && "k-room--pull", strip === true && "k-room--strip")} data-glimpse=${key || "none"}>
     <div class="k-room__band" aria-hidden="true">
       ${show
         ? html`<img class="k-room__img" src=${src} alt="" aria-hidden="true" decoding="async" onError=${() => setFailed(src)} />`

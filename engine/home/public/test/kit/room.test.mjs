@@ -262,3 +262,34 @@ test("room.js and sheet.js together stay within 14,000 bytes (D9)", () => {
 });
 
 compositeSheetTests("room");
+
+// PLAN-3D-ALL U16: two options every list page copied. `pull` lifts the band into the page's top margin; `strip` is a
+// 56 px title strip with no picture below 860 px, and a phone then never asks for the picture.
+test("RoomHeader: pull and strip are classes; a strip on a phone asks for no picture, at 1280 it keeps it", async () => {
+  installDom();
+  setPlace();
+  const was = globalThis.innerWidth;
+  try {
+    globalThis.innerWidth = 1280;
+    let root = await showTree(RoomHeader, { glimpse: "desk", title: "Tasks", pull: true, strip: true });
+    assert.deepEqual(classesOf(elements(root)[1]), ["k-room", "k-room--pull", "k-room--strip"]);
+    assert.equal(img(root).length, 1, "a wide window keeps the picture");
+    render(null, root);
+    globalThis.innerWidth = 390;
+    root = await showTree(RoomHeader, { glimpse: "desk", title: "Tasks", strip: true });
+    assert.equal(img(root).length, 0, "a phone never asks for it");
+    assert.ok(classesOf(elements(root)[1]).includes("k-room--bare"));
+    assert.equal(elements(root).filter((e) => e.localName === "h1").length, 1);
+    render(null, root);
+    root = await showTree(RoomHeader, { glimpse: "desk", title: "Tasks", strip: "yes", pull: 1 });
+    assert.deepEqual(classesOf(elements(root)[1]), ["k-room"], "only true turns either on");
+    assert.equal(img(root).length, 1);
+    render(null, root);
+  } finally {
+    globalThis.innerWidth = was;
+  }
+  const c = readFileSync(join(PUBLIC, "styles", "kit", "room.css"), "utf8");
+  assert.match(/\.k-room \{([^}]*)\}/.exec(c)[1], /z-index: 1;/, "a menu from the band stands over the rows after it");
+  assert.match(c, /\.k-room--pull \{\s*margin-top: calc\(-1 \* var\(--s-6\)\);/);
+  assert.match(c, /@media \(max-width: 859px\) \{[\s\S]*\.k-room--strip \{[^}]*min-height: 56px;/);
+});

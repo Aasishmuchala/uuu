@@ -159,7 +159,7 @@ function Language() {
           actions=${html`<${Button} variant="primary" icon="plus">New task<//>`} />
         <${RoomHeader} glimpse="room-books" title="Books" state=${html`<${Tag} tone="good" dot>On<//>`}
           lede="Invoices, quotations and what has been paid." />
-        <${RoomHeader} glimpse="annex" title="Settings" lede="The doors, the models and what may be spent." />
+        <${RoomHeader} glimpse="facade" title="Settings" lede="The doors, the models and what may be spent." strip=${true} />
         <${RoomHeader} title="No picture" lede="The band keeps its height with its material alone." />
       </div>
     <//>

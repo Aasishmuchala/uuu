@@ -7,8 +7,11 @@
    The lamp is the Map's glyph: on a disc, amber a disc in a ring, red a thick ring, off a hollow ring, down a low
    line; the state tones follow the lamps (D5). */
 
+/* z-index 1 (PLAN-3D-ALL U16; every list page repeated it): a menu opened from the band (a filter) stands over the
+   rows that follow it. */
 .k-room {
   position: relative;
+  z-index: 1;
   isolation: isolate;
   display: flex;
   flex-direction: column;
@@ -54,6 +57,11 @@
   display: none;
 }
 
+/* `pull`: the band starts at the column's top, in the page's top margin (PLAN-3D-ALL U16). */
+.k-room--pull {
+  margin-top: calc(-1 * var(--s-6));
+}
+
 .k-room__head {
   position: relative;
   display: flex;
@@ -82,6 +90,21 @@
 
   .k-room__head .k-page-header__actions .k-btn {
     min-height: calc(var(--h-lg) + var(--s-1));
+  }
+
+  .k-room--pull {
+    margin-top: calc(-1 * var(--s-2));
+  }
+
+  /* `strip`: on a phone a 56 px title strip with no picture (the band asks for none), the title centred in it. */
+  .k-room--strip {
+    min-height: 56px;
+    justify-content: center;
+    padding: var(--s-2) var(--s-4);
+  }
+
+  .k-room--strip .k-room__img {
+    display: none;
   }
 }
 
