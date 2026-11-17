@@ -23,11 +23,13 @@ export function AgentChip({ agent, size = 20 }) {
 // The state's words and the tone of its chip: working (good), waiting for the owner (warn), a problem (bad),
 // paused or its plain state (neutral). Checked in the order of the Map's lamp (world/state.js lampOf): paused, then a
 // problem, then waiting, then working, so the lamp beside the words never says another thing (PLAN-3D-ALL U16: a
-// paused agent with something waiting showed the switched-off lamp beside "Waiting for you").
+// paused agent with something waiting showed the switched-off lamp beside "Waiting for you"). Working is the state
+// alone, as the lamp reads it: an agent marked `live` whose state is not "working" said "Working" beside the off lamp
+// (PLAN-3D-ALL U17).
 const isPaused = (a) => a.state === "paused";
 const isProblem = (a) => a.state === "problem";
 const isWaiting = (a) => a.waitingForYou === true || a.state === "waiting_for_you";
-const isWorking = (a) => a.state === "working" || Boolean(a.live);
+const isWorking = (a) => a.state === "working";
 
 export function agentStateOf(agent) {
   if (!agent) return null;

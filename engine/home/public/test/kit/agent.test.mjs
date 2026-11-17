@@ -80,6 +80,9 @@ test("AgentState: paused and a problem win over waiting and working, as the lamp
     [{ ...card, state: "problem", plainState: "Stuck", waitingForYou: true }, "bad", "Stuck", "red"],
     [{ ...card, state: "working", waitingForYou: true }, "warn", "Waiting for you", "amber"],
     [{ ...card, state: "working" }, "good", "Working", "on"],
+    // PLAN-3D-ALL U17: `live` alone does not make an agent working; the words follow the state, as the lamp does.
+    [{ ...card, state: "free", plainState: "Free", live: true }, "neutral", "Free", "off"],
+    [{ ...card, state: "free", plainState: "", live: true, waitingForYou: false }, "neutral", "Free", "off"],
   ];
   for (const [a, tone, words, lamp] of cases) {
     assert.deepEqual(agent.agentStateOf(a), { words, tone });
