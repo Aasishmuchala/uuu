@@ -203,7 +203,7 @@
   object-fit: cover;
 }
 
-/* The still nearest the time now: outlined inside its edge, above the dimmed part. */
+/* The still nearest the time now: outlined inside its edge. */
 .k-player__still[aria-current="true"]::after {
   content: "";
   position: absolute;
@@ -214,15 +214,17 @@
   pointer-events: none;
 }
 
+/* The played part: a 3 px lamplight line just under the stills, so the owner's pictures are never dimmed or tinted
+   (PLAN-3D-ALL U16; it was --played-dim, 42 percent black, laid over the stills already played). */
 .k-player__played {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: calc(100% + 2px);
   left: 0;
   z-index: 1;
   width: var(--k-player-at, 0%);
-  border-radius: var(--r-xs) 0 0 var(--r-xs);
-  background: var(--played-dim);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
   pointer-events: none;
 }
 

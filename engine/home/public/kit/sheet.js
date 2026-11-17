@@ -8,9 +8,10 @@ import { cx } from "./util.js";
 const TAGS = ["div", "section", "article", "aside"];
 
 // `as` is the element (div, section, article or aside; else div); `label` names it for readers; `wide` lets it
-// take the column's whole width instead of a reading measure. Children are placed as given.
-export function Sheet({ as, label, wide, children }) {
+// take the column's whole width instead of a reading measure; `slim` (PLAN-3D-ALL U16) a slimmer inset for a few short
+// lines (a document keeps the reading inset). Children are placed as given.
+export function Sheet({ as, label, wide, slim, children }) {
   const tag = TAGS.includes(as) ? as : "div";
   const named = typeof label === "string" && label !== "";
-  return html`<${tag} class=${cx("k-sheet", wide && "k-sheet--wide")} data-surface="paper" aria-label=${named ? label : undefined}>${children}<//>`;
+  return html`<${tag} class=${cx("k-sheet", wide && "k-sheet--wide", slim === true && "k-sheet--slim")} data-surface="paper" aria-label=${named ? label : undefined}>${children}<//>`;
 }

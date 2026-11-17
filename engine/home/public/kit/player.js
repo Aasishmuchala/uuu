@@ -1,7 +1,7 @@
 // The player: one take on the stage, its transport and its stills (T35 of PLAN-COOK, the C3 mockup's S04 and
 // correction 7). The frame is 16:9 on the stage's own ground with no card round it. Under it, one row: the round
 // play button, the time now and the length, mute and full screen. Under that, one scrubber: a 40 px filmstrip of
-// the take's stills, the played part dimmed and the time on the playhead. A real <input type="range"> lies over
+// the take's stills, the played part a line under them and the time on the playhead. A real <input type="range"> lies over
 // the strip as the control a keyboard and a screen reader use; the stills are buttons too.
 // `src`, `poster` and `stills` arrive already checked by the page (R3); this part never builds an address.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";

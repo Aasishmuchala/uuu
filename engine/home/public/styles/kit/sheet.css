@@ -20,6 +20,11 @@
   max-width: none;
 }
 
+/* `slim`: a few short lines (a list of lessons, a note) take a slimmer inset than a document (PLAN-3D-ALL U16). */
+.k-sheet--slim {
+  padding: var(--s-2) var(--s-5);
+}
+
 @keyframes k-sheet-place {
   from {
     opacity: 0;
@@ -34,5 +39,9 @@
 @media (max-width: 859px) {
   .k-sheet {
     padding: var(--s-5) var(--s-4);
+  }
+
+  .k-sheet--slim {
+    padding: var(--s-2) var(--s-4);
   }
 }

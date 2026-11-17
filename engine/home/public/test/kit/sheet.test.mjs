@@ -62,3 +62,15 @@ test("Sheet's sheet: paper with a fall of light, the paper's shadow for its edge
 });
 
 compositeSheetTests("sheet");
+
+// PLAN-3D-ALL U16: `slim`, a slimmer inset for a few short lines (Files set one of its own).
+test("Sheet: `slim` is a class with a slimmer inset; only true turns it on", async () => {
+  let root = await showTree(Sheet, { slim: true, children: "x" });
+  assert.deepEqual(classesOf(elements(root)[1]), ["k-sheet", "k-sheet--slim"]);
+  render(null, root);
+  root = await showTree(Sheet, { slim: "yes", children: "x" });
+  assert.deepEqual(classesOf(elements(root)[1]), ["k-sheet"]);
+  render(null, root);
+  const c = readFileSync(join(PUBLIC, "styles", "kit", "sheet.css"), "utf8");
+  assert.match(c, /\.k-sheet--slim \{\s*padding: var\(--s-2\) var\(--s-5\);/);
+});
