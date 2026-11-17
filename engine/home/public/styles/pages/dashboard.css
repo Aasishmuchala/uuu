@@ -54,14 +54,28 @@
 .p-dashboard .p-dashboard-open:hover { color: var(--ink); }
 
 /* The room header: 24 px up into the pane's top margin, one layer above the page so an open filter covers the
-   figures under it; the agent at the top right, the filters under the title. */
+   figures under it; the agent at the top right, the filters under the title. Like Files' band it is 120 px at the
+   least and its insets are trimmed, so the first row of a table stands no more than 48 px lower than before the band (D9). */
 .p-dashboard > .k-room {
   z-index: 1;
+  min-height: 120px;
   margin-top: calc(-1 * var(--s-6));
-  margin-bottom: var(--s-5);
+  margin-bottom: var(--s-4);
+  padding-top: var(--s-5);
+  padding-bottom: var(--s-4);
 }
 .p-dashboard > .k-room .k-page-header__lede { max-width: 64ch; }
+/* The rooms are dim at dusk (Support's most): the scrim is thinned a little so the room shows behind the title. */
+.p-dashboard > .k-room .k-room__scrim { opacity: 0.85; }
 .p-dashboard > .k-room .k-page-header__more { margin-top: var(--s-3); }
+/* The agent and its state over the picture: on a card's surface with its edge, so its words hold where the picture
+   is bright (the morning's rooms are). */
+.p-dashboard > .k-room .p-dashboard-agent {
+  padding: var(--s-1) var(--s-3) var(--s-1) var(--s-1);
+  border-radius: var(--r-round);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
 
 /* ---- The four record dashboards ---- */
 .p-dashboard.p-dashboard--records { gap: 0; max-width: 1040px; }
@@ -105,8 +119,8 @@
   flex-direction: column;
   gap: var(--s-1);
   padding: var(--s-5);
-  box-shadow: -1px 0 0 var(--line);
 }
+.p-dashboard .p-dashboard-total + .p-dashboard-total { border-left: 1px solid var(--line); }
 .p-dashboard .p-dashboard-total dd { margin: 0; }
 .p-dashboard .p-dashboard-total-label {
   font-size: var(--fs-label);
@@ -170,14 +184,21 @@
 
 /* Below 860 px every control and link keeps a 44 px target (M51 F15). */
 @media (max-width: 859px) {
-  .p-dashboard > .k-room { margin-top: calc(-1 * var(--s-2)); }
+  .p-dashboard > .k-room { min-height: 96px; margin-top: calc(-1 * var(--s-2)); padding-top: var(--s-4); }
   .p-dashboard .p-dashboard-open { min-height: 44px; }
   .p-dashboard .k-section__aside a { display: inline-flex; align-items: center; min-height: 44px; }
   .p-dashboard .k-section__aside .k-btn { min-height: 44px; }
   .p-dashboard .p-dashboard-filter .k-menu__trigger { min-height: 44px; }
   .p-dashboard .p-dashboard-sheet .k-table__table td { height: auto; }
   .p-dashboard .p-dashboard-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .p-dashboard .p-dashboard-total { padding: var(--s-3) var(--s-4); box-shadow: -1px 0 0 var(--line), 0 -1px 0 var(--line); }
+  /* Two across: a hairline between the two of a row and over every row but the first, all inside the card. */
+  .p-dashboard .p-dashboard-total { padding: var(--s-3) var(--s-4); }
+  .p-dashboard .p-dashboard-total + .p-dashboard-total { border-left: 0; }
+  .p-dashboard .p-dashboard-total:nth-child(even) { border-left: 1px solid var(--line); }
+  .p-dashboard .p-dashboard-total:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .p-dashboard .p-dashboard-total:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  /* On a phone the agent stands on its own line under the title: no plate. */
+  .p-dashboard > .k-room .p-dashboard-agent { padding: 0; background: none; box-shadow: none; }
   .p-dashboard .p-dashboard-total-value { white-space: normal; flex-wrap: wrap; font-size: var(--fs-stat); }
   /* Stacked rows stay flat: blocks parted by hairlines, never a card each. */
   .p-dashboard .p-dashboard-sheet .k-table__table tr { margin-bottom: 0; padding: var(--s-2) 0; background: transparent; border-width: 1px 0 0; border-radius: 0; box-shadow: none; }

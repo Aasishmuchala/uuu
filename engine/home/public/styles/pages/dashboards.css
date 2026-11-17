@@ -13,8 +13,15 @@
   margin-bottom: 0;
 }
 
+/* The line runs whole on one line where it fits. The building's face is mostly sky and dark trees at dusk: the scrim
+   is thinned so it shows (the checkpoint's lesson: a band whose picture hardly shows earns nothing); the left,
+   under the words, stays dense enough for them. */
 .p-dashboards > .k-room .k-page-header__lede {
-  max-width: 64ch;
+  max-width: 96ch;
+}
+
+.p-dashboards > .k-room .k-room__scrim {
+  opacity: 0.8;
 }
 
 .p-dashboards .p-dashboards-shelf {
