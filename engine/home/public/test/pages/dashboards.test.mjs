@@ -85,3 +85,74 @@ test("dashboards: a card's icon stands in the kit's Tile, in the tint of its dep
   const src = readFileSync(new URL("../../pages/dashboards.js", import.meta.url), "utf8");
   assert.match(src, /<\$\{Tile\} icon=\$\{d\.icon\} tint=\$\{tintFor\(d\.dept\)\} size=\$\{32\} \/>/);
 });
+
+// ---- Mounted in the shared test DOM with a fake fetch (PLAN-3D-ALL U12). ----
+const dom = await import("../kit/_dom.mjs");
+const { html, render } = dom;
+const { AppContext } = await import("../../lib/context.js");
+const shelf = await import("../../pages/dashboards.js");
+const fire = (el, type, ev = {}) => { for (const f of el.listeners[type] || []) f.call(el, { type, preventDefault() {}, stopPropagation() {}, ...ev }); };
+
+// Each department's answer as the home server words it, cut to what a card reads.
+const ANSWER = {
+  books: { id: "books", connected: true, figures: [
+    { id: "owed_to_you", label: "You are owed", value: "₹ 1,18,000.00", hint: "1 unpaid invoice" },
+    { id: "you_owe", label: "You owe", value: "₹ 9,440.00", hint: "1 unpaid bill" },
+    { id: "sales_month", label: "Sales this month", value: "₹ 1,43,000.00", hint: "2 invoices" },
+  ], sections: [{ id: "drafts", rows: [{ name: "A", inboxId: "bench:Sales Invoice:A" }] }], inFlight: [] },
+  customers: { id: "customers", connected: true, figures: [{ id: "leads_open", label: "Open leads", value: "3" }, { id: "deals_open", label: "Open deals", value: "2" }], sections: [], inFlight: [{ goalId: "g" }] },
+  support: { id: "support", connected: false, notConnected: { reason: "The books are switched off.", next: "Open Health to see how to start them." }, figures: [], sections: [] },
+  people: { id: "people", connected: true, figures: [], sections: [], inFlight: [] },
+  marketing: { id: "marketing", connected: true, figures: [{ id: "drafts", label: "Drafts waiting", value: "2", hint: "Waiting for you" }, { id: "approved", label: "Approved", value: "1" }],
+    sections: [{ id: "calendar", rows: [{ inboxId: "content:aaaaaaaaaaaa" }, { inboxId: "content:bbbbbbbbbbbb" }] }], inFlight: [] },
+  studio: { id: "studio", connected: true, figures: [{ id: "films", label: "Films", value: "1" }], sections: [], inFlight: [] },
+};
+const seeded = (over = {}) => (path) => {
+  const all = { ...Object.fromEntries(Object.entries(ANSWER).map(([k, v]) => [`/api/departments/${k}`, v])), ...over };
+  return Object.hasOwn(all, path) ? all[path] : null;
+};
+
+async function mountShelf(answers) {
+  dom.installDom();
+  globalThis.document.visibilityState = "visible";
+  globalThis.location = { hash: "#/dashboards", href: "/#/dashboards", search: "" };
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts = {}) => {
+    const m = opts.method || "GET";
+    calls.push(`${m} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}`);
+    const data = answers(String(path), m);
+    if (data === undefined) return new Promise(() => {});
+    return data ? { ok: true, status: 200, json: async () => data }
+      : { ok: false, status: 500, json: async () => ({ error: { code: "x", message: "That did not answer.", next: "Try again." } }) };
+  };
+  const tops = [];
+  const nothing = () => {};
+  const ctx = { shell: { team: [], dock: [] }, announce: nothing, openNeeds: nothing, setTop: (t) => tops.push(t), settings: { motion: "off", theme: "dark" } };
+  const root = new dom.FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${shelf.default} route=${{ id: "dashboards", parts: ["dashboards"], query: new URLSearchParams("") }} /><//>`, root);
+  await dom.settle();
+  return { root, calls, tops, done: async () => { render(null, root); root.remove(); await dom.settle(50); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+test("dashboards: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  for (const answers of [seeded(), seeded({ "/api/departments/people": undefined, "/api/departments/studio": undefined })]) {
+    const m = await mountShelf(answers);
+    try { seen.push(...m.calls); } finally { await m.done(); }
+  }
+  // A card that could not be read, then its Try again: only that card reads again.
+  const m = await mountShelf(seeded({ "/api/departments/support": null }));
+  try {
+    const retry = dom.elements(m.root).find((e) => e.localName === "button" && dom.textOf(e).includes("Try again"));
+    fire(retry, "Click");
+    await dom.settle();
+    seen.push(...m.calls);
+  } finally { await m.done(); }
+  const six = ["books", "customers", "support", "people", "marketing", "studio"].map((d) => `GET /api/departments/${d}`);
+  // Recorded on the page before PLAN-3D-ALL U12 changed it.
+  const RECORDED = [...six, ...six, ...six, "GET /api/departments/support"];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});

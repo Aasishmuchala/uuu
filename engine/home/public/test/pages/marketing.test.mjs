@@ -293,3 +293,136 @@ test("marketing: a shotlist or a card of versions waiting is the compact card; d
   assert.match(src, /<\$\{St\} tone=\$\{STATUS_TONE\[row\.status\] \|\| "neutral"\}>/);
   assert.doesNotMatch(src, /creature=|over=/);
 });
+
+// ---- The whole page, mounted in the shared test DOM with a fake fetch (PLAN-3D-ALL U12). ----
+const dom = await import("../kit/_dom.mjs");
+const { AppContext } = await import("../../lib/context.js");
+const page = await import("../../pages/marketing.js");
+const { existsSync: there, readFileSync: readText } = await import("node:fs");
+const SHAPES = (() => {
+  let d = dirname(fileURLToPath(import.meta.url));
+  for (;;) {
+    const c = join(d, "server", "test", "shapes");
+    if (there(c)) return c;
+    const p = dirname(d);
+    if (p === d) throw new Error("shape files not found");
+    d = p;
+  }
+})();
+const shape = (name) => JSON.parse(readText(resolve(SHAPES, `${name}.json`), "utf8"));
+const fire = (el, type, ev = {}) => { for (const f of el.listeners[type] || []) f.call(el, { type, preventDefault() {}, stopPropagation() {}, ...ev }); };
+const iso = (days) => { const d = new Date(); d.setDate(d.getDate() + days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+
+// The Marketing answer as routes/marketing.mjs words it.
+const MARKETING = () => ({
+  id: "marketing", title: "Marketing", connected: true, notConnected: null,
+  agent: { slug: "marketer", name: "Marketer", state: "working", plainState: "Working" },
+  figures: [
+    { id: "drafts", label: "Drafts waiting", value: "1", hint: "Waiting for you" },
+    { id: "approved", label: "Approved", value: "1", hint: "Approved, not published" },
+    { id: "this_week", label: "Planned this week", value: "2", hint: "16 to 22 Nov" },
+  ],
+  sections: [
+    { id: "calendar", title: "Content calendar", emptyText: "No drafts yet. Give the Marketer a goal to get some.",
+      columns: [{ key: "planned", label: "Planned" }, { key: "title", label: "Title" }, { key: "kind", label: "Kind" }, { key: "status", label: "Status" }],
+      rows: [
+        { planned: iso(1), title: "Winter kitchens: three layouts that save steps", kind: "Post", status: "Waiting for you", inboxId: "content:aaaaaaaaaaaa" },
+        { planned: iso(9), title: "November newsletter", kind: "Newsletter", status: "Approved" },
+        { planned: "", title: "A carousel on hinges", kind: "Carousel", status: "Sent back" },
+      ] },
+    { id: "concepts", title: "Concepts", emptyText: "No concepts yet.", columns: [], rows: [{ identifier: "STH-23", title: "Diwali offer", headlines: ["Light the kitchen", "Cabinets made to measure"] }] },
+    { id: "carousels", title: "Carousels", emptyText: "No carousels yet.", columns: [], rows: [] },
+    { id: "recipes", title: "What was made and how it did", emptyText: "Nothing made and answered yet.", columns: [],
+      rows: [{ date: "12 Nov 2026", job: "Post", rounds: 2, scores: "concept-1 9, concept-2 7", verdict: "Accepted" }] },
+    { id: "problems", title: "Files that could not be used", emptyText: "", columns: [{ key: "file", label: "File" }, { key: "problem", label: "What is wrong" }],
+      rows: [{ file: "drafts/broken.md", problem: "It has no title line." }] },
+  ],
+  inFlight: [{ goalId: "e0000000-0000-4000-8000-000000000024", title: "A carousel on hinges", plainState: "Being worked on" }],
+  switches: [{ id: "publishing", label: "Publish posts and newsletters", on: false, explain: "Connect an account to turn this on." }],
+});
+const DRAFT_ITEM = () => ({
+  id: "content:aaaaaaaaaaaa", source: "content", kind: "draft", department: "marketing", version: "v1",
+  title: "Approve a post: Winter kitchens", when: "2026-11-16T09:00:00.000Z", summary: "A post for Thursday.",
+  actions: [{ id: "approve", label: "Approve", style: "primary", needsNote: false }, { id: "reject", label: "Send back", style: "secondary", needsNote: true }],
+});
+const INBOX = () => ({ items: [DRAFT_ITEM(), { ...shape("shotlist-item"), department: "marketing" }] });
+const CONTENT = () => ({ draft: { id: "aaaaaaaaaaaa", title: "Winter kitchens", body: "Three layouts that save steps.\n\nOne: the triangle.", note: "" } });
+const MAP = () => ({ id: "marketing", clusters: [{ id: "c", title: "C", jobs: [
+  { id: "marketing/a-post", title: "A post on one subject", summary: "One post.", ready: true, department: { id: "marketing", title: "Marketing" }, runs: { total: 0 } },
+] }] });
+const seeded = (over = {}) => (path, method) => {
+  if (method === "POST" && path === "/api/inbox/act") return { ok: true, message: "Approved." };
+  const all = {
+    "/api/departments/marketing": MARKETING(), "/api/studio/slides": shape("studio-slides"), "/api/inbox": INBOX(),
+    "/api/content/aaaaaaaaaaaa": CONTENT(), "/api/map/marketing": MAP(), ...over,
+  };
+  return Object.hasOwn(all, path) ? all[path] : null;
+};
+
+async function mountMarketing(answers, { query = "", panels = [] } = {}) {
+  dom.installDom();
+  globalThis.document.visibilityState = "visible";
+  const hash = `#/dashboards/marketing${query ? `?${query}` : ""}`;
+  globalThis.location = { hash, href: `/${hash}`, search: "" };
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts = {}) => {
+    const m = opts.method || "GET";
+    calls.push(`${m} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}`);
+    const data = answers(String(path), m);
+    if (data === undefined) return new Promise(() => {});
+    return data ? { ok: true, status: 200, json: async () => data }
+      : { ok: false, status: 500, json: async () => ({ error: { code: "x", message: "That did not answer.", next: "Try again." } }) };
+  };
+  const tops = [];
+  const nothing = () => {};
+  const ctx = {
+    shell: { team: [], dock: [] }, announce: nothing, openComposer: nothing, openNeeds: nothing,
+    openPanel: (_body, o) => panels.push(o), closePanel: nothing, setTop: (t) => tops.push(t), settings: { motion: "off", theme: "dark" },
+  };
+  const root = new dom.FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  dom.render(dom.html`<${AppContext.Provider} value=${ctx}><${page.default} route=${{ id: "marketing", parts: ["dashboards", "marketing"], query: new URLSearchParams(query) }} /><//>`, root);
+  await dom.settle();
+  return { root, calls, tops, done: async () => { dom.render(null, root); root.remove(); await dom.settle(50); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+test("marketing: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  const panels = [];
+  for (const [answers, opts] of [
+    [seeded(), {}],
+    [seeded(), { query: "kind=post&st=approved" }],
+    [seeded(), { query: "slides=STH-24%2Flaunch", panels }],
+    [seeded({ "/api/departments/marketing": undefined }), {}],
+    [seeded({ "/api/departments/marketing": null }), {}],
+  ]) {
+    const m = await mountMarketing(answers, opts);
+    try { seen.push(...m.calls); } finally { await m.done(); }
+  }
+  assert.deepEqual(panels.map((p) => p.title), ["Launch carousel"], "?slides= opens the set in the work panel");
+  // A waiting post opened in place, then its draft approved there.
+  const m = await mountMarketing(seeded());
+  try {
+    const row = dom.elements(m.root).find((e) => e.localName === "button" && dom.classOf(e).includes("p-marketing__head") && dom.textOf(e).includes("Winter kitchens"));
+    fire(row, "Click");
+    await dom.settle();
+    const approve = dom.elements(m.root).find((e) => e.localName === "button" && dom.textOf(e) === "Approve");
+    fire(approve, "Click", { currentTarget: approve });
+    await dom.settle();
+    seen.push(...m.calls);
+  } finally { await m.done(); }
+  // Recorded on the page before PLAN-3D-ALL U12 changed it: the page, its carousels, Needs you and the jobs (the
+  // jobs not while the answer is missing or failed), the draft opened, approved, and the page and Needs you read again.
+  const FOUR = ["GET /api/departments/marketing", "GET /api/studio/slides", "GET /api/inbox", "GET /api/map/marketing"];
+  const THREE = FOUR.slice(0, 3);
+  const RECORDED = [
+    ...FOUR, ...FOUR, ...FOUR, ...THREE, ...THREE, ...FOUR,
+    "GET /api/content/aaaaaaaaaaaa",
+    `POST /api/inbox/act {"id":"content:aaaaaaaaaaaa","action":"approve","version":"v1"}`,
+    "GET /api/departments/marketing",
+    "GET /api/inbox",
+  ];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});

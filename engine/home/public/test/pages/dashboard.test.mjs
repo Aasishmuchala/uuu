@@ -261,3 +261,211 @@ test("a column in which every row says the same thing is left out and said once 
   assert.match(css, /\.p-dashboard \.p-dashboard-sheet \.k-table__table \.k-table__fit \{ width: auto; \}/, "the slack shared among the columns");
   assert.match(/\.p-dashboard \.p-dashboard-filter \.k-menu__trigger \{([^}]*)\}/.exec(css)[1], /border-color: var\(--line-2\);[\s\S]*background: var\(--card\)/, "Show and Status edged on the card's surface");
 });
+
+// ---- Mounted in the shared test DOM with a fake fetch (PLAN-3D-ALL U12). ----
+const dom = await import("../kit/_dom.mjs");
+const { AppContext } = await import("../../lib/context.js");
+const board = await import("../../pages/dashboard.js");
+const { html, render } = dom;
+const fire = (el, type, ev = {}) => { for (const f of el.listeners[type] || []) f.call(el, { type, preventDefault() {}, stopPropagation() {}, ...ev }); };
+const cols = (pairs) => pairs.map(([key, label]) => ({ key, label }));
+const OFF = "Connect an account to turn this on.";
+const agentOf = (name, state = "working", plainState = "Working") => ({ slug: name.toLowerCase(), name, state, plainState });
+
+// The four answers as the home server words them (routes/books.mjs, customers.mjs, support.mjs, people.mjs).
+const ANSWERS = {
+  books: () => ({
+    id: "books", title: "Books", connected: true, notConnected: null, agent: agentOf("Bookkeeper"),
+    inFlight: [{ goalId: "e0000000-0000-4000-8000-000000000031", title: "Chase the Northwind invoice", plainState: "Being worked on" }],
+    switches: [{ id: "einvoice", label: "Send e-invoices to the GST portal", on: false, explain: OFF }],
+    figures: [
+      { id: "owed_to_you", label: "You are owed", value: "₹ 1,18,000.00", hint: "1 unpaid invoice" },
+      { id: "you_owe", label: "You owe", value: "₹ 9,440.00", hint: "1 unpaid bill" },
+      { id: "sales_month", label: "Sales this month", value: "₹ 1,43,000.00", hint: "2 invoices" },
+      { id: "spend_month", label: "Spend this month", value: "₹ 12,980.00", hint: "2 bills" },
+    ],
+    sections: [
+      { id: "drafts", title: "Drafts waiting for you", emptyText: "No drafts waiting.",
+        columns: cols([["name", "Number"], ["type", "Type"], ["party", "Party"], ["amount", "Amount"], ["madeBy", "Made by"]]),
+        rows: [
+          { name: "ACC-SINV-2026-00007", type: "invoice", party: "Acme Interiors", amount: "₹ 11,800.00", madeBy: "Bookkeeper", inboxId: "bench:Sales Invoice:ACC-SINV-2026-00007" },
+          { name: "ACC-PINV-2026-00003", type: "bill", party: "Timber Supply Co", amount: "₹ 4,720.00", madeBy: "Bookkeeper", inboxId: "bench:Purchase Invoice:ACC-PINV-2026-00003" },
+        ] },
+      { id: "quotations", title: "Quotations", emptyText: "No quotations yet.",
+        columns: cols([["name", "Number"], ["party", "Customer"], ["valid", "Valid until"], ["amount", "Amount"], ["status", "Status"]]),
+        rows: [
+          { name: "SAL-QTN-2026-00001", party: "Asha Kitchens", valid: "16 Dec 2026", amount: "₹ 2,36,000.00", status: "Draft" },
+          { name: "SAL-QTN-2026-00002", party: "Acme Interiors", valid: "20 Dec 2026", amount: "₹ 59,000.00", status: "Final" },
+        ] },
+      { id: "unpaid_invoices", title: "Invoices not paid yet", emptyText: "Nothing is waiting to be paid to you.",
+        columns: cols([["name", "Number"], ["party", "Customer"], ["due", "Due"], ["left", "Amount left"]]),
+        rows: [{ name: "ACC-SINV-2026-00004", party: "Northwind Traders", due: "16 Dec 2026", left: "₹ 1,18,000.00" }] },
+      { id: "unpaid_bills", title: "Bills not paid yet", emptyText: "You have no bills to pay.",
+        columns: cols([["name", "Number"], ["party", "Supplier"], ["due", "Due"], ["left", "Amount left"]]),
+        rows: [{ name: "ACC-PINV-2026-00001", party: "Timber Supply Co", due: "1 Nov 2026", left: "₹ 9,440.00" }] },
+    ],
+  }),
+  customers: () => ({
+    id: "customers", title: "Customers", connected: true, notConnected: null, agent: agentOf("Sales", "free", "Free"), inFlight: [],
+    switches: [{ id: "email", label: "Send email to customers", on: false, explain: OFF }, { id: "whatsapp", label: "Send WhatsApp messages", on: false, explain: OFF }],
+    figures: [
+      { id: "leads_open", label: "Open leads", value: "3", hint: "" },
+      { id: "deals_open", label: "Open deals", value: "2", hint: "" },
+      { id: "deals_won_month", label: "Deals won this month", value: "1", hint: "" },
+    ],
+    sections: [
+      { id: "lead_stages", title: "Leads by stage", emptyText: "No open leads.", columns: cols([["stage", "Stage"], ["count", "How many"]]),
+        rows: [{ stage: "Lead", count: 2 }, { stage: "Contacted", count: 1 }] },
+      { id: "leads", title: "Open leads", emptyText: "No open leads.", columns: cols([["name", "Name"], ["organisation", "Organisation"], ["stage", "Stage"], ["age", "Age"]]),
+        rows: [{ name: "Asha Rao", organisation: "Asha Kitchens", stage: "Lead", age: "3 days" }, { name: "Vikram Shah", organisation: "", stage: "Contacted", age: "Today" }] },
+      { id: "deals", title: "Open deals", emptyText: "No open deals.", columns: cols([["name", "Name"], ["stage", "Stage"], ["value", "Value"]]),
+        rows: [{ name: "Acme Interiors", stage: "Negotiation", value: "₹ 3,40,000.00" }] },
+    ],
+  }),
+  support: () => ({
+    id: "support", title: "Support", connected: true, notConnected: null, agent: agentOf("Support", "waiting_for_you", "Waiting for your approval"), inFlight: [],
+    switches: [{ id: "email", label: "Send replies to customers by email", on: false, explain: OFF }],
+    figures: [
+      { id: "open", label: "Open requests", value: "2", hint: "" },
+      { id: "oldest", label: "Oldest waiting", value: "4 days", hint: "" },
+      { id: "drafts", label: "Replies waiting for you", value: "1", hint: "" },
+    ],
+    sections: [
+      { id: "open_requests", title: "Open requests", emptyText: "No customer is waiting.", columns: cols([["subject", "Subject"], ["from", "From"], ["status", "Status"], ["age", "Age"]]),
+        rows: [{ subject: "Delivery is late", from: "meera@example.com", status: "Open", age: "4 days" }, { subject: "Hinge is loose", from: "", status: "Replied", age: "1 day" }] },
+      { id: "draft_replies", title: "Replies waiting for you", emptyText: "No replies waiting.", columns: cols([["request", "Request"], ["reply", "Reply"]]),
+        rows: [{ request: "#1 Delivery is late", reply: "We are sorry for the delay. Your order ships on Friday, and we will write again.", inboxId: "bench:HD Ticket Comment:c1" }] },
+    ],
+  }),
+  people: () => ({
+    id: "people", title: "People", connected: true, notConnected: null, agent: agentOf("People", "paused", "Paused"), inFlight: [], switches: [],
+    figures: [
+      { id: "staff", label: "People", value: "3", hint: "" },
+      { id: "on_leave_today", label: "On leave today", value: "0", hint: "" },
+      { id: "leave_waiting", label: "Leave requests waiting", value: "1", hint: "" },
+    ],
+    sections: [
+      { id: "staff", title: "People", emptyText: "No one has been added yet.", columns: cols([["name", "Name"], ["job", "Job"], ["joined", "Joined"]]),
+        rows: [{ name: "Priya Nair", job: "Designer", joined: "1 Apr 2025" }, { name: "Asha Rao", job: "Fitter", joined: "2 Jun 2025" }] },
+      { id: "leave", title: "Leave", emptyText: "No leave requests.", columns: cols([["who", "Who"], ["from", "From"], ["to", "To"], ["status", "Status"]]),
+        rows: [{ who: "Priya Nair", from: "20 Nov 2026", to: "21 Nov 2026", status: "Waiting for you", inboxId: "bench:Leave Application:HR-LAP-2026-00001" }] },
+      { id: "attendance", title: "Attendance, last 7 days", emptyText: "No attendance marked this week.", columns: cols([["who", "Who"], ["date", "Date"], ["status", "Status"]]),
+        rows: [{ who: "Asha Rao", date: "16 Nov 2026", status: "Present" }] },
+    ],
+  }),
+};
+// The answer when the books cannot be read (routes/_departments.mjs: the books switched off).
+const BOOKS_OFF = () => ({
+  id: "books", title: "Books", connected: false, notConnected: { reason: "The books are switched off.", next: "Open Health to see how to start them." },
+  agent: null, inFlight: [], figures: [], sections: [], switches: [{ id: "einvoice", label: "Send e-invoices to the GST portal", on: false, explain: OFF }],
+});
+const INBOX = () => ({ items: [{ id: "bench:Leave Application:HR-LAP-2026-00001", title: "Leave for Priya Nair", department: "people" }, { id: "bench:HD Ticket Comment:c1", title: "Reply to #1", department: "support" }] });
+const MAP = (dept) => ({ id: dept, clusters: [{ id: "c", title: "C", jobs: [
+  { id: `${dept}/one`, title: "Send a payment reminder", summary: "A polite reminder for one unpaid invoice.", ready: true, department: { id: dept, title: dept }, runs: { total: 0 } },
+] }] });
+
+// `answers(path, method)`: an object answers 200, null a 500 with the server's sentence, undefined never answers.
+function seeded(over = {}) {
+  return (path) => {
+    const all = {
+      "/api/departments/books": ANSWERS.books(), "/api/departments/customers": ANSWERS.customers(), "/api/departments/support": ANSWERS.support(),
+      "/api/departments/people": ANSWERS.people(), "/api/inbox": INBOX(),
+      ...Object.fromEntries(["books", "sales", "support", "people"].map((d) => [`/api/map/${d}`, MAP(d)])), ...over,
+    };
+    return Object.hasOwn(all, path) ? all[path] : null;
+  };
+}
+
+async function mountBoard(answers, { id = "books", query = "", opened = [] } = {}) {
+  dom.installDom();
+  globalThis.document.visibilityState = "visible";
+  const hash = `#/dashboards/${id}${query ? `?${query}` : ""}`;
+  globalThis.location = { hash, href: `/${hash}`, search: "" };
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts = {}) => {
+    const m = opts.method || "GET";
+    calls.push(`${m} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}`);
+    const data = answers(String(path), m);
+    if (data === undefined) return new Promise(() => {});
+    return data ? { ok: true, status: 200, json: async () => data }
+      : { ok: false, status: 500, json: async () => ({ error: { code: "x", message: "The books did not answer.", next: "Try again." } }) };
+  };
+  const tops = [];
+  const nothing = () => {};
+  const ctx = {
+    shell: { team: [], dock: [] }, announce: nothing, openComposer: nothing, openPanel: nothing, closePanel: nothing,
+    openNeeds: (o) => opened.push(o), setTop: (t) => tops.push(t), settings: { motion: "off", theme: "dark" },
+  };
+  const root = new dom.FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${board.default} route=${{ id: "dashboards", parts: ["dashboards", id], query: new URLSearchParams(query) }} /><//>`, root);
+  await dom.settle();
+  return { root, calls, tops, done: async () => { render(null, root); root.remove(); await dom.settle(50); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+test("dashboard: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  for (const [answers, opts] of [
+    [seeded(), { id: "books" }],
+    [seeded(), { id: "customers" }],
+    [seeded(), { id: "support" }],
+    [seeded(), { id: "people" }],
+    [seeded(), { id: "books", query: "s=quotations&st=draft" }],
+    [seeded({ "/api/departments/books": BOOKS_OFF() }), { id: "books" }],
+    [seeded({ "/api/departments/books": undefined }), { id: "books" }],
+    [seeded(), { id: "../../x" }],
+  ]) {
+    const m = await mountBoard(answers, opts);
+    try { seen.push(...m.calls); } finally { await m.done(); }
+  }
+  // The books not answering, then Try again; Open in Needs you asks the shell, not the server.
+  const opened = [];
+  const m = await mountBoard(seeded({ "/api/departments/books": null }), { id: "books" });
+  try {
+    const retry = dom.elements(m.root).find((e) => e.localName === "button" && dom.textOf(e).includes("Try again"));
+    fire(retry, "Click");
+    await dom.settle();
+    seen.push(...m.calls);
+  } finally { await m.done(); }
+  const p = await mountBoard(seeded(), { id: "people", opened });
+  try {
+    const queue = dom.elements(p.root).find((e) => e.localName === "button" && dom.textOf(e).includes("Open in Needs you"));
+    fire(queue, "Click");
+    await dom.settle(50);
+    seen.push(...p.calls);
+  } finally { await p.done(); }
+  assert.deepEqual(opened, [{ department: "people" }]);
+  // Recorded on the page before PLAN-3D-ALL U12 changed it.
+  const RECORDED = [
+    "GET /api/departments/books",
+    "GET /api/inbox",
+    "GET /api/map/books",
+    "GET /api/departments/customers",
+    "GET /api/inbox",
+    "GET /api/map/sales",
+    "GET /api/departments/support",
+    "GET /api/inbox",
+    "GET /api/map/support",
+    "GET /api/departments/people",
+    "GET /api/inbox",
+    "GET /api/map/people",
+    "GET /api/departments/books",
+    "GET /api/inbox",
+    "GET /api/departments/books",
+    "GET /api/inbox",
+    "GET /api/departments/books",
+    "GET /api/inbox",
+    "GET /api/departments/books",
+    "GET /api/inbox",
+    "GET /api/map/books",
+    "GET /api/departments/books",
+    "GET /api/inbox",
+    "GET /api/departments/books",
+    "GET /api/departments/people",
+    "GET /api/inbox",
+    "GET /api/map/people",
+  ];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});
