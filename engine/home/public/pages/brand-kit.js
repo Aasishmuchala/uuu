@@ -1364,7 +1364,7 @@ function Editor({ view, reload, section, proposalRef }) {
 
   const line = lines[here.id];
   return html`<div class=${`p-brand-kit p-brand-kit--${here.id}`}>
-    <${RoomHeader} glimpse=${wide ? glimpseFor("files") : null} title=${here.label} lede=${INTROS[here.id]}
+    <${RoomHeader} glimpse=${wide ? glimpseFor("files") : null} strip title=${here.label} lede=${INTROS[here.id]}
       state=${line ? html`<${Tag} tone=${line.tone}>${line.text}<//>` : null} />
     <${DocLayout} sections=${sections} current=${here.id}>
       <div class="p-brand-kit__top">
@@ -1428,7 +1428,7 @@ export default function BrandKitPage({ route }) {
   if (state === "ready") return html`<${Editor} key=${`${address}-${round}-${res.data.version || "new"}`} view=${res.data} reload=${reload} section=${section} proposalRef=${ref} />`;
   const sections = SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon, href: sectionHref(s.id, ref) }));
   return html`<div class="p-brand-kit">
-    <${RoomHeader} glimpse=${wide ? glimpseFor("files") : null} title="Brand kit" lede=${WORDS.lead} />
+    <${RoomHeader} glimpse=${wide ? glimpseFor("files") : null} strip title="Brand kit" lede=${WORDS.lead} />
     <${DocLayout} sections=${sections} current=${section}>
       <div class="p-brand-kit__top">
         ${state === "loading" ? html`<${Loading} lines=${6} label="Opening the brand kit" />` : null}

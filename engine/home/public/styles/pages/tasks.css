@@ -25,11 +25,9 @@
   margin-bottom: var(--s-4);
 }
 
-/* The room header: 24 px up into the pane's top margin, 16 px over the first group. It stands one layer above the
-   rows, so a filter's open menu (inside the band's own layer) covers the group heads under it. */
+/* The room header: 16 px over the first group. The kit's `pull` lifts it into the pane's top margin and its own layer
+   lets a filter's open menu cover the group heads under it (PLAN-3D-ALL U16, U17). */
 .p-tasks .k-room {
-  z-index: 1;
-  margin-top: calc(-1 * var(--s-6));
   margin-bottom: var(--s-4);
 }
 
@@ -443,7 +441,6 @@
   }
 
   .p-tasks .k-room {
-    margin-top: calc(-1 * var(--s-2));
     margin-bottom: var(--s-4);
   }
 

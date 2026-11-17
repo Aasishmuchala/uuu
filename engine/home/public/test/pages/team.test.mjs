@@ -203,8 +203,13 @@ test("team: the title and its line stand in the room header with the façade's g
   } finally { await off.done(); }
   const css = readFileSync(new URL("../../styles/pages/team.css", import.meta.url), "utf8");
   const [wide, phone] = [...css.matchAll(/\.p-team \.k-room \{([^}]*)\}/g)].map((x) => x[1]);
-  assert.match(wide, /z-index: 1;\s*min-height: 120px;\s*margin-top: calc\(-1 \* var\(--s-6\)\);\s*margin-bottom: var\(--s-4\);/, "up into the pane's margin (D9)");
-  assert.match(phone, /min-height: 96px;\s*margin-top: calc\(-1 \* var\(--s-2\)\);/);
+  // PLAN-3D-ALL U17: the layer and the pull are the kit's (U16); the page gives the band `pull` instead of copying
+  // "z-index: 1; margin-top: calc(-1 * var(--s-6))".
+  assert.match(readFileSync(new URL("../../pages/team.js", import.meta.url), "utf8"), /<\$\{RoomHeader\} [^>]*\bpull\b/, "up into the pane's margin (D9)");
+  assert.match(wide, /min-height: 120px;\s*margin-bottom: var\(--s-4\);/);
+  assert.doesNotMatch(wide, /z-index|margin-top/);
+  assert.match(phone, /min-height: 96px;/);
+  assert.doesNotMatch(phone, /margin-top/);
   assert.ok(!/data-surface|k-sheet/.test(css) && !/data-surface|<\$\{Sheet\}/.test(readFileSync(new URL("../../pages/team.js", import.meta.url), "utf8")), "nothing on paper here");
 });
 

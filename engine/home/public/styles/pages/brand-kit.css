@@ -985,12 +985,12 @@
 
 /* ---- A phone, or any narrow window */
 @media (max-width: 859px) {
-  /* A phone: the band is a 56 px title strip with no picture (brand-kit.js asks for none below 860 px). */
+  /* A phone: the band is the kit's 56 px title strip with no picture; its height and insets here because the wide
+     band's rule outweighs the kit's. */
   .p-brand-kit > .k-room {
     min-height: 56px;
     margin: var(--s-2) var(--s-3) 0;
     padding: var(--s-2) var(--s-4);
-    justify-content: center;
   }
 
   .p-brand-kit .k-doc__main {

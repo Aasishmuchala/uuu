@@ -474,7 +474,7 @@ export default function AppsPage() {
       </div>`
     : null;
   return html`<div class="p-apps">
-    <${RoomHeader} glimpse=${wide ? glimpseFor("apps") : null} title=${WORDS.title} lead=${WORDS.intro}>${bar}<//>
+    <${RoomHeader} glimpse=${wide ? glimpseFor("apps") : null} pull strip title=${WORDS.title} lead=${WORDS.intro}>${bar}<//>
     ${view.loading && !data ? html`<${Loading} label="Loading App Studio" />` : null}
     ${restart ? html`<${Restart} />` : null}
     ${view.error && !restart ? html`<${ErrorNotice} error=${view.error} onRetry=${view.reload} />` : null}

@@ -924,7 +924,7 @@ export default function Page({ route }) {
     const missing = res.error && (res.error.code === "task_not_found" || res.error.status === 404);
     return html`
       <div class="p-task" ref=${root}>
-        <${RoomHeader} glimpse=${res.error ? glimpseFor("task") : null} title=${missing ? "Task not found" : "Task"} back=${BACK} crumbs=${crumbs} />
+        <${RoomHeader} glimpse=${res.error ? glimpseFor("task") : null} pull title=${missing ? "Task not found" : "Task"} back=${BACK} crumbs=${crumbs} />
         ${missing ? html`<${Empty} title="That task is not here."><a class="p-task__empty-link" href="#/tasks">All tasks</a><//>`
           : res.loading || !res.error ? html`<${Loading} lines=${6} label="Loading the task" />`
           : html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`}
@@ -997,7 +997,7 @@ export default function Page({ route }) {
   return html`
     <div class=${rootClass} ref=${root} style=${rootStyle}>
       <div class="p-task__head">
-        <${RoomHeader} glimpse=${glimpseFor("task", dept)} title=${cap(t.title, 300) || "Task"} back=${BACK} crumbs=${crumbs}>
+        <${RoomHeader} glimpse=${glimpseFor("task", dept)} pull title=${cap(t.title, 300) || "Task"} back=${BACK} crumbs=${crumbs}>
           <div class="p-task__meta">
             ${who ? html`<span class="p-task__who"><${Avatar} slug=${text(who.slug)} name=${text(who.name)} size=${20} /><span>${cap(who.name, 60)}</span></span>` : null}
             ${t.size ? html`<${Chip}>Size ${cap(t.size, 4)}<//>` : null}

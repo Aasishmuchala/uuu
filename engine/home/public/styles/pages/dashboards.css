@@ -8,8 +8,8 @@
    cut: a figure that does not fit its half of the card wraps between its parts. */
 .p-dashboards { display: flex; flex-direction: column; gap: var(--s-4); }
 
+/* Up into the pane's top margin by the kit's `pull` (PLAN-3D-ALL U16, U17). */
 .p-dashboards > .k-room {
-  margin-top: calc(-1 * var(--s-6));
   margin-bottom: 0;
 }
 
@@ -156,7 +156,6 @@
 }
 
 @media (max-width: 859px) {
-  .p-dashboards > .k-room { margin-top: calc(-1 * var(--s-2)); }
   .p-dashboards .p-dashboards-shelf { grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
   .p-dashboards .p-dashboards-card { padding: var(--s-4); }
   .p-dashboards .p-dashboards-figures { margin-top: var(--s-4); }

@@ -490,11 +490,14 @@ test("files: what is read is on paper (an opened text or Markdown file, each age
 test("files: the band stands above the frame, a short strip with no picture on a phone; rows answer in the lamp's pool (PLAN-3D-ALL U9)", () => {
   const css = readFileSync(new URL("../../styles/pages/files.css", import.meta.url), "utf8");
   const [wide, phone] = [...css.matchAll(/\.p-files > \.k-room \{([^}]*)\}/g)].map((x) => x[1]);
-  assert.match(wide, /z-index: 1;/, "+ New's open menu covers the frame under the band");
+  // PLAN-3D-ALL U17: the layer (+ New's open menu covers the frame under the band) and the phone's title strip with
+  // no picture are the kit's (U16): the band is given `strip` and the page's own width switch is gone
+  // ("glimpse=${wide ? glimpseFor("files") : null}" → "glimpse=${glimpseFor("files")} strip").
+  assert.doesNotMatch(wide, /z-index/);
   assert.match(wide, /min-height: 120px;/);
   assert.match(phone, /min-height: 56px;/, "a phone: a title strip");
-  assert.match(SOURCE, /<\$\{RoomHeader\} glimpse=\$\{wide \? glimpseFor\("files"\) : null\}/, "no picture asked for below 860 px");
-  assert.match(SOURCE, /const WIDE = "\(min-width: 860px\)";/);
+  assert.match(SOURCE, /<\$\{RoomHeader\} glimpse=\$\{glimpseFor\("files"\)\} strip\b/, "no picture asked for below 860 px");
+  assert.doesNotMatch(SOURCE, /const WIDE = /);
   // The quiet look's control fill under the pointer was replaced by the lamp's pool (PLAN-3D-ALL U9, as U5).
   assert.match(css, /\.p-files a\.p-files__row-link:hover,\s*\.p-files a\.p-files__row-link:focus-visible \{\s*background: var\(--lamp-pool\);/);
   assert.match(css, /\.p-files a\.p-files__row-link:focus-visible \{\s*outline: 2px solid var\(--accent\);/, "the 2 px ring");

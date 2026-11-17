@@ -12,12 +12,12 @@
 .p-apps .k-page-header { margin-bottom: 0; }
 .p-apps .k-page-header__more { margin-top: var(--s-5); }
 
-/* The room header: 24 px up into the pane's top margin, 16 px over the first group. One layer above the rows. */
-.p-apps > .k-room { z-index: 1; margin-top: calc(-1 * var(--s-6)); margin-bottom: calc(-1 * var(--s-2)); }
+/* The room header: 16 px over the first group; the kit's `pull` and layer put it in the pane's top margin, above the
+   rows (PLAN-3D-ALL U16, U17). */
+.p-apps > .k-room { margin-bottom: calc(-1 * var(--s-2)); }
 .p-apps > .k-room .k-page-header__lede { max-width: 64ch; }
-/* Over the picture the filter keeps the control fill and App Studio's own state its first ink, so both hold where
-   the picture is bright. */
-.p-apps > .k-room .k-seg { background: var(--ctl); }
+/* Over the picture App Studio's own state keeps its first ink, so it holds where the picture is bright; the filter
+   stands on the panel by the kit's own rule (PLAN-3D-ALL U16). */
 .p-apps > .k-room .p-apps__host .k-st { color: var(--ink); }
 
 /* The bar: the filter at the left, App Studio's state at the right, on one line while they fit. */
@@ -116,9 +116,9 @@
 /* Below 860 px: one card a row, the bar's two halves stacked. */
 @media (max-width: 859px) {
   .p-apps { gap: var(--s-6); }
-  /* A phone: the band is a title strip with no picture (apps.js asks for none below 860 px), the bar under it, 8 px
-     above and below so the first row stays within 40 px of where it stood (D9). */
-  .p-apps > .k-room { min-height: 56px; margin-top: calc(-1 * var(--s-2)); margin-bottom: calc(-1 * var(--s-2)); padding: var(--s-2) var(--s-4); }
+  /* A phone: the band is the kit's title strip with no picture, the bar under it, 8 px above and below so the first
+     row stays within 40 px of where it stood (D9). */
+  .p-apps > .k-room { margin-bottom: calc(-1 * var(--s-2)); }
   .p-apps .p-apps__sites { grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
   .p-apps > .k-notice { align-self: stretch; max-width: none; }
   /* A row: the tile and its words, then the buttons and the sentence under the words. */

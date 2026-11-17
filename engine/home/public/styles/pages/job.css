@@ -17,11 +17,10 @@
   max-width: var(--content-max);
 }
 
-/* The room header: 96 px, 24 px up into the pane's top margin, a layer above what follows. */
+/* The room header: 96 px; the kit's `pull` and layer put it in the pane's top margin, above what follows (PLAN-3D-ALL
+   U16, U17). */
 .p-job > .k-room {
-  z-index: 1;
   min-height: 96px;
-  margin-top: calc(-1 * var(--s-6));
   margin-bottom: 0;
   padding-top: var(--s-4);
   padding-bottom: var(--s-4);
@@ -454,12 +453,11 @@
     gap: var(--s-7);
   }
 
-  /* A title strip with no picture (PLAN-3D-ALL U11, as Settings on a phone). */
+  /* A title strip with no picture (PLAN-3D-ALL U11, as Settings on a phone): the kit's `strip`; its height and insets
+     here because the wide band's rule above outweighs the kit's. */
   .p-job > .k-room {
     min-height: 56px;
-    margin-top: calc(-1 * var(--s-2));
     padding: var(--s-2) var(--s-4);
-    justify-content: center;
   }
 
   .p-job .p-job__facts {

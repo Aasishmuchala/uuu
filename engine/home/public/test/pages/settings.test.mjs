@@ -240,19 +240,23 @@ test("PLAN-3D-ALL U4: every section is under the band: one h1, the section's nam
   assert.match(/\.p-settings > \.k-room \{([^}]*)\}/.exec(phone)[1], /min-height: 56px;/);
 });
 
+// PLAN-3D-ALL U17: the kit's `strip` (U16) decides it from the window's width; the page's own matchMedia switch is
+// gone, so the band keeps its key ("data-glimpse" was "none") and draws the 56 px strip with no picture.
 test("PLAN-3D-ALL U4: on a phone the band is a title strip and the page asks for no picture", async () => {
-  globalThis.matchMedia = (q) => ({ media: q, matches: false, addEventListener() {}, removeEventListener() {} });
+  const kept = Object.getOwnPropertyDescriptor(globalThis, "innerWidth");
+  globalThis.innerWidth = 390;
   try {
     const m = await drawPage("generation");
     try {
       const all = m.DOM.elements(m.root);
       const band = all.find((e) => e.localName === "header" && m.DOM.classesOf(e).includes("k-room"));
-      assert.equal(band.getAttribute("data-glimpse"), "none");
+      assert.ok(m.DOM.classesOf(band).includes("k-room--strip"), "the kit's title strip");
+      assert.ok(m.DOM.classesOf(band).includes("k-room--bare"));
       assert.equal(all.filter((e) => e.localName === "img").length, 0, "no picture");
       assert.equal(m.DOM.textOf(all.find((e) => e.localName === "h1")), "Generation");
       assert.ok(!m.wire.some((w) => /\/assets\/glimpse\//.test(w)), "no picture asked for");
     } finally { m.done(); }
-  } finally { delete globalThis.matchMedia; }
+  } finally { if (kept) Object.defineProperty(globalThis, "innerWidth", kept); else delete globalThis.innerWidth; }
 });
 
 // Every string in an answer replaced by one of PLAN-3D's hostile set, in turn.

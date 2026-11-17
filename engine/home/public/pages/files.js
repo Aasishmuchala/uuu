@@ -330,23 +330,6 @@ export function sharedHref(f) {
   return null;
 }
 
-// True while the window is 860 px wide or more: only then does the band ask for its picture (as Settings: on a
-// phone the band is a short title strip, so the first row stays near the top and the grey line never sits over the
-// shelves). Read at once, so a phone never asks for it, and kept up with the window.
-const WIDE = "(min-width: 860px)";
-function useWide() {
-  const read = () => typeof matchMedia !== "function" || matchMedia(WIDE).matches === true;
-  const [wide, setWide] = useState(read);
-  useEffect(() => {
-    if (typeof matchMedia !== "function") return undefined;
-    const mq = matchMedia(WIDE);
-    const again = () => setWide(mq.matches === true);
-    if (mq.addEventListener) mq.addEventListener("change", again);
-    return () => { if (mq.removeEventListener) mq.removeEventListener("change", again); };
-  }, []);
-  return wide;
-}
-
 // ---------------------------------------------------------------------------------------------------------------
 // The parts M29 builds, loaded by address when they exist (a module that is not there yet is not an error).
 
@@ -734,7 +717,7 @@ function Lessons() {
       return html`<${Group} key=${r.slug} title=${cut(r.name, 80)}
           aside=${ID.test(str(r.slug)) ? html`<a href=${`#/team/${r.slug}?tab=lessons`}>Edit</a>` : null}>
         ${lessons.length
-          ? html`<${Sheet} wide=${true}><ul class="p-files__lesson-list">${lessons.map((l, i) => {
+          ? html`<${Sheet} wide=${true} slim=${true}><ul class="p-files__lesson-list">${lessons.map((l, i) => {
               const { date, text } = splitLesson(cut(String(l ?? ""), LESSON_MAX));
               return html`<li key=${i}><span class="p-files__lesson-text">${text}</span>${date ? html`<span class="p-files__lesson-date">${date}</span>` : null}</li>`;
             })}</ul><//>`
@@ -884,10 +867,9 @@ const NEW_TITLES = { paste: "Paste text", upload: "Add a file", form: "Fill in a
 // The Brand kit's page, loaded the first time its address is opened.
 function BrandKitHost({ route }) {
   const part = useBrainPart("brandKit");
-  const wide = useWide();
   if (part.state === "ready") return html`<${part.C} route=${route} />`;
   return html`<div class="p-files">
-    <${RoomHeader} glimpse=${wide ? glimpseFor("files") : null} title="Brand kit" chip=${{ label: ["Files", "Brand kit"], href: "#/files", closeLabel: "Back to all files" }} />
+    <${RoomHeader} glimpse=${glimpseFor("files")} strip title="Brand kit" chip=${{ label: ["Files", "Brand kit"], href: "#/files", closeLabel: "Back to all files" }} />
     ${part.state === "missing" ? html`<${BeingBuilt} title="The brand kit page is not ready yet." />` : html`<${Loading} lines=${4} label="Opening the brand kit" />`}
   </div>`;
 }
@@ -925,7 +907,6 @@ function FilesPage({ route }) {
   const brain = useResource("/api/brain", { every: EVERY });
   const web = useResource("/api/web");
   const newFile = useBrainPart("newFile");
-  const wide = useWide();
   const [picking, setPicking] = useState(false);
   const [q, setQ] = useState(routeQ);
   const [term, setTerm] = useState(routeQ.trim());
@@ -1089,7 +1070,7 @@ function FilesPage({ route }) {
   } else body = null;
 
   return html`<div class=${`p-files${showFile ? " p-files--file" : ""}`}>
-    <${RoomHeader} glimpse=${wide ? glimpseFor("files") : null} title=${title} lede=${lead} actions=${showFile || sharedMode ? null : newMenu} />
+    <${RoomHeader} glimpse=${glimpseFor("files")} strip title=${title} lede=${lead} actions=${showFile || sharedMode ? null : newMenu} />
     <${DocLayout} sections=${sections} current=${current}>
       ${savedName && saved.current && saved.current === fileTok ? html`<p class="p-files__saved" role="status"><${Icon} name="check" size=${16} />Saved. ${savedName}</p>` : null}
       ${brain.error && !brain.data ? html`<${ErrorNotice} error=${brain.error} onRetry=${brain.reload} />` : null}

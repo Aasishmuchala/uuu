@@ -751,7 +751,9 @@ test("task: the reading column under a stage is its own class, held to no height
   assert.match(css, /\.p-task \.p-task__round-row:hover \{\s*background: var\(--lamp-pool\);/);
   assert.match(css, /\.p-task \.p-task__round-row:focus-visible \{\s*outline: 2px solid var\(--accent\);/);
   // The band rises into the pane's margin, as Tasks', so the story and the rail start near where they did (D9).
-  assert.match(css, /\.p-task > \.k-room,\s*\.p-task \.p-task__head \.k-room \{\s*z-index: 1;\s*margin-top: calc\(-1 \* var\(--s-6\)\);/);
+  // PLAN-3D-ALL U17: by the kit's `pull` and layer (U16) instead of the sheet's copy of "z-index: 1; margin-top: …".
+  assert.match(css, /\.p-task > \.k-room,\s*\.p-task \.p-task__head \.k-room \{\s*margin-bottom: 0;\s*\}/);
+  assert.equal((readFileSync(new URL("../../pages/task.js", import.meta.url), "utf8").match(/<\$\{RoomHeader\} glimpse=\$\{[^}]*\} pull\b/g) || []).length, 2);
 });
 
 test("task: hostile server text stays text: no script, img, iframe or object beyond the band's and the kept pictures; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {

@@ -185,7 +185,7 @@ function Header({ data, onChanged }) {
   const name = text(a.name) || "Agent";
   const title = html`<span class="p-agent__title"><${Avatar} slug=${a.slug} name=${a.name} size=${40} /><span>${name}</span></span>`;
   return html`<div class="p-agent__head">
-    <${RoomHeader} glimpse=${wide ? glimpseFor("agent") : null} title=${title} lead=${cap(a.summary, 400)}
+    <${RoomHeader} glimpse=${wide ? glimpseFor("agent") : null} pull title=${title} lead=${cap(a.summary, 400)}
       crumbs=${[{ label: "Team", href: "#/team" }, { label: name }]}
       state=${html`<span class="p-agent__state"><${Lamp} state=${lampOf(a)} /><${AgentState} agent=${a} chip /></span>`}
       actions=${html`<span class="p-agent__acts">
@@ -500,7 +500,7 @@ export default function Page({ route }) {
     } else if (res.error) body = html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`;
     else body = html`<${Loading} lines=${5} label="Loading the agent" />`;
     return html`<div class="p-agent">
-      <${RoomHeader} glimpse=${wide && res.error ? glimpseFor("agent") : null} title=${res.error && res.error.status === 404 ? "Not found" : "Team"} back=${{ href: "#/team", label: "Team" }} />
+      <${RoomHeader} glimpse=${wide && res.error ? glimpseFor("agent") : null} pull title=${res.error && res.error.status === 404 ? "Not found" : "Team"} back=${{ href: "#/team", label: "Team" }} />
       ${body}
     </div>`;
   }

@@ -239,7 +239,7 @@ function Head({ data, off }) {
   </div>`;
   const title = html`<span class="p-dept__title"><span class="p-dept__tile"><${Tile} icon=${deptIcon(id)} size=${32} /></span><span>${name}</span></span>`;
   return html`<div class="p-dept__head">
-    <${RoomHeader} glimpse=${wide ? glimpseFor("dept", id) : null} title=${title} lead=${cap(dep.line, 120)} actions=${links}>
+    <${RoomHeader} glimpse=${wide ? glimpseFor("dept", id) : null} pull title=${title} lead=${cap(dep.line, 120)} actions=${links}>
       <${StateChip} state=${dep.state} department=${id} off=${off} />
     <//>
   </div>`;
@@ -413,7 +413,7 @@ export default function Page({ route }) {
     } else if (res.error) body = html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`;
     else body = html`<${Loading} lines=${6} label="Loading the department" />`;
     return html`<div class="p-dept">
-      <${RoomHeader} glimpse=${wide && (!id || res.error) ? glimpseFor("dept", id) : null} title=${!id || (res.error && res.error.status === 404) ? "Not found" : "Department"} back=${{ href: "#/map", label: "Map" }} />
+      <${RoomHeader} glimpse=${wide && (!id || res.error) ? glimpseFor("dept", id) : null} pull title=${!id || (res.error && res.error.status === 404) ? "Not found" : "Department"} back=${{ href: "#/map", label: "Map" }} />
       ${body}
     </div>`;
   }

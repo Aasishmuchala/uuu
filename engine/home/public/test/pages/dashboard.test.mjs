@@ -501,8 +501,10 @@ test("dashboard: the title, the agent and the filters stand in the room header o
   }
   const css = readCss(new URL("../../styles/pages/dashboard.css", import.meta.url), "utf8");
   const band = /\.p-dashboard > \.k-room \{([^}]*)\}/.exec(css)[1];
-  assert.match(band, /z-index: 1;/, "an open filter covers what is under the band");
-  assert.match(band, /margin-top: calc\(-1 \* var\(--s-6\)\);/, "the band rises into the pane's top margin (D9)");
+  // PLAN-3D-ALL U17: the layer and the pull into the pane's margin are the kit's (`.k-room`, `pull`, U16); the page
+  // gives the band `pull` instead of copying "z-index: 1; margin-top: calc(-1 * var(--s-6))".
+  assert.doesNotMatch(band, /z-index|margin-top/, "an open filter covers what is under the band by the kit's layer");
+  assert.match(readCss(new URL("../../pages/dashboard.js", import.meta.url), "utf8"), /<\$\{RoomHeader\} glimpse=\$\{[^}]*\} pull\b/, "up into the pane's margin by the kit's pull (D9)");
   assert.match(css, /\.p-dashboard \.k-room \.p-dashboard-filter \.k-menu__trigger \{ background: var\(--ctl\); \}/);
   // The quiet look's tables ran to the edge with no padding at their two ends; the head row is now filled with the
   // lamp's pool, so the first and last cells keep the kit's 8 px (PLAN-3D-ALL U12).

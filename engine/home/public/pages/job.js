@@ -455,7 +455,7 @@ export default function Page() {
 
   if (!addr || (!job && res.error && isUnknown(res.error))) {
     return html`<div class="p-job">
-      <${RoomHeader} glimpse=${wide ? glimpseFor("job") : null} title="This job is not here" back=${back} />
+      <${RoomHeader} glimpse=${wide ? glimpseFor("job") : null} pull strip title="This job is not here" back=${back} />
       <${Empty} title="There is no such job" text="It may have been renamed or taken away. The list shows every job.">
         <a class="p-job__link" href="#/jobs">Open the list of jobs</a>
       <//>
@@ -463,7 +463,7 @@ export default function Page() {
   }
   if (!job) {
     return html`<div class="p-job">
-      <${RoomHeader} glimpse=${null} title="A job" back=${back} />
+      <${RoomHeader} glimpse=${null} pull strip title="A job" back=${back} />
       ${res.error
         ? res.error.offline || Number(res.error.status) >= 502
           ? html`<${NotConnected} reason=${text(res.error.message)} next=${text(res.error.next)} />`
@@ -475,7 +475,7 @@ export default function Page() {
   // Where you are, in the top bar: Jobs / <the job's name>.
   const crumbs = [{ label: JOB_WORDS.allJobs, href: "#/jobs" }, { label: text(job.title) }];
   return html`<div class="p-job">
-    <${RoomHeader} glimpse=${wide ? glimpseFor("job", text(job.department && job.department.id)) : null} title=${text(job.title)} over=${overlineOf(job)} lead=${text(job.summary)} crumbs=${crumbs} />
+    <${RoomHeader} glimpse=${wide ? glimpseFor("job", text(job.department && job.department.id)) : null} pull strip title=${text(job.title)} over=${overlineOf(job)} lead=${text(job.summary)} crumbs=${crumbs} />
     <${Body} job=${job} recent=${d.recent} from=${from} earlier=${earlier.data && earlier.data.task}
       onStarted=${() => res.refresh()} onChanged=${() => res.refresh()} queue=${d.queue && typeof d.queue === "object" ? d.queue : null} />
   </div>`;

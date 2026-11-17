@@ -26,11 +26,10 @@
   min-width: 0;
 }
 
-/* The room header: 24 px up into the pane's top margin; the work's 32 px under it. One layer above the rows. */
+/* The room header: the work's 32 px under it; the kit's `pull` and layer put it in the pane's top margin, above the
+   rows (PLAN-3D-ALL U16, U17). */
 .p-agent .p-agent__head .k-room {
-  z-index: 1;
   min-width: 0;
-  margin-top: calc(-1 * var(--s-6));
   margin-bottom: 0;
 }
 
@@ -61,11 +60,6 @@
 
 .p-agent .p-agent__head .k-page-header__more {
   margin-top: var(--s-1);
-}
-
-/* Over the picture Pause keeps a fill, so its edge and words hold where it is bright. */
-.p-agent .k-room .p-agent__pause .k-btn--ghost {
-  background: var(--panel);
 }
 
 /* The lamp, then the state's chip; a long state (a stuck agent's sentence) wraps whole, never cut. */
@@ -573,10 +567,6 @@
 
   .p-agent .p-agent__pause {
     align-items: flex-start;
-  }
-
-  .p-agent .p-agent__head .k-room {
-    margin-top: calc(-1 * var(--s-2));
   }
 
   .p-agent .p-agent__fold-body {

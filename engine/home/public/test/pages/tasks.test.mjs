@@ -489,9 +489,13 @@ test("tasks: states follow the lamps: a working glyph lit, a stuck one amber, a 
 test("tasks: the band keeps the first row near the top: up into the pane's margin, 16 px over the first group (PLAN-3D-ALL U5, D9)", () => {
   const css = readFileSync(new URL("../../styles/pages/tasks.css", import.meta.url), "utf8");
   const [wide, phone] = [...css.matchAll(/\.p-tasks \.k-room \{([^}]*)\}/g)].map((x) => x[1]);
-  assert.match(wide, /z-index: 1;/, "an open menu covers the group heads under the band");
-  assert.match(wide, /margin-top: calc\(-1 \* var\(--s-6\)\);\s*margin-bottom: var\(--s-4\);/);
-  assert.match(phone, /margin-top: calc\(-1 \* var\(--s-2\)\);\s*margin-bottom: var\(--s-4\);/);
+  // PLAN-3D-ALL U17: the layer and the pull into the pane's margin are the kit's (`.k-room`, `pull`, U16); the page
+  // sheet no longer repeats them ("z-index: 1; margin-top: calc(-1 * var(--s-6))" → the band is given `pull`).
+  assert.match(readFileSync(new URL("../../pages/tasks.js", import.meta.url), "utf8"), /<\$\{RoomHeader\} [^>]*\bpull\b/, "up into the pane's margin by the kit's pull");
+  assert.doesNotMatch(wide, /z-index|margin-top/, "the kit's layer and pull, not a copy");
+  assert.match(wide, /margin-bottom: var\(--s-4\);/);
+  assert.match(phone, /margin-bottom: var\(--s-4\);/);
+  assert.doesNotMatch(phone, /margin-top/);
   assert.match(css, /\.p-tasks \.k-room \.p-tasks__filter \.k-menu__trigger \{\s*background: var\(--ctl\);/, "a filter over the picture keeps the control fill");
   assert.ok(!/paper/.test(css), "no paper on this page");
   const src = readFileSync(new URL("../../pages/tasks.js", import.meta.url), "utf8");

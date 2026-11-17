@@ -33,7 +33,7 @@ export default function Page({ route }) {
 
   return html`
     <div class="p-search">
-      <${RoomHeader} glimpse=${glimpseFor("search")} title="Search">
+      <${RoomHeader} glimpse=${glimpseFor("search")} pull title="Search">
         <form class="p-search__form" role="search" onSubmit=${submit}>
         <${TextInput} type="search" value=${text} aria-label="Search" placeholder="Search tasks, jobs, files and records"
           maxLength=${200} onInput=${(e) => setText(e.target.value)} />

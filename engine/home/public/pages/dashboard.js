@@ -459,7 +459,7 @@ export default function DashboardPage({ route }) {
 
   return html`
     <div class="p-dashboard p-dashboard--records">
-      <${RoomHeader} glimpse=${glimpseFor("dashboard", id)} title=${title}
+      <${RoomHeader} glimpse=${glimpseFor("dashboard", id)} pull title=${title}
         back=${{ href: "#/dashboards", label: "All dashboards" }}
         crumbs=${[{ label: "Dashboards", href: "#/dashboards" }, { label: title }]}
         actions=${d?.agent ? html`<${AgentHead} slug=${AGENTS[id]} agent=${d.agent} />` : null}>

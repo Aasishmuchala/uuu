@@ -647,12 +647,15 @@ test("apps: the title, its line and the bar stand in the room header with the te
   const phone = await mountAt(false, fixed(view(apps)));
   try {
     assert.equal(byCls(phone.root, "k-room").length, 1, "a phone keeps the band as a title strip");
+    assert.equal(byCls(phone.root, "k-room--strip").length, 1, "the kit's title strip (PLAN-3D-ALL U17)");
     assert.equal(imgs(phone.root).filter((e) => /glimpse/.test(e.getAttribute("src") || "")).length, 0, "a phone asks for no picture");
     assert.equal(byCls(phone.root, "k-room--bare").length, 1);
   } finally { phone.done(); }
   const css = readFileSync(join(PUBLIC, "styles", "pages", "apps.css"), "utf8");
-  assert.match(css, /\.p-apps > \.k-room \{ z-index: 1; margin-top: calc\(-1 \* var\(--s-6\)\); margin-bottom: calc\(-1 \* var\(--s-2\)\); \}/, "up into the pane's margin, 16 px over the first group (D9)");
-  assert.match(css, /\.p-apps > \.k-room \{ min-height: 56px;/, "a phone's band is a title strip");
+  // PLAN-3D-ALL U17: the layer, the pull into the pane's margin and the phone's title strip are the kit's (U16): the
+  // band is given `pull` and `strip` instead of the sheet copying "z-index: 1; margin-top: …" and "min-height: 56px".
+  assert.match(readFileSync(join(PUBLIC, "pages", "apps.js"), "utf8"), /<\$\{RoomHeader\} glimpse=\$\{[^}]*\} pull strip\b/, "up into the pane's margin; a title strip on a phone");
+  assert.match(css, /\.p-apps > \.k-room \{ margin-bottom: calc\(-1 \* var\(--s-2\)\); \}/, "16 px over the first group (D9)");
   assert.ok(!/paper/.test(css.replace(/\/\*[\s\S]*?\*\//g, "")), "no paper on the list: rows are never on paper (D4)");
 });
 

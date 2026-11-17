@@ -76,10 +76,12 @@
   gap: var(--s-4);
   padding: var(--s-5) var(--s-6);
 }
-.p-marketing .p-marketing__open > .k-sheet > .k-decision { border: 0; padding: 0; background: none; box-shadow: none; }
-/* A card waiting to be picked or approved: the sheet is its paper; the card keeps its own inset. */
+/* The kit lays a decision flat on paper (PLAN-3D-ALL U16); here it also gives up its edge's width and its inset. */
+.p-marketing .p-marketing__open > .k-sheet > .k-decision { border: 0; padding: 0; }
+/* A card waiting to be picked or approved: the sheet is its paper; the card keeps its own inset. A decision is flat
+   by the kit's rule; the shotlist is flattened here. */
 .p-marketing .p-marketing__cards > li > .k-sheet { padding: 0; }
-.p-marketing .p-marketing__cards > li > .k-sheet > :is(.k-decision, .k-sl) { border-color: transparent; background: none; box-shadow: none; }
+.p-marketing .p-marketing__cards > li > .k-sheet > .k-sl { border-color: transparent; background: none; box-shadow: none; }
 .p-marketing .p-marketing__text { margin: 0; max-width: 68ch; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-ui); line-height: var(--lh-body); }
 .p-marketing .p-marketing__note { margin: 0; font-size: var(--fs-note); line-height: var(--lh-note); color: var(--ink-2); }
 

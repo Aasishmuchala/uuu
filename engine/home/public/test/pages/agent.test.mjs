@@ -330,7 +330,10 @@ test("agent: the head stands in the room header with the desk's glimpse; one h1,
     assert.match(dom.textOf(missing.root), /That agent is not here/);
   } finally { await missing.done(); }
   const css = readFileSync(new URL("../../styles/pages/agent.css", import.meta.url), "utf8");
-  assert.match(css, /\.p-agent \.p-agent__head \.k-room \{[^}]*z-index: 1;[^}]*margin-top: calc\(-1 \* var\(--s-6\)\);/, "up into the pane's margin (D9)");
+  // PLAN-3D-ALL U17: the layer and the pull into the pane's margin are the kit's (`.k-room`, `pull`, U16); the page
+  // gives the band `pull` instead of copying "z-index: 1; margin-top: calc(-1 * var(--s-6))".
+  assert.match(readFileSync(new URL("../../pages/agent.js", import.meta.url), "utf8"), /<\$\{RoomHeader\} glimpse=\$\{[^}]*\} pull\b/, "up into the pane's margin by the kit's pull (D9)");
+  assert.doesNotMatch(/\.p-agent \.p-agent__head \.k-room \{([^}]*)\}/.exec(css)[1], /z-index|margin-top/);
 });
 
 test("agent: beside the name the Map's lamp, before the state's words, in each of the five states (PLAN-3D-ALL U10)", async () => {

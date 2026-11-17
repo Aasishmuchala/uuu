@@ -45,12 +45,10 @@
   margin-bottom: 0;
 }
 
-/* The room header: 24 px up into the pane's top margin (beside the rail, 20 px under the page's top), the gap alone
-   under it. It stands a layer above the story, so nothing of the story's draws over it. */
+/* The room header: the kit's `pull` puts it in the pane's top margin (beside the rail, 20 px under the page's top),
+   the gap alone under it; the kit's layer keeps it above the story (PLAN-3D-ALL U16, U17). */
 .p-task > .k-room,
 .p-task .p-task__head .k-room {
-  z-index: 1;
-  margin-top: calc(-1 * var(--s-6));
   margin-bottom: 0;
 }
 
@@ -847,12 +845,6 @@
   /* The pick on paper in the phone's foot: a slim inset, so the foot stays one row above the tab bar. */
   .p-task .k-rail__primary > .k-sheet {
     padding: var(--s-2);
-  }
-
-  /* The band on a phone: 8 px up into the pane's margin, as Tasks. */
-  .p-task > .k-room,
-  .p-task .p-task__head .k-room {
-    margin-top: calc(-1 * var(--s-2));
   }
 }
 

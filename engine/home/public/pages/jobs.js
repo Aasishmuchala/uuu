@@ -437,7 +437,7 @@ export default function JobsPage({ route }) {
   const order = f.view === "order";
 
   return html`<div class=${`p-jobs p-jobs--${f.view}`}>
-    <${RoomHeader} glimpse=${glimpseFor("jobs")} title=${order ? "The build order" : "Jobs"}
+    <${RoomHeader} glimpse=${glimpseFor("jobs")} pull title=${order ? "The build order" : "Jobs"}
       lead=${order ? "Four stages, from filling the company brain to work handed from one agent to the next." : LEAD}
       crumbs=${order ? [{ label: "Jobs", href: "#/jobs" }, { label: "The build order" }] : undefined}
       actions=${html`<${ViewSwitch} f=${known} words=${words} />`}>

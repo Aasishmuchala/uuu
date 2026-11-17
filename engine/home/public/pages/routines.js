@@ -184,14 +184,14 @@ function One({ id }) {
   const res = useResource(`/api/routines/${encodeURIComponent(id)}`, { every: 15000 });
   const d = res.data;
   const back = { href: "#/routines", label: "Routines" };
-  if (res.loading && !d) return html`<${RoomHeader} glimpse=${glimpseFor("routines")} title="Routine" back=${back} /><${Loading} lines=${4} />`;
-  if (res.error && !d) return html`<${RoomHeader} glimpse=${glimpseFor("routines")} title="Routine" back=${back} /><${ErrorNotice} error=${res.error} onRetry=${res.reload} />`;
+  if (res.loading && !d) return html`<${RoomHeader} glimpse=${glimpseFor("routines")} pull strip title="Routine" back=${back} /><${Loading} lines=${4} />`;
+  if (res.error && !d) return html`<${RoomHeader} glimpse=${glimpseFor("routines")} pull strip title="Routine" back=${back} /><${ErrorNotice} error=${res.error} onRetry=${res.reload} />`;
   if (!d || !d.routine) return null;
   const r = d.routine;
   const limit = limitWords(r.runMinutes);
   const produces = Array.isArray(r.produces) ? r.produces : [];
   return html`
-    <${RoomHeader} glimpse=${glimpseFor("routines")} title=${cap(r.title, 200)} back=${back} lead=${cap(r.when && r.when.plain, 120)} />
+    <${RoomHeader} glimpse=${glimpseFor("routines")} pull strip title=${cap(r.title, 200)} back=${back} lead=${cap(r.when && r.when.plain, 120)} />
     <div class="p-routines__one"><${RoutineCard} r=${r} onChanged=${res.refresh} detail /></div>
     <${Section} title="What it is asked to do"><p class="p-routines__ask">${cap(r.ask, 2000)}</p><//>
     ${produces.length > 0 && html`<${Section} title="What it must produce"><ul class="p-routines__produces">${produces.slice(0, 20).map((f, i) => html`<li key=${i}>${cap(f, 200)}</li>`)}</ul><//>`}
@@ -204,5 +204,5 @@ export default function Page({ route }) {
   const parts = (route && route.parts) || [];
   const id = parts[0] === "routines" ? parts[1] : parts[0];
   if (id) return html`<div class="p-routines"><${One} id=${id} /></div>`;
-  return html`<div class="p-routines"><${RoomHeader} glimpse=${glimpseFor("routines")} title="Routines" lead=${LEAD} /><${List} /></div>`;
+  return html`<div class="p-routines"><${RoomHeader} glimpse=${glimpseFor("routines")} pull strip title="Routines" lead=${LEAD} /><${List} /></div>`;
 }

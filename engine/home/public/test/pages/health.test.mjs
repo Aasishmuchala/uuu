@@ -122,7 +122,7 @@ test("health: the page's layout keeps its promises (TB5a)", async () => {
   const src = readFileSync(new URL("../../pages/health.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../../styles/pages/health.css", import.meta.url), "utf8");
   // The overall state is the kit's chip beside the title.
-  assert.match(src, /<\$\{RoomHeader\} glimpse=\$\{glimpseFor\("health"\)\} title="Health"[^>]*state=\$\{html`<\$\{Tag\} tone=\$\{all\.tone\}>\$\{all\.text\}<\/\/>`\} \/>/, "in the room header's state slot (R5-A, R5-G; PageHeader became RoomHeader in PLAN-3D-ALL U15)");
+  assert.match(src, /<\$\{RoomHeader\} glimpse=\$\{glimpseFor\("health"\)\} pull strip title="Health"[^>]*state=\$\{html`<\$\{Tag\} tone=\$\{all\.tone\}>\$\{all\.text\}<\/\/>`\} \/>/, "in the room header's state slot (R5-A, R5-G; PageHeader became RoomHeader in PLAN-3D-ALL U15)");
   // The fence's sentence once: the server's sentence, no second line saying the same.
   assert.doesNotMatch(src, /\$\{fence && fence\.sentence\} \$\{proofLine/);
   // Copy sits inside the command's mono chip with no box of its own, and the chip is 12 px (R5-G).

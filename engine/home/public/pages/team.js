@@ -164,7 +164,7 @@ export default function Page() {
   }
 
   return html`<div class="p-team">
-    <${RoomHeader} glimpse=${glimpseFor("team")} title="Team" lead=${teamLead(agents)} />
+    <${RoomHeader} glimpse=${glimpseFor("team")} pull title="Team" lead=${teamLead(agents)} />
     ${body}
   </div>`;
 }

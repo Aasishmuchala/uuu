@@ -100,7 +100,10 @@ test("search: the title and the field stand in the room header with the shelves;
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("../../styles/pages/search.css", import.meta.url), "utf8");
   assert.match(css, /\.p-search \.p-search__item:hover, \.p-search \.p-search__item:focus-within \{ background-color: var\(--lamp-pool\); \}/);
-  assert.match(css, /\.p-search \.k-room \{ margin-top: calc\(-1 \* var\(--s-6\)\); margin-bottom: var\(--s-4\); z-index: 1; \}/);
+  // PLAN-3D-ALL U17: the layer and the pull are the kit's (U16); the band is given `pull` instead of the sheet copying
+  // "margin-top: calc(-1 * var(--s-6)); … z-index: 1".
+  assert.match(css, /\.p-search \.k-room \{ margin-bottom: var\(--s-4\); \}/);
+  assert.match((await import("node:fs")).readFileSync(new URL("../../pages/search.js", import.meta.url), "utf8"), /<\$\{RoomHeader\} glimpse=\$\{glimpseFor\("search"\)\} pull\b/);
   assert.match(css, /\.p-search \.k-room \.k-room__scrim \{ opacity: 0\.8; \}/);
 });
 

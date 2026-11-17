@@ -285,7 +285,7 @@ export default function Page() {
   if (!d) {
     return html`
       <div class="p-health">
-        <${RoomHeader} glimpse=${glimpseFor("health")} title="Health" lead=${lead} />
+        <${RoomHeader} glimpse=${glimpseFor("health")} pull strip title="Health" lead=${lead} />
         ${res.loading ? html`<${Loading} lines=${5} label="Checking the engine" />` : null}
         ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
       </div>`;
@@ -308,7 +308,7 @@ export default function Page() {
 
   return html`
     <div class="p-health">
-      <${RoomHeader} glimpse=${glimpseFor("health")} title="Health" lead=${lead} actions=${techButton} state=${html`<${Tag} tone=${all.tone}>${all.text}<//>`} />
+      <${RoomHeader} glimpse=${glimpseFor("health")} pull strip title="Health" lead=${lead} actions=${techButton} state=${html`<${Tag} tone=${all.tone}>${all.text}<//>`} />
 
       <${Tiles} tiles=${tilesOf(d)} />
 

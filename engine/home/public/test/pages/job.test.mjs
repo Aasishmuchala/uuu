@@ -464,7 +464,11 @@ test("job: below 860 px the band is a title strip with no picture, and the page 
   });
   const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "styles", "pages", "job.css"), "utf8");
   const top = css.slice(0, css.indexOf("@media"));
-  assert.match(/\.p-job > \.k-room \{([^}]*)\}/.exec(top)[1], /z-index: 1;\s*min-height: 96px;\s*margin-top: calc\(-1 \* var\(--s-6\)\);/, "96 px, up into the pane's margin");
+  // PLAN-3D-ALL U17: the layer, the pull and the strip are the kit's (U16); the band is given `pull strip` instead of
+  // the sheet copying "z-index: 1; … margin-top: calc(-1 * var(--s-6))".
+  assert.match(/\.p-job > \.k-room \{([^}]*)\}/.exec(top)[1], /min-height: 96px;/, "96 px");
+  assert.doesNotMatch(/\.p-job > \.k-room \{([^}]*)\}/.exec(top)[1], /z-index|margin-top/);
+  assert.match(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "pages", "job.js"), "utf8"), /<\$\{RoomHeader\} glimpse=\$\{wide \? glimpseFor\("job", [^}]*\} pull strip\b/, "up into the pane's margin");
   const small = css.slice(css.indexOf("@media (max-width: 859px)"));
   assert.match(/\.p-job > \.k-room \{([^}]*)\}/.exec(small)[1], /min-height: 56px;/, "a 56 px strip on a phone");
   assert.ok(!/paper/.test(css), "no paper on this page");

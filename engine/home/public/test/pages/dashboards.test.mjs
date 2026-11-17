@@ -180,7 +180,10 @@ test("dashboards: the title and its line stand in the room header with the build
     assert.ok(!dom.elements(m.root).some((e) => e.getAttribute("data-surface")), "no paper");
   } finally { await m.done(); }
   const css = readCss(new URL("../../styles/pages/dashboards.css", import.meta.url), "utf8");
-  assert.match(/\.p-dashboards > \.k-room \{([^}]*)\}/.exec(css)[1], /margin-top: calc\(-1 \* var\(--s-6\)\);/, "the band rises into the pane's top margin (D9)");
+  // PLAN-3D-ALL U17: the layer and the pull into the pane's margin are the kit's (`.k-room`, `pull`, U16); the page
+  // gives the band `pull` instead of copying "z-index: 1; margin-top: calc(-1 * var(--s-6))".
+  assert.match(readCss(new URL("../../pages/dashboards.js", import.meta.url), "utf8"), /<\$\{RoomHeader\} glimpse=\$\{[^}]*\} pull\b/, "the band rises into the pane's top margin (D9)");
+  assert.doesNotMatch(/\.p-dashboards > \.k-room \{([^}]*)\}/.exec(css)[1], /margin-top/);
 });
 
 test("dashboards: a card's figures are the server's, whole: never cut, never made up (PLAN-3D-ALL U12, S1)", async () => {

@@ -349,8 +349,11 @@ test("jobs: the title, the view switch and the bar stand in the room header with
 test("jobs: the band rises into the pane's margin a layer above the cards; controls keep their fill over the picture; a card in the lamp's pool (PLAN-3D-ALL U11)", () => {
   const css = readFileSync(new URL("../../styles/pages/jobs.css", import.meta.url), "utf8");
   const [wide, small] = [...css.matchAll(/\.p-jobs \.k-room \{([^}]*)\}/g)].map((x) => x[1]);
-  assert.match(wide, /z-index: 1;\s*margin-top: calc\(-1 \* var\(--s-6\)\);/);
-  assert.match(small, /margin-top: calc\(-1 \* var\(--s-2\)\);/);
+  // PLAN-3D-ALL U17: the layer and the pull are the kit's (U16); the page gives the band `pull` instead of copying
+  // "z-index: 1; margin-top: calc(-1 * var(--s-6))".
+  assert.match(readFileSync(new URL("../../pages/jobs.js", import.meta.url), "utf8"), /<\$\{RoomHeader\} [^>]*\bpull\b/);
+  assert.doesNotMatch(wide, /z-index|margin-top/);
+  assert.doesNotMatch(small, /margin-top/);
   assert.match(css, /\.p-jobs \.k-room \.p-jobs__filter \.k-menu__trigger,[^{]*\{\s*background: var\(--ctl\);/);
   // The quiet look's edge alone under the pointer gave way to the lamp's pool (PLAN-3D-ALL U11).
   assert.match(css, /\.p-jobs \.p-jobs__card-box:hover,\s*\.p-jobs \.p-jobs__card-box:has\(\.k-jobcard__link:focus-visible\) \{[^}]*box-shadow: inset 0 0 0 100vmax var\(--lamp-pool\), var\(--shadow-card\);/);

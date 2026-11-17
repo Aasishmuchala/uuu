@@ -38,13 +38,10 @@
   .p-routines .p-routines__actions .k-btn { min-height: 44px; }
 }
 
-/* The room header: up into the pane's margin, 16 px over the first group, one layer above the rows; a control
-   over the picture keeps its own fill. */
-.p-routines .k-room { margin-top: calc(-1 * var(--s-6)); margin-bottom: var(--s-4); z-index: 1; }
+/* The room header: 16 px over the first group; the kit's `pull` and layer put it in the pane's margin, above the rows
+   (PLAN-3D-ALL U16, U17). A control over the picture keeps its own fill. */
+.p-routines .k-room { margin-bottom: var(--s-4); }
 .p-routines .k-room .k-btn, .p-routines .k-room .k-field, .p-routines .k-room input { background: var(--ctl); }
-@media (max-width: 859px) {
-  .p-routines .k-room { margin-top: calc(-1 * var(--s-2)); margin-bottom: var(--s-4); }
-}
 
 /* Rows on the ground, one 44 px row at least, a hairline between; the pointer and the keyboard stand in the lamp's pool. */
 .p-routines .p-routines__row { min-height: 44px; transition: background-color var(--t-fast) var(--ease); }
@@ -54,7 +51,5 @@
 /* The picture must show behind the title at dusk: the scrim thinned to 0.8 (as Files does). */
 .p-routines .k-room .k-room__scrim { opacity: 0.8; }
 
-/* On a phone the line under the title would sit over the picture and hurt legibility: the band shows its material alone. */
-@media (max-width: 859px) {
-  .p-routines .k-room .k-room__img { display: none; }
-}
+/* On a phone the line under the title would sit over the picture and hurt legibility: the band is the kit's title
+   strip, which asks for no picture (PLAN-3D-ALL U17). */

@@ -502,7 +502,10 @@ test("dept: the head stands in the room header of the department's room; one h1;
   } finally { await missing.done(); }
   const css = readFileSync(new URL("../../styles/pages/dept.css", import.meta.url), "utf8");
   assert.match(css, /\.p-dept \.p-dept__state \.k-st--good,\s*\.p-dept \.p-dept__state \.k-st--good \.k-icon \{\s*color: var\(--accent\);/, "working in the lamp's tone (D5)");
-  assert.match(css, /\.p-dept \.p-dept__head \.k-room \{[^}]*z-index: 1;[^}]*margin-top: calc\(-1 \* var\(--s-6\)\);/, "up into the pane's margin (D9)");
+  // PLAN-3D-ALL U17: the layer and the pull into the pane's margin are the kit's (`.k-room`, `pull`, U16); the page
+  // gives the band `pull` instead of copying "z-index: 1; margin-top: calc(-1 * var(--s-6))".
+  assert.match(readFileSync(new URL("../../pages/dept.js", import.meta.url), "utf8"), /<\$\{RoomHeader\} glimpse=\$\{[^}]*\} pull\b/, "up into the pane's margin by the kit's pull (D9)");
+  assert.doesNotMatch(/\.p-dept \.p-dept__head \.k-room \{([^}]*)\}/.exec(css)[1], /z-index|margin-top/);
   assert.ok(!/data-surface|k-sheet/.test(css) && !/data-surface|<\$\{Sheet\}/.test(readFileSync(new URL("../../pages/dept.js", import.meta.url), "utf8")), "nothing on paper here");
 });
 

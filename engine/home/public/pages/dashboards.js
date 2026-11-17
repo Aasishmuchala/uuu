@@ -136,7 +136,7 @@ function DashboardCard({ d }) {
 export default function DashboardsPage() {
   return html`
     <div class="p-dashboards">
-      <${RoomHeader} glimpse=${glimpseFor("dashboards")} title="Dashboards"
+      <${RoomHeader} glimpse=${glimpseFor("dashboards")} pull title="Dashboards"
         lead="The figures and records of each department. They are real: they come from your books." />
       <ul class="p-dashboards-shelf" aria-label="Dashboards">
         ${DASHBOARDS.map((d) => html`<${DashboardCard} key=${d.id} d=${d} />`)}

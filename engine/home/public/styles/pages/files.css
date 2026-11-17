@@ -17,11 +17,11 @@
   min-height: calc(100vh - var(--topbar-h));
 }
 
-/* The band: inset from the pane's edges, one layer above the frame so + New's open menu covers what is under it.
+/* The band: inset from the pane's edges; the kit's layer keeps it above the frame, so + New's open menu covers what is
+   under it (PLAN-3D-ALL U16).
    At dusk the scrim is thinned so the shelves read behind the title (the checkpoint's lesson: a band whose picture
    hardly shows earns nothing); the left, under the words, stays dense enough for the title and its line. */
 .p-files > .k-room {
-  z-index: 1;
   min-height: 120px;
   margin: var(--s-3) var(--s-5) 0;
   padding-top: var(--s-5);
@@ -549,11 +549,7 @@
 }
 
 /* What agents learned: each agent a group, its lessons one line each with the date at the right, on paper (the
-   sheet's reading inset is for a document; a few lines take a slimmer one). */
-.p-files .p-files__lessons .k-sheet {
-  padding: var(--s-1) var(--s-5);
-}
-
+   kit's slim sheet: a few lines take a slimmer inset than a document; PLAN-3D-ALL U17). */
 .p-files .p-files__lessons > .k-group:first-child {
   margin-top: var(--s-4);
 }
@@ -840,13 +836,12 @@
 
 /* ---- a phone: the bar stacks and every control is 44 px tall */
 @media (max-width: 859px) {
-  /* A phone: the band is a title strip with no picture (files.js asks for none below 860 px); + New stays beside
-     the title, and the grey line under them. */
+  /* A phone: the band is the kit's title strip with no picture; + New stays beside the title, and the grey line
+     under them. Its height and insets here because the wide band's rule outweighs the kit's. */
   .p-files > .k-room {
     min-height: 56px;
     margin: var(--s-2) var(--s-3) 0;
     padding: var(--s-3) var(--s-4);
-    justify-content: center;
   }
 
   .p-files > .k-room .k-page-header__row {

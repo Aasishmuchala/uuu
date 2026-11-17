@@ -18,10 +18,9 @@
   max-width: var(--content-max);
 }
 
-/* The room header: 24 px up into the pane's top margin, a layer above the cards, 20 px over the count line. */
+/* The room header: 20 px over the count line; the kit's `pull` and layer put it in the pane's top margin, above the
+   cards (PLAN-3D-ALL U16, U17). */
 .p-jobs .k-room {
-  z-index: 1;
-  margin-top: calc(-1 * var(--s-6));
   margin-bottom: var(--s-5);
 }
 
@@ -29,17 +28,12 @@
   margin-top: var(--s-5);
 }
 
-/* Over the picture every control keeps its own fill, so it reads where the picture is bright. */
+/* Over the picture every control keeps its own fill, so it reads where the picture is bright. The view switch stands
+   on the panel by the kit's own rule (PLAN-3D-ALL U16). */
 .p-jobs .k-room .p-jobs__filter .k-menu__trigger,
 .p-jobs .k-room .p-jobs__ready .k-chip--toggle:not(.k-chip--on),
 .p-jobs .k-room .p-jobs__search .k-input {
   background: var(--ctl);
-}
-
-/* The view switch has no fill of its own: over the picture it stands on the panel, so "Build order" reads where the
-   morning picture is pale. */
-.p-jobs .k-room .k-seg {
-  background: var(--panel);
 }
 
 /* The bar: the filters, Ready only and the search field, side by side from the left. */
@@ -577,7 +571,6 @@
 
 @media (max-width: 859px) {
   .p-jobs .k-room {
-    margin-top: calc(-1 * var(--s-2));
     margin-bottom: var(--s-4);
   }
 
