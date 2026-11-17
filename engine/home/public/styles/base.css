@@ -131,6 +131,12 @@ textarea {
   outline-offset: 2px;
 }
 
+/* On paper the ring is paper's accent: at dusk the lamplight ring stood 2.5 to 1 on the cream sheet (PLAN-3D-ALL U17,
+   a task's files on paper). */
+[data-surface="paper"] :focus-visible {
+  outline-color: var(--paper-accent);
+}
+
 ::selection {
   color: var(--ink);
   background: var(--line-2);
