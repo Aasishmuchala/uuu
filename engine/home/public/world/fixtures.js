@@ -173,6 +173,18 @@ export const doorBlocked = {
   inbox: seedInbox(),
 };
 
+// ---- glimpse: a calm, lit studio for the room headers' baked pictures (PLAN-3D-ALL U3): the seed's seven rooms,
+// every agent working and none waiting, the seed's doors, no app allowance open, nothing in the inbox ----
+
+export const glimpse = {
+  world: world({
+    rooms: seedRooms().map((r, d) => room(r.id, r.title, r.line, r.agents.map((a, i) => ({
+      ...a, state: "working", plainState: PLAIN.working, waitingForYou: false, doing: a.doing || doing(`${r.title} work`, 40 + d * 10 + i),
+    })))),
+  }),
+  inbox: { items: [], counts: { total: 0 }, notConnected: [], generatedAt: GENERATED },
+};
+
 // ---- hostile: text an agent could write in every name, title and sentence ----
 
 export const HOSTILE = Object.freeze([
@@ -223,7 +235,7 @@ export const hostile = {
 };
 
 // Every fixture by its name (the gallery's `?fixture=`).
-export const fixtures = Object.freeze({ seed, empty, allOff, big, one, app, doorOff, doorBlocked, hostile });
+export const fixtures = Object.freeze({ seed, empty, allOff, big, one, app, doorOff, doorBlocked, glimpse, hostile });
 export const FIXTURE_NAMES = Object.freeze(Object.keys(fixtures));
 
 // ---- the views a door's confirm reads (GET /api/web, GET /api/generation) ----
