@@ -140,6 +140,12 @@
   text-underline-offset: 3px;
 }
 
+/* Working, in the lamp's tone, as the agents' states and the Map say it (PLAN-3D-ALL D5, U10). */
+.p-dept .p-dept__state .k-st--good,
+.p-dept .p-dept__state .k-st--good .k-icon {
+  color: var(--accent);
+}
+
 .p-dept .p-dept__state--quiet .k-st {
   color: var(--ink-2);
 }

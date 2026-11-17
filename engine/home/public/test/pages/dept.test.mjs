@@ -501,6 +501,7 @@ test("dept: the head stands in the room header of the department's room; one h1;
     assert.match(dom.textOf(missing.root), /That department is not here/);
   } finally { await missing.done(); }
   const css = readFileSync(new URL("../../styles/pages/dept.css", import.meta.url), "utf8");
+  assert.match(css, /\.p-dept \.p-dept__state \.k-st--good,\s*\.p-dept \.p-dept__state \.k-st--good \.k-icon \{\s*color: var\(--accent\);/, "working in the lamp's tone (D5)");
   assert.match(css, /\.p-dept \.p-dept__head \.k-room \{[^}]*z-index: 1;[^}]*margin-top: calc\(-1 \* var\(--s-6\)\);/, "up into the pane's margin (D9)");
   assert.ok(!/data-surface|k-sheet/.test(css) && !/data-surface|<\$\{Sheet\}/.test(readFileSync(new URL("../../pages/dept.js", import.meta.url), "utf8")), "nothing on paper here");
 });
