@@ -159,43 +159,7 @@
   margin-left: var(--s-4);
 }
 
-/* The chip by the stack: "28 more", on the tag's ground. */
-.p-needs-you .p-needs-you__more-chip {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
-  padding: 2px var(--s-2);
-  border-radius: var(--r-2);
-  background: var(--w-tag);
-  box-shadow: 0 0 0 1px var(--w-tag-line);
-  color: var(--w-tag-ink);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-.p-needs-you .p-needs-you__more-chip--corner {
-  top: auto;
-  left: auto;
-  right: var(--s-3);
-  bottom: var(--s-3);
-}
-
-/* The drawn desk's own "+N" counts (SVG text in the picture's units, unreadable at the desk's scale) give way to
-   the page's chip, which says the same in DOM text at the chip's size. */
-.p-needs-you .p-needs-you__stage .w-fb-more,
-.p-needs-you .p-needs-you__strip .w-fb-more {
-  display: none;
-}
-
-/* With no WebGL the drawn desk's near part is the desk top coming toward the chair in the lamp's shade, not an empty
-   band of its front edge under the stack (PLAN-3D-ALL U7). */
-.p-needs-you .w-fb--desk .w-fb-desk-edge[opacity] {
-  fill: var(--w-desk);
-  opacity: .72;
-}
+/* "28 more" by the stack is the stage's own note (office/stage.js, styles/office.css). */
 
 /* ---- Below 1280 px: the desk as a strip over the list (240 px; 200 px on a phone, D16), edge to edge. */
 .p-needs-you .p-needs-you__strip {
@@ -605,17 +569,13 @@
   }
 
   /* An item opened (PLAN-3D-ALL U7, as e2's phone): the sheet, headed by the item's kind and place, lies 24 px over
-     the strip's lower edge; the strip's "N more" stands above that edge. */
+     the strip's lower edge. */
   .p-needs-you.p-needs-you--on-strip .p-needs-you__sheet {
     margin-top: calc(-1 * (var(--s-5) + var(--s-6)));
   }
 
   .p-needs-you.p-needs-you--on-strip .p-needs-you__sheet > .p-needs-you__head--item {
     margin-bottom: calc(-1 * var(--s-4));
-  }
-
-  .p-needs-you.p-needs-you--on-strip .p-needs-you__more-chip--corner {
-    bottom: calc(var(--s-6) + var(--s-3));
   }
 
   .p-needs-you .p-needs-you__row,

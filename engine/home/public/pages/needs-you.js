@@ -4,14 +4,16 @@
 // Data: GET /api/inbox every 10 seconds; the agents of each department come from GET /api/map (read once; without
 // it items are placed by their source alone); GET /api/world every 10 seconds for the desk model and today's money
 // line, which goes to the top bar (`setTop({ note })`) and, on a phone, stands whole above the list.
-// From 1280 px the studio's desk fills the page column (world/stage.js, mode "desk"): the item opened is a paper sheet
+// From 1280 px the owner's desk fills the page column: a photograph of the oak desk on the loft's mezzanine, at dusk
+// or in the golden morning by the theme (office/stage.js, mode "desk"; the owner chose photographs over 3D on 18 Nov
+// 2026: no three.js, no WebGL). The item opened is a paper sheet
 // at the left (today's kit card inside it, unchanged, so every action goes over the wire as before), what helps
 // decide under it on the same sheet, and the keys line at its foot, ink on paper; the "Waiting" list is a 320 px
-// column at the right. The desk model stands in the free rectangle between them (`safeRect`, the queue's panel left
-// out when it is open), and the stack on the desk holds one blank sheet a waiting item, twelve at most ("N more"
-// beside it). A film's shotlist or versions to pick from (kit ShotlistCard, PickCard) is a wide sheet over the whole
+// column at the right. The desk's paper stack and the white model of the loft stand in the free rectangle between
+// them (`safeRect`, the queue's panel left out when it is open); the stack holds one sheet a waiting item, twelve at
+// most ("N more" beside it). A film's shotlist or versions to pick from (kit ShotlistCard, PickCard) is a wide sheet over the whole
 // free area with the desk dimmed behind; its title is the page's heading. Approved, accepted, picked or answered,
-// the top sheet travels into its department's room in the model; anything else slides to the tray. No Undo.
+// the top sheet lifts off the stack and goes to the model on the desk; anything else slides to the tray. No Undo.
 // Below 1280 px the list is the page over a short desk strip and an item opened is the paper sheet alone (the top
 // bar's back button returns to the list); below 860 px the strip is 390 x 200 and the money line is on the page.
 // Keys, when focus is in no field: J and Down the pager's next address, K and Up the one before, Enter on the sheet
@@ -35,7 +37,7 @@ import {
   ShotlistCard, ShotlistDone, StateIcon, SHOTLIST_WORDS, isPickItem, isShotlistItem, splitActions,
 } from "../kit/index.js";
 import { diffWorld } from "../world/diff.js";
-import { WorldStage } from "../world/stage.js";
+import { OfficeStage } from "../office/stage.js";
 import { worldState } from "../world/state.js";
 import { stillOf } from "../world/support.js";
 import { WORDS } from "../world/words.js";
@@ -269,7 +271,7 @@ export function settledShown(settled, items) {
 export const moreWords = (n) => `${n} more`;
 
 // Pure. What the desk does with the top sheet after the owner acted (PLAN-3D D10): approved, accepted, picked or
-// answered, it travels into the room of the item's department in the model (`room` null: off the desk's far edge);
+// answered, it goes to the model of the loft on the desk (`room`, the item's department, is kept for the record);
 // anything else (send back, decline, reject, hide, another round) slides it to the tray.
 const FORWARD = new Set(["approve", "accept", "pick", "answer"]);
 export function deskEvent(r, departments) {
@@ -586,8 +588,8 @@ export default function Page({ route }) {
   const crumbItem = opened || (kept ? { kind: kept.kind === "decision" ? kept.of : kept.kind } : want ? {} : null);
   const crumbs = crumbsFor(crumbItem, d);
 
-  // The studio's state for the desk: the model from /api/world (or the map's departments), the stack from the list
-  // shown. Only ids, enums and numbers reach the world (D9); the money line is the server's sentence, whole.
+  // The studio's state for the desk: the rooms from /api/world (or the map's departments), the stack from the list
+  // shown. The picture gets numbers only; the money line is the server's sentence, whole.
   const worldData = world.data && typeof world.data === "object" ? world.data : null;
   const ws = worldState({ world: worldData, map: departments ? { departments } : null, inbox: { items: shown } });
   const note = ws.money && ws.money.line ? ws.money.line : "";
@@ -656,24 +658,15 @@ export default function Page({ route }) {
   const more = ws.stack ? ws.stack.more : 0;
   const deskShown = wide && !!data;
   const safe = useSafeRect(rootRef, deskShown && !stageNow, `${openId}|${shown.length}|${Boolean(kept)}`);
-  // The stage: aria-hidden (stage.js); its label, "28 more" when the stack cannot hold every item, is spoken beside it.
-  // The phone's strip frames the desk a little to the right of centre, so the lamp at the model's left stays whole
-  // (T6's framing put the model at the strip's left edge with the lamp cut off).
-  const stripSafe = phone && typeof innerWidth === "number" && innerWidth > 0 ? { x: 28, y: 0, w: Math.round(innerWidth), h: 200 } : null;
-  // The strip is a picture (the harness's measures leave it out of the page's own colour, as the Map's phone stage).
-  const stage = (cls, extra = null) => html`<div class=${cls} data-cook-picture=${cls === "p-needs-you__strip" ? "" : undefined}>
-    <${WorldStage} mode="desk" state=${ws} safeRect=${cls === "p-needs-you__strip" ? stripSafe : safe} theme=${theme} still=${still} events=${events} label=${more ? moreWords(more) : ""} />
-    ${extra}
+  // The stage: the picture is hidden from readers (office/stage.js); its label, "28 more" when the stack cannot hold
+  // every item, is spoken beside it, and the same words stand by the stack in the picture (`note`).
+  const stage = (cls) => html`<div class=${cls}>
+    <${OfficeStage} mode="desk" state=${ws} safeRect=${cls === "p-needs-you__strip" ? null : safe} theme=${theme} still=${still} events=${events}
+      label=${more ? moreWords(more) : ""} note=${more ? moreWords(more) : ""} />
   </div>`;
-  // The chip by the stack: placed in the free rectangle, under the model and the stack it frames.
-  const chip = more && safe && safe.w > 0
-    ? html`<span class="p-needs-you__more-chip u-num" aria-hidden="true"
-        style=${`transform: translate(${Math.round(safe.x + safe.w / 2)}px, ${Math.round(safe.y + safe.h * 0.63)}px) translateX(-50%)`}>${moreWords(more)}</span>`
-    : null;
   const keysLine = html`<p class="p-needs-you__keys">${WORDS.keys}</p>`;
   const moneyLine = phone && note ? html`<p class="p-needs-you__money u-num">${note}</p>` : null;
-  // The strip says "N more" in its corner (no free rectangle to place it by the stack).
-  const strip = stage("p-needs-you__strip", more ? html`<span class="p-needs-you__more-chip p-needs-you__more-chip--corner u-num" aria-hidden="true">${moreWords(more)}</span>` : null);
+  const strip = stage("p-needs-you__strip");
 
   // ---- States before the list: today's words on a sheet over the desk
   if (!data) {
@@ -769,7 +762,6 @@ export default function Page({ route }) {
   if (wide) {
     return html`<div class="p-needs-you p-needs-you--desk" ref=${rootRef}>
       ${stage("p-needs-you__stage")}
-      ${chip}
       ${waiting(true)}
       ${open ? html`<section class="p-needs-you__open p-needs-you__sheet" data-surface="paper" tabindex="-1" ref=${sheetRef}
           aria-label=${opened ? cap(opened.title, 120) : PAGE_WORDS.title}>

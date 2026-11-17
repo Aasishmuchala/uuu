@@ -11,6 +11,8 @@ const TYPES = {
   ".txt": "text/plain; charset=utf-8", ".woff2": "font/woff2", ".map": "application/json; charset=utf-8",
   // The world of the Map and Needs you (PLAN-3D T4): its pictures, its models and their buffers, and its skies.
   ".webp": "image/webp", ".gltf": "model/gltf+json", ".bin": "application/octet-stream", ".hdr": "application/octet-stream",
+  // The loft's moving picture, when it comes (assets/office/, the owner chose photographs over 3D on 18 Nov 2026).
+  ".mp4": "video/mp4",
 };
 
 export const PLACEHOLDER_HTML = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"

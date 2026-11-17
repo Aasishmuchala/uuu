@@ -1,7 +1,8 @@
-// The Map as the lit studio (PLAN-3D T9), mounted in the test DOM with a fake fetch. There is no WebGL2 here, so the
-// stage keeps its drawn studio (the fallback path). The mirrored list follows the fixture; the server's words are
-// whole text nodes; Switch off and Stop this task ask once and post what they always posted; the list twin loads no
-// studio; every fixture draws; the hostile fixture stays text; every word the old page offered is still offered.
+// The Map as the lit studio (PLAN-3D T9), mounted in the test DOM with a fake fetch. The owner chose photographs over
+// 3D on 18 Nov 2026: the stage is the loft's picture (office/stage.js), with a marker per room placed in a zone. The
+// mirrored list follows the fixture; the server's words are whole text nodes; Switch off and Stop this task ask once
+// and post what they always posted; the list twin loads no picture; every fixture draws; the hostile fixture stays
+// text; every word the old page offered is still offered.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { dirname, join } from "node:path";
@@ -72,7 +73,8 @@ async function mountMap(fx, { parts = ["map"], query = "", narrow = false, post 
 
 test("the studio's own words are pinned", () => {
   assert.deepEqual({ ...page.STUDIO_WORDS }, {
-    rooms: "Rooms and who is in them", overflow: "Only in this list: the studio has room for eleven.", nobody: "Nobody works here yet.",
+    // The loft in the photograph has seven zones (the owner chose photographs over 3D on 18 Nov 2026): was "eleven".
+    rooms: "Rooms and who is in them", overflow: "Only in this list: the studio has room for seven.", nobody: "Nobody works here yet.",
     doorOpen: "Open", doorShut: "Shut", appOpen: "Open", tasks: "Tasks", answer: "Answer", openTask: "Open the task", close: "Close",
     switchOffAsk: "Switch it off? It stops what it is working on now.", switchOffYes: "Yes, switch it off",
     switchedOff: "It is switched off.", switchedOn: "It is switched on.",
@@ -94,8 +96,17 @@ test("the free rectangle: right of the rail, left of the panel, above the foot",
 test("the list mirrors the seed: seven rooms, twelve agents, three doors; App Studio's app in `app`", async () => {
   const m = await mountMap(F.seed);
   try {
-    assert.ok(withClass(m.root, "w-stage").length === 1, "the studio is drawn");
-    assert.equal(withClass(m.root, "w-stage")[0].getAttribute("data-world"), "fallback");
+    // The owner chose photographs over 3D on 18 Nov 2026: the loft's picture, no WebGL stage, no drawn fallback.
+    assert.equal(withClass(m.root, "o-stage").length, 1, "the loft is shown");
+    assert.equal(withClass(m.root, "w-stage").length, 0, "no 3D stage");
+    const marks = withClass(m.root, "o-mark--room");
+    assert.deepEqual(marks.map((e) => [e.getAttribute("data-room"), e.getAttribute("data-zone")]),
+      ["operations", "sales", "marketing", "studio", "support", "people", "books"].map((id) => [id, id]), "each room at its own zone");
+    for (const e of marks) {
+      assert.equal(e.localName, "a", "a marker is a link");
+      assert.equal(e.getAttribute("href"), `#/map/${e.getAttribute("data-room")}`);
+      assert.ok(String(e.getAttribute("aria-label") || "").length > 0, "a marker has a name for a screen reader");
+    }
     const list = elements(m.root).find((e) => e.localName === "ul" && e.getAttribute("aria-label") === page.STUDIO_WORDS.rooms);
     assert.equal(list.getAttribute("role"), "list");
     const secs = withClass(m.root, "p-map__room-sec");
@@ -239,7 +250,8 @@ test("Stop this task asks once, then posts {} to /api/goals/<id>/stop; Answer go
 test("?view=list draws no studio and reads no /api/world", async () => {
   const m = await mountMap(F.seed, { query: "view=list" });
   try {
-    assert.equal(withClass(m.root, "w-stage").length, 0);
+    assert.equal(withClass(m.root, "o-stage").length, 0);
+    assert.equal(elements(m.root).filter((e) => e.localName === "img").length, 0, "no picture is asked for");
     assert.ok(!m.calls.some((c) => c.path === "/api/world"));
   } finally { m.done(); }
 });
@@ -252,7 +264,9 @@ test("empty, allOff, big and hostile draw, wide and narrow, with a room open", a
       for (const parts of [["map"], ...(first ? [["map", first.id]] : [])]) {
         const m = await mountMap(fx, { narrow, parts });
         try {
-          assert.equal(withClass(m.root, "w-stage").length, 1, `${name} ${narrow} ${parts.join("/")}`);
+          // The loft's picture (the owner chose photographs over 3D on 18 Nov 2026), a marker for each room placed.
+          assert.equal(withClass(m.root, "o-stage").length, 1, `${name} ${narrow} ${parts.join("/")}`);
+          assert.equal(withClass(m.root, "o-mark--room").length, Math.min(7, fx.world.rooms.filter((r) => /^[a-z][a-z0-9-]{0,40}$/.test(r.id)).length));
         } finally { m.done(); }
       }
     }
@@ -260,7 +274,11 @@ test("empty, allOff, big and hostile draw, wide and narrow, with a room open", a
   const big = await mountMap(F.big);
   try {
     assert.equal(withClass(big.root, "p-map__room-sec").length, 12, "every department is in the list");
-    assert.equal(withClass(big.root, "p-map__room-note").length, 1, "the twelfth says it is only in the list");
+    // The loft has seven zones (the owner chose photographs over 3D on 18 Nov 2026; the drawn studio had eleven): the
+    // eighth to the twelfth say they are only in the list.
+    assert.equal(withClass(big.root, "p-map__room-note").length, 5, "the eighth to the twelfth say they are only in the list");
+    assert.deepEqual(withClass(big.root, "p-map__room-sec").filter((s) => withClass(s, "p-map__room-note").length).map((s) => s.getAttribute("data-section")),
+      ["dept-7", "dept-8", "dept-9", "dept-10", "dept-11"]);
   } finally { big.done(); }
 });
 

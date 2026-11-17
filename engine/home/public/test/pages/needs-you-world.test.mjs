@@ -1,5 +1,5 @@
-// Needs you on the desk (PLAN-3D T10), mounted in the test DOM with a fake fetch and the drawn picture (no WebGL2
-// here, so the stage stays on its fallback): every action goes over the wire exactly as today's card sends it; the
+// Needs you on the desk (PLAN-3D T10), mounted in the test DOM with a fake fetch and the desk's photograph (the owner
+// chose photographs over 3D on 18 Nov 2026; office/stage.js): every action goes over the wire exactly as today's card sends it; the
 // keys move focus and never act; a shotlist's approval waits for the confirm, whose yes is inert for 600 ms; the
 // money sentences stay whole text nodes; J and K follow the pager; the stack holds twelve and says the rest; hostile
 // text stays text; nothing waiting says today's words.
@@ -214,13 +214,20 @@ test("with 40 waiting the stack holds 12 sheets and says 28 more", async () => {
   fakeFetch({ inbox: inboxOf(items) });
   const root = await mount();
   const stack = elements(root).find((e) => e.getAttribute("data-part") === "stack");
-  assert.ok(stack, "the drawn desk's stack");
+  assert.ok(stack, "the stack's place on the desk");
   assert.equal(stack.getAttribute("data-sheets"), "12");
   assert.ok(textNodes(root).includes(page.moreWords(28)), "\"28 more\" is said");
   assert.equal(page.moreWords(28), "28 more");
-  const stage = elements(root).find((e) => classesOf(e).includes("w-stage"));
-  assert.equal(stage.getAttribute("data-world"), "fallback");
-  assert.equal(stage.getAttribute("aria-hidden"), "true");
+  // The owner chose photographs over 3D on 18 Nov 2026: the desk is a picture (no WebGL stage, no drawn fallback),
+  // hidden from readers; "28 more" stands by the stack in it and is spoken beside it.
+  assert.equal(elements(root).filter((e) => classesOf(e).includes("w-stage")).length, 0);
+  const stage = elements(root).find((e) => classesOf(e).includes("o-stage"));
+  assert.equal(stage.getAttribute("data-mode"), "desk");
+  const frame = elements(stage).find((e) => classesOf(e).includes("o-frame"));
+  assert.equal(frame.getAttribute("aria-hidden"), "true");
+  const note = elements(stage).find((e) => classesOf(e).includes("o-note"));
+  assert.equal(textOf(note), "28 more");
+  assert.equal(note.getAttribute("aria-hidden"), "true");
 });
 
 test("the keys line is inside the sheet, after the card, in the words of world/words.js", async () => {
@@ -285,5 +292,6 @@ test("nothing waiting: today's words and Open Tasks on a small sheet over the de
   assert.ok(textNodes(root).includes(page.PAGE_WORDS.empty));
   assert.ok(textNodes(root).includes(page.PAGE_WORDS.emptyLine));
   assert.ok(elements(root).some((e) => classesOf(e).includes("p-needs-you__sheet--small")));
-  assert.ok(elements(root).some((e) => classesOf(e).includes("w-stage")), "the desk behind it");
+  // The desk's photograph behind it (the owner chose photographs over 3D on 18 Nov 2026).
+  assert.ok(elements(root).some((e) => classesOf(e).includes("o-stage")), "the desk behind it");
 });

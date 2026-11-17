@@ -1,7 +1,7 @@
 // Opening and shutting a door from the Map (PLAN-3D T9, D12, 2.3; revision R1). For each of the three doors, in the
 // test DOM with a fake fetch that records method, address, headers and the body string, and a fake clock:
 // (1) shut is one click and one request; (2) nothing on the way to the confirm sends a switch request (the row, Enter,
-// Space, a double click, the door in the drawn studio, "Open this door"), the confirm's text takes focus, the yes is
+// Space, a double click, the door in the picture's Doors marker, "Open this door"), the confirm's text takes focus, the yes is
 // inert for 600 ms, Esc and a click outside cancel; (3) the confirm's sentences are each one whole text node, strictly
 // equal to the Settings module's export and the view's field, and the sheet never cuts them; (4) hostile sentences
 // stay text; (5) the request is the one Settings sends, byte for byte; (6) refusals in Settings' own words with the
@@ -167,12 +167,20 @@ for (const id of IDS) {
       fire(doorRow(m.root, id), "click");
       fire(doorRow(m.root, id), "click");
       await settle();
-      // The door in the drawn studio.
-      const drawn = elements(m.root).find((e) => e.localName === "g" && e.getAttribute("data-door") === id);
-      assert.ok(drawn, "the drawn studio has the door");
+      // The door in the picture: the owner chose photographs over 3D on 18 Nov 2026, so the drawn studio's door (an
+      // SVG g) is now the loft's one Doors marker, whose short list names each door; choosing one opens its panel.
+      const marker = elements(m.root).find((e) => e.localName === "button" && classesOf(e).includes("o-mark--doors"));
+      assert.ok(marker, "the picture has the Doors marker");
+      press(marker, "Enter");
+      fire(marker, "click");
+      await settle();
+      const drawn = elements(m.root).find((e) => e.localName === "button" && e.getAttribute("data-door-pick") === id);
+      assert.ok(drawn, "the Doors marker lists the door");
+      press(drawn, "Enter");
       fire(drawn, "click");
       await settle();
-      assert.equal(m.f.posts().length, 0, "row, Enter, Space, double click, the drawn door");
+      assert.ok(elements(m.root).some((e) => e.getAttribute("data-panel-door") === id), "the door's panel, and nothing more");
+      assert.equal(m.f.posts().length, 0, "row, Enter, Space, double click, the door in the picture");
       // "Open this door": the confirm, and no switch request; focus on its text, not on yes.
       const gets = m.f.calls.length;
       const c = await openConfirm(m);

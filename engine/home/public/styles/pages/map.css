@@ -1042,7 +1042,8 @@
 }
 
 /* ==== The studio (PLAN-3D T9, D15, D16) ====
-   The building at dusk fills the page column (world/stage.js); over it a 340 px rail on the stage's scrim at the
+   The loft's photograph fills the page column (office/stage.js; the owner chose photographs over 3D on 18 Nov
+   2026); over it a 340 px rail on the stage's scrim at the
    left, the box that asks the brain at the foot of the free area with the hovered room's one line above it, and,
    with a room or a door chosen, a 392 px panel at the right. Tokens only (the --w-* ones of world.css for what lies
    on the picture); no blur; only transform and opacity move. Below 860 px the studio is a picture above the rows,
@@ -1061,8 +1062,10 @@
   inset: 0;
 }
 
+/* The scrim ends 80 px past the rail, so the loft's window wall beside the rail stays in its own light. */
 .p-map .p-map__scrim {
   z-index: 1;
+  width: 420px;
 }
 
 /* Every stop over the picture shows the 2 px accent ring. */
@@ -1118,10 +1121,9 @@
   transition: none;
 }
 
-/* In a room opened its agents' tags are their names and lamps; the state's words stay on a tag only for an agent who
-   waits on the owner or is stuck (the panel beside says every state in words). Shorter tags keep to their desks
-   instead of being pushed across the furniture (PLAN-3D-ALL U7). */
-.p-map.p-map--chosen .w-tag--agent:not(:has(.w-tag__lamp--amber, .w-tag__lamp--red)) .w-tag__sub {
+/* In a room opened its agents on the room's tag are their names and lamps; the state's words stay only for an agent
+   who waits on the owner or is stuck (the panel beside says every state in words) (PLAN-3D-ALL U7). */
+.p-map.p-map--chosen .o-mark__agent:not(:has(.k-lamp--amber, .k-lamp--red)) .o-mark__agent-state {
   display: none;
 }
 

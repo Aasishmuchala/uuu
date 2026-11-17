@@ -135,8 +135,10 @@ test("map: keyboard and screen-reader fixes (M52 K4, K9; T63; PLAN-3D T9): Esc g
   assert.match(src, /class="p-map__room" href=\$\{mapHref\(\{ dept: r\.id \}\)\} data-node=\$\{r\.id\}/, "the heading is a link to #/map/<id> carrying data-node");
   assert.match(src, /aria-current=\$\{chosen === r\.id \? "true" : undefined\}/, "the chosen room's heading says so");
   assert.match(src, /role="list" aria-label=\$\{STUDIO_WORDS\.rooms\}/, "the list has its label");
-  // The studio is never in the Tab order: the stage is aria-hidden and the page puts nothing focusable in it.
-  assert.doesNotMatch(src, /w-stage[^`]*tabindex/);
+  // The owner chose photographs over 3D on 18 Nov 2026: the picture itself is hidden from readers and takes no focus;
+  // its markers are real links and buttons with names (office/stage.js, pinned by test/office/stage.test.mjs).
+  assert.doesNotMatch(src, /w-stage|WorldStage|world\/stage\.js/, "the 3D stage is gone from the Map");
+  assert.match(src, /<\$\{OfficeStage\} mode="map"/);
   const viewSrc = readFileSync(new URL("../../map/map-view.js", import.meta.url), "utf8");
   assert.match(viewSrc, /aria-current=\$\{on \? "true" : undefined\}/);
   assert.match(viewSrc, /aria-label=\$\{title \? `\$\{title\}: \$\{p\.text\}`/);

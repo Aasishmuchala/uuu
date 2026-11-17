@@ -26,6 +26,8 @@ const SHEETS = [
   "./styles/shell-overlays.css",
   // The studio's stage, the drawn fallback and the tags over the Map and Needs you (PLAN-3D T7).
   "./styles/world.css",
+  // The loft as a photograph, the Map's and Needs you's stage since the owner chose photographs over 3D on 18 Nov 2026.
+  "./styles/office.css",
   ...PAGE_SHEETS.map((p) => `./styles/pages/${p}.css`),
 ];
 

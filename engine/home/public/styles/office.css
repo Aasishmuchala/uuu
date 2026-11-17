@@ -1,0 +1,620 @@
+/* The stage as a photograph (office/stage.js; the owner chose photographs over 3D on 18 Nov 2026): the owner's own
+   picture of the loft (or the desk) fills the stage and the interface sits on it. The picture's frame and the markers
+   move by transform only (650 ms; with motion off, a short cross-fade); the light over a zone, the hand-off's travelling
+   light and the desk's sheet are soft gradients and a stroke, never a blur. Colours are tokens only (the --w-* ones of
+   the studio, the paper's); the ground under the loft is the picture's own backdrop, a 3 x 3 pixel picture stretched
+   smooth. The tags and the doors' list keep the tag's ground and inks of world.css. */
+
+/* ---- the stage, its ground and the picture's frame ---- */
+.o-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--w-sky-0);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.o-ground {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+}
+
+/* Unmeasured (before the first layout), the frame covers the stage as object-fit: cover would; placed, it has the
+   picture's own shape and its size, place and scale come from office/zones.js. */
+.o-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.o-stage.is-settled .o-frame {
+  transition: transform 650ms var(--ease);
+}
+
+/* The loft stands on its plain backdrop: the frame's edges melt into the same colours on the ground. */
+.o-stage--map .o-frame {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 5%, black 95%, transparent 100%), linear-gradient(to bottom, transparent 0, black 4%, black 94%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0, black 5%, black 95%, transparent 100%), linear-gradient(to bottom, transparent 0, black 4%, black 94%, transparent 100%);
+  mask-composite: intersect;
+}
+
+.o-img,
+.o-video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 400ms var(--ease);
+}
+
+.o-stage--desk .o-img,
+.o-stage--desk .o-video {
+  object-position: 34% 62%;
+}
+
+.o-stage[data-office="ready"] .o-img,
+.o-stage[data-office="ready"] .o-video {
+  opacity: 1;
+}
+
+.o-stage[data-office="failed"] .o-img {
+  visibility: hidden;
+}
+
+/* With motion off a change of view cross-fades (two names, so each change starts it again). */
+.o-frame--fade0 {
+  animation: o-fade-a 260ms var(--ease) both;
+}
+
+.o-frame--fade1 {
+  animation: o-fade-b 260ms var(--ease) both;
+}
+
+@keyframes o-fade-a {
+  from { opacity: .35; }
+  to { opacity: 1; }
+}
+
+@keyframes o-fade-b {
+  from { opacity: .35; }
+  to { opacity: 1; }
+}
+
+/* ---- the light over the zones (the Map) ---- */
+.o-light {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* A room opened: the rest of the loft falls into shadow round it. */
+.o-light::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 24% 30% at var(--o-cx, 50%) var(--o-cy, 50%), transparent 35%, color-mix(in srgb, var(--w-frame) 52%, transparent) 100%);
+  opacity: 0;
+  transition: opacity 650ms var(--ease);
+}
+
+.o-stage.is-room .o-light::before {
+  opacity: 1;
+}
+
+.o-zone {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  transition: opacity 400ms var(--ease);
+}
+
+/* someone works here: a warm glow, as of lamps on */
+.o-zone--working {
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--w-glow) 30%, transparent), color-mix(in srgb, var(--w-glow) 10%, transparent) 70%, transparent);
+  mix-blend-mode: screen;
+}
+
+/* nobody works here now: a quiet dim */
+.o-zone--idle {
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--w-frame) 22%, transparent), transparent);
+  mix-blend-mode: multiply;
+}
+
+/* no department has this zone: dimmer, and no marker */
+.o-zone--empty {
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--w-frame) 34%, transparent), transparent);
+  mix-blend-mode: multiply;
+}
+
+/* someone is stuck here: a red-amber edge of light round the zone */
+.o-zone--stuck {
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--w-lamp-amber) 8%, transparent) 50%, color-mix(in srgb, var(--w-lamp-amber) 26%, transparent) 74%, color-mix(in srgb, var(--w-lamp-red) 40%, transparent) 88%, transparent 100%);
+  mix-blend-mode: screen;
+}
+
+.o-zone.is-marked::after,
+.o-zone.is-chosen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--w-pool) 18%, transparent), transparent);
+  mix-blend-mode: screen;
+}
+
+/* ---- the hand-off: a soft light travelling between two zones ---- */
+.o-flow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.o-flow path {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+}
+
+.o-flow__one {
+  animation: o-flow-show 2200ms var(--ease) both;
+}
+
+.o-flow__trail {
+  stroke: var(--w-lamp-on);
+  stroke-opacity: .35;
+  stroke-width: 1.5px;
+  stroke-dasharray: 1 2;
+}
+
+.o-flow__glow {
+  stroke: var(--w-glow);
+  stroke-opacity: .32;
+  stroke-width: 12px;
+  stroke-dasharray: 12 120;
+  animation: o-flow-go 1700ms var(--ease) 150ms both;
+}
+
+.o-flow__spark {
+  stroke: var(--w-pool);
+  stroke-width: 3.5px;
+  stroke-dasharray: 3 120;
+  animation: o-flow-go 1700ms var(--ease) 150ms both;
+}
+
+@keyframes o-flow-go {
+  from { stroke-dashoffset: 8; }
+  to { stroke-dashoffset: -100; }
+}
+
+@keyframes o-flow-show {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---- the markers ---- */
+.o-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.o-stage[data-office="loading"] .o-marks {
+  visibility: hidden;
+}
+
+.o-mark-at,
+.o-mark--room {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+}
+
+.o-stage.is-settled .o-mark-at,
+.o-stage.is-settled .o-mark--room {
+  transition: transform 650ms var(--ease);
+}
+
+/* An anchor outside the free area (under the panel, off the stage) takes no marker. */
+.o-mark-at[data-away="true"],
+.o-mark--room[data-away="true"] {
+  visibility: hidden;
+}
+
+.o-mark {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--w-tag-ink);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.o-mark:focus-visible {
+  outline: none;
+}
+
+/* The lamps of a room on a small pill at its anchor; its reach is at least 44 px. */
+.o-mark__pin {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 18px;
+  min-height: 18px;
+  padding: 4px 6px;
+  border-radius: var(--r-pill);
+  background: var(--w-tag);
+  box-shadow: 0 0 0 1px var(--w-tag-line), 0 4px 14px color-mix(in srgb, var(--w-frame) 45%, transparent);
+  color: var(--w-tag-ink);
+  font-size: var(--fs-label);
+  line-height: 1;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+.o-mark__pin::before {
+  content: "";
+  position: absolute;
+  inset: -14px;
+}
+
+.o-mark:focus-visible .o-mark__pin {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.o-mark__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-round);
+  background: var(--w-lamp-off);
+}
+
+.o-mark__more {
+  color: var(--w-tag-ink-2);
+  font-weight: var(--fw-bold);
+}
+
+.o-mark.is-pulse .o-mark__pin::after,
+.o-doors.is-pulse .o-mark__pin::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: var(--r-pill);
+  box-shadow: 0 0 0 2px var(--w-lamp-on);
+  animation: o-pulse 1400ms var(--ease) both;
+}
+
+@keyframes o-pulse {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.6); }
+}
+
+/* The room's tag over its lamps: its name and count words, then the agents it shows. Placed by the stage (its
+   transform); until then, and when there is no room for it, hidden. */
+.o-mark__tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  gap: 3px;
+  width: max-content;
+  max-width: 260px;
+  padding: 6px 10px 7px;
+  border-radius: var(--r-2);
+  background: var(--w-tag);
+  box-shadow: 0 0 0 1px var(--w-tag-line), 0 8px 24px color-mix(in srgb, var(--w-frame) 40%, transparent);
+  color: var(--w-tag-ink);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  text-align: left;
+  white-space: nowrap;
+  transform: translate(-50%, calc(-100% - 16px));
+  pointer-events: auto;
+}
+
+.o-stage.is-settled .o-mark__tag {
+  transition: transform 650ms var(--ease), opacity var(--t-fast) var(--ease);
+}
+
+.o-mark__tag[data-placed="hidden"] {
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* a tag with no room of its own still shows while its marker has the focus */
+.o-mark:focus-visible .o-mark__tag[data-placed="hidden"] {
+  visibility: visible;
+  opacity: 1;
+}
+
+.o-mark.is-marked .o-mark__tag,
+.o-mark.is-chosen .o-mark__tag,
+.o-mark:focus-visible .o-mark__tag {
+  box-shadow: 0 0 0 1px var(--w-lamp-on), 0 8px 24px color-mix(in srgb, var(--w-frame) 40%, transparent);
+}
+
+.o-mark__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.o-mark__name {
+  font-weight: var(--fw-bold);
+}
+
+.o-mark__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--w-tag-ink-2);
+}
+
+.o-mark__agents {
+  display: grid;
+  gap: 3px;
+  margin-top: 2px;
+  padding-top: 5px;
+  border-top: 1px solid var(--w-tag-line);
+}
+
+.o-mark__agent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.o-mark__agent-name {
+  font-weight: var(--fw-medium);
+}
+
+.o-mark__agent-state {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--w-tag-ink-2);
+}
+
+/* ---- the doors' marker and its list ---- */
+.o-doors {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.o-mark__door-glyph {
+  display: block;
+  width: 9px;
+  height: 12px;
+  border-radius: 3px 3px 0 0;
+  box-shadow: inset 0 0 0 1.5px var(--w-door-light);
+}
+
+.o-doors.is-open .o-mark__tag {
+  visibility: hidden;
+}
+
+.o-doors__list {
+  position: absolute;
+  top: 18px;
+  left: -12px;
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  min-width: 220px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: var(--r-2);
+  background: var(--w-tag);
+  box-shadow: 0 0 0 1px var(--w-tag-line), 0 12px 32px color-mix(in srgb, var(--w-frame) 45%, transparent);
+  pointer-events: auto;
+}
+
+.o-doors__pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--w-tag-ink);
+  font: inherit;
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  text-align: left;
+  cursor: pointer;
+}
+
+.o-doors__pick:hover {
+  background: color-mix(in srgb, var(--w-tag-ink) 8%, transparent);
+}
+
+.o-doors__pick:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.o-doors__mark {
+  flex: none;
+  width: 8px;
+  height: 11px;
+  border-radius: 2px 2px 0 0;
+  box-shadow: inset 0 0 0 1.5px var(--w-lamp-off);
+}
+
+.o-doors__mark--open {
+  background: var(--w-door-light);
+  box-shadow: none;
+}
+
+.o-doors__mark--blocked {
+  box-shadow: inset 0 0 0 1.5px var(--w-lamp-amber);
+}
+
+.o-doors__name {
+  font-weight: var(--fw-bold);
+}
+
+.o-doors__state {
+  margin-left: auto;
+  color: var(--w-tag-ink-2);
+}
+
+/* ---- the desk (Needs you): the stack's place, the note beside it, the sheet that leaves it ---- */
+.o-stack {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.o-sheet {
+  position: absolute;
+  top: -10px;
+  left: calc(var(--o-w) / -2);
+  width: var(--o-w);
+  height: calc(var(--o-w) * .16);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--w-frame) 45%, transparent);
+  transform: skewX(-40deg);
+  animation: o-sheet-model 1100ms var(--ease) both;
+}
+
+.o-sheet--tray {
+  animation-name: o-sheet-tray;
+}
+
+@keyframes o-sheet-model {
+  0% { opacity: 0; transform: translate(0, 0) skewX(-40deg); }
+  12% { opacity: 1; transform: translate(0, -6px) skewX(-40deg); }
+  40% { opacity: 1; transform: translate(calc(var(--o-dx) * .2), -36px) skewX(-32deg) rotate(-3deg); }
+  100% { opacity: 0; transform: translate(var(--o-dx), var(--o-dy)) skewX(-24deg) scale(.3); }
+}
+
+@keyframes o-sheet-tray {
+  0% { opacity: 0; transform: translate(0, 0) skewX(-40deg); }
+  15% { opacity: 1; transform: translate(0, -4px) skewX(-40deg); }
+  100% { opacity: 0; transform: translate(var(--o-dx), var(--o-dy)) skewX(-40deg) scale(.7); }
+}
+
+.o-note {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  padding: 2px 8px;
+  border-radius: var(--r-2);
+  background: var(--w-tag);
+  box-shadow: 0 0 0 1px var(--w-tag-line);
+  color: var(--w-tag-ink);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ---- a phone: every marker and every door 44 px to the touch ---- */
+@media (max-width: 859px) {
+  .o-mark__tag {
+    max-width: 200px;
+    padding: 4px 8px 5px;
+  }
+
+  /* on a phone's overview a room's tag is its name; the rows under the picture give the counts */
+  .o-stage:not(.is-room) .o-mark--room:not(.is-marked) .o-mark__sub {
+    display: none;
+  }
+
+  .o-doors__pick {
+    min-height: 44px;
+  }
+
+  .o-doors__list {
+    min-width: 200px;
+  }
+}
+
+/* ---- reduced motion: nothing glides; a change of view cross-fades and the hand-off's light only fades ---- */
+.o-stage--still .o-frame,
+.o-stage--still .o-mark-at,
+.o-stage--still .o-mark--room,
+.o-stage--still .o-mark__tag,
+.o-stage--still .o-img,
+.o-stage--still .o-light::before {
+  transition: none;
+}
+
+.o-stage--still .o-flow__glow,
+.o-stage--still .o-flow__spark,
+.o-stage--still .o-mark__pin::after {
+  display: none;
+}
+
+.o-stage--still .o-sheet {
+  animation: o-sheet-still 360ms var(--ease) both;
+}
+
+@keyframes o-sheet-still {
+  from { opacity: 1; transform: skewX(-40deg); }
+  to { opacity: 0; transform: skewX(-40deg); }
+}
+
+:root[data-motion="off"] .o-stage.is-settled .o-frame,
+:root[data-motion="off"] .o-stage.is-settled .o-mark-at,
+:root[data-motion="off"] .o-stage.is-settled .o-mark--room,
+:root[data-motion="off"] .o-stage.is-settled .o-mark__tag {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .o-stage.is-settled .o-frame,
+  .o-stage.is-settled .o-mark-at,
+  .o-stage.is-settled .o-mark--room,
+  .o-stage.is-settled .o-mark__tag,
+  .o-img {
+    transition: none;
+  }
+
+  .o-flow__glow,
+  .o-flow__spark {
+    display: none;
+  }
+}

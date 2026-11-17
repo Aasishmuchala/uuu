@@ -93,10 +93,18 @@ test("no CORS headers, and the safety headers on every answer", async () => {
   writeFileSync(join(pub, "assets", "world", "NOTICE.md"), "notice\n");
   writeFileSync(join(pub, "vendor", "three-0.169.0", "jsm", "GLTFLoader.js"), "export const x = 1;\n");
   writeFileSync(join(pub, "vendor", "other", "x.js"), "export const x = 1;\n");
+  // Changed on purpose: the owner chose photographs over 3D on 18 Nov 2026, so the loft's pictures that replaced the
+  // world on the Map and Needs you (/assets/office/v<digits>/) are kept for a year the same way, for the same reason
+  // (a changed set is a new folder; test/office-assets.test.mjs pins every file's SHA-256). Its NOTICE stays no-store.
+  mkdirSync(join(pub, "assets", "office", "v1"), { recursive: true });
+  writeFileSync(join(pub, "assets", "office", "v1", "loft-dusk-1600.webp"), "RIFF");
+  writeFileSync(join(pub, "assets", "office", "v1", "loop-dusk.mp4"), "0000");
+  writeFileSync(join(pub, "assets", "office", "NOTICE.md"), "notice\n");
   for (const [p, type] of [["/assets/world/v1/tex/wood.webp", "image/webp"], ["/assets/world/v1/manifest.json", "application/json; charset=utf-8"],
     ["/assets/world/v1/fern.gltf", "model/gltf+json"], ["/assets/world/v1/fern.bin", "application/octet-stream"],
     ["/assets/world/v1/dusk.hdr", "application/octet-stream"],
-    ["/vendor/three-0.169.0/jsm/GLTFLoader.js", "text/javascript; charset=utf-8"]]) {
+    ["/vendor/three-0.169.0/jsm/GLTFLoader.js", "text/javascript; charset=utf-8"],
+    ["/assets/office/v1/loft-dusk-1600.webp", "image/webp"], ["/assets/office/v1/loop-dusk.mp4", "video/mp4"]]) {
     const r = await call(h.url, "GET", p);
     assert.equal(r.status, 200, p);
     assert.equal(r.headers["content-type"], type, p);
@@ -105,7 +113,8 @@ test("no CORS headers, and the safety headers on every answer", async () => {
     assert.equal(r.headers["x-frame-options"], "DENY", p);
     assert.equal(r.headers["referrer-policy"], "no-referrer", p);
   }
-  for (const p of ["/assets/world/NOTICE.md", "/vendor/other/x.js", "/assets/world/v1/missing.webp", "/assets/world/v1/../../index.html"]) {
+  for (const p of ["/assets/world/NOTICE.md", "/vendor/other/x.js", "/assets/world/v1/missing.webp", "/assets/world/v1/../../index.html",
+    "/assets/office/NOTICE.md", "/assets/office/v1/missing.webp", "/assets/office/vx/loft-dusk-1600.webp", "/assets/officex/v1/loft-dusk-1600.webp"]) {
     const r = await call(h.url, "GET", p);
     assert.equal(r.headers["cache-control"], "no-store", p);
     assert.equal(r.headers["x-content-type-options"], "nosniff", p);

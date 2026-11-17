@@ -1,17 +1,18 @@
-// The map: the home page as the lit studio (CONTRACTS-V3 29; PLAN-3D T9, D8, D12 to D16). The company is a building
-// at dusk that fills the page column (world/stage.js: the 3D world where it may load, else the drawn studio); over it,
+// The map: the home page as the lit studio (CONTRACTS-V3 29; PLAN-3D T9, D8, D12 to D16). The company is the owner's
+// photograph of a brick warehouse loft that fills the page column (office/stage.js; the owner chose photographs over
+// 3D on 18 Nov 2026: no three.js, no WebGL), each department at its zone of the loft (office/zones.js); over it,
 // at the left, a 340 px rail: the company's name, its counts, the brain's line, "Open the queue", then the mirrored
 // list (a section per room in the server's order with a row per agent, the three doors, App Studio) and today's three
 // blocks; the box that asks the company brain at the foot of the free area; at #/map/<department> a 392 px panel at
 // the right about that room ("Who is here" with Switch off and on, its needs with Answer, its tasks with Open the task
 // and Stop this task, and "Open the department"); a door chosen from the list or the studio opens the door's panel
-// (map/door-panel.js), the only way to open or shut a door here. The list twin at ?view=list loads nothing of the
-// world. Below 860 px the studio is a picture above today's rows, and the money line is the page's own first line.
+// (map/door-panel.js), the only way to open or shut a door here. The list twin at ?view=list loads no picture. Below
+// 860 px the studio is a picture above today's rows, and the money line is the page's own first line.
 // Data: GET /api/map and GET /api/world every 10 seconds, GET /api/home every 15 seconds; the box sends POST /api/ask
 // and then reads GET /api/ask/:id every 5 seconds while that question is still being read; Got it acts through
 // POST /api/inbox/act with the item's version. No timer or frame loop runs while the page is at rest.
-// Server text (names, titles, sentences) is shown only as text nodes or escaped attributes; the world gets only the
-// SceneState of worldState() (ids, enums and numbers).
+// Server text (names, titles, sentences) is shown only as text nodes or escaped attributes, never in an address, a
+// picture's URL or CSS.
 import { html, useEffect, useLayoutEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
@@ -43,7 +44,8 @@ import { nearestHub } from "../map/layout.js";
 import { brainLine, departmentsOf, iconOf, jobsLine, nodeLine, nodeTone, stuckOf } from "../map/map-view.js";
 import { DepartmentRows, DepartmentSection, MapList } from "../map/map-list.js";
 import { DoorPanel } from "../map/door-panel.js";
-import { WorldStage } from "../world/stage.js";
+import { OfficeStage } from "../office/stage.js";
+import { zonesFor } from "../office/zones.js";
 import { worldState } from "../world/state.js";
 import { diffWorld } from "../world/diff.js";
 import { WORDS as W } from "../world/words.js";
@@ -79,10 +81,11 @@ export const MAP_WORDS = Object.freeze({
 });
 
 // The studio's own labels (PLAN-3D T9), beside the shared ones of world/words.js. Pinned by
-// test/pages/map-world.test.mjs. "Stop this task?" and its yes are the task page's own words (pages/task.js).
+// test/pages/map-world.test.mjs. "Stop this task?" and its yes are the task page's own words (pages/task.js). The loft
+// in the photograph has seven zones (office/zones.js), so an eighth department is in the list only.
 export const STUDIO_WORDS = Object.freeze({
   rooms: "Rooms and who is in them",
-  overflow: "Only in this list: the studio has room for eleven.",
+  overflow: "Only in this list: the studio has room for seven.",
   nobody: "Nobody works here yet.",
   doorOpen: "Open",
   doorShut: "Shut",
@@ -520,7 +523,7 @@ function onListKey(e) {
   rows[to].focus();
 }
 
-function RoomList({ ws, chosen, hover, onHover }) {
+function RoomList({ ws, chosen, hover, onHover, placed }) {
   const point = (id) => ({ onMouseEnter: () => onHover(id), onMouseLeave: () => onHover(null), onFocus: () => onHover(id), onBlur: () => onHover(null) });
   return html`<ul class="p-map__rooms" role="list" aria-label=${STUDIO_WORDS.rooms}>
     ${ws.rooms.map((r) => html`<li key=${r.id} class=${`p-map__room-sec${hover === r.id ? " is-marked" : ""}${chosen === r.id ? " is-chosen" : ""}`} data-section=${r.id}>
@@ -528,7 +531,7 @@ function RoomList({ ws, chosen, hover, onHover }) {
         <span class="p-map__room-name" title=${r.title}>${r.title}</span>
         <span class=${`p-map__room-count${r.counts.needsYou ? " is-warn" : ""}`}>${nodeLine(r.counts)}</span>
       </a>
-      ${r.inPlan ? null : html`<p class="p-map__room-note">${STUDIO_WORDS.overflow}</p>`}
+      ${placed.has(r.id) ? null : html`<p class="p-map__room-note">${STUDIO_WORDS.overflow}</p>`}
       ${r.agents.length ? html`<ul class="p-map__agents" role="list">
         ${r.agents.map((a) => html`<li key=${a.slug}>
           <a class="p-map__agent" href=${mapHref({ dept: r.id })} data-row="" ...${point(r.id)}>
@@ -581,20 +584,6 @@ function AppRows({ ws }) {
   </section>`;
 }
 
-// ---- The world's handle, for diffWorld's events ----
-
-// The stage loads world.js through this, so the page keeps the handle and can hand it the events of an update
-// (handle.play) before the stage sets the new scene. Loaded only by import(), as the stage does.
-function worldLoader(ref) {
-  return () => import("../world/world.js").then((m) => ({
-    acquire: async (host, opts) => {
-      const h = await m.acquire(host, opts);
-      ref.current = h;
-      return h;
-    },
-  }));
-}
-
 // The free part of the stage, in the stage's pixels: right of the rail, left of the panel, above the foot.
 export function safeRectOf(stage, { rail, side, foot } = {}) {
   if (!stage || !(stage.width > 0) || !(stage.height > 0)) return null;
@@ -630,9 +619,7 @@ export default function MapPage({ route }) {
   const [door, setDoor] = useState(null);
   const [hover, setHover] = useState(null);
   const [safe, setSafe] = useState(null);
-  const handle = useRef(null);
-  const loader = useRef(null);
-  if (!loader.current) loader.current = worldLoader(handle);
+  const [events, setEvents] = useState(null);
   const rootRef = useRef(null);
   const railRef = useRef(null);
   const sideRef = useRef(null);
@@ -681,21 +668,21 @@ export default function MapPage({ route }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [dept, data, view, ask, ws.rooms.length]);
 
-  // A new reading of the company: its changes are played in the studio (D22) before the stage sets the new scene.
+  // A new reading of the company: its changes are shown on the picture (D22): a hand-off's travelling light, a lamp
+  // that changed.
   const prevWs = useRef(null);
   const worldKey = world.data ? JSON.stringify([ws.scene, ws.stack]) : "";
   useLayoutEffect(() => {
     const prev = prevWs.current;
     if (!world.data) return;
     prevWs.current = ws;
-    const h = handle.current;
-    if (!prev || !h) return;
+    if (!prev) return;
     const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
-    const events = diffWorld(prev, ws, { visible: !hidden });
-    if (events.length) try { h.play(events); } catch { /* the world keeps its last picture */ }
+    const changes = diffWorld(prev, ws, { visible: !hidden });
+    if (changes.length) setEvents(changes);
   }, [worldKey]);
 
-  // The free rectangle the studio frames its subject in (D15): measured from the rail, the panel and the foot. With a
+  // The free rectangle the picture frames the loft in (D15): measured from the rail, the panel and the foot. With a
   // panel open the rail slides away (styles/pages/map.css, as in the approved prototype), so it takes no room then.
   const panelOpen = !!(dept || door || ask);
   useEffect(() => {
@@ -784,8 +771,9 @@ export default function MapPage({ route }) {
     </div>`;
   }
 
-  const stage = (focus) => html`<${WorldStage} mode="map" state=${ws} focus=${focus} hover=${hover} safeRect=${narrow ? null : safe}
-    theme=${theme} still=${still} label=${ws.summary || MAP_WORDS.stage} onPick=${onPick} onHover=${setHover} load=${loader.current} />`;
+  const placed = zonesFor(ws.rooms);
+  const stage = (focus) => html`<${OfficeStage} mode="map" state=${ws} focus=${focus} hover=${hover} safeRect=${narrow ? null : safe}
+    theme=${theme} still=${still} label=${ws.summary || MAP_WORDS.stage} events=${events} onPick=${onPick} onHover=${setHover} />`;
   const doorPanel = doorNow ? html`<${DoorPanel} key=${doorNow.id} door=${doorNow} onClose=${closeDoor} onChanged=${reread} announce=${app.announce} />` : null;
   const moneyLine = money ? html`<p class="p-map__money">${money}</p>` : null;
 
@@ -794,7 +782,7 @@ export default function MapPage({ route }) {
   if (narrow) {
     if (dept) {
       return html`<div class="p-map p-map--narrow p-map--studio-narrow">
-        <div class="p-map__phone-stage p-map__phone-stage--room" data-cook-picture>${stage(dept)}</div>
+        <div class="p-map__phone-stage p-map__phone-stage--room">${stage(dept)}</div>
         <div class="p-map__back"><${Button} size="sm" icon="arrow-left" href=${mapHref({ ask })}>Back to the map<//></div>
         <${PageHeader} title=${chosen ? clip(chosen.title, 40) : titleFor(dept, data)} lede=${chosen ? clip(chosen.line, 80) : null} />
         ${moneyLine}
@@ -808,7 +796,7 @@ export default function MapPage({ route }) {
       </div>`;
     }
     return html`<div class="p-map p-map--narrow p-map--studio-narrow">
-      <div class="p-map__phone-stage" data-cook-picture>${stage(null)}</div>
+      <div class="p-map__phone-stage">${stage(null)}</div>
       <${PageHeader} title=${company || titleFor(null, data)} lede=${data ? html`<${StatusDot} tone=${nodeTone(companyCounts(data))} pulse=${false} label=${nodeLine(companyCounts(data))} />` : null} />
       ${moneyLine}
       ${ws.summary ? html`<p class="p-map__summary">${ws.summary}</p>` : null}
@@ -855,7 +843,7 @@ export default function MapPage({ route }) {
 
   return html`<div class=${["p-map p-map--studio", side ? "p-map--chosen" : "", still ? "p-map--still" : ""].filter(Boolean).join(" ")} ref=${rootRef}>
     <a class="p-map__skip" href=${listHref}>${STUDIO_WORDS.skip}</a>
-    <div class="p-map__world" data-cook-picture>${stage(dept)}</div>
+    <div class="p-map__world">${stage(dept)}</div>
     <div class="w-scrim p-map__scrim" aria-hidden="true"></div>
     ${/* With a room, a door or the answer open the rail is inert, and its h1 with it: the page's title stays for a
          screen reader, unseen (PLAN-3D-ALL U17: the accessibility tree had no h1). */
@@ -874,7 +862,7 @@ export default function MapPage({ route }) {
       <${MapNotices} map=${map} />
       ${failed ? html`<div class="p-map__stage-error"><${ErrorNotice} error=${MAP_ERROR} onRetry=${map.reload} /></div>`
         : html`<div class="p-map__list" onKeyDown=${onListKey}>
-          ${loading ? html`<${Loading} lines=${4} label="Loading the map" />` : html`<${RoomList} ws=${ws} chosen=${dept} hover=${hover} onHover=${setHover} />`}
+          ${loading ? html`<${Loading} lines=${4} label="Loading the map" />` : html`<${RoomList} ws=${ws} chosen=${dept} hover=${hover} onHover=${setHover} placed=${placed} />`}
           <${DoorRows} ws=${ws} door=${door} onDoor=${openDoor} onHover=${setHover} />
           <${AppRows} ws=${ws} />
         </div>`}

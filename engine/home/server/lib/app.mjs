@@ -29,11 +29,12 @@ const BASE_HEADERS = {
   "referrer-policy": "no-referrer",
 };
 const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:";
-// The world's pictures and three.js (PLAN-3D D18) are kept by the browser for a year instead of `no-store`: about
-// 11 MB would otherwise be read and decoded again on every visit. A file in these folders is never edited in place:
-// a changed asset set is a new folder (v2), and the manifest test pins every file's SHA-256. Every page, every other
-// file and every API answer stays `no-store`.
-const KEPT_FOLDERS = /^\/assets\/world\/v\d+\/|^\/vendor\/three-[0-9.]+\//;
+// The world's pictures and three.js (PLAN-3D D18), and the loft's photographs that replaced them on the Map and Needs
+// you (the owner chose photographs over 3D on 18 Nov 2026; assets/office/v<digits>/), are kept by the browser for a
+// year instead of `no-store`: they would otherwise be read and decoded again on every visit. A file in these folders
+// is never edited in place: a changed asset set is a new folder (v2), and each set's manifest test pins every file's
+// SHA-256. Every page, every other file and every API answer stays `no-store`.
+const KEPT_FOLDERS = /^\/assets\/world\/v\d+\/|^\/assets\/office\/v\d+\/|^\/vendor\/three-[0-9.]+\//;
 const KEPT_HEADERS = { ...BASE_HEADERS, "cache-control": "private, max-age=31536000, immutable" };
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
 // A route may send the browser on to one of the home screen's own pages (a 303 with `location`, as the Higgsfield
