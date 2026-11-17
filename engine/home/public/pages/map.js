@@ -859,6 +859,9 @@ export default function MapPage({ route }) {
     <a class="p-map__skip" href=${listHref}>${STUDIO_WORDS.skip}</a>
     <div class="p-map__world" data-cook-picture>${stage(dept)}</div>
     <div class="w-scrim p-map__scrim" aria-hidden="true"></div>
+    ${/* With a room, a door or the answer open the rail is inert, and its h1 with it: the page's title stays for a
+         screen reader, unseen (PLAN-3D-ALL U17: the accessibility tree had no h1). */
+      side ? html`<h1 class="k-sr">${company || "Map"}</h1>` : null}
     <div class="p-map__rail" data-surface="over" ref=${railRef} inert=${side ? true : undefined}>
       <div class="p-map__head">
         <${PageHeader} title=${company || "Map"} />

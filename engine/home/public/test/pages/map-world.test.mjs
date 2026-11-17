@@ -153,6 +153,17 @@ test("an amber lamp's row says Waiting for you when the server's state words do 
   } finally { m.done(); }
 });
 
+// PLAN-3D-ALL U17: with a room open the rail is inert and its h1 with it; the page keeps one h1 a reader can reach.
+test("with a room open, one h1 stands outside the inert rail", async () => {
+  const room = F.seed.world.rooms[0].id;
+  const m = await mountMap(F.seed, { parts: ["map", room] });
+  try {
+    const inert = (e) => { for (let x = e; x; x = x.parentNode) if (x.getAttribute && x.getAttribute("inert") !== null && x.getAttribute("inert") !== undefined && x.getAttribute("inert") !== false) return true; return false; };
+    const h1 = elements(m.root).filter((e) => e.localName === "h1");
+    assert.equal(h1.filter((e) => !inert(e)).length, 1, "one h1 outside the inert rail");
+  } finally { m.done(); }
+});
+
 test("the money line goes to the top bar whole; under 860 px it is also the page's own line, whole", async () => {
   const m = await mountMap(F.seed);
   try {
