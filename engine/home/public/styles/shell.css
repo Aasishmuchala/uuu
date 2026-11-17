@@ -24,18 +24,6 @@
   top: var(--s-2);
 }
 
-/* Focus is never left under the top bar or, on a phone, the tab bar: the page scrolls it clear (PLAN-3D-ALL U17: a
-   task's file button sat under the phone's bars when Tab reached it). */
-html {
-  scroll-padding-top: var(--topbar-h);
-}
-
-@media (max-width: 859px) {
-  html {
-    scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
-  }
-}
-
 /* ---- the frame: the sidebar and the page column; the work panel, when open, is a third column. */
 .s-app {
   --s-side-w: var(--side-w);

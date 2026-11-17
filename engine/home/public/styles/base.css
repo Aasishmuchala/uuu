@@ -125,6 +125,18 @@ textarea {
   resize: none;
 }
 
+/* Focus is never left under the top bar or, on a phone, the tab bar: the page scrolls it clear (PLAN-3D-ALL U17: a
+   task's file button sat under the phone's bars when Tab reached it). */
+html {
+  scroll-padding-top: var(--topbar-h);
+}
+
+@media (max-width: 859px) {
+  html {
+    scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* Focus: one ring in the accent, keyboard only. */
 :focus-visible {
   outline: 2px solid var(--focus);
