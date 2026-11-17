@@ -2,7 +2,7 @@
 // are drawn here; Models, Web, Generation and Page viewer are each their own module (pages/settings-models.js,
 // settings-web.js, settings-generation.js, settings-viewer.js), drawn inside the column. The chosen section is in the
 // address: "#/settings?s=generation"; no `s` is Appearance.
-// PLAN-3D-ALL U4: a surface screen. The room header (kit/room.js, the annex's picture) runs above both the list and
+// PLAN-3D-ALL U4: a surface screen. The room header (kit/room.js, the façade's picture) runs above both the list and
 // the column and holds the one h1#page-title, the section's name, and the alarm's chip; the section's intro and every
 // sentence stay in the column on the panels, never over the picture. The orchestrator's decision (17 Nov): below
 // 860 px the band is a 56 px title strip with no picture, so a phone asks for no image here.

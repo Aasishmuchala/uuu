@@ -22,7 +22,7 @@ test("glimpseFor: the vectors of 4.2", () => {
   assert.equal(glimpseFor("dept", "customers"), "room");
   assert.equal(glimpseFor("dept", "../../x"), "room");
   assert.equal(glimpseFor("dashboard", "customers"), "room-sales");
-  assert.equal(glimpseFor("settings"), "annex");
+  assert.equal(glimpseFor("settings"), "facade");
   assert.equal(glimpseFor("app"), null);
   assert.equal(glimpseFor("nope"), "room");
   assert.equal(glimpseFor(null), "room");
@@ -31,7 +31,7 @@ test("glimpseFor: the vectors of 4.2", () => {
 test("glimpseFor: every route of section 3 gives its key, and every key it gives is in the table", () => {
   const routes = {
     tasks: "desk", dashboards: "facade", marketing: "room-marketing", studio: "table", files: "shelves", jobs: "table",
-    team: "facade", agent: "desk", routines: "facade", health: "facade", settings: "annex", search: "shelves", apps: "terrace",
+    team: "facade", agent: "desk", routines: "facade", health: "facade", settings: "facade", search: "shelves", apps: "terrace",
   };
   for (const [r, k] of Object.entries(routes)) assert.equal(glimpseFor(r), k, r);
   assert.equal(glimpseFor("task", "sales"), "room-sales");

@@ -200,7 +200,7 @@ test("the page sends what it sent before (PLAN-3D-ALL)", async () => {
   }
 });
 
-test("PLAN-3D-ALL U4: every section is under the annex's band: one h1, the section's name, above the list and the column", async () => {
+test("PLAN-3D-ALL U4: every section is under the band: one h1, the section's name, above the list and the column", async () => {
   const { GLIMPSES, glimpseSrc } = await import("../../kit/room.js");
   for (const s of IDS_ALL) {
     const m = await drawPage(s);
@@ -213,7 +213,7 @@ test("PLAN-3D-ALL U4: every section is under the annex's band: one h1, the secti
       assert.equal(DOM.textOf(h1[0]), SECTIONS.find((x) => x.id === s).label);
       const band = all.find((e) => e.localName === "header" && DOM.classesOf(e).includes("k-room"));
       assert.ok(band, `${s}: the room header`);
-      assert.equal(band.getAttribute("data-glimpse"), "annex");
+      assert.equal(band.getAttribute("data-glimpse"), "facade");
       assert.ok(DOM.elements(band).includes(h1[0]), "the title is in the band");
       // The band comes first, then the frame: the list and the column are both under it.
       const page = all.find((e) => DOM.classesOf(e).includes("p-settings"));
@@ -273,7 +273,7 @@ test("PLAN-3D-ALL U4: server text is hostile and stays text in every section", a
       const all = m.DOM.elements(m.root);
       for (const t of ["script", "iframe", "object", "embed"]) assert.equal(all.filter((e) => e.localName === t).length, 0, `${s}: no ${t}`);
       const imgs = all.filter((e) => e.localName === "img");
-      assert.ok(imgs.every((e) => e.getAttribute("src") === glimpseSrc("annex", { theme: "dark", width: 1280 })), `${s}: the band's picture is the only img`);
+      assert.ok(imgs.every((e) => e.getAttribute("src") === glimpseSrc("facade", { theme: "dark", width: 1280 })), `${s}: the band's picture is the only img`);
       for (const e of all) {
         for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `${s}: no ${k} attribute`);
         for (const h of HOSTILE_SET) {

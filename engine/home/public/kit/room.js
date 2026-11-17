@@ -29,7 +29,7 @@ const ROUTES = Object.freeze({
   agent: "desk",
   routines: "facade",
   health: "facade",
-  settings: "annex",
+  settings: "facade",
   search: "shelves",
   apps: "terrace",
   // The scenes and an app's frame have no band.
