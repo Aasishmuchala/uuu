@@ -280,15 +280,24 @@ export function deskEvent(r, departments) {
   return { type: "aside", animate: true };
 }
 
-// Pure. The action ids a card's "send back or decline" control stands for, in the order D looks for them.
-export const DECLINE_IDS = ["send_back", "reject", "decline", "another"];
+// Pure. The action ids a card's "send back or decline" control stands for, in the order D looks for them: send
+// back, reject, decline, stop the task, send a result back (reopen), another round.
+export const DECLINE_IDS = ["send_back", "reject", "decline", "stop", "reopen", "another"];
+
+// Pure. The action ids A goes to, in the order it looks for them: approve, accept, a result's acknowledge (Accept,
+// Got it), answer, pick.
+export const PRIMARY_IDS = ["approve", "accept", "acknowledge", "answer", "pick"];
 
 // Pure. The words of the primary and of the send-back or decline control of an item: { primary, decline } (either
-// "" when the item has none).
+// "" when the item has none). The two are never the same control: an item whose only filled action is a decline
+// (an approval the home screen will not approve: Reject, Hide) has no primary for A (the business simulation found
+// A and D both on Reject).
 export function keyTargets(item) {
-  const actions = item && typeof item === "object" && Array.isArray(item.actions) ? item.actions : [];
-  const { primary } = splitActions(actions);
-  const decline = DECLINE_IDS.map((id) => actions.find((a) => a && a.id === id)).find(Boolean) || null;
+  const actions = (item && typeof item === "object" && Array.isArray(item.actions) ? item.actions : []).filter((a) => a && a.id);
+  const decline = DECLINE_IDS.map((id) => actions.find((a) => a.id === id)).find(Boolean) || null;
+  const { primary: split } = splitActions(actions);
+  const primary = PRIMARY_IDS.map((id) => actions.find((a) => a.id === id)).find(Boolean)
+    || (split && split.style === "primary" && !DECLINE_IDS.includes(split.id) ? split : null);
   return { primary: primary ? String(primary.label || "") : "", decline: decline ? String(decline.label || "") : "" };
 }
 
@@ -471,7 +480,8 @@ function keyButton(sheet, item, which) {
   const words = which === "primary" ? t.primary : t.decline;
   const byWords = words ? findIn(sheet, (el) => usable(el) && wordsIn(el).trim() === words) : null;
   if (byWords || which !== "primary") return byWords;
-  return findIn(sheet, (el) => usable(el) && classesOf(el).includes("k-btn--primary"));
+  // a card's one filled primary (a shotlist's "Approve A and its cost"), never the decline control
+  return findIn(sheet, (el) => usable(el) && classesOf(el).includes("k-btn--primary") && (!t.decline || wordsIn(el).trim() !== t.decline));
 }
 
 const typing = (t) => !!t && (/^(INPUT|TEXTAREA|SELECT)$/i.test(String(t.tagName || t.localName || "")) || t.isContentEditable === true);

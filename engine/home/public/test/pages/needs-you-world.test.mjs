@@ -295,3 +295,60 @@ test("nothing waiting: today's words and Open Tasks on a small sheet over the de
   // The desk's photograph behind it (the owner chose photographs over 3D on 18 Nov 2026).
   assert.ok(elements(root).some((e) => classesOf(e).includes("o-stage")), "the desk behind it");
 });
+
+// Found by the business simulation: D went to the same button as A. Each kind of item the seed company sends, with
+// its actions as the home server sends them (server/inbox/staged.mjs and the board, read from the seeded preview on
+// 17 Nov 2026): D lands on its decline-type control (Send back, Reject, Stop this task, a result's send-back), A on
+// its approve-type one (Approve, Accept, Answer, Got it), never the same button; an item with neither moves nothing.
+const SEED_KINDS = [
+  { kind: "approval", actions: [["reject", "Reject", "danger"], ["dismiss", "Hide", "plain"]], a: null, d: "Reject" },
+  { kind: "problem", actions: [["answer", "Try again with a note", "primary"], ["stop", "Stop this task", "danger"]], a: "Try again with a note", d: "Stop this task" },
+  { kind: "draft", actions: [["approve", "Approve", "primary"], ["send_back", "Send back", "plain"]], a: "Approve", d: "Send back" },
+  { kind: "question", actions: [["answer", "Answer", "primary"], ["stop", "Stop this task", "danger"]], a: "Answer", d: "Stop this task" },
+  { kind: "problem", actions: [["dismiss", "Hide", "plain"]], a: null, d: null },
+  { kind: "result", actions: [["acknowledge", "Accept", "primary"], ["reopen", "Send back", "plain"]], a: "Accept", d: "Send back" },
+  { kind: "result", actions: [["acknowledge", "Got it", "primary"], ["reopen", "Ask again", "plain"]], a: "Got it", d: "Ask again" },
+  { kind: "approval", actions: [["accept", "Accept the plan", "primary"], ["send_back", "Send back", "plain"]], a: "Accept the plan", d: "Send back" },
+];
+
+test("keyTargets: for each kind of item in the seed, A's and D's controls by their words, never the same", () => {
+  for (const k of SEED_KINDS) {
+    const item = { kind: k.kind, actions: k.actions.map(([id, label, style]) => ({ id, label, style, needsNote: false })) };
+    const t = page.keyTargets(item);
+    assert.deepEqual(t, { primary: k.a || "", decline: k.d || "" }, `${k.kind} ${k.actions.map((x) => x[0]).join("/")}`);
+    if (t.primary || t.decline) assert.notEqual(t.primary, t.decline);
+  }
+  assert.deepEqual([...page.DECLINE_IDS], ["send_back", "reject", "decline", "stop", "reopen", "another"]);
+});
+
+test("D moves focus to the opened item's decline-type button and A to its approve-type one, for each kind in the seed; neither acts", async () => {
+  for (const [n, k] of SEED_KINDS.entries()) {
+    const id = `k${n}`;
+    const item = {
+      id, kind: k.kind, source: "goal", severity: "normal", when: "2026-11-11T09:00:00.000Z", version: `v-${id}`,
+      title: `A ${k.kind} to decide ${n}`, summary: "Something the seed sends.", agent: { slug: "builder", name: "Builder" },
+      department: "operations", actions: k.actions.map(([aid, label, style]) => ({ id: aid, label, style, needsNote: false })),
+    };
+    const dom = mountDom({ hash: `#/needs-you?item=${id}` });
+    const calls = fakeFetch({ inbox: inboxOf([item, approval("other")]) });
+    const root = await mount({ query: `item=${id}` });
+    const name = `${k.kind} ${k.actions.map((x) => x[0]).join("/")}`;
+    globalThis.document.activeElement = null;
+    dom.key("d");
+    const d = globalThis.document.activeElement;
+    if (k.d) {
+      assert.ok(d && d.localName === "button", `${name}: D focuses a button`);
+      assert.equal(textOf(d).trim(), k.d, `${name}: D on ${k.d}`);
+      assert.equal(d, button(root, k.d));
+    } else assert.equal(d, null, `${name}: D moves nothing`);
+    globalThis.document.activeElement = null;
+    dom.key("a");
+    const a = globalThis.document.activeElement;
+    if (k.a) assert.equal(textOf(a).trim(), k.a, `${name}: A on ${k.a}`);
+    else assert.ok(!a || textOf(a).trim() !== k.d, `${name}: A is never on the decline control`);
+    if (k.a && k.d) assert.notEqual(a, d, `${name}: A and D are different buttons`);
+    await settle(50);
+    assert.equal(posts(calls).length, 0, `${name}: neither key acts`);
+    while (mounted.length) render(null, mounted.pop());
+  }
+});
