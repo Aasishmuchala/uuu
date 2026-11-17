@@ -6,7 +6,11 @@
    rows flat under hairlines, the words running the column's width), the owner's tasks with it (two-line rows, flat
    under hairlines: title over the state's sentence, the date and the ID in a right-hand column); the items that need
    the owner are the one raised panel (R6-G); the jobs it can run
-   (cards two across, as the Jobs page), the composer, and the departments either side. */
+   (cards two across, as the Jobs page), the composer, and the departments either side.
+   PLAN-3D-ALL U10: the head stands in the room header, the picture of the department's room behind it
+   (kit/room.css). The band rises into the pane's top margin, so the first row stands no more than 48 px lower than
+   before the band (40 on a phone; D9). Each agent's row carries the Map's lamp in a 16 px column at the edge, as a
+   task row carries its glyph. Rows answer the pointer in the lamp's pool. Nothing here is on paper. */
 
 .p-dept {
   display: flex;
@@ -56,9 +60,12 @@
   position: relative;
 }
 
-.p-dept .p-dept__head .k-page-header {
-  margin-bottom: 0;
+/* The room header: 24 px up into the pane's top margin; the first section's 32 px under it. One layer above. */
+.p-dept .p-dept__head .k-room {
+  z-index: 1;
   min-width: 0;
+  margin-top: calc(-1 * var(--s-6));
+  margin-bottom: 0;
 }
 
 .p-dept .p-dept__head .k-page-header__row {
@@ -66,7 +73,12 @@
 }
 
 /* The line and the state on one line under the title, at the column's edge. */
-.p-dept .p-dept__head .k-page-header {
+/* Over the picture the two links keep a fill, so their edge and words hold where it is bright. */
+.p-dept .k-room .p-dept__actions .k-btn--ghost {
+  background: var(--panel);
+}
+
+.p-dept .p-dept__head .k-room__head {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
@@ -216,8 +228,10 @@
   transition: background-color var(--t-fast) var(--ease);
 }
 
-.p-dept .p-dept__need:hover {
-  background: var(--ctl);
+/* Under the pointer or the keyboard a row stands in the lamp's pool (PLAN-3D-ALL U10). */
+.p-dept .p-dept__need:hover,
+.p-dept .p-dept__need:focus-visible {
+  background: var(--lamp-pool);
 }
 
 .p-dept .p-dept__need-title {
@@ -317,7 +331,24 @@
   border-top: 1px solid var(--line);
 }
 
+/* An agent's row: the lamp in a 16 px column at the edge, level with the name; then the kit's card. */
+.p-dept .p-dept__agent {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 0 var(--s-3);
+  min-width: 0;
+}
+
+.p-dept .p-dept__lamp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  margin-top: var(--s-3);
+}
+
 .p-dept .p-dept__agents .k-agent--card {
+  min-width: 0;
   align-items: flex-start;
   padding: var(--s-3) 0;
   border: 0;
@@ -653,13 +684,17 @@
     padding-bottom: var(--s-10);
   }
 
+  .p-dept .p-dept__head .k-room {
+    margin-top: calc(-1 * var(--s-2));
+  }
+
   /* The title, its line and its state first; the actions under them. */
   .p-dept .p-dept__head .k-page-header__row {
     display: contents;
   }
 
   .p-dept .p-dept__head .k-page-header__titles {
-    flex: none;
+    flex: 1 1 100%;
     order: 0;
   }
 

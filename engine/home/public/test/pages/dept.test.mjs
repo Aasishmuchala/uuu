@@ -465,3 +465,123 @@ test("dept: the page sends what it sent before (PLAN-3D-ALL)", async () => {
   assert.deepEqual(seen, RECORDED);
   for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
 });
+
+const { lampOf } = await import("../../world/state.js");
+const textNodes = (root) => [...dom.walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+const imgs = (root) => dom.elements(root).filter((e) => e.localName === "img");
+
+test("dept: the head stands in the room header of the department's room; one h1; no picture while it is read (PLAN-3D-ALL U10)", async () => {
+  for (const [id, key] of [["sales", "room-sales"], ["marketing", "room-marketing"], ["month-end", "room"]]) {
+    const dep = shape("department");
+    const m = await mountDept((p) => (p === `/api/map/${id}` ? { ...dep, department: { ...dep.department, id } } : SEEDED()(p, "GET")), { id });
+    try {
+      const band = dom.elements(m.root).filter((e) => e.localName === "header" && dom.classesOf(e).includes("k-room"));
+      assert.equal(band.length, 1, id);
+      assert.equal(band[0].getAttribute("data-glimpse"), key, id);
+      const h1 = dom.elements(m.root).filter((e) => e.localName === "h1");
+      assert.equal(h1.length, 1);
+      assert.equal(h1[0].getAttribute("id"), "page-title");
+      assert.equal(byCls(band[0], "p-dept__actions").length, 1, "the two links are in the band");
+      assert.equal(byCls(band[0], "p-dept__state").length, 1, "the state is in the band");
+      assert.equal(imgs(m.root).length, 1, "one picture: the band's");
+      assert.equal(imgs(m.root)[0].getAttribute("src"), glimpseSrc(key, { theme: "dark", width: 1280 }));
+      assert.equal(imgs(m.root)[0].getAttribute("aria-hidden"), "true");
+      assert.equal(byCls(m.root, "k-page-header").length, 0, "PageHeader is replaced");
+      assert.equal(dom.elements(m.root).filter((e) => e.localName === "canvas").length, 0, "a surface screen has no canvas");
+    } finally { await m.done(); }
+  }
+  const loading = await mountDept(SEEDED({ "/api/map/sales": undefined }));
+  try {
+    assert.equal(imgs(loading.root).length, 0, "no picture asked for while the department is read");
+    assert.equal(byCls(loading.root, "k-room--bare").length, 1);
+  } finally { await loading.done(); }
+  const missing = await mountDept(SEEDED(), { id: "nowhere" });
+  try {
+    assert.equal(byCls(missing.root, "k-room")[0].getAttribute("data-glimpse"), "room");
+    assert.match(dom.textOf(missing.root), /That department is not here/);
+  } finally { await missing.done(); }
+  const css = readFileSync(new URL("../../styles/pages/dept.css", import.meta.url), "utf8");
+  assert.match(css, /\.p-dept \.p-dept__head \.k-room \{[^}]*z-index: 1;[^}]*margin-top: calc\(-1 \* var\(--s-6\)\);/, "up into the pane's margin (D9)");
+  assert.ok(!/data-surface|k-sheet/.test(css) && !/data-surface|<\$\{Sheet\}/.test(readFileSync(new URL("../../pages/dept.js", import.meta.url), "utf8")), "nothing on paper here");
+});
+
+// Each agent's lamp is the Map's: lampOf of world/state.js, with an agent that has something in the queue amber.
+test("dept: beside each agent the Map's lamp, by the Map's rule; the state's words unchanged (PLAN-3D-ALL U10)", async () => {
+  const d = shape("department");
+  const base = d.agents[0];
+  const agents = [
+    { ...base, slug: "a-working", name: "Working one", state: "working", plainState: "Working" },
+    { ...base, slug: "a-waiting", name: "Waiting one", state: "free", plainState: "Free", doingNow: null },
+    { ...base, slug: "a-stuck", name: "Stuck one", state: "problem", plainState: "Stuck: it needs the books switched on.", doingNow: null },
+    { ...base, slug: "a-idle", name: "Idle one", state: "free", plainState: "Free", doingNow: null },
+    { ...base, slug: "a-off", name: "Off one", state: "paused", plainState: "Paused", doingNow: null },
+  ];
+  const home = shape("home");
+  const item = { ...home.needsYou.items[0], agent: { slug: "a-waiting", name: "Waiting one" } };
+  const m = await mountDept(SEEDED({ "/api/map/sales": { ...d, agents }, "/api/home": { ...home, needsYou: { total: 1, items: [item] } } }));
+  try {
+    const rows = byCls(m.root, "p-dept__agent");
+    assert.equal(rows.length, 5);
+    const want = ["on", "amber", "red", "off", "down"];
+    rows.forEach((li, i) => {
+      const lamps = byCls(li, "k-lamp");
+      assert.equal(lamps.length, 1);
+      assert.ok(dom.classesOf(lamps[0]).includes(`k-lamp--${want[i]}`), `${agents[i].slug}: ${want[i]}`);
+      assert.equal(lamps[0].getAttribute("aria-hidden"), "true", "the words beside it say the state");
+    });
+    assert.equal(page.lampHere(agents[1], page.queuedSlugs({ needsYou: { items: [item] } })), "amber");
+    assert.equal(page.lampHere(agents[1], new Set()), lampOf(agents[1]));
+    assert.equal(page.lampHere({ ...agents[4], waitingForYou: true }, new Set()), "down", "switched off wins, as on the Map");
+    const words = textNodes(m.root);
+    for (const w of ["Working", "Stuck: it needs the books switched on.", "Paused"]) assert.ok(words.includes(w), w);
+  } finally { await m.done(); }
+});
+
+// PLAN-3D-ALL S1, checklist item 8: an agent's "what I need" (a stuck agent's sentence) and the board-off notice's
+// reason and next step are shown whole, as sent, and no box of this page's sheets cuts them.
+test("dept: a stuck agent's sentence and the board-off notice are whole, as sent (PLAN-3D-ALL U10)", async () => {
+  const need = "Stuck: it needs the books switched on before it can draft the invoice, and it will wait for you until then.";
+  const off = { reason: "The board is switched off, so agents and tasks cannot be reached right now, and nothing here is current.", next: "Start the board from Health, then come back here." };
+  const d = departmentWithBoardOff();
+  d.agents = d.agents.map((a) => ({ ...a, state: "problem", plainState: need }));
+  const m = await mountDept(SEEDED({ "/api/map/sales": d, "/api/map": { ...shape("map"), boardOff: off } }));
+  try {
+    const words = textNodes(m.root);
+    for (const s of [need, off.reason, off.next]) assert.ok(words.includes(s), `one text node: ${s}`);
+  } finally { await m.done(); }
+  const css = readFileSync(new URL("../../styles/pages/dept.css", import.meta.url), "utf8");
+  const kit = readFileSync(new URL("../../styles/kit/agent.css", import.meta.url), "utf8");
+  for (const [sheet, sel] of [[css, /\.p-dept[^{]*(k-agent__state|k-st|k-notice|p-team__next|p-dept__agent\b)[^{]*\{([^}]*)\}/g], [kit, /\.k-agent__state[^{]*\{([^}]*)\}/g]]) {
+    for (const r of sheet.matchAll(sel)) assert.doesNotMatch(r[r.length - 1], /text-overflow|line-clamp|overflow: hidden|(^|[^-])height:/, r[0]);
+  }
+});
+
+test("dept: hostile server text stays text: no script, img, iframe or object beyond the band's; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const tags = (root) => ["script", "img", "iframe", "object"].map((t) => dom.elements(root).filter((e) => e.localName === t).length);
+  const d = shape("department");
+  const hostile = {
+    ...d,
+    department: { ...d.department, title: bad(0), line: bad(1), dashboard: bad(2), state: { id: "working", plain: bad(3), taskId: "t1" } },
+    agents: [0, 1, 2].map((i) => ({ ...d.agents[0], slug: `h-agent-${i}`, name: bad(i), summary: bad(i + 1), plainState: bad(i + 2), state: ["working", "problem", "paused"][i], doingNow: { title: bad(i + 3), taskId: "t1" } })),
+    clusters: [{ id: "c", jobs: [0, 1].map((i) => ({ ...d.clusters[0].jobs[0], id: `sales/h-${i}`, title: bad(i), summary: bad(i + 1), ready: i === 0, why: { text: bad(i + 2) } })) }],
+    recent: [0, 1, 2].map((i) => ({ ...d.recent[0], id: `h-task-${i}`, title: bad(i), plainState: bad(i + 1), outcome: bad(i + 2), identifier: bad(i + 3) })),
+    neighbours: { prev: { id: "books", title: bad(4) }, next: { id: bad(5), title: bad(6) } },
+  };
+  const home = shape("home");
+  const items = HOSTILE.map((t, i) => ({ ...home.needsYou.items[0], id: `h${i}`, title: t, raisedBy: t, agent: { slug: "h-agent-0", name: t }, department: "sales" }));
+  const s = await mountDept(SEEDED());
+  let base;
+  try { base = tags(s.root); } finally { await s.done(); }
+  const m = await mountDept(SEEDED({ "/api/map/sales": hostile, "/api/home": { ...home, needsYou: { total: items.length, items } }, "/api/map": { ...shape("map"), boardOff: { reason: bad(0), next: bad(2) } } }));
+  try {
+    assert.deepEqual(tags(m.root), base);
+    for (const e of dom.elements(m.root)) {
+      for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+      for (const h of HOSTILE) for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+      if (e.localName === "img") assert.ok(GLIMPSES.some((k) => ["dark", "light"].some((theme) => [1280, 390].some((w) => glimpseSrc(k, { theme, width: w }) === e.getAttribute("src")))));
+      if (dom.classesOf(e).includes("k-lamp")) assert.ok(/^k-lamp k-lamp--(on|amber|red|off|down) k-lamp--(disc|halo|ring|hollow|line)$/.test(e.getAttribute("class")));
+    }
+    assert.ok(textNodes(m.root).includes(bad(0)), "a hostile title is a text node");
+  } finally { await m.done(); }
+});

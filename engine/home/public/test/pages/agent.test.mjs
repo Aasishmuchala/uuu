@@ -298,3 +298,133 @@ test("agent: the page sends what it sent before: the reads, Pause, Resume, a les
   assert.deepEqual(seen, RECORDED);
   for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
 });
+
+const { lampOf } = await import("../../world/state.js");
+const textNodes = (root) => [...dom.walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+const imgs = (root) => dom.elements(root).filter((e) => e.localName === "img");
+
+test("agent: the head stands in the room header with the desk's glimpse; one h1, crumbs as before; no picture while it is read (PLAN-3D-ALL U10)", async () => {
+  const m = await mountAgent(SEEDED());
+  try {
+    const band = dom.elements(m.root).filter((e) => e.localName === "header" && dom.classesOf(e).includes("k-room"));
+    assert.equal(band.length, 1);
+    assert.equal(band[0].getAttribute("data-glimpse"), "desk");
+    const h1 = dom.elements(m.root).filter((e) => e.localName === "h1");
+    assert.equal(h1.length, 1);
+    assert.equal(h1[0].getAttribute("id"), "page-title");
+    assert.ok(button(band[0], "Give it a task") && button(band[0], "Pause"), "Give it a task and Pause are in the band");
+    assert.equal(imgs(m.root).length, 1, "one picture: the band's");
+    assert.equal(imgs(m.root)[0].getAttribute("src"), glimpseSrc("desk", { theme: "dark", width: 1280 }));
+    assert.equal(byCls(m.root, "k-page-header").length, 0, "PageHeader is replaced");
+    assert.deepEqual(m.tops.at(-1), { crumbs: [{ label: "Team", href: "#/team" }, { label: "Artist" }] }, "the crumbs as before");
+    assert.equal(dom.elements(m.root).filter((e) => e.localName === "canvas").length, 0);
+  } finally { await m.done(); }
+  const loading = await mountAgent(SEEDED({ "/api/team/artist": undefined }));
+  try {
+    assert.equal(imgs(loading.root).length, 0, "no picture asked for while the agent is read");
+    assert.equal(byCls(loading.root, "k-room--bare").length, 1);
+  } finally { await loading.done(); }
+  const missing = await mountAgent(SEEDED(), { slug: "nobody" });
+  try {
+    assert.equal(byCls(missing.root, "k-room")[0].getAttribute("data-glimpse"), "desk");
+    assert.match(dom.textOf(missing.root), /That agent is not here/);
+  } finally { await missing.done(); }
+  const css = readFileSync(new URL("../../styles/pages/agent.css", import.meta.url), "utf8");
+  assert.match(css, /\.p-agent \.p-agent__head \.k-room \{[^}]*z-index: 1;[^}]*margin-top: calc\(-1 \* var\(--s-6\)\);/, "up into the pane's margin (D9)");
+});
+
+test("agent: beside the name the Map's lamp, before the state's words, in each of the five states (PLAN-3D-ALL U10)", async () => {
+  for (const [over, lamp, words] of [
+    [{ state: "working", plainState: "Working" }, "on", "Working"],
+    [{ state: "free", plainState: "Free", waitingForYou: true }, "amber", "Waiting for you"],
+    [{ state: "problem", plainState: "Stuck: it needs the books switched on." }, "red", "Stuck: it needs the books switched on."],
+    [{ state: "free", plainState: "Free" }, "off", "Free"],
+    [{ state: "paused", plainState: "Paused" }, "down", "Paused"],
+  ]) {
+    const m = await mountAgent(SEEDED({ "/api/team/artist": agentWith(over) }));
+    try {
+      const [state] = byCls(m.root, "p-agent__state");
+      const lamps = byCls(state, "k-lamp");
+      assert.equal(lamps.length, 1);
+      assert.ok(dom.classesOf(lamps[0]).includes(`k-lamp--${lamp}`), `${over.state}: ${lamp}`);
+      assert.equal(lamp, lampOf(agentWith(over).agent));
+      assert.equal(dom.elements(state)[1], lamps[0], "the lamp comes first, then the words");
+      assert.equal(dom.textOf(state).trim(), words, "the state's words unchanged");
+      assert.ok(button(m.root, over.state === "paused" || over.state === "problem" ? "Resume" : "Pause"), "the action as before");
+    } finally { await m.done(); }
+  }
+});
+
+test("agent: only the standing instructions are on paper; the work, the set-up, the lessons and the talk are not (PLAN-3D-ALL U10, D4)", async () => {
+  const m = await mountAgent(SEEDED(), { query: "tab=instructions" });
+  try {
+    const paper = dom.elements(m.root).filter((e) => e.getAttribute("data-surface") === "paper");
+    assert.equal(paper.length, 1);
+    assert.equal(paper[0].localName, "article");
+    assert.equal(paper[0].getAttribute("aria-label"), "Instructions");
+    assert.equal(byCls(paper[0], "p-agent__text").length, 1);
+    for (const c of ["p-agent__work", "p-agent__facts", "p-agent__lessons", "p-agent__talk"]) {
+      const [el] = byCls(m.root, c);
+      for (let x = el; x; x = x.parentNode) assert.notEqual(x.getAttribute && x.getAttribute("data-surface"), "paper", c);
+    }
+  } finally { await m.done(); }
+});
+
+// PLAN-3D-ALL S1, checklist item 8.
+test("agent: a stuck agent's sentence and the board-off notice's reason and next step are whole, as sent (PLAN-3D-ALL U10)", async () => {
+  const need = "Stuck: it needs the books switched on before it can draft the invoice, and it will wait for you until then.";
+  const off = { reason: "The board is switched off, so agents and tasks cannot be reached right now, and nothing here is current.", next: "Start the board from Health, then come back here." };
+  const m = await mountAgent(SEEDED({ "/api/team/artist": { ...agentWith({ state: "problem", plainState: need }), connected: false, notConnected: off } }));
+  try {
+    const words = textNodes(m.root);
+    for (const s of [need, off.reason, off.next]) assert.ok(words.includes(s), `one text node: ${s}`);
+  } finally { await m.done(); }
+  const css = readFileSync(new URL("../../styles/pages/agent.css", import.meta.url), "utf8");
+  assert.match(css, /\.p-agent \.p-agent__state \.k-tag \{\s*white-space: normal;/, "a long state wraps whole in its chip");
+  for (const r of css.matchAll(/\.p-agent[^{]*(p-agent__state|k-agent__state|k-tag|k-notice|p-team__next)[^{]*\{([^}]*)\}/g)) {
+    assert.doesNotMatch(r[2], /text-overflow|line-clamp|overflow: hidden|(^|[^-])height:/, r[0]);
+  }
+});
+
+test("agent: hostile server text stays text: no script, img, iframe or object beyond the band's; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const tags = (root) => ["script", "img", "iframe", "object"].map((t) => dom.elements(root).filter((e) => e.localName === t).length);
+  const d = shape("agent");
+  const hostile = {
+    ...d,
+    connected: false, notConnected: { reason: bad(0), next: bad(2) },
+    agent: { ...d.agent, name: bad(0), summary: bad(1), plainState: bad(2), state: "problem", applied: false, reportsTo: { slug: "chief-of-staff", name: bad(3) }, doingNow: { title: bad(4), taskId: "t1" } },
+    profile: { tool: { label: bad(5), installed: false }, limits: { runMinutes: bad(6), oneAtATime: bad(0) }, may: HOSTILE.slice(), mayNot: HOSTILE.slice() },
+    instructions: { text: HOSTILE.join("\n\n"), file: bad(1) },
+    lessons: HOSTILE.map((t, i) => ({ n: i + 1, date: t, text: t, hash: `h${i}` })),
+    recent: HOSTILE.map((t, i) => ({ ...d.recent[0], id: `h-task-${i}`, title: t, plainState: bad(i + 1), outcome: bad(i + 2), identifier: bad(i + 3) })),
+    conversation: HOSTILE.map((t, i) => ({ ...d.conversation[0], who: { slug: "artist", name: bad(i + 1) }, text: t, files: [] })),
+  };
+  const s = await mountAgent(SEEDED(), { query: "tab=instructions" });
+  let base;
+  try { base = tags(s.root); } finally { await s.done(); }
+  const m = await mountAgent(SEEDED({ "/api/team/artist": hostile, "/api/models": { mode: "provider", agents: [{ slug: "artist", pickName: bad(1) }] } }), { query: "tab=instructions" });
+  try {
+    assert.deepEqual(tags(m.root), base);
+    for (const e of dom.elements(m.root)) {
+      for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+      for (const h of HOSTILE) for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+      if (e.localName === "img") assert.ok(GLIMPSES.some((k) => ["dark", "light"].some((theme) => [1280, 390].some((w) => glimpseSrc(k, { theme, width: w }) === e.getAttribute("src")))));
+      if (dom.classesOf(e).includes("k-lamp")) assert.ok(/^k-lamp k-lamp--(on|amber|red|off|down) k-lamp--(disc|halo|ring|hollow|line)$/.test(e.getAttribute("class")));
+    }
+    assert.ok(textNodes(m.root).includes(bad(0)), "a hostile name is a text node");
+  } finally { await m.done(); }
+});
+
+test("agent and department: on a phone the band asks for no picture; the head fills it (PLAN-3D-ALL U10)", async () => {
+  const kept = globalThis.matchMedia;
+  globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  try {
+    const m = await mountAgent(SEEDED());
+    try {
+      assert.equal(imgs(m.root).length, 0);
+      assert.equal(byCls(m.root, "k-room--bare").length, 1);
+      assert.equal(byCls(m.root, "k-room")[0].getAttribute("data-glimpse"), "none");
+    } finally { await m.done(); }
+  } finally { if (kept === undefined) delete globalThis.matchMedia; else globalThis.matchMedia = kept; }
+});

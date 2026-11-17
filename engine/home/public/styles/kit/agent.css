@@ -1,7 +1,8 @@
 /* AgentChip, AgentState and AgentCard (kit/agent.js). Tokens only.
    The chip is the avatar and the name, no frame, the name taking the ink on hover. The card is C3's card: one
    step up from the ground, a hairline edge (and the soft shadow in light), the avatar, the name at 15 px, the
-   state as a state line, one grey sentence and what it does now. */
+   state as a state line, one grey sentence and what it does now.
+   PLAN-3D-ALL U10: working is the lamp's tone (D5), as on the Map and the task rows, not the green of "passed". */
 
 .k-agent {
   color: var(--ink);
@@ -41,6 +42,17 @@ a.k-agent--chip:hover .k-agent__name {
 .k-agent__state {
   display: inline-flex;
   min-width: 0;
+}
+
+/* Working, in the lamp's tone: the state line's words and glyph, and the chip on its own tint (PLAN-3D-ALL D5). */
+.k-agent__state--live .k-st,
+.k-agent__state--live .k-st .k-icon {
+  color: var(--accent);
+}
+
+.k-agent__state--chip .k-tag--good {
+  color: var(--accent);
+  background: var(--info-bg);
 }
 
 .k-agent__state--quiet .k-st {

@@ -5,7 +5,11 @@
    task rows, a long line ending in an ellipsis before the date), how it is set up (rows on one padding parted by
    hairlines, flat; a 160 px label column at 12 px 500 in the third ink on the value's first line, values at 14 px,
    the model as a chip, "Reports to" and "Works in" links underlined on hover, lists as plain lines), its lessons, its
-   standing instructions (folded) and the talk with the kit's composer under it, in the flow. */
+   standing instructions (folded) and the talk with the kit's composer under it, in the flow.
+   PLAN-3D-ALL U10: the head stands in the room header, the desk's glimpse behind it (kit/room.css). The band rises
+   into the pane's top margin, so the first row stands no more than 48 px lower than before the band (40 on a
+   phone; D9). Beside the name, before the state's chip, the Map's lamp. The standing instructions, opened, are
+   read on paper (a document being read: kit/sheet.css); everything else stays on the ground and the panels. */
 
 .p-agent {
   display: flex;
@@ -22,8 +26,11 @@
   min-width: 0;
 }
 
-.p-agent .p-agent__head .k-page-header {
+/* The room header: 24 px up into the pane's top margin; the work's 32 px under it. One layer above the rows. */
+.p-agent .p-agent__head .k-room {
+  z-index: 1;
   min-width: 0;
+  margin-top: calc(-1 * var(--s-6));
   margin-bottom: 0;
 }
 
@@ -56,9 +63,21 @@
   margin-top: var(--s-1);
 }
 
+/* Over the picture Pause keeps a fill, so its edge and words hold where it is bright. */
+.p-agent .k-room .p-agent__pause .k-btn--ghost {
+  background: var(--panel);
+}
+
+/* The lamp, then the state's chip; a long state (a stuck agent's sentence) wraps whole, never cut. */
 .p-agent .p-agent__state {
   display: inline-flex;
   align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.p-agent .p-agent__state .k-tag {
+  white-space: normal;
 }
 
 .p-agent .p-agent__acts {
@@ -480,6 +499,12 @@
   color: var(--ink);
 }
 
+/* The instructions on paper, the column's width inside the fold. */
+.p-agent .p-agent__fold-body > .k-sheet {
+  max-width: none;
+  padding: var(--s-6) var(--s-7);
+}
+
 /* Talk: the conversation, then the kit's composer in the flow under it. */
 .p-agent .p-agent__talk {
   display: flex;
@@ -548,6 +573,18 @@
 
   .p-agent .p-agent__pause {
     align-items: flex-start;
+  }
+
+  .p-agent .p-agent__head .k-room {
+    margin-top: calc(-1 * var(--s-2));
+  }
+
+  .p-agent .p-agent__fold-body {
+    padding: var(--s-3);
+  }
+
+  .p-agent .p-agent__fold-body > .k-sheet {
+    padding: var(--s-5) var(--s-4);
   }
 
   .p-agent .p-agent__head .k-page-header__actions {

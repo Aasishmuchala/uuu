@@ -174,3 +174,101 @@ test("team: the page sends what it sent before (PLAN-3D-ALL)", async () => {
   assert.deepEqual(seen, RECORDED);
   for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
 });
+
+const { lampOf } = await import("../../world/state.js");
+const textNodes = (root) => [...dom.walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+const imgs = (root) => dom.elements(root).filter((e) => e.localName === "img");
+const cardAs = (slug, over) => ({ ...shape("agent-card"), id: `a-${slug}`, slug, name: slug, ...over });
+
+test("team: the title and its line stand in the room header with the façade's glimpse; one h1; the table on the ground (PLAN-3D-ALL U10)", async () => {
+  const m = await mountTeam(SEEDED());
+  try {
+    const band = dom.elements(m.root).filter((e) => e.localName === "header" && dom.classesOf(e).includes("k-room"));
+    assert.equal(band.length, 1);
+    assert.equal(band[0].getAttribute("data-glimpse"), "facade");
+    const h1 = dom.elements(m.root).filter((e) => e.localName === "h1");
+    assert.equal(h1.length, 1);
+    assert.equal(h1[0].getAttribute("id"), "page-title");
+    assert.equal(dom.textOf(h1[0]), "Team");
+    assert.equal(imgs(m.root).length, 1, "one picture: the band's");
+    assert.equal(imgs(m.root)[0].getAttribute("src"), glimpseSrc("facade", { theme: "dark", width: 1280 }));
+    assert.equal(imgs(m.root)[0].getAttribute("alt"), "");
+    assert.equal(byCls(m.root, "k-page-header").length, 0, "PageHeader is replaced");
+    assert.equal(byCls(band[0], "p-team__table").length, 0, "the table is not in the band");
+    assert.equal(dom.elements(m.root).filter((e) => e.localName === "canvas").length, 0);
+  } finally { await m.done(); }
+  const off = await mountTeam(SEEDED(), { query: "glimpse=off" });
+  try {
+    assert.equal(imgs(off.root).length, 0, "glimpse=off: the band alone");
+  } finally { await off.done(); }
+  const css = readFileSync(new URL("../../styles/pages/team.css", import.meta.url), "utf8");
+  const [wide, phone] = [...css.matchAll(/\.p-team \.k-room \{([^}]*)\}/g)].map((x) => x[1]);
+  assert.match(wide, /z-index: 1;\s*margin-top: calc\(-1 \* var\(--s-6\)\);\s*margin-bottom: var\(--s-4\);/, "up into the pane's margin (D9)");
+  assert.match(phone, /margin-top: calc\(-1 \* var\(--s-2\)\);/);
+  assert.ok(!/data-surface|k-sheet/.test(css) && !/data-surface|<\$\{Sheet\}/.test(readFileSync(new URL("../../pages/team.js", import.meta.url), "utf8")), "nothing on paper here");
+});
+
+test("team: beside each name the Map's lamp in five states; the state's words unchanged (PLAN-3D-ALL U10)", async () => {
+  const agents = [
+    cardAs("w-one", { state: "working", plainState: "Working" }),
+    cardAs("a-one", { state: "free", plainState: "Free", waitingForYou: true }),
+    cardAs("s-one", { state: "problem", plainState: "Stuck: it needs the books switched on." }),
+    cardAs("i-one", { state: "free", plainState: "Free" }),
+    cardAs("o-one", { state: "paused", plainState: "Paused" }),
+  ];
+  const m = await mountTeam(SEEDED({ "/api/team": { ...shape("team"), agents } }));
+  try {
+    const lines = byCls(m.root, "p-team__name-line");
+    assert.equal(lines.length, 5);
+    const want = ["on", "amber", "red", "off", "down"];
+    lines.forEach((line, i) => {
+      const [lamp, name] = dom.elements(line).slice(1);
+      assert.ok(dom.classesOf(lamp).includes(`k-lamp--${want[i]}`), `${agents[i].slug}: ${want[i]}`);
+      assert.equal(want[i], lampOf(agents[i]));
+      assert.equal(lamp.getAttribute("aria-hidden"), "true");
+      assert.equal(name.localName, "a", "the name follows its lamp");
+    });
+    const words = textNodes(m.root);
+    for (const w of ["Working", "Waiting for you", "Stuck: it needs the books switched on.", "Paused", "Free"]) assert.ok(words.includes(w), w);
+  } finally { await m.done(); }
+});
+
+// PLAN-3D-ALL S1, checklist item 8.
+test("team: a stuck agent's sentence and the board-off notice's reason and next step are whole, as sent (PLAN-3D-ALL U10)", async () => {
+  const need = "Stuck: it needs the books switched on before it can draft the invoice, and it will wait for you until then.";
+  const off = { reason: "The board is switched off, so agents and tasks cannot be reached right now, and nothing here is current.", next: "Start the board from Health, then come back here." };
+  const m = await mountTeam(SEEDED({ "/api/team": { connected: false, notConnected: off, agents: [cardAs("s-one", { state: "problem", plainState: need })] } }));
+  try {
+    const words = textNodes(m.root);
+    for (const s of [need, off.reason, off.next]) assert.ok(words.includes(s), `one text node: ${s}`);
+  } finally { await m.done(); }
+  const css = readFileSync(new URL("../../styles/pages/team.css", import.meta.url), "utf8");
+  for (const r of css.matchAll(/\.p-team[^{]*(k-agent__state|k-st|k-notice|p-team__next|p-team__name-line)[^{]*\{([^}]*)\}/g)) {
+    assert.doesNotMatch(r[2], /text-overflow|line-clamp|overflow: hidden|(^|[^-])height:/, r[0]);
+  }
+});
+
+test("team: hostile server text stays text: no script, img, iframe or object beyond the band's; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const tags = (root) => ["script", "img", "iframe", "object"].map((t) => dom.elements(root).filter((e) => e.localName === t).length);
+  const agents = HOSTILE.map((_, i) => cardAs(`h-agent-${i}`, {
+    name: bad(i), summary: bad(i + 1), plainState: bad(i + 2), state: ["working", "problem", "paused", "free"][i % 4], waitingForYou: i % 5 === 0,
+    doingNow: { title: bad(i + 3), taskId: "t1" }, applied: i % 3 === 0 ? false : true,
+  }));
+  const map = { ...shape("map"), departments: [{ id: "sales", title: bad(0), agents: agents.slice(0, 3).map((a) => ({ slug: a.slug, name: a.name })) }, { id: bad(1), title: bad(2), agents: agents.slice(3).map((a) => a.slug) }] };
+  const models = { mode: "provider", agents: agents.map((a, i) => ({ slug: a.slug, pickName: bad(i), plansModel: bad(i + 1) })) };
+  const s = await mountTeam(SEEDED());
+  let base;
+  try { base = tags(s.root); } finally { await s.done(); }
+  const m = await mountTeam(SEEDED({ "/api/team": { connected: false, notConnected: { reason: bad(0), next: bad(2) }, agents }, "/api/map": map, "/api/models": models }));
+  try {
+    assert.deepEqual(tags(m.root), base);
+    for (const e of dom.elements(m.root)) {
+      for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+      for (const h of HOSTILE) for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+      if (e.localName === "img") assert.ok(GLIMPSES.some((k) => ["dark", "light"].some((theme) => [1280, 390].some((w) => glimpseSrc(k, { theme, width: w }) === e.getAttribute("src")))));
+      if (dom.classesOf(e).includes("k-lamp")) assert.ok(/^k-lamp k-lamp--(on|amber|red|off|down) k-lamp--(disc|halo|ring|hollow|line)$/.test(e.getAttribute("class")));
+    }
+    assert.ok(textNodes(m.root).includes(bad(0)), "a hostile name is a text node");
+  } finally { await m.done(); }
+});

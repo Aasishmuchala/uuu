@@ -1,7 +1,11 @@
 /* Team (pages/team.js, PLAN-COOK T65 after R06-agents): the title and its line, then every agent as one row of
    the kit's table inside --content-max: a 32 px avatar beside the name with its department in grey under it,
    what it does in two grey lines at most, its state as a state line, what it is on now as a link, and the model
-   it runs on in the mono face. Rows answer the pointer; no cards, no chips, no department colour. */
+   it runs on in the mono face. Rows answer the pointer; no cards, no chips, no department colour.
+   PLAN-3D-ALL U10: the title and its line stand in the room header, the façade's glimpse behind them
+   (kit/room.css). The band rises into the pane's top margin and keeps a short gap over the table, so the first
+   row stands no more than 48 px lower than before the band (40 on a phone; D9). The rows stay on the ground and
+   stand in the lamp's pool under the pointer (the kit's table). Beside each name the Map's lamp. */
 
 .p-team {
   display: flex;
@@ -10,8 +14,11 @@
   max-width: var(--content-max);
 }
 
-.p-team .k-page-header {
-  margin-bottom: var(--s-6);
+/* The room header: 24 px up into the pane's top margin, 16 px over the table; one layer above the rows. */
+.p-team .k-room {
+  z-index: 1;
+  margin-top: calc(-1 * var(--s-6));
+  margin-bottom: var(--s-4);
 }
 
 .p-team .p-team__table .k-table__table td {
@@ -42,6 +49,14 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
+  min-width: 0;
+}
+
+/* The name and the lamp before it, as the Map's list draws them. */
+.p-team .p-team__name-line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
   min-width: 0;
 }
 
@@ -170,7 +185,11 @@
     min-height: 44px;
   }
 
-  .p-team .p-team__name + .p-team__dept {
+  .p-team .k-room {
+    margin-top: calc(-1 * var(--s-2));
+  }
+
+  .p-team .p-team__name-line + .p-team__dept {
     margin-top: calc(var(--s-3) * -1);
   }
 }

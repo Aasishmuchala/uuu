@@ -8,15 +8,22 @@
 // Not connected: this page's answer does not say when the board cannot be read, so that comes from GET /api/map's
 // `boardOff` and from the shell (boardOffOf below); the page then says so on top and stops guessing.
 // Everything here came from the server: titles and outcomes are rendered as text only, capped.
+// PLAN-3D-ALL U10: a surface screen (#/map/<id> is its scene). The head (the tile and the name, the two links, the
+// line and the state) stands in the room header (kit/room.js), the picture of this department's room (else the
+// generic room); no picture is asked for while the department is read, nor on a phone, where the head fills the
+// band (the band's material alone). Each agent's row carries the Map's lamp
+// at the column's edge (world/state.js lampOf, a pure function: no three.js), lit by the same rule as the Map: an
+// agent with something in the queue waits for the owner. The state's words are unchanged. Nothing here is on paper.
 import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { aheadLine } from "../lib/format.js";
 import { needsFor, queueHref, rowTime, sortNeeds } from "../lib/queue.js";
-import { HealthNext } from "./team.js";
+import { lampOf } from "../world/state.js";
+import { HealthNext, useWide } from "./team.js";
 import {
-  AgentCard, Button, Card, Composer, Empty, ErrorNotice, Field, Icon, JobRow, Loading, NotConnected, PageHeader,
-  STARTED, Select, St, TaskRow, Tile, UNDER_START, WhyNot, jobHref,
+  AgentCard, Button, Card, Composer, Empty, ErrorNotice, Field, Icon, JobRow, Lamp, Loading, NotConnected, RoomHeader,
+  STARTED, Select, St, TaskRow, Tile, UNDER_START, WhyNot, glimpseFor, jobHref,
 } from "../kit/index.js";
 
 const SLUG = /^[a-z][a-z0-9-]{1,30}$/;
@@ -222,6 +229,7 @@ function CanRun({ jobs }) {
 }
 
 function Head({ data, off }) {
+  const wide = useWide();
   const dep = data.department || {};
   const id = text(dep.id);
   const name = text(dep.title) || "Department";
@@ -231,7 +239,7 @@ function Head({ data, off }) {
   </div>`;
   const title = html`<span class="p-dept__title"><span class="p-dept__tile"><${Tile} icon=${deptIcon(id)} size=${32} /></span><span>${name}</span></span>`;
   return html`<div class="p-dept__head">
-    <${PageHeader} title=${title} lead=${cap(dep.line, 120)} actions=${links}>
+    <${RoomHeader} glimpse=${wide ? glimpseFor("dept", id) : null} title=${title} lead=${cap(dep.line, 120)} actions=${links}>
       <${StateChip} state=${dep.state} department=${id} off=${off} />
     <//>
   </div>`;
@@ -275,11 +283,22 @@ function Needs({ data, off, items }) {
   <//>`;
 }
 
-function Agents({ agents }) {
+// The agents' slugs that have something in the queue (GET /api/home's items), as the Map reads them: their lamp is
+// amber. An empty set until the home has answered.
+export function queuedSlugs(home) {
+  const items = home && home.needsYou && Array.isArray(home.needsYou.items) ? home.needsYou.items : [];
+  return new Set(items.map((i) => (i && i.agent && typeof i.agent.slug === "string" ? i.agent.slug : null)).filter(Boolean));
+}
+
+// An agent's lamp on this page: the Map's rule (world/state.js), with the queue's word on who waits for the owner.
+export const lampHere = (agent, queued) =>
+  lampOf(agent && typeof agent === "object" ? { ...agent, waitingForYou: agent.waitingForYou === true || (queued ? queued.has(agent.slug) : false) } : agent);
+
+function Agents({ agents, queued }) {
   const list = arr(agents).filter((a) => a && a.slug);
   if (!list.length) return null;
   return html`<${Section} title=${html`${WORDS.agents} <${Count} n=${list.length} />`}>
-    <ul class="p-dept__agents">${list.map((a) => html`<li key=${a.slug}><${AgentCard} agent=${a} /></li>`)}</ul>
+    <ul class="p-dept__agents">${list.map((a) => html`<li key=${a.slug} class="p-dept__agent"><span class="p-dept__lamp"><${Lamp} state=${lampHere(a, queued)} /></span><${AgentCard} agent=${a} /></li>`)}</ul>
   <//>`;
 }
 
@@ -369,6 +388,7 @@ function Give({ data, off, onSent }) {
 
 export default function Page({ route }) {
   const { shell } = useApp();
+  const wide = useWide();
   const id = deptIdOf(route);
   const res = useResource(id ? `/api/map/${id}` : null, { every: 10000 });
   // Read for `boardOff` (whether this page's figures are real, or zeros because the board cannot be read) and for
@@ -393,7 +413,7 @@ export default function Page({ route }) {
     } else if (res.error) body = html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`;
     else body = html`<${Loading} lines=${6} label="Loading the department" />`;
     return html`<div class="p-dept">
-      <${PageHeader} title=${!id || (res.error && res.error.status === 404) ? "Not found" : "Department"} back=${{ href: "#/map", label: "Map" }} />
+      <${RoomHeader} glimpse=${wide && (!id || res.error) ? glimpseFor("dept", id) : null} title=${!id || (res.error && res.error.status === 404) ? "Not found" : "Department"} back=${{ href: "#/map", label: "Map" }} />
       ${body}
     </div>`;
   }
@@ -404,7 +424,7 @@ export default function Page({ route }) {
       next=${html`<${HealthNext} text=${off.next} />`} />`}
     <${Head} data=${d} off=${off} />
     <${Needs} data=${d} off=${off} items=${needsHere(home.data, id, map.data && map.data.departments)} />
-    <${Agents} agents=${d.agents} />
+    <${Agents} agents=${d.agents} queued=${queuedSlugs(home.data)} />
     <${Tasks} data=${d} off=${off} />
     <${Jobs} data=${d} />
     <${Give} data=${d} off=${off} onSent=${() => res.refresh()} />

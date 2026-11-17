@@ -3,12 +3,33 @@
 // department under it, what it does, its state, what it is on now (a link to the task) and the model it runs on.
 // Which department an agent is in comes from the map's answer (GET /api/map, 33.2): every agent is in exactly one.
 // The model comes from GET /api/models; without that answer the column is left out.
-import { html } from "../vendor/preact-htm.js";
+// PLAN-3D-ALL U10: a surface screen. The title and its line stand in the room header (kit/room.js), the façade's
+// glimpse behind them; the table stays on the ground. Beside each name the Map's lamp (world/state.js lampOf, a
+// pure function: no three.js), so a state reads the same here as in the studio; the state's words are unchanged.
+import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
-import { AgentState, Avatar, DataTable, Empty, ErrorNotice, Icon, Loading, Mono, NotConnected, PageHeader } from "../kit/index.js";
+import { lampOf } from "../world/state.js";
+import { AgentState, Avatar, DataTable, Empty, ErrorNotice, Icon, Lamp, Loading, Mono, NotConnected, RoomHeader, glimpseFor } from "../kit/index.js";
 
 const SLUG = /^[a-z][a-z0-9-]{1,30}$/;
 const text = (v) => (v === null || v === undefined ? "" : String(v));
+
+// True while the window is 860 px wide or more (as Settings reads it). A department's and an agent's band ask for
+// their picture only then: on a phone their head (title, line, state and actions) fills the band, and words over a
+// picture read worse than words on the band's material (PLAN-3D-ALL U10). Read at once, so a phone never asks.
+const WIDE = "(min-width: 860px)";
+export function useWide() {
+  const read = () => typeof matchMedia !== "function" || matchMedia(WIDE).matches === true;
+  const [wide, setWide] = useState(read);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return undefined;
+    const mq = matchMedia(WIDE);
+    const again = () => setWide(mq.matches === true);
+    if (mq.addEventListener) mq.addEventListener("change", again);
+    return () => { if (mq.removeEventListener) mq.removeEventListener("change", again); };
+  }, []);
+  return wide;
+}
 
 // The department an agent works in, from the map's departments ({ id, title, agents: [who] }): { id, title }, or
 // null when the map is not read yet or does not name the agent.
@@ -38,7 +59,8 @@ export function HealthNext({ text: words }) {
   // "Open Health to see how to start it." keeps its words, with "Open Health" as the link.
   const at = t.indexOf("Open Health");
   if (at >= 0 && !/\bRun:/.test(t)) return html`<span class="p-team__next">${t.slice(0, at)}${link}${t.slice(at + 11)}</span>`;
-  return html`<span class="p-team__next">${t && !/\bRun:/.test(t) ? `${t} ` : ""}${link}</span>`;
+  // The sentence stays one text node, whole, as sent (PLAN-3D-ALL U10, S1); the space and the link after it.
+  return html`<span class="p-team__next">${t && !/\bRun:/.test(t) ? t : ""}${t && !/\bRun:/.test(t) ? " " : ""}${link}</span>`;
 }
 
 // The page's lead line: how many agents, and how many are working.
@@ -99,7 +121,7 @@ function Cell({ agent, column, departments, models }) {
     return html`<span class="p-team__who">
       <${Avatar} slug=${a.slug} name=${a.name} size=${32} />
       <span class="p-team__who-text">
-        <a class="p-team__name" href=${`#/team/${encodeURIComponent(a.slug)}`}>${text(a.name) || a.slug}</a>
+        <span class="p-team__name-line"><${Lamp} state=${lampOf(a)} /><a class="p-team__name" href=${`#/team/${encodeURIComponent(a.slug)}`}>${text(a.name) || a.slug}</a></span>
         ${dept && html`<${DeptChip} department=${dept} />`}
         ${note && html`<span class="p-team__note">${note} <a href="#/health">Open Health</a></span>`}
       </span>
@@ -142,7 +164,7 @@ export default function Page() {
   }
 
   return html`<div class="p-team">
-    <${PageHeader} title="Team" lead=${teamLead(agents)} />
+    <${RoomHeader} glimpse=${glimpseFor("team")} title="Team" lead=${teamLead(agents)} />
     ${body}
   </div>`;
 }

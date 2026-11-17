@@ -8,13 +8,20 @@
 // answer (GET /api/map); the jobs the composer offers from that department's answer; the model from GET /api/models.
 // Everything shown here was written by an agent or read from its files: it is rendered as text only (the
 // instructions as Markdown, built as elements).
+// PLAN-3D-ALL U10: a surface screen. The head (the avatar and the name, the state, Give it a task and Pause) stands
+// in the room header (kit/room.js), the desk's glimpse behind it; no picture is asked for while the agent is read,
+// nor on a phone, where the head fills the band (the band's material alone).
+// Beside the name the Map's lamp (world/state.js lampOf, a pure function: no three.js), before the state's words,
+// which are unchanged. On paper (kit/sheet.js) only the standing instructions when opened: a document being read.
+// The work, the set-up, the lessons and the talk stay on the ground and the panels.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { DeptChip, HealthNext, departmentOf, modelOf } from "./team.js";
+import { DeptChip, HealthNext, departmentOf, modelOf, useWide } from "./team.js";
+import { lampOf } from "../world/state.js";
 import {
   AgentChip, AgentState, Avatar, Button, Composer, Conversation, Empty, ErrorNotice, Icon, Loading, Markdown,
-  NotConnected, Notice, PageHeader, STARTED, Tag, TaskRow, TextInput, jobHref,
+  Lamp, NotConnected, Notice, RoomHeader, STARTED, Sheet, Tag, TaskRow, TextInput, glimpseFor, jobHref,
 } from "../kit/index.js";
 
 export const TABS = [
@@ -172,14 +179,15 @@ function toComposer() {
 // The top, one row: the avatar inside the title, the state as a chip beside it, then "Give it a task" (the one
 // primary, 32 px) and Pause; what it does under the row, running up to 560 px.
 function Header({ data, onChanged }) {
+  const wide = useWide();
   const a = data.agent;
   const note = headerNote(a);
   const name = text(a.name) || "Agent";
   const title = html`<span class="p-agent__title"><${Avatar} slug=${a.slug} name=${a.name} size=${40} /><span>${name}</span></span>`;
   return html`<div class="p-agent__head">
-    <${PageHeader} title=${title} lead=${cap(a.summary, 400)}
+    <${RoomHeader} glimpse=${wide ? glimpseFor("agent") : null} title=${title} lead=${cap(a.summary, 400)}
       crumbs=${[{ label: "Team", href: "#/team" }, { label: name }]}
-      state=${html`<span class="p-agent__state"><${AgentState} agent=${a} chip /></span>`}
+      state=${html`<span class="p-agent__state"><${Lamp} state=${lampOf(a)} /><${AgentState} agent=${a} chip /></span>`}
       actions=${html`<span class="p-agent__acts">
           <${Button} variant="primary" icon="send" onClick=${toComposer}>${WORDS.give}<//>
           <${PauseButton} agent=${a} onChanged=${onChanged} />
@@ -299,7 +307,7 @@ function Instructions({ data, open }) {
     <div class="p-agent__fold-body">
       <p class="p-agent__caption">Standing instructions, written for the agent. They are changed in the company's files.</p>
       ${text(ins.text)
-        ? html`<div class="p-agent__text"><${Markdown} text=${cap(ins.text, 200000)} /></div>`
+        ? html`<${Sheet} as="article" label=${WORDS.instructions}><div class="p-agent__text"><${Markdown} text=${cap(ins.text, 200000)} /></div><//>`
         : html`<p class="p-agent__muted">No instructions are written for this agent yet.</p>`}
     </div>
   </details>`;
@@ -454,6 +462,7 @@ function Work({ data, recent, onlyNow }) {
 
 export default function Page({ route }) {
   const { shell } = useApp();
+  const wide = useWide();
   // The address is `#/team/<slug>`, so the slug is the second part.
   const parts = (route && route.parts) || [];
   const slug = text(parts[0] === "team" ? parts[1] : parts[0]);
@@ -491,7 +500,7 @@ export default function Page({ route }) {
     } else if (res.error) body = html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`;
     else body = html`<${Loading} lines=${5} label="Loading the agent" />`;
     return html`<div class="p-agent">
-      <${PageHeader} title=${res.error && res.error.status === 404 ? "Not found" : "Team"} back=${{ href: "#/team", label: "Team" }} />
+      <${RoomHeader} glimpse=${wide && res.error ? glimpseFor("agent") : null} title=${res.error && res.error.status === 404 ? "Not found" : "Team"} back=${{ href: "#/team", label: "Team" }} />
       ${body}
     </div>`;
   }
