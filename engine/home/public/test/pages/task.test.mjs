@@ -502,3 +502,101 @@ test("task: how it went gives only the facts the task has; Accept and Send back 
   assert.match(bar, /<\$\{Button\} variant="ghost" onClick=\$\{\(\) => setNoting\(true\)\}/);
   assert.match(src, /variant="danger-quiet" size="sm" icon="cross" class="p-task__stop"/, "Stop this task is the kit's quiet danger: the problem ink, no fill");
 });
+
+// ---- Mounted in the test DOM with a fake fetch (PLAN-3D-ALL U8). ----
+const { FakeElement, html, render, installDom, elements, classesOf, walkDom } = await import("../kit/_dom.mjs");
+const { AppContext } = await import("../../lib/context.js");
+const SITES = shape("sites");
+const PIECES = shape("pieces");
+
+// The home as the page reads it: the task, its versions and its sites (404 unless given), a result file's text.
+async function mountTask(d, { id = d && d.task ? d.task.identifier || d.task.id : "STH-0", sites = null, pieces = null, query = "", status = 200, viewText = "---\ntitle: Our kitchen range is here\n---\nThe range is here." } = {}) {
+  installDom();
+  globalThis.document.visibilityState = "visible";
+  globalThis.location = { hash: `#/tasks/${id}${query ? `?${query}` : ""}`, href: `/#/tasks/${id}${query ? `?${query}` : ""}`, search: "" };
+  const calls = [];
+  const real = globalThis.fetch;
+  const answer = (code, body) => ({ ok: code < 400, status: code, json: async () => body });
+  const missing = { error: { code: "not_found", message: "Not found." } };
+  globalThis.fetch = async (path, opts = {}) => {
+    calls.push(`${opts.method || "GET"} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}`);
+    const p = String(path);
+    if ((opts.method || "GET") !== "GET") return answer(200, { ok: true, message: "Done." });
+    if (p.startsWith("/api/view/")) return answer(200, { text: viewText, truncated: false });
+    if (/\/sites$/.test(p)) return sites ? answer(200, sites) : answer(404, missing);
+    if (/\/pieces$/.test(p)) return pieces ? answer(200, pieces) : answer(404, missing);
+    if (/^\/api\/tasks\/[^/]+$/.test(p)) return status === 200 ? answer(200, d) : answer(status, { error: { code: "task_not_found", message: "That task is not here." } });
+    return answer(404, missing);
+  };
+  const tops = [];
+  const ctx = { shell: { company: { name: "Sthyra" } }, setTop: (t) => tops.push(t), announce() {}, refreshShell() {}, openPanel() {}, closePanel() {}, settings: { motion: "off", theme: "dark" } };
+  const root = new FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${mod.default} route=${{ id: "task", parts: ["tasks", id], query: new URLSearchParams(query) }} /><//>`, root);
+  await new Promise((r) => setTimeout(r, 400));
+  return { root, calls, tops, done: () => { render(null, root); root.remove(); globalThis.fetch = real; delete globalThis.location; } };
+}
+const fire = async (el, type, event = {}) => {
+  const key = [type, type[0].toUpperCase() + type.slice(1)].find((k) => (el.listeners[k] || []).length);
+  assert.ok(key, `${el.localName} listens for ${type}`);
+  el.listeners[key][0].call(el, { type: key, preventDefault() {}, stopPropagation() {}, currentTarget: el, target: el, ...event });
+  await new Promise((r) => setTimeout(r, 300));
+};
+const byText = (root, tag, words) => elements(root).find((e) => e.localName === tag && [...walkDom(e)].filter((n) => n.nodeType === 3).map((n) => n.data).join("").trim() === words);
+// A task whose own Needs-you item is versions with pictures, waiting on the owner.
+const picking = (d) => {
+  const own = (d.acceptance && d.acceptance.accept && d.acceptance.accept.inboxId) || `goal:${d.task.id}`;
+  return { ...d, needsYou: [...list(d.needsYou), { ...PICTURED, id: own }] };
+};
+const list = (v) => (Array.isArray(v) ? v : []);
+
+test("task: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  const run = async (d, opts, act) => {
+    const m = await mountTask(d, opts);
+    try { if (act) await act(m); seen.push(...m.calls); } finally { m.done(); }
+  };
+  for (const n of [2, 7, 8, 13, 18, 19]) await run(seed[n]);
+  await run(seed[8], { sites: SITES });
+  await run(picking(seed[8]), { sites: SITES });
+  await run(picking(seed[8]));
+  await run(seed[8], { pieces: { ...PIECES, variants: PIECES.variants.map((v) => ({ ...v, preview: [{ type: "image", url: "/api/view/abc123" }] })) } });
+  await run(null, { id: "STH-404", status: 404 });
+  // The column's actions: Accept, a note to the Chief of staff, and Stop this task with its one question.
+  await run(seed[2], {}, async (m) => { await fire(byText(m.root, "button", "Accept"), "click"); });
+  await run(seed[2], {}, async (m) => {
+    await fire(byText(m.root, "button", "Send a note"), "click");
+    const area = elements(m.root).find((e) => e.localName === "textarea");
+    await fire(area, "input", { currentTarget: { value: "Use Nos." } });
+    await fire(elements(m.root).find((e) => e.localName === "form"), "submit");
+  });
+  await run(seed[8], {}, async (m) => {
+    await fire(byText(m.root, "button", "Stop this task"), "click");
+    await fire(byText(m.root, "button", "Yes, stop it"), "click");
+  });
+  // Recorded on the page before PLAN-3D-ALL U8 changed it.
+  const RECORDED = [
+    'GET /api/tasks/STH-2', 'GET /api/tasks/STH-2/sites', 'GET /api/tasks/STH-2/pieces', 'GET /api/tasks/STH-2/sites',
+    'GET /api/tasks/STH-2/sites', 'GET /api/view/U1RILTIvY29udGVudC9sYXVuY2gtcG9zdC5tZA', 'GET /api/tasks/STH-7',
+    'GET /api/tasks/STH-7/sites', 'GET /api/tasks/STH-7/pieces', 'GET /api/tasks/STH-7/sites', 'GET /api/tasks/STH-7/sites',
+    'GET /api/tasks/STH-8', 'GET /api/tasks/STH-8/sites', 'GET /api/tasks/STH-8/pieces', 'GET /api/tasks/STH-8/sites',
+    'GET /api/tasks/STH-8/sites', 'GET /api/tasks/STH-13', 'GET /api/tasks/STH-13/sites', 'GET /api/tasks/STH-13/pieces',
+    'GET /api/tasks/STH-13/sites', 'GET /api/tasks/STH-13/sites', 'GET /api/tasks/STH-18', 'GET /api/tasks/STH-18/sites',
+    'GET /api/tasks/STH-18/pieces', 'GET /api/tasks/STH-18/sites', 'GET /api/tasks/STH-18/sites', 'GET /api/tasks/STH-19',
+    'GET /api/tasks/STH-19/sites', 'GET /api/tasks/STH-19/pieces', 'GET /api/tasks/STH-19/sites', 'GET /api/tasks/STH-19/sites',
+    'GET /api/tasks/STH-8', 'GET /api/tasks/STH-8/sites', 'GET /api/tasks/STH-8/pieces', 'GET /api/tasks/STH-8/sites',
+    'GET /api/tasks/STH-8', 'GET /api/tasks/STH-8/sites', 'GET /api/tasks/STH-8/sites', 'GET /api/tasks/STH-8',
+    'GET /api/tasks/STH-8/sites', 'GET /api/tasks/STH-8/sites', 'GET /api/tasks/STH-8', 'GET /api/tasks/STH-8/sites',
+    'GET /api/tasks/STH-8/pieces', 'GET /api/tasks/STH-8/sites', 'GET /api/tasks/STH-8/sites', 'GET /api/tasks/STH-404',
+    'GET /api/tasks/STH-404/sites', 'GET /api/tasks/STH-2', 'GET /api/tasks/STH-2/sites', 'GET /api/tasks/STH-2/pieces',
+    'GET /api/tasks/STH-2/sites', 'GET /api/tasks/STH-2/sites', 'GET /api/view/U1RILTIvY29udGVudC9sYXVuY2gtcG9zdC5tZA',
+    'POST /api/inbox/act {"id":"goal:e0000000-0000-4000-8000-000000000002","action":"acknowledge","version":"1b88ead65a815f7f"}',
+    'GET /api/tasks/STH-2', 'GET /api/tasks/STH-2', 'GET /api/tasks/STH-2/sites', 'GET /api/tasks/STH-2/pieces',
+    'GET /api/tasks/STH-2/sites', 'GET /api/tasks/STH-2/sites', 'GET /api/view/U1RILTIvY29udGVudC9sYXVuY2gtcG9zdC5tZA',
+    'POST /api/goals/e0000000-0000-4000-8000-000000000002/note {"text":"Use Nos."}', 'GET /api/tasks/STH-2',
+    'GET /api/tasks/STH-8', 'GET /api/tasks/STH-8/sites', 'GET /api/tasks/STH-8/pieces', 'GET /api/tasks/STH-8/sites',
+    'GET /api/tasks/STH-8/sites', 'POST /api/goals/e0000000-0000-4000-8000-000000000008/stop {}', 'GET /api/tasks/STH-8',
+  ];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});
