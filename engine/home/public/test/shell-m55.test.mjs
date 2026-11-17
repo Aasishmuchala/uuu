@@ -75,11 +75,13 @@ test("drawers: full width below 860 px, focus on Close first, no paused opening 
 });
 
 test("the light theme's strong glass and the working colour for words (M18-30, M50 F10)", () => {
-  // PLAN-COOK T10: the strong glass is the opaque panel (white in light), so nothing behind a menu or dialog
-  // shows through at all; the working colour for words is the one green, dark enough to read in light.
+  // PLAN-COOK T10: the strong glass is the opaque panel, so nothing behind a menu or dialog shows through at all;
+  // the working colour for words is the one green, dark enough to read in light.
+  // PLAN-3D-ALL U7: the quiet look was rejected on 16 November 2026, so the pins of its white light panel (#ffffff)
+  // and cool green (#17703f) are replaced by the golden morning's oak panel and muted green (PLAN-3D-ALL U1, D3, D5).
   const t = css("tokens.css");
-  assert.match(t, /:root\[data-theme="light"\]\s*\{[^}]*--panel: #ffffff;/);
+  assert.match(t, /:root\[data-theme="light"\]\s*\{[^}]*--panel: #fbf8f2;/);
   assert.match(t, /--glass-strong: var\(--panel\);/);
-  assert.match(t, /:root\[data-theme="light"\]\s*\{[^}]*--good: #17703f;/);
+  assert.match(t, /:root\[data-theme="light"\]\s*\{[^}]*--good: #2e6b3c;/);
   assert.match(t, /--live-text: var\(--good\);/);
 });

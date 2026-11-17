@@ -689,12 +689,13 @@ export default function MapPage({ route }) {
     if (events.length) try { h.play(events); } catch { /* the world keeps its last picture */ }
   }, [worldKey]);
 
-  // The free rectangle the studio frames its subject in (D15): measured from the rail, the panel and the foot.
+  // The free rectangle the studio frames its subject in (D15): measured from the rail, the panel and the foot. With a
+  // panel open the rail slides away (styles/pages/map.css, as in the approved prototype), so it takes no room then.
   const panelOpen = !!(dept || door || ask);
   useEffect(() => {
     if (narrow || view === "list") return undefined;
     const measure = () => {
-      const r = safeRectOf(rectOf(rootRef.current), { rail: rectOf(railRef.current), side: rectOf(sideRef.current), foot: rectOf(footRef.current) });
+      const r = safeRectOf(rectOf(rootRef.current), { rail: panelOpen ? null : rectOf(railRef.current), side: rectOf(sideRef.current), foot: rectOf(footRef.current) });
       if (r) setSafe((p) => (p && p.x === r.x && p.y === r.y && p.w === r.w && p.h === r.h ? p : r));
     };
     measure();
@@ -825,7 +826,7 @@ export default function MapPage({ route }) {
       <b>${marked.title}</b><span>${marked.counts ? nodeLine(marked.counts) : marked.on ? STUDIO_WORDS.doorOpen : STUDIO_WORDS.doorShut}</span>
       ${marked.line ? html`<span class="p-map__strip-line">${marked.line}</span>` : null}</p>` : null;
 
-  const roomPanel = chosen ? html`<section class="p-map__panel" aria-labelledby="p-map-room-title"
+  const roomPanel = chosen ? html`<section class="p-map__panel" data-surface="over" aria-labelledby="p-map-room-title"
       onKeyDown=${(e) => { if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); location.hash = mapHref({ view, ask }); } }}>
     ${answer}
     <div class="p-map__panel-head">
@@ -842,7 +843,7 @@ export default function MapPage({ route }) {
       <${Button} variant="primary" href=${`#/departments/${chosen.id}`}>${MAP_WORDS.openDept}<//>
     </div>
   </section>` : null;
-  const askPanel = !chosen && ask ? html`<section class="p-map__panel" aria-label=${MAP_WORDS.question}
+  const askPanel = !chosen && ask ? html`<section class="p-map__panel" data-surface="over" aria-label=${MAP_WORDS.question}
       onKeyDown=${(e) => { if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); closeAsk(); } }}>${answer}</section>` : null;
   const side = doorPanel || roomPanel || askPanel;
 
@@ -850,7 +851,7 @@ export default function MapPage({ route }) {
     <a class="p-map__skip" href=${listHref}>${STUDIO_WORDS.skip}</a>
     <div class="p-map__world" data-cook-picture>${stage(dept)}</div>
     <div class="w-scrim p-map__scrim" aria-hidden="true"></div>
-    <div class="p-map__rail" ref=${railRef}>
+    <div class="p-map__rail" data-surface="over" ref=${railRef} inert=${side ? true : undefined}>
       <div class="p-map__head">
         <${PageHeader} title=${company || "Map"} />
         <p class="p-map__counts">${data ? html`<${StatusDot} tone=${nodeTone(companyCounts(data))} pulse=${false} label=${nodeLine(companyCounts(data))} />` : null}</p>

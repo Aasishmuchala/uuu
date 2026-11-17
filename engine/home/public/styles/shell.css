@@ -5,7 +5,8 @@
    behind it: every surface is opaque. The frame's grounds are steps (fix round A2): the sidebar on --side, the
    darkest, parted from the page by a 1 px line; the page on --bg with the top bar on the same ground, parted from
    it by a 1 px line. In the sidebar a row has one signal (a count when something needs the owner, else a small
-   dot when working), its icon in the second ink, and the current row is a neutral fill (--sel), no ring. */
+   dot when working), its icon in the second ink, and the current row is a neutral fill (--sel), no ring, with a
+   2 px lamplight bar (the accent is lamplight, PLAN-3D-ALL D5). */
 
 /* The skip link: out of sight until it has focus. */
 .s-skip {
@@ -43,6 +44,11 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+/* The one lamp pool on the page column (PLAN-3D-ALL D8, U7): the desk lamp's warmth falling from the top of the
+   pane, at most 6 percent where words lie over it; never on html, body or .s-app. A page with its own stage covers it. */
+.s-main {
+  background: radial-gradient(ellipse 72% 560px at 32% 0, color-mix(in srgb, var(--lamp) 6%, transparent), transparent) no-repeat;
 }
 
 /* The pane. A page of lists and a page of one column keep one left edge: both sit in the same centred box,
@@ -582,6 +588,10 @@ a.s-crumbs-link:hover {
 .s-tab.is-current {
   color: var(--ink);
   font-weight: var(--fw-bold);
+}
+/* The page in view is lit: its icon in lamplight, as the sidebar's current row carries the lamp's bar (PLAN-3D-ALL U7). */
+.s-tab.is-current .s-tab-icon {
+  color: var(--accent);
 }
 .s-tab-icon {
   position: relative;

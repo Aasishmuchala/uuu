@@ -692,6 +692,13 @@ summary.k-sl__fold-head:hover {
   text-underline-offset: 2px;
 }
 
+/* The confirm's words take its first focus: the ring stands 8 px off them, never on a letter (PLAN-3D-ALL U7). */
+.k-sl__confirm-text {
+  margin: calc(-1 * var(--s-2));
+  padding: var(--s-2);
+  border-radius: var(--r-2);
+}
+
 .k-sl__confirm {
   color: var(--ink);
   font-size: var(--fs-ui);

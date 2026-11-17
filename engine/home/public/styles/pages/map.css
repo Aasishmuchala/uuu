@@ -1078,6 +1078,36 @@
   overscroll-behavior: contain;
   scrollbar-width: thin;
   color: var(--ink);
+  transition: transform var(--t-med) var(--ease), opacity var(--t-med) var(--ease);
+}
+
+/* A room, a door or the answer open (PLAN-3D-ALL U7, as in the approved prototype): the rail slides away with its
+   scrim, so the studio frames the room in the whole width left of the panel (map.js leaves the rail out of the free
+   rectangle then). map.js makes it inert meanwhile, so Tab does not walk an unseen list; Esc and Close bring it back. */
+.p-map.p-map--chosen .p-map__rail {
+  transform: translateX(-24px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.p-map .p-map__scrim {
+  transition: opacity var(--t-med) var(--ease);
+}
+
+.p-map.p-map--chosen .p-map__scrim {
+  opacity: 0;
+}
+
+.p-map.p-map--still .p-map__rail,
+.p-map.p-map--still .p-map__scrim {
+  transition: none;
+}
+
+/* In a room opened its agents' tags are their names and lamps; the state's words stay on a tag only for an agent who
+   waits on the owner or is stuck (the panel beside says every state in words). Shorter tags keep to their desks
+   instead of being pushed across the furniture (PLAN-3D-ALL U7). */
+.p-map.p-map--chosen .w-tag--agent:not(:has(.w-tag__lamp--amber, .w-tag__lamp--red)) .w-tag__sub {
+  display: none;
 }
 
 .p-map .p-map__head {
@@ -1149,9 +1179,10 @@
   transition: background-color var(--t-fast) var(--ease);
 }
 
+/* A room under the pointer or chosen stands in the lamp's pool, as a row does in a table (PLAN-3D-ALL U7, D5). */
 .p-map .p-map__room-sec.is-marked,
 .p-map .p-map__room-sec.is-chosen {
-  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  background: var(--lamp-pool);
 }
 
 .p-map .p-map__room {
@@ -1450,6 +1481,7 @@
 }
 
 .p-map .p-map__foot--side {
+  left: 0;
   right: calc(392px + var(--s-4));
 }
 

@@ -702,7 +702,7 @@ export default function Page({ route }) {
 
   // The "Waiting" column at the desk's right: its heading is the page's h1, except under a whole stage, whose own
   // title is the page's one heading.
-  const waiting = (h1) => html`<aside class="p-needs-you__side" aria-label=${PAGE_WORDS.list}>
+  const waiting = (h1) => html`<aside class="p-needs-you__side" data-surface="over" aria-label=${PAGE_WORDS.list}>
     <header class="p-needs-you__head">
       ${h1
         ? html`<h1 id="page-title" class="p-needs-you__name p-needs-you__name--desk" tabindex="-1"><span class="u-visually-hidden">${PAGE_WORDS.title}: </span>${WORDS.waiting}</h1>`
@@ -782,13 +782,15 @@ export default function Page({ route }) {
   // Under 1280 px an item opened is the sheet alone (on a phone under the desk strip, as e2's phone shows it, with
   // nothing of the desk behind the sheet); the top bar's back button returns to the list.
   if (open) {
-    return html`<div class="p-needs-you p-needs-you--alone">
-      ${phone ? strip : null}
-      <header class="p-needs-you__head p-needs-you__head--item">
+    // On a phone the item's kind and place head the sheet, and the sheet lies over the strip's lower edge (e2's phone).
+    const itemHead = html`<header class="p-needs-you__head p-needs-you__head--item">
         <h1 id="page-title" class="p-needs-you__kind" tabindex="-1">${crumbsFor(crumbItem, d)[1].label}</h1>
         ${pager && pager.index ? html`<span class="p-needs-you__at u-num">${pager.label}</span>` : null}
-      </header>
+      </header>`;
+    return html`<div class=${`p-needs-you p-needs-you--alone${phone ? " p-needs-you--on-strip" : ""}`}>
+      ${phone ? strip : itemHead}
       <section class="p-needs-you__open p-needs-you__sheet" data-surface="paper" tabindex="-1" ref=${sheetRef}>
+        ${phone ? itemHead : null}
         ${open}
         ${opened ? html`<${Helps} item=${opened} items=${order} order=${order} d=${d} wide=${false} cache=${stories} />` : null}
         ${opened && !phone ? keysLine : null}

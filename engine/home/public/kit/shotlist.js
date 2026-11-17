@@ -674,7 +674,7 @@ export const CONFIRM_INERT_MS = 600;
 
 // The confirm takes focus on its words, not on a button (PLAN-3D T10): the owner reads what is spent first, and
 // neither Enter nor Space can act before Tab reaches a button. Its yes is aria-disabled and ignores clicks, Enter
-// and Space for its first 600 ms.
+// and Space for its first 600 ms. It carries money sentences, so it is on paper (PLAN-3D-ALL D4, U7).
 function Confirm({ v, busy, onYes, onNo }) {
   const w = confirmWords(v);
   const [armed, setArmed] = useState(false);
@@ -686,7 +686,7 @@ function Confirm({ v, busy, onYes, onNo }) {
   if (!w) return null;
   const words = cap(v.cost && v.cost.words, 500);
   const yes = () => { if (armed) onYes(); };
-  return html`<${Dialog} open=${true} title=${w.title} size="sm" onClose=${() => { if (!busy) onNo(); }}
+  return html`<${Dialog} open=${true} paper=${true} title=${w.title} size="sm" onClose=${() => { if (!busy) onNo(); }}
     footer=${html`<${Button} variant="plain" disabled=${busy} onClick=${onNo}>${SHOTLIST_WORDS.notYet}<//>
       <${Button} variant="primary" busy=${busy} aria-disabled=${armed ? undefined : "true"} onClick=${yes}>${w.button}<//>`}>
     <div class="k-sl__confirm-text" tabindex="-1" data-autofocus="">

@@ -212,7 +212,7 @@ function DoorConfirm({ door, mod, onCancel, onDone }) {
 
   return html`
     <div class="p-map__confirm-back" aria-hidden="true" onClick=${onCancel}></div>
-    <div class="p-map__confirm" role="alertdialog" aria-modal="true" aria-labelledby=${`${ids.current}-title`} aria-describedby=${`${ids.current}-text`}
+    <div class="p-map__confirm" data-surface="paper" role="alertdialog" aria-modal="true" aria-labelledby=${`${ids.current}-title`} aria-describedby=${`${ids.current}-text`}
       onKeyDown=${onKey}>
       <h3 class="p-map__confirm-title" id=${`${ids.current}-title`}>${title}</h3>
       <div class="p-map__confirm-text" id=${`${ids.current}-text`} tabindex="-1" ref=${textRef}>${body}</div>
@@ -283,7 +283,7 @@ export function DoorPanel({ door, onClose, onChanged, announce }) {
     }
   };
   const hid = `p-map-door-${door.id}-head`;
-  return html`<section class=${`p-map__panel p-map__panel--door${confirm ? " is-asking" : ""}`} aria-labelledby=${hid} data-panel-door=${door.id} onKeyDown=${onKey}>
+  return html`<section class=${`p-map__panel p-map__panel--door${confirm ? " is-asking" : ""}`} data-surface="over" aria-labelledby=${hid} data-panel-door=${door.id} onKeyDown=${onKey}>
     <div class="p-map__panel-head">
       <div class="p-map__panel-titles">
         <h2 class="p-map__panel-title" id=${hid} tabindex="-1" ref=${headRef}>${door.title}</h2>
