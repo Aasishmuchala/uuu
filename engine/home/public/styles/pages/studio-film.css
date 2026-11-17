@@ -2,7 +2,10 @@
    difference and the rail's blocks are the kit's (layout.css, player.css, strip.css, money.css, diff.css, stage.css);
    this sheet only places them: the player centred on the deepest ground and kept inside the first screen, the
    spend line over the shot cards, the rail's three blocks 24 px apart, and the rows under the first screen.
-   Tokens only. */
+   Tokens only.
+   PLAN-3D-ALL U13: the film is the picture, so it has no room header: the take, its stills and the storyboard sit
+   on the deepest ground (the stage) with nothing laid over them, no tint and no wash; the verdicts and facts stand
+   on the rail's panel beside. What the film spent is the server's figure, whole: its line wraps, never cuts. */
 
 .p-studio-film {
   min-width: 0;
@@ -63,10 +66,10 @@
 
 .p-studio-film__spend-line {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--s-3);
+  gap: 0 var(--s-3);
   margin: 0;
-  white-space: nowrap;
 }
 
 .p-studio-film__spend-label {

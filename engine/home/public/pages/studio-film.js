@@ -449,9 +449,16 @@ function ShotBlock({ shot, n, labels }) {
 
 // ---- the strip -----------------------------------------------------------------------------------------------
 
+// What the film spent, in the home server's own sentence when it sends one (PLAN-3D-ALL S1: shown whole, as sent);
+// else the server's two figures in the page's words, as before.
+export function spendWords(total) {
+  const t = total && typeof total === "object" ? total : {};
+  return typeof t.words === "string" && t.words.trim() ? text(t.words, 300) : creditWords(t.spent, t.budget);
+}
+
 function Spend({ film }) {
   const total = film.total || {};
-  const words = creditWords(total.spent, total.budget);
+  const words = spendWords(total);
   return html`<section class="p-studio-film__spend" aria-label=${FILM_WORDS.spent}>
     <p class="p-studio-film__spend-line">
       <span class="p-studio-film__spend-label">${FILM_WORDS.spent}</span>

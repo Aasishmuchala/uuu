@@ -285,11 +285,12 @@ test("studio: the row at the top jumps to each part whose list has come in, in t
 test("studio: with a film opened, the film is the whole pane and the rest of Studio follows under it", () => {
   const code = SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[\s;{}(),])\/\/[^\n]*/g, "$1");
   const film = code.indexOf("if (filmId) {");
-  const header = code.indexOf("<${PageHeader}");
+  // The page's header is the room header now (PLAN-3D-ALL U13); the film still comes before it, with no band.
+  const header = code.indexOf("<${RoomHeader}");
   assert.ok(film > 0 && header > film, "the film is returned before the page's own header is drawn");
   const branch = code.slice(film, header);
   assert.match(branch, /<\$\{FilmView\} key=\$\{filmId\} id=\$\{filmId\} settled=\$\{settled\} more=\$\{html`<div class="p-studio__rest">\$\{parts\}<\/div>`\} \/>/);
-  assert.doesNotMatch(branch, /PageHeader|id="page-title"/, "one page title: the film's");
+  assert.doesNotMatch(branch, /PageHeader|RoomHeader|id="page-title"/, "one page title: the film's");
   // The crumbs the page gives the top bar.
   assert.match(code, /crumbs=\$\{\[\{ label: "Dashboards", href: "#\/dashboards" \}, \{ label: "Studio" \}\]\}/);
   // The film's rules live in studio-film.css alone.
@@ -368,4 +369,142 @@ test("studio: the page sends what it sent before (PLAN-3D-ALL)", async () => {
   ];
   assert.deepEqual(seen, RECORDED);
   for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});
+
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const film = await import("../../pages/studio-film.js");
+const byCls = (root, c) => elements(root).filter((e) => classesOf(e).includes(c));
+const textNodes = (root) => [...walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+const cssOf = (name) => readFileSync(join(TREE, "styles", "pages", name), "utf8");
+const ruleOf = (css, sel) => {
+  const m = new RegExp(`(?:^|\\n|\\})\\s*${sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`).exec(css);
+  return m ? m[1] : null;
+};
+
+test("studio: the title, its line, the agents and the jumps stand in the room header with the light table; one h1, crumbs as before (PLAN-3D-ALL U13)", async () => {
+  const m = await mountStudio(studioAnswers());
+  try {
+    const band = elements(m.root).filter((e) => e.localName === "header" && classesOf(e).includes("k-room"));
+    assert.equal(band.length, 1);
+    assert.equal(band[0].getAttribute("data-glimpse"), "table");
+    const h1 = elements(m.root).filter((e) => e.localName === "h1");
+    assert.equal(h1.length, 1);
+    assert.equal(h1[0].getAttribute("id"), "page-title");
+    assert.equal(byCls(band[0], "p-studio__jumps").length, 1, "the row that jumps to each part is in the band");
+    assert.equal(byCls(band[0], "p-studio__agents").length, 1, "the agents are the band's actions");
+    const pic = byCls(m.root, "k-room__img");
+    assert.equal(pic.length, 1);
+    assert.equal(pic[0].getAttribute("src"), glimpseSrc("table", { theme: "dark", width: 1280 }));
+    assert.equal(pic[0].getAttribute("alt"), "");
+    assert.equal(pic[0].getAttribute("aria-hidden"), "true");
+    // Every other picture is the owner's, from the home server, and nothing of the band's sits inside a card.
+    for (const img of elements(m.root).filter((e) => e.localName === "img" && !classesOf(e).includes("k-room__img"))) {
+      assert.ok(String(img.getAttribute("src")).startsWith("/api/"), img.getAttribute("src"));
+    }
+    assert.equal(elements(m.root).filter((e) => e.localName === "canvas").length, 0, "the dashboard has no canvas of its own");
+    assert.equal(byCls(m.root, "k-page-header").length, 0, "PageHeader is replaced");
+    assert.equal(elements(m.root).filter((e) => e.getAttribute("data-surface") === "paper").length, 0, "nothing on paper");
+    assert.deepEqual(m.tops.filter(Boolean).pop().crumbs.map((c) => c.label), ["Dashboards", "Studio"]);
+  } finally { m.done(); }
+  const off = await mountStudio(studioAnswers(), { query: "glimpse=off" });
+  try {
+    assert.equal(byCls(off.root, "k-room__img").length, 0, "glimpse=off: the band alone");
+    assert.equal(byCls(off.root, "k-room--bare").length, 1);
+  } finally { off.done(); }
+});
+
+test("studio: a film opened is its own stage: no band, one h1 (the film's), the take on the deepest ground (PLAN-3D-ALL U13)", async () => {
+  const m = await mountStudio(studioAnswers(), { query: `film=${FILM_ID}` });
+  try {
+    assert.equal(byCls(m.root, "k-room").length, 0, "the film is the picture: no room header over or above it");
+    const h1 = elements(m.root).filter((e) => e.localName === "h1");
+    assert.equal(h1.length, 1);
+    assert.equal(h1[0].getAttribute("id"), "page-title");
+    assert.equal(byCls(m.root, "k-work__stage").length, 1);
+    assert.equal(elements(m.root).filter((e) => e.getAttribute("data-surface")).length, 0, "nothing on paper or over the film");
+  } finally { m.done(); }
+  // The sheets lay nothing over the owner's pictures: no gradient, filter, blend or dimming in the page's sheets, and
+  // the pictures' boxes are on the deepest ground (or black inside the kit's player, the picture's own letterbox).
+  for (const name of ["studio.css", "studio-film.css"]) {
+    const css = cssOf(name).replace(/\/\*[\s\S]*?\*\//g, "");
+    assert.doesNotMatch(css, /gradient\(|filter:|mix-blend|backdrop/, name);
+  }
+  const studioCss = cssOf("studio.css");
+  assert.match(ruleOf(studioCss, ".p-studio .p-studio__thumb"), /background: var\(--stage\);/);
+  assert.match(studioCss, /\.p-studio \.p-studio__open \{[^}]*background: var\(--stage\);/);
+  assert.doesNotMatch(studioCss, /\.p-studio__(cover|picture|contact)[^{]*\{[^}]*opacity/, "a picture is never dimmed");
+  const player = readFileSync(join(TREE, "styles", "kit", "player.css"), "utf8");
+  assert.match(ruleOf(player, ".k-player__video,\n.k-player__picture") || ruleOf(player, ".k-player__picture") || "", /object-fit: contain;/);
+});
+
+test("studio: what a film spent, a refused film's sentence and a take still charging are whole text nodes as sent; no box of theirs cuts them (PLAN-3D-ALL U13, S1)", async () => {
+  const shapeFilms = shape("films");
+  const m = await mountStudio(studioAnswers());
+  try {
+    const nodes = textNodes(m.root);
+    const row = shapeFilms.list.films[0];
+    assert.ok(nodes.includes(film.creditWords(row.spent, row.budget)), "the card's spend: the server's figures");
+    assert.ok(nodes.includes(row.problem), "the refused film's sentence, whole");
+  } finally { m.done(); }
+  const making = JSON.parse(JSON.stringify(shapeFilms.film));
+  making.shots[0].takes.push({ take: "t2", state: "making" });
+  const f = await mountStudio(studioAnswers({ [`/api/studio/films/${FILM_ID}`]: making }), { query: `film=${FILM_ID}` });
+  try {
+    const nodes = textNodes(f.root);
+    assert.ok(nodes.includes(shapeFilms.film.total.words), "the film's spend is the server's sentence, as sent");
+    assert.equal(film.spendWords({ spent: 175, budget: 600 }), "$1.75 of $6.00", "no sentence sent: the figures, as before");
+    assert.ok(nodes.includes(film.STILL_CHARGING));
+    assert.ok(nodes.includes(shapeFilms.film.problem) || nodes.includes(film.FROZEN_WORDS), "the refusal's sentence");
+  } finally { f.done(); }
+  const cut = /text-overflow|line-clamp|(^|[^-])height:|overflow: hidden|overflow:hidden|white-space: nowrap/;
+  const studioCss = cssOf("studio.css");
+  for (const sel of [".p-studio .p-studio__money", ".p-studio .p-studio__problem", ".p-studio .p-studio__spend"]) {
+    const r = ruleOf(studioCss, sel);
+    assert.ok(r !== null, sel);
+    assert.doesNotMatch(r, cut, sel);
+  }
+  const filmCss = cssOf("studio-film.css");
+  for (const sel of [".p-studio-film__spend", ".p-studio-film__spend-line", ".p-studio-film__spend-figure", ".p-studio-film__spend-note", ".p-studio-film__notes"]) {
+    const r = ruleOf(filmCss, sel);
+    assert.ok(r !== null, sel);
+    assert.doesNotMatch(r, cut, sel);
+  }
+});
+
+test("studio: hostile server and agent text stays text, on the dashboard and on a film (PLAN-3D-ALL)", async () => {
+  const tags = (root) => ["script", "img", "iframe", "object", "video"].map((t) => elements(root).filter((e) => e.localName === t).length);
+  // Every string the server sends is replaced by the hostile set, except the home server's own addresses and the
+  // ids the fake answers by.
+  const KEEP = new Set(["viewUrl", "url", "board", "clip", "id", "sent"]);
+  let i = 0;
+  const spoil = (v, key) => {
+    if (typeof v === "string") return KEEP.has(key) || /^\/api\//.test(v) ? v : HOSTILE[(i += 1) % HOSTILE.length];
+    if (Array.isArray(v)) return v.map((x) => (typeof x === "string" && /^\/api\//.test(x) ? x : spoil(x, key)));
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, spoil(x, k)]));
+    return v;
+  };
+  const clean = studioAnswers();
+  const hostile = Object.fromEntries(Object.entries(clean).map(([k, v]) => [k, spoil(v, "")]));
+  hostile["/api/studio/films"].films[0].task.id = FILM_ID;
+  for (const query of ["", `film=${FILM_ID}`, "video=STH-25%2Ftitle"]) {
+    const s = await mountStudio(clean, { query });
+    let base;
+    try { base = tags(s.root); } finally { s.done(); }
+    const m = await mountStudio(hostile, { query });
+    try {
+      assert.deepEqual(tags(m.root), base, query || "plain");
+      for (const e of elements(m.root)) {
+        for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+        for (const h of HOSTILE) {
+          for (const a of ["href", "src", "style", "poster"]) assert.ok(!String(e.getAttribute(a) || "").includes(h.slice(0, 200)), `${a} holds no fixture text`);
+        }
+        if (e.localName === "img" && classesOf(e).includes("k-room__img")) {
+          assert.ok(GLIMPSES.some((k) => ["dark", "light"].some((theme) => glimpseSrc(k, { theme, width: 1280 }) === e.getAttribute("src"))), "the band's picture is a table key's");
+        } else if (e.localName === "img") assert.ok(String(e.getAttribute("src")).startsWith("/api/"), "only the server's own pictures");
+      }
+      const nodes = textNodes(m.root);
+      assert.ok(HOSTILE.slice(0, 5).some((h) => nodes.some((n) => n.includes(h))), "hostile words reach the page as text nodes");
+    } finally { m.done(); }
+  }
 });

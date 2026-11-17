@@ -1,17 +1,28 @@
 /* The Studio dashboard (PLAN-COOK T67, S18): every selector under .p-studio, tokens only (CONTRACTS-V2 11.2,
    CONTRACTS-V3 27.3). The full pane on one left edge; sections of cards on the raised step, four across at
    1280, each with its picture flush to the card's top on the deepest ground and its facts under it; an opened
-   video or sprite sits on the deepest ground with no card round it. A film opened is styled by studio-film.css. */
+   video or sprite sits on the deepest ground with no card round it. A film opened is styled by studio-film.css.
+   PLAN-3D-ALL U13: the title, its line, the agents and the row that jumps to each part stand in the room header
+   (kit/room.css; dashboard.css lifts it into the pane's top margin), the light table behind them. The owner's
+   pictures, takes and sprites stay on the deepest ground with nothing laid over them: no tint, no gradient, no
+   wash; the light table is the ground, not an effect on the picture. */
 .p-studio { display: flex; flex-direction: column; min-width: 0; container-type: inline-size; }
 .p-studio .p-studio__agents { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--s-2) var(--s-5); }
-.p-studio .k-page-header { margin-bottom: var(--s-3); }
+/* The band: 120 px from 860 px, so the first card stays as near the top as before (D9). The table's sheet of paper
+   stands in the picture's lower left, where the title is: the picture is set so the sheet's edge leaves the title's
+   side, and the scrim stays whole there. */
+.p-studio > .k-room { min-height: 120px; padding-top: var(--s-5); padding-bottom: var(--s-4); }
+.p-studio > .k-room .k-room__img { object-position: 100% 55%; }
+.p-studio > .k-room .k-page-header__lede { max-width: 64ch; }
+.p-studio > .k-room .k-page-header__more { margin-top: var(--s-3); }
 .p-studio .k-section { margin-bottom: var(--s-8); }
 .p-studio .k-section .k-notice { margin-bottom: var(--s-4); }
 .p-studio > .k-notice, .p-studio .p-studio__rest > .k-notice { margin-bottom: var(--s-4); }
 
-/* The row that jumps to each part: quiet controls with the count in tabular figures, a hairline under it. */
+/* The row that jumps to each part, in the band under the title: quiet controls with the count in tabular figures,
+   each on the control fill so it reads where the picture is bright. */
 .p-studio .p-studio__jumps {
-  display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-1); margin: 0 0 var(--s-7) -10px;
+  display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-1); margin: 0;
 }
 .p-studio .p-studio__jump {
   display: inline-flex; align-items: center; gap: var(--s-2); height: var(--h-sm); padding: 0 10px;
@@ -20,7 +31,8 @@
   transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .p-studio .p-studio__jump .k-icon { color: var(--ink-2); }
-.p-studio .p-studio__jump:hover { background: var(--ctl); }
+.p-studio .k-room .p-studio__jump { background: var(--ctl); }
+.p-studio .p-studio__jump:hover, .p-studio .k-room .p-studio__jump:hover { background: var(--lamp-pool); }
 .p-studio .p-studio__jump:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .p-studio .p-studio__jump-n { color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .p-studio .p-studio__part { scroll-margin-top: calc(var(--topbar-h) + var(--s-4)); }
@@ -177,7 +189,8 @@
 @media (max-width: 859px) {
   .p-studio .p-studio__agents { justify-content: flex-start; }
   .p-studio .k-section .k-empty { padding: var(--s-2) var(--s-3); }
-  .p-studio .p-studio__jumps { flex-wrap: nowrap; overflow-x: auto; margin: calc(var(--s-3) * -1) calc(var(--s-4) * -1) var(--s-2); padding: 0 6px; scrollbar-width: none; }
+  .p-studio .p-studio__jumps { flex-wrap: nowrap; overflow-x: auto; margin: 0 calc(var(--s-4) * -1); padding: 0 var(--s-4); scrollbar-width: none; }
+  .p-studio > .k-room { min-height: 0; }
   .p-studio .p-studio__jump { flex: none; }
   .p-studio .p-studio__body { padding: 10px var(--s-3) var(--s-3); }
   .p-studio .p-studio__open { padding: var(--s-3); margin-left: calc(var(--s-4) * -1); margin-right: calc(var(--s-4) * -1); border-radius: 0; }

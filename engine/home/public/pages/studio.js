@@ -8,6 +8,10 @@
 // it. A link that opens a sprite or a video brings it to the top of the pane and moves focus to its heading (M51
 // F14). Everything shown is text or a picture from a file an agent made: it is capped, shown as text, and no link in
 // it is followed. Only addresses under /api/ reach an img or a video.
+// PLAN-3D-ALL U13: the title, its line, the agents and the row that jumps to each part stand in the room header
+// (kit/room.js) with the light table's glimpse behind them; on a phone the band is a title strip with no picture.
+// The owner's pictures, takes and sprites sit on the deepest ground with nothing over them; nothing is on paper
+// (the page holds no decision, document or confirm). A film opened is its own stage (studio-film.js): no band.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
@@ -16,8 +20,8 @@ import { currentMotion } from "../lib/theme.js";
 import { AgentHead, Jobs, OpenDepartment } from "./dashboard.js";
 import { FilmView, clipsWords, creditWords, filmStateTone, filmStateWords, spentShare, stillsOf } from "./studio-film.js";
 import {
-  BeingBuilt, Card, DataTable, Empty, ErrorNotice, FileCard, Icon, Loading, Meter, Notice, NotConnected, PageHeader,
-  PicTag, Player, Row, Rows, Section, St, timeWords,
+  BeingBuilt, Card, DataTable, Empty, ErrorNotice, FileCard, Icon, Loading, Meter, Notice, NotConnected, PicTag, Player,
+  RoomHeader, Row, Rows, Section, St, glimpseFor, timeWords,
 } from "../kit/index.js";
 
 const HERE = "#/dashboards/studio";
@@ -556,11 +560,28 @@ export function spanOf(count, { open = false, loaded = true } = {}) {
   return Math.min(4, Math.max(1, n));
 }
 
+// True while the window is 860 px wide or more: only then does the band ask for its picture (as Files: on a phone
+// the band is a short title strip, so the first card stays near the top). Read at once, so a phone never asks.
+const WIDE = "(min-width: 860px)";
+function useWide() {
+  const read = () => typeof matchMedia !== "function" || matchMedia(WIDE).matches === true;
+  const [wide, setWide] = useState(read);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return undefined;
+    const mq = matchMedia(WIDE);
+    const again = () => setWide(mq.matches === true);
+    if (mq.addEventListener) mq.addEventListener("change", again);
+    return () => { if (mq.removeEventListener) mq.removeEventListener("change", again); };
+  }, []);
+  return wide;
+}
+
 // ---- The page -----------------------------------------------------------------------------------------------
 
 export default function Page({ route }) {
   const app = useApp() || {};
   const query = route?.query || new URLSearchParams();
+  const wide = useWide();
   const art = useResource("/api/studio/art", { every: EVERY });
   const dept = useResource("/api/departments/studio", { every: EVERY });
   const slidesRes = useResource("/api/studio/slides", { every: EVERY });
@@ -707,14 +728,15 @@ export default function Page({ route }) {
 
   return html`
     <div class="p-studio p-dashboard" data-dept="studio">
-      <${PageHeader} back=${{ label: "All dashboards", href: "#/dashboards" }} title="Studio"
+      <${RoomHeader} glimpse=${wide ? glimpseFor("studio") : null} back=${{ label: "All dashboards", href: "#/dashboards" }} title="Studio"
         crumbs=${[{ label: "Dashboards", href: "#/dashboards" }, { label: "Studio" }]}
         lead="Videos, slides, drawings, animations and parts made by the Artist and the Drafter."
         actions=${a?.agent || d?.agent ? html`<span class="p-studio__agents">
           ${a?.agent ? html`<${AgentHead} slug="artist" agent=${{ name: "Artist", ...a.agent }} />` : null}
           ${d?.agent ? html`<${AgentHead} slug="drafter" agent=${{ name: "Drafter", ...d.agent }} />` : null}
-        </span>` : null} />
-      <${Jumps} items=${jumps} />
+        </span>` : null}>
+        ${jumps.length ? html`<${Jumps} items=${jumps} />` : null}
+      <//>
       ${parts}
     </div>`;
 }
