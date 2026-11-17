@@ -547,7 +547,7 @@ export default function Page({ route }) {
   }
 
   return html`<div class=${`p-tasks p-tasks--${view} k-page--plain`}>
-    <${RoomHeader} glimpse=${glimpseFor("tasks")} pull title="Tasks">${bar}<//>
+    <${RoomHeader} glimpse=${glimpseFor("tasks")} pull strip title="Tasks">${bar}<//>
     ${body}
   </div>`;
 }

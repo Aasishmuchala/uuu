@@ -13,7 +13,8 @@
    side, and the scrim stays whole there. */
 .p-studio > .k-room { min-height: 120px; padding-top: var(--s-5); padding-bottom: var(--s-4); }
 .p-studio > .k-room .k-room__img { object-position: 100% 55%; }
-.p-studio > .k-room .k-page-header__lede { max-width: 64ch; }
+/* The line in the first ink: in the morning the light table showed through at 4 to 1 under the second ink (U17). */
+.p-studio > .k-room .k-page-header__lede { max-width: 64ch; color: var(--ink); }
 .p-studio > .k-room .k-page-header__more { margin-top: var(--s-3); }
 .p-studio .k-section { margin-bottom: var(--s-8); }
 .p-studio .k-section .k-notice { margin-bottom: var(--s-4); }

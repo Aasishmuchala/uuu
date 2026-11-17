@@ -26,11 +26,6 @@
   object-position: 70% 40%;
 }
 
-/* At dusk the scrim is thinned so the shelves read behind the title; the left, under the words, stays dense. */
-.p-brand-kit > .k-room .k-room__scrim {
-  opacity: 0.8;
-}
-
 .p-brand-kit > .k-doc--layout {
   flex: 1;
   min-height: 0;
