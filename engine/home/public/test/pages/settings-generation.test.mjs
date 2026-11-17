@@ -505,7 +505,9 @@ test("generation: the Higgsfield card's source holds what the owner asked", () =
   assert.match(CODE, /const url = hfSignInUrl\(obj\(answer\) \? answer\.url : null\);[\s\S]*?openHiggsfield\(url\);/);
   assert.match(CODE, /<\$\{Dialog\} open=\$\{asking\} title=\$\{HF_WORDS\.signOutAsk\}/);
   assert.match(CODE, /act\("hf-forget", "\/api\/generation\/higgsfield\/forget"/);
-  assert.match(CODE, /act\("hf-switch", "\/api\/generation\/higgsfield\/switch", \{ on: next \}/);
+  // A door opens only through a confirm, 18 Nov 2026: the switch's press sends only { on: false } itself; switching on
+  // asks the Map's confirm, whose yes sends the request (test/pages/settings-doors.test.mjs).
+  assert.match(CODE, /next \? setOpening\(true\) : act\("hf-switch", "\/api\/generation\/higgsfield\/switch", \{ on: false \}/);
   assert.match(CODE, /<\$\{Failure\} failure=\$\{failure\} where="hf-switch" \/>/);
   assert.match(CODE, /act\("hf-rate", "\/api\/generation\/higgsfield\/rate", \{ centsPerCredit: check\.value \}/);
   // The return notice is said once, from the address read when the section is first drawn.

@@ -6,6 +6,8 @@
 // memory until Save, and is cleared then. It is never put in storage, the address bar, the console or a message.
 // An address, a search's words and every list entry come from the web or from typing: they are shown only as plain
 // capped text, never as HTML.
+// The switch opens the door only through the Map's confirm (a door opens only through a confirm, 18 Nov 2026): a
+// press on it asks, and the confirm's yes sends the request; switching off is one press.
 import { html, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
@@ -13,6 +15,8 @@ import { count, fullWhen } from "../lib/format.js";
 import {
   Button, Checklist, DataTable, Dialog, Empty, ErrorNotice, Field, Group, Icon, Loading, NextStep, Notice, Row, Rows, St, Switch, Tag, TextInput,
 } from "../kit/index.js";
+import { DoorConfirm } from "../map/door-panel.js";
+import * as SELF from "../pages/settings-web.js";
 
 const EVERY = 10000;
 
@@ -342,8 +346,19 @@ function DoorPath({ open, tone }) {
   </span>`;
 }
 
+// Focus back on the switch inside `box` once the confirm has gone.
+function backToSwitch(box) {
+  setTimeout(() => {
+    const sw = box.current && typeof box.current.querySelector === "function" ? box.current.querySelector('[role="switch"]') : null;
+    if (sw) sw.focus();
+  }, 0);
+}
+
 // Group 1: the switch first, with its warning inside the panel; who may ask; the door's state.
-function DoorGroup({ view, busy, act, failure }) {
+// Switching on asks first: the press opens the confirm and nothing more; its yes sends the request.
+function DoorGroup({ view, busy, act, took, failure }) {
+  const [asking, setAsking] = useState(false);
+  const box = useRef(null);
   const on = Boolean(view.on);
   const door = doorState(view.door);
   const open = on && door.state === "on";
@@ -364,8 +379,8 @@ function DoorGroup({ view, busy, act, failure }) {
             items=${reasons.map((r) => ({ done: false, text: html`<${RunLine} text=${r} />` }))} />` : null}
           <${FailLine} failure=${failure} where="switch" />
         </span>`}
-        control=${html`<${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
-          onChange=${(next) => act("switch", "/api/web/switch", { on: next }, switchLine(next))} />`}
+        control=${html`<span class="p-settings-door__switch" ref=${box}><${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
+          onChange=${(next) => (next ? setAsking(true) : act("switch", "/api/web/switch", { on: false }, switchLine(false)))} /></span>`}
         warned=${WORDS.leaves} />
       <${Row} icon="team" title="Who may ask"
         say=${`Only the Researcher. ${sharedLine(n)}.`}
@@ -373,6 +388,9 @@ function DoorGroup({ view, busy, act, failure }) {
       <${Row} icon="door" title="The web door" state=${{ tone: doorTone, text: word }}
         say=${html`<span class="p-settings-web__lines">${saidAbove ? null : html`<${RunLine} text=${door.sentence} />`}<${DoorPath} open=${open} tone=${doorTone} /></span>`} />
     <//>
+    ${asking ? html`<${DoorConfirm} door=${{ id: "web" }} mod=${SELF} cls="p-settings-door" link=${false}
+      onCancel=${() => { setAsking(false); backToSwitch(box); }}
+      onDone=${(_, answer) => { setAsking(false); took(answer, switchLine(true)); backToSwitch(box); }} />` : null}
   <//>`;
 }
 
@@ -684,8 +702,14 @@ export default function WebSection() {
       setBusy("");
     }
   }
+  // The answer of a request the door's confirm sent, taken as act takes one.
+  function took(next, said) {
+    setFailure(null);
+    setFresh({ view: next, base: res.data });
+    if (said) announce(said);
+  }
 
-  const parts = { view, busy, act, failure };
+  const parts = { view, busy, act, took, failure };
   return html`<div class="p-settings-web" id="settings-web">
     <p class="p-settings-web__intro">${WORDS.intro}</p>
     ${state === "loading" ? html`<div class="p-settings-web__first"><${Loading} lines=${3} label="Loading the web settings" /></div>` : null}

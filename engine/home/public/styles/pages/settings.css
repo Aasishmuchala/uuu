@@ -91,3 +91,126 @@
   }
 }
 
+
+/* A door's confirm, opened by its switch in the Web or Generation section (the Map's own, map/door-panel.js; a door
+   opens only through a confirm, 18 Nov 2026): a paper dialog centred over the scrim, 48 px of scrim round it; every
+   sentence whole, wrapped, never cut. The switch's box takes no room of its own. */
+.p-settings-door__switch {
+  display: contents;
+}
+.p-settings-door__confirm-back {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--scrim);
+}
+.p-settings-door__confirm {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 101;
+  display: grid;
+  gap: var(--s-4);
+  width: min(calc(var(--s-12) * 10), calc(100vw - 2 * var(--s-12)));
+  max-height: calc(100vh - 2 * var(--s-12));
+  overflow-y: auto;
+  padding: var(--s-6);
+  border: 1px solid var(--paper-line, var(--line));
+  border-radius: var(--r-3);
+  background: var(--paper);
+  box-shadow: var(--paper-shadow), var(--overlay-shadow);
+  color: var(--ink);
+  transform: translate(-50%, -50%);
+}
+.p-settings-door__confirm-title {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-ui);
+  overflow-wrap: anywhere;
+}
+.p-settings-door__confirm-text {
+  display: grid;
+  gap: var(--s-3);
+  margin: calc(-1 * var(--s-2));
+  padding: var(--s-2);
+  border-radius: var(--r-2);
+}
+.p-settings-door__confirm-text:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.p-settings-door__confirm-warning,
+.p-settings-door__confirm-line {
+  margin: 0;
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.p-settings-door__confirm-warning {
+  padding: var(--s-3);
+  border-radius: var(--r-2);
+  background: var(--warn-bg);
+  color: var(--ink);
+}
+.p-settings-door__confirm-line--state {
+  color: var(--ink-2);
+}
+.p-settings-door__confirm-limits {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0;
+}
+.p-settings-door__confirm-limit {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+  font-variant-numeric: tabular-nums;
+}
+.p-settings-door__confirm-limit dt {
+  color: var(--ink-3);
+}
+.p-settings-door__confirm-limit dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.p-settings-door__confirm-left {
+  color: var(--ink-2);
+  text-align: right;
+}
+.p-settings-door__confirm-refused {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-2);
+  background: var(--bad-bg);
+}
+.p-settings-door__confirm-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+.p-settings-door__confirm-foot [aria-disabled="true"] {
+  opacity: .55;
+  cursor: not-allowed;
+}
+/* A phone: the confirm is a sheet from the bottom, its two buttons sharing the width at 44 px. */
+@media (max-width: 859px) {
+  .p-settings-door__confirm {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: 88vh;
+    border-radius: var(--r-3) var(--r-3) 0 0;
+    transform: none;
+  }
+  .p-settings-door__confirm-foot .k-btn {
+    flex: 1 1 0;
+    min-height: 44px;
+  }
+}

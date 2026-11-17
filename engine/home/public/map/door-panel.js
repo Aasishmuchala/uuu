@@ -10,6 +10,8 @@
 // server shows its message and next as sent. The request is Settings' own: api.post to the same path with { on }.
 // The Settings modules are loaded by import() when a door's panel first opens, never with the page.
 // Server text is hostile: every sentence here is a text node.
+// Settings opens a door through this same confirm (DoorConfirm, exported): a door opens only through a confirm,
+// 18 Nov 2026. There it draws under Settings' own class names and without the link to Settings.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { Icon, Loading } from "../kit/index.js";
@@ -19,9 +21,9 @@ export const ARM_MS = 600;
 
 // Each door: the route Settings reads, the switch it sends, and its Settings module.
 export const DOORS = Object.freeze({
-  web: Object.freeze({ view: "/api/web", path: "/api/web/switch", module: "web" }),
-  generation: Object.freeze({ view: "/api/generation", path: "/api/generation/switch", module: "generation" }),
-  higgsfield: Object.freeze({ view: "/api/generation", path: "/api/generation/higgsfield/switch", module: "generation" }),
+  web: Object.freeze({ view: "/api/web", path: "/api/web/switch", module: "web", title: "Web door" }),
+  generation: Object.freeze({ view: "/api/generation", path: "/api/generation/switch", module: "generation", title: "Generation door" }),
+  higgsfield: Object.freeze({ view: "/api/generation", path: "/api/generation/higgsfield/switch", module: "generation", title: "Higgsfield door" }),
 });
 
 // The panel's own words (labels only; every sentence about the door is the server's or Settings').
@@ -111,10 +113,14 @@ function KitButton({ variant = "plain", size = "md", bref, children, icon, ...re
 }
 
 const SettingsLink = ({ id }) => html`<a class="p-map__link p-map__door-settings" href=${doorSettingsHref(id)}>${W.openInSettings}<${Icon} name="chevron-right" size=${14} /></a>`;
+const NoLink = () => null;
 
 // The confirm (2.3): an alertdialog over the panel; its text takes focus; Cancel, then the yes.
-function DoorConfirm({ door, mod, onCancel, onDone }) {
+// door: { id, title? }; mod: that door's Settings module. onDone(true, answer) gets the server's answer to the yes.
+// cls: the class and id prefix ("p-map" on the Map); link: whether a refusal carries the link to Settings.
+export function DoorConfirm({ door, mod, onCancel, onDone, cls = "p-map", link = true }) {
   const conf = DOORS[door.id];
+  const Link = link ? SettingsLink : NoLink;
   const [read, setRead] = useState({ loading: true, view: null, error: null });
   const [failure, setFailure] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -123,7 +129,9 @@ function DoorConfirm({ door, mod, onCancel, onDone }) {
   const cancelRef = useRef(null);
   const yesRef = useRef(null);
   const armed = useRef({ key: null, at: 0 });
-  const ids = useRef(`p-map-door-${door.id}`);
+  // Set at once on the yes, so a second click before the page draws again sends nothing.
+  const sending = useRef(false);
+  const ids = useRef(`${cls}-door-${door.id}`);
 
   // The view Settings reads, fresh, as the confirm opens.
   useEffect(() => {
@@ -152,15 +160,17 @@ function DoorConfirm({ door, mod, onCancel, onDone }) {
 
   async function yes(e) {
     if (e && typeof e.preventDefault === "function") e.preventDefault();
-    if (!canYes || busy || Date.now() - armed.current.at < ARM_MS) return;
+    if (!canYes || busy || sending.current || Date.now() - armed.current.at < ARM_MS) return;
+    sending.current = true;
     setBusy(true);
     setFailure(null);
     try {
-      await api.post(conf.path, { on: true });
-      onDone(true);
+      const answer = await api.post(conf.path, { on: true });
+      onDone(true, answer);
     } catch (err) {
       setFailure(errorOf(err));
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   }
@@ -189,34 +199,34 @@ function DoorConfirm({ door, mod, onCancel, onDone }) {
     }
   };
 
-  const title = DOOR_WORDS.confirmTitle(door.title || door.id);
-  const lines = (list) => list.map((s, i) => html`<p key=${i} class="p-map__confirm-line">${s}</p>`);
+  const title = DOOR_WORDS.confirmTitle(door.title || conf.title || door.id);
+  const lines = (list) => list.map((s, i) => html`<p key=${i} class=${`${cls}__confirm-line`}>${s}</p>`);
   let body;
   if (read.loading) body = html`<${Loading} lines=${3} label=${DOOR_WORDS.loading} />`;
   else if (read.error) {
-    body = html`<div class="p-map__confirm-refused" role="alert">${lines([read.error.message, read.error.next].filter(Boolean))}</div>
-      <${SettingsLink} id=${door.id} />`;
+    body = html`<div class=${`${cls}__confirm-refused`} role="alert">${lines([read.error.message, read.error.next].filter(Boolean))}</div>
+      <${Link} id=${door.id} />`;
   } else if (c) {
     body = html`
-      <p class="p-map__confirm-warning">${c.warning}</p>
+      <p class=${`${cls}__confirm-warning`}>${c.warning}</p>
       ${lines(c.sentences)}
-      ${c.limits ? html`<dl class="p-map__confirm-limits">
-        ${c.limits.rows.map((r) => html`<div key=${r.key} class="p-map__confirm-limit">
-          <dt>${r.label}</dt><dd class="p-map__confirm-spent">${r.spent}</dd>${r.left ? html`<dd class="p-map__confirm-left">${r.left}</dd>` : null}</div>`)}
+      ${c.limits ? html`<dl class=${`${cls}__confirm-limits`}>
+        ${c.limits.rows.map((r) => html`<div key=${r.key} class=${`${cls}__confirm-limit`}>
+          <dt>${r.label}</dt><dd class=${`${cls}__confirm-spent`}>${r.spent}</dd>${r.left ? html`<dd class=${`${cls}__confirm-left`}>${r.left}</dd>` : null}</div>`)}
       </dl>${lines(c.limits.lines)}` : null}
-      ${c.already ? html`<p class="p-map__confirm-line p-map__confirm-line--state">${c.already}</p>` : null}
-      ${c.refused ? html`<div class="p-map__confirm-refused">${lines(c.refused)}</div><${SettingsLink} id=${door.id} />` : null}
-      ${failure ? html`<div class="p-map__confirm-refused" role="alert">${lines([failure.message, failure.next].filter(Boolean))}</div>
-        <${SettingsLink} id=${door.id} />` : null}`;
+      ${c.already ? html`<p class=${`${cls}__confirm-line ${cls}__confirm-line--state`}>${c.already}</p>` : null}
+      ${c.refused ? html`<div class=${`${cls}__confirm-refused`}>${lines(c.refused)}</div><${Link} id=${door.id} />` : null}
+      ${failure ? html`<div class=${`${cls}__confirm-refused`} role="alert">${lines([failure.message, failure.next].filter(Boolean))}</div>
+        <${Link} id=${door.id} />` : null}`;
   }
 
   return html`
-    <div class="p-map__confirm-back" aria-hidden="true" onClick=${onCancel}></div>
-    <div class="p-map__confirm" data-surface="paper" role="alertdialog" aria-modal="true" aria-labelledby=${`${ids.current}-title`} aria-describedby=${`${ids.current}-text`}
+    <div class=${`${cls}__confirm-back`} aria-hidden="true" onClick=${onCancel}></div>
+    <div class=${`${cls}__confirm`} data-surface="paper" role="alertdialog" aria-modal="true" aria-labelledby=${`${ids.current}-title`} aria-describedby=${`${ids.current}-text`}
       onKeyDown=${onKey}>
-      <h3 class="p-map__confirm-title" id=${`${ids.current}-title`}>${title}</h3>
-      <div class="p-map__confirm-text" id=${`${ids.current}-text`} tabindex="-1" ref=${textRef}>${body}</div>
-      <div class="p-map__confirm-foot">
+      <h3 class=${`${cls}__confirm-title`} id=${`${ids.current}-title`}>${title}</h3>
+      <div class=${`${cls}__confirm-text`} id=${`${ids.current}-text`} tabindex="-1" ref=${textRef}>${body}</div>
+      <div class=${`${cls}__confirm-foot`}>
         <${KitButton} variant="quiet" bref=${cancelRef} onClick=${onCancel}>${W.cancel}<//>
         ${canYes ? html`<${KitButton} variant="primary" bref=${yesRef} data-yes="" aria-disabled=${ready && !busy ? undefined : "true"}
             aria-busy=${busy ? "true" : undefined} onClick=${yes} onKeyDown=${onYesKey}>${W.yesOpenDoor}<//>` : null}

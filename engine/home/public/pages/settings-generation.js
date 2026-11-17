@@ -12,7 +12,10 @@
 // `failed`, said once and taken out of the address. Money is typed in dollars and kept in whole cents.
 // Nothing typed, and no address the owner came back with beyond that one word, goes to storage or the console.
 // Titles and words from the board and the ledger are shown only as plain capped text, never as HTML.
-import { html, useEffect, useState } from "../vendor/preact-htm.js";
+// Both switches open their door only through the Map's confirm (a door opens only through a confirm, 18 Nov 2026):
+// a press on one asks, and the confirm's yes sends the request; switching off is one press. Signing in to
+// Higgsfield opens no door: its switch does.
+import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { parseHash } from "../lib/router.js";
@@ -21,6 +24,8 @@ import {
   Button, Card, Checklist, DataTable, Dialog, Empty, ErrorNotice, Field, Group, Icon, Loading, Meter, MoneyInput, NextStep, Notice, Row, Rows,
   Select, St, Switch, Tag, TextInput, Time,
 } from "../kit/index.js";
+import { DoorConfirm } from "../map/door-panel.js";
+import * as SELF from "../pages/settings-generation.js";
 
 const EVERY = 10000;
 const ZONE = "Asia/Kolkata";
@@ -762,8 +767,26 @@ function KeyRow({ view, busy, act, failure, test, runTest }) {
     <//>`;
 }
 
+// Focus back on the switch inside `box` once the confirm has gone.
+function backToSwitch(box) {
+  setTimeout(() => {
+    const sw = box.current && typeof box.current.querySelector === "function" ? box.current.querySelector('[role="switch"]') : null;
+    if (sw) sw.focus();
+  }, 0);
+}
+
+// A door's confirm, opened by its switch in this section: the Map's own (map/door-panel.js), under Settings' classes.
+function Confirm({ id, box, said, took, onClose }) {
+  return html`<${DoorConfirm} door=${{ id }} mod=${SELF} cls="p-settings-door" link=${false}
+    onCancel=${() => { onClose(); backToSwitch(box); }}
+    onDone=${(_, answer) => { onClose(); took(answer, said); backToSwitch(box); }} />`;
+}
+
 // Group 1: the switch with its training warning inside the panel, the key, the door.
-function RunwayGroup({ view, busy, act, failure, test, runTest }) {
+// Switching on asks first: the press opens the confirm and nothing more; its yes sends the request.
+function RunwayGroup({ view, busy, act, took, failure, test, runTest }) {
+  const [opening, setOpening] = useState(false);
+  const box = useRef(null);
   const on = Boolean(view.on);
   const locked = !on && !view.canSwitchOn;
   const reasons = blockerLines(view);
@@ -776,14 +799,15 @@ function RunwayGroup({ view, busy, act, failure, test, runTest }) {
           ${locked && reasons.length ? html`<${Checklist} lead=${WORDS.switchWhen}
             items=${reasons.map((r) => ({ done: false, text: html`<${Said} text=${r} />` }))} />` : null}
           ${note ? html`<span class="p-settings-generation__line"><${St} tone="warn" icon=${view.paused ? "pause" : undefined}>${note}<//></span>` : null}`}
-        control=${html`<${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
-          onChange=${(next) => act("switch", "/api/generation/switch", { on: next }, switchLine(next))} />`}
+        control=${html`<span class="p-settings-door__switch" ref=${box}><${Switch} on=${on} disabled=${locked || Boolean(busy)} label=${WORDS.switchLabel}
+          onChange=${(next) => (next ? setOpening(true) : act("switch", "/api/generation/switch", { on: false }, switchLine(false)))} /></span>`}
         warned=${WORDS.sent} />
       <${More}><${Failure} failure=${failure} where="switch" /><//>
       <${KeyRow} view=${view} busy=${busy} act=${act} failure=${failure} test=${test} runTest=${runTest} />
       <${Row} icon="door" title=${WORDS.door} state=${doorChip(view)}
         say=${html`<${Said} text=${door.sentence} /><span class="p-settings-generation__line"><${DoorPath} view=${view} /></span>`} />
     <//>
+    ${opening ? html`<${Confirm} id="generation" box=${box} said=${switchLine(true)} took=${took} onClose=${() => setOpening(false)} />` : null}
   <//>`;
 }
 
@@ -889,7 +913,9 @@ function LimitsGroup({ view, busy, act, failure }) {
 
 // Higgsfield: its own group in the same drawing; the switch with its training warning, the sign-in with Test, the
 // rate, and Save under the group.
-function HiggsfieldGroup({ view, busy, act, failure, test, runTest, signIn, returned }) {
+function HiggsfieldGroup({ view, busy, act, took, failure, test, runTest, signIn, returned }) {
+  const [opening, setOpening] = useState(false);
+  const box = useRef(null);
   const h = hfOf(view);
   const state = hfState(view);
   const door = doorState(view.door);
@@ -916,8 +942,8 @@ function HiggsfieldGroup({ view, busy, act, failure, test, runTest, signIn, retu
       <form onSubmit=${saveRate} autocomplete="off">
         <${Rows}>
           <${Row} icon="power" title=${HF_WORDS.switchLabel} say=${busy === "hf-switch" ? WORDS.switching : hfSwitchLine(view)}
-            control=${html`<${Switch} on=${h.on === true} disabled=${Boolean(busy)} label=${HF_WORDS.switchLabel}
-              onChange=${(next) => act("hf-switch", "/api/generation/higgsfield/switch", { on: next }, next ? HF_WORDS.on : HF_WORDS.off)} />`}
+            control=${html`<span class="p-settings-door__switch" ref=${box}><${Switch} on=${h.on === true} disabled=${Boolean(busy)} label=${HF_WORDS.switchLabel}
+              onChange=${(next) => (next ? setOpening(true) : act("hf-switch", "/api/generation/higgsfield/switch", { on: false }, HF_WORDS.off))} /></span>`}
             warned=${HF_WORDS.sent} />
           <${More}><${Failure} failure=${failure} where="hf-switch" /><//>
           <${Row} icon="people" title=${HF_WORDS.account}
@@ -947,6 +973,7 @@ function HiggsfieldGroup({ view, busy, act, failure, test, runTest, signIn, retu
           <${Button} variant=${changed && check.value !== null ? "primary" : "ghost"} type="submit" busy=${busy === "hf-rate"} disabled=${Boolean(busy) || !changed || check.value === null}>${HF_WORDS.saveRate}<//>
         </div>
       </form>
+      ${opening ? html`<${Confirm} id="higgsfield" box=${box} said=${HF_WORDS.on} took=${took} onClose=${() => setOpening(false)} />` : null}
       <${Dialog} open=${asking} title=${HF_WORDS.signOutAsk} size="sm" paper onClose=${() => setAsking(false)}
         footer=${html`
           <${Button} data-autofocus onClick=${() => setAsking(false)}>${HF_WORDS.stay}<//>
@@ -1166,6 +1193,12 @@ export default function GenerationSection() {
       setBusy("");
     }
   }
+  // The answer of a request a door's confirm sent, taken as act takes one.
+  function took(next, said) {
+    setFailure(null);
+    setFresh({ view: next, base: res.data });
+    if (said) announce(said);
+  }
 
   // Test: the door asks Runway for the balance. Its answer is kept on screen until the key changes.
   async function runTest() {
@@ -1228,7 +1261,7 @@ export default function GenerationSection() {
     }
   }
 
-  const parts = { view, busy, act, failure };
+  const parts = { view, busy, act, took, failure };
   return html`<div class="p-settings-generation" id="settings-generation">
     <p class="k-doc__intro">${WORDS.intro}</p>
     ${state === "loading" ? html`<div class="p-settings-generation__state"><${Loading} lines=${3} label="Loading the generation settings" /></div>` : null}

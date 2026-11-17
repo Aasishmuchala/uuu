@@ -316,8 +316,10 @@ for (const id of IDS) {
 
 // ---- (5) the same request as Settings ----
 
-// Settings' own section, driven through the same fake fetch: its switch for this door flipped on.
+// Settings' own section, driven through the same fake fetch: its switch for this door flipped on. A door opens only
+// through a confirm, 18 Nov 2026: Settings' switch now asks the same confirm, so its request is the one its yes sends.
 async function settingsRequest(id) {
+  fakeClock();
   installDom();
   globalThis.window = globalThis;
   globalThis.location = { hash: "#/settings?s=generation", pathname: "/", search: "", replace() {}, assign() {} };
@@ -336,6 +338,10 @@ async function settingsRequest(id) {
     const sw = elements(root).find((e) => e.getAttribute("role") === "switch" && textOf(e).includes(label));
     assert.ok(sw, `Settings draws the switch "${label}"`);
     fire(sw, "click");
+    await settle();
+    assert.equal(f.posts().length, 0, "the switch alone sends nothing");
+    clock += ARM_MS + 100;
+    fire(yesOf(root), "click");
     await settle();
     const posts = f.posts();
     assert.equal(posts.length, 1);
