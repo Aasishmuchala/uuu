@@ -294,3 +294,112 @@ test("job: the Start bar is a solid band with a rule above and 16 px inside; the
   assert.match(wide, /\.k-job--start > \.k-job__actions \{\s*position: sticky;\s*bottom: 0;\s*z-index: 1;\s*padding: var\(--s-4\) 0;\s*border-top: 1px solid var\(--line\);\s*background: var\(--bg\);/);
   assert.match(wide, /\.p-job:has\(\.k-job__actions\) \{\s*padding-bottom: calc\(var\(--h-md\) \+ 2 \* var\(--s-4\) \+ 1px\);/);
 });
+
+// ---- Mounted in the test DOM with a fake fetch (PLAN-3D-ALL U11). No request leaves the test: the fake answers
+// every one, so Start's request is recorded and nothing is spent. ----
+const { FakeElement, html, render, installDom, elements, classesOf, walkDom } = await import("../kit/_dom.mjs");
+const { AppContext } = await import("../../lib/context.js");
+const JOB = () => shape("job");
+
+// The home as the page reads it: the job (404 for "missing"), an earlier task, and what Start and the starters
+// route answer.
+async function mountJob(job, { addr = job ? job.id : "sales/missing", query = "", status = 200, recent = [], queue = null } = {}) {
+  installDom();
+  globalThis.document.visibilityState = "visible";
+  const hash = `#/jobs/${addr}${query ? `?${query}` : ""}`;
+  globalThis.location = { hash, href: `/${hash}`, search: "", pathname: "/" };
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  const calls = [];
+  const real = globalThis.fetch;
+  const answer = (code, body) => ({ ok: code < 400, status: code, json: async () => body });
+  globalThis.fetch = async (path, opts = {}) => {
+    calls.push(`${opts.method || "GET"} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}`);
+    const p = String(path);
+    if (/\/start$/.test(p)) return answer(201, { ok: true, message: "Started.", goal: { id: "e0000000-0000-4000-8000-000000000099", identifier: "STH-99" } });
+    if (p === "/api/brain/starters") return answer(200, { added: ["captions"], skipped: [] });
+    if (p.startsWith("/api/tasks/")) return answer(200, { task: { id: "e0000000-0000-4000-8000-000000000020", identifier: "STH-20", title: "Call write-up: Asha Kitchens" } });
+    if (p.startsWith("/api/jobs/")) return job && status === 200 ? answer(200, { job, recent, queue }) : answer(status === 200 ? 404 : status, { error: { code: "job_not_found", message: "That job is not here." } });
+    return answer(404, { error: { code: "not_found", message: "Not found." } });
+  };
+  const tops = [];
+  const ctx = { shell: { company: { name: "Sthyra" } }, setTop: (t) => tops.push(t), announce() {}, refreshShell() {}, openPanel() {}, closePanel() {}, settings: { motion: "off", theme: "dark" } };
+  const root = new FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${page.default} /><//>`, root);
+  await new Promise((r) => setTimeout(r, 300));
+  return { root, calls, tops, done: () => { render(null, root); root.remove(); globalThis.fetch = real; delete globalThis.location; delete globalThis.window; } };
+}
+const fire = async (el, type, event = {}) => {
+  const key = [type, type[0].toUpperCase() + type.slice(1)].find((k) => (el.listeners[k] || []).length);
+  assert.ok(key, `${el.localName} listens for ${type}`);
+  el.listeners[key][0].call(el, { type: key, preventDefault() {}, stopPropagation() {}, currentTarget: el, target: el, ...event });
+  await new Promise((r) => setTimeout(r, 300));
+};
+const textNodes = (root) => [...walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+const byText = (root, tag, words) => elements(root).find((e) => e.localName === tag && textNodes(e).join("").trim() === words);
+const byCls = (root, c) => elements(root).filter((e) => classesOf(e).includes(c));
+// The jobs the page is read on: the shape (versions and money), money with no versions, no price, a job that cannot
+// start, one that follows earlier work with nothing to pick, one with a starter pack, and one that spends nothing.
+const MONEY_ONLY = () => ({ ...JOB(), craft: null });
+const NO_PRICE_JOB = () => ({ ...JOB(), craft: null, generation: { kind: "variations", words: "The model chosen in Settings has no price, so this job cannot start.", unit: null, model: null, ok: false } });
+const NOT_READY = () => ({ ...JOB(), craft: null, generation: null, ready: false, why: { text: "The books are switched off.", link: { page: "health" } } });
+const FOLLOWS = () => ({ ...JOB(), craft: null, generation: null, asks: [{ ...JOB().asks[0], options: [] }],
+  takes: { ...JOB().takes, waiting: { taskId: "e0000000-0000-4000-8000-000000000023", title: "Call write-up: Diwali offer" } } });
+const STARTER = () => ({ ...JOB(), craft: null, generation: null, reads: [...JOB().reads, { file: "packs/captions.md", title: "The captions pack", need: "helps", state: "missing", starter: "captions" }] });
+const PLAIN = () => ({ ...JOB(), craft: null, generation: null });
+const FILM = () => ({ ...JOB(), generation: { kind: "film", words: "A film takes long and costs money. First the Artist writes the shotlist, at no cost.", unit: 5, model: "gen4_turbo", ok: true } });
+
+// Picks the first earlier task and presses Start (the form's submit).
+const pickAndStart = async (m) => {
+  const sel = elements(m.root).find((e) => e.localName === "select" && !e.getAttribute("disabled"));
+  if (sel) await fire(sel, "change", { target: { value: JOB().asks[0].options[0].value } });
+  await fire(elements(m.root).find((e) => e.localName === "form"), "submit");
+};
+
+test("job: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  const run = async (job, opts, act) => {
+    const m = await mountJob(job, opts);
+    try { if (act) await act(m); seen.push(...m.calls); } finally { m.done(); }
+  };
+  for (const j of [JOB(), MONEY_ONLY(), NO_PRICE_JOB(), NOT_READY(), FOLLOWS(), STARTER(), PLAIN(), FILM()]) await run(j);
+  await run(JOB(), { query: "from=STH-20" });
+  await run(null, { addr: "sales/missing" });
+  await run(null, { addr: "sales/missing", status: 503 });
+  await run(null, { addr: "../x/y" });
+  // Start pressed with nothing answered: refused in the page, nothing sent.
+  await run(MONEY_ONLY(), {}, async (m) => { await fire(elements(m.root).find((e) => e.localName === "form"), "submit"); });
+  // Start on each spending path (the fake answers; nothing is spent): money with no versions, three versions, one.
+  await run(MONEY_ONLY(), {}, pickAndStart);
+  await run(JOB(), {}, pickAndStart);
+  await run(JOB(), {}, async (m) => { await fire(byText(m.root, "button", "One (fastest)"), "click"); await pickAndStart(m); });
+  await run(FILM(), { query: "from=STH-20" }, async (m) => { await fire(elements(m.root).find((e) => e.localName === "form"), "submit"); });
+  // No price: Start is off; a submit sends nothing.
+  await run(NO_PRICE_JOB(), {}, async (m) => { await fire(elements(m.root).find((e) => e.localName === "form"), "submit"); });
+  await run(PLAIN(), {}, pickAndStart);
+  await run(STARTER(), {}, async (m) => { await fire(byText(m.root, "button", "Add the starter pack"), "click"); });
+  // Recorded on the page before PLAN-3D-ALL U11 changed it.
+  const RECORDED = [
+    'GET /api/jobs/sales/proposal-from-a-call', 'GET /api/jobs/sales/proposal-from-a-call',
+    'GET /api/jobs/sales/proposal-from-a-call', 'GET /api/jobs/sales/proposal-from-a-call',
+    'GET /api/jobs/sales/proposal-from-a-call', 'GET /api/jobs/sales/proposal-from-a-call',
+    'GET /api/jobs/sales/proposal-from-a-call', 'GET /api/jobs/sales/proposal-from-a-call',
+    'GET /api/jobs/sales/proposal-from-a-call', 'GET /api/tasks/STH-20', 'GET /api/jobs/sales/missing',
+    'GET /api/jobs/sales/missing', 'GET /api/jobs/sales/proposal-from-a-call',
+    'GET /api/jobs/sales/proposal-from-a-call',
+    'POST /api/jobs/sales/proposal-from-a-call/start {"answers":{"earlier":"e0000000-0000-4000-8000-000000000020"}}',
+    'GET /api/jobs/sales/proposal-from-a-call', 'GET /api/jobs/sales/proposal-from-a-call',
+    'POST /api/jobs/sales/proposal-from-a-call/start {"answers":{"earlier":"e0000000-0000-4000-8000-000000000020"},"versions":3}',
+    'GET /api/jobs/sales/proposal-from-a-call', 'GET /api/jobs/sales/proposal-from-a-call',
+    'POST /api/jobs/sales/proposal-from-a-call/start {"answers":{"earlier":"e0000000-0000-4000-8000-000000000020"},"versions":1}',
+    'GET /api/jobs/sales/proposal-from-a-call', 'GET /api/jobs/sales/proposal-from-a-call', 'GET /api/tasks/STH-20',
+    'POST /api/jobs/sales/proposal-from-a-call/start {"answers":{},"from":"STH-20","versions":3}',
+    'GET /api/jobs/sales/proposal-from-a-call', 'GET /api/jobs/sales/proposal-from-a-call',
+    'GET /api/jobs/sales/proposal-from-a-call',
+    'POST /api/jobs/sales/proposal-from-a-call/start {"answers":{"earlier":"e0000000-0000-4000-8000-000000000020"}}',
+    'GET /api/jobs/sales/proposal-from-a-call', 'GET /api/jobs/sales/proposal-from-a-call',
+    'POST /api/brain/starters {"ids":["captions"]}', 'GET /api/jobs/sales/proposal-from-a-call',
+  ];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});

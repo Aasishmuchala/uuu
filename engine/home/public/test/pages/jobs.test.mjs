@@ -254,3 +254,54 @@ test("jobs: the card is the click and the ring is round the card; the bar at 32 
   assert.match(src, /<\$\{Chip\} icon=\$\{f\.ready \? "check" : undefined\} on=\$\{f\.ready\}/, "Ready only says its state as a toggle chip");
   assert.match(src, /placeholder=\$\{W\.search\}/);
 });
+
+// ---- Mounted in the test DOM with a fake fetch (PLAN-3D-ALL U11). ----
+const { FakeElement, html, render, installDom, elements, classesOf, walkDom, fire } = await import("../kit/_dom.mjs");
+const { AppContext } = await import("../../lib/context.js");
+
+async function mountJobs(data, { query = "", brain = brainShape, status = 200 } = {}) {
+  installDom();
+  globalThis.document.visibilityState = "visible";
+  globalThis.location = { hash: `#/jobs${query ? `?${query}` : ""}`, href: `/#/jobs${query ? `?${query}` : ""}`, search: "", pathname: "/" };
+  const calls = [];
+  const real = globalThis.fetch;
+  const answer = (code, body) => ({ ok: code < 400, status: code, json: async () => body });
+  globalThis.fetch = async (path, opts = {}) => {
+    calls.push(`${opts.method || "GET"} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}`);
+    if (String(path) === "/api/brain") return answer(200, brain);
+    return status === 200 ? answer(200, data) : answer(status, { error: { code: "error", message: "The jobs could not be read." } });
+  };
+  const tops = [];
+  const ctx = { shell: { company: { name: "Sthyra" } }, setTop: (t) => tops.push(t), announce() {}, openComposer() {}, settings: { motion: "off", theme: "dark" } };
+  const root = new FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${mod.default} route=${{ id: "jobs", parts: ["jobs"], query: new URLSearchParams(query) }} /><//>`, root);
+  await new Promise((r) => setTimeout(r, 300));
+  return { root, calls, tops, done: () => { render(null, root); root.remove(); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+test("jobs: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const seen = [];
+  for (const [data, opts] of [[CATALOGUE, {}], [jobsShape, {}], [CATALOGUE, { query: "d=sales&handoff=you-approve&stage=4&show=ready&q=call" }],
+    [CATALOGUE, { query: "view=order" }], [CATALOGUE, { query: "view=order", brain: { basics: { items: [] } } }], [{ departments: [] }, {}], [null, { status: 503 }]]) {
+    const m = await mountJobs(data, opts);
+    try { seen.push(...m.calls); } finally { m.done(); }
+  }
+  // Words typed in the search and Ready only pressed change the address alone.
+  const m = await mountJobs(CATALOGUE);
+  const was = globalThis.history;
+  globalThis.history = { state: null, replaceState() {} };
+  try {
+    const box = elements(m.root).find((e) => e.localName === "input" && e.getAttribute("type") === "search");
+    fire(box, "input", { target: { value: "call" } });
+    await new Promise((r) => setTimeout(r, 300));
+    const chip = elements(m.root).find((e) => e.localName === "button" && classesOf(e).includes("k-chip"));
+    fire(chip, "click");
+    await new Promise((r) => setTimeout(r, 300));
+    seen.push(...m.calls);
+  } finally { m.done(); globalThis.history = was; }
+  // Recorded on the page before PLAN-3D-ALL U11 changed it.
+  const RECORDED = ["GET /api/jobs", "GET /api/jobs", "GET /api/jobs", "GET /api/jobs", "GET /api/brain", "GET /api/jobs", "GET /api/brain", "GET /api/jobs", "GET /api/jobs", "GET /api/jobs"];
+  assert.deepEqual(seen, RECORDED);
+  for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});
