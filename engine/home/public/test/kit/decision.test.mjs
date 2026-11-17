@@ -571,3 +571,13 @@ test("T97: a choice that cannot be taken is plainly inert: the third ink, the in
   assert.match(mark[1], /border: 0;/);
   assert.match(mark[1], /background: var\(--line\);/);
 });
+
+// PLAN-3D-ALL U16: on paper the sheet is the card's surface; a card straight on it draws no edge of its own.
+test("DecisionCard on paper: no edge, ground or shadow of its own, its inset kept", () => {
+  const m = /\[data-surface="paper"\] > \.k-decision \{([^}]*)\}/.exec(css("kit/decision.css"));
+  assert.ok(m, "the paper rule");
+  assert.match(m[1], /border-color: transparent;/);
+  assert.match(m[1], /background: transparent;/);
+  assert.match(m[1], /box-shadow: none;/);
+  assert.doesNotMatch(m[1], /padding/);
+});

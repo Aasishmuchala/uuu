@@ -27,6 +27,14 @@
   box-shadow: none;
 }
 
+/* On paper the sheet is the card's surface (PLAN-3D-ALL U16): a card laid straight on a sheet (kit/sheet.js, a paper
+   dialog, Needs you's sheet) draws no edge, ground or shadow of its own and keeps its inset. */
+[data-surface="paper"] > .k-decision {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
 .k-decision--compact {
   gap: var(--s-2);
   padding: var(--s-3) var(--s-4);
