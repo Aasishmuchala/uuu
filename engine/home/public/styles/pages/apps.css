@@ -77,7 +77,6 @@
 .p-apps .p-apps__spend,
 .p-apps .p-apps__fact { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .p-apps .p-apps__spend { font-variant-numeric: tabular-nums; }
-.p-apps .p-apps__spend .p-money { color: var(--ink); font-weight: var(--fw-medium); }
 .p-apps .p-apps__facts .k-icon { flex: none; color: var(--ink-3); }
 .p-apps .p-apps__hint { flex: 0 1 auto; margin: 0; color: var(--ink-2); font-size: var(--fs-note); line-height: var(--lh-note); }
 .p-apps .p-apps__hint a { color: var(--ink); text-underline-offset: 2px; }

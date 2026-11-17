@@ -41,7 +41,6 @@
 /* What it may spend today: the server's words, the amounts in tabular figures and the first ink. */
 .p-app .p-app__money { flex: 0 1 auto; min-width: 0; }
 .p-app .p-app__money-words { color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.p-app .p-app__money-words .p-money { color: var(--ink); font-weight: var(--fw-medium); }
 
 /* The controls at the right, one height (32 px): the model as a quiet text menu (its words in the second ink, no
    edge until the pointer is on it), Stop spending as the kit's small edged danger (or Allow spending, a ghost), Turn

@@ -167,8 +167,10 @@ export function initials(name) {
 export function moneyParts(text) {
   return String(text ?? "").split(/(\$[0-9][0-9,]*(?:\.[0-9]+)?)/).filter((t) => t !== "").map((t) => (/^\$[0-9]/.test(t) ? { text: t, money: true } : { text: t }));
 }
+// PLAN-3D-ALL U17: the sentence is shown as one whole text node (S1), its amounts in the box's tabular figures; it
+// is no longer cut into words and amounts (moneyParts stays for what reads the amounts apart).
 export function MoneyWords({ text, cls }) {
-  return html`<span class=${cls}>${moneyParts(text).map((p) => (p.money ? html`<span class="p-money">${p.text}</span>` : p.text))}</span>`;
+  return html`<span class=${cls}>${String(text ?? "")}</span>`;
 }
 
 // The list's filter: "all", "on" (switched on) or "off". -> the apps it keeps.

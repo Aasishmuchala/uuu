@@ -672,6 +672,8 @@ test("apps: each app's full sentence beside Turn on is one whole text node, exac
     const spend = byCls(m.root, "p-apps__spend");
     assert.equal(spend.length, 1);
     assert.equal(textOf(spend[0]), "Allowed today: $5.00. Spent: $1.20.", "the money words as sent, whole");
+    // PLAN-3D-ALL U17: one whole text node too, no longer cut round its amounts.
+    assert.equal(nodes.filter((n) => n.data === "Allowed today: $5.00. Spent: $1.20.").length, 1, "the money words, one text node");
   } finally { m.done(); }
   const css = readFileSync(join(PUBLIC, "styles", "pages", "apps.css"), "utf8");
   for (const sel of ["p-apps__trust", "p-apps__spend", "p-apps__facts", "p-apps__list", "p-apps__rows", "p-apps__tile", "p-apps__info"]) {
