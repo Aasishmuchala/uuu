@@ -8,13 +8,16 @@
 // proposed beside each part. One Save sends the whole kit, whichever part is open.
 // Nothing an agent wrote is ever set as HTML: a proposal's values are shown as text, a colour only after it passed
 // the hex pattern, a face only after it passed the family pattern, a picture only from the brain's own raw address.
+// PLAN-3D-ALL U9: the part's name and its line stand in the room header (kit/room.js), the book wall's glimpse
+// behind them, above the list of parts and the column; DocLayout draws no head, so the band's h1 is the one. The
+// form, the swatches and the pickers stay on the ground and panels, never on paper: an owner's colour is shown true.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { bytes, fileToken, fullWhen } from "../lib/format.js";
 import {
-  Button, Card, DataTable, DocLayout, ErrorNotice, Field, FilePicker, Group, Icon, Loading, Notice, Row, Rows, Select,
-  StatusDot, Switch, Tag, TextArea, TextInput,
+  Button, Card, DataTable, DocLayout, ErrorNotice, Field, FilePicker, glimpseFor, Group, Icon, Loading, Notice, RoomHeader, Row,
+  Rows, Select, StatusDot, Switch, Tag, TextArea, TextInput,
 } from "../kit/index.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -569,6 +572,23 @@ function goToPart() {
   const head = document.getElementById("page-title");
   if (typeof window.scrollTo === "function") window.scrollTo(0, 0);
   if (head) head.focus({ preventScroll: true });
+}
+
+// True while the window is 860 px wide or more: only then does the band ask for its picture (as Settings: on a
+// phone the band is a 56 px title strip, so the form starts high and the shelves' many colours never sit beside the
+// owner's). Read at once, so a phone never asks for it, and kept up with the window.
+const WIDE = "(min-width: 860px)";
+function useWide() {
+  const read = () => typeof matchMedia !== "function" || matchMedia(WIDE).matches === true;
+  const [wide, setWide] = useState(read);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return undefined;
+    const mq = matchMedia(WIDE);
+    const again = () => setWide(mq.matches === true);
+    if (mq.addEventListener) mq.addEventListener("change", again);
+    return () => { if (mq.removeEventListener) mq.removeEventListener("change", again); };
+  }, []);
+  return wide;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1253,6 +1273,7 @@ function Editor({ view, reload, section, proposalRef }) {
   const offers = offersOf({ proposal: view.proposal, oldKit: view.fromOldForm ? view.kit : null, families: view.fontsOnThisMac });
   const proposal = obj(view.proposal) ? view.proposal : null;
   const here = SECTIONS.find((s) => s.id === section) || SECTIONS[0];
+  const wide = useWide();
 
   // A new section starts at the top, and on a phone its name is brought into the row of names; a refusal in
   // another section is shown once that section is drawn.
@@ -1341,8 +1362,10 @@ function Editor({ view, reload, section, proposalRef }) {
 
   const sections = SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon, href: sectionHref(s.id, proposalRef), status: lines[s.id] }));
 
+  const line = lines[here.id];
   return html`<div class=${`p-brand-kit p-brand-kit--${here.id}`}>
-    <${DocLayout} title=${here.label} state=${lines[here.id]} intro=${INTROS[here.id]} sections=${sections} current=${here.id}>
+    <${RoomHeader} glimpse=${wide ? glimpseFor("files") : null} title=${here.label} state=${line ? html`<${Tag} tone=${line.tone}>${line.text}<//>` : null} />
+    <${DocLayout} intro=${INTROS[here.id]} sections=${sections} current=${here.id}>
       <div class="p-brand-kit__top">
         ${view.problem ? html`<${Notice} tone="bad" title=${PROBLEMS[view.problem] || "Part of the brand kit could not be read."} />` : null}
         ${outcome && outcome.kind === "saved" ? html`<${Notice} tone="ok" title=${WORDS.saved} />` : null}
@@ -1398,12 +1421,14 @@ export default function BrandKitPage({ route }) {
   const state = viewState(res);
   const reload = () => { setRound((n) => n + 1); res.reload(); };
   const here = SECTIONS.find((s) => s.id === section) || SECTIONS[0];
+  const wide = useWide();
   useTop(here, ref);
 
   if (state === "ready") return html`<${Editor} key=${`${address}-${round}-${res.data.version || "new"}`} view=${res.data} reload=${reload} section=${section} proposalRef=${ref} />`;
   const sections = SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon, href: sectionHref(s.id, ref) }));
   return html`<div class="p-brand-kit">
-    <${DocLayout} title="Brand kit" intro=${WORDS.lead} sections=${sections} current=${section}>
+    <${RoomHeader} glimpse=${wide ? glimpseFor("files") : null} title="Brand kit" />
+    <${DocLayout} intro=${WORDS.lead} sections=${sections} current=${section}>
       <div class="p-brand-kit__top">
         ${state === "loading" ? html`<${Loading} lines=${6} label="Opening the brand kit" />` : null}
         ${state === "restart" ? html`<${Restart} />` : null}

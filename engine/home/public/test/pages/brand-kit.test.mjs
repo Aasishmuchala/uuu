@@ -357,3 +357,101 @@ test("brand kit: Save sends what it sent before, and is enabled only once someth
   assert.deepEqual(posts, RECORDED);
   } finally { k.done(); }
 });
+
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const byCls = (root, c) => elements(root).filter((e) => classesOf(e).includes(c));
+const within = (el, root) => { for (let p = el; p; p = p.parentNode) if (p === root) return true; return false; };
+
+test("brand kit: the part's name and its line stand in the room header with the shelves' glimpse; one h1, crumbs as before (PLAN-3D-ALL U9)", async () => {
+  for (const query of ["", "s=colours", "s=references"]) {
+    const k = await mountKit(query);
+    try {
+      const band = elements(k.root).filter((e) => e.localName === "header" && classesOf(e).includes("k-room"));
+      assert.equal(band.length, 1);
+      assert.equal(band[0].getAttribute("data-glimpse"), "shelves");
+      const h1 = elements(k.root).filter((e) => e.localName === "h1");
+      assert.equal(h1.length, 1, "one h1");
+      assert.equal(h1[0].getAttribute("id"), "page-title");
+      assert.ok(within(h1[0], band[0]));
+      assert.equal(textOf(h1[0]), m.SECTIONS.find((s) => s.id === m.sectionOf(new URLSearchParams(query))).label);
+      assert.equal(byCls(band[0], "k-tag").length, 1, "the part's line is the band's state");
+      assert.equal(byCls(k.root, "k-doc__head").length, 0, "DocLayout draws no head");
+      assert.equal(byCls(k.root, "k-doc__intro").length, 1, "the part's intro stays in the column");
+      const band0 = elements(band[0]).filter((e) => e.localName === "img");
+      assert.equal(band0.length, 1);
+      assert.equal(band0[0].getAttribute("src"), glimpseSrc("shelves", { theme: "dark", width: 1280 }));
+      assert.deepEqual(k.tops.at(-1).crumbs.map((c) => c.label), ["Files", "Brand kit", textOf(h1[0])], "the crumbs as before");
+    } finally { k.done(); }
+  }
+});
+
+test("brand kit: the form and the owner's colours are never on paper or under a tint; a swatch shows the colour as saved (PLAN-3D-ALL U9)", async () => {
+  const k = await mountKit("s=colours");
+  try {
+    assert.equal(elements(k.root).filter((e) => e.getAttribute("data-surface")).length, 0, "no paper, no over: the form stays on the ground");
+    const sw = byCls(k.root, "p-brand-kit__swatch");
+    assert.ok(sw.length >= 2);
+    for (const [i, el] of sw.entries()) {
+      const want = m.safeHex(view.kit.colours[i].hex);
+      assert.equal(el.style.background, want, "the swatch is the colour as saved");
+    }
+  } finally { k.done(); }
+  assert.ok(!/data-surface|<\$\{Sheet\}/.test(SOURCE), "no paper on this page");
+  const css = readFileSync(new URL("../../styles/pages/brand-kit.css", import.meta.url), "utf8");
+  for (const sel of ["__swatch", "__chip", "__ground", "__pair", "__specimen", "__thumb"]) {
+    for (const [, body] of css.matchAll(new RegExp(`\\.p-brand-kit__?[a-z-]*${sel}[^{]*\\{([^}]*)\\}`, "g"))) {
+      assert.ok(!/opacity|filter|mix-blend|color-mix|gradient/.test(body), `${sel}: the owner's colour is shown true`);
+    }
+  }
+  const [wide, phone] = [...css.matchAll(/\.p-brand-kit > \.k-room \{([^}]*)\}/g)].map((x) => x[1]);
+  assert.match(wide, /min-height: 96px;/, "the kit's smallest band, so the form stays quick to reach");
+  assert.match(phone, /min-height: 56px;/, "a phone: a title strip");
+  assert.match(SOURCE, /<\$\{RoomHeader\} glimpse=\$\{wide \? glimpseFor\("files"\) : null\}/, "no picture asked for below 860 px");
+});
+
+test("brand kit: hostile server text stays text: no script, img, iframe or object beyond the band's and the brain's own; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const tags = (root) => ["script", "img", "iframe", "object"].map((t) => elements(root).filter((e) => e.localName === t).length);
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const kit = view.kit;
+  const hostileView = {
+    ...view,
+    kit: {
+      ...kit, name: bad(0),
+      colours: kit.colours.map((c, i) => ({ ...c, name: bad(i + 1) })),
+      voice: { ...kit.voice, words: HOSTILE.slice(0, 5), is: bad(2), do: [bad(3)], dont: [bad(4)], signoff: bad(5) },
+      references: kit.references.map((r, i) => ({ ...r, note: bad(i + 6) })),
+      public: { summary: bad(1) },
+    },
+    fontsOnThisMac: [...view.fontsOnThisMac, bad(0)],
+    playbooks: [...view.playbooks, { name: bad(2), roles: [bad(3)], kinds: [bad(4)] }],
+    proposal: { ...view.proposal, problem: null, from: bad(0), values: { name: bad(1), colours: [{ name: bad(2), hex: bad(3), role: "main" }], voice: { words: [bad(4)], do: [bad(5)] } }, dropped: [bad(6)] },
+  };
+  const hostileFolder = { files: [{ ...FOLDER.files[0], name: bad(0) }], forms: [] };
+  for (const query of ["", "s=colours", "s=type", "s=pictures", "s=words", "s=references", "proposal=STH-12&s=colours"]) {
+    const s = await mountKit(query);
+    let base;
+    try { base = tags(s.root); } finally { s.done(); }
+    const k = await mountKit(query, kitAnswers(hostileView, hostileFolder));
+    try {
+      // No new element of these kinds (a logo whose file name no longer matches is simply not drawn: one fewer).
+      tags(k.root).forEach((n, i) => assert.ok(n <= base[i], `${query}: ${n} > ${base[i]}`));
+      for (const e of elements(k.root)) {
+        for (const a of Object.keys(e.attrs)) assert.ok(!/^on/i.test(a), `no ${a}`);
+        for (const h of HOSTILE) {
+          for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+          assert.ok(!String((e.style && e.style.background) || "").includes(h), "no fixture text in a style");
+        }
+        if (e.localName === "img" && e.getAttribute("aria-hidden") === "true" && classesOf(e).includes("k-room__img")) {
+          assert.ok(GLIMPSES.some((g) => glimpseSrc(g, { theme: "dark", width: 1280 }) === e.getAttribute("src")), "the band's picture is a table key's");
+        } else if (e.localName === "img") {
+          assert.match(String(e.getAttribute("src")), /^\/api\/brain\/raw\/[A-Za-z0-9_-]+$/, "a picture only from the brain's own raw address");
+        }
+      }
+      if (query === "proposal=STH-12&s=colours") {
+        const nodes = [...walkDom(k.root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+        assert.ok(nodes.includes(bad(2)), "a proposed colour's hostile name is a text node");
+      }
+    } finally { k.done(); }
+  }
+});

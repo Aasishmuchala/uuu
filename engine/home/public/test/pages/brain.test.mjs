@@ -237,3 +237,37 @@ test("brain: a new file sends what it sent before: opening each way, and saving 
   ];
   assert.deepEqual(seen, RECORDED);
 });
+
+const { HOSTILE } = await import("../../world/fixtures.js");
+
+test("brain: hostile server text stays text in a new file and the readiness panel: no new script, img, iframe or object; no on* attribute; no fixture text in href, src or style; nothing on paper (PLAN-3D-ALL)", async () => {
+  const tags = (root) => ["script", "img", "iframe", "object"].map((t) => elements(root).filter((e) => e.localName === t).length);
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const facts = {
+    ...FACTS,
+    folders: FACTS.folders.map((f, i) => ({ ...f, title: bad(i), about: bad(i + 1) })),
+    basics: { ...FACTS.basics, items: FACTS.basics.items.map((b, i) => ({ ...b, title: bad(i + 2) })) },
+  };
+  const form = { ...FORM, form: { ...FORM.form, title: bad(3), fields: [{ id: "what", label: bad(4), hint: bad(5), kind: "text", required: true }, { id: "tone", label: bad(6), kind: "list", max: 3 }] }, values: { what: bad(0) } };
+  const answer = (p) => (String(p).startsWith("/api/brain/forms/") ? form : String(p) === "/api/brain" ? facts : {});
+  const check = (root, base, what) => {
+    tags(root).forEach((n, i) => assert.ok(n <= base[i], `${what}: no new ${["script", "img", "iframe", "object"][i]}`));
+    for (const e of elements(root)) {
+      for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+      for (const h of HOSTILE) for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+      assert.equal(e.getAttribute("data-surface"), null, "the new-file form and the readiness rows are never on paper");
+    }
+  };
+  for (const mode of ["", "paste", "upload", "form", "form:about"]) {
+    const s = await mountBrain({ mode, folder: "company", onDone() {} });
+    let base;
+    try { base = tags(s.root); } finally { s.done(); }
+    const b = await mountBrain({ mode, folder: "company", onDone() {} }, answer);
+    try { check(b.root, base, mode); } finally { b.done(); }
+  }
+  const r = await mountBrain({ C: Readiness, brain: facts });
+  try {
+    check(r.root, [0, 0, 0, 0], "readiness");
+    assert.ok([...walkDom(r.root)].some((n) => n.nodeType === 3 && n.data === bad(2)), "a basic's hostile title is a text node");
+  } finally { r.done(); }
+});

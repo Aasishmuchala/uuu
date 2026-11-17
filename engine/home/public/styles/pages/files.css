@@ -4,10 +4,55 @@
    tokens only (V2 11.2, V3 27.3).
    Fix round R5 (R5-H): a row's tile is the kit's Tile in its kind's tint; the size and the time one group at the
    list's right edge; a place's count stands beside its name. Fix round R6 (R6-H): one column as wide as the pane up
-   to 1040 px for every block of the set; the list flat, rows 48 px. */
+   to 1040 px for every block of the set; the list flat, rows 48 px.
+   PLAN-3D-ALL U9: the title, the grey line and + New stand in the room header (kit/room.css), the book wall's
+   glimpse behind them, above the places and the set, as Settings' band stands above its frame. The lists stay on
+   the ground; a row under the pointer or the keyboard stands in the lamp's pool. An opened text file and each
+   agent's lessons are read on paper (kit/sheet.css). */
 
 .p-files {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  min-height: calc(100vh - var(--topbar-h));
+}
+
+/* The band: inset from the pane's edges, one layer above the frame so + New's open menu covers what is under it.
+   At dusk the scrim is thinned so the shelves read behind the title (the checkpoint's lesson: a band whose picture
+   hardly shows earns nothing); the left, under the words, stays dense enough for the title and its line. */
+.p-files > .k-room {
+  z-index: 1;
+  min-height: 120px;
+  margin: var(--s-3) var(--s-5) 0;
+  padding-top: var(--s-5);
+  padding-bottom: var(--s-5);
+}
+
+.p-files > .k-room .k-room__img {
+  object-position: 70% 40%;
+}
+
+.p-files > .k-room .k-room__scrim {
+  opacity: 0.8;
+}
+
+/* A file's name can be anything: the title wraps wherever it must, never runs out of the band. */
+.p-files > .k-room .k-page-header__title {
+  overflow-wrap: anywhere;
+}
+
+.p-files > .k-room .k-page-header__lede {
+  max-width: 64ch;
+}
+
+.p-files > .k-doc--layout {
+  flex: 1;
+  min-height: 0;
+}
+
+/* The set starts 24 px under the band, level with the places. */
+.p-files .k-doc__main {
+  padding-top: var(--s-6);
 }
 
 /* ---- the frame: the places at the left, the set wide enough for rows with their facts */
@@ -71,30 +116,7 @@
   margin-bottom: 0;
 }
 
-/* ---- the grey line, with + New at the right */
-
-.p-files .p-files__lead {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--s-4);
-  margin-top: var(--s-1);
-  min-width: 0;
-}
-
-.p-files .p-files__lead-line {
-  max-width: 64ch;
-  color: var(--ink-2);
-  font-size: var(--fs-fact);
-  line-height: var(--lh-fact);
-}
-
-.p-files .p-files__new {
-  flex: none;
-  margin-top: calc(-1 * var(--s-8));
-}
-
-/* + New: the page's one filled primary. */
+/* + New, in the band's actions: the page's one filled primary. */
 .p-files .p-files__new .k-menu__trigger {
   border-color: transparent;
   background: var(--accent-fill);
@@ -128,7 +150,6 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
-  margin-top: var(--s-6);
   min-width: 0;
 }
 
@@ -320,8 +341,9 @@
   transition: background-color var(--t-fast) var(--ease);
 }
 
-.p-files a.p-files__row-link:hover {
-  background: var(--ctl);
+.p-files a.p-files__row-link:hover,
+.p-files a.p-files__row-link:focus-visible {
+  background: var(--lamp-pool);
 }
 
 .p-files a.p-files__row-link:focus-visible {
@@ -516,7 +538,12 @@
   content: counter(basic);
 }
 
-/* What agents learned: each agent a group, its lessons one line each with the date at the right. */
+/* What agents learned: each agent a group, its lessons one line each with the date at the right, on paper (the
+   sheet's reading inset is for a document; a few lines take a slimmer one). */
+.p-files .p-files__lessons .k-sheet {
+  padding: var(--s-1) var(--s-5);
+}
+
 .p-files .p-files__lessons > .k-group:first-child {
   margin-top: var(--s-6);
 }
@@ -583,7 +610,6 @@
   grid-template-columns: minmax(0, 1fr) 264px;
   align-items: start;
   gap: var(--s-8);
-  margin-top: var(--s-6);
 }
 
 .p-files .p-files__reading {
@@ -601,6 +627,15 @@
 
 .p-files .p-files__doc .k-doc {
   max-width: 68ch;
+}
+
+/* On paper the sheet is the frame (its edge, shadow and measure): the document inside draws none of its own. */
+.p-files .k-sheet > .p-files__doc--paper {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
 
 .p-files .p-files__doc .k-doc__heading:empty {
@@ -785,6 +820,7 @@
 
   .p-files .p-files__open {
     grid-template-columns: minmax(0, 1fr);
+    margin-top: var(--s-4);
   }
 
   .p-files .p-files__rail {
@@ -794,14 +830,26 @@
 
 /* ---- a phone: the bar stacks and every control is 44 px tall */
 @media (max-width: 859px) {
-  .p-files .p-files__lead {
-    flex-direction: column;
-    align-items: stretch;
+  /* A phone: the band is a title strip with no picture (files.js asks for none below 860 px); + New stays beside
+     the title, and the grey line under them. */
+  .p-files > .k-room {
+    min-height: 56px;
+    margin: var(--s-2) var(--s-3) 0;
+    padding: var(--s-3) var(--s-4);
+    justify-content: center;
   }
 
-  .p-files .p-files__new {
-    align-self: flex-start;
-    margin-top: var(--s-2);
+  .p-files > .k-room .k-page-header__row {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .p-files > .k-room .k-page-header__titles {
+    min-width: 0;
+  }
+
+  .p-files .k-doc__main {
+    padding-top: var(--s-3);
   }
 
   .p-files .p-files__toolbar {

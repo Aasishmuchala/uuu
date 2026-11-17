@@ -4,6 +4,45 @@
    passed the kit's patterns, and only inside the boxes that show them (swatches, grounds, samples): the screen's own
    chrome stays grey and in the system face, so the owner's colours are the only colour on it. */
 
+/* PLAN-3D-ALL U9: the part's name and its line stand in the room header (kit/room.css), the book wall's glimpse
+   behind them, above the list of parts and the column, as Settings' band stands above its frame: the kit's smallest
+   band (96 px), so the form stays as quick to reach as before. The form, the swatches, the grounds and the pickers
+   stay on the ground and panels: no paper, no tint, no scrim over an owner's colour. */
+.p-brand-kit {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--topbar-h));
+}
+
+.p-brand-kit > .k-room {
+  min-height: 96px;
+  margin: var(--s-3) var(--s-5) 0;
+  padding-top: var(--s-4);
+  padding-bottom: var(--s-4);
+}
+
+.p-brand-kit > .k-room .k-room__img {
+  object-position: 70% 40%;
+}
+
+/* At dusk the scrim is thinned so the shelves read behind the title; the left, under the words, stays dense. */
+.p-brand-kit > .k-room .k-room__scrim {
+  opacity: 0.8;
+}
+
+.p-brand-kit > .k-doc--layout {
+  flex: 1;
+  min-height: 0;
+}
+
+.p-brand-kit .k-doc__main {
+  padding-top: var(--s-6);
+}
+
+.p-brand-kit .k-doc__main > .k-doc__intro:first-child {
+  margin-top: 0;
+}
+
 .p-brand-kit p {
   margin: 0;
 }
@@ -938,6 +977,18 @@
 
 /* ---- A phone, or any narrow window */
 @media (max-width: 859px) {
+  /* A phone: the band is a 56 px title strip with no picture (brand-kit.js asks for none below 860 px). */
+  .p-brand-kit > .k-room {
+    min-height: 56px;
+    margin: var(--s-2) var(--s-3) 0;
+    padding: var(--s-2) var(--s-4);
+    justify-content: center;
+  }
+
+  .p-brand-kit .k-doc__main {
+    padding-top: var(--s-3);
+  }
+
   .p-brand-kit .p-brand-kit__stages {
     gap: var(--s-2);
     padding: var(--s-3);

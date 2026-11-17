@@ -401,3 +401,143 @@ test("files: an opened file's actions send what they sent before: share, move, d
   ];
   assert.deepEqual(sent, RECORDED);
 });
+
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const byCls = (root, c) => elements(root).filter((e) => classesOf(e).includes(c));
+const within = (el, root) => { for (let p = el; p; p = p.parentNode) if (p === root) return true; return false; };
+const paperOf = (el) => { for (let p = el; p; p = p.parentNode) if (p.getAttribute && p.getAttribute("data-surface") === "paper") return p; return null; };
+
+test("files: the title, the grey line and + New stand in the room header with the shelves' glimpse; one h1, the frame draws no head (PLAN-3D-ALL U9)", async () => {
+  for (const [parts, query, title] of [[["files"], "", "Files"], [["files", "brand"], "", null], [["files"], "tab=lessons", "What agents learned"], [["files"], `file=${file.token}`, "brand.md"]]) {
+    const m = await mountFiles(parts, query);
+    try {
+      const band = elements(m.root).filter((e) => e.localName === "header" && classesOf(e).includes("k-room"));
+      assert.equal(band.length, 1, query);
+      assert.equal(band[0].getAttribute("data-glimpse"), "shelves");
+      const h1 = elements(m.root).filter((e) => e.localName === "h1");
+      assert.equal(h1.length, 1, "one h1");
+      assert.equal(h1[0].getAttribute("id"), "page-title");
+      assert.ok(within(h1[0], band[0]), "the h1 is the band's");
+      if (title) assert.equal(textOf(h1[0]), title);
+      assert.equal(byCls(m.root, "k-doc__head").length, 0, "DocLayout draws no head");
+      const img = elements(m.root).filter((e) => e.localName === "img");
+      assert.equal(img.length, 1, "one picture: the band's");
+      assert.equal(img[0].getAttribute("src"), glimpseSrc("shelves", { theme: "dark", width: 1280 }));
+      assert.equal(img[0].getAttribute("alt"), "");
+      assert.equal(elements(m.root).filter((e) => e.localName === "canvas").length, 0, "a surface screen has no canvas");
+      const isFile = query.startsWith("file=");
+      assert.equal(byCls(band[0], "p-files__new").length, isFile ? 0 : 1, "+ New is the band's action, not on an opened file");
+      if (!isFile) assert.ok(byCls(band[0], "k-page-header__lede").length === 1, "the grey line is the band's lede");
+      assert.equal(m.tops.at(-1).crumbs[0].label, "Files", "the crumbs as before");
+    } finally { m.done(); }
+  }
+  installDom();
+  globalThis.location = { hash: "#/files?glimpse=off", href: "/#/files?glimpse=off", search: "", replace() {} };
+  const bare = await (async () => {
+    const real = globalThis.fetch;
+    const data = filesAnswers();
+    globalThis.fetch = async (p) => ({ ok: true, status: 200, json: async () => data(p) });
+    const root = new FakeElement("div");
+    globalThis.document.body.appendChild(root);
+    render(html`<${AppContext.Provider} value=${{ setTop() {}, announce() {}, settings: {} }}><${mod.default} route=${{ id: "files", parts: ["files"], query: new URLSearchParams() }} /><//>`, root);
+    await settle();
+    const out = { img: elements(root).filter((e) => e.localName === "img").length, bare: byCls(root, "k-room--bare").length };
+    render(null, root); root.remove(); globalThis.fetch = real; delete globalThis.location;
+    return out;
+  })();
+  assert.deepEqual(bare, { img: 0, bare: 1 }, "glimpse=off: the band alone");
+});
+
+test("files: what is read is on paper (an opened text or Markdown file, each agent's lessons); the lists, a table and the forms are not (PLAN-3D-ALL U9, D4)", async () => {
+  const m = await mountFiles(["files"], `file=${file.token}`);
+  try {
+    const doc = byCls(m.root, "k-doc").filter((e) => !classesOf(e).includes("k-doc--layout"));
+    assert.equal(doc.length, 1, "the Markdown file is the kit's document");
+    const sheet = paperOf(doc[0]);
+    assert.ok(sheet && classesOf(sheet).includes("k-sheet"), "on a sheet of paper");
+    assert.equal(byCls(m.root, "k-sheet").length, 1, "only the document");
+    assert.equal(paperOf(byCls(m.root, "p-files__rail")[0]), null, "the facts and actions stay off paper");
+  } finally { m.done(); }
+  const plain = await mountFiles(["files"], `file=${file.token}`, filesAnswers({ fileData: { ...file, name: "notes.txt" }, text: "One line.\nTwo." }));
+  try {
+    const pre = byCls(plain.root, "p-files__text");
+    assert.equal(pre.length, 1);
+    assert.ok(paperOf(pre[0]), "a plain text file on paper too");
+  } finally { plain.done(); }
+  const table = await mountFiles(["files"], `file=${file.token}`, filesAnswers({ fileData: { ...file, name: "prices.csv", kind: "table" }, text: "a,b\n1,2" }));
+  try {
+    assert.equal(byCls(table.root, "k-sheet").length, 0, "a table is never on paper");
+    assert.equal(elements(table.root).filter((e) => e.getAttribute("data-surface") === "paper").length, 0);
+  } finally { table.done(); }
+  const lessons = await mountFiles(["files"], "tab=lessons");
+  try {
+    const lists = byCls(lessons.root, "p-files__lesson-list");
+    assert.equal(lists.length, 1);
+    assert.ok(paperOf(lists[0]), "a lesson's words on paper");
+  } finally { lessons.done(); }
+  for (const [parts, query] of [[["files"], ""], [["files", "brand"], ""], [["files"], "q=brand"], [["files"], "new=paste"]]) {
+    const l = await mountFiles(parts, query);
+    try {
+      assert.equal(elements(l.root).filter((e) => e.getAttribute("data-surface") === "paper").length, 0, `no paper: ${parts.join("/")}?${query}`);
+    } finally { l.done(); }
+  }
+  const css = readFileSync(new URL("../../styles/pages/files.css", import.meta.url), "utf8");
+  assert.match(css, /\.p-files \.k-sheet > \.p-files__doc--paper \{\s*padding: 0;\s*border: 0;\s*border-radius: 0;\s*background: none;\s*box-shadow: none;/, "the sheet is the frame: the document draws no card of its own");
+  assert.match(css, /\.p-files \.p-files__doc \.k-doc \{\s*max-width: 68ch;/, "a reading measure");
+});
+
+test("files: the band stands above the frame, a short strip with no picture on a phone; rows answer in the lamp's pool (PLAN-3D-ALL U9)", () => {
+  const css = readFileSync(new URL("../../styles/pages/files.css", import.meta.url), "utf8");
+  const [wide, phone] = [...css.matchAll(/\.p-files > \.k-room \{([^}]*)\}/g)].map((x) => x[1]);
+  assert.match(wide, /z-index: 1;/, "+ New's open menu covers the frame under the band");
+  assert.match(wide, /min-height: 120px;/);
+  assert.match(phone, /min-height: 56px;/, "a phone: a title strip");
+  assert.match(SOURCE, /<\$\{RoomHeader\} glimpse=\$\{wide \? glimpseFor\("files"\) : null\}/, "no picture asked for below 860 px");
+  assert.match(SOURCE, /const WIDE = "\(min-width: 860px\)";/);
+  // The quiet look's control fill under the pointer was replaced by the lamp's pool (PLAN-3D-ALL U9, as U5).
+  assert.match(css, /\.p-files a\.p-files__row-link:hover,\s*\.p-files a\.p-files__row-link:focus-visible \{\s*background: var\(--lamp-pool\);/);
+  assert.match(css, /\.p-files a\.p-files__row-link:focus-visible \{\s*outline: 2px solid var\(--accent\);/, "the 2 px ring");
+  assert.match(css, /\.p-files > \.k-room \.k-page-header__title \{\s*overflow-wrap: anywhere;/, "a file's name never runs out of the band");
+  assert.ok(!/<\$\{PageHeader\}/.test(SOURCE), "PageHeader is replaced");
+});
+
+test("files: hostile server text stays text: no script, img, iframe or object beyond the band's; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const tags = (root) => ["script", "img", "iframe", "object"].map((t) => elements(root).filter((e) => e.localName === t).length);
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const hostileBrain = {
+    ...brain,
+    folders: brain.folders.map((f, i) => ({ ...f, title: bad(i), about: bad(i + 1) })),
+    basics: { ...brain.basics, items: brain.basics.items.map((b, i) => ({ ...b, title: bad(i + 2) })) },
+    starters: brain.starters.map((s, i) => ({ ...s, title: bad(i), about: bad(i + 3) })),
+    recent: brain.recent.map((f, i) => ({ ...f, name: bad(i), changedAt: bad(i + 1) })),
+  };
+  const hostile = filesAnswers({
+    brainData: hostileBrain,
+    fileData: { ...file, name: bad(0), addedAt: bad(1), changedAt: bad(2), size: bad(3) },
+    text: HOSTILE.map((h) => `# ${h}\n\n${h}`).join("\n\n"),
+    lessons: { roles: [{ slug: "writer", name: bad(1), lessons: HOSTILE }, { slug: bad(2), name: bad(3), lessons: [bad(4)] }] },
+  });
+  const brandToken = hostileBrain.folders.find((f) => f.id === "brand") ? "brand" : hostileBrain.folders[0].id;
+  for (const [parts, query] of [[["files"], ""], [["files", brandToken], ""], [["files"], `file=${file.token}`], [["files"], "tab=lessons"], [["files"], "q=brand"]]) {
+    const s = await mountFiles(parts, query);
+    let base;
+    try { base = tags(s.root); } finally { s.done(); }
+    const m = await mountFiles(parts, query, hostile);
+    try {
+      assert.deepEqual(tags(m.root), base, `${parts.join("/")}?${query}`);
+      for (const e of elements(m.root)) {
+        for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+        for (const h of HOSTILE) {
+          for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+        }
+        if (e.localName === "img") {
+          assert.ok(GLIMPSES.some((k) => [1280, 390].some((w) => ["dark", "light"].some((theme) => glimpseSrc(k, { theme, width: w }) === e.getAttribute("src")))), "the band's picture is a table key's");
+        }
+      }
+      const nodes = [...walkDom(m.root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+      if (!query && parts.length === 1) assert.ok(nodes.includes(bad(0)), "a hostile file name is a text node");
+      if (query.startsWith("file=")) assert.ok(nodes.includes(bad(0)), "a hostile name is the band's title, as text");
+    } finally { m.done(); }
+  }
+});
