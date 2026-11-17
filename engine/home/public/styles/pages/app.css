@@ -3,7 +3,10 @@
    bar, one 44 px row on the shell's ground with the shell's hairline under it (the state chip and what it may spend
    today in tabular figures; at the right the model as a quiet text menu, Turn off and More, at 32 px); under it, on the stage tone, the app's window with a 1 px edge, a 12 px corner and 16 px round it, so it
    reads as another program's page, its head a 28 px strip with what the fence does not cover. Below 860 px the bar
-   is two rows. Tokens only. */
+   is two rows. Tokens only.
+   PLAN-3D-ALL U14: no room header (the frame needs every pixel). The bar stands on the new tokens (the warm ground,
+   its hairline, the lamplight ring); nothing from the bar's lower edge to the window's changes. The allowance sheet
+   is the kit's dialog on paper (D4): its rules below read the paper scope's inks, so they hold on it unchanged. */
 .p-app {
   display: flex;
   flex-direction: column;

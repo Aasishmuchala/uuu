@@ -568,3 +568,106 @@ test("app: the frame is what it was: its sandbox is SANDBOX, SANDBOX is S2's str
     assert.equal(f[0].getAttribute("sandbox"), SANDBOX);
   } finally { m.done(); }
 });
+
+const hasCls = (e, c) => (e.getAttribute("class") || "").split(/\s+/).includes(c);
+const inside = (el, root) => { for (let x = el; x; x = x.parentNode) if (x === root) return true; return false; };
+
+test("app: the frame's lines in the source are exactly as before: the SANDBOX line, its attributes and its address (PLAN-3D-ALL U14, S2)", () => {
+  assert.ok(SRC.includes('export const SANDBOX = "allow-scripts allow-same-origin allow-forms allow-downloads";'));
+  assert.ok(SRC.includes('export const ALLOW = "fullscreen; clipboard-write";'));
+  assert.ok(SRC.includes(`            <iframe
+              key=\${address}
+              class="p-app__frame"
+              title=\${name}
+              sandbox=\${SANDBOX}
+              referrerpolicy="no-referrer"
+              allow=\${ALLOW}
+              src=\${address}
+            ></iframe>`), "the frame, line for line");
+  assert.ok(SRC.includes("const address = shown === \"on\" ? frameAddress(app) : null;"));
+  assert.ok(SRC.includes("export const frameAddress = (app) => appAddress(hostnameNow(), app && app.port);"));
+  assert.equal((SRC.match(/<iframe/g) || []).length, 1, "one frame");
+  assert.equal((SRC.match(/sandbox=/g) || []).length, 1);
+});
+
+test("app: no room header and no picture: the bar alone above the frame, one h1 (PLAN-3D-ALL U14)", async () => {
+  const m = await mount(fixed(view([app()])));
+  try {
+    assert.equal(elements(m.root).filter((e) => hasCls(e, "k-room")).length, 0, "no band");
+    assert.equal(elements(m.root).filter((e) => e.localName === "img").length, 0, "no picture");
+    const h1 = elements(m.root).filter((e) => e.localName === "h1");
+    assert.equal(h1.length, 1);
+    assert.equal(h1[0].getAttribute("id"), "page-title");
+    const page = elements(m.root).find((e) => hasCls(e, "p-app"));
+    const kids = page.childNodes.filter((c) => c.nodeType === 1).map((c) => c.getAttribute("class"));
+    assert.deepEqual(kids, ["p-app__bar", "p-app__stage"], "the bar, then the stage that holds the frame");
+  } finally { m.done(); }
+  const css = readFileSync(join(PUBLIC, "styles", "pages", "app.css"), "utf8");
+  assert.doesNotMatch(css, /k-room|glimpse|gradient/, "no band, no picture, no gradient");
+});
+
+test("app: the allowance sheet is the kit's dialog on paper, every sentence one whole text node, its buttons and their order as before (PLAN-3D-ALL U14, D4, S1, S3)", async () => {
+  const m = await mount(fixed(view([app({ spending: NOSPEND, ready: { runway: false, higgsfield: false } })])));
+  try {
+    fire(buttons(m.root, "Allow spending")[0], "click");
+    await settle();
+    const dialog = elements(m.root).find((e) => e.getAttribute("role") === "dialog");
+    assert.ok(dialog);
+    assert.equal(dialog.getAttribute("data-surface"), "paper", "the sheet is on paper");
+    const nodes = [...walk(dialog)].filter((n) => n.nodeType === 3).map((n) => n.data);
+    for (const s of [WORDS.sheetBody, "What is left of today's limit: $6.40.", WORDS.noProvider, "Let Render to Film spend today"]) {
+      assert.equal(nodes.filter((d) => d === s).length, 1, `whole: ${s}`);
+    }
+    assert.equal(nodes.filter((d) => d === WORDS.overLeft).length, 2, "the reason beside each amount over what is left");
+    const foot = elements(dialog).find((e) => hasCls(e, "k-dialog__foot"));
+    assert.deepEqual(elements(foot).filter((e) => e.localName === "button").map((b) => textOf(b).trim()), ["Cancel", "Allow $5 today"]);
+  } finally { m.done(); }
+  const css = readFileSync(join(PUBLIC, "styles", "pages", "app.css"), "utf8");
+  for (const sel of ["p-app__sheet", "p-app__sheet-body", "p-app__left", "p-app__trust", "p-app__trust-long", "p-app__notes", "p-app__money", "p-app__money-words"]) {
+    for (const r of css.matchAll(new RegExp(`\\.${sel}(?![\\w-])[^{]*\\{([^}]*)\\}`, "g"))) {
+      assert.doesNotMatch(r[1], /text-overflow|line-clamp|overflow: hidden|(^|[;\s])(max-)?height:/, `${sel}: nothing cuts a sentence's box`);
+    }
+  }
+});
+
+test("app: the sentences beside Turn on and over the frame are whole text nodes, as written; the money words whole in the bar (PLAN-3D-ALL U14, S1, ADR 0016)", async () => {
+  const off = await mount(fixed(view([app({ state: "off", on: false, spending: NOSPEND })])));
+  try {
+    const nodes = [...walk(off.root)].filter((n) => n.nodeType === 3);
+    const long = nodes.filter((n) => n.data === TRUST);
+    assert.equal(long.length, 1);
+    const card = elements(off.root).find((e) => hasCls(e, "p-app__card"));
+    assert.ok(inside(long[0], card) && buttons(card, "Turn on").length === 1, "beside Turn on");
+  } finally { off.done(); }
+  const on = await mount(fixed(view([app()])));
+  try {
+    const nodes = [...walk(on.root)].filter((n) => n.nodeType === 3);
+    assert.equal(nodes.filter((n) => n.data === TRUST_SHORT).length, 1);
+    const money = elements(on.root).find((e) => hasCls(e, "p-app__money-words"));
+    assert.equal(textOf(money), "Allowed today: $5.00. Spent: $1.20.");
+  } finally { on.done(); }
+});
+
+test("app: hostile server text stays text in the bar, the sheet and the cards: no script, img, object or second frame; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const { HOSTILE } = await import("../../world/fixtures.js");
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  for (const [i, over] of [[0, {}], [1, { state: "off", on: false }], [2, { state: "failed" }], [3, { state: "starting" }]]) {
+    const v = view([app({
+      name: bad(i), about: bad(i + 1), sentence: bad(i + 2),
+      spending: { ...NOSPEND, words: bad(i + 3), limitWords: bad(i + 4) },
+      thinks: { model: "claude-opus-5-5", name: bad(i + 5), choices: [{ id: "claude-opus-5-5", name: bad(i + 6) }] }, ...over,
+    })], { host: { state: "on", sentence: bad(i + 1) } });
+    const m = await mount(fixed(v));
+    try {
+      const allow = buttons(m.root, "Allow spending")[0];
+      if (allow) { fire(allow, "click"); await settle(); }
+      for (const t of ["script", "img", "object"]) assert.equal(elements(m.root).filter((e) => e.localName === t).length, 0, t);
+      assert.ok(frames(m.root).length <= 1);
+      for (const f of frames(m.root)) assert.equal(f.getAttribute("src"), `${HTTP}${LOOP}:3171/`, "the frame's address is the port's, never text");
+      for (const e of elements(m.root)) {
+        for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+        for (const h of HOSTILE) for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+      }
+    } finally { m.done(); }
+  }
+});

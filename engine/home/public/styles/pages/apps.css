@@ -3,10 +3,22 @@
    rows in one card (a 32 px tile, the name 15 px 600 and the state as a one-line chip; what it does and one 13 px
    meta row in the second ink; Open and the switch, small, at the right; under them what the fence does not cover at
    12 px in the third ink); then the sites the team made as a group of cards, each its picture over its name. Content
-   on the ground inside --content-max. Tokens only. */
+   on the ground inside --content-max. Tokens only.
+   PLAN-3D-ALL U14: the title, its line and the bar stand in the room header (kit/room.css), the terrace's glimpse
+   behind them from 860 px. The band rises into the pane's top margin and keeps 16 px under it, so the first row
+   stands no more than 48 px lower than before the band (40 on a phone; D9). The rows stay on the ground; each
+   app's full sentence beside Turn on is under the band, never over the picture (ADR 0016). */
 .p-apps { display: flex; flex-direction: column; gap: var(--s-6); min-width: 0; max-width: var(--content-max); }
 .p-apps .k-page-header { margin-bottom: 0; }
 .p-apps .k-page-header__more { margin-top: var(--s-5); }
+
+/* The room header: 24 px up into the pane's top margin, 16 px over the first group. One layer above the rows. */
+.p-apps > .k-room { z-index: 1; margin-top: calc(-1 * var(--s-6)); margin-bottom: calc(-1 * var(--s-2)); }
+.p-apps > .k-room .k-page-header__lede { max-width: 64ch; }
+/* Over the picture the filter keeps the control fill and App Studio's own state its first ink, so both hold where
+   the picture is bright. */
+.p-apps > .k-room .k-seg { background: var(--ctl); }
+.p-apps > .k-room .p-apps__host .k-st { color: var(--ink); }
 
 /* The bar: the filter at the left, App Studio's state at the right, on one line while they fit. */
 .p-apps .p-apps__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); min-width: 0; }
@@ -27,7 +39,8 @@
    stretches to match another). The 32 px tile in the first column; the name, what it does and the meta row in the
    second; Open and the switch at the right on the name's line; what the fence does not cover under them, across the
    second and third columns, whole. */
-.p-apps .p-apps__list { overflow: hidden; }
+/* No overflow rule on the card: nothing in a row is ever cut, the sentence beside Turn on least of all (PLAN-3D-ALL S1). */
+.p-apps .p-apps__list { min-width: 0; }
 .p-apps .p-apps__rows { list-style: none; margin: 0; padding: 0; }
 .p-apps .p-apps__tile {
   display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: start;
@@ -103,6 +116,8 @@
 /* Below 860 px: one card a row, the bar's two halves stacked. */
 @media (max-width: 859px) {
   .p-apps { gap: var(--s-6); }
+  /* A phone: the band is a title strip with no picture (apps.js asks for none below 860 px), the bar under it. */
+  .p-apps > .k-room { min-height: 56px; margin-top: calc(-1 * var(--s-2)); margin-bottom: calc(-1 * var(--s-2)); padding: var(--s-3) var(--s-4); }
   .p-apps .p-apps__sites { grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
   .p-apps > .k-notice { align-self: stretch; max-width: none; }
   /* A row: the tile and its words, then the buttons and the sentence under the words. */

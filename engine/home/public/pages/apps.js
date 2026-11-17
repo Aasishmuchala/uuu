@@ -7,10 +7,13 @@
 // Everything comes from GET /api/apps; every POST answers the whole view again, so the page shows that answer.
 // An app's name, its line and every sentence are shown as plain capped text, never as HTML. The pure helpers here
 // are shared with pages/app.js (one app opened inside).
+// PLAN-3D-ALL U14: a surface screen. The title, its line and the bar stand in the room header (kit/room.js) with
+// the terrace's glimpse behind them, from 860 px only (on a phone the band is a title strip with no picture). The
+// rows stay on the ground; each app's full sentence stays beside Turn on, never over the picture (ADR 0016).
 import { html, useCallback, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useVisibleInterval } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
-import { Button, Card, Empty, ErrorNotice, Icon, Loading, NextStep, Notice, PageHeader, Section, Segmented, St, Tag, Tile, Time, previewAddress, safeViewUrl, siteAddress, tintFor } from "../kit/index.js";
+import { Button, Card, Empty, ErrorNotice, Icon, Loading, NextStep, Notice, RoomHeader, Section, Segmented, St, Tag, Tile, Time, glimpseFor, previewAddress, safeViewUrl, siteAddress, tintFor } from "../kit/index.js";
 
 // K23's words, as written, and the few these pages add.
 export const WORDS = {
@@ -426,7 +429,24 @@ function SiteTile({ site }) {
   <//>`;
 }
 
+// True while the window is 860 px wide or more: only then does the band ask for its picture (as Settings and Files).
+// Where the window cannot be asked (no matchMedia) the band asks for none: the page's own pictures stay the only ones.
+const WIDE = "(min-width: 860px)";
+function useWide() {
+  const read = () => typeof matchMedia === "function" && matchMedia(WIDE).matches === true;
+  const [wide, setWide] = useState(read);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return undefined;
+    const mq = matchMedia(WIDE);
+    const again = () => setWide(mq.matches === true);
+    if (mq.addEventListener) mq.addEventListener("change", again);
+    return () => { if (mq.removeEventListener) mq.removeEventListener("change", again); };
+  }, []);
+  return wide;
+}
+
 export default function AppsPage() {
+  const wide = useWide();
   const [fast, setFast] = useState(false);
   const [filter, setFilter] = useState("all");
   const view = useAppsView(fast ? 2000 : 10000);
@@ -454,7 +474,7 @@ export default function AppsPage() {
       </div>`
     : null;
   return html`<div class="p-apps">
-    <${PageHeader} title=${WORDS.title} lead=${WORDS.intro}>${bar}<//>
+    <${RoomHeader} glimpse=${wide ? glimpseFor("apps") : null} title=${WORDS.title} lead=${WORDS.intro}>${bar}<//>
     ${view.loading && !data ? html`<${Loading} label="Loading App Studio" />` : null}
     ${restart ? html`<${Restart} />` : null}
     ${view.error && !restart ? html`<${ErrorNotice} error=${view.error} onRetry=${view.reload} />` : null}

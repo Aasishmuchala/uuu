@@ -10,6 +10,9 @@
 // ready each have the kit's Empty in the window's place. In full, the sentence stands beside Turn on. The allowance
 // sheet is the kit's dialog with four radio rows in whole dollars, those over what is left of today's limit disabled
 // with the reason as text.
+// PLAN-3D-ALL U14: a surface screen with no room header (the frame needs every pixel). Only the bar is restyled, on
+// the new tokens; the frame is untouched from the bar's lower edge to the window's. The allowance sheet carries money
+// sentences, so it is the kit's dialog on paper (D4), its words, buttons, order and requests unchanged.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useApp } from "../lib/context.js";
 import { Button, Dialog, Empty, ErrorNotice, Icon, Loading, Menu, NextStep, StatusDot, Tag } from "../kit/index.js";
@@ -54,7 +57,8 @@ export function amountStep(choices, at, key) {
   return open[(here + step + open.length) % open.length];
 }
 
-// The allowance sheet (K22, K23): the kit's dialog, the amounts as radio rows drawn as the kit's single-choice rows.
+// The allowance sheet (K22, K23): the kit's dialog on paper (PLAN-3D-ALL D4), the amounts as radio rows drawn as the
+// kit's single-choice rows.
 function AllowanceSheet({ app, onClose, onAllowed }) {
   const left = app.spending.limitLeft;
   const choices = amountChoices(left);
@@ -85,7 +89,7 @@ function AllowanceSheet({ app, onClose, onAllowed }) {
   const footer = html`
     <${Button} variant="quiet" onClick=${onClose}>Cancel<//>
     <${Button} variant="primary" busy=${busy} disabled=${!cents || !ready} onClick=${allow}>${allowLabel(cents || 500)}<//>`;
-  return html`<${Dialog} open=${true} title=${sheetTitle(app.name)} size="sm" onClose=${onClose} footer=${footer}>
+  return html`<${Dialog} open=${true} paper=${true} title=${sheetTitle(app.name)} size="sm" onClose=${onClose} footer=${footer}>
     <div class="p-app__sheet">
       <p class="p-app__sheet-body">${WORDS.sheetBody}</p>
       <div class="k-decision__choices p-app__amounts" role="radiogroup" aria-label="How much it may spend today" onKeyDown=${onKey}>

@@ -604,3 +604,114 @@ test("apps: the page sends what it sent before (PLAN-3D-ALL)", async () => {
   assert.deepEqual(seen, RECORDED);
   for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
 });
+
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const hasCls = (e, c) => cls(e).split(/\s+/).includes(c);
+const byCls = (root, c) => elements(root).filter((e) => hasCls(e, c));
+const inside = (el, root) => { for (let x = el; x; x = x.parentNode) if (x === root) return true; return false; };
+// A window the page can ask: wide (1280) or a phone (390).
+async function mountAt(wide, answers) {
+  globalThis.matchMedia = (q) => ({ matches: /min-width: 860px/.test(q) ? wide : /max-width: 859px/.test(q) ? !wide : false, addEventListener() {}, removeEventListener() {} });
+  try {
+    const m = await mount(answers);
+    return { ...m, done: () => { m.done(); delete globalThis.matchMedia; } };
+  } catch (e) { delete globalThis.matchMedia; throw e; }
+}
+
+test("apps: the title, its line and the bar stand in the room header with the terrace's glimpse; one h1; the rows and their sentences under it (PLAN-3D-ALL U14)", async () => {
+  const apps = [app({ slug: "a-off", name: "Off app", state: "off", on: false, spending: NOSPEND }), app({ slug: "b-on", name: "On app" })];
+  const m = await mountAt(true, fixed(view(apps)));
+  try {
+    const band = elements(m.root).filter((e) => e.localName === "header" && hasCls(e, "k-room"));
+    assert.equal(band.length, 1);
+    assert.equal(band[0].getAttribute("data-glimpse"), "terrace");
+    const h1 = elements(m.root).filter((e) => e.localName === "h1");
+    assert.equal(h1.length, 1);
+    assert.equal(h1[0].getAttribute("id"), "page-title");
+    assert.equal(textOf(h1[0]), WORDS.title);
+    assert.ok(inside(h1[0], band[0]));
+    assert.ok(textOf(band[0]).includes(WORDS.intro), "the line under the title, as written");
+    assert.equal(byCls(band[0], "p-apps__bar").length, 1, "the filter is in the band");
+    assert.equal(byCls(m.root, "k-page-header").length, 0, "PageHeader is replaced");
+    const pics = imgs(band[0]);
+    assert.equal(pics.length, 1, "one picture in the band");
+    assert.equal(pics[0].getAttribute("src"), glimpseSrc("terrace", { theme: "dark", width: 1280 }));
+    assert.equal(pics[0].getAttribute("alt"), "");
+    assert.equal(pics[0].getAttribute("aria-hidden"), "true");
+    assert.equal(elements(m.root).filter((e) => e.localName === "canvas").length, 0, "a surface screen has no canvas");
+    // ADR 0016: each sentence stays in its row, beside its switch, never in the band over the picture.
+    for (const t of byCls(m.root, "p-apps__trust")) assert.ok(!inside(t, band[0]));
+    for (const t of byCls(m.root, "p-apps__tile")) assert.ok(!inside(t, band[0]));
+  } finally { m.done(); }
+  const phone = await mountAt(false, fixed(view(apps)));
+  try {
+    assert.equal(byCls(phone.root, "k-room").length, 1, "a phone keeps the band as a title strip");
+    assert.equal(imgs(phone.root).filter((e) => /glimpse/.test(e.getAttribute("src") || "")).length, 0, "a phone asks for no picture");
+    assert.equal(byCls(phone.root, "k-room--bare").length, 1);
+  } finally { phone.done(); }
+  const css = readFileSync(join(PUBLIC, "styles", "pages", "apps.css"), "utf8");
+  assert.match(css, /\.p-apps > \.k-room \{ z-index: 1; margin-top: calc\(-1 \* var\(--s-6\)\); margin-bottom: calc\(-1 \* var\(--s-2\)\); \}/, "up into the pane's margin, 16 px over the first group (D9)");
+  assert.match(css, /\.p-apps > \.k-room \{ min-height: 56px;/, "a phone's band is a title strip");
+  assert.ok(!/paper/.test(css.replace(/\/\*[\s\S]*?\*\//g, "")), "no paper on the list: rows are never on paper (D4)");
+});
+
+test("apps: each app's full sentence beside Turn on is one whole text node, exactly as written, and no sheet can cut it (PLAN-3D-ALL U14, S1, ADR 0016)", async () => {
+  const apps = [app({ slug: "a-off", name: "Off app", state: "off", on: false, spending: NOSPEND }), app({ slug: "b-on", name: "On app" })];
+  const m = await mountAt(true, fixed(view(apps)));
+  try {
+    const nodes = [...walk(m.root)].filter((n) => n.nodeType === 3);
+    const long = nodes.filter((n) => n.data === TRUST);
+    assert.equal(long.length, 1, "the long sentence, one text node");
+    const row = byCls(m.root, "p-apps__tile").find((t) => inside(long[0], t));
+    assert.ok(row && buttons(row, "Turn on").length === 1, "beside Turn on, in the same row");
+    assert.equal(nodes.filter((n) => n.data === TRUST_SHORT).length, 1, "the short sentence, one text node");
+    const spend = byCls(m.root, "p-apps__spend");
+    assert.equal(spend.length, 1);
+    assert.equal(textOf(spend[0]), "Allowed today: $5.00. Spent: $1.20.", "the money words as sent, whole");
+  } finally { m.done(); }
+  const css = readFileSync(join(PUBLIC, "styles", "pages", "apps.css"), "utf8");
+  for (const sel of ["p-apps__trust", "p-apps__spend", "p-apps__facts", "p-apps__list", "p-apps__rows", "p-apps__tile", "p-apps__info"]) {
+    for (const m of css.matchAll(new RegExp(`\\.${sel}(?![\\w-])[^{]*\\{([^}]*)\\}`, "g"))) {
+      assert.doesNotMatch(m[1], /text-overflow|line-clamp|overflow: hidden|(^|[;\s])(max-)?height:/, `${sel}: nothing cuts the sentence's box`);
+    }
+  }
+});
+
+test("apps: hostile server text stays text: no script, iframe or object; no img beyond the band's and the page's own; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const tags = (root) => ["script", "img", "iframe", "object"].map((t) => elements(root).filter((e) => e.localName === t).length);
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const hostileApp = (i, over) => app({
+    slug: `h-${i}`, name: bad(i), about: bad(i + 1), sentence: bad(i + 2),
+    spending: { ...clone(SHAPE.apps[0].spending), words: bad(i + 3), limitWords: bad(i + 4) },
+    thinks: { model: bad(i), name: bad(i + 5), choices: [{ id: bad(i), name: bad(i + 6) }] }, ...over,
+  });
+  const hostile = () => view([hostileApp(0), hostileApp(1, { state: "off", on: false }), hostileApp(2, { state: "failed" })], {
+    host: { state: "on", sentence: bad(3) }, problemSentence: bad(4),
+    sites: HOSTILE.map((h, i) => site({ task: { ...SITE.task, title: h }, name: h, direction: bad(i + 1), sentence: bad(i + 2) })),
+  });
+  const seeded = () => view([app({ slug: "h-0" }), app({ slug: "h-1", state: "off", on: false }), app({ slug: "h-2", state: "failed" })], {
+    problemSentence: "A problem.", sites: HOSTILE.map(() => site()),
+  });
+  const s = await mountAt(true, fixed(seeded()));
+  let base;
+  try { base = tags(s.root); } finally { s.done(); }
+  const m = await mountAt(true, fixed(hostile()));
+  try {
+    assert.deepEqual(tags(m.root), base);
+    for (const e of elements(m.root)) {
+      for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+      for (const h of HOSTILE) {
+        for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+      }
+      if (e.localName === "img") {
+        const src = e.getAttribute("src");
+        const band = GLIMPSES.some((k) => [1280, 390].some((w) => ["dark", "light"].some((theme) => glimpseSrc(k, { theme, width: w }) === src)));
+        assert.ok(band || /^\/api\/apps\/h-[0-2]\/icon$/.test(src) || src === SITE.picture, `an img only at a fixed address: ${src}`);
+      }
+    }
+    const nodes = [...walk(m.root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+    assert.ok(nodes.includes(bad(1)), "a hostile line is a text node");
+    assert.ok(nodes.includes(bad(0)), "a hostile name is a text node");
+  } finally { m.done(); }
+});
