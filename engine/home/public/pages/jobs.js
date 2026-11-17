@@ -6,8 +6,8 @@ import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { fileToken } from "../lib/format.js";
 import {
-  Button, Card, Chip, Empty, ErrorNotice, HANDOFFS, HandoffTag, Icon, JobCard, Loading, Menu, PageHeader, Ring, Segmented,
-  STAGES, StageMark, TextInput,
+  Button, Card, Chip, Empty, ErrorNotice, HANDOFFS, HandoffTag, Icon, JobCard, Loading, Menu, Ring, RoomHeader, Segmented,
+  STAGES, StageMark, TextInput, glimpseFor,
 } from "../kit/index.js";
 
 const LEAD = "Named pieces of work an agent can start for you. Starting a job makes a task.";
@@ -199,6 +199,9 @@ export function buildOrder(data, brain) {
 // and the jobs as cards two across with a 24 px gutter, each the kit's JobCard: a tile with its stage's glyph, the
 // name as the card's one link, two lines of sentence, the hand-off and stage as neutral chips. A job that cannot
 // start yet says why in words, with its link, under its chips. No creature and no department colour (O2, O7).
+// PLAN-3D-ALL U11: the studio's language, on the list pattern of Tasks (U5). The title, its sentence, the view
+// switch and the bar stand in the room header (kit/room.js), the Studio's table behind them; the departments and
+// their cards stay on the ground. A card under the pointer or the keyboard stands in the lamp's pool.
 
 // The words this page adds (T62). Pinned by test/pages/jobs.test.mjs.
 export const JOBS_WORDS = Object.freeze({
@@ -434,7 +437,7 @@ export default function JobsPage({ route }) {
   const order = f.view === "order";
 
   return html`<div class=${`p-jobs p-jobs--${f.view}`}>
-    <${PageHeader} title=${order ? "The build order" : "Jobs"}
+    <${RoomHeader} glimpse=${glimpseFor("jobs")} title=${order ? "The build order" : "Jobs"}
       lead=${order ? "Four stages, from filling the company brain to work handed from one agent to the next." : LEAD}
       crumbs=${order ? [{ label: "Jobs", href: "#/jobs" }, { label: "The build order" }] : undefined}
       actions=${html`<${ViewSwitch} f=${known} words=${words} />`}>

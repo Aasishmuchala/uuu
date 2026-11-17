@@ -4,7 +4,12 @@
    semibold with its count and a small ghost "Open <department>" on its baseline, a rule under it, and the jobs as
    cards two across with a 24 px gutter. Each card is the kit's JobCard: the name is the link and the whole card
    answers the click, the ring round the card. No glass, no creature, no department colour. The build order: four
-   stages on the ground, each with its ring and the same cards. */
+   stages on the ground, each with its ring and the same cards.
+   PLAN-3D-ALL U11: the list pattern of Tasks (U5). The title, its sentence, the view switch and the bar stand in
+   the room header, the Studio's table behind them (kit/room.css); the band rises into the pane's top margin and
+   stands a layer above the cards, so an open filter menu covers them. Over the picture the controls keep their
+   own fill. The departments and the cards stay on the ground; a card under the pointer or the keyboard stands in
+   the lamp's pool. */
 
 .p-jobs {
   display: flex;
@@ -13,12 +18,22 @@
   max-width: var(--content-max);
 }
 
-.p-jobs .k-page-header {
-  margin-bottom: var(--s-6);
+/* The room header: 24 px up into the pane's top margin, a layer above the cards, 20 px over the count line. */
+.p-jobs .k-room {
+  z-index: 1;
+  margin-top: calc(-1 * var(--s-6));
+  margin-bottom: var(--s-5);
 }
 
 .p-jobs .k-page-header__more {
   margin-top: var(--s-5);
+}
+
+/* Over the picture every control keeps its own fill, so it reads where the picture is bright. */
+.p-jobs .k-room .p-jobs__filter .k-menu__trigger,
+.p-jobs .k-room .p-jobs__ready .k-chip--toggle:not(.k-chip--on),
+.p-jobs .k-room .p-jobs__search .k-input {
+  background: var(--ctl);
 }
 
 /* The bar: the filters, Ready only and the search field, side by side from the left. */
@@ -330,8 +345,10 @@
   flex: 1 1 auto;
 }
 
-.p-jobs .p-jobs__card-box:hover {
+.p-jobs .p-jobs__card-box:hover,
+.p-jobs .p-jobs__card-box:has(.k-jobcard__link:focus-visible) {
   border-color: var(--line-2);
+  box-shadow: inset 0 0 0 100vmax var(--lamp-pool), var(--shadow-card);
 }
 
 .p-jobs .p-jobs__card-box:hover .k-jobcard__link {
@@ -553,8 +570,9 @@
 }
 
 @media (max-width: 859px) {
-  .p-jobs .k-page-header {
-    margin-bottom: var(--s-5);
+  .p-jobs .k-room {
+    margin-top: calc(-1 * var(--s-2));
+    margin-bottom: var(--s-4);
   }
 
   /* On a phone the view switch stands under the title's sentence, above the bar, not between them. */

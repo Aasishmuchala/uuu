@@ -3,7 +3,11 @@
    rows, with the preview of what will be sent in a column at the page's right from 1100 px, its top level with the
    title (R6-F), and the one primary, Start,
    at the right of the form's foot under a hairline. A job that cannot start yet says why first, as the kit's
-   Notice, and keeps Start in its place, inert. Then the starter packs and the earlier runs. No glass, no creature. */
+   Notice, and keeps Start in its place, inert. Then the starter packs and the earlier runs. No glass, no creature.
+   PLAN-3D-ALL U11: the overline, the title and the sentence stand in a short room header (96 px, as Settings' for a
+   dense form), the department's room behind them, rising into the pane's top margin; below 860 px it is a 56 px
+   title strip with no picture. The facts, the form, Start's bar on its solid ground and the money words stay in the
+   column on the ground, never over the picture; no box here cuts a sentence. */
 
 .p-job {
   display: flex;
@@ -13,8 +17,22 @@
   max-width: var(--content-max);
 }
 
-.p-job .k-page-header {
+/* The room header: 96 px, 24 px up into the pane's top margin, a layer above what follows. */
+.p-job > .k-room {
+  z-index: 1;
+  min-height: 96px;
+  margin-top: calc(-1 * var(--s-6));
   margin-bottom: 0;
+  padding-top: var(--s-4);
+  padding-bottom: var(--s-4);
+}
+
+/* The overline, the title and the sentence keep to the band's left two thirds, where the scrim is dense; the
+   picture shows clear at the right. */
+@media (min-width: 860px) {
+  .p-job > .k-room .k-room__head {
+    max-width: 66%;
+  }
 }
 
 /* The facts: a list of label and value, the label 12 px in the third ink in a column of its own, the value 14 px
@@ -403,6 +421,11 @@
     overflow-y: auto;
   }
 
+  /* Its top level with the room header's, which rises 24 px into the pane's margin (PLAN-3D-ALL U11). */
+  .p-job:has(.k-room) .k-job--start > .k-job__preview {
+    margin-top: calc(-1 * var(--s-6));
+  }
+
   /* The questions fill their column. */
   .p-job .k-job__asks .k-input,
   .p-job .k-job__asks .k-textarea {
@@ -429,6 +452,14 @@
 @media (max-width: 859px) {
   .p-job {
     gap: var(--s-7);
+  }
+
+  /* A title strip with no picture (PLAN-3D-ALL U11, as Settings on a phone). */
+  .p-job > .k-room {
+    min-height: 56px;
+    margin-top: calc(-1 * var(--s-2));
+    padding: var(--s-2) var(--s-4);
+    justify-content: center;
   }
 
   .p-job .p-job__facts {

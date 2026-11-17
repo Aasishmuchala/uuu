@@ -305,3 +305,83 @@ test("jobs: the page sends what it sent before (PLAN-3D-ALL)", async () => {
   assert.deepEqual(seen, RECORDED);
   for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
 });
+
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const byCls = (root, c) => elements(root).filter((e) => classesOf(e).includes(c));
+const inside = (outer, el) => { for (let x = el; x; x = x.parentNode) if (x === outer) return true; return false; };
+const textNodes = (root) => [...walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+
+test("jobs: the title, the view switch and the bar stand in the room header with the Studio's table; one h1, the cards on the ground (PLAN-3D-ALL U11)", async () => {
+  for (const [query, title] of [["", "Jobs"], ["view=order", "The build order"]]) {
+    const m = await mountJobs(CATALOGUE, { query });
+    try {
+      const band = elements(m.root).filter((e) => e.localName === "header" && classesOf(e).includes("k-room"));
+      assert.equal(band.length, 1);
+      assert.equal(band[0].getAttribute("data-glimpse"), "table");
+      const h1 = elements(m.root).filter((e) => e.localName === "h1");
+      assert.equal(h1.length, 1);
+      assert.equal(h1[0].getAttribute("id"), "page-title");
+      assert.equal(textNodes(h1[0]).join(""), title);
+      assert.equal(byCls(band[0], "k-seg").length, 1, "the view switch is in the band");
+      assert.equal(byCls(band[0], "p-jobs__bar").length, query ? 0 : 1, "the bar is in the band");
+      assert.equal(byCls(band[0], "p-jobs__card").length, 0, "no card in the band");
+      const img = elements(m.root).filter((e) => e.localName === "img");
+      assert.equal(img.length, 1, "one picture: the band's");
+      assert.equal(img[0].getAttribute("src"), glimpseSrc("table", { theme: "dark", width: 1280 }));
+      assert.equal(img[0].getAttribute("alt"), "");
+      assert.equal(img[0].getAttribute("aria-hidden"), "true");
+      assert.equal(elements(m.root).filter((e) => e.localName === "canvas").length, 0, "a surface screen has no canvas");
+      assert.equal(elements(m.root).filter((e) => e.getAttribute("data-surface")).length, 0, "no paper on this page");
+      assert.equal(byCls(m.root, "k-page-header").length, 0, "PageHeader is replaced");
+      if (query) assert.deepEqual(m.tops.at(-1).crumbs, [{ label: "Jobs", href: "#/jobs" }, { label: "The build order" }]);
+    } finally { m.done(); }
+  }
+  const off = await mountJobs(CATALOGUE, { query: "glimpse=off" });
+  try {
+    assert.equal(elements(off.root).filter((e) => e.localName === "img").length, 0, "glimpse=off: the band alone");
+    assert.equal(byCls(off.root, "k-room--bare").length, 1);
+  } finally { off.done(); }
+});
+
+test("jobs: the band rises into the pane's margin a layer above the cards; controls keep their fill over the picture; a card in the lamp's pool (PLAN-3D-ALL U11)", () => {
+  const css = readFileSync(new URL("../../styles/pages/jobs.css", import.meta.url), "utf8");
+  const [wide, small] = [...css.matchAll(/\.p-jobs \.k-room \{([^}]*)\}/g)].map((x) => x[1]);
+  assert.match(wide, /z-index: 1;\s*margin-top: calc\(-1 \* var\(--s-6\)\);/);
+  assert.match(small, /margin-top: calc\(-1 \* var\(--s-2\)\);/);
+  assert.match(css, /\.p-jobs \.k-room \.p-jobs__filter \.k-menu__trigger,[^{]*\{\s*background: var\(--ctl\);/);
+  // The quiet look's edge alone under the pointer gave way to the lamp's pool (PLAN-3D-ALL U11).
+  assert.match(css, /\.p-jobs \.p-jobs__card-box:hover,\s*\.p-jobs \.p-jobs__card-box:has\(\.k-jobcard__link:focus-visible\) \{[^}]*box-shadow: inset 0 0 0 100vmax var\(--lamp-pool\), var\(--shadow-card\);/);
+  assert.ok(!/paper/.test(css), "no paper on this page");
+});
+
+test("jobs: hostile server text stays text: no script, img, iframe or object beyond the band's; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  let n = 0;
+  const hostile = {
+    departments: CATALOGUE.departments.map((d) => ({ ...d, title: bad(n++), clusters: d.clusters.map((c) => ({ ...c, title: bad(n++), jobs: c.jobs.map((j) => ({
+      ...j, title: bad(n++), summary: bad(n++), department: { id: j.department.id, title: bad(n++) }, cluster: { id: "x", title: bad(n++) },
+      why: j.ready === false ? { text: bad(n++), link: { page: "health" } } : j.why,
+    })) })) })),
+    stages: CATALOGUE.stages, problems: [{ file: bad(1), problem: bad(2) }],
+  };
+  const brain = { ...brainShape, basics: { ...brainShape.basics, items: brainShape.basics.items.map((b, i) => ({ ...b, title: bad(i) })) } };
+  const tags = (root) => ["script", "img", "iframe", "object", "embed"].map((t) => elements(root).filter((e) => e.localName === t).length);
+  for (const query of ["", "view=order"]) {
+    const s = await mountJobs(CATALOGUE, { query });
+    let base;
+    try { base = tags(s.root); } finally { s.done(); }
+    const m = await mountJobs(hostile, { query, brain });
+    try {
+      assert.deepEqual(tags(m.root), base, query);
+      for (const e of elements(m.root)) {
+        for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+        for (const h of HOSTILE) for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+        if (e.localName === "img") {
+          assert.ok(GLIMPSES.some((k) => ["dark", "light"].some((theme) => [1280, 390].some((w) => glimpseSrc(k, { theme, width: w }) === e.getAttribute("src")))), "the band's picture is a table key's");
+        }
+      }
+      if (!query) assert.ok(textNodes(m.root).includes(hostile.departments[0].clusters[0].jobs[0].title), "a hostile title is a text node");
+    } finally { m.done(); }
+  }
+});

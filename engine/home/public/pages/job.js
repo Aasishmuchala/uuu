@@ -12,12 +12,17 @@
 // words stand in its place.
 // A job that makes a page (PLAN-V5 K16, T54) says under its estimate what the page viewer adds to its time.
 // The words of a job come from the company's own files; the server's refusals are shown as they come.
+// PLAN-3D-ALL U11: the studio's language. The overline, the title and the sentence stand in a short room header
+// (96 px; the form is dense) with the job's department's room behind them, else the Studio's table; below 860 px
+// the band is a title strip with no picture, and the page asks for none. Nothing is put on paper: the form stays on
+// the ground, Start's bar keeps its place, its solid ground, its words and its request, and the money words above
+// it stay the server's sentence, whole, in the column, never over the picture. Start opens no confirm.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useRoute } from "../lib/router.js";
 import {
-  Button, Empty, ErrorNotice, HANDOFFS, Icon, JobStart, Loading, MoneyBlock, NotConnected, PageHeader, STAGES, Section, Segmented,
-  TaskRow,
+  Button, Empty, ErrorNotice, HANDOFFS, Icon, JobStart, Loading, MoneyBlock, NotConnected, RoomHeader, STAGES, Section, Segmented,
+  TaskRow, glimpseFor,
 } from "../kit/index.js";
 
 const SLUG = /^[a-z][a-z0-9-]{0,50}$/;
@@ -383,6 +388,22 @@ function useBeside(ref) {
   }, []);
 }
 
+// True while the window is 860 px wide or more: only then does the band ask for its picture (as Settings does).
+// Read at once, so a phone never asks for it, and kept up with the window.
+const WIDE = "(min-width: 860px)";
+function useWide() {
+  const read = () => typeof matchMedia !== "function" || matchMedia(WIDE).matches === true;
+  const [wide, setWide] = useState(read);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return undefined;
+    const mq = matchMedia(WIDE);
+    const again = () => setWide(mq.matches === true);
+    if (mq.addEventListener) mq.addEventListener("change", again);
+    return () => { if (mq.removeEventListener) mq.removeEventListener("change", again); };
+  }, []);
+  return wide;
+}
+
 function Body({ job, recent, from, earlier, onStarted, onChanged, queue }) {
   const dept = text(job.department && job.department.id);
   const facts = factRows(job);
@@ -430,10 +451,11 @@ export default function Page() {
   const from = fromOf(query);
   const earlier = useResource(from ? `/api/tasks/${encodeURIComponent(from)}` : null);
   const back = { href: "#/jobs", label: "All jobs" };
+  const wide = useWide();
 
   if (!addr || (!job && res.error && isUnknown(res.error))) {
     return html`<div class="p-job">
-      <${PageHeader} title="This job is not here" back=${back} />
+      <${RoomHeader} glimpse=${wide ? glimpseFor("job") : null} title="This job is not here" back=${back} />
       <${Empty} title="There is no such job" text="It may have been renamed or taken away. The list shows every job.">
         <a class="p-job__link" href="#/jobs">Open the list of jobs</a>
       <//>
@@ -441,7 +463,7 @@ export default function Page() {
   }
   if (!job) {
     return html`<div class="p-job">
-      <${PageHeader} title="A job" back=${back} />
+      <${RoomHeader} glimpse=${null} title="A job" back=${back} />
       ${res.error
         ? res.error.offline || Number(res.error.status) >= 502
           ? html`<${NotConnected} reason=${text(res.error.message)} next=${text(res.error.next)} />`
@@ -453,7 +475,7 @@ export default function Page() {
   // Where you are, in the top bar: Jobs / <the job's name>.
   const crumbs = [{ label: JOB_WORDS.allJobs, href: "#/jobs" }, { label: text(job.title) }];
   return html`<div class="p-job">
-    <${PageHeader} title=${text(job.title)} over=${overlineOf(job)} lead=${text(job.summary)} crumbs=${crumbs} />
+    <${RoomHeader} glimpse=${wide ? glimpseFor("job", text(job.department && job.department.id)) : null} title=${text(job.title)} over=${overlineOf(job)} lead=${text(job.summary)} crumbs=${crumbs} />
     <${Body} job=${job} recent=${d.recent} from=${from} earlier=${earlier.data && earlier.data.task}
       onStarted=${() => res.refresh()} onChanged=${() => res.refresh()} queue=${d.queue && typeof d.queue === "object" ? d.queue : null} />
   </div>`;

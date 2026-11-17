@@ -403,3 +403,138 @@ test("job: the page sends what it sent before (PLAN-3D-ALL)", async () => {
   assert.deepEqual(seen, RECORDED);
   for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
 });
+
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const bands = (root) => elements(root).filter((e) => e.localName === "header" && classesOf(e).includes("k-room"));
+const inside = (outer, el) => { for (let x = el; x; x = x.parentNode) if (x === outer) return true; return false; };
+const paperOf = (el) => { for (let x = el; x; x = x.parentNode) if (x.getAttribute && x.getAttribute("data-surface") === "paper") return x; return null; };
+const phone = async (fn) => {
+  globalThis.matchMedia = (q) => ({ media: q, matches: false, addEventListener() {}, removeEventListener() {} });
+  try { await fn(); } finally { delete globalThis.matchMedia; }
+};
+
+test("job: the overline, title and sentence stand in the room header of the job's department's room; one h1, crumbs as before (PLAN-3D-ALL U11)", async () => {
+  for (const [dept, key] of [["sales", "room-sales"], ["studio", "room-studio"], ["brain", "table"]]) {
+    const m = await mountJob({ ...JOB(), department: { id: dept, title: dept } });
+    try {
+      const band = bands(m.root);
+      assert.equal(band.length, 1, dept);
+      assert.equal(band[0].getAttribute("data-glimpse"), key);
+      const h1 = elements(m.root).filter((e) => e.localName === "h1");
+      assert.equal(h1.length, 1);
+      assert.equal(h1[0].getAttribute("id"), "page-title");
+      assert.ok(inside(band[0], h1[0]), "the title is in the band");
+      assert.equal(textNodes(h1[0]).join(""), JOB().title);
+      const img = elements(m.root).filter((e) => e.localName === "img");
+      assert.equal(img.length, 1, "one picture: the band's");
+      assert.equal(img[0].getAttribute("src"), glimpseSrc(key, { theme: "dark", width: 1280 }));
+      assert.equal(img[0].getAttribute("alt"), "");
+      assert.equal(img[0].getAttribute("aria-hidden"), "true");
+      assert.equal(elements(m.root).filter((e) => e.localName === "canvas").length, 0, "a surface screen has no canvas");
+      assert.equal(byCls(m.root, "k-page-header").length, 0, "PageHeader is replaced");
+      assert.deepEqual(m.tops.at(-1).crumbs, [{ label: "Jobs", href: "#/jobs" }, { label: JOB().title }]);
+      // The form, Start and the money words are under the band, never in it, and nothing is on paper.
+      const form = elements(m.root).find((e) => e.localName === "form");
+      assert.ok(form && !inside(band[0], form), "the form is not in the band");
+      assert.ok(!inside(band[0], byText(m.root, "button", "Start")));
+      assert.equal(elements(m.root).filter((e) => e.getAttribute("data-surface")).length, 0, "nothing on paper or over");
+    } finally { m.done(); }
+  }
+  // A job not here: the Studio's table. While the job is read: the band alone, no picture asked for.
+  const lost = await mountJob(null, { addr: "sales/missing" });
+  try { assert.equal(bands(lost.root)[0].getAttribute("data-glimpse"), "table"); } finally { lost.done(); }
+  const off = await mountJob(JOB(), { query: "glimpse=off" });
+  try {
+    assert.equal(elements(off.root).filter((e) => e.localName === "img").length, 0, "glimpse=off: the band alone");
+    assert.equal(byCls(off.root, "k-room--bare").length, 1);
+  } finally { off.done(); }
+});
+
+test("job: below 860 px the band is a title strip with no picture, and the page asks for none (PLAN-3D-ALL U11)", async () => {
+  await phone(async () => {
+    const m = await mountJob(JOB());
+    try {
+      assert.equal(bands(m.root)[0].getAttribute("data-glimpse"), "none");
+      assert.equal(elements(m.root).filter((e) => e.localName === "img").length, 0);
+      assert.ok(!m.calls.some((c) => /\/assets\/glimpse\//.test(c)));
+    } finally { m.done(); }
+  });
+  const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "styles", "pages", "job.css"), "utf8");
+  const top = css.slice(0, css.indexOf("@media"));
+  assert.match(/\.p-job > \.k-room \{([^}]*)\}/.exec(top)[1], /z-index: 1;\s*min-height: 96px;\s*margin-top: calc\(-1 \* var\(--s-6\)\);/, "96 px, up into the pane's margin");
+  const small = css.slice(css.indexOf("@media (max-width: 859px)"));
+  assert.match(/\.p-job > \.k-room \{([^}]*)\}/.exec(small)[1], /min-height: 56px;/, "a 56 px strip on a phone");
+  assert.ok(!/paper/.test(css), "no paper on this page");
+});
+
+// S1: each money and safety sentence the page shows is one text node, exactly as the server sent it, in the column
+// under the band, and no sheet of this page cuts its box.
+test("job: the money words, the no-price words and the page viewer's line are whole, as sent, one text node each, never in the band (PLAN-3D-ALL U11, S1)", async () => {
+  const PAGE_JOB = { ...JOB(), craft: { ...JOB().craft, kind: "page" } };
+  for (const [j, words] of [[JOB(), JOB().generation.words], [MONEY_ONLY(), JOB().generation.words], [FILM(), FILM().generation.words],
+    [NO_PRICE_JOB(), NO_PRICE_JOB().generation.words], [NOT_READY(), "The books are switched off."], [PAGE_JOB, page.PAGE_WORDS]]) {
+    for (const narrow of [false, true]) {
+      const draw = async () => {
+        const m = await mountJob(j);
+        try {
+          const nodes = [...walkDom(m.root)].filter((n) => n.nodeType === 3 && n.data === words);
+          assert.equal(nodes.length, 1, words);
+          assert.ok(!inside(bands(m.root)[0], nodes[0]), "not over the picture");
+          assert.equal(paperOf(nodes[0]), null);
+        } finally { m.done(); }
+      };
+      if (narrow) await phone(draw); else await draw();
+    }
+  }
+  // Start stays: its words, its bar after the money words.
+  const m = await mountJob(MONEY_ONLY());
+  try {
+    const all = [...walkDom(m.root)];
+    const money = all.findIndex((n) => n.nodeType === 3 && n.data === JOB().generation.words);
+    const start = all.indexOf(byText(m.root, "button", "Start"));
+    assert.ok(money > 0 && start > money, "the money words stand above Start");
+  } finally { m.done(); }
+  const here = dirname(fileURLToPath(import.meta.url));
+  for (const sheet of [join(here, "..", "..", "styles", "pages", "job.css"), join(here, "..", "..", "styles", "kit", "forms.css")]) {
+    const css = readFileSync(sheet, "utf8");
+    assert.doesNotMatch(css, /text-overflow|line-clamp|overflow:\s*hidden/, sheet);
+  }
+  // In the kit's job sheet, the only cut boxes are a job's name and summary in a list, never the money, the notice or Start's bar.
+  const kit = readFileSync(join(here, "..", "..", "styles", "kit", "job.css"), "utf8");
+  for (const m2 of kit.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+    if (!/text-overflow|line-clamp|overflow:\s*hidden|(^|[^-])height:/.test(m2[2])) continue;
+    assert.doesNotMatch(m2[1], /k-money|k-job__notice|k-job__why|k-job__actions|k-job__under|p-job/, m2[1].trim());
+  }
+});
+
+test("job: hostile server text stays text: no script, img, iframe or object beyond the band's; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const KEEP = new Set(["id", "kind", "handoff", "state", "need", "file", "page", "value", "ref", "taskId", "model", "review", "starter"]);
+  const hostile = (v, n = { i: 0 }, key = "") => {
+    if (typeof v === "string") return KEEP.has(key) ? v : HOSTILE[n.i++ % HOSTILE.length];
+    if (Array.isArray(v)) return v.map((x) => hostile(x, n, key === "playbooks" ? "" : key));
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, hostile(x, n, k)]));
+    return v;
+  };
+  const tags = (root) => ["script", "img", "iframe", "object", "embed"].map((t) => elements(root).filter((e) => e.localName === t).length);
+  for (const j of [JOB(), NO_PRICE_JOB(), NOT_READY(), FOLLOWS(), STARTER()]) {
+    const s = await mountJob(j);
+    let base;
+    try { base = tags(s.root); } finally { s.done(); }
+    const bad = hostile(j);
+    const m = await mountJob(bad, { addr: j.id, query: "from=STH-20", recent: [hostile(shape("task-card"))] });
+    try {
+      assert.deepEqual(tags(m.root), base);
+      for (const e of elements(m.root)) {
+        for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+        for (const h of HOSTILE) for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+        if (e.localName === "img") {
+          assert.ok(GLIMPSES.some((k) => ["dark", "light"].some((theme) => [1280, 390].some((w) => glimpseSrc(k, { theme, width: w }) === e.getAttribute("src")))), "the band's picture is a table key's");
+        }
+      }
+      const nodes = textNodes(m.root);
+      assert.ok(nodes.includes(bad.title), "a hostile title is a text node");
+      if (bad.generation && bad.generation.words) assert.ok(nodes.includes(bad.generation.words.trim().slice(0, 800)), "hostile money words are a text node");
+    } finally { m.done(); }
+  }
+});
