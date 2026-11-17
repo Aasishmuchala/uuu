@@ -4,7 +4,7 @@
 // two quiet links when the page gave them, the Queue button (Q) and "Search or jump to" (⌘K). Below 860 px it
 // is a back button and the last two crumbs. A page's one-line note (the money line) sits before the Queue button, or
 // first in the Menu sheet below 860 px. The Menu sheet (the tab bar's More) is here too.
-import { html } from "../vendor/preact-htm.js";
+import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { Drawer, Icon, Kbd } from "../kit/index.js";
 import { DEPARTMENTS, routeById } from "../routes.js";
 
@@ -119,8 +119,31 @@ function Pager({ pager }) {
     </div>`;
 }
 
+// True while the window is under 860 px, asked of the window itself on every resize. The shell says `narrow` too, but
+// a window shrunk from a desktop's width can leave that a moment behind, and the wide bar (the Queue button and
+// "Search or jump to" side by side) is wider than a phone: the bar then draws the phone's, whichever is first.
+export const PHONE_QUERY = "(max-width: 859px)";
+export function useWindowNarrow() {
+  const get = () => typeof matchMedia === "function" && matchMedia(PHONE_QUERY).matches;
+  const [on, setOn] = useState(get);
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return undefined;
+    const m = matchMedia(PHONE_QUERY);
+    const look = () => setOn(m.matches);
+    look();
+    m.addEventListener?.("change", look);
+    if (typeof addEventListener === "function") addEventListener("resize", look);
+    return () => {
+      m.removeEventListener?.("change", look);
+      if (typeof removeEventListener === "function") removeEventListener("resize", look);
+    };
+  }, []);
+  return on;
+}
+
 // `side` is the sidebar's width ("open" | "icons"); `queueOpen` says whether the queue is open.
-export function Topbar({ routeId, parts, shell, top, narrow, side = "open", queueOpen = false, onSide, onQueue, onCommand }) {
+export function Topbar({ routeId, parts, shell, top, narrow: shellNarrow, side = "open", queueOpen = false, onSide, onQueue, onCommand }) {
+  const narrow = useWindowNarrow() || !!shellNarrow;
   const needs = Math.max(0, Math.floor(Number(shell?.counts?.needsYou) || 0));
   const crumbs = top?.crumbs || defaultCrumbs(routeId, parts);
 

@@ -22,9 +22,25 @@ test("groupByWeek: no date and a bad date go under No date", () => {
   assert.equal(where(undefined), "No date");
   assert.equal(where("soon"), "No date");
 });
-test("groupByWeek: a past date is this week", () => {
-  assert.equal(where("2026-11-03"), "This week");
-  assert.equal(where("2025-01-01"), "This week");
+test("groupByWeek: a date before this week's Monday is Earlier, never This week", () => {
+  assert.equal(where("2026-11-03"), "Earlier");
+  assert.equal(where("2025-01-01"), "Earlier");
+});
+test("groupByWeek: on Monday 16 Nov a post planned for Thursday 12 Nov is not in 16 to 22 Nov", () => {
+  const mon = new Date("2026-11-16T09:00:00+05:30");
+  const g = groupByWeek([{ planned: "2026-11-12", title: "old" }, { planned: "2026-11-19", title: "in" }, { planned: "2026-11-22", title: "sun" }, { planned: "2026-11-23", title: "next" }], mon);
+  assert.deepEqual(g.find((x) => x.id === "this-week").rows.map((r) => r.title), ["in", "sun"]);
+  assert.deepEqual(g.find((x) => x.id === "earlier").rows.map((r) => r.title), ["old"]);
+  assert.deepEqual(g.find((x) => x.id === "next-week").rows.map((r) => r.title), ["next"]);
+});
+test("groupByWeek: the week is India's, whatever the browser's time zone says", () => {
+  // Sunday 22 Nov 23:00 in India is 17:30 UTC, still Sunday; Monday 16 Nov 00:30 in India is Sunday 15 Nov 19:00 UTC.
+  const sundayNight = new Date("2026-11-22T23:00:00+05:30");
+  assert.equal(groupByWeek([{ planned: "2026-11-22" }], sundayNight)[0].rows.length, 1);
+  assert.equal(groupByWeek([{ planned: "2026-11-23" }], sundayNight)[1].rows.length, 1, "Monday 23 is next week until India's midnight");
+  const early = new Date("2026-11-16T00:30:00+05:30");
+  assert.equal(groupByWeek([{ planned: "2026-11-15" }], early)[3].rows.length, 1, "Sunday 15 is Earlier once it is Monday in India");
+  assert.equal(groupByWeek([{ planned: "2026-11-16" }], early)[0].rows.length, 1);
 });
 test("groupByWeek: Monday and Sunday edges, and today as text", () => {
   assert.equal(where("2026-11-09"), "This week");
@@ -34,11 +50,11 @@ test("groupByWeek: Monday and Sunday edges, and today as text", () => {
   const g = groupByWeek([{ planned: "2026-11-16" }], "2026-11-15");
   assert.equal(g[1].rows.length, 1);
 });
-test("groupByWeek: always four groups in order, rows sorted by date", () => {
+test("groupByWeek: always five groups in order, rows sorted by date", () => {
   const g = groupByWeek([{ planned: "2026-11-13" }, { planned: "2026-11-10" }], WED);
-  assert.deepEqual(g.map((x) => x.title), ["This week", "Next week", "Later", "No date"]);
+  assert.deepEqual(g.map((x) => x.title), ["This week", "Next week", "Later", "Earlier", "No date"]);
   assert.deepEqual(g[0].rows.map((r) => r.planned), ["2026-11-10", "2026-11-13"]);
-  assert.deepEqual(groupByWeek(null, WED).map((x) => x.rows.length), [0, 0, 0, 0]);
+  assert.deepEqual(groupByWeek(null, WED).map((x) => x.rows.length), [0, 0, 0, 0, 0]);
 });
 test("draftIdOf and itemFor read the inbox id", () => {
   const row = { inboxId: "content:0123456789ab" };

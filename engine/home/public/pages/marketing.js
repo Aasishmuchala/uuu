@@ -20,10 +20,14 @@ export const GROUPS = [
   { id: "this-week", title: "This week" },
   { id: "next-week", title: "Next week" },
   { id: "later", title: "Later" },
+  { id: "earlier", title: "Earlier" },
   { id: "no-date", title: "No date" },
 ];
 
 const DAY = 86400000;
+// The company's calendar is India time (UTC+5:30, no summer time): the server's week (routes/marketing.mjs) and this
+// page's weeks begin and end at the same midnight, whatever time zone the browser is in.
+const IST = 19800000;
 const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 const dayNumber = (iso) => {
@@ -41,11 +45,12 @@ const todayNumber = (today) => {
     if (n !== null) return n;
   }
   const d = today instanceof Date && !Number.isNaN(today.getTime()) ? today : new Date();
-  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY);
+  return Math.floor((d.getTime() + IST) / DAY);
 };
 
-// Group calendar rows under This week, Next week, Later and No date. Weeks start on Monday; a past
-// date goes under This week. Always returns the four groups in that order; each has its rows by date.
+// Group calendar rows under This week, Next week, Later, Earlier and No date. Weeks start on Monday and run to Sunday
+// in India time; only a day inside the week is This week, a day before its Monday is Earlier. Always returns the five
+// groups in that order; each has its rows by date.
 export function groupByWeek(rows, today = new Date()) {
   const t = todayNumber(today);
   // 1 January 1970 was a Thursday, so (n + 3) % 7 is 0 for Monday.
@@ -53,7 +58,7 @@ export function groupByWeek(rows, today = new Date()) {
   const out = GROUPS.map((g) => ({ ...g, rows: [] }));
   for (const row of Array.isArray(rows) ? rows : []) {
     const n = dayNumber(row?.planned);
-    const i = n === null ? 3 : n < monday + 7 ? 0 : n < monday + 14 ? 1 : 2;
+    const i = n === null ? 4 : n < monday ? 3 : n < monday + 7 ? 0 : n < monday + 14 ? 1 : 2;
     out[i].rows.push(row);
   }
   for (const g of out) g.rows.sort((a, b) => String(a.planned ?? "").localeCompare(String(b.planned ?? "")));

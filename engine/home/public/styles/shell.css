@@ -550,6 +550,28 @@ a.s-crumbs-link:hover {
   margin-right: var(--s-4);
 }
 
+/* Under 860 px nothing in the wide bar may widen the page, even for a moment after a desktop window is shrunk (the
+   bar then draws the phone's, but the wide one must never be what makes the page scroll sideways): it clips, its
+   crumbs give way, and the search button loses its words and its minimum width. */
+@media (max-width: 859px) {
+  .s-top {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+  .s-top .s-crumbs {
+    flex: 0 1 auto;
+    overflow: hidden;
+  }
+  .s-top .s-find {
+    min-width: 0;
+  }
+  .s-top .s-find-words,
+  .s-top .s-find .k-kbd,
+  .s-top .s-queue-btn .k-kbd {
+    display: none;
+  }
+}
+
 /* ---- the tab bar (below 860 px only): five columns on the page's ground, a hairline over it. */
 .s-tabbar {
   position: fixed;

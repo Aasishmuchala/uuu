@@ -8,7 +8,7 @@
 // rest), and one foot row in two styles only: at the left small ghost chips with no edge until hover (Plan first,
 // Every job, the "/" and "@" keys), at the right "Enter to send" as a quiet line and the filled Send. PLAN-COOK T118: all of it through the Composer's own props
 // (bare, sendLabel, controls, keys, maxHeight); nothing reaches inside it.
-import { html, useEffect, useState } from "../vendor/preact-htm.js";
+import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api } from "../lib/api.js";
 import { aheadLine, linkHref } from "../lib/format.js";
 import { BeingBuilt, Button, Dialog, Icon, Loading, SHORT_PLACEHOLDER } from "../kit/index.js";
@@ -92,6 +92,28 @@ export function ComposeDialog({ open, seed, team, queue, onClose, onSent }) {
     return () => { live = false; };
   }, [open, seed]);
 
+  // Escape closes the dialog in every state. The Dialog hears it only while focus is inside it, and once a task is
+  // given the Composer is gone and focus may be on the page behind; so the dialog also listens on the document.
+  // (The Dialog and the Composer's open list stop their own Escape, so this never closes it twice.)
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return undefined;
+    const onKey = (e) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      close.current?.();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  // Once a task is given the Composer, which held focus, is gone: focus moves to the note, so it stays in the dialog.
+  const done = useRef(null);
+  useEffect(() => {
+    if (sent && done.current && typeof done.current.focus === "function") done.current.focus();
+  }, [sent]);
+
   const send = async (msg) => {
     setBusy(true);
     try {
@@ -119,7 +141,7 @@ export function ComposeDialog({ open, seed, team, queue, onClose, onSent }) {
   let body;
   if (sent) {
     body = html`
-      <div class="s-compose-done" role="status">
+      <div class="s-compose-done" role="status" tabindex="-1" ref=${done}>
         <p>${sent.line || givenLine(null)}${" "}
           ${sent.id ? html`<a href=${`#/tasks/${encodeURIComponent(sent.id)}`} onClick=${onClose}>Open the task</a>` : null}</p>
         <button type="button" class="s-link-btn" onClick=${() => setSent(null)}>Start another task</button>

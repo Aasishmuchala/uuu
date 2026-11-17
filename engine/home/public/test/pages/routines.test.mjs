@@ -19,6 +19,38 @@ test("routines: limitWords says the limit in words", () => {
   assert.equal(mod.limitWords("soon"), "");
 });
 
+test("routines: a next run in the past is overdue, said plainly, never a next run", () => {
+  const now = new Date("2026-11-17T08:00:00+05:30");
+  assert.deepEqual(mod.nextRunOf("2026-11-16T10:00:00+05:30", now), { overdue: true, at: "2026-11-16T10:00:00+05:30" });
+  assert.deepEqual(mod.nextRunOf("2026-11-17T09:00:00+05:30", now), { overdue: false, at: "2026-11-17T09:00:00+05:30" });
+  assert.equal(mod.nextRunOf("", now), null);
+  assert.equal(mod.nextRunOf("soon", now), null);
+  assert.equal(mod.nextRunOf(null, now), null);
+});
+
+test("routines: a past next run shows 'Overdue', a future one 'Next run', in the list and on the routine's card", async () => {
+  const { render, html, FakeElement, installDom, textOf, settle } = await import("../kit/_dom.mjs");
+  const { AppContext } = await import("../../lib/context.js");
+  installDom();
+  const real = globalThis.fetch;
+  const past = new Date(Date.now() - 26 * 3600e3).toISOString();
+  const future = new Date(Date.now() + 26 * 3600e3).toISOString();
+  const row = (id, next) => ({ id, title: id, who: { slug: "a", name: "A" }, when: { plain: "Daily at 10:00", next }, state: "on", plainState: "On", lastRun: null });
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ connected: true, routines: [row("late", past), row("soon", future)], problems: [] }) });
+  const root = new FakeElement("div");
+  try {
+    render(html`<${AppContext.Provider} value=${{ announce() {}, shell: null }}><${mod.default} route=${{ parts: ["routines"] }} /><//>`, root);
+    await settle(600);
+    const t = textOf(root);
+    assert.match(t, /Overdue: it should have run/);
+    assert.equal((t.match(/Next run/g) || []).length, 1, "only the future one says Next run");
+    assert.doesNotMatch(t, /Next run\s*yesterday/);
+  } finally {
+    render(null, root);
+    globalThis.fetch = real;
+  }
+});
+
 test("routines: runLine gives the state and the time", () => {
   assert.equal(mod.runLine(null), "");
   const line = mod.runLine({ at: "2020-01-05T03:30:00.000Z", plainState: "Finished", state: "finished" });

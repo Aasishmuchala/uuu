@@ -30,6 +30,24 @@ export function runLine(run) {
   return [state, at].filter(Boolean).join(", ");
 }
 
+// The next run as the owner reads it. The board's next run can be a time that has gone by (the board has not moved it on),
+// and "next run yesterday 10:00" is not a next run; a time that has passed is said plainly as overdue. Returns
+// null for a missing or broken time, else { overdue, at }: `at` is the time to show.
+export function nextRunOf(next, now = new Date()) {
+  const t = new Date(next).getTime();
+  if (!next || Number.isNaN(t)) return null;
+  return { overdue: t < now.getTime(), at: next };
+}
+
+// "Next run today 10:00", or, when that time has gone by, "Overdue: it should have run yesterday 10:00".
+function NextRun({ at }) {
+  const n = nextRunOf(at);
+  if (!n) return null;
+  return n.overdue
+    ? html`<span class="p-routines__overdue">Overdue: it should have run <${Time} at=${n.at} /></span>`
+    : html`<span>Next run</span> <${Time} at=${n.at} />`;
+}
+
 const STATE_TONE = { on: "ok", paused: "off", not_applied: "warn" };
 const RUN_TONE = { finished: "ok", working: "live", starting: "live", failed: "bad", skipped: "off" };
 const SOURCE = { schedule: "On schedule", manual: "By you" };
@@ -102,7 +120,7 @@ function RoutineRow({ r, onChanged }) {
       ${last ? html`<${St} tone=${RUN_ST[last.state] || "neutral"}>${cap(last.plainState) || cap(last.state)}<//>
         <span class="p-routines__last-at">${last.at ? when(last.at) : ""}</span>` : html`<span class="p-routines__last-at">No run yet</span>`}
     </div>
-    <div class="p-routines__next">${isOn && r.when && r.when.next ? html`<span>Next run</span> <${Time} at=${r.when.next} />` : null}</div>
+    <div class="p-routines__next">${isOn && r.when && r.when.next ? html`<${NextRun} at=${r.when.next} />` : null}</div>
     ${notApplied ? null : html`<div class="p-routines__actions">
       <${Button} variant="plain" size="sm" busy=${busy === (isOn ? "pause" : "resume")} disabled=${!!busy} onClick=${() => call(isOn ? "pause" : "resume")}>${isOn ? "Pause" : "Switch on"}<//>
       <${Button} variant="plain" size="sm" busy=${busy === "run"} disabled=${!!busy} onClick=${() => call("run")}>Run now<//>
@@ -126,7 +144,7 @@ function RoutineCard({ r, onChanged, detail }) {
       <div class="p-routines__meta">
         ${r.who && html`<${AgentChip} agent=${r.who} />`}
         ${r.when && r.when.plain && html`<${Chip} icon="clock">${cap(r.when.plain, 120)}<//>`}
-        ${isOn && r.when && r.when.next && html`<span class="p-routines__next">Next run <${Time} at=${r.when.next} /></span>`}
+        ${isOn && r.when && r.when.next && html`<span class="p-routines__next"><${NextRun} at=${r.when.next} /></span>`}
       </div>
       ${r.lastRun && html`<p class="p-routines__last">Last run: ${runLine(r.lastRun)} ${" "}<${RunLink} run=${r.lastRun} /></p>`}
       ${notApplied
