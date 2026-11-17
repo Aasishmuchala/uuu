@@ -170,7 +170,7 @@
 
   --tip: #1b1916;
   --tip-ink: #fffdf8;
-  --scrim: rgba(27,22,16,.28);
+  --scrim: rgba(44,26,10,.3);
   --pin: #f0bd4a;
   --pin-ink: #1d1503;
   --pin-line: #a8740a;
@@ -186,8 +186,8 @@
 
   --lamp: #b8742a;
   --lamp-pool: rgba(184,116,42,.10);
-  --room-scrim-0: rgba(243,238,229,.88);
-  --room-scrim-1: rgba(243,238,229,.16);
+  --room-scrim-0: rgba(243,238,229,.8);
+  --room-scrim-1: rgba(243,238,229,.04);
   --over: #fbf8f2;
   --over-line: #e2d9cb;
 
@@ -256,7 +256,7 @@
 
     --tip: #1b1916;
     --tip-ink: #fffdf8;
-    --scrim: rgba(27,22,16,.28);
+    --scrim: rgba(44,26,10,.3);
     --pin: #f0bd4a;
     --pin-ink: #1d1503;
     --pin-line: #a8740a;
@@ -272,8 +272,8 @@
 
     --lamp: #b8742a;
     --lamp-pool: rgba(184,116,42,.10);
-    --room-scrim-0: rgba(243,238,229,.88);
-    --room-scrim-1: rgba(243,238,229,.16);
+    --room-scrim-0: rgba(243,238,229,.8);
+    --room-scrim-1: rgba(243,238,229,.04);
     --over: #fbf8f2;
     --over-line: #e2d9cb;
 

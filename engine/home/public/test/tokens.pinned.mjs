@@ -64,7 +64,8 @@ export const THEMED = {
   "--tip": ["#f1ede6", "#1b1916"],
   "--tip-ink": ["#1b1916", "#fffdf8"],
   // The dim behind a dialog or a sheet (a menu or a popover dims nothing).
-  "--scrim": ["rgba(8,6,4,.6)", "rgba(27,22,16,.28)"],
+  // PLAN-3D-ALL U16: the light dim was a grey-beige over the warm ground; now a warm umber, as strong.
+  "--scrim": ["rgba(8,6,4,.6)", "rgba(44,26,10,.3)"],
   "--pin": ["#ecc068", "#f0bd4a"],
   "--pin-ink": ["#1d1503", "#1d1503"],
   "--pin-line": ["#ecc068", "#a8740a"],
@@ -81,8 +82,10 @@ export const THEMED = {
   // header's scrim, -0 under the title (at least 72 percent), -1 where the picture shows; a panel over a scene.
   "--lamp": ["#f2c487", "#b8742a"],
   "--lamp-pool": ["rgba(242,196,135,.08)", "rgba(184,116,42,.10)"],
-  "--room-scrim-0": ["rgba(21,18,16,.86)", "rgba(243,238,229,.88)"],
-  "--room-scrim-1": ["rgba(21,18,16,.2)", "rgba(243,238,229,.16)"],
+  // PLAN-3D-ALL U16: the morning bands were pale and washed (Files' shelves, a task): the light scrim thinned to .8
+  // under the title (the ink and second ink still 5 to 1 over any picture) and .04 where the picture shows.
+  "--room-scrim-0": ["rgba(21,18,16,.86)", "rgba(243,238,229,.8)"],
+  "--room-scrim-1": ["rgba(21,18,16,.2)", "rgba(243,238,229,.04)"],
   "--over": ["#1c1916", "#fbf8f2"],
   "--over-line": ["rgba(255,236,214,.14)", "#e2d9cb"],
   // Fix round R5: six quiet tints for identity on a small tile or an avatar (never a state), each its ink on its own
