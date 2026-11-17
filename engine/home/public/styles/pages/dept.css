@@ -696,6 +696,12 @@
     padding-bottom: var(--s-3);
   }
 
+  /* 16 px under the band on a phone, so a department whose line wraps (Sales) keeps its first row within D9's 40 px
+     (PLAN-3D-ALL U17: 47 px lower than before the band). */
+  .p-dept .p-dept__head + .p-dept__section {
+    margin-top: var(--s-4);
+  }
+
   /* The title, its line and its state first; the actions under them. */
   .p-dept .p-dept__head .k-page-header__row {
     display: contents;

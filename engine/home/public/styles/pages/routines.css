@@ -41,6 +41,11 @@
 /* The room header: 16 px over the first group; the kit's `pull` and layer put it in the pane's margin, above the rows
    (PLAN-3D-ALL U16, U17). A control over the picture keeps its own fill. */
 .p-routines .k-room { margin-bottom: var(--s-4); }
+/* From 860 px the band holds only a title and its line, so it stands 120 px tall (as Team's): one routine's card had
+   stood 60 px lower than before the band, over D9's 48 (PLAN-3D-ALL U17). */
+@media (min-width: 860px) {
+  .p-routines .k-room { min-height: 120px; }
+}
 .p-routines .k-room .k-btn, .p-routines .k-room .k-field, .p-routines .k-room input { background: var(--ctl); }
 
 /* Rows on the ground, one 44 px row at least, a hairline between; the pointer and the keyboard stand in the lamp's pool. */

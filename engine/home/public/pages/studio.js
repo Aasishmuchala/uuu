@@ -728,7 +728,7 @@ export default function Page({ route }) {
 
   return html`
     <div class="p-studio p-dashboard" data-dept="studio">
-      <${RoomHeader} glimpse=${wide ? glimpseFor("studio") : null} back=${{ label: "All dashboards", href: "#/dashboards" }} title="Studio"
+      <${RoomHeader} glimpse=${wide ? glimpseFor("studio") : null} pull back=${{ label: "All dashboards", href: "#/dashboards" }} title="Studio"
         crumbs=${[{ label: "Dashboards", href: "#/dashboards" }, { label: "Studio" }]}
         lead="Videos, slides, drawings, animations and parts made by the Artist and the Drafter."
         actions=${a?.agent || d?.agent ? html`<span class="p-studio__agents">

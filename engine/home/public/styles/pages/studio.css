@@ -3,7 +3,7 @@
    1280, each with its picture flush to the card's top on the deepest ground and its facts under it; an opened
    video or sprite sits on the deepest ground with no card round it. A film opened is styled by studio-film.css.
    PLAN-3D-ALL U13: the title, its line, the agents and the row that jumps to each part stand in the room header
-   (kit/room.css; dashboard.css lifts it into the pane's top margin), the light table behind them. The owner's
+   (kit/room.css; the kit's pull lifts it into the pane's top margin), the light table behind them. The owner's
    pictures, takes and sprites stay on the deepest ground with nothing laid over them: no tint, no gradient, no
    wash; the light table is the ground, not an effect on the picture. */
 .p-studio { display: flex; flex-direction: column; min-width: 0; container-type: inline-size; }

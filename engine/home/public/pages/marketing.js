@@ -390,7 +390,7 @@ export default function Page({ route }) {
   const filtered = Boolean(f.kind || f.st);
   return html`
     <div class="p-marketing p-dashboard">
-      <${RoomHeader} glimpse=${glimpseFor("marketing")} title="Marketing" back=${{ label: "All dashboards", href: "#/dashboards" }}
+      <${RoomHeader} glimpse=${glimpseFor("marketing")} pull title="Marketing" back=${{ label: "All dashboards", href: "#/dashboards" }}
         crumbs=${[{ label: "Dashboards", href: "#/dashboards" }, { label: "Marketing" }]}
         lead="Posts and newsletters drafted by the Marketer."
         actions=${d?.agent ? html`<${AgentHead} slug="marketer" agent=${d.agent} />` : null}>
