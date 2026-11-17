@@ -1,0 +1,3 @@
+.build/
+out/
+Sources/EngineShell/Build/BuildConstants.swift
