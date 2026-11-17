@@ -3,7 +3,7 @@
 import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { linkHref } from "../lib/format.js";
-import { Empty, ErrorNotice, Loading, Notice, PageHeader, TextInput } from "../kit/index.js";
+import { Empty, ErrorNotice, Loading, Notice, RoomHeader, TextInput, glimpseFor } from "../kit/index.js";
 
 // How many results there are across all the groups.
 export function groupCount(groups) {
@@ -33,11 +33,12 @@ export default function Page({ route }) {
 
   return html`
     <div class="p-search">
-      <${PageHeader} title="Search" />
-      <form class="p-search__form" role="search" onSubmit=${submit}>
+      <${RoomHeader} glimpse=${glimpseFor("search")} title="Search">
+        <form class="p-search__form" role="search" onSubmit=${submit}>
         <${TextInput} type="search" value=${text} aria-label="Search" placeholder="Search tasks, jobs, files and records"
           maxLength=${200} onInput=${(e) => setText(e.target.value)} />
-      </form>
+        </form>
+      <//>
       ${!ok ? html`<${Empty} icon="search" title="Type at least two letters." />` : null}
       ${ok && res.loading && !res.data ? html`<${Loading} lines=${4} label="Searching" />` : null}
       ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}

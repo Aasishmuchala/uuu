@@ -9,7 +9,7 @@
 
 /* The head: the kit's page head, the overall chip in its state slot beside the title, the details switch at the
    right, the sentence under them. */
-.p-health .k-page-header { margin-bottom: var(--s-6); }
+.p-health .k-room { margin-bottom: var(--s-6); }
 
 /* The strip of count cells, 64 px tall: one raised panel with hairlines between the cells; the value at 22 px in
    tabular figures, beside a 12 px label with the state's dot over a muted 12 px line when the answer gives one. */
@@ -223,3 +223,17 @@
   .p-health .p-health__cmd .k-btn { position: relative; min-width: 28px; min-height: 28px; width: 28px; height: 28px; }
   .p-health .p-health__cmd .k-btn::after { content: ""; position: absolute; inset: -8px; }
 }
+
+/* The room header: up into the pane's margin, 16 px over the first group, one layer above the rows; a control
+   over the picture keeps its own fill. */
+.p-health .k-room { margin-top: calc(-1 * var(--s-6)); margin-bottom: var(--s-4); z-index: 1; }
+.p-health .k-room .k-btn, .p-health .k-room .k-field, .p-health .k-room input { background: var(--ctl); }
+@media (max-width: 859px) {
+  .p-health .k-room { margin-top: calc(-1 * var(--s-2)); margin-bottom: var(--s-4); }
+}
+
+/* The lamp stands before the part's name (the kit's glyph, by shape and tone); the words stay beside it. */
+.p-health .p-health__lamp { display: inline-flex; align-items: center; margin-right: var(--s-2); }
+
+/* The picture must show behind the title at dusk: the scrim thinned to 0.8 (as Files does). */
+.p-health .k-room .k-room__scrim { opacity: 0.8; }

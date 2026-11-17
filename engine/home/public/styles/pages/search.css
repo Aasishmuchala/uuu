@@ -16,3 +16,19 @@
 @media (max-width: 859px) {
   .p-search .p-search__item { padding: var(--s-3) var(--s-2); }
 }
+
+/* The room header: up into the pane's margin, 16 px over the first group, one layer above the rows; a control
+   over the picture keeps its own fill. */
+.p-search .k-room { margin-top: calc(-1 * var(--s-6)); margin-bottom: var(--s-4); z-index: 1; }
+.p-search .k-room .k-btn, .p-search .k-room .k-field, .p-search .k-room input { background: var(--ctl); }
+@media (max-width: 859px) {
+  .p-search .k-room { margin-top: calc(-1 * var(--s-2)); margin-bottom: var(--s-4); }
+}
+
+/* A result: one row at least 44 px, the pointer and the keyboard in the lamp's pool, the 2 px ring on a link. */
+.p-search .p-search__item { min-height: 44px; transition: background-color var(--t-fast) var(--ease); }
+.p-search .p-search__item:hover, .p-search .p-search__item:focus-within { background-color: var(--lamp-pool); }
+.p-search a.p-search__title:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The picture must show behind the title at dusk: the scrim thinned to 0.8 (as Files does). */
+.p-search .k-room .k-room__scrim { opacity: 0.8; }

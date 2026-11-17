@@ -11,7 +11,7 @@ import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { fullWhen, when } from "../lib/format.js";
-import { Button, ErrorNotice, Loading, Mono, PageHeader, Tag, Tile } from "../kit/index.js";
+import { Button, ErrorNotice, Lamp, Loading, Mono, RoomHeader, Tag, Tile, glimpseFor } from "../kit/index.js";
 
 const cap = (v, n = 300) => (v === null || v === undefined ? "" : String(v)).slice(0, n);
 
@@ -57,6 +57,14 @@ const PART = {
   unhealthy: { tone: "warn", word: "Not working properly" },
   not_installed: { tone: "neutral", word: "Not installed" },
 };
+
+// The kit's lamp for a part's state, by a first-match table: running on, down red, switched off off, needing the
+// owner (not installed yet) amber; anything else is off. Pure.
+const LAMP_OF = [["on", "on"], ["unhealthy", "red"], ["off", "off"], ["not_installed", "amber"]];
+export function lampOfPart(state) {
+  for (const [s, lamp] of LAMP_OF) if (state === s) return lamp;
+  return "off";
+}
 
 // The words the page adds to the engine's own (the group names, the overall state, the copy button, the tiles).
 export const WORDS = {
@@ -192,12 +200,12 @@ export function diskLine(disk) {
 // One row: the 32 px tile, the name with its state's chip 8 px after it and its facts, the sentence under them,
 // then the row's buttons at its right. `facts` are short lines of what the answer gives (never made up); `act` the
 // row's buttons.
-function Line({ icon, title, say, state, facts, act, warned, tone }) {
+function Line({ icon, title, say, state, facts, act, warned, tone, lamp }) {
   const list = (facts || []).filter(Boolean);
   return html`<div class=${`p-health__row${tone ? ` p-health__row--${tone}` : ""}`}>
     <span class="p-health__tile"><${Tile} icon=${icon} size=${32} /></span>
     <div class="p-health__text">
-      <p class="p-health__title"><span class="p-health__name">${title}</span>${state || list.length ? html`<span class="p-health__meta">
+      <p class="p-health__title">${lamp ? html`<span class="p-health__lamp"><${Lamp} state=${lamp} /></span>` : null}<span class="p-health__name">${title}</span>${state || list.length ? html`<span class="p-health__meta">
         ${state ? html`<${Tag} tone=${state.tone} quiet>${state.text}<//>` : null}
         ${list.map((f, i) => html`<span key=${i} class="p-health__fact">${f}</span>`)}
       </span>` : null}</p>
@@ -226,7 +234,7 @@ function FenceRow({ fence, technical, onRun, running, runError }) {
     : p ? { tone: bad ? "bad" : "good", text: bad ? "Did not hold" : "Held" }
       : { tone: "neutral", text: "Not checked yet" };
   const lines = technical && p && Array.isArray(p.lines) ? p.lines.slice(0, 50) : [];
-  return html`<${Line} icon="lock" title="The fence" state=${state} facts=${[checksLine(p)]}
+  return html`<${Line} icon="lock" title="The fence" state=${state} lamp=${running ? "off" : p ? (bad ? "red" : "on") : "amber"} facts=${[checksLine(p)]}
     say=${html`${fence && fence.sentence}
       ${lines.map((l, i) => html`<span key=${i} class="p-health__tech"><${Mono}>${String(l.status)}<//> ${String(l.text)}</span>`)}
       ${running ? html`<span role="status" class="p-health__status">The proof is running.</span>` : null}`}
@@ -277,7 +285,7 @@ export default function Page() {
   if (!d) {
     return html`
       <div class="p-health">
-        <${PageHeader} title="Health" lead=${lead} />
+        <${RoomHeader} glimpse=${glimpseFor("health")} title="Health" lead=${lead} />
         ${res.loading ? html`<${Loading} lines=${5} label="Checking the engine" />` : null}
         ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
       </div>`;
@@ -288,7 +296,7 @@ export default function Page() {
   for (const p of d.parts || []) at[partAt(p.id)[0]].push(p);
   const partRow = (p) => {
     const s = PART[p.state] || PART.unhealthy;
-    return html`<${Line} key=${p.id} icon=${partAt(p.id)[1]} title=${p.name} state=${{ tone: s.tone, text: s.word }}
+    return html`<${Line} key=${p.id} icon=${partAt(p.id)[1]} title=${p.name} lamp=${lampOfPart(p.state)} state=${{ tone: s.tone, text: s.word }}
       say=${html`<${Say} text=${p.sentence} tech=${technical ? p.technical : null} />`} />`;
   };
   const groupOf = (id, extra) => at[id].length || extra
@@ -300,7 +308,7 @@ export default function Page() {
 
   return html`
     <div class="p-health">
-      <${PageHeader} title="Health" lead=${lead} actions=${techButton} state=${html`<${Tag} tone=${all.tone}>${all.text}<//>`} />
+      <${RoomHeader} glimpse=${glimpseFor("health")} title="Health" lead=${lead} actions=${techButton} state=${html`<${Tag} tone=${all.tone}>${all.text}<//>`} />
 
       <${Tiles} tiles=${tilesOf(d)} />
 
@@ -316,9 +324,9 @@ export default function Page() {
         ${jobsRes.loading && !jobsRes.data ? html`<${Loading} lines=${2} label="Checking the jobs" />` : null}
         ${jobsRes.data && !waiting.length && !problems.length ? html`<p class="p-health__none">No job is waiting for a tool.</p>` : null}
         ${waiting.length || problems.length ? html`<div class="p-health__rows">
-          ${waiting.map((w) => html`<${Line} key=${w.text} icon="clock" title=${w.text} state=${{ tone: "warn", text: "Waiting" }}
+          ${waiting.map((w) => html`<${Line} key=${w.text} icon="clock" title=${w.text} lamp="amber" state=${{ tone: "warn", text: "Waiting" }}
             say=${html`${w.count} ${w.count === 1 ? "job is" : "jobs are"} waiting${w.titles.length ? `: ${w.titles.join(", ")}${w.count > w.titles.length ? " and more" : ""}` : ""}. <${Command} text=${w.step} />`} />`)}
-          ${problems.map((p, i) => html`<${Line} key=${`p${i}`} icon="alert" title=${problemLine(p)} state=${{ tone: "bad", text: "Left out" }} />`)}
+          ${problems.map((p, i) => html`<${Line} key=${`p${i}`} icon="alert" title=${problemLine(p)} lamp="red" state=${{ tone: "bad", text: "Left out" }} />`)}
         </div>` : null}
       <//>
 
@@ -332,7 +340,7 @@ export default function Page() {
 
       <${Section} title="Disk">
         <div class="p-health__rows">
-          <${Line} icon="folder" title=${diskLine(d.disk)} state=${d.disk && d.disk.ok ? { tone: "good", text: "Enough room" } : { tone: "warn", text: "Nearly full" }} />
+          <${Line} icon="folder" title=${diskLine(d.disk)} lamp=${d.disk && d.disk.ok ? "on" : "amber"} state=${d.disk && d.disk.ok ? { tone: "good", text: "Enough room" } : { tone: "warn", text: "Nearly full" }} />
         </div>
       <//>
 

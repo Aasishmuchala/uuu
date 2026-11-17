@@ -122,7 +122,7 @@ test("health: the page's layout keeps its promises (TB5a)", async () => {
   const src = readFileSync(new URL("../../pages/health.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../../styles/pages/health.css", import.meta.url), "utf8");
   // The overall state is the kit's chip beside the title.
-  assert.match(src, /<\$\{PageHeader\} title="Health"[^>]*state=\$\{html`<\$\{Tag\} tone=\$\{all\.tone\}>\$\{all\.text\}<\/\/>`\} \/>/, "in the page head's state slot (R5-A, R5-G)");
+  assert.match(src, /<\$\{RoomHeader\} glimpse=\$\{glimpseFor\("health"\)\} title="Health"[^>]*state=\$\{html`<\$\{Tag\} tone=\$\{all\.tone\}>\$\{all\.text\}<\/\/>`\} \/>/, "in the room header's state slot (R5-A, R5-G; PageHeader became RoomHeader in PLAN-3D-ALL U15)");
   // The fence's sentence once: the server's sentence, no second line saying the same.
   assert.doesNotMatch(src, /\$\{fence && fence\.sentence\} \$\{proofLine/);
   // Copy sits inside the command's mono chip with no box of its own, and the chip is 12 px (R5-G).
@@ -144,7 +144,7 @@ test("health: a row's state chip stands 8 px after its name and the row's right 
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("../../pages/health.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../../styles/pages/health.css", import.meta.url), "utf8");
-  assert.match(src, /<p class="p-health__title"><span class="p-health__name">\$\{title\}<\/span>\$\{state \|\| list\.length \? html`<span class="p-health__meta">/);
+  assert.match(src, /<p class="p-health__title">\$\{lamp \? html`<span class="p-health__lamp"><\$\{Lamp\} state=\$\{lamp\} \/><\/span>` : null\}<span class="p-health__name">\$\{title\}<\/span>\$\{state \|\| list\.length \? html`<span class="p-health__meta">/);
   assert.match(css, /\.p-health \.p-health__title \{[^}]*display: flex;[^}]*column-gap: var\(--s-2\);/, "8 px after the name");
   assert.match(css, /\.p-health \.p-health__row \{[^}]*grid-template-columns: 32px minmax\(0, 1fr\) auto;/, "tile, words, the button");
   assert.match(css, /\.p-health \.p-health__tiles-cell \{[^}]*min-height: 64px;/, "64 px cells");
@@ -163,4 +163,121 @@ test("health: the line under a count names those parts, from the answer alone (R
   assert.equal(namesLine([{ name: "A" }, { name: "B" }], 2), "A, B");
   assert.equal(namesLine([{}, null]), "", "no name in the answer: no line");
   assert.equal(tilesOf({ parts: [{ state: "on" }] }, now)[0].foot, "");
+});
+
+// ---- Mounted in the test DOM with a fake fetch (PLAN-3D-ALL U15). ----
+const { FakeElement, html, render, installDom, elements, classesOf, walkDom } = await import("../kit/_dom.mjs");
+const { AppContext } = await import("../../lib/context.js");
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const { readFileSync } = await import("node:fs");
+const H = await import("../../pages/health.js");
+const byCls = (root, c) => elements(root).filter((e) => classesOf(e).includes(c));
+
+const part = (id, state, more = {}) => ({ id, name: `Part ${id}`, state, sentence: `The ${id} is ${state}.`, technical: `tech ${id}`, ...more });
+const healthData = (bad = (i) => null) => ({
+  parts: [part("home", "on", bad(0)), part("board", "off", bad(1)), part("gate", "unhealthy", bad(2)), part("books", "not_installed", bad(3)), part("web", "on", bad(4))],
+  fence: { sentence: (bad(5) || {}).sentence || "The fence keeps the engine's files apart.", running: false, lastProof: { ranAt: "2026-11-11T08:30:00.000Z", result: "holds", passed: 3, failed: 0 } },
+  notConnected: [{ id: "mail", label: (bad(6) || {}).label || "Email", explain: (bad(6) || {}).explain || "Nothing is sent.", how: "Run: engine connect mail" }],
+  disk: { freeGb: 40, floorGb: 20, ok: true },
+});
+const jobsData = { departments: [], problems: [] };
+
+async function mountHealth(data = healthData(), { jobs = jobsData } = {}) {
+  installDom();
+  globalThis.document.visibilityState = "visible";
+  globalThis.location = { hash: "#/health", href: "/#/health", search: "" };
+  const calls = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (path, opts = {}) => {
+    calls.push(`${opts.method || "GET"} ${path}${opts.body === undefined ? "" : ` ${opts.body}`}`);
+    return { ok: true, status: 200, json: async () => (String(path).startsWith("/api/jobs") ? jobs : data) };
+  };
+  const ctx = { shell: { team: [], dock: [] }, setTop() {}, announce() {}, openComposer() {}, settings: { motion: "off", theme: "dark" } };
+  const root = new FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  render(html`<${AppContext.Provider} value=${ctx}><${H.default} route=${{ id: "health", parts: ["health"], query: new URLSearchParams("") }} /><//>`, root);
+  await new Promise((r) => setTimeout(r, 300));
+  return { root, calls, done: () => { render(null, root); root.remove(); globalThis.fetch = real; delete globalThis.location; } };
+}
+
+test("health: the page sends what it sent before (PLAN-3D-ALL)", async () => {
+  const m = await mountHealth();
+  try {
+    // Recorded on the page before PLAN-3D-ALL U15 changed it.
+    const RECORDED = ["GET /api/health", "GET /api/jobs"];
+    assert.deepEqual(m.calls, RECORDED);
+    for (const c of m.calls) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+  } finally { m.done(); }
+});
+
+test("health: the lamp of a part is by a first-match table, unknown is off (PLAN-3D-ALL U15)", () => {
+  assert.equal(H.lampOfPart("on"), "on");
+  assert.equal(H.lampOfPart("unhealthy"), "red");
+  assert.equal(H.lampOfPart("off"), "off");
+  assert.equal(H.lampOfPart("not_installed"), "amber");
+  assert.equal(H.lampOfPart("zzz"), "off");
+  assert.equal(H.lampOfPart(undefined), "off");
+  assert.equal(H.lampOfPart("__proto__"), "off");
+});
+
+test("health: the title and the details switch stand in the room header with the facade; one h1; lamps beside the words (PLAN-3D-ALL U15)", async () => {
+  const m = await mountHealth();
+  try {
+    const band = elements(m.root).filter((e) => e.localName === "header" && classesOf(e).includes("k-room"));
+    assert.equal(band.length, 1);
+    assert.equal(band[0].getAttribute("data-glimpse"), "facade");
+    const h1 = elements(m.root).filter((e) => e.localName === "h1");
+    assert.equal(h1.length, 1);
+    assert.equal(h1[0].getAttribute("id"), "page-title");
+    const img = elements(m.root).filter((e) => e.localName === "img");
+    assert.equal(img.length, 1);
+    assert.equal(img[0].getAttribute("src"), glimpseSrc("facade", { theme: "dark", width: 1280 }));
+    assert.equal(byCls(m.root, "k-page-header").length, 0);
+    assert.equal(elements(m.root).filter((e) => e.localName === "canvas").length, 0);
+    const lamps = byCls(m.root, "k-lamp").map((e) => classesOf(e).find((c) => /^k-lamp--(on|amber|red|off|down)$/.test(c)));
+    for (const l of ["k-lamp--on", "k-lamp--red", "k-lamp--off", "k-lamp--amber"]) assert.ok(lamps.includes(l), l);
+    assert.ok(byCls(m.root, "p-health__row").every((r) => byCls(r, "k-lamp").length <= 1));
+  } finally { m.done(); }
+});
+
+test("health: safety and state sentences stay whole, as sent, and no sheet cuts them (PLAN-3D-ALL U15, S1)", async () => {
+  const fence = "The fence keeps the engine's files apart. " + "x".repeat(400);
+  const d = healthData();
+  d.fence.sentence = fence;
+  const m = await mountHealth(d);
+  try {
+    const nodes = [...walkDom(m.root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+    assert.ok(nodes.some((t) => t === fence), "the fence's sentence is one text node");
+    for (const p of d.parts.filter((x) => x.id !== "web")) assert.ok(nodes.some((t) => t === p.sentence), p.sentence);
+    assert.ok(nodes.includes(d.notConnected[0].explain));
+  } finally { m.done(); }
+  const css = readFileSync(new URL("../../styles/pages/health.css", import.meta.url), "utf8");
+  for (const cls of ["p-health__say", "p-health__text", "p-health__row", "p-health__lede", "p-health__warned", "p-health__bad"]) {
+    for (const m2 of css.matchAll(new RegExp(`\\.${cls}(?![\\w-])[^{]*\\{([^}]*)\\}`, "g"))) {
+      assert.ok(!/text-overflow|line-clamp|overflow: hidden|(^|[;\s])height:/.test(m2[1]), `${cls}: ${m2[1]}`);
+    }
+  }
+  assert.match(css, /\.p-health \.k-room \.k-room__scrim \{ opacity: 0\.8; \}/);
+});
+
+test("health: hostile server text stays text (PLAN-3D-ALL U15)", async () => {
+  const tags = (root) => ["script", "img", "iframe", "object"].map((t) => elements(root).filter((e) => e.localName === t).length);
+  const s = await mountHealth();
+  let base;
+  try { base = tags(s.root); } finally { s.done(); }
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const data = healthData((i) => ({ name: bad(i), sentence: bad(i + 1), technical: bad(i + 2), label: bad(i + 3), explain: bad(i + 4) }));
+  const jobs = { departments: [{ clusters: [{ jobs: [{ title: bad(1), ready: false, why: { name: bad(2), text: bad(3), link: { page: "health" } } }] }] }], problems: [{ file: bad(4), problem: bad(5) }] };
+  const m = await mountHealth(data, { jobs });
+  try {
+    assert.deepEqual(tags(m.root), base);
+    for (const e of elements(m.root)) {
+      for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+      for (const h of HOSTILE) for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+      if (e.localName === "img") assert.ok(GLIMPSES.some((k) => ["dark", "light"].some((t) => [1280, 390].some((w) => glimpseSrc(k, { theme: t, width: w }) === e.getAttribute("src")))));
+    }
+    const nodes = [...walkDom(m.root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+    assert.ok(nodes.includes(bad(0)), "a hostile name is a text node");
+  } finally { m.done(); }
 });
