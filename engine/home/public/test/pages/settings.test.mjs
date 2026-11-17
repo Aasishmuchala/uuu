@@ -229,7 +229,13 @@ test("PLAN-3D-ALL U4: every section is under the annex's band: one h1, the secti
       assert.equal(globalThis.document.title, `Settings, ${SECTIONS.find((x) => x.id === s).label} · Sorrel Yard`);
     } finally { m.done(); }
   }
-  assert.match(CSS, /\.p-settings > \.k-room \{/);
+  // Settings' band is 96 px at every width (the orchestrator's decision on U4): one rule, outside any width query.
+  const band = /\.p-settings > \.k-room \{([^}]*)\}/.exec(CSS);
+  assert.ok(band, "the band's rule");
+  assert.match(band[1], /min-height: 96px;/);
+  const top = CSS.slice(0, CSS.indexOf("@media"));
+  assert.ok(top.includes(band[0]), "not inside a width query");
+  for (const [, body] of CSS.matchAll(/\.p-settings > \.k-room \{([^}]*)\}/g)) assert.doesNotMatch(body, /min-height: (?!96px)/);
 });
 
 // Every string in an answer replaced by one of PLAN-3D's hostile set, in turn.

@@ -8,8 +8,14 @@
   flex-direction: column;
   min-height: calc(100vh - var(--topbar-h));
 }
+/* The orchestrator's decision on U4 (17 Nov): Settings' band is the kit's smallest, 96 px at every width, so dense
+   work stays as quick to reach as before while every money and safety intro stays in the column, never over the
+   picture. */
 .p-settings > .k-room {
+  min-height: 96px;
   margin: var(--s-3) var(--s-5) 0;
+  padding-top: var(--s-4);
+  padding-bottom: var(--s-4);
 }
 .p-settings > .k-doc--layout {
   flex: 1;
