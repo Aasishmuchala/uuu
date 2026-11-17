@@ -53,3 +53,8 @@
 
 /* The picture must show behind the title at dusk: the scrim thinned to 0.8 (as Files does). */
 .p-routines .k-room .k-room__scrim { opacity: 0.8; }
+
+/* On a phone the line under the title would sit over the picture and hurt legibility: the band shows its material alone. */
+@media (max-width: 859px) {
+  .p-routines .k-room .k-room__img { display: none; }
+}
