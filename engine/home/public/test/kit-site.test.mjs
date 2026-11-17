@@ -607,6 +607,7 @@ test("T112: the larger picture: the version's name, score and verdict chips, the
     assert.equal(ofClass(dialog(), "k-frame__pin").length, 0, "no disc on the picture: the server gives no place");
     const foot = ofClass(dialog(), "k-dialog__foot")[0];
     assert.deepEqual(elements(foot).filter((e) => e.localName === "button").map((b) => textOf(b).trim()), ["Back to the versions"], "no pick unless the page passes one");
+    assert.equal(dialog().getAttribute("data-surface"), null, "no pick waits: the viewer stays on its panel (PLAN-3D-ALL U16)");
     fire(pager[1], "click");
     await settle();
     assert.ok(dialog(), "the viewer stays open on the next version");
@@ -635,6 +636,8 @@ test("T112: while a pick waits, the larger picture's foot carries the same pick 
     const foot = ofClass(root, "k-dialog__foot")[0];
     const words = elements(foot).filter((e) => e.localName === "button").map((b) => textOf(b).trim());
     assert.deepEqual(words, ["Back to the versions", "Pick A, Editorial"]);
+    // PLAN-3D-ALL U16: a pick is a decision, so while one waits the viewer's panel is on paper (D4).
+    assert.equal(elements(root).find((e) => e.getAttribute("role") === "dialog").getAttribute("data-surface"), "paper");
     const primary = elements(foot).find((e) => e.localName === "button" && textOf(e).trim() === "Pick A, Editorial");
     assert.match(primary.getAttribute("class"), /k-btn--primary/);
     assert.doesNotMatch(primary.getAttribute("class"), /k-btn--lg/, "a dialog's foot holds nothing taller than the default");

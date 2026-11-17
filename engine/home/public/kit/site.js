@@ -596,7 +596,7 @@ function Viewer({ view, open, onOpen, scores, pick }) {
     ${view.many ? html`<${Button} variant="ghost" class="k-site__back" onClick=${close}>${SITE_WORDS.back}<//>` : null}
     ${waiting ? html`<${PickPrimary} item=${pick.item} chosen=${site.variant} onChanged=${pick.onChanged}
       onDone=${(r) => { close(); if (typeof pick.onDone === "function") pick.onDone(r); }} />` : null}` : null;
-  return html`<${Dialog} open=${Boolean(shown)} size="full" onClose=${close} title=${name.label}
+  return html`<${Dialog} open=${Boolean(shown)} size="full" paper=${Boolean(waiting)} onClose=${close} title=${name.label}
     sub=${sc ? html`<span class="k-site__chips"><${Tag}>${sc.total}<//>${sc.state ? html`<${Tag} tone=${sc.state.tone}>${sc.state.text}<//>` : null}</span>` : undefined}
     tools=${html`<div class="k-site__viewer-tools">
       ${pages.length > 1 ? html`<${Segmented} label=${SITE_WORDS.whichPage} size="sm" current=${page}
