@@ -123,7 +123,10 @@ vec3 roomLight(vec3 p, vec3 n, int ri, float spill){
     }
   } else if (spill > .5 && p.z > ${(ZF - 0.3).toFixed(2)} && p.z < ${(ZF + 18).toFixed(2)} && p.x > uSpill.x && p.x < uSpill.y) {
     // the light that falls out of the ground floor's glazed fronts, over the deck and the lawn
-    for (int i = 0; i < ${NR}; i++) { vec4 b = uRoomBox[i]; if (b.y < b.x || b.z > 1.) continue;
+    // (the ground floor's rooms are the plan's first two, and the annex stands just before the pavilion: three boxes
+    // are asked, not every room of the house; the lawn's grasses are many layers deep and pay this per layer)
+    for (int k = 0; k < 3; k++) { int i = k < 2 ? k : int(uPavI + .5) - 1; if (k == 2 && i < 2) break;
+      vec4 b = uRoomBox[i]; if (b.y < b.x || b.z > 1.) continue;
       vec3 q = vec3(clamp(p.x, b.x + .4, b.y - .4), b.z + 1.5, ${(ZF - 0.2).toFixed(2)}); vec3 L = q - p; float d2 = dot(L, L);
       acc += uRoomCol[i] * .55 * max(dot(n, L * inversesqrt(d2)), 0.) / (1. + d2 * .16); }
   }

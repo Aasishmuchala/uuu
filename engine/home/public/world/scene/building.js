@@ -460,7 +460,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
   // every part of a model at every spot (a Matrix4 each)
   const instAll = (gltf, list, { env = 0.5, tint = null, skip = null, pale = false } = {}) => {
     if (!gltf || !list.length) return [];
-    return meshesOf(gltf).filter((n) => !(skip && skip.test(n.material.name || ""))).map((n) => {
+    return meshesOf(gltf).filter((n) => !(skip && skip.test(n.name || ""))).map((n) => {
       const mat = pale ? keyed(lit(grade(Object.assign(n.material.clone(), { envMapIntensity: env }), 0.4, 1.25, 0.9, "#f3e6d2")), "b-modelpale") : modelMat(n.material, env);
       if (pale) owned.mats.add(mat);
       if (tint) mat.color.multiply(tint);
@@ -489,7 +489,7 @@ export function makeBuilding(A, plan, { small = false } = {}) {
   instanceNodes(A.models.fern_02, fernSpots, new THREE.Color(0.42, 0.5, 0.36), 0.3, 3);
   instAll(MD.dining_chair_02, spots.chair);
   instAll(MD.wooden_table_02, spots.table, { pale: true });
-  instAll(MD.potted_plant_02, spots.plant, { env: 0.4 });
+  instAll(MD.potted_plant_02, spots.plant, { env: 0.4, skip: /dirt/ }); // (the soil is 16,000 triangles under the leaves)
   instAll(MD.modern_wooden_cabinet, spots.cabinet);
   instAll(MD.sofa_02, spots.sofa, { tint: col("#b9b2a8") });
   instAll(MD.mid_century_lounge_chair, spots.lounge);

@@ -104,7 +104,7 @@ export function makeForecourt(A, building, plan, { phone = false } = {}) {
     return rr() < (near ? 1.1 - d : 0.9 - d * 0.6) ? [x, z] : null;
   }, { ground: true });
   const tufts = nodesOf(A.models.grass_medium_01, /small_a|mid_a|mid_b|large_a/);
-  if (tufts.length) spots(tufts, phone ? 110 : 320, meadow(true), 2.9, 31, col("#9aa06a"), "f-model");
+  if (tufts.length) spots(tufts, phone ? 110 : 250, meadow(true), 2.9, 31, col("#9aa06a"), "f-model");
   if (ferns.length) spots(ferns.slice(0, 2), phone ? 24 : 70, meadow(false), 2.6, 32, col("#76854f"), "f-model");
 
   // path lights: low posts along both sides of the path, each with a small pool on the ground
@@ -128,7 +128,8 @@ export function makeForecourt(A, building, plan, { phone = false } = {}) {
   g.add(posts, caps, pools);
   // the pools fade by day (T12): in the morning sun a path light is a small warm cap, not a pool on the grass
   g.userData.look = (k) => { poolM.color.setRGB(1, 0.72, 0.42, THREE.LinearSRGBColorSpace).multiplyScalar(k); };
-  g.traverse((o) => { if (o.isMesh && o.material.isMeshStandardMaterial) { o.receiveShadow = true; o.castShadow = !o.material.transparent; } });
+  // (the blended grasses neither throw nor take the sun's shadow: they are many layers deep, and the lawn under them does)
+  g.traverse((o) => { if (o.isMesh && o.material.isMeshStandardMaterial) { o.receiveShadow = !o.material.transparent; o.castShadow = !o.material.transparent; } });
   g.userData.foot = { x0: dx0 - 0.3, x1: DX1 + 0.3, z0: -4.1, z1: ZF + 0.7, yard, path };
   g.userData.dispose = () => {
     g.traverse((o) => { if (o.geometry) o.geometry.dispose(); });

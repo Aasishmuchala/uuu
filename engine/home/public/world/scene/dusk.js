@@ -49,7 +49,7 @@ export function makeRenderer(canvas) {
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.toneMappingExposure = DUSK.exp;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap; // the settled picture softens the edge (the sun is moved a hair a frame)
+  renderer.shadowMap.type = THREE.PCFShadowMap; // the settled picture softens the edge further (the sun is moved a hair a frame)
   renderer.shadowMap.autoUpdate = false;
   renderer.info.autoReset = false;
   return renderer;

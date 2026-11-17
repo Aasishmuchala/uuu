@@ -47,8 +47,11 @@ const SETTLE = { desktop: 32, phone: 16 };
 const LENS = { map: 0.085, desk: 0.0055 };
 const SUN_R = 0.022;
 // While something moves the picture is drawn a little smaller and stretched (as games do); the first frame at rest
-// is drawn whole again, and the settled picture is all at full size.
-const MOVING = { desktop: 0.84, phone: 0.84 };
+// is drawn whole again, and the settled picture is all at full size. A machine that cannot keep up at the first
+// size (a Mac in Low Power Mode, a busy one) takes the second, before the pixel ratio itself steps down (D21).
+const MOVING = { desktop: [0.84, 0.7], phone: [0.76, 0.66] };
+const SAMPLES = { desktop: [4, 4], phone: [2, 2] }; // the scene's samples a pixel: moving, at rest
+const SLOW_MS = 13; // a moving frame's work over this (the bench's own clock) is "cannot keep up"
 const GROUND_TEX = [["forest_ground_04", ["diff", "nor"]], ["forrest_ground_01", ["diff"]], ["wood_floor_deck", ["diff", "nor"]]];
 const PRINTS = ["hero", "materials", "visit", "interior", "trees"];
 const SKY_OF = { dark: "dusk", light: "morning" }; // one sky per theme (D5, D20): only the theme's own is loaded
@@ -81,7 +84,7 @@ function createWorld(tier) {
     handles: new Set(), active: null, releaseTimer: 0, raf: 0, last: 0, frames: 0, ready: false, lost: false, disposed: false,
     scn: null, focus: null, hover: null, pointer: null, safe: null, still: false, theme: "dark", size: { w: 0, h: 0 },
     glide: makeGlide(), viewMode: null, fading: false, intervals: [], frameFns: new Set(), ro: null, building: null,
-    post: makePost(renderer, { phone: tier === "phone" }), settle: SETTLE[tier] || 32, acc: 0, dirty: false, lights: true, haired: false,
+    moving: (MOVING[tier] || MOVING.desktop)[0], post: makePost(renderer, { phone: tier === "phone" }), settle: SETTLE[tier] || 32, acc: 0, dirty: false, lights: true, haired: false,
   };
   renderer.setPixelRatio(w.ratio);
   canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); lose(w); }, false);
@@ -436,15 +439,19 @@ function stepDown(w, interval) {
   if (w.intervals.length < 30) return;
   const sorted = w.intervals.slice().sort((a, b) => a - b);
   w.intervals = [];
-  if (sorted[15] > 1000 / 60 + 4) { w.ratio = w.steps.shift(); w.renderer.setPixelRatio(w.ratio); w.renderer.setSize(w.size.w, w.size.h, false); }
-  else w.stepped = true;
+  if (sorted[15] > 1000 / 60 + 4) {
+    const small = (MOVING[w.tier] || MOVING.desktop)[1];
+    if (w.moving > small) w.moving = small; // first the moving picture's size, then the pixel ratio
+    else if (w.steps.length) { w.ratio = w.steps.shift(); w.renderer.setPixelRatio(w.ratio); w.renderer.setSize(w.size.w, w.size.h, false); }
+    else w.stepped = true;
+  } else w.stepped = true;
 }
 function draw(w) {
   if (w.disposed) return;
   const size = sizeOf(w);
   if (size.w !== w.size.w || size.h !== w.size.h) reframe(w, false);
   applyView(w.camera, w.glide.cur, w.size);
-  shoot(w, 1, MOVING[w.tier] || 1);
+  shoot(w, 1, w.moving);
   w.acc = 1; w.small = true;
   for (const fn of w.frameFns) { try { fn(); } catch { /* a page's tag layer */ } }
 }
@@ -461,7 +468,7 @@ function settle(w) {
 function shoot(w, n, scale = 1) {
   w.renderer.info.reset();
   lightsFor(w, n);
-  w.post.setSize(Math.round(w.canvas.width * scale), Math.round(w.canvas.height * scale));
+  w.post.setSize(Math.round(w.canvas.width * scale), Math.round(w.canvas.height * scale), (SAMPLES[w.tier] || SAMPLES.desktop)[scale < 1 ? 0 : 1]);
   w.post.render(w.scene, w.camera, n);
   w.frames++;
 }
@@ -544,17 +551,21 @@ function bench(w) {
   const once = (i) => {
     base.pos.copy(pos).add(new THREE.Vector3(Math.sin(i * 0.05) * 0.02, 0, 0));
     applyView(w.camera, base, w.size);
-    shoot(w, 1, MOVING[w.tier] || 1);
+    shoot(w, 1, w.moving);
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
   };
   for (let i = 0; i < 20; i++) once(i);
+  // the same step a slow machine takes on the page, by this bench's own clock: thirty frames, and the smaller
+  // moving picture if their median is over SLOW_MS
+  { const t = []; for (let i = 0; i < 30; i++) { const t0 = performance.now(); once(i); t.push(performance.now() - t0); } t.sort((a, b) => a - b);
+    const small = (MOVING[w.tier] || MOVING.desktop)[1]; if (t[15] > SLOW_MS && w.moving > small) { w.moving = small; for (let i = 0; i < 10; i++) once(i); } }
   const times = [];
   for (let i = 0; i < 240; i++) { const t0 = performance.now(); once(i); times.push(performance.now() - t0); }
   base.pos.copy(pos);
   const calls = w.renderer.info.render.calls;
   draw(w); schedule(w);
   times.sort((a, b) => a - b);
-  return { mean: times.reduce((a, b) => a + b, 0) / times.length, median: times[120], p95: times[228], calls, ratio: w.ratio, moving: MOVING[w.tier] || 1, width: w.canvas.width, height: w.canvas.height };
+  return { mean: times.reduce((a, b) => a + b, 0) / times.length, median: times[120], p95: times[228], calls, ratio: w.ratio, moving: w.moving, width: w.canvas.width, height: w.canvas.height };
 }
 
 // ---------- acquire and release ----------

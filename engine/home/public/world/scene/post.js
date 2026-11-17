@@ -141,9 +141,11 @@ export function makePost(renderer, { phone = false } = {}) {
   return {
     target: scene,
     look: { ao: aoM.uniforms, mix: mixM.uniforms, show: showM.uniforms, pre: preM.uniforms, up: upM.uniforms },
-    setSize(w, h) {
+    // (samples: how many the scene's picture takes a pixel; fewer while something moves)
+    setSize(w, h, samples = scene.samples) {
       w = Math.max(2, w | 0); h = Math.max(2, h | 0);
-      if (w === W && h === H) return;
+      if (w === W && h === H && samples === scene.samples) return;
+      if (samples !== scene.samples) { scene.samples = samples; scene.dispose(); }
       W = w; H = h;
       scene.setSize(w, h); acc.setSize(w, h);
       const aw = Math.max(1, w >> 1), ah = Math.max(1, h >> 1);

@@ -1,5 +1,7 @@
 // The drawn studio (PLAN-3D D7): what shows without WebGL, while the world loads, and on a stage under 240 px. The
-// same plan and the same SceneState as the 3D world, drawn as an architect's cut-away elevation at dusk in SVG: the
+// same plan and the same SceneState as the 3D world, drawn as an architect's elevation at dusk in SVG (the house as
+// the world builds it since REAL-1: concrete slabs with a shadow gap, a pier at every room's edge, glass from floor
+// to ceiling in slim frames, an opal globe over each room): the
 // sky, the hills and the forest, the building with a room per department, a desk and a lamp per agent, the annex
 // with its three doors, the roof terrace's pavilion with a bench per app, the deck, the path and its lights. In
 // desk mode (Needs you) the owner's desk drawn flat with the stack of blank sheets, and the same elevation small in
@@ -176,10 +178,14 @@ export function drawFallback(svgHost, options = {}) {
       rect(x0 - 0.05, top - 0.3, x1 + 0.05, top, "w-fb-slab", bld);
     }
     planRooms.forEach((pr, index) => drawRoom(bld, pr, sceneRooms.get(pr.id) || { lamps: [] }, index, floorH));
-    // the columns between rooms, and the top slab's cap
-    let cols = "";
-    for (const pr of planRooms) for (const x of [pr.x0, pr.x1]) cols += `${pathOf([[x, pr.y], [x, pr.y + floorH - 0.3]])} `;
-    if (cols) el("path", { d: cols, class: "w-fb-column" }, bld);
+    // a concrete pier at every room's edge (each once), and the top slab's cap
+    const piers = new Set();
+    for (const pr of planRooms) for (const x of [pr.x0, pr.x1]) {
+      const k = `${n(x)}:${n(pr.y)}`;
+      if (piers.has(k)) continue;
+      piers.add(k);
+      rect(fin(x) - 0.13, fin(pr.y), fin(x) + 0.13, fin(pr.y) + floorH - 0.3, "w-fb-slab", bld, { "data-part": "pier" });
+    }
     const roofTo = terrace && !terrace.onRoof ? fin(terrace.x0, x1) : x1;
     rect(coreX - 0.15, top - 0.08, roofTo + 0.15, top + 0.12, "w-fb-cap", bld);
 
@@ -252,12 +258,25 @@ export function drawFallback(svgHost, options = {}) {
       rect(x0 + 0.33, y + 1.5, x0 + 0.6, y + 1.75, "w-fb-print", g);
       rect(x0 + 0.66, y + 1.82, x0 + 0.87, y + 2.05, "w-fb-print", g);
     }
-    // a pendant over the room
-    const px = (x0 + x1) / 2;
-    el("path", { d: pathOf([[px, y + h], [px, y + h - 0.55]]), class: "w-fb-cord" }, g);
-    el("path", { d: `${pathOf([[px - 0.22, y + h - 0.72], [px - 0.08, y + h - 0.55], [px + 0.08, y + h - 0.55], [px + 0.22, y + h - 0.72]])} Z`, class: `w-fb-pendant${lit && !scene.dark ? " is-on" : ""}` }, g);
+    // opal globes over the room, as the world hangs them (one about every 2.6 m, at least two)
+    const globes = Math.max(2, Math.round((x1 - x0) / 2.6));
+    for (let i = 0; i < globes; i++) {
+      const px = x0 + (i + 0.5) * (x1 - x0) / globes;
+      el("path", { d: pathOf([[px, y + h], [px, y + h - 0.62]]), class: "w-fb-cord" }, g);
+      el("circle", { cx: n(px), cy: Y(y + h - 0.78), r: 0.17, class: `w-fb-pendant${lit && !scene.dark ? " is-on" : ""}` }, g);
+    }
     // the floor
     rect(x0, y - 0.02, x1, y + 0.05, "w-fb-floor", g);
+    // the front: glass from floor to ceiling between the piers, a slim frame round it and a mullion about every
+    // metre and a half
+    {
+      const g0 = x0 + 0.13, g1 = x1 - 0.13, bays = Math.max(2, Math.round((g1 - g0) / 1.5));
+      const front = el("g", { class: "w-fb-window", "data-part": "glazing" }, g);
+      rect(g0, y + 0.05, g1, y + h, "w-fb-glass", front, { opacity: 0.07 });
+      let frame = `${pathOf([[g0, y + 0.07], [g1, y + 0.07], [g1, y + h - 0.04], [g0, y + h - 0.04]])} Z `;
+      for (let i = 1; i < bays; i++) frame += `${pathOf([[g0 + i * (g1 - g0) / bays, y + 0.07], [g0 + i * (g1 - g0) / bays, y + h - 0.04]])} `;
+      el("path", { d: frame, class: "w-fb-seam" }, front);
+    }
 
     if (dim) {
       // furnished and dim: two empty desks
@@ -276,8 +295,9 @@ export function drawFallback(svgHost, options = {}) {
       }
     });
 
-    // the slab over the room
+    // the slab over the room, with the shadow gap under its screed
     rect(x0 - 0.03, y + h, x1 + 0.03, y + floorH, "w-fb-slab", g);
+    el("path", { d: pathOf([[x0 - 0.03, y + floorH - 0.05], [x1 + 0.03, y + floorH - 0.05]]), class: "w-fb-seam" }, g);
     // the room answers the pointer over its whole face
     const hit = rect(x0, y, x1, y + floorH, "w-fb-hit", g);
     hit.setAttribute("data-hit", pr.id);
