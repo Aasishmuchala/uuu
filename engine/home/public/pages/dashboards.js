@@ -3,9 +3,11 @@
 // not connected shows that by itself and never fails the page. A card is a line icon, the name, one sentence and
 // two facts as label and value; no creature and no department colour (O2, O7). Fix round R5 (R5-H): the icon stands
 // in the kit's Tile, in the quiet tint the kit gives the dashboard's department (identity, never a state).
+// PLAN-3D-ALL U12: the title and its line stand in the room header, the building's face behind them (kit/room.js); the
+// cards stay on the ground. A card's figures are set at the stat size in the display face, whole: never cut.
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
-import { Button, Card, glueValue, Icon, PageHeader, Tile, tintFor } from "../kit/index.js";
+import { Button, Card, glimpseFor, glueValue, Icon, RoomHeader, Tile, tintFor } from "../kit/index.js";
 import { figureSplit, moneyParts, OWED_TO_YOU } from "./dashboard.js";
 
 // A fact's value: an amount's symbol and the small part after its point at three quarters size on the digits'
@@ -134,7 +136,7 @@ function DashboardCard({ d }) {
 export default function DashboardsPage() {
   return html`
     <div class="p-dashboards">
-      <${PageHeader} title="Dashboards"
+      <${RoomHeader} glimpse=${glimpseFor("dashboards")} title="Dashboards"
         lead="The figures and records of each department. They are real: they come from your books." />
       <ul class="p-dashboards-shelf" aria-label="Dashboards">
         ${DASHBOARDS.map((d) => html`<${DashboardCard} key=${d.id} d=${d} />`)}

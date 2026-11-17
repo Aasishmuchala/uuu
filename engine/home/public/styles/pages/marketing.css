@@ -1,9 +1,12 @@
 /* Marketing, in the frame of the record dashboards (dashboard.css draws the agent, the filters, the totals and the
    way into Needs you): posts as rows on the ground parted by hairlines, each with a 48 by 36 picture or its kind's
    line icon, the title over the day and kind, the state at the right; concepts and carousels as cards on the
-   raised step (R09, R12), a carousel's picture flush to its card's top. */
+   raised step (R09, R12), a carousel's picture flush to its card's top.
+   PLAN-3D-ALL U12: the title, its line, the agent and the filters stand in the room header (dashboard.css places it,
+   kit/room.css draws it), Marketing's room behind them. On paper (D4) only what the owner reads and decides: a card
+   waiting to be picked or approved, and a post opened in place with its text and its decision; the card keeps its
+   own inset and the sheet draws its edge. A post's title is never cut: it wraps. */
 .p-marketing { gap: 0; }
-.p-marketing .k-page-header { margin-bottom: var(--s-5); }
 .p-marketing .k-section { margin-bottom: var(--s-8); }
 .p-marketing > .k-notice { margin-bottom: var(--s-8); }
 
@@ -36,7 +39,8 @@
   cursor: pointer;
   transition: background-color var(--t-fast) var(--ease);
 }
-.p-marketing .p-marketing__head:hover { background: var(--ctl); }
+.p-marketing .p-marketing__head:hover,
+.p-marketing .p-marketing__head:focus-visible { background: var(--lamp-pool); }
 .p-marketing .p-marketing__thumb {
   flex: none;
   display: inline-flex;
@@ -56,9 +60,7 @@
   font-size: var(--fs-ui);
   line-height: var(--lh-ui);
   font-weight: var(--fw-medium);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .p-marketing .p-marketing__meta { font-size: var(--fs-note); line-height: var(--lh-note); color: var(--ink-2); }
 .p-marketing .p-marketing__date { font-variant-numeric: tabular-nums; }
@@ -66,10 +68,18 @@
 .p-marketing .p-marketing__chev { flex: none; color: var(--ink-3); transition: transform var(--t-fast) var(--ease); }
 .p-marketing .p-marketing__row.is-open .p-marketing__chev { transform: rotate(90deg); }
 .p-marketing .p-marketing__open {
-  display: grid;
-  gap: var(--s-3);
   padding: var(--s-2) var(--s-2) var(--s-5) calc(var(--s-2) + 48px + var(--s-3));
 }
+/* The opened post: one slip of paper holding its text, the owner's note and its decision. */
+.p-marketing .p-marketing__open > .k-sheet {
+  display: grid;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-6);
+}
+.p-marketing .p-marketing__open > .k-sheet > .k-decision { border: 0; padding: 0; background: none; box-shadow: none; }
+/* A card waiting to be picked or approved: the sheet is its paper; the card keeps its own inset. */
+.p-marketing .p-marketing__cards > li > .k-sheet { padding: 0; }
+.p-marketing .p-marketing__cards > li > .k-sheet > :is(.k-decision, .k-sl) { border-color: transparent; background: none; box-shadow: none; }
 .p-marketing .p-marketing__text { margin: 0; max-width: 68ch; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-ui); line-height: var(--lh-body); }
 .p-marketing .p-marketing__note { margin: 0; font-size: var(--fs-note); line-height: var(--lh-note); color: var(--ink-2); }
 
@@ -163,6 +173,7 @@
   .p-marketing .p-marketing__head .k-st { order: 4; margin-left: calc(48px + var(--s-3)); }
   .p-marketing .p-marketing__chev { order: 3; }
   .p-marketing .p-marketing__open { padding-left: 0; padding-right: 0; }
+  .p-marketing .p-marketing__open > .k-sheet { padding: var(--s-4); }
   .p-marketing .p-marketing__concept > a { display: inline-flex; align-items: center; min-height: 44px; }
   .p-marketing .p-marketing__cards { grid-template-columns: minmax(0, 1fr); }
 }

@@ -9,13 +9,16 @@
 // said once in the section's head line ("Made by: Bookkeeper"). Fix round R6 (R6-H): one column as wide as the pane
 // up to 1040 px; each table flat at its whole width with the room left shared among its columns; a document's type
 // the kit's one neutral chip; the figures the page's one raised surface.
+// PLAN-3D-ALL U12: the title, the agent and the filters stand in the room header, the dashboard's room behind them
+// (kit/room.js; Customers live in Sales). The figures stay the one raised surface, set at the stat size in the display
+// face and whole; the tables stay flat on the ground. Nothing is on paper here.
 import { html } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { HealthNext } from "./team.js";
 import {
-  AgentChip, Avatar, Button, Card, DataTable, ErrorNotice, Icon, JobRow, Live, Loading, Menu, NotConnected, PageHeader, Row,
-  Rows, Section, St, StatusDot, Tag, Waiting,
+  AgentChip, Avatar, Button, Card, DataTable, ErrorNotice, Icon, JobRow, Live, Loading, Menu, NotConnected, RoomHeader, Row,
+  Rows, Section, St, StatusDot, Tag, Waiting, glimpseFor,
 } from "../kit/index.js";
 
 const TITLES = { books: "Books", customers: "Customers", support: "Support", people: "People" };
@@ -456,7 +459,7 @@ export default function DashboardPage({ route }) {
 
   return html`
     <div class="p-dashboard p-dashboard--records">
-      <${PageHeader} title=${title}
+      <${RoomHeader} glimpse=${glimpseFor("dashboard", id)} title=${title}
         back=${{ href: "#/dashboards", label: "All dashboards" }}
         crumbs=${[{ label: "Dashboards", href: "#/dashboards" }, { label: title }]}
         actions=${d?.agent ? html`<${AgentHead} slug=${AGENTS[id]} agent=${d.agent} />` : null}>

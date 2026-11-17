@@ -4,12 +4,15 @@
 // shotlist or a card of versions waiting for the owner is the compact card that opens it in Needs you; drafts
 // waiting stay as rows with the way into Needs you. Then concepts, carousels, what was made, files that could not
 // be used, the jobs to start (M51 F20). Publishing is off and nothing here can turn it on.
+// PLAN-3D-ALL U12: the title, its line, the agent and the filters stand in the room header, Marketing's room behind
+// them (kit/room.js). The calendar, the tables and the cards stay on the ground; only what the owner reads and decides
+// is on paper (D4): a card waiting to be picked or approved, and a post opened in place with its decision.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import {
   DataTable, DecisionCard, Empty, ErrorNotice, Icon, isPickItem, isShotlistItem, Loading, Menu, NotConnected, Notice,
-  PageHeader, Row, Rows, Section, St, Tag,
+  RoomHeader, Row, Rows, Section, Sheet, St, Tag, glimpseFor,
 } from "../kit/index.js";
 import { AgentHead, Jobs, OpenDepartment, QueueLink, Totals } from "./dashboard.js";
 
@@ -232,6 +235,7 @@ export const MARKETING_WORDS = {
   noMatch: "No posts match these filters.",
   allPosts: "Show every post",
   waitsPick: "To pick or approve",
+  draft: "The draft",
 };
 
 // A calendar row's kind of piece and its line icon, for a row with no picture.
@@ -281,14 +285,14 @@ function DraftBody({ id, item, onDone }) {
   const res = useResource(id ? `/api/content/${encodeURIComponent(id)}` : null);
   const draft = res.data?.draft;
   return html`
-    <div class="p-marketing__open">
+    <div class="p-marketing__open"><${Sheet} wide=${true} label=${MARKETING_WORDS.draft}>
       ${res.loading && !draft ? html`<${Loading} lines=${3} label="Loading the draft" />` : null}
       ${res.error ? html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />` : null}
       ${draft ? html`
         <p class="p-marketing__text">${String(draft.body ?? "").slice(0, 8000)}</p>
         ${draft.note ? html`<p class="p-marketing__note">Your note: ${String(draft.note).slice(0, 500)}</p>` : null}` : null}
       ${item ? html`<${DecisionCard} item=${item} compact onDone=${onDone} />` : null}
-    </div>`;
+    <//></div>`;
 }
 
 // One post as a row: a small picture (or its kind's line icon), the title over the day and kind, the state at the
@@ -386,7 +390,7 @@ export default function Page({ route }) {
   const filtered = Boolean(f.kind || f.st);
   return html`
     <div class="p-marketing p-dashboard">
-      <${PageHeader} title="Marketing" back=${{ label: "All dashboards", href: "#/dashboards" }}
+      <${RoomHeader} glimpse=${glimpseFor("marketing")} title="Marketing" back=${{ label: "All dashboards", href: "#/dashboards" }}
         crumbs=${[{ label: "Dashboards", href: "#/dashboards" }, { label: "Marketing" }]}
         lead="Posts and newsletters drafted by the Marketer."
         actions=${d?.agent ? html`<${AgentHead} slug="marketer" agent=${d.agent} />` : null}>
@@ -401,7 +405,7 @@ export default function Page({ route }) {
         ${cards.length ? html`
           <${Section} title=${MARKETING_WORDS.waitsPick} count=${cards.length}>
             <ul class="p-marketing__cards">
-              ${cards.map((item) => html`<li key=${item.id}><${DecisionCard} item=${item} compact onDone=${onDone} /></li>`)}
+              ${cards.map((item) => html`<li key=${item.id}><${Sheet} wide=${true}><${DecisionCard} item=${item} compact onDone=${onDone} /><//></li>`)}
             </ul>
           <//>` : null}
         ${waiting.length ? html`

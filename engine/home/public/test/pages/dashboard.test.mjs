@@ -400,7 +400,8 @@ async function mountBoard(answers, { id = "books", query = "", opened = [] } = {
   const root = new dom.FakeElement("div");
   globalThis.document.body.appendChild(root);
   render(html`<${AppContext.Provider} value=${ctx}><${board.default} route=${{ id: "dashboards", parts: ["dashboards", id], query: new URLSearchParams(query) }} /><//>`, root);
-  await dom.settle();
+  // Long enough for the answer, then the jobs it asks for, on a busy machine.
+  await dom.settle(700);
   return { root, calls, tops, done: async () => { render(null, root); root.remove(); await dom.settle(50); globalThis.fetch = real; delete globalThis.location; } };
 }
 
@@ -468,4 +469,104 @@ test("dashboard: the page sends what it sent before (PLAN-3D-ALL)", async () => 
   ];
   assert.deepEqual(seen, RECORDED);
   for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});
+
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const { readFileSync: readCss } = await import("node:fs");
+const byCls = (root, c) => dom.elements(root).filter((e) => dom.classesOf(e).includes(c));
+const textNodes = (root) => [...dom.walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+
+test("dashboard: the title, the agent and the filters stand in the room header of the board's room; one h1, crumbs as before; no paper (PLAN-3D-ALL U12)", async () => {
+  for (const [id, key] of [["books", "room-books"], ["customers", "room-sales"], ["support", "room-support"], ["people", "room-people"], ["../../x", "room-books"]]) {
+    const m = await mountBoard(seeded(), { id });
+    try {
+      const band = dom.elements(m.root).filter((e) => e.localName === "header" && dom.classesOf(e).includes("k-room"));
+      assert.equal(band.length, 1, id);
+      assert.equal(band[0].getAttribute("data-glimpse"), key, id);
+      const h1 = dom.elements(m.root).filter((e) => e.localName === "h1");
+      assert.equal(h1.length, 1);
+      assert.equal(h1[0].getAttribute("id"), "page-title");
+      const img = dom.elements(m.root).filter((e) => e.localName === "img");
+      assert.equal(img.length, 1, "one picture: the band's");
+      assert.equal(img[0].getAttribute("src"), glimpseSrc(key, { theme: "dark", width: 1280 }));
+      assert.equal(img[0].getAttribute("aria-hidden"), "true");
+      assert.equal(byCls(band[0], "p-dashboard-bar").length, 1, "the filters in the band");
+      assert.equal(byCls(band[0], "p-dashboard-agent").length, 1, "the agent in the band");
+      const title = { "../../x": "Books" }[id] || board.DEPARTMENTS && { books: "Books", customers: "Customers", support: "Support", people: "People" }[id];
+      assert.deepEqual(m.tops.at(-1), { crumbs: [{ label: "Dashboards", href: "#/dashboards" }, { label: title }] });
+      assert.ok(!dom.elements(m.root).some((e) => e.getAttribute("data-surface")), "no paper on a record dashboard");
+      assert.equal(dom.elements(m.root).filter((e) => e.localName === "canvas").length, 0);
+    } finally { await m.done(); }
+  }
+  const css = readCss(new URL("../../styles/pages/dashboard.css", import.meta.url), "utf8");
+  const band = /\.p-dashboard > \.k-room \{([^}]*)\}/.exec(css)[1];
+  assert.match(band, /z-index: 1;/, "an open filter covers what is under the band");
+  assert.match(band, /margin-top: calc\(-1 \* var\(--s-6\)\);/, "the band rises into the pane's top margin (D9)");
+  assert.match(css, /\.p-dashboard \.k-room \.p-dashboard-filter \.k-menu__trigger \{ background: var\(--ctl\); \}/);
+  // The quiet look's tables ran to the edge with no padding at their two ends; the head row is now filled with the
+  // lamp's pool, so the first and last cells keep the kit's 8 px (PLAN-3D-ALL U12).
+  assert.match(css, /td:first-child \{ padding-left: var\(--s-2\); \}/);
+  assert.match(css, /td:last-child \{ padding-right: var\(--s-2\); \}/);
+});
+
+test("dashboard: every figure and money sentence is shown whole, as the books send it; nothing cuts it (PLAN-3D-ALL U12, S1)", async () => {
+  const flat = (s) => String(s).replace(/\s+/g, "").replace(/^-/, "−");
+  for (const id of ["books", "customers", "support", "people"]) {
+    const answer = ANSWERS[id]();
+    const m = await mountBoard(seeded(), { id });
+    try {
+      const values = byCls(m.root, "p-dashboard-total-value").map((e) => flat(dom.textOf(e)));
+      assert.deepEqual(values, answer.figures.map((f) => flat(f.value)), `${id}: the figures as sent, none made up, none rounded`);
+      const nodes = textNodes(m.root);
+      for (const f of answer.figures) {
+        assert.ok(nodes.includes(f.label), `${id}: ${f.label}`);
+        if (f.hint) assert.ok(nodes.includes(f.hint), `${id}: ${f.hint}`);
+      }
+      const amounts = byCls(m.root, "p-dashboard-amount").map((e) => flat(dom.textOf(e)));
+      for (const s of answer.sections) for (const r of s.rows) for (const v of Object.values(r)) {
+        if (board.moneyParts(v)) assert.ok(amounts.includes(flat(v)), `${id}: ${v} shown whole`);
+      }
+      for (const s of answer.switches) assert.ok(nodes.includes(s.explain), `${id}: the switch's sentence`);
+    } finally { await m.done(); }
+  }
+  // The books cannot be read: the reason one text node, exactly as sent; the next step in words, its link Open Health.
+  const off = await mountBoard(seeded({ "/api/departments/books": BOOKS_OFF() }), { id: "books" });
+  try {
+    assert.ok(textNodes(off.root).includes("The books are switched off."));
+    assert.ok(dom.textOf(off.root).includes("Open Health to see how to start them."));
+  } finally { await off.done(); }
+  const failed = await mountBoard(seeded({ "/api/departments/books": null }), { id: "books" });
+  try { assert.ok(textNodes(failed.root).includes("The books did not answer."), "the server's sentence when it fails"); } finally { await failed.done(); }
+  const css = readCss(new URL("../../styles/pages/dashboard.css", import.meta.url), "utf8");
+  assert.doesNotMatch(css, /text-overflow|line-clamp|overflow: hidden/, "no box of this page cuts a figure or a sentence");
+  assert.doesNotMatch(/\.p-dashboard \.p-dashboard-total-value \{([^}]*)\}/.exec(css)[1], /white-space: nowrap|[^-]height:/);
+  assert.match(css, /\.p-dashboard \.p-dashboard-amount \{ font-variant-numeric: tabular-nums;/, "amounts in tabular figures");
+});
+
+test("dashboard: hostile server text stays text: no script, img, iframe or object beyond the band's; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const tags = (root) => ["script", "img", "iframe", "object"].map((t) => dom.elements(root).filter((e) => e.localName === t).length);
+  // Every string the server sends replaced by the hostile set; ids and keys kept so the page still finds its parts.
+  const poison = (v, k = 0, key = "") => {
+    if (Array.isArray(v)) return v.map((x, i) => poison(x, k + i, key));
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([kk, x], i) => [kk, ["id", "key", "inboxId", "goalId", "state", "connected"].includes(kk) ? x : poison(x, k + i, kk)]));
+    return typeof v === "string" ? bad(k) : v;
+  };
+  for (const id of ["books", "customers", "support", "people"]) {
+    const s = await mountBoard(seeded(), { id });
+    let base;
+    try { base = tags(s.root); } finally { await s.done(); }
+    const hostile = poison(ANSWERS[id]());
+    const m = await mountBoard(seeded({ [`/api/departments/${id}`]: hostile, "/api/inbox": poison(INBOX()) }), { id });
+    try {
+      assert.deepEqual(tags(m.root), base, id);
+      for (const e of dom.elements(m.root)) {
+        for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+        for (const h of HOSTILE) for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+        if (e.localName === "img") assert.ok(GLIMPSES.some((k) => glimpseSrc(k, { theme: "dark", width: 1280 }) === e.getAttribute("src")), "the band's picture is a table key's");
+      }
+      assert.ok(textNodes(m.root).some((t) => HOSTILE.includes(t)), "hostile words shown as text");
+    } finally { await m.done(); }
+  }
 });

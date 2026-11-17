@@ -1,8 +1,21 @@
 /* Dashboards (CONTRACTS-V3 30, R12): six cards three across on the raised step, two across below 1100 px and one
    below 860 px. A card is a line icon in a tile, the name at 15 px, one grey sentence, two facts as a label over its
    value in tabular figures, and one quiet line of what waits. The whole card is the name's link (the link's
-   ::after covers it); the keyboard ring is drawn on the card. No creature, no department colour. */
-.p-dashboards { display: flex; flex-direction: column; gap: var(--s-6); }
+   ::after covers it); the keyboard ring is drawn on the card. No creature, no department colour.
+   PLAN-3D-ALL U12: the title and its line stand in the room header (kit/room.css), the building's face behind them;
+   the band rises into the pane's top margin and keeps 16 px over the cards, so the first card stands as near the top
+   as before (D9). A card's figures are set at the stat size on the system face (the page sheets may name only the sans, mono and serif faces: test/pages.test.mjs), in tabular figures, and are never
+   cut: a figure that does not fit its half of the card wraps between its parts. */
+.p-dashboards { display: flex; flex-direction: column; gap: var(--s-4); }
+
+.p-dashboards > .k-room {
+  margin-top: calc(-1 * var(--s-6));
+  margin-bottom: 0;
+}
+
+.p-dashboards > .k-room .k-page-header__lede {
+  max-width: 64ch;
+}
 
 .p-dashboards .p-dashboards-shelf {
   list-style: none;
@@ -23,7 +36,7 @@
   padding: var(--s-5);
   transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
-.p-dashboards .p-dashboards-card:hover { border-color: var(--line-2); }
+.p-dashboards .p-dashboards-card:hover { border-color: var(--line-2); background-color: color-mix(in srgb, var(--card) 70%, var(--lamp-pool)); }
 .p-dashboards .p-dashboards-card:has(.p-dashboards-link:focus-visible) {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -73,14 +86,12 @@
 }
 .p-dashboards .p-dashboards-value {
   margin: 0;
-  font-size: calc(var(--fs-section) * 1.25);
+  font-size: var(--fs-stat);
   line-height: var(--lh-stat);
   letter-spacing: var(--ls-stat);
   font-weight: var(--fw-medium);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 /* An amount: the symbol and the small part at three quarters of the digits (never under 12 px), in their ink. */
@@ -138,6 +149,7 @@
 }
 
 @media (max-width: 859px) {
+  .p-dashboards > .k-room { margin-top: calc(-1 * var(--s-2)); }
   .p-dashboards .p-dashboards-shelf { grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
   .p-dashboards .p-dashboards-card { padding: var(--s-4); }
   .p-dashboards .p-dashboards-figures { margin-top: var(--s-4); }

@@ -156,3 +156,67 @@ test("dashboards: the page sends what it sent before (PLAN-3D-ALL)", async () =>
   assert.deepEqual(seen, RECORDED);
   for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
 });
+
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const { readFileSync: readCss } = await import("node:fs");
+const byCls = (root, c) => dom.elements(root).filter((e) => dom.classesOf(e).includes(c));
+const textNodes = (root) => [...dom.walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+
+test("dashboards: the title and its line stand in the room header with the building's face; one h1; the cards stay on the ground (PLAN-3D-ALL U12)", async () => {
+  const m = await mountShelf(seeded());
+  try {
+    const band = dom.elements(m.root).filter((e) => e.localName === "header" && dom.classesOf(e).includes("k-room"));
+    assert.equal(band.length, 1);
+    assert.equal(band[0].getAttribute("data-glimpse"), "facade");
+    const h1 = dom.elements(m.root).filter((e) => e.localName === "h1");
+    assert.equal(h1.length, 1);
+    assert.equal(h1[0].getAttribute("id"), "page-title");
+    assert.ok(textNodes(band[0]).includes("The figures and records of each department. They are real: they come from your books."));
+    const img = dom.elements(m.root).filter((e) => e.localName === "img");
+    assert.equal(img.length, 1, "one picture: the band's");
+    assert.equal(img[0].getAttribute("src"), glimpseSrc("facade", { theme: "dark", width: 1280 }));
+    assert.equal(byCls(band[0], "p-dashboards-card").length, 0, "no card in the band");
+    assert.ok(!dom.elements(m.root).some((e) => e.getAttribute("data-surface")), "no paper");
+  } finally { await m.done(); }
+  const css = readCss(new URL("../../styles/pages/dashboards.css", import.meta.url), "utf8");
+  assert.match(/\.p-dashboards > \.k-room \{([^}]*)\}/.exec(css)[1], /margin-top: calc\(-1 \* var\(--s-6\)\);/, "the band rises into the pane's top margin (D9)");
+});
+
+test("dashboards: a card's figures are the server's, whole: never cut, never made up (PLAN-3D-ALL U12, S1)", async () => {
+  const flat = (s) => String(s).replace(/\s+/g, "");
+  const m = await mountShelf(seeded());
+  try {
+    const shown = byCls(m.root, "p-dashboards-value").map((e) => flat(dom.textOf(e)));
+    const sent = Object.values(ANSWER).flatMap((a) => a.figures.slice(0, 2).map((f) => flat(f.value)));
+    assert.deepEqual(shown, sent);
+    assert.ok(textNodes(m.root).includes("The books are switched off."), "a card that cannot read its records says why, as sent");
+  } finally { await m.done(); }
+  const css = readCss(new URL("../../styles/pages/dashboards.css", import.meta.url), "utf8");
+  // The quiet look cut a long figure with an ellipsis; a figure is now shown whole (PLAN-3D-ALL U12).
+  assert.doesNotMatch(css, /text-overflow|line-clamp|overflow: hidden/);
+  assert.match(/\.p-dashboards \.p-dashboards-value \{([^}]*)\}/.exec(css)[1], /font-size: var\(--fs-stat\);[\s\S]*font-variant-numeric: tabular-nums;/);
+});
+
+test("dashboards: hostile server text stays text (PLAN-3D-ALL)", async () => {
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const tags = (root) => ["script", "img", "iframe", "object"].map((t) => dom.elements(root).filter((e) => e.localName === t).length);
+  const poison = (v, k = 0) => {
+    if (Array.isArray(v)) return v.map((x, i) => poison(x, k + i));
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([kk, x], i) => [kk, ["id", "inboxId", "connected"].includes(kk) ? x : poison(x, k + i)]));
+    return typeof v === "string" ? bad(k) : v;
+  };
+  const s = await mountShelf(seeded());
+  let base;
+  try { base = tags(s.root); } finally { await s.done(); }
+  const m = await mountShelf(seeded(Object.fromEntries(Object.entries(ANSWER).map(([k, v]) => [`/api/departments/${k}`, poison(v)]))));
+  try {
+    assert.deepEqual(tags(m.root), base);
+    for (const e of dom.elements(m.root)) {
+      for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+      for (const h of HOSTILE) for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+      if (e.localName === "img") assert.ok(GLIMPSES.some((k) => glimpseSrc(k, { theme: "dark", width: 1280 }) === e.getAttribute("src")));
+    }
+    assert.ok(textNodes(m.root).some((t) => HOSTILE.some((h) => t.startsWith(h.slice(0, 20)))), "hostile words shown as text");
+  } finally { await m.done(); }
+});

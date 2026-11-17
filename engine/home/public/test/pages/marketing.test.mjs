@@ -383,7 +383,8 @@ async function mountMarketing(answers, { query = "", panels = [] } = {}) {
   const root = new dom.FakeElement("div");
   globalThis.document.body.appendChild(root);
   dom.render(dom.html`<${AppContext.Provider} value=${ctx}><${page.default} route=${{ id: "marketing", parts: ["dashboards", "marketing"], query: new URLSearchParams(query) }} /><//>`, root);
-  await dom.settle();
+  // Long enough for the answer, then the jobs it asks for, on a busy machine.
+  await dom.settle(700);
   return { root, calls, tops, done: async () => { dom.render(null, root); root.remove(); await dom.settle(50); globalThis.fetch = real; delete globalThis.location; } };
 }
 
@@ -425,4 +426,85 @@ test("marketing: the page sends what it sent before (PLAN-3D-ALL)", async () => 
   ];
   assert.deepEqual(seen, RECORDED);
   for (const c of seen) assert.ok(!/\/assets\/world\/|\/vendor\/three-/.test(c), c);
+});
+
+const { glimpseSrc, GLIMPSES } = await import("../../kit/room.js");
+const { HOSTILE } = await import("../../world/fixtures.js");
+const byCls = (root, c) => dom.elements(root).filter((e) => dom.classesOf(e).includes(c));
+const textNodes = (root) => [...dom.walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+
+test("marketing: the title, its line, the agent and the filters stand in Marketing's room header; paper only for what the owner decides (PLAN-3D-ALL U12, D4)", async () => {
+  const m = await mountMarketing(seeded());
+  try {
+    const band = dom.elements(m.root).filter((e) => e.localName === "header" && dom.classesOf(e).includes("k-room"));
+    assert.equal(band.length, 1);
+    assert.equal(band[0].getAttribute("data-glimpse"), "room-marketing");
+    const h1 = dom.elements(m.root).filter((e) => e.localName === "h1");
+    assert.equal(h1.length, 1);
+    assert.equal(h1[0].getAttribute("id"), "page-title");
+    assert.ok(textNodes(band[0]).includes("Posts and newsletters drafted by the Marketer."));
+    assert.equal(byCls(band[0], "p-dashboard-bar").length, 1, "the filters in the band");
+    assert.equal(byCls(band[0], "p-dashboard-agent").length, 1, "the agent in the band");
+    const img = dom.elements(band[0]).filter((e) => e.localName === "img");
+    assert.equal(img.length, 1);
+    assert.equal(img[0].getAttribute("src"), glimpseSrc("room-marketing", { theme: "dark", width: 1280 }));
+    assert.deepEqual(m.tops.at(-1), { crumbs: [{ label: "Dashboards", href: "#/dashboards" }, { label: "Marketing" }] });
+    // On paper: the card waiting to be picked or approved, and nothing else until a post is opened.
+    const paper = dom.elements(m.root).filter((e) => e.getAttribute("data-surface") === "paper");
+    assert.equal(paper.length, 1);
+    assert.equal(byCls(paper[0], "k-sl--compact").length, 1, "the shotlist waiting, compact, on its sheet");
+    const row = dom.elements(m.root).find((e) => e.localName === "button" && dom.classOf(e).includes("p-marketing__head") && dom.textOf(e).includes("Winter kitchens"));
+    fire(row, "Click");
+    await dom.settle();
+    const open = byCls(m.root, "p-marketing__open")[0].childNodes[0];
+    assert.equal(open.getAttribute("data-surface"), "paper", "the opened post is read and decided on paper");
+    assert.equal(open.getAttribute("aria-label"), page.MARKETING_WORDS.draft);
+    assert.ok(textNodes(open).includes("Three layouts that save steps.\n\nOne: the triangle."), "the draft's text whole, one text node");
+    assert.equal(byCls(open, "k-decision").length, 1);
+    assert.equal(byCls(m.root, "k-table").every((t) => !t.parentNode.getAttribute?.("data-surface")), true, "tables never on paper");
+  } finally { await m.done(); }
+});
+
+test("marketing: money and safety sentences shown whole, as sent; no box of this page cuts a sentence (PLAN-3D-ALL U12, S1)", async () => {
+  const m = await mountMarketing(seeded());
+  try {
+    const nodes = textNodes(m.root);
+    assert.ok(nodes.includes("Connect an account to turn this on."), "why publishing is off");
+    const sl = shape("shotlist-item");
+    // The compact shotlist draws its money as the kit does (kit/shotlist.js): each amount one whole text node.
+    for (const amount of ["$1.50", "$3.00", "$0.40 spent"]) assert.ok(nodes.includes(amount), `the shotlist's ${amount}`);
+    assert.ok(nodes.includes(sl.summary), "the shotlist's summary, whole");
+    for (const f of MARKETING().figures) assert.ok(nodes.includes(f.value) && nodes.includes(f.hint), f.label);
+    assert.ok(nodes.includes("Winter kitchens: three layouts that save steps"), "a post's title whole");
+  } finally { await m.done(); }
+  const css = readText(new URL("../../styles/pages/marketing.css", import.meta.url), "utf8");
+  // The quiet look cut a post's title with an ellipsis on one line; it now wraps (PLAN-3D-ALL U12).
+  assert.doesNotMatch(css, /text-overflow|line-clamp/);
+  assert.match(/\.p-marketing \.p-marketing__title \{([^}]*)\}/.exec(css)[1], /overflow-wrap: anywhere;/);
+  assert.match(css, /\.p-marketing \.p-marketing__head:hover,\s*\.p-marketing \.p-marketing__head:focus-visible \{ background: var\(--lamp-pool\); \}/, "a row under the pointer stands in the lamp's pool");
+});
+
+test("marketing: hostile server text stays text: no script, img, iframe or object beyond the band's; no on* attribute; no fixture text in href, src or style (PLAN-3D-ALL)", async () => {
+  const bad = (i) => HOSTILE[i % HOSTILE.length];
+  const tags = (root) => ["script", "img", "iframe", "object"].map((t) => dom.elements(root).filter((e) => e.localName === t).length);
+  const keep = ["id", "key", "inboxId", "goalId", "state", "connected", "kind", "department", "planned", "style", "needsNote", "version"];
+  const poison = (v, k = 0) => {
+    if (Array.isArray(v)) return v.map((x, i) => poison(x, k + i));
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([kk, x], i) => [kk, keep.includes(kk) ? x : poison(x, k + i)]));
+    return typeof v === "string" ? bad(k) : v;
+  };
+  const s = await mountMarketing(seeded());
+  let base;
+  try { base = tags(s.root); } finally { await s.done(); }
+  const m = await mountMarketing(seeded({ "/api/departments/marketing": poison(MARKETING()), "/api/studio/slides": poison(shape("studio-slides")), "/api/inbox": poison(INBOX()) }));
+  try {
+    const now = tags(m.root);
+    assert.deepEqual([now[0], now[2], now[3]], [base[0], base[2], base[3]], "no script, iframe or object");
+    for (const e of dom.elements(m.root)) {
+      for (const k of Object.keys(e.attrs)) assert.ok(!/^on/i.test(k), `no ${k}`);
+      for (const h of HOSTILE) for (const a of ["href", "src", "style"]) assert.ok(!String(e.getAttribute(a) || "").includes(h), `${a} holds no fixture text`);
+      if (e.localName === "img") assert.ok(GLIMPSES.some((k) => glimpseSrc(k, { theme: "dark", width: 1280 }) === e.getAttribute("src")), "only the band's picture: a hostile address shows none");
+    }
+    assert.ok(textNodes(m.root).some((t) => HOSTILE.includes(t)), "hostile words shown as text");
+  } finally { await m.done(); }
 });

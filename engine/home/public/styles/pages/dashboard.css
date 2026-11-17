@@ -10,7 +10,13 @@
    Fix round R5 (R5-H): one measure a page: the column, every block (the head, the figures, each section's
    head and its table) on its two edges; sections 24 px apart and rows 40 px; a table's slack shared among its
    columns, so no band between two passes 160 px; the row's number in the second ink so the party leads; a document's type in the kit's tint for it; the
-   filters edged on the card's surface; the figures with 20 px inside. */
+   filters edged on the card's surface; the figures with 20 px inside.
+   PLAN-3D-ALL U12: the title, the agent and the filters stand in the room header (kit/room.css), the dashboard's
+   room behind them; the band rises into the pane's top margin and stands one layer above the page, so an open
+   filter covers what is under it. The filters keep the control fill over the picture. The figures are set at the
+   stat size on the system face (the page sheets may name only the sans, mono and serif faces: test/pages.test.mjs), whole (no box of theirs cuts them). A table's head row and the row under the
+   pointer stand in the lamp's pool (kit/table.css), so its first and last cells keep the kit's 8 px from the pool's
+   edge; amounts stay at the right in tabular figures, exactly as the books send them. */
 .p-dashboard { display: flex; flex-direction: column; gap: var(--s-6); }
 .p-dashboard .p-dashboard-agent { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--s-3); }
 
@@ -47,6 +53,16 @@
 }
 .p-dashboard .p-dashboard-open:hover { color: var(--ink); }
 
+/* The room header: 24 px up into the pane's top margin, one layer above the page so an open filter covers the
+   figures under it; the agent at the top right, the filters under the title. */
+.p-dashboard > .k-room {
+  z-index: 1;
+  margin-top: calc(-1 * var(--s-6));
+  margin-bottom: var(--s-5);
+}
+.p-dashboard > .k-room .k-page-header__lede { max-width: 64ch; }
+.p-dashboard > .k-room .k-page-header__more { margin-top: var(--s-3); }
+
 /* ---- The four record dashboards ---- */
 .p-dashboard.p-dashboard--records { gap: 0; max-width: 1040px; }
 .p-dashboard.p-dashboard--records .k-page-header { margin-bottom: var(--s-5); }
@@ -69,17 +85,19 @@
 .p-dashboard .p-dashboard-filter .k-menu__trigger .k-icon { color: var(--ink-3); }
 .p-dashboard .p-dashboard-filter--on .k-menu__trigger { border-color: var(--ink-3); }
 .p-dashboard .p-dashboard-filter .k-menu__trigger:hover { border-color: var(--ink-3); }
+/* Over the room header's picture a filter takes the control fill, so its edge and words hold where the picture is bright. */
+.p-dashboard .k-room .p-dashboard-filter .k-menu__trigger { background: var(--ctl); }
 .p-dashboard .p-dashboard-filter .k-menu__list { left: 0; right: auto; min-width: 220px; max-height: min(60vh, calc(var(--s-12) * 9)); overflow-y: auto; }
 .p-dashboard .p-dashboard-filter .k-menu__item:not(:has(.k-icon)) { padding-left: calc(10px + 16px + var(--s-2)); }
 .p-dashboard .p-dashboard-filter .k-menu__item .k-icon { color: var(--accent); }
 
 /* The figures: one card, the page's one raised surface, its cells parted by hairlines; a 12 px label in the third ink
    over the value at the stat size, 500 in tabular figures, the symbol at three quarters of the digits on their baseline, the hint in the third ink. */
-.p-dashboard .p-dashboard-strip { margin-bottom: var(--s-6); overflow: hidden; }
+.p-dashboard .p-dashboard-strip { margin-bottom: var(--s-6); }
 .p-dashboard .p-dashboard-totals {
   margin: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
 }
 .p-dashboard .p-dashboard-total {
   min-width: 0;
@@ -98,6 +116,7 @@
 }
 .p-dashboard .p-dashboard-total-value {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: var(--s-2);
   font-size: var(--fs-stat);
@@ -105,7 +124,6 @@
   letter-spacing: var(--ls-stat);
   font-weight: var(--fw-medium);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 .p-dashboard .p-dashboard-total-value .k-tag { align-self: center; }
 .p-dashboard .p-dashboard-total-hint { font-size: var(--fs-label); line-height: var(--lh-label); color: var(--ink-3); }
@@ -123,17 +141,17 @@
 
 /* A table flat on the ground at the column's whole width (fix round R6: a head row over a rule, hairlines between
    rows, no card): the room its columns leave is shared among all of them in proportion to their content (no one
-   column takes it all, the last still at the right); 20 px each side of a cell, none at the table's two ends; rows
-   40 px. The row's number 13 px in the second ink, tabular, so the party leads. */
+   column takes it all, the last still at the right); 16 px each side of a cell, the kit's 8 px at the table's two
+   ends (the head row is filled: PLAN-3D-ALL U12); rows 40 px. The row's number 13 px in the second ink, tabular, so the party leads. */
 .p-dashboard .p-dashboard-sheet .k-table__table .k-table__fit { width: auto; }
 .p-dashboard .p-dashboard-sheet .k-table__table th,
-.p-dashboard .p-dashboard-sheet .k-table__table td { padding-left: var(--s-5); padding-right: var(--s-5); }
+.p-dashboard .p-dashboard-sheet .k-table__table td { padding-left: var(--s-4); padding-right: var(--s-4); }
 .p-dashboard .p-dashboard-sheet .k-table__table td { height: var(--s-10); padding-top: 6px; padding-bottom: 6px; }
 .p-dashboard .p-dashboard-sheet .k-table__table tbody tr:last-child td { border-bottom: 1px solid var(--line); }
 .p-dashboard .p-dashboard-sheet .k-table__table th:first-child,
-.p-dashboard .p-dashboard-sheet .k-table__table td:first-child { padding-left: 0; }
+.p-dashboard .p-dashboard-sheet .k-table__table td:first-child { padding-left: var(--s-2); }
 .p-dashboard .p-dashboard-sheet .k-table__table th:last-child,
-.p-dashboard .p-dashboard-sheet .k-table__table td:last-child { padding-right: 0; }
+.p-dashboard .p-dashboard-sheet .k-table__table td:last-child { padding-right: var(--s-2); }
 .p-dashboard .p-dashboard-sheet .k-table__table td:first-child { color: var(--ink-2); font-size: var(--fs-note); font-variant-numeric: tabular-nums; }
 
 .p-dashboard .p-dashboard-sheet .k-table--empty { padding: var(--s-6) 0; border-top: 1px solid var(--line-2); }
@@ -152,6 +170,7 @@
 
 /* Below 860 px every control and link keeps a 44 px target (M51 F15). */
 @media (max-width: 859px) {
+  .p-dashboard > .k-room { margin-top: calc(-1 * var(--s-2)); }
   .p-dashboard .p-dashboard-open { min-height: 44px; }
   .p-dashboard .k-section__aside a { display: inline-flex; align-items: center; min-height: 44px; }
   .p-dashboard .k-section__aside .k-btn { min-height: 44px; }
