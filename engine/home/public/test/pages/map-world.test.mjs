@@ -117,10 +117,12 @@ test("the list mirrors the seed: seven rooms, twelve agents, three doors; App St
   } finally { a.done(); }
 });
 
-test("each agent row's state is the server's plainState, whole; doors' and apps' sentences are whole text nodes", async () => {
+// PLAN-3D-ALL U17: "the server's plainState, whole" → the server's words whole, except an amber lamp's whose words
+// say otherwise, which read "Waiting for you" (one state per agent, by the lamp's rule).
+test("each agent row's state is the server's plainState, whole (an amber lamp's: Waiting for you); doors' and apps' sentences are whole text nodes", async () => {
   const m = await mountMap(F.app);
   try {
-    const want = F.app.world.rooms.flatMap((r) => r.agents.map((a) => a.plainState));
+    const want = F.app.world.rooms.flatMap((r) => r.agents.map((a) => (a.waitingForYou === true && !/wait/i.test(a.plainState) && !["paused", "problem"].includes(a.state) ? "Waiting for you" : a.plainState)));
     const got = withClass(m.root, "p-map__agent-state").map(onlyText);
     assert.deepEqual(got, want);
     const lines = withClass(m.root, "p-map__door-line").map(onlyText);
@@ -131,26 +133,32 @@ test("each agent row's state is the server's plainState, whole; doors' and apps'
   } finally { m.done(); }
 });
 
-// PLAN-3D-ALL U17: the lamp and the words agree. An agent with something in the queue is amber while the server's
-// state reads "Free" or "Working"; its row keeps the server's words whole and says "Waiting for you" too.
-test("an amber lamp's row says Waiting for you when the server's state words do not; no other row does", async () => {
+// PLAN-3D-ALL U17: the lamp and the words agree, one state per agent. An agent with something in the queue is amber
+// while the server's state reads "Free" or "Working": in the rail and in a room's "Who is here" its one state is
+// "Waiting for you"; every other agent keeps the server's words.
+test("one state per agent, by the lamp's rule, in the rail and in a room's Who is here", async () => {
   const fx = { ...F.seed, world: { ...F.seed.world, rooms: F.seed.world.rooms.map((r, i) => (i === 0
-    ? { ...r, agents: r.agents.map((a, j) => (j === 0 ? { ...a, state: "free", plainState: "Free", waitingForYou: true } : { ...a, waitingForYou: false })) }
+    ? { ...r, agents: r.agents.map((a, j) => (j === 0 ? { ...a, state: "free", plainState: "Free", waitingForYou: true }
+      : j === 1 ? { ...a, state: "working", plainState: "Working", waitingForYou: true } : { ...a, waitingForYou: false })) }
     : r)) } };
-  const m = await mountMap(fx);
-  try {
-    const rows = withClass(m.root, "p-map__agent");
-    assert.ok(rows.length > 1);
-    let amber = 0;
-    for (const row of rows) {
-      const lamp = withClass(row, "p-map__lamp")[0];
-      const words = withClass(row, "p-map__agent-state").map(onlyText)[0] || "";
-      const wait = withClass(row, "p-map__agent-wait").map(onlyText);
-      if (classesOf(lamp).includes("p-map__lamp--amber") && !/wait/i.test(words)) { amber++; assert.deepEqual(wait, ["Waiting for you"]); }
-      else assert.deepEqual(wait, [], "only an amber lamp whose words say otherwise");
-    }
-    assert.ok(amber >= 1, "the queued agent is amber and says so");
-  } finally { m.done(); }
+  const room = fx.world.rooms[0];
+  for (const parts of [["map"], ["map", room.id]]) {
+    const m = await mountMap(fx, { parts });
+    try {
+      const rows = [...withClass(m.root, "p-map__agent"), ...withClass(m.root, "p-map__who-row")];
+      assert.ok(rows.length > 1, parts.join("/"));
+      let amber = 0;
+      for (const row of rows) {
+        const lamp = withClass(row, "p-map__lamp")[0];
+        const words = [...withClass(row, "p-map__agent-state"), ...withClass(row, "p-map__who-state")].map(onlyText);
+        assert.equal(words.length, 1, "one state's words a row");
+        if (classesOf(lamp).includes("p-map__lamp--amber")) { amber++; assert.equal(words[0], "Waiting for you", "an amber lamp's one state"); }
+        else assert.notEqual(words[0], "Waiting for you", "only an amber lamp says Waiting for you");
+      }
+      assert.ok(amber >= 2, `${parts.join("/")}: both queued agents are amber and say so`);
+      if (parts.length > 1) assert.deepEqual(withClass(m.root, "p-map__who-row").slice(0, 2).map((r) => withClass(r, "p-map__who-state").map(onlyText)[0]), ["Waiting for you", "Waiting for you"], "Who is here: one state each");
+    } finally { m.done(); }
+  }
 });
 
 // PLAN-3D-ALL U17: with a room open the rail is inert and its h1 with it; the page keeps one h1 a reader can reach.

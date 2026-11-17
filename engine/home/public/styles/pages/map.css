@@ -1286,7 +1286,7 @@
 }
 
 /* An amber lamp's state words in the first ink: they stand at the rail's edge, past the scrim's dense part, where the
-   morning picture left the warm tone at 4.47 to 1; "Waiting for you" under the name carries the tone (PLAN-3D-ALL U17). */
+   morning picture left the warm tone at 4.47 to 1; the lamp beside them carries the tone (PLAN-3D-ALL U17). */
 .p-map .p-map__agent-state--amber {
   color: var(--ink);
 }
@@ -1298,14 +1298,6 @@
 .p-map .p-map__agent-state--off,
 .p-map .p-map__agent-state--down {
   color: var(--ink-2);
-}
-
-/* "Waiting for you" under the name when the amber lamp's state words say otherwise (PLAN-3D-ALL U17). */
-.p-map .p-map__agent-wait {
-  grid-column: 2 / -1;
-  color: var(--warn);
-  font-size: var(--fs-label);
-  line-height: var(--lh-label);
 }
 
 .p-map .p-map__agent-task {
@@ -1692,12 +1684,6 @@
 
 .p-map .p-map__who-state {
   color: var(--ink-2);
-}
-
-.p-map .p-map__who-wait {
-  color: var(--warn);
-  font-size: var(--fs-note);
-  line-height: var(--lh-note);
 }
 
 .p-map .p-map__switch {

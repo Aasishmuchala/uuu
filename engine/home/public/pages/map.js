@@ -422,11 +422,11 @@ function StopTask({ taskId, onChanged }) {
 // A lamp glyph as the studio draws it: on, amber, red, off or down. Hidden from readers: the words beside it say it.
 const Lamp = ({ lamp }) => html`<span class=${`p-map__lamp p-map__lamp--${lamp || "off"}`} aria-hidden="true"></span>`;
 
-// The amber lamp's words when the server's own state does not say it (PLAN-3D-ALL U17): an agent with something in
-// the queue is amber while its state reads "Free" or "Working", so the row says it waits for the owner as well.
+// One state per agent, by the lamp's rule (world/state.js lampOf; kit/agent.js agentStateOf): an agent with something
+// in the queue is amber while the server's words read "Free" or "Working", so its words are "Waiting for you"; every
+// other agent keeps the server's words whole (PLAN-3D-ALL U17).
 const WAITING = "Waiting for you";
-const waitWords = (a, cls) => (a.lamp === "amber" && !/wait/i.test(String(a.plainState || ""))
-  ? html`<span class=${cls}>${WAITING}</span>` : null);
+export const stateWords = (a) => (a && a.lamp === "amber" && !/wait/i.test(String(a.plainState || "")) ? WAITING : a ? a.plainState : "");
 
 // "Who is here": each agent of the room with its state words, its task and its switch.
 function WhoIsHere({ room, onChanged }) {
@@ -436,8 +436,7 @@ function WhoIsHere({ room, onChanged }) {
       <${Lamp} lamp=${a.lamp} />
       <span class="p-map__who-text">
         <span class="p-map__who-name" title=${a.name}>${a.name}</span>
-        <span class="p-map__who-state">${a.plainState}</span>
-        ${waitWords(a, "p-map__who-wait")}
+        <span class="p-map__who-state">${stateWords(a)}</span>
         ${a.doing ? html`<span class="p-map__who-task">${a.doing.title}</span>` : null}
       </span>
       <${AgentSwitch} agent=${a} onChanged=${onChanged} />
@@ -535,8 +534,7 @@ function RoomList({ ws, chosen, hover, onHover }) {
           <a class="p-map__agent" href=${mapHref({ dept: r.id })} data-row="" ...${point(r.id)}>
             <${Lamp} lamp=${a.lamp} />
             <span class="p-map__agent-name" title=${a.name}>${a.name}</span>
-            <span class=${`p-map__agent-state p-map__agent-state--${a.lamp}`}>${a.plainState}</span>
-            ${waitWords(a, "p-map__agent-wait")}
+            <span class=${`p-map__agent-state p-map__agent-state--${a.lamp}`}>${stateWords(a)}</span>
             ${a.doing ? html`<span class="p-map__agent-task">${a.doing.title}</span>` : null}
           </a>
         </li>`)}
