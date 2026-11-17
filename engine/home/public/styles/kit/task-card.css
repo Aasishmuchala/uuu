@@ -181,6 +181,15 @@
   color: var(--ink-3);
 }
 
+/* A working glyph is lit, on a row and on a card: the lamp's tone in a small pool of its light, so it parts from
+   amber by shape as well as tone (PLAN-3D-ALL U5). */
+.k-task-row__mark--live .k-state-icon,
+.k-task-card__state--live .k-state-icon {
+  border-radius: var(--r-round);
+  background: var(--info-bg);
+  box-shadow: 0 0 0 3px var(--info-bg);
+}
+
 .k-task-card__state--bad {
   color: var(--bad);
 }

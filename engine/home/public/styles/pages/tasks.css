@@ -25,8 +25,10 @@
   margin-bottom: var(--s-4);
 }
 
-/* The room header: 24 px up into the pane's top margin, 16 px over the first group. */
+/* The room header: 24 px up into the pane's top margin, 16 px over the first group. It stands one layer above the
+   rows, so a filter's open menu (inside the band's own layer) covers the group heads under it. */
 .p-tasks .k-room {
+  z-index: 1;
   margin-top: calc(-1 * var(--s-6));
   margin-bottom: var(--s-4);
 }
@@ -75,6 +77,12 @@
 
 .p-tasks .p-tasks__filter .k-menu__trigger .k-icon {
   color: var(--ink-3);
+}
+
+/* Over the room header's picture a filter keeps the control fill, so its edge and words hold where the picture
+   is bright (PLAN-3D-ALL U5). */
+.p-tasks .k-room .p-tasks__filter .k-menu__trigger {
+  background: var(--ctl);
 }
 
 .p-tasks .p-tasks__filter--on .k-menu__trigger {

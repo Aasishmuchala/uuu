@@ -482,14 +482,17 @@ test("tasks: states follow the lamps: a working glyph lit, a stuck one amber, a 
   const kit = readFileSync(new URL("../../styles/kit/task-card.css", import.meta.url), "utf8");
   assert.match(kit, /\.k-task-card__state--live \{\s*color: var\(--accent\);/, "a working card's glyph in the lamp's tone, not green");
   assert.match(kit, /\.k-task-row__mark--live \{ color: var\(--accent\); \}/);
+  assert.match(kit, /\.k-task-card__state--live \.k-state-icon \{[^}]*background: var\(--info-bg\);/, "a working card's glyph is lit too");
   assert.match(kit, /\.k-task-row:hover \{\s*background-color: var\(--lamp-pool\);/);
 });
 
 test("tasks: the band keeps the first row near the top: up into the pane's margin, 16 px over the first group (PLAN-3D-ALL U5, D9)", () => {
   const css = readFileSync(new URL("../../styles/pages/tasks.css", import.meta.url), "utf8");
   const [wide, phone] = [...css.matchAll(/\.p-tasks \.k-room \{([^}]*)\}/g)].map((x) => x[1]);
+  assert.match(wide, /z-index: 1;/, "an open menu covers the group heads under the band");
   assert.match(wide, /margin-top: calc\(-1 \* var\(--s-6\)\);\s*margin-bottom: var\(--s-4\);/);
   assert.match(phone, /margin-top: calc\(-1 \* var\(--s-2\)\);\s*margin-bottom: var\(--s-4\);/);
+  assert.match(css, /\.p-tasks \.k-room \.p-tasks__filter \.k-menu__trigger \{\s*background: var\(--ctl\);/, "a filter over the picture keeps the control fill");
   assert.ok(!/paper/.test(css), "no paper on this page");
   const src = readFileSync(new URL("../../pages/tasks.js", import.meta.url), "utf8");
   assert.ok(!/data-surface|<\$\{Sheet\}/.test(src), "no paper on this page");
