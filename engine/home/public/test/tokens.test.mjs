@@ -368,6 +368,18 @@ test("the Lab helper measures as CIE does", () => {
   assert.ok(Math.abs(labDistance(parseColour("#ffffff"), parseColour("#000000")) - 100) < 0.01);
 });
 
+// PLAN-3D-ALL U1 follow-up (D5): a dot where only its colour and a pulse differ must still tell working (the accent,
+// and the lamp glyph) from waiting for you (--warn), and waiting from a problem (--bad): at least 20 apart in Lab
+// for working and waiting, 15 for waiting and a problem.
+function assertStatesApart(t, where) {
+  for (const working of ["--accent", "--lamp"]) {
+    const d = labDistance(colourOf(t, working), colourOf(t, "--warn"));
+    assert.ok(d >= 20, `${working} and --warn are ${d.toFixed(1)} apart in Lab in ${where}, under 20`);
+  }
+  const bad = labDistance(colourOf(t, "--warn"), colourOf(t, "--bad"));
+  assert.ok(bad >= 15, `--warn and --bad are ${bad.toFixed(1)} apart in Lab in ${where}, under 15`);
+}
+
 // PLAN-3D-ALL U1 (D5, constraints f and g): one warm light.
 for (const [mode, , ways] of MODES) {
   test(`the lamplight accent in ${mode}: text on every step, the filled primary, its dark ink, and never a warning`, () => {
@@ -388,6 +400,7 @@ for (const [mode, , ways] of MODES) {
       assert.ok(luminance(colourOf(t, "--accent-ink")) < 0.05, "the filled primary's words are dark");
       const d = labDistance(colourOf(t, "--accent-fill"), colourOf(t, "--warn"));
       assert.ok(d >= 15, `--accent-fill and --warn are ${d.toFixed(1)} apart in Lab in ${where}, under 15`);
+      assertStatesApart(t, where);
       // The lamp glyph is a mark: 3 to 1 on the ground, the rail and a card; the focus ring is the lamp's accent.
       for (const bg of ["--bg", "--panel", "--card"]) {
         const r = contrast(colourOf(t, "--lamp"), colourOf(t, bg));
@@ -496,6 +509,9 @@ for (const [mode, , ways] of MODES) {
       }
       const d = labDistance(colourOf(t, "--accent-fill"), colourOf(t, "--warn"));
       assert.ok(d >= 15, `--accent-fill and --warn on paper are ${d.toFixed(1)} apart in Lab in ${where}`);
+      assertStatesApart(t, where);
+      // The Lamp glyph's "on" disc reads on cream (a mark: 3 to 1 on paper and its inset).
+      for (const bg of ["--paper", "--paper-2"]) assert.ok(contrast(colourOf(t, "--lamp"), colourOf(t, bg)) >= 3, `--lamp on ${bg} in ${where}`);
       // The focus ring shows on paper: the accent at 3 to 1 as a mark.
       assert.ok(contrast(colourOf(t, "--focus"), colourOf(t, "--paper")) >= 3, `the focus ring on paper in ${where}`);
       for (const under of ["--paper", "--paper-2"]) {

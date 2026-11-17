@@ -151,7 +151,7 @@
 
   --good: #2e6b3c;
   --good-bg: #e3efe2;
-  --warn: #a64b00;
+  --warn: #ad4500;
   --warn-bg: #fbead6;
   --warn-line: #ebcaa0;
   --bad: #b3261e;
@@ -237,7 +237,7 @@
 
     --good: #2e6b3c;
     --good-bg: #e3efe2;
-    --warn: #a64b00;
+    --warn: #ad4500;
     --warn-bg: #fbead6;
     --warn-line: #ebcaa0;
     --bad: #b3261e;
@@ -296,6 +296,7 @@
    change to its sheet. Paper is light in both themes: its values are the paper family above (themed) and, for the
    states, the tints and the filled primary, one light set written here. On paper the filled primary is a deep
    lamp-brown under cream words (as the approved e2 sheet), since a lamplight fill does not part from cream.
+   The lamp glyph on paper is paper's accent, so its "on" disc reads on cream.
    "Over" is a panel laid over a scene: the ground and panel are --over, the edges --over-line. The aliases of
    block 3 are declared on [data-surface] too, so --focus, --text, --border and the rest follow the scope. */
 [data-surface="paper"] {
@@ -320,6 +321,7 @@
   --ink-3: var(--paper-ink-3);
 
   --accent: var(--paper-accent);
+  --lamp: var(--paper-accent);
   --accent-fill: #8a5520;
   --accent-ink: #fffaf2;
   --info-bg: rgba(154,84,19,.10);
@@ -327,7 +329,7 @@
 
   --good: #2e6b3c;
   --good-bg: #e3efe2;
-  --warn: #9a4500;
+  --warn: #a54400;
   --warn-bg: #f6e2c8;
   --warn-line: #dfb98a;
   --bad: #a52a1c;
@@ -634,12 +636,12 @@
   --w-lamp-down: #6e635a;
   --w-pool: #ffd2a0;
 
-  --w-scrim-0: rgba(243,243,245,.94);
-  --w-scrim-1: rgba(243,243,245,0);
-  --w-tag: rgba(255,255,255,.94);
-  --w-tag-line: rgba(16,24,40,.12);
-  --w-tag-ink: #18181b;
-  --w-tag-ink-2: #4a4b53;
+  --w-scrim-0: rgba(243,238,229,.94);
+  --w-scrim-1: rgba(243,238,229,0);
+  --w-tag: rgba(255,253,248,.94);
+  --w-tag-line: rgba(70,48,26,.14);
+  --w-tag-ink: #1b1916;
+  --w-tag-ink-2: #4d463d;
 }
 
 @media (prefers-color-scheme: light) {
@@ -672,11 +674,11 @@
     --w-lamp-down: #6e635a;
     --w-pool: #ffd2a0;
 
-    --w-scrim-0: rgba(243,243,245,.94);
-    --w-scrim-1: rgba(243,243,245,0);
-    --w-tag: rgba(255,255,255,.94);
-    --w-tag-line: rgba(16,24,40,.12);
-    --w-tag-ink: #18181b;
-    --w-tag-ink-2: #4a4b53;
+    --w-scrim-0: rgba(243,238,229,.94);
+    --w-scrim-1: rgba(243,238,229,0);
+    --w-tag: rgba(255,253,248,.94);
+    --w-tag-line: rgba(70,48,26,.14);
+    --w-tag-ink: #1b1916;
+    --w-tag-ink-2: #4d463d;
   }
 }

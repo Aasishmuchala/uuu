@@ -43,7 +43,7 @@ export const THEMED = {
   // States follow the lamps (D5): on or passed a muted green, waiting for you amber, a problem red.
   "--good": ["#8cc79b", "#2e6b3c"],
   "--good-bg": ["rgba(140,199,155,.14)", "#e3efe2"],
-  "--warn": ["#ff9f45", "#a64b00"],
+  "--warn": ["#ff9f45", "#ad4500"],
   "--warn-bg": ["rgba(255,159,69,.14)", "#fbead6"],
   "--warn-line": ["rgba(255,159,69,.34)", "#ebcaa0"],
   "--bad": ["#ff7a62", "#b3261e"],
@@ -140,12 +140,13 @@ export const THEMED = {
   // values stay here as they compute, for the world's tests that read them; the tokens test checks both.
   "--w-paper": ["#efe9df", "#fdfbf6"],
   "--w-paper-ink": ["#211d18", "#1b1916"],
-  "--w-scrim-0": ["rgba(12,11,10,.88)", "rgba(243,243,245,.94)"],
-  "--w-scrim-1": ["rgba(12,11,10,0)", "rgba(243,243,245,0)"],
-  "--w-tag": ["rgba(20,17,15,.86)", "rgba(255,255,255,.94)"],
-  "--w-tag-line": ["rgba(255,226,196,.16)", "rgba(16,24,40,.12)"],
-  "--w-tag-ink": ["#f6f1ea", "#18181b"],
-  "--w-tag-ink-2": ["#d9c9b8", "#4a4b53"],
+  // PLAN-3D-ALL U1 follow-up: the light scrim and tags in morning plaster, warm near-white tags with warm ink.
+  "--w-scrim-0": ["rgba(12,11,10,.88)", "rgba(243,238,229,.94)"],
+  "--w-scrim-1": ["rgba(12,11,10,0)", "rgba(243,238,229,0)"],
+  "--w-tag": ["rgba(20,17,15,.86)", "rgba(255,253,248,.94)"],
+  "--w-tag-line": ["rgba(255,226,196,.16)", "rgba(70,48,26,.14)"],
+  "--w-tag-ink": ["#f6f1ea", "#1b1916"],
+  "--w-tag-ink-2": ["#d9c9b8", "#4d463d"],
 };
 
 // Not themed: the scale, and the few fixed colours.
@@ -278,13 +279,15 @@ export const SURFACES = {
     "--ink-2": "var(--paper-ink-2)",
     "--ink-3": "var(--paper-ink-3)",
     "--accent": "var(--paper-accent)",
+    // The Lamp glyph's "on" disc on cream: the lamp-brown of paper's accent.
+    "--lamp": "var(--paper-accent)",
     "--accent-fill": "#8a5520",
     "--accent-ink": "#fffaf2",
     "--info-bg": "rgba(154,84,19,.10)",
     "--lamp-pool": "rgba(154,84,19,.08)",
     "--good": "#2e6b3c",
     "--good-bg": "#e3efe2",
-    "--warn": "#9a4500",
+    "--warn": "#a54400",
     "--warn-bg": "#f6e2c8",
     "--warn-line": "#dfb98a",
     "--bad": "#a52a1c",
