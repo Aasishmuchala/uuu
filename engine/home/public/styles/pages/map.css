@@ -1285,8 +1285,10 @@
   text-align: right;
 }
 
+/* An amber lamp's state words in the first ink: they stand at the rail's edge, past the scrim's dense part, where the
+   morning picture left the warm tone at 4.47 to 1; "Waiting for you" under the name carries the tone (PLAN-3D-ALL U17). */
 .p-map .p-map__agent-state--amber {
-  color: var(--warn);
+  color: var(--ink);
 }
 
 .p-map .p-map__agent-state--red {
