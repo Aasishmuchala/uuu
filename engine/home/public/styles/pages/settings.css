@@ -70,11 +70,8 @@
   .p-settings > .k-room {
     margin: var(--s-2) var(--s-3) 0;
   }
-  .p-settings .k-doc__sections {
-    margin-top: var(--s-2);
-  }
   .p-settings .k-doc__main {
-    padding-top: var(--s-4);
+    padding-top: var(--s-3);
   }
 
   .p-settings .k-rows__row:has(> .k-rows__control .k-switch) {
