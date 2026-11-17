@@ -1,5 +1,5 @@
 // The world's files only through the manifest (PLAN-3D D9, D19, T6 e): assetUrl gives an address under
-// /assets/world/v1/ for a key the manifest holds and refuses everything else; a need picks exactly one file for its
+// /assets/world/v2/ for a key the manifest holds and refuses everything else; a need picks exactly one file for its
 // tier, mode and theme; and the world's own modules are reached by no page, shell, kit or lib module statically
 // (only stage.js, by import()).
 import { test } from "node:test";
@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, "..", "..");
 const { assetUrl, entryOf, useManifest, bytesOf, familyOf, MANIFEST_PATH } = await import(pathToFileURL(join(PUBLIC, "world", "assets.js")).href);
-const manifest = JSON.parse(readFileSync(join(PUBLIC, "assets", "world", "v1", "manifest.json"), "utf8"));
+const manifest = JSON.parse(readFileSync(join(PUBLIC, "assets", "world", "v2", "manifest.json"), "utf8"));
 
 test("before the manifest is read, no key gives an address", async () => {
   // a fresh copy of the module, so the shared one's state does not matter
@@ -19,14 +19,14 @@ test("before the manifest is read, no key gives an address", async () => {
   assert.throws(() => fresh.assetUrl("tex.wood_floor.diff"));
 });
 
-test("assetUrl gives a path under /assets/world/v1/ for a key the manifest holds", () => {
+test("assetUrl gives a path under /assets/world/v2/ for a key the manifest holds", () => {
   useManifest(manifest);
   const url = assetUrl("tex.wood_floor.diff");
-  assert.ok(url.startsWith("/assets/world/v1/"), url);
-  assert.equal(url, "/assets/world/v1/tex/1k/wood_floor_diff.jpg");
-  assert.equal(assetUrl("tex.wood_floor.diff", { tier: "phone" }), "/assets/world/v1/tex/512/wood_floor_diff.jpg");
-  assert.equal(assetUrl("model.fern_02"), "/assets/world/v1/models/fern_02/fern_02.gltf");
-  assert.equal(MANIFEST_PATH, "/assets/world/v1/manifest.json");
+  assert.ok(url.startsWith("/assets/world/v2/"), url);
+  assert.equal(url, "/assets/world/v2/tex/1k/wood_floor_diff.jpg");
+  assert.equal(assetUrl("tex.wood_floor.diff", { tier: "phone" }), "/assets/world/v2/tex/512/wood_floor_diff.jpg");
+  assert.equal(assetUrl("model.fern_02"), "/assets/world/v2/models/fern_02/fern_02.gltf");
+  assert.equal(MANIFEST_PATH, "/assets/world/v2/manifest.json");
 });
 
 test("assetUrl refuses a key the manifest does not hold, and anything with a slash, a dot-dot or a colon", () => {

@@ -1,5 +1,5 @@
 // The owner's desk (PLAN-3D D1, D10, T6; from the approved prototype's needs.js): a desk by a window at dusk, the
-// arm lamp and its light, the stack of what waits (blank ruled sheets, never a title: D9), the tray for what is set
+// arm lamp and its light (it throws real shadows: REAL-1), the stack of what waits (blank ruled sheets, never a title: D9), the tray for what is set
 // aside, and the studio at model scale on a walnut board, built by the same code as the Map's building (`small`).
 // Approved, the top sheet travels into its department's room in the model; set aside, it slides to the tray.
 import * as THREE from "../../vendor/three-0.169.0/three.module.min.js";
@@ -12,18 +12,6 @@ import { STACK_MAX } from "../state.js";
 export const DESK_AT = new THREE.Vector3(0, 16, 14);
 const SW = 0.21, SL = 0.297, STEP = 0.0026;
 
-// A soft dark blot for the contact shade under things on the desk (no shadow maps: D21).
-function blotTexture() {
-  const S = 64, d = new Uint8Array(S * S * 4);
-  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const r = Math.min(1, Math.hypot((x - S / 2 + 0.5) / (S / 2), (y - S / 2 + 0.5) / (S / 2)));
-    const v = 1 - r;
-    const o = (y * S + x) * 4; d[o + 3] = Math.round(255 * Math.pow(v, 1.6));
-  }
-  const t = new THREE.DataTexture(d, S, S, THREE.RGBAFormat);
-  t.needsUpdate = true; t.magFilter = t.minFilter = THREE.LinearFilter;
-  return t;
-}
 // Ruled paper: a pale sheet with grey rules, numbers only.
 function ruledTexture() {
   const W = 64, H = 96, d = new Uint8Array(W * H * 4);
@@ -97,13 +85,13 @@ export function makeDesk(A, plan, { fog } = {}) {
   const own = (x) => { owned.push(x); return x; };
   const tex = A.tex;
 
-  const top = own(keyed(new THREE.MeshStandardMaterial({ map: tex.wood_floor_diff, normalMap: tex.wood_floor_nor, roughnessMap: tex.wood_floor_rough, roughness: 1, envMapIntensity: 0.6, color: col("#e9cfb0") }), "d-std"));
+  const top = own(keyed(new THREE.MeshStandardMaterial({ map: tex.wood_floor_diff, normalMap: tex.wood_floor_nor, roughnessMap: tex.wood_floor_rough, roughness: 1, envMapIntensity: 0.7, color: col("#c9a882") }), "d-std"));
   // the top runs on toward the owner past the stage's lower edge, so no dark band shows under it (T11)
   const dg = new THREE.BoxGeometry(4.4, 0.045, 3.2);
-  { const uv = dg.attributes.uv, p = dg.attributes.position; for (let i = 0; i < uv.count; i++) uv.setXY(i, (p.getX(i) + 2.2) / 2.6, (p.getZ(i) + 1.6) / 2.6); }
+  { const uv = dg.attributes.uv, p = dg.attributes.position; for (let i = 0; i < uv.count; i++) uv.setXY(i, (p.getZ(i) + 1.6) / 1.15, (p.getX(i) + 2.2) / 1.15); }
   const deskTop = new THREE.Mesh(dg, top); deskTop.position.set(0, -0.0225, 0.7); g.add(deskTop);
   // the window behind the desk: dark steel mullions, a concrete sill, the dusk beyond
-  const steel = own(keyed(new THREE.MeshStandardMaterial({ color: col("#1f1c1a"), roughness: 0.45, metalness: 0.6 }), "d-std"));
+  const steel = own(keyed(new THREE.MeshStandardMaterial({ color: col("#151414"), roughness: 0.34, metalness: 0.85, envMapIntensity: 1.2 }), "d-std"));
   const sillM = own(keyed(new THREE.MeshStandardMaterial({ map: tex.concrete_floor_02_diff, roughness: 0.9, color: col("#bdb6ad") }), "d-std"));
   const sill = new THREE.Mesh(new THREE.BoxGeometry(6, 0.06, 0.3), sillM); sill.position.set(0, -0.1, -1.25); g.add(sill);
   for (const x of [-2.4, -1.2, 0, 1.2, 2.4]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 3, 0.08), steel); m.position.set(x + 0.35, 1.4, -1.36); g.add(m); }
@@ -111,15 +99,17 @@ export function makeDesk(A, plan, { fog } = {}) {
   let ringM = null;
   if (fog) { const ring = makeFirRing(fog); ring.position.set(0, -DESK_AT.y, 0); g.add(ring); owned.push(...ring.userData.mats); ringM = ring.userData.mats[0]; }
   // the lamp and the light it throws
-  const lamp = makeLamp({ steel, shade: own(keyed(new THREE.MeshStandardMaterial({ color: col("#26302c"), roughness: 0.5, metalness: 0.35 }), "d-std")) });
+  const lamp = makeLamp({ steel, shade: own(keyed(new THREE.MeshStandardMaterial({ color: col("#1c2622"), roughness: 0.28, metalness: 0.5, envMapIntensity: 1.3, side: THREE.DoubleSide }), "d-std")) });
   lamp.group.position.set(-0.2, 0, -0.62); lamp.group.rotation.y = -1.0; lamp.group.scale.setScalar(1.15);
   lamp.setPose(0); lamp.setLight("on", 1); g.add(lamp.group);
   g.updateMatrixWorld(true);
   const head = new THREE.Vector3(); lamp.head.getWorldPosition(head);
-  const spot = new THREE.SpotLight(col("#ffc98e"), 7, 3.2, 0.95, 0.55, 1.6);
+  const spot = new THREE.SpotLight(new THREE.Color().setRGB(1, 0.8, 0.56), 3.2, 3.4, 1.0, 0.6, 1.7);
   spot.position.copy(head).add(new THREE.Vector3(0, -0.05, 0));
+  const spotAt = spot.position.clone();
+  spot.castShadow = true; spot.shadow.mapSize.set(1024, 1024); spot.shadow.camera.near = 0.08; spot.shadow.camera.far = 3.4; spot.shadow.bias = -0.0008; spot.shadow.normalBias = 0.002; spot.shadow.radius = 3;
   spot.target.position.copy(DESK_AT).add(new THREE.Vector3(-0.05, 0, -0.05));
-  const fill = new THREE.PointLight(col("#ffb070"), 1.2, 4, 1.6); fill.position.copy(DESK_AT).add(new THREE.Vector3(0.4, 1.2, 0.9));
+  const fill = new THREE.PointLight(new THREE.Color().setRGB(1, 0.76, 0.5), 0.5, 4, 1.6); fill.position.copy(DESK_AT).add(new THREE.Vector3(0.4, 1.2, 0.9));
   const lights = new THREE.Group(); lights.add(spot, spot.target, fill);
 
   // the studio model at the back of the desk, on a walnut board, sized to the plan
@@ -154,24 +144,12 @@ export function makeDesk(A, plan, { fog } = {}) {
   const sheetAt = (i, drop = 0) => M.compose(P.set(R(i) * 0.02, 0.0008 + i * STEP + drop, R(i + 3) * 0.016), Qr.setFromEuler(Eu.set(0, R(i + 7) * 0.14, 0)), ONE);
   const trayAt = (i) => M.compose(P.set(R(i + 11) * 0.02, 0.013 + i * STEP, R(i + 5) * 0.02), Qr.setFromEuler(Eu.set(0, R(i + 2) * 0.3, 0)), ONE);
 
-  // contact shade under the stack, the tray, the board and the lamp
-  const blot = blotTexture();
-  const blotM = own(new THREE.MeshBasicMaterial({ map: blot, color: col("#000000"), transparent: true, opacity: 0.55, depthWrite: false }));
-  const blotG = new THREE.PlaneGeometry(1, 1);
-  const blots = [];
-  const addBlot = (parent, x, z, w, d, k = 1, ry = 0) => { const m = new THREE.Mesh(blotG, blotM); m.rotation.set(-Math.PI / 2, 0, ry); m.position.set(x, 0.0007, z); m.scale.set(w, d, 1); m.renderOrder = 1; m.userData.k = k; parent.add(m); blots.push(m); return m; };
-  const stackBlot = addBlot(stackG, 0, 0, SW * 1.5, SL * 1.35);
-  addBlot(trayG, 0, 0, 0.42, 0.5);
-  addBlot(model, 0.01, 0.02, bw * 1.15, 0.5);
-  addBlot(g, -0.2, -0.62, 0.3, 0.3);
-
   // the stack's state: n sheets now, the newest dropping in when the queue grows
   let n = 0, drop = 0, asideN = 0;
   function drawStack() {
     stack.count = n;
     for (let i = 0; i < n; i++) stack.setMatrixAt(i, sheetAt(i, i >= n - dropN ? drop : 0));
     stack.instanceMatrix.needsUpdate = true;
-    stackBlot.visible = n > 0;
     tray.count = Math.min(TRAY_MAX, asideN);
     for (let i = 0; i < tray.count; i++) tray.setMatrixAt(i, trayAt(i));
     tray.instanceMatrix.needsUpdate = true;
@@ -247,8 +225,14 @@ export function makeDesk(A, plan, { fog } = {}) {
     drawStack();
   }
 
+  // everything solid on the desk throws and takes the lamp's shadow (the building has set its own)
+  g.traverse((o) => { if (o.isMesh && !o.castShadow && o.material && !Array.isArray(o.material) && o.material.isMeshStandardMaterial && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; } });
+  for (const im of [stack, tray]) { im.castShadow = true; im.receiveShadow = true; }
+
   return {
     group: g, lights, building: b, model, stackG, trayG,
+    // the lamp moved a hair inside its shade (the settled picture's soft shadows)
+    hairLamp([jx, jy]) { spot.position.set(spotAt.x + jx * 0.016, spotAt.y, spotAt.z + jy * 0.016); },
     setStack, approve, aside, update, snap,
     anchor(id) {
       if (id === "stack") return g.localToWorld(topOfStack().add(new THREE.Vector3(0, 0.0, 0.2)));
@@ -257,7 +241,7 @@ export function makeDesk(A, plan, { fog } = {}) {
     },
     roomWorld(id) { return g.localToWorld(roomPoint(id)); },
     focusPoint() { return g.localToWorld(new THREE.Vector3(0.16, 0.02, -0.5)); },
-    sync(sunDir) { g.updateMatrixWorld(true); b.sync(sunDir); },
+    sync() { g.updateMatrixWorld(true); b.sync(); },
     // the view out of the window in the key's colours (dusk.js lookAt's numbers), and the model's lamps (T12)
     look(L, day) {
       if (ringM) { const u = ringM.uniforms; u.uFog.value.copy(L.fog); u.uDark.value.copy(L.ringDark); u.uGlow.value.copy(L.ringGlow); u.uHaze.value.copy(L.ringHaze); }
@@ -268,7 +252,7 @@ export function makeDesk(A, plan, { fog } = {}) {
       g.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
       for (const x of owned) x.dispose();
       lamp.group.traverse((o) => { if (o.material) o.material.dispose(); });
-      ruled.dispose(); blot.dispose();
+      ruled.dispose();
       stack.dispose(); tray.dispose();
       g.removeFromParent(); lights.removeFromParent();
     },

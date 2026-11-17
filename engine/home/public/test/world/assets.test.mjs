@@ -1,7 +1,8 @@
-// The world's asset set (PLAN-3D T2, D17 to D20): every file in assets/world/v1/ is in the manifest with its
+// The world's asset set (PLAN-3D T2, D17 to D20; REAL-1 made v2): every file in assets/world/v2/ is in the manifest with its
 // size and SHA-256, and every file the manifest names is there; the first view of each page, per tier and
 // theme, stays inside its byte budget (three.js counted); models are .gltf with external files beside them;
-// NOTICE.md names everything the manifest holds. A changed file without a new folder (v2) fails here.
+// NOTICE.md names everything the manifest holds. A changed file without a new folder (v3) fails here.
+// v2 (REAL-1) is v1 whole plus the furniture models and the cladding boards; v1 is gone from the tree with it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -11,16 +12,18 @@ import { fileURLToPath } from "node:url";
 
 const PUBLIC = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const WORLD = join(PUBLIC, "assets", "world");
-const V1 = join(WORLD, "v1");
+const V1 = join(WORLD, "v2"); // the set's folder (the name is kept from v1's day)
 const MANIFEST = join(V1, "manifest.json");
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
 const FILES = manifest.files;
 const rel = (full) => relative(PUBLIC, full).split(sep).join("/");
 
 // D20: raw bytes as the home server sends them (it does not compress), for the first view of each page.
+// REAL-1 raised the Map's two: the owner asked for a building that reads as real, and the orchestrator allowed the
+// desktop's first view up to 20 MB and the phone's up to 8 MB for the furniture models and the cladding.
 const BUDGET = [
-  { tier: "desktop", mode: "map", limit: 12_000_000 },
-  { tier: "phone", mode: "map", limit: 6_000_000 },
+  { tier: "desktop", mode: "map", limit: 20_000_000 },
+  { tier: "phone", mode: "map", limit: 8_000_000 },
   { tier: "desktop", mode: "desk", limit: 8_000_000 },
   { tier: "phone", mode: "desk", limit: 4_000_000 },
 ];
@@ -36,8 +39,8 @@ function walk(dir, out = []) {
   return out;
 }
 
-test("the manifest's shape: version 1, plain unique keys, unique paths, known tiers, modes, themes and licences", () => {
-  assert.equal(manifest.version, 1);
+test("the manifest's shape: version 2, plain unique keys, unique paths, known tiers, modes, themes and licences", () => {
+  assert.equal(manifest.version, 2);
   assert.ok(FILES.length > 0);
   const keys = new Set(), paths = new Set();
   for (const f of FILES) {
@@ -55,13 +58,13 @@ test("the manifest's shape: version 1, plain unique keys, unique paths, known ti
   }
 });
 
-test("no path contains .. and every path is a plain address under the tree, in v1/ or three.js's folder", () => {
+test("no path contains .. and every path is a plain address under the tree, in v2/ or three.js's folder", () => {
   for (const f of FILES) {
     assert.ok(!f.path.split("/").includes(".."), `${f.path} has no ..`);
     assert.ok(!f.path.includes(".."), `${f.path} has no ..`);
     assert.ok(!f.path.startsWith("/") && !f.path.includes("\\") && !/^[a-z]+:/i.test(f.path), `${f.path} is relative`);
     assert.equal(posix.normalize(f.path), f.path, `${f.path} is normal`);
-    assert.ok(f.path.startsWith("assets/world/v1/") || f.path.startsWith("vendor/three-0.169.0/"), `${f.path} is in the set or three.js`);
+    assert.ok(f.path.startsWith("assets/world/v2/") || f.path.startsWith("vendor/three-0.169.0/"), `${f.path} is in the set or three.js`);
     if (f.path.startsWith("vendor/")) assert.equal(f.licence, "MIT", `${f.path} is three.js`);
   }
 });
@@ -74,7 +77,7 @@ test("every file in the manifest is there with the stated bytes and SHA-256", ()
   }
 });
 
-test("no file in v1/ is missing from the manifest, and there is no .glb", () => {
+test("no file in v2/ is missing from the manifest, and there is no .glb", () => {
   const listed = new Set(FILES.map((f) => f.path));
   for (const full of walk(V1)) {
     const p = rel(full);
@@ -146,6 +149,7 @@ test("NOTICE.md names three.js and every model, texture, sky and tree source in 
   assert.match(notice, /Copyright © 2010-2024 three\.js authors/);
   assert.match(notice, /CC0 1\.0/);
   assert.match(notice, /16 November 2026/);
+  assert.doesNotMatch(notice, /\bv1\//, "the notice names the set that is served");
   assert.match(notice, /Nothing is fetched at run time/);
   const names = new Set();
   for (const f of FILES) {

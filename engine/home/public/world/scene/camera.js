@@ -65,14 +65,25 @@ export function deskView(at, size, safe, tier, { empty = false } = {}) {
   return view(pos, look, v.fov, s.x + s.w / 2, s.y + s.h / 2);
 }
 
-// Put a view on the camera for a stage of w x h.
-export function applyView(camera, v, size) {
+// Put a view on the camera for a stage of w x h. `hair` (REAL-1, the settled picture's frames) moves the pixel grid
+// by a part of a pixel (px, py) and the eye across the lens (lx, ly in metres) while what stands at the view's focus
+// (the point looked at) keeps its place: averaged, edges come out clean and what is nearer or farther falls soft.
+const right = new THREE.Vector3(), upv = new THREE.Vector3();
+export function applyView(camera, v, size, hair = null) {
   const W = Math.max(1, size.w), H = Math.max(1, size.h);
   camera.aspect = W / H;
   camera.fov = v.fov;
   camera.position.copy(v.pos);
   camera.lookAt(v.look);
-  camera.setViewOffset(W, H, W / 2 - v.cx, H / 2 - v.cy, W, H);
+  let ox = 0, oy = 0;
+  if (hair) {
+    camera.updateMatrixWorld();
+    right.setFromMatrixColumn(camera.matrixWorld, 0); upv.setFromMatrixColumn(camera.matrixWorld, 1);
+    camera.position.addScaledVector(right, hair.lx).addScaledVector(upv, hair.ly);
+    const k = (H / 2) / Math.tan(v.fov * DEG / 2) / Math.max(0.01, v.pos.distanceTo(v.look));
+    ox = hair.px - hair.lx * k; oy = hair.py + hair.ly * k;
+  }
+  camera.setViewOffset(W, H, W / 2 - v.cx + ox, H / 2 - v.cy + oy, W, H);
   camera.updateProjectionMatrix();
   camera.updateMatrixWorld();
 }

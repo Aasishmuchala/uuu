@@ -111,7 +111,7 @@ export function makeForecourt(A, building, plan, { phone = false } = {}) {
   const at = [];
   for (let z = 9.6; z < 23; z += 3.2) for (const x of [px0 - 0.25, px1 + 0.25]) at.push([x, z]);
   const postM = keyed(lit(new THREE.MeshStandardMaterial({ color: col("#2a2724"), roughness: 0.5, metalness: 0.5 }), 1), "f-plain");
-  const capM = new THREE.MeshBasicMaterial({ color: col("#ffc98a").multiplyScalar(2.2) });
+  const capM = new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(1, 0.78, 0.5, THREE.LinearSRGBColorSpace).multiplyScalar(7) });
   const poolT = poolTexture();
   const poolM = new THREE.MeshBasicMaterial({ map: poolT, color: col("#ffb36b").multiplyScalar(0.55), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true });
   owned.push(postM, capM, poolM);
@@ -127,7 +127,8 @@ export function makeForecourt(A, building, plan, { phone = false } = {}) {
   pools.renderOrder = 1;
   g.add(posts, caps, pools);
   // the pools fade by day (T12): in the morning sun a path light is a small warm cap, not a pool on the grass
-  g.userData.look = (k) => { poolM.color.set("#ffb36b").multiplyScalar(k); };
+  g.userData.look = (k) => { poolM.color.setRGB(1, 0.72, 0.42, THREE.LinearSRGBColorSpace).multiplyScalar(k); };
+  g.traverse((o) => { if (o.isMesh && o.material.isMeshStandardMaterial) { o.receiveShadow = true; o.castShadow = !o.material.transparent; } });
   g.userData.foot = { x0: dx0 - 0.3, x1: DX1 + 0.3, z0: -4.1, z1: ZF + 0.7, yard, path };
   g.userData.dispose = () => {
     g.traverse((o) => { if (o.geometry) o.geometry.dispose(); });

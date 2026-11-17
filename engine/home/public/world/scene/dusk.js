@@ -1,8 +1,9 @@
 // Dusk around the studio (PLAN-3D D5, T6; from the approved prototype's world.js): the renderer, the photographed
 // sunset (Poly Haven, CC0) as an HDR for the light and a picture for the eye, the hemisphere and the sun, the stony
 // meadow, the far ridges in aerial perspective, the baked fir impostors and the environment light, prefiltered once.
-// No shadow maps (D21): the building's shadow is found in its own materials (lamps.js). Shader text is built from
-// constants only.
+// The sun throws a real shadow (REAL-1 revisits D21's "no shadow maps": the map is drawn only when something moved,
+// and while the picture settles the sun is moved a hair each frame, so the settled shadow has a soft edge). Shader
+// text is built from constants only.
 import * as THREE from "../../vendor/three-0.169.0/three.module.min.js";
 
 export const col = (h) => new THREE.Color(h);
@@ -33,18 +34,24 @@ export function fbm(x, z) { let s = 0, a = 0.5, f = 1; for (let i = 0; i < 4; i+
 // the right, a pale blue sky with a warm cast, cool shade; inside, daylight with sun patches through the open fronts.
 // Beside the sky's numbers each key carries the inside's: how far an unlit room's daylight falls (`dim`), how strong a
 // lamp's pool is (`lampK`), whether the sun reaches into the rooms (`sunIn`), and what the desk's window shows.
-export const DUSK = { theme: "dark", sunAz: -128, sunEl: 16, skyExp: 0.8, tint: "#ffd6bd", envExp: 0.5, sunCol: "#ff9a62", sunI: 1.25, hemiS: "#4d6383", hemiG: "#1c1712", hemiI: 0.06, exp: 1.0, fog: "#5d4c4c", fogD: 0.0055,
-  envGround: 0.09, ridge: "#1c2a24", dim: 0.35, lampK: 1, sunIn: 0, deskSun: 0, ringDark: "#0e1411", ringGlow: "#c98f6e", ringHaze: [0.3, 0.31, 0.36], paths: 0.55 };
-export const MORNING = { theme: "light", sunAz: 26, sunEl: 13, skyExp: 1.0, tint: "#fff0dc", envExp: 0.62, sunCol: "#ffc386", sunI: 6.0, hemiS: "#9fbcdc", hemiG: "#4b4535", hemiI: 0.3, exp: 1.0, fog: "#c3c4bf", fogD: 0.0019,
+// (REAL-1: the camera's white balance sits between the lamps and the sky, so at dusk the sky's light reads cool and
+// the rooms warm, as in a photograph of a house at blue hour; the haze is the sky's blue-grey, not brown.)
+export const DUSK = { theme: "dark", sunAz: -128, sunEl: 14, skyExp: 0.72, tint: "#d3d6ee", envExp: 1.3, sunCol: "#ffa878", sunI: 1.3, hemiS: "#5f7fb4", hemiG: "#1b1e22", hemiI: 0.42, exp: 1.0, fog: "#434d5e", fogD: 0.0052,
+  envGround: 0.09, ridge: "#141d24", dim: 0.3, lampK: 1, sunIn: 0, deskSun: 0, ringDark: "#0a0f12", ringGlow: "#b98f80", ringHaze: [0.27, 0.31, 0.4], paths: 0.9 };
+export const MORNING = { theme: "light", sunAz: 26, sunEl: 17, skyExp: 1.5, tint: "#fff3e4", envExp: 0.7, sunCol: "#ffc994", sunI: 5.5, hemiS: "#9fbcdc", hemiG: "#4b4535", hemiI: 0.3, exp: 0.85, fog: "#c3c4bf", fogD: 0.0019,
   envGround: 0.22, ridge: "#33453a", dim: 0.6, lampK: 1.7, sunIn: 1, deskSun: 0.4, ringDark: "#21402b", ringGlow: "#ffe0b0", ringHaze: [0.4, 0.5, 0.62], paths: 0.1 };
 export const KEYS = { dark: DUSK, light: MORNING };
 
 export function makeRenderer(canvas) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance", stencil: false, preserveDrawingBuffer: false });
+  // the scene is drawn into the camera's own picture (post.js), which smooths its edges; the canvas needs no samples
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance", stencil: false, preserveDrawingBuffer: false });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMapping = THREE.AgXToneMapping;
   renderer.toneMappingExposure = DUSK.exp;
-  renderer.shadowMap.enabled = false;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap; // the settled picture softens the edge (the sun is moved a hair a frame)
+  renderer.shadowMap.autoUpdate = false;
+  renderer.info.autoReset = false;
   return renderer;
 }
 
@@ -88,7 +95,7 @@ function makeSkyMat(hdr, tex, rot, exp, tint, fog) {
       vec3 d = normalize(vW - cameraPosition);
       vec3 c = eqSample(tA, d, uRot).rgb * uExp * uTint;
       if (uMix > 0.) c = mix(c, eqSample(tB, d, uRotB).rgb * uExpB * uTintB, uMix);
-      ${hdr ? "c = min(c, vec3(10.));" : ""}
+      ${hdr ? "c = min(c, vec3(10.));" : "c = c * (1. + .9 * c * c);"}
       c = mix(c, uFog, 1. - smoothstep(-.08, .03, d.y));
       gl_FragColor = vec4(c, 1.);
       ${hdr ? "#include <tonemapping_fragment>" : ""}
@@ -123,9 +130,26 @@ export function makeDusk(scene, look) {
   const sunDir = look.sunDir.clone();
   sun.position.copy(sunDir).multiplyScalar(90);
   sun.target.position.set(0, 0, 0);
+  sun.castShadow = true;
+  sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.04; sun.shadow.radius = 2.5;
   group.add(sky, hemi, sun, sun.target);
   scene.add(group);
   return { group, sky, sun, hemi, sunDir, rot: look.rot, fog, scene, exp: K.exp, key: K };
+}
+
+// Aim the sun and its shadow at a box of half-width `half` round `centre`; jx, jy turn it a hair (radians) for the
+// settled picture's soft edge. The shadow map is drawn again with the next frame.
+const sx = new THREE.Vector3(), sy = new THREE.Vector3();
+export function aimSun(d, renderer, centre, half, size, jx = 0, jy = 0) {
+  const sun = d.sun, cam = sun.shadow.camera;
+  sx.set(d.sunDir.z, 0, -d.sunDir.x).normalize(); sy.crossVectors(d.sunDir, sx);
+  sun.target.position.copy(centre); sun.target.updateMatrixWorld();
+  sun.position.copy(d.sunDir).addScaledVector(sx, jx).addScaledVector(sy, jy).normalize().multiplyScalar(half * 4 + 40).add(centre);
+  if (cam.right !== half || sun.shadow.mapSize.x !== size) {
+    cam.left = cam.bottom = -half; cam.right = cam.top = half; cam.near = 1; cam.far = half * 8 + 80; cam.updateProjectionMatrix();
+    if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
+  }
+  renderer.shadowMap.needsUpdate = true;
 }
 
 const ca = new THREE.Color(), cb = new THREE.Color();
@@ -148,7 +172,6 @@ export function lookAt(d, a, b, f) {
   d.sunDir.copy(a.sunDir).lerp(b.sunDir, f);
   if (d.sunDir.lengthSq() < 1e-4) d.sunDir.copy(f < 0.5 ? a.sunDir : b.sunDir);
   d.sunDir.y = Math.max(d.sunDir.y, 0.08); d.sunDir.normalize();
-  d.sun.position.copy(d.sunDir).multiplyScalar(90);
   d.exp = m(A.exp, B.exp);
   d.key = f < 0.5 ? A : B;
   return { dim: m(A.dim, B.dim), lampK: m(A.lampK, B.lampK), sunIn: m(A.sunIn, B.sunIn), deskSun: m(A.deskSun, B.deskSun), paths: m(A.paths, B.paths),
@@ -194,13 +217,13 @@ export function makeRidges(fog) {
       float n1(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.-2.*f); return mix(mix(h1(i), h1(i+vec2(1,0)), u.x), mix(h1(i+vec2(0,1)), h1(i+vec2(1,1)), u.x), u.y); }
       void main(){ float a = atan(vP.z, vP.x); vec2 q = vec2(a * 260., vH * .5);
         float canopy = n1(q) * .5 + n1(q * 2.7) * .3 + n1(vec2(a * 60., vH * .12)) * .2;
-        float haze = clamp(uHaze + (1. - smoothstep(0., 70., vH)) * .14 + (canopy - .5) * .06, 0., 1.);
+        float haze = clamp(uHaze + (1. - smoothstep(0., 90., vH)) * .22 + (canopy - .5) * .05, 0., 1.);
         gl_FragColor = vec4(mix(uDark, uFog, haze), 1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
   });
-  for (const [R, amp, seed, haze] of [[560, 70, 10, 0.5], [860, 120, 31, 0.72]]) {
+  for (const [R, amp, seed, haze] of [[560, 70, 10, 0.62], [860, 120, 31, 0.84]]) {
     const ridge = new THREE.CylinderGeometry(R, R, 1, 220, 1, true);
     const rp = ridge.attributes.position;
     for (let i = 0; i < rp.count; i++) {
@@ -228,7 +251,7 @@ export function makeTerrain(A, { phone = false, foot }) {
     tuv.setXY(i, x / 3.2, z / 3.2);
     const v = 0.78 + fbm(x * 0.3, z * 0.3) * 0.32 - 0.38 * smooth(-12, -40, z);
     const dx = Math.max(0, x < foot.x0 ? foot.x0 - x : x - foot.x1), dz = Math.max(0, z < foot.z0 ? foot.z0 - z : z - foot.z1);
-    tmp.setRGB(v, v, v).multiplyScalar(1 - 0.5 * Math.exp(-Math.hypot(dx, dz) / 1.3));
+    tmp.setRGB(v, v, v).multiplyScalar(1 - 0.15 * Math.exp(-Math.hypot(dx, dz) / 1.3));
     tc[i * 3] = tmp.r; tc[i * 3 + 1] = tmp.g; tc[i * 3 + 2] = tmp.b;
   }
   tg.setAttribute("color", new THREE.BufferAttribute(tc, 3));
@@ -251,7 +274,9 @@ export function makeTerrain(A, { phone = false, foot }) {
       float gn(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.-2.*f); return mix(mix(gh(i), gh(i+vec2(1,0)), u.x), mix(gh(i+vec2(0,1)), gh(i+vec2(1,1)), u.x), u.y); }`)
       .replace("#include <map_fragment>", `#ifdef USE_MAP
       vec3 soil = mix(texture2D(map, vMapUv).rgb, texture2D(map, vMapUv * .19 + vec2(.43, .17)).rgb, .5);
-      vec3 grass = mix(texture2D(tGrass, vMapUv * .9).rgb, texture2D(tGrass, vMapUv * .23 + vec2(.2, .6)).rgb, .4) * vec3(.62, .7, .56);
+      vec3 grass = mix(texture2D(tGrass, vMapUv * .9).rgb, texture2D(tGrass, vMapUv * .23 + vec2(.2, .6)).rgb, .4) * vec3(.6, .78, .5);
+      // a mown lawn near the house: the mower's passes show as soft bands, each a little lighter or darker
+      float pass = sin(vGW.x * 2.6 + gn(vGW.xz * .3) * 1.2);
       float n = gn(vGW.xz * .06) * .6 + gn(vGW.xz * .17) * .4;
       float w = clamp(smoothstep(.35, .7, n) * 1.2, 0., 1.);
       float dy = min(sdr(vGW.xz, uYard), sdr(vGW.xz, uPath));
@@ -259,13 +284,16 @@ export function makeTerrain(A, { phone = false, foot }) {
       // near the yard: a gravel margin, then a mown meadow; far off: the forest floor, in drifts
       float gravel = 1. - smoothstep(.5, 1.5, dy + (en - .5) * 1.4);
       float far = smoothstep(12., 32., dy + (n - .5) * 14.);
-      w = mix(clamp(.55 + w * .6 + (en - .5) * .5, 0., 1.), w * .55, far);
+      w = mix(clamp(.82 + w * .3 + (en - .5) * .3, 0., 1.), w * .55, far);
+      grass *= 1. + .07 * pass * (1. - far);
       vec3 grav = texture2D(tGravel, vGW.xz * .7).rgb * vec3(.92, .86, .78) * (.72 + .5 * gh(floor(vGW.xz * 16.)));
-      diffuseColor.rgb *= mix(mix(soil, grass, w) * vec3(.62, .6, .52), grav * .62, gravel);
+      diffuseColor.rgb *= mix(mix(soil * vec3(.62, .6, .52), grass * .8, w), grav * .7, gravel);
       #endif`);
   };
   gm.customProgramCacheKey = () => "terrain";
-  return new THREE.Mesh(tg, gm);
+  const mesh = new THREE.Mesh(tg, gm);
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
 // ---------- the forest: baked fir impostors, one quad per tree turning to face the camera ----------
@@ -348,5 +376,16 @@ export function makeForest(A, { phone = false, sunDir }) {
   mat.customProgramCacheKey = () => `forest${F}x${NT}`;
   const mesh = new THREE.Mesh(g, mat);
   mesh.frustumCulled = false;
+  // the firs throw the sun's shadow too: in the shadow's own pass every tree turns to face the sun
+  const face = sunDir.clone();
+  mesh.customDepthMaterial = new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
+    uniforms: { uSize: uni.uSize, uFaceDir: { value: face }, uUseDir: { value: 1 }, tC: uni.tC },
+    vertexShader: `${head}\nvoid main(){ vec3 tcv; vec3 p = impostor(tcv); gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.); }`,
+    fragmentShader: "#include <packing>\nuniform sampler2D tC; varying vec2 vAt;\nvoid main(){ if (texture2D(tC, vAt).a < .5) discard; gl_FragColor = packDepthToRGBA(gl_FragCoord.z); }",
+  });
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  mesh.userData.setSun = (dir) => { face.copy(dir); };
+  mesh.userData.dispose = () => { mesh.customDepthMaterial.dispose(); };
   return mesh;
 }

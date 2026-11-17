@@ -1,12 +1,12 @@
 // The world's files (PLAN-3D D9, D17, D20, T6 e): every texture, model and sky the world loads is named by a key of
-// assets/world/v1/manifest.json and reached only through assetUrl(key), which refuses anything the manifest does not
+// assets/world/v2/manifest.json and reached only through assetUrl(key), which refuses anything the manifest does not
 // hold. A need is a plain key ("tex.wood_floor.diff", "sky.dusk.hdr", "model.fern_02"); the file is the one entry
 // whose key is the need itself, or the need and one more part ("tex.wood_floor.diff.1k"), that serves the tier, the
 // mode and the theme. Exactly one may match, or the need fails. No three.js here: this module fetches bytes and
 // pictures, the world makes textures of them.
 
-export const MANIFEST_PATH = "/assets/world/v1/manifest.json";
-const FOLDER = "assets/world/v1/";
+export const MANIFEST_PATH = "/assets/world/v2/manifest.json";
+const FOLDER = "assets/world/v2/";
 const KEY = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$/;
 const PATH = /^[a-z0-9_][a-z0-9_./-]*$/i;
 

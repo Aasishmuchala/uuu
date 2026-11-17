@@ -18,7 +18,9 @@ import { loadManifest, assetUrl, familyOf, bytesOf, entryOf, fetchBytes, fetchJs
 import { decodeHDR } from "./hdr.js";
 import { benchOn } from "./support.js";
 import { planBuilding } from "./layout.js";
-import { KEYS, ease, makeRenderer, makeDusk, makeEnvironment, makeRidges, makeTerrain, makeForest, hdrTexture, orient, lookAt } from "./scene/dusk.js";
+import { KEYS, ease, makeRenderer, makeDusk, makeEnvironment, makeRidges, makeTerrain, makeForest, hdrTexture, orient, lookAt, aimSun } from "./scene/dusk.js";
+import { makeFloorShade } from "./scene/lamps.js";
+import { makePost, halton, disc } from "./scene/post.js";
 import { makeBuilding } from "./scene/building.js";
 import { makeForecourt } from "./scene/forecourt.js";
 import { makeDesk, DESK_AT } from "./scene/desk.js";
@@ -35,18 +37,26 @@ const DOORS = ["web", "generation", "higgsfield"];
 // ---------- what each mode needs from the manifest ----------
 const BUILDING_TEX = [
   ["wood_floor", ["diff", "nor", "rough"]], ["concrete_floor_02", ["diff", "nor", "rough"]], ["planks_brown_10", ["diff", "nor", "rough"]], ["white_plaster_02", ["diff", "nor"]],
+  ["weathered_brown_planks", ["diff", "nor", "rough"]],
 ];
+// the furniture of the Map's rooms (the small model on the desk is joinery of our own); the plant is the desktop's
+const FURNITURE = ["dining_chair_02", "wooden_table_02", "sofa_02", "mid_century_lounge_chair", "modern_wooden_cabinet", "modern_ceiling_lamp_01"];
+// The settled picture (REAL-1): how many frames are averaged once nothing moves, the lens's radius in metres and the
+// sun's in radians. After them nothing is drawn (D4).
+const SETTLE = { desktop: 40, phone: 16 };
+const LENS = { map: 0.085, desk: 0.0055 };
+const SUN_R = 0.022;
 const GROUND_TEX = [["forest_ground_04", ["diff", "nor"]], ["forrest_ground_01", ["diff"]], ["wood_floor_deck", ["diff", "nor"]]];
 const PRINTS = ["hero", "materials", "visit", "interior", "trees"];
 const SKY_OF = { dark: "dusk", light: "morning" }; // one sky per theme (D5, D20): only the theme's own is loaded
 const skyNeeds = (theme) => [{ key: `sky.${SKY_OF[theme]}.jpg`, kind: "sky", theme }, { key: `sky.${SKY_OF[theme]}.hdr`, kind: "hdr", theme }];
-function needsOf(mode, theme) {
+function needsOf(mode, theme, tier) {
   const tex = (list) => list.flatMap(([n, maps]) => maps.map((m) => ({ key: `tex.${n}.${m}`, kind: "tex", name: `${n}_${m}`, srgb: m === "diff" })));
   const out = [...tex(BUILDING_TEX), ...PRINTS.map((n) => ({ key: `print.${n}`, kind: "print", name: n })),
     ...skyNeeds(theme), { key: "model.fern_02", kind: "model", name: "fern_02" }];
   if (mode === "map") {
     out.push(...tex(GROUND_TEX), { key: "trees.color", kind: "trees", name: "treesColor", srgb: true }, { key: "trees.normal", kind: "trees", name: "treesNormal", srgb: false },
-      { key: "trees.info", kind: "json" }, ...["grass_medium_01", "modern_arm_chair_01", "modern_coffee_table_01"].map((n) => ({ key: `model.${n}`, kind: "model", name: n })));
+      { key: "trees.info", kind: "json" }, ...["grass_medium_01", "modern_arm_chair_01", "modern_coffee_table_01", ...FURNITURE, ...(tier === "phone" ? [] : ["potted_plant_02"])].map((n) => ({ key: `model.${n}`, kind: "model", name: n })));
   }
   return out;
 }
@@ -68,6 +78,7 @@ function createWorld(tier) {
     handles: new Set(), active: null, releaseTimer: 0, raf: 0, last: 0, frames: 0, ready: false, lost: false, disposed: false,
     scn: null, focus: null, hover: null, pointer: null, safe: null, still: false, theme: "dark", size: { w: 0, h: 0 },
     glide: makeGlide(), viewMode: null, fading: false, intervals: [], frameFns: new Set(), ro: null, building: null,
+    post: makePost(renderer, { phone: tier === "phone" }), settle: SETTLE[tier] || 40, acc: 0, dirty: false, lights: true, haired: false,
   };
   renderer.setPixelRatio(w.ratio);
   canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); lose(w); }, false);
@@ -94,8 +105,10 @@ function disposeWorld(w) {
   clearTimeout(w.releaseTimer);
   if (w.ro) w.ro.disconnect();
   document.removeEventListener("visibilitychange", w.onVisible);
-  if (w.map) { w.map.building.dispose(); w.map.forecourt.userData.dispose(); for (const m of [w.map.terrain, w.map.forest]) { m.geometry.dispose(); m.material.dispose(); } }
-  if (w.desk) w.desk.dispose();
+  if (w.map) { w.map.building.dispose(); w.map.shade.dispose(); w.map.forecourt.userData.dispose(); w.map.forest.userData.dispose(); for (const m of [w.map.terrain, w.map.forest]) { m.geometry.dispose(); m.material.dispose(); } }
+  if (w.desk) { w.desk.dispose(); w.desk.shade.dispose(); }
+  w.post.dispose();
+  if (w.dusk && w.dusk.sun.shadow.map) w.dusk.sun.shadow.map.dispose();
   if (w.ridges) w.ridges.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
   if (w.dusk) { w.dusk.sky.geometry.dispose(); w.dusk.sky.material.dispose(); }
   for (const t in w.looks) w.looks[t].env.dispose();
@@ -113,7 +126,7 @@ function disposeWorld(w) {
 async function loadMode(w, mode, onProgress, { skyOnly = false } = {}) {
   await loadManifest();
   const where = { tier: w.tier, mode, theme: w.theme };
-  const needs = skyOnly ? skyNeeds(w.theme) : needsOf(mode, w.theme);
+  const needs = skyOnly ? skyNeeds(w.theme) : needsOf(mode, w.theme, w.tier);
   const total = Math.max(1, skyOnly ? needs.reduce((s, n) => s + (entryOf(n.key, where).bytes | 0), 0) : bytesOf(where));
   let done = 0;
   const count = (key, model) => {
@@ -181,6 +194,7 @@ function applyLook(w, a, b, f) {
   const at = f < 0.5 ? a : b;
   w.scene.environment = at.env.texture;
   w.day = at.theme === "light";
+  w.lights = true;
   if (w.ridges) for (const m of w.ridges.children) { m.material.uniforms.uFog.value.copy(L.fog); m.material.uniforms.uDark.value.copy(L.ridge).multiplyScalar(0.6); }
   dress(w);
 }
@@ -189,8 +203,10 @@ function dress(w) {
   const L = w.L;
   if (!L) return;
   for (const b of [w.map && w.map.building, w.desk && w.desk.building]) if (b) { b.RL.uDay.value.set(L.dim, L.lampK, L.sunIn); b.setDay(w.day); }
-  if (w.map) { w.map.building.sync(w.dusk.sunDir); if (w.map.forecourt.userData.look) w.map.forecourt.userData.look(L.paths); }
-  if (w.desk) { w.desk.look(L, w.day); w.desk.sync(w.dusk.sunDir); }
+  // (in the morning the firs to the east would keep the whole house in shade: the sun is let through)
+  if (w.map) { w.map.building.sync(); w.map.forest.userData.setSun(w.dusk.sunDir); w.map.forest.castShadow = !w.day; if (w.map.forecourt.userData.look) w.map.forecourt.userData.look(L.paths, w.day); }
+  if (w.desk) { w.desk.look(L, w.day); w.desk.sync(); }
+  w.lights = true;
   sunFor(w);
 }
 // At dusk the sun is behind the firs at the desk: only the lamp and the sky light it (e2's look, without a shadow map).
@@ -200,6 +216,26 @@ function sunFor(w) {
   const desk = w.mode === "desk";
   w.dusk.sun.visible = !desk || w.L.deskSun > 0.001;
   w.dusk.sun.intensity = w.sunI * (desk ? w.L.deskSun : 1);
+  w.lights = true;
+}
+// The lights for one frame. hair = null: where they stand (drawn only when something changed). Else the nth hair of
+// the settled picture: the sun turned inside its disc, the lamp moved inside its shade, and the ceiling's light
+// coming from another part of the ceiling, so the averaged shadows are those of wide soft sources.
+const CENTRE = new THREE.Vector3(0, 5, 2), UPISH = new THREE.Vector3(0.04, 1, 0.07).normalize(), DIR = new THREE.Vector3();
+function lightsFor(w, n) {
+  const hair = n > 1;
+  if (!hair && !w.lights && !w.haired) return;
+  const desk = w.mode === "desk", b = w.building, holder = desk ? w.desk : w.map;
+  const [jx, jy] = hair ? disc(halton(n, 2), halton(n, 3)) : [0, 0];
+  if (desk) aimSun(w.dusk, w.renderer, DESK_AT, 1.8, 1024, jx * SUN_R, jy * SUN_R);
+  else aimSun(w.dusk, w.renderer, CENTRE, 36, w.tier === "phone" ? 1024 : 2048, jx * SUN_R, jy * SUN_R);
+  if (desk && w.desk) w.desk.hairLamp(hair ? disc(halton(n, 5), halton(n, 7)) : [0, 0]);
+  if (b && holder && holder.shade) {
+    if (hair) { const u = halton(n, 5), v = halton(n, 7) * 6.2831853, r = Math.sqrt(u) * 0.86; DIR.set(r * Math.cos(v), Math.sqrt(1 - r * r), r * Math.sin(v)); }
+    else DIR.copy(UPISH);
+    holder.shade.render(w.renderer, w.scene, b.root, b.RL, b.vol, DIR, hair ? 0.03 : 0.17, hair ? 0 : 0.36, hair ? halton(n, 11) : 0);
+  }
+  w.lights = false; w.haired = hair;
 }
 
 function buildShared(w) {
@@ -253,15 +289,16 @@ function buildMap(w, plan) {
   group.add(terrain);
   if (!forest) { forest = makeForest(w.A, { phone: w.tier === "phone", sunDir: w.dusk.sunDir }); group.add(forest); }
   if (!old) w.scene.add(group);
-  w.map = { group, building, forecourt, terrain, forest, plan, planKey: JSON.stringify(plan) };
+  w.map = { group, building, forecourt, terrain, forest, plan, planKey: JSON.stringify(plan), shade: old ? old.shade : makeFloorShade(w.tier === "phone" ? 1024 : 2048) };
   dress(w);
 }
 
 function buildDesk(w, plan) {
+  const shade = w.desk ? w.desk.shade : makeFloorShade(1024);
   if (w.desk) w.desk.dispose();
   const d = makeDesk(w.A, plan, { fog: w.dusk.fog });
   w.scene.add(d.group, d.lights);
-  d.planKey = JSON.stringify(plan);
+  d.planKey = JSON.stringify(plan); d.shade = shade;
   w.desk = d;
   dress(w);
 }
@@ -271,6 +308,9 @@ function showMode(w, mode) {
   if (w.map) w.map.group.visible = mode === "map";
   if (w.desk) { w.desk.group.visible = mode === "desk"; w.desk.lights.visible = mode === "desk"; }
   w.building = mode === "map" ? (w.map && w.map.building) : (w.desk && w.desk.building);
+  w.post.look.ao.uRadius.value = mode === "desk" ? 0.045 : 0.7;
+  // the Map's camera stands well back: a far near plane keeps the depth fine enough to find occlusion from
+  w.camera.near = mode === "desk" ? 0.05 : 2; w.camera.far = 3200;
   sunFor(w);
 }
 
@@ -310,9 +350,10 @@ function applyScene(w, { animate = false } = {}) {
   b.setAsking(s.asking === true);
   if (w.mode === "desk" && w.desk) {
     const sheets = s.stack && fin(s.stack.sheets) ? s.stack.sheets : 0;
-    w.desk.setStack(sheets, { animate: !rebuilt && w.pendingDrop > 0 && !w.still });
+    if (w.desk.setStack(sheets, { animate: !rebuilt && w.pendingDrop > 0 && !w.still })) w.lights = true;
     w.pendingDrop = 0;
   }
+  w.lights = true;
   if (rebuilt) { w.pickables = null; reframe(w, true); }
 }
 
@@ -345,17 +386,25 @@ function fade(w, change) {
   c.style.transition = "opacity 120ms linear";
   c.style.opacity = "0";
   clearTimeout(w.fadeT);
-  w.fadeT = setTimeout(() => { change(); draw(w); c.style.opacity = "1"; }, 120);
+  w.fadeT = setTimeout(() => { change(); draw(w); while (w.acc < w.settle) settle(w); c.style.opacity = "1"; }, 120);
 }
 
 // ---------- drawing on demand ----------
-function invalidate(w) {
+// A change asks for a whole new picture; once nothing moves, the frames of the settled picture follow, then rest.
+function schedule(w) {
   if (!w || w.disposed || w.raf || !w.ready || (typeof document !== "undefined" && document.hidden)) return;
   w.raf = requestAnimationFrame((now) => tick(w, now));
+}
+function invalidate(w) {
+  if (w) w.dirty = true;
+  schedule(w);
 }
 function tick(w, now) {
   w.raf = 0;
   if (w.disposed) return;
+  // (with motion off the settled picture comes in a few steps, not one frame at a time)
+  if (!w.dirty) { for (let k = w.still ? 8 : 1; k > 0 && w.acc < w.settle; k--) settle(w); if (w.acc < w.settle) schedule(w); return; }
+  w.dirty = false;
   const dt = w.last ? Math.min(100, now - w.last) : 16;
   if (w.last) stepDown(w, now - w.last);
   w.last = now;
@@ -366,10 +415,15 @@ function tick(w, now) {
     applyLook(w, F.a, F.b, ease(F.t));
     if (F.t >= 1) { w.lit = F.b.theme; w.fadeL = null; } else moving = true;
   }
-  if (w.mode === "map" && w.map) moving = w.map.building.update(dt) || moving;
-  if (w.mode === "desk" && w.desk) moving = w.desk.update(dt) || moving;
+  let things = false;
+  if (w.mode === "map" && w.map) things = w.map.building.update(dt);
+  if (w.mode === "desk" && w.desk) things = w.desk.update(dt);
+  if (things) { w.lights = true; moving = true; }
   draw(w);
-  if (moving) invalidate(w); else w.last = 0;
+  if (moving) w.dirty = true; else w.last = 0;
+  // with motion off a change is one new still: a first dozen settled frames come with it, the rest follow
+  if (!moving && w.still) while (w.acc < Math.min(12, w.settle)) settle(w);
+  schedule(w);
 }
 // If the first 30 moving frames come slower than the screen can show (over 14 ms of work makes a frame miss), the
 // pixel ratio steps to 1.25, then 1.0, and stays (D21). The interval between frames is what the page can see.
@@ -387,9 +441,25 @@ function draw(w) {
   const size = sizeOf(w);
   if (size.w !== w.size.w || size.h !== w.size.h) reframe(w, false);
   applyView(w.camera, w.glide.cur, w.size);
-  w.renderer.render(w.scene, w.camera);
-  w.frames++;
+  shoot(w, 1);
+  w.acc = 1;
   for (const fn of w.frameFns) { try { fn(); } catch { /* a page's tag layer */ } }
+}
+// One more frame of the settled picture: the same view through another hair of the pixel, the lens and the lights.
+function settle(w) {
+  if (w.disposed) return;
+  const n = ++w.acc;
+  const [lx, ly] = disc(halton(n, 2), halton(n, 3)), a = LENS[w.mode] || 0;
+  applyView(w.camera, w.glide.cur, w.size, { px: halton(n, 2) - 0.5, py: halton(n, 3) - 0.5, lx: lx * a, ly: ly * a });
+  shoot(w, n);
+  if (n >= w.settle) applyView(w.camera, w.glide.cur, w.size); // the tags and the pointer read the plain view
+}
+function shoot(w, n) {
+  w.renderer.info.reset();
+  lightsFor(w, n);
+  w.post.setSize(w.canvas.width, w.canvas.height);
+  w.post.render(w.scene, w.camera, n);
+  w.frames++;
 }
 function snapAll(w) {
   if (w.map) w.map.building.snap();
@@ -470,7 +540,7 @@ function bench(w) {
   const once = (i) => {
     base.pos.copy(pos).add(new THREE.Vector3(Math.sin(i * 0.05) * 0.02, 0, 0));
     applyView(w.camera, base, w.size);
-    w.renderer.render(w.scene, w.camera);
+    shoot(w, 1);
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
   };
   for (let i = 0; i < 20; i++) once(i);
@@ -478,7 +548,7 @@ function bench(w) {
   for (let i = 0; i < 240; i++) { const t0 = performance.now(); once(i); times.push(performance.now() - t0); }
   base.pos.copy(pos);
   const calls = w.renderer.info.render.calls;
-  draw(w);
+  draw(w); schedule(w);
   times.sort((a, b) => a - b);
   return { mean: times.reduce((a, b) => a + b, 0) / times.length, median: times[120], p95: times[228], calls, ratio: w.ratio, width: w.canvas.width, height: w.canvas.height };
 }
@@ -514,10 +584,17 @@ export async function acquire(host, opts = {}) {
     reframe(w, true);
     applyView(w.camera, w.glide.cur, w.size);
     for (const t of w.A.textures) w.renderer.initTexture(t);
+    // compiled for the picture the scene is drawn into (post.js), so the first frame does not compile again
+    w.post.setSize(w.canvas.width, w.canvas.height);
+    w.renderer.setRenderTarget(w.post.target);
     await w.renderer.compileAsync(w.scene, w.camera);
+    w.renderer.setRenderTarget(null);
     if (w.disposed || !handle._alive) throw new Error("released");
     w.ready = true;
+    // the first picture is shown finished: the settled frames are drawn before the canvas fades in
     draw(w);
+    while (w.acc < w.settle) settle(w);
+    w.dirty = false;
     if (typeof opts.onProgress === "function") opts.onProgress(1);
   } catch (err) {
     w.handles.delete(handle);
@@ -539,6 +616,11 @@ function makeHandle(w, opts) {
     get frames() { return w.frames; },
     setScene(scene) {
       if (!h._alive || w !== W || !scene || typeof scene !== "object") return;
+      // the same state again (the pages poll): the settled picture stands, nothing is drawn
+      let key = null;
+      try { key = JSON.stringify(scene); } catch { key = null; }
+      if (key !== null && key === w.scnKey && w.scnMode === w.mode) return;
+      w.scnKey = key; w.scnMode = w.mode;
       w.scn = scene;
       applyScene(w);
       invalidate(w);
