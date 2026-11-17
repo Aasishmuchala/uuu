@@ -152,6 +152,9 @@ test("health: a row's state chip stands 8 px after its name and the row's right 
   assert.doesNotMatch(/\.p-health \.p-health__rows \{([^}]*)\}/.exec(css)[1], /background|box-shadow|border-radius/);
   assert.match(css, /\.p-health \.p-health__row \{[^}]*min-height: 60px;/);
   assert.match(src, /<\$\{Tag\} tone=\$\{state\.tone\} quiet>/);
+  // PLAN-3D-ALL U16: beside a lamp the state is the lamp with its word: no second dot, no second colour (a gold lamp
+  // beside a green "On", an off lamp beside a red "Off" were two clashing marks).
+  assert.match(src, /lamp \? html`<\$\{Tag\} tone="neutral" quiet dot=\$\{false\}>\$\{state\.text\}<\/\/>`/);
 });
 
 test("health: the line under a count names those parts, from the answer alone (R5-G)", () => {

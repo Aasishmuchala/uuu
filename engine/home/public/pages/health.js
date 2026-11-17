@@ -206,7 +206,7 @@ function Line({ icon, title, say, state, facts, act, warned, tone, lamp }) {
     <span class="p-health__tile"><${Tile} icon=${icon} size=${32} /></span>
     <div class="p-health__text">
       <p class="p-health__title">${lamp ? html`<span class="p-health__lamp"><${Lamp} state=${lamp} /></span>` : null}<span class="p-health__name">${title}</span>${state || list.length ? html`<span class="p-health__meta">
-        ${state ? html`<${Tag} tone=${state.tone} quiet>${state.text}<//>` : null}
+        ${state ? (lamp ? html`<${Tag} tone="neutral" quiet dot=${false}>${state.text}<//>` : html`<${Tag} tone=${state.tone} quiet>${state.text}<//>`) : null}
         ${list.map((f, i) => html`<span key=${i} class="p-health__fact">${f}</span>`)}
       </span>` : null}</p>
       ${say ? html`<p class="p-health__say">${say}</p>` : null}

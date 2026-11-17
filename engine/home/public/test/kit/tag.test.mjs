@@ -69,6 +69,10 @@ test("Tag: quiet (fix round R6) is the tone's words with a 6 px dot and no fill;
   assert.ok(q, "every tone has its quiet form");
   assert.match(q[1], /background: transparent;/);
   assert.match(q[1], /padding: 0;/);
+  // PLAN-3D-ALL U16: dot: false on a quiet tag draws the words alone (a row whose lamp is already its mark).
+  root = await showTree(kit.tag.Tag, { tone: "neutral", quiet: true, dot: false, children: "On" });
+  assert.equal(root.firstChild.firstChild.nodeType, 3, "the words first, no dot before them");
+  assert.match(textOf(root), /^On$/);
 });
 
 test("Chip with onClick is a toggle: a button with aria-pressed, lifted when on; without, a plain label", async () => {

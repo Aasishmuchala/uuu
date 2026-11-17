@@ -13,11 +13,12 @@ const DEPARTMENTS = ["brain", "operations", "sales", "marketing", "studio", "sup
 const DOT_TONES = ["live", "ok", "warn", "bad", "off"];
 
 // `quiet` (fix round R6): a state on a row, the tone's words with a 6 px dot and no fill; the filled form is kept
-// for what must take the eye (the page's alarm, an urgent item).
+// for what must take the eye (the page's alarm, an urgent item). `dot: false` on a quiet tag draws the words alone,
+// for a row whose lamp (kit Lamp) is already its state's mark: one mark, the lamp with its word (PLAN-3D-ALL U16).
 export function Tag({ tone = "neutral", dot, quiet, children }) {
   const t = TONES.includes(tone) ? tone : "neutral";
   const q = quiet === true;
-  return html`<span class=${cx("k-tag", `k-tag--${t}`, q && "k-tag--quiet")}>${dot === true || q ? html`<span class="k-tag__dot" aria-hidden="true"></span>` : null}${children}</span>`;
+  return html`<span class=${cx("k-tag", `k-tag--${t}`, q && "k-tag--quiet")}>${dot === true || (q && dot !== false) ? html`<span class="k-tag__dot" aria-hidden="true"></span>` : null}${children}</span>`;
 }
 
 // `dot`: true for the colour of the nearest `data-dept`, a department id for that department's colour,
