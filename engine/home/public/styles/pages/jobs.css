@@ -36,6 +36,12 @@
   background: var(--ctl);
 }
 
+/* The view switch has no fill of its own: over the picture it stands on the panel, so "Build order" reads where the
+   morning picture is pale. */
+.p-jobs .k-room .k-seg {
+  background: var(--panel);
+}
+
 /* The bar: the filters, Ready only and the search field, side by side from the left. */
 .p-jobs .p-jobs__bar {
   display: flex;

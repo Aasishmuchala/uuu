@@ -261,7 +261,9 @@ const { AppContext } = await import("../../lib/context.js");
 
 async function mountJobs(data, { query = "", brain = brainShape, status = 200 } = {}) {
   installDom();
-  globalThis.document.visibilityState = "visible";
+  // Hidden, so the page's 10 s refresh never ticks during a mount: on a busy machine a mount can outlast it, and the
+  // wire list is what the page sends on its own, not what the clock adds. The first load does not wait for it.
+  globalThis.document.visibilityState = "hidden";
   globalThis.location = { hash: `#/jobs${query ? `?${query}` : ""}`, href: `/#/jobs${query ? `?${query}` : ""}`, search: "", pathname: "/" };
   const calls = [];
   const real = globalThis.fetch;

@@ -305,7 +305,9 @@ const JOB = () => shape("job");
 // route answer.
 async function mountJob(job, { addr = job ? job.id : "sales/missing", query = "", status = 200, recent = [], queue = null } = {}) {
   installDom();
-  globalThis.document.visibilityState = "visible";
+  // Hidden, so the page's 10 s refresh never ticks during a mount: on a busy machine a mount can outlast it, and the
+  // wire list is what the page sends on its own, not what the clock adds. The first load does not wait for it.
+  globalThis.document.visibilityState = "hidden";
   const hash = `#/jobs/${addr}${query ? `?${query}` : ""}`;
   globalThis.location = { hash, href: `/${hash}`, search: "", pathname: "/" };
   globalThis.window = { addEventListener() {}, removeEventListener() {} };
