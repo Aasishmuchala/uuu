@@ -67,7 +67,7 @@ export function measuredKit(config) {
   return { colours, families: new Set(families), minPx, neutrals: raw.neutrals !== false, uploaded: faces.some((f) => typeof f.file === "string" && f.file) };
 }
 
-function colourOk(kit, hex) {
+export function colourOk(kit, hex) {
   const c = rgbOf(hex);
   if (kit.colours.some((k) => k.every((v, i) => Math.abs(v - c[i]) <= NEAR))) return true;
   return kit.neutrals && chroma(c) <= GREY_CHROMA;
