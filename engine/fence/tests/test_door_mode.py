@@ -22,6 +22,7 @@ import door_mode  # noqa: E402
 
 RESEARCHER = "11111111-2222-4333-8444-555555555555"
 ARTIST = "99999999-2222-4333-8444-555555555555"
+BUILDER = "22222222-2222-4333-8444-555555555555"
 SECRET = "a" * 64
 OTHER_SECRET = "b" * 64
 NOW = 1800000000 - 2 * 3600   # so the door token's exp is the golden 1800000000
@@ -252,6 +253,115 @@ class DoorModeTests(unittest.TestCase):
                 exp = int(line.split(".")[3])
                 self.assertNotEqual(line.split("=", 1)[1],
                                     door_mode.model_mode.mint(SECRET, "a", RESEARCHER, exp))
+
+    # --- the brain door (PLAN-BRAIN B1, B9) -----------------------------------
+
+    # What the home server's freshDoors() wrote before the brain door: no brain block.
+    BEFORE_BRAIN = {
+        "version": 1,
+        "web": {"on": False, "allow": [], "block": [],
+                "watchHosts": ["youtube.com", "youtu.be", "googlevideo.com", "ytimg.com",
+                               "vimeo.com", "vimeocdn.com"],
+                "search": "keyless", "perHour": 60, "perDay": 300},
+        "generate": {"on": False, "dailyCredits": 300, "monthlyCredits": 1000, "autoUnderCredits": 0,
+                     "paused": None,
+                     "models": {"video": "gen4_turbo", "videoBest": "gen4.5", "still": "gen4_image",
+                                "upscale": "magnific_precision_upscaler_v2"},
+                     "higgsfield": {"on": False, "centsPerCredit": 5}},
+        "viewer": {"on": False},
+        "changedAt": None,
+    }
+
+    def brain_setup(self, brain_on=True, secret=True):
+        self.write(self.paths["ids"], {"agents": {"researcher": RESEARCHER, "builder": BUILDER}}, 0o644)
+        body = json.loads(json.dumps(self.BEFORE_BRAIN))
+        body["brain"] = {"on": brain_on}
+        self.write(self.paths["doorsState"], body)
+        if secret:
+            self.secrets("brain")
+
+    def test_brain_config_lists_builder_not_researcher(self):
+        # the config's own list, as T1 loads it: the tests below lean on it
+        self.assertIn("builder", self.cfg["doors"]["brain"]["agents"])
+        self.assertNotIn("researcher", self.cfg["doors"]["brain"]["agents"])
+        self.assertEqual(self.cfg["ports"]["brain"], 3190)
+
+    def test_a_file_from_before_the_brain_door_reads_as_before_with_brain_off(self):
+        self.write(self.paths["doorsState"], self.BEFORE_BRAIN)
+        st = door_mode.read_state(self.cfg)
+        self.assertTrue(st["ok"])
+        self.assertEqual(st["brain"], {"on": False})
+        self.assertEqual(st["web"], self.BEFORE_BRAIN["web"])
+        self.assertEqual(st["viewer"], {"on": False})
+        gen = dict(self.BEFORE_BRAIN["generate"])
+        del gen["higgsfield"]
+        self.assertEqual(st["generate"], gen)
+        # with the web door on, it still serves the researcher exactly as before
+        body = json.loads(json.dumps(self.BEFORE_BRAIN))
+        body["web"]["on"] = True
+        self.write(self.paths["doorsState"], body)
+        self.secrets("web", "brain")
+        code, out, err = self.run_main("--for-run", "--agent", RESEARCHER)
+        self.assertEqual((code, out, err), (0, "UUU_WEB_URL=http://127.0.0.1:3130\nUUU_WEB_TOKEN=%s\n" % GOLDEN_A, ""))
+        self.assertEqual(door_mode.doors_for(self.cfg, RESEARCHER), [3130])
+
+    def test_brain_on_gives_a_listed_agent_the_two_lines_and_the_port(self):
+        self.brain_setup()
+        code, out, err = self.run_main("--for-run", "--agent", BUILDER)
+        self.assertEqual((code, err), (0, ""))
+        token = door_mode.model_mode.mint(SECRET, "a", BUILDER, 1800000000)
+        self.assertEqual(out, "UUU_BRAIN_URL=http://127.0.0.1:3190\nUUU_BRAIN_TOKEN=%s\n" % token)
+        self.assertEqual(self.run_main("--doors", "--agent", BUILDER), (0, "[3190]\n", ""))
+
+    def test_brain_never_for_an_agent_off_its_list(self):
+        self.brain_setup()
+        self.nothing(RESEARCHER)
+        self.assertEqual(self.run_main("--doors", "--agent", RESEARCHER), (0, "[]\n", ""))
+        self.nothing("00000000-0000-4000-8000-000000000000")
+
+    def test_brain_off_gives_nothing(self):
+        self.brain_setup(brain_on=False)
+        self.nothing(BUILDER)
+        self.assertEqual(self.run_main("--doors", "--agent", BUILDER), (0, "[]\n", ""))
+        # and a file with no brain block at all
+        self.write(self.paths["doorsState"], self.BEFORE_BRAIN)
+        self.nothing(BUILDER)
+        self.assertEqual(door_mode.doors_for(self.cfg, BUILDER), [])
+
+    def test_brain_without_a_trusted_secret_gives_no_lines_and_no_port(self):
+        self.brain_setup(secret=False)
+        self.nothing(BUILDER)
+        self.assertEqual(self.run_main("--doors", "--agent", BUILDER), (0, "[]\n", ""))
+        for body, mode in (("A" * 64 + "\n", 0o600), (SECRET + "\n", 0o622), ("a" * 63 + "\n", 0o600)):
+            self.write(self.paths["brainSecret"], body, mode)
+            self.nothing(BUILDER)
+            self.assertEqual(door_mode.doors_for(self.cfg, BUILDER), [])
+        os.unlink(self.paths["brainSecret"])
+        real = os.path.join(self.tmp, "brain-secret-elsewhere")
+        self.write(real, SECRET + "\n")
+        os.symlink(real, self.paths["brainSecret"])
+        self.nothing(BUILDER)
+        self.assertEqual(door_mode.doors_for(self.cfg, BUILDER), [])
+
+    def test_a_brain_block_not_exactly_on_boolean_makes_the_file_untrusted(self):
+        self.secrets("web", "brain")
+        for brain in (None, {}, {"on": "yes"}, {"on": 1}, {"on": None}, {"on": True, "extra": 1},
+                      {"On": True}, [], True, "on", {"on": True, "agents": ["researcher"]}):
+            body = json.loads(json.dumps(self.BEFORE_BRAIN))
+            body["web"]["on"] = True
+            body["brain"] = brain
+            self.write(self.paths["doorsState"], body)
+            self.assertEqual(door_mode.read_state(self.cfg), {"ok": False}, brain)
+            self.nothing(RESEARCHER)
+            self.assertEqual(door_mode.doors_for(self.cfg, RESEARCHER), [])
+
+    def test_brain_lines_have_the_door_line_shape(self):
+        import re
+        self.brain_setup()
+        out = self.run_main("--for-run", "--agent", BUILDER)[1].splitlines()
+        self.assertEqual(len(out), 2)
+        for line in out:
+            self.assertRegex(line, re.compile(r"\AUUU_BRAIN_(URL|TOKEN)=[\x21-\x7e]{1,200}\Z"))
 
 
 if __name__ == "__main__":

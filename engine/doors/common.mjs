@@ -26,7 +26,13 @@ export const DOORS_DEFAULTS = Object.freeze({
     models: { video: "gen4_turbo", videoBest: "gen4.5", still: "gen4_image", upscale: "magnific_precision_upscaler_v2" },
   },
   viewer: { on: false },
+  brain: { on: false },
 });
+
+// PLAN-BRAIN B1: blocks that must be exactly their default's keys, each of the default's kind, when they are there
+// at all. A file written before the brain door has no `brain` block: it reads as off and stays trusted. A `brain`
+// block that is null, has another key or lacks `on`, or whose `on` is not a boolean makes the whole file untrusted.
+const EXACT_BLOCKS = Object.freeze(["brain"]);
 
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const copy = (v) => JSON.parse(JSON.stringify(v));
@@ -73,8 +79,8 @@ function field(key, def, value) {
   return undefined;
 }
 
-// `<state>/doors/state.json` as { ok: true, web, generate, viewer }, each field the file's or
-// K1's default when missing; no file is every door off. { ok: false } when the file is
+// `<state>/doors/state.json` as { ok: true, web, generate, viewer, brain }, each field the file's or
+// K1's default when missing (a missing `brain` block is the brain door off); no file is every door off. { ok: false } when the file is
 // untrusted, not one JSON object, or a field has the wrong kind: every door refuses agents.
 export function readDoorsState(path) {
   const text = readTrusted(path);
@@ -90,6 +96,12 @@ export function readDoorsState(path) {
   if (!isObject(data)) return { ok: false };
   for (const name of Object.keys(DOORS_DEFAULTS)) {
     const block = data[name];
+    if (EXACT_BLOCKS.includes(name)) {
+      if (!Object.hasOwn(data, name)) continue;
+      const keys = isObject(block) ? Object.keys(block).sort() : null;
+      const want = Object.keys(DOORS_DEFAULTS[name]).sort();
+      if (!keys || keys.length !== want.length || keys.some((k, i) => k !== want[i])) return { ok: false };
+    }
     if (block === undefined || block === null) continue;
     if (!isObject(block)) return { ok: false };
     for (const [key, def] of Object.entries(DOORS_DEFAULTS[name])) {

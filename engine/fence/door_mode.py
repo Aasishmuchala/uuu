@@ -5,10 +5,11 @@ the fence, called by fence-run and fence_inputs.py (PLAN-V5, contracts K1 and K3
   door_mode.py --for-run --agent ID   prints, for each door that is on, lists this
                                       agent and has a trusted secret, two lines:
                                       UUU_<DOOR>_URL=... and UUU_<DOOR>_TOKEN=...
-                                      (DOOR is WEB, GENERATE or VIEWER); nothing
-                                      for any other door
+                                      (DOOR is WEB, GENERATE, VIEWER or BRAIN);
+                                      nothing for any other door
   door_mode.py --doors --agent ID     prints the ports of the doors that are on and
-                                      list this agent, as JSON: [3130] or []
+                                      list this agent, as JSON: [3130] or [] (the
+                                      brain door's only with a trusted secret too)
 
 The switches are in <state>/doors/state.json, written by the home server only; no
 file means every door is off, and a file that cannot be trusted or read means
@@ -42,7 +43,14 @@ SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 SECRET = re.compile(r"[0-9a-f]{64}")
 # name, the word in the exported lines, the config key of its secret.
 DOORS = (("web", "WEB", "webSecret"), ("generate", "GENERATE", "generateSecret"),
-         ("viewer", "VIEWER", "viewerSecret"))
+         ("viewer", "VIEWER", "viewerSecret"), ("brain", "BRAIN", "brainSecret"))
+# PLAN-BRAIN B1: blocks that must be exactly their default's keys when they are there
+# at all (a file with no such block is valid and means off; null, another key or a
+# missing key makes the file untrusted).
+EXACT_BLOCKS = ("brain",)
+# PLAN-BRAIN B9: doors whose port --doors lists only when their secret is trusted,
+# the same condition --for-run has for their two lines.
+PORT_NEEDS_SECRET = ("brain",)
 
 DEFAULTS = {
     "web": {"on": False, "allow": [], "block": [],
@@ -54,6 +62,7 @@ DEFAULTS = {
                  "models": {"video": "gen4_turbo", "videoBest": "gen4.5", "still": "gen4_image",
                             "upscale": "magnific_precision_upscaler_v2"}},
     "viewer": {"on": False},
+    "brain": {"on": False},
 }
 
 NOT_AN_ID = "that is not an agent id"
@@ -99,7 +108,7 @@ def _defaults():
 
 
 def read_state(cfg):
-    """{"ok": True, "web": {...}, "generate": {...}, "viewer": {...}}, each field
+    """{"ok": True, "web": {...}, "generate": {...}, "viewer": {...}, "brain": {...}}, each field
     the file's or K1's default when missing; no file is every door off. {"ok": False}
     when the file is untrusted, not one JSON object, or a field has the wrong kind."""
     data = model_mode.read_json_object(cfg["paths"]["doorsState"])
@@ -112,6 +121,9 @@ def read_state(cfg):
     try:
         for name in DEFAULTS:
             block = data.get(name)
+            if name in EXACT_BLOCKS and name in data:
+                if not isinstance(block, dict) or sorted(block) != sorted(DEFAULTS[name]):
+                    raise ValueError(name)
             if block is None:
                 continue
             if not isinstance(block, dict):
@@ -156,7 +168,8 @@ def doors_for(cfg, agent_id):
     """The ports of the doors that are on and list this agent; [] without an agent id."""
     if not agent_id:
         return []
-    return [cfg["ports"][name] for name, _, _ in _open_doors(cfg, agent_id)]
+    return [cfg["ports"][name] for name, _, key in _open_doors(cfg, agent_id)
+            if name not in PORT_NEEDS_SECRET or read_secret(cfg, key) is not None]
 
 
 def read_secret(cfg, key):

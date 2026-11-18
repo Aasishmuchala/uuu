@@ -45,8 +45,8 @@ function caller(s, rawHeaders, { agents = ["researcher"], now = NOW } = {}) {
 test("no state file: every door off, with K1's defaults", () => {
   const st = readDoorsState(join(folder(), "state.json"));
   assert.equal(st.ok, true);
-  assert.deepEqual({ web: st.web, generate: st.generate, viewer: st.viewer }, JSON.parse(JSON.stringify(DOORS_DEFAULTS)));
-  assert.equal(st.web.on || st.generate.on || st.viewer.on, false);
+  assert.deepEqual({ web: st.web, generate: st.generate, viewer: st.viewer, brain: st.brain }, JSON.parse(JSON.stringify(DOORS_DEFAULTS)));
+  assert.equal(st.web.on || st.generate.on || st.viewer.on || st.brain.on, false);
 });
 
 test("missing fields take K1's defaults; present ones are kept", () => {
@@ -279,4 +279,65 @@ test("ensureSecret makes 64 hex and a newline, 0600 in a 0700 folder, once", () 
   assert.equal(ensureSecret(p), false);
   assert.equal(readFileSync(p, "utf8"), first, "an existing secret is kept");
   assert.equal(existsSync(p), true);
+});
+
+// ---- the brain door's switch (PLAN-BRAIN B1) ------------------------------------
+
+// What the home server's freshDoors() wrote before the brain door: no `brain` block.
+const BEFORE_BRAIN = {
+  version: 1,
+  web: {
+    on: false, allow: [], block: [],
+    watchHosts: ["youtube.com", "youtu.be", "googlevideo.com", "ytimg.com", "vimeo.com", "vimeocdn.com"],
+    search: "keyless", perHour: 60, perDay: 300,
+  },
+  generate: {
+    on: false, dailyCredits: 300, monthlyCredits: 1000, autoUnderCredits: 0, paused: null,
+    models: { video: "gen4_turbo", videoBest: "gen4.5", still: "gen4_image", upscale: "magnific_precision_upscaler_v2" },
+    higgsfield: { on: false, centsPerCredit: 5 },
+  },
+  viewer: { on: false },
+  changedAt: null,
+};
+
+test("brain: off by default, and no state file is the brain door off", () => {
+  assert.deepEqual(DOORS_DEFAULTS.brain, { on: false });
+  const st = readDoorsState(join(folder(), "state.json"));
+  assert.equal(st.ok, true);
+  assert.deepEqual(st.brain, { on: false });
+});
+
+test("brain: a file written before the brain door reads exactly as before, trusted, with the brain door off", () => {
+  const dir = folder();
+  const p = write(join(dir, "state.json"), BEFORE_BRAIN);
+  const st = readDoorsState(p);
+  assert.equal(st.ok, true);
+  assert.deepEqual(st.brain, { on: false });
+  const { generate: { higgsfield, ...gen } } = BEFORE_BRAIN;
+  assert.deepEqual({ web: st.web, generate: st.generate, viewer: st.viewer }, { web: BEFORE_BRAIN.web, generate: gen, viewer: { on: false } });
+  // the same file with every other door on keeps them on
+  const on = write(join(dir, "on.json"), { ...BEFORE_BRAIN, web: { on: true }, generate: { on: true }, viewer: { on: true } });
+  const so = readDoorsState(on);
+  assert.deepEqual([so.ok, so.web.on, so.generate.on, so.viewer.on, so.brain.on], [true, true, true, true, false]);
+});
+
+test("brain: { on: true } and { on: false } are read as written, and leave the other doors as they are", () => {
+  const p = join(folder(), "state.json");
+  for (const on of [true, false]) {
+    write(p, { ...BEFORE_BRAIN, web: { on: true }, brain: { on } });
+    const st = readDoorsState(p);
+    assert.equal(st.ok, true);
+    assert.deepEqual(st.brain, { on });
+    assert.equal(st.web.on, true);
+    assert.equal(st.viewer.on, false);
+  }
+});
+
+test("brain: a block that is not exactly { on: <boolean> } makes the whole file untrusted", () => {
+  const p = join(folder(), "state.json");
+  for (const brain of [null, {}, { on: "yes" }, { on: 1 }, { on: null }, { on: true, extra: 1 }, { On: true },
+    [], true, "on", 0, { on: true, agents: ["builder"] }]) {
+    write(p, { ...BEFORE_BRAIN, web: { on: true }, brain });
+    assert.deepEqual(readDoorsState(p), { ok: false }, JSON.stringify(brain));
+  }
 });
