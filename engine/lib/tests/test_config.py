@@ -252,7 +252,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(lines["CFG_APPS_STATE"], "'%s/apps/state.json'" % s)
         self.assertEqual(lines["CFG_APPS_RUN"], "'%s/run/apps'" % s)
         self.assertEqual(lines["CFG_APPS_LOGS"], "'%s/logs/apps'" % s)
-        self.assertEqual(len(lines), 52)
+        self.assertEqual(len(lines), 54)
 
     def test_shell_quotes_apostrophes(self):
         c = real_cfg()
