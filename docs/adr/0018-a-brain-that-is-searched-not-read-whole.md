@@ -51,12 +51,17 @@ Not part of this decision. It is a separate step: the review read by the owner, 
 
 ## Consequences
 
-- With the switch off nothing changes. No notes are built, no agent gets `UUU_BRAIN_URL`, and the role text falls back to today's "look in the knowledge folder".
+- With the switch off nothing changes. No notes are built, no agent gets `UUU_BRAIN_URL`, and the role text falls back to today's "look in the knowledge folder". No index is built and the books are not read for it either: the Brain page in Files and its routes say "The brain is off. Switch it on in Settings.", and Needs you has no tidy-ups. The one exception is the owner's own Test question in Settings, which may build the index when he presses it.
 - Agents can still read the whole brain folder. With the switch on they are told to start from the notes and to open a whole file only when a passage names it, but the fence still allows every file. Taking the folder away would tighten the fence and make the door a hard dependency. The owner chose not to do that yet.
 - There is no meaning search without a model. Until then an agent may have to try other words, and the "not found" list says plainly what the brain did not have.
 - Books facts now reach seven agents that had none: customer names, invoice totals and unpaid amounts, deal stages, staff names and job titles. The trust rule bounds it: only what the owner's own login made or approved is named, and no free text from anyone else is shown.
 - The index is a cache. It can be deleted, and the next build makes it again from the files and the books. A half-written index is never seen, because publishing is a rename.
 - Tidy-ups cost no model run. The Chief of staff's suggestions are the one case that does, and they are off until the owner turns them on.
+- The security review (T18) found four things, all closed in T19, each with a test that fails on the code before it:
+  - An agent could change a customer's or a staff member's name, and a later save by the owner made the record look like the owner's again. Now the books' change history (the Version records) is read too, and a record anyone but `Administrator` ever wrote a version of is left out and counted. When the history cannot be read, no customer, project, contact or staff record is trusted. This rests on the books keeping a history for those doctypes; the first live proof should check that an agent's change to a customer leaves a Version.
+  - An agent could flood the door with bad requests that were never counted, and each refusal was a line in the log of what was asked, so real questions were pushed out. Now every call of an agent counts before its body is read, and while an agent is over its limit the log gets at most one line from it an hour.
+  - A record's id went into the index unchecked. Now a project's and a staff member's id must be a naming series, a contact's id must be built from its own name and its company, and a customer's id must be its own name or a naming series; any other record is left out and counted.
+  - The index and the tidy-ups ran with every switch off. Now they wait for the brain switch, as said above.
 - A new listener runs unfenced. It opens only its secret, the list of agent ids, the switches file, the index (read-only) and the notes folder (no-follow), and it writes only its status file and its log. That path from the books to every agent is the thing the security review of this step is set to examine.
 
 ## Rejected
