@@ -789,7 +789,8 @@ export function ShotlistDone({ done, focus = true }) {
     const facts = [
       { label: SHOTLIST_WORDS.treatment, value: v.letter ? `${v.letter} · ${v.title}` : v.title },
       { label: SHOTLIST_WORDS.length, value: lengthWords(v) },
-      { label: SHOTLIST_WORDS.cost, value: c && Number.isInteger(c.base)
+      // The server's words as sent (cost.about); the page's own figures only when an older server sends none.
+      { label: SHOTLIST_WORDS.cost, value: c && cap(c.about, 200) ? cap(c.about, 200) : c && Number.isInteger(c.base)
         ? [`about ${creditsDollars(c.base)}`, Number.isInteger(c.most) && c.most > c.base ? `up to ${creditsDollars(c.most)}` : ""].filter(Boolean).join(", ") : "" },
     ].filter((f) => f.value);
     const time = c ? cap(c.time, 300) : "";

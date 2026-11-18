@@ -289,6 +289,15 @@ export function costWords(priced, { daily = null, dayLeft = null, monthLeft = nu
   return out;
 }
 
+// The cost as one fact of an approved card: "about $1.50, up to $3.00" (the retakes only when they add to it). null
+// when it is not priced.
+export function aboutWords(priced) {
+  if (priced?.ok !== true || !Number.isFinite(priced.base)) return null;
+  return Number.isFinite(priced.most) && priced.most > priced.base
+    ? `about ${dollars(priced.base)}, up to ${dollars(priced.most)}`
+    : `about ${dollars(priced.base)}`;
+}
+
 // The services a batch goes to, by name, Runway first: "Runway", "Higgsfield", "Runway and Higgsfield". `services`
 // is service keys or priceShotlist's `services`; none, or none known, is Runway (the door's own default).
 export function serviceWords(services) {

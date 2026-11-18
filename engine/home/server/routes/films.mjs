@@ -33,9 +33,9 @@ import { directionsFor } from "../../../company/lib/craft-files.mjs";
 import { JOB_RE, notStarted as notStartedJob, readLedger, summarize } from "../../../generate/ledger.mjs";
 import { BATCH_DAYS, readBatch, workStore } from "../../../generate/state.mjs";
 import { CLIP_ID, clipReviewsOf, usableClipReview } from "../lib/clipreview.mjs";
-import { LEDGER_SENTENCES, plain, readBatchFile, resultWords } from "../lib/generation.mjs";
+import { LEDGER_SENTENCES, plain, providerOf, readBatchFile, resultWords, SERVICE_NAMES } from "../lib/generation.mjs";
 import {
-  approvalsOf, approvedShots, boardsOf, dollars, exactlyThere, priceShotlist, readShotlist, SHOT_ID, shotsHash,
+  approvalsOf, approvedShots, boardsOf, dollars, exactlyThere, priceShotlist, readShotlist, serviceWords, SHOT_ID, shotsHash,
 } from "../lib/shotlist.mjs";
 import { fileResponse } from "../lib/static.mjs";
 import { fileToken, goalFolder, readTaskText } from "../lib/taskfiles.mjs";
@@ -445,7 +445,7 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
   const edit = identifier && treatment.folder ? filmEdit(config, identifier, treatment.folder) : null;
   const problem = !ledger.ok ? LEDGER_SENTENCES.unreadable
     : treatment.problem || (treatment.rel && !read.ok ? read.problem : null) || (!last._.shots ? NO_BATCH_FILE : null);
-  return {
+  const out = {
     task: { id: goal.id, identifier, title: plain(goal.title, 200) },
     treatment: { variant: treatment.variant, direction: treatment.direction, name: treatment.name },
     batches: batches.map(({ _, ...b }) => b),
@@ -456,6 +456,9 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
     problem,
     labels: { ...LABELS },
   };
+  // The services its clips used, for the list's words; not part of the film's shape.
+  Object.defineProperty(out, "services", { enumerable: false, value: filmServices(batches) });
+  return out;
 }
 
 // The film's state in the list: stopped (a cancelled goal), done, needs you (the newest batch has two Runway
@@ -468,7 +471,16 @@ export function filmState(goal, film, now = Date.now()) {
   return last && timeOf(last.expiresAt) > now ? "making" : "ended";
 }
 
-const endedWords = (at) => `The approval of its cost ended on ${new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}, so nothing more can be made with Runway for it.`;
+// The services a film's clips actually used, Runway first: the service of each job that was started (a released job
+// made nothing), else of the models its newest batch approved, else Runway (the door's own default).
+export function filmServices(batches) {
+  const jobs = batches.flatMap((b) => b._.jobs).filter((j) => !(j.end && j.end.state === "released"));
+  const models = jobs.length ? jobs.map((j) => j.model) : Object.values(batches.at(-1)?._.shots || {}).map((s) => s.model);
+  const keys = models.map((m) => providerOf(m));
+  return keys.length ? Object.keys(SERVICE_NAMES).filter((k) => keys.includes(k)) : ["runway"];
+}
+
+const endedWords = (at, services) => `The approval of its cost ended on ${new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}, so nothing more can be made with ${serviceWords(services)} for it.`;
 
 // One row of the Films list.
 export function filmRow(goal, film, now = Date.now()) {
@@ -485,7 +497,7 @@ export function filmRow(goal, film, now = Date.now()) {
     clips: takes.filter((t) => t.state === "made").length,
     kept: film.shots.filter((s) => s.takes.some((t) => t.verdict && t.verdict.verdict === "keep")).length,
     state,
-    problem: state === "needs you" ? FROZEN : state === "ended" ? endedWords(timeOf(last.expiresAt)) : film.problem,
+    problem: state === "needs you" ? FROZEN : state === "ended" ? endedWords(timeOf(last.expiresAt), film.services) : film.problem,
   };
 }
 

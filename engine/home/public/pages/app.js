@@ -277,7 +277,16 @@ export default function AppPage({ route }) {
     else if (said && ctx.announce) ctx.announce(said(r.view));
     return r;
   };
-  const turn = (on) => act("switch", { on }, () => `${name}: ${on ? "turned on" : "turned off"}.`);
+  // A Turn on is answered before the host has started the app: ask again at once, so the frame stands as soon as the
+  // server says the app is ready, not at the next periodic refresh. An answer already final (on and running, or off)
+  // needs no second ask.
+  const turn = async (on) => {
+    const r = await act("switch", { on }, () => `${name}: ${on ? "turned on" : "turned off"}.`);
+    if (!on || !r.ok) return;
+    const one = appsOf(r.view).find((a) => a.slug === slug);
+    const h = r.view && typeof r.view.host === "object" && r.view.host ? r.view.host : { state: "off", sentence: "" };
+    if (!one || shownState(one, h) !== "on") view.refresh();
+  };
   const after = (v) => spendingLine(appsOf(v).find((a) => a.slug === slug));
   // The sheet shows its own refusal; a yes closes it and the bar shows the new words.
   const allow = async (cents) => {

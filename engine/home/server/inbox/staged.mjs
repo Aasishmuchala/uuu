@@ -30,7 +30,7 @@ import { providerOf } from "../lib/generation.mjs";
 import { versionOf } from "../lib/inbox.mjs";
 import { ANOTHER, BACK, PICK, recordPick } from "../lib/picks.mjs";
 import {
-  approvedShots, boardsOf, confirmWords, costWords, dollars, priceShotlist, readShotlist, recordApproval, serviceWords, shotsHash, TAKES, timeWords,
+  aboutWords, approvedShots, boardsOf, confirmWords, costWords, dollars, priceShotlist, readShotlist, recordApproval, serviceWords, shotsHash, TAKES, timeWords,
 } from "../lib/shotlist.mjs";
 import { MARKERS, parseBrief, parsePlan, roundsOf, ROUND_CAP, textOf } from "../lib/staged.mjs";
 import { stopTask } from "../lib/stop.mjs";
@@ -222,6 +222,8 @@ function treatmentOf(ctx, goal, pv, place, gen, allowWords) {
     words: costWords(priced, { daily: gen.daily, dayLeft: gen.dayLeft, monthLeft: gen.monthLeft }),
     // The confirm's sentence and its button, whole, naming the service or services the shots go to (PLAN-3D-ALL S1).
     confirm: confirmWords(priced),
+    // The approved card's Cost fact, whole ("about $1.50, up to $3.00").
+    about: aboutWords(priced),
     time: timeWords(priced.shots.length, priced.services),
   } : null;
   const shown = { ...pv, shotlist, boards, cost, approvable: blocked === null, blocked };
