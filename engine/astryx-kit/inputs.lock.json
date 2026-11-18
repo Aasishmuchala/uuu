@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "packages": [
+    {
+      "name": "@astryxdesign/core",
+      "version": "0.7.16",
+      "licence": "MIT",
+      "tree": "103386c66c377c4adf5c8c14e6f7b4f3791f90dfdb2334d66fad7094ebbc3d70"
+    },
+    {
+      "name": "@astryxdesign/theme-neutral",
+      "version": "0.7.16",
+      "licence": "MIT",
+      "tree": "b977389acb81cca7ade99221e31b77f556853fc2fc20503bdd1687563d4d6ab6"
+    },
+    {
+      "name": "react",
+      "version": "19.3.1",
+      "licence": "MIT",
+      "tree": "ddb71dd2653cacd8ac9849d4576f56a9a60bdc980aa05a6ed7df17490f71e5c7"
+    },
+    {
+      "name": "react-dom",
+      "version": "19.3.1",
+      "licence": "MIT",
+      "tree": "becae71bf80b8f2178364c8cc5ba1bd9595f2a9dc9de3adc54482fe2f6ee6ce0"
+    },
+    {
+      "name": "scheduler",
+      "version": "0.28.0",
+      "licence": "MIT",
+      "tree": "0be01680286a3f8a64001bba4f3308fa0c3b21704a4c3ae7a6ce8d2bec81e566"
+    },
+    {
+      "name": "@stylexjs/stylex",
+      "version": "0.19.2",
+      "licence": "MIT",
+      "tree": "a3e82a7e4db50794cb2466d0d527cf98065c720662b018436089d615cb206f2d"
+    },
+    {
+      "name": "styleq",
+      "version": "0.2.1",
+      "licence": "MIT",
+      "tree": "98e72a62b8ccdfd0c328bec587b91ec1a3467fd27cc4b9d49cf798d5c8f68a18"
+    },
+    {
+      "name": "intl-messageformat",
+      "version": "11.2.15",
+      "licence": "BSD-3-Clause",
+      "tree": "f9dbe69d6a2b8d7459e9b69dcb7f969bf9867328f5c2fac7a8936c61351e2db3"
+    },
+    {
+      "name": "@formatjs/fast-memoize",
+      "version": "3.1.7",
+      "licence": "MIT",
+      "tree": "cd2cb10cee8002cd848d82446983e3006aee83301a3c3ddad482e79119610d79"
+    },
+    {
+      "name": "@formatjs/icu-messageformat-parser",
+      "version": "3.5.18",
+      "licence": "MIT",
+      "tree": "9f5bb3cd0d89e3a6405d5e9f38fb4e74c293532397b8d4eaeb16930e76eeae41"
+    },
+    {
+      "name": "@formatjs/icu-skeleton-parser",
+      "version": "2.1.11",
+      "licence": "MIT",
+      "tree": "4e628e1b04c7259a778f88c97abeceae263e5e59100436e44d4aee08d8ad7af1"
+    },
+    {
+      "name": "lucide-react",
+      "version": "1.75.0",
+      "licence": "ISC",
+      "tree": "8cd7e57bb6d197208619cd0def38b46ac66d023113d6eeca558b0cea59f5eb6f"
+    }
+  ]
+}
