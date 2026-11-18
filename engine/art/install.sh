@@ -42,6 +42,7 @@ VIDEO_TOOL="$TOOLS/video.py"
 TOOL_FILES="sprite.py slides.py fontmap.json video.py kit.py brandcheck.py"   # copied from engine/art into state/art/tools
 BRAND_FILES="filler.json directions.json"   # copied from engine/company/brand into state/art/tools, for the brand check
 ASTRYX_FILES="astryx.lock.json"   # copied from engine/astryx-kit into state/art/tools: the brand check compares a site's astryx/ with it
+SCROLLCRAFT_FILES="scrollcraft.lock.json"   # copied from engine/scrollcraft-kit likewise: for a site's scrollcraft/ (PLAN-ASTRYX T13)
 
 # Programs already on this Mac, by fixed path (never from PATH). /opt/homebrew is
 # outside the home folder, so the fence can read it.
@@ -80,6 +81,7 @@ env_text() {
 source_of() {   # source_of <file>: where the copy in state/art/tools comes from
   case " $BRAND_FILES " in *" $1 "*) echo "$HERE/../company/brand/$1" ; return ;; esac
   case " $ASTRYX_FILES " in *" $1 "*) echo "$HERE/../astryx-kit/$1" ; return ;; esac
+  case " $SCROLLCRAFT_FILES " in *" $1 "*) echo "$HERE/../scrollcraft-kit/$1" ; return ;; esac
   echo "$HERE/$1"
 }
 
@@ -88,7 +90,7 @@ tools_copied() {
   for f in $TOOL_FILES $BRAND_FILES; do
     cmp -s "$(source_of "$f")" "$TOOLS/$f" || return 1
   done
-  for f in $ASTRYX_FILES; do   # not in the repo: nothing to match (the brand check says it cannot compare)
+  for f in $ASTRYX_FILES $SCROLLCRAFT_FILES; do   # not in the repo: nothing to match (the brand check says it cannot compare)
     src="$(source_of "$f")"
     [ -f "$src" ] || continue
     cmp -s "$src" "$TOOLS/$f" || return 1
@@ -169,10 +171,11 @@ for f in $TOOL_FILES $BRAND_FILES; do
     say "$f copied to state/art/tools"
   fi
 done
-for f in $ASTRYX_FILES; do
+for f in $ASTRYX_FILES $SCROLLCRAFT_FILES; do
   src="$(source_of "$f")"
   if [ ! -f "$src" ]; then
-    say "$f is not in the repo (engine/astryx-kit); the brand check will say it cannot compare a site's astryx/ folder"
+    kit="${f%%.*}"
+    say "$f is not in the repo (engine/$kit-kit); the brand check will say it cannot compare a site's $kit/ folder"
     continue
   fi
   [ -L "$TOOLS/$f" ] && die "state/art/tools/$f is a link; remove it and run again"

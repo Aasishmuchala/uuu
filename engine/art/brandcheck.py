@@ -46,6 +46,10 @@ passed over by the scanners; the maker's own files may not set an Astryx theme
 token, and a colour in a string of its scripts is judged. There the page is drawn
 by script, so the strings of the maker's own scripts are read as its words by
 the can't-say and filler rules (PLAN-ASTRYX T6b); the kit's files are not.
+A site with the folder scrollcraft/ at its top (PLAN-ASTRYX T13) carries the
+scroll-craft kit, checked and passed over the same way by scrollcraft.lock.json
+beside this tool; the maker's text may not name data-sc-drift or sc-grain
+(`colour_not_token`: they draw colours no check can compare with the kit).
 
 Exit 0: every piece passes or only warns. Exit 1: a hard rule failed, including
 whatever a maker can cause by what it leaves in the goal: no pieces (`no_pieces`),
@@ -698,14 +702,18 @@ class Ctx:
         self.pixels = 0
         self.sources = {}
         self.room = None
-        self.astryx = False     # the Astryx kit's list: not read yet
+        self.lists = {}         # the locked kits' lists (Astryx, scroll-craft), each read once a run
+
+    def kit_list(self, name):
+        """{name: (bytes, sha256 digest)} of a locked kit's list beside this tool (astryx.lock.json,
+        scrollcraft.lock.json), read once a run; None when it is not installed, "bad" when it cannot be read or is
+        not the list's shape."""
+        if name not in self.lists:
+            self.lists[name] = read_astryx_list(os.path.join(HERE, name))
+        return self.lists[name]
 
     def astryx_list(self):
-        """{name: (bytes, sha256 digest)} of the Astryx kit's list beside this tool, read once a run; None when it
-        is not installed, "bad" when it cannot be read or is not the list's shape."""
-        if self.astryx is False:
-            self.astryx = read_astryx_list(os.path.join(HERE, ASTRYX_LIST))
-        return self.astryx
+        return self.kit_list(ASTRYX_LIST)
 
     def source(self, name, room=False):
         """Each company picture, or each render a board claims, is opened and charged once a run; later claims
@@ -1050,6 +1058,20 @@ ASTRYX_THEME = "astryx-theme.css"
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 KIT_CHANGED = ("it is not the engine's Astryx kit byte for byte; copy the folder again from the playbooks and "
                "never change it")
+# The scroll-craft kit (PLAN-ASTRYX T13): the folder scrollcraft/ at a site's top is the engine's copy of scroll-craft
+# and its own layer over it, byte for byte by scrollcraft.lock.json beside this file; passed over as astryx/ is.
+SCROLLCRAFT = "scrollcraft"
+SCROLLCRAFT_LIST = "scrollcraft.lock.json"
+SCROLLCRAFT_CHANGED = ("it is not the engine's scroll-craft kit byte for byte; copy the folder again from the "
+                       "playbooks and never change it")
+# What scroll-craft can draw that the check and the page viewer cannot compare with the kit: a ground that blends
+# between colours as the page scrolls (data-sc-drift), and the grain's noise (sc-grain).
+SCROLLCRAFT_REFUSED = (
+    (re.compile(r"data-sc-drift"), "data-sc-drift blends the page's ground between colours as it scrolls, through "
+     "colours that are not in the kit; give each section a ground of the kit's colours instead"),
+    (re.compile(r"(?<![A-Za-z0-9_-])sc-grain(?![A-Za-z0-9_-])"), "sc-grain draws noise in colours the check cannot "
+     "compare with the kit; leave the grain out"),
+)
 THEME_TOKENS = (("--color-", "colour_not_token"), ("--font-size", "text_too_small"), ("--font-", "font_not_kit"),
                 ("--text-", "text_too_small"), ("--radius-", "tokens_file_changed"),
                 ("--shadow-", "tokens_file_changed"))
@@ -1653,6 +1675,7 @@ class SiteCheck:
         self.ctx, self.piece, self.found, self.files = ctx, piece, found, files
         self.kit = ctx.kit
         self.astryx = ASTRYX in dirs        # the site has the folder astryx/ at its top (PLAN-ASTRYX T6)
+        self.scrollcraft = SCROLLCRAFT in dirs   # the site has the folder scrollcraft/ at its top (PLAN-ASTRYX T13)
         self.passed = set()                 # the kit's files and the brand theme, byte for byte: not read as text
         if self.kit:
             self.kit_rgbs = [c["rgb"] for c in self.kit.palette]
@@ -1721,10 +1744,17 @@ class SiteCheck:
         """The folder astryx/ at the site's top: every file in it must be in the Astryx kit's list with the same
         sha256, and no folder may be inside it. A file that is passes over every scanner and the text caps (it
         still counts in the site's entries and bytes); anything else is a hard kit_file_changed."""
-        listed = self.ctx.astryx_list()
+        self.locked_kit(dirs, ASTRYX, ASTRYX_LIST, "the Astryx kit", KIT_CHANGED)
+
+    def scrollcraft_kit(self, dirs):
+        """The folder scrollcraft/ at the site's top (PLAN-ASTRYX T13): as astryx/, by scrollcraft.lock.json."""
+        self.locked_kit(dirs, SCROLLCRAFT, SCROLLCRAFT_LIST, "the scroll-craft kit", SCROLLCRAFT_CHANGED)
+
+    def locked_kit(self, dirs, folder, list_name, kit_name, changed_words):
+        listed = self.ctx.kit_list(list_name)
         if listed is None or listed == "bad":
-            self.found.add("could_not_check", "the Astryx kit's list is %s, so astryx/ was not compared"
-                           % ("not installed" if listed is None else "not one the check can read"))
+            self.found.add("could_not_check", "%s's list is %s, so %s/ was not compared"
+                           % (kit_name, "not installed" if listed is None else "not one the check can read", folder))
             return
         bad, seen = [], set()
 
@@ -1733,7 +1763,7 @@ class SiteCheck:
                 seen.add(name)
                 bad.append(name)
 
-        prefix = ASTRYX + "/"
+        prefix = folder + "/"
         inside = sorted(d for d in dirs if d.startswith(prefix))
         for d in inside:
             changed(prefix + d[len(prefix):].split("/", 1)[0])
@@ -1759,10 +1789,10 @@ class SiteCheck:
             else:
                 changed(name)
         for name in bad[:ASTRYX_SHOWN]:
-            self.found.add("kit_file_changed", KIT_CHANGED, where=shown_path(name))
+            self.found.add("kit_file_changed", changed_words, where=shown_path(name))
         if len(bad) > ASTRYX_SHOWN:
-            self.found.add("kit_file_changed", "and %d more files or folders in astryx/ like this"
-                           % (len(bad) - ASTRYX_SHOWN), where=ASTRYX)
+            self.found.add("kit_file_changed", "and %d more files or folders in %s/ like this"
+                           % (len(bad) - ASTRYX_SHOWN, folder), where=folder)
 
     def astryx_theme(self):
         """On a site with astryx/: astryx-theme.css at its top is the brand folder's, byte for byte (the home
@@ -1789,6 +1819,16 @@ class SiteCheck:
                            "byte for byte; copy it again and never change it")
         else:
             self.passed.add(ASTRYX_THEME)
+
+    def scrollcraft_refused(self, shown, text):
+        """On a site with scrollcraft/ (PLAN-ASTRYX T13): the scroll-craft devices that draw colours no check can
+        compare with the kit, once a file each, wherever the maker's text names them."""
+        lines = None
+        for pattern, words in SCROLLCRAFT_REFUSED:
+            m = pattern.search(text)
+            if m:
+                lines = lines or Lines(text)
+                self.found.add("colour_not_token", "%s: %s" % (self.at(shown, lines.at(m.start())), words))
 
     def font_collections(self):
         for role in ("heading", "body"):
@@ -1829,6 +1869,8 @@ class SiteCheck:
             text = decode_page(data)
             self.base = name.rsplit("/", 1)[0] if "/" in name else ""
             self.piece.tick()
+            if self.scrollcraft and not name.startswith(SCROLLCRAFT + "/"):    # the kit's own words name them
+                self.scrollcraft_refused(shown, text)
             if ending == "html":
                 self.html(shown, text, index=name == "index.html")
                 self.index_read = self.index_read or name == "index.html"
@@ -3011,6 +3053,8 @@ def check_site(ctx, piece):
     sc = SiteCheck(ctx, piece, found, files, dirs)
     if sc.astryx:
         sc.astryx_kit(dirs)
+    if sc.scrollcraft:
+        sc.scrollcraft_kit(dirs)
     if ctx.kit:
         sc.tokens_file()
         if sc.astryx:
