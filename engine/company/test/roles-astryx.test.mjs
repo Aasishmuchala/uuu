@@ -71,3 +71,18 @@ test("no other role file names astryx", () => {
     assert.ok(!/astryx/i.test(readFileSync(join(rolesDir, f), "utf8")), f);
   }
 });
+
+// PLAN-ASTRYX T13: scroll-craft as the scroll layer, one line inside the same block.
+test("the block names the scroll-craft kit, its copy and its limits", () => {
+  const b = block();
+  for (const s of [
+    "$UUU_PLAYBOOKS_DIR/scrollcraft-kit/README.md",
+    'cp -R "$UUU_PLAYBOOKS_DIR/scrollcraft-kit/scrollcraft" site/<name>/scrollcraft',
+    "example-plain/",
+    "data-sc-drift",
+    "sc-grain",
+    "kit_file_changed",
+    "less motion",
+  ]) assert.ok(b.includes(s), s);
+  assert.ok(!/kie\.ai|playwright|https?:/.test(b));
+});

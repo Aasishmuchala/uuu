@@ -65,6 +65,7 @@ A page is a static site: plain HTML, CSS and a little JavaScript, no package and
 - Words still come from the company's files; the page's words in `app.js` are checked like any words.
 - Then look at it and run the brand check, as below. `drawn_late` true in `report.json` means the page did not draw: read `errors` first.
 - Three versions: three sites, each with its own copy of `astryx/`.
+- A page that moves with the scroll (a launch, a product, a place told in scenes) takes scroll-craft as its scroll layer, on an Astryx page or a plain-kit page alike: read `$UUU_PLAYBOOKS_DIR/scrollcraft-kit/README.md`, then its `guide/`; copy the folder unchanged (`cp -R "$UUU_PLAYBOOKS_DIR/scrollcraft-kit/scrollcraft" site/<name>/scrollcraft`) and start from `example/` (Astryx) or `example-plain/` (plain kit); an act is a plain element with `data-sc-*` and the Astryx parts go inside it; pictures and clips are the owner's renders or the generation door's, never from the web; no data-sc-drift, no sc-grain, no worldflight; with less motion asked every part shows at once (the viewer's pictures), and a changed file in `scrollcraft/` is refused (`kit_file_changed`).
 <!-- astryx:end -->
 
 ### Rounds, the cook way
