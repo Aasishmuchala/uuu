@@ -264,6 +264,11 @@ export function createBrainDoor({ config, log, now } = {}) {
     const ws = readDoorsState(P.state);
     return ws.ok === true && ws.brain && ws.brain.on === true;
   };
+  // The owner's own Test question from Settings (an `ask` with the owner's test token) is let through while the
+  // switch is off, as the web door's Test is. Nothing else: no agent, no notes, and not a switches file that
+  // cannot be trusted.
+  const ownerTestWhileOff = (who, name) => isObject(who) && who.kind === "t" && who.subject === "owner" && name === "ask"
+    && readDoorsState(P.state).ok === true;
 
   // ---- the index: one read-only handle, opened again when the file changes
   let cached = null; // { handle, ino, dev, mtimeMs, ctimeMs, size }
@@ -347,11 +352,11 @@ export function createBrainDoor({ config, log, now } = {}) {
     // 2. The token.
     let who = caller(req);
     if (!isObject(who) || !(who.kind === "a" || (who.kind === "t" && who.subject === "owner"))) return no(res, "brain_no_token");
-    // 3. The switch.
-    status.on = switchOn();
-    if (!status.on) return no(res, "brain_off");
-    // 4. The path, as sent.
+    // 3. The switch (the owner's Test is let through while it is off).
     const name = req.method === "POST" && Object.hasOwn(ROUTES, target) ? ROUTES[target] : null;
+    status.on = switchOn();
+    if (!status.on && !ownerTestWhileOff(who, name)) return no(res, "brain_off");
+    // 4. The path, as sent.
     if (name === null) return no(res, "brain_bad_path");
     const agent = whoOf(who);
     // 5. The body.
@@ -366,7 +371,7 @@ export function createBrainDoor({ config, log, now } = {}) {
     // 2 and 3 again: the owner may have switched off, or the token run out, while the body arrived.
     who = caller(req);
     if (!isObject(who) || whoOf(who) !== agent) return no(res, "brain_no_token");
-    if (!switchOn()) {
+    if (!switchOn() && !ownerTestWhileOff(who, name)) {
       record(agent, name, q, "brain_off", 0);
       return no(res, "brain_off");
     }

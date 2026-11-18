@@ -21,7 +21,7 @@ Nothing else. No write, no file, no search of a path.
 
 ## Who may ask
 
-An agent whose token the door itself minted, and who is named in `doors.brain.agents` of `engine/config.json`: Chief of staff, Builder, Checker, Bookkeeper, Sales, Support, People, Marketer, Drafter, Artist and Art director. The Researcher is refused whatever the list says, and so is an app. The owner's test token may call `ask` and `notes` (the Brain page's test box).
+An agent whose token the door itself minted, and who is named in `doors.brain.agents` of `engine/config.json`: Chief of staff, Builder, Checker, Bookkeeper, Sales, Support, People, Marketer, Drafter, Artist and Art director. The Researcher is refused whatever the list says, and so is an app. The owner's test token may call `ask` and `notes` (the Test box in Settings' Brain section). Its `ask` is answered while the switch is off too, as the web door's Test is; nothing else is.
 
 Books facts reach only the agents also named in `doors.brain.records`: all of the above but the Artist and the Art director (the owner's choice). Every other agent gets passages from the owner's files only, no links between records, and a word only the books hold comes back as not found. The same holds for notes: the home server writes a files-only part in each notes file, and the door serves that part to them. A config with no `records` list gives books facts to no agent.
 
@@ -31,7 +31,7 @@ Each refusal is a short sentence and a code.
 
 1. An upgrade or a CONNECT: 400 `brain_bad_request`.
 2. No valid token, an app's token, or an agent not on the list: 401 `brain_no_token`.
-3. The switch is off, or the switches file cannot be trusted: 403 `brain_off`.
+3. The switch is off, or the switches file cannot be trusted: 403 `brain_off`. The one exception: the owner's Test question (`ask` with the owner's test token) while the switch is off in a file that can be trusted.
 4. Any other method or path, or any query string: 404 `brain_bad_path`.
 5. A body over 2 KB, not one JSON object, or with other keys or the wrong kinds: 400 `brain_bad_body`.
 6. More than 120 questions an hour or 600 a day from one agent (counted in memory): 429 `brain_too_many`.

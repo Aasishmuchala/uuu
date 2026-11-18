@@ -207,7 +207,9 @@ test("the switch off is 403 even with a good token, and a switch-off after start
   setBrain(false);
   refused(await askQ("refunds"), "brain_off");
   refused(await notesOf("task-1"), "brain_off");
-  refused(await askQ("refunds", owner()), "brain_off");
+  refused(await notesOf("task-1", owner()), "brain_off");
+  // The owner's Test question is the one exception (see below).
+  assert.equal((await askQ("refunds", owner())).status, 200);
 });
 
 test("a switches file with no brain block is off", async () => {
@@ -597,4 +599,31 @@ test("no answer or log line names a file of the state folder", async () => {
   await askQ("refunds");
   for (const l of lines) assert.ok(!l.includes(dir), l);
   // afterEach checks every response body.
+});
+
+// ---- the owner's Test while the switch is off (as the web door's Test)
+
+test("switch off: the owner's Test question is answered; the owner's notes, every agent, and an untrusted switches file are still refused", async () => {
+  writeNotes("task-1", NOTES("task-1"));
+  setBrain(false);
+  const r = await askQ("what did we promise Acme", owner());
+  assert.equal(r.status, 200);
+  assert.equal(r.json.notice, NOTICE);
+  assert.equal(r.json.results[0].source, "calls/acme-call.md");
+  assert.equal(asks().at(-1).agent, "owner");
+  refused(await notesOf("task-1", owner()), "brain_off");
+  refused(await askQ("what did we promise Acme"), "brain_off");
+  refused(await askQ("what did we promise Acme", agent(SALES)), "brain_off");
+  // Another address with the owner's token is still refused at the switch, before the path (B9's order).
+  refused(await call("/brain/other", { q: "acme" }, owner()), "brain_off");
+  // A token of another door's secret is still no token.
+  refused(await askQ("acme", owner(WEB_SECRET)), "brain_no_token");
+  // A switches file that cannot be trusted refuses the owner too.
+  setSwitches({ version: 1, brain: { on: false, extra: 1 } });
+  refused(await askQ("acme", owner()), "brain_off");
+  setSwitches({ version: 1, brain: { on: false } }, 0o666);
+  refused(await askQ("acme", owner()), "brain_off");
+  // No brain block at all is a trusted "off": the owner's Test is answered.
+  setSwitches({ version: 1, web: { on: false } });
+  assert.equal((await askQ("refunds", owner())).status, 200);
 });
