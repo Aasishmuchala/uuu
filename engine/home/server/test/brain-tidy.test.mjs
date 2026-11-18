@@ -3,7 +3,7 @@
 // writes into the brain, kept outside knowledge/), and GET /api/inbox through the stub home.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,7 @@ import brainSource, { AGENT_LABEL, NOTES_KEY, SWITCH_KEY, fileFromTask, fileSugg
 import { indexFor } from "../brain/indexer.mjs";
 import { brainToken } from "../brain/store.mjs";
 import { createDecisions } from "../lib/decisions.mjs";
+import { updateDoors } from "../lib/doors.mjs";
 import { HomeError } from "../lib/errors.mjs";
 import { actAsSeen, call } from "../lib/testing.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
@@ -135,9 +136,11 @@ test("the module imports nothing that changes the brain", () => {
 
 // ---- the inbox source, with a real index built from the fixture's files
 
-async function withHome(fn, { files = FILES, decisions } = {}) {
+// The brain switch is on unless `on` is false (it starts off, as every switch does).
+async function withHome(fn, { files = FILES, decisions, on = true } = {}) {
   const h = await startV2({ routes: ["inbox"], inbox: ["brain"], decisions });
   h.config.minFreeDiskGb = 0;
+  if (on) updateDoors(h.config, (s) => { s.brain.on = true; });
   try {
     const docs = h.config.paths.knowledgeDocs;
     for (const [rel, text] of Object.entries(files)) {
@@ -156,10 +159,35 @@ test("no index yet: no items", async () => {
   const h = await startV2({ routes: ["inbox"], inbox: ["brain"] });
   try {
     h.config.minFreeDiskGb = 0;
+    updateDoors(h.config, (s) => { s.brain.on = true; });
     const ctx = { config: h.config, log() {}, decisions: createDecisions(join(h.config.paths.homeData, "decisions.json")) };
     const out = await brainSource.list(ctx);
     assert.deepEqual(out, { items: [] });
   } finally { await h.close(); }
+});
+
+// T18's finding 4: with the brain switch off there are no tidy items, and no index is built for them.
+test("with the brain switch off: no tidy items, no index built and the books not asked", async () => {
+  const h = await startV2({ routes: ["inbox"], inbox: ["brain"] });
+  try {
+    h.config.minFreeDiskGb = 0;
+    const docs = h.config.paths.knowledgeDocs;
+    for (const [rel, text] of Object.entries(FILES)) {
+      mkdirSync(dirname(join(docs, rel)), { recursive: true });
+      writeFileSync(join(docs, rel), text);
+    }
+    const ctx = { config: h.config, log() {}, decisions: createDecisions(join(h.config.paths.homeData, "decisions.json")) };
+    assert.deepEqual(await brainSource.list(ctx), { items: [] });
+    const r = await call(h.url, "GET", "/api/inbox");
+    assert.deepEqual(brainItems(r), []);
+    await new Promise((res) => setTimeout(res, 200));
+    assert.equal(existsSync(h.config.paths.brainIndex), false, "no index was built");
+    assert.deepEqual(h.bench.requests.filter((q) => q.path.startsWith("/api/resource/")), []);
+  } finally { await h.close(); }
+  // An index built while it was on shows nothing once it is off: its findings and an agent's suggestions alike.
+  await withHome(async ({ h }) => {
+    assert.deepEqual(brainItems(await call(h.url, "GET", "/api/inbox")), []);
+  }, { on: false, decisions: seeded(record("policies/terms.md", NOTE)) });
 });
 
 test("the items have the contract's shape, and GET /api/inbox shows and counts them under brain", async () => {
@@ -332,6 +360,7 @@ test("a finished run of the tidy-up routine is read once, by the board's link to
   const h = await startV2({ routes: ["inbox", "brain-door"], inbox: ["goals", "brain"] });
   try {
     h.config.minFreeDiskGb = 0;
+    updateDoors(h.config, (s) => { s.brain.on = true; });
     const docs = h.config.paths.knowledgeDocs;
     for (const [rel, text] of Object.entries(FILES)) {
       mkdirSync(dirname(join(docs, rel)), { recursive: true });

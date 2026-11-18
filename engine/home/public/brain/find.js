@@ -126,6 +126,14 @@ export function notFoundLine(list) {
 // True for a 404 that means the home screen runs without these routes yet (not the brain saying "not there").
 export const needsRestart = (error) => Boolean(error) && error.status === 404 && error.code !== "entity_not_found";
 
+// True while the brain switch is off: every route of this view answers `brain_off` with one sentence.
+export const isOff = (error) => Boolean(error) && error.code === "brain_off";
+
+// The server's sentence for the switch off, shown as sent: plain text, not an error with a retry.
+export function OffLine({ error }) {
+  return html`<p class="p-brain-find__line p-brain-find__off" role="status">${cut(error && error.message, 300)}</p>`;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // One passage, as a card: its title, its place in the file, the text as written, and where it comes from.
 
@@ -195,6 +203,7 @@ function Answer({ ask, onOpen }) {
   const res = useResource(`/api/brain/find?q=${encodeURIComponent(ask)}`);
   if (res.loading && !res.data) return html`<${Loading} lines=${3} label=${BRAIN_WORDS.searching} />`;
   if (res.error) {
+    if (isOff(res.error)) return html`<${OffLine} error=${res.error} />`;
     return needsRestart(res.error)
       ? html`<${Empty} inline title=${BRAIN_WORDS.restart} />`
       : html`<${ErrorNotice} error=${res.error} onRetry=${res.reload} />`;
@@ -244,6 +253,8 @@ export function BrainView({ ask, entity, navigate = go }) {
     move({ ask: words, entity: "" });
   };
 
+  // The switch off: the server's sentence and nothing else (no search, no Refresh).
+  if (isOff(status.error)) return html`<div class="p-brain-find"><${OffLine} error=${status.error} /></div>`;
   if (needsRestart(status.error) && !status.data) {
     return html`<div class="p-brain-find"><${Empty} inline title=${BRAIN_WORDS.restart} /></div>`;
   }

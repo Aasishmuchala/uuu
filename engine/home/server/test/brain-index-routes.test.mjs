@@ -1,10 +1,12 @@
 // The Brain page's routes (PLAN-BRAIN T11, B10, B7), over HTTP through startV2 with the stub bench and a temp
-// brain holding the fixture's files. No live state, no fixed port.
+// brain holding the fixture's files. No live state, no fixed port. The brain switch is on for all but the last test,
+// which shows that with it off (as it starts) nothing is built and nothing is asked of the books.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { brainToken } from "../brain/store.mjs";
+import { updateDoors } from "../lib/doors.mjs";
 import { call } from "../lib/testing.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 import { FILES } from "../../../brain/test/fixture.mjs";
@@ -18,16 +20,22 @@ const RAVI = {
 const FORBIDDEN = ["Asha Rao", "Rao Interiors", "Singh Homes", "Delivery is late", "buyer@example.com", "DRAFT REPLY"];
 const b64 = (s) => Buffer.from(s, "utf8").toString("base64url");
 
-let h;
-before(async () => {
-  h = await startV2({ routes: ["brain", "brain-index", "search"], search: ["brain"] });
-  h.config.minFreeDiskGb = 0;
-  h.bench.state.docs.Contact = [structuredClone(RAVI)];
-  const docs = join(h.state, "knowledge", "docs");
+async function home() {
+  const t = await startV2({ routes: ["brain", "brain-index", "search"], search: ["brain"] });
+  t.config.minFreeDiskGb = 0;
+  t.bench.state.docs.Contact = [structuredClone(RAVI)];
+  const docs = join(t.state, "knowledge", "docs");
   for (const [rel, text] of Object.entries(FILES)) {
     mkdirSync(dirname(join(docs, rel)), { recursive: true });
     writeFileSync(join(docs, rel), text);
   }
+  return t;
+}
+
+let h;
+before(async () => {
+  h = await home();
+  updateDoors(h.config, (s) => { s.brain.on = true; });
 });
 after(async () => { await h?.close(); });
 
@@ -160,4 +168,28 @@ test("links: an unknown key, an odd key and a long key are 404 entity_not_found"
 test("a key that looks like SQL is only a bound value", async () => {
   const r = await get(`/api/brain/links/${b64("customer:x' OR '1'='1")}`);
   assert.equal(r.status, 404);
+});
+
+// T18's finding 4: everything is off until the owner switches it on.
+test("with the brain switch off: every route answers the server's one sentence; no index is built, the books are not asked", async () => {
+  const t = await home();
+  try {
+    const OFF = "The brain is off. Switch it on in Settings.";
+    const answers = [
+      await call(t.url, "GET", "/api/brain/index"),
+      await call(t.url, "POST", "/api/brain/index/refresh", { body: {} }),
+      await call(t.url, "GET", `/api/brain/find?q=${encodeURIComponent("what did we promise Acme")}`),
+      await call(t.url, "GET", `/api/brain/links/${b64("customer:Acme Interiors")}`),
+    ];
+    for (const r of answers) {
+      assert.equal(r.status, 409, r.text);
+      assert.deepEqual(r.json.error, { message: OFF, next: "", code: "brain_off" });
+    }
+    await new Promise((r) => setTimeout(r, 200));
+    assert.equal(existsSync(t.config.paths.brainIndex), false, "no index was built");
+    assert.deepEqual(t.bench.requests.filter((r) => r.path.startsWith("/api/resource/")), [], "the books were not asked");
+    // Switched on, the same address starts the first build.
+    updateDoors(t.config, (s) => { s.brain.on = true; });
+    assert.equal((await call(t.url, "GET", "/api/brain/index")).status, 200);
+  } finally { await t.close(); }
 });

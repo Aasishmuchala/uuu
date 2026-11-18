@@ -1,12 +1,14 @@
 // The Brain page's routes (PLAN-BRAIN T11, B10): what the index holds, a rebuild on request, finding
 // passages and walking one entity's links. Everything is answered from the index built by
-// `brain/indexer.mjs` (read-only), after `ensureFresh`. A file result links to the store's own listing;
+// `brain/indexer.mjs` (read-only), after `ensureFresh`. With the brain switch off every route answers 409
+// `brain_off` with one sentence and nothing is built or asked of the books. A file result links to the store's own listing;
 // a record links to the page of its doctype. Nothing a caller typed is SQL or search syntax: the query
 // goes to `ask` (which quotes every term) and the entity key is a bound value.
 import { ask, entityView, findEntities } from "../../../brain/retrieve.mjs";
 import { BASICS } from "../lib/brainfiles.mjs";
 import { brainFor, brainToken } from "../brain/store.mjs";
 import { indexFor } from "../brain/indexer.mjs";
+import { BRAIN_OFF, brainOn } from "../brain/notes.mjs";
 
 const REFRESH_GAP_MS = 10 * 1000;
 const KEY_MAX = 200;
@@ -41,10 +43,19 @@ function listedTokens(ctx) {
 
 const withLinks = (rows, tokens) => rows.map((r) => ({ ...r, link: linkOf(r, tokens) }));
 
+// Every route of this page first: the switch off is the server's one sentence, before anything is read or built.
+function needOn(ctx) {
+  if (!brainOn(ctx.config)) throw ctx.fail(409, BRAIN_OFF, "", "brain_off");
+}
+
 export default function register(app) {
-  app.get("/api/brain/index", (ctx) => indexFor(ctx.config).ensureFresh(ctx));
+  app.get("/api/brain/index", (ctx) => {
+    needOn(ctx);
+    return indexFor(ctx.config).ensureFresh(ctx);
+  });
 
   app.post("/api/brain/index/refresh", async (ctx) => {
+    needOn(ctx);
     const now = Date.now();
     const last = lastRefresh.get(ctx.config);
     if (last !== undefined && now - last < REFRESH_GAP_MS) {
@@ -56,6 +67,7 @@ export default function register(app) {
   });
 
   app.get("/api/brain/find", (ctx) => {
+    needOn(ctx);
     const q = String(ctx.query.q || "").trim();
     if (q.length < 2) throw ctx.fail(400, "Type at least two letters to search.", "Add a word or two, then search again.", "query_too_short");
     if (q.length > 200) throw ctx.fail(400, "That search is too long.", "Use a few words.", "query_too_long");
@@ -78,6 +90,7 @@ export default function register(app) {
   });
 
   app.get("/api/brain/links/:key", (ctx) => {
+    needOn(ctx);
     const missing = () => ctx.fail(404, "That is not in the brain's index.", "Search again from the Brain page.", "entity_not_found");
     const raw = String(ctx.params.key || "");
     if (!raw || raw.length > KEY_MAX * 2 || !/^[A-Za-z0-9_-]+$/.test(raw)) throw missing();

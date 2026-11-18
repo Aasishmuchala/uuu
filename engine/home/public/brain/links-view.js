@@ -6,7 +6,7 @@ import { html, useEffect, useRef } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { fileToken } from "../lib/format.js";
 import { Button, Empty, ErrorNotice, Loading } from "../kit/index.js";
-import { BRAIN_WORDS, KIND_WORDS, PassageList, needsRestart } from "./find.js";
+import { BRAIN_WORDS, KIND_WORDS, OffLine, PassageList, isOff, needsRestart } from "./find.js";
 
 const NAME_MAX = 120;
 const LINKED_MAX = 40;
@@ -61,7 +61,9 @@ export function LinksView({ entityKey, onOpen, onBack, backLabel = "Back" }) {
   const back = onBack ? html`<div class="p-brain-find__back"><${Button} size="sm" variant="quiet" icon="arrow-left" onClick=${onBack}>${backLabel}<//></div>` : null;
   if (res.loading && !res.data) return html`<div class="p-brain-find__links">${back}<${Loading} lines=${3} label=${LINKS_WORDS.loading} /></div>`;
   if (res.error) {
-    return html`<div class="p-brain-find__links">${back}${needsRestart(res.error)
+    return html`<div class="p-brain-find__links">${back}${isOff(res.error)
+      ? html`<${OffLine} error=${res.error} />`
+      : needsRestart(res.error)
       ? html`<${Empty} inline title=${BRAIN_WORDS.restart} />`
       : res.error.status === 404
       ? html`<${Empty} inline title=${cut(res.error.message, 200) || "That is not in the brain's index."} />`

@@ -247,6 +247,33 @@ test("brain-find drawn: an entity not in the index says so in the server's words
   } finally { done(); }
 });
 
+// T18's finding 4: the brain is off until the owner switches it on, and the page says so in the server's words.
+test("brain-find drawn: with the brain switch off, the server's sentence as sent and nothing else", async () => {
+  const OFF = "The brain is off. Switch it on in Settings.";
+  const off = { status: 409, body: { error: { message: OFF, next: "", code: "brain_off" } } };
+  const { root, done } = await draw({ ask: "acme" }, routes({ index: off, find: off, links: () => off, refresh: off }));
+  try {
+    await waitFor(root, "Switch it on");
+    assert.ok(texts(root).includes(OFF));
+    assert.equal(texts(root).filter((x) => x === OFF).length, 1, "said once");
+    assert.ok(!DOM.elements(root).some((e) => e.localName === "form" || e.localName === "input"), "no search box");
+    assert.ok(!DOM.buttonNamed(root, "Refresh"), "no Refresh");
+    assert.ok(!texts(root).includes("Try again"), "not shown as an error");
+    assert.ok(!DOM.byClass(root, "p-brain-find__card").length, "no results");
+  } finally { done(); }
+  // An answer that comes back off (the switch went off after the page was drawn) says the same.
+  const { root: r2, done: d2 } = await draw({ ask: "acme" }, routes({ find: off }));
+  try {
+    await waitFor(r2, "Switch it on");
+    assert.ok(texts(r2).includes(OFF));
+  } finally { d2(); }
+  const { root: r3, done: d3 } = await draw({ entity: ACME }, routes({ links: () => off }));
+  try {
+    await waitFor(r3, "Switch it on");
+    assert.ok(texts(r3).includes(OFF));
+  } finally { d3(); }
+});
+
 test("brain-find drawn: a search of one letter is not sent; Enter sends a longer one", async () => {
   const { root, calls, went, done } = await draw({}, routes());
   try {

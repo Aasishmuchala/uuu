@@ -144,6 +144,13 @@ export default function register(app) {
     if (typeof q !== "string" || q.trim().length < Q_MIN || q.length > Q_MAX) {
       throw ctx.fail(400, "Type a question of two to 400 letters.", "Add a few words, then try again.", "bad_question");
     }
+    // The owner's press may build the index, with the brain switch off too (the only thing that does then): none yet
+    // is built first; an old one is brought up to date in the background.
+    try {
+      const indexer = indexFor(ctx.config);
+      if (indexer.status().builtAt) indexer.ensureFresh(ctx);
+      else await indexer.rebuild(ctx);
+    } catch { /* the door says there is no index */ }
     const r = await callDoor(ctx, "brain", "/brain/ask", { q: q.trim() }, { timeoutMs: ASK_TIMEOUT_MS, maxBytes: ASK_MAX_BYTES });
     if (!r.ok) throw ctx.fail(409, "The brain door is not answering.", "Run: engine start", "brain_door_down");
     if (r.status === 200 && obj(r.json)) return r.json;

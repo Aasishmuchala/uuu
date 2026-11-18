@@ -40,7 +40,11 @@ const firstLine = (e) => String(e?.message || e).split("\n")[0].slice(0, 200);
 const logOf = (ctx) => (typeof ctx?.log === "function" ? ctx.log : () => {});
 const mine = (st) => typeof process.getuid !== "function" || st.uid === process.getuid();
 
-// The brain switch, as the home server reads it (lib/doors.mjs). Never throws: anything wrong is off.
+// What the Brain page, its routes and Needs you say while the switch is off (T18's finding 4).
+export const BRAIN_OFF = "The brain is off. Switch it on in Settings.";
+
+// The brain switch, as the home server reads it (lib/doors.mjs). Never throws: anything wrong is off. While it is
+// off nothing builds the index or reads the books for it, but the owner's own Test question in Settings.
 export function brainOn(config) {
   try {
     return readDoors(config)?.state?.brain?.on === true;

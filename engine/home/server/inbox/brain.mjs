@@ -7,10 +7,12 @@
 //    writes the agent's words into the brain; the owner edits the file. Agent text never reaches the brain
 //    or the index (ADR 0008). Suggestions are kept in the home server's decisions (state/home), never under
 //    knowledge/. Filing is off until the owner switches it on (setSuggestionsOn).
-// This module never changes the brain: it only reads the brain's listing and the index.
+// This module never changes the brain: it only reads the brain's listing and the index. With the brain switch
+// off it lists nothing and builds no index (T18's finding 4).
 import { createHash } from "node:crypto";
 import { brainFor, brainToken } from "../brain/store.mjs";
 import { indexFor } from "../brain/indexer.mjs";
+import { brainOn } from "../brain/notes.mjs";
 import { findings, TITLES } from "../brain/tidy.mjs";
 import { HomeError } from "../lib/errors.mjs";
 import { readTaskText } from "../lib/taskfiles.mjs";
@@ -177,8 +179,8 @@ function suggestionItem(s, titles) {
 }
 
 async function list(ctx) {
-  const state = indexFor(ctx.config).ensureFresh(ctx);
-  void state;
+  if (!brainOn(ctx.config)) return { items: [] };
+  indexFor(ctx.config).ensureFresh(ctx);
   const items = [];
   const got = filePassages(ctx.config, ctx);
   if (got) {
