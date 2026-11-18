@@ -399,3 +399,11 @@ test("a finished run of the tidy-up routine is read once, by the board's link to
     assert.equal(holds, false);
   } finally { await h.close(); }
 });
+
+test("an action on a brain item while the brain source cannot be read gives that source's reason (PREFIX_SOURCE)", async () => {
+  const { createActor } = await import("../lib/inbox.mjs");
+  const fails = (id, words) => ({ id, list: async () => { throw new HomeError(502, words, "", "source_unread"); }, act: async () => ({ message: "ok" }) });
+  const sources = [fails("board", "The board is not answering."), fails("brain", "The brain could not be read just now.")];
+  await assert.rejects(createActor(sources)({ log() {} }, { id: "brain:0123456789abcdef", action: "dismiss" }),
+    (e) => e.message === "The brain could not be read just now.");
+});

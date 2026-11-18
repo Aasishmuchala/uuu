@@ -305,3 +305,21 @@ test("needs-you: on the desk the sheet is at most 640 px and the list a 320 px c
   assert.match(c, /\.p-needs-you \.p-needs-you__row\[aria-current="true"\] \{[^}]*background: var\(--sel\);[^}]*box-shadow: inset 2px 0 0 var\(--accent\);/, "the chosen row: the kit's fill and bar");
   assert.doesNotMatch(c, /blur/, "nothing blurs");
 });
+
+test("needs-you: a brain item's Open the file is a link to Files at that file, not a request; any other item is as before", () => {
+  const brain = item("brain:0123456789abcdef", {
+    source: "brain", link: { page: "files", id: "cG9saWNpZXMvdGVybXMubWQ" },
+    actions: [{ id: "open", label: "Open the file", style: "primary", needsNote: false }, { id: "dismiss", label: "Not a problem", style: "plain", needsNote: false }],
+  });
+  const o = mod.fileOpener(brain);
+  assert.deepEqual(o.item.actions.map((a) => a.id), ["dismiss"]);
+  assert.equal(o.href, "#/files?file=cG9saWNpZXMvdGVybXMubWQ");
+  assert.equal(o.label, "Open the file");
+  assert.equal(brain.actions.length, 2, "the item itself is not changed");
+  // A finding with no open action, another source, or a link elsewhere: the card as it was.
+  assert.equal(mod.fileOpener({ ...brain, actions: [brain.actions[1]] }), null);
+  assert.equal(mod.fileOpener({ ...brain, source: "goal" }), null);
+  assert.equal(mod.fileOpener({ ...brain, link: { page: "tasks", id: "x" } }), null);
+  assert.equal(mod.fileOpener({ ...brain, link: { page: "files", id: "" } }), null);
+  assert.equal(mod.fileOpener(null), null);
+});

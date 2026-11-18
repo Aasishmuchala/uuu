@@ -182,6 +182,16 @@ export function taskOf(item) {
   return { href: linkHref(link), id: String(link.id) };
 }
 
+// Pure. A brain item's "Open the file" (inbox/brain.mjs): a link to Files at that file, never a request, so the
+// card is drawn without it and the link beside it. -> { item, href, label } or null for any other item.
+export function fileOpener(item) {
+  const acts = item && typeof item === "object" && Array.isArray(item.actions) ? item.actions : [];
+  const open = acts.find((a) => a && a.id === "open");
+  const link = item && item.link;
+  if (!open || item.source !== "brain" || !link || link.page !== "files" || !link.id) return null;
+  return { item: { ...item, actions: acts.filter((a) => a !== open) }, href: linkHref(link), label: cap(open.label, 60) || "Open the file" };
+}
+
 // Pure. The other items of `items` that belong to the same task as `item`, in the list's order.
 export function sameTask(item, items) {
   const own = taskOf(item);
@@ -739,10 +749,14 @@ export default function Page({ route }) {
   }
 
   // ---- The item opened (or what became of it), as a card at the page's level
+  // A brain item's "Open the file" is a link beside the card (fileOpener), never sent to the server.
+  const fileCard = (item, file) => html`<${DecisionCard} key=${item.id} item=${file.item} onDone=${done} level />
+    <p><a class="p-needs-you__link" href=${file.href}>${file.label}</a></p>`;
   const card = (item) => (isShotlistItem(item)
     ? html`<${ShotlistCard} key=${item.id} item=${item} onDone=${done} />`
     : isPickItem(item)
       ? html`<${PickCard} key=${item.id} item=${item} onDone=${done} />`
+      : fileOpener(item) ? fileCard(item, fileOpener(item))
       : html`<${DecisionCard} key=${item.id} item=${item} onDone=${done} level />`);
   let open = null;
   if (opened) open = card(opened);
