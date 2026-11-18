@@ -106,7 +106,9 @@ test("estimateCents is null when the row, kind, seconds, resolution, scale or ra
     [{ kind: "still_variation", model: "hf.flux_2", resolution: "2k" }, { centsPerCredit: 51 }],
     [{ kind: "still_variation", model: "hf.flux_2", resolution: "2k" }, { centsPerCredit: 1.5 }],
     [{ kind: "still_variation", model: "hf.flux_2", resolution: "2k" }, { centsPerCredit: "5" }],
-    [{ kind: "image_to_video", model: "hf.wan2_6", seconds: 5, resolution: "720p" }],
+    [{ kind: "image_to_video", model: "hf.wan2_6", seconds: 6, resolution: "720p" }],
+    [{ kind: "image_to_video", model: "hf.wan2_6", seconds: 5, resolution: "4K" }],
+    [{ kind: "image_to_video", model: "hf.wan2_6", seconds: 5 }],
     [{ kind: "still_upscale", model: "hf.upscale_image", resolution: "4k" }],
     [{ kind: "still_variation", model: "grok_imagine_image_2", resolution: "1K", refs: 4 }],
     [undefined],
@@ -133,6 +135,14 @@ test("prices by size, by the second, a minimum per job and a price per picture s
   assert.equal(estimateUnits({ kind: "still_variation", model: "hf.flux_2", resolution: "1k" }), 4);
   assert.equal(estimateCents({ kind: "still_variation", model: "hf.flux_2", resolution: "1k" }, { centsPerCredit: 7 }), 28);
   assert.equal(estimateCents({ kind: "still_variation", model: "hf.flux_2", resolution: "1k" }), 20);
+  // Wan 2.6, as `higgsfield generate cost wan2_6` gave it: 7.5, 15, 22.5 credits at 720p and 10,
+  // 20, 30 at 1080p for 5, 10, 15 seconds; a half credit rounds up to a whole cent.
+  const wan = (seconds, resolution) => estimateUnits({ kind: "image_to_video", model: "hf.wan2_6", seconds, resolution });
+  assert.deepEqual([wan(5, "720p"), wan(10, "720p"), wan(15, "720p")], [7.5, 15, 22.5]);
+  assert.deepEqual([wan(5, "1080p"), wan(10, "1080p"), wan(15, "1080p")], [10, 20, 30]);
+  assert.equal(estimateCents({ kind: "image_to_video", model: "hf.wan2_6", seconds: 5, resolution: "720p" }), 38);
+  assert.equal(estimateCents({ kind: "image_to_video", model: "hf.wan2_6", seconds: 5, resolution: "720p" }, { centsPerCredit: 7 }), 53);
+  assert.equal(estimateCents({ kind: "image_to_video", model: "hf.wan2_6", seconds: 15, resolution: "1080p" }), 150);
 });
 
 test("the upscale's 4096 px step: a result past it does not fit", () => {
@@ -166,9 +176,11 @@ test("appModels: each row's price in cents at the owner's rate, and why it canno
   assert.equal(on["hf.flux_2"].price.cents, 20);                 // no rate saved yet: 5 cents a credit
   assert.equal(on["hf.flux_2"].ready, true);
   assert.equal(on.gen4_turbo.why, NEEDS.runway);
-  assert.equal(on["hf.wan2_6"].price, null);
-  assert.equal(on["hf.wan2_6"].ready, false);
-  assert.equal(on["hf.wan2_6"].why, NO_PRICE);
+  assert.deepEqual(on["hf.wan2_6"].price, { per: "second", cents: null, byResolution: { "720p": 8, "1080p": 10 }, minimumCents: null, perRefCents: null });
+  assert.equal(on["hf.wan2_6"].ready, true);
+  assert.equal(on["hf.upscale_image"].price, null);
+  assert.equal(on["hf.upscale_image"].ready, false);
+  assert.equal(on["hf.upscale_image"].why, NO_PRICE);
   const wrongRate = Object.fromEntries(appModels({ ok: true, higgsfield: { centsPerCredit: 80 } }, { runway: true, higgsfield: true }).map((m) => [m.id, m]));
   assert.equal(wrongRate["hf.flux_2"].price, null);
   assert.equal(wrongRate.gen4_turbo.price.cents, 5);

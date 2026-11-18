@@ -170,7 +170,9 @@ test("the view: signed in through the door, then on: hf.flux_2 a still choice wi
     assert.equal(v.higgsfield.on, true);
     const flux = v.choices.still.find((c) => c.model === "hf.flux_2");
     assert.deepEqual(flux, { model: "hf.flux_2", provider: "higgsfield", words: "FLUX.2 Max on Higgsfield: about $0.20 a picture" });
-    assert.ok(!v.choices.video.some((c) => c.model.startsWith("hf.")), "no Higgsfield clip model has a price yet");
+    assert.deepEqual(v.choices.video.filter((c) => c.model.startsWith("hf.")),
+      [{ model: "hf.wan2_6", provider: "higgsfield", words: "Wan 2.6 on Higgsfield: about $0.10 a second" }], "Wan 2.6 at its largest size, 1080p");
+    assert.ok(!v.choices.videoBest.some((c) => c.model.startsWith("hf.")), "no Higgsfield clip model makes a clip from words");
     v = (await post(h, "/api/generation/higgsfield/rate", { centsPerCredit: 7 })).json;
     assert.equal(v.choices.still.find((c) => c.model === "hf.flux_2").words, "FLUX.2 Max on Higgsfield: about $0.28 a picture");
     assert.deepEqual(sameShape(readShape("generation"), v), []);
@@ -244,8 +246,11 @@ test("models: a Higgsfield model is refused while Higgsfield is off or signed ou
     r = await post(h, "/api/generation/models", { still: "hf.flux_2" });
     assert.equal(r.status, 200, r.text);
     assert.equal(fileGen(h).models.still, "hf.flux_2");
-    r = await post(h, "/api/generation/models", { video: "hf.wan2_6" });
+    r = await post(h, "/api/generation/models", { upscale: "hf.upscale_image" });
     assert.deepEqual([r.status, r.json.error.message], [400, "The door has no price for this model."], "a Higgsfield row without a price");
+    r = await post(h, "/api/generation/models", { video: "hf.wan2_6" });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(fileGen(h).models.video, "hf.wan2_6");
     r = await post(h, "/api/generation/models", { video: "veo3.1" });
     assert.equal(r.status, 400, "a Runway row the door does not price for the Artist");
   });
@@ -452,7 +457,10 @@ test("prices in cents as the door prices the Artist's work: step 3's Runway rows
   assert.equal(priceCents({ kind: "still_variation", model: "hf.flux_2" }, { centsPerCredit: 7 }),
     estimateCents({ kind: "still_variation", model: "hf.flux_2", resolution: "2k" }, { centsPerCredit: 7 }), "the door's own sum");
   assert.equal(priceCents({ kind: "image_to_video", model: "veo3.1", seconds: 5 }), null, "not a model the door prices for the Artist");
-  assert.equal(priceCents({ kind: "image_to_video", model: "hf.wan2_6", seconds: 5 }), null, "no price yet");
+  assert.equal(priceCents({ kind: "still_upscale", model: "hf.upscale_image" }), null, "no price yet");
+  assert.equal(priceCents({ kind: "image_to_video", model: "hf.wan2_6", seconds: 5 }), 50, "Wan 2.6 at 1080p: 2 credits a second");
+  assert.equal(priceCents({ kind: "image_to_video", model: "hf.wan2_6", seconds: 5 }),
+    estimateCents({ kind: "image_to_video", model: "hf.wan2_6", seconds: 5, resolution: "1080p" }), "the door's own sum");
   assert.equal(priceCents({ kind: "still_variation", model: "hf.flux_2" }, { centsPerCredit: 51 }), null);
   assert.equal(priceWords("hf.flux_2", { centsPerCredit: 5 }), "FLUX.2 Max on Higgsfield: about $0.20 a picture");
   assert.deepEqual(modelChoices({ higgsfield: true }).still.map((c) => c.model), ["gen4_image", "gen4_image_turbo", "hf.flux_2"]);

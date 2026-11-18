@@ -610,7 +610,7 @@ test("a stale card: a changed shotlist, a new review or a changed cap is refused
 // U18 M1: a film whose clips go to Higgsfield never says Runway; with no price for the model nothing is confirmed.
 test("models on Higgsfield in Settings: the card says nothing is sent to Higgsfield, and an unpriced model has no confirm", async () => {
   await withFilm({}, async (h) => {
-    updateDoors(h.config, (st) => { st.generate.models.video = "hf.wan2_6"; st.generate.models.videoBest = "hf.wan2_6"; });
+    updateDoors(h.config, (st) => { st.generate.models.video = "hf.upscale_image"; st.generate.models.videoBest = "hf.upscale_image"; });
     const item = await itemOf(h);
     assert.equal(item.summary, "Three treatments are ready. Approve one and its cost; nothing is sent to Higgsfield before you do.");
     for (const v of item.variants) assert.equal(v.cost, null, "no price, no cost and no confirm");

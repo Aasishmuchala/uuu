@@ -275,11 +275,15 @@ const TABLE = [
     tool: "generate_image", hfRoles: { ref: "image_references" }, resolutionParam: "resolution",
     refs: { max: 8, roles: ["ref"] }, ratios: P("1:1,4:3,3:4,16:9,9:16"), resolutions: ["1k", "2k"], promptMax: 4000, promptNeeded: true,
     fixed: { variant: "max" }, price: { per: "picture", credits: 4 }, source: HF_UNCONFIRMED }),
-  // Wan 2.6: its size word is `quality`; one reference picture. No price seen anywhere yet.
+  // Wan 2.6: its size word is `quality`; one reference picture. 1.5 credits a second at 720p, 2 at
+  // 1080p: `higgsfield generate cost wan2_6` (CLI 1.2.2, signed in, 18 November 2026) gave 7.5,
+  // 15, 22.5 and 10, 20, 30 credits for 5, 10, 15 seconds, the same at every ratio and with a
+  // reference picture. The live `get_cost` still guards it.
   defineRow({ id: "hf.wan2_6", provider: "higgsfield", remote: "wan2_6", words: "Wan 2.6 on Higgsfield", kinds: ["image_to_video"],
     tool: "generate_video", hfRoles: { ref: "image_references" }, resolutionParam: "quality",
     refs: { max: 1, roles: ["ref"] }, ratios: P("16:9,9:16,1:1"), resolutions: ["720p", "1080p"], seconds: { list: [5, 10, 15] },
-    promptMax: 4000, promptNeeded: true, price: null, source: `${HF_UNCONFIRMED}; no price seen` }),
+    promptMax: 4000, promptNeeded: true, price: { per: "second", byResolution: { "720p": 1.5, "1080p": 2 } },
+    source: "Higgsfield's models_explore list (LITERAL); price from a signed-in `higgsfield generate cost` (LITERAL)" }),
   // `upscale_image` (bytedance, the app's Creative upscaler, "Higgsfield 4K"). No price seen.
   defineRow({ id: "hf.upscale_image", provider: "higgsfield", remote: "upscale_image", words: "Higgsfield 4K upscale", kinds: ["still_upscale"],
     tool: "upscale_image", hfRoles: {}, refs: { max: 1, roles: ["image"] }, resolutions: ["2k", "4k"], promptMax: 0,

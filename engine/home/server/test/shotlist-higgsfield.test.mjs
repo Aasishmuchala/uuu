@@ -1,8 +1,8 @@
 // A film's cost and the owner's batches with a Higgsfield model (PLAN-V5 K20, T79): every price the home server shows
 // or approves is in US cents at the owner's rate (`centsPerCredit`), as the generation door prices it, and a batch
-// naming a Higgsfield model is one the door's own readBatch takes, its budget the door's own estimateCents. No
-// Higgsfield clip model has a price in the door's table yet, so the clip rows here are a made-up table (a test's
-// `table`); the still is the table's own FLUX.2. Temp folders and made-up values.
+// naming a Higgsfield model is one the door's own readBatch takes, its budget the door's own estimateCents. The clip
+// rows here are a made-up table (a test's `table`), so the vectors stay fixed; the still is the table's own FLUX.2,
+// and Wan 2.6 is checked as the table prices it. Temp folders and made-up values.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -77,7 +77,8 @@ test("a Higgsfield model must make the film's ratio by its lowest terms; a rate 
   assert.equal(odd.ok, false);
   assert.match(odd.problem, /cannot make the ratio 1104:832/);
   assert.match(priceShotlist(film([shot(1)]), HF_MODELS, { centsPerCredit: 51, table: TABLE }).problem, /no price for hf\.test_clip/);
-  assert.match(priceShotlist(film([shot(1)]), { video: "hf.wan2_6", videoBest: "gen4.5" }).problem, /no price for hf\.wan2_6/);
+  assert.match(priceShotlist(film([shot(1)]), { video: "hf.upscale_image", videoBest: "gen4.5" }).problem, /no price for hf\.upscale_image/);
+  assert.equal(priceShotlist(film([shot(1)]), { video: "hf.wan2_6", videoBest: "gen4.5" }).shots[0].credits, 50, "Wan 2.6: 2 credits a second at 1080p");
   assert.equal(priceShotlist(film([shot(1)]), { video: "gen4_turbo", videoBest: "gen4.5" }).shots[0].credits, 25, "Runway unchanged");
 });
 
@@ -103,8 +104,8 @@ test("a batch with a Higgsfield still: its budget at the state's rate, the door'
 
 test("a batch never prices a Runway row the door does not price for the Artist, nor a Higgsfield row with no price", () => {
   withState(({ config }) => {
-    for (const model of ["veo3.1", "hf.wan2_6"]) {
-      assert.throws(() => writeBatch(config, { task: TASK, slug: "artist", shots: [{ id: "s01", kind: "image_to_video", model, seconds: 5 }], takes: 2 }),
+    for (const [model, kind, seconds] of [["veo3.1", "image_to_video", 5], ["hf.upscale_image", "still_upscale", undefined]]) {
+      assert.throws(() => writeBatch(config, { task: TASK, slug: "artist", shots: [{ id: "s01", kind, model, seconds }], takes: 2 }),
         (e) => e.code === "no_price", model);
     }
   });
@@ -140,7 +141,7 @@ test("the confirm and the time name Runway, Higgsfield, or both with each one's 
   assert.equal(timeWords(2, mixed.services), "Runway and Higgsfield take a few minutes a clip: about 5 to 10 minutes for 2 clips, then the edit and the checks.");
 
   // Nothing priced, nothing to confirm; no service named is Runway, the door's default.
-  assert.equal(confirmWords(priceShotlist(film([shot(1)]), { video: "hf.wan2_6", videoBest: "gen4.5" })), null);
+  assert.equal(confirmWords(priceShotlist(film([shot(1)]), { video: "hf.upscale_image", videoBest: "gen4.5" })), null);
   assert.equal(confirmWords(null), null);
   assert.equal(serviceWords([]), "Runway");
   assert.equal(serviceWords(["higgsfield", "runway"]), "Runway and Higgsfield");

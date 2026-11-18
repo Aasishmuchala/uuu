@@ -246,7 +246,7 @@ test("models: every row with its price in cents at the owner's rate and whether 
   const n = (await get("/gen/app/models")).json.models;
   assert.deepEqual([n.find((x) => x.id === "gen4_turbo").ready, n.find((x) => x.id === "gen4_turbo").why], [false, "Needs a Runway key. Add it in Settings on the home screen."]);
   assert.deepEqual([n.find((x) => x.id === "hf.flux_2").ready, n.find((x) => x.id === "hf.flux_2").price.cents], [true, 28]);
-  assert.equal(n.find((x) => x.id === "hf.wan2_6").ready, false, "a row with no price is never ready");
+  assert.equal(n.find((x) => x.id === "hf.upscale_image").ready, false, "a row with no price is never ready");
 });
 
 test("estimate: 1 to 20 items from the table only, at the owner's rate; no price is null", async () => {
@@ -256,8 +256,10 @@ test("estimate: 1 to 20 items from the table only, at the owner's rate; no price
     { model: "magnific_precision_upscaler_v2", kind: "still_upscale", scale: 4 }] });
   assert.equal(r.status, 200, r.text);
   assert.deepEqual(r.json, { items: [{ model: "gen4_turbo", cents: 25 }, { model: "hf.flux_2", cents: 28 }, { model: "magnific_precision_upscaler_v2", cents: 25 }], total: 78 });
-  const n = await call("/gen/app/estimate", { items: [{ model: "hf.wan2_6", kind: "image_to_video", seconds: 5, resolution: "720p" }, { model: "nope", kind: "still_variation" }] });
-  assert.deepEqual(n.json, { items: [{ model: "hf.wan2_6", cents: null }, { model: "nope", cents: null }], total: null });
+  const n = await call("/gen/app/estimate", { items: [{ model: "hf.upscale_image", kind: "still_upscale", resolution: "4k" }, { model: "nope", kind: "still_variation" }] });
+  assert.deepEqual(n.json, { items: [{ model: "hf.upscale_image", cents: null }, { model: "nope", cents: null }], total: null });
+  const w = await call("/gen/app/estimate", { items: [{ model: "hf.wan2_6", kind: "image_to_video", seconds: 5, resolution: "720p" }] });
+  assert.deepEqual(w.json, { items: [{ model: "hf.wan2_6", cents: 53 }], total: 53 }, "7.5 credits at 7 cents, rounded up");
   for (const body of [{ items: [] }, { items: Array.from({ length: 21 }, () => ({ model: "gen4_turbo", kind: "image_to_video", seconds: 5 })) },
     { items: [{ model: "gen4_turbo", kind: "image_to_video", seconds: 5, cents: 1 }] }, { items: [{ model: "gen4_turbo", kind: "teleport" }] },
     { items: [{ model: "gen4_turbo", kind: "image_to_video", seconds: "5" }] }, { items: [], more: 1 }, "[]"]) {
