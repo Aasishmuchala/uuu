@@ -20,6 +20,9 @@ import { CODES, NOTICE, createBrainDoor } from "../door.mjs";
 import { FILES } from "./fixture.mjs";
 
 const ENGINE = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+// The repo's own engine/brain/READY as it was before this file ran: the live branch commits it (0a9e5df), so the test
+// asserts it is left as it was, not that it is absent.
+const READY_BEFORE = (() => { try { return readFileSync(join(ENGINE, "brain", "READY"), "utf8"); } catch { return null; } })();
 const PYTHON = "/usr/bin/python3";
 const ADMIN = "Administrator";
 const AGENT_USER = "sales@engine.localhost";
@@ -170,7 +173,8 @@ test("the brain door starts on port 0 with the same temp state, and the switch g
   assert.equal(r.status, 200, r.text);
   assert.equal(r.json.on, true);
   assert.deepEqual(JSON.parse(readFileSync(h.config.paths.doorsState, "utf8")).brain, { on: true });
-  assert.equal(existsSync(join(ENGINE, "brain", "READY")), false, "nothing was made in the worktree's engine/brain");
+  const readyNow = existsSync(join(ENGINE, "brain", "READY")) ? readFileSync(join(ENGINE, "brain", "READY"), "utf8") : null;
+  assert.equal(readyNow, READY_BEFORE, "nothing was made or changed in the worktree's engine/brain");
 });
 
 test("switch on: --for-run prints the two brain lines for the Builder and none for the Researcher", () => {
