@@ -77,6 +77,11 @@
   visibility: hidden;
 }
 
+/* On the plain ground (no picture) the warm room count reads in the full ink: --warn on that ground measured 4.45:1. */
+.p-map:has(.o-stage[data-office="failed"]) .p-map__room-count.is-warn {
+  color: var(--ink);
+}
+
 /* With motion off a change of view cross-fades (two names, so each change starts it again). */
 .o-frame--fade0 {
   animation: o-fade-a 260ms var(--ease) both;
@@ -270,9 +275,12 @@
   pointer-events: auto;
 }
 
+/* The markers stand on a picture that is light or dark anywhere: the ring is a dark 2 px edge with a light 3 px edge
+   outside it, so over a light picture the dark edge and over a dark one the light edge reaches 3:1, in both themes. */
 .o-mark:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline: 2px solid var(--paper-ink);
+  outline-offset: 0;
+  box-shadow: 0 0 0 5px var(--paper);
   border-radius: var(--r-pill);
 }
 
