@@ -2,9 +2,10 @@
 //
 // Books text is not all the owner's: agents create customers, leads and deals, and a customer writes a ticket's
 // subject. Every agent will read what is indexed here, so only these go in: submitted documents (the owner
-// approved them) and records whose creator and last editor are the owner's own books user. Everything else
-// gives numbers, dates and a status from a fixed list, or is left out. No free-text field, no email address,
-// no ticket subject is ever asked for.
+// approved them) and records whose creator, last editor and every writer in the books' change history are the
+// owner's own books user. Everything else gives numbers, dates and a status from a fixed list, or is left out.
+// No free-text field, no email address, no ticket subject is ever asked for. An id is printed only when it is
+// the books' own naming (a naming series, or the record's own trusted name).
 //
 // pullRecords(ctx) reads with listDocs (the owner's key through ctx.bench) and calls the pure recordsFrom.
 import { HomeError } from "../lib/errors.mjs";
@@ -26,6 +27,15 @@ export const FIELDS = {
   Employee: ["name", "employee_name", "designation", "status", "owner", "modified_by"],
 };
 export const DOCTYPES = Object.keys(FIELDS);
+
+// The books' change history (the Version doctype; `owner` is who wrote that version). An agent may change a
+// Customer (the Bookkeeper) or an Employee (People), and a later save by the owner makes the record's owner and
+// modified_by the owner's again, with the agent's words still in it (T18's finding 1). So every record whose
+// name is printed is checked against its history: a version by anyone outside TRUSTED_WRITERS leaves it out.
+// Project and Contact are asked for too, so a right given to an agent later is covered without a change here.
+export const VERSIONED = ["Customer", "Project", "Contact", "Employee"];
+export const VERSION_FIELDS = ["ref_doctype", "docname", "owner"];
+export const MAX_VERSIONS = 5000;
 
 // Only submitted invoices are asked for; the rest are filtered again below.
 const FILTERS = { "Sales Invoice": [["docstatus", "=", 1]] };
@@ -57,7 +67,6 @@ export function cleanString(v) {
   return s;
 }
 
-const trusted = (row) => TRUSTED_WRITERS.includes(row.owner) && TRUSTED_WRITERS.includes(row.modified_by);
 const idOk = (id) => ID_PATTERNS.some((re) => re.test(id));
 const dateOf = (v) => (typeof v === "string" && DATE.test(v) ? v.slice(0, 10) : "");
 const statusOf = (doctype, s) => (STATUSES[doctype].includes(s) ? s : "Other");
@@ -78,22 +87,56 @@ function cleanRow(row, keys) {
   return out;
 }
 
+// A Contact's id as the books name one: the full name, then "-" and its company or a trusted customer's id, then
+// at most a "-<n>" the books add to keep names apart. Nothing but these trusted names is printed.
+function contactIdOk(id, full, company, customers) {
+  const base = id.replace(/-\d{1,4}$/, "");
+  return [id, base].some((b) => {
+    if (b === full) return true;
+    if (!b.startsWith(`${full}-`)) return false;
+    const rest = b.slice(full.length + 1);
+    return rest !== "" && (rest === company || customers.has(rest));
+  });
+}
+
 const alias = (name) => {
   const a = name.toLowerCase();
   return a.length >= 3 ? [a] : [];
 };
 
-// recordsFrom({ [doctype]: rows }, { today: "YYYY-MM-DD" }) -> { records, leftOut }. Pure.
+// The history as { ok, tainted }: `tainted` holds "<doctype>\u0000<name>" of every record with a version written
+// by someone outside TRUSTED_WRITERS. Not ok (nothing of VERSIONED is trusted) when it is not a list, when it is
+// as long as the cap (it may have been cut short), or when any row is of another shape.
+function historyOf(rows) {
+  const tainted = new Set();
+  if (!Array.isArray(rows) || rows.length >= MAX_VERSIONS) return { ok: false, tainted };
+  for (const v of rows) {
+    if (!v || typeof v !== "object" || typeof v.ref_doctype !== "string" || typeof v.docname !== "string") return { ok: false, tainted };
+    if (!TRUSTED_WRITERS.includes(v.owner)) tainted.add(`${v.ref_doctype}\u0000${v.docname}`);
+  }
+  return { ok: true, tainted };
+}
+
+// recordsFrom({ [doctype]: rows, Version: history rows }, { today: "YYYY-MM-DD" }) -> { records, leftOut }. Pure.
+// With no readable `Version` list, no record of VERSIONED is trusted.
 export function recordsFrom(rowsByDoctype, { today } = {}) {
   const day = typeof today === "string" && DATE.test(today) ? today.slice(0, 10) : istNow().today;
   let leftOut = 0;
+  const history = historyOf(rowsByDoctype?.Version);
+  // The owner made it, last changed it and wrote every version of it.
+  const trusted = (doctype, row) => TRUSTED_WRITERS.includes(row.owner) && TRUSTED_WRITERS.includes(row.modified_by)
+    && (!VERSIONED.includes(doctype) || (history.ok && !history.tainted.has(`${doctype}\u0000${String(row.name)}`)));
+  // The id as the books sent it, unchanged by cleaning (else it would not name the record).
+  const asSent = (row, r) => r && (typeof row.name === "string" || typeof row.name === "number") && String(row.name) === r.name;
 
   // Trusted customers, by id. Their own customer_name is the only name printed for them anywhere.
   const customers = new Map();
   const byName = new Map();
   for (const row of rowsOf(rowsByDoctype, "Customer")) {
-    const c = trusted(row) ? cleanRow(row, ["name", "customer_name"]) : null;
-    if (!c || !c.name || !c.customer_name || customers.has(c.name)) { leftOut += 1; continue; }
+    const c = trusted("Customer", row) ? cleanRow(row, ["name", "customer_name"]) : null;
+    // The id is printed only when it is the customer's own name or a naming series.
+    const idFits = asSent(row, c) && (c.name === c.customer_name || idOk(c.name));
+    if (!c || !c.name || !c.customer_name || !idFits || customers.has(c.name)) { leftOut += 1; continue; }
     const cust = { id: c.name, name: c.customer_name, key: `customer:${c.name}`, at: atOf(row), invoices: 0, billed: 0, unpaid: 0, deals: 0 };
     customers.set(c.name, cust);
     if (!byName.has(c.customer_name)) byName.set(c.customer_name, cust);
@@ -137,8 +180,8 @@ export function recordsFrom(rowsByDoctype, { today } = {}) {
   }
 
   for (const row of rowsOf(rowsByDoctype, "Project")) {
-    const r = trusted(row) ? cleanRow(row, ["name", "project_name", "customer", "status"]) : null;
-    if (!r || !r.name || !r.project_name) { leftOut += 1; continue; }
+    const r = trusted("Project", row) ? cleanRow(row, ["name", "project_name", "customer", "status"]) : null;
+    if (!r || !asSent(row, r) || !idOk(r.name) || !r.project_name) { leftOut += 1; continue; }
     const cust = linked(r.customer);
     const text = `Project: ${r.project_name}${cust ? ` for ${cust.name}` : ""}. Status: ${statusOf("Project", r.status)}.`;
     out.projects.push(record("Project", r.name, r.project_name, text, atOf(row),
@@ -158,9 +201,9 @@ export function recordsFrom(rowsByDoctype, { today } = {}) {
   }
 
   for (const row of rowsOf(rowsByDoctype, "Contact")) {
-    const r = trusted(row) ? cleanRow(row, ["name", "first_name", "last_name", "company_name"]) : null;
+    const r = trusted("Contact", row) ? cleanRow(row, ["name", "first_name", "last_name", "company_name"]) : null;
     const full = r ? `${r.first_name} ${r.last_name}`.trim() : "";
-    if (!r || !r.name || !full) { leftOut += 1; continue; }
+    if (!r || !asSent(row, r) || !full || !contactIdOk(r.name, full, r.company_name, customers)) { leftOut += 1; continue; }
     const cust = r.company_name ? byName.get(r.company_name) || null : null;
     out.contacts.push(record("Contact", r.name, full, `Contact: ${full}${cust ? ` of ${cust.name}` : ""}.`, null,
       { type: "person", key: `person:${r.name}`, name: full, aliases: alias(full) },
@@ -168,9 +211,9 @@ export function recordsFrom(rowsByDoctype, { today } = {}) {
   }
 
   for (const row of rowsOf(rowsByDoctype, "Employee")) {
-    const r = trusted(row) ? cleanRow(row, ["name", "employee_name", "designation", "status"]) : null;
+    const r = trusted("Employee", row) ? cleanRow(row, ["name", "employee_name", "designation", "status"]) : null;
     if (r && r.status !== "Active") continue; // not on the staff now: not a trust question
-    if (!r || !r.name || !r.employee_name) { leftOut += 1; continue; }
+    if (!r || !asSent(row, r) || !idOk(r.name) || !r.employee_name) { leftOut += 1; continue; }
     out.staff.push(record("Employee", r.name, r.employee_name,
       `Staff: ${r.employee_name}${r.designation ? `, ${r.designation}` : ""}.`, null,
       { type: "person", key: `person:${r.name}`, name: r.employee_name, aliases: alias(r.employee_name) }, []));
@@ -201,6 +244,17 @@ export async function pullRecords(ctx) {
       if (notThere(e)) continue;
       throw e;
     }
+  }
+  // The history: only versions by others than the owner are asked for, and recordsFrom checks each again. One that
+  // cannot be read for any reason but the books being off is left null, and no record of VERSIONED is trusted.
+  rows.Version = null;
+  try {
+    rows.Version = await listDocs(ctx, "Version", {
+      fields: VERSION_FIELDS, filters: [["ref_doctype", "in", VERSIONED], ["owner", "not in", TRUSTED_WRITERS]],
+      order_by: "modified desc", limit: MAX_VERSIONS,
+    });
+  } catch (e) {
+    if (e instanceof HomeError && e.code === "bench_off") return { state: "off", records: [], leftOut: 0 };
   }
   return { state: "ok", ...recordsFrom(rows, { today: istNow().today }) };
 }
