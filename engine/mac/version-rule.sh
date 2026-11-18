@@ -69,6 +69,12 @@ if [[ "$THEN" =~ $PATTERN ]] && higher "$THEN" "$NOW"; then
   fail "VERSION is lower than when it last changed ($THEN). Raise it, never lower it."
 fi
 
+# A committed lowering becomes the mark itself, so the mark must not be lower than the VERSION before it.
+BEFORE="$(git show "$MARK^:./VERSION" 2>/dev/null | head -n 1 | tr -d '[:space:]')"
+if [[ "$BEFORE" =~ $PATTERN ]] && [[ "$THEN" =~ $PATTERN ]] && higher "$BEFORE" "$THEN"; then
+  fail "VERSION was lowered in a commit ($BEFORE to $THEN). Raise it above $BEFORE."
+fi
+
 changed=0
 if ! git diff --quiet "$MARK" -- Sources; then
   changed=1
