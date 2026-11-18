@@ -305,7 +305,9 @@ test("Settings opens a door only through the Map's confirm: one shared component
   assert.match(panel, /export function DoorConfirm\(/);
   for (const f of ["settings-web.js", "settings-generation.js"]) {
     const src = readFileSync(join(PUBLIC, "pages", f), "utf8");
-    assert.match(src, /import \{ DoorConfirm \} from "\.\.\/map\/door-panel\.js";/, f);
+    // Not at load: the confirm is read with a dynamic import on the first press (M2), so Settings' first view asks for nothing more.
+    assert.doesNotMatch(src, /^import[^\n]*map\/door-panel\.js/m, `${f} does not import the confirm at load`);
+    assert.match(src, /import\("\.\.\/map\/door-panel\.js"\)/, `${f} reads the confirm on the first press`);
     assert.doesNotMatch(src, /on: true|on: next/, `${f} sends no { on: true } itself`);
     assert.doesNotMatch(src, /yesOpenDoor|ARM_MS|alertdialog/, `${f} draws no confirm of its own`);
   }

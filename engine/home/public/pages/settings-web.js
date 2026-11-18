@@ -8,17 +8,31 @@
 // capped text, never as HTML.
 // The switch opens the door only through the Map's confirm (a door opens only through a confirm, 18 Nov 2026): a
 // press on it asks, and the confirm's yes sends the request; switching off is one press.
-import { html, useRef, useState } from "../vendor/preact-htm.js";
+import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
 import { count, fullWhen } from "../lib/format.js";
 import {
   Button, Checklist, DataTable, Dialog, Empty, ErrorNotice, Field, Group, Icon, Loading, NextStep, Notice, Row, Rows, St, Switch, Tag, TextInput,
 } from "../kit/index.js";
-import { DoorConfirm } from "../map/door-panel.js";
 import * as SELF from "../pages/settings-web.js";
 
 const EVERY = 10000;
+
+// The Map's confirm (map/door-panel.js) is read on the first press of a door switch, not at load: Settings' first
+// view asks for nothing more. Its 600 ms inert yes counts from when the confirm is drawn, so a slow read cannot
+// shorten it.
+let confirmModule = null;
+function LazyDoorConfirm(props) {
+  const [Confirm, setConfirm] = useState(() => confirmModule);
+  useEffect(() => {
+    if (confirmModule) return undefined;
+    let alive = true;
+    import("../map/door-panel.js").then((m) => { confirmModule = m.DoorConfirm; if (alive) setConfirm(() => m.DoorConfirm); }, () => {});
+    return () => { alive = false; };
+  }, []);
+  return Confirm ? html`<${Confirm} ...${props} />` : null;
+}
 
 // The sentences of K11, as written, and the few this section adds.
 export const WORDS = {
@@ -388,7 +402,7 @@ function DoorGroup({ view, busy, act, took, failure }) {
       <${Row} icon="door" title="The web door" state=${{ tone: doorTone, text: word }}
         say=${html`<span class="p-settings-web__lines">${saidAbove ? null : html`<${RunLine} text=${door.sentence} />`}<${DoorPath} open=${open} tone=${doorTone} /></span>`} />
     <//>
-    ${asking ? html`<${DoorConfirm} door=${{ id: "web" }} mod=${SELF} cls="p-settings-door" link=${false}
+    ${asking ? html`<${LazyDoorConfirm} door=${{ id: "web" }} mod=${SELF} cls="p-settings-door" link=${false}
       onCancel=${() => { setAsking(false); backToSwitch(box); }}
       onDone=${(_, answer) => { setAsking(false); took(answer, switchLine(true)); backToSwitch(box); }} />` : null}
   <//>`;

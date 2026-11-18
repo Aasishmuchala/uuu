@@ -390,6 +390,26 @@ for (const id of ["web", "generation"]) {
   });
 }
 
+test("web door (6): inside a refused confirm Tab reaches the link to Settings, and wraps through it (L1)", async () => {
+  const m = await mountMap({ id: "web", view: REFUSED.web });
+  try {
+    await openPanel(m, "web");
+    const c = await openConfirm(m);
+    const link = elements(c).find((e) => e.localName === "a" && e.getAttribute("href") === doorSettingsHref("web"));
+    const cancel = byWords(c, W.cancel)[0];
+    assert.ok(link && cancel);
+    cancel.focus();
+    assert.equal(yesOf(m.root), null, "no yes: Cancel is the last stop");
+    press(cancel, "Tab");
+    assert.equal(globalThis.document.activeElement, link, "Tab from Cancel wraps to the link");
+    press(link, "Tab");
+    assert.equal(globalThis.document.activeElement, cancel, "Tab from the link goes on to Cancel");
+    link.focus();
+    press(link, "Tab", { shiftKey: true });
+    assert.equal(globalThis.document.activeElement, cancel, "Shift+Tab from the link wraps to the last stop");
+  } finally { m.done(); }
+});
+
 test("higgsfield door (6): the server refuses with 409: its message and next as sent, the link, the door still shut", async () => {
   fakeClock();
   const refusal = { message: "Higgsfield is not signed in.", next: "Sign in under Settings, Generation, then try again." };

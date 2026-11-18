@@ -77,20 +77,6 @@ function mapBox() {
   return document.querySelector(".p-map [data-box] textarea, .p-map .k-composer textarea, .p-map textarea");
 }
 
-// The shell's data is read every `ms` while the tab is visible (useResource). A page that is not visible
-// (a background or covered window, a window nobody is looking at) gets no visible tick, so the sidebar's Needs you
-// count stood where it was until the page was seen again. While the page is hidden this reads it on the same beat
-// (the browser slows a hidden tab's timer itself), so the count follows /api/shell within one poll either way.
-export function useHiddenInterval(fn, ms) {
-  const saved = useRef(fn);
-  saved.current = fn;
-  useEffect(() => {
-    if (!ms || typeof document === "undefined") return undefined;
-    const id = setInterval(() => { if (document.visibilityState === "hidden") saved.current(); }, ms);
-    return () => clearInterval(id);
-  }, [ms]);
-}
-
 function useMedia(query) {
   const get = () => typeof matchMedia === "function" && matchMedia(query).matches;
   const [on, setOn] = useState(get);
@@ -168,8 +154,9 @@ export function AppShell() {
   const address = useRoute();
   const route = findRoute(address.parts);
   const redirect = redirectFor(address.parts, address.query);
+  // Read every SHELL_EVERY while the page is visible, and once as soon as it is visible again (useResource's own
+  // visibilitychange): nothing is read while it is hidden, so the sidebar's Needs you count catches up on return.
   const shell = useResource("/api/shell", { every: SHELL_EVERY });
-  useHiddenInterval(shell.refresh, SHELL_EVERY);
   const narrow = useMedia(NARROW);
   useMedia(MIDDLE); // draws again when the window crosses 1100 px, where the automatic sidebar changes width
   const [overlay, setOverlay] = useState(() => (typeof location === "undefined" ? null : overlayFrom(location.search)));

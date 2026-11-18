@@ -223,13 +223,27 @@
   visibility: hidden;
 }
 
-.o-mark-at,
-.o-mark--room {
+.o-mark-at {
   position: absolute;
   top: 0;
   left: 0;
   width: 0;
   height: 0;
+}
+
+/* A marker (a room's link, the doors' button) has the pin's own box, centred on its anchor, so a touch finds it
+   (VoiceOver) and its focus ring has something to draw on; on a phone it is at least 44 px (--o-hit). */
+.o-mark.o-mark--room,
+.o-mark.o-mark--doors {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--o-hit, 0px);
+  min-height: var(--o-hit, 0px);
+  translate: -50% -50%;
 }
 
 .o-stage.is-settled .o-mark-at,
@@ -257,14 +271,14 @@
 }
 
 .o-mark:focus-visible {
-  outline: none;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--r-pill);
 }
 
 /* The lamps of a room on a small pill at its anchor; its reach is at least 44 px. */
 .o-mark__pin {
-  position: absolute;
-  top: 0;
-  left: 0;
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -278,7 +292,6 @@
   font-size: var(--fs-label);
   line-height: 1;
   white-space: nowrap;
-  transform: translate(-50%, -50%);
   pointer-events: auto;
 }
 
@@ -286,11 +299,6 @@
   content: "";
   position: absolute;
   inset: -14px;
-}
-
-.o-mark:focus-visible .o-mark__pin {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
 .o-mark__dot {
@@ -324,8 +332,8 @@
    transform); until then, and when there is no room for it, hidden. */
 .o-mark__tag {
   position: absolute;
-  top: 0;
-  left: 0;
+  top: 50%;
+  left: 50%;
   display: grid;
   gap: 3px;
   width: max-content;
@@ -553,6 +561,11 @@
 
 /* ---- a phone: every marker and every door 44 px to the touch ---- */
 @media (max-width: 859px) {
+  .o-mark--room,
+  .o-mark--doors {
+    --o-hit: 44px;
+  }
+
   .o-mark__tag {
     max-width: 200px;
     padding: 4px 8px 5px;

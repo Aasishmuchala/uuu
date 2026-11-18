@@ -24,10 +24,24 @@ import {
   Button, Card, Checklist, DataTable, Dialog, Empty, ErrorNotice, Field, Group, Icon, Loading, Meter, MoneyInput, NextStep, Notice, Row, Rows,
   Select, St, Switch, Tag, TextInput, Time,
 } from "../kit/index.js";
-import { DoorConfirm } from "../map/door-panel.js";
 import * as SELF from "../pages/settings-generation.js";
 
 const EVERY = 10000;
+
+// The Map's confirm (map/door-panel.js) is read on the first press of a door switch, not at load: Settings' first
+// view asks for nothing more. Its 600 ms inert yes counts from when the confirm is drawn, so a slow read cannot
+// shorten it.
+let confirmModule = null;
+function LazyDoorConfirm(props) {
+  const [Confirm, setConfirm] = useState(() => confirmModule);
+  useEffect(() => {
+    if (confirmModule) return undefined;
+    let alive = true;
+    import("../map/door-panel.js").then((m) => { confirmModule = m.DoorConfirm; if (alive) setConfirm(() => m.DoorConfirm); }, () => {});
+    return () => { alive = false; };
+  }, []);
+  return Confirm ? html`<${Confirm} ...${props} />` : null;
+}
 const ZONE = "Asia/Kolkata";
 export const MAX_CAP = 1_000_000;
 
@@ -777,7 +791,7 @@ function backToSwitch(box) {
 
 // A door's confirm, opened by its switch in this section: the Map's own (map/door-panel.js), under Settings' classes.
 function Confirm({ id, box, said, took, onClose }) {
-  return html`<${DoorConfirm} door=${{ id }} mod=${SELF} cls="p-settings-door" link=${false}
+  return html`<${LazyDoorConfirm} door=${{ id }} mod=${SELF} cls="p-settings-door" link=${false}
     onCancel=${() => { onClose(); backToSwitch(box); }}
     onDone=${(_, answer) => { onClose(); took(answer, said); backToSwitch(box); }} />`;
 }

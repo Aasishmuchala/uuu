@@ -286,3 +286,12 @@ test("health: hostile server text stays text (PLAN-3D-ALL U15)", async () => {
     assert.ok(nodes.includes(bad(0)), "a hostile name is a text node");
   } finally { m.done(); }
 });
+
+test("health: a part that is On has a lamp in the good (green) tone in both themes, as the summary does; Off, amber and red keep the kit's own (L8)", () => {
+  const css = readFileSync(new URL("../../styles/pages/health.css", import.meta.url), "utf8");
+  assert.match(css, /\.p-health \.k-lamp--on \{[^}]*background: var\(--good\);[^}]*box-shadow: 0 0 0 3px var\(--good-bg\);/, "On reads healthy, from the theme's own green");
+  assert.doesNotMatch(css, /\.k-lamp--(off|amber|red|halo|ring|hollow)\b/, "the other states are the kit's");
+  const tokens = readFileSync(new URL("../../styles/tokens.css", import.meta.url), "utf8");
+  assert.ok((tokens.match(/^\s*--good:/gm) || []).length >= 2, "the dark and the light theme each give --good");
+  assert.equal(H.lampOfPart("on"), "on");
+});

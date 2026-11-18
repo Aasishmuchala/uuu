@@ -112,7 +112,7 @@ function KitButton({ variant = "plain", size = "md", bref, children, icon, ...re
     ${icon ? html`<${Icon} name=${icon} size=${size === "sm" ? 14 : 16} />` : null}<span class="k-btn__label">${children}</span></button>`;
 }
 
-const SettingsLink = ({ id }) => html`<a class="p-map__link p-map__door-settings" href=${doorSettingsHref(id)}>${W.openInSettings}<${Icon} name="chevron-right" size=${14} /></a>`;
+const SettingsLink = ({ id, lref }) => html`<a class="p-map__link p-map__door-settings" ref=${lref} href=${doorSettingsHref(id)}>${W.openInSettings}<${Icon} name="chevron-right" size=${14} /></a>`;
 const NoLink = () => null;
 
 // The confirm (2.3): an alertdialog over the panel; its text takes focus; Cancel, then the yes.
@@ -128,6 +128,7 @@ export function DoorConfirm({ door, mod, onCancel, onDone, cls = "p-map", link =
   const textRef = useRef(null);
   const cancelRef = useRef(null);
   const yesRef = useRef(null);
+  const linkRef = useRef(null);
   const armed = useRef({ key: null, at: 0 });
   // Set at once on the yes, so a second click before the page draws again sends nothing.
   const sending = useRef(false);
@@ -190,7 +191,8 @@ export function DoorConfirm({ door, mod, onCancel, onDone, cls = "p-map", link =
       return;
     }
     if (e.key !== "Tab") return;
-    const stops = [cancelRef.current, yesRef.current].filter(Boolean);
+    // The link to Settings, when a refusal shows it, comes first in the page and so first among the stops.
+    const stops = [linkRef.current, cancelRef.current, yesRef.current].filter(Boolean);
     const at = stops.indexOf(globalThis.document && globalThis.document.activeElement);
     const next = e.shiftKey ? (at <= 0 ? stops.length - 1 : at - 1) : (at < 0 || at >= stops.length - 1 ? 0 : at + 1);
     if (stops[next]) {
@@ -205,7 +207,7 @@ export function DoorConfirm({ door, mod, onCancel, onDone, cls = "p-map", link =
   if (read.loading) body = html`<${Loading} lines=${3} label=${DOOR_WORDS.loading} />`;
   else if (read.error) {
     body = html`<div class=${`${cls}__confirm-refused`} role="alert">${lines([read.error.message, read.error.next].filter(Boolean))}</div>
-      <${Link} id=${door.id} />`;
+      <${Link} id=${door.id} lref=${linkRef} />`;
   } else if (c) {
     body = html`
       <p class=${`${cls}__confirm-warning`}>${c.warning}</p>
@@ -215,9 +217,9 @@ export function DoorConfirm({ door, mod, onCancel, onDone, cls = "p-map", link =
           <dt>${r.label}</dt><dd class=${`${cls}__confirm-spent`}>${r.spent}</dd>${r.left ? html`<dd class=${`${cls}__confirm-left`}>${r.left}</dd>` : null}</div>`)}
       </dl>${lines(c.limits.lines)}` : null}
       ${c.already ? html`<p class=${`${cls}__confirm-line ${cls}__confirm-line--state`}>${c.already}</p>` : null}
-      ${c.refused ? html`<div class=${`${cls}__confirm-refused`}>${lines(c.refused)}</div><${Link} id=${door.id} />` : null}
+      ${c.refused ? html`<div class=${`${cls}__confirm-refused`}>${lines(c.refused)}</div><${Link} id=${door.id} lref=${linkRef} />` : null}
       ${failure ? html`<div class=${`${cls}__confirm-refused`} role="alert">${lines([failure.message, failure.next].filter(Boolean))}</div>
-        <${Link} id=${door.id} />` : null}`;
+        <${Link} id=${door.id} lref=${linkRef} />` : null}`;
   }
 
   return html`

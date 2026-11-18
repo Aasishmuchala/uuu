@@ -209,11 +209,11 @@ test("tags at overview: every room's title with its count words, and every agent
 });
 
 // T11: the overview was crowded and an agent with something in the queue read "Free". Rooms come first so each holds
-// its own corner; an amber agent reads "Needs you"; a red one keeps the server's word; free and plain working agents
+// its own corner; an amber agent reads "Waiting for you"; a red one keeps the server's word; free and plain working agents
 // get no tag; a hovered room shows all its agents; one tag at the doors names the shut ones, none when all are open.
-test("tags at overview: rooms first, amber reads Needs you, the doors' one tag, a hovered room's agents", () => {
+test("tags at overview: rooms first, amber reads Waiting for you, the doors' one tag, a hovered room's agents", () => {
   const { TAG_WORDS, doorsTagLine } = WORDS_MOD;
-  assert.deepEqual(TAG_WORDS, { needsYou: "Needs you", shut: "shut", allShut: "All shut", door: { web: "Web", generation: "Generation", higgsfield: "Higgsfield" } });
+  assert.deepEqual(TAG_WORDS, { needsYou: "Waiting for you", shut: "shut", allShut: "All shut", door: { web: "Web", generation: "Generation", higgsfield: "Higgsfield" } });
   const tags = tagsOf(SEED, { mode: "map" });
   const kinds = tags.map((t) => t.kind);
   assert.equal(kinds.lastIndexOf("room"), SEED.rooms.length - 1, "every room's tag before any other");
@@ -221,7 +221,7 @@ test("tags at overview: rooms first, amber reads Needs you, the doors' one tag, 
   const amber = SEED.rooms.flatMap((r) => r.agents).find((a) => a.lamp === "amber" && a.state === "free");
   assert.ok(!tags.some((t) => t.id === `agent:${amber.slug}`), "an agent with only an item in the queue: no tag at overview");
   const room = SEED.rooms.find((r) => r.agents.includes(amber));
-  assert.equal(tagsOf(SEED, { mode: "map", hover: room.id }).find((t) => t.id === `agent:${amber.slug}`).sub, "Needs you");
+  assert.equal(tagsOf(SEED, { mode: "map", hover: room.id }).find((t) => t.id === `agent:${amber.slug}`).sub, "Waiting for you");
   assert.equal(tags.find((t) => t.id === "agent:builder").sub, "Has a problem");
   const free = SEED.rooms.flatMap((r) => r.agents).filter((a) => a.lamp === "on" || a.lamp === "off");
   for (const a of free) assert.ok(!tags.some((t) => t.id === `agent:${a.slug}`), a.slug);

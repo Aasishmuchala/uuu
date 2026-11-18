@@ -232,6 +232,9 @@
 
 /* The lamp stands before the part's name (the kit's glyph, by shape and tone); the words stay beside it. */
 .p-health .p-health__lamp { display: inline-flex; align-items: center; margin-right: var(--s-2); }
+/* On is healthy and calm here, in both themes, as the summary's green is: the kit's lamp-light orange read as a
+   warning beside it. Off, amber and red keep the kit's own marks. */
+.p-health .k-lamp--on { background: var(--good); box-shadow: 0 0 0 3px var(--good-bg); }
 
 
 /* On a phone the line under the title would sit over the picture and hurt legibility: the band is the kit's title

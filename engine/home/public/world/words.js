@@ -20,11 +20,11 @@ export const WORDS = Object.freeze({
   keys: "Keys: J and K move, Enter the story so far, A and D go to the buttons.",
 });
 
-// The tag over the studio: an agent with something in the queue reads "Needs you" there (its server state word may
+// The tag over the studio: an agent with something in the queue reads "Waiting for you" there, the panel's own words for that state (its server state word may
 // be "Free": what it waits on is the owner, not work), and the one small tag at the doors names the doors that are
 // shut (T11). Labels only, pinned by test/world/stage.test.mjs.
 export const TAG_WORDS = Object.freeze({
-  needsYou: "Needs you",
+  needsYou: "Waiting for you",
   shut: "shut",
   allShut: "All shut",
   door: Object.freeze({ web: "Web", generation: "Generation", higgsfield: "Higgsfield" }),

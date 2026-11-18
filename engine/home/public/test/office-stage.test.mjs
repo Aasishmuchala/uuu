@@ -108,9 +108,9 @@ test("the tag rule: rooms, plus the agents stuck or waiting on an approval; all 
   const opened = S.marksOf(ws, { focus: "operations" });
   assert.deepEqual(opened.find((m) => m.id === "operations").agents.map((a) => a.slug), ops.agents.map((a) => a.slug));
   assert.ok(opened.filter((m) => m.id !== "operations").every((m) => m.bare), "with a room open the others show their lamps alone");
-  // an amber lamp reads "Needs you" on the picture, as the 3D tags did
+  // an amber lamp reads "Waiting for you" on the picture, the panel's word (L3), as the 3D tags did
   const amber = S.marksOf(ws, { hover: "operations" }).flatMap((m) => m.agents).filter((a) => a.lamp === "amber");
-  for (const a of amber) assert.equal(a.words, TAG_WORDS.needsYou);
+  for (const a of amber) { assert.equal(a.words, TAG_WORDS.needsYou); assert.equal(a.words, "Waiting for you"); }
   assert.deepEqual(S.marksOf(null), []);
 });
 
@@ -276,4 +276,47 @@ test("office.css: the stage's classes, tokens only, no blur, transitions on tran
   assert.match(css, /:root\[data-motion="off"\]/);
   assert.match(css, /@media \(max-width: 859px\)[\s\S]*\.o-doors__pick\s*\{\s*min-height:\s*44px/, "a phone's door is 44 px to the touch");
   assert.match(css, /\.o-mark__pin::before\s*\{[^}]*inset:\s*-14px/, "a marker's reach is at least 44 px");
+});
+
+// Rules of a stylesheet (comments out) as { sel, body }; a rule inside @media is named by its own selector.
+function cssRules(css) {
+  const out = [];
+  const flat = css.replace(/\/\*[\s\S]*?\*\//g, " ");
+  const re = /([^{}]+)\{([^{}]*)\}/g;
+  let m;
+  while ((m = re.exec(flat))) {
+    out.push({ sel: m[1].trim().replace(/^[^{]*\{\s*/, ""), body: m[2] });
+  }
+  return out;
+}
+
+test("the markers have the pin's own box, not 0 x 0, and the focus ring is drawn on them (L2)", () => {
+  const css = readFileSync(join(PUBLIC, "styles", "office.css"), "utf8");
+  const rules = cssRules(css);
+  for (const cls of ["o-mark--room", "o-mark--doors"]) {
+    const mine = rules.filter((r) => r.sel.split(",").some((s) => s.trim().endsWith(`.${cls}`)));
+    assert.ok(mine.length, `${cls} is styled`);
+    for (const r of mine) assert.doesNotMatch(r.body, /(^|[;\s])(width|height)\s*:\s*0\b/, `${cls} is not 0 x 0 (${r.sel})`);
+    assert.ok(mine.some((r) => /min-width:\s*var\(--o-hit/.test(r.body) && /min-height:\s*var\(--o-hit/.test(r.body)), `${cls} reaches --o-hit`);
+  }
+  assert.match(css, /@media \(max-width: 859px\)\s*\{\s*\.o-mark--room,\s*\.o-mark--doors\s*\{\s*--o-hit:\s*44px/, "on a phone the hit box is 44 px");
+  const ring = rules.filter((r) => r.sel.split(",").some((s) => s.trim() === ".o-mark:focus-visible"));
+  assert.ok(ring.some((r) => /outline:\s*2px solid var\(--focus\)/.test(r.body)), "the ring is on the marker itself");
+  assert.ok(!rules.some((r) => /:focus-visible\s+\.o-mark__pin/.test(r.sel)), "not on the aria-hidden pin inside it");
+});
+
+test("Tab reaches the Doors marker: a plain button in the tab order, its ring on the button that holds the pin (L2, item 7)", async () => {
+  const root = await mount({ mode: "map", state: worldState(F.doorOff) });
+  const btn = withClass(root, "o-mark--doors")[0];
+  assert.equal(btn.localName, "button");
+  assert.ok(classesOf(btn).includes("o-mark"), "the class whose :focus-visible rule draws the ring");
+  assert.equal(btn.getAttribute("tabindex"), null, "in the tab order");
+  assert.equal(btn.getAttribute("disabled"), null);
+  assert.equal(btn.getAttribute("aria-hidden"), null);
+  for (let n = btn; n; n = n.parentNode) assert.notEqual(n.getAttribute && n.getAttribute("aria-hidden"), "true", "no hidden ancestor");
+  assert.ok(withClass(btn, "o-mark__pin").length === 1, "the pin is inside the button, whose box it gives");
+  assert.equal(btn.getAttribute("aria-label"), `${WORDS.doors}: Web shut`, "its name is unchanged");
+  btn.focus();
+  assert.equal(globalThis.document.activeElement, btn);
+  for (const a of withClass(root, "o-mark--room")) assert.ok(a.getAttribute("aria-label"), "a room's link keeps its name");
 });

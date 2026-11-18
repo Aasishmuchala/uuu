@@ -51,28 +51,37 @@ test("once a task is given, focus moves to the note inside the dialog and the di
   assert.match(overlays, /opener\.focus\(\)/, "the kit's dialog returns focus to what opened it when it goes away");
 });
 
-test("the shell reads /api/shell on the same beat while the page is hidden, so the sidebar's count follows it", async () => {
+test("the shell reads /api/shell on the visible beat, not while hidden, and once at once when the page is seen again", async () => {
   installDom();
-  const { useHiddenInterval } = await load("shell/app-shell.js");
-  let n = 0;
-  function Probe() {
-    useHiddenInterval(() => { n += 1; }, 20);
-    return null;
+  const heard = [];
+  document.addEventListener = (t, f) => heard.push([t, f]);
+  document.removeEventListener = (t, f) => { const i = heard.findIndex((h) => h[0] === t && h[1] === f); if (i >= 0) heard.splice(i, 1); };
+  const real = globalThis.fetch;
+  let reads = 0;
+  globalThis.fetch = async () => { reads += 1; return { ok: true, status: 200, json: async () => ({ counts: {} }) }; };
+  try {
+    const { useResource } = await load("lib/api.js");
+    function Probe() { useResource("/api/shell", { every: 60 }); return null; }
+    const root = new FakeElement("div");
+    document.visibilityState = "visible";
+    render(html`<${Probe} />`, root);
+    await settle(400);
+    assert.ok(reads >= 3, `a visible page is read on the beat (${reads})`);
+    document.visibilityState = "hidden";
+    await settle(100);
+    const at = reads;
+    await settle(400);
+    assert.equal(reads, at, "a hidden page is not read");
+    document.visibilityState = "visible";
+    for (const [t, f] of heard.slice()) if (t === "visibilitychange") f();
+    await settle(30);
+    assert.equal(reads, at + 1, "seen again: one read at once");
+    render(null, root);
+  } finally {
+    globalThis.fetch = real;
   }
-  const root = new FakeElement("div");
-  document.visibilityState = "visible";
-  render(html`<${Probe} />`, root);
-  await settle(400);
-  assert.equal(n, 0, "a visible page is read by useResource's own beat, not twice");
-  document.visibilityState = "hidden";
-  await settle(400);
-  assert.ok(n >= 3, `a hidden page is read on the beat (${n})`);
-  render(null, root);
-  const at = n;
-  await settle(150);
-  assert.equal(n, at, "the beat stops with the shell");
   const src = read("shell/app-shell.js");
-  assert.match(src, /useHiddenInterval\(shell\.refresh, SHELL_EVERY\)/);
+  assert.doesNotMatch(src, /useHiddenInterval/, "no poll while hidden");
   assert.match(src, /useResource\("\/api\/shell", \{ every: SHELL_EVERY \}\)/);
 });
 

@@ -90,7 +90,7 @@ function sizeOf(el) {
 // `title`); ids are the anchors the world and the drawn picture know.
 // At overview the rooms come first, so each room's tag holds its own top-left corner, then one small tag at the doors
 // when any is shut, then a tag per agent who is stuck (red, the server's word) or waits on an approval. A hovered room
-// shows all its agents, as a chosen one does; an amber agent reads "Needs you" there, whatever its server word (the
+// shows all its agents, as a chosen one does; an amber agent reads "Waiting for you" there, whatever its server word (the
 // server marks every agent with an item in the queue as waiting, team.mjs, and its state may still say "Free").
 export function tagsOf(state, { mode = "map", focus = null, hover = null } = {}) {
   if (mode !== "map" || !obj(state)) return [];
