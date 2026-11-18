@@ -16,6 +16,15 @@
 // ledger in US cents, one set of caps, one pause and one running limit for the Artist and every
 // app. A Runway row takes step 3's path; a Higgsfield row takes K21's job flow (the uploads, the
 // live price as a guard, the caps again, the reservation, the call, jobs_wait).
+//
+// PLAN-ONBOARD R1: a second way in to Runway, the owner's Runway account through Runway's MCP
+// server (./runway-mcp.mjs, the sign-in in ./oauth.mjs), under the same switch, limits, pause,
+// ledger and running limit. The key first: with a key saved every Runway job takes step 3's path
+// exactly as before; only with no key, a sign-in, and an `rwa.` row for the model does a job go by
+// the account. A caller never chooses. Its money: the row's ceiling held before Runway is asked,
+// Runway's own quote checked against every limit before it is approved, and the job settled at
+// the ceiling until a real quote confirms the reader (runway-mcp.mjs's opening note says why, and
+// what cannot be made safe).
 import http from "node:http";
 import { createHash } from "node:crypto";
 import { appendFileSync, chmodSync, createReadStream, mkdirSync, realpathSync } from "node:fs";
@@ -27,8 +36,12 @@ import { REAL_NET, fetchPublic } from "../web/fetch.mjs";
 import { HF_ORIGIN, createHiggsfield } from "./higgsfield.mjs";
 import { createLedger, dayOf, extrasByJob, rotateLedger, summarize } from "./ledger.mjs";
 import { createMcpClient } from "./mcp.mjs";
-import { createHfAuth } from "./oauth.mjs";
-import { APP_JOB_BYTES, DEFAULT_CENTS_PER_CREDIT, appModels, estimateCents, estimateUnits, parseAppJob, rowOf, runwayRequest, upscaleFits } from "./registry.mjs";
+import { createHfAuth, createRwAuth } from "./oauth.mjs";
+import {
+  APP_JOB_BYTES, DEFAULT_CENTS_PER_CREDIT, accountRatio, accountRowFor, appModels, ceilingUnits, estimateCents, estimateUnits, parseAppJob, rowOf,
+  runwayRequest, upscaleFits,
+} from "./registry.mjs";
+import { RW_MCP_ORIGIN, RW_PATHS, RW_TOOLS, checkRwOrigin, createRunwayMcp } from "./runway-mcp.mjs";
 import {
   API_LIMITS, KINDS, ORGANIZATION_PATH, PRICES, RUNWAY_ORIGIN, UPSCALE_MAX_SIDE, VIDEO_KINDS, buildRequest, callRunway,
   checkUpstream, chosen, credits as creditsOf, defaultModel, errorText, estimate, failureKind, holdsKey, pictureFailure, priced,
@@ -36,7 +49,7 @@ import {
 } from "./runway.mjs";
 import {
   ALLOWANCE_ID_RE, HASH_RE, ID_RE, INPUTS_KEPT, INPUTS_KEPT_APP, INPUT_MAX, INPUT_MIN, SHOT_RE, newId, readAllowance, readBatch, readGenState,
-  readRunwayKey, sniffOutput, sniffPicture, workStore,
+  readRunwayKey, runwayKeyMissing, sniffOutput, sniffPicture, workStore,
 } from "./state.mjs";
 
 const MB = 1024 * 1024;
@@ -58,6 +71,8 @@ export const LIMITED_SEC = 60;            // the wait after Runway's 429 when it
 export const PROMPT_KEPT = 1000;          // the prompt kept in a job's record, as sent
 // Where the owner's browser comes back after Higgsfield's sign-in: the home server's (T79).
 export const HF_RETURN_PATH = "/api/generation/higgsfield/back";
+// And after the owner's Runway account sign-in (PLAN-ONBOARD R1).
+export const RW_RETURN_PATH = "/api/generation/runway/back";
 const WAITING = "Another request is still waiting for Runway's answer. Wait, then send it again.";
 export const GEN_LIMITS = Object.freeze({
   ...API_LIMITS,
@@ -99,7 +114,13 @@ export const CODES = Object.freeze({
   gen_no_allowance: [403, "This app may not spend anything right now. The owner can allow it in App Studio."],
   gen_over_allowance: [403, "This would go over what the owner allowed this app today."],
   gen_price_changed: [403, "Higgsfield's price for this is higher than the door's table, so nothing was spent."],
+  // PLAN-ONBOARD R1: the owner's Runway account.
+  gen_rw_signed_out: [403, "The door is not signed in to Runway. The owner can sign in from Settings."],
+  gen_rw_refused: [403, "Runway asked for a new sign-in. The owner can sign in again from Settings."],
+  gen_rw_sign_in: [403, "The Runway sign-in did not finish. Try again."],
 });
+const RW_PRICE_HIGHER = "Runway's price for this is more than the door allows for this model, so nothing was spent.";
+const RW_PRICE_MOVED = "Runway asked about the price again, so nothing was made and nothing was spent.";
 
 const JOB = "([A-Za-z0-9_-]{1,64})";
 const ROUTES = [
@@ -122,6 +143,11 @@ const ROUTES = [
   { method: "POST", re: /^\/gen\/owner\/higgsfield\/finish$/, name: "hfFinish", owner: true, hf: true },
   { method: "POST", re: /^\/gen\/owner\/higgsfield\/forget$/, name: "hfForget", owner: true, hf: true },
   { method: "POST", re: /^\/gen\/owner\/higgsfield\/balance$/, name: "hfBalance", owner: true, hf: true },
+  // The owner's Runway account sign-in and balance (PLAN-ONBOARD R1): no key needed, the switch may be off.
+  { method: "POST", re: /^\/gen\/owner\/runway\/begin$/, name: "rwBegin", owner: true, rwa: true },
+  { method: "POST", re: /^\/gen\/owner\/runway\/finish$/, name: "rwFinish", owner: true, rwa: true },
+  { method: "POST", re: /^\/gen\/owner\/runway\/forget$/, name: "rwForget", owner: true, rwa: true },
+  { method: "POST", re: /^\/gen\/owner\/runway\/balance$/, name: "rwBalance", owner: true, rwa: true },
 ];
 const PICTURE_TYPES = { "image/png": "image/png", "image/jpeg": "image/jpeg", "image/jpg": "image/jpeg", "image/webp": "image/webp" };
 const JOB_KEYS = ["batch", "shot", "kind", "input", "inputs", "promptText", "seconds", "ratio", "scale"];
@@ -196,6 +222,7 @@ function doorPaths(paths) {
   // Step 5's two, optional: without them no app may spend and Higgsfield is signed out.
   out.allowances = pick("allowances") || null;
   out.higgsfieldAuth = pick("higgsfieldAuth") || null;
+  out.runwayAuth = pick("runwayAuth") || null;   // PLAN-ONBOARD R1: without it, no Runway sign-in
   return out;
 }
 
@@ -235,7 +262,9 @@ const rateOf = (gs) => (gs && gs.ok && gs.higgsfield ? gs.higgsfield.centsPerCre
 // `higgsfield` (step 5): { origin, redirectUri, net?, uploadSuffixes?, limits?, authLimits?, mcpLimits? }:
 // Higgsfield's one origin (main) or a stand-in (tests), and the home server's sign-in return address.
 // Without it the door has no Higgsfield: every Higgsfield job is refused `gen_hf_signed_out`.
-export function createGenerateDoor({ listenPort, upstream, paths, config, log, now, net, limits, higgsfield } = {}) {
+// `runwayAccount` (PLAN-ONBOARD R1): the same shape for the owner's Runway sign-in, Runway's one MCP
+// origin (main) or a stand-in (tests). Without it there is no sign-in and no key means `gen_no_key`.
+export function createGenerateDoor({ listenPort, upstream, paths, config, log, now, net, limits, higgsfield, runwayAccount } = {}) {
   const up = checkUpstream(upstream);
   const P = doorPaths(paths);
   const theNet = net === undefined ? REAL_NET : net;
@@ -290,6 +319,20 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   })() : null;
   const hfStatus = () => (hf ? hf.auth.status() : { signedIn: false, refused: false });
 
+  // ---- the owner's Runway account (PLAN-ONBOARD R1): its sign-in, the MCP client, the door's tools
+  if (runwayAccount && !P.runwayAuth) throw new Error("createGenerateDoor: paths.runwayAuth is needed for the Runway sign-in");
+  const rwa = runwayAccount ? (() => {
+    const rwNet = runwayAccount.net === undefined ? theNet : runwayAccount.net;
+    const auth = createRwAuth({ origin: runwayAccount.origin, file: P.runwayAuth, redirectUri: runwayAccount.redirectUri, net: rwNet, now: clock, log: say,
+      limits: runwayAccount.authLimits });
+    const mcp = createMcpClient({ origin: runwayAccount.origin, token: (o) => auth.token(o), net: rwNet, log: say, limits: runwayAccount.mcpLimits,
+      check: checkRwOrigin, path: RW_PATHS.mcp, tools: RW_TOOLS, label: "runway" });
+    const tools = createRunwayMcp({ mcp, net: rwNet, uploadSuffixes: runwayAccount.uploadSuffixes, limits: runwayAccount.limits, log: (l) => say(`${iso()} ${l}`) });
+    return { auth, mcp, tools };
+  })() : null;
+  // Only { signedIn, refused } ever leaves the sign-in: no token, code, verifier or state.
+  const rwStatus = () => { const st = rwa ? rwa.auth.status() : null; return { signedIn: st ? st.signedIn === true : false, refused: st ? st.refused === true : false }; };
+
   // ---- the running limit (K20): two at once for one caller, an agent or an app, and four in all.
   // A Higgsfield job holds its place from its checks to its reservation (its uploads and price
   // question come between), so two cannot both pass the limit only one fits.
@@ -319,7 +362,7 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   // ---- the status file ------------------------------------------------------
   const status = {
     startedAt: null, on: false, key: false, running: 0, today: { day: null, jobs: 0, credits: 0, refused: 0 }, lastAt: null,
-    higgsfield: { signedIn: false, refused: false }, apps: {},
+    higgsfield: { signedIn: false, refused: false }, runway: { signedIn: false, refused: false }, apps: {},
   };
   const statusOut = statusFile(P.status);
   function touch(what) {
@@ -336,6 +379,7 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
       status.apps = appsToday();
     }
     status.higgsfield = hfStatus();
+    status.runway = rwStatus();
     status.running = running.size;
     status.lastAt = iso();
     statusOut.save(status);
@@ -570,16 +614,16 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     const owner = who.kind === "t";
     if (!owner && (!gs.ok || !gs.on)) return "gen_off";
     let key = null;
-    if (r.spends || (r.owner && !r.hf)) {
+    if (r.spends || (r.owner && !r.hf && !r.rwa)) {
       if (!owner) {
         if (gs.paused !== null) return "gen_paused";
         const t = ledger.totals(clock(), { resumedAt: gs.resumedAt });
         if (t.ok && t.paused) return "gen_paused";
       }
       key = readRunwayKey(P.key);
-      // With Higgsfield on, an agent may work without a Runway key: a Runway job is refused at its
-      // model (doJob), a Higgsfield one goes on.
-      if (key === null && !(r.spends && !owner && gs.higgsfield.on)) return "gen_no_key";
+      // With Higgsfield on, or a Runway sign-in (PLAN-ONBOARD R1), an agent may work without a Runway
+      // key: each job is judged at its model (doJob).
+      if (key === null && !(r.spends && !owner && (gs.higgsfield.on || rwKnown()))) return "gen_no_key";
     }
     return { who, gs, key };
   }
@@ -612,6 +656,8 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   }
 
   function doEstimate(res, buf, gs) {
+    // With no key and a Runway sign-in, a Runway model is held at its account row's ceiling (R1).
+    const viaAccount = readRunwayKey(P.key) === null && rwNotReady() === null;
     const v = parseObject(buf);
     if (!v || Object.keys(v).length !== 1 || !Array.isArray(v.items) || v.items.length < 1 || v.items.length > 50) return no(res, "gen_bad_request");
     const out = [];
@@ -620,7 +666,7 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
       if (!KINDS.includes(it.kind)) return no(res, "gen_bad_request");
       const model = it.model === undefined ? defaultModel(it.kind, gs.ok ? gs.models : null) : it.model;
       const seconds = VIDEO_KINDS.includes(it.kind) ? it.seconds : null;
-      const credits = agentPrice(it.kind, model, seconds, gs);
+      const credits = agentPrice(it.kind, model, seconds, gs, viaAccount);
       if (credits === null) return no(res, "gen_no_price");
       out.push({ kind: it.kind, model, seconds, credits });
     }
@@ -687,7 +733,14 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
       model = defaultModel(body.kind, gs.models);
     }
     if (isHiggsfield(model)) return hfAgentJob(res, who, body, gs, { t, batch, model, pictures, ids });   // step 5: K21's flow
-    if (key === null) return no(res, "gen_no_key");
+    if (key === null) {
+      // No key: the owner's Runway account, only when signed in and the model has an account row (R-5).
+      const arow = accountRowFor(model);
+      const nr = rwNotReady();
+      if (arow === null || nr === "gen_no_key") return no(res, "gen_no_key");
+      if (nr) return no(res, nr);
+      return rwaAgentJob(res, who, body, gs, { t, batch, model, arow, pictures, ids });
+    }
     if (!priced(model) || !PRICES[model].kinds.includes(body.kind)) return no(res, "gen_no_price");
     if (!chosen(body.kind, model, gs.models)) return no(res, "gen_not_approved", "This model is not the one chosen in Settings.");
     if (body.kind !== "still_upscale" && !ratioFits(model, body.ratio)) return no(res, "gen_bad_request", "This shape of picture is not one this model makes.");
@@ -835,8 +888,14 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
 
   // An agent's price in cents (K20): step 3's five Runway rows as step 3 priced them; a Higgsfield
   // row at its largest size, at the owner's rate. Null when the door has no price.
-  function agentPrice(kind, model, seconds, gs) {
+  function agentPrice(kind, model, seconds, gs, viaAccount = false) {
     const row = rowOf(model);
+    if (viaAccount && row !== null && row.provider === "runway") {
+      const arow = accountRowFor(model);
+      const units = arow === null ? null : ceilingUnits(arow, { kind, seconds: VIDEO_KINDS.includes(kind) ? seconds : undefined });
+      const cents = units === null || !gs.ok ? 0 : centsOf(units, gs.runwayAccount.centsPerCredit);
+      return cents > 0 ? cents : null;
+    }
     if (row === null || (row.provider === "runway" && !priced(model))) return null;
     const item = { kind, model, seconds: VIDEO_KINDS.includes(kind) ? seconds : undefined, resolution: row.provider === "higgsfield" ? topSize(row) : undefined };
     return estimateCents(item, { centsPerCredit: rateOf(gs) });
@@ -1170,6 +1229,439 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     if (!(await onHf(j, w))) trackHf(j);
   }
 
+  // ---- the owner's Runway account (PLAN-ONBOARD R1) ----------------------------------------------
+
+  // The sign-in file says signed in or refused (so a refused one is answered by name at the job).
+  function rwKnown() {
+    const st = rwStatus();
+    return st.signedIn || st.refused;
+  }
+  // Whether the sign-in may be used now (the caller has seen that no key is saved): null, or the
+  // code that says why not. Not signed in is `gen_no_key`: there is no way in to Runway at all.
+  // So is a key file that is there but not a usable key: it is refused, never passed by (review B).
+  function rwNotReady() {
+    if (!runwayKeyMissing(P.key)) return "gen_no_key";
+    const st = rwStatus();
+    if (st.refused) return "gen_rw_refused";
+    return st.signedIn ? null : "gen_no_key";
+  }
+  // A sign-in reason from the account's modules as the door's code, or null.
+  const rwCode = (why) => (why === "refused" || why === "unauthorized" ? "gen_rw_refused" : why === "signed_out" ? "gen_rw_signed_out" : null);
+
+  // An agent's Runway job with no key saved: its model's account row, the row's ceiling at the
+  // owner's rate as what is held, every check of step 3's path, then rwRun.
+  async function rwaAgentJob(res, who, body, gs, { t, batch, model, arow, pictures, ids }) {
+    const slug = who.slug;
+    if (arow.ceiling === null || !arow.kinds.includes(body.kind)) return no(res, "gen_no_price");
+    if (!chosen(body.kind, model, gs.models)) return no(res, "gen_not_approved", "This model is not the one chosen in Settings.");
+    const role = body.kind === "still_variation" ? "ref" : body.kind === "still_upscale" ? "image" : "first";
+    if (pictures.length > arow.refs.max || (pictures.length > 0 && !arow.refs.roles.includes(role))) return no(res, "gen_bad_request", "This model takes other pictures.");
+    const ratio = arow.ratios === null ? null : accountRatio(arow, body.ratio, body.kind);
+    if (arow.ratios !== null && ratio === null) return no(res, "gen_bad_request", "This shape of picture is not one this model makes.");
+    const seconds = VIDEO_KINDS.includes(body.kind) ? body.seconds : null;
+    const scale = body.kind === "still_upscale" ? body.scale : null;
+    const units = ceilingUnits(arow, { kind: body.kind, seconds: seconds === null ? undefined : seconds, scale: scale === null ? undefined : scale });
+    if (units === null) return no(res, "gen_bad_request", "These seconds are not ones this model makes.");
+    const rate = gs.runwayAccount.centsPerCredit;
+    const cost = centsOf(units, rate);
+    if (!(cost > 0)) return no(res, "gen_no_price");
+    if (batch === null && t.unasked + cost > gs.autoUnderCredits) return no(res, "gen_not_approved", "Nothing is spent without the owner's approval of a batch.");
+    const hashes = pictures.map((p) => p.sha256);
+    const print = fingerprint(body.kind, model, hashes, body.promptText);
+    if (marks.refused.has(print)) return no(res, "gen_not_approved", "Runway refused this same picture or prompt before. The door will not send it again.");
+    const resend = resendPrint(body.batch, body.shot, body.kind, model, hashes, body.promptText);
+    if (marks.resend.has(resend)) return no(res, "gen_not_approved", "Runway did not start this same request before. The door will not send it again.");
+    const busy = busyFor(slug);
+    if (busy) return no(res, "gen_busy", busy, { retryAfterSec: 30 });
+    const over = overLimit(gs, t, cost, batch);
+    if (over) return no(res, over);
+    return rwRun(res, {
+      slug, app: null, arow, kind: body.kind, model, seconds, prompt: body.promptText || "", ratio, scale,
+      pictures: pictures.map((p) => ({ ...p, role })), ids, hashes, ceiling: units, cost, rate, batchId: body.batch, shot: body.shot, print, resend,
+      reply: (j) => ({ job: j.job, estimate: j.estimate }),
+    });
+  }
+
+  // Everything checked again for an account job: the switch (an agent's), the pause, the key
+  // still absent, the sign-in, the rate unchanged, the ledger, the owner's batch or allowance and
+  // every cap. `cost` is what is added to the ledger's totals now: the ceiling before it is held,
+  // and the quote less the ceiling once it is (`held`: this job's own reservation is in the totals
+  // and is one of its shot's takes). Null, or [code, sentence?].
+  function rwRecheck(c, cost, held) {
+    const gs = readGenState(P.state, clock());
+    if (!gs.ok || (c.app === null && !gs.on)) return ["gen_off"];
+    if (gs.paused !== null) return ["gen_paused"];
+    if (readRunwayKey(P.key) !== null) return ["gen_could_not_start", "A Runway key was saved meanwhile, so this job now goes by the key. Send it again. Nothing was spent."];
+    const nr = rwNotReady();
+    if (nr) return [nr];
+    if (gs.runwayAccount.centsPerCredit !== c.rate) return ["gen_could_not_start", "The rate for Runway account credits changed. Send it again. Nothing was spent."];
+    const t = ledger.totals(clock(), { batch: c.batchId, resumedAt: gs.resumedAt });
+    if (!t.ok) return ["gen_ledger"];
+    if (t.paused || t.refusedRecent >= REFUSALS_TO_PAUSE || t.notStartedRecent >= NOT_STARTED_TO_PAUSE) return ["gen_paused"];
+    if (c.app !== null) {
+      const a = readAllowance(P.allowances, c.app, clock());
+      if (!a.ok || a.allowance.id !== c.batchId) return ["gen_no_allowance"];
+      const code = overApp(gs, t, cost, a.allowance);
+      return code ? [code] : null;
+    }
+    if (!chosen(c.kind, c.model, gs.models)) return ["gen_not_approved", "This model is not the one chosen in Settings."];
+    if (c.batchId === null) {
+      if (t.unasked + cost > gs.autoUnderCredits) return ["gen_not_approved", "Nothing is spent without the owner's approval of a batch."];
+      const code = overLimit(gs, t, cost, null);
+      return code ? [code] : null;
+    }
+    const b = readBatch(P.batches, c.batchId, { slug: c.slug, now: clock() });
+    if (!b.ok) return ["gen_not_approved", "This batch's approval has ended. Ask the owner again."];
+    if (b.batch.frozen || t.batchRefused >= REFUSALS_TO_FREEZE) return ["gen_not_approved", "Runway refused two pictures or prompts in this film. It needs you."];
+    const shot = b.batch.shots[c.shot];
+    if (!shot || shot.model !== c.model || shot.kind !== c.kind) return ["gen_not_approved", "This shot is not in the batch the owner approved."];
+    if (t.takes(c.shot) - (held ? 1 : 0) >= shot.takes) return ["gen_not_approved", "This shot has had every take the owner approved."];
+    const code = overLimit(gs, t, cost, b.batch);
+    return code ? [code] : null;
+  }
+
+  // An account job whose reservation ends at nothing: Runway made nothing.
+  function releaseRw(j, verdict) {
+    try {
+      ledger.settle(iso(), j, { state: "released", credits: 0, verdict });
+    } catch {
+      say(`${iso()} ledger not written for ${j.job}; its reservation stays counted`);
+    }
+  }
+
+  // Ends an account job's money: released (0) only when Runway said it cost 0 for a job that
+  // failed or was refused; otherwise spent at the row's ceiling, or at a higher cost Runway
+  // stated. Not at the quote: no real quote has confirmed the reader yet (runway-mcp.mjs), so a
+  // quote only ever refuses a job, never lowers what it counts.
+  function settleRw(j, w, verdict, allowZero) {
+    const zero = allowZero && w && w.costZero;
+    const stated = Math.max(j.quoted || 0, j.known || 0);
+    const amount = zero ? 0 : Math.max(j.estimate, stated);
+    // The ledger line's units are those of the amount: the ceiling's, or the higher stated cost's.
+    if (!zero && amount === j.estimate && stated < j.estimate) j.units = Number.isFinite(j.ceilingUnits) ? j.ceilingUnits : j.estimate / j.rate;
+    try {
+      ledger.settle(iso(), j, { state: zero ? "released" : "spent", credits: amount, verdict, runwayTask: j.runwayTask });
+    } catch {
+      say(`${iso()} ledger not written for ${j.job}; its reservation stays counted`);
+    }
+    say(`${iso()} end ${j.job} ${verdict} credits=${amount}`);
+    return amount;
+  }
+
+  // A clear refusal before anything started: free, and counted as Runway's 4xx are (two a shot,
+  // three a day pause the door), the same request not sent again but after a 401 or a 429.
+  function notStartedRw(j, c, r, sentence) {
+    const st = r.why === "limited" || r.status === 429 ? 429 : r.why === "unauthorized" || rwCode(r.why) ? 401 : 400;
+    releaseRw(j, `not_started_${st}`);
+    const words = typeof r.text === "string" ? r.text.slice(0, 300) : "";
+    endJob(j, "failed", { credits: 0, reason: sentence || (words ? `Runway did not start it. Runway said: ${words}` : "Runway did not start it."), notStarted: st });
+    if (st !== 401 && st !== 429) marks.resend.add(c.resend);
+    maybePause();
+    return words;
+  }
+
+  // The answer to a refused or lost job, after its money is settled.
+  function rwRefusal(res, r, words) {
+    const code = rwCode(r.why);
+    if (code) return no(res, code);
+    if (r.why === "limited") return no(res, "gen_limited", "Runway says too many requests for now. Wait before asking again.", { retryAfterSec: LIMITED_SEC });
+    return no(res, "gen_could_not_start", words ? `Runway did not start this job. Runway said: ${words}` : "Runway did not start this job.");
+  }
+
+  // An account job, for an agent or an app whose checks have passed: the uploads; everything
+  // checked again and the row's ceiling held (synced); Runway asked what it costs; the quote read
+  // as runway-mcp.mjs says and checked against every limit again; then the one approved call, and
+  // get_task until it ends. `c` carries the checked job, its ceiling in units and cents and the rate.
+  async function rwRun(res, c) {
+    const release = claim(c.slug);
+    try {
+      const assets = [];
+      for (const p of c.pictures) {
+        const up = await rwa.tools.upload({ type: p.type, bytes: p.bytes });
+        if (!up.ok) {
+          say(`${iso()} runway upload not made ${up.why}`);
+          const code = rwCode(up.why);
+          if (code) return no(res, code);
+          return no(res, "gen_could_not_start", up.why === "upload_host_unknown"
+            ? "The door does not know Runway's upload address yet, so no picture can go to Runway by your sign-in. Nothing was spent."
+            : "Runway did not take the picture, so nothing was spent.");
+        }
+        assets.push({ url: up.url, role: p.role });
+      }
+      const params = { kind: c.kind, prompt: c.prompt, ratio: c.ratio, seconds: c.seconds, scale: c.scale, assets };
+      if (c.kind === "still_upscale") Object.assign(params, { width: c.pictures[0].width, height: c.pictures[0].height });
+      if (closing) return no(res, "gen_could_not_start", "The door is stopping. Nothing was spent.");
+      const again = rwRecheck(c, c.cost, false);
+      if (again) return no(res, again[0], again[1]);
+      const j = {
+        job: newId("g"), batch: c.batchId, shot: c.shot, slug: c.slug, kind: c.kind, model: c.model, seconds: c.seconds, estimate: c.cost,
+        known: 0, quoted: null, runwayTask: null, startedMs: Date.now(), inputIds: c.ids, inputSha256: c.hashes, record: null,
+        provider: "runway-account", units: c.ceiling, ceilingUnits: c.ceiling, rate: c.rate, ...(c.app ? { app: c.app } : {}),
+      };
+      try {
+        ledger.reserve(iso(), {
+          job: j.job, batch: j.batch, shot: j.shot, slug: j.slug, kind: j.kind, model: j.model, seconds: j.seconds, estimate: c.cost,
+          provider: "runway-account", units: c.ceiling, rate: c.rate, ...(c.app ? { app: c.app } : {}),
+        });
+      } catch {
+        return no(res, "gen_ledger");
+      }
+      running.set(j.job, j);
+      release();
+      j.record = jobRecord(j, c);
+      record(j, {});
+      say(`${iso()} job ${c.slug} ${j.job} ${j.kind} ${j.model} ${j.seconds || 0}s held=${c.cost} runway-account`);
+      touch("jobs");
+
+      // 1. What it costs. Only a plain quote is taken; a first answer that started a job never is.
+      const q = await rwa.tools.quote(c.arow, params);
+      if (!q.ok) {
+        if (q.why === "started" && typeof q.taskId === "string") {
+          // A job Runway started before saying its price: never approved by the door, but real.
+          // Generation pauses, and the job is followed like any other (R5, finding 4), so a
+          // higher cost Runway states reaches the ledger and what it makes is kept. It counts at
+          // the ceiling (or that higher cost) whatever happens.
+          j.runwayTask = q.taskId;
+          try {
+            ledger.note(iso(), j, { credits: c.cost, runwayTask: j.runwayTask });
+          } catch {
+            say(`${iso()} ledger not written for ${j.job}'s task; its reservation stays counted`);
+          }
+          try {
+            ledger.pause(iso(), "runway_started_without_quote");
+          } catch {
+            say(`${iso()} ledger not written for a pause`);
+          }
+          record(j, { runwayTask: j.runwayTask, credits: c.cost });
+          say(`${iso()} runway started ${j.job} without a price; ${c.cost} counted, the job followed and the door paused`);
+          sendJson(res, 202, c.reply(j));
+          trackRw(j);
+          return undefined;
+        }
+        if (q.why === "started" || q.why === "unclear") {
+          if (typeof q.taskId === "string") j.runwayTask = q.taskId;
+          const credits = settleRw(j, null, "started_without_quote", false);
+          endJob(j, "failed", { credits, reason: "Runway started this job before saying its price. Its cost is counted at the most the door allows for this model, and Generation is paused until you press Start again." });
+          try {
+            ledger.pause(iso(), "runway_started_without_quote");
+          } catch {
+            say(`${iso()} ledger not written for a pause`);
+          }
+          say(`${iso()} runway answered ${q.why} instead of a price; ${credits} counted and the door paused`);
+          return no(res, "gen_could_not_start", "Runway started this job before saying its price. Its cost is counted, and Generation is paused until the owner presses Start again.");
+        }
+        if (!q.clear) {
+          const credits = settleRw(j, null, "unknown", false);
+          endJob(j, "failed", { credits, reason: "Runway's answer was lost on the way, so the job may have started. Its cost stays counted at the most the door allows for this model." });
+          return rwRefusal(res, q, "");
+        }
+        say(`${iso()} runway price not given ${q.why}`);
+        if (q.why === "no_quote") {
+          notStartedRw(j, c, { why: "no_quote", status: 400, text: "" }, "Runway did not give a price the door can read, so nothing was made.");
+          return no(res, "gen_could_not_start", "Runway did not give a price the door can read, so nothing was made and nothing was spent.");
+        }
+        return rwRefusal(res, q, notStartedRw(j, c, q));
+      }
+      if (q.credits > c.ceiling) {
+        say(`${iso()} runway price ${q.credits} over the ceiling ${c.ceiling} for ${c.model}`);
+        releaseRw(j, "price_over_ceiling");
+        endJob(j, "failed", { credits: 0, reason: RW_PRICE_HIGHER });
+        return no(res, "gen_price_changed", RW_PRICE_HIGHER);
+      }
+      const cents = centsOf(q.credits, c.rate);
+      // 2. The quote against the limits and the owner's approval, this job's own hold taken out.
+      const check = closing ? ["gen_could_not_start", "The door is stopping. Nothing was spent."] : rwRecheck(c, cents - c.cost, true);
+      if (check) {
+        releaseRw(j, "quote_not_approved");
+        endJob(j, "failed", { credits: 0, reason: "Runway's price did not fit a limit or the approval, so nothing was made." });
+        return no(res, check[0], check[1]);
+      }
+      j.units = q.credits;
+      j.quoted = cents;
+      try {
+        ledger.note(iso(), j, { credits: cents });   // the ceiling stays held (the highest line) until the job ends
+      } catch {
+        say(`${iso()} ledger not written for ${j.job}'s price; its reservation stays counted`);
+      }
+      record(j, { credits: c.cost });   // the job counts at the ceiling: the quote is noted, not used (settleRw)
+
+      // 3. The one approved call.
+      const s = await rwa.tools.start(c.arow, params, q.approval);
+      if (s.ok) {
+        j.runwayTask = s.taskId;
+        if (s.credits !== null && s.credits > j.units) {
+          j.units = s.credits;
+          j.known = centsOf(s.credits, j.rate);
+        }
+        const held = Math.max(cents, j.known);
+        try {
+          ledger.note(iso(), j, { credits: held, runwayTask: j.runwayTask });
+        } catch {
+          say(`${iso()} ledger not written for ${j.job}'s task; its reservation stays counted`);
+        }
+        record(j, { runwayTask: j.runwayTask, credits: Math.max(c.cost, j.known) });
+        sendJson(res, 202, c.reply(j));
+        trackRw(j);
+        return undefined;
+      }
+      if (s.why === "quote_again") {
+        releaseRw(j, "quote_again");
+        endJob(j, "failed", { credits: 0, reason: RW_PRICE_MOVED });
+        return no(res, "gen_price_changed", RW_PRICE_MOVED);
+      }
+      if (s.clear) return rwRefusal(res, s, notStartedRw(j, c, s));
+      const credits = settleRw(j, null, "unknown", false);
+      endJob(j, "failed", { credits, reason: "Runway's answer was lost on the way, so the job may have started. Its cost stays counted." });
+      return rwRefusal(res, s, "");
+    } finally {
+      release();
+    }
+  }
+
+  // Handles one get_task answer; true when the job has ended.
+  async function onRw(j, w) {
+    if (w.cost !== null && w.cost > (j.units || 0)) {
+      j.units = w.cost;
+      j.known = Math.max(j.known || 0, centsOf(w.cost, j.rate));
+    }
+    if (w.state === "done") {
+      const credits = settleRw(j, w, "done", false);
+      const want = VIDEO_KINDS.includes(j.kind) ? "video" : "picture";
+      const ctl = new AbortController();
+      controllers.add(ctl);
+      let got;
+      try {
+        got = typeof w.url === "string" ? await rwa.tools.output(w.url, want, { signal: ctl.signal }) : { ok: false, why: "no_address" };
+      } finally {
+        controllers.delete(ctl);
+      }
+      if (closing) return true;
+      if (!got.ok) {
+        say(`${iso()} output refused ${j.job} ${got.why}`);
+        endJob(j, "failed", { credits, progress: 1, reason: "Runway made it and it is paid for, but its result was not safe to fetch, so nothing was kept. It is in your Runway library." });
+        return true;
+      }
+      try {
+        store.saveOutput(j.job, got.kind.ext, got.body);
+      } catch {
+        endJob(j, "failed", { credits, progress: 1, reason: "The result could not be kept on this Mac." });
+        return true;
+      }
+      say(`${iso()} output ${j.job} ${got.host} ${got.body.length}`);
+      endJob(j, "done", { credits, progress: 1, reason: null, output: { ext: got.kind.ext, type: got.kind.type, bytes: got.body.length } });
+      return true;
+    }
+    if (w.state === "refused" || w.state === "failed") {
+      const refused = w.state === "refused";
+      const said = w.reason ? ` Runway said: ${w.reason}` : "";
+      if (refused) {
+        for (const id of j.inputIds) store.markInputRefused(id);
+        for (const h of j.inputSha256) marks.pictures.add(h);
+        if (j.record && typeof j.record.fingerprint === "string") marks.refused.add(j.record.fingerprint);
+      }
+      const credits = settleRw(j, w, refused ? "refused" : "failed", true);
+      if (refused) {
+        endJob(j, "refused", { credits, reason: `Runway refused this picture or prompt. It will not be sent again.${said}` });
+        maybePause();
+      } else {
+        endJob(j, "failed", { credits, reason: `Runway could not make this. It may work later.${said}` });
+      }
+      return true;
+    }
+    record(j, { state: "working" });
+    return false;
+  }
+
+  function giveUpRw(j, sentence) {
+    const credits = settleRw(j, null, "unknown", false);
+    endJob(j, "failed", { credits, reason: sentence });
+  }
+
+  // Asks Runway about the task every pollMs until it ends, its 20 minutes are up, or Runway stops
+  // answering clearly. Closing leaves it for the next start.
+  async function trackRw(j) {
+    const ctl = new AbortController();
+    controllers.add(ctl);
+    const deadline = j.startedMs + lim.jobMs;
+    let errors = 0;
+    try {
+      for (;;) {
+        if (await wait(lim.pollMs, ctl.signal) || closing) return;
+        if (Date.now() >= deadline) return void giveUpRw(j, "Runway did not finish in 20 minutes. Its cost stays counted.");
+        const w = await rwa.tools.task(j.runwayTask);
+        if (closing) return;
+        if (!w.ok || w.state === "unknown") {
+          errors += 1;
+          if (errors >= lim.pollErrors) return void giveUpRw(j, "Runway stopped answering clearly about this job. Its cost stays counted.");
+          continue;
+        }
+        errors = 0;
+        if (await onRw(j, w)) return;
+      }
+    } catch (err) {
+      say(`${iso()} job ${j.job} stopped: ${describeError(err)}`);
+    } finally {
+      controllers.delete(ctl);
+    }
+  }
+
+  // At start: an open account job is asked about once; no clear answer, and it is spent (at the
+  // ceiling held, or a higher cost noted).
+  async function settleOpenRw(j) {
+    if (!j.runwayTask || !rwa) {
+      const credits = settleRw(j, null, "unknown", false);
+      endJob(j, "failed", { credits, reason: "The door stopped before Runway answered. Its cost stays counted." });
+      return;
+    }
+    const w = await rwa.tools.task(j.runwayTask);
+    if (closing) return;
+    running.set(j.job, j);
+    if (!w.ok || w.state === "unknown") {
+      const credits = settleRw(j, null, "unknown", false);
+      endJob(j, "failed", { credits, reason: "Runway did not say how this job ended. Its cost stays counted." });
+      return;
+    }
+    if (!(await onRw(j, w))) trackRw(j);
+  }
+
+  // The owner's Runway routes: begin, finish, forget, balance (the shapes of Higgsfield's).
+  async function doRwOwner(res, name, raw) {
+    if (!rwa) return no(res, "gen_rw_signed_out");
+    if (name === "rwBegin" || name === "rwForget") {
+      const empty = raw.length === 0 || (() => { const v = parseObject(raw); return v !== null && Object.keys(v).length === 0; })();
+      if (!empty) return no(res, "gen_bad_request");
+      if (name === "rwForget") {
+        rwa.auth.forget();
+        rwa.mcp.reset();
+        touch();
+        return sendJson(res, 200, { connected: false });
+      }
+      const b = await rwa.auth.begin();
+      if (!b.ok) return no(res, "gen_rw_sign_in");
+      return sendJson(res, 200, { url: b.url });
+    }
+    if (name === "rwFinish") {
+      const v = parseObject(raw);
+      const fits = v !== null && Object.keys(v).length === 2 && typeof v.code === "string" && typeof v.state === "string";
+      // Only the matching state ends the pending sign-in: a wrong state, or a body of the wrong shape, leaves it for the real return.
+      const f = await rwa.auth.finish(fits ? { code: v.code, state: v.state } : {});
+      if (!fits) return no(res, "gen_bad_request");
+      if (!f.ok) return no(res, "gen_rw_sign_in");
+      rwa.mcp.reset();
+      touch();
+      return sendJson(res, 200, { connected: true });
+    }
+    const st = rwStatus();
+    if (!st.signedIn) return no(res, st.refused ? "gen_rw_refused" : "gen_rw_signed_out");
+    const r = await rwa.tools.balance();
+    say(`${iso()} runway balance owner ${r.ok ? "ok" : r.why}`);
+    if (!r.ok) {
+      const code = rwCode(r.why);
+      return code ? no(res, code) : no(res, "gen_could_not_start", "Runway did not answer the balance question.");
+    }
+    return sendJson(res, 200, { credits: r.credits });
+  }
+
   // ---- the app routes (K19) ----
 
   async function doAppJob(res, who, raw, gs, key) {
@@ -1178,8 +1670,16 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     if (!parsed.ok) return no(res, "gen_bad_request", parsed.why);
     const job = parsed.job;
     const row = rowOf(job.model);
-    // A2: the model's service is ready.
-    if (row.provider === "runway" && key === null) return no(res, "gen_no_key");
+    // A2: the model's service is ready. With no key, a Runway row goes by the owner's Runway
+    // account when it is signed in and the row has an account row (PLAN-ONBOARD R1, R-5).
+    let arow = null;
+    if (row.provider === "runway" && key === null) {
+      arow = accountRowFor(job.model);
+      const nr = rwNotReady();
+      if (arow === null || nr === "gen_no_key") return no(res, "gen_no_key");
+      if (nr) return no(res, nr);
+      if (arow.ceiling === null || !arow.kinds.includes(job.kind)) return no(res, "gen_no_price");
+    }
     if (row.provider === "higgsfield") {
       const nr = hfNotReady(gs);
       if (nr) return no(res, nr);
@@ -1189,10 +1689,12 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
       kind: job.kind, model: job.model, seconds: job.seconds === null ? undefined : job.seconds, resolution: job.resolution === null ? undefined : job.resolution,
       scale: job.scale === null ? undefined : job.scale, refs: job.inputs.length,
     };
-    const units = estimateUnits(item);
-    const cost = estimateCents(item, { centsPerCredit: rate });
+    const units = arow ? ceilingUnits(arow, { kind: job.kind, seconds: item.seconds, scale: item.scale }) : estimateUnits(item);
+    const cost = arow ? (units === null ? null : centsOf(units, gs.runwayAccount.centsPerCredit) || null) : estimateCents(item, { centsPerCredit: rate });
     if (units === null || cost === null) return no(res, "gen_no_price");
-    if (row.provider === "runway") {
+    const aratio = arow && arow.ratios !== null ? accountRatio(arow, job.ratio, job.kind) : null;
+    if (arow && arow.ratios !== null && aratio === null) return no(res, "gen_bad_request", "This shape is not one this model makes.");
+    if (row.provider === "runway" && !arow) {
       const hold = limitedUntil - Date.now();
       if (hold > 0) return no(res, "gen_limited", undefined, { retryAfterSec: Math.ceil(hold / 1000) });
     }
@@ -1238,6 +1740,10 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
       reply: (j) => ({ job: j.job, cents: cost }),
     };
     if (row.provider === "higgsfield") return hfRun(res, c);
+    if (arow) {
+      return rwRun(res, { ...c, arow, ceiling: units, rate: gs.runwayAccount.centsPerCredit, ratio: aratio, scale: job.scale,
+        reply: (j) => ({ job: j.job, cents: j.estimate }) });
+    }
     return runwayAppJob(res, c, gs, key, job, allowance);
   }
 
@@ -1311,17 +1817,28 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
   }
 
   // K19's estimate: 1 to 20 items, priced from the table only; an item the door has no price for
-  // is `cents: null` (then `total` is null too).
+  // is `cents: null` (then `total` is null too). With no key and a Runway sign-in, a Runway row
+  // is priced as its job would be held: its account row's ceiling at the owner's account rate,
+  // marked `upTo: true` (the most it may cost, not a price; R5, finding 3).
   function doAppEstimate(res, buf, gs) {
     const v = parseObject(buf);
     if (!v || Object.keys(v).length !== 1 || !Array.isArray(v.items) || v.items.length < 1 || v.items.length > 20) return no(res, "gen_bad_request");
     const rate = gs.higgsfield.centsPerCredit;
+    const viaAccount = readRunwayKey(P.key) === null && rwNotReady() === null;
     const items = [];
     for (const it of v.items) {
       if (!it || typeof it !== "object" || Array.isArray(it) || !Object.keys(it).every((k) => ["model", "kind", "seconds", "resolution", "scale"].includes(k))) return no(res, "gen_bad_request");
       if (typeof it.model !== "string" || it.model.length > 64 || !KINDS.includes(it.kind)) return no(res, "gen_bad_request");
       if ((it.seconds !== undefined && !Number.isInteger(it.seconds)) || (it.scale !== undefined && !Number.isInteger(it.scale))
         || (it.resolution !== undefined && (typeof it.resolution !== "string" || it.resolution.length > 8))) return no(res, "gen_bad_request");
+      const row = rowOf(it.model);
+      if (viaAccount && row !== null && row.provider === "runway") {
+        const arow = accountRowFor(it.model);
+        const units = arow === null ? null : ceilingUnits(arow, { kind: it.kind, seconds: it.seconds, scale: it.scale });
+        const cents = units === null ? 0 : centsOf(units, gs.runwayAccount.centsPerCredit);
+        items.push(cents > 0 ? { model: it.model, cents, upTo: true } : { model: it.model, cents: null });
+        continue;
+      }
       const cents = estimateCents({ kind: it.kind, model: it.model, seconds: it.seconds, resolution: it.resolution, scale: it.scale }, { centsPerCredit: rate });
       items.push({ model: it.model, cents });
     }
@@ -1385,7 +1902,11 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     const target = req.url;
     if (req.method === "GET" && target === "/gen/health") {
       const gs = readGenState(P.state, clock());
-      return sendJson(res, 200, { status: "ok", part: "generate", on: gs.ok && gs.on, key: readRunwayKey(P.key) !== null, higgsfield: hfStatus().signedIn });
+      return sendJson(res, 200, {
+        status: "ok", part: "generate", on: gs.ok && gs.on, key: readRunwayKey(P.key) !== null, higgsfield: hfStatus().signedIn,
+        // A door given the Runway sign-in (main's always is) says whether it is signed in; nothing else about it.
+        ...(rwa ? { runway: rwStatus().signedIn } : {}),
+      });
     }
     const r = route(req.method, target);
     if (r === null) return no(res, "gen_not_found");
@@ -1396,7 +1917,11 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     if (r.name === "output") return doOutput(res, ok.who, r.args[0]);
     if (r.name === "appJob") return doGetJob(res, ok.who, r.args[0]);
     if (r.name === "appOutput") return doOutput(res, ok.who, r.args[0]);
-    if (r.name === "appModels") return sendJson(res, 200, { models: appModels(ok.gs, { runway: ok.key !== null, higgsfield: hfNotReady(ok.gs) === null }) });
+    if (r.name === "appModels") {
+      // With no key and a Runway sign-in, Runway rows are listed as their account rows make them (review A).
+      const account = ok.key === null && rwNotReady() === null;
+      return sendJson(res, 200, { models: appModels(ok.gs, { runway: ok.key !== null || account, higgsfield: hfNotReady(ok.gs) === null, account }) });
+    }
     if (r.name === "appAllowance") return doAllowance(res, ok.who, ok.gs);
     // 5 and 6. The body.
     let raw;
@@ -1425,6 +1950,7 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
     if (r.name === "appEstimate") return doAppEstimate(res, raw, ok.gs);
     if (r.name === "appJobs") return doAppJob(res, ok.who, raw, ok.gs, ok.key);
     if (r.hf) return doHfOwner(res, r.name, raw);
+    if (r.rwa) return doRwOwner(res, r.name, raw);
     if (r.name === "balance") return doBalance(res, ok.key);
     const body = parseJob(raw);
     if (body === null) return no(res, "gen_bad_request");
@@ -1456,6 +1982,14 @@ export function createGenerateDoor({ listenPort, upstream, paths, config, log, n
       Object.assign(j, extras.get(o.job) || {});   // step 5: provider, units, rate, app
       if (j.provider === "higgsfield") {
         await settleOpenHf(j);
+        continue;
+      }
+      if (j.provider === "runway-account") {
+        // The last line's units are the quote or a stated cost once one was noted (else the ceiling);
+        // settleRw counts at least the ceiling (`estimate`) whatever they say.
+        j.quoted = centsOf(j.units, j.rate) || null;
+        j.known = 0;
+        await settleOpenRw(j);
         continue;
       }
       const key = readRunwayKey(P.key);
@@ -1580,6 +2114,9 @@ export function generateDoorOptions(cfg) {
     // Higgsfield's one origin (higgsfield.mjs) and the home server's sign-in return address.
     higgsfield: Number.isInteger(cfg.ports && cfg.ports.home)
       ? { origin: HF_ORIGIN, redirectUri: `http://127.0.0.1:${cfg.ports.home}${HF_RETURN_PATH}`, net: REAL_NET } : undefined,
+    // The owner's Runway account: Runway's one MCP origin (runway-mcp.mjs) and the home server's return address.
+    runwayAccount: Number.isInteger(cfg.ports && cfg.ports.home)
+      ? { origin: RW_MCP_ORIGIN, redirectUri: `http://127.0.0.1:${cfg.ports.home}${RW_RETURN_PATH}`, net: REAL_NET } : undefined,
   };
 }
 

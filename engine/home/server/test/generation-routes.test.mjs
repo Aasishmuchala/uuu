@@ -130,7 +130,7 @@ test("on is refused with no key, with the door not answering, and with no Artist
     // No key.
     let r = await post(h, "/api/generation/switch", { on: true });
     assert.equal(r.status, 409);
-    assert.deepEqual([r.json.error.code, r.json.error.next, r.json.error.blockers], ["cannot_switch_on", "Paste your Runway key first.", ["no_key"]]);
+    assert.deepEqual([r.json.error.code, r.json.error.next, r.json.error.blockers], ["cannot_switch_on", "Save a Runway key or sign in to Runway first.", ["no_key"]]);
     assert.equal(r.json.error.message, "Generation cannot be switched on yet.");
     assert.equal(existsSync(h.config.paths.doorsState), false, "nothing written");
     await post(h, "/api/generation/key", { key: KEY });

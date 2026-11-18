@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Section, {
-  CAPS, DOOR, GROUPS, HF_AUTHORIZE, HF_WORDS, MAX_CAP, MODEL_FIELDS, PROBLEMS, RESULT_TONES, WORDS, balanceLine, barTone, batchLine, blockerLines, capCheck, capFieldOf,
+  CAPS, DOOR, GROUPS, HF_AUTHORIZE, HF_WORDS, RW_AUTHORIZE, RW_WORDS, rwMark, rwRateCheck, rwReturnOf, rwSignInUrl, rwState, rwTestResult, wayIn, wayLine, MAX_CAP, MODEL_FIELDS, PROBLEMS, RESULT_TONES, WORDS, balanceLine, barTone, batchLine, blockerLines, capCheck, capFieldOf,
   capHint, capsLines, clockOf, creditWords, creditsAndDollars, dayFigures, dayWords, doorState, doorWord, dollars, filmHref, filmName,
   hashWithoutReturn, heroMark, hfMark, hfReturnOf, hfSignInUrl, hfState, hfSwitchLine, hfTestResult, isOpen, keyLine, keyMark, leftLine, ledgerLine, mergeDays, modelOptions, pausedLine, plain, rateCheck, serviceName, centsText, problemLine, resultTone, rowWords,
   priceOf, runningLine, sectionState, share, spentLine, spentMark, stateLines, statusLine, switchLine, testResult,
@@ -17,7 +17,8 @@ import {
   LEDGER_SENTENCES, NOT_STARTED_WORDS, OWN_PAUSE_SENTENCE, PAUSED_SENTENCE, RESULT_WORDS, RUNNING_WORDS, dollars as serverDollars, kindWords,
 } from "../../../server/lib/generation.mjs";
 import {
-  BLOCKER_SENTENCES, DOOR_SENTENCES, HF_SENTENCES, HF_SWITCH_REFUSED, HF_TEST_SENTENCES, MAX_CAP as SERVER_MAX_CAP, PROBLEM_SENTENCES, TEST_SENTENCES,
+  BLOCKER_SENTENCES, DOOR_SENTENCES, HF_SENTENCES, HF_SWITCH_REFUSED, HF_TEST_SENTENCES, MAX_CAP as SERVER_MAX_CAP, PROBLEM_SENTENCES, RW_NO_WAY_IN,
+  RW_SENTENCES, RW_TEST_SENTENCES, TEST_SENTENCES,
 } from "../../../server/routes/generation.mjs";
 
 // The same checks as pages.test.mjs, kept here so that file's tests do not run twice.
@@ -76,10 +77,10 @@ test("generation: K13's Settings words are used as written", () => {
   assert.equal(WORDS.test, "Test");
   // The groups, in the order they are drawn (T54), and the labels of the limits' table.
   assert.deepEqual(GROUPS, {
-    runway: "Runway", limits: "Limits and what was spent", higgsfield: "Higgsfield", models: "Models", films: "Films you approved",
+    runway: "Runway", runwayAccount: "Runway account", limits: "Limits and what was spent", higgsfield: "Higgsfield", models: "Models", films: "Films you approved",
     ledger: "Every job", newest: "Newest first", saveLimits: "Save limits", putBack: "Put back",
   });
-  for (const k of ["runway", "limits", "higgsfield", "models", "films", "ledger"]) assert.ok(CODE.includes(`title=\${GROUPS.${k}}`), k);
+  for (const k of ["runway", "runwayAccount", "limits", "higgsfield", "models", "films", "ledger"]) assert.ok(CODE.includes(`title=\${GROUPS.${k}}`), k);
   assert.ok(CODE.indexOf("<${RunwayGroup}") < CODE.indexOf("<${LimitsGroup}"), "the control first, then the limits");
   for (const w of ["Limit", "Spent", "Left", "Kind of work", "Model", "Price", "Film", "Approved", "Budget", "Amount"]) assert.ok(CODE.includes(`label: "${w}"`), w);
   assert.equal(WORDS.limitsSay, "Neither the Artist nor an app can spend more than these, even inside what you approved. A day and a month are counted in India time.");
@@ -335,13 +336,14 @@ test("generation: a damaged settings file, in the server's words first; loading,
 test("generation: the Runway key goes nowhere but the one POST", () => {
   // The address bar is touched in two small functions only (Higgsfield's return and its sign-in); neither takes anything typed.
   const bars = [...CODE.matchAll(/function (\w+)\([^)]*\) \{\n([\s\S]*?)\n\}\n/g)].filter((m) => /\b(history|location)\./.test(m[2]));
-  assert.deepEqual(bars.map((m) => m[1]), ["takeReturn", "openHiggsfield"]);
+  assert.deepEqual(bars.map((m) => m[1]), ["takeReturn", "openHiggsfield", "openRunway"]);
   const outside = bars.reduce((c, m) => c.replace(m[0], ""), CODE);
   for (const bad of [/localStorage/, /sessionStorage/, /indexedDB/, /document\.cookie/, /\bhistory\./, /location\./, /\bconsole\./, /caches\./, /postMessage/, /navigator\./]) {
     assert.doesNotMatch(outside, bad, `settings-generation.js does not use ${bad}`);
   }
   for (const m of bars) assert.doesNotMatch(m[2], /typed|rate|draft|key\b/, m[1]);
   assert.match(CODE, /function openHiggsfield\(url\) \{\n  window\.location\.assign\(url\);/);
+  assert.match(CODE, /function openRunway\(url\) \{\n  window\.location\.assign\(url\);\n\}/);
   assert.match(CODE, /type="password" name="runway-key" autocomplete="off"/);
   // The field is only ever filled by the owner's typing, and emptied after Save.
   assert.match(CODE, /value=\$\{typed\}/);
@@ -359,8 +361,8 @@ test("generation: the source names no address but its own /api/ paths, and sets 
   const paths = [...CODE.matchAll(/["'`](\/[^"'`\s]*)/g)].map((m) => m[1]);
   assert.ok(paths.length >= 8, String(paths));
   for (const p of paths) {
-    if (p === "/oauth2/authorize") continue; // the one path of Higgsfield's address that hfSignInUrl checks
-    assert.match(p, /^\/api\/generation(\/(key|key\/remove|switch|caps|models|test|resume|ledger|higgsfield\/(switch|rate|begin|forget|test)))?(\?before=\$\{last\.day\})?$/, p);
+    if (p === "/oauth2/authorize" || p === "/authorize") continue; // the one path of Higgsfield's and Runway's address that the sign-in checks
+    assert.match(p, /^\/api\/generation(\/(key|key\/remove|switch|caps|models|test|resume|ledger|higgsfield\/(switch|rate|begin|forget|test)|runway\/(rate|begin|forget|test)))?(\?before=\$\{last\.day\})?$/, p);
   }
   const hashes = [...CODE.matchAll(/["'`](#[^"'`\s]*)/g)].map((m) => m[1]);
   for (const h of hashes) assert.ok(["#/dashboards/studio?film=${encodeURIComponent(id)}", "#/health", "#${path}${rest"].includes(h), h);
@@ -595,7 +597,7 @@ test("generation: the section's own sheet holds its classes and keeps the page r
 
 test("fix round B2 and R5: the switch's list is the kit's Checklist; the key's Test is the small filled one, Replace and Remove small ghosts of one height; untested is the warn chip; the spent bar is 4 px in the second ink; the limit is the kit's 96 px money input", () => {
   assert.match(CODE, /<\$\{Checklist\} lead=\$\{WORDS\.switchWhen\}/);
-  assert.equal((CODE.match(/size="sm" variant="primary" icon="play" onClick=\$\{runTest\}/g) || []).length, 2, "Test leads, for Runway and for Higgsfield");
+  assert.equal((CODE.match(/size="sm" variant="primary" icon="play" onClick=\$\{runTest\}/g) || []).length, 3, "Test leads, for Runway's key, Runway account and Higgsfield");
   assert.equal((CODE.match(/size="sm" variant="ghost"/g) || []).length >= 3, true);
   assert.match(CODE, /mark\.tone === "wait" \? "warn"/);
   const css = readFileSync(join(PUBLIC, "styles", "pages", "settings-generation.css"), "utf8");
@@ -606,7 +608,212 @@ test("fix round B2 and R5: the switch's list is the kit's Checklist; the key's T
 });
 
 test("fix round R6: a Save with nothing to save is a ghost, never a filled grey slab", () => {
+  assert.equal((CODE.match(/variant=\$\{changed && check\.value !== null \? "primary" : "ghost"\} type="submit"/g) || []).length, 2, "Higgsfield's rate and Runway account's");
   for (const cond of ["filled", "ready", "changed && check.value !== null"]) {
     assert.ok(CODE.includes(`variant=\${${cond} ? "primary" : "ghost"} type="submit"`), cond);
+  }
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Runway account (PLAN-ONBOARD R2)
+
+const RWA = (over = {}) => ({ signedIn: false, refused: false, centsPerCredit: 3, sentence: "Not signed in to Runway.", used: false, ...over });
+const withRw = (a, over = {}) => view({ runwayAccount: RWA(a), ...over });
+
+test("Runway account: the block's words are the plan's, whole, and the server's sentences are the same", () => {
+  assert.deepEqual(RW_WORDS, {
+    title: "Runway account",
+    signedOut: "Not signed in to Runway.",
+    signedIn: "Signed in to Runway.",
+    refused: "Runway asked you to sign in again.",
+    connected: "Runway is connected.",
+    notFinished: "The Runway sign-in did not finish. Try again.",
+    byKey: "Your Runway key is used. The sign-in is the other way in, used when no key is saved.",
+    byAccount: "Your Runway account is used. Prices are in your account's credits, turned into dollars at the rate below.",
+    noWayIn: "Save a Runway key or sign in to Runway first.",
+    library: "What you make this way is saved in your Runway library and spends your Runway account's credits.",
+    terms: "Runway's terms say it may use what you send to train its models unless you have an Enterprise agreement. Do not use Generation for client work you may not share.",
+    rate: "One Runway account credit counts as (cents)",
+    rateHint: "It starts at 3. Change it to match your plan. It turns Runway's credits into cents so every price you read is in dollars, and changing it does not change what you already approved.",
+    rateType: "Type a whole number of cents from 1 to 50, such as 3.",
+    signIn: "Sign in to Runway",
+    signOut: "Sign out of Runway",
+    signOutAsk: "Sign out of Runway?",
+    signOutWhy: "This deletes the sign-in kept on this Mac, and Runway is no longer used this way. Runway gives no way to end it from here, so you can also remove \"uuu engine on this Mac\" in your Runway account.",
+    stay: "Stay signed in",
+    testWhat: "Test asks Runway how many credits your account has. It costs nothing, and works while the switch is off.",
+    signInFirst: "Sign in first, then Test can ask Runway.",
+    waiting: "Waiting for Runway. This can take up to 75 seconds.",
+    badAddress: "Runway's sign-in address was not what was expected, so it was not opened.",
+    notSignedInTest: "Not signed in to Runway.",
+    noAnswer: "Runway did not answer. Try again in a minute.",
+    noCount: "Runway answered, but did not say how many credits your account has.",
+    doorOff: "The generation door is off. Run: engine start",
+    quoted: "While your Runway account is used, these prices are not what it charges: Runway names each job's price in your account's credits when the job is asked for.",
+  });
+  assert.deepEqual([RW_WORDS.signedOut, RW_WORDS.signedIn, RW_WORDS.refused], [RW_SENTENCES.signedOut, RW_SENTENCES.signedIn, RW_SENTENCES.refused]);
+  assert.equal(RW_WORDS.noWayIn, RW_NO_WAY_IN);
+  assert.deepEqual([RW_WORDS.notSignedInTest, RW_WORDS.refused, RW_WORDS.doorOff, RW_WORDS.noAnswer, RW_WORDS.noCount],
+    [RW_TEST_SENTENCES.signed_out, RW_TEST_SENTENCES.refused, RW_TEST_SENTENCES.door_off, RW_TEST_SENTENCES.no_answer, RW_TEST_SENTENCES.no_count]);
+  // No fixed price per model is promised for the sign-in: Runway names each job's price when it is asked.
+  for (const w of Object.values(RW_WORDS)) assert.doesNotMatch(w, /\$\d|a second|a picture/, w);
+  // The two sentences beside the sign-in are drawn always, with no condition around them.
+  assert.match(CODE, /<span class="p-settings-generation__line">\$\{RW_WORDS\.library\}<\/span>/);
+  assert.match(CODE, /warned=\$\{RW_WORDS\.terms\} \/>/);
+  assert.match(CODE, /<span class="p-settings-generation__line">\$\{wayLine\(view\)\}<\/span>/);
+  // Under the key: the Runway group, then the account's, then the limits.
+  assert.ok(CODE.indexOf("<${RunwayGroup}") < CODE.indexOf("<${RunwayAccountGroup}") && CODE.indexOf("<${RunwayAccountGroup}") < CODE.indexOf("<${LimitsGroup}"));
+  // No switch of its own: the group draws none.
+  const group = /function RunwayAccountGroup\([\s\S]*?\n\}\n/.exec(CODE)[0];
+  assert.doesNotMatch(group, /<\$\{Switch\}|\/switch"/);
+});
+
+test("Runway account: its state, its chip, which way is used, and the switch's reason in the server's words", () => {
+  assert.deepEqual(rwState(withRw()), { key: "out", sentence: "Not signed in to Runway." });
+  assert.deepEqual(rwMark(withRw()), { tone: "off", word: "Not signed in" });
+  assert.deepEqual(rwState(withRw({ signedIn: true })), { key: "in", sentence: "Signed in to Runway." });
+  assert.deepEqual(rwMark(withRw({ signedIn: true })), { tone: "ok", word: "Signed in" });
+  assert.deepEqual(rwState(withRw({ refused: true })), { key: "refused", sentence: "Runway asked you to sign in again." });
+  assert.deepEqual(rwMark(withRw({ refused: true })), { tone: "warn", word: "Sign in again" });
+  assert.deepEqual(rwState(view({ runwayAccount: undefined })), { key: "out", sentence: "Not signed in to Runway." }, "an older server");
+  assert.equal(wayLine(withRw({ signedIn: true, used: false }, { key: { saved: true } })), RW_WORDS.byKey);
+  assert.equal(wayLine(withRw({ signedIn: true, used: true })), RW_WORDS.byAccount);
+  assert.equal(wayLine(withRw()), RW_WORDS.noWayIn);
+  // The account is a way in only while it is the one used; then the door can be open with no key.
+  assert.equal(wayIn(withRw({ signedIn: true, used: true })), true);
+  assert.equal(wayIn(withRw({ signedIn: true, used: "yes" })), false);
+  assert.equal(isOpen(ready({ key: { saved: false }, runwayAccount: RWA({ signedIn: true, used: true }) })), true);
+  assert.equal(isOpen(ready({ key: { saved: false } })), false);
+  assert.deepEqual(statusLine(ready({ key: { saved: false }, runwayAccount: RWA({ signedIn: true, used: true }) })), { tone: "good", text: "On, within your limits" });
+  // The switch's reason: the new sentence only when the server sends it; else today's.
+  assert.deepEqual(blockerLines(view({ whyNot: RW_NO_WAY_IN })), [RW_NO_WAY_IN]);
+  assert.deepEqual(blockerLines(view({ whyNot: "Something <b>else</b>" })), ["Paste your Runway key first."]);
+});
+
+test("Runway account: the sign-in address is opened only when it is Runway's own sign-in page", () => {
+  const S = `https:${"/"}${"/"}`;
+  const H = "mcp.runwayml.com";
+  const A = `${S}${H}/authorize`;
+  assert.equal(RW_AUTHORIZE, `${A}?`);
+  const good = `${A}?response_type=code&client_id=abc&state=${"a".repeat(64)}`;
+  assert.equal(rwSignInUrl(good), good);
+  for (const bad of [
+    null, undefined, 5, "", A, `http:${"/"}${"/"}${H}/authorize?x=1`, `${S}${H}.evil.test/authorize?x=1`, `${S}${H}@evil.test/authorize?x=1`,
+    `${S}evil.test/${S}${H}/authorize?x=1`, `${S}${H}/token?x=1`, `${S}${H}:8443/authorize?x=1`, "javascript:alert(1)", ` ${A}?x=1`,
+    `${A}?x=1 y`, `${A}?x=1\n`, `${good}${"a".repeat(5000)}`, `${S}user:pw@${H}/authorize?x=1`, `${S}dev.runwayml.com/authorize?x=1`,
+    `${S}mcp.higgsfield.ai/oauth2/authorize?x=1`,
+  ]) assert.equal(rwSignInUrl(bad), null, String(bad).slice(0, 80));
+  assert.match(CODE, /const url = rwSignInUrl\(obj\(answer\) \? answer\.url : null\);[\s\S]*?openRunway\(url\);/);
+});
+
+test("Runway account: the return is read once and taken out of the address; Higgsfield's words are its own", () => {
+  assert.equal(rwReturnOf("#/settings?s=generation&generation=runway-connected"), "connected");
+  assert.equal(rwReturnOf("#/settings?generation=runway-failed"), "failed");
+  assert.equal(rwReturnOf("#/settings?generation=connected"), null, "Higgsfield's");
+  assert.equal(rwReturnOf("#/tasks?generation=runway-connected"), null, "only on Settings");
+  assert.equal(rwReturnOf(""), null);
+  assert.equal(hfReturnOf("#/settings?generation=runway-connected"), null);
+  assert.equal(hashWithoutReturn("#/settings?s=generation&generation=runway-failed"), "#/settings?s=generation");
+});
+
+test("Runway account: the rate, and Test's answer in words", () => {
+  for (const [t, v] of [["3", 3], ["1", 1], ["50", 50]]) assert.deepEqual(rwRateCheck(t), { value: v, error: "" }, t);
+  for (const bad of ["", "0", "51", "2.5", "abc", null]) assert.deepEqual(rwRateCheck(bad), { value: null, error: RW_WORDS.rateType }, String(bad));
+  assert.deepEqual(rwTestResult({ ok: true, credits: 1200, sentence: "Runway says your account has 1200 credits." }),
+    { tone: "ok", word: "Works", sentence: "Runway says your account has 1,200 credits." });
+  assert.equal(rwTestResult({ ok: true, credits: 1 }).sentence, "Runway says your account has 1 credit.");
+  assert.deepEqual(rwTestResult({ ok: true, credits: null }), { tone: "ok", word: "Works", sentence: RW_WORDS.noCount });
+  assert.equal(rwTestResult({ ok: false, sentence: RW_WORDS.notSignedInTest }).word, "Not signed in");
+  assert.equal(rwTestResult({ ok: false, sentence: RW_WORDS.refused }).word, "Sign in again");
+  assert.equal(rwTestResult({ ok: false, sentence: RW_WORDS.doorOff }).word, "Door off");
+  assert.deepEqual(rwTestResult({ ok: false, sentence: "<img src=x onerror=1>" }), { tone: "warn", word: "No answer", sentence: RW_WORDS.noAnswer }, "unknown words are not shown");
+  assert.equal(rwTestResult(null).word, "No answer");
+});
+
+// Mounted in the test DOM with a fake fetch that records every request: the block's buttons post to its own four
+// paths only, and the money and safety sentences are each one whole text node.
+test("Runway account (mounted): Sign in, Test, Sign out and Save post to their own paths only; the whole sentences are single text nodes", async () => {
+  const { pathToFileURL } = await import("node:url");
+  const D = await import("../kit/_dom.mjs");
+  const { AppContext } = await import(pathToFileURL(join(PUBLIC, "lib", "context.js")).href);
+  const settle = (ms = 200) => new Promise((r) => setTimeout(r, ms));
+  const fire = (el, type, extra = {}) => {
+    const key = Object.keys(el.listeners).find((k) => k.toLowerCase() === type);
+    assert.ok(key, `${el.localName} listens for ${type}`);
+    const ev = { type: key, target: el, currentTarget: el, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, stopPropagation() {}, ...extra };
+    for (const f of el.listeners[key]) f.call(el, ev);
+  };
+  const buttons = (root, words) => D.elements(root).filter((e) => e.localName === "button" && D.textOf(e).trim() === words);
+  const texts = (root) => [...D.walkDom(root)].filter((n) => n.nodeType === 3).map((n) => n.data);
+  const signedIn = view({ door: { state: "on", sentence: DOOR_SENTENCES.on }, runwayAccount: RWA({ signedIn: true, used: true, sentence: "Signed in to Runway." }) });
+  const signedOut = view({ door: { state: "on", sentence: DOOR_SENTENCES.on }, whyNot: RW_NO_WAY_IN });
+  let served = signedIn;
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  const assigned = [];
+  D.installDom();
+  globalThis.window = globalThis;
+  globalThis.location = { hash: "#/settings?s=generation", pathname: "/", search: "", replace() {}, assign(u) { assigned.push(u); } };
+  globalThis.history = { state: null, replaceState() {} };
+  globalThis.fetch = async (path, opts = {}) => {
+    calls.push({ path, method: opts.method || "GET", body: opts.body === undefined ? undefined : String(opts.body) });
+    let body = { days: [], more: false, ok: true };
+    if (path === "/api/generation") body = served;
+    if (path === "/api/generation/runway/test") body = { ok: true, credits: 42, sentence: "Runway says your account has 42 credits." };
+    if (path === "/api/generation/runway/forget") body = signedOut;
+    if (path === "/api/generation/runway/rate") body = { ...served, runwayAccount: { ...served.runwayAccount, centsPerCredit: 4 } };
+    if (path === "/api/generation/runway/begin") body = { url: `${RW_AUTHORIZE}response_type=code` };
+    return { ok: true, status: 200, json: async () => body };
+  };
+  const said = [];
+  const root = new D.FakeElement("div");
+  globalThis.document.body.appendChild(root);
+  try {
+    D.render(D.html`<${AppContext.Provider} value=${{ announce: (s) => said.push(s), setTop() {} }}><${Section} /><//>`, root);
+    await settle();
+    const nodes = texts(root);
+    for (const s of [RW_WORDS.library, RW_WORDS.terms, RW_WORDS.byAccount, RW_WORDS.rateHint, RW_WORDS.quoted, RW_WORDS.testWhat, WORDS.sent]) {
+      assert.ok(nodes.includes(s), `one whole text node: ${s.slice(0, 50)}`);
+    }
+    assert.ok(D.elements(root).some((e) => e.getAttribute("id") === "settings-runway-account"));
+    // Test.
+    const tests = buttons(root, "Test");
+    assert.equal(tests.length, 1, "only the account's Test while no key is saved");
+    fire(tests[0], "click");
+    await settle();
+    assert.ok(said.includes("Runway says your account has 42 credits."));
+    // The rate.
+    const field = D.elements(root).find((e) => e.getAttribute("name") === "rw-rate");
+    fire(field, "input", { currentTarget: { value: "4" } });
+    await settle(50);
+    const form = D.elements(root).find((e) => e.localName === "form" && e.getAttribute("id") === null && D.elements(e).includes(field));
+    fire(form, "submit");
+    await settle();
+    // Sign out, behind its question.
+    fire(buttons(root, RW_WORDS.signOut)[0], "click");
+    await settle(50);
+    assert.ok(texts(root).includes(RW_WORDS.signOutWhy), "the sign-out question says the whole sentence");
+    const outs = buttons(root, RW_WORDS.signOut);
+    fire(outs[outs.length - 1], "click");
+    await settle();
+    // Signed out now: Sign in goes to Runway's own page only.
+    served = signedOut;
+    fire(buttons(root, RW_WORDS.signIn)[0], "click");
+    await settle();
+    assert.deepEqual(assigned, [`${RW_AUTHORIZE}response_type=code`]);
+    const posts = calls.filter((c) => c.method !== "GET");
+    assert.deepEqual(posts.map((c) => [c.path, c.body]), [
+      ["/api/generation/runway/test", "{}"],
+      ["/api/generation/runway/rate", '{"centsPerCredit":4}'],
+      ["/api/generation/runway/forget", "{}"],
+      ["/api/generation/runway/begin", "{}"],
+    ]);
+    for (const c of calls) assert.match(c.path, /^\/api\/generation(\/ledger|\/runway\/(test|rate|forget|begin))?$/, c.path);
+  } finally {
+    D.render(null, root);
+    root.remove();
+    globalThis.fetch = realFetch;
+    delete globalThis.window;
+    delete globalThis.history;
   }
 });

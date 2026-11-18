@@ -299,6 +299,15 @@
   margin: 0;
 }
 
+/* Runway account (PLAN-ONBOARD R2): the return's notice sits flush, as Higgsfield's does; its sentences wrap whole. */
+.p-settings-generation .p-settings-generation__rw .k-group__body > .k-notice {
+  margin: 0;
+}
+
+.p-settings-generation .p-settings-generation__rw .p-settings-generation__line {
+  overflow-wrap: break-word;
+}
+
 /* ---- Models, films and every job: the kit's tables on the ground and on a card */
 
 .p-settings-generation .p-settings-generation__models .k-table__table th:first-child {

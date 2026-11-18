@@ -337,7 +337,7 @@ test("PLAN-3D-ALL U4: the exports the Map's door panel imports keep their names 
     "settings-web.js": { WORDS: "ba004ce815ea9d6e", switchLine: "0bb9ca2809a95851", blockerLines: "746191055b47be4e", plain: "6ad44b18886a2440" },
     "settings-generation.js": {
       WORDS: "d8644411989b4c00", HF_WORDS: "2a439c338b2bcd1e", CAPS: "1aeb83dedb2b0cc5", switchLine: "0bb9ca2809a95851",
-      blockerLines: "113caf3af99c3bc9", hfSwitchLine: "d46364c977d9a71f", plain: "0faa9104a03766cf", spentLine: "37b3bdff3fd2c919",
+      blockerLines: "de8cd23f7c8a2655", hfSwitchLine: "d46364c977d9a71f", plain: "0faa9104a03766cf", spentLine: "37b3bdff3fd2c919",
       leftLine: "b5719dd393547343", capsLines: "6b6bf86e8dedde9f", pausedLine: "65c998974da9fcfe", ledgerLine: "51df56d460280a7a",
       runningLine: "c65b93b3daa5a5be",
     },

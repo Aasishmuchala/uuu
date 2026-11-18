@@ -15,7 +15,7 @@ import {
 import { randomBytes } from "node:crypto";
 import http from "node:http";
 import { dirname, join } from "node:path";
-import { DOORS_DEFAULTS, readDoorsState } from "../../../doors/common.mjs";
+import { DOORS_DEFAULTS, RW_ACCOUNT_DEFAULTS, readDoorsState, runwayAccountBlock, rwRateOk } from "../../../doors/common.mjs";
 import { readSecret, trusted } from "../../../relay/state.mjs";
 import { mintToken } from "../../../relay/token.mjs";
 import { HOST_RE } from "../../../web/address.mjs";
@@ -41,6 +41,8 @@ export const HF_DEFAULTS = Object.freeze({ on: false, centsPerCredit: 5 });
 export const HF_RATE_MIN = 1;
 export const HF_RATE_MAX = 50;
 export const hfRateOk = (v) => Number.isInteger(v) && v >= HF_RATE_MIN && v <= HF_RATE_MAX;
+// The owner's rate for a Runway account credit (PLAN-ONBOARD R2): the doors' own rule, so the door and this agree.
+export { RW_ACCOUNT_DEFAULTS, rwRateOk } from "../../../doors/common.mjs";
 // Each key by its fixed name: the file it lives in and what a key of that name looks like. The search key is
 // what engine/web/search.mjs accepts; the Runway key is what engine/generate/runway.mjs accepts.
 const KEYS = Object.freeze({
@@ -123,6 +125,8 @@ function pausedValue(v) {
 // `generate.resumedAt` (the owner's "Start again") is kept when it is a time; the doors' readers ignore it
 // except the generation door, which reads it itself. `generate.higgsfield` is kept as { on, centsPerCredit } (missing:
 // off at 5 cents a credit); a block with another key or a value of the wrong kind is not one the home server writes.
+// `generate.runwayAccount` (PLAN-ONBOARD R2) is kept as { centsPerCredit } only when it is there (the rate route puts it
+// there; missing reads as 3 cents a credit); another key or a rate outside 1 to 50 is not one the home server writes.
 export function checkDoors(s) {
   if (!obj(s) || !obj(s.web) || !obj(s.generate) || !obj(s.viewer)) return null;
   const w = s.web;
@@ -146,11 +150,14 @@ export function checkDoors(s) {
   if (!obj(h) || Object.keys(h).some((k) => k !== "on" && k !== "centsPerCredit")) return null;
   if (h.on !== undefined && typeof h.on !== "boolean") return null;
   if (h.centsPerCredit !== undefined && !hfRateOk(h.centsPerCredit)) return null;
+  const rw = g.runwayAccount === undefined || g.runwayAccount === null ? null : runwayAccountBlock(g.runwayAccount);
+  if (g.runwayAccount !== undefined && g.runwayAccount !== null && rw === null) return null;
   const generate = {
     on: g.on, dailyCredits: g.dailyCredits, monthlyCredits: g.monthlyCredits, autoUnderCredits: g.autoUnderCredits,
     paused: pausedValue(g.paused), models,
     higgsfield: { on: h.on === true, centsPerCredit: h.centsPerCredit === undefined ? HF_DEFAULTS.centsPerCredit : h.centsPerCredit },
   };
+  if (rw) generate.runwayAccount = rw;
   if (typeof g.resumedAt === "string" && ISO_TIME.test(g.resumedAt) && Number.isFinite(Date.parse(g.resumedAt))) generate.resumedAt = g.resumedAt;
   return {
     version: 1,
@@ -191,6 +198,40 @@ export function readTrustedText(path, max = RAW_MAX) {
   }
 }
 
+const STATUS_MAX_BYTES = 256 * 1024;
+
+// Whether the generation door is signed in to a service (`higgsfield` or `runway`): { signedIn, refused, known }. Its
+// status file (read with the trust rule) says both; its health, when it answers, says now whether it is signed in.
+// Neither: signed out. `known` is whether the door says anything about that service at all (a door from before its
+// sign-in does not). The home server never opens a token file: this is all it knows.
+export function doorAuthOf(config, name, health = null) {
+  let d = null;
+  try {
+    const text = readTrustedText(config.paths.generateStatus, STATUS_MAX_BYTES);
+    d = typeof text === "string" && text !== "missing" ? JSON.parse(text) : null;
+  } catch { d = null; }
+  const inFile = obj(d) && obj(d[name]);
+  const inHealth = obj(health) && typeof health[name] === "boolean";
+  const h = inFile ? d[name] : {};
+  const refused = h.refused === true;
+  let signedIn = !refused && h.signedIn === true;
+  if (inHealth) signedIn = health[name] && !refused;
+  return { signedIn, refused: refused && !signedIn, known: inFile || inHealth };
+}
+
+// The owner's Runway account rate (cents a credit) when the door's jobs go by the sign-in: no Runway key saved and
+// the door signed in (R-5; the key first). Null when they go by the key or there is no way in. The approval cards,
+// the batches and the still jobs price a Runway model at its account row's ceiling at this rate then, as the door
+// holds it (R5, finding 3). Never throws.
+export function accountRateNow(config, health = null) {
+  try {
+    if (doorKeySaved(config, "runway") === true) return null;
+    if (!doorAuthOf(config, "runway", health).signedIn) return null;
+    const ra = readDoors(config).state.generate.runwayAccount;
+    return obj(ra) && rwRateOk(ra.centsPerCredit) ? ra.centsPerCredit : RW_ACCOUNT_DEFAULTS.centsPerCredit;
+  } catch { return null; }
+}
+
 // readDoors(config) -> { state, problem, missing }. `state` is the file's, checked; a missing file is every door
 // off (problem null); a file the doors would not trust, or one holding anything the home server never writes, is
 // every door off with problem "state_unreadable" (the next save writes a fresh file).
@@ -209,6 +250,7 @@ export function readDoors(config) {
   };
   if (obj(raw.generate) && raw.generate.resumedAt !== undefined) merged.generate.resumedAt = raw.generate.resumedAt;
   if (obj(raw.generate) && raw.generate.higgsfield !== undefined) merged.generate.higgsfield = raw.generate.higgsfield;
+  if (obj(raw.generate) && raw.generate.runwayAccount !== undefined) merged.generate.runwayAccount = raw.generate.runwayAccount;
   const state = checkDoors(merged);
   if (!state) return { state: freshDoors(), problem: "state_unreadable", missing: false };
   return { state, problem: null, missing: false };

@@ -66,6 +66,8 @@ SANDBOX_TMP_MADE=""; SANDBOX_TMP_WAS=""; [[ -e /private/tmp/claude || -L /privat
 # missing, and removed again on every exit).
 APPS_DIR="$CFG_APPS"; APPS_RUN="$CFG_APPS_RUN"; ALLOWANCES="$STATE_DIR/doors/allowances"
 HF_SIGN_IN="$STATE_DIR/secrets/doors/higgsfield-oauth.json"; MADE_APPS_DIRS=""
+# The Runway sign-in (ADR 0021): the door's own token file, beside the key, hidden from every agent and app.
+RW_SIGN_IN="$STATE_DIR/secrets/doors/runway-oauth.json"
 
 cleanup() {
   rm -f "$POLICY_FILE" "$LESSONS_FILE" "$KNOWLEDGE_MARK" "$KNOWLEDGE/.fence-proof-write" "$ENV_FILE"
@@ -1277,7 +1279,8 @@ app_studio_checks() {
     [[ -f "$ALLOWANCES/$slug.json" ]] && cmd="$cmd || cat $ALLOWANCES/$slug.json >/dev/null"
   done <<< "$apps"
   [[ -f "$HF_SIGN_IN" ]] && cmd="$cmd || cat $HF_SIGN_IN >/dev/null"
-  blocked "read an app's data, the allowances or the Higgsfield sign-in" "$cmd"
+  [[ -f "$RW_SIGN_IN" ]] && cmd="$cmd || cat $RW_SIGN_IN >/dev/null"
+  blocked "read an app's data, the allowances or the Higgsfield or Runway sign-in" "$cmd"
 }
 # Every other fence the proof runs, each as itself where it has a policy: the proof's own Claude and
 # Codex agents (no policy), the Artist, the Builder, the Art director and the Checker. (The Researcher's
@@ -1340,6 +1343,10 @@ artist_checks() {
   if (( ok )); then
     blocked "read the Runway key" \
       "cat $DOOR_SECRETS/runway-key >/dev/null || cat $DOOR_SECRETS/.fence-proof >/dev/null || ls $DOOR_SECRETS >/dev/null"
+    # The Runway sign-in's token file (ADR 0021): the real one when there is one, and the mark beside it, so the
+    # check means something before the owner ever signs in. The proof never writes a file of that name.
+    blocked "read the Runway sign-in" \
+      "cat $RW_SIGN_IN >/dev/null || cat $DOOR_SECRETS/.fence-proof >/dev/null || ls $DOOR_SECRETS >/dev/null"
     cmd="cat $DOORS_DIR/generate-ledger.jsonl >/dev/null || cat $DOORS_DIR/.fence-proof >/dev/null || ls $DOORS_DIR >/dev/null || ls $DOORS_DIR/batches >/dev/null || ls $DOORS_DIR/work/gen >/dev/null || ls $DOORS_DIR/work/gen/jobs >/dev/null"
     for d in "$DOORS_DIR"/generate-ledger*.jsonl "$DOORS_DIR"/batches/*.json; do
       [[ -f "$d" && ! -L "$d" ]] && cmd="$cmd || cat $d >/dev/null"

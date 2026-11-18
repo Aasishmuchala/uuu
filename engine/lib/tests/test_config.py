@@ -70,7 +70,7 @@ class ConfigTest(unittest.TestCase):
                 "doorSecrets webSecret generateSecret viewerSecret runwayKey searchKey webVisits ledger "
                 "batches doorWork webStatus generateStatus viewerStatus "
                 "brainSecret brainStatus brainAsks brainDir brainIndex brainNotes "
-                "appsCode apps appsState appsStatus appsRun appsLogs allowances higgsfieldAuth").split()
+                "appsCode apps appsState appsStatus appsRun appsLogs allowances higgsfieldAuth runwayAuth").split()
         paths = config.load_config()["paths"]
         self.assertEqual(sorted(paths), sorted(keys))
         s = paths["state"]
@@ -91,7 +91,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(paths["sharedBrain"], j(s, "knowledge", "shared"))
         self.assertEqual(paths["ledger"], j(s, "doors", "generate-ledger.jsonl"))
         self.assertEqual(paths["viewerStatus"], j(s, "doors", "viewer-status.json"))
-        self.assertEqual(c["doors"], {"web": {"agents": ["researcher"]}, "generate": {"agents": ["artist"], "apps": ["render-to-film"]},
+        self.assertEqual(c["doors"], {"web": {"agents": ["researcher"]}, "generate": {"agents": ["artist"], "apps": ["render-to-film", "arch-film-studio"]},
                                       "viewer": {"agents": ["builder", "art-director"]},
                                       "brain": {"agents": BRAIN_AGENTS, "records": BRAIN_RECORDS}})
         self.assertEqual(c["fence"]["policyPortsAllowed"], [8120])
@@ -183,9 +183,10 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(c["paths"]["appsCode"], os.path.normpath(j(config.ENGINE_DIR, "..", "apps")))
         for k, rel in (("apps", "apps"), ("appsState", "apps/state.json"), ("appsStatus", "apps/host-status.json"),
                        ("appsRun", "run/apps"), ("appsLogs", "logs/apps"), ("allowances", "doors/allowances"),
-                       ("higgsfieldAuth", "secrets/doors/higgsfield-oauth.json")):
+                       ("higgsfieldAuth", "secrets/doors/higgsfield-oauth.json"),
+                       ("runwayAuth", "secrets/doors/runway-oauth.json")):
             self.assertEqual(c["paths"][k], j(s, *rel.split("/")), k)
-        self.assertEqual(c["doors"]["generate"]["apps"], ["render-to-film"])
+        self.assertEqual(c["doors"]["generate"]["apps"], ["render-to-film", "arch-film-studio"])
         none = real_cfg()
         del none["doors"]["generate"]["apps"]
         d = config.load_config(self.write("na.json", none))["doors"]

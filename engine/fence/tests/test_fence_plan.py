@@ -147,6 +147,23 @@ class PlanTests(unittest.TestCase):
         self.refused(self.inputs(policy=self.policy(readFolders=[os.path.join(self.S, "secrets")])),
                      "policy for agent bookkeeper")
 
+    def test_runway_sign_in_hidden(self):
+        # The generation door's Runway sign-in (ADR 0021) sits beside the key in secrets/doors: under the
+        # home folder every fence hides, never in what it lets an agent read, and never shared by name.
+        doors = os.path.join(self.S, "secrets", "doors")
+        os.makedirs(doors)
+        token = os.path.join(doors, "runway-oauth.json")
+        with open(token, "w") as fh:
+            fh.write("{}")
+        docs = os.path.join(self.S, "knowledge", "docs")
+        fs = plan(self.inputs(policy=self.policy(readFolders=[docs])))["filesystem"]
+        under = lambda p, roots: any(p == r or p.startswith(r + os.sep) for r in roots)
+        self.assertTrue(under(token, fs["denyRead"]))
+        self.assertFalse(under(token, fs["allowRead"] + fs["allowWrite"]))
+        for bad in (token, doors):
+            self.refused(self.inputs(policy=self.policy(readFolders=[bad])), "policy for agent bookkeeper")
+            self.refused(self.inputs(extraRead=[bad]))
+
     def test_media_folder_read_only(self):
         media = os.path.join(self.S, "media")
         os.makedirs(media)

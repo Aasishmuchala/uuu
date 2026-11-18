@@ -220,3 +220,14 @@ test("the repo's own Render to Film manifest is good, on port 3171", { skip: exi
   assert.equal(rtf.app.port, 3171);
   assert.deepEqual(rtf.app.engine, ["generate", "relay"]);
 });
+
+test("the repo's own Arch Film Studio manifest is good, on port 3172", { skip: existsSync(join(HERE, "..", "..", "..", "apps", "arch-film-studio", "app.json")) ? false : "no apps/arch-film-studio in this checkout" }, () => {
+  const cfg = loadConfig({ path: join(HERE, "..", "..", "config.json") });
+  const entries = readManifests(cfg);
+  const afs = entries.find((e) => e.ok && e.app.slug === "arch-film-studio");
+  assert.ok(afs, "arch-film-studio is listed and good");
+  assert.equal(afs.app.port, 3172);
+  assert.deepEqual(afs.app.engine, ["generate", "relay"]);
+  const rtf = entries.find((e) => e.ok && e.app.slug === "render-to-film");
+  if (rtf) assert.notEqual(afs.app.port, rtf.app.port, "the two apps do not share a port");
+});

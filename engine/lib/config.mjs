@@ -202,6 +202,7 @@ export function loadConfig({ path } = {}) {
     appsLogs: join(s, "logs", "apps"),
     allowances: join(s, "doors", "allowances"),
     higgsfieldAuth: join(s, "secrets", "doors", "higgsfield-oauth.json"),
+    runwayAuth: join(s, "secrets", "doors", "runway-oauth.json"),
   };
   return out;
 }

@@ -282,7 +282,7 @@ test("app mounted: the allowance sheet: K23's words, four amounts with those ove
 test("app mounted: a refused allowance stays in the sheet; Esc and Cancel close it; Stop spending posts", async () => {
   let current = view([app({ spending: NOSPEND })]);
   const m = await mount((path, method) => {
-    if (method === "POST" && path.endsWith("/allowance")) return { status: 409, body: { error: { message: "Nothing can be made yet.", next: "Add a Runway key or sign in to Higgsfield in Settings first.", code: "no_provider" } } };
+    if (method === "POST" && path.endsWith("/allowance")) return { status: 409, body: { error: { message: "Nothing can be made yet.", next: "Add a Runway key, or sign in to Runway or Higgsfield, in Settings first.", code: "no_provider" } } };
     if (method === "POST" && path.endsWith("/allowance/stop")) { current = view([app({ spending: NOSPEND })]); return { status: 200, body: current }; }
     return { status: 200, body: current };
   });
@@ -294,7 +294,7 @@ test("app mounted: a refused allowance stays in the sheet; Esc and Cancel close 
     await settle();
     dialog = elements(m.root).find((e) => e.getAttribute("role") === "dialog");
     assert.ok(dialog, "still open");
-    assert.match(textOf(dialog), /Nothing can be made yet\.Add a Runway key or sign in to Higgsfield in Settings first\./);
+    assert.match(textOf(dialog), /Nothing can be made yet\.Add a Runway key, or sign in to Runway or Higgsfield, in Settings first\./);
     fire(dialog, "keydown", { key: "Escape" });
     await settle();
     assert.equal(elements(m.root).filter((e) => e.getAttribute("role") === "dialog").length, 0, "Esc closes the sheet");

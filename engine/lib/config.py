@@ -215,6 +215,7 @@ def load_config(path=None):
         "appsLogs": j(s, "logs", "apps"),
         "allowances": j(s, "doors", "allowances"),
         "higgsfieldAuth": j(s, "secrets", "doors", "higgsfield-oauth.json"),
+        "runwayAuth": j(s, "secrets", "doors", "runway-oauth.json"),
     }
     return cfg
 

@@ -285,6 +285,27 @@ If Runway refuses. Runway can refuse a picture or a prompt on safety grounds, an
 
 Switch it off. Turn off "Let the Artist use Runway". The page says "Off. Nothing is sent to Runway." The next call is refused at once. A job already at Runway is still counted.
 
+### Signing in to Runway instead of a key
+
+You can use your own Runway account and its credits, with no developer key. Runway's own sign-in is used. Nothing is sent to Runway while Generation is off.
+
+1. Open Settings, then Generation, and find "Runway account".
+2. Read the two sentences that are always shown there: "What you make this way is saved in your Runway library and spends your Runway account's credits." and "Runway's terms say it may use what you send to train its models unless you have an Enterprise agreement. Do not use Generation for client work you may not share."
+3. Press "Sign in to Runway". Runway's own page opens in the same tab. Sign in there and say yes. Runway calls the engine "uuu engine on this Mac" and marks it "Unverified MCP client"; that is true, and it is the engine. You come back to Settings, which says "Runway is connected." If it says "The Runway sign-in did not finish. Try again.", press the button again. You never type a password or a key into the engine.
+4. Set the rate, "One Runway account credit counts as (cents)", a whole number from 1 to 50. It starts at 3. Change it to match your plan. It turns Runway's credits into cents so every price you read is in dollars, and changing it does not change what you already approved.
+5. Press "Test". It asks Runway for your balance, costs nothing and works while the switch is off. It may show your plan and not a number of credits.
+6. Turn on "Let the Artist use Runway". It is the same switch as for a key, and it may now be switched on with a saved key or a sign-in. If neither exists it says "Save a Runway key or sign in to Runway first."
+
+Which way is used. Settings always says. With a key saved, your Runway key is used, as before. The sign-in is the other way in, used only when no key is saved. No agent and no app can choose between them.
+
+What it costs. There is no price list for the sign-in. The price of each job is Runway's own quote. The engine asks Runway, turns the quote into dollars at your rate, and checks it against the daily and monthly limits, your approved batch or the app's allowance. Only then does it agree. If a limit does not allow it, nothing is agreed and nothing is spent. The same two limits, the same pause and the same record of spending apply as with a key. If Runway's first answer to a request is not a quote, the engine refuses it and agrees to nothing.
+
+What is not known yet. Nobody has yet shown that every request that has not been approved gets a quote first; this was not tested because testing could spend money. Until it is proven, the engine treats it as unsafe, as said above. Pictures cannot be sent to Runway this way yet, because the address that takes them is not known and is learned only from a real upload, so a job that starts from a picture is refused when it goes by sign-in. Your credits left may show as a plan and not a number.
+
+Signing out. "Sign out of Runway" deletes only the sign-in kept on this Mac. It does not cancel it at Runway. To do that, open your Runway account and remove "uuu engine on this Mac". Without that, the sign-in at Runway stays valid until it runs out, about 30 days. If Settings says "Runway asked you to sign in again.", the sign-in ran out; press "Sign in to Runway" again. After a sign-out with no key, the switch can stay on; nothing is sent.
+
+The decision and why: `docs/adr/0021-runway-by-sign-in-through-the-same-door.md`.
+
 ## Making a film: what it costs and how you approve it
 
 A film is made from your own renders. Start it from Jobs, in Studio: "A film from your renders". It asks which renders in the room, in order (two to twelve), how long (15, 30 or 45 seconds), the one thing it should say, and whether a shot may be made from words alone with no render (the answer starts at No). You may also name research notes to learn from.
@@ -381,7 +402,7 @@ Known limits. There are no WebSockets or cookies in an app, and a plain form pos
 
 Render to Film turns a render into cinematic stills, clips and a finished film. It was your app on Runway's own platform. It now runs here, with no Runway sign-in, no Runway credits and no Runway storage. It has seven tabs: Director (plans a film), Stills, Video, Close-ups, Location, Edit and Library.
 
-Prices come before each button. Every button that spends shows its price before you click it, for example "About $0.40". It comes from the engine's own table, so it needs no network. A price the table does not have says "Price unknown", and nothing is made. A button is off with "Allow spending in the bar above." while no allowance is open. If a service is not ready, the button says which: "Needs a Runway key. Add it in Settings on the home screen." or "Needs Higgsfield. Switch it on and sign in from Settings on the home screen.". The header chip repeats what the bar above says.
+Prices come before each button. Every button that spends shows its price before you click it, for example "About $0.40". It comes from the engine's own table, so it needs no network. A price the table does not have says "Price unknown", and nothing is made. A button is off with "Allow spending in the bar above." while no allowance is open. If a service is not ready, the button says which: "Needs Runway. Add a Runway key or sign in to Runway in Settings on the home screen." or "Needs Higgsfield. Switch it on and sign in from Settings on the home screen.". The header chip repeats what the bar above says.
 
 Which service makes what.
 
@@ -398,6 +419,28 @@ What it cannot do yet. These are said on the screen, in plain words, where they 
 - **Small things known:** the Edit tab's caption can read "8s" for a film of 7.5 seconds with fades; a label can still read "Reviewed by Claude Opus 5.5" though the model is the one you picked; and one error on saving to the library still says "Runway account".
 
 The Artist knows Render to Film's recipes, as words, in a playbook. It never opens the app and cannot spend what the app can: it makes clips and pictures only inside a batch you approved (see "Making a film").
+
+## Arch Film Studio
+
+Arch Film Studio turns a whole project of architectural renders into photoreal 4K stills, a storyboard and a film. It is your second app in App Studio. It works in six stages: Upload (drop all your renders at once), Enhance (a photoreal version of each, kept faithful to the render), Review (compare, then approve, reject or ask for a revision), 4K masters (the approved picture made 4K and locked), Storyboard (a shot list written from your masters and a short brief) and Film (the approved clips joined in order).
+
+It is off until you press "Turn on" in App Studio, and it cannot spend anything until you open an allowance in the bar above. Nothing is switched on for you. Its address, once it is on, is `http://127.0.0.1:3172/`.
+
+What each stage costs, in kind.
+
+- **Analysing a render and writing the storyboard** use the app's thinking, through your model provider. They make no charge of their own.
+- **Enhance, 4K masters and clips** show a price before each button, from the engine's own table, for example "About $0.40". A price the table does not have says "Price unknown", and nothing is made. A button is off with "Allow spending in the bar above." while no allowance is open. A master made from a picture already at full size costs nothing and says so.
+- **The film** is made on this Mac by ffmpeg inside the fence. It costs nothing.
+
+There is no music yet. The engine's generation door has no audio model, so films are silent. The storyboard's music direction is kept as words.
+
+Where it came from. It arrived as a zip that held a contract (the shapes of a project and the prompts for each stage) and a picture of the six stages, with no working pipeline behind it. The six stages were built here on that contract, on the same engine rules as Render to Film. Nothing was downloaded to build it: its packages are a copy of Render to Film's.
+
+Where its files live: the program in `apps/arch-film-studio/` in the repository; its packages, data and scratch folders in `~/.paperclip/uuu-engine/apps/arch-film-studio/`.
+
+How it differs from Render to Film. Arch Film Studio is the strict, step-by-step line for a whole project of renders: each picture is reviewed and approved before the next stage, and a locked master never changes. Render to Film is the creative studio for one render at a time, with more models and freer direction.
+
+The decision and why: `docs/adr/0022-a-second-app-built-on-a-contract.md`.
 
 ## Connecting Higgsfield
 
@@ -506,7 +549,7 @@ None of these is built or running. Each is a choice for later. Settings lists th
 - The brand kit: `~/.paperclip/uuu-engine/knowledge/docs/brand/kit.json`, with `kit.css`, `brand.md`, your fonts in `fonts/` and the taste file `taste.md` beside it. Only the home server writes them. The brand's short public summary is `knowledge/shared/brand-public.md`.
 - Omega Plus settings: `~/.paperclip/uuu-engine/models/state.json` (the mode, the picks, the last list of models) and `relay-status.json` beside it (what the model relay has seen). The key is `secrets/provider/omega-key` and the relay's own secret is `secrets/provider/relay-secret`. Agents cannot reach any of them.
 - The web door's switches and lists: `~/.paperclip/uuu-engine/doors/state.json`, and what it opened: `doors/web-visits.jsonl`, with `web-status.json` beside it. A Brave search key, if you add one, is `secrets/doors/search-key`. Agents cannot reach any of them.
-- Generation: the switch, the limits and the models are in `~/.paperclip/uuu-engine/doors/state.json` beside the web door's, with Higgsfield's switch and its cents per credit. The Runway key is `secrets/doors/runway-key`. The Higgsfield sign-in is a file in `secrets/doors/`, named `higgsfield-oauth.json`; only the generation door reads or writes it, and it is never shown here. Agents cannot reach any of them.
+- Generation: the switch, the limits and the models are in `~/.paperclip/uuu-engine/doors/state.json` beside the web door's, with Higgsfield's switch and its cents per credit. The Runway key is `secrets/doors/runway-key`. The Higgsfield sign-in is a file in `secrets/doors/`, named `higgsfield-oauth.json`; only the generation door reads or writes it, and it is never shown here. The Runway sign-in is the same kind of file, `secrets/doors/runway-oauth.json`, and the rate for it is in the same `doors/state.json`. Agents cannot reach any of them.
 - Apps: their programs are in `apps/` in the repository, one folder each. Each app's packages, data and scratch folders are in `~/.paperclip/uuu-engine/apps/<name>/` (`deps/`, `store/`, `data/`, `tmp/`, `home/`), the owner's switches in `apps/state.json` beside them, and the sockets an app uses while it runs in `run/apps/<name>/`. Only the app's own fence can reach its folders, and no agent can reach any of them.
 - What an app may spend today: `~/.paperclip/uuu-engine/doors/allowances/<name>.json`, one small file each, written only by the home screen and read by the generation door. It ends at midnight in Kolkata.
 - Your approvals for films and still jobs: `~/.paperclip/uuu-engine/doors/batches/`, one small file each, written only by the home screen. They are removed 30 days after they end.

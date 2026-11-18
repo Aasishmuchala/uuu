@@ -296,3 +296,84 @@ test("runwayRequest: step 3's rows send exactly today's body; the new rows carry
     buildRequest({ kind: "still_upscale", model: "magnific_precision_upscaler_v2", scale: 2, pictures: [pic("image")] }));
   assert.throws(() => runwayRequest(rowOf("hf.flux_2"), still, [pic("ref")]), /not a Runway row/);
 });
+
+// ---- the owner's Runway account (PLAN-ONBOARD R1) ----
+import {
+  ACCOUNT_ROWS, DEFAULT_ACCOUNT_CENTS_PER_CREDIT, RW_UPLOAD_SUFFIXES, accountRatio, accountRatios, accountRowFor, ceilingUnits,
+} from "../registry.mjs";
+
+test("account rows stand for step 3's Runway rows, are never in ROWS, and no caller can name one", () => {
+  assert.deepEqual(ACCOUNT_ROWS.map((r) => [r.id, r.stands, r.remote, r.tool]), [
+    ["rwa.gen4_turbo", "gen4_turbo", "gen-4-turbo", "generate_video"],
+    ["rwa.gen4.5", "gen4.5", "gen-4.5", "generate_video"],
+    ["rwa.gen4_image", "gen4_image", "gen-4", "generate_image"],
+    ["rwa.gen4_image_turbo", "gen4_image_turbo", "gen-4-image-turbo", "generate_image"],
+    ["rwa.magnific_precision_upscaler_v2", "magnific_precision_upscaler_v2", "upscale_image", "upscale_image"],
+  ]);
+  for (const r of ACCOUNT_ROWS) {
+    assert.equal(r.provider, "runway-account");
+    assert.equal(r.price, null, "no price table: each job is quoted");
+    assert.equal(rowOf(r.id), null, r.id);
+    assert.ok(!ROWS.includes(r), r.id);
+    assert.equal(accountRowFor(r.stands), r);
+    assert.ok(Object.isFrozen(r));
+  }
+  assert.equal(appModels({ ok: true }, { runway: true, higgsfield: true }).some((m) => m.id.startsWith("rwa.")), false);
+  assert.equal(parseAppJob(job({ model: "rwa.gen4.5", kind: "text_to_video", inputs: [], prompt: "p", seconds: 5, ratio: "16:9" })).ok, false);
+  for (const id of ["rwa.gen4.5", "veo3.1", "hf.flux_2", "__proto__", "", null]) assert.equal(accountRowFor(id), null, String(id));
+  assert.deepEqual([...RW_UPLOAD_SUFFIXES], []);
+  assert.equal(DEFAULT_ACCOUNT_CENTS_PER_CREDIT, 3);
+});
+
+test("ceilingUnits: the row's ceiling by the second or the picture; none for no ceiling or a job that is not the row's", () => {
+  assert.equal(ceilingUnits(accountRowFor("gen4_turbo"), { kind: "image_to_video", seconds: 5 }), 50);
+  assert.equal(ceilingUnits(accountRowFor("gen4_turbo"), { kind: "image_to_video", seconds: 4 }), null, "5 or 10 only");
+  assert.equal(ceilingUnits(accountRowFor("gen4.5"), { kind: "text_to_video", seconds: 10 }), 300);
+  assert.equal(ceilingUnits(accountRowFor("gen4_image"), { kind: "still_variation" }), 20);
+  assert.equal(ceilingUnits(accountRowFor("gen4_image"), { kind: "still_variation", seconds: 5 }), null);
+  assert.equal(ceilingUnits(accountRowFor("gen4_image"), { kind: "image_to_video", seconds: 5 }), null);
+  assert.equal(ceilingUnits(accountRowFor("magnific_precision_upscaler_v2"), { kind: "still_upscale", scale: 2 }), null, "no ceiling: nothing is made");
+  assert.equal(ceilingUnits(rowOf("gen4.5"), { kind: "text_to_video", seconds: 5 }), null, "a key row has no ceiling");
+});
+
+test("accountRatio: the row's own word, or the one within 3% of the shape", () => {
+  const r = accountRowFor("gen4_turbo");
+  for (const [given, want] of [["16:9", "16:9"], ["1280:720", "16:9"], ["720:1280", "9:16"], ["1104:832", "4:3"], ["832:1104", "3:4"], ["960:960", "1:1"],
+    ["1584:672", "21:9"], ["2112:912", "21:9"], ["1000:800", null], ["0:1", null], ["auto", null], [null, null]]) {
+    assert.equal(accountRatio(r, given), want, String(given));
+  }
+});
+
+test("defineRow keeps the account's rows apart: rwa. ids, no price, a known Runway row, a tool, a ceiling of the right kind", () => {
+  const base = { id: "rwa.x", provider: "runway-account", stands: "gen4_turbo", remote: "gen-4-turbo", tool: "generate_video", words: "A row of words",
+    kinds: ["image_to_video"], refs: { max: 1, roles: ["first"] }, seconds: { list: [5] }, promptMax: 10, price: null, ceiling: { per: "second", credits: 1 }, source: "s" };
+  assert.equal(defineRow(base).ceiling.credits, 1);
+  for (const [bad, why] of [
+    [{ id: "x" }, /rwa\./], [{ provider: "runway", price: { per: "second", credits: 1 } }, /rwa\./], [{ price: { per: "second", credits: 1 } }, /no price/],
+    [{ stands: "veo9" }, /stands/], [{ tool: "run_workflow" }, /tool/], [{ ceiling: { per: "picture", credits: 1 } }, /ceiling/],
+    [{ ceiling: { per: "second", credits: 0 } }, /ceiling/],
+  ]) assert.throws(() => defineRow({ ...base, ...bad }), why);
+});
+
+// R5 (the review's lower finding): Gen-4.5 from words alone takes 16:9 only (`.router/RUNWAY-MCP-SCHEMAS.json`,
+// generate_video's ratio); from a first frame it takes the six. The rule lives in the row (ratiosByKind).
+test("ratiosByKind: Gen-4.5 from words takes 16:9 only, from a first frame the six; only an account row may carry it", () => {
+  const r = accountRowFor("gen4.5");
+  assert.deepEqual(accountRatios(r, "text_to_video"), ["16:9"]);
+  assert.deepEqual(accountRatios(r, "image_to_video"), ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"]);
+  for (const [given, want] of [["16:9", "16:9"], ["1280:720", "16:9"], ["9:16", null], ["720:1280", null], ["960:960", null], ["1104:832", null]]) {
+    assert.equal(accountRatio(r, given, "text_to_video"), want, `words ${given}`);
+  }
+  assert.equal(accountRatio(r, "720:1280", "image_to_video"), "9:16");
+  assert.equal(accountRatios(accountRowFor("gen4_turbo"), "image_to_video").length, 6, "a row without the field takes its ratios");
+  const base = { id: "rwa.x", provider: "runway-account", stands: "gen4.5", remote: "gen-4.5", tool: "generate_video", words: "A row of words",
+    kinds: ["image_to_video", "text_to_video"], refs: { max: 1, roles: ["first"] }, ratios: ["16:9", "9:16"], seconds: { list: [5] }, promptMax: 10,
+    price: null, ceiling: { per: "second", credits: 1 }, source: "s" };
+  assert.deepEqual(defineRow({ ...base, ratiosByKind: { text_to_video: ["16:9"] } }).ratiosByKind, { text_to_video: ["16:9"] });
+  for (const bad of [{ text_to_video: ["1:1"] }, { text_to_video: [] }, { still_variation: ["16:9"] }, { text_to_video: "16:9" }, []]) {
+    assert.throws(() => defineRow({ ...base, ratiosByKind: bad }), /ratiosByKind/, JSON.stringify(bad));
+  }
+  assert.throws(() => defineRow({ ...base, ratios: null, ratiosByKind: { text_to_video: ["16:9"] } }), /ratiosByKind/);
+  assert.throws(() => defineRow({ id: "gen9", provider: "runway", remote: "gen9", words: "A row of words", kinds: ["text_to_video"], refs: { max: 0, roles: [] },
+    ratios: ["16:9"], ratiosByKind: { text_to_video: ["16:9"] }, seconds: { list: [5] }, promptMax: 10, price: { per: "second", credits: 1 }, source: "s" }), /ratiosByKind/);
+});

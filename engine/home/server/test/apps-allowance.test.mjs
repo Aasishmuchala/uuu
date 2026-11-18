@@ -159,7 +159,7 @@ test("the ledger unreadable is 409 ledger_unreadable; neither service ready is 4
     r = await post(h, "/api/apps/film/allowance", { cents: 200 });
     assert.equal(r.status, 409);
     assert.equal(r.json.error.code, "no_provider");
-    assert.equal(r.json.error.next, "Add a Runway key or sign in to Higgsfield in Settings first.");
+    assert.equal(r.json.error.next, "Add a Runway key, or sign in to Runway or Higgsfield, in Settings first.");
     assert.equal(existsSync(h.config.paths.allowances), false);
   }, { key: false });
 });
@@ -189,6 +189,26 @@ test("Higgsfield alone makes spending possible only while it is on and the door 
     statusFile(true);
     assert.deepEqual(film(await view(h)).ready, { runway: false, higgsfield: true });
     assert.equal((await post(h, "/api/apps/film/allowance", { cents: 200 })).status, 200);
+  }, { key: false });
+});
+
+test("a Runway sign-in with no key makes spending possible: Runway is ready and the allowance is 200 (PLAN-ONBOARD R1)", async () => {
+  await withAllowance(async ({ h }) => {
+    const statusFile = (runway) => {
+      mkdirSync(h.config.paths.doors, { recursive: true, mode: 0o700 });
+      rmSync(h.config.paths.generateStatus, { force: true });
+      writeFileSync(h.config.paths.generateStatus, JSON.stringify({ higgsfield: { signedIn: false, refused: false }, runway, apps: {} }), { mode: 0o600 });
+    };
+    setCaps(h.config, 1000, 10000);
+    statusFile({ signedIn: false, refused: false });
+    assert.equal((await post(h, "/api/apps/film/allowance", { cents: 200 })).json.error.code, "no_provider", "not signed in");
+    statusFile({ signedIn: false, refused: true });
+    assert.equal((await post(h, "/api/apps/film/allowance", { cents: 200 })).json.error.code, "no_provider", "asked to sign in again");
+    statusFile({ signedIn: true, refused: false });
+    assert.deepEqual(film(await view(h)).ready, { runway: true, higgsfield: false });
+    const r = await post(h, "/api/apps/film/allowance", { cents: 200 });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(readAllowance(h.config.paths.allowances, "film", Date.now()).ok, true);
   }, { key: false });
 });
 

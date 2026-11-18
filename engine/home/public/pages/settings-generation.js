@@ -15,6 +15,12 @@
 // Both switches open their door only through the Map's confirm (a door opens only through a confirm, 18 Nov 2026):
 // a press on one asks, and the confirm's yes sends the request; switching off is one press. Signing in to
 // Higgsfield opens no door: its switch does.
+// Runway account (PLAN-ONBOARD R2): a second way in to Runway, by signing in to the owner's Runway account through the
+// generation door, in its own group under the key. Its sign-in goes as Higgsfield's does: the page asks for the
+// authorize address, checks that it is Runway's own and sends the owner's browser there; the return lands on Settings
+// with `?generation=runway-connected` or `runway-failed`. There is no switch of its own: "Let the Artist use Runway"
+// covers both ways in, and the key is used when both are there. Signing out deletes only the sign-in kept on this Mac.
+// No price per model is promised for it: Runway names each job's price when it is asked.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
@@ -104,6 +110,7 @@ export const WORDS = {
 // The groups of the section, in the order they are drawn, and the few labels of the tables.
 export const GROUPS = {
   runway: "Runway",
+  runwayAccount: "Runway account",
   limits: "Limits and what was spent",
   higgsfield: "Higgsfield",
   models: "Models",
@@ -146,12 +153,48 @@ export const HF_WORDS = {
   account: "Higgsfield account",
 };
 
+// Runway account's words (PLAN-ONBOARD R2), as the plan writes them, and the few this group adds. Money and safety
+// sentences are kept whole.
+export const RW_WORDS = {
+  title: "Runway account",
+  signedOut: "Not signed in to Runway.",
+  signedIn: "Signed in to Runway.",
+  refused: "Runway asked you to sign in again.",
+  connected: "Runway is connected.",
+  notFinished: "The Runway sign-in did not finish. Try again.",
+  byKey: "Your Runway key is used. The sign-in is the other way in, used when no key is saved.",
+  byAccount: "Your Runway account is used. Prices are in your account's credits, turned into dollars at the rate below.",
+  noWayIn: "Save a Runway key or sign in to Runway first.",
+  library: "What you make this way is saved in your Runway library and spends your Runway account's credits.",
+  terms: "Runway's terms say it may use what you send to train its models unless you have an Enterprise agreement. Do not use Generation for client work you may not share.",
+  rate: "One Runway account credit counts as (cents)",
+  rateHint: "It starts at 3. Change it to match your plan. It turns Runway's credits into cents so every price you read is in dollars, and changing it does not change what you already approved.",
+  rateType: "Type a whole number of cents from 1 to 50, such as 3.",
+  signIn: "Sign in to Runway",
+  signOut: "Sign out of Runway",
+  signOutAsk: "Sign out of Runway?",
+  signOutWhy: "This deletes the sign-in kept on this Mac, and Runway is no longer used this way. Runway gives no way to end it from here, so you can also remove \"uuu engine on this Mac\" in your Runway account.",
+  stay: "Stay signed in",
+  testWhat: "Test asks Runway how many credits your account has. It costs nothing, and works while the switch is off.",
+  signInFirst: "Sign in first, then Test can ask Runway.",
+  waiting: "Waiting for Runway. This can take up to 75 seconds.",
+  badAddress: "Runway's sign-in address was not what was expected, so it was not opened.",
+  notSignedInTest: "Not signed in to Runway.",
+  noAnswer: "Runway did not answer. Try again in a minute.",
+  noCount: "Runway answered, but did not say how many credits your account has.",
+  doorOff: "The generation door is off. Run: engine start",
+  quoted: "While your Runway account is used, these prices are not what it charges: Runway names each job's price in your account's credits when the job is asked for.",
+};
+
 // The only address the sign-in may send the owner's browser to (K21).
 // (The host is named apart from "https://" so no page names a host as a literal address; the test reads it back whole.)
 const HF_HOST = "mcp.higgsfield.ai";
 export const HF_AUTHORIZE = `https://${HF_HOST}/oauth2/authorize?`;
 export const HF_RATE_MIN = 1;
 export const HF_RATE_MAX = 50;
+// The only address the Runway sign-in may send the owner's browser to: Runway's own sign-in page (R0's facts).
+const RW_HOST = "mcp.runwayml.com";
+export const RW_AUTHORIZE = `https://${RW_HOST}/authorize?`;
 
 // The two limits, in K13's words.
 export const CAPS = [
@@ -214,9 +257,11 @@ export function doorState(door) {
 // readable. Only then can the Artist's asks reach Runway.
 export function isOpen(view) {
   const v = obj(view) ? view : {};
-  return Boolean(v.on && doorState(v.door).state === "on" && v.key && v.key.saved && !v.paused && !v.problem
+  return Boolean(v.on && doorState(v.door).state === "on" && wayIn(v) && !v.paused && !v.problem
     && !ledgerLost(v) && !capsLines(v).length);
 }
+// A way in to Runway: a saved key, or the owner's Runway account while no key is saved (PLAN-ONBOARD R2).
+export const wayIn = (view) => Boolean(obj(view) && ((obj(view.key) && view.key.saved) || (obj(view.runwayAccount) && view.runwayAccount.used === true)));
 const ledgerLost = (v) => (obj(v.spent) && v.spent.ok === false) || (obj(v.ledger) && v.ledger.ok === false);
 
 // The mark beside the section's first card: Off, On (open), On but held (warn), or Paused.
@@ -253,7 +298,7 @@ export function blockerLines(view) {
   const v = obj(view) ? view : {};
   const out = [];
   for (const b of arr(v.blockers)) {
-    if (b === "no_key") out.push(WORDS.pasteFirst);
+    if (b === "no_key") out.push(v.whyNot === RW_WORDS.noWayIn ? RW_WORDS.noWayIn : WORDS.pasteFirst);
     else if (b === "door_off") out.push(doorState(v.door).state === "on" ? WORDS.doorOff : doorState(v.door).sentence);
     else if (b === "no_artist") out.push(WORDS.noArtist);
   }
@@ -597,15 +642,87 @@ export function hashWithoutReturn(hash) {
   return `#${path}${rest ? `?${rest}` : ""}`;
 }
 
-// The only two places this page touches the address bar. Reading the return and taking it out of the address; and
-// sending the owner's browser to an address that hfSignInUrl has passed. Nothing typed goes to either.
+// The only places this page touches the address bar. Reading the return and taking it out of the address (Higgsfield's
+// "connected" or "failed", Runway's "runway-connected" or "runway-failed"); and sending the owner's browser to an
+// address that hfSignInUrl or rwSignInUrl has passed. Nothing typed goes to any of them.
 function takeReturn() {
-  const found = hfReturnOf(window.location.hash);
+  const hf = hfReturnOf(window.location.hash);
+  const rw = rwReturnOf(window.location.hash);
+  const found = hf || (rw ? `runway-${rw}` : null);
   if (found) window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}${hashWithoutReturn(window.location.hash)}`);
   return found;
 }
 function openHiggsfield(url) {
   window.location.assign(url);
+}
+function openRunway(url) {
+  window.location.assign(url);
+}
+
+// ---- Runway account (PLAN-ONBOARD R2) ---------------------------------------------------------------------------
+
+const rwOf = (view) => (obj(view) && obj(view.runwayAccount) ? view.runwayAccount : {});
+
+// The address the Runway sign-in may open: Runway's own sign-in page (https, its one host and path) or null.
+export function rwSignInUrl(url) {
+  if (typeof url !== "string" || url.length > 4096 || !url.startsWith(RW_AUTHORIZE) || /[\u0000-\u0020\u007f-\u009f]/.test(url)) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && u.host === RW_HOST && u.pathname === "/authorize" && !u.username && !u.password ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+// The sign-in by the view: signed out, signed in, or asking to sign in again, in the plan's words.
+export function rwState(view) {
+  const a = rwOf(view);
+  if (a.refused === true) return { key: "refused", sentence: RW_WORDS.refused };
+  if (a.signedIn === true) return { key: "in", sentence: RW_WORDS.signedIn };
+  return { key: "out", sentence: RW_WORDS.signedOut };
+}
+
+// The chip beside "Runway account".
+export function rwMark(view) {
+  const s = rwState(view).key;
+  if (s === "refused") return { tone: "warn", word: "Sign in again" };
+  if (s === "in") return { tone: "ok", word: "Signed in" };
+  return { tone: "off", word: "Not signed in" };
+}
+
+// Which way in is used, always said: the key, the account, or neither yet.
+export function wayLine(view) {
+  if (obj(view) && obj(view.key) && view.key.saved) return RW_WORDS.byKey;
+  if (rwOf(view).used === true) return RW_WORDS.byAccount;
+  return RW_WORDS.noWayIn;
+}
+
+// The account's rate as typed: a whole number of cents from 1 to 50. -> { value, error }.
+export function rwRateCheck(text) {
+  const c = rateCheck(text);
+  return c.value === null ? { value: null, error: RW_WORDS.rateType } : c;
+}
+
+// Test's answer ({ ok, credits, sentence }) as a mark and its sentence; only the known sentences are trusted.
+export function rwTestResult(answer) {
+  const a = obj(answer) ? answer : {};
+  const said = plain(a.sentence, 300);
+  if (a.ok === true && typeof a.credits === "number" && Number.isFinite(a.credits) && a.credits >= 0) {
+    const n = a.credits;
+    return { tone: "ok", word: "Works", sentence: `Runway says your account has ${grouped(n)} ${n === 1 ? "credit" : "credits"}.` };
+  }
+  if (a.ok === true && a.credits === null) return { tone: "ok", word: "Works", sentence: RW_WORDS.noCount };
+  if (said === RW_WORDS.notSignedInTest) return { tone: "off", word: "Not signed in", sentence: said };
+  if (said === RW_WORDS.refused) return { tone: "warn", word: "Sign in again", sentence: said };
+  if (said === RW_WORDS.doorOff) return { tone: "warn", word: "Door off", sentence: said };
+  return { tone: "warn", word: "No answer", sentence: RW_WORDS.noAnswer };
+}
+
+// The return from Runway's page: `generation=runway-connected|runway-failed` on Settings -> "connected", "failed" or null.
+export function rwReturnOf(hash) {
+  const r = parseHash(hash);
+  const v = r.parts[0] === "settings" ? r.query.get("generation") : null;
+  return v === "runway-connected" ? "connected" : v === "runway-failed" ? "failed" : null;
 }
 
 // What the section draws: "loading", "restart" (the routes are not there yet), "error" or "ready".
@@ -636,7 +753,7 @@ export function statusLine(data) {
   if (Number.isInteger(s.day) && s.dayLeft === 0) return { tone: "bad", text: "Over today's limit" };
   if (Number.isInteger(s.month) && s.monthLeft === 0) return { tone: "bad", text: "Over this month's limit" };
   if (doorState(v.door).state !== "on") return { tone: "warn", text: "On, but the generation door is not running" };
-  if (!(obj(v.key) && v.key.saved)) return { tone: "warn", text: "On, but no key is saved" };
+  if (!wayIn(v)) return { tone: "warn", text: "On, but no key is saved" };
   if (isOpen(v)) return { tone: "good", text: "On, within your limits" };
   return { tone: "warn", text: "On, held" };
 }
@@ -998,6 +1115,76 @@ function HiggsfieldGroup({ view, busy, act, took, failure, test, runTest, signIn
   </div>`;
 }
 
+// Runway account: the second way in to Runway, under the key. The sign-in with Test and sign-out, which way is used, the
+// two sentences always shown beside the sign-in, and the rate with its Save. No switch: Runway's own covers it.
+function RunwayAccountGroup({ view, busy, act, failure, test, runTest, signIn, returned }) {
+  const a = rwOf(view);
+  const state = rwState(view);
+  const mark = rwMark(view);
+  const door = doorState(view.door);
+  const signedIn = state.key === "in";
+  const [rate, setRate] = useState(null);
+  const [asking, setAsking] = useState(false);
+  const rateText = rate !== null ? rate : String(Number.isInteger(a.centsPerCredit) ? a.centsPerCredit : 3);
+  const check = rwRateCheck(rateText);
+  const changed = rate !== null && check.value !== a.centsPerCredit;
+  const result = test ? rwTestResult(test) : null;
+  const rateFailure = failure && failure.where === "rw-rate" ? failure.error : null;
+  const rateError = check.error || (rateFailure && rateFailure.message) || "";
+
+  async function saveRate(event) {
+    event.preventDefault();
+    if (check.value === null || !changed || busy) return;
+    const ok = await act("rw-rate", "/api/generation/runway/rate", { centsPerCredit: check.value }, "The Runway account rate is saved.");
+    if (ok) setRate(null);
+  }
+
+  return html`<div class="p-settings-generation__rw" id="settings-runway-account">
+    <${Group} title=${GROUPS.runwayAccount}>
+      ${returned ? html`<${Notice} tone=${returned === "connected" ? "ok" : "bad"} title=${returned === "connected" ? RW_WORDS.connected : RW_WORDS.notFinished} />` : null}
+      <form onSubmit=${saveRate} autocomplete="off">
+        <${Rows}>
+          <${Row} icon="people" title=${RW_WORDS.title} state=${{ tone: toneOf(mark.tone), text: mark.word }}
+            say=${html`<span class="p-settings-generation__line">${state.sentence}</span>
+              <span class="p-settings-generation__line">${wayLine(view)}</span>
+              <span class="p-settings-generation__line">${RW_WORDS.library}</span>
+              <span class="p-settings-generation__line">${RW_WORDS.testWhat}</span>
+              ${!signedIn ? html`<span class="p-settings-generation__line">${RW_WORDS.signInFirst}</span>`
+                : door.state !== "on" ? html`<span class="p-settings-generation__line">${WORDS.doorTestLater}</span>` : null}
+              <span class="p-settings-generation__actions">
+                ${signedIn ? null : html`<${Button} size="sm" variant="primary" icon="external" onClick=${signIn} busy=${busy === "rw-begin"} disabled=${Boolean(busy)}>${RW_WORDS.signIn}<//>`}
+                ${signedIn ? html`<${Button} size="sm" variant="primary" icon="play" onClick=${runTest} busy=${busy === "rw-test"} disabled=${Boolean(busy) || door.state !== "on"}>${WORDS.test}<//>` : null}
+                ${signedIn || state.key === "refused" ? html`<${Button} size="sm" variant="ghost" onClick=${() => setAsking(true)} disabled=${Boolean(busy)}>${RW_WORDS.signOut}<//>` : null}
+              </span>`}
+            warned=${RW_WORDS.terms} />
+          <${More}>
+            ${busy === "rw-test" ? html`<p class="p-settings-generation__line" role="status"><${St} icon="clock">${RW_WORDS.waiting}<//></p>` : null}
+            <${Failure} failure=${failure} where="rw-begin" />
+            <${Failure} failure=${failure} where="rw-test" />
+            <${Failure} failure=${failure} where="rw-forget" />
+            ${result && busy !== "rw-test" ? html`<${Answer} result=${result} />` : null}
+          <//>
+          <${Row} icon="tag" title=${RW_WORDS.rate}
+            say=${rateError ? html`<span class="p-settings-generation__error" id="gen-rw-rate-note">${rateError}</span>` : RW_WORDS.rateHint}
+            control=${html`<${TextInput} class="p-settings-generation__rate" name="rw-rate" inputmode="numeric" autocomplete="off" spellcheck=${false} maxLength=${3}
+              aria-label=${RW_WORDS.rate} aria-invalid=${rateError ? "true" : undefined} aria-describedby=${rateError ? "gen-rw-rate-note" : undefined}
+              value=${rateText} onInput=${(e) => setRate(e.currentTarget.value)} />`} />
+        <//>
+        <div class="p-settings-generation__save">
+          ${rate !== null ? html`<${Button} variant="quiet" onClick=${() => setRate(null)} disabled=${Boolean(busy)}>${GROUPS.putBack}<//>` : null}
+          <${Button} variant=${changed && check.value !== null ? "primary" : "ghost"} type="submit" busy=${busy === "rw-rate"} disabled=${Boolean(busy) || !changed || check.value === null}>${HF_WORDS.saveRate}<//>
+        </div>
+      </form>
+      <${Dialog} open=${asking} title=${RW_WORDS.signOutAsk} size="sm" paper onClose=${() => setAsking(false)}
+        footer=${html`
+          <${Button} data-autofocus onClick=${() => setAsking(false)}>${RW_WORDS.stay}<//>
+          <${Button} variant="danger" onClick=${async () => { setAsking(false); await act("rw-forget", "/api/generation/runway/forget", {}, "Signed out of Runway."); }}>${RW_WORDS.signOut}<//>`}>
+        <p class="p-settings-generation__line">${RW_WORDS.signOutWhy}</p>
+      <//>
+    <//>
+  </div>`;
+}
+
 const MODEL_COLUMNS = [
   { key: "kind", label: "Kind of work", align: "start" },
   { key: "model", label: "Model", align: "start" },
@@ -1039,6 +1226,7 @@ function ModelsGroup({ view, busy, act, failure }) {
       <${DataTable} columns=${MODEL_COLUMNS} rows=${rows} renderCell=${cell} />
     </div>
     ${view.example ? html`<p class="p-settings-generation__foot-say">${plain(view.example, 300)}</p>` : null}
+    ${rwOf(view).used === true ? html`<p class="p-settings-generation__foot-say">${RW_WORDS.quoted}</p>` : null}
   <//>`;
 }
 
@@ -1179,8 +1367,11 @@ export default function GenerationSection() {
   const [failure, setFailure] = useState(null);
   const [test, setTest] = useState(null);
   const [hfTest, setHfTest] = useState(null);
-  // The word Higgsfield's page sent the owner back with, said once; the address is cleaned as it is read.
+  const [rwTest, setRwTest] = useState(null);
+  // The word Higgsfield's or Runway's page sent the owner back with, said once; the address is cleaned as it is read.
   const [returned] = useState(takeReturn);
+  const hfReturned = returned === "connected" || returned === "failed" ? returned : null;
+  const rwReturned = returned === "runway-connected" ? "connected" : returned === "runway-failed" ? "failed" : null;
   const state = sectionState(res);
   // The answer of the last action is shown until the next quiet refresh brings a newer view.
   const view = fresh && fresh.base === res.data ? fresh.view : res.data;
@@ -1193,6 +1384,7 @@ export default function GenerationSection() {
     setFailure(null);
     if (where === "key" || where === "remove") setTest(null);
     if (where === "hf-forget") setHfTest(null);
+    if (where === "rw-forget") setRwTest(null);
     try {
       const answer = await api.post(path, body);
       const next = reload ? await api.get("/api/generation") : answer;
@@ -1231,12 +1423,13 @@ export default function GenerationSection() {
   }
 
   useEffect(() => {
-    if (!returned) return;
-    announce(returned === "connected" ? HF_WORDS.connected : HF_WORDS.notFinished);
+    if (hfReturned) announce(hfReturned === "connected" ? HF_WORDS.connected : HF_WORDS.notFinished);
+    if (rwReturned) announce(rwReturned === "connected" ? RW_WORDS.connected : RW_WORDS.notFinished);
   }, []);
   useEffect(() => {
-    // Back from Higgsfield's page: bring its group into view once it is drawn.
-    if (returned && ready) document.getElementById("settings-higgsfield")?.scrollIntoView({ block: "start" });
+    // Back from Higgsfield's or Runway's page: bring its group into view once it is drawn.
+    if (!ready || !returned) return;
+    document.getElementById(rwReturned ? "settings-runway-account" : "settings-higgsfield")?.scrollIntoView({ block: "start" });
   }, [ready]);
 
   // Higgsfield's Test: the door asks for the balance. Its answer stays until the owner signs in or out.
@@ -1275,6 +1468,42 @@ export default function GenerationSection() {
     }
   }
 
+  // Runway account's Test: the door asks Runway's account for its credits. Its answer stays until the owner signs out.
+  async function runRwTest() {
+    setBusy("rw-test");
+    setFailure(null);
+    try {
+      const answer = await api.post("/api/generation/runway/test", {});
+      setRwTest(answer);
+      announce(rwTestResult(answer).sentence);
+    } catch (error) {
+      setRwTest(null);
+      setFailure({ where: "rw-test", error: { message: plain(error && error.message, 300) || "That did not work.", next: plain(error && error.next, 300) } });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  // Sign in to Runway: the door gives the authorize address; it is opened only when it is Runway's own sign-in page.
+  async function rwSignIn() {
+    setBusy("rw-begin");
+    setFailure(null);
+    setRwTest(null);
+    try {
+      const answer = await api.post("/api/generation/runway/begin", {});
+      const url = rwSignInUrl(obj(answer) ? answer.url : null);
+      if (!url) {
+        setFailure({ where: "rw-begin", error: { message: RW_WORDS.badAddress, next: "Try again in a minute." } });
+        return;
+      }
+      openRunway(url);
+    } catch (error) {
+      setFailure({ where: "rw-begin", error: { message: plain(error && error.message, 300) || "That did not work.", next: plain(error && error.next, 300) } });
+    } finally {
+      setBusy("");
+    }
+  }
+
   const parts = { view, busy, act, took, failure };
   return html`<div class="p-settings-generation" id="settings-generation">
     <p class="k-doc__intro">${WORDS.intro}</p>
@@ -1284,8 +1513,9 @@ export default function GenerationSection() {
     ${ready && view.problem ? html`<div class="p-settings-generation__state"><${Notice} tone="bad"><${Line}>${problemLine(view)}<//><//></div>` : null}
     ${ready ? html`
       <${RunwayGroup} ...${parts} test=${test} runTest=${runTest} />
+      <${RunwayAccountGroup} ...${parts} test=${rwTest} runTest=${runRwTest} signIn=${rwSignIn} returned=${rwReturned} />
       <${LimitsGroup} ...${parts} />
-      <${HiggsfieldGroup} ...${parts} test=${hfTest} runTest=${runHfTest} signIn=${signIn} returned=${returned} />
+      <${HiggsfieldGroup} ...${parts} test=${hfTest} runTest=${runHfTest} signIn=${signIn} returned=${hfReturned} />
       <${ModelsGroup} ...${parts} />
       <${FilmsGroup} view=${view} />
       <${LedgerGroup} />` : null}

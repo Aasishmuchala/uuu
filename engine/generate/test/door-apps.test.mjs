@@ -244,7 +244,7 @@ test("models: every row with its price in cents at the owner's rate and whether 
   hfOn({ higgsfield: { centsPerCredit: 7 } });
   await signIn();
   const n = (await get("/gen/app/models")).json.models;
-  assert.deepEqual([n.find((x) => x.id === "gen4_turbo").ready, n.find((x) => x.id === "gen4_turbo").why], [false, "Needs a Runway key. Add it in Settings on the home screen."]);
+  assert.deepEqual([n.find((x) => x.id === "gen4_turbo").ready, n.find((x) => x.id === "gen4_turbo").why], [false, "Needs Runway. Add a Runway key or sign in to Runway in Settings on the home screen."]);
   assert.deepEqual([n.find((x) => x.id === "hf.flux_2").ready, n.find((x) => x.id === "hf.flux_2").price.cents], [true, 28]);
   assert.equal(n.find((x) => x.id === "hf.upscale_image").ready, false, "a row with no price is never ready");
 });

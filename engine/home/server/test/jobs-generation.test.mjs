@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { appendLine } from "../../../generate/ledger.mjs";
 import { readBatch } from "../../../generate/state.mjs";
 import { DOORS_DEFAULTS } from "../../../doors/common.mjs";
@@ -414,4 +414,41 @@ test("every other job's start is as before: no batch line, no batch record, no b
     assert.deepEqual(decisions(home)[`asked:${r.json.goal.id}`], { answers: { earlier: "STH-20" } });
     assert.deepEqual(batchFiles(home), []);
   });
+});
+
+// R5, finding 3: no key saved and the door signed in to Runway. A still job is priced at the account row's ceiling at
+// the owner's account rate (Gen-4 Image: 20 credits a picture, at 3 cents), said "up to", and its batch is that.
+const signedIn = (home) => {
+  mkdirSync(dirname(home.config.paths.generateStatus), { recursive: true, mode: 0o700 });
+  writeFileSync(home.config.paths.generateStatus, JSON.stringify({ higgsfield: { signedIn: false, refused: false }, runway: { signedIn: true, refused: false }, apps: {} }), { mode: 0o600 });
+};
+
+test("moneyOf by the Runway sign-in: a Runway model up to its account ceiling at the account rate; one with no ceiling has no price", () => {
+  const v = moneyOf(jobOf(h.config, "studio/variations-of-a-still"), MODELS, { account: 3 });
+  assert.deepEqual(v, {
+    kind: "variations", unit: 60, model: "gen4_image", ok: true, upTo: true,
+    words: "Each variation costs up to $0.60 with Gen-4 Image on your Runway account; three cost up to $1.80. "
+      + "Pressing Start approves the cost of the number you choose; nothing else is spent.",
+  });
+  assert.equal(moneyOf(jobOf(h.config, "studio/a-larger-sharper-still"), MODELS, { account: 3 }).ok, false, "the upscale has no account ceiling");
+  const film = moneyOf(jobOf(h.config, "studio/a-film-from-your-renders"), MODELS, { account: 4 });
+  assert.deepEqual([film.ok, film.unit, film.upTo], [true, 40, true], "Gen-4 Turbo: 10 credits a second at 4 cents");
+  assert.equal(moneyOf(jobOf(h.config, "studio/variations-of-a-still"), MODELS, { account: null }).upTo, undefined, "with a key: as before");
+});
+
+test("start variations by the Runway sign-in with no key: the words say up to; the batch is the account ceiling (2 x 60)", async () => {
+  await withGeneration(async (home) => {
+    const off = await start(home, VARIATIONS, { answers: { picture: "tower.png", count: "2", change: "Dusk" } });
+    assert.equal(off.r.status, 409, "neither a key nor a sign-in: not ready, as before");
+    signedIn(home);
+    forgetNeeds();
+    const page = (await get(home, VARIATIONS)).json;
+    assert.match(page.job.generation.words, /^Each variation costs up to \$0\.60 with Gen-4 Image on your Runway account;/);
+    const { r } = await start(home, VARIATIONS, { answers: { picture: "tower.png", count: "2", change: "Dusk" } });
+    assert.equal(r.status, 201, r.text);
+    const [file] = batchFiles(home);
+    const back = readBatch(home.config.paths.batches, file.slice(0, -5), { slug: "artist", now: Date.now() });
+    assert.equal(back.ok, true, back.why);
+    assert.equal(back.batch.budgetCredits, 120);
+  }, { key: false });
 });
