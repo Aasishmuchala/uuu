@@ -101,12 +101,13 @@ export const PLACES = [
 ];
 
 // The Setup row (PLAN-ONBOARD decision 6), from GET /api/setup: null unless the server says to show it. `count` is how
-// many of the five steps are left; a step skipped for now counts as dealt with.
+// many of the needed steps are left (`counts.total`, 1 to 12, else 6); a step skipped for now counts as dealt with.
 export function setupItem(setup) {
   if (!setup || setup.show !== true) return null;
   const c = setup.counts || {};
-  const n = Math.min(5, whole(c.done) + whole(c.skipped));
-  return { href: "#/setup", icon: "check", title: "Setup", label: `Setup: ${n} of 5 done`, count: 5 - n };
+  const total = Number.isInteger(c.total) && c.total >= 1 && c.total <= 12 ? c.total : 6;
+  const n = Math.min(total, whole(c.done) + whole(c.skipped));
+  return { href: "#/setup", icon: "check", title: "Setup", label: `Setup: ${n} of ${total} done`, count: total - n };
 }
 
 function systemDark() {

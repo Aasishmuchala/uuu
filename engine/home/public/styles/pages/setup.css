@@ -1,8 +1,10 @@
-/* Setup (pages/setup.js, PLAN-ONBOARD T2): the room header with the count and its ring, then the five steps as one
-   panel of the kit's rows, the switches as a second, and the foot. Each step's words stack under its title: what is
-   true now, why it matters, its notes, then a command's lead with the command under it in the mono face. Every
-   sentence wraps whole (ADR 0016); a command wraps anywhere rather than scroll. The next step to do carries a 3 px
-   accent rule at its left. Below 860 px the kit drops a row's controls under its words, and they wrap. */
+/* Setup (pages/setup.js, PLAN-ONBOARD T2, reworked in S2): the room header with the count and its ring, then three
+   groups. "Needed to start" is one panel of the kit's rows; each step's words stack under its title: what is true
+   now, why it matters, its notes, then a command's lead with the command under it in the mono face. "When you want
+   it" is a stack of folds (native details), each one line until opened: what it opens up, then its costs and
+   cautions, one paragraph each. "Not possible yet" is a panel of plain rows. Every sentence wraps whole (ADR 0016);
+   a command wraps anywhere rather than scroll. The next step to do carries a 3 px accent rule at its left. Below
+   860 px the kit drops a row's controls under its words, and they wrap. */
 
 .p-setup {
   display: flex;
@@ -22,12 +24,12 @@
 
 /* Each row stands in a wrapper of its own (for its mark), so the hairline between rows is drawn here. */
 .p-setup .p-setup__row > .k-rows__row,
-.p-setup .p-setup__switch > .k-rows__row {
+.p-setup .p-setup__notyet > .k-rows__row {
   border-top: 0;
 }
 
 .p-setup .p-setup__row + .p-setup__row > .k-rows__row,
-.p-setup .p-setup__switch + .p-setup__switch > .k-rows__row {
+.p-setup .p-setup__notyet + .p-setup__notyet > .k-rows__row {
   border-top: 1px solid var(--line);
 }
 
@@ -91,6 +93,13 @@
   color: var(--ink-2);
 }
 
+/* "You can skip this for now.": quiet, under the step's words. */
+.p-setup .p-setup__may {
+  color: var(--ink-3);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
 /* The command: selectable text in the mono face, wrapped rather than scrolled. */
 .p-setup .p-setup__code .k-mono {
   display: inline-block;
@@ -110,6 +119,106 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--s-2);
+}
+
+.p-setup .p-setup__controls--start {
+  justify-content: flex-start;
+}
+
+/* When you want it: one fold a step, in a panel of hairlines like the kit's rows. */
+.p-setup .p-setup__folds {
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.p-setup .p-setup__later + .p-setup__later {
+  border-top: 1px solid var(--line);
+}
+
+.p-setup .p-setup__fold {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-3);
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+/* The browser's own marker is hidden; the chevron, in the theme's second ink, turns when the fold is open. */
+.p-setup .p-setup__fold::-webkit-details-marker {
+  display: none;
+}
+
+.p-setup .p-setup__fold::marker {
+  content: "";
+}
+
+.p-setup .p-setup__fold-mark {
+  flex: none;
+  margin-top: 3px;
+  color: var(--ink-2);
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.p-setup .p-setup__later[open] > .p-setup__fold .p-setup__fold-mark {
+  transform: rotate(90deg);
+  color: var(--ink);
+}
+
+.p-setup .p-setup__fold:hover .p-setup__fold-mark {
+  color: var(--ink);
+}
+
+.p-setup .p-setup__fold:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.p-setup .p-setup__fold-words {
+  display: grid;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.p-setup .p-setup__fold-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.p-setup .p-setup__name {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+
+.p-setup .p-setup__fold-body {
+  display: grid;
+  gap: var(--s-3);
+  padding: 0 var(--s-4) var(--s-4) calc(var(--s-4) + 16px + var(--s-3));
+}
+
+.p-setup .p-setup__part {
+  display: grid;
+  gap: var(--s-1);
+}
+
+.p-setup .p-setup__label {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-label);
+}
+
+.p-setup .p-setup__para {
+  margin: 0;
+  color: var(--ink-2);
+  max-width: 72ch;
 }
 
 .p-setup .p-setup__failure {
@@ -139,7 +248,16 @@
     justify-content: flex-start;
   }
 
-  .p-setup .k-rows__control .k-btn {
+  .p-setup .k-rows__control .k-btn,
+  .p-setup .p-setup__fold-body .k-btn {
     min-height: 44px;
+  }
+
+  .p-setup .p-setup__fold {
+    min-height: 44px;
+  }
+
+  .p-setup .p-setup__fold-body {
+    padding-left: var(--s-4);
   }
 }

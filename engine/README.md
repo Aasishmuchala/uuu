@@ -34,19 +34,33 @@ Press Cmd+K anywhere to jump to a page, an agent or a search result. Press `c` f
 
 The first time you open the home screen with no tasks yet, it opens Setup. It is also the "Setup" row in the sidebar, and Cmd+K finds it at any time.
 
-Setup has five steps. Each shows whether it is done and where to go:
+Setup has three groups. Each step shows whether it is done and where to go.
 
-1. **Company basics:** the nine basics in Files.
-2. **Brand kit.**
-3. **Models.**
-4. **The books.**
-5. **A first real task.**
+**Needed to start.** Six steps. Only these are counted in the sidebar's "N of 6".
+
+1. **Models:** your agents think with these.
+2. **The fence check:** it checks that the fence around the agents holds.
+3. **Company basics:** the nine basics in Files.
+4. **Brand kit.**
+5. **The books.**
+6. **A first real task.**
+
+**When you want it.** Each of these is off until you choose it. None is counted. Each one says what it opens up and what it costs or sends off this Mac.
+
+- The Checker's own login (only in plans mode).
+- Routines.
+- The web for the Researcher.
+- The page viewer.
+- Runway, for clips and pictures.
+- Higgsfield.
+- App Studio.
+- The brain.
+
+**Not possible yet.** What cannot be set up today, such as publishing, email, WhatsApp, the GST portal and the board's own sign-in.
 
 Setup only looks and points. It saves no key, switches nothing on, starts no task and runs no command. You do each step on its own page, or in Terminal where it shows a command.
 
-Company basics, Brand kit and The books can be skipped for now and brought back. "Hide the setup" removes the row; the row also goes away by itself once every step is done or skipped.
-
-Under the steps it lists the switches you may want later (the web, Generation, the page viewer, App Studio, the brain) with whether each is on. They are changed in Settings, never from Setup.
+Company basics, Brand kit and The books can be skipped for now and brought back. "Hide the setup" removes the row; the row also goes away by itself once every step in "Needed to start" is done or skipped. The steps in "When you want it" never keep the row. They are changed in Settings, never from Setup.
 
 ## Give a task
 

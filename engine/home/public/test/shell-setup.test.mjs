@@ -36,15 +36,19 @@ test("setup: only the bare address opens Setup, only when the server says open, 
 });
 
 test("setup: the sidebar's row says how many of five are done, and is there only while shown", () => {
-  assert.deepEqual(side.setupItem({ show: true, counts: { done: 1, skipped: 1 } }),
-    { href: "#/setup", icon: "check", title: "Setup", label: "Setup: 2 of 5 done", count: 3 });
-  assert.equal(side.setupItem({ show: false, counts: { done: 1, skipped: 1 } }), null);
+  assert.deepEqual(side.setupItem({ show: true, counts: { done: 1, skipped: 1, total: 6 } }),
+    { href: "#/setup", icon: "check", title: "Setup", label: "Setup: 2 of 6 done", count: 4 });
+  assert.equal(side.setupItem({ show: false, counts: { done: 1, skipped: 1, total: 6 } }), null);
   assert.equal(side.setupItem(null), null);
   assert.equal(side.setupItem({ show: "true", counts: { done: 1 } }), null);
-  assert.equal(side.setupItem({ show: true, counts: { done: "x" } }).label, "Setup: 0 of 5 done");
-  assert.equal(side.setupItem({ show: true, counts: { done: 4, skipped: 9 } }).label, "Setup: 5 of 5 done", "clamped to 5");
-  assert.equal(side.setupItem({ show: true, counts: { done: -3, skipped: 1.7 } }).label, "Setup: 1 of 5 done");
-  assert.equal(side.setupItem({ show: true }).count, 5);
+  assert.equal(side.setupItem({ show: true, counts: { done: 1, skipped: 1 } }).label, "Setup: 2 of 6 done", "no total");
+  assert.equal(side.setupItem({ show: true, counts: { done: 1, total: 99 } }).label, "Setup: 1 of 6 done", "total 99");
+  assert.equal(side.setupItem({ show: true, counts: { done: "x" } }).label, "Setup: 0 of 6 done");
+  const full = side.setupItem({ show: true, counts: { done: 9, total: 6 } });
+  assert.equal(full.label, "Setup: 6 of 6 done");
+  assert.equal(full.count, 0);
+  assert.equal(side.setupItem({ show: true, counts: { done: -3, skipped: 1.7, total: 6 } }).label, "Setup: 1 of 6 done");
+  assert.equal(side.setupItem({ show: true }).count, 6);
   assert.equal(side.sideCurrent("setup"), "setup");
 });
 
