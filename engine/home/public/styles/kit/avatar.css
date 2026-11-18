@@ -27,6 +27,7 @@
   font-weight: var(--fw-bold);
   line-height: 1;
   user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Six quiet tints, picked from the slug: the hue at 20 percent over the raised step, the initials or glyph in the

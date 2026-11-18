@@ -19,6 +19,7 @@
   line-height: 1;
   vertical-align: middle;
   user-select: none;
+  -webkit-user-select: none;
 }
 
 .k-tile--28 { --k-tile-size: var(--s-7); }
