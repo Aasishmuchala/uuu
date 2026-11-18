@@ -1,6 +1,7 @@
 // CONTRACTS 9.4: give a goal, list goals, one goal's detail, a note, stop.
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
+import { brainOn, buildNotes } from "../brain/notes.mjs";
 import { loadCatalogue } from "../lib/jobs.mjs";
 import { ownerText } from "../lib/owner-text.mjs";
 import { buildText } from "../lib/staged.mjs";
@@ -105,6 +106,10 @@ export default function register(app) {
         "Open Tasks to find it, or change the first line and send it again.", "already_given");
     }
     if (template && created && typeof created.id === "string") ctx.decisions.set(`template:${created.id}`, template);
+    // Brain notes for the task (PLAN-BRAIN B8), with the switch on only, never awaited: the owner's text only.
+    if (created && typeof created.id === "string" && brainOn(ctx.config)) {
+      void buildNotes(ctx, { taskId: created.id, title: titleOf(text), text }).catch(() => {});
+    }
     return { status: 201, body: { goal: summary(created, [created]) } };
   });
 

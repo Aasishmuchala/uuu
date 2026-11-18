@@ -52,13 +52,16 @@ test("the block holds the words the plan fixes", () => {
   ]) assert.ok(b.includes(s), s);
 });
 
-test("with the block cut out, the file is build/v5-cook's, byte for byte", (t) => {
+// Since live (build/v5-studio at 0a9e5df, with the brain's lines) was merged in, the base is that commit: a fixed
+// one, so the case still holds after the live branch moves on to a head that has the block.
+const LIVE_AT_MERGE = "0a9e5dfbc1904ec698fbb542516f7712cd5ece74";
+test("with the block cut out, the file is live's at the merge (0a9e5df), byte for byte", (t) => {
   let base;
   try {
-    base = execFileSync("git", ["show", "build/v5-cook:engine/company/roles/builder.md"],
+    base = execFileSync("git", ["show", `${LIVE_AT_MERGE}:engine/company/roles/builder.md`],
       { cwd: here, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 4 * 1024 * 1024 });
   } catch {
-    t.skip("the ref build/v5-cook is not in this repository");
+    t.skip("the commit 0a9e5df is not in this repository");
     return;
   }
   const cut = builder.replace(block() + "\n\n", "");

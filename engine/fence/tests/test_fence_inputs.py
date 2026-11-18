@@ -217,8 +217,9 @@ class DoorsAndWalledInputTests(unittest.TestCase):
         self.agent("researcher")
         inputs, rest = self.run_main()
         self.assertEqual(inputs["doorPorts"], [])
-        self.assertEqual(inputs["doorPortsKnown"], [3111, 3130, 3140, 3150, 3160, 3170] + list(range(3171, 3190))
+        self.assertEqual(inputs["doorPortsKnown"], [3111, 3130, 3140, 3150, 3160, 3170, 3190] + list(range(3171, 3190))
                          + list(range(3161, 3170)))
+        self.assertEqual(inputs["brainPort"], 3190)
         self.assertEqual(inputs["narrowGatePort"], 3111)
         self.assertEqual(inputs["gatePort"], 3110)
         self.assertEqual(inputs["taskFolder"], os.path.join(self.dir, "tasks", "company-work"))
@@ -226,6 +227,21 @@ class DoorsAndWalledInputTests(unittest.TestCase):
         # Everyone but a walled agent keeps the home and temp folder the wrapper named.
         self.assertEqual((inputs["agentHome"], inputs["innerTmp"]),
                          (os.path.join(self.dir, "h"), os.path.join(self.dir, "h", "tmp")))
+
+    def test_no_policy_may_name_the_brain_door(self):
+        # PLAN-BRAIN T8: 3190 is a door's port, so the planner refuses a policy naming it,
+        # in the words it uses for every door's port, even where the config would allow it.
+        import fence_plan
+        self.agent("builder", localServices=["127.0.0.1:3190"])
+        inputs, _ = self.run_main()
+        self.assertIn(3190, inputs["doorPortsKnown"])
+        inputs["config"]["policyPortsAllowed"] = inputs["config"]["policyPortsAllowed"] + [3190]
+        # The wrapper's home here is a stand-in; the planner wants the engine's own.
+        inputs["agentHome"] = os.path.join(self.dir, "claude-home")
+        inputs["innerTmp"] = os.path.join(self.dir, "claude-home", "tmp")
+        with self.assertRaises(fence_plan.Refused) as cm:
+            fence_plan.plan(inputs)
+        self.assertIn("localServices may never name a door's port 3190", str(cm.exception))
 
     def test_web_on_for_the_policys_slug(self):
         self.agent("researcher")

@@ -228,6 +228,59 @@ class FenceRunTests(unittest.TestCase):
         self.doors("UUU_WEB_TOKEN=" + "x" * 200 + "\n")
         self.seen(self.run_fence())
 
+    # PLAN-BRAIN B9: with the brain switch on, door_mode.py prints the brain door's two lines
+    # for a listed agent. The fence takes them with the other doors' strictness, and never
+    # for a walled run.
+
+    def test_brain_door_lines_are_exported(self):
+        self.doors("UUU_BRAIN_URL=http://127.0.0.1:3190\nUUU_BRAIN_TOKEN=%s\n" % TOKEN)
+        r = self.run_fence()
+        env, args, _ = self.seen(r)
+        self.assertEqual(env["UUU_BRAIN_URL"], "http://127.0.0.1:3190")
+        self.assertEqual(env["UUU_BRAIN_TOKEN"], TOKEN)
+        self.assertFalse([a for a in args if TOKEN in a])
+        self.assertNotIn(TOKEN, r.stderr)
+        # beside another door's lines too
+        self.doors(DOOR_LINES + "UUU_BRAIN_URL=http://127.0.0.1:3190\nUUU_BRAIN_TOKEN=%s\n" % TOKEN)
+        env, _, _ = self.seen(self.run_fence())
+        self.assertEqual(env["UUU_WEB_TOKEN"], TOKEN)
+        self.assertEqual(env["UUU_BRAIN_TOKEN"], TOKEN)
+
+    def test_a_brain_door_line_of_another_shape_is_refused(self):
+        bad = [
+            "UUU_BRAIN_TOKEN=v1.a b",
+            "UUU_BRAIN_TOKEN=v1=a",
+            "UUU_BRAIN_KEY=x",
+            "UUU_BRAINS_URL=http://127.0.0.1:3190",
+            "uuu_brain_url=http://127.0.0.1:3190",
+            " UUU_BRAIN_URL=http://127.0.0.1:3190",
+            "UUU_BRAIN_URL=",
+            "UUU_BRAIN_URL=\tx",
+            "UUU_BRAIN_TOKEN=" + "x" * 201,
+            "UUU_BRAIN_TOKEN=café",
+            "UUU_BRAIN_URL=http://127.0.0.1:3190\n\nUUU_BRAIN_TOKEN=x",
+            "UUU_BRAIN_TOKEN=x\nUUU_BRAIN_TOKEN=y",
+        ]
+        for line in bad:
+            with self.subTest(line=line):
+                self.doors("UUU_GENERATE_TOKEN=%s\n%s\n" % (TOKEN, line))
+                self.refused(self.run_fence())
+        self.doors("UUU_BRAIN_TOKEN=" + "x" * 200 + "\n")
+        self.seen(self.run_fence())
+
+    def test_a_walled_run_is_never_given_the_brain_door(self):
+        self.answer(self.goal, self.narrow)
+        for lines in ("UUU_BRAIN_URL=http://127.0.0.1:3190\nUUU_BRAIN_TOKEN=%s\n" % TOKEN,
+                      DOOR_LINES + "UUU_BRAIN_TOKEN=%s\n" % TOKEN, "UUU_BRAIN_URL=http://127.0.0.1:3190\n"):
+            with self.subTest(lines=lines):
+                self.doors(lines)
+                self.refused(self.run_fence(), "a walled agent never reaches the brain door")
+        # its other doors are as before
+        self.doors(DOOR_LINES)
+        env, _, _ = self.seen(self.run_fence())
+        self.assertEqual(env["UUU_WEB_TOKEN"], TOKEN)
+        self.assertFalse([k for k in env if k.startswith("UUU_BRAIN")])
+
     def test_door_mode_refusing_refuses_the_run(self):
         self.doors(DOOR_LINES, code=78)
         self.refused(self.run_fence(), "the doors for this run could not be worked out")

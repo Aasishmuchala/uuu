@@ -22,7 +22,7 @@ import { HOST_RE } from "../../../web/address.mjs";
 import { HomeError } from "./errors.mjs";
 import { forgetNeeds } from "./jobs.mjs";
 
-export const DOOR_NAMES = Object.freeze(["web", "generate", "viewer"]);
+export const DOOR_NAMES = Object.freeze(["web", "generate", "viewer", "brain"]);
 export const MAX_HOSTS = 200;
 export const OWNER_TOKEN_SEC = 120;
 export const CALL_TIMEOUT_MS = 30000;
@@ -54,6 +54,7 @@ const CALLS = Object.freeze({
   generate: { secret: "generateSecret", prefix: "/gen/" },
   viewer: { secret: "viewerSecret", prefix: "/view/" },
   preview: { secret: "viewerSecret", prefix: "/preview/" },
+  brain: { secret: "brainSecret", prefix: "/brain/" },
 });
 const LOCAL_ADDRESS = /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})$/;
 const DOOR_PATH = /^\/[A-Za-z0-9/_.-]{1,199}$/;
@@ -77,8 +78,15 @@ export function freshDoors() {
   return {
     version: 1,
     web: copy(DOORS_DEFAULTS.web), generate: { ...copy(DOORS_DEFAULTS.generate), higgsfield: { ...HF_DEFAULTS } },
-    viewer: copy(DOORS_DEFAULTS.viewer), changedAt: null,
+    viewer: copy(DOORS_DEFAULTS.viewer), brain: copy(DOORS_DEFAULTS.brain), changedAt: null,
   };
+}
+
+// PLAN-BRAIN B1: the brain door's block, { on: <boolean> } and nothing else; missing is off. null for any other shape.
+function brainBlock(b) {
+  if (b === undefined) return { on: false };
+  if (!obj(b) || Object.keys(b).length !== 1 || typeof b.on !== "boolean") return null;
+  return { on: b.on };
 }
 
 // A host name as the owner's lists keep it (lower case, a leading `*.` or `.` dropped), or null when it is not one
@@ -132,6 +140,8 @@ export function checkDoors(s) {
     models[k] = m;
   }
   if (typeof s.viewer.on !== "boolean") return null;
+  const brain = brainBlock(s.brain);
+  if (!brain) return null;
   const h = g.higgsfield === undefined || g.higgsfield === null ? HF_DEFAULTS : g.higgsfield;
   if (!obj(h) || Object.keys(h).some((k) => k !== "on" && k !== "centsPerCredit")) return null;
   if (h.on !== undefined && typeof h.on !== "boolean") return null;
@@ -147,6 +157,7 @@ export function checkDoors(s) {
     web: { on: w.on, ...lists, search: w.search, perHour: w.perHour, perDay: w.perDay },
     generate,
     viewer: { on: s.viewer.on },
+    brain,
     changedAt: typeof s.changedAt === "string" && ISO_TIME.test(s.changedAt) ? s.changedAt : null,
   };
 }
@@ -193,7 +204,7 @@ export function readDoors(config) {
   try { raw = text === null ? null : JSON.parse(text); } catch { raw = null; }
   if (!obj(raw)) return { state: freshDoors(), problem: "state_unreadable", missing: false };
   const merged = {
-    web: st.web, generate: { ...st.generate }, viewer: st.viewer,
+    web: st.web, generate: { ...st.generate }, viewer: st.viewer, brain: st.brain,
     changedAt: raw.changedAt,
   };
   if (obj(raw.generate) && raw.generate.resumedAt !== undefined) merged.generate.resumedAt = raw.generate.resumedAt;

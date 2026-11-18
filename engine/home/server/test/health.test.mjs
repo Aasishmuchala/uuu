@@ -43,7 +43,7 @@ test("parts, fence, not connected and disk", async () => {
     const r = await call(h.url, "GET", "/api/health");
     assert.equal(r.status, 200);
     const d = r.json;
-    assert.deepEqual(d.parts.map((p) => p.id), ["books", "board", "gate", "relay", "web", "generate", "viewer", "apps", "playbooks", "home"]);
+    assert.deepEqual(d.parts.map((p) => p.id), ["books", "board", "gate", "relay", "web", "generate", "viewer", "brain", "apps", "playbooks", "home"]);
     const by = Object.fromEntries(d.parts.map((p) => [p.id, p]));
     assert.equal(by.books.state, "on");
     assert.equal(by.board.state, "on");
@@ -57,7 +57,9 @@ test("parts, fence, not connected and disk", async () => {
     assert.equal(by.web.sentence, "The web door is off. Run: engine start");
     assert.equal(by.generate.sentence, "The generation door is off. Run: engine start");
     assert.equal(by.viewer.sentence, "The page viewer is off. Run: engine start");
-    for (const id of ["web", "generate", "viewer", "apps"]) {
+    assert.equal(by.brain.name, "Brain door");
+    assert.equal(by.brain.sentence, "The brain door is off. Run: engine start");
+    for (const id of ["web", "generate", "viewer", "brain", "apps"]) {
       assert.equal(by[id].state, "off");
       assert.match(by[id].technical, /none in stubs mode/);
     }
@@ -364,6 +366,39 @@ test("the playbooks' line comes from their index, read without following a link"
     symlinkSync(join(root, "elsewhere.json"), join(dir, "index.json"));
     assert.equal(playbooksState(env).state, "not_installed");
   } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the brain door's line: not installed in a temp state until its READY marker exists, then off; on when it answers", async () => {
+  const root = mkdtempSync(join(tmpdir(), "uuu-health-brain-"));
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ part: "brain", ok: true, on: false, index: null }));
+  });
+  try {
+    const free = http.createServer();
+    await new Promise((r) => free.listen(0, "127.0.0.1", r));
+    const closed = `http://127.0.0.1:${free.address().port}`;
+    await new Promise((r) => free.close(r));
+    const env = { config: { engineDir: root, paths: { doorsState: join(root, "none.json") } }, urls: { web: null, generate: null, viewer: null, brain: closed } };
+    let lines = await doorStates(env);
+    assert.equal(lines.length, 4);
+    let brain = lines[3];
+    assert.deepEqual([brain.id, brain.name, brain.state, brain.sentence], ["brain", "Brain door", "not_installed", "The brain door is not installed yet."]);
+    mkdirSync(join(root, "brain"));
+    writeFileSync(join(root, "brain", "READY"), "2026-11-18\n");
+    brain = (await doorStates(env))[3];
+    assert.deepEqual([brain.state, brain.sentence], ["off", "The brain door is off. Run: engine start"]);
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    env.urls.brain = `http://127.0.0.1:${server.address().port}`;
+    brain = (await doorStates(env))[3];
+    assert.equal(brain.state, "on");
+    assert.match(brain.sentence, /^The brain door is on\. /);
+    assert.doesNotMatch(brain.sentence, TECH);
+  } finally {
+    server.closeAllConnections?.();
+    await new Promise((r) => server.close(() => r()));
     rmSync(root, { recursive: true, force: true });
   }
 });

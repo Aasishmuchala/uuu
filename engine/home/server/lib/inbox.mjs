@@ -29,7 +29,7 @@ function plainReason(e) {
 }
 
 // Which source lists the items of each id prefix (`board:…`, `goal:…`, `staged:…`, `bench:…`, `content:…`).
-const PREFIX_SOURCE = { board: "board", goal: "goals", staged: "staged", bench: "bench", content: "content" };
+const PREFIX_SOURCE = { board: "board", goal: "goals", staged: "staged", bench: "bench", content: "content", brain: "brain" };
 
 function unreadError(reason) {
   return new HomeError(502, reason || "This part could not be read just now.",

@@ -98,6 +98,12 @@ export async function startStubBench({ port = 0, seed } = {}) {
     return state.users[m[1]] ? { ...state.users[m[1]], key: m[1] } : null;
   }
   const canTouch = (user, dt) => user.doctypes?.includes("*") || user.doctypes?.includes(dt);
+  // What the books keep on every save: who saved last (`modified_by`) and a Version naming who wrote it.
+  function saved(dt, doc, user, t) {
+    doc.modified_by = user.email;
+    if (dt === "Version") return;
+    docsOf("Version").push({ doctype: "Version", name: nextName("Version", {}), ref_doctype: dt, docname: nameOf(doc), owner: user.email, docstatus: 0, creation: t, modified: t });
+  }
 
   async function handle(req, url, body, user) {
     const p = url.pathname;
@@ -117,6 +123,7 @@ export async function startStubBench({ port = 0, seed } = {}) {
       if (refusal) return frappeInvalid(refusal, doc.doctype);
       if (found.docstatus !== 0) return frappeError(417, "ValidationError", "Document is not a draft");
       found.docstatus = 1; found.modified = nowStamp();
+      saved(doc.doctype, found, user, found.modified);
       return { message: clone(found) };
     }
 
@@ -161,6 +168,7 @@ export async function startStubBench({ port = 0, seed } = {}) {
         const t = nowStamp();
         const doc = { ...clone(body), doctype: dt, name: nextName(dt, body), owner: user.email, docstatus: 0, creation: t, modified: t };
         docsOf(dt).push(doc);
+        saved(dt, doc, user, t);
         return { data: clone(doc) };
       }
       if (name !== null) {
@@ -168,8 +176,9 @@ export async function startStubBench({ port = 0, seed } = {}) {
         if (!found) return frappeError(404, "DoesNotExistError", `${dt} ${name} not found`);
         if (method === "GET") return { data: clone(found) };
         if (method === "PUT") {
-          for (const [k, v] of Object.entries(body || {})) if (!["name", "owner", "docstatus", "creation", "doctype"].includes(k)) found[k] = clone(v);
+          for (const [k, v] of Object.entries(body || {})) if (!["name", "owner", "docstatus", "creation", "doctype", "modified_by"].includes(k)) found[k] = clone(v);
           found.modified = nowStamp();
+          saved(dt, found, user, found.modified);
           return { data: clone(found) };
         }
         if (method === "DELETE") {

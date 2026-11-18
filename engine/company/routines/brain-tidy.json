@@ -1,0 +1,9 @@
+{
+  "id": "brain-tidy",
+  "title": "Tidy-up suggestions",
+  "agent": "chief-of-staff",
+  "when": { "cron": "0 8 * * 1", "timezone": "Asia/Kolkata", "plain": "Mondays at 08:00" },
+  "ask": "Read the company's own files and look for what I could tidy: two files that say the same thing, two files that give different figures for the same thing, a date that has passed, or a file that looks out of date. Change no file. Write brain-tidy.json as a list of at most five entries, each with \"path\", the file's path exactly as the Files page lists it, and \"note\", one or two plain sentences of at most 600 characters saying what looks wrong and what I might change. Name only what you read in the files themselves. If nothing needs tidying, write an empty list. Your notes are shown to me as yours; I edit the files myself.",
+  "produces": ["brain-tidy.json"],
+  "runMinutes": 10
+}

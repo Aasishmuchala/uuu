@@ -22,6 +22,7 @@ The look follows that video. Our code, names, icons, creatures and words are our
 - Until the nine basics are filled, nine jobs wait. Three more stay dim for reasons that do not depend on the owner: agents have no internet, and sending needs a connected account.
 - The old pages and words (Home, Docs, ready-made goals) are gone from the interface.
 - An answer that sounds sure can still be wrong. The label says so, and "a checked answer from our files" remains a job for when it matters.
+- See 0018: the brain can be searched; only the owner still writes it.
 
 ## Rejected
 

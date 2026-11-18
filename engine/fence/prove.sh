@@ -490,7 +490,7 @@ door_checks() {
   done
   if (( ok )); then
     blocked "read the doors' settings and secrets" \
-      "cat $DOORS_DIR/.fence-proof >/dev/null || cat $DOOR_SECRETS/.fence-proof >/dev/null || ls $DOORS_DIR >/dev/null || ls $DOOR_SECRETS >/dev/null || cat $CFG_DOORS_STATE >/dev/null || cat $DOOR_SECRETS/web-secret >/dev/null || cat $DOOR_SECRETS/generate-secret >/dev/null || cat $DOOR_SECRETS/viewer-secret >/dev/null"
+      "cat $DOORS_DIR/.fence-proof >/dev/null || cat $DOOR_SECRETS/.fence-proof >/dev/null || ls $DOORS_DIR >/dev/null || ls $DOOR_SECRETS >/dev/null || cat $CFG_DOORS_STATE >/dev/null || cat $DOOR_SECRETS/web-secret >/dev/null || cat $DOOR_SECRETS/generate-secret >/dev/null || cat $DOOR_SECRETS/viewer-secret >/dev/null || cat $DOOR_SECRETS/brain-secret >/dev/null"
   else
     say FAIL "could not put a mark in the doors' folders ($DOORS_DIR, $DOOR_SECRETS)"
   fi
@@ -1011,6 +1011,16 @@ sys.exit(0 if isinstance(p,dict) and p.get('walled') is True else 1)" "$CFG_POLI
     allowed "be given no web door address or token while it is switched off" 'test -z "${UUU_WEB_URL+x}${UUU_WEB_TOKEN+x}"'
   fi
   stand_in_stop
+  # The brain door (PLAN-BRAIN B9) never serves the Researcher, whatever its switch: the planner
+  # keeps its port out, and fence-run refuses a UUU_BRAIN line for a walled run.
+  stand_in "$CFG_PORT_BRAIN" /brain/health
+  if [[ -n "$NOT_ANSWERING" ]]; then
+    say SKIP "whether the Researcher can reach the brain door (the brain door is not running, and the proof could not stand in on port $CFG_PORT_BRAIN)"
+  else
+    blocked "reach the brain door, which never serves it" "$(reach "$CFG_PORT_BRAIN" /brain/health)"
+  fi
+  stand_in_stop
+  allowed "be given no brain door address or token" 'test -z "${UUU_BRAIN_URL+x}${UUU_BRAIN_TOKEN+x}"'
   app_studio_checks
   AS=""
   proof_task_finish

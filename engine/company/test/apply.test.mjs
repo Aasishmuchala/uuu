@@ -327,7 +327,14 @@ test("a walled policy is written with walled: true, and only then", () => withBo
   cpSync(join(HERE, "fixtures", "roles"), join(dir, "roles"), { recursive: true });
   const f = join(dir, "company.json");
   writeFileSync(f, JSON.stringify(doc));
-  const r = await runApply(env, ["--file", f]);
+  // A walled agent may not be on the brain door's list (PLAN-BRAIN T8): walled while listed is refused.
+  let r = await runApply(env, ["--file", f]);
+  assert.notEqual(r.code, 0);
+  assert.ok(r.stderr.includes("the agent bookkeeper is walled and may not be on the brain door's list"), r.stderr);
+  const cfg = JSON.parse(readFileSync(env.cfgPath, "utf8"));
+  cfg.doors.brain.agents = cfg.doors.brain.agents.filter((s) => s !== "bookkeeper");
+  writeFileSync(env.cfgPath, JSON.stringify(cfg));
+  r = await runApply(env, ["--file", f]);
   assert.equal(r.code, 0, r.stderr);
   const ids = JSON.parse(readFileSync(join(env.state, "ids.json"), "utf8")).agents;
   const policyOf = (slug) => JSON.parse(readFileSync(join(env.state, "policy", `${ids[slug]}.json`), "utf8"));

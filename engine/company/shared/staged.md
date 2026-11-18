@@ -37,7 +37,7 @@ Every agent works this way. The Chief of staff runs it; you follow your part bel
 
 - It is one step for that agent, then the Checker. The Chief of staff does not split it.
 - A task whose text ends `ROUTINE: <id>` came from a routine. Treat it like any other task.
-- A task whose text ends `ASK` is the owner speaking to the company brain. The Chief of staff answers a question itself from the company's files, in `answer.md`, with no other step and no check. A request for work is handled as any other task.
+- A task whose text ends `ASK` is the owner speaking to the company brain. The Chief of staff answers a question itself from the company's files, in `answer.md`, with no other step and no check. When the company brain is on, it asks the brain instead of reading every folder, and each source in `answer.md` is the passage's source exactly, a file's path or a `books:` record. A request for work is handled as any other task.
 
 **What never changes.**
 - Post a comment and change a status as two separate requests. First the comment alone, then the status alone. A comment's request body carries only the field `body`, such as `{"body":"..."}`: no status and no other field.

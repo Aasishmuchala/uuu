@@ -342,7 +342,9 @@ test("the Researcher's policy is walled, reads no company folder, has no lessons
 });
 
 test("a walled policy is refused with a local service, a company folder, a key file or a read-only task folder", () => {
-  withCopy((dir, config) => {
+  withCopy((dir, listed) => {
+    // The Artist is taken off the brain door's list, where a walled agent may not be (PLAN-BRAIN T8).
+    const config = { ...listed, doors: { ...listed.doors, brain: { agents: listed.doors.brain.agents.filter((s) => s !== "artist") } } };
     const f = join(dir, "company.json");
     const doc = JSON.parse(readFileSync(f, "utf8"));
     const art = doc.agents.findIndex((a) => a.slug === "artist");
@@ -364,6 +366,34 @@ test("a walled policy is refused with a local service, a company folder, a key f
     // walled false is allowed and left out of the policy.
     const off = tryWith({ walled: false, readFolders: ["{state}/art"] })().agents[art].policy;
     assert.equal("walled" in off, false);
+  });
+});
+
+// PLAN-BRAIN T8: a walled agent may not be on the brain door's list in config.json.
+test("a walled agent on the brain door's list is refused; the eleven ordinary agents on it load", () => {
+  withCopy((dir, config) => {
+    const f = join(dir, "company.json");
+    assert.ok(config.doors.brain.agents.length > 0);
+    assert.equal(config.doors.brain.agents.includes("researcher"), false);
+    const loaded = loadCompanyFile(f, config);
+    for (const slug of config.doors.brain.agents) {
+      assert.equal("walled" in loaded.agents.find((a) => a.slug === slug).policy, false, slug);
+    }
+    const listed = { ...config, doors: { ...config.doors, brain: { agents: [...config.doors.brain.agents, "researcher"] } } };
+    assert.throws(() => loadCompanyFile(f, listed), (e) => e instanceof FileProblem
+      && e.message === "The company file is not usable: the agent researcher is walled and may not be on the brain door's list.");
+    // An ordinary agent walled in the file while on the list is refused the same way.
+    const doc = JSON.parse(readFileSync(f, "utf8"));
+    const art = doc.agents.findIndex((a) => a.slug === "artist");
+    doc.agents[art].fencePolicy = { localServices: [], readFolders: [], envFile: null, taskFolder: "read-write", walled: true };
+    writeFileSync(f, JSON.stringify(doc));
+    assert.throws(() => loadCompanyFile(f, config), (e) => e instanceof FileProblem
+      && e.message.includes("the agent artist is walled and may not be on the brain door's list"));
+    // Off the list it loads; a config without a brain list (before the brain door) has no one on it.
+    const off = { ...config, doors: { ...config.doors, brain: { agents: config.doors.brain.agents.filter((s) => s !== "artist") } } };
+    assert.equal(loadCompanyFile(f, off).agents[art].policy.walled, true);
+    const { brain: _brain, ...noBrain } = config.doors;
+    assert.equal(loadCompanyFile(f, { ...config, doors: noBrain }).agents[art].policy.walled, true);
   });
 });
 

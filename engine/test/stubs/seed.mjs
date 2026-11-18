@@ -606,7 +606,7 @@ export function benchSeed({ now = new Date(), quotations = true } = {}) {
   const older = istDate(new Date(now.getTime() - 45 * 86400000));
   const later = istDate(new Date(now.getTime() + 30 * 86400000));
   const bk = "bookkeeper@engine.localhost", sl = "sales@engine.localhost", sp = "support@engine.localhost", pe = "people@engine.localhost";
-  const base = (dt, name, owner, docstatus, extra) => ({ doctype: dt, name, owner, docstatus, creation: t, modified: t, ...extra });
+  const base = (dt, name, owner, docstatus, extra) => ({ doctype: dt, name, owner, modified_by: owner, docstatus, creation: t, modified: t, ...extra });
   const sinv = (n, owner, docstatus, customer, posting, total, left) => base("Sales Invoice", `ACC-SINV-2026-${String(n).padStart(5, "0")}`, owner, docstatus, {
     customer, posting_date: posting, due_date: later, grand_total: total, outstanding_amount: left,
   });

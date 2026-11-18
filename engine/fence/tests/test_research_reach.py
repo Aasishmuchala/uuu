@@ -5,6 +5,7 @@ Before the fix the run's folder was the whole research folder and these failed.
 
 Run: /usr/bin/python3 -I -m unittest discover -s engine/fence/tests -p 'test_research_reach.py'
 """
+import json
 import os
 import sys
 import unittest
@@ -44,13 +45,28 @@ class ResearchFolderReach(base.PlanTests):
     def test_the_whole_research_folder_is_not_a_walled_run_folder(self):
         self.refused(self.walled_inputs(taskFolder=self.research), "walled agent")
 
+    # PLAN-BRAIN T8: the Researcher's plan never holds the brain door's port, whatever the switch says.
+
+    def test_brain_door_off_no_3190(self):
+        for doors in ([], [3130]):
+            for mode in ({}, {"modelMode": "provider", "relayPort": 3120}):
+                out = fence_plan.plan(self.walled_inputs(**self.brain(doorPorts=doors, **mode)))
+                self.assertNotIn("3190", json.dumps(out))
+
+    def test_brain_door_on_refused(self):
+        for doors in ([3190], [3130, 3190]):
+            for mode in ({}, {"modelMode": "provider", "relayPort": 3120}):
+                self.refused(self.walled_inputs(**self.brain(doorPorts=doors, **mode)),
+                             "a walled agent never reaches the brain door")
+
 
 MINE = ("test_one_goal_run_cannot_reach_another_goals_research", "test_it_reaches_its_own_goal",
-        "test_held_company_out_of_reach", "test_the_whole_research_folder_is_not_a_walled_run_folder")
+        "test_held_company_out_of_reach", "test_the_whole_research_folder_is_not_a_walled_run_folder",
+        "test_brain_door_off_no_3190", "test_brain_door_on_refused")
 
 
 def load_tests(loader, tests, pattern):
-    # Only this file's four; the planner's own tests (inherited) run in test_fence_plan.py.
+    # Only this file's own; the planner's own tests (inherited) run in test_fence_plan.py.
     return unittest.TestSuite(ResearchFolderReach(name) for name in MINE)
 
 

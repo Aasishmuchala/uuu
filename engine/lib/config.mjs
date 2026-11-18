@@ -8,9 +8,11 @@ const ENGINE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const PORT_KEYS = ["board", "gate", "relay", "home", "benchWeb", "benchSocketio",
   "benchRedisQueue", "benchRedisCache", "benchDb",
-  "gateNarrow", "web", "generate", "viewer", "preview", "apps"];
+  "gateNarrow", "web", "generate", "viewer", "preview", "apps", "brain"];
 // The doors (PLAN-V5 K1): each lists the agents, by slug, that may reach it.
-const DOOR_NAMES = ["web", "generate", "viewer"];
+const DOOR_NAMES = ["web", "generate", "viewer", "brain"];
+// A config written before the brain door has no `doors.brain`; it loads with no agents.
+const OPTIONAL_DOORS = ["brain"];
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 // App Studio (K17): each app's own port lies in this range (not a config key).
 const APP_PORTS = { first: 3171, last: 3189 };
@@ -32,8 +34,12 @@ function needDoors(cfg) {
   const d = cfg.doors;
   if (d === null || typeof d !== "object" || Array.isArray(d)) fail("missing key doors");
   const names = Object.keys(d).sort();
-  if (names.join(",") !== [...DOOR_NAMES].sort().join(",")) fail(`key doors must name ${DOOR_NAMES.join(", ")}`);
-  for (const name of DOOR_NAMES) {
+  const required = DOOR_NAMES.filter((n) => !OPTIONAL_DOORS.includes(n));
+  const allowed = names.filter((n) => DOOR_NAMES.includes(n));
+  if (allowed.length !== names.length || !required.every((n) => names.includes(n))) {
+    fail(`key doors must name ${required.join(", ")}`);
+  }
+  for (const name of names) {
     const agents = need(cfg, `doors.${name}.agents`, "array");
     if (!agents.every((s) => typeof s === "string" && SLUG_RE.test(s))) fail(`key doors.${name}.agents must list agent slugs`);
     // `app-<name>` is an app's name, never an agent's (the company file refuses it too).
@@ -45,6 +51,16 @@ function needDoors(cfg) {
       if (!Array.isArray(apps) || !apps.every((s) => typeof s === "string" && APP_NAME_RE.test(s))) {
         fail("key doors.generate.apps must list app names");
       }
+    }
+    // The brain door's agents who may see books records (the owner's answer 2); optional, none when absent.
+    // Only an agent on both lists sees them (the door and the notes builder check both).
+    if ("records" in d[name]) {
+      if (name !== "brain") fail(`key doors.${name}.records: only the brain door lists who may see books records`);
+      const records = d[name].records;
+      if (!Array.isArray(records) || !records.every((s) => typeof s === "string" && SLUG_RE.test(s))) {
+        fail("key doors.brain.records must list agent slugs");
+      }
+      if (records.some((s) => s.startsWith("app-"))) fail("key doors.brain.records names an app, not an agent (a name starting with app-)");
     }
   }
 }
@@ -112,6 +128,7 @@ export function loadConfig({ path } = {}) {
     web: `${host}:${p.web}`,
     generate: `${host}:${p.generate}`,
     viewer: `${host}:${p.viewer}`,
+    brain: `${host}:${p.brain}`,
     preview: `${host}:${p.preview}`,
   };
   out.urls.apps = `${host}:${p.apps}`;
@@ -119,6 +136,8 @@ export function loadConfig({ path } = {}) {
   // The preview serves each load on the nine ports after its own (viewer/preview.mjs SITE_PORT_COUNT).
   out.previewPorts = { first: p.preview + 1, last: p.preview + PREVIEW_SITE_PORTS };
   if (!("apps" in out.doors.generate)) out.doors.generate.apps = [];
+  if (!("brain" in out.doors)) out.doors.brain = { agents: [] };
+  if (!("records" in out.doors.brain)) out.doors.brain.records = [];
   const s = out.stateRoot;
   out.paths = {
     state: s,
@@ -160,6 +179,7 @@ export function loadConfig({ path } = {}) {
     webSecret: join(s, "secrets", "doors", "web-secret"),
     generateSecret: join(s, "secrets", "doors", "generate-secret"),
     viewerSecret: join(s, "secrets", "doors", "viewer-secret"),
+    brainSecret: join(s, "secrets", "doors", "brain-secret"),
     runwayKey: join(s, "secrets", "doors", "runway-key"),
     searchKey: join(s, "secrets", "doors", "search-key"),
     webVisits: join(s, "doors", "web-visits.jsonl"),
@@ -169,6 +189,11 @@ export function loadConfig({ path } = {}) {
     webStatus: join(s, "doors", "web-status.json"),
     generateStatus: join(s, "doors", "generate-status.json"),
     viewerStatus: join(s, "doors", "viewer-status.json"),
+    brainStatus: join(s, "doors", "brain-status.json"),
+    brainAsks: join(s, "doors", "brain-asks.jsonl"),
+    brainDir: join(s, "brain"),
+    brainIndex: join(s, "brain", "index.sqlite"),
+    brainNotes: join(s, "brain", "notes"),
     appsCode: join(ENGINE_DIR, "..", "apps"),
     apps: join(s, "apps"),
     appsState: join(s, "apps", "state.json"),

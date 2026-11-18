@@ -16,7 +16,7 @@ const SELF = fileURLToPath(import.meta.url);
 
 // room and sheet: the room header, the lamp and paper, after player (PLAN-3D-ALL U2).
 const KIT_SHEETS = "button icon avatar status tag tile card tabs fields states overlays text page decision task-card brief composer conversation table timeline checks doc agent segmented job answer ring forms upload pick shotlist site layout stage strip money diff player room sheet".split(" ");
-const PAGE_SHEETS = "map needs-you tasks task dashboards dashboard marketing studio sprite-player dept team agent jobs job files brain routines health settings search brand-kit apps app studio-film settings-generation settings-web settings-viewer settings-models".split(" ");
+const PAGE_SHEETS = "map needs-you tasks task dashboards dashboard marketing studio sprite-player dept team agent jobs job files brain brain-find routines health settings search brand-kit apps app studio-film settings-generation settings-web settings-viewer settings-models".split(" ");
 const SHEETS = [
   "./styles/tokens.css",
   "./styles/base.css",

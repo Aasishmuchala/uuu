@@ -18,6 +18,8 @@
 // the book wall's glimpse behind them, above the places and the set; DocLayout draws no head of its own, so the
 // band's h1 is the one. The lists stay on the ground. What is read sits on paper (kit/sheet.js): an opened text or
 // Markdown file, and the words of each lesson. A table, a picture and the forms stay off it.
+// PLAN-BRAIN T13: a segmented "Files | Brain" in the toolbar; `?tab=brain` mounts the Brain view (brain/find.js and
+// brain/links-view.js), which searches the files and the books at once and shows what is linked.
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
 import { go } from "../lib/router.js";
@@ -28,6 +30,7 @@ import {
   FILE_ICONS, fileKind, glimpseFor, Menu, RoomHeader, Row, Rows, Segmented, Select, Sheet, Switch, Tag, TextInput, Tile, Time,
   tintFor,
 } from "../kit/index.js";
+import { BRAIN_WORDS, BrainView } from "../brain/find.js";
 
 const EVERY = 10000;
 const NAME_MAX = 100;
@@ -73,7 +76,7 @@ export function filesHref({ folder, file, q, tab, mode, shared } = {}) {
   const qs = new URLSearchParams();
   if (TOKEN.test(str(file))) qs.set("file", file);
   if (str(q).trim()) qs.set("q", str(q).trim().slice(0, 200));
-  if (tab === "lessons") qs.set("tab", "lessons");
+  if (tab === "lessons" || tab === "brain") qs.set("tab", tab);
   if (newMode(mode)) qs.set("new", mode);
   if (shared === true && !f) qs.set("shared", "1");
   const s = qs.toString();
@@ -896,7 +899,7 @@ function FilesPage({ route }) {
   const folder = parts.length === 2 && ID.test(parts[1]) ? parts[1] : "";
   const badFolder = parts.length === 2 && !folder;
   const fileTok = TOKEN.test(query.get("file") || "") ? query.get("file") : "";
-  const tab = query.get("tab") === "lessons" ? "lessons" : "files";
+  const tab = query.get("tab") === "lessons" ? "lessons" : query.get("tab") === "brain" ? "brain" : "files";
   const sharedMode = !folder && !badFolder && query.get("shared") === "1";
   const wanted = newMode(query.get("new"));
   // The Brand form now lives in the Brand kit (PLAN-V5 T14).
@@ -955,15 +958,18 @@ function FilesPage({ route }) {
   const closeNew = () => go(filesHref({ folder, q: term, tab: tab === "lessons" ? "lessons" : "" }));
 
   const showFile = Boolean(fileTok) && !(target && target.to === "folder");
+  const brainMode = tab === "brain" && !showFile && !folder && !badFolder && !sharedMode;
   const title = showFile
     ? fileName || (saved.current === fileTok && savedName) || "File"
     : folder || badFolder ? (unknownFolder ? "Folder not found" : folderTitle)
     : sharedMode ? SHARE_WORDS.title
+    : brainMode ? BRAIN_WORDS.title
     : tab === "lessons" ? FILES_WORDS.lessons
     : FILES_WORDS.title;
   const lead = showFile ? ""
     : folder || badFolder ? (folderInfo ? cut(folderInfo.about, 200) : "")
     : sharedMode ? SHARE_WORDS.lead
+    : brainMode ? BRAIN_WORDS.lead
     : tab === "lessons" ? FILES_WORDS.lessonsLead
     : FILES_WORDS.lead;
 
@@ -974,6 +980,7 @@ function FilesPage({ route }) {
     const crumbs = [{ label: FILES_WORDS.title, href: "#/files" }];
     if (folder && !unknownFolder) crumbs.push({ label: folderTitle, href: filesHref({ folder }) });
     else if (sharedMode) crumbs.push({ label: SHARE_WORDS.title, href: filesHref({ shared: true }) });
+    else if (brainMode) crumbs.push({ label: BRAIN_WORDS.title, href: filesHref({ tab: "brain" }) });
     else if (tab === "lessons") crumbs.push({ label: FILES_WORDS.lessons, href: filesHref({ tab: "lessons" }) });
     if (showFile) crumbs.push({ label: title });
     setTop({ crumbs: crumbs.map((c, i) => (i === crumbs.length - 1 ? { label: c.label } : c)) });
@@ -1004,7 +1011,8 @@ function FilesPage({ route }) {
   // An opened file lifts the place it is in (a file directly in the brain is in Loose files).
   const filePath = showFile ? tokenPath(fileTok) : "";
   const fileFolder = filePath.includes("/") ? filePath.split("/")[0] : filePath ? "loose" : "";
-  const current = placeOf({ folder: folder || (sharedMode ? "" : fileFolder), shared: sharedMode, tab });
+  // The Brain view lifts no place: it searches all of them and the books.
+  const current = brainMode ? "brain" : placeOf({ folder: folder || (sharedMode ? "" : fileFolder), shared: sharedMode, tab });
   const sections = places.map((p) => ({ id: p.id, icon: p.icon, label: placeLabel(p), href: p.href }));
   const currentPlace = places.find((p) => p.id === current) || places[0];
   // Below 1100 px the places are this one menu.
@@ -1016,10 +1024,14 @@ function FilesPage({ route }) {
   </div>`;
 
   const searching = tab === "files" && !sharedMode && q.trim().length > 0;
-  const listing = !showFile && !sharedMode && !(tab === "lessons" && !folder) && !badFolder;
+  const listing = !showFile && !sharedMode && !brainMode && !(tab === "lessons" && !folder) && !badFolder;
+  // Files or Brain: the brain's own search sits beside the files, as one segmented choice.
+  const brainSwitch = html`<${Segmented} size="sm" label="Files or the brain" current=${brainMode ? "brain" : "files"}
+    items=${[{ id: "files", label: FILES_WORDS.title, icon: "files", href: filesHref({}) }, { id: "brain", label: BRAIN_WORDS.tab, icon: "brain", href: filesHref({ tab: "brain" }) }]} />`;
   const toolbar = showFile ? html`<div class="p-files__toolbar p-files__toolbar--file">${placeMenu}</div>` : html`<div class="p-files__toolbar">
     <div class="p-files__tools-start">
       ${placeMenu}
+      ${brainSwitch}
       ${listing && !searching
         ? html`<${Segmented} size="sm" label=${FILES_WORDS.view} current=${grid ? "grid" : "list"} onChange=${(v) => setGrid(v === "grid")}
             items=${[{ id: "list", label: "List", icon: "list" }, { id: "grid", label: "Cards", icon: "grid" }]} />
@@ -1029,7 +1041,7 @@ function FilesPage({ route }) {
           </div>`
         : null}
     </div>
-    ${sharedMode ? null : html`<label class="p-files__search">
+    ${sharedMode || brainMode ? null : html`<label class="p-files__search">
       <${Icon} name="search" size=${16} />
       <${TextInput} type="search" value=${q} maxLength=${200} placeholder="Search in files" aria-label=${FILES_WORDS.search}
         onInput=${(e) => setQ(e.currentTarget.value)} />
@@ -1055,6 +1067,7 @@ function FilesPage({ route }) {
             go(filesHref({ folder: ID.test(str(file && file.folder)) ? file.folder : folder }));
           }} />`;
   } else if (sharedMode) body = html`<${SharedView} />`;
+  else if (brainMode) body = html`<${BrainView} ask=${query.get("ask") || ""} entity=${query.get("entity") || ""} navigate=${go} />`;
   else if (searching) body = html`<${SearchResults} term=${term} folder=${folder} />`;
   else if (tab === "lessons" && !folder) body = html`<${Lessons} />`;
   else if (badFolder) body = html`<${Empty} title="There is no folder of that name."><${Button} href="#/files" icon="arrow-left">All files<//><//>`;

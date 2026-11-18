@@ -17,6 +17,8 @@ import { answeredTurn, findTask, isHeldTask, loadTaskContext, queueOf, treeComme
 import { chiefQueue } from "../lib/turn.mjs";
 import { readTaskText } from "../lib/taskfiles.mjs";
 import { brainFor } from "../brain/store.mjs";
+import { indexFor } from "../brain/indexer.mjs";
+import { brainOn, buildNotes } from "../brain/notes.mjs";
 import { titleOf } from "./goals.mjs";
 
 const MAX_QUESTION = 2000;
@@ -55,12 +57,52 @@ export function readAnswer(config, identifier) {
   return hit ? parseAnswer(hit.text) : null;
 }
 
+// A record's page by its doctype (PLAN-BRAIN B10).
+const RECORD_PAGE = new Map([
+  ["Customer", "books"], ["Sales Invoice", "books"], ["Project", "books"],
+  ["CRM Deal", "customers"], ["Contact", "customers"], ["HD Ticket", "support"], ["Employee", "people"],
+]);
+const BOOKS_SOURCE = /^books:([^:]+):(.+)$/s;
+
+// `books:<Doctype>:<id>` -> { page, id } | null.
+export function recordLink(source) {
+  const m = BOOKS_SOURCE.exec(String(source));
+  const page = m ? RECORD_PAGE.get(m[1]) : null;
+  return page ? { page, id: m[2] } : null;
+}
+
+// The `books:` sources of an answer that are records of the brain's index, as source -> the record's passage
+// title. Looked up in the index (read-only), never taken from the agent's word; empty when there is no index.
+export function bookSources(config, sources) {
+  const out = new Map();
+  const wanted = [...new Set((sources || []).map((s) => s?.path).filter((p) => typeof p === "string" && recordLink(p)))];
+  if (!wanted.length) return out;
+  let ix = null;
+  try {
+    ix = indexFor(config).open();
+    if (!ix) return out;
+    const q = ix.db.prepare("SELECT title FROM passages WHERE source = ? AND kind = 'record' AND trust = 'books' ORDER BY id LIMIT 1");
+    for (const p of wanted) {
+      const row = q.get(p);
+      if (row && typeof row.title === "string") out.set(p, row.title);
+    }
+  } catch { /* no index: no record is found */ } finally {
+    try { ix?.db.close(); } catch { /* closed */ }
+  }
+  return out;
+}
+
 // Each source with `found` and `link` from the brain's own listing; an exact listed path only. A found source
 // also carries the brain file's own `title` (a basic's form title, else the file's name without its folder;
 // lib/brainfiles.mjs brainTitle), so the screen names the file the owner knows, not a path (M50 F17).
-export function vouch(sources, paths) {
+// A `books:` source is found only when it is exactly a record of the brain's index (`books`, from bookSources):
+// its link is the record's page and its title the record's passage title (PLAN-BRAIN T10).
+export function vouch(sources, paths, books = new Map()) {
   return sources.map((s) => {
     const token = paths.has(s.path) ? paths.get(s.path) : null;
+    if (!token && books.has(s.path) && recordLink(s.path)) {
+      return { n: s.n, path: s.path, note: s.note, found: true, link: recordLink(s.path), title: books.get(s.path) };
+    }
     return { n: s.n, path: s.path, note: s.note, found: !!token, link: token ? { page: "files", id: token } : null,
       title: token ? brainTitle(s.path) : null };
   });
@@ -93,7 +135,9 @@ export async function askOf(ctx, tctx, goal, { paths } = {}) {
     answer = {
       // Shown as plain text: Markdown's marks taken out (S8 T3); the source marks ("[1]") stay.
       text: plainMarks(parsed.text),
-      sources: parsed.wellFormed ? vouch(parsed.sources, paths || brainPaths(ctx.config)) : [],
+      sources: parsed.wellFormed
+        ? vouch(parsed.sources, paths || brainPaths(ctx.config), bookSources(ctx.config, parsed.sources))
+        : [],
       notInFiles: parsed.wellFormed ? parsed.notInFiles : [],
       checked: rounds.some((r) => r.outcome === "pass"),
       at: goal.completedAt || goal.updatedAt || null,
@@ -153,6 +197,8 @@ export default function register(app) {
     // question as sent, so what is shown as the owner's words never comes from the task's text.
     const at = new Date().toISOString();
     ctx.decisions.set(askKey(created.id), { at, text });
+    // Brain notes for the task (PLAN-BRAIN B8), with the switch on only, never awaited: the owner's question only.
+    if (brainOn(ctx.config)) void buildNotes(ctx, { taskId: created.id, title: titleOf(text), text }).catch(() => {});
     return {
       status: 201,
       body: {
