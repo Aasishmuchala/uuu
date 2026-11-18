@@ -1,0 +1,56 @@
+/* The page's own style for a page made with the plain site kit and scroll-craft. The four colour roles come from
+   kit.css: set each to one of the brand kit's --brand- colours, by the names in brand/kit.json. Nothing else here
+   names a colour, a face or a size. */
+:root {
+  --sc-canvas: var(--brand-paper);
+  --sc-ink: var(--brand-night);
+  --sc-accent: var(--brand-sun);
+  --sc-accent-ink: var(--brand-night);
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  padding-block: 1rem;
+  padding-inline: var(--sc-gutter);
+}
+
+.page-header img {
+  display: block;
+  height: 2rem;
+  width: auto;
+}
+
+.hero-plane {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+}
+
+.hero-plane--front {
+  z-index: 1;
+}
+
+.sc-copy > * + * {
+  margin-top: 1rem;
+}
+
+.argument {
+  display: grid;
+  place-items: center;
+  padding-inline: var(--sc-gutter);
+}
+
+.argument > * {
+  grid-area: 1 / 1;
+  max-width: 40rem;
+}
+
+.action {
+  color: var(--sc-ink);
+  text-decoration-color: var(--sc-accent);
+  text-decoration-thickness: 2px;
+}

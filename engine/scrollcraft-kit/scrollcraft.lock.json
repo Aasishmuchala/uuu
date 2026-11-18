@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "scrollcraft": "75d81f7",
+  "source": "github.com/nateherkai/scroll-craft at commit 75d81f7 (MIT, Nate Herk); the engine's own files are marked \"engine\"",
+  "files": [
+    {
+      "name": "LICENSE.txt",
+      "bytes": 1066,
+      "sha256": "dd471a27eca72488a53e6ea6fbe9392d81aa3f01e950e63fe328affb2ddfa6e3",
+      "from": "upstream: LICENSE"
+    },
+    {
+      "name": "scrollcraft-brand.css",
+      "bytes": 3910,
+      "sha256": "03f29ac4d85731270befd0755e66a7edfa058c41728a6aaa719664bb5cbbfa5f",
+      "from": "engine"
+    },
+    {
+      "name": "scrollcraft-mount.js",
+      "bytes": 579,
+      "sha256": "6ceb1c7744043c603d64c9aecedf05ed1ea6c2a2d29cb877be2eed7bf41dbe4b",
+      "from": "engine"
+    },
+    {
+      "name": "scrollcraft.css",
+      "bytes": 19769,
+      "sha256": "e19eb3aa73b0944626ca56e6e427c76f44753481e04d60f4bac20e8cf1d7758a",
+      "from": "upstream: plugins/nateherk-design/skills/scroll-craft/engine/scrollcraft.css"
+    },
+    {
+      "name": "scrollcraft.js",
+      "bytes": 62176,
+      "sha256": "4a419b3ede51f64790af7b56c0195ea01c98a84df8e0e768ebf343956b922f39",
+      "from": "upstream: plugins/nateherk-design/skills/scroll-craft/engine/scrollcraft.js"
+    }
+  ],
+  "addresses": [
+    "http://www.w3.org/2000/svg"
+  ],
+  "calls": {
+    "fetch(": 1,
+    "XMLHttpRequest": 0,
+    "WebSocket": 0,
+    "EventSource": 0,
+    "sendBeacon": 0,
+    "importScripts": 0,
+    "new Worker": 0,
+    "SharedWorker": 0,
+    "serviceWorker": 0,
+    "eval(": 0,
+    "new Function": 0,
+    "import(": 0,
+    "@import": 0,
+    "localStorage": 0,
+    "document.cookie": 0
+  }
+}

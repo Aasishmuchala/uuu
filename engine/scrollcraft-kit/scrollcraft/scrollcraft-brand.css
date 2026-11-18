@@ -1,0 +1,81 @@
+/* The engine's own layer over scroll-craft (PLAN-ASTRYX T13). Load it right after scrollcraft.css and never change
+   it. It does three things:
+   1. Gives every scroll-craft token a value from the brand kit: faces, sizes, corners, no shadow, no colour of its own.
+      On an Astryx page the four colour roles come from the Astryx theme (astryx-theme.css). On a page made with the
+      plain site kit the page's own style.css sets the four roles from kit.css:
+        :root { --sc-canvas: var(--brand-…); --sc-ink: var(--brand-…); --sc-accent: var(--brand-…); --sc-accent-ink: var(--brand-…); }
+   2. Draws scroll-craft's display type at the weights a face is drawn in by name (400), so the face Chrome draws is
+      the kit's.
+   3. Shows every part at once, laid out as an ordinary page, when the visitor asks for less motion. The page viewer
+      asks for less motion when it takes its whole-page pictures (it never scrolls), so they show every part. */
+
+:root {
+  /* colour roles (an Astryx page; a plain page sets these four in its own style.css) */
+  --sc-canvas: var(--color-background-body);
+  --sc-ink: var(--color-text-primary);
+  --sc-accent: var(--color-accent);
+  --sc-accent-ink: var(--color-on-accent);
+  /* the rest follow the roles: no colour scroll-craft would pick for itself */
+  --sc-surface: var(--sc-canvas);
+  --sc-ink-soft: var(--sc-ink);
+  --sc-hairline: var(--sc-ink);
+  --sc-hairline-strong: var(--sc-ink);
+  /* faces: the brand kit's two */
+  --sc-font-display: var(--brand-heading);
+  --sc-font-text: var(--brand-body);
+  --sc-font-mono: var(--brand-body);
+  /* sizes: never under the brand kit's smallest */
+  --sc-t-xs: max(var(--brand-min-size), clamp(0.75rem, 0.72rem + 0.15vw, 0.82rem));
+  --sc-t-sm: max(var(--brand-min-size), clamp(0.875rem, 0.84rem + 0.18vw, 0.95rem));
+  --sc-t-base: max(var(--brand-min-size), clamp(1rem, 0.96rem + 0.22vw, 1.125rem));
+  --sc-t-lg: max(var(--brand-min-size), clamp(1.2rem, 1.1rem + 0.5vw, 1.5rem));
+  --sc-t-xl: max(var(--brand-min-size), clamp(1.6rem, 1.35rem + 1.2vw, 2.25rem));
+  --sc-t-2xl: max(var(--brand-min-size), clamp(2.1rem, 1.6rem + 2.4vw, 3.4rem));
+  --sc-t-3xl: max(var(--brand-min-size), clamp(2.8rem, 1.9rem + 4.2vw, 5rem));
+  --sc-t-4xl: max(var(--brand-min-size), clamp(3.4rem, 1.9rem + 6.6vw, 7.5rem));
+  /* corners: the brand kit's one radius */
+  --sc-r-sm: var(--brand-radius);
+  --sc-r-md: var(--brand-radius);
+  --sc-r-lg: var(--brand-radius);
+  /* no shadow and no edge light: their tint is not a kit colour */
+  --sc-e1: none;
+  --sc-e2: none;
+  --sc-e3: none;
+  --sc-edge: none;
+}
+
+.sc-display, .sc-lede, .sc-body, .sc-label { font-weight: 400; }
+
+/* Every part, at once, when less motion is asked for: no pinning, no travel, nothing waiting for the scroll. */
+@media (prefers-reduced-motion: reduce) {
+  [data-sc-act] { height: auto !important; }
+  .sc-stage, [data-sc-stage] {
+    position: relative !important;
+    top: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-end;
+    gap: var(--sc-5);
+    padding: var(--sc-7) var(--sc-gutter);
+  }
+  /* a stage with a picture keeps a screen's height, so the picture is seen with its words on it */
+  .sc-stage:has(> img, > video, > canvas), [data-sc-stage]:has(> img, > video, > canvas) {
+    min-height: 100svh;
+    padding-block: var(--sc-section);
+  }
+  .sc-copy {
+    position: relative !important;
+    inset: auto !important;
+    translate: none !important;
+    max-width: min(46rem, 100%);
+  }
+  [data-sc-cue], [data-sc-in], [data-sc-stagger] > *, .sc-split__i, [data-sc-copy] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  [data-sc-pan] { flex-wrap: wrap; gap: var(--sc-5); transform: none !important; }
+  [data-sc-parallax] { transform: none !important; }
+}

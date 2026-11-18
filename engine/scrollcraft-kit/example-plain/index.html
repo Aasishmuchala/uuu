@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Example scroll page</title>
+<link rel="stylesheet" href="reset.css">
+<link rel="stylesheet" href="kit.css">
+<link rel="stylesheet" href="layout.css">
+<link rel="stylesheet" href="scrollcraft/scrollcraft.css">
+<link rel="stylesheet" href="scrollcraft/scrollcraft-brand.css">
+<link rel="stylesheet" href="style.css">
+<script src="scrollcraft/scrollcraft.js" defer></script>
+<script src="scrollcraft/scrollcraft-mount.js" defer></script>
+</head>
+<body>
+<header class="page-header"><img src="logo.svg" alt="The company's logo" height="32"></header>
+<main>
+<section data-sc-act="pin" data-sc-span="2.2">
+  <div data-sc-stage>
+    <img class="sc-stage__poster hero-plane" src="hero-back.png" alt="" data-sc-parallax="-1.2">
+    <img class="hero-plane hero-plane--front" src="hero-front.png" alt="" data-sc-parallax="0.6">
+    <div class="sc-scrim sc-scrim--band"></div>
+    <div class="sc-copy sc-copy--lead" data-sc-cue="0 0.85 0">
+      <h1 class="sc-display sc-display--lg">The example scroll page</h1>
+      <p class="sc-lede">The first screen holds still while the pictures behind it move.</p>
+      <p><a class="action" href="#close">The main action</a></p>
+    </div>
+  </div>
+</section>
+
+<section data-sc-act="pin" data-sc-span="2.6">
+  <div data-sc-stage class="argument">
+    <p class="sc-lede" data-sc-cue="0 0.36 0">The first line of the argument.</p>
+    <p class="sc-lede" data-sc-cue="0.3 0.68">The second line takes its place.</p>
+    <p class="sc-display sc-display--md" data-sc-cue="0.62 1" data-sc-kinetic="lines">The third line is the one to remember.</p>
+  </div>
+</section>
+
+<section class="sc-section">
+  <div class="sc-wrap sc-stack" data-sc-in data-sc-stagger="70">
+    <h2 class="sc-display sc-display--md">What holds it up</h2>
+    <p class="sc-body">An ordinary section after the moving ones. Most of a page is like this.</p>
+  </div>
+</section>
+
+<section class="sc-section" id="close">
+  <div class="sc-wrap sc-stack">
+    <h2 class="sc-display sc-display--md">The one action</h2>
+    <p class="sc-body">The last screen holds. It does not fade away.</p>
+    <p><a class="action" href="scrollcraft/LICENSE.txt">The licence of scroll-craft</a></p>
+  </div>
+</section>
+</main>
+</body>
+</html>
