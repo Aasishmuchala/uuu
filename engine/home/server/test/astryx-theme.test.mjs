@@ -9,7 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  ASTRYX_TOKENS, astryxThemeCss, checkKit, emptyKit, ensureAstryxTheme, kitCss, loadAstryxTokens,
+  ASTRYX_LOW_CONTRAST, ASTRYX_TOKENS, astryxThemeCss, astryxThemeProblem, checkKit, emptyKit, ensureAstryxTheme, kitCss, loadAstryxTokens,
 } from "../brain/kit.mjs";
 import { colourOk } from "../lib/sitebrand.mjs";
 import { call } from "../lib/testing.mjs";
@@ -154,6 +154,57 @@ test("Kit C: one colour, neutrals allowed: GROUND #FFFFFF, INK #111111, ACCENT t
   judged(kit, astryxThemeCss(kit, TOKENS));
 });
 
+// Fable's review (T12): a role the kit leaves unset is chosen by contrast against the one it sets, and a ground that
+// does not read against its ink gives no theme at all, said in the server's words.
+const one = (hex, role, neutrals) => ({ ...emptyKit(["Didot"]), colours: [{ name: "only", hex, role }], neutrals });
+
+test("one colour #336699 with neutrals refused: ground and ink are the same colour, so no theme, and the reason", () => {
+  const kit = one("#336699", "main", false);
+  assert.equal(astryxThemeCss(kit, TOKENS), null);
+  assert.equal(astryxThemeProblem(kit), ASTRYX_LOW_CONTRAST);
+  assert.match(ASTRYX_LOW_CONTRAST, /^No Astryx theme was written: .*4\.5 to 1.*Files, Brand kit/);
+});
+
+test("a light text colour #F5F5F0 and no background: the ground is chosen by contrast (#111111), and it reads", () => {
+  const kit = one("#F5F5F0", "text", true);
+  const text = astryxThemeCss(kit, TOKENS);
+  assert.ok(text);
+  const c = colours(text);
+  assert.equal(c["--color-text-primary"], "#F5F5F0");
+  assert.equal(c["--color-background-body"], "#111111");
+  assert.equal(astryxThemeProblem(kit), null);
+  judged(kit, text);
+  // Neutrals refused and nothing else in the kit: no ground that reads, so no theme.
+  assert.equal(astryxThemeCss(one("#F5F5F0", "text", false), TOKENS), null);
+  // Neutrals refused with a dark kit colour beside it: that colour is the ground.
+  const two = { ...one("#F5F5F0", "text", false), colours: [{ name: "only", hex: "#F5F5F0", role: "text" }, { name: "deep", hex: "#1A3C5E", role: "main" }] };
+  assert.equal(colours(astryxThemeCss(two, TOKENS))["--color-background-body"], "#1A3C5E");
+});
+
+test("a dark background #101820 and no text: the ink is chosen by contrast (#FFFFFF), and it reads", () => {
+  const kit = one("#101820", "background", true);
+  const text = astryxThemeCss(kit, TOKENS);
+  assert.ok(text);
+  const c = colours(text);
+  assert.equal(c["--color-background-body"], "#101820");
+  assert.equal(c["--color-text-primary"], "#FFFFFF");
+  judged(kit, text);
+  assert.equal(astryxThemeCss(one("#101820", "background", false), TOKENS), null);
+});
+
+test("ensureAstryxTheme: a kit whose ground and ink do not read writes no theme, removes a stale one, and says why", () => {
+  const t = tempState();
+  try {
+    const kit = { ...kitA(), colours: [{ name: "a", hex: "#336699", role: "main" }, { name: "b", hex: "#3A6EA0", role: "accent" }], neutrals: false };
+    writeKit(t, kit);
+    assert.equal(ensureAstryxTheme(t.config), "low_contrast");
+    assert.equal(existsSync(themePath(t)), false);
+    writeFileSync(themePath(t), "stale");
+    assert.equal(ensureAstryxTheme(t.config), "low_contrast");
+    assert.equal(existsSync(themePath(t)), false);
+  } finally { rmSync(t.state, { recursive: true, force: true }); }
+});
+
 test("an empty kit, or no tokens, gives no theme", () => {
   assert.equal(astryxThemeCss(emptyKit([]), TOKENS), null);
   assert.equal(astryxThemeCss(kitA(), null), null);
@@ -279,6 +330,19 @@ test("saveKit writes brand/astryx-theme.css at 0644 and leaves kit.css as kitCss
   const r2 = await save(h, { ...kitBody(), neutrals: false });
   assert.equal(r2.status, 200, r2.text);
   assert.equal(readFileSync(brand("astryx-theme.css"), "utf8"), astryxThemeCss(r2.json.kit, TOKENS));
+  assert.equal(readFileSync(brand("kit.css"), "utf8"), kitCss(r2.json.kit));
+}));
+
+test("saveKit: a kit whose ground and ink do not read is saved, writes no theme and the answer says why", () => withHome(async (h, brand) => {
+  const r = await save(h);
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.json.theme, undefined);
+  assert.ok(existsSync(brand("astryx-theme.css")));
+  const low = { ...kitBody(), neutrals: false, colours: [{ name: "a", hex: "#336699", role: "main" }, { name: "b", hex: "#3A6EA0", role: "accent" }] };
+  const r2 = await save(h, low);
+  assert.equal(r2.status, 200, r2.text);
+  assert.equal(r2.json.theme, ASTRYX_LOW_CONTRAST);
+  assert.equal(existsSync(brand("astryx-theme.css")), false);
   assert.equal(readFileSync(brand("kit.css"), "utf8"), kitCss(r2.json.kit));
 }));
 

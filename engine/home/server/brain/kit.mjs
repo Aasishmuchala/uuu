@@ -439,21 +439,43 @@ function astryxGrey(light) {
 // MAIN = the first `main` colour, else the first; ACCENT = the first `accent`, else MAIN; GROUND = the first
 // `background`, else #FFFFFF with neutrals, else the kit colour of highest luminance; INK = the first `text`, else
 // #111111 with neutrals, else the kit colour of lowest luminance; ON(x) = GROUND or INK, whichever contrasts more.
+// When the kit sets only one of GROUND and INK, the other is the one of #FFFFFF and #111111 (neutrals allowed) or of
+// the kit's colours (refused) with the highest contrast against it. GROUND against INK under 4.5 to 1: no theme.
 // How the judge reads a see-through colour (engine/viewer/report.mjs, `add`): a colour with alpha above 0 is listed
 // by its own three channels, alpha dropped and nothing composited under it; alpha 0 is not listed. So a see-through
 // grey is judged as its opaque grey, and `transparent` is never listed.
 const ASTRYX_GROUND_FIXED = new Set(["--color-background-body", "--color-background-surface", "--color-background-card", "--color-background-popover"]);
 
+// A role the kit leaves unset is chosen by contrast against the one it sets (PLAN-ASTRYX, Fable's review): from
+// #FFFFFF and #111111 when the kit allows neutrals, else from the kit's colours.
 function astryxRoles(kit) {
   const cs = kit.colours;
   const role = (r) => cs.find((c) => c.role === r)?.hex || null;
   const byLum = [...cs].sort((a, b) => luminance(b.hex) - luminance(a.hex));
   const MAIN = role("main") || cs[0].hex;
   const ACCENT = role("accent") || MAIN;
-  const GROUND = role("background") || (kit.neutrals ? "#FFFFFF" : byLum[0].hex);
-  const INK = role("text") || (kit.neutrals ? "#111111" : byLum[byLum.length - 1].hex);
+  const pool = kit.neutrals ? ["#FFFFFF", "#111111"] : cs.map((c) => c.hex);
+  const best = (against) => pool.reduce((b, c) => (contrast(c, against) > contrast(b, against) ? c : b));
+  let GROUND = role("background");
+  let INK = role("text");
+  if (GROUND && !INK) INK = best(GROUND);
+  else if (INK && !GROUND) GROUND = best(INK);
+  else if (!GROUND && !INK) {
+    GROUND = kit.neutrals ? "#FFFFFF" : byLum[0].hex;
+    INK = kit.neutrals ? "#111111" : byLum[byLum.length - 1].hex;
+  }
   const ON = (x) => (contrast(x, GROUND) >= contrast(x, INK) ? GROUND : INK);
-  return { MAIN, ACCENT, GROUND, INK, ON };
+  return { MAIN, ACCENT, GROUND, INK, ON, readable: contrast(GROUND, INK) >= ASTRYX_MIN_CONTRAST };
+}
+
+// The ground against the ink must read (WCAG 4.5 to 1), or no theme is written: a page in it would hide its words.
+const ASTRYX_MIN_CONTRAST = 4.5;
+export const ASTRYX_LOW_CONTRAST = "No Astryx theme was written: the brand kit's background and text colours are too close to read (under 4.5 to 1). Set a background and a text colour that differ more in Files, Brand kit, and save it.";
+
+// astryxThemeProblem(kit) -> null, or the sentence above when the kit has colours whose ground and ink do not read.
+export function astryxThemeProblem(kit) {
+  if (!obj(kit) || !Array.isArray(kit.colours) || !kit.colours.length) return null;
+  return astryxRoles(kit).readable ? null : ASTRYX_LOW_CONTRAST;
 }
 
 function astryxColour(name, light, kit, R) {
@@ -493,13 +515,14 @@ const ASTRYX_WEIGHTS = [
   ["--font-weight-normal", "400"], ["--font-weight-medium", "400"], ["--font-weight-semibold", "700"], ["--font-weight-bold", "700"],
 ];
 
-// astryxThemeCss(kit, tokens) -> the text of astryx-theme.css, or null when the kit has no colours or there are no
-// tokens. Pure: `kit` passed checkKit, `tokens` is loadAstryxTokens' shape.
+// astryxThemeCss(kit, tokens) -> the text of astryx-theme.css, or null when the kit has no colours, its ground and
+// ink do not read (astryxThemeProblem), or there are no tokens. Pure: `kit` passed checkKit, `tokens` is loadAstryxTokens' shape.
 // T10: the browser's own rule gives a <dialog> the system's text colour (black), which its parts inherit even while it
 // is closed; the dialog takes the kit's text colour instead, as the body does.
 export function astryxThemeCss(kit, tokens = ASTRYX_TOKENS) {
   if (!tokens || !obj(kit) || !Array.isArray(kit.colours) || !kit.colours.length) return null;
   const R = astryxRoles(kit);
+  if (!R.readable) return null;
   const decl = [];
   for (const t of tokens.colour) decl.push(`${t.name}: ${astryxColour(t.name, t.light, kit, R)};`);
   for (const n of tokens.face) decl.push(`${n}: ${n === "--font-family-heading" ? "var(--brand-heading)" : "var(--brand-body)"};`);
@@ -900,32 +923,34 @@ export function saveKit(config, store, raw, version, { brandForm, now = new Date
   if (!d) throw ERR.unsafe();
   putFile(d.p.brand, d.brandReal, "kit.json", Buffer.from(`${JSON.stringify(kit, null, 2)}\n`, "utf8"));
   putFile(d.p.brand, d.brandReal, "kit.css", Buffer.from(kitCss(kit), "utf8"));
-  writeAstryxTheme(d, kit);
+  const theme = writeAstryxTheme(d, kit);
 
   const stateReal = realOrNull(d.p.state);
   if (!stateReal || !plainDir(d.p.knowledge, join(stateReal, "knowledge"))) throw ERR.unsafe();
   ensureDir(d.p.shared, join(stateReal, "knowledge", "shared"));
   putFile(d.p.shared, join(stateReal, "knowledge", "shared"), "brand-public.md", Buffer.from(publicMarkdown(kit), "utf8"));
-  return { kit, version: currentVersion(config, store) };
+  return { kit, version: currentVersion(config, store), theme: theme === "low_contrast" ? ASTRYX_LOW_CONTRAST : null };
 }
 
 // astryx-theme.css beside kit.css, from the kit alone: written as kit.css is (putFile), removed when the kit has no
-// colours, and left as it is when tokens.json could not be read. -> "written" | "removed" | "none".
+// colours or its ground and ink do not read ("low_contrast", a stale file removed too), and left as it is when
+// tokens.json could not be read. -> "written" | "removed" | "none" | "low_contrast".
 function writeAstryxTheme(d, kit, tokens = ASTRYX_TOKENS) {
   if (!tokens) return "none";
   const text = astryxThemeCss(kit, tokens);
   if (text === null) {
+    const low = astryxThemeProblem(kit) ? "low_contrast" : null;
     const st = lstatOrNull(d.p.astryxTheme);
-    if (!st) return "none";
+    if (!st) return low || "none";
     if (!st.isFile() || !plainDir(d.p.brand, d.brandReal)) throw ERR.unsafe();
     unlinkSync(d.p.astryxTheme);
-    return "removed";
+    return low || "removed";
   }
   putFile(d.p.brand, d.brandReal, "astryx-theme.css", Buffer.from(text, "utf8"));
   return "written";
 }
 
-// ensureAstryxTheme(config, { tokens }) -> "written" | "same" | "removed" | "none" | "unsafe": at the home server's
+// ensureAstryxTheme(config, { tokens }) -> "written" | "same" | "removed" | "none" | "low_contrast" | "unsafe": at the home server's
 // start, astryx-theme.css is made right from the saved kit.json when it is missing or differs. The kit must read as
 // a good kit in the parts the theme is made of (its colours and the neutrals switch pass checkKit's own rules); a
 // kit with no colours removes a stale file; anything else leaves every file as it is. Never throws.

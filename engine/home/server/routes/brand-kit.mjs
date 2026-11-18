@@ -74,7 +74,8 @@ export default function register(app) {
     const { brandForm } = formsOf(ctx);
     return kitRun(ctx, () => {
       const saved = saveKit(ctx.config, brainFor(ctx.config), b.kit, b.version ?? null, { brandForm });
-      return { kit: saved.kit, exists: true, version: saved.version };
+      // The kit is saved; when its ground and ink do not read, no Astryx theme was written, and the answer says so.
+      return { kit: saved.kit, exists: true, version: saved.version, ...(saved.theme ? { theme: saved.theme } : {}) };
     });
   });
 

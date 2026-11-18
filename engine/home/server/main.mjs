@@ -1,7 +1,7 @@
 // The home screen's server: node engine/home/server/main.mjs [--port N] [--stubs]
 // Listens on 127.0.0.1 only. The `engine` command points stdout at state/logs/home.log.
 import { loadConfig } from "../../lib/config.mjs";
-import { ensureAstryxTheme } from "./brain/kit.mjs";
+import { ASTRYX_LOW_CONTRAST, ensureAstryxTheme } from "./brain/kit.mjs";
 import { createHome } from "./lib/app.mjs";
 import { startStubsHome } from "./lib/stubs.mjs";
 
@@ -39,7 +39,8 @@ try {
     const app = await createHome({ config, log });
     // The brand kit as an Astryx theme (brand/astryx-theme.css): made right once at start, from the saved kit alone.
     const theme = ensureAstryxTheme(config);
-    if (theme !== "same" && theme !== "none") log(`brand kit Astryx theme: ${theme}`);
+    if (theme === "low_contrast") log(`brand kit Astryx theme: ${ASTRYX_LOW_CONTRAST}`);
+    else if (theme !== "same" && theme !== "none") log(`brand kit Astryx theme: ${theme}`);
     await app.listen(port ?? config.ports.home);
     running = app;
     log(`home screen on ${app.url}`);
