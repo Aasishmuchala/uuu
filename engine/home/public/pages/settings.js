@@ -17,6 +17,7 @@ import ModelsSection, * as models from "./settings-models.js";
 import WebSection, * as web from "./settings-web.js";
 import GenerationSection, * as generation from "./settings-generation.js";
 import ViewerSection, * as viewer from "./settings-viewer.js";
+import BrainSection, * as brain from "./settings-brain.js";
 
 export const THEMES = [
   { id: "auto", label: "Auto" },
@@ -42,6 +43,7 @@ export const SECTIONS = [
   { id: "web", label: "Web", icon: "globe", from: "/api/web", mod: web, Body: WebSection },
   { id: "generation", label: "Generation", icon: "film", from: "/api/generation", mod: generation, Body: GenerationSection },
   { id: "viewer", label: "Page viewer", icon: "eye", from: "/api/viewer", mod: viewer, Body: ViewerSection },
+  { id: "brain", label: "Brain", icon: "brain", from: "/api/brain-door", mod: brain, Body: BrainSection },
   { id: "later", label: "Later", icon: "clock" },
 ];
 
@@ -169,6 +171,7 @@ export default function Page({ route }) {
     web: useResource(typeof web.statusLine === "function" ? "/api/web" : null, { every: 30000 }),
     generation: useResource(typeof generation.statusLine === "function" ? "/api/generation" : null, { every: 30000 }),
     viewer: useResource(typeof viewer.statusLine === "function" ? "/api/viewer" : null, { every: 30000 }),
+    brain: useResource(typeof brain.statusLine === "function" ? "/api/brain-door" : null, { every: 30000 }),
   };
   for (const s of SECTIONS) if (s.mod) lines[s.id] = statusOf(s.mod.statusLine, answers[s.id].data);
 

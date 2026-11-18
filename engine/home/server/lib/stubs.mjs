@@ -15,7 +15,7 @@ const ENGINE_DIR = join(SERVER_DIR, "..", "..");
 
 // The addresses a stub home never calls unless a test gives one: the gate, the provider, the relay, and the doors.
 export const STUB_URLS = Object.freeze({
-  gate: null, provider: null, relay: null, web: null, generate: null, viewer: null, preview: null, apps: null,
+  gate: null, provider: null, relay: null, web: null, generate: null, viewer: null, preview: null, apps: null, brain: null,
 });
 
 // Records for state/home/decisions.json (a test's `template:` records), merged over any the seed holds.

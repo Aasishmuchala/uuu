@@ -25,9 +25,9 @@ test("settings: the page names nothing it should not and holds no address", () =
 
 test("settings: the page is a DocLayout with six sections in order, each with its line icon", () => {
   assert.match(SRC, /<\$\{DocLayout\}/);
-  assert.deepEqual(SECTIONS.map((s) => s.id), ["appearance", "models", "web", "generation", "viewer", "later"]);
-  assert.deepEqual(SECTIONS.map((s) => s.label), ["Appearance", "Models", "Web", "Generation", "Page viewer", "Later"]);
-  assert.deepEqual(SECTIONS.map((s) => s.icon), ["sun", "chip", "globe", "film", "eye", "clock"]);
+  assert.deepEqual(SECTIONS.map((s) => s.id), ["appearance", "models", "web", "generation", "viewer", "brain", "later"]);
+  assert.deepEqual(SECTIONS.map((s) => s.label), ["Appearance", "Models", "Web", "Generation", "Page viewer", "Brain", "Later"]);
+  assert.deepEqual(SECTIONS.map((s) => s.icon), ["sun", "chip", "globe", "film", "eye", "brain", "clock"]);
 });
 
 test("settings: Models, Web, Generation and Page viewer are each drawn by their own module, in that order", () => {
@@ -36,8 +36,8 @@ test("settings: Models, Web, Generation and Page viewer are each drawn by their 
   assert.match(SRC, /import GenerationSection, \* as generation from "\.\/settings-generation\.js";/);
   assert.match(SRC, /import ViewerSection, \* as viewer from "\.\/settings-viewer\.js";/);
   const bodies = Object.fromEntries(SECTIONS.filter((s) => s.Body).map((s) => [s.id, s.Body.name]));
-  assert.deepEqual(Object.keys(bodies), ["models", "web", "generation", "viewer"]);
-  assert.deepEqual(SECTIONS.filter((s) => s.from).map((s) => s.from), ["/api/models", "/api/web", "/api/generation", "/api/viewer"]);
+  assert.deepEqual(Object.keys(bodies), ["models", "web", "generation", "viewer", "brain"]);
+  assert.deepEqual(SECTIONS.filter((s) => s.from).map((s) => s.from), ["/api/models", "/api/web", "/api/generation", "/api/viewer", "/api/brain-door"]);
 });
 
 test("settings: the chosen section is in the address; no s is Appearance; the way back from Higgsfield opens Generation", () => {
@@ -159,8 +159,8 @@ test("fix round R6: a state is said once: the head carries a chip only for the p
 // ---- PLAN-3D-ALL U4: the room header, the wire, hostile text, whole sentences, and the door panel's imports ----
 
 const SHAPE = (n) => JSON.parse(readFileSync(new URL(`../../../server/test/shapes/${n}.json`, import.meta.url), "utf8"));
-const IDS_ALL = ["appearance", "models", "web", "generation", "viewer", "later"];
-const ANSWERS = () => ({ "/api/settings": SHAPE("settings"), "/api/models": SHAPE("models"), "/api/web": SHAPE("web"), "/api/generation": SHAPE("generation"), "/api/viewer": SHAPE("viewer") });
+const IDS_ALL = ["appearance", "models", "web", "generation", "viewer", "brain", "later"];
+const ANSWERS = () => ({ "/api/settings": SHAPE("settings"), "/api/models": SHAPE("models"), "/api/web": SHAPE("web"), "/api/generation": SHAPE("generation"), "/api/viewer": SHAPE("viewer"), "/api/brain-door": {} });
 
 // Mounts the page on one section with the given answers (by path, the query left off) and records every request.
 async function drawPage(section, answers = ANSWERS()) {
@@ -184,12 +184,13 @@ async function drawPage(section, answers = ANSWERS()) {
 test("the page sends what it sent before (PLAN-3D-ALL)", async () => {
   // Recorded on the unchanged page (before U4's edit), on the shapes' answers, sorted.
   const BEFORE = {
-    appearance: ["GET /api/generation", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/web"],
-    models: ["GET /api/generation", "GET /api/models", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/web"],
-    web: ["GET /api/generation", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/web", "GET /api/web", "GET /api/web/visits"],
-    generation: ["GET /api/generation", "GET /api/generation", "GET /api/generation/ledger", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/web"],
-    viewer: ["GET /api/generation", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/viewer", "GET /api/web"],
-    later: ["GET /api/generation", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/web"],
+    appearance: ["GET /api/brain-door", "GET /api/generation", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/web"],
+    models: ["GET /api/brain-door", "GET /api/generation", "GET /api/models", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/web"],
+    web: ["GET /api/brain-door", "GET /api/generation", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/web", "GET /api/web", "GET /api/web/visits"],
+    generation: ["GET /api/brain-door", "GET /api/generation", "GET /api/generation", "GET /api/generation/ledger", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/web"],
+    viewer: ["GET /api/brain-door", "GET /api/generation", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/viewer", "GET /api/web"],
+    brain: ["GET /api/brain-door", "GET /api/brain-door", "GET /api/generation", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/web"],
+    later: ["GET /api/brain-door", "GET /api/generation", "GET /api/models", "GET /api/settings", "GET /api/viewer", "GET /api/web"],
   };
   for (const s of IDS_ALL) {
     const m = await drawPage(s);

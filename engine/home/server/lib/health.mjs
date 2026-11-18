@@ -61,12 +61,13 @@ export async function relayState(env) {
   return { id: "relay", name: "Model relay", state: "unhealthy", sentence: "The model relay answers but its check fails. Restart the engine: engine stop, then engine start.", technical: `${technical}; /relay/health answered ${r.status}` };
 }
 
-// ---- the three doors (PLAN-V5 K12) and the playbooks ----------------------------------------------------------
+// ---- the four doors (PLAN-V5 K12, PLAN-BRAIN T14) and the playbooks ----------------------------------------------------------
 
 const DOORS = [
   { id: "web", name: "Web door", the: "The web door", path: "/web/health", part: "web", folder: "web", who: "Only the Researcher can reach it." },
   { id: "generate", name: "Generation door", the: "The generation door", path: "/gen/health", part: "generate", folder: "generate", who: "Only the Artist and your apps can reach it." },
   { id: "viewer", name: "Page viewer", the: "The page viewer", path: "/view/health", part: "viewer", folder: "viewer", who: "Only the Builder and the Art director can reach it." },
+  { id: "brain", name: "Brain door", the: "The brain door", path: "/brain/health", part: "brain", folder: "brain", who: "Every agent but the Researcher can reach it." },
 ];
 
 // One GET of a door's health on its local address: 2 seconds and 64 KB at most, so a stranger on the port can
@@ -130,7 +131,7 @@ async function doorState(env, d, switches) {
   return { id: d.id, name: d.name, state: "on", sentence, technical: `${technical}${extra}` };
 }
 
-// doorStates(env) -> the three Health lines of K12, in the order web, generation, viewer. A null address (stub
+// doorStates(env) -> the four Health lines (K12, PLAN-BRAIN T14), in the order web, generation, viewer, brain. A null address (stub
 // homes) is "off" with nothing called; a door that does not answer and has no READY marker is "not installed".
 export function doorStates(env) {
   const path = env.config?.paths?.doorsState;
