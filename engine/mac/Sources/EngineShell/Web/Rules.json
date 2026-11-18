@@ -1,0 +1,5 @@
+[
+  {"trigger": {"url-filter": ".*"}, "action": {"type": "block"}},
+  {"trigger": {"url-filter": "^{origin}/"}, "action": {"type": "ignore-previous-rules"}},
+  {"trigger": {"url-filter": "^blob:{origin}/"}, "action": {"type": "ignore-previous-rules"}}
+]

@@ -414,5 +414,106 @@ private func originChecks() -> [Check] {
 
 func webChecks() -> [Check] {
     tableChecks() + hostileChecks() + mappingChecks() + responseChecks() + localDownloadChecks() + messageChecks() + factoryChecks()
-        + originChecks()
+        + originChecks() + ruleListChecks()
+}
+
+// PLAN-MAC D16, PLAN-MAC-2 M8: the rule list. Its shape (Rules.json) names no host; the list WebKit compiles is made from
+// HomeOrigin and lets through the home's origin and 127.0.0.1:3171 to 3189 only, after one rule that blocks everything.
+private func ruleListChecks() -> [Check] {
+    let home = HomeOrigin.local(port: 3200)
+    func rules(_ text: String?) throws -> [[String: Any]] {
+        guard let data = text?.data(using: .utf8),
+              let list = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw WebCheckFailure(description: "not a JSON list of rules")
+        }
+        return list
+    }
+    func filters(_ list: [[String: Any]]) -> [String] {
+        list.compactMap { ($0["trigger"] as? [String: Any])?["url-filter"] as? String }
+    }
+    func action(_ rule: [String: Any]) -> String? { (rule["action"] as? [String: Any])?["type"] as? String }
+    // "^http://127\.0\.0\.1:3200/" or "^blob:http://127\.0\.0\.1:3200/" -> (host, port), or nil for any other shape.
+    func origin(_ filter: String) -> (host: String, port: Int)? {
+        let lead = filter.hasPrefix("^blob:http://") ? "^blob:http://" : "^http://"
+        guard filter.hasPrefix(lead), filter.hasSuffix("/") else { return nil }
+        let body = filter.dropFirst(lead.count).dropLast()
+        guard let colon = body.lastIndex(of: ":"), let port = Int(body[body.index(after: colon)...]),
+              String(port) == String(body[body.index(after: colon)...]) else { return nil }
+        let host = body[..<colon].replacingOccurrences(of: "\\.", with: ".")
+        guard !host.contains("\\") else { return nil }
+        return (host, port)
+    }
+    let sourceFolder = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    let file = sourceFolder.appendingPathComponent("EngineShell/Web/Rules.json")
+    return [
+        Check(name: "rules: Rules.json is the template RuleList compiles from") {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            try expect(text == RuleList.template, "Web/Rules.json and RuleList.template differ")
+        },
+        Check(name: "rules: the template names no host and no port") {
+            let text = RuleList.template
+            for bad in ["127", "localhost", "http", "::1", "3200", "317", "318"] {
+                try expect(!text.contains(bad), "the template holds \(bad)")
+            }
+            let list = try rules(text)
+            try expect(list.count == 3, "\(list.count) rules")
+            try expect(filters(list) == [".*", "^\(RuleList.originToken)/", "^blob:\(RuleList.originToken)/"],
+                       "filters \(filters(list))")
+        },
+        Check(name: "rules: first rule blocks every load, every other one only lets an origin through") {
+            let list = try rules(RuleList.json(home: home))
+            try expect(filters(list).first == ".*" && action(list[0]) == "block", "first rule")
+            for rule in list.dropFirst() {
+                try expect(action(rule) == "ignore-previous-rules", "action \(action(rule) ?? "none")")
+                let trigger = rule["trigger"] as? [String: Any] ?? [:]
+                try expect(Set(trigger.keys) == ["url-filter"], "a trigger with more than an address: \(trigger.keys)")
+            }
+        },
+        Check(name: "rules: the compiled rules name no host but HomeOrigin.loopbackHost") {
+            let list = try rules(RuleList.json(home: home))
+            for f in filters(list).dropFirst() {
+                guard let o = origin(f) else { throw WebCheckFailure(description: "a filter of another shape: \(f)") }
+                try expect(o.host == HomeOrigin.loopbackHost, "host \(o.host)")
+            }
+        },
+        Check(name: "rules: let through exactly the home's port and 3171 to 3189, and their own blob: addresses") {
+            let list = try rules(RuleList.json(home: home))
+            let rest = filters(list).dropFirst()
+            let ports = rest.compactMap { origin($0)?.port }
+            try expect(ports.count == list.count - 1, "a filter without a port")
+            let want = [3200] + Array(3171...3189)
+            try expect(rest.filter { $0.hasPrefix("^http://") }.compactMap { origin($0)?.port } == want, "http ports \(ports)")
+            try expect(rest.filter { $0.hasPrefix("^blob:http://") }.compactMap { origin($0)?.port } == want, "blob ports \(ports)")
+            try expect(rest.allSatisfy { $0.hasPrefix("^http://") || $0.hasPrefix("^blob:http://") }, "another scheme")
+        },
+        Check(name: "rules: a dot in the host matches only a dot, and the port ends at a slash") {
+            let f = filters(try rules(RuleList.json(home: home)))[1]
+            try expect(f == "^http://127\\.0\\.0\\.1:3200/", "filter \(f)")
+        },
+        Check(name: "rules: another home port moves only the home's rule") {
+            let ports = filters(try rules(RuleList.json(home: .local(port: 39200)))).dropFirst().compactMap { origin($0)?.port }
+            let want = [39200] + Array(3171...3189)
+            try expect(ports == want + want, "ports \(ports)")
+        },
+        Check(name: "rules: an extra frame port is added once, on the loopback host") {
+            let list = try rules(RuleList.json(home: .local(port: 3400), framePorts: [3401, 3401, 3400]))
+            let found = filters(list).dropFirst().compactMap { origin($0) }
+            try expect(found.map(\.port) == [3400, 3401, 3400, 3401], "ports \(found.map(\.port))")
+            try expect(found.allSatisfy { $0.host == HomeOrigin.loopbackHost }, "hosts")
+        },
+        Check(name: "rules: WebKit compiles the list") {
+            try MainActor.assumeIsolated {
+                try expect(RuleList.compiled(for: home) != nil, "no list")
+            }
+        },
+        Check(name: "rules: the factory puts the list on the web view in both roles") {
+            try MainActor.assumeIsolated {
+                for role in [WebViewRole.app, .probe] {
+                    let web = WebViewFactory.make(home: home, role: role)
+                    try expect(WebViewFactory.ruleList(of: web) != nil, "no list in role \(role)")
+                    try expect(WebViewFactory.ruleList(of: web) === RuleList.compiled(for: home), "another list")
+                }
+            }
+        },
+    ]
 }
