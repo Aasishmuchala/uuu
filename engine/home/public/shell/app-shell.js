@@ -2,7 +2,7 @@
 // (the top bar over the main pane); below 860 px the top bar's back button and crumbs, the tab bar and its More
 // sheet. Then the optional work panel, the queue panel (T21; below 860 px the Needs you page instead), the
 // command menu and the compose dialog, the keys, the skip link and the aria-live line. It reads GET /api/shell every
-// 10 seconds and gives every page the context of lib/context.js.
+// 10 seconds and GET /api/setup every 60 seconds, and gives every page the context of lib/context.js.
 import { html, useCallback, useEffect, useMemo, useRef, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { AppContext } from "../lib/context.js";
@@ -43,6 +43,15 @@ export function keyAction({ key, metaKey, ctrlKey, altKey, typing, page, zoomed 
   if (k === "g") return "g";
   if (k === "Escape" && page === "map" && zoomed) return "map-back";
   return null;
+}
+
+// Where the bare address goes on a first run (PLAN-ONBOARD decision 7): "#/setup" when the address is the bare one, the
+// server says `open: true` and this page load has not gone there yet (`done`); else null. "#/map" and every other
+// address stay where they are, and a failed or pending /api/setup sends nowhere.
+export function setupRedirect({ parts, setup, done } = {}) {
+  if (!Array.isArray(parts) || parts.length !== 0) return null;
+  if (!setup || setup.open !== true || done === true) return null;
+  return "#/setup";
 }
 
 // The overlay asked for by "?open=" before the "#", or null.
@@ -157,6 +166,9 @@ export function AppShell() {
   // Read every SHELL_EVERY while the page is visible, and once as soon as it is visible again (useResource's own
   // visibilitychange): nothing is read while it is hidden, so the sidebar's Needs you count catches up on return.
   const shell = useResource("/api/shell", { every: SHELL_EVERY });
+  // The guided setup's state, for its sidebar row and the first-run opening (read on its own, not every 10 seconds).
+  const setup = useResource("/api/setup", { every: 60000 });
+  const setupDone = useRef(false);
   const narrow = useMedia(NARROW);
   useMedia(MIDDLE); // draws again when the window crosses 1100 px, where the automatic sidebar changes width
   const [overlay, setOverlay] = useState(() => (typeof location === "undefined" ? null : overlayFrom(location.search)));
@@ -177,6 +189,14 @@ export function AppShell() {
   useEffect(() => {
     if (redirect) location.replace(redirect);
   }, [redirect]);
+
+  // At most once per page load: the bare address opens Setup while the server says it should.
+  const toSetup = setupRedirect({ parts: address.parts, setup: setup.data, done: setupDone.current });
+  useEffect(() => {
+    if (!toSetup) return;
+    setupDone.current = true;
+    location.replace(toSetup);
+  }, [toSetup]);
 
   const announce = useCallback((text) => {
     setLive("");
@@ -315,6 +335,7 @@ export function AppShell() {
     shell: shell.data,
     shellError: shell.error,
     refreshShell: shell.refresh,
+    refreshSetup: setup.refresh,
     announce,
     openComposer,
     openPanel,
@@ -329,7 +350,7 @@ export function AppShell() {
     dock,
     settings,
     saveSettings,
-  }), [shell.data, shell.error, shell.refresh, announce, openComposer, openPanel, closePanel, openQueue, openNeeds, closeOverlay, setTop, side, stored, setSide, settings, saveSettings]);
+  }), [shell.data, shell.error, shell.refresh, setup.refresh, announce, openComposer, openPanel, closePanel, openQueue, openNeeds, closeOverlay, setTop, side, stored, setSide, settings, saveSettings]);
 
   const skip = (e) => {
     e.preventDefault();
@@ -349,7 +370,7 @@ export function AppShell() {
       <div class=${cls}>
         ${narrow ? null : html`
           <${Sidenav} mode=${side} routeId=${routeId} parts=${address.parts} query=${address.query} shell=${shell.data} dock=${dock}
-            settings=${settings} onSaveSettings=${saveSettings} />`}
+            settings=${settings} onSaveSettings=${saveSettings} setup=${setup.data} />`}
         <div class="s-main">
           <${Topbar} routeId=${routeId} parts=${address.parts} shell=${shell.data} top=${shownTop} narrow=${narrow} side=${side}
             queueOpen=${overlay === "needs"} onSide=${flipSide} onQueue=${() => (overlay === "needs" ? closeOverlay() : openQueue({}))}
@@ -370,7 +391,7 @@ export function AppShell() {
         <${QueuePanel} open=${overlay === "needs"} narrow=${narrow} department=${needsFor} stamp=${shell.data?.generatedAt || ""}
           here=${typeof location === "undefined" ? "" : location.hash} onClose=${closeOverlay} />
       </div>
-      <${MenuSheet} open=${overlay === "menu"} onClose=${closeOverlay} shell=${shell.data} dock=${dock} note=${shownTop?.note || null}
+      <${MenuSheet} open=${overlay === "menu"} onClose=${closeOverlay} shell=${shell.data} dock=${dock} note=${shownTop?.note || null} setup=${setup.data}
         settings=${settings} onSaveSettings=${saveSettings} onCompose=${() => openComposer({})} onCommand=${openCommand} />
       <${CommandMenu} open=${overlay === "command"} onClose=${closeOverlay} team=${team} onCompose=${openComposer} />
       <${ComposeDialog} open=${overlay === "compose"} seed=${seed} team=${team} queue=${shell.data?.queue || null} onClose=${closeOverlay}

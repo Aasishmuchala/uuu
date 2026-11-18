@@ -30,6 +30,24 @@ What you see:
 
 Press Cmd+K anywhere to jump to a page, an agent or a search result. Press `c` for a new task.
 
+## Setup
+
+The first time you open the home screen with no tasks yet, it opens Setup. It is also the "Setup" row in the sidebar, and Cmd+K finds it at any time.
+
+Setup has five steps. Each shows whether it is done and where to go:
+
+1. **Company basics:** the nine basics in Files.
+2. **Brand kit.**
+3. **Models.**
+4. **The books.**
+5. **A first real task.**
+
+Setup only looks and points. It saves no key, switches nothing on, starts no task and runs no command. You do each step on its own page, or in Terminal where it shows a command.
+
+Company basics, Brand kit and The books can be skipped for now and brought back. "Hide the setup" removes the row; the row also goes away by itself once every step is done or skipped.
+
+Under the steps it lists the switches you may want later (the web, Generation, the page viewer, App Studio, the brain) with whether each is on. They are changed in Settings, never from Setup.
+
 ## Give a task
 
 On the Map there is one box. Say what you want done, in your own words, then press Enter.
@@ -411,6 +429,8 @@ Each is an off switch or an account step. Nothing is done for you.
 - **Routines.** Off until you switch them on.
 
 ## Steps only you can do
+
+Setup on the home screen shows where each of these stands.
 
 - **Fill the nine basics in Files** (about 20 minutes). Until then nine jobs wait and the agents' work sounds less like your company.
 - **The Checker's own Codex login.** Run `engine/fence/login-wizard.sh codex` and follow the steps. Until then the Checker uses your own Codex login through a link, and the proof shows one note. `engine/fence/login-wizard.sh --status` shows where each login stands. The Claude agents' login is `engine/fence/login-wizard.sh`.

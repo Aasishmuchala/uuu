@@ -41,6 +41,7 @@ export const ROUTES = [
   { id: "routines", file: "./pages/routines.js", title: "Routines", match: oneOrTwo("routines"), section: null, icon: "routines" },
   { id: "health", file: "./pages/health.js", title: "Health", match: only("health"), section: null, icon: "health" },
   { id: "settings", file: "./pages/settings.js", title: "Settings", match: only("settings"), section: null, icon: "settings" },
+  { id: "setup", file: "./pages/setup.js", title: "Setup", match: only("setup"), section: null, icon: "check" },
   { id: "search", file: "./pages/search.js", title: "Search", match: only("search"), section: null, icon: "search" },
   // Step 5 (PLAN-V5 K17, K23, T80): App Studio, the apps that run on this Mac, and one app opened inside.
   { id: "apps", file: "./pages/apps.js", title: "App Studio", match: only("apps"), section: "apps", icon: "apps" },

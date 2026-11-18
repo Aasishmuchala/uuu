@@ -38,6 +38,7 @@ const TABLE = {
   routines: "./pages/routines.js",
   health: "./pages/health.js",
   settings: "./pages/settings.js",
+  setup: "./pages/setup.js",
   search: "./pages/search.js",
   apps: "./pages/apps.js",
   app: "./pages/app.js",

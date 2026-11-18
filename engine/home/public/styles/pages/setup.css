@@ -1,0 +1,145 @@
+/* Setup (pages/setup.js, PLAN-ONBOARD T2): the room header with the count and its ring, then the five steps as one
+   panel of the kit's rows, the switches as a second, and the foot. Each step's words stack under its title: what is
+   true now, why it matters, its notes, then a command's lead with the command under it in the mono face. Every
+   sentence wraps whole (ADR 0016); a command wraps anywhere rather than scroll. The next step to do carries a 3 px
+   accent rule at its left. Below 860 px the kit drops a row's controls under its words, and they wrap. */
+
+.p-setup {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: var(--content-max);
+}
+
+.p-setup .k-room {
+  min-height: 120px;
+  margin-bottom: var(--s-4);
+}
+
+.p-setup .k-group:first-of-type {
+  margin-top: var(--s-2);
+}
+
+/* Each row stands in a wrapper of its own (for its mark), so the hairline between rows is drawn here. */
+.p-setup .p-setup__row > .k-rows__row,
+.p-setup .p-setup__switch > .k-rows__row {
+  border-top: 0;
+}
+
+.p-setup .p-setup__row + .p-setup__row > .k-rows__row,
+.p-setup .p-setup__switch + .p-setup__switch > .k-rows__row {
+  border-top: 1px solid var(--line);
+}
+
+/* A step's words and controls start at its title's line. */
+.p-setup .p-setup__row .k-rows__icon,
+.p-setup .p-setup__row .k-rows__control {
+  align-self: start;
+}
+
+/* The next step: a 3 px rule in the accent at the row's left edge. */
+.p-setup .p-setup__row--next > .k-rows__row {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* The state glyph: a dashed ring still to do, a green check when done, a quiet mark when skipped or not known. */
+.p-setup .p-setup__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px dashed var(--ink-3);
+  border-radius: var(--r-round);
+  color: var(--ink-3);
+}
+
+.p-setup .p-setup__glyph--done {
+  border: 0;
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+.p-setup .p-setup__glyph--skipped,
+.p-setup .p-setup__glyph--unknown {
+  border-style: solid;
+  border-color: var(--line-2);
+}
+
+/* The words under a step's title, one block each. */
+.p-setup .p-setup__words {
+  display: grid;
+  gap: var(--s-1);
+}
+
+.p-setup .p-setup__line {
+  color: var(--ink);
+}
+
+.p-setup .p-setup__why,
+.p-setup .p-setup__note {
+  color: var(--ink-2);
+}
+
+.p-setup .p-setup__command {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--s-1);
+}
+
+.p-setup .p-setup__lead {
+  color: var(--ink-2);
+}
+
+/* The command: selectable text in the mono face, wrapped rather than scrolled. */
+.p-setup .p-setup__code .k-mono {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px var(--s-2);
+  border-radius: var(--r-1);
+  background: var(--ctl);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.p-setup .p-setup__controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+
+.p-setup .p-setup__failure {
+  margin-top: var(--s-2);
+}
+
+.p-setup .p-setup__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-1);
+  margin-top: var(--s-8);
+}
+
+.p-setup .p-setup__hint {
+  color: var(--ink-3);
+  font-size: var(--fs-note);
+  line-height: var(--lh-note);
+}
+
+@media (max-width: 859px) {
+  .p-setup .k-room {
+    min-height: 96px;
+  }
+
+  .p-setup .p-setup__controls {
+    justify-content: flex-start;
+  }
+
+  .p-setup .k-rows__control .k-btn {
+    min-height: 44px;
+  }
+}

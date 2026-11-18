@@ -7,6 +7,7 @@
 import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { Drawer, Icon, Kbd } from "../kit/index.js";
 import { DEPARTMENTS, routeById } from "../routes.js";
+import { setupItem } from "./sidenav.js";
 
 const cap = (s, n) => {
   const t = String(s ?? "").replace(/\s+/g, " ").trim();
@@ -192,7 +193,7 @@ const DEPT_ICONS = { operations: "layers", sales: "trend", marketing: "horn", st
 
 // The phone's More sheet: New task and Search, the places that are not tabs, the teams, Health, Settings and
 // the theme switch.
-export function MenuSheet({ open, onClose, shell, dock, note, settings, onSaveSettings, onCompose, onCommand }) {
+export function MenuSheet({ open, onClose, shell, dock, note, settings, onSaveSettings, onCompose, onCommand, setup }) {
   const known = new Map((Array.isArray(dock) ? dock : []).map((d) => [d && d.id, d]));
   const departments = DEPARTMENTS.map((d) => ({ id: d.id, title: cap(known.get(d.id)?.title, 40) || d.title }));
   const dot = engineDot(shell?.engine);
@@ -209,6 +210,7 @@ export function MenuSheet({ open, onClose, shell, dock, note, settings, onSaveSe
           <li><button type="button" class="s-sheet-item" onClick=${onCommand}><${Icon} name="search" size=${20} /><span>Search</span><${Kbd}>${commandKey()}<//></button></li>
           ${link("#/map", "map", "Map")}
           ${link("#/apps", "apps", "App Studio")}
+          ${setupItem(setup) ? link("#/setup", "check", "Setup") : null}
           ${link("#/jobs", "jobs", "Jobs")}
           ${link("#/routines", "routines", "Routines")}
           ${link("#/team", "team", "Team")}

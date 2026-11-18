@@ -1,5 +1,5 @@
 // The sidebar (PLAN-COOK T20, decision 8): from 860 px up, the left column of every page. The brand row; Needs
-// you with its count; the places (Map, Tasks, Dashboards, Files, App Studio, Jobs, Routines); "Teams": the
+// you with its count; Setup with the steps left, while the guided setup is shown (PLAN-ONBOARD); the places (Map, Tasks, Dashboards, Files, App Studio, Jobs, Routines); "Teams": the
 // brain and the seven departments from shell.dock, each its line icon and, at the right, a count when something
 // needs the owner; then, at the foot under a rule, Health, Settings and the theme switch. A dot means one thing
 // only: red, something is wrong there (the engine's Health row); "working" has no dot, the Map shows who works.
@@ -82,7 +82,7 @@ const CURRENT = {
   tasks: "tasks", task: "tasks",
   dashboards: "dashboards", dashboard: "dashboards", marketing: "dashboards", studio: "dashboards",
   files: "files", apps: "apps", app: "apps", jobs: "jobs", job: "jobs", routines: "routines",
-  health: "health", settings: "settings",
+  health: "health", settings: "settings", setup: "setup",
 };
 export function sideCurrent(routeId, mode = "open") {
   if (routeId === "dept" && mode === "open") return null;
@@ -99,6 +99,15 @@ export const PLACES = [
   { id: "jobs", title: "Jobs", href: "#/jobs", icon: "jobs" },
   { id: "routines", title: "Routines", href: "#/routines", icon: "routines" },
 ];
+
+// The Setup row (PLAN-ONBOARD decision 6), from GET /api/setup: null unless the server says to show it. `count` is how
+// many of the five steps are left; a step skipped for now counts as dealt with.
+export function setupItem(setup) {
+  if (!setup || setup.show !== true) return null;
+  const c = setup.counts || {};
+  const n = Math.min(5, whole(c.done) + whole(c.skipped));
+  return { href: "#/setup", icon: "check", title: "Setup", label: `Setup: ${n} of 5 done`, count: 5 - n };
+}
 
 function systemDark() {
   return typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
@@ -125,11 +134,12 @@ function Go({ href, icon, title, label, current, count, chip, mark, onClick }) {
       aria-current=${current ? "page" : undefined}>${inner}</a>`;
 }
 
-export function Sidenav({ mode = "open", routeId, parts, query, shell, dock, settings, onSaveSettings }) {
+export function Sidenav({ mode = "open", routeId, parts, query, shell, dock, settings, onSaveSettings, setup }) {
   const name = cap(shell?.company?.name, 40) || "Home";
   const needs = whole(shell?.counts?.needsYou);
   const dot = engineDot(shell?.engine);
   const here = sideCurrent(routeId, mode);
+  const start = setupItem(setup);
   const team = mode === "open" && routeId === "dept" ? teamCurrent(routeId, parts, query) : null;
   const to = switchedTheme(settings?.theme, systemDark());
   const themeWords = to === "light" ? "Switch to light" : "Switch to dark";
@@ -140,6 +150,8 @@ export function Sidenav({ mode = "open", routeId, parts, query, shell, dock, set
         <span class="s-brand-name u-truncate" aria-hidden="true">${name}</span>
       </a>
       <${Go} href="#/needs-you" icon="inbox" title="Needs you" label=${needsLabel(needs)} current=${here === "needs-you"} count=${needs} chip=${true} />
+      ${start ? html`
+        <${Go} href=${start.href} icon=${start.icon} title=${start.title} label=${start.label} current=${here === "setup"} count=${start.count} />` : null}
       ${PLACES.map((p) => html`
         <${Go} key=${p.id} href=${p.href} icon=${p.icon} title=${p.title} label=${p.title} current=${here === p.id} />`)}
       <div class="s-side-team">
