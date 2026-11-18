@@ -128,13 +128,16 @@ after(async () => {
 test("the temp state is not the live one, and the index was built from the fixture's files and the books", async () => {
   assert.ok(h.state.startsWith(tmpdir()) || h.state.includes("uuu-home-stubs-"), h.state);
   assert.ok(!h.config.paths.brainIndex.includes(".paperclip"));
-  const r = await home("GET", "/api/brain/index");
-  assert.equal(r.status, 200, r.text);
+  // With every switch off the Brain page's routes say so and build nothing; the index built above is read directly.
+  const off = await home("GET", "/api/brain/index");
+  assert.equal(off.status, 409, off.text);
+  assert.equal(off.json.error.code, "brain_off");
+  const ix = indexFor(h.config).status();
   const listed = brainFor(h.config).list().map((f) => f.path);
   for (const rel of Object.keys(FILES)) assert.ok(listed.includes(rel), rel);
-  assert.equal(r.json.files, listed.length);
-  assert.equal(r.json.books, "ok");
-  assert.ok(r.json.records > 0);
+  assert.equal(ix.files, listed.length);
+  assert.equal(ix.books, "ok");
+  assert.ok(ix.records > 0);
   const cfg = JSON.parse(readFileSync(join(tmp, "engine", "config.json"), "utf8"));
   assert.equal(cfg.stateRoot, h.state);
 });
@@ -223,12 +226,12 @@ test("switching off through Settings makes the running door refuse the next call
 });
 
 test("a Customer an agent made never reaches an answer; one the owner made does, after a refresh", async () => {
+  assert.equal((await home("POST", "/api/brain-door/switch", { on: true })).status, 200);
   const before = (await home("GET", "/api/brain/index")).json;
   h.bench.state.docs.Customer.push(customer("Zorblax Holdings", AGENT_USER), customer("Quillon Traders", ADMIN));
   const r = await home("POST", "/api/brain/index/refresh");
   assert.equal(r.status, 200, r.text);
   assert.equal(r.json.leftOut, before.leftOut + 1, "the agent's Customer was left out");
-  assert.equal((await home("POST", "/api/brain-door/switch", { on: true })).status, 200);
   const planted = await toDoor("/brain/ask", { q: "Zorblax Holdings" }, tokens.builder);
   assert.equal(planted.status, 200, planted.text);
   assert.deepEqual(planted.json.results, []);
