@@ -38,6 +38,12 @@ display or visibility set by whether the visitor asks for less motion
 rule, whatever its query. `--report` (no value)
 also reads viewer/<ref>/report.json of the goal for each site/<ref>/: the
 smallest text the page viewer measured; a false report can only add failures.
+A site with the folder astryx/ at its top (PLAN-ASTRYX T6) carries the Astryx
+kit: every file there must be in astryx.lock.json beside this tool with the same
+sha256 (else `kit_file_changed`), and astryx-theme.css at its top must be
+brand/astryx-theme.css byte for byte (else `tokens_file_changed`). Both are then
+passed over by the scanners; the maker's own files may not set an Astryx theme
+token, and a colour in a string of its scripts is judged.
 
 Exit 0: every piece passes or only warns. Exit 1: a hard rule failed, including
 whatever a maker can cause by what it leaves in the goal: no pieces (`no_pieces`),
@@ -690,6 +696,14 @@ class Ctx:
         self.pixels = 0
         self.sources = {}
         self.room = None
+        self.astryx = False     # the Astryx kit's list: not read yet
+
+    def astryx_list(self):
+        """{name: (bytes, sha256 digest)} of the Astryx kit's list beside this tool, read once a run; None when it
+        is not installed, "bad" when it cannot be read or is not the list's shape."""
+        if self.astryx is False:
+            self.astryx = read_astryx_list(os.path.join(HERE, ASTRYX_LIST))
+        return self.astryx
 
     def source(self, name, room=False):
         """Each company picture, or each render a board claims, is opened and charged once a run; later claims
@@ -1021,6 +1035,26 @@ FILTERED = ("a filter, which changes every colour the page draws so that none ca
             "use the brand kit's colours as they are")
 BLENDED = ("a blend mode, which mixes colours into ones the check cannot compare with the kit; use the brand kit's "
            "colours as they are")
+# The Astryx kit (PLAN-ASTRYX T6): the folder astryx/ at a site's top is the engine's kit, byte for byte by the list
+# install.sh copies beside this file; astryx-theme.css beside it is the brand folder's, byte for byte. Both are
+# passed over by the scanners; everything else the maker wrote is read as before.
+ASTRYX = "astryx"
+ASTRYX_LIST = "astryx.lock.json"
+ASTRYX_LIST_BYTES = 1 * MB
+ASTRYX_FILE_BYTES = 2 * MB
+ASTRYX_LIST_FILES = 1000
+ASTRYX_SHOWN = 5                 # kit_file_changed lines named on one site; the rest are counted in one more
+ASTRYX_THEME = "astryx-theme.css"
+SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+KIT_CHANGED = ("it is not the engine's Astryx kit byte for byte; copy the folder again from the playbooks and "
+               "never change it")
+THEME_TOKENS = (("--color-", "colour_not_token"), ("--font-size", "text_too_small"), ("--font-", "font_not_kit"),
+                ("--text-", "text_too_small"), ("--radius-", "tokens_file_changed"),
+                ("--shadow-", "tokens_file_changed"))
+# A colour written in a string of the maker's script on an Astryx page (the page is drawn by its script).
+JS_HEX = re.compile(r"(?<![0-9A-Za-z_&#$])#([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![0-9A-Za-z_-])")
+JS_COLOUR_FUNC = re.compile(r"(?<![0-9A-Za-z_-])(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\(",
+                            re.I)
 
 # HTML attributes that hold an address the page fetches (href only off <a> and <area>, which are links).
 URL_ATTRS = ("src", "srcset", "poster", "data", "action", "formaction", "background", "ping", "manifest",
@@ -1532,9 +1566,37 @@ class Found:
                            code != "font_collection")
 
 
-def walk_site(piece, found):
+def read_astryx_list(path):
+    """The Astryx kit's list (engine/astryx-kit/astryx.lock.json, copied beside this tool by install.sh) as
+    {name: (bytes, sha256 digest)}; None when it is missing; "bad" when it is not a plain file of at most 1 MB, not
+    JSON or not the list's shape (every name a plain file name with no /, a size, a sha256 in hex)."""
+    try:
+        raw = read_json(path, ASTRYX_LIST_BYTES)
+    except (PieceProblem, RecursionError):
+        return "bad"
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or not isinstance(raw.get("files"), list) or len(raw["files"]) > ASTRYX_LIST_FILES:
+        return "bad"
+    out = {}
+    for f in raw["files"]:
+        if not isinstance(f, dict):
+            return "bad"
+        name, size, sha = f.get("name"), f.get("bytes"), f.get("sha256")
+        if not isinstance(name, str) or "/" in name or not FILE_NAME.match(name) or name in out:
+            return "bad"
+        if not isinstance(size, int) or isinstance(size, bool) or not 0 <= size <= ASTRYX_FILE_BYTES:
+            return "bad"
+        if not isinstance(sha, str) or not SHA256_HEX.match(sha):
+            return "bad"
+        out[name] = (size, bytes.fromhex(sha))
+    return out
+
+
+def walk_site(piece, found, dirs=None):
     """{path in the site: (path on disk, size)} of the site's plain files, by lstat, never through a link, in a
-    fixed order, with the page viewer's caps. What is passed over is a hard could_not_check."""
+    fixed order, with the page viewer's caps. What is passed over is a hard could_not_check. `dirs`, a set, is
+    given the path of every folder found."""
     files, entries, total = {}, 0, 0
     stack = [(piece.path, "")]
     while stack:
@@ -1562,6 +1624,8 @@ def walk_site(piece, found):
             except OSError:
                 continue
             if stat.S_ISDIR(st.st_mode):
+                if dirs is not None:
+                    dirs.add(name)
                 if name.count("/") + 2 > SITE_SEGMENTS:
                     found.add("could_not_check", "%s is too deep: a site's files are at most %d names deep, the "
                               "file's own included" % (shown_path(name), SITE_SEGMENTS))
@@ -1583,9 +1647,11 @@ def walk_site(piece, found):
 class SiteCheck:
     """The page rules on one site piece (K16): its tokens file, colours, type, sizes, addresses, logo, words."""
 
-    def __init__(self, ctx, piece, found, files):
+    def __init__(self, ctx, piece, found, files, dirs=()):
         self.ctx, self.piece, self.found, self.files = ctx, piece, found, files
         self.kit = ctx.kit
+        self.astryx = ASTRYX in dirs        # the site has the folder astryx/ at its top (PLAN-ASTRYX T6)
+        self.passed = set()                 # the kit's files and the brand theme, byte for byte: not read as text
         if self.kit:
             self.kit_rgbs = [c["rgb"] for c in self.kit.palette]
             self.kit_names = {"--brand-" + c["name"] for c in self.kit.palette}
@@ -1649,6 +1715,79 @@ class SiteCheck:
             self.found.add("tokens_file_changed", "kit.css at the site's top is not brand/kit.css byte for byte; "
                            "copy it again and never change it")
 
+    def astryx_kit(self, dirs):
+        """The folder astryx/ at the site's top: every file in it must be in the Astryx kit's list with the same
+        sha256, and no folder may be inside it. A file that is passes over every scanner and the text caps (it
+        still counts in the site's entries and bytes); anything else is a hard kit_file_changed."""
+        listed = self.ctx.astryx_list()
+        if listed is None or listed == "bad":
+            self.found.add("could_not_check", "the Astryx kit's list is %s, so astryx/ was not compared"
+                           % ("not installed" if listed is None else "not one the check can read"))
+            return
+        bad, seen = [], set()
+
+        def changed(name):
+            if name not in seen:
+                seen.add(name)
+                bad.append(name)
+
+        prefix = ASTRYX + "/"
+        inside = sorted(d for d in dirs if d.startswith(prefix))
+        for d in inside:
+            changed(prefix + d[len(prefix):].split("/", 1)[0])
+        for name in sorted(self.files):
+            if not name.startswith(prefix):
+                continue
+            rest = name[len(prefix):]
+            if "/" in rest:
+                changed(prefix + rest.split("/", 1)[0])
+                continue
+            path, size = self.files[name]
+            want = listed.get(rest)
+            if want is None or size != want[0] or size > ASTRYX_FILE_BYTES:
+                changed(name)
+                continue
+            self.piece.tick()
+            try:
+                data = kitmod.read_capped(path, ASTRYX_FILE_BYTES)
+            except OSError:
+                data = None
+            if data is not None and len(data) == want[0] and hashlib.sha256(data).digest() == want[1]:
+                self.passed.add(name)
+            else:
+                changed(name)
+        for name in bad[:ASTRYX_SHOWN]:
+            self.found.add("kit_file_changed", KIT_CHANGED, where=shown_path(name))
+        if len(bad) > ASTRYX_SHOWN:
+            self.found.add("kit_file_changed", "and %d more files or folders in astryx/ like this"
+                           % (len(bad) - ASTRYX_SHOWN), where=ASTRYX)
+
+    def astryx_theme(self):
+        """On a site with astryx/: astryx-theme.css at its top is the brand folder's, byte for byte (the home
+        server writes it from the brand kit). Equal, it passes over the scanners."""
+        try:
+            want = kitmod.read_capped(os.path.join(self.kit.brand, ASTRYX_THEME), MAX_SMALL_JSON)
+        except OSError:
+            want = None
+        if want is None:
+            self.found.add("could_not_check", "the brand kit's astryx-theme.css could not be read, so the site's "
+                           "copy of it was not compared")
+            return
+        have = None
+        if ASTRYX_THEME in self.files:
+            try:
+                have = kitmod.read_capped(self.files[ASTRYX_THEME][0], MAX_SMALL_JSON) or b""
+            except OSError:
+                have = b""
+        if have is None:
+            self.found.add("tokens_file_changed", "there is no astryx-theme.css at the site's top; copy "
+                           "brand/astryx-theme.css into it byte for byte")
+        elif hashlib.sha256(have).digest() != hashlib.sha256(want).digest():
+            self.found.add("tokens_file_changed", "astryx-theme.css at the site's top is not brand/astryx-theme.css "
+                           "byte for byte; copy it again and never change it")
+        else:
+            self.passed.add(ASTRYX_THEME)
+
     def font_collections(self):
         for role in ("heading", "body"):
             face = self.kit.type[role]
@@ -1662,7 +1801,7 @@ class SiteCheck:
         budget = SITE_TEXT_BYTES
         for name in sorted(self.files):
             ending = name.rsplit(".", 1)[-1].lower() if "." in name else ""
-            if ending not in PAGE_ENDINGS:
+            if ending not in PAGE_ENDINGS or name in self.passed:
                 continue
             path, size = self.files[name]
             shown = shown_path(name)
@@ -2343,10 +2482,18 @@ class SiteCheck:
                 face["src"] = (list(font), cut, where)
 
     def brand_token(self, name, where, how):
-        """A --brand-… custom property set anywhere but the kit's own kit.css: refused, as the rule it would turn."""
-        if not name.lower().startswith("--brand-"):
-            return
+        """A --brand-… custom property set anywhere but the kit's own kit.css: refused, as the rule it would turn.
+        On a site with astryx/, so is an Astryx theme token (--color-…, --font-…, --text-…, --radius-…,
+        --shadow-…), which only astryx-theme.css sets."""
         n = name.lower()
+        if self.astryx and n.startswith(tuple(p for p, _ in THEME_TOKENS)):
+            code = next(c for p, c in THEME_TOKENS if n.startswith(p))
+            self.found.add(code, "%s: %s sets an Astryx theme token (--color-…, --font-…, --text-…, --radius-… or "
+                           "--shadow-…), which only astryx-theme.css may set; use the theme's tokens as they are"
+                           % (where, "an @property" if how else "the site's own style"))
+            return
+        if not n.startswith("--brand-"):
+            return
         code = "font_not_kit" if n in BRAND_FACES else "text_too_small" if n == "--brand-min-size" \
             else "colour_not_token" if n in self.kit_names else "tokens_file_changed"
         self.found.add(code, "%s: %s sets a brand token (--brand-…), which only the brand kit's kit.css may set; "
@@ -2750,6 +2897,8 @@ class SiteCheck:
     def js_literal(self, file, line_of, how, pos, s, stack, prev, every):
         if self.kit is not None and js_unescape(s) in WORKLETS:
             self.found.add("colour_not_token", "%s: %s" % (self.at(file, line_of(pos), how), WORKLET % KIT_COLOURS))
+        if self.astryx and self.kit is not None and not every:
+            self.js_colours(file, line_of, how, pos, js_unescape(s))
         callee = stack[-1] if stack else None
         if every:
             what = "an import map"
@@ -2762,6 +2911,19 @@ class SiteCheck:
         if is_outside(js_unescape(s)):
             self.found.add("outside_address", "%s: an address outside the site in %s; %s"
                            % (self.at(file, line_of(pos), how), what, OWN_FILES))
+
+    def js_colours(self, file, line_of, how, pos, s):
+        """On a site with astryx/ (drawn by its script, PLAN-ASTRYX T6): a hex colour in a string of the maker's
+        script is judged as one in a style sheet; a colour function there is refused, as the check does not read
+        it. Colours come from the theme's tokens through Astryx's components."""
+        where = self.at(file, line_of(pos), how)
+        for m in JS_HEX.finditer(s):
+            rgb = hex_rgb(m.group(1))
+            if rgb is not None and not self.colour_ok(rgb):
+                self.found.add("colour_not_token", "%s: %s, in a string of the script" % (where, self.not_kit(rgb)))
+        if JS_COLOUR_FUNC.search(s):
+            self.found.add("colour_not_token", "%s: a colour function in a string of the script, which the check "
+                           "does not read; %s" % (where, KIT_COLOURS))
 
     # --- the logo, the viewer's report
 
@@ -2830,13 +2992,18 @@ def check_site(ctx, piece):
         found.add("could_not_check", "the site's folder name is not one the home server opens: a site's folder is "
                   "named with lower-case letters, digits and dashes, at most 36, so it is neither pictured nor "
                   "measured; rename it")
-    files = walk_site(piece, found)
+    dirs = set()
+    files = walk_site(piece, found, dirs)
     piece.tick()
     if "index.html" not in files:
         found.add("could_not_check", "there is no index.html at the site's top")
-    sc = SiteCheck(ctx, piece, found, files)
+    sc = SiteCheck(ctx, piece, found, files, dirs)
+    if sc.astryx:
+        sc.astryx_kit(dirs)
     if ctx.kit:
         sc.tokens_file()
+        if sc.astryx:
+            sc.astryx_theme()
         sc.font_collections()
     sc.read_all()
     if ctx.kit:

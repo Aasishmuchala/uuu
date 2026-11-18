@@ -41,6 +41,7 @@ SLIDES_TOOL="$TOOLS/slides.py"
 VIDEO_TOOL="$TOOLS/video.py"
 TOOL_FILES="sprite.py slides.py fontmap.json video.py kit.py brandcheck.py"   # copied from engine/art into state/art/tools
 BRAND_FILES="filler.json directions.json"   # copied from engine/company/brand into state/art/tools, for the brand check
+ASTRYX_FILES="astryx.lock.json"   # copied from engine/astryx-kit into state/art/tools: the brand check compares a site's astryx/ with it
 
 # Programs already on this Mac, by fixed path (never from PATH). /opt/homebrew is
 # outside the home folder, so the fence can read it.
@@ -77,13 +78,20 @@ env_text() {
 }
 
 source_of() {   # source_of <file>: where the copy in state/art/tools comes from
-  case " $BRAND_FILES " in *" $1 "*) echo "$HERE/../company/brand/$1" ;; *) echo "$HERE/$1" ;; esac
+  case " $BRAND_FILES " in *" $1 "*) echo "$HERE/../company/brand/$1" ; return ;; esac
+  case " $ASTRYX_FILES " in *" $1 "*) echo "$HERE/../astryx-kit/$1" ; return ;; esac
+  echo "$HERE/$1"
 }
 
 tools_copied() {
-  local f
+  local f src
   for f in $TOOL_FILES $BRAND_FILES; do
     cmp -s "$(source_of "$f")" "$TOOLS/$f" || return 1
+  done
+  for f in $ASTRYX_FILES; do   # not in the repo: nothing to match (the brand check says it cannot compare)
+    src="$(source_of "$f")"
+    [ -f "$src" ] || continue
+    cmp -s "$src" "$TOOLS/$f" || return 1
   done
 }
 
@@ -153,6 +161,20 @@ mkdir -p "$TOOLS"
 for f in $TOOL_FILES $BRAND_FILES; do
   src="$(source_of "$f")"
   [ -f "$src" ] || die "$f is missing from the repo (engine/art or engine/company/brand); nothing was copied for it"
+  [ -L "$TOOLS/$f" ] && die "state/art/tools/$f is a link; remove it and run again"
+  if cmp -s "$src" "$TOOLS/$f"; then
+    say "$f already in state/art/tools"
+  else
+    cp "$src" "$TOOLS/$f.tmp" && chmod 644 "$TOOLS/$f.tmp" && mv "$TOOLS/$f.tmp" "$TOOLS/$f"
+    say "$f copied to state/art/tools"
+  fi
+done
+for f in $ASTRYX_FILES; do
+  src="$(source_of "$f")"
+  if [ ! -f "$src" ]; then
+    say "$f is not in the repo (engine/astryx-kit); the brand check will say it cannot compare a site's astryx/ folder"
+    continue
+  fi
   [ -L "$TOOLS/$f" ] && die "state/art/tools/$f is a link; remove it and run again"
   if cmp -s "$src" "$TOOLS/$f"; then
     say "$f already in state/art/tools"
