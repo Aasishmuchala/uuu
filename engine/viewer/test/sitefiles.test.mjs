@@ -4,10 +4,11 @@ import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SITE_HEADERS, SITE_POLICY, TYPES, checkEntries, collectSite, nameProblem, siteHandler, typeFor } from "../sitefiles.mjs";
+import { readTar, writeTar } from "../tar.mjs";
 import { writeZip } from "../zip.mjs";
 
 const dirs = [];
@@ -204,4 +205,50 @@ test("checkEntries refuses two folders whose names differ only in letter case (T
   assert.equal(checkEntries([f("index.html"), { name: "Img", type: "dir" }, { name: "img", type: "dir" }]).ok, false);
   assert.equal(checkEntries([f("index.html"), f("x/A/b.png"), f("x/a/c.png")]).ok, false);
   assert.equal(checkEntries([f("index.html"), { name: "img", type: "dir" }, f("img/a.png"), f("img/b.png")]).ok, true, "one spelling is one folder");
+});
+
+// PLAN-ASTRYX T8: a site that carries the Astryx kit, as the Builder makes it: the kit's files under astryx/, the
+// example page's files, kit.css, astryx-theme.css and a logo. Stand-in bytes for the three files the home server and
+// the test write; the kit's and the example's are the committed ones.
+function astryxSite() {
+  const kit = join(import.meta.dirname, "..", "..", "astryx-kit");
+  const files = [];
+  for (const n of readdirSync(join(kit, "astryx")).sort()) files.push({ name: `astryx/${n}`, data: readFileSync(join(kit, "astryx", n)) });
+  for (const n of readdirSync(join(kit, "example")).sort()) files.push({ name: n, data: readFileSync(join(kit, "example", n)) });
+  files.push({ name: "kit.css", data: Buffer.from(":root { --brand-sun: #E0A100; }\n") });
+  files.push({ name: "astryx-theme.css", data: Buffer.from(":root { color-scheme: light; }\n") });
+  files.push({ name: "logo.svg", data: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#E0A100"/></svg>') });
+  return files;
+}
+
+test("PLAN-ASTRYX T8: the example Astryx site passes checkEntries whole, with the right byte total", () => {
+  const files = astryxSite();
+  const kitNames = readdirSync(join(import.meta.dirname, "..", "..", "astryx-kit", "astryx"));
+  assert.ok(kitNames.length >= 40 && kitNames.includes("core.js") && kitNames.includes("importmap.json") && kitNames.includes("LICENSES.txt"));
+  assert.ok(files.some((f) => f.name === "index.html") && files.some((f) => f.name === "app.js"));
+  const r = checkEntries(files.map((f) => ({ name: f.name, type: "file", size: f.data.length })));
+  assert.equal(r.ok, true, r.reason);
+  assert.deepEqual(r.files, files.map((f) => f.name));
+  assert.equal(r.bytes, files.reduce((n, f) => n + f.data.length, 0));
+  assert.ok(r.bytes > 2 * MB && r.bytes < 20 * MB, `${r.bytes} bytes`);
+  assert.equal(typeFor("astryx/core.js"), "text/javascript; charset=utf-8");
+  assert.equal(typeFor("astryx/importmap.json"), "application/json; charset=utf-8");
+  assert.equal(typeFor("astryx/LICENSES.txt"), "text/plain; charset=utf-8");
+  for (const f of files) assert.notEqual(typeFor(f.name), null, f.name);
+});
+
+test("PLAN-ASTRYX T8: a tar of the example Astryx site reads back equal, and writeZip takes it", () => {
+  const files = astryxSite();
+  const tar = readTar(writeTar(files));
+  assert.equal(tar.ok, true, tar.reason);
+  const got = tar.entries.filter((e) => e.type === "file");
+  assert.deepEqual(got.map((e) => e.name), files.map((f) => f.name));
+  for (let i = 0; i < files.length; i++) assert.ok(got[i].data.equals(files[i].data), files[i].name);
+  const zip = writeZip(files, { now: Date.UTC(2026, 10, 18) });
+  const d = folder();
+  writeFileSync(join(d, "site.zip"), zip);
+  const list = execFileSync("/usr/bin/unzip", ["-Z1", join(d, "site.zip")], { encoding: "utf8" }).trim().split("\n");
+  assert.deepEqual(list, files.map((f) => f.name));
+  execFileSync("/usr/bin/unzip", ["-tq", join(d, "site.zip")]);
+  assert.ok(execFileSync("/usr/bin/unzip", ["-p", join(d, "site.zip"), "astryx/core.js"], { maxBuffer: 8 * MB }).equals(files.find((f) => f.name === "astryx/core.js").data));
 });

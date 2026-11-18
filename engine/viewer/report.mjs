@@ -350,6 +350,26 @@ export function settleScript(step) {
 })()`;
 }
 
+// PLAN-ASTRYX D9: the wait for a page drawn by script. Run in the viewer's isolated world right after the load event:
+// when the page has an element marked data-astryx-root, it looks every 100 ms whether the FIRST such element has an
+// element child, for at most `ms`. It reads nothing else from the page. -> { root, drawn }: whether there is a root,
+// and whether it got a child in time.
+export function rootWaitScript(ms) {
+  const limit = Number.isSafeInteger(ms) && ms > 0 ? Math.min(ms, 60_000) : 0;
+  return `new Promise((done) => {
+  const root = document.querySelector("[data-astryx-root]");
+  if (!root) return done({ root: false, drawn: false });
+  const until = Date.now() + ${limit};
+  const look = () => {
+    if (root.firstElementChild !== null) return done({ root: true, drawn: true });
+    const left = until - Date.now();
+    if (left <= 0) return done({ root: true, drawn: false });
+    setTimeout(look, Math.min(100, left));
+  };
+  look();
+})`;
+}
+
 const HEX_RE = /^#[0-9A-F]{6}$/;
 export const plainText = (v, max) => String(v === undefined || v === null ? "" : v).replace(/[\x00-\x1f\x7f-\x9f\u2028\u2029]/g, " ").slice(0, max);
 const count = (v) => (Number.isSafeInteger(v) && v >= 0 ? Math.min(v, 1_000_000) : 0);
@@ -365,13 +385,16 @@ const px = (v) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.
 // `capped`, `turned`, `painted` and `unsized` (the most of any pass); `unsettled` is the most animations
 // a pass could not put at their keyframes; `fallbacks` the faces Chrome drew only letters of other
 // scripts with (letters the page's own faces have none of).
-export function mergePage({ page, passes, errors, blocked, missing, drawn, fallbacks, shots, cut, unsettled }) {
+// PLAN-ASTRYX D9: `drawn_late` is true only when the viewer's own wait for a page's data-astryx-root ran out (the
+// viewer passes it; nothing a page sends sets it), false otherwise.
+export function mergePage({ page, passes, errors, blocked, missing, drawn, fallbacks, shots, cut, unsettled, drawnLate }) {
   const out = {
     page,
     errors: [], wider: [], missing: [], blocked: [],
     a11y: { noAlt: 0, noLabel: 0, noLang: false, noTitle: false, headingSkips: 0, smallTargets: 0 },
     contrast: [], fonts: [], colours: [], drawn: [], fallbacks: [], dark: false, shots: [...(shots || [])], cut: cut || null,
     filtered: 0, capped: false, turned: 0, painted: 0, unsized: 0, unsettled: count(unsettled),
+    drawn_late: drawnLate === true,
   };
   const addUnique = (list, value, cap, key = (x) => JSON.stringify(x)) => {
     if (list.length >= cap) return;

@@ -19,7 +19,7 @@ import { checkCaller, ensureSecret, headerValues, readBody, readDoorsState, refu
 import { describeError } from "../relay/relay.mjs";
 import { CHROME_PATH, chromeInstalled, chromeVersion, defaultLaunch, prepareRoot, readPs, startChrome } from "./chrome.mjs";
 import { startProxy } from "./proxy.mjs";
-import { REPORT_SCRIPT, SETTLE_STEPS, mergePage, pageSlug, plainText, settleScript } from "./report.mjs";
+import { REPORT_SCRIPT, SETTLE_STEPS, mergePage, pageSlug, plainText, rootWaitScript, settleScript } from "./report.mjs";
 import { SITE_LIMITS, nameProblem, siteHandler } from "./sitefiles.mjs";
 import { readTar, unpack, writeTar } from "./tar.mjs";
 
@@ -27,6 +27,7 @@ export const VIEW_LIMITS = Object.freeze({
   pageMs: 15_000,        // every shot of one page
   renderMs: 60_000,      // every page of one render, after Chrome has answered
   settleMs: 300,         // after the load event, before the report and the shots
+  rootWaitMs: 2000,      // PLAN-ASTRYX D9: after the load event, before the settle wait, for a page drawn by script
   shotMaxHeight: 6000,   // a full page, cut here
   pages: 3,
 });
@@ -226,6 +227,7 @@ async function render({ entries, pages, root, program, launch, ps, lim, chromeLi
       let drawn = [];
       let fallbacks = [];
       let unsettled = 0;
+      let drawnLate = false;
       if (renderCut || session.gone) {
         report.pages.push(mergePage({ page, passes, errors: [], blocked: [], missing: [], drawn, shots, cut: renderCut || session.why || "chrome ended" }));
         continue;
@@ -243,6 +245,25 @@ async function render({ entries, pages, root, program, launch, ps, lim, chromeLi
         }
         if (!sid) throw new Error("time");
         let hasDark = false;
+        // PLAN-ASTRYX D9: a page whose first data-astryx-root has no element child yet is given up to rootWaitMs (and
+        // never more than the time left) to draw it, looked at from an isolated world of the viewer's own. Once a wait
+        // has run out for this page it is said (drawn_late) and later openings of the page do not wait again. A page
+        // with no such element waits for nothing. It never throws into the render.
+        const waitForRoot = async () => {
+          if (drawnLate || !(Number.isSafeInteger(lim.rootWaitMs) && lim.rootWaitMs > 0)) return;
+          try {
+            const tree = await send("Page.getFrameTree", {}, sid, left());
+            const frame = tree && tree.frameTree && tree.frameTree.frame;
+            if (!frame || typeof frame.id !== "string") return;
+            const world = await send("Page.createIsolatedWorld", { frameId: frame.id, worldName: "viewer-wait" }, sid, left());
+            const ms = Math.min(lim.rootWaitMs, left());
+            const r = await send("Runtime.evaluate", { expression: rootWaitScript(ms), contextId: world.executionContextId, awaitPromise: true, returnByValue: true }, sid, Math.min(ms + 250, left()));
+            const v = r && r.result && r.result.value;
+            if (v && typeof v === "object" && v.root === true && v.drawn !== true) drawnLate = true;
+          } catch {
+            // the time is up, or the page moved away: what follows says so
+          }
+        };
         // The page opened afresh with the media features asked; -> its isolated world's context, once its fonts are in.
         const open = async (scheme, motion) => {
           await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: motion }] }, sid, left());
@@ -251,6 +272,7 @@ async function render({ entries, pages, root, program, launch, ps, lim, chromeLi
           let timer;
           const timedOut = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("time")), left()); });
           try { await Promise.race([loaded, timedOut, session.whenGone.then(() => { throw new Error("gone"); })]); } finally { clearTimeout(timer); loadWaiters.delete(sid); }
+          await waitForRoot();
           await wait(Math.min(lim.settleMs, left()));
           const tree = await send("Page.getFrameTree", {}, sid, left());
           const frame = tree.frameTree && tree.frameTree.frame;
@@ -319,7 +341,7 @@ async function render({ entries, pages, root, program, launch, ps, lim, chromeLi
         if (!closed) await session.end();
       }
       const errors = current.errors.map((e) => String(e).split(origin).join(""));
-      report.pages.push(mergePage({ page, passes, errors, blocked: current.blocked, missing: current.missing, drawn, fallbacks, shots, cut, unsettled }));
+      report.pages.push(mergePage({ page, passes, errors, blocked: current.blocked, missing: current.missing, drawn, fallbacks, shots, cut, unsettled, drawnLate }));
     }
   } finally {
     clearTimeout(renderTimer);

@@ -17,6 +17,7 @@ import { mintToken } from "../../relay/token.mjs";
 import { readPs } from "../chrome.mjs";
 import { SITE_POLICY } from "../sitefiles.mjs";
 import { writeTar } from "../tar.mjs";
+import { mergePage } from "../report.mjs";
 import { CODES, SPENT_ADDRESS, createViewer, parseTarget } from "../viewer.mjs";
 
 const VIEW_SECRET = "5".repeat(64);
@@ -95,6 +96,7 @@ function launch(program, args) {
         case "Page.createIsolatedWorld": ok({ executionContextId: 9 }); break;
         case "Runtime.evaluate":
           if (/document\.fonts/.test(m.params.expression)) ok({ result: { value: true } });
+          else if (/data-astryx-root/.test(m.params.expression)) { seen.waits.push(m.params.expression); ok({ result: { value: behaviour.wait ?? { root: false, drawn: false } } }); }
           else ok({ result: { value: { hasDark: behaviour.hasDark === true, height: 1200, wider: [{ tag: "div", cls: "x\u0000y", width: 1500 }], missing: [], a11y: { noAlt: 1, noLabel: 0, noLang: false, noTitle: false, headingSkips: 0, smallTargets: 2 }, contrast: [{ text: "faint", fg: "#A9A9A9", bg: "#BBBBBB", ratio: 1.22 }], fonts: [{ family: "Georgia", minPx: 12 }], colours: ["#1E2A33", "not a colour"], ...(behaviour.report || {}) } } });
           break;
         case "DOM.getDocument": ok({ root: { nodeId: 1 } }); break;
@@ -126,7 +128,7 @@ before(async () => {
   });
   port = await viewer.listen();
 });
-beforeEach(() => { behaviour = {}; seen = { methods: [], widths: [], pages: [], args: [], spent: [], motion: [] }; setViewer(true); });
+beforeEach(() => { behaviour = {}; seen = { methods: [], widths: [], pages: [], args: [], spent: [], motion: [], waits: [] }; setViewer(true); });
 after(async () => {
   await viewer.close();
   for (const g of groups) { try { process.kill(-g, "SIGKILL"); } catch { /* gone */ } }
@@ -320,6 +322,31 @@ test("dark shots only when the site's CSS holds prefers-color-scheme", async () 
   assert.deepEqual(Object.keys(files).filter((n) => n.endsWith(".png")).sort(),
     ["shot-index-1280-dark.png", "shot-index-1280-light.png", "shot-index-390-dark.png", "shot-index-390-light.png"]);
   assert.equal(JSON.parse(files["report.json"]).pages[0].dark, true);
+});
+
+test("PLAN-ASTRYX D9: mergePage keeps drawn_late a boolean whatever the page sends", () => {
+  const sent = { drawn_late: true, drawnLate: true, hasDark: false, colours: [] };
+  for (const v of [undefined, null, "yes", "true", 1, 0, {}, [true], false]) {
+    const p = mergePage({ page: "index.html", passes: [{ width: 1280, data: sent }, { width: 390, data: sent, extra: true }], drawnLate: v });
+    assert.equal(p.drawn_late, false, String(v));
+  }
+  assert.equal(mergePage({ page: "index.html", passes: [], drawnLate: true }).drawn_late, true);
+  assert.equal(mergePage({ page: "index.html", passes: [] }).drawn_late, false);
+});
+
+test("PLAN-ASTRYX D9: a root that is never drawn is said once, and the page is not waited for again", async () => {
+  behaviour = { wait: { root: true, drawn: false } };
+  const files = untar((await shots()).raw);
+  const p = JSON.parse(files["report.json"]).pages[0];
+  assert.equal(p.drawn_late, true);
+  assert.equal(p.cut, null);
+  assert.equal(seen.waits.length, 1, "later openings of the page do not wait");
+  assert.match(seen.waits[0], /new Promise/);
+  assert.match(seen.waits[0], /const until = Date\.now\(\) \+ 2000;/, "rootWaitMs is 2000");
+  behaviour = { wait: "drawn" };
+  const q = JSON.parse(untar((await shots()).raw)["report.json"]).pages[0];
+  assert.equal(q.drawn_late, false, "an answer that is not the wait's own shape sets nothing");
+  assert.equal(seen.waits.length, 5, "a drawn page is waited for at each opening (four), each up to its time");
 });
 
 test("row 5: one render at a time; a page that never loads is cut at its time and the next render works", async () => {
