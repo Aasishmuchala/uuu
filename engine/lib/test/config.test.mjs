@@ -11,6 +11,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const libDir = join(here, "..");
 const engineDir = join(libDir, "..");
 const real = JSON.parse(readFileSync(join(engineDir, "config.json"), "utf8"));
+const BRAIN_AGENTS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist", "art-director"];
 const tmp = mkdtempSync(join(tmpdir(), "cfgtest-"));
 
 function writeCfg(name, obj) {
@@ -34,7 +35,7 @@ test("pinned ports and urls", () => {
     relay: "http://127.0.0.1:3120", home: "http://127.0.0.1:3200", bench: "http://127.0.0.1:8120",
     gateNarrow: "http://127.0.0.1:3111", web: "http://127.0.0.1:3130", generate: "http://127.0.0.1:3140",
     viewer: "http://127.0.0.1:3150", preview: "http://127.0.0.1:3160",
-    apps: "http://127.0.0.1:3170",
+    apps: "http://127.0.0.1:3170", brain: "http://127.0.0.1:3190",
   });
   assert.equal(c.engineDir, engineDir);
 });
@@ -53,6 +54,7 @@ test("paths cover every key", () => {
   const keys = ("state logs run secrets agentSecrets policy ids tasks projectFolder agentFolders proofFolder quotaFolder knowledgeDocs lessons contentDrafts homeData cad cadPython proofLast fences claudeHome codexHome books benchOwnerKey models modelsState relayStatus providerSecrets providerKey relaySecret "
     + "playbooks research sharedBrain doors doorsState doorSecrets webSecret generateSecret viewerSecret "
     + "runwayKey searchKey webVisits ledger batches doorWork webStatus generateStatus viewerStatus "
+    + "brainSecret brainStatus brainAsks brainDir brainIndex brainNotes "
     + "appsCode apps appsState appsStatus appsRun appsLogs allowances higgsfieldAuth").split(" ");
   assert.deepEqual(Object.keys(c.paths).sort(), keys.sort());
   assert.equal(c.paths.projectFolder, join(c.stateRoot, "tasks/company-work"));
@@ -75,6 +77,7 @@ test("the doors' ports, paths and agents (PLAN-V5 K1)", () => {
   assert.deepEqual(c.doors, {
     web: { agents: ["researcher"] }, generate: { agents: ["artist"], apps: ["render-to-film"] },
     viewer: { agents: ["builder", "art-director"] },
+    brain: { agents: BRAIN_AGENTS },
   });
   const want = {
     playbooks: "playbooks", research: "tasks/research", sharedBrain: "knowledge/shared", doors: "doors",
@@ -89,7 +92,7 @@ test("the doors' ports, paths and agents (PLAN-V5 K1)", () => {
 });
 
 test("a config without a door's port or with a bad doors block is refused", () => {
-  for (const k of ["gateNarrow", "web", "generate", "viewer", "preview", "apps"]) {
+  for (const k of ["gateNarrow", "web", "generate", "viewer", "preview", "apps", "brain"]) {
     const c = clone();
     delete c.ports[k];
     assert.throws(() => loadConfig({ path: writeCfg(`p-${k}.json`, c) }), new RegExp(`^Error: engine config: .*ports\\.${k}`));
@@ -109,6 +112,10 @@ test("a config without a door's port or with a bad doors block is refused", () =
     (c) => { c.doors.viewer.agents = [5]; },
     (c) => { c.doors.generate.agents = ["artist", "app-render-to-film"]; },
     (c) => { c.doors.web.agents = ["app-x"]; },
+    (c) => { c.doors.brain.agents = "builder"; },
+    (c) => { c.doors.brain.agents = ["Builder"]; },
+    (c) => { c.doors.brain.agents = ["app-x"]; },
+    (c) => { c.doors.brain = ["builder"]; },
   ];
   bad.forEach((change, i) => {
     const c = clone();
@@ -253,4 +260,42 @@ test("books/lib.sh agrees with config.json", { skip: !existsSync(join(engineDir,
   assert.equal(val("REDIS_CACHE_PORT"), String(p.benchRedisCache));
   assert.equal(val("SITE"), real.bench.site);
   assert.equal(val("ENGINE_HOME"), "$HOME/" + real.stateRoot.replace(/^~\//, ""));
+});
+
+test("the brain door: port, urls, paths, agents and the shell names (PLAN-BRAIN B1)", () => {
+  const c = loadConfig();
+  const s = c.stateRoot;
+  assert.equal(c.ports.brain, 3190);
+  assert.equal(c.urls.brain, "http://127.0.0.1:3190");
+  assert.deepEqual(c.doors.brain.agents, BRAIN_AGENTS);
+  assert.equal(c.doors.brain.agents.includes("researcher"), false);
+  assert.deepEqual(c.fence.policyPortsAllowed, [8120]);
+  assert.deepEqual(c.fence.readRootsAllowed, ["knowledge/docs", "lessons", "cad", "art", "media"]);
+  const want = {
+    brainDir: "brain", brainIndex: "brain/index.sqlite", brainNotes: "brain/notes",
+    brainSecret: "secrets/doors/brain-secret", brainStatus: "doors/brain-status.json",
+    brainAsks: "doors/brain-asks.jsonl",
+  };
+  for (const [k, rel] of Object.entries(want)) assert.equal(c.paths[k], join(s, rel), k);
+  // The Python loader agrees on every new value.
+  const pj = JSON.parse(py(["--json"]).stdout);
+  assert.equal(pj.ports.brain, 3190);
+  assert.equal(pj.urls.brain, c.urls.brain);
+  assert.deepEqual(pj.doors.brain, c.doors.brain);
+  for (const k of Object.keys(want)) assert.equal(pj.paths[k], c.paths[k], k);
+});
+
+test("a config without doors.brain loads with no agents in both loaders; a bad list is refused", () => {
+  const none = clone();
+  delete none.doors.brain;
+  assert.deepEqual(loadConfig({ path: writeCfg("nb.json", none) }).doors.brain, { agents: [] });
+  const r = py(["--json"], { ENGINE_CONFIG: writeCfg("nb2.json", none) });
+  assert.equal(r.status, 0);
+  assert.deepEqual(JSON.parse(r.stdout).doors.brain, { agents: [] });
+  const bad = clone();
+  bad.doors.brain.agents = "builder";
+  assert.throws(() => loadConfig({ path: writeCfg("nb3.json", bad) }), /^Error: engine config: key doors\.brain\.agents must be a array/);
+  const r2 = py(["--json"], { ENGINE_CONFIG: writeCfg("nb4.json", bad) });
+  assert.equal(r2.status, 1);
+  assert.match(r2.stderr, /^engine config: key doors\.brain\.agents must be a array/);
 });

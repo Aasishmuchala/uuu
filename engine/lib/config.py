@@ -13,9 +13,11 @@ ENGINE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 PORT_KEYS = ["board", "gate", "relay", "home", "benchWeb", "benchSocketio",
              "benchRedisQueue", "benchRedisCache", "benchDb",
-             "gateNarrow", "web", "generate", "viewer", "preview", "apps"]
+             "gateNarrow", "web", "generate", "viewer", "preview", "apps", "brain"]
 # The doors (PLAN-V5 K1): each lists the agents, by slug, that may reach it.
-DOOR_NAMES = ["web", "generate", "viewer"]
+DOOR_NAMES = ["web", "generate", "viewer", "brain"]
+# A config written before the brain door has no `doors.brain`; it loads with no agents.
+OPTIONAL_DOORS = ["brain"]
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 # App Studio (K17): each app's own port lies in this range (not a config key).
 APP_PORTS = {"first": 3171, "last": 3189}
@@ -62,9 +64,10 @@ def _need_doors(cfg):
     d = cfg.get("doors")
     if not isinstance(d, dict):
         _fail("missing key doors")
-    if sorted(d) != sorted(DOOR_NAMES):
-        _fail("key doors must name " + ", ".join(DOOR_NAMES))
-    for name in DOOR_NAMES:
+    required = [n for n in DOOR_NAMES if n not in OPTIONAL_DOORS]
+    if any(n not in DOOR_NAMES for n in d) or any(n not in d for n in required):
+        _fail("key doors must name " + ", ".join(required))
+    for name in [n for n in DOOR_NAMES if n in d]:
         agents = _need(cfg, "doors.%s.agents" % name, "array")
         if not all(isinstance(s, str) and SLUG.fullmatch(s) for s in agents):
             _fail("key doors.%s.agents must list agent slugs" % name)
@@ -127,6 +130,7 @@ def load_config(path=None):
         "web": "%s:%d" % (host, p["web"]),
         "generate": "%s:%d" % (host, p["generate"]),
         "viewer": "%s:%d" % (host, p["viewer"]),
+        "brain": "%s:%d" % (host, p["brain"]),
         "preview": "%s:%d" % (host, p["preview"]),
     }
     cfg["urls"]["apps"] = "%s:%d" % (host, p["apps"])
@@ -134,6 +138,7 @@ def load_config(path=None):
     # The preview serves each load on the nine ports after its own (viewer/preview.mjs SITE_PORT_COUNT).
     cfg["previewPorts"] = {"first": p["preview"] + 1, "last": p["preview"] + PREVIEW_SITE_PORTS}
     cfg["doors"]["generate"].setdefault("apps", [])
+    cfg["doors"].setdefault("brain", {"agents": []})
     s = cfg["stateRoot"]
     j = os.path.join
     cfg["paths"] = {
@@ -176,6 +181,7 @@ def load_config(path=None):
         "webSecret": j(s, "secrets", "doors", "web-secret"),
         "generateSecret": j(s, "secrets", "doors", "generate-secret"),
         "viewerSecret": j(s, "secrets", "doors", "viewer-secret"),
+        "brainSecret": j(s, "secrets", "doors", "brain-secret"),
         "runwayKey": j(s, "secrets", "doors", "runway-key"),
         "searchKey": j(s, "secrets", "doors", "search-key"),
         "webVisits": j(s, "doors", "web-visits.jsonl"),
@@ -185,6 +191,11 @@ def load_config(path=None):
         "webStatus": j(s, "doors", "web-status.json"),
         "generateStatus": j(s, "doors", "generate-status.json"),
         "viewerStatus": j(s, "doors", "viewer-status.json"),
+        "brainStatus": j(s, "doors", "brain-status.json"),
+        "brainAsks": j(s, "doors", "brain-asks.jsonl"),
+        "brainDir": j(s, "brain"),
+        "brainIndex": j(s, "brain", "index.sqlite"),
+        "brainNotes": j(s, "brain", "notes"),
         "appsCode": os.path.normpath(j(ENGINE_DIR, "..", "apps")),
         "apps": j(s, "apps"),
         "appsState": j(s, "apps", "state.json"),
@@ -241,11 +252,13 @@ def shell_lines(cfg):
         ("CFG_PORT_WEB", p["web"]),
         ("CFG_PORT_GENERATE", p["generate"]),
         ("CFG_PORT_VIEWER", p["viewer"]),
+        ("CFG_PORT_BRAIN", p["brain"]),
         ("CFG_PORT_PREVIEW", p["preview"]),
         ("CFG_GATE_NARROW_URL", u["gateNarrow"]),
         ("CFG_WEB_URL", u["web"]),
         ("CFG_GENERATE_URL", u["generate"]),
         ("CFG_VIEWER_URL", u["viewer"]),
+        ("CFG_BRAIN_URL", u["brain"]),
         ("CFG_PREVIEW_URL", u["preview"]),
         ("CFG_DOORS_STATE", pa["doorsState"]),
         ("CFG_PLAYBOOKS", pa["playbooks"]),

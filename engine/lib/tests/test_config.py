@@ -14,6 +14,10 @@ import config  # noqa: E402
 REAL = os.path.join(os.path.dirname(LIB), "config.json")
 
 
+BRAIN_AGENTS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people",
+                "marketer", "drafter", "artist", "art-director"]
+
+
 def real_cfg():
     with open(REAL) as fh:
         return json.load(fh)
@@ -46,7 +50,7 @@ class ConfigTest(unittest.TestCase):
             "gateNarrow": "http://127.0.0.1:3111", "web": "http://127.0.0.1:3130",
             "generate": "http://127.0.0.1:3140", "viewer": "http://127.0.0.1:3150",
             "preview": "http://127.0.0.1:3160",
-            "apps": "http://127.0.0.1:3170"})
+            "apps": "http://127.0.0.1:3170", "brain": "http://127.0.0.1:3190"})
         self.assertEqual(c["engineDir"], os.path.dirname(LIB))
 
     def test_tilde_expanded(self):
@@ -63,6 +67,7 @@ class ConfigTest(unittest.TestCase):
                 "providerSecrets providerKey relaySecret playbooks research sharedBrain doors doorsState "
                 "doorSecrets webSecret generateSecret viewerSecret runwayKey searchKey webVisits ledger "
                 "batches doorWork webStatus generateStatus viewerStatus "
+                "brainSecret brainStatus brainAsks brainDir brainIndex brainNotes "
                 "appsCode apps appsState appsStatus appsRun appsLogs allowances higgsfieldAuth").split()
         paths = config.load_config()["paths"]
         self.assertEqual(sorted(paths), sorted(keys))
@@ -85,11 +90,12 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(paths["ledger"], j(s, "doors", "generate-ledger.jsonl"))
         self.assertEqual(paths["viewerStatus"], j(s, "doors", "viewer-status.json"))
         self.assertEqual(c["doors"], {"web": {"agents": ["researcher"]}, "generate": {"agents": ["artist"], "apps": ["render-to-film"]},
-                                      "viewer": {"agents": ["builder", "art-director"]}})
+                                      "viewer": {"agents": ["builder", "art-director"]},
+                                      "brain": {"agents": BRAIN_AGENTS}})
         self.assertEqual(c["fence"]["policyPortsAllowed"], [8120])
 
     def test_missing_door_port_or_bad_doors(self):
-        for k in ("gateNarrow", "web", "generate", "viewer", "preview", "apps"):
+        for k in ("gateNarrow", "web", "generate", "viewer", "preview", "apps", "brain"):
             c = real_cfg()
             del c["ports"][k]
             with self.assertRaises(config.ConfigError) as cm:
@@ -108,6 +114,10 @@ class ConfigTest(unittest.TestCase):
             lambda c: c["doors"]["viewer"].update(agents=["builder\n"]),
             lambda c: c["doors"]["generate"].update(agents=["artist", "app-render-to-film"]),
             lambda c: c["doors"]["web"].update(agents=["app-x"]),
+            lambda c: c["doors"]["brain"].update(agents="builder"),
+            lambda c: c["doors"]["brain"].update(agents=["Builder"]),
+            lambda c: c["doors"]["brain"].update(agents=["app-x"]),
+            lambda c: c["doors"].update(brain=["builder"]),
         ]
         for i, change in enumerate(changes):
             c = real_cfg()
@@ -116,6 +126,27 @@ class ConfigTest(unittest.TestCase):
                 config.load_config(self.write("d.json", c))
             self.assertTrue(str(cm.exception).startswith("engine config: "))
             self.assertIn("doors", str(cm.exception))
+
+    def test_brain_door_config(self):
+        c = config.load_config()
+        s = c["paths"]["state"]
+        j = os.path.join
+        self.assertIn("brain", config.PORT_KEYS)
+        self.assertEqual(c["ports"]["brain"], 3190)
+        self.assertEqual(c["urls"]["brain"], "http://127.0.0.1:3190")
+        self.assertEqual(c["doors"]["brain"]["agents"], BRAIN_AGENTS)
+        for k, rel in (("brainDir", "brain"), ("brainIndex", "brain/index.sqlite"), ("brainNotes", "brain/notes"),
+                       ("brainSecret", "secrets/doors/brain-secret"), ("brainStatus", "doors/brain-status.json"),
+                       ("brainAsks", "doors/brain-asks.jsonl")):
+            self.assertEqual(c["paths"][k], j(s, *rel.split("/")), k)
+        none = real_cfg()
+        del none["doors"]["brain"]
+        self.assertEqual(config.load_config(self.write("nb.json", none))["doors"]["brain"], {"agents": []})
+        bad = real_cfg()
+        bad["doors"]["brain"]["agents"] = "builder"
+        with self.assertRaises(config.ConfigError) as cm:
+            config.load_config(self.write("nb2.json", bad))
+        self.assertIn("key doors.brain.agents must be a array", str(cm.exception))
 
     def test_app_studio_config(self):
         c = config.load_config()
@@ -207,6 +238,8 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(lines["CFG_GENERATE_URL"], "'http://127.0.0.1:3140'")
         self.assertEqual(lines["CFG_VIEWER_URL"], "'http://127.0.0.1:3150'")
         self.assertEqual(lines["CFG_PREVIEW_URL"], "'http://127.0.0.1:3160'")
+        self.assertEqual(lines["CFG_PORT_BRAIN"], "'3190'")
+        self.assertEqual(lines["CFG_BRAIN_URL"], "'http://127.0.0.1:3190'")
         self.assertEqual(lines["CFG_DOORS_STATE"], "'%s/doors/state.json'" % s)
         self.assertEqual(lines["CFG_PLAYBOOKS"], "'%s/playbooks'" % s)
         self.assertEqual(lines["CFG_RESEARCH"], "'%s/tasks/research'" % s)
