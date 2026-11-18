@@ -22,14 +22,17 @@ test("setup: the address #/setup is its own page, in no section", () => {
 });
 
 test("setup: only the bare address opens Setup, only when the server says open, once", () => {
-  assert.equal(setupRedirect({ parts: [], setup: { open: true } }), "#/setup");
-  assert.equal(setupRedirect({ parts: ["map"], setup: { open: true } }), null, "#/map always reaches the Map");
-  assert.equal(setupRedirect({ parts: [], setup: { open: false } }), null);
-  assert.equal(setupRedirect({ parts: [], setup: null }), null, "a failed or pending /api/setup sends nowhere");
-  assert.equal(setupRedirect({ parts: [], setup: { open: true }, done: true }), null, "at most once per page load");
-  assert.equal(setupRedirect({ parts: [], setup: { open: "yes" } }), null);
-  assert.equal(setupRedirect({ parts: ["tasks"], setup: { open: true } }), null);
+  assert.equal(setupRedirect({ hash: "", setup: { open: true } }), "#/setup");
+  assert.equal(setupRedirect({ hash: "#/map", setup: { open: true } }), null, "#/map always reaches the Map");
+  assert.equal(setupRedirect({ hash: "", setup: { open: false } }), null);
+  assert.equal(setupRedirect({ hash: "", setup: null }), null, "a failed or pending /api/setup sends nowhere");
+  assert.equal(setupRedirect({ hash: "", setup: { open: true }, done: true }), null, "at most once per page load");
+  assert.equal(setupRedirect({ hash: "", setup: { open: "yes" } }), null);
+  assert.equal(setupRedirect({ hash: "#/tasks", setup: { open: true } }), null);
   assert.equal(setupRedirect({}), null);
+  assert.equal(setupRedirect({ hash: "#", setup: { open: true } }), "#/setup");
+  assert.equal(setupRedirect({ hash: "#/", setup: { open: true } }), "#/setup");
+  assert.equal(setupRedirect({ hash: "#/setup", setup: { open: true } }), null);
 });
 
 test("setup: the sidebar's row says how many of five are done, and is there only while shown", () => {

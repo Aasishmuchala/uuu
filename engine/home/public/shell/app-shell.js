@@ -48,8 +48,9 @@ export function keyAction({ key, metaKey, ctrlKey, altKey, typing, page, zoomed 
 // Where the bare address goes on a first run (PLAN-ONBOARD decision 7): "#/setup" when the address is the bare one, the
 // server says `open: true` and this page load has not gone there yet (`done`); else null. "#/map" and every other
 // address stay where they are, and a failed or pending /api/setup sends nowhere.
-export function setupRedirect({ parts, setup, done } = {}) {
-  if (!Array.isArray(parts) || parts.length !== 0) return null;
+// It reads the address as typed: parseHash turns the bare address into ["map"], so parts cannot tell it from #/map.
+export function setupRedirect({ hash, setup, done } = {}) {
+  if (typeof hash !== "string" || !["", "#", "#/"].includes(hash)) return null;
   if (!setup || setup.open !== true || done === true) return null;
   return "#/setup";
 }
@@ -191,7 +192,7 @@ export function AppShell() {
   }, [redirect]);
 
   // At most once per page load: the bare address opens Setup while the server says it should.
-  const toSetup = setupRedirect({ parts: address.parts, setup: setup.data, done: setupDone.current });
+  const toSetup = setupRedirect({ hash: location.hash, setup: setup.data, done: setupDone.current });
   useEffect(() => {
     if (!toSetup) return;
     setupDone.current = true;
