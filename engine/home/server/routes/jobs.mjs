@@ -15,6 +15,7 @@
 // read again now), and written as a one-take batch for the new task; its text names the batch. Nothing else is
 // approved: a batch that cannot be written cancels the task.
 import { directionsFor, pickDirections } from "../../../company/lib/craft-files.mjs";
+import { brainOn, buildNotes } from "../brain/notes.mjs";
 import { generationNow, newBatchId, removeBatch, writeBatch } from "../lib/batches.mjs";
 import { HomeError } from "../lib/errors.mjs";
 import { needIds, summary } from "../lib/goals.mjs";
@@ -489,6 +490,13 @@ export default function register(app) {
         ...(batch ? { batch } : {}),
       });
       if (earlier) ctx.decisions.set(`from:${created.id}`, earlier.id);
+      // Brain notes for the task (PLAN-BRAIN B8), with the switch on only, never awaited: the task's title and the
+      // owner's own typed answers (lines and text), never the job's prompt or a picked file's or task's name.
+      if (brainOn(ctx.config)) {
+        const words = job.asks.filter((a) => (a.kind === "line" || a.kind === "text") && typeof record[a.id] === "string" && record[a.id])
+          .map((a) => record[a.id]).join("\n");
+        void buildNotes(ctx, { taskId: created.id, title, text: words }).catch(() => {});
+      }
     }
     const estimate = craft ? estimateOf(job, craft, versions)?.words : null;
     return { status: 201, body: { goal: summary(created, [created]), message: startedMessage(queue, estimate), queue } };
