@@ -86,6 +86,17 @@
   box-shadow: var(--paper-shadow);
 }
 
+/* A kit Dialog opened from the sheet (a board or a picture opened larger, a confirm) is fixed to the window and
+   centred in it, but the desk's isolation and the sheet's z-index are stacking contexts that kept it, its scrim
+   included, under the shell's sidebar (z-index 32) and top bar (30): at 1440 x 900 a board opened larger lost its
+   left 56 px under the sidebar ("eatment A, board s01"). While one is open the desk and the sheet stand over the
+   shell (50, the most a page may use, over the tab bar's 40 too), so the dialog lies over the whole window like a
+   dialog opened anywhere else. */
+.p-needs-you.p-needs-you--desk:has(.k-dialog),
+.p-needs-you .p-needs-you__sheet:has(.k-dialog) {
+  z-index: 50;
+}
+
 .p-needs-you.p-needs-you--desk .p-needs-you__sheet {
   grid-area: sheet;
   align-self: start;

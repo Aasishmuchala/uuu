@@ -305,3 +305,28 @@ test("needs-you: on the desk the sheet is at most 640 px and the list a 320 px c
   assert.match(c, /\.p-needs-you \.p-needs-you__row\[aria-current="true"\] \{[^}]*background: var\(--sel\);[^}]*box-shadow: inset 2px 0 0 var\(--accent\);/, "the chosen row: the kit's fill and bar");
   assert.doesNotMatch(c, /blur/, "nothing blurs");
 });
+
+// Fault of 18 Nov 2026 (S02e at 1440 x 900): a board of the approved shotlist opened larger read "eatment A, board
+// s01", its tag and its line cut at the left. The kit's Dialog is fixed to the window and centred in it 16 px from
+// every edge, but it is drawn inside the desk (isolation: isolate) and the sheet (z-index 1), stacking contexts that
+// kept it under the shell's sidebar and top bar. While a dialog is open the desk and the sheet stand over the shell.
+test("needs-you: a dialog opened from the sheet lies over the shell's sidebar, top bar and tab bar, centred in the window", () => {
+  const c = readFileSync(resolve(HERE, "../../styles/pages/needs-you.css"), "utf8");
+  const shell = readFileSync(resolve(HERE, "../../styles/shell.css"), "utf8");
+  const kit = readFileSync(resolve(HERE, "../../styles/kit/overlays.css"), "utf8");
+  // What traps it: the desk isolates and the sheet has its own z-index.
+  assert.match(/\.p-needs-you\.p-needs-you--desk \{([^}]*)\}/.exec(c)[1], /isolation: isolate;/);
+  assert.match(/\.p-needs-you \.p-needs-you__sheet \{([^}]*)\}/.exec(c)[1], /z-index: 1;/);
+  const lift = /\.p-needs-you\.p-needs-you--desk:has\(\.k-dialog\),\s*\.p-needs-you \.p-needs-you__sheet:has\(\.k-dialog\) \{([^}]*)\}/.exec(c);
+  assert.ok(lift, "the desk and the sheet rise while a dialog is open in them");
+  const z = Number(/z-index: (\d+);/.exec(lift[1])[1]);
+  const zOf = (sel) => Number(new RegExp(`${sel.replace(/[.]/g, "\\.")} \\{[^}]*?z-index: (\\d+);`).exec(shell)[1]);
+  for (const sel of [".s-side", ".s-top", ".s-tabbar"]) assert.ok(z > zOf(sel), `over ${sel} (z-index ${zOf(sel)})`);
+  // The lift is only while a dialog is open: at rest the sheet keeps 1, under the shell's own menus.
+  assert.doesNotMatch(c.replace(lift[0], ""), /z-index: (?:[3-9]\d|\d{3,});/, "nothing else in the page stands over the shell");
+  // The kit's Dialog: fixed to the whole window, its panel centred and never wider than the window less its margins.
+  assert.match(kit, /\.k-dialog,\s*\.k-drawer \{[^}]*position: fixed;[^}]*inset: 0;/);
+  assert.match(kit, /\.k-dialog \{[^}]*align-items: center;[^}]*justify-content: center;[^}]*padding: var\(--s-12\);/);
+  assert.match(kit, /\.k-dialog--full \{[^}]*padding: var\(--s-4\);/, "a viewer stands 16 px from every edge");
+  assert.match(kit, /\.k-dialog__panel \{[^}]*width: 100%;[^}]*max-height: 100%;/, "the panel is at most the window less the padding");
+});
