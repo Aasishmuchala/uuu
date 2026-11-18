@@ -349,6 +349,44 @@ function checkSuffixes(list) {
 }
 const underSuffix = (host, suffixes) => suffixes.some((s) => host === s || host.endsWith(`.${s}`));
 
+// An upload address, by rules of its own (the orchestrator's decision of 18 November 2026).
+// Higgsfield's is a one-time S3 PUT of about 2,650 characters, its query about 2,550 with a
+// security token, more than the web door's `checkAddress` takes (a 256-character query), which
+// stays as it is for everything else. Taken only for a host under the upload suffixes: https, no
+// port, no user info, no fragment, written exactly as read; the path one folder and one file of a
+// picture's extension; the query only S3's signing parameters, each once. At most 4,096
+// characters, 3,584 of them the query. { ok, url, host, port } or { ok: false, why }.
+const UPLOAD_MAX = 4096;
+const UPLOAD_QUERY_MAX = 3584;
+const UPLOAD_PRINTABLE = /^[\x21-\x7e]+$/;
+const UPLOAD_PATH = /^\/[A-Za-z0-9_-]{1,128}\/[A-Za-z0-9_-]{1,128}\.(png|jpg|jpeg|webp)$/;
+const AMZ_PARAMS = new Set(["X-Amz-Algorithm", "X-Amz-Credential", "X-Amz-Date", "X-Amz-Expires", "X-Amz-SignedHeaders", "X-Amz-Signature", "X-Amz-Security-Token"]);
+const AMZ_VALUE = /^[A-Za-z0-9%._~-]{1,3584}$/;
+export function checkUploadAddress(text, suffixes) {
+  const no = (why) => ({ ok: false, why });
+  if (typeof text !== "string" || text.length > UPLOAD_MAX || !UPLOAD_PRINTABLE.test(text)) return no("upload_address");
+  let url;
+  try { url = new URL(text); } catch { return no("upload_address"); }
+  if (url.protocol !== "https:" || url.username !== "" || url.password !== "" || url.port !== "" || url.hash !== "") return no("upload_address");
+  const host = url.hostname;
+  if (!HOST_SUFFIX.test(host)) return no("upload_address");
+  if (!underSuffix(host, suffixes)) return no("upload_host");
+  // Written exactly as read: no ":443", user info, backslash, dot segment or fragment folded away.
+  const lead = `https://${host}`;
+  if (text.slice(0, lead.length).toLowerCase() !== lead || text.slice(lead.length) !== `${url.pathname}${url.search}`) return no("upload_address");
+  if (!UPLOAD_PATH.test(url.pathname)) return no("upload_address");
+  const query = url.search.slice(1);
+  if (query === "" || query.length > UPLOAD_QUERY_MAX) return no("upload_address");
+  const seen = new Set();
+  for (const part of query.split("&")) {
+    const eq = part.indexOf("=");
+    const name = eq > 0 ? part.slice(0, eq) : "";
+    if (!AMZ_PARAMS.has(name) || seen.has(name) || !AMZ_VALUE.test(part.slice(eq + 1))) return no("upload_address");
+    seen.add(name);
+  }
+  return { ok: true, url, host, port: 443 };
+}
+
 // Higgsfield's tools for the door, over an MCP client (`createMcpClient`): each answer read
 // tolerantly and checked. `uploadSuffixes` is for tests only (main passes none: the registry's).
 // Every method resolves, never rejects: { ok: true, ... } or { ok: false, why, text? }.
@@ -409,7 +447,7 @@ export function createHiggsfield({ mcp, net, limits, uploadSuffixes } = {}) {
     },
 
     // One kept picture to Higgsfield: `media_upload`, the PUT, `media_confirm`. The PUT goes only
-    // to an https address on a public host under one of the upload suffixes, with Content-Type
+    // to an https address on a public host under one of the upload suffixes (`checkUploadAddress`), with Content-Type
     // and the answer's own upload headers (checked), no redirect, 30 seconds. { ok, mediaId }.
     async upload(picture) {
       const ext = picture && PICTURE_EXT[picture.type];
@@ -422,9 +460,8 @@ export function createHiggsfield({ mcp, net, limits, uploadSuffixes } = {}) {
       if (!slot) return { ok: false, why: "no_upload_address" };
       const mediaId = slot.media_id !== undefined ? slot.media_id : slot.id;
       if (typeof mediaId !== "string" || !MEDIA_ID_RE.test(mediaId)) return { ok: false, why: "bad_media_id" };
-      const a = checkAddress(slot.upload_url);
-      if (!a.ok || !a.secure || a.port !== 443) return { ok: false, why: "upload_address" };
-      if (!underSuffix(a.host, suffixes)) return { ok: false, why: "upload_host" };
+      const a = checkUploadAddress(slot.upload_url, suffixes);
+      if (!a.ok) return { ok: false, why: a.why };
       const extra = {};
       const given = slot.upload_headers === undefined || slot.upload_headers === null ? {} : slot.upload_headers;
       if (!isObj(given) || Object.keys(given).length > 16) return { ok: false, why: "upload_headers" };

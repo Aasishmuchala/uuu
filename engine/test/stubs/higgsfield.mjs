@@ -17,7 +17,7 @@
 //   priceHigher    1.5 x the table's price
 //   nsfw | failed  a job ends "nsfw" | "failed"
 //   slow           a job is never done
-//   uploadRedirect PUT /upload/<id> answers 302
+//   uploadRedirect PUT /user_test/<id>.<ext> answers 302
 //   outputRedirect GET /out/<id>.* answers 302
 //   bigOutput      GET /out/<id>.* claims 300 MB
 //   badJson        an MCP answer that is not JSON
@@ -32,6 +32,11 @@ export { mp4Bytes, pngBytes };
 
 export const MCP_HOST = "mcp.higgsfield.test";
 export const UPLOAD_HOST = "upload.higgsfield.test";
+const UPLOAD_EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+// A made-up S3 signing query of the real one's shape (no real key or token).
+export const UPLOAD_QUERY = "X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=ASIATESTTESTTESTTEST%2F20261118%2Feu-north-1%2Fs3%2Faws4_request"
+  + "&X-Amz-Date=20261118T120000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=content-type%3Bhost%3Bif-none-match"
+  + `&X-Amz-Security-Token=${"IQoJb3JpZ2luX2VjE".repeat(64)}%2F%2B%3D&X-Amz-Signature=${"0a".repeat(32)}`;
 export const CDN_HOST = "cdn.higgsfield.test";
 const ADDRESSES = { [MCP_HOST]: "13.32.0.11", [UPLOAD_HOST]: "13.32.0.12", [CDN_HOST]: "13.32.0.13" };
 const MB = 1024 * 1024;
@@ -216,7 +221,8 @@ export async function startHiggsfield({ behaviour = {} } = {}) {
         if (typeof args.filename !== "string" || !args.filename) return refuse("filename is required.");
         const id = `media_${hex(8)}`;
         uploads.set(id, { type, bytes: null });
-        return ok({ media_id: id, upload_url: `https://${UPLOAD_HOST}/upload/${id}`, upload_headers: { "Content-Type": type } });
+        // Shaped as Higgsfield's real one (an S3 one-time PUT): one folder, the file, the signing query.
+        return ok({ media_id: id, upload_url: `https://${UPLOAD_HOST}/user_test/${id}.${UPLOAD_EXT[type] || "png"}?${UPLOAD_QUERY}`, upload_headers: { "Content-Type": type } });
       }
       case "media_confirm": {
         const u = uploads.get(args.media_id);
@@ -311,7 +317,7 @@ export async function startHiggsfield({ behaviour = {} } = {}) {
     if (req.method === "GET" && p === "/oauth2/authorize") return authorize(req, res);
     if (req.method === "POST" && p === "/oauth2/token") return token(req, res);
     if (req.method === "POST" && p === "/mcp") return mcp(req, res);
-    const up = /^\/upload\/([A-Za-z0-9_]+)$/.exec(p);
+    const up = /^\/user_test\/([A-Za-z0-9_]+)\.(png|jpg|webp)$/.exec(p);
     if (req.method === "PUT" && up) {
       const bytes = await readAll(req);
       record(req, { size: bytes.length, contentType: req.headers["content-type"] });

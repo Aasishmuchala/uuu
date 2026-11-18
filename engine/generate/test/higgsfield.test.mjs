@@ -6,11 +6,11 @@ import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { HF_ORIGIN, HF_PATHS, checkHfOrigin, createHiggsfield, creditsIn, tokenGuard } from "../higgsfield.mjs";
+import { HF_ORIGIN, HF_PATHS, checkHfOrigin, checkUploadAddress, createHiggsfield, creditsIn, tokenGuard } from "../higgsfield.mjs";
 import { createMcpClient } from "../mcp.mjs";
 import { createHfAuth } from "../oauth.mjs";
 import { HF_UPLOAD_SUFFIXES, rowOf } from "../registry.mjs";
-import { CDN_HOST, UPLOAD_HOST, mp4Bytes, pngBytes, startHiggsfield } from "../../test/stubs/higgsfield.mjs";
+import { CDN_HOST, UPLOAD_HOST, UPLOAD_QUERY, mp4Bytes, pngBytes, startHiggsfield } from "../../test/stubs/higgsfield.mjs";
 
 const REDIRECT = "http://127.0.0.1:41999/api/generation/higgsfield/back";
 const FLUX = rowOf("hf.flux_2");
@@ -267,29 +267,58 @@ test("upload: nothing at all is sent while no upload host is recorded", async ()
   assert.throws(() => createHiggsfield({ mcp: fakeMcp(() => ({})), uploadSuffixes: ["*.evil"] }), /suffixes/);
 });
 
-// The door's own list (no `uploadSuffixes`): Higgsfield's real upload host passes the host check
-// (it is then looked up, here to a private address, so nothing connects); look-alikes, http, another
-// port and user-info are refused before any lookup.
-test("upload: the door's own list takes upload.higgsfield.ai and refuses its look-alikes", async () => {
+// The door's own list (no `uploadSuffixes`), with an address of the real one's shape: an S3
+// one-time PUT of 2,650 characters, its query 2,549 with a security token (the orchestrator's
+// test upload, 18 November 2026). A taken address is then looked up, here to a private address,
+// so nothing connects; everything refused is refused before any lookup.
+const REAL_PATH = "/user_3A9TdWHWTLwqmUJ9QPE7MzUeROu/0123abcd-0000-4000-8000-000000000000.png";
+function amzQuery(length) {
+  const head = "X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=ASIATESTTESTTESTTEST%2F20261118%2Feu-north-1%2Fs3%2Faws4_request"
+    + "&X-Amz-Date=20261118T120000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=content-type%3Bhost%3Bif-none-match"
+    + `&X-Amz-Signature=${"0a".repeat(32)}&X-Amz-Security-Token=`;
+  return head + "A".repeat(length - head.length);
+}
+const realAddress = (total, host = "upload.higgsfield.ai") => `https://${host}${REAL_PATH}?${amzQuery(total - `https://${host}${REAL_PATH}?`.length)}`;
+test("upload: the door's own list takes a real-shaped address on upload.higgsfield.ai and refuses everything else", async () => {
   assert.deepEqual([...HF_UPLOAD_SUFFIXES], ["upload.higgsfield.ai"]);
   const slot = (url) => (name) => (name === "media_upload" ? { ok: true, result: { media_id: MEDIA, upload_url: url } } : { ok: true, result: { status: "ready" } });
   const looked = [];
   const net = { resolve: async (host) => { looked.push(host); return [{ address: "10.1.2.3", family: 4 }]; }, connect: () => { throw new Error("must not connect"); } };
   const up = (url) => createHiggsfield({ mcp: fakeMcp(slot(url)), net }).upload({ type: "image/png", bytes: pngBytes() });
-  const path = "/user_test/0123abcd-0000-4000-8000-000000000000.png?X-Amz-Expires=3600&X-Amz-Signature=abc";
-  assert.equal((await up(`https://upload.higgsfield.ai${path}`)).why, "upload_private_address");
-  assert.equal((await up(`https://UPLOAD.higgsfield.ai${path}`)).why, "upload_private_address");
-  assert.deepEqual(looked, ["upload.higgsfield.ai", "upload.higgsfield.ai"]);
+  const real = realAddress(2650);
+  assert.equal(real.length, 2650);
+  assert.ok(new URL(real).search.length - 1 > 2500);
+  assert.deepEqual(checkUploadAddress(real, HF_UPLOAD_SUFFIXES).ok, true);
+  assert.equal((await up(real)).why, "upload_private_address");
+  const longest = `https://upload.higgsfield.ai${REAL_PATH}?${amzQuery(3584)}`;
+  assert.equal((await up(longest)).why, "upload_private_address", "a query of 3,584 characters");
+  assert.equal((await up(real.replace("https://upload.", "https://UPLOAD."))).why, "upload_private_address");
+  for (const ext of ["jpg", "jpeg", "webp"]) assert.equal((await up(real.replace(".png?", `.${ext}?`))).why, "upload_private_address", ext);
+  assert.deepEqual(looked, Array(6).fill("upload.higgsfield.ai"));
   looked.length = 0;
-  for (const url of [`https://upload.higgsfield.ai.evil.com${path}`, `https://evilupload.higgsfield.ai${path}`, `https://upload-higgsfield.ai${path}`,
-    `https://higgsfield.ai${path}`, `https://cdn.higgsfield.ai${path}`, `https://d2ol7oe51mr4n9.cloudfront.net${path}`]) {
-    assert.equal((await up(url)).why, "upload_host", url);
+
+  // The same long address on any other host.
+  for (const host of ["upload.higgsfield.ai.evil.com", "evilupload.higgsfield.ai", "upload-higgsfield.ai", "higgsfield.ai", "cdn.higgsfield.ai",
+    "d2ol7oe51mr4n9.cloudfront.net", "s3.eu-north-1.amazonaws.com"]) {
+    assert.equal((await up(realAddress(2650, host))).why, "upload_host", host);
   }
-  for (const url of [`http://upload.higgsfield.ai${path}`, `https://upload.higgsfield.ai:8443${path}`, `https://upload.higgsfield.ai:80${path}`,
-    `https://user@upload.higgsfield.ai${path}`, `https://user:pw@upload.higgsfield.ai${path}`, `https://evil.com@upload.higgsfield.ai${path}`]) {
-    assert.equal((await up(url)).why, "upload_address", url);
-  }
-  assert.deepEqual(looked, [], "no look-alike is even looked up");
+  const q = amzQuery(2549);
+  const refused = [
+    realAddress(4097),                                                               // too long in all
+    `https://upload.higgsfield.ai${REAL_PATH}?${amzQuery(3585)}`,                    // the query too long
+    real.replace("https://", "http://"),
+    real.replace("upload.higgsfield.ai", "upload.higgsfield.ai:443"), real.replace("upload.higgsfield.ai", "upload.higgsfield.ai:8443"),
+    real.replace("upload.higgsfield.ai", "upload.higgsfield.ai:80"),
+    real.replace("https://", "https://user@"), real.replace("https://", "https://user:pw@"), real.replace("https://", "https://evil.com@"),
+    `${real}&X-Amz-Extra=1`, `${real}&redirect=https%3A%2F%2Fevil.com`, `${real}&X-Amz-Expires=60`, `${real}&`, `${real}#x`,
+    `${real.split("?")[0]}?x-amz-date=20261118T120000Z`, `${real.split("?")[0]}`, real.replace("X-Amz-Date=", "X-Amz-Date=a b"),
+    `https://upload.higgsfield.ai/user_x/sub/file.png?${q}`, `https://upload.higgsfield.ai/file.png?${q}`,
+    `https://upload.higgsfield.ai/user_x/../file.png?${q}`, `https://upload.higgsfield.ai/user_x/file.html?${q}`,
+    `https://upload.higgsfield.ai/user_x/file.png.exe?${q}`, `https://upload.higgsfield.ai/user_x/fi%6ce.png?${q}`,
+    `https://upload.higgsfield.ai\\user_x\\file.png?${q}`, "https://13.32.0.12/user_x/file.png?X-Amz-Signature=0a",
+  ];
+  for (const url of refused) assert.equal((await up(url)).why, "upload_address", url.slice(0, 120));
+  assert.deepEqual(looked, [], "nothing refused is even looked up");
 });
 
 test("upload: one PUT to the recorded host with only Content-Type and the answer's own headers, then confirmed", async () => {
@@ -307,7 +336,7 @@ test("upload: one PUT to the recorded host with only Content-Type and the answer
     assert.deepEqual([put[0].hasAuth, put[0].size, put[0].contentType], [false, bytes.length, "image/png"]);
     const raw = sent.join("");
     const head = raw.slice(0, raw.indexOf("\r\n\r\n")).split("\r\n");
-    assert.equal(head[0], `PUT /upload/${r.mediaId} HTTP/1.1`);
+    assert.equal(head[0], `PUT /user_test/${r.mediaId}.png?${UPLOAD_QUERY} HTTP/1.1`);
     assert.deepEqual(head.slice(1).map((l) => l.split(":")[0].toLowerCase()).sort(), ["connection", "content-length", "content-type", "host"]);
     assert.ok(head.includes(`Host: ${UPLOAD_HOST}`));
   } finally { await hf.close(); }
@@ -326,9 +355,9 @@ test("upload: refused before a byte is sent to a host outside the suffixes, an h
   assert.equal((await up("https://13.32.0.12/u/1")).why, "upload_address");
   assert.equal((await up("https://upload.higgsfield.test:8443/u/1")).why, "upload_address");
   assert.equal((await up("https://upload.higgsfield.test:80/u/1")).why, "upload_address");
-  assert.equal((await up("https://upload.higgsfield.test/u/1", { "X-Amz-Meta": "line\r\nInjected: 1" })).why, "upload_headers");
+  assert.equal((await up("https://upload.higgsfield.test/user_test/x1.png?X-Amz-Signature=0a", { "X-Amz-Meta": "line\r\nInjected: 1" })).why, "upload_headers");
   assert.deepEqual(looked, []);
-  assert.equal((await up("https://private.higgsfield.test/u/1")).why, "upload_private_address");
+  assert.equal((await up("https://private.higgsfield.test/user_test/x1.png?X-Amz-Signature=0a")).why, "upload_private_address");
   assert.deepEqual(looked, ["private.higgsfield.test"]);
   const bad = createHiggsfield({ mcp: fakeMcp(() => ({ ok: true, result: { media_id: "a/b", upload_url: "https://upload.higgsfield.test/u" } })), ...opts });
   assert.equal((await bad.upload({ type: "image/png", bytes: pngBytes() })).why, "bad_media_id");
@@ -349,7 +378,7 @@ test("upload headers: Authorization, Cookie and Host from the answer are never p
   try {
     // The stand-in's answers name only Content-Type; this slot, on the stand-in's upload host, names more.
     const mcp = fakeMcp((name) => (name === "media_upload"
-      ? { ok: true, result: { media_id: "media_x1", upload_url: `https://${UPLOAD_HOST}/upload/media_x1`, upload_headers: headers } }
+      ? { ok: true, result: { media_id: "media_x1", upload_url: `https://${UPLOAD_HOST}/user_test/media_x1.jpg?${UPLOAD_QUERY}`, upload_headers: headers } }
       : { ok: true, result: { status: "ready" } }));
     const h = createHiggsfield({ mcp, net: capturing(sent)(hf), uploadSuffixes: ["higgsfield.test"] });
     const r = await h.upload({ type: "image/jpeg", bytes: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]) });
