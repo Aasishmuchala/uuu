@@ -55,6 +55,17 @@ private func nameChecks() -> [Check] {
     for ext in ["app", "command", "terminal", "pkg", "dmg", "workflow", "scpt", "sh", "webloc"] {
         c.append(name("runnable .\(ext)", "file.\(ext)", "file.\(ext).txt"))
     }
+    // M15's L4: more hidden characters, and more names the Mac would run or install when opened.
+    for (label, ch) in [("U+061C", "\u{061C}"), ("U+2028", "\u{2028}"), ("U+2029", "\u{2029}"), ("U+2060", "\u{2060}"),
+                        ("U+FEFF", "\u{FEFF}"), ("U+00AD", "\u{00AD}"), ("U+180E", "\u{180E}"), ("U+200B", "\u{200B}"),
+                        ("U+E0001", "\u{E0001}"), ("U+E007F", "\u{E007F}")] {
+        c.append(name("\(label) removed, so .app is still seen", "x.app" + ch, "x.app.txt"))
+        c.append(name("\(label) inside a name", "re" + ch + "port.pdf", "report.pdf"))
+    }
+    for ext in ["jar", "mobileconfig", "url", "action", "shortcut", "zsh", "py", "iso", "sparseimage", "bash",
+                "applescript", "kext", "configprofile"] {
+        c.append(name("runnable .\(ext)", "file.\(ext)", "file.\(ext).txt"))
+    }
     c.append(name("300 letters + .sh stays short", letters300 + ".sh", String(repeating: "a", count: 113) + ".sh.txt"))
     c.append(Check(name: "name: never longer than 120, never empty, never hidden characters") {
         let samples = [letters300, letters300 + ".command", "\u{202E}" + letters300 + "." + String(repeating: "x", count: 40),
@@ -84,6 +95,15 @@ private func titleChecks() -> [Check] {
         title("U+202A to U+202E removed", "a\u{202A}b\u{202B}c\u{202C}d\u{202D}e\u{202E}f", "abcdef"),
         title("U+2066 to U+2069 removed", "a\u{2066}b\u{2067}c\u{2068}d\u{2069}e", "abcde"),
         title("markup stays plain text", "<b>Tasks</b>", "<b>Tasks</b>"),
+        title("U+FEFF, U+2028 and U+E0001 removed", "a\u{FEFF}b\u{2028}c\u{E0001}d\u{00AD}e", "abcde"),
+        Check(name: "title: stacked marks are capped in scalars too") {
+            let stacked = String(repeating: "e" + String(repeating: "\u{0301}", count: 30), count: 80)
+            let got = TitleText.clean(stacked)
+            try expect(got.unicodeScalars.count <= TitleText.maxScalars, "\(got.unicodeScalars.count) scalars")
+            try expect(got.count <= 80 && got.hasSuffix("…"), "\(got.count) characters, ends \(got.suffix(1))")
+            let plain = String(repeating: "é", count: 80)
+            try expect(TitleText.clean(plain) == plain, "80 plain characters were cut")
+        },
         Check(name: "title: never over 80 characters") {
             for n in [0, 1, 79, 80, 81, 500, 10_000] {
                 let got = TitleText.clean(String(repeating: "é", count: n))

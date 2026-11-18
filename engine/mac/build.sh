@@ -45,13 +45,16 @@ else
   if [ -n "$(git -C "$CHECKOUT" status --porcelain -- engine/mac)" ]; then
     die "engine/mac has changes that are not committed. Commit them, then build."
   fi
+  # Nothing under Sources hidden from git, and a VERSION raised for every change (M15's M3).
+  "$HERE/version-rule.sh" || die "the version rule failed (above)."
   DEST="$HOME/Applications/$APP_NAME.app"
 fi
 
 case "$ENGINE_ROOT" in *[\"\\$'\n']*) die "the engine root has a character that is not allowed." ;; esac
 
-VERSION="$(head -n 1 "$HERE/VERSION" | tr -d '[:space:]')"
-[ -n "$VERSION" ] || die "VERSION is empty."
+# One line of two to four numbers and nothing else: it is written into Swift source and Info.plist (M15's L3).
+VERSION="$(cat "$HERE/VERSION")"
+[[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] || die "VERSION must be one line like 1.0.4 (two to four numbers, nothing else)."
 BUILD="$(git -C "$CHECKOUT" rev-list --count HEAD -- engine/mac)"
 
 cat > "$HERE/Sources/EngineShell/Build/BuildConstants.swift" <<SWIFT

@@ -100,6 +100,13 @@ public enum EngineCommand {
     // ---- the run ---------------------------------------------------------------------------------------
 
     private static func runNow(_ verb: EngineVerb, root: URL, limit: TimeInterval) -> (exit: Int32, lines: [String]) {
+        // The script's output goes to a file of its own, not a pipe: if the app goes away mid-run (the owner
+        // quits during "Starting the engine"), the script keeps writing and runs to its end instead of dying
+        // at its next line with some parts on and some off (M15, M4). The file is unlinked at once, so only
+        // this run's open descriptors reach it, and it is gone when the last of them closes.
+        guard let output = OutputFile.make() else { return (-1, []) }
+        defer { output.close() }
+
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/bin/bash")
         proc.arguments = [EngineRoot.script(in: root).path, verb.word]
@@ -107,16 +114,8 @@ public enum EngineCommand {
         proc.environment = EngineEnvironment.forThisUser()
         guard let null = FileHandle(forReadingAtPath: "/dev/null") else { return (-1, []) }
         proc.standardInput = null
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        proc.standardError = pipe
-
-        let sink = OutputSink()
-        let reader = pipe.fileHandleForReading
-        reader.readabilityHandler = { h in
-            let d = h.availableData
-            if d.isEmpty { h.readabilityHandler = nil; sink.finish() } else { sink.append(d) }
-        }
+        proc.standardOutput = output.handle
+        proc.standardError = output.handle
 
         let exited = DispatchSemaphore(value: 0)
         let state = NSLock()
@@ -128,7 +127,6 @@ public enum EngineCommand {
         do {
             try proc.run()
         } catch {
-            reader.readabilityHandler = nil
             try? null.close()
             return (-1, [])
         }
@@ -144,13 +142,8 @@ public enum EngineCommand {
             exited.wait()
         }
 
-        // A child the script left running may hold the pipe open: wait a moment for the end, then stop reading.
-        _ = sink.ended.wait(timeout: .now() + 1)
-        reader.readabilityHandler = nil
-        try? reader.close()
-
         let code = proc.terminationReason == .uncaughtSignal ? 128 + proc.terminationStatus : proc.terminationStatus
-        return (code, lines(from: sink.take()))
+        return (code, lines(from: output.tail()))
     }
 
     // The kept lines: the last 200, each cut to 500 characters, with control and direction characters removed.
@@ -177,29 +170,39 @@ public enum EngineCommand {
     }
 }
 
-// What the script printed, read on a background queue. Keeps only the last 512 KB, enough for 200 lines of
-// 500 characters.
-private final class OutputSink {
-    private let lock = NSLock()
-    private var data = Data()
-    private var trimmed = false
-    let ended = DispatchSemaphore(value: 0)
-    private static let keep = 512 * 1024
+// Where the script's output goes: an unlinked file in this user's own temp folder (the system's, not TMPDIR's),
+// read once the script has ended. Only the last 512 KB are read, enough for 200 lines of 500 characters.
+private final class OutputFile {
+    let handle: FileHandle
+    private static let keep: off_t = 512 * 1024
 
-    func append(_ d: Data) {
-        lock.lock(); defer { lock.unlock() }
-        data.append(d)
-        if data.count > 2 * OutputSink.keep {
-            data = Data(data.suffix(OutputSink.keep))
-            trimmed = true
-        }
+    private init(_ handle: FileHandle) { self.handle = handle }
+
+    static func make() -> OutputFile? {
+        var template = Array((EngineEnvironment.systemTemp() + "engine-output.XXXXXX").utf8CString)
+        let fd = template.withUnsafeMutableBufferPointer { mkstemp($0.baseAddress!) }
+        guard fd >= 0 else { return nil }
+        let path = template.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
+        unlink(path)
+        return OutputFile(FileHandle(fileDescriptor: fd, closeOnDealloc: true))
     }
 
-    func finish() { ended.signal() }
-
-    func take() -> Data {
-        lock.lock(); defer { lock.unlock() }
-        guard trimmed, let nl = data.firstIndex(of: 0x0A) else { return data }
+    func tail() -> Data {
+        let fd = handle.fileDescriptor
+        let end = lseek(fd, 0, SEEK_END)
+        guard end > 0 else { return Data() }
+        let from = max(0, end - OutputFile.keep)
+        guard lseek(fd, from, SEEK_SET) == from else { return Data() }
+        var data = Data()
+        var buf = [UInt8](repeating: 0, count: 64 * 1024)
+        while data.count < Int(end - from) {
+            let n = read(fd, &buf, buf.count)
+            if n <= 0 { break }
+            data.append(contentsOf: buf[0..<n])
+        }
+        guard from > 0, let nl = data.firstIndex(of: 0x0A) else { return data }
         return Data(data[data.index(after: nl)...])   // the first line was cut by the trim
     }
+
+    func close() { try? handle.close() }
 }

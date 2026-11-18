@@ -9,8 +9,12 @@ public struct NavRequest {
     public var mainFrame: Bool
     public var click: Bool
     public var newWindow: Bool
-    public init(url: URL, mainFrame: Bool, click: Bool, newWindow: Bool) {
+    /// The port of the App Studio app whose frame asked for this navigation; nil when the home page (or
+    /// nothing WebKit names) asked.
+    public var fromAppPort: Int?
+    public init(url: URL, mainFrame: Bool, click: Bool, newWindow: Bool, fromAppPort: Int? = nil) {
         self.url = url; self.mainFrame = mainFrame; self.click = click; self.newWindow = newWindow
+        self.fromAppPort = fromAppPort
     }
 }
 
@@ -81,8 +85,12 @@ public struct NavigationPolicy {
             return request.click && Self.mayOpenOutside(url) ? .external(url) : .drop
         }
         // A frame inside the home page: an app's own address, or the empty page a frame starts with.
-        if Self.isAppFrame(url) || Self.isAboutBlank(url) { return .allow }
-        return .drop
+        if Self.isAboutBlank(url) { return .allow }
+        guard Self.isAppFrame(url) else { return .drop }
+        // An app's frame may move itself only within its own port, never to another app's page under its
+        // name (M15, L5). The home page may open any app.
+        if let from = request.fromAppPort, URLComponents(string: url.absoluteString)?.port != from { return .drop }
+        return .allow
     }
 
     /// The home screen's own origin: the only top page the app shows (S1).

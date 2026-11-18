@@ -5,7 +5,9 @@ struct Check {
     let run: () throws -> Void
 }
 
-let allChecks: [Check] = webChecks() + engineChecks() + nativeChecks()
+if let code = helperMain(CommandLine.arguments) { exit(code) }
+
+let allChecks: [Check] = webChecks() + engineChecks() + nativeChecks() + scriptChecks()
 var failed = 0
 for check in allChecks {
     do {

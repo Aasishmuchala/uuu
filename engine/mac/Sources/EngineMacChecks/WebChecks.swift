@@ -171,6 +171,10 @@ private func hostileChecks() -> [Check] {
 }
 
 // The delegate's mapping, as the delegate uses it (no window needed).
+private func same<T: Equatable>(_ got: T, _ want: T, _ what: String) throws {
+    if got != want { throw WebCheckFailure(description: "\(what): got \(got), want \(want)") }
+}
+
 private func mappingChecks() -> [Check] {
     var c: [Check] = []
     let home = URL(string: "http://127.0.0.1:3200/#/tasks")!
@@ -209,6 +213,35 @@ private func mappingChecks() -> [Check] {
     c.append(Check(name: "nav: map app frame link to outside drops") {
         let r = NavMapping.request(url: evil, navigationType: .linkActivated, targetIsMainFrame: false)
         try expect(policy.decide(r) == .drop, "not dropped")
+    })
+    // M15's L5: an app's frame may move itself within its own port, never to another app's.
+    func fromApp(_ to: String, _ sourcePort: Int?, main: Bool = false) -> NavRequest {
+        NavMapping.request(url: URL(string: to)!, navigationType: .linkActivated, targetIsMainFrame: main,
+                           sourceScheme: "http", sourceHost: "127.0.0.1",
+                           sourcePort: sourcePort ?? 3200)
+    }
+    c.append(Check(name: "nav: an app's frame moving itself to another app's port drops") {
+        try expect(policy.decide(fromApp("http://127.0.0.1:3172/", 3171)) == .drop, "app 3171 went to 3172")
+        try expect(policy.decide(fromApp("http://127.0.0.1:3189/x", 3171)) == .drop, "app 3171 went to 3189")
+        var r = NavRequest(url: URL(string: "http://127.0.0.1:3172/")!, mainFrame: false, click: false, newWindow: false,
+                           fromAppPort: 3171)
+        try expect(policy.decide(r) == .drop, "a script move from 3171 to 3172")
+        r.fromAppPort = 3172
+        try expect(policy.decide(r) == .allow, "3172 within itself")
+    })
+    c.append(Check(name: "nav: an app's frame within its own port, and the home page opening any app, are allowed") {
+        try expect(policy.decide(fromApp("http://127.0.0.1:3171/next", 3171)) == .allow, "app within itself")
+        try expect(policy.decide(fromApp("http://127.0.0.1:3172/", nil)) == .allow, "home opens app 3172")
+        try expect(policy.decide(fromApp("about:blank", 3171)) == .allow, "app to about:blank")
+    })
+    c.append(Check(name: "nav: the mapping names the asking app only for an app's origin") {
+        try same(fromApp("http://127.0.0.1:3172/", 3171).fromAppPort, 3171, "app source")
+        try same(fromApp("http://127.0.0.1:3172/", nil).fromAppPort, nil, "home source")
+        let other = NavMapping.request(url: URL(string: "http://127.0.0.1:3172/")!, navigationType: .other,
+                                       targetIsMainFrame: false, sourceScheme: "https", sourceHost: "127.0.0.1", sourcePort: 3171)
+        try same(other.fromAppPort, nil, "https is not an app origin")
+        let none = NavMapping.request(url: URL(string: "http://127.0.0.1:3172/")!, navigationType: .other, targetIsMainFrame: false)
+        try same(none.fromAppPort, nil, "no source")
     })
     c.append(Check(name: "nav: map new window is a click in a new top window") {
         let r = NavMapping.newWindowRequest(url: evil)

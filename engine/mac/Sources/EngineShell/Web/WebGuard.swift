@@ -11,8 +11,16 @@ public enum ActionOutcome: Equatable { case allow, download, cancel, open(URL) }
 public enum NavMapping {
     /// A navigation in an existing frame. `click` only for an activated link: a form post, a reload,
     /// back and forward, a redirect and a page moving itself are not clicks.
-    public static func request(url: URL, navigationType: WKNavigationType, targetIsMainFrame: Bool) -> NavRequest {
-        NavRequest(url: url, mainFrame: targetIsMainFrame, click: navigationType == .linkActivated, newWindow: false)
+    /// `sourceScheme`, `sourceHost` and `sourcePort` are the asking frame's origin, as WebKit reports it.
+    public static func request(url: URL, navigationType: WKNavigationType, targetIsMainFrame: Bool,
+                               sourceScheme: String? = nil, sourceHost: String? = nil, sourcePort: Int? = nil) -> NavRequest {
+        var fromApp: Int?
+        if let sourceScheme, let sourceHost, let sourcePort,
+           NavigationPolicy.isAppOrigin(scheme: sourceScheme, host: sourceHost, port: sourcePort) {
+            fromApp = sourcePort
+        }
+        return NavRequest(url: url, mainFrame: targetIsMainFrame, click: navigationType == .linkActivated,
+                          newWindow: false, fromAppPort: fromApp)
     }
 
     /// `createWebViewWith`: WebKit asks only under a click, because pages may not open windows by
@@ -73,8 +81,10 @@ public final class WebGuard: NSObject, WKNavigationDelegate, WKUIDelegate, WKDow
             decisionHandler(.allow)
             return
         }
+        let source = sourceFrame(of: navigationAction)?.securityOrigin
         let request = NavMapping.request(url: url, navigationType: navigationAction.navigationType,
-                                         targetIsMainFrame: target.isMainFrame)
+                                         targetIsMainFrame: target.isMainFrame, sourceScheme: source?.protocol,
+                                         sourceHost: source?.host, sourcePort: source?.port)
         var verdict = policy.decide(request)
         if verdict == .drop, navigationAction.shouldPerformDownload, let source = sourceFrame(of: navigationAction),
            policy.mayDownloadLocal(url, fromScheme: source.securityOrigin.protocol,
