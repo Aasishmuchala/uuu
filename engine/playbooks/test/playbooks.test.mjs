@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { crc32, deflateSync } from "node:zlib";
+import { createHash } from "node:crypto";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dir = join(here, "..");
@@ -75,7 +76,8 @@ function run(env, ...args) {
     encoding: "utf8",
     env: { ...process.env, ENGINE_PLAYBOOKS_SOURCE: env.skills, ENGINE_PLAYBOOKS_DEST: env.dest,
       ENGINE_PLAYBOOKS_OWN: env.own ?? join(env.top ?? dirname(env.skills), "no-own"),
-      ENGINE_SITE_KIT_SOURCE: env.siteKit ?? join(env.top ?? dirname(env.skills), "no-site-kit") },
+      ENGINE_SITE_KIT_SOURCE: env.siteKit ?? join(env.top ?? dirname(env.skills), "no-site-kit"),
+      ENGINE_ASTRYX_KIT_SOURCE: env.astryxKit ?? join(env.top ?? dirname(env.skills), "no-astryx-kit") },
   });
   return { code: r.status, out: r.stdout, err: r.stderr };
 }
@@ -759,6 +761,202 @@ test("the site kit, in a fixture site with a test kit, passes the brand check wi
     const out = JSON.parse(r.stdout);
     assert.equal(out.kit, "present");
     assert.deepEqual(out.pieces.map((p) => [p.kind, p.name, p.result, p.hard, p.soft]), [["site", "launch", "pass", [], []]]);
+  } finally {
+    rmSync(top, { recursive: true, force: true });
+  }
+});
+
+// ---- PLAN-ASTRYX T5: the Astryx kit, engine/astryx-kit/, copied whole or not at all to <state>/playbooks/astryx-kit/.
+
+const ASTRYX_DIR = join(ENGINE, "astryx-kit");
+const ASTRYX_SKIP = (n) => new RegExp(`^playbooks: astryx-kit: skipped: ${n.replace(/[.]/g, "\\.")} is not the file the kit's list names\\.$`, "m");
+const sha256 = (b) => createHash("sha256").update(b).digest("hex");
+const astryxRow = (dest) => JSON.parse(readFileSync(join(dest, "index.json"), "utf8")).playbooks.find((r) => r.name === "astryx-kit");
+
+// A made-up Astryx kit with its own list: four listed files, a file the list does not name, the README and the example.
+function fakeAstryx() {
+  const env = fakeSkills();
+  const kit = join(env.top, "astryx-kit-source");
+  const files = {
+    "core.js": "export const Button = 1;\n",
+    "astryx.css": ".astryx-button { display: inline-flex; }\n",
+    "importmap.json": "{\n  \"imports\": {}\n}\n",
+    "LICENSES.txt": "made-up licences\n",
+  };
+  for (const [n, t] of Object.entries(files)) put(join(kit, "astryx", n), t);
+  put(join(kit, "astryx", "stray.js"), "not in the list\n");
+  const lock = { version: 1, astryx: "0.7.16", react: "19.3.1", esbuild: "0.28.2",
+    files: Object.keys(files).sort().map((n) => ({ name: n, bytes: Buffer.byteLength(files[n]), sha256: sha256(files[n]) })) };
+  put(join(kit, "astryx.lock.json"), JSON.stringify(lock, null, 2) + "\n");
+  put(join(kit, "README.md"), "# made-up kit readme\n");
+  put(join(kit, "example", "index.html"), "<!doctype html>\n");
+  put(join(kit, "example", "app.js"), "// made-up\n");
+  put(join(kit, "example", "style.css"), "/* made-up */\n");
+  put(join(kit, "build.mjs"), "// never copied\n");
+  const want = [...Object.keys(files).map((n) => `astryx/${n}`), "README.md", "example/app.js", "example/index.html", "example/style.css"].sort();
+  return { ...env, astryxKit: kit, want };
+}
+
+test("the Astryx kit: a right kit is copied byte for byte, file for file, and listed in index.json with its version", () => {
+  const env = fakeAstryx();
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  const top = join(env.dest, "astryx-kit");
+  assert.deepEqual(filesUnder(top), env.want);
+  for (const f of env.want) assert.ok(readFileSync(join(top, f)).equals(readFileSync(join(env.astryxKit, f))), `${f} byte for byte`);
+  for (const [p, [kind, mode]] of Object.entries(snapshot(top))) assert.equal(mode, kind === "d" ? "755" : "644", p);
+  assert.equal((lstatSync(top).mode & 0o777).toString(8), "755");
+  assert.match(r.out, /^playbooks: astryx-kit: installed, 8 files \(\d+ KB\)\.$/m);
+  // A file in astryx/ that the list does not name, and the kit's own build script, are never copied.
+  assert.ok(!existsSync(join(top, "astryx", "stray.js")) && !existsSync(join(top, "build.mjs")) && !existsSync(join(top, "astryx.lock.json")));
+  const row = astryxRow(env.dest);
+  assert.deepEqual(Object.keys(row), ["name", "origin", "licence", "roles", "kinds", "astryx", "files", "bytes"]);
+  assert.equal(row.origin, "own");
+  assert.equal(row.astryx, "0.7.16");
+  assert.deepEqual(row.roles, ["builder", "art-director"]);
+  assert.deepEqual(row.kinds, ["page"]);
+  assert.deepEqual(row.files, env.want);
+  assert.equal(row.bytes, env.want.reduce((n, f) => n + lstatSync(join(top, f)).size, 0));
+  // The kit is not a playbook: --check-only and the closing count stay the manifest's.
+  assert.equal(run(env, "--check-only").out, "Playbooks: 4 installed\n");
+  assert.match(r.out, /4 of \d+ playbooks installed/);
+});
+
+test("the Astryx kit: a second run changes nothing, and its folder is never removed as not in the manifest", () => {
+  const env = fakeAstryx();
+  assert.equal(run(env).code, 0);
+  const before = snapshot(env.dest);
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(snapshot(env.dest), before);
+  assert.match(r.out, /^playbooks: astryx-kit: already in place \(8 files\)\.$/m);
+  assert.doesNotMatch(r.out, /astryx-kit: removed|left alone: astryx-kit/);
+});
+
+test("the Astryx kit: one byte changed in the source skips the whole kit with the fixed line and installs nothing under astryx/", () => {
+  const env = fakeAstryx();
+  writeFileSync(join(env.astryxKit, "astryx", "core.js"), "export const Button = 2;\n");   // same length, other bytes
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, ASTRYX_SKIP("core.js"));
+  assert.ok(!existsSync(join(env.dest, "astryx-kit")));
+  assert.equal(astryxRow(env.dest), undefined);
+  assert.doesNotMatch(r.out, /astryx-kit: installed/);
+});
+
+test("the Astryx kit: a link in place of a listed file skips the whole kit", () => {
+  const env = fakeAstryx();
+  const real = join(env.top, "elsewhere.css");
+  writeFileSync(real, readFileSync(join(env.astryxKit, "astryx", "astryx.css")));   // the very bytes, but through a link
+  rmSync(join(env.astryxKit, "astryx", "astryx.css"));
+  symlinkSync(real, join(env.astryxKit, "astryx", "astryx.css"));
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, ASTRYX_SKIP("astryx.css"));
+  assert.ok(!existsSync(join(env.dest, "astryx-kit", "astryx")));
+});
+
+test("the Astryx kit: a missing listed file, or one over 2 MB, skips the whole kit", () => {
+  let env = fakeAstryx();
+  rmSync(join(env.astryxKit, "astryx", "LICENSES.txt"));
+  let r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, ASTRYX_SKIP("LICENSES.txt"));
+  assert.ok(!existsSync(join(env.dest, "astryx-kit")));
+
+  env = fakeAstryx();
+  writeFileSync(join(env.astryxKit, "astryx", "core.js"), "x".repeat(2 * 1024 * 1024 + 1));
+  r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, ASTRYX_SKIP("core.js"));
+  assert.ok(!existsSync(join(env.dest, "astryx-kit")));
+});
+
+test("the Astryx kit: a list that names a file over 2 MB, or 4 MB in all, or is not the kit's list, installs nothing", () => {
+  for (const change of [
+    (l) => { l.files[0].bytes = 2 * 1024 * 1024 + 1; },
+    (l) => { for (const f of l.files) f.bytes = 1024 * 1024 + 1; },
+    (l) => { l.files[0].name = "../escape.js"; },
+    (l) => { l.astryx = "latest"; },
+    (l) => { l.version = 2; },
+  ]) {
+    const env = fakeAstryx();
+    const p = join(env.astryxKit, "astryx.lock.json");
+    const lock = JSON.parse(readFileSync(p, "utf8"));
+    change(lock);
+    writeFileSync(p, JSON.stringify(lock));
+    const r = run(env);
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, /^playbooks: astryx-kit: skipped: (its list \(astryx\.lock\.json\) could not be read as the kit's list|its files come to more than 4 MB)\.$/m);
+    assert.ok(!existsSync(join(env.dest, "astryx-kit")));
+  }
+});
+
+test("the Astryx kit: a stale extra file in the installed copy is removed; a missing README is said and left out", () => {
+  const env = fakeAstryx();
+  assert.equal(run(env).code, 0);
+  writeFileSync(join(env.dest, "astryx-kit", "astryx", "old-chunk.js"), "a file an older list named\n");
+  rmSync(join(env.astryxKit, "README.md"));
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /^playbooks: astryx-kit: README\.md is not in the engine's Astryx kit\.$/m);
+  assert.match(r.out, /^playbooks: astryx-kit: updated, 7 files /m);
+  assert.deepEqual(filesUnder(join(env.dest, "astryx-kit")), env.want.filter((f) => f !== "README.md"));
+});
+
+test("the Astryx kit: with its source gone the earlier copy is kept and still listed; a source folder that is a link is skipped", () => {
+  const env = fakeAstryx();
+  assert.equal(run(env).code, 0);
+  let r = run({ ...env, astryxKit: join(env.top, "gone") });
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /astryx-kit: skipped: its folder is not in the engine \(engine\/astryx-kit\)\. The copy installed earlier is kept\./);
+  assert.deepEqual(filesUnder(join(env.dest, "astryx-kit")), env.want);
+  assert.equal(astryxRow(env.dest).astryx, "0.7.16");
+
+  const fresh = fakeAstryx();
+  const linked = join(fresh.top, "kit-link");
+  symlinkSync(fresh.astryxKit, linked);
+  r = run({ ...fresh, astryxKit: linked });
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /astryx-kit: skipped: its folder is not in the engine \(engine\/astryx-kit\)\./);
+  assert.ok(!existsSync(join(fresh.dest, "astryx-kit")));
+});
+
+test("the Astryx kit: the site kit and every playbook are installed as before in the same run", () => {
+  const env = { ...fakeKit(), astryxKit: fakeAstryx().astryxKit };
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(filesUnder(join(env.dest, "site-kit")), KIT_FILES);
+  assert.deepEqual(siteKitRow(env.dest).files, KIT_FILES);
+  assert.deepEqual(filesUnder(join(env.dest, "impeccable")), ["IN-THIS-ENGINE.md", "reference/critique.md"]);
+  assert.deepEqual(filesUnder(join(env.dest, "hallmark")),
+    ["IN-THIS-ENGINE.md", "references/genres/editorial.md", "references/slop-test.md"]);
+  const names = JSON.parse(readFileSync(join(env.dest, "index.json"), "utf8")).playbooks.map((x) => x.name);
+  assert.deepEqual(names.slice(-2), ["site-kit", "astryx-kit"]);
+  assert.equal(names.length, 6);
+});
+
+test("the manifest may not name a playbook astryx-kit: that name is the engine's Astryx kit", () => {
+  const r = withManifest([{ ...byName["render-to-film"], name: "astryx-kit" }]);
+  assert.equal(r.code, 1);
+  assert.match(r.err, /the manifest is not right: astryx-kit is the name of the engine's Astryx kit, never of a playbook/);
+});
+
+test("the real engine/astryx-kit installs whole: every file its list names, byte for byte", () => {
+  const top = realpathSync(mkdtempSync(join(tmpdir(), "pbastryx-")));
+  try {
+    const env = { skills: join(top, "no-skills"), dest: join(top, "state", "playbooks"), top, astryxKit: ASTRYX_DIR };
+    mkdirSync(env.skills);
+    mkdirSync(join(top, "state"));
+    const lock = JSON.parse(readFileSync(join(ASTRYX_DIR, "astryx.lock.json"), "utf8"));
+    const r = run(env);
+    assert.equal(r.code, 0, r.err);
+    assert.doesNotMatch(r.out, /astryx-kit: skipped:/);
+    const copied = filesUnder(join(env.dest, "astryx-kit", "astryx"));
+    assert.equal(copied.length, lock.files.length);
+    assert.deepEqual(copied, lock.files.map((f) => f.name).sort());
+    for (const f of lock.files) assert.equal(sha256(readFileSync(join(env.dest, "astryx-kit", "astryx", f.name))), f.sha256, f.name);
+    assert.equal(astryxRow(env.dest).astryx, lock.astryx);
   } finally {
     rmSync(top, { recursive: true, force: true });
   }

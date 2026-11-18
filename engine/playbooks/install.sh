@@ -15,6 +15,15 @@
 # copied to state/playbooks/site-kit/ and listed in index.json as the engine's own.
 # That folder is never removed as "not in the manifest".
 #
+# The Astryx kit (PLAN-ASTRYX T5) is the second named exception: engine/astryx-kit/
+# is copied to state/playbooks/astryx-kit/. Only astryx/<name> for every file its
+# list (astryx.lock.json) names, each a plain file (no link followed) ending .js,
+# .css, .json or .txt, at most 2 MB, with the listed bytes and sha256, 4 MB in all;
+# one file that is not right skips the whole kit. Beside it README.md and
+# example/index.html, example/app.js, example/style.css (plain files, 64 KB each;
+# one missing is said and left out). Listed in index.json as the engine's own, with
+# the kit's version; never removed as "not in the manifest".
+#
 # Usage: engine/playbooks/install.sh [--check-only]
 #   --check-only   prints "Playbooks: <n> installed" (exit 0) or "Playbooks: not installed" (exit 1)
 #
@@ -24,8 +33,8 @@
 # again: a copy that is already right is left alone, file for file.
 #
 # For tests only: ENGINE_PLAYBOOKS_SOURCE stands in for ~/.claude/skills,
-# ENGINE_PLAYBOOKS_OWN for engine/playbooks/own, ENGINE_SITE_KIT_SOURCE for engine/site-kit
-# and ENGINE_PLAYBOOKS_DEST for state/playbooks.
+# ENGINE_PLAYBOOKS_OWN for engine/playbooks/own, ENGINE_SITE_KIT_SOURCE for engine/site-kit,
+# ENGINE_ASTRYX_KIT_SOURCE for engine/astryx-kit and ENGINE_PLAYBOOKS_DEST for state/playbooks.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/../lib/config.sh" || { echo "engine config: could not be read" >&2; exit 1; }
@@ -34,17 +43,20 @@ MANIFEST="$HERE/manifest.json"
 SOURCE_ROOT="${ENGINE_PLAYBOOKS_SOURCE:-$HOME/.claude/skills}"
 OWN_ROOT="${ENGINE_PLAYBOOKS_OWN:-$HERE/own}"
 SITE_KIT_ROOT="${ENGINE_SITE_KIT_SOURCE:-$HERE/../site-kit}"
+ASTRYX_KIT_ROOT="${ENGINE_ASTRYX_KIT_SOURCE:-$HERE/../astryx-kit}"
 DEST="${ENGINE_PLAYBOOKS_DEST:-${CFG_PLAYBOOKS:-$CFG_STATE/playbooks}}"
 
 die() { echo "playbooks: $*" >&2; exit 1; }
 
 # Everything that reads JSON, matches names or copies bytes is done here, by the
-# system Python in isolated mode. Arguments: mode, manifest, source root, dest, own root, site kit.
+# system Python in isolated mode. Arguments: mode, manifest, source root, dest, own root, site kit, Astryx kit.
 run_py() {
   /usr/bin/python3 -I - "$@" <<'PY'
 import errno, fnmatch, json, os, re, shutil, stat, sys
+import hashlib
 
 MODE, MANIFEST, SOURCE_ROOT, DEST, OWN_ROOT, SITE_KIT_ROOT = sys.argv[1:7]
+ASTRYX_KIT_ROOT = sys.argv[7]
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 SOURCE_RE = re.compile(r"^~/\.claude/skills/([A-Za-z0-9][A-Za-z0-9._-]{0,99})$")
 OWN_RE = re.compile(r"^own:([a-z0-9][a-z0-9-]{0,39})$")
@@ -65,6 +77,20 @@ SITE_KIT_ENDINGS = (".css", ".js", ".md")
 SITE_KIT_MAX = 64 * 1024
 SITE_KIT_ROW = {"origin": "own", "licence": "this engine's own", "roles": ["builder", "art-director"], "kinds": ["page"]}
 SHOWN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
+# The Astryx kit (PLAN-ASTRYX T5): the engine's build of the Astryx design system, copied whole or not at all.
+ASTRYX_KIT = "astryx-kit"
+ASTRYX_DIR = "astryx"
+ASTRYX_LOCK = "astryx.lock.json"
+ASTRYX_ENDINGS = (".js", ".css", ".json", ".txt")
+ASTRYX_FILE_MAX = 2 * 1024 * 1024
+ASTRYX_TOTAL_MAX = 4 * 1024 * 1024
+ASTRYX_COUNT_MAX = 80
+ASTRYX_EXTRA = ("README.md", "example/index.html", "example/app.js", "example/style.css")
+ASTRYX_EXTRA_MAX = 64 * 1024
+ASTRYX_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+ASTRYX_VERSION_RE = re.compile(r"^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,6}$")
+ASTRYX_ROW = {"origin": "own", "licence": "the engine's build of Astryx and React (MIT) and the packages they use; every licence is in astryx/LICENSES.txt",
+              "roles": ["builder", "art-director"], "kinds": ["page"]}
 
 
 def say(msg):
@@ -149,6 +175,8 @@ def load_manifest():
             bad("a playbook name is missing, repeated or not in plain lower-case letters")
         if name == SITE_KIT:
             bad("%s is the name of the engine's site kit, never of a playbook" % name)
+        if name == ASTRYX_KIT:
+            bad("%s is the name of the engine's Astryx kit, never of a playbook" % name)
         seen.add(name)
         if not isinstance(p.get("source"), str) or not (SOURCE_RE.match(p["source"]) or OWN_RE.match(p["source"])):
             bad("%s: the source must be ~/.claude/skills/<folder> or own:<folder>" % name)
@@ -335,7 +363,95 @@ def plan_site_kit():
     return want, None
 
 
-def read_tree(top):
+def real_dir(path):
+    """True when path is a folder itself, never a link to one."""
+    try:
+        return stat.S_ISDIR(os.lstat(path).st_mode)
+    except OSError:
+        return False
+
+
+def plan_astryx_kit():
+    """Returns ({relative path: bytes}, version, None) for the Astryx kit, or (None, None, why) when it is not
+    copied. Every file the kit's list names must be there, plain, and the very bytes the list names, or the
+    whole kit is skipped: a kit with a hole in it is worse than none. README.md and the example are optional."""
+    def skip(why):
+        return None, None, "%s: skipped: %s" % (ASTRYX_KIT, why)
+    if not real_dir(ASTRYX_KIT_ROOT):
+        return skip("its folder is not in the engine (engine/astryx-kit).")
+    data = read_capped(os.path.join(ASTRYX_KIT_ROOT, ASTRYX_LOCK), MANIFEST_MAX)
+    try:
+        lock = json.loads(data.decode("utf-8")) if data is not None else None
+    except (ValueError, UnicodeDecodeError):
+        lock = None
+    entries = lock.get("files") if isinstance(lock, dict) and lock.get("version") == 1 else None
+    version = lock.get("astryx") if isinstance(lock, dict) else None
+    if (not isinstance(entries, list) or not entries or len(entries) > ASTRYX_COUNT_MAX
+            or not isinstance(version, str) or not ASTRYX_VERSION_RE.match(version)):
+        return skip("its list (%s) could not be read as the kit's list." % ASTRYX_LOCK)
+    listed = []
+    for e in entries:
+        n = e.get("name") if isinstance(e, dict) else None
+        if (not isinstance(n, str) or not SHOWN_RE.match(n) or not n.endswith(ASTRYX_ENDINGS) or n in listed
+                or not isinstance(e.get("bytes"), int) or isinstance(e.get("bytes"), bool)
+                or not 0 <= e["bytes"] <= ASTRYX_FILE_MAX
+                or not isinstance(e.get("sha256"), str) or not ASTRYX_SHA_RE.match(e["sha256"])):
+            return skip("its list (%s) could not be read as the kit's list." % ASTRYX_LOCK)
+        listed.append(n)
+    if sum(e["bytes"] for e in entries) > ASTRYX_TOTAL_MAX:
+        return skip("its files come to more than 4 MB.")
+    top = os.path.join(ASTRYX_KIT_ROOT, ASTRYX_DIR)
+    if not real_dir(top):
+        return skip("its folder astryx/ is not in the engine.")
+    want = {}
+    for e in entries:
+        n, p = e["name"], os.path.join(top, e["name"])
+        try:
+            st = os.lstat(p)    # never through a link; the bytes are judged by their sha256 below
+        except OSError:
+            st = None
+        b = None
+        if st is not None and stat.S_ISREG(st.st_mode) and st.st_size == e["bytes"]:
+            b = read_capped(p, ASTRYX_FILE_MAX)
+        if b is None or len(b) != e["bytes"] or hashlib.sha256(b).hexdigest() != e["sha256"]:
+            return skip("%s is not the file the kit's list names." % n)
+        want[ASTRYX_DIR + "/" + n] = b
+    example_ok = real_dir(os.path.join(ASTRYX_KIT_ROOT, "example"))
+    for rel in ASTRYX_EXTRA:
+        p = os.path.join(ASTRYX_KIT_ROOT, *rel.split("/"))
+        if "/" in rel and not example_ok:
+            st = None
+        else:
+            try:
+                st = os.lstat(p)
+            except OSError:
+                st = None
+        if st is None:
+            say("%s: %s is not in the engine's Astryx kit." % (ASTRYX_KIT, rel))
+            continue
+        b = read_capped(p, ASTRYX_EXTRA_MAX) if stat.S_ISREG(st.st_mode) else None
+        if b is None:
+            say("%s: skipped %s: it is not a plain file of at most 64 KB." % (ASTRYX_KIT, rel))
+            continue
+        want[rel] = b
+    return want, version, None
+
+
+def kept_astryx_version():
+    """The kit's version from the index written before, for a copy kept when the kit's source is skipped."""
+    data = read_capped(os.path.join(DEST, INDEX), 4 * 1024 * 1024)
+    try:
+        rows = json.loads(data.decode("utf-8")).get("playbooks") if data is not None else None
+    except (ValueError, UnicodeDecodeError, AttributeError):
+        rows = None
+    for r in rows if isinstance(rows, list) else []:
+        if isinstance(r, dict) and r.get("name") == ASTRYX_KIT and isinstance(r.get("astryx"), str) \
+                and ASTRYX_VERSION_RE.match(r["astryx"]):
+            return r["astryx"]
+    return None
+
+
+def read_tree(top, cap=FILE_MAX + 65536):
     """{relative path: bytes} of an installed copy, or None when anything in it is not
     a plain file or folder with the right mode."""
     out = {}
@@ -355,7 +471,7 @@ def read_tree(top):
             s = os.lstat(full)
             if not stat.S_ISREG(s.st_mode) or stat.S_IMODE(s.st_mode) != 0o644:
                 return None
-            data = read_capped(full, FILE_MAX + 65536)
+            data = read_capped(full, cap)
             if data is None:
                 return None
             out[os.path.relpath(full, top).replace(os.sep, "/")] = data
@@ -403,7 +519,7 @@ def ours(path):
         return False
 
 
-def index_rows(playbooks):
+def index_rows(playbooks, astryx_version=None):
     rows = []
     for p in playbooks:
         tree = read_tree(os.path.join(DEST, p["name"]))
@@ -419,6 +535,11 @@ def index_rows(playbooks):
     if tree:
         files = sorted(tree)
         rows.append(dict({"name": SITE_KIT}, **SITE_KIT_ROW, files=files, bytes=sum(len(tree[r]) for r in files)))
+    tree = read_tree(os.path.join(DEST, ASTRYX_KIT), ASTRYX_FILE_MAX) if astryx_version else None
+    if tree:
+        files = sorted(tree)
+        rows.append(dict({"name": ASTRYX_KIT}, **ASTRYX_ROW, astryx=astryx_version, files=files,
+                         bytes=sum(len(tree[r]) for r in files)))
     return rows
 
 
@@ -477,6 +598,11 @@ def install():
         total += sum(len(b) for b in kit.values())
     if total > TOTAL_MAX:
         die("the named files come to %s, over the 20 MB limit. Nothing was changed." % kb(total))
+    akit, aversion, why = plan_astryx_kit()   # its own limits (2 MB a file, 4 MB in all), outside the 20 MB
+    if akit is None:
+        kept = os.path.isdir(os.path.join(DEST, ASTRYX_KIT))
+        say(why + " The copy installed earlier is kept." if kept else why)
+        aversion = kept_astryx_version() if kept else None
 
     for p, want in plans + ([({"name": SITE_KIT}, kit)] if kit else []):
         top = os.path.join(DEST, p["name"])
@@ -496,9 +622,28 @@ def install():
         say("%s: %s, %s (%s)." % (p["name"], "updated" if existed else "installed", files(count),
                                        kb(sum(len(b) for b in want.values()))))
 
+    if akit is not None:   # the Astryx kit: whole, file for file; a file its list no longer names goes
+        top = os.path.join(DEST, ASTRYX_KIT)
+        if read_tree(top, ASTRYX_FILE_MAX) == akit:
+            say("%s: already in place (%s)." % (ASTRYX_KIT, files(len(akit))))
+        else:
+            new, old = os.path.join(DEST, ".new-" + ASTRYX_KIT), os.path.join(DEST, ".old-" + ASTRYX_KIT)
+            remove(new)
+            remove(old)
+            write_tree(new, akit)
+            existed = os.path.lexists(top)
+            if existed:
+                os.rename(top, old)
+            os.rename(new, top)
+            remove(old)
+            say("%s: %s, %s (%s)." % (ASTRYX_KIT, "updated" if existed else "installed", files(len(akit)),
+                                      kb(sum(len(b) for b in akit.values()))))
+
     names = {p["name"] for p in playbooks}
     for entry in sorted(os.listdir(DEST)):
         full = os.path.join(DEST, entry)
+        if entry == ASTRYX_KIT:
+            continue        # the Astryx kit's folder is the engine's own, never "not in the manifest"
         if entry == INDEX or entry in names or entry == SITE_KIT:
             continue        # the site kit's folder is the engine's own, never "not in the manifest" (C18)
         if entry.startswith(".new-") or entry.startswith(".old-"):
@@ -509,7 +654,7 @@ def install():
         else:
             say("left alone: %s is not a playbook folder this installer made." % entry)
 
-    rows = index_rows(playbooks)
+    rows = index_rows(playbooks, aversion)
     body = (json.dumps({"version": 1, "playbooks": rows}, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     idx = os.path.join(DEST, INDEX)
     if read_capped(idx, 4 * 1024 * 1024) != body or stat.S_IMODE(os.lstat(idx).st_mode) != 0o644:
@@ -523,6 +668,7 @@ def install():
             os.close(fd)
         os.rename(tmp, idx)
     books = [r for r in rows if r["name"] != SITE_KIT]
+    books = [r for r in books if r["name"] != ASTRYX_KIT]
     size = sum(r["bytes"] for r in books)
     say("%d of %d playbooks installed (%s of reading)." % (len(books), len(playbooks), kb(size)))
     return 0
@@ -534,9 +680,9 @@ PY
 
 if [ "${1:-}" = "--check-only" ]; then
   [ $# -eq 1 ] || die "--check-only takes nothing else"
-  run_py check "$MANIFEST" "$SOURCE_ROOT" "$DEST" "$OWN_ROOT" "$SITE_KIT_ROOT"
+  run_py check "$MANIFEST" "$SOURCE_ROOT" "$DEST" "$OWN_ROOT" "$SITE_KIT_ROOT" "$ASTRYX_KIT_ROOT"
   exit $?
 fi
 [ $# -eq 0 ] || die "unknown option $1 (usage: engine/playbooks/install.sh [--check-only])"
 
-run_py install "$MANIFEST" "$SOURCE_ROOT" "$DEST" "$OWN_ROOT" "$SITE_KIT_ROOT"
+run_py install "$MANIFEST" "$SOURCE_ROOT" "$DEST" "$OWN_ROOT" "$SITE_KIT_ROOT" "$ASTRYX_KIT_ROOT"

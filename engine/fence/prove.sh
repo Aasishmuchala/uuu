@@ -1128,6 +1128,12 @@ viewer_checks() {
       allowed "read the site kit" \
         'ls "$UUU_PLAYBOOKS_DIR/site-kit" >/dev/null && for f in "$UUU_PLAYBOOKS_DIR"/site-kit/*; do cat "$f" >/dev/null || exit 1; done'
     fi
+    if [[ ! -d "$CFG_PLAYBOOKS/astryx-kit" || -L "$CFG_PLAYBOOKS/astryx-kit" ]]; then
+      say SKIP "whether $WHO can open the Astryx kit (not installed: run engine/playbooks/install.sh)"
+    else
+      allowed "read the Astryx kit" \
+        'ls "$UUU_PLAYBOOKS_DIR/astryx-kit" >/dev/null && for f in "$UUU_PLAYBOOKS_DIR"/astryx-kit/astryx/*; do cat "$f" >/dev/null || exit 1; done'
+    fi
   done
   WHO="the Checker"
   id="$(agent_id_of checker)"
