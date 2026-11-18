@@ -9,9 +9,11 @@ public struct NavRequest {
     public var mainFrame: Bool
     public var click: Bool
     public var newWindow: Bool
-    /// The port of the App Studio app whose frame asked for this navigation; nil when the home page (or
-    /// nothing WebKit names) asked.
+    /// The port of the one App Studio app the asker is held to; nil only when the home page itself asked
+    /// (`NavMapping.request` decides which, M16b).
     public var fromAppPort: Int?
+    /// The asker is not the home page and its own app is not known: no app's port matches it.
+    public static let unknownApp = 0
     public init(url: URL, mainFrame: Bool, click: Bool, newWindow: Bool, fromAppPort: Int? = nil) {
         self.url = url; self.mainFrame = mainFrame; self.click = click; self.newWindow = newWindow
         self.fromAppPort = fromAppPort
@@ -88,7 +90,7 @@ public struct NavigationPolicy {
         if Self.isAboutBlank(url) { return .allow }
         guard Self.isAppFrame(url) else { return .drop }
         // An app's frame may move itself only within its own port, never to another app's page under its
-        // name (M15, L5). The home page may open any app.
+        // name (M15, L5). The home page may open any app; any other asker is held to one app (M16b).
         if let from = request.fromAppPort, URLComponents(string: url.absoluteString)?.port != from { return .drop }
         return .allow
     }

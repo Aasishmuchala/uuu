@@ -66,6 +66,10 @@ private func nameChecks() -> [Check] {
                 "applescript", "kext", "configprofile"] {
         c.append(name("runnable .\(ext)", "file.\(ext)", "file.\(ext).txt"))
     }
+    // M16b: Terminal settings and the disk images M16 missed.
+    for ext in ["term", "img", "dmgpart", "toast", "udif", "dvdr", "asif"] {
+        c.append(name("runnable .\(ext)", "file.\(ext)", "file.\(ext).txt"))
+    }
     c.append(name("300 letters + .sh stays short", letters300 + ".sh", String(repeating: "a", count: 113) + ".sh.txt"))
     c.append(Check(name: "name: never longer than 120, never empty, never hidden characters") {
         let samples = [letters300, letters300 + ".command", "\u{202E}" + letters300 + "." + String(repeating: "x", count: 40),

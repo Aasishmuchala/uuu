@@ -15,7 +15,7 @@ VERSION            one line; see "The version rule"
 build.sh           makes the signed .app
 check.sh           builds everything, runs the checks, then the source rules
 version-rule.sh    any change under Sources needs a higher VERSION; nothing under Sources hidden from git
-source-rules.sh    the forbidden words and the one loopback literal, over the app's sources
+source-rules.sh    no link or odd name under Sources; the forbidden words and the one loopback literal
 Resources/         Info.plist.in, AppIcon.icns, icon-1024.png (cut from the loft photograph)
 Sources/EngineShell/      library: Web/ (HomeOrigin, NavigationPolicy, WebGuard, WebViewFactory, RuleList),
                           Engine/ (EngineSwitch, EngineCommand, EngineRoot, EngineEnvironment, Poller, ShellStatus),
@@ -72,7 +72,10 @@ Several builders share `.build/`. If `swift build` fails in a file that is not y
    `awake:`, `words:` and others).
 3. The source rules (`source-rules.sh`), over `Sources/EngineShell` and `Sources/CompanyEngine`: no script bridge, no own URL scheme, no
    HTML string or local file loaded, no reading of the environment, no state folder, secret or login file named; and no
-   loopback address literal outside `HomeOrigin.swift`.
+   loopback address literal outside `HomeOrigin.swift`. The two files left out (the generated `BuildConstants.swift`
+   for the words, `HomeOrigin.swift` for the literal) are left out by path, as files, never by filtering grep's
+   output. Before that, anywhere under `Sources`: no link (SwiftPM compiles what it points at; grep does not follow
+   it) and no name holding a colon or a line break. `build.sh --install` runs them too.
 4. `version-rule.sh`, last.
 
 A check is a plain function in `Sources/EngineMacChecks/`; add new ones to the file for its area.
@@ -84,12 +87,15 @@ and compares itself with the repository's `VERSION` at launch.
 
 `version-rule.sh` (no arguments, works from any folder, exit 0 or 1):
 
-- `VERSION` must be one line of two to four numbers (`1.0.4`) and nothing else; otherwise exit 1. `build.sh` and
-  `check.sh` read it the same way, because it is written into Swift source and `Info.plist`.
+- `VERSION` must be one line of two to four numbers (`1.0.4`), each at most nine digits, and nothing else; otherwise
+  exit 1. `build.sh` and `check.sh` read it the same way, because it is written into Swift source and `Info.plist`.
+- No link under `Sources`, no file there marked `skip-worktree` or `assume-unchanged` (`git ls-files -v`), and the
+  generated `BuildConstants.swift` never committed; otherwise exit 1.
 - A file git ignores anywhere under `Sources` (by `.gitignore`, `.git/info/exclude` or any other rule) fails, except
   the generated `Sources/EngineShell/Build/BuildConstants.swift` (and `.DS_Store`). `.gitignore` names `/.build/`
   and `/out/` at the top of this folder only.
 - The mark is the last commit that changed `VERSION`, asked from inside this folder. No mark: exit 0.
+- `VERSION` lower than at the mark fails, whether or not `Sources` changed.
 - "Sources changed" means the working tree's `Sources` differs from the mark (committed or not), or `Sources` holds a
   new file git does not ignore. The generated `BuildConstants.swift` is ignored, so it never counts.
 - If Sources changed and the working tree's `VERSION` is not higher than at the mark (numbers compared part by part),

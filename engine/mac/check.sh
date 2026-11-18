@@ -7,8 +7,8 @@ cd "$HERE"
 
 # VERSION is read as build.sh reads it: one line of two to four numbers, nothing else (M15's L3).
 VERSION="$(cat VERSION)"
-if ! [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]]; then
-  echo "check.sh: VERSION must be one line like 1.0.4 (two to four numbers, nothing else)." >&2
+if ! [[ "$VERSION" =~ ^[0-9]{1,9}(\.[0-9]{1,9}){1,3}$ ]]; then
+  echo "check.sh: VERSION must be one line like 1.0.4 (two to four numbers of at most nine digits, nothing else)." >&2
   exit 1
 fi
 

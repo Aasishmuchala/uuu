@@ -207,7 +207,9 @@ private func mappingChecks() -> [Check] {
         try expect(policy.decide(r) == .drop, "not dropped")
     })
     c.append(Check(name: "nav: map app frame redirected to another app stays a frame") {
-        let r = NavMapping.request(url: URL(string: "http://127.0.0.1:3172/")!, navigationType: .other, targetIsMainFrame: false)
+        // A redirect of a load the home page asked for keeps the home page as its asker (ADR 0020, M16b).
+        let r = NavMapping.request(url: URL(string: "http://127.0.0.1:3172/")!, navigationType: .other, targetIsMainFrame: false,
+                                   sourceScheme: "http", sourceHost: "127.0.0.1", sourcePort: 3200, home: policy.home)
         try expect(policy.decide(r) == .allow, "not allowed")
     })
     c.append(Check(name: "nav: map app frame link to outside drops") {
@@ -218,7 +220,7 @@ private func mappingChecks() -> [Check] {
     func fromApp(_ to: String, _ sourcePort: Int?, main: Bool = false) -> NavRequest {
         NavMapping.request(url: URL(string: to)!, navigationType: .linkActivated, targetIsMainFrame: main,
                            sourceScheme: "http", sourceHost: "127.0.0.1",
-                           sourcePort: sourcePort ?? 3200)
+                           sourcePort: sourcePort ?? 3200, home: policy.home)
     }
     c.append(Check(name: "nav: an app's frame moving itself to another app's port drops") {
         try expect(policy.decide(fromApp("http://127.0.0.1:3172/", 3171)) == .drop, "app 3171 went to 3172")
@@ -239,9 +241,34 @@ private func mappingChecks() -> [Check] {
         try same(fromApp("http://127.0.0.1:3172/", nil).fromAppPort, nil, "home source")
         let other = NavMapping.request(url: URL(string: "http://127.0.0.1:3172/")!, navigationType: .other,
                                        targetIsMainFrame: false, sourceScheme: "https", sourceHost: "127.0.0.1", sourcePort: 3171)
-        try same(other.fromAppPort, nil, "https is not an app origin")
+        try same(other.fromAppPort, NavRequest.unknownApp, "https is not an app origin, nor the home page")
         let none = NavMapping.request(url: URL(string: "http://127.0.0.1:3172/")!, navigationType: .other, targetIsMainFrame: false)
-        try same(none.fromAppPort, nil, "no source")
+        try same(none.fromAppPort, NavRequest.unknownApp, "no source is not the home page")
+    })
+    // M16b (L5 fails open): an asker that is not exactly the home page is held to the frame's own app.
+    func opaque(_ to: String, frame: String?, scheme: String = "", host: String = "", port: Int = 0) -> NavRequest {
+        NavMapping.request(url: URL(string: to)!, navigationType: .other, targetIsMainFrame: false,
+                           sourceScheme: scheme, sourceHost: host, sourcePort: port,
+                           targetFrameURL: frame.map { URL(string: $0)! }, home: policy.home)
+    }
+    c.append(Check(name: "nav: a sandboxed app frame (opaque origin) moving to another app's port drops") {
+        try expect(policy.decide(opaque("http://127.0.0.1:3172/", frame: "http://127.0.0.1:3171/")) == .drop, "3171 went to 3172")
+        try expect(policy.decide(opaque("http://127.0.0.1:3189/x", frame: "http://127.0.0.1:3171/a")) == .drop, "3171 went to 3189")
+    })
+    c.append(Check(name: "nav: a sandboxed app frame within its own port is allowed, and to about:blank") {
+        try expect(policy.decide(opaque("http://127.0.0.1:3171/next", frame: "http://127.0.0.1:3171/")) == .allow, "not allowed")
+        try expect(policy.decide(opaque("about:blank", frame: "http://127.0.0.1:3171/")) == .allow, "about:blank")
+    })
+    c.append(Check(name: "nav: an asker that is not the home page, in a frame not on an app, opens no app") {
+        try expect(policy.decide(opaque("http://127.0.0.1:3172/", frame: nil)) == .drop, "no frame address")
+        try expect(policy.decide(opaque("http://127.0.0.1:3172/", frame: "about:blank")) == .drop, "about:blank frame")
+        try expect(policy.decide(opaque("http://127.0.0.1:3172/", frame: nil, scheme: "http", host: "127.0.0.1", port: 3201)) == .drop,
+                   "a near-home port")
+        try expect(policy.decide(opaque("http://127.0.0.1:3172/", frame: nil, scheme: "http", host: "localhost", port: 3200)) == .drop,
+                   "localhost is not the home origin")
+        let noHome = NavMapping.request(url: URL(string: "http://127.0.0.1:3172/")!, navigationType: .other, targetIsMainFrame: false,
+                                        sourceScheme: "http", sourceHost: "127.0.0.1", sourcePort: 3200)
+        try expect(policy.decide(noHome) == .drop, "the home origin not given to the mapping")
     })
     c.append(Check(name: "nav: map new window is a click in a new top window") {
         let r = NavMapping.newWindowRequest(url: evil)

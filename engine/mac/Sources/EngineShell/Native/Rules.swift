@@ -17,6 +17,8 @@ public enum SafeName {
         "jar", "mobileconfig", "configprofile", "url", "action", "shortcut", "zsh", "bash", "csh", "ksh", "tcsh",
         "py", "pl", "rb", "applescript", "iso", "sparseimage", "sparsebundle", "cdr", "kext", "plugin", "osax",
         "saver", "qlgenerator", "xpc", "bundle",
+        // M16b: Terminal settings (they can run a command) and the disk images M16 missed.
+        "term", "img", "dmgpart", "toast", "udif", "dvdr", "asif",
     ]
 
     public static func clean(_ s: String) -> String {

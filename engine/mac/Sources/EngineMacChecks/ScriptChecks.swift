@@ -57,6 +57,13 @@ private final class Scratch {
         try FileManager.default.copyItem(at: macFolder.appendingPathComponent(name), to: to)
     }
 
+    /// A symbolic link at `rel` holding `target` as written.
+    func link(_ rel: String, to target: String) throws {
+        let url = dir.appendingPathComponent(rel)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: url.path, withDestinationPath: target)
+    }
+
     func git(_ args: String...) throws {
         let r = try run("/usr/bin/git", ["-c", "user.name=checks", "-c", "user.email=checks@example.invalid",
                                           "-c", "commit.gpgsign=false"] + args, in: dir, home: dir)
@@ -136,18 +143,51 @@ private func versionChecks() -> [Check] {
         versionCase("Sources edited, VERSION 2.0.0.1", 0) { try edit($0); try $0.write("VERSION", "2.0.0.1\n") },
         versionCase("nothing changed, VERSION not a version", 1) { try $0.write("VERSION", "1.0.9 \n") },
         versionCase("nothing changed, VERSION with no line end", 0) { try $0.write("VERSION", "1.0.9") },
+        // M16b (the second look at M16): a link SwiftPM compiles but grep does not follow, files git is told not to
+        // look at, a VERSION lowered with nothing else changed, and a part too long to compare.
+        versionCase("a committed link under Sources to an ignored file, VERSION raised and committed", 1) {
+            try $0.write("out/evil.swift", "let evil = 1\n")
+            try $0.link("Sources/Link.swift", to: "../out/evil.swift")
+            try $0.write("VERSION", "1.0.10\n")
+            try $0.git("add", "-A")
+            try $0.git("commit", "-qm", "link")
+        },
+        versionCase("an edit hidden by skip-worktree", 1) {
+            try $0.git("update-index", "--skip-worktree", "Sources/a.swift")
+            try $0.write("Sources/a.swift", "let evil = 1\n")
+        },
+        versionCase("an edit hidden by assume-unchanged", 1) {
+            try $0.git("update-index", "--assume-unchanged", "Sources/a.swift")
+            try $0.write("Sources/a.swift", "let evil = 1\n")
+        },
+        versionCase("nothing changed under Sources, VERSION lowered", 1) { try $0.write("VERSION", "1.0.8\n") },
+        versionCase("nothing changed under Sources, VERSION raised", 0) { try $0.write("VERSION", "1.0.10\n") },
+        versionCase("Sources edited, VERSION with a part of ten digits", 1) {
+            try edit($0); try $0.write("VERSION", "1.0.9999999999\n")
+        },
+        versionCase("Sources edited, VERSION with parts of nine digits", 0) {
+            try edit($0); try $0.write("VERSION", "1.0.999999999\n")
+        },
+        versionCase("the generated BuildConstants.swift committed by force", 1) {
+            try $0.write("Sources/EngineShell/Build/BuildConstants.swift", "let evil = 1\n")
+            try $0.write("VERSION", "1.0.10\n")
+            try $0.git("add", "-f", "-A")
+            try $0.git("commit", "-qm", "forced")
+        },
     ]
 }
 
 // ---- source-rules.sh (the forbidden words, M15's M3 and L6) ------------------------------------------------
 
-private func sourceCase(_ label: String, _ want: Int32, _ files: [(String, String)]) -> Check {
+private func sourceCase(_ label: String, _ want: Int32, _ files: [(String, String)],
+                        links: [(String, String)] = []) -> Check {
     Check(name: "source-rules: \(label) -> \(want)") {
         let s = try Scratch()
         try s.copy("source-rules.sh")
         try s.write("Sources/EngineShell/Web/HomeOrigin.swift", "let host = \"127.0.0.1\"\n")
         try s.write("Sources/CompanyEngine/App.swift", "let ok = 1\n")
         for (path, text) in files { try s.write(path, text) }
+        for (path, target) in links { try s.link(path, to: target) }
         let r = try run("/bin/bash", [s.dir.appendingPathComponent("source-rules.sh").path], in: URL(fileURLWithPath: "/"), home: s.dir)
         try expect(r.code == want, "exit \(r.code): \(r.err.prefix(300))")
     }
@@ -170,6 +210,17 @@ private func sourceRuleChecks() -> [Check] {
         ]),
         sourceCase("loadHTMLString still", 1, [("Sources/EngineShell/A.swift", "web.loadHTMLString(h, baseURL: nil)\n")]),
         sourceCase("a loopback literal outside HomeOrigin.swift", 1, [("Sources/CompanyEngine/B.swift", "let u = \"http://127.0.0.1:3200\"\n")]),
+        // M16b: a file is left out by its path, never by a line of grep's output that starts like it.
+        sourceCase("a file named BuildConstants.swift:x.swift beside the generated one", 1, [
+            ("Sources/EngineShell/Build/BuildConstants.swift:x.swift", "func f(w: W) { w.evaluateJavaScript(\"1\") }\n"),
+        ]),
+        sourceCase("a file named HomeOrigin.swift:y.swift with the loopback literal", 1, [
+            ("Sources/EngineShell/Web/HomeOrigin.swift:y.swift", "let u = \"http://127.0.0.1:3172\"\n"),
+        ]),
+        sourceCase("a clean file whose name holds a line break", 1, [("Sources/CompanyEngine/a\nb.swift", "let ok = 1\n")]),
+        sourceCase("a link under Sources to a file outside them", 1, [("out/evil.swift", "func f(w: W) { w.evaluateJavaScript(\"1\") }\n")],
+                   links: [("Sources/EngineShell/Web/Link.swift", "../../../out/evil.swift")]),
+        sourceCase("a link under Sources to a clean file", 1, [], links: [("Sources/CompanyEngine/Same.swift", "App.swift")]),
     ]
 }
 
@@ -204,19 +255,21 @@ private func buildChecks() -> [Check] {
         buildVersionCase("holding code", "1.0\"+String(7*6)+\"\n"),
         buildVersionCase("empty", ""),
         buildVersionCase("with a letter", "1.0.9a\n"),
+        buildVersionCase("with a part of ten digits", "1.0.1234567890\n"),
     ]
-    c.append(Check(name: "build.sh: --install runs version-rule.sh before it builds") {
+    c.append(Check(name: "build.sh: --install runs version-rule.sh and source-rules.sh before it builds") {
         let text = try String(contentsOf: macFolder.appendingPathComponent("build.sh"), encoding: .utf8)
         guard let install = text.range(of: "else\n  [ -z \"$PORT\" ]"), let build = text.range(of: "swift build") else {
             throw ScriptFailure(description: "build.sh's install branch not found")
         }
         let branch = text[install.lowerBound..<build.lowerBound]
         try expect(branch.contains("\"$HERE/version-rule.sh\""), "the install branch does not run version-rule.sh")
+        try expect(branch.contains("\"$HERE/source-rules.sh\""), "the install branch does not run source-rules.sh")
     })
     c.append(Check(name: "check.sh: reads VERSION as build.sh does, and runs source-rules.sh") {
         let check = try String(contentsOf: macFolder.appendingPathComponent("check.sh"), encoding: .utf8)
         let build = try String(contentsOf: macFolder.appendingPathComponent("build.sh"), encoding: .utf8)
-        let pattern = "^[0-9]+(\\.[0-9]+){1,3}$"
+        let pattern = "^[0-9]{1,9}(\\.[0-9]{1,9}){1,3}$"
         for (name, text) in [("check.sh", check), ("build.sh", build),
                              ("version-rule.sh", try String(contentsOf: macFolder.appendingPathComponent("version-rule.sh"), encoding: .utf8))] {
             try expect(text.contains(pattern), "\(name) does not hold the VERSION pattern")

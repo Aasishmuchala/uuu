@@ -114,8 +114,15 @@ final class TrialDelegate: NSObject, WKNavigationDelegate, WKUIDelegate {
                  decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
         if let target = action.targetFrame, !target.isMainFrame, let mapped = asAppStudio(action.request.url) {
             appFrames.append(target)
+            // The asker and the frame's address as the guard reads them, the stand-in app's port written as 3175.
+            let source = (action.value(forKey: "sourceFrame") as? WKFrameInfo)?.securityOrigin
+            var sourcePort = source?.port
+            if source?.protocol == "http", source?.host == HomeOrigin.loopbackHost, sourcePort == appPort { sourcePort = standInFor }
             let verdict = inner.policy.decide(NavMapping.request(url: mapped, navigationType: action.navigationType,
-                                                                 targetIsMainFrame: false))
+                                                                 targetIsMainFrame: false, sourceScheme: source?.protocol,
+                                                                 sourceHost: source?.host, sourcePort: sourcePort,
+                                                                 targetFrameURL: asAppStudio(target.request.url) ?? target.request.url,
+                                                                 home: inner.policy.home))
             switch NavMapping.outcome(verdict, wantsDownload: action.shouldPerformDownload) {
             case .allow: decisionHandler(.allow)
             case .download: decisionHandler(.download)

@@ -11,13 +11,30 @@ public enum ActionOutcome: Equatable { case allow, download, cancel, open(URL) }
 public enum NavMapping {
     /// A navigation in an existing frame. `click` only for an activated link: a form post, a reload,
     /// back and forward, a redirect and a page moving itself are not clicks.
-    /// `sourceScheme`, `sourceHost` and `sourcePort` are the asking frame's origin, as WebKit reports it.
+    /// `sourceScheme`, `sourceHost` and `sourcePort` are the asking frame's origin, as WebKit reports it;
+    /// `targetFrameURL` the address the target frame shows now; `home` the home screen's origin.
+    /// Only an asker exactly on `home` may open any app in a frame. Any other asker (an app, a sandboxed frame
+    /// with an opaque origin, an unknown or missing one) is held to one app: its own port when it is an app's
+    /// origin, else the port of the app the frame shows, else none (M16b, L5).
     public static func request(url: URL, navigationType: WKNavigationType, targetIsMainFrame: Bool,
-                               sourceScheme: String? = nil, sourceHost: String? = nil, sourcePort: Int? = nil) -> NavRequest {
+                               sourceScheme: String? = nil, sourceHost: String? = nil, sourcePort: Int? = nil,
+                               targetFrameURL: URL? = nil, home: HomeOrigin? = nil) -> NavRequest {
         var fromApp: Int?
-        if let sourceScheme, let sourceHost, let sourcePort,
-           NavigationPolicy.isAppOrigin(scheme: sourceScheme, host: sourceHost, port: sourcePort) {
-            fromApp = sourcePort
+        let fromHome: Bool
+        if let home, let sourceScheme, let sourceHost, let sourcePort {
+            fromHome = sourceScheme == home.scheme && sourceHost == home.host && sourcePort == home.port
+        } else {
+            fromHome = false
+        }
+        if !fromHome {
+            if let sourceScheme, let sourceHost, let sourcePort,
+               NavigationPolicy.isAppOrigin(scheme: sourceScheme, host: sourceHost, port: sourcePort) {
+                fromApp = sourcePort
+            } else if let targetFrameURL, NavigationPolicy.isAppFrame(targetFrameURL) {
+                fromApp = URLComponents(string: targetFrameURL.absoluteString)?.port ?? NavRequest.unknownApp
+            } else {
+                fromApp = NavRequest.unknownApp
+            }
         }
         return NavRequest(url: url, mainFrame: targetIsMainFrame, click: navigationType == .linkActivated,
                           newWindow: false, fromAppPort: fromApp)
@@ -84,7 +101,8 @@ public final class WebGuard: NSObject, WKNavigationDelegate, WKUIDelegate, WKDow
         let source = sourceFrame(of: navigationAction)?.securityOrigin
         let request = NavMapping.request(url: url, navigationType: navigationAction.navigationType,
                                          targetIsMainFrame: target.isMainFrame, sourceScheme: source?.protocol,
-                                         sourceHost: source?.host, sourcePort: source?.port)
+                                         sourceHost: source?.host, sourcePort: source?.port,
+                                         targetFrameURL: target.request.url, home: policy.home)
         var verdict = policy.decide(request)
         if verdict == .drop, navigationAction.shouldPerformDownload, let source = sourceFrame(of: navigationAction),
            policy.mayDownloadLocal(url, fromScheme: source.securityOrigin.protocol,
