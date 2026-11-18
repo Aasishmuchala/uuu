@@ -4,8 +4,9 @@
 // check each token's kind, subject and secret as the real ones do.
 import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
-import { renameSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { readFileSync, renameSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { ENGINE_CODES, ENGINE_ROUTES, engineRoute } from "../host.mjs";
 import { checkToken } from "../../relay/token.mjs";
 import {
@@ -151,9 +152,56 @@ test("the relay: POST /v1/messages reaches it with a relay token of this app; th
   assert.deepEqual(c.who, { kind: "t", subject: "app-fix", exp: Math.floor(t / 1000) + 120 });
   assert.equal(checkToken(w.doorSecret, c.token, t), null, "a relay token is nothing at the door");
   assert.equal(c.bytes, Buffer.byteLength(body));
-  assert.deepEqual(names(c.headers), ["accept", "authorization", "connection", "content-length", "content-type", "host"]);
+  assert.deepEqual(names(c.headers), ["accept", "anthropic-version", "authorization", "connection", "content-length", "content-type", "host"]);
+  assert.deepEqual(header(c.headers, "anthropic-version"), ["2023-06-01"], "set by the host: the app cannot send it");
   assert.match(jsonOf(r).content[0].text, /hello app-fix/);
   assert.deepEqual(header(r.headers, "x-relay"), []);
+});
+
+test("the relay: the provider's version header is the host's own, the same the home screen's model test sends", async () => {
+  const { ANTHROPIC_VERSION } = await import("../host.mjs");
+  const models = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "home", "server", "lib", "models.mjs"), "utf8");
+  assert.match(models, new RegExp(`headers\\["anthropic-version"\\] = "${ANTHROPIC_VERSION}"`));
+  const body = JSON.stringify({ max_tokens: 5, messages: [] });
+  await app("/v1/messages", { method: "POST", body, headers: { "Content-Type": "application/json", "anthropic-version": "1999-01-01", "anthropic-beta": "x" } });
+  const c = lastCall();
+  assert.deepEqual(header(c.headers, "anthropic-version"), [ANTHROPIC_VERSION], "the app's own is dropped, the host's sent");
+  assert.deepEqual(header(c.headers, "anthropic-beta"), []);
+  // Only on the relay route: the door is sent no such header.
+  await app("/gen/app/models");
+  assert.deepEqual(header(lastCall().headers, "anthropic-version"), []);
+});
+
+test("the relay: max_tokens at most 12,000 (just above Render to Film's largest ask); a larger ask is refused, never cut", async () => {
+  const { HOST_LIMITS, checkThinking } = await import("../host.mjs");
+  assert.equal(HOST_LIMITS.relayMaxTokens, 12_000);
+  t += 2 * 24 * 3600_000; // a fresh day for the hourly limit
+  const before = parts.calls.length;
+  const ask = (body) => app("/v1/messages", { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body), headers: { "Content-Type": "application/json" } });
+  const ok = await ask({ model: "m", max_tokens: 12_000, messages: [] });
+  assert.equal(ok.status, 200, ok.body.toString());
+  assert.equal(parts.calls.length, before + 1);
+  for (const [body, code] of [[{ max_tokens: 12_001 }, "app_too_long"], [{ max_tokens: 1_000_000 }, "app_too_long"],
+    [{ messages: [] }, "app_refused"], [{ max_tokens: "5" }, "app_refused"], [{ max_tokens: 5.5 }, "app_refused"], [{ max_tokens: 0 }, "app_refused"],
+    [{ max_tokens: -1 }, "app_refused"], [[{ max_tokens: 5 }], "app_refused"], ["not json", "app_refused"], ["null", "app_refused"],
+    ["{\"max_tokens\":5,\"max_tokens\":999999}", "app_too_long"]]) {
+    const r = await ask(body);
+    assert.equal(r.status, 403, JSON.stringify(body));
+    assert.equal(jsonOf(r).code, code, JSON.stringify(body));
+  }
+  assert.deepEqual(jsonOf(await ask({ max_tokens: 12_001 })).error, { message: "This app asked the model for a longer answer than App Studio allows." });
+  assert.equal(parts.calls.length, before + 1, "no refused ask reached the relay");
+  // A refused ask is not one of the hour's calls: 59 more go through.
+  let n = 0;
+  for (let i = 0; i < 59; i += 1) if ((await ask({ max_tokens: 5 })).status === 200) n += 1;
+  assert.equal(n, 59);
+  // The body sent is the one checked: one max_tokens, the first of two duplicates cannot hide a larger one.
+  t += 2 * 24 * 3600_000;
+  await ask("{\"max_tokens\":99999,\"max_tokens\":7}");
+  const sent = lastCall();
+  assert.equal(sent.part, "relay");
+  assert.equal(checkThinking(Buffer.from("{\"max_tokens\":99999,\"max_tokens\":7}")).body.toString(), "{\"max_tokens\":7}");
+  assert.equal(sent.bytes, Buffer.byteLength("{\"max_tokens\":7}"));
 });
 
 test("the relay takes JSON only, at most 32 MB", async () => {
@@ -200,7 +248,7 @@ test("no secret → app_engine_off, and nothing is sent; a part that does not an
   await new Promise((ok) => parts.relay.close(ok));
   parts.relay.closeAllConnections();
   try {
-    const r = await app("/v1/messages", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } });
+    const r = await app("/v1/messages", { method: "POST", body: "{\"max_tokens\":5}", headers: { "Content-Type": "application/json" } });
     assert.equal(r.status, 403);
     assert.equal(jsonOf(r).code, "app_engine_off");
   } finally {
@@ -209,7 +257,7 @@ test("no secret → app_engine_off, and nothing is sent; a part that does not an
 });
 
 test("the relay's limits: 60 calls an hour, 300 a day, per app, then app_limited with K19's sentence", async () => {
-  const ask = () => app("/v1/messages", { method: "POST", body: "{\"messages\":[]}", headers: { "Content-Type": "application/json" } });
+  const ask = () => app("/v1/messages", { method: "POST", body: "{\"max_tokens\":5,\"messages\":[]}", headers: { "Content-Type": "application/json" } });
   t += 2 * 24 * 3600_000; // a fresh day: the calls above are out of every window
   let ok = 0;
   for (let i = 0; i < 60; i += 1) if ((await ask()).status === 200) ok += 1;
@@ -235,7 +283,7 @@ test("the relay's limits: 60 calls an hour, 300 a day, per app, then app_limited
 
 test("the relay's count is kept across a restart of the host", async () => {
   t += 2 * 24 * 3600_000;
-  const ask = (h) => send({ socketPath: sock(), path: "/v1/messages", method: "POST", body: "{}", headers: { Host: "localhost", "Content-Type": "application/json" } }).then((r) => [r, h]);
+  const ask = (h) => send({ socketPath: sock(), path: "/v1/messages", method: "POST", body: "{\"max_tokens\":5}", headers: { Host: "localhost", "Content-Type": "application/json" } }).then((r) => [r, h]);
   for (let i = 0; i < 60; i += 1) assert.equal((await ask())[0].status, 200);
   await host.close();
   ({ host, lines } = await startHost(w, { spawnApp: fixtureSpawner(w), now: clock }));

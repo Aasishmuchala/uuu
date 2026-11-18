@@ -13,11 +13,12 @@ import {
   chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { appExecSpawner, createAppHost } from "../host.mjs";
 import { loadConfig } from "../../lib/config.mjs";
-import { FIXTURE, NODE, alive, fakeParts, jsonOf, own, send, waitFor } from "./fixture-app/harness.mjs";
+import { FIXTURE, NODE, alive, fakeParts, jsonOf, own, send, wait, waitFor } from "./fixture-app/harness.mjs";
 
 const ENGINE = realpathSync(join(dirname(fileURLToPath(import.meta.url)), "..", ".."));
 const SRT = join(ENGINE, "node_modules", ".bin", "srt");
@@ -101,7 +102,25 @@ before(async () => {
   await waitFor(() => host.app("fix")?.state === "on" && host.app("lnk")?.state === "failed", 60000, 200);
 });
 
+// A helper of the fixture's (T85) by its own pid file, signalled only while ps shows it is that
+// helper: the node program that writes that very beat file.
+function orphanOf(data) {
+  const f = join(data, "orphan.pid");
+  if (!existsSync(f)) return null;
+  const pid = Number(readFileSync(f, "utf8"));
+  if (!Number.isInteger(pid) || pid <= 1) return null;
+  const r = spawnSync("/bin/ps", ["-ww", "-o", "ppid=,pgid=,command=", "-p", String(pid)], { encoding: "utf8" });
+  const m = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec((r.stdout || "").trim());
+  if (!m || !m[3].includes(join(data, "orphan.beat"))) return { pid, alive: false };
+  return { pid, alive: true, ppid: Number(m[1]), pgid: Number(m[2]) };
+}
+const orphans = [];
+
 after(async () => {
+  for (const data of orphans) {
+    const o = orphanOf(data);
+    if (o && o.alive) { try { process.kill(o.pid, "SIGKILL"); } catch { /* gone */ } }
+  }
   if (host) await host.close();
   if (parts) await parts.close();
   if (outer) await new Promise((ok) => outer.close(ok));
@@ -129,7 +148,7 @@ test("real fence: the whole way, the browser → the fenced app → its engine s
   const c = parts.calls[parts.calls.length - 1];
   assert.deepEqual(c.who, { kind: "p", slug: "app-fix", app: "fix", subject: "app-fix" });
   const relay = await send({ port, method: "POST", path: "/x", headers: { ...own(port), Origin: `http://127.0.0.1:${port}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ method: "POST", path: "/v1/messages", body: { messages: [] } }) });
+    body: JSON.stringify({ method: "POST", path: "/v1/messages", body: { max_tokens: 5, messages: [] } }) });
   assert.match(JSON.parse(jsonOf(relay).body).content[0].text, /hello app-fix/);
 });
 
@@ -169,6 +188,17 @@ test("real fence: switched off, the fenced app and everything it started end, an
   const kids = jsonOf(await send({ port, path: "/child", headers: own(port) }));
   const group = host.app("fix").pid;
   assert.ok(alive(env.pid) && alive(kids.kid) && alive(kids.away));
+  // T85: a helper that double-forked out of the app: no descendant of it, in a group and session
+  // of its own, with an environment of nothing, ignoring SIGTERM.
+  const data = join(root, "s", "apps", "fix", "data");
+  orphans.push(data);
+  assert.deepEqual(jsonOf(await send({ port, path: "/orphan", headers: own(port) })), { started: true });
+  await waitFor(() => orphanOf(data)?.alive && existsSync(join(data, "orphan.beat")), 10000, 100);
+  await wait(400);
+  const orphan = orphanOf(data);
+  assert.ok(orphan && orphan.alive, "the helper is running");
+  assert.equal(orphan.ppid, 1, "its parent is gone");
+  assert.notEqual(orphan.pgid, group, "it is not in the app's group");
   writeFileSync(w.paths.appsState, JSON.stringify({ version: 1, apps: { fix: { on: false }, lnk: { on: true } }, changedAt: "2026-11-13T07:05:00.000Z" }), { mode: 0o600 });
   assert.ok(await waitFor(() => host.app("fix").state === "off", 20000, 200));
   await waitFor(() => !alive(env.pid) && !alive(kids.kid) && !alive(kids.away), 3000);
@@ -176,6 +206,44 @@ test("real fence: switched off, the fenced app and everything it started end, an
   assert.equal(alive(env.pid), false, "the app inside it");
   assert.equal(alive(kids.kid), false, "its child");
   assert.equal(alive(kids.away), false, "a helper it started in a session of its own");
+  await waitFor(() => !orphanOf(data)?.alive, 3000);
+  const beat = readFileSync(join(data, "orphan.beat"), "utf8");
+  await wait(700);
+  assert.equal(orphanOf(data)?.alive, false, "the helper that double-forked away");
+  assert.equal(readFileSync(join(data, "orphan.beat"), "utf8"), beat, "and it writes no more");
   assert.equal(existsSync(join(w.paths.appsRun, "fix", "engine.sock")), false);
   assert.equal(existsSync(join(w.paths.appsRun, ".host", "fix")), false);
+});
+
+test("real fence: a helper left behind from before is ended when the host starts (T85)", { skip: SKIP, timeout: 90000 }, async () => {
+  await host.close();
+  host = null;
+  // An app started as the host starts it, a helper double-forked from it, then the app's group
+  // killed outright, as when a host itself is killed: the helper is all that is left.
+  const data = join(root, "s", "apps", "fix", "data");
+  rmSync(join(data, "orphan.pid"), { force: true });
+  const child = appExecSpawner(join(root, "engine", "apps", "app-exec"))("fix");
+  child.on("error", () => {});
+  const sock = join(w.paths.appsRun, "fix", "app.sock");
+  try {
+    assert.ok(await waitFor(() => existsSync(sock), 30000, 100), "the app came up");
+    assert.equal((await send({ socketPath: sock, path: "/orphan", headers: { Host: "x" } })).status, 200);
+    assert.ok(await waitFor(() => orphanOf(data)?.alive, 10000, 100));
+  } finally {
+    try { process.kill(-child.pid, "SIGKILL"); } catch { /* gone */ }
+  }
+  await waitFor(() => !alive(child.pid), 5000);
+  await wait(500);
+  const orphan = orphanOf(data);
+  assert.ok(orphan.alive, "the helper outlived its app");
+  const later = [];
+  const again = createAppHost({ cfg: w.cfg, log: (l) => later.push(l), spawnApp: appExecSpawner(join(root, "engine", "apps", "app-exec")),
+    limits: { everyMs: 300, stopGraceMs: 1000 } });
+  try {
+    await again.listen();
+    assert.equal(orphanOf(data)?.alive, false, later.join("\n"));
+    assert.ok(later.some((l) => /app fix had 1 process\(es\) still running from before; ending them/.test(l)), later.join("\n"));
+  } finally {
+    await again.close();
+  }
 });

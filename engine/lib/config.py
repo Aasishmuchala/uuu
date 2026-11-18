@@ -68,6 +68,9 @@ def _need_doors(cfg):
         agents = _need(cfg, "doors.%s.agents" % name, "array")
         if not all(isinstance(s, str) and SLUG.fullmatch(s) for s in agents):
             _fail("key doors.%s.agents must list agent slugs" % name)
+        # `app-<name>` is an app's name, never an agent's (the company file refuses it too).
+        if any(s.startswith("app-") for s in agents):
+            _fail("key doors.%s.agents names an app, not an agent (a name starting with app-)" % name)
         # Only the generation door serves apps; the list is optional.
         if "apps" in d[name]:
             if name != "generate":

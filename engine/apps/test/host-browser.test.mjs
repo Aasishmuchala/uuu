@@ -3,9 +3,10 @@
 // injected spawner). Nothing touches the live engine's state.
 import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
+import http from "node:http";
 import net from "node:net";
 import {
-  BROWSER_CODES, browserRefusal, contentPolicy, inboundHeaders, notAnsweringPage, outboundHeaders, securityHeaders,
+  BROWSER_CODES, DROPPED_OUT, browserRefusal, contentPolicy, inboundHeaders, notAnsweringPage, outboundHeaders, passOn, securityHeaders,
 } from "../host.mjs";
 import {
   appOutput, fakeParts, fixtureSpawner, freePorts, header, jsonOf, makeWorld, own, send, startHost, wait, waitFor,
@@ -98,10 +99,30 @@ test("coming out: no Set-Cookie or hop-by-hop header, and the host's five header
   assert.equal(policy, contentPolicy(3200));
 });
 
+test("coming out: none of the headers that send the browser elsewhere, reload or clear the page, or report (T85)", () => {
+  const sent = ["Link", "<http://192.0.2.1/x>; rel=prerender", "link", "<http://192.0.2.1/y>; rel=preconnect", "Refresh", "0; url=http://192.0.2.1/",
+    "Clear-Site-Data", "\"cookies\"", "Speculation-Rules", "\"/r.json\"", "Alt-Svc", "h3=\":443\"",
+    "Content-Security-Policy-Report-Only", "default-src 'none'; report-uri http://192.0.2.1/r", "Report-To", "{}", "Reporting-Endpoints", "a=\"http://192.0.2.1/\"",
+    "NEL", "{}", "Document-Policy", "x", "Document-Policy-Report-Only", "x", "Permissions-Policy-Report-Only", "x",
+    "Cross-Origin-Opener-Policy-Report-Only", "x", "Cross-Origin-Embedder-Policy-Report-Only", "x", "Integrity-Policy", "x",
+    "Integrity-Policy-Report-Only", "x", "Origin-Trial", "x", "Service-Worker-Allowed", "/", "Location", "/next", "X-Kept", "yes"];
+  const out = outboundHeaders(sent, 3200);
+  const names = [];
+  for (let i = 0; i < out.length; i += 2) names.push(out[i].toLowerCase());
+  assert.deepEqual(names, ["location", "x-kept", "content-security-policy", "x-content-type-options", "referrer-policy",
+    "cross-origin-resource-policy", "permissions-policy"]);
+  for (const n of DROPPED_OUT) assert.equal(n, n.toLowerCase());
+});
+
 test("the content policy is K17's, framed only by the home screen", () => {
   assert.equal(contentPolicy(3200), "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
     + "media-src 'self' blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; "
-    + "form-action 'self'; frame-ancestors http://127.0.0.1:3200 http://localhost:3200");
+    + "form-action 'self'; sandbox allow-downloads allow-forms allow-modals allow-same-origin allow-scripts; "
+    + "frame-ancestors http://127.0.0.1:3200 http://localhost:3200");
+  // T85: the page is a sandboxed document wherever it is shown, with no popups.
+  assert.doesNotMatch(contentPolicy(3200), /allow-popups|allow-top-navigation/);
+  assert.equal(securityHeaders(3200)["Permissions-Policy"],
+    "camera=(), microphone=(), geolocation=(), usb=(), serial=(), bluetooth=(), hid=(), payment=(), display-capture=()");
   assert.deepEqual(Object.keys(securityHeaders(3200)), ["Content-Security-Policy", "X-Content-Type-Options", "Referrer-Policy",
     "Cross-Origin-Resource-Policy", "Permissions-Policy"]);
   assert.equal(securityHeaders(3200)["Referrer-Policy"], "no-referrer");
@@ -161,7 +182,7 @@ test("live: the page is passed with only what may go in, and the answer carries 
   assert.deepEqual(header(r.headers, "x-content-type-options"), ["nosniff"]);
   assert.deepEqual(header(r.headers, "referrer-policy"), ["no-referrer"]);
   assert.deepEqual(header(r.headers, "cross-origin-resource-policy"), ["same-origin"]);
-  assert.deepEqual(header(r.headers, "permissions-policy"), ["camera=(), microphone=(), geolocation=()"]);
+  assert.deepEqual(header(r.headers, "permissions-policy"), [securityHeaders(3200)["Permissions-Policy"]]);
   assert.deepEqual(header(r.headers, "x-hop"), [], "a header the app's Connection named is dropped");
   assert.deepEqual(header(r.headers, "x-kept"), ["yes"]);
 });
@@ -285,4 +306,53 @@ test("live: an app that does not answer → a 502 page with no script and the ho
   assert.equal(host.app("fix").state, "on");
   assert.equal(host.app("fix").restarts, 1);
   assert.notEqual(host.app("fix").pid, before);
+});
+
+test("live: the app's Link, Refresh, Clear-Site-Data and reporting headers never reach the browser (T85)", async () => {
+  const r = await send({ port, path: "/hint-headers", headers: own(port) });
+  assert.equal(r.status, 200);
+  for (const n of ["link", "refresh", "clear-site-data", "content-security-policy-report-only", "report-to", "reporting-endpoints", "nel",
+    "speculation-rules", "alt-svc", "origin-trial", "document-policy-report-only"]) {
+    assert.deepEqual(header(r.headers, n), [], n);
+  }
+  assert.deepEqual(header(r.headers, "x-kept"), ["yes"]);
+  assert.equal(header(r.headers, "content-security-policy")[0], contentPolicy(3200));
+});
+
+test("live: an answer the host cannot pass on is a 502 at once, never a throw or a wait (status 099 or 600, 101, an early close, garbage)", async () => {
+  const thrown = [];
+  const catcher = (err) => thrown.push(String(err && err.code));
+  process.on("uncaughtException", catcher);
+  try {
+    for (const kind of ["099", "600", "101", "close", "garbage"]) {
+      const t0 = Date.now();
+      const r = await send({ port, path: `/raw?kind=${kind}`, headers: own(port), timeoutMs: 5000 });
+      assert.equal(r.status, 502, `${kind}: ${r.error || r.status}`);
+      assert.ok(Date.now() - t0 < 3000, `${kind} took ${Date.now() - t0} ms`);
+      assert.match(r.body.toString(), /is starting or stopped/);
+      assert.doesNotMatch(r.body.toString(), /RAW BYTES/);
+      assert.equal(header(r.headers, "content-security-policy")[0], contentPolicy(3200));
+      assert.deepEqual(header(r.headers, "upgrade"), []);
+    }
+    await wait(200);
+    assert.deepEqual(thrown, [], "nothing reached the last-resort handler");
+    assert.equal(host.app("fix").state, "on");
+    assert.equal((await send({ port, path: "/echo", headers: own(port) })).status, 200, "the app is still reached");
+  } finally {
+    process.off("uncaughtException", catcher);
+  }
+});
+
+test("passOn: a status outside 200 to 599 or a header Node will not write → false, with nothing left on the answer", () => {
+  const made = () => {
+    const res = new http.ServerResponse({ method: "GET", httpVersionMajor: 1, httpVersionMinor: 1, headers: {} });
+    return res;
+  };
+  for (const status of [99, 100, 101, 103, 199, 600, 999, 1.5, NaN, "200"]) assert.equal(passOn(made(), status, []), false, String(status));
+  const bad = made();
+  assert.equal(passOn(bad, 200, ["X-Fine", "1", "X-Bad", "a\u0001b"]), false);
+  assert.equal(bad.headersSent, false);
+  assert.deepEqual(bad.getHeaderNames(), []);
+  const good = made();
+  assert.equal(passOn(good, 204, ["X-Fine", "1"]), true);
 });
