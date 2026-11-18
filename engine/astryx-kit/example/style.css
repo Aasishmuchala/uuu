@@ -1,0 +1,25 @@
+/* The page's own style: the layout of the written shell only. Colours, faces and sizes come from the theme. */
+
+/* The brand kit's margin as a share of the width: layout.marginShare in brand/kit.json.
+   Set it again when the kit's value is not 0.06. */
+:root {
+  --kit-margin-share: 0.06;
+}
+
+/* The header and the drawn parts keep the same margin, so the logo lines up with the words. */
+.page-header,
+main[data-astryx-root] {
+  padding-inline: max(var(--spacing-6, 1.5rem), calc(var(--kit-margin-share) * 100%));
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  padding-block: var(--spacing-4, 1rem);
+}
+
+.page-header img {
+  display: block;
+  height: 2rem;
+  width: auto;
+}
