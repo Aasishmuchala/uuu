@@ -43,7 +43,9 @@ kit: every file there must be in astryx.lock.json beside this tool with the same
 sha256 (else `kit_file_changed`), and astryx-theme.css at its top must be
 brand/astryx-theme.css byte for byte (else `tokens_file_changed`). Both are then
 passed over by the scanners; the maker's own files may not set an Astryx theme
-token, and a colour in a string of its scripts is judged.
+token, and a colour in a string of its scripts is judged. There the page is drawn
+by script, so the strings of the maker's own scripts are read as its words by
+the can't-say and filler rules (PLAN-ASTRYX T6b); the kit's files are not.
 
 Exit 0: every piece passes or only warns. Exit 1: a hard rule failed, including
 whatever a maker can cause by what it leaves in the goal: no pieces (`no_pieces`),
@@ -2843,8 +2845,11 @@ class SiteCheck:
 
     def js(self, file, text, start, end, line_of, how="", every=False):
         """A script: the string literals passed to fetch(), import(), new Worker() and the others of
-        JS_CALLEES, and the addresses of static imports. `every`: an import map, where every string counts."""
+        JS_CALLEES, and the addresses of static imports. `every`: an import map, where every string counts.
+        On a site with astryx/ (PLAN-ASTRYX T6b) the page's words are drawn by its script: every string and every
+        piece of a template, but a module's address, is read as the page's words."""
         stack, prev, prev2, i = [], (None, None), (None, None), start
+        words = [] if self.astryx and not every else None
         while i < end:
             self.step()
             m = JS_TOKEN.match(text, i, end)
@@ -2866,6 +2871,8 @@ class SiteCheck:
                 else:
                     s, i = js_string(text, i, end, tok)
                 self.js_literal(file, line_of, how, pos, s, stack, prev, every)
+                if words is not None and not (prev[0] == "id" and prev[1] in ("import", "from")):
+                    words.append(js_unescape(s))
                 if opened:          # after the literal is judged: its ${ is not the call it is passed to
                     stack.append("${")
                 prev2, prev = prev, ("str", None)
@@ -2883,7 +2890,9 @@ class SiteCheck:
                     stack.append(None)
                 elif tok in ")]}" and stack:
                     if stack.pop() == "${" and tok == "}":
-                        _, i, opened = js_template(text, i, end)
+                        s, i, opened = js_template(text, i, end)
+                        if words is not None:
+                            words.append(js_unescape(s))
                         if opened:
                             stack.append("${")
                         prev2, prev = prev, ("str", None)
@@ -2893,6 +2902,8 @@ class SiteCheck:
             if kind == "id" and tok in WORKLETS and self.kit is not None:
                 self.found.add("colour_not_token", "%s: %s" % (self.at(file, line_of(pos), how), WORKLET % KIT_COLOURS))
             prev2, prev = prev, (kind, tok)
+        if words:
+            self.add_words(file, ["%s\n" % w for w in words])
 
     def js_literal(self, file, line_of, how, pos, s, stack, prev, every):
         if self.kit is not None and js_unescape(s) in WORKLETS:
