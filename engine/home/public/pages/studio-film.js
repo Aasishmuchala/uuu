@@ -340,7 +340,7 @@ export function FilmRow({ film, chosen }) {
       <span class="p-studio__film-state"><${Tag} tone=${filmStateTone(film.state)}>${filmStateWords(film.state)}<//></span>
       <span class="p-studio__film-facts">
         <span class="p-studio__fact">${approved ? `Approved ${approved}` : "Not approved yet"}</span>
-        <span class="p-studio__fact">${creditWords(film.spent, film.budget)}</span>
+        <span class="p-studio__fact">${rowWords(film)}</span>
         <span class="p-studio__fact">${clipsWords(film.clips, film.kept)}</span>
       </span>
       ${film.problem ? html`<span class="p-studio__film-problem">${text(film.problem, 300)}</span>` : null}
@@ -454,6 +454,13 @@ function ShotBlock({ shot, n, labels }) {
 export function spendWords(total) {
   const t = total && typeof total === "object" ? total : {};
   return typeof t.words === "string" && t.words.trim() ? text(t.words, 300) : creditWords(t.spent, t.budget);
+}
+
+// What a row of the Films list spent, in the home server's own sentence (the row's `words`, U18 L4), as spendWords
+// says a film's total; the page's words only when an older server sends none.
+export function rowWords(row) {
+  const r = row && typeof row === "object" ? row : {};
+  return spendWords({ words: r.words, spent: r.spent, budget: r.budget });
 }
 
 function Spend({ film }) {

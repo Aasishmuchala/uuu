@@ -506,6 +506,9 @@ test("the ledger unreadable: no takes, nothing spent shown, and the film says wh
     assert.deepEqual(f.shots.map((s) => s.takes.length), [0, 0, 0]);
     assert.equal(f.total.spent, null);
     assert.equal(f.total.words, "What was spent cannot be read; $4.40 was approved.");
+    // U18 L4: the Films list's row says it in the same words, and its spent is null, not a guess.
+    const row = (await films(h)).films.find((x) => x.task.identifier === KEY);
+    assert.deepEqual([row.spent, row.words], [null, "What was spent cannot be read; $4.40 was approved."]);
     assert.ok(f.batches.every((b) => b.spent === null && b.refused === null && b.frozen === false));
   });
   await withFilm({}, async (h) => {
@@ -541,6 +544,8 @@ test("the Films list fits films.json: making, needs you after two refusals, with
       [KEY, "making", 440, 220, 3, 2, null],
     ]);
     assert.equal(d.films[1].approvedAt, at(T2));
+    // U18 L4: each row's money sentence is the server's, whole, as the film's own total says it.
+    assert.deepEqual(d.films.map((x) => x.words), ["$0.75 of $2.20 spent.", "$2.20 of $4.40 spent."]);
   });
 });
 

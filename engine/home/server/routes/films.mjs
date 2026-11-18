@@ -480,6 +480,8 @@ export function filmRow(goal, film, now = Date.now()) {
     approvedAt: last ? last.approvedAt : null,
     budget: film.total.budget,
     spent: film.total.spent,
+    // What was spent against what was approved, whole, as the page shows it (PLAN-3D-ALL S1).
+    words: totalWords(film.total.spent, film.total.budget),
     clips: takes.filter((t) => t.state === "made").length,
     kept: film.shots.filter((s) => s.takes.some((t) => t.verdict && t.verdict.verdict === "keep")).length,
     state,

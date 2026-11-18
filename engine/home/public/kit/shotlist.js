@@ -4,10 +4,11 @@
 // card per treatment in a to c order: its boards, letter and direction, cost, length and clips, whether it fits
 // today, and the Art director's total with its reason; choosing one puts it on the stage. The rail says who raised
 // it and when, then what the treatment costs against today's limit (the home server's numbers only), then how long
-// Runway takes, the brand check, the seven scores and the shots, each a 44 px row that opens in place (so the body
+// it takes, the brand check, the seven scores and the shots, each a 44 px row that opens in place (so the body
 // fits the first screen and no line is ever cut; the scores stand open when the body has room for them). Its foot,
-// held at the rail's bottom, holds the one decision: "Approve A and its cost", which opens a confirm that says the
-// most Runway may charge (nothing is sent to Runway before the owner presses its button); or, when the treatment
+// held at the rail's bottom, holds the one decision: "Approve A and its cost", which opens a confirm that says, in the
+// server's own sentence, the most the service (Runway, Higgsfield or both) may charge (nothing is sent before the owner
+// presses its button, whose words are the server's too); or, when the treatment
 // cannot be approved, one quiet line with a lock and the server's reason, then the one way out that works ("Pick C
 // instead, it fits today") with "Raise today's limit" as a quiet button of the same height beside it (that one the
 // primary when nothing fits). Under a divider: the note, "Another round" and "Send all back" (a note needed).
@@ -149,17 +150,22 @@ export function creditsDollars(credits) {
 // "5 clips", "1 clip".
 const clips = (n) => `${n} ${n === 1 ? "clip" : "clips"}`;
 
-// The words of the confirm for one treatment, from the home server's own numbers: { title, body, button }, or null
-// when the treatment has no cost (it cannot be approved, so there is nothing to confirm).
+// The words of the confirm for one treatment: { title, body, button }, or null when the treatment has no cost (it
+// cannot be approved, so there is nothing to confirm). The body and the button are the home server's own (cost.confirm:
+// the service or services that may charge and the most each may, PLAN-3D-ALL S1), shown whole as sent; the page
+// composes no sentence that holds an amount. A server that sends none gives no body (the cost's own sentence still
+// shows) and the button without an amount.
 export function confirmWords(v) {
   const most = v && v.cost && v.cost.most;
   const shots = list(v && v.shotlist && v.shotlist.shots);
   if (!Number.isInteger(most) || most < 0 || !shots.length) return null;
   const name = cap(v.direction && v.direction.title, 80) || (v.id ? `Version ${letterOf(v.id)}` : "this treatment");
+  const sent = v.cost.confirm && typeof v.cost.confirm === "object" ? v.cost.confirm : {};
+  const said = (x) => (typeof x === "string" ? x : "");
   return {
     title: `Approve ${name}?`,
-    body: `Runway may charge up to ${creditsDollars(most)} for its ${clips(shots.length)} and one retake each. Nothing else is spent without you.`,
-    button: `Approve and spend up to ${creditsDollars(most)}`,
+    body: said(sent.body),
+    button: said(sent.button).trim() ? said(sent.button) : SHOTLIST_WORDS.approve,
   };
 }
 
@@ -690,7 +696,7 @@ function Confirm({ v, busy, onYes, onNo }) {
     footer=${html`<${Button} variant="plain" disabled=${busy} onClick=${onNo}>${SHOTLIST_WORDS.notYet}<//>
       <${Button} variant="primary" busy=${busy} aria-disabled=${armed ? undefined : "true"} onClick=${yes}>${w.button}<//>`}>
     <div class="k-sl__confirm-text" tabindex="-1" data-autofocus="">
-      <p class="k-sl__confirm">${w.body}</p>
+      ${w.body ? html`<p class="k-sl__confirm">${w.body}</p>` : null}
       ${words ? html`<p class="k-sl__confirm k-sl__confirm--words">${words}</p>` : null}
     </div>
   <//>`;

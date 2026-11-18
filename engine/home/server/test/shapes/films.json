@@ -6,6 +6,7 @@
         "approvedAt": "2026-11-13T09:00:00.000Z",
         "budget": 600,
         "spent": 175,
+        "words": "$1.75 of $6.00 spent.",
         "clips": 3,
         "kept": 2,
         "state": "needs you",

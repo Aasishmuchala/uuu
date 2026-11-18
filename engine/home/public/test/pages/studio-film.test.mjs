@@ -21,6 +21,20 @@ function shape(name) {
 }
 const AWAY = ["https:", "", ["elsewhere", "example"].join(".")].join("/");
 
+// U18 L4: a Films row's money is the server's own sentence (the row's `words`), whole and as sent; the page's
+// figures only when an older server sends none.
+test("rowWords: the Films row's money in the server's words, whole; the figures only without them", () => {
+  const unread = "What was spent cannot be read; $6.00 was approved.";
+  assert.equal(m.rowWords({ spent: null, budget: 600, words: unread }), unread);
+  assert.equal(m.rowWords({ spent: 175, budget: 600, words: "$1.75 of $6.00 spent." }), "$1.75 of $6.00 spent.");
+  assert.equal(m.rowWords(shape("films").list.films[0]), shape("films").list.films[0].words);
+  assert.equal(m.rowWords({ spent: 175, budget: 600 }), "$1.75 of $6.00", "an older server: its figures, as before");
+  assert.equal(m.rowWords({ spent: null, budget: 600, words: "  " }), "Spent so far not known, of $6.00");
+  assert.equal(m.rowWords({ spent: 1, budget: 2, words: "<b>x</b>" }), "<b>x</b>", "a string, never markup");
+  // The row draws those words, not its own.
+  assert.match(code, /p-studio__fact">\$\{rowWords\(film\)\}/);
+});
+
 test("credit words: spent of budget, in dollars", () => {
   assert.equal(m.creditWords(175, 600), "$1.75 of $6.00");
   assert.equal(m.totalWords(175, 600), "$1.75 of $6.00");

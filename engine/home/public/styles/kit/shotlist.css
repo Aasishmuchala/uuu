@@ -1263,3 +1263,119 @@ summary.k-sl__fold-head:hover {
     width: 100%;
   }
 }
+
+/* ---- The treatments' cards (U18): every label and the chip read whole. A card's title and its length wrap rather
+   than end in an ellipsis, on a phone too. */
+.k-sl .k-strip .k-opt__title,
+.k-sl .k-strip .k-opt__sub {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* A wide window: the stage's column holds three cards side by side only some 136 px wide, too narrow for the letter
+   and title, the length and "Over today's limit" on one line. The cards stand one over the other instead, each a row:
+   the radio, the board, the title with the cost at the right edge, the length with the chip at the right edge, and the
+   Art director's verdict under them across the card. The head's line gives its parts to the card's grid. */
+@media (min-width: 860px) {
+  .k-sl .k-strip {
+    flex-direction: column;
+    gap: var(--s-2);
+  }
+
+  .k-sl .k-strip > * {
+    flex: none;
+  }
+
+  .k-sl .k-strip .k-opt {
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "radio title amount"
+      "radio sub state"
+      ". say say";
+    align-items: center;
+    gap: var(--s-1) var(--s-3);
+    min-height: 0;
+    padding: var(--s-3) var(--s-4);
+  }
+
+  .k-sl .k-strip .k-opt--side {
+    grid-template-columns: 16px 72px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "radio pic title amount"
+      "radio pic sub state"
+      ". say say say";
+  }
+
+  .k-sl .k-strip .k-opt__line--head {
+    display: contents;
+  }
+
+  .k-sl .k-strip .k-opt__radio {
+    grid-area: radio;
+    align-self: center;
+  }
+
+  .k-sl .k-strip .k-opt__title {
+    grid-area: title;
+    align-self: end;
+  }
+
+  .k-sl .k-strip .k-opt .k-opt__amount {
+    grid-area: amount;
+    align-self: end;
+    margin-left: 0;
+  }
+
+  .k-sl .k-strip .k-opt__pic,
+  .k-sl .k-strip .k-opt > .k-opt__thumb {
+    grid-row: 1 / span 2;
+    align-self: center;
+    margin-top: 0;
+  }
+
+  .k-sl .k-strip .k-opt__line--sub {
+    align-self: start;
+    margin-top: 0;
+  }
+
+  /* The chip on one line at the right edge: its column is as wide as the chip, so the title gives way, never it. */
+  .k-sl .k-strip .k-opt__line--state {
+    justify-self: end;
+    align-self: start;
+    min-height: 0;
+    margin-top: 0;
+  }
+
+  .k-sl .k-strip .k-opt__line--state .k-tag {
+    white-space: nowrap;
+  }
+
+  .k-sl .k-strip .k-opt__say {
+    min-height: 0;
+    margin-top: var(--s-1);
+  }
+}
+
+/* In Needs you, from 1280 px, the stage is drawn on the wide paper sheet, which is shorter than the window under the
+   top bar by the page's 16 px above and below it and the sheet's own 20 px at its top (pages/needs-you.css). The
+   first screen, the stage's height and the rail are the sheet's here, so the cards and the rail's foot end at the
+   sheet's foot instead of under it, and the board is sized to the room that is really there. */
+.p-needs-you--desk .p-needs-you__sheet--wide .k-sl {
+  --k-sl-room: calc(100vh - var(--topbar-h) - 2 * var(--s-4) - var(--s-5));
+}
+
+.p-needs-you--desk .p-needs-you__sheet--wide .k-sl .k-work__first {
+  min-height: var(--k-sl-room);
+}
+
+.p-needs-you--desk .p-needs-you__sheet--wide .k-sl .k-work__stage {
+  --k-stage-h: calc(var(--k-sl-room) - var(--k-strip-h) - 2 * var(--s-5));
+}
+
+.p-needs-you--desk .p-needs-you__sheet--wide .k-sl .k-rail {
+  top: 0;
+  height: var(--k-sl-room);
+}

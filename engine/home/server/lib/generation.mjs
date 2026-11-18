@@ -96,7 +96,8 @@ export function ratioOk(model, ratio, { table } = {}) {
 }
 
 // The service a model is on, by the door's table ("runway" when the table does not know it, as for old ledger lines).
-export const providerOf = (model) => rowOf(model)?.provider || "runway";
+// `table` (tests only) is rows used instead of the door's.
+export const providerOf = (model, { table } = {}) => rowIn(model, table)?.provider || "runway";
 export const SERVICE_NAMES = Object.freeze({ runway: "Runway", higgsfield: "Higgsfield" });
 
 // A model's own name without its service: "Nano Banana Pro on Runway" -> "Nano Banana Pro"; an id the table does not

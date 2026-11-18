@@ -105,7 +105,8 @@ const variant = (id, title, extra = {}) => ({
   review: { scores: { brand: 8, hierarchy: 7, composition: 8, finish: 7, idea: 7, voice: 8, kind: 7 }, total: 52, of: 70, meets: true, reason: "calm" },
   shotlist: { title: `Film ${id}`, seconds: 10, ratio: "1280:720", shots: [shotOf(1), shotOf(2, { kind: "text_to_video", best: true, render: undefined })], cards: null },
   boards: [{ shot: "s01", url: img(`b${id}1`) }, { shot: "s02", url: img(`b${id}2`) }],
-  cost: { base: 50, most: 100, words: "2 clips, 10 seconds: about $0.50, up to $1.00 with one retake each.", time: "Runway takes a few minutes a clip." },
+  cost: { base: 50, most: 100, words: "2 clips, 10 seconds: about $0.50, up to $1.00 with one retake each.", time: "Runway takes a few minutes a clip.",
+    confirm: { body: "Runway may charge up to $1.00 for its 2 clips and one retake each. Nothing else is spent without you.", button: "Approve and spend up to $1.00" } },
   approvable: true, blocked: null, ...extra,
 });
 const ITEM = {
@@ -116,13 +117,25 @@ const ITEM = {
 
 // ---- Pure helpers ----
 
-test("confirmWords: the most Runway may charge, from the server's own numbers", () => {
+// The confirm's words as three servers send them (U18 M1): one batch on Runway, one on Higgsfield, one on both.
+const HF_CONFIRM = { body: "Higgsfield may charge up to $6.90 for its 2 clips and one retake each. Nothing else is spent without you.", button: "Approve and spend up to $6.90" };
+const MIXED_CONFIRM = {
+  body: "Runway and Higgsfield may charge up to $3.10 for its 2 clips and one retake each: up to $0.40 at Runway for 1 clip and up to $2.70 at Higgsfield for 1 clip. Nothing else is spent without you.",
+  button: "Approve and spend up to $3.10",
+};
+const withConfirm = (confirm, most) => ({ cost: { base: most / 2, most, words: "2 clips, 10 seconds.", time: "", confirm } });
+
+test("confirmWords: the most the service may charge, in the server's own sentence and button words, as sent", () => {
   const w = sl.confirmWords(variant("a", "Slow approach"));
   assert.equal(w.title, "Approve Slow approach?");
   assert.equal(w.body, "Runway may charge up to $1.00 for its 2 clips and one retake each. Nothing else is spent without you.");
   assert.equal(w.button, "Approve and spend up to $1.00");
-  const one = sl.confirmWords(variant("a", "One", { shotlist: { shots: [shotOf(1)] }, cost: { most: 20 } }));
-  assert.match(one.body, /for its 1 clip and/);
+  assert.deepEqual(sl.confirmWords(variant("a", "H", withConfirm(HF_CONFIRM, 690))), { title: "Approve H?", ...HF_CONFIRM });
+  assert.deepEqual(sl.confirmWords(variant("a", "M", withConfirm(MIXED_CONFIRM, 310))), { title: "Approve M?", ...MIXED_CONFIRM });
+  // The page composes no sentence with an amount: a server that sends no confirm gives no body and a button with none.
+  const old = sl.confirmWords(variant("a", "One", { shotlist: { shots: [shotOf(1)] }, cost: { most: 20 } }));
+  assert.deepEqual([old.body, old.button], ["", "Approve this one and its cost"]);
+  assert.doesNotMatch(readFileSync(join(KIT, "shotlist.js"), "utf8"), /may charge up to/);
   assert.equal(sl.confirmWords(variant("a", "x", { cost: null })), null);
   assert.equal(sl.confirmWords(variant("a", "x", { shotlist: null })), null);
   assert.equal(sl.confirmWords(variant("a", "x", { cost: { most: "300" } })), null);
@@ -852,4 +865,44 @@ test("R6: the cost, its meter and its rows are the rail's one card; one primary 
   assert.match(row, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(row, /grid-template-rows: repeat\(4, auto\);/);
   assert.match(row, /grid-auto-flow: column;/);
+});
+
+// U18 M1: the confirm shows the server's sentence and button words whole, as text nodes, for a batch on Runway, on
+// Higgsfield and on both; hostile words stay text; the yes is still inert for 600 ms and the request is unchanged.
+test("the card's confirm: the server's sentence and button words for Runway, Higgsfield or both, whole and as text", async () => {
+  const HOSTILE = { body: "<img src=x onerror=alert(1)> may charge up to $9.99 … and more", button: "<b>Approve</b> and spend up to $9.99" };
+  const cases = [
+    [variant("a", "Slow approach").cost.confirm, 100],
+    [HF_CONFIRM, 690],
+    [MIXED_CONFIRM, 310],
+    [HOSTILE, 999],
+  ];
+  for (const [confirm, most] of cases) {
+    const f = stubFetch(() => ({ status: 200, body: { ok: true, message: "Approved." } }));
+    try {
+      const item = { ...ITEM, variants: [variant("a", "Slow approach", withConfirm(confirm, most))] };
+      const root = await showTree(sl.ShotlistCard, { item, onDone: () => {} });
+      fire(buttons(root, "Approve A and its cost")[0], "click");
+      await settle();
+      const said = elements(root).find((e) => hasClass(e, "k-sl__confirm") && !hasClass(e, "k-sl__confirm--words"));
+      assert.equal(textOf(said), confirm.body, "the sentence whole, as sent");
+      assert.ok(said.childNodes.every((n) => n.nodeType === 3), "a text node");
+      const yes = buttons(root, confirm.button)[0];
+      assert.ok(yes, `the button says ${confirm.button}`);
+      assert.ok(!/Runway/.test(textOf(said)) || /Runway/.test(confirm.body), "Runway named only when the server names it");
+      assert.ok(elements(root).every((e) => (e.getAttribute("src") ?? e.src) !== "x"), "no picture from the server's words");
+      assert.ok(elements(yes).every((e) => e.localName !== "b"), "the button's words stay text");
+      assert.equal(yes.getAttribute("aria-disabled"), "true", "inert at first");
+      fire(yes, "click");
+      await settle();
+      assert.equal(f.calls.filter((c) => c.method === "POST").length, 0, "nothing sent before 600 ms");
+      await new Promise((r) => setTimeout(r, 650));
+      fire(yes, "click");
+      await settle();
+      const sent = f.calls.filter((c) => c.method === "POST");
+      assert.deepEqual(sent.map((c) => c.body), [{ id: "staged:shotlist:g1", action: "approve", version: "v1", variant: "a" }], "the request unchanged");
+    } finally {
+      f.restore();
+    }
+  }
 });

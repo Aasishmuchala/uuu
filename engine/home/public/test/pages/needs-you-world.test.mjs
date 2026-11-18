@@ -38,12 +38,14 @@ const SHAPE = JSON.parse(readFileSync(join(SHAPES, "shotlist-item.json"), "utf8"
 const shot = (n) => ({ id: `s0${n}`, render: "tower.png", seconds: 5, move: "A slow push.", prompt: "The camera moves.", kind: "image_to_video", best: false, model: "gen4_turbo", credits: 25 });
 const COST_WORDS = "2 clips, 10 seconds: about $0.50, up to $1.00 with one retake each.";
 const COST_TIME = "Runway takes a few minutes a clip.";
+// The confirm's sentence and button words, as the server builds them for the service the clips go to (U18 M1).
+const COST_CONFIRM = { body: "Runway may charge up to $1.00 for its 2 clips and one retake each. Nothing else is spent without you.", button: "Approve and spend up to $1.00" };
 const variant = (id, title) => ({
   id, direction: { id: `d-${id}`, title }, preview: [], brand: { result: "pass", lines: [] },
   review: { scores: { brand: 8 }, total: 52, of: 70, meets: true, reason: "calm" },
   shotlist: { title: `Film ${id}`, seconds: 10, ratio: "1280:720", shots: [shot(1), shot(2)], cards: null },
   boards: [{ shot: "s01", url: `/api/view/b${id}1` }],
-  cost: { base: 50, most: 100, words: COST_WORDS, time: COST_TIME },
+  cost: { base: 50, most: 100, words: COST_WORDS, time: COST_TIME, confirm: COST_CONFIRM },
   approvable: true, blocked: null,
 });
 const SHOTLIST = {
@@ -185,6 +187,7 @@ test("a shotlist's approve posts nothing until the confirm's yes: nothing at onc
   // The money sentences, as sent, are each one whole text node while the confirm is open.
   const nodes = textNodes(root);
   assert.ok(nodes.includes(COST_WORDS), "the cost's words whole");
+  assert.ok(nodes.includes(COST_CONFIRM.body), "the confirm's sentence whole, as the server sent it");
   await new Promise((r) => setTimeout(r, Math.max(0, 700 - (Date.now() - opened))));
   fire(yes, "click");
   await settle();

@@ -12,7 +12,7 @@ import { defineRow, estimateCents, ROWS } from "../../../generate/registry.mjs";
 import { readBatch } from "../../../generate/state.mjs";
 import { generationNow, writeBatch } from "../lib/batches.mjs";
 import { updateDoors } from "../lib/doors.mjs";
-import { costWords, priceShotlist } from "../lib/shotlist.mjs";
+import { confirmWords, costWords, priceShotlist, serviceWords, timeWords } from "../lib/shotlist.mjs";
 
 const TASK = "e0000000-0000-4000-8000-000000000079";
 // K20's vector: a Higgsfield row of 6 credits a second.
@@ -108,4 +108,41 @@ test("a batch never prices a Runway row the door does not price for the Artist, 
         (e) => e.code === "no_price", model);
     }
   });
+});
+
+// U18 M1: the spending confirm names the service the clips go to, with the amounts; the server builds it whole.
+test("the confirm and the time name Runway, Higgsfield, or both with each one's share, as the batch is priced", () => {
+  const list = film([shot(1, { best: true }), shot(2, { seconds: 4 })]);
+  const runway = priceShotlist(list, { video: "gen4_turbo", videoBest: "gen4.5" }, { table: TABLE });
+  assert.deepEqual(runway.services, [{ service: "runway", clips: 2, base: runway.base, most: runway.most }]);
+  const most = `$${(runway.most / 100).toFixed(2)}`;
+  assert.deepEqual(confirmWords(runway), {
+    body: `Runway may charge up to ${most} for its 2 clips and one retake each. Nothing else is spent without you.`,
+    button: `Approve and spend up to ${most}`,
+  });
+  assert.equal(timeWords(2, runway.services), "Runway takes a few minutes a clip: about 5 to 10 minutes for 2 clips, then the edit and the checks.");
+
+  const hf = priceShotlist(list, HF_MODELS, { centsPerCredit: 5, table: TABLE });
+  assert.equal(hf.most, 2 * (9 * 5 * 5 + 6 * 4 * 5));
+  assert.deepEqual(confirmWords(hf), {
+    body: "Higgsfield may charge up to $6.90 for its 2 clips and one retake each. Nothing else is spent without you.",
+    button: "Approve and spend up to $6.90",
+  });
+  assert.equal(timeWords(2, hf.services), "Higgsfield takes a few minutes a clip: about 5 to 10 minutes for 2 clips, then the edit and the checks.");
+
+  const mixed = priceShotlist(list, { video: "gen4_turbo", videoBest: "hf.test_best" }, { centsPerCredit: 3, table: TABLE });
+  assert.deepEqual(mixed.services.map((x) => [x.service, x.clips, x.most]), [["runway", 1, 40], ["higgsfield", 1, 270]]);
+  assert.deepEqual(confirmWords(mixed), {
+    body: "Runway and Higgsfield may charge up to $3.10 for its 2 clips and one retake each: up to $0.40 at Runway for 1 clip "
+      + "and up to $2.70 at Higgsfield for 1 clip. Nothing else is spent without you.",
+    button: "Approve and spend up to $3.10",
+  });
+  assert.equal(timeWords(2, mixed.services), "Runway and Higgsfield take a few minutes a clip: about 5 to 10 minutes for 2 clips, then the edit and the checks.");
+
+  // Nothing priced, nothing to confirm; no service named is Runway, the door's default.
+  assert.equal(confirmWords(priceShotlist(film([shot(1)]), { video: "hf.wan2_6", videoBest: "gen4.5" })), null);
+  assert.equal(confirmWords(null), null);
+  assert.equal(serviceWords([]), "Runway");
+  assert.equal(serviceWords(["higgsfield", "runway"]), "Runway and Higgsfield");
+  assert.equal(timeWords(6), "Runway takes a few minutes a clip: about 10 to 30 minutes for 6 clips, then the edit and the checks.");
 });

@@ -26,10 +26,11 @@ import { reviewsOf } from "../lib/artreview.mjs";
 import { closeBatches, generationNow, removeBatch, writeBatch } from "../lib/batches.mjs";
 import { stampOf } from "../lib/brandcheck.mjs";
 import { HomeError } from "../lib/errors.mjs";
+import { providerOf } from "../lib/generation.mjs";
 import { versionOf } from "../lib/inbox.mjs";
 import { ANOTHER, BACK, PICK, recordPick } from "../lib/picks.mjs";
 import {
-  approvedShots, boardsOf, costWords, dollars, priceShotlist, readShotlist, recordApproval, shotsHash, TAKES, timeWords,
+  approvedShots, boardsOf, confirmWords, costWords, dollars, priceShotlist, readShotlist, recordApproval, serviceWords, shotsHash, TAKES, timeWords,
 } from "../lib/shotlist.mjs";
 import { MARKERS, parseBrief, parsePlan, roundsOf, ROUND_CAP, textOf } from "../lib/staged.mjs";
 import { stopTask } from "../lib/stop.mjs";
@@ -219,7 +220,9 @@ function treatmentOf(ctx, goal, pv, place, gen, allowWords) {
   const cost = priced.ok ? {
     base: priced.base, most: priced.most,
     words: costWords(priced, { daily: gen.daily, dayLeft: gen.dayLeft, monthLeft: gen.monthLeft }),
-    time: timeWords(priced.shots.length),
+    // The confirm's sentence and its button, whole, naming the service or services the shots go to (PLAN-3D-ALL S1).
+    confirm: confirmWords(priced),
+    time: timeWords(priced.shots.length, priced.services),
   } : null;
   const shown = { ...pv, shotlist, boards, cost, approvable: blocked === null, blocked };
   Object.defineProperty(shown, "_approve", { enumerable: false, value: { priced, code, approved: read.ok ? approvedShots(read.shotlist, priced) : [] } });
@@ -262,13 +265,16 @@ async function shotlistItem(ctx, goal, own, tree, tctx, isChief) {
   const reviewId = reviewsOf(tree, artDirectorId).at(-1)?.commentId || null;
   const shown = variants.map((x) => [x.id, x.direction?.id || null, x.review, x.shotlist, x.boards.map((b) => b.shot), x._approve.priced.shots]);
   const n = variants.length;
+  // The service or services the treatments' clips go to: those priced, else the models chosen in Settings.
+  const priced = variants.flatMap((x) => x._approve.priced.services || []);
+  const sentTo = serviceWords(priced.length ? priced : [providerOf(gen.models?.video), providerOf(gen.models?.videoBest)]);
   const item = base(goal, {
     id: `staged:shotlist:${goal.id}`, kind: "shotlist",
     version: versionOf("shotlist", ready.id, ready.body, stamp, reviewId, JSON.stringify([pieces?.round ?? null, pieces?.missing ?? [], shown]),
       JSON.stringify([gen.daily, gen.monthly, gen.models]), problem),
     title: `Approve a shotlist: ${goal.title}`,
     when: ready.createdAt || goal.updatedAt,
-    summary: problem ? PROBLEM_SUMMARY : `${READY_WORDS[n] || `${n} treatments are ready.`} Approve one and its cost; nothing is sent to Runway before you do.`,
+    summary: problem ? PROBLEM_SUMMARY : `${READY_WORDS[n] || `${n} treatments are ready.`} Approve one and its cost; nothing is sent to ${sentTo} before you do.`,
     details: [
       { label: "Today's limit", value: limitWords(gen.daily, gen.spentDay) },
       { label: "This month", value: limitWords(gen.monthly, gen.spentMonth) },

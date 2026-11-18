@@ -247,7 +247,11 @@ test("studio: a film's card shows the server's figures, its state and its proble
   assert.equal(bare.clips, "2 clips made, 2 kept");
   assert.deepEqual(filmCard({ ...row, state: "done" }).state, { tone: "good", icon: undefined, text: "Done" });
   assert.equal(filmCard({ ...row, state: "needs you", problem: "P".repeat(900) }).problem.length, 300);
-  assert.equal(filmCard({ ...row, spent: null }).money, "Spent so far not known, of $2.20");
+  assert.equal(filmCard({ ...row, spent: null }).money, "Spent so far not known, of $2.20", "an older server, with no words");
+  // U18 L4: the server's own sentence for the row, as sent, never the page's.
+  assert.equal(filmCard({ ...row, spent: null, words: "What was spent cannot be read; $2.20 was approved." }).money,
+    "What was spent cannot be read; $2.20 was approved.");
+  assert.equal(filmCard({ ...row, words: "$1.10 of $2.20 spent." }).money, "$1.10 of $2.20 spent.");
   assert.equal(filmCard(null).href, "#/dashboards/studio");
   assert.equal(filmCard(null).title, "A film");
 });
@@ -444,7 +448,7 @@ test("studio: what a film spent, a refused film's sentence and a take still char
   try {
     const nodes = textNodes(m.root);
     const row = shapeFilms.list.films[0];
-    assert.ok(nodes.includes(film.creditWords(row.spent, row.budget)), "the card's spend: the server's figures");
+    assert.ok(nodes.includes(row.words), "the card's spend: the server's sentence, whole, as sent (U18 L4)");
     assert.ok(nodes.includes(row.problem), "the refused film's sentence, whole");
   } finally { m.done(); }
   const making = JSON.parse(JSON.stringify(shapeFilms.film));

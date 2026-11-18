@@ -29,7 +29,7 @@
 import { createHash } from "node:crypto";
 import { lstatSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { priceCents, ratioOk } from "./generation.mjs";
+import { priceCents, providerOf, ratioOk, SERVICE_NAMES } from "./generation.mjs";
 import { BATCH_ID } from "./staged.mjs";
 import { fileToken, goalFolder, readChecked } from "./taskfiles.mjs";
 import { pngSize, readGoalBytes, sniff } from "../routes/_images.mjs";
@@ -211,16 +211,18 @@ export function readShotlist(config, identifier, rel, { allowWords = false } = {
 const modelName = (m) => (typeof m === "string" && /^[A-Za-z0-9._-]{1,80}$/.test(m) ? m : "no model");
 
 // priceShotlist(shotlist, models, { centsPerCredit, table }) -> { ok, shots: [{ id, kind, model, seconds, credits }],
-// base, most, problem, centsPerCredit (the rate given, for the batch) }, in cents. A shot marked best and a shot from words alone take `models.videoBest`, every other
+// base, most, problem, centsPerCredit (the rate given, for the batch), services }, in cents. A shot marked best and a shot from words alone take `models.videoBest`, every other
 // `models.video`; each is priced as the door prices it, a Higgsfield model at the owner's rate (`centsPerCredit`, the
-// switches file's); `most` holds one retake a shot (two takes). `table` (tests only) is rows used instead of the
-// door's. Pure; never throws.
+// switches file's); `most` holds one retake a shot (two takes). `services` is each service the shots go to, with the
+// clips and the most it may charge for them: [{ service: "runway" | "higgsfield", clips, base, most }], Runway first.
+// `table` (tests only) is rows used instead of the door's. Pure; never throws.
 export function priceShotlist(shotlist, models, { centsPerCredit, table } = {}) {
-  const no = (problem) => ({ ok: false, shots: [], base: 0, most: 0, problem });
+  const no = (problem) => ({ ok: false, shots: [], base: 0, most: 0, problem, services: [] });
   try {
     if (!isObject(shotlist) || !Array.isArray(shotlist.shots) || !shotlist.shots.length) return no("There is no shotlist to price.");
     const m = isObject(models) ? models : {};
     const shots = [];
+    const by = new Map(Object.keys(SERVICE_NAMES).map((k) => [k, { service: k, clips: 0, base: 0, most: 0 }]));
     let base = 0;
     for (const s of shotlist.shots) {
       const model = s.best === true || s.kind === "text_to_video" ? m.videoBest : m.video;
@@ -229,8 +231,15 @@ export function priceShotlist(shotlist, models, { centsPerCredit, table } = {}) 
       if (!ratioOk(model, shotlist.ratio, { table })) return no(`The model chosen in Settings, ${modelName(model)}, cannot make the ratio ${RATIOS.includes(shotlist.ratio) ? shotlist.ratio : "asked for"}.`);
       shots.push({ id: s.id, kind: s.kind, model, seconds: s.seconds, credits });
       base += credits;
+      const one = by.get(providerOf(model, { table })) || by.get("runway");
+      one.clips += 1;
+      one.base += credits;
+      one.most += TAKES * credits;
     }
-    return { ok: true, shots, base, most: TAKES * base, problem: null, centsPerCredit: Number.isInteger(centsPerCredit) ? centsPerCredit : undefined };
+    return {
+      ok: true, shots, base, most: TAKES * base, problem: null, centsPerCredit: Number.isInteger(centsPerCredit) ? centsPerCredit : undefined,
+      services: [...by.values()].filter((x) => x.clips > 0),
+    };
   } catch {
     return no("The shotlist could not be priced.");
   }
@@ -280,14 +289,41 @@ export function costWords(priced, { daily = null, dayLeft = null, monthLeft = nu
   return out;
 }
 
-// How long Runway takes, as the owner reads it: two to five minutes a clip, each end rounded to 5, at least 5.
-export function timeWords(n) {
+// The services a batch goes to, by name, Runway first: "Runway", "Higgsfield", "Runway and Higgsfield". `services`
+// is service keys or priceShotlist's `services`; none, or none known, is Runway (the door's own default).
+export function serviceWords(services) {
+  const keys = (Array.isArray(services) ? services : []).map((s) => (isObject(s) ? s.service : s));
+  const names = Object.keys(SERVICE_NAMES).filter((k) => keys.includes(k)).map((k) => SERVICE_NAMES[k]);
+  return names.length ? names.join(" and ") : SERVICE_NAMES.runway;
+}
+
+const clipsOf = (n) => `${n} ${n === 1 ? "clip" : "clips"}`;
+
+// The spending confirm of one treatment, as the owner reads it before anything is sent: { body, button }, naming the
+// service (or both) that may charge and the most each may: "Runway may charge up to $3.00 for its 6 clips and one
+// retake each. Nothing else is spent without you." With both, the share of each follows. null when it is not priced.
+export function confirmWords(priced) {
+  if (priced?.ok !== true || !Array.isArray(priced.shots) || !priced.shots.length || !Number.isFinite(priced.most)) return null;
+  const services = Array.isArray(priced.services) && priced.services.length ? priced.services : [{ service: "runway", clips: priced.shots.length, most: priced.most }];
+  const each = services.length > 1
+    ? `: ${services.map((s) => `up to ${dollars(s.most)} at ${SERVICE_NAMES[s.service] || SERVICE_NAMES.runway} for ${clipsOf(s.clips)}`).join(" and ")}`
+    : "";
+  return {
+    body: `${serviceWords(services)} may charge up to ${dollars(priced.most)} for its ${clipsOf(priced.shots.length)} and one retake each${each}. Nothing else is spent without you.`,
+    button: `Approve and spend up to ${dollars(priced.most)}`,
+  };
+}
+
+// How long the service takes, as the owner reads it: two to five minutes a clip, each end rounded to 5, at least 5.
+// `services` as serviceWords takes them (Runway when none are given).
+export function timeWords(n, services) {
   const count = Number.isInteger(n) && n > 0 ? n : 0;
   const to5 = (x) => Math.round(x / 5) * 5;
   const low = Math.max(5, to5(count * 2));
   const high = Math.max(low, to5(count * 5));
   const span = low === high ? `about ${low} minutes` : `about ${low} to ${high} minutes`;
-  return `Runway takes a few minutes a clip: ${span} for ${count} ${count === 1 ? "clip" : "clips"}, then the edit and the checks.`;
+  const who = serviceWords(services);
+  return `${who} ${who.includes(" and ") ? "take" : "takes"} a few minutes a clip: ${span} for ${clipsOf(count)}, then the edit and the checks.`;
 }
 
 // The picture boxes the Artist's tool noted for a treatment's boards (video.py `board` writes `manifest.json` beside

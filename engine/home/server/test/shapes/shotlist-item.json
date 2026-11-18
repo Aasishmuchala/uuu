@@ -59,6 +59,10 @@
         "base": 150,
         "most": 300,
         "words": "6 clips, 30 seconds: about $1.50, up to $3.00 with one retake each. Today's limit: $3.00. Retakes may stop at today's limit.",
+        "confirm": {
+          "body": "Runway may charge up to $3.00 for its 6 clips and one retake each. Nothing else is spent without you.",
+          "button": "Approve and spend up to $3.00"
+        },
         "time": "Runway takes a few minutes a clip: about 10 to 30 minutes for 6 clips, then the edit and the checks."
       },
       "approvable": true,

@@ -178,6 +178,15 @@ test("a blocked film after SHOTLIST READY: one item fitting shotlist-item.json, 
     const [a, b, c] = item.variants;
     assert.equal(a.cost.words, "6 clips, 30 seconds: about $1.50, up to $3.00 with one retake each. Today's limit: $3.00. Retakes may stop at today's limit.");
     assert.equal(a.cost.time, "Runway takes a few minutes a clip: about 10 to 30 minutes for 6 clips, then the edit and the checks.");
+    // U18 M1: the confirm's sentence and its button, whole, from the server, naming the service the clips go to.
+    assert.deepEqual(a.cost.confirm, {
+      body: "Runway may charge up to $3.00 for its 6 clips and one retake each. Nothing else is spent without you.",
+      button: "Approve and spend up to $3.00",
+    });
+    assert.deepEqual(c.cost.confirm, {
+      body: "Runway may charge up to $0.20 for its 1 clip and one retake each. Nothing else is spent without you.",
+      button: "Approve and spend up to $0.20",
+    });
     assert.deepEqual([b.cost.base, b.cost.most], [170, 340]);
     assert.equal(b.cost.words, "3 clips, 20 seconds: about $1.70, up to $3.40 with one retake each. Today's limit: $3.00. Retakes may stop at today's limit.");
     assert.equal(c.cost.words, "1 clip, 2 seconds: about $0.10, up to $0.20 with one retake. Today's limit: $3.00.");
@@ -595,6 +604,16 @@ test("a stale card: a changed shotlist, a new review or a changed cap is refused
     const r = await act(h, { id: ITEM, action: "approve", variant: "a", version: seen.version });
     assert.equal(r.status, 409, "a model changed in Settings changes the cost");
     assert.deepEqual(batchFiles(h), []);
+  });
+});
+
+// U18 M1: a film whose clips go to Higgsfield never says Runway; with no price for the model nothing is confirmed.
+test("models on Higgsfield in Settings: the card says nothing is sent to Higgsfield, and an unpriced model has no confirm", async () => {
+  await withFilm({}, async (h) => {
+    updateDoors(h.config, (st) => { st.generate.models.video = "hf.wan2_6"; st.generate.models.videoBest = "hf.wan2_6"; });
+    const item = await itemOf(h);
+    assert.equal(item.summary, "Three treatments are ready. Approve one and its cost; nothing is sent to Higgsfield before you do.");
+    for (const v of item.variants) assert.equal(v.cost, null, "no price, no cost and no confirm");
   });
 });
 

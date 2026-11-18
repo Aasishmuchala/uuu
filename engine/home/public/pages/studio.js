@@ -18,7 +18,7 @@ import { useApp } from "../lib/context.js";
 import { bytes, count, when } from "../lib/format.js";
 import { currentMotion } from "../lib/theme.js";
 import { AgentHead, Jobs, OpenDepartment } from "./dashboard.js";
-import { FilmView, clipsWords, creditWords, filmStateTone, filmStateWords, spentShare, stillsOf } from "./studio-film.js";
+import { FilmView, clipsWords, filmStateTone, filmStateWords, rowWords, spentShare, stillsOf } from "./studio-film.js";
 import {
   BeingBuilt, Card, DataTable, Empty, ErrorNotice, FileCard, Icon, Loading, Meter, Notice, NotConnected, PicTag, Player,
   RoomHeader, Row, Rows, Section, St, glimpseFor, timeWords,
@@ -229,7 +229,7 @@ export function filmCard(film, detail) {
     ident: text(t.identifier, 40),
     still: detail ? filmStill(detail) : "",
     clips: filmClips(made, shots ? shots.length : null, f.kept),
-    money: creditWords(f.spent, f.budget),
+    money: rowWords(f),
     share: spentShare(f.spent, f.budget),
     state: { tone: tone === "ok" ? "good" : tone, icon: f.state === "making" ? "clock" : undefined, text: filmStateWords(f.state) },
     problem: text(f.problem, 300),
