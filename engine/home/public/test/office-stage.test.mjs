@@ -300,7 +300,7 @@ test("the markers have the pin's own box, not 0 x 0, and the focus ring is drawn
     assert.ok(mine.some((r) => /min-width:\s*var\(--o-hit/.test(r.body) && /min-height:\s*var\(--o-hit/.test(r.body)), `${cls} reaches --o-hit`);
   }
   assert.match(css, /@media \(max-width: 859px\)\s*\{\s*\.o-mark--room,\s*\.o-mark--doors\s*\{\s*--o-hit:\s*44px/, "on a phone the hit box is 44 px");
-  const ring = rules.filter((r) => r.sel.split(",").some((s) => s.trim() === ".o-mark:focus-visible"));
+  const ring = rules.filter((r) => r.sel.split(",").some((s) => s.trim() === ".o-mark:focus-visible::after"));
   assert.ok(ring.some((r) => /outline:\s*2px solid var\(--paper-ink\)/.test(r.body)), "the ring is on the marker itself");
   assert.ok(!rules.some((r) => /:focus-visible\s+\.o-mark__pin/.test(r.sel)), "not on the aria-hidden pin inside it");
 });
@@ -321,13 +321,21 @@ test("Tab reaches the Doors marker: a plain button in the tab order, its ring on
   for (const a of withClass(root, "o-mark--room")) assert.ok(a.getAttribute("aria-label"), "a room's link keeps its name");
 });
 
-test("office.css: the marker's focus ring is two-tone (a dark 2 px edge and a light 3 px edge outside it) and the failed ground reads the warm room count in the full ink", () => {
+test("office.css: the marker's focus ring is two-tone (a dark 2 px edge and a light 3 px edge outside it), drawn again on a pseudo-element above the tag, and the failed ground reads the warm room count in the full ink", () => {
   const css = readFileSync(join(PUBLIC, "styles", "office.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, " ");
-  const ring = css.match(/\.o-mark:focus-visible\s*\{([^}]*)\}/);
-  assert.ok(ring, "the marker has a focus rule");
-  assert.match(ring[1], /outline:\s*2px solid var\(--paper-ink\)/, "a dark 2 px edge");
-  assert.match(ring[1], /outline-offset:\s*0\s*;/, "the light edge starts where the dark one ends");
-  assert.match(ring[1], /box-shadow:\s*0 0 0 5px var\(--paper\)\s*;/, "a light 3 px edge outside it");
+  for (const sel of [".o-mark:focus-visible", ".o-mark:focus-visible::after"]) {
+    const ring = css.match(new RegExp(`${sel.replace(/[.:]/g, "\\$&")}\\s*\\{([^}]*)\\}`));
+    assert.ok(ring, `${sel} has a rule`);
+    assert.match(ring[1], /outline:\s*2px solid var\(--paper-ink\)/, "a dark 2 px edge");
+    assert.match(ring[1], /outline-offset:\s*0\s*;/, "the light edge starts where the dark one ends");
+    assert.match(ring[1], /box-shadow:\s*0 0 0 5px var\(--paper\)\s*;/, "a light 3 px edge outside it");
+    if (sel.endsWith("::after")) {
+      assert.match(ring[1], /position:\s*absolute/);
+      assert.match(ring[1], /inset:\s*0\s*;/, "over the marker's own box");
+      assert.match(ring[1], /z-index:\s*[1-9]/, "above the tag");
+      assert.match(ring[1], /pointer-events:\s*none/);
+    }
+  }
   const failed = css.match(/\.p-map:has\(\.o-stage\[data-office="failed"\]\) \.p-map__room-count\.is-warn\s*\{([^}]*)\}/);
   assert.ok(failed, "the failed state restyles the warm room count");
   assert.match(failed[1], /color:\s*var\(--ink\)\s*;/, "the full ink, not --warn");

@@ -276,12 +276,26 @@
 }
 
 /* The markers stand on a picture that is light or dark anywhere: the ring is a dark 2 px edge with a light 3 px edge
-   outside it, so over a light picture the dark edge and over a dark one the light edge reaches 3:1, in both themes. */
+   outside it, so over a light picture the dark edge and over a dark one the light edge reaches 3:1, in both themes.
+   It is drawn on the marker and again, identically, on a pseudo-element over the marker's own box and above its tag,
+   so no child (the tag) can paint over it. */
 .o-mark:focus-visible {
   outline: 2px solid var(--paper-ink);
   outline-offset: 0;
   box-shadow: 0 0 0 5px var(--paper);
   border-radius: var(--r-pill);
+}
+
+.o-mark:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: var(--r-pill);
+  outline: 2px solid var(--paper-ink);
+  outline-offset: 0;
+  box-shadow: 0 0 0 5px var(--paper);
+  pointer-events: none;
 }
 
 /* The lamps of a room on a small pill at its anchor; its reach is at least 44 px. */
