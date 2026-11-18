@@ -33,8 +33,8 @@ Each refusal is a short sentence and a code.
 2. No valid token, an app's token, or an agent not on the list: 401 `brain_no_token`.
 3. The switch is off, or the switches file cannot be trusted: 403 `brain_off`. The one exception: the owner's Test question (`ask` with the owner's test token) while the switch is off in a file that can be trusted.
 4. Any other method or path, or any query string: 404 `brain_bad_path`.
-5. A body over 2 KB, not one JSON object, or with other keys or the wrong kinds: 400 `brain_bad_body`.
-6. More than 120 questions an hour or 600 a day from one agent (counted in memory): 429 `brain_too_many`.
+5. More than 120 calls an hour or 600 a day from one agent (counted in memory, before the body is read, so a bad body counts too): 429 `brain_too_many`. While an agent is over, the asks file gets at most one line from it an hour.
+6. A body over 2 KB, not one JSON object, or with other keys or the wrong kinds: 400 `brain_bad_body`.
 7. No index: 503 `brain_no_index`.
 8. No notes for that task: 404 `brain_no_notes`.
 

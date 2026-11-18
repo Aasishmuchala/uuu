@@ -252,7 +252,7 @@ test("a request that fails two rules gets the earlier one", async () => {
   setBrain(true);
   // path before body
   refused(await call("/nowhere", "not json"), "brain_bad_path");
-  // body before rate and index
+  // body before index
   rmSync(paths.brainIndex);
   refused(await call("/brain/ask", "not json"), "brain_bad_body");
 });
@@ -326,10 +326,51 @@ test("the 121st call in an hour is too many; the next hour is fine", async () =>
   refused(await askQ("refunds"), "brain_too_many");
   // Another agent is counted on its own.
   assert.equal((await askQ("refunds", agent(SALES))).status, 200);
-  // Refused calls are not counted, and a bad body is refused before the rate.
-  refused(await call("/brain/ask", "{}"), "brain_bad_body");
+  // The rate is checked before the body is read: a bad body over the limit is too many.
+  refused(await call("/brain/ask", "{}"), "brain_too_many");
   clock += HOUR + 1;
   assert.equal((await askQ("refunds")).status, 200);
+});
+
+test("a bad body counts toward the rate, so it cannot be sent without end", async () => {
+  for (let i = 0; i < PER_HOUR; i += 1) refused(await call("/brain/ask", "{}"), "brain_bad_body");
+  refused(await askQ("refunds"), "brain_too_many");
+  refused(await call("/brain/ask", "{}"), "brain_too_many");
+  assert.equal((await askQ("refunds", agent(SALES))).status, 200, "another agent is counted on its own");
+});
+
+// T18's finding 2: bad bodies and refusals over the limit used to push real questions out of the asks file.
+test("an agent flooding the door with bad bodies cannot push a real question out of the asks file", async () => {
+  assert.equal((await askQ("what does Acme Interiors owe us SECRETMARK")).status, 200);
+  const N = 2600;
+  const statuses = [];
+  for (let i = 0; i < N; i += 50) {
+    const got = await Promise.all(Array.from({ length: 50 }, () => call("/brain/ask", "{}")));
+    statuses.push(...got.map((r) => r.status));
+  }
+  assert.equal(statuses.filter((st) => st === 400).length, PER_HOUR - 1, "only the rest of the hour's calls reach the body");
+  assert.equal(statuses.filter((st) => st === 429).length, N - (PER_HOUR - 1));
+  const got = asks();
+  assert.ok(got.some((l) => l.q === "what does Acme Interiors owe us SECRETMARK"), "the real question is still there");
+  // The question, the bad bodies within the limit, and one line for all the calls over it.
+  assert.equal(got.length, PER_HOUR + 1);
+  assert.equal(got.filter((l) => l.status === "brain_too_many").length, 1);
+});
+
+test("over the limit, at most one asks line an agent an hour; each agent gets its own", async () => {
+  for (let i = 0; i < PER_HOUR; i += 1) await askQ("refunds");
+  for (let i = 0; i < 5; i += 1) refused(await askQ("refunds"), "brain_too_many");
+  for (let i = 0; i < PER_HOUR; i += 1) await askQ("refunds", agent(SALES));
+  refused(await askQ("refunds", agent(SALES)), "brain_too_many");
+  const over = () => asks().filter((l) => l.status === "brain_too_many").map((l) => l.agent);
+  assert.deepEqual(over(), ["builder", "sales"]);
+  // Still over (the day's limit is not reached, but the next hour's first calls are fine): a new hour, a new line.
+  clock += HOUR + 1;
+  for (let i = 0; i < PER_HOUR; i += 1) await askQ("refunds");
+  refused(await askQ("refunds"), "brain_too_many");
+  refused(await askQ("refunds"), "brain_too_many");
+  assert.deepEqual(over(), ["builder", "sales", "builder"]);
+  assert.equal(asks().find((l) => l.status === "brain_too_many").q, null, "the body of a call over the limit is never read");
 });
 
 test("600 calls in a day is the most", async () => {

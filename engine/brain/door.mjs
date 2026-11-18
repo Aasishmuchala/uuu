@@ -4,7 +4,8 @@
 // the index (read-only, through openIndex) and the notes folder (no-follow); it writes only its
 // status file and brain-asks.jsonl. Checks, in B9's order: upgrades and CONNECT, the token (this
 // door's own secret; an agent of `doors.brain.agents`, never the Researcher, never an app; or the
-// owner's test token), the switch, the path, the body, the agent's rate, the index, the notes.
+// owner's test token), the switch, the path, the agent's rate, the body, the index, the notes. The rate
+// comes before the body is read, so every call of an agent counts, a bad body too (T18's finding 2).
 // Books records (record passages and the links between them) reach only the owner and the agents of
 // `doors.brain.records` (the owner's answer 2); every other agent gets the owner's files only, in an
 // answer and in notes alike.
@@ -176,7 +177,16 @@ export function notesWithoutRecords(data, taskId) {
 // Calls per agent in the last day, in memory. Only the agents on the list are ever keys.
 function rateTable() {
   const calls = new Map(); // slug -> [ms, ...], oldest first
+  const told = new Map(); // slug -> ms of the last asks line for a call over the limit
   return {
+    // While an agent is over its limit, true at most once an hour: the asks file gets that one line, so refusals
+    // cannot push real questions out of it.
+    tell(slug, now) {
+      const last = told.get(slug);
+      if (last !== undefined && now - last < HOUR_MS) return false;
+      told.set(slug, now);
+      return true;
+    },
     admit(slug, now) {
       const list = (calls.get(slug) || []).filter((t) => t > now - DAY_MS);
       const inHour = list.filter((t) => t > now - HOUR_MS).length;
@@ -359,7 +369,12 @@ export function createBrainDoor({ config, log, now } = {}) {
     // 4. The path, as sent.
     if (name === null) return no(res, "brain_bad_path");
     const agent = whoOf(who);
-    // 5. The body.
+    // 5. The agent's rate, before the body is read: every call counts. Over the limit, one asks line an hour.
+    if (who.kind === "a" && !rate.admit(who.slug, clock())) {
+      if (rate.tell(who.slug, clock())) record(agent, name, null, "brain_too_many", 0);
+      return no(res, "brain_too_many");
+    }
+    // 6. The body.
     const raw = await readBody(req, BODY_BYTES);
     if (raw === null) return undefined;
     const body = raw === "too-big" ? null : parseBody(name, raw);
@@ -374,11 +389,6 @@ export function createBrainDoor({ config, log, now } = {}) {
     if (!switchOn() && !ownerTestWhileOff(who, name)) {
       record(agent, name, q, "brain_off", 0);
       return no(res, "brain_off");
-    }
-    // 6. The agent's rate.
-    if (who.kind === "a" && !rate.admit(who.slug, clock())) {
-      record(agent, name, q, "brain_too_many", 0);
-      return no(res, "brain_too_many");
     }
     if (name === "ask") {
       // 7. The index.
