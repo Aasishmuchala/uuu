@@ -468,6 +468,11 @@ def plan(inputs):
             raise Refused("the fence was given a door port it cannot use (%d)" % p)
     if door_ports and inputs["policy"] is None:
         raise Refused("a door can only be opened for an agent with a fence policy")
+    # The brain door (PLAN-BRAIN T8). A missing key means inputs from before it: no check.
+    brain_port = inputs.get("brainPort")
+    if brain_port is not None and (_port(brain_port) is None
+                                   or brain_port in (gate_port, board_port, relay_port, narrow_port)):
+        raise Refused("the fence was given a brain door port it cannot use")
 
     deny = [home, "/private/tmp/claude-%d" % uid, "/tmp/claude-%d" % uid] + SANDBOX_OWN_TMP
 
@@ -510,6 +515,8 @@ def plan(inputs):
     real_state = _real(state)
     research = os.path.join(real_state, "tasks", "research")
     if extras["walled"]:
+        if brain_port is not None and brain_port in door_ports:
+            raise Refused("a walled agent never reaches the brain door")
         # Exactly one goal's folder directly under the Researcher's folder, named as
         # the board names a goal (capital letters, so no other letter case), as given
         # (no "..", no link anywhere in it) and as it really is.

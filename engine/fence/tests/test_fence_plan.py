@@ -719,6 +719,69 @@ class PlanTests(unittest.TestCase):
         for bad in (0, 3100, 3120, "3111", True, 70000):
             self.refused(self.new(narrowGatePort=bad, relayPort=3120), "narrow gate")
 
+    # PLAN-BRAIN T8: the brain door's port is known to the planner, and a walled agent never gets it.
+
+    BRAIN = 3190
+
+    def brain(self, **over):
+        """Inputs as fence_inputs.py now gives them: the brain door's port named and known."""
+        base = {"brainPort": self.BRAIN,
+                "doorPortsKnown": self.KNOWN + [3170, self.BRAIN] + self.APPS_KNOWN[1:] + self.PREVIEW_KNOWN}
+        base.update(over)
+        return base
+
+    def test_walled_plan_with_the_brain_door_refused(self):
+        for doors in ([self.BRAIN], [3130, self.BRAIN]):
+            self.refused(self.walled_inputs(**self.brain(doorPorts=doors)), "a walled agent never reaches the brain door")
+        # On the Codex program too (refused for the brain door before anything else of a walled run).
+        self.refused(self.walled_inputs(tool="codex", **self.brain(doorPorts=[self.BRAIN])),
+                     "a walled agent never reaches the brain door")
+        # Inputs from before the brain door carry no brainPort: no check, so they still plan.
+        plan(self.walled_inputs(doorPortsKnown=self.KNOWN + [self.BRAIN], doorPorts=[self.BRAIN]))
+
+    def test_brain_door_adds_only_its_address(self):
+        p = self.policy(slug="builder", localServices=["127.0.0.1:8120"])
+        for mode in ({}, {"modelMode": "provider", "relayPort": 3120}):
+            off = plan(self.new(policy=p, **self.brain(**mode)))
+            on = plan(self.new(policy=p, **self.brain(doorPorts=[self.BRAIN], **mode)))
+            self.assertEqual(on["filesystem"], off["filesystem"])
+            self.assertEqual(on["network"]["deniedDomains"], off["network"]["deniedDomains"])
+            domains = on["network"]["allowedDomains"]
+            self.assertIn("127.0.0.1:3190", domains)
+            self.assertEqual([d for d in domains if d != "127.0.0.1:3190"], off["network"]["allowedDomains"])
+            self.assertEqual(len(domains), len(off["network"]["allowedDomains"]) + 1)
+            self.assertNotIn("localhost:3190", domains)
+
+    def test_brain_switch_off_plans_as_before(self):
+        # Builder on Claude, Checker on Codex, the walled Researcher: with the brain door off,
+        # the plan from today's inputs is byte for byte the plan from the inputs before it.
+        old_known = {"doorPortsKnown": self.KNOWN + self.APPS_KNOWN + self.PREVIEW_KNOWN}
+        cases = (
+            lambda **o: self.new(policy=self.policy(slug="builder"), **o),
+            lambda **o: self.new(tool="codex", policy=self.policy(slug="checker"), **o),
+            lambda **o: self.walled_inputs(**o),
+            lambda **o: self.walled_inputs(doorPorts=[3130], **o),
+        )
+        for make in cases:
+            before = json.dumps(plan(make(**old_known)), sort_keys=True)
+            after = json.dumps(plan(make(**self.brain())), sort_keys=True)
+            self.assertEqual(after, before)
+            self.assertNotIn("3190", after)
+
+    def test_bad_brain_port_refused(self):
+        p = self.policy()
+        for bad in (0, -1, 65536, "3190", True, 3190.0, 3110, 3100, 3111, 3120):
+            self.refused(self.new(policy=p, relayPort=3120, **self.brain(brainPort=bad)), "brain door port")
+        # null is the same as no key: inputs from before the brain door.
+        plan(self.new(policy=p, **self.brain(brainPort=None)))
+
+    def test_brain_port_in_a_policy_refused(self):
+        known = self.brain()["doorPortsKnown"]
+        cfg = dict(CONFIG, policyPortsAllowed=[8120, self.BRAIN])
+        self.refused(self.new(config=cfg, policy=self.policy(localServices=["127.0.0.1:3190"]), **self.brain()),
+                     "localServices may never name a door's port 3190")
+        self.assertIn(self.BRAIN, known)
+
     def test_doors_folder_guarded(self):
         doors = os.path.join(self.S, "doors")
         os.makedirs(doors)

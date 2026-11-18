@@ -111,6 +111,8 @@ export function loadCompanyFile(file, config) {
   if ("grants" in d) problem(`${NO_GRANTS} defaults`);
   if (!Array.isArray(doc.agents) || doc.agents.length === 0) problem("there are no agents");
 
+  // The brain door's list in config.json (PLAN-BRAIN B1, T8): a walled agent is never on it.
+  const brainAgents = Array.isArray(config.doors?.brain?.agents) ? config.doors.brain.agents : [];
   const seen = new Set();
   const names = new Set();
   const agents = [];
@@ -148,6 +150,7 @@ export function loadCompanyFile(file, config) {
       if (!(k in policy)) problem(`the fence policy for agent ${slug} needs ${k}`);
     }
     checkPolicy(slug, policy, state, config.fence);
+    if (policy.walled === true && brainAgents.includes(slug)) problem(`the agent ${slug} is walled and may not be on the brain door's list`);
     // The policy carries walled only when true, so every other agent's policy is as before.
     if (policy.walled !== true) delete policy.walled;
 
