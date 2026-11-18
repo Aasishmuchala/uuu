@@ -18,6 +18,7 @@
 import { agentNames, commentsOf, descendants, goalsOf, loadIssues, needIds, pickResult } from "../lib/goals.mjs";
 import { parseAnswer } from "../lib/answer.mjs";
 import { brainFor } from "../brain/store.mjs";
+import { fileFromTask, suggestionsOn } from "./brain.mjs";
 import { isFixTask } from "../lib/draftfix.mjs";
 import { capText, plainMarks } from "../lib/format.mjs";
 import { versionOf } from "../lib/inbox.mjs";
@@ -104,6 +105,24 @@ function answerOf(ctx, g) {
   if (!ctx.decisions.get(`ask:${g.id}`) || !g.identifier) return null;
   const hit = readTaskText(ctx.config, g.identifier, "answer.md", { maxBytes: 64 * 1024 });
   return hit ? parseAnswer(hit.text) : null;
+}
+
+// A finished run of the Chief of staff's tidy-up routine (PLAN-BRAIN, the owner's answer 1): its brain-tidy.json
+// is read once, and only while the owner has suggestions switched on. A run is known by the board's own link to
+// the routine (originKind and originId, the routine's id from ids.json), never by the task's words.
+export const TIDY_ROUTINE = "brain-tidy";
+const tidyReadKey = (id) => `braintidyread:${id}`;
+export function fileTidyRuns(ctx, ids, done) {
+  const routine = ids?.routines?.[TIDY_ROUTINE];
+  if (typeof routine !== "string" || !routine || !suggestionsOn(ctx)) return 0;
+  let filed = 0;
+  for (const g of done) {
+    if (g.originKind !== "routine_execution" || g.originId !== routine || !g.identifier) continue;
+    if (ctx.decisions.get(tidyReadKey(g.id))) continue;
+    ctx.decisions.set(tidyReadKey(g.id), new Date().toISOString());
+    try { filed += fileFromTask(ctx, g.identifier); } catch { /* a run that cannot be read files nothing */ }
+  }
+  return filed;
 }
 
 // The paths of the brain's own listing (never the agent's word).
@@ -214,6 +233,7 @@ async function list(ctx) {
   await refreshTaste(ctx, { issues });
   const done = goalsOf(issues, ids).filter((g) => g.status === "done" && !isFixTask(ctx, g.id) && !ctx.decisions.get(ackKey(g.id)));
   if (!done.length) return { items: [] };
+  fileTidyRuns(ctx, ids, done);
   const names = await agentNames(ctx, ids.companyId);
   const items = await Promise.all(done.map(async (g) => {
     const own = await commentsOf(ctx, g.id);

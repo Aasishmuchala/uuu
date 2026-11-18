@@ -3,6 +3,8 @@
 // what was asked (the newest 50 lines the door keeps). From GET /api/brain-door, POST /api/brain-door/switch and
 // POST /api/brain-door/test (routes/brain-door.mjs). The settings frame (pages/settings.js) draws the title and the
 // line this module's statusLine gives. Everything that came through the server is shown as text and capped again.
+// The tidy-up switch (POST /api/brain-door/tidy) lets the Chief of staff's routine leave tidy-up notes in Needs
+// you; its label and line are the server's words.
 // Its few lines reuse the Page viewer's classes (styles/pages/settings-viewer.css), so no stylesheet is added.
 import { html, useState } from "../vendor/preact-htm.js";
 import { api, useResource } from "../lib/api.js";
@@ -114,6 +116,24 @@ function SwitchRow({ view, busy, act, failure }) {
     <div class="p-settings-viewer__more"><${Failure} failure=${failure} where="switch" /></div>`;
 }
 
+// The tidy-up switch, in the server's words: { on, label, say }. Absent from an older server: no row.
+export function tidyOf(view) {
+  const t = obj(view) && obj(view.tidy) ? view.tidy : null;
+  if (!t) return null;
+  return { on: t.on === true, label: plain(t.label, 80), say: plain(t.say, 400) };
+}
+
+function TidyRow({ view, busy, act, failure }) {
+  const t = tidyOf(view);
+  if (!t || !t.label) return null;
+  return html`
+    <${Row} icon="list" title=${t.label}
+      say=${busy === "tidy" ? WORDS.switching : t.say}
+      control=${html`<${Switch} on=${t.on} disabled=${Boolean(busy)} label=${t.label}
+        onChange=${(next) => act("tidy", "/api/brain-door/tidy", { on: next }, null)} />`} />
+    <div class="p-settings-viewer__more"><${Failure} failure=${failure} where="tidy" /></div>`;
+}
+
 function TestRow({ view, busy, answer, question, setQuestion, runTest, failure }) {
   const running = doorOf(view).state === "on";
   const rows = answer ? passagesOf(answer) : [];
@@ -196,6 +216,7 @@ export default function BrainSection() {
         <${SwitchRow} view=${view} busy=${busy} act=${act} failure=${failure} />
         <${TestRow} view=${view} busy=${busy} answer=${answer} question=${question} setQuestion=${setQuestion} runTest=${runTest} failure=${failure} />
         <${AskedRow} view=${view} />
+        <${TidyRow} view=${view} busy=${busy} act=${act} failure=${failure} />
       <//>
     <//>` : null}
   </div>`;

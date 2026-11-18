@@ -325,3 +325,77 @@ test("the switch is off by default and the routine's file is read only when it i
     assert.throws(() => fileSuggestion(ctx, { agent: "chief-of-staff", path: "policies/terms.md", note: NOTE }), (e) => e.code === "tidy_off");
   });
 });
+
+// ---- the routine's way in: a finished run of the Chief of staff's routine `brain-tidy` (inbox/goals.mjs)
+
+test("a finished run of the tidy-up routine is read once, by the board's link to the routine, only with suggestions on", async () => {
+  const h = await startV2({ routes: ["inbox", "brain-door"], inbox: ["goals", "brain"] });
+  try {
+    h.config.minFreeDiskGb = 0;
+    const docs = h.config.paths.knowledgeDocs;
+    for (const [rel, text] of Object.entries(FILES)) {
+      mkdirSync(dirname(join(docs, rel)), { recursive: true });
+      writeFileSync(join(docs, rel), text);
+    }
+    const ctx = { config: h.config, log() {}, decisions: createDecisions(join(h.config.paths.homeData, "decisions.json")) };
+    await indexFor(h.config).rebuild(ctx, { books: false });
+    const ROUTINE = "70000000-0000-4000-8000-0000000000b7";
+    const ids = JSON.parse(readFileSync(h.config.paths.ids, "utf8"));
+    ids.routines = { ...(ids.routines || {}), "brain-tidy": ROUTINE };
+    writeFileSync(h.config.paths.ids, JSON.stringify(ids));
+    const MARK = "ZEBRAQUANTUM the two refund files differ.";
+    let n = 0;
+    const run = (changes, list = [{ path: "policies/terms.md", note: MARK }, { path: "../../etc/passwd", note: "x" }]) => {
+      n += 1;
+      const t = new Date().toISOString();
+      const issue = {
+        id: `e0000000-0000-4000-8000-0000000007${String(n).padStart(2, "0")}`, identifier: `STH-7${n}`,
+        companyId: ids.companyId, projectId: ids.projectId, parentId: null, goalId: null, title: "Tidy-up suggestions",
+        description: "ROUTINE: brain-tidy", status: "done", priority: "medium", assigneeAgentId: ids.agents["chief-of-staff"],
+        createdAt: t, updatedAt: t, ...changes,
+      };
+      h.board.state.issues.push(issue);
+      mkdirSync(join(h.config.paths.projectFolder, issue.identifier), { recursive: true });
+      writeFileSync(join(h.config.paths.projectFolder, issue.identifier, "brain-tidy.json"), JSON.stringify(list));
+      return issue;
+    };
+    const shown = async () => {
+      await call(h.url, "GET", "/api/inbox");
+      return suggestions(await call(h.url, "GET", "/api/inbox"));
+    };
+    // Its words alone, or a link to another routine, are not a run of the tidy-up routine.
+    run({});
+    run({ originKind: "routine_execution", originId: "70000000-0000-4000-8000-000000000001" });
+    const real = run({ originKind: "routine_execution", originId: ROUTINE });
+    // Off: nothing is read, and nothing is marked as read.
+    assert.deepEqual(await shown(), []);
+    const stored = () => JSON.parse(readFileSync(join(h.config.paths.homeData, "decisions.json"), "utf8"));
+    assert.equal(stored()[`braintidyread:${real.id}`], undefined);
+    // On, through Settings: the run's file is read; only the listed file is filed.
+    const sw = await call(h.url, "POST", "/api/brain-door/tidy", { body: { on: true } });
+    assert.equal(sw.status, 200);
+    assert.equal(sw.json.tidy.on, true);
+    const got = await shown();
+    assert.equal(got.length, 1);
+    assert.ok(stored()[`braintidyread:${real.id}`]);
+    for (const other of h.board.state.issues.filter((i) => i.title === "Tidy-up suggestions" && i.id !== real.id)) {
+      assert.equal(stored()[`braintidyread:${other.id}`], undefined, other.identifier);
+    }
+    assert.equal(got[0].raisedBy, "Chief of staff");
+    assert.equal(got[0].details.find((d) => d.label === AGENT_LABEL).value, `“${MARK}”`);
+    // Read once: a changed file in the same run files nothing more.
+    writeFileSync(join(h.config.paths.projectFolder, real.identifier, "brain-tidy.json"), JSON.stringify([{ path: "policies/refunds.md", note: "Another." }]));
+    assert.equal((await shown()).length, 1);
+    // The agent's words never reach the brain or the index (ADR 0008).
+    await indexFor(h.config).rebuild(ctx, { books: false });
+    const db = new DatabaseSync(h.config.paths.brainIndex, { readOnly: true });
+    try {
+      for (const t of ["passages", "fts", "entities", "aliases", "links", "mentions", "meta"]) {
+        assert.ok(!JSON.stringify(db.prepare(`SELECT * FROM ${t}`).all()).includes("ZEBRAQUANTUM"), t);
+      }
+    } finally { db.close(); }
+    const holds = readdirSync(join(docs, ".."), { recursive: true, withFileTypes: true })
+      .filter((f) => f.isFile()).some((f) => readFileSync(join(f.parentPath, f.name)).includes("ZEBRAQUANTUM"));
+    assert.equal(holds, false);
+  } finally { await h.close(); }
+});

@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { ensureSecret } from "../../../doors/common.mjs";
 import { startV2 } from "../lib/testing-v2.mjs";
 import { call } from "../lib/testing.mjs";
-import { readAsks } from "../routes/brain-door.mjs";
+import { readAsks, TIDY_WORDS } from "../routes/brain-door.mjs";
 
 // A made-up brain door that answers as `answers` says (by path) and keeps what it saw.
 async function fakeDoor(answers) {
@@ -176,5 +176,23 @@ test("a notes line has no question; an asks file the door would not trust shows 
     assert.equal((await call(h.url, "GET", "/api/brain-door")).json.asks[0].q, null);
     chmodSync(h.config.paths.brainAsks, 0o666);
     assert.deepEqual((await call(h.url, "GET", "/api/brain-door")).json.asks, []);
+  });
+});
+
+test("tidy-up suggestions: off by default with the server's words; on and off are kept; a bad choice is refused", async () => {
+  await withHome(async ({ h }) => {
+    const v = await call(h.url, "GET", "/api/brain-door");
+    assert.deepEqual(v.json.tidy, { on: false, label: "Agents may suggest tidy-ups", say: TIDY_WORDS.off });
+    assert.equal((await post(h, "/api/brain-door/tidy", { on: "yes" })).status, 400);
+    const on = await post(h, "/api/brain-door/tidy", { on: true });
+    assert.equal(on.status, 200);
+    assert.deepEqual(on.json.tidy, { on: true, label: TIDY_WORDS.label, say: TIDY_WORDS.on });
+    assert.equal((await call(h.url, "GET", "/api/brain-door")).json.tidy.on, true);
+    const decisions = JSON.parse(readFileSync(join(h.config.paths.homeData, "decisions.json"), "utf8"));
+    assert.equal(decisions.braintidyagents, "on");
+    const off = await post(h, "/api/brain-door/tidy", { on: false });
+    assert.deepEqual(off.json.tidy, { on: false, label: TIDY_WORDS.label, say: TIDY_WORDS.off });
+    // The brain door's own switch is not touched by it.
+    assert.equal(existsSync(h.config.paths.doorsState), false);
   });
 });

@@ -4,10 +4,13 @@
 // part is installed (`engine/brain/READY`) and answers; off is always taken. Everything read from the door's own
 // files (brain-asks.jsonl) is checked and capped again here: a line that is not JSON, or not an object of the known
 // shape, is skipped; text is cut to one plain line.
+// The tidy-up switch (the owner's answer 1): whether the Chief of staff's routine may leave tidy-up notes in Needs
+// you (inbox/brain.mjs setSuggestionsOn), off by default, its words sent from here. It writes nothing to the brain.
 import { lstatSync } from "node:fs";
 import { join } from "node:path";
 import { callDoor, readDoors, readTrustedText, updateDoors } from "../lib/doors.mjs";
 import { indexFor } from "../brain/indexer.mjs";
+import { setSuggestionsOn, suggestionsOn } from "../inbox/brain.mjs";
 
 const HEALTH_TIMEOUT_MS = 1000;
 const ASK_TIMEOUT_MS = 20000;
@@ -26,6 +29,16 @@ export const DOOR_SENTENCES = {
 };
 export const PROBLEM_SENTENCES = {
   state_unreadable: "The doors' switches could not be read, so every door is off. Saving anything here writes them again, all off but what you change.",
+};
+
+export const TIDY_WORDS = {
+  label: "Agents may suggest tidy-ups",
+  on: "On. The Chief of staff's routine Tidy-up suggestions may leave notes about your files in Needs you. Nothing in your files changes unless you edit them yourself. The routine itself is started and paused on the Routines page.",
+  off: "Off. Only the home screen's own checks suggest tidy-ups in Needs you.",
+};
+const tidyOf = (ctx) => {
+  const on = suggestionsOn(ctx);
+  return { on, label: TIDY_WORDS.label, say: on ? TIDY_WORDS.on : TIDY_WORDS.off };
 };
 
 const obj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -91,6 +104,7 @@ export async function buildBrainDoorView(ctx) {
     agents,
     index,
     asks: readAsks(config),
+    tidy: tidyOf(ctx),
     canSwitchOn: door.state === "on",
     whyNot: door.state === "on" ? null : door.sentence,
     problem: problem || null,
@@ -113,6 +127,14 @@ export default function register(app) {
     }
     updateDoors(ctx.config, (s) => { s.brain.on = on; });
     ctx.log(`brain door: switched ${on ? "on" : "off"}`);
+    return buildBrainDoorView(ctx);
+  });
+
+  app.post("/api/brain-door/tidy", (ctx) => {
+    const on = bodyOf(ctx).on;
+    if (typeof on !== "boolean") throw ctx.fail(400, "That is not a choice here.", "Switch tidy-up suggestions on or off.", "bad_switch");
+    setSuggestionsOn(ctx, on);
+    ctx.log(`brain tidy-ups: agents' suggestions switched ${on ? "on" : "off"}`);
     return buildBrainDoorView(ctx);
   });
 
