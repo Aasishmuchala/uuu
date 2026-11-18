@@ -1134,6 +1134,12 @@ viewer_checks() {
       allowed "read the Astryx kit" \
         'ls "$UUU_PLAYBOOKS_DIR/astryx-kit" >/dev/null && for f in "$UUU_PLAYBOOKS_DIR"/astryx-kit/astryx/*; do cat "$f" >/dev/null || exit 1; done'
     fi
+    if [[ ! -d "$CFG_PLAYBOOKS/scrollcraft-kit" || -L "$CFG_PLAYBOOKS/scrollcraft-kit" ]]; then
+      say SKIP "whether $WHO can open the scroll-craft kit (not installed: run engine/playbooks/install.sh)"
+    else
+      allowed "read the scroll-craft kit" \
+        'ls "$UUU_PLAYBOOKS_DIR/scrollcraft-kit" >/dev/null && for f in "$UUU_PLAYBOOKS_DIR"/scrollcraft-kit/scrollcraft/*; do cat "$f" >/dev/null || exit 1; done'
+    fi
   done
   WHO="the Checker"
   id="$(agent_id_of checker)"

@@ -77,7 +77,8 @@ function run(env, ...args) {
     env: { ...process.env, ENGINE_PLAYBOOKS_SOURCE: env.skills, ENGINE_PLAYBOOKS_DEST: env.dest,
       ENGINE_PLAYBOOKS_OWN: env.own ?? join(env.top ?? dirname(env.skills), "no-own"),
       ENGINE_SITE_KIT_SOURCE: env.siteKit ?? join(env.top ?? dirname(env.skills), "no-site-kit"),
-      ENGINE_ASTRYX_KIT_SOURCE: env.astryxKit ?? join(env.top ?? dirname(env.skills), "no-astryx-kit") },
+      ENGINE_ASTRYX_KIT_SOURCE: env.astryxKit ?? join(env.top ?? dirname(env.skills), "no-astryx-kit"),
+      ENGINE_SCROLLCRAFT_KIT_SOURCE: env.scrollcraftKit ?? join(env.top ?? dirname(env.skills), "no-scrollcraft-kit") },
   });
   return { code: r.status, out: r.stdout, err: r.stderr };
 }
@@ -960,4 +961,95 @@ test("the real engine/astryx-kit installs whole: every file its list names, byte
   } finally {
     rmSync(top, { recursive: true, force: true });
   }
+});
+
+// ---- PLAN-ASTRYX T13: the scroll-craft kit, engine/scrollcraft-kit/, copied whole or not at all by the same rules.
+
+const SC_DIR = join(ENGINE, "scrollcraft-kit");
+const scRow = (dest) => JSON.parse(readFileSync(join(dest, "index.json"), "utf8")).playbooks.find((r) => r.name === "scrollcraft-kit");
+
+// A made-up scroll-craft kit with its own list, a file the list does not name, the README, a guide page and an example.
+function fakeScrollcraft() {
+  const env = fakeSkills();
+  const kit = join(env.top, "scrollcraft-kit-source");
+  const files = { "scrollcraft.js": "window.ScrollCraft = {};\n", "scrollcraft.css": ".sc-stage { position: sticky; }\n", "LICENSE.txt": "MIT\n" };
+  for (const [n, t] of Object.entries(files)) put(join(kit, "scrollcraft", n), t);
+  put(join(kit, "scrollcraft", "stray.js"), "not in the list\n");
+  const lock = { version: 1, scrollcraft: "75d81f7",
+    files: Object.keys(files).sort().map((n) => ({ name: n, bytes: Buffer.byteLength(files[n]), sha256: sha256(files[n]) })) };
+  put(join(kit, "scrollcraft.lock.json"), JSON.stringify(lock, null, 2) + "\n");
+  put(join(kit, "README.md"), "# made-up\n");
+  put(join(kit, "guide", "devices.md"), "# made-up\n");
+  put(join(kit, "example", "index.html"), "<!doctype html>\n");
+  put(join(kit, "lock.mjs"), "// never copied\n");
+  const want = [...Object.keys(files).map((n) => `scrollcraft/${n}`), "README.md", "example/index.html", "guide/devices.md"].sort();
+  return { ...env, scrollcraftKit: kit, want };
+}
+
+test("the scroll-craft kit: a right kit is copied byte for byte and listed with its commit; a second run changes nothing", () => {
+  const env = fakeScrollcraft();
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  const top = join(env.dest, "scrollcraft-kit");
+  assert.deepEqual(filesUnder(top), env.want);
+  for (const f of env.want) assert.ok(readFileSync(join(top, f)).equals(readFileSync(join(env.scrollcraftKit, f))), f);
+  for (const [p, [kind, mode]] of Object.entries(snapshot(top))) assert.equal(mode, kind === "d" ? "755" : "644", p);
+  assert.match(r.out, /^playbooks: scrollcraft-kit: installed, 6 files \(\d+ KB\)\.$/m);
+  assert.match(r.out, /^playbooks: scrollcraft-kit: guide\/hero\.md is not in the engine's scroll-craft kit\.$/m);
+  const row = scRow(env.dest);
+  assert.deepEqual(Object.keys(row), ["name", "origin", "licence", "roles", "kinds", "scrollcraft", "files", "bytes"]);
+  assert.deepEqual([row.origin, row.scrollcraft, row.roles, row.kinds, row.files], ["third-party", "75d81f7", ["builder", "art-director"], ["page"], env.want]);
+  assert.equal(run(env, "--check-only").out, "Playbooks: 4 installed\n");
+  const before = snapshot(env.dest);
+  const again = run(env);
+  assert.match(again.out, /^playbooks: scrollcraft-kit: already in place \(6 files\)\.$/m);
+  assert.deepEqual(snapshot(env.dest), before);
+});
+
+test("the scroll-craft kit: one changed byte or a link skips the whole kit; a stale file is removed on update", () => {
+  const env = fakeScrollcraft();
+  writeFileSync(join(env.scrollcraftKit, "scrollcraft", "scrollcraft.js"), "window.ScrollCraft = {}; fetch('x');\n");
+  let r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /^playbooks: scrollcraft-kit: skipped: scrollcraft\.js is not the file the kit's list names\.$/m);
+  assert.ok(!existsSync(join(env.dest, "scrollcraft-kit")));
+
+  const env2 = fakeScrollcraft();
+  rmSync(join(env2.scrollcraftKit, "scrollcraft", "LICENSE.txt"));
+  symlinkSync(join(env2.scrollcraftKit, "README.md"), join(env2.scrollcraftKit, "scrollcraft", "LICENSE.txt"));
+  r = run(env2);
+  assert.match(r.out, /^playbooks: scrollcraft-kit: skipped: LICENSE\.txt is not the file the kit's list names\.$/m);
+  assert.ok(!existsSync(join(env2.dest, "scrollcraft-kit")));
+
+  const env3 = fakeScrollcraft();
+  assert.equal(run(env3).code, 0);
+  writeFileSync(join(env3.dest, "scrollcraft-kit", "scrollcraft", "old.js"), "a file an older list named\n");
+  r = run(env3);
+  assert.match(r.out, /^playbooks: scrollcraft-kit: updated, 6 files /m);
+  assert.deepEqual(filesUnder(join(env3.dest, "scrollcraft-kit")), env3.want);
+});
+
+test("the scroll-craft kit: beside the Astryx kit and the site kit, each installed as before", () => {
+  const env = { ...fakeKit(), astryxKit: fakeAstryx().astryxKit, scrollcraftKit: fakeScrollcraft().scrollcraftKit };
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(filesUnder(join(env.dest, "site-kit")), KIT_FILES);
+  const names = JSON.parse(readFileSync(join(env.dest, "index.json"), "utf8")).playbooks.map((x) => x.name);
+  assert.deepEqual(names.slice(-3), ["site-kit", "astryx-kit", "scrollcraft-kit"]);
+});
+
+test("the real engine/scrollcraft-kit installs whole, as its list says", () => {
+  const env = { ...fakeSkills(), scrollcraftKit: SC_DIR };
+  const r = run(env);
+  assert.equal(r.code, 0, r.err);
+  const lock = JSON.parse(readFileSync(join(SC_DIR, "scrollcraft.lock.json"), "utf8"));
+  assert.deepEqual(filesUnder(join(env.dest, "scrollcraft-kit", "scrollcraft")), lock.files.map((f) => f.name).sort());
+  assert.doesNotMatch(r.out, /scrollcraft-kit: .*is not in the engine/);
+  assert.match(r.out, /^playbooks: scrollcraft-kit: installed, 16 files /m);
+});
+
+test("the manifest may not name a playbook scrollcraft-kit", () => {
+  const r = withManifest([{ ...byName["render-to-film"], name: "scrollcraft-kit" }]);
+  assert.equal(r.code, 1);
+  assert.match(r.err, /scrollcraft-kit is the name of the engine's scroll-craft kit, never of a playbook/);
 });
