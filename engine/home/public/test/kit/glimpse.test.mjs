@@ -1,5 +1,6 @@
 // The baked glimpses (PLAN-3D-ALL D7, U3): the room headers' pictures under assets/glimpse/v1, their manifest, and
-// that every key of kit/room.js's table has its four files (dusk and morning, 1600 and 780 wide).
+// that every key of kit/room.js's table has its four files (dusk and morning, 1600 and 780 wide). Since U18 H2 the
+// headers use v2 (glimpse-v2.test.mjs); v1 stays until the dead assets are deleted.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -9,7 +10,7 @@ import { pathToFileURL } from "node:url";
 import { KIT, PUBLIC } from "./_dom.mjs";
 
 const DIR = join(PUBLIC, "assets", "glimpse", "v1");
-const { GLIMPSES, glimpseSrc } = await import(pathToFileURL(join(KIT, "room.js")).href);
+const { GLIMPSES } = await import(pathToFileURL(join(KIT, "room.js")).href);
 const manifest = JSON.parse(readFileSync(join(DIR, "manifest.json"), "utf8"));
 const NAME = /^[a-z-]+-(dusk|morning)-(1600|780)\.webp$/;
 const LIMIT = { 1600: 90_000, 780: 45_000 };
@@ -62,16 +63,11 @@ test("glimpses: no file in the folder is missing from the manifest, and every na
   }
 });
 
-test("glimpses: every key of kit/room.js's table has four files, and glimpseSrc names each of them", () => {
+test("glimpses: every key of kit/room.js's table has four files", () => {
   assert.equal(GLIMPSES.length, 14);
   const listed = new Set(manifest.files.map((f) => f.path));
   for (const key of GLIMPSES) {
     for (const theme of ["dusk", "morning"]) for (const width of [1600, 780]) assert.ok(listed.has(`${key}-${theme}-${width}.webp`), `${key}-${theme}-${width}`);
-    for (const [theme, width] of [["dark", 1280], ["light", 1280], ["dark", 390], ["light", 390]]) {
-      const src = glimpseSrc(key, { theme, width });
-      assert.ok(src.startsWith("./assets/glimpse/v1/"));
-      assert.ok(listed.has(src.slice("./assets/glimpse/v1/".length)), src);
-    }
   }
   assert.equal(manifest.files.length, GLIMPSES.length * 4);
   assert.ok(manifest.files.every((f) => GLIMPSES.includes(f.key)), "no key outside the table");

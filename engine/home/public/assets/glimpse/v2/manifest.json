@@ -1,0 +1,708 @@
+{
+  "version": 2,
+  "source": "cook/proto/office (5504 x 3072); crop = [x, y, w, h] in the source's pixels, the same for dusk and morning",
+  "crops": {
+    "desk": {
+      "from": [
+        "loft-desk.png",
+        "loft-desk-morning.png"
+      ],
+      "crop1600": [
+        240,
+        1360,
+        5000,
+        950
+      ],
+      "crop780": [
+        240,
+        1360,
+        3859,
+        950
+      ]
+    },
+    "shelves": {
+      "from": [
+        "loft-dusk.png",
+        "loft-morning.png"
+      ],
+      "crop1600": [
+        960,
+        800,
+        2240,
+        426
+      ],
+      "crop780": [
+        1216,
+        800,
+        1729,
+        426
+      ]
+    },
+    "annex": {
+      "from": [
+        "loft-dusk.png",
+        "loft-morning.png"
+      ],
+      "crop1600": [
+        264,
+        1184,
+        1760,
+        334
+      ],
+      "crop780": [
+        465,
+        1184,
+        1358,
+        334
+      ]
+    },
+    "terrace": {
+      "from": [
+        "loft-dusk.png",
+        "loft-morning.png"
+      ],
+      "crop1600": [
+        2560,
+        800,
+        2480,
+        471
+      ],
+      "crop780": [
+        2843,
+        800,
+        1914,
+        471
+      ]
+    },
+    "table": {
+      "from": [
+        "loft-dusk.png",
+        "loft-morning.png"
+      ],
+      "crop1600": [
+        920,
+        1792,
+        1680,
+        319
+      ],
+      "crop780": [
+        1112,
+        1792,
+        1297,
+        319
+      ]
+    },
+    "facade": {
+      "from": [
+        "loft-dusk.png",
+        "loft-morning.png"
+      ],
+      "crop1600": [
+        248,
+        800,
+        4760,
+        904
+      ],
+      "crop780": [
+        791,
+        800,
+        3674,
+        904
+      ]
+    },
+    "room": {
+      "from": [
+        "loft-desk.png",
+        "loft-desk-morning.png"
+      ],
+      "crop1600": [
+        1880,
+        600,
+        3600,
+        684
+      ],
+      "crop780": [
+        2291,
+        600,
+        2779,
+        684
+      ]
+    },
+    "room-operations": {
+      "from": [
+        "loft-dusk.png",
+        "loft-morning.png"
+      ],
+      "crop1600": [
+        2180,
+        1864,
+        2000,
+        380
+      ],
+      "crop780": [
+        2180,
+        1864,
+        1544,
+        380
+      ]
+    },
+    "room-sales": {
+      "from": [
+        "loft-dusk.png",
+        "loft-morning.png"
+      ],
+      "crop1600": [
+        2560,
+        872,
+        1880,
+        357
+      ],
+      "crop780": [
+        2774,
+        872,
+        1451,
+        357
+      ]
+    },
+    "room-marketing": {
+      "from": [
+        "loft-dusk.png",
+        "loft-morning.png"
+      ],
+      "crop1600": [
+        3536,
+        804,
+        1600,
+        304
+      ],
+      "crop780": [
+        3536,
+        804,
+        1235,
+        304
+      ]
+    },
+    "room-studio": {
+      "from": [
+        "loft-dusk.png",
+        "loft-morning.png"
+      ],
+      "crop1600": [
+        560,
+        1760,
+        2080,
+        395
+      ],
+      "crop780": [
+        560,
+        1760,
+        1606,
+        395
+      ]
+    },
+    "room-support": {
+      "from": [
+        "loft-dusk.png",
+        "loft-morning.png"
+      ],
+      "crop1600": [
+        3352,
+        1880,
+        1600,
+        304
+      ],
+      "crop780": [
+        3534,
+        1880,
+        1235,
+        304
+      ]
+    },
+    "room-people": {
+      "from": [
+        "loft-dusk.png",
+        "loft-morning.png"
+      ],
+      "crop1600": [
+        2800,
+        1568,
+        1800,
+        342
+      ],
+      "crop780": [
+        3005,
+        1568,
+        1389,
+        342
+      ]
+    },
+    "room-books": {
+      "from": [
+        "loft-dusk.png",
+        "loft-morning.png"
+      ],
+      "crop1600": [
+        1380,
+        1160,
+        2160,
+        410
+      ],
+      "crop780": [
+        1380,
+        1160,
+        1667,
+        410
+      ]
+    }
+  },
+  "files": [
+    {
+      "key": "desk",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "desk-dusk-1600.webp",
+      "bytes": 43412,
+      "sha256": "bfc342e9db43b75bf3ba3e53c1195bddb2bdc7a529bce5892d26478e1d0bd1ca"
+    },
+    {
+      "key": "desk",
+      "theme": "dusk",
+      "width": 780,
+      "path": "desk-dusk-780.webp",
+      "bytes": 20394,
+      "sha256": "c71efc18aec8e2396d0a2a0bbe76b4d78a0591972b1f8ae8bf8d33a3e06fe899"
+    },
+    {
+      "key": "desk",
+      "theme": "morning",
+      "width": 1600,
+      "path": "desk-morning-1600.webp",
+      "bytes": 42444,
+      "sha256": "5f44f1f7e278f15d9fb310f06b1a61ea98d60d3137266e5aa8263f86deed041b"
+    },
+    {
+      "key": "desk",
+      "theme": "morning",
+      "width": 780,
+      "path": "desk-morning-780.webp",
+      "bytes": 20100,
+      "sha256": "17934efc2cbf6fde6f90b9c43fa788a41e0d5acf3210768628912556656e5783"
+    },
+    {
+      "key": "shelves",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "shelves-dusk-1600.webp",
+      "bytes": 76708,
+      "sha256": "8b06aed4a15b17011de5902571c7104b9ce6b5c8e97da8be3439b4e8bb9d89dc"
+    },
+    {
+      "key": "shelves",
+      "theme": "dusk",
+      "width": 780,
+      "path": "shelves-dusk-780.webp",
+      "bytes": 36692,
+      "sha256": "3309bde7c49c96c83e994907db121abcb197e10b0669abeb03a9eb248d2d7931"
+    },
+    {
+      "key": "shelves",
+      "theme": "morning",
+      "width": 1600,
+      "path": "shelves-morning-1600.webp",
+      "bytes": 70974,
+      "sha256": "c1f7f884bd2d0abc294507b2ae8d9c100a3c04ee1037ec4c70ff49b7c942cf0d"
+    },
+    {
+      "key": "shelves",
+      "theme": "morning",
+      "width": 780,
+      "path": "shelves-morning-780.webp",
+      "bytes": 33312,
+      "sha256": "f7605a989c8af46138368e921b211d70dc88a42c6b818f07c5cb090d98034233"
+    },
+    {
+      "key": "annex",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "annex-dusk-1600.webp",
+      "bytes": 51194,
+      "sha256": "28444a09f480b852aed75a35b20f4019ea1d069cd9542b72bcce6b3c63da1d73"
+    },
+    {
+      "key": "annex",
+      "theme": "dusk",
+      "width": 780,
+      "path": "annex-dusk-780.webp",
+      "bytes": 21068,
+      "sha256": "762b5c11047597af28a9716f1ce26d63d69469cfa23cdc023b99792350189f6d"
+    },
+    {
+      "key": "annex",
+      "theme": "morning",
+      "width": 1600,
+      "path": "annex-morning-1600.webp",
+      "bytes": 49900,
+      "sha256": "5117f5ed756dbc1396c794807df6637848511cc8480ab07d46c375c80306b1c4"
+    },
+    {
+      "key": "annex",
+      "theme": "morning",
+      "width": 780,
+      "path": "annex-morning-780.webp",
+      "bytes": 20132,
+      "sha256": "217440fa0fec324e762761f2011d025d26733d001b5c9600b31f84a6ee8ba9c9"
+    },
+    {
+      "key": "terrace",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "terrace-dusk-1600.webp",
+      "bytes": 65780,
+      "sha256": "12518b5515bbc788afbeaa9720b42798a40c9acdd0b8f1122e3f49c6b888f7d9"
+    },
+    {
+      "key": "terrace",
+      "theme": "dusk",
+      "width": 780,
+      "path": "terrace-dusk-780.webp",
+      "bytes": 28334,
+      "sha256": "499d5c57406747cab003112f0013afaedf6e9444a689a8126aed57e75b08c4a2"
+    },
+    {
+      "key": "terrace",
+      "theme": "morning",
+      "width": 1600,
+      "path": "terrace-morning-1600.webp",
+      "bytes": 59650,
+      "sha256": "53bcc3d782a8544a79145bba36b0f84a073abccafee63887d51c50cca164f31f"
+    },
+    {
+      "key": "terrace",
+      "theme": "morning",
+      "width": 780,
+      "path": "terrace-morning-780.webp",
+      "bytes": 26104,
+      "sha256": "795d236cbfe87326ecaca420f98642058827bc00f8d1a795c07aa0293eedea5c"
+    },
+    {
+      "key": "table",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "table-dusk-1600.webp",
+      "bytes": 55898,
+      "sha256": "425cd361edc586b5e24239c25c25aa3d966481c414bcafe6a5147357f3c1dac7"
+    },
+    {
+      "key": "table",
+      "theme": "dusk",
+      "width": 780,
+      "path": "table-dusk-780.webp",
+      "bytes": 26836,
+      "sha256": "dac182e9141cc6683376fee27c59e451a6724123fa7d7528f8f896546e14dbc8"
+    },
+    {
+      "key": "table",
+      "theme": "morning",
+      "width": 1600,
+      "path": "table-morning-1600.webp",
+      "bytes": 51566,
+      "sha256": "a112b30cb9016b66cebee7431707bda29dabc18c1d41fe17014719a15d52a2c1"
+    },
+    {
+      "key": "table",
+      "theme": "morning",
+      "width": 780,
+      "path": "table-morning-780.webp",
+      "bytes": 25094,
+      "sha256": "83b8494f13cb223cdc619960e111bdae421608d7835d25400c15365714c8d9db"
+    },
+    {
+      "key": "facade",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "facade-dusk-1600.webp",
+      "bytes": 88488,
+      "sha256": "87f535346ed06ad41be142c34452a069ecf341592354d057b1c20fa71cfc67c6"
+    },
+    {
+      "key": "facade",
+      "theme": "dusk",
+      "width": 780,
+      "path": "facade-dusk-780.webp",
+      "bytes": 41774,
+      "sha256": "7dfb7929fa8c80cfcad9ac59eb0c4120580ffc256bb706ba9ab660cbb44e59d5"
+    },
+    {
+      "key": "facade",
+      "theme": "morning",
+      "width": 1600,
+      "path": "facade-morning-1600.webp",
+      "bytes": 87174,
+      "sha256": "30829e1414c7013e56eb0621c671b817b579152f2b98d6a4b396f281b30359b4"
+    },
+    {
+      "key": "facade",
+      "theme": "morning",
+      "width": 780,
+      "path": "facade-morning-780.webp",
+      "bytes": 41010,
+      "sha256": "9d51a978efc6b443c882585eb35864d6cad2f1af8bc2c8b03235bc7b73065a55"
+    },
+    {
+      "key": "room",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "room-dusk-1600.webp",
+      "bytes": 20576,
+      "sha256": "02cdba66d2416ca3a0475d10ec8d8bd24d4c52086c5a4b3056b31a89d7c05f0d"
+    },
+    {
+      "key": "room",
+      "theme": "dusk",
+      "width": 780,
+      "path": "room-dusk-780.webp",
+      "bytes": 10136,
+      "sha256": "603d1c9780b570b46108acb264510767d5a6e90b7773594e14b3e880349cdd27"
+    },
+    {
+      "key": "room",
+      "theme": "morning",
+      "width": 1600,
+      "path": "room-morning-1600.webp",
+      "bytes": 20368,
+      "sha256": "f872d5200a34571bba4eb3189b0e50f7e94ec557a23501989671e3d60e75042a"
+    },
+    {
+      "key": "room",
+      "theme": "morning",
+      "width": 780,
+      "path": "room-morning-780.webp",
+      "bytes": 9538,
+      "sha256": "e3a15b5e5b4df88a198a7236e8e404c310619843f7f448d3ebee58937ab11d48"
+    },
+    {
+      "key": "room-operations",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "room-operations-dusk-1600.webp",
+      "bytes": 55604,
+      "sha256": "094d5e5e0eb9155f82908c37d305a2f461f8871e711fdfdee7d8401ec7d20db8"
+    },
+    {
+      "key": "room-operations",
+      "theme": "dusk",
+      "width": 780,
+      "path": "room-operations-dusk-780.webp",
+      "bytes": 25214,
+      "sha256": "5908bf8e84f3dfec9a20af34e24f415df327052b28230448bbbfe7dfe80b5402"
+    },
+    {
+      "key": "room-operations",
+      "theme": "morning",
+      "width": 1600,
+      "path": "room-operations-morning-1600.webp",
+      "bytes": 50758,
+      "sha256": "30cfd6a4019cb0befadf51cedb22cca3dc9e0df102c4724ffeb1935387ec9589"
+    },
+    {
+      "key": "room-operations",
+      "theme": "morning",
+      "width": 780,
+      "path": "room-operations-morning-780.webp",
+      "bytes": 23482,
+      "sha256": "62bb654c9b237ce64e881f000fe12ad5b1876084ee4487bc9855d3c9743e05ee"
+    },
+    {
+      "key": "room-sales",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "room-sales-dusk-1600.webp",
+      "bytes": 52196,
+      "sha256": "cce76f47b5b48bfd81d10f39ab6993fee8856d538da2a56366bd881b7f02df07"
+    },
+    {
+      "key": "room-sales",
+      "theme": "dusk",
+      "width": 780,
+      "path": "room-sales-dusk-780.webp",
+      "bytes": 22722,
+      "sha256": "2b97cffb335ca4c81532bccb644a99e32a13fde4a5c55f7ee314c5f72ac449db"
+    },
+    {
+      "key": "room-sales",
+      "theme": "morning",
+      "width": 1600,
+      "path": "room-sales-morning-1600.webp",
+      "bytes": 46526,
+      "sha256": "27672dd1f3ce202cc683ad5f10610469a946eae7599c537cb9fb8ac614851086"
+    },
+    {
+      "key": "room-sales",
+      "theme": "morning",
+      "width": 780,
+      "path": "room-sales-morning-780.webp",
+      "bytes": 20982,
+      "sha256": "d56fc116131b5168c347e376c9d3e03b0eaffa861a45e0b5e1a22689ab35db48"
+    },
+    {
+      "key": "room-marketing",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "room-marketing-dusk-1600.webp",
+      "bytes": 35022,
+      "sha256": "d67d2b50de0dadc4b2f46e04eb90d774f3c743119ba093f3cf55375e40381194"
+    },
+    {
+      "key": "room-marketing",
+      "theme": "dusk",
+      "width": 780,
+      "path": "room-marketing-dusk-780.webp",
+      "bytes": 17310,
+      "sha256": "7356745a94a36fb6ac9843cd26750c2ee03609179abe8c2bc83345637f2fa2e1"
+    },
+    {
+      "key": "room-marketing",
+      "theme": "morning",
+      "width": 1600,
+      "path": "room-marketing-morning-1600.webp",
+      "bytes": 31576,
+      "sha256": "b52a1b7a7f4062d28dad338f8a98c2d086a4317540db8d5f63e423c59982934d"
+    },
+    {
+      "key": "room-marketing",
+      "theme": "morning",
+      "width": 780,
+      "path": "room-marketing-morning-780.webp",
+      "bytes": 15120,
+      "sha256": "e6f7dd719469c2f44085018be99af0a255b659514b5c80bf9e2abbbc1af97f41"
+    },
+    {
+      "key": "room-studio",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "room-studio-dusk-1600.webp",
+      "bytes": 67066,
+      "sha256": "077e25d4192c76d9d4d03e6a54a978796bdb526c0bda1928c7c26c4bc97d6d44"
+    },
+    {
+      "key": "room-studio",
+      "theme": "dusk",
+      "width": 780,
+      "path": "room-studio-dusk-780.webp",
+      "bytes": 30650,
+      "sha256": "abe71475c7da801264e493f1ece67a87bc1e756db01ed6b91242aab3e8fb2817"
+    },
+    {
+      "key": "room-studio",
+      "theme": "morning",
+      "width": 1600,
+      "path": "room-studio-morning-1600.webp",
+      "bytes": 62090,
+      "sha256": "35df95906d90ae504bd746ae37a36d0559726eefd8d213b85ace8a559daf251a"
+    },
+    {
+      "key": "room-studio",
+      "theme": "morning",
+      "width": 780,
+      "path": "room-studio-morning-780.webp",
+      "bytes": 28138,
+      "sha256": "ed4970b9240ce6714a568716b8415212d27a6ce3694d0f68fca2767860278a96"
+    },
+    {
+      "key": "room-support",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "room-support-dusk-1600.webp",
+      "bytes": 41240,
+      "sha256": "6b98af398b7837333454e3d884af2f104925b1daeefb407b4d6aa6316639dad0"
+    },
+    {
+      "key": "room-support",
+      "theme": "dusk",
+      "width": 780,
+      "path": "room-support-dusk-780.webp",
+      "bytes": 18842,
+      "sha256": "c96477ef8100a2ef2a11d383081152f3922118ce1e62e39bbd4423ad3ada56ba"
+    },
+    {
+      "key": "room-support",
+      "theme": "morning",
+      "width": 1600,
+      "path": "room-support-morning-1600.webp",
+      "bytes": 35606,
+      "sha256": "c51374ad164afa17ece0cc153e229a6628e5de3807774a7c76e307471987bfc6"
+    },
+    {
+      "key": "room-support",
+      "theme": "morning",
+      "width": 780,
+      "path": "room-support-morning-780.webp",
+      "bytes": 16270,
+      "sha256": "58ec3b40fe1f556e71d57dd65b55009e08f3a5cfe1e3da0aaffad4562c952610"
+    },
+    {
+      "key": "room-people",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "room-people-dusk-1600.webp",
+      "bytes": 40766,
+      "sha256": "b8c71836744464410489a8b7c6cca7029c23ec324e3549f6b04efc775ff25aea"
+    },
+    {
+      "key": "room-people",
+      "theme": "dusk",
+      "width": 780,
+      "path": "room-people-dusk-780.webp",
+      "bytes": 19426,
+      "sha256": "9805ded7b9d56f98634b73f1aae52c74c8c7b14171b55551f411db62b12906c0"
+    },
+    {
+      "key": "room-people",
+      "theme": "morning",
+      "width": 1600,
+      "path": "room-people-morning-1600.webp",
+      "bytes": 38476,
+      "sha256": "7e373c8732be645dd662b68bc96a9f905f535083bddb55a8baf56a69d329b28b"
+    },
+    {
+      "key": "room-people",
+      "theme": "morning",
+      "width": 780,
+      "path": "room-people-morning-780.webp",
+      "bytes": 18370,
+      "sha256": "48651526a723e5747bd57f0b6a268e2768c76c142393945ee3733fcc4f05c15c"
+    },
+    {
+      "key": "room-books",
+      "theme": "dusk",
+      "width": 1600,
+      "path": "room-books-dusk-1600.webp",
+      "bytes": 80074,
+      "sha256": "bcf06bf384d222a6cc5a3bf2a937639c81229fe12e35449f32045a3fe7aabf6e"
+    },
+    {
+      "key": "room-books",
+      "theme": "dusk",
+      "width": 780,
+      "path": "room-books-dusk-780.webp",
+      "bytes": 39896,
+      "sha256": "1ec29e1fae23107da16b873b28314c54e084cdd941d54aa08e81271744952d66"
+    },
+    {
+      "key": "room-books",
+      "theme": "morning",
+      "width": 1600,
+      "path": "room-books-morning-1600.webp",
+      "bytes": 73824,
+      "sha256": "2a8aa9b66506cce84cc57a0ad3f2026d64494565423d133cbd59cf1dfc5a6d9d"
+    },
+    {
+      "key": "room-books",
+      "theme": "morning",
+      "width": 780,
+      "path": "room-books-morning-780.webp",
+      "bytes": 37658,
+      "sha256": "a91ea3f12792c09987e6a14d6474775c1a54ec2f97638fb874f9fdbb889508ed"
+    }
+  ]
+}

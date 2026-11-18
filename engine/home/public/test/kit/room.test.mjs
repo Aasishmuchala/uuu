@@ -55,16 +55,16 @@ test("glimpseFor: every route of section 3 gives its key, and every key it gives
 });
 
 test("glimpseSrc: the vectors of 4.2", () => {
-  assert.equal(glimpseSrc("room-books", { theme: "dark", width: 1280 }), "./assets/glimpse/v1/room-books-dusk-1600.webp");
-  assert.equal(glimpseSrc("room-books", { theme: "light", width: 390 }), "./assets/glimpse/v1/room-books-morning-780.webp");
+  assert.equal(glimpseSrc("room-books", { theme: "dark", width: 1280 }), "./assets/glimpse/v2/room-books-dusk-1600.webp");
+  assert.equal(glimpseSrc("room-books", { theme: "light", width: 390 }), "./assets/glimpse/v2/room-books-morning-780.webp");
   assert.equal(glimpseSrc("x/../y", { theme: "dark", width: 1280 }), null);
   assert.equal(glimpseSrc("__proto__", { theme: "dark", width: 1280 }), null);
-  assert.equal(glimpseSrc("desk"), "./assets/glimpse/v1/desk-dusk-1600.webp", "no look: dusk, wide");
-  assert.equal(glimpseSrc("desk", { theme: "auto", width: 859 }), "./assets/glimpse/v1/desk-dusk-780.webp");
-  assert.equal(glimpseSrc("desk", { theme: "light", width: 860 }), "./assets/glimpse/v1/desk-morning-1600.webp");
+  assert.equal(glimpseSrc("desk"), "./assets/glimpse/v2/desk-dusk-1600.webp", "no look: dusk, wide");
+  assert.equal(glimpseSrc("desk", { theme: "auto", width: 859 }), "./assets/glimpse/v2/desk-dusk-780.webp");
+  assert.equal(glimpseSrc("desk", { theme: "light", width: 860 }), "./assets/glimpse/v2/desk-morning-1600.webp");
 });
 
-test("glimpseSrc: no input can make it give an address outside ./assets/glimpse/v1/ (200 strings, the hostile set among them)", () => {
+test("glimpseSrc: no input can make it give an address outside ./assets/glimpse/v2/ (200 strings, the hostile set among them)", () => {
   const alphabet = "abcdefghijklmnopqrstuvwxyz-/._%:?#&=\\ \u0000‮<>\"'()";
   let seed = 7;
   const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648);
@@ -81,8 +81,8 @@ test("glimpseSrc: no input can make it give an address outside ./assets/glimpse/
     for (const look of looks) {
       const out = glimpseSrc(v, look);
       if (out === null) continue;
-      assert.ok(out.startsWith("./assets/glimpse/v1/"), `${JSON.stringify(v)} stays in the folder`);
-      assert.match(out, /^\.\/assets\/glimpse\/v1\/[a-z-]+-(dusk|morning)-(1600|780)\.webp$/);
+      assert.ok(out.startsWith("./assets/glimpse/v2/"), `${JSON.stringify(v)} stays in the folder`);
+      assert.match(out, /^\.\/assets\/glimpse\/v2\/[a-z-]+-(dusk|morning)-(1600|780)\.webp$/);
       assert.ok(GLIMPSES.includes(v), "only a key of the table gives an address");
     }
   }
@@ -205,7 +205,7 @@ test("RoomHeader: the light theme gives the morning picture; a narrow window the
   globalThis.innerWidth = 390;
   try {
     const root = await showTree(RoomHeader, { glimpse: "terrace", title: "App Studio" });
-    assert.equal(img(root)[0].getAttribute("src"), "./assets/glimpse/v1/terrace-morning-780.webp");
+    assert.equal(img(root)[0].getAttribute("src"), "./assets/glimpse/v2/terrace-morning-780.webp");
     render(null, root);
   } finally {
     delete document.documentElement;

@@ -56,7 +56,7 @@ export function glimpseSrc(key, { theme, width } = {}) {
   if (typeof key !== "string" || !GLIMPSES.includes(key)) return null;
   const light = theme === "light" ? "morning" : "dusk";
   const size = typeof width === "number" && width < 860 ? 780 : 1600;
-  return `./assets/glimpse/v1/${key}-${light}-${size}.webp`;
+  return `./assets/glimpse/v2/${key}-${light}-${size}.webp`;
 }
 
 // The theme in force: "light" when chosen, or when "auto" and the Mac is light; else "dark".
