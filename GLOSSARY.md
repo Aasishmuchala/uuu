@@ -125,8 +125,28 @@ The home page: the company brain in the middle, the departments around it.
 _Avoid_: Home, overview
 
 **Company brain**:
-The company's own files that every agent reads before it works.
+The company's own files that agents read before they work, or are given the parts that matter by the brain door when it is on.
 _Avoid_: Knowledge base, wiki, memory
+
+**Brain index**:
+The searchable copy of the company brain and of some facts from the books, rebuilt whole by the home server and read by the brain door. A cache: it can be deleted and made again.
+_Avoid_: Vector store, embeddings, knowledge graph
+
+**Passage**:
+One short piece of a brain file (a section, or some rows of a table) or one fact from the books, with its source. What a question to the brain finds.
+_Avoid_: Chunk, snippet, document
+
+**Brain notes**:
+The passages the brain found for one task, kept as a file that only the brain door gives out. Never put in the task's text.
+_Avoid_: Context pack, pack, brief
+
+**Brain door**:
+The part an agent asks a question of the company brain through, with its own token. Off until the owner switches it on. The Researcher and apps never reach it.
+_Avoid_: Brain API, search endpoint
+
+**Tidy-up suggestion**:
+A note in Needs you that two brain files repeat or disagree, a date has passed, or an agent thinks a file needs changing. The owner opens the file and edits it; nothing is written for him.
+_Avoid_: Auto-fix, cleanup
 
 **Hand-off**:
 What is left for the owner when a job runs: you lead, you approve, or on its own.

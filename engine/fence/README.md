@@ -83,6 +83,10 @@ An agent whose policy says `walled` (only the Researcher, `docs/adr/0013-one-wal
 
 The Builder and the Art director reach the page viewer (port 3150) only while its switch is on, and only with a token (`docs/adr/0015-pages-in-a-browser-outside-the-fence.md`). No agent reaches the preview or the home screen's pictures of a site. The preview's ports, 3160 to 3169, are refused to every agent policy, like every other door port.
 
+## The brain door
+
+The eleven ordinary agents may ask the company brain a question through the brain door (port 3190, `docs/adr/0018-a-brain-that-is-searched-not-read-whole.md`), only while the owner's switch for it is on, and only with a token. The fence changes in one place: its inputs know the brain door's port (`brainPort`, and the port joins `doorPortsKnown`), and the planner refuses a walled plan that holds it, so the Researcher can never reach it (the company file check and the door itself refuse the Researcher too). `fence.policyPortsAllowed` and `fence.readRootsAllowed` are not changed: no read folder is added, and the brain's index and notes under `state/brain/` stay outside every run. With the switch off, every plan is exactly as it was before the brain door. The proof of going live adds that the Researcher cannot reach 3190 or read `state/brain`, and that no agent can with the switch off.
+
 ## The board's git
 
 - **The attack.** The board runs `git status` and other git commands in the agents' task folders, outside the fence, as the owner (every 40 seconds or so). An agent can write a made-up repository there: `HEAD`, `objects/`, `refs/` and a `config` laid out directly in the folder, or, in a subfolder, a `.git` file pointing at one. Its settings can name a program (`core.fsmonitor`, a `filter` in `.gitattributes`) or point git at files outside the folder (`core.worktree`). Plain git runs that program as the owner. Found by the final security review, 11 November 2026, and reproduced.
