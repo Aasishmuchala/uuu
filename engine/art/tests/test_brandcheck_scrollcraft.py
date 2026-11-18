@@ -163,5 +163,46 @@ class ScrollRefusedTest(ScrollBase):
         self.assertIn("colour_not_token", codes(p))
 
 
+class ScrollAddressTest(ScrollBase):
+    """Fable's review (T12): the hashed scrollcraft.js fetches what data-sc-src, data-sc-src-mobile and the template of
+    data-sc-sequence name, and on a site with scrollcraft/ any string of the maker's script may become one."""
+    STAGE = 'data-sc-span="2.6"'
+
+    def with_attr(self, attr):
+        return plain_index().replace(self.STAGE, self.STAGE, 1).replace(
+            '<div data-sc-stage class="argument">', '<div data-sc-stage class="argument">' + attr, 1)
+
+    def test_an_outside_clip_or_frame_template_is_outside_address(self):
+        for attr in ('<video data-sc-src="https://example.com/a.mp4"></video>',
+                     '<video data-sc-src="clip.mp4" data-sc-src-mobile="//example.com/m.mp4"></video>',
+                     '<canvas data-sc-sequence="//example.com/f/{i}.webp:120:1"></canvas>',
+                     '<canvas data-sc-sequence=" https://example.com/f/{i}.webp:120:1"></canvas>'):
+            shutil.rmtree(os.path.join(self.goal, "site"), ignore_errors=True)
+            self.plain_site(index__html=self.with_attr(attr))
+            code, p = self.run_site()
+            self.assertEqual((code, codes(p)), (1, ["outside_address"]), (attr, json.dumps(p["hard"])))
+
+    def test_the_sites_own_clip_and_frames_pass(self):
+        self.plain_site(index__html=self.with_attr(
+            '<video data-sc-src="clip.mp4" data-sc-src-mobile="clip-m.mp4"></video>'
+            '<canvas data-sc-sequence="frames/{i}.webp:120:1"></canvas>'))
+        code, p = self.run_site()
+        self.assertNotIn("outside_address", codes(p), json.dumps(p["hard"]))
+
+    def test_an_outside_string_in_a_script_on_a_plain_scrollcraft_site_is_outside_address(self):
+        for extra in ("const clip = 'https://example.com/a.mp4';\n",
+                      "const clip = `${base}//example.com/a.mp4`;\n"):
+            shutil.rmtree(os.path.join(self.goal, "site"), ignore_errors=True)
+            self.plain_site(**{"more__js": extra})
+            code, p = self.run_site()
+            self.assertEqual((code, codes(p)), (1, ["outside_address"]), (extra, json.dumps(p["hard"])))
+
+    def test_an_outside_clip_drawn_by_an_astryx_script_is_outside_address(self):
+        self.astryx_scroll_site(app__js=read(SC_DIR, "example", "app.js")
+                                + "\nconst v = h('video', { 'data-sc-src': 'https://example.com/a.mp4' });\n")
+        code, p = self.run_site()
+        self.assertEqual((code, codes(p)), (1, ["outside_address"]), json.dumps(p["hard"]))
+
+
 if __name__ == "__main__":
     unittest.main()

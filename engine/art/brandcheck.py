@@ -50,6 +50,11 @@ A site with the folder scrollcraft/ at its top (PLAN-ASTRYX T13) carries the
 scroll-craft kit, checked and passed over the same way by scrollcraft.lock.json
 beside this tool; the maker's text may not name data-sc-drift or sc-grain
 (`colour_not_token`: they draw colours no check can compare with the kit).
+On either kit's site any string of the maker's scripts, a template's pieces too,
+that is an outside address is `outside_address` (the kit may fetch it); on a
+scroll-craft site so is the address in data-sc-src, data-sc-src-mobile and the
+template of data-sc-sequence; on an Astryx site the maker's .json and .txt files
+are read as words (the T12 review).
 
 Exit 0: every piece passes or only warns. Exit 1: a hard rule failed, including
 whatever a maker can cause by what it leaves in the goal: no pieces (`no_pieces`),
@@ -922,6 +927,27 @@ def json_strings(value, out, depth=0):
             json_strings(v, out, depth + 1)
 
 
+def data_words(text):
+    """The words of a site's .json file (T12 review): every key and string, at any depth, one to a line; the raw text
+    when it does not parse as JSON. Read with no recursion, so no nesting can stop it."""
+    try:
+        value = json.loads(text)
+    except (ValueError, RecursionError):
+        return [text]
+    out, stack = [], [value]
+    while stack:
+        v = stack.pop()
+        if isinstance(v, str):
+            out.append("%s\n" % v)
+        elif isinstance(v, list):
+            stack.extend(reversed(v))
+        elif isinstance(v, dict):
+            for k, x in reversed(list(v.items())):
+                stack.append(x)
+                stack.append(k)
+    return out
+
+
 # --- Pages (PLAN-V5 K16, T51) ----------------------------------------------------------------
 #
 # A site piece (site/<name>/ or site/<name>-<id>/) is checked from its own files: its pages, style sheets and
@@ -947,6 +973,7 @@ LISTED = 48                      # entries of one kind in a piece's answer (the 
 FONT_TOKENS = 64
 CAPTURE_TOKENS = 24
 PAGE_ENDINGS = ("html", "css", "js", "mjs", "svg")      # T58e: an SVG picture the site holds is read as markup
+WORD_ENDINGS = ("json", "txt")   # on a site with astryx/ (T12 review): a script may draw words it loads from these
 OWN_FILES = "a page may use only its own files"
 KIT_COLOURS = "use the brand kit's var(--brand-…) colours"
 
@@ -1084,6 +1111,9 @@ JS_COLOUR_FUNC = re.compile(r"(?<![0-9A-Za-z_-])(?:rgba?|hsla?|hwb|lab|lch|oklab
 URL_ATTRS = ("src", "srcset", "poster", "data", "action", "formaction", "background", "ping", "manifest",
              "imagesrcset", "href", "xlink:href")
 LINK_TAGS = ("a", "area")
+# On a site with scrollcraft/ (T12 review): the kit's hashed scrollcraft.js fetches the clip these name, and fills the
+# address template of data-sc-sequence ("<template>:<count>:<start>") for each frame; each is judged as src is.
+SC_URL_ATTRS = ("data-sc-src", "data-sc-src-mobile", "data-sc-sequence")
 SVG_COLOUR_ATTRS = ("fill", "stroke", "stop-color", "flood-color", "lighting-color")
 LEGACY_COLOUR_TAGS = ("font", "hr", "basefont")
 BODY_COLOUR_ATTRS = ("text", "link", "vlink", "alink")
@@ -1843,7 +1873,7 @@ class SiteCheck:
         budget = SITE_TEXT_BYTES
         for name in sorted(self.files):
             ending = name.rsplit(".", 1)[-1].lower() if "." in name else ""
-            if ending not in PAGE_ENDINGS or name in self.passed:
+            if (ending not in PAGE_ENDINGS and not (self.astryx and ending in WORD_ENDINGS)) or name in self.passed:
                 continue
             path, size = self.files[name]
             shown = shown_path(name)
@@ -1869,6 +1899,9 @@ class SiteCheck:
             text = decode_page(data)
             self.base = name.rsplit("/", 1)[0] if "/" in name else ""
             self.piece.tick()
+            if ending in WORD_ENDINGS:
+                self.add_words(shown, data_words(text) if ending == "json" else [text])
+                continue
             if self.scrollcraft and not name.startswith(SCROLLCRAFT + "/"):    # the kit's own words name them
                 self.scrollcraft_refused(shown, text)
             if ending == "html":
@@ -2119,6 +2152,8 @@ class SiteCheck:
                         self.js(file, u, 0, len(u), const, "in a javascript: address")
                 if in_header and name == "img" and a == "src" and len(self.refs) < MAX_REFS:
                     self.refs.append(v)
+            elif a in SC_URL_ATTRS and self.scrollcraft:
+                self.address(file, line, a, v)
             elif a.startswith("on") and len(a) > 2:
                 self.js(file, v, 0, len(v), const, "in an event attribute")
             elif a in WORD_ATTRS:
@@ -2203,6 +2238,8 @@ class SiteCheck:
             urls = [c.split(None, 1)[0] for c in value.split(",") if c.strip()]
         elif attr == "ping":
             urls = value.split()
+        elif attr == "data-sc-sequence":     # scrollcraft.js takes the template before the first colon
+            urls = [value, value.split(":", 1)[0]]
         else:
             urls = [value]
         if any(is_outside(u) for u in urls):
@@ -2933,6 +2970,10 @@ class SiteCheck:
                 elif tok in ")]}" and stack:
                     if stack.pop() == "${" and tok == "}":
                         s, i, opened = js_template(text, i, end)
+                        if (self.astryx or self.scrollcraft) and not every and is_outside(js_unescape(s)):
+                            self.found.add("outside_address", "%s: an address outside the site in a piece of a "
+                                           "template string of the script; %s"
+                                           % (self.at(file, line_of(pos), how), OWN_FILES))
                         if words is not None:
                             words.append(js_unescape(s))
                         if opened:
@@ -2959,6 +3000,8 @@ class SiteCheck:
             what = "a string passed to %s()" % callee
         elif prev[0] == "id" and prev[1] in ("import", "from"):
             what = "a module's address"
+        elif self.astryx or self.scrollcraft:
+            what = "a string of the script"
         else:
             return
         if is_outside(js_unescape(s)):

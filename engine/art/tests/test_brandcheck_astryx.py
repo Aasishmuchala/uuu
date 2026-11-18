@@ -283,6 +283,26 @@ class AstryxMakerRulesTest(AstryxBase):
         code, p = self.run_site()
         self.assertEqual((code, codes(p)), (1, ["outside_address"]))
 
+    def test_any_outside_string_in_the_makers_script_is_outside_address(self):
+        """Fable's review (T12): on a site with astryx/ any string of the maker's script, a piece of a template string
+        too, that starts http://, https:// or // is an address the page may fetch through the kit."""
+        for extra in ("const a = 'https://example.com/x.png';\n",
+                      'const a = "http://example.com";\n',
+                      "const a = '//example.com/x.js';\n",
+                      "const a = `https://example.com/${n}`;\n",
+                      "const a = `${n}//example.com/x.png`;\n",
+                      "const a = `${n}x${m}https://example.com`;\n",
+                      "const a = h('img', { src: 'https://example.com/x.png', alt: '' });\n"):
+            shutil.rmtree(os.path.join(self.goal, "site"), ignore_errors=True)
+            self.astryx_site(app__js=example("app.js") + extra)
+            code, p = self.run_site()
+            self.assertEqual((code, codes(p)), (1, ["outside_address"]), (extra, json.dumps(p["hard"])))
+
+    def test_a_string_that_is_not_an_address_passes(self):
+        self.astryx_site(app__js=example("app.js") + "const a = 'see the http notes / page 2';\nconst b = 'a//b';\n")
+        code, p = self.run_site()
+        self.assertEqual((code, p["hard"]), (0, []), json.dumps(p["hard"]))
+
     def test_setting_a_theme_token_in_the_makers_css_is_refused(self):
         self.astryx_site(style__css=example("style.css") + ":root { --color-accent: var(--brand-sun); }\n")
         code, p = self.run_site()

@@ -51,6 +51,30 @@ class AstryxWordsTest(AstryxBase):
             code, p = self.run_site()
             self.assertEqual((code, codes(p)), (1, ["banned_phrase"]), (extra, json.dumps(p["hard"])))
 
+    def test_a_cant_say_phrase_in_a_json_or_txt_file_is_caught(self):
+        """Fable's review (T12): a script may draw words it loads from the site's own .json or .txt files."""
+        cases = [{"words__json": json.dumps({"hero": {"lines": ["Fresh bread.", "The best in town."]}})},
+                 {"words__json": '{"best in town": 1}'},
+                 {"words__json": '{"a": "best in \\u0074own"}'},
+                 {"words__json": json.dumps({"a": [[[[[[[[["The best in town."]]]]]]]]]})},
+                 {"words__json": "not json: the best in town"},
+                 {"copy_x_hero__txt": "Fresh bread.\nThe best in town.\n"}]
+        for files in cases:
+            shutil.rmtree(os.path.join(self.goal, "site"), ignore_errors=True)
+            self.astryx_site(**files)
+            code, p = self.run_site()
+            self.assertEqual((code, codes(p)), (1, ["banned_phrase"]), (files, json.dumps(p["hard"])))
+
+    def test_a_filler_phrase_in_a_json_file_is_caught(self):
+        self.astryx_site(words__json=json.dumps(["Elevate your mornings."]))
+        code, p = self.run_site()
+        self.assertEqual((code, codes(p)), (1, ["filler_phrase"]), json.dumps(p["hard"]))
+
+    def test_plain_words_in_a_json_file_pass_and_the_kits_own_are_not_read(self):
+        self.astryx_site(words__json=json.dumps({"hero": "Fresh bread every morning."}))
+        code, p = self.run_site()
+        self.assertEqual((code, p["hard"]), (0, []), json.dumps(p["hard"]))
+
     def test_a_filler_phrase_in_a_script_is_caught(self):
         self.astryx_site(app__js=example("app.js") + "const a = 'Elevate your mornings.';\n")
         code, p = self.run_site()
