@@ -272,6 +272,7 @@ test("studio: each switch that is off is one line, the doors with the way to the
   assert.equal(OFF_WORDS.link, "Open in Settings");
   assert.equal(OFF_WORDS.off, "Off");
   for (const id of ["generation", "viewer", "web"]) assert.ok(OFF_WORDS[id].say.length > 0 && !/\u2014/.test(OFF_WORDS[id].say));
+  assert.match(OFF_WORDS.generation.say, /Runway and Higgsfield/, "Generation gates both services");
 });
 
 test("studio: the row at the top jumps to each part whose list has come in, in the page's order", () => {
@@ -508,7 +509,11 @@ test("studio: a Higgsfield take's film names Higgsfield and never Runway; a Runw
     const pics = sentAlt(r.root);
     assert.equal(pics.length, 1);
     assert.equal(pics[0].getAttribute("alt"), "The picture sent to Runway for shot 1, take 1");
-    assert.ok(!nodes.some((t) => /Higgsfield/.test(t)));
+    // The film's own parts; the Films list's hint under it names both services.
+    const own = [...byCls(r.root, "k-work__first"), ...byCls(r.root, "p-studio-film__group")];
+    assert.ok(own.length >= 2);
+    assert.ok(!own.flatMap((el) => textNodes(el)).some((t) => /Higgsfield/.test(t)));
+    assert.ok(nodes.includes("Films made from your renders with Runway or Higgsfield: each shot, its takes, the Art director's verdicts and what it cost."), "the Films hint names both services");
   } finally { r.done(); }
 });
 

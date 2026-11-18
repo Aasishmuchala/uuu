@@ -70,6 +70,11 @@ test("the banners: a frozen newest batch, a changed shotlist, the server's own p
   assert.deepEqual(m.filmBanners(f), []);
   const frozen = { ...f, batches: [{ ...f.batches[0], frozen: false }, { ...f.batches[0], frozen: true }], problem: m.FROZEN_WORDS };
   assert.deepEqual(m.filmBanners(frozen).map((b) => b.text), ["Runway refused two pictures or prompts in this film. It needs you."]);
+  // The server's own sentence, whole, names the services of the refused takes; the page's Runway words stand in without it.
+  const said = "Higgsfield refused two pictures or prompts in this film. It needs you.";
+  assert.deepEqual(m.filmBanners({ ...frozen, labels: { frozen: said }, problem: said }).map((b) => b.text), [said]);
+  assert.deepEqual(m.filmBanners({ ...frozen, labels: { frozen: said } }).map((b) => b.text), [said]);
+  assert.equal(m.filmBanners({ ...frozen, labels: {} })[0].text, m.FROZEN_WORDS);
   assert.equal(m.filmBanners({ ...f, batches: [{ frozen: true }, { frozen: false }] }).length, 0, "only the newest batch counts");
   const both = m.filmBanners({ ...frozen, changedAfterApproval: true });
   assert.deepEqual(both.map((b) => b.key), ["frozen", "changed"]);

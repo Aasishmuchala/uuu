@@ -261,6 +261,7 @@ test("the film view fits films.json: two batches, a refusal, a retake, a running
       sentPromptGone: "No longer kept: the door keeps what it sent for two days.", sentPromptNone: "The door kept no copy of this prompt.",
       changed: "The shotlist was changed after you approved it. Each take shows what was sent to Runway.",
       notStarted: "Sent, not started by Runway", stillCharging: "Runway may still charge for clips that are being made.",
+      frozen: "Runway refused two pictures or prompts in this film. It needs you.",
     });
     assert.deepEqual(f.shots[0].takes.map((t) => [t.service, t.labels]), [["Runway", RUNWAY_WORDS], ["Runway", RUNWAY_WORDS]]);
     assert.deepEqual(f.total, { spent: 220, budget: 440, words: "$2.20 of $4.40 spent." });
@@ -451,6 +452,7 @@ test("a Higgsfield take names Higgsfield, never Runway; a Runway take still name
       changed: "The shotlist was changed after you approved it. Each take shows what was sent to Runway and Higgsfield.",
       notStarted: "Sent, not started by Runway and Higgsfield",
       stillCharging: "Runway and Higgsfield may still charge for clips that are being made.",
+      frozen: "Higgsfield refused two pictures or prompts in this film. It needs you.",   // the newest batch's refusal was Higgsfield's
     });
   });
 });
@@ -665,5 +667,27 @@ test("the list's states: done, stopped for a cancelled goal, ended when the appr
   await withFilm({ approvals: [approval(B1, old)] }, async (h) => {
     const row = (await films(h)).films.find((x) => x.task.identifier === KEY);
     assert.deepEqual([row.state, row.problem, row.spent], ["needs you", FROZEN, 85]);
+  });
+});
+
+// The frozen sentence names the services of the refused takes, whole, in the film and in the list's row.
+test("a frozen film names the services of its refused takes: Runway, Higgsfield, or both", async () => {
+  await withFilm({}, async (h) => {
+    job(h, { id: "gc0000000000000000002", batch: B3, shot: "s02", at: NOW - 20 * 60_000, end: "refused" });
+    job(h, { id: "gc0000000000000000003", batch: B3, shot: "s03", at: NOW - 10 * 60_000, end: "refused" });
+    assert.equal((await film(h, KEY2)).json.labels.frozen, "Runway refused two pictures or prompts in this film. It needs you.");
+  });
+  await withFilm({}, async (h) => {
+    hfTake(h, { id: "gc0000000000000000002", shot: "s02", batch: B3, at: NOW - 20 * 60_000, end: "refused" });
+    hfTake(h, { id: "gc0000000000000000003", shot: "s03", batch: B3, at: NOW - 10 * 60_000, end: "refused" });
+    const f = (await film(h, KEY2)).json;
+    assert.equal(f.labels.frozen, "Higgsfield refused two pictures or prompts in this film. It needs you.");
+    const row = (await films(h)).films.find((x) => x.task.identifier === KEY2);
+    assert.deepEqual([row.state, row.problem], ["needs you", f.labels.frozen]);
+  });
+  await withFilm({}, async (h) => {
+    job(h, { id: "gc0000000000000000002", batch: B3, shot: "s02", at: NOW - 20 * 60_000, end: "refused" });
+    hfTake(h, { id: "gc0000000000000000003", shot: "s03", batch: B3, at: NOW - 10 * 60_000, end: "refused" });
+    assert.equal((await film(h, KEY2)).json.labels.frozen, "Runway and Higgsfield refused two pictures or prompts in this film. It needs you.");
   });
 });

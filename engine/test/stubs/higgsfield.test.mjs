@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { startHiggsfield, mp4Bytes, pngBytes, PRICES, CDN_HOST, UPLOAD_HOST } from "./higgsfield.mjs";
+import { checkUploadAddress } from "../../generate/higgsfield.mjs";
 
 const REDIRECT = "http://127.0.0.1:41999/api/generation/higgsfield/back";
 const challengeOf = (v) => createHash("sha256").update(v).digest("base64url");
@@ -259,11 +260,12 @@ test("media_upload gives an upload address on the upload name; the PUT then medi
   try {
     const u = await tool(hf, token, session, "media_upload", { filename: "frame.png", content_type: "image/png" });
     const r = u.msg.result.structuredContent;
-    assert.match(r.upload_url, new RegExp(`^https://${UPLOAD_HOST.replace(/\./g, "\\.")}/upload/media_`));
+    assert.match(r.upload_url, new RegExp(`^https://${UPLOAD_HOST.replace(/\./g, "\\.")}/user_test/media_[A-Za-z0-9_]+\\.png\\?`));
+    assert.equal(checkUploadAddress(r.upload_url, ["higgsfield.test"]).ok, true, "the door accepts the stand-in's address");
     assert.equal(r.upload_headers["Content-Type"], "image/png");
     const early = await tool(hf, token, session, "media_confirm", { type: "image", media_id: r.media_id });
     assert.equal(early.msg.result.isError, true);
-    const put = await fetch(`${hf.url}/upload/${r.media_id}`, { method: "PUT", headers: { "content-type": "image/png" }, body: pngBytes() });
+    const put = await fetch(`${hf.url}/user_test/${r.media_id}.png`, { method: "PUT", headers: { "content-type": "image/png" }, body: pngBytes() });
     assert.equal(put.status, 200);
     const c = await tool(hf, token, session, "media_confirm", { type: "image", media_id: r.media_id });
     assert.equal(c.msg.result.structuredContent.status, "ready");
@@ -278,7 +280,7 @@ test("uploadRedirect and outputRedirect answer 302; bigOutput claims over 200 MB
   try {
     const u = await tool(hf, token, session, "media_upload", { filename: "f.png", content_type: "image/png" });
     hf.behaviour.uploadRedirect = true;
-    const put = await fetch(`${hf.url}/upload/${u.msg.result.structuredContent.media_id}`, { method: "PUT", body: "x", redirect: "manual" });
+    const put = await fetch(`${hf.url}/user_test/${u.msg.result.structuredContent.media_id}.png`, { method: "PUT", body: "x", redirect: "manual" });
     assert.equal(put.status, 302);
     hf.behaviour.outputRedirect = true;
     const out = await fetch(`${hf.url}/out/job_a.png`, { redirect: "manual" });
