@@ -485,8 +485,18 @@ const ASTRYX_SELECTOR = [
   ".astryx-segmented-control-item",
 ].join(",\n");
 
+// PLAN-ASTRYX T10, found by the judge of drawn pages (lib/sitebrand.mjs reads the faces Chrome really drew with):
+// Chrome names a Mac family's weights between regular and bold as faces of their own ("Avenir Next Medium", "Avenir
+// Next Demi Bold"), which are not the kit's family; regular (400) and bold (700) are named as the family itself. So
+// Astryx's four weights are drawn at those two: normal and medium at 400, semibold and bold at 700.
+const ASTRYX_WEIGHTS = [
+  ["--font-weight-normal", "400"], ["--font-weight-medium", "400"], ["--font-weight-semibold", "700"], ["--font-weight-bold", "700"],
+];
+
 // astryxThemeCss(kit, tokens) -> the text of astryx-theme.css, or null when the kit has no colours or there are no
 // tokens. Pure: `kit` passed checkKit, `tokens` is loadAstryxTokens' shape.
+// T10: the browser's own rule gives a <dialog> the system's text colour (black), which its parts inherit even while it
+// is closed; the dialog takes the kit's text colour instead, as the body does.
 export function astryxThemeCss(kit, tokens = ASTRYX_TOKENS) {
   if (!tokens || !obj(kit) || !Array.isArray(kit.colours) || !kit.colours.length) return null;
   const R = astryxRoles(kit);
@@ -499,12 +509,14 @@ export function astryxThemeCss(kit, tokens = ASTRYX_TOKENS) {
     decl.push(`${t.name}: ${t.name.includes("inner") ? `min(var(--brand-radius), ${t.value})` : "var(--brand-radius)"};`);
   }
   if (!kit.neutrals) for (const t of tokens.shadow) decl.push(`${t.name}: none;`);
+  for (const [name, value] of ASTRYX_WEIGHTS) decl.push(`${name}: ${value};`);
   return [
     "/* The brand kit as an Astryx theme, written by the home server on every save. Change it in Files, Brand kit. */",
     ":root { color-scheme: light; }",
     `${ASTRYX_SELECTOR} {`,
     ...decl.map((d) => `  ${d}`),
     "}",
+    "dialog { color: var(--color-text-primary); }",
     "body { margin: 0; font-family: var(--font-family-body); background: var(--color-background-body); color: var(--color-text-primary); }",
     "",
   ].join("\n");
