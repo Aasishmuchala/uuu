@@ -246,13 +246,15 @@ if [[ -n "$LESSONS_FILE" ]]; then export UUU_LESSONS_FILE="$LESSONS_FILE"; fi
 if [[ -n "$AGENT_ID" ]]; then
   _doors="$(/usr/bin/python3 -I "$HERE/door_mode.py" --for-run --agent "$AGENT_ID" </dev/null)" \
     || refuse "the doors for this run could not be worked out"
-  _door_line='^UUU_(WEB|GENERATE|VIEWER)_(URL|TOKEN)=[!-<>-~]{1,200}$'
+  _door_line='^UUU_(WEB|GENERATE|VIEWER|BRAIN)_(URL|TOKEN)=[!-<>-~]{1,200}$'
   _seen=" "
   while [[ -n "$_doors" ]]; do
     _line="${_doors%%$'\n'*}"
     if [[ "$_doors" == *$'\n'* ]]; then _doors="${_doors#*$'\n'}"; else _doors=""; fi
     [[ "$_line" =~ $_door_line ]] || { unset _doors _line; refuse "a line about the doors has a shape the fence does not accept"; }
     _key="${_line%%=*}"
+    # The planner already refuses a walled plan holding the brain door's port; this is the second lock.
+    if [[ -n "$WALLED" && "$_key" == UUU_BRAIN_* ]]; then unset _doors _line; refuse "a walled agent never reaches the brain door"; fi
     case "$_seen" in *" $_key "*) unset _doors _line; refuse "the doors named $_key twice" ;; esac
     _seen="$_seen$_key "
     export "$_key=${_line#*=}"

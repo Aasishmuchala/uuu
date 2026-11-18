@@ -363,6 +363,22 @@ class DoorModeTests(unittest.TestCase):
         for line in out:
             self.assertRegex(line, re.compile(r"\AUUU_BRAIN_(URL|TOKEN)=[\x21-\x7e]{1,200}\Z"))
 
+    def test_fence_run_accepts_a_line_for_every_door_and_the_proof_checks_the_brain_door(self):
+        # fence-run's own pattern names each door door_mode.py can print, and no other.
+        with open(os.path.join(FENCE, "fence-run")) as fh:
+            text = fh.read()
+        line = [l for l in text.splitlines() if l.strip().startswith("_door_line=")]
+        self.assertEqual(len(line), 1)
+        names = line[0].split("^UUU_(", 1)[1].split(")_", 1)[0].split("|")
+        self.assertEqual(sorted(names), sorted(env for _, env, _ in door_mode.DOORS))
+        self.assertIn("BRAIN", names)
+        self.assertIn('"$WALLED" && "$_key" == UUU_BRAIN_*', text)
+        with open(os.path.join(FENCE, "prove.sh")) as fh:
+            proof = fh.read()
+        self.assertIn('"be given no brain door address or token"', proof)
+        self.assertIn('"$(reach "$CFG_PORT_BRAIN" /brain/health)"', proof)
+        self.assertIn("$DOOR_SECRETS/brain-secret", proof)
+
 
 if __name__ == "__main__":
     unittest.main()
