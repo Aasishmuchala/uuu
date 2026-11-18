@@ -81,6 +81,16 @@ def _need_doors(cfg):
             apps = d[name]["apps"]
             if not isinstance(apps, list) or not all(isinstance(s, str) and APP_NAME.fullmatch(s) for s in apps):
                 _fail("key doors.generate.apps must list app names")
+        # The brain door's agents who may see books records (the owner's answer 2); optional, none when absent.
+        # Only an agent on both lists sees them (the door and the notes builder check both).
+        if "records" in d[name]:
+            if name != "brain":
+                _fail("key doors.%s.records: only the brain door lists who may see books records" % name)
+            records = d[name]["records"]
+            if not isinstance(records, list) or not all(isinstance(s, str) and SLUG.fullmatch(s) for s in records):
+                _fail("key doors.brain.records must list agent slugs")
+            if any(s.startswith("app-") for s in records):
+                _fail("key doors.brain.records names an app, not an agent (a name starting with app-)")
 
 
 def load_config(path=None):
@@ -139,6 +149,7 @@ def load_config(path=None):
     cfg["previewPorts"] = {"first": p["preview"] + 1, "last": p["preview"] + PREVIEW_SITE_PORTS}
     cfg["doors"]["generate"].setdefault("apps", [])
     cfg["doors"].setdefault("brain", {"agents": []})
+    cfg["doors"]["brain"].setdefault("records", [])
     s = cfg["stateRoot"]
     j = os.path.join
     cfg["paths"] = {

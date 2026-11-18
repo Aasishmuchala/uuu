@@ -7,6 +7,10 @@
 //   - The file is written to a new temp name (wx, 0600) in the notes folder and renamed. The folder must be a
 //     plain 0700 folder of this user inside a plain <state>/brain; a link or anything else there is refused.
 //   - Each build removes notes older than 30 days and, above 2,000 files, the oldest.
+//   - Books records reach only the agents of `doors.brain.records` (the owner's answer 2). The notes hold a
+//     `plain` part asked with the owner's files only, which the brain door serves to every other agent (an
+//     agent may read the notes of its goal's top task). The main part holds records only when the task's own
+//     agent is on the list; every task the home server makes goes to the Chief of staff.
 import { randomBytes } from "node:crypto";
 import {
   chmodSync, closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync,
@@ -43,6 +47,13 @@ export function brainOn(config) {
   } catch {
     return false;
   }
+}
+
+// May this agent see books records through the brain? Only when it is on both of the brain door's lists.
+export function seesRecords(config, agent) {
+  const b = config?.doors?.brain;
+  return typeof agent === "string" && Array.isArray(b?.agents) && Array.isArray(b?.records)
+    && b.agents.includes(agent) && b.records.includes(agent);
 }
 
 // The query: the title, a line break, the owner's words; at most 2,000 characters.
@@ -107,8 +118,9 @@ function writeNotes(dir, taskId, body) {
   }
 }
 
-// buildNotes(ctx, { taskId, title, text }) -> Promise<boolean>; never rejects.
-export async function buildNotes(ctx, { taskId, title, text } = {}) {
+// buildNotes(ctx, { taskId, title, text, agent }) -> Promise<boolean>; never rejects. `agent` is the slug the
+// task is given to (the Chief of staff unless said).
+export async function buildNotes(ctx, { taskId, title, text, agent = "chief-of-staff" } = {}) {
   const log = logOf(ctx);
   try {
     // The route's answer goes first: nothing below runs in the turn that made the task.
@@ -132,8 +144,11 @@ export async function buildNotes(ctx, { taskId, title, text } = {}) {
       return false;
     }
     let found;
+    let plain;
     try {
-      found = ask(ix.db, query, { limit: RESULTS_MAX, maxChars: CHARS_MAX, basics: BASICS.map((b) => b.file) });
+      const opts = { limit: RESULTS_MAX, maxChars: CHARS_MAX, basics: BASICS.map((b) => b.file) };
+      plain = ask(ix.db, query, { ...opts, records: false });
+      found = seesRecords(config, agent) ? ask(ix.db, query, opts) : plain;
     } finally {
       try { ix.db.close(); } catch { /* closed */ }
     }
@@ -146,6 +161,7 @@ export async function buildNotes(ctx, { taskId, title, text } = {}) {
     const notes = {
       version: NOTES_VERSION, taskId, at: new Date(nowMs).toISOString(), notice: NOTICE,
       results: found.results.slice(0, RESULTS_MAX), links: found.links, notFound: found.notFound,
+      plain: { results: plain.results.slice(0, RESULTS_MAX), links: [], notFound: plain.notFound },
     };
     writeNotes(dir, taskId, `${JSON.stringify(notes)}\n`);
     prune(dir, nowMs);

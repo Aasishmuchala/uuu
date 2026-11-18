@@ -344,3 +344,16 @@ test("ask on a closed or broken handle answers empty, never throws", () => {
   assert.equal(entityView(o.db, "customer:Acme Interiors"), null);
   assert.deepEqual(findEntities(o.db, "acme interiors"), []);
 });
+
+test("records: false gives the owner's files only: no record passage, no link, a books-only word not found", () => {
+  for (const q of ["what did we promise Acme", "Ravi", "refunds", "invoice unpaid Acme", "Priya Nair staff"]) {
+    const r = ask(db, q, { records: false });
+    assert.ok(r.results.every((x) => x.kind === "file" && !x.source.startsWith("books:")), q);
+    assert.deepEqual(r.links, [], q);
+  }
+  assert.equal(ask(db, "what did we promise Acme", { records: false }).results[0].source, "calls/acme-call.md");
+  assert.deepEqual(ask(db, "Northwind", { records: false }), { results: [], links: [], notFound: ["northwind"] });
+  assert.deepEqual(ask(db, "Northwind").notFound, []);
+  // records: true, or not given, is as before.
+  assert.deepEqual(ask(db, "what did we promise Acme", { records: true }), ask(db, "what did we promise Acme"));
+});

@@ -5,6 +5,9 @@
 // status file and brain-asks.jsonl. Checks, in B9's order: upgrades and CONNECT, the token (this
 // door's own secret; an agent of `doors.brain.agents`, never the Researcher, never an app; or the
 // owner's test token), the switch, the path, the body, the agent's rate, the index, the notes.
+// Books records (record passages and the links between them) reach only the owner and the agents of
+// `doors.brain.records` (the owner's answer 2); every other agent gets the owner's files only, in an
+// answer and in notes alike.
 // Log lines never hold a header, a body, a token or a question.
 import http from "node:http";
 import {
@@ -158,6 +161,18 @@ export function checkNotes(data, taskId) {
   return { version: 1, taskId, at: data.at, notice: NOTICE, results, links, notFound };
 }
 
+// The notes for an agent who may not see books records: the notes builder's `plain` part (asked
+// with the owner's files only) when it is there and well formed; else the notes with every record
+// passage and every link left out. Either way no record passage and no link comes back.
+export function notesWithoutRecords(data, taskId) {
+  const plain = isObject(data) && isObject(data.plain)
+    ? checkNotes({ version: data.version, taskId: data.taskId, at: data.at, ...data.plain }, taskId) : null;
+  const base = plain || checkNotes(data, taskId);
+  if (!base) return null;
+  const results = base.results.filter((r) => r.kind === "file").map((r, i) => ({ ...r, n: i + 1 }));
+  return { ...base, results, links: [] };
+}
+
 // Calls per agent in the last day, in memory. Only the agents on the list are ever keys.
 function rateTable() {
   const calls = new Map(); // slug -> [ms, ...], oldest first
@@ -223,6 +238,10 @@ export function createBrainDoor({ config, log, now } = {}) {
   const doors = config && config.doors && config.doors.brain;
   const agents = doors && Array.isArray(doors.agents)
     ? doors.agents.filter((s) => typeof s === "string" && !NEVER.has(s)) : [];
+  // Who may see books records: on both lists. None when the config has no `records`.
+  const records = new Set(doors && Array.isArray(doors.records)
+    ? doors.records.filter((s) => typeof s === "string" && agents.includes(s)) : []);
+  const seesRecords = (who) => who.kind === "t" || (who.kind === "a" && records.has(who.slug));
   const clock = typeof now === "function" ? now : typeof now === "number" ? () => now : () => Date.now();
   const iso = () => new Date(clock()).toISOString();
   const say = (line) => {
@@ -289,11 +308,14 @@ export function createBrainDoor({ config, log, now } = {}) {
   }
 
   // ---- notes
-  function readNotes(task) {
+  function readNotes(task, withRecords) {
     if (!TASK_RE.test(task) || !ownDir(P.dir) || !ownDir(P.notes)) return null;
     const text = readOwnFile(join(P.notes, `${task}.json`), NOTES_BYTES);
     if (text === null) return null;
-    try { return checkNotes(JSON.parse(text), task); } catch { return null; }
+    try {
+      const data = JSON.parse(text);
+      return withRecords ? checkNotes(data, task) : notesWithoutRecords(data, task);
+    } catch { return null; }
   }
 
   // ---- answers
@@ -360,14 +382,14 @@ export function createBrainDoor({ config, log, now } = {}) {
         record(agent, name, q, "brain_no_index", 0);
         return no(res, "brain_no_index");
       }
-      const out = ask(h.db, q, { limit: ASK_LIMIT, maxChars: ASK_CHARS });
+      const out = ask(h.db, q, { limit: ASK_LIMIT, maxChars: ASK_CHARS, records: seesRecords(who) });
       record(agent, name, q, 200, out.results.length);
       bump("asks");
       say(`${iso()} ask ${agent} ${out.results.length}`);
       return sendJson(res, 200, { notice: NOTICE, results: out.results, links: out.links, notFound: out.notFound, builtAt: h.builtAt });
     }
     // 8. The notes.
-    const notes = readNotes(body.task);
+    const notes = readNotes(body.task, seesRecords(who));
     if (notes === null) {
       record(agent, name, null, "brain_no_notes", 0);
       return no(res, "brain_no_notes");

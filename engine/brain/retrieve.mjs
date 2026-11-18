@@ -34,6 +34,8 @@ const ENTITY_TYPES = new Set(["customer", "person", "deal", "invoice", "project"
 const LINK_TYPES = new Set(["invoice_of", "deal_of", "project_of", "ticket_of", "contact_of"]);
 // Fixed SQL text: the allowed values are literals of this file, never input.
 const ROW_OK = `p.trust IN ('${TRUSTS.join("','")}') AND p.kind IN ('${KINDS.join("','")}')`;
+// For an agent who may not see books facts (doors.brain.records, the owner's answer 2): the owner's files only.
+const ROW_FILES = "p.trust = 'owner' AND p.kind = 'file'";
 const WORD = /[\p{L}\p{N}]/u;
 
 // ---- the query
@@ -172,10 +174,10 @@ export function findEntities(db, text, limit = 8) {
 
 const ROW_COLS = "p.id AS id, p.kind AS kind, p.trust AS trust, p.source AS source, p.title AS title, p.locator AS locator, p.text AS text, p.at AS at, p.entity AS entity";
 
-function ftsList(db, expr) {
+function ftsList(db, expr, rowOk = ROW_OK) {
   try {
     return db.prepare(
-      `SELECT p.id AS id FROM fts JOIN passages p ON p.id = fts.rowid WHERE fts MATCH ? AND ${ROW_OK} ` +
+      `SELECT p.id AS id FROM fts JOIN passages p ON p.id = fts.rowid WHERE fts MATCH ? AND ${rowOk} ` +
         "ORDER BY bm25(fts, 4.0, 1.0), p.id LIMIT ?",
     ).all(expr, LIST_MAX).map((r) => r.id);
   } catch {
@@ -183,18 +185,18 @@ function ftsList(db, expr) {
   }
 }
 
-function termCount(db, term) {
+function termCount(db, term, rowOk = ROW_OK) {
   try {
-    const r = db.prepare(`SELECT count(*) AS n FROM fts JOIN passages p ON p.id = fts.rowid WHERE fts MATCH ? AND ${ROW_OK}`).get(quoted(term));
+    const r = db.prepare(`SELECT count(*) AS n FROM fts JOIN passages p ON p.id = fts.rowid WHERE fts MATCH ? AND ${rowOk}`).get(quoted(term));
     return Number(r?.n) || 0;
   } catch {
     return 0;
   }
 }
 
-function passageEntities(db, id) {
+function passageEntities(db, id, rowOk = ROW_OK) {
   const out = [];
-  const own = db.prepare(`SELECT p.entity AS entity FROM passages p WHERE p.id = ? AND ${ROW_OK}`).get(id);
+  const own = db.prepare(`SELECT p.entity AS entity FROM passages p WHERE p.id = ? AND ${rowOk}`).get(id);
   if (!own) return out;
   if (own.entity != null) out.push(own.entity);
   for (const m of db.prepare("SELECT entity FROM mentions WHERE passage = ? ORDER BY entity").all(id)) out.push(m.entity);
@@ -208,24 +210,24 @@ function neighbours(db, id) {
   return rows.filter((r) => LINK_TYPES.has(r.type)).map((r) => r.other);
 }
 
-function recordPassages(db, entity) {
-  return db.prepare(`SELECT p.id AS id, p.at AS at FROM passages p WHERE p.entity = ? AND p.kind = 'record' AND ${ROW_OK} ORDER BY p.at IS NULL, p.at DESC, p.id`).all(entity);
+function recordPassages(db, entity, rowOk = ROW_OK) {
+  return db.prepare(`SELECT p.id AS id, p.at AS at FROM passages p WHERE p.entity = ? AND p.kind = 'record' AND ${rowOk} ORDER BY p.at IS NULL, p.at DESC, p.id`).all(entity);
 }
 
-function mentionPassages(db, entity, limit) {
+function mentionPassages(db, entity, limit, rowOk = ROW_OK) {
   return db.prepare(
-    `SELECT p.id AS id, p.at AS at FROM mentions m JOIN passages p ON p.id = m.passage WHERE m.entity = ? AND ${ROW_OK} ` +
+    `SELECT p.id AS id, p.at AS at FROM mentions m JOIN passages p ON p.id = m.passage WHERE m.entity = ? AND ${rowOk} ` +
       "ORDER BY p.at IS NULL, p.at DESC, p.id LIMIT ?",
   ).all(entity, limit);
 }
 
-function namedList(db, ents) {
+function namedList(db, ents, rowOk = ROW_OK) {
   const out = [];
   const seen = new Set();
   const add = (id) => { if (!seen.has(id) && out.length < LIST_MAX) { seen.add(id); out.push(id); } };
   for (const e of ents) {
-    for (const r of recordPassages(db, e.id)) add(r.id);
-    for (const r of mentionPassages(db, e.id, LIST_MAX)) add(r.id);
+    for (const r of recordPassages(db, e.id, rowOk)) add(r.id);
+    for (const r of mentionPassages(db, e.id, LIST_MAX, rowOk)) add(r.id);
   }
   return out;
 }
@@ -321,9 +323,13 @@ function resultLinks(db, entityIds) {
   return out;
 }
 
+// opts.records === false: the owner's files only. No record passage, no link between records, and a word
+// found only in the books is listed as not found.
 export function ask(db, q, opts = {}) {
   const empty = { results: [], links: [], notFound: [] };
   try {
+    const records = opts?.records !== false;
+    const rowOk = records ? ROW_OK : ROW_FILES;
     const { terms } = rewrite(q);
     if (!terms.length) return empty;
     const limit = clampLimit(opts?.limit);
@@ -331,11 +337,11 @@ export function ask(db, q, opts = {}) {
     const basics = readBasics(db, opts?.basics);
     const text = String(q).normalize("NFKC").slice(0, QUERY_CHARS);
 
-    const strict = ftsList(db, terms.map(quoted).join(" "));
+    const strict = ftsList(db, terms.map(quoted).join(" "), rowOk);
     const last = terms[terms.length - 1];
-    const loose = ftsList(db, [...terms.map(quoted), ...(last.length >= 3 ? [`${quoted(last)}*`] : [])].join(" OR "));
+    const loose = ftsList(db, [...terms.map(quoted), ...(last.length >= 3 ? [`${quoted(last)}*`] : [])].join(" OR "), rowOk);
     const named = entitiesIn(db, text, 8);
-    const namedIds = namedList(db, named);
+    const namedIds = namedList(db, named, rowOk);
 
     const start = named.map((e) => e.id);
     const top = [];
@@ -343,11 +349,12 @@ export function ask(db, q, opts = {}) {
       if (!top.includes(id)) top.push(id);
       if (top.length >= 5) break;
     }
-    for (const id of top) for (const e of passageEntities(db, id)) start.push(e);
-    const linked = linkedList(db, start);
+    for (const id of top) for (const e of passageEntities(db, id, rowOk)) start.push(e);
+    // The link walk lands only on record passages.
+    const linked = records ? linkedList(db, start) : [];
 
     const strictSet = new Set(strict);
-    const fetch = db.prepare(`SELECT ${ROW_COLS} FROM passages p WHERE p.id = ? AND ${ROW_OK}`);
+    const fetch = db.prepare(`SELECT ${ROW_COLS} FROM passages p WHERE p.id = ? AND ${rowOk}`);
     const scored = [];
     for (const { id, score } of rrf([strict, loose, namedIds, linked])) {
       const row = fetch.get(id);
@@ -377,8 +384,8 @@ export function ask(db, q, opts = {}) {
 
     return {
       results: results.map((r, i) => shape(r.row, r.text, i + 1)),
-      links: resultLinks(db, [...ents]),
-      notFound: terms.filter((t) => termCount(db, t) === 0),
+      links: records ? resultLinks(db, [...ents]) : [],
+      notFound: terms.filter((t) => termCount(db, t, rowOk) === 0),
     };
   } catch {
     return empty;

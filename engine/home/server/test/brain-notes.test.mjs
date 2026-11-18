@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { ask, NOTICE } from "../../../brain/retrieve.mjs";
 import { FILES } from "../../../brain/test/fixture.mjs";
 import { indexFor } from "../brain/indexer.mjs";
-import { brainOn, buildNotes, readNotes } from "../brain/notes.mjs";
+import { brainOn, buildNotes, readNotes, seesRecords } from "../brain/notes.mjs";
 import { createBench } from "../lib/bench.mjs";
 import { BASICS } from "../lib/brainfiles.mjs";
 import { updateDoors } from "../lib/doors.mjs";
@@ -31,7 +31,8 @@ const JOB_ANSWERS = {
   "document-title": "Site visit price sheet", "who-will-read-it": "Fitters",
   "paste-your-notes-here": "What we charge Acme Interiors for a site visit.",
 };
-const NOTE_KEYS = ["version", "taskId", "at", "notice", "results", "links", "notFound"];
+// `plain`: the same question asked with the owner's files only, for an agent not on doors.brain.records.
+const NOTE_KEYS = ["version", "taskId", "at", "notice", "results", "links", "notFound", "plain"];
 const RESULT_KEYS = ["n", "kind", "source", "title", "locator", "text", "at"];
 
 let h;
@@ -86,6 +87,15 @@ function assertShape(notes, id) {
   assert.ok(notes.results.reduce((n, r) => n + r.text.length, 0) <= 6000);
   for (const r of notes.results) assert.deepEqual(Object.keys(r), RESULT_KEYS);
   assert.ok(Array.isArray(notes.links) && Array.isArray(notes.notFound));
+  assert.deepEqual(Object.keys(notes.plain), ["results", "links", "notFound"]);
+  assert.ok(notes.plain.results.length <= 8);
+  assert.ok(notes.plain.results.reduce((n, r) => n + r.text.length, 0) <= 6000);
+  for (const r of notes.plain.results) {
+    assert.deepEqual(Object.keys(r), RESULT_KEYS);
+    assert.equal(r.kind, "file");
+    assert.ok(!r.source.startsWith("books:"));
+  }
+  assert.deepEqual(notes.plain.links, []);
 }
 
 // The three task-making calls, each returning the new task's id and the board body it sent.
@@ -265,6 +275,31 @@ test("nothing agent-written is read: the board's task text changed after creatio
   // Rebuilt after the change, from the route's words again: still the same passages.
   await buildNotes({ config: h.config, log: () => {} }, { taskId: id, title: titleOf(question), text: question });
   assert.deepEqual(sources(readNotes(h.config, id)), sources(notes));
+});
+
+test("books records in notes: whole for the Chief of staff and the Bookkeeper, files only for the Artist (doors.brain.records)", async () => {
+  assert.equal(seesRecords(h.config, "chief-of-staff"), true);
+  assert.equal(seesRecords(h.config, "bookkeeper"), true);
+  for (const a of ["artist", "art-director", "researcher", "app-x", undefined]) assert.equal(seesRecords(h.config, a), false, String(a));
+  const ctx = { config: h.config, log: () => {} };
+  const q = { title: "What did we promise Acme?", text: "Invoices for Acme Interiors and Northwind" };
+  assert.equal(await buildNotes(ctx, { taskId: "rec-bookkeeper", ...q, agent: "bookkeeper" }), true);
+  assert.equal(await buildNotes(ctx, { taskId: "rec-artist", ...q, agent: "artist" }), true);
+  const whole = readNotes(h.config, "rec-bookkeeper");
+  const plain = readNotes(h.config, "rec-artist");
+  assertShape(whole, "rec-bookkeeper");
+  assertShape(plain, "rec-artist");
+  assert.ok(whole.results.some((r) => r.kind === "record"));
+  assert.ok(whole.links.length > 0);
+  assert.ok(plain.results.every((r) => r.kind === "file"));
+  assert.deepEqual(plain.links, []);
+  const text = readFileSync(notesFile("rec-artist"), "utf8");
+  for (const w of [`"books:`, "Northwind Traders", "ACC-SINV", "Billed"]) assert.ok(!text.includes(w), w);
+  // Both files hold the same files-only part for any other reader.
+  assert.deepEqual(whole.plain, plain.plain);
+  // A config without the list: no agent's notes hold records.
+  const bare = { ...h.config, doors: { ...h.config.doors, brain: { agents: h.config.doors.brain.agents } } };
+  assert.equal(seesRecords(bare, "bookkeeper"), false);
 });
 
 test("readNotes refuses a link, a file over 64 KB and a wrong shape", async () => {

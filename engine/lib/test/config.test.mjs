@@ -12,6 +12,8 @@ const libDir = join(here, "..");
 const engineDir = join(libDir, "..");
 const real = JSON.parse(readFileSync(join(engineDir, "config.json"), "utf8"));
 const BRAIN_AGENTS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist", "art-director"];
+// Who of them may see books records through the brain: all but the Artist and the Art director (the owner's answer 2).
+const BRAIN_RECORDS = BRAIN_AGENTS.filter((s) => s !== "artist" && s !== "art-director");
 const tmp = mkdtempSync(join(tmpdir(), "cfgtest-"));
 
 function writeCfg(name, obj) {
@@ -77,7 +79,7 @@ test("the doors' ports, paths and agents (PLAN-V5 K1)", () => {
   assert.deepEqual(c.doors, {
     web: { agents: ["researcher"] }, generate: { agents: ["artist"], apps: ["render-to-film"] },
     viewer: { agents: ["builder", "art-director"] },
-    brain: { agents: BRAIN_AGENTS },
+    brain: { agents: BRAIN_AGENTS, records: BRAIN_RECORDS },
   });
   const want = {
     playbooks: "playbooks", research: "tasks/research", sharedBrain: "knowledge/shared", doors: "doors",
@@ -116,6 +118,10 @@ test("a config without a door's port or with a bad doors block is refused", () =
     (c) => { c.doors.brain.agents = ["Builder"]; },
     (c) => { c.doors.brain.agents = ["app-x"]; },
     (c) => { c.doors.brain = ["builder"]; },
+    (c) => { c.doors.brain.records = "builder"; },
+    (c) => { c.doors.brain.records = ["Builder"]; },
+    (c) => { c.doors.brain.records = ["app-x"]; },
+    (c) => { c.doors.web.records = ["researcher"]; },
   ];
   bad.forEach((change, i) => {
     const c = clone();
@@ -288,14 +294,42 @@ test("the brain door: port, urls, paths, agents and the shell names (PLAN-BRAIN 
 test("a config without doors.brain loads with no agents in both loaders; a bad list is refused", () => {
   const none = clone();
   delete none.doors.brain;
-  assert.deepEqual(loadConfig({ path: writeCfg("nb.json", none) }).doors.brain, { agents: [] });
+  assert.deepEqual(loadConfig({ path: writeCfg("nb.json", none) }).doors.brain, { agents: [], records: [] });
   const r = py(["--json"], { ENGINE_CONFIG: writeCfg("nb2.json", none) });
   assert.equal(r.status, 0);
-  assert.deepEqual(JSON.parse(r.stdout).doors.brain, { agents: [] });
+  assert.deepEqual(JSON.parse(r.stdout).doors.brain, { agents: [], records: [] });
   const bad = clone();
   bad.doors.brain.agents = "builder";
   assert.throws(() => loadConfig({ path: writeCfg("nb3.json", bad) }), /^Error: engine config: key doors\.brain\.agents must be a array/);
   const r2 = py(["--json"], { ENGINE_CONFIG: writeCfg("nb4.json", bad) });
   assert.equal(r2.status, 1);
   assert.match(r2.stderr, /^engine config: key doors\.brain\.agents must be a array/);
+});
+
+test("doors.brain.records: who may see books records; none when absent; both loaders agree and refuse alike", () => {
+  const c = loadConfig();
+  assert.deepEqual(c.doors.brain.records, BRAIN_RECORDS);
+  for (const s of ["artist", "art-director", "researcher"]) assert.equal(c.doors.brain.records.includes(s), false, s);
+  const pj = JSON.parse(py(["--json"]).stdout);
+  assert.deepEqual(pj.doors.brain.records, BRAIN_RECORDS);
+  const none = clone();
+  delete none.doors.brain.records;
+  assert.deepEqual(loadConfig({ path: writeCfg("nr.json", none) }).doors.brain.records, []);
+  const r = py(["--json"], { ENGINE_CONFIG: writeCfg("nr2.json", none) });
+  assert.equal(r.status, 0);
+  assert.deepEqual(JSON.parse(r.stdout).doors.brain.records, []);
+  const cases = [
+    [(x) => { x.doors.brain.records = "builder"; }, /^engine config: key doors\.brain\.records must list agent slugs/],
+    [(x) => { x.doors.brain.records = ["Builder"]; }, /^engine config: key doors\.brain\.records must list agent slugs/],
+    [(x) => { x.doors.brain.records = ["app-x"]; }, /^engine config: key doors\.brain\.records names an app/],
+    [(x) => { x.doors.viewer.records = ["builder"]; }, /^engine config: key doors\.viewer\.records: only the brain door lists who may see books records/],
+  ];
+  cases.forEach(([change, want], i) => {
+    const x = clone();
+    change(x);
+    assert.throws(() => loadConfig({ path: writeCfg(`nr-bad${i}.json`, x) }), (e) => want.test(e.message), String(i));
+    const r2 = py(["--json"], { ENGINE_CONFIG: writeCfg(`nr-badp${i}.json`, x) });
+    assert.equal(r2.status, 1, String(i));
+    assert.match(r2.stderr, want, String(i));
+  });
 });

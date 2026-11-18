@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mintToken } from "../../relay/token.mjs";
-import { ASKS_KEEP, ASKS_MAX, CODES, NOTICE, PER_DAY, PER_HOUR, createBrainDoor } from "../door.mjs";
+import { ASKS_KEEP, ASKS_MAX, CODES, NOTICE, PER_DAY, PER_HOUR, createBrainDoor, notesWithoutRecords } from "../door.mjs";
 import { BUILT_AT, buildFixtureIndex } from "./fixture.mjs";
 
 const BRAIN_SECRET = "3".repeat(64);
@@ -19,6 +19,8 @@ const BUILDER = "11111111-2222-4333-8444-000000000001";
 const SALES = "11111111-2222-4333-8444-000000000002";
 const RESEARCHER = "11111111-2222-4333-8444-000000000003";
 const STRANGER = "11111111-2222-4333-8444-000000000004"; // in the company, not on the list
+const ARTIST = "11111111-2222-4333-8444-000000000005"; // on the list, but not to see books records
+const BOOKKEEPER = "11111111-2222-4333-8444-000000000006";
 const HOUR = 3600_000;
 
 let dir;
@@ -41,13 +43,13 @@ function put(path, text, mode = 0o600) {
 const setSwitches = (data, mode = 0o600) => put(paths.doorsState, JSON.stringify(data), mode);
 const setBrain = (on) => setSwitches({ version: 1, web: { on: false }, viewer: { on: false }, brain: { on } });
 
-function makeConfig(agents = ["chief-of-staff", "builder", "sales"]) {
-  return { ports: { brain: 0 }, paths, doors: { brain: { agents } } };
+function makeConfig(agents = ["chief-of-staff", "builder", "sales"], records = agents) {
+  return { ports: { brain: 0 }, paths, doors: { brain: { agents, records } } };
 }
 
-async function startDoor(agents) {
+async function startDoor(agents, records) {
   if (door) await door.close();
-  door = createBrainDoor({ config: makeConfig(agents), log: (l) => lines.push(l), now: () => clock });
+  door = createBrainDoor({ config: makeConfig(agents, records), log: (l) => lines.push(l), now: () => clock });
   port = await door.listen(0);
 }
 
@@ -117,7 +119,7 @@ beforeEach(async () => {
   for (const d of ["doors", "secrets/doors", "brain", "brain/notes"]) mkdirSync(join(dir, d), { recursive: true, mode: 0o700 });
   put(paths.brainSecret, `${BRAIN_SECRET}\n`);
   put(paths.webSecret, `${WEB_SECRET}\n`);
-  put(paths.ids, JSON.stringify({ agents: { builder: BUILDER, sales: SALES, researcher: RESEARCHER, stranger: STRANGER } }), 0o644);
+  put(paths.ids, JSON.stringify({ agents: { builder: BUILDER, sales: SALES, researcher: RESEARCHER, stranger: STRANGER, artist: ARTIST, bookkeeper: BOOKKEEPER } }), 0o644);
   setBrain(true);
   buildFixtureIndex(paths.brainIndex);
   clock = Date.now();
@@ -395,6 +397,89 @@ test("a notes file of B8's shape is handed over, checked and capped again", asyn
   assert.ok(c.json.results.every((x) => x.text.length <= 900));
   assert.ok(c.json.results.reduce((s, x) => s + x.text.length, 0) <= 6000);
   assert.equal(c.json.extra, undefined);
+});
+
+// ---- books records only for the agents of doors.brain.records (the owner's answer 2)
+
+const BOOKS_WORDS = ["Northwind", "ACC-SINV", "CRM-DEAL", "Billed", "Unpaid", "Staff:", "Rohan Das", "Sana Khan"];
+
+async function recordsDoor() {
+  await startDoor(["builder", "bookkeeper", "artist", "art-director"], ["builder", "bookkeeper"]);
+}
+
+test("the Bookkeeper, on the records list, gets books records and their links", async () => {
+  await recordsDoor();
+  const r = await askQ("what did we promise Acme", agent(BOOKKEEPER));
+  assert.equal(r.status, 200);
+  assert.ok(r.json.results.some((x) => x.kind === "record" && x.source === "books:Customer:Acme Interiors"));
+  assert.ok(r.json.links.some((l) => l.type === "invoice_of"));
+  const n = await askQ("Northwind", agent(BOOKKEEPER));
+  assert.deepEqual(n.json.notFound, []);
+  assert.ok(n.json.results.some((x) => x.source === "books:Customer:Northwind Traders"));
+});
+
+test("the Artist, on the list but not the records list, gets the owner's files only", async () => {
+  await recordsDoor();
+  for (const q of ["what did we promise Acme", "Ravi", "refunds", "Priya Nair staff", "invoice unpaid Acme"]) {
+    const r = await askQ(q, agent(ARTIST));
+    assert.equal(r.status, 200, q);
+    assert.ok(r.json.results.every((x) => x.kind === "file" && !x.source.startsWith("books:")), q);
+    assert.deepEqual(r.json.links, [], q);
+    for (const w of BOOKS_WORDS) assert.ok(!r.text.includes(w), `${q}: ${w}`);
+  }
+  // Its files still answer.
+  const a = await askQ("what did we promise Acme", agent(ARTIST));
+  assert.equal(a.json.results[0].source, "calls/acme-call.md");
+  // A word only the books hold is not found for it.
+  const n = await askQ("Northwind", agent(ARTIST));
+  assert.deepEqual(n.json.results, []);
+  assert.deepEqual(n.json.notFound, ["northwind"]);
+});
+
+test("a config with no records list gives books records to no agent, and the owner still sees them", async () => {
+  door && await door.close();
+  door = createBrainDoor({ config: { ports: { brain: 0 }, paths, doors: { brain: { agents: ["builder"] } } }, log: () => {}, now: () => clock });
+  port = await door.listen(0);
+  const r = await askQ("what did we promise Acme");
+  assert.ok(r.json.results.every((x) => x.kind === "file"));
+  assert.deepEqual(r.json.links, []);
+  const o = await askQ("what did we promise Acme", owner());
+  assert.ok(o.json.results.some((x) => x.kind === "record"));
+});
+
+test("notes: the Artist gets the plain part, or the notes without record passages and links; the Bookkeeper gets them whole", async () => {
+  await recordsDoor();
+  const record = { n: 2, kind: "record", source: "books:Customer:Acme Interiors", title: "Acme Interiors", locator: "", text: "Customer: Acme Interiors. Invoices: 2.", at: null };
+  const file = NOTES("t").results[0];
+  const plainFile = { ...file, text: "Price: ₹2,500 per visit. (plain)" };
+  writeNotes("task-p", NOTES("task-p", {
+    results: [file, record], notFound: [],
+    plain: { results: [plainFile], links: [], notFound: ["acme"] },
+  }));
+  const whole = await notesOf("task-p", agent(BOOKKEEPER));
+  assert.equal(whole.status, 200);
+  assert.equal(whole.json.results.length, 2);
+  assert.equal(whole.json.links.length, 1);
+  assert.equal(whole.json.plain, undefined);
+  const plain = await notesOf("task-p", agent(ARTIST));
+  assert.equal(plain.status, 200);
+  assert.deepEqual(plain.json.results, [plainFile]);
+  assert.deepEqual(plain.json.links, []);
+  assert.deepEqual(plain.json.notFound, ["acme"]);
+  assert.equal(plain.json.plain, undefined);
+  // Notes written before the plain part, or with a plain part holding a record: no record, no link.
+  writeNotes("task-o", NOTES("task-o", { results: [record, file] }));
+  const old = await notesOf("task-o", agent(ARTIST));
+  assert.equal(old.status, 200);
+  assert.deepEqual(old.json.results, [{ ...file, n: 1 }]);
+  assert.deepEqual(old.json.links, []);
+  writeNotes("task-q", NOTES("task-q", { plain: { results: [record], links: NOTES("x").links, notFound: [] } }));
+  const q = await notesOf("task-q", agent(ARTIST));
+  assert.deepEqual(q.json.results, []);
+  assert.deepEqual(q.json.links, []);
+  for (const r of [plain, old, q]) for (const w of ["Acme Interiors", "ACC-SINV"]) assert.ok(!r.text.includes(w), w);
+  // The pure helper agrees.
+  assert.equal(notesWithoutRecords(NOTES("task-z"), "task-y"), null);
 });
 
 test("notes that are not there are no notes", async () => {

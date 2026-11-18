@@ -16,6 +16,8 @@ REAL = os.path.join(os.path.dirname(LIB), "config.json")
 
 BRAIN_AGENTS = ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people",
                 "marketer", "drafter", "artist", "art-director"]
+# Who of them may see books records through the brain: all but the Artist and the Art director (the owner's answer 2).
+BRAIN_RECORDS = [s for s in BRAIN_AGENTS if s not in ("artist", "art-director")]
 
 
 def real_cfg():
@@ -91,7 +93,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(paths["viewerStatus"], j(s, "doors", "viewer-status.json"))
         self.assertEqual(c["doors"], {"web": {"agents": ["researcher"]}, "generate": {"agents": ["artist"], "apps": ["render-to-film"]},
                                       "viewer": {"agents": ["builder", "art-director"]},
-                                      "brain": {"agents": BRAIN_AGENTS}})
+                                      "brain": {"agents": BRAIN_AGENTS, "records": BRAIN_RECORDS}})
         self.assertEqual(c["fence"]["policyPortsAllowed"], [8120])
 
     def test_missing_door_port_or_bad_doors(self):
@@ -118,6 +120,10 @@ class ConfigTest(unittest.TestCase):
             lambda c: c["doors"]["brain"].update(agents=["Builder"]),
             lambda c: c["doors"]["brain"].update(agents=["app-x"]),
             lambda c: c["doors"].update(brain=["builder"]),
+            lambda c: c["doors"]["brain"].update(records="builder"),
+            lambda c: c["doors"]["brain"].update(records=["Builder"]),
+            lambda c: c["doors"]["brain"].update(records=["app-x"]),
+            lambda c: c["doors"]["web"].update(records=["researcher"]),
         ]
         for i, change in enumerate(changes):
             c = real_cfg()
@@ -141,12 +147,30 @@ class ConfigTest(unittest.TestCase):
             self.assertEqual(c["paths"][k], j(s, *rel.split("/")), k)
         none = real_cfg()
         del none["doors"]["brain"]
-        self.assertEqual(config.load_config(self.write("nb.json", none))["doors"]["brain"], {"agents": []})
+        self.assertEqual(config.load_config(self.write("nb.json", none))["doors"]["brain"], {"agents": [], "records": []})
         bad = real_cfg()
         bad["doors"]["brain"]["agents"] = "builder"
         with self.assertRaises(config.ConfigError) as cm:
             config.load_config(self.write("nb2.json", bad))
         self.assertIn("key doors.brain.agents must be a array", str(cm.exception))
+
+    def test_brain_records_list(self):
+        c = config.load_config()
+        self.assertEqual(c["doors"]["brain"]["records"], BRAIN_RECORDS)
+        for s in ("artist", "art-director", "researcher"):
+            self.assertNotIn(s, c["doors"]["brain"]["records"])
+        none = real_cfg()
+        del none["doors"]["brain"]["records"]
+        self.assertEqual(config.load_config(self.write("nr.json", none))["doors"]["brain"]["records"], [])
+        for change, words in ((lambda x: x["doors"]["brain"].update(records="builder"), "key doors.brain.records must list agent slugs"),
+                              (lambda x: x["doors"]["brain"].update(records=["app-x"]), "key doors.brain.records names an app"),
+                              (lambda x: x["doors"]["viewer"].update(records=["builder"]),
+                               "only the brain door lists who may see books records")):
+            x = real_cfg()
+            change(x)
+            with self.assertRaises(config.ConfigError) as cm:
+                config.load_config(self.write("nr2.json", x))
+            self.assertIn(words, str(cm.exception))
 
     def test_app_studio_config(self):
         c = config.load_config()

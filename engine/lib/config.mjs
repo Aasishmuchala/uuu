@@ -52,6 +52,16 @@ function needDoors(cfg) {
         fail("key doors.generate.apps must list app names");
       }
     }
+    // The brain door's agents who may see books records (the owner's answer 2); optional, none when absent.
+    // Only an agent on both lists sees them (the door and the notes builder check both).
+    if ("records" in d[name]) {
+      if (name !== "brain") fail(`key doors.${name}.records: only the brain door lists who may see books records`);
+      const records = d[name].records;
+      if (!Array.isArray(records) || !records.every((s) => typeof s === "string" && SLUG_RE.test(s))) {
+        fail("key doors.brain.records must list agent slugs");
+      }
+      if (records.some((s) => s.startsWith("app-"))) fail("key doors.brain.records names an app, not an agent (a name starting with app-)");
+    }
   }
 }
 
@@ -127,6 +137,7 @@ export function loadConfig({ path } = {}) {
   out.previewPorts = { first: p.preview + 1, last: p.preview + PREVIEW_SITE_PORTS };
   if (!("apps" in out.doors.generate)) out.doors.generate.apps = [];
   if (!("brain" in out.doors)) out.doors.brain = { agents: [] };
+  if (!("records" in out.doors.brain)) out.doors.brain.records = [];
   const s = out.stateRoot;
   out.paths = {
     state: s,

@@ -23,6 +23,8 @@ Nothing else. No write, no file, no search of a path.
 
 An agent whose token the door itself minted, and who is named in `doors.brain.agents` of `engine/config.json`: Chief of staff, Builder, Checker, Bookkeeper, Sales, Support, People, Marketer, Drafter, Artist and Art director. The Researcher is refused whatever the list says, and so is an app. The owner's test token may call `ask` and `notes` (the Brain page's test box).
 
+Books facts reach only the agents also named in `doors.brain.records`: all of the above but the Artist and the Art director (the owner's choice). Every other agent gets passages from the owner's files only, no links between records, and a word only the books hold comes back as not found. The same holds for notes: the home server writes a files-only part in each notes file, and the door serves that part to them. A config with no `records` list gives books facts to no agent.
+
 ## What it refuses, in this order
 
 Each refusal is a short sentence and a code.

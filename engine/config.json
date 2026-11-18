@@ -20,7 +20,8 @@
     "web": { "agents": ["researcher"] },
     "generate": { "agents": ["artist"], "apps": ["render-to-film"] },
     "viewer": { "agents": ["builder", "art-director"] },
-    "brain": { "agents": ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist", "art-director"] }
+    "brain": { "agents": ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist", "art-director"],
+      "records": ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter"] }
   },
   "minFreeDiskGb": 8
 }
