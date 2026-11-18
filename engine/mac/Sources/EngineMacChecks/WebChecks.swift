@@ -362,6 +362,57 @@ private func factoryChecks() -> [Check] {
     ]
 }
 
+// PLAN-MAC-2 N4a: the home screen's address as one value, and the `home:` forms the same as `homePort:`.
+private func originChecks() -> [Check] {
+    let home = HomeOrigin.local(port: 3200)
+    func url(_ rest: String, _ want: String?) -> Check {
+        Check(name: "origin: url(\(rest.debugDescription)) -> \(want ?? "nil")") {
+            let got = home.url(rest)?.absoluteString
+            try expect(got == want, "got \(got ?? "nil")")
+        }
+    }
+    return [
+        Check(name: "origin: local(port:) is http on the loopback address") {
+            try expect(home.scheme == "http" && home.host == HomeOrigin.loopbackHost && home.port == 3200, "\(home)")
+            try expect(HomeOrigin.loopbackHost == "127.0.0.1", "loopback")
+            try expect(home == .local(port: 3200) && home != .local(port: 3201), "equality")
+        },
+        url("/", "http://127.0.0.1:3200/"),
+        url("/#/needs-you", "http://127.0.0.1:3200/#/needs-you"),
+        url("/api/shell", "http://127.0.0.1:3200/api/shell"),
+        url("/healthz", "http://127.0.0.1:3200/healthz"),
+        url("needs-you", nil),
+        url("//evil.example/", nil),
+        url("/\n", nil),
+        url("", nil),
+        url("/ x", nil),
+        url("/\\evil.example/", nil),
+        url("/@evil.example/", "http://127.0.0.1:3200/@evil.example/"),
+        Check(name: "origin: the policy's home: and homePort: forms are the same policy") {
+            let a = NavigationPolicy(home: home), b = NavigationPolicy(homePort: 3200)
+            try expect(a.home == b.home && a.homePort == 3200 && b.homePort == 3200, "home")
+            for text in ["http://127.0.0.1:3200/", "http://127.0.0.1:3201/", "http://localhost:3200/",
+                         "https://127.0.0.1:3200/", "http://127.0.0.1:03200/"] {
+                let u = URL(string: text)!
+                try expect(a.isHome(u) == b.isHome(u), text)
+            }
+            try expect(a.isHome(home.url("/#/needs-you")!), "its own address is home")
+        },
+        Check(name: "origin: the poll's home: and homePort: forms are the same") {
+            let a = Poller(home: home, timeout: 1), b = Poller(homePort: 3200, timeout: 1)
+            try expect(a.home == b.home && a.homePort == 3200 && b.homePort == 3200, "home")
+        },
+        Check(name: "origin: the factory's home: form gives the policy that origin") {
+            try MainActor.assumeIsolated {
+                let web = WebViewFactory.make(home: .local(port: 3333), role: .probe)
+                guard let g = WebViewFactory.webGuard(of: web) else { throw WebCheckFailure(description: "no guard") }
+                try expect(g.policy.home == .local(port: 3333) && g.policy.homePort == 3333, "policy")
+            }
+        },
+    ]
+}
+
 func webChecks() -> [Check] {
     tableChecks() + hostileChecks() + mappingChecks() + responseChecks() + localDownloadChecks() + messageChecks() + factoryChecks()
+        + originChecks()
 }

@@ -5,7 +5,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let web = WebViewFactory.make(homePort: BuildConstants.homePort, role: .app)
+        let home = HomeOrigin.local(port: BuildConstants.homePort)
+        let web = WebViewFactory.make(home: home, role: .app)
         let win = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1440, height: 900),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -16,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         win.center()
         win.makeKeyAndOrderFront(nil)
         window = win
-        if let url = URL(string: "http://127.0.0.1:\(BuildConstants.homePort)/") {
+        if let url = home.url("/") {
             web.load(URLRequest(url: url))
         }
         NSApp.activate(ignoringOtherApps: true)

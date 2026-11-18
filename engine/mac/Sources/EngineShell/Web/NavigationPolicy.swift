@@ -47,15 +47,23 @@ struct Address {
 
     /// `http`, the host exactly `127.0.0.1`, the port written exactly as `port`, no user name or password.
     func isLoopbackHTTP(port wanted: ClosedRange<Int>) -> Bool {
-        guard scheme == "http", host == "127.0.0.1", !hasCredentials,
+        isOrigin(scheme: "http", host: HomeOrigin.loopbackHost, port: wanted)
+    }
+
+    /// The scheme and host exactly as given, the port written exactly as one in `wanted`, no user name or
+    /// password.
+    func isOrigin(scheme wantedScheme: String, host wantedHost: String, port wanted: ClosedRange<Int>) -> Bool {
+        guard scheme == wantedScheme, host == wantedHost, !hasCredentials,
               let port, wanted.contains(port), portText == String(port) else { return false }
         return true
     }
 }
 
 public struct NavigationPolicy {
-    public let homePort: Int
-    public init(homePort: Int) { self.homePort = homePort }
+    public let home: HomeOrigin
+    public var homePort: Int { home.port }
+    public init(home: HomeOrigin) { self.home = home }
+    public init(homePort: Int) { self.init(home: .local(port: homePort)) }
 
     /// App Studio's apps, each on its own port (ADR 0016). Only ever inside a frame.
     public static let appPorts = 3171...3189
@@ -80,7 +88,7 @@ public struct NavigationPolicy {
     /// The home screen's own origin: the only top page the app shows (S1).
     public func isHome(_ url: URL) -> Bool {
         guard Self.isClean(url.absoluteString), let a = Address(url) else { return false }
-        return a.isLoopbackHTTP(port: homePort...homePort)
+        return a.isOrigin(scheme: home.scheme, host: home.host, port: home.port...home.port)
     }
 
     /// An App Studio app's address, http://127.0.0.1:3171 to 3189 (S2).
@@ -107,11 +115,11 @@ public struct NavigationPolicy {
 
     /// The origin of a frame as WebKit reports it (WKSecurityOrigin's protocol, host and port).
     public func isHomeOrigin(scheme: String, host: String, port: Int) -> Bool {
-        scheme == "http" && host == "127.0.0.1" && port == homePort
+        scheme == home.scheme && host == home.host && port == home.port
     }
 
     public static func isAppOrigin(scheme: String, host: String, port: Int) -> Bool {
-        scheme == "http" && host == "127.0.0.1" && appPorts.contains(port)
+        scheme == "http" && host == HomeOrigin.loopbackHost && appPorts.contains(port)
     }
 
     /// A `download` link to a `blob:` or `data:` address the page or app made itself. Allowed only from

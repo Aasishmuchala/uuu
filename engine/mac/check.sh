@@ -30,11 +30,12 @@ if grep -rnE "$FORBIDDEN" Sources/EngineShell Sources/CompanyEngine --include='*
   exit 1
 fi
 
-# Any change under Sources needs a new VERSION (the commit that last changed VERSION is the mark).
-MARK="$(git log -1 --format=%H -- engine/mac/VERSION 2>/dev/null || true)"
-if [ -n "$MARK" ]; then
-  if ! git diff --quiet "$MARK" -- Sources || [ -n "$(git status --porcelain -- Sources | grep -v BuildConstants.swift || true)" ]; then
-    echo "check.sh: Sources changed since VERSION last changed. Bump VERSION." >&2
-    exit 1
-  fi
+# The loopback address is written in one file only (PLAN-MAC-2 N4a).
+if grep -rnE '"(https?://)?127\.0\.0\.1' Sources/EngineShell Sources/CompanyEngine --include='*.swift' \
+     | grep -v '^Sources/EngineShell/Web/HomeOrigin\.swift:'; then
+  echo "check.sh: a loopback address literal outside HomeOrigin.swift (see above). Use HomeOrigin." >&2
+  exit 1
 fi
+
+# Any change under Sources needs a new VERSION.
+"$HERE/version-rule.sh"

@@ -8,7 +8,7 @@ import IOKit.pwr_mgt
 // free port the system picks (always above 3300 and never one of the engine's).
 
 func engineChecks() -> [Check] {
-    envChecks() + rootChecks() + runChecks() + pollChecks() + awakeChecks() + badgeChecks() + notifyChecks()
+    envChecks() + rootChecks() + runChecks() + switchChecks() + pollChecks() + awakeChecks() + badgeChecks() + notifyChecks()
 }
 
 // ---- helpers (private to this file) -----------------------------------------------------------------------
@@ -123,9 +123,30 @@ private func envChecks() -> [Check] {
             try same(Set(built.keys), Set(seven), "keys")
         },
         Check(name: "env: PATH, LANG and SHELL are fixed") {
-            try same(built["PATH"], "/usr/bin:/bin:/usr/sbin:/sbin", "PATH")
+            try same(built["PATH"], "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin", "PATH")
             try same(built["LANG"], "en_US.UTF-8", "LANG")
             try same(built["SHELL"], "/bin/bash", "SHELL")
+        },
+        Check(name: "env: path has six folders in the pinned order") {
+            let folders = EngineEnvironment.path.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+            try same(folders, ["/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin"], "folders")
+            try same(Set(folders).count, 6, "distinct")
+            try same(built["PATH"], EngineEnvironment.path, "built PATH")
+        },
+        Check(name: "env: no folder under the home folder") {
+            let homes = ["/Users/", "/var/root", NSHomeDirectory(), physical(NSHomeDirectory())]
+            for folder in EngineEnvironment.path.split(separator: ":").map(String.init) {
+                try expect(folder.hasPrefix("/") && !folder.contains("~") && !folder.contains("$"), "\(folder) is not a fixed path")
+                for h in homes { try expect(!folder.hasPrefix(h), "\(folder) is under \(h)") }
+                try expect(!folder.contains("/.local/") && !folder.contains("nvm"), "\(folder)")
+            }
+            let mine = EngineEnvironment.forThisUser()
+            try same(mine["PATH"], EngineEnvironment.path, "the app's PATH")
+        },
+        Check(name: "env: still seven keys") {
+            try same(built.count, 7, "count")
+            try same(EngineEnvironment.forThisUser().count, 7, "the app's count")
+            try same(Set(EngineEnvironment.forThisUser().keys), Set(seven), "the app's keys")
         },
         Check(name: "env: HOME, USER, LOGNAME and TMPDIR come from the arguments") {
             try same(built["HOME"], "/Users/someone", "HOME")
@@ -257,6 +278,63 @@ private func rootChecks() -> [Check] {
 // ---- run: --------------------------------------------------------------------------------------------------
 
 private let quick = EngineLimits(start: 1, stop: 1, status: 1.5)
+
+// ---- switch: (PLAN-MAC-2 N4b) ------------------------------------------------------------------------------
+
+private func switchChecks() -> [Check] {
+    [
+        Check(name: "switch: a development build is unavailable with W8, and start gives (-1, [W8])") {
+            let s = try StandIn()
+            for compiled in ["", s.root.path] {
+                let sw: EngineSwitch = LocalEngineSwitch(flavor: "dev", compiledRoot: compiled)
+                try same(sw.state, .unavailable(EngineWords.devBuild), "state (\(compiled.isEmpty ? "empty" : "stand-in"))")
+                let r = blocking { await sw.run(.start) }
+                try same(r.exit, -1, "exit")
+                try same(r.lines, [EngineWords.devBuild], "lines")
+                let q = blocking { await sw.run(.status) }
+                try same(q.lines, [EngineWords.devBuild], "status lines")
+            }
+            let t = LocalEngineSwitch(flavor: "dev", compiledRoot: s.root.path, allowTemp: true)
+            try same(t.state, .unavailable(EngineWords.devBuild), "allowTemp changes nothing for dev")
+            try expect(!FileManager.default.fileExists(atPath: s.record.path), "the stand-in ran")
+        },
+        Check(name: "switch: a release build with a bad compiled root is unavailable with W10") {
+            let s = try StandIn(), bad = try StandIn(mode: 0o777)
+            for (compiled, temp) in [("", true), ("/nope", true), (bad.root.path, true), (s.root.path, false)] {
+                let sw = LocalEngineSwitch(flavor: "release", compiledRoot: compiled, allowTemp: temp)
+                try same(sw.state, .unavailable(EngineWords.badRoot), "state \(compiled) allowTemp \(temp)")
+                for verb in EngineVerb.allCases {
+                    let r = blocking { await sw.run(verb) }
+                    try same(r.exit, -1, "\(verb) exit")
+                    try same(r.lines, [EngineWords.badRoot], "\(verb) lines")
+                }
+            }
+            try same(LocalEngineSwitch(flavor: "release", compiledRoot: s.root.path).state,
+                     .unavailable(EngineWords.badRoot), "the public init never allows a temp root")
+            try expect(!FileManager.default.fileExists(atPath: s.record.path), "the stand-in ran")
+            try expect(!FileManager.default.fileExists(atPath: bad.record.path), "the unsafe stand-in ran")
+        },
+        Check(name: "switch: a release build with a good stand-in root is ready, and status gives its lines") {
+            let s = try StandIn()
+            let sw: EngineSwitch = LocalEngineSwitch(flavor: "release", compiledRoot: s.root.path, allowTemp: true)
+            try same(sw.state, .ready, "state")
+            let r = blocking { await sw.run(.status) }
+            try same(r.exit, 3, "exit")
+            try expect(r.lines.contains("said status") && r.lines.contains("to stderr"), "lines \(r.lines)")
+            try same(parseRecord(s.read()).head["args"], "status", "args")
+        },
+        Check(name: "switch: a root made unsafe after the switch was made turns it to W10") {
+            let s = try StandIn()
+            let sw = LocalEngineSwitch(flavor: "release", compiledRoot: s.root.path, allowTemp: true)
+            try same(sw.state, .ready, "before")
+            try FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: s.script.path)
+            try same(sw.state, .unavailable(EngineWords.badRoot), "after")
+            let r = blocking { await sw.run(.status) }
+            try same(r.lines, [EngineWords.badRoot], "lines")
+            try expect(!FileManager.default.fileExists(atPath: s.record.path), "the stand-in ran")
+        },
+    ]
+}
 
 private func runChecks() -> [Check] {
     [

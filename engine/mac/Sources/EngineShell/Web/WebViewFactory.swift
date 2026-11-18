@@ -18,6 +18,11 @@ public final class EngineWebView: WKWebView {
 public enum WebViewFactory {
     @MainActor
     public static func make(homePort: Int, role: WebViewRole) -> WKWebView {
+        make(home: .local(port: homePort), role: role)
+    }
+
+    @MainActor
+    public static func make(home: HomeOrigin, role: WebViewRole) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
         config.applicationNameForUserAgent = "CompanyEngine/\(BuildConstants.version)"
@@ -26,7 +31,7 @@ public enum WebViewFactory {
         config.preferences.isElementFullscreenEnabled = true
 
         let webGuard = WebGuard(
-            policy: NavigationPolicy(homePort: homePort), role: role,
+            policy: NavigationPolicy(home: home), role: role,
             opener: role == .app ? WorkspaceOpener() : RecordingOpener(),
             panels: RecordingPanels())
         let web = EngineWebView(configuration: config, webGuard: webGuard)

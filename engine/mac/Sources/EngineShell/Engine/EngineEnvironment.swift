@@ -4,7 +4,10 @@ import Foundation
 // or passed on: the three values come in as arguments (the app gives NSHomeDirectory(), NSUserName() and
 // NSTemporaryDirectory()), and the seven keys below are all the child ever sees.
 public enum EngineEnvironment {
-    public static let path = "/usr/bin:/bin:/usr/sbin:/sbin"
+    // PLAN-MAC-2 N2: fixed, built from nothing. /usr/local/bin (root's) first, as in the owner's terminal;
+    // Homebrew (a folder this user can write) last, so it never stands in front of a system tool. Nothing
+    // under the home folder (the real, unfenced `claude` lives in ~/.local/bin).
+    public static let path = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
 
     public static func build(home: String, user: String, tmp: String) -> [String: String] {
         [
