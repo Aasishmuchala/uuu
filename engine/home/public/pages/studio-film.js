@@ -120,6 +120,7 @@ export const LABEL_WORDS = Object.freeze({
   changed: CHANGED_WORDS,
   notStarted: "Sent, not started by Runway",
   stillCharging: STILL_CHARGING,
+  frozen: FROZEN_WORDS,
 });
 export function labelsOf(film) {
   const l = film && film.labels && typeof film.labels === "object" ? film.labels : {};
@@ -168,9 +169,9 @@ export function filmBanners(film) {
   const out = [];
   const batches = Array.isArray(film?.batches) ? film.batches : [];
   const last = batches[batches.length - 1];
-  if (last && last.frozen === true) out.push({ key: "frozen", tone: "warn", text: FROZEN_WORDS });
+  if (last && last.frozen === true) out.push({ key: "frozen", tone: "warn", text: labelsOf(film).frozen });
   if (film && film.changedAfterApproval === true) out.push({ key: "changed", tone: "warn", text: labelsOf(film).changed });
-  if (film && typeof film.problem === "string" && film.problem && !(out.length && film.problem === FROZEN_WORDS)) {
+  if (film && typeof film.problem === "string" && film.problem && !(out.length && out[0].key === "frozen" && (film.problem === FROZEN_WORDS || film.problem === out[0].text))) {
     out.push({ key: "problem", tone: "warn", text: text(film.problem, 400) });
   }
   return out;

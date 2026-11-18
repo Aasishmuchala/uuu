@@ -81,7 +81,8 @@
       "sentPromptNone": "The door kept no copy of this prompt.",
       "changed": "The shotlist was changed after you approved it. Each take shows what was sent to Runway.",
       "notStarted": "Sent, not started by Runway",
-      "stillCharging": "Runway may still charge for clips that are being made."
+      "stillCharging": "Runway may still charge for clips that are being made.",
+      "frozen": "Runway refused two pictures or prompts in this film. It needs you."
     }
   }
 }

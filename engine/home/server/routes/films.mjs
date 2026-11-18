@@ -49,7 +49,10 @@ import { lengthOf } from "./studio-video.mjs";
 
 export const FILMS_SHOWN = 30;
 export const FREEZE_AT = 2;                   // the door's REFUSALS_TO_FREEZE (engine/generate/door.mjs)
-export const FROZEN = "Runway refused two pictures or prompts in this film. It needs you.";
+// The sentence for a film that stopped, naming the services of the refused takes (`name`: "Runway", "Higgsfield", or
+// "Runway and Higgsfield"); FROZEN is the Runway one.
+export const frozenWords = (name) => `${name} refused two pictures or prompts in this film. It needs you.`;
+export const FROZEN = frozenWords(SERVICE_NAMES.runway);
 export const NO_BATCH_FILE = "The approval's own file is no longer kept, so the shots are listed from what was spent.";
 export const NO_TREATMENT = "The film's list of treatments (variants.json) is missing, so its clips cannot be shown.";
 export const GONE = "gone";
@@ -65,6 +68,7 @@ export const labelsFor = (name) => Object.freeze({
   changed: `The shotlist was changed after you approved it. Each take shows what was sent to ${name}.`,
   notStarted: `Sent, not started by ${name}`,
   stillCharging: `${name} may still charge for clips that are being made.`,
+  frozen: frozenWords(name),
 });
 export const LABELS = labelsFor(SERVICE_NAMES.runway);
 // The service of one job of the ledger, by its own model ("Runway" for a model the door's table does not know, as
@@ -460,6 +464,9 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
   // What may still charge: the services of the takes still being made, else those the film used.
   const making = shots.flatMap((s) => s.takes).filter((t) => t.state === "making").map((t) => t.service);
   const chargingName = making.length ? serviceWords(Object.keys(SERVICE_NAMES).filter((k) => making.includes(SERVICE_NAMES[k]))) : serviceWords(services);
+  // The services of the newest batch's refused takes, else those the film used.
+  const refusedBy = last._.jobs.filter((j) => j.end && j.end.verdict === "refused").map((j) => serviceOf(j));
+  const refusedName = serviceWords(refusedBy.length ? Object.keys(SERVICE_NAMES).filter((k) => refusedBy.includes(SERVICE_NAMES[k])) : services);
   const problem = !ledger.ok ? LEDGER_SENTENCES.unreadable
     : treatment.problem || (treatment.rel && !read.ok ? read.problem : null) || (!last._.shots ? NO_BATCH_FILE : null);
   const out = {
@@ -471,7 +478,7 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
     edit: edit ? { identifier: edit.identifier, name: edit.name } : null,
     changedAfterApproval,
     problem,
-    labels: { ...labelsFor(serviceWords(services)), stillCharging: labelsFor(chargingName).stillCharging },
+    labels: { ...labelsFor(serviceWords(services)), stillCharging: labelsFor(chargingName).stillCharging, frozen: frozenWords(refusedName) },
   };
   // The services its clips used, for the list's words; not part of the film's shape.
   Object.defineProperty(out, "services", { enumerable: false, value: services });
@@ -514,7 +521,7 @@ export function filmRow(goal, film, now = Date.now()) {
     clips: takes.filter((t) => t.state === "made").length,
     kept: film.shots.filter((s) => s.takes.some((t) => t.verdict && t.verdict.verdict === "keep")).length,
     state,
-    problem: state === "needs you" ? FROZEN : state === "ended" ? endedWords(timeOf(last.expiresAt), film.services) : film.problem,
+    problem: state === "needs you" ? (film.labels && film.labels.frozen) || FROZEN : state === "ended" ? endedWords(timeOf(last.expiresAt), film.services) : film.problem,
   };
 }
 

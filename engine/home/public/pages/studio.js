@@ -489,7 +489,7 @@ function Room({ res }) {
 export const OFF_WORDS = Object.freeze({
   off: "Off",
   link: "Open in Settings",
-  generation: { title: "Generation", icon: "film", say: "Runway cannot make the clips of a film until it is on." },
+  generation: { title: "Generation", icon: "film", say: "Runway and Higgsfield cannot make the clips of a film until it is on." },
   viewer: { title: "Page viewer", icon: "eye", say: "Pages an agent builds are not looked at in a browser." },
   web: { title: "Web", icon: "globe", say: "The Researcher cannot open websites." },
 });
@@ -643,7 +643,7 @@ export default function Page({ route }) {
 
     <${Part} id="films">
       <${Section} title="Films" count=${filmsRes.data ? films.length : undefined}
-        hint="Films made from your renders with Runway: each shot, its takes, the Art director's verdicts and what it cost.">
+        hint="Films made from your renders with Runway or Higgsfield: each shot, its takes, the Art director's verdicts and what it cost.">
         ${first(filmsRes) ? html`<${Loading} lines=${2} label="Loading the films" />` : null}
         ${filmsRes.error && !filmsRes.data ? html`<${ErrorNotice} error=${filmsRes.error} onRetry=${filmsRes.reload} />` : null}
         ${filmsRes.data ? (films.length
