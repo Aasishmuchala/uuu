@@ -9,8 +9,9 @@ const TYPES = {
   ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml",
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".ico": "image/x-icon",
   ".txt": "text/plain; charset=utf-8", ".woff2": "font/woff2", ".map": "application/json; charset=utf-8",
-  // The world of the Map and Needs you (PLAN-3D T4): its pictures, its models and their buffers, and its skies.
-  ".webp": "image/webp", ".gltf": "model/gltf+json", ".bin": "application/octet-stream", ".hdr": "application/octet-stream",
+  // The loft's photographs and the room headers' glimpses (assets/office/, assets/glimpse/). The 3D world's models,
+  // buffers and skies (.gltf, .bin, .hdr) went with the dead 3D assets after the owner chose photographs, 18 Nov 2026.
+  ".webp": "image/webp",
   // The loft's moving picture, when it comes (assets/office/, the owner chose photographs over 3D on 18 Nov 2026).
   ".mp4": "video/mp4",
 };

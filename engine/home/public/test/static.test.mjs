@@ -40,12 +40,8 @@ const VENDOR_FILES = {
   "LICENSE-preact.txt": "1fe6958409c8c257a70c587a18b6f7f412b179b456630790d30b2ec9a8e4b7d4",
   "README.txt": "a7b17feafbc132f7a9cbcbe3b1e2d1f5d68aacc66cb5c58ac88540e6c5ca1c26",
   "preact-htm.js": "72284e8e9079c87817145df1110f74e8a2aa040b2fc384922e18dfcb46fc1fd7",
-  // three.js 0.169.0 added for the Map and Needs you (PLAN-3D T1)
-  "three-0.169.0/LICENSE": "4c40a1ef62450b857c3b2aaf294936304cd552d965fbcd9d32d4c5bcf4ba4454",
-  "three-0.169.0/README.txt": "9aab76165eaa90ee27e282a765752acb445978b55017090aedee25c7c6c9772b",
-  "three-0.169.0/jsm/BufferGeometryUtils.js": "b51ca35ecf919b99791cbf8a0f70804da90c400bd36b1b0ec975d50d0ba5567f",
-  "three-0.169.0/jsm/GLTFLoader.js": "d7b5f0097dd90ce39561131e582f177f3d9a81f442a4e5e6382bab8026467829",
-  "three-0.169.0/three.module.min.js": "f7cee3c7533449a1505cc12cb5128b89e3d4fd3d7ea62b05f9f5464a217472ee",
+  // Changed on purpose: three.js 0.169.0 (added for the Map and Needs you, PLAN-3D T1) is gone, dead 3D assets
+  // removed after the owner chose photographs, 18 Nov 2026.
 };
 
 // Other work may save files in the tree while the tests run (an editor writes a temporary file and renames it

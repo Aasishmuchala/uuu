@@ -78,33 +78,30 @@ test("no CORS headers, and the safety headers on every answer", async () => {
     assert.equal(r.headers["x-content-type-options"], "nosniff", p);
     assert.ok(!Object.keys(r.headers).some((k) => k.startsWith("access-control-")), p);
   }
-  // PLAN-3D D18, changed on purpose: the world's pictures (/assets/world/v<digits>/) and three.js (/vendor/three-<version>/)
-  // are kept by the browser for a year, since about 11 MB would otherwise be read and decoded again on every visit. It is
-  // safe because a file in those folders is never edited in place: a changed asset set is a new folder (v2), and the
-  // manifest test pins every file's SHA-256. Every other path above, and the near misses here, stay no-store.
-  mkdirSync(join(pub, "assets", "world", "v1", "tex"), { recursive: true });
-  mkdirSync(join(pub, "vendor", "three-0.169.0", "jsm"), { recursive: true });
-  mkdirSync(join(pub, "vendor", "other"), { recursive: true });
-  writeFileSync(join(pub, "assets", "world", "v1", "tex", "wood.webp"), "RIFF");
-  writeFileSync(join(pub, "assets", "world", "v1", "manifest.json"), "{}\n");
-  writeFileSync(join(pub, "assets", "world", "v1", "fern.gltf"), "{}\n");
-  writeFileSync(join(pub, "assets", "world", "v1", "fern.bin"), "0");
-  writeFileSync(join(pub, "assets", "world", "v1", "dusk.hdr"), "#?RADIANCE\n");
-  writeFileSync(join(pub, "assets", "world", "NOTICE.md"), "notice\n");
-  writeFileSync(join(pub, "vendor", "three-0.169.0", "jsm", "GLTFLoader.js"), "export const x = 1;\n");
-  writeFileSync(join(pub, "vendor", "other", "x.js"), "export const x = 1;\n");
-  // Changed on purpose: the owner chose photographs over 3D on 18 Nov 2026, so the loft's pictures that replaced the
-  // world on the Map and Needs you (/assets/office/v<digits>/) are kept for a year the same way, for the same reason
-  // (a changed set is a new folder; test/office-assets.test.mjs pins every file's SHA-256). Its NOTICE stays no-store.
+  // Changed on purpose: the owner chose photographs over 3D on 18 Nov 2026, so the loft's pictures on the Map and Needs
+  // you (/assets/office/v<digits>/) and the room headers' glimpses cut from them (/assets/glimpse/v<digits>/) are kept by
+  // the browser for a year, since they would otherwise be read and decoded again on every visit. It is safe because a
+  // file in those folders is never edited in place: a changed set is a new folder (v2), and each set's manifest test
+  // pins every file's SHA-256 (test/office-assets.test.mjs, test/kit/glimpse-v2.test.mjs). Their NOTICEs stay no-store.
+  // Changed on purpose again: dead 3D assets removed after the owner chose photographs, 18 Nov 2026; the world's pictures
+  // (/assets/world/v<digits>/) and three.js (/vendor/three-<version>/) are no longer kept, so a file put there is no-store
+  // like every other path above and the near misses here.
   mkdirSync(join(pub, "assets", "office", "v1"), { recursive: true });
   writeFileSync(join(pub, "assets", "office", "v1", "loft-dusk-1600.webp"), "RIFF");
   writeFileSync(join(pub, "assets", "office", "v1", "loop-dusk.mp4"), "0000");
   writeFileSync(join(pub, "assets", "office", "NOTICE.md"), "notice\n");
-  for (const [p, type] of [["/assets/world/v1/tex/wood.webp", "image/webp"], ["/assets/world/v1/manifest.json", "application/json; charset=utf-8"],
-    ["/assets/world/v1/fern.gltf", "model/gltf+json"], ["/assets/world/v1/fern.bin", "application/octet-stream"],
-    ["/assets/world/v1/dusk.hdr", "application/octet-stream"],
-    ["/vendor/three-0.169.0/jsm/GLTFLoader.js", "text/javascript; charset=utf-8"],
-    ["/assets/office/v1/loft-dusk-1600.webp", "image/webp"], ["/assets/office/v1/loop-dusk.mp4", "video/mp4"]]) {
+  mkdirSync(join(pub, "assets", "glimpse", "v2"), { recursive: true });
+  writeFileSync(join(pub, "assets", "glimpse", "v2", "desk-dusk-1600.webp"), "RIFF");
+  writeFileSync(join(pub, "assets", "glimpse", "v2", "manifest.json"), "{}\n");
+  writeFileSync(join(pub, "assets", "glimpse", "NOTICE.md"), "notice\n");
+  mkdirSync(join(pub, "assets", "world", "v2", "tex"), { recursive: true });
+  mkdirSync(join(pub, "vendor", "three-0.169.0", "jsm"), { recursive: true });
+  mkdirSync(join(pub, "vendor", "other"), { recursive: true });
+  writeFileSync(join(pub, "assets", "world", "v2", "tex", "wood.webp"), "RIFF");
+  writeFileSync(join(pub, "vendor", "three-0.169.0", "jsm", "GLTFLoader.js"), "export const x = 1;\n");
+  writeFileSync(join(pub, "vendor", "other", "x.js"), "export const x = 1;\n");
+  for (const [p, type] of [["/assets/office/v1/loft-dusk-1600.webp", "image/webp"], ["/assets/office/v1/loop-dusk.mp4", "video/mp4"],
+    ["/assets/glimpse/v2/desk-dusk-1600.webp", "image/webp"], ["/assets/glimpse/v2/manifest.json", "application/json; charset=utf-8"]]) {
     const r = await call(h.url, "GET", p);
     assert.equal(r.status, 200, p);
     assert.equal(r.headers["content-type"], type, p);
@@ -113,8 +110,10 @@ test("no CORS headers, and the safety headers on every answer", async () => {
     assert.equal(r.headers["x-frame-options"], "DENY", p);
     assert.equal(r.headers["referrer-policy"], "no-referrer", p);
   }
-  for (const p of ["/assets/world/NOTICE.md", "/vendor/other/x.js", "/assets/world/v1/missing.webp", "/assets/world/v1/../../index.html",
-    "/assets/office/NOTICE.md", "/assets/office/v1/missing.webp", "/assets/office/vx/loft-dusk-1600.webp", "/assets/officex/v1/loft-dusk-1600.webp"]) {
+  for (const p of ["/assets/world/v2/tex/wood.webp", "/vendor/three-0.169.0/jsm/GLTFLoader.js", "/vendor/other/x.js",
+    "/assets/office/NOTICE.md", "/assets/office/v1/missing.webp", "/assets/office/vx/loft-dusk-1600.webp", "/assets/officex/v1/loft-dusk-1600.webp",
+    "/assets/office/v1/../../index.html", "/assets/glimpse/NOTICE.md", "/assets/glimpse/v2/missing.webp", "/assets/glimpse/vx/desk-dusk-1600.webp",
+    "/assets/glimpsex/v2/desk-dusk-1600.webp"]) {
     const r = await call(h.url, "GET", p);
     assert.equal(r.headers["cache-control"], "no-store", p);
     assert.equal(r.headers["x-content-type-options"], "nosniff", p);
