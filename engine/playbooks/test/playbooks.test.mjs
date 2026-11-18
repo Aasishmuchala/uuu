@@ -270,7 +270,7 @@ test("a state folder that is a link is refused and nothing is changed", () => {
 // The real manifest.
 const K4 = ["render-to-film", "cook", "sthyra-copywriting", "storycraft", "aasish-design", "creative-director", "impact-3d", "renders",
   "lightcraft", "visual-realism-prompts", "shotlist-director", "sthyra-cinematic", "archfilm-edit",
-  "cinematic-ai-film", "taste-skill", "hallmark", "impeccable", "frontend-ui-engineering"];
+  "cinematic-ai-film", "taste-skill", "hallmark", "impeccable", "frontend-ui-engineering", "astryx"];
 const KINDS = ["post", "newsletter", "carousel", "poster", "title-card", "film", "page", "still"];
 
 test("the real manifest: names, sources, roles, kinds and notes", () => {

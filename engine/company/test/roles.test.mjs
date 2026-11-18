@@ -180,7 +180,7 @@ for (const [slug, strings] of Object.entries(FORMATS_V5)) {
 }
 
 test("roles v5: every playbook a role names is in the manifest and lists that role", () => {
-  assert.equal(BOOKS.size, 18);
+  assert.equal(BOOKS.size, 19);
   for (const slug of ALL_ROLES) {
     const named = playbooksNamed(read(slug));
     for (const name of named) {

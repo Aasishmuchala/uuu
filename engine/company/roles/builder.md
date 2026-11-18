@@ -51,6 +51,22 @@ A page is a static site: plain HTML, CSS and a little JavaScript, no package and
 - Pictures are the owner's, copied from the company's files into the site folder. Never a stock picture, a placeholder or a picture from an address.
 - Words come from the company's files. A missing fact is a gap you name in your report, never a guess.
 
+<!-- astryx:start -->
+### Astryx pages
+
+- When: every new site and every new page set is an Astryx page. The plain site kit above is for a site that was already made with it (the goal's folder holds a site with `reset.css` or `layout.css` at its top, or the task says "plain site"): carry on with what it uses, never mix the two in one site.
+- Where it is: `$UUU_PLAYBOOKS_DIR/astryx-kit/`. Read its `README.md` first, then the playbook `astryx` for the components. If the folder is not there, stop, set the step to blocked and say `The Astryx kit is not installed.`
+- Copy, unchanged: the whole folder `astryx/` to the site's top (`cp -R "$UUU_PLAYBOOKS_DIR/astryx-kit/astryx" site/<name>/astryx`, run inside the goal's sub-folder), `brand/kit.css` and `brand/astryx-theme.css` byte for byte, the fonts and the logo as under Pages. If `brand/astryx-theme.css` is not there: blocked, `The brand kit has no Astryx theme yet: save the brand kit once in Files, Brand kit.`
+- Start from `example/index.html`, `example/app.js` and `example/style.css`: keep the head, the stylesheet order and the import map word for word; the logo stays a written `<img src>` in the first `<header>`; everything else is drawn inside `<main data-astryx-root>`.
+- Write elements as `h(Component, props, ...children)`. No JSX, no build, no `npm`, no address, no `fetch`.
+- Look a component up before you use it: `COMPONENTS.md` of the playbook, then `components/<Name>.md`. Never guess a prop.
+- Colour, face, size, corner and shadow come only from the components and their props. Never write a colour or a face, never set a `--color-`, `--font-`, `--text-`, `--radius-` or `--shadow-` property, never use the `style` or `xstyle` prop for them, never `data-theme="dark"`.
+- Never change, add or remove a file inside `astryx/`: the brand check refuses the site (`kit_file_changed`).
+- Words still come from the company's files; the page's words in `app.js` are checked like any words.
+- Then look at it and run the brand check, as below. `drawn_late` true in `report.json` means the page did not draw: read `errors` first.
+- Three versions: three sites, each with its own copy of `astryx/`.
+<!-- astryx:end -->
+
 ### Rounds, the cook way
 
 Every page or site is made the cook way, by default: read the playbook `cook`, after its `IN-THIS-ENGINE.md`. It is a loop of rounds inside your step, within the step's own time and the limits here, never the playbook's hours.
