@@ -9,13 +9,14 @@
 // Also here: what an app may send (`parseAppJob`, K19's body and every A3 case but the one the
 // door's own store answers), the list an app reads (`appModels`), the bodies Runway is sent for
 // these rows with the door's pins (`runwayRequest`), and the hosts a Higgsfield upload may go
-// to (`HF_UPLOAD_SUFFIXES`, empty until the real upload host is seen). Pure; zero dependencies.
+// to (`HF_UPLOAD_SUFFIXES`, the one host a real upload answer named). Pure; zero dependencies.
 import { KINDS, MAX_SECONDS, MIN_SECONDS, PRICES, UPSCALE_MAX_SIDE, VIDEO_KINDS } from "./runway.mjs";
 
-// The hosts a Higgsfield upload address may end with. EMPTY on purpose: T63 could not see the
-// real upload host (no signed-in `media_upload`), so every upload is refused until one is
-// recorded here from a real answer (`.router/V5-MODELS.md`, "Not found: be tolerant").
-export const HF_UPLOAD_SUFFIXES = Object.freeze([]);
+// The hosts a Higgsfield upload address may end with (higgsfield.mjs takes the host itself or a
+// name under it). One, from a real answer: a signed-in `media_upload` through the MCP server on
+// 18 November 2026 (the owner's one test upload, no bytes sent) named an S3 presigned PUT on
+// exactly `upload.higgsfield.ai`. Nothing broader is taken.
+export const HF_UPLOAD_SUFFIXES = Object.freeze(["upload.higgsfield.ai"]);
 
 export const ROLES = Object.freeze(["first", "last", "ref", "image"]);
 export const DEFAULT_CENTS_PER_CREDIT = 5;   // the owner's S3 answer; whole, 1 to 50 (K20)

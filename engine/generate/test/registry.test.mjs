@@ -155,8 +155,8 @@ test("the upscale's 4096 px step: a result past it does not fit", () => {
   assert.equal(upscaleFits(rowOf("hf.upscale_image"), 9000, 9000, 4), true);
 });
 
-test("uploads to Higgsfield go nowhere until the real upload host is recorded", () => {
-  assert.deepEqual([...HF_UPLOAD_SUFFIXES], []);
+test("uploads to Higgsfield go only to the one host a real upload answer named", () => {
+  assert.deepEqual([...HF_UPLOAD_SUFFIXES], ["upload.higgsfield.ai"]);
   assert.ok(Object.isFrozen(HF_UPLOAD_SUFFIXES));
 });
 

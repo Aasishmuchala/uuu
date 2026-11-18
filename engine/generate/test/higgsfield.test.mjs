@@ -258,14 +258,38 @@ test("start says whether anything can have started: a clear refusal, or an answe
 });
 
 test("upload: nothing at all is sent while no upload host is recorded", async () => {
-  assert.equal(HF_UPLOAD_SUFFIXES.length, 0);
-  const { hf, h } = await ready();
+  const { hf, h } = await ready({}, { uploadSuffixes: [] });
   try {
     assert.deepEqual(await h.upload({ type: "image/png", bytes: pngBytes() }), { ok: false, why: "upload_host_unknown" });
     assert.equal(tool(hf, "media_upload").length, 0);
     assert.equal(hf.calls.filter((c) => c.method === "PUT").length, 0);
   } finally { await hf.close(); }
   assert.throws(() => createHiggsfield({ mcp: fakeMcp(() => ({})), uploadSuffixes: ["*.evil"] }), /suffixes/);
+});
+
+// The door's own list (no `uploadSuffixes`): Higgsfield's real upload host passes the host check
+// (it is then looked up, here to a private address, so nothing connects); look-alikes, http, another
+// port and user-info are refused before any lookup.
+test("upload: the door's own list takes upload.higgsfield.ai and refuses its look-alikes", async () => {
+  assert.deepEqual([...HF_UPLOAD_SUFFIXES], ["upload.higgsfield.ai"]);
+  const slot = (url) => (name) => (name === "media_upload" ? { ok: true, result: { media_id: MEDIA, upload_url: url } } : { ok: true, result: { status: "ready" } });
+  const looked = [];
+  const net = { resolve: async (host) => { looked.push(host); return [{ address: "10.1.2.3", family: 4 }]; }, connect: () => { throw new Error("must not connect"); } };
+  const up = (url) => createHiggsfield({ mcp: fakeMcp(slot(url)), net }).upload({ type: "image/png", bytes: pngBytes() });
+  const path = "/user_test/0123abcd-0000-4000-8000-000000000000.png?X-Amz-Expires=3600&X-Amz-Signature=abc";
+  assert.equal((await up(`https://upload.higgsfield.ai${path}`)).why, "upload_private_address");
+  assert.equal((await up(`https://UPLOAD.higgsfield.ai${path}`)).why, "upload_private_address");
+  assert.deepEqual(looked, ["upload.higgsfield.ai", "upload.higgsfield.ai"]);
+  looked.length = 0;
+  for (const url of [`https://upload.higgsfield.ai.evil.com${path}`, `https://evilupload.higgsfield.ai${path}`, `https://upload-higgsfield.ai${path}`,
+    `https://higgsfield.ai${path}`, `https://cdn.higgsfield.ai${path}`, `https://d2ol7oe51mr4n9.cloudfront.net${path}`]) {
+    assert.equal((await up(url)).why, "upload_host", url);
+  }
+  for (const url of [`http://upload.higgsfield.ai${path}`, `https://upload.higgsfield.ai:8443${path}`, `https://upload.higgsfield.ai:80${path}`,
+    `https://user@upload.higgsfield.ai${path}`, `https://user:pw@upload.higgsfield.ai${path}`, `https://evil.com@upload.higgsfield.ai${path}`]) {
+    assert.equal((await up(url)).why, "upload_address", url);
+  }
+  assert.deepEqual(looked, [], "no look-alike is even looked up");
 });
 
 test("upload: one PUT to the recorded host with only Content-Type and the answer's own headers, then confirmed", async () => {

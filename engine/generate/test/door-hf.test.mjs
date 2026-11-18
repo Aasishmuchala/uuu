@@ -341,8 +341,8 @@ test("Higgsfield's live price above the table's: gen_price_changed, nothing rese
   assert.equal(hfTool("generate_image").filter((c) => c.arguments.params.get_cost !== true).length, 0);
 });
 
-test("no upload host known (the door's own setting): nothing is uploaded, nothing reserved", async () => {
-  await startDoor({ higgsfield: { origin: hf.url, redirectUri: REDIRECT, net: hf.net } });
+test("no upload host known: nothing is uploaded, nothing reserved", async () => {
+  await startDoor({ higgsfield: { origin: hf.url, redirectUri: REDIRECT, net: hf.net, uploadSuffixes: [] } });
   await signIn();
   const r = await call("/gen/jobs", still(await input()));
   assert.equal(r.json.code, "gen_could_not_start");
