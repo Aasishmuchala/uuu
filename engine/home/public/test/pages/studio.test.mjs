@@ -476,6 +476,42 @@ test("studio: what a film spent, a refused film's sentence and a take still char
   }
 });
 
+// U19 simulation: a film Higgsfield made showed "The prompt sent to Runway" and "The picture sent to Runway". Each take
+// names its own job's service in the server's words; a Runway take still names Runway.
+test("studio: a Higgsfield take's film names Higgsfield and never Runway; a Runway take's still names Runway", async () => {
+  const shapeFilms = shape("films");
+  const HF = (s) => s.replace(/Runway/g, "Higgsfield");
+  const made = JSON.parse(HF(JSON.stringify(shapeFilms.film)));
+  made.shots[0].takes.push({ ...made.shots[0].takes[0], take: "t2", state: "making", job: "g0123456789abcdef0124", clip: null, stills: [], verdict: null });
+  assert.equal(made.shots[0].takes[0].service, "Higgsfield");
+  const sentAlt = (root) => elements(root).filter((e) => e.localName === "img" && /^The picture sent to /.test(String(e.getAttribute("alt"))));
+  const f = await mountStudio(studioAnswers({ [`/api/studio/films/${FILM_ID}`]: made }), { query: `film=${FILM_ID}` });
+  try {
+    const nodes = textNodes(f.root);
+    assert.ok(nodes.includes("The prompt sent to Higgsfield"), "the prompt block's title");
+    assert.ok(nodes.includes("Higgsfield may still charge for clips that are being made."), "the server's sentence, whole");
+    assert.ok(nodes.includes("Sent, not started by Higgsfield"));
+    const pics = sentAlt(f.root);
+    assert.equal(pics.length, 1);
+    assert.equal(pics[0].getAttribute("alt"), "The picture sent to Higgsfield for shot 1, take 1", "the made take is shown first");
+    assert.equal(pics[0].getAttribute("src"), made.shots[0].takes[0].sent);
+    // The film's own first screen (its stage, strip and rail) and its rows; the rest of Studio under it is not the film's.
+    const own = [...byCls(f.root, "k-work__first"), ...byCls(f.root, "p-studio-film__group")];
+    assert.ok(own.length >= 2);
+    const said = own.flatMap((el) => [...textNodes(el), ...[el, ...elements(el)].flatMap((e) => ["alt", "aria-label", "title"].map((a) => e.getAttribute(a)).filter(Boolean))]);
+    for (const t of said) assert.doesNotMatch(String(t), /Runway/, t);
+  } finally { f.done(); }
+  const r = await mountStudio(studioAnswers(), { query: `film=${FILM_ID}` });
+  try {
+    const nodes = textNodes(r.root);
+    assert.ok(nodes.includes("The prompt sent to Runway"));
+    const pics = sentAlt(r.root);
+    assert.equal(pics.length, 1);
+    assert.equal(pics[0].getAttribute("alt"), "The picture sent to Runway for shot 1, take 1");
+    assert.ok(!nodes.some((t) => /Higgsfield/.test(t)));
+  } finally { r.done(); }
+});
+
 test("studio: hostile server and agent text stays text, on the dashboard and on a film (PLAN-3D-ALL)", async () => {
   const tags = (root) => ["script", "img", "iframe", "object", "video"].map((t) => elements(root).filter((e) => e.localName === t).length);
   // Every string the server sends is replaced by the hostile set, except the home server's own addresses and the

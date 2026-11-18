@@ -25,6 +25,7 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { connect as tcpConnect } from "node:net";
+import { crc32, deflateSync } from "node:zlib";
 
 export const OUTPUT_HOST = "outputs.runway.test";
 export const PRIVATE_HOST = "private.runway.test";
@@ -38,14 +39,28 @@ export function mp4Bytes(size = 4096) {
   b.write("ftypisom", 4, "latin1");
   return b;
 }
+// A whole PNG a browser can draw (one-bit grey, every pixel black) of `width` x `height` and exactly `size` bytes: the
+// signature, IHDR, the pixels in one IDAT, a private chunk of padding to the size, then IEND, each with its CRC. A
+// stand-in picture that is only a PNG header passes every first-bytes check but shows nowhere, as a broken image.
 export function pngBytes(width = 64, height = 64, size = 2048) {
-  const b = Buffer.alloc(size, 0);
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b, 0);
-  b.writeUInt32BE(13, 8);
-  b.write("IHDR", 12, "latin1");
-  b.writeUInt32BE(width, 16);
-  b.writeUInt32BE(height, 20);
-  return b;
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+    const b = Buffer.alloc(12 + data.length);
+    b.writeUInt32BE(data.length, 0);
+    body.copy(b, 4);
+    b.writeUInt32BE(crc32(body), 8 + data.length);
+    return b;
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 1;          // bit depth 1, colour type 0 (grey), deflate, no filter, no interlace
+  const pixels = deflateSync(Buffer.alloc(height * (1 + Math.ceil(width / 8)), 0), { level: 9 });
+  const head = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", pixels)]);
+  const end = chunk("IEND", Buffer.alloc(0));
+  const room = size - head.length - end.length;
+  if (room !== 0 && room < 12) throw new Error(`pngBytes: ${size} bytes is too small for a ${width} x ${height} picture`);
+  return Buffer.concat([head, room === 0 ? Buffer.alloc(0) : chunk("paDd", Buffer.alloc(room - 12, 0)), end]);
 }
 
 function send(res, status, body, headers = {}) {

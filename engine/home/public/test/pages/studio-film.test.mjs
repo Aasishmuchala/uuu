@@ -122,7 +122,7 @@ test("requests Runway did not start: the server's words, only an /api/ picture, 
   assert.equal(m.labelsOf({}).notStarted, "Sent, not started by Runway");
   const [n] = m.notStartedOf(f.shots[0]);
   assert.deepEqual(n, {
-    key: "b0123456789abcdef0123-g00000000000000000004-0", when: "2026-11-13T10:00:00.000Z",
+    key: "b0123456789abcdef0123-g00000000000000000004-0", service: "Runway", result: "Sent, not started by Runway", when: "2026-11-13T10:00:00.000Z",
     sent: "/api/studio/films/e0000000-0000-4000-8000-000000000041/sent/g00000000000000000004",
     prompt: "The camera moves slowly towards the front door in soft morning light.",
   });
@@ -136,7 +136,39 @@ test("requests Runway did not start: the server's words, only an /api/ picture, 
   // On the page: the words as text, the picture only through safeApi, no markup from the prompt.
   assert.match(code, /sent: safeApi\(n\.sent\) \|\| ""/);
   assert.match(code, /<\$\{NotStarted\} shot=\$\{shot\} labels=\$\{labels\} \/>/);
-  assert.match(code, /<span>\$\{labels\.notStarted\}<\/span>/);
+  assert.match(code, /<span>\$\{n\.result \|\| labels\.notStarted\}<\/span>/);
+});
+
+// A film Higgsfield made (U19 simulation): each take names its own job's service, in the server's words; a Runway
+// take still names Runway; an older server that names none reads as Runway, as before.
+test("a Higgsfield take names Higgsfield and never Runway; a Runway take still names Runway", () => {
+  const f = shape("films").film;
+  const rw = f.shots[0].takes[0];
+  assert.deepEqual(m.takeWords(rw, m.labelsOf(f)), { sentPrompt: "The prompt sent to Runway", sentPicture: "The picture sent to Runway" });
+  const hf = { ...rw, service: "Higgsfield", labels: { sentPrompt: "The prompt sent to Higgsfield", sentPicture: "The picture sent to Higgsfield" } };
+  assert.deepEqual(m.takeWords(hf, m.labelsOf(f)), { sentPrompt: "The prompt sent to Higgsfield", sentPicture: "The picture sent to Higgsfield" });
+  // The server's sentence is shown as sent; with only the service name, the page names it; an unknown name is Runway.
+  assert.equal(m.takeWords({ ...hf, labels: { sentPrompt: "Sent to Higgsfield, as is" } }).sentPrompt, "Sent to Higgsfield, as is");
+  assert.deepEqual(m.takeWords({ service: "Higgsfield" }), { sentPrompt: "The prompt sent to Higgsfield", sentPicture: "The picture sent to Higgsfield" });
+  assert.deepEqual(m.takeWords({ service: "<b>Other</b>" }), { sentPrompt: "The prompt sent to Runway", sentPicture: "The picture sent to Runway" });
+  assert.deepEqual(m.takeWords({}), { sentPrompt: "The prompt sent to Runway", sentPicture: "The picture sent to Runway" }, "an older server");
+  assert.equal(m.takeStateWords("refused", "Higgsfield"), "Refused by Higgsfield");
+  assert.equal(m.takeStateWords("refused", "Runway"), "Refused by Runway");
+  assert.equal(m.takeStateWords("refused", "Elsewhere"), "Refused by Runway");
+  const [n] = m.notStartedOf({ notStarted: [{ ...f.shots[0].notStarted[0], service: "Higgsfield", result: "Sent, not started by Higgsfield" }] });
+  assert.deepEqual([n.service, n.result], ["Higgsfield", "Sent, not started by Higgsfield"]);
+  assert.equal(m.servicesWords(["Higgsfield"]), "Higgsfield");
+  assert.equal(m.servicesWords(["Higgsfield", "Runway", "Higgsfield"]), "Runway and Higgsfield");
+  assert.equal(m.servicesWords([]), "Runway");
+  // What may still charge: the server's sentence, whole; Runway's only from an older server.
+  assert.equal(m.labelsOf({ labels: { stillCharging: "Higgsfield may still charge for clips that are being made." } }).stillCharging,
+    "Higgsfield may still charge for clips that are being made.");
+  assert.equal(m.labelsOf({}).stillCharging, m.STILL_CHARGING);
+  // The page has no fixed Runway words for a take: the prompt's title and the picture's words are the take's own.
+  assert.match(code, /title=\$\{takeWords\(take, labels\)\.sentPrompt\}/);
+  assert.match(code, /alt: `\$\{words\.sentPicture\} for /);
+  assert.doesNotMatch(code, /title=\$\{labels\.sentPrompt\}/);
+  assert.doesNotMatch(code, /\$\{STILL_CHARGING\}/);
 });
 
 test("studioHref opens a film by its task id", () => {

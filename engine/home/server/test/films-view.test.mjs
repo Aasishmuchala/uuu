@@ -12,6 +12,7 @@ import { boardSeedV2, IDS_V2 } from "../../../test/stubs/seed.mjs";
 import { REFUSALS_TO_FREEZE } from "../../../generate/door.mjs";
 import { appendLine } from "../../../generate/ledger.mjs";
 import { workStore } from "../../../generate/state.mjs";
+import { pngBytes } from "../../../test/stubs/runway.mjs";
 import { writeBatch } from "../lib/batches.mjs";
 import { updateDoors } from "../lib/doors.mjs";
 import { readShape, sameShape } from "../lib/shape.mjs";
@@ -112,8 +113,8 @@ function seed({ status = "in_progress", otherStatus = "in_progress" } = {}) {
 }
 
 // One ledger job: its reservation and, unless `end` is null, its end line.
-function job(h, { id, batch, shot: s, at: ms, model = "gen4_turbo", seconds = 5, estimate = 25, end = "done", credits = estimate, kind = "image_to_video" }) {
-  const line = { job: id, batch, shot: s, slug: "artist", kind, model, seconds, estimate, runwayTask: null };
+function job(h, { id, batch, shot: s, at: ms, model = "gen4_turbo", seconds = 5, estimate = 25, end = "done", credits = estimate, kind = "image_to_video", extra = {} }) {
+  const line = { job: id, batch, shot: s, slug: "artist", kind, model, seconds, estimate, runwayTask: null, ...extra };
   appendLine(h.config.paths.ledger, { ...line, at: at(ms), state: "reserved", credits: estimate, verdict: null });
   if (end === null) return;
   const released = end.startsWith("not_started_");
@@ -122,16 +123,16 @@ function job(h, { id, batch, shot: s, at: ms, model = "gen4_turbo", seconds = 5,
 
 // The door's own job record, with the input it kept (made `inputAge` ms ago), or none, and the prompt it sent when
 // `prompt` is given (the door keeps it there; T48 F3, T49a).
-function record(h, { id, batch, shot: s, input = null, kind = "image_to_video", prompt = undefined }) {
+function record(h, { id, batch, shot: s, input = null, kind = "image_to_video", prompt = undefined, model = "gen4_turbo", extra = {} }) {
   const store = workStore(h.config.paths.doorWork);
   let inputs = [];
   if (input) {
     const rec = store.saveInput("artist", { type: "image/png", width: 1280, height: 720 }, input.bytes, NOW - input.age);
     inputs = [rec.id];
   }
-  store.saveJob({ job: id, slug: "artist", kind, model: "gen4_turbo", seconds: 5, batch, shot: s, estimate: 25, fingerprint: null,
+  store.saveJob({ job: id, slug: "artist", kind, model, seconds: 5, batch, shot: s, estimate: 25, fingerprint: null,
     state: "done", progress: 1, credits: 25, reason: null, runwayTask: null, output: null, startedAt: at(NOW - HOUR), endedAt: at(NOW - HOUR), inputs,
-    ...(prompt === undefined ? {} : { prompt }) });
+    ...(prompt === undefined ? {} : { prompt }), ...extra });
   return inputs[0] || null;
 }
 
@@ -220,6 +221,8 @@ async function withFilm(opts, fn) {
   }
 }
 
+const RUNWAY_WORDS = { sentPrompt: "The prompt sent to Runway", sentPicture: "The picture sent to Runway" };
+const HIGGSFIELD_WORDS = { sentPrompt: "The prompt sent to Higgsfield", sentPicture: "The picture sent to Higgsfield" };
 const film = async (h, id = GOAL) => call(h.url, "GET", `/api/studio/films/${id}`);
 const films = async (h) => (await call(h.url, "GET", "/api/studio/films")).json;
 const takesOf = (f) => Object.fromEntries(f.shots.map((s) => [s.id, s.takes.map((t) => [t.batch === B1 ? "B1" : t.batch === B2 ? "B2" : t.batch, t.take, t.state, t.credits])]));
@@ -257,8 +260,9 @@ test("the film view fits films.json: two batches, a refusal, a retake, a running
       approved: "What you approved", sentPrompt: "The prompt sent to Runway",
       sentPromptGone: "No longer kept: the door keeps what it sent for two days.", sentPromptNone: "The door kept no copy of this prompt.",
       changed: "The shotlist was changed after you approved it. Each take shows what was sent to Runway.",
-      notStarted: "Sent, not started by Runway",
+      notStarted: "Sent, not started by Runway", stillCharging: "Runway may still charge for clips that are being made.",
     });
+    assert.deepEqual(f.shots[0].takes.map((t) => [t.service, t.labels]), [["Runway", RUNWAY_WORDS], ["Runway", RUNWAY_WORDS]]);
     assert.deepEqual(f.total, { spent: 220, budget: 440, words: "$2.20 of $4.40 spent." });
     assert.deepEqual(f.edit, { identifier: KEY, name: "lake-film" });
     assert.equal(f.changedAfterApproval, false);
@@ -277,7 +281,7 @@ test("a request Runway did not start is listed under its shot as sent, not start
     assert.deepEqual(f.shots.map((s) => s.notStarted.length), [1, 0, 0]);
     const [n] = f.shots[0].notStarted;
     assert.deepEqual(n, {
-      batch: B2, job: "gb0000000000000000000", at: at(T2 + 60_000), status: 400, result: "Sent, not started by Runway",
+      batch: B2, job: "gb0000000000000000000", service: "Runway", at: at(T2 + 60_000), status: 400, result: "Sent, not started by Runway",
       sent: `/api/studio/films/${GOAL}/sent/gb0000000000000000000`, sentPrompt: "Push in. Slowly.",
     });
     assert.ok(!f.shots[0].takes.some((t) => t.job === n.job), "still no take: it cost nothing and used none");
@@ -408,6 +412,100 @@ test("sent: the door's own kept picture for a day, under a policy that runs noth
     assert.equal(gone.json.error.code, "sent_gone");
     // By the identifier too.
     assert.equal((await call(h.url, "GET", `/api/studio/films/${KEY}/sent/gb0000000000000000001`)).status, 200);
+  });
+});
+
+// A take Higgsfield made (Wan 2.6): its ledger lines and job record as the door writes them (provider, units, rate,
+// Higgsfield's job id in runwayTask), with a kept picture a browser can draw (the stand-ins' whole PNG).
+function hfTake(h, { id = "gb0000000000000000005", shot: s = "s01", batch = B2, at: ms = T2 + 55 * 60_000, end = "done", bytes = pngBytes(1280, 720, 4321) } = {}) {
+  job(h, { id, batch, shot: s, at: ms, model: "hf.wan2_6", estimate: 50, end, extra: { provider: "higgsfield", units: 10, rate: 5 } });
+  record(h, { id, batch, shot: s, model: "hf.wan2_6", input: { bytes, age: HOUR }, prompt: "Wan: push in.",
+    extra: { provider: "higgsfield", runwayTask: "job_0d4aeb9fe86d75b0", inputSha256: ["0".repeat(64)], resend: "1".repeat(64) } });
+  return { id, bytes };
+}
+const words = (v) => JSON.stringify(v);
+
+test("a Higgsfield take names Higgsfield, never Runway; a Runway take still names Runway; the film's words name both", async () => {
+  await withFilm({}, async (h) => {
+    const { id } = hfTake(h);
+    hfTake(h, { id: "gb0000000000000000006", shot: "s02", at: T2 + 56 * 60_000, end: "refused" });
+    hfTake(h, { id: "gb0000000000000000007", shot: "s02", at: T2 + 57 * 60_000, end: "not_started_400" });
+    hfTake(h, { id: "gb0000000000000000008", shot: "s03", at: T2 + 58 * 60_000, end: null });
+    const f = (await film(h)).json;
+    assert.deepEqual(sameShape(readShape("films").film, f), []);
+    const hf = f.shots[0].takes.find((t) => t.job === id);
+    assert.deepEqual([hf.service, hf.labels, hf.result], ["Higgsfield", HIGGSFIELD_WORDS, "Made"]);
+    const refused = f.shots[1].takes.find((t) => t.job === "gb0000000000000000006");
+    assert.deepEqual([refused.service, refused.result], ["Higgsfield", "Refused by Higgsfield"]);
+    const [n] = f.shots[1].notStarted;
+    assert.deepEqual([n.job, n.service, n.result], ["gb0000000000000000007", "Higgsfield", "Sent, not started by Higgsfield"]);
+    for (const t of [hf, refused, n]) assert.doesNotMatch(words(t), /Runway/, words(t));
+    // The Runway takes of the same film, as before.
+    const rw = f.shots[0].takes.find((t) => t.job === "gb0000000000000000001");
+    assert.deepEqual([rw.service, rw.labels], ["Runway", RUNWAY_WORDS]);
+    assert.equal(f.shots[0].takes.find((t) => t.job === "ga0000000000000000001").result, "Refused by Runway");
+    // The film used both, and both are still being made (s03's Runway retake and its Higgsfield take).
+    assert.deepEqual(f.labels, {
+      approved: "What you approved", sentPrompt: "The prompt sent to Runway and Higgsfield",
+      sentPromptGone: "No longer kept: the door keeps what it sent for two days.", sentPromptNone: "The door kept no copy of this prompt.",
+      changed: "The shotlist was changed after you approved it. Each take shows what was sent to Runway and Higgsfield.",
+      notStarted: "Sent, not started by Runway and Higgsfield",
+      stillCharging: "Runway and Higgsfield may still charge for clips that are being made.",
+    });
+  });
+});
+
+test("a film made only by Higgsfield: its words name Higgsfield alone", async () => {
+  await withFilm({}, async (h) => {
+    const ledger = h.config.paths.ledger;
+    writeFileSync(ledger, "");
+    hfTake(h, { end: null });
+    const f = (await film(h)).json;
+    assert.equal(f.labels.sentPrompt, "The prompt sent to Higgsfield");
+    assert.equal(f.labels.stillCharging, "Higgsfield may still charge for clips that are being made.");
+    assert.doesNotMatch(words(f.labels), /Runway/);
+    assert.doesNotMatch(words(f.shots.flatMap((s) => s.takes)), /Runway/);
+  });
+});
+
+test("sent for a Higgsfield take: the door's own kept picture is served, as a Runway take's is; the refusals hold", async () => {
+  await withFilm({}, async (h) => {
+    const { id, bytes } = hfTake(h);
+    const f = (await film(h)).json;
+    const t = f.shots[0].takes.find((x) => x.job === id);
+    assert.equal(t.sent, `/api/studio/films/${GOAL}/sent/${id}`);
+    const r = await call(h.url, "GET", t.sent);
+    assert.equal(r.status, 200, r.text);
+    assert.ok(r.buffer.equals(bytes), "the door's own kept copy of what it sent to Higgsfield");
+    assert.equal(r.headers["content-type"], "image/png");
+    assert.equal(r.headers["content-security-policy"], "default-src 'none'; sandbox");
+    assert.equal(r.headers["x-content-type-options"], "nosniff");
+    assert.equal(r.headers["cache-control"], "no-store");
+    assert.equal((await call(h.url, "GET", `/api/studio/films/${KEY}/sent/${id}`)).status, 200, "by the identifier too");
+    // Another film's Higgsfield job, a path that climbs out, a malformed id: refused as before.
+    hfTake(h, { id: "gc0000000000000000002", batch: B3, at: NOW - 20 * 60_000 });
+    for (const path of [
+      `/api/studio/films/${GOAL}/sent/gc0000000000000000002`,
+      `/api/studio/films/${GOAL}/sent/..%2F..%2Fsecrets`,
+      `/api/studio/films/${GOAL}/sent/${id}%2F..%2F..`,
+      `/api/studio/films/${GOAL}/sent/${"g".repeat(65)}`,
+    ]) {
+      const no = await call(h.url, "GET", path);
+      assert.equal(no.status, 404, path);
+      assert.ok(!String(no.headers["content-type"]).startsWith("image/"), path);
+    }
+    assert.equal((await call(h.url, "GET", `/api/studio/films/${OTHER}/sent/gc0000000000000000002`)).status, 200, "its own film shows it");
+    // Its kept picture made a link to a file outside: never followed.
+    const rec = workStore(h.config.paths.doorWork).readJob(id);
+    const bin = join(h.config.paths.doorWork, "gen", "inputs", `${rec.inputs[0]}.bin`);
+    const outside = join(h.state, "outside.png");
+    writeFileSync(outside, bytes);
+    rmSync(bin);
+    symlinkSync(outside, bin);
+    const linked = await call(h.url, "GET", t.sent);
+    assert.equal(linked.status, 404);
+    assert.ok(!String(linked.headers["content-type"]).startsWith("image/"));
+    assert.equal((await film(h)).json.shots[0].takes.find((x) => x.job === id).sent, "gone");
   });
 });
 

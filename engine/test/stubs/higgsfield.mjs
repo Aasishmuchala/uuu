@@ -41,7 +41,9 @@ export const CDN_HOST = "cdn.higgsfield.test";
 const ADDRESSES = { [MCP_HOST]: "13.32.0.11", [UPLOAD_HOST]: "13.32.0.12", [CDN_HOST]: "13.32.0.13" };
 const MB = 1024 * 1024;
 export const PROTOCOL_VERSION = "2025-06-18";
-export const PRICES = { image: 4, videoPerSecond: 7, upscale: 8 }; // credits
+// Credits. A video a second by its `quality`, as the door's table has Wan 2.6 (engine/generate/registry.mjs): 1.5 at
+// 720p, 2 at 1080p; with no quality, the 1080p rate.
+export const PRICES = { image: 4, videoPerSecond: 2, videoPerSecondByQuality: { "720p": 1.5, "1080p": 2 }, upscale: 8 };
 export const ACCESS_SECONDS = 3600;
 
 const hex = (n) => randomBytes(n).toString("hex");
@@ -194,7 +196,10 @@ export async function startHiggsfield({ behaviour = {} } = {}) {
     const p = args && typeof args.params === "object" && args.params ? args.params : args || {};
     let n;
     if (tool === "generate_image") n = PRICES.image * Math.max(1, Math.min(4, Number(p.count) || 1));
-    else if (tool === "generate_video") n = PRICES.videoPerSecond * (Number(p.duration) || 5);
+    else if (tool === "generate_video") {
+      const rate = Object.hasOwn(PRICES.videoPerSecondByQuality, p.quality) ? PRICES.videoPerSecondByQuality[p.quality] : PRICES.videoPerSecond;
+      n = rate * (Number(p.duration) || 5);
+    }
     else n = PRICES.upscale;
     return b.priceHigher ? Math.round(n * 1.5) : n;
   }

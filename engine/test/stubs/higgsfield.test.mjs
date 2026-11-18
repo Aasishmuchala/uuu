@@ -190,6 +190,11 @@ test("balance, and get_cost on all three generate tools answers a price only (no
     assert.equal(img.msg.result.structuredContent.job_id, undefined);
     const vid = await tool(hf, token, session, "generate_video", { params: { model: "seedance_2_5", prompt: "x", duration: 5, get_cost: true } });
     assert.equal(vid.msg.result.structuredContent.credits, PRICES.videoPerSecond * 5);
+    // Wan 2.6 as the door's table has it (engine/generate/registry.mjs): 1.5 credits a second at 720p, 2 at 1080p.
+    for (const [quality, duration, credits] of [["720p", 5, 7.5], ["1080p", 5, 10], ["1080p", 15, 30]]) {
+      const wan = await tool(hf, token, session, "generate_video", { params: { model: "wan2_6", prompt: "x", quality, duration, get_cost: true } });
+      assert.equal(wan.msg.result.structuredContent.credits, credits, `${quality} ${duration} s`);
+    }
     const up = await tool(hf, token, session, "upscale_image", { image_id: "media_x", width: 10, height: 10, get_cost: true });
     assert.equal(up.msg.result.structuredContent.credits, PRICES.upscale);
     assert.equal(up.msg.result.structuredContent.job_id, undefined);

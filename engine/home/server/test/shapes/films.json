@@ -42,6 +42,8 @@
             "take": "t1",
             "batch": "b0123456789abcdef0123",
             "job": "g0123456789abcdef0123",
+            "service": "Runway",
+            "labels": { "sentPrompt": "The prompt sent to Runway", "sentPicture": "The picture sent to Runway" },
             "state": "made",
             "credits": 25,
             "result": "Made",
@@ -57,6 +59,7 @@
           {
             "batch": "b0123456789abcdef0123",
             "job": "g00000000000000000004",
+            "service": "Runway",
             "at": "2026-11-13T10:00:00.000Z",
             "status": 400,
             "result": "Sent, not started by Runway",
@@ -77,7 +80,8 @@
       "sentPromptGone": "No longer kept: the door keeps what it sent for two days.",
       "sentPromptNone": "The door kept no copy of this prompt.",
       "changed": "The shotlist was changed after you approved it. Each take shows what was sent to Runway.",
-      "notStarted": "Sent, not started by Runway"
+      "notStarted": "Sent, not started by Runway",
+      "stillCharging": "Runway may still charge for clips that are being made."
     }
   }
 }

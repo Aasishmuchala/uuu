@@ -2,7 +2,7 @@
 //   GET /api/studio/films                  { films: [{ task, approvedAt, budget, spent, clips, kept, state, problem }] }
 //   GET /api/studio/films/:taskId          the film: { task, treatment, batches, shots, total, edit,
 //                                          changedAfterApproval, problem } (test/shapes/films.json)
-//   GET /api/studio/films/:taskId/sent/:job   the picture the door sent to Runway for one take of this film
+//   GET /api/studio/films/:taskId/sent/:job   the picture the door sent to Runway or Higgsfield for one take of this film
 // A film is a goal with the home server's own `shotlist:` record (the owner's approvals, lib/shotlist.mjs). What
 // each part rests on, and never on anything else (C12):
 //   - money and takes: the generation door's own ledger (engine/generate/ledger.mjs), read again on every call;
@@ -18,7 +18,9 @@
 //     or can no longer be read;
 //   - the picture and the prompt sent: the door's own job record and kept input (workStore: readJob, readInput),
 //     the picture for a day, the prompt as long as the door keeps the job record (two days);
-//   - `labels`: the plain words that tell the approved apart from the sent;
+//   - `labels`: the plain words that tell the approved apart from the sent, naming the services the film's jobs used;
+//     each take and each request not started names its own job's service (`service`, by the job's model in the
+//     ledger) and carries its own whole sentences (a take's `labels`, a request's `result`);
 //   - clips, stills and boards: the Artist's files at fixed names, by exact-name listing (a link, a folder that is a
 //     link, a name in another letter case are not shown), each checked by its first bytes, shown through /api/view;
 //   - verdicts: the Art director's clip reviews (lib/clipreview.mjs), by the board's author id only;
@@ -52,15 +54,23 @@ export const NO_BATCH_FILE = "The approval's own file is no longer kept, so the 
 export const NO_TREATMENT = "The film's list of treatments (variants.json) is missing, so its clips cannot be shown.";
 export const GONE = "gone";
 // What each prompt and render on the film is, in the owner's words (T48 F3): the approved ones are the shot's
-// `render`, `move` and `prompt` and a take's `approvedPrompt`; the sent one is a take's `sentPrompt`.
-export const LABELS = Object.freeze({
+// `render`, `move` and `prompt` and a take's `approvedPrompt`; the sent one is a take's `sentPrompt`. The words that
+// name a service are made by labelsFor, from the services the film's jobs used (`name`: "Runway", "Higgsfield", or
+// "Runway and Higgsfield"); these are a Runway film's.
+export const labelsFor = (name) => Object.freeze({
   approved: "What you approved",
-  sentPrompt: "The prompt sent to Runway",
+  sentPrompt: `The prompt sent to ${name}`,
   sentPromptGone: "No longer kept: the door keeps what it sent for two days.",
   sentPromptNone: "The door kept no copy of this prompt.",
-  changed: "The shotlist was changed after you approved it. Each take shows what was sent to Runway.",
-  notStarted: "Sent, not started by Runway",
+  changed: `The shotlist was changed after you approved it. Each take shows what was sent to ${name}.`,
+  notStarted: `Sent, not started by ${name}`,
+  stillCharging: `${name} may still charge for clips that are being made.`,
 });
+export const LABELS = labelsFor(SERVICE_NAMES.runway);
+// The service of one job of the ledger, by its own model ("Runway" for a model the door's table does not know, as
+// for old lines), and a take's own sentences that name it.
+export const serviceOf = (j) => SERVICE_NAMES[providerOf(j && j.model)] || SERVICE_NAMES.runway;
+const takeLabels = (name) => ({ sentPrompt: `The prompt sent to ${name}`, sentPicture: `The picture sent to ${name}` });
 const MAX_PROMPT = 1000;
 const DAY_MS = 24 * 3600_000;
 const STILLS = 6;
@@ -384,9 +394,10 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
         const take = `t${n + 1}`;
         const clip = `${id}-${take}`;
         const sent = files && store ? sentOf(store, j, now, inputs) : null;
+        const service = serviceOf(j);
         takes.push({
-          take, batch: b.id, job: JOB_RE.test(j.job) ? j.job : null,
-          state: takeState(j), credits: j.charge, result: resultWords(j),
+          take, batch: b.id, job: JOB_RE.test(j.job) ? j.job : null, service, labels: takeLabels(service),
+          state: takeState(j), credits: j.charge, result: resultWords(j, providerOf(j.model)),
           sent: sent && sent !== GONE ? `/api/studio/films/${encodeURIComponent(goal.id)}/sent/${j.job}` : sent,
           approvedPrompt: asApproved ? asApproved.prompt : null,
           sentPrompt: files && store ? sentPromptOf(store, j) : null,
@@ -397,7 +408,7 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
         places.push({ variant: b._.approval.variant, clip });
       });
     });
-    // The requests Runway answered with a 4xx and did not start (the door's ledger verdict not_started_<status>):
+    // The requests Runway or Higgsfield answered with a 4xx and did not start (the ledger verdict not_started_<status>):
     // nothing was made or charged, but what was sent is shown, the picture and the prompt, from the door's record.
     const notStarted = [];
     for (const b of batches) {
@@ -405,8 +416,10 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
         if (j.shot !== id || !notStartedJob(j)) continue;
         const job = JOB_RE.test(j.job) ? j.job : null;
         const sent = files && store && job ? sentOf(store, j, now, inputs) : null;
+        const service = serviceOf(j);
         notStarted.push({
-          batch: b.id, job, at: Number.isFinite(j.at) ? iso(j.at) : null, status: Number(j.end.verdict.slice(-3)), result: LABELS.notStarted,
+          batch: b.id, job, service, at: Number.isFinite(j.at) ? iso(j.at) : null, status: Number(j.end.verdict.slice(-3)),
+          result: labelsFor(service).notStarted,
           sent: sent && sent !== GONE ? `/api/studio/films/${encodeURIComponent(goal.id)}/sent/${job}` : sent,
           sentPrompt: files && store && job ? sentPromptOf(store, j) : null,
         });
@@ -443,6 +456,10 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
   const budget = batches.reduce((n, b) => n + b.budget, 0);
   const spent = ledger.ok ? batches.reduce((n, b) => n + b.spent, 0) : null;
   const edit = identifier && treatment.folder ? filmEdit(config, identifier, treatment.folder) : null;
+  const services = filmServices(batches);
+  // What may still charge: the services of the takes still being made, else those the film used.
+  const making = shots.flatMap((s) => s.takes).filter((t) => t.state === "making").map((t) => t.service);
+  const chargingName = making.length ? serviceWords(Object.keys(SERVICE_NAMES).filter((k) => making.includes(SERVICE_NAMES[k]))) : serviceWords(services);
   const problem = !ledger.ok ? LEDGER_SENTENCES.unreadable
     : treatment.problem || (treatment.rel && !read.ok ? read.problem : null) || (!last._.shots ? NO_BATCH_FILE : null);
   const out = {
@@ -454,10 +471,10 @@ export function filmOf(ctx, goal, { approvals, ledger, comments = [], artDirecto
     edit: edit ? { identifier: edit.identifier, name: edit.name } : null,
     changedAfterApproval,
     problem,
-    labels: { ...LABELS },
+    labels: { ...labelsFor(serviceWords(services)), stillCharging: labelsFor(chargingName).stillCharging },
   };
   // The services its clips used, for the list's words; not part of the film's shape.
-  Object.defineProperty(out, "services", { enumerable: false, value: filmServices(batches) });
+  Object.defineProperty(out, "services", { enumerable: false, value: services });
   return out;
 }
 
@@ -532,7 +549,7 @@ function noFilm(ctx) {
 }
 
 function notSent(ctx) {
-  return ctx.fail(404, "That picture is not one this film sent to Runway.", "Go back to the film and look at it again.", "sent_not_found");
+  return ctx.fail(404, "That picture is not one this film sent to Runway or Higgsfield.", "Go back to the film and look at it again.", "sent_not_found");
 }
 
 export default function register(app) {
@@ -569,8 +586,9 @@ export default function register(app) {
     return filmOf(ctx, goal, { approvals, ledger: ledgerNow(ctx.config), comments, artDirectorId, store, now: Date.now() });
   });
 
-  // The door's own kept copy of what it sent, only for a job of this film's batches, never for longer than the
-  // door keeps it; the bytes are the door's, checked by their first bytes, sent under a policy that runs nothing.
+  // The door's own kept copy of what it sent, to Runway or Higgsfield alike, only for a job of this film's batches,
+  // never for longer than the door keeps it; the bytes are the door's, checked by their first bytes, sent under a
+  // policy that runs nothing.
   app.get("/api/studio/films/:taskId/sent/:job", async (ctx) => {
     const { taskId, job } = ctx.params;
     if (!TASK_PARAM.test(taskId) || typeof job !== "string" || !JOB_RE.test(job)) throw notSent(ctx);

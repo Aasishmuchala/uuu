@@ -2,12 +2,13 @@
 // follows a film as it is made, on a stage. The chosen take plays on the stage (the kit's Player, its stills under it);
 // the strip under it holds one card a shot (its still, its cost, its take, its state) under what the film has spent of
 // what was approved; the rail holds the film's state, title and direction, then three blocks: the take with the Art
-// director's verdict and the storyboard beside the picture Runway was sent, the prompt as sent with what changed
-// from what the owner approved, and the shot's move with the requests Runway did not start. Under the first screen,
-// every shot and every approval as rows. Money, takes and states come from the door's ledger through the home server
-// (C12); figures are the server's numbers, its sentences shown as sent (R4). The Artist's own words (the move, the
-// prompt, a verdict's reason) are shown as text and nowhere else. Only addresses under /api/ reach a picture or a
-// video, each through `safeApi`; no link in agent text is followed.
+// director's verdict and the storyboard beside the picture the take's service was sent, the prompt as sent with what
+// changed from what the owner approved, and the shot's move with the requests the service did not start. Under the
+// first screen, every shot and every approval as rows. Money, takes and states come from the door's ledger through the
+// home server (C12); figures are the server's numbers, its sentences shown as sent (R4). Each take names its own job's
+// service (Runway or Higgsfield) in the server's words; the page's own Runway words stand in only for an older server.
+// The Artist's own words (the move, the prompt, a verdict's reason) are shown as text and nowhere else. Only addresses
+// under /api/ reach a picture or a video, each through `safeApi`; no link in agent text is followed.
 import { html, useEffect, useState } from "../vendor/preact-htm.js";
 import { useResource } from "../lib/api.js";
 import { useApp } from "../lib/context.js";
@@ -59,9 +60,16 @@ export function spentShare(spent, budget) {
   return Math.max(0, Math.min(100, Math.round((Number(spent) / b) * 100)));
 }
 
-const TAKE_STATES = { making: "Being made", made: "Made", refused: "Refused by Runway", failed: "Failed" };
+// The services a take may name, as the home server names them; anything else is Runway (the door's own default).
+export const SERVICES = Object.freeze(["Runway", "Higgsfield"]);
+export const serviceName = (v) => (SERVICES.includes(v) ? v : "Runway");
+// "Runway", "Higgsfield" or "Runway and Higgsfield" for a list of services, in that order.
+export const servicesWords = (list) => SERVICES.filter((s) => (Array.isArray(list) ? list : []).map(serviceName).includes(s)).join(" and ") || "Runway";
+
+const TAKE_STATES = { making: "Being made", made: "Made", failed: "Failed" };
 const TAKE_TONES = { making: "neutral", made: "ok", refused: "bad", failed: "bad" };
-export const takeStateWords = (state) => TAKE_STATES[state] || "Not known";
+// A take's state in words; a refusal names the service that refused it (`service`, the take's own).
+export const takeStateWords = (state, service) => (state === "refused" ? `Refused by ${serviceName(service)}` : TAKE_STATES[state] || "Not known");
 export const takeStateTone = (state) => TAKE_TONES[state] || "neutral";
 
 // The Art director's verdict on a take: "Keep", "Retake: <reason>", or "Not looked at yet".
@@ -89,14 +97,15 @@ export function clipsWords(clips, kept) {
   return `${c} ${c === 1 ? "clip" : "clips"} made, ${k} kept`;
 }
 
-// What the picture sent to Runway says: the kept picture, or that the door no longer holds it (it keeps them a day).
+// What the picture sent to the take's service says: the kept picture, or that the door no longer holds it (it keeps
+// them a day).
 export const GONE_WORDS = "No longer kept: the door keeps sent pictures for a day";
 export function sentKind(sent) {
   if (sent === "gone") return "gone";
   return safeApi(sent) ? "picture" : "none";
 }
 
-// Whether any take is still being made, so the total says Runway may still charge.
+// Whether any take is still being made, so the total says its service may still charge (the server's `stillCharging`).
 export const anyMaking = (film) => items(film?.shots, MAX_SHOTS).some((s) => items(s.takes, MAX_TAKES).some((t) => t.state === "making"));
 export const STILL_CHARGING = "Runway may still charge for clips that are being made.";
 export const FROZEN_WORDS = "Runway refused two pictures or prompts in this film. It needs you.";
@@ -110,6 +119,7 @@ export const LABEL_WORDS = Object.freeze({
   sentPromptNone: "The door kept no copy of this prompt.",
   changed: CHANGED_WORDS,
   notStarted: "Sent, not started by Runway",
+  stillCharging: STILL_CHARGING,
 });
 export function labelsOf(film) {
   const l = film && film.labels && typeof film.labels === "object" ? film.labels : {};
@@ -118,17 +128,34 @@ export function labelsOf(film) {
   return out;
 }
 
+// A take's own words that name its service: the server's whole sentences (`labels`), else made from its `service`, else
+// (an older server, which named no service) the film's labels and the page's Runway words. { sentPrompt, sentPicture }.
+export function takeWords(take, labels = LABEL_WORDS) {
+  const t = take && typeof take === "object" ? take : {};
+  const own = t.labels && typeof t.labels === "object" ? t.labels : {};
+  const said = (k) => (typeof own[k] === "string" && own[k].trim() ? text(own[k], 300) : "");
+  const named = SERVICES.includes(t.service) ? t.service : null;
+  return {
+    sentPrompt: said("sentPrompt") || (named ? `The prompt sent to ${named}` : text(labels.sentPrompt, 300) || LABEL_WORDS.sentPrompt),
+    sentPicture: said("sentPicture") || `The picture sent to ${named || "Runway"}`,
+  };
+}
+
 // What a take's sent prompt is: its text, "gone" (the door's job record expired) or "none" (no copy was kept).
 export function sentPromptKind(value) {
   if (value === "gone") return "gone";
   return typeof value === "string" && value.trim() ? "text" : "none";
 }
 
-// A shot's requests Runway did not start (nothing made, nothing charged), checked: [{ key, when, sent, prompt }], where
-// `sent` is the kept picture's /api/ address or "" and `prompt` the prompt sent, "gone" or "none" (sentPromptKind).
+// A shot's requests its service did not start (nothing made, nothing charged), checked: [{ key, service, result, when,
+// sent, prompt }], where `service` is the request's own ("Runway" when an older server names none), `result` the
+// server's sentence for it or "", `sent` the kept picture's /api/ address or "" and `prompt` the prompt sent, "gone" or
+// "none" (sentPromptKind).
 export function notStartedOf(shot) {
   return items(shot?.notStarted, MAX_NOT_STARTED).map((n, i) => ({
     key: `${text(n.batch, 40)}-${text(n.job, 64)}-${i}`,
+    service: serviceName(n.service),
+    result: typeof n.result === "string" && n.result.trim() ? text(n.result, 300) : "",
     when: typeof n.at === "string" ? n.at.slice(0, 40) : "",
     sent: safeApi(n.sent) || "",
     prompt: sentPromptKind(n.sentPrompt) === "text" ? text(n.sentPrompt, 1000) : sentPromptKind(n.sentPrompt),
@@ -180,7 +207,6 @@ export const FILM_WORDS = Object.freeze({
   spentOf: "Money spent of the approved budget",
   storyboard: "Storyboard",
   asSent: "your render, as sent",
-  sentPicture: "The picture sent to Runway",
   byArt: "the Art director's verdict",
   notLooked: "Not looked at yet",
   diffApproved: "you approved, not sent",
@@ -243,8 +269,8 @@ export function promptView(take) {
   return { kind: approved && approved !== sent ? "diff" : "same", approved, sent };
 }
 
-// Whether a shot's newest take needs the owner to look: Runway refused it or it failed, the Art director asked for
-// it again, or the shotlist changed after approval and what was sent is not what was approved.
+// Whether a shot's newest take needs the owner to look: its service refused it or it failed, the Art director asked
+// for it again, or the shotlist changed after approval and what was sent is not what was approved.
 export function needsLook(take, changed) {
   if (!take || typeof take !== "object") return false;
   if (take.state === "refused" || take.state === "failed") return true;
@@ -362,15 +388,15 @@ function Prompt({ value, id, moreWords = "Show all" }) {
   </div>`;
 }
 
-// The requests Runway did not start, under a shot: quiet text, each with what was sent.
+// The requests its service did not start, under a shot: quiet text, each with what was sent.
 function NotStarted({ shot, labels }) {
   const list = notStartedOf(shot);
   if (!list.length) return null;
   const id = text(shot.id, 8);
-  return html`<ul class="p-studio-film__not-started" aria-label=${`Requests for shot ${id} that Runway did not start`}>
+  return html`<ul class="p-studio-film__not-started" aria-label=${`Requests for shot ${id} that ${servicesWords(list.map((n) => n.service))} did not start`}>
     ${list.map((n, i) => html`<li key=${n.key} class="p-studio-film__not-started-item">
       <p class="p-studio-film__not-started-head">
-        <span>${labels.notStarted}</span>
+        <span>${n.result || labels.notStarted}</span>
         ${n.when ? html`<span title=${fullWhen(n.when)}>${when(n.when)}</span>` : null}
         ${n.sent ? html`<a href=${n.sent}>The picture sent</a>` : null}
       </p>
@@ -394,23 +420,24 @@ function TakeVerdict({ take }) {
     </div>`;
   }
   if (state === "refused" || state === "failed") {
-    return html`<div class="p-studio-film__verdict"><${Verdict} tone="bad" title=${takeStateWords(state)} /></div>`;
+    return html`<div class="p-studio-film__verdict"><${Verdict} tone="bad" title=${takeStateWords(state, take.service)} /></div>`;
   }
   return html`<p class="p-studio-film__state-line"><${St} icon=${state === "making" ? "clock" : undefined}>${takeStateWords(state)}<//></p>`;
 }
 
-// The first block: the take, its verdict, and the storyboard beside the picture Runway was sent.
+// The first block: the take, its verdict, and the storyboard beside the picture its service was sent.
 function TakeBlock({ shot, take, n, takes, at, onTake, labels }) {
   const board = safeApi(shot.board);
   const sent = sentKind(take.sent);
   const state = take.state;
-  const detail = (state === "refused" || state === "failed" || state === "making") && take.result && take.result !== takeStateWords(state) ? text(take.result, 200) : "";
+  const words = takeWords(take, labels);
+  const detail = (state === "refused" || state === "failed" || state === "making") && take.result && take.result !== takeStateWords(state, take.service) ? text(take.result, 200) : "";
   const facts = [secondsWords(shot), takeCredits(take.credits)].filter(Boolean).join(" · ");
   const pair = [
     { src: board || "", alt: `Storyboard still for shot ${n}`, title: FILM_WORDS.storyboard, sub: labels.approved },
     sent === "none" ? null : {
-      src: sent === "picture" ? safeApi(take.sent) : "", alt: `${FILM_WORDS.sentPicture} for ${takeLabel(n, take).toLowerCase()}`,
-      title: text(shot.render, 80) || FILM_WORDS.sentPicture, sub: sent === "gone" ? GONE_WORDS : FILM_WORDS.asSent,
+      src: sent === "picture" ? safeApi(take.sent) : "", alt: `${words.sentPicture} for ${takeLabel(n, take).toLowerCase()}`,
+      title: text(shot.render, 80) || words.sentPicture, sub: sent === "gone" ? GONE_WORDS : FILM_WORDS.asSent,
     },
   ];
   return html`<${Blk} title=${takeLabel(n, take)} aside=${facts}>
@@ -424,10 +451,10 @@ function TakeBlock({ shot, take, n, takes, at, onTake, labels }) {
   <//>`;
 }
 
-// The second block: the prompt as sent, with what changed from what the owner approved.
+// The second block: the prompt as sent to the take's service, with what changed from what the owner approved.
 function PromptBlock({ take, labels }) {
   const p = promptView(take);
-  return html`<${Blk} title=${labels.sentPrompt}>
+  return html`<${Blk} title=${takeWords(take, labels).sentPrompt}>
     ${p.kind === "diff"
       ? html`<div class="p-studio-film__diff"><${DiffText} a=${p.approved} b=${p.sent} labels=${{ a: FILM_WORDS.diffApproved, b: FILM_WORDS.diffSent }} /></div>`
       : p.kind === "same"
@@ -437,7 +464,7 @@ function PromptBlock({ take, labels }) {
   <//>`;
 }
 
-// The third block: the shot's move, and the requests Runway did not start.
+// The third block: the shot's move, and the requests its service did not start.
 function ShotBlock({ shot, n, labels }) {
   const move = text(shot.move, 400);
   if (!move && !notStartedOf(shot).length) return null;
@@ -474,7 +501,7 @@ function Spend({ film }) {
     <div class="p-studio-film__spend-meter">
       <${Meter} plain shares=${{ spent: spentShare(total.spent, total.budget) }} label=${`${FILM_WORDS.spentOf}: ${words}`} />
     </div>
-    ${anyMaking(film) ? html`<p class="p-studio-film__spend-note">${STILL_CHARGING}</p>` : null}
+    ${anyMaking(film) ? html`<p class="p-studio-film__spend-note">${labelsOf(film).stillCharging}</p>` : null}
   </section>`;
 }
 

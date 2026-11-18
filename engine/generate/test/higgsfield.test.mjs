@@ -107,7 +107,7 @@ test("cost asks with get_cost and exactly the job's arguments: FLUX.2 at variant
     const real = tool(hf, "generate_image")[1].arguments;
     const { get_cost: _gc, ...rest } = asked.params;
     assert.deepEqual(real, { params: rest });
-    assert.deepEqual(await h.cost(WAN, wanJob()), { ok: true, credits: 35 });
+    assert.deepEqual(await h.cost(WAN, wanJob()), { ok: true, credits: 10 }, "Wan 2.6 at 1080p: 2 credits a second, as the door's table has it");
     assert.deepEqual(tool(hf, "generate_video")[0].arguments.params, {
       model: "wan2_6", prompt: "a slow push", aspect_ratio: "16:9", quality: "1080p", duration: 5, medias: [{ value: MEDIA, role: "image_references" }],
       use_unlim: false, use_free_gens: false, get_cost: true,
