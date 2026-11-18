@@ -208,6 +208,18 @@ _Avoid_: Staging, live site, publish
 The few small files in `engine/site-kit/` (a reset, a layout grid, a scroll reveal and a lightbox), written in this repository for the pages the Builder makes. The playbooks installer copies them to the playbooks folder. They fetch nothing; a library that is not in the kit is not used.
 _Avoid_: Framework, template, theme
 
+**Astryx kit**:
+The pinned files a page loads to draw with Meta's Astryx design system and React: built once on this Mac, kept in `engine/astryx-kit/astryx/`, and copied whole into a site as its `astryx/` folder or into an app's client folder. Every file is known by its sha256. It fetches nothing.
+_Avoid_: Framework, library, template, theme
+
+**Brand theme**:
+The file `astryx-theme.css`, written by the home server from the brand kit, that gives an Astryx page the brand's colours, faces and sizes. The Builder copies it as it is.
+_Avoid_: Skin, stylesheet, palette
+
+**Astryx page**:
+A page drawn with the Astryx kit: a written header and logo, and a `data-astryx-root` that its script fills with the kit's parts. The page viewer waits for it to be drawn.
+_Avoid_: React page, app page
+
 **Page rules**:
 The part of the brand check that reads a site's own files as text and sends the page back to the Builder when it breaks a hard rule: the kit's tokens file changed, a colour or a typeface that is not the kit's, text smaller than the kit's smallest, an address outside the site, or no logo in the header.
 _Avoid_: Lint, style guide

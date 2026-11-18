@@ -171,6 +171,8 @@ A playbook is craft advice an agent reads before a kind of work: how to write a 
 
 The site kit is not a playbook. It is a few small files written in this repository for the pages the Builder makes (a reset, a layout grid, a scroll reveal and a lightbox). The installer copies them to `~/.paperclip/uuu-engine/playbooks/site-kit/` beside the playbooks, so Health counts one more.
 
+The Astryx kit, in `engine/astryx-kit/`, is Meta's Astryx design system and React built once into a few plain files (`astryx/`, 50 files, 2.8 MB), with the list that pins each file, the build script, the docs script and the page to copy (`example/`). The Builder uses it for every new site and app. The installer copies it to `~/.paperclip/uuu-engine/playbooks/astryx-kit/` and the component pages to the `astryx` playbook; nothing in it fetches anything. How it is built and upgraded is in `engine/astryx-kit/BUILDING.md`.
+
 To install them, run `engine/playbooks/install.sh`. It copies only the files the list in `engine/playbooks/manifest.json` names (notes in text, Markdown or JSON, at most 512 KB each and 20 MB in all) into `~/.paperclip/uuu-engine/playbooks/`. It never copies a folder whole, a script, a picture, a font or a program. It downloads nothing. A skill folder that is not on this Mac is skipped with one line. `engine/playbooks/install.sh --check-only` says how many are installed.
 
 The repository holds only the list, because it is on GitHub and some of the text is a third party's. Every agent can read the playbooks and none can change them. Each copy has a note, `IN-THIS-ENGINE.md`, that says what to do where a playbook assumes a browser, the internet, a paid tool or an install, which agents here do not have.
@@ -480,6 +482,7 @@ None of these is built or running. Each is a choice for later. Settings lists th
 - The viewer's work folder: `~/.paperclip/uuu-engine/doors/work/view/`. It holds one site for the render that is running and is removed when the render ends. Agents cannot reach this folder.
 - The home screen's pictures of pages: `~/.paperclip/uuu-engine/home/shots/`, one folder for each version's files, at most 500 MB in all, oldest removed first. Only the home server writes there; agents cannot read it.
 - The site kit: `~/.paperclip/uuu-engine/playbooks/site-kit/`, copied there by `engine/playbooks/install.sh` from `engine/site-kit/`. Every agent can read it and none can change it.
+- The Astryx kit: `~/.paperclip/uuu-engine/playbooks/astryx-kit/`, copied there by `engine/playbooks/install.sh` from `engine/astryx-kit/`. The brand theme for it, `astryx-theme.css`, is in the brand folder of the knowledge folder beside `kit.css`, written only by the home server. Every agent can read the kit and none can change it.
 - The Researcher's notes: `~/.paperclip/uuu-engine/tasks/research/<goal>/`. Files you shared with it: `knowledge/shared/`.
 - Logs: `~/.paperclip/uuu-engine/logs/`. One file per part, including `relay.log`, plus `gate-refusals.log`, which lists what the gate turned away. Each app's own output is `logs/apps/<name>.log`.
 - Secrets: `~/.paperclip/uuu-engine/secrets/`, and the agents' login in `agent.env` beside it. Only you can read them. They are never in the repository and are never shown here.
