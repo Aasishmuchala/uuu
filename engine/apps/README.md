@@ -85,6 +85,32 @@ relay's calls of the last day.
 The time, the app, a route's name and a status. Never a header, a body, a query string or a
 token.
 
+## Astryx in an app
+
+An app's pages can be drawn with the Astryx kit, the same pinned files a site carries.
+
+- **Copy it whole.** The folder `engine/astryx-kit/astryx/` goes into the app's client folder
+  (the folder its pages are served from) as `astryx/`, every file, unchanged. Never add, change
+  or remove a file in it.
+- **Import by relative path.** A module imports `./astryx/react.js`,
+  `./astryx/react-dom-client.js`, `./astryx/core.js` and so on, from a `<script type="module"
+  src="…">` of the app's own. The kit's files import each other by relative path too.
+- **No import map.** The host's policy is `script-src 'self'` with no `'unsafe-inline'`, so an
+  inline `<script type="importmap">` is refused and bare names like `react` never resolve. An
+  outside import map file is not something a browser can load. The site kit's `importmap.json`
+  is for sites only.
+- **A build step, if the app has one,** marks the `./astryx/…` paths as external rather than
+  bundling them, so the page holds one React, the kit's, not a second copy.
+- **Stylesheets**, in this order: `astryx/reset.css`, `astryx/astryx.css`, `astryx/theme.css`,
+  then the app's own.
+- **Licences:** `astryx/LICENSES.txt` goes with the app, as it is.
+- **Nothing is installed** from the registry for it: no `npm` package of Astryx or React is
+  added to the app. The copy in `astryx/` is the only one.
+
+`test/astryx-real.test.mjs` proves both halves in the real Chrome under the host's exact headers:
+the relative imports draw a `Button`, with no policy violation and no request to any other host;
+the inline import map is refused under `script-src` and nothing draws.
+
 ## Tests
 
 `node --test engine/apps/test/*.test.mjs`. The host's tests (`host-*.test.mjs`) run the fixture
