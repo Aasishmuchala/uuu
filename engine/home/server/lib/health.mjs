@@ -14,19 +14,25 @@ const DOOR_ANSWER_MAX = 64 * 1024;
 const INDEX_MAX = 4 * 1024 * 1024;
 const PLAYBOOK_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
+// A part that does not answer within 2 seconds is running but slow ({ offline: true, slow: true }): telling the owner
+// to start it would do nothing. A refused connection is { offline: true } (it is off).
 async function probe(url) {
   if (!url) return { offline: true };
   try {
     const res = await httpRequest(url, { timeoutMs: TIMEOUT, headers: { accept: "application/json" } });
     return { status: res.status, json: parseJson(res.text) };
-  } catch {
-    return { offline: true };
+  } catch (e) {
+    return e && e.message === "timed out" ? { offline: true, slow: true } : { offline: true };
   }
 }
+
+// What each part says when it is up but does not answer in time.
+const SLOW_TAIL = "Restart the engine: engine stop, then engine start.";
 
 export async function boardState(env) {
   const r = await probe(env.urls.board && `${env.urls.board}/api/health`);
   const technical = `paperclip on ${env.urls.board || "(none)"}`;
+  if (r.slow) return { id: "board", name: "Board", state: "unhealthy", sentence: `The board is running but not answering. ${SLOW_TAIL}`, technical: `${technical}; no answer in ${TIMEOUT / 1000} seconds` };
   if (r.offline) return { id: "board", name: "Board", state: "off", sentence: "The board is off, so agents are not working. Run: engine start", technical };
   if (r.status === 200 && r.json?.status === "ok") return { id: "board", name: "Board", state: "on", sentence: "The board is on. Agents can take work.", technical };
   return { id: "board", name: "Board", state: "unhealthy", sentence: "The board answers but says something is wrong. Restart the engine: engine stop, then engine start.", technical: `${technical}; /api/health answered ${r.status}` };
@@ -35,6 +41,7 @@ export async function boardState(env) {
 export async function gateState(env) {
   const r = await probe(env.urls.gate && `${env.urls.gate}/gate/health`);
   const technical = `gate on ${env.urls.gate || "(none in stubs mode)"}, forwarding to the board`;
+  if (r.slow) return { id: "gate", name: "Gate", state: "unhealthy", sentence: `The gate is running but not answering. ${SLOW_TAIL}`, technical: `${technical}; no answer in ${TIMEOUT / 1000} seconds` };
   if (r.offline) return { id: "gate", name: "Gate", state: "off", sentence: "The gate is off, so agents cannot reach the board. Run: engine start", technical };
   if (r.status === 200) return { id: "gate", name: "Gate", state: "on", sentence: "The gate is on. Agents reach the board only through it, with their own limited rights.", technical };
   return { id: "gate", name: "Gate", state: "unhealthy", sentence: "The gate answers but its check fails. Restart the engine: engine stop, then engine start.", technical: `${technical}; /gate/health answered ${r.status}` };
@@ -46,6 +53,7 @@ export async function relayState(env) {
   const technical = `model relay on ${env.urls.relay || "(none in stubs mode)"}, forwarding to the provider`;
   const st = readModelState(env.config.paths.modelsState);
   const provider = st.ok && st.mode === "provider";
+  if (r.slow) return { id: "relay", name: "Model relay", state: "unhealthy", sentence: `The model relay is running but not answering. ${SLOW_TAIL}`, technical: `${technical}; no answer in ${TIMEOUT / 1000} seconds` };
   if (r.offline) {
     const sentence = provider
       ? "The model relay is off, so your agents cannot reach their models. Run: engine start"
@@ -90,7 +98,7 @@ function probeDoor(url) {
       res.on("end", () => finish({ status: res.statusCode, json: parseJson(Buffer.concat(chunks).toString("utf8")) }));
       res.on("error", () => finish({ offline: true }));
     });
-    const timer = setTimeout(() => { finish({ offline: true }); req.destroy(); }, TIMEOUT);
+    const timer = setTimeout(() => { finish({ offline: true, slow: true }); req.destroy(); }, TIMEOUT);
     req.on("error", () => finish({ offline: true }));
     req.end();
   });
@@ -107,6 +115,7 @@ async function doorState(env, d, switches) {
   const off = { id: d.id, name: d.name, state: "off", sentence: `${d.the} is off. Run: engine start`, technical };
   if (!base) return off;
   const r = await probeDoor(`${base}${d.path}`);
+  if (r.slow) return { id: d.id, name: d.name, state: "unhealthy", sentence: `${d.the} is running but not answering. ${SLOW_TAIL}`, technical: `${technical}; no answer in ${TIMEOUT / 1000} seconds` };
   if (r.offline) {
     if (!doorInstalled(env, d.folder)) return { ...off, state: "not_installed", sentence: `${d.the} is not installed yet.` };
     return off;
@@ -181,6 +190,7 @@ export async function appsState(env) {
   const off = { id: "apps", name: "App Studio", state: "off", sentence: "App Studio is off. Run: engine start", technical };
   if (!base) return off;
   const r = await probeDoor(`${base}/apps/health`);
+  if (r.slow) return { id: "apps", name: "App Studio", state: "unhealthy", sentence: `App Studio is running but not answering. ${SLOW_TAIL}`, technical: `${technical}; no answer in ${TIMEOUT / 1000} seconds` };
   if (r.offline) {
     if (!doorInstalled(env, "apps")) return { ...off, state: "not_installed", sentence: "App Studio is not installed yet." };
     return off;
@@ -250,6 +260,7 @@ export async function booksState(env) {
   const technical = `Frappe bench (ERPNext, India Compliance, CRM, Helpdesk, HRMS) on ${env.urls.bench}, site ${env.config.bench.site}, MariaDB on port ${env.config.ports.benchDb}`;
   if (!env.bench.installed()) return { id: "books", name: "Books", state: "not_installed", sentence: "The books are not installed on this Mac yet.", technical };
   const r = await probe(`${env.urls.bench}/api/method/ping`);
+  if (r.slow) return { id: "books", name: "Books", state: "unhealthy", sentence: `The books are running but not answering. ${SLOW_TAIL}`, technical: `${technical}; no answer in ${TIMEOUT / 1000} seconds` };
   if (r.offline) return { id: "books", name: "Books", state: "off", sentence: "The books are off. Run: engine start", technical };
   if (r.status === 200 && r.json?.message === "pong") return { id: "books", name: "Books", state: "on", sentence: "The books are on.", technical };
   return { id: "books", name: "Books", state: "unhealthy", sentence: "The books answer but their check fails. Restart the engine: engine stop, then engine start.", technical: `${technical}; ping answered ${r.status}` };

@@ -11,7 +11,7 @@ import { createRelay } from "../../../relay/relay.mjs";
 import { startInternet } from "../../../test/stubs/internet.mjs";
 import { createWebDoor } from "../../../web/door.mjs";
 import { SERVER_DIR } from "../lib/app.mjs";
-import { appsState, doorStates, playbooksState } from "../lib/health.mjs";
+import { appsState, boardState, booksState, doorStates, gateState, playbooksState, relayState } from "../lib/health.mjs";
 import { startStubsHome } from "../lib/stubs.mjs";
 import { call } from "../lib/testing.mjs";
 
@@ -399,6 +399,44 @@ test("the brain door's line: not installed in a temp state until its READY marke
   } finally {
     server.closeAllConnections?.();
     await new Promise((r) => server.close(() => r()));
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// A part that is up but does not answer in time is "running but not answering" (unhealthy), not "off"; a refused port is still off
+// (stress S-page-15d65abb).
+test("a part that accepts and never answers is unhealthy and not off; a refused port is still off", async () => {
+  const root = mkdtempSync(join(tmpdir(), "uuu-health-slow-"));
+  const held = [];
+  const stuck = http.createServer(() => {});
+  stuck.on("connection", (c) => held.push(c));
+  await new Promise((r) => stuck.listen(0, "127.0.0.1", r));
+  const free = http.createServer();
+  await new Promise((r) => free.listen(0, "127.0.0.1", r));
+  const closed = `http://127.0.0.1:${free.address().port}`;
+  await new Promise((r) => free.close(r));
+  try {
+    const slow = `http://127.0.0.1:${stuck.address().port}`;
+    const mk = (u) => ({
+      config: { engineDir: root, bench: { site: "s" }, ports: { benchDb: 1 }, paths: { doorsState: join(root, "none.json"), modelsState: join(root, "none-models.json") } },
+      bench: { installed: () => true },
+      urls: { board: u, gate: u, relay: u, bench: u, web: u, generate: u, viewer: u, brain: u, apps: u },
+    });
+    const parts = async (env) => { const [a, b, c, d, doors, e] = await Promise.all([boardState(env), gateState(env), relayState(env), booksState(env), doorStates(env), appsState(env)]); return [a, b, c, d, ...doors, e]; };
+    const [slowParts, closedParts] = await Promise.all([parts(mk(slow)), parts(mk(closed))]);
+    assert.equal(slowParts.length, 9);
+    for (const p of slowParts) {
+      assert.equal(p.state, "unhealthy", p.id);
+      assert.match(p.sentence, /(is|are) running but not answering\. Restart the engine: engine stop, then engine start\.$/, p.id);
+      assert.doesNotMatch(p.sentence, /Run: engine start/, p.id);
+    }
+    assert.equal(slowParts.find((p) => p.id === "books").sentence, "The books are running but not answering. Restart the engine: engine stop, then engine start.");
+    for (const p of closedParts) assert.ok(["off", "not_installed"].includes(p.state), `${p.id} ${p.state}`);
+    assert.equal(closedParts.find((p) => p.id === "board").state, "off");
+    assert.equal(closedParts.find((p) => p.id === "books").sentence, "The books are off. Run: engine start");
+  } finally {
+    for (const c of held) c.destroy();
+    await new Promise((r) => stuck.close(r));
     rmSync(root, { recursive: true, force: true });
   }
 });
