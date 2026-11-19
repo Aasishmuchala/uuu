@@ -78,6 +78,11 @@ export function saidInChecklist(view, sentence) {
   return locked && blockerLines(v).includes(sentence);
 }
 
+// Whether the relay is down, so the page says so once in a notice at its top (whatever the switch's list says).
+export function relayNotShown(view) {
+  return Boolean(view && view.relay && view.relay.state !== "on");
+}
+
 // Why the switch cannot be turned on, one sentence per blocker, in the order the server gives them.
 export function blockerLines(view) {
   const v = view && typeof view === "object" ? view : {};
@@ -270,7 +275,8 @@ function SwitchRow({ view, busy, failure, act, switched }) {
   const on = view.mode === "provider";
   // Each fact once: the list of models not yet read is said where it is acted on, as the agents table's empty state
   // with Read the list beside it, so this list does not say it again.
-  const blockers = blockerLines(view).filter((b) => !(b === WORDS.notRead && unreadInTable(view)));
+  // The relay's sentence is the notice at the top of the page whenever the relay is not on, so it is left out here.
+  const blockers = blockerLines(view).filter((b) => !(b === WORDS.notRead && unreadInTable(view)) && !(b === WORDS.relayOff && relayNotShown(view)));
   const locked = !on && !view.canSwitchOn;
   return html`
     <${Row} icon="power" title=${WORDS.switchLabel}
@@ -498,7 +504,7 @@ export default function ModelsSection() {
     ${state === "restart" ? html`<div class="p-settings-models__state"><${St} icon="clock">Not here yet<//><${RestartLine} /></div>` : null}
     ${state === "error" ? html`<div class="p-settings-models__state"><${ErrorNotice} error=${res.error} onRetry=${res.reload} /></div>` : null}
     ${state === "ready" && view.problem ? html`<div class="p-settings-models__state"><${Notice} tone="bad"><${Line}>${problemLine(view.problem)}<//><//></div>` : null}
-    ${state === "ready" && view.relay && view.relay.state !== "on" && !saidInChecklist(view, WORDS.relayOff)
+    ${state === "ready" && relayNotShown(view)
       ? html`<div class="p-settings-models__state"><${Notice} tone="warn"><${Line}>${text(view.relay.sentence, 200) || WORDS.relayOff}<//><//></div>` : null}
     ${state === "ready" ? html`
       <${OmegaGroup} view=${view} busy=${busy} act=${act} failure=${failure} switched=${switched} technical=${technical} setTechnical=${setTechnical} />

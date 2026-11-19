@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Section, {
-  NEEDS, PROBLEMS, WORDS, appLine, blockerLines, keyStatus, missingLine, modeLine, orderOptions, planLine, problemLine, sameModelLine, saidInChecklist, sectionState, stateWord, statusLine, testLine, unreadInTable, usageLine, allBlank,
+  NEEDS, PROBLEMS, WORDS, appLine, blockerLines, keyStatus, missingLine, modeLine, orderOptions, planLine, problemLine, relayNotShown, sameModelLine, saidInChecklist, sectionState, stateWord, statusLine, testLine, unreadInTable, usageLine, allBlank,
 } from "../../pages/settings-models.js";
 import { loadRanking, pickModels } from "../../../../company/lib/model-picks.mjs";
 
@@ -225,14 +225,17 @@ test("models: the section is groups of the kit in Settings' column: no title of 
 
 test("fix round B2: what must be done first is the kit's Checklist; each fact once; the key's three actions are ghosts of one height; Read the list is an ordinary button", () => {
   const locked = { mode: "plans", canSwitchOn: false, blockers: ["no_key", "relay_off", "no_catalogue"], relay: { state: "off" } };
-  assert.equal(saidInChecklist(locked, WORDS.relayOff), true, "the relay's command is said in the list, so the page's notice is not drawn");
+  assert.equal(saidInChecklist(locked, WORDS.relayOff), true, "the list's own lines still include the relay's command");
+  assert.equal(relayNotShown(locked), true, "but the relay's notice is drawn whenever the relay is not on, and the list leaves it out (said once)");
+  assert.equal(relayNotShown({ ...locked, relay: { state: "on" } }), false);
+  assert.equal(relayNotShown({ ...locked, canSwitchOn: true, mode: "provider" }), true, "whatever the switch's state");
   assert.equal(saidInChecklist(locked, WORDS.noKey), true, "the key's row does not say it again");
   assert.equal(saidInChecklist({ ...locked, canSwitchOn: true }, WORDS.relayOff), false);
   assert.equal(saidInChecklist({ ...locked, mode: "provider" }, WORDS.relayOff), false);
   assert.equal(stateWord({ mode: "plans" }), "Your plans");
   assert.equal(stateWord({ mode: "provider" }), "Omega Plus");
   assert.match(SRC, /<\$\{Checklist\} lead="It can be switched on when these are done:"/);
-  assert.match(SRC, /!saidInChecklist\(view, WORDS\.relayOff\)/);
+  assert.match(SRC, /state === "ready" && relayNotShown\(view\)/);
   assert.equal((SRC.match(/size="sm" variant="ghost"/g) || []).length, 3, "Test, Replace and Remove key");
   assert.doesNotMatch(SRC, /variant="primary" onClick=\$\{\(\) => act\("refresh"/, "Read the list is not the accent");
 });
@@ -240,7 +243,7 @@ test("fix round B2: what must be done first is the kit's Checklist; each fact on
 test("fix round R5: the list not yet read is the agents table's empty state (a 14 px 500 line with Read the list beside it), said once; the key field about 360 px", () => {
   assert.equal(unreadInTable({ catalogue: { readAt: null } }), true);
   assert.equal(unreadInTable({ catalogue: { readAt: "2026-11-16T10:00:00Z" } }), false);
-  assert.match(SRC, /blockerLines\(view\)\.filter\(\(b\) => !\(b === WORDS\.notRead && unreadInTable\(view\)\)\)/, "the switch's list does not say it again");
+  assert.match(SRC, /blockerLines\(view\)\.filter\(\(b\) => !\(b === WORDS\.notRead && unreadInTable\(view\)\) && /, "the switch's list does not say it again");
   assert.doesNotMatch(SRC, /<\$\{Row\} icon="list" title=\$\{WORDS\.notRead\}/, "no card or row of its own");
   assert.match(SRC, /<p class="p-settings-models__unread-say">\$\{WORDS\.notRead\}<\/p>/);
   const css = readFileSync(join(PUBLIC, "styles", "pages", "settings-models.css"), "utf8");
