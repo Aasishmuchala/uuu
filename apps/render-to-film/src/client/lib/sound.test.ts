@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { soundLabel, startMuted } from './sound.ts';
+import { blessPlaying, soundLabel, startMuted } from './sound.ts';
 
 const CLIENT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -25,6 +25,15 @@ test('a refused play is not an error', async () => {
   const v = { muted: false, defaultMuted: false, paused: true, play: () => Promise.reject(new Error('NotAllowedError')) };
   startMuted(v);
   await new Promise((r) => setTimeout(r, 0));
+});
+
+test('a press asks a playing clip to play (so it may have its sound), never a paused one', () => {
+  let plays = 0;
+  blessPlaying({ muted: true, defaultMuted: true, paused: false, play: async () => void plays++ });
+  assert.equal(plays, 1);
+  blessPlaying({ muted: true, defaultMuted: true, paused: true, play: async () => void plays++ });
+  assert.equal(plays, 1);
+  blessPlaying(null);
 });
 
 test('the button says what it will do', () => {
