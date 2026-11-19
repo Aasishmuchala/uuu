@@ -381,3 +381,27 @@ _Avoid_: Designer, illustrator, animator
 **Researcher**:
 The one agent that may read public web pages and watch videos, through the web door, when the owner has switched the web on. It writes research notes with a source for every claim. It reads only its own task and the files the owner shared with it.
 _Avoid_: Browser, scraper, crawler, web agent
+
+**Remote door**:
+A part on the Mac, off until the owner turns it on in Terminal, that lets the PCs the owner allowed carry their window to the home screen over the office network. It forwards a few of the Mac's own ports and does nothing else: no shell, no files, no password.
+_Avoid_: SSH server, VPN, remote access, tunnel (for the whole thing)
+
+**Seat**:
+One place, numbered 1 to 5, for one Windows PC the owner allowed. Each seat has its own port on the home screen, so the engine knows which PC is asking by the door it came through. A seat is `waiting` until the owner allows its PC, then `allowed`.
+_Avoid_: User, login, account, session
+
+**Desk**:
+The role of a seat that may read everything and make the changes on its written list: tasks, answers, notes, files, the brand kit, and apps already on. Keys, Test, switches, sign-ins, limits, allowances and anything with a price stay on the Mac.
+_Avoid_: Editor, member, admin
+
+**View**:
+The role of a seat that may only read, with no apps.
+_Avoid_: Guest, read-only user
+
+**Kit**:
+The folder `engine remote kit` writes on a USB stick for one more Windows PC: "Set up", a short note, two small scripts and the Mac's public key and names. It holds no private key.
+_Avoid_: Installer, package, download
+
+**Seat request**:
+The one line "Set up" writes on the stick, `seat-request.txt`: the PC's public key and the seat it was made for. The owner checks its code against the PC's and types yes in Terminal to allow it.
+_Avoid_: Invitation, pairing code, certificate

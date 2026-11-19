@@ -31,7 +31,8 @@ export function createRouter() {
     for (let i = routes.length - 1; i >= 0; i--) if (routes[i].owner === owner) routes.splice(i, 1);
   }
 
-  // -> { handler, params, maxBody } | { allowed: [methods] } | null   (maxBody is null for the default)
+  // -> { handler, params, maxBody, pattern } | { allowed: [methods] } | null   (maxBody is null for the default;
+  // pattern is the route's own, as registered, for the seats' lists in lib/seats.mjs)
   function match(method, pathname) {
     const parts = pathname.split("/").slice(1);
     const allowed = [];
@@ -47,7 +48,7 @@ export function createRouter() {
         } else if (s !== parts[i]) { ok = false; break; }
       }
       if (!ok) continue;
-      if (r.method === method) return { handler: r.handler, params, maxBody: r.maxBody };
+      if (r.method === method) return { handler: r.handler, params, maxBody: r.maxBody, pattern: r.pattern };
       allowed.push(r.method);
     }
     return allowed.length ? { allowed } : null;

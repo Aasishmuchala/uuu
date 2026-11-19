@@ -9,9 +9,15 @@
 // the steps it stops is closed (lib/batches.mjs, T48 F4), so a stop that fails part way never leaves the Artist able
 // to spend the rest of a stopped film's or still job's approval.
 // Every id sent is the goal's own (from a board record) or one the board listed under it.
+// From a second PC (ctx.seat, PLAN-DESKTOP T7) a stop is refused, before anything is closed or sent, when the task
+// is a job (the home server's `template:` record, or a JOB line in its text) or when the task or one of its steps
+// has a generation batch still open: cancelling anything that has a price stays on the Mac (REVIEW-DESKTOP L1).
 import { closeBatches } from "./batches.mjs";
 import { HomeError } from "./errors.mjs";
+import { readBatches } from "./generation.mjs";
 import { loadIssues } from "./goals.mjs";
+import { macOnly } from "./seats.mjs";
+import { textOf } from "./staged.mjs";
 
 const enc = encodeURIComponent;
 const OPEN = (i) => i && i.status !== "done" && i.status !== "cancelled";
@@ -61,6 +67,17 @@ export function stepsToStop(issues, goalId) {
   return { steps, grafted };
 }
 
+// Does stopping this task cancel something with a price? `taskIds`: the goal's id and its steps'. True when the goal
+// is a job, or when any of them has a batch the door would still take. A batch folder that cannot be read lists no
+// batch; then the door, which reads the same folder by the same rule, spends nothing either.
+export function stopHasPrice(ctx, goal, taskIds, now = Date.now()) {
+  const goalId = taskIds[0];
+  if (typeof ctx.decisions?.get?.(`template:${goalId}`) === "string") return true;
+  if (goal && textOf(goal.description || "").job !== null) return true;
+  const ids = new Set(taskIds);
+  return readBatches(ctx.config, now).some((b) => b.task !== null && ids.has(b.task) && b.approvedAt <= now + 60_000 && b.expiresAt > now);
+}
+
 // stopTask(ctx, goalId, { issues }) -> { message, stopped, failed, left }. Throws when the goal itself could not be
 // stopped. `issues` is the board's list when the caller has just read it.
 export async function stopTask(ctx, goalId, { issues = null } = {}) {
@@ -70,6 +87,7 @@ export async function stopTask(ctx, goalId, { issues = null } = {}) {
     try { list = await loadIssues(ctx, ctx.ids().companyId); } catch { list = null; }
   }
   const under = list ? stepsToStop(list, goalId).steps.map((s) => s.id) : [];
+  if (ctx.seat && stopHasPrice(ctx, list?.find((i) => i.id === goalId) || null, [goalId, ...under])) throw macOnly();
   closeBatches(ctx.config, [goalId, ...under], { log });
   await cancel(ctx, goalId);
   const goal = list?.find((i) => i.id === goalId);

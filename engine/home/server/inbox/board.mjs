@@ -32,6 +32,7 @@ import { HomeError } from "../lib/errors.mjs";
 import { isGoal, loadIssues, rootOf } from "../lib/goals.mjs";
 import { versionOf } from "../lib/inbox.mjs";
 import { recordOwnerAnswer } from "../lib/owner-text.mjs";
+import { seatNoteError } from "../lib/seats.mjs";
 import { stopTask } from "../lib/stop.mjs";
 import { loadRoles } from "../lib/team.mjs";
 import { actedAt, answeredBlock, newer, ownerCommentAt, treeRuns } from "../lib/turn.mjs";
@@ -543,6 +544,14 @@ async function actOn(ctx, itemId, action, note) {
     };
     if (action === "answer" && raw._questions) {
       const answers = answersFor(raw._questions, note);
+      // From a second PC, each written answer is checked again as it will be sent (lib/seats.mjs, REVIEW-DESKTOP T1).
+      for (const a of answers) {
+        const refused = seatNoteError(ctx.seat || null, typeof a.otherText === "string" ? a.otherText : "");
+        if (refused) throw refused;
+      }
+      // And all of them as one, since the task's conversation joins them: an order split over two answers (U2).
+      const joined = seatNoteError(ctx.seat || null, answers.map((a) => (typeof a.otherText === "string" ? a.otherText : "")).join(" "));
+      if (joined) throw joined;
       await send("respond", { answers }, ["answered"]);
       // The owner's own words, for the task's conversation (lib/owner-text.mjs).
       recordOwnerAnswer(ctx.decisions, qIssue, answers.map((a) => a.otherText || ""));

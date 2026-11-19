@@ -1,0 +1,23 @@
+Company Engine for Windows
+
+This stick lets one Windows PC open the company engine that runs on your Mac.
+The engine, its keys and its agents stay on the Mac. The PC only shows its screens.
+
+What the stick holds: "Set up.cmd", this note, and a "files" folder with two
+small PowerShell scripts, the Mac's public key, its name on your network and an icon.
+Nothing is downloaded. No password is made or asked for.
+
+1. On the PC, double-click "Set up". It shows a code and makes a "Company Engine"
+   shortcut on the Desktop and in the Start menu.
+2. Carry the stick back to the Mac. In Terminal, type: engine remote allow
+   then a space, drag the file "seat-request.txt" from this stick into Terminal,
+   press Return, check that the code matches the one the PC showed, and type yes.
+3. On the PC, open "Company Engine". The Mac must be awake and on the same network.
+
+The PC may read everything, make and answer tasks, write files and notes, and use
+apps you switched on. Keys, Test, switches, sign-ins, limits, allowances and anything
+with a price stay on the Mac: the PC says "This is done on the Mac."
+
+To remove the PC: on the PC, delete the folder CompanyEngine in %LOCALAPPDATA% and
+the two "Company Engine" shortcuts. On the Mac, run: engine remote remove <n>
+(engine remote seats shows each PC's number).
