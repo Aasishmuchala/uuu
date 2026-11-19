@@ -20,13 +20,36 @@ export const UPSCALE_CAPPED = 'The upscaler here stops at 4096 px, so this maste
 /** Beside the free buttons. */
 export const FREE_THINKING = "Free: uses the app's thinking.";
 export const FREE_ON_MAC = 'Free: made on this Mac.';
-export const NO_COST_AT_SIZE = 'No cost: already at size';
+export const NO_COST_AT_SIZE = 'No charge: already full size';
+export const NO_CHARGE_ON_MAC = 'No charge. Made on this Mac.';
 export const CHECKING_PRICE = 'Checking the price…';
 
 /** US cents as dollars: 40 -> "$0.40", 1999 -> "$19.99". */
 export function dollars(cents: number): string {
   const c = Math.max(0, Math.round(cents));
   return `$${Math.floor(c / 100)}.${String(c % 100).padStart(2, '0')}`;
+}
+
+/**
+ * The project's spent total as what it is: the door's price for each job when
+ * it took the job, never corrected when the door later charges less (a failed
+ * job can cost nothing). So it is always "About", and "sent to be made", never
+ * an exact "spent". REVIEW-APPS-ASTRYX finding 1.
+ */
+export const SENT_CAPTION = 'sent to be made for this project';
+export const SENT_LABEL = 'Sent to be made';
+export function sentWords(cents: number): string {
+  return `About ${dollars(cents)}`;
+}
+
+/** The cost meter's "what is left" line. A project with no renders yet has nothing to price. */
+export const LEFT_UNKNOWN = 'Price unknown for some of what is left';
+export function leftToFinishWords(images: number, asks: number, reading: { cents: number | null } | undefined): string {
+  if (images === 0) return 'Add renders to see what finishing costs';
+  if (asks === 0) return 'Nothing left to pay for';
+  if (reading === undefined) return 'Working out what is left…';
+  if (reading.cents === null) return LEFT_UNKNOWN;
+  return `${priceWords(reading.cents)} to finish`;
 }
 
 /** The words beside a button: "About $0.40", or "Price unknown" when there is no price. */

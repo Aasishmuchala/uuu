@@ -82,7 +82,7 @@ export function maskCoverage(
   canvas.height = Math.max(1, Math.round((160 * height) / width));
   const ctx = canvas.getContext('2d');
   if (!ctx) return 0;
-  paintStrokes(ctx, strokes, '#fff');
+  paintStrokes(ctx, strokes, 'white');
   const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
   let on = 0;
   for (let i = 3; i < data.length; i += 4) if (data[i]! >= 128) on++;
@@ -90,7 +90,7 @@ export function maskCoverage(
 }
 
 /**
- * The mark as a black-and-white PNG — white is the area that may change —
+ * The mark as a black-and-white PNG: white is the area that may change,
  * at the render's shape, for `POST /api/mask`.
  */
 export async function exportMaskPng(
@@ -102,12 +102,12 @@ export async function exportMaskPng(
   const marks = document.createElement('canvas');
   marks.width = size.width;
   marks.height = size.height;
-  paintStrokes(marks.getContext('2d')!, strokes, '#fff');
+  paintStrokes(marks.getContext('2d')!, strokes, 'white');
   const out = document.createElement('canvas');
   out.width = size.width;
   out.height = size.height;
   const ctx = out.getContext('2d')!;
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = 'black';
   ctx.fillRect(0, 0, size.width, size.height);
   ctx.drawImage(marks, 0, 0);
   return new Promise((resolve, reject) =>

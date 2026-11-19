@@ -32,13 +32,18 @@ test('the client opens no window: no window.open and no target="_blank" anywhere
 });
 
 test('"Open full size" is the in-app view everywhere it is offered', () => {
-  const pages = ['stages/ReviewStage.tsx', 'stages/MastersStage.tsx', 'stages/StoryboardStage.tsx', 'stages/FilmStage.tsx'];
+  const pages = ['screens/Review.tsx', 'screens/Masters.tsx', 'screens/Storyboard.tsx', 'screens/Film.tsx'];
   for (const p of pages) {
     const text = readFileSync(join(CLIENT, p), 'utf8');
-    assert.match(text, /<FullSize\b/, p);
+    assert.match(text, /<FullSize(View)?\b/, p);
     assert.doesNotMatch(text, />\s*Open full size\s*</, `${p} has no button of its own for it`);
   }
-  const full = readFileSync(join(CLIENT, 'ui', 'FullSize.tsx'), 'utf8');
+  const full = readFileSync(join(CLIENT, 'parts', 'FullSize.tsx'), 'utf8');
   assert.match(full, /<Lightbox\b/);
   assert.match(full, /Open full size/);
+});
+
+test('the client sends nothing as a form: no <form> in its source', () => {
+  const found = sources(CLIENT).filter((f) => /<form\b/i.test(readFileSync(f, 'utf8'))).map((f) => relative(APP, f));
+  assert.deepEqual(found, []);
 });

@@ -1,0 +1,41 @@
+/* A download that looks like the kit's secondary button. */
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  height: var(--size-element-md);
+  padding-inline: var(--spacing-3);
+  border-radius: var(--radius-element);
+  background: var(--color-background-muted);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-size: var(--text-body-size);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.link:hover {
+  background: var(--color-overlay-hover);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.link[data-compact] {
+  width: var(--size-element-sm);
+  height: var(--size-element-sm);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-icon-secondary);
+}
+
+.link[data-compact]:hover {
+  color: var(--color-text-primary);
+  background: var(--color-overlay-hover);
+}

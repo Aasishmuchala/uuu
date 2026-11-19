@@ -1,0 +1,10 @@
+{
+  "imports": {
+    "react": "./astryx/react.js",
+    "react/jsx-runtime": "./astryx/jsx-runtime.js",
+    "react-dom": "./astryx/react-dom.js",
+    "react-dom/client": "./astryx/react-dom-client.js",
+    "@astryxdesign/core": "./astryx/core.js",
+    "@astryxdesign/theme-neutral": "./astryx/theme-neutral.js"
+  }
+}

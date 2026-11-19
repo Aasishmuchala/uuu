@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { defaultSettings, type EnhancementRun, type ProjectImage } from '../../shared/project.ts';
-import { bulkLabel, enhanceAsk, groupAsks, masterCost, shotAsk, spendState, totalOf, type QuoteAsk } from './spend.ts';
+import { defaultSettings, type EnhancementRun, type Project, type ProjectImage, type Shot } from '../../shared/project.ts';
+import { bulkLabel, chunk, enhanceAsk, groupAsks, lengthHold, masterCost, remainingAsks, SAVING_LENGTH, shotAsk, spendState, totalOf, type QuoteAsk } from './spend.ts';
 
 function image(over: Partial<ProjectImage> = {}): ProjectImage {
   return {
@@ -148,4 +148,52 @@ test('spendState: open, ready and priced lets it through', () => {
 test('bulkLabel says how many', () => {
   assert.equal(bulkLabel('Enhance all', 3), 'Enhance all (3)');
   assert.equal(bulkLabel('Make all clips', 0), 'Make all clips');
+});
+
+test('remainingAsks: what is still to be paid, one of each case', () => {
+  const idle = (n: number, over: Partial<ProjectImage> = {}) => image({ id: `img-0000${n}`, ...over });
+  const shot = (id: string, state: 'queued' | 'running' | 'succeeded' | 'failed' | null, seconds = 5): Shot =>
+    ({
+      id,
+      number: 1,
+      imageId: 'img-00001',
+      durationSeconds: seconds,
+      video: state ? { state, prompt: '', createdAt: '', decision: 'pending' } : undefined,
+    }) as unknown as Shot;
+  const upscale = { enhancements: [approved({ outputSize: { width: 1920, height: 1080 } })] };
+  const p = {
+    id: 'proj-0001',
+    images: [
+      idle(1), // nothing yet: an enhancement to buy
+      idle(2, { enhancements: [approved({ state: 'queued', decision: 'pending', storedKey: undefined })] }), // on its way
+      idle(3, { enhancements: [approved({ state: 'failed', decision: 'pending', storedKey: undefined })] }), // failed: buy again
+      idle(4, upscale), // approved, no master: an upscale to buy
+      idle(5, { ...upscale, master: { state: 'running', sourceRunId: 'run-00001', createdAt: '', targetLongEdge: 3840, locked: false } }), // master on its way
+      idle(6, { ...upscale, master: { state: 'succeeded', sourceRunId: 'run-00001', createdAt: '', targetLongEdge: 3840, locked: true } }), // locked
+      idle(7, { enhancements: [approved({ outputSize: { width: 5056, height: 2848 } })] }), // free master: not asked
+    ],
+    storyboard: { shots: [shot('s1', null, 6), shot('s2', 'queued'), shot('s3', 'succeeded'), shot('s4', 'failed', 4)] },
+  } as unknown as Project;
+  const r = remainingAsks(p, 'gemini_image3_pro');
+  assert.equal(r.enhance.length, 2);
+  assert.deepEqual(r.enhance[0], enhanceAsk(p.images[0]!, 'gemini_image3_pro'));
+  assert.deepEqual(r.masters, [{ model: 'magnific_precision_upscaler_v2', kind: 'still_upscale', scale: 2 }]);
+  assert.deepEqual(r.clips, [shotAsk({ durationSeconds: 6 }), shotAsk({ durationSeconds: 4 })]);
+  assert.deepEqual(remainingAsks({ images: [] } as unknown as Project, 'gemini_image3_pro'), { enhance: [], masters: [], clips: [] });
+});
+
+test('chunk: 45 asks go in runs of 20, 20 and 5', () => {
+  const runs = chunk(Array.from({ length: 45 }, (_, i) => i));
+  assert.deepEqual(runs.map((r) => r.length), [20, 20, 5]);
+  assert.equal(runs[1]![0], 20);
+  assert.deepEqual(chunk([1, 2, 3], 2), [[1, 2], [3]]);
+  assert.deepEqual(chunk([]), []);
+});
+
+test('lengthHold: a clip button is held while a new length is saving or not yet saved', () => {
+  assert.equal(lengthHold(false, 5, 5), null);
+  assert.equal(lengthHold(true, 5, 5), SAVING_LENGTH);
+  assert.equal(lengthHold(false, 10, 2), SAVING_LENGTH);
+  assert.equal(lengthHold(true, 10, 2), SAVING_LENGTH);
+  assert.equal(SAVING_LENGTH, 'Saving the new length.');
 });

@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 /**
  * Save a file under `filename`. `onProgress` gets 0–1 while the bytes arrive
  * (when the size is known). Throws a readable error when the file can't be
- * fetched — a popup opened after an await would be blocked, so there is no
+ * fetched: a popup opened after an await would be blocked, so there is no
  * open-in-a-tab fallback.
  */
 export async function download(url: string, filename: string, onProgress?: (fraction: number) => void) {
@@ -70,21 +70,6 @@ export function useDownload() {
   return { start, pending, label, error };
 }
 
-/** The stable app URL of a library still or clip, or an Edit tab copy or export (src/api-routes.ts). */
-export function libraryUrl(kind: 'still' | 'clip' | 'edit', id: string): string {
-  return `/api/library/${kind}/${encodeURIComponent(id)}`;
-}
-
-/** A small copy of a library still, for grids and pickers (src/thumbs.ts). */
-export function stillThumbUrl(id: string): string {
-  return `${libraryUrl('still', id)}?thumb`;
-}
-
-/**
- * A full-resolution copy of a library still kept in the app's storage, for
- * the big screen, compare and zoom views (src/thumbs.ts). Downloads use
- * `libraryUrl`, the original file.
- */
-export function stillViewUrl(id: string): string {
-  return `${libraryUrl('still', id)}?view`;
-}
+// The app's own addresses of library media live in urls.ts (no React there, so the pure modules
+// and their tests can use them); they are re-exported here for the pages that import them from here.
+export { libraryUrl, stillThumbUrl, stillViewUrl } from './urls.ts';

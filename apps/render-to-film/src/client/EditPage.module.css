@@ -1,472 +1,106 @@
-/* Step 1: the clips on offer, a compact list with a thumbnail. */
-.clipGrid {
+/* Edit: a viewer over a full-width timeline, a right panel with Look and Editor, Export on top. */
+
+.edit {
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-height: 260px;
-  margin: 0;
-  padding: 0 4px 0 0;
-  overflow-y: auto;
-  list-style: none;
 }
 
-.clipCard {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  padding: 6px;
-  border: 1px solid var(--bay-border-hair);
-  border-radius: var(--bay-r-lg);
-}
-
-.clipThumb {
-  width: 56px;
-  height: 34px;
-  border-radius: var(--bay-r-xs);
-  object-fit: cover;
-  background: var(--bay-bg-sunken);
-}
-
-.clipMeta {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.clipLabel {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Step 2: the strip is the film at a glance, each block as long as its cut. */
-.timelineBox {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.timelineBox:focus-visible {
-  outline: 2px solid var(--bay-border-focus);
-  outline-offset: 4px;
-  border-radius: var(--bay-r-xs);
-}
-
-.lockNote,
-.shortcutHint {
-  margin: 0;
-}
-
-.showMore {
-  display: flex;
-  justify-content: center;
-  padding: 4px 0;
-}
-
-.versionRow {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.strip {
-  display: flex;
-  gap: 2px;
-  height: 22px;
-  margin: 0 0 8px;
-  padding: 0;
-  list-style: none;
-}
-
-.segmentItem {
-  display: flex;
-  flex-basis: 0;
-  min-width: 18px;
-}
-
-.segment {
-  display: grid;
-  place-items: center;
-  flex: 1;
-  min-width: 0;
-  padding: 0;
-  border: 1px solid var(--bay-border-hair);
-  border-radius: var(--bay-r-xs);
-  background: var(--bay-bg-subtle);
-  font: inherit;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--bay-text-3);
-  cursor: pointer;
-}
-
-.segment[data-selected] {
-  border-color: var(--bay-accent);
-  background: var(--bay-accent-soft);
-  color: var(--bay-accent-fg);
-}
-
-.segment[data-pending] {
-  background: repeating-linear-gradient(
-    135deg,
-    var(--bay-bg-subtle) 0 6px,
-    var(--bay-bg-sunken) 6px 12px
-  );
-}
-
-.segment:focus-visible {
-  outline: 2px solid var(--bay-border-focus);
-  outline-offset: 1px;
-}
-
-.cuts {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.cut {
-  border: 1px solid var(--bay-border-hair);
-  border-radius: var(--bay-r-lg);
-  background: transparent;
-}
-
-.cut[data-open] {
-  border-color: var(--bay-border-strong);
-}
-
-.cutHead {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding-right: 4px;
-}
-
-.cutMain {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 8px 10px;
-  border: 0;
-  border-radius: var(--bay-r-lg);
-  background: transparent;
-  font: inherit;
-  text-align: left;
-  color: inherit;
-  cursor: pointer;
-}
-
-.cutMain:focus-visible {
-  outline: 2px solid var(--bay-border-focus);
-  outline-offset: -2px;
-}
-
-.cutNumber {
-  display: grid;
+.top {
   flex: none;
-  place-items: center;
-  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  min-height: 52px;
+  padding: var(--spacing-2) var(--spacing-4) var(--spacing-2) var(--spacing-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.topStart,
+.topEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.topEnd {
+  flex: none;
+  gap: var(--spacing-2);
+}
+
+.divider {
+  width: 1px;
   height: 20px;
-  border: 1px solid var(--bay-border);
-  border-radius: var(--bay-r-pill);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--bay-text-3);
+  margin: 0 var(--spacing-2);
+  background: var(--color-border);
 }
 
-.cut[data-open] .cutNumber {
-  border-color: var(--bay-accent);
-  color: var(--bay-accent-fg);
-}
-
-.cutThumb {
-  flex: none;
-  width: 48px;
-  height: 30px;
-  border-radius: var(--bay-r-xs);
-  object-fit: cover;
-  background: var(--bay-bg-sunken);
-}
-
-.cutText {
-  display: flex;
-  flex-direction: column;
+.saveNote {
+  display: inline-flex;
+  align-items: center;
   min-width: 0;
 }
 
-.cutLabel,
-.cutSub {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.saveError {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
 }
 
-.cutLabel {
-  font-size: 13px;
-  color: var(--bay-text);
-}
-
-.cutSub {
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--bay-text-3);
-}
-
-.cutTools {
-  display: flex;
+.notice {
   flex: none;
+  padding: var(--spacing-3) var(--spacing-6) 0;
 }
 
-.cutStatus {
+.body {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 0 10px 8px;
 }
 
-.cutBody {
+.main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px 12px 14px;
-  border-top: 1px solid var(--bay-border-hair);
 }
 
-.trimRow {
+/* The viewer: the darkest surface, the picture as large as it fits. */
+.viewer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--studio-scrim);
+}
+
+.screen {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  container-type: size;
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  align-items: end;
-  gap: 8px;
+  place-items: center;
+  padding: var(--spacing-6);
 }
 
-.trimNote {
-  padding-bottom: 7px;
-}
-
-.editRow {
+.layers {
+  position: absolute;
+  inset: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 8px;
 }
 
-.cutFoot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.undo {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 8px;
-}
-
-.fadeRow {
-  max-width: 140px;
-}
-
-.inlineLink {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: var(--bay-accent);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.pulse {
-  flex: none;
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 8px;
-  border-radius: var(--bay-r-pill);
-  background: var(--bay-accent);
-  animation: pulse 1.2s var(--bay-ease) infinite alternate;
-}
-
-@keyframes pulse {
-  from {
-    opacity: 0.35;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pulse {
-    animation: none;
-  }
-}
-
-/* The stage: export status, chat and memory. */
-.exportStatus {
-  margin-top: 14px;
-}
-
-.chat {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.messages {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: min(52vh, 560px);
-  margin: 0;
-  padding: 2px 4px 2px 0;
-  overflow-y: auto;
-  list-style: none;
-}
-
-.message {
-  max-width: 92%;
-  padding: 10px 14px 12px;
-  border-radius: var(--bay-r-xl);
-  background: var(--bay-bg-subtle);
-}
-
-.message[data-role='user'] {
-  align-self: flex-end;
-  background: var(--bay-accent-soft);
-}
-
-.message[data-error] {
-  background: var(--bay-err-bg);
-}
-
-.who {
-  display: block;
-  margin-bottom: 2px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--bay-text-3);
-}
-
-.messageText {
-  display: flex;
-  align-items: center;
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  color: var(--bay-text);
-}
-
-.actions {
-  margin: 6px 0 0;
-  padding: 6px 0 0 16px;
-  border-top: 1px solid var(--bay-border-hair);
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--bay-text-2);
-}
-
-.suggestions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-}
-
-.suggestions > p {
-  margin: 0 0 2px;
-}
-
-.suggestion {
-  padding: 7px 12px;
-  border: 1px solid var(--bay-border-hair);
-  border-radius: var(--bay-r-lg);
-  background: transparent;
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  color: var(--bay-text-2);
-  cursor: pointer;
-}
-
-.suggestion:hover,
-.suggestion:focus-visible {
-  border-color: var(--bay-accent);
-  color: var(--bay-text);
-}
-
-.suggestion:focus-visible {
-  outline: 2px solid var(--bay-border-focus);
-  outline-offset: 1px;
-}
-
-.composer {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.composerBar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.composerButtons {
-  display: flex;
-  gap: 6px;
-}
-
-.memory {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.memoryItem {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 4px 4px 14px;
-  border: 1px solid var(--bay-border-hair);
-  border-radius: var(--bay-r-md);
-  font-size: 13px;
-  color: var(--bay-text);
-}
-
-@media (max-width: 520px) {
-  .trimRow {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .trimNote {
-    display: none;
-  }
-}
-
-/* The stage's players share one cell; the next cut waits, loaded, underneath.
-   Each carries its built-in grade: a filter on the video plus two layers. */
 .graded {
   grid-area: 1 / 1;
+  position: relative;
   display: grid;
   width: 100%;
   height: 100%;
+  min-height: 0;
 }
 
 .graded[data-hidden] {
@@ -475,6 +109,14 @@
 
 .graded > * {
   grid-area: 1 / 1;
+}
+
+.graded > video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: var(--color-background-body);
 }
 
 .balance,
@@ -486,42 +128,556 @@
   mix-blend-mode: multiply;
 }
 
-/* The grade's own controls inside an open cut. */
-.gradeBlock {
+.transport {
+  flex: none;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--bay-border-hair);
-  border-radius: var(--bay-r-md);
-  background: var(--bay-bg-canvas);
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: 48px;
+  padding: var(--spacing-2) var(--spacing-4) var(--spacing-2) var(--spacing-6);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-background-body);
+  min-width: 0;
 }
 
-.gradePanel {
+.transportEnd {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex: none;
+}
+
+.viewerNotes {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: 0 var(--spacing-6) var(--spacing-3);
+  background: var(--color-background-body);
+}
+
+.exporting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1-5);
+  padding-top: var(--spacing-2);
+}
+
+.exportingText {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+/* The timeline: full width, a ruler in seconds, each cut as wide as its time. */
+.timeline {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-6) var(--spacing-4);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-background-body);
+}
+
+.timelineHead {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-height: 32px;
+}
+
+.timelineEnd {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.undoRemove {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.trackBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  border-radius: var(--radius-inner);
+}
+
+.trackBox:focus {
+  outline: none;
+}
+
+.trackBox:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 4px;
+}
+
+.trackEmpty {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px 16px;
+  place-items: center;
+  min-height: 96px;
+}
+
+.ruler {
+  position: relative;
+  height: 18px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 4px;
+  background: var(--color-border-emphasized);
+}
+
+.tick[data-major] {
+  height: 8px;
+}
+
+.tickLabel {
+  position: absolute;
+  bottom: 9px;
+  left: var(--spacing-1);
+  white-space: nowrap;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.track {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 2px;
+  height: 64px;
+}
+
+.cutItem {
+  flex-basis: 0;
+  min-width: 40px;
+  display: flex;
+}
+
+.cut {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: var(--spacing-2);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-inner);
+  overflow: hidden;
+  background: var(--color-background-card);
+  outline: 1px solid var(--color-border);
+  outline-offset: -1px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cut:hover {
+  outline-color: var(--color-border-emphasized);
+}
+
+.cut[data-selected]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 2px solid var(--color-accent);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.cut[data-playing]::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: var(--color-accent);
+}
+
+.cut:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.cutThumb {
+  position: relative;
+  flex: none;
+  height: 100%;
+  aspect-ratio: 16 / 9;
+  max-width: 50%;
+  background: var(--studio-scrim);
+}
+
+.cutThumb > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cutText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--spacing-0-5);
+  padding-right: var(--spacing-2);
+}
+
+.cutLabel,
+.cutMeta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-sm);
+}
+
+.cutLabel {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.cutMeta {
+  color: var(--color-text-secondary);
+}
+
+.cutState {
+  position: absolute;
+  top: var(--spacing-1-5);
+  right: var(--spacing-1-5);
+  display: inline-flex;
+}
+
+/* The right panel: Look and Editor. */
+.panel {
+  flex: none;
+  width: 380px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-background-body);
+}
+
+.tabs {
+  flex: none;
+  padding: var(--spacing-2) var(--spacing-4) 0;
+}
+
+.panelBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+}
+
+.panelEmpty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+}
+
+.cutPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
+}
+
+.cutHead {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--spacing-3);
+  align-items: center;
+}
+
+.cutHeadThumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-inner);
+  overflow: hidden;
+  background: var(--studio-scrim);
+}
+
+.cutHeadThumb > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cutHeadText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.cutTools {
+  display: flex;
+  gap: var(--spacing-1);
+  margin-top: calc(-1 * var(--spacing-3));
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.trim {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-3);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+/* The looks: the picked cut's own picture under each grade. */
+.looks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-3) var(--spacing-2);
+}
+
+.look {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.look:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.lookFrame {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-inner);
+  overflow: hidden;
+  background: var(--studio-scrim);
+  outline: 1px solid var(--color-border);
+  outline-offset: -1px;
+}
+
+.lookFrame > img,
+.lookFrame > span {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.lookFrame > img {
+  object-fit: contain;
+}
+
+.look:hover .lookFrame {
+  outline-color: var(--color-border-emphasized);
+}
+
+.look[aria-pressed='true'] .lookFrame {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.look:focus-visible {
+  outline: none;
+}
+
+.look:focus-visible .lookFrame {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.lookName {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.look[aria-pressed='true'] .lookName {
+  color: var(--color-text-primary);
+}
+
+/* The Editor tab: the conversation, then the memory. */
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1-5);
+}
+
+.suggestion {
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: none;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+.suggestion:hover {
+  border-color: var(--color-border-emphasized);
+}
+
+.suggestion:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.messages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-element);
+}
+
+.message[data-role='user'] {
+  background: var(--color-background-muted);
+}
+
+.message[data-error] {
+  border: 1px solid var(--color-border-error);
+}
+
+.messageText {
+  margin: 0;
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-leading);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  margin: 0;
+  padding-left: var(--spacing-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.composerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.memory {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding-top: var(--spacing-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.memoryList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.memoryItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) 0 var(--spacing-1) var(--spacing-3);
+  border-left: 2px solid var(--color-border-emphasized);
+}
+
+.remember {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--spacing-2);
   align-items: end;
 }
 
-.gradeWide {
-  grid-column: 1 / -1;
-}
-
-.gradeActions {
+/* The clips to add. */
+.bin {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding-top: var(--spacing-4);
 }
 
-@media (max-width: 520px) {
-  .gradePanel {
-    grid-template-columns: 1fr;
+.binGrid[data-disabled] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .suggestion {
+    transition: none;
   }
-}
-
-.alertActions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
 }

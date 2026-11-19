@@ -1,0 +1,56 @@
+/* The batch bar: sticks to the foot of the work area while something is picked. */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3) var(--spacing-6);
+  margin-top: var(--spacing-6);
+  padding: var(--spacing-3) var(--spacing-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-popover);
+  box-shadow: var(--shadow-med);
+}
+
+.bar[data-sticky] {
+  position: sticky;
+  bottom: var(--spacing-4);
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bar {
+    animation: rise 140ms ease-out;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2) var(--spacing-3);
+  min-width: 0;
+}
+
+.count {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: var(--spacing-3);
+  margin-left: auto;
+}

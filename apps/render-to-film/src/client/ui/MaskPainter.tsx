@@ -11,7 +11,7 @@ import {
 } from 'react-aria-components';
 
 import { maskCoverage, paintStroke, paintStrokes, type MaskStroke } from '../lib/mask.ts';
-import { Button } from './Button.tsx';
+import { Button, IconButton } from '../kit.ts';
 import styles from './MaskPainter.module.css';
 
 type Tool = 'brush' | 'box' | 'erase';
@@ -94,17 +94,16 @@ export function MaskPainter({ src, alt, width, height, strokes, onChange, onDone
   );
   const actions = (
     <div className={styles.actions}>
-      <Button size="sm" variant="ghost" icon={<Undo2 size={14} />} aria-label="Undo" disabled={disabled || strokes.length === 0} onPress={undo} />
-      <Button size="sm" variant="ghost" icon={<Redo2 size={14} />} aria-label="Redo" disabled={disabled || redo.length === 0} onPress={redoLast} />
+      <IconButton size="sm" variant="ghost" icon={<Undo2 size={14} />} label="Undo" tooltip="Undo" isDisabled={disabled || strokes.length === 0} onClick={undo} />
+      <IconButton size="sm" variant="ghost" icon={<Redo2 size={14} />} label="Redo" tooltip="Redo" isDisabled={disabled || redo.length === 0} onClick={redoLast} />
       <Button
+        label="Clear"
         size="sm"
         variant="ghost"
         icon={<Trash2 size={14} />}
-        disabled={disabled || coverage === 0}
-        onPress={() => add({ type: 'clear' })}
-      >
-        Clear
-      </Button>
+        isDisabled={disabled || coverage === 0}
+        onClick={() => add({ type: 'clear' })}
+      />
     </div>
   );
   const surface = (large: boolean) => (
@@ -137,12 +136,8 @@ export function MaskPainter({ src, alt, width, height, strokes, onChange, onDone
       <div className={styles.footer}>
         {actions}
         <div className={styles.actions}>
-          <Button size="sm" variant="ghost" icon={<Maximize2 size={14} />} disabled={disabled} onPress={() => setBig(true)}>
-            Full size
-          </Button>
-          <Button size="sm" icon={<Check size={14} />} onPress={onDone}>
-            Done
-          </Button>
+          <Button label="Full size" size="sm" variant="ghost" icon={<Maximize2 size={14} />} isDisabled={disabled} onClick={() => setBig(true)} />
+          <Button label="Done" size="sm" icon={<Check size={14} />} onClick={onDone} />
         </div>
       </div>
       {status}
@@ -154,7 +149,7 @@ export function MaskPainter({ src, alt, width, height, strokes, onChange, onDone
               <Heading slot="title" className={styles.title}>
                 Mark the area to edit
               </Heading>
-              <Button variant="ghost" size="sm" icon={<X size={14} />} aria-label="Close full size" onPress={() => setBig(false)} />
+              <IconButton variant="ghost" size="sm" icon={<X size={14} />} label="Close full size" tooltip="Close" onClick={() => setBig(false)} />
             </div>
             <div className={styles.bar}>
               {toolbar}
@@ -168,9 +163,7 @@ export function MaskPainter({ src, alt, width, height, strokes, onChange, onDone
             </div>
             <div className={styles.bar}>
               {status}
-              <Button variant="primary" size="sm" icon={<Check size={14} />} onPress={() => setBig(false)}>
-                Done
-              </Button>
+              <Button label="Done" variant="primary" size="sm" icon={<Check size={14} />} onClick={() => setBig(false)} />
             </div>
           </Dialog>
         </Modal>
@@ -274,10 +267,11 @@ function MaskSurface({
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const [shownWidth, setShownWidth] = useState(0);
 
-  // The tint, read from the theme once per stroke (and on redraw), not per move.
-  const tint = useRef('#b5562b');
+  // The tint, read from the theme once per stroke (and on redraw), not per move: the canvas's
+  // own CSS colour is the kit's accent, resolved by the browser to a value a canvas can paint.
+  const tint = useRef('currentColor');
   const readTint = () => {
-    const c = canvasRef.current && getComputedStyle(canvasRef.current).getPropertyValue('--bay-accent').trim();
+    const c = canvasRef.current && getComputedStyle(canvasRef.current).color;
     if (c) tint.current = c;
     return tint.current;
   };
@@ -401,7 +395,7 @@ export function MaskOverlay({ strokes }: MaskOverlayProps) {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
-    const color = getComputedStyle(canvas).getPropertyValue('--bay-accent').trim() || '#b5562b';
+    const color = getComputedStyle(canvas).color || 'white';
     paintStrokes(ctx, strokesRef.current, color);
   }, []);
   useEffect(draw, [strokes, draw]);

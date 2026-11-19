@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, test } from 'node:test';
 
 import { createDoor } from '../local/door.ts';
 import type { Engine, EngineReply } from '../local/engine.ts';
-import { defaultSettings, imageKeys, type EnhancementRun, type Project, type ProjectImage } from '../shared/project.ts';
+import { defaultSettings, imageKeys, projectSpentCents, type EnhancementRun, type Project, type ProjectImage } from '../shared/project.ts';
 import { store } from '../storage.ts';
 import {
   CANCELLED,
@@ -732,5 +732,115 @@ describe('REVIEW-AFS: money held to what was asked', () => {
       assert.equal(made.previous, undefined);
       assert.equal(made.error, undefined);
     });
+  });
+});
+
+describe("the project's spent total", () => {
+  const spentOf = async (id: string) => (await getProject(id)).spent;
+
+  test('an accepted enhancement at 40 cents makes spent.enhanceCents 40', async () => {
+    const p = await newProject(1);
+    await pipeline.enhance(p.id, [p.images[0]!.id]);
+    assert.equal(await spentOf(p.id), undefined);
+    await pipeline.advance(p.id);
+    assert.deepEqual(await spentOf(p.id), { enhanceCents: 40, masterCents: 0, clipCents: 0 });
+  });
+
+  test('a refused job adds nothing', async () => {
+    const p = await newProject(1);
+    fake.setOnJob(() => ({
+      status: 403,
+      json: { error: { message: "The owner's allowance for this app has ended." }, code: 'gen_no_allowance' },
+    }));
+    await pipeline.enhance(p.id, [p.images[0]!.id]);
+    await pipeline.advance(p.id);
+    assert.equal((await runsOf(p.id))[0]!.state, 'failed');
+    assert.equal(projectSpentCents(await getProject(p.id)), 0);
+  });
+
+  test('a busy answer that is sent later is counted once', async () => {
+    const p = await newProject(1);
+    let busy = true;
+    fake.setOnJob(() =>
+      busy
+        ? { status: 403, json: { error: { message: 'Two jobs are already running.' }, code: 'gen_busy' } }
+        : { status: 202, json: { job: 'job_7', cents: 40 } }
+    );
+    await pipeline.enhance(p.id, [p.images[0]!.id]);
+    await pipeline.advance(p.id);
+    assert.equal((await runsOf(p.id))[0]!.state, 'queued');
+    assert.equal(projectSpentCents(await getProject(p.id)), 0);
+    busy = false;
+    tick();
+    await pipeline.advance(p.id);
+    tick();
+    await pipeline.advance(p.id);
+    assert.equal((await runsOf(p.id))[0]!.taskId, 'job_7');
+    assert.equal((await spentOf(p.id))!.enhanceCents, 40);
+  });
+
+  test('a master and a clip land in their own fields', async () => {
+    const p = await newProject(1);
+    const r = await finishedRun(p, 0, 1920, 1080);
+    await pipeline.decide(p.id, p.images[0]!.id, r.id, 'approved');
+    fake.setOnJob((body) => ({ status: 202, json: { job: `job_${body.kind}`, cents: body.kind === 'still_upscale' ? 25 : 90 } }));
+    await pipeline.master(p.id, [p.images[0]!.id]);
+    await pipeline.advance(p.id);
+    assert.deepEqual(await spentOf(p.id), { enhanceCents: 0, masterCents: 25, clipCents: 0 });
+    fake.jobs.set('job_still_upscale', { state: 'done', output: { type: 'image/png', bytes: 14 } });
+    fake.outputs.set('job_still_upscale', 'SIZE:3840x2160');
+    tick();
+    await pipeline.advance(p.id);
+    claude = async () => ({
+      text: JSON.stringify({ title: 'Villa', shots: [{ imageCode: 'IMG-001', videoPrompt: 'Slow dolly-in.', durationSeconds: 5 }] }),
+      truncated: false,
+    });
+    await pipeline.createStoryboard(p.id, '', '16:9');
+    await pipeline.idle();
+    await pipeline.generateShots(p.id, [(await getProject(p.id)).storyboard!.shots[0]!.id]);
+    tick();
+    await pipeline.advance(p.id);
+    assert.deepEqual(await spentOf(p.id), { enhanceCents: 0, masterCents: 25, clipCents: 90 });
+  });
+
+  test('"Make clip again" then success keeps the first clip in the total', async () => {
+    const p = await newProject(1);
+    const r = await finishedRun(p, 0, 5056, 3392);
+    await pipeline.decide(p.id, p.images[0]!.id, r.id, 'approved');
+    await pipeline.master(p.id, [p.images[0]!.id]);
+    claude = async () => ({
+      text: JSON.stringify({ title: 'Villa', shots: [{ imageCode: 'IMG-001', videoPrompt: 'Slow dolly-in.', durationSeconds: 5 }] }),
+      truncated: false,
+    });
+    await pipeline.createStoryboard(p.id, '', '16:9');
+    await pipeline.idle();
+    const shotId = (await getProject(p.id)).storyboard!.shots[0]!.id;
+    fake.setOnJob(() => ({ status: 202, json: { job: `job_${fake.sends().length}`, cents: 90 } }));
+    await pipeline.generateShots(p.id, [shotId]);
+    await pipeline.advance(p.id);
+    fake.jobs.set('job_1', { state: 'done', output: { type: 'video/mp4', bytes: 10 } });
+    tick();
+    await pipeline.advance(p.id);
+    assert.equal((await spentOf(p.id))!.clipCents, 90);
+    await pipeline.generateShots(p.id, [shotId]);
+    tick();
+    await pipeline.advance(p.id);
+    assert.equal((await spentOf(p.id))!.clipCents, 180);
+    fake.jobs.set('job_2', { state: 'done', output: { type: 'video/mp4', bytes: 10 } });
+    tick();
+    await pipeline.advance(p.id);
+    const shot = (await getProject(p.id)).storyboard!.shots[0]!;
+    assert.equal(shot.video!.state, 'succeeded');
+    assert.equal((await spentOf(p.id))!.clipCents, 180);
+  });
+
+  test('an old document with no spent reads as 0 and gains it on the next accepted job', async () => {
+    const p = await newProject(1);
+    assert.equal(p.spent, undefined);
+    assert.equal(projectSpentCents(p), 0);
+    await pipeline.enhance(p.id, [p.images[0]!.id]);
+    assert.equal((await getProject(p.id)).spent, undefined);
+    await pipeline.advance(p.id);
+    assert.deepEqual((await getProject(p.id)).spent, { enhanceCents: 40, masterCents: 0, clipCents: 0 });
   });
 });

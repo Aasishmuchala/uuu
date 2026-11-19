@@ -1,0 +1,66 @@
+/* A picture's settings in the inspector. */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: var(--spacing-2);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  line-height: var(--text-label-leading);
+  color: var(--color-text-primary);
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1-5);
+}
+
+.switches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.adds {
+  margin: 0;
+  font-size: var(--text-supporting-size);
+  line-height: var(--text-supporting-leading);
+  color: var(--color-text-secondary);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-supporting-size);
+  color: var(--color-text-error);
+}
+
+/* Each choice reads as a chip: outlined, filled when picked. */
+.checks > button {
+  border: 1px solid var(--color-border);
+}
+
+.checks > button[aria-pressed='true'] {
+  border-color: var(--color-accent);
+}
