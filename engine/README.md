@@ -487,6 +487,47 @@ Cook is a way of making visual work in rounds, until it holds up beside real ref
 
 Cook's own hours and usage pacing are not used; the job's own limits are. Its helper script is not installed and its colour check, which needs a library this Mac's art tools lack, is done another way or marked "not measured". Its files are in `cook/` inside the task's folder, never in a piece's folder. They are the same for the screens of the engine itself, which are being redone this way.
 
+## The Windows app
+
+The Windows app is a window on a Windows PC that shows this Mac's home screen. The engine, its keys, its data and its agents stay on the Mac; the PC only shows its screens. It works over your office network, not from outside, and only for PCs you allowed one by one, up to five. It is off until you turn it on in Terminal on this Mac. Nothing is downloaded on either computer, and no password is made.
+
+How it works, in one line: the Mac runs a "remote door" that lets in only the PCs you allowed and can do nothing but carry each PC's window to the home screen. The PC uses programs Windows already has (its own `ssh` and Microsoft Edge).
+
+**Adding a PC: two walks with a USB stick.**
+
+1. On the Mac, put in the stick and type in Terminal: `engine remote kit /Volumes/<stick>` (add `--name "Front desk"` to give the PC a name, or `--role view` for a PC that may only look). It writes the folder "Company Engine for Windows" on the stick.
+2. Take the stick to the PC. Open that folder and double-click "Set up". It shows a code ("This PC's code: SHA256:…"), makes a "Company Engine" shortcut on the Desktop and in the Start menu, and writes `seat-request.txt` on the stick. Leave the window open so you can see the code.
+3. Take the stick back to the Mac. In Terminal type `engine remote allow ` (with a space), drag `seat-request.txt` from the stick into Terminal and press Return. It shows the PC's code, then "PC 1 (Windows PC) asks to join as desk. Type yes to allow it." Check that the code matches the one on the PC and that the number, name and role are the PC you mean, then type `yes`.
+4. Turn the door on: `engine remote on`, then `yes`. If macOS asks whether `sshd` may accept incoming connections, allow it.
+5. On the PC, open "Company Engine". One window opens, with no address bar.
+
+**What the PC may do.** A `desk` PC reads everything, makes tasks, answers and comments, accepts or sends back work that has no price, picks between versions already made, writes Files and brain notes, the brand kit, asks the brain, and uses apps you already switched on, inside an allowance you opened on the Mac. A `view` PC only reads. On every PC, keys, Test, switches, sign-ins, limits, allowances and anything with a price stay on the Mac: approving a cost, asking for another round, starting a job, and stopping a job or a film you approved. The PC shows "You are on a second PC. Keys, switches and money stay on the Mac." at the top.
+
+**What the PC can say, and what each means.**
+
+- "This is done on the Mac." The button is for money, keys or switches. Do it on the Mac.
+- "From the PC, a note cannot place this order. Do it on the Mac." The note held the engine's own order "another round" or "shotlist accepted", even in passing (such as "another rounded button"). Ask for more versions by sending the work back in other words, or do it on the Mac.
+- "From the PC, notes can use plain English letters only. Write it on the Mac to use other letters." A note from the PC held a letter from another alphabet or a symbol letter. Write it on the Mac.
+- "This PC is not allowed to open the engine." The PC was removed, or is not allowed yet. Allow it again on the Mac.
+- "The Mac is off, asleep, or not on this network." Wake the Mac, check it is on the same network, and that the door is on (`engine remote status`) and the engine is started.
+- "This PC is not allowed yet. On the Mac, allow it first." Do step 3 above.
+- "The computer that answered is not your Mac. Nothing was sent." Something on the network answered in your Mac's place. Do not go on; tell us.
+- "Another program on this PC is using the engine's address. Close it and try again."
+- "Company Engine is not set up on this PC. Run "Set up" from the stick again." A file the window needs is missing or was changed.
+- While setting up: "This PC's Windows is too old for Company Engine.", "Turn on "OpenSSH Client" in Windows Settings, Optional features, then run this again.", "This stick does not hold a whole kit. Make it again on the Mac."
+
+**Seeing the PCs.** `engine remote seats` lists each PC with its number, name, role and whether it is allowed. `engine remote status` says whether the door is on and how many PCs are allowed. `engine status` shows the same line.
+
+**Removing a PC.** On the Mac: `engine remote remove <n>`, then `yes`. The PC's connection ends within a few seconds. Removing the last PC also turns the door off. On the PC, delete the folder `CompanyEngine` in `%LOCALAPPDATA%` and the two "Company Engine" shortcuts.
+
+**Turning the door off.** `engine remote off`, then `yes`. Every PC's connection ends. Turn it off before you take the Mac to another network (a café, a hotel): the door only lets in your PCs, but on another network strangers could reach its sign-in. `engine stop` also stops the door; `engine start` starts it again only if you had turned it on.
+
+**The first PC: what to check.** Not yet run on a real Windows PC. With the first PC, check, in order: the window opens within 15 seconds with no address bar; the line "You are on a second PC…" shows; Map, Tasks, Files and Needs you read the same as on the Mac; a task made on the PC appears on the Mac; Settings, Models, Test says "This is done on the Mac."; in App Studio, "Turn on" says the same, while an app you turned on at the Mac opens, plays a clip, takes an upload and a drag, and keeps its spending buttons off until the Mac opens an allowance; closing the window ends the connection (`engine remote status`, and the log); with the door off the PC says "The Mac is off, asleep, or not on this network."; after `engine remote remove 1` it says "This PC is not allowed yet…", and works again once allowed; and from a phone on mobile data, the Mac does not answer on port 3220. Also check that the Mac's firewall question for `sshd` came up once and was allowed, and that Windows Defender did not stop "Set up" (a script copied from a stick can be marked as from the internet).
+
+Where its files live: on the Mac, `~/.paperclip/uuu-engine/remote/` (the list of PCs and their public keys), the door's own key in `secrets/remote/`, and its log `logs/remote.log`, which keeps times, addresses and key fingerprints, never a key. On the PC, `%LOCALAPPDATA%\CompanyEngine\` (its key, which never leaves the PC, and the window's own browser profile).
+
+The decision and why: `docs/adr/0023-a-window-on-another-computer-through-a-forward-only-door.md`.
+
 ## What is switched off
 
 Each is an off switch or an account step. Nothing is done for you.
@@ -500,6 +541,7 @@ Each is an off switch or an account step. Nothing is done for you.
 - **India Compliance's paid features.** Off.
 - **PDF printing of invoices.** Off until there is more disk.
 - **Routines.** Off until you switch them on.
+- **The remote door for Windows PCs.** Off until you run `engine remote on` in Terminal (see "The Windows app"). No PC can connect while it is off.
 
 ## Steps only you can do
 
@@ -508,6 +550,7 @@ Setup on the home screen shows where each of these stands.
 - **Fill the nine basics in Files** (about 20 minutes). Until then nine jobs wait and the agents' work sounds less like your company.
 - **The Checker's own Codex login.** Run `engine/fence/login-wizard.sh codex` and follow the steps. Until then the Checker uses your own Codex login through a link, and the proof shows one note. `engine/fence/login-wizard.sh --status` shows where each login stands. The Claude agents' login is `engine/fence/login-wizard.sh`.
 - **Connecting accounts.** Before anything can be published or sent, you connect the account it goes through.
+- **A Windows PC, if you want one.** Make its kit, run "Set up" on the PC, allow it and turn the door on, all from Terminal on this Mac (see "The Windows app").
 - **The books, before real use.** Run `engine/books/setup-wizard.sh`. It asks whether the company is registered for GST (and its GST number and scheme), the company's address, and the weekly days off and public holidays, then shows it all and saves it in one go. Until then invoices say "Nil-Rated" even where tax is charged, and leave can be drafted but not made final. `--dry-run` checks your answers without saving; `--status` shows what the books hold.
 
 Also optional: the board can be switched to its own sign-in. Today, other programs on this Mac can still reach the board and the home screen as you. The gate closes this gap for agents only.

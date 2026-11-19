@@ -156,6 +156,9 @@ export default function register(app) {
       engine,
       dock: dockOf(ctx, data, inbox, team, goals),
       queue,
+      // PLAN-DESKTOP T7: { n, role } on a seat's port (a second PC through the remote door). On the Mac's own port the
+      // key is left out, so its answer stays as it was (read as `seat: null`).
+      ...(ctx.seat ? { seat: { n: ctx.seat.n, role: ctx.seat.role } } : {}),
       generatedAt: new Date().toISOString(),
     };
   });
