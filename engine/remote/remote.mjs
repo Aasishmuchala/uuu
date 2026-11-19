@@ -93,14 +93,19 @@ function printOut(out) {
 }
 
 // After the seats changed: when the door is switched on or is running, it is stopped (which ends every open
-// connection) and started again to read the seats anew; with no PC left allowed it is only stopped. A stop that
+// connection) and started again to read the seats anew; with no PC left allowed it is stopped and switched off. A stop that
 // fails is said and returned, so a removed PC's connection is never reported as ended when it may not be.
 function restartIfOn(paths) {
   if (!markerOn(paths) && !doorRunning()) return 0;
   const stopped = part("stop");
   if (stopped.code !== 0) { printOut(stopped.out); return stopped.code; }
   const seats = readSeats(paths);
-  if (!seats || !seats.some((s) => s.state === "allowed")) return 0;
+  if (!seats || !seats.some((s) => s.state === "allowed")) {
+    // No PC is left to let in: the door is switched off too, so `engine start` does not fail on it (REVIEW-DESKTOP S2).
+    try { if (existsSync(paths.marker)) unlinkSync(paths.marker); } catch { /* gone */ }
+    say(SAY.off);
+    return 0;
+  }
   const r = part("start");
   if (r.code !== 0) printOut(r.out);
   return r.code;

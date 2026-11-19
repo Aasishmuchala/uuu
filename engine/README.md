@@ -500,7 +500,7 @@ How it works, in one line: the Mac runs a "remote door" that lets in only the PC
 
 **Seeing the PCs.** `engine remote seats` lists each PC with its number, name, role and whether it is allowed. `engine remote status` says whether the door is on and how many PCs are allowed. `engine status` shows the same line.
 
-**Removing a PC.** On the Mac: `engine remote remove <n>`, then `yes`. The PC's connection ends within a few seconds. On the PC, delete the folder `CompanyEngine` in `%LOCALAPPDATA%` and the two "Company Engine" shortcuts.
+**Removing a PC.** On the Mac: `engine remote remove <n>`, then `yes`. The PC's connection ends within a few seconds. Removing the last PC also turns the door off. On the PC, delete the folder `CompanyEngine` in `%LOCALAPPDATA%` and the two "Company Engine" shortcuts.
 
 **Turning the door off.** `engine remote off`, then `yes`. Every PC's connection ends. Turn it off before you take the Mac to another network (a café, a hotel): the door only lets in your PCs, but on another network strangers could reach its sign-in. `engine stop` also stops the door; `engine start` starts it again only if you had turned it on.
 

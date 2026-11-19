@@ -13,13 +13,12 @@
 // fails on a route sorted in neither). SEAT_HIDDEN lists the reads a seat never gets: the sign-in returns, which
 // carry a one-time code. One route, POST /api/inbox/act, is a desk route whose action is sorted again once the item
 // is known (inboxSeatMay): approving anything with a price or making books final stays on the Mac. A seat's note,
-// on a task or with an inbox action, may not start with an owner marker the engine writes for a priced step
+// on a task or with an inbox action, may not hold an owner marker the engine writes for a priced step
 // (seatNoteRefused, REVIEW-DESKTOP M1); and a seat's stop of a job, or of a task with an open generation batch, is
 // refused in lib/stop.mjs (L1).
 import { closeSync, constants, fstatSync, lstatSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 import { HomeError } from "./errors.mjs";
-import { stripInvisible } from "./owner-text.mjs";
 
 export const SEATS_MAX_BYTES = 16 * 1024;
 const SEAT_COUNT_MAX = 5;
@@ -167,19 +166,45 @@ export function inboxSeatMay(seat, source, item, action) {
 }
 
 // The owner markers the engine itself writes for a priced step: "ANOTHER ROUND" (a new round is made and paid for)
-// and "SHOTLIST ACCEPTED:" (a film's cost approved). The Chief of staff acts on the owner's comment, not on which
-// button made it, so a seat may not write one by hand (REVIEW-DESKTOP M1). Compared on the first line that holds
-// anything, folded (NFKC), in capitals, with every space, invisible character and joiner and any leading mark taken out.
-const PRICED_MARKERS = Object.freeze(["ANOTHERROUND", "SHOTLISTACCEPTED"]);
+// and "SHOTLIST ACCEPTED:" (a film's cost approved). The Chief of staff acts on the owner's comment, and its reader is
+// a model, not a parser: a comment that looks the same is the same order. So a seat may not write either anywhere in a
+// note (REVIEW-DESKTOP M1, S1). The whole note is folded to a skeleton (foldMarkers) and searched; this also refuses
+// plain words such as "not another round yet" from a seat, the safe side ("when unsure: MAC_ONLY").
+// Letters of other scripts and small capitals that look like Latin ones, mapped to the Latin letter.
+const LOOKALIKES = new Map(Object.entries({
+  // Cyrillic
+  "А": "A", "В": "B", "Е": "E", "Ѕ": "S", "І": "I", "Ј": "J", "К": "K", "М": "M", "Н": "H", "О": "O", "Р": "P", "С": "C",
+  "Т": "T", "У": "Y", "Х": "X", "Ԛ": "Q", "Ԝ": "W", "Ӏ": "I", "Ү": "Y",
+  "а": "a", "в": "b", "е": "e", "ѕ": "s", "і": "i", "ј": "j", "к": "k", "м": "m", "н": "h", "о": "o", "р": "p", "с": "c",
+  "т": "t", "у": "y", "х": "x", "ԛ": "q", "ԝ": "w", "ӏ": "l", "ү": "y", "ԁ": "d", "һ": "h", "п": "n", "г": "r",
+  // Greek
+  "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N", "Ο": "O", "Ρ": "P", "Τ": "T",
+  "Υ": "Y", "Χ": "X", "Ϲ": "C", "Ϻ": "M",
+  "α": "a", "β": "b", "ε": "e", "ι": "i", "κ": "k", "ν": "v", "ο": "o", "ρ": "p", "τ": "t", "υ": "u", "χ": "x", "ϲ": "c",
+  "η": "n", "ω": "w",
+  // Small capitals and the like (Latin Extended, Phonetic Extensions)
+  "ᴀ": "A", "ʙ": "B", "ᴄ": "C", "ᴅ": "D", "ᴇ": "E", "ꜰ": "F", "ɢ": "G", "ʜ": "H", "ɪ": "I", "ᴊ": "J", "ᴋ": "K", "ʟ": "L",
+  "ᴍ": "M", "ɴ": "N", "ᴏ": "O", "ᴘ": "P", "ǫ": "Q", "ʀ": "R", "ꜱ": "S", "ᴛ": "T", "ᴜ": "U", "ᴠ": "V", "ᴡ": "W", "ʏ": "Y",
+  "ᴢ": "Z", "ı": "I", "ȷ": "J",
+}));
+// After the letters are capitals: digits and letters a reader takes for one another, made one.
+const SKELETON = Object.freeze({ "0": "O", "1": "I", "L": "I", "3": "E", "4": "A", "5": "S", "7": "T", "8": "B" });
+
+// A text's skeleton: NFKD, combining marks dropped, lookalikes mapped to Latin, capitals, everything that is not a
+// letter or a digit dropped, then the lookalike digits and letters made one.
+export function foldMarkers(text) {
+  const plain = String(text ?? "").normalize("NFKD").replace(/\p{M}/gu, "");
+  let mapped = "";
+  for (const ch of plain) mapped += LOOKALIKES.get(ch) ?? ch;
+  return mapped.toUpperCase().normalize("NFKD").replace(/[^\p{L}\p{N}]/gu, "").replace(/[0134578L]/g, (c) => SKELETON[c]);
+}
+const PRICED_MARKERS = Object.freeze(["ANOTHER ROUND", "SHOTLIST ACCEPTED"].map(foldMarkers));
 
 // seat: { n, role } or null (the Mac). -> true when this note must be refused for this seat. The Mac is never refused.
 export function seatNoteRefused(seat, note) {
   if (!seat || typeof note !== "string") return false;
-  const lines = stripInvisible(note.normalize("NFKC").replace(/\r\n?|\u2028|\u2029|\u0085/g, "\n")).split("\n");
-  const first = lines.find((l) => /[^\s\u200C\u200D\uFE0F]/.test(l)) || "";
-  // Leading marks a reader would look past (markdown's #, >, *, `, quotes) are taken off too.
-  const folded = first.replace(/[\s\u200C\u200D\uFE0F]/g, "").toUpperCase().replace(/^[^\p{L}\p{N}]+/u, "");
-  return PRICED_MARKERS.some((m) => folded.startsWith(m));
+  const folded = foldMarkers(note);
+  return PRICED_MARKERS.some((m) => folded.includes(m));
 }
 
 // May this seat make this change? `route` is "<METHOD> <pattern>" of the matched route, or null when none matched.

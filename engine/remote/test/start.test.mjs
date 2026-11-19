@@ -2,7 +2,7 @@
 // part, so nothing else is started. PLAN-DESKTOP T8 test 13, under rule 3.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { ENGINE_DIR, listening, makeWorld, newKey, onTerminal, seed, waitFor } from "./helpers.mjs";
@@ -187,4 +187,38 @@ test("M2. on stops a door whose start failed before the marker goes; off keeps t
   assert.equal(r.status, 1, r.stdout);
   assert.match(r.stdout, /^Something is still answering where the remote door runs\.$/m);
   rmSync(running, { force: true });
+});
+
+test("S3. engine status, start and stop never write the door's log themselves: no 644 file, nothing through a link", () => {
+  const log = join(w.state, "logs", "remote.log");
+  rmSync(log, { force: true });
+  rmSync(join(w.remoteDir, "on"), { force: true });
+  for (const word of ["status", "start", "stop"]) engine(word);
+  assert.equal(existsSync(log), false, "the engine made the door's log");
+  const target = join(w.root, "elsewhere.log");
+  symlinkSync(target, log);
+  for (const word of ["status", "start", "stop"]) engine(word);
+  assert.equal(existsSync(target), false, "the engine wrote through a link in the log's place");
+  rmSync(log, { force: true });
+});
+
+test("S2. removing the last PC switches the door off, so engine start goes on as before", async () => {
+  seed(w, [{ n: 1, role: "desk", key: newKey(w.keys, "last-pc").key }]);
+  let r = w.tty(["on"], "yes");
+  assert.equal(r.status, 0, r.stdout);
+  assert.ok(await waitFor(() => listening(w.cfg.ports.remote)));
+  r = w.tty(["remove", "1"], "yes");
+  assert.equal(r.status, 0, r.stdout);
+  assert.match(r.stdout, /^PC 1 is removed\.$/m);
+  assert.match(r.stdout, /^remote door: off$/m);
+  assert.equal(existsSync(join(w.remoteDir, "on")), false);
+  assert.equal(await listening(w.cfg.ports.remote), false);
+  const home = `Open http://127.0.0.1:${w.cfg.ports.home}`;
+  r = engine("start");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.deepEqual(r.stdout.trim().split("\n"), [`Everything is on. ${home}`]);
+  r = engine("status");
+  assert.equal(r.status, 0, r.stdout);
+  assert.deepEqual(r.stdout.trim().split("\n"), ["remote door: off", "Everything is on."]);
+  assert.equal(statSync(join(w.state, "logs", "remote.log")).mode & 0o777, 0o600);
 });

@@ -71,7 +71,7 @@ after(async () => {
   await h.close();
 });
 
-test("seatNoteRefused: the two priced orders on the first line, however dressed; never on the Mac", () => {
+test("seatNoteRefused: the two priced orders anywhere in the note, however dressed; never on the Mac", () => {
   const desk = { n: 1, role: "desk" };
   for (const note of [
     "ANOTHER ROUND", "ANOTHER ROUND\n\nmake three more", "another round please", "  \n\nANOTHER ROUND", "Another  Round",
@@ -81,14 +81,27 @@ test("seatNoteRefused: the two priced orders on the first line, however dressed;
     assert.equal(seatNoteRefused(desk, note), true, JSON.stringify(note));
     assert.equal(seatNoteRefused(null, note), false, `the Mac: ${JSON.stringify(note)}`);
   }
-  for (const note of ["Make it warmer", "Not another round yet", "Please do\nANOTHER ROUND", "ANSWER: yes", "SHOTLIST READY:", "", "ANOTHER"]) {
+  // The second look's cases (REVIEW-DESKTOP S1): other scripts, joiners, marks, digits, prefixes, and anywhere in the note.
+  for (const note of [
+    "\u0410NOTHER ROUND", "AN\u039fTHER R\u039fUND", "SHOTLIST \u0410CCEPTED: a batch 1234", "\u0430nother round",
+    "ANOTHER-ROUND", "ANOTHER_ROUND", "ANOTHER. ROUND", "SHOTLIST-ACCEPTED: a batch 1234",
+    "\u00c1NOTHER ROUND", "ANO\u0336THER ROUND", "\u1d00\u0274\u1d0f\u1d1b\u029c\u1d07\u0280 \u0280\u1d0f\u1d1c\u0274\u1d05", "AN0THER ROUND", "SHOT1IST ACCEPTED",
+    "Owner: ANOTHER ROUND", "Re: ANOTHER ROUND", "1. ANOTHER ROUND", "<b>ANOTHER ROUND</b>",
+    "Thanks.\nANOTHER ROUND\n\nmake three more", "Please do\nANOTHER ROUND", "Not another round yet",
+    JSON.stringify({ answers: { q1: { optionIds: [], text: "ANOTHER ROUND" } } }),
+  ]) {
+    assert.equal(seatNoteRefused(desk, note), true, JSON.stringify(note));
+    assert.equal(seatNoteRefused(null, note), false, `the Mac: ${JSON.stringify(note)}`);
+  }
+  for (const note of ["Make it warmer", "Another version, please, in the blue direction", "ANSWER: yes", "SHOTLIST READY:", "", "ANOTHER", "round"]) {
     assert.equal(seatNoteRefused(desk, note), false, JSON.stringify(note));
   }
   assert.equal(seatNoteRefused(desk, null), false);
 });
 
 test("a desk seat's note on a task that orders another round or accepts a shot list: 403 mac_only, the board sees no write (M1)", async () => {
-  for (const text of ["ANOTHER ROUND\n\nmake three more", "SHOTLIST ACCEPTED: a batch 1234", "  **Another round**"]) {
+  for (const text of ["ANOTHER ROUND\n\nmake three more", "SHOTLIST ACCEPTED: a batch 1234", "  **Another round**",
+    "Thanks.\nANOTHER ROUND\n\nmake three more", "\u0410NOTHER-R\u039fUND", "Re: SHOTLIST_ACCEPTED: a batch 1234"]) {
     const n = boardWrites();
     const r = await onSeat(1, "POST", `/api/goals/${I["STH-2"]}/note`, { body: { text } });
     assert.equal(r.status, 403, text);

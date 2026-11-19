@@ -86,10 +86,13 @@ lower() { printf '%s\n' "$1" | tr '[:upper:]' '[:lower:]'; }
 part_log() { printf '%s/%s.log\n' "$CFG_LOGS" "$(part_id "$1")"; }
 
 # Runs a part subcommand. Sets OUT (its stdout, trimmed) and CODE. Its errors
-# go to the part's log, never to the screen.
+# go to the part's log, never to the screen. The remote door's log is written
+# only by its own part (mode 600, never through a link, every line timed), so
+# its errors here are dropped rather than appended to it.
 run_part() {
   local f="$1" sub="$2" log tmp
   log="$(part_log "$f")"
+  if [ -n "$REMOTE_PART" ] && [ "$f" = "$REMOTE_PART" ]; then log=/dev/null; fi
   mkdir -p "$CFG_LOGS"
   tmp="$(mktemp "${TMPDIR:-/tmp}/engine-part.XXXXXX")"
   CODE=0
@@ -251,7 +254,7 @@ do_status() {
     if [ "$STATE" != on ]; then attention="${attention:+$attention, }$name"; fi
   done
   if [ -n "$REMOTE_PART" ] && part_installed "$REMOTE_PART"; then
-    "$NODE" "$ENGINE_DIR/remote/remote.mjs" status </dev/null 2>>"$(part_log "$REMOTE_PART")" | head -1 || true
+    "$NODE" "$ENGINE_DIR/remote/remote.mjs" status </dev/null 2>/dev/null | head -1 || true
     if [ -f "$REMOTE_MARKER" ]; then
       part_health "$REMOTE_PART"
       if [ "$STATE" != on ]; then attention="${attention:+$attention, }Remote door"; fi
