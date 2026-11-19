@@ -19,17 +19,18 @@ const OF = {
 };
 export const tabOf = (routeId) => OF[routeId] || null;
 
-export function TabBar({ routeId, needs = 0, moreOpen = false, onMore }) {
+// partial: the count is a floor (a part did not answer): said with "at least" and a plus.
+export function TabBar({ routeId, needs = 0, partial = false, moreOpen = false, onMore }) {
   const current = tabOf(routeId);
   const n = Math.max(0, Math.floor(Number(needs) || 0));
   return html`
     <nav class="s-tabbar" aria-label="Sections">
       ${TABS.map((t) => html`
         <a key=${t.id} class=${`s-tab${current === t.id ? " is-current" : ""}`} href=${t.href}
-          aria-current=${current === t.id ? "page" : undefined} aria-label=${t.id === "needs-you" ? needsLabel(n) : undefined}>
+          aria-current=${current === t.id ? "page" : undefined} aria-label=${t.id === "needs-you" ? needsLabel(n, partial) : undefined}>
           <span class="s-tab-icon">
             <${Icon} name=${t.icon} size=${22} />
-            ${t.id === "needs-you" && n ? html`<span class="s-tab-count u-num" aria-hidden="true">${n > 99 ? "99+" : n}</span>` : null}
+            ${t.id === "needs-you" && (n || partial) ? html`<span class="s-tab-count u-num" aria-hidden="true">${n > 99 ? "99+" : partial ? `${n}+` : n}</span>` : null}
           </span>
           <span class="s-tab-word">${t.title}</span>
         </a>`)}

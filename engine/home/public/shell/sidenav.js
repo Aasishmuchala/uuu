@@ -119,7 +119,7 @@ function systemDark() {
 // more: the count is a floor (a part did not answer), shown with a plus.
 function Go({ href, icon, title, label, current, count, chip, mark, onClick, more = false }) {
   const text = count > 99 ? "99+" : more ? `${count}+` : count;
-  const n = count
+  const n = count || more
     ? chip
       ? html`<span class="k-tag k-tag--info s-go-count s-go-count--chip u-num" aria-hidden="true">${text}</span>`
       : html`<span class="s-go-count u-num" aria-hidden="true">${text}</span>`

@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { FakeElement, PUBLIC, html, installDom, render, settle } from "./kit/_dom.mjs";
+import { FakeElement, PUBLIC, byClass, elements, html, installDom, render, settle, textOf } from "./kit/_dom.mjs";
 
 const load = (p) => import(`${new URL(join(PUBLIC, p), "file://").href}`);
 const read = (p) => readFileSync(join(PUBLIC, p), "utf8");
@@ -91,9 +91,41 @@ test("a partial Needs-you count is read as a floor: 'at least' and a plus (REVIE
   assert.equal(needsLabel(3), "Needs you, 3 waiting");
   assert.equal(needsLabel(3, true), "Needs you, at least 3 waiting: a part did not answer");
   assert.equal(needsLabel(0, true), "Needs you, at least 0 waiting: a part did not answer");
-  const side = read("shell/sidenav.js");
-  assert.match(side, /const partial = shell\?\.counts\?\.partial === true;/);
-  assert.match(side, /label=\$\{needsLabel\(needs, partial\)\}.*more=\$\{partial\}/);
-  assert.match(side, /more \? `\$\{count\}\+` : count/);
   assert.match(read("shell/topbar.js"), /needsLabel\(needs, shell\?\.counts\?\.partial === true\)/);
+  assert.match(read("shell/app-shell.js"), /<\$\{TabBar\}[^>]*partial=\$\{shell\.data\?\.counts\?\.partial === true\}/);
+});
+
+// Drawn, not read as text (second look 3): the sidebar's Needs you row and the phone's tab, partial and whole.
+async function drawn(Component, props) {
+  installDom();
+  const root = new FakeElement("div");
+  render(html`<${Component} ...${props} />`, root);
+  await settle(50);
+  return root;
+}
+const chipOf = (root) => [...byClass(root, "s-go-count--chip"), ...byClass(root, "s-tab-count")].map((e) => textOf(e));
+const needsLink = (root) => elements(root).find((e) => (e.getAttribute?.("href") ?? e.href) === "#/needs-you");
+
+test("drawn: zero waiting with a part not answering shows 0+ and 'at least' in the sidebar and on the phone's tab", async () => {
+  const { Sidenav } = await load("shell/sidenav.js");
+  const { TabBar } = await load("shell/tabbar.js");
+  const side = (counts) => drawn(Sidenav, { mode: "open", routeId: "map", parts: [], query: new URLSearchParams(""), shell: { company: { name: "Sthyra" }, counts }, dock: [], settings: { theme: "dark" }, onSaveSettings: () => {} });
+  let root = await side({ needsYou: 0, partial: true });
+  assert.deepEqual(chipOf(root), ["0+"]);
+  assert.equal(needsLink(root).getAttribute("aria-label"), "Needs you, at least 0 waiting: a part did not answer");
+  root = await side({ needsYou: 3, partial: true });
+  assert.deepEqual(chipOf(root), ["3+"]);
+  root = await side({ needsYou: 0, partial: false });
+  assert.deepEqual(chipOf(root), [], "nothing waiting and whole: no chip");
+  root = await side({ needsYou: 3 });
+  assert.deepEqual(chipOf(root), ["3"]);
+
+  root = await drawn(TabBar, { routeId: "map", needs: 0, partial: true, onMore: () => {} });
+  assert.deepEqual(chipOf(root), ["0+"]);
+  assert.equal(needsLink(root).getAttribute("aria-label"), "Needs you, at least 0 waiting: a part did not answer");
+  root = await drawn(TabBar, { routeId: "map", needs: 5, partial: false, onMore: () => {} });
+  assert.deepEqual(chipOf(root), ["5"]);
+  assert.equal(needsLink(root).getAttribute("aria-label"), "Needs you, 5 waiting");
+  root = await drawn(TabBar, { routeId: "map", needs: 0, onMore: () => {} });
+  assert.deepEqual(chipOf(root), []);
 });

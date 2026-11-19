@@ -390,7 +390,7 @@ export function AppShell() {
         </div>
         <${WorkPanel} panel=${panel} onClose=${closePanel} narrow=${narrow} />
         ${narrow ? html`
-          <${TabBar} routeId=${routeId} needs=${shell.data?.counts?.needsYou} moreOpen=${overlay === "menu"} onMore=${() => setOverlay("menu")} />` : null}
+          <${TabBar} routeId=${routeId} needs=${shell.data?.counts?.needsYou} partial=${shell.data?.counts?.partial === true} moreOpen=${overlay === "menu"} onMore=${() => setOverlay("menu")} />` : null}
       </div>
       <div id="s-queue" class="s-queue-host">
         <${QueuePanel} open=${overlay === "needs"} narrow=${narrow} department=${needsFor} stamp=${shell.data?.generatedAt || ""}
