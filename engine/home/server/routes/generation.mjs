@@ -13,6 +13,15 @@
 // return address hands `code` and `state` to the door's finish and nothing else), so it never sees, keeps or logs a
 // Higgsfield token, and the return's query is never logged. Whether Higgsfield is signed in comes from the door (its
 // health, else its status file); the door's token file is never read here.
+//
+// Runway by sign-in (PLAN-ONBOARD R2, decisions R-3 to R-8): a second way in to Runway, through Runway's own MCP server
+// and the owner's Runway account, beside the key. It is passed along exactly as Higgsfield's is (begin, the return
+// address, forget, Test), and the home server never sees, keeps or logs a Runway token, code or state; the door's token
+// file (`runway-oauth.json`) is never opened here. There is no switch of its own: "Let the Artist use Runway" covers
+// both ways in, and may be switched on with a saved key or a sign-in. The key is used when both are there (the door
+// decides; a caller never chooses). What one account credit counts as, in cents, is the owner's rate, in the switches
+// file's `generate.runwayAccount`. Runway publishes no way to end a grant from here: signing out deletes the door's
+// own copy, and the owner may also remove "uuu engine on this Mac" in their Runway account.
 import { lstatSync } from "node:fs";
 import { join } from "node:path";
 import { HF_ORIGIN, HF_PATHS } from "../../../generate/higgsfield.mjs";
@@ -20,7 +29,8 @@ import { rowOf } from "../../../generate/registry.mjs";
 import { readGenState } from "../../../generate/state.mjs";
 import { readIds } from "../../../relay/state.mjs";
 import {
-  callDoor, doorKeySaved, hfRateOk, holdsSavedKey, readDoors, readTrustedText, removeDoorKey, saveDoorKey, updateDoors, validDoorKey,
+  RW_ACCOUNT_DEFAULTS, callDoor, doorAuthOf, doorKeySaved, hfRateOk, holdsSavedKey, readDoors, removeDoorKey, rwRateOk, saveDoorKey,
+  updateDoors, validDoorKey,
 } from "../lib/doors.mjs";
 import {
   BATCHES_SHOWN, MODEL_FIELDS, appNames, batchView, exampleSentence, isDay, ledgerPage, modelChoices, moneyOf, plain, readBatches,
@@ -32,7 +42,6 @@ const TEST_TIMEOUT_MS = 45000;
 const HF_TEST_TIMEOUT_MS = 75000;
 const HF_CALL_TIMEOUT_MS = 30000;
 const HEALTH_TIMEOUT_MS = 1000;
-const STATUS_MAX_BYTES = 256 * 1024;
 const URL_MAX = 4096;
 export const MAX_CAP = 1_000_000;
 // K21's patterns for what Higgsfield sends back to the return address: `state` is 32 random bytes in hex.
@@ -40,6 +49,14 @@ export const HF_CODE_RE = /^[A-Za-z0-9._~-]{1,512}$/;
 export const HF_STATE_RE = /^[0-9a-f]{64}$/;
 export const HF_BACK_CONNECTED = "/#/settings?s=generation&generation=connected";
 export const HF_BACK_FAILED = "/#/settings?s=generation&generation=failed";
+// Runway's MCP origin and the path of its sign-in page, as R0 found them (.router/RUNWAY-MCP-FACTS.md) and the
+// generation door pins them (engine/generate/runway-mcp.mjs). Only an address there is passed to the page.
+export const RW_ORIGIN = "https://mcp.runwayml.com";
+export const RW_AUTHORIZE_PATH = "/authorize";
+// What Runway sends back: a code in the URL-safe letters (its length is not published, so up to 2048) and K21's state.
+export const RW_CODE_RE = /^[A-Za-z0-9._~-]{1,2048}$/;
+export const RW_BACK_CONNECTED = "/#/settings?s=generation&generation=runway-connected";
+export const RW_BACK_FAILED = "/#/settings?s=generation&generation=runway-failed";
 // A stand-in Higgsfield in tests listens on 127.0.0.1; anything else is Higgsfield's one origin.
 const LOOPBACK_ORIGIN = /^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/;
 
@@ -54,6 +71,21 @@ export const HF_TEST_SENTENCES = Object.freeze({
   refused: "Higgsfield asked you to sign in again.",
   door_off: "The generation door is off. Run: engine start",
   no_answer: "Higgsfield did not answer. Try again in a minute.",
+});
+export const RW_SENTENCES = Object.freeze({
+  signedOut: "Not signed in to Runway.",
+  signedIn: "Signed in to Runway.",
+  refused: "Runway asked you to sign in again.",
+});
+// The switch's refusal once the door can sign in to Runway (its status or health names `runway`); before that, the
+// key is the only way in and the refusal stays "Paste your Runway key first."
+export const RW_NO_WAY_IN = "Save a Runway key or sign in to Runway first.";
+export const RW_TEST_SENTENCES = Object.freeze({
+  signed_out: "Not signed in to Runway.",
+  refused: "Runway asked you to sign in again.",
+  door_off: "The generation door is off. Run: engine start",
+  no_answer: "Runway did not answer. Try again in a minute.",
+  no_count: "Runway answered, but did not say how many credits your account has.",
 });
 export const HF_NOT_READY_MODEL = "Higgsfield is off or not signed in, so its models cannot be chosen.";
 
@@ -102,20 +134,17 @@ async function doorOf(ctx) {
   return { state, sentence: DOOR_SENTENCES[state], health: state === "on" ? r.json : null };
 }
 
-// Whether the door is signed in to Higgsfield: { signedIn, refused }. Its status file (read with the trust rule) says
-// both; its health, when it answers, says now whether it is signed in. Neither: signed out.
+// Whether the door is signed in to a service: lib/doors.mjs doorAuthOf (moved there in R5, so the prices of
+// approval cards, lib/batches.mjs, read it too).
+const authOf = doorAuthOf;
+
 export function hfAuthOf(config, health = null) {
-  let d = null;
-  try {
-    const text = readTrustedText(config.paths.generateStatus, STATUS_MAX_BYTES);
-    d = typeof text === "string" && text !== "missing" ? JSON.parse(text) : null;
-  } catch { d = null; }
-  const h = obj(d) && obj(d.higgsfield) ? d.higgsfield : {};
-  const refused = h.refused === true;
-  let signedIn = !refused && h.signedIn === true;
-  if (obj(health) && typeof health.higgsfield === "boolean") signedIn = health.higgsfield && !refused;
-  return { signedIn, refused: refused && !signedIn };
+  const { signedIn, refused } = authOf(config, "higgsfield", health);
+  return { signedIn, refused };
 }
+
+export const rwAuthOf = (config, health = null) => authOf(config, "runway", health);
+const rwSentence = (a) => (a.refused ? RW_SENTENCES.refused : a.signedIn ? RW_SENTENCES.signedIn : RW_SENTENCES.signedOut);
 
 const hfSentence = (a) => (a.refused ? HF_SENTENCES.refused : a.signedIn ? HF_SENTENCES.signedIn : HF_SENTENCES.signedOut);
 
@@ -123,6 +152,12 @@ const hfSentence = (a) => (a.refused ? HF_SENTENCES.refused : a.signedIn ? HF_SE
 function hfOrigin(ctx) {
   const o = ctx?.home?.higgsfieldOrigin;
   return typeof o === "string" && LOOPBACK_ORIGIN.test(o) ? o : HF_ORIGIN;
+}
+
+// Runway's one MCP origin, or a stand-in's loopback origin that a test home names (`home.runwayOrigin`).
+function rwOrigin(ctx) {
+  const o = ctx?.home?.runwayOrigin;
+  return typeof o === "string" && LOOPBACK_ORIGIN.test(o) ? o : RW_ORIGIN;
 }
 
 function artistSetUp(config) {
@@ -183,8 +218,11 @@ export async function buildGenerationView(ctx, now = Date.now()) {
   const hfAuth = hfAuthOf(config, door.health);
   const rate = g.higgsfield.centsPerCredit;
   const hfOn = problem ? false : g.higgsfield.on;
+  const rwAuth = rwAuthOf(config, door.health);
+  const rwRate = obj(g.runwayAccount) && rwRateOk(g.runwayAccount.centsPerCredit) ? g.runwayAccount.centsPerCredit : RW_ACCOUNT_DEFAULTS.centsPerCredit;
   const blockers = [];
-  if (!keySaved) blockers.push("no_key");
+  // A way in to Runway: a saved key, or the door signed in to the owner's Runway account (R-4, R-5).
+  if (!keySaved && !rwAuth.signedIn) blockers.push("no_key");
   if (door.state !== "on") blockers.push("door_off");
   if (!artistSetUp(config)) blockers.push("no_artist");
   return guarded(config, {
@@ -193,8 +231,11 @@ export async function buildGenerationView(ctx, now = Date.now()) {
     door: { state: door.state, sentence: door.sentence },
     canSwitchOn: blockers.length === 0,
     blockers,
-    whyNot: blockers.length ? BLOCKER_SENTENCES[blockers[0]] : null,
+    whyNot: blockers.length ? (blockers[0] === "no_key" && rwAuth.known ? RW_NO_WAY_IN : BLOCKER_SENTENCES[blockers[0]]) : null,
     higgsfield: { on: hfOn, signedIn: hfAuth.signedIn, refused: hfAuth.refused, centsPerCredit: rate, sentence: hfSentence(hfAuth) },
+    runwayAccount: {
+      signedIn: rwAuth.signedIn, refused: rwAuth.refused, centsPerCredit: rwRate, sentence: rwSentence(rwAuth), used: !keySaved && rwAuth.signedIn,
+    },
     caps: { daily: g.dailyCredits, monthly: g.monthlyCredits },
     models: { ...g.models },
     choices: modelChoices({ centsPerCredit: rate, higgsfield: hfOn && hfAuth.signedIn }),
@@ -254,6 +295,29 @@ function hfTestOf(r) {
 function hfCallFailed(ctx, r, what) {
   if (doorOff(r)) return ctx.fail(409, "The generation door is off. Run: engine start", "Start the engine, then try again.", "door_off");
   return ctx.fail(502, `Higgsfield did not ${what}. Try again in a minute.`, "If it keeps happening, look at Health.", "higgsfield_failed");
+}
+
+// The door's answer to the owner's Runway account balance question, in words; only its codes and its number are read.
+// Runway's account tools may name the plan without a number of credits: that is still an answer, said as such.
+function rwTestOf(r) {
+  const no = (outcome) => ({ outcome, answer: { ok: false, credits: null, sentence: RW_TEST_SENTENCES[outcome] } });
+  if (!r.ok) return no(doorOff(r) ? "door_off" : "no_answer");
+  const j = obj(r.json) ? r.json : {};
+  if (r.status === 200 && typeof j.credits === "number" && Number.isFinite(j.credits) && j.credits >= 0 && j.credits <= 1e12) {
+    const n = j.credits;
+    return { outcome: "balance", answer: { ok: true, credits: n, sentence: `Runway says your account has ${n} credit${n === 1 ? "" : "s"}.` } };
+  }
+  if (r.status === 200 && Object.hasOwn(j, "credits") && j.credits === null) {
+    return { outcome: "no_count", answer: { ok: true, credits: null, sentence: RW_TEST_SENTENCES.no_count } };
+  }
+  if (j.code === "gen_rw_signed_out") return no("signed_out");
+  if (j.code === "gen_rw_refused") return no("refused");
+  return no("no_answer");
+}
+
+function rwCallFailed(ctx, r, what) {
+  if (doorOff(r)) return ctx.fail(409, "The generation door is off. Run: engine start", "Start the engine, then try again.", "door_off");
+  return ctx.fail(502, `Runway did not ${what}. Try again in a minute.`, "If it keeps happening, look at Health.", "runway_failed");
 }
 
 // ---- the routes --------------------------------------------------------------------------------------------------
@@ -456,5 +520,59 @@ export default function register(app) {
     const { outcome, answer } = hfTestOf(r);
     ctx.log(`generation: Higgsfield tested (${outcome})`);
     return answer;
+  });
+
+  // ---- Runway by sign-in (PLAN-ONBOARD R2) -------------------------------------------------------------------------
+
+  // The door's authorize address for the owner's browser, only when it is Runway's own sign-in page: the page opens it.
+  app.post("/api/generation/runway/begin", async (ctx) => {
+    const r = await callDoor(ctx, "generate", "/gen/owner/runway/begin", {}, { timeoutMs: HF_CALL_TIMEOUT_MS, maxBytes: 16 * 1024 });
+    const url = r.ok && r.status === 200 && obj(r.json) && typeof r.json.url === "string" ? r.json.url : null;
+    if (url === null || url.length > URL_MAX || !url.startsWith(`${rwOrigin(ctx)}${RW_AUTHORIZE_PATH}?`)) {
+      ctx.log(`generation: the Runway sign-in did not begin (${r.ok ? r.status : r.reason})`);
+      throw rwCallFailed(ctx, r, "start the sign-in");
+    }
+    ctx.log("generation: the Runway sign-in began");
+    return { url };
+  });
+
+  // Where Runway sends the owner's browser back. Its code lasts only minutes, so `code` and `state`, each by its
+  // pattern, go to the door's finish at once, once, and nothing else does; the owner lands on Settings with a notice.
+  // The query is never logged (the core logs the path alone, and this route names only the outcome).
+  app.get("/api/generation/runway/back", async (ctx) => {
+    const { code, state } = ctx.query;
+    let connected = false;
+    if (typeof code === "string" && RW_CODE_RE.test(code) && typeof state === "string" && HF_STATE_RE.test(state)) {
+      const r = await callDoor(ctx, "generate", "/gen/owner/runway/finish", { code, state }, { timeoutMs: HF_CALL_TIMEOUT_MS, maxBytes: 16 * 1024 });
+      connected = r.ok && r.status === 200 && obj(r.json) && r.json.connected === true;
+    }
+    ctx.log(`generation: the Runway sign-in came back (${connected ? "connected" : "failed"})`);
+    return { status: 303, location: connected ? RW_BACK_CONNECTED : RW_BACK_FAILED, body: { connected } };
+  });
+
+  // Sign out: the door deletes its own copy of the sign-in. Runway publishes no way to end the grant from here.
+  app.post("/api/generation/runway/forget", async (ctx) => {
+    const r = await callDoor(ctx, "generate", "/gen/owner/runway/forget", {}, { timeoutMs: HF_CALL_TIMEOUT_MS, maxBytes: 16 * 1024 });
+    if (!(r.ok && r.status === 200 && obj(r.json) && r.json.connected === false)) throw rwCallFailed(ctx, r, "forget the sign-in");
+    ctx.log("generation: signed out of Runway");
+    return buildGenerationView(ctx);
+  });
+
+  // Test: the door asks Runway's account for its credits. It costs nothing and works while the switch is off.
+  app.post("/api/generation/runway/test", async (ctx) => {
+    const r = await callDoor(ctx, "generate", "/gen/owner/runway/balance", {}, { timeoutMs: HF_TEST_TIMEOUT_MS, maxBytes: 64 * 1024 });
+    const { outcome, answer } = rwTestOf(r);
+    ctx.log(`generation: Runway account tested (${outcome})`);
+    return answer;
+  });
+
+  app.post("/api/generation/runway/rate", async (ctx) => {
+    const b = bodyOf(ctx);
+    if (Object.keys(b).length !== 1 || !rwRateOk(b.centsPerCredit)) {
+      throw ctx.fail(400, "One Runway account credit must count as a whole number of cents from 1 to 50.", "Type a whole number, such as 3.", "bad_rate");
+    }
+    updateDoors(ctx.config, (s) => { s.generate.runwayAccount = { centsPerCredit: b.centsPerCredit }; s.generate.autoUnderCredits = 0; });
+    ctx.log(`generation: one Runway account credit now counts as ${b.centsPerCredit} cents`);
+    return buildGenerationView(ctx);
   });
 }

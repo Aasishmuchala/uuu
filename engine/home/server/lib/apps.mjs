@@ -7,8 +7,8 @@
 // What is read: the apps' manifests (engine/apps/manifest.mjs, the trust rule), the switches with the host's own
 // strict reader (so both always agree), the host's status file (trust rule, capped) and its health address (1.8
 // seconds, 64 KB, Host 127.0.0.1:<port>; a null address, as in stub homes, is never called), the door's ledger
-// (readLedger, totalsOf) and its status file (only whether Higgsfield is signed in), and the Models state (the
-// saved list of models and the `app-<slug>` picks the relay reads).
+// (readLedger, totalsOf) and its status file (only whether Higgsfield and Runway are signed in), and the Models
+// state (the saved list of models and the `app-<slug>` picks the relay reads).
 import {
   chmodSync, closeSync, fstatSync, lstatSync, mkdirSync, readSync, realpathSync, renameSync,
   unlinkSync, writeFileSync,
@@ -21,7 +21,7 @@ import { openNoLinks } from "../../../lib/nolinks.mjs";
 import { DEFAULT_PORTS, ICON_MAX_BYTES, SLUG_RE, readManifests } from "../../../apps/manifest.mjs";
 import { readLedger, totalsOf } from "../../../generate/ledger.mjs";
 import { ALLOWANCE_MAX_CENTS, readAllowance, readGenState } from "../../../generate/state.mjs";
-import { doorKeySaved, readDoors, readTrustedText } from "./doors.mjs";
+import { accountRateNow, doorKeySaved, readDoors, readTrustedText } from "./doors.mjs";
 import { HomeError } from "./errors.mjs";
 import { readState, updateState } from "./models.mjs";
 import { PICK, picksOf } from "./picks.mjs";
@@ -66,7 +66,7 @@ export const PROBLEM_SENTENCES = Object.freeze({
   apps_state_unreadable: "Your app switches could not be read, so every app is off. Turning an app on or off writes them again.",
 });
 export const SPENDING_NONE = "This app cannot spend anything right now.";
-export const NO_PROVIDER = "Add a Runway key or sign in to Higgsfield in Settings first.";
+export const NO_PROVIDER = "Add a Runway key, or sign in to Runway or Higgsfield, in Settings first.";
 export const LEDGER_UNREADABLE = "The spending ledger cannot be read, so nothing can be allowed. Health shows what to do.";
 
 const obj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -304,10 +304,11 @@ export function capsLeft(config, now = Date.now()) {
   return { ok: true, lines: r.lines, dayLeft, monthLeft, left: Math.min(dayLeft, monthLeft) };
 }
 
-// Whether each service can make anything now: Runway when its key is saved; Higgsfield when its switch is on and the
-// door says it is signed in (its status file; the token file is never read here).
+// Whether each service can make anything now: Runway when its key is saved, or with no key when the door says its
+// Runway sign-in is in (accountRateNow; PLAN-ONBOARD R1, review A); Higgsfield when its switch is on and the door says
+// it is signed in (its status file; the token file is never read here).
 export function providersReady(config, now = Date.now()) {
-  const runway = doorKeySaved(config, "runway");
+  const runway = doorKeySaved(config, "runway") === true || accountRateNow(config) !== null;
   const gs = readGenState(config.paths.doorsState, now);
   let higgsfield = false;
   if (gs.ok && gs.higgsfield.on) {

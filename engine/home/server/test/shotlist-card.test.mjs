@@ -842,3 +842,33 @@ test("marker strings planted in the shotlist's title, moves, prompts and cards r
     });
   }
 });
+
+// R5, finding 3: no key saved and the door signed in to Runway. The card prices each Runway clip at its account row's
+// ceiling at the owner's account rate (Gen-4.5 30 and Gen-4 Turbo 10 credits a second, at 3 cents), says "up to", and
+// the batch's budget is what the door holds for those clips, so the approval matches the door.
+test("by the Runway sign-in with no key: the card says up to the account ceiling at the account rate; the batch is that", async () => {
+  await withFilm({}, async (h) => {
+    rmSync(h.config.paths.runwayKey);
+    updateDoors(h.config, (st) => { st.generate.dailyCredits = 5000; st.generate.monthlyCredits = 10000; });
+    // Not signed in either: blocked as before.
+    assert.ok((await itemOf(h)).variants.every((v) => v.blocked === "Generation is off or has no key yet. Open Settings."));
+    mkdirSync(dirname(h.config.paths.generateStatus), { recursive: true, mode: 0o700 });
+    writeFileSync(h.config.paths.generateStatus, JSON.stringify({ higgsfield: { signedIn: false, refused: false }, runway: { signedIn: true, refused: false }, apps: {} }), { mode: 0o600 });
+    const item = await itemOf(h);
+    const b = item.variants.find((v) => v.id === "b");
+    assert.equal(b.approvable, true, b.blocked);
+    // s01, s02: Gen-4.5, 5 s: 150 credits, 450 cents each; s03: Gen-4 Turbo, 10 s: 100 credits, 300 cents.
+    assert.deepEqual(b.shotlist.shots.map((s) => s.credits), [450, 450, 300]);
+    assert.deepEqual([b.cost.base, b.cost.most], [1200, 2400]);
+    assert.match(b.cost.words, /^3 clips, 20 seconds: up to \$12\.00, up to \$24\.00 with one retake each\./);
+    assert.equal(b.cost.about, "up to $12.00, up to $24.00 with retakes");
+    // Variant c's 2-second clip is not a length Gen-4 Turbo takes by sign-in: no price, so it cannot be approved.
+    assert.equal(item.variants.find((v) => v.id === "c").approvable, false);
+    const r = await actAsSeen(h.url, { id: ITEM, action: "approve", variant: "b" });
+    assert.equal(r.status, 200, r.text);
+    const [file] = batchFiles(h);
+    const back = readBatch(h.config.paths.batches, file.slice(0, -5), { slug: "artist", now: Date.now() });
+    assert.equal(back.ok, true, back.why);
+    assert.equal(back.batch.budgetCredits, 2400);
+  });
+});

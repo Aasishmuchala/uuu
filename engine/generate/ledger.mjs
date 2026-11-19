@@ -6,9 +6,9 @@
 //
 // Lines: { at, job, batch, shot, slug, kind, model, seconds, estimate, state, credits,
 // runwayTask, verdict }, and four fields a line may carry (K20; missing means what step 3
-// meant): `provider` ("runway" | "higgsfield"; missing is Runway), `units` (Higgsfield's own
-// credits), `rate` (the cents a Higgsfield credit counted as, whole 1 to 50) and `app` (an app's
-// name). Money is in US cents everywhere (`credits`, `estimate`): a Runway credit is one cent.
+// meant): `provider` ("runway" | "higgsfield" | "runway-account", the owner's Runway sign-in,
+// PLAN-ONBOARD R1; missing is Runway), `units` (Higgsfield's or the account's own credits), `rate`
+// (the cents one of those credits counted as, whole 1 to 50) and `app` (an app's name). Money is in US cents everywhere (`credits`, `estimate`): a Runway credit is one cent.
 // A Higgsfield job keeps its job id in `runwayTask` (the old name, kept so old readers read).
 // `state`:
 //   reserved  before the call leaves (credits = the door's estimate); written again, same job,
@@ -47,7 +47,7 @@ export const monthOf = (ms) => dayOf(ms).slice(0, 7);
 const str = (v) => typeof v === "string" && v.length <= 200;
 const strOrNull = (v) => v === null || str(v);
 const amount = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0;
-export const PROVIDERS = Object.freeze(["runway", "higgsfield"]);
+export const PROVIDERS = Object.freeze(["runway", "higgsfield", "runway-account"]);
 export const APP_NAME_RE = /^[a-z0-9][a-z0-9-]{0,23}$/;
 const OPTIONAL = ["provider", "units", "rate", "app"];
 // K20's optional fields: each, when present, of its own kind; anything else makes the line unreadable.

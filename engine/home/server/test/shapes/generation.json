@@ -6,6 +6,7 @@
   "blockers": ["no_key"],
   "whyNot": "Paste your Runway key first.",
   "higgsfield": { "on": false, "signedIn": false, "refused": false, "centsPerCredit": 5, "sentence": "Not signed in." },
+  "runwayAccount": { "signedIn": false, "refused": false, "centsPerCredit": 3, "sentence": "Not signed in to Runway.", "used": false },
   "caps": { "daily": 300, "monthly": 1000 },
   "models": { "video": "gen4_turbo", "videoBest": "gen4.5", "still": "gen4_image", "upscale": "magnific_precision_upscaler_v2" },
   "choices": {

@@ -57,7 +57,7 @@ test("paths cover every key", () => {
     + "playbooks research sharedBrain doors doorsState doorSecrets webSecret generateSecret viewerSecret "
     + "runwayKey searchKey webVisits ledger batches doorWork webStatus generateStatus viewerStatus "
     + "brainSecret brainStatus brainAsks brainDir brainIndex brainNotes "
-    + "appsCode apps appsState appsStatus appsRun appsLogs allowances higgsfieldAuth").split(" ");
+    + "appsCode apps appsState appsStatus appsRun appsLogs allowances higgsfieldAuth runwayAuth").split(" ");
   assert.deepEqual(Object.keys(c.paths).sort(), keys.sort());
   assert.equal(c.paths.projectFolder, join(c.stateRoot, "tasks/company-work"));
   assert.equal(c.paths.benchOwnerKey, join(c.stateRoot, "secrets/bench-owner-api.txt"));
@@ -77,7 +77,7 @@ test("the doors' ports, paths and agents (PLAN-V5 K1)", () => {
   assert.deepEqual(c.fence.policyPortsAllowed, [8120]);
   assert.deepEqual(c.fence.readRootsAllowed, ["knowledge/docs", "lessons", "cad", "art", "media"]);
   assert.deepEqual(c.doors, {
-    web: { agents: ["researcher"] }, generate: { agents: ["artist"], apps: ["render-to-film"] },
+    web: { agents: ["researcher"] }, generate: { agents: ["artist"], apps: ["render-to-film", "arch-film-studio"] },
     viewer: { agents: ["builder", "art-director"] },
     brain: { agents: BRAIN_AGENTS, records: BRAIN_RECORDS },
   });
@@ -146,13 +146,13 @@ test("App Studio: ports, paths, the optional apps list (PLAN-V5 K17)", () => {
   const want = {
     appsCode: "", apps: "apps", appsState: "apps/state.json", appsStatus: "apps/host-status.json",
     appsRun: "run/apps", appsLogs: "logs/apps", allowances: "doors/allowances",
-    higgsfieldAuth: "secrets/doors/higgsfield-oauth.json",
+    higgsfieldAuth: "secrets/doors/higgsfield-oauth.json", runwayAuth: "secrets/doors/runway-oauth.json",
   };
   for (const [k, rel] of Object.entries(want)) {
     if (k === "appsCode") assert.equal(c.paths[k], join(engineDir, "..", "apps"));
     else assert.equal(c.paths[k], join(s, rel), k);
   }
-  assert.deepEqual(c.doors.generate.apps, ["render-to-film"]);
+  assert.deepEqual(c.doors.generate.apps, ["render-to-film", "arch-film-studio"]);
   // No apps key: defaults to []; the other doors never gain one.
   const none = clone();
   delete none.doors.generate.apps;

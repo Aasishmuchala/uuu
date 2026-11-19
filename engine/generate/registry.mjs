@@ -17,9 +17,16 @@ import { KINDS, MAX_SECONDS, MIN_SECONDS, PRICES, UPSCALE_MAX_SIDE, VIDEO_KINDS 
 // 18 November 2026 (the owner's one test upload, no bytes sent) named an S3 presigned PUT on
 // exactly `upload.higgsfield.ai`. Nothing broader is taken.
 export const HF_UPLOAD_SUFFIXES = Object.freeze(["upload.higgsfield.ai"]);
+// The hosts a picture may be uploaded to through the owner's Runway sign-in (runway-mcp.mjs).
+// Empty: Runway's tools do not name their upload host (`.router/RUNWAY-MCP-FACTS.md` section 5),
+// so the door learns it at the first real upload (it logs the host it was offered and sends no
+// bytes) and a person pins it here. Until then every job by sign-in that needs a picture is
+// refused, as Higgsfield's were.
+export const RW_UPLOAD_SUFFIXES = Object.freeze([]);
 
 export const ROLES = Object.freeze(["first", "last", "ref", "image"]);
 export const DEFAULT_CENTS_PER_CREDIT = 5;   // the owner's S3 answer; whole, 1 to 50 (K20)
+export const DEFAULT_ACCOUNT_CENTS_PER_CREDIT = 3;   // one Runway account credit (decision R-6); whole, 1 to 50
 export const APP_JOB_BYTES = 256 * 1024;     // one app job body, its prompt included
 export const INPUT_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MODEL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
@@ -30,10 +37,11 @@ const RUNWAY_PATHS = Object.freeze({
   still_variation: "/v1/text_to_image", still_upscale: "/v1/image_upscale",
 });
 const HF_TOOLS = new Set(["generate_image", "generate_video", "upscale_image"]);
+const RW_ACCOUNT_TOOLS = HF_TOOLS;   // the same three names on Runway's MCP server
 const HF_MEDIA_ROLES = new Set(["start_image", "end_image", "image_references"]);
 
 export const NEEDS = Object.freeze({
-  runway: "Needs a Runway key. Add it in Settings on the home screen.",
+  runway: "Needs Runway. Add a Runway key or sign in to Runway in Settings on the home screen.",
   higgsfield: "Needs Higgsfield. Switch it on and sign in from Settings on the home screen.",
 });
 export const NO_PRICE = "The door has no price for this model, so nothing is made with it.";
@@ -53,6 +61,8 @@ function deepFreeze(v) {
 // One row, checked and frozen; throws on anything off, so a typo in the table stops the door at
 // start rather than mispricing a job. Fields beyond K20's (all optional):
 //   ratiosBy        resolution -> the ratios of that size (the price follows the ratio's size)
+//   ratiosByKind    an account row only: kind -> the ratios that kind takes, when a kind takes
+//                   fewer than the row's `ratios` (Gen-4.5 from words alone: 16:9 only)
 //   fixed           fields the door always sends (Veo's and Kling's `audio: false`, GPT Image's
 //                   quality, Grok's `edit`, FLUX.2's `variant`): what the price assumes
 //   tags            Runway reference pictures carry a tag (ref1, ref2, ...)
@@ -64,14 +74,21 @@ function deepFreeze(v) {
 //   price           { per, credits | byResolution, minimum (a job), perRef (each picture sent) }
 //                   in the service's unit, or null (no price yet: nothing is made)
 //   source          where the numbers came from
+// A row of the owner's Runway account (provider "runway-account", id "rwa.<the Runway row it
+// stands for>") has no price: each job's price is Runway's own quote. It has instead:
+//   stands          the id of the Runway row (key) whose jobs it makes when no key is saved
+//   tool            the MCP tool (generate_image, generate_video, upscale_image)
+//   ceiling         { per, credits } in account credits: the most the door holds for one job
+//                   before Runway quotes it, and the most a quote may be; null = no job is made
 export function defineRow(spec) {
   // Copies of what is normalised below, so the caller's objects are never changed or frozen.
   const r = { ...spec };
-  for (const k of ["refs", "price", "fixed", "hfRoles", "seconds", "ratiosBy"]) if (isObj(r[k])) r[k] = { ...r[k] };
+  for (const k of ["refs", "price", "fixed", "hfRoles", "seconds", "ratiosBy", "ratiosByKind", "ceiling"]) if (isObj(r[k])) r[k] = { ...r[k] };
   const bad = (what) => { throw new Error(`registry: row ${String(r.id)}: ${what}`); };
   if (typeof r.id !== "string" || !MODEL_ID_RE.test(r.id)) bad("id");
-  if (r.provider !== "runway" && r.provider !== "higgsfield") bad("provider");
+  if (r.provider !== "runway" && r.provider !== "higgsfield" && r.provider !== "runway-account") bad("provider");
   if (r.provider === "higgsfield" ? !r.id.startsWith("hf.") : r.id.startsWith("hf.")) bad("an hf. id is Higgsfield's and only Higgsfield's");
+  if (r.provider === "runway-account" ? !r.id.startsWith("rwa.") : r.id.startsWith("rwa.")) bad("an rwa. id is the Runway account's and only its");
   if (typeof r.remote !== "string" || !/^[A-Za-z0-9._-]{1,64}$/.test(r.remote)) bad("remote");
   if (typeof r.words !== "string" || r.words.length < 3 || r.words.length > 80) bad("words");
   if (!Array.isArray(r.kinds) || r.kinds.length === 0 || !r.kinds.every((k) => KINDS.includes(k))) bad("kinds");
@@ -88,6 +105,13 @@ export function defineRow(spec) {
     if (!isObj(r.ratiosBy) || r.resolutions === null || r.ratios === null) bad("ratiosBy");
     for (const res of r.resolutions) if (!Array.isArray(r.ratiosBy[res]) || !r.ratiosBy[res].every((x) => r.ratios.includes(x))) bad(`ratiosBy.${res}`);
     if (Object.keys(r.ratiosBy).some((k) => !r.resolutions.includes(k))) bad("ratiosBy has a size not in resolutions");
+  }
+  r.ratiosByKind = r.ratiosByKind === undefined ? null : r.ratiosByKind;
+  if (r.ratiosByKind !== null) {
+    if (r.provider !== "runway-account" || !isObj(r.ratiosByKind) || r.ratios === null) bad("ratiosByKind");
+    for (const [k, list] of Object.entries(r.ratiosByKind)) {
+      if (!r.kinds.includes(k) || !Array.isArray(list) || list.length === 0 || !list.every((x) => r.ratios.includes(x))) bad(`ratiosByKind.${k}`);
+    }
   }
   r.seconds = r.seconds === undefined ? null : r.seconds;
   if (video !== (r.seconds !== null)) bad("seconds belong to video rows only");
@@ -122,6 +146,16 @@ export function defineRow(spec) {
     if ((p.minimum !== null && !units(p.minimum)) || (p.perRef !== null && !units(p.perRef))) bad("price.minimum or perRef");
   } else if (r.provider === "runway") {
     bad("a Runway row needs a price");
+  }
+  if (r.provider === "runway-account") {
+    if (r.price !== null) bad("an account row has no price: Runway quotes each job");
+    if (typeof r.stands !== "string" || !Object.hasOwn(PRICES, r.stands)) bad("stands");
+    if (!RW_ACCOUNT_TOOLS.has(r.tool)) bad("tool");
+    r.ceiling = r.ceiling === undefined ? null : r.ceiling;
+    if (r.ceiling !== null) {
+      const c = r.ceiling;
+      if (!isObj(c) || (c.per !== "second" && c.per !== "picture") || (c.per === "second") !== video || !units(c.credits) || c.credits <= 0) bad("ceiling");
+    }
   }
   if (r.provider === "higgsfield") {
     if (!HF_TOOLS.has(r.tool)) bad("tool");
@@ -298,6 +332,81 @@ if (BY_ID.size !== TABLE.length) throw new Error("registry: two rows with one id
 // The row for a model id, or null (any string not in the table, a prototype name included).
 export const rowOf = (id) => (typeof id === "string" && BY_ID.has(id) ? BY_ID.get(id) : null);
 
+// ---- the owner's Runway account (PLAN-ONBOARD R1) --------------------------------------------
+// What the door may make through the owner's Runway sign-in when no key is saved (decision R-5).
+// These rows are NOT in ROWS: no caller can name one (an app's list and its jobs read ROWS only),
+// so a caller never chooses the way in. A job names a Runway row as today; the door uses its
+// `rwa.` row only when no key is saved and the owner is signed in.
+// No price table exists for the account (`.router/RUNWAY-MCP-FACTS.md` section 4): each job's
+// price is Runway's own quote. `ceiling` is the door's own most for one job, about twice the
+// developer price of the same model, never a price: the door holds it before the quote (so a
+// job that starts without a quote is still inside every limit), and refuses a quote above it.
+// Model names, kinds, seconds and ratios: `.router/RUNWAY-MCP-TOOLS.md` (LITERAL).
+const ACCOUNT = "Runway's MCP tools list, 18 November 2026 (LITERAL); ceiling the door's own, not a price";
+const ACCOUNT_VIDEO_RATIOS = P("16:9,9:16,1:1,4:3,3:4,21:9");
+const ACCOUNT_TABLE = [
+  defineRow({ id: "rwa.gen4_turbo", provider: "runway-account", stands: "gen4_turbo", remote: "gen-4-turbo", tool: "generate_video",
+    words: "Gen-4 Turbo on your Runway account", kinds: ["image_to_video"], refs: { max: 1, roles: ["first"] }, ratios: ACCOUNT_VIDEO_RATIOS,
+    seconds: { list: [5, 10] }, promptMax: 1000, price: null, ceiling: { per: "second", credits: 10 }, source: ACCOUNT }),
+  defineRow({ id: "rwa.gen4.5", provider: "runway-account", stands: "gen4.5", remote: "gen-4.5", tool: "generate_video",
+    words: "Gen-4.5 on your Runway account", kinds: ["image_to_video", "text_to_video"], refs: { max: 1, roles: ["first"] }, ratios: ACCOUNT_VIDEO_RATIOS,
+    // From words alone (no startFrame) Gen-4.5 takes 16:9 only (`.router/RUNWAY-MCP-SCHEMAS.json`, generate_video's ratio).
+    ratiosByKind: { text_to_video: P("16:9") },
+    seconds: { min: 2, max: 10 }, promptMax: 1000, promptNeeded: true, price: null, ceiling: { per: "second", credits: 30 }, source: ACCOUNT }),
+  defineRow({ id: "rwa.gen4_image", provider: "runway-account", stands: "gen4_image", remote: "gen-4", tool: "generate_image",
+    words: "Gen-4 Image on your Runway account", kinds: ["still_variation"], refs: { max: 3, roles: ["ref"] }, ratios: ACCOUNT_VIDEO_RATIOS,
+    promptMax: 1000, promptNeeded: true, tags: true, price: null, ceiling: { per: "picture", credits: 20 }, source: ACCOUNT }),
+  defineRow({ id: "rwa.gen4_image_turbo", provider: "runway-account", stands: "gen4_image_turbo", remote: "gen-4-image-turbo", tool: "generate_image",
+    words: "Gen-4 Image Turbo on your Runway account", kinds: ["still_variation"], refs: { max: 3, roles: ["ref"] }, ratios: ACCOUNT_VIDEO_RATIOS,
+    promptMax: 1000, promptNeeded: true, tags: true, price: null, ceiling: { per: "picture", credits: 10 }, source: ACCOUNT }),
+  // Runway's own upscale is not Magnific's and its cost was not seen: no ceiling, so nothing is made.
+  defineRow({ id: "rwa.magnific_precision_upscaler_v2", provider: "runway-account", stands: "magnific_precision_upscaler_v2", remote: "upscale_image",
+    tool: "upscale_image", words: "Upscale on your Runway account", kinds: ["still_upscale"], refs: { max: 1, roles: ["image"] }, promptMax: 0,
+    scales: [2, 4], maxSide: UPSCALE_MAX_SIDE, price: null, ceiling: null, source: "Runway's MCP tools list (LITERAL); no cost seen, so no ceiling" }),
+];
+export const ACCOUNT_ROWS = Object.freeze(ACCOUNT_TABLE);
+const ACCOUNT_BY_STANDS = new Map(ACCOUNT_TABLE.map((r) => [r.stands, r]));
+if (ACCOUNT_BY_STANDS.size !== ACCOUNT_TABLE.length) throw new Error("registry: two account rows stand for one row");
+
+// The account row that makes jobs of Runway row `id` by sign-in, or null.
+export const accountRowFor = (id) => (typeof id === "string" && ACCOUNT_BY_STANDS.has(id) ? ACCOUNT_BY_STANDS.get(id) : null);
+
+// The most one job of an account row may cost, in account credits, or null (no ceiling, a kind,
+// seconds or scale that is not the row's).
+export function ceilingUnits(row, { kind, seconds, scale } = {}) {
+  if (!row || row.provider !== "runway-account" || row.ceiling === null || !row.kinds.includes(kind)) return null;
+  if (given(scale) && (row.scales === null || !row.scales.includes(scale))) return null;
+  if (row.ceiling.per === "second") return secondsFit(row, seconds) ? row.ceiling.credits * seconds : null;
+  return given(seconds) ? null : row.ceiling.credits;
+}
+
+// The ratios an account row takes for `kind`: its `ratiosByKind` list when it has one, else its
+// `ratios` (null when it takes none).
+export const accountRatios = (row, kind) => (!row || row.ratios === null ? null
+  : row.ratiosByKind !== null && Object.hasOwn(row.ratiosByKind, kind) ? row.ratiosByKind[kind] : row.ratios);
+
+// A ratio in the account row's own words for `kind`: as it is, or the row's ratio whose shape is
+// within 3% of it ("1280:720" is "16:9", "1104:832" is "4:3"); null when none is. Only the
+// ratios `kind` takes (accountRatios) are matched.
+export function accountRatio(row, ratio, kind) {
+  const ratios = accountRatios(row, kind);
+  if (ratios === null || typeof ratio !== "string") return null;
+  if (ratios.includes(ratio)) return ratio;
+  const m = /^([0-9]{1,5}):([0-9]{1,5})$/.exec(ratio);
+  if (!m || Number(m[1]) === 0 || Number(m[2]) === 0) return null;
+  const want = Number(m[1]) / Number(m[2]);
+  let best = null;
+  let gap = Infinity;
+  for (const w of ratios) {
+    const n = /^([0-9]{1,5}):([0-9]{1,5})$/.exec(w);
+    if (!n) continue;
+    const shape = Number(n[1]) / Number(n[2]);
+    const d = Math.abs(want - shape) / shape;
+    if (d <= 0.03 && d < gap) { best = w; gap = d; }
+  }
+  return best;
+}
+
 // ---- prices -------------------------------------------------------------------------------
 
 const given = (v) => v !== undefined && v !== null;
@@ -382,19 +491,41 @@ function priceForApp(row, rate) {
   };
 }
 
+// An account row's price for an app (PLAN-ONBOARD R1, review A): its ceiling at the owner's
+// account rate, marked `upTo` (the most a job may cost, as the door holds it); null with no
+// ceiling or no rate.
+function accountPriceForApp(arow, genState) {
+  const ra = genState && genState.ok !== false && isObj(genState.runwayAccount) ? genState.runwayAccount : null;
+  const rate = ra === null || ra.centsPerCredit === undefined ? DEFAULT_ACCOUNT_CENTS_PER_CREDIT : ra.centsPerCredit;
+  if (arow.ceiling === null || !rateOk(rate)) return null;
+  return { per: arow.ceiling.per, cents: arow.ceiling.credits * rate, byResolution: null, minimumCents: null, perRefCents: null, upTo: true };
+}
+
 // K19's `GET /gen/app/models`: every row, its price in cents at the owner's rate, and whether it
-// can be used now. `ready` is { runway: <a key is saved>, higgsfield: <on and signed in> }.
+// can be used now. `ready` is { runway: <a key is saved, or the account is signed in>, higgsfield:
+// <on and signed in>, account: <no key and the account signed in> }. With `account`, a Runway row
+// is listed as its account row makes it (R-5, review A), priced at that row's ceiling (`upTo`):
+// its kinds, seconds, pictures and prompt are the account row's (within the Runway row's, which
+// the app's body is still read against), and its ratios are the Runway row's that the account
+// row takes; a row with no account row or no ceiling is not ready.
 export function appModels(genState, ready) {
   const rate = rateOf(genState);
   const r = isObj(ready) ? ready : {};
   return ROWS.map((row) => {
     const providerReady = r[row.provider] === true;
-    const price = priceForApp(row, rate);
+    const viaAccount = row.provider === "runway" && r.account === true;
+    const arow = viaAccount ? accountRowFor(row.id) : null;
+    const price = viaAccount ? (arow === null ? null : accountPriceForApp(arow, genState)) : priceForApp(row, rate);
+    const kinds = arow === null ? [...row.kinds] : row.kinds.filter((k) => arow.kinds.includes(k));
+    const ratios = arow === null || row.ratios === null ? (row.ratios ? [...row.ratios] : null)
+      : row.ratios.filter((x) => kinds.some((k) => accountRatio(arow, x, k) !== null));
+    const seconds = arow === null ? row.seconds : arow.seconds;
     return {
-      id: row.id, provider: row.provider, words: row.words, kinds: [...row.kinds],
-      ratios: row.ratios ? [...row.ratios] : null, resolutions: row.resolutions ? [...row.resolutions] : null,
-      seconds: row.seconds ? { ...row.seconds, ...(row.seconds.list ? { list: [...row.seconds.list] } : {}) } : null,
-      refs: { max: row.refs.max, roles: [...row.refs.roles] }, promptMax: row.promptMax, price,
+      id: row.id, provider: row.provider, words: arow === null ? row.words : arow.words, kinds,
+      ratios, resolutions: row.resolutions ? [...row.resolutions] : null,
+      seconds: seconds ? { ...seconds, ...(seconds.list ? { list: [...seconds.list] } : {}) } : null,
+      refs: arow === null ? { max: row.refs.max, roles: [...row.refs.roles] } : { max: Math.min(row.refs.max, arow.refs.max), roles: row.refs.roles.filter((x) => arow.refs.roles.includes(x)) },
+      promptMax: arow === null ? row.promptMax : Math.min(row.promptMax, arow.promptMax), price,
       ready: providerReady && price !== null,
       why: !providerReady ? NEEDS[row.provider] : price === null ? NO_PRICE : null,
     };

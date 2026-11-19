@@ -691,3 +691,16 @@ test("a frozen film names the services of its refused takes: Runway, Higgsfield,
     assert.equal((await film(h, KEY2)).json.labels.frozen, "Runway and Higgsfield refused two pictures or prompts in this film. It needs you.");
   });
 });
+
+// R5, finding 3: a film approved by the Runway sign-in was priced at the account ceiling (here at 7 cents a credit:
+// Gen-4 Turbo 5 s is 50 credits, 350 cents; Gen-4.5 5 s is 150 credits, 1,050 cents). The way in, or its rate, is no
+// change; a new prompt still is.
+test("a film approved by the Runway sign-in at its account prices is not a changed shotlist; a new prompt is", async () => {
+  const byAccount = AS_APPROVED.map((p) => ({ ...p, credits: p.model === "gen4.5" ? 1050 : 350 }));
+  const approvals = [approval(B1, T1, 3500, 1750, byAccount), approval(B2, T2, 3500, 1750, byAccount)];
+  await withFilm({ approvals }, async (h, { tb }) => {
+    assert.equal((await film(h)).json.changedAfterApproval, false);
+    writeFileSync(join(tb, "shotlist.json"), JSON.stringify({ ...SHOTLIST, shots: SHOTLIST.shots.map((s) => ({ ...s, prompt: `${s.prompt} Again.` })) }));
+    assert.equal((await film(h)).json.changedAfterApproval, true);
+  });
+});

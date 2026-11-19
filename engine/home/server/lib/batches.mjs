@@ -4,8 +4,9 @@
 //   - the shots, kinds, models and seconds the owner saw priced (the models from the owner's Settings, never from
 //     an agent's file);
 //   - the budget in US cents: the sum of each shot's price as the door prices it (lib/generation.mjs priceCents, the
-//     door's table at the owner's Higgsfield rate from the switches file), times its takes (two for a film: one
-//     retake a shot; one for a still), never a number read from a file;
+//     door's table at the owner's Higgsfield rate from the switches file; by the Runway sign-in, a Runway model's
+//     account ceiling at the owner's account rate, the most the door holds for it), times its takes (two for a
+//     film: one retake a shot; one for a still), never a number read from a file;
 //   - `approvedAt` now and `expiresAt` seven days later; never `frozen` (the door counts refusals itself, C6).
 // A file is written whole under a temp name (0600, never through a link) and renamed into place, in a folder of
 // this user's (0700) that is not a link, then read back with the door's own readBatch: a file the door would not
@@ -21,7 +22,7 @@ import { dirname, join } from "node:path";
 import { readLedger, totalsOf } from "../../../generate/ledger.mjs";
 import { KINDS, VIDEO_KINDS } from "../../../generate/runway.mjs";
 import { BATCH_DAYS, MAX_TAKES, readBatch, readTrustedBytes } from "../../../generate/state.mjs";
-import { HF_DEFAULTS, doorKeySaved, hfRateOk, readDoors } from "./doors.mjs";
+import { HF_DEFAULTS, accountRateNow, doorKeySaved, hfRateOk, readDoors, rwRateOk } from "./doors.mjs";
 import { HomeError } from "./errors.mjs";
 import { priceCents } from "./generation.mjs";
 import { BATCH_ID } from "./staged.mjs";
@@ -69,8 +70,9 @@ function batchesFolder(config) {
 }
 
 // The file's shots and budget from the owner's approved shots: { shots, budget }. Throws on anything the door's
-// prices or the file's shape do not allow (the caller has checked them; this is the last word).
-function shotsOf(list, takes, textToVideo, centsPerCredit) {
+// prices or the file's shape do not allow (the caller has checked them; this is the last word). `account` is the
+// Runway account rate when jobs go by the sign-in (a Runway model then at its account ceiling), else null.
+function shotsOf(list, takes, textToVideo, centsPerCredit, account) {
   if (!Array.isArray(list) || list.length < 1 || list.length > MAX_SHOTS) throw new Error("writeBatch: one to fifty shots");
   const shots = Object.create(null);
   let budget = 0;
@@ -79,7 +81,7 @@ function shotsOf(list, takes, textToVideo, centsPerCredit) {
     if (!KINDS.includes(s.kind)) throw new Error("writeBatch: a shot's kind");
     if (s.kind === "text_to_video" && textToVideo !== true) throw new Error("writeBatch: a shot from words alone in a batch that does not allow them");
     const video = VIDEO_KINDS.includes(s.kind);
-    const credits = priceCents({ kind: s.kind, model: s.model, seconds: video ? s.seconds : undefined }, { centsPerCredit });
+    const credits = priceCents({ kind: s.kind, model: s.model, seconds: video ? s.seconds : undefined }, { centsPerCredit, account });
     if (credits === null) {
       throw new HomeError(409, "The generation door has no price for the model chosen in Settings, so nothing was approved.",
         "Choose another model in Settings, then try again.", "no_price");
@@ -140,10 +142,11 @@ export function rateNow(config) {
 }
 
 // writeBatch(config, { id?, task, slug: "artist", shots: [{ id, kind, model, seconds }], takes, textToVideo, now,
-// centsPerCredit }) -> { id, budget, expiresAt }. `centsPerCredit` is the rate the owner's price was worked out at (the
-// switches file's now when left out). Throws a HomeError (409 folder_unsafe, 409 batch_exists, 409 no_price, 500
+// centsPerCredit, account }) -> { id, budget, expiresAt }. `centsPerCredit` is the rate the owner's price was worked out
+// at (the switches file's now when left out); `account` the Runway account rate it was worked out at, null for the key's
+// prices (lib/doors.mjs accountRateNow now when left out). Throws a HomeError (409 folder_unsafe, 409 batch_exists, 409 no_price, 500
 // batch_not_written) or, for arguments no caller of the home server sends, an Error; nothing is left behind then.
-export function writeBatch(config, { id, task, slug = "artist", shots, takes, textToVideo = false, now = Date.now(), centsPerCredit } = {}) {
+export function writeBatch(config, { id, task, slug = "artist", shots, takes, textToVideo = false, now = Date.now(), centsPerCredit, account } = {}) {
   const at = now instanceof Date ? now.getTime() : now;
   if (!Number.isFinite(at)) throw new Error("writeBatch: now");
   const batchId = id === undefined || id === null ? newBatchId() : id;
@@ -153,7 +156,9 @@ export function writeBatch(config, { id, task, slug = "artist", shots, takes, te
   if (!Number.isInteger(takes) || takes < 1 || takes > MAX_TAKES) throw new Error("writeBatch: takes");
   const rate = centsPerCredit === undefined ? rateNow(config) : centsPerCredit;
   if (!hfRateOk(rate)) throw new Error("writeBatch: centsPerCredit");
-  const made = shotsOf(shots, takes, textToVideo === true, rate);
+  const acct = account === undefined ? accountRateNow(config) : account;
+  if (acct !== null && !rwRateOk(acct)) throw new Error("writeBatch: account");
+  const made = shotsOf(shots, takes, textToVideo === true, rate, acct);
   const dir = batchesFolder(config);
   sweep(dir, at);
   const approvedAt = new Date(at).toISOString();
@@ -256,8 +261,9 @@ export function closeFinishedBatches(config, issues, opts = {}) {
   return closeBatches(config, finished, opts);
 }
 
-// generationNow(config, now) -> { on, key, daily, monthly, models, centsPerCredit, ledgerOk, spentDay, spentMonth,
-// dayLeft, monthLeft, paused } (money in cents; `centsPerCredit` the owner's Higgsfield rate). `on` is false whenever the switches file cannot be used; the spent and left numbers are null
+// generationNow(config, now) -> { on, key, account, daily, monthly, models, centsPerCredit, ledgerOk, spentDay, spentMonth,
+// dayLeft, monthLeft, paused } (money in cents; `centsPerCredit` the owner's Higgsfield rate; `account` the owner's Runway
+// account rate when jobs go by the sign-in, no key saved and signed in, else null: lib/doors.mjs accountRateNow). `on` is false whenever the switches file cannot be used; the spent and left numbers are null
 // when the ledger cannot be read (the door then spends nothing). Never throws.
 export function generationNow(config, now = Date.now()) {
   let state;
@@ -266,6 +272,7 @@ export function generationNow(config, now = Date.now()) {
   const g = state?.generate || { on: false, dailyCredits: 0, monthlyCredits: 0, models: {}, resumedAt: undefined, higgsfield: HF_DEFAULTS };
   let key = false;
   try { key = doorKeySaved(config, "runway") === true; } catch { key = false; }
+  const account = key ? null : accountRateNow(config);
   const resumed = typeof g.resumedAt === "string" ? Date.parse(g.resumedAt) : NaN;
   let totals = null;
   try {
@@ -277,6 +284,7 @@ export function generationNow(config, now = Date.now()) {
   return {
     on: problem === null && g.on === true,
     key,
+    account,
     daily, monthly,
     models: { ...(g.models || {}) },
     centsPerCredit: g.higgsfield && hfRateOk(g.higgsfield.centsPerCredit) ? g.higgsfield.centsPerCredit : HF_DEFAULTS.centsPerCredit,

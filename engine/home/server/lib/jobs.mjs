@@ -12,11 +12,12 @@ import { join } from "node:path";
 import { loadJobFiles, NEEDS } from "../../../company/lib/job-files.mjs";
 import { estimateMinutes, loadCraft, loadTiming } from "../../../company/lib/craft-files.mjs";
 import { DOORS_DEFAULTS, readDoorsState } from "../../../doors/common.mjs";
-import { rowOf } from "../../../generate/registry.mjs";
+import { accountRowFor, rowOf } from "../../../generate/registry.mjs";
 import { readGenState } from "../../../generate/state.mjs";
 import { trusted } from "../../../relay/state.mjs";
 import { loadStarters } from "../../../company/lib/brain-files.mjs";
 import { HomeError } from "./errors.mjs";
+import { accountRateNow, doorAuthOf } from "./doors.mjs";
 import { priceCents } from "./generation.mjs";
 import { httpRequest, parseJson } from "./httpclient.mjs";
 import { plainState } from "./goals.mjs";
@@ -196,12 +197,14 @@ export function chosenRate(config) {
   return gs.ok ? gs.higgsfield.centsPerCredit : 5;
 }
 
-// moneyOf(job, models, { centsPerCredit }) -> null | { kind: "film" | "variations" | "upscale", words, unit, model,
-// ok }: null unless the job needs `generation` and is one of MONEY_JOBS. `unit` is the door's price in US cents for a
-// second of a clip (film, models.video; a 5-second clip's price over 5) or for one picture (models.still,
+// moneyOf(job, models, { centsPerCredit, account }) -> null | { kind: "film" | "variations" | "upscale", words, unit,
+// model, ok, upTo? }: null unless the job needs `generation` and is one of MONEY_JOBS. `unit` is the door's price in US
+// cents for a second of a clip (film, models.video; a 5-second clip's price over 5) or for one picture (models.still,
 // models.upscale), a Higgsfield model's at the owner's rate (`centsPerCredit`), null with no price; `ok` false means
-// the model chosen has no price in the door's table, and the job cannot start. The words are in dollars.
-export function moneyOf(job, models, { centsPerCredit } = {}) {
+// the model chosen has no price in the door's table, and the job cannot start. The words are in dollars. With
+// `account` (the Runway account rate when jobs go by the sign-in, lib/doors.mjs accountRateNow) a Runway model's unit
+// is its account ceiling at that rate, the most it may cost: `upTo: true` is added and the words say "up to" (R5, finding 3).
+export function moneyOf(job, models, { centsPerCredit, account = null } = {}) {
   if (!Array.isArray(job?.needs) || !job.needs.includes("generation")) return null;
   const kind = Object.hasOwn(MONEY_JOBS, jobRef(job)) ? MONEY_JOBS[jobRef(job)] : null;
   if (!kind) return null;
@@ -209,25 +212,31 @@ export function moneyOf(job, models, { centsPerCredit } = {}) {
   if (kind === "film") {
     // A film's clips use models.video, and models.videoBest for shots marked best: both must have a price.
     const model = modelName(m.video);
-    const clip = model ? priceCents({ kind: "image_to_video", model, seconds: 5 }, { centsPerCredit }) : null;
+    const clip = model ? priceCents({ kind: "image_to_video", model, seconds: 5 }, { centsPerCredit, account }) : null;
     const best = modelName(m.videoBest);
-    const ok = clip !== null && best !== null && priceCents({ kind: "image_to_video", model: best, seconds: 5 }, { centsPerCredit }) !== null;
-    return { kind, words: ok ? FILM_WORDS : NO_PRICE_WORDS, unit: ok ? clip / 5 : null, model, ok };
+    const ok = clip !== null && best !== null && priceCents({ kind: "image_to_video", model: best, seconds: 5 }, { centsPerCredit, account }) !== null;
+    return { kind, words: ok ? FILM_WORDS : NO_PRICE_WORDS, unit: ok ? clip / 5 : null, model, ok, ...(ok && byAccount(model, account) ? { upTo: true } : {}) };
   }
   const model = modelName(kind === "variations" ? m.still : m.upscale);
-  const unit = model ? priceCents({ kind: kind === "variations" ? "still_variation" : "still_upscale", model }, { centsPerCredit }) : null;
+  const unit = model ? priceCents({ kind: kind === "variations" ? "still_variation" : "still_upscale", model }, { centsPerCredit, account }) : null;
   if (unit === null) return { kind, words: NO_PRICE_WORDS, unit: null, model, ok: false };
-  const name = rowOf(model)?.words || model;   // the model and its service: "Gen-4 Image on Runway"
+  const upTo = byAccount(model, account);
+  // The model and its service: "Gen-4 Image on Runway", or "Gen-4 Image on your Runway account" by the sign-in.
+  const name = (upTo ? accountRowFor(model)?.words : rowOf(model)?.words) || model;
+  const costs = upTo ? "costs up to" : "costs";
   const words = kind === "variations"
-    ? `Each variation costs ${dollars(unit)} with ${name}; three cost ${dollars(3 * unit)}. `
+    ? `Each variation ${costs} ${dollars(unit)} with ${name}; three cost ${upTo ? "up to " : ""}${dollars(3 * unit)}. `
       + "Pressing Start approves the cost of the number you choose; nothing else is spent."
-    : `A larger still costs ${dollars(unit)} with ${name}. Pressing Start approves this cost; nothing else is spent.`;
-  return { kind, words, unit, model, ok: true };
+    : `A larger still ${costs} ${dollars(unit)} with ${name}. Pressing Start approves this cost; nothing else is spent.`;
+  return { kind, words, unit, model, ok: true, ...(upTo ? { upTo: true } : {}) };
 }
+
+// Whether `model` is priced by the Runway sign-in at `account` (a Runway row, and an account rate).
+const byAccount = (model, account) => Number.isInteger(account) && rowOf(model)?.provider === "runway";
 
 // The `generation` key of jobView: the switches file is read only for a job that needs the door.
 const generationView = (job, config) => (Array.isArray(job?.needs) && job.needs.includes("generation") && Object.hasOwn(MONEY_JOBS, jobRef(job))
-  ? moneyOf(job, chosenModels(config), { centsPerCredit: chosenRate(config) }) : null);
+  ? moneyOf(job, chosenModels(config), { centsPerCredit: chosenRate(config), account: accountRateNow(config) }) : null);
 
 // ---- what is in place, cached 60 seconds per state folder
 const needsCache = new Map(); // state folder -> { at, value: Promise }
@@ -266,8 +275,10 @@ async function doorAnswers(base, path, part) {
 }
 
 // K9: internet, generation and browser, each only while its switch is on (read through the trust rule of
-// engine/relay/state.mjs) and its door answers; generation also needs the Runway key saved (its file is
-// checked, never opened). No switches file, or one that cannot be trusted, means all three are false.
+// engine/relay/state.mjs) and its door answers; generation also needs a way in to Runway: the key saved (its file is
+// checked, never opened) or the door signed in to Runway (its status file, ADR 0021: a batch works with either way
+// in). No switches file, or one that cannot be trusted, means all three are false.
+const runwaySignedIn = (config) => { try { return doorAuthOf(config, "runway").signedIn === true; } catch { return false; } };
 async function doorNeeds(ctx) {
   const off = { internet: false, generation: false, browser: false };
   const paths = ctx.config.paths || {};
@@ -277,7 +288,8 @@ async function doorNeeds(ctx) {
   const urls = ctx.home?.urls || ctx.config.urls || {};
   const [internet, generation, browser] = await Promise.all([
     state.web.on ? doorAnswers(urls.web, "/web/health", "web") : false,
-    state.generate.on && typeof paths.runwayKey === "string" && trusted(paths.runwayKey) ? doorAnswers(urls.generate, "/gen/health", "generate") : false,
+    state.generate.on && ((typeof paths.runwayKey === "string" && trusted(paths.runwayKey)) || runwaySignedIn(ctx.config))
+      ? doorAnswers(urls.generate, "/gen/health", "generate") : false,
     state.viewer.on ? doorAnswers(urls.viewer, "/view/health", "viewer") : false,
   ]);
   return { internet, generation, browser };

@@ -2,6 +2,7 @@
 //   shell          the last answer of GET /api/shell, or null; refreshed every 10 seconds
 //   shellError     an ApiError when /api/shell could not be read
 //   refreshShell   read /api/shell again now (after an action, so counts are right at once)
+//   refreshSetup   read /api/setup again now (after the Setup page skips a step or hides itself)
 //   announce       say one sentence through the aria-live line
 //   openComposer   open the compose dialog, optionally filled: { text, to, planFirst, template }
 //   openPanel      show content in the right-hand work panel: openPanel(content, { title })
@@ -26,6 +27,7 @@ export const AppContext = createContext({
   shell: null,
   shellError: null,
   refreshShell: nothing,
+  refreshSetup: nothing,
   announce: nothing,
   openComposer: nothing,
   openPanel: nothing,

@@ -7,6 +7,11 @@
 // `structuredContent`, else its first text block read as JSON; `isError: true` is a refusal
 // whose text is scrubbed of both tokens and cut to 300 characters; a result that holds a token
 // is refused. The token never appears in what this returns or logs.
+// PLAN-ONBOARD R1: the same client serves the owner's Runway account. `check`, `path`, `tools`
+// and `label` (all optional, Higgsfield's by default) name the service's origin rule, its MCP
+// path, the only tools it may call and its word in log lines. A refusal's parsed result
+// (`refusal`) and, when the result is not JSON, its text (`plain`) are handed back too, guarded
+// for tokens, so the door can read a cost question the service answers as a refusal.
 import { StringDecoder } from "node:string_decoder";
 import { HF_LIMITS, HF_PATHS, NO_SECRETS, TEXT_MAX, checkHfOrigin, hfRequest } from "./higgsfield.mjs";
 
@@ -17,6 +22,7 @@ export const CLIENT_INFO = Object.freeze({ name: "uuu-generation-door", version:
 export const MCP_TOOLS = Object.freeze(["balance", "generate_image", "generate_video", "upscale_image", "media_upload", "media_confirm", "jobs_wait"]);
 const SESSION_RE = /^[\x21-\x7e]{1,200}$/;
 const VERSION_RE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+const PLAIN_MAX = 8000;
 
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 function rawValues(rawHeaders, name) {
@@ -82,8 +88,9 @@ function firstText(content) {
 // that one. `call(name, args)` resolves to { ok: true, result } or { ok: false, why, text, sent,
 // status }: `sent` says the tool call itself went out (its effect is then unknown unless
 // Higgsfield refused it clearly); `status` is the HTTP status when there was one.
-export function createMcpClient({ origin, token, net, limits, log } = {}) {
-  const up = checkHfOrigin(origin);
+export function createMcpClient({ origin, token, net, limits, log, check = checkHfOrigin, path = HF_PATHS.mcp, tools = MCP_TOOLS, label = "higgsfield" } = {}) {
+  const up = check(origin);
+  const allowed = Object.freeze([...tools]);
   if (typeof token !== "function") throw new Error("createMcpClient: token must be a function");
   const lim = { answerBytes: HF_LIMITS.answerBytes, callMs: HF_LIMITS.callMs, ...(limits || {}) };
   let session = null;      // { id (null when the server keeps none), version }
@@ -106,7 +113,7 @@ export function createMcpClient({ origin, token, net, limits, log } = {}) {
     const wantId = Object.hasOwn(message, "id") ? message.id : undefined;
     const sse = wantId === undefined ? null : sseReader(wantId);
     const r = await hfRequest(up, {
-      net, method: "POST", path: HF_PATHS.mcp, headers, body, maxBytes: lim.answerBytes, ms: Math.max(0, deadline - Date.now()), signal,
+      net, method: "POST", path, headers, body, maxBytes: lim.answerBytes, ms: Math.max(0, deadline - Date.now()), signal,
       onChunk: sse ? (chunk, info) => (info.status === 200 && info.type === "text/event-stream" ? sse.push(chunk) : undefined) : undefined,
     });
     if (!r.ok) return r;
@@ -140,7 +147,7 @@ export function createMcpClient({ origin, token, net, limits, log } = {}) {
     if (!n.ok) return n;
     if (n.status < 200 || n.status > 299) return { ok: false, why: n.status === 401 ? "unauthorized" : "status", status: n.status };
     session = s;
-    say("higgsfield session opened");
+    say(`${label} session opened`);
     return { ok: true, session: s };
   }
 
@@ -164,7 +171,6 @@ export function createMcpClient({ origin, token, net, limits, log } = {}) {
     }
     const res = message.result;
     if (!isObj(res)) return fail("no_result", { sent: true, status: 200 });
-    if (res.isError === true) return fail("tool_error", { sent: true, status: 200, text: guard.scrub(textOf(res.content), TEXT_MAX) });
     let out;
     if (isObj(res.structuredContent)) out = res.structuredContent;
     else {
@@ -172,14 +178,21 @@ export function createMcpClient({ origin, token, net, limits, log } = {}) {
       const v = t === null ? undefined : parsed(t);
       if (v !== null && typeof v === "object") out = v;
     }
-    if (out === undefined) return fail("no_result", { sent: true, status: 200 });
-    if (guard.holds(JSON.stringify(out))) return fail("token_in_answer", { sent: true, status: 200 });
+    // A parsed result or a plain text that holds a token is never handed back.
+    const outHolds = out !== undefined && guard.holds(JSON.stringify(out));
+    let plain = out === undefined ? textOf(res.content).slice(0, PLAIN_MAX) : "";
+    if (guard.holds(plain)) plain = "";
+    if (res.isError === true) {
+      return fail("tool_error", { sent: true, status: 200, text: guard.scrub(textOf(res.content), TEXT_MAX), refusal: out === undefined || outHolds ? null : out, plain });
+    }
+    if (out === undefined) return fail("no_result", { sent: true, status: 200, plain });
+    if (outHolds) return fail("token_in_answer", { sent: true, status: 200 });
     return { ok: true, result: out };
   }
 
   return {
     async call(name, args, { signal } = {}) {
-      if (!MCP_TOOLS.includes(name)) return fail("tool_not_allowed");
+      if (!allowed.includes(name)) return fail("tool_not_allowed");
       if (!isObj(args) || asksForFree(args)) return fail("bad_arguments");
       const deadline = Date.now() + lim.callMs;
       let auth = await freshToken();
@@ -208,7 +221,7 @@ export function createMcpClient({ origin, token, net, limits, log } = {}) {
         if (r.status === 404 && s.session.id !== null && !reopened) {
           reopened = true;
           if (session === s.session) session = null;
-          say("higgsfield session lost; opening a new one");
+          say(`${label} session lost; opening a new one`);
           continue;
         }
         if (r.status !== 200) {

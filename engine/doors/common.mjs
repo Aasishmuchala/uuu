@@ -29,6 +29,24 @@ export const DOORS_DEFAULTS = Object.freeze({
   brain: { on: false },
 });
 
+// PLAN-ONBOARD R2 (R-6): the Generation block's `runwayAccount`, what one Runway account credit counts as in US cents,
+// whole from 1 to 50, 3 until the owner sets it. It is there only once the owner has saved a rate (the home server's
+// rate route); a file without it reads as the default. There is no switch in it: Generation's own switch covers
+// Runway by key and by sign-in.
+export const RW_ACCOUNT_DEFAULTS = Object.freeze({ centsPerCredit: 3 });
+export const RW_RATE_MIN = 1;
+export const RW_RATE_MAX = 50;
+export const rwRateOk = (v) => Number.isInteger(v) && v >= RW_RATE_MIN && v <= RW_RATE_MAX;
+
+// The block as the switches file holds it: { centsPerCredit } (missing or null: the default), or null when it has
+// any other key, or a rate that is not a whole number from 1 to 50, so the file is not one the home server writes.
+export function runwayAccountBlock(v) {
+  if (v === undefined || v === null) return { ...RW_ACCOUNT_DEFAULTS };
+  if (!isObject(v) || Object.keys(v).some((k) => k !== "centsPerCredit")) return null;
+  if (v.centsPerCredit !== undefined && !rwRateOk(v.centsPerCredit)) return null;
+  return { centsPerCredit: v.centsPerCredit === undefined ? RW_ACCOUNT_DEFAULTS.centsPerCredit : v.centsPerCredit };
+}
+
 // PLAN-BRAIN B1: blocks that must be exactly their default's keys, each of the default's kind, when they are there
 // at all. A file written before the brain door has no `brain` block: it reads as off and stays trusted. A `brain`
 // block that is null, has another key or lacks `on`, or whose `on` is not a boolean makes the whole file untrusted.

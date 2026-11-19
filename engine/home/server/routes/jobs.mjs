@@ -273,12 +273,12 @@ const noPrice = (ctx) => ctx.fail(409, NO_PRICE_WORDS, "Choose another model in 
 
 // The shots a still job's Start approves and their cost: v1 to vN of `still_variation` with models.still (N the
 // owner's answer to `count`), or u1 of `still_upscale` with models.upscale, priced by the door's own table. The
-// switch, the key, the models, the ledger and the limits are read now, not from the 60-second needs. -> { shots,
-// cost }; throws the refusal (job_not_ready, no_price, ledger_unreadable, over_limit), and nothing is written.
+// switch, the way in (a key, or the Runway sign-in with no key: then a Runway model at its account ceiling, R5 finding 3),
+// the models, the ledger and the limits are read now, not from the 60-second needs. -> { shots, cost, account }; throws the refusal (job_not_ready, no_price, ledger_unreadable, over_limit), and nothing is written.
 function stillCost(ctx, job, kind, record) {
   const gen = generationNow(ctx.config, Date.now());
-  if (!gen.on || !gen.key) throw notReady(ctx, { name: "generation", text: WHY.generation[0], link: { ...WHY.generation[1] } });
-  const money = moneyOf(job, gen.models, { centsPerCredit: gen.centsPerCredit });
+  if (!gen.on || (!gen.key && !Number.isInteger(gen.account))) throw notReady(ctx, { name: "generation", text: WHY.generation[0], link: { ...WHY.generation[1] } });
+  const money = moneyOf(job, gen.models, { centsPerCredit: gen.centsPerCredit, account: gen.account });
   if (!money || !money.ok) throw noPrice(ctx);
   let count = 1;
   if (kind === "variations") {
@@ -299,7 +299,7 @@ function stillCost(ctx, job, kind, record) {
     throw ctx.fail(409, `This costs more than is left of this month's limit (${dollars(gen.monthLeft)}). Raise it in Settings, or start it next month.`,
       "Open Settings, then start the job.", "over_limit");
   }
-  return { shots, cost };
+  return { shots, cost, account: gen.account };
 }
 
 // The batch for a still job's new task: one take a shot, its budget the door's prices (lib/batches.mjs works it out
@@ -308,7 +308,7 @@ function stillCost(ctx, job, kind, record) {
 async function writeStillBatch(ctx, ref, created, id, still) {
   try {
     if (!created || typeof created.id !== "string") throw new Error("the board gave no task id");
-    const written = writeBatch(ctx.config, { id, task: created.id, slug: "artist", shots: still.shots, takes: 1, textToVideo: false });
+    const written = writeBatch(ctx.config, { id, task: created.id, slug: "artist", shots: still.shots, takes: 1, textToVideo: false, account: still.account });
     if (written.budget !== still.cost) {
       removeBatch(ctx.config, written.id);
       throw new Error("the batch's budget is not the cost checked");

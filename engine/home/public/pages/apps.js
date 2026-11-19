@@ -33,7 +33,7 @@ export const WORDS = {
   noApps: "No apps are on this Mac yet.",
   restart: "This page appears after the home screen is restarted: engine stop, then engine start.",
   noApp: "App Studio has no app by that name.",
-  noProvider: "Add a Runway key or sign in to Higgsfield in Settings first.",
+  noProvider: "Add a Runway key, or sign in to Runway or Higgsfield, in Settings first.",
   tryAgain: "Turn it off, then on, to try again.",
   late: "It is taking longer than a minute to start.",
   checkAgain: "Check again",

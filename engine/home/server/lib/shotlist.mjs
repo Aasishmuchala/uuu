@@ -215,8 +215,11 @@ const modelName = (m) => (typeof m === "string" && /^[A-Za-z0-9._-]{1,80}$/.test
 // `models.video`; each is priced as the door prices it, a Higgsfield model at the owner's rate (`centsPerCredit`, the
 // switches file's); `most` holds one retake a shot (two takes). `services` is each service the shots go to, with the
 // clips and the most it may charge for them: [{ service: "runway" | "higgsfield", clips, base, most }], Runway first.
-// `table` (tests only) is rows used instead of the door's. Pure; never throws.
-export function priceShotlist(shotlist, models, { centsPerCredit, table } = {}) {
+// `table` (tests only) is rows used instead of the door's. `account` is the owner's Runway account rate when jobs go
+// by the sign-in (lib/doors.mjs accountRateNow), else null: then a Runway model is priced at its account row's ceiling
+// at that rate (priceCents), `upTo` is true (the cost is the most it may be, not a price, and the words say "up to")
+// and `account` is kept for the batch. Pure; never throws.
+export function priceShotlist(shotlist, models, { centsPerCredit, table, account = null } = {}) {
   const no = (problem) => ({ ok: false, shots: [], base: 0, most: 0, problem, services: [] });
   try {
     if (!isObject(shotlist) || !Array.isArray(shotlist.shots) || !shotlist.shots.length) return no("There is no shotlist to price.");
@@ -224,21 +227,24 @@ export function priceShotlist(shotlist, models, { centsPerCredit, table } = {}) 
     const shots = [];
     const by = new Map(Object.keys(SERVICE_NAMES).map((k) => [k, { service: k, clips: 0, base: 0, most: 0 }]));
     let base = 0;
+    let upTo = false;
     for (const s of shotlist.shots) {
       const model = s.best === true || s.kind === "text_to_video" ? m.videoBest : m.video;
-      const credits = VIDEO.includes(s.kind) ? priceCents({ kind: s.kind, model, seconds: s.seconds }, { centsPerCredit, table }) : null;
+      const credits = VIDEO.includes(s.kind) ? priceCents({ kind: s.kind, model, seconds: s.seconds }, { centsPerCredit, table, account }) : null;
       if (credits === null) return no(`The door has no price for ${modelName(model)}, the model chosen in Settings.`);
-      if (!ratioOk(model, shotlist.ratio, { table })) return no(`The model chosen in Settings, ${modelName(model)}, cannot make the ratio ${RATIOS.includes(shotlist.ratio) ? shotlist.ratio : "asked for"}.`);
+      if (!ratioOk(model, shotlist.ratio, { table, account, kind: s.kind })) return no(`The model chosen in Settings, ${modelName(model)}, cannot make the ratio ${RATIOS.includes(shotlist.ratio) ? shotlist.ratio : "asked for"}.`);
       shots.push({ id: s.id, kind: s.kind, model, seconds: s.seconds, credits });
       base += credits;
-      const one = by.get(providerOf(model, { table })) || by.get("runway");
+      const provider = providerOf(model, { table });
+      if (provider === "runway" && Number.isInteger(account)) upTo = true;
+      const one = by.get(provider) || by.get("runway");
       one.clips += 1;
       one.base += credits;
       one.most += TAKES * credits;
     }
     return {
       ok: true, shots, base, most: TAKES * base, problem: null, centsPerCredit: Number.isInteger(centsPerCredit) ? centsPerCredit : undefined,
-      services: [...by.values()].filter((x) => x.clips > 0),
+      services: [...by.values()].filter((x) => x.clips > 0), account: upTo ? account : null, upTo,
     };
   } catch {
     return no("The shotlist could not be priced.");
@@ -282,7 +288,8 @@ export function costWords(priced, { daily = null, dayLeft = null, monthLeft = nu
   const seconds = shots.reduce((t, s) => t + (Number.isInteger(s.seconds) ? s.seconds : 0), 0);
   const base = Number.isFinite(priced?.base) ? priced.base : 0;
   const most = Number.isFinite(priced?.most) ? priced.most : 0;
-  let out = `${n} ${n === 1 ? "clip" : "clips"}, ${seconds} seconds: about ${dollars(base)}, up to ${dollars(most)} with one retake${n === 1 ? "" : " each"}.`;
+  // By the Runway sign-in a clip's cost is the most it may be, never a price: "up to" both times.
+  let out = `${n} ${n === 1 ? "clip" : "clips"}, ${seconds} seconds: ${priced?.upTo === true ? "up to" : "about"} ${dollars(base)}, up to ${dollars(most)} with one retake${n === 1 ? "" : " each"}.`;
   if (Number.isFinite(daily)) out += ` Today's limit: ${dollars(daily)}.`;
   if (Number.isFinite(dayLeft) && base <= dayLeft && most > dayLeft) out += " Retakes may stop at today's limit.";
   else if (Number.isFinite(monthLeft) && base <= monthLeft && most > monthLeft) out += " Retakes may stop at this month's limit.";
@@ -293,6 +300,12 @@ export function costWords(priced, { daily = null, dayLeft = null, monthLeft = nu
 // when it is not priced.
 export function aboutWords(priced) {
   if (priced?.ok !== true || !Number.isFinite(priced.base)) return null;
+  // By the Runway sign-in: "up to $4.50, up to $9.00 with retakes" (both are the most, never a price).
+  if (priced.upTo === true) {
+    return Number.isFinite(priced.most) && priced.most > priced.base
+      ? `up to ${dollars(priced.base)}, up to ${dollars(priced.most)} with retakes`
+      : `up to ${dollars(priced.base)}`;
+  }
   return Number.isFinite(priced.most) && priced.most > priced.base
     ? `about ${dollars(priced.base)}, up to ${dollars(priced.most)}`
     : `about ${dollars(priced.base)}`;

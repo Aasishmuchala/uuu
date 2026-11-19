@@ -100,7 +100,7 @@ test("the view fits shapes/generation.json with no switches file, no key and no 
     assert.equal(v.on, false);
     assert.deepEqual(v.key, { saved: false });
     assert.deepEqual(v.door, { state: "on", sentence: "The generation door is running." });
-    assert.deepEqual([v.canSwitchOn, v.blockers, v.whyNot], [false, ["no_key"], "Paste your Runway key first."]);
+    assert.deepEqual([v.canSwitchOn, v.blockers, v.whyNot], [false, ["no_key"], "Save a Runway key or sign in to Runway first."]);
     assert.deepEqual(v.caps, { daily: 300, monthly: 1000 });
     assert.deepEqual(v.models, MODELS);
     assert.deepEqual(v.spent, { ok: true, day: 0, month: 0, dayLeft: 300, monthLeft: 1000, running: 0 });

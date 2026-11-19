@@ -10,7 +10,7 @@ import {
 import { join } from "node:path";
 import { readDoorsState } from "../doors/common.mjs";
 import { APP_NAME_RE } from "./ledger.mjs";
-import { DEFAULT_CENTS_PER_CREDIT } from "./registry.mjs";
+import { DEFAULT_ACCOUNT_CENTS_PER_CREDIT, DEFAULT_CENTS_PER_CREDIT } from "./registry.mjs";
 import { KEY_RE, KINDS, MAX_SECONDS, MIN_SECONDS, VIDEO_KINDS } from "./runway.mjs";
 
 const MB = 1024 * 1024;
@@ -104,6 +104,15 @@ export function readGenState(path, now = Date.now()) {
     higgsfield.on = h.on === true;
     if (h.centsPerCredit !== undefined) higgsfield.centsPerCredit = h.centsPerCredit;
   }
+  // PLAN-ONBOARD R1: what one credit of the owner's Runway account counts as in cents (default 3),
+  // with the same strictness. No switch here: `generate.on` covers Runway by key and by sign-in.
+  const runwayAccount = { centsPerCredit: DEFAULT_ACCOUNT_CENTS_PER_CREDIT };
+  const ra = raw && raw.generate && typeof raw.generate === "object" ? raw.generate.runwayAccount : undefined;
+  if (ra !== undefined && ra !== null) {
+    if (typeof ra !== "object" || Array.isArray(ra) || Object.keys(ra).some((k) => k !== "centsPerCredit")) return { ok: false };
+    if (ra.centsPerCredit !== undefined && !(Number.isInteger(ra.centsPerCredit) && ra.centsPerCredit >= 1 && ra.centsPerCredit <= 50)) return { ok: false };
+    if (ra.centsPerCredit !== undefined) runwayAccount.centsPerCredit = ra.centsPerCredit;
+  }
   return {
     ok: true,
     on: g.on === true,
@@ -114,6 +123,7 @@ export function readGenState(path, now = Date.now()) {
     models: { ...g.models },
     resumedAt,
     higgsfield,
+    runwayAccount,
   };
 }
 
@@ -124,6 +134,11 @@ export function readRunwayKey(path) {
   const k = b.toString("utf8").trim();
   return KEY_RE.test(k) ? k : null;
 }
+
+// Whether no Runway key file is there at all (PLAN-ONBOARD R1, review B). Only then may the
+// owner's Runway account be used: a file that is there but is not a usable key (readRunwayKey's
+// null) is no way in to Runway, never the sign-in.
+export const runwayKeyMissing = (path) => readTrustedBytes(path, 4096) === "missing";
 
 // ---- the owner's batches ------------------------------------------------------------------
 

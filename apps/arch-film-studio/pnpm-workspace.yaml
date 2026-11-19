@@ -1,0 +1,11 @@
+packages:
+  - '.'
+overrides:
+  hono: '4.12.28'
+  baseline-browser-mapping: '2.10.31'
+  electron-to-chromium: '1.5.360'
+  node-releases: '2.0.44'
+  browserslist: '4.28.4'
+  caniuse-lite: '1.0.30001799'
+  nanoid: '3.3.15'
+  postcss: '8.5.16'

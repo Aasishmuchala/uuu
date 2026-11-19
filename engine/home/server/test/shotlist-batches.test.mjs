@@ -201,3 +201,26 @@ test("generationNow: off with no file; on with a key; caps, models and what the 
     assert.equal(generationNow(config, now).on, false, "a switches file that cannot be used is off");
   });
 });
+
+// R5, finding 3: by the Runway sign-in (no key saved, the door's status file signed in) a Runway shot is budgeted at its
+// account row's ceiling at the owner's account rate, the most the door holds for it; with a key, the key's prices.
+test("generationNow's account and writeBatch's budget follow the way in: the key's prices, or the account ceiling at the rate", () => {
+  withState(({ config }) => {
+    config.paths.generateStatus = join(config.paths.doors, "generate-status.json");
+    const now = Date.parse("2026-11-13T10:00:00Z");
+    assert.equal(generationNow(config).account, null, "neither a key nor a sign-in");
+    mkdirSync(config.paths.doors, { recursive: true, mode: 0o700 });
+    writeFileSync(config.paths.generateStatus, JSON.stringify({ runway: { signedIn: true, refused: false } }), { mode: 0o600 });
+    assert.equal(generationNow(config).account, 3, "signed in, no key: the account rate (3 by default)");
+    updateDoors(config, (s) => { s.generate.runwayAccount = { centsPerCredit: 4 }; });
+    assert.equal(generationNow(config).account, 4);
+    // gen4_turbo 5 s: 50 credits; gen4.5 5 s: 150; gen4_turbo 10 s: 100: 300 credits at 4 cents, two takes.
+    const by = writeBatch(config, { task: TASK, shots: FILM_SHOTS, takes: 2, now });
+    assert.equal(by.budget, 2 * 300 * 4);
+    assert.equal(writeBatch(config, { task: TASK, shots: FILM_SHOTS, takes: 2, now, account: null }).budget, 2 * (25 + 60 + 50), "account null: the key's prices");
+    assert.throws(() => writeBatch(config, { task: TASK, shots: FILM_SHOTS, takes: 2, now, account: 51 }), /writeBatch: account/);
+    saveDoorKey(config, "runway", `key_${"0a1b2c3d".repeat(16)}`);
+    assert.equal(generationNow(config).account, null, "a key saved: the key first");
+    assert.equal(writeBatch(config, { task: TASK, shots: FILM_SHOTS, takes: 2, now }).budget, 2 * (25 + 60 + 50));
+  });
+});

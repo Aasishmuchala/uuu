@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "slug": "arch-film-studio",
+  "name": "Arch Film Studio",
+  "about": "Turn architectural renders into photoreal 4K stills, a storyboard and a film.",
+  "port": 3172,
+  "entry": ".build/index.mjs",
+  "client": "dist",
+  "engine": ["generate", "relay"],
+  "tools": ["ffmpeg", "ffprobe"],
+  "icon": "icon.svg",
+  "memoryMb": 2048
+}

@@ -308,6 +308,10 @@ _Avoid_: Higgs, HF
 The number in Settings that says what one Higgsfield credit costs, from 1 to 50 cents. It starts at 5. Every price the owner reads is in dollars, worked out with it.
 _Avoid_: Exchange rate, conversion
 
+**Runway account credit**:
+The unit the owner's own Runway account spends when the generation door goes by his Runway sign-in (no key saved). It is not a Runway developer credit. Settings says what one counts as, from 1 to 50 cents; it starts at 3. No price table exists for it: each model has a ceiling in these credits, the most the door holds for one job, and the owner reads that ceiling in dollars as "up to". Runway's own quote is checked against it before the door agrees, and until a real quote confirms how the door reads one, a job counts at its ceiling.
+_Avoid_: Runway credit (that is the developer unit, one cent), token
+
 **Model table**:
 The door's list of every model it will pay for, from Runway and Higgsfield, with what each can do and its price. A price always comes from the table. A model with no price in it is refused, and nothing is spent.
 _Avoid_: Price list, catalogue

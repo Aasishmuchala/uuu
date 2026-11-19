@@ -18,7 +18,7 @@
   },
   "doors": {
     "web": { "agents": ["researcher"] },
-    "generate": { "agents": ["artist"], "apps": ["render-to-film"] },
+    "generate": { "agents": ["artist"], "apps": ["render-to-film", "arch-film-studio"] },
     "viewer": { "agents": ["builder", "art-director"] },
     "brain": { "agents": ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter", "artist", "art-director"],
       "records": ["chief-of-staff", "builder", "checker", "bookkeeper", "sales", "support", "people", "marketer", "drafter"] }

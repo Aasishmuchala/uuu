@@ -9,7 +9,7 @@ import { lstatSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readManifests } from "../../../apps/manifest.mjs";
 import { dayOf, extrasByJob, readLedger, summarize, totalsOf } from "../../../generate/ledger.mjs";
-import { DEFAULT_CENTS_PER_CREDIT, ROWS, estimateCents, rowOf } from "../../../generate/registry.mjs";
+import { DEFAULT_CENTS_PER_CREDIT, ROWS, accountRatio, accountRowFor, ceilingUnits, estimateCents, rowOf } from "../../../generate/registry.mjs";
 import { KINDS, MAX_SECONDS, MIN_SECONDS, PRICES, VIDEO_KINDS, ratioFits } from "../../../generate/runway.mjs";
 import { BATCH_DAYS, ID_RE, MAX_TAKES, SHOT_RE, trustedFolder } from "../../../generate/state.mjs";
 import { readTrustedText } from "./doors.mjs";
@@ -72,10 +72,18 @@ export function topSize(row) {
 // The price in cents of one job the Artist may be approved for, as the door prices it (engine/generate/door.mjs
 // agentPrice): step 3's five Runway models (runway.mjs PRICES) as they are, a Higgsfield row at its largest size and at
 // the owner's rate; null for any other model, or when the door has no price (then nothing is approved).
-// item: { kind, model, seconds }; opts: { centsPerCredit (the state's rate), table (tests only: rows used instead) }.
-export function priceCents({ kind, model, seconds } = {}, { centsPerCredit = DEFAULT_CENTS_PER_CREDIT, table } = {}) {
+// item: { kind, model, seconds }; opts: { centsPerCredit (the state's rate), table (tests only: rows used instead),
+// account (the owner's Runway account rate when jobs go by the sign-in, lib/doors.mjs accountRateNow; else null) }.
+// With `account`, a Runway model is priced as the door holds its job by the sign-in: its account row's ceiling in
+// account credits at that rate, rounded up, the most it may cost and never a price (R5, finding 3); null when the
+// model has no account row or no ceiling, so nothing is approved.
+export function priceCents({ kind, model, seconds } = {}, { centsPerCredit = DEFAULT_CENTS_PER_CREDIT, table, account = null } = {}) {
   const row = rowIn(model, table);
   if (row === null) return null;
+  if (row.provider === "runway" && rateOk(account)) {
+    const units = ceilingUnits(accountRowFor(model), { kind, seconds: VIDEO_KINDS.includes(kind) ? seconds : undefined });
+    return units === null ? null : Math.ceil(Math.round(units * account * 1e6) / 1e6);
+  }
   if (row.provider === "runway" && !Object.hasOwn(PRICES, model)) return null;
   const item = { kind, model, seconds: VIDEO_KINDS.includes(kind) ? seconds : undefined, resolution: row.provider === "higgsfield" ? topSize(row) : undefined };
   return estimateCents(item, { centsPerCredit, table });
@@ -83,9 +91,12 @@ export function priceCents({ kind, model, seconds } = {}, { centsPerCredit = DEF
 
 // Whether a model makes a film's ratio as the door takes it: step 3's Runway rows by runway.mjs's list; a Higgsfield
 // row as it is or by its lowest terms ("1280:720" is "16:9", engine/generate/door.mjs rowRatio).
-export function ratioOk(model, ratio, { table } = {}) {
+// With `account` (as priceCents takes it) and a shot's `kind`, a Runway model's ratio is its account row's for that kind
+// (Gen-4.5 from words alone takes 16:9 only).
+export function ratioOk(model, ratio, { table, account = null, kind } = {}) {
   const row = rowIn(model, table);
   if (row === null || typeof ratio !== "string") return false;
+  if (row.provider === "runway" && rateOk(account)) return accountRatio(accountRowFor(model), ratio, kind) !== null;
   if (row.provider === "runway") return ratioFits(model, ratio);
   if (row.ratios === null || row.ratios.includes(ratio)) return true;
   const m = /^([0-9]{1,5}):([0-9]{1,5})$/.exec(ratio);

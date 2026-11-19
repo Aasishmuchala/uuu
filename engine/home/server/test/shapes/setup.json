@@ -1,0 +1,168 @@
+{
+  "open": true,
+  "show": true,
+  "dismissed": false,
+  "finished": false,
+  "mode": "plans",
+  "counts": { "done": 1, "skipped": 0, "total": 6 },
+  "later": { "done": 0, "total": 8 },
+  "groups": [
+    { "id": "start", "title": "Needed to start", "say": "Do these and the engine can do real work for you." },
+    { "id": "later", "title": "When you want it", "say": "Each of these is off until you choose it. Each line says what it opens up and what it costs or sends off this Mac." },
+    { "id": "notyet", "title": "Not possible yet", "say": "These cannot be set up yet. Nothing can be published or sent from here until they exist." }
+  ],
+  "steps": [
+    {
+      "id": "models", "title": "Models", "group": "start", "state": "todo", "canSkip": false, "skipped": false,
+      "line": "Plans mode is on, but the Claude agents have no login of their own yet.",
+      "why": "Your agents think with these. Plans mode uses your Claude and Codex plans; Omega Plus is a paid service you can switch on in Settings instead.",
+      "opens": null, "costs": [],
+      "notes": [],
+      "links": [{ "label": "Open Settings", "href": "#/settings" }],
+      "commands": [{ "lead": "Only you can do this. Open Terminal and run:", "command": "engine/fence/login-wizard.sh" }],
+      "facts": { "mode": "plans", "ready": false }
+    },
+    {
+      "id": "proof", "title": "The fence check", "group": "start", "state": "done", "canSkip": false, "skipped": false,
+      "line": "The fence held at its last check.",
+      "why": "The fence is what keeps agents away from the internet, your files and your logins. The proof checks that it holds.",
+      "opens": null, "costs": [],
+      "notes": [],
+      "links": [{ "label": "Open Health", "href": "#/health" }],
+      "commands": [],
+      "facts": { "result": "holds", "at": "2026-11-18T09:00:00.000Z" }
+    },
+    {
+      "id": "basics", "title": "Company basics", "group": "start", "state": "todo", "canSkip": true, "skipped": false,
+      "line": "2 of 9 basics filled.",
+      "why": "Every agent reads these before it works, so what it makes sounds like your company. Filling them takes about 20 minutes.",
+      "opens": null, "costs": [],
+      "notes": ["Still to fill: What we never say, What we sell, Terms, Refunds, Our support promise, Team and Ideal customer."],
+      "links": [{ "label": "Open Files", "href": "#/files" }],
+      "commands": [],
+      "facts": { "filled": 2, "total": 9, "missing": ["What we never say"] }
+    },
+    {
+      "id": "brand", "title": "Brand kit", "group": "start", "state": "todo", "canSkip": true, "skipped": false,
+      "line": "No brand kit yet.",
+      "why": "Your colours, fonts and logo. Posters, pages and apps are made in this look.",
+      "opens": null, "costs": [],
+      "notes": [],
+      "links": [{ "label": "Open the brand kit", "href": "#/files/brand-kit" }],
+      "commands": [],
+      "facts": { "saved": false }
+    },
+    {
+      "id": "books", "title": "The books", "group": "start", "state": "todo", "canSkip": true, "skipped": false,
+      "line": "The books are connected. Your company's details are not in them yet.",
+      "why": "Invoices, customers, support and leave are kept in the books.",
+      "opens": null, "costs": [],
+      "notes": ["Until then invoices say \"Nil-Rated\" even where tax is charged, and leave can be drafted but not made final."],
+      "links": [{ "label": "Open the Books dashboard", "href": "#/dashboards/books" }],
+      "commands": [{ "lead": "Only you can do this. Open Terminal and run:", "command": "engine/books/setup-wizard.sh" }],
+      "facts": { "connection": "on", "company": { "address": true, "holidays": false } }
+    },
+    {
+      "id": "task", "title": "A first real task", "group": "start", "state": "todo", "canSkip": false, "skipped": false,
+      "line": "No task yet.",
+      "why": "Say what you want done in your own words. The Chief of staff hands it out, and the Checker looks at the result before it reaches you.",
+      "opens": null, "costs": [],
+      "notes": [],
+      "links": [{ "label": "Choose a job", "href": "#/jobs" }],
+      "commands": [],
+      "facts": { "count": 0 }
+    },
+    {
+      "id": "checker-login", "title": "The Checker's own login", "group": "later", "state": "todo", "canSkip": false, "skipped": false,
+      "line": "The Checker has no Codex login yet.",
+      "why": null,
+      "opens": "The Checker stops depending on your own login, and the proof's note about it goes away.",
+      "costs": [],
+      "notes": [],
+      "links": [],
+      "commands": [{ "lead": "Only you can do this. Open Terminal and run:", "command": "engine/fence/login-wizard.sh codex" }],
+      "facts": { "checkerLogin": false, "checkerOwnLogin": false }
+    },
+    {
+      "id": "routines", "title": "Routines", "group": "later", "state": "done", "canSkip": false, "skipped": false,
+      "line": "1 of 2 routines are switched on.",
+      "why": null,
+      "opens": "Standing work on a schedule, such as a daily brief each morning and a weekly content plan.",
+      "costs": ["Each run costs one run of that agent on your plan."],
+      "notes": [],
+      "links": [{ "label": "Open Routines", "href": "#/routines" }],
+      "commands": [],
+      "facts": { "on": 1, "total": 2 }
+    },
+    {
+      "id": "web", "title": "The web for the Researcher", "group": "later", "state": "todo", "canSkip": false, "skipped": false,
+      "line": "Off. No agent can reach the internet.",
+      "why": null,
+      "opens": "The Researcher can read public pages, search and watch public videos, and the jobs that need the web can start.",
+      "costs": ["When this is on, the addresses the Researcher opens and the words it searches for leave this Mac."],
+      "notes": [],
+      "links": [{ "label": "Open Settings", "href": "#/settings" }],
+      "commands": [],
+      "facts": { "on": false }
+    },
+    {
+      "id": "viewer", "title": "The page viewer", "group": "later", "state": "todo", "canSkip": false, "skipped": false,
+      "line": "Off. A page job stops until it is switched on.",
+      "why": null,
+      "opens": "The Builder and the Art director can open the pages they build and take pictures, and you see those pictures on the task.",
+      "costs": ["Chrome has to be installed on this Mac. The viewer never touches your own Chrome or its profile."],
+      "notes": [],
+      "links": [{ "label": "Open Settings", "href": "#/settings" }],
+      "commands": [],
+      "facts": { "on": false }
+    },
+    {
+      "id": "generation", "title": "Runway: clips and pictures", "group": "later", "state": "todo", "canSkip": false, "skipped": false,
+      "line": "No Runway key is saved.",
+      "why": null,
+      "opens": "The Artist can turn your renders into short clips, make variations of a picture and make a picture larger.",
+      "costs": ["This costs money beyond your plans. Nothing is spent until you approve a cost."],
+      "notes": ["Most to spend in a day: $3.00. Most to spend in a month: $10.00. A limit of 0 stops all making."],
+      "links": [{ "label": "Open Settings", "href": "#/settings" }],
+      "commands": [],
+      "facts": { "on": false, "keySaved": false, "signedIn": null, "daily": 300, "monthly": 1000 }
+    },
+    {
+      "id": "higgsfield", "title": "Higgsfield", "group": "later", "state": "todo", "canSkip": false, "skipped": false,
+      "line": "Not signed in. Higgsfield is off.",
+      "why": null,
+      "opens": "A few models for pictures and clips that Runway does not have.",
+      "costs": ["It spends inside the same daily and monthly limits as Runway."],
+      "notes": [],
+      "links": [{ "label": "Open Settings", "href": "#/settings" }],
+      "commands": [],
+      "facts": { "on": false, "signedIn": false, "refused": false }
+    },
+    {
+      "id": "apps", "title": "App Studio", "group": "later", "state": "todo", "canSkip": false, "skipped": false,
+      "line": "No app is switched on.",
+      "why": null,
+      "opens": "The apps your company made, opened inside the home screen.",
+      "costs": ["An app cannot spend anything until you say so."],
+      "notes": [],
+      "links": [{ "label": "Open App Studio", "href": "#/apps" }],
+      "commands": [],
+      "facts": { "apps": 1, "on": 0 }
+    },
+    {
+      "id": "brain", "title": "The brain", "group": "later", "state": "todo", "canSkip": false, "skipped": false,
+      "line": "Off. The setup could not ask the books whether Track changes is on for Project and Contact.",
+      "why": null,
+      "opens": "Agents find the right passage in your files and records instead of reading every file whole.",
+      "costs": [],
+      "notes": [],
+      "links": [{ "label": "Open Settings", "href": "#/settings" }],
+      "commands": [],
+      "facts": { "on": false, "trackChanges": { "project": null, "contact": null } }
+    }
+  ],
+  "notYet": [
+    { "id": "publishing", "title": "Publishing posts", "line": "Approved posts and newsletters stay here. Nothing is posted.", "how": "Connect an account to turn this on." }
+  ],
+  "generatedAt": "2026-11-18T09:00:00.000Z"
+}

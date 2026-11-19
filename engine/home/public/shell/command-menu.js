@@ -20,7 +20,7 @@ import { fitWholeRows } from "./queue.js";
 import { TEAM_ICONS } from "./sidenav.js";
 
 // The pages the menu offers, in this order.
-const PAGE_IDS = ["map", "tasks", "dashboards", "files", "apps", "needs-you", "jobs", "team", "routines", "health", "settings"];
+const PAGE_IDS = ["map", "tasks", "dashboards", "files", "apps", "needs-you", "jobs", "team", "routines", "health", "settings", "setup"];
 const PAGES = PAGE_IDS.map((id) => routeById(id));
 const MAX_JOBS = 8;
 // A page's keys: "g" then this letter (the shell's GO table in app-shell.js).

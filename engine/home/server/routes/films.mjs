@@ -191,15 +191,20 @@ function treatmentOf(config, identifier, a) {
 // renders and prompts included). The models are not in the record, so each pair the approved batch used (or, with
 // no batch file, its jobs in the ledger) is tried for ordinary shots and for best ones: a model chosen later in
 // Settings does not count as a change. Nor does a Higgsfield rate the owner changed later (T79): with a Higgsfield model
-// among them, each whole rate from 1 to 50 is tried too.
+// among them, each whole rate from 1 to 50 is tried too. Nor the way in to Runway (R5, finding 3): with a Runway model
+// among them, the key's prices and the account ceiling at each whole account rate from 1 to 50 are tried.
 function sameAsApproved(shotlist, models, hash) {
   const list = [...new Set(models.filter((m) => typeof m === "string"))];
   const rates = list.some((m) => m.startsWith("hf.")) ? Array.from({ length: 50 }, (_, i) => i + 1) : [undefined];
+  const accounts = list.some((m) => !m.startsWith("hf.")) ? [null, ...Array.from({ length: 50 }, (_, i) => i + 1)] : [null];
   for (const video of list) {
     for (const videoBest of list) {
       for (const centsPerCredit of rates) {
-        const priced = priceShotlist(shotlist, { video, videoBest }, { centsPerCredit });
-        if (priced.ok && shotsHash(approvedShots(shotlist, priced)) === hash) return true;
+        for (const account of accounts) {
+          const priced = priceShotlist(shotlist, { video, videoBest }, { centsPerCredit, account });
+          if (priced.ok && shotsHash(approvedShots(shotlist, priced)) === hash) return true;
+          if (account !== null && priced.upTo !== true) break;   // no Runway shot here: the account rate changes nothing
+        }
       }
     }
   }
