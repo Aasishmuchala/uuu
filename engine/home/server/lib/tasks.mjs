@@ -33,18 +33,21 @@ const TURN_STATES = {
   working: { state: "working", plainState: "Being worked on" },
 };
 
-// ---- comments, cached 15 seconds per board and task
-const commentCache = new Map(); // `${board}\n${issueId}` -> { at, value: Promise<comment[]> }
+// ---- comments, cached 15 seconds per board and task, and only while the task is as the issue list says
+// A new comment (and a new status) moves the issue's updatedAt, on the stub board and on Paperclip alike, so a
+// cached read made before the Checker's VERDICT is not used once the list shows the task changed (S-agents-488fa58c).
+const commentCache = new Map(); // `${board}\n${issueId}` -> { at, stamp, value: Promise<comment[]> }
 
-function readComments(ctx, issueId) {
+// stamp: the issue's updatedAt from the issues read in the same request (undefined: the TTL alone decides).
+function readComments(ctx, issueId, stamp) {
   const key = `${ctx.home?.urls?.board || ""}\n${issueId}`;
   const now = Date.now();
   const hit = commentCache.get(key);
-  if (hit && now - hit.at < COMMENT_TTL) return hit.value;
+  if (hit && now - hit.at < COMMENT_TTL && (stamp === undefined || hit.stamp === stamp)) return hit.value;
   const value = ctx.board.get(`/api/issues/${encodeURIComponent(issueId)}/comments`)
     .then((list) => (Array.isArray(list) ? list : []).slice()
       .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))));
-  commentCache.set(key, { at: now, value });
+  commentCache.set(key, { at: now, stamp, value });
   value.catch(() => { if (commentCache.get(key)?.value === value) commentCache.delete(key); });
   if (commentCache.size > COMMENT_CACHE_MAX) {
     for (const [k, v] of commentCache) {
@@ -134,6 +137,7 @@ export async function loadTaskContext(ctx, { withInbox = true, withComments = "o
   ]);
   const roles = loadRoles(ctx.config, { log: ctx.log });
   const goals = goalsOf(issues, ids);
+  const stamps = new Map(issues.map((i) => [i.id, typeof i.updatedAt === "string" ? i.updatedAt : null]));
 
   const liveByIssue = new Map();
   const liveByAgent = new Map();
@@ -180,7 +184,7 @@ export async function loadTaskContext(ctx, { withInbox = true, withComments = "o
     rootOf: rootFinder(issues),
     needsYou: [],
     accepted,
-    commentsOf: (issueId) => readComments(ctx, issueId),
+    commentsOf: (issueId) => readComments(ctx, issueId, stamps.get(issueId)),
     routines: routineMap(boardRoutines, ids, ctx.config),
     stepsOf,
     config: ctx.config,
