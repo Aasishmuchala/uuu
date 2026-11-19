@@ -340,7 +340,7 @@ async function writeComment(ctx, path, goalId, body) {
   } catch (e) {
     if (!(e instanceof HomeError) || e.status < 500) throw e;
     let list = [];
-    try { list = await ctx.board.get(`${path}/comments`); } catch { throw e; }
+    try { list = await ctx.board.get(`${path}/comments`, { held: false }); } catch { throw e; }
     const there = (Array.isArray(list) ? list : []).some((c) => isOwner(c) && String(c.body ?? "").trim() === body.trim()
       && timeOf(c) >= since - 60000);
     if (!there) throw e;

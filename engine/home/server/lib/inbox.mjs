@@ -129,42 +129,64 @@ function dropFailedWhileHeld(items, owners) {
 
 // A listing source has this long to answer (S-faults-1b2b2774): each makes several board or books calls one after
 // another, each with only its client's idle timeout (board 8 s, books 15 s), and every page's shell and content wait
-// for the inbox. Past it the source is listed as not answering, with its part's plain sentence, and its late answer
-// is dropped; what it was doing ends by its own client's timeout. Until it has ended, the source is not asked again:
-// it is listed as not answering at once, so slow reads do not pile up and no page waits for the same slow part twice.
-// A late call that never ends is forgotten after LATE_FORGET_MS. An action's re-read (ctx.acting) is never cut short.
+// for the inbox. Past it the source is listed as not answering, with its part's plain sentence.
+// A list call still running is joined by the next read, never started twice. A late answer is kept (REVIEW-STRESS 2):
+// a source that is slow but works shows its items from the next read on, served at once from what it last answered
+// while a new call runs behind it; a kept answer older than KEPT_MS, or any failed call, is not shown. A call that
+// never ends is let go after KEPT_MS. An action's re-read (ctx.acting) is never cut short and never served kept.
 export const SOURCE_DEADLINE_MS = 4000;
-const LATE_FORGET_MS = 60000;
+const KEPT_MS = 60000;
 const LATE_REASON = {
   bench: "The books are not answering.",
   brain: "Your files could not be read in time.",
 };
 const BOARD_LATE = "The board is not answering.";
-const late = new WeakMap(); // board client -> Map(source id -> { work, at }: its late list call, still running)
+const lists = new WeakMap(); // board client -> Map(source id -> { running, runningAt, kept: { value, at } | null })
 
 function lateError(src) {
   return new HomeError(502, LATE_REASON[src.id] || BOARD_LATE, "Try again in a minute. If it keeps happening, look at Health.", "source_slow");
 }
 
+function listState(key, id) {
+  let m = lists.get(key);
+  if (!m) { m = new Map(); lists.set(key, m); }
+  let st = m.get(id);
+  if (!st) { st = { running: null, runningAt: 0, kept: null }; m.set(id, st); }
+  return st;
+}
+
+// One list call; when it ends, an answer that came after the deadline is kept, one in time clears what was kept.
+function startList(ctx, src, st, ms) {
+  const at = Date.now();
+  const work = Promise.resolve().then(() => src.list(ctx));
+  st.running = work;
+  st.runningAt = at;
+  work.then((value) => {
+    if (st.running === work) st.running = null;
+    st.kept = Date.now() - at >= ms ? { value, at: Date.now() } : null;
+  }, () => {
+    if (st.running === work) st.running = null;
+    st.kept = null;
+  });
+  return work;
+}
+
 function withDeadline(ctx, src, ms) {
   if (ctx.acting || !(ms > 0)) return Promise.resolve().then(() => src.list(ctx));
-  const key = ctx.board || ctx;
-  const running = late.get(key);
-  const stuck = running && running.get(src.id);
-  if (stuck && Date.now() - stuck.at < LATE_FORGET_MS) return Promise.reject(lateError(src));
-  const work = Promise.resolve().then(() => src.list(ctx));
+  const st = listState(ctx.board || ctx, src.id);
+  const now = Date.now();
+  if (st.running && now - st.runningAt >= KEPT_MS) st.running = null;
+  if (st.kept && now - st.kept.at < KEPT_MS) {
+    if (!st.running) startList(ctx, src, st, ms).catch(() => {});
+    return Promise.resolve(st.kept.value);
+  }
+  const work = st.running || startList(ctx, src, st, ms);
   work.catch(() => {}); // a late failure is not an unhandled rejection
+  // A joined call has what is left of its own deadline: one already late is said at once.
+  const left = ms - (now - st.runningAt);
+  if (left <= 0) return Promise.reject(lateError(src));
   let timer = null;
-  const cut = new Promise((resolve, reject) => {
-    timer = setTimeout(() => {
-      let m = late.get(key);
-      if (!m) { m = new Map(); late.set(key, m); }
-      m.set(src.id, { work, at: Date.now() });
-      const done = () => { if (m.get(src.id)?.work === work) m.delete(src.id); };
-      work.then(done, done);
-      reject(lateError(src));
-    }, ms);
-  });
+  const cut = new Promise((resolve, reject) => { timer = setTimeout(() => reject(lateError(src)), left); });
   return Promise.race([work, cut]).finally(() => clearTimeout(timer));
 }
 
@@ -217,7 +239,9 @@ function recordActed(ctx, item, action) {
 export function createActor(sources) {
   const handled = new Map(); // item id -> time, so a second click says "already handled"
 
-  return async function act(ctx, { id, action, note, version, variant }) {
+  return async function act(given, { id, action, note, version, variant }) {
+    // Every board read of an owner's action reaches the board, even while slow reads are held (REVIEW-STRESS 1).
+    const ctx = given.board && typeof given.board.unheld === "function" ? { ...given, board: given.board.unheld() } : given;
     if (typeof id !== "string" || !id || typeof action !== "string" || !action) {
       throw new HomeError(400, "The home screen did not say which item and which action.", "Refresh the page and try again.", "bad_request");
     }

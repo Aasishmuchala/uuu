@@ -485,7 +485,7 @@ async function list(ctx) {
 // After a write whose answer did not arrive: true when the board shows the interaction resolved as asked.
 async function landed(ctx, issueId, interactionId, states) {
   try {
-    const list = await ctx.board.get(`/api/issues/${encodeURIComponent(issueId)}/interactions`);
+    const list = await ctx.board.get(`/api/issues/${encodeURIComponent(issueId)}/interactions`, { held: false });
     const r = (Array.isArray(list) ? list : []).find((x) => x && x.id === interactionId);
     return Boolean(r && states.includes(r.status));
   } catch {
@@ -496,7 +496,7 @@ async function landed(ctx, issueId, interactionId, states) {
 // After a comment whose answer did not arrive: true when the owner's comment with this text is on the task.
 async function commentLanded(ctx, issueId, body, since) {
   try {
-    const list = await ctx.board.get(`/api/issues/${encodeURIComponent(issueId)}/comments`);
+    const list = await ctx.board.get(`/api/issues/${encodeURIComponent(issueId)}/comments`, { held: false });
     return (Array.isArray(list) ? list : []).some((c) => c && !c.authorAgentId && String(c.body ?? "").trim() === String(body).trim()
       && (Date.parse(c.createdAt) || 0) >= since - 60000);
   } catch {

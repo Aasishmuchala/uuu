@@ -29,7 +29,7 @@ test("the deadline is about 4 s", () => {
   assert.equal(SOURCE_DEADLINE_MS, 4000);
 });
 
-test("a source that never answers is said within the deadline; its late answer is dropped; it is not asked again meanwhile", async () => {
+test("a source that never answers is said within the deadline; it is not asked again meanwhile; its late answer is shown next", async () => {
   const ctx = { board: {}, log() {} };
   const { list, calls, release } = sources();
   const t = Date.now();
@@ -144,4 +144,119 @@ test("the board client: after a read times out, reads fail at once for holdMs; w
     server.closeAllConnections();
     await new Promise((r) => server.close(r));
   }
+});
+
+test("a source that always answers in 1.5 times the deadline shows its item from the second read on (REVIEW-STRESS 2)", async () => {
+  const ctx = { board: {}, log() {} };
+  let calls = 0;
+  const list = [{ id: "bench", async list() { calls += 1; await new Promise((r) => setTimeout(r, 300)); return { items: [item(`bench:money-${calls}`, "books")] }; } }];
+  const first = await mergeInbox(ctx, list, { deadlineMs: 200 });
+  assert.deepEqual(first.items, []);
+  assert.deepEqual(first.notConnected, [{ source: "bench", reason: "The books are not answering." }]);
+  await new Promise((r) => setTimeout(r, 150)); // the late call ends (at 300 ms)
+  for (let n = 2; n <= 4; n++) {
+    const t = Date.now();
+    const out = await mergeInbox(ctx, list, { deadlineMs: 200 });
+    assert.ok(Date.now() - t < 100, `read ${n} served at once`);
+    assert.equal(out.items.length, 1, `read ${n} shows the item`);
+    assert.match(out.items[0].id, /^bench:money-/);
+    assert.deepEqual(out.notConnected, []);
+    await new Promise((r) => setTimeout(r, 350)); // the call behind it ends and is kept
+  }
+  assert.ok(calls >= 4, `one call behind each read (${calls})`);
+  // A failed call clears what was kept: nothing old is shown as if it were whole.
+  list[0].list = async () => { calls += 1; await new Promise((r) => setTimeout(r, 300)); throw new Error("down"); };
+  await mergeInbox(ctx, list, { deadlineMs: 200 }); // served kept, a failing call behind it
+  await new Promise((r) => setTimeout(r, 350));
+  const after = await mergeInbox(ctx, list, { deadlineMs: 200 });
+  assert.deepEqual(after.items, []);
+  assert.equal(after.notConnected.length, 1);
+});
+
+test("a write that lands but times out, with a read held meanwhile: Stop still reports success (REVIEW-STRESS 1)", async () => {
+  const http = await import("node:http");
+  const { createBoard } = await import("../lib/board.mjs");
+  const { stopTask } = await import("../lib/stop.mjs");
+  let status = "in_progress";
+  const server = http.createServer((req, res) => {
+    if (req.method === "PATCH") { req.resume(); req.on("end", () => { status = "cancelled"; }); return; } // lands, never answers
+    if (req.url === "/api/slow") return; // a page's read that times out and holds reads
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ id: "g1", status }));
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const h = await startStubsHome({ port: 0 });
+  try {
+    const board = createBoard({ baseUrl: `http://127.0.0.1:${server.address().port}`, ids: () => null, timeoutMs: 100, writeTimeoutMs: 250, holdMs: 5000 });
+    const slow = board.get("/api/slow").catch((e) => e);
+    const ctx = { board, config: h.config, log() {}, ids: () => ({ companyId: "c1" }) };
+    const out = await stopTask(ctx, "g1", { issues: [{ id: "g1", identifier: "STH-1", status: "in_progress" }] });
+    assert.equal((await slow).code, "board_off", "the page's read timed out");
+    await assert.rejects(board.get("/api/x"), (e) => e.message.includes("running but not answering"), "reads are held");
+    assert.equal(out.message, "Stopped. The task will not go on.");
+    assert.equal(status, "cancelled");
+  } finally {
+    server.closeAllConnections();
+    await new Promise((r) => server.close(r));
+    await h.close();
+  }
+});
+
+test("an owner's action reads the board unheld; a timeout or the hold says running but not answering, a refused board says off (REVIEW-STRESS 1, 3)", async () => {
+  const http = await import("node:http");
+  const { createBoard } = await import("../lib/board.mjs");
+  const { createActor } = await import("../lib/inbox.mjs");
+  const server = http.createServer((req, res) => {
+    if (req.url === "/api/slow") return;
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end("[]");
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const board = createBoard({ baseUrl: `http://127.0.0.1:${server.address().port}`, ids: () => null, timeoutMs: 100, holdMs: 5000 });
+    const slow = await board.get("/api/slow").catch((e) => e);
+    assert.equal(slow.message, "The board is running but not answering, so agents and tasks cannot be reached.");
+    assert.equal(slow.next, "Restart the engine: engine stop, then engine start.");
+    const held = await board.get("/api/list").catch((e) => e);
+    assert.equal(held.message, slow.message, "held: the same words");
+    assert.deepEqual(await board.get("/api/list", { held: false }), []);
+    assert.deepEqual(await board.unheld().get("/api/list"), []);
+    let seen = null;
+    const src = { id: "board", async list(c) { seen = await c.board.get("/api/list"); return { items: [{ ...item("board:1", "board"), actions: [{ id: "go", label: "Go", style: "primary", needsNote: false }] }] }; }, async act() { return { message: "Done." }; } };
+    const act = createActor([src]);
+    const out = await act({ board, log() {}, decisions: null }, { id: "board:1", action: "go" });
+    assert.deepEqual(seen, [], "the action's re-read reached the board while reads were held");
+    assert.equal(out.message, "Done.");
+  } finally {
+    server.closeAllConnections();
+    await new Promise((r) => server.close(r));
+  }
+  const off = createBoard({ baseUrl: "http://127.0.0.1:9", ids: () => null, timeoutMs: 100 });
+  const e = await off.get("/api/x").catch((x) => x);
+  assert.equal(e.message, "The board is switched off, so agents and tasks cannot be reached.");
+});
+
+test("/api/shell says when its Needs-you count is partial (REVIEW-STRESS 2)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "uuu-shell-partial-"));
+  mkdirSync(join(dir, "routes"));
+  mkdirSync(join(dir, "inbox"));
+  symlinkSync(join(SERVER_DIR, "routes", "shell.mjs"), join(dir, "routes", "shell.mjs"));
+  writeFileSync(join(dir, "inbox", "bench.mjs"), "export default { id: 'bench', list: () => new Promise(() => {}), act: async () => ({}) };\n");
+  writeFileSync(join(dir, "inbox", "goals.mjs"), "export default { id: 'goals', list: async () => ({ items: [] }), act: async () => ({}) };\n");
+  const h = await startStubsHome({ port: 0, moduleDirs: [dir] });
+  try {
+    const r = await call(h.url, "GET", "/api/shell");
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.counts.partial, true);
+    assert.deepEqual(r.json.notConnected, [{ source: "bench", reason: "The books are not answering." }]);
+  } finally {
+    await h.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+  const whole = await startStubsHome({ port: 0 });
+  try {
+    const r = await call(whole.url, "GET", "/api/shell");
+    assert.equal(r.json.counts.partial, false);
+    assert.deepEqual(r.json.notConnected, []);
+  } finally { await whole.close(); }
 });

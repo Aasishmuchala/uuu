@@ -37,7 +37,7 @@ async function cancel(ctx, issueId) {
   } catch (e) {
     if (!(e instanceof HomeError) || e.status < 500) throw e;
     let now = null;
-    try { now = await ctx.board.get(path); } catch { throw e; }
+    try { now = await ctx.board.get(path, { held: false }); } catch { throw e; }
     if (now?.status !== "cancelled") throw e;
   }
 }
