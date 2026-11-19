@@ -12,7 +12,8 @@ import { REDIRECTS, ROUTES, findRoute, redirectFor } from "../../home/public/rou
 export const SETTINGS_SECTIONS = ["models", "web", "generation", "viewer", "brain", "later"];
 export const OVERLAYS = [
   { key: "overlay-command", open: "command", hash: "#/tasks" },
-  { key: "overlay-queue", open: "needs", hash: "#/tasks" },
+  // The queue panel is not drawn below 860 px (shell/app-shell.js): the Needs you page is its narrow form.
+  { key: "overlay-queue", open: "needs", hash: "#/tasks", wideOnly: true },
   { key: "overlay-compose", open: "compose", hash: "#/tasks" },
   { key: "overlay-menu", open: "menu", hash: "#/tasks", narrowOnly: true },
 ];
@@ -23,7 +24,7 @@ export const OWNER_PAGE = {
 };
 export const FAULT_PAGES = ["map", "needs-you", "tasks", "health", "settings", "setup", "jobs"];
 export const QUICK_PAGES = ["map", "tasks", "settings"];
-const MISSING = "stress-no-such-id";
+export const MISSING = "stress-no-such-id";
 
 async function get(stage, path) {
   try {
@@ -114,7 +115,7 @@ export async function pagesFor(stage) {
   }
   add({ key: "nomatch", route: null, hash: "#/stress-no-such-page", expect: "notfound" });
   add({ key: "bare", route: ids.setupOpen ? "setup" : "map", hash: "", expect: ids.setupOpen ? "redirect:#/setup" : "bare" });
-  for (const o of OVERLAYS) add({ key: o.key, route: "tasks", hash: o.hash, open: o.open, narrowOnly: !!o.narrowOnly });
+  for (const o of OVERLAYS) add({ key: o.key, route: "tasks", hash: o.hash, open: o.open, narrowOnly: !!o.narrowOnly, wideOnly: !!o.wideOnly });
   return { pages: out, ids };
 }
 

@@ -18,13 +18,22 @@ const ACTIVE = `(() => {
     i, body: false, tag: a.tagName.toLowerCase(), cls: String(a.className || "").slice(0, 60), name: (a.getAttribute("aria-label") || a.innerText || "").replace(/\\s+/g, " ").trim().slice(0, 50),
     inDialog: !!a.closest("[role=dialog]"),
     ring: { outline: cs.outlineStyle + " " + cs.outlineWidth + " " + cs.outlineColor, shadow: cs.boxShadow, border: cs.borderColor, bg: cs.backgroundColor },
+    up: [a.parentElement, a.parentElement && a.parentElement.parentElement, a.parentElement && a.parentElement.parentElement && a.parentElement.parentElement.parentElement]
+      .map((u) => { if (!u) return null; const s = getComputedStyle(u); return s.outlineStyle + " " + s.outlineWidth + " " + s.outlineColor + "|" + s.boxShadow + "|" + s.borderColor; }),
   };
 })()`;
 
 const OPEN_COUNT = `[...document.querySelectorAll("[role=dialog], [role=menu], [role=listbox], dialog[open], .k-drawer__panel")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).length`;
 
-const ringShows = (now, before) => {
+// before: the control as collected before anything had focus ({ ring, up }); a ring on one of its three ancestors
+// (the kit's composer box, money field and dashboard card draw it there, by design) counts.
+const ringShows = (now, beforeCtl) => {
+  const before = beforeCtl && beforeCtl.ring;
   if (!now || !before) return true;
+  // An open combobox (the command menu's field) shows the keyboard's place on its marked row, by design (the shell's
+  // test pins "no ring: the marked row shows the keyboard's place").
+  if (beforeCtl.role === "combobox" && beforeCtl.expanded === "true") return true;
+  if (Array.isArray(now.up) && Array.isArray(beforeCtl.up) && now.up.some((u, k) => u && beforeCtl.up[k] && u !== beforeCtl.up[k])) return true;
   const outline = /^(none|hidden)\b/.test(now.ring.outline) || / 0px /.test(now.ring.outline) ? null : now.ring.outline;
   if (outline && outline !== before.outline) return true;
   if (now.ring.shadow !== "none" && now.ring.shadow !== before.shadow) return true;
@@ -75,11 +84,14 @@ export async function keyboardPage({ tab, stage, page, notes, cell, theme = "lig
     if (first === null) first = id;
     else if (id === first) { wrapped = true; break; }
     order.push(id);
-    if (a.i >= 0 && !seen.has(a.i)) seen.set(a.i, ringShows(a, list[a.i] && list[a.i].ring));
+    if (a.i >= 0 && !seen.has(a.i)) seen.set(a.i, ringShows(a, list[a.i]));
   }
   const res = { controls: list.length, walked: order.length, focused: seen.size, left, wrapped, noRing: [], never: [], trap: false, escape: [], keys: [] };
+  // A page opened with a dialog on it ("?open=") keeps focus inside the dialog, as a modal must: no trap and no
+  // control behind it is "never reached". Escape closing it is the shell's own check (keyboardShell).
+  const modal = !!page.open;
   // A trap: focus neither left the page nor came back round, and kept circling a few places.
-  if (!left && !wrapped && order.length >= max - 1) {
+  if (!modal && !left && !wrapped && order.length >= max - 1) {
     const tail = order.slice(-30);
     if (new Set(tail).size <= 6) {
       res.trap = true;
@@ -95,7 +107,7 @@ export async function keyboardPage({ tab, stage, page, notes, cell, theme = "lig
       notes.note({ ...base, area: "keyboard", check: "no-ring", target: `${c.shell ? "shell" : page.key}: ${c.tag} ${norm(c.cls || c.name, 40)}`, severity: "medium", title: `Focus has no visible ring on ${c.shell ? "the shell" : page.key}`, expected: "a visible change when focused by the keyboard", actual: names.join(", ") });
     }
   }
-  if (left || wrapped) {
+  if (!modal && (left || wrapped)) {
     for (const c of list) {
       if (seen.has(c.i) || c.disabled || c.tabIndex < 0 || c.roving) continue;
       res.never.push(c);

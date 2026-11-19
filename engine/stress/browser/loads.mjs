@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { norm } from "./notes.mjs";
 import { drawnContrast, sleep } from "./recorder.mjs";
-import { urlOf } from "./pages.mjs";
+import { MISSING, urlOf } from "./pages.mjs";
 
 export const newTally = () => ({
   loads: 0, pages: new Set(), exceptions: 0, consoleErrors: 0, consoleWarnings: 0, cspViolations: 0, failedRequests: 0,
@@ -40,6 +40,8 @@ export function judgeWindow({ win, snap, page, cell, notes, tally, phase, plante
   }
   if (!planted) {
     for (const f of win.failed) {
+      // A page opened on an id the dataset lacks (`empty`) is asked to show "not there": its own 404 is the answer.
+      if (page.missingId && f.status === 404 && String(f.url).includes(MISSING)) continue;
       tally.failedRequests += 1;
       const what = f.status ? String(f.status) : f.error || "failed";
       notes.note({ ...base, area, check: "failed-request", target: `${key}: ${f.method || "GET"} ${norm(pathOf(f.url), 70)} ${what}`, severity: f.status >= 500 ? "high" : "medium", title: `A request that failed on ${key}`, expected: "every request answers below 400", actual: `${f.method || "GET"} ${pathOf(f.url)} -> ${what}` });
@@ -113,7 +115,7 @@ export async function loadAndJudge({ tab, stage, page, cell, notes, tally, theme
       const want = page.expect.slice(9);
       if (snap.hash !== want) notes.note({ ...base, area: "page", check: "redirect", target: key, severity: "high", title: `${page.hash || "the bare address"} does not move to ${want}`, expected: want, actual: snap.hash || "(no hash)" });
     }
-    if (page.open && !page.narrowOnly && !snap.overlay) {
+    if (page.open && !page.narrowOnly && !(page.wideOnly && cell.width < 860) && !snap.overlay) {
       notes.note({ ...base, area: "page", check: "overlay", target: key, severity: "high", title: `"?open=${page.open}" did not open its panel`, expected: "the panel is open", actual: "no dialog on screen" });
     }
     if (snap.scrollWidth > snap.innerWidth + 1) {

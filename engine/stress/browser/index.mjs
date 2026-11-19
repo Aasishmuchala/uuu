@@ -141,7 +141,8 @@ export default async function browserSweep(ctx) {
         const cell = { dataset: "normal", theme: "light", width: 1280 };
         const tab = await openTab(browser, { stage, width: 1280, height: 900 });
         try {
-          const own = pick(pages).filter((p) => !p.narrowOnly && p.expect !== "notfound");
+          // A redirect address lands on a page walked and pressed under its own key; doing it again only races the move.
+          const own = pick(pages).filter((p) => !p.narrowOnly && p.expect !== "notfound" && !p.expect.startsWith("redirect:"));
           if (want.includes("keyboard")) {
             const t0 = Date.now();
             const kb = {};
@@ -254,6 +255,7 @@ export default async function browserSweep(ctx) {
     consoleWarnings: tally.consoleWarnings,
     cspViolations: tally.cspViolations,
     failedRequests: tally.failedRequests,
+    upstream5xxAccepted: tally.upstream5xx || 0,
     outsideRequests: tally.outsideRequests,
     dialogs: tally.dialogs,
     faultCells: tally.faultCells,

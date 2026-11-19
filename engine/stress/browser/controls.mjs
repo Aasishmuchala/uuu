@@ -26,7 +26,9 @@ const ALIKE_PRESSED = 3;
 export const COLLECT = `(() => {
   const SEL = ${JSON.stringify(SELECTOR)};
   const vis = (el) => { const r = el.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return false; const cs = getComputedStyle(el); return cs.visibility !== "hidden" && cs.display !== "none" && Number(cs.opacity) > 0.01; };
-  const els = [...document.querySelectorAll(SEL)].filter((el) => vis(el) && !el.closest("[inert], [aria-hidden=true]"));
+  // Inside a closed <details> only its own summary shows (Chrome still gives the hidden content a box).
+  const folded = (el) => { const d = el.closest("details:not([open])"); if (!d) return false; const s = el.closest("summary"); return !(s && s.parentElement === d); };
+  const els = [...document.querySelectorAll(SEL)].filter((el) => vis(el) && !folded(el) && !el.closest("[inert], [aria-hidden=true]"));
   window.__stressEls = els;
   const seen = new Map();
   return els.map((el, i) => {
@@ -44,6 +46,9 @@ export const COLLECT = `(() => {
     let reason = el.getAttribute("title") || "";
     const db = el.getAttribute("aria-describedby");
     if (db) for (const id of db.split(/\\s+/)) { const d = document.getElementById(id); if (d) reason += " " + d.textContent.trim(); }
+    // A disabled switch in a settings row: the row's own words say why ("It can be switched on when these are done",
+    // "None of it is built yet" over the Later rows), on screen beside it.
+    if (disabled && !reason.trim()) { const row = el.closest(".k-rows__row"); const say = row && row.querySelector(".k-say"); const intro = el.closest("main") && el.closest("main").querySelector(".k-page__intro, .p-settings__intro"); reason = ((say && say.innerText) || "") + " " + ((intro && intro.innerText) || ""); }
     const r = el.getBoundingClientRect();
     const shell = !!el.closest(".s-side, .s-top, .s-tabbar, .s-skip") && !el.closest("[role=dialog]");
     const kind = [tag, role, type, cls, href.replace(/[0-9a-f-]{8,}|[A-Za-z0-9_-]{16,}/g, "*").replace(/\\d+/g, "*")].join("|");
@@ -55,6 +60,9 @@ export const COLLECT = `(() => {
       tabIndex: el.tabIndex, inForm: !!el.form || !!el.closest("form"), popup: el.getAttribute("aria-haspopup") || "", expanded: el.getAttribute("aria-expanded"),
       roving: !!el.closest("[role=tablist], [role=radiogroup], [role=menu], [role=listbox], [role=menubar], [role=toolbar], [role=grid]"),
       ring: { outline: cs.outlineStyle + " " + cs.outlineWidth + " " + cs.outlineColor, shadow: cs.boxShadow, border: cs.borderColor, bg: cs.backgroundColor },
+      // The kit draws some rings on the control's box (a composer, a money field, a card): three ancestors' looks.
+      up: [el.parentElement, el.parentElement && el.parentElement.parentElement, el.parentElement && el.parentElement.parentElement && el.parentElement.parentElement.parentElement]
+        .map((u) => { if (!u) return null; const s = getComputedStyle(u); return s.outlineStyle + " " + s.outlineWidth + " " + s.outlineColor + "|" + s.boxShadow + "|" + s.borderColor; }),
     };
   });
 })()`;
@@ -116,6 +124,10 @@ async function measure(tab, act, { waitMs = 1200, index = -1 } = {}) {
     requests, exceptions: win.exceptions.slice(0, 3), longTasks, alive, win, focusMoved, focus: f1,
   };
 }
+
+// The home routes whose 502 says what is behind them failed (B6): on the stage Omega Plus is out of reach and the
+// sign-in fakes start no sign-in.
+const UPSTREAM_ROUTES = /\/api\/(models\/refresh|generation\/(runway|higgsfield)\/begin)(\?|$)/;
 
 function did(o) {
   return o.navigated || o.changed || o.requests.length > 0 || o.focusMoved;
@@ -198,6 +210,10 @@ export async function pressAll({ ctx, tab, stage, page, notes, tally, shellDone,
     if (c.tag === "select") {
       o = await measure(tab, () => tab.eval(`(() => { const el = window.__stressEls[${now.i}]; if (!el) return "gone"; const opts = [...el.options].filter((x) => !x.disabled); const next = opts.find((x) => x.value !== el.value); if (!next) return "one choice"; el.value = next.value; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); return "chose " + next.value; })()`), { index: now.i });
     } else {
+      // A check box or radio's own state is a property, not markup: its flip is the change.
+      const box = c.tag === "input" && (c.type === "checkbox" || c.type === "radio");
+      const checked = () => tab.eval(`(() => { const el = window.__stressEls[${now.i}]; return el ? !!el.checked : null; })()`).catch(() => null);
+      const ck0 = box ? await checked() : null;
       o = await measure(tab, async () => {
         const aim = await tab.eval(AIM(now.i)).catch(() => null);
         if (!aim) return "gone";
@@ -205,12 +221,17 @@ export async function pressAll({ ctx, tab, stage, page, notes, tally, shellDone,
         await tab.eval(`window.__stressEls[${now.i}].click()`).catch(() => {});
         return "clicked by script (covered on screen)";
       }, { index: now.i });
+      if (box) { const ck1 = await checked(); if (ck0 !== null && ck1 !== null && ck0 !== ck1) o.changed = true; }
     }
     r.outcome = { how: o.how, navigated: o.navigated, hash: o.hash, changed: o.changed, requests: o.requests, exceptions: o.exceptions, longTasks: o.longTasks, ms: o.ms };
     dirty = true;
-    judgeWindow({ win: { ...o.win, failed: o.win.failed.filter((f) => f.status >= 500 || f.status === 0) }, snap: null, page, cell, notes, tally, phase: "controls", area: "controls", owner: true });
+    // A 502/503/504 from a home route whose upstream failed (the sign-ins, Omega Plus's list) is the home's house rule,
+    // accepted by the owner (B6, 19 Nov): counted apart in tally.upstream5xx, not a finding.
+    const upstream = (q) => UPSTREAM_ROUTES.test(String(q.path || q.url || "")) && [502, 503, 504].includes(q.status);
+    for (const q of [...o.requests, ...o.win.failed]) if (upstream(q)) tally.upstream5xx = (tally.upstream5xx || 0) + 1;
+    judgeWindow({ win: { ...o.win, failed: o.win.failed.filter((f) => (f.status >= 500 || f.status === 0) && !upstream(f)) }, snap: null, page, cell, notes, tally, phase: "controls", area: "controls", owner: true });
     for (const q of o.requests) {
-      if (q.status >= 500) notes.note({ ...base, area: "controls", check: "control-5xx", target: `${page.key}: ${norm(c.name, 40)} ${q.method} ${norm(q.path, 50)}`, severity: "high", title: `Pressing "${c.name}" on ${page.key} gets a ${q.status}`, expected: "no 5xx", actual: `${q.method} ${q.path} -> ${q.status}` });
+      if (q.status >= 500 && !upstream(q)) notes.note({ ...base, area: "controls", check: "control-5xx", target: `${page.key}: ${norm(c.name, 40)} ${q.method} ${norm(q.path, 50)}`, severity: "high", title: `Pressing "${c.name}" on ${page.key} gets a ${q.status}`, expected: "no 5xx", actual: `${q.method} ${q.path} -> ${q.status}` });
     }
     // A link inside the app must reach a page.
     if (c.tag === "a" && c.href.startsWith("#") && o.navigated) {
