@@ -42,11 +42,12 @@ export function judge(env, r, res, check, target, what) {
   }
   if (res.status >= 500) {
     // A 502/503/504 in the home's error shape is the home saying a part or provider behind it failed (on the stage,
-    // Omega Plus is out of reach and the sign-in fakes do not start a sign-in): one medium finding per route. Any
-    // other 5xx is the home itself failing.
+    // Omega Plus is out of reach and the sign-in fakes do not start a sign-in). The owner accepted these (B6, 19 Nov):
+    // not a finding, counted apart in routes-summary.json `upstream5xx`. Any other 5xx is the home itself failing.
     const upstream = [502, 503, 504].includes(res.status) && homeErrorShape(res.json) && res.json.error.code !== "internal";
     if (upstream) {
-      issue("medium", "upstream-5xx", target, { title: `${target} answered ${res.status} ${res.json.error.code} when what is behind it failed (${what})`, expected: "never 5xx (a 4xx or a 200 that says the part is down)", actual: short(res), files: fileOf(r) });
+      const k = `${target} ${res.status} ${res.json.error.code}`;
+      env.upstream.set(k, (env.upstream.get(k) || 0) + 1);
     } else {
       issue("high", `${check}-5xx`, target, { title: `${target} answered ${res.status} (${what})`, expected: "never 5xx", actual: short(res), files: fileOf(r) });
     }

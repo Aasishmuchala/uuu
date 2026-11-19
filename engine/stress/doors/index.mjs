@@ -1,5 +1,5 @@
 // Sweep `doors` (PLAN-STRESS T5): the gate, the narrow gate, the relay, the web door, the generation door, the page
-// viewer, the App Studio host and the brain door, staged and under load, on the fakes only (fake provider, fake
+// viewer, the App Studio host, the brain door and the remote door's off state, staged and under load, on the fakes only (fake provider, fake
 // internet, fake Runway, Runway MCP and Higgsfield). Each section reads its part's own tests' callers and limits.
 // One stage (base from --base, normal data, the second App Studio host with its test fixture); every section runs
 // even when an earlier one broke, and a section that broke makes the sweep a harness failure (exit 2) at the end.
@@ -10,6 +10,7 @@ import { callersSweep } from "./callers.mjs";
 import { gateSweep } from "./gate.mjs";
 import { generateSweep } from "./generate.mjs";
 import { relaySweep } from "./relay.mjs";
+import { remoteSweep } from "./remote.mjs";
 import { viewerSweep } from "./viewer.mjs";
 import { webSweep } from "./web.mjs";
 import { addAgents, areaOfId, setDoors, writeEvidence } from "./util.mjs";
@@ -22,6 +23,7 @@ const SECTIONS = [
   ["brain", "brain", brainSweep],
   ["viewer", "viewer", viewerSweep],
   ["apps", "apps", appsSweep],
+  ["remote", "remote", remoteSweep],
   // Last: it kills and starts the generation door.
   ["generate", "generate", generateSweep],
 ];

@@ -7,6 +7,8 @@
 //   parts      the gates', relay's, doors', viewer's and App Studio host's routes: methods, sizes, bodies (parts.mjs)
 //   static     escapes, every public file's headers, HEAD and ranges (statics.mjs)
 //   slow       50 silent and 50 dripping connections (slow.mjs)
+//   inbox      Needs you on `large`, timed, after the `normal` stage is closed (inbox-large.mjs)
+//   desk       the seats: a desk, a view, a waiting and an unknown seat on base+2.. (desk.mjs)
 // --quick: ten routes, (a) to (d) only. --only <id>: the part of the sweep that finding came from, recording only it.
 // Writes OUT/pass-<n>/routes.json and routes-summary.json { routes, calls, fiveXX, hangs, p95ByRoute }.
 import { randomBytes } from "node:crypto";
@@ -16,6 +18,8 @@ import { latest } from "../lib/ledger.mjs";
 import { testBodies } from "./bodies.mjs";
 import { bodies as badBodies, keyOf, methods, names, origin, rightCall, sizes } from "./checks.mjs";
 import { changed, digest, makeClient, makeIssue, sleep } from "./common.mjs";
+import { deskPass } from "./desk.mjs";
+import { inboxLarge } from "./inbox-large.mjs";
 import { RACE_NAMES, getLoad, postBurst, races } from "./load.mjs";
 import { partsSweep } from "./parts.mjs";
 import { restartWhileBusy } from "./restart.mjs";
@@ -48,6 +52,8 @@ function onlyPlan(ctx) {
   else if ((m = /^part (\S+)/.exec(t))) { plan.part = m[1]; plan.sections = new Set(["parts"]); }
   else if (t.startsWith("static")) plan.sections = new Set(["static"]);
   else if (t === "slow clients") plan.sections = new Set(["slow"]);
+  else if (t.startsWith("GET /api/inbox") && / on large$/.test(t) || t === "GET /api/shell on large") plan.sections = new Set(["inbox"]);
+  else if (/^(desk|view|seat) /.test(t) || t.startsWith("seat")) plan.sections = new Set(["a", "desk"]);
   else if (t === "outside calls") plan.sections = new Set(["outside"]);
   else plan.sections = new Set(["a", "b", "c", "d"]);
   return plan;
@@ -82,7 +88,7 @@ export default async function routesSweep(ctx) {
   const env = {
     st, hit, stats, port, ids, issue, tag, canary, canaryName, canaryPath, dataset: "normal",
     bodies: testBodies(join(st.engineDir, "home", "server", "test"), table.routes),
-    paths: new Map(), valid: new Map(), worked: new Set(), skipped: [], no405: [], notCovered: [], p95ByRoute: {},
+    paths: new Map(), valid: new Map(), worked: new Set(), upstream: new Map(), skipped: [], no405: [], notCovered: [], p95ByRoute: {},
     log: ctx.log, check: (n = 1) => ctx.check(n), calls: (n = 1) => { stats.calls += n; },
     onlyRace: plan?.race || null, onlyPart: plan?.part || null,
   };
@@ -133,6 +139,7 @@ export default async function routesSweep(ctx) {
   if (want("parts")) await partsSweep(env);
   if (want("static")) await staticSweep(env);
   if (want("slow")) await slowClients(env);
+  if (want("desk")) env.desk = await deskPass(env, plan ? table.routes : routes);
 
   // Any connect from the stage that the guard refused. The home's provider reads to Omega Plus's fixed origin are a
   // known gap of the stage (README), kept in the summary but not a finding.
@@ -144,6 +151,13 @@ export default async function routesSweep(ctx) {
     if (unknown.length) issue("critical", "outside-call", "outside calls", { title: `${unknown.length} outside calls from the stage during the route sweep`, expected: "0", actual: unknown.slice(0, 5).map((c) => `${c.part} ${c.host}:${c.port}`).join(" | "), files: [] });
   }
 
+  // Needs you on large, in its own stage on the same base once this one is closed.
+  let inbox = null;
+  if (want("inbox") && !ctx.quick) {
+    await st.close();
+    inbox = await inboxLarge(ctx, issue);
+  }
+
   const p95ByRoute = {};
   for (const [k, l] of stats.byRoute) {
     const s = [...l].sort((x, y) => x - y);
@@ -153,6 +167,8 @@ export default async function routesSweep(ctx) {
   const summary = {
     at: new Date().toISOString(), quick: ctx.quick, only: ctx.only || null, seconds: Math.round((Date.now() - started) / 1000),
     routes: table.routes.length, swept: routes.length, calls: stats.calls, fiveXX: stats.fiveXX, hangs: stats.hangs,
+    upstream5xx: { accepted: "B6, owner's decision 19 Nov: a 502/503/504 in the home's error shape when what is behind it failed", total: [...env.upstream.values()].reduce((a, b) => a + b, 0), byRoute: Object.fromEntries(env.upstream) },
+    desk: env.desk || null, inboxLarge: inbox,
     validBodies: env.worked.size, restart: env.restart || null, skipped: env.skipped, notCovered: env.notCovered,
     outsideCalls: { known: outside.length - unknown.length, other: unknown.length },
     parts: env.partsTable || null, p95ByRoute,
