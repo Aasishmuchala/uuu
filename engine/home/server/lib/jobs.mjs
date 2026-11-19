@@ -27,6 +27,7 @@ import { loadDepartments } from "./departments.mjs";
 import { loadRoles } from "./team.mjs";
 
 const NEEDS_TTL = 60000;
+const NEEDS_SHORT_TTL = 5000; // a read with the books, quotations or an asked door false: read again soon
 const TASK_OPTIONS = 20;
 const FILE_OPTIONS = 100;
 const HEALTH = { page: "health", id: null };
@@ -36,7 +37,7 @@ const LAST_RUNS = 3;
 
 // The sentences of 31.4, with their links.
 export const WHY = {
-  books: ["The books are switched off.", HEALTH],
+  books: ["The books are off or not answering.", HEALTH],
   quotations: ["The books do not let the Bookkeeper draft quotations yet.", HEALTH],
   "cad-tools": ["The Drafter's tools are not installed yet.", HEALTH],
   "artist-tools": ["The Artist's tools are not installed yet.", HEALTH],
@@ -239,7 +240,8 @@ const generationView = (job, config) => (Array.isArray(job?.needs) && job.needs.
   ? moneyOf(job, chosenModels(config), { centsPerCredit: chosenRate(config), account: accountRateNow(config) }) : null);
 
 // ---- what is in place, cached 60 seconds per state folder
-const needsCache = new Map(); // state folder -> { at, value: Promise }
+const needsCache = new Map(); // state folder -> { at, ttl, value: Promise }
+const askedFalse = new WeakSet(); // door results where a door that was asked did not answer
 
 async function quotationsAllowed(ctx) {
   const out = await ctx.bench.get("/api/resource/Custom DocPerm", {
@@ -292,7 +294,9 @@ async function doorNeeds(ctx) {
       ? doorAnswers(urls.generate, "/gen/health", "generate") : false,
     state.viewer.on ? doorAnswers(urls.viewer, "/view/health", "viewer") : false,
   ]);
-  return { internet, generation, browser };
+  const out = { internet, generation, browser };
+  if ((state.web.on && !internet) || (state.generate.on && !generation) || (state.viewer.on && !browser)) askedFalse.add(out);
+  return out;
 }
 
 async function readNeeds(ctx) {
@@ -307,7 +311,7 @@ async function readNeeds(ctx) {
     try { quotations = await quotationsAllowed(ctx); } catch (e) { if (!(e instanceof HomeError)) throw e; quotations = false; }
   }
   const doors = await doorNeeds(ctx);
-  return {
+  const out = {
     books, quotations,
     "cad-tools": existsSync(ctx.config.paths.cadPython),
     "artist-tools": existsSync(join(state, "art", "venv", "bin", "python")),
@@ -316,17 +320,21 @@ async function readNeeds(ctx) {
     speech: speechInPlace(state),
     ...doors,
   };
+  if (!books || !quotations || askedFalse.has(doors)) askedFalse.add(out);
+  return out;
 }
 
 // needsState(ctx) -> { books, quotations, "cad-tools", "artist-tools", slides, video, speech, internet, generation,
-// browser } (booleans). A books call that fails, or a door that does not answer, means false. Cached 60 seconds.
+// browser } (booleans). A books call that fails, or a door that does not answer, means false. Cached 60 seconds; 5 seconds when the books, quotations or a door that was asked came back false.
 export function needsState(ctx) {
   const key = ctx.config.paths.state;
   const now = Date.now();
   const hit = needsCache.get(key);
-  if (hit && now - hit.at < NEEDS_TTL) return hit.value;
+  if (hit && now - hit.at < hit.ttl) return hit.value;
   const value = readNeeds(ctx);
-  needsCache.set(key, { at: now, value });
+  const entry = { at: now, ttl: NEEDS_TTL, value };
+  needsCache.set(key, entry);
+  value.then((v) => { if (askedFalse.has(v)) { entry.at = Date.now(); entry.ttl = NEEDS_SHORT_TTL; } }, () => {});
   value.catch(() => { if (needsCache.get(key)?.value === value) needsCache.delete(key); });
   if (needsCache.size > 50) for (const k of needsCache.keys()) { needsCache.delete(k); if (needsCache.size <= 25) break; }
   return value;

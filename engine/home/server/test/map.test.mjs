@@ -117,11 +117,11 @@ test("GET /api/map: quotations: false in the bench seed gives the pinned sentenc
   });
 });
 
-test("GET /api/map: with the books not installed, a books job says the books are switched off", async () => {
+test("GET /api/map: with the books not installed, a books job says the books are off or not answering", async () => {
   forgetNeeds();
   await withHome({ benchInstalled: false }, async (home) => {
     const { body } = await get(home, "/api/map");
-    assert.equal(jobOf(body, "books/draft-a-quotation").why.text, "The books are switched off.", "books comes before quotations");
+    assert.equal(jobOf(body, "books/draft-a-quotation").why.text, "The books are off or not answering.", "books comes before quotations");
     assert.equal(jobOf(body, "books/what-customers-owe").why.name, "books");
   });
 });

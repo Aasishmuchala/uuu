@@ -118,6 +118,34 @@ test("needsState: the version 3 seed has the books, quotations and every tool in
   assert.deepEqual(await needsState(makeCtx()), { ...ALL_NEEDS, ...DOORS_OFF });
 });
 
+test("needsState: a read with the books false is read again after 5 s; a full one is kept 60 s (stress S-faults-b7b1579e)", async (t) => {
+  const h3 = await startV2({ benchInstalled: false });
+  const realNow = Date.now;
+  let skew = 0;
+  t.mock.method(Date, "now", () => realNow() + skew);
+  try {
+    forgetNeeds();
+    const down = needsState(makeCtx(h3));
+    assert.equal((await down).books, false);
+    assert.equal(needsState(makeCtx(h3)), down, "kept for now");
+    skew = 4000;
+    assert.equal(needsState(makeCtx(h3)), down, "still kept at 4 s");
+    skew = 6000;
+    assert.notEqual(needsState(makeCtx(h3)), down, "read again after 5 s");
+    forgetNeeds();
+    skew = 0;
+    const full = needsState(makeCtx());
+    assert.equal((await full).books, true);
+    skew = 30000;
+    assert.equal(needsState(makeCtx()), full, "a full one is kept at 30 s");
+    skew = 61000;
+    assert.notEqual(needsState(makeCtx()), full, "and read again after 60 s");
+  } finally {
+    await h3.close();
+    forgetNeeds();
+  }
+});
+
 test("needsState: quotations: false in the bench seed means no quotations; no books means neither", async () => {
   const h2 = await startV2({ benchSeed: benchSeed({ quotations: false }) });
   const h3 = await startV2({ benchInstalled: false });
@@ -167,7 +195,7 @@ test("readiness: account is never ready; internet, generation and browser only a
   assert.equal(readiness(job(["browser", "generation", "account", "internet"]), {}, h.config).why.name, "internet", "the order of NEEDS");
   assert.equal(readiness(job(["browser", "generation"]), {}, h.config).why.name, "generation");
   const sentences = {
-    books: "The books are switched off.", quotations: "The books do not let the Bookkeeper draft quotations yet.",
+    books: "The books are off or not answering.", quotations: "The books do not let the Bookkeeper draft quotations yet.",
     "cad-tools": "The Drafter's tools are not installed yet.", "artist-tools": "The Artist's tools are not installed yet.",
     slides: "The Artist's slide tool is not installed yet.", video: "The Artist's video tool is not installed yet.",
     speech: "The speech model is not in place yet.",
